@@ -1,0 +1,21 @@
+# Foreman worker image — pinned reference toolchain (WSL2/Docker).
+# Model/CLI versions are moving targets: re-verify install commands at build time (spec §11).
+FROM ubuntu:26.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git jq curl ca-certificates python3 python3-pip python3-venv nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Research/graph toolkit (spec §2.4): Scrapling + Graphify available to the worker offline.
+RUN pip3 install --break-system-packages scrapling \
+ && git clone --depth 1 https://github.com/Graphify-Labs/graphify /opt/graphify
+
+# Worker CLIs. Grok Build's package name is beta-era; override at build if it moved:
+#   docker build --build-arg GROK_PKG=<pkg> ...
+ARG GROK_PKG=@xai-org/grok-build
+RUN npm install -g @anthropic-ai/claude-code @openai/codex "$GROK_PKG" || \
+    npm install -g @anthropic-ai/claude-code @openai/codex
+
+RUN useradd -m -s /bin/bash worker
+USER worker
+WORKDIR /workspace
