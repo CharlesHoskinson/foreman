@@ -12,9 +12,9 @@ for f in meta.json hashes.txt checks-result.json audit-verdict.json; do
   [[ -f "$RD/$f" ]] || die "$EXIT_CONFIG" "missing gate input: $RD/$f"
 done
 
-WT="$(jq -r .worktree "$RD/meta.json")"
-ROOT="$(jq -r .repo_root "$RD/meta.json")"
-BASE_SHA="$(jq -r .base_sha "$RD/meta.json")"
+WT="$(jq -er .worktree "$RD/meta.json")" || die "$EXIT_CONFIG" "meta.json is not valid JSON"
+ROOT="$(jq -er .repo_root "$RD/meta.json")" || die "$EXIT_CONFIG" "meta.json is not valid JSON"
+BASE_SHA="$(jq -er .base_sha "$RD/meta.json")" || die "$EXIT_CONFIG" "meta.json is not valid JSON"
 CONFIG="$ROOT/.foreman/config.toml"
 
 REASONS=()
@@ -28,7 +28,8 @@ mapfile -t FORBIDDEN < <(toml_get "$CONFIG" gate.forbidden_paths 'tests/**
 **/package.json
 **/pyproject.toml')
 for g in "${FORBIDDEN[@]}"; do
-  hits="$(git_nohooks -C "$WT" diff --name-only "$BASE_SHA...HEAD" -- ":(glob)$g")"
+  hits="$(git_nohooks -C "$WT" diff --name-only "$BASE_SHA...HEAD" -- ":(glob)$g")" \
+    || die "$EXIT_CONFIG" "git diff failed for glob $g in $WT"
   [[ -n "$hits" ]] && REASONS+=("forbidden path modified ($g): $(echo "$hits" | tr '\n' ' ')")
 done
 
