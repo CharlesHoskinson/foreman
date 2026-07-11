@@ -1,0 +1,16 @@
+[worker]
+vendor = "codex"
+
+[audit]
+vendor = ""
+
+[checks]
+command = "bats tests/"
+
+[limits]
+max_rework_rounds = 3
+round_timeout_min = 30
+
+[gate]
+forbidden_paths = ["tests/**", ".github/**", ".foreman/**", "*.lock", "package-lock.json", "scripts/run_checks*"]
+hash_paths = ["tests/**", ".github/**"]
