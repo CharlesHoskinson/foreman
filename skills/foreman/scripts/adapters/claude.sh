@@ -13,14 +13,17 @@ adapter_worker_cmd() {
 }
 
 adapter_run_audit() {
-  local prompt="$1" out="$2" schema tmp
+  local prompt="$1" out="$2" schema tmp rc=0
   schema="$(dirname "${BASH_SOURCE[0]}")/verdict.schema.json"
   tmp="$(mktemp)"
   claude -p "$(cat "$prompt")" \
     --output-format json \
     --json-schema "$schema" \
-    --disallowedTools "Write,Edit,NotebookEdit,Bash" \
-    > "$tmp"
-  jq '.structured_output' "$tmp" > "$out"
+    --allowedTools "Read,Grep,Glob" \
+    > "$tmp" || rc=$?
+  if [[ $rc -eq 0 ]]; then
+    jq '.structured_output' "$tmp" > "$out" || rc=1
+  fi
   rm -f "$tmp"
+  return "$rc"
 }

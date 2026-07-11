@@ -49,3 +49,45 @@ EOF
     adapter_run_audit "$BATS_TEST_TMPDIR/p.md" "$BATS_TEST_TMPDIR/out.json" )
   jq -e '.verdict=="WARNING"' "$BATS_TEST_TMPDIR/out.json"
 }
+
+@test "claude audit propagates CLI exit status" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat > "$BATS_TEST_TMPDIR/bin/claude" <<'EOF'
+#!/usr/bin/env bash
+exit 7
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/claude"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+  echo "audit this" > "$BATS_TEST_TMPDIR/p.md"
+  run bash -c "source '$ADIR/claude.sh'; adapter_run_audit '$BATS_TEST_TMPDIR/p.md' '$BATS_TEST_TMPDIR/out.json'"
+  [ "$status" -eq 7 ]
+}
+
+@test "grok audit extracts verdict with braces inside finding strings" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat > "$BATS_TEST_TMPDIR/bin/grok" <<'EOF'
+#!/usr/bin/env bash
+echo '{"result":"Here is my verdict:\n{\"verdict\":\"WARNING\",\"findings\":[{\"severity\":\"low\",\"file\":\"a.sh\",\"line\":3,\"summary\":\"shell braces\",\"evidence\":\"if [ x ]; then { echo hi; } fi\"}]}\nDone."}'
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/grok"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+  echo "audit this" > "$BATS_TEST_TMPDIR/p.md"
+  ( source "$ADIR/grok.sh"
+    adapter_run_audit "$BATS_TEST_TMPDIR/p.md" "$BATS_TEST_TMPDIR/out.json" )
+  jq -e '.verdict=="WARNING"' "$BATS_TEST_TMPDIR/out.json"
+  jq -e '.findings[0].evidence=="if [ x ]; then { echo hi; } fi"' "$BATS_TEST_TMPDIR/out.json"
+}
+
+@test "grok audit returns nonzero when no verdict object present" {
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat > "$BATS_TEST_TMPDIR/bin/grok" <<'EOF'
+#!/usr/bin/env bash
+echo '{"result":"I looked at the code and it seems fine, nothing to report."}'
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/grok"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+  echo "audit this" > "$BATS_TEST_TMPDIR/p.md"
+  run bash -c "source '$ADIR/grok.sh'; adapter_run_audit '$BATS_TEST_TMPDIR/p.md' '$BATS_TEST_TMPDIR/out.json'"
+  [ "$status" -ne 0 ]
+  ! jq -e '.verdict' "$BATS_TEST_TMPDIR/out.json" 2>/dev/null
+}
