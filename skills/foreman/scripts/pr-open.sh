@@ -11,22 +11,34 @@ RD="$(run_dir "$TASK_ID")"
   || die "$EXIT_FAIL" "gate has not passed — refusing to open PR"
 require_cmd jq; require_cmd git
 
+# Validate every PR-body input up front, and capture interpolated values in
+# simple-command assignments so a failure trips set -e (substitutions inside
+# a heredoc redirect would fail silently — the observed status is cat's).
+for f in evidence/commits.txt evidence/diff-stat.txt checks-result.json audit-verdict.json meta.json; do
+  [[ -f "$RD/$f" ]] || die "$EXIT_CONFIG" "missing PR input: $RD/$f (run the pipeline first)"
+done
+
 WT="$(jq -r .worktree "$RD/meta.json")"
 BRANCH="$(jq -r .branch "$RD/meta.json")"
+CHECKS_LINE="$(jq -r '.status + " (`" + .command + "`, exit " + (.exit_code|tostring) + ")"' "$RD/checks-result.json")"
+AUDIT_VERDICT="$(jq -r .verdict "$RD/audit-verdict.json")"
+AUDIT_COUNT="$(jq '.findings | length' "$RD/audit-verdict.json")"
+COMMITS="$(cat "$RD/evidence/commits.txt")"
+DIFF_STAT="$(cat "$RD/evidence/diff-stat.txt")"
 
 cat > "$RD/pr-body.md" <<EOF
 ## Foreman evidence summary — task $TASK_ID
 
-- **Independent checks:** $(jq -r '.status + " (`" + .command + "`, exit " + (.exit_code|tostring) + ")"' "$RD/checks-result.json")
-- **Cross-vendor audit:** $(jq -r .verdict "$RD/audit-verdict.json"), $(jq '.findings | length' "$RD/audit-verdict.json") finding(s)
+- **Independent checks:** $CHECKS_LINE
+- **Cross-vendor audit:** $AUDIT_VERDICT, $AUDIT_COUNT finding(s)
 - **Gate:** PASS (forbidden paths clean, protected-file hashes intact)
 - **Commits:**
 \`\`\`
-$(cat "$RD/evidence/commits.txt")
+$COMMITS
 \`\`\`
 - **Diff stat:**
 \`\`\`
-$(cat "$RD/evidence/diff-stat.txt")
+$DIFF_STAT
 \`\`\`
 
 CI remains the final merge authority. Evidence bundle: \`$RD\`

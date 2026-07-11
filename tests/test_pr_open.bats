@@ -34,8 +34,19 @@ EOF
   run "$SCRIPTS/pr-open.sh" T1
   [ "$status" -eq 0 ]
   git -C "$BATS_TEST_TMPDIR/origin.git" show-ref | grep -q "refs/heads/ai/T1"
-  grep -qx -- 'pr' "$BATS_TEST_TMPDIR/gh-argv.txt"
+  head -2 "$BATS_TEST_TMPDIR/gh-argv.txt" | tr '\n' ' ' | grep -q "pr create"
+  grep -qx -- '--head' "$BATS_TEST_TMPDIR/gh-argv.txt"
+  grep -qx -- 'ai/T1' "$BATS_TEST_TMPDIR/gh-argv.txt"
+  grep -qx -- '--body-file' "$BATS_TEST_TMPDIR/gh-argv.txt"
+  grep -q '\[foreman:T1\]' "$BATS_TEST_TMPDIR/gh-argv.txt"
   grep -q "APPROVED" "$RD/pr-body.md"
+}
+
+@test "refuses when evidence bundle is missing" {
+  rm -f "$RD/evidence/commits.txt"
+  run "$SCRIPTS/pr-open.sh" T1
+  [ "$status" -eq 2 ]
+  ! git -C "$BATS_TEST_TMPDIR/origin.git" show-ref | grep -q "refs/heads/ai/T1"
 }
 
 @test "refuses when gate has not passed" {
