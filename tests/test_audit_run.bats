@@ -33,9 +33,21 @@ EOF
 }
 
 @test "exit 2 when audit vendor equals worker vendor" {
+  # Explicit config is the only path that can force a collision once
+  # auto-selection skips the worker vendor.
+  printf '[audit]\nvendor = "claude"\n' >> .foreman/config.toml
   jq -n '{round:1,vendor:"claude",status:"ok"}' > "$RD/worker-round-1.json"
   run "$SCRIPTS/audit-run.sh" T1
   [ "$status" -eq 2 ]
+}
+
+@test "falls back to installed CLI when orchestrator vendor equals worker vendor" {
+  # worker vendor is grok (setup); orchestrator also grok — must fall through
+  # to the first installed CLI != worker vendor (the mocked claude).
+  export FOREMAN_ORCHESTRATOR=grok
+  run "$SCRIPTS/audit-run.sh" T1
+  [ "$status" -eq 0 ]
+  [ "$(jq -r .verdict "$RD/audit-verdict.json")" = "APPROVED" ]
 }
 
 @test "exit 1 when auditor mutates the tree" {

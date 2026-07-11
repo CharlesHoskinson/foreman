@@ -23,7 +23,7 @@ ROUND="$(jq -r .round "$LAST_ROUND")"
 
 AUDITOR="$(toml_get "$CONFIG" audit.vendor '')"
 if [[ -z "$AUDITOR" ]]; then
-  if [[ -n "${FOREMAN_ORCHESTRATOR:-}" ]]; then
+  if [[ -n "${FOREMAN_ORCHESTRATOR:-}" && "${FOREMAN_ORCHESTRATOR}" != "$WORKER_VENDOR" ]]; then
     AUDITOR="$FOREMAN_ORCHESTRATOR"
   else
     for v in claude codex grok; do
