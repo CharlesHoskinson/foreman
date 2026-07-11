@@ -23,8 +23,10 @@ REASONS=()
 mapfile -t FORBIDDEN < <(toml_get "$CONFIG" gate.forbidden_paths 'tests/**
 .github/**
 .foreman/**
-*.lock
-package-lock.json')
+**/*.lock
+**/package-lock.json
+**/package.json
+**/pyproject.toml')
 for g in "${FORBIDDEN[@]}"; do
   hits="$(git_nohooks -C "$WT" diff --name-only "$BASE_SHA...HEAD" -- ":(glob)$g")"
   [[ -n "$hits" ]] && REASONS+=("forbidden path modified ($g): $(echo "$hits" | tr '\n' ' ')")
@@ -32,14 +34,21 @@ done
 
 # 2. Hash drift on protected files, including uncommitted tampering (spec §7 S3).
 mapfile -t HASH_GLOBS < <(toml_get "$CONFIG" gate.hash_paths 'tests/**
-.github/**')
+.github/**
+**/package.json
+**/pyproject.toml')
 if ! diff -q <(hash_snapshot "$WT" "${HASH_GLOBS[@]}") "$RD/hashes.txt" >/dev/null; then
   REASONS+=("hash drift in protected files (tests/check/CI config changed since task start)")
 fi
 
 # 3. Independent checks must be green (spec §6.4).
-[[ "$(jq -r .status "$RD/checks-result.json")" == "pass" ]] \
-  || REASONS+=("independent checks failed (exit $(jq -r .exit_code "$RD/checks-result.json"))")
+CHECKS_STATUS="$(jq -r .status "$RD/checks-result.json")" \
+  || die "$EXIT_CONFIG" "checks-result.json is not valid JSON"
+if [[ "$CHECKS_STATUS" != "pass" ]]; then
+  CHECKS_EXIT="$(jq -r .exit_code "$RD/checks-result.json")" \
+    || die "$EXIT_CONFIG" "checks-result.json is not valid JSON"
+  REASONS+=("independent checks failed (exit $CHECKS_EXIT)")
+fi
 
 # 4. Audit verdict: schema-valid and not BLOCKED (spec §6.5–6.6).
 if ! jq -e '.verdict | IN("APPROVED","WARNING","BLOCKED")' "$RD/audit-verdict.json" >/dev/null 2>&1; then

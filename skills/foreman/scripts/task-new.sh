@@ -12,7 +12,8 @@ BASE="${2:-main}"
 
 require_cmd git; require_cmd jq; require_cmd flock; require_cmd python3
 
-ROOT="$(git_nohooks rev-parse --show-toplevel)"
+ROOT="$(git_nohooks rev-parse --show-toplevel)" \
+  || die "$EXIT_CONFIG" "not a git repository"
 WT="$(dirname "$ROOT")/$(basename "$ROOT")-$TASK_ID"
 BRANCH="ai/$TASK_ID"
 
@@ -40,7 +41,9 @@ git_nohooks -C "$WT" config --worktree core.hooksPath ''
 
 CONFIG="$ROOT/.foreman/config.toml"
 mapfile -t HASH_GLOBS < <(toml_get "$CONFIG" gate.hash_paths 'tests/**
-.github/**')
+.github/**
+**/package.json
+**/pyproject.toml')
 hash_snapshot "$WT" "${HASH_GLOBS[@]}" > "$RD/hashes.txt"
 
 jq -n --arg t "$TASK_ID" --arg r "$ROOT" --arg w "$WT" \

@@ -10,16 +10,20 @@ RD="$(run_dir "$TASK_ID")"
 [[ -f "$RD/evidence/patch.diff" ]] || die "$EXIT_CONFIG" "run evidence-collect.sh first"
 require_cmd jq; require_cmd git
 
-WT="$(jq -r .worktree "$RD/meta.json")"
-ROOT="$(jq -r .repo_root "$RD/meta.json")"
+WT="$(jq -er .worktree "$RD/meta.json")" \
+  || die "$EXIT_CONFIG" "meta.json is not valid JSON: $RD/meta.json"
+ROOT="$(jq -er .repo_root "$RD/meta.json")" \
+  || die "$EXIT_CONFIG" "meta.json is not valid JSON: $RD/meta.json"
 CONFIG="$ROOT/.foreman/config.toml"
 
 # Worker vendor from the latest round; audit vendor must differ (spec §8).
 # shellcheck disable=SC2012
 LAST_ROUND="$(ls "$RD"/worker-round-*.json 2>/dev/null | sort -V | tail -1)"
 [[ -n "$LAST_ROUND" ]] || die "$EXIT_CONFIG" "no worker round recorded"
-WORKER_VENDOR="$(jq -r .vendor "$LAST_ROUND")"
-ROUND="$(jq -r .round "$LAST_ROUND")"
+WORKER_VENDOR="$(jq -er .vendor "$LAST_ROUND")" \
+  || die "$EXIT_CONFIG" "$LAST_ROUND is not valid JSON"
+ROUND="$(jq -er .round "$LAST_ROUND")" \
+  || die "$EXIT_CONFIG" "$LAST_ROUND is not valid JSON"
 
 AUDITOR="$(toml_get "$CONFIG" audit.vendor '')"
 if [[ -z "$AUDITOR" ]]; then

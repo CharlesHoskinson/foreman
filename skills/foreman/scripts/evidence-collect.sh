@@ -9,8 +9,10 @@ RD="$(run_dir "$TASK_ID")"
 [[ -f "$RD/meta.json" ]] || die "$EXIT_CONFIG" "no such task: $TASK_ID"
 require_cmd jq; require_cmd git
 
-WT="$(jq -r .worktree "$RD/meta.json")"
-BASE_SHA="$(jq -r .base_sha "$RD/meta.json")"
+WT="$(jq -er .worktree "$RD/meta.json")" \
+  || die "$EXIT_CONFIG" "meta.json is not valid JSON: $RD/meta.json"
+BASE_SHA="$(jq -er .base_sha "$RD/meta.json")" \
+  || die "$EXIT_CONFIG" "meta.json is not valid JSON: $RD/meta.json"
 OUT="$RD/evidence"
 mkdir -p "$OUT"
 

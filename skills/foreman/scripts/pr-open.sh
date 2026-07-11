@@ -20,9 +20,12 @@ done
 
 WT="$(jq -r .worktree "$RD/meta.json")"
 BRANCH="$(jq -r .branch "$RD/meta.json")"
-CHECKS_LINE="$(jq -r '.status + " (`" + .command + "`, exit " + (.exit_code|tostring) + ")"' "$RD/checks-result.json")"
-AUDIT_VERDICT="$(jq -r .verdict "$RD/audit-verdict.json")"
-AUDIT_COUNT="$(jq '.findings | length' "$RD/audit-verdict.json")"
+CHECKS_LINE="$(jq -er '.status + " (`" + .command + "`, exit " + (.exit_code|tostring) + ")"' "$RD/checks-result.json")" \
+  || die "$EXIT_CONFIG" "checks-result.json is not valid JSON"
+AUDIT_VERDICT="$(jq -er .verdict "$RD/audit-verdict.json")" \
+  || die "$EXIT_CONFIG" "audit-verdict.json is not valid JSON"
+AUDIT_COUNT="$(jq -er '.findings | length' "$RD/audit-verdict.json")" \
+  || die "$EXIT_CONFIG" "audit-verdict.json is not valid JSON"
 COMMITS="$(cat "$RD/evidence/commits.txt")"
 DIFF_STAT="$(cat "$RD/evidence/diff-stat.txt")"
 
@@ -44,7 +47,9 @@ $DIFF_STAT
 CI remains the final merge authority. Evidence bundle: \`$RD\`
 EOF
 
-git_nohooks -C "$WT" push -u origin "$BRANCH"
+if ! git_nohooks -C "$WT" push -u origin "$BRANCH"; then
+  die "$EXIT_FAIL" "git push failed for $BRANCH (branch is committed locally; push/open the PR manually with $RD/pr-body.md)"
+fi
 
 GH_BIN="${GH_BIN:-gh}"
 if ! command -v "$GH_BIN" >/dev/null 2>&1; then

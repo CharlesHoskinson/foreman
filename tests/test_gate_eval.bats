@@ -59,3 +59,10 @@ setup() {
   run "$SCRIPTS/gate-eval.sh" T1
   [ "$status" -eq 2 ]
 }
+
+@test "corrupt checks-result.json exits 2 instead of leaking jq's exit code" {
+  echo 'not valid json' > "$RD/checks-result.json"
+  run "$SCRIPTS/gate-eval.sh" T1
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not valid JSON"* ]]
+}

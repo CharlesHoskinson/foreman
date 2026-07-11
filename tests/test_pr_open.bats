@@ -61,3 +61,27 @@ EOF
   [ "$status" -eq 3 ]
   [[ "$output" == *"branch is pushed"* ]]
 }
+
+@test "git push failure exits 1 and leaves the branch committed locally" {
+  rm -rf "$BATS_TEST_TMPDIR/origin.git"
+  run "$SCRIPTS/pr-open.sh" T1
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"git push failed"* ]]
+  [[ "$output" == *"committed locally"* ]]
+  # the branch is still intact in the worktree regardless of push failure
+  git -C "$WT" rev-parse --verify "refs/heads/ai/T1" >/dev/null
+}
+
+@test "corrupt checks-result.json exits 2 instead of leaking jq's exit code" {
+  echo 'not valid json' > "$RD/checks-result.json"
+  run "$SCRIPTS/pr-open.sh" T1
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not valid JSON"* ]]
+}
+
+@test "corrupt audit-verdict.json exits 2 instead of leaking jq's exit code" {
+  echo 'not valid json' > "$RD/audit-verdict.json"
+  run "$SCRIPTS/pr-open.sh" T1
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not valid JSON"* ]]
+}

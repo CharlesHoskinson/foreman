@@ -9,8 +9,10 @@ RD="$(run_dir "$TASK_ID")"
 [[ -f "$RD/meta.json" ]] || die "$EXIT_CONFIG" "no such task: $TASK_ID"
 require_cmd jq; require_cmd git; require_cmd tar
 
-WT="$(jq -r .worktree "$RD/meta.json")"
-ROOT="$(jq -r .repo_root "$RD/meta.json")"
+WT="$(jq -er .worktree "$RD/meta.json")" \
+  || die "$EXIT_CONFIG" "meta.json is not valid JSON: $RD/meta.json"
+ROOT="$(jq -er .repo_root "$RD/meta.json")" \
+  || die "$EXIT_CONFIG" "meta.json is not valid JSON: $RD/meta.json"
 CONFIG="$ROOT/.foreman/config.toml"
 SHA="$(git_nohooks -C "$WT" rev-parse HEAD)"
 

@@ -59,3 +59,11 @@ setup() {
   run "$SCRIPTS/task-new.sh" T8 main
   [ "$status" -eq 0 ]
 }
+
+@test "outside a git repository exits 2" {
+  mkdir -p "$BATS_TEST_TMPDIR/notarepo"
+  cd "$BATS_TEST_TMPDIR/notarepo"
+  run "$SCRIPTS/task-new.sh" T1 main
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not a git repository"* ]]
+}
