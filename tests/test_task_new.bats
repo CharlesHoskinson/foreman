@@ -49,3 +49,13 @@ setup() {
   run "$SCRIPTS/task-new.sh" T9 main
   [ "$status" -eq 0 ]
 }
+
+@test "worktree-add failure cleans up and leaves task id retryable" {
+  mkdir -p "$BATS_TEST_TMPDIR/repo-T8" && touch "$BATS_TEST_TMPDIR/repo-T8/blocker"
+  run "$SCRIPTS/task-new.sh" T8 main
+  [ "$status" -eq 1 ]
+  [ ! -e "$FOREMAN_HOME/runs/T8" ]
+  rm -rf "$BATS_TEST_TMPDIR/repo-T8"
+  run "$SCRIPTS/task-new.sh" T8 main
+  [ "$status" -eq 0 ]
+}

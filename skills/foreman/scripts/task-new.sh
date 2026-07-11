@@ -29,6 +29,8 @@ mkdir -p "$RD/evidence"
 LOCK="$(repo_lock_path "$ROOT")"
 if ! flock "$LOCK" git -c core.hooksPath= -C "$ROOT" worktree add "$WT" -b "$BRANCH" "$BASE_SHA"; then
   rm -rf "$RD"
+  # worktree add may fail after creating the branch; remove it so retries work.
+  git_nohooks -C "$ROOT" branch -D "$BRANCH" >/dev/null 2>&1 || true
   die "$EXIT_FAIL" "git worktree add failed for $WT (branch $BRANCH)"
 fi
 
