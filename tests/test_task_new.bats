@@ -36,3 +36,16 @@ setup() {
   "$SCRIPTS/task-new.sh" T1 main
   [ "$(git -C "$BATS_TEST_TMPDIR/repo-T1" config --worktree core.hooksPath)" = "" ]
 }
+
+@test "unknown base branch exits 2 and leaves no run dir" {
+  run "$SCRIPTS/task-new.sh" T9 nonexistent-branch
+  [ "$status" -eq 2 ]
+  [ ! -e "$FOREMAN_HOME/runs/T9" ]
+}
+
+@test "task id is retryable after failed creation" {
+  run "$SCRIPTS/task-new.sh" T9 nonexistent-branch
+  [ "$status" -eq 2 ]
+  run "$SCRIPTS/task-new.sh" T9 main
+  [ "$status" -eq 0 ]
+}

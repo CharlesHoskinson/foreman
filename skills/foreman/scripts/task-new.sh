@@ -13,17 +13,24 @@ BASE="${2:-main}"
 require_cmd git; require_cmd jq; require_cmd flock; require_cmd python3
 
 ROOT="$(git_nohooks rev-parse --show-toplevel)"
+WT="$(dirname "$ROOT")/$(basename "$ROOT")-$TASK_ID"
+BRANCH="ai/$TASK_ID"
+
+# Validate the base ref BEFORE creating any run-dir state, mapping git's raw
+# exit code to the contract's config-error code.
+BASE_SHA="$(git_nohooks -C "$ROOT" rev-parse "$BASE^{commit}" 2>/dev/null)" \
+  || die "$EXIT_CONFIG" "unknown base ref: $BASE"
+
 RD="$(run_dir "$TASK_ID")"
 [[ -e "$RD" ]] && die "$EXIT_CONFIG" "run dir already exists: $RD"
 mkdir -p "$RD/evidence"
 
-WT="$(dirname "$ROOT")/$(basename "$ROOT")-$TASK_ID"
-BRANCH="ai/$TASK_ID"
-BASE_SHA="$(git_nohooks -C "$ROOT" rev-parse "$BASE^{commit}")"
-
 # Serialize worktree creation: parallel `git worktree add` races on .git locks.
 LOCK="$(repo_lock_path "$ROOT")"
-flock "$LOCK" git -c core.hooksPath= -C "$ROOT" worktree add "$WT" -b "$BRANCH" "$BASE_SHA"
+if ! flock "$LOCK" git -c core.hooksPath= -C "$ROOT" worktree add "$WT" -b "$BRANCH" "$BASE_SHA"; then
+  rm -rf "$RD"
+  die "$EXIT_FAIL" "git worktree add failed for $WT (branch $BRANCH)"
+fi
 
 # Per-worktree hook disable (harness calls also use git_nohooks; belt and braces).
 git_nohooks -C "$ROOT" config extensions.worktreeConfig true
