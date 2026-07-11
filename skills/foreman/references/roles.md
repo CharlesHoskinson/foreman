@@ -53,10 +53,12 @@ The worker's contract:
   for CHECK or AUDIT — they are simply discarded from the harness's perspective on the
   next round.
 - **Never touches forbidden paths.** `gate.forbidden_paths` in `.foreman/config.toml`
-  (default: `tests/**`, `.github/**`, `.foreman/**`, `*.lock`, `package-lock.json`,
-  `scripts/run_checks*`) are off-limits. The worker is not told this is enforced by a
-  separate deterministic check — the gate catches it regardless of whether the worker
-  respects the instruction in `task.md`.
+  are off-limits. A repo's `.foreman/config.toml` can extend this list (e.g. to protect
+  check scripts such as `scripts/run_checks*`); the built-in fallback in `gate-eval.sh`
+  when no config is present is exactly these five paths: `tests/**`, `.github/**`,
+  `.foreman/**`, `*.lock`, `package-lock.json`. The worker is not told this is enforced
+  by a separate deterministic check — the gate catches it regardless of whether the
+  worker respects the instruction in `task.md`.
 - **Has no network.** The container is launched with `--network none` (for CHECK) and
   hardened flags for IMPLEMENT (`--cap-drop ALL`, `--security-opt no-new-privileges`,
   read-only root + tmpfs, pids/memory limits). There is no exfiltration path and no way
