@@ -46,6 +46,7 @@ green_audit_and_checks() {
   green_audit_and_checks
   run "$SCRIPTS/gate-eval.sh" T1
   [ "$status" -eq 1 ]
+  jq -r '.reasons[]' "$RD/gate-decision.json" | grep -q forbidden
 }
 
 @test "attack: forged success transcript with failing code — independent checks catch it" {
@@ -64,4 +65,5 @@ green_audit_and_checks() {
   green_audit_and_checks
   run "$SCRIPTS/gate-eval.sh" T1
   [ "$status" -eq 1 ]
+  jq -r '.reasons[]' "$RD/gate-decision.json" | grep -q forbidden
 }
