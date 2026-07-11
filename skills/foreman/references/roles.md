@@ -55,10 +55,13 @@ The worker's contract:
 - **Never touches forbidden paths.** `gate.forbidden_paths` in `.foreman/config.toml`
   are off-limits. A repo's `.foreman/config.toml` can extend this list (e.g. to protect
   check scripts such as `scripts/run_checks*`); the built-in fallback in `gate-eval.sh`
-  when no config is present is exactly these five paths: `tests/**`, `.github/**`,
-  `.foreman/**`, `*.lock`, `package-lock.json`. The worker is not told this is enforced
-  by a separate deterministic check — the gate catches it regardless of whether the
-  worker respects the instruction in `task.md`.
+  when no config is present is exactly these seven paths (nested/monorepo instances
+  included): `tests/**`, `.github/**`, `.foreman/**`, `**/*.lock`,
+  `**/package-lock.json`, `**/package.json`, `**/pyproject.toml`. The last two protect
+  the check/build definitions themselves (e.g. `package.json`'s `scripts.test`, which
+  checks autodetect runs directly) from being rewritten to fake a pass. The worker is
+  not told this is enforced by a separate deterministic check — the gate catches it
+  regardless of whether the worker respects the instruction in `task.md`.
 - **Has no network.** The container is launched with `--network none` (for CHECK) and
   hardened flags for IMPLEMENT (`--cap-drop ALL`, `--security-opt no-new-privileges`,
   read-only root + tmpfs, pids/memory limits). There is no exfiltration path and no way

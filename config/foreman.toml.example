@@ -19,15 +19,20 @@ max_tokens_per_round = 400000   # advisory in v1: logged when parsable, not enfo
 
 [gate]
 # gate-eval.sh's built-in fallback (used only when this key is absent) covers
-# just tests/**, .github/**, .foreman/**, *.lock, package-lock.json — it does
-# NOT protect your check-script entrypoint. List it explicitly here so a
-# worker can't neuter CHECK by editing the script your [checks] command runs.
+# tests/**, .github/**, .foreman/**, **/*.lock, **/package-lock.json,
+# **/package.json, **/pyproject.toml (nested monorepo paths included) — this
+# protects your check/build/dependency definitions (e.g. package.json's
+# "scripts" block, which is what checks autodetect actually runs) from being
+# rewritten by a worker to fake a pass. If your repo WANTS worker-driven
+# dependency changes, override this list to drop package.json/pyproject.toml.
+# List your check-script entrypoint here too, since that's repo-specific.
 forbidden_paths = [
-  "tests/**", ".github/**", ".foreman/**", "*.lock", "package-lock.json",
+  "tests/**", ".github/**", ".foreman/**", "**/*.lock", "**/package-lock.json",
+  "**/package.json", "**/pyproject.toml",
   "scripts/run_checks*",    # replace with your repo's actual check entrypoint path(s)
 ]
 
 # Files whose content is SHA-256-snapshotted at task start; any drift (even
 # uncommitted) fails the gate. Keep in sync with forbidden_paths above so
 # tampering is caught whether or not the worker commits it.
-hash_paths = ["tests/**", ".github/**", "scripts/run_checks*"]
+hash_paths = ["tests/**", ".github/**", "**/package.json", "**/pyproject.toml", "scripts/run_checks*"]
