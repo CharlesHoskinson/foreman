@@ -30,7 +30,7 @@ git_nohooks -C "$WT" archive "$SHA" | tar -x -C "$TMP"
 
 IMAGE="${FOREMAN_WORKER_IMAGE:-foreman-worker:latest}"
 set +e
-"$SCRIPT_DIR/../../../sandbox/docker-run.sh" --network none \
+"$(docker_run_wrapper)" --network none \
   "$TMP" "$IMAGE" -- bash -lc "$CMD" > "$RD/checks.log" 2>&1
 EC=$?
 set -e

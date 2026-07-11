@@ -1,0 +1,33 @@
+# Foreman per-repo configuration. Copy to <repo>/.foreman/config.toml.
+
+[worker]
+vendor = "grok"            # claude | codex | grok — must differ from your orchestrator CLI
+model  = "grok-4.5"        # pinned; vendor model names are moving targets
+
+[audit]
+vendor = ""                # empty = orchestrator vendor, or first installed CLI != worker
+
+[checks]
+command = "npm test"       # your repo's check entrypoint; omit to autodetect
+                           # (package.json -> npm test, pyproject.toml -> pytest);
+                           # unknown stacks fail with exit 2 rather than guessing
+
+[limits]
+max_rework_rounds = 3
+round_timeout_min = 30
+max_tokens_per_round = 400000   # advisory in v1: logged when parsable, not enforced mid-flight
+
+[gate]
+# gate-eval.sh's built-in fallback (used only when this key is absent) covers
+# just tests/**, .github/**, .foreman/**, *.lock, package-lock.json — it does
+# NOT protect your check-script entrypoint. List it explicitly here so a
+# worker can't neuter CHECK by editing the script your [checks] command runs.
+forbidden_paths = [
+  "tests/**", ".github/**", ".foreman/**", "*.lock", "package-lock.json",
+  "scripts/run_checks*",    # replace with your repo's actual check entrypoint path(s)
+]
+
+# Files whose content is SHA-256-snapshotted at task start; any drift (even
+# uncommitted) fails the gate. Keep in sync with forbidden_paths above so
+# tampering is caught whether or not the worker commits it.
+hash_paths = ["tests/**", ".github/**", "scripts/run_checks*"]

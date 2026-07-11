@@ -45,3 +45,11 @@ EOF
   run hash_snapshot "$BATS_TEST_TMPDIR/not-a-repo" 'tests/**'
   [ "$status" -ne 0 ]
 }
+
+@test "docker_run_wrapper resolves the in-repo sandbox wrapper" {
+  run docker_run_wrapper
+  [ "$status" -eq 0 ]
+  [ -x "$output" ]
+  [ "$(cd "$(dirname "$output")" && pwd)/$(basename "$output")" \
+    = "$(cd "$BATS_TEST_DIRNAME/../sandbox" && pwd)/docker-run.sh" ]
+}

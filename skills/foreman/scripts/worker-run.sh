@@ -56,7 +56,7 @@ HEAD_BEFORE="$(git_nohooks -C "$WT" rev-parse HEAD)"
 
 set +e
 timeout --signal=KILL "$((TIMEOUT_MIN * 60))" \
-  "$SCRIPT_DIR/../../../sandbox/docker-run.sh" \
+  "$(docker_run_wrapper)" \
     --env-file "$ENV_FILE" --prompt "$PROMPT" --name "$CNAME" \
     "$WT" "$IMAGE" -- bash -lc "$(adapter_worker_cmd)" \
   > "$RD/worker-events-round-$ROUND.jsonl" 2> "$RD/worker-stderr-round-$ROUND.log"

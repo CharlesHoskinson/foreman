@@ -70,6 +70,17 @@ hash_snapshot() {
   done
 }
 
+# docker_run_wrapper — locate sandbox/docker-run.sh relative to THIS file
+# (lib/common.sh), so callers work whether run in-repo or from an installed
+# skill layout ($SKILLS_HOME/foreman/{scripts/lib,sandbox}).
+docker_run_wrapper() {
+  local here; here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  for cand in "$here/../../../../sandbox/docker-run.sh" "$here/../../sandbox/docker-run.sh"; do
+    [[ -x "$cand" ]] && { echo "$cand"; return 0; }
+  done
+  die "$EXIT_CONFIG" "docker-run.sh not found relative to $here"
+}
+
 repo_lock_path() {
   local repo="$1" common
   common="$(git_nohooks -C "$repo" rev-parse --git-common-dir)"
