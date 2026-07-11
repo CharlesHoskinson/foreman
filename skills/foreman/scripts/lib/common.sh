@@ -54,12 +54,18 @@ PY
 }
 
 # hash_snapshot WORKTREE GLOB... — sha256 of tracked files matching git glob pathspecs.
+# Fails loudly (nonzero) if WORKTREE is not a git worktree or git errors, so
+# callers never mistake "error" for "no files".
 hash_snapshot() {
   local wt="$1"; shift
-  local specs=()
-  local g
+  local specs=() g
   for g in "$@"; do specs+=(":(glob)$g"); done
-  git_nohooks -C "$wt" ls-files -- "${specs[@]}" | sort -u | while read -r f; do
+  git_nohooks -C "$wt" rev-parse --is-inside-work-tree >/dev/null || return 1
+  local files
+  files="$(git_nohooks -C "$wt" ls-files -- "${specs[@]}")" || return 1
+  [[ -z "$files" ]] && return 0
+  local f
+  sort -u <<<"$files" | while read -r f; do
     printf '%s  %s\n' "$f" "$(sha256sum "$wt/$f" | cut -d' ' -f1)"
   done
 }

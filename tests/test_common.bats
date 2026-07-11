@@ -39,3 +39,9 @@ EOF
   [ "$status" -eq 0 ]
   [[ "${lines[0]}" == tests/test_sample.sh* ]]
 }
+
+@test "hash_snapshot fails on a directory that is not a worktree" {
+  mkdir -p "$BATS_TEST_TMPDIR/not-a-repo"
+  run hash_snapshot "$BATS_TEST_TMPDIR/not-a-repo" 'tests/**'
+  [ "$status" -ne 0 ]
+}
