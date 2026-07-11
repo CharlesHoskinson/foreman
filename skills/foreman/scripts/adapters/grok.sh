@@ -10,7 +10,7 @@ adapter_env_key() { echo XAI_API_KEY; }
 adapter_worker_cmd() {
   # shellcheck disable=SC2016
   # Single quotes intentional: command string is evaluated later in container context.
-  echo 'grok --no-auto-update -p "$(cat /task/prompt.md)" --output-format streaming-json --always-approve'
+  echo 'grok --no-auto-update -p "$(cat "${FOREMAN_PROMPT:-/task/prompt.md}")" --output-format streaming-json --always-approve'
 }
 
 adapter_run_audit() {

@@ -9,7 +9,7 @@ adapter_env_key() { echo ANTHROPIC_API_KEY; }
 adapter_worker_cmd() {
   # shellcheck disable=SC2016
   # Single quotes intentional: command string is evaluated later in container context.
-  echo 'claude -p "$(cat /task/prompt.md)" --output-format stream-json --verbose --dangerously-skip-permissions'
+  echo 'claude -p "$(cat "${FOREMAN_PROMPT:-/task/prompt.md}")" --output-format stream-json --verbose --dangerously-skip-permissions'
 }
 
 adapter_run_audit() {

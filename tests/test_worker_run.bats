@@ -12,13 +12,17 @@ setup() {
   "$SCRIPTS/task-new.sh" T1 main
   WT="$BATS_TEST_TMPDIR/repo-T1"
   RD="$FOREMAN_HOME/runs/T1"
-  # mock grok CLI: reads prompt, makes a commit, emits an event
+  # mock grok CLI: captures its -p prompt arg, makes a commit, emits an event
   mkdir -p "$BATS_TEST_TMPDIR/bin"
   cat > "$BATS_TEST_TMPDIR/bin/grok" <<'EOF'
 #!/usr/bin/env bash
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "-p" ]]; then printf '%s' "$2" > prompt-received.txt; shift 2; else shift; fi
+done
 echo '{"event":"done"}'
 echo "worked" >> src/app.sh
-git -c core.hooksPath= -c user.name=w -c user.email=w@w commit -qam "worker change"
+git -c core.hooksPath= -c user.name=w -c user.email=w@w add -A
+git -c core.hooksPath= -c user.name=w -c user.email=w@w commit -qm "worker change"
 EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/grok"
   export PATH="$BATS_TEST_TMPDIR/bin:$PATH"
@@ -31,6 +35,7 @@ EOF
   [ "$(jq -r .status "$RD/worker-round-1.json")" = "ok" ]
   [ ! -f "$RD/env" ]
   grep -q '"event":"done"' "$RD/worker-events-round-1.jsonl"
+  grep -q "Task T1" "$WT/prompt-received.txt"
 }
 
 @test "fails round when worker does not commit" {

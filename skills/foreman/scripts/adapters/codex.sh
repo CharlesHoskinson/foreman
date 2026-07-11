@@ -8,7 +8,9 @@ adapter_env_key() { echo OPENAI_API_KEY; }
 
 adapter_worker_cmd() {
   # `-p` means --profile in codex; prompt goes on stdin ('-'). --json = JSONL events.
-  echo 'codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox - < /task/prompt.md'
+  # shellcheck disable=SC2016
+  # Single quotes intentional: command string is evaluated later in container context.
+  echo 'codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox - < "${FOREMAN_PROMPT:-/task/prompt.md}"'
 }
 
 adapter_run_audit() {
