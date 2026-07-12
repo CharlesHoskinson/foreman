@@ -10,11 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip3 install --break-system-packages scrapling \
  && git clone --depth 1 https://github.com/Graphify-Labs/graphify /opt/graphify
 
-# Worker CLIs. Grok Build's package name is beta-era; override at build if it moved:
+# Worker CLIs. Package names are moving targets (spec §11): the build fails loudly if a
+# pin breaks rather than silently dropping a vendor. Override a moved name at build time:
 #   docker build --build-arg GROK_PKG=<pkg> ...
-ARG GROK_PKG=@xai-org/grok-build
-RUN npm install -g @anthropic-ai/claude-code @openai/codex "$GROK_PKG" || \
-    npm install -g @anthropic-ai/claude-code @openai/codex
+# Grok Build's official npm package is @xai-official/grok (installs the `grok` binary);
+# the alternative is the official installer `curl -fsSL https://x.ai/cli/install.sh | bash`.
+ARG GROK_PKG=@xai-official/grok
+RUN npm install -g @anthropic-ai/claude-code @openai/codex "$GROK_PKG"
 
 RUN useradd -m -s /bin/bash worker
 USER worker

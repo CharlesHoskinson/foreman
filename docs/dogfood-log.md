@@ -35,18 +35,23 @@ Fixed in `fix: set executable bit on all harness scripts for pristine-checkout e
 fixed separately in Task 13). Verified: a fresh `git archive` of `HEAD` now checks out
 scripts as `-rwxr-xr-x` and the full 54-test suite passes from the extracted tree.
 
-## Reference-image findings (follow-up, not blocking harness logic)
+## Reference-image findings
 
-1. **grok CLI absent from the worker image.** The Dockerfile's pinned
-   `@xai-org/grok-build` npm package returns 404 (not in the registry). The `|| ` fallback
-   silently installs only `@anthropic-ai/claude-code` + `@openai/codex`, so a repo
-   configured with `worker.vendor = "grok"` would fail inside the container. The correct
-   Grok Build install method must be pinned and re-verified (spec §11 already flags vendor
-   names as moving targets; the dogfood confirms it bites). Until then the image supports
-   claude/codex workers only.
-2. **Scrapling not importable in the image.** `pip3 install --break-system-packages
-   scrapling` did not yield a working `import scrapling`. Needs investigation (install
-   failure vs. import-name mismatch). Graphify (`/opt/graphify`) is present and correct.
+1. **grok CLI absent from the worker image — FIXED.** The Dockerfile's pinned
+   `@xai-org/grok-build` npm package returned 404 (never existed), and the `|| ` fallback
+   silently installed only `@anthropic-ai/claude-code` + `@openai/codex`, so a repo
+   configured with `worker.vendor = "grok"` would have failed inside the container. The
+   correct official package is `@xai-official/grok` (v0.2.93; provides the `grok` binary;
+   alternative is `curl -fsSL https://x.ai/cli/install.sh | bash`). The Dockerfile now
+   pins `@xai-official/grok` and installs all three CLIs in one command with **no silent
+   fallback** — a future package-name move fails the build loudly instead of dropping a
+   vendor. (spec §11 flags vendor names as moving targets; the dogfood confirmed it bites.)
+2. **Scrapling — false alarm, no defect.** The original "not importable" note was a bug in
+   the dogfood *diagnostic itself*: nested double-quotes in the `python3 -c "import
+   scrapling; print("...")"` probe were mangled inside the docker `-lc` string, producing a
+   Python syntax error that masked a working import. Re-checked cleanly: `scrapling`
+   0.4.10 imports fine (`pip3 show scrapling` → installed; `import scrapling` → exit 0).
+   Graphify (`/opt/graphify`) is present and correct. No Dockerfile change needed.
 
 ## Blocked — could not run the true cross-vendor loop here
 
@@ -62,7 +67,8 @@ execute in this environment:
 
 ### To finish the real dogfood
 
-1. Fix the Dockerfile grok install (finding 1) and Scrapling (finding 2); rebuild.
+1. ~~Fix the Dockerfile grok install; rebuild.~~ Done — `@xai-official/grok` pinned; image
+   rebuilds with claude + codex + grok all present. (Scrapling was a false alarm.)
 2. Provide scoped API keys for two different vendors (one worker, one auditor).
 3. Set `worker.vendor`/`audit.vendor` to two distinct installed+authenticated vendors in
    `.foreman/config.toml`.
