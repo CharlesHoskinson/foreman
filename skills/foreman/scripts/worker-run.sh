@@ -14,6 +14,7 @@ WT="$(jq -er .worktree "$RD/meta.json")" \
 ROOT="$(jq -er .repo_root "$RD/meta.json")" \
   || die "$EXIT_CONFIG" "meta.json is not valid JSON: $RD/meta.json"
 CONFIG="$ROOT/.foreman/config.toml"
+TRANSPORT="$(transport_mode "$CONFIG")"
 
 # --- vendor selection: config, else first other-vendor CLI installed (spec §4) ---
 VENDOR="$(toml_get "$CONFIG" worker.vendor '')"
@@ -24,8 +25,12 @@ if [[ -z "$VENDOR" ]]; then
   done
 fi
 [[ -n "$VENDOR" ]] || die "$EXIT_MISSING_CLI" "no worker CLI found (install claude, codex, or grok)"
-[[ "$VENDOR" == "${FOREMAN_ORCHESTRATOR:-__unset__}" ]] \
-  && die "$EXIT_CONFIG" "worker vendor ($VENDOR) must differ from orchestrator"
+if [[ "$TRANSPORT" == "mcp" ]]; then
+  enforce_mcp_decorrelation "$CONFIG" worker "$VENDOR"
+else
+  [[ "$VENDOR" == "${FOREMAN_ORCHESTRATOR:-__unset__}" ]] \
+    && die "$EXIT_CONFIG" "worker vendor ($VENDOR) must differ from orchestrator"
+fi
 # shellcheck source=adapters/claude.sh disable=SC1091
 source "$SCRIPT_DIR/adapters/$VENDOR.sh"
 
@@ -43,30 +48,50 @@ PROMPT="$RD/prompt-round-$ROUND.md"
   done
 } > "$PROMPT"
 
-# --- single-vendor API key env file (spec §7 S6) ---
-KEY_NAME="$(adapter_env_key)"
-ENV_FILE="$RD/env"
-( umask 177; echo "$KEY_NAME=${!KEY_NAME:-}" > "$ENV_FILE" )
-cleanup() { rm -f "$ENV_FILE"; }
-trap cleanup EXIT
-
 TIMEOUT_MIN="$(toml_get "$CONFIG" limits.round_timeout_min 30)"
-IMAGE="${FOREMAN_WORKER_IMAGE:-foreman-worker:latest}"
-CNAME="foreman-$TASK_ID-r$ROUND"
+export FOREMAN_SESSION_TIMEOUT_SEC=$((TIMEOUT_MIN * 60))
 
 HEAD_BEFORE="$(git_nohooks -C "$WT" rev-parse HEAD)"
 
-set +e
-timeout --signal=KILL "$((TIMEOUT_MIN * 60))" \
-  "$(docker_run_wrapper)" \
-    --env-file "$ENV_FILE" --prompt "$PROMPT" --name "$CNAME" \
-    "$WT" "$IMAGE" -- bash -lc "$(adapter_worker_cmd)" \
-  > "$RD/worker-events-round-$ROUND.jsonl" 2> "$RD/worker-stderr-round-$ROUND.log"
-EXIT_CODE=$?
-set -e
-if [[ $EXIT_CODE -eq 137 ]] && [[ "${FOREMAN_NO_SANDBOX:-0}" != "1" ]]; then
-  "${DOCKER_BIN:-docker}" rm -f "$CNAME" >/dev/null 2>&1 || true
-  log "round timed out after ${TIMEOUT_MIN}m"
+if [[ "$TRANSPORT" == "mcp" ]]; then
+  # Session transport: subscription-authenticated host session, zero API keys
+  # (spec 2026-07-13 §5). The adapter owns event capture and timeout.
+  require_cmd python3
+  require_cmd "$(adapter_cli_bin)" "install + log in the $VENDOR CLI (subscription session)"
+  echo "$VENDOR" > "$RD/session-vendor-round-$ROUND"
+  set +e
+  if [[ $ROUND -gt 1 ]] && adapter_session_can_resume "$RD"; then
+    adapter_session_resume "$PROMPT" "$WT" "$RD" "$ROUND" \
+      2> "$RD/worker-stderr-round-$ROUND.log"
+  else
+    adapter_session_run "$PROMPT" "$WT" "$RD" "$ROUND" \
+      2> "$RD/worker-stderr-round-$ROUND.log"
+  fi
+  EXIT_CODE=$?
+  set -e
+else
+  # Container transport (v1): single-vendor API key env file (spec §7 S6).
+  KEY_NAME="$(adapter_env_key)"
+  ENV_FILE="$RD/env"
+  ( umask 177; echo "$KEY_NAME=${!KEY_NAME:-}" > "$ENV_FILE" )
+  cleanup() { rm -f "$ENV_FILE"; }
+  trap cleanup EXIT
+
+  IMAGE="${FOREMAN_WORKER_IMAGE:-foreman-worker:latest}"
+  CNAME="foreman-$TASK_ID-r$ROUND"
+
+  set +e
+  timeout --signal=KILL "$((TIMEOUT_MIN * 60))" \
+    "$(docker_run_wrapper)" \
+      --env-file "$ENV_FILE" --prompt "$PROMPT" --name "$CNAME" \
+      "$WT" "$IMAGE" -- bash -lc "$(adapter_worker_cmd)" \
+    > "$RD/worker-events-round-$ROUND.jsonl" 2> "$RD/worker-stderr-round-$ROUND.log"
+  EXIT_CODE=$?
+  set -e
+  if [[ $EXIT_CODE -eq 137 ]] && [[ "${FOREMAN_NO_SANDBOX:-0}" != "1" ]]; then
+    "${DOCKER_BIN:-docker}" rm -f "$CNAME" >/dev/null 2>&1 || true
+    log "round timed out after ${TIMEOUT_MIN}m"
+  fi
 fi
 
 HEAD_AFTER="$(git_nohooks -C "$WT" rev-parse HEAD)"
