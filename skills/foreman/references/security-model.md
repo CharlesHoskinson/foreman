@@ -35,7 +35,8 @@ starting point, not a finished answer.
 
 The mcp transport trades container isolation for subscription economics and live
 visibility. The worker session runs ON THE HOST with vendor-native guardrails only
-(Codex `workspace-write` sandbox; Claude Code permission modes with Bash allowed).
+(Codex `workspace-write` sandbox; Claude Code permission modes with Bash allowed;
+Grok `--always-approve` with NO vendor-native sandbox — the weakest-guarded vendor).
 No `--network none`, no cap-drop, no read-only root: a hostile worker could reach
 the network or the wider filesystem to whatever extent the vendor's own sandbox
 permits.
