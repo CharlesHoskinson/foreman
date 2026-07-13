@@ -22,6 +22,9 @@ shift 3
 
 if [[ "${FOREMAN_NO_SANDBOX:-0}" == "1" ]]; then
   log "WARNING: FOREMAN_NO_SANDBOX=1 — running WITHOUT container isolation"
+  # no-sandbox is a host/test path; a login shell would let the user profile
+  # reorder PATH ahead of test stubs, so drop -l and keep the command string.
+  [[ "$1" == bash && "$2" == -lc ]] && set -- bash -c "${@:3}"
   ( cd "$WT" && FOREMAN_PROMPT="${PROMPT:-}" "$@" )
   exit $?
 fi
