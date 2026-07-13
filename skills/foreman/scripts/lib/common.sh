@@ -124,6 +124,10 @@ enforce_mcp_decorrelation() {
       ofam="$(toml_get "$config" orchestrator.model_family '')"
       [[ -n "$ofam" ]] || die "$EXIT_CONFIG" \
         "orchestrator.model_family is required when transport.mode = \"mcp\""
+      case "$ofam" in
+        anthropic|openai|xai) ;;
+        *) die "$EXIT_CONFIG" "orchestrator.model_family must be anthropic|openai|xai, got: $ofam" ;;
+      esac
       [[ "$fam" != "$ofam" ]] || die "$EXIT_CONFIG" \
         "worker family ($fam) must differ from orchestrator model family ($ofam)"
       ;;
