@@ -136,3 +136,19 @@ enforce_mcp_decorrelation() {
     *) die "$EXIT_CONFIG" "enforce_mcp_decorrelation: unknown role $role" ;;
   esac
 }
+
+# group_timeout SECS CMD ARGS... — run CMD in its own process group; on timeout
+# KILL the entire group so grandchildren cannot outlive the session (spec
+# 2026-07-13 §5). Returns CMD's status; 137 if the group was killed.
+group_timeout() {
+  local secs="$1"; shift
+  local pid wd rc=0
+  setsid "$@" &
+  pid=$!
+  ( sleep "$secs"; kill -KILL -- "-$pid" 2>/dev/null ) &
+  wd=$!
+  wait "$pid" || rc=$?
+  kill "$wd" 2>/dev/null || true
+  wait "$wd" 2>/dev/null || true
+  return "$rc"
+}

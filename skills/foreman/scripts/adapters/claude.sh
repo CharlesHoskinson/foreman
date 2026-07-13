@@ -41,9 +41,9 @@ adapter_session_run() {  # PROMPT_FILE WORKTREE RUN_DIR ROUND
   local prompt="$1" wt="$2" rd="$3" round="$4" rc=0
   local ev="$rd/worker-events-round-$round.jsonl"
   # shellcheck disable=SC2046 # _claude_session_flags is a fixed, space-safe flag list
-  ( cd "$wt" && timeout --signal=KILL "${FOREMAN_SESSION_TIMEOUT_SEC:-1800}" \
+  ( cd "$wt" && group_timeout "${FOREMAN_SESSION_TIMEOUT_SEC:-1800}" \
       claude -p "$(cat "$prompt")" $(_claude_session_flags) > "$ev" ) || rc=$?
-  jq -r 'select(.type=="system" and .subtype=="init") | .session_id // empty' "$ev" 2>/dev/null \
+  jq -rR 'fromjson? | select(.type=="system" and .subtype=="init") | .session_id // empty' "$ev" 2>/dev/null \
     | head -1 > "$rd/claude-session-id" || true
   [[ -s "$rd/claude-session-id" ]] || rm -f "$rd/claude-session-id"
   return "$rc"
@@ -55,7 +55,7 @@ adapter_session_resume() {  # PROMPT_FILE WORKTREE RUN_DIR ROUND
   local prompt="$1" wt="$2" rd="$3" round="$4" rc=0
   local ev="$rd/worker-events-round-$round.jsonl"
   # shellcheck disable=SC2046
-  ( cd "$wt" && timeout --signal=KILL "${FOREMAN_SESSION_TIMEOUT_SEC:-1800}" \
+  ( cd "$wt" && group_timeout "${FOREMAN_SESSION_TIMEOUT_SEC:-1800}" \
       claude -p "$(cat "$prompt")" --resume "$(cat "$rd/claude-session-id")" \
       $(_claude_session_flags) > "$ev" ) || rc=$?
   return "$rc"
