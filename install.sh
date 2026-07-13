@@ -10,7 +10,11 @@ SKIP_TOOLS=0
 if [[ $SKIP_TOOLS -eq 0 ]]; then
   grep -qi microsoft /proc/version 2>/dev/null \
     || log "WARNING: not running under WSL2 — WSL2 is the reference environment"
-  for c in git jq python3 flock docker; do require_cmd "$c"; done
+  for c in git jq python3 flock; do require_cmd "$c"; done
+  # shellcheck disable=SC2015 # log() always succeeds; no if-then-else ambiguity
+  command -v docker >/dev/null 2>&1 \
+    && log "docker present (container transport available)" \
+    || log "WARNING: docker missing — container transport unavailable; mcp (session) transport still works"
 fi
 
 SKILLS_HOME="${FOREMAN_SKILLS_HOME:-$HOME/.agents/skills}"
@@ -38,6 +42,10 @@ if [[ $SKIP_TOOLS -eq 0 ]]; then
     command -v "$v" >/dev/null 2>&1 && log "vendor CLI present: $v" \
       || log "vendor CLI MISSING: $v"
   done
+  # shellcheck disable=SC2015 # log() always succeeds; no if-then-else ambiguity
+  command -v opencode >/dev/null 2>&1 \
+    && log "orchestrator CLI present: opencode (auto-discovers this skill from ~/.claude/skills and ~/.agents/skills)" \
+    || log "orchestrator CLI missing: opencode (install: curl -fsSL https://opencode.ai/install | bash)"
   log "build the worker image with: docker build -t foreman-worker:latest -f sandbox/Dockerfile.worker sandbox/"
 fi
 log "done"
