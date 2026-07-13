@@ -89,6 +89,31 @@ hard security boundary — a determined worker with a kernel exploit is not stop
 higher-assurance environments, not a v1 deliverable. See
 `skills/foreman/references/security-model.md` for the full write-up.
 
+## Session transport (opencode cockpit, no API keys)
+
+`transport.mode = "mcp"` runs worker and auditor as your normal
+subscription-authenticated CLI sessions on the WSL2 host — nothing is billed to
+API keys. opencode (or any vendor CLI) is the orchestrator; decorrelation is
+enforced by model family (`orchestrator.model_family` vs worker vs auditor).
+
+```bash
+# one-time, inside WSL2: install + log in (subscription OAuth, no keys)
+curl -fsSL https://opencode.ai/install | bash
+npm install -g @openai/codex && codex login
+curl -fsSL https://claude.ai/install.sh | bash   # then: claude → /login
+
+# per repo
+#   .foreman/config.toml: transport.mode = "mcp", orchestrator.model_family = "...",
+#   worker/audit vendors from different families
+
+# watch it work
+skills/foreman/scripts/foreman-up.sh    # opencode pane + live claude/codex/grok viewers
+```
+
+Codex rework rounds continue the same session thread over MCP; Claude Code resumes
+via its session id. Isolation is reduced versus container mode — see
+`skills/foreman/references/security-model.md` ("Session (mcp) transport posture").
+
 ## Further reading
 
 - Design spec: `docs/superpowers/specs/2026-07-10-foreman-orchestrator-worker-skill-design.md`

@@ -80,3 +80,18 @@ Orchestrator vendor ≠ worker vendor is enforced by `worker-run.sh` (exit code 
 violated); worker vendor ≠ audit vendor is enforced the same way by `audit-run.sh`. Both
 checks are deterministic script logic, not something the orchestrator prompt is trusted
 to self-enforce.
+
+## Session-transport functions (mcp mode)
+
+Each adapter additionally defines:
+
+| Function | Contract |
+|---|---|
+| `adapter_session_run PROMPT_FILE WORKTREE RUN_DIR ROUND` | run one round as a host session; write `RUN_DIR/worker-events-round-ROUND.jsonl`; honor `$FOREMAN_SESSION_TIMEOUT_SEC`; persist resume state; nonzero on failure |
+| `adapter_session_can_resume RUN_DIR` | 0 iff resume state exists |
+| `adapter_session_resume PROMPT_FILE WORKTREE RUN_DIR ROUND` | continue the previous session with the rework prompt |
+
+Mechanisms: codex → MCP `codex()`/`codex-reply()` against `codex mcp-server`
+(state: `RUN_DIR/thread-id`); claude → `claude -p` / `--resume` (state:
+`RUN_DIR/claude-session-id`); grok → headless `grok -p` per round, no resume in v1.
+All inherit the CLI's login (subscription) auth — no API keys.

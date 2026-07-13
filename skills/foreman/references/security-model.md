@@ -30,3 +30,20 @@ third-vendor tiebreak audits, and an MCP-server lift of `scripts/`. Anyone deplo
 foreman v1 in an environment where the worker's blast radius must be strictly bounded
 (not just economically discouraged) should treat the current container hardening as a
 starting point, not a finished answer.
+
+## Session (mcp) transport posture
+
+The mcp transport trades container isolation for subscription economics and live
+visibility. The worker session runs ON THE HOST with vendor-native guardrails only
+(Codex `workspace-write` sandbox; Claude Code permission modes with Bash allowed).
+No `--network none`, no cap-drop, no read-only root: a hostile worker could reach
+the network or the wider filesystem to whatever extent the vendor's own sandbox
+permits.
+
+Compensating controls that remain fully authoritative: forbidden-path diff check,
+hash-drift snapshot over protected files, independent checks from a pristine
+checkout, cross-model audit (model-family decorrelation), deterministic gate,
+bounded rework, CI as final merge authority.
+
+**Posture:** mcp mode assumes a non-malicious-but-fallible worker and defends the
+merge, not the host. For untrusted or injection-risky inputs, use container mode.

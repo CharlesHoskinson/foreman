@@ -35,6 +35,24 @@ Scripts directory below is called `$FS` = this skill's `scripts/`.
    attempted, what failed, where the evidence lives.
 8. **PR** — `$FS/pr-open.sh TASK_ID`. CI remains the final merge authority.
 
+## Transports
+
+`transport.mode` in `.foreman/config.toml` selects how worker/audit sessions run:
+
+- **container** (default) — v1 behavior: worker in a hardened network-off Docker
+  container, API keys injected per round.
+- **mcp** — worker and auditor run as subscription-authenticated CLI sessions on the
+  WSL2 host (zero API keys; billed to the CLI logins). Requires
+  `orchestrator.model_family` (anthropic | openai | xai) — declare the family YOUR
+  terminal is running; the ≠ rules compare model families in this mode. Codex is
+  driven over MCP (`codex mcp-server`, rework rounds continue the same thread);
+  Claude Code via `claude -p --resume`. Reduced isolation — read
+  references/security-model.md.
+
+The stage flow is identical in both modes. To watch sessions live, run
+`$FS/foreman-up.sh` (cockpit: your orchestrator pane + one viewer pane per vendor),
+or `tail -f ~/.foreman/runs/TASK_ID/worker-events-round-N.jsonl`.
+
 ## Hard rules
 
 - Worker vendor ≠ your vendor; audit vendor ≠ worker vendor (scripts enforce; don't fight it).
