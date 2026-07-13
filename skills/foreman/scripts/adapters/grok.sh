@@ -48,7 +48,8 @@ print(json.dumps(best))
 
 # --- session transport (spec 2026-07-13 §5): headless session ---
 # Inherits the grok CLI's own login (subscription) auth; no key injection.
-# XAI_API_KEY required (no keyless auth; login subcommand via --device-auth or OAuth)
+# Keyless login supported: `grok login --oauth` or `--device-auth` (headless/remote);
+# no XAI_API_KEY required for session transport (verified 2026-07-13, grok login --help).
 # No resume in v1: grok --continue is cwd-keyed, not id-keyed; every round is fresh.
 
 adapter_session_run() {  # PROMPT_FILE WORKTREE RUN_DIR ROUND
