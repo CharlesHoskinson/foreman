@@ -149,9 +149,16 @@ group_timeout() {
   local pid wd rc=0
   setsid "$@" &
   pid=$!
+  # Operator abort (INT/TERM to the harness) must not leave the setsid'd
+  # session running unsupervised — kill the whole process group with it.
+  trap 'kill -KILL -- "-$pid" 2>/dev/null || true' INT TERM
   ( sleep "$secs"; kill -KILL -- "-$pid" 2>/dev/null ) &
   wd=$!
   wait "$pid" || rc=$?
+  trap - INT TERM
+  # Reap the watchdog's sleep child before killing the watchdog itself, so
+  # the sleep does not linger as an orphan after a normal/success return.
+  pkill -P "$wd" 2>/dev/null || true
   kill "$wd" 2>/dev/null || true
   wait "$wd" 2>/dev/null || true
   return "$rc"
