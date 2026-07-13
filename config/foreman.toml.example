@@ -36,3 +36,18 @@ forbidden_paths = [
 # uncommitted) fails the gate. Keep in sync with forbidden_paths above so
 # tampering is caught whether or not the worker commits it.
 hash_paths = ["tests/**", ".github/**", "**/package.json", "**/pyproject.toml", "scripts/run_checks*"]
+
+[transport]
+mode = "container"   # "container": v1 hardened Docker worker (API keys in env file).
+                     # "mcp": worker/auditor run as subscription-authenticated CLI
+                     # sessions on the WSL2 host — zero API keys; billed to your
+                     # monthly CLI logins. Reduced isolation: see
+                     # references/security-model.md before using on untrusted input.
+
+[orchestrator]
+model_family = ""    # REQUIRED when transport.mode = "mcp".
+                     # The model family your orchestrator terminal is running:
+                     # anthropic | openai | xai. With opencode, this is whatever
+                     # model you selected in opencode — declare it honestly; the
+                     # worker must be a DIFFERENT family (e.g. opencode-on-Claude
+                     # cannot use a Claude Code worker).

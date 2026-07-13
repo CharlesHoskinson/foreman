@@ -88,3 +88,51 @@ repo_lock_path() {
   touch "$common/foreman.lock"
   echo "$common/foreman.lock"
 }
+
+# --- session transport (spec 2026-07-13) -----------------------------------
+
+# transport_mode CONFIG_FILE — "container" (default) or "mcp"; exit 2 otherwise.
+transport_mode() {
+  local mode
+  mode="$(toml_get "$1" transport.mode container)"
+  case "$mode" in
+    container|mcp) echo "$mode" ;;
+    *) die "$EXIT_CONFIG" "transport.mode must be \"container\" or \"mcp\", got: $mode" ;;
+  esac
+}
+
+# vendor_family VENDOR — the model family behind a vendor CLI (spec §4).
+vendor_family() {
+  case "$1" in
+    claude) echo anthropic ;;
+    codex)  echo openai ;;
+    grok)   echo xai ;;
+    *) die "$EXIT_CONFIG" "unknown vendor: $1" ;;
+  esac
+}
+
+# enforce_mcp_decorrelation CONFIG ROLE VENDOR [WORKER_VENDOR]
+# mcp-mode ≠ rules compare model families, not harness names (spec §4):
+#   worker: family(VENDOR) != orchestrator.model_family (key is required)
+#   audit:  family(VENDOR) != family(WORKER_VENDOR)
+enforce_mcp_decorrelation() {
+  local config="$1" role="$2" vendor="$3" worker="${4:-}"
+  local fam ofam wfam
+  fam="$(vendor_family "$vendor")"
+  case "$role" in
+    worker)
+      ofam="$(toml_get "$config" orchestrator.model_family '')"
+      [[ -n "$ofam" ]] || die "$EXIT_CONFIG" \
+        "orchestrator.model_family is required when transport.mode = \"mcp\""
+      [[ "$fam" != "$ofam" ]] || die "$EXIT_CONFIG" \
+        "worker family ($fam) must differ from orchestrator model family ($ofam)"
+      ;;
+    audit)
+      [[ -n "$worker" ]] || die "$EXIT_CONFIG" "enforce_mcp_decorrelation audit: missing worker vendor"
+      wfam="$(vendor_family "$worker")"
+      [[ "$fam" != "$wfam" ]] || die "$EXIT_CONFIG" \
+        "audit family ($fam) must differ from worker family ($wfam)"
+      ;;
+    *) die "$EXIT_CONFIG" "enforce_mcp_decorrelation: unknown role $role" ;;
+  esac
+}
