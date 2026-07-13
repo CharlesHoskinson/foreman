@@ -45,3 +45,21 @@ print(json.dumps(best))
   rm -f "$tmp"
   return "$rc"
 }
+
+# --- session transport (spec 2026-07-13 §5): headless session ---
+# Inherits the grok CLI's own login (subscription) auth; no key injection.
+# XAI_API_KEY required (no keyless auth; login subcommand via --device-auth or OAuth)
+# No resume in v1: grok --continue is cwd-keyed, not id-keyed; every round is fresh.
+
+adapter_session_run() {  # PROMPT_FILE WORKTREE RUN_DIR ROUND
+  local prompt="$1" wt="$2" rd="$3" round="$4" rc=0
+  group_timeout "${FOREMAN_SESSION_TIMEOUT_SEC:-1800}" \
+    grok --no-auto-update --cwd "$wt" -p "$(cat "$prompt")" \
+      --output-format streaming-json --always-approve \
+    > "$rd/worker-events-round-$round.jsonl" || rc=$?
+  return "$rc"
+}
+
+adapter_session_can_resume() { return 1; }  # RUN_DIR (unused)
+
+adapter_session_resume() { adapter_session_run "$@"; }
