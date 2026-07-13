@@ -39,6 +39,11 @@ fi
 [[ -n "$AUDITOR" ]] || die "$EXIT_MISSING_CLI" "no audit CLI available (gate will fail closed)"
 [[ "$AUDITOR" == "$WORKER_VENDOR" ]] \
   && die "$EXIT_CONFIG" "audit vendor ($AUDITOR) must differ from worker vendor"
+TRANSPORT="$(transport_mode "$CONFIG")"
+if [[ "$TRANSPORT" == "mcp" ]]; then
+  enforce_mcp_decorrelation "$CONFIG" audit "$AUDITOR" "$WORKER_VENDOR"
+fi
+jq -n --arg v "$AUDITOR" '{vendor: $v}' > "$RD/audit-meta.json"
 # shellcheck source=adapters/claude.sh disable=SC1091
 source "$SCRIPT_DIR/adapters/$AUDITOR.sh"
 
