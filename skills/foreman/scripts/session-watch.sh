@@ -12,8 +12,9 @@ require_cmd jq
 
 # Pretty-print one event-stream line (claude stream-json / codex MCP
 # notifications / grok streaming-json / raw fallback).
-render() {
-  jq -rR --unbuffered '
+# shellcheck disable=SC2016
+# Single quotes intentional: this is a jq program, not a bash expansion.
+RENDER_FILTER='
     (fromjson? // {raw: .}) as $e |
     if $e.raw then "· " + ($e.raw | tostring)
     elif $e.type == "system" then "⚙ session " + ($e.subtype // "event")
@@ -24,15 +25,33 @@ render() {
          else empty end] | join("\n"))
     elif $e.method then "→ " + $e.method + " " + (($e.params | tostring)[0:200])
     else ($e | tostring)[0:200] end
-  ' 2>/dev/null || cat
-}
+  '
 
 # shellcheck disable=SC2012
 latest_task() { ls -t "$FOREMAN_HOME/runs" 2>/dev/null | head -1 || true; }
 
+# start_tail EVENTS_FILE — tail the round's event stream through the render
+# filter, all inside a dedicated process group (setsid) so kill_tail can
+# reap tail *and* jq together instead of leaking the pipeline's children.
+start_tail() {
+  # shellcheck disable=SC2016
+  # Single quotes intentional: $1/$2 expand inside the child bash -c, not here.
+  setsid bash -c '
+    tail -F -n +1 "$1" 2>/dev/null | { jq -rR --unbuffered "$2" 2>/dev/null || cat; }
+  ' _ "$1" "$RENDER_FILTER" &
+  TAIL_PID=$!
+}
+
+kill_tail() {
+  if [[ -n "${TAIL_PID:-}" ]]; then
+    kill -KILL -- "-$TAIL_PID" 2>/dev/null || true
+    TAIL_PID=""
+  fi
+}
+
 printf '╔ foreman viewer: %s — waiting for a round…\n' "$VENDOR"
 SEEN_EVENTS="" SEEN_AUDIT="" TAIL_PID=""
-cleanup() { [[ -n "$TAIL_PID" ]] && kill "$TAIL_PID" 2>/dev/null || true; }
+cleanup() { kill_tail; }
 trap cleanup EXIT
 
 while :; do
@@ -46,10 +65,9 @@ while :; do
       EV="$RD/worker-events-round-$N.jsonl"
       if [[ -e "$EV" && "$EV" != "$SEEN_EVENTS" ]]; then
         SEEN_EVENTS="$EV"
-        [[ -n "$TAIL_PID" ]] && kill "$TAIL_PID" 2>/dev/null || true
+        kill_tail
         printf '\n╔ %s — worker round %s (%s)\n' "$TID" "$N" "$VENDOR"
-        ( tail -F -n +1 "$EV" 2>/dev/null | render ) &
-        TAIL_PID=$!
+        start_tail "$EV"
       fi
     fi
     if [[ -f "$RD/audit-meta.json" && -f "$RD/audit-verdict.json" \
@@ -57,7 +75,7 @@ while :; do
           && "$(jq -r .vendor "$RD/audit-meta.json" 2>/dev/null)" == "$VENDOR" ]]; then
       SEEN_AUDIT="$RD/audit-verdict.json"
       printf '\n╔ %s — audit verdict (%s auditor)\n' "$TID" "$VENDOR"
-      jq . "$RD/audit-verdict.json" 2>/dev/null || cat "$RD/audit-verdict.json"
+      jq . "$RD/audit-verdict.json" 2>/dev/null || cat "$RD/audit-verdict.json" 2>/dev/null || true
     fi
   fi
   sleep 2
