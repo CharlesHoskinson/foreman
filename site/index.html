@@ -183,6 +183,36 @@
           fall back to the host model under another vendor's name. Re-route explicitly.
         </p>
       </div>
+      <h3 class="mt-2">Evidence contract</h3>
+      <p class="lead">
+        Implementer wrappers record HEAD and status digests before and after every run, flag
+        unauthorized git activity, and return deletions or renames as
+        <code class="inline">ARCHITECT_ACTIONS</code>—the implementer never retries them itself.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Lane</th>
+              <th>Known limit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Grok headless</strong></td>
+              <td>No shell execution; the wrapper verifies instead.</td>
+            </tr>
+            <tr>
+              <td><strong>Codex exec</strong></td>
+              <td>Workspace-write sandbox scope.</td>
+            </tr>
+            <tr>
+              <td><strong>Both</strong></td>
+              <td>Context-free; a five-part spec is required.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section id="spec" aria-labelledby="spec-title">
@@ -230,13 +260,15 @@
       <p class="lead">Soft mode is continuous routing inside one session. Hard mode is a staged pipeline with a machine gate.</p>
 
       <h3 class="mt-1">Soft loop</h3>
-      <p class="lead">Decompose into a five-part spec, route to a worker lane, verify evidence, consult the advisor at commitment boundaries, then close with proof.</p>
-      <div class="pipeline pipeline-soft" role="img" aria-label="Soft mode loop: spec, route, verify, advisor, evidence">
+      <p class="lead">Decompose into a five-part spec, route to a worker lane, verify evidence, consult the advisor at commitment boundaries, then close with proof. The docs-check stage—markdownlint-cli2, codespell, lychee, and comment coverage—runs in every implement round and in the hard-mode gate, iterating ≤ max_rework_rounds.</p>
+      <div class="pipeline pipeline-soft" role="img" aria-label="Soft mode loop: decompose, route, verify, audit, advisor, done with evidence">
         <div class="stage">Decompose<br><small>five-part spec</small></div>
         <span class="arrow" aria-hidden="true">→</span>
-        <div class="stage">Route<br><small>grok / codex lane</small></div>
+        <div class="stage">Route<br><small>worktree lane</small></div>
         <span class="arrow" aria-hidden="true">→</span>
-        <div class="stage">Verify<br><small>diff + re-run checks</small></div>
+        <div class="stage">Verify<br><small>diff + checks + docs-check</small></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage">Audit<br><small>codex cold diff</small></div>
         <span class="arrow" aria-hidden="true">→</span>
         <div class="stage">Advisor<br><small>commitment boundaries</small></div>
         <span class="arrow" aria-hidden="true">→</span>
