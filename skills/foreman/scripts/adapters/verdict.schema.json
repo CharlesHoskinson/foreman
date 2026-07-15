@@ -1,21 +1,57 @@
 {
   "type": "object",
-  "required": ["verdict", "findings", "summary"],
+  "required": [
+    "verdict",
+    "findings",
+    "summary"
+  ],
   "properties": {
-    "verdict": { "type": "string", "enum": ["APPROVED", "WARNING", "BLOCKED"] },
-    "summary": { "type": "string" },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "APPROVED",
+        "WARNING",
+        "BLOCKED"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
     "findings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["severity", "file", "line", "summary", "evidence"],
+        "required": [
+          "severity",
+          "file",
+          "line",
+          "summary",
+          "evidence"
+        ],
         "properties": {
-          "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
-          "file": { "type": "string" },
-          "line": { "type": "integer" },
-          "summary": { "type": "string" },
-          "evidence": { "type": "string" }
-        }
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       }
     }
   },
