@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Foreman: cross-vendor architect and worker orchestration for Claude, Codex, and Grok. Soft routing plus hard harness." />
   <title>Foreman - Architect / Worker Orchestration</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <a class="skip" href="#overview">Skip to content</a>
@@ -18,11 +18,12 @@
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu">Menu</button>
       <ul class="nav-links" id="nav-menu">
+        <li><a href="#overview">Overview</a></li>
         <li><a href="#modes">Modes</a></li>
         <li><a href="#roles">Roles</a></li>
         <li><a href="#lanes">Lanes</a></li>
         <li><a href="#spec">Spec</a></li>
-        <li><a href="#loop">Loop</a></li>
+        <li><a href="#loops">Loops</a></li>
         <li><a href="#security">Security</a></li>
         <li><a href="#install">Install</a></li>
         <li><a href="#lineage">Lineage</a></li>
@@ -224,35 +225,42 @@
       </ol>
     </section>
 
-    <section id="loop" aria-labelledby="loop-title">
-      <h2 class="section-title" id="loop-title">Task loops</h2>
+    <section id="loops" aria-labelledby="loops-title">
+      <h2 class="section-title" id="loops-title">Task loops</h2>
       <p class="lead">Soft mode is continuous routing inside one session. Hard mode is a staged pipeline with a machine gate.</p>
 
       <h3 class="mt-1">Soft loop</h3>
-      <div class="loop" aria-label="Soft mode stages">
-        <span>Decompose</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Five-part spec</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Grok implement</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Verify evidence</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Codex Sol audit</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Advisor if needed</span>
+      <p class="lead">Decompose into a five-part spec, route to a worker lane, verify evidence, consult the advisor at commitment boundaries, then close with proof.</p>
+      <div class="pipeline pipeline-soft" role="img" aria-label="Soft mode loop: spec, route, verify, advisor, evidence">
+        <div class="stage">Decompose<br><small>five-part spec</small></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage">Route<br><small>grok / codex lane</small></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage">Verify<br><small>diff + re-run checks</small></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage">Advisor<br><small>commitment boundaries</small></div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage stage-done">Done<br><small>with evidence</small></div>
       </div>
 
       <h3 class="mt-2">Hard loop</h3>
-      <div class="loop" aria-label="Hard mode stages">
-        <span>Init</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Plan</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Implement</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Check</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Audit</span><span class="arrow" aria-hidden="true">→</span>
-        <span>Gate</span><span class="arrow" aria-hidden="true">→</span>
-        <span class="pass">PR</span>
+      <p class="lead">Staged pipeline with host-side evidence and a deterministic gate before PR.</p>
+      <div class="pipeline pipeline-hard" role="img" aria-label="Hard mode loop: INIT, PLAN, IMPLEMENT, CHECK, AUDIT, GATE, PR; gate failure loops back to IMPLEMENT">
+        <div class="stage">INIT</div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage">PLAN</div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage stage-loop">IMPLEMENT</div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage">CHECK</div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage">AUDIT</div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage stage-gate">GATE</div>
+        <span class="arrow" aria-hidden="true">→</span>
+        <div class="stage stage-done">PR</div>
       </div>
-      <p class="lead" style="margin-bottom:0">
-        Checks run from a pristine commit archive, not a dirty worktree. Audit sees a cold diff
-        only. Gate fails closed on forbidden paths, hash drift, failed checks, or BLOCKED audit.
-        CI remains final merge authority.
-      </p>
+      <p class="pipeline-note">Gate failure returns to IMPLEMENT (≤ max_rework_rounds). CI remains final authority.</p>
     </section>
 
     <section id="security" aria-labelledby="security-title">
@@ -261,6 +269,9 @@
         Honest limit: containers share the host kernel. Soft mode uses native CLI sandboxes only.
         Foreman is defense-in-depth, not a hard isolation guarantee.
       </p>
+      <div class="callout">
+        <p>Containers (hard mode) share the host/WSL2 kernel — defense-in-depth, not a hard boundary.</p>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -387,6 +398,49 @@ verify independently, consult foreman-advisor before locking IA.</code></pre>
     </div>
   </footer>
 
-  <script src="app.js" defer></script>
+  <script>
+  (function () {
+    var toggle = document.querySelector(".nav-toggle");
+    var menu = document.getElementById("nav-menu");
+    if (toggle && menu) {
+      toggle.addEventListener("click", function () {
+        var open = menu.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      menu.querySelectorAll("a").forEach(function (a) {
+        a.addEventListener("click", function () {
+          menu.classList.remove("open");
+          toggle.setAttribute("aria-expanded", "false");
+        });
+      });
+    }
+    if (!("IntersectionObserver" in window)) return;
+    var links = Array.prototype.slice.call(
+      document.querySelectorAll(".nav-links a[href^='#']")
+    );
+    var map = {};
+    links.forEach(function (a) {
+      var id = a.getAttribute("href").slice(1);
+      var sec = document.getElementById(id);
+      if (sec) map[id] = a;
+    });
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var id = entry.target.id;
+          links.forEach(function (a) {
+            a.classList.toggle("active", a.getAttribute("href") === "#" + id);
+          });
+        });
+      },
+      { rootMargin: "-20% 0px -60% 0px", threshold: 0 }
+    );
+    Object.keys(map).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+  })();
+  </script>
 </body>
 </html>

@@ -141,6 +141,7 @@ a:hover {
 }
 
 .nav-links a:hover,
+.nav-links a.active,
 .nav-links a[aria-current="true"] {
   color: var(--text);
   background: var(--bg-soft);
@@ -462,7 +463,73 @@ td .muted {
   font-size: 0.95rem;
 }
 
-/* Loop */
+/* Pipeline diagrams (loops section) */
+.pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.pipeline .stage {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--bg-elev);
+  border-radius: var(--radius);
+  color: var(--text);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.pipeline .stage small {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.pipeline .arrow {
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  padding: 0 0.1rem;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+}
+
+.pipeline .stage-gate {
+  border-color: var(--warn);
+  color: var(--warn);
+  background: rgba(196, 160, 58, 0.1);
+}
+
+.pipeline .stage-done {
+  border-color: var(--ok);
+  color: var(--ok);
+  background: rgba(90, 154, 106, 0.1);
+}
+
+.pipeline .stage-loop {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.pipeline-note {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 62ch;
+}
+
+/* Legacy loop (unused after fix-up; keep if residual markup) */
 .loop {
   display: flex;
   flex-wrap: wrap;

@@ -17,8 +17,9 @@ Or open `site/index.html` directly in a browser.
 | File | Role |
 |---|---|
 | `index.html` | Single-page docs (roles, lanes incl. codex-auditor, loops, security, install) |
-| `styles.css` | Industrial field-manual theme |
-| `app.js` | Mobile nav + scroll spy |
+| `style.css` | Industrial field-manual theme |
+
+Scroll-spy is a small inline script in `index.html` — no external JS.
 
 ## Content notes
 
