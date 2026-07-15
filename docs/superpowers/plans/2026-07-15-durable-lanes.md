@@ -30,6 +30,7 @@
 dependency and verifies it is installed, gating all durable-mode work.
 
 **Files:**
+
 - Create: `skills/foreman/scripts/durable-preflight.sh`
 - Modify: `env/reference-manifest.toml` (new `durable` profile + tool entries)
 - Modify: `env/bootstrap-wsl.sh`, `env/bootstrap-windows.ps1` (install the deps)
@@ -37,6 +38,7 @@ dependency and verifies it is installed, gating all durable-mode work.
 - Test: `tests/durable-preflight.bats`
 
 **Interfaces:**
+
 - Consumes: nothing (pure environment check).
 - Produces: `dp_verify` — a sourced function that checks each durable dependency
   and prints one `OK|MISSING <id> — <install hint>` line per dependency; and
@@ -187,10 +189,12 @@ bash env/tool-check.sh --profile durable | tail -1           # prints READY line
 ### Task 1: Event log library
 
 **Files:**
+
 - Create: `skills/foreman/scripts/lib/eventlog.sh`
 - Test: `tests/eventlog.bats`
 
 **Interfaces:**
+
 - Consumes: `run_dir()` from `lib/common.sh`.
 - Produces:
   - `el_emit RUN_ID TYPE LANE PAYLOAD_JSON [COMMIT]` — appends one event line to `$(run_dir RUN_ID)/events.jsonl`, auto-incrementing `seq`; returns the seq via stdout.
@@ -310,10 +314,12 @@ Note: the `read` loop's `|| { ...; return 0; }` guard makes a final line without
 ### Task 2: Checkpoint library (git plumbing)
 
 **Files:**
+
 - Create: `skills/foreman/scripts/lib/checkpoint.sh`
 - Test: `tests/checkpoint.bats`
 
 **Interfaces:**
+
 - Consumes: nothing from prior tasks (pure git).
 - Produces:
   - `ckpt_snapshot WORKTREE LANE` — snapshots the worktree tree into a commit on `refs/checkpoints/<LANE>` without touching the worktree index/HEAD; prints the checkpoint commit SHA.
@@ -406,10 +412,12 @@ ckpt_latest() {
 ### Task 3: Lane runner wrapper
 
 **Files:**
+
 - Create: `skills/foreman/scripts/lane-run.sh`
 - Test: `tests/lane-run.bats`
 
 **Interfaces:**
+
 - Consumes: `el_emit`, `ckpt_snapshot` (Tasks 1–2).
 - Produces: `lane-run.sh RUN_ID LANE WORKTREE -- CMD...` — runs CMD (a coding-CLI invocation) with its stdout tee'd to `<WORKTREE>/.harness/stream.ndjson`; emits a `prompt` event at start, a `checkpoint` event (throttled by `[durable] checkpoint_interval`, default 20s) after stream activity, a `heartbeat` every `heartbeat_interval` (default 30s), and a `round_done` event at exit carrying the final checkpoint SHA and CMD exit code.
 
@@ -487,10 +495,12 @@ exit "$rc"
 ### Task 4: NATS setup + one-way bridge
 
 **Files:**
+
 - Create: `skills/foreman/scripts/nats/setup.sh`, `skills/foreman/scripts/lib/nats-bridge.sh`
 - Test: `tests/nats-bridge.bats`
 
 **Interfaces:**
+
 - Consumes: `el_read`, `el_cursor_get`, `el_cursor_commit` (Task 1).
 - Produces:
   - `nats/setup.sh` — first calls `durable-preflight.sh` (Task 0) and aborts (exit 3) if required NATS deps are missing, surfacing its install hints; then ensure a server is reachable at `${NATS_URL:-nats://127.0.0.1:4222}`; create/ensure stream `FOREMAN` with subjects `foreman.>` and file storage under `${NATS_STORE:-~/.foreman/nats-store}`. Idempotent.
@@ -554,10 +564,12 @@ nb_bridge() {
 ### Task 5: Stall watchdog + watcher
 
 **Files:**
+
 - Create: `skills/foreman/scripts/watch.sh`
 - Test: `tests/watch.bats`
 
 **Interfaces:**
+
 - Consumes: `el_read` (Task 1); optionally JetStream consume (Task 4) when NATS is up, else falls back to reading the log directly.
 - Produces: `watch.sh RUN_ID LANE` — tracks last-event age for the lane; runs a `RUNNING→STALLED→DEAD` state machine (tiers from env/config: `STALL_WARN=300`, `STALL_DEAD=900`), printing one line per **state transition** only, debounced by 2 consecutive stalled ticks. A pure function `wd_state LAST_AGE PREV_STATE STALL_COUNT` returns `NEW_STATE STALL_COUNT` for testability.
 
@@ -594,10 +606,12 @@ setup() { SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../skills/foreman/scripts" && pwd)";
 ### Task 6: Resume
 
 **Files:**
+
 - Create: `skills/foreman/scripts/resume.sh`
 - Test: `tests/resume.bats`
 
 **Interfaces:**
+
 - Consumes: `el_read` (Task 1), `ckpt_latest` (Task 2).
 - Produces: `resume.sh RUN_ID LANE WORKTREE` — finds the last `checkpoint`/`round_done` event's SHA for the lane (falling back to `ckpt_latest`), `git checkout`s that tree into the worktree, and prints the `next`/last prompt payload so the architect can restart the round. Exit 4 if no checkpoint exists.
 
@@ -639,6 +653,7 @@ setup() {
 ### Task 7: Config, doctrine, manifest, wiring
 
 **Files:**
+
 - Create: `skills/foreman/references/durable-lanes.md`
 - Modify: `skills/foreman/SKILL.md`, `.foreman/config.toml`, `config/foreman.toml.example`
 
@@ -647,6 +662,7 @@ task only documents them and adds config + doctrine. Reference the Task 0
 `durable` profile and `durable-preflight.sh` from the doctrine.)
 
 **Interfaces:**
+
 - Consumes: all prior tasks (documents them).
 
 - [ ] **Step 1: `references/durable-lanes.md`** — document the architecture (event log = source of truth; checkpoints; NATS transport one-way; watchdog; resume), the `[durable]`/`[nats]` config keys, the WSL/Windows notes (mirrored mode, native-FS store_dir), and the honest limits (NATS dependency when enabled; server-dependent tests skip).
