@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/foreman-banner.png" alt="Foreman — cross-vendor orchestration for coding agents" width="100%">
+</p>
+
 # Foreman
 
 Cross-vendor architect/worker orchestration for coding agents. An architect
