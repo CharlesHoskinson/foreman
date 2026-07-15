@@ -150,6 +150,15 @@ Output: human summary + `docs-check.json` (per-tool pass/fail + finding counts) 
 - **Vendored-skill staleness:** accepted; `VENDORED.md` records provenance and re-vendor procedure.
 - **bats on Windows:** WSL-only; Git Bash may run it too but the contract is WSL. tool-check states this.
 
+## Section 6 — CS5: graph dogfood, OpenSpec+EARS, Maintenance and Updates (approved 2026-07-15, second wave)
+
+Researched via scrapling (OpenSpec GitHub, alistairmavin.com/ears, Microsoft GraphRAG docs, Neo4j KG+LLM); token experiments run against the live graph (45–77% savings vs raw reads, budget-capped queries).
+
+- **CS5a — graph doctrine:** commit `graphify-out/graph.json` + `GRAPH_REPORT.md`; .gitignore volatile graphify artifacts (caches, html, cost.json); CLAUDE.md + SKILL.md rule: repo questions go to `graphify query` (budget ≤1500) before file exploration, hop to sources via `source_location` only as needed; graphify (python module) added to manifest.
+- **CS5b — OpenSpec + EARS:** adopt OpenSpec folder conventions (`openspec/changes/<name>/{proposal.md, specs/, design.md, tasks.md}`, dated archive under `openspec/changes/archive/`) as the on-disk home for foreman change specs; CLI optional (manifest note only). Five-part-spec Constraints/Verification written in EARS patterns (Ubiquitous / WHEN / WHILE / WHERE / IF-THEN / Complex), templates + worked example in `references/five-part-spec.md`; Grok-bound specs MUST use EARS phrasing.
+- **CS5c — Maintenance and Updates:** `skills/foreman/scripts/maintenance.sh` with stages: upstream check (vendored-skill content hash + upstream URL recorded in VENDORED.md at vendor time; `--apply` re-vendors), graph refresh (`graphify --update` + health check), compat check (CLI versions + model availability vs manifest floors); report mode default, JSON output. GitHub Actions `.github/workflows/maintenance.yml`: on release published + monthly cron + workflow_dispatch, report-only, opens an issue with findings.
+- Execution: after CS2–CS4 merge train lands (file overlap with SKILL.md, five-part-spec.md, VENDORED.md, manifest). Codex implements, Grok audits (lane substitution doctrine unchanged).
+
 ## Decisions log
 
 - Approach A (parallel worktree fan-out, staged dependencies) over sequential waves or hard-mode dogfood — user choice.
