@@ -1,0 +1,12 @@
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+node_modules/
+.foreman/runs/
+!.foreman/config.toml
+site/dist/
+*.pyc
+__pycache__/

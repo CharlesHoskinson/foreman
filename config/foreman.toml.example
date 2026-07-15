@@ -1,0 +1,28 @@
+# Copy to <target-repo>/.foreman/config.toml
+
+mode = "soft"   # soft | hard
+
+[worker]
+vendor = "grok"       # claude | codex | grok — must differ from orchestrator in hard mode
+model  = "grok-4.5"
+
+[audit]
+vendor = ""           # empty = auto (orchestrator if different from worker)
+
+[checks]
+command = ""          # empty = auto-detect package.json / pyproject.toml
+
+[limits]
+max_rework_rounds = 3
+round_timeout_min = 30
+max_tokens_per_round = 400000
+
+[gate]
+forbidden_paths = [
+  "tests/**",
+  ".github/**",
+  ".foreman/**",
+  "*.lock",
+  "package-lock.json",
+]
+hash_paths = ["tests/**", ".github/**"]

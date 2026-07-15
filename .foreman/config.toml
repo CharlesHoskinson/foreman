@@ -1,0 +1,22 @@
+mode = "soft"
+
+[worker]
+vendor = "grok"
+model  = "grok-4.5"
+
+[checks]
+command = "bash -lc 'test -f site/README.md'"
+
+[limits]
+max_rework_rounds = 3
+round_timeout_min = 30
+
+[gate]
+forbidden_paths = [
+  "tests/**",
+  ".github/**",
+  ".foreman/**",
+  "*.lock",
+  "package-lock.json",
+]
+hash_paths = ["tests/**", ".github/**"]
