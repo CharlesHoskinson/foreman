@@ -1,3 +1,3 @@
 [codespell]
-skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/research,./sandbox,./FOREMAN_REPORT.md,./FOREMAN_REPORT.json,./node_modules,./site/style.css
+skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/research,./sandbox,./FOREMAN_REPORT.md,./FOREMAN_REPORT.json,./node_modules,./site/style.css,./graphify-out,./.foreman
 ignore-words-list = grok,codex,worktree,worktrees,shdoc,bats,toml,fable,jsonc,ans
