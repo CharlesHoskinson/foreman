@@ -1,0 +1,3906 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "id": "default_soft_pipeline",
+        "label": "Default Soft Pipeline (architect -> grok -> verify -> codex audit -> advisor)",
+        "nodes": [
+          "claude_foreman_architect",
+          "agents_grok_implementer_grok_implementer",
+          "agents_codex_auditor_codex_auditor",
+          "agents_foreman_advisor_foreman_advisor"
+        ],
+        "relation": "participate_in",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "README.md"
+      },
+      {
+        "id": "parallel_worktree_report_consolidation",
+        "label": "Parallel Worktree Report Consolidation (wt-new -> FOREMAN_REPORT -> wt-consolidate)",
+        "nodes": [
+          "agents_foreman_search_foreman_search",
+          "agents_foreman_plan_foreman_plan",
+          "agents_foreman_audit_foreman_audit",
+          "agents_foreman_search_foreman_report"
+        ],
+        "relation": "participate_in",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "CLAUDE.md"
+      },
+      {
+        "id": "no_silent_fallback_lanes",
+        "label": "No Silent Fallback (STATUS: unavailable, never silently become Claude)",
+        "nodes": [
+          "agents_grok_implementer_grok_implementer",
+          "agents_codex_implementer_codex_implementer",
+          "agents_codex_auditor_codex_auditor",
+          "agents_foreman_audit_foreman_audit"
+        ],
+        "relation": "implement",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "README.md"
+      },
+      {
+        "id": "soft_mode_delegation_pipeline",
+        "label": "Soft-mode delegation pipeline (spec, route, verify, audit, advise)",
+        "nodes": [
+          "skills_foreman_skill_soft_mode",
+          "skills_foreman_references_five_part_spec_spec_template",
+          "skills_foreman_references_lanes_lane_table",
+          "skills_foreman_references_audit_checklist_verdict_schema",
+          "skills_foreman_references_roles_advisor"
+        ],
+        "relation": "participate_in",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "skills/foreman/SKILL.md"
+      },
+      {
+        "id": "enhancement_changesets_cs1_cs4",
+        "label": "Foreman enhancement changesets CS1-CS4",
+        "nodes": [
+          "docs_superpowers_plans_2026_07_15_foreman_enhancement_evidence_contract",
+          "docs_superpowers_plans_2026_07_15_foreman_enhancement_git_write_ban",
+          "docs_superpowers_plans_2026_07_15_foreman_enhancement_bats_harness",
+          "docs_superpowers_plans_2026_07_15_foreman_enhancement_wt_merge",
+          "docs_superpowers_plans_2026_07_15_foreman_enhancement_docs_check",
+          "docs_superpowers_plans_2026_07_15_foreman_enhancement_vendored_skills"
+        ],
+        "relation": "participate_in",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md"
+      },
+      {
+        "id": "cross_vendor_separation_defense",
+        "label": "Cross-vendor separation defense",
+        "nodes": [
+          "skills_foreman_skill_cross_vendor_invariant",
+          "skills_foreman_references_roles_worker",
+          "skills_foreman_references_roles_auditor",
+          "skills_foreman_references_security_model_threat_enforcement_map"
+        ],
+        "relation": "form",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "skills/foreman/SKILL.md"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "label": "fetch_frontier_docs.py",
+      "file_type": "code",
+      "source_file": "docs/research/fetch_frontier_docs.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_research_fetch_frontier_docs",
+      "community": 10,
+      "norm_label": "fetch_frontier_docs.py"
+    },
+    {
+      "label": "Fetch frontier coding-agent docs via scrapling for Foreman QA.",
+      "file_type": "rationale",
+      "source_file": "docs/research/fetch_frontier_docs.py",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "docs_research_fetch_frontier_docs_rationale_1",
+      "community": 10,
+      "norm_label": "fetch frontier coding-agent docs via scrapling for foreman qa."
+    },
+    {
+      "label": "install.ps1",
+      "file_type": "code",
+      "source_file": "install.ps1",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "install_ps1_install",
+      "community": 11,
+      "norm_label": "install.ps1"
+    },
+    {
+      "label": "Ensure-Junction()",
+      "file_type": "code",
+      "source_file": "install.ps1",
+      "source_location": "L7",
+      "_origin": "ast",
+      "id": "install_ensure_junction",
+      "community": 11,
+      "norm_label": "ensure-junction()"
+    },
+    {
+      "label": "install.sh",
+      "file_type": "code",
+      "source_file": "install.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "install_sh_install",
+      "community": 7,
+      "norm_label": "install.sh"
+    },
+    {
+      "label": "install.sh script",
+      "file_type": "code",
+      "source_file": "install.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "install_sh__entry",
+      "community": 7,
+      "norm_label": "install.sh script"
+    },
+    {
+      "label": "link_skill()",
+      "file_type": "code",
+      "source_file": "install.sh",
+      "source_location": "L7",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "install_link_skill",
+      "community": 7,
+      "norm_label": "link_skill()"
+    },
+    {
+      "label": "audit-run.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/audit-run.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_audit_run",
+      "community": 13,
+      "norm_label": "audit-run.sh"
+    },
+    {
+      "label": "audit-run.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/audit-run.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_audit_run_sh__entry",
+      "community": 13,
+      "norm_label": "audit-run.sh script"
+    },
+    {
+      "label": "checks-run.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/checks-run.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_checks_run",
+      "community": 14,
+      "norm_label": "checks-run.sh"
+    },
+    {
+      "label": "checks-run.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/checks-run.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_checks_run_sh__entry",
+      "community": 14,
+      "norm_label": "checks-run.sh script"
+    },
+    {
+      "label": "evidence-collect.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/evidence-collect.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_evidence_collect",
+      "community": 15,
+      "norm_label": "evidence-collect.sh"
+    },
+    {
+      "label": "evidence-collect.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/evidence-collect.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_evidence_collect_sh__entry",
+      "community": 15,
+      "norm_label": "evidence-collect.sh script"
+    },
+    {
+      "label": "gate-eval.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/gate-eval.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_gate_eval",
+      "community": 16,
+      "norm_label": "gate-eval.sh"
+    },
+    {
+      "label": "gate-eval.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/gate-eval.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_gate_eval_sh__entry",
+      "community": 16,
+      "norm_label": "gate-eval.sh script"
+    },
+    {
+      "label": "common.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common",
+      "community": 4,
+      "norm_label": "common.sh"
+    },
+    {
+      "label": "common.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_sh__entry",
+      "community": 4,
+      "norm_label": "common.sh script"
+    },
+    {
+      "label": "EXIT_OK",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L4",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_exit_ok",
+      "community": 4,
+      "norm_label": "exit_ok"
+    },
+    {
+      "label": "EXIT_FAIL",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L5",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_exit_fail",
+      "community": 4,
+      "norm_label": "exit_fail"
+    },
+    {
+      "label": "EXIT_CONFIG",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L6",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_exit_config",
+      "community": 4,
+      "norm_label": "exit_config"
+    },
+    {
+      "label": "EXIT_MISSING_CLI",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L7",
+      "metadata": {
+        "language": "bash",
+        "kind": "code"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_exit_missing_cli",
+      "community": 4,
+      "norm_label": "exit_missing_cli"
+    },
+    {
+      "label": "log()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L11",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_log",
+      "community": 4,
+      "norm_label": "log()"
+    },
+    {
+      "label": "die()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L13",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_die",
+      "community": 4,
+      "norm_label": "die()"
+    },
+    {
+      "label": "require_cmd()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L19",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_require_cmd",
+      "community": 4,
+      "norm_label": "require_cmd()"
+    },
+    {
+      "label": "run_dir()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L24",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_run_dir",
+      "community": 4,
+      "norm_label": "run_dir()"
+    },
+    {
+      "label": "git_nohooks()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L27",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_git_nohooks",
+      "community": 4,
+      "norm_label": "git_nohooks()"
+    },
+    {
+      "label": "toml_get()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L30",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_toml_get",
+      "community": 4,
+      "norm_label": "toml_get()"
+    },
+    {
+      "label": "hash_snapshot()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L56",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_hash_snapshot",
+      "community": 4,
+      "norm_label": "hash_snapshot()"
+    },
+    {
+      "label": "repo_lock_path()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L66",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_common_repo_lock_path",
+      "community": 4,
+      "norm_label": "repo_lock_path()"
+    },
+    {
+      "label": "worktree.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_worktree",
+      "community": 6,
+      "norm_label": "worktree.sh"
+    },
+    {
+      "label": "worktree.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_worktree_sh__entry",
+      "community": 6,
+      "norm_label": "worktree.sh script"
+    },
+    {
+      "label": "wt_parent_dir()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L15",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_worktree_wt_parent_dir",
+      "community": 6,
+      "norm_label": "wt_parent_dir()"
+    },
+    {
+      "label": "wt_path()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L20",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_worktree_wt_path",
+      "community": 6,
+      "norm_label": "wt_path()"
+    },
+    {
+      "label": "wt_branch()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L28",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_worktree_wt_branch",
+      "community": 6,
+      "norm_label": "wt_branch()"
+    },
+    {
+      "label": "wt_role_ok()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L35",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_worktree_wt_role_ok",
+      "community": 6,
+      "norm_label": "wt_role_ok()"
+    },
+    {
+      "label": "wt_with_lock()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L43",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_lib_worktree_wt_with_lock",
+      "community": 6,
+      "norm_label": "wt_with_lock()"
+    },
+    {
+      "label": "pr-open.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/pr-open.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_pr_open",
+      "community": 17,
+      "norm_label": "pr-open.sh"
+    },
+    {
+      "label": "pr-open.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/pr-open.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_pr_open_sh__entry",
+      "community": 17,
+      "norm_label": "pr-open.sh script"
+    },
+    {
+      "label": "task-new.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/task-new.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_task_new",
+      "community": 18,
+      "norm_label": "task-new.sh"
+    },
+    {
+      "label": "task-new.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/task-new.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_task_new_sh__entry",
+      "community": 18,
+      "norm_label": "task-new.sh script"
+    },
+    {
+      "label": "worker-run.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/worker-run.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_worker_run",
+      "community": 19,
+      "norm_label": "worker-run.sh"
+    },
+    {
+      "label": "worker-run.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/worker-run.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_worker_run_sh__entry",
+      "community": 19,
+      "norm_label": "worker-run.sh script"
+    },
+    {
+      "label": "wt-cleanup.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-cleanup.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_cleanup",
+      "community": 8,
+      "norm_label": "wt-cleanup.sh"
+    },
+    {
+      "label": "wt-cleanup.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-cleanup.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_cleanup_sh__entry",
+      "community": 8,
+      "norm_label": "wt-cleanup.sh script"
+    },
+    {
+      "label": "json_get()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-cleanup.sh",
+      "source_location": "L30",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_cleanup_json_get",
+      "community": 8,
+      "norm_label": "json_get()"
+    },
+    {
+      "label": "wt-consolidate.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-consolidate.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_consolidate",
+      "community": 9,
+      "norm_label": "wt-consolidate.sh"
+    },
+    {
+      "label": "wt-consolidate.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-consolidate.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_consolidate_sh__entry",
+      "community": 9,
+      "norm_label": "wt-consolidate.sh script"
+    },
+    {
+      "label": "json_get()",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-consolidate.sh",
+      "source_location": "L17",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_function"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_consolidate_json_get",
+      "community": 9,
+      "norm_label": "json_get()"
+    },
+    {
+      "label": "wt-new.sh",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-new.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "file"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_new",
+      "community": 20,
+      "norm_label": "wt-new.sh"
+    },
+    {
+      "label": "wt-new.sh script",
+      "file_type": "code",
+      "source_file": "skills/foreman/scripts/wt-new.sh",
+      "source_location": "L1",
+      "metadata": {
+        "language": "bash",
+        "kind": "bash_entrypoint"
+      },
+      "_origin": "ast",
+      "id": "skills_foreman_scripts_wt_new_sh__entry",
+      "community": 20,
+      "norm_label": "wt-new.sh script"
+    },
+    {
+      "label": "Foreman Architect Doctrine",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Architect runs the highest-judgment model (Fable preferred) and minimizes its own token volume; typing is delegated cross-vendor, and lane reports are never accepted without reading the diff and re-running verification.",
+      "id": "claude_foreman_architect",
+      "community": 0,
+      "norm_label": "foreman architect doctrine"
+    },
+    {
+      "label": "Five-Part Spec",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Subagents share no chat context, so the five-part spec (objective, files, interfaces, constraints, verification) makes context-free delegation to implementer lanes safe.",
+      "id": "claude_five_part_spec",
+      "community": 0,
+      "norm_label": "five-part spec"
+    },
+    {
+      "label": "Cross-Vendor Audit Invariant",
+      "file_type": "rationale",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Never same-vendor audit: decorrelated review from a different model family catches blind spots that same-family self-review misses; if Codex implemented, codex-auditor must not audit.",
+      "id": "claude_cross_vendor_invariant",
+      "community": 0,
+      "norm_label": "cross-vendor audit invariant"
+    },
+    {
+      "label": "Soft Loop Pipeline",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "claude_soft_loop",
+      "community": 0,
+      "norm_label": "soft loop pipeline"
+    },
+    {
+      "label": "Reference Environment Inventory",
+      "file_type": "concept",
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Before multi-step implementation the architect runs tool-check scripts, bootstraps missing tools, and only implements after an ENV INVENTORY summary is READY.",
+      "id": "claude_env_inventory",
+      "community": 0,
+      "norm_label": "reference environment inventory"
+    },
+    {
+      "label": "Foreman Project",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "readme_foreman",
+      "community": 0,
+      "norm_label": "foreman project"
+    },
+    {
+      "label": "Soft Mode",
+      "file_type": "concept",
+      "source_file": "README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "High-judgment architect + Grok implementer + Codex GPT-5.6 Sol auditor + Claude advisor at commitment boundaries; ready today needing only Claude Code plus grok and codex CLIs.",
+      "id": "readme_soft_mode",
+      "community": 0,
+      "norm_label": "soft mode"
+    },
+    {
+      "label": "Hard Mode",
+      "file_type": "concept",
+      "source_file": "README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Adds worktrees, host-side evidence, independent checks, cold-diff audit, and a deterministic merge gate (INIT->PLAN->IMPLEMENT->CHECK->AUDIT->GATE->PR); Docker worker path still partial.",
+      "id": "readme_hard_mode",
+      "community": 0,
+      "norm_label": "hard mode"
+    },
+    {
+      "label": "Codex Auditor (GPT-5.6 Sol)",
+      "file_type": "concept",
+      "source_file": "agents/codex-auditor.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Default read-only audit lane: cold-diff review with no worker chat history, treating the diff as untrusted data; auditor output is advice to the architect/gate, never a ship decision.",
+      "id": "agents_codex_auditor_codex_auditor",
+      "community": 0,
+      "norm_label": "codex auditor (gpt-5.6 sol)"
+    },
+    {
+      "label": "Verdict Schema (verdict.schema.json)",
+      "file_type": "concept",
+      "source_file": "agents/codex-auditor.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Schema-forced auditor JSON (APPROVED/WARNING/BLOCKED) beats free-form prose; follows the OpenAI cookbook read-only sandbox + --output-schema code-review pattern.",
+      "id": "agents_codex_auditor_verdict_schema",
+      "community": 0,
+      "norm_label": "verdict schema (verdict.schema.json)"
+    },
+    {
+      "label": "Codex Implementer",
+      "file_type": "concept",
+      "source_file": "agents/codex-implementer.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Cross-vendor implementation lane used when correctness is critical or to race a second independent implementation against Grok.",
+      "id": "agents_codex_implementer_codex_implementer",
+      "community": 0,
+      "norm_label": "codex implementer"
+    },
+    {
+      "label": "Codex Evidence Contract",
+      "file_type": "concept",
+      "source_file": "agents/codex-implementer.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agents_codex_implementer_evidence_contract",
+      "community": 0,
+      "norm_label": "codex evidence contract"
+    },
+    {
+      "label": "Foreman Advisor",
+      "file_type": "concept",
+      "source_file": "agents/foreman-advisor.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Second-opinion read-only skeptic consulted sparingly at commitment boundaries (architecture, migrations, API shapes, twice-failed debugging); returns a decisive verdict under ~300 words and never implements.",
+      "id": "agents_foreman_advisor_foreman_advisor",
+      "community": 0,
+      "norm_label": "foreman advisor"
+    },
+    {
+      "label": "Foreman Audit (worktree)",
+      "file_type": "concept",
+      "source_file": "agents/foreman-audit.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agents_foreman_audit_foreman_audit",
+      "community": 0,
+      "norm_label": "foreman audit (worktree)"
+    },
+    {
+      "label": "Foreman Plan (worktree)",
+      "file_type": "concept",
+      "source_file": "agents/foreman-plan.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agents_foreman_plan_foreman_plan",
+      "community": 0,
+      "norm_label": "foreman plan (worktree)"
+    },
+    {
+      "label": "Foreman Search (worktree)",
+      "file_type": "concept",
+      "source_file": "agents/foreman-search.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "agents_foreman_search_foreman_search",
+      "community": 0,
+      "norm_label": "foreman search (worktree)"
+    },
+    {
+      "label": "FOREMAN_REPORT Worktree Report",
+      "file_type": "concept",
+      "source_file": "agents/foreman-search.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Durable per-worktree report pair (FOREMAN_REPORT.md + .json, schema foreman.worktree-report.v1) written to each tree root so wt-consolidate can gather parallel search/plan/audit results without agents blocking each other.",
+      "id": "agents_foreman_search_foreman_report",
+      "community": 0,
+      "norm_label": "foreman_report worktree report"
+    },
+    {
+      "label": "Grok Implementer",
+      "file_type": "concept",
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Default implementation lane: Grok 4.5 via headless Grok CLI types the code for routine well-specified work; the architect stays on the host model family so typing is cross-vendor.",
+      "id": "agents_grok_implementer_grok_implementer",
+      "community": 0,
+      "norm_label": "grok implementer"
+    },
+    {
+      "label": "Grok Evidence Contract",
+      "file_type": "concept",
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Worker claims are not evidence: HEAD SHA and git-status digests recorded before and after invocation detect unauthorized git activity.",
+      "id": "agents_grok_implementer_evidence_contract",
+      "community": 0,
+      "norm_label": "grok evidence contract"
+    },
+    {
+      "label": "Git Discipline (Architect Owns Git Writes)",
+      "file_type": "concept",
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Implementer lanes and their CLIs never run git write commands; the architect owns all git writes so unverified changes cannot be committed by workers.",
+      "id": "agents_grok_implementer_git_discipline",
+      "community": 0,
+      "norm_label": "git discipline (architect owns git writes)"
+    },
+    {
+      "label": "Foreman QA + Feature Pass (2026-07-15)",
+      "file_type": "document",
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Frontier-docs research pass validating claimed vs shipped features: soft mode strong, hard mode partial, docs/site drift fixed, live CLI flags for grok and codex validated on-machine, remaining P1/P2 gaps listed.",
+      "id": "docs_research_qa_2026_07_15_qa_pass",
+      "community": 5,
+      "norm_label": "foreman qa + feature pass (2026-07-15)"
+    },
+    {
+      "label": "Agent Skills Standard",
+      "file_type": "concept",
+      "source_file": "docs/research/agentskills_spec.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_agentskills_spec_agent_skills",
+      "community": 5,
+      "norm_label": "agent skills standard"
+    },
+    {
+      "label": "Progressive Disclosure",
+      "file_type": "rationale",
+      "source_file": "docs/research/agentskills_spec.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Skills load in three stages (discovery, activation, execution) so full instructions load only when a task calls for them, letting agents keep many skills on hand with a small context footprint.",
+      "id": "docs_research_agentskills_spec_progressive_disclosure",
+      "community": 5,
+      "norm_label": "progressive disclosure"
+    },
+    {
+      "label": "agentskills/agentskills GitHub Repo",
+      "file_type": "document",
+      "source_file": "docs/research/agentskills_spec_github.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_agentskills_spec_github_agentskills_repo",
+      "community": 5,
+      "norm_label": "agentskills/agentskills github repo"
+    },
+    {
+      "label": "Anthropic Advisor Tool (API)",
+      "file_type": "concept",
+      "source_file": "docs/research/anthropic_advisor_tool.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Server-side tool pairing a faster executor model with a higher-intelligence advisor mid-generation: near advisor-solo quality while bulk token generation happens at executor rates.",
+      "id": "docs_research_anthropic_advisor_tool_advisor_tool",
+      "community": 0,
+      "norm_label": "anthropic advisor tool (api)"
+    },
+    {
+      "label": "Claude Code Agent Teams",
+      "file_type": "concept",
+      "source_file": "docs/research/anthropic_agent_teams.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Experimental multi-session coordination: a lead plus independent teammates with shared task list and mailboxes; best for parallel research, competing hypotheses, and cross-layer work, at higher token cost than subagents.",
+      "id": "docs_research_anthropic_agent_teams_agent_teams",
+      "community": 5,
+      "norm_label": "claude code agent teams"
+    },
+    {
+      "label": "Claude Code Best Practices",
+      "file_type": "document",
+      "source_file": "docs/research/anthropic_best_practices.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_anthropic_best_practices_best_practices",
+      "community": 5,
+      "norm_label": "claude code best practices"
+    },
+    {
+      "label": "Adversarial Review Step",
+      "file_type": "rationale",
+      "source_file": "docs/research/anthropic_best_practices.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "A reviewer in a fresh context sees only the diff and the criteria, not the reasoning that produced the change, so it evaluates the result on its own terms before work is counted done.",
+      "id": "docs_research_anthropic_best_practices_adversarial_review",
+      "community": 5,
+      "norm_label": "adversarial review step"
+    },
+    {
+      "label": "Claude Code CLI Reference",
+      "file_type": "document",
+      "source_file": "docs/research/anthropic_cli_ref.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_anthropic_cli_ref_cli_reference",
+      "community": 5,
+      "norm_label": "claude code cli reference"
+    },
+    {
+      "label": "Managed Agents Multiagent Orchestration",
+      "file_type": "concept",
+      "source_file": "docs/research/anthropic_multi_agent.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Coordinator agent delegates to a pinned roster of agents in isolated session threads sharing one sandbox; patterns that work: parallelization, specialization, escalation.",
+      "id": "docs_research_anthropic_multi_agent_multiagent_orchestration",
+      "community": 5,
+      "norm_label": "managed agents multiagent orchestration"
+    },
+    {
+      "label": "Claude Code Skills",
+      "file_type": "concept",
+      "source_file": "docs/research/anthropic_skills.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_anthropic_skills_skills",
+      "community": 5,
+      "norm_label": "claude code skills"
+    },
+    {
+      "label": "Claude Code Custom Subagents",
+      "file_type": "concept",
+      "source_file": "docs/research/anthropic_subagents.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Markdown + YAML frontmatter definitions with per-agent model, tool allowlists, permission modes, isolation: worktree, and preloaded skills; each subagent runs in a fresh isolated context and returns only a summary.",
+      "id": "docs_research_anthropic_subagents_subagents",
+      "community": 5,
+      "norm_label": "claude code custom subagents"
+    },
+    {
+      "label": "Fable Advisor (DannyMac180)",
+      "file_type": "document",
+      "source_file": "docs/research/fable_advisor.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_fable_advisor_fable_advisor",
+      "community": 0,
+      "norm_label": "fable advisor (dannymac180)"
+    },
+    {
+      "label": "Architect Pattern (Tokens Route by Volume)",
+      "file_type": "rationale",
+      "source_file": "docs/research/fable_advisor.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "The most expensive model emits the fewest tokens (judgment and specs) while cheap lanes emit the most (code); implementation mechanics are ~90% of session tokens and Grok 4.5 handles them at near-parity, so routing runs far cheaper than Fable-for-everything with cross-vendor review built into the routing rather than bolted on.",
+      "id": "docs_research_fable_advisor_architect_pattern",
+      "community": 0,
+      "norm_label": "architect pattern (tokens route by volume)"
+    },
+    {
+      "label": "Codex CLI",
+      "file_type": "document",
+      "source_file": "docs/research/openai_codex_cli.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_openai_codex_cli_codex_cli",
+      "community": 3,
+      "norm_label": "codex cli"
+    },
+    {
+      "label": "codex exec (non-interactive mode)",
+      "file_type": "document",
+      "source_file": "docs/research/openai_codex_exec.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_openai_codex_exec_codex_exec",
+      "community": 3,
+      "norm_label": "codex exec (non-interactive mode)"
+    },
+    {
+      "label": "Codex sandbox policy (read-only | workspace-write | danger-full-access)",
+      "file_type": "concept",
+      "source_file": "docs/research/openai_codex_exec.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_openai_codex_exec_sandbox_policy",
+      "community": 3,
+      "norm_label": "codex sandbox policy (read-only | workspace-write | danger-full-access)"
+    },
+    {
+      "label": "Codex SDK Code Review pattern (headless exec in CI)",
+      "file_type": "document",
+      "source_file": "docs/research/openai_codex_review.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": "Charlie Weems, Joanne Shin (OpenAI)",
+      "contributor": null,
+      "id": "docs_research_openai_codex_review_codex_sdk_code_review",
+      "community": 3,
+      "norm_label": "codex sdk code review pattern (headless exec in ci)"
+    },
+    {
+      "label": "Codex structured review output schema (findings + verdict + confidence)",
+      "file_type": "concept",
+      "source_file": "docs/research/openai_codex_review.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_openai_codex_review_structured_output_schema",
+      "community": 3,
+      "norm_label": "codex structured review output schema (findings + verdict + confidence)"
+    },
+    {
+      "label": "Codex Sandboxing doc capture (page not found)",
+      "file_type": "document",
+      "source_file": "docs/research/openai_codex_sandbox.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_openai_codex_sandbox_page_not_found",
+      "community": 3,
+      "norm_label": "codex sandboxing doc capture (page not found)"
+    },
+    {
+      "label": "Grok Build coding agent",
+      "file_type": "document",
+      "source_file": "docs/research/xai_grok_build.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_xai_grok_build_grok_build",
+      "community": 3,
+      "norm_label": "grok build coding agent"
+    },
+    {
+      "label": "grok-4.5 model",
+      "file_type": "concept",
+      "source_file": "docs/research/xai_grok_build.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_xai_grok_build_grok_4_5",
+      "community": 3,
+      "norm_label": "grok-4.5 model"
+    },
+    {
+      "label": "Grok headless mode (-p, output formats, sessions)",
+      "file_type": "document",
+      "source_file": "docs/research/xai_grok_headless.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_xai_grok_headless_headless_mode",
+      "community": 3,
+      "norm_label": "grok headless mode (-p, output formats, sessions)"
+    },
+    {
+      "label": "Agent Client Protocol (grok agent stdio)",
+      "file_type": "concept",
+      "source_file": "docs/research/xai_grok_headless.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_xai_grok_headless_acp",
+      "community": 3,
+      "norm_label": "agent client protocol (grok agent stdio)"
+    },
+    {
+      "label": "Introducing Grok Build (xAI announcement, 2026-05-25)",
+      "file_type": "document",
+      "source_file": "docs/research/xai_grok_news.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_xai_grok_news_grok_build_announcement",
+      "community": 2,
+      "norm_label": "introducing grok build (xai announcement, 2026-05-25)"
+    },
+    {
+      "label": "Grok Build parallel subagents in worktrees",
+      "file_type": "concept",
+      "source_file": "docs/research/xai_grok_news.txt",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_research_xai_grok_news_grok_subagent_worktrees",
+      "community": 2,
+      "norm_label": "grok build parallel subagents in worktrees"
+    },
+    {
+      "label": "Foreman Skill Enhancement Implementation Plan",
+      "file_type": "document",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_plan",
+      "community": 2,
+      "norm_label": "foreman skill enhancement implementation plan"
+    },
+    {
+      "label": "wt-merge.sh squash-apply script",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Squash-applies a worktree branch as staged changes without committing by default, and fails closed (exit codes 3/4/5/7 for missing metadata, dirty index, overlap, conflict) so nothing partial ever lands; overlap refusal makes shared-checkout collisions mechanical to catch.",
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_wt_merge",
+      "community": 2,
+      "norm_label": "wt-merge.sh squash-apply script"
+    },
+    {
+      "label": "docs-check.sh documentation & comment-quality gate",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Documentation quality is enforced by fail-closed tooling (markdownlint-cli2, codespell, lychee offline, awk shdoc comment-coverage) emitting foreman.docs-check.v1 JSON for gate consumption, rather than relying on reviewer vigilance; failures loop back to the implementer as a corrected spec.",
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_docs_check",
+      "community": 3,
+      "norm_label": "docs-check.sh documentation & comment-quality gate"
+    },
+    {
+      "label": "bats-core test harness (tests/run.sh, setup_tmp_repo)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Each test creates a throwaway git repo under BATS_TEST_TMPDIR with an isolated FOREMAN_HOME so no test ever touches the real repo; added because shipped wt-* and gate scripts had grown with an empty tests/ directory.",
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_bats_harness",
+      "community": 2,
+      "norm_label": "bats-core test harness (tests/run.sh, setup_tmp_repo)"
+    },
+    {
+      "label": "Evidence contract (head SHA + status digests before/after)",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Recording git HEAD and a SHA-256 digest of git status --porcelain before and after invoking the worker CLI makes unauthorized git activity mechanically detectable (unauthorized_git_activity flag) instead of trusting worker narration.",
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_evidence_contract",
+      "community": 2,
+      "norm_label": "evidence contract (head sha + status digests before/after)"
+    },
+    {
+      "label": "Git-write ban (standing rule for workers)",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Workers never run git write commands (commit/add/reset/branch/push/rebase/merge/tag) because the architect owns all git writes; keeping worker changes uncommitted keeps the blast radius reviewable before anything lands.",
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_git_write_ban",
+      "community": 2,
+      "norm_label": "git-write ban (standing rule for workers)"
+    },
+    {
+      "label": "ARCHITECT_ACTIONS report field",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Operations a lane cannot perform (deletions, renames, chmod under Grok's PermissionCancelled limit) are listed for the architect to execute instead of burning retries \u2014 four retries once cost ~17 minutes.",
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_architect_actions",
+      "community": 2,
+      "norm_label": "architect_actions report field"
+    },
+    {
+      "label": "Vendored reference skills (scrapling, graphify, superpowers)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Vendoring full skill copies makes the Foreman install self-contained; staleness is accepted, VENDORED.md records provenance and the re-vendor procedure, and local-overlay files (*.local.md, cookie vaults) are stripped at vendor time.",
+      "id": "docs_superpowers_plans_2026_07_15_foreman_enhancement_vendored_skills",
+      "community": 2,
+      "norm_label": "vendored reference skills (scrapling, graphify, superpowers)"
+    },
+    {
+      "label": "Foreman Combined Skill Design (Fable Advisor + Original Foreman merge)",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-combined-skill-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "A single portable skill merges Fable Advisor soft orchestration (cost discipline, five-part specs, cross-vendor implementers, advisor) with the original Foreman hard harness (worktrees, external evidence, cold-diff audit, deterministic gate) rather than maintaining two skills.",
+      "id": "docs_superpowers_specs_2026_07_15_foreman_combined_skill_design_combined_skill",
+      "community": 1,
+      "norm_label": "foreman combined skill design (fable advisor + original foreman merge)"
+    },
+    {
+      "label": "Foreman Skill Enhancement Design",
+      "file_type": "document",
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_enhancement_design",
+      "community": 2,
+      "norm_label": "foreman skill enhancement design"
+    },
+    {
+      "label": "First dogfood run lessons (five defects)",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "The site/ dogfood run surfaced: Grok lane drift with false narration and an unauthorized git commit; the headless PermissionCancelled wall; shared-checkout collisions from a concurrent session committing to main; an untested bash harness; and codex-auditor never exercised end-to-end. These five defects drive every enhancement goal.",
+      "id": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_dogfood_lessons",
+      "community": 2,
+      "norm_label": "first dogfood run lessons (five defects)"
+    },
+    {
+      "label": "Lane hardening (CS1: contracts, evidence, known limits)",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Grok drifted from spec on four points while narrating success and ran unauthorized git commits; codified contracts (git-write ban, evidence digests, known-limits sections, ARCHITECT_ACTIONS) make drift detectable and impossible asks avoidable. CS1 lands first because later changesets' workers must obey it.",
+      "id": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_lane_hardening",
+      "community": 2,
+      "norm_label": "lane hardening (cs1: contracts, evidence, known limits)"
+    },
+    {
+      "label": "Worktree-by-default implement rounds",
+      "file_type": "rationale",
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "A concurrent session committed to main four times mid-run while implementers shared the main checkout; running every soft-mode implement round in its own worktree eliminates the collision class at the cost of one script call, even for trivial single-file edits.",
+      "id": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_worktree_by_default",
+      "community": 2,
+      "norm_label": "worktree-by-default implement rounds"
+    },
+    {
+      "label": "Documentation & comment-quality stage (Section 5)",
+      "file_type": "concept",
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Toolset chosen after research: markdownlint-cli2 + codespell + lychee + shdoc convention + PSScriptAnalyzer; Vale prose linting was rejected for now because it has the highest setup cost and requires a maintained style package.",
+      "id": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_docs_quality_stage",
+      "community": 3,
+      "norm_label": "documentation & comment-quality stage (section 5)"
+    },
+    {
+      "label": "Foreman documentation site (single page)",
+      "file_type": "document",
+      "source_file": "site/index.html",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "site_index_foreman_docs_site",
+      "community": 1,
+      "norm_label": "foreman documentation site (single page)"
+    },
+    {
+      "label": "Foreman docs site README",
+      "file_type": "document",
+      "source_file": "site/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "site_readme_readme",
+      "community": 1,
+      "norm_label": "foreman docs site readme"
+    },
+    {
+      "label": "Foreman skill (SKILL.md)",
+      "file_type": "document",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_skill_foreman",
+      "community": 1,
+      "norm_label": "foreman skill (skill.md)"
+    },
+    {
+      "label": "Soft mode (routing doctrine)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_skill_soft_mode",
+      "community": 1,
+      "norm_label": "soft mode (routing doctrine)"
+    },
+    {
+      "label": "Hard mode (gated harness)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_skill_hard_mode",
+      "community": 1,
+      "norm_label": "hard mode (gated harness)"
+    },
+    {
+      "label": "Advisor-only mode",
+      "file_type": "concept",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_skill_advisor_only_mode",
+      "community": 1,
+      "norm_label": "advisor-only mode"
+    },
+    {
+      "label": "Cost discipline (prime directive)",
+      "file_type": "rationale",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "The session model is the most expensive lane; the architect emits judgment (specs, routing, verdicts, short reports) instead of implementation volume, keeps context lean, and reasons once before handing off.",
+      "id": "skills_foreman_skill_cost_discipline",
+      "community": 1,
+      "norm_label": "cost discipline (prime directive)"
+    },
+    {
+      "label": "Five-part spec contract",
+      "file_type": "concept",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Implementers share none of the architect's conversation context, so every delegation must be self-contained (Objective, Files, Interfaces, Constraints, Verification); a spec you cannot finish writing means the decision is not made.",
+      "id": "skills_foreman_skill_five_part_spec",
+      "community": 1,
+      "norm_label": "five-part spec contract"
+    },
+    {
+      "label": "Cross-vendor invariant (auditor vendor differs from worker vendor)",
+      "file_type": "rationale",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Same-family models share blind spots \u2014 the failure mode the skill buys insurance against; default pairing is Grok implements, Codex Sol audits; a lane never audits its own vendor's work and never silently substitutes the host model under another vendor's name.",
+      "id": "skills_foreman_skill_cross_vendor_invariant",
+      "community": 1,
+      "norm_label": "cross-vendor invariant (auditor vendor differs from worker vendor)"
+    },
+    {
+      "label": "Parallelism via worktree fan-out",
+      "file_type": "concept",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_skill_worktree_fan_out",
+      "community": 2,
+      "norm_label": "parallelism via worktree fan-out"
+    },
+    {
+      "label": "Commitment boundaries (advisor consultation)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_skill_commitment_boundaries",
+      "community": 12,
+      "norm_label": "commitment boundaries (advisor consultation)"
+    },
+    {
+      "label": "Hard-mode task loop (INIT to PR with deterministic gate)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "All security-critical enforcement lives in bash scripts, not prompts; gate failure loops back to IMPLEMENT within max_rework_rounds and CI remains final authority.",
+      "id": "skills_foreman_skill_hard_task_loop",
+      "community": 1,
+      "norm_label": "hard-mode task loop (init to pr with deterministic gate)"
+    },
+    {
+      "label": "Audit verdict schema (APPROVED | WARNING | BLOCKED)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/audit-checklist.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Auditor output is untrusted input to the architect/gate, not a final verdict to relay without reading the evidence.",
+      "id": "skills_foreman_references_audit_checklist_verdict_schema",
+      "community": 1,
+      "norm_label": "audit verdict schema (approved | warning | blocked)"
+    },
+    {
+      "label": "Audit dimensions (acceptance, regressions, tampering, security, quality, prompt injection)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/audit-checklist.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_audit_checklist_audit_dimensions",
+      "community": 3,
+      "norm_label": "audit dimensions (acceptance, regressions, tampering, security, quality, prompt injection)"
+    },
+    {
+      "label": "Five-part spec template",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/five-part-spec.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_five_part_spec_spec_template",
+      "community": 1,
+      "norm_label": "five-part spec template"
+    },
+    {
+      "label": "Standing constraints block (copied into every spec)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/five-part-spec.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_five_part_spec_standing_constraints",
+      "community": 2,
+      "norm_label": "standing constraints block (copied into every spec)"
+    },
+    {
+      "label": "Soft-mode lane routing table (Grok/Codex/advisor CLIs and flags)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_lanes_lane_table",
+      "community": 3,
+      "norm_label": "soft-mode lane routing table (grok/codex/advisor clis and flags)"
+    },
+    {
+      "label": "Known limits per CLI (soft mode, headless)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Grok headless cannot run shell commands (PermissionCancelled under acceptEdits) and may narrate success without writing; Codex workspace-write cannot write outside the workspace or install over network; both lanes lack conversation context \u2014 so specs must be self-contained and never ask Grok for deletions.",
+      "id": "skills_foreman_references_lanes_known_limits",
+      "community": 2,
+      "norm_label": "known limits per cli (soft mode, headless)"
+    },
+    {
+      "label": ".foreman/config.toml (mode, worker, audit, checks, limits, gate)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_lanes_config_toml",
+      "community": 1,
+      "norm_label": ".foreman/config.toml (mode, worker, audit, checks, limits, gate)"
+    },
+    {
+      "label": "Worktree lifecycle (wt-new, consolidate, cleanup)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/parallel-worktrees.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Industry practice (Claude Code, Codex, Cursor) treats git worktrees as the isolation primitive for multi-agent work: one object store, many checkouts, no file collisions; worktree creation is serialized via flock against a known git race, and reports land in ~/.foreman/runs/ for a durable audit trail independent of worktree lifetime.",
+      "id": "skills_foreman_references_parallel_worktrees_worktree_lifecycle",
+      "community": 2,
+      "norm_label": "worktree lifecycle (wt-new, consolidate, cleanup)"
+    },
+    {
+      "label": "foreman.worktree-report.v1 schema (FOREMAN_REPORT.md/.json)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/parallel-worktrees.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_parallel_worktrees_report_schema",
+      "community": 1,
+      "norm_label": "foreman.worktree-report.v1 schema (foreman_report.md/.json)"
+    },
+    {
+      "label": "Reference environment (Windows host + WSL2 Ubuntu)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/reference-environment.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_reference_environment_reference_environment",
+      "community": 1,
+      "norm_label": "reference environment (windows host + wsl2 ubuntu)"
+    },
+    {
+      "label": "Pre-implementation tool-check / bootstrap gate",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/reference-environment.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Multi-step implementation must not start while must-tools fail inventory; bootstrap runs only after user confirmation and auth (grok login / codex login) is never automated.",
+      "id": "skills_foreman_references_reference_environment_tool_check",
+      "community": 1,
+      "norm_label": "pre-implementation tool-check / bootstrap gate"
+    },
+    {
+      "label": "Orchestrator (Architect) role",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/roles.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_roles_orchestrator",
+      "community": 1,
+      "norm_label": "orchestrator (architect) role"
+    },
+    {
+      "label": "Worker (Implementer) role",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/roles.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_roles_worker",
+      "community": 1,
+      "norm_label": "worker (implementer) role"
+    },
+    {
+      "label": "Auditor (cold-diff review) role",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/roles.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_roles_auditor",
+      "community": 1,
+      "norm_label": "auditor (cold-diff review) role"
+    },
+    {
+      "label": "Advisor (judgment) role",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/roles.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_roles_advisor",
+      "community": 12,
+      "norm_label": "advisor (judgment) role"
+    },
+    {
+      "label": "Threat-to-enforcement map (soft vs hard responses)",
+      "file_type": "concept",
+      "source_file": "skills/foreman/references/security-model.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "skills_foreman_references_security_model_threat_enforcement_map",
+      "community": 1,
+      "norm_label": "threat-to-enforcement map (soft vs hard responses)"
+    },
+    {
+      "label": "Honest limits (containers share host/WSL2 kernel)",
+      "file_type": "rationale",
+      "source_file": "skills/foreman/references/security-model.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Containers share the host/WSL2 kernel, so Foreman claims defense-in-depth rather than absolute isolation; soft mode has residual risk (no automatic forbidden-path gate) and doctrine prefers failing closed when audit or checks infrastructure is missing.",
+      "id": "skills_foreman_references_security_model_honest_limits",
+      "community": 1,
+      "norm_label": "honest limits (containers share host/wsl2 kernel)"
+    }
+  ],
+  "links": [
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "docs/research/fetch_frontier_docs.py",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "docs_research_fetch_frontier_docs_rationale_1",
+      "target": "docs_research_fetch_frontier_docs",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "install.ps1",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "install_ps1_install",
+      "target": "install_ensure_junction",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "install.sh",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "install_sh_install",
+      "target": "install_link_skill",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "install.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "install_sh_install",
+      "target": "install_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "install.sh",
+      "source_location": "L20",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "install_sh__entry",
+      "target": "install_link_skill",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/audit-run.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_audit_run",
+      "target": "skills_foreman_scripts_audit_run_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/checks-run.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_checks_run",
+      "target": "skills_foreman_scripts_checks_run_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/evidence-collect.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_evidence_collect",
+      "target": "skills_foreman_scripts_evidence_collect_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/gate-eval.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_gate_eval",
+      "target": "skills_foreman_scripts_gate_eval_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_die",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_exit_config",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_exit_fail",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_exit_missing_cli",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L4",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_exit_ok",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L27",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_git_nohooks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L56",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_hash_snapshot",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L66",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_repo_lock_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L19",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_require_cmd",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L24",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_run_dir",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L30",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common",
+      "target": "skills_foreman_scripts_lib_common_toml_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L15",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common_die",
+      "target": "skills_foreman_scripts_lib_common_log",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L21",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common_require_cmd",
+      "target": "skills_foreman_scripts_lib_common_die",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/common.sh",
+      "source_location": "L61",
+      "weight": 1.0,
+      "context": "call",
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_common_hash_snapshot",
+      "target": "skills_foreman_scripts_lib_common_git_nohooks",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_worktree",
+      "target": "skills_foreman_scripts_lib_worktree_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L28",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_worktree",
+      "target": "skills_foreman_scripts_lib_worktree_wt_branch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L15",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_worktree",
+      "target": "skills_foreman_scripts_lib_worktree_wt_parent_dir",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L20",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_worktree",
+      "target": "skills_foreman_scripts_lib_worktree_wt_path",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L35",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_worktree",
+      "target": "skills_foreman_scripts_lib_worktree_wt_role_ok",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/lib/worktree.sh",
+      "source_location": "L43",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_lib_worktree",
+      "target": "skills_foreman_scripts_lib_worktree_wt_with_lock",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/pr-open.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_pr_open",
+      "target": "skills_foreman_scripts_pr_open_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/task-new.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_task_new",
+      "target": "skills_foreman_scripts_task_new_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/worker-run.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_worker_run",
+      "target": "skills_foreman_scripts_worker_run_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/wt-cleanup.sh",
+      "source_location": "L30",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_wt_cleanup",
+      "target": "skills_foreman_scripts_wt_cleanup_json_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/wt-cleanup.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_wt_cleanup",
+      "target": "skills_foreman_scripts_wt_cleanup_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "defines",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/wt-consolidate.sh",
+      "source_location": "L17",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_wt_consolidate",
+      "target": "skills_foreman_scripts_wt_consolidate_json_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/wt-consolidate.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_wt_consolidate",
+      "target": "skills_foreman_scripts_wt_consolidate_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "skills/foreman/scripts/wt-new.sh",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "skills_foreman_scripts_wt_new",
+      "target": "skills_foreman_scripts_wt_new_sh__entry",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "agents_codex_auditor_codex_auditor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "agents_codex_implementer_codex_implementer"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "agents_foreman_advisor_foreman_advisor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "agents_foreman_audit_foreman_audit"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "agents_foreman_plan_foreman_plan"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "agents_foreman_search_foreman_search"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "agents_grok_implementer_grok_implementer"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "claude_cross_vendor_invariant"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "claude_env_inventory"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "claude_five_part_spec"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_foreman_architect",
+      "target": "claude_soft_loop"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_fable_advisor_architect_pattern",
+      "target": "claude_foreman_architect"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/codex-auditor.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_auditor_codex_auditor",
+      "target": "claude_five_part_spec"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/codex-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_implementer_codex_implementer",
+      "target": "claude_five_part_spec"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/foreman-plan.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_foreman_plan_foreman_plan",
+      "target": "claude_five_part_spec"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_grok_implementer_grok_implementer",
+      "target": "claude_five_part_spec"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_foreman",
+      "target": "claude_five_part_spec"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/codex-auditor.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_auditor_codex_auditor",
+      "target": "claude_cross_vendor_invariant"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/foreman-audit.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_foreman_audit_foreman_audit",
+      "target": "claude_cross_vendor_invariant"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "claude_cross_vendor_invariant"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "claude_soft_loop",
+      "target": "agents_foreman_search_foreman_report"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_soft_mode",
+      "target": "claude_soft_loop"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_foreman",
+      "target": "docs_research_fable_advisor_fable_advisor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_foreman",
+      "target": "docs_research_qa_2026_07_15_qa_pass"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_foreman",
+      "target": "readme_hard_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_foreman",
+      "target": "readme_soft_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_soft_mode",
+      "target": "agents_codex_auditor_codex_auditor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_soft_mode",
+      "target": "agents_foreman_advisor_foreman_advisor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_soft_mode",
+      "target": "agents_grok_implementer_grok_implementer"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "readme_hard_mode",
+      "target": "agents_codex_auditor_codex_auditor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/codex-auditor.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_auditor_codex_auditor",
+      "target": "agents_codex_auditor_verdict_schema"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/codex-auditor.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_auditor_codex_auditor",
+      "target": "agents_foreman_search_foreman_report"
+    },
+    {
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "agents/codex-auditor.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_auditor_codex_auditor",
+      "target": "docs_research_anthropic_subagents_subagents"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/foreman-audit.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_foreman_audit_foreman_audit",
+      "target": "agents_codex_auditor_codex_auditor"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/research/anthropic_best_practices.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_anthropic_best_practices_adversarial_review",
+      "target": "agents_codex_auditor_codex_auditor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "agents_codex_auditor_codex_auditor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/foreman-audit.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_foreman_audit_foreman_audit",
+      "target": "agents_codex_auditor_verdict_schema"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/codex-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_implementer_codex_implementer",
+      "target": "agents_codex_implementer_evidence_contract"
+    },
+    {
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "agents/codex-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_implementer_codex_implementer",
+      "target": "agents_grok_implementer_git_discipline"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/fable_advisor.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_fable_advisor_fable_advisor",
+      "target": "agents_codex_implementer_codex_implementer"
+    },
+    {
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "agents/codex-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_codex_implementer_evidence_contract",
+      "target": "agents_grok_implementer_evidence_contract"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_grok_implementer_grok_implementer",
+      "target": "agents_foreman_advisor_foreman_advisor"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_anthropic_advisor_tool_advisor_tool",
+      "target": "agents_foreman_advisor_foreman_advisor"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/research/fable_advisor.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_fable_advisor_fable_advisor",
+      "target": "agents_foreman_advisor_foreman_advisor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/foreman-audit.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_foreman_audit_foreman_audit",
+      "target": "agents_foreman_search_foreman_report"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/foreman-plan.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_foreman_plan_foreman_plan",
+      "target": "agents_foreman_search_foreman_report"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/foreman-search.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_foreman_search_foreman_search",
+      "target": "agents_foreman_search_foreman_report"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_grok_implementer_grok_implementer",
+      "target": "agents_grok_implementer_evidence_contract"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_grok_implementer_grok_implementer",
+      "target": "agents_grok_implementer_git_discipline"
+    },
+    {
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "agents/grok-implementer.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "agents_grok_implementer_grok_implementer",
+      "target": "docs_research_anthropic_subagents_subagents"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/fable_advisor.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_fable_advisor_fable_advisor",
+      "target": "agents_grok_implementer_grok_implementer"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "agents_grok_implementer_grok_implementer"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_agentskills_spec_agent_skills"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_anthropic_advisor_tool_advisor_tool"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_anthropic_agent_teams_agent_teams"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_anthropic_best_practices_best_practices"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_anthropic_cli_ref_cli_reference"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_anthropic_multi_agent_multiagent_orchestration"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_anthropic_skills_skills"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_anthropic_subagents_subagents"
+    },
+    {
+      "relation": "cites",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/QA-2026-07-15.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_qa_2026_07_15_qa_pass",
+      "target": "docs_research_fable_advisor_fable_advisor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/agentskills_spec.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_agentskills_spec_agent_skills",
+      "target": "docs_research_agentskills_spec_progressive_disclosure"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/agentskills_spec_github.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_agentskills_spec_github_agentskills_repo",
+      "target": "docs_research_agentskills_spec_agent_skills"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/anthropic_skills.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_anthropic_skills_skills",
+      "target": "docs_research_agentskills_spec_agent_skills"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/research/anthropic_advisor_tool.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_anthropic_advisor_tool_advisor_tool",
+      "target": "docs_research_fable_advisor_architect_pattern"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/fable_advisor.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_fable_advisor_fable_advisor",
+      "target": "docs_research_anthropic_advisor_tool_advisor_tool"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/anthropic_agent_teams.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_anthropic_agent_teams_agent_teams",
+      "target": "docs_research_anthropic_subagents_subagents"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/research/anthropic_multi_agent.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_anthropic_multi_agent_multiagent_orchestration",
+      "target": "docs_research_anthropic_agent_teams_agent_teams"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/anthropic_best_practices.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_anthropic_best_practices_best_practices",
+      "target": "docs_research_anthropic_best_practices_adversarial_review"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/fable_advisor.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_fable_advisor_fable_advisor",
+      "target": "docs_research_fable_advisor_architect_pattern"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/openai_codex_cli.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_openai_codex_cli_codex_cli",
+      "target": "docs_research_openai_codex_exec_codex_exec"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/openai_codex_exec.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_openai_codex_exec_codex_exec",
+      "target": "docs_research_openai_codex_exec_sandbox_policy"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/openai_codex_review.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_openai_codex_review_codex_sdk_code_review",
+      "target": "docs_research_openai_codex_exec_codex_exec"
+    },
+    {
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_lanes_lane_table",
+      "target": "docs_research_openai_codex_exec_codex_exec"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "AMBIGUOUS",
+      "confidence_score": 0.3,
+      "source_file": "docs/research/openai_codex_sandbox.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_openai_codex_exec_sandbox_policy",
+      "target": "docs_research_openai_codex_sandbox_page_not_found"
+    },
+    {
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_lanes_lane_table",
+      "target": "docs_research_openai_codex_exec_sandbox_policy"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/openai_codex_review.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_openai_codex_review_codex_sdk_code_review",
+      "target": "docs_research_openai_codex_review_structured_output_schema"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "docs/research/openai_codex_review.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_openai_codex_review_codex_sdk_code_review",
+      "target": "skills_foreman_references_audit_checklist_audit_dimensions"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/research/openai_codex_review.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_openai_codex_review_structured_output_schema",
+      "target": "skills_foreman_references_audit_checklist_verdict_schema"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/xai_grok_build.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_xai_grok_build_grok_build",
+      "target": "docs_research_xai_grok_build_grok_4_5"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/xai_grok_build.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_xai_grok_build_grok_build",
+      "target": "docs_research_xai_grok_headless_headless_mode"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/research/xai_grok_news.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_xai_grok_news_grok_build_announcement",
+      "target": "docs_research_xai_grok_build_grok_build"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/xai_grok_headless.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_xai_grok_headless_headless_mode",
+      "target": "docs_research_xai_grok_headless_acp"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_lanes_known_limits",
+      "target": "docs_research_xai_grok_headless_headless_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_lanes_lane_table",
+      "target": "docs_research_xai_grok_headless_headless_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/research/xai_grok_news.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_xai_grok_news_grok_build_announcement",
+      "target": "docs_research_xai_grok_news_grok_subagent_worktrees"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "docs/research/xai_grok_news.txt",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_research_xai_grok_news_grok_subagent_worktrees",
+      "target": "skills_foreman_skill_worktree_fan_out"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_plan",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_enhancement_design"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_plan",
+      "target": "site_index_foreman_docs_site"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_plan",
+      "target": "skills_foreman_skill_foreman"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/five-part-spec.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_five_part_spec_standing_constraints",
+      "target": "docs_superpowers_plans_2026_07_15_foreman_enhancement_plan"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_lanes_known_limits",
+      "target": "docs_superpowers_plans_2026_07_15_foreman_enhancement_plan"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_bats_harness",
+      "target": "docs_superpowers_plans_2026_07_15_foreman_enhancement_wt_merge"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_wt_merge",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_worktree_by_default"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_wt_merge",
+      "target": "skills_foreman_references_parallel_worktrees_worktree_lifecycle"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_docs_check",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_docs_quality_stage"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_docs_check",
+      "target": "skills_foreman_references_audit_checklist_audit_dimensions"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_bats_harness",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_enhancement_design"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_evidence_contract",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_lane_hardening"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/lanes.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_lanes_known_limits",
+      "target": "docs_superpowers_plans_2026_07_15_foreman_enhancement_evidence_contract"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_architect_actions",
+      "target": "docs_superpowers_plans_2026_07_15_foreman_enhancement_git_write_ban"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_git_write_ban",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_lane_hardening"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/five-part-spec.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_five_part_spec_standing_constraints",
+      "target": "docs_superpowers_plans_2026_07_15_foreman_enhancement_architect_actions"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_plans_2026_07_15_foreman_enhancement_vendored_skills",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_enhancement_design"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-combined-skill-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_combined_skill_design_combined_skill",
+      "target": "skills_foreman_skill_advisor_only_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-combined-skill-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_combined_skill_design_combined_skill",
+      "target": "skills_foreman_skill_hard_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-combined-skill-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_combined_skill_design_combined_skill",
+      "target": "skills_foreman_skill_soft_mode"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_enhancement_design",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_combined_skill_design_combined_skill"
+    },
+    {
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-combined-skill-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_combined_skill_design_combined_skill"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_dogfood_lessons",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_lane_hardening"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_dogfood_lessons",
+      "target": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_worktree_by_default"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_dogfood_lessons",
+      "target": "site_index_foreman_docs_site"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/specs/2026-07-15-foreman-enhancement-design.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "docs_superpowers_specs_2026_07_15_foreman_enhancement_design_worktree_by_default",
+      "target": "skills_foreman_skill_worktree_fan_out"
+    },
+    {
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "site/index.html",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "site_index_foreman_docs_site",
+      "target": "skills_foreman_references_roles_auditor"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "site/index.html",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "site_index_foreman_docs_site",
+      "target": "skills_foreman_references_security_model_honest_limits"
+    },
+    {
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "site/index.html",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "site_index_foreman_docs_site",
+      "target": "skills_foreman_skill_hard_task_loop"
+    },
+    {
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "site/index.html",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "site_index_foreman_docs_site",
+      "target": "skills_foreman_skill_soft_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "site/README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "site_readme_readme",
+      "target": "site_index_foreman_docs_site"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "site/README.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "site_readme_readme",
+      "target": "skills_foreman_skill_foreman"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_audit_checklist_verdict_schema"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_five_part_spec_spec_template"
+    },
+    {
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_lanes_config_toml"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_lanes_lane_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_parallel_worktrees_worktree_lifecycle"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_reference_environment_tool_check"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_roles_orchestrator"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_foreman",
+      "target": "skills_foreman_references_security_model_threat_enforcement_map"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_cost_discipline",
+      "target": "skills_foreman_skill_soft_mode"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_soft_mode",
+      "target": "skills_foreman_skill_five_part_spec"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_hard_mode",
+      "target": "skills_foreman_skill_hard_task_loop"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_five_part_spec",
+      "target": "skills_foreman_references_five_part_spec_spec_template"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_cross_vendor_invariant",
+      "target": "skills_foreman_references_roles_auditor"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "skills/foreman/references/security-model.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_cross_vendor_invariant",
+      "target": "skills_foreman_references_security_model_threat_enforcement_map"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_worktree_fan_out",
+      "target": "skills_foreman_references_parallel_worktrees_worktree_lifecycle"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_skill_commitment_boundaries",
+      "target": "skills_foreman_references_roles_advisor"
+    },
+    {
+      "relation": "shares_data_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/parallel-worktrees.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_audit_checklist_verdict_schema",
+      "target": "skills_foreman_references_parallel_worktrees_report_schema"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/roles.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_roles_auditor",
+      "target": "skills_foreman_references_audit_checklist_verdict_schema"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/roles.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_roles_worker",
+      "target": "skills_foreman_references_five_part_spec_spec_template"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/reference-environment.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_reference_environment_tool_check",
+      "target": "skills_foreman_references_reference_environment_reference_environment"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/references/security-model.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "skills_foreman_references_security_model_honest_limits",
+      "target": "skills_foreman_references_security_model_threat_enforcement_map"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "default_soft_pipeline",
+      "label": "Default Soft Pipeline (architect -> grok -> verify -> codex audit -> advisor)",
+      "nodes": [
+        "claude_foreman_architect",
+        "agents_grok_implementer_grok_implementer",
+        "agents_codex_auditor_codex_auditor",
+        "agents_foreman_advisor_foreman_advisor"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md"
+    },
+    {
+      "id": "parallel_worktree_report_consolidation",
+      "label": "Parallel Worktree Report Consolidation (wt-new -> FOREMAN_REPORT -> wt-consolidate)",
+      "nodes": [
+        "agents_foreman_search_foreman_search",
+        "agents_foreman_plan_foreman_plan",
+        "agents_foreman_audit_foreman_audit",
+        "agents_foreman_search_foreman_report"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CLAUDE.md"
+    },
+    {
+      "id": "no_silent_fallback_lanes",
+      "label": "No Silent Fallback (STATUS: unavailable, never silently become Claude)",
+      "nodes": [
+        "agents_grok_implementer_grok_implementer",
+        "agents_codex_implementer_codex_implementer",
+        "agents_codex_auditor_codex_auditor",
+        "agents_foreman_audit_foreman_audit"
+      ],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "README.md"
+    },
+    {
+      "id": "soft_mode_delegation_pipeline",
+      "label": "Soft-mode delegation pipeline (spec, route, verify, audit, advise)",
+      "nodes": [
+        "skills_foreman_skill_soft_mode",
+        "skills_foreman_references_five_part_spec_spec_template",
+        "skills_foreman_references_lanes_lane_table",
+        "skills_foreman_references_audit_checklist_verdict_schema",
+        "skills_foreman_references_roles_advisor"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md"
+    },
+    {
+      "id": "enhancement_changesets_cs1_cs4",
+      "label": "Foreman enhancement changesets CS1-CS4",
+      "nodes": [
+        "docs_superpowers_plans_2026_07_15_foreman_enhancement_evidence_contract",
+        "docs_superpowers_plans_2026_07_15_foreman_enhancement_git_write_ban",
+        "docs_superpowers_plans_2026_07_15_foreman_enhancement_bats_harness",
+        "docs_superpowers_plans_2026_07_15_foreman_enhancement_wt_merge",
+        "docs_superpowers_plans_2026_07_15_foreman_enhancement_docs_check",
+        "docs_superpowers_plans_2026_07_15_foreman_enhancement_vendored_skills"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/superpowers/plans/2026-07-15-foreman-enhancement.md"
+    },
+    {
+      "id": "cross_vendor_separation_defense",
+      "label": "Cross-vendor separation defense",
+      "nodes": [
+        "skills_foreman_skill_cross_vendor_invariant",
+        "skills_foreman_references_roles_worker",
+        "skills_foreman_references_roles_auditor",
+        "skills_foreman_references_security_model_threat_enforcement_map"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "skills/foreman/SKILL.md"
+    }
+  ],
+  "built_at_commit": "2bcfefca5566fa16d523aa06a499bd2b6e573f3f"
+}
