@@ -10,7 +10,7 @@ create_matching_fixture() {
   mkdir -p skills/fixskill
   printf 'fixture\n' > skills/fixskill/file.txt
   local hash
-  hash="$(find skills/fixskill -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+  hash="$(find skills/fixskill -type f -print0 | sort -z | while IFS= read -r -d '' f; do printf '%s\0' "$f"; tr -d '\r' < "$f"; done | sha256sum | cut -d' ' -f1)"
   cat > skills/VENDORED.md <<EOF
 | Skill | Upstream | Vendored | License | Content hash |
 |---|---|---|---|---|
@@ -18,9 +18,15 @@ create_matching_fixture() {
 EOF
 }
 
-@test "maintenance upstream reports ok on matching hash, drift after fixture modified" {
+@test "maintenance upstream reports ok across line endings, drift after content modified" {
   create_matching_fixture
 
+  run bash "$SCRIPTS/maintenance.sh" --stage upstream
+  [ "$status" -eq 0 ]
+  grep -Eq 'fixskill.*ok' <<< "$output"
+  ! grep -Eq 'fixskill.*drift' <<< "$output"
+
+  printf 'fixture\r\n' > skills/fixskill/file.txt
   run bash "$SCRIPTS/maintenance.sh" --stage upstream
   [ "$status" -eq 0 ]
   grep -Eq 'fixskill.*ok' <<< "$output"
@@ -124,7 +130,7 @@ EOF
   find skills/applyskill -depth -type d -name .git -exec rm -rf -- {} +
   find skills/applyskill -type f -name '*.local.md' -delete
   local old_hash
-  old_hash="$(find skills/applyskill -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+  old_hash="$(find skills/applyskill -type f -print0 | sort -z | while IFS= read -r -d '' f; do printf '%s\0' "$f"; tr -d '\r' < "$f"; done | sha256sum | cut -d' ' -f1)"
   cat > skills/VENDORED.md <<EOF
 | Skill | Upstream | Vendored | License | Content hash |
 |---|---|---|---|---|
@@ -141,7 +147,7 @@ EOF
   [ ! -e skills/applyskill/notes.local.md ]
 
   local new_hash recorded_hash
-  new_hash="$(find skills/applyskill -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+  new_hash="$(find skills/applyskill -type f -print0 | sort -z | while IFS= read -r -d '' f; do printf '%s\0' "$f"; tr -d '\r' < "$f"; done | sha256sum | cut -d' ' -f1)"
   recorded_hash="$(awk -F'|' '$2 ~ /applyskill/ { value=$(NF - 1); gsub(/^[[:space:]]+|[[:space:]]+$/, "", value); print value }' skills/VENDORED.md)"
   [ "$recorded_hash" != "$old_hash" ]
   [ "$recorded_hash" = "$new_hash" ]

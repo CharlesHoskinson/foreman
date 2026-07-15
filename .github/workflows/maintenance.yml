@@ -21,7 +21,8 @@ jobs:
       - name: Run maintenance report
         id: report
         run: |
-          bash skills/foreman/scripts/maintenance.sh --stage all --json maintenance.json || true
+          # CI lacks Graphify and developer CLIs, so only upstream drift is meaningful here.
+          bash skills/foreman/scripts/maintenance.sh --stage upstream --json maintenance.json || true
           token="$(date +%s)_$RANDOM"
           echo "summary<<EOF_${token}" >> "$GITHUB_OUTPUT"
           cat maintenance.json >> "$GITHUB_OUTPUT"

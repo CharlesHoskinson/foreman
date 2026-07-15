@@ -76,7 +76,7 @@ append_item() {
   printf '%s\t%s\t%s\n' "$name" "$status" "$detail" >> "$file"
 }
 
-# @description Compute a vendored skill directory hash using the documented path-sensitive pipeline.
+# @description Compute a vendored skill directory hash from paths and CR-stripped file content.
 # @arg $1 skill vendored skill directory name below skills
 # @stdout final SHA-256 digest, or empty-tree when the directory contains no files
 directory_hash() {
@@ -87,7 +87,10 @@ directory_hash() {
       printf 'empty-tree\n'
       return 0
     fi
-    find "skills/$skill" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+    find "skills/$skill" -type f -print0 | sort -z | while IFS= read -r -d '' f; do
+      printf '%s\0' "$f"
+      tr -d '\r' < "$f"
+    done | sha256sum | cut -d' ' -f1
   )
 }
 
