@@ -1,7 +1,7 @@
 # Foreman reference-env inventory (Windows host).
-# Usage: .\env\tool-check.ps1 [-Profile soft|hard|full] [-Json] [-Out path]
+# Usage: .\env\tool-check.ps1 [-Profile soft|hard|full|durable] [-Json] [-Out path]
 param(
-  [ValidateSet("soft", "hard", "full")]
+  [ValidateSet("soft", "hard", "full", "durable")]
   [string]$Profile = "soft",
   [switch]$Json,
   [string]$Out = ""
@@ -75,6 +75,19 @@ function Check-One([string]$Id) {
     }
     "jq" {
       if (Test-Cmd "jq") { $status = "ok"; $detail = Get-Ver "jq" }
+    }
+    "coreutils" {
+      if (Test-Cmd "stdbuf") { $status = "ok"; $detail = Get-Ver "stdbuf" }
+      elseif (Test-Cmd "gstdbuf") { $status = "ok"; $detail = Get-Ver "gstdbuf" }
+    }
+    "bash" {
+      if (Test-Cmd "bash") { $status = "ok"; $detail = Get-Ver "bash" }
+    }
+    "nats-server" {
+      if (Test-Cmd "nats-server") { $status = "ok"; $detail = Get-Ver "nats-server" }
+    }
+    "nats-cli" {
+      if (Test-Cmd "nats") { $status = "ok"; $detail = Get-Ver "nats" }
     }
     "grok" {
       if (Test-Cmd "grok") { $status = "ok"; $detail = Get-Ver "grok" }
@@ -182,14 +195,17 @@ function Check-One([string]$Id) {
 $mustSoft = @("git", "python3", "grok", "codex", "foreman_skill")
 $mustHard = @("wsl", "git", "python3", "foreman_skill")
 $mustFull = @("wsl", "git", "python3", "grok", "codex", "foreman_skill")
+$mustDurable = @("git", "jq", "coreutils", "bash")
 $shouldSoft = @("claude", "node", "npm", "jq", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer")
 $shouldHard = @("gh")
 $shouldFull = @("claude", "node", "npm", "jq", "gh", "docker", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer")
+$shouldDurable = @("nats-server", "nats-cli")
 
 switch ($Profile) {
   "soft" { $must = $mustSoft; $should = $shouldSoft }
   "hard" { $must = $mustHard; $should = $shouldHard }
   "full" { $must = $mustFull; $should = $shouldFull }
+  "durable" { $must = $mustDurable; $should = $shouldDurable }
 }
 
 $ids = @()

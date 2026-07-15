@@ -1,9 +1,9 @@
 # Windows-side bootstrap for Foreman reference environment.
-# Usage: .\env\bootstrap-windows.ps1 [-Profile soft|hard|full] [-Yes]
+# Usage: .\env\bootstrap-windows.ps1 [-Profile soft|hard|full|durable] [-Yes]
 # Installs missing host tools via winget/npm where possible, runs install.ps1,
 # then optionally bootstraps WSL for hard/full profiles.
 param(
-  [ValidateSet("soft", "hard", "full")]
+  [ValidateSet("soft", "hard", "full", "durable")]
   [string]$Profile = "soft",
   [switch]$Yes
 )
@@ -31,6 +31,15 @@ function WingetInstall($Id) {
   & winget install --id $Id -e --accept-package-agreements --accept-source-agreements
 }
 
+function ScoopInstall($Package) {
+  if (-not (Have scoop)) {
+    Log "WARN: scoop not available; install $Package manually"
+    return
+  }
+  Log "scoop install $Package"
+  & scoop install $Package
+}
+
 if (-not (Have git)) { WingetInstall "Git.Git" } else { Log "git OK" }
 
 $pyOk = $false
@@ -46,6 +55,14 @@ if (-not (Have node) -or -not (Have npm)) {
   WingetInstall "OpenJS.NodeJS.LTS"
   # refresh PATH in this session is imperfect; continue
 } else { Log "node/npm OK" }
+
+# Durable-lanes dependencies and optional NATS transport.
+if ($Profile -eq "durable") {
+  if (-not (Have jq)) { ScoopInstall "main/jq" } else { Log "jq OK" }
+  if (-not (Have stdbuf) -and -not (Have gstdbuf)) { ScoopInstall "main/coreutils" } else { Log "coreutils/stdbuf OK" }
+  if (-not (Have nats-server)) { ScoopInstall "main/nats-server" } else { Log "nats-server OK" }
+  if (-not (Have nats)) { ScoopInstall "extras/natscli" } else { Log "nats CLI OK" }
+}
 
 # Documentation tools (soft/full docs group)
 if ($Profile -in @("soft", "full")) {

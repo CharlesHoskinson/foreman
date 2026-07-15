@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Foreman reference-env inventory (Linux / WSL).
-# Usage: tool-check.sh [--profile soft|hard|full] [--json] [--out FILE]
+# Usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE]
 set -euo pipefail
 
 PROFILE="soft"
@@ -12,7 +12,7 @@ while [[ $# -gt 0 ]]; do
     --json) JSON=1; shift ;;
     --out) OUT="$2"; shift 2 ;;
     -h|--help)
-      echo "usage: tool-check.sh [--profile soft|hard|full] [--json] [--out FILE]"
+      echo "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE]"
       exit 0
       ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -67,6 +67,20 @@ check_one() {
       ;;
     jq)
       if have jq; then status=ok; detail="$(jq --version 2>&1)"; else status=missing; fi
+      ;;
+    coreutils)
+      if have stdbuf; then status=ok; detail="$(stdbuf --version 2>&1 | head -1)"
+      elif have gstdbuf; then status=ok; detail="$(gstdbuf --version 2>&1 | head -1)"
+      else status=missing; fi
+      ;;
+    bash)
+      if have bash; then status=ok; detail="$(bash --version 2>&1 | head -1)"; else status=missing; fi
+      ;;
+    nats-server)
+      if have nats-server; then status=ok; detail="$(nats-server --version 2>&1 | head -1)"; else status=missing; fi
+      ;;
+    nats-cli)
+      if have nats; then status=ok; detail="$(nats --version 2>&1 | head -1)"; else status=missing; fi
       ;;
     grok)
       if have grok; then status=ok; detail="$(grok --version 2>&1 | head -1)"; else status=missing; fi
@@ -169,14 +183,17 @@ check_one() {
 must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
+must_durable=(git jq coreutils bash)
 should_soft=(claude node npm jq markdownlint-cli2 codespell lychee)
 should_hard=(shellcheck bats gh timeout grok codex)
 should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee)
+should_durable=(nats-server nats-cli)
 
 case "$PROFILE" in
   soft) must=("${must_soft[@]}"); should=("${should_soft[@]}") ;;
   hard) must=("${must_hard[@]}"); should=("${should_hard[@]}") ;;
   full) must=("${must_full[@]}"); should=("${should_full[@]}") ;;
+  durable) must=("${must_durable[@]}"); should=("${should_durable[@]}") ;;
   *) echo "bad profile: $PROFILE" >&2; exit 2 ;;
 esac
 

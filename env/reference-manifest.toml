@@ -1,6 +1,6 @@
 # Foreman reference development environment — inventory source of truth.
 # tool-check.{ps1,sh} and bootstrap-*.{ps1,sh} read this (or embed a mirror).
-# Profiles: soft | hard | full
+# Profiles: soft | hard | full | durable
 
 schema_version = 1
 name = "foreman-reference"
@@ -209,6 +209,36 @@ install_windows = "npm install -g @fission-ai/openspec"
 required = false
 notes = "Optional CLI; foreman follows OpenSpec folder conventions without it"
 
+[[tools]]
+id = "coreutils"
+profile = ["durable"]
+where = ["windows", "wsl"]
+check = "stdbuf --version || gstdbuf --version"
+install_wsl = "sudo apt-get install -y coreutils"
+install_windows = "scoop install main/coreutils"
+required = true
+notes = "stdbuf -oL line-buffers the reasoning stream tee"
+
+[[tools]]
+id = "nats-server"
+profile = ["durable"]
+where = ["windows", "wsl"]
+check = "nats-server --version"
+install_wsl = "curl -fsSL https://binaries.nats.dev/nats-io/nats-server/v2@latest | sh"
+install_windows = "scoop install main/nats-server"
+required = false
+notes = "JetStream transport; required only when [durable] enabled with NATS"
+
+[[tools]]
+id = "nats-cli"
+profile = ["durable"]
+where = ["windows", "wsl"]
+check = "nats --version"
+install_wsl = "curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh"
+install_windows = "scoop install extras/natscli"
+required = false
+notes = "Drives JetStream from bash (setup, bridge, consume)"
+
 [profiles.soft]
 description = "Claude/Grok/Codex soft orchestration on host"
 must = ["git", "python3", "grok", "codex", "foreman_skill"]
@@ -223,6 +253,10 @@ should = ["shellcheck", "bats", "gh", "timeout", "grok", "codex"]
 description = "Soft lanes + hard harness on Windows+WSL reference box"
 must = ["git", "python3", "jq", "grok", "codex", "docker", "flock", "foreman_skill"]
 should = ["claude", "node", "npm", "shellcheck", "bats", "gh", "timeout"]
+
+[profiles.durable]
+must = ["git", "jq", "coreutils", "bash"]
+should = ["nats-server", "nats-cli"]
 
 [[skills]]
 id = "foreman"

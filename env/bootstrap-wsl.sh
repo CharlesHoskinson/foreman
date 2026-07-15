@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Idempotent WSL/Ubuntu bootstrap for Foreman reference environment.
-# Usage: bash env/bootstrap-wsl.sh [--profile soft|hard|full] [--yes]
+# Usage: bash env/bootstrap-wsl.sh [--profile soft|hard|full|durable] [--yes]
 # Safe defaults: apt update once; only installs missing must-tools.
 set -euo pipefail
 
@@ -11,7 +11,7 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="$2"; shift 2 ;;
     --yes|-y) YES=1; shift ;;
     -h|--help)
-      echo "usage: bootstrap-wsl.sh [--profile soft|hard|full] [--yes]"
+      echo "usage: bootstrap-wsl.sh [--profile soft|hard|full|durable] [--yes]"
       exit 0
       ;;
     *) echo "unknown: $1" >&2; exit 2 ;;
@@ -60,7 +60,23 @@ install_apt() {
 }
 
 # Base always useful
-install_apt ca-certificates curl git jq util-linux coreutils python3 python3-pip python3-venv
+install_apt ca-certificates curl git jq util-linux coreutils bash python3 python3-pip python3-venv
+
+# Durable-lanes transport (optional at runtime, installed by the durable profile)
+if [[ "$PROFILE" == "durable" ]]; then
+  if ! have nats-server; then
+    log "installing nats-server from binaries.nats.dev"
+    curl -fsSL https://binaries.nats.dev/nats-io/nats-server/v2@latest | sh
+  else
+    log "nats-server already present"
+  fi
+  if ! have nats; then
+    log "installing nats CLI from binaries.nats.dev"
+    curl -sf https://binaries.nats.dev/nats-io/natscli/nats@latest | sh
+  else
+    log "nats CLI already present"
+  fi
+fi
 
 # shellcheck / bats for hard/full
 if [[ "$PROFILE" == "hard" || "$PROFILE" == "full" ]]; then
