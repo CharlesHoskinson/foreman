@@ -120,8 +120,27 @@ with read-only tools only.
 
 ## Run Codex — GPT-5.6 Sol, read-only, high reasoning
 
+Prefer **schema-forced** `codex exec` (OpenAI cookbook pattern: read-only sandbox +
+`--output-schema`). Schema file in this skill:
+
+`skills/foreman/scripts/adapters/verdict.schema.json`
+
+(or the installed copy under `~/.claude/skills/foreman/scripts/adapters/verdict.schema.json`)
+
 ```bash
 T=$(command -v gtimeout || command -v timeout || true)
+# Resolve schema relative to skill install if present
+SCHEMA="${FOREMAN_VERDICT_SCHEMA:-}"
+if [ -z "$SCHEMA" ]; then
+  for c in \
+    "$(pwd)/skills/foreman/scripts/adapters/verdict.schema.json" \
+    "$HOME/.claude/skills/foreman/scripts/adapters/verdict.schema.json" \
+    "$HOME/.agents/skills/foreman/scripts/adapters/verdict.schema.json"
+  do
+    [ -f "$c" ] && SCHEMA="$c" && break
+  done
+fi
+[ -n "$SCHEMA" ] || { echo "CODEX AUDIT REPORT"; echo "STATUS: fail"; echo "REASON: verdict.schema.json not found"; exit 0; }
 
 ${T:+$T 600} codex exec \
   --model gpt-5.6-sol \
@@ -129,9 +148,24 @@ ${T:+$T 600} codex exec \
   --sandbox read-only \
   --skip-git-repo-check \
   --cd "$(pwd)" \
+  --output-schema "$SCHEMA" \
   --output-last-message "$OUT" \
   - < "$PROMPT"
 ```
+
+**Alternate (native review subcommand):** when the architect wants uncommitted-tree
+review without a custom prompt file:
+
+```bash
+codex exec review --uncommitted \
+  --model gpt-5.6-sol \
+  --sandbox read-only \
+  --output-schema "$SCHEMA" \
+  --output-last-message "$OUT"
+```
+
+Still map the result into the Foreman verdict schema in your report. Prefer the
+custom five-part-criteria prompt for soft-mode acceptance checks.
 
 ### Flag discipline (non-negotiable)
 
@@ -140,7 +174,8 @@ ${T:+$T 600} codex exec \
 | `--model gpt-5.6-sol` | Auditor producer is GPT-5.6 Sol, pinned |
 | `-c model_reasoning_effort=high` | Audit needs deep reasoning |
 | `--sandbox read-only` | **Never** `workspace-write` or danger-full-access |
-| `--output-last-message` | Capture final verdict text |
+| `--output-schema` | Schema-forced JSON (APPROVED/WARNING/BLOCKED) |
+| `--output-last-message` / `-o` | Capture final verdict text |
 | Prompt via stdin / file | No shell-quoting of large diffs |
 
 If the caller's config names a different OpenAI model for audit, use that only

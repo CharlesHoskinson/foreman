@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Foreman: cross-vendor architect and worker orchestration for Claude, Codex, and Grok. Soft routing plus hard harness." />
+  <title>Foreman - Architect / Worker Orchestration</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip" href="#overview">Skip to content</a>
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#overview">
+        <strong>Foreman</strong>
+        <span>skill</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu">Menu</button>
+      <ul class="nav-links" id="nav-menu">
+        <li><a href="#modes">Modes</a></li>
+        <li><a href="#roles">Roles</a></li>
+        <li><a href="#lanes">Lanes</a></li>
+        <li><a href="#spec">Spec</a></li>
+        <li><a href="#loop">Loop</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="#install">Install</a></li>
+        <li><a href="#lineage">Lineage</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="overview" aria-labelledby="hero-title">
+      <div>
+        <p class="kicker">Cross-vendor coding agents</p>
+        <h1 id="hero-title">The smart model judges. Other models type.</h1>
+        <p class="hero-sub">
+          Foreman is a portable skill that routes implementation across Claude, Codex, and Grok
+          with hard verification rules and an optional gated harness.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#install">Boot Claude</a>
+          <a class="btn btn-ghost" href="#modes">Soft vs hard</a>
+        </div>
+      </div>
+      <aside class="hero-panel" aria-label="Soft mode summary">
+        <div class="dim"># soft mode (default)</div>
+        <div><span class="hi">architect</span>  owns judgment + specs</div>
+        <div><span class="hi">grok-implementer</span>  default typing lane</div>
+        <div><span class="hi">codex-auditor</span>  GPT-5.6 Sol cold audit</div>
+        <div><span class="hi">foreman-advisor</span>  commitment boundaries</div>
+        <div class="dim">---</div>
+        <div class="ok">verify: re-read diff + re-run checks</div>
+        <div class="ok">then codex-auditor (read-only Sol)</div>
+        <div class="dim">never trust "tests pass" claims alone</div>
+      </aside>
+    </section>
+
+    <section id="modes" aria-labelledby="modes-title">
+      <h2 class="section-title" id="modes-title">Two modes, one skill</h2>
+      <p class="lead">
+        Soft mode is the daily driver inside Claude Code. Hard mode adds worktrees, host-side
+        evidence, independent checks, cold-diff audit, and a deterministic merge gate before PR.
+      </p>
+      <div class="grid-2">
+        <article class="card">
+          <div class="tag">Default</div>
+          <h3>Soft mode</h3>
+          <p>
+            Cost-aware architect routing. Five-part specs go to Grok or Codex implementers.
+            The session model emits judgment, not volume. Advisor consults only at commitment
+            boundaries. Works today with install.ps1 / install.sh.
+          </p>
+        </article>
+        <article class="card">
+          <div class="tag">Opt-in</div>
+          <h3>Hard mode</h3>
+          <p>
+            Full loop: INIT, PLAN, IMPLEMENT, CHECK, AUDIT, GATE, PR. Security-critical
+            enforcement lives in bash scripts, not prompts. Worker vendor must differ from
+            orchestrator. Run state lives under ~/.foreman/runs/, outside every worktree.
+          </p>
+        </article>
+      </div>
+      <div class="callout mt-2">
+        <p>
+          Pick hard when workers are untrusted or autonomous and the deliverable is a PR.
+          Pick soft for interactive multi-task sessions. Config key: <code class="inline">mode</code>
+          in <code class="inline">.foreman/config.toml</code>.
+        </p>
+      </div>
+    </section>
+
+    <section id="roles" aria-labelledby="roles-title">
+      <h2 class="section-title" id="roles-title">Roles</h2>
+      <p class="lead">Four contracts. Cross-vendor separation is intentional: same-family blind spots are the failure mode you are buying insurance against.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Who</th>
+              <th>Owns</th>
+              <th>Never</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Orchestrator</strong></td>
+              <td>Session that invoked /foreman</td>
+              <td>Requirements, specs, routing, verification, gate judgment</td>
+              <td>Routine implementation when a worker lane is available</td>
+            </tr>
+            <tr>
+              <td><strong>Worker</strong></td>
+              <td>Other-vendor CLI (default Grok)</td>
+              <td>Context-free implementation of the five-part spec</td>
+              <td>Silent architecture changes; claiming green tests as evidence</td>
+            </tr>
+            <tr>
+              <td><strong>Auditor</strong></td>
+              <td>codex-auditor (GPT-5.6 Sol, read-only)</td>
+              <td>Cold-diff verdict APPROVED / WARNING / BLOCKED</td>
+              <td>Implementing; auditing same-vendor worker</td>
+            </tr>
+            <tr>
+              <td><strong>Advisor</strong></td>
+              <td>foreman-advisor (Fable / Opus)</td>
+              <td>Short verdicts at commitment boundaries</td>
+              <td>Implementing or rubber-stamping weak plans</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="lanes" aria-labelledby="lanes-title">
+      <h2 class="section-title" id="lanes-title">Lanes</h2>
+      <p class="lead">Route by how much judgment the spec cannot capture. Default cheap and cross-vendor. Escalate deliberately.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Lane</th>
+              <th>Producer</th>
+              <th>Invoke</th>
+              <th>When</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Routine</strong></td>
+              <td>Grok 4.5</td>
+              <td><code class="inline">grok-implementer</code></td>
+              <td>Spec fully determines the outcome. Default implementer.</td>
+            </tr>
+            <tr>
+              <td><strong>Cross-vendor implement</strong></td>
+              <td>GPT-5.6 Sol (high)</td>
+              <td><code class="inline">codex-implementer</code></td>
+              <td>Race / second implementation, or Grok unavailable.</td>
+            </tr>
+            <tr>
+              <td><strong>Audit (default)</strong></td>
+              <td>GPT-5.6 Sol (high, read-only)</td>
+              <td><code class="inline">codex-auditor</code></td>
+              <td>After independent checks; Grok worker → Codex Sol auditor.</td>
+            </tr>
+            <tr>
+              <td><strong>Judgment</strong></td>
+              <td>Fable / Opus</td>
+              <td><code class="inline">foreman-advisor</code></td>
+              <td>Architecture, migrations, stuck work, final multi-step sign-off.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout mt-2">
+        <p>
+          Missing CLI returns <code class="inline">STATUS: unavailable</code>. Lanes never silently
+          fall back to the host model under another vendor's name. Re-route explicitly.
+        </p>
+      </div>
+    </section>
+
+    <section id="spec" aria-labelledby="spec-title">
+      <h2 class="section-title" id="spec-title">Five-part spec</h2>
+      <p class="lead">
+        Implementers share none of the architect's chat context. If you cannot finish the
+        interfaces or verification section, you are not ready to delegate.
+      </p>
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>Objective</h3>
+            <p>What to build or change, and why. One paragraph.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Files</h3>
+            <p>Exact paths to create, modify, or leave untouched.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Interfaces</h3>
+            <p>Signatures, types, API shapes, anchor IDs, tokens the code must match.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Constraints</h3>
+            <p>Conventions, stack limits, forbidden refactors, mode notes.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Verification</h3>
+            <p>Commands the architect will re-run. Reports without command output are incomplete.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <section id="loop" aria-labelledby="loop-title">
+      <h2 class="section-title" id="loop-title">Task loops</h2>
+      <p class="lead">Soft mode is continuous routing inside one session. Hard mode is a staged pipeline with a machine gate.</p>
+
+      <h3 class="mt-1">Soft loop</h3>
+      <div class="loop" aria-label="Soft mode stages">
+        <span>Decompose</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Five-part spec</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Grok implement</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Verify evidence</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Codex Sol audit</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Advisor if needed</span>
+      </div>
+
+      <h3 class="mt-2">Hard loop</h3>
+      <div class="loop" aria-label="Hard mode stages">
+        <span>Init</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Plan</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Implement</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Check</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Audit</span><span class="arrow" aria-hidden="true">→</span>
+        <span>Gate</span><span class="arrow" aria-hidden="true">→</span>
+        <span class="pass">PR</span>
+      </div>
+      <p class="lead" style="margin-bottom:0">
+        Checks run from a pristine commit archive, not a dirty worktree. Audit sees a cold diff
+        only. Gate fails closed on forbidden paths, hash drift, failed checks, or BLOCKED audit.
+        CI remains final merge authority.
+      </p>
+    </section>
+
+    <section id="security" aria-labelledby="security-title">
+      <h2 class="section-title" id="security-title">Security model</h2>
+      <p class="lead">
+        Honest limit: containers share the host kernel. Soft mode uses native CLI sandboxes only.
+        Foreman is defense-in-depth, not a hard isolation guarantee.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Threat</th>
+              <th>Soft response</th>
+              <th>Hard response</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Reward hacking</strong></td>
+              <td>Architect re-runs verification</td>
+              <td>Pristine checkout checks; worker claims ignored</td>
+            </tr>
+            <tr>
+              <td><strong>Test / CI tampering</strong></td>
+              <td>Diff review + forbidden paths in constraints</td>
+              <td>Hash snapshot + gate forbidden_paths</td>
+            </tr>
+            <tr>
+              <td><strong>Same-vendor blind spots</strong></td>
+              <td>Prefer Grok/Codex under Claude architect</td>
+              <td>Worker ≠ orchestrator; audit ≠ worker</td>
+            </tr>
+            <tr>
+              <td><strong>Prompt injection</strong></td>
+              <td>Context-free specs; advisor reads code</td>
+              <td>Cold-diff auditor; no MCP in worker</td>
+            </tr>
+            <tr>
+              <td><strong>Secret bleed</strong></td>
+              <td>Never paste keys into specs</td>
+              <td>Container gets only worker vendor key</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="install" aria-labelledby="install-title">
+      <h2 class="section-title" id="install-title">Install and boot</h2>
+      <p class="lead">Repo root is the skill home. Installers link it into Claude, Grok, and the portable Agent Skills directory.</p>
+
+      <p class="pre-label">Windows</p>
+      <pre><code>cd C:\Users\charl\foreman
+.\install.ps1
+claude
+# inside Claude:
+# /model fable
+# /foreman</code></pre>
+
+      <p class="pre-label mt-2">WSL / macOS / Linux</p>
+      <pre><code>cd /path/to/foreman
+chmod +x install.sh &amp;&amp; ./install.sh
+claude
+# /model fable
+# /foreman</code></pre>
+
+      <p class="pre-label mt-2">Dogfood prompt</p>
+      <pre><code>Soft mode. Design and build the Foreman documentation website in site/.
+
+Write a five-part spec, route implementation to grok-implementer,
+verify independently, consult foreman-advisor before locking IA.</code></pre>
+
+      <div class="grid-2 mt-2">
+        <article class="card">
+          <h3>Requirements</h3>
+          <p>
+            Claude Code with Fable (or Opus fallback). Grok CLI for the default implementer.
+            Codex CLI for the default auditor (GPT-5.6 Sol) and optional implement races.
+            Without external CLIs, lanes report unavailable.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Architect doctrine</h3>
+          <p>
+            Project <code class="inline">CLAUDE.md</code> pins: minimize architect tokens,
+            five-part specs, independent verification, no silent same-vendor fallback.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section id="lineage" aria-labelledby="lineage-title">
+      <h2 class="section-title" id="lineage-title">Lineage</h2>
+      <p class="lead">Foreman is a deliberate merge of two complementary patterns, not a fork of either alone.</p>
+      <div class="grid-2">
+        <article class="card">
+          <div class="tag">Soft routing</div>
+          <h3>Fable Advisor pattern</h3>
+          <p>
+            Architect cost discipline, five-part specs, Grok and Codex implementer agents,
+            advisor at commitment boundaries. Shipped first as a Claude Code plugin by
+            DannyMac180/fable-advisor.
+          </p>
+        </article>
+        <article class="card">
+          <div class="tag">Hard harness</div>
+          <h3>Original Foreman design</h3>
+          <p>
+            Worktrees, host evidence, independent checks, cold-diff audit, deterministic gate,
+            vendor adapters, WSL2 reference environment. Scripts under skills/foreman/scripts/.
+          </p>
+        </article>
+      </div>
+      <div class="callout mt-2">
+        <p>
+          Soft mode is production-ready (agents + doctrine). Hard mode ships INIT/CHECK/EVIDENCE/GATE
+          plus host Codex AUDIT; Docker worker IMPLEMENT and full PR automation are still expanding.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>Foreman skill · MIT · dogfood site for soft-mode verification</span>
+      <span>
+        <a href="https://github.com/CharlesHoskinson/foreman">Source</a>
+        ·
+        <a href="#overview">Top</a>
+      </span>
+    </div>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

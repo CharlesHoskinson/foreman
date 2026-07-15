@@ -20,9 +20,7 @@ if [[ -z "${CMD:-}" ]]; then
   if   git_nohooks -C "$WT" cat-file -e "$SHA:package.json"   2>/dev/null; then CMD="npm test"
   elif git_nohooks -C "$WT" cat-file -e "$SHA:pyproject.toml" 2>/dev/null; then CMD="python3 -m pytest"
   else
-    # Soft fallback for docs/static sites
-    CMD="bash -lc 'test -f site/index.html || test -f index.html || true'"
-    log "WARN: no checks.command — using static-site soft check"
+    die "$EXIT_CONFIG" "unknown stack: set [checks] command in .foreman/config.toml (refusing always-green fallback)"
   fi
 fi
 

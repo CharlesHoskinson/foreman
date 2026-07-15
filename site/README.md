@@ -1,23 +1,28 @@
 # Foreman documentation site
 
-Dogfood target for the Foreman skill.
+Static dogfood site explaining the combined Foreman skill (soft + hard).
 
-**Status:** scaffold only — build with soft-mode Foreman (Claude architect +
-Grok implementer), or fill in `index.html` here.
+## Preview
 
-## Intended content
-
-1. What Foreman is (soft + hard)
-2. Roles and lanes
-3. Five-part spec
-4. Task loops (diagrams)
-5. Security model (honest limits)
-6. Install and Claude boot
-7. Lineage (Fable Advisor + original Foreman)
-
-## Local preview (after build)
-
-```bash
-# from repo root
+```powershell
+cd C:\Users\charl\foreman
 python -m http.server 8080 --directory site
+# open http://localhost:8080/
 ```
+
+Or open `site/index.html` directly in a browser.
+
+## Files
+
+| File | Role |
+|---|---|
+| `index.html` | Single-page docs (roles, lanes incl. codex-auditor, loops, security, install) |
+| `styles.css` | Industrial field-manual theme |
+| `app.js` | Mobile nav + scroll spy |
+
+## Content notes
+
+Site should stay aligned with `skills/foreman/SKILL.md`:
+
+- Default soft pipeline: Grok implements → architect verifies → **Codex Sol audits**
+- Four roles: orchestrator, worker, auditor, advisor

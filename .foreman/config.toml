@@ -9,7 +9,7 @@ vendor = "codex"
 model  = "gpt-5.6-sol"
 
 [checks]
-command = "bash -lc 'test -f site/README.md'"
+command = "bash -lc 'test -f site/index.html && test -f site/styles.css && test -f site/app.js'"
 
 [limits]
 max_rework_rounds = 3

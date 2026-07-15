@@ -138,15 +138,15 @@ INIT → PLAN → IMPLEMENT → CHECK → AUDIT → GATE ──pass──→ PR
 All security-critical enforcement is in **scripts**, not prompts. See
 `references/security-model.md` and `references/roles.md`.
 
-| Stage | Script / action | Rule |
-|---|---|---|
-| **INIT** | `scripts/task-new.sh TASK_ID [BASE]` | Worktree + envelope + hash snapshot of protected paths |
-| **PLAN** | Architect writes `plan.md` into run dir | File handoff only — never chat-only |
-| **IMPLEMENT** | `scripts/worker-run.sh TASK_ID` | Other-vendor CLI in hardened container (or soft fallback if no Docker) |
-| **CHECK** | `scripts/checks-run.sh TASK_ID` | Orchestrator re-runs checks from **pristine commit**, not dirty worktree |
-| **AUDIT** | `scripts/audit-run.sh` or soft `codex-auditor` | Cold diff + criteria; **default producer GPT-5.6 Sol via Codex** (≠ worker) |
-| **GATE** | `scripts/gate-eval.sh TASK_ID` | Forbidden paths + hash drift + checks green + not BLOCKED |
-| **PR** | `scripts/pr-open.sh TASK_ID` | Only if gate passes; CI remains final authority |
+| Stage | Script / action | Status | Rule |
+|---|---|---|---|
+| **INIT** | `scripts/task-new.sh TASK_ID [BASE]` | **Shipped** | Worktree + envelope + hash snapshot of protected paths |
+| **PLAN** | Architect writes `plan.md` into run dir | Process | File handoff only — never chat-only |
+| **IMPLEMENT** | `scripts/worker-run.sh` | **Stub** (soft: use agents) | Containerized worker not shipped; soft mode uses `grok-implementer` / `codex-implementer` |
+| **CHECK** | `scripts/checks-run.sh TASK_ID` | **Shipped** | Orchestrator re-runs checks from **pristine commit**, not dirty worktree |
+| **AUDIT** | `scripts/audit-run.sh` or soft `codex-auditor` | **Shipped (host Codex)** | Cold diff + criteria; **GPT-5.6 Sol via Codex** (≠ worker); Docker worker path still expanding |
+| **GATE** | `scripts/gate-eval.sh TASK_ID` | **Shipped** | Forbidden paths + hash drift + checks green + not BLOCKED |
+| **PR** | `scripts/pr-open.sh TASK_ID` | **Partial stub** | Gate must pass; full `gh pr create` automation still expanding; CI remains final authority |
 
 Run state: `$FOREMAN_HOME/runs/<task-id>/` (default `~/.foreman/runs/`) — **outside**
 every worktree; never mounted into the worker.

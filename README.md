@@ -97,9 +97,10 @@ foreman/
 
 1. Architect decomposes and writes a five-part spec  
 2. Route to `grok-implementer` (default) or race with `codex-implementer`  
-3. Read diff + re-run verification  
-4. Consult `foreman-advisor` at commitment boundaries  
-5. Report done only with evidence  
+3. Read diff + re-run verification (independent evidence)  
+4. **`codex-auditor`** (GPT-5.6 Sol, read-only) on the cold diff  
+5. Consult `foreman-advisor` at commitment boundaries  
+6. Report done only with green checks + non-BLOCKED audit  
 
 ## Hard loop (when enabled)
 
@@ -108,6 +109,17 @@ INIT → PLAN → IMPLEMENT → CHECK → AUDIT → GATE → PR
 ```
 
 Scripts under `skills/foreman/scripts/`. Run state in `~/.foreman/runs/<task-id>/`.
+
+| Stage | Status |
+|---|---|
+| INIT / CHECK / EVIDENCE / GATE | Shipped |
+| AUDIT (`audit-run.sh` via host Codex Sol) | Shipped |
+| IMPLEMENT (`worker-run.sh` Docker worker) | Stub — use soft agents |
+| PR (`pr-open.sh`) | Partial stub |
+
+## Research / QA notes
+
+See `docs/research/QA-2026-07-15.md` for the frontier-docs research pass and gap list.
 
 ## License
 

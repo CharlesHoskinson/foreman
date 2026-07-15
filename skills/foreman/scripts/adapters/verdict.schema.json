@@ -1,8 +1,9 @@
 {
   "type": "object",
-  "required": ["verdict", "findings"],
+  "required": ["verdict", "findings", "summary"],
   "properties": {
     "verdict": { "type": "string", "enum": ["APPROVED", "WARNING", "BLOCKED"] },
+    "summary": { "type": "string" },
     "findings": {
       "type": "array",
       "items": {
