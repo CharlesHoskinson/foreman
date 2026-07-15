@@ -20,6 +20,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMMON_SKILLS_ROOT=""
+common_dir="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [[ -n "$common_dir" && -d "$(dirname "$common_dir")/skills" ]]; then
+  COMMON_SKILLS_ROOT="$(cd "$(dirname "$common_dir")/skills" && pwd -P)"
+fi
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 HOST="$(hostname 2>/dev/null || echo unknown)"
 OS="$(uname -s 2>/dev/null || echo unknown)"
@@ -183,6 +188,31 @@ for id in "${must[@]}" "${should[@]}"; do
   ROWS+=("$(check_one "$id" "")")
 done
 
+SKILL_IDS=(foreman scrapling graphify superpowers)
+SKILL_ROWS=()
+for id in "${SKILL_IDS[@]}"; do
+  skill_path="${HOME}/.claude/skills/$id"
+  repo_skill_path="$(cd "$ROOT/skills/$id" && pwd -P)"
+  if [[ -L "$skill_path" ]]; then
+    link_target="$(readlink "$skill_path")"
+    if [[ "$link_target" != /* ]]; then
+      link_target="$(dirname "$skill_path")/$link_target"
+    fi
+    if [[ -d "$link_target" ]]; then
+      link_target="$(cd "$link_target" && pwd -P)"
+    fi
+    if [[ "$link_target" == "$repo_skill_path" || ( -n "$COMMON_SKILLS_ROOT" && "$link_target" == "$COMMON_SKILLS_ROOT/$id" ) ]]; then
+      SKILL_ROWS+=("$(printf '%s\tok\tlinked at ~/.claude/skills/%s' "$id" "$id")")
+    else
+      SKILL_ROWS+=("$(printf '%s\twarn\tpresent but not linked to repo' "$id")")
+    fi
+  elif [[ -e "$skill_path" ]]; then
+    SKILL_ROWS+=("$(printf '%s\twarn\tpresent but not linked to repo' "$id")")
+  else
+    SKILL_ROWS+=("$(printf '%s\tmissing\tnot linked at ~/.claude/skills/%s' "$id" "$id")")
+  fi
+done
+
 missing=()
 outdated=()
 degraded=()
@@ -241,6 +271,16 @@ report_text() {
   done
   [[ ${#docs_group[@]} -gt 0 ]] && echo "DOCS_GROUP: ${docs_group[*]}"
   echo "---"
+  echo "SKILLS"
+  printf '%-16s %-10s %s\n' "SKILL" "STATUS" "DETAIL"
+  for row in "${SKILL_ROWS[@]}"; do
+    id="${row%%$'\t'*}"
+    rest="${row#*$'\t'}"
+    st="${rest%%$'\t'*}"
+    det="${rest#*$'\t'}"
+    printf '%-16s %-10s %s\n' "$id" "$st" "$det"
+  done
+  echo "---"
   if [[ $READY -eq 1 ]]; then
     echo "READY: yes — profile '$PROFILE' must-tools are OK"
   else
@@ -263,17 +303,26 @@ report_text() {
 # @description Serialize the collected tool inventory and readiness state using the Foreman tool-check JSON schema.
 # @stdout the formatted JSON tool-check report
 report_json() {
-  python3 - "$PROFILE" "$HOST" "$OS" "$IS_WSL" "$NOW" "$ROOT" "$READY" "${ROWS[@]}" <<'PY'
+  python3 - "$PROFILE" "$HOST" "$OS" "$IS_WSL" "$NOW" "$ROOT" "$READY" "${ROWS[@]}" --skills-- "${SKILL_ROWS[@]}" <<'PY'
 import json, sys
 profile, host, os_, is_wsl, now, root, ready = sys.argv[1:8]
 rows = sys.argv[8:]
-tools = []
-for row in rows:
-    parts = row.split("\t", 2)
-    tid = parts[0]
-    st = parts[1] if len(parts) > 1 else "unknown"
-    det = parts[2] if len(parts) > 2 else ""
-    tools.append({"id": tid, "status": st, "detail": det})
+skill_marker = rows.index("--skills--")
+skill_rows = rows[skill_marker + 1:]
+rows = rows[:skill_marker]
+
+def parse_rows(items):
+    parsed = []
+    for row in items:
+        parts = row.split("\t", 2)
+        tid = parts[0]
+        st = parts[1] if len(parts) > 1 else "unknown"
+        det = parts[2] if len(parts) > 2 else ""
+        parsed.append({"id": tid, "status": st, "detail": det})
+    return parsed
+
+tools = parse_rows(rows)
+skills = parse_rows(skill_rows)
 out = {
     "schema": "foreman.tool-check.v1",
     "profile": profile,
@@ -284,6 +333,7 @@ out = {
     "time": now,
     "repo": root,
     "tools": tools,
+    "skills": skills,
     "missing": [t["id"] for t in tools if t["status"] == "missing"],
     "outdated": [t["id"] for t in tools if t["status"] == "outdated"],
     "degraded": [t["id"] for t in tools if t["status"] == "degraded"],

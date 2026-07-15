@@ -16,6 +16,25 @@ function Test-Cmd([string]$Name) {
   return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Get-NormalizedPath([string]$Path, [string]$BasePath = "") {
+  if ($BasePath -and -not [System.IO.Path]::IsPathRooted($Path)) {
+    $Path = Join-Path $BasePath $Path
+  }
+  try {
+    return (Resolve-Path -LiteralPath $Path -ErrorAction Stop).Path.TrimEnd("\")
+  } catch {
+    return [System.IO.Path]::GetFullPath($Path).TrimEnd("\")
+  }
+}
+
+$CommonSkillsRoot = $null
+if (Get-Command git -ErrorAction SilentlyContinue) {
+  $commonDir = (& git -C $Root rev-parse --path-format=absolute --git-common-dir 2>$null | Select-Object -First 1)
+  if ($commonDir -and (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $commonDir) "skills"))) {
+    $CommonSkillsRoot = Get-NormalizedPath (Join-Path (Split-Path -Parent $commonDir) "skills")
+  }
+}
+
 function Get-Ver([string]$Name, [string]$Arg = "--version") {
   try {
     $argList = $Arg.Split(" ")
@@ -183,6 +202,33 @@ foreach ($id in $ids) {
   $tools += (Check-One $id)
 }
 
+$skillIds = @("foreman", "scrapling", "graphify", "superpowers")
+$skills = @()
+foreach ($id in $skillIds) {
+  $skillPath = Join-Path $env:USERPROFILE ".claude\skills\$id"
+  $repoSkillPath = Get-NormalizedPath (Join-Path $Root "skills\$id")
+  $skillItem = Get-Item -LiteralPath $skillPath -Force -ErrorAction SilentlyContinue
+  if (-not $skillItem) {
+    $status = "missing"
+    $detail = "not linked at $skillPath"
+  } elseif ($null -ne $skillItem.LinkType) {
+    $actualTarget = @($skillItem.Target)[0]
+    $actualTarget = Get-NormalizedPath $actualTarget (Split-Path -Parent $skillPath)
+    $commonRepoSkillPath = if ($CommonSkillsRoot) { Join-Path $CommonSkillsRoot $id } else { $null }
+    if ($actualTarget -eq $repoSkillPath -or $actualTarget -eq $commonRepoSkillPath) {
+      $status = "ok"
+      $detail = "linked at $skillPath"
+    } else {
+      $status = "warn"
+      $detail = "present but not linked to repo"
+    }
+  } else {
+    $status = "warn"
+    $detail = "present but not linked to repo"
+  }
+  $skills += [pscustomobject]@{ id = $id; status = $status; detail = $detail }
+}
+
 $mustFail = @()
 foreach ($m in $must) {
   $t = $tools | Where-Object { $_.id -eq $m } | Select-Object -First 1
@@ -228,6 +274,7 @@ if ($Json) {
     time       = $Now
     repo       = $Root
     tools      = $tools
+    skills     = $skills
     missing    = $missing
     outdated   = $outdated
     degraded   = $degraded
@@ -256,6 +303,12 @@ if ($Json) {
   }
   $docsGroup = @($tools | Where-Object { $_.id -in @("markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer") } | ForEach-Object { "$($_.id):$($_.status)" })
   if ($docsGroup.Count) { [void]$lines.Add("DOCS_GROUP: $($docsGroup -join ' ')") }
+  [void]$lines.Add("---")
+  [void]$lines.Add("SKILLS")
+  [void]$lines.Add(("{0,-16} {1,-10} {2}" -f "SKILL", "STATUS", "DETAIL"))
+  foreach ($skill in $skills) {
+    [void]$lines.Add(("{0,-16} {1,-10} {2}" -f $skill.id, $skill.status, $skill.detail))
+  }
   [void]$lines.Add("---")
   if ($ready) {
     [void]$lines.Add("READY: yes - profile '$Profile' must-tools are OK on Windows host")

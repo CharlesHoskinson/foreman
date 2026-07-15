@@ -204,3 +204,19 @@ should = ["shellcheck", "bats", "gh", "timeout", "grok", "codex"]
 description = "Soft lanes + hard harness on Windows+WSL reference box"
 must = ["git", "python3", "jq", "grok", "codex", "docker", "flock", "foreman_skill"]
 should = ["claude", "node", "npm", "shellcheck", "bats", "gh", "timeout"]
+
+[[skills]]
+id = "foreman"
+path = "skills/foreman"
+
+[[skills]]
+id = "scrapling"
+path = "skills/scrapling"
+
+[[skills]]
+id = "graphify"
+path = "skills/graphify"
+
+[[skills]]
+id = "superpowers"
+path = "skills/superpowers"
