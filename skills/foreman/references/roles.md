@@ -39,6 +39,23 @@ external CLIs). Hard mode: containerized CLI via `worker-run.sh`.
 - Edit tests / CI / lockfiles when forbidden (hard gate enforces)
 - Receive orchestrator chat history (context-free handoff only)
 
+## Search (parallel recon)
+
+**Who:** `foreman-search` — cheap, read-only, **worktree-isolated**.
+
+**Owns:** Codebase map, symbol hits, evidence quotes; writes `FOREMAN_REPORT.md`
+in its worktree for consolidate.
+
+**Does not:** Implement product code; write outside its worktree.
+
+## Plan (parallel design)
+
+**Who:** `foreman-plan` — judgment-capable, read-only/plan tools, **worktree-isolated**.
+
+**Owns:** Ordered tasks, risks, five-part-spec-ready breakdowns; report in tree.
+
+**Does not:** Implement product code; ship without architect consolidate.
+
 ## Auditor (Cold-diff review)
 
 **Who:** Default soft/hard auditor is **`codex-auditor`** — GPT-5.6 Sol via Codex

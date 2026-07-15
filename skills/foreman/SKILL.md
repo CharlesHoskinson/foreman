@@ -93,11 +93,34 @@ Implementers share **none** of your conversation context. Every delegation carri
 A spec you cannot finish writing means the decision is not made — finish architect
 work first. See `references/five-part-spec.md`.
 
-### Parallelism
+### Parallelism (worktree fan-out)
 
-- Independent specs (no shared files, no order dependency) → parallel agents.
-- Sequential chains and single-file surgery → serial.
-- High-stakes: race both implementers on the same spec; architect picks the stronger diff.
+Maximum parallelization uses **one git worktree per agent role**, each writing a
+report **in its own tree**, then architect consolidate + cleanup.
+
+```
+wt-new (search | plan | audit)  →  parallel agents  →  each FOREMAN_REPORT.md
+     → wt-consolidate  →  CONSOLIDATED.md  →  decide  →  wt-cleanup
+```
+
+| Role | Agent | isolation | Report |
+|---|---|---|---|
+| search | `foreman-search` | worktree | `FOREMAN_REPORT.md` in search tree |
+| plan | `foreman-plan` | worktree | plan + task breakdown in plan tree |
+| audit | `foreman-audit` / `codex-auditor` | worktree | verdict + findings in audit tree |
+| implement | `grok-implementer` / `codex-implementer` | worktree preferred | code + report |
+
+**Rules:**
+
+- Independent work (no shared write set) → spawn **in one turn** for true parallel.
+- Same-file writers → serial or partition ownership first.
+- Serialize worktree create/remove via scripts (`flock` when available).
+- Agents **must** write `FOREMAN_REPORT.md` (and `.json`) in their worktree before exit.
+- Architect runs `wt-consolidate` before ship decisions; never merge on a single partial report.
+- Architect runs `wt-cleanup` after consolidate (keep reports under `~/.foreman/runs/`).
+
+Scripts: `scripts/wt-new.sh`, `wt-consolidate.sh`, `wt-cleanup.sh`.  
+Doctrine: `references/parallel-worktrees.md`.
 
 ### Commitment boundaries
 
@@ -171,10 +194,14 @@ every worktree; never mounted into the worker.
    - Summarize inventory to the user (MISSING / OUTDATED / ACTION). See `references/reference-environment.md`.
 3. Confirm lanes (`grok`, `codex`) and advisor model from the inventory.
 4. Restate the goal and mode to the user in one short paragraph.
-5. Soft multi-step: decompose → five-part specs → implementer → verify →
-   **`codex-auditor`** → advisor if commitment boundary.
+5. Soft multi-step (prefer parallel worktrees for recon):
+   - `wt-new` for **search** + **plan** (and later **audit**) under one RUN_ID
+   - spawn `foreman-search` + `foreman-plan` in parallel
+   - `wt-consolidate` → synthesize → five-part specs → implementer
+   - verify → **audit worktree** (`foreman-audit` / `codex-auditor`) → consolidate
+   - advisor if commitment boundary → `wt-cleanup`
 6. For hard mode: create task id, run INIT, then follow the loop (audit stage
-   prefers Codex Sol when worker is Grok).
+   prefers Codex Sol when worker is Grok; use worktrees for parallel roles).
 
 ## What you never do
 
@@ -196,6 +223,7 @@ every worktree; never mounted into the worker.
 - `references/audit-checklist.md` — audit dimensions + verdict schema
 - `references/security-model.md` — threats and enforcement map
 - `references/reference-environment.md` — WSL/Windows inventory + bootstrap
+- `references/parallel-worktrees.md` — parallel search/plan/audit worktrees
 - `env/reference-manifest.toml` — tool inventory source of truth
 
 

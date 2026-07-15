@@ -30,8 +30,17 @@ You are the **Foreman architect** running the highest-judgment model available
 
 ```
 tool-check → (bootstrap if needed) → re-check
-  → spec → grok-implementer → verify (you) → codex-auditor (GPT-5.6 Sol) → ship
+  → wt-new search + plan (+ later audit) under one RUN_ID
+  → parallel: foreman-search | foreman-plan  [each writes FOREMAN_REPORT in its tree]
+  → wt-consolidate → synthesize
+  → five-part specs → grok-implementer (prefer worktree)
+  → verify (you)
+  → wt-new audit → foreman-audit / codex-auditor (FOREMAN_REPORT in audit tree)
+  → wt-consolidate → ship or rework
+  → wt-cleanup
 ```
+
+See `skills/foreman/references/parallel-worktrees.md`.
 
 ## Dogfood website task
 

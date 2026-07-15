@@ -125,12 +125,18 @@ foreman/
 
 ## Soft loop (always)
 
-1. Architect decomposes and writes a five-part spec  
-2. Route to `grok-implementer` (default) or race with `codex-implementer`  
-3. Read diff + re-run verification (independent evidence)  
-4. **`codex-auditor`** (GPT-5.6 Sol, read-only) on the cold diff  
-5. Consult `foreman-advisor` at commitment boundaries  
-6. Report done only with green checks + non-BLOCKED audit  
+1. Tool-check (and bootstrap if needed)  
+2. **Parallel worktrees:** `wt-new` for search / plan / audit under one `RUN_ID`  
+3. Spawn `foreman-search` + `foreman-plan` (+ later audit) in parallel; each writes `FOREMAN_REPORT.md` **in its tree**  
+4. `wt-consolidate` → architect synthesis  
+5. Five-part specs → `grok-implementer` (default) or race `codex-implementer`  
+6. Architect re-runs verification  
+7. Audit worktree: `foreman-audit` / `codex-auditor` (GPT-5.6 Sol, read-only)  
+8. `wt-consolidate` → ship or rework; then `wt-cleanup`  
+9. `foreman-advisor` only at commitment boundaries  
+
+Scripts: `skills/foreman/scripts/wt-new.sh`, `wt-consolidate.sh`, `wt-cleanup.sh`.  
+Docs: `skills/foreman/references/parallel-worktrees.md`.
 
 ## Hard loop (when enabled)
 

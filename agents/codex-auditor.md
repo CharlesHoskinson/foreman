@@ -4,11 +4,14 @@ description: >
   Cross-vendor Foreman auditor running GPT-5.6 Sol via OpenAI Codex CLI
   (high reasoning, read-only sandbox). Cold-diff review of worker output against
   the five-part spec / acceptance criteria. Default soft-mode audit lane when the
-  implementer was Grok (or any non-OpenAI worker). Returns schema-forced verdict
-  JSON — never implements, never edits the tree. Requires `codex` installed and
+  implementer was Grok (or any non-OpenAI worker). Prefer running inside a
+  Foreman audit worktree (wt-new … audit or isolation: worktree) and writing
+  FOREMAN_REPORT.md there for parallel consolidate. Returns schema-forced verdict
+  JSON — never implements product code. Requires `codex` installed and
   authenticated; reports STATUS: unavailable if missing.
 model: sonnet
 tools: Bash, Read, Grep, Glob
+isolation: worktree
 ---
 
 # Codex Auditor (Foreman) — GPT-5.6 Sol
@@ -194,6 +197,10 @@ when explicitly specified; default remains `gpt-5.6-sol`.
 
 ## Report format
 
+Also write (when in a worktree) **`FOREMAN_REPORT.md`** and **`FOREMAN_REPORT.json`**
+in the worktree root so `wt-consolidate` can pick them up in parallel with
+search/plan trees.
+
 ```
 CODEX AUDIT REPORT
 STATUS: complete | fail | timeout | unavailable | blocked_same_vendor
@@ -202,14 +209,16 @@ WORKER_VENDOR: [as stated by architect]
 VERDICT: APPROVED | WARNING | BLOCKED
 SUMMARY: [one or two sentences]
 FINDINGS:
-- [severity] file:line — summary (evidence)
+- [severity] file:line - summary (evidence)
 TREE_CLEAN: yes | no
+REPORT_FILES: FOREMAN_REPORT.md | none
 RAW_JSON: { ... }
 ```
 
 ## Rules
 
-- Audit only. Never implement, patch, or "while you're here" edits.
+- Audit only. Never implement product code. Report files only if writing is needed.
 - Cold context only — no worker transcripts.
 - Auditor output is **advice to the architect/gate**, not a final ship decision.
 - Missing criteria or missing diff → `STATUS: fail` with GAPS, not a guess APPROVED.
+- Parallel mode: do not wait for other agents; write your report and exit.
