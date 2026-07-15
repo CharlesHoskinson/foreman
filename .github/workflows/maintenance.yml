@@ -1,0 +1,36 @@
+name: Maintenance and Updates
+
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run maintenance report
+        id: report
+        run: |
+          bash skills/foreman/scripts/maintenance.sh --stage all --json maintenance.json || true
+          token="$(date +%s)_$RANDOM"
+          echo "summary<<EOF_${token}" >> "$GITHUB_OUTPUT"
+          cat maintenance.json >> "$GITHUB_OUTPUT"
+          echo "EOF_${token}" >> "$GITHUB_OUTPUT"
+      - name: Open issue with findings
+        if: contains(steps.report.outputs.summary, 'drift') || contains(steps.report.outputs.summary, 'stale')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUMMARY: ${{ steps.report.outputs.summary }}
+        run: |
+          body="$(printf 'Automated maintenance run found drift.\n\n```json\n%s\n```\n' "$SUMMARY")"
+          gh issue create \
+            --title "Maintenance report: drift detected ($(date -u +%F))" \
+            --body "$body"
