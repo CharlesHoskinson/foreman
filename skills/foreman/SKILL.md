@@ -2,12 +2,13 @@
 name: foreman
 description: >
   Cross-vendor architect/worker orchestration skill. Soft mode routes specs to
-  Grok/Codex implementers under a high-judgment architect; hard mode adds
-  worktrees, host-side evidence, independent checks, cold-diff audit, and a
-  deterministic merge gate. Use when the user runs /foreman, asks to orchestrate
-  multi-model coding, delegates implementation across Claude/Codex/Grok, wants
-  cost-aware architect routing, cross-vendor review, sandboxed workers, or a
-  gated PR loop.
+  Grok implementers under a high-judgment architect, audits diffs with Codex
+  GPT-5.6 Sol (codex-auditor), and consults a Claude advisor at commitment
+  boundaries; hard mode adds worktrees, host-side evidence, independent checks,
+  cold-diff audit, and a deterministic merge gate. Use when the user runs
+  /foreman, asks to orchestrate multi-model coding, delegates implementation
+  across Claude/Codex/Grok, wants cost-aware architect routing, Codex audit,
+  cross-vendor review, sandboxed workers, or a gated PR loop.
 ---
 
 # Foreman — Architect / Worker Orchestration
@@ -20,7 +21,7 @@ This skill merges two complementary patterns:
 
 | Layer | Source | What it contributes |
 |---|---|---|
-| **Soft mode** (default) | Fable Advisor–style routing | Cost discipline, five-part specs, Grok/Codex lanes, advisor at commitment boundaries |
+| **Soft mode** (default) | Fable Advisor–style routing | Cost discipline, five-part specs, Grok implementer, **Codex GPT-5.6 Sol auditor**, Claude advisor |
 | **Hard mode** (opt-in) | Original Foreman harness | Worktrees, Docker workers, host evidence, cold-diff audit, deterministic gate → PR |
 
 Pick mode from the task (or config). Soft always works; hard requires Docker/WSL
@@ -55,17 +56,29 @@ The session model is the most expensive lane. Keep its token volume low:
 
 | Lane | Producer | Invoke | Route when |
 |---|---|---|---|
-| **Routine** (default) | Grok 4.5 | `grok-implementer` agent, or `grok` CLI headless | Spec fully determines the outcome |
-| **Cross-vendor** | GPT (Codex Sol / high reasoning) | `codex-implementer` agent, or `codex exec` | Correctness-critical, or race for second opinion |
-| **Judgment** | Top Claude (Fable/Opus) | `foreman-advisor` agent | Commitment boundaries only — never implements |
+| **Routine** (default implementer) | Grok 4.5 | `grok-implementer` | Spec fully determines the outcome |
+| **Cross-vendor implementer** | GPT-5.6 Sol (high) | `codex-implementer` | Race / second implementation, or Grok unavailable |
+| **Audit** (default auditor) | **GPT-5.6 Sol (high)** | **`codex-auditor`** | After independent checks on a worker diff; **default when worker ≠ OpenAI** |
+| **Judgment** | Top Claude (Fable/Opus) | `foreman-advisor` | Commitment boundaries only — never implements |
 
-**Deciding rule:** How much does the outcome depend on judgment the spec can't
-capture? Little → Grok. A lot / costly mistakes → race Grok + Codex, or keep
-with architect. Same-family implementer as architect is a downgrade — state it
-explicitly if CLIs are unavailable.
+**Deciding rule (implement):** How much does the outcome depend on judgment the
+spec can't capture? Little → Grok. A lot / costly mistakes → race Grok + Codex
+implementers, or keep with architect. Same-family implementer as architect is a
+downgrade — state it explicitly if CLIs are unavailable.
 
-If a lane returns `unavailable` or `timeout`, re-route the same spec and say so.
-Never silently absorb a vendor substitution.
+**Deciding rule (audit):** After you re-run verification, send a **cold diff +
+acceptance criteria** to `codex-auditor` (GPT-5.6 Sol, read-only). Do this for
+multi-file work, any security-sensitive change, and before declaring a multi-step
+deliverable done. Skip only for trivial single-file mechanical edits when the
+user opts out.
+
+**Cross-vendor invariant:** auditor vendor **must differ** from worker vendor.
+Default pair: **Grok implements → Codex Sol audits**. If Codex implemented, do
+**not** use `codex-auditor`; architect reviews or route a non-OpenAI audit and
+state the substitution. Never use the implementer lane to "audit itself."
+
+If a lane returns `unavailable` or `timeout`, re-route and say so. Never silently
+absorb a vendor substitution.
 
 ### Five-part spec contract
 
@@ -97,15 +110,21 @@ Consult `foreman-advisor` (read-only, ≤ ~300 words) before:
 Pass decision, constraints, options. Act on the verdict or surface disagreement —
 never silently ignore it.
 
-### Soft verification
+### Soft verification + audit
 
-Reports are claims, not evidence. Before accepting any lane:
+Reports are claims, not evidence. Before accepting worker output:
 
 1. Read the actual diff (`git diff` / status)
 2. Re-run the verification command yourself (or spot-check quoted output against the tree)
 3. "Should work" / no command output = **not done**
+4. **Audit:** invoke `codex-auditor` with cold diff + five-part acceptance criteria
+   (default). Act on `BLOCKED` (rework), surface `WARNING` findings, accept
+   `APPROVED` only together with green independent checks
+5. Auditor JSON is **input to your judgment**, not a rubber stamp — you still own
+   the ship decision
 
-Wrong code → corrected spec back to the cheap lane, not hand-patching by the architect.
+Wrong code → corrected spec back to the cheap implementer lane, not hand-patching
+by the architect. Do not ask the auditor to fix the code.
 
 ---
 
@@ -125,7 +144,7 @@ All security-critical enforcement is in **scripts**, not prompts. See
 | **PLAN** | Architect writes `plan.md` into run dir | File handoff only — never chat-only |
 | **IMPLEMENT** | `scripts/worker-run.sh TASK_ID` | Other-vendor CLI in hardened container (or soft fallback if no Docker) |
 | **CHECK** | `scripts/checks-run.sh TASK_ID` | Orchestrator re-runs checks from **pristine commit**, not dirty worktree |
-| **AUDIT** | `scripts/audit-run.sh TASK_ID` | Cold diff + criteria only; schema-forced JSON verdict |
+| **AUDIT** | `scripts/audit-run.sh` or soft `codex-auditor` | Cold diff + criteria; **default producer GPT-5.6 Sol via Codex** (≠ worker) |
 | **GATE** | `scripts/gate-eval.sh TASK_ID` | Forbidden paths + hash drift + checks green + not BLOCKED |
 | **PR** | `scripts/pr-open.sh TASK_ID` | Only if gate passes; CI remains final authority |
 
@@ -145,23 +164,28 @@ every worktree; never mounted into the worker.
 ## Session startup checklist
 
 1. Detect mode (user / config / default soft).
-2. Confirm available lanes (`command -v grok`, `codex`, `claude` as needed).
+2. Confirm available lanes (`command -v grok`, `command -v codex`, advisor model).
 3. Restate the goal and mode to the user in one short paragraph.
-4. For multi-step work: decompose → five-part specs → route → verify → advisor if needed.
-5. For hard mode: create task id, run INIT, then follow the loop.
+4. Soft multi-step: decompose → five-part specs → implementer → verify →
+   **`codex-auditor`** → advisor if commitment boundary.
+5. For hard mode: create task id, run INIT, then follow the loop (audit stage
+   prefers Codex Sol when worker is Grok).
 
 ## What you never do
 
 - Type large implementation bodies while a cheaper/cross-vendor lane is available
 - Accept lane success without independent verification
-- Silently fall back to same-vendor implementation
+- Skip `codex-auditor` on non-trivial work when Codex is available (state skip reason)
+- Same-vendor audit of a Codex worker via `codex-auditor`
+- Silently fall back to same-vendor implementation or host-model "fake audit"
 - Skip advisor on commitment boundaries when the advisor agent is configured
 - In hard mode: treat worker transcripts as evidence; merge without gate pass
 
 ## References
 
-- `references/roles.md` — orchestrator / worker / advisor contracts
-- `references/lanes.md` — routing table and CLI flags
+- `references/roles.md` — orchestrator / worker / advisor / **auditor** contracts
+- `references/lanes.md` — routing table and CLI flags (incl. Codex Sol audit)
 - `references/five-part-spec.md` — spec template
 - `references/audit-checklist.md` — audit dimensions + verdict schema
 - `references/security-model.md` — threats and enforcement map
+

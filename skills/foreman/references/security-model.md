@@ -17,7 +17,7 @@ sandboxes only. Do not claim absolute isolation.
 | Git hooks as escape | Normal caution | `core.hooksPath=` on worktree + harness git |
 | Secrets exposure | Don't paste keys into specs | Container gets only worker vendor API key |
 | Reward hacking ("tests pass") | Re-run verification command | Pristine commit archive for checks |
-| Same-vendor blind spots | Prefer cross-vendor implementer + Claude architect | Enforce worker ≠ orchestrator; audit ≠ worker |
+| Same-vendor blind spots | Prefer Grok implementer + **Codex Sol auditor** + Claude architect | Enforce worker ≠ orchestrator; audit ≠ worker (default audit = Codex Sol) |
 
 ## Soft mode residual risk
 

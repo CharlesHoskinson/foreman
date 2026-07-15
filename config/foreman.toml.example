@@ -7,7 +7,9 @@ vendor = "grok"       # claude | codex | grok — must differ from orchestrator 
 model  = "grok-4.5"
 
 [audit]
-vendor = ""           # empty = auto (orchestrator if different from worker)
+vendor = "codex"      # default auditor family (must differ from worker)
+model  = "gpt-5.6-sol"  # GPT-5.6 Sol via Codex CLI (codex-auditor in soft mode)
+# empty vendor = auto: prefer codex when worker is grok
 
 [checks]
 command = ""          # empty = auto-detect package.json / pyproject.toml

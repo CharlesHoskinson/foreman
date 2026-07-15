@@ -39,9 +39,27 @@ external CLIs). Hard mode: containerized CLI via `worker-run.sh`.
 - Edit tests / CI / lockfiles when forbidden (hard gate enforces)
 - Receive orchestrator chat history (context-free handoff only)
 
+## Auditor (Cold-diff review)
+
+**Who:** Default soft/hard auditor is **`codex-auditor`** — GPT-5.6 Sol via Codex
+CLI, **read-only** sandbox. Must be a **different vendor** than the worker
+(default: Grok worker → Codex auditor).
+
+**Owns:**
+
+- Cold review of unified diff + acceptance criteria only (no worker chat history)
+- Schema-forced verdict: `APPROVED` | `WARNING` | `BLOCKED` + findings
+- Proving it did not mutate the working tree
+
+**Does not:**
+
+- Implement, patch, or expand scope
+- Audit its own family’s implementation (if worker was Codex, pick another auditor)
+- Replace the architect’s ship decision (verdict is gate input, not a final order)
+
 ## Advisor (Judgment)
 
-**Who:** `foreman-advisor` — top judgment model, read-only tools.
+**Who:** `foreman-advisor` — top judgment model, read-only tools (Claude Fable/Opus).
 
 **Owns:**
 
@@ -51,3 +69,5 @@ external CLIs). Hard mode: containerized CLI via `worker-run.sh`.
 **Does not:**
 
 - Implement, edit files, or rubber-stamp weak plans
+- Replace the Codex auditor for routine post-diff review (different job: strategy vs. cold-diff QA)
+
