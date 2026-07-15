@@ -29,6 +29,36 @@ chmod +x install.sh
 ./install.sh
 ```
 
+## Reference environment (inventory + bootstrap)
+
+Before multi-step work, the architect (Fable) **inventories** tools and installs gaps.
+
+| Piece | Path |
+|---|---|
+| Manifest | `env/reference-manifest.toml` |
+| Check (Windows) | `env/tool-check.ps1 -Profile soft\|hard\|full` |
+| Check (WSL) | `env/tool-check.sh --profile soft\|hard\|full` |
+| Bootstrap (Windows) | `env/bootstrap-windows.ps1 -Profile … -Yes` |
+| Bootstrap (WSL) | `env/bootstrap-wsl.sh --profile … --yes` |
+| Docs | `skills/foreman/references/reference-environment.md` |
+
+```powershell
+# Soft mode on Windows
+.\env\tool-check.ps1 -Profile soft -Json -Out $env:USERPROFILE\.foreman\last-tool-check.json
+# If READY: no
+.\env\bootstrap-windows.ps1 -Profile soft -Yes
+.\env\tool-check.ps1 -Profile soft
+```
+
+```bash
+# Hard mode inside WSL
+bash env/tool-check.sh --profile hard --json
+bash env/bootstrap-wsl.sh --profile hard --yes
+```
+
+Full laptop WSL/Ubuntu setup (optional): sibling runbook `C:\Users\charl\wsl-setup\`.  
+Foreman `env/` is the **minimal, re-runnable** inventory for this skill.
+
 This links `skills/foreman` into:
 
 - `~/.claude/skills/foreman`

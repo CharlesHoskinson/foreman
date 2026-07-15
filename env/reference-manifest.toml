@@ -1,0 +1,167 @@
+# Foreman reference development environment — inventory source of truth.
+# tool-check.{ps1,sh} and bootstrap-*.{ps1,sh} read this (or embed a mirror).
+# Profiles: soft | hard | full
+
+schema_version = 1
+name = "foreman-reference"
+description = "Windows host + WSL2 Ubuntu reference env for Foreman soft and hard modes"
+
+[platform]
+# Hard mode scripts are bash; soft mode can run on Windows host CLIs.
+primary_hard = "wsl2-ubuntu"
+primary_soft = "windows-or-wsl"
+ubuntu_codename = "noble-or-later"  # 24.04+; 26.04 preferred when available
+wsl_distro_hint = "Ubuntu-26.04"
+
+# --- Soft mode (architect + lanes) ---
+[[tools]]
+id = "git"
+profile = ["soft", "hard", "full"]
+where = ["windows", "wsl"]
+check = "git --version"
+install_wsl = "sudo apt-get install -y git"
+install_windows = "winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements"
+required = true
+
+[[tools]]
+id = "python3"
+profile = ["soft", "hard", "full"]
+where = ["windows", "wsl"]
+check = "python3 --version || python --version"
+min_version = "3.11"
+install_wsl = "sudo apt-get install -y python3 python3-pip python3-venv"
+install_windows = "winget install --id Python.Python.3.12 -e --accept-package-agreements --accept-source-agreements"
+required = true
+
+[[tools]]
+id = "jq"
+profile = ["hard", "full"]
+where = ["wsl"]
+check = "jq --version"
+install_wsl = "sudo apt-get install -y jq"
+required = true
+notes = "Hard-mode scripts (meta.json, gate) need jq"
+
+[[tools]]
+id = "grok"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "grok --version"
+install_hint = "Install Grok Build from https://x.ai/cli then run: grok login"
+required = true
+notes = "Default implementer lane"
+
+[[tools]]
+id = "codex"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "codex --version"
+install_wsl = "npm install -g @openai/codex"
+install_windows = "npm install -g @openai/codex"
+install_hint = "After install: codex login (needs GPT-5.6 Sol access for audit)"
+required = true
+notes = "Default auditor (GPT-5.6 Sol) + optional implementer"
+
+[[tools]]
+id = "claude"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "claude --version"
+install_hint = "Install Claude Code (https://code.claude.com) and authenticate"
+required = false
+notes = "Typical architect host; not required if orchestrating from Grok/Codex"
+
+[[tools]]
+id = "node"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "node --version"
+install_wsl = "curl -fsSL https://fnm.vercel.app/install | bash && fnm install --lts"
+install_windows = "winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements"
+required = false
+notes = "Needed to install codex via npm if not already present"
+
+[[tools]]
+id = "npm"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "npm --version"
+required = false
+
+# --- Hard mode (WSL bash harness) ---
+[[tools]]
+id = "docker"
+profile = ["hard", "full"]
+where = ["wsl"]
+check = "docker version"
+install_wsl = "# see bootstrap-wsl.sh docker section (docker-ce + systemd)"
+required = true
+notes = "Native docker-ce in WSL preferred over Docker Desktop for hard workers"
+
+[[tools]]
+id = "shellcheck"
+profile = ["hard", "full"]
+where = ["wsl"]
+check = "shellcheck --version"
+install_wsl = "sudo apt-get install -y shellcheck"
+required = false
+
+[[tools]]
+id = "bats"
+profile = ["hard", "full"]
+where = ["wsl"]
+check = "bats --version"
+install_wsl = "sudo apt-get install -y bats"
+required = false
+notes = "Harness unit tests"
+
+[[tools]]
+id = "flock"
+profile = ["hard", "full"]
+where = ["wsl"]
+check = "command -v flock"
+install_wsl = "sudo apt-get install -y util-linux"
+required = true
+
+[[tools]]
+id = "gh"
+profile = ["hard", "full"]
+where = ["windows", "wsl"]
+check = "gh --version"
+install_wsl = "sudo apt-get install -y gh || (type -p curl >/dev/null && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg)"
+install_windows = "winget install --id GitHub.cli -e --accept-package-agreements --accept-source-agreements"
+required = false
+notes = "PR open stage"
+
+[[tools]]
+id = "timeout"
+profile = ["soft", "hard", "full"]
+where = ["wsl"]
+check = "command -v timeout || command -v gtimeout"
+install_wsl = "sudo apt-get install -y coreutils"
+required = false
+
+# --- Foreman skill install ---
+[[tools]]
+id = "foreman_skill"
+profile = ["soft", "hard", "full"]
+where = ["windows", "wsl"]
+check = "test -f \"$HOME/.claude/skills/foreman/SKILL.md\" || test -f \"$HOME/.agents/skills/foreman/SKILL.md\""
+install_windows = "powershell -ExecutionPolicy Bypass -File install.ps1"
+install_wsl = "bash install.sh"
+required = true
+
+[profiles.soft]
+description = "Claude/Grok/Codex soft orchestration on host"
+must = ["git", "python3", "grok", "codex", "foreman_skill"]
+should = ["claude", "node", "npm", "jq"]
+
+[profiles.hard]
+description = "WSL2 bash harness + Docker workers"
+must = ["git", "python3", "jq", "docker", "flock", "foreman_skill"]
+should = ["shellcheck", "bats", "gh", "timeout", "grok", "codex"]
+
+[profiles.full]
+description = "Soft lanes + hard harness on Windows+WSL reference box"
+must = ["git", "python3", "jq", "grok", "codex", "docker", "flock", "foreman_skill"]
+should = ["claude", "node", "npm", "shellcheck", "bats", "gh", "timeout"]

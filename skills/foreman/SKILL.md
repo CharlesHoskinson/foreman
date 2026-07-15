@@ -164,15 +164,21 @@ every worktree; never mounted into the worker.
 ## Session startup checklist
 
 1. Detect mode (user / config / default soft).
-2. Confirm available lanes (`command -v grok`, `command -v codex`, advisor model).
-3. Restate the goal and mode to the user in one short paragraph.
-4. Soft multi-step: decompose → five-part specs → implementer → verify →
+2. **Reference environment inventory (mandatory before multi-step implement):**
+   - Soft on Windows: `powershell -File env/tool-check.ps1 -Profile soft -Json -Out $env:USERPROFILE\.foreman\last-tool-check.json`
+   - Hard/full: also run WSL `bash env/tool-check.sh --profile hard|full --json`
+   - If `READY: no`, run bootstrap (`env/bootstrap-windows.ps1` and/or `env/bootstrap-wsl.sh --yes`) **after user confirmation** (or if they already authorized installs), then re-check.
+   - Summarize inventory to the user (MISSING / OUTDATED / ACTION). See `references/reference-environment.md`.
+3. Confirm lanes (`grok`, `codex`) and advisor model from the inventory.
+4. Restate the goal and mode to the user in one short paragraph.
+5. Soft multi-step: decompose → five-part specs → implementer → verify →
    **`codex-auditor`** → advisor if commitment boundary.
-5. For hard mode: create task id, run INIT, then follow the loop (audit stage
+6. For hard mode: create task id, run INIT, then follow the loop (audit stage
    prefers Codex Sol when worker is Grok).
 
 ## What you never do
 
+- Start multi-step implementation while the active profile’s **must-tools** fail tool-check
 - Type large implementation bodies while a cheaper/cross-vendor lane is available
 - Accept lane success without independent verification
 - Skip `codex-auditor` on non-trivial work when Codex is available (state skip reason)
@@ -180,6 +186,7 @@ every worktree; never mounted into the worker.
 - Silently fall back to same-vendor implementation or host-model "fake audit"
 - Skip advisor on commitment boundaries when the advisor agent is configured
 - In hard mode: treat worker transcripts as evidence; merge without gate pass
+- Run bootstrap installs that need admin/reboot without telling the user
 
 ## References
 
@@ -188,4 +195,7 @@ every worktree; never mounted into the worker.
 - `references/five-part-spec.md` — spec template
 - `references/audit-checklist.md` — audit dimensions + verdict schema
 - `references/security-model.md` — threats and enforcement map
+- `references/reference-environment.md` — WSL/Windows inventory + bootstrap
+- `env/reference-manifest.toml` — tool inventory source of truth
+
 

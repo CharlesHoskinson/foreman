@@ -30,5 +30,7 @@ Copy-Item (Join-Path $Root "agents\*.md") $AgentsDst -Force
 Write-Host "[foreman] agents copied to $AgentsDst"
 
 New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.foreman\runs" | Out-Null
-Write-Host "[foreman] install complete. Soft mode ready."
-Write-Host "[foreman] Boot: cd $Root ; claude   then  /model fable  and  /foreman"
+Write-Host "[foreman] install complete. Soft mode skill/agents linked."
+Write-Host "[foreman] Next: env\tool-check.ps1 -Profile soft"
+Write-Host "[foreman] Gaps:  env\bootstrap-windows.ps1 -Profile soft -Yes"
+Write-Host "[foreman] Boot:  cd $Root ; claude   then  /model fable  and  /foreman"
