@@ -3,9 +3,6 @@
 #   One JSON object per line; atomic O_APPEND; torn-tail-safe reads; per-consumer
 #   line-number cursors committed after processing (at-least-once).
 
-# @description Emit one event; auto-increments seq for the run.
-# @arg $1 run id  @arg $2 type  @arg $3 lane  @arg $4 payload JSON  @arg $5 commit sha (optional)
-# @stdout the assigned seq number
 # @description Initialize a run's event log. Single-threaded; call ONCE before
 #   any concurrent emitters start. Clears a leftover .seq.lock from a previous
 #   crashed run — safe here because there is no concurrency at init, which is
@@ -16,6 +13,9 @@ el_init() {
   rmdir "$rd/.seq.lock" 2>/dev/null || true
 }
 
+# @description Emit one event; auto-increments seq for the run.
+# @arg $1 run id  @arg $2 type  @arg $3 lane  @arg $4 payload JSON  @arg $5 commit sha (optional)
+# @stdout the assigned seq number
 el_emit() {
   local run="$1" type="$2" lane="$3" payload="$4" commit="${5:-}"
   local rd; rd="$(run_dir "$run")"; mkdir -p "$rd"
