@@ -80,13 +80,21 @@ T=$(command -v gtimeout || command -v timeout || true)
 
 ${T:+$T 600} codex exec \
   --model gpt-5.6-sol \
-  -c model_reasoning_effort=high \
+  -c model_reasoning_effort=medium \
   --sandbox workspace-write \
   --skip-git-repo-check \
   --cd "$(pwd)" \
   --output-last-message "$FINAL" \
   - < "$SPEC"
 ```
+
+**Reasoning effort.** Implementers run at `model_reasoning_effort=medium` for
+speed: the five-part spec determines the outcome, so deep reasoning is wasted
+wall-clock and risks the 600s timeout. Use `=high` only when the architect
+flags a correctness-critical or unusually subtle task in the spec. The
+**auditor** lane stays at `=high` — judgment is the point there. If a task
+needs the fastest possible turnaround for a mechanical change, `=low` is
+acceptable when the spec says so.
 
 If `gpt-5.6-sol` is unavailable, report `STATUS: unavailable` with the exact error —
 do not silently pick another model unless the architect’s spec names one.

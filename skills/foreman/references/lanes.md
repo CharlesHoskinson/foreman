@@ -5,7 +5,7 @@
 | Lane | Producer | Claude agent | Direct CLI (headless) |
 |---|---|---|---|
 | Routine implementer | Grok 4.5 | `grok-implementer` | `grok --prompt-file … -m grok-4.5 --allow "Write" --allow "Edit"` |
-| Cross-vendor implementer | GPT-5.6 Sol (high) | `codex-implementer` | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox workspace-write` |
+| Cross-vendor implementer | GPT-5.6 Sol (medium) | `codex-implementer` | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=medium --sandbox workspace-write` |
 | **Audit (default)** | **GPT-5.6 Sol (high)** | **`codex-auditor`** | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
 | Judgment | Fable / Opus | `foreman-advisor` | Session model or `model: fable` agent |
 
@@ -33,7 +33,10 @@ non-OpenAI auditor and say so explicitly.
 
 - `codex exec` with prompt on stdin
 - `--model gpt-5.6-sol`
-- `-c model_reasoning_effort=high`
+- `-c model_reasoning_effort=medium` — faster; the spec determines the outcome,
+  so high reasoning is wasted wall-clock and risks the 600s timeout. Escalate to
+  `=high` only for correctness-critical/subtle tasks the architect flags; `=low`
+  for purely mechanical changes when the spec says so.
 - `--sandbox workspace-write` (never danger-full-access in soft mode)
 - `--skip-git-repo-check` when needed
 - `--output-last-message` for report capture
@@ -42,7 +45,8 @@ non-OpenAI auditor and say so explicitly.
 
 - `codex exec` with audit prompt on stdin (cold criteria + diff)
 - `--model gpt-5.6-sol` (pinned)
-- `-c model_reasoning_effort=high`
+- `-c model_reasoning_effort=high` — auditors always run at the highest level;
+  judgment is the point, and audit is where deep reasoning pays off
 - **`--sandbox read-only`** (never workspace-write for audit)
 - `--skip-git-repo-check` when needed
 - `--output-last-message` for verdict JSON
