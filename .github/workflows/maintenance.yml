@@ -1,3 +1,5 @@
+# Known limit: this workflow has not yet been exercised by a real release —
+# validate on the first tagged release (or run via workflow_dispatch first).
 name: Maintenance and Updates
 
 on:
