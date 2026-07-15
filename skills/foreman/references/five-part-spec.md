@@ -50,3 +50,26 @@ npm test
   delegate — finish architect work.
 - Prefer absolute-from-repo-root paths.
 - One task per spec when files overlap; parallelize only independent specs.
+
+## EARS phrasing (required for Grok-bound specs)
+
+Write Interfaces/Constraints/Verification requirements in EARS (Easy Approach
+to Requirements Syntax). Fixed clause order, closed keyword set — this
+measurably reduces implementer drift.
+
+| Pattern | Template |
+|---|---|
+| Ubiquitous | The implementer SHALL <response>. |
+| Event-driven | WHEN <trigger>, the implementer SHALL <response>. |
+| State-driven | WHILE <precondition>, the implementer SHALL <response>. |
+| Optional feature | WHERE <feature is included>, the implementer SHALL <response>. |
+| Unwanted behavior | IF <unwanted condition>, THEN the implementer SHALL <response>. |
+| Complex | WHILE <precondition>, WHEN <trigger>, the implementer SHALL <response>. |
+
+Worked example (from a real spec):
+
+> WHEN computing the dirty file set, the script SHALL build it as the sorted
+> union of `git diff --name-only`, `git diff --name-only --cached`, and
+> `git ls-files --others --exclude-standard`.
+> IF a fix would require changing unrelated logic, THEN the implementer SHALL
+> stop and report the gap instead of expanding scope.

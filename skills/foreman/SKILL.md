@@ -51,6 +51,9 @@ The session model is the most expensive lane. Keep its token volume low:
 2. **Keep context lean.** Delegate broad exploration; keep conclusions, not dumps.
 3. **Reason once, then hand off.** Capture architecture in the five-part spec;
    do not re-derive it across turns while typing code yourself.
+4. **Graph before files.** For repo understanding, query the committed
+   graphify graph (`graphify query "..." --budget 1500`) before reading
+   sources; hop to files via `source_location` only where detail is needed.
 
 ### Lanes
 

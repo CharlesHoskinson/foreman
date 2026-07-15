@@ -190,6 +190,25 @@ install_windows = 'powershell -NoProfile -Command "Install-Module -Name PSScript
 required = false
 notes = "docs group -- PowerShell lint"
 
+[[tools]]
+id = "graphify"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "python -c \"import graphify\" || python3 -c \"import graphify\""
+install_hint = "pip install graphifyy  (module name: graphify)"
+required = false
+notes = "Knowledge-graph repo understanding; graph committed at graphify-out/graph.json"
+
+[[tools]]
+id = "openspec"
+profile = ["full"]
+where = ["windows", "wsl"]
+check = "openspec --version"
+install_wsl = "npm install -g @fission-ai/openspec"
+install_windows = "npm install -g @fission-ai/openspec"
+required = false
+notes = "Optional CLI; foreman follows OpenSpec folder conventions without it"
+
 [profiles.soft]
 description = "Claude/Grok/Codex soft orchestration on host"
 must = ["git", "python3", "grok", "codex", "foreman_skill"]

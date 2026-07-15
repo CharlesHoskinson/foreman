@@ -46,3 +46,14 @@ See `skills/foreman/references/parallel-worktrees.md`.
 
 When building or revising `site/`: treat as soft-mode. Spec first, Grok types,
 you verify, **Codex Sol audits** the diff, advisor only for IA commitment calls.
+
+## Repo understanding: graph first
+
+WHEN you need to understand this repo's concepts, architecture, or file
+relationships, you SHALL query the committed knowledge graph before opening
+files: `graphify query "<question>" --budget 1500` (graph at
+`graphify-out/graph.json`). Follow `source_location` pointers into files only
+for the specific facts you need. Measured saving: 45-77% of tokens vs raw
+reads. IF the graph is stale relative to HEAD (see `graphify-out/GRAPH_REPORT.md`
+date), THEN refresh with `graphify --update` or note the staleness in your
+answer.
