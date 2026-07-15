@@ -19,3 +19,5 @@ graphify-out/.cache/
 graphify-out/.experiment_*
 FOREMAN_REPORT.md
 FOREMAN_REPORT.json
+graphify-out/cache/
+graphify-out/manifest.json
