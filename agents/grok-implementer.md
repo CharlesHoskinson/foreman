@@ -62,11 +62,19 @@ Report all four values. If `HEAD_B != HEAD_A`, set
 
 ## Known limits (Grok headless)
 
-Grok's shell tool is cancelled (`PermissionCancelled`) under headless
-`--permission-mode acceptEdits`. Therefore Grok CANNOT: delete or rename
-files, chmod, or run verification commands. Do not retry these — you run
-verification yourself; deletions/renames go in `ARCHITECT_ACTIONS`. Specs
-should never ask Grok for deletions; if one does, report the gap.
+The grok CLI's `--permission-mode` flag only honors `bypassPermissions` and
+`default` — passing `acceptEdits` is accepted but silently ignored (see grok
+user-guide 22-permissions-and-safety). In headless runs any tool call that
+would prompt is auto-cancelled and reported to the model, so without allow
+rules Grok narrates edits while writing NOTHING. Therefore:
+
+- ALWAYS pass `--allow "Write" --allow "Edit"` (capitalized rule prefixes) —
+  this auto-approves file writes/edits and nothing else.
+- Shell stays gated by design: Grok still cannot delete/rename files, chmod,
+  or run verification commands. You run verification yourself;
+  deletions/renames go in `ARCHITECT_ACTIONS`.
+- If the evidence digests show zero changes after a "successful" run, suspect
+  a cancelled-writes regression before suspecting the model.
 
 ## Run grok
 
@@ -88,7 +96,7 @@ should never ask Grok for deletions; if one does, report the gap.
    
    ${T:+$T 600} grok --prompt-file "$SPEC" \
      -m grok-4.5 \
-     --permission-mode acceptEdits \
+     --allow "Write" --allow "Edit" \
      --output-format plain \
      --cwd "$(pwd)" \
      > "$FINAL" 2>&1

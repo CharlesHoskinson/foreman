@@ -4,7 +4,7 @@
 
 | Lane | Producer | Claude agent | Direct CLI (headless) |
 |---|---|---|---|
-| Routine implementer | Grok 4.5 | `grok-implementer` | `grok --prompt-file … -m grok-4.5 --permission-mode acceptEdits` |
+| Routine implementer | Grok 4.5 | `grok-implementer` | `grok --prompt-file … -m grok-4.5 --allow "Write" --allow "Edit"` |
 | Cross-vendor implementer | GPT-5.6 Sol (high) | `codex-implementer` | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox workspace-write` |
 | **Audit (default)** | **GPT-5.6 Sol (high)** | **`codex-auditor`** | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
 | Judgment | Fable / Opus | `foreman-advisor` | Session model or `model: fable` agent |
@@ -22,7 +22,10 @@ non-OpenAI auditor and say so explicitly.
 
 - `--prompt-file` — never shell-interpolate large specs
 - `-m grok-4.5` (or pinned model from config)
-- `--permission-mode acceptEdits` — not blanket always-approve for host soft mode
+- `--allow "Write" --allow "Edit"` — auto-approve file writes only; NOT
+  `--permission-mode acceptEdits` (the grok CLI accepts that flag value but
+  silently ignores it, and headless prompt-cancellation then kills every
+  write); shell stays gated
 - `--cwd` / working directory explicit
 - Wall clock ~600s when `timeout`/`gtimeout` exists
 
@@ -105,7 +108,8 @@ hash_paths = ["tests/**", ".github/**"]
 
 | Lane | Limit | Consequence for specs |
 |---|---|---|
-| Grok headless | Shell tool cancelled (`PermissionCancelled`) under `acceptEdits`; cannot delete/rename/chmod or run commands | Wrapper runs verification; deletions go to `ARCHITECT_ACTIONS`; never spec a deletion to Grok |
+| Grok headless | `--permission-mode acceptEdits` is silently ignored by the CLI; without `--allow "Write" --allow "Edit"` every write is prompt-cancelled while the model narrates success | Always pass the two allow rules; treat zero-change evidence digests as a cancelled-writes signal |
+| Grok headless | Shell tool prompt-cancelled (no headless approver); cannot delete/rename/chmod or run commands | Wrapper runs verification; deletions go to `ARCHITECT_ACTIONS`; never spec a deletion to Grok |
 | Grok headless | May narrate success without writing; may attempt git commits | Evidence contract (head/status digests) is mandatory; git-write ban is standing |
 | Codex exec | `workspace-write` sandbox: no writes outside workspace, no network installs | Keep file set inside the worktree; pre-install deps via bootstrap |
 | Both | No conversation context | Five-part spec must be self-contained; include Standing constraints verbatim |
