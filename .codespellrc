@@ -1,0 +1,3 @@
+[codespell]
+skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/research,./sandbox,./FOREMAN_REPORT.md,./FOREMAN_REPORT.json,./node_modules,./site/style.css
+ignore-words-list = grok,codex,worktree,worktrees,shdoc,bats,toml,fable,jsonc,ans

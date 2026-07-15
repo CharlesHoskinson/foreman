@@ -94,7 +94,7 @@ verify independently, audit with codex-auditor (GPT-5.6 Sol),
 consult foreman-advisor before locking information architecture.
 ```
 
-**Default soft pipeline**
+### Default soft pipeline
 
 ```text
 architect (Claude) → grok-implementer → architect verifies
@@ -102,7 +102,7 @@ architect (Claude) → grok-implementer → architect verifies
                   → ship (or rework on BLOCKED)
 ```
 
-**Requirements**
+### Requirements
 
 - Claude Code with Fable (or use `/model opus` and pin advisor to opus)
 - [Grok CLI](https://x.ai/cli) authenticated for the default **implementer** lane
@@ -112,7 +112,7 @@ Without Grok/Codex, agents report `STATUS: unavailable` — they never silently 
 
 ## Layout
 
-```
+```text
 foreman/
 ├── skills/foreman/          # portable skill (SKILL.md + references + scripts)
 ├── agents/                  # Claude Code subagents
@@ -140,7 +140,7 @@ Docs: `skills/foreman/references/parallel-worktrees.md`.
 
 ## Hard loop (when enabled)
 
-```
+```text
 INIT → PLAN → IMPLEMENT → CHECK → AUDIT → GATE → PR
 ```
 

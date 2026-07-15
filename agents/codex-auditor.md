@@ -33,7 +33,7 @@ command -v codex && codex --version
 
 If missing or unauthenticated:
 
-```
+```text
 CODEX AUDIT REPORT
 STATUS: unavailable
 REASON: [codex not found on PATH | auth error — exact message]
@@ -41,7 +41,7 @@ REASON: [codex not found on PATH | auth error — exact message]
 
 If the model is unavailable to this account:
 
-```
+```text
 CODEX AUDIT REPORT
 STATUS: unavailable
 REASON: [gpt-5.6-sol access error — exact message]
@@ -62,7 +62,7 @@ You share **none** of the worker's chat history. Cold context only.
 
 Write a unique prompt file (never a fixed path):
 
-```bash
+````bash
 PROMPT=$(mktemp -t codex-audit.XXXXXX 2>/dev/null || mktemp)
 DIFF_FILE="${1:-}"   # path given by caller, or generate below
 OUT=$(mktemp -t codex-audit-out.XXXXXX 2>/dev/null || mktemp)
@@ -114,8 +114,9 @@ Rules:
 ```diff
 [PASTE OR INSTRUCT CODEX TO READ THE DIFF FILE PATH]
 ```
+
 EOF
-```
+````
 
 Prefer passing the diff **inside the prompt file** (bounded size). If the diff
 is huge, write it to a sibling file and tell Codex the absolute path to read
@@ -187,9 +188,11 @@ when explicitly specified; default remains `gpt-5.6-sol`.
 ## After Codex returns
 
 1. **Prove the tree was not mutated:**
+
    ```bash
    git status --porcelain
    ```
+
    If dirty in a way Codex caused, report `STATUS: fail` — audit invalid.
 2. Parse the last message as JSON. If not valid JSON with
    `verdict ∈ {APPROVED,WARNING,BLOCKED}`, set `STATUS: fail` and include raw text.
@@ -201,7 +204,7 @@ Also write (when in a worktree) **`FOREMAN_REPORT.md`** and **`FOREMAN_REPORT.js
 in the worktree root so `wt-consolidate` can pick them up in parallel with
 search/plan trees.
 
-```
+```text
 CODEX AUDIT REPORT
 STATUS: complete | fail | timeout | unavailable | blocked_same_vendor
 MODEL: gpt-5.6-sol

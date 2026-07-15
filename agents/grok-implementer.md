@@ -25,7 +25,7 @@ command -v grok && grok --version
 
 If grok is missing or not authenticated, **stop** and return:
 
-```
+```text
 GROK REPORT
 STATUS: unavailable
 REASON: [grok not found on PATH — install via https://x.ai/cli | auth error — run `grok login`]
@@ -72,37 +72,37 @@ should never ask Grok for deletions; if one does, report the gap.
 
 1. Write the spec to a unique temp file (never fixed paths; parallel lanes collide):
 
-```bash
-SPEC=$(mktemp -t grok-spec.XXXXXX 2>/dev/null || mktemp -t grok-spec)
-cat > "$SPEC" << 'SPEC_EOF'
-[full five-part spec]
-Run the verification command and include its actual output in your final message.
-SPEC_EOF
-```
+   ```bash
+   SPEC=$(mktemp -t grok-spec.XXXXXX 2>/dev/null || mktemp -t grok-spec)
+   cat > "$SPEC" << 'SPEC_EOF'
+   [full five-part spec]
+   Run the verification command and include its actual output in your final message.
+   SPEC_EOF
+   ```
 
 2. Invoke headlessly:
 
-```bash
-T=$(command -v gtimeout || command -v timeout || true)
-FINAL="${TMPDIR:-/tmp}/grok-final-$$.txt"
+   ```bash
+   T=$(command -v gtimeout || command -v timeout || true)
+   FINAL="${TMPDIR:-/tmp}/grok-final-$$.txt"
+   
+   ${T:+$T 600} grok --prompt-file "$SPEC" \
+     -m grok-4.5 \
+     --permission-mode acceptEdits \
+     --output-format plain \
+     --cwd "$(pwd)" \
+     > "$FINAL" 2>&1
+   ```
 
-${T:+$T 600} grok --prompt-file "$SPEC" \
-  -m grok-4.5 \
-  --permission-mode acceptEdits \
-  --output-format plain \
-  --cwd "$(pwd)" \
-  > "$FINAL" 2>&1
-```
-
-On Windows PowerShell without bash temp, write the spec under `$env:TEMP\grok-spec-<random>.txt`
-and invoke `grok` equivalently.
+   On Windows PowerShell without bash temp, write the spec under `$env:TEMP\grok-spec-<random>.txt`
+   and invoke `grok` equivalently.
 
 3. **Verify independently.** `git diff` / `git status`, re-run the verification command
    yourself. Grok’s claim is not evidence.
 
 ## Report
 
-```
+```text
 GROK REPORT
 STATUS: complete | partial | timeout | unavailable
 OBJECTIVE: [one line]

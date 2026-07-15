@@ -26,7 +26,7 @@ implement) so Fable can fan out maximum parallel workload.
 
 ## Lifecycle
 
-```
+```text
 tool-check
   → RUN_ID = ...
   → wt-new  (search | plan | audit)   [parallel-safe via flock]
@@ -34,6 +34,7 @@ tool-check
   → each agent writes FOREMAN_REPORT.md (+ .json) in ITS tree
   → wt-consolidate   → ~/.foreman/runs/<RUN_ID>/CONSOLIDATED.md
   → architect decides (merge / rework / discard)
+  → wt-merge (implement trees)
   → wt-cleanup       → remove worktrees; keep reports
 ```
 
@@ -43,11 +44,12 @@ tool-check
 |---|---|
 | `scripts/wt-new.sh RUN_ID ROLE [SLUG] [BASE]` | Create worktree + report scaffold |
 | `scripts/wt-consolidate.sh RUN_ID` | Copy reports → run dir + CONSOLIDATED.md |
+| `scripts/wt-merge.sh RUN_ID ROLE [SLUG] [--commit]` | Squash-apply branch as staged changes (overlap-refusal) |
 | `scripts/wt-cleanup.sh RUN_ID [--force] [--keep-branches]` | Remove worktrees after archive |
 
 ### Layout
 
-```
+```text
 # Sibling worktrees (default)
 <parent>/<repo>-wt-<RUN_ID>-search/
   FOREMAN_REPORT.md
@@ -73,7 +75,7 @@ tool-check
 | **search** | `foreman-search` | worktree | No | Codebase map, file hits, citations |
 | **plan** | `foreman-plan` | worktree | No | Decomposition, risks, ordered tasks |
 | **audit** | `codex-auditor` (in tree) or `foreman-audit` wrapper | worktree | No | Cold-diff verdict JSON |
-| **implement** | `grok-implementer` / `codex-implementer` | worktree preferred | Yes | Diff + verification |
+| **implement** | `grok-implementer` / `codex-implementer` | worktree (default) | Yes | Diff + verification |
 
 ## Architect rules (Fable)
 

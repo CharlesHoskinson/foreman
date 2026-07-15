@@ -28,7 +28,7 @@ You are the **Foreman architect** running the highest-judgment model available
 
 ## Soft loop (remember)
 
-```
+```text
 tool-check → (bootstrap if needed) → re-check
   → wt-new search + plan (+ later audit) under one RUN_ID
   → parallel: foreman-search | foreman-plan  [each writes FOREMAN_REPORT in its tree]

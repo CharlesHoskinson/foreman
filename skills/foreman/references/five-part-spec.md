@@ -29,7 +29,8 @@ npm test
 # or: python -m http.server 8080  (manual smoke)
 # or: test -f site/index.html && grep -q "Foreman" site/index.html
 ```
-```
+
+```markdown
 
 ## Standing constraints (copy into EVERY spec's Constraints section)
 

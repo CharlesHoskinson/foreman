@@ -1,0 +1,8 @@
+{
+  // Foreman docs style: permissive on line length/HTML (doctrine tables), strict on structure.
+  "config": { "default": true, "MD013": false, "MD029": { "style": "ordered" }, "MD033": false, "MD041": false, "MD060": false },
+  "ignores": [
+    "skills/scrapling/**", "skills/graphify/**", "skills/superpowers/**",
+    "docs/research/**", "sandbox/**", "node_modules/**", "FOREMAN_REPORT.md", "FOREMAN_REPORT.json"
+  ]
+}

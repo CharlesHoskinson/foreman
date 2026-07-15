@@ -26,8 +26,15 @@ OS="$(uname -s 2>/dev/null || echo unknown)"
 IS_WSL=0
 grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=1
 
+# @description Test whether an executable is available on PATH.
+# @arg $1 command executable name to resolve
+# @exitcode 0 if the executable is available; nonzero otherwise
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# @description Inspect one known Foreman dependency and emit its availability status and version detail.
+# @arg $1 id tool identifier selecting the dependency-specific check
+# @arg $2 cmd reserved command field; currently unused by the checks
+# @stdout one tab-separated tool, status, and detail row
 check_one() {
   local id="$1" cmd="$2"
   local status="missing" detail=""
@@ -88,7 +95,42 @@ check_one() {
       if have shellcheck; then status=ok; detail="$(shellcheck --version 2>&1 | head -2 | tr '\n' ' ')"; else status=missing; fi
       ;;
     bats)
-      if have bats; then status=ok; detail="$(bats --version 2>&1)"; else status=missing; fi
+      if have bats; then
+        status=ok; detail="$(bats --version 2>&1)"
+      elif [[ -x "$HOME/.foreman/tools/bats-core/bin/bats" ]]; then
+        status=ok; detail="$($HOME/.foreman/tools/bats-core/bin/bats --version 2>&1)"
+      else
+        status=missing
+      fi
+      ;;
+    markdownlint-cli2)
+      if have markdownlint-cli2; then status=ok; detail="$(markdownlint-cli2 --version 2>&1 | head -1)"; else status=missing; fi
+      ;;
+    codespell)
+      if have codespell && codespell --version >/dev/null 2>&1; then
+        status=ok; detail="$(codespell --version 2>&1 | head -1)"
+      elif have python3 && python3 -m codespell_lib --version >/dev/null 2>&1; then
+        status=ok; detail="python3 -m codespell_lib $(python3 -m codespell_lib --version 2>&1 | head -1)"
+      elif have python && python -m codespell_lib --version >/dev/null 2>&1; then
+        status=ok; detail="python -m codespell_lib $(python -m codespell_lib --version 2>&1 | head -1)"
+      else
+        status=missing
+      fi
+      ;;
+    lychee)
+      local LYCHEE_CMD
+      LYCHEE_CMD="${LYCHEE:-$(command -v lychee || true)}"
+      if [[ -z "$LYCHEE_CMD" && -x "${LOCALAPPDATA:-}/Microsoft/WinGet/Links/lychee.exe" ]]; then
+        LYCHEE_CMD="${LOCALAPPDATA:-}/Microsoft/WinGet/Links/lychee.exe"
+      fi
+      if [[ -z "$LYCHEE_CMD" ]]; then
+        LYCHEE_CMD="$(ls "${LOCALAPPDATA:-}"/Microsoft/WinGet/Packages/lycheeverse.lychee*/*/lychee.exe 2>/dev/null | head -1 || true)"
+      fi
+      if [[ -n "$LYCHEE_CMD" ]] && "$LYCHEE_CMD" --version >/dev/null 2>&1; then
+        status=ok; detail="$("$LYCHEE_CMD" --version 2>&1 | head -1)"
+      else
+        status=missing
+      fi
       ;;
     flock)
       if have flock; then status=ok; detail="$(command -v flock)"; else status=missing; fi
@@ -122,9 +164,9 @@ check_one() {
 must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
-should_soft=(claude node npm jq)
+should_soft=(claude node npm jq markdownlint-cli2 codespell lychee)
 should_hard=(shellcheck bats gh timeout grok codex)
-should_full=(claude node npm shellcheck bats gh timeout)
+should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee)
 
 case "$PROFILE" in
   soft) must=("${must_soft[@]}"); should=("${should_soft[@]}") ;;
@@ -172,6 +214,8 @@ done
 READY=0
 [[ ${#must_fail[@]} -eq 0 ]] && READY=1
 
+# @description Render the collected tool inventory and profile readiness guidance as a human-readable report.
+# @stdout the formatted Foreman tool-check report
 report_text() {
   echo "FOREMAN TOOL CHECK"
   echo "profile: $PROFILE"
@@ -187,6 +231,15 @@ report_text() {
     det="${rest#*$'\t'}"
     printf '%-16s %-10s %s\n' "$id" "$st" "$det"
   done
+  docs_group=()
+  for did in markdownlint-cli2 codespell lychee; do
+    for row in "${ROWS[@]}"; do
+      [[ "${row%%$'\t'*}" == "$did" ]] || continue
+      drest="${row#*$'\t'}"
+      docs_group+=("$did:${drest%%$'\t'*}")
+    done
+  done
+  [[ ${#docs_group[@]} -gt 0 ]] && echo "DOCS_GROUP: ${docs_group[*]}"
   echo "---"
   if [[ $READY -eq 1 ]]; then
     echo "READY: yes — profile '$PROFILE' must-tools are OK"
@@ -207,6 +260,8 @@ report_text() {
   fi
 }
 
+# @description Serialize the collected tool inventory and readiness state using the Foreman tool-check JSON schema.
+# @stdout the formatted JSON tool-check report
 report_json() {
   python3 - "$PROFILE" "$HOST" "$OS" "$IS_WSL" "$NOW" "$ROOT" "$READY" "${ROWS[@]}" <<'PY'
 import json, sys

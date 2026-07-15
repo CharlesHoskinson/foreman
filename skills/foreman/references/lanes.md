@@ -11,7 +11,7 @@
 
 ### Default pairing
 
-```
+```text
 Grok implements  →  architect re-runs checks  →  Codex Sol audits  →  architect ships
 ```
 
@@ -60,7 +60,7 @@ the host model under that lane’s name.
 
 Scripts under `scripts/adapters/` normalize:
 
-```
+```text
 run_worker  → event log + result envelope
 run_audit   → verdict JSON (APPROVED | WARNING | BLOCKED)
 ```

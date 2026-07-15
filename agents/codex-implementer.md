@@ -22,7 +22,7 @@ command -v codex && codex --version
 
 If missing or unauthenticated:
 
-```
+```text
 CODEX REPORT
 STATUS: unavailable
 REASON: [codex not found | auth error — exact message]
@@ -95,7 +95,7 @@ do not silently pick another model unless the architect’s spec names one.
 
 Re-run verification yourself. Report format:
 
-```
+```text
 CODEX REPORT
 STATUS: complete | partial | timeout | unavailable
 OBJECTIVE: [one line]

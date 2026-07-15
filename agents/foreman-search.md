@@ -86,7 +86,7 @@ Paths are relative to the worktree root (your cwd).
 
 In your final message, one short block:
 
-```
+```text
 SEARCH REPORT
 STATUS: complete|partial|blocked
 REPORT: FOREMAN_REPORT.md

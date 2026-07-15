@@ -87,4 +87,3 @@ CLI, **read-only** sandbox. Must be a **different vendor** than the worker
 
 - Implement, edit files, or rubber-stamp weak plans
 - Replace the Codex auditor for routine post-diff review (different job: strategy vs. cold-diff QA)
-

@@ -25,17 +25,19 @@
 ### Task 1 (CS1): Harden implementer agent contracts
 
 **Files:**
+
 - Modify: `agents/grok-implementer.md`
 - Modify: `agents/codex-implementer.md`
 
 **Interfaces:**
+
 - Produces: report fields `EVIDENCE` and `ARCHITECT_ACTIONS` that Task 6's audit checklist and the architect's verification rely on.
 
 - [ ] **Step 1: Add the three doctrine blocks to `agents/grok-implementer.md`**
 
 Insert after the `## Contract` section, before `## Run grok`:
 
-```markdown
+````markdown
 ## Git discipline (standing rule)
 
 You and Grok NEVER run git write commands: `commit`, `add`, `reset`, `branch`,
@@ -65,13 +67,13 @@ Grok's shell tool is cancelled (`PermissionCancelled`) under headless
 files, chmod, or run verification commands. Do not retry these — you run
 verification yourself; deletions/renames go in `ARCHITECT_ACTIONS`. Specs
 should never ask Grok for deletions; if one does, report the gap.
-```
+````
 
 - [ ] **Step 2: Extend the report template in `agents/grok-implementer.md`**
 
 Replace the existing ` ```\nGROK REPORT ... ``` ` block with:
 
-```
+```text
 GROK REPORT
 STATUS: complete | partial | timeout | unavailable
 OBJECTIVE: [one line]
@@ -115,10 +117,12 @@ grep -c "Known limits" agents/grok-implementer.md agents/codex-implementer.md
 ### Task 2 (CS1): Standing constraints in spec template + lane known-limits table
 
 **Files:**
+
 - Modify: `skills/foreman/references/five-part-spec.md`
 - Modify: `skills/foreman/references/lanes.md`
 
 **Interfaces:**
+
 - Produces: the "Standing constraints" block name used by SKILL.md (Task 6) and by every future spec the architect writes.
 
 - [ ] **Step 1: Add standing constraints to `five-part-spec.md`**
@@ -167,6 +171,7 @@ grep -c "ARCHITECT_ACTIONS" skills/foreman/references/five-part-spec.md skills/f
 ### Task 3 (CS2): bats harness bootstrap + wt-new suite
 
 **Files:**
+
 - Create: `tests/run.sh`
 - Create: `tests/helpers.bash`
 - Create: `tests/wt-new.bats`
@@ -174,6 +179,7 @@ grep -c "ARCHITECT_ACTIONS" skills/foreman/references/five-part-spec.md skills/f
 - Modify: `env/bootstrap-wsl.sh` (install bats-core)
 
 **Interfaces:**
+
 - Produces: `setup_tmp_repo` helper (exports `REPO`, `SCRIPTS`, `FOREMAN_HOME`) consumed by Tasks 4–5 test suites; `tests/run.sh` as the suite entry point.
 
 - [ ] **Step 1: Write `tests/helpers.bash`**
@@ -290,10 +296,12 @@ Commit: `feat(tests): bats harness + wt-new suite; manifest/bootstrap bats entry
 ### Task 4 (CS2): wt-merge.sh — TDD
 
 **Files:**
+
 - Create: `tests/wt-merge.bats`
 - Create: `skills/foreman/scripts/wt-merge.sh`
 
 **Interfaces:**
+
 - Consumes: `setup_tmp_repo` from `tests/helpers.bash`; run-dir metadata JSON written by `wt-new.sh` (`~/.foreman/runs/<RUN>/worktrees/<role>[-slug].json` with keys `branch`, `worktree`, `base_sha`, `status`).
 - Produces: `wt-merge.sh RUN_ID ROLE [SLUG] [--commit]` — exit 0 staged-apply; exit 3 missing metadata; exit 4 dirty target index; exit 5 overlap refusal; exit 7 squash conflict. Metadata `status` becomes `"merged"`. Used to land CS3/CS4.
 
@@ -457,6 +465,7 @@ Expected: 6 pass.
 ### Task 5 (CS2): docs-check stage — configs, script, tests, toolchain
 
 **Files:**
+
 - Create: `.markdownlint-cli2.jsonc`
 - Create: `.codespellrc`
 - Create: `skills/foreman/scripts/docs-check.sh`
@@ -466,6 +475,7 @@ Expected: 6 pass.
 - Modify: `env/tool-check.sh`, `env/tool-check.ps1` (docs group reporting)
 
 **Interfaces:**
+
 - Produces: `docs-check.sh [--online] [--json PATH]` — exit 0 all green, 1 findings, 2 tool missing (fail closed). JSON schema: `{"schema":"foreman.docs-check.v1","status":"pass|fail","tools":{"markdownlint":{"status":"pass|fail|missing","findings":N},"codespell":{...},"lychee":{...},"comments":{...}}}`. Consumed by Task 6 (`checks-run.sh`/`gate-eval.sh`) and every implement round.
 
 - [ ] **Step 1: Write `.markdownlint-cli2.jsonc`**
@@ -664,6 +674,7 @@ Commit: `feat(docs-stage): docs-check script, lint configs, docs tool group (TDD
 ### Task 6 (CS2): Loop integration — gate, audit checklist, doctrine
 
 **Files:**
+
 - Modify: `skills/foreman/scripts/checks-run.sh` (run docs-check, save JSON to run dir)
 - Modify: `skills/foreman/scripts/gate-eval.sh` (consume docs-check.json, fail closed)
 - Modify: `skills/foreman/references/audit-checklist.md` (Documentation & comments dimension)
@@ -671,6 +682,7 @@ Commit: `feat(docs-stage): docs-check script, lint configs, docs tool group (TDD
 - Modify: `skills/foreman/references/parallel-worktrees.md` (implement default + wt-merge lifecycle)
 
 **Interfaces:**
+
 - Consumes: `docs-check.sh --json PATH` (Task 5), `wt-merge.sh` (Task 4).
 - Produces: gate behavior later tasks' merges must satisfy.
 
@@ -680,6 +692,7 @@ Commit: `feat(docs-stage): docs-check script, lint configs, docs tool group (TDD
 # Docs/comment quality gate (fail-closed; JSON consumed by gate-eval)
 bash "$SCRIPT_DIR/docs-check.sh" --json "$RD/docs-check.json" || DOCS_RC=$?
 ```
+
 persisting `DOCS_RC` into the run envelope the same way check results are stored.
 
 - [ ] **Step 2: `gate-eval.sh`** — add a gate clause with the file's existing pattern: gate fails if `$RD/docs-check.json` is missing (fail closed) or its `.status != "pass"`.
@@ -719,6 +732,7 @@ Commit: `feat(loop): docs-check wired into checks/gate; audit docs dimension; wo
 ### Task 7 (CS3): Vendor reference skills
 
 **Files:**
+
 - Create: `skills/scrapling/**` (copy), `skills/graphify/**` (copy), `skills/superpowers/**` (copy)
 - Create: `skills/VENDORED.md`
 
@@ -766,11 +780,13 @@ test -f skills/superpowers/LICENSE && echo LICENSE_OK
 ### Task 8 (CS3): Installers link all skills; manifest records them
 
 **Files:**
+
 - Modify: `install.sh`, `install.ps1`
 - Modify: `env/reference-manifest.toml` (`[[skills]]` section)
 - Modify: `env/tool-check.sh`, `env/tool-check.ps1` (verify links)
 
 **Interfaces:**
+
 - Consumes: `skills/*` layout from Task 7.
 
 - [ ] **Step 1: `install.sh`** — replace the three fixed `link_skill` calls with a loop over `"$ROOT"/skills/*/` (skip non-directories and `VENDORED.md`), linking each `skills/<name>` to `~/.claude/skills/<name>`, `~/.agents/skills/<name>`, `~/.grok/skills/<name>`, reusing the existing `link_skill` helper (extend its signature to take src+dest).
@@ -812,10 +828,12 @@ powershell -File install.ps1   # idempotent, exit 0 (run on host)
 ### Task 9 (CS4): Docs site truthfulness update
 
 **Files:**
+
 - Modify: `site/index.html`
 - Modify: `site/README.md` (only if file table drifts)
 
 **Interfaces:**
+
 - Consumes: doctrine wording from Tasks 1–6 (evidence contract, worktree default, docs stage).
 
 - [ ] **Step 1: Soft pipeline diagram** — in `#loops`, replace the `pipeline-soft` div content so stages read: `Decompose → Route (worktree lane) → Verify (diff + checks + docs-check) → Audit (codex cold diff) → Advisor → Done (with evidence)`, keeping the exact class structure (`stage`, `arrow`, `stage-done`) and updating `aria-label` to match.

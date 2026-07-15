@@ -95,10 +95,14 @@ work first. See `references/five-part-spec.md`.
 
 ### Parallelism (worktree fan-out)
 
+- **Implement rounds default to worktrees.** Every soft-mode implement round runs
+  in its own tree (`wt-new <RUN> implement <slug>`); the main checkout is never
+  an implementer target. Land results with `wt-merge.sh` (staged by default).
+
 Maximum parallelization uses **one git worktree per agent role**, each writing a
 report **in its own tree**, then architect consolidate + cleanup.
 
-```
+```text
 wt-new (search | plan | audit)  →  parallel agents  →  each FOREMAN_REPORT.md
      → wt-consolidate  →  CONSOLIDATED.md  →  decide  →  wt-cleanup
 ```
@@ -140,10 +144,12 @@ Reports are claims, not evidence. Before accepting worker output:
 1. Read the actual diff (`git diff` / status)
 2. Re-run the verification command yourself (or spot-check quoted output against the tree)
 3. "Should work" / no command output = **not done**
-4. **Audit:** invoke `codex-auditor` with cold diff + five-part acceptance criteria
+4. **Docs stage (iterative):** run `scripts/docs-check.sh`; failures loop back to
+   the implementer as a corrected spec, ≤ max_rework_rounds
+5. **Audit:** invoke `codex-auditor` with cold diff + five-part acceptance criteria
    (default). Act on `BLOCKED` (rework), surface `WARNING` findings, accept
    `APPROVED` only together with green independent checks
-5. Auditor JSON is **input to your judgment**, not a rubber stamp — you still own
+6. Auditor JSON is **input to your judgment**, not a rubber stamp — you still own
    the ship decision
 
 Wrong code → corrected spec back to the cheap implementer lane, not hand-patching
@@ -153,7 +159,7 @@ by the architect. Do not ask the auditor to fix the code.
 
 ## Hard mode — task loop
 
-```
+```text
 INIT → PLAN → IMPLEMENT → CHECK → AUDIT → GATE ──pass──→ PR
                  ↑________________________│ fail (≤ max_rework_rounds)
 ```
@@ -225,5 +231,3 @@ every worktree; never mounted into the worker.
 - `references/reference-environment.md` — WSL/Windows inventory + bootstrap
 - `references/parallel-worktrees.md` — parallel search/plan/audit worktrees
 - `env/reference-manifest.toml` — tool inventory source of truth
-
-

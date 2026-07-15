@@ -72,6 +72,50 @@ function Check-One([string]$Id) {
     "npm" {
       if (Test-Cmd "npm") { $status = "ok"; $detail = Get-Ver "npm" "-v" }
     }
+    "markdownlint-cli2" {
+      if (Test-Cmd "markdownlint-cli2") { $status = "ok"; $detail = Get-Ver "markdownlint-cli2" }
+    }
+    "codespell" {
+      if (Test-Cmd "codespell") {
+        $version = & codespell --version 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0) { $status = "ok"; $detail = $version.Trim() }
+      }
+      if ($status -ne "ok") {
+        foreach ($py in @("python3", "python")) {
+          if (Test-Cmd $py) {
+            $version = & $py -m codespell_lib --version 2>&1 | Out-String
+            if ($LASTEXITCODE -eq 0) {
+              $status = "ok"
+              $detail = "$py -m codespell_lib $($version.Trim())"
+              break
+            }
+          }
+        }
+      }
+    }
+    "lychee" {
+      $lycheeCmd = $env:LYCHEE
+      if (-not $lycheeCmd -and (Test-Cmd "lychee")) {
+        $lycheeCmd = (Get-Command "lychee" -ErrorAction SilentlyContinue).Source
+      }
+      if (-not $lycheeCmd -and $env:LOCALAPPDATA) {
+        $link = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links\lychee.exe"
+        if (Test-Path $link) { $lycheeCmd = $link }
+      }
+      if (-not $lycheeCmd -and $env:LOCALAPPDATA) {
+        $packagePattern = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages\lycheeverse.lychee*\*\lychee.exe"
+        $packageExe = Get-ChildItem -Path $packagePattern -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($packageExe) { $lycheeCmd = $packageExe.FullName }
+      }
+      if ($lycheeCmd) {
+        $version = & $lycheeCmd --version 2>&1 | Out-String
+        if ($LASTEXITCODE -eq 0) { $status = "ok"; $detail = $version.Trim() }
+      }
+    }
+    "psscriptanalyzer" {
+      $module = Get-Module -ListAvailable -Name PSScriptAnalyzer | Sort-Object Version -Descending | Select-Object -First 1
+      if ($module) { $status = "ok"; $detail = "PSScriptAnalyzer $($module.Version)" }
+    }
     "docker" {
       if (Test-Cmd "docker") {
         $status = "degraded"
@@ -119,9 +163,9 @@ function Check-One([string]$Id) {
 $mustSoft = @("git", "python3", "grok", "codex", "foreman_skill")
 $mustHard = @("wsl", "git", "python3", "foreman_skill")
 $mustFull = @("wsl", "git", "python3", "grok", "codex", "foreman_skill")
-$shouldSoft = @("claude", "node", "npm", "jq")
+$shouldSoft = @("claude", "node", "npm", "jq", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer")
 $shouldHard = @("gh")
-$shouldFull = @("claude", "node", "npm", "jq", "gh", "docker")
+$shouldFull = @("claude", "node", "npm", "jq", "gh", "docker", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer")
 
 switch ($Profile) {
   "soft" { $must = $mustSoft; $should = $shouldSoft }
@@ -210,6 +254,8 @@ if ($Json) {
   foreach ($t in $tools) {
     [void]$lines.Add(("{0,-16} {1,-10} {2}" -f $t.id, $t.status, $t.detail))
   }
+  $docsGroup = @($tools | Where-Object { $_.id -in @("markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer") } | ForEach-Object { "$($_.id):$($_.status)" })
+  if ($docsGroup.Count) { [void]$lines.Add("DOCS_GROUP: $($docsGroup -join ' ')") }
   [void]$lines.Add("---")
   if ($ready) {
     [void]$lines.Add("READY: yes - profile '$Profile' must-tools are OK on Windows host")

@@ -27,6 +27,10 @@ if ! command -v jq >/dev/null 2>&1; then
   require_cmd python3 "or install jq"
 fi
 
+# @description Read a top-level metadata field with jq or the Python fallback, returning empty text when absent.
+# @arg $1 file JSON metadata file to read
+# @arg $2 key top-level object key to resolve
+# @stdout the field value, or an empty line when absent or null
 json_get() {
   local file="$1" key="$2"
   if command -v jq >/dev/null 2>&1; then

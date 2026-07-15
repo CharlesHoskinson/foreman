@@ -33,9 +33,13 @@ set +e
 EC=$?
 set -e
 
+# Docs/comment quality gate (fail-closed; JSON consumed by gate-eval)
+DOCS_RC=0
+bash "$SCRIPT_DIR/docs-check.sh" --json "$RD/docs-check.json" || DOCS_RC=$?
+
 STATUS=fail; [[ $EC -eq 0 ]] && STATUS=pass
-jq -n --arg sha "$SHA" --arg cmd "$CMD" --argjson ec "$EC" --arg st "$STATUS" \
-  '{sha:$sha, command:$cmd, exit_code:$ec, status:$st}' > "$RD/checks-result.json"
+jq -n --arg sha "$SHA" --arg cmd "$CMD" --argjson ec "$EC" --arg st "$STATUS" --argjson docs_rc "$DOCS_RC" \
+  '{sha:$sha, command:$cmd, exit_code:$ec, status:$st, docs_rc:$docs_rc}' > "$RD/checks-result.json"
 
 log "checks ($CMD) on $SHA: $STATUS"
 [[ "$STATUS" == pass ]] || exit "$EXIT_FAIL"

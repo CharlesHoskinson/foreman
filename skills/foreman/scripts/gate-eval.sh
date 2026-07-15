@@ -46,6 +46,12 @@ elif [[ "$(jq -r .verdict "$RD/audit-verdict.json")" == "BLOCKED" ]]; then
   REASONS+=("audit verdict BLOCKED")
 fi
 
+if [[ ! -f "$RD/docs-check.json" ]]; then
+  REASONS+=("docs-check missing (fail closed)")
+elif [[ "$(jq -r .status "$RD/docs-check.json" 2>/dev/null)" != "pass" ]]; then
+  REASONS+=("docs-check failed: $(jq -r .status "$RD/docs-check.json" 2>/dev/null)")
+fi
+
 if [[ ${#REASONS[@]} -eq 0 ]]; then
   jq -n '{pass:true, reasons:[]}' > "$RD/gate-decision.json"
   log "GATE PASS ($TASK_ID)"

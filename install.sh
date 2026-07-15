@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_SRC="$ROOT/skills/foreman"
 
+# @description Link the repository's Foreman skill into a tool-specific skill directory unless that destination exists.
+# @arg $1 dest destination path for the Foreman skill symlink
+# @stdout whether the destination already existed or the link was created
 link_skill() {
   local dest="$1"
   mkdir -p "$(dirname "$dest")"

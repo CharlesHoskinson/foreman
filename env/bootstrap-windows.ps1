@@ -47,6 +47,47 @@ if (-not (Have node) -or -not (Have npm)) {
   # refresh PATH in this session is imperfect; continue
 } else { Log "node/npm OK" }
 
+# Documentation tools (soft/full docs group)
+if ($Profile -in @("soft", "full")) {
+  if (-not (Have markdownlint-cli2)) {
+    if (Have npm) {
+      Log "npm install -g markdownlint-cli2"
+      npm install -g markdownlint-cli2
+    } else {
+      Log "WARN: npm missing — cannot install markdownlint-cli2 yet"
+    }
+  } else { Log "markdownlint-cli2 OK" }
+
+  $codespellOk = $false
+  if (Have codespell) {
+    & codespell --version 2>$null
+    $codespellOk = ($LASTEXITCODE -eq 0)
+  }
+  if (-not $codespellOk) {
+    foreach ($py in @("python3", "python")) {
+      if (Have $py) {
+        & $py -m codespell_lib --version 2>$null
+        if ($LASTEXITCODE -eq 0) { $codespellOk = $true; break }
+      }
+    }
+  }
+  if (-not $codespellOk) {
+    if (Have pip) {
+      Log "pip install --user codespell"
+      pip install --user codespell
+    } else {
+      Log "WARN: pip missing — cannot install codespell yet"
+    }
+  } else { Log "codespell OK (CLI or Python module)" }
+
+  if (-not (Have lychee)) { WingetInstall "lycheeverse.lychee" } else { Log "lychee OK" }
+
+  if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
+    Log "Install-Module PSScriptAnalyzer"
+    Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force
+  } else { Log "PSScriptAnalyzer OK" }
+}
+
 if (-not (Have codex)) {
   if (Have npm) {
     Log "npm install -g @openai/codex"

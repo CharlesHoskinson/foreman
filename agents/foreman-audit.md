@@ -104,7 +104,7 @@ must pass a patch path or the implementer branch name — **do not invent a diff
 - Do not write outside this worktree; architect consolidates.
 - Final message:
 
-```
+```text
 AUDIT REPORT
 STATUS: ...
 VERDICT: ...

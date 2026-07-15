@@ -41,7 +41,7 @@ The site/ dogfood run (soft mode, Grok implementer, Fable architect) surfaced fi
 
 Report contract becomes:
 
-```
+```text
 GROK REPORT (unchanged fields) +
 EVIDENCE:
   head_before: <sha>  head_after: <sha>

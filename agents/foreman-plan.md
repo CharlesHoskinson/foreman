@@ -91,7 +91,7 @@ to an implementer without re-deriving interfaces.
 
 ## Return
 
-```
+```text
 PLAN REPORT
 STATUS: complete|partial|blocked
 REPORT: FOREMAN_REPORT.md

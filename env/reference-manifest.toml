@@ -108,12 +108,12 @@ required = false
 
 [[tools]]
 id = "bats"
-profile = ["hard", "full"]
+profile = ["full"]
 where = ["wsl"]
-check = "bats --version"
-install_wsl = "sudo apt-get install -y bats"
-required = false
-notes = "Harness unit tests"
+check = "bats --version || ~/.foreman/tools/bats-core/bin/bats --version"
+install_wsl = "git clone --depth 1 https://github.com/bats-core/bats-core ~/.foreman/tools/bats-core"
+required = true
+notes = "Test harness for skills/foreman/scripts (tests/run.sh)"
 
 [[tools]]
 id = "flock"
@@ -150,6 +150,45 @@ check = "test -f \"$HOME/.claude/skills/foreman/SKILL.md\" || test -f \"$HOME/.a
 install_windows = "powershell -ExecutionPolicy Bypass -File install.ps1"
 install_wsl = "bash install.sh"
 required = true
+
+[[tools]]
+id = "markdownlint-cli2"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "markdownlint-cli2 --version"
+install_wsl = "npm install -g markdownlint-cli2"
+install_windows = "npm install -g markdownlint-cli2"
+required = true
+notes = "docs group -- markdown lint"
+
+[[tools]]
+id = "codespell"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "codespell --version || python3 -m codespell_lib --version || python -m codespell_lib --version"
+install_wsl = "pip3 install --user codespell"
+install_windows = "pip install --user codespell"
+required = true
+notes = "docs group -- spelling"
+
+[[tools]]
+id = "lychee"
+profile = ["soft", "full"]
+where = ["windows", "wsl"]
+check = "lychee --version"
+install_windows = "winget install --id lycheeverse.lychee -e --accept-package-agreements --accept-source-agreements"
+install_wsl = "cargo install lychee --locked || cargo binstall -y lychee"
+required = true
+notes = "docs group -- link check (offline by default)"
+
+[[tools]]
+id = "psscriptanalyzer"
+profile = ["soft", "full"]
+where = ["windows"]
+check = 'powershell -NoProfile -Command "if (Get-Module -ListAvailable PSScriptAnalyzer) { exit 0 } else { exit 1 }"'
+install_windows = 'powershell -NoProfile -Command "Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Force"'
+required = false
+notes = "docs group -- PowerShell lint"
 
 [profiles.soft]
 description = "Claude/Grok/Codex soft orchestration on host"

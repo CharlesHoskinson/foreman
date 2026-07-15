@@ -77,7 +77,7 @@ Exit codes: `0` = READY, `1` = not ready.
 
 After tool-check, emit:
 
-```
+```text
 ENV INVENTORY
 profile: soft|hard|full
 READY: yes|no

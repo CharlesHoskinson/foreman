@@ -21,6 +21,9 @@ done
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# @description Print a message with the Foreman bootstrap prefix.
+# @arg $1 message message text; additional arguments are joined with spaces
+# @stdout the prefixed bootstrap message
 log() { printf '[foreman-bootstrap] %s\n' "$*"; }
 
 if [[ $YES -ne 1 ]]; then
@@ -34,8 +37,13 @@ export DEBIAN_FRONTEND=noninteractive
 log "apt-get update..."
 sudo apt-get update -y
 
+# @description Test whether an executable is available on PATH.
+# @arg $1 command executable name to resolve
+# @exitcode 0 if the executable is available; nonzero otherwise
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# @description Install only the requested Debian packages that are not already registered by dpkg.
+# @arg $1 package Debian package name; additional package names are also accepted
 install_apt() {
   local pkgs=("$@")
   local need=()
@@ -61,6 +69,14 @@ if [[ "$PROFILE" == "hard" || "$PROFILE" == "full" ]]; then
   have bats || sudo apt-get install -y bats || log "WARN: bats not available via apt"
 fi
 
+if ! have bats && [[ ! -x "$HOME/.foreman/tools/bats-core/bin/bats" ]]; then
+  log "installing bats-core via git clone (test harness for tests/run.sh)"
+  git clone --depth 1 https://github.com/bats-core/bats-core "$HOME/.foreman/tools/bats-core" \
+    || log "WARN: bats-core clone failed"
+else
+  log "bats present (PATH or ~/.foreman/tools/bats-core)"
+fi
+
 # Node via nodesource or apt nodejs (for npm/codex)
 if ! have node || ! have npm; then
   if have npm; then
@@ -70,6 +86,42 @@ if ! have node || ! have npm; then
     install_apt nodejs npm || {
       log "WARN: node/npm apt install failed — install fnm/node manually for codex npm install"
     }
+  fi
+fi
+
+# Documentation tools (soft/full docs group)
+if [[ "$PROFILE" == "soft" || "$PROFILE" == "full" ]]; then
+  if ! have markdownlint-cli2; then
+    if have npm; then
+      log "npm install -g markdownlint-cli2"
+      npm install -g markdownlint-cli2 || sudo npm install -g markdownlint-cli2 || log "WARN: markdownlint-cli2 install failed"
+    else
+      log "WARN: cannot install markdownlint-cli2 without npm"
+    fi
+  else
+    log "markdownlint-cli2 already present"
+  fi
+
+  if ! { have codespell && codespell --version >/dev/null 2>&1; } \
+    && ! python3 -m codespell_lib --version >/dev/null 2>&1 \
+    && ! python -m codespell_lib --version >/dev/null 2>&1; then
+    log "pip3 install --user codespell"
+    pip3 install --user codespell || python3 -m pip install --user codespell || log "WARN: codespell install failed"
+  else
+    log "codespell present (CLI or Python module)"
+  fi
+
+  if ! have lychee; then
+    if have cargo; then
+      log "cargo install lychee --locked"
+      cargo install lychee --locked \
+        || { have cargo-binstall && cargo binstall -y lychee; } \
+        || log "WARN: lychee install failed"
+    else
+      log "WARN: cargo missing — install Rust, then: cargo install lychee --locked"
+    fi
+  else
+    log "lychee already present"
   fi
 fi
 
