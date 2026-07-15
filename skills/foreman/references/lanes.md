@@ -100,3 +100,12 @@ round_timeout_min = 30
 forbidden_paths = ["tests/**", ".github/**", ".foreman/**", "*.lock", "package-lock.json"]
 hash_paths = ["tests/**", ".github/**"]
 ```
+
+## Known limits per CLI (soft mode, headless)
+
+| Lane | Limit | Consequence for specs |
+|---|---|---|
+| Grok headless | Shell tool cancelled (`PermissionCancelled`) under `acceptEdits`; cannot delete/rename/chmod or run commands | Wrapper runs verification; deletions go to `ARCHITECT_ACTIONS`; never spec a deletion to Grok |
+| Grok headless | May narrate success without writing; may attempt git commits | Evidence contract (head/status digests) is mandatory; git-write ban is standing |
+| Codex exec | `workspace-write` sandbox: no writes outside workspace, no network installs | Keep file set inside the worktree; pre-install deps via bootstrap |
+| Both | No conversation context | Five-part spec must be self-contained; include Standing constraints verbatim |

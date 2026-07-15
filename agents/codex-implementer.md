@@ -34,6 +34,37 @@ Never implement yourself as a fallback.
 
 Same five-part Foreman spec: objective, files, interfaces, constraints, verification.
 
+## Git discipline (standing rule)
+
+You and Codex NEVER run git write commands: `commit`, `add`, `reset`, `branch`,
+`push`, `rebase`, `merge`, `tag`. Read-only git (`status`, `diff`, `log`,
+`show`) is allowed. The architect owns all git writes. If the spec or Codex's
+output implies a commit, leave changes in the working tree and note it.
+
+## Evidence contract
+
+Record BEFORE invoking codex, and AGAIN after it exits:
+
+```bash
+HEAD_B=$(git log -1 --format=%H 2>/dev/null || echo none)
+DIG_B=$(git status --porcelain | sha256sum | cut -d' ' -f1)
+# ... run codex ...
+HEAD_A=$(git log -1 --format=%H 2>/dev/null || echo none)
+DIG_A=$(git status --porcelain | sha256sum | cut -d' ' -f1)
+```
+
+Report all four values. If `HEAD_B != HEAD_A`, set
+`unauthorized_git_activity: true` and list `git log --oneline HEAD_B..HEAD_A`.
+
+## Known limits (Codex exec)
+
+`codex exec --sandbox workspace-write` cannot write outside the workspace,
+cannot run network installs, and receives the prompt on stdin. Codex is
+technically able to delete/rename inside the workspace, but the Standing
+constraints still forbid it: request deletions/renames via ARCHITECT_ACTIONS.
+If a diff contains one anyway, flag it there as a violation for architect
+review.
+
 ## Run codex
 
 ```bash
@@ -70,6 +101,11 @@ STATUS: complete | partial | timeout | unavailable
 OBJECTIVE: [one line]
 CHANGES: [file — summary from actual diff]
 VERIFIED: [command + output]
+EVIDENCE:
+  head_before: <sha|none>  head_after: <sha|none>
+  status_digest_before: <sha256>  status_digest_after: <sha256>
+  unauthorized_git_activity: true|false
+ARCHITECT_ACTIONS: [delete <path> | rename <a> -> <b> | none]
 CODEX SAID: [one-line summary]
 GAPS: [or none]
 ```

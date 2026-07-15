@@ -31,6 +31,18 @@ npm test
 ```
 ```
 
+## Standing constraints (copy into EVERY spec's Constraints section)
+
+- NEVER run git write commands (`commit`, `add`, `reset`, `branch`, `push`,
+  `rebase`, `merge`, `tag`). Changes stay uncommitted in the working tree.
+- Do not delete or rename files. List needed deletions/renames in your
+  report under `ARCHITECT_ACTIONS`.
+- Work only inside the provided worktree path. Never write outside it.
+- No network access unless the spec explicitly grants it.
+- Documentation and comments are part of the deliverable: markdown passes
+  markdownlint-cli2; bash functions carry shdoc headers (`# @description`
+  minimum); scripts carry a top-of-file purpose comment.
+
 ## Quality bar
 
 - If you cannot fill **Interfaces** or **Verification**, you are not ready to
