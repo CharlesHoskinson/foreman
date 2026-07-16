@@ -817,3 +817,70 @@ Commit: `feat(durable): config + doctrine for durable-lanes`
 - Spec coverage: environment dependency list + preflight verify→T0; event log→T1; checkpoints→T2; stream tee + lifecycle→T3; NATS setup+bridge→T4; watchdog→T5; resume→T6; config/doctrine→T7. Degradation rule (log survives NATS down) → T4 bridge cursor-not-advanced-on-failure + tests. Honest limits (NATS dep, tests skip) → T0 manifest (required=false for NATS) + T4 setup + T7 doctrine. The user's explicit ask — "an environment setup step with a dependency list that verifies installation" — is Task 0.
 - Placeholders: none; real bash + real tests in every task. The lane-run mid-run throttled checkpoint/heartbeat loop is specified as interval-driven with the tested interval=0 path exercised; the timing loop itself is deliberately not unit-tested (only the post-run checkpoint + round_done are), which the plan states.
 - Type consistency: `el_emit/el_read/el_cursor_get/el_cursor_commit`, `ckpt_snapshot/ckpt_latest`, `nb_bridge`, `wd_state`, `dp_verify` names match across tasks and tests. Event `type` values and the `{seq,ts,type,lane,commit,payload}` schema are consistent T1↔T3↔T4↔T6. The `durable` manifest profile (T0) lists every dependency the later tasks assume; `durable-preflight.sh` (T0) is the single verify step and gates `[durable] enabled` work (T4 setup and T3 lane-run call it).
+
+## Pre-implementation audit — Tasks 3–4 (2026-07-15, Codex GPT-5.6 Sol, high)
+
+A plan-time cross-vendor audit of the Task 3–4 code blocks **before any worker
+implements them** (this is the plan-time-audit idea, applied). Verdict: do NOT
+copy the shown Task 3–4 code verbatim. Apply these before building. (Findings
+that duplicate already-fixed T1/T2 bugs — `select(.!="")`, the unlocked `.seq`
+counter — are resolved in the shipped libs and the corrected blocks above.)
+
+### Task 3 — `lane-run.sh` (must fix before building)
+
+- **Checkpoint failure swallowed:** `sha="$(ckpt_snapshot ... 2>/dev/null || true)"`
+  turns any failure into success; combined with an empty `sha`, `round_done`
+  becomes a blank record. Capture failure explicitly, emit a `checkpoint_failed`
+  payload, keep stderr.
+- **stdbuf/gstdbuf:** don't hardcode `stdbuf` — resolve `stdbuf`/`gstdbuf` once
+  (reuse Task 0's check) with a no-wrapper fallback; a missing `stdbuf` makes the
+  `tee` side exit 127 while only `PIPESTATUS[0]` is checked → "success" with no
+  stream. Check both pipeline statuses.
+- **Interval/heartbeat contract unimplemented:** the "minimal core" never reads
+  `DURABLE_CHECKPOINT_INTERVAL`/`DURABLE_HEARTBEAT_INTERVAL`, emits no heartbeat,
+  does no throttled mid-run checkpoint. Either implement the full contract in the
+  plan or narrow the Task 3 interface to match. Add a cleanup trap.
+- **Finalization under set -e:** a `round_done` `el_emit` failure after `set -e`
+  is restored aborts before `exit "$rc"`, replacing the lane's real status with
+  an instrumentation failure. Use explicit `if`s for finalization.
+- **Arity + stderr:** validate `RUN LANE WORKTREE -- CMD...` (else `set -u`
+  aborts on unbound positionals); decide whether stderr joins the durable
+  transcript (many CLIs emit reasoning there); enforce one writer per worktree.
+
+### Task 4 — `nb_bridge` / `nats/setup.sh` (must fix before building)
+
+- **CRLF poisons the subject (critical):** `seq`/`type` from Windows jq.exe carry
+  a trailing CR → invalid `Nats-Msg-Id` header and `foreman.<run>.<type>` subject
+  → `nats pub` fails for every event, yet `nb_bridge` returns 0 (masks total
+  failure). Strip CR from every jq-derived scalar (`v=${v%$'\r'}`); validate
+  `seq` as a positive int and `type` as a legal subject token before publishing.
+- **PubAck not validated (critical):** a successful core `nats pub` process exit
+  is not a JetStream PubAck; a stream-level rejection followed by cursor advance
+  = permanent event loss, exactly what the degradation rule forbids. Publish via
+  a JetStream-aware call that waits for + validates the PubAck; advance the
+  cursor only after positive ack. Check `el_cursor_commit`'s result; one bridge
+  per run via a mkdir lock (shared `.cursor.tmp` path otherwise clobbers).
+- **`--subjects foreman.>` unquoted (critical):** copied unquoted, `>` is a shell
+  redirect — `--storage` becomes a filename, stream never configured. Quote it:
+  `--subjects "foreman.>"`.
+- **setup.sh is under-specified:** no code for calling `durable-preflight.sh`,
+  mapping missing deps to exit 3, or a bounded server-reachability retry; write
+  the full body. `--defaults` is NOT create-or-update — probe `nats stream info
+  FOREMAN`, add when absent, use a supported edit path when present. `NATS_STORE`
+  is a `nats-server` setting, not a `stream add --storage` arg, and
+  `${NATS_STORE:-~/.foreman/nats-store}` leaves a literal `~` (no tilde expansion
+  in parameter expansion) — configure the server's JetStream store dir with
+  `$HOME` expanded, or document that setup.sh doesn't own storage.
+- **Tests:** strip CR before bats integer comparisons (`jq .state.messages` →
+  `1\r`), or assert in jq (`jq -e '.state.messages == 1'`); add a bounded timeout
+  to `nats consume` so a failed publish fails fast instead of hanging.
+
+### Note on shipped `ckpt_snapshot` (T2, already merged)
+
+The auditor flagged the `idx="$(mktemp)"` + `GIT_INDEX_FILE` pattern as
+potentially fragile (a zero-byte existing index). The shipped tests pass 4/4 on
+this host (`read-tree HEAD` repopulates the index), so it works here, but
+tomorrow: verify on WSL and consider `rm -f "$idx"` before first use for
+robustness.
+
+Task 5–7 plan-time audit: re-run tomorrow before building those tasks.
