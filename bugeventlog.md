@@ -217,3 +217,47 @@ proposed enhancement. Newest at the bottom.
   on the task rather than ending the turn; lane-run.sh's worktree lock (T3)
   plus `round_done` events are the structural fix — a lane is only "done"
   when round_done exists, not when the wrapper stops talking.
+
+## 2026-07-16 — unreaped grok subprocess blocked the T3 lane for ~70 minutes
+
+- **Phase:** Round B T3 (grok-implementer wrapper, verification phase)
+- **What happened:** a grok subprocess started 10:46 was still alive at 11:41
+  (55+ min; the wrapper-level 600s timeout evidently fired without reaping the
+  process tree), leaving the T3 wrapper blocked on a shell call from ~10:54
+  and the lane write-quiet since 10:56. Meanwhile the lane's actual work was
+  COMPLETE and correct — the architect ran tests/lane-run.bats independently:
+  5/5 pass in ~150s. ~53 bash processes had accumulated host-wide, 18 of
+  which vanished the moment the stale grok was killed (a chain of shells
+  blocked on the dead-end pipe).
+- **Escalation friction (by design):** the architect's first kill attempt
+  selected the process by age (>40 min) and was blocked by the permission
+  classifier — reasonable, since earlier STALL→RECOVERED cycles proved
+  long-quiet lanes can be healthy. A non-destructive status-check message to
+  the wrapper couldn't land because the wrapper was blocked inside the very
+  call that needed killing (queued messages deliver at the next tool round —
+  which never came). Resolution required explicit user authorization:
+  kill grok PID 37052, stop the wrapper agent, hand the mechanical finish
+  (full suite + report) to a Sonnet 5 lane with Fable checking.
+- **Root cause chain:** (1) the grok CLI wrapper's subprocess timeout does not
+  kill the process GROUP (same bug class the v0.3.0 session-transport branch
+  fixes remotely: "reap group_timeout watchdog and session on abort/success";
+  also the T6 wrapper reported force-killing a leftover grok child); (2) no
+  PID-tracked lifecycle exists for lane subprocesses, so cleanup must resort
+  to age heuristics that rightly trip the safety classifier; (3) a wrapper
+  blocked in a synchronous call is unreachable by messages — no out-of-band
+  health probe exists.
+- **Impact:** ~70 min of wall-clock on a lane whose work was already done;
+  host process-table pollution; manual multi-step intervention.
+- **Proposed enhancement (BRAINSTORM SCHEDULED with the user):** candidate
+  directions to evaluate — (a) lane-run.sh (T3, now built) becomes the ONLY
+  way lanes invoke CLIs: it owns the child PID, records it in an event, and
+  its cleanup trap kills the process group on exit/timeout — making every
+  lane subprocess PID-tracked and safely killable by ref, not by age;
+  (b) wrapper doctrine: one foreground CLI call per turn with a hard timeout,
+  and a `timeout --kill-after` style group-kill wrapper (or Windows Job
+  Object equivalent) around every grok/codex invocation; (c) a host-side
+  reaper in maintenance.sh: kill lane CLI processes whose run has a
+  round_done event or whose owning agent is gone (ownership from the PID
+  event, not age); (d) port the v0.3.0 group_timeout reaping fix forward
+  during the re-port; (e) watchdogs escalate to a health probe that inspects
+  the lane's recorded PID instead of paging the architect blind.
