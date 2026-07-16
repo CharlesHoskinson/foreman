@@ -14,9 +14,10 @@ event-log + git-checkpoint core (validated by the report as sound).
 
 **Decision (user-ratified 2026-07-16):** keep Foreman in-house; adopt Job
 Objects launcher + pueue; adapt event schema to durable-execution best
-practice; **defer** Prefect (unless the control plane moves to Python next
-quarter), Temporal (unless multi-host), Hatchet/Windmill (Docker-shaped),
-LangGraph-as-core (no process ownership).
+practice; **defer** Prefect (only if the control plane ever moves to Python),
+Temporal (only if multi-host), Hatchet/Windmill (Docker-shaped),
+LangGraph-as-core (no process ownership). Lanes implement the tasks —
+scheduling is by task order and gate results, not calendar estimates.
 
 ## What we already have vs what the report adds
 
@@ -33,6 +34,27 @@ LangGraph-as-core (no process ownership).
 
 ## Tasks
 
+### Bun adoption (stack decision, user-directed 2026-07-16)
+
+Bun (v1.3.x, MIT, maintained by Anthropic — bun.com) joins the stack, scoped:
+
+- **In scope for v0.2.5:** foreman-launch is written in TypeScript on Bun and
+  shipped as a `bun build --compile` self-contained executable; `bun` is a
+  DEV-profile tool in env/reference-manifest.toml + bootstrap scripts (users
+  of the compiled launcher need nothing). Launcher unit tests use `bun test`;
+  the harness-level bats suite still exercises the compiled binary.
+- **Why Bun over Go/C# here:** identical capability for the Job-Objects FFI
+  surface; single language for launcher + its tests; cross-compilation +
+  code signing built in; Anthropic stewardship aligns with the stack; and
+  Bun Shell offers a credible escape hatch from the bash-on-Windows failure
+  class (CRLF, mkdir mutexes, PIPESTATUS, no flock) that produced several
+  bugeventlog entries.
+- **Explicitly OUT of v0.2.5 scope:** rewriting existing audited bash libs
+  (eventlog/checkpoint/watch/resume/bridge) in Bun. A separate
+  "Bun Shell migration assessment" happens after T1 ships, using the
+  launcher experience as evidence; candidate for v0.3.x+ only if it clearly
+  reduces the portability defect rate.
+
 ### Task 0: pueue adoption — install, groups, doctrine
 
 Install pueue (user-local, Windows binary; Apache/MIT). Create groups
@@ -45,8 +67,18 @@ status parse; absent-pueue fallback.
 
 ### Task 1: foreman-launch — native Windows launcher (Job Objects)
 
-Single-file compiled launcher (language decided at plan-time audit; C# .NET
-single-file AOT or Go — no runtime install may be required on the host).
+**Implementation vehicle: Bun** (user-directed 2026-07-16; see "Bun adoption"
+below). TypeScript source, `bun build --compile` → self-contained executable
+(Windows x64 primary; POSIX build for WSL/CI) — end users do NOT need bun
+installed. Job Objects via `bun:ffi` → kernel32 (`CreateJobObjectW`,
+`SetInformationJobObject` with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+`AssignProcessToJobObject`, `TerminateJobObject`); the job handle is held for
+the launcher's lifetime (retained globally — never GC-collectable while the
+child runs). Note the failure direction: KILL_ON_JOB_CLOSE means a launcher
+crash closes the handle and kills the tree — fail-closed by construction,
+which is the property that makes a managed-runtime launcher acceptable for
+this safety-critical layer. Fallback candidates if plan-time audit finds a
+blocking FFI defect: Go (`golang.org/x/sys/windows`) or C# AOT.
 Contract: `foreman-launch --timeout SECS --heartbeat-file F --grace 10 -- CMD...`
 
 - Creates a Job Object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE; child +
