@@ -280,3 +280,39 @@ proposed enhancement. Newest at the bottom.
   require a `pwd` guard before any write; structurally, lane-run.sh's
   lane.lock plus report-path assertions (report must be written inside the
   lane's own tree) make the contamination detectable at write time.
+
+## 2026-07-16 — background-and-stop is a recurring cross-model attractor, not a one-off
+
+- **Phase:** every long-running lane type used today (implement, finish,
+  rework)
+- **What happened:** the same failure shape recurred FOUR times across TWO
+  vendors' models, with escalating prompt countermeasures each time:
+  1. T4 Grok wrapper backgrounded its CLI call and ended its turn "to wait"
+     (original F2 entry above);
+  2. T4 Grok wrapper did it AGAIN after being resumed with explicit
+     instructions to wait on the task;
+  3. T3 Sonnet finisher backgrounded the full-suite run and "paused" —
+     despite its prompt containing "foreground commands only, NEVER
+     background-and-stop";
+  4. T6 Sonnet rework lane stopped to "wait for the background test run" —
+     same explicit prohibition in its prompt.
+  Each occurrence required a manual SendMessage resume by the architect.
+- **Root cause (systemic):** agents generalize "background tasks notify you"
+  from top-level-session semantics, where notifications re-invoke the agent.
+  For SUBAGENTS, ending the turn ends the task — there is no automatic
+  re-invocation — so "stop and wait" is functionally "abandon work in an
+  ambiguous state." Prompt discipline measurably does not fix this: the
+  pattern survived direct, capitalized prohibitions in two different models.
+- **Impact:** four manual interventions in one day; ambiguous lane states
+  (deliverables present, nothing verified, no report); wall-clock loss per
+  occurrence until a human or architect notices.
+- **Proposed enhancement (structural, feeds v0.2.5):** stop trying to
+  prompt this away. (a) Lane completion is defined by ARTIFACTS — round_done
+  event + report file present — never by the wrapper's conversational state
+  (v0.2.5 T2 WAITING_CHILD rule); (b) watch.sh v2 treats "wrapper stopped +
+  no round_done" as a first-class alertable state so the architect is paged
+  with the right diagnosis instead of discovering it; (c) architect doctrine:
+  every lane dispatch pairs with a content-keyed deadline watch on the
+  report artifact (already session practice; codify in references/); (d)
+  wrapper prompts keep the foreground-only instruction as defense-in-depth,
+  but no design may DEPEND on it holding.
