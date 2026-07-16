@@ -22,6 +22,26 @@ resume-from-checkpoint.
   failure contracts, CR-safe reads) merged 2026-07-16; T3-T6 implementing in
   parallel worktrees; T7 (config loader + doctrine) next; tag on completion.
 
+## v0.2.5 — orchestration hardening (planned 2026-07-16)
+
+Eliminate the F1–F6 workflow failure classes (see `bugeventlog.md`) with the
+targeted primitives recommended by the orchestration deep-research report
+(`docs/research/orchestration-deep-research-report.md`), keeping the event-log
++ checkpoint core: **adopt** a native Windows lane launcher on Job Objects
+(KILL_ON_JOB_CLOSE — orphans impossible by construction) and **pueue** for
+per-vendor lane admission (grok cap 1 until destructive tests prove more);
+**build** typed phase-aware lane states (queued ≠ running ≠ verifying;
+heartbeats not file-mtime), event schema v2 (attempt entity, ownership,
+merge-base freshness, compaction), per-lane vendor config isolation
+(GROK_HOME/CODEX_HOME), and a merge-freshness gate; **fix** wt-merge's
+gitignored-report abort and shell-script CRLF via .gitattributes. **Defer**
+Prefect/Temporal/Hatchet/Windmill/LangGraph-as-core per the report's
+failure-mode coverage matrix.
+
+- Plan: `docs/superpowers/plans/2026-07-16-v025-orchestration-hardening.md`
+- Depends on: v0.2.0. Feeds: v0.3.0 (adapters spawn via the launcher),
+  v0.4.0 (schema v2 telemetry).
+
 ## v0.3.0 — session transport (remote branch `dev/foreman-v1`)
 
 Subscription-session workers (zero API keys): codex mcp-server threadId
@@ -79,8 +99,7 @@ terse output, thread reuse + cache-stable prefixes. Combined sanity math:
 
 ## Later / unscheduled
 
-- wt-merge fix: auto-commit aborts when FOREMAN_REPORT files are gitignored
-  (see bugeventlog 2026-07-16); workaround is manual squash-apply.
-- tool-check portability: WSL CRLF failure; Git Bash-aware Windows probes.
-- Verdict-to-action merge-gate policy in config (WARNING semantics), so the
-  ship gate is defined ahead of time instead of per-round.
+- tool-check portability: Git Bash-aware Windows probes (WSL CRLF failure is
+  fixed by v0.2.5's .gitattributes task).
+- (wt-merge gitignore fix and verdict-to-action gate policy moved into
+  v0.2.5 Tasks 6–7.)
