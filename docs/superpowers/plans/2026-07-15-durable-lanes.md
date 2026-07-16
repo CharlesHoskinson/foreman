@@ -958,3 +958,29 @@ five-part specs' acceptance criteria too).
 These make Tasks 1–2 spec tightening + Tasks 5–7 acceptance criteria explicit;
 must-fix-before-handoff: the lane-filter bugs (watch + resume), resume's
 dirty-worktree guard, and the dead config layer.
+
+### Additional findings not folded into the blocks above (completeness)
+
+Three findings from the two audits were distilled out of the grouped blocks and
+are recorded here so the plan is complete:
+
+- **`ckpt_snapshot` concurrent-snapshot race (T2/T3, high):** two snapshots of
+  the same lane can both read the parent and unconditionally `update-ref`, so
+  the last writer wins and the other checkpoint becomes unreachable — real once
+  Task 3's background checkpoint/heartbeat loop races the exit-time snapshot.
+  Serialize per-lane snapshots with a portable lock, or use `update-ref`'s
+  compare-and-swap (`update-ref <ref> <new> <expected-old>`) and retry on
+  conflict.
+- **`el_read` masks downstream failure (T1/T4, medium):** `el_read` returns 0 on
+  a malformed/torn line, so a single poisoned log line makes `nb_bridge` (and any
+  consumer) look like a completed successful pass forever, with no diagnostic.
+  Make `el_read` distinguish clean EOF from malformed input (e.g. a checked
+  status channel) and have consumers observe that distinction.
+- **`ckpt_snapshot` errexit suppression at the call site (T2/T3, high):** the
+  function's `|| return 1` exit-checks are undermined when the caller invokes it
+  on the left of `||` inside command substitution (`sha="$(ckpt_snapshot … || …)"`),
+  where `set -e` is suppressed throughout the callee. `lane-run.sh` must capture
+  and check `ckpt_snapshot`'s status explicitly, not rely on ambient errexit.
+
+With these, every finding from both plan-time audits (Tasks 3–4 and 5–7) is
+recorded in the plan.
