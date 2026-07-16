@@ -141,3 +141,37 @@ proposed enhancement. Newest at the bottom.
   residuals = mergeable at architect discretion; WARNING with unresolved
   medium+ findings = ask; BLOCKED = never" — and confirm the user's preferred
   policy once, in .foreman/config.toml, instead of per-round.
+
+## 2026-07-16 — 4-way parallel Grok fan-out appears to serialize at the CLI
+
+- **Phase:** Round B implement dispatch (T3/T4/T5/T6 grok-implementer lanes,
+  four separate worktrees, spawned in one turn)
+- **What happened:** all four stall watchdogs fired simultaneously at the
+  10-minute mark. Diagnostics at that moment: exactly ONE `grok.exe` process
+  alive on the host, and `git status` showed ZERO modified files in all four
+  worktrees — versus Round A, where a single lane began writing files within
+  ~2 minutes of dispatch.
+- **Evidence:** `tasklist` grok.exe count = 1; `git -C <each worktree> status
+  --short | wc -l` = 0 for all four, >10 min after dispatch; no agent failure
+  notifications received (lanes alive, not dead).
+- **Root cause (suspected, unconfirmed):** the Grok CLI serializes concurrent
+  invocations from one account/host — plausibly a lock on `~/.grok`
+  config/session state, or account-level request queuing. The four wrapper
+  agents each block waiting for their `grok` subprocess, so the "parallel"
+  fan-out degrades to roughly sequential execution (~4x single-lane
+  wall-clock), defeating the worktree parallelism.
+- **Impact:** Round B wall-clock potentially ~4x worse than planned; watchdog
+  noise (four synchronized STALL alerts for what is really one queue); risk of
+  misdiagnosing queued-but-healthy lanes as dead.
+- **Proposed enhancement:** (a) confirm the serialization mechanism (strace the
+  lock vs observe request timing; check grok CLI docs/flags for concurrent
+  sessions or per-invocation config dirs, e.g. isolated GROK_CONFIG_DIR per
+  lane); (b) if confirmed account-level, cap concurrent grok lanes at 1-2 and
+  route the rest to codex-implementer (cross-vendor race doctrine already
+  allows this) — the routing table planned for v0.4.0 (risk-class → model,
+  effort, scope) should also carry a per-vendor max-concurrency field;
+  (c) make lane watchdogs queue-aware: a lane whose CLI subprocess has not
+  STARTED yet should report QUEUED, not STALL (ties into durable-lanes
+  lane-run.sh, which emits a `prompt` event only when the round actually
+  begins); (d) log dispatch→first-write latency per lane in events.jsonl as a
+  standard metric (v0.4.0 T10 telemetry).
