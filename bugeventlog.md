@@ -1,0 +1,143 @@
+# Foreman workflow bug/event log
+
+Append-only log of workflow failures, friction, and near-misses observed while
+running Foreman, so recurring patterns can be studied and the workflow enhanced.
+Format per entry: date, phase, what happened, evidence, root cause, impact,
+proposed enhancement. Newest at the bottom.
+
+---
+
+## 2026-07-16 — tool-check.sh unrunnable from WSL on a CRLF checkout
+
+- **Phase:** session startup, environment inventory
+- **What happened:** `wsl bash env/tool-check.sh --profile durable` failed at
+  line 4 with `set: pipefail: invalid option name`.
+- **Evidence:** reproduced twice (plain and `bash -lc` invocations) against
+  `/mnt/c/Users/charl/foreman`.
+- **Root cause:** the Windows checkout has CRLF line endings (core.autocrlf);
+  WSL bash parses `set -euo pipefail\r` and rejects `pipefail\r`. Git Bash
+  tolerates CRLF in scripts; WSL bash does not.
+- **Impact:** the WSL half of the reference-environment inventory is unusable
+  from a Windows checkout; architect fell back to manual `command -v` probes.
+- **Proposed enhancement:** ship `.gitattributes` forcing `*.sh text eol=lf`
+  (and re-normalize), or have tool-check.sh self-heal (`sed -i 's/\r$//'` a
+  temp copy) — plus a documented note in reference-environment.md.
+
+## 2026-07-16 — tool-check.ps1 durable profile reports coreutils missing despite Git Bash stdbuf
+
+- **Phase:** environment inventory
+- **What happened:** `tool-check.ps1 -Profile durable` returned `READY: no`,
+  `must_fail: coreutils:missing`, while `/usr/bin/stdbuf` exists and works in
+  Git Bash (where the durable scripts actually run).
+- **Root cause:** the PowerShell checker probes the Windows PATH only; the
+  durable toolchain executes under Git Bash whose /usr/bin is not on the
+  Windows PATH.
+- **Impact:** false NOT-READY gate; architect had to override with manual
+  verification. A stricter session could have triggered an unnecessary
+  bootstrap install.
+- **Proposed enhancement:** for tools whose runtime is Git Bash, tool-check.ps1
+  should probe via `bash -lc 'command -v <tool>'` instead of Get-Command.
+
+## 2026-07-16 — implementer lane died to a mid-response API server error with zero progress signal
+
+- **Phase:** Round A rework dispatch (grok-implementer subagent)
+- **What happened:** the rework agent was killed by "API Error: Server error
+  mid-response" seconds after starting ("Now writing the spec file for Grok");
+  nothing had been written to the worktree. No liveness signal existed between
+  dispatch and the failure notification.
+- **Impact:** wall-clock loss only (the lane had produced nothing), but the
+  failure mode generalizes: a lane dying 25 minutes into implementation would
+  lose everything since dispatch. User: "we have to solve this liveness
+  problem. See all the wasted work."
+- **Proposed enhancement:** (a) session-level: arm a stall watchdog Monitor per
+  background lane at dispatch (now standing practice + memory); (b) structural:
+  durable-lanes T3/T5/T6 (lane-run heartbeats + checkpoints, watch.sh
+  escalation, resume.sh restart-from-checkpoint) — in flight as Rounds B/C.
+
+## 2026-07-16 — Grok CLI 600s subprocess timeout swallowed the worker's closing message
+
+- **Phase:** Round A implementation (grok-implementer)
+- **What happened:** the grok subprocess hit the 600s timeout before flushing
+  its final summary; all edits and verification had completed, so the round
+  succeeded, but the worker's own report of what it did was lost.
+- **Impact:** benign this time (wrapper agent reconstructed the report from
+  transcript fragments + independent verification), but a timeout landing
+  mid-edit instead of mid-summary would be worse.
+- **Proposed enhancement:** lane-run.sh (T3) stream-tees stdout continuously so
+  a timeout never destroys evidence; consider making the wrapper's subprocess
+  timeout configurable per round size.
+
+## 2026-07-16 — audit wall-clock serializes every merge (27 min full, 24 min scoped)
+
+- **Phase:** Round A audit + re-audit (codex-auditor, GPT-5.6 Sol high)
+- **What happened:** full audit of a 208-line lib diff took ~27 min; even the
+  scoped 5-finding re-audit took ~24 min. Both verdicts were valuable (2 real
+  high findings, then a corroborated clean resolution check), but every merge
+  gate pays the full latency serially.
+- **Impact:** the audit lane is the critical path of every round; user demanded
+  a structural fix ("we can't have these 35 minute stalls").
+- **Proposed enhancement:** release v0.4.0 (planning in flight): effort tiering
+  (xhigh→high measured as the single biggest lever), sharded parallel audit +
+  consolidation, pre-packaged audit bundles (no auditor repo recon),
+  hunk-hash-scoped re-audits, session/thread reuse (v0.3.0 transport).
+
+## 2026-07-16 — file-mtime stall watchdogs false-alarm on read-heavy and completed lanes
+
+- **Phase:** session-level liveness monitoring (Monitor tool)
+- **What happened:** (a) the Round A rework lane tripped STALL after 8 quiet
+  minutes, then RECOVERED — the quiet stretch was legitimate reasoning +
+  verification; (b) the v0.4.0 research lane tripped STALL *after* its agent
+  had already completed successfully (no more writes ever coming); (c) a
+  read-only audit lane is quiet by design for 20+ minutes, so mtime watching
+  had to be swapped for a deadline watch ad hoc.
+- **Root cause:** file mtime is the wrong liveness signal for lanes whose work
+  is reading/reasoning, and watchdogs are not lane-state-aware (no notion of
+  "lane completed — stand down").
+- **Impact:** alert noise; risk of the operator tuning out real stalls.
+- **Proposed enhancement:** exactly the T5 plan-time audit findings — liveness
+  from lane-filtered event types (prompt/heartbeat/checkpoint), completion
+  detection via round_done before stall logic, and watchdog teardown wired to
+  lane completion. Session-level: stop each Monitor when its lane's completion
+  notification arrives (procedural, now noted).
+
+## 2026-07-16 — wt-merge.sh aborts when FOREMAN_REPORT files are gitignored
+
+- **Phase:** Round A merge (wt-merge.sh dl2 implement lib-hardening)
+- **What happened:** wt-merge exited 1 during its auto-commit-worker-changes
+  step with git's "The following paths are ignored by one of your .gitignore
+  files: FOREMAN_REPORT.json / FOREMAN_REPORT.md" refusal; the squash-apply
+  never happened.
+- **Evidence:** two identical failures; worktree left with changes staged but
+  uncommitted on the branch.
+- **Root cause (suspected):** wt-merge's auto-commit explicitly passes the
+  report filenames to `git add` (to exclude them from the commit via pathspec
+  or to handle them), which errors when the files are ignored — the bats test
+  ("wt-merge auto-commit excludes Foreman report files", #46) evidently covers
+  a tree where the reports are NOT gitignored, so the regression is untested
+  in the ignored configuration introduced by the later gitignore commit.
+- **Impact:** merge path broken for every worktree round in this repo; the
+  architect fell back to manual `git commit` (branch) + `cherry-pick -n`
+  (squash-stage) — equivalent but unguarded by wt-merge's fail-closed checks
+  (dirty-index refusal, overlap detection, metadata marking).
+- **Proposed enhancement:** fix wt-merge to build its add list from
+  `git status --porcelain` (which never lists ignored files) or add
+  `--ignore-missing`-safe handling; add a bats case where FOREMAN_REPORT.* are
+  gitignored; consider `git add -A -- ':(exclude)FOREMAN_REPORT*'`.
+
+## 2026-07-16 — merge gate semantics: user condition "when approved" vs WARNING verdict
+
+- **Phase:** Round A ship decision
+- **What happened:** the user's standing instruction was "merge it and kick off
+  round B when approved". The re-audit returned WARNING (all 5 findings
+  resolved; one new low-severity comment nit, fixed pre-merge). The architect
+  proceeded toward merge on judgment; the permission classifier blocked the
+  action as exceeding the stated gate, and the user was asked explicitly
+  (answer: merge now).
+- **Impact:** one blocked command + one interactive round-trip; no bad merge.
+  The safety layering (classifier catching an architect judgment call that
+  outran the literal user gate) worked as designed.
+- **Proposed enhancement:** define verdict-to-action policy in doctrine ahead
+  of time: e.g. "WARNING with all named findings resolved and only low-severity
+  residuals = mergeable at architect discretion; WARNING with unresolved
+  medium+ findings = ask; BLOCKED = never" — and confirm the user's preferred
+  policy once, in .foreman/config.toml, instead of per-round.
