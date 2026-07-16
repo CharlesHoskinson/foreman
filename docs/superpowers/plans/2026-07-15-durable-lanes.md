@@ -22,6 +22,35 @@
 - NATS-dependent tests SHALL skip (with a `# skip` reason) when `nats-server` is absent, never silently pass.
 - All bash: `bash -n` clean; full bats suite green; `docs-check` passes.
 
+### Portability & correctness checklist (apply to EVERY task's code)
+
+Wave-1 implementation surfaced these bug classes; every code block below has
+been hardened against them and any new code MUST be too:
+
+- **jq empties objects:** `commit:($x|select(.!=""))` empties the WHOLE object
+  on jq 1.8+. Use `... | if .commit=="" then del(.commit) else . end`.
+- **Windows jq.exe emits CRLF:** any jq output STORED to a file or COMPARED in
+  shell must be `| tr -d '\r'` (a value in `[[ ]]` otherwise carries a trailing
+  CR). Tests `load helpers`, which wraps jq to strip CR in the test env only.
+- **git stderr advisories:** `git add`/checkout print core.autocrlf "LF will be
+  replaced by CRLF" to stderr; a merged capture (or bats `run`) corrupts the
+  result. Redirect `2>/dev/null` on plumbing whose stdout you capture.
+- **Exit-checks:** check the status of every append/write/publish/git command;
+  never let a failure fall through to a success path (`|| return 1`).
+- **Atomic writes:** `> file` truncates before writing — a failed write empties
+  it. Reserve/update state via `> file.tmp && mv file.tmp file`.
+- **Piped exit codes:** `cmd | tee ...` — read `${PIPESTATUS[0]}` for cmd's real
+  status, not the pipeline's.
+- **Concurrency:** no `flock` on Git Bash — use a `mkdir` mutex; no in-band
+  stale reclaim (ABA race); recover leftover locks single-threaded at init.
+- **Injection:** never interpolate untrusted text into `bash -c "$x"` / a
+  subject string; validate ids against `^[A-Za-z0-9_.-]+$`.
+- **set -e traps:** the last command of a `then` branch returning nonzero aborts
+  under `set -e` — use `if…then…fi`, not `[[ ]] && …`. A `$(func)` subshell
+  loses variables the function sets — redirect to a temp file and read it back.
+- **inotify:** `tail -F` under Git Bash on a Windows drive (`/mnt/c`, MSYS)
+  drops events — use `--disable-inotify` (poll) there; native FS is fine.
+
 ---
 
 ### Task 0: Durable-lanes environment — dependency list + preflight verify
@@ -130,49 +159,72 @@ setup() { SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../skills/foreman/scripts" && pwd)";
 # Usage: durable-preflight.sh [--json] [--require EXTRA_ID ...]
 set -euo pipefail
 
-# @description Check one dependency; print "OK <id>" or "MISSING <id> — <hint>".
+# @description Check one dependency; print "OK <id>" or "MISSING <id> -- <hint>".
 # @arg $1 id  @arg $2 check command  @arg $3 install hint
 # @exitcode 0 present, 1 missing
 dp_one() {
   local id="$1" check="$2" hint="$3"
   if bash -c "$check" >/dev/null 2>&1; then printf 'OK %s\n' "$id"; return 0
-  else printf 'MISSING %s — %s\n' "$id" "$hint"; return 1; fi
+  else printf 'MISSING %s -- %s\n' "$id" "$hint"; return 1; fi
 }
 
 # @description Verify all durable deps. Sets DP_MISSING to the count of missing required.
 # @stdout one status line per dependency
 dp_verify() {
   local json="${1:-}"; DP_MISSING=0
-  # id | check | hint | required(1/0)
+  # id | check | hint | required(1/0). Ids MUST match reference-manifest.toml
+  # (coreutils, nats-cli) so inventory correlates across tools.
   local rows=(
     "git|git --version|install git|1"
     "jq|jq --version|install jq|1"
-    "stdbuf|stdbuf --version || gstdbuf --version|install coreutils|1"
+    "coreutils|stdbuf --version || gstdbuf --version|install coreutils|1"
     "bash|bash --version|install bash|1"
     "nats-server|nats-server --version|scoop install main/nats-server (or binaries.nats.dev)|0"
-    "nats|nats --version|scoop install extras/natscli|0"
+    "nats-cli|nats --version|scoop install extras/natscli|0"
   )
   for extra in "${DP_EXTRA[@]:-}"; do [[ -n "$extra" ]] && rows+=("$extra|command -v $extra|install $extra|1"); done
   for r in "${rows[@]}"; do
     IFS='|' read -r id check hint req <<<"$r"
-    if ! dp_one "$id" "$check" "$hint"; then [[ "$req" == 1 ]] && DP_MISSING=$((DP_MISSING+1)); fi
+    # Explicit if (not `[[ ]] && ...`): a false `&&` returns 1 as the loop
+    # body's last status and aborts dp_verify under set -e on a missing optional.
+    if ! dp_one "$id" "$check" "$hint"; then
+      if [[ "$req" == 1 ]]; then DP_MISSING=$((DP_MISSING+1)); fi
+    fi
   done
 }
 
+# @description CLI entry: parse args, run dp_verify, print table/JSON, exit 3 if
+#   any required dep is missing.
+# @arg $@ [--json] [--require EXTRA_ID ...]
 main() {
   local json="" ; DP_EXTRA=()
   while [[ $# -gt 0 ]]; do case "$1" in
-    --json) json=1; shift;; --require) DP_EXTRA+=("$2"); shift 2;; *) shift;; esac; done
-  local out; out="$(dp_verify)"
+    --json) json=1; shift;;
+    --require)
+      # reject injection: EXTRA becomes `command -v $extra` in a bash -c string
+      if [[ ! "${2:-}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        printf 'error: invalid --require id: %s\n' "${2:-}" >&2; exit 2
+      fi
+      DP_EXTRA+=("$2"); shift 2;;
+    *) shift;;
+  esac; done
+  # Run dp_verify in the CURRENT shell (temp file, not $(...)) so DP_MISSING set
+  # inside it is visible here; a command-substitution subshell would lose it and
+  # exit 3 would never fire.
+  local tmp out; tmp="$(mktemp)"
+  dp_verify >"$tmp" || true
+  out="$(<"$tmp")"; rm -f "$tmp"
   if [[ -n "$json" ]]; then
     printf '%s\n' "$out" | jq -R . | jq -s '{deps: [.[] | {status:(split(" ")[0]), id:(split(" ")[1])}], missing_required: '"${DP_MISSING:-0}"'}'
   else printf '%s\n' "$out"; fi
   [[ "${DP_MISSING:-0}" -eq 0 ]] || exit 3
 }
-[[ "${BASH_SOURCE[0]}" == "${0}" ]] && main "$@"
+# if/then/fi (not `[[ ]] && main`): a false guard would leave exit 1 as the
+# script's status when sourced, breaking `source` in bats setup.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then main "$@"; fi
 ```
 
-- [ ] **Step 4: Run to verify pass** — `bash tests/run.sh durable-preflight.bats` → 5 pass.
+- [ ] **Step 4: Run to verify pass** — `bats tests/durable-preflight.bats` → 8 pass (single-file; run.sh runs the whole suite).
 
 - [ ] **Step 5: Manifest + bootstrap + tool-check** — add the `[profiles.durable]` block and the three `[[tools]]` entries above to `env/reference-manifest.toml`; add matching install steps to both bootstrap scripts; make both tool-check scripts accept `--profile durable`. Verify:
 
@@ -192,6 +244,16 @@ bash env/tool-check.sh --profile durable | tail -1           # prints READY line
 
 - Create: `skills/foreman/scripts/lib/eventlog.sh`
 - Test: `tests/eventlog.bats`
+- Modify: `tests/helpers.bash` — add the test-only jq CR-wrapper (Windows
+  jq.exe emits CRLF; wrap it in the test env only, never in the shipped lib):
+
+  ```bash
+  if command -v jq >/dev/null 2>&1 && [[ "$(printf '{}' | jq -c . | od -An -tx1)" == *0d* ]]; then
+    export _REAL_JQ="$(type -P jq)"
+    jq() { "$_REAL_JQ" "$@" | tr -d '\r'; }
+    export -f jq
+  fi
+  ```
 
 **Interfaces:**
 
@@ -257,22 +319,61 @@ setup() {
 #   One JSON object per line; atomic O_APPEND; torn-tail-safe reads; per-consumer
 #   line-number cursors committed after processing (at-least-once).
 
+# @description Initialize a run's event log. Single-threaded; call ONCE before
+#   any concurrent emitters start. Clears a leftover .seq.lock from a crashed
+#   prior run — safe because there is no concurrency at init, which is why
+#   el_emit does no racy in-band lock reclaim (any check-then-rmdir reclaim has
+#   an unavoidable ABA race in bash).
+# @arg $1 run id
+el_init() {
+  local rd; rd="$(run_dir "$1")"; mkdir -p "$rd"
+  rmdir "$rd/.seq.lock" 2>/dev/null || true
+}
+
 # @description Emit one event; auto-increments seq for the run.
 # @arg $1 run id  @arg $2 type  @arg $3 lane  @arg $4 payload JSON  @arg $5 commit sha (optional)
 # @stdout the assigned seq number
 el_emit() {
   local run="$1" type="$2" lane="$3" payload="$4" commit="${5:-}"
   local rd; rd="$(run_dir "$run")"; mkdir -p "$rd"
-  local log="$rd/events.jsonl" seqf="$rd/.seq" seq
+  local log="$rd/events.jsonl" seqf="$rd/.seq" lock="$rd/.seq.lock"
+  # Portable mutex — multiple lanes emit to one run's log concurrently and the
+  # seq read-modify-write must be atomic. mkdir is atomic on Git Bash and WSL
+  # (no flock on MSYS2). No in-band stale reclaim (ABA race); el_init handles
+  # crash recovery single-threaded.
+  local tries=0
+  while ! mkdir "$lock" 2>/dev/null; do
+    sleep 0.02; tries=$((tries+1))
+    (( tries > 1500 )) && { echo "el_emit: lock timeout for $run (run el_init?)" >&2; return 1; }
+  done
+  # Single exit point; lock released unconditionally. Ordering for uniqueness
+  # under failure: build line (jq) -> reserve seq (atomic tmp+rename) -> append.
+  # A duplicate seq is the only unacceptable outcome; a gap is fine.
+  local seq ts raw line rc=0
   seq=$(( $(cat "$seqf" 2>/dev/null || echo 0) + 1 ))
-  echo "$seq" > "$seqf"
-  local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  local line
-  line=$(jq -cn --argjson seq "$seq" --arg ts "$ts" --arg type "$type" \
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  # jq del (not select — select(.!="") empties the whole object on jq 1.8+);
+  # capture jq's own exit; tr -d '\r' because Windows jq.exe emits CRLF and the
+  # source-of-truth log must be clean LF JSON.
+  raw=$(jq -cn --argjson seq "$seq" --arg ts "$ts" --arg type "$type" \
     --arg lane "$lane" --arg commit "$commit" --argjson payload "$payload" \
-    '{seq:$seq,ts:$ts,type:$type,lane:$lane,commit:($commit|select(.!="")),payload:$payload}')
-  printf '%s\n' "$line" >> "$log"
-  echo "$seq"
+    '{seq:$seq,ts:$ts,type:$type,lane:$lane,commit:$commit,payload:$payload}
+     | if .commit == "" then del(.commit) else . end') || rc=1
+  line="$(printf '%s' "$raw" | tr -d '\r')"
+  if (( rc != 0 )) || [[ -z "$line" ]]; then
+    rc=1; echo "el_emit: jq failed or empty line for $run" >&2
+  elif ! { echo "$seq" > "$seqf.tmp" && mv "$seqf.tmp" "$seqf"; }; then
+    # atomic reserve: a bare `> "$seqf"` truncates first, so a failed write
+    # would empty .seq and the next emit would restart at 1 (duplicate).
+    rm -f "$seqf.tmp" 2>/dev/null
+    rc=1; echo "el_emit: seq reserve failed for $run" >&2
+  elif ! printf '%s\n' "$line" >> "$log"; then
+    # seq already reserved -> harmless gap, never a duplicate
+    rc=1; echo "el_emit: append failed for $run (seq $seq skipped)" >&2
+  fi
+  rmdir "$lock" 2>/dev/null
+  (( rc == 0 )) && echo "$seq"
+  return "$rc"
 }
 
 # @description Print well-formed JSON lines after FROM_LINE, stopping at the first torn/invalid line.
@@ -306,7 +407,7 @@ el_cursor_commit() {
 
 Note: the `read` loop's `|| { ...; return 0; }` guard makes a final line without a trailing newline (a torn append) terminate the read rather than emit a partial record.
 
-- [ ] **Step 4: Run to verify pass** — `bash tests/run.sh eventlog.bats` → 4 pass.
+- [ ] **Step 4: Run to verify pass** — `bats tests/eventlog.bats` → 11 pass.
 - [ ] **Step 5: Architect commits** `feat(durable): event log library (source of truth)`
 
 ---
@@ -383,17 +484,22 @@ setup() {
 # @exitcode 1 if not a git worktree
 ckpt_snapshot() {
   local wt="$1" lane="$2" ref="refs/checkpoints/$2"
+  # validate lane before it becomes a ref path
+  [[ "$lane" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
   local gd; gd="$(git -C "$wt" rev-parse --absolute-git-dir 2>/dev/null)" || return 1
   local idx; idx="$(mktemp)"
   GIT_DIR="$gd" GIT_WORK_TREE="$wt" GIT_INDEX_FILE="$idx" git read-tree HEAD 2>/dev/null || true
-  GIT_DIR="$gd" GIT_WORK_TREE="$wt" GIT_INDEX_FILE="$idx" git add -A
-  local tree; tree="$(GIT_DIR="$gd" GIT_INDEX_FILE="$idx" git write-tree)"
+  # 2>/dev/null: git add prints core.autocrlf advisories to stderr; a merged
+  # capture (or bats `run`) would corrupt the SHA. Exit-check so a failed add
+  # never falls through to a HEAD-only snapshot that looks successful.
+  GIT_DIR="$gd" GIT_WORK_TREE="$wt" GIT_INDEX_FILE="$idx" git add -A 2>/dev/null || { rm -f "$idx"; return 1; }
+  local tree; tree="$(GIT_DIR="$gd" GIT_INDEX_FILE="$idx" git write-tree)" || { rm -f "$idx"; return 1; }
   rm -f "$idx"
   local parent; parent="$(git -C "$wt" rev-parse -q --verify "$ref" 2>/dev/null || true)"
   local msg="ckpt $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   local commit
-  commit="$(git -C "$wt" commit-tree "$tree" ${parent:+-p "$parent"} -m "$msg")"
-  git -C "$wt" update-ref "$ref" "$commit"
+  commit="$(git -C "$wt" commit-tree "$tree" ${parent:+-p "$parent"} -m "$msg")" || return 1
+  git -C "$wt" update-ref "$ref" "$commit" || return 1
   echo "$commit"
 }
 
@@ -404,7 +510,7 @@ ckpt_latest() {
 }
 ```
 
-- [ ] **Step 4: Run to verify pass** — `bash tests/run.sh checkpoint.bats` → 3 pass.
+- [ ] **Step 4: Run to verify pass** — `bats tests/checkpoint.bats` → 4 pass.
 - [ ] **Step 5: Architect commits** `feat(durable): git-plumbing worktree checkpoint library`
 
 ---

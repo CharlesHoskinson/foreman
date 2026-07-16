@@ -109,7 +109,7 @@ while IFS= read -r f; do
     }
     { doc=0 }
   ' "$f")
-done < <(find . -path ./.git -prune -o -name '*.sh' -print | sed 's|^\./||')
+done < <(find . -path ./.git -prune -o -path ./.claude -prune -o -name '*.sh' -print | sed 's|^\./||')
 if [[ "$COV_FINDINGS" -gt 0 ]]; then record comments fail "$COV_FINDINGS"; else record comments pass 0; fi
 
 # JSON output
