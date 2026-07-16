@@ -1,0 +1,40 @@
+{
+  "schema": "foreman.worktree-report.v1",
+  "run_id": "v030",
+  "role": "audit",
+  "slug": "review",
+  "branch": "foreman/v030/audit/review",
+  "worktree": "C:/Users/charl/foreman-wt-v030-audit-review",
+  "base_sha": "c7b85f963ec124fe7b40781df3b0f1bd3864c5c2",
+  "status": "complete",
+  "verdict": "BLOCKED",
+  "merge_strategy": "content-diff re-port file by file onto main current shape; do NOT cherry-pick or git am the series - main has stubbed out hard-mode worker-run.sh, rewritten audit-run.sh without the adapters directory, and lacks transport_mode/vendor_family/enforce_mcp_decorrelation/group_timeout in lib/common.sh, so patch context will not match. Port mcp-session.py as-is (self-contained, stdlib-only). Re-derive adapter session functions against whatever worker/audit invocation shape main settles on. Port docs sections (security-model.md, cli-adapters.md, README.md) first since they are additive prose with no structural dependency. Close the live-verification gap (finding 2) before landing.",
+  "summary": "Session-transport series is well-engineered and internally consistent with its own spec (fail-closed MCP parsing, correct process-group reaping, honest security posture docs, layered decorrelation enforcement, zero regressions in the existing 60-test suite). Blocked for two reasons: (1) the spec own live-acceptance step (Task 11 demo) was never executed, so the real codex mcp-server tool and property schema is unverified against a live install; (2) main has independently evolved past the hard-mode adapter architecture this series depends on (worker-run.sh is now a stub on main, audit-run.sh no longer sources adapters, adapters directory does not exist on main), so no simple merge path exists.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "skills/foreman/scripts/worker-run.sh",
+      "summary": "main worker-run.sh is a stub (containerized worker not shipped) and main audit-run.sh no longer sources the adapters directory, which does not exist on main at all; a cherry-pick or patch-apply of this series will conflict on every hunk touching worker-run.sh, audit-run.sh, and lib/common.sh, and if force-applied would resurrect a deprecated hard-mode path main intentionally stubbed out"
+    },
+    {
+      "severity": "high",
+      "file": "skills/foreman/scripts/adapters/codex.sh",
+      "summary": "the codex mcp-server tool name and property schema (codex/codex-reply, prompt/cwd/sandbox/approval-policy/threadId) were never confirmed against a live installed server; the plan explicitly defers this to the Task 11 live demo, which was never executed (docs/demo-log.md absent, all 46 plan checkboxes unchecked)"
+    },
+    {
+      "severity": "medium",
+      "file": "skills/foreman/scripts/worker-run.sh",
+      "summary": "mcp-mode timeout enforcement relies solely on the adapter-internal timeout (group_timeout for claude/grok, --timeout-sec in mcp-session.py for codex) with no outer watchdog in worker-run.sh, unlike the container path which wraps an additional outer timeout around the whole invocation"
+    },
+    {
+      "severity": "medium",
+      "file": "tests/",
+      "summary": "zero automated bats coverage was added for approximately 1900 new lines (mcp-session.py, adapter session functions, worker-run/audit-run transport branches); spec-authorized (decision D6) but leaves no regression guard for future changes"
+    },
+    {
+      "severity": "low",
+      "file": "docs/superpowers/plans/2026-07-13-foreman-session-transport.md",
+      "summary": "all 46 task checkboxes remain unchecked despite Tasks 1-10 being functionally complete per commit history, unlike the prior v1 plan doc which was re-marked complete after its dogfood run"
+    }
+  ]
+}

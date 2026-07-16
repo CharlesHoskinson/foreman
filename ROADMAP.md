@@ -26,11 +26,27 @@ resume-from-checkpoint.
 
 Subscription-session workers (zero API keys): codex mcp-server threadId
 continuity, Claude `-p/--resume`, Grok headless login auth; model-family
-decorrelation; cockpit viewers. Implemented remotely; needs architect review,
-rebase onto post-v0.2.0 main, and audit before merge.
+decorrelation; cockpit viewers. Implemented remotely.
 
 - Spec/plan: on the branch (`docs: design spec for session transport`,
   `docs: session transport implementation plan`)
+- **Reviewed 2026-07-16 (Codex GPT-5.6 Sol): BLOCKED for direct merge** —
+  full report: `docs/research/v030-review/codex-review.md`. Engineering
+  quality is good (fail-closed MCP parsing, correct process-group reaping,
+  honest security posture, no bats regressions); blockers are structural:
+  1. The branch shares NO git ancestry with main (parallel 55-commit
+     history), and main has evolved past the architecture the series splices
+     into (main's `worker-run.sh` is a stub, no `adapters/` dir, divergent
+     `lib/common.sh`). Cherry-pick/`git am` will fail or silently resurrect a
+     deprecated hard-mode architecture. Required: deliberate file-by-file
+     content-diff re-port onto main's current soft-mode shape — an architect
+     decision (revive hard mode vs port into soft-mode path) with advisor
+     consult before starting.
+  2. The plan's own live-acceptance step (Task 11, `docs/demo-log.md`) was
+     never executed — the real `codex mcp-server` tool schema used by
+     `adapters/codex.sh` is unverified against a live install; all 46 plan
+     checkboxes are unchecked.
+- Landing order: after v0.2.0 tags; before v0.4.0's session-reuse tasks (T7).
 
 ## v0.4.0 — fast audit (planned 2026-07-16)
 

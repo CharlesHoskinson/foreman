@@ -175,3 +175,45 @@ proposed enhancement. Newest at the bottom.
   lane-run.sh, which emits a `prompt` event only when the round actually
   begins); (d) log dispatch→first-write latency per lane in events.jsonl as a
   standard metric (v0.4.0 T10 telemetry).
+
+## 2026-07-16 — remote lane produced an unmergeable parallel git history
+
+- **Phase:** v0.3.0 session-transport review (branch `dev/foreman-v1`,
+  implemented by a remote agent)
+- **What happened:** the branch shares no common ancestor with `main`
+  (`git merge-base` exits 1; distinct root commits; 55-commit parallel
+  lineage). The remote agent evidently rebuilt the repository history rather
+  than branching from the pushed main. Compounding it, `main` independently
+  evolved past the architecture the series depends on (worker-run.sh stubbed,
+  `adapters/` removed, `lib/common.sh` rewritten), so no mechanical merge
+  path exists at all — Codex review verdict: BLOCKED for direct merge;
+  file-by-file content-diff re-port required.
+- **Impact:** ~1900 lines of good engineering stranded behind a manual
+  re-port; review had to reconstruct the intended splice points; landing
+  cost is now a multi-round port project instead of a rebase.
+- **Proposed enhancement:** (a) remote/cloud lanes MUST branch from the
+  current pushed main and be rejected at dispatch if `git merge-base` with
+  origin/main fails — add this as a lane preflight check; (b) long-lived
+  remote branches need a periodic re-sync contract (rebase cadence or a
+  "merge-target freshness" check in CI); (c) architecture-refactor commits on
+  main (like stubbing worker-run.sh) should trigger a review of open remote
+  branches that touch the same files.
+
+## 2026-07-16 — implementer wrapper stopped while its CLI subprocess kept running
+
+- **Phase:** Round B T4 (grok-implementer wrapper agent)
+- **What happened:** the T4 wrapper backgrounded its long `grok` invocation,
+  then ended its own turn "to wait for the notification" — which terminated
+  the wrapper while the grok subprocess kept writing to the worktree. The
+  architect had to notice the ambiguous completion (agent "finished" with no
+  report, deliverable files present but unverified) and manually resume the
+  wrapper to finish verification. Related: T6's wrapper hit the same 10-min
+  grok subprocess timeout, and a leftover grok child had to be force-killed
+  before independent verification to avoid two concurrent writers.
+- **Impact:** ambiguous lane state (done? dead? queued?), manual babysitting,
+  risk of concurrent writers in one worktree.
+- **Proposed enhancement:** wrapper agents must either run the CLI in the
+  foreground with an adequate timeout, or, if backgrounding, explicitly wait
+  on the task rather than ending the turn; lane-run.sh's worktree lock (T3)
+  plus `round_done` events are the structural fix — a lane is only "done"
+  when round_done exists, not when the wrapper stops talking.
