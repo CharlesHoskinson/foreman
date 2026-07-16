@@ -67,19 +67,19 @@ status parse; absent-pueue fallback.
 
 ### Task 1: foreman-launch — native Windows launcher (Job Objects)
 
-**Implementation vehicle: Bun** (user-directed 2026-07-16; see "Bun adoption"
-below). TypeScript source, `bun build --compile` → self-contained executable
-(Windows x64 primary; POSIX build for WSL/CI) — end users do NOT need bun
-installed. Job Objects via `bun:ffi` → kernel32 (`CreateJobObjectW`,
-`SetInformationJobObject` with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-`AssignProcessToJobObject`, `TerminateJobObject`); the job handle is held for
-the launcher's lifetime (retained globally — never GC-collectable while the
-child runs). Note the failure direction: KILL_ON_JOB_CLOSE means a launcher
-crash closes the handle and kills the tree — fail-closed by construction,
-which is the property that makes a managed-runtime launcher acceptable for
-this safety-critical layer. Fallback candidates if plan-time audit finds a
-blocking FFI defect: Go (`golang.org/x/sys/windows`) or C# AOT.
-Contract: `foreman-launch --timeout SECS --heartbeat-file F --grace 10 -- CMD...`
+**Deep-researched and fully planned — see the dedicated implementation plan:
+`docs/superpowers/plans/2026-07-16-foreman-launch.md`** (four research lanes,
+all GO-WITH-CAUTIONS, with the complete Job Object chain empirically
+validated on this host from a compiled Bun binary: reports under
+`docs/research/bun025/`). Decisions locked there: Bun 1.3.14 pinned (Rust-core
+1.4.x soak rule); Bun.spawn + immediate job assignment (suspended-start
+CreateProcessW deferred as the escalation path for the microsecond grandchild
+race); six-call kernel32 FFI surface; no hot FFI polling (#31941 tripwire);
+graded stop = cooperative → grace → TerminateJobObject; signed x64 artifact +
+CI FFI smoke; POSIX setsid/kill(-pgid) build from the same source.
+Contract (frozen): `foreman-launch [--timeout SECS] [--grace SECS=10]
+[--heartbeat-file F] [--heartbeat-interval SECS=15] -- CMD...` — exit codes:
+child's, 124 timeout, 125 launcher error.
 
 - Creates a Job Object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE; child +
   descendants assigned; closing the last handle kills the tree by construction.
