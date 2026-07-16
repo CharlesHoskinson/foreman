@@ -66,17 +66,48 @@ el_emit() {
   return "$rc"
 }
 
-# @description Print well-formed JSON lines after FROM_LINE, stopping at the first torn/invalid line.
+# @description Print well-formed JSON lines after FROM_LINE, stopping at the first
+#   torn/invalid line. Every line is jq-validated before the from-cursor skip;
+#   a poisoned line at or before the cursor also yields rc 2 (not silently skipped)
+#   -- consumers must treat this as a signal to alert/investigate, not silently
+#   continue past corruption. Trailing CR is stripped so CRLF writers emit LF-only
+#   JSON. rc=2 may also be a benign in-progress torn tail (writer mid-append);
+#   consumers should retry/alert, not treat it as a fatal crash or as clean EOF.
 # @arg $1 run id  @arg $2 from-line (0-based count already consumed)
-# @stdout newline-delimited JSON events
+# @stdout newline-delimited JSON events (valid prefix only; never partial garbage; no CR)
+# @exitcode 0 clean EOF (all lines valid, file ends with newline, or log missing);
+#   2 stopped at a malformed line (any line number, including <= from) or a torn
+#   tail (final line without trailing newline)
 el_read() {
   local run="$1" from="$2" rd; rd="$(run_dir "$run")"
   local log="$rd/events.jsonl"; [[ -f "$log" ]] || return 0
-  local n=0
-  while IFS= read -r line || { [[ -n "$line" ]] && return 0; }; do
-    n=$((n+1)); (( n <= from )) && continue
-    jq -e . >/dev/null 2>&1 <<<"$line" || return 0
-    printf '%s\n' "$line"
+  local n=0 line
+  # Read line-by-line so a torn tail (EOF with non-empty buffer, no newline) and
+  # a complete-but-malformed line are both distinguishable from clean EOF.
+  while true; do
+    if IFS= read -r line; then
+      n=$((n + 1))
+      # Single strip point: CRLF writers (e.g. Windows jq.exe) leave a trailing CR.
+      # jq itself tolerates the CR (insignificant JSON whitespace); stripping it
+      # here keeps \r out of stdout so consumers never see CRLF-tainted events.
+      line=${line%$'\r'}
+      if ! jq -e . >/dev/null 2>&1 <<<"$line"; then
+        echo "el_read: malformed line $n for run $run" >&2
+        return 2
+      fi
+      if (( n <= from )); then
+        continue
+      fi
+      printf '%s\n' "$line"
+    else
+      # EOF: non-empty $line means the final line had no trailing newline (torn).
+      if [[ -n "$line" ]]; then
+        n=$((n + 1))
+        echo "el_read: torn line $n for run $run" >&2
+        return 2
+      fi
+      return 0
+    fi
   done < "$log"
 }
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bats
+bats_require_minimum_version 1.5.0
 load helpers
 
 setup() {
@@ -27,10 +28,44 @@ setup() {
 @test "el_read returns lines after cursor, skips torn tail" {
   el_emit run1 a lane '{}'; el_emit run1 b lane '{}'
   printf '{"partial":' >> "$(run_dir run1)/events.jsonl"   # torn line, no newline
-  run el_read run1 0
+  # --separate-stderr: diagnostic on torn/malformed must not pollute $output line count
+  run --separate-stderr el_read run1 0
   [ "$(wc -l <<<"$output")" -eq 2 ]           # only the 2 complete lines
-  run el_read run1 1
+  run --separate-stderr el_read run1 1
   [ "$(jq -r .type <<<"$output")" = "b" ]      # from line 2 only
+}
+
+@test "el_read returns 2 and diagnostic on malformed mid-file line" {
+  el_emit run1 a lane '{}'
+  el_emit run1 b lane '{}'
+  # Append garbage directly (not via el_emit) so it lands as line 3.
+  printf 'not-json-garbage\n' >> "$(run_dir run1)/events.jsonl"
+  run --separate-stderr el_read run1 0
+  [ "$status" -eq 2 ]
+  [ "$(wc -l <<<"$output")" -eq 2 ]
+  [[ "$output" != *"not-json"* ]]
+  [[ "$stderr" == *"line 3"* ]]
+}
+
+@test "el_read returns 2 on torn tail (no trailing newline)" {
+  el_emit run1 a lane '{}'
+  printf '{"partial":' >> "$(run_dir run1)/events.jsonl"
+  run --separate-stderr el_read run1 0
+  [ "$status" -eq 2 ]
+  [ "$(wc -l <<<"$output")" -eq 1 ]
+  [[ "$stderr" == *"line 2"* ]] || [[ "$stderr" == *"torn"* ]]
+}
+
+@test "el_read clean EOF returns 0" {
+  el_emit run1 a lane '{}'
+  el_emit run1 b lane '{}'
+  run --separate-stderr el_read run1 0
+  [ "$status" -eq 0 ]
+  [ "$(wc -l <<<"$output")" -eq 2 ]
+  # Missing log file → status 0, no output
+  run --separate-stderr el_read missingrun 0
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "cursor round-trips and defaults to 0" {
@@ -65,6 +100,16 @@ setup() {
   el_emit run1 t lane '{"a":1}' >/dev/null
   # count CR (0x0d) bytes directly; the source-of-truth log must be clean LF
   [ "$(tr -cd '\r' < "$(run_dir run1)/events.jsonl" | wc -c)" -eq 0 ]
+}
+
+@test "el_read strips CR from CRLF-terminated lines" {
+  el_init run1
+  mkdir -p "$(run_dir run1)"
+  printf '{"a":1}\r\n' >> "$(run_dir run1)/events.jsonl"
+  run --separate-stderr el_read run1 0
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s' "$output" | tr -cd '\r' | wc -c)" -eq 0 ]
+  [ "$(jq -r '.a' <<<"$output")" = "1" ]
 }
 
 @test "lock is released after a successful emit and after a failed emit" {

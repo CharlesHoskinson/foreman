@@ -40,3 +40,43 @@ setup() {
   run ckpt_snapshot "$WT" "../evil"; [ "$status" -ne 0 ]
   run ckpt_snapshot "$WT" "a b"; [ "$status" -ne 0 ]
 }
+
+@test "concurrent snapshots do not lose checkpoints (CAS)" {
+  (
+    until [[ -f "$BATS_TEST_TMPDIR/go" ]]; do :; done
+    for i in $(seq 1 8); do
+      echo "a$i" > "$WT/a"
+      ckpt_snapshot "$WT" lanex >/dev/null || exit 1
+    done
+  ) &
+  (
+    until [[ -f "$BATS_TEST_TMPDIR/go" ]]; do :; done
+    for i in $(seq 1 8); do
+      echo "b$i" > "$WT/b"
+      ckpt_snapshot "$WT" lanex >/dev/null || exit 1
+    done
+  ) &
+  touch "$BATS_TEST_TMPDIR/go"
+  wait
+  # Every snapshot must land on the ref chain (none orphaned by lost-update).
+  [ "$(git -C "$WT" rev-list --count refs/checkpoints/lanex)" -eq 16 ]
+}
+
+@test "ckpt_latest distinguishes no-checkpoint from git failure" {
+  # Valid worktree, no checkpoint ref yet → empty output, status 0
+  run ckpt_latest "$WT" missinglane
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  # Non-git directory → status 1, empty output
+  local notgit="$BATS_TEST_TMPDIR/notgit"
+  mkdir -p "$notgit"
+  run ckpt_latest "$notgit" lane1
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+  # Bare repo / git-dir-only (not a worktree) → status 1, empty output
+  local bare="$BATS_TEST_TMPDIR/bare.git"
+  git init -q --bare "$bare"
+  run ckpt_latest "$bare" lane1
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
