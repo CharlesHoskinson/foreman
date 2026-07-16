@@ -884,3 +884,77 @@ tomorrow: verify on WSL and consider `rm -f "$idx"` before first use for
 robustness.
 
 Task 5–7 plan-time audit: re-run tomorrow before building those tasks.
+
+## Pre-implementation audit — Tasks 5–7 (2026-07-15, Codex GPT-5.6 Sol, high)
+
+Second half of the plan-time audit (watch / resume / config). Findings that
+duplicate already-fixed T1/T2 bugs (`select(.!="")`, unlocked `.seq`, CRLF) are
+resolved in the shipped libs and corrected blocks above. The following are NEW
+and must be fixed before building Tasks 5–7 (some require tightening the T1–2
+five-part specs' acceptance criteria too).
+
+### Task 5 — `watch.sh` (must fix before building)
+
+- **No lane filter (critical):** age is computed from the shared `events.jsonl`,
+  not filtered by lane. If lane A hangs while lane B emits heartbeats, A's age
+  never grows → never escalates; and an `alert` event refreshes the shared
+  last-line → false recovery/oscillation. Filter `el_read`/mtime by
+  `.lane==$lane`, and count only liveness types (`prompt`/`heartbeat`/`checkpoint`),
+  excluding `alert`/`round_done` from the age calc.
+- **No completion exit (critical):** after a lane's terminal `round_done`, the
+  loop keeps polling and eventually marks a finished lane STALLED→DEAD. Detect
+  the lane's `round_done` and exit 0 before applying stall thresholds.
+- **Escalation hint impossible as written:** `watch.sh RUN LANE` has no
+  `WORKTREE`, but `ckpt_latest` needs `WORKTREE LANE`. Add `WORKTREE` to the args
+  (or persist a run/lane→worktree map); source `checkpoint.sh`.
+- **`wd_state` boundary + restart:** specify `>=` vs `>` at exactly
+  `STALL_WARN`/`STALL_DEAD` and add boundary tests; in-memory `stall_count`/state
+  is lost on `watch.sh` restart (debounce resets) — either persist per run+lane
+  atomically or define `age>=STALL_DEAD` as immediate restart-independent DEAD.
+- **`set -e` footguns:** `((stall_count++))` returns 1 when the value is 0 and
+  aborts under `set -e` — use `stall_count=$((stall_count+1))`; ensure `wd_state`
+  always `return 0`s; guard jq captures to distinguish "no event" from "parse
+  failure". Add an integration test: repeated stale ticks → exactly one STALLED +
+  one DEAD alert (transition-only).
+- **mtime portability:** prefer the event's authoritative ISO timestamp over file
+  mtime (`stat -c %Y` GNU vs `-f %m` BSD vs Git Bash; `/mnt/c` coarse under WSL).
+
+### Task 6 — `resume.sh` (must fix before building)
+
+- **No lane filter (critical):** `el_read` has no lane filter, so resuming lane A
+  can pick lane B's checkpoint SHA. jq must require `.lane==$lane`, accept
+  `checkpoint` and `round_done`, resolve `.commit // .payload.checkpoint`, reject
+  empty, take the last match, and validate `git cat-file -e "$sha^{commit}"`.
+- **Destroys uncommitted work (critical):** the bats test writes `clobbered`
+  uncommitted then asserts resume silently overwrites it — resume is destructive
+  by default. Refuse on a dirty worktree by default; add explicit `--force`;
+  back up before overwriting. The test should invoke the destructive path
+  intentionally, not as the default.
+- **`git checkout SHA -- .` is not an exact restore:** untracked/new-since-
+  checkpoint files survive and the real index is rewritten in place. Define
+  overlay-vs-exact semantics; for exact recovery prefer a detached checkout /
+  isolated-index sync with explicit removal rules.
+- **`prompt`/`next` recovery:** lane-filter it, and define the `next` event/field
+  schema (nothing in T1–3 defines `next`), including the no-data case.
+
+### Task 7 — config is decorative (must fix before building)
+
+- **The `[durable]` and `[nats]` TOML keys are dead (critical):** nothing in
+  Tasks 0–7 parses TOML. `lane-run.sh` reads only `DURABLE_*` env vars,
+  `watch.sh` only `STALL_*`, `nb_bridge`/`setup.sh` hardcode `FOREMAN`/`foreman`
+  and read only `NATS_URL`/`NATS_STORE`. Specify and test a shared config loader
+  (precedence: CLI > env > TOML > default), expand `~` in `store_dir`, and wire
+  every documented key through it into Tasks 3/4/5. Add a test that sets ONLY
+  TOML values and asserts the resulting interval/stall/url/store/stream/subject.
+
+### Cross-cutting
+
+- **`nb_bridge` one-shot vs loop:** the Task 4 interface says "loop with a short
+  sleep" but the sample is a single pass. Split into a tested `nb_bridge_once`
+  plus an explicit wrapper loop (backoff + shutdown), or document it one-shot.
+- **`ckpt_latest` `|| true`:** converts every git failure into "no checkpoint".
+  Return empty only when the ref is confirmed absent; propagate other failures.
+
+These make Tasks 1–2 spec tightening + Tasks 5–7 acceptance criteria explicit;
+must-fix-before-handoff: the lane-filter bugs (watch + resume), resume's
+dirty-worktree guard, and the dead config layer.
