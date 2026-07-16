@@ -261,3 +261,22 @@ proposed enhancement. Newest at the bottom.
   event, not age); (d) port the v0.3.0 group_timeout reaping fix forward
   during the re-port; (e) watchdogs escalate to a health probe that inspects
   the lane's recorded PID instead of paging the architect blind.
+
+## 2026-07-16 — finisher lane's cwd silently reset to a DIFFERENT lane's worktree
+
+- **Phase:** Round B T3 close-out (Sonnet finisher lane)
+- **What happened:** after a background-task resume, the finisher's shell cwd
+  silently pointed at `foreman-wt-dl2b-implement-t5-watch` — an unrelated
+  lane's worktree — between tool calls. The agent caught it via `pwd`/file
+  checks BEFORE any writes; T5's files were never touched; all steps were
+  re-verified with explicit `cd` into the correct tree.
+- **Impact:** none this time, but the failure it nearly caused is severe:
+  cross-worktree contamination (reports or fixes written into the wrong
+  lane's tree) that verification and audit would then attribute to the wrong
+  diff.
+- **Proposed enhancement:** lane doctrine — every lane-touching command uses
+  absolute paths or an explicit leading `cd <worktree> &&`; finisher/wrapper
+  prompts state the worktree as the FIRST constraint (already practice) AND
+  require a `pwd` guard before any write; structurally, lane-run.sh's
+  lane.lock plus report-path assertions (report must be written inside the
+  lane's own tree) make the contamination detectable at write time.
