@@ -26,8 +26,9 @@ resume-from-checkpoint.
 
 Eliminate the F1–F6 workflow failure classes (see `bugeventlog.md`) with the
 targeted primitives recommended by the orchestration deep-research report
-(`docs/research/orchestration-deep-research-report.md`), keeping the event-log
-+ checkpoint core: **adopt** a native Windows lane launcher on Job Objects
+(`docs/research/orchestration-deep-research-report.md`), keeping the
+event-log and checkpoint core: **adopt** a native Windows lane launcher on
+Job Objects
 (KILL_ON_JOB_CLOSE — orphans impossible by construction) and **pueue** for
 per-vendor lane admission (grok cap 1 until destructive tests prove more);
 **build** typed phase-aware lane states (queued ≠ running ≠ verifying;
