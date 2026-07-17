@@ -461,3 +461,13 @@ proposed enhancement. Newest at the bottom.
   Fold into the v0.2.5 typed-lane-state work: a lane in GATE state is not
   judged by file mtime at all — the runner emits a heartbeat event and the
   watchdog reads the event log, not the filesystem.
+
+- **Addendum:** occurrence #7 — the T7 (Round C) Sonnet lane backgrounded
+  its final full-suite gate and stopped to "wait for the monitor's
+  notification", leaving the suite running orphaned and FOREMAN_REPORT.md
+  unwritten (still the wt-new scaffold). Same attractor, same session, third
+  Sonnet lane to hit it. The lane had completed ALL implementation (11 files)
+  — only the report artifact + final-gate confirmation were missing. Running
+  count: 7 occurrences, 3 models. This is now the single most frequent
+  failure mode in the log and the strongest evidence for the v0.2.5
+  artifact-defined-completion + typed-lane-state fix.
