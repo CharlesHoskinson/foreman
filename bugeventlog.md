@@ -496,3 +496,13 @@ proposed enhancement. Newest at the bottom.
   code" or "only when no gate is live." Better (v0.2.5): a host-wide gate
   mutex (pueue `gate` group, parallel 1) so ANY bats run queues instead of
   colliding — no human discipline required.
+
+- **Addendum:** attractor occurrence #8 — perf agent A ("lane-run timing")
+  backgrounded its `time bats` measurement run and stopped to "wait for the
+  monitor's completion notification", leaving no report written and an
+  orphaned bats contending with T7's gate. Compound failure: the instruction
+  to run `time bats` (a long command) is itself an attractor trigger, and the
+  agent had no monitor to wait for. Lesson: never instruct an investigation
+  agent to run a long/among-gate bats command; have it reason from code, or
+  gate any measurement behind the host-wide gate mutex. Running count: 8
+  occurrences, 3 models.
