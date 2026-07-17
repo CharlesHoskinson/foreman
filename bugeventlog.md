@@ -532,3 +532,35 @@ proposed enhancement. Newest at the bottom.
   investigation — queues instead of colliding, removing reliance on human
   discipline entirely (this is now the highest-frequency contention cause in
   the log). Related: the serialized-gates + concurrent-suite entries above.
+
+## 2026-07-17 — WATCH_VTICK virtual-clock refactor is a multi-layer rabbit hole; deferred to v0.2.5
+
+- **Phase:** v0.2.0 bundle — pulled WATCH_VTICK forward from v0.2.5 to fix the
+  wall-clock watch.bats flakes (tests 18/23) blocking the release.
+- **What happened:** the virtual-clock retrofit uncovered a stack of subtle
+  interactions, each hiding the next: (1) the implementer lane hit the
+  background-and-stop attractor 3x (occurrences #9-11), stashing/thrashing
+  instead of running a clean after-gate; (2) real bug — wd_sleep_remainder
+  does `tick*1000` in integer bash arithmetic and CRASHES on the fractional
+  WATCH_TICK=0.01 the retrofit needs for fast polling (I fixed this: parse
+  tick into ms like the EPOCHREALTIME stamps); (3) even after that fix, the
+  unlatched-watcher STALLED->DEAD path does not advance to DEAD under the
+  virtual clock (root cause not yet isolated; a bash -x trace itself hung).
+- **Evidence:** manual watch.sh repro of test 23: first `arithmetic syntax
+  error (error token .01)` at line 152, then after the fractional fix, exit
+  124 (timeout) stuck at "STALLED age=3s".
+- **Root cause:** the gate-speedup research's virtual-clock sketch
+  under-specified the interaction with (a) fractional real ticks and (b) the
+  unlatched age-fallback + debounce/STALLED-emit machinery. It is a real
+  refactor, not a drop-in.
+- **Impact:** ~2.5h consumed; VTICK not shipped in v0.2.0.
+- **Decision:** DEFER WATCH_VTICK to v0.2.5 (its originally-planned home,
+  where it is the keystone). Ship v0.2.0 = T7 (merged) + the two audit-
+  approved perf changes (el-emit, test-harness) that do NOT touch watch.sh
+  timing. Keep the fractional-tick fix + this diagnosis as v0.2.5 starting
+  material. The wall-clock test flakes (18/23) are environmental (fail
+  identically on main under the current heavy WSL host load; pass on quiet
+  hosts) — not product bugs; document + address via VTICK in v0.2.5.
+- **Proposed enhancement:** v0.2.5 VTICK spec must explicitly cover the
+  unlatched path and fractional ticks, with the wd_sleep_remainder fix
+  included, and be built test-first against tests 18/23 specifically.
