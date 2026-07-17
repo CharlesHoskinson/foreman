@@ -25,6 +25,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/eventlog.sh"
 # shellcheck source=lib/checkpoint.sh
 source "$SCRIPT_DIR/lib/checkpoint.sh"
+# shellcheck source=lib/config.sh
+source "$SCRIPT_DIR/lib/config.sh"
 
 # --- arity / validation (before unguarded positional use under set -u) ---
 if (( $# < 5 )); then
@@ -311,8 +313,14 @@ elif command -v gstdbuf >/dev/null 2>&1; then
   STDBUF="gstdbuf -oL"
 fi
 
-CKPT_INTERVAL="${DURABLE_CHECKPOINT_INTERVAL:-20}"
-HB_INTERVAL="${DURABLE_HEARTBEAT_INTERVAL:-30}"
+# Resolved through the shared config loader: dedicated env var (as before) >
+# [durable] TOML value > the same built-in defaults this always had. When
+# neither DURABLE_CHECKPOINT_INTERVAL/DURABLE_HEARTBEAT_INTERVAL nor a
+# .foreman/config.toml [durable] block is present, cfg_get returns these
+# literal defaults -- byte-identical to the prior "${VAR:-N}" form.
+cfg_load
+CKPT_INTERVAL="$(cfg_get durable checkpoint_interval 20)"
+HB_INTERVAL="$(cfg_get durable heartbeat_interval 30)"
 
 stream_file_path="$WT/.harness/stream.ndjson"
 

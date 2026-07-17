@@ -468,3 +468,61 @@ EOF
   run jq -rc 'select(.type=="alert")' "$events"
   [ -z "$output" ]
 }
+
+# Bonus item (V4 audit finding, LOW) -- regression test for the OR-branch at
+# the single alert point (lane-run.sh ~171): `(( escalated == 1 )) ||
+# [[ "$outcome" == "sweep_failed" || ... ]]`. The three kill_cmd_bounded tests
+# above cover escalated=1 WITH sweep_failed (a), sweep_unavailable
+# un-escalated (b), and the fully clean escalated=0 + outcome=swept path (c)
+# -- none of them isolates the SECOND disjunct on its own: escalated=0 (CMD
+# responded to TERM promptly, no KILL needed) but the sweep step itself still
+# fails. Without the `||`, a future edit collapsing it to `&&` would silently
+# stop alerting on exactly this combination (a real kill-tree failure with no
+# other symptom) and this test would be the only thing left to catch it.
+# Reuses test (c)'s prompt-TERM-response CMD pattern (so kill_cmd_bounded's
+# escalated flag lands at 0, not 1) combined with test (a)'s PATH-stubbed
+# always-fail taskkill and pre-populated LANE_PROC_ROOT winpid (so the sweep
+# step reliably reaches -- and fails -- the stubbed taskkill instead of
+# racing the real /proc entry's lifetime).
+@test "lane-run kill_cmd_bounded: no-escalation-but-sweep_failed still emits exactly one alert" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  cat > "$stub_dir/taskkill" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+  chmod +x "$stub_dir/taskkill"
+  export PATH="$stub_dir:$PATH"
+  proc_root="$BATS_TEST_TMPDIR/proc-noesc"
+  mkdir -p "$proc_root"
+  export LANE_PROC_ROOT="$proc_root"
+
+  bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
+    bash -c 'trap "exit 0" TERM; echo $$ > "'"$WT"'/cmd-pid"; touch "'"$WT"'/cmd-started"; while true; do sleep 0.1; done' &
+  lr_pid=$!
+  for _ in $(seq 1 100); do
+    [ -f "$WT/cmd-started" ] && [ -f "$WT/cmd-pid" ] && break
+    sleep 0.1
+  done
+  [ -f "$WT/cmd-started" ]
+  [ -f "$WT/cmd-pid" ]
+  cmd_pid="$(cat "$WT/cmd-pid")"
+  mkdir -p "$proc_root/$cmd_pid"
+  echo "4000000" > "$proc_root/$cmd_pid/winpid"
+
+  kill -TERM "$lr_pid" 2>/dev/null || true
+  for _ in $(seq 1 150); do
+    kill -0 "$lr_pid" 2>/dev/null || break
+    sleep 0.2
+  done
+  run kill -0 "$lr_pid"
+  [ "$status" -ne 0 ]
+
+  events="$(run_dir run1)/events.jsonl"
+  run bash -c "jq -c 'select(.type==\"alert\")' '$events' | jq -s 'length'"
+  [ "$output" = "1" ]
+  run jq -rc 'select(.type=="alert") | .payload.sweep' "$events"
+  [ "$output" = "sweep_failed" ]
+  run jq -rc 'select(.type=="alert") | .payload.tree_kill' "$events"
+  [ "$output" = "best_effort" ]
+}

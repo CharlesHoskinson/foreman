@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # @description One-way event-log → JetStream bridge for durable-lanes.
-#   Publishes new events.jsonl lines to foreman.<run>.<type> with Nats-Msg-Id
+#   Publishes new events.jsonl lines to <subject_prefix>.<run>.<type>
+#   (subject_prefix from [nats] config, default "foreman") with Nats-Msg-Id
 #   dedup; advances the per-consumer nats-bridge cursor ONLY after a validated
 #   JetStream PubAck (nats pub -J). The event log remains the sole source of
 #   truth; on any publish failure the cursor does not advance and events replay
@@ -25,6 +26,10 @@ fi
 if ! declare -F el_read >/dev/null 2>&1; then
   # shellcheck source=eventlog.sh
   source "$_NB_LIB_DIR/eventlog.sh"
+fi
+if ! declare -F cfg_load >/dev/null 2>&1; then
+  # shellcheck source=config.sh
+  source "$_NB_LIB_DIR/config.sh"
 fi
 
 # In-memory record of the lock this process itself acquired (path + the
@@ -111,8 +116,16 @@ _nb_lock_release() {
 nb_bridge_once() {
   local run="$1"
   local rd lock from tmp errf n line seq type
-  local read_rc=0 pub_rc=0 nats_url
-  nats_url="${NATS_URL:-nats://127.0.0.1:4222}"
+  local read_rc=0 pub_rc=0 nats_url subject_prefix
+  # Resolved through the shared config loader: dedicated env var (as before)
+  # > [nats] TOML value > the same built-in defaults this always had. With
+  # neither NATS_URL/NATS_SUBJECT_PREFIX nor a .foreman/config.toml [nats]
+  # block present, cfg_get returns these literal defaults -- byte-identical
+  # to the prior "${NATS_URL:-...}" form and the previously-hardcoded
+  # "foreman" subject prefix.
+  cfg_load
+  nats_url="$(cfg_get nats url nats://127.0.0.1:4222)"
+  subject_prefix="$(cfg_get nats subject_prefix foreman)"
 
   # Validate before it touches any path/subject/header interpolation.
   if [[ ! "$run" =~ ^[A-Za-z0-9._-]+$ ]]; then
@@ -224,7 +237,7 @@ nb_bridge_once() {
     # -J / --jetstream: require JetStream PubAck. A plain core nats pub exit 0
     # is NOT proof of stream persistence; no stream → nonzero exit.
     pub_rc=0
-    if ! nats --server "$nats_url" --timeout=5s pub "foreman.$run.$type" "$line" \
+    if ! nats --server "$nats_url" --timeout=5s pub "$subject_prefix.$run.$type" "$line" \
       -H "Nats-Msg-Id:$run:$seq" -J >/dev/null 2>&1; then
       pub_rc=1
     fi

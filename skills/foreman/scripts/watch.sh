@@ -21,6 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/eventlog.sh"
 source "$SCRIPT_DIR/lib/checkpoint.sh"
+source "$SCRIPT_DIR/lib/config.sh"
 
 # @description Pure watchdog state-transition function: given the age
 #   (seconds) since the lane's last liveness event, the previous state, and
@@ -267,6 +268,28 @@ wd_sample() {
   return 0
 }
 
+# @description Resolve durable-lanes watchdog config (STALL_WARN/STALL_DEAD/
+#   WATCH_TICK) through the shared config loader and export them, so every
+#   existing "${STALL_WARN:-300}"-style default read in this file (wd_state,
+#   wd_main's dead_thr, the tick default) picks up the resolved value
+#   transparently. wd_state itself stays a cheap, pure function with no
+#   config-loader calls of its own -- per-tick cost and its existing
+#   direct-call unit tests (which export STALL_WARN/STALL_DEAD themselves,
+#   bypassing this function entirely) are unaffected. Precedence: dedicated
+#   env var > TOML [durable] value > built-in default. WATCH_TICK has no TOML
+#   key (it is not one of the 9 documented [durable]/[nats] keys) -- it still
+#   resolves through cfg_get for a uniform call site, but only ever from its
+#   own env var or the built-in default of 15.
+# @exitcode 0 always
+wd_resolve_config() {
+  cfg_load
+  STALL_WARN="$(cfg_get durable stall_warn 300)"
+  STALL_DEAD="$(cfg_get durable stall_dead 900)"
+  WATCH_TICK="$(cfg_get durable watch_tick 15)"
+  export STALL_WARN STALL_DEAD WATCH_TICK
+  return 0
+}
+
 # @description Main watchdog loop: resolve the round-boundary baseline
 #   (--after-seq override or auto-detect last prompt, with late-latch if no
 #   prompt yet), poll on WATCH_TICK, print/emit on state transitions only,
@@ -427,6 +450,7 @@ main() {
     wd_usage
     exit 2
   fi
+  wd_resolve_config
   wd_main "$run" "$lane" "$wt" "$after_seq"
 }
 

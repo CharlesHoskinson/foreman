@@ -1,15 +1,35 @@
 #!/usr/bin/env bash
-# @description Idempotently ensure a reachable NATS server and the FOREMAN JetStream
-#   stream for durable-lanes transport. Does NOT start nats-server or own the
-#   JetStream store directory (that is the server's -sd / store_dir setting);
-#   only probes reachability and creates the stream when absent. Paths never
-#   leave a literal ~ — expand via $HOME if you configure storage elsewhere.
+# @description Idempotently ensure a reachable NATS server and the configured
+#   JetStream stream (default FOREMAN) for durable-lanes transport. Does NOT
+#   start nats-server or own the JetStream store directory (that is the
+#   server's -sd / store_dir setting); only probes reachability and creates
+#   the stream when absent. store_dir is resolved via the shared config
+#   loader (~ expanded to $HOME) purely to surface it in operator hints.
 # Usage: setup.sh
-# Env: NATS_URL (default nats://127.0.0.1:4222)
+# Env: NATS_URL, NATS_STREAM, NATS_SUBJECT_PREFIX, NATS_STORE (see
+#   skills/foreman/scripts/lib/config.sh and references/durable-lanes.md for
+#   the full [nats] TOML precedence)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NATS_URL="${NATS_URL:-nats://127.0.0.1:4222}"
+# shellcheck source=../lib/config.sh
+source "$SCRIPT_DIR/../lib/config.sh"
+
+# Resolved through the shared config loader: dedicated env var (as before) >
+# [nats] TOML value > the same built-in defaults this always had. With none
+# of NATS_URL/NATS_STREAM/NATS_SUBJECT_PREFIX/NATS_STORE nor a
+# .foreman/config.toml [nats] block present, cfg_get returns these literal
+# defaults -- byte-identical to the prior "${NATS_URL:-...}" form and the
+# previously-hardcoded "FOREMAN" stream / "foreman.>" subject pattern.
+# NATS_STORE_DIR is informational only here: this script never starts
+# nats-server itself (see the file header), so it cannot pass -sd -- it is
+# surfaced in the unreachable-server hint below so an operator starting
+# nats-server by hand knows which store_dir the harness expects.
+cfg_load
+NATS_URL="$(cfg_get nats url nats://127.0.0.1:4222)"
+NATS_STREAM_NAME="$(cfg_get nats stream FOREMAN)"
+NATS_SUBJECT_PREFIX="$(cfg_get nats subject_prefix foreman)"
+NATS_STORE_DIR="$(cfg_get nats store_dir '~/.foreman/nats-store')"
 
 # @description Run durable-preflight and require NATS tools; print hints on miss.
 # @exitcode 0 all required deps present (incl. nats-server + nats CLI)
@@ -52,27 +72,30 @@ wait_for_server() {
     sleep 1
   done
   echo "setup.sh: NATS server unreachable at $NATS_URL after 5 attempts (1s apart)" >&2
+  echo "setup.sh: if starting nats-server yourself, the configured store_dir is: $NATS_STORE_DIR" >&2
   exit 3
 }
 
-# @description Ensure stream FOREMAN exists with subjects including foreman.>.
-#   If absent: create with file storage, limits retention, max-age 72h.
-#   If present: verify subjects contain foreman.>; otherwise leave alone
-#   (reconfiguration is manual — setup is not an upsert of stream config).
+# @description Ensure the configured stream (NATS_STREAM_NAME) exists with
+#   subjects including "$NATS_SUBJECT_PREFIX.>". If absent: create with file
+#   storage, limits retention, max-age 72h. If present: verify subjects
+#   contain the prefix pattern; otherwise leave alone (reconfiguration is
+#   manual — setup is not an upsert of stream config).
 # @exitcode 0 stream present and acceptable  @exitcode 1 stream add failed
 ensure_foreman_stream() {
-  if nats --server "$NATS_URL" --timeout=5s stream info FOREMAN >/dev/null 2>&1; then
+  local subject_pattern="$NATS_SUBJECT_PREFIX.>"
+  if nats --server "$NATS_URL" --timeout=5s stream info "$NATS_STREAM_NAME" >/dev/null 2>&1; then
     # subjects is a JSON array of strings, e.g. ["foreman.>"]
-    if ! nats --server "$NATS_URL" --timeout=5s stream info FOREMAN --json 2>/dev/null \
-      | jq -e '.config.subjects | index("foreman.>") != null' >/dev/null 2>&1; then
-      echo "setup.sh: FOREMAN stream exists but subjects do not include foreman.>; reconfiguration is manual — leaving stream unchanged" >&2
+    if ! nats --server "$NATS_URL" --timeout=5s stream info "$NATS_STREAM_NAME" --json 2>/dev/null \
+      | jq -e --arg s "$subject_pattern" '.config.subjects | index($s) != null' >/dev/null 2>&1; then
+      echo "setup.sh: $NATS_STREAM_NAME stream exists but subjects do not include $subject_pattern; reconfiguration is manual — leaving stream unchanged" >&2
     fi
     return 0
   fi
   # Subjects value MUST be quoted: an unquoted > is a shell redirect.
   # --defaults is used only for create defaults, NOT as create-or-update.
-  nats --server "$NATS_URL" --timeout=5s stream add FOREMAN \
-    --subjects "foreman.>" \
+  nats --server "$NATS_URL" --timeout=5s stream add "$NATS_STREAM_NAME" \
+    --subjects "$subject_pattern" \
     --storage file \
     --retention limits \
     --max-age=72h \

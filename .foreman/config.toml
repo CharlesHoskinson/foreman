@@ -24,3 +24,16 @@ forbidden_paths = [
   "package-lock.json",
 ]
 hash_paths = ["tests/**", ".github/**"]
+
+[durable]
+enabled = false
+checkpoint_interval = 20   # seconds
+heartbeat_interval = 30
+stall_warn = 300
+stall_dead = 900
+
+[nats]
+url = "nats://127.0.0.1:4222"
+store_dir = "~/.foreman/nats-store"
+stream = "FOREMAN"
+subject_prefix = "foreman"

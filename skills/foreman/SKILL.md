@@ -129,6 +129,30 @@ wt-new (search | plan | audit)  →  parallel agents  →  each FOREMAN_REPORT.m
 Scripts: `scripts/wt-new.sh`, `wt-consolidate.sh`, `wt-cleanup.sh`.  
 Doctrine: `references/parallel-worktrees.md`.
 
+### Durable lanes
+
+For long implement rounds, wrap the implementer invocation instead of
+invoking it bare: the **event log is the source of truth**, checkpoints are
+continuous, and **NATS/JetStream is only the transport** (one-way, disposable
+— a lost stream never loses data still in the log).
+
+When `.foreman/config.toml` has `[durable] enabled = true` (or the run
+explicitly opts in):
+
+1. Run the round via `skills/foreman/scripts/lane-run.sh RUN_ID LANE
+   WORKTREE -- CMD...` — tees the reasoning stream, checkpoints the worktree,
+   emits `prompt`/`heartbeat`/`checkpoint`/`round_done` lifecycle events.
+2. Watch it with `skills/foreman/scripts/watch.sh RUN_ID LANE WORKTREE` —
+   per-lane stall watchdog (`RUNNING → STALLED → DEAD`); on `DEAD` it prints a
+   kill+retry hint against the lane's latest checkpoint and exits 3.
+3. Recover a `DEAD`/crashed lane with `skills/foreman/scripts/resume.sh
+   RUN_ID LANE WORKTREE`.
+
+`[durable]`/`[nats]` config keys resolve through the shared loader
+(`skills/foreman/scripts/lib/config.sh`), precedence env var > TOML > default.
+Full architecture, config key reference, Windows/WSL notes, and honest limits:
+`references/durable-lanes.md`.
+
 ### Commitment boundaries
 
 Consult `foreman-advisor` (read-only, ≤ ~300 words) before:
@@ -233,4 +257,5 @@ every worktree; never mounted into the worker.
 - `references/security-model.md` — threats and enforcement map
 - `references/reference-environment.md` — WSL/Windows inventory + bootstrap
 - `references/parallel-worktrees.md` — parallel search/plan/audit worktrees
+- `references/durable-lanes.md` — durable-lanes architecture, config keys, honest limits
 - `env/reference-manifest.toml` — tool inventory source of truth
