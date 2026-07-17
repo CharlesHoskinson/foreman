@@ -471,3 +471,28 @@ proposed enhancement. Newest at the bottom.
   count: 7 occurrences, 3 models. This is now the single most frequent
   failure mode in the log and the strongest evidence for the v0.2.5
   artifact-defined-completion + typed-lane-state fix.
+
+## 2026-07-17 — architect-induced concurrent-suite contention (self-inflicted)
+
+- **Phase:** Round C — perf-investigation fan-out dispatched while T7's gate
+  was still running.
+- **What happened:** two of the five read-only perf agents were told to run
+  `bats` (to MEASURE current suite timing). Those measurement runs collided
+  with T7's live full-suite gate on the shared host — both landed on
+  `lane-run.bats` (the slow wall-clock file) at once (12 procs).
+- **Evidence:** `ps -ef` showed 4 bats procs under `/foreman/tests` (a perf
+  agent, main repo) AND 4 under `foreman-wt-dl2c-implement-t7-config` (T7),
+  both executing lane-run.bats simultaneously.
+- **Root cause:** the architect (me) violated the serialized-gates doctrine
+  established EARLIER THIS SESSION — I dispatched agents that run bats without
+  ensuring no other gate was live. The doctrine was written for lanes; I
+  failed to apply it to investigation agents.
+- **Impact:** T7's gate slowed and put at flake risk (wall-clock tests under
+  contention). Recoverable — re-run T7's gate serialized if it reports a
+  spurious failure.
+- **Proposed enhancement:** serialized-gates doctrine applies to EVERY bats
+  invocation on the host, not just lane gates — investigation/measurement
+  agents that run tests must be told either "do not run bats, reason from the
+  code" or "only when no gate is live." Better (v0.2.5): a host-wide gate
+  mutex (pueue `gate` group, parallel 1) so ANY bats run queues instead of
+  colliding — no human discipline required.
