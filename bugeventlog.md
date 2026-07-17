@@ -438,3 +438,26 @@ proposed enhancement. Newest at the bottom.
   and `DIFF_*.patch` (glob, not fixed names) from every worktree; audit
   doctrine: versioned reports belong under `~/.foreman/runs/<RUN>/` from the
   moment they are written, with the worktree holding only a copy.
+
+## 2026-07-17 — watchdog false-stall during a lane's final full-suite gate phase
+
+- **Phase:** Round C (T7), lane in its closing `tests/run.sh` gate.
+- **What happened:** the freshness+stall watchdog fired "no worktree writes
+  for 25min" while the lane was demonstrably alive — a full-suite bats run
+  (checkpoint/config/… .bats) had just started and all T7 deliverables were
+  already written.
+- **Evidence:** `ps -ef` showed a live bats suite for the T7 worktree
+  started 90s before the alert; `git status` showed all 11 expected files
+  created/modified.
+- **Root cause:** bats writes its scratch to `/tmp/bats-run-*`, not the
+  worktree, so a lane whose only remaining work is running the (serialized,
+  multi-minute) full suite produces zero worktree writes for the whole run —
+  the exact blind spot of a worktree-mtime liveness probe. This is the
+  freshness watchdog's third failure mode this session (after stale-artifact
+  key and missing dispatch grace).
+- **Impact:** one false alert; caught by a probe-before-acting, no lane lost.
+- **Proposed enhancement:** watchdog liveness = worktree writes OR a live
+  bats/lane process referencing the worktree path (`ps -ef | grep <wt>`).
+  Fold into the v0.2.5 typed-lane-state work: a lane in GATE state is not
+  judged by file mtime at all — the runner emits a heartbeat event and the
+  watchdog reads the event log, not the filesystem.
