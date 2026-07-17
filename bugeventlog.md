@@ -506,3 +506,29 @@ proposed enhancement. Newest at the bottom.
   agent to run a long/among-gate bats command; have it reason from code, or
   gate any measurement behind the host-wide gate mutex. Running count: 8
   occurrences, 3 models.
+
+## 2026-07-17 — audit agent's verification bats orphaned, blocked the release gate ~1hr
+
+- **Phase:** Round C — round-2 el_emit auditor (read-only) verifying output
+  contract.
+- **What happened:** the auditor launched `bats tests/eventlog.bats` in the
+  MAIN repo to verify byte-identical output, backgrounded it, then hit the
+  attractor. When I later messaged "no bats", the message queued but the
+  already-launched run kept going ORPHANED — a 22-process eventlog.bats storm
+  that contended with T7's live gate and stretched it from ~45min to ~2hr.
+- **Evidence:** `ps -ef` = 22 main-repo eventlog.bats procs + T7's worktree
+  gate; auditor's own final message flagged "a vendored-bats run I launched
+  before your stop message timed out and may still be a stray." Resolved by
+  killing the main-repo PIDs (path-scoped to spare the worktree).
+- **Root cause (compound):** (a) I dispatched a verification agent without
+  forbidding bats up front — the "no bats" rule reached it too late; (b) the
+  attractor orphaned the run so it never self-terminated; (c) no host-wide
+  gate mutex, so the orphan could contend at all.
+- **Impact:** ~1hr of release-gate wall-clock lost; had to manually kill 22
+  processes; T7 gate integrity at risk the whole time.
+- **Proposed enhancement:** (1) EVERY agent brief that could run tests states
+  "do not run bats" UP FRONT, not as a follow-up; (2) v0.2.5 host-wide gate
+  mutex (pueue `gate` group parallel=1) so any bats run — lane, auditor, or
+  investigation — queues instead of colliding, removing reliance on human
+  discipline entirely (this is now the highest-frequency contention cause in
+  the log). Related: the serialized-gates + concurrent-suite entries above.
