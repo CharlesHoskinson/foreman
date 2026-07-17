@@ -418,3 +418,23 @@ proposed enhancement. Newest at the bottom.
   at most one bats suite at a time (and never overlaps the main-repo full
   suite with lane gates). Longer term (v0.2.5+): timing tests should derive
   bounds from a load-scaled tick or fake clock instead of wall-clock 1s.
+
+## 2026-07-17 — wt-cleanup archives only FOREMAN_REPORT.md, lost V2/V3/V4 audit reports
+
+- **Phase:** Round B close, `wt-cleanup.sh dl2b --force`.
+- **What happened:** cleanup archived `FOREMAN_REPORT.md`/`.json` per
+  worktree, but the audit worktree's versioned reports
+  (`FOREMAN_REPORT_V2/V3/V4.*`) and the cold-diff patches (`DIFF_V*.patch`)
+  were untracked extra files — removed with the worktree, unrecoverable.
+- **Evidence:** `~/.foreman/runs/dl2b/reports/` contains only
+  `audit-round-b.md/.json` (the V1 report) + the four implement reports.
+- **Root cause:** the archiver copies a fixed filename pair instead of the
+  full set of audit artifacts the multi-round audit convention produces.
+- **Impact:** historical audit evidence for rounds V2-V4 lost. No release
+  impact (verdicts recorded in the resume checkpoint, merge commit body,
+  and architect context) — but the audit trail is no longer independently
+  reconstructable.
+- **Proposed enhancement:** wt-cleanup should archive `FOREMAN_REPORT*.*`
+  and `DIFF_*.patch` (glob, not fixed names) from every worktree; audit
+  doctrine: versioned reports belong under `~/.foreman/runs/<RUN>/` from the
+  moment they are written, with the worktree holding only a copy.
