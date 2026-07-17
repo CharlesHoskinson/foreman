@@ -316,3 +316,105 @@ proposed enhancement. Newest at the bottom.
   report artifact (already session practice; codify in references/); (d)
   wrapper prompts keep the foreground-only instruction as defense-in-depth,
   but no design may DEPEND on it holding.
+
+## 2026-07-17 — bash-n-only architect edit broke the T3 gate (found on resume)
+
+- **Phase:** durable-lanes Round B resume; first gate re-run after session cut.
+- **What happened:** `bats tests/lane-run.bats` in the T3 worktree came back
+  13/14. Test 10 ("KILL-escalates … alert event present") failed on
+  `[ "$output" = "best_effort" ]`.
+- **Evidence:** the sweep-alert architect edit (flagged "bash -n only, NOT
+  test-verified" in the 2026-07-16 resume checkpoint) emits a SECOND alert
+  event (`sweep=sweep_failed`) on the same KILL escalation: `taskkill //PID
+  <winpid> //T //F` against an already-KILLed pid returns "not found", which
+  the code counts as sweep failure. Test 10 extracts `.payload.tree_kill`
+  from ALL alerts and expects exactly one line; it now gets two.
+- **Root cause:** two independent problems layered: (1) the edit's alert
+  design allows multiple alert events per single kill incident; (2) taskkill
+  "process not found" (vacuous sweep — nothing left to kill) is
+  indistinguishable in the code from a real sweep failure, so the noisy
+  alert fires on effectively every KILL path.
+- **Impact:** none shipped — the gate caught it before merge, exactly as
+  designed. Cost: one rework round on T3.
+- **Proposed enhancement:** doctrine already says gates before merge; the
+  real lesson is narrower — an edit verified only by `bash -n` must never be
+  carried across a session boundary as "done pending tests". Either run the
+  gate in-session or leave the edit as a written spec for the next round.
+
+## 2026-07-17 — lane watchdog false-fired on a STALE report artifact
+
+- **Phase:** Round B resume; dispatch of the two Sonnet rework lanes (T3
+  sweep-alert redesign, T5 seq-0 test).
+- **What happened:** both freshly armed lane watchdogs fired
+  "FOREMAN_REPORT.md present" within seconds of dispatch and exited.
+- **Evidence:** the reports they matched were the ROUND-3 reports from
+  2026-07-16 16:50 / 17:08, still sitting in the preserved worktrees; the
+  new lanes had barely started.
+- **Root cause:** the watchdog keyed on report EXISTENCE. The lane-liveness
+  doctrine already says "content-keyed, not scaffold-existence" — existence
+  of a file that a PREVIOUS round legitimately produced is the same trap one
+  level up: the key must be freshness (mtime newer than dispatch), not
+  presence.
+- **Impact:** two dead watchdogs; would have left both lanes unwatched for
+  their whole run had the architect not noticed. Also surfaced that
+  re-dispatching into a used worktree risks the new lane overwriting the
+  prior round's report — archived both to ~/.foreman/runs/dl2b/archived-reports/
+  before the new lanes reached the write.
+- **Proposed enhancement:** codify in the watchdog doctrine: watch keys must
+  be freshness-based (`-newermt <dispatch-ts>`) whenever a worktree is
+  reused across rounds; and lane dispatch into a reused worktree must
+  archive-then-delete the prior round's report first so "report present"
+  is unambiguous again.
+
+- **Addendum (same resume, second false alert):** watchdog v2 (freshness-
+  keyed) immediately reported STALL for T3 — the lane was ~5 minutes into
+  its READ phase and had legitimately written nothing yet; the last worktree
+  writes were yesterday's. A stall window must not start evaluating until a
+  grace period after dispatch (lanes read before they write). v3 = initial
+  grace ≥ 10 min, then stall window 25 min. Doctrine fix folded into the
+  same enhancement as above.
+
+## 2026-07-17 — background-and-stop attractor, occurrence #5 (T5 Sonnet rework lane)
+
+- **Phase:** Round B resume, T5 seq-0 regression-test lane.
+- **What happened:** the lane ended its turn with "Waiting for task
+  completion notification — no further action from me until it arrives"
+  after backgrounding its bats gate run — despite the spec containing the
+  standard foreground-only / artifacts-define-completion clause.
+- **Evidence:** agent final message; lane resumed manually via SendMessage.
+- **Root cause:** same systemic attractor as the 2026-07-16 entry (subagents
+  generalize top-level notification semantics; prompt discipline measurably
+  does not hold).
+- **Impact:** one manual resume; ~no wall-clock loss (caught immediately via
+  completion notification rather than a stall watchdog).
+- **Proposed enhancement:** no new lesson — this is more evidence for the
+  v0.2.5 structural fix (artifact-defined completion + WAITING_CHILD as a
+  first-class alertable state). Running count: 5 occurrences, 3 models.
+
+- **Addendum:** occurrence #6, same session, ~30 min after #5 — the T3
+  Sonnet rework lane backgrounded its gate run, polled the empty output
+  file, then stopped to "wait for the automatic completion notification".
+  Both Round-B-resume Sonnet lanes independently hit the attractor despite
+  the standard prohibition clause. Running count: 6 occurrences, 3 models.
+
+## 2026-07-17 — concurrent bats suites on one host corrupt wall-clock tests
+
+- **Phase:** Round B resume verification (T3 + T5 rework gates + main full
+  suite running simultaneously).
+- **What happened:** every wall-clock-sensitive test (watch.bats STALLED→DEAD
+  integration tests 12/14/16/18/23; lane-run.bats stdin-EOF test 9) flaked
+  intermittently whenever another worktree's suite ran concurrently; each
+  failing test passed in isolation, and the failing SET varied randomly
+  run-to-run while tracking the sibling lane's process count (T5 lane's
+  5-run evidence; T3 lane observed the same on test 9; the architect's own
+  T3 re-run flaked the same way while T5's gate was still running).
+- **Root cause:** three bats suites time-share one Windows/Git-Bash host;
+  1-second watch ticks stretch to multiple real seconds under process-spawn
+  contention, blowing fixed `timeout 20` test bounds.
+- **Impact:** ~5 redundant gate reruns across two lanes + architect; no
+  code defect — pure verification-signal corruption.
+- **Proposed enhancement:** doctrine: gate runs on this host are SERIALIZED
+  — lanes still run only their own test file, but the architect schedules
+  at most one bats suite at a time (and never overlaps the main-repo full
+  suite with lane gates). Longer term (v0.2.5+): timing tests should derive
+  bounds from a load-scaled tick or fake clock instead of wall-clock 1s.
