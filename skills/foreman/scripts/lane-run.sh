@@ -80,17 +80,28 @@
 #   (including this export) through unchanged. This is also what populates
 #   the ownership event's config_dir key (lane_emit_ownership already reads
 #   LANE_CONFIG_DIR unconditionally -- see its own doc comment; it was wired
-#   but always empty before this task set a default). CAUTION (Bun #12970):
-#   compiled Bun exes on Windows have stripped `\` from env var values in
-#   the past -- LANE_CONFIG_DIR is frequently a backslashed Windows path
-#   (e.g. `C:\x\y`), so this value must reach CMD byte-for-byte; see
-#   tests/vendor-isolation.bats for both the fake-launcher-shim regression
-#   test and the skip-guarded real-binary passthrough case. UNSET
-#   LANE_VENDOR is the frozen path: the entire block below is skipped, nothing
-#   is exported, and the ownership payload's config_dir stays null -- byte-
-#   identical to pre-T5a behavior (all existing lane-run tests pass
-#   unmodified). Destructive real-vendor concurrency verdict (T5b) is
-#   deferred; see docs/research/vendor-concurrency-results.md.
+#   but always empty before this task set a default). CAUTION (Bun #12970 /
+#   Rework Round 1): compiled Bun exes on Windows have stripped `\` from env
+#   var values in the past, AND (empirically diagnosed against the REAL
+#   compiled launcher on main, Rework Round 1) bash's own msys->native
+#   exec-boundary conversion silently rewrites a POSIX-style value into
+#   native Windows form the instant a native (non-MSYS) launcher exe is
+#   actually in the loop -- uncontrolled, and dependent on disk state
+#   (whether launcher/dist/foreman-launch.exe exists), not a stable
+#   contract. Fix: lane_normalize_config_dir performs ONE deterministic
+#   normalization (Windows/MSYS: `cygpath -m`, mixed form e.g. `C:/x/y` --
+#   valid to native CLIs and MSYS bash alike, and immune to MSYS's own
+#   POSIX-path conversion heuristic since it already carries a drive
+#   letter; POSIX: unchanged) BEFORE export, so the value is already in its
+#   final, boundary-immune form before either hazard gets a chance to touch
+#   it. See tests/vendor-isolation.bats for both the fake-launcher-shim
+#   regression test and the skip-guarded real-binary case (built in-worktree,
+#   asserting the normalized value survives the REAL foreman-launch.exe end
+#   to end). UNSET LANE_VENDOR is the frozen path: the entire block below is
+#   skipped, nothing is exported, and the ownership payload's config_dir
+#   stays null -- byte-identical to pre-T5a behavior (all existing lane-run
+#   tests pass unmodified). Destructive real-vendor concurrency verdict
+#   (T5b) is deferred; see docs/research/vendor-concurrency-results.md.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -182,6 +193,32 @@ lane_vendor_env_var() {
   esac
 }
 
+# @description Normalize an effective vendor config dir to the
+#   platform-canonical form (T5a Rework Round 1 -- see header CONTRACT for
+#   the full incident writeup). Deterministic and applied ONCE, here, to
+#   whatever LANE_CONFIG_DIR ends up being (default-resolved or an explicit
+#   override) -- replacing reliance on bash/MSYS's own IMPLICIT, disk-state-
+#   dependent msys->native exec-boundary conversion, which only fires once
+#   a real native launcher exe is actually resolved. `cygpath -m` (Windows/
+#   MSYS only) produces the mixed form (forward slashes, drive letter, e.g.
+#   `C:/Users/x`): valid input to native Win32 CLIs AND any MSYS bash that
+#   reads it back, and immune to MSYS's own POSIX-path conversion heuristic
+#   (which matches leading-"/"-style absolute paths only -- a string that
+#   already carries a drive letter never matches it, regardless of which
+#   slash direction it started with). Degrades to the input unchanged if
+#   cygpath is unavailable (should not happen on this host class) or on
+#   POSIX (no msys->native boundary exists there at all).
+# @arg $1 path effective LANE_CONFIG_DIR value
+# @stdout the normalized value
+lane_normalize_config_dir() {
+  local path="$1"
+  if [[ "$LANE_PLATFORM" == "windows" ]] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$path" 2>/dev/null || printf '%s\n' "$path"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
 # --- T5a: per-lane vendor config isolation plumbing ----------------------
 # See the header CONTRACT block for the full rationale. Strictly gated on
 # LANE_VENDOR being set/non-empty -- an unset LANE_VENDOR (today's default
@@ -196,12 +233,15 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
   # LANE_CONFIG_DIR, e.g. pointing at a pre-seeded config dir for T5b, is
   # never overridden): the per-lane dir wt-new.sh already provisions.
   : "${LANE_CONFIG_DIR:="$WT/.harness/vendor-home/$LANE_VENDOR"}"
+  # Rework Round 1: normalize BEFORE export -- see lane_normalize_config_dir
+  # doc comment. Applied uniformly whether LANE_CONFIG_DIR came from the
+  # default above or an explicit caller override.
+  LANE_CONFIG_DIR="$(lane_normalize_config_dir "$LANE_CONFIG_DIR")"
   export LANE_CONFIG_DIR
   # Exported ONCE, here, into lane-run.sh's own process environment -- both
   # CMD-spawn sites below inherit it identically with no branch-specific
-  # code (see header CONTRACT). export accepts a single "NAME=value"
-  # argument; LANE_CONFIG_DIR's value (frequently a backslashed Windows
-  # path) is passed through byte-for-byte, no quoting/escaping applied.
+  # code (see header CONTRACT). Already in its final, boundary-immune form
+  # by this point, so no further quoting/escaping is needed here either.
   export "${LANE_VENDOR_ENV_VAR}=${LANE_CONFIG_DIR}"
 fi
 
