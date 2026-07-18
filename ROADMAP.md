@@ -52,6 +52,32 @@ scope; WATCH_VTICK's `bats --jobs` parallelism still deferred.
 - Depends on: v0.2.0. Feeds: v0.3.0 (adapters spawn via the launcher),
   v0.4.0 (schema v2 telemetry).
 
+## v0.2.7.5 — usability: close the five not-usable-yet gaps (planned 2026-07-18)
+
+Convert v0.2.5's documented not-usable-yet capabilities into working ones,
+informed by seven read-only research lanes (grok CLI state, vendor
+concurrency, sandboxed-worker SOTA, re-port strategy + MCP schema, POSIX
+cascade parity with live WSL probes, worktree-isolation guards, WSL
+reliability + dependency refresh). Seven OpenSpec packages — five implemented,
+two shipped as approved specs for the next release.
+
+- **Implemented:** grok-lane-activation (grok verified live end-to-end during
+  planning — Grok Build 0.2.103, signed in), t5b-concurrency-verdict,
+  posix-cascade-parity (pidns-init = the KILL_ON_JOB_CLOSE analog, probed
+  working on WSL), worktree-hardening (the operator's stalls/git-issues guard
+  bundle), wsl-reliability-env-refresh (fixes 2 live bugs: WSL codex PATH-leak
+  crash, stale shellcheck manifest claim; Bun held at 1.3.14 — 1.4 canary).
+- **Approved specs (next release):** hard-mode-launcher (worker-run/pr-open on
+  the launcher + devcontainer/egress-firewall), v030-soft-mode-report (v0.3.0
+  re-port via per-commit `git am -3` onto soft-mode — architect decision).
+- Execution: Sonnet 5 implements, Opus 4.8 audits (explicit pin this release).
+- Design: `docs/superpowers/specs/2026-07-18-v0275-usability-design.md`
+- Packages: `openspec/changes/{grok-lane-activation,t5b-concurrency-verdict,
+  posix-cascade-parity,worktree-hardening,wsl-reliability-env-refresh,
+  hard-mode-launcher,v030-soft-mode-report}/`
+- Depends on: v0.2.5. Feeds: v0.3.0 (session transport re-port + POSIX/WSL
+  foundation).
+
 ## v0.3.0 — session transport (remote branch `dev/foreman-v1`)
 
 Subscription-session workers (zero API keys): codex mcp-server threadId
