@@ -155,3 +155,186 @@ setup() {
   # stored seqs are 1 then 3 — unique, monotonic, gap at 2
   [ "$(jq -r .seq "$rd/events.jsonl" | tr '\n' ' ')" = "1 3 " ]
 }
+
+# --- v0.2.5 T3: schema v2 additions (el_attempt_new, el_read_after, el_compact) ---
+
+@test "F5: el_emit's ts field is UTC ISO-8601 (bash printf builtin, no date spawn)" {
+  el_emit run1 t lane '{"a":1}' >/dev/null
+  run jq -r '.ts' "$(run_dir run1)/events.jsonl"
+  [[ "$output" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+}
+
+@test "el_attempt_new starts at 1 and increments monotonically per lane" {
+  run el_attempt_new run1 lane-a
+  [ "$status" -eq 0 ]; [ "$output" = "1" ]
+  run el_attempt_new run1 lane-a
+  [ "$output" = "2" ]
+  run el_attempt_new run1 lane-a
+  [ "$output" = "3" ]
+}
+
+@test "el_attempt_new counters are independent per lane" {
+  el_attempt_new run1 lane-a >/dev/null
+  el_attempt_new run1 lane-a >/dev/null
+  run el_attempt_new run1 lane-b
+  [ "$output" = "1" ]
+  run el_attempt_new run1 lane-a
+  [ "$output" = "3" ]
+}
+
+@test "el_attempt_new rejects an invalid lane charset" {
+  run el_attempt_new run1 "bad lane!"
+  [ "$status" -ne 0 ]
+}
+
+@test "el_init also clears a leftover .attempt.lock so el_attempt_new does not wedge" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd/.attempt.lock"
+  el_init run1
+  [ ! -d "$rd/.attempt.lock" ]
+  run el_attempt_new run1 lane-a
+  [ "$status" -eq 0 ]; [ "$output" = "1" ]
+}
+
+@test "el_read_after prints only events with payload.attempt greater than ATTEMPT" {
+  el_emit run1 prompt lane-a '{"attempt":1}' >/dev/null
+  el_emit run1 heartbeat lane-a '{"attempt":1}' >/dev/null
+  el_emit run1 checkpoint lane-a '{"attempt":2}' abc123 >/dev/null
+  el_emit run1 round_done lane-a '{"attempt":2}' >/dev/null
+  run --separate-stderr el_read_after run1 1
+  [ "$status" -eq 0 ]
+  [ "$(wc -l <<<"$output")" -eq 2 ]
+  [ "$(jq -r '.type' <<<"$output" | tr '\n' ',')" = "checkpoint,round_done," ]
+}
+
+@test "el_read_after further filters by an optional TYPE_FILTER" {
+  el_emit run1 prompt lane-a '{"attempt":1}' >/dev/null
+  el_emit run1 checkpoint lane-a '{"attempt":2}' abc >/dev/null
+  el_emit run1 round_done lane-a '{"attempt":2}' >/dev/null
+  el_emit run1 checkpoint lane-a '{"attempt":3}' def >/dev/null
+  run --separate-stderr el_read_after run1 1 checkpoint
+  [ "$status" -eq 0 ]
+  [ "$(wc -l <<<"$output")" -eq 2 ]
+  [ "$(jq -r '.type' <<<"$output" | sort -u)" = "checkpoint" ]
+}
+
+@test "el_read_after excludes events with no payload.attempt field" {
+  el_emit run1 prompt lane-a '{"no_attempt":true}' >/dev/null
+  el_emit run1 checkpoint lane-a '{"attempt":5}' abc >/dev/null
+  run --separate-stderr el_read_after run1 0
+  [ "$status" -eq 0 ]
+  [ "$(wc -l <<<"$output")" -eq 1 ]
+  [ "$(jq -r '.type' <<<"$output")" = "checkpoint" ]
+}
+
+@test "el_read_after propagates el_read's torn-line rc=2 contract" {
+  el_emit run1 prompt lane-a '{"attempt":1}' >/dev/null
+  printf '{"partial":' >> "$(run_dir run1)/events.jsonl"
+  run --separate-stderr el_read_after run1 0
+  [ "$status" -eq 2 ]
+}
+
+@test "el_read_after rejects a non-integer ATTEMPT argument" {
+  run el_read_after run1 notanumber
+  [ "$status" -eq 1 ]
+}
+
+@test "el_read_after never advances or touches any cursor" {
+  el_emit run1 prompt lane-a '{"attempt":1}' >/dev/null
+  run el_cursor_get run1 someconsumer
+  [ "$output" = "0" ]
+  el_read_after run1 0 >/dev/null
+  run el_cursor_get run1 someconsumer
+  [ "$output" = "0" ]
+}
+
+@test "el_compact collapses a contiguous old heartbeat run, keeps structural events and retained seq" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd"
+  {
+    printf '%s\n' '{"seq":1,"ts":"2000-01-01T00:00:00Z","type":"prompt","lane":"a","payload":{}}'
+    printf '%s\n' '{"seq":2,"ts":"2000-01-01T00:00:05Z","type":"heartbeat","lane":"a","payload":{"pid":1}}'
+    printf '%s\n' '{"seq":3,"ts":"2000-01-01T00:00:10Z","type":"heartbeat","lane":"a","payload":{"pid":1}}'
+    printf '%s\n' '{"seq":4,"ts":"2000-01-01T00:00:15Z","type":"checkpoint","lane":"a","commit":"abc","payload":{}}'
+  } >> "$rd/events.jsonl"
+  run el_compact run1 30
+  [ "$status" -eq 0 ]
+  run jq -r '.type' "$rd/events.jsonl"
+  [ "${lines[0]}" = "prompt" ]; [ "${lines[1]}" = "heartbeat_rollup" ]; [ "${lines[2]}" = "checkpoint" ]
+  run jq -c 'select(.type=="heartbeat_rollup")|[.seq,.payload.count,.payload.first_seq,.payload.last_seq]' "$rd/events.jsonl"
+  [ "$output" = "[3,2,2,3]" ]
+  [ "$(jq -r '.seq' "$rd/events.jsonl" | tr '\n' ' ')" = "1 3 4 " ]
+}
+
+@test "el_compact leaves heartbeats not older than N_DAYS untouched" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd"
+  local now; TZ=UTC printf -v now '%(%Y-%m-%dT%H:%M:%SZ)T' -1
+  {
+    printf '%s\n' '{"seq":1,"ts":"2000-01-01T00:00:00Z","type":"heartbeat","lane":"a","payload":{}}'
+    printf '{"seq":2,"ts":"%s","type":"heartbeat","lane":"a","payload":{}}\n' "$now"
+  } >> "$rd/events.jsonl"
+  run el_compact run1 30
+  [ "$status" -eq 0 ]
+  run jq -r '.type' "$rd/events.jsonl"
+  [ "${lines[0]}" = "heartbeat_rollup" ]; [ "${lines[1]}" = "heartbeat" ]
+}
+
+@test "el_compact never collapses a heartbeat carrying a payload.state transition" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd"
+  printf '%s\n' '{"seq":1,"ts":"2000-01-01T00:00:00Z","type":"heartbeat","lane":"a","payload":{"state":"RUNNING_IMPL"}}' >> "$rd/events.jsonl"
+  run el_compact run1 30
+  [ "$status" -eq 0 ]
+  run jq -r '.type' "$rd/events.jsonl"
+  [ "$output" = "heartbeat" ]
+}
+
+@test "el_compact does not merge heartbeat runs across a different lane's interleaved heartbeat" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd"
+  {
+    printf '%s\n' '{"seq":1,"ts":"2000-01-01T00:00:00Z","type":"heartbeat","lane":"a","payload":{}}'
+    printf '%s\n' '{"seq":2,"ts":"2000-01-01T00:00:05Z","type":"heartbeat","lane":"b","payload":{}}'
+    printf '%s\n' '{"seq":3,"ts":"2000-01-01T00:00:10Z","type":"heartbeat","lane":"a","payload":{}}'
+  } >> "$rd/events.jsonl"
+  run el_compact run1 30
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.lane' "$rd/events.jsonl" | tr '\n' ' ')" = "a b a " ]
+  [ "$(jq -r '.type' "$rd/events.jsonl" | sort -u | tr '\n' ' ')" = "heartbeat_rollup " ]
+}
+
+@test "el_compact rejects a malformed N_DAYS and leaves the log untouched" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd"
+  printf '%s\n' '{"seq":1,"ts":"2000-01-01T00:00:00Z","type":"heartbeat","lane":"a","payload":{}}' >> "$rd/events.jsonl"
+  local before; before="$(cat "$rd/events.jsonl")"
+  run el_compact run1 "-1"
+  [ "$status" -eq 1 ]
+  [ "$(cat "$rd/events.jsonl")" = "$before" ]
+  [ ! -f "$rd/events.jsonl.tmp" ]
+}
+
+@test "el_compact refuses to compact a log with a malformed existing line, leaves it untouched" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd"
+  printf '%s\n' '{"seq":1,"ts":"2000-01-01T00:00:00Z","type":"heartbeat","lane":"a","payload":{}}' >> "$rd/events.jsonl"
+  printf 'not-json-garbage\n' >> "$rd/events.jsonl"
+  local before; before="$(cat "$rd/events.jsonl")"
+  run el_compact run1 30
+  [ "$status" -eq 1 ]
+  [ "$(cat "$rd/events.jsonl")" = "$before" ]
+  [ ! -f "$rd/events.jsonl.tmp" ]
+}
+
+@test "el_compact on a missing log returns 1" {
+  run el_compact nonexistentrun 30
+  [ "$status" -eq 1 ]
+}
+
+@test "el_compact output stays readable by el_read afterward" {
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd"
+  {
+    printf '%s\n' '{"seq":1,"ts":"2000-01-01T00:00:00Z","type":"prompt","lane":"a","payload":{}}'
+    printf '%s\n' '{"seq":2,"ts":"2000-01-01T00:00:05Z","type":"heartbeat","lane":"a","payload":{}}'
+    printf '%s\n' '{"seq":3,"ts":"2000-01-01T00:00:10Z","type":"heartbeat","lane":"a","payload":{}}'
+  } >> "$rd/events.jsonl"
+  run el_compact run1 30
+  [ "$status" -eq 0 ]
+  run --separate-stderr el_read run1 0
+  [ "$status" -eq 0 ]
+  [ "$(wc -l <<<"$output")" -eq 2 ]
+}
