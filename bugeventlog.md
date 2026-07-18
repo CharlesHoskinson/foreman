@@ -631,3 +631,29 @@ proposed enhancement. Newest at the bottom.
   load-bearing — per-lane file gates structurally cannot catch cross-file
   integration regressions; exit codes alone are not evidence of a healthy
   round (stream/event artifacts are).
+
+## 2026-07-18 — the auto-resume lane itself hit the background-and-stop attractor
+
+- **Phase:** v0.2.5 T8 (lane-supervise) implementation lane, verification
+  step.
+- **What happened:** the Sonnet lane armed a monitor on its own
+  eventlog.bats gate run and ended its turn ("I'll wait for its
+  notification"). The run died with the turn; the gate mutex
+  (~/.foreman/gate.lock) was left orphaned — the lane's release trap never
+  fired because the shell that owned it was gone. Zero bats processes
+  alive, lock held: the exact lock-leak variant of the attractor.
+- **Recovery (hung-lane playbook):** architect probed the worktree
+  (implementation complete, report scaffold-only), verified no live bats,
+  cleared the orphaned lock single-threaded, and resumed the SAME lane
+  with a short foreground-only finisher (one bats file at a time, inline
+  waits). Lane completed cleanly on the finisher: 16/16 supervisor tests,
+  35/35 eventlog, 8/8 config.
+- **Significance:** occurrence N+1 of the dominant failure class, landing
+  ON the very task that implements its structural fix. Prompt prohibitions
+  ("do not background and stop") were in the lane's brief and did not
+  hold — consistent with every prior occurrence across three vendors.
+  Detection + manual resume worked (bounded, one message) but is exactly
+  the manual labor T8's supervisor + T2's daemon-owned rounds exist to
+  eliminate. When lanes are dispatched THROUGH lane-run --round under
+  pueue (post-v0.2.5 doctrine), the gate runs inside the owned round and
+  an agent turn ending cannot orphan it or its lock.

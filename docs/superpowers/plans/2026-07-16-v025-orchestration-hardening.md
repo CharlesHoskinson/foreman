@@ -339,7 +339,11 @@ event log + checkpoint refs + T1 heartbeats. Classifies a lane/attempt
 `round_done` for this attempt AND no attempt-fresh report. On ABANDONED: run
 `resume.sh RUN LANE WT`, emit a `resume` event incrementing the attempt's
 `resume_count` (T3 attempt entity), re-enqueue the T2 round-script with the
-recovered prompt, re-arm watch.sh on the new attempt.
+recovered prompt. (Amended at implementation, architect-ratified: the
+sweeper does NOT re-arm watch.sh — event-log-driven watchers rediscover the
+new attempt themselves, and the sweeper never spawns unsupervised
+processes. Launcher-absent lanes carry no ownership event/worktree pointer
+and are deliberately outside auto-resume scope.)
 
 Bound: `[resume] max_attempts` (default 2; under `[durable]` per the config
 allowlist rule). On exhaustion: one terminal `abandoned` alert, then STOP.

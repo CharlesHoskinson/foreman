@@ -3,8 +3,10 @@
 #   harness. Precedence: dedicated env var (if set and non-empty) > TOML value
 #   > built-in default. CLI flags stay in the callers -- they already parse
 #   their own flags and win by exporting the dedicated env var before calling
-#   cfg_get. Parses ONLY the 9 documented [durable]/[nats] keys with a minimal
-#   bash TOML-subset parser ("[section]" headers, "key = value", quoted or
+#   cfg_get. Parses ONLY the 10 documented [durable]/[nats] keys (v0.2.5 T8
+#   adds durable.resume_max_attempts, default 2, env RESUME_MAX_ATTEMPTS --
+#   the bounded auto-resume supervisor's cap) with a minimal bash
+#   TOML-subset parser ("[section]" headers, "key = value", quoted or
 #   bare scalars, "#" comments); every line outside a [durable]/[nats] section
 #   is skipped untouched (section-header tracking only), so unrelated TOML
 #   constructs elsewhere in the file -- arrays, tables, whatever -- never trip
@@ -16,11 +18,13 @@
 # Env var cfg_get resolves for each section.key it is asked about. This is
 # broader than the TOML "known keys" allowlist by exactly one entry
 # (durable.watch_tick -> WATCH_TICK): watch.sh's poll tick is not one of the
-# 9 documented [durable]/[nats] keys (see _cfg_parse_toml's explicit case
+# 10 documented [durable]/[nats] keys (see _cfg_parse_toml's explicit case
 # statement below, which is the actual TOML allowlist), but it still needs a
 # uniform cfg_get call site that honors its own pre-existing env var. Adding
 # it here does NOT make it TOML-storable -- _cfg_parse_toml checks its own
-# fixed 9-key case statement, not this table.
+# fixed 10-key case statement, not this table. resume_max_attempts (unlike
+# watch_tick) is symmetric -- present in BOTH tables, per the closed-allowlist
+# rule (v0.2.5 T7 CRITICAL note): a key missing from either silently no-ops.
 declare -Ag _CFG_ENV_VAR=(
   [durable.enabled]=DURABLE_ENABLED
   [durable.checkpoint_interval]=DURABLE_CHECKPOINT_INTERVAL
@@ -28,6 +32,7 @@ declare -Ag _CFG_ENV_VAR=(
   [durable.stall_warn]=STALL_WARN
   [durable.stall_dead]=STALL_DEAD
   [durable.watch_tick]=WATCH_TICK
+  [durable.resume_max_attempts]=RESUME_MAX_ATTEMPTS
   [nats.url]=NATS_URL
   [nats.store_dir]=NATS_STORE
   [nats.stream]=NATS_STREAM
@@ -89,7 +94,7 @@ _cfg_parse_toml() {
       fi
       case "$section.$key" in
         durable.enabled|durable.checkpoint_interval|durable.heartbeat_interval| \
-        durable.stall_warn|durable.stall_dead| \
+        durable.stall_warn|durable.stall_dead|durable.resume_max_attempts| \
         nats.url|nats.store_dir|nats.stream|nats.subject_prefix)
           _CFG_VALUES["$section.$key"]="$val"
           ;;

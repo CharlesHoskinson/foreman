@@ -182,6 +182,25 @@ setup() {
   [ "$output" = "3" ]
 }
 
+@test "el_attempt_new under concurrent contention: 8 background allocators union to exactly 1..8, counter ends at 8" {
+  local outdir="$BATS_TEST_TMPDIR/attempt-out"
+  mkdir -p "$outdir"
+  # N=8 background subshells racing the SAME lane's .attempt.lock mkdir mutex
+  # (deferred T3 audit nit, mirrors the sibling el_emit .seq.lock concurrency
+  # test above). Each subshell's own allocated id is captured to its OWN file
+  # (not a shared fd) so backgrounded stdout never interleaves mid-line.
+  local i
+  for i in $(seq 1 8); do
+    ( el_attempt_new run1 lane-a > "$outdir/$i.out" ) &
+  done
+  wait
+  local ids
+  ids="$(cat "$outdir"/*.out | tr -d '\r' | sort -n | tr '\n' ' ')"
+  [ "$ids" = "$(seq 1 8 | tr '\n' ' ')" ]                 # union is exactly 1..8, no dup, no gap
+  run cat "$(run_dir run1)/attempts/lane-a.attempt"
+  [ "$output" = "8" ]                                     # persisted counter ends at 8
+}
+
 @test "el_attempt_new rejects an invalid lane charset" {
   run el_attempt_new run1 "bad lane!"
   [ "$status" -ne 0 ]

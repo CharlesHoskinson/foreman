@@ -35,6 +35,7 @@ checkpoint_interval = 20   # seconds
 heartbeat_interval = 30
 stall_warn = 300
 stall_dead = 900
+# resume_max_attempts = 2   # v0.2.5 T8: lane-supervise.sh bounded auto-resume cap (env: RESUME_MAX_ATTEMPTS)
 
 [nats]                 # JetStream transport (skills/foreman/scripts/nats/, lib/nats-bridge.sh)
 url = "nats://127.0.0.1:4222"

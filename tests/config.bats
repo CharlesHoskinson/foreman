@@ -1,10 +1,10 @@
 #!/usr/bin/env bats
 # @description Tests for the shared [durable]/[nats] config loader
-#   (skills/foreman/scripts/lib/config.sh): TOML-only resolution for all 9
-#   known keys, env-beats-TOML precedence, defaults when neither is set, ~
-#   expansion in nats.store_dir, malformed-file fail-safe, and a TOML-only
-#   spot-check that lane-run.sh/watch.sh each resolve one interval through
-#   the loader.
+#   (skills/foreman/scripts/lib/config.sh): TOML-only resolution for all 10
+#   known keys (v0.2.5 T8 adds durable.resume_max_attempts), env-beats-TOML
+#   precedence, defaults when neither is set, ~ expansion in nats.store_dir,
+#   malformed-file fail-safe, and a TOML-only spot-check that lane-run.sh/
+#   watch.sh each resolve one interval through the loader.
 load helpers
 
 setup() {
@@ -13,8 +13,8 @@ setup() {
   # Isolate from any config the real checkout happens to carry: every test
   # sets FOREMAN_CONFIG explicitly rather than relying on git-root detection.
   unset FOREMAN_CONFIG DURABLE_ENABLED DURABLE_CHECKPOINT_INTERVAL \
-    DURABLE_HEARTBEAT_INTERVAL STALL_WARN STALL_DEAD NATS_URL NATS_STORE \
-    NATS_STREAM NATS_SUBJECT_PREFIX 2>/dev/null || true
+    DURABLE_HEARTBEAT_INTERVAL STALL_WARN STALL_DEAD RESUME_MAX_ATTEMPTS \
+    NATS_URL NATS_STORE NATS_STREAM NATS_SUBJECT_PREFIX 2>/dev/null || true
 }
 
 # @description Write a TOML fixture with every known key set to a
@@ -61,6 +61,17 @@ EOF
   [ "$(cfg_get nats store_dir '~/.foreman/nats-store')" = "/tmp/custom-nats-store" ]
   [ "$(cfg_get nats stream FOREMAN)" = "CUSTOMSTREAM" ]
   [ "$(cfg_get nats subject_prefix foreman)" = "custom" ]
+}
+
+@test "(a2) v0.2.5 T8: durable.resume_max_attempts resolves from TOML only (env unset)" {
+  toml="$BATS_TEST_TMPDIR/resume.toml"
+  cat > "$toml" <<'EOF'
+[durable]
+resume_max_attempts = 7
+EOF
+  export FOREMAN_CONFIG="$toml"
+  cfg_load
+  [ "$(cfg_get durable resume_max_attempts 2)" = "7" ]
 }
 
 @test "(b) env beats TOML; an unrelated key still resolves from TOML" {

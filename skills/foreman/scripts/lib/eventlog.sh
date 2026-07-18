@@ -29,6 +29,10 @@
 # depends on (el_cursor_get/el_cursor_commit, line-count based) is untouched;
 # el_read_after (attempt-filtered replay) is layered ON TOP of el_read, not a
 # replacement for the cursor mechanism.
+# PORTABILITY (deferred T3 audit nit): el_compact's cutoff computation needs
+# GNU date's `-d "-N days"` relative-date parsing (Git Bash/WSL both ship
+# it); a BSD/macOS date lacking `-d` fails SAFE -- rc 1, original
+# events.jsonl completely untouched -- see el_compact for the full writeup.
 
 # @description Initialize a run's event log. Single-threaded; call ONCE before
 #   any concurrent emitters start. Clears a leftover .seq.lock from a previous
