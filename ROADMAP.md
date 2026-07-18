@@ -23,25 +23,32 @@ resume-from-checkpoint.
   (full suite 127/127 + docs-check) at `f24057c`. Tag `v0.2.0` (Nightwatch).
   WATCH_VTICK and remaining perf items deferred to v0.2.5 by design.
 
-## v0.2.5 — orchestration hardening (planned 2026-07-16)
+## v0.2.5 — orchestration hardening (released 2026-07-18)
 
-Eliminate the F1–F6 workflow failure classes (see `bugeventlog.md`) with the
-targeted primitives recommended by the orchestration deep-research report
-(`docs/research/orchestration-deep-research-report.md`), keeping the
-event-log and checkpoint core: **adopt** a native Windows lane launcher on
-Job Objects (KILL_ON_JOB_CLOSE — orphans impossible by construction; built in
-TypeScript on **Bun**, shipped as a self-contained compiled executable) and
-**pueue** for per-vendor lane admission (grok cap 1 until destructive tests
-prove more);
-**build** typed phase-aware lane states (queued ≠ running ≠ verifying;
-heartbeats not file-mtime), event schema v2 (attempt entity, ownership,
-merge-base freshness, compaction), per-lane vendor config isolation
-(GROK_HOME/CODEX_HOME), and a merge-freshness gate; **fix** wt-merge's
-gitignored-report abort and shell-script CRLF via .gitattributes. **Defer**
-Prefect/Temporal/Hatchet/Windmill/LangGraph-as-core per the report's
-failure-mode coverage matrix.
+Eliminated the F1–F6 workflow failure classes (see `bugeventlog.md`) with
+the primitives the orchestration deep-research report recommended, keeping
+the event-log and checkpoint core: foreman-launch (Bun/Job Objects —
+orphans impossible by construction, POSIX build from the same source),
+pueue lane admission with per-vendor groups + the host-wide `gate` mutex
+and a per-shell quote-preserving submit layer, round ownership (lane-run
+--round: the daemon owns implement→gate→report→round_done; attempt-fresh
+terminal predicate), event schema v2 (attempt entity, replay, atomic
+compaction), VTICK injectable clock + the 10-state watch v2 (heartbeat
+liveness, phase thresholds), vendor config isolation plumbing (normalized
+vendor-home paths), merge-freshness gate + wt-merge/wt-cleanup repairs,
+and the bounded auto-resume supervisor. Six prevention criteria proven
+(SC-A live; SC-B..F by permanent tests) — see
+`docs/notes/2026-07-18-v025-sc-proof.md`. Suite 127→245 tests; four
+product defects caught pre-push by the gate discipline. Tag `v0.2.5`.
+
+Honest residuals: T5b real-vendor concurrency verdict UNVERIFIED (grok
+CLI absent; caps stay grok=1 codex=1); `[audit.policy]` keys wired but
+consumed only from v0.3.0; launcher-absent lanes outside auto-resume
+scope; WATCH_VTICK's `bats --jobs` parallelism still deferred.
 
 - Plan: `docs/superpowers/plans/2026-07-16-v025-orchestration-hardening.md`
+  (as amended by the 2026-07-18 4-lens audit, recorded in the plan itself)
+- Reference: `skills/foreman/references/orchestration-hardening.md`
 - Depends on: v0.2.0. Feeds: v0.3.0 (adapters spawn via the launcher),
   v0.4.0 (schema v2 telemetry).
 
