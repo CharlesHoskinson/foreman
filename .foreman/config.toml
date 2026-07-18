@@ -36,6 +36,7 @@ stall_dead = 900
 # impl_stale = 300      # (env: IMPL_STALE)
 # verify_stale = 600    # (env: VERIFY_STALE)
 # grace = 10            # (env: WATCH_GRACE)
+# merge_base_max_commits = 50   # v0.2.5 T6: merge-gate.sh staleness bound (env: MERGE_BASE_MAX_COMMITS)
 
 [nats]
 url = "nats://127.0.0.1:4222"

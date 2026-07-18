@@ -40,6 +40,41 @@ json_get() {
   fi
 }
 
+# @description Archive every FOREMAN_REPORT*/DIFF_* artifact from a worktree
+#   into the run's reports dir BEFORE the worktree is removed. Glob-based --
+#   NOT a fixed filename pair -- so the multi-round audit convention's
+#   versioned reports (FOREMAN_REPORT_V2.md, _V3, _V4, ...) and cold-diff
+#   patches (DIFF_V2.patch, ...) survive worktree removal instead of being
+#   silently lost (2026-07-17 data loss: wt-consolidate.sh's own copy step
+#   only ever grabs the fixed FOREMAN_REPORT.md/.json pair per worktree, so
+#   anything beyond that pair was gone the instant `git worktree remove`
+#   ran -- lost V2/V3/V4 audit reports for a whole round, unrecoverable).
+#   Runs unconditionally for every worktree this script processes --
+#   including ones ultimately skipped as dirty -- and independent of whether
+#   CONSOLIDATED.md already existed (a stale CONSOLIDATED.md from an earlier,
+#   narrower pass must never suppress this archive step). This is a second,
+#   defense-in-depth archive pass alongside wt-consolidate.sh's own
+#   CONSOLIDATED.md generation, not a replacement for it. Files land under
+#   reports/<ID>/ (a subdirectory, never colliding with wt-consolidate.sh's
+#   own reports/<ID>.md / reports/<ID>.json).
+# @arg $1 worktree path (source)
+# @arg $2 reports dir (dest root, e.g. "$RD/reports")
+# @arg $3 worktree id (subdirectory name)
+archive_worktree_reports() {
+  local wt="$1" reports_dir="$2" id="$3"
+  local f matched=()
+  for f in "$wt"/FOREMAN_REPORT*.* "$wt"/DIFF_*.patch; do
+    [[ -f "$f" ]] && matched+=("$f")
+  done
+  [[ ${#matched[@]} -eq 0 ]] && return 0
+  local dest="$reports_dir/$id"
+  mkdir -p "$dest"
+  local m
+  for m in "${matched[@]}"; do
+    cp -f "$m" "$dest/$(basename "$m")"
+  done
+}
+
 # Ensure consolidated archive exists
 if [[ ! -f "$RD/CONSOLIDATED.md" ]]; then
   log "running consolidate before cleanup..."
@@ -59,6 +94,12 @@ for meta in "$RD"/worktrees/*.json; do
     log "already gone: $WT"
     continue
   fi
+
+  # Archive FOREMAN_REPORT*/DIFF_* artifacts before any possible removal --
+  # unconditional, and before the dirty check below, so a versioned audit
+  # report is preserved even on a run that later gets skipped (dirty) or
+  # torn down with --force.
+  archive_worktree_reports "$WT" "$RD/reports" "$ID"
 
   # Refuse dirty trees unless --force
   dirty="$(git_nohooks -C "$WT" status --porcelain 2>/dev/null || true)"

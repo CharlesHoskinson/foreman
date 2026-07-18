@@ -30,6 +30,7 @@ forbidden_paths = [
 hash_paths = ["tests/**", ".github/**"]
 
 [durable]              # durable-lanes instrumentation (lane-run.sh / watch.sh)
+# merge_base_max_commits = 50   # merge-gate staleness bound (commits behind origin/main)
 enabled = false
 checkpoint_interval = 20   # seconds
 heartbeat_interval = 30

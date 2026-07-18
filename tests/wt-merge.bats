@@ -94,3 +94,45 @@ make_work() {  # $1 filename  $2 content
   ! grep -Eq '^FOREMAN_REPORT\.(md|json)$' <<< "$committed"
   grep -q '^normal.txt$' <<< "$committed"
 }
+
+# @description Drift-audit refinement (2026-07-18): the pre-fix wt-merge.sh
+#   already used an exclude pathspec (':!FOREMAN_REPORT.md'
+#   ':!FOREMAN_REPORT.json') and STILL aborted -- exit 1, "The following
+#   paths are ignored by one of your .gitignore files" -- the instant a
+#   genuinely gitignored FOREMAN_REPORT.md/.json existed, because git's
+#   pathspec matching rejects an ignored path the moment it is *named*
+#   anywhere in a pathspec, negated or not. The sibling test above
+#   ("auto-commit excludes Foreman report files") never caught this because
+#   its $REPO fixture carries no .gitignore for these names, so
+#   FOREMAN_REPORT.md/.json land merely untracked-but-not-ignored there --
+#   this test uses a genuinely gitignored tree (a real, committed
+#   .gitignore, exactly like this repo's own top-level .gitignore already
+#   lists FOREMAN_REPORT.md/.json) so it actually exercises the bug the
+#   drift audit flagged.
+@test "wt-merge commits pending changes when FOREMAN_REPORT.md/.json are genuinely gitignored" {
+  printf 'FOREMAN_REPORT.md\nFOREMAN_REPORT.json\n' > "$REPO/.gitignore"
+  git -C "$REPO" -c core.hooksPath= add .gitignore
+  git -C "$REPO" -c core.hooksPath= commit -qm "gitignore reports"
+
+  WT="$(bash "$SCRIPTS/wt-new.sh" run1 implement fix | tail -1)"
+  # Confirm the premise: wt-new.sh's own scaffolded FOREMAN_REPORT.md/.json
+  # land untracked AND ignored inside the worktree (the .gitignore just
+  # committed to $REPO is checked out there too).
+  ignored="$(git -C "$WT" status --porcelain --ignored)"
+  grep -q '^!! FOREMAN_REPORT.md$' <<< "$ignored"
+  grep -q '^!! FOREMAN_REPORT.json$' <<< "$ignored"
+
+  echo "updated report" >> "$WT/FOREMAN_REPORT.md"
+  echo "normal content" > "$WT/normal.txt"
+
+  run bash "$SCRIPTS/wt-merge.sh" run1 implement fix
+  [ "$status" -eq 0 ]
+
+  staged="$(git -C "$REPO" diff --cached --name-only)"
+  ! grep -Eq '^FOREMAN_REPORT\.(md|json)$' <<< "$staged"
+  grep -q '^normal.txt$' <<< "$staged"
+
+  committed="$(git -C "$WT" show --format= --name-only HEAD)"
+  ! grep -Eq '^FOREMAN_REPORT\.(md|json)$' <<< "$committed"
+  grep -q '^normal.txt$' <<< "$committed"
+}

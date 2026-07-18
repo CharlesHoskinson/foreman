@@ -49,16 +49,53 @@ WORKTREE="$(meta_get "$META" worktree)"
 #   branch before merge-base/overlap analysis. Workers never git-commit per the
 #   standing constraint, so the tree usually holds uncommitted work at merge
 #   time; this architect-invoked wt-merge.sh call preserves the worker git-write ban.
+#   FOREMAN_REPORT.md/.json are architect-owned report artifacts, never worker
+#   commits -- excluded below.
+#   Drift-audit refinement (2026-07-18): the previous fix already used an
+#   exclude pathspec (':!FOREMAN_REPORT.md' ':!FOREMAN_REPORT.json') and STILL
+#   aborted on a genuinely gitignored tree -- `git add -A -- ':!X'` errors
+#   "The following paths are ignored by one of your .gitignore files" the
+#   moment an ignored path is *named* anywhere in a pathspec, negated or not
+#   (reproduced: exit 1, verbatim that message, against a repo whose
+#   .gitignore lists FOREMAN_REPORT.md/.json -- true in this repo's own
+#   .gitignore, so every real worktree hit this). Fix: never name the report
+#   paths in ANY git pathspec. Build the add-list from `status --porcelain`
+#   output instead -- porcelain never lists ignored files on its own, so a
+#   genuinely gitignored FOREMAN_REPORT.md/.json is already absent from the
+#   parsed list; for the (untracked-but-NOT-ignored) case -- e.g. this repo's
+#   own bats fixture, which carries no .gitignore for these names -- they are
+#   filtered out of the parsed path list in pure bash instead, which never
+#   touches git's pathspec machinery and so never trips the ignored-path
+#   guard.
 # @arg $1 worktree path
 commit_worktree_pending() {
   local wt="$1"
   [[ -d "$wt" ]] || return 0
-  local dirty
-  dirty="$(git_nohooks -C "$wt" status --porcelain -- . ':!FOREMAN_REPORT.md' ':!FOREMAN_REPORT.json')"
-  if [[ -n "$dirty" ]]; then
-    git_nohooks -C "$wt" add -A -- ':!FOREMAN_REPORT.md' ':!FOREMAN_REPORT.json'
-    git_nohooks -C "$wt" commit -m "foreman(${RUN_ID}/${ROLE}${SLUG:+/$SLUG}): worker changes" >/dev/null
-  fi
+  local status_lines
+  status_lines="$(git_nohooks -C "$wt" status --porcelain)"
+  [[ -z "$status_lines" ]] && return 0
+
+  local files=() line path
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    path="${line:3}"
+    # Rename/copy entries read "R  old -> new" (and similar) -- keep the
+    # destination path, which is what needs to be (re-)added.
+    [[ "$path" == *' -> '* ]] && path="${path##* -> }"
+    # git quotes paths containing unusual characters in double quotes.
+    if [[ "$path" == \"*\" ]]; then
+      path="${path:1:${#path}-2}"
+    fi
+    case "$path" in
+      FOREMAN_REPORT.md|FOREMAN_REPORT.json) continue ;;
+    esac
+    files+=("$path")
+  done <<< "$status_lines"
+
+  [[ ${#files[@]} -eq 0 ]] && return 0
+
+  git_nohooks -C "$wt" add -- "${files[@]}"
+  git_nohooks -C "$wt" commit -m "foreman(${RUN_ID}/${ROLE}${SLUG:+/$SLUG}): worker changes" >/dev/null
 }
 commit_worktree_pending "$WORKTREE"
 
