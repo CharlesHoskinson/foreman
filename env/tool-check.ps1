@@ -125,6 +125,28 @@ function Check-One([string]$Id) {
         }
       }
     }
+    "bun" {
+      if (Test-Cmd "bun") {
+        $detail = Get-Ver "bun"
+        if ($detail -eq "1.3.14") {
+          $status = "ok"
+        } else {
+          $status = "outdated"
+          $detail = "$detail (expected 1.3.14 pin; winget does not self-pin)"
+        }
+      }
+    }
+    "pueue" {
+      if (Test-Cmd "pueue") {
+        $status = "ok"; $detail = Get-Ver "pueue"
+      } else {
+        $staged = Join-Path $env:USERPROFILE ".foreman\tools\pueue\pueue.exe"
+        if (Test-Path $staged) {
+          $status = "ok"
+          $detail = (($(& $staged --version 2>&1) | Out-String) -split "`n")[0].Trim()
+        }
+      }
+    }
     "lychee" {
       $lycheeCmd = $env:LYCHEE
       if (-not $lycheeCmd -and (Test-Cmd "lychee")) {
@@ -198,7 +220,7 @@ $mustFull = @("wsl", "git", "python3", "grok", "codex", "foreman_skill")
 $mustDurable = @("git", "jq", "coreutils", "bash")
 $shouldSoft = @("claude", "node", "npm", "jq", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer")
 $shouldHard = @("gh")
-$shouldFull = @("claude", "node", "npm", "jq", "gh", "docker", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer")
+$shouldFull = @("claude", "node", "npm", "jq", "gh", "docker", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer", "bun", "pueue")
 $shouldDurable = @("nats-server", "nats-cli")
 
 switch ($Profile) {

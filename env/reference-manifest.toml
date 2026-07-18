@@ -233,6 +233,24 @@ required = false
 notes = "Optional CLI; foreman follows OpenSpec folder conventions without it"
 
 [[tools]]
+id = "bun"
+profile = ["full"]
+where = ["windows", "wsl"]
+check = "bun --version"
+install_windows = "winget install --id Oven-sh.Bun --version 1.3.14 -e"
+required = false
+notes = "Pinned to 1.3.14 -- winget does not self-pin (a later 'winget upgrade' can silently drift the installed version); tool-check WARNs (reports outdated, does not fail) when the installed bun is not exactly 1.3.14."
+
+[[tools]]
+id = "pueue"
+profile = ["full"]
+where = ["windows"]
+check = "pueue --version"
+install_windows = "# GitHub release binaries -- no package-manager route. Download pueue.exe + pueued.exe from https://github.com/Nukesor/pueue/releases into ~/.foreman/tools/pueue"
+required = false
+notes = "v4.0.4 staged at ~/.foreman/tools/pueue/{pueue.exe,pueued.exe}. No package-manager install route (GitHub release binaries only). Autostart doctrine: the pueue CLIENT never starts pueued itself (empirically confirmed -- `pueue status` with no daemon fails immediately rather than autostarting it); skills/foreman/scripts/lane-queue.sh's `ensure` subcommand spawns `pueued -d` itself when the daemon is unreachable -- see that script's header for the full empirical record."
+
+[[tools]]
 id = "coreutils"
 profile = ["durable"]
 where = ["windows", "wsl"]
@@ -275,7 +293,7 @@ should = ["shellcheck", "bats", "gh", "timeout", "grok", "codex"]
 [profiles.full]
 description = "Soft lanes + hard harness on Windows+WSL reference box"
 must = ["git", "python3", "jq", "grok", "codex", "docker", "flock", "foreman_skill"]
-should = ["claude", "node", "npm", "shellcheck", "bats", "gh", "timeout"]
+should = ["claude", "node", "npm", "shellcheck", "bats", "gh", "timeout", "bun", "pueue"]
 
 [profiles.durable]
 must = ["git", "jq", "coreutils", "bash"]

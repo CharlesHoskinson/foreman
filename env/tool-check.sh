@@ -136,6 +136,28 @@ check_one() {
         status=missing
       fi
       ;;
+    bun)
+      if have bun; then
+        detail="$(bun --version 2>&1 | head -1)"
+        if [[ "$detail" == "1.3.14" ]]; then
+          status=ok
+        else
+          status=outdated
+          detail="$detail (expected 1.3.14 pin; winget does not self-pin)"
+        fi
+      else
+        status=missing
+      fi
+      ;;
+    pueue)
+      if have pueue; then
+        status=ok; detail="$(pueue --version 2>&1 | head -1)"
+      elif [[ -x "$HOME/.foreman/tools/pueue/pueue.exe" ]]; then
+        status=ok; detail="$("$HOME/.foreman/tools/pueue/pueue.exe" --version 2>&1 | head -1)"
+      else
+        status=missing
+      fi
+      ;;
     lychee)
       local LYCHEE_CMD
       LYCHEE_CMD="${LYCHEE:-$(command -v lychee || true)}"
@@ -186,7 +208,7 @@ must_full=(git python3 jq grok codex docker flock foreman_skill)
 must_durable=(git jq coreutils bash)
 should_soft=(claude node npm jq markdownlint-cli2 codespell lychee)
 should_hard=(shellcheck bats gh timeout grok codex)
-should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee)
+should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue)
 should_durable=(nats-server nats-cli)
 
 case "$PROFILE" in
