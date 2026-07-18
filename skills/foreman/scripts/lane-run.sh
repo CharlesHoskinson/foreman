@@ -229,6 +229,29 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
     echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex|claude)" >&2
     exit "$EXIT_CONFIG"
   fi
+
+  # --- lifecycle Task 5 (spec R1/R2): Use-path readiness gate --------------
+  # A real, CODED refusal -- not merely Setup-side reporting (Opus plan-audit
+  # finding). Runs BEFORE the worktree lock is touched and BEFORE any event
+  # is emitted, so a refused lane leaves zero trace (mirrors the "bad
+  # LANE_VENDOR" rejection immediately above). Probes ONLY -- env/tool-check.sh
+  # never authenticates anything; the fix this script cites is an OPERATOR
+  # action (Setup), never something lane-run.sh attempts itself. `--profile
+  # soft` is deliberate and fixed here (not the run's own hard/full profile):
+  # `--lane` scopes the verdict to this one vendor's own row regardless of
+  # profile, and grok/codex/claude are checked under every profile that
+  # matters for auth (must_soft/should_hard/should_full all include them) --
+  # see env/tool-check.sh's profile membership arrays.
+  lane_repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || lane_repo_root=""
+  if [[ -n "$lane_repo_root" && -f "$lane_repo_root/env/tool-check.sh" ]]; then
+    lane_ready_report=""
+    lane_ready_report="$(bash "$lane_repo_root/env/tool-check.sh" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
+    if [[ "$lane_ready_report" != *"LANE_READY: ${LANE_VENDOR}=yes"* ]]; then
+      echo "lane-run: $LANE_VENDOR lane NOT-READY -- run Setup (foreman-setup) before Use" >&2
+      exit "$EXIT_CONFIG"
+    fi
+  fi
+
   # Default (only when unset/empty -- an explicit caller-supplied
   # LANE_CONFIG_DIR, e.g. pointing at a pre-seeded config dir for T5b, is
   # never overridden): the per-lane dir wt-new.sh already provisions.

@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Foreman reference-env inventory (Linux / WSL).
-# Usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE]
+# Usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex|claude]
 set -euo pipefail
 
 PROFILE="soft"
 JSON=0
 OUT=""
+LANE=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile) PROFILE="$2"; shift 2 ;;
     --json) JSON=1; shift ;;
     --out) OUT="$2"; shift 2 ;;
+    --lane) LANE="$2"; shift 2 ;;
     -h|--help)
-      echo "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE]"
+      echo "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex|claude]"
       exit 0
       ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -35,6 +37,53 @@ grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=1
 # @arg $1 command executable name to resolve
 # @exitcode 0 if the executable is available; nonzero otherwise
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# @description Probe whether a vendor CLI is authenticated (not merely present).
+#   Uses the non-billing auth-status command determined empirically in Task 0
+#   (../openspec/changes/lifecycle-three-stage/auth-probes.md). MUST NOT run a
+#   billed model inference (never `grok -p` / `codex exec` / `claude -p`).
+#   grok has no exit-code-based auth signal of its own (`grok models` always
+#   exits 0) -- its branch greps captured stdout+stderr instead of trusting
+#   the exit code, and (Rework Round 1, Opus audit) is BOTH bounded (a
+#   network stall must never hang Setup/Use -- this runs on the default
+#   tool-check path AND inside every lane-run readiness gate) AND fail-CLOSED
+#   (requires a POSITIVE signed-in signal, never "absence of the negative
+#   string" alone -- an error banner lacking the exact phrase
+#   "not authenticated" must never be misread as READY). codex/claude's own
+#   subcommands already distinguish authenticated/not via a genuine exit-code
+#   contract (a real positive signal, not an absence-of-negative shape), so
+#   they are left as plain exit-code checks.
+# @arg $1 vendor id (grok|codex|claude)
+# @exitcode 0 authenticated; 1 not authenticated (or unknown vendor id)
+vendor_authed() {
+  case "$1" in
+    grok)
+      local out rc=0 tmo=""
+      if have timeout; then tmo="timeout"
+      elif have gtimeout; then tmo="gtimeout"
+      else
+        # No bounded-wait tool resolvable: refuse the unbounded network call
+        # rather than risk hanging the caller -- fail closed.
+        return 1
+      fi
+      out="$("$tmo" 10 grok models 2>&1)" || rc=$?
+      # Timeout (rc=124) or any other nonzero exit: never authenticated.
+      (( rc != 0 )) && return 1
+      [[ -z "$out" ]] && return 1
+      # Explicit negative wording always wins, even if a positive substring
+      # also happens to appear somewhere in a longer error banner.
+      if [[ "$out" == *"not authenticated"* || "$out" == *"sign in"* || "$out" == *"log in"* ]]; then
+        return 1
+      fi
+      # Positive signal required (auth-probes.md transcript): a signed-in
+      # `grok models` opens with "You are logged in with grok.com.".
+      [[ "$out" == *"logged in"* ]]
+      ;;
+    codex)  codex login status >/dev/null 2>&1 ;;
+    claude) claude auth status >/dev/null 2>&1 ;;
+    *) return 0 ;;
+  esac
+}
 
 # @description Inspect one known Foreman dependency and emit its availability status and version detail.
 # @arg $1 id tool identifier selecting the dependency-specific check
@@ -83,13 +132,25 @@ check_one() {
       if have nats; then status=ok; detail="$(nats --version 2>&1 | head -1)"; else status=missing; fi
       ;;
     grok)
-      if have grok; then status=ok; detail="$(grok --version 2>&1 | head -1)"; else status=missing; fi
+      if have grok; then
+        detail="$(grok --version 2>&1 | head -1)"
+        if vendor_authed grok; then status=ok
+        else status=not_authenticated; detail="$detail (run: grok login --device-code)"; fi
+      else status=missing; fi
       ;;
     codex)
-      if have codex; then status=ok; detail="$(codex --version 2>&1 | head -1)"; else status=missing; fi
+      if have codex; then
+        detail="$(codex --version 2>&1 | head -1)"
+        if vendor_authed codex; then status=ok
+        else status=not_authenticated; detail="$detail (run: codex login)"; fi
+      else status=missing; fi
       ;;
     claude)
-      if have claude; then status=ok; detail="$(claude --version 2>&1 | head -1)"; else status=missing; fi
+      if have claude; then
+        detail="$(claude --version 2>&1 | head -1)"
+        if vendor_authed claude; then status=ok
+        else status=not_authenticated; detail="$detail (run: claude auth login)"; fi
+      else status=missing; fi
       ;;
     node)
       if have node; then status=ok; detail="$(node --version 2>&1)"; else status=missing; fi
@@ -255,6 +316,7 @@ done
 missing=()
 outdated=()
 degraded=()
+not_auth=()
 ok_n=0
 for row in "${ROWS[@]}"; do
   id="${row%%$'\t'*}"
@@ -265,6 +327,7 @@ for row in "${ROWS[@]}"; do
     missing) missing+=("$id") ;;
     outdated) outdated+=("$id") ;;
     degraded) degraded+=("$id") ;;
+    not_authenticated) not_auth+=("$id") ;;
   esac
 done
 
@@ -329,6 +392,21 @@ report_text() {
   [[ ${#missing[@]} -gt 0 ]] && echo "MISSING: ${missing[*]}"
   [[ ${#outdated[@]} -gt 0 ]] && echo "OUTDATED: ${outdated[*]}"
   [[ ${#degraded[@]} -gt 0 ]] && echo "DEGRADED: ${degraded[*]}"
+  [[ ${#not_auth[@]} -gt 0 ]] && echo "NOT_AUTHENTICATED: ${not_auth[*]}"
+  if [[ -n "$LANE" ]]; then
+    lane_st=""
+    for row in "${ROWS[@]}"; do
+      id="${row%%$'\t'*}"
+      [[ "$id" == "$LANE" ]] || continue
+      rest="${row#*$'\t'}"
+      lane_st="${rest%%$'\t'*}"
+    done
+    if [[ "$lane_st" == "ok" ]]; then
+      echo "LANE_READY: ${LANE}=yes"
+    else
+      echo "LANE_READY: ${LANE}=no"
+    fi
+  fi
   echo "---"
   echo "NEXT:"
   if [[ $READY -eq 0 ]]; then
@@ -342,10 +420,10 @@ report_text() {
 # @description Serialize the collected tool inventory and readiness state using the Foreman tool-check JSON schema.
 # @stdout the formatted JSON tool-check report
 report_json() {
-  python3 - "$PROFILE" "$HOST" "$OS" "$IS_WSL" "$NOW" "$ROOT" "$READY" "${ROWS[@]}" --skills-- "${SKILL_ROWS[@]}" <<'PY'
+  python3 - "$PROFILE" "$HOST" "$OS" "$IS_WSL" "$NOW" "$ROOT" "$READY" "$LANE" "${ROWS[@]}" --skills-- "${SKILL_ROWS[@]}" <<'PY'
 import json, sys
-profile, host, os_, is_wsl, now, root, ready = sys.argv[1:8]
-rows = sys.argv[8:]
+profile, host, os_, is_wsl, now, root, ready, lane = sys.argv[1:9]
+rows = sys.argv[9:]
 skill_marker = rows.index("--skills--")
 skill_rows = rows[skill_marker + 1:]
 rows = rows[:skill_marker]
@@ -376,7 +454,11 @@ out = {
     "missing": [t["id"] for t in tools if t["status"] == "missing"],
     "outdated": [t["id"] for t in tools if t["status"] == "outdated"],
     "degraded": [t["id"] for t in tools if t["status"] == "degraded"],
+    "not_authenticated": [t["id"] for t in tools if t["status"] == "not_authenticated"],
 }
+if lane:
+    out["lane"] = lane
+    out["lane_ready"] = any(t["id"] == lane and t["status"] == "ok" for t in tools)
 print(json.dumps(out, indent=2))
 PY
 }

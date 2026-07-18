@@ -27,6 +27,41 @@ This skill merges two complementary patterns:
 Pick mode from the task (or config). Soft always works; hard requires Docker/WSL
 and the harness scripts under `scripts/`.
 
+## Operating model: Setup & Environment → Use → Cleanup
+
+Foreman runs in three ordered stages, on **both Windows and WSL** — Use never
+starts until Setup has reported READY for every lane it needs:
+
+1. **Setup & Environment** owns tool-check (`env/tool-check.sh`), bootstrap
+   (`env/bootstrap-windows.ps1` / `env/bootstrap-wsl.sh`), **all**
+   model-vendor authentication (grok, codex, claude), and — on WSL — full
+   environment provisioning. Setup MUST report READY, including a
+   per-vendor authenticated/not-authenticated verdict, before Use begins.
+   Run it via `skills/foreman/scripts/foreman-setup.sh [--profile
+   soft|hard|full] [--lane grok|codex|claude]`: it composes tool-check.sh,
+   prints a `<vendor>: NOT-READY — run <instruction>` line for any vendor
+   that is not authenticated (`grok login --device-code` / `codex login` /
+   `claude auth login`), and **never authenticates anything itself** —
+   device/interactive auth is always an operator action Setup only
+   instructs. Idempotent: a second run on an already-ready host changes
+   nothing and re-reports READY. See `references/reference-environment.md`.
+2. **Use** assumes an authenticated, provisioned environment and never
+   authenticates. This is enforced as a real gate, not just a report:
+   `lane-run.sh`, when `LANE_VENDOR` is set, refuses to spawn the lane's
+   command for a not-ready vendor — citing Setup, before touching the
+   worktree lock or emitting any event — so "grok wasn't signed in" is
+   always a Setup-stage finding, never a mid-round Use-stage failure.
+3. **Cleanup** closes every run, in order: best-effort SIGINT of any
+   still-alive lane subprocess, `wt-cleanup.sh`'s existing dirty-worktree
+   guard + report archive (composed, not reimplemented), stopping a
+   foreman-owned `pueued` only if this run started it, and a sweep of the
+   run's own stale lock directories — never the host-wide
+   `~/.foreman/gate.lock`. Run it via
+   `skills/foreman/scripts/foreman-cleanup.sh RUN_ID [--force]`. Idempotent
+   and dirty-safe: an uncommitted worktree is preserved (reports archived
+   first, never discarded), and a re-run after interruption completes the
+   remaining teardown without error.
+
 ## Mode selection
 
 | Mode | When | What you do |
@@ -255,11 +290,15 @@ every worktree; never mounted into the worker.
 ## Session startup checklist
 
 1. Detect mode (user / config / default soft).
-2. **Reference environment inventory (mandatory before multi-step implement):**
+2. **Setup stage (mandatory before multi-step implement)** — the Operating
+   model section above: run `foreman-setup.sh [--profile soft|hard|full]`
+   (composes tool-check.sh, gates on every configured vendor's auth state).
+   Equivalent raw form:
    - Soft on Windows: `powershell -File env/tool-check.ps1 -Profile soft -Json -Out $env:USERPROFILE\.foreman\last-tool-check.json`
    - Hard/full: also run WSL `bash env/tool-check.sh --profile hard|full --json`
    - If `READY: no`, run bootstrap (`env/bootstrap-windows.ps1` and/or `env/bootstrap-wsl.sh --yes`) **after user confirmation** (or if they already authorized installs), then re-check.
-   - Summarize inventory to the user (MISSING / OUTDATED / ACTION). See `references/reference-environment.md`.
+   - If a vendor is `NOT-READY` (not authenticated), relay its printed instruction to the user — never attempt the login yourself.
+   - Summarize inventory to the user (MISSING / OUTDATED / NOT-READY / ACTION). See `references/reference-environment.md`.
 3. Confirm lanes (`grok`, `codex`) and advisor model from the inventory.
 4. Restate the goal and mode to the user in one short paragraph.
 5. Soft multi-step (prefer parallel worktrees for recon):
@@ -267,7 +306,7 @@ every worktree; never mounted into the worker.
    - spawn `foreman-search` + `foreman-plan` in parallel
    - `wt-consolidate` → synthesize → five-part specs → implementer
    - verify → **audit worktree** (`foreman-audit` / `codex-auditor`) → consolidate
-   - advisor if commitment boundary → `wt-cleanup`
+   - advisor if commitment boundary → Cleanup stage (`foreman-cleanup.sh RUN_ID`, which composes `wt-cleanup`)
 6. For hard mode: create task id, run INIT, then follow the loop (audit stage
    prefers Codex Sol when worker is Grok; use worktrees for parallel roles).
 
