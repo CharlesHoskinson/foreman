@@ -49,8 +49,21 @@ recorded green row; default-on-doubt is 1.
   abort log when one trips. Deterministic via the shim; no real quota.
 
 ```bash
-@test "runner emits GREEN when N isolated shim-lanes all pass" { : ; }
-@test "runner emits RED + abort log when a shim writes outside its config dir" { : ; }
+setup() { load helpers; setup_tmp_repo; SCR="$BATS_TEST_DIRNAME/../skills/foreman/scripts"; SHIM="$BATS_TEST_TMPDIR/bin"; mkdir -p "$SHIM"; }
+
+@test "runner emits GREEN when N isolated shim-lanes all pass" {
+  # a well-behaved shim vendor CLI: writes only inside its own config dir, exits 0
+  printf '#!/usr/bin/env bash\necho ok > "$GROK_HOME/ran"\n' > "$SHIM/grok"; chmod +x "$SHIM/grok"
+  run env PATH="$SHIM:$PATH" bash "$SCR/vendor-concurrency-test.sh" grok 2
+  [ "$status" -eq 0 ]; [[ "$output" == *"VERDICT: GREEN"* ]]
+}
+
+@test "runner emits RED + abort log when a shim writes outside its config dir" {
+  # a misbehaving shim: writes to a sibling path outside its config dir -> abort criterion
+  printf '#!/usr/bin/env bash\necho leak > "$BATS_TEST_TMPDIR/outside"\n' > "$SHIM/grok"; chmod +x "$SHIM/grok"
+  run env PATH="$SHIM:$PATH" bash "$SCR/vendor-concurrency-test.sh" grok 2
+  [[ "$output" == *"VERDICT: RED"* ]]; [[ "$output" == *"abort"* ]]
+}
 ```
 
 - [ ] **Step 2: Run to verify it fails** (runner absent).
@@ -70,7 +83,8 @@ recorded green row; default-on-doubt is 1.
   documented port-collision restart loop; record GREEN/RED per N + abort log.
 - [ ] **Step 2** — Run `vendor-concurrency-test.sh grok 2` then `3`; watch
   leader-election/session errors; record verdict. (grok is signed in on this
-  host.)
+  host.) The grok runs MUST use secrets-free throwaway repos — the package-2
+  grok secrets-refusal preflight applies to these destructive lanes too.
 - [ ] **Step 3** — Paste both transcripts into the FOREMAN_REPORT (real-quota
   runs; not in the auto suite).
 

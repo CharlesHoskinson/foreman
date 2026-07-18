@@ -71,21 +71,37 @@ one commit per task, existing tests byte-unmodified unless a task names them).
   worktree (only `.env.example`) proceeds.
 
 ```bash
+setup() { load helpers; setup_tmp_repo; SCR="$BATS_TEST_DIRNAME/../skills/foreman/scripts"; }
+
 @test "grok lane refuses a worktree containing .env" {
-  # WT with echo x > "$WT/.env"; run lane-run LANE_VENDOR=grok ... -- bash -c 'echo RAN > "$WT/ran"'
-  [ "$status" -ne 0 ]; [ ! -f "$WT/ran" ]
+  # WT with a vendor-home + a tracked .env in the source tree
+  # (NOT under .harness/ — the scan is scoped to worktree source, not harness scaffolding)
+  echo "SECRET=x" > "$WT/.env"
+  run env LANE_VENDOR=grok bash "$SCR/lane-run.sh" run1 lane-a "$WT" -- bash -c 'echo RAN > "$WT/ran"'
+  [ "$status" -ne 0 ]
+  [ ! -f "$WT/ran" ]
   run jq -rc 'select(.type=="alert") | .payload.kind' "$(run_dir run1)/events.jsonl"
   [[ "$output" == *"grok_secrets_refused"* ]]
 }
-@test "grok lane proceeds with only .env.example" { :; }  # asserts CMD ran
+
+@test "grok lane proceeds with only .env.example (CMD actually runs)" {
+  echo "SECRET=example" > "$WT/.env.example"
+  run env LANE_VENDOR=grok bash "$SCR/lane-run.sh" run2 lane-a "$WT" -- bash -c 'echo RAN > "$WT/ran"'
+  [ "$status" -eq 0 ]
+  [ -f "$WT/ran" ]           # non-vacuous: proves CMD ran on a clean worktree
+}
 ```
 
 - [ ] **Step 2: Run to verify it fails.**
-- [ ] **Step 3: Implement** a `lane_grok_secrets_scan WT` function (find `.env`
-  excluding `.env.example` any depth; grep for `-----BEGIN .*PRIVATE KEY-----`);
-  call it, gated on `LANE_VENDOR=grok`, BEFORE the spawn; on a hit emit the
-  alert and exit non-zero. Follow the frozen-path rule: unset `LANE_VENDOR`
-  and non-grok vendors are byte-unaffected.
+- [ ] **Step 3: Implement** a `lane_grok_secrets_scan WT` function scoped to
+  the worktree SOURCE (exclude `$WT/.harness/` scaffolding to avoid
+  false-positives): find `.env` (excluding `.env.example`) and grep tracked
+  content for `-----BEGIN .*PRIVATE KEY-----`. Call it, gated on
+  `LANE_VENDOR=grok`, BEFORE the spawn AND after the Task-5 (package 1)
+  readiness gate; on a hit emit `alert{kind:grok_secrets_refused}` and exit
+  non-zero. Frozen-path rule: unset `LANE_VENDOR` / non-grok byte-unaffected.
+  NOTE: this in-lane secrets guard is DISTINCT from the package-1 Use-path
+  readiness gate (env readiness) — both apply to a grok lane.
 - [ ] **Step 4: Run to verify it passes;** re-run `tests/lane-run.bats` (33) +
   `tests/vendor-isolation.bats` under the mutex — Expected unchanged green.
 - [ ] **Step 5: Commit** `git commit -m "feat(grok): secrets-refusal preflight for grok lanes"`.

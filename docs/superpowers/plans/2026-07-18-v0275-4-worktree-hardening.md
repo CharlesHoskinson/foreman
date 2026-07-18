@@ -133,16 +133,32 @@ Strict mode + portability checklist + gate mutex per bats run. Existing
 
 ---
 
-### Task 5: verify the EXISTING wt-cleanup guards + Defender doctrine
+### Task 5: SIGINT-before-remove (net-new) + guard existing wt-cleanup + Defender
 
-- [ ] **Step 1** — Add a regression test asserting the ALREADY-shipped
-  behavior: `wt-cleanup.sh` refuses a dirty worktree without `--force` and
-  archives its reports first (this is `archive_worktree_reports` +
-  `git_nohooks status --porcelain`, shipped v0.2.5 T6 — do NOT reimplement;
-  just guard it).
-- [ ] **Step 2** — Document Windows Defender path exclusions for the repo +
-  all sibling `*-wt-*` dirs in `references/orchestration-hardening.md`.
-- [ ] **Step 3: docs-check + Commit** `git commit -m "test/docs(worktree): guard existing wt-cleanup behavior + Defender doctrine"`.
+Audit finding: the porcelain-refuse + report-archive halves ALREADY ship
+(`wt-cleanup.sh:63-76` archive, `:105-110` dirty-refuse — the archiver's own
+comment dates the data-loss to 2026-07-17). But the spec's SIGINT-before-
+`git worktree remove` clause is NOT yet in wt-cleanup (`:112-117` removes with
+no subprocess SIGINT — the kill logic lives in lane-run, a different layer).
+This task IMPLEMENTS that clause and GUARDS the already-shipped halves.
+
+**Files:** Modify `skills/foreman/scripts/wt-cleanup.sh`; test `tests/wt-cleanup.bats`.
+
+- [ ] **Step 1: Write the failing test** — a worktree with a recorded live
+  lane subprocess (a `sleep 300` whose pid is stored where wt-cleanup can find
+  it) is SIGINT'd BEFORE `git worktree remove` runs (assert the pid is gone by
+  the time remove is attempted; assert removal then succeeds).
+- [ ] **Step 2: Run to verify it fails** (no SIGINT step exists yet).
+- [ ] **Step 3: Implement** a SIGINT-of-recorded-subprocess step in
+  `wt-cleanup.sh` immediately BEFORE the `git worktree remove` call (~:112),
+  best-effort/bounded, reading the pid from the worktree's ownership/lock
+  record. Order is load-bearing: SIGINT then remove, never the reverse.
+- [ ] **Step 4: Run to verify it passes.**
+- [ ] **Step 5** — Add a regression test asserting the ALREADY-shipped
+  behavior (dirty-refuse without `--force` + report-archive) — guard, do NOT
+  reimplement. Document Windows Defender path exclusions for the repo + all
+  sibling `*-wt-*` dirs in `references/orchestration-hardening.md`.
+- [ ] **Step 6: docs-check + Commit** `git commit -m "feat(worktree): SIGINT lane subprocess before worktree remove; guard existing cleanup + Defender doctrine"`.
 
 ---
 
@@ -156,9 +172,14 @@ Strict mode + portability checklist + gate mutex per bats run. Existing
 ## Self-review
 
 - Coverage: R(repo config)→T1; R(retry)→T2; R(stale sweep)→T3; R(scoped
-  env)→T4; R(wt-cleanup)→T5 (already-shipped, guarded); R(Defender)→T5. All
-  covered.
-- No reimplementation of the shipped porcelain/archive logic (T5 guards it).
+  env)→T4; R(wt-cleanup) BOTH clauses→T5 — porcelain+archive already-shipped
+  (guarded), SIGINT-before-remove IMPLEMENTED net-new (audit fix); R(Defender)
+  →T5. All covered.
+- No reimplementation of the shipped porcelain/archive logic (T5 Step 5 guards
+  it); the SIGINT-ordering half was genuinely absent and is added (T5 Steps 1-4).
+- `git maintenance register` risk: on Windows Git-Bash there may be no user
+  scheduler — T1 Step 3 falls back to a foreman-owned maintenance tick
+  (specify the tick mechanism during implementation; document it).
 - Names: `git-guards.sh`, `git_retry`, `wt_sweep_stale_locks` consistent.
 
 ## Acceptance

@@ -78,9 +78,15 @@ schema) is frozen — assert parity, don't change it. Fall back + LOG on any
 - [ ] **Step 3: Implement** the bootstrap: the POSIX launcher is invoked (or
   self-re-execs) under `unshare --pid --mount-proc --fork --kill-child --
   <launcher> …`, making it namespace init. `--mount-proc` gives a correct
-  `/proc` for the launcher's own telemetry. Detect `unshare` availability;
-  on absence/failure fall back to the setsid+pgid path with a logged degraded
-  marker.
+  `/proc` for the launcher's own telemetry — VERIFY it does NOT change the
+  heartbeat `pid`/`job_id` values the launcher reports (the pid is namespace-
+  local after wrapping; if that shifts the reported pid, record the host pid
+  before entering the namespace so the heartbeat stays consistent with what a
+  host-side kill-shot targets). Detect `unshare` availability; on
+  absence/failure fall back to the setsid+pgid path with a logged degraded
+  marker. NOTE: each WSL bats test must actually `bun build --compile
+  --target=bun-linux-x64` the Linux exe first (the Task-2 test body is
+  pseudocode for that build+spawn+kill sequence).
 - [ ] **Step 4: Run to verify it passes** (WSL) — zero survivors; and a
   forced-`unshare`-absent run logs the downgrade + still reaps via pgid.
 - [ ] **Step 5: Commit** `git commit -m "feat(launcher-posix): pidns-init bootstrap = KILL_ON_JOB_CLOSE parity + fallback"`.

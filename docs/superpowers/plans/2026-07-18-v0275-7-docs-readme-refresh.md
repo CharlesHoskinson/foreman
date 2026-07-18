@@ -88,16 +88,25 @@ docs-check must be green. The humanizer pass changes wording only.
 
 ### Task 5: humanizer pass
 
-- [ ] **Step 1** — Install the skill: `/plugin marketplace add blader/humanizer`
-  then `/plugin install humanizer@humanizer`. If it cannot be installed on the
-  host, STATE the blocker and use the closest available prose skill, naming
-  the substitution.
-- [ ] **Step 2** — Run `/humanizer` over README + USAGE + INSTALL: audit for
-  the 33 AI-writing indicators + the second rewrite. Wording ONLY — no command,
-  flag, path, or claim changes. WHERE a rewrite would alter a technical claim,
-  keep the claim and adjust only the surrounding prose.
-- [ ] **Step 3: docs-check** — Expected green (incl. the AI-slop signal
-  cleared). Diff-review that no technical token changed.
+NOTE (audit correction): `docs-check.sh` runs markdownlint-cli2 + codespell +
+lychee + comment-coverage — there is NO AI-slop detector in it. The humanizer
+improves prose quality but docs-check CANNOT measure "slop"; the quality bar
+here is the Task-6 Opus review, not a docs-check signal. `blader/humanizer` is
+an INTERACTIVE `/humanizer` slash-command — in a headless Sonnet lane it may
+not be invocable; the honest fallback (below) is expected to fire.
+
+- [ ] **Step 1** — Attempt install: `/plugin marketplace add blader/humanizer`
+  then `/plugin install humanizer@humanizer`. If it cannot be installed OR
+  cannot be invoked headlessly, STATE the blocker explicitly in the report and
+  apply the closest available prose skill (e.g. russellian-style for
+  tightening), NAMING the substitution — never silently skip the pass.
+- [ ] **Step 2** — Run the humanizer (or substitute) over README + USAGE +
+  INSTALL. Wording ONLY — no command, flag, path, or claim changes. WHERE a
+  rewrite would alter a technical claim, keep the claim and adjust only the
+  surrounding prose.
+- [ ] **Step 3: docs-check** — Expected green (markdownlint/codespell/lychee/
+  comments). Diff-review that no technical token changed. (docs-check does NOT
+  score prose naturalness — that is Task 6's Opus review.)
 - [ ] **Step 4: Commit** `git commit -m "docs: humanizer prose pass over README/USAGE/INSTALL"`.
 
 ---
@@ -114,8 +123,14 @@ docs-check must be green. The humanizer pass changes wording only.
 
 - Coverage: R(README both platforms)→T2; R(USAGE lifecycle)→T3; R(CLAUDE.md)→
   T4; R(humanizer)→T5; R(consistent+link-clean)→T4,T6. All covered.
-- No invented flags: T1 ground-truths, T2/T6 verify commands run.
-- Humanizer pinned to `blader/humanizer` with a stated fallback.
+- No invented flags: T1 ground-truths, T2/T6 verify commands run — this
+  discipline is enforced by the Task-6 Opus review (there is no automated
+  invented-flag gate).
+- Humanizer: pinned to `blader/humanizer` (name-pinned, no SHA — a moving
+  target) with a stated headless-lane fallback. The spec's "AI-slop bar" was
+  corrected: docs-check does NOT measure slop; prose quality is Opus-reviewed
+  (audit fix — update the OpenSpec spec's scenario text to match at archive
+  time).
 
 ## Acceptance
 
