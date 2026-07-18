@@ -62,6 +62,35 @@
 #   a shared object -- CMD's real stdout is lost while lane-run.sh's own
 #   exit code still reads 0. See the CMD-launch site's own comment for the
 #   full repro and the `env -u LD_PRELOAD` defense-in-depth.
+#
+# CONTRACT (T5a, v0.2.5 vendor config isolation plumbing): env contract
+#   `LANE_VENDOR=grok|codex|claude` + optional `LANE_CONFIG_DIR=<abs path>`
+#   (default: wt-new.sh's provisioned `<WT>/.harness/vendor-home/<vendor>/`).
+#   When LANE_VENDOR is set, lane-run.sh exports the mapped vendor env var
+#   (grok->GROK_HOME, codex->CODEX_HOME, claude->CLAUDE_CONFIG_DIR -- one var
+#   per vendor) into its OWN process environment, ONCE, before CMD is ever
+#   spawned -- NOT into a per-branch argv. Both CMD-spawn sites (launcher-
+#   present and launcher-absent, further down this file) therefore inherit
+#   it identically with no branch-specific code: the launcher-absent branch
+#   because a backgrounded `"$@"` inherits bash's own exported environment
+#   like any child process; the launcher-present branch because
+#   foreman-launch forwards its own environment to CMD verbatim (T1
+#   contract) and is itself invoked via `env -u LD_PRELOAD ...`, which drops
+#   only the two/three STDBUF droppings and passes everything else
+#   (including this export) through unchanged. This is also what populates
+#   the ownership event's config_dir key (lane_emit_ownership already reads
+#   LANE_CONFIG_DIR unconditionally -- see its own doc comment; it was wired
+#   but always empty before this task set a default). CAUTION (Bun #12970):
+#   compiled Bun exes on Windows have stripped `\` from env var values in
+#   the past -- LANE_CONFIG_DIR is frequently a backslashed Windows path
+#   (e.g. `C:\x\y`), so this value must reach CMD byte-for-byte; see
+#   tests/vendor-isolation.bats for both the fake-launcher-shim regression
+#   test and the skip-guarded real-binary passthrough case. UNSET
+#   LANE_VENDOR is the frozen path: the entire block below is skipped, nothing
+#   is exported, and the ownership payload's config_dir stays null -- byte-
+#   identical to pre-T5a behavior (all existing lane-run tests pass
+#   unmodified). Destructive real-vendor concurrency verdict (T5b) is
+#   deferred; see docs/research/vendor-concurrency-results.md.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -138,6 +167,43 @@ WT="$3"
 shift 4
 
 mkdir -p "$WT/.harness"
+
+# @description Map LANE_VENDOR to the vendor CLI's own HOME-style env var
+#   (T5a spec section 3: "map vendor->var; one var per vendor", frozen).
+# @arg $1 vendor grok | codex | claude
+# @stdout the mapped env var name
+# @exitcode 0 known vendor; 1 anything else
+lane_vendor_env_var() {
+  case "$1" in
+    grok) echo GROK_HOME ;;
+    codex) echo CODEX_HOME ;;
+    claude) echo CLAUDE_CONFIG_DIR ;;
+    *) return 1 ;;
+  esac
+}
+
+# --- T5a: per-lane vendor config isolation plumbing ----------------------
+# See the header CONTRACT block for the full rationale. Strictly gated on
+# LANE_VENDOR being set/non-empty -- an unset LANE_VENDOR (today's default
+# for every existing caller) skips this whole block, so nothing here can
+# perturb the frozen, pre-T5a behavior.
+if [[ -n "${LANE_VENDOR:-}" ]]; then
+  if ! LANE_VENDOR_ENV_VAR="$(lane_vendor_env_var "$LANE_VENDOR")"; then
+    echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex|claude)" >&2
+    exit "$EXIT_CONFIG"
+  fi
+  # Default (only when unset/empty -- an explicit caller-supplied
+  # LANE_CONFIG_DIR, e.g. pointing at a pre-seeded config dir for T5b, is
+  # never overridden): the per-lane dir wt-new.sh already provisions.
+  : "${LANE_CONFIG_DIR:="$WT/.harness/vendor-home/$LANE_VENDOR"}"
+  export LANE_CONFIG_DIR
+  # Exported ONCE, here, into lane-run.sh's own process environment -- both
+  # CMD-spawn sites below inherit it identically with no branch-specific
+  # code (see header CONTRACT). export accepts a single "NAME=value"
+  # argument; LANE_CONFIG_DIR's value (frequently a backslashed Windows
+  # path) is passed through byte-for-byte, no quoting/escaping applied.
+  export "${LANE_VENDOR_ENV_VAR}=${LANE_CONFIG_DIR}"
+fi
 
 # @description Emit a machine-visible alert marking a bounded-kill escalation
 #   (Rework Round 3, finding 2). This is deliberately an EVENT, not just a code

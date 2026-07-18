@@ -2,6 +2,17 @@
 # Create an isolated git worktree for a parallel Foreman agent role.
 # Usage: wt-new.sh RUN_ID ROLE [SLUG] [BASE_REF]
 # Roles: search | plan | audit | implement | advisor | misc
+#
+# CONTRACT (T5a, v0.2.5 vendor config isolation plumbing): gains no new args.
+#   Every worktree unconditionally provisions three EMPTY per-lane vendor
+#   config dirs, `<WT>/.harness/vendor-home/{grok,codex,claude}/`, and prints
+#   their paths (log lines, stderr) alongside the existing worktree/branch/
+#   report lines -- regardless of which vendor (if any) the lane actually
+#   runs, since provisioning is unconditional and cheap. This is what
+#   lane-run.sh's LANE_CONFIG_DIR default resolves to (see its own header
+#   CONTRACT note) when LANE_VENDOR is set and no explicit LANE_CONFIG_DIR
+#   override is given. The dirs stay empty here -- seeding/exercising real
+#   vendor config content is T5b (deferred; destructive, real-CLI-only).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
@@ -42,6 +53,11 @@ wt_with_lock "$ROOT" \
 
 git_nohooks -C "$ROOT" config extensions.worktreeConfig true 2>/dev/null || true
 git_nohooks -C "$WT" config --worktree core.hooksPath '' 2>/dev/null || true
+
+# T5a: per-lane vendor config isolation -- unconditional, empty dirs (see
+# header CONTRACT note above).
+VENDOR_HOME="$WT/.harness/vendor-home"
+mkdir -p "$VENDOR_HOME/grok" "$VENDOR_HOME/codex" "$VENDOR_HOME/claude"
 
 # Scaffold report files so agents always have a target
 cat > "$WT/FOREMAN_REPORT.md" <<EOF
@@ -130,4 +146,7 @@ fi
 log "worktree ready: $WT"
 log "branch: $BRANCH"
 log "report: $WT/FOREMAN_REPORT.md"
+log "vendor-home (grok): $VENDOR_HOME/grok"
+log "vendor-home (codex): $VENDOR_HOME/codex"
+log "vendor-home (claude): $VENDOR_HOME/claude"
 echo "$WT"
