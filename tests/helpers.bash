@@ -83,3 +83,52 @@ setup_git_worktree() {
   git -C "$WT" add -A
   git -C "$WT" commit -qm base
 }
+
+# @description VTICK fake clock for watch.sh (T4a, 2026-07-18 v0.2.5 hardening
+#   plan): a file-backed epoch-ms counter plus two tiny standalone bash
+#   scripts wired as watch.sh's WATCH_CLOCK_CMD/WATCH_SLEEP_CMD clock seam, so
+#   a wall-clock STALLED->DEAD walk that would otherwise take real minutes
+#   completes in the time watch.sh's own poll loop takes to run. Standalone
+#   script files (not exported bash functions) so invocation is reliable
+#   across the `bash "$SCRIPTS/watch.sh"` subprocess boundary these tests
+#   spawn, with no dependence on bash's function-export env-var encoding. The
+#   counter is seeded at the REAL current epoch-ms (`date +%s%N`) so it
+#   starts in the same era as the real `ts` fields a real el_emit call writes
+#   for the fixture events -- age computations stay meaningful -- and only
+#   ever advances afterward via the WATCH_SLEEP_CMD script's own tmp+rename
+#   atomic write (never a real sleep, never touches the real clock again).
+# @arg $1 optional counter file path (default: $BATS_TEST_TMPDIR/vtick_ms)
+# @set VTICK_FILE the counter file path
+# @set WATCH_CLOCK_CMD exported: "bash <script>" that prints $VTICK_FILE's
+#   current value
+# @set WATCH_SLEEP_CMD exported: "bash <script>" that advances $VTICK_FILE by
+#   its own $1 argument (milliseconds)
+vtick_init() {
+  VTICK_FILE="${1:-$BATS_TEST_TMPDIR/vtick_ms}"
+  local now_ms
+  now_ms=$(( $(date +%s%N) / 1000000 ))
+  printf '%s\n' "$now_ms" > "$VTICK_FILE"
+
+  local clock_script="$BATS_TEST_TMPDIR/vtick_clock.sh"
+  cat > "$clock_script" <<EOF
+#!/usr/bin/env bash
+cat "$VTICK_FILE"
+EOF
+
+  local sleep_script="$BATS_TEST_TMPDIR/vtick_sleep.sh"
+  cat > "$sleep_script" <<EOF
+#!/usr/bin/env bash
+# VTICK: no-op with respect to wall time -- never calls sleep. Advances the
+# fake clock file by \$1 milliseconds via an atomic tmp+rename write so a
+# concurrent reader (watch.sh's own next wd_now_ms call) never sees a torn
+# counter file.
+delta="\${1:-0}"
+cur="\$(cat "$VTICK_FILE")"
+new=\$(( cur + delta ))
+printf '%s\n' "\$new" > "$VTICK_FILE.tmp.\$\$" && mv -f "$VTICK_FILE.tmp.\$\$" "$VTICK_FILE"
+EOF
+
+  export VTICK_FILE
+  export WATCH_CLOCK_CMD="bash $clock_script"
+  export WATCH_SLEEP_CMD="bash $sleep_script"
+}

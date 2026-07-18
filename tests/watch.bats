@@ -290,3 +290,113 @@ setup() {
   run wd_state "$WD_AGE" RUNNING 1
   [ "$output" = "STALLED 2" ]
 }
+
+# --- T4a VTICK: clock seam + fractional-tick fix (2026-07-18) ---------------
+# New tests only below this line. All FAST (no slow tag): the VTICK twins
+# replace real sleeping with an instantly-advanced fake clock (see
+# vtick_init in helpers.bash), and the fractional-tick regression is bounded
+# by a short `timeout` on the default clock. None of the 24 tests above this
+# marker were modified.
+
+@test "fractional-tick regression: WATCH_TICK=0.01 with default clock does not crash (bounded run)" {
+  setup_tmp_repo
+  export WATCH_TICK=0.01 STALL_WARN=300 STALL_DEAD=900
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  # Pre-fix, wd_sleep_remainder's `tick * 1000` bash-arithmetic on the
+  # fractional literal "0.01" throws "arithmetic syntax error (error token
+  # \".01\")" on the very first tick and the process dies almost instantly.
+  # With STALL_WARN/STALL_DEAD left at their (huge) defaults, no state
+  # transition is possible within the bounded window, so the ONLY green
+  # outcome post-fix is the loop surviving until `timeout` kills it (124).
+  run timeout 1 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 124 ]
+}
+
+@test "VTICK: silent lane reaches exactly one STALLED then one DEAD, exit 3 (fast twin of the wall-clock original)" {
+  setup_tmp_repo
+  vtick_init
+  export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 3 ]
+  [ "$(grep -c STALLED <<<"$output")" -eq 1 ]
+  [ "$(grep -c DEAD <<<"$output")" -eq 1 ]
+  grep -q 'kill+retry from' <<<"$output"
+}
+
+@test "VTICK: round-boundary completion - round_done after baseline completes for its own round (fast twin)" {
+  setup_tmp_repo
+  vtick_init
+  export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  el_emit run1 round_done lane1 '{"exit_code":0}' >/dev/null
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  el_emit run1 round_done lane1 '{"exit_code":0}' >/dev/null
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 0 ]
+  grep -q DONE <<<"$output"
+}
+
+@test "VTICK: cold-start corrupt-ts fail-safe forces STALL_WARN age under the fake clock too (fast twin)" {
+  setup_tmp_repo
+  vtick_init
+  local log; log="$(seed_run run1)/events.jsonl"
+  # First-ever liveness event is corrupt -- no prior cached good epoch.
+  printf '{"seq":1,"ts":"not-a-timestamp","type":"heartbeat","lane":"lane1","payload":{}}\n' > "$log"
+  _WD_LIVE_SEQ_CACHE=""
+  _WD_LIVE_EPOCH_CACHE=""
+  local start; start=$(( $(wd_now_ms) / 1000 ))
+  local WD_AGE WD_DONE
+  local errfile="$BATS_TEST_TMPDIR/wd_sample_cold_vtick.err"
+  local warn="${STALL_WARN:-300}"
+  wd_sample run1 lane1 "$start" 0 2>"$errfile"
+  [ "$WD_AGE" -eq "$warn" ]
+  grep -qi 'unparsable' "$errfile"
+  # Same debounce escalation the wall-clock original demonstrates, proving
+  # the fallback age is unaffected by routing wd_sample's "now" through the
+  # WATCH_CLOCK_CMD seam instead of a bare EPOCHSECONDS read.
+  run wd_state "$WD_AGE" RUNNING 0
+  [ "$output" = "RUNNING 1" ]
+  run wd_state "$WD_AGE" RUNNING 1
+  [ "$output" = "STALLED 2" ]
+}
+
+@test "VTICK: unlatched-path age computation reaches STALLED then DEAD, exit 3 (fast twin)" {
+  setup_tmp_repo
+  vtick_init
+  export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
+  # No prompt ever -- wd_last_prompt_seq returns empty output forever, so the
+  # watcher never latches and never calls wd_sample; age comes entirely from
+  # wd_main's unlatched fallback (now - start_epoch), exercising the OTHER
+  # time read this seam had to cover besides wd_sample's latched path.
+  el_emit run1 round_done lane1 '{"exit_code":0}' >/dev/null
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 3 ]
+  ! grep -q DONE <<<"$output"
+  [ "$(grep -c STALLED <<<"$output")" -eq 1 ]
+  [ "$(grep -c DEAD <<<"$output")" -eq 1 ]
+}
+
+@test "VTICK: real thresholds (STALL_WARN=300/STALL_DEAD=900) walked via a wall-clock-unreachable tick -- load-bearing seam proof (rework F1)" {
+  setup_tmp_repo
+  vtick_init
+  # STALL_WARN/STALL_DEAD are the SHIPPED production defaults, not a
+  # test-scale override -- the wall clock alone cannot reach DEAD (900s)
+  # inside the 10s timeout below. A large WATCH_TICK (500s/tick) reaches it
+  # in just 2 virtual ticks, but ONLY if WATCH_CLOCK_CMD/WATCH_SLEEP_CMD are
+  # actually honored end-to-end. This makes the fake clock STRUCTURALLY
+  # required for green, not just a speed optimization: if the seam wiring
+  # were silently removed (or wd_now_ms/wd_sleep_ms silently fell back to
+  # the real clock), this test would time out (124), not merely run slower
+  # -- unlike the other twins above, which use test-scale thresholds
+  # (STALL_WARN=2/STALL_DEAD=4) the real wall clock can also satisfy within
+  # their own timeouts, so a silently-removed seam would just make THOSE
+  # slower, not fail.
+  export WATCH_TICK=500 STALL_WARN=300 STALL_DEAD=900
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 3 ]
+  [ "$(grep -c STALLED <<<"$output")" -eq 1 ]
+  [ "$(grep -c DEAD <<<"$output")" -eq 1 ]
+  grep -q 'kill+retry from' <<<"$output"
+}

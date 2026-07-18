@@ -75,6 +75,51 @@ wd_strip_cr() {
   printf '%s' "${v%$'\r'}"
 }
 
+# @description Return the current time as whole epoch milliseconds --
+#   watch.sh's sole "what time is it" primitive (T4a clock seam). When
+#   WATCH_CLOCK_CMD is set (env-only, NOT TOML-storable -- same deliberate
+#   choice as WATCH_TICK; see lib/config.sh's header comment on
+#   _CFG_ENV_VAR), invoke it and trust its stdout verbatim: a test-provided
+#   command that prints its own fake epoch-ms reading (e.g. backed by a file
+#   the test's WATCH_SLEEP_CMD advances), so a stall/completion walk can be
+#   driven deterministically without ever sleeping for real. Otherwise
+#   derives ms from bash's own EPOCHREALTIME (seconds.microseconds) via pure
+#   string splitting -- never a `date` spawn -- so the default path's
+#   per-tick cost is unchanged from before this seam existed.
+# @stdout epoch milliseconds (integer)
+wd_now_ms() {
+  if [[ -n "${WATCH_CLOCK_CMD:-}" ]]; then
+    $WATCH_CLOCK_CMD
+    return 0
+  fi
+  local rt=$EPOCHREALTIME
+  local si=${rt%%.*} sf
+  if [[ "$rt" == *.* ]]; then sf=${rt#*.}; else sf=0; fi
+  sf="${sf}000"; sf=${sf:0:3}
+  printf '%d\n' $(( 10#$si * 1000 + 10#$sf ))
+  return 0
+}
+
+# @description Sleep MS milliseconds -- watch.sh's sole "wait" primitive
+#   (T4a clock seam). When WATCH_SLEEP_CMD is set (env-only, same doctrine
+#   as WATCH_CLOCK_CMD/WATCH_TICK), invoke it with MS as $1 instead of
+#   sleeping: tests wire this to a no-op (with respect to wall time) that
+#   only advances a fake clock file, so a wall-clock wait of minutes runs in
+#   the time the loop itself takes. Otherwise sleeps MS milliseconds via the
+#   real `sleep` (a no-op, no process spawn, when MS<=0).
+# @arg $1 ms milliseconds to sleep (integer; <=0 is a no-op)
+wd_sleep_ms() {
+  local ms="$1"
+  if [[ -n "${WATCH_SLEEP_CMD:-}" ]]; then
+    $WATCH_SLEEP_CMD "$ms"
+    return 0
+  fi
+  if (( ms > 0 )); then
+    sleep "$(printf '%d.%03d' $((ms / 1000)) $((ms % 1000)))"
+  fi
+  return 0
+}
+
 # Cached liveness seq→epoch so steady-state ticks avoid re-spawning
 # `date -d` when the lane's last liveness event has not changed (~100ms+ per
 # spawn on Windows/Git Bash; enough to skip the 2s STALLED integration window).
@@ -136,22 +181,37 @@ wd_last_prompt_seq() {
   return 0
 }
 
-# @description Sleep the remainder of a tick budget measured from an
-#   EPOCHREALTIME start. No-ops (no process spawn) when already at/over budget
-#   so slow samples do not compound with a full extra sleep.
-# @arg $1 start EPOCHREALTIME at tick start
-# @arg $2 tick seconds (non-negative integer)
+# @description Sleep the remainder of a tick budget measured from a
+#   wd_now_ms() start (epoch ms). No-ops (no wd_sleep_ms call) when already
+#   at/over budget so slow samples do not compound with a full extra sleep.
+#   tick accepts an integer or fractional seconds literal ("2", "0.5",
+#   "0.01"), parsed via plain string splitting -- NEVER a bash arithmetic
+#   context on the raw string. THE FIX: the original did `tick * 1000` as a
+#   bash arithmetic expression, and bash's arithmetic evaluator has no
+#   floating-point support -- it throws "arithmetic syntax error (error
+#   token \".01\")" the instant WATCH_TICK is fractional (e.g. "0.01" for
+#   fast polling). Parsed into whole milliseconds up front (same
+#   pad-to-3-digits convention wd_now_ms uses for EPOCHREALTIME), every
+#   computation below is pure integer-ms arithmetic. A tick string that
+#   isn't a bare non-negative integer/decimal literal is rejected via the
+#   same usage-error path CLI arg validation uses (wd_usage + exit 2) rather
+#   than crashing mid-loop.
+# @arg $1 start_ms epoch ms at tick start (a wd_now_ms() reading)
+# @arg $2 tick tick-seconds literal (integer or decimal, non-negative)
 wd_sleep_remainder() {
-  local start_rt="$1" tick="$2"
-  local now_rt=$EPOCHREALTIME
-  local si=${start_rt%%.*} ni=${now_rt%%.*} sf nf
-  if [[ "$start_rt" == *.* ]]; then sf=${start_rt#*.}; else sf=0; fi
-  if [[ "$now_rt" == *.* ]]; then nf=${now_rt#*.}; else nf=0; fi
-  sf="${sf}000"; sf=${sf:0:3}
-  nf="${nf}000"; nf=${nf:0:3}
-  local rem=$(( tick * 1000 - ( (10#$ni * 1000 + 10#$nf) - (10#$si * 1000 + 10#$sf) ) ))
+  local start_ms="$1" tick="$2"
+  if [[ ! "$tick" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    wd_usage
+    exit 2
+  fi
+  local ip="${tick%%.*}" fp
+  if [[ "$tick" == *.* ]]; then fp="${tick#*.}"; else fp=0; fi
+  fp="${fp}000"; fp=${fp:0:3}
+  local tick_ms=$(( 10#$ip * 1000 + 10#$fp ))
+  local now_ms; now_ms="$(wd_now_ms)"
+  local rem=$(( tick_ms - (now_ms - start_ms) ))
   if (( rem > 0 )); then
-    sleep "$(printf '%d.%03d' $((rem / 1000)) $((rem % 1000)))"
+    wd_sleep_ms "$rem"
   fi
   return 0
 }
@@ -231,7 +291,7 @@ wd_sample() {
     WD_DONE=1
   fi
 
-  local now_epoch=$EPOCHSECONDS
+  local now_epoch; now_epoch=$(( $(wd_now_ms) / 1000 ))
   if [[ -n "$live_ts" ]]; then
     local live_epoch
     # GNU date -d parses the ISO-8601 UTC ts el_emit writes
@@ -300,7 +360,7 @@ wd_resolve_config() {
 wd_main() {
   local run="$1" lane="$2" wt="$3" after_seq="${4:-}"
   local tick="${WATCH_TICK:-15}"
-  local start_epoch=$EPOCHSECONDS
+  local start_epoch; start_epoch=$(( $(wd_now_ms) / 1000 ))
   local state=RUNNING count=0
   local WD_AGE WD_DONE
   local tick_start
@@ -323,7 +383,7 @@ wd_main() {
   fi
 
   while true; do
-    tick_start=$EPOCHREALTIME
+    tick_start="$(wd_now_ms)"
     WD_AGE=0; WD_DONE=0
 
     if (( latched == 0 )); then
@@ -335,8 +395,14 @@ wd_main() {
         latched=1
       else
         # Unlatched: no round yet — never complete; age from watch start.
+        # Reuses this iteration's own tick_start (already a wd_now_ms()
+        # reading taken above) rather than issuing a fresh wd_now_ms() call
+        # here -- intentional single-now-per-iteration semantics (one clock
+        # read per tick, not one per code path), consistent with tick_start
+        # already being the value wd_sleep_remainder anchors this same
+        # iteration's sleep against below.
         WD_DONE=0
-        WD_AGE=$(( EPOCHSECONDS - start_epoch ))
+        WD_AGE=$(( tick_start / 1000 - start_epoch ))
         (( WD_AGE < 0 )) && WD_AGE=0
       fi
     fi
