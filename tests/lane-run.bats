@@ -98,6 +98,7 @@ setup() {
 # DURABLE_CHECKPOINT_INTERVAL=1 and a CMD that keeps running past at least
 # one 1s tick, assert round_done is the LAST event emitted for the run once
 # lane-run.sh exits, and that seq numbers are strictly increasing.
+# bats test_tags=slow
 @test "lane-run reaps background checkpoint watcher before finalization; round_done is the last event" {
   export DURABLE_CHECKPOINT_INTERVAL=1 DURABLE_HEARTBEAT_INTERVAL=0
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'echo tick1; sleep 1.3; echo tick2'
@@ -127,6 +128,7 @@ setup() {
 # this rework DOES guarantee, and what this test asserts instead, is that
 # lane-run.sh itself always bounded-terminates CMD's own pid and exits
 # promptly on TERM, regardless of what CMD may have left behind.
+# bats test_tags=slow
 @test "lane-run bounded-kills CMD's own pid on TERM; lane-run.sh itself never hangs" {
   bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'sleep 100 & echo $! > "'"$WT"'/child.pid"; wait' &
@@ -183,6 +185,7 @@ setup() {
 # KILL-escalation alert event ({"tree_kill":"best_effort",...}) is present in
 # the event log per this rework's spec (the limitation must be
 # machine-visible, not just a comment).
+# bats test_tags=slow
 @test "lane-run KILL-escalates a TERM-ignoring CMD within grace+margin; never hangs; alert event present" {
   export LANE_KILL_GRACE=2
   bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
@@ -219,6 +222,7 @@ setup() {
 # activity on the machine); this host's `ps` DOES reliably print each
 # process's command path, though, so filtering specifically for
 # `/usr/bin/tee` gives a clean, targeted signal instead.
+# bats test_tags=slow
 @test "lane-run reaps the tee consumer; no leftover tee process survives after exit" {
   before="$(ps | grep -c '/usr/bin/tee' || true)"
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'echo hello; echo world'
@@ -239,6 +243,7 @@ setup() {
 # the same worktree; round 2 uses DURABLE_CHECKPOINT_INTERVAL=1 with a CMD
 # that writes no new stream output, so stream.ndjson's mtime never advances
 # past round 2's own start. Assert no "checkpoint" event fires during round 2.
+# bats test_tags=slow
 @test "lane-run scopes stream-activity check to this round; stale mtime is not current-round activity" {
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'echo round1'
   [ "$status" -eq 0 ]
@@ -265,6 +270,7 @@ setup() {
 # lane-run.sh (same second, by construction) and give CMD zero output of its
 # own; size never grows past round_start_size, so no checkpoint should fire
 # regardless of mtime.
+# bats test_tags=slow
 @test "lane-run stream-activity check uses size delta; a same-second pre-existing write is not current-round activity" {
   mkdir -p "$WT/.harness"
   printf '{"type":"leftover"}\n' > "$WT/.harness/stream.ndjson"
@@ -353,6 +359,7 @@ setup() {
 # LANE_PROC_ROOT winpid file (see note above) so the sweep step reliably
 # reaches the taskkill call. Assert exactly one alert event fires, carrying
 # payload.sweep=="sweep_failed" and the unchanged payload.tree_kill=="best_effort".
+# bats test_tags=slow
 @test "lane-run kill_cmd_bounded: sweep_failed emits exactly one alert with payload.sweep=sweep_failed" {
   stub_dir="$BATS_TEST_TMPDIR/stub"
   mkdir -p "$stub_dir"
@@ -402,6 +409,7 @@ EOF
 # host with no /proc/*/winpid support without touching the real /proc (this
 # one needs no pid correlation at all -- the dir is simply always empty).
 # Assert exactly one alert event with payload.sweep=="sweep_unavailable".
+# bats test_tags=slow
 @test "lane-run kill_cmd_bounded: sweep_unavailable emits exactly one alert with payload.sweep=sweep_unavailable" {
   export LANE_PROC_ROOT="$BATS_TEST_TMPDIR/empty-proc"
   mkdir -p "$LANE_PROC_ROOT"
@@ -440,6 +448,7 @@ EOF
 # vacuous rc==128 "process not found" mapping to "swept", not a fabricated
 # outcome. Assert ZERO alert events: neither escalation nor a vacuous sweep
 # is a failure, and neither should be operator-visible noise.
+# bats test_tags=slow
 @test "lane-run kill_cmd_bounded: clean TERM exit + vacuous real sweep emits zero alert events" {
   proc_root="$BATS_TEST_TMPDIR/proc-c"
   mkdir -p "$proc_root"
@@ -486,6 +495,7 @@ EOF
 # always-fail taskkill and pre-populated LANE_PROC_ROOT winpid (so the sweep
 # step reliably reaches -- and fails -- the stubbed taskkill instead of
 # racing the real /proc entry's lifetime).
+# bats test_tags=slow
 @test "lane-run kill_cmd_bounded: no-escalation-but-sweep_failed still emits exactly one alert" {
   stub_dir="$BATS_TEST_TMPDIR/stub"
   mkdir -p "$stub_dir"

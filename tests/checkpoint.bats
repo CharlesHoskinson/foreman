@@ -4,10 +4,7 @@ load helpers
 setup() {
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/checkpoint.sh"
-  WT="$BATS_TEST_TMPDIR/wt"; mkdir -p "$WT"
-  git -C "$WT" init -q -b main
-  git -C "$WT" config user.email t@e.com; git -C "$WT" config user.name t
-  echo base > "$WT/f"; git -C "$WT" add -A; git -C "$WT" commit -qm base
+  setup_git_worktree
 }
 
 @test "ckpt_snapshot captures uncommitted work without touching HEAD or index" {

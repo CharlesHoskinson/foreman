@@ -99,6 +99,7 @@ teardown() {
   _nats_wait_port_free "$NATS_TEST_PORT" || true
 }
 
+# bats test_tags=slow
 @test "setup.sh is idempotent: two runs both exit 0; FOREMAN stream exists" {
   run timeout 30 bash "$SCRIPTS/nats/setup.sh"
   [ "$status" -eq 0 ]
@@ -110,6 +111,7 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+# bats test_tags=slow
 @test "bridge publishes and dedups on Nats-Msg-Id replay" {
   el_init run1
   el_emit run1 tool_result lane '{"n":1}' >/dev/null
@@ -126,6 +128,7 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+# bats test_tags=slow
 @test "cursor not advanced on publish failure; advances after server returns" {
   el_init run1
   local pid
@@ -167,6 +170,7 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+# bats test_tags=slow
 @test "torn-tail: returns 2, publishes valid prefix only, cursor past valid line" {
   el_init run1
   el_emit run1 tool_result lane '{"n":1}' >/dev/null
@@ -182,6 +186,7 @@ teardown() {
   [ "$status" -eq 0 ]
 }
 
+# bats test_tags=slow
 @test "lock: pre-created .nats-bridge.lock directory yields return 5" {
   el_init run1
   mkdir -p "$(run_dir run1)/.nats-bridge.lock"
@@ -189,9 +194,9 @@ teardown() {
   [ "$status" -eq 5 ]
 }
 
+# bats test_tags=slow
 @test "lock: token mismatch is a no-op (foreign lock survives)" {
-  el_init run1
-  local rd; rd="$(run_dir run1)"
+  local rd; rd="$(seed_run run1)"
   mkdir -p "$rd/.nats-bridge.lock"
   # Fake PID:token unlikely to collide with any real process/token on this
   # host. _nb_lock_release must compare the in-memory token, not the PID
@@ -205,9 +210,9 @@ teardown() {
   [ "$(cat "$rd/.nats-bridge.lock/owner")" = "999999:deadbeefdeadbeef" ]
 }
 
+# bats test_tags=slow
 @test "lock: token match removes a lock this process acquired" {
-  el_init run1
-  local rd; rd="$(run_dir run1)"
+  local rd; rd="$(seed_run run1)"
   mkdir -p "$rd/.nats-bridge.lock"
   local token="cafef00dcafef00d"
   printf '%s:%s' "$$" "$token" > "$rd/.nats-bridge.lock/owner"
@@ -217,9 +222,9 @@ teardown() {
   [ ! -d "$rd/.nats-bridge.lock" ]
 }
 
+# bats test_tags=slow
 @test "lock: owner-write failure removes the just-created lock and returns 1" {
-  el_init run1
-  local rd; rd="$(run_dir run1)"
+  local rd; rd="$(seed_run run1)"
   # Wrap mkdir so the real lock-dir mkdir (nb_bridge_once's own acquisition
   # call) succeeds normally, but the instant it does, occupy the owner path
   # with a directory of its own -- this makes the subsequent
@@ -244,9 +249,9 @@ teardown() {
   unset -f mkdir
 }
 
+# bats test_tags=slow
 @test "nb_bridge TERM trap does not strip a foreign-owned lock (foreign-lock survival)" {
-  el_init run1
-  local rd; rd="$(run_dir run1)"
+  local rd; rd="$(seed_run run1)"
   mkdir -p "$rd/.nats-bridge.lock"
   # Simulate a lock held by ANOTHER live process (a real, unrelated PID: a
   # background sleep in this same test), distinct from the nb_bridge
@@ -293,18 +298,21 @@ teardown() {
   wait "$foreign_pid" 2>/dev/null || true
 }
 
+# bats test_tags=slow
 @test "nb_bridge_once rejects an invalid run id (return 2, no filesystem/nats touch)" {
   run --separate-stderr nb_bridge_once 'run*with.nats.meta'
   [ "$status" -eq 2 ]
   [[ "$stderr" == *"invalid run id"* ]]
 }
 
+# bats test_tags=slow
 @test "nb_bridge rejects an invalid run id at entry (return 2, before the loop)" {
   run --separate-stderr nb_bridge 'bad run id'
   [ "$status" -eq 2 ]
   [[ "$stderr" == *"invalid run id"* ]]
 }
 
+# bats test_tags=slow
 @test "corrupt on-disk cursor fails closed: return 1, no silent replay from 0" {
   el_init run1
   el_emit run1 tool_result lane '{"n":1}' >/dev/null

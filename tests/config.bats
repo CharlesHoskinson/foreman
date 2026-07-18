@@ -128,6 +128,7 @@ EOF
   [ "$(grep -c -i 'malformed' "$err")" -eq 1 ]
 }
 
+# bats test_tags=slow
 @test "(f1) lane-run.sh resolves checkpoint_interval through the loader (TOML-only)" {
   setup_tmp_repo
   source "$SCRIPTS/lib/common.sh"

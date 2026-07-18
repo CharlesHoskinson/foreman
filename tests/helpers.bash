@@ -52,3 +52,34 @@ setup_tmp_repo() {
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"   # B#3: no cd&&pwd
   export REPO SCRIPTS
 }
+
+# @description el_init the given run and print its run-dir path. Hoisted
+#   because several tests (watch.bats, nats-bridge.bats) repeat this exact
+#   two-line prefix before seeding a run-specific fixture (a hand-crafted
+#   events.jsonl, a pre-created lock dir, ...) directly under the run dir
+#   instead of going through the normal emit/lock API. Precondition: the
+#   caller's own setup() must already have sourced lib/common.sh (run_dir)
+#   and lib/eventlog.sh (el_init) -- this helper does not source them itself.
+# @arg $1 run id
+# @stdout the run's directory path ($FOREMAN_HOME/runs/$1)
+seed_run() {
+  el_init "$1"
+  run_dir "$1"
+}
+
+# @description Create a fresh, single-commit git worktree at
+#   $BATS_TEST_TMPDIR/wt with one tracked file ("f"). Repeated identically
+#   (modulo the tracked file's content) across checkpoint.bats's and
+#   resume.bats's own setup() hooks.
+# @arg $1 tracked-file content (default: base)
+# @set WT absolute path of the fresh worktree
+setup_git_worktree() {
+  WT="$BATS_TEST_TMPDIR/wt"
+  mkdir -p "$WT"
+  git -C "$WT" init -q -b main
+  git -C "$WT" config user.email t@e.com
+  git -C "$WT" config user.name t
+  echo "${1:-base}" > "$WT/f"
+  git -C "$WT" add -A
+  git -C "$WT" commit -qm base
+}

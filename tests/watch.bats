@@ -52,6 +52,7 @@ setup() {
   [ "$output" = "DEAD 2" ]
 }
 
+# bats test_tags=slow
 @test "integration: silent lane reaches exactly one STALLED then one DEAD, exit 3" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -63,6 +64,7 @@ setup() {
   grep -q 'kill+retry from' <<<"$output"
 }
 
+# bats test_tags=slow
 @test "integration: completed lane exits 0 fast printing DONE" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -73,6 +75,7 @@ setup() {
   grep -q DONE <<<"$output"
 }
 
+# bats test_tags=slow
 @test "integration: lane isolation - lane B heartbeats never mask lane A stall" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -100,8 +103,7 @@ setup() {
 
 @test "malformed liveness ts keeps the previous age baseline instead of resetting to ~0" {
   setup_tmp_repo
-  local log="$FOREMAN_HOME/runs/run1/events.jsonl"
-  mkdir -p "$(dirname "$log")"
+  local log; log="$(seed_run run1)/events.jsonl"
   # Tick 1: a genuinely old, well-formed liveness event -- establishes a large,
   # correctly-cached age baseline (like a prior successful watch.sh tick would).
   # Explicit baseline 0 = unfiltered (same as the ${4:-0} default for 3-arg
@@ -123,6 +125,7 @@ setup() {
   grep -qi 'unparsable' "$errfile"
 }
 
+# bats test_tags=slow
 @test "DEAD alert is durably emitted (foreground, status-checked) before exit 3" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -139,6 +142,7 @@ setup() {
   ! grep -q 'disown' "$SCRIPTS/watch.sh"
 }
 
+# bats test_tags=slow
 @test "restart-safe: an already-emitted round_done is not masked by a newer heartbeat" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -155,6 +159,7 @@ setup() {
   grep -q DONE <<<"$output"
 }
 
+# bats test_tags=slow
 @test "round-boundary: prior-round round_done does not complete a watcher baselined after it" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -170,6 +175,7 @@ setup() {
   [ "$(grep -c DEAD <<<"$output")" -eq 1 ]
 }
 
+# bats test_tags=slow
 @test "round-boundary: round_done after baseline completes the watcher for its own round" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -182,6 +188,7 @@ setup() {
   grep -q DONE <<<"$output"
 }
 
+# bats test_tags=slow
 @test "round-boundary: --after-seq override is respected over auto-detection" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -197,8 +204,7 @@ setup() {
 
 @test "round-boundary: prior-round heartbeats do not refresh a new watcher's liveness age" {
   setup_tmp_repo
-  local log="$FOREMAN_HOME/runs/run1/events.jsonl"
-  mkdir -p "$(dirname "$log")"
+  local log; log="$(seed_run run1)/events.jsonl"
   # Old round (stale timestamps) + round-2 prompt with a current real timestamp
   # as the last prompt (becomes baseline). No post-baseline liveness events.
   local now_ts
@@ -222,11 +228,11 @@ setup() {
   [ "$WD_DONE" -eq 0 ]
 }
 
+# bats test_tags=slow
 @test "round-boundary: a legitimate seq-0 last prompt still latches as baseline 0" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
-  local log="$FOREMAN_HOME/runs/run1/events.jsonl"
-  mkdir -p "$(dirname "$log")"
+  local log; log="$(seed_run run1)/events.jsonl"
   # Imported/recovered log shape: the lane's last (and only) prompt sits at
   # seq 0 -- a legitimate baseline, not "no prompt found". The empty-output
   # sentinel (not "0") is what makes this distinguishable from the truly
@@ -247,6 +253,7 @@ setup() {
   grep -q DONE <<<"$output"
 }
 
+# bats test_tags=slow
 @test "round-boundary: no prompt event ever seen keeps watcher unlatched despite a pre-existing round_done" {
   setup_tmp_repo
   export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
@@ -264,8 +271,7 @@ setup() {
 
 @test "cold-start: first-ever liveness event with corrupt ts forces STALL_WARN age" {
   setup_tmp_repo
-  local log="$FOREMAN_HOME/runs/run1/events.jsonl"
-  mkdir -p "$(dirname "$log")"
+  local log; log="$(seed_run run1)/events.jsonl"
   # Single malformed-ts event, no prior cached good epoch.
   printf '{"seq":1,"ts":"not-a-timestamp","type":"heartbeat","lane":"lane1","payload":{}}\n' > "$log"
   _WD_LIVE_SEQ_CACHE=""
