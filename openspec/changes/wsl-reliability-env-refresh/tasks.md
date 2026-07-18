@@ -1,8 +1,12 @@
-# Tasks — wsl-reliability-env-refresh
+# Tasks — wsl-reliability-env-refresh (full WSL setup + reliability + deps)
 
 Implementer: Sonnet 5 · Audit: Opus 4.8. Host/WSL config work — verify by
 re-probe, paste evidence.
 
+- [ ] **0. Full WSL provisioner** — make `env/bootstrap-wsl.sh` install every
+  foreman tool WSL-native (bats-core, shellcheck, bun, pueue, codex, grok, jq,
+  node/npm via fnm); prove `foreman-setup` reports READY on WSL hard/full and
+  a trivial Setup→Use→Cleanup completes inside WSL with no Windows-side tool.
 - [ ] **1. WSL codex fix** — native install + `appendWindowsPath=false` (or
   PATH reorder); re-probe `wsl codex --version` succeeds; document any
   Windows tools WSL must retain.

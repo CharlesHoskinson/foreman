@@ -71,12 +71,26 @@ emit an `alert` with `kind:"grok_secrets_refused"`) if any is found.
 The `grok` tool entry in `env/reference-manifest.toml` SHALL reflect the
 verified install: `npm i -g @xai-official/grok` (avoids the Cloudflare-walled
 `x.ai` installer host), the binary resolved from the npm global prefix, and
-`grok login --device-code` as the headless-auth step. `env/tool-check.*`
-SHALL report `grok --version` and treat a not-signed-in state as a distinct,
-actionable line (not a hard READY failure on the soft profile).
+`grok login --device-code` as the headless-auth step.
 
-#### Scenario: tool-check surfaces grok presence and auth state
+## ADDED Requirement: grok authentication is a Setup-stage responsibility
 
-- WHEN `tool-check` runs on a host with grok installed but not signed in
-- THEN it reports grok present with a "not signed in — run grok login
-  --device-code" detail, not a bare "missing".
+WHERE the three-stage lifecycle (lifecycle-three-stage) is present, grok
+authentication SHALL be performed and verified in the **Setup & Environment**
+stage, not as an in-lane precondition, and the Use stage SHALL assume an
+authenticated `GROK_HOME`.
+
+- Setup SHALL probe grok auth (a minimal signed-in check under the lane's
+  `GROK_HOME`) and mark the grok lane NOT-READY with the
+  `grok login --device-code` instruction when unauthenticated.
+- WHEN a grok Use lane is requested WHILE Setup reports grok NOT-READY, the
+  implementer SHALL refuse at the door citing Setup, NOT authenticate
+  mid-lane.
+- The secrets-refusal preflight (above) remains an in-lane guard — it is a
+  per-worktree safety check, not an environment-readiness concern.
+
+#### Scenario: unauthenticated grok is caught in Setup, not mid-lane
+
+- WHEN Setup runs with grok installed but not signed in
+- THEN Setup marks grok NOT-READY with the device-code instruction
+- AND a grok Use lane is refused citing Setup, with no mid-round auth attempt.

@@ -11,10 +11,12 @@ Implementer: Sonnet 5 · Audit: Opus 4.8 · gate mutex on every bats run.
   scan (`.env` sans `.env.example`; PEM private-key headers) to lane-run;
   emit `alert{kind:grok_secrets_refused}` and exit non-zero on a hit; tests
   for both the refuse and the clean-proceed scenarios.
-- [ ] **3. Manifest + tool-check truth-up** — correct the `grok` entry
-  (`npm i -g @xai-official/grok`, npm-prefix binary, device-code login);
-  tool-check reports present-but-not-signed-in distinctly; a config.bats or
-  tool-check test if one fits.
+- [ ] **3. Manifest + Setup-stage auth** — correct the `grok` manifest entry
+  (`npm i -g @xai-official/grok`, npm-prefix binary, device-code login); wire
+  grok auth into the Setup stage (lifecycle-three-stage) with a signed-in
+  probe that marks the lane NOT-READY when unauthenticated; Use refuses a
+  not-ready grok lane citing Setup (no mid-lane auth). Coordinate with
+  lifecycle-three-stage's readiness verdict.
 - [ ] **4. Lanes reference recipe** — document the grok-implementer headless
   invocation, resume form, auth doctrine, and the secrets-refusal rule in
   `skills/foreman/references/lanes.md`.

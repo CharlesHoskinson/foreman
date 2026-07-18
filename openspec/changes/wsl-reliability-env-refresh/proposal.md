@@ -1,11 +1,16 @@
-# Change: wsl-reliability-env-refresh
+# Change: wsl-reliability-env-refresh (full WSL setup + reliability + deps)
 
 ## Why
 
-WSL becomes load-bearing in v0.2.7.5+ (the POSIX pidns launcher and the
-v0.3.0 session-transport lanes run there), yet the WSL side is under-tuned and
-its dependencies have drifted. A read-only research + probe lane (2026-07-18)
-found two live bugs and several reliability gaps:
+Directive (2026-07-18): move foreman to a **full WSL setup** so it covers both
+the Windows and Linux use cases — WSL becomes a first-class, fully-provisioned
+foreman environment (not just the POSIX helper), running the same three-stage
+lifecycle (Setup → Use → Cleanup) as Windows. This makes the POSIX pidns
+launcher and the v0.3.0 session-transport lanes native, and gives Linux users
+a supported install path.
+
+Today the WSL side is under-tuned and drifted. A read-only research + probe
+lane (2026-07-18) found two live bugs and several reliability gaps:
 
 - **Live bug:** WSL-side `codex` resolves the Windows npm-global shim through
   a 62-entry `/mnt/c` PATH leak and crashes (`Missing optional dependency
@@ -22,7 +27,14 @@ found two live bugs and several reliability gaps:
 
 ## What changes
 
-The research's prioritized actions (see design.md), implemented:
+**Full WSL setup (headline):** `env/bootstrap-wsl.sh` becomes a complete
+native provisioner — every foreman tool installed WSL-native (bats-core,
+shellcheck, bun, pueue, codex, grok, jq, node/npm via fnm), no reliance on
+Windows PATH leakage — so `foreman-setup` (Setup stage) reports READY inside
+WSL and the full three-stage lifecycle runs there identically to Windows.
+Windows remains fully supported; this adds Linux/WSL as a co-equal target.
+
+Plus the research's prioritized reliability actions (see design.md):
 
 1. Fix WSL-native `codex` install; set `appendWindowsPath=false` for the
    foreman distro (stops the PATH leak).

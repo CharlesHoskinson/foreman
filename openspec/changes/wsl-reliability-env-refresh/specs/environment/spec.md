@@ -1,6 +1,29 @@
-# Spec delta — WSL reliability + dependency refresh
+# Spec delta — full WSL setup + reliability + dependency refresh
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
+
+## ADDED Requirement: WSL is a fully-provisioned, co-equal foreman environment
+
+The implementer SHALL make `env/bootstrap-wsl.sh` a complete native
+provisioner so that, after it runs, foreman's Setup stage reports READY inside
+WSL and the full three-stage lifecycle (Setup → Use → Cleanup) runs there
+identically to Windows.
+
+- Bootstrap SHALL install every foreman tool WSL-native (bats-core,
+  shellcheck, bun, pueue, codex, grok, jq, node/npm via fnm) — no foreman tool
+  SHALL depend on a Windows PATH leak to resolve inside WSL.
+- WHEN `foreman-setup` runs inside WSL on a bootstrapped instance, the
+  readiness verdict SHALL be READY (tools present + vendors authenticated) for
+  the hard/full profile, not just soft.
+- Windows SHALL remain a fully-supported target; this requirement ADDS WSL as
+  co-equal, it does not remove Windows support.
+
+#### Scenario: foreman is fully usable inside WSL
+
+- WHEN `bootstrap-wsl.sh` then `foreman-setup` run in the WSL distro
+- THEN tool-check hard/full reports READY on WSL
+- AND a trivial Use round + Cleanup complete inside WSL without invoking any
+  Windows-side tool.
 
 ## ADDED Requirement: WSL codex resolves to a native install, not the Windows shim
 
