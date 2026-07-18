@@ -2,9 +2,25 @@
 # @description Tests for lane-run.sh durable-lanes wrapper.
 load helpers
 
+# T2 launcher-absence-assumption verification (spec-required, done before any
+# code changes): on this host, at the time this task started, neither
+# launcher/dist/foreman-launch(.exe) nor a PATH-resolvable `foreman-launch`
+# existed, so all 18 pre-T2 tests below already exercised lane_resolve_launcher's
+# ABSENT branch by construction. That assumption does NOT survive this same
+# task building the real binary for the skip-guarded integration test further
+# down (a permanent artifact on disk in this worktree from that point on), so
+# every test in this file -- old and new -- gets an explicit, unconditional
+# FOREMAN_LAUNCH override here pointing at a guaranteed-nonexistent path. Per
+# the spec's own neutralization instruction, this decouples every test's
+# launcher-present/absent behavior from disk state: the 18 pre-T2 tests stay
+# on the frozen absent path regardless of whether launcher/dist has since been
+# built, and any NEW test that wants launcher-present behavior does so by
+# re-exporting FOREMAN_LAUNCH itself (fake shim or the real compiled exe),
+# which simply shadows this default within that test's own body.
 setup() {
   export FOREMAN_HOME="$BATS_TEST_TMPDIR/fh"
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
+  export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   WT="$BATS_TEST_TMPDIR/wt"
@@ -15,6 +31,65 @@ setup() {
   echo x > "$WT/f"
   git -C "$WT" add -A
   git -C "$WT" commit -qm base
+}
+
+# @description Write a deterministic fake foreman-launch shim to
+#   DIR/foreman-launch (T2): parses just enough of the frozen CLI contract to
+#   be a drop-in for lane-run.sh's own invocation shape (--heartbeat-file,
+#   --heartbeat-interval, `-- CMD...`), records its ORIGINAL argv to
+#   FAKE_LAUNCHER_ARGV_LOG (if set, for assertion), emits ONE synthetic
+#   heartbeat line matching the frozen {ts,launcher_pid,pid,job_id,alive,
+#   stdout_bytes,stderr_bytes,elapsed_s} schema to --heartbeat-file BEFORE
+#   running CMD (mirroring the real launcher's "first heartbeat fires
+#   immediately at spawn" contract), then runs CMD and exits either CMD's own
+#   code or a forced code via FAKE_LAUNCHER_EXIT (simulating the real
+#   launcher's own 124/125 outcomes) -- deterministic, no dependency on the
+#   compiled binary.
+# @arg $1 dir directory to write the shim into (caller adds it to PATH, or
+#   points FOREMAN_LAUNCH directly at DIR/foreman-launch)
+write_fake_launcher() {
+  local dir="$1"
+  cat > "$dir/foreman-launch" <<'SHIM'
+#!/usr/bin/env bash
+set -uo pipefail
+orig_argv=("$@")
+hb=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --heartbeat-file) hb="$2"; shift 2 ;;
+    --heartbeat-interval) shift 2 ;;
+    --) shift; break ;;
+    *) shift ;;
+  esac
+done
+if [[ -n "${FAKE_LAUNCHER_ARGV_LOG:-}" ]]; then
+  printf '%s\n' "${orig_argv[*]}" >> "$FAKE_LAUNCHER_ARGV_LOG"
+fi
+launcher_pid=$$
+child_pid=$((launcher_pid + 1000))
+job_id="job-$child_pid"
+write_hb() {
+  [[ -z "$hb" ]] && return 0
+  local alive="$1" ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf '{"ts":"%s","launcher_pid":%d,"pid":%d,"job_id":"%s","alive":%s,"stdout_bytes":0,"stderr_bytes":0,"elapsed_s":0.0}\n' \
+    "$ts" "$launcher_pid" "$child_pid" "$job_id" "$alive" >> "$hb"
+}
+write_hb true
+if [[ -n "${FAKE_LAUNCHER_EXIT:-}" ]]; then
+  "$@" < /dev/null > /dev/null 2>&1 &
+  wait $! || true
+  write_hb false
+  exit "$FAKE_LAUNCHER_EXIT"
+fi
+"$@" < /dev/null &
+cmd_pid=$!
+wait "$cmd_pid"
+rc=$?
+write_hb false
+exit "$rc"
+SHIM
+  chmod +x "$dir/foreman-launch"
 }
 
 @test "lane-run tees stream, emits round_done with exit code, checkpoints" {
@@ -207,7 +282,13 @@ setup() {
   [ "$status" -ne 0 ]
   [ "$((finish - start))" -le 25 ]
   events="$(run_dir run1)/events.jsonl"
-  run jq -rc 'select(.type=="alert") | .payload.tree_kill' "$events"
+  # T2 addendum: exclude the new unconditional per-round degraded alert
+  # ({kind:"degraded",reason:"launcher_absent"}, distinguishable by its
+  # "kind" key -- the pre-existing kill-escalation alert never has one) from
+  # this pre-existing query. This test predates T2 and asserts only about
+  # the kill-escalation alert; the underlying kill_cmd_bounded/emit_kill_alert
+  # behavior under test here is completely unchanged.
+  run jq -rc 'select(.type=="alert" and .payload.kind != "degraded") | .payload.tree_kill' "$events"
   [ "$output" = "best_effort" ]
 }
 
@@ -396,11 +477,22 @@ EOF
   [ "$status" -ne 0 ]
 
   events="$(run_dir run1)/events.jsonl"
-  run bash -c "jq -c 'select(.type==\"alert\")' '$events' | jq -s 'length'"
+  # T2 addendum: see the tree_kill query above -- the new unconditional
+  # degraded alert would otherwise make this an off-by-one count forever.
+  run bash -c "jq -c 'select(.type==\"alert\" and .payload.kind != \"degraded\")' '$events' | jq -s 'length'"
   [ "$output" = "1" ]
-  run jq -rc 'select(.type=="alert") | .payload.sweep' "$events"
+  # T2 addendum: see the tree_kill query above -- exclude the new
+  # unconditional degraded alert, which has no bearing on this test's
+  # kill_cmd_bounded sweep-outcome assertion.
+  run jq -rc 'select(.type=="alert" and .payload.kind != "degraded") | .payload.sweep' "$events"
   [ "$output" = "sweep_failed" ]
-  run jq -rc 'select(.type=="alert") | .payload.tree_kill' "$events"
+  # T2 addendum: exclude the new unconditional per-round degraded alert
+  # ({kind:"degraded",reason:"launcher_absent"}, distinguishable by its
+  # "kind" key -- the pre-existing kill-escalation alert never has one) from
+  # this pre-existing query. This test predates T2 and asserts only about
+  # the kill-escalation alert; the underlying kill_cmd_bounded/emit_kill_alert
+  # behavior under test here is completely unchanged.
+  run jq -rc 'select(.type=="alert" and .payload.kind != "degraded") | .payload.tree_kill' "$events"
   [ "$output" = "best_effort" ]
 }
 
@@ -432,9 +524,14 @@ EOF
   [ "$status" -ne 0 ]
 
   events="$(run_dir run1)/events.jsonl"
-  run bash -c "jq -c 'select(.type==\"alert\")' '$events' | jq -s 'length'"
+  # T2 addendum: see the tree_kill query above -- the new unconditional
+  # degraded alert would otherwise make this an off-by-one count forever.
+  run bash -c "jq -c 'select(.type==\"alert\" and .payload.kind != \"degraded\")' '$events' | jq -s 'length'"
   [ "$output" = "1" ]
-  run jq -rc 'select(.type=="alert") | .payload.sweep' "$events"
+  # T2 addendum: see the tree_kill query above -- exclude the new
+  # unconditional degraded alert, which has no bearing on this test's
+  # kill_cmd_bounded sweep-outcome assertion.
+  run jq -rc 'select(.type=="alert" and .payload.kind != "degraded") | .payload.sweep' "$events"
   [ "$output" = "sweep_unavailable" ]
 }
 
@@ -476,7 +573,12 @@ EOF
   [ "$status" -ne 0 ]
 
   events="$(run_dir run1)/events.jsonl"
-  run jq -rc 'select(.type=="alert")' "$events"
+  # T2 addendum: see the tree_kill query above -- exclude the new
+  # unconditional degraded alert, which fires every round regardless of
+  # kill_cmd_bounded's outcome and would otherwise make this permanently
+  # non-empty. The clean-path guarantee under test (no KILL-escalation/sweep
+  # alert) is unaffected.
+  run jq -rc 'select(.type=="alert" and .payload.kind != "degraded")' "$events"
   [ -z "$output" ]
 }
 
@@ -531,10 +633,266 @@ EOF
   [ "$status" -ne 0 ]
 
   events="$(run_dir run1)/events.jsonl"
-  run bash -c "jq -c 'select(.type==\"alert\")' '$events' | jq -s 'length'"
+  # T2 addendum: see the tree_kill query above -- the new unconditional
+  # degraded alert would otherwise make this an off-by-one count forever.
+  run bash -c "jq -c 'select(.type==\"alert\" and .payload.kind != \"degraded\")' '$events' | jq -s 'length'"
   [ "$output" = "1" ]
-  run jq -rc 'select(.type=="alert") | .payload.sweep' "$events"
+  # T2 addendum: see the tree_kill query above -- exclude the new
+  # unconditional degraded alert, which has no bearing on this test's
+  # kill_cmd_bounded sweep-outcome assertion.
+  run jq -rc 'select(.type=="alert" and .payload.kind != "degraded") | .payload.sweep' "$events"
   [ "$output" = "sweep_failed" ]
-  run jq -rc 'select(.type=="alert") | .payload.tree_kill' "$events"
+  # T2 addendum: exclude the new unconditional per-round degraded alert
+  # ({kind:"degraded",reason:"launcher_absent"}, distinguishable by its
+  # "kind" key -- the pre-existing kill-escalation alert never has one) from
+  # this pre-existing query. This test predates T2 and asserts only about
+  # the kill-escalation alert; the underlying kill_cmd_bounded/emit_kill_alert
+  # behavior under test here is completely unchanged.
+  run jq -rc 'select(.type=="alert" and .payload.kind != "degraded") | .payload.tree_kill' "$events"
   [ "$output" = "best_effort" ]
+}
+
+# T2 (v0.2.5 round ownership) -- new coverage below this point. All 18 tests
+# above are the frozen pre-T2 set (Round B / Rework Round 3-4), unmodified.
+
+# T2 spec: "Absent -> today's direct-spawn path + one alert event
+# {kind:degraded, reason:launcher_absent} per round." Every test in this file
+# already runs on the absent path (setup's FOREMAN_LAUNCH neutralization), so
+# this is exercised constantly; this test makes the alert's presence and
+# shape an explicit, direct assertion, and confirms it fires exactly ONCE
+# per round (not once per el_emit-guarded call site).
+@test "lane-run (launcher absent): emits exactly one degraded alert per round" {
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "true"
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"alert\" and .payload.kind==\"degraded\") | .payload.reason" "$events"
+  [ "$output" = "launcher_absent" ]
+  run bash -c "jq -c \"select(.type==\\\"alert\\\" and .payload.kind==\\\"degraded\\\")\" \"$events\" | jq -s length"
+  [ "$output" = "1" ]
+}
+
+# T2 spec: ownership event at spawn, payload
+# {attempt, launcher_pid, pid, job_id, worktree, config_dir, launcher} --
+# pid/job_id parsed from the FIRST heartbeat line of the round's heartbeat
+# file. Uses the fake launcher shim (deterministic, no dependency on the
+# compiled binary) on PATH; FOREMAN_LAUNCH is unset so resolution goes
+# through the PATH-lookup probe (lane_resolve_launcher's third precedence
+# tier), covering that probe explicitly. Also checks
+# round_done.exit_source==child for the plain-exit-0 case (the fourth
+# interface bullet: 124/125/child exit_source mapping -- see the two
+# dedicated forced-exit tests below for 124/125).
+@test "lane-run (launcher present via PATH shim): ownership event carries attempt/pid/job_id/launcher_pid/worktree; exit_source=child" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export PATH="$stub_dir:$PATH"
+  unset FOREMAN_LAUNCH
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "echo hi"
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"ownership\") | .payload.launcher" "$events"
+  [ "$output" = "true" ]
+  run jq -rc "select(.type==\"ownership\") | .payload.attempt" "$events"
+  [ "$output" = "1" ]
+  run jq -rc "select(.type==\"ownership\") | .payload.pid" "$events"
+  [ "$output" != "null" ]; [ -n "$output" ]
+  run jq -rc "select(.type==\"ownership\") | .payload.job_id" "$events"
+  [ "$output" != "null" ]; [ -n "$output" ]
+  run jq -rc "select(.type==\"ownership\") | .payload.launcher_pid" "$events"
+  [ "$output" != "null" ]; [ -n "$output" ]
+  run jq -rc "select(.type==\"ownership\") | .payload.worktree" "$events"
+  [ "$output" = "$WT" ]
+  run jq -rc "select(.type==\"round_done\") | .payload.exit_source" "$events"
+  [ "$output" = "child" ]
+  # No ownership-timeout alert on the happy path (heartbeat appears immediately).
+  run jq -rc "select(.type==\"alert\" and .payload.kind==\"ownership_timeout\")" "$events"
+  [ -z "$output" ]
+  # And no degraded alert -- the launcher WAS present.
+  run jq -rc "select(.type==\"alert\" and .payload.kind==\"degraded\")" "$events"
+  [ -z "$output" ]
+}
+
+# T2 spec: round_done.exit_code gains documented launcher codes 124
+# (timeout)/125 (launcher error), plus exit_source. FAKE_LAUNCHER_EXIT forces
+# the shim's own exit code, simulating the real launcher's --timeout kill
+# (124) outcome without any real wall-clock wait.
+@test "lane-run (launcher present): round_done exit_code=124 maps to exit_source=timeout" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FAKE_LAUNCHER_EXIT=124
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "true"
+  [ "$status" -eq 124 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"round_done\") | .payload.exit_code" "$events"
+  [ "$output" = "124" ]
+  run jq -rc "select(.type==\"round_done\") | .payload.exit_source" "$events"
+  [ "$output" = "timeout" ]
+}
+
+# Same as above for the launcher's own error code (125 = bad args/FFI/spawn
+# failure/--detach handoff timeout, per launcher/README.md).
+@test "lane-run (launcher present): round_done exit_code=125 maps to exit_source=launcher" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FAKE_LAUNCHER_EXIT=125
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "true"
+  [ "$status" -eq 125 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"round_done\") | .payload.exit_code" "$events"
+  [ "$output" = "125" ]
+  run jq -rc "select(.type==\"round_done\") | .payload.exit_source" "$events"
+  [ "$output" = "launcher" ]
+}
+
+# T2 spec: --round GATE_CMD REPORT_PATH mode happy path (gate green + fresh
+# report -> round_done). CMD itself writes REPORT_PATH (with an
+# "attempt: 1" line, doubling as the secondary attempt-string freshness
+# signal) strictly AFTER round_prompt_epoch was captured, so the primary
+# mtime signal is satisfied too. GATE_CMD ("true", run via bash -c) passes.
+@test "lane-run --round: gate green + fresh report -> round_done with gate_rc/report_fresh; no waiting_child" {
+  report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
+  run bash "$SCRIPTS/lane-run.sh" --round "true" "$report" run1 lane-a "$WT" -- \
+    bash -c "echo attempt: 1 > $report"
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"round_done\") | .payload.gate_rc" "$events"
+  [ "$output" = "0" ]
+  run jq -rc "select(.type==\"round_done\") | .payload.report_fresh" "$events"
+  [ "$output" = "true" ]
+  run jq -rc "select(.type==\"waiting_child\")" "$events"
+  [ -z "$output" ]
+  run jq -rc "select(.type==\"alert\" and .payload.kind==\"round_incomplete\")" "$events"
+  [ -z "$output" ]
+}
+
+# T2 spec / SC-D stale-report immunity: round_done is NOT emitted when only a
+# prior round's report is present. The report is written and its mtime fixed
+# BEFORE lane-run.sh (and therefore its round_prompt_epoch) even starts, with
+# a real 1.1s sleep bounding out any same-second mtime-vs-epoch aliasing
+# (same discipline as this file's pre-existing stream-activity tests), and it
+# carries a DIFFERENT attempt id (attempt: 999) so the secondary string
+# signal also fails to match -- both freshness signals miss, confirming
+# genuine staleness, not a narrowly-missed primary check.
+# bats test_tags=slow
+@test "lane-run --round SC-D: stale report older than this round's prompt event never satisfies -- no round_done, alert emitted" {
+  report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
+  printf "attempt: 999\n" > "$report"
+  sleep 1.1
+  run bash "$SCRIPTS/lane-run.sh" --round "true" "$report" run1 lane-a "$WT" -- bash -c "true"
+  [ "$status" -ne 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"round_done\")" "$events"
+  [ -z "$output" ]
+  run jq -rc "select(.type==\"waiting_child\") | .payload.report_fresh" "$events"
+  [ "$output" = "false" ]
+  run jq -rc "select(.type==\"alert\" and .payload.kind==\"round_incomplete\") | .payload.report_fresh" "$events"
+  [ "$output" = "false" ]
+}
+
+# T2 spec: --round gate-fail -- the report IS fresh (CMD wrote it), but
+# GATE_CMD itself fails; round_done must still never fire (both conditions
+# are required, not just freshness), and the alert must carry the real
+# nonzero gate_rc.
+@test "lane-run --round: gate failure never emits round_done even with a fresh report; alert carries gate_rc" {
+  report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
+  run bash "$SCRIPTS/lane-run.sh" --round "exit 7" "$report" run1 lane-a "$WT" -- \
+    bash -c "echo attempt: 1 > $report"
+  [ "$status" -eq 7 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"round_done\")" "$events"
+  [ -z "$output" ]
+  run jq -rc "select(.type==\"alert\" and .payload.kind==\"round_incomplete\") | .payload.gate_rc" "$events"
+  [ "$output" = "7" ]
+}
+
+# T2 spec: plus ONE integration test against the real
+# launcher/dist/foreman-launch.exe if present, skip-guarded. Mirrors
+# tests/launcher.bats's own skip pattern exactly (compiled exe not found ->
+# skip with the build hint, never a failure). Exercises the SAME lane-run.sh
+# code path as the fake-shim tests above, but against the real compiled
+# binary end to end.
+@test "lane-run (real compiled launcher, skip-guarded): ownership + round_done via the real foreman-launch.exe" {
+  EXE_DIR="$BATS_TEST_DIRNAME/../launcher/dist"
+  [ -d "$EXE_DIR" ] || skip "compiled exe not found at $EXE_DIR -- run: pwsh -File launcher/build.ps1"
+  EXE="$(cd "$EXE_DIR" && pwd)/foreman-launch.exe"
+  [ -f "$EXE" ] || skip "compiled exe not found at $EXE -- run: pwsh -File launcher/build.ps1"
+  export FOREMAN_LAUNCH="$EXE"
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "echo hi"
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"ownership\") | .payload.launcher" "$events"
+  [ "$output" = "true" ]
+  run jq -rc "select(.type==\"ownership\") | .payload.pid" "$events"
+  [ "$output" != "null" ]; [ -n "$output" ]
+  run jq -rc "select(.type==\"round_done\") | .payload.exit_code" "$events"
+  [ "$output" = "0" ]
+  run jq -rc "select(.type==\"round_done\") | .payload.exit_source" "$events"
+  [ "$output" = "child" ]
+}
+
+# Rework round 1 (Opus audit) -- new coverage below this point.
+
+# F2 (LOW-MEDIUM, POSIX-only SC-B gap): during the --round mode's gate
+# phase, LANE_OWNERSHIP_PID used to still hold the CMD phase's (already
+# dead) child pid -- on POSIX, a signal during the gate phase would then
+# group-kill the wrong pgid while only TERM-ing the gate's own launcher,
+# which does not cascade to the gate's setsid'd child group there (Windows
+# is unaffected: Job Object KILL_ON_JOB_CLOSE cascades from killing the
+# launcher alone). Fix: lane_refresh_gate_ownership_pid re-parses $hb for
+# the first NEW heartbeat line past a baseline line count and refreshes
+# LANE_OWNERSHIP_PID to the gate's own child pid. This is the only piece of
+# that POSIX-only fix testable on this Windows host (a real POSIX
+# kill-shot/group-kill integration test is out of scope here per the
+# auditor's own note) -- so this test unit-tests the refresh function's
+# parsing logic directly and deterministically: it extracts JUST that one
+# function from lane-run.sh (sed, start/end markers -- the function has no
+# dependencies beyond jq, so no script-wide sourcing/side effects are
+# needed or wanted), seeds a heartbeat file with a CMD-phase pid (111,
+# baseline = 2 lines already written) then appends a DIFFERENT gate-phase
+# pid (222) shortly after the refresh call starts polling -- exercising the
+# bounded-poll path, not just an already-fully-written file -- and asserts
+# LANE_OWNERSHIP_PID ends up refreshed to the gate's pid, not left stale.
+@test "lane-run --round (F2 rework): gate-phase ownership pid refresh picks up the gate's own heartbeat pid, not CMD's stale one" {
+  fn_file="$BATS_TEST_TMPDIR/refresh_fn.sh"
+  sed -n '/^lane_refresh_gate_ownership_pid()/,/^}/p' "$SCRIPTS/lane-run.sh" > "$fn_file"
+  [ -s "$fn_file" ]
+  source "$fn_file"
+
+  hb="$BATS_TEST_TMPDIR/hb.ndjson"
+  printf '{"ts":"t0","launcher_pid":9001,"pid":111,"job_id":"j1","alive":true,"stdout_bytes":0,"stderr_bytes":0,"elapsed_s":0.0}\n' >> "$hb"
+  printf '{"ts":"t1","launcher_pid":9001,"pid":111,"job_id":"j1","alive":false,"stdout_bytes":0,"stderr_bytes":0,"elapsed_s":1.0}\n' >> "$hb"
+  baseline="$(wc -l < "$hb")"
+  LANE_OWNERSHIP_PID="111"
+
+  ( sleep 0.3; printf '{"ts":"t2","launcher_pid":9002,"pid":222,"job_id":"j2","alive":true,"stdout_bytes":0,"stderr_bytes":0,"elapsed_s":0.0}\n' >> "$hb" ) &
+  bgpid=$!
+  lane_refresh_gate_ownership_pid "$hb" "$baseline"
+  wait "$bgpid"
+  [ "$LANE_OWNERSHIP_PID" = "222" ]
+}
+
+# F4 (LOW): the fake shim's FAKE_LAUNCHER_ARGV_LOG support (used by the F2
+# test above only indirectly, and available to any future test) was itself
+# untested. Pins the exact invocation shape lane-run.sh uses when spawning
+# CMD through the launcher: --heartbeat-file F --heartbeat-interval 15 --
+# CMD... (this exact flag order and the literal "15" interval, matching the
+# CMD-launch site in lane-run.sh).
+@test "lane-run (launcher present): fake shim records the exact invocation shape --heartbeat-file F --heartbeat-interval 15 -- CMD..." {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  argv_log="$BATS_TEST_TMPDIR/argv.log"
+  export FAKE_LAUNCHER_ARGV_LOG="$argv_log"
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "echo hi"
+  [ "$status" -eq 0 ]
+  [ -f "$argv_log" ]
+  recorded="$(cat "$argv_log")"
+  hb_path="$WT/.harness/heartbeat.ndjson"
+  expected="--heartbeat-file $hb_path --heartbeat-interval 15 -- bash -c echo hi"
+  [ "$recorded" = "$expected" ]
 }

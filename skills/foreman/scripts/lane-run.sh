@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # @description Run a coding-CLI lane with durable-lanes instrumentation: tee the
 #   reasoning stream to disk, checkpoint the worktree, and emit lifecycle events
-#   (prompt, heartbeat, checkpoint, round_done). Stderr is joined into the
-#   transcript via 2>&1 because coding CLIs emit reasoning there.
+#   (prompt, heartbeat, checkpoint, ownership, round_done, waiting_child). Stderr
+#   is joined into the transcript via 2>&1 because coding CLIs emit reasoning
+#   there.
 #
 # CONTRACT (Rework Round 3, finding 1): CMD MUST be non-interactive. lane-run.sh
 #   redirects CMD's own stdin from /dev/null (CMD only -- never lane-run.sh's own
@@ -16,6 +17,42 @@
 #   or fall back from. Do not re-add `set -m` / job control: see bugeventlog.md
 #   and FOREMAN_REPORT.md (Rework Round 3, finding 1) for why this was a dead
 #   end on Git Bash/MSYS2.
+#
+# CONTRACT (T2, v0.2.5 round ownership): when foreman-launch is resolvable
+#   (lane_resolve_launcher: FOREMAN_LAUNCH env override > launcher/dist/
+#   foreman-launch(.exe) relative to THIS script's own repo root > PATH lookup
+#   > absent), CMD is spawned THROUGH it instead of directly. The variable that
+#   tracks the spawned pid is renamed accordingly in that branch --
+#   `launcher_pid` (the supervisor's own pid) instead of `cmd_pid` (CMD's own
+#   pid, used only on the launcher-ABSENT path, unchanged/frozen) -- because
+#   what lane-run.sh now waits on IS the launcher, not CMD directly.
+#   `round_done.exit_code` is therefore the observed rc of whichever was
+#   waited on: CMD's own code (launcher-absent, or launcher-present passthrough),
+#   or the launcher's own 124 (timeout kill) / 125 (launcher error) codes.
+#   `exit_source` (child|timeout|launcher) disambiguates which; it is added to
+#   the round_done payload ONLY on the launcher-present path (omitted, not
+#   false/null, on the frozen launcher-absent path -- see lane_exit_source).
+#   NTSTATUS CAVEAT (T1 audit F3): on Windows, a child dying with an NTSTATUS
+#   code (e.g. 0xC0000005) surfaces byte-masked through the launcher as a
+#   small-looking exit code -- round_done.exit_code can therefore collide with
+#   a legitimate small exit code in that case. This is a known, accepted
+#   ambiguity (documented here per spec, NOT un-masked -- there is no reliable
+#   way to recover the original NTSTATUS from a masked byte).
+#   The kill_cmd_bounded + taskkill //T //F descendant sweep is GATED to the
+#   launcher-ABSENT branch only (see cleanup()): Job Object KILL_ON_JOB_CLOSE
+#   supersedes it on Windows. On the launcher-PRESENT branch, INT/TERM are
+#   forwarded by killing the launcher process instead (kill_launcher_bounded),
+#   which cascades the whole tree via the job (Windows) -- trap exit codes
+#   130/143 are unchanged either way.
+#   POSIX CAVEAT (launcher/README.md "POSIX asymmetry"): POSIX has NO kernel
+#   cascade equivalent to KILL_ON_JOB_CLOSE -- killing launcher_pid alone
+#   leaves CMD's whole process group alive. kill_launcher_bounded's POSIX
+#   branch therefore ALSO signals `-pid` (the negative pid = process group,
+#   using the child pid recorded in the ownership heartbeat, which equals its
+#   own pgid since the launcher wraps CMD in setsid), not launcher_pid alone.
+#   `--round GATE_CMD REPORT_PATH` mode makes lane-run.sh own the WHOLE round
+#   (CMD -> gate -> attempt-fresh report assert -> round_done), never the
+#   agent's own turn -- see the ROUND_MODE block near the end of this file.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +65,43 @@ source "$SCRIPT_DIR/lib/checkpoint.sh"
 # shellcheck source=lib/config.sh
 source "$SCRIPT_DIR/lib/config.sh"
 
+# Attempt ids come from lib/eventlog.sh's el_attempt_new (T3, sourced above):
+# monotonic per lane, persisted, lock-serialized. Reconciled at T2 merge --
+# the pre-merge inline stub is gone.
+
+# @description Detect which kill-tree semantics apply on this host: "windows"
+#   (Job Object / KILL_ON_JOB_CLOSE via the .exe build, MSYS/Git-Bash/Cygwin
+#   userland) or "posix" (setsid process-group cascade via the ELF build,
+#   e.g. WSL/Linux). Selects the launcher-candidate suffix (lane_resolve_launcher)
+#   and the kill_launcher_bounded branch (see header CONTRACT / POSIX caveat).
+# @stdout "windows" or "posix"
+lane_platform() {
+  case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) echo windows ;;
+    *) echo posix ;;
+  esac
+}
+LANE_PLATFORM="$(lane_platform)"
+
 # --- arity / validation (before unguarded positional use under set -u) ---
+# New usage form (T2): an optional leading "--round GATE_CMD REPORT_PATH"
+# triple is consumed FIRST, before the pre-existing positional checks below --
+# once consumed, $@ is realigned to the original "RUN LANE WORKTREE -- CMD..."
+# shape, so every check that follows runs UNCHANGED for both invocation forms.
+ROUND_MODE=0
+GATE_CMD=""
+REPORT_PATH=""
+if [[ "${1:-}" == "--round" ]]; then
+  if (( $# < 3 )); then
+    echo "usage: lane-run.sh --round GATE_CMD REPORT_PATH RUN_ID LANE WORKTREE -- CMD..." >&2
+    exit 2
+  fi
+  ROUND_MODE=1
+  GATE_CMD="$2"
+  REPORT_PATH="$3"
+  shift 3
+fi
+
 if (( $# < 5 )); then
   echo "usage: lane-run.sh RUN_ID LANE WORKTREE -- CMD... (CMD must be non-interactive; stdin is redirected from /dev/null)" >&2
   exit 2
@@ -217,6 +290,218 @@ reap_tee_bounded() {
   wait "$pid" 2>/dev/null || true
 }
 
+# @description Resolve the foreman-launch executable (T2). Precedence:
+#   FOREMAN_LAUNCH env override (if set and non-empty, it is AUTHORITATIVE --
+#   an override pointing at a non-executable/missing path means the launcher
+#   is treated as ABSENT, never a fallthrough to the probes below; this is
+#   the deliberate neutralization knob bats tests use to force the
+#   launcher-absent path even when the compiled binary exists on disk in this
+#   checkout) > launcher/dist/foreman-launch(.exe) resolved relative to THIS
+#   script's own repo root (three levels up from skills/foreman/scripts,
+#   NOT the caller's cwd or WT, so detection is independent of which
+#   worktree CMD runs in) > PATH lookup > absent.
+# @stdout resolved executable path (nothing if absent)
+# @exitcode 0 found; 1 absent
+lane_resolve_launcher() {
+  if [[ -n "${FOREMAN_LAUNCH:-}" ]]; then
+    if [[ -x "$FOREMAN_LAUNCH" ]]; then
+      printf '%s\n' "$FOREMAN_LAUNCH"
+      return 0
+    fi
+    return 1
+  fi
+  local repo_root candidate
+  repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || repo_root=""
+  if [[ -n "$repo_root" ]]; then
+    if [[ "$LANE_PLATFORM" == "windows" ]]; then
+      candidate="$repo_root/launcher/dist/foreman-launch.exe"
+    else
+      candidate="$repo_root/launcher/dist/foreman-launch"
+    fi
+    [[ -x "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
+  fi
+  if candidate="$(command -v foreman-launch 2>/dev/null)"; then
+    [[ -n "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
+  fi
+  return 1
+}
+
+# @description Map an observed launcher rc to the documented round_done
+#   exit_source vocabulary (T2 spec: "exit_code = observed rc, plus
+#   exit_source: child|timeout|launcher"). Only meaningful on the
+#   launcher-PRESENT path -- see the header CONTRACT note on why this key is
+#   omitted entirely (not merely false) on the frozen launcher-absent path.
+# @arg $1 rc observed exit code from waiting on the launcher
+# @stdout "timeout" (124) | "launcher" (125) | "child" (anything else)
+lane_exit_source() {
+  case "$1" in
+    124) echo timeout ;;
+    125) echo launcher ;;
+    *) echo child ;;
+  esac
+}
+
+# @description Bounded (<=20s) wait for the FIRST parseable heartbeat line in
+#   the round's heartbeat file, then emit the round's `ownership` event
+#   (T2 spec: "Ownership event at spawn"). Runs concurrently with CMD/launcher
+#   execution (called right after backgrounding the launcher, before `wait`),
+#   so a long-running CMD does not delay ownership visibility. NEVER aborts
+#   the round on timeout: pid/job_id degrade to null and an additional
+#   `alert` event records the timeout, matching the spec's "do not abort the
+#   round" instruction -- ownership is best-effort visibility, not a gate.
+# @arg $1 hb heartbeat file path
+# @arg $2 attempt current attempt id
+# @arg $3 fallback_launcher_pid bash-tracked launcher pid, used for the
+#   ownership payload's launcher_pid field only if the heartbeat line itself
+#   never appears within the bound
+# @set LANE_OWNERSHIP_PID the child pid recovered from the heartbeat (empty
+#   on timeout) -- consumed by kill_launcher_bounded's POSIX group-kill path
+lane_emit_ownership() {
+  local hb="$1" attempt="$2" fallback_launcher_pid="$3"
+  local waited=0 line="" ownership_launcher_pid="" ownership_pid="" ownership_job_id="" timed_out=0
+  while (( waited < 200 )); do   # 200 * 0.1s = 20s bound
+    if [[ -s "$hb" ]]; then
+      line="$(head -n 1 "$hb" 2>/dev/null || true)"
+      line="${line%$'\r'}"
+      if [[ -n "$line" ]] && jq -e . >/dev/null 2>&1 <<<"$line"; then
+        ownership_launcher_pid="$(jq -r '.launcher_pid // empty' <<<"$line" 2>/dev/null || true)"
+        ownership_pid="$(jq -r '.pid // empty' <<<"$line" 2>/dev/null || true)"
+        ownership_job_id="$(jq -r '.job_id // empty' <<<"$line" 2>/dev/null || true)"
+        break
+      fi
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  if [[ -z "$ownership_pid" ]]; then
+    timed_out=1
+    ownership_launcher_pid="${ownership_launcher_pid:-$fallback_launcher_pid}"
+  fi
+  LANE_OWNERSHIP_PID="$ownership_pid"
+  local payload
+  # MSYS_NO_PATHCONV=1 (local to this one jq.exe invocation, portability
+  # checklist item -- same class of gotcha tests/launcher.bats documents for
+  # its own exe-argument case): $WT is a bare absolute path, and jq.exe is a
+  # real Windows PE binary, so WITHOUT this guard, Git-Bash/MSYS's automatic
+  # argv path-translation layer silently rewrites a POSIX-looking absolute
+  # path argument (e.g. "/c/Users/x/wt") into its Windows form
+  # ("C:/Users/x/wt") before jq.exe ever sees it -- meaning the stored
+  # ownership event would NOT record the same string the caller actually
+  # passed as WORKTREE. No other jq call in this file passes a bare path
+  # like this (existing calls only ever embed paths inside longer strings,
+  # e.g. the prompt payload's whole CMD string, which MSYS's whole-argument
+  # heuristic does not touch) -- this is a new, NOT a frozen-path, concern.
+  payload="$(
+    MSYS_NO_PATHCONV=1 jq -cn \
+      --argjson attempt "$attempt" \
+      --arg launcher_pid "$ownership_launcher_pid" \
+      --arg pid "$ownership_pid" \
+      --arg job_id "$ownership_job_id" \
+      --arg worktree "$WT" \
+      --arg config_dir "${LANE_CONFIG_DIR:-}" \
+      '{attempt:$attempt,
+        launcher_pid:(if $launcher_pid=="" then null else ($launcher_pid|tonumber) end),
+        pid:(if $pid=="" then null else ($pid|tonumber) end),
+        job_id:(if $job_id=="" then null else $job_id end),
+        worktree:$worktree,
+        config_dir:(if $config_dir=="" then null else $config_dir end),
+        launcher:true}' 2>/dev/null | tr -d '\r'
+  )"
+  if [[ -z "$payload" ]]; then
+    echo "lane-run: ownership payload build failed (jq)" >&2
+  elif ! el_emit "$RUN" ownership "$LANE" "$payload" >/dev/null; then
+    echo "lane-run: el_emit ownership failed" >&2
+  fi
+  if (( timed_out == 1 )); then
+    if ! el_emit "$RUN" alert "$LANE" '{"kind":"ownership_timeout"}' >/dev/null; then
+      echo "lane-run: el_emit alert (ownership_timeout) failed" >&2
+    fi
+  fi
+}
+
+# @description Terminate the launcher process on INT/TERM/EXIT cleanup --
+#   the launcher-PRESENT counterpart to kill_cmd_bounded, GATED to that
+#   branch only (T2 spec: the taskkill //T //F descendant sweep is
+#   launcher-absent-only; Job Object KILL_ON_JOB_CLOSE supersedes it here).
+#   Windows: killing launcher_pid alone is sufficient -- KILL_ON_JOB_CLOSE is
+#   a KERNEL-ENFORCED cascade that fires the instant the job's last handle
+#   closes, even without the launcher running its own cleanup code
+#   (launcher/README.md). The MSYS-pid -> winpid translation mirrors
+#   kill_cmd_bounded exactly (same /proc/<pid>/winpid trick, same
+#   LANE_PROC_ROOT test knob) since the launcher, like CMD before it, is just
+#   a directly bash-spawned Windows exe.
+#   POSIX: there is NO kernel cascade (launcher/README.md "POSIX asymmetry")
+#   -- killing launcher_pid alone leaves CMD's whole process group alive.
+#   Also signal the child's own pgid (recovered as LANE_OWNERSHIP_PID from
+#   the ownership heartbeat parse -- it equals the child's pgid because the
+#   launcher wraps CMD in setsid) as a process GROUP (`kill -- -PID`), per
+#   the README's explicit external-reaper guidance, THEN the launcher itself.
+# @arg $1 launcher_pid
+# @arg $2 child_pid optional POSIX pgid target (empty on Windows / on an
+#   ownership-parse timeout -- best-effort in that case)
+kill_launcher_bounded() {
+  local lpid="$1" cpid="${2:-}"
+  [[ -z "$lpid" ]] && return 0
+  kill -0 "$lpid" 2>/dev/null || { wait "$lpid" 2>/dev/null || true; return 0; }
+  if [[ "$LANE_PLATFORM" == "windows" ]]; then
+    local winpid=""
+    winpid="$(cat "${LANE_PROC_ROOT:-/proc}/$lpid/winpid" 2>/dev/null || true)"
+    if [[ -n "$winpid" ]]; then
+      taskkill //PID "$winpid" //F >/dev/null 2>&1 || true
+    else
+      kill -KILL "$lpid" 2>/dev/null || true
+    fi
+  else
+    [[ -n "$cpid" ]] && kill -TERM -- "-$cpid" 2>/dev/null || true
+    kill -TERM "$lpid" 2>/dev/null || true
+  fi
+  wait "$lpid" 2>/dev/null || true
+}
+
+# @description Rework round 1, F2 (Opus audit, POSIX-only SC-B gap): after
+#   lane_emit_ownership runs for CMD, LANE_OWNERSHIP_PID holds CMD's child
+#   pid. During the --round mode's gate phase, CMD has already exited, so
+#   that pid is stale -- on POSIX, a signal arriving DURING the gate phase
+#   would make kill_launcher_bounded's POSIX branch group-kill the WRONG
+#   (dead) pgid while only TERM-ing the gate's own launcher process, which
+#   does NOT cascade to the gate's setsid'd child group on POSIX (no kernel
+#   cascade there, unlike Windows' Job Object -- launcher/README.md "POSIX
+#   asymmetry"). The gate's own bash -c subtree could survive. Fix: bounded
+#   (<=20s, same pattern as lane_emit_ownership) re-parse of $hb for the
+#   FIRST heartbeat line PAST $baseline_lines (the line count observed just
+#   before the gate launcher was backgrounded -- $hb is shared/append-only
+#   across the CMD and gate phases, so "first NEW line" is how the gate's
+#   own heartbeat is distinguished from CMD's). Refreshes
+#   LANE_OWNERSHIP_PID to the gate's own child pid on success. NEVER
+#   aborts the round and never touches LANE_OWNERSHIP_PID on timeout --
+#   falls back to leaving it at CMD's stale pid (documented limitation,
+#   not silently pretended-fixed): still strictly better than nothing, and
+#   Windows' kill-shot (taskkill /PID launcher_pid /F) does not depend on
+#   this value at all.
+# @arg $1 hb heartbeat file path
+# @arg $2 baseline_lines line count in $hb before the gate launcher was
+#   backgrounded
+# @set LANE_OWNERSHIP_PID refreshed to the gate's own child pid (unchanged
+#   on timeout)
+lane_refresh_gate_ownership_pid() {
+  local hb="$1" baseline="$2"
+  local waited=0 n line="" gate_pid=""
+  while (( waited < 200 )); do   # 200 * 0.1s = 20s bound
+    n="$(wc -l < "$hb" 2>/dev/null || echo 0)"
+    if (( n > baseline )); then
+      line="$(sed -n "$((baseline + 1))p" "$hb" 2>/dev/null || true)"
+      line="${line%$'\r'}"
+      if [[ -n "$line" ]] && jq -e . >/dev/null 2>&1 <<<"$line"; then
+        gate_pid="$(jq -r '.pid // empty' <<<"$line" 2>/dev/null || true)"
+        [[ -n "$gate_pid" ]] && break
+      fi
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  [[ -n "$gate_pid" ]] && LANE_OWNERSHIP_PID="$gate_pid"
+}
+
 # Single-writer-per-worktree lock: plain mkdir (no -p). If it exists, fail
 # immediately — no stale-lock reclaim (ABA-unsafe on Git Bash/MSYS).
 # lane_lock_owned only flips to 1 on OUR successful mkdir, so cleanup() can
@@ -246,7 +531,9 @@ lane_lock_owned=1
 
 watcher_pid=""
 cmd_pid=""
+launcher_pid=""
 tee_pid=""
+LANE_OWNERSHIP_PID=""
 
 # @description Release the worktree lock (only if this process created it),
 #   terminate CMD and the tee consumer via bounded escalation (never an
@@ -258,6 +545,14 @@ cleanup() {
   if [[ -n "${cmd_pid:-}" ]]; then
     kill_cmd_bounded "$cmd_pid"
     cmd_pid=""
+  fi
+  # Launcher-PRESENT counterpart (T2): mutually exclusive with the cmd_pid
+  # branch above -- only ever ONE of {cmd_pid, launcher_pid} is non-empty for
+  # a given round, depending on which branch spawned CMD. See kill_launcher_bounded
+  # doc comment for why this is a different function, not a shared one.
+  if [[ -n "${launcher_pid:-}" ]]; then
+    kill_launcher_bounded "$launcher_pid" "${LANE_OWNERSHIP_PID:-}"
+    launcher_pid=""
   fi
   if [[ -n "${tee_pid:-}" ]]; then
     reap_tee_bounded "$tee_pid"
@@ -289,6 +584,23 @@ if [[ -n "$_pending_signal" ]]; then
     INT) exit 130 ;;
     TERM) exit 143 ;;
   esac
+fi
+
+# round_prompt_epoch (T2, additive): this round's attempt-freshness reference
+# instant, captured immediately before the prompt event below. Used ONLY by
+# the --round mode's attempt-fresh report predicate (mtime strictly newer
+# than this) -- a NEW variable, deliberately distinct from the existing
+# round_start_epoch captured further below for the (frozen, unrelated)
+# background stream-activity watcher, so that addition is never touched here.
+round_prompt_epoch="$(date -u +%s)"
+
+# attempt id (T2/T3): monotonic per-lane attempt counter, used in the
+# ownership event and as the --round mode's attempt-fresh report predicate's
+# secondary (string) signal. el_attempt_new can fail (lock timeout, persist
+# failure) -- degrade to attempt=1 rather than aborting the round.
+if ! attempt="$(el_attempt_new "$RUN" "$LANE")"; then
+  echo "lane-run: el_attempt_new failed; defaulting attempt=1" >&2
+  attempt=1
 fi
 
 # prompt event: full CMD joined as a single string
@@ -402,6 +714,32 @@ fi
 stream_file="$stream_file_path"
 stream_failed=0
 
+# Launcher detection (T2): resolved ONCE per round, before CMD is spawned,
+# and reused unchanged for the --round mode's GATE_CMD phase later (same $hb
+# -- heartbeats continue across both phases, per spec). Absent -> exactly
+# today's direct-spawn path below, PLUS one `alert` event
+# {kind:"degraded",reason:"launcher_absent"} -- deliberately once per round,
+# not once per phase (CMD and, in --round mode, GATE_CMD share this single
+# alert instead of duplicating it).
+FOREMAN_LAUNCH_RESOLVED=""
+if FOREMAN_LAUNCH_RESOLVED="$(lane_resolve_launcher)"; then
+  :
+else
+  FOREMAN_LAUNCH_RESOLVED=""
+  if ! el_emit "$RUN" alert "$LANE" '{"kind":"degraded","reason":"launcher_absent"}' >/dev/null; then
+    echo "lane-run: el_emit alert (degraded) failed" >&2
+  fi
+fi
+hb="$WT/.harness/heartbeat.ndjson"
+if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
+  # Fresh per round: supervise() only ever appends, so a stale line from a
+  # PRIOR round against this same worktree would otherwise be mistaken for
+  # THIS round's first heartbeat by lane_emit_ownership below (same class of
+  # hazard the launcher's own --detach F1 fix addresses for its heartbeat
+  # file -- see launcher/README.md).
+  rm -f "$hb" 2>/dev/null || true
+fi
+
 # Rework Round 3, finding 1: job control (`set -m`) and the process-group
 # launch it required have been REMOVED. CMD's stdin is redirected from
 # /dev/null (MSYS maps /dev/null to NUL correctly) -- CMD is contractually
@@ -422,16 +760,43 @@ stream_failed=0
 # pid -- not its would-be parent -- unblocks it; see FOREMAN_REPORT.md).
 tee_pid_file="$(mktemp)"
 set +e
-if [[ -n "$STDBUF" ]]; then
-  # STDBUF is a fixed non-attacker-controlled string ("stdbuf -oL" or "gstdbuf -oL")
-  # safe to word-split unquoted when non-empty.
-  $STDBUF "$@" < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
+cmd_exit_source=""
+if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
+  # Launcher-PRESENT (T2): CMD is spawned THROUGH foreman-launch instead of
+  # directly. `launcher_pid` (NOT cmd_pid -- see header CONTRACT) captures
+  # the launcher's own bash job pid; `wait "$launcher_pid"` yields the
+  # launcher's own exit code, which is CMD's own code passed through, or the
+  # launcher's documented 124 (timeout)/125 (launcher error) -- see
+  # lane_exit_source. Heartbeats stream to $hb for the whole round; ownership
+  # is emitted as soon as the FIRST heartbeat line appears (bounded,
+  # concurrently with CMD -- see lane_emit_ownership's doc comment), not
+  # after CMD finishes, so a long CMD does not delay ownership visibility.
+  if [[ -n "$STDBUF" ]]; then
+    # STDBUF is a fixed non-attacker-controlled string ("stdbuf -oL" or "gstdbuf -oL")
+    # safe to word-split unquoted when non-empty.
+    $STDBUF "$FOREMAN_LAUNCH_RESOLVED" --heartbeat-file "$hb" --heartbeat-interval 15 -- "$@" \
+      < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
+  else
+    "$FOREMAN_LAUNCH_RESOLVED" --heartbeat-file "$hb" --heartbeat-interval 15 -- "$@" \
+      < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
+  fi
+  launcher_pid=$!
+  lane_emit_ownership "$hb" "$attempt" "$launcher_pid"
+  wait "$launcher_pid"
+  rc=$?
+  cmd_exit_source="$(lane_exit_source "$rc")"
 else
-  "$@" < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
+  if [[ -n "$STDBUF" ]]; then
+    # STDBUF is a fixed non-attacker-controlled string ("stdbuf -oL" or "gstdbuf -oL")
+    # safe to word-split unquoted when non-empty.
+    $STDBUF "$@" < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
+  else
+    "$@" < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
+  fi
+  cmd_pid=$!
+  wait "$cmd_pid"
+  rc=$?
 fi
-cmd_pid=$!
-wait "$cmd_pid"
-rc=$?
 
 # Reap the background checkpoint/heartbeat watcher NOW, immediately after CMD
 # finishes -- before anything else waits on background jobs, and before the
@@ -491,6 +856,10 @@ rm -f "$ckpt_err_file"
 
 # Build round_done payload. Omit stream_failed / checkpoint_failed when false
 # (do not set them to false). checkpoint is JSON null when sha is empty.
+# exit_source (T2): omitted entirely (not false/null) when cmd_exit_source is
+# empty -- the launcher-ABSENT path never sets it, so this payload stays
+# byte-identical to the pre-T2 shape there (frozen path, existing bats
+# assertions only query specific keys but this keeps the shape honest too).
 # tr -d '\r': Windows jq.exe emits CRLF; strip before storing/passing to el_emit.
 round_payload="$(
   jq -cn \
@@ -498,11 +867,96 @@ round_payload="$(
     --arg sha "$sha" \
     --argjson stream_failed "$stream_failed" \
     --argjson checkpoint_failed "$checkpoint_failed" \
+    --arg exit_source "${cmd_exit_source:-}" \
     '{exit_code:$exit_code, checkpoint:(if $sha == "" then null else $sha end)}
      | if $stream_failed != 0 then . + {stream_failed:true} else . end
-     | if $checkpoint_failed != 0 then . + {checkpoint_failed:true} else . end' \
+     | if $checkpoint_failed != 0 then . + {checkpoint_failed:true} else . end
+     | if $exit_source != "" then . + {exit_source:$exit_source} else . end' \
   | tr -d '\r'
 )"
+
+# --- ROUND_MODE (T2 `--round GATE_CMD REPORT_PATH`): lane-run.sh owns the
+# WHOLE round, not just CMD. After CMD exits (any code, handled above) and is
+# checkpointed (above), run GATE_CMD through the launcher the same way
+# (heartbeats continue on the SAME $hb -- no gap in liveness signal across
+# the CMD -> gate transition), then assert REPORT_PATH is attempt-fresh.
+# round_done fires ONLY when the gate passed AND the report is fresh; a
+# stale/missing report or a failing gate NEVER emits round_done (SC-D: a
+# prior round's report never satisfies the predicate) -- instead a
+# `waiting_child` state event and a terminal `round_incomplete` alert fire,
+# and this script exits nonzero directly (bypassing the round_done emission
+# below entirely).
+if (( ROUND_MODE == 1 )); then
+  gate_rc=0
+  # Backgrounded (`&` + explicit wait), NOT a plain synchronous foreground
+  # call, even though set -e is back in effect here (guarded via the
+  # if-wraps-wait pattern below, matching this file's ckpt_snapshot capture
+  # style) -- this is deliberate, not incidental: it is what lets cleanup()
+  # (cmd_pid/launcher_pid branch) actually reach and kill the in-flight GATE
+  # process if INT/TERM arrives DURING the gate phase (SC-B: "killing the
+  # launcher/parent during the gate/report phase leaves zero orphan gate
+  # processes"). A plain foreground call here would leave lane-run.sh's trap
+  # with no pid to act on, orphaning the gate launcher on a signal.
+  if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
+    # Same launcher, same $hb (heartbeats continue) -- GATE_CMD is a single
+    # positional word in the `--round GATE_CMD REPORT_PATH` grammar (not a
+    # CMD-style ARGS... array like the round's own CMD), so it is run via
+    # `bash -c` -- this lets a caller pass e.g. "scripts/gate-eval.sh run1"
+    # as one quoted string.
+    gate_hb_baseline="$(wc -l < "$hb" 2>/dev/null || echo 0)"
+    "$FOREMAN_LAUNCH_RESOLVED" --heartbeat-file "$hb" --heartbeat-interval 15 -- bash -c "$GATE_CMD" < /dev/null &
+    launcher_pid=$!
+    # Rework round 1, F2: refresh LANE_OWNERSHIP_PID to the GATE's own child
+    # pid (see lane_refresh_gate_ownership_pid doc comment) -- concurrent
+    # with the gate running, same pattern as lane_emit_ownership for CMD, so
+    # a signal arriving during this phase has the right POSIX group-kill
+    # target available in cleanup() the instant it needs it.
+    lane_refresh_gate_ownership_pid "$hb" "$gate_hb_baseline"
+    if wait "$launcher_pid"; then gate_rc=0; else gate_rc=$?; fi
+    launcher_pid=""
+  else
+    bash -c "$GATE_CMD" < /dev/null &
+    cmd_pid=$!
+    if wait "$cmd_pid"; then gate_rc=0; else gate_rc=$?; fi
+    cmd_pid=""
+  fi
+
+  # Attempt-fresh predicate (spec): mtime strictly newer than THIS round's
+  # prompt-event ts (round_prompt_epoch, captured before CMD ever ran), OR
+  # the report contains "attempt: <current attempt id>" as a secondary
+  # signal -- mtime is primary since it needs no cooperation from whatever
+  # wrote the report; the attempt-string check is a fallback for filesystems/
+  # transports that do not preserve mtime faithfully. Implemented inline
+  # (not a helper) since it is a single-use, single-branch predicate.
+  report_fresh=false
+  if [[ -f "$REPORT_PATH" ]]; then
+    report_mtime="$(stat -c %Y "$REPORT_PATH" 2>/dev/null || stat -f %m "$REPORT_PATH" 2>/dev/null || echo "")"
+    if [[ -n "$report_mtime" ]] && (( report_mtime > round_prompt_epoch )); then
+      report_fresh=true
+    elif grep -Eq "attempt:[[:space:]]*${attempt}([^0-9]|\$)" "$REPORT_PATH" 2>/dev/null; then
+      report_fresh=true
+    fi
+  fi
+
+  if (( gate_rc == 0 )) && [[ "$report_fresh" == "true" ]]; then
+    round_payload="$(jq -c --argjson gate_rc "$gate_rc" '. + {gate_rc:$gate_rc, report_fresh:true}' <<<"$round_payload" | tr -d '\r')"
+  else
+    waiting_payload="$(jq -cn --argjson gate_rc "$gate_rc" --argjson fresh "$([[ "$report_fresh" == "true" ]] && echo true || echo false)" '{gate_rc:$gate_rc, report_fresh:$fresh}' | tr -d '\r')"
+    if ! el_emit "$RUN" waiting_child "$LANE" "$waiting_payload" >/dev/null; then
+      echo "lane-run: el_emit waiting_child failed" >&2
+    fi
+    alert_payload="$(jq -cn --argjson gate_rc "$gate_rc" '{kind:"round_incomplete", gate_rc:$gate_rc, report_fresh:false}' | tr -d '\r')"
+    if ! el_emit "$RUN" alert "$LANE" "$alert_payload" >/dev/null; then
+      echo "lane-run: el_emit alert (round_incomplete) failed" >&2
+    fi
+    # NEVER emit round_done here (SC-D). Exit nonzero directly -- the EXIT
+    # trap still runs cleanup() normally.
+    if (( gate_rc != 0 )); then
+      exit "$gate_rc"
+    fi
+    exit 1
+  fi
+fi
 
 if (( checkpoint_failed == 0 )); then
   if ! el_emit "$RUN" round_done "$LANE" "$round_payload" "$sha" >/dev/null; then
