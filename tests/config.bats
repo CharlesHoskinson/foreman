@@ -1,7 +1,8 @@
 #!/usr/bin/env bats
 # @description Tests for the shared [durable]/[nats] config loader
-#   (skills/foreman/scripts/lib/config.sh): TOML-only resolution for all 10
-#   known keys (v0.2.5 T8 adds durable.resume_max_attempts), env-beats-TOML
+#   (skills/foreman/scripts/lib/config.sh): TOML-only resolution for all 14
+#   known keys (v0.2.5 T8 adds durable.resume_max_attempts; v0.2.5 T4b adds
+#   durable.starting_stale/impl_stale/verify_stale/grace), env-beats-TOML
 #   precedence, defaults when neither is set, ~ expansion in nats.store_dir,
 #   malformed-file fail-safe, and a TOML-only spot-check that lane-run.sh/
 #   watch.sh each resolve one interval through the loader.
@@ -14,6 +15,7 @@ setup() {
   # sets FOREMAN_CONFIG explicitly rather than relying on git-root detection.
   unset FOREMAN_CONFIG DURABLE_ENABLED DURABLE_CHECKPOINT_INTERVAL \
     DURABLE_HEARTBEAT_INTERVAL STALL_WARN STALL_DEAD RESUME_MAX_ATTEMPTS \
+    STARTING_STALE IMPL_STALE VERIFY_STALE WATCH_GRACE \
     NATS_URL NATS_STORE NATS_STREAM NATS_SUBJECT_PREFIX 2>/dev/null || true
 }
 
@@ -74,6 +76,23 @@ EOF
   [ "$(cfg_get durable resume_max_attempts 2)" = "7" ]
 }
 
+@test "(a3) v0.2.5 T4b: starting_stale/impl_stale/verify_stale/grace resolve from TOML only (env unset)" {
+  toml="$BATS_TEST_TMPDIR/t4b.toml"
+  cat > "$toml" <<'EOF'
+[durable]
+starting_stale = 45
+impl_stale = 150
+verify_stale = 300
+grace = 5
+EOF
+  export FOREMAN_CONFIG="$toml"
+  cfg_load
+  [ "$(cfg_get durable starting_stale 90)" = "45" ]
+  [ "$(cfg_get durable impl_stale 300)" = "150" ]
+  [ "$(cfg_get durable verify_stale 600)" = "300" ]
+  [ "$(cfg_get durable grace 10)" = "5" ]
+}
+
 @test "(b) env beats TOML; an unrelated key still resolves from TOML" {
   toml="$BATS_TEST_TMPDIR/full.toml"
   write_full_toml "$toml"
@@ -87,6 +106,26 @@ EOF
   [ "$(cfg_get nats stream FOREMAN)" = "CUSTOMSTREAM" ]
 }
 
+@test "(b2) v0.2.5 T4b: env beats TOML for the four new keys" {
+  toml="$BATS_TEST_TMPDIR/t4b_env.toml"
+  cat > "$toml" <<'EOF'
+[durable]
+starting_stale = 45
+impl_stale = 150
+verify_stale = 300
+grace = 5
+EOF
+  export FOREMAN_CONFIG="$toml"
+  export STARTING_STALE=61
+  export VERIFY_STALE=601
+  cfg_load
+  [ "$(cfg_get durable starting_stale 90)" = "61" ]
+  [ "$(cfg_get durable verify_stale 600)" = "601" ]
+  # Unset-env keys still resolve from TOML, not the built-in default.
+  [ "$(cfg_get durable impl_stale 300)" = "150" ]
+  [ "$(cfg_get durable grace 10)" = "5" ]
+}
+
 @test "(c) defaults when neither env nor TOML supplies a value" {
   export FOREMAN_CONFIG="$BATS_TEST_TMPDIR/does-not-exist.toml"
   cfg_load
@@ -95,6 +134,10 @@ EOF
   [ "$(cfg_get durable heartbeat_interval 30)" = "30" ]
   [ "$(cfg_get durable stall_warn 300)" = "300" ]
   [ "$(cfg_get durable stall_dead 900)" = "900" ]
+  [ "$(cfg_get durable starting_stale 90)" = "90" ]
+  [ "$(cfg_get durable impl_stale 300)" = "300" ]
+  [ "$(cfg_get durable verify_stale 600)" = "600" ]
+  [ "$(cfg_get durable grace 10)" = "10" ]
   [ "$(cfg_get nats url nats://127.0.0.1:4222)" = "nats://127.0.0.1:4222" ]
   [ "$(cfg_get nats store_dir '~/.foreman/nats-store')" = "$HOME/.foreman/nats-store" ]
   [ "$(cfg_get nats stream FOREMAN)" = "FOREMAN" ]

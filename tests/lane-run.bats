@@ -809,6 +809,78 @@ EOF
   [ "$output" = "7" ]
 }
 
+# v0.2.5 T4b: the ONLY additive change lane-run.sh makes for T4b -- a
+# {state:"verifying"} event, fired once, right as the gate is about to spawn
+# (launcher-absent branch here, matching this file's own default
+# neutralization). Carries payload.attempt matching the round's own attempt
+# id (1, for a lane's first-ever round) so watch.sh's v2 typed-state machine
+# can scope it to the current attempt.
+@test "lane-run --round (T4b): emits exactly one {state:verifying} event with the round's attempt id, before the gate runs" {
+  report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
+  run bash "$SCRIPTS/lane-run.sh" --round "true" "$report" run1 lane-a "$WT" -- \
+    bash -c "echo attempt: 1 > $report"
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"state\" and .payload.state==\"verifying\") | .payload.attempt" "$events"
+  [ "$output" = "1" ]
+  run bash -c "jq -c \"select(.type==\\\"state\\\" and .payload.state==\\\"verifying\\\")\" \"$events\" | jq -s length"
+  [ "$output" = "1" ]
+  # Ordering: the verifying event precedes round_done (it marks the START of
+  # the gate phase, not its outcome).
+  run jq -rc '.type' "$events"
+  state_line=0; round_done_line=0; i=0
+  for t in "${lines[@]}"; do
+    i=$((i+1))
+    [ "$t" = "state" ] && state_line=$i
+    [ "$t" = "round_done" ] && round_done_line=$i
+  done
+  [ "$state_line" -gt 0 ]
+  [ "$round_done_line" -gt 0 ]
+  [ "$state_line" -lt "$round_done_line" ]
+}
+
+# v0.2.5 T4b: the verifying event marks "the gate spawned", not "the gate
+# succeeded" -- it must still fire even when GATE_CMD itself goes on to fail
+# (round_done never emitted in that case, per the pre-existing SC-D/gate-fail
+# tests above; the verifying event is orthogonal to that outcome).
+@test "lane-run --round (T4b): {state:verifying} still fires when the gate itself fails" {
+  report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
+  run bash "$SCRIPTS/lane-run.sh" --round "exit 7" "$report" run1 lane-a "$WT" -- \
+    bash -c "echo attempt: 1 > $report"
+  [ "$status" -eq 7 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"state\" and .payload.state==\"verifying\")" "$events"
+  [ -n "$output" ]
+}
+
+# v0.2.5 T4b: plain (non---round) mode is UNCHANGED -- no {state:verifying}
+# event, ever, outside --round mode (the phase concept only exists there).
+@test "lane-run (T4b): plain non-round mode never emits a {state:verifying} event" {
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c "true"
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"state\")" "$events"
+  [ -z "$output" ]
+}
+
+# v0.2.5 T4b: the launcher-PRESENT branch also emits it (unconditional across
+# both GATE_CMD spawn branches, per the spec's "when the gate launcher
+# spawns" -- not launcher-present-only).
+@test "lane-run --round (launcher present via PATH shim) (T4b): {state:verifying} still fires" {
+  stub_dir="$BATS_TEST_TMPDIR/stub"
+  mkdir -p "$stub_dir"
+  write_fake_launcher "$stub_dir"
+  export PATH="$stub_dir:$PATH"
+  unset FOREMAN_LAUNCH
+  report="$BATS_TEST_TMPDIR/FOREMAN_REPORT.md"
+  run bash "$SCRIPTS/lane-run.sh" --round "true" "$report" run1 lane-a "$WT" -- \
+    bash -c "echo attempt: 1 > $report"
+  [ "$status" -eq 0 ]
+  events="$(run_dir run1)/events.jsonl"
+  run jq -rc "select(.type==\"state\" and .payload.state==\"verifying\") | .payload.attempt" "$events"
+  [ "$output" = "1" ]
+}
+
 # T2 spec: plus ONE integration test against the real
 # launcher/dist/foreman-launch.exe if present, skip-guarded. Mirrors
 # tests/launcher.bats's own skip pattern exactly (compiled exe not found ->

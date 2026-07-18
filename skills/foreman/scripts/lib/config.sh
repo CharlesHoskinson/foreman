@@ -3,9 +3,10 @@
 #   harness. Precedence: dedicated env var (if set and non-empty) > TOML value
 #   > built-in default. CLI flags stay in the callers -- they already parse
 #   their own flags and win by exporting the dedicated env var before calling
-#   cfg_get. Parses ONLY the 10 documented [durable]/[nats] keys (v0.2.5 T8
+#   cfg_get. Parses ONLY the 14 documented [durable]/[nats] keys (v0.2.5 T8
 #   adds durable.resume_max_attempts, default 2, env RESUME_MAX_ATTEMPTS --
-#   the bounded auto-resume supervisor's cap) with a minimal bash
+#   the bounded auto-resume supervisor's cap; v0.2.5 T4b adds four more, see
+#   below) with a minimal bash
 #   TOML-subset parser ("[section]" headers, "key = value", quoted or
 #   bare scalars, "#" comments); every line outside a [durable]/[nats] section
 #   is skipped untouched (section-header tracking only), so unrelated TOML
@@ -18,13 +19,20 @@
 # Env var cfg_get resolves for each section.key it is asked about. This is
 # broader than the TOML "known keys" allowlist by exactly one entry
 # (durable.watch_tick -> WATCH_TICK): watch.sh's poll tick is not one of the
-# 10 documented [durable]/[nats] keys (see _cfg_parse_toml's explicit case
+# 14 documented [durable]/[nats] keys (see _cfg_parse_toml's explicit case
 # statement below, which is the actual TOML allowlist), but it still needs a
 # uniform cfg_get call site that honors its own pre-existing env var. Adding
 # it here does NOT make it TOML-storable -- _cfg_parse_toml checks its own
-# fixed 10-key case statement, not this table. resume_max_attempts (unlike
+# fixed 14-key case statement, not this table. resume_max_attempts (unlike
 # watch_tick) is symmetric -- present in BOTH tables, per the closed-allowlist
 # rule (v0.2.5 T7 CRITICAL note): a key missing from either silently no-ops.
+# v0.2.5 T4b adds four more symmetric (BOTH-tables) keys: watch.sh's typed
+# state machine's phase-aware stale thresholds (starting_stale/impl_stale/
+# verify_stale) and its phase-transition grace window (grace). stall_warn/
+# stall_dead are UNCHANGED and stay exactly as they were -- the v1
+# compatibility path (frozen) still reads them directly; T4b's typed states
+# reuse stall_dead for the shared DEAD bound and add the four new keys below
+# for STALLED/phase-entry semantics instead of overloading stall_warn.
 declare -Ag _CFG_ENV_VAR=(
   [durable.enabled]=DURABLE_ENABLED
   [durable.checkpoint_interval]=DURABLE_CHECKPOINT_INTERVAL
@@ -33,6 +41,10 @@ declare -Ag _CFG_ENV_VAR=(
   [durable.stall_dead]=STALL_DEAD
   [durable.watch_tick]=WATCH_TICK
   [durable.resume_max_attempts]=RESUME_MAX_ATTEMPTS
+  [durable.starting_stale]=STARTING_STALE
+  [durable.impl_stale]=IMPL_STALE
+  [durable.verify_stale]=VERIFY_STALE
+  [durable.grace]=WATCH_GRACE
   [nats.url]=NATS_URL
   [nats.store_dir]=NATS_STORE
   [nats.stream]=NATS_STREAM
@@ -50,7 +62,7 @@ _CFG_WARNED=0
 #   other than [durable]/[nats] -- including any array/table syntax they
 #   contain, e.g. this repo's own "[gate] forbidden_paths = [...]" -- are
 #   tracked for header purposes only and never inspected for value syntax, so
-#   they can never trip this parser. Only the 9 documented section.key
+#   they can never trip this parser. Only the 14 documented section.key
 #   combinations (the case statement below -- NOT the broader _CFG_ENV_VAR
 #   table, which also carries watch_tick for cfg_get's env resolution only)
 #   are stored; any other key inside [durable]/[nats] is ignored, not an
@@ -95,6 +107,7 @@ _cfg_parse_toml() {
       case "$section.$key" in
         durable.enabled|durable.checkpoint_interval|durable.heartbeat_interval| \
         durable.stall_warn|durable.stall_dead|durable.resume_max_attempts| \
+        durable.starting_stale|durable.impl_stale|durable.verify_stale|durable.grace| \
         nats.url|nats.store_dir|nats.stream|nats.subject_prefix)
           _CFG_VALUES["$section.$key"]="$val"
           ;;

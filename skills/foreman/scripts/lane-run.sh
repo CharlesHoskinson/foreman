@@ -922,6 +922,24 @@ round_payload="$(
 # below entirely).
 if (( ROUND_MODE == 1 )); then
   gate_rc=0
+  # T4b (v2 typed states, MINIMAL additive change -- nothing else in this
+  # file changes for T4b): mark the gate-phase transition so watch.sh's
+  # typed-state machine can distinguish VERIFYING from RUNNING_IMPL without
+  # relying on file writes. This fires ONCE, right as the gate is about to
+  # spawn (T2's F5 note: the event log goes quiet for the rest of the gate
+  # phase -- $hb, not the event log, carries liveness from here on; watch.sh
+  # reads $hb directly rather than expecting further structural events).
+  # Unconditional (both the launcher-present and launcher-absent GATE_CMD
+  # branches below) -- VERIFYING is a phase concept independent of launcher
+  # presence; a launcher-absent (pure v1) round simply never has an
+  # `ownership` event, so watch.sh's v1-compatibility path never looks at
+  # `state` events at all and this line is inert there. Guarded exactly like
+  # every other el_emit call in this file: a missed phase event must not
+  # block the round.
+  state_payload="$(jq -cn --argjson attempt "$attempt" '{state:"verifying",attempt:$attempt}' | tr -d '\r')"
+  if ! el_emit "$RUN" state "$LANE" "$state_payload" >/dev/null; then
+    echo "lane-run: el_emit state (verifying) failed" >&2
+  fi
   # Backgrounded (`&` + explicit wait), NOT a plain synchronous foreground
   # call, even though set -e is back in effect here (guarded via the
   # if-wraps-wait pattern below, matching this file's ckpt_snapshot capture

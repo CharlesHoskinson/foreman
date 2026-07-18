@@ -25,6 +25,14 @@
 # payload too (event top-level ts/type/lane remain el_emit's own). `alert`
 # joins the documented event-type vocabulary -- el_emit/el_read already
 # treat every type opaquely, so no code change was needed for that part.
+# `state` joins it too (v0.2.5 T4b): a dedicated event TYPE (distinct from
+# the payload.state KEY documented above, which any event type may carry)
+# whose payload always carries {state:<label>, attempt}. lane-run.sh's
+# --round mode emits exactly one, `{state:"verifying"}`, right as the gate
+# launcher spawns; watch.sh's v2 typed-state machine (skills/foreman/scripts/
+# watch.sh) is its only consumer. Again opaque to el_emit/el_read/el_compact:
+# is_collapsible only ever matches type=="heartbeat", so a `state` event is
+# already structural/never-collapsed with no code change needed here either.
 # Cursor semantics are UNCHANGED: the integer line-number cursor nats-bridge
 # depends on (el_cursor_get/el_cursor_commit, line-count based) is untouched;
 # el_read_after (attempt-filtered replay) is layered ON TOP of el_read, not a

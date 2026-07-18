@@ -400,3 +400,505 @@ setup() {
   [ "$(grep -c DEAD <<<"$output")" -eq 1 ]
   grep -q 'kill+retry from' <<<"$output"
 }
+
+# --- T4b: v2 typed states -- QUEUED, STARTING, RUNNING_IMPL, VERIFYING,
+# WAITING_CHILD, AGENT_ABANDONED, STALLED, DEAD, SUCCEEDED, FAILED
+# (2026-07-18). New tests only below this line, all on the T4a injected
+# clock (vtick_init) or --once (stateless, no clock dependency at all) --
+# none of the 30 tests above this marker were modified. --------------------
+
+# @description Emit a v2-shape `ownership` event matching lane_emit_ownership's
+#   exact shipped payload (ground truth: lane-run.sh), same convention
+#   tests/lane-supervise.bats's own _emit_ownership helper uses.
+# @arg $1 run  @arg $2 lane  @arg $3 attempt  @arg $4 launcher_pid (empty=null)
+# @arg $5 pid (empty=null)  @arg $6 worktree
+t4b_emit_ownership() {
+  local run="$1" lane="$2" attempt="$3" lpid="$4" pid="$5" wt="$6"
+  local payload
+  payload="$(
+    MSYS_NO_PATHCONV=1 jq -cn --argjson attempt "$attempt" --arg lp "$lpid" --arg pid "$pid" --arg wt "$wt" \
+      '{attempt:$attempt,
+        launcher_pid:(if $lp=="" then null else ($lp|tonumber) end),
+        pid:(if $pid=="" then null else ($pid|tonumber) end),
+        job_id:null, worktree:$wt, config_dir:null, launcher:true}'
+  )"
+  el_emit "$run" ownership "$lane" "$payload" >/dev/null
+}
+
+# @description Print one foreman-launch heartbeat line matching the frozen
+#   {ts, launcher_pid, pid, job_id, alive, stdout_bytes, stderr_bytes,
+#   elapsed_s} schema (ground truth: launcher/README.md, mirrored by
+#   tests/lane-run.bats's write_fake_launcher shim).
+# @arg $1 ts ISO-8601 UTC timestamp  @arg $2 launcher_pid  @arg $3 pid
+t4b_hb_line() {
+  printf '{"ts":"%s","launcher_pid":%d,"pid":%d,"job_id":"j1","alive":true,"stdout_bytes":0,"stderr_bytes":0,"elapsed_s":0.0}\n' \
+    "$1" "$2" "$3"
+}
+
+# @description Convert a vtick fake-clock epoch-ms reading to an ISO-8601 UTC
+#   timestamp -- a pure formatting conversion of a KNOWN value, not itself a
+#   real-clock read, so it stays meaningful under the injected clock.
+# @arg $1 epoch_ms
+t4b_mkts() {
+  date -u -d "@$(( $1 / 1000 ))" +%Y-%m-%dT%H:%M:%SZ
+}
+
+# @description Write a fake lane-queue.sh shim to DIR/lane-queue.sh: its
+#   `status` subcommand prints a whole-queue JSON blob with one task whose
+#   original_command mentions RUN and LANE, status "Queued" (QUEUED=1) or an
+#   empty task map (QUEUED=0) -- the wd_is_queued best-effort substring/status
+#   match this file's own watch.sh implements is exercised against a
+#   plausible, not-necessarily-real-pueue-verified shape (spec explicitly
+#   calls this match "best-effort").
+# @arg $1 dir  @arg $2 run  @arg $3 lane  @arg $4 queued (1|0)
+t4b_write_fake_lane_queue() {
+  local dir="$1" run="$2" lane="$3" queued="$4"
+  if [[ "$queued" == "1" ]]; then
+    cat > "$dir/lane-queue.sh" <<SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "status" ]]; then
+  printf '{"tasks":{"7":{"original_command":"bash lane-run.sh $run $lane /wt -- foo","status":"Queued"}}}\n'
+  exit 0
+fi
+exit 1
+SHIM
+  else
+    cat > "$dir/lane-queue.sh" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "$1" == "status" ]]; then
+  printf '{"tasks":{}}\n'
+  exit 0
+fi
+exit 1
+SHIM
+  fi
+  chmod +x "$dir/lane-queue.sh"
+}
+
+# --- wd_state_v2: pure function, direct-call unit tests (same style as the
+# wd_state unit tests at the top of this file) ------------------------------
+
+@test "wd_state_v2: age below warn is RUNNING" {
+  run wd_state_v2 10 90 900
+  [ "$output" = "RUNNING" ]
+}
+@test "wd_state_v2: age at warn (boundary) is STALLED" {
+  run wd_state_v2 90 90 900
+  [ "$output" = "STALLED" ]
+}
+@test "wd_state_v2: age just below dead stays STALLED" {
+  run wd_state_v2 899 90 900
+  [ "$output" = "STALLED" ]
+}
+@test "wd_state_v2: age at dead (boundary) is DEAD" {
+  run wd_state_v2 900 90 900
+  [ "$output" = "DEAD" ]
+}
+
+# --- STARTING ---------------------------------------------------------------
+
+@test "T4b --once: STARTING when ownership exists but \$hb has no line yet" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  export STARTING_STALE=90 STALL_DEAD=900
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"STARTING"* ]]
+}
+
+@test "T4b VTICK: STARTING escalates to STALLED after starting_stale with no \$hb ever" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  export WATCH_TICK=1 STARTING_STALE=2 STALL_DEAD=900 WATCH_GRACE=0
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO" --hb "$hb"
+  [ "$(grep -c STARTING <<<"$output")" -ge 1 ]
+  [ "$(grep -c STALLED <<<"$output")" -eq 1 ]
+  [[ "$output" != *"DEAD"* ]]
+}
+
+# --- RUNNING_IMPL ------------------------------------------------------------
+
+@test "T4b --once: RUNNING_IMPL when \$hb and the event log are both fresh" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 heartbeat lane1 '{}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$$" > "$hb"
+  export IMPL_STALE=300 STALL_DEAD=900
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"RUNNING_IMPL"* ]]
+}
+
+@test "T4b VTICK: RUNNING_IMPL escalates through STALLED to DEAD (stall_dead retained from v1), exit 3" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 heartbeat lane1 '{}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  # $hb's line is written ONCE, at vtick's starting instant, then never
+  # refreshed -- age grows purely from the fake clock advancing.
+  t4b_hb_line "$(t4b_mkts "$(cat "$VTICK_FILE")")" "$$" "$$" > "$hb"
+  export WATCH_TICK=1 IMPL_STALE=2 STALL_DEAD=4 WATCH_GRACE=0
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 3 ]
+  [ "$(grep -c RUNNING_IMPL <<<"$output")" -eq 1 ]
+  [ "$(grep -c STALLED <<<"$output")" -eq 1 ]
+  [ "$(grep -c DEAD <<<"$output")" -eq 1 ]
+}
+
+# --- VERIFYING ---------------------------------------------------------------
+
+@test "T4b --once: VERIFYING once a {state:verifying} event exists for the attempt" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 state lane1 '{"state":"verifying","attempt":1}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$$" > "$hb"
+  export VERIFY_STALE=600 STALL_DEAD=900
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"VERIFYING"* ]]
+}
+
+# F5 -- THE LOAD-BEARING TEST OF THIS TASK.
+@test "T4b F5 (load-bearing): event log silent + \$hb still advancing during VERIFYING -> stays VERIFYING, no false stall" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 state lane1 '{"state":"verifying","attempt":1}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  export VERIFY_STALE=2 STALL_DEAD=900
+
+  t4b_hb_line "$(t4b_mkts "$(cat "$VTICK_FILE")")" "$$" "$$" > "$hb"
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"VERIFYING"* ]]
+
+  # Advance the fake clock past verify_stale (2s) WITHOUT any new event-log
+  # activity (the event log stays silent -- no new prompt/heartbeat/
+  # checkpoint/state event) -- but $hb keeps advancing, a fresh line
+  # appended, simulating the launcher's own heartbeat continuing during the
+  # gate phase (T2/F5 doctrine: the event log goes quiet during the gate;
+  # $hb is the only liveness signal left, and it is genuinely alive here).
+  $WATCH_SLEEP_CMD 3000
+  t4b_hb_line "$(t4b_mkts "$(cat "$VTICK_FILE")")" "$$" "$$" >> "$hb"
+
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"VERIFYING"* ]]
+  [[ "$output" != *"STALLED"* ]]
+}
+
+# The F5 case's inverse (spec-required): $hb frozen + log silent past
+# verify_stale -> STALLED.
+@test "T4b F5 inverse: \$hb frozen + event log silent past verify_stale -> STALLED" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 state lane1 '{"state":"verifying","attempt":1}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  export VERIFY_STALE=2 STALL_DEAD=900
+
+  t4b_hb_line "$(t4b_mkts "$(cat "$VTICK_FILE")")" "$$" "$$" > "$hb"
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"VERIFYING"* ]]
+
+  # Advance the fake clock past verify_stale WITHOUT touching $hb this time
+  # (frozen) or the event log (silent) -- this MUST escalate to STALLED.
+  $WATCH_SLEEP_CMD 3000
+
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"STALLED"* ]]
+}
+
+@test "T4b VTICK: phase-transition grace suppresses an immediate STALLED right after entering VERIFYING" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 state lane1 '{"state":"verifying","attempt":1}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  # $hb's last line is ALREADY stale (year 2001) the moment watch.sh starts
+  # -- without the grace window this would read STALLED on tick 1.
+  t4b_hb_line "2001-01-01T00:00:00Z" "$$" "$$" > "$hb"
+  export WATCH_TICK=1 VERIFY_STALE=2 STALL_DEAD=900 WATCH_GRACE=5
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO" --hb "$hb"
+  first_line="$(head -n1 <<<"$output")"
+  [[ "$first_line" == *"VERIFYING"* ]]
+  # Grace is bounded, not a permanent exemption: it DOES eventually escalate
+  # once the grace window itself expires (the raw age is still stale).
+  [ "$(grep -c STALLED <<<"$output")" -ge 1 ]
+}
+
+# --- WAITING_CHILD -----------------------------------------------------------
+
+@test "T4b --once: WAITING_CHILD when the latest waiting_child event is newer than \$hb activity" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  t4b_hb_line "2001-01-01T00:00:00Z" "$$" "$$" > "$hb"
+  el_emit run1 waiting_child lane1 '{"gate_rc":7,"report_fresh":false}' >/dev/null
+  export STALL_DEAD=900
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"WAITING_CHILD"* ]]
+}
+
+# --- AGENT_ABANDONED ---------------------------------------------------------
+
+@test "T4b --once: AGENT_ABANDONED when the owning pid is confirmed dead, no round_done, no waiting_child" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 999999999 "" "$REPO"
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 999999999 999999999 > "$hb"
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 5 ]
+  [[ "$output" == *"AGENT_ABANDONED"* ]]
+}
+
+@test "T4b --once: AGENT_ABANDONED never fires when the owning pid is a genuinely live process" {
+  setup_tmp_repo
+  sleep 100 &
+  livepid=$!
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$livepid" "" "$REPO"
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$livepid" "$livepid" > "$hb"
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  kill "$livepid" 2>/dev/null || true
+  wait "$livepid" 2>/dev/null || true
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"AGENT_ABANDONED"* ]]
+}
+
+@test "T4b VTICK: AGENT_ABANDONED via the continuous loop emits exactly one alert and exits 5" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 999999999 "" "$REPO"
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 999999999 999999999 > "$hb"
+  export WATCH_TICK=1
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 5 ]
+  [[ "$output" == *"AGENT_ABANDONED"* ]]
+  n="$(jq -rc 'select(.type=="alert" and .payload.state=="AGENT_ABANDONED") | .seq' "$FOREMAN_HOME/runs/run1/events.jsonl" | wc -l)"
+  [ "$n" -eq 1 ]
+}
+
+# --- SUCCEEDED / FAILED -------------------------------------------------------
+
+@test "T4b --once: SUCCEEDED (DONE) when round_done exists with gate_rc 0, even with ownership present" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 round_done lane1 '{"exit_code":0,"gate_rc":0,"report_fresh":true}' >/dev/null
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"DONE"* ]]
+}
+
+@test "T4b VTICK: SUCCEEDED via the continuous loop with ownership present exits 0 printing DONE" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 round_done lane1 '{"exit_code":0,"gate_rc":0,"report_fresh":true}' >/dev/null
+  export WATCH_TICK=1
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 0 ]
+  grep -q DONE <<<"$output"
+}
+
+@test "T4b --once: FAILED when a terminal T8 abandoned alert exists for the attempt" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 999999999 "" "$REPO"
+  el_emit run1 alert lane1 '{"kind":"abandoned","attempts":2}' >/dev/null
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO"
+  [ "$status" -eq 4 ]
+  [[ "$output" == *"FAILED"* ]]
+}
+
+@test "T4b VTICK: FAILED via the continuous loop exits 4 without double-emitting T8's own alert" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 999999999 "" "$REPO"
+  el_emit run1 alert lane1 '{"kind":"abandoned","attempts":2}' >/dev/null
+  export WATCH_TICK=1
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 4 ]
+  [[ "$output" == *"FAILED"* ]]
+  n="$(jq -rc 'select(.type=="alert" and .payload.kind=="abandoned") | .seq' "$FOREMAN_HOME/runs/run1/events.jsonl" | wc -l)"
+  [ "$n" -eq 1 ]
+}
+
+# --- QUEUED ------------------------------------------------------------------
+
+@test "T4b --once: QUEUED when no prompt exists yet and lane-queue reports a matching queued task" {
+  setup_tmp_repo
+  stub="$BATS_TEST_TMPDIR/stub"; mkdir -p "$stub"
+  t4b_write_fake_lane_queue "$stub" run1 lane1 1
+  export WATCH_LANE_QUEUE_BIN="$stub/lane-queue.sh"
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"QUEUED"* ]]
+}
+
+@test "T4b --once: no matching queued task -> never QUEUED (best-effort, no false positive)" {
+  setup_tmp_repo
+  stub="$BATS_TEST_TMPDIR/stub"; mkdir -p "$stub"
+  t4b_write_fake_lane_queue "$stub" run1 lane1 0
+  export WATCH_LANE_QUEUE_BIN="$stub/lane-queue.sh"
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"QUEUED"* ]]
+}
+
+@test "T4b --once: pueue/lane-queue.sh entirely unresolvable -> never QUEUED (fail toward not-queued)" {
+  setup_tmp_repo
+  export WATCH_LANE_QUEUE_BIN="$BATS_TEST_TMPDIR/does-not-exist.sh"
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"QUEUED"* ]]
+}
+
+@test "T4b VTICK: QUEUED never stall-classifies even past thresholds that would otherwise fire immediately" {
+  setup_tmp_repo
+  vtick_init
+  stub="$BATS_TEST_TMPDIR/stub"; mkdir -p "$stub"
+  t4b_write_fake_lane_queue "$stub" run1 lane1 1
+  export WATCH_LANE_QUEUE_BIN="$stub/lane-queue.sh"
+  export WATCH_TICK=1 STALL_WARN=1 STALL_DEAD=2 STARTING_STALE=1
+  # Rework Round 1 (Opus audit finding 5, LOW): tightened from an 8s bound --
+  # the fake sleep is instant under vtick, so this test never needed to
+  # busy-spin anywhere close to that long; 3s is ample headroom over the
+  # per-tick jq/subprocess overhead actually observed on this host.
+  run timeout 3 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [[ "$output" == *"QUEUED"* ]]
+  [[ "$output" != *"STALLED"* ]]
+  [[ "$output" != *"DEAD"* ]]
+}
+
+# --- v1 hand-off / CLI grammar -----------------------------------------------
+
+@test "T4b CLI: --hb overrides the default heartbeat-file path" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  custom_hb="$BATS_TEST_TMPDIR/custom-heartbeat.ndjson"
+  t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$$" > "$custom_hb"
+  # The DEFAULT path ($REPO/.harness/heartbeat.ndjson) does not exist at all
+  # -- without --hb this would read as STARTING; with --hb pointing at
+  # custom_hb it must read RUNNING_IMPL instead.
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$custom_hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"RUNNING_IMPL"* ]]
+}
+
+@test "T4b CLI: flags may appear before the positionals (new grammar) alongside --once" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  el_emit run1 round_done lane1 '{"exit_code":0}' >/dev/null
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"DONE"* ]]
+}
+
+@test "T4b dispatch: a round with events but no ownership ever hands off to the frozen v1 path unchanged" {
+  setup_tmp_repo
+  vtick_init
+  export WATCH_TICK=1 STALL_WARN=2 STALL_DEAD=4
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  run timeout 10 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO"
+  [ "$status" -eq 3 ]
+  [ "$(grep -c STALLED <<<"$output")" -eq 1 ]
+  [ "$(grep -c DEAD <<<"$output")" -eq 1 ]
+  # v1 vocabulary only -- never a typed-state label leaks into a pure v1 round.
+  [[ "$output" != *"RUNNING_IMPL"* ]]
+  [[ "$output" != *"STARTING"* ]]
+}
+
+# --- Rework Round 1 (Opus audit, 2026-07-18) --------------------------------
+
+# Finding 1 (MEDIUM, mandatory): the one-time v1/v2 dispatch race. A watcher
+# that first-latches in the prompt->ownership gap (ownership can lag its own
+# prompt by up to ~20s, lane_emit_ownership's own bound) must NOT commit
+# irrevocably to v1 on a single point-in-time check -- that path never reads
+# $hb, so it would false-stall during the gate exactly like the F5 case this
+# task exists to prevent. Fix: wd_wait_ownership bounded-re-polls before
+# committing. This test proves the re-poll actually catches a LATE-arriving
+# ownership event: a background watcher (driven by the T4a fake-clock FILE
+# directly, not real time) appends the ownership event the instant the fake
+# clock crosses +10 fake-seconds past the moment watch.sh started polling --
+# simulating lane_emit_ownership's own real-world latency with zero real
+# wall-clock cost. WATCH_OWNERSHIP_WAIT is raised well above
+# wd_wait_ownership's own conservative 3s default (which exists specifically
+# to protect the FROZEN v1 wall-clock tests' `timeout` budgets, per that
+# function's own doc comment) so the bounded window actually reaches +10s.
+@test "T4b Rework1 finding1: ownership appearing ~10 fake-seconds after latch still lands in v2, not the v1 hand-off" {
+  setup_tmp_repo
+  vtick_init
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"; mkdir -p "$(dirname "$hb")"
+  t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$$" > "$hb"
+
+  start_ms="$(cat "$VTICK_FILE")"
+  (
+    while true; do
+      cur="$(cat "$VTICK_FILE" 2>/dev/null || echo "$start_ms")"
+      if (( cur - start_ms >= 10000 )); then
+        t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+        break
+      fi
+      sleep 0.05
+    done
+  ) &
+  bgpid=$!
+
+  export WATCH_TICK=1 WATCH_OWNERSHIP_WAIT=15000 STALL_DEAD=900 IMPL_STALE=300
+  run timeout 20 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO" --hb "$hb"
+  kill "$bgpid" 2>/dev/null || true
+  wait "$bgpid" 2>/dev/null || true
+
+  # Lands in v2 (RUNNING_IMPL, $hb+event both fresh once ownership is
+  # confirmed) -- never falls back to bare v1 RUNNING/STALLED/DEAD, proving
+  # the bounded re-poll caught the late-arriving ownership event instead of
+  # committing to v1 at the very first check.
+  [[ "$output" == *"RUNNING_IMPL"* ]]
+}
+
+# Finding 3 (LOW): with a {state:verifying} event present but $hb empty/
+# unparsable, classification must land in VERIFYING (verify_stale, 600s
+# default), not STARTING (starting_stale, 90s default) -- the verifying flag
+# must be checked BEFORE the empty-hb STARTING branch.
+@test "T4b Rework1 finding3: verifying event present but \$hb empty -> VERIFYING, not STARTING" {
+  setup_tmp_repo
+  el_emit run1 prompt lane1 '{}' >/dev/null
+  t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
+  el_emit run1 state lane1 '{"state":"verifying","attempt":1}' >/dev/null
+  hb="$REPO/.harness/heartbeat.ndjson"
+  # $hb deliberately absent (no mkdir/write at all) -- the empty/unparsable
+  # case this finding is about.
+  export STARTING_STALE=90 VERIFY_STALE=600 STALL_DEAD=900
+  run bash "$SCRIPTS/watch.sh" --once run1 lane1 "$REPO" --hb "$hb"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"VERIFYING"* ]]
+  [[ "$output" != *"STARTING"* ]]
+}
