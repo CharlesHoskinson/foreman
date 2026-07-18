@@ -47,6 +47,7 @@ fi
 ```
 
 Notes:
+
 - Drops the `od` spawn permanently (CR detected with a bash glob on the
   command-substitution output; `$( )` strips only the trailing newline, leaving a
   CR to match). After the first firing per run, the probe spawns nothing — the
@@ -217,6 +218,7 @@ time bash tests/run.sh tests/maintenance.bats  # B#2 half-1 (heaviest repo-build
 ```
 
 Acceptance:
+
 - `bash tests/run.sh` exits 0 with the same test count as before (nothing skipped
   or dropped).
 - The four `time` deltas are non-positive (faster or equal); no assertion changes.

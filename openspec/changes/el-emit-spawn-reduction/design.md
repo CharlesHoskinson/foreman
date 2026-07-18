@@ -72,6 +72,7 @@ it is inside the mutex, it also shortens lock-hold time (less inter-lane
 contention).
 
 Guard requirements (mandatory, from the audit):
+
 - `prev` MUST be pre-initialised to `0` on the `local` line so `set -u` and the
   missing-file path are both safe.
 - The guard MUST be `[[ -f "$seqf" ]] && prev="$(<"$seqf")"` (existence). Do NOT
@@ -178,6 +179,7 @@ clean checkout and on the changed tree and confirm `cmp` reports no difference
 (modulo the `ts` timestamp, which F5 leaves unchanged in format).
 
 Acceptance:
+
 - `eventlog.bats` and `lane-run.bats` pass with the same test count.
 - Full `tests/run.sh` exits 0.
 - Emitted JSON is byte-identical (ignoring the wall-clock `ts` value) to the

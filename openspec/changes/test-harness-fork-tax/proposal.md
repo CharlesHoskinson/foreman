@@ -15,7 +15,7 @@ adversarial audit (`~/.foreman/runs/dl2d/perf/R2-testharness-audit.md`):
 - **B#1** — the jq-CRLF probe in `tests/helpers.bash` re-runs (`jq` + `od`) on
   every one of ~122 file sourcings. Memoize it to a run-scoped flag file.
 - **B#2 (half-1)** — `setup_tmp_repo` rebuilds a throwaway git repo (`git init`
-  + 2 commits, ~10 spawns) per test. Build it **once per file** into
+  - 2 commits, ~10 spawns) per test. Build it **once per file** into
   `BATS_FILE_TMPDIR` and `cp -r` it per test.
 - **B#3** — `SCRIPTS="$(cd … && pwd)"` forks a subshell in every `setup` purely
   to canonicalize an already-absolute path. Replace with a plain assignment.

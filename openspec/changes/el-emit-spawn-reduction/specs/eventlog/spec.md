@@ -20,10 +20,12 @@ carriage-return (`\r`) bytes.
   strip `\n`.
 
 #### Scenario: stored line has no carriage returns (eventlog.bats:99)
+
 - WHEN one event is emitted
 - THEN `tr -cd '\r' < events.jsonl | wc -c` SHALL be `0`.
 
 #### Scenario: recorded fields are byte-exact (eventlog.bats:22)
+
 - WHEN `el_emit run1 checkpoint lane-b '{"x":true}' abc123` runs
 - THEN `jq -rc '[.seq,.type,.lane,.commit,(.payload.x)]|@csv'` SHALL be
   `1,"checkpoint","lane-b","abc123",true`.
@@ -44,18 +46,22 @@ assigned `seq` on stdout on success.
   "$seqf"`) SHALL remain unchanged, preserving atomic tmp+rename CAS semantics.
 
 #### Scenario: incrementing seq returned (eventlog.bats:12)
+
 - WHEN two events are emitted on a fresh run
 - THEN the first returns `1` and the second returns `2`, and the log has 2 lines.
 
 #### Scenario: concurrent emitters, unique 1..N seqs (eventlog.bats:77)
+
 - WHEN 20 `el_emit` calls run concurrently on one run
 - THEN all 20 lines land AND the seqs are exactly `1..20`, each unique.
 
 #### Scenario: failed reserve preserves .seq (eventlog.bats:132)
+
 - WHEN the reserve write is forced to fail
 - THEN `.seq` is NOT truncated and the next emit resumes without a duplicate.
 
 #### Scenario: append failure leaves a gap, never a duplicate (eventlog.bats:146)
+
 - WHEN an append fails after the seq is reserved
 - THEN the next successful emit skips that seq (gap), never repeats it.
 
@@ -75,10 +81,12 @@ SHALL skip the `mkdir` spawn when the directory already exists.
   `run_dir` helper itself SHALL remain unchanged.
 
 #### Scenario: emit without prior el_init still creates the log (eventlog.bats:12)
+
 - WHEN `el_emit` is called on a run that was never `el_init`-ed
 - THEN the run directory and `events.jsonl` are created and the emit succeeds.
 
 #### Scenario: lock released on success and on failure (eventlog.bats:115)
+
 - WHEN a successful emit and a jq-failing emit each complete
 - THEN `<run_dir>/.seq.lock` does not exist afterward (mutex released on every
   path, unchanged).

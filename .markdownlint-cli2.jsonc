@@ -4,6 +4,6 @@
   "ignores": [
     "skills/scrapling/**", "skills/graphify/**", "skills/superpowers/**",
     "docs/research/**", "sandbox/**", "node_modules/**", "FOREMAN_REPORT.md", "FOREMAN_REPORT.json",
-    "graphify-out/**", ".foreman/**"
+    "graphify-out/**", ".foreman/**", "openspec/changes/**"
   ]
 }
