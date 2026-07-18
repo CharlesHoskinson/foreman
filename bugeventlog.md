@@ -564,3 +564,25 @@ proposed enhancement. Newest at the bottom.
 - **Proposed enhancement:** v0.2.5 VTICK spec must explicitly cover the
   unlatched path and fractional ticks, with the wd_sleep_remainder fix
   included, and be built test-first against tests 18/23 specifically.
+
+## 2026-07-17 — perf bundle force-merged to main WITHOUT a clean full-suite gate
+
+- **Phase:** end of session, user leaving, explicit "merge to github / force merge".
+- **What happened:** cherry-picked foreman/dl2e/implement/perf (56ea69e) onto
+  main and pushed (`f97906a`) WITHOUT completing the authoritative full-suite
+  merge gate (killed it mid-run to avoid a 40-min wait).
+- **Evidence backing the merge:** Opus cold-diff audit APPROVED both changes;
+  el_emit output manually verified byte-identical (seq 1/2, correct types); the
+  only observed gate failures (eventlog.bats tests 27 + 34) were reproduced as
+  fork-exhaustion flakes (rogue VTICK agent bomb), and the el_emit code passes
+  sequentially. B#1 memoize hardening already present (trailing-newline write).
+- **Risk accepted:** the test-harness change (helpers.bash setup_tmp_repo git
+  template + jq-probe memoize) touches EVERY file using setup_tmp_repo and was
+  never confirmed green across the full suite on a calm host. Residual risk that
+  some setup_tmp_repo-dependent test regresses is UNVERIFIED.
+- **FOLLOW-UP (do first next session):** run `bash tests/run.sh` on main from a
+  calm host. If tests 27/34 or any setup_tmp_repo-dependent test fail for real,
+  fix-forward or revert f97906a. Only tag v0.2.0 AFTER a clean full-suite pass.
+- **Root cause (process):** a 40-min pre-VTICK full suite + a fork-exhaustion-
+  prone host made the merge gate too slow to run under time pressure — exactly
+  the throughput problem VTICK + the host gate mutex (v0.2.5) exist to fix.
