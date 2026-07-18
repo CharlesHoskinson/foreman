@@ -10,7 +10,7 @@ Combined skill: soft/hard modes, five-part specs, cross-vendor lanes
 (Grok implement / Codex Sol audit / Claude advisor), worktree fan-out,
 docs gate, release-triggered maintenance. Tag `v0.1.0`.
 
-## v0.2.0 — durable lanes (in flight, this branch)
+## v0.2.0 — durable lanes (released 2026-07-17)
 
 Crash-safe, observable agent rounds: append-only event log as source of truth,
 git-plumbing checkpoints, NATS/JetStream one-way transport, stall watchdog,
@@ -18,9 +18,10 @@ resume-from-checkpoint.
 
 - Spec: `docs/superpowers/specs/2026-07-15-durable-lanes-design.md`
 - Plan: `docs/superpowers/plans/2026-07-15-durable-lanes.md`
-- Status: T0-T2 merged; shared-lib hardening (CAS checkpoints, explicit
-  failure contracts, CR-safe reads) merged 2026-07-16; T3-T6 implementing in
-  parallel worktrees; T7 (config loader + doctrine) next; tag on completion.
+- Status: shipped — T0-T7 + perf bundle (el-emit spawn reduction,
+  test-harness fork-tax) merged; deferred merge gate closed green on main
+  (full suite 127/127 + docs-check) at `f24057c`. Tag `v0.2.0` (Nightwatch).
+  WATCH_VTICK and remaining perf items deferred to v0.2.5 by design.
 
 ## v0.2.5 — orchestration hardening (planned 2026-07-16)
 

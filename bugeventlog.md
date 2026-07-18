@@ -586,3 +586,16 @@ proposed enhancement. Newest at the bottom.
 - **Root cause (process):** a 40-min pre-VTICK full suite + a fork-exhaustion-
   prone host made the merge gate too slow to run under time pressure — exactly
   the throughput problem VTICK + the host gate mutex (v0.2.5) exist to fix.
+
+## 2026-07-17 — deferred v0.2.0 merge gate closed GREEN on main
+
+- **Phase:** next-session resume (fresh clone, calm host), first action per
+  the 2026-07-17 resume checkpoint.
+- **What happened:** ran the deferred verify-after-merge gate on main at
+  `f24057c` as the sole bats runner: full suite 127/127 pass (exit 0);
+  docs-check markdownlint/codespell/lychee/comments all pass.
+- **Outcome:** the force-merge residual risk (helpers.bash setup_tmp_repo
+  git-template + jq-probe memoize, never previously confirmed green across
+  the full suite on a calm host) is RETIRED. eventlog.bats 27/34 and every
+  setup_tmp_repo-dependent test pass; the prior failures are confirmed as
+  fork-exhaustion flakes, not regressions. v0.2.0 tagged from this state.
