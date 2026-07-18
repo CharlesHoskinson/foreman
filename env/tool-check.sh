@@ -211,8 +211,15 @@ check_one() {
       fi
       ;;
     pueue)
+      # v0.2.7.5 pkg-3 (Task 5): this is the Linux/WSL tool-check -- the
+      # fallback staged path here was ".exe"-only (a copy-paste artifact
+      # from the Windows-side convention) and could never match the
+      # WSL-native ~/.foreman/tools/pueue/pueue binary env/bootstrap-wsl.sh
+      # now installs; checks both.
       if have pueue; then
         status=ok; detail="$(pueue --version 2>&1 | head -1)"
+      elif [[ -x "$HOME/.foreman/tools/pueue/pueue" ]]; then
+        status=ok; detail="$("$HOME/.foreman/tools/pueue/pueue" --version 2>&1 | head -1)"
       elif [[ -x "$HOME/.foreman/tools/pueue/pueue.exe" ]]; then
         status=ok; detail="$("$HOME/.foreman/tools/pueue/pueue.exe" --version 2>&1 | head -1)"
       else

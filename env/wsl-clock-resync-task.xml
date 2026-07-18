@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Foreman v0.2.7.5 package 3 (wsl-reliability-env-refresh) Task 4:
+  resume-triggered WSL clock resync.
+
+  Fires on Windows resuming from sleep (System log Event ID 1, source
+  Microsoft-Windows-Power-Troubleshooter: the standard, documented way to
+  detect a sleep/resume cycle from Task Scheduler) and runs `hwclock -s`
+  inside the default WSL distro as root, pulling the WSL VM's guest clock
+  back in line with the host's real clock. This is the proactive half of
+  the Task 4 clock-drift fix; env/wsl-clock-preflight.sh is the reactive
+  half (a lane-start guard in case this hook did not run, was not
+  installed, or the resume happened too recently for it to have completed).
+
+  NOT auto-installed by this repo: registering a Scheduled Task is a
+  persistent, host-wide change outside anything env/bootstrap-wsl.sh or
+  tool-check.sh do (which only touch this repo's own tool inventory), so it
+  is a deliberate, documented, one-time manual install step instead:
+
+    schtasks /Create /TN "Foreman-WSL-Clock-Resync" /XML env\wsl-clock-resync-task.xml
+
+  or, from PowerShell:
+
+    Register-ScheduledTask -TaskName "Foreman-WSL-Clock-Resync" `
+      -Xml (Get-Content env\wsl-clock-resync-task.xml -Raw)
+
+  Verify: Get-ScheduledTask -TaskName "Foreman-WSL-Clock-Resync" | Get-ScheduledTaskInfo
+  Uninstall: Unregister-ScheduledTask -TaskName "Foreman-WSL-Clock-Resync" -Confirm:$false
+
+  The <UserId> below is a placeholder ("%USERDOMAIN%\%USERNAME%" is not
+  literal XML-substitutable: Task Scheduler needs a real account name at
+  registration time); edit it to the account that owns the target WSL
+  instance before installing, or pass -User/-Password to
+  Register-ScheduledTask to override the Principal at registration time.
+-->
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Foreman v0.2.7.5 pkg-3 (wsl-reliability-env-refresh Task 4): resync the WSL VM clock (hwclock -s) whenever the Windows host resumes from sleep, so the foreman event log's timestamp ordering invariants hold across a sleep/resume cycle. See skills/foreman/references/reference-environment.md and env/wsl-clock-preflight.sh (the companion lane-start drift preflight).</Description>
+    <URI>\Foreman-WSL-Clock-Resync</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <EventTrigger>
+      <Enabled>true</Enabled>
+      <Subscription>&lt;QueryList&gt;&lt;Query Id="0" Path="System"&gt;&lt;Select Path="System"&gt;*[System[Provider[@Name='Microsoft-Windows-Power-Troubleshooter'] and EventID=1]]&lt;/Select&gt;&lt;/Query&gt;&lt;/QueryList&gt;</Subscription>
+    </EventTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <UserId>REPLACE_WITH_DOMAIN\USERNAME</UserId>
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT1M</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>wsl.exe</Command>
+      <Arguments>-u root -- hwclock -s</Arguments>
+    </Exec>
+  </Actions>
+</Task>

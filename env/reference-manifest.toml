@@ -5,6 +5,13 @@
 schema_version = 1
 name = "foreman-reference"
 description = "Windows host + WSL2 Ubuntu reference env for Foreman soft and hard modes"
+# v0.2.7.5 package 3 (wsl-reliability-env-refresh) Task 5: every entry below
+# re-probed for real on both Windows and WSL and reconciled to match --
+# shellcheck was PREVIOUSLY claimed installed on Windows (2026-07-17 note)
+# but was not actually present (a live bug this task fixed for real, both
+# sides); WSL bats/bun/pueue/codex/grok were previously either apt-missing,
+# entirely un-installed, or leaking the Windows binary via appendWindowsPath.
+probe_verified_date = "2026-07-18"
 
 [platform]
 # Hard mode scripts are bash; soft mode can run on Windows host CLIs.
@@ -32,6 +39,7 @@ min_version = "3.11"
 install_wsl = "sudo apt-get install -y python3 python3-pip python3-venv"
 install_windows = "winget install --id Python.Python.3.12 -e --accept-package-agreements --accept-source-agreements"
 required = true
+notes = "HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency table -- current stable both sides; WSL Python 3.14.4 probe-verified, well above the 3.11 floor)."
 
 [[tools]]
 id = "jq"
@@ -40,29 +48,29 @@ where = ["wsl"]
 check = "jq --version"
 install_wsl = "sudo apt-get install -y jq"
 required = true
-notes = "Hard-mode scripts (meta.json, gate) need jq"
+notes = "Hard-mode scripts (meta.json, gate) need jq. HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency table -- current stable, jq-1.8.1 WSL / jq-1.8.2 Windows probe-verified)."
 
 [[tools]]
 id = "grok"
 profile = ["soft", "full"]
 where = ["windows", "wsl"]
 check = "grok --version"
-install_wsl = "npm i -g @xai-official/grok"
-install_windows = "npm i -g @xai-official/grok"
-install_hint = "Binary resolves from the npm global prefix (avoids the Cloudflare-walled x.ai installer host). After install: grok login --device-code (headless/remote-safe; XAI_API_KEY also accepted)"
+install_wsl = "npm install -g @xai-official/grok@latest"
+install_windows = "npm install -g @xai-official/grok@latest"
+install_hint = "npm mirror avoids the Cloudflare-walled x.ai/cli host (verified route: openspec/changes/grok-lane-activation/design.md). After install: grok login --device-code (headless/remote-safe; XAI_API_KEY also accepted)"
 required = true
-notes = "Default implementer lane; auth verified in the Setup stage, never mid-lane"
+notes = "Default implementer lane. Probe-verified 2026-07-18: `npm install -g @xai-official/grok` is genuinely WSL-native-installable (env/bootstrap-wsl.sh does this now) -- previously this script only printed a manual-vendor-install hint and never actually installed it on WSL."
 
 [[tools]]
 id = "codex"
 profile = ["soft", "full"]
 where = ["windows", "wsl"]
 check = "codex --version"
-install_wsl = "npm install -g @openai/codex"
-install_windows = "npm install -g @openai/codex"
+install_wsl = "npm install -g @openai/codex@latest"
+install_windows = "npm install -g @openai/codex@latest"
 install_hint = "After install: codex login (needs GPT-5.6 Sol access for audit)"
 required = true
-notes = "Default auditor (GPT-5.6 Sol) + optional implementer"
+notes = "Default auditor (GPT-5.6 Sol) + optional implementer. LIVE BUG fixed 2026-07-18 (v0.2.7.5 pkg-3): on WSL, `codex` was resolving the Windows npm-global shim leaked in via appendWindowsPath (its @openai/codex-linux-x64 optionalDependency is win32-gated and can never satisfy a WSL node runtime -- crashed with \"Missing optional dependency\"). Fix is two-layered: (1) install codex WSL-native forcing `@latest` (a bare `npm install -g @openai/codex` on an already-present top-level package can skip re-resolving the per-platform optionalDependency -- reproduced during this task's proof); (2) appendWindowsPath=false in /etc/wsl.conf so the leaked shim is unreachable at all. See reference-environment.md's \"WSL interop\" section."
 
 [[tools]]
 id = "claude"
@@ -78,10 +86,10 @@ id = "node"
 profile = ["soft", "full"]
 where = ["windows", "wsl"]
 check = "node --version"
-install_wsl = "curl -fsSL https://fnm.vercel.app/install | bash && fnm install --lts"
+install_wsl = "curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir ~/.foreman/tools/fnm --skip-shell && ~/.foreman/tools/fnm/fnm install --lts"
 install_windows = "winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements"
 required = false
-notes = "Needed to install codex via npm if not already present"
+notes = "Needed to install codex/grok via npm if not already present. Reprovisioned via fnm 2026-07-18 (v0.2.7.5 pkg-3): apt's own nodejs+npm pairing had drifted (node 22 + npm 9.2.0 -- npm shipped with node 22 is normally 10.x+), which is suspected to be why an earlier WSL codex install never pulled its platform optionalDependency correctly. fnm-managed LTS (v24.18.0 / npm 11.16.0 at probe time) is a coherent, current pair; env/bootstrap-wsl.sh symlinks its node/npm/npx into /usr/local/bin so they resolve ahead of the apt package without needing any shell profile sourced."
 
 [[tools]]
 id = "npm"
@@ -98,7 +106,7 @@ where = ["wsl"]
 check = "docker version"
 install_wsl = "# see bootstrap-wsl.sh docker section (docker-ce + systemd)"
 required = true
-notes = "Native docker-ce in WSL preferred over Docker Desktop for hard workers"
+notes = "Native docker-ce in WSL preferred over Docker Desktop for hard workers. Upgraded (minor) 2026-07-18 (v0.2.7.5 pkg-3, dependency table): 29.5.3 -> 29.6.2 via `apt-get install docker-ce docker-ce-cli containerd.io` (already-tracked download.docker.com apt repo; no new repo needed). Deliberately a one-time dependency-table action, not an every-bootstrap-run auto-upgrade -- env/bootstrap-wsl.sh's own docker section stays install-if-missing (conservative; an already-running daemon/containers are not something a provisioning script should silently upgrade out from under)."
 
 [[tools]]
 id = "shellcheck"
@@ -108,16 +116,16 @@ check = "shellcheck --version"
 install_wsl = "sudo apt-get install -y shellcheck"
 install_windows = "winget install --id koalaman.shellcheck -e --accept-package-agreements --accept-source-agreements --scope user"
 required = false
-notes = "Bash static analysis. Installed on Windows host 2026-07-17 via winget."
+notes = "Bash static analysis. LIVE BUG fixed 2026-07-18 (v0.2.7.5 pkg-3): the 2026-07-17 note here claimed shellcheck was already installed on Windows via winget -- it was NOT (`winget list --id koalaman.shellcheck` found no installed package; `shellcheck` was not on PATH in any shell session probed). Actually installed for real on both sides 2026-07-18: WSL apt (0.11.0-2) and Windows winget (per the install_windows command above). Running shellcheck for real against this repo's own bash for the first time caught a genuine latent bug: env/bootstrap-wsl.sh had a `# shellcheck / bats for hard/full` comment that collided with shellcheck's own inline-directive syntax (SC1072/SC1073) -- fixed."
 
 [[tools]]
 id = "bats"
 profile = ["full"]
 where = ["wsl"]
 check = "bats --version || ~/.foreman/tools/bats-core/bin/bats --version"
-install_wsl = "git clone --depth 1 https://github.com/bats-core/bats-core ~/.foreman/tools/bats-core"
+install_wsl = "sudo apt-get install -y bats  # git clone --depth 1 https://github.com/bats-core/bats-core ~/.foreman/tools/bats-core as a portability fallback for distros without an apt bats package"
 required = true
-notes = "Test harness for skills/foreman/scripts (tests/run.sh)"
+notes = "Test harness for skills/foreman/scripts (tests/run.sh). Probe-verified 2026-07-18: Ubuntu 26.04 ships bats 1.13.0-1 directly via apt (env/bootstrap-wsl.sh tries this first now); the git-clone route stays as a fallback for older distros without an apt package."
 
 [[tools]]
 id = "flock"
@@ -153,10 +161,10 @@ id = "gh"
 profile = ["hard", "full"]
 where = ["windows", "wsl"]
 check = "gh --version"
-install_wsl = "sudo apt-get install -y gh || (type -p curl >/dev/null && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg)"
+install_wsl = "official cli.github.com apt repo (see env/bootstrap-wsl.sh's gh section) then: sudo apt-get install -y gh"
 install_windows = "winget install --id GitHub.cli -e --accept-package-agreements --accept-source-agreements"
 required = false
-notes = "PR open stage"
+notes = "PR open stage. Upgraded (security) 2026-07-18 (v0.2.7.5 pkg-3, dependency table): Ubuntu 26.04's own `gh` universe package was stuck at 2.46.0-4 with no newer apt candidate at all (does not track upstream releases), while upstream was already at 2.96.0. env/bootstrap-wsl.sh now adds the official cli.github.com apt repo (keyring + sources.list.d entry) so gh installs/upgrades to a genuinely current version and stays current on future `apt-get upgrade`. Windows side (winget) was already current (2.92.0) at probe time -- no action needed there."
 
 [[tools]]
 id = "timeout"
@@ -184,17 +192,17 @@ check = "markdownlint-cli2 --version"
 install_wsl = "npm install -g markdownlint-cli2"
 install_windows = "npm install -g markdownlint-cli2"
 required = true
-notes = "docs group -- markdown lint"
+notes = "docs group -- markdown lint. HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency table -- current stable, v0.23.1). On WSL this was previously resolving the Windows npm shim leaked in via appendWindowsPath (same class of bug as codex) rather than actually installing WSL-native -- env/bootstrap-wsl.sh's install guard now checks the resolved path is not under /mnt/ before treating it as already-present, and symlinks the WSL-native install into /usr/local/bin."
 
 [[tools]]
 id = "codespell"
 profile = ["soft", "full"]
 where = ["windows", "wsl"]
 check = "codespell --version || python3 -m codespell_lib --version || python -m codespell_lib --version"
-install_wsl = "pip3 install --user codespell"
+install_wsl = "sudo apt-get install -y codespell"
 install_windows = "pip install --user codespell"
 required = true
-notes = "docs group -- spelling"
+notes = "docs group -- spelling. HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency table -- current stable, 2.4.1). install_wsl changed from `pip3 install --user` to apt 2026-07-18: this WSL's Python 3.14 refuses PEP 668 unmanaged pip installs (\"externally-managed-environment\", reproduced during this task's proof) without --break-system-packages; Debian ships a `codespell` apt package directly, which is both simpler and avoids that refusal entirely."
 
 [[tools]]
 id = "lychee"
@@ -202,9 +210,9 @@ profile = ["soft", "full"]
 where = ["windows", "wsl"]
 check = "lychee --version"
 install_windows = "winget install --id lycheeverse.lychee -e --accept-package-agreements --accept-source-agreements"
-install_wsl = "cargo install lychee --locked || cargo binstall -y lychee"
+install_wsl = "curl -fsSL -o /tmp/lychee.tar.gz https://github.com/lycheeverse/lychee/releases/download/lychee-v0.24.2/lychee-x86_64-unknown-linux-musl.tar.gz && tar -xzf /tmp/lychee.tar.gz -C ~/.foreman/tools/lychee --strip-components=1 lychee-x86_64-unknown-linux-musl/lychee"
 required = true
-notes = "docs group -- link check (offline by default)"
+notes = "docs group -- link check (offline by default). HELD at 0.24.2 both sides 2026-07-18 (v0.2.7.5 pkg-3 dependency table -- current stable). install_wsl changed from `cargo install`/`cargo binstall` to a GitHub release binary 2026-07-18: this WSL has no cargo/Rust toolchain, and requiring a full Rust install just for one CLI tool is unnecessary when the upstream project already publishes a prebuilt musl static binary (same approach as pueue, and as Windows's own winget route, which is also a prebuilt binary, not a from-source build)."
 
 [[tools]]
 id = "psscriptanalyzer"
@@ -240,17 +248,19 @@ profile = ["full"]
 where = ["windows", "wsl"]
 check = "bun --version"
 install_windows = "winget install --id Oven-sh.Bun --version 1.3.14 -e"
+install_wsl = "curl -fsSL https://bun.sh/install | bash -s \"bun-v1.3.14\""
 required = false
-notes = "Pinned to 1.3.14 -- winget does not self-pin (a later 'winget upgrade' can silently drift the installed version); tool-check WARNs (reports outdated, does not fail) when the installed bun is not exactly 1.3.14."
+notes = "HELD at 1.3.14 both sides (v0.2.7.5 pkg-3 dependency table -- 1.4 is canary-only, the 2-patch soak rule is unmet; do NOT upgrade). winget does not self-pin (a later 'winget upgrade' can silently drift the installed version); tool-check WARNs (reports outdated, does not fail) when the installed bun is not exactly 1.3.14. Probe-verified 2026-07-18: WSL had no bun at all before this task (env/bootstrap-wsl.sh now installs it, pinned, via bun's own official install script); Windows had 1.3.14 genuinely installed via winget already, though a stale shell-session PATH snapshot can make it look absent until a fresh shell picks up the winget PATH update -- not a real gap, a session artifact (same class as the shellcheck-install PATH-refresh note above)."
 
 [[tools]]
 id = "pueue"
 profile = ["full"]
-where = ["windows"]
+where = ["windows", "wsl"]
 check = "pueue --version"
 install_windows = "# GitHub release binaries -- no package-manager route. Download pueue.exe + pueued.exe from https://github.com/Nukesor/pueue/releases into ~/.foreman/tools/pueue"
+install_wsl = "curl -fsSL -o ~/.foreman/tools/pueue/pueue https://github.com/Nukesor/pueue/releases/download/v4.0.4/pueue-x86_64-unknown-linux-musl && curl -fsSL -o ~/.foreman/tools/pueue/pueued https://github.com/Nukesor/pueue/releases/download/v4.0.4/pueued-x86_64-unknown-linux-musl && chmod +x ~/.foreman/tools/pueue/{pueue,pueued}"
 required = false
-notes = "v4.0.4 staged at ~/.foreman/tools/pueue/{pueue.exe,pueued.exe}. No package-manager install route (GitHub release binaries only). Autostart doctrine: the pueue CLIENT never starts pueued itself (empirically confirmed -- `pueue status` with no daemon fails immediately rather than autostarting it); skills/foreman/scripts/lane-queue.sh's `ensure` subcommand spawns `pueued -d` itself when the daemon is unreachable -- see that script's header for the full empirical record."
+notes = "v4.0.4 HELD both sides (v0.2.7.5 pkg-3 dependency table -- current stable). Windows: staged at ~/.foreman/tools/pueue/{pueue.exe,pueued.exe}. WSL (new 2026-07-18, was entirely absent before this task): staged at ~/.foreman/tools/pueue/{pueue,pueued} (no .exe -- native ELF binaries), also symlinked into /usr/local/bin by env/bootstrap-wsl.sh. No package-manager install route on either side (GitHub release binaries only). Autostart doctrine: the pueue CLIENT never starts pueued itself (empirically confirmed -- `pueue status` with no daemon fails immediately rather than autostarting it); skills/foreman/scripts/lane-queue.sh's `ensure` subcommand spawns `pueued -d` itself when the daemon is unreachable -- see that script's header for the full empirical record."
 
 [[tools]]
 id = "coreutils"
