@@ -338,19 +338,23 @@ wd_sample() {
 }
 
 # @description Resolve durable-lanes watchdog config (STALL_WARN/STALL_DEAD/
-#   WATCH_TICK, plus the T4b v2 typed-state thresholds STARTING_STALE/
-#   IMPL_STALE/VERIFY_STALE/WATCH_GRACE) through the shared config loader and
-#   export them, so every existing "${STALL_WARN:-300}"-style default read in
-#   this file (wd_state, wd_main's dead_thr, the tick default) picks up the
-#   resolved value transparently. wd_state itself stays a cheap, pure function
-#   with no config-loader calls of its own -- per-tick cost and its existing
-#   direct-call unit tests (which export STALL_WARN/STALL_DEAD themselves,
-#   bypassing this function entirely) are unaffected. Precedence: dedicated
-#   env var > TOML [durable] value > built-in default. WATCH_TICK has no TOML
-#   key (it is not one of the 14 documented [durable]/[nats] keys) -- it still
-#   resolves through cfg_get for a uniform call site, but only ever from its
-#   own env var or the built-in default of 15. The four new T4b keys ARE
-#   TOML-storable (added to lib/config.sh's allowlist in BOTH tables).
+#   WATCH_TICK, the T4b v2 typed-state thresholds STARTING_STALE/IMPL_STALE/
+#   VERIFY_STALE/WATCH_GRACE, and the T7 queue-probe bound
+#   WATCH_QUEUE_TIMEOUT) through the shared config loader and export them, so
+#   every existing "${STALL_WARN:-300}"-style default read in this file
+#   (wd_state, wd_main's dead_thr, the tick default, wd_is_queued's `timeout`
+#   bound) picks up the resolved value transparently. wd_state itself stays a
+#   cheap, pure function with no config-loader calls of its own -- per-tick
+#   cost and its existing direct-call unit tests (which export STALL_WARN/
+#   STALL_DEAD themselves, bypassing this function entirely) are unaffected.
+#   Precedence: dedicated env var > TOML [durable] value > built-in default.
+#   WATCH_TICK has no TOML key (it is not one of the 19 documented
+#   [durable]/[nats]/[audit.policy] keys) -- it still resolves through
+#   cfg_get for a uniform call site, but only ever from its own env var or
+#   the built-in default of 15. The four T4b keys and durable.queue_timeout
+#   (v0.2.5 T7 -- promotes wd_is_queued's bound from env-only to
+#   TOML-storable) ARE TOML-storable (added to lib/config.sh's allowlist in
+#   BOTH tables).
 # @exitcode 0 always
 wd_resolve_config() {
   cfg_load
@@ -361,7 +365,8 @@ wd_resolve_config() {
   IMPL_STALE="$(cfg_get durable impl_stale 300)"
   VERIFY_STALE="$(cfg_get durable verify_stale 600)"
   WATCH_GRACE="$(cfg_get durable grace 10)"
-  export STALL_WARN STALL_DEAD WATCH_TICK STARTING_STALE IMPL_STALE VERIFY_STALE WATCH_GRACE
+  WATCH_QUEUE_TIMEOUT="$(cfg_get durable queue_timeout 3)"
+  export STALL_WARN STALL_DEAD WATCH_TICK STARTING_STALE IMPL_STALE VERIFY_STALE WATCH_GRACE WATCH_QUEUE_TIMEOUT
   return 0
 }
 

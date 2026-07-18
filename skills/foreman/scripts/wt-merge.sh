@@ -67,30 +67,50 @@ WORKTREE="$(meta_get "$META" worktree)"
 #   filtered out of the parsed path list in pure bash instead, which never
 #   touches git's pathspec machinery and so never trips the ignored-path
 #   guard.
+#   T7 audit nit (2026-07-18, porcelain parsing hardened): the prior
+#   newline-delimited parse read one plain porcelain line at a time and
+#   tried to undo git's own C-style path quoting by hand (strip a leading/
+#   trailing `"`, split a rename on literal " -> "). That only half-worked:
+#   git's DEFAULT porcelain quoting wraps a path in double quotes AND
+#   octal-escapes any non-ASCII byte inside it (e.g. a worker file named
+#   "wörk report.txt" is reported as the LINE `?? "w\303\266rk report.txt"`)
+#   -- the old code stripped the outer quotes but never un-escaped the
+#   octal sequences, so the file would have been re-added under the literal,
+#   WRONG name `w\303\266rk report.txt` (empirically reproduced against a
+#   real git status --porcelain call on this host; see the accompanying
+#   bats case). Fix: read `status --porcelain -z` (NUL-delimited records)
+#   with `-c core.quotePath=false` (belt-and-braces -- `-z` alone already
+#   suppresses git's path quoting per git-status(1), but the explicit
+#   config makes that suppression unconditional rather than relying on -z's
+#   documented-but-implicit side effect). Every record is then the path's
+#   raw, unescaped bytes with NO quoting to undo, read via `read -d ''` so
+#   embedded NULs never leak into a bash string (a plain `$(...)` capture
+#   cannot hold them at all) -- a rename/copy status (R/C in either column)
+#   is followed by a SECOND NUL-delimited record (the OLD path, no "XY "
+#   prefix per git-status(1)); it is consumed and discarded, preserving this
+#   function's pre-existing "keep only the destination path" rename
+#   handling unchanged.
 # @arg $1 worktree path
 commit_worktree_pending() {
   local wt="$1"
   [[ -d "$wt" ]] || return 0
-  local status_lines
-  status_lines="$(git_nohooks -C "$wt" status --porcelain)"
-  [[ -z "$status_lines" ]] && return 0
 
-  local files=() line path
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    path="${line:3}"
-    # Rename/copy entries read "R  old -> new" (and similar) -- keep the
-    # destination path, which is what needs to be (re-)added.
-    [[ "$path" == *' -> '* ]] && path="${path##* -> }"
-    # git quotes paths containing unusual characters in double quotes.
-    if [[ "$path" == \"*\" ]]; then
-      path="${path:1:${#path}-2}"
-    fi
+  local files=() rest code path
+  while IFS= read -r -d '' rest; do
+    code="${rest:0:2}"
+    path="${rest:3}"
+    case "$code" in
+      *R*|*C*)
+        # Rename/copy: consume the OLD-path record that immediately follows
+        # (see header comment) -- never itself added.
+        IFS= read -r -d '' _ || true
+        ;;
+    esac
     case "$path" in
       FOREMAN_REPORT.md|FOREMAN_REPORT.json) continue ;;
     esac
     files+=("$path")
-  done <<< "$status_lines"
+  done < <(git_nohooks -C "$wt" -c core.quotePath=false status --porcelain -z)
 
   [[ ${#files[@]} -eq 0 ]] && return 0
 

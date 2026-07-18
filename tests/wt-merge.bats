@@ -136,3 +136,41 @@ make_work() {  # $1 filename  $2 content
   ! grep -Eq '^FOREMAN_REPORT\.(md|json)$' <<< "$committed"
   grep -q '^normal.txt$' <<< "$committed"
 }
+
+# @description T7 audit nit (2026-07-18, "harden porcelain parsing"): a
+#   worker filename combining an embedded SPACE with a byte git's DEFAULT
+#   porcelain quoting octal-escapes (a non-ASCII UTF-8 character) --
+#   confirmed empirically (see the `grep -Fq` premise check below) that
+#   plain `git status --porcelain` reports this file as the single quoted,
+#   escaped line `?? "w\303\266rk report.txt"`. The pre-fix newline-
+#   delimited parser only ever stripped the OUTER double-quotes; it never
+#   un-escaped the `\NNN` octal sequence inside, so the file would have been
+#   re-added under the literal, WRONG name (with backslash-digit escapes
+#   still in it) instead of the real one. wt-merge.sh now reads
+#   `status --porcelain -z` (NUL-delimited, unquoted raw bytes) instead, so
+#   the exact original name must survive end to end. (The diagnostic git
+#   calls in this test itself pass `-c core.quotePath=false` for their OWN
+#   output only so the assertions compare against the real name, not
+#   git's-own quoted rendering of it -- that config flag is test-side
+#   verification tooling, unrelated to the fix inside wt-merge.sh, which
+#   uses `-z` primarily.)
+@test "wt-merge preserves a space-and-non-ASCII-charged worker filename exactly (porcelain quoting hardening)" {
+  WT="$(bash "$SCRIPTS/wt-new.sh" run1 implement fix | tail -1)"
+  fname="$(printf 'w\xc3\xb6rk report.txt')"
+  printf 'worker content' > "$WT/$fname"
+
+  # Premise: git's own DEFAULT (non -z) porcelain output really does quote +
+  # octal-escape this name -- the exact defect class being fixed.
+  quoted="$(git -C "$WT" status --porcelain)"
+  grep -Fq '\303\266' <<< "$quoted"
+
+  run bash "$SCRIPTS/wt-merge.sh" run1 implement fix
+  [ "$status" -eq 0 ]
+
+  staged="$(git -C "$REPO" -c core.quotePath=false diff --cached --name-only)"
+  grep -Fq "$fname" <<< "$staged"
+  ! grep -Fq '\303\266' <<< "$staged"
+
+  committed="$(git -C "$WT" -c core.quotePath=false show --format= --name-only HEAD)"
+  grep -Fq "$fname" <<< "$committed"
+}

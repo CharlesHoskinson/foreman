@@ -37,9 +37,18 @@ stall_dead = 900
 # verify_stale = 600    # (env: VERIFY_STALE)
 # grace = 10            # (env: WATCH_GRACE)
 # merge_base_max_commits = 50   # v0.2.5 T6: merge-gate.sh staleness bound (env: MERGE_BASE_MAX_COMMITS)
+# queue_timeout = 3     # v0.2.5 T7: watch.sh wd_is_queued pueue-status-probe bound (env: WATCH_QUEUE_TIMEOUT)
 
 [nats]
 url = "nats://127.0.0.1:4222"
 store_dir = "~/.foreman/nats-store"
 stream = "FOREMAN"
 subject_prefix = "foreman"
+
+# v0.2.5 T7: architect verdict-to-action doctrine (soft-mode consumer only --
+# see skills/foreman/references/orchestration-hardening.md section 7; not
+# yet read by gate-eval.sh). Values shown are the built-in defaults.
+# [audit.policy]
+# warning_low_resolved = "merge"   # (env: AUDIT_POLICY_WARNING_LOW_RESOLVED)
+# warning_medium = "ask"           # (env: AUDIT_POLICY_WARNING_MEDIUM)
+# blocked = "never"                # (env: AUDIT_POLICY_BLOCKED)

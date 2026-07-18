@@ -10,6 +10,10 @@
 #   genuine second root commit for the parallel-history case -- and a
 #   manufactured refs/remotes/origin/main ref (git only cares that the ref
 #   resolves; no real remote/network needed) so every case is deterministic.
+#   v0.2.5 T7 adds two audit-nit regression cases: the exact
+#   durable.merge_base_max_commits boundary (behind == max stays MERGEABLE,
+#   only behind > max flips it) and a corrupt/malformed events.jsonl (must
+#   yield a clean NOT_MERGEABLE line, never an uncontracted script abort).
 bats_require_minimum_version 1.5.0
 load helpers
 
@@ -126,6 +130,46 @@ setup() {
   MERGE_BASE_MAX_COMMITS=2 run bash "$SCRIPTS/merge-gate.sh" check run1 lanea main
   [ "$status" -eq 0 ]
   [ "$output" = "MERGEABLE" ]
+}
+
+@test "merge-gate check returns MERGEABLE when exactly at the durable.merge_base_max_commits boundary (behind == max is within bound)" {
+  run bash "$SCRIPTS/merge-gate.sh" record run1 lanea
+  [ "$status" -eq 0 ]
+
+  for i in 1 2; do
+    echo "c$i" >> README.md
+    git -c core.hooksPath= commit -aqm "advance $i"
+  done
+  git update-ref refs/remotes/origin/main "$(git rev-parse main)"
+
+  # Exactly 2 commits behind, MERGE_BASE_MAX_COMMITS=2: cmd_check's own bound
+  # test is `behind > max_commits`, so equality must stay MERGEABLE -- only
+  # strictly exceeding the bound (the sibling "stale beyond" test above, 4
+  # commits behind a max of 2) may flip the verdict.
+  MERGE_BASE_MAX_COMMITS=2 run bash "$SCRIPTS/merge-gate.sh" check run1 lanea main
+  [ "$status" -eq 0 ]
+  [ "$output" = "MERGEABLE" ]
+}
+
+# @description T7 audit nit: a CORRUPT event log (a malformed/torn line
+#   anywhere in events.jsonl, el_read's own rc=2 case) must never abort
+#   cmd_check mid-contract -- it must print exactly one clean
+#   NOT_MERGEABLE:<reason> line (exit 6), same as every other non-mergeable
+#   verdict. Before the fix, the unguarded `sha=$(el_read ... | jq ... |
+#   tail -1)` pipeline let el_read's nonzero rc trip `set -euo pipefail`
+#   and exit the whole script with no NOT_MERGEABLE output at all (verified
+#   empirically against the pre-fix code: `bash merge-gate.sh check ...`
+#   exited silently with $?=2, never reaching this line).
+@test "merge-gate check emits a clean NOT_MERGEABLE line (not a crash) when the event log is corrupt" {
+  rd="$(run_dir run1)"
+  mkdir -p "$rd"
+  printf '{not valid json\n' > "$rd/events.jsonl"
+
+  run bash "$SCRIPTS/merge-gate.sh" check run1 lanea main
+  [ "$status" -eq 6 ]
+  [[ "$output" == NOT_MERGEABLE:* ]]
+  grep -q "corrupt" <<< "$output"
+  grep -q "respawn from a fresh base" <<< "$output"
 }
 
 @test "merge-gate check uses the MOST RECENT recorded merge_base when record ran more than once" {

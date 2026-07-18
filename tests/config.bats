@@ -1,11 +1,13 @@
 #!/usr/bin/env bats
-# @description Tests for the shared [durable]/[nats] config loader
-#   (skills/foreman/scripts/lib/config.sh): TOML-only resolution for all 14
-#   known keys (v0.2.5 T8 adds durable.resume_max_attempts; v0.2.5 T4b adds
-#   durable.starting_stale/impl_stale/verify_stale/grace), env-beats-TOML
-#   precedence, defaults when neither is set, ~ expansion in nats.store_dir,
-#   malformed-file fail-safe, and a TOML-only spot-check that lane-run.sh/
-#   watch.sh each resolve one interval through the loader.
+# @description Tests for the shared [durable]/[nats]/[audit.policy] config
+#   loader (skills/foreman/scripts/lib/config.sh): TOML-only resolution for
+#   all known keys (v0.2.5 T8 adds durable.resume_max_attempts; v0.2.5 T4b
+#   adds durable.starting_stale/impl_stale/verify_stale/grace; v0.2.5 T7 adds
+#   durable.queue_timeout and the `[audit.policy]` dotted section --
+#   warning_low_resolved/warning_medium/blocked), env-beats-TOML precedence,
+#   defaults when neither is set, ~ expansion in nats.store_dir, malformed-
+#   file fail-safe, and a TOML-only spot-check that lane-run.sh/watch.sh each
+#   resolve one interval through the loader.
 load helpers
 
 setup() {
@@ -16,7 +18,8 @@ setup() {
   unset FOREMAN_CONFIG DURABLE_ENABLED DURABLE_CHECKPOINT_INTERVAL \
     DURABLE_HEARTBEAT_INTERVAL STALL_WARN STALL_DEAD RESUME_MAX_ATTEMPTS \
     STARTING_STALE IMPL_STALE VERIFY_STALE WATCH_GRACE \
-    MERGE_BASE_MAX_COMMITS \
+    MERGE_BASE_MAX_COMMITS WATCH_QUEUE_TIMEOUT \
+    AUDIT_POLICY_WARNING_LOW_RESOLVED AUDIT_POLICY_WARNING_MEDIUM AUDIT_POLICY_BLOCKED \
     NATS_URL NATS_STORE NATS_STREAM NATS_SUBJECT_PREFIX 2>/dev/null || true
 }
 
@@ -105,6 +108,32 @@ EOF
   [ "$(cfg_get durable merge_base_max_commits 50)" = "12" ]
 }
 
+@test "(a5) v0.2.5 T7: durable.queue_timeout resolves from TOML only (env unset)" {
+  toml="$BATS_TEST_TMPDIR/t7_queue.toml"
+  cat > "$toml" <<'EOF'
+[durable]
+queue_timeout = 9
+EOF
+  export FOREMAN_CONFIG="$toml"
+  cfg_load
+  [ "$(cfg_get durable queue_timeout 3)" = "9" ]
+}
+
+@test "(a6) v0.2.5 T7: [audit.policy] warning_low_resolved/warning_medium/blocked resolve from TOML only (env unset)" {
+  toml="$BATS_TEST_TMPDIR/t7_policy.toml"
+  cat > "$toml" <<'EOF'
+[audit.policy]
+warning_low_resolved = "merge"
+warning_medium = "ask"
+blocked = "never"
+EOF
+  export FOREMAN_CONFIG="$toml"
+  cfg_load
+  [ "$(cfg_get audit.policy warning_low_resolved merge)" = "merge" ]
+  [ "$(cfg_get audit.policy warning_medium ask)" = "ask" ]
+  [ "$(cfg_get audit.policy blocked never)" = "never" ]
+}
+
 @test "(b) env beats TOML; an unrelated key still resolves from TOML" {
   toml="$BATS_TEST_TMPDIR/full.toml"
   write_full_toml "$toml"
@@ -150,6 +179,35 @@ EOF
   [ "$(cfg_get durable merge_base_max_commits 50)" = "99" ]
 }
 
+@test "(b4) v0.2.5 T7: env beats TOML for durable.queue_timeout" {
+  toml="$BATS_TEST_TMPDIR/t7_queue_env.toml"
+  cat > "$toml" <<'EOF'
+[durable]
+queue_timeout = 9
+EOF
+  export FOREMAN_CONFIG="$toml"
+  export WATCH_QUEUE_TIMEOUT=42
+  cfg_load
+  [ "$(cfg_get durable queue_timeout 3)" = "42" ]
+}
+
+@test "(b5) v0.2.5 T7: env beats TOML for [audit.policy] keys" {
+  toml="$BATS_TEST_TMPDIR/t7_policy_env.toml"
+  cat > "$toml" <<'EOF'
+[audit.policy]
+warning_low_resolved = "merge"
+warning_medium = "ask"
+blocked = "never"
+EOF
+  export FOREMAN_CONFIG="$toml"
+  export AUDIT_POLICY_WARNING_MEDIUM="env-ask"
+  cfg_load
+  [ "$(cfg_get audit.policy warning_medium ask)" = "env-ask" ]
+  # Unset-env keys still resolve from TOML, not the built-in default.
+  [ "$(cfg_get audit.policy warning_low_resolved merge)" = "merge" ]
+  [ "$(cfg_get audit.policy blocked never)" = "never" ]
+}
+
 @test "(c) defaults when neither env nor TOML supplies a value" {
   export FOREMAN_CONFIG="$BATS_TEST_TMPDIR/does-not-exist.toml"
   cfg_load
@@ -163,10 +221,14 @@ EOF
   [ "$(cfg_get durable verify_stale 600)" = "600" ]
   [ "$(cfg_get durable grace 10)" = "10" ]
   [ "$(cfg_get durable merge_base_max_commits 50)" = "50" ]
+  [ "$(cfg_get durable queue_timeout 3)" = "3" ]
   [ "$(cfg_get nats url nats://127.0.0.1:4222)" = "nats://127.0.0.1:4222" ]
   [ "$(cfg_get nats store_dir '~/.foreman/nats-store')" = "$HOME/.foreman/nats-store" ]
   [ "$(cfg_get nats stream FOREMAN)" = "FOREMAN" ]
   [ "$(cfg_get nats subject_prefix foreman)" = "foreman" ]
+  [ "$(cfg_get audit.policy warning_low_resolved merge)" = "merge" ]
+  [ "$(cfg_get audit.policy warning_medium ask)" = "ask" ]
+  [ "$(cfg_get audit.policy blocked never)" = "never" ]
 }
 
 @test "(d) ~ expansion in nats.store_dir: TOML value, env value, and default all expand" {

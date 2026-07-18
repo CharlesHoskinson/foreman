@@ -1,33 +1,43 @@
 #!/usr/bin/env bash
-# @description Shared [durable]/[nats] TOML config loader for the durable-lanes
-#   harness. Precedence: dedicated env var (if set and non-empty) > TOML value
-#   > built-in default. CLI flags stay in the callers -- they already parse
-#   their own flags and win by exporting the dedicated env var before calling
-#   cfg_get. Parses ONLY the 15 documented [durable]/[nats] keys (v0.2.5 T8
-#   adds durable.resume_max_attempts, default 2, env RESUME_MAX_ATTEMPTS --
-#   the bounded auto-resume supervisor's cap; v0.2.5 T4b adds four more, see
+# @description Shared [durable]/[nats]/[audit.policy] TOML config loader for
+#   the durable-lanes harness. Precedence: dedicated env var (if set and
+#   non-empty) > TOML value > built-in default. CLI flags stay in the callers
+#   -- they already parse their own flags and win by exporting the dedicated
+#   env var before calling cfg_get. Parses ONLY the 19 documented
+#   [durable]/[nats]/[audit.policy] keys (v0.2.5 T8 adds
+#   durable.resume_max_attempts, default 2, env RESUME_MAX_ATTEMPTS -- the
+#   bounded auto-resume supervisor's cap; v0.2.5 T4b adds four more, see
 #   below; v0.2.5 T6 adds durable.merge_base_max_commits, default 50, env
-#   MERGE_BASE_MAX_COMMITS -- the merge-freshness gate's staleness bound) with
-#   a minimal bash
+#   MERGE_BASE_MAX_COMMITS -- the merge-freshness gate's staleness bound;
+#   v0.2.5 T7 adds durable.queue_timeout, default 3, env WATCH_QUEUE_TIMEOUT
+#   -- watch.sh's wd_is_queued pueue-status-probe bound, previously env-only
+#   (see the _CFG_ENV_VAR comment below on how that differs from
+#   durable.watch_tick, which STAYS env-only); v0.2.5 T7 also adds the
+#   THREE-key `[audit.policy]` dotted section -- warning_low_resolved,
+#   warning_medium, blocked (string values) -- the architect's soft-mode
+#   verdict-to-action doctrine, see references/orchestration-hardening.md)
+#   with a minimal bash
 #   TOML-subset parser ("[section]" headers, "key = value", quoted or
-#   bare scalars, "#" comments); every line outside a [durable]/[nats] section
-#   is skipped untouched (section-header tracking only), so unrelated TOML
-#   constructs elsewhere in the file -- arrays, tables, whatever -- never trip
-#   this parser. A malformed line INSIDE [durable]/[nats] makes the whole file
-#   fall back to defaults (warned once on stderr); this NEVER aborts the
-#   caller. Source this file; sourcing alone performs no I/O and reads no env
-#   vars -- call cfg_load explicitly to actually resolve config.
+#   bare scalars, "#" comments); every line outside a [durable]/[nats]/
+#   [audit.policy] section is skipped untouched (section-header tracking
+#   only), so unrelated TOML constructs elsewhere in the file -- arrays,
+#   tables, whatever -- never trip this parser. A malformed line INSIDE
+#   [durable]/[nats]/[audit.policy] makes the whole file fall back to
+#   defaults (warned once on stderr); this NEVER aborts the caller. Source
+#   this file; sourcing alone performs no I/O and reads no env vars -- call
+#   cfg_load explicitly to actually resolve config.
 
 # Env var cfg_get resolves for each section.key it is asked about. This is
 # broader than the TOML "known keys" allowlist by exactly one entry
 # (durable.watch_tick -> WATCH_TICK): watch.sh's poll tick is not one of the
-# 15 documented [durable]/[nats] keys (see _cfg_parse_toml's explicit case
-# statement below, which is the actual TOML allowlist), but it still needs a
-# uniform cfg_get call site that honors its own pre-existing env var. Adding
-# it here does NOT make it TOML-storable -- _cfg_parse_toml checks its own
-# fixed 15-key case statement, not this table. resume_max_attempts (unlike
-# watch_tick) is symmetric -- present in BOTH tables, per the closed-allowlist
-# rule (v0.2.5 T7 CRITICAL note): a key missing from either silently no-ops.
+# 19 documented [durable]/[nats]/[audit.policy] keys (see _cfg_parse_toml's
+# explicit case statement below, which is the actual TOML allowlist), but it
+# still needs a uniform cfg_get call site that honors its own pre-existing
+# env var. Adding it here does NOT make it TOML-storable -- _cfg_parse_toml
+# checks its own fixed case statement, not this table. resume_max_attempts
+# (unlike watch_tick) is symmetric -- present in BOTH tables, per the
+# closed-allowlist rule (v0.2.5 T7 CRITICAL note): a key missing from either
+# silently no-ops.
 # v0.2.5 T4b adds four more symmetric (BOTH-tables) keys: watch.sh's typed
 # state machine's phase-aware stale thresholds (starting_stale/impl_stale/
 # verify_stale) and its phase-transition grace window (grace). stall_warn/
@@ -39,6 +49,19 @@
 # merge-gate.sh's `check` staleness bound (max commits the recorded
 # merge-base may sit behind origin/main before the verdict flips to
 # NOT_MERGEABLE).
+# v0.2.5 T7 adds durable.queue_timeout (symmetric, BOTH tables): promotes
+# watch.sh's wd_is_queued pueue-status-probe bound from env-only to
+# TOML-storable, unlike its sibling watch_tick above (which deliberately
+# STAYS env-only -- queue_timeout is a new v0.2.5 key with no legacy
+# env-only callers to preserve compatibility for, so there was no reason to
+# leave it asymmetric the way watch_tick's pre-existing contract required).
+# v0.2.5 T7 also adds the THREE-key `[audit.policy]` dotted section --
+# warning_low_resolved/warning_medium/blocked, string-valued -- keyed here as
+# literal "audit.policy.<key>" (the section header IS "audit.policy", a
+# literal bracket string as far as this hand-rolled parser is concerned; see
+# _cfg_parse_toml's section-tracking comment). Consumed today as soft-mode
+# architect doctrine only (SKILL.md); gate-eval.sh does not read them yet --
+# see references/orchestration-hardening.md for the "v0.3.0 consumer" note.
 declare -Ag _CFG_ENV_VAR=(
   [durable.enabled]=DURABLE_ENABLED
   [durable.checkpoint_interval]=DURABLE_CHECKPOINT_INTERVAL
@@ -52,34 +75,43 @@ declare -Ag _CFG_ENV_VAR=(
   [durable.verify_stale]=VERIFY_STALE
   [durable.grace]=WATCH_GRACE
   [durable.merge_base_max_commits]=MERGE_BASE_MAX_COMMITS
+  [durable.queue_timeout]=WATCH_QUEUE_TIMEOUT
   [nats.url]=NATS_URL
   [nats.store_dir]=NATS_STORE
   [nats.stream]=NATS_STREAM
   [nats.subject_prefix]=NATS_SUBJECT_PREFIX
+  [audit.policy.warning_low_resolved]=AUDIT_POLICY_WARNING_LOW_RESOLVED
+  [audit.policy.warning_medium]=AUDIT_POLICY_WARNING_MEDIUM
+  [audit.policy.blocked]=AUDIT_POLICY_BLOCKED
 )
 
 declare -Ag _CFG_VALUES=()
 _CFG_LOADED=0
 _CFG_WARNED=0
 
-# @description Parse a TOML file's [durable]/[nats] sections into _CFG_VALUES.
-#   Recognizes "[section]" headers, blank lines, "#"-led comments, and
-#   "key = value" scalars (double- or single-quoted strings, bare integers,
-#   bare true/false), each with an optional trailing "# comment". Sections
-#   other than [durable]/[nats] -- including any array/table syntax they
-#   contain, e.g. this repo's own "[gate] forbidden_paths = [...]" -- are
-#   tracked for header purposes only and never inspected for value syntax, so
-#   they can never trip this parser. Only the 15 documented section.key
-#   combinations (the case statement below -- NOT the broader _CFG_ENV_VAR
-#   table, which also carries watch_tick for cfg_get's env resolution only)
-#   are stored; any other key inside [durable]/[nats] is ignored, not an
-#   error. Any line inside [durable]/[nats] that is neither
-#   blank/comment/header/valid-key=value IS treated as malformed -- the
-#   caller (cfg_load) discards partial results and falls back to defaults for
-#   the whole file rather than partial-parsing it.
+# @description Parse a TOML file's [durable]/[nats]/[audit.policy] sections
+#   into _CFG_VALUES. Recognizes "[section]" headers, blank lines, "#"-led
+#   comments, and "key = value" scalars (double- or single-quoted strings,
+#   bare integers, bare true/false), each with an optional trailing
+#   "# comment". Sections other than [durable]/[nats]/[audit.policy] --
+#   including any array/table syntax they contain, e.g. this repo's own
+#   "[gate] forbidden_paths = [...]" or the pre-existing "[audit] vendor =
+#   ..." section (a DIFFERENT, unrelated section: "audit.policy" is tracked
+#   as its own literal bracket string by this parser's flat section-name
+#   matching, same as real TOML's nested-table semantics treat it as a
+#   distinct sub-table of "audit") -- are tracked for header purposes only
+#   and never inspected for value syntax, so they can never trip this parser.
+#   Only the 19 documented section.key combinations (the case statement below
+#   -- NOT the broader _CFG_ENV_VAR table, which also carries watch_tick for
+#   cfg_get's env resolution only) are stored; any other key inside
+#   [durable]/[nats]/[audit.policy] is ignored, not an error. Any line inside
+#   one of those three sections that is neither blank/comment/header/valid-
+#   key=value IS treated as malformed -- the caller (cfg_load) discards
+#   partial results and falls back to defaults for the whole file rather
+#   than partial-parsing it.
 # @arg $1 file TOML file path (caller has already confirmed it exists)
 # @exitcode 0 parsed cleanly (possibly with zero known keys found)
-# @exitcode 1 malformed content inside a [durable]/[nats] section
+# @exitcode 1 malformed content inside a [durable]/[nats]/[audit.policy] section
 _cfg_parse_toml() {
   local file="$1" section="" line trimmed key val
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -92,9 +124,10 @@ _cfg_parse_toml() {
       section="${BASH_REMATCH[1]}"
       continue
     fi
-    if [[ "$section" != "durable" && "$section" != "nats" ]]; then
-      # Out of scope for this loader (e.g. [gate] forbidden_paths = [...]):
-      # not parsed, not validated, never fails the file.
+    if [[ "$section" != "durable" && "$section" != "nats" && "$section" != "audit.policy" ]]; then
+      # Out of scope for this loader (e.g. [gate] forbidden_paths = [...],
+      # or the pre-existing [audit] vendor/model section): not parsed, not
+      # validated, never fails the file.
       continue
     fi
     if [[ "$trimmed" =~ ^([A-Za-z0-9_.-]+)[[:space:]]*=[[:space:]]*(.+)$ ]]; then
@@ -115,8 +148,9 @@ _cfg_parse_toml() {
         durable.enabled|durable.checkpoint_interval|durable.heartbeat_interval| \
         durable.stall_warn|durable.stall_dead|durable.resume_max_attempts| \
         durable.starting_stale|durable.impl_stale|durable.verify_stale|durable.grace| \
-        durable.merge_base_max_commits| \
-        nats.url|nats.store_dir|nats.stream|nats.subject_prefix)
+        durable.merge_base_max_commits|durable.queue_timeout| \
+        nats.url|nats.store_dir|nats.stream|nats.subject_prefix| \
+        audit.policy.warning_low_resolved|audit.policy.warning_medium|audit.policy.blocked)
           _CFG_VALUES["$section.$key"]="$val"
           ;;
         *) : ;; # unknown key (or watch_tick, which has no TOML representation) ignored
@@ -157,7 +191,7 @@ cfg_load() {
     _CFG_VALUES=()
     _CFG_LOADED=0
     if [[ "$_CFG_WARNED" != "1" ]]; then
-      echo "config: malformed TOML in $file ([durable]/[nats] section); falling back to built-in defaults" >&2
+      echo "config: malformed TOML in $file ([durable]/[nats]/[audit.policy] section); falling back to built-in defaults" >&2
       _CFG_WARNED=1
     fi
   fi

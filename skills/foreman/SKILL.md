@@ -153,6 +153,35 @@ explicitly opts in):
 Full architecture, config key reference, Windows/WSL notes, and honest limits:
 `references/durable-lanes.md`.
 
+### Durable rounds (v0.2.5)
+
+An implement round is `lane-run.sh --round GATE_CMD REPORT_PATH RUN LANE
+WORKTREE -- CMD...` — this owns the **whole** round (CMD → gate → attempt-
+fresh report assert → `round_done`), never just the bare vendor CLI, so an
+agent that backgrounds-and-stops cannot strand it. Dispatch through the
+queue, not directly:
+
+1. **Enqueue** the round via `lane-queue.sh add <vendor-group> -- ...`
+   (`grok`/`codex` capped at 1, `claude` at 3) — pueue owns the round for its
+   full lifetime.
+2. **Gate** any bats invocation — lane, auditor, or investigation — through
+   `lane-queue.sh add gate -- ...` (`gate` group, `parallel=1`): this is a
+   host-wide structural mutex, not discipline. Auditor/investigator agents
+   never run bats directly; they reason from code.
+3. **Watch** with `watch.sh RUN LANE WORKTREE`, armed with
+   `WATCH_OWNERSHIP_WAIT=25000` (milliseconds — ~25s, matching the
+   ownership event's own emission bound) so a genuinely launcher-owned round
+   is never mistaken for the frozen v1 path mid-gate.
+4. **Sweep** for abandoned rounds via `lane-supervise.sh --all`, run under
+   the pueue daemon on a fixed interval (never spawned ad hoc).
+5. **`merge-gate.sh check`** before `wt-merge.sh` — a stale or parallel-
+   history lane branch is rejected with `NOT_MERGEABLE` and a
+   respawn-from-fresh-base recommendation, never auto-salvaged.
+
+Full launcher contract, typed watch states, pueue quoting layer, vendor
+isolation status, and merge-freshness verdicts:
+`references/orchestration-hardening.md`.
+
 ### Commitment boundaries
 
 Consult `foreman-advisor` (read-only, ≤ ~300 words) before:
@@ -175,7 +204,13 @@ Reports are claims, not evidence. Before accepting worker output:
    the implementer as a corrected spec, ≤ max_rework_rounds
 5. **Audit:** invoke `codex-auditor` with cold diff + five-part acceptance criteria
    (default). Act on `BLOCKED` (rework), surface `WARNING` findings, accept
-   `APPROVED` only together with green independent checks
+   `APPROVED` only together with green independent checks. Verdict-to-action
+   policy (`.foreman/config.toml [audit.policy]`, default
+   `warning_low_resolved="merge"` / `warning_medium="ask"` /
+   `blocked="never"`): a `WARNING` with every finding resolved and only
+   low-severity residuals is mergeable at your discretion; a `WARNING` with
+   unresolved medium+ findings, ask the user; `BLOCKED` never auto-merges —
+   confirm the policy once, not per round
 6. Auditor JSON is **input to your judgment**, not a rubber stamp — you still own
    the ship decision
 
@@ -258,4 +293,7 @@ every worktree; never mounted into the worker.
 - `references/reference-environment.md` — WSL/Windows inventory + bootstrap
 - `references/parallel-worktrees.md` — parallel search/plan/audit worktrees
 - `references/durable-lanes.md` — durable-lanes architecture, config keys, honest limits
+- `references/orchestration-hardening.md` — v0.2.5 launcher contract, typed
+  watch states, pueue groups/quoting, vendor isolation, merge-freshness gate,
+  auto-resume
 - `env/reference-manifest.toml` — tool inventory source of truth

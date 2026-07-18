@@ -121,11 +121,25 @@ cmd_check() {
   # lists ignored/nonexistent data by itself; a run with no events.jsonl
   # simply yields nothing here, and the empty-sha check below turns that
   # into a clean NOT_MERGEABLE verdict rather than a crash.
-  local sha
+  # T7 audit nit (corrupt-log case): a CORRUPT log -- el_read rc=2, a
+  # malformed/torn line anywhere in events.jsonl -- is a DIFFERENT case that
+  # must be guarded explicitly. Under `set -euo pipefail`, an unguarded
+  # `sha=$(el_read ... | jq ... | tail -1)` lets el_read's own nonzero rc
+  # abort THIS SCRIPT mid-contract before the empty-sha check below ever
+  # runs (empirically confirmed: `f(){ return 2; }; out="$(f | cat)"` under
+  # `set -euo pipefail` exits the script immediately, printing nothing) --
+  # breaking the "prints exactly one NOT_MERGEABLE line, or MERGEABLE, never
+  # anything else" contract this function's own header promises. The
+  # `|| read_rc=$?` form (same required if/||-guarded-assignment pattern
+  # lane-run.sh's own ckpt_snapshot capture uses) captures el_read's
+  # pipeline exit status without tripping errexit, so a corrupt log now
+  # yields a clean NOT_MERGEABLE verdict instead of an uncontracted crash.
+  local sha read_rc=0
   sha="$(el_read "$run" 0 2>/dev/null \
     | jq -r --arg lane "$lane" \
         'select(.type=="merge_base" and .lane==$lane) | .payload.merge_base' \
-    | tail -1)"
+    | tail -1)" || read_rc=$?
+  (( read_rc != 0 )) && not_mergeable "corrupt or unreadable event log for $run/$lane"
   [[ -n "$sha" && "$sha" != "null" ]] \
     || not_mergeable "no recorded merge-base for $run/$lane"
 

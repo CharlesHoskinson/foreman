@@ -1,0 +1,385 @@
+# Orchestration hardening (v0.2.5)
+
+The v0.2.5 release's operator doc: what changed under the durable-lanes
+layer, why, and the exact config keys/env vars that control it. Everything
+below is derived from the merged script headers and code on this branch —
+see the cited file paths for the authoritative source; this page summarizes.
+
+For the v0.2.0 durable-lanes foundation (event log, checkpoints, NATS
+transport, the v1 3-state watchdog) see `references/durable-lanes.md` — this
+page covers only what v0.2.5 adds on top of it.
+
+## 1. Launcher contract (`launcher/`)
+
+`foreman-launch` (TypeScript on Bun, compiled to a self-contained
+`launcher/dist/foreman-launch.exe` / `foreman-launch`) owns a spawned
+command's whole process tree instead of leaving that to bash job control.
+Full contract: `launcher/README.md`.
+
+```text
+foreman-launch [--timeout SECS] [--grace SECS=10] [--heartbeat-file F]
+               [--heartbeat-interval SECS=15] [--detach] -- CMD [ARGS...]
+foreman-launch --version
+```
+
+| Exit code | Meaning |
+|---|---|
+| *(child's own code)* | CMD ran to completion; passthrough |
+| `124` | `--timeout` elapsed, `--grace` expired, tree hard-killed |
+| `125` | launcher error: bad args, missing `--`, FFI/spawn failure, `--detach` handoff timeout |
+
+**Graded stop (binding, no cooperative phase):** on timeout/cancel the
+entire sequence is wait `--grace` seconds, then hard-kill
+(`TerminateJobObject` on Windows / `SIGKILL` the process group on POSIX).
+`CTRL_BREAK` is impossible via `Bun.spawn` and CMD's stdin is already
+`/dev/null`, so there is no cooperative-shutdown phase to attempt
+(`launcher/README.md` "Graded stop").
+
+**Heartbeat schema (frozen)** — one line immediately at spawn, one every
+`--heartbeat-interval` seconds, one final line (`alive:false`) after exit:
+
+```json
+{"ts":"...","launcher_pid":3204,"pid":29008,"job_id":"536",
+ "alive":true,"stdout_bytes":93,"stderr_bytes":0,"elapsed_s":1.012}
+```
+
+`launcher_pid` is the job-owning supervisor process (kill-shot target);
+`pid` is CMD's root child (tree/liveness observation key — on POSIX it also
+equals the child's process-group id); `job_id` is the Windows Job Object
+handle value (stringified) or, on POSIX, the same value as `pid` (no
+separate OS "job" primitive there).
+
+**`--detach`:** resets `--heartbeat-file` to empty *before* self-re-exec'ing
+the same binary detached (fixes a rework-round-1 defect where a stale
+heartbeat line from a prior `--detach` run could false-succeed the handoff
+poll), then blocks up to ~5s for the detached copy's first heartbeat line
+before returning 0. The detached copy becomes the sole writer of that file.
+
+**Nested Job Objects:** round ownership creates a launcher-spawning-further-
+launchers chain (`foreman-launch(--detach) → lane-run.sh → foreman-launch
+(CMD) → foreman-launch(GATE)`). One level of nesting is validated: `tests/
+launcher.bats`'s `"nested-launcher reap: outer kill reaps inner launcher
+AND its own job"` case confirms `taskkill /PID <outer_launcher_pid> /F`
+reaps the inner launcher's own job too, kernel-enforced.
+
+**POSIX asymmetry — no kernel cascade, and the `-pgid` reaper rule:** unlike
+Windows' `KILL_ON_JOB_CLOSE` (kernel-enforced even if the launcher itself is
+killed without running its own cleanup), POSIX process groups have no
+automatic cascade (`launcher/README.md` "POSIX asymmetry", empirically
+verified on WSL2). `kill -9 <launcher_pid>` alone leaves CMD's whole process
+group alive; an external reaper must send the signal to `-<pid>` (negative
+= process group, using the `pid` field from the last heartbeat line, which
+equals CMD's own pgid because the launcher wraps it in `setsid`). This is
+exactly what `lane-run.sh`'s own `kill_launcher_bounded` POSIX branch does
+(also sends `-pid` to the gate-phase child, refreshed via
+`lane_refresh_gate_ownership_pid` for the gate phase — see `lane-run.sh`
+header CONTRACT and its "Rework round 1, F2" comment).
+
+**NTSTATUS masking (accepted, documented ambiguity):** on Windows, a child
+dying with an NTSTATUS code (e.g. `0xC0000005`) surfaces byte-masked through
+the launcher as a small-looking exit code — `round_done.exit_code` can
+therefore collide with a legitimate small exit code in that case. There is
+no reliable way to recover the original NTSTATUS from a masked byte; this is
+called out in `lane-run.sh`'s header CONTRACT rather than silently absorbed.
+
+**Never stdbuf the launcher:** `lane-run.sh` never prefixes the
+launcher-present spawn with `$STDBUF` (unlike the launcher-absent
+direct-spawn branch, where `stdbuf`/`gstdbuf` still applies). Wrapping the
+native launcher exe in `stdbuf` poisons CMD's own MSYS bash — `stdbuf`'s
+`LD_PRELOAD` value gets silently rewritten to Windows form at the
+msys→native exec boundary the moment a *native* (non-MSYS) launcher exe is
+in the loop, and CMD's own bash then tries to `dlopen` the resulting
+`"C:"` string as a shared object and dies loading it — CMD's real stdout is
+lost while `lane-run.sh`'s own exit code still reads 0 (see `lane-run.sh`
+header CONTRACT, "STDBUF CAVEAT", for the full repro). The launcher already
+forwards CMD's stdio unbuffered end to end, so `stdbuf` is redundant there
+regardless of the hazard.
+
+### Round ownership (`lane-run.sh --round`)
+
+`lane-run.sh --round GATE_CMD REPORT_PATH RUN_ID LANE WORKTREE -- CMD...`
+makes `lane-run.sh` own the **whole round** — CMD → gate → attempt-fresh
+report assert → `round_done` — never just the bare vendor CLI. After CMD
+exits, `GATE_CMD` runs through the same launcher (heartbeats keep streaming
+to the same `$hb` across the CMD→gate transition, per spec). `round_done`
+fires **only** when the gate exit code is 0 **and** `REPORT_PATH` is
+attempt-fresh (mtime strictly newer than the round's own prompt-event
+timestamp, or the report contains `attempt: <current attempt id>` as a
+fallback signal) — a prior round's report never satisfies the predicate
+(SC-D). Otherwise a `waiting_child` event + a `round_incomplete` alert fire
+and the script exits nonzero directly, bypassing `round_done` entirely
+(`lane-run.sh`'s `ROUND_MODE` block).
+
+## 2. `watch.sh` v2 typed-state machine
+
+The v1 3-state machine (`RUNNING → STALLED → DEAD`, age-of-last-liveness-
+event debounced) is **frozen** and stays byte-identical for any round that
+never records a T2 `ownership` event ("pure v1" — see `watch.sh`'s T4b
+banner comment). A typed state machine wraps around it for launcher-owned
+(v2) rounds:
+
+| State | Meaning | Threshold (config key, default) |
+|---|---|---|
+| `QUEUED` | No prompt/ownership yet; `lane-queue.sh status` shows a matching queued task | bounded by `durable.queue_timeout` (`WATCH_QUEUE_TIMEOUT`, default `3`s) |
+| `STARTING` | Ownership confirmed, `$hb` has no line yet | `durable.starting_stale` (`STARTING_STALE`, default `90`) |
+| `RUNNING_IMPL` | CMD phase, `$hb`/event-log liveness fresh | `durable.impl_stale` (`IMPL_STALE`, default `300`) |
+| `VERIFYING` | Gate phase (`{state:"verifying"}` event seen) | `durable.verify_stale` (`VERIFY_STALE`, default `600`) — its own, larger bound: "verifying is not stalled" |
+| `WAITING_CHILD` | A `waiting_child` event is newer than the last `$hb` activity | n/a (terminal-for-this-round signal) |
+| `AGENT_ABANDONED` | Owning pid (`launcher_pid`, fallback `pid`) confirmed dead via `kill -0`, no `round_done`, no newer `waiting_child` | n/a |
+| `STALLED` / `DEAD` | Any phase's age crosses its warn/dead bucket | shared dead bound `durable.stall_dead` (`STALL_DEAD`, default `900`); phase-transition grace `durable.grace` (`WATCH_GRACE`, default `10`s) |
+| `SUCCEEDED` / `FAILED` | `round_done` with `gate_rc` 0/absent, or an `abandoned` alert | terminal |
+
+`--once` classifies a single instant and exits with a mapped code (`0`
+healthy/SUCCEEDED, `3` DEAD, `4` FAILED, `5` AGENT_ABANDONED) — see
+`watch.sh`'s `wd_once`.
+
+**Liveness is `$hb` + event-log phase events, never file mtime.** A bats
+gate writes its scratch to `/tmp`, not the worktree, so a lane whose only
+remaining work is running its own test file produces zero worktree writes
+for the whole gate phase — the exact blind spot a worktree-mtime probe hits
+(`bugeventlog.md`, 2026-07-17 "watchdog false-stall during a lane's final
+full-suite gate phase"). The gate runs *under* the launcher, so heartbeats
+keep streaming through it; `watch.sh` reads `$hb`'s last line (`wd_hb_last_
+epoch`) and the event log's `state`/`waiting_child` events, never the
+filesystem.
+
+**`WATCH_OWNERSHIP_WAIT` — the round-watcher doctrine.** Before committing
+to the frozen v1 hand-off, `watch.sh` bounded-repolls for an `ownership`
+event (`wd_wait_ownership`) rather than deciding from a single point-in-time
+check — a genuinely v2 round's `ownership` event can lag its own prompt by
+up to `lane_emit_ownership`'s own ~20s bound, and a single-shot check would
+wrongly commit a v2 round to the v1 path forever (exactly the F5 class:
+v1 never reads `$hb`, so it false-stalls during the gate). The env var is
+**milliseconds** (`bound_ms="${WATCH_OWNERSHIP_WAIT:-3000}"` in `watch.sh`'s
+`wd_wait_ownership`); the shipped default (`3000` = 3s) is deliberately
+conservative so the frozen v1 wall-clock bats tests (sized around their own
+small `STALL_WARN`/`STALL_DEAD` test-scale thresholds) are never blown by
+this repoll. **Deployments should arm real watchers with
+`WATCH_OWNERSHIP_WAIT=25000`** (25 seconds in ms — matching
+`lane_emit_ownership`'s own ~20s bound) — not the bare literal `25`, which
+would mean 25 **milliseconds** and defeat the whole protection window. This
+page states the corrected value; the same correction applies everywhere the
+value is quoted.
+
+## 3. pueue admission control (`lane-queue.sh`)
+
+`lane-queue.sh ensure|add GROUP -- CMD [ARGS...]|status [TASK_ID]|kill
+TASK_ID` wraps pueue (v4.0.4, staged at `~/.foreman/tools/pueue/` — no
+Windows package-manager route). Fixed group topology, created idempotently
+by `ensure`:
+
+| Group | Parallelism | Purpose |
+|---|---|---|
+| `grok` | 1 | Grok CLI concurrency cap (T5b UNVERIFIED — see §4) |
+| `codex` | 1 | Codex CLI concurrency cap (ditto) |
+| `claude` | 3 | Claude lane concurrency |
+| `misc` | 2 (explicit, not pueue's incidental default) | Catch-all |
+| `gate` | 1 | **Host-wide bats mutex — every bats invocation, lane/auditor/investigation, enqueues here** |
+
+**The `gate` group is the structural fix for the single most frequent
+failure class in `bugeventlog.md`:** repeated occurrences of concurrent bats
+suites contending on one host (2026-07-17 "concurrent bats suites... corrupt
+wall-clock tests", "architect-induced concurrent-suite contention", "audit
+agent's verification bats orphaned, blocked the release gate ~1hr"). Making
+gate serialization structural (`parallel=1`) instead of relying on
+discipline removes the human-judgment failure point entirely. Standing
+rule: a lane round runs only its own `.bats` file in the inner loop; the
+architect runs the full suite once at merge, as sole gate holder; auditor/
+investigation agents never run bats at all — they reason from code.
+
+**Quoting layer (per-shell, fail-fast).** `pueue add` always re-joins the
+argv it receives with a plain, unquoted space and hands the result to
+whatever shell its daemon is configured for — argv boundaries never survive
+`pueue add` on their own. `lane-queue.sh` detects the daemon's shell flavor
+from the resolved pueue **client** binary (`.exe` → Windows daemon → default
+PowerShell 5.1: needs a leading `&` call-operator token, embedded `'`
+doubled; non-`.exe` → POSIX daemon → default `sh -c`: no leading `&`,
+embedded `'` escaped via `'\''` — doubling is a PowerShell-ism that under
+POSIX quoting silently deletes the quote instead of escaping it). Applying
+one dialect unconditionally was Round 2's actual, empirically-confirmed bug
+(`bugeventlog.md`, 2026-07-18 "pueue-Windows loses argv quoting"); fixed by
+choosing the dialect once per `add` call (`lq_quote_for_shell`) and **fail-
+ing fast** (not guessing) when the daemon's own config overrides
+`shell_command` to something neither dialect recognizes.
+
+**Fallback (pueue absent, or `LANE_QUEUE_FORCE_MISSING=1`):** `add` degrades
+to a direct foreground spawn with a stderr "degraded" marker; `ensure`/
+`status`/`kill` fail loudly rather than silently no-op. The fallback keys
+strictly on binary absence — a daemon that dies *after* a successful
+`ensure` fails the next call loudly, never a silent fall-through.
+
+**`durable.queue_timeout`** (`WATCH_QUEUE_TIMEOUT`, default `3`s, both
+config-loader tables per v0.2.5 T7): bounds `watch.sh`'s `wd_is_queued`
+pueue-status round-trip — an unreachable daemon's own connection-refused
+path has been measured at ~2.2s on this host, and the watcher's tick cadence
+must never stall on that.
+
+## 4. Vendor config isolation
+
+`LANE_VENDOR=grok|codex|claude` (+ optional `LANE_CONFIG_DIR`, default
+`<WT>/.harness/vendor-home/<vendor>/`, provisioned unconditionally by
+`wt-new.sh`) makes `lane-run.sh` export the mapped vendor env var
+(`GROK_HOME` / `CODEX_HOME` / `CLAUDE_CONFIG_DIR`) once, before CMD is ever
+spawned, on **both** the launcher-present and launcher-absent spawn
+branches. The effective dir is normalized via `cygpath -m` (Windows/MSYS)
+before export — deterministic and boundary-immune, replacing reliance on
+bash's own disk-state-dependent msys→native path conversion (Bun #12970:
+compiled Bun exes have stripped `\` from env var values on Windows; see
+`lane-run.sh`'s `lane_normalize_config_dir`). Unset `LANE_VENDOR` is the
+frozen path: nothing is exported, `ownership.config_dir` stays `null`, byte-
+identical to pre-T5a behavior.
+
+**T5b (real-vendor destructive verdict) is `docs/research/vendor-
+concurrency-results.md`, status UNVERIFIED.** T5a wires the plumbing only —
+it does not establish whether per-lane `GROK_HOME`/`CODEX_HOME` actually
+prevents cross-lane interference under a real vendor CLI (cache/lock/auth
+state living outside the HOME-style var would still cross-contaminate). The
+protocol is manual, destructive, never gated into CI: dispatch N=2 (then
+N=3) same-vendor throwaway lanes concurrently and observe. The codex half
+can run today; the grok half is blocked (grok CLI absent on this host).
+Pueue caps (`grok`/`codex` above) are raised **only** on a green, recorded
+result — never on the fake-shim plumbing tests (`tests/vendor-isolation.
+bats`) alone.
+
+## 5. Merge-freshness gate (`merge-gate.sh`)
+
+```text
+merge-gate.sh record RUN LANE           # at dispatch
+merge-gate.sh check  RUN LANE BRANCH    # pre-merge, just before wt-merge.sh
+```
+
+`record` emits a `merge_base` event: `sha = git merge-base HEAD origin/main`
+(or HEAD's own sha, `payload.degraded:true`, when `origin/main` doesn't
+exist — every throwaway repo, some solo-dev clones). `check` re-verifies,
+against the most recently recorded `merge_base` event:
+
+1. the recorded sha still resolves to a commit (`git cat-file -e`);
+2. `BRANCH` contains it (`git merge-base --is-ancestor`) — catches parallel/
+   unrelated history (an orphan branch, a second root commit);
+3. it is not more than `durable.merge_base_max_commits` (`MERGE_BASE_MAX_
+   COMMITS`, default `50`) commits behind **current** `origin/main`
+   (`behind > max`, so `behind == max` stays `MERGEABLE` — the boundary is
+   inclusive).
+
+Prints exactly one line: `MERGEABLE` (exit 0) or `NOT_MERGEABLE:<reason> --
+respawn from a fresh base (dispatch a new lane worktree from current
+origin/main)` (exit 6) — no auto-salvage; this script never rebases or
+force-merges. A corrupt/malformed `events.jsonl` (a torn or invalid line
+anywhere in the log) also yields a clean `NOT_MERGEABLE` line rather than an
+uncontracted script abort (T7 hardening — the pre-fix code let an unguarded
+pipeline assignment's nonzero rc trip `set -e` before the empty-sha check
+ever ran).
+
+**Remote-lane preflight doctrine:** a caller dispatching a lane must reject
+the dispatch outright when `record` itself fails — a lane with no recorded
+merge-base can never pass `check`.
+
+**`wt-merge.sh` porcelain hardening (T7 audit nit):** the pre-existing fix
+for the gitignored-`FOREMAN_REPORT` bug already builds its commit add-list
+from `status --porcelain` output (never naming the report paths in a git
+pathspec, since a genuinely ignored path errors the moment it is *named* in
+one, negated or not). That parse has been hardened further: it now reads
+`git -c core.quotePath=false status --porcelain -z` (NUL-delimited, `-z`
+suppresses git's own quoting; `core.quotePath=false` is belt-and-braces).
+The prior newline-delimited parse only ever stripped the *outer* quote
+characters git's default quoting wraps an unusual path in — it never
+un-escaped the octal sequences inside, so a worker file named e.g. `wörk
+report.txt` would have been re-added under the literal, wrong name
+`w\303\266rk report.txt`. The NUL-delimited read carries the exact original
+bytes with nothing to un-escape.
+
+## 6. Auto-resume supervisor (`lane-supervise.sh`)
+
+```text
+lane-supervise.sh [--dry-run] --once RUN | --all
+```
+
+A single **sweep**, not a daemon — no internal poll loop. Run on a fixed
+interval externally, under the pueue daemon (a scheduled trigger enqueuing
+`--all`), degrading to a periodic `maintenance.sh` invocation when pueue is
+unavailable. Owns no new state store: classifies each lane's *latest* round
+(the structural suffix of its events starting at its last `prompt` event —
+most event types carry no `payload.attempt`, so this is a structural, not a
+filter, derivation) from the v0.2.0 event log + checkpoint refs + T1/T2
+ownership/heartbeat artifacts alone.
+
+**ABANDONED predicate:** a `prompt` exists, no `round_done` for the latest
+round, and the round is not ALIVE — where ALIVE means the ownership event's
+owning pid (`launcher_pid`, fallback `pid`) answers `kill -0`, **or** the
+worktree's `.harness/lane.lock` directory exists. A launcher-absent round
+(never recorded an `ownership` event, so no recoverable worktree pointer) is
+deliberately out of scope — never blind-resume without a known worktree.
+
+**Bound:** `durable.resume_max_attempts` (`RESUME_MAX_ATTEMPTS`, default
+`2`). On exhaustion: one terminal `abandoned` alert (idempotent — checked
+for existence before re-emitting), then STOP. A dirty-tree refusal from
+`resume.sh` (exit 5) is **never** counted toward the cap (an operator
+cleaning the tree should let a later sweep succeed normally) — only its own
+`resume_refused_dirty` alert is deduplicated, the retry itself is not.
+
+**Never-rules (enforced, not aspirational):**
+
+- Never respawn while the prior attempt's Job Object/CLI is alive, or
+  `.harness/lane.lock` is held.
+- Never exceed `resume_max_attempts`.
+- Never respawn a lane that already completed (`round_done` present).
+- Never bypass `resume.sh`'s pre-resume backup (`--force` is never passed).
+- Never count a refused (dirty-tree) resume as progress toward the cap.
+- Never re-arm `watch.sh` itself, and never spawn an unsupervised process —
+  the re-enqueued round's own new `prompt` event is enough for an existing
+  `watch.sh` instance to rediscover it on its own next poll; re-enqueue goes
+  through `lane-queue.sh` (probed via `ensure` first, so a pueue-absent
+  fallback can never foreground-execute CMD in the sweeper itself) or, if
+  pueue is unusable, prints the ready-to-run command instead of ever
+  spawning it directly.
+
+## 7. Config keys added this release
+
+All keys below are resolved through the shared loader
+(`skills/foreman/scripts/lib/config.sh`, `cfg_load` + `cfg_get SECTION KEY
+DEFAULT`), precedence **dedicated env var > `.foreman/config.toml` value >
+built-in default**. The loader is a **closed allowlist**: a key present in
+only one of `_cfg_parse_toml`'s case statement or the `_CFG_ENV_VAR` table
+silently no-ops — every key below was added to both. See
+`references/durable-lanes.md` for the v0.2.0-era key set.
+
+| TOML key | Env var | Default | Consumer |
+|---|---|---|---|
+| `durable.queue_timeout` | `WATCH_QUEUE_TIMEOUT` | `3` | `watch.sh` (`wd_is_queued`) |
+| `audit.policy.warning_low_resolved` | `AUDIT_POLICY_WARNING_LOW_RESOLVED` | `"merge"` | soft-mode architect doctrine (SKILL.md) — see below |
+| `audit.policy.warning_medium` | `AUDIT_POLICY_WARNING_MEDIUM` | `"ask"` | ditto |
+| `audit.policy.blocked` | `AUDIT_POLICY_BLOCKED` | `"never"` | ditto |
+
+`[audit.policy]` is a dotted TOML section (real TOML nested-table syntax
+under the pre-existing `[audit]` vendor/model section; the loader's own
+hand-rolled parser tracks it as a distinct literal bracket string). It
+closes the `bugeventlog.md` 2026-07-16 "merge gate semantics" item: the
+user's standing "merge it when approved" instruction collided with a
+`WARNING` verdict because no doctrine distinguished *which* `WARNING`s were
+architect-discretion-mergeable. The three values encode: `WARNING` with all
+findings resolved and only low-severity residuals → `merge` at architect
+discretion; `WARNING` with unresolved medium+ findings → `ask` the user;
+`BLOCKED` → `never` auto-merge.
+
+**Consumer status:** these three keys are consumed today as **soft-mode
+architect doctrine only** (see the SKILL.md "Durable rounds (v0.2.5)"
+doctrine and the "Soft verification + audit" step). `gate-eval.sh` (hard
+mode's deterministic gate script) does **not** read them — a real wire-in
+would require this script to bucket `audit-verdict.json`'s findings by
+severity into "resolved" vs. "unresolved," a distinction the shipped
+`verdict.schema.json` has no field for (findings are a flat list with a
+`severity` enum, no resolved/open flag), and `gate-eval.sh` today never
+fails on a bare `WARNING` verdict at all (only `BLOCKED` fails it). Inventing
+that bucketing here would not be a trivial wire-in — it is deliberately left
+a **v0.3.0 consumer**, stated here rather than silently assumed.
+
+## 8. Known limits carried into v0.3.0
+
+- T5b (real-vendor concurrency verdict) is unrun for both vendors; pueue
+  caps stay at 1 for `grok`/`codex` until a recorded result says otherwise.
+- `gate-eval.sh` does not yet enforce `[audit.policy]` — see §7.
+- Nested Job Objects are validated one level deep (`tests/launcher.bats`);
+  the bun025 research chain validated launcher → child → grandchildren, not
+  an arbitrarily deep launcher-of-launchers tree.
+- `WATCH_OWNERSHIP_WAIT`'s default (3000ms) is a bats-test-scale
+  compromise, not the deployment recommendation — see §2.
