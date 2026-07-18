@@ -1,0 +1,7 @@
+# Shell scripts must be LF everywhere: bash on WSL rejects CRLF
+# (`pipefail\r`), and lane worktrees on mixed hosts otherwise churn line
+# endings into every merge. (v0.2.5 T-INFRA; bugeventlog 2026-07-16
+# tool-check-unrunnable-from-WSL entry.)
+*.sh text eol=lf
+*.bash text eol=lf
+*.bats text eol=lf
