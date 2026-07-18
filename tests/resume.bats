@@ -5,7 +5,7 @@ load helpers
 
 setup() {
   export FOREMAN_HOME="$BATS_TEST_TMPDIR/fh"
-  SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../skills/foreman/scripts" && pwd)"
+  SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   source "$SCRIPTS/lib/eventlog.sh"
   source "$SCRIPTS/lib/checkpoint.sh"

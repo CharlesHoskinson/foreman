@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-setup() { SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../skills/foreman/scripts" && pwd)"; source "$SCRIPTS/durable-preflight.sh"; }
+setup() { SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"; source "$SCRIPTS/durable-preflight.sh"; }
 
 @test "dp_verify reports OK for a present dependency" {
   run bash -c 'source "'"$SCRIPTS"'/durable-preflight.sh"; dp_one git "true" "hint"'

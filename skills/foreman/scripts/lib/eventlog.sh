@@ -18,7 +18,8 @@ el_init() {
 # @stdout the assigned seq number
 el_emit() {
   local run="$1" type="$2" lane="$3" payload="$4" commit="${5:-}"
-  local rd; rd="$(run_dir "$run")"; mkdir -p "$rd"
+  local rd="$FOREMAN_HOME/runs/$run"
+  [[ -d "$rd" ]] || mkdir -p "$rd"
   local log="$rd/events.jsonl" seqf="$rd/.seq" lock="$rd/.seq.lock"
   # Portable mutex: multiple lanes emit to one run's log concurrently, and the
   # seq read-modify-write must be atomic to avoid duplicate sequence numbers.
@@ -37,8 +38,9 @@ el_emit() {
   # .seq) → append. A duplicate seq is the only unacceptable outcome; a gap is
   # fine. jq failure: nothing written, seq not reserved (no gap). Append failure
   # after reserve: .seq is ahead → next emit skips (harmless gap), never a dup.
-  local seq ts raw line rc=0
-  seq=$(( $(cat "$seqf" 2>/dev/null || echo 0) + 1 ))
+  local seq ts raw line rc=0 prev=0
+  [[ -f "$seqf" ]] && prev="$(<"$seqf")"
+  seq=$(( ${prev:-0} + 1 ))
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   # Plan used commit:($commit|select(.!="")) — under jq 1.8+ an empty select
   # empties the whole object; del keeps "omit empty commit". Capture jq's own
@@ -47,7 +49,7 @@ el_emit() {
     --arg lane "$lane" --arg commit "$commit" --argjson payload "$payload" \
     '{seq:$seq,ts:$ts,type:$type,lane:$lane,commit:$commit,payload:$payload}
      | if .commit == "" then del(.commit) else . end') || rc=1
-  line="$(printf '%s' "$raw" | tr -d '\r')"
+  line="${raw//$'\r'/}"
   if (( rc != 0 )) || [[ -z "$line" ]]; then
     rc=1; echo "el_emit: jq failed or empty line for $run" >&2
   elif ! { echo "$seq" > "$seqf.tmp" && mv "$seqf.tmp" "$seqf"; }; then

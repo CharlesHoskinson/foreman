@@ -5,7 +5,7 @@ load helpers
 setup() {
   export FOREMAN_HOME="$BATS_TEST_TMPDIR/fh"
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
-  SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../skills/foreman/scripts" && pwd)"
+  SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   WT="$BATS_TEST_TMPDIR/wt"
   mkdir -p "$WT"
@@ -365,6 +365,7 @@ EOF
   proc_root="$BATS_TEST_TMPDIR/proc-a"
   mkdir -p "$proc_root"
   export LANE_PROC_ROOT="$proc_root"
+  export LANE_KILL_GRACE=1
 
   bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'trap "" TERM; echo $$ > "'"$WT"'/cmd-pid"; touch "'"$WT"'/cmd-started"; sleep 25' &
@@ -404,6 +405,7 @@ EOF
 @test "lane-run kill_cmd_bounded: sweep_unavailable emits exactly one alert with payload.sweep=sweep_unavailable" {
   export LANE_PROC_ROOT="$BATS_TEST_TMPDIR/empty-proc"
   mkdir -p "$LANE_PROC_ROOT"
+  export LANE_KILL_GRACE=1
 
   bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'trap "" TERM; touch "'"$WT"'/cmd-started"; sleep 25' &

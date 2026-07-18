@@ -62,7 +62,7 @@ setup() {
   # Ephemeral JetStream server on fixed test port; store under bats tmp.
   nats-server -js -p "$NATS_TEST_PORT" -sd "$NATS_STORE" >/dev/null 2>&1 &
   echo $! > "$BATS_TEST_TMPDIR/nats.pid"
-  SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../skills/foreman/scripts" && pwd)"
+  SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   source "$SCRIPTS/lib/eventlog.sh"
   source "$SCRIPTS/lib/nats-bridge.sh"

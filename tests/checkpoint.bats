@@ -2,7 +2,7 @@
 load helpers
 
 setup() {
-  SCRIPTS="$(cd "$BATS_TEST_DIRNAME/../skills/foreman/scripts" && pwd)"
+  SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/checkpoint.sh"
   WT="$BATS_TEST_TMPDIR/wt"; mkdir -p "$WT"
   git -C "$WT" init -q -b main
