@@ -366,6 +366,16 @@ The frozen contract gains exactly one flag and one clarification:
   CMD contract must survive the insertion).
 - Add a POSIX kill-shot crash-safety test to T1 (v0.3.0 runs the POSIX build
   on WSL2 — it must not inherit an unverified spawn primitive).
+- GRADED STOP RESOLVED (T1 spec audit, 2026-07-18): the cooperative phase is
+  DEAD as originally specified — CTRL_BREAK is impossible via Bun.spawn
+  (REPORT_process RISK-2) and CMD's stdin is /dev/null so close-stdin
+  signals nothing. Contract: on timeout/stop wait `--grace`, then
+  TerminateJobObject. Heartbeat schema frozen as {ts, launcher_pid, pid,
+  job_id, alive, stdout_bytes, stderr_bytes, elapsed_s} — launcher_pid (job
+  owner) and pid (CMD root child) are distinct fields; kill-shots target
+  launcher_pid, tree observation keys on pid. `--detach` = self-re-exec
+  (detached, stdio ignored, unref), sole-writer-of-heartbeat rule,
+  foreground exits 0 only after the detached copy's first heartbeat.
 - NESTED JOB OBJECTS (advisor, 2026-07-18): round ownership creates
   `foreman-launch(--detach, job A) → lane-run.sh → foreman-launch(job B, CMD)
   → foreman-launch(job C, GATE)` — a launcher spawning further launchers.
