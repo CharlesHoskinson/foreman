@@ -219,6 +219,65 @@ lane_normalize_config_dir() {
   fi
 }
 
+# @description Scan a grok lane's worktree SOURCE for secret material before
+#   CMD is ever spawned (package 2, grok-lane-activation Task 2; hardened in
+#   Rework Round 1 per Opus audit). WHILE the whole-repo-upload behavior of
+#   Grok Build is unrefuted, a lane MUST NOT hand a worktree containing
+#   dotenv files or key material to grok. Scoped to worktree SOURCE:
+#   `$wt/.harness` (lane-run's OWN scaffolding -- vendor-home, lane.lock,
+#   heartbeat/stream files, etc.) and `$wt/.git` (git's own internal object
+#   store, never user source) are both pruned via the `-prune` idiom below,
+#   so provisioning/bookkeeping under either can never produce a false
+#   positive -- only the tree grok would actually see is scanned.
+#
+#   Both checks below are capture-then-test (Rework Round 1, Opus audit Nit
+#   A -- a real hole, not a nitpick): `find ... 2>/dev/null` is captured into
+#   a local variable FIRST, with `|| true` guarding the assignment so a
+#   nonzero find exit status never aborts this script under
+#   `set -euo pipefail`; emptiness is then tested separately via `[[ -n ...
+#   ]]`. GNU find returns nonzero if it hits so much as one unreadable
+#   subdirectory ANYWHERE in the tree, but still completes the rest of the
+#   traversal and still prints every match it COULD read -- the ORIGINAL
+#   form piped find's output directly into `grep -q .`, and under `pipefail`
+#   a nonzero find exit outranks grep's own successful (exit 0) match, so
+#   the `if` read FALSE even when a real secret was present and printed by
+#   find: a MASKED hit (a present secret silently waved through), not merely
+#   a false negative from a narrow glob. The capture-then-test form has no
+#   such hazard: the exit status tested is the captured variable's own
+#   emptiness, never find's aggregate exit code.
+#
+#   Check 1 (filenames, Rework Round 1 Nit B -- broadened net): `.env` and
+#   `.env.*` (excluding `.env.example`) at any depth, PLUS common private-key
+#   filenames anywhere in the tree (id_rsa, id_dsa, id_ecdsa, id_ed25519,
+#   *.pem, *.key, *.p12, *.pfx). Filename-only -- never evaluates file
+#   CONTENT for this check, so it is injection-safe regardless of what a
+#   matched file contains.
+#   Check 2 (content): the pre-existing PEM private-key banner grep,
+#   unchanged in scope (catches an embedded/renamed key Check 1's filename
+#   list would miss), ported to the same capture-then-test form. Still
+#   `find ... -exec grep ... {} +` (never `xargs`): with zero matched files,
+#   `-exec ... {} +` is a documented no-op, whereas an `xargs` pipeline fed
+#   empty input would instead invoke `grep` with no file operand, which
+#   reads stdin and could hang the script with no bound.
+# @arg $1 wt worktree root to scan
+# @exitcode 0 clean (no secret material found); 1 secret material found
+lane_grok_secrets_scan() {
+  local wt="$1" hits
+  hits="$(find "$wt" \( -path "$wt/.harness" -o -path "$wt/.git" \) -prune -o \
+       -type f \( \
+         -name '.env' \
+         -o \( -name '.env.*' ! -name '.env.example' \) \
+         -o -name 'id_rsa' -o -name 'id_dsa' -o -name 'id_ecdsa' -o -name 'id_ed25519' \
+         -o -name '*.pem' -o -name '*.key' -o -name '*.p12' -o -name '*.pfx' \
+       \) -print 2>/dev/null)" || true
+  [[ -n "$hits" ]] && return 1
+  hits="$(find "$wt" \( -path "$wt/.harness" -o -path "$wt/.git" \) -prune -o \
+       -type f -exec grep -lIE -- '-----BEGIN[[:space:]].*PRIVATE KEY-----' {} + \
+       2>/dev/null)" || true
+  [[ -n "$hits" ]] && return 1
+  return 0
+}
+
 # --- T5a: per-lane vendor config isolation plumbing ----------------------
 # See the header CONTRACT block for the full rationale. Strictly gated on
 # LANE_VENDOR being set/non-empty -- an unset LANE_VENDOR (today's default
@@ -248,6 +307,27 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
     lane_ready_report="$(bash "$lane_repo_root/env/tool-check.sh" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
     if [[ "$lane_ready_report" != *"LANE_READY: ${LANE_VENDOR}=yes"* ]]; then
       echo "lane-run: $LANE_VENDOR lane NOT-READY -- run Setup (foreman-setup) before Use" >&2
+      exit "$EXIT_CONFIG"
+    fi
+  fi
+
+  # --- Task 2 (package 2, grok-lane-activation): secrets-refusal preflight -
+  # An IN-LANE guard, DISTINCT from the Use-path readiness gate immediately
+  # above -- that gate is an ENVIRONMENT-readiness concern (is this vendor
+  # authenticated at all), this is a PER-WORKTREE safety concern (does this
+  # specific worktree contain secret material), and both apply to a grok
+  # lane. Runs strictly AFTER the readiness gate (spec order) and strictly
+  # BEFORE CMD is ever spawned. Gated on LANE_VENDOR=="grok" specifically
+  # (not codex/claude, and not merely "LANE_VENDOR is set") -- the
+  # whole-repo-upload concern this guards against is a grok-specific,
+  # currently-unrefuted behavior of Grok Build; codex/claude lanes and the
+  # unset-LANE_VENDOR frozen path are byte-unaffected by this block.
+  if [[ "$LANE_VENDOR" == "grok" ]]; then
+    if ! lane_grok_secrets_scan "$WT"; then
+      if ! el_emit "$RUN" alert "$LANE" '{"kind":"grok_secrets_refused"}' >/dev/null; then
+        echo "lane-run: el_emit alert (grok_secrets_refused) failed" >&2
+      fi
+      echo "lane-run: grok lane refused -- worktree contains secret material (.env or a private key); remove it before routing to grok" >&2
       exit "$EXIT_CONFIG"
     fi
   fi

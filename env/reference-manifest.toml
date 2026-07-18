@@ -47,9 +47,11 @@ id = "grok"
 profile = ["soft", "full"]
 where = ["windows", "wsl"]
 check = "grok --version"
-install_hint = "Install Grok Build from https://x.ai/cli then run: grok login"
+install_wsl = "npm i -g @xai-official/grok"
+install_windows = "npm i -g @xai-official/grok"
+install_hint = "Binary resolves from the npm global prefix (avoids the Cloudflare-walled x.ai installer host). After install: grok login --device-code (headless/remote-safe; XAI_API_KEY also accepted)"
 required = true
-notes = "Default implementer lane"
+notes = "Default implementer lane; auth verified in the Setup stage, never mid-lane"
 
 [[tools]]
 id = "codex"

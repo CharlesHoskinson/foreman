@@ -29,6 +29,52 @@ non-OpenAI auditor and say so explicitly.
 - `--cwd` / working directory explicit
 - Wall clock ~600s when `timeout`/`gtimeout` exists
 
+### Grok headless recipe (lane-run, durable lanes)
+
+`lane-run.sh` (durable lanes / `--round` mode) drives grok non-interactively,
+distinct from the architect-orchestrated `grok-implementer` agent dispatch
+above:
+
+```bash
+grok -p "<spec>" --cwd <worktree> --output-format json --always-approve \
+  --session-id <uuid> --no-auto-update
+```
+
+- `--output-format json` — machine-readable (one JSON object at the end)
+- `--always-approve` — unattended edits; no interactive tool-approval prompt
+- `--session-id <uuid>` — a fresh, unique session per lane round
+- `--no-auto-update` — skip grok's own background update check (required in
+  scripts/CI/any automated environment)
+- `GROK_HOME` is set per lane by `lane-run.sh`'s `LANE_VENDOR=grok` plumbing
+  (see the vendor-home isolation contract above) — never shared across lanes
+
+Resuming a lane reuses the same session and vendor home, stdout still
+redirected to the lane's own per-lane output file:
+
+```bash
+grok -r <session-id> --cwd <worktree> --output-format json --always-approve \
+  --no-auto-update
+```
+
+**Auth doctrine:** grok authentication is a **Setup-stage** responsibility,
+never an in-lane one — `grok login --device-code` (browser-free; alias of
+`--device-auth`) or an `XAI_API_KEY` environment variable, verified once in
+Setup before any Use-stage lane routes to grok. A grok Use lane requested
+while Setup reports grok NOT-READY is refused at the door citing Setup; the
+lane never attempts its own auth.
+
+**Secrets-refusal:** WHILE the whole-repo-upload behavior of Grok Build is
+unrefuted, `lane-run.sh` scans the worktree SOURCE (excluding its own
+`.harness/` scaffolding) for `.env` files (any depth, excluding
+`.env.example`) and private-key material (`-----BEGIN * PRIVATE KEY-----`)
+before ever spawning grok, and refuses the lane
+(`alert{kind:"grok_secrets_refused"}`, non-zero exit, CMD never spawned) if
+either is found.
+
+Grok is **optional** until t5b (real-vendor destructive-concurrency
+verification, deferred) greens it — see
+`docs/research/vendor-concurrency-results.md`.
+
 ### Codex implementer flags (soft)
 
 - `codex exec` with prompt on stdin
