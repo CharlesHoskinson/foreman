@@ -599,3 +599,35 @@ proposed enhancement. Newest at the bottom.
   the full suite on a calm host) is RETIRED. eventlog.bats 27/34 and every
   setup_tmp_repo-dependent test pass; the prior failures are confirmed as
   fork-exhaustion flakes, not regressions. v0.2.0 tagged from this state.
+
+## 2026-07-18 — stdbuf LD_PRELOAD poisons MSYS CMDs through the native launcher (caught by merge gate)
+
+- **Phase:** v0.2.5 T2 merge gate (architect full suite on main; T2 commit
+  held unpushed).
+- **What happened:** config.bats f1 — the only test asserting a mid-run
+  checkpoint EXISTS (stream growth) — failed deterministically post-T2.
+  On the launcher-present branch, lane-run wrapped the NATIVE
+  foreman-launch exe in `$STDBUF`. stdbuf works via
+  LD_PRELOAD=/usr/lib/coreutils/libstdbuf.dll; MSYS converts the var to
+  Windows form at the msys→native exec boundary; the launcher forwards env
+  verbatim (contract-correct); CMD's MSYS bash colon-splits
+  "C:\Program Files\..." and dies "*** fatal error - error while loading
+  shared libraries: C:". CMD output is lost (no stream growth → no mid-run
+  checkpoint) while exit codes still read 0.
+- **Minimal repro:** `stdbuf -oL launcher/dist/foreman-launch.exe
+  --heartbeat-file /tmp/hb -- bash -c 'echo X'` → fatal, no X;
+  identical command without stdbuf → works.
+- **Why lane gates missed it:** the T2 lane ran only lane-run.bats; its
+  real-binary test asserted events + exit code, never CMD's bytes reaching
+  the stream file; shim tests are MSYS bash (immune by construction).
+  f1 lives in config.bats — a different file — and was also the only test
+  left exercising launcher auto-resolution (everything in lane-run.bats
+  neutralizes FOREMAN_LAUNCH).
+- **Fix:** never $STDBUF the launcher (it forwards stdio unbuffered per the
+  T1 contract) + `env -u LD_PRELOAD -u _STDBUF_O -u _STDBUF_E` on the
+  launcher spawn as defense-in-depth + a skip-guarded stream-durability
+  regression test in lane-run.bats.
+- **Enhancement confirmed:** the architect-runs-full-suite-at-merge gate is
+  load-bearing — per-lane file gates structurally cannot catch cross-file
+  integration regressions; exit codes alone are not evidence of a healthy
+  round (stream/event artifacts are).

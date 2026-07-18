@@ -53,6 +53,15 @@
 #   `--round GATE_CMD REPORT_PATH` mode makes lane-run.sh own the WHOLE round
 #   (CMD -> gate -> attempt-fresh report assert -> round_done), never the
 #   agent's own turn -- see the ROUND_MODE block near the end of this file.
+#   STDBUF CAVEAT (Rework Round 2, architect-diagnosed): the launcher-PRESENT
+#   branch NEVER prefixes the launcher with $STDBUF (unlike the
+#   launcher-ABSENT branch, where it still applies and still matters).
+#   Wrapping the native launcher exe in stdbuf poisons CMD's own MSYS bash
+#   via an LD_PRELOAD value MSYS silently rewrites to Windows form at the
+#   exec boundary, which CMD's bash then mis-parses and dies loading "C:" as
+#   a shared object -- CMD's real stdout is lost while lane-run.sh's own
+#   exit code still reads 0. See the CMD-launch site's own comment for the
+#   full repro and the `env -u LD_PRELOAD` defense-in-depth.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -771,15 +780,40 @@ if [[ -n "$FOREMAN_LAUNCH_RESOLVED" ]]; then
   # is emitted as soon as the FIRST heartbeat line appears (bounded,
   # concurrently with CMD -- see lane_emit_ownership's doc comment), not
   # after CMD finishes, so a long CMD does not delay ownership visibility.
-  if [[ -n "$STDBUF" ]]; then
-    # STDBUF is a fixed non-attacker-controlled string ("stdbuf -oL" or "gstdbuf -oL")
-    # safe to word-split unquoted when non-empty.
-    $STDBUF "$FOREMAN_LAUNCH_RESOLVED" --heartbeat-file "$hb" --heartbeat-interval 15 -- "$@" \
-      < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
-  else
+  #
+  # Rework round 2 (architect-diagnosed present-path regression, config.bats
+  # f1): NEVER prefix the launcher with $STDBUF, on either arm -- unlike the
+  # launcher-absent branch below (where $STDBUF still applies and still
+  # matters), stdbuf here is not merely unnecessary, it is ACTIVELY
+  # POISONOUS. stdbuf works via LD_PRELOAD=/usr/lib/coreutils/libstdbuf.dll;
+  # MSYS silently converts that value to Windows form
+  # (C:\Program Files\Git\usr\lib\coreutils\libstdbuf.dll) at the msys->native
+  # exec boundary when spawning the compiled (native) launcher exe; the
+  # launcher then forwards its own environment to CMD verbatim (correct per
+  # the T1 contract -- it does not know or care about stdbuf); CMD's own
+  # MSYS bash then colon-splits that Windows path on ITS OWN LD_PRELOAD
+  # parse and tries to dlopen "C:" as a shared object, hard-failing with
+  # "*** fatal error - error while loading shared libraries: C:" before CMD
+  # ever runs -- CMD's real stdout is lost entirely (the stream file never
+  # grows, so no mid-run checkpoint fires) while the launcher's own exit
+  # code still reads 0, making this silent. Minimal repro (architect):
+  # `stdbuf -oL ./launcher/dist/foreman-launch.exe --heartbeat-file /tmp/hb -- bash -c 'echo X'`
+  # is fatal (no X); the same command without the `stdbuf -oL` prefix works.
+  # The launcher already forwards CMD's stdio unbuffered end to end (T1
+  # contract: "stdout/stderr of CMD pass through unmodified"), so stdbuf's
+  # line-buffering purpose (needed for the DIRECT-spawn absent branch, where
+  # nothing else guarantees line buffering) is redundant here regardless --
+  # collapsing to a single un-prefixed invocation is a pure win, not a
+  # tradeoff. Defense-in-depth: also strip stdbuf's own environment
+  # droppings (LD_PRELOAD, _STDBUF_O, _STDBUF_E) from the launcher's spawn
+  # environment via `env -u`, so a caller who invoked lane-run.sh ITSELF
+  # under an outer `stdbuf` cannot re-poison CMD through env passthrough --
+  # this is belt-and-braces on top of "never wrap with $STDBUF here", not a
+  # substitute for it (an inherited LD_PRELOAD would poison CMD identically
+  # even without lane-run.sh wrapping anything itself).
+  env -u LD_PRELOAD -u _STDBUF_O -u _STDBUF_E \
     "$FOREMAN_LAUNCH_RESOLVED" --heartbeat-file "$hb" --heartbeat-interval 15 -- "$@" \
-      < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
-  fi
+    < /dev/null > >(printf '%s\n' "$BASHPID" > "$tee_pid_file"; exec tee -a "$stream_file") 2>&1 &
   launcher_pid=$!
   lane_emit_ownership "$hb" "$attempt" "$launcher_pid"
   wait "$launcher_pid"

@@ -896,3 +896,67 @@ EOF
   expected="--heartbeat-file $hb_path --heartbeat-interval 15 -- bash -c echo hi"
   [ "$recorded" = "$expected" ]
 }
+
+# Rework round 2 (architect-diagnosed present-path regression caught by the
+# full-suite merge gate, config.bats f1 -- the only pre-existing test that
+# asserted mid-run STREAM GROWTH; this file's own tests only ever asserted
+# exit codes / event payloads for the launcher-present path, never that
+# CMD's actual stdout bytes reached stream.ndjson, which is exactly the gap
+# this regression lived in).
+#
+# ROOT CAUSE: on the launcher-present branch, the spawn used to wrap the
+# NATIVE launcher exe in $STDBUF ("stdbuf -oL"). stdbuf works via
+# LD_PRELOAD=/usr/lib/coreutils/libstdbuf.dll; MSYS silently rewrites that
+# value to Windows form (C:\Program Files\Git\usr\lib\coreutils\libstdbuf.dll)
+# at the msys->native exec boundary when spawning the compiled launcher; the
+# launcher forwards its environment to CMD verbatim (correct per the T1
+# contract); CMD's own MSYS bash then colon-splits that Windows path on ITS
+# OWN LD_PRELOAD parse and tries to dlopen "C:" as a shared object, hard
+# crashing with "*** fatal error - error while loading shared libraries: C:"
+# before CMD's real command ever runs -- CMD's stdout is lost entirely (the
+# stream file never grows, so no mid-run checkpoint fires) while the
+# launcher's own exit code still reads 0, making this silent. Fixed by never
+# prefixing the launcher with $STDBUF (collapsed to one un-prefixed
+# invocation; $STDBUF still applies, unchanged, on the launcher-absent
+# branch, where it is not poisonous and still matters) plus defense-in-depth
+# `env -u LD_PRELOAD -u _STDBUF_O -u _STDBUF_E` on the launcher's spawn
+# environment.
+#
+# This class of bug is NOT catchable by this file's deterministic fake-shim
+# tests: the shim IS an MSYS bash script itself (not a native exe), so
+# spawning it under $STDBUF never crosses the msys->native exec boundary
+# that mangles LD_PRELOAD in the first place -- the shim is structurally
+# immune, which is exactly why this regression slipped past every
+# shim-based test above and was only caught by the architect's full-suite
+# gate (config.bats f1) against the REAL compiled binary. This test
+# therefore MUST run against the real exe (skip-guarded, tagged slow, same
+# pattern as the other real-launcher test above) -- there is no
+# deterministic-shim equivalent that would exercise the actual bug.
+# bats test_tags=slow
+@test "lane-run (real compiled launcher, skip-guarded) rework round 2 regression: launcher-present CMD stdout reaches stream.ndjson (STDBUF-poisoning fix)" {
+  EXE_DIR="$BATS_TEST_DIRNAME/../launcher/dist"
+  [ -d "$EXE_DIR" ] || skip "compiled exe not found at $EXE_DIR -- run: pwsh -File launcher/build.ps1"
+  EXE="$(cd "$EXE_DIR" && pwd)/foreman-launch.exe"
+  [ -f "$EXE" ] || skip "compiled exe not found at $EXE -- run: pwsh -File launcher/build.ps1"
+  export FOREMAN_LAUNCH="$EXE"
+  stream="$WT/.harness/stream.ndjson"
+  before_size=0
+  if [ -f "$stream" ]; then
+    before_size="$(stat -c %s "$stream" 2>/dev/null || stat -f %z "$stream" 2>/dev/null || echo 0)"
+  fi
+  # CMD echoes a unique marker, then polls briefly (a short real delay, not
+  # a fixed instant-exit) so this exercises the same "CMD actually runs for
+  # a bit and produces real output through the launcher" shape the
+  # regression hid in, before echoing a second marker and exiting.
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
+    bash -c 'echo rework-round-2-marker; for _ in $(seq 1 5); do sleep 0.2; done; echo done-polling'
+  [ "$status" -eq 0 ]
+  [ -f "$stream" ]
+  after_size="$(stat -c %s "$stream" 2>/dev/null || stat -f %z "$stream" 2>/dev/null || echo 0)"
+  # Stream-durability assertion that was missing: growth AND content, not
+  # just lane-run.sh's own exit code (which read 0 even while CMD's stdout
+  # was silently lost to the fatal shared-library error).
+  [ "$after_size" -gt "$before_size" ]
+  grep -q "rework-round-2-marker" "$stream"
+  grep -q "done-polling" "$stream"
+}
