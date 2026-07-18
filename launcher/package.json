@@ -1,0 +1,16 @@
+{
+  "name": "foreman-launch",
+  "version": "0.2.5",
+  "private": true,
+  "packageManager": "bun@1.3.14",
+  "type": "module",
+  "description": "Windows Job Object (+ POSIX process-group) supervisor: owns a spawned command's whole process tree, streams stdio through unmodified, writes JSON heartbeats, performs a graded stop on timeout.",
+  "scripts": {
+    "test": "bun test",
+    "build": "pwsh -File build.ps1",
+    "build:posix": "bun build --compile --target=bun-linux-x64 --no-compile-autoload-dotenv --no-compile-autoload-bunfig src/launch.ts --outfile dist/foreman-launch"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14"
+  }
+}

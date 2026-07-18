@@ -1,0 +1,2 @@
+# foreman-launch: keep the build/test loop offline-friendly and quiet.
+telemetry = false

@@ -21,3 +21,7 @@ FOREMAN_REPORT.md
 FOREMAN_REPORT.json
 graphify-out/cache/
 graphify-out/manifest.json
+
+# foreman-launch (T1): compiled artifacts + local node_modules are not vendored
+launcher/dist/
+launcher/node_modules/
