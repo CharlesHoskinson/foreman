@@ -82,7 +82,7 @@ multi-layer refactor, not a drop-in. Layers found:
 - v0.2.5 plan-vs-bugeventlog review: `~/.foreman/runs/dl2c/v025-plan-review.md`
 - T7 audit: `~/.foreman/runs/dl2c/audit/R-t7-audit.md`
 - Perf audit: `~/.foreman/runs/dl2e/audit/R-perf-audit.md`
-- Nightwatch release image (staged): `scratchpad/foreman-nightwatch.png`
+- Nightwatch release image (staged): `~/foreman-nightwatch-v0.2.0.png` (also `~/Downloads/foreman3.png`)
   (attach to the v0.2.0 GitHub release the way First Light was attached to
   v0.1.0, which is done + live).
 
