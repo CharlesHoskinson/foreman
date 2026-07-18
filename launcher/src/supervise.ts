@@ -21,7 +21,7 @@ import {
   terminateJob,
   closeJob,
 } from "./win/jobobject";
-import { wrapWithSetsid, terminateProcessGroup } from "./posix";
+import { wrapWithSetsid, terminateProcessGroup, HOST_PID_ENV } from "./posix";
 
 const isWindows = process.platform === "win32";
 
@@ -68,7 +68,15 @@ interface HeartbeatLine {
 
 export async function supervise(opts: SuperviseOptions): Promise<SuperviseResult> {
   const { cmd, timeoutSecs, graceSecs, heartbeatFile, heartbeatIntervalSecs, onEvent } = opts;
-  const launcherPid = process.pid;
+  // Task 3 (posix-cascade-parity, contract parity): under the pidns
+  // bootstrap this process's OWN pid is namespace-local (e.g. 1 or 2) --
+  // meaningless to whatever external tool captured the ORIGINAL host pid at
+  // spawn time. posix.ts's bootstrapPidnsCascade() carries that original
+  // pid across its self-re-exec via FOREMAN_LAUNCH_HOST_PID; prefer it when
+  // present. Unset (Windows, or the POSIX non-pidns/degraded path) ->
+  // Number(undefined) is NaN -> falsy -> process.pid, i.e. no behavior
+  // change at all there.
+  const launcherPid = Number(process.env[HOST_PID_ENV]) || process.pid;
   const emit = (e: Omit<LaunchEvent, "ts">) => onEvent?.({ ts: new Date().toISOString(), ...e });
 
   // Windows: create the job before spawning (cheap, pid-independent).

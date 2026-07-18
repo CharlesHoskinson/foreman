@@ -62,18 +62,38 @@ launcher.bats`'s `"nested-launcher reap: outer kill reaps inner launcher
 AND its own job"` case confirms `taskkill /PID <outer_launcher_pid> /F`
 reaps the inner launcher's own job too, kernel-enforced.
 
-**POSIX asymmetry — no kernel cascade, and the `-pgid` reaper rule:** unlike
-Windows' `KILL_ON_JOB_CLOSE` (kernel-enforced even if the launcher itself is
-killed without running its own cleanup), POSIX process groups have no
-automatic cascade (`launcher/README.md` "POSIX asymmetry", empirically
-verified on WSL2). `kill -9 <launcher_pid>` alone leaves CMD's whole process
-group alive; an external reaper must send the signal to `-<pid>` (negative
-= process group, using the `pid` field from the last heartbeat line, which
-equals CMD's own pgid because the launcher wraps it in `setsid`). This is
-exactly what `lane-run.sh`'s own `kill_launcher_bounded` POSIX branch does
-(also sends `-pid` to the gate-phase child, refreshed via
-`lane_refresh_gate_ownership_pid` for the gate phase — see `lane-run.sh`
-header CONTRACT and its "Rework round 1, F2" comment).
+**POSIX teardown — closed via pidns-init as of v0.2.7.5 posix-cascade-parity
+(`launcher/README.md` "POSIX asymmetry — closed via pidns-init"):** the
+POSIX launcher now self-re-execs at startup under `unshare --pid
+--mount-proc --fork --kill-child -- <launcher> ...`, becoming PID 1 (init)
+of a fresh PID namespace. Per Linux's own pidns semantics, when that init
+process dies for ANY reason — normal exit, crash, OOM, an external
+SIGKILL — the kernel SIGKILLs every remaining process in the namespace and
+tears it down, kernel-enforced, no polling required. This closes the
+previous gap: a plain `kill -9 <launcher_pid>` now reaps the WHOLE tree,
+including setsid-detached escapees that a pgid-only kill would miss
+(`launcher_pid` in the heartbeat is the ORIGINAL host pid, carried across
+the self-re-exec via `FOREMAN_LAUNCH_HOST_PID` — exactly the pid whoever
+spawned the launcher already has). A `prctl(PR_SET_CHILD_SUBREAPER)` safety
+net is additive on top; `--kill-child` closes the reverse edge (killing the
+outer `unshare` wrapper cascades the same way). On `unshare`
+unavailability/failure (checked via a disposable probe before the
+irreversible self-replacement), the launcher falls back to the PRE-v0.2.7.5
+`setsid` + `kill(-pgid)` path and logs a DEGRADED marker — never silently.
+
+The OLD asymmetry (`kill -9 <launcher_pid>` alone leaves CMD's process
+group alive; an external reaper must send the signal to `-<pid>`, the pgid
+from the heartbeat's `pid` field) still applies WHENEVER that DEGRADED
+marker was logged, and is otherwise still exactly what `lane-run.sh`'s own
+`kill_launcher_bounded` POSIX branch does today (unchanged by this package;
+`lane-run.sh` is owned by a different lane) — it sends `-pid` to the
+gate-phase child, refreshed via `lane_refresh_gate_ownership_pid` for the
+gate phase (see `lane-run.sh` header CONTRACT and its "Rework round 1, F2"
+comment). That `-pid` targeting remains correct and unaffected either way:
+it targets CMD's own pgid directly, which is reaped by BOTH the old
+cooperative path and the new pidns cascade. A future `lane-run.sh` revision
+could additionally target `launcher_pid` directly (now sufficient on its
+own whenever pidns is active) — not done here, out of this package's scope.
 
 **NTSTATUS masking (accepted, documented ambiguity):** on Windows, a child
 dying with an NTSTATUS code (e.g. `0xC0000005`) surfaces byte-masked through

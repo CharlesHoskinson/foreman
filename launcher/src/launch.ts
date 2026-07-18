@@ -17,6 +17,7 @@
 // error (bad args, FFI failure, etc).
 import { readFileSync, writeFileSync } from "node:fs";
 import { supervise } from "./supervise";
+import { bootstrapPidnsCascade, setChildSubreaper } from "./posix";
 
 const FOREMAN_LAUNCH_VERSION = "0.2.5";
 const PINNED_BUN_VERSION = "1.3.14";
@@ -196,7 +197,25 @@ async function main(): Promise<number> {
 
   if (parsed.detach) {
     // parseArgs already guarantees heartbeatFile is set when detach is set.
+    // NOTE: deliberately BEFORE the pidns bootstrap below -- this
+    // foreground orchestrator must stay a plain, un-wrapped process (it
+    // spawns the REAL detached copy as its own child and then exits
+    // quickly; if IT were namespace init, its own ordinary exit would tear
+    // the namespace down and kill the detached copy it just handed off to).
     return runDetached(rawArgv, parsed.heartbeatFile as string);
+  }
+
+  // Task 2/1 (posix-cascade-parity): bootstrap the pidns-init cascade
+  // guarantee, then the additive subreaper safety net, before ever
+  // spawning CMD. POSIX-only; on success bootstrapPidnsCascade() never
+  // returns (this process becomes `unshare`, which forks+execs a fresh
+  // copy of this same binary as PID-namespace init) -- everything below
+  // this point in a successful-bootstrap run therefore executes in THAT
+  // fresh copy, not this one. Windows is untouched: this whole block is
+  // skipped there, exactly as before this plan.
+  if (process.platform !== "win32") {
+    bootstrapPidnsCascade(rawArgv);
+    setChildSubreaper();
   }
 
   try {

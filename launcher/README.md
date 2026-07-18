@@ -7,10 +7,15 @@ owns a spawned command's whole process tree.
   `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` — closing the job's last handle (even
   because the launcher itself was killed) reaps every process still
   assigned to it, kernel-enforced, orphans impossible by construction.
-- **POSIX** (WSL/Linux build): spawns the child under `setsid` so it becomes
-  its own session/process-group leader; the whole tree shares that pgid via
-  ordinary fork inheritance. This is a **cooperative** mechanism, not a
-  kernel-enforced one — see "POSIX asymmetry" below.
+- **POSIX** (WSL/Linux build): bootstraps itself as the init (PID 1) of a
+  fresh PID namespace (`unshare --pid --mount-proc --fork --kill-child`),
+  then spawns the child under `setsid` inside it. Killing the launcher for
+  ANY reason — normal exit, crash, OOM, an external SIGKILL — makes the
+  kernel tear down that whole namespace, kernel-enforced, the same
+  orphans-impossible guarantee as Windows's Job Object. A subreaper safety
+  net and a setsid+pgid fallback (used only if `unshare` is unavailable,
+  logged loudly when that happens) round it out — see "POSIX asymmetry"
+  below for the full mechanism.
 
 Streams the child's stdout/stderr through unmodified, writes JSON heartbeat
 lines to a file, and performs a graded stop on timeout.
@@ -64,10 +69,20 @@ plain exit-code cases, precisely because it pins this contract).
 ```
 
 - `launcher_pid` — `process.pid` of the job-owning supervisor (the process
-  running this heartbeat loop). Kill-shot tooling targets this field.
+  running this heartbeat loop). Kill-shot tooling targets this field. On
+  POSIX, when the pidns bootstrap is active, this is NOT simply
+  `process.pid` read from inside the namespace (that would read as a small
+  namespace-local number, e.g. `1`, meaningless to a host-side kill) — it's
+  the ORIGINAL host pid captured before the bootstrap's self-re-exec,
+  carried across via `FOREMAN_LAUNCH_HOST_PID` (see "POSIX asymmetry"
+  below). Falls back to plain `process.pid` unchanged on Windows and on the
+  POSIX degraded (no-pidns) path.
 - `pid` — `Bun.spawn().pid` of CMD's root child. Tree/liveness observation
   keys on this field. On POSIX this also equals the child's process-group id
-  (pgid), since `setsid` makes the child its own session/group leader.
+  (pgid), since `setsid` makes the child its own session/group leader; under
+  the pidns bootstrap this pid is namespace-local, which is fine — the
+  internal `--timeout`/`--grace` kill path runs from inside that same
+  namespace, so it stays self-consistent.
 - `job_id` — Windows: the job handle's numeric value, stringified. POSIX: the
   same value as `pid` (there is no separate OS "job" primitive; the pgid IS
   the identifier).
@@ -134,28 +149,110 @@ Bun is pinned to **1.3.14** (`.bun-version` + `package.json`
 `packageManager`). If WSL doesn't have Bun yet:
 `curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.14"`.
 
-## POSIX asymmetry (important — read before wiring an external reaper)
+## POSIX asymmetry — closed via pidns-init (v0.2.7.5 posix-cascade-parity)
 
-Unlike Windows' `KILL_ON_JOB_CLOSE` (a **kernel-enforced** guarantee that
-fires even if the launcher process itself is killed without ever running its
-own cleanup code), POSIX process groups have no equivalent automatic
-cascade. Empirically verified on WSL2 (util-linux setsid 2.41.3):
+Historically, POSIX process groups had no automatic cascade equivalent to
+Windows' `KILL_ON_JOB_CLOSE`: `kill -9 <launcher_pid>` alone left the CMD
+subtree fully alive (a plain setsid+pgid launcher is a **cooperative**
+mechanism — it only reaps the tree if the launcher's OWN code is still
+running to call `kill(-pgid)`). As of v0.2.7.5 the POSIX build closes that
+gap for the common case, with a documented, honestly-labeled fallback for
+when it can't.
 
-- `setsid ./foreman-launch --heartbeat-file hb -- sh -c 'sleep 60 & sleep 60'`
-  produces a launcher with its own pgid (say `L`) and a CMD subtree with a
-  DIFFERENT pgid (say `C`, recorded as the heartbeat's `pid` field) — the
-  launcher wraps the CMD in its own `setsid`, so the two are independent
-  sessions.
-- `kill -9 L` (killing ONLY the launcher pid) leaves the `C` process group
-  fully alive — no cascade.
-- `kill -9 -C` (a **group-directed** signal using the pgid recorded in the
-  heartbeat's `pid` field) reaps the whole subtree.
+### The mechanism: pidns-init bootstrap (primary guarantee)
+
+On startup the launcher self-re-execs (`launcher/src/posix-bootstrap.ts`,
+real `execve(3)` process-image replacement — not spawn+wait, which would
+reintroduce an orphan-prone layer; see that file's header for the full
+reasoning) under:
+
+```bash
+unshare --pid --mount-proc --fork --kill-child -- <this same binary> <original args>
+```
+
+This makes the launcher **PID 1 (init) of a fresh PID namespace**. Per
+Linux's own pidns semantics: when a namespace's init process dies — normal
+exit, crash, OOM, an external SIGKILL, ANY cause — the kernel SIGKILLs
+every remaining process in that namespace and tears it down, with zero
+polling by foreman. This reaps setsid/detached escapees that a plain
+pgid-directed kill would miss, because they're STILL inside the same
+namespace even when they're outside CMD's own process group.
+
+`--kill-child` closes the reverse edge: `unshare(1)` itself keeps running
+in the host namespace as the launcher's outer wrapper (a Linux pidns
+requirement — a process cannot move itself into a new PID namespace, only
+its *children* can, so this outer layer is unavoidable, see `unshare(1)`).
+If THAT outer process is killed instead of the inner one, `--kill-child`
+makes the kernel SIGKILL the forked child (the actual namespace init) too,
+which then triggers the same whole-namespace teardown. Either kill target
+cascades identically — both were verified empirically on WSL2 (util-linux
+`unshare` 2.41.3) before and after writing this code.
+
+**Kill-shot, updated**: unlike the pre-v0.2.7.5 build, a plain
+`kill -9 <launcher_pid>` now DOES reap the whole tree, INCLUDING escapees —
+no `-pgid` negative-pid trick required. `launcher_pid` in the heartbeat is
+the ORIGINAL host pid (captured before the self-re-exec, carried across via
+`FOREMAN_LAUNCH_HOST_PID`), which is exactly what `unshare(1)`'s own pid
+becomes once the exec commits — so it's a pid any host-side caller (bats,
+`lane-run.sh`) already has from having spawned the launcher in the first
+place.
+
+### The subreaper safety net (additive)
+
+The launcher also calls `prctl(PR_SET_CHILD_SUBREAPER, 1)` on itself at
+startup (`launcher/src/posix.ts`, via `bun:ffi` `dlopen("libc.so.6")`, a
+one-shot call with no fork around it and no polling). Any descendant that
+re-parents away (its immediate parent already exited) is adopted by the
+launcher rather than lost to whatever the nearest real init happens to be.
+This is ADDITIVE to the pidns bootstrap above — the pidns cascade is the
+guarantee that matters when the launcher itself dies; the subreaper matters
+for correctly tracking/adopting orphans while the launcher is still alive,
+and it's the only extra guarantee available when pidns bootstrap itself is
+degraded (below). A failed `prctl` call is logged and non-fatal.
+
+### The fallback ladder — when `unshare` is unavailable or fails
+
+`unshare`'s own internal `unshare(2)` syscall can fail even when the
+`unshare` BINARY is present (permissions, resource limits, a restrictive
+container/seccomp policy) — the launcher checks this via a disposable probe
+fork (`unshare ... -- true`) BEFORE ever committing to the irreversible
+self-replacement, precisely so a failure there doesn't strand the launcher
+mid-bootstrap with no code left to fall back from.
+
+1. **Automatic (what this launcher does today)**: fall back to the
+   pre-v0.2.7.5 `setsid` + `kill(-pgid)` path, and **log a DEGRADED marker**
+   to stderr — never silently proceed as if the kernel-cascade guarantee
+   still held. The old asymmetry applies in full here: an external
+   `kill -9 <launcher_pid>` will NOT reap a setsid-detached escapee; only
+   the launcher's own internal `--timeout`/`--grace` kill path (or an
+   external reaper that explicitly sends `-pid`, the pgid recorded in the
+   heartbeat's `pid` field) does.
+2. **Manual, operator-available, NOT automated by this launcher**: in an
+   environment where `unshare --pid` specifically is blocked but
+   **systemd + cgroup v2** are available, wrap the launcher invocation in
+   `systemd-run --scope --collect -- <launcher> ...`. systemd creates a
+   per-invocation transient cgroup scope and — with `--collect` — cleans it
+   up (killing any remaining member processes) once the scope's main
+   process exits, which is a real, kernel-cgroup-backed whole-tree
+   guarantee independent of PID namespaces. This is a documented option for
+   whoever is invoking the launcher (e.g. a hardened `lane-run.sh` profile),
+   not something `foreman-launch` sets up on its own — it needs its own
+   honest availability check (`systemctl --user status` / cgroup v2 mounted
+   at `/sys/fs/cgroup`) wherever it's used.
+
+**Availability, plainly**: the primary guarantee needs `unshare` with
+`--pid --mount-proc --fork --kill-child` to actually succeed (verified
+unprivileged on this WSL2 host); the manual cgroup/systemd-run fallback
+needs `systemd` and cgroup v2, and is the OPERATOR's responsibility to wire
+up, not this launcher's.
 
 **Conclusion for any external reaper (e.g. lane-run.sh's launcher-absent
-fallback sweep)**: on POSIX, recover the `pid` field from the last heartbeat
-line and send the signal to `-pid` (the group), not to `launcher_pid` alone.
-The Windows kill-shot semantics (`taskkill /PID launcher_pid /F` reaps
-everything) do NOT carry over to the POSIX build as-is.
+fallback sweep)**: recover `launcher_pid` from the last heartbeat line and
+send it a plain `SIGKILL` — that's now sufficient whenever the pidns
+bootstrap is active (no DEGRADED marker was logged). If a DEGRADED marker
+WAS logged for that run, the old asymmetry still applies and `-pid` (the
+group, from the heartbeat's `pid` field) is still required for a
+setsid-detached escapee specifically.
 
 ## Known caveats carried from the research base
 
@@ -173,3 +270,19 @@ everything) do NOT carry over to the POSIX build as-is.
   on 1.3.14) is the correct standalone-executable check if this launcher
   ever needs to resolve embedded-asset paths; not currently used since no
   assets are embedded.
+- **`process.env[K] = v` does not reach the real environ** (confirmed via
+  `/proc/self/environ` on Bun 1.3.14) — it only updates Bun's own JS-level
+  mirror. A raw FFI `execve(3)`/`execvp(3)` call inherits the process's
+  REAL environ, not that mirror, so anything that needs a variable to
+  survive an FFI exec call must build an explicit `envp` array
+  (`posix-bootstrap.ts`'s `buildEnvp()`) rather than relying on a prior
+  `process.env` assignment. Found the hard way: relying on the assignment
+  produced a silent infinite re-exec loop (the bootstrapped copy never saw
+  its own "already inside the namespace" marker).
+- **`Bun.spawnSync`'s executable-PATH-search ignores a live
+  `process.env.PATH` mutation unless `env` is passed explicitly** to that
+  call — an ambient-inherit spawn (no `env` option) appears to resolve
+  against a cached/native environ snapshot instead. `pidnsAvailable()`
+  always passes `env: process.env` for exactly this reason; without it, an
+  operator (or a test) overriding `PATH` to force/simulate "`unshare`
+  absent" would be silently ignored.
