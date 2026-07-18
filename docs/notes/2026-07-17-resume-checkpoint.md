@@ -3,20 +3,28 @@
 End-of-day snapshot after a ~9-hour session. Everything below is committed
 except where noted. Pick up here tomorrow: ~1 hour to tag v0.2.0.
 
+## UPDATE (end of 2026-07-17): perf bundle FORCE-MERGED to main
+
+The perf bundle was cherry-picked to main and PUSHED (`f97906a`, then bugeventlog
+`1033fca`) at user request WITHOUT a clean full-suite gate (a 40-min run was
+killed to avoid the wait). Backed by: Opus audit APPROVED + manual el_emit
+byte-identical verification; the 27/34 failures were fork-exhaustion flakes.
+**So main now contains the full v0.2.0 code bundle (T7 + perf).**
+
 ## TL;DR — what remains to tag v0.2.0
 
-1. **Clean full-suite gate on the perf branch** (host must be calm — see
-   "host stability" below). Tests 27 + 34 in `eventlog.bats` flaked ONLY
-   under fork-exhaustion from a rogue VTICK agent (now gone); the el_emit
-   code is manually verified byte-identical (seq 1/2, correct types).
-2. **Apply the one audit WARNING** (zero-cost): in `tests/helpers.bash` the
-   memoize flag read `read -r _crlf < "$_f"` returns 1 (no trailing newline);
-   harden with `|| :` OR write the flag with `printf '%s\n'`. Non-blocking but
-   recommended before merge.
-3. **Cherry-pick the perf branch onto main** (`foreman/dl2e/implement/perf`
-   @ `56ea69e`), run the authoritative full suite + docs-check on main.
-4. **Advisor done-check** → **tag v0.2.0** → push tag → **cut the GitHub
-   release** with the staged Nightwatch artwork.
+1. **FIRST: run `bash tests/run.sh` on main from a CALM host** (verify-after-
+   merge, since the merge gate was skipped). The risk item is the
+   `helpers.bash` `setup_tmp_repo` git-template + jq-memoize change, which
+   touches every setup_tmp_repo-dependent test and was never confirmed green
+   across the full suite. If 27/34 or any such test fails for real →
+   fix-forward or revert `f97906a`.
+2. **Advisor done-check** → **tag v0.2.0** → push tag → **cut the GitHub
+   release** with the Nightwatch artwork (`~/foreman-nightwatch-v0.2.0.png`).
+   (Only tag after a clean full-suite pass.)
+
+Note: the B#1 memoize hardening the audit flagged is ALREADY present
+(trailing-newline write in helpers.bash) — nothing to apply.
 
 ## State of the tree
 
