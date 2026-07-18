@@ -657,3 +657,32 @@ proposed enhancement. Newest at the bottom.
   eliminate. When lanes are dispatched THROUGH lane-run --round under
   pueue (post-v0.2.5 doctrine), the gate runs inside the owned round and
   an agent turn ending cannot orphan it or its lock.
+
+## 2026-07-18 — pueue-Windows loses argv quoting; live-daemon kill test was racing an instant failure
+
+- **Phase:** v0.2.5 T4b merge gate (T4b innocent — held unpushed while
+  diagnosed).
+- **What happened:** lane-queue's live-daemon test failed deterministically
+  at its kill assertion. Root cause chain: `lane-queue add GROUP -- bash -c
+  "sleep 5"` loses argv boundaries inside pueue-on-Windows (the argv after
+  `--` is joined to a string and re-parsed by pueue's task shell), so the
+  task runs as `bash -c sleep 5` → sleep has no operand → Failed(1) in
+  ~300ms. EVERY task in the real daemon's persisted history (~40 from
+  tonight's gates) is Failed(1) — the argv-passthrough property held only
+  against the test SHIM, which records argv faithfully and thus could not
+  see the real re-parse. The test's kill had only ever passed by winning a
+  race against the instant failure.
+- **Why it surfaced now:** persisted daemon state + host timing shifted the
+  race; the defect itself is as old as T0 and fully deterministic.
+- **Fixes (T0 rework 2):** empirical shell detection → quote-preserving
+  add; live test isolated onto a test-owned daemon (own config/port/state);
+  kill targets a verified-Running long task; a real-daemon assertion that
+  quoting survives (the class the shim structurally cannot cover).
+- **Enhancements confirmed:** (1) a fake-driven test suite MUST include at
+  least one real-backend assertion for every property the fake embodies by
+  construction; (2) tests that talk to a real daemon must own their daemon
+  (config/port/state isolation), or accumulated external state eventually
+  changes test outcomes; (3) exit codes and event streams passed while the
+  actual workload failed 100% of the time — artifact-level assertions
+  (task result, logged output) are the evidence, echoing tonight's stdbuf
+  entry.
