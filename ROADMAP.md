@@ -39,7 +39,7 @@ vendor-home paths), merge-freshness gate + wt-merge/wt-cleanup repairs,
 and the bounded auto-resume supervisor. Six prevention criteria proven
 (SC-A live; SC-B..F by permanent tests) — see
 `docs/notes/2026-07-18-v025-sc-proof.md`. Suite 127→245 tests; four
-product defects caught pre-push by the gate discipline. Tag `v0.2.5`.
+product defects caught pre-push by the gate discipline. Tag `v0.2.5` (Beacon).
 
 Honest residuals: T5b real-vendor concurrency verdict UNVERIFIED (grok
 CLI absent; caps stay grok=1 codex=1); `[audit.policy]` keys wired but
