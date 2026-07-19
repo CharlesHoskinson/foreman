@@ -28,6 +28,8 @@ non-OpenAI auditor and say so explicitly.
   write); shell stays gated
 - `--cwd` / working directory explicit
 - Wall clock ~600s when `timeout`/`gtimeout` exists
+- grok `--prompt-file` is single-burst → write-first specs; exploratory work
+  → `grok-multiround.sh`
 
 ### Grok headless recipe (lane-run, durable lanes)
 
@@ -91,6 +93,18 @@ prior "one lane, unverified" restriction.
 - `--sandbox workspace-write` (never danger-full-access in soft mode)
 - `--skip-git-repo-check` when needed
 - `--output-last-message` for report capture
+
+**Codex auth doctrine (observed version 0.144.x):** codex authentication is
+also a **Setup-stage** responsibility, never an in-lane one. `codex login
+--device-auth` is the **interactive** path — it falls back to a
+**localhost:1455** browser callback flow whose local server dies the moment
+the launching shell detaches, so it must be **operator-run** in a persistent
+foreground shell (`! codex login`), never orchestrator-launched-and-detached.
+For unattended/**headless** auth, use `--with-api-key` instead, piping the
+key on stdin (never as a CLI argument, never logged):
+`printenv OPENAI_API_KEY | codex login --with-api-key`. A codex Use lane
+requested while Setup reports codex NOT-READY is refused at the door citing
+Setup, same as grok.
 
 ### Codex auditor flags (soft) — GPT-5.6 Sol
 

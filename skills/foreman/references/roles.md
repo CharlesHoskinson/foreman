@@ -27,6 +27,10 @@
 **Soft mode:** `grok-implementer` or `codex-implementer` (Claude agents that drive
 external CLIs). Hard mode: containerized CLI via `worker-run.sh`.
 
+Stateful/live targets (external node_modules, running services, live
+endpoints) bypass worktree fan-out entirely — see
+`references/parallel-worktrees.md` § Stateful / live-target profile.
+
 **Owns:**
 
 - Implementing exactly the five-part spec

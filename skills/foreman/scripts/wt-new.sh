@@ -49,6 +49,20 @@ fi
 # this one invocation and never leaks into any later write, e.g. `worktree
 # add` below) -- never on a write path, per spec.
 ROOT="$(GIT_OPTIONAL_LOCKS=0 git_nohooks rev-parse --show-toplevel)"
+
+# --- Live-target guard (v0.2.8.1) --------------------------------------
+# soft_mode.target=live bypasses worktrees for stateful/live targets (external
+# node_modules / running services the checkout doesn't carry). Resolve config
+# against ROOT -- the CALLER's git-root (matching cfg_load + worker-run) -- NOT
+# the foreman skill's own dir; for an EXTERNAL target (the case this guards)
+# those differ, since install.* junctions the skill elsewhere. FOREMAN_CONFIG is
+# a production config override (also honored by cfg_load in lib/config.sh) that
+# tests drive directly. Runs before any worktree is created below.
+_wt_config="${FOREMAN_CONFIG:-$ROOT/.foreman/config.toml}"
+if [[ "$(toml_get "$_wt_config" soft_mode.target worktree)" == "live" ]]; then
+  die "$EXIT_CONFIG" "soft_mode.target=live — worktree fan-out is bypassed for stateful/live targets; run soft mode in the working checkout (see references/parallel-worktrees.md § stateful/live-target)"
+fi
+
 RD="$(run_dir "$RUN_ID")"
 mkdir -p "$RD/reports" "$RD/worktrees"
 

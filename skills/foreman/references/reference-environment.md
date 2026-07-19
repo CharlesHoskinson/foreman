@@ -81,6 +81,23 @@ that never sources `~/.bashrc`.
 
 **Auth is never automated:** after install, user still runs `grok login` / `codex login`.
 
+## Codex auth: headless vs interactive (v0.2.8.1)
+
+Observed version: **0.144.x**. `codex login --device-auth` (the interactive
+path) falls back to a **localhost:1455** browser callback flow, and its
+local callback server dies the moment the launching shell is detached — it
+must be **operator-run** in a persistent foreground shell (`! codex login`),
+never launched by an orchestrator/automation and left to run detached.
+`--device-auth`'s localhost callback flow is documented here to explain why
+it must stay operator-run — it is NOT a headless option.
+
+For unattended/headless auth, use `--with-api-key` instead, piping the key
+on stdin (never as a CLI argument, never logged):
+
+```bash
+printenv OPENAI_API_KEY | codex login --with-api-key
+```
+
 ## WSL interop: `appendWindowsPath` (v0.2.7.5 package 3)
 
 `/etc/wsl.conf`'s `[interop]` section is set to `appendWindowsPath=false`.

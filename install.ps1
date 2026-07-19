@@ -45,7 +45,7 @@ function Ensure-Junction($Link, $Target) {
   }
   $parent = Split-Path -Parent $Link
   New-Item -ItemType Directory -Force -Path $parent | Out-Null
-  cmd /c mklink /J "$Link" "$Target" | Out-Null
+  New-Item -ItemType Junction -Path $Link -Target $Target | Out-Null
   Write-Host "[foreman] linked $Link -> $Target"
 }
 

@@ -1,0 +1,28 @@
+name: Windows install smoke
+on:
+  push:
+    branches: [main]
+    paths: ["install.ps1", ".github/workflows/windows-smoke.yml"]
+  pull_request:
+    paths: ["install.ps1", ".github/workflows/windows-smoke.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  install-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run install.ps1 and assert junctions resolve
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & .\install.ps1
+          # Assert the foreman skill link exists and is a Junction pointing into skills/foreman.
+          # install.ps1 links each skill dir under $env:USERPROFILE\.claude\skills\<name>
+          # (also \.agents\skills\<name> and \.grok\skills\<name>) — see Ensure-Junction calls.
+          $link = Join-Path $env:USERPROFILE ".claude\skills\foreman"
+          if (-not (Test-Path $link)) { throw "foreman skill link not created at $link" }
+          $item = Get-Item $link
+          if ($item.LinkType -ne 'Junction') { throw "expected Junction, got $($item.LinkType)" }
+          Write-Host "OK: $link -> $($item.Target)"
