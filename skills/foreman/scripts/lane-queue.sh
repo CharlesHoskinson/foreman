@@ -373,7 +373,14 @@ lq_ensure_group() {
 #   is unreachable (empirically, the pueue CLIENT never autostarts it -- see
 #   the AUTOSTART DOCTRINE note in this file's header), then idempotently
 #   create the fixed group topology (grok=1, codex=1, claude=3, misc=2
-#   EXPLICIT -- see the header's Rework Round 1 F1 note, gate=1).
+#   EXPLICIT -- see the header's Rework Round 1 F1 note, gate=1). grok=1 and
+#   codex=1 are pinned by the T5b destructive-concurrency verdict
+#   (docs/research/vendor-concurrency-results.md, "Results" table, 2026-07-18):
+#   NO vendor has a recorded GREEN row on this host -- the authenticated
+#   N=2/N=3 matrix could not be safely run there (see that doc's "Task 2
+#   execution log"), so both stay at the UNVERIFIED default per EARS ("no
+#   cap raised without a recorded green row; default-on-doubt is 1"). A
+#   future cap raise here MUST cite a specific GREEN row added to that doc.
 # @exitcode 0 ready; 1 daemon unreachable after bounded retry; 3 pueue absent
 cmd_ensure() {
   local pueue_bin pueued_bin
@@ -405,6 +412,9 @@ cmd_ensure() {
     fi
   fi
 
+  # grok=1, codex=1: T5b UNVERIFIED (no green row) -- see
+  # docs/research/vendor-concurrency-results.md; do not raise without citing
+  # a GREEN row there.
   local spec
   for spec in grok:1 codex:1 claude:3 misc:2 gate:1; do
     lq_ensure_group "$pueue_bin" "${spec%%:*}" "${spec#*:}"
