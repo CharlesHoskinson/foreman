@@ -133,8 +133,16 @@ EOF
     FOREMAN_WORKER_CMD_SHIM="$SHIMS/worker.sh" bash "$SCRIPTS/worker-run.sh" "$T"
   [ "$status" -eq 0 ]
   grep -q '"type":"heartbeat"' "$FH/runs/$T/events.jsonl"
-  [ -f "$FH/runs/$T/evidence/diff-stat.txt" ]
+  # evidence is non-empty AND names the file the worker created (a plain
+  # `diff BASE_SHA` before `add -A` would omit the untracked new file and
+  # leave this empty — the bug the post-`add -A` `--cached` diff fixes).
+  [ -s "$FH/runs/$T/evidence/diff-stat.txt" ]
+  grep -q 'work.txt' "$FH/runs/$T/evidence/diff-stat.txt"
+  # exactly one commit over base, HOST-authored (the worker shim never runs
+  # git), and it actually contains the worker's file.
   [ "$(git -C "$WT" rev-list --count "$BASE_SHA"..HEAD)" -eq 1 ]
+  [ "$(git -C "$WT" log -1 --format='%ae')" = "t@e.com" ]
+  git -C "$WT" show HEAD --stat | grep -q 'work.txt'
   ! grep -q SECRET "$SHIMS/worker-env-dump.txt"
 }
 

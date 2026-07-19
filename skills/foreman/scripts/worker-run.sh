@@ -90,8 +90,12 @@ PROMPT_FILE="$RD/worker-prompt.txt"
 } > "$PROMPT_FILE"
 
 wc_build_argv "$VENDOR" "$PROMPT_FILE" "$WT"
-# Test seam (see header comment): swap in a fake worker executable.
-[[ -n "${FOREMAN_WORKER_CMD_SHIM:-}" ]] && WC_ARGV[0]="$FOREMAN_WORKER_CMD_SHIM"
+# Test seam (see header comment): swap in a fake worker executable. Gated on
+# executability, mirroring the FOREMAN_LAUNCH override (launch.sh) — a set-but-
+# non-executable value is ignored, so a stray env var cannot silently redirect
+# the worker to a bogus path.
+[[ -n "${FOREMAN_WORKER_CMD_SHIM:-}" && -x "${FOREMAN_WORKER_CMD_SHIM:-}" ]] \
+  && WC_ARGV[0]="$FOREMAN_WORKER_CMD_SHIM"
 
 # --- Clean-slate env (N6) ---------------------------------------------
 # Built from scratch (env -i below); NEVER FOREMAN_GH_PAT or the ambient
@@ -144,25 +148,31 @@ rc=0
 # heartbeat file after the worker has already exited. foreman-launch's own
 # --heartbeat-file is the live view; the event log is the durable mirror.
 if [[ -f "$RD/worker-heartbeat.jsonl" ]]; then
-  while IFS= read -r line; do
+  # `|| [[ -n "$line" ]]` so a final line with no trailing newline is not dropped.
+  while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -n "$line" ]] && { el_emit "$TASK_ID" heartbeat "$LANE" "$line" >/dev/null 2>&1 || true; }
   done < "$RD/worker-heartbeat.jsonl"
 fi
 
-# --- Evidence (host-side, N10) -----------------------------------------
+# --- Stage worker edits + extract evidence (host-side, N10) -------------
+# `add -A` FIRST so both evidence and the commit include NEW/untracked files
+# (a plain `diff BASE_SHA` compares base->working-tree and omits untracked
+# files — the common "worker created a file" case would look empty). The
+# staged index vs BASE_SHA is the worker's full change, new files included.
+git_nohooks -C "$WT" add -A
 mkdir -p "$RD/evidence"
-git_nohooks -C "$WT" diff --stat "$BASE_SHA" > "$RD/evidence/diff-stat.txt"
+git_nohooks -C "$WT" diff --cached --stat "$BASE_SHA" > "$RD/evidence/diff-stat.txt"
 [[ -f "$RD/worker-stdout.log" ]] && cp "$RD/worker-stdout.log" "$RD/evidence/transcript.log"
 
 # --- Host-side commit (N10) --------------------------------------------
 # No commit inside the sandbox — this stage runs on the host, over the
-# worker's file edits, only once the worker itself has exited cleanly.
-if [[ "$rc" -eq 0 ]] && [[ -n "$(git_nohooks -C "$WT" status --porcelain)" ]]; then
+# worker's staged edits, only once the worker itself has exited cleanly and
+# there is actually something staged.
+if [[ "$rc" -eq 0 ]] && ! git_nohooks -C "$WT" diff --cached --quiet; then
   if ! git_nohooks -C "$WT" config user.email >/dev/null 2>&1 \
      || ! git_nohooks -C "$WT" config user.name >/dev/null 2>&1; then
     die "$EXIT_CONFIG" "host git identity (user.name/user.email) is not configured for $WT — cannot host-side commit"
   fi
-  git_nohooks -C "$WT" add -A
   git_retry git_nohooks -C "$WT" commit -m "foreman(worker): $TASK_ID"
 fi
 

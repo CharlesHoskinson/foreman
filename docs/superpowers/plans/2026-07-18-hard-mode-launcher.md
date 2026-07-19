@@ -264,13 +264,17 @@ setup() { source "$BATS_TEST_DIRNAME/../skills/foreman/scripts/lib/worker-cmd.sh
     || true; done < "$RD/worker-heartbeat.jsonl"` — no background process, no
     tail/FIFO, no lock race. (foreman-launch's own `--heartbeat-file` is the live
     view; the event log is the durable mirror.)
-  - **Evidence (host-side, N10):** `mkdir -p "$RD/evidence"; git_nohooks -C "$WT"
-    diff --stat "$BASE_SHA" > "$RD/evidence/diff-stat.txt"; cp "$RD/worker-stdout.log"
+  - **Stage + evidence (host-side, N10):** `git_nohooks -C "$WT" add -A` FIRST
+    (so evidence AND the commit include NEW/untracked files — a plain
+    `diff --stat "$BASE_SHA"` compares base→working-tree and omits untracked, so a
+    worker that *creates* a file would produce empty evidence), then `mkdir -p
+    "$RD/evidence"; git_nohooks -C "$WT" diff --cached --stat "$BASE_SHA" >
+    "$RD/evidence/diff-stat.txt"; cp "$RD/worker-stdout.log"
     "$RD/evidence/transcript.log"`.
-  - **Host-side commit (N10):** IF rc==0 AND `git_nohooks -C "$WT" status
-    --porcelain` non-empty: `git_nohooks -C "$WT" add -A; git_retry git_nohooks -C
-    "$WT" commit -m "foreman(worker): $TASK_ID"`. Fail clearly if the host git
-    identity is unset. (No commit inside the sandbox — this is the host.)
+  - **Host-side commit (N10):** IF rc==0 AND `! git_nohooks -C "$WT" diff --cached
+    --quiet` (something staged): fail clearly if the host git identity is unset,
+    then `git_retry git_nohooks -C "$WT" commit -m "foreman(worker): $TASK_ID"`.
+    (No commit inside the sandbox — this is the host.)
   - Outcome: `124` → `el_emit … alert … '{"kind":"worker_timeout"}' >/dev/null||true`,
     exit 124; `125` → alert `worker_launcher_error`, exit 125; else pass rc.
 - [ ] **Step 4: Run to verify it passes.**
