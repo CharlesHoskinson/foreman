@@ -11,7 +11,7 @@ who want the operator-facing detail behind a specific claim.
 | Stage | What to read | File |
 |---|---|---|
 | Setup & Environment | Windows + WSL inventory, bootstrap, profiles, `.wslconfig` tuning, clock-sync | [`reference-environment.md`](reference-environment.md) |
-| Setup & Environment | `foreman-setup.sh`/`foreman-cleanup.sh` requirements (EARS) | [`../../../openspec/changes/lifecycle-three-stage/specs/lifecycle/spec.md`](../../../openspec/changes/lifecycle-three-stage/specs/lifecycle/spec.md) |
+| Setup & Environment | `foreman-setup.sh`/`foreman-cleanup.sh` requirements (EARS) | [`../../../openspec/changes/archive/2026-07-18-lifecycle-three-stage/specs/lifecycle/spec.md`](../../../openspec/changes/archive/2026-07-18-lifecycle-three-stage/specs/lifecycle/spec.md) |
 | Use — routing | Lane table, CLI flags, hard-mode adapters, config keys | [`lanes.md`](lanes.md) |
 | Use — specs | The five-part spec template + EARS phrasing | [`five-part-spec.md`](five-part-spec.md) |
 | Use — roles | Orchestrator / worker / advisor / auditor contracts | [`roles.md`](roles.md) |
@@ -28,7 +28,7 @@ who want the operator-facing detail behind a specific claim.
   approved spec for hard mode's IMPLEMENT/PR stages (launcher-only default
   profile, container opt-in). Executed next release, not in v0.2.7.5 — see
   README section 6.
-- [`../../../openspec/changes/t5b-concurrency-verdict/`](../../../openspec/changes/t5b-concurrency-verdict/)
+- [`../../../openspec/changes/archive/2026-07-18-t5b-concurrency-verdict/`](../../../openspec/changes/archive/2026-07-18-t5b-concurrency-verdict/)
   and [`../../../docs/research/vendor-concurrency-results.md`](../../../docs/research/vendor-concurrency-results.md) —
   the destructive concurrency test that keeps the `grok`/`codex` pueue caps
   at 1 until a real authenticated green row is recorded.

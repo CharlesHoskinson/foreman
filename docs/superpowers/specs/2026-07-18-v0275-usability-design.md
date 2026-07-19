@@ -5,7 +5,9 @@ folders under `openspec/changes/`; this is the umbrella design that ties
 them together. Legacy specs live here in `docs/superpowers/specs/`; the
 per-change EARS requirements + tasks live in the OpenSpec folders. Amended
 2026-07-18 with the three-stage lifecycle (auth-in-Setup) + full-WSL directive
-and a release docs/README refresh (blader/humanizer prose pass).
+and a release docs/README refresh (prose pass — planned as blader/humanizer;
+shipped with russellian-style since the plugin was not installed in the build
+env, a documented one-command follow-up).
 
 ## Why
 

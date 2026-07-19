@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > or superpowers:executing-plans. **Implementer: Sonnet 5. Auditor: Opus 4.8.**
-> EARS: `openspec/changes/posix-cascade-parity/specs/launcher-posix/spec.md`.
+> EARS: `openspec/changes/archive/2026-07-18-posix-cascade-parity/specs/launcher-posix/spec.md`.
 > POSIX work runs on WSL; the Windows launcher build is FROZEN.
 
 **Goal:** Give the POSIX launcher build a kernel-guaranteed whole-tree kill

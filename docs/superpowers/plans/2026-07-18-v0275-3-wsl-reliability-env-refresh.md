@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > or superpowers:executing-plans. **Implementer: Sonnet 5. Auditor: Opus 4.8.**
-> EARS: `openspec/changes/wsl-reliability-env-refresh/specs/environment/spec.md`.
+> EARS: `openspec/changes/archive/2026-07-18-wsl-reliability-env-refresh/specs/environment/spec.md`.
 > Much of this is host/WSL config — verify by RE-PROBE and paste evidence in
 > the change's FOREMAN_REPORT; not everything is bats-testable.
 

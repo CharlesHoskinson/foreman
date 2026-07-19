@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > or superpowers:executing-plans. **Implementer: Sonnet 5. Auditor: Opus 4.8.**
-> EARS: `openspec/changes/worktree-hardening/specs/worktree/spec.md`.
+> EARS: `openspec/changes/archive/2026-07-18-worktree-hardening/specs/worktree/spec.md`.
 
 **Goal:** Add the concurrent-worktree guard bundle (git config, scoped env,
 retry wrapper, stale-lock sweep, Defender doctrine) to stop the operator's

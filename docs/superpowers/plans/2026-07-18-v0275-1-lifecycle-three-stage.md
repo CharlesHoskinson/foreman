@@ -4,7 +4,7 @@
 > superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use
 > checkbox (`- [ ]`) syntax. **Implementer: Sonnet 5. Auditor: Opus 4.8.**
-> Requirements are in `openspec/changes/lifecycle-three-stage/specs/lifecycle/spec.md`
+> Requirements are in `openspec/changes/archive/2026-07-18-lifecycle-three-stage/specs/lifecycle/spec.md`
 > (EARS) — this plan sequences their implementation; cite requirement text
 > from there rather than re-deriving it.
 
@@ -53,7 +53,7 @@ stages (auth → Setup, teardown → Cleanup, full-WSL install → Setup).
 Auth-status commands differ per CLI and MUST NOT trigger a billed inference or
 hang. grok is signed in on this host — test against it.
 
-**Files:** Create a note `openspec/changes/lifecycle-three-stage/auth-probes.md`
+**Files:** Create a note `openspec/changes/archive/2026-07-18-lifecycle-three-stage/auth-probes.md`
 recording the exact command per vendor + evidence.
 
 - [ ] **Step 1** — Run `grok --help`, `codex --help`, `claude --help`; find
@@ -425,4 +425,4 @@ git commit -m "docs(lifecycle): SKILL.md adopts Setup/Use/Cleanup as the operati
 Setup owns auth and gates Use; Cleanup is deterministic + idempotent + dirty-
 safe; tool-check distinguishes `not_authenticated`; SKILL.md carries the frame;
 full suite + docs-check green. On ship, archive
-`openspec/changes/lifecycle-three-stage/` to `openspec/changes/archive/`.
+`openspec/changes/archive/2026-07-18-lifecycle-three-stage/` to `openspec/changes/archive/`.

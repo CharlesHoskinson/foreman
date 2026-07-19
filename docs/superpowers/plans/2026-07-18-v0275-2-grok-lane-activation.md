@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > or superpowers:executing-plans. **Implementer: Sonnet 5. Auditor: Opus 4.8.**
-> EARS requirements: `openspec/changes/grok-lane-activation/specs/lane-run/spec.md`.
+> EARS requirements: `openspec/changes/archive/2026-07-18-grok-lane-activation/specs/lane-run/spec.md`.
 > Depends on package 1 (lifecycle-three-stage) for the Setup auth stage.
 
 **Goal:** Wire grok into lane-run's vendor map (reusing T5a's normalized

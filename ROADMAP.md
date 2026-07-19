@@ -52,7 +52,7 @@ scope; WATCH_VTICK's `bats --jobs` parallelism still deferred.
 - Depends on: v0.2.0. Feeds: v0.3.0 (adapters spawn via the launcher),
   v0.4.0 (schema v2 telemetry).
 
-## v0.2.7.5 — usability: close the five not-usable-yet gaps (planned 2026-07-18)
+## v0.2.7.5 — usability: close the five not-usable-yet gaps (released 2026-07-18)
 
 Convert v0.2.5's documented not-usable-yet capabilities into working ones and
 reframe foreman around a three-stage lifecycle (Setup & Environment → Use →
@@ -70,10 +70,22 @@ two approved specs for the next release.
   operator's stalls/git-issues guard bundle), wsl-reliability-env-refresh
   (full WSL setup — co-equal Linux target; fixes 2 live bugs; Bun held at
   1.3.14), docs-readme-refresh (README/USAGE/CLAUDE.md brought to the shipped
-  surface + a blader/humanizer prose pass; sequenced last).
+  surface + a prose pass; sequenced last). Shipped: full suite 245 → 359
+  green; tag `v0.2.7.5`.
 - **Approved specs (next release):** hard-mode-launcher (worker-run/pr-open on
   the launcher + devcontainer/egress-firewall), v030-soft-mode-report (v0.3.0
   re-port via per-commit `git am -3` onto soft-mode — architect decision).
+  These two stay active under `openspec/changes/` (not archived).
+- **Honest residuals:** T5b destructive concurrency verdict UNVERIFIED —
+  isolated per-lane auth staging was blocked in the build env and no
+  lower-tier key was available; the harness enforces all four abort monitors
+  and vendor caps stay at 1 until a future session with destructive-auth
+  permission (or a scoped key) runs it green. wt-cleanup's grandchild reap is
+  best-effort on MSYS/Git-Bash (neither `taskkill //T` nor a POSIX pgid
+  reaches a plain bash-forked grandchild — a Cygwin limit, documented). The
+  prose pass used `russellian-style`: the requested `blader/humanizer` plugin
+  was not installed in the build env (a one-command follow-up:
+  `/plugin marketplace add blader/humanizer`).
 - Execution: Sonnet 5 implements, Opus 4.8 audits (explicit pin this release).
 - Design: `docs/superpowers/specs/2026-07-18-v0275-usability-design.md`
 - Packages: `openspec/changes/{lifecycle-three-stage,grok-lane-activation,

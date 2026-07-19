@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > or superpowers:executing-plans. **Implementer: Sonnet 5. Auditor: Opus 4.8.**
-> EARS: `openspec/changes/t5b-concurrency-verdict/specs/vendor-concurrency/spec.md`.
+> EARS: `openspec/changes/archive/2026-07-18-t5b-concurrency-verdict/specs/vendor-concurrency/spec.md`.
 > Depends on package 2 (grok lane active) for the grok arm.
 
 **Goal:** Run the destructive N=2/3 concurrency matrix for grok + codex under

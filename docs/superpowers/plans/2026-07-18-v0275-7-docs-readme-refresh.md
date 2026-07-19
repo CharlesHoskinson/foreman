@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > or superpowers:executing-plans. **Implementer: Sonnet 5. Auditor: Opus 4.8.**
-> EARS: `openspec/changes/docs-readme-refresh/specs/documentation/spec.md`.
+> EARS: `openspec/changes/archive/2026-07-18-docs-readme-refresh/specs/documentation/spec.md`.
 > Sequenced LAST — documents the whole shipped v0.2.7.5 surface (all six other
 > packages must be merged first).
 
