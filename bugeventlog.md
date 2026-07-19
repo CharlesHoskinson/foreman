@@ -733,9 +733,9 @@ proposed enhancement. Newest at the bottom.
   `mklink /J "$Link" "$Target"` — PowerShell tries to parse `/J` and the quoted args as expressions.
 - **Root cause:** `cmd /c mklink ...` with `/J` and interpolated quoted paths is being parsed by
   PowerShell's own tokenizer, not passed through to cmd. Native-arg passing needs the call operator
-  and/or `--%` stop-parsing, e.g. `cmd /c mklink /J "`"$Link`"" "`"$Target`""` or
-  `& cmd /c "mklink /J `"$Link`" `"$Target`""`, or use `New-Item -ItemType Junction -Path $Link -Target $Target`.
-- **Impact:** Windows-side skill linking is completely broken; `/foreman` never becomes invokable in a
+  and/or `--%` stop-parsing with escaped quoting, or simply use
+  `New-Item -ItemType Junction -Path $Link -Target $Target`.
+- **Impact:** Windows-side skill linking is completely broken; `/foreman` never becomes invocable in a
   Windows Claude Code session. WSL `install.sh` works fine, so the run proceeded WSL-only, but a
   Windows-host architect cannot invoke the skill at all.
 - **Proposed enhancement:** replace the `cmd /c mklink` line with `New-Item -ItemType Junction` (PS 5+),
@@ -771,7 +771,7 @@ proposed enhancement. Newest at the bottom.
 
 - **Phase:** Setup — vendor authentication (auditor lane)
 - **What happened:** on a headless WSL host, `codex login --device-auth` printed the SAME output as plain
-  `codex login`: "Starting local login server on http://localhost:1455 ... navigate to this URL ...", i.e. a
+  `codex login`: "Starting local login server on `http://localhost:1455` ... navigate to this URL ...", i.e. a
   browser-redirect OAuth requiring a localhost callback — not a device-code/user-code flow. It also prints the
   hint "On a remote or headless machine? Use `codex login --device-auth` instead" while `--device-auth` produced
   that very localhost flow.
