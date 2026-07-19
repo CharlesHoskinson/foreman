@@ -44,6 +44,11 @@ wc_build_argv() {
   WC_ARGV=()
   case "$vendor" in
     grok)
+      # NOTE: `grok --prompt-file` is a SINGLE agentic burst — a spec that must
+      # read/introspect before writing can exhaust the burst on orientation and
+      # write nothing (an "empty-burst" round). Keep hard-mode worker specs
+      # write-first; for genuinely exploratory work route through
+      # skills/foreman/scripts/grok-multiround.sh (bounded re-prompt loop).
       WC_ARGV=(grok --prompt-file "$prompt_file" \
         -m "${WC_GROK_MODEL:-grok-4.5}" \
         --allow "Write" --allow "Edit" \
