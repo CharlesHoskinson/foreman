@@ -95,6 +95,43 @@ two approved specs for the next release.
 - Depends on: v0.2.5. Feeds: v0.3.0 (session transport re-port + POSIX/WSL
   foundation).
 
+## v0.2.8 — vendor concurrency + hard mode (released 2026-07-19)
+
+Closes the last two v0.2.7.5 "not-usable-yet" residuals.
+
+- **T5b destructive concurrency verdict — GREEN (live, user-authorized
+  shared-account run).** grok GREEN at N=2 and N=3, codex GREEN at N=2. Pueue
+  caps raised to the proven-green N: **grok 1→3, codex 1→2**; grok promoted to a
+  verified default-eligible implementer. Rows in
+  `docs/research/vendor-concurrency-results.md`; doctrine reconciled across
+  README/SKILL/lanes/orchestration-hardening/CLAUDE.
+- **hard-mode-launcher shipped** (`worker-run.sh` + `pr-open.sh`, both formerly
+  stubs). Two profiles selected by `hard_mode.profile` (default launcher-only):
+  launcher-only (foreman-launch supervision, clean-slate env, host-side
+  evidence and commit, worker never commits) and container (clean `git archive`
+  file-copy
+  work dir; hardened devcontainer on an egress-capable bridge with a root-applied
+  default-deny firewall — IPv4 + IPv6 — that a `gosu`-dropped unprivileged worker
+  cannot flush; `--read-only` + tmpfs; no docker.sock, no host secrets;
+  delete-aware sync-back). `pr-open`: gate precondition → HTTPS `GIT_ASKPASS` push
+  with a fine-grained single-repo PAT → `gh pr create --draft`. Plan survived 3
+  Opus audit rounds; each of 3 implementation lanes Sonnet-implemented +
+  Opus-audited + architect-verified; **container proven live on WSL docker
+  29.6.2** (firewall default-deny v4+v6, unprivileged worker, writable HOME under
+  read-only, github allowed / non-allowlisted host blocked).
+- **Honest residuals:** the container LIVE bats test skips where Docker is not on
+  the (Git-Bash) PATH — proven manually on WSL; a full in-container worker E2E
+  needs vendor auth inside the container (API-key mode). codex proven at N=2
+  (cap 2); N=3 unrun. **grok must be on PATH** for grok lanes (installed at
+  `/c/root/.local`, not on the default inherited PATH — a Setup-stage concern);
+  the `lane-run` grok Use-path readiness gate runs a network-flaky `timeout 10
+  grok models` probe, so the grok-lane / vendor-isolation unit tests are coupled
+  to live grok readiness (a robustness follow-up: stub the probe in those unit
+  tests; have `foreman-setup` persist grok on PATH).
+- Execution: Sonnet 5 implements, Opus 4.8 audits.
+- Packages: `openspec/changes/archive/.../hard-mode-launcher/`.
+- Depends on: v0.2.7.5 (worktree-hardening + posix-cascade-parity). Feeds: v0.3.0.
+
 ## v0.3.0 — session transport (remote branch `dev/foreman-v1`)
 
 Subscription-session workers (zero API keys): codex mcp-server threadId
