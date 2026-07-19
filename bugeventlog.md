@@ -805,3 +805,24 @@ proposed enhancement. Newest at the bottom.
   the durable-lane/gate machinery was bypassed.
 - **Proposed enhancement:** document a "stateful/live-target" soft-mode profile — grok runs in the working checkout,
   architect verifies against the live services, no worktree — and note when worktree fan-out is inapplicable.
+
+## 2026-07-19 — install.ps1 (and 2 more .ps1) unparseable under Windows PowerShell 5.1 — BOM-less UTF-8 + em-dashes
+
+- **Phase:** install (Windows), follow-up to the v0.2.8.1 mklink→Junction fix
+- **What happened:** after v0.2.8.1 fixed the `cmd /c mklink` line, `powershell -File install.ps1` STILL
+  failed to parse: `Array index expression is missing or not valid` at the `Write-Host "[foreman] linked ..."`
+  line and `The string is missing the terminator: "` at the final Write-Host — cascading from an EARLIER line.
+- **Evidence:** the source is syntactically valid; PSParser::Tokenize reported 0 errors AFTER re-encoding.
+  The break originated at line 41's `Write-Warning "... is not a link — back it up ..."` — the `—` (U+2014).
+- **Root cause:** the file is UTF-8 WITHOUT a BOM and contains non-ASCII em-dashes. Windows PowerShell 5.1
+  (`powershell.exe`) decodes BOM-less scripts as the ANSI code page (Windows-1252), so `—` (UTF-8 E2 80 94)
+  is mis-decoded into bytes that break the surrounding double-quoted string, corrupting the parse of every
+  following line. PowerShell 7 (`pwsh`) defaults to UTF-8 and is unaffected — so this only bites 5.1 users.
+- **Impact:** Windows-host install is fully broken on the default `powershell.exe` even at v0.2.8.1;
+  the mklink fix was necessary but not sufficient. (WSL `install.sh` unaffected.)
+- **Fix applied (this commit):** re-saved install.ps1, env/bootstrap-windows.ps1, launcher/build.ps1 as
+  UTF-8 **with BOM** — `powershell -File install.ps1` now runs and links all skills. Verified via
+  PSParser::Tokenize (0 errors) + a real run.
+- **Proposed enhancement:** add `*.ps1 text working-tree-encoding=UTF-8-BOM` handling (or a repo hook /
+  CI check that fails on a BOM-less .ps1 containing bytes > 127); extend the windows-latest CI smoke test to
+  invoke via `powershell.exe` (5.1), not only `pwsh`, so this class of bug is caught.

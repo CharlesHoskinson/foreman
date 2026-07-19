@@ -1,4 +1,4 @@
-# Foreman install (Windows) — junctions for Claude + portable Agent Skills home
+﻿# Foreman install (Windows) — junctions for Claude + portable Agent Skills home
 # Run from elevated or normal shell; junctions do not require admin for user dirs.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path

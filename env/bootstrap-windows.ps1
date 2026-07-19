@@ -1,4 +1,4 @@
-# Windows-side bootstrap for Foreman reference environment.
+﻿# Windows-side bootstrap for Foreman reference environment.
 # Usage: .\env\bootstrap-windows.ps1 [-Profile soft|hard|full|durable] [-Yes]
 # Installs missing host tools via winget/npm where possible, runs install.ps1,
 # then optionally bootstraps WSL for hard/full profiles.

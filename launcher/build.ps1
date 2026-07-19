@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 # build.ps1 — compile foreman-launch for Windows x64.
 #
 # T1 spec REV2 resolution 4 (binding):
