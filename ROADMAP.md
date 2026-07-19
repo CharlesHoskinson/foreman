@@ -132,6 +132,38 @@ Closes the last two v0.2.7.5 "not-usable-yet" residuals.
 - Packages: `openspec/changes/archive/.../hard-mode-launcher/`.
 - Depends on: v0.2.7.5 (worktree-hardening + posix-cascade-parity). Feeds: v0.3.0.
 
+## v0.2.8.1 — field-failure fixes (released 2026-07-19)
+
+Fixes the four failures from the first real EXTERNAL run (a Midnight target),
+logged in `bugeventlog.md` (`d359b49`), deep-debugged and fixed via the
+`superpowers` brainstorm → plan → subagent-execute flow (design +
+plan in `docs/superpowers/`).
+
+- **install.ps1 Windows link** — was `cmd /c mklink /J` (PowerShell parse-fragile;
+  aborted a real Windows install). Now native `New-Item -ItemType Junction`, plus a
+  `windows-latest` CI smoke test (`.github/workflows/windows-smoke.yml`).
+- **grok `--prompt-file` empty-burst** — single-burst grok can spend the burst
+  orienting and write nothing on exploration-heavy specs. Added write-first
+  doctrine (spec's first action must be a Write, API facts inlined), an
+  empty-burst-vs-cancelled-writes distinction, and `grok-multiround.sh` — a bounded
+  re-prompt loop that feeds forward "wrote nothing; Write now" until files change or
+  the round budget is spent (then a loud EMPTY-BURST FAILED).
+- **codex headless auth** — `codex login --device-auth` (0.144.x) falls back to a
+  localhost browser flow that dies on detach. Documented the headless path
+  (`printenv OPENAI_API_KEY | codex login --with-api-key`) and that interactive login
+  is operator-run (`! codex login`).
+- **worktree unfit for a stateful/live target** — added `soft_mode.target=live`
+  config key + a `wt-new` guard (resolved against the CALLER's git-root) that refuses
+  to cut a worktree for live targets, plus the stateful/live-target profile doctrine
+  (no worktree; grok in the working checkout; architect verifies against live services).
+- **Execution:** Sonnet 5 implemented (3 lanes), Opus 4.8 audited — the final review
+  caught a BLOCKING config-resolution bug in the wt-new guard (it read the foreman
+  skill's OWN config, not the target repo's — the exact external-target case), now
+  fixed and regression-guarded.
+- **Residuals (documented future options, not built):** grok true multi-turn via
+  `grok agent stdio`; the optional `.foreman/live-target.toml` preflight-WARN.
+- Depends on: v0.2.8.
+
 ## v0.3.0 — session transport (remote branch `dev/foreman-v1`)
 
 Subscription-session workers (zero API keys): codex mcp-server threadId
