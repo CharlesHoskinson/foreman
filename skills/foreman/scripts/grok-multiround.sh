@@ -48,16 +48,23 @@ while [[ $# -gt 0 ]]; do
 done
 [[ $# -ge 1 ]] || die "$EXIT_CONFIG" "no GROK_CMD given after --"
 GROK_ARGV=("$@")
+[[ "$MAX_ROUNDS" =~ ^[1-9][0-9]*$ ]] || die "$EXIT_CONFIG" "--max-rounds must be a positive integer, got: $MAX_ROUNDS"
 
-# Work dir: a --cwd DIR inside GROK_ARGV, else the caller's own cwd.
+# Work dir: a --cwd DIR inside GROK_ARGV, else the caller's own cwd. The bounds
+# check (i+1 < len) makes a trailing bare --cwd a clean no-op, not a set-u abort.
 WD="$(pwd)"
 i=0
 while [[ $i -lt ${#GROK_ARGV[@]} ]]; do
-  if [[ "${GROK_ARGV[$i]}" == "--cwd" ]]; then
+  if [[ "${GROK_ARGV[$i]}" == "--cwd" && $((i+1)) -lt ${#GROK_ARGV[@]} ]]; then
     WD="${GROK_ARGV[$((i+1))]}"
   fi
   i=$((i+1))
 done
+# files_changed is a git-status digest, so WD MUST be a git work tree; on a
+# non-git dir the digest is empty every round and the loop would silently
+# report EMPTY-BURST FAILED even if grok wrote files. Fail loudly up front.
+git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+  || die "$EXIT_CONFIG" "grok-multiround: --cwd is not a git work tree ($WD); files_changed detection requires git"
 
 # @description Digest the working dir's git status (untracked + modified),
 #   so "did grok write anything" is evidence, not grok's own narration.

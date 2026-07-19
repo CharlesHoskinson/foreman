@@ -33,17 +33,6 @@ ROLE="${2:?role required}"
 SLUG="${3:-}"
 BASE="${4:-HEAD}"
 
-# Live-target guard (v0.2.8.1): worktrees are bypassed for stateful/live targets
-# (external node_modules / running services the checkout doesn't carry).
-# FOREMAN_CONFIG (test-only override; see cfg_load's own precedent in
-# lib/config.sh) lets tests drive this guard without mutating the real repo's
-# .foreman/config.toml.
-_wt_repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null || echo)"
-_wt_config="${FOREMAN_CONFIG:-$_wt_repo_root/.foreman/config.toml}"
-if [[ "$(toml_get "$_wt_config" soft_mode.target worktree)" == "live" ]]; then
-  die "$EXIT_CONFIG" "soft_mode.target=live — worktree fan-out is bypassed for stateful/live targets; run soft mode in the working checkout (see references/parallel-worktrees.md § stateful/live-target)"
-fi
-
 [[ "$RUN_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die "$EXIT_CONFIG" "bad run id: $RUN_ID"
 wt_role_ok "$ROLE" || die "$EXIT_CONFIG" "bad role: $ROLE (search|plan|audit|implement|advisor|misc)"
 [[ -z "$SLUG" || "$SLUG" =~ ^[A-Za-z0-9._-]+$ ]] || die "$EXIT_CONFIG" "bad slug"
@@ -60,6 +49,20 @@ fi
 # this one invocation and never leaks into any later write, e.g. `worktree
 # add` below) -- never on a write path, per spec.
 ROOT="$(GIT_OPTIONAL_LOCKS=0 git_nohooks rev-parse --show-toplevel)"
+
+# --- Live-target guard (v0.2.8.1) --------------------------------------
+# soft_mode.target=live bypasses worktrees for stateful/live targets (external
+# node_modules / running services the checkout doesn't carry). Resolve config
+# against ROOT -- the CALLER's git-root (matching cfg_load + worker-run) -- NOT
+# the foreman skill's own dir; for an EXTERNAL target (the case this guards)
+# those differ, since install.* junctions the skill elsewhere. FOREMAN_CONFIG is
+# a production config override (also honored by cfg_load in lib/config.sh) that
+# tests drive directly. Runs before any worktree is created below.
+_wt_config="${FOREMAN_CONFIG:-$ROOT/.foreman/config.toml}"
+if [[ "$(toml_get "$_wt_config" soft_mode.target worktree)" == "live" ]]; then
+  die "$EXIT_CONFIG" "soft_mode.target=live — worktree fan-out is bypassed for stateful/live targets; run soft mode in the working checkout (see references/parallel-worktrees.md § stateful/live-target)"
+fi
+
 RD="$(run_dir "$RUN_ID")"
 mkdir -p "$RD/reports" "$RD/worktrees"
 
