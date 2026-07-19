@@ -73,8 +73,35 @@ rules Grok narrates edits while writing NOTHING. Therefore:
 - Shell stays gated by design: Grok still cannot delete/rename files, chmod,
   or run verification commands. You run verification yourself;
   deletions/renames go in `ARCHITECT_ACTIONS`.
-- If the evidence digests show zero changes after a "successful" run, suspect
-  a cancelled-writes regression before suspecting the model.
+- If the evidence digests show zero changes after a "successful" run,
+  distinguish two failure modes before suspecting the model — each has its
+  own next step:
+  - **Empty-burst**: grok narrated orientation (reading files, describing a
+    plan) but never reached a Write/Edit call at all — see "Single-burst:
+    write-first specs" below. Next step: re-issue as a write-first spec, or
+    route through `grok-multiround.sh` for genuinely exploratory work.
+  - **Cancelled-writes**: grok attempted a Write/Edit and it was denied
+    (missing `--allow "Write" --allow "Edit"`, or a permission-mode
+    regression). Next step: confirm the allow flags were passed verbatim,
+    then re-run.
+
+## Single-burst: write-first specs
+
+`grok --prompt-file` / `-p` runs **one agentic burst and exits** — there is
+no follow-up turn. A spec that requires grok to read or introspect the repo
+before it can write spends the entire burst orienting, and grok exits having
+written NOTHING (an **empty-burst** failure, distinct from cancelled-writes
+above, where a write was attempted and denied).
+
+Consequence for spec authoring: the five-part spec's **first instruction to
+grok must be a concrete Write**, with all needed API facts, file paths, and
+interfaces **inlined** — zero required reads before the first Write. If the
+task is genuinely exploratory (grok must discover something before it can
+write anything), do not spec it as a single burst: either do the exploration
+architect-side first and inline the findings, or route it through
+`skills/foreman/scripts/grok-multiround.sh` — a bounded re-prompt loop that
+re-issues the spec with a fed-forward preamble across several rounds until a
+write lands, failing loudly (`EMPTY-BURST FAILED`) if it never does.
 
 ## Run grok
 
