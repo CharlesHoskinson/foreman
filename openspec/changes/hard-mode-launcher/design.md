@@ -13,8 +13,11 @@
   docker.com/products/docker-sandboxes, anthropics/claude-code
   .devcontainer/init-firewall.sh.
 - **Mounts/network:** worktree copy not read-only bind (dagger/container-use
-  pattern — matches foreman's existing `wt_path`/`wt_branch`); network
-  default none; never mount docker.sock or host secrets.
+  pattern — matches foreman's existing `wt_path`/`wt_branch`); the container
+  profile's egress is an egress-capable bridge narrowed by a default-deny
+  `init-firewall.sh` allowlist (not a bare `--network none`, which would also
+  block the vendor API + git remote traffic the worker legitimately needs);
+  never mount docker.sock or host secrets.
 - **gh PR automation:** `-F/--body-file` (accepts `-`) not `-b` string
   (the #1 anti-pattern); `--draft`/`--head`/`--base`/`--label`; fine-grained
   PAT (Contents:write + PR:write, single repo, expiring) not classic PAT/
@@ -44,3 +47,16 @@ cycle (the user's chosen ratio).
 
 Implementer: Sonnet 5 · Audit: Opus 4.8. Container profile requires the WSL
 reliability work; launcher-only profile can be built and proven first.
+
+## Reconciliation (post-ship, Task 7)
+
+This folder's original wording ("network default none") predated
+implementation and was corrected once the shipped code (`worker-run.sh`,
+`sandbox/init-firewall.sh`) settled on the researched pattern above: an
+egress-**capable** bridge narrowed by a default-deny firewall allowlist, not
+a bare disabled network — `--network none` would also block the vendor API
+and git-remote traffic the worker legitimately needs. The "worktree copy not
+read-only bind" mounts language always matched what shipped (a clean
+`git archive` file copy, `$RD/sandbox-work`, synced back with `rsync -a
+--delete --exclude='.git'`) and needed no change. See
+`specs/hard-mode/spec.md`'s ADDED requirements for the reconciled EARS text.

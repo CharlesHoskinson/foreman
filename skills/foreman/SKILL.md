@@ -269,11 +269,11 @@ All security-critical enforcement is in **scripts**, not prompts. See
 |---|---|---|---|
 | **INIT** | `scripts/task-new.sh TASK_ID [BASE]` | **Shipped** | Worktree + envelope + hash snapshot of protected paths |
 | **PLAN** | Architect writes `plan.md` into run dir | Process | File handoff only — never chat-only |
-| **IMPLEMENT** | `scripts/worker-run.sh` | **Stub** (soft: use agents) | Containerized worker not shipped; soft mode uses `grok-implementer` / `codex-implementer` |
+| **IMPLEMENT** | `scripts/worker-run.sh` | **Shipped** | Supervises the worker under foreman-launch; two profiles (launcher-only default / container). The worker NEVER commits — the host commits its diff. Soft mode still available via `grok-implementer` / `codex-implementer` |
 | **CHECK** | `scripts/checks-run.sh TASK_ID` | **Shipped** | Orchestrator re-runs checks from **pristine commit**, not dirty worktree |
-| **AUDIT** | `scripts/audit-run.sh` or soft `codex-auditor` | **Shipped (host Codex)** | Cold diff + criteria; **GPT-5.6 Sol via Codex** (≠ worker); Docker worker path still expanding |
+| **AUDIT** | `scripts/audit-run.sh` or soft `codex-auditor` | **Shipped (host Codex)** | Cold diff + criteria; **GPT-5.6 Sol via Codex** (≠ worker) |
 | **GATE** | `scripts/gate-eval.sh TASK_ID` | **Shipped** | Forbidden paths + hash drift + checks green + not BLOCKED |
-| **PR** | `scripts/pr-open.sh TASK_ID` | **Partial stub** | Gate must pass; full `gh pr create` automation still expanding; CI remains final authority |
+| **PR** | `scripts/pr-open.sh TASK_ID` | **Shipped** | Gate must pass; host-side HTTPS-PAT push + `gh pr create --draft -F` (worker never holds the token); CI remains final authority |
 
 Run state: `$FOREMAN_HOME/runs/<task-id>/` (default `~/.foreman/runs/`) — **outside**
 every worktree; never mounted into the worker.
@@ -282,7 +282,7 @@ every worktree; never mounted into the worker.
 
 - Worker vendor ≠ orchestrator vendor (exit 2 if equal)
 - Audit vendor ≠ worker vendor
-- Worker must **commit** cleanly before CHECK/AUDIT
+- The **host** commits the worker's diff after the worker exits (the worker NEVER commits inside its sandbox); CHECK/AUDIT run from that pristine commit
 - Worker claims of green tests are never evidence
 - Gate fails closed if audit CLI missing
 
