@@ -18,14 +18,16 @@ pattern (practical on today's Docker Desktop/WSL2), with Docker Sandboxes
 ## What changes
 
 - **`worker-run.sh`** (currently a stub): foreman-launch supervises the
-  worker; the worker runs against a per-lane worktree COPY (not a read-only
-  bind); default network none; heartbeats mirrored into the event log;
-  host-side evidence extraction (`git diff --stat`, transcript) with NO
-  in-container commit. Two profiles: **launcher-only** (no container — the
-  launcher + worktree + vendor-home isolation is the sandbox) and
-  **container** (devcontainer + egress-firewall allowlist), selectable by
-  config; container is opt-in, launcher-only is the default so hard mode works
-  without Docker.
+  worker; heartbeats mirrored into the event log; host-side evidence
+  extraction (`git diff --stat`, transcript) with NO in-container commit. Two
+  profiles: **launcher-only** (no container — the launcher + worktree +
+  vendor-home isolation is the sandbox; the worker runs directly in the real
+  worktree and shares the host's network, no firewalling) and **container**
+  (the worker runs against a per-lane worktree file COPY, not a read-only
+  bind of the canonical worktree, on an egress-capable bridge narrowed by a
+  default-deny `init-firewall.sh` allowlist — never a bare disabled network),
+  selectable by config; container is opt-in, launcher-only is the default so
+  hard mode works without Docker.
 - **`pr-open.sh`** (currently partial): push host-side ONLY after the gate
   passes; `gh pr create --draft --head <branch> --base main -F <body-file>`
   with a fine-grained PAT (Contents+PR write, single repo, expiring); the

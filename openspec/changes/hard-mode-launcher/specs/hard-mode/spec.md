@@ -6,24 +6,33 @@ next-release execution.
 ## ADDED Requirement: worker-run supervises the worker through foreman-launch
 
 WHEN a hard-mode task runs, `worker-run.sh` SHALL spawn the worker under
-foreman-launch (timeout + heartbeat + whole-tree kill), against a per-lane
-worktree COPY, with network default none, and SHALL mirror the launcher
-heartbeats into the run's event log.
+foreman-launch (timeout + heartbeat + whole-tree kill), with network egress
+governed by the selected profile (WHERE clauses below — never a bare
+"disabled" default), and SHALL mirror the launcher heartbeats into the run's
+event log.
 
 - The worker SHALL NOT commit inside its sandbox; evidence (diff-stat,
   transcript) SHALL be extracted host-side from the worktree.
+- WHERE the launcher-only profile is selected (default), the worker SHALL run
+  directly in the run's worktree under the launcher + a clean-slate env
+  allowlist; this isolates process/filesystem/host-credential exposure but
+  SHALL NOT isolate network — the worker shares the host's network stack, and
+  Docker SHALL NOT be required.
 - WHERE the container profile is selected, the worker SHALL run in a
-  devcontainer with a default-deny egress firewall (allowlist only); WHERE the
-  launcher-only profile is selected (default), the launcher + worktree +
-  vendor-home isolation SHALL be the sandbox and Docker SHALL NOT be required.
+  devcontainer against a clean file COPY of the worktree (never a bind mount
+  of the canonical worktree, whose `.git` is a linked-worktree file pointing
+  at the host repo) on an egress-CAPABLE bridge narrowed by a default-deny
+  firewall (allowlist of the vendor API host and the git remote host only) —
+  never `--network none`; the copy SHALL be synced back to the worktree,
+  delete-aware, once the container exits.
 - IF the worker exceeds its timeout, THEN foreman-launch SHALL reap the whole
   tree and worker-run SHALL emit the timeout outcome (exit 124 semantics).
 
 #### Scenario: launcher-only hard-mode task with no Docker
 
 - WHEN hard mode runs with the launcher-only profile
-- THEN the worker runs supervised with no container, evidence is extracted
-  host-side, and no in-sandbox commit occurs.
+- THEN the worker runs supervised with no container, sharing the host
+  network, evidence is extracted host-side, and no in-sandbox commit occurs.
 
 ## ADDED Requirement: pr-open pushes only after the gate and only host-side
 
@@ -48,5 +57,6 @@ single-repo, expiring PAT.
 
 The worker SHALL receive no host secrets and no `docker.sock` mount; only a
 short-lived, single-repo-scoped token reaches the host-side `gh` call, never
-the worker. Repo access SHALL be a worktree copy, not a read-only bind of the
-canonical repo.
+the worker. WHERE the container profile is selected, repo access SHALL be a
+file COPY of the worktree, never a bind mount (read-only or otherwise) of the
+canonical worktree or its `.git`.

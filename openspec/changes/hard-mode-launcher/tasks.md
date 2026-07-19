@@ -4,11 +4,14 @@ Implementer: Sonnet 5 · Audit: Opus 4.8. Do NOT start until v0.2.7.5's
 worktree-hardening + posix-cascade-parity have landed.
 
 - [ ] **1. worker-run launcher-only profile** — foreman-launch supervises the
-  worker against a worktree copy, network none, heartbeats → event log,
-  host-side evidence extraction, no in-sandbox commit; bats.
-- [ ] **2. worker-run container profile** — devcontainer + `init-firewall.sh`
-  default-deny egress allowlist; opt-in via config; the launcher supervises
-  the container process; bats (Docker-guarded, skip if absent).
+  worker directly in the real worktree (sharing the host network — no
+  firewalling in this profile), heartbeats → event log, host-side evidence
+  extraction, no in-sandbox commit; bats.
+- [ ] **2. worker-run container profile** — a clean worktree file copy,
+  devcontainer + `init-firewall.sh` default-deny egress allowlist on an
+  egress-capable bridge (never a bare disabled network); opt-in via config;
+  the launcher supervises the container process; bats (Docker-guarded, skip
+  if absent).
 - [ ] **3. pr-open completion** — gate precondition → host-side push →
   `gh pr create --draft -F body-file` with a fine-grained scoped PAT; worker
   never holds credentials; `gh pr ready` separate; bats for the gate-refuse

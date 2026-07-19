@@ -514,3 +514,69 @@ deliberately left as documented operator guidance, not something
 exclusions requires elevated privileges this harness does not assume, and is
 exactly the kind of host-wide, hard-to-test-safely side effect this package's
 maintenance-path decision (above) already avoided for the same reasons.
+
+## 10. Hard mode (`worker-run.sh` + `pr-open.sh`, hard-mode-launcher)
+
+Turns the `worker-run.sh` stub and partial `pr-open.sh` into a shipped path:
+`foreman-launch` supervises an untrusted worker, heartbeats mirror into the
+event log, evidence is extracted host-side, the worker never commits (a
+host-side stage commits its diff), and — only after the gate passes — the
+branch is pushed and a draft PR opened host-side with a fine-grained,
+single-repo token the worker never sees. See `references/security-model.md`'s
+"Hard mode (shipped)" for the threat-model framing; this section is the
+mechanics/config reference.
+
+**Config keys (`toml_get "$CONFIG" hard_mode.KEY DEFAULT`, `common.sh:50` —
+NOT `cfg_get`'s closed allowlist, which has no `hard_mode.*`):**
+
+| TOML key | Default | Meaning |
+|---|---|---|
+| `hard_mode.profile` | `launcher-only` | `launcher-only` (no Docker) or `container` |
+| `hard_mode.vendor` | `codex` | `grok` or `codex` — selects `lib/worker-cmd.sh`'s `wc_build_argv` branch |
+| `hard_mode.timeout` | `600` | seconds passed to `foreman-launch --timeout` |
+| `hard_mode.auth` | `oauth` | `oauth` (no vendor key passed to the worker at all) or `api-key` (exactly the one vendor key: `XAI_API_KEY` for grok, `OPENAI_API_KEY` for codex) |
+
+**Both profiles share one finalize step** (`_finalize_and_commit` in
+`worker-run.sh`): batch-mirror `$RD/worker-heartbeat.jsonl` into the event
+log (a single pass after the worker exits — no background tail/FIFO/lock
+race), `git_nohooks -C "$WT" add -A` then `diff --cached --stat "$BASE_SHA"`
+for evidence (`add -A` first so untracked new files are captured, not just
+tracked-file changes), then, only if the worker exited 0 and something is
+staged, a host-side `git_retry git_nohooks -C "$WT" commit -m
+"foreman(worker): $TASK_ID"`. `124`/`125` (launcher timeout/error) map to a
+`worker_timeout`/`worker_launcher_error` alert and the matching exit code;
+any other worker exit code passes through unchanged.
+
+**launcher-only** runs the worker directly in `$WT` under a from-scratch
+`env -i` allowlist (`PATH HOME USERPROFILE FOREMAN_TASK_ID LANE_VENDOR` +
+vendor home dir + Windows-essential vars on that platform + the one vendor
+key under API-key auth) — this is process/filesystem/home isolation, **not**
+network isolation; the worker shares the host's network stack.
+
+**container** builds a clean file COPY of the worktree
+(`git_nohooks -C "$WT" archive HEAD | tar -x -C "$RD/sandbox-work"`, no
+`.git`) and runs it in `sandbox/`'s devcontainer on an egress-**capable**
+user-defined bridge (`foreman-sandbox-net`) whose actual narrowing is
+`sandbox/init-firewall.sh`'s default-deny `iptables`/`ip6tables` OUTPUT
+policy plus a two-host allowlist (vendor API host, git remote host),
+applied as root by `sandbox/entrypoint.sh` before it `gosu`-drops to the
+unprivileged `worker` user. The `docker run` invocation adds `--cap-drop ALL
+--cap-add NET_ADMIN,SETUID,SETGID,CHOWN --security-opt no-new-privileges
+--read-only --tmpfs /tmp --tmpfs /run --tmpfs /home/worker`, a named
+container (`foreman-$TASK_ID`, `docker rm -f`'d on any exit via `trap` — a
+124 kills only the `docker run` CLI, not the daemon-owned container) and no
+`docker.sock` mount. Sync-back is delete-aware (`rsync -a --delete
+--exclude='.git'`, falling back to a portable manifest-diff when rsync is
+absent) so the worker's own deletions/renames reach `$WT` — a plain additive
+`tar -x` would leave deleted files behind and produce a wrong commit diff.
+`--exclude='.git'` is mandatory: it protects `$WT`'s linked-worktree `.git`
+FILE, which `--delete` would otherwise remove.
+
+**`pr-open.sh`** keeps the pre-existing `gate-decision.json.pass == true`
+precondition, then refuses if `FOREMAN_GH_PAT` is unset (no
+ambient-credential fallback) or if `origin` is not an HTTPS `github.com`
+remote (the fine-grained PAT is HTTPS-only). It pushes via `GIT_ASKPASS` (a
+`0700` helper script, unlinked after the push, so the token never appears in
+process argv) and opens the PR with `gh pr create --draft --head <branch>
+--base main -F <body-file>` (never `-b <string>`, never `gh pr ready` — that
+remains a separate, human-invoked step).
