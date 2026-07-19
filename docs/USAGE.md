@@ -1,47 +1,75 @@
 # Foreman use guide
 
-End-to-end operation for cross-vendor orchestration running today. Claude Code
-is the typical/default architect host but is not required by the harness itself
-— orchestration works from Grok or Codex instead. Soft mode is the default path.
-Hard mode is called out where scripts differ. Claims below match the tree under
-`skills/foreman/`, `agents/`, `env/`, and `tests/`.
+End-to-end operation for cross-vendor orchestration running today. Claude
+Code is the typical/default architect host but is not required by the
+harness itself — orchestration works from Grok or Codex instead. Every run
+moves through three ordered stages — **Setup & Environment → Use →
+Cleanup** — identically on Windows and WSL/Linux. Soft mode is the default
+Use path; hard mode is called out where it differs. Claims below match the
+tree under `skills/foreman/`, `agents/`, `env/`, `launcher/`, and `tests/`,
+and are consistent with
+[`references/orchestration-hardening.md`](../skills/foreman/references/orchestration-hardening.md)
+and
+[`references/reference-environment.md`](../skills/foreman/references/reference-environment.md).
 
-## 1. Session walkthrough
+## 1. Running Setup
 
-Example multi-step task: document a small behavior change and land it with
-worktree isolation, verification, and cross-vendor audit.
+Setup owns tool inventory, bootstrap, and **all** vendor authentication. It
+never runs during Use.
 
-### 1.1 Inventory
-
-From the repo root on Windows:
+### 1.1 Windows
 
 ```powershell
+cd path\to\foreman
 .\env\tool-check.ps1 -Profile soft -Json -Out $env:USERPROFILE\.foreman\last-tool-check.json
 ```
 
-On WSL or macOS/Linux:
-
-```bash
-bash env/tool-check.sh --profile soft --json --out ~/.foreman/last-tool-check.json
-```
-
-Exit `0` means READY; exit `1` means missing or outdated must-tools. If not
-ready:
+If not ready:
 
 ```powershell
 .\env\bootstrap-windows.ps1 -Profile soft -Yes
 .\env\tool-check.ps1 -Profile soft
 ```
 
+### 1.2 WSL / Linux
+
 ```bash
-bash env/bootstrap-wsl.sh --profile soft --yes
-bash env/tool-check.sh --profile soft
+cd /path/to/foreman
+bash env/bootstrap-wsl.sh --profile soft --yes   # full WSL-native provisioning
+bash skills/foreman/scripts/foreman-setup.sh --profile soft
 ```
 
-Auth is never automated: after install, run `grok login` and `codex login` if
-those CLIs are new.
+`foreman-setup.sh` (`skills/foreman/scripts/foreman-setup.sh [--profile
+soft|hard|full] [--lane grok|codex|claude]`) composes `env/tool-check.sh`
+rather than reimplementing it, and is bash-only — run it under Git Bash on
+Windows, natively on WSL/Linux. It prints one `<vendor>: NOT-READY -- run
+<instruction>` line for every unauthenticated vendor and never authenticates
+anything itself:
 
-### 1.2 Boot the architect
+| Vendor | Instruction Setup prints |
+|---|---|
+| grok | `grok login --device-code` |
+| codex | `codex login` |
+| claude | `claude auth login` |
+
+Run the printed instruction yourself, then re-run the Setup command — it is
+idempotent, so re-running against an already-ready host changes nothing and
+re-reports READY. `--lane <vendor>` scopes the check to that vendor's own
+readiness signal only, so a gap in an unrelated tool never blocks a lane
+whose own vendor is already authenticated. Exit `0` = READY, `1` =
+NOT-READY (whole-profile mode) or that lane not ready (`--lane` mode).
+
+WSL is a co-equal, fully-provisioned target as of v0.2.7.5
+(`wsl-reliability-env-refresh`): `bootstrap-wsl.sh` installs every tool
+WSL-native — bats-core, shellcheck, bun (pinned 1.3.14), pueue (GitHub
+release binary, no apt package), codex/grok (npm, forced `@latest` so the
+platform-specific optional dependency re-resolves), jq, node/npm via fnm,
+`hwclock` — and symlinks each into `/usr/local/bin` ahead of `/usr/bin`, so
+resolution is identical under a login or non-login shell. `/etc/wsl.conf`'s
+`[interop] appendWindowsPath=false` stops a leaked Windows npm shim from
+shadowing the WSL-native `codex`/`grok` binaries.
+
+### 1.3 Boot the architect
 
 ```powershell
 cd path\to\foreman
@@ -56,9 +84,17 @@ claude
 Restate the goal and mode in one short paragraph. Soft unless you set
 `mode = "hard"` in `.foreman/config.toml` or ask for hard mode.
 
-### 1.3 Create parallel recon worktrees
+## 2. Driving a Use round
 
-Pick one `RUN_ID` for the whole session (letters, digits, `.`, `_`, `-` only):
+Use assumes an authenticated, provisioned environment and never
+authenticates — `lane-run.sh` refuses to spawn a lane for a not-ready vendor
+(citing Setup) before it ever touches the worktree lock, so a missing login
+is always caught at Setup, never mid-round.
+
+### 2.1 Create parallel recon worktrees
+
+Pick one `RUN_ID` for the whole session (letters, digits, `.`, `_`, `-`
+only):
 
 ```bash
 RUN=run-$(date +%Y%m%d-%H%M%S)
@@ -73,28 +109,28 @@ Each call prints the worktree path. Layout (sibling of the repo root):
 <parent>/<repo>-wt-<RUN_ID>-plan/
 ```
 
-Branches: `foreman/<RUN_ID>/<role>[/<slug>]`. Metadata and reports archive under
-`~/.foreman/runs/<RUN_ID>/`.
+Branches: `foreman/<RUN_ID>/<role>[/<slug>]`. Metadata and reports archive
+under `~/.foreman/runs/<RUN_ID>/`.
 
-### 1.4 Spawn search and plan
+### 2.2 Spawn search and plan
 
-In Claude, spawn `foreman-search` and `foreman-plan` in parallel (one turn), each
-with cwd set to its worktree (or `isolation: worktree`). Both are read-only for
-product code. Each **must** write:
+In Claude, spawn `foreman-search` and `foreman-plan` in parallel (one turn),
+each with cwd set to its worktree (or `isolation: worktree`). Both are
+read-only for product code. Each **must** write:
 
 - `FOREMAN_REPORT.md`
 - `FOREMAN_REPORT.json` (schema `foreman.worktree-report.v1`)
 
-### 1.5 Consolidate recon
+### 2.3 Consolidate recon
 
 ```bash
 bash skills/foreman/scripts/wt-consolidate.sh "$RUN"
 ```
 
-Read `~/.foreman/runs/$RUN/CONSOLIDATED.md`. Synthesize; do not ship on a single
-partial report.
+Read `~/.foreman/runs/$RUN/CONSOLIDATED.md`. Synthesize; do not ship on a
+single partial report.
 
-### 1.6 Write the five-part spec and implement
+### 2.4 Write the five-part spec and implement
 
 Create an implement worktree (default for soft implement rounds):
 
@@ -102,11 +138,13 @@ Create an implement worktree (default for soft implement rounds):
 bash skills/foreman/scripts/wt-new.sh "$RUN" implement docs-stage
 ```
 
-Route the full five-part spec to `grok-implementer` with that worktree as cwd.
-Standing rule: implementers never run git write commands; changes stay
-uncommitted until the architect merges.
+Route the full five-part spec to `grok-implementer` (or `codex-implementer`)
+with that worktree as cwd. Standing rule: implementers never run git write
+commands; changes stay uncommitted until the architect merges. Spec
+template and vendor lane recipes: section 5 below and
+[`../skills/foreman/references/five-part-spec.md`](../skills/foreman/references/five-part-spec.md).
 
-### 1.7 Verify (architect)
+### 2.5 Verify (architect)
 
 Reports are claims. You:
 
@@ -114,34 +152,173 @@ Reports are claims. You:
 2. Re-run the Verification command from the spec yourself
 3. Confirm evidence digests moved when the model claimed edits
 
-Wrong code → corrected five-part spec back to the cheap implementer lane, not
-hand-patching on the architect model.
+Wrong code → corrected five-part spec back to the cheap implementer lane,
+not hand-patching on the architect model.
 
-### 1.8 Audit
+### 2.6 Audit
 
 ```bash
 bash skills/foreman/scripts/wt-new.sh "$RUN" audit
 ```
 
-Pass to `codex-auditor` (or `foreman-audit` wrapper): worker vendor, acceptance
-criteria from the five-part spec, and a cold unified diff. After the run,
-`git status --porcelain` in the audit tree must show no auditor mutations.
+Pass to `codex-auditor` (or `foreman-audit` wrapper): worker vendor,
+acceptance criteria from the five-part spec, and a cold unified diff. After
+the run, `git status --porcelain` in the audit tree must show no auditor
+mutations.
 
-### 1.9 Consolidate, merge, cleanup
+### 2.7 Consolidate and land
 
 ```bash
 bash skills/foreman/scripts/wt-consolidate.sh "$RUN"
 # if implement tree is ready and checks + audit are green:
 bash skills/foreman/scripts/wt-merge.sh "$RUN" implement docs-stage
 # optional: --commit to create a single merge commit; default is staged only
-bash skills/foreman/scripts/wt-cleanup.sh "$RUN"
-# dirty trees: --force to discard; keep branch tips: --keep-branches
 ```
 
-Consult `foreman-advisor` only at commitment boundaries (architecture, migration,
-API shape, or a problem that failed twice).
+Consult `foreman-advisor` only at commitment boundaries (architecture,
+migration, API shape, or a problem that failed twice). Then run Cleanup
+(section 3) to close the run.
 
-## 2. Writing five-part specs
+## 3. Running Cleanup
+
+```bash
+bash skills/foreman/scripts/foreman-cleanup.sh "$RUN" [--force]
+```
+
+Deterministic, idempotent teardown, in order:
+
+1. Best-effort SIGINT of any lane subprocess this run's event log still
+   shows alive — before any worktree is touched.
+2. Delegates to `wt-cleanup.sh` (`wt-cleanup.sh RUN_ID [--force]
+   [--keep-branches]`): runs consolidate if `CONSOLIDATED.md` is missing,
+   removes worktrees, deletes branches unless `--keep-branches`, skips dirty
+   worktrees unless `--force`, keeps reports under
+   `~/.foreman/runs/<RUN_ID>/`. Refuses to delete a worktree with
+   uncommitted/untracked changes unless forced — reports are archived first
+   either way.
+3. Stops a foreman-owned `pueued` only if this run's own `.pueued-owned`
+   marker says this run started it — never a blind `pueue shutdown`.
+4. Sweeps this run's own stale `.seq.lock` / `.attempt.lock` /
+   `.supervise.lock` directories — never the host-wide `~/.foreman/gate.lock`
+   (section 4 owns that one) and never a worktree's own live
+   `.harness/lane.lock`.
+
+Safe to run more than once: re-running against an already-cleaned-up run is
+a no-op. `--force` is typically required in practice — report files are
+intentionally never merged, so an implement worktree that only ever wrote
+`FOREMAN_REPORT.*` is still "dirty" from git's point of view even after a
+successful `wt-merge`; those reports are already archived under
+`~/.foreman/runs/$RUN/` by `wt-consolidate` before Cleanup runs.
+
+## 4. Vendor lane recipes and the pueue/gate mutex doctrine
+
+### 4.1 Direct CLI flags
+
+| Lane | Producer | Direct CLI (headless) |
+|---|---|---|
+| Routine implementer | Grok 4.5 | `grok --prompt-file … -m grok-4.5 --allow "Write" --allow "Edit" --output-format plain --cwd <dir>` |
+| Cross-vendor implementer | GPT-5.6 Sol (medium) | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=medium --sandbox workspace-write` |
+| Audit (default) | GPT-5.6 Sol (high) | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
+| Judgment | Fable / Opus | Session model or `model: fable` agent |
+
+**Grok is live on the reference host**: Grok Build (0.2.103) installed via
+`npm i -g @xai-official/grok`, signed in via `grok login --device-code`, and
+one-shot headless completions return rc 0. The CLI accepts
+`--permission-mode acceptEdits` but **silently ignores** it in headless
+mode — always pass `--allow "Write" --allow "Edit"` (capitalized prefixes
+auto-approve writes/edits only; shell stays gated, so Grok still cannot
+delete, rename, chmod, or run verification). Treat a zero-change evidence
+digest after a "successful" run as a cancelled-writes signal, not proof of
+nothing to do.
+
+**Durable-lane (non-interactive) recipe**, distinct from the
+architect-dispatched `grok-implementer` agent above:
+
+```bash
+grok -p "<spec>" --cwd <worktree> --output-format json --always-approve \
+  --session-id <uuid> --no-auto-update
+# resume:
+grok -r <session-id> --cwd <worktree> --output-format json --always-approve \
+  --no-auto-update
+```
+
+`GROK_HOME` is set per lane by `lane-run.sh`'s `LANE_VENDOR=grok` plumbing —
+never shared across concurrent lanes. Before spawning grok, `lane-run.sh`
+scans the worktree for `.env` files (any depth, excluding `.env.example`)
+and private-key material and refuses the lane
+(`alert{kind:"grok_secrets_refused"}`) if either is found, since Grok
+Build's whole-repo-upload behavior is unrefuted.
+
+**Grok's concurrency is capped, not promoted.** It remains the routine
+implementer by doctrine, but the destructive real-vendor concurrency test
+(T5b) has not recorded an authenticated green row for either grok or codex
+(`docs/research/vendor-concurrency-results.md`) — see section 4.2's `gate`
+group and the honest-limits section in the README for the full account.
+Do not raise the `grok`/`codex` pueue caps above 1 on the strength of the
+unauthenticated auxiliary evidence in that file.
+
+### 4.2 The pueue/`gate` mutex doctrine
+
+`lane-queue.sh ensure|add GROUP -- CMD [ARGS...]|status [TASK_ID]|kill
+TASK_ID` wraps pueue (staged at `~/.foreman/tools/pueue/`, v4.0.4 — no
+Windows package-manager route) with a fixed group topology, created
+idempotently by `ensure`:
+
+| Group | Parallelism | Purpose |
+|---|---|---|
+| `grok` | 1 | Grok CLI concurrency cap (T5b UNVERIFIED) |
+| `codex` | 1 | Codex CLI concurrency cap (ditto) |
+| `claude` | 3 | Claude lane concurrency |
+| `misc` | 2 | Catch-all |
+| `gate` | 1 | **Host-wide bats mutex — every bats invocation, lane/auditor/investigation, enqueues here** |
+
+The `gate` group exists because concurrent bats suites on one host is the
+single most frequent failure class recorded in `bugeventlog.md` (corrupted
+wall-clock tests, an orphaned auditor-run suite blocking the release gate
+for roughly an hour). Standing rule: a lane round runs only its own
+`.bats` file in its inner loop; the architect runs the full suite once at
+merge, as sole gate holder; auditor and investigation agents never run bats
+at all — they reason from code, never from a live test invocation.
+
+Enqueue an implement round through the queue rather than dispatching the
+vendor CLI directly:
+
+```bash
+bash skills/foreman/scripts/lane-queue.sh add grok -- <grok invocation>
+bash skills/foreman/scripts/lane-queue.sh add gate -- bash tests/run.sh
+bash skills/foreman/scripts/lane-queue.sh status <TASK_ID>
+```
+
+If pueue is absent (or `LANE_QUEUE_FORCE_MISSING=1`), `add` degrades to a
+direct foreground spawn with a "degraded" stderr marker; `ensure`/`status`/
+`kill` fail loudly rather than silently no-op.
+
+### 4.3 Durable rounds: `lane-run.sh --round`, `watch.sh`, `resume.sh`
+
+An implement round that must survive the dispatching agent backgrounding
+and stopping is `lane-run.sh --round GATE_CMD REPORT_PATH RUN LANE WORKTREE
+-- CMD...` — this owns the **whole** round (CMD → gate → attempt-fresh
+report assert → `round_done`), not just the bare vendor CLI:
+
+```bash
+bash skills/foreman/scripts/watch.sh "$RUN" "$LANE" "$WORKTREE"
+```
+
+is the per-lane stall watchdog. Arm real watchers with
+`WATCH_OWNERSHIP_WAIT=25000` (**milliseconds** — 25 seconds, matching the
+ownership event's own ~20s emission bound; the shipped default `3000` is a
+bats-test-scale compromise, not the deployment recommendation). On `DEAD` it
+prints a kill+retry hint and exits `3`. Recover a `DEAD`/crashed lane with:
+
+```bash
+bash skills/foreman/scripts/resume.sh [--force] [--exact] RUN LANE WORKTREE
+```
+
+Full launcher contract, the typed watch-state machine, vendor config
+isolation, and the merge-freshness gate:
+[`../skills/foreman/references/orchestration-hardening.md`](../skills/foreman/references/orchestration-hardening.md).
+
+## 5. Writing five-part specs
 
 Copy from `skills/foreman/references/five-part-spec.md`:
 
@@ -170,8 +347,6 @@ test -f path && grep -q "marker" path
 
 ### Standing constraints (every spec)
 
-Paste into Constraints:
-
 - NEVER run git write commands (`commit`, `add`, `reset`, `branch`, `push`,
   `rebase`, `merge`, `tag`). Changes stay uncommitted in the working tree.
 - Do not delete or rename files. List needed deletions/renames under
@@ -182,37 +357,10 @@ Paste into Constraints:
   markdownlint-cli2; bash functions carry shdoc headers (`# @description`
   minimum); scripts carry a top-of-file purpose comment.
 
-If you cannot fill Interfaces or Verification, you are not ready to delegate.
+If you cannot fill Interfaces or Verification, you are not ready to
+delegate.
 
-### EARS patterns (required for Grok-bound specs)
-
-| Pattern | Template |
-|---|---|
-| Ubiquitous | The implementer SHALL \<response\>. |
-| Event-driven | WHEN \<trigger\>, the implementer SHALL \<response\>. |
-| State-driven | WHILE \<precondition\>, the implementer SHALL \<response\>. |
-| Optional feature | WHERE \<feature is included\>, the implementer SHALL \<response\>. |
-| Unwanted behavior | IF \<unwanted condition\>, THEN the implementer SHALL \<response\>. |
-| Complex | WHILE \<precondition\>, WHEN \<trigger\>, the implementer SHALL \<response\>. |
-
-#### Worked example 1: dirty file set
-
-> WHEN computing the dirty file set, the script SHALL build it as the sorted
-> union of `git diff --name-only`, `git diff --name-only --cached`, and
-> `git ls-files --others --exclude-standard`.
-> IF a fix would require changing unrelated logic, THEN the implementer SHALL
-> stop and report the gap instead of expanding scope.
-
-#### Worked example 2: docs gate
-
-> The implementer SHALL leave `README.md` section order as listed in the Interfaces
-> section.
-> WHEN adding a security sentence, the implementer SHALL include the verbatim
-> string `defense-in-depth, not a hard boundary`.
-> IF a required fact cannot be confirmed in the tree, THEN the implementer SHALL
-> omit the claim rather than invent it.
-
-## 3. Routing decisions
+### Routing decisions
 
 | Situation | Route |
 |---|---|
@@ -224,67 +372,7 @@ If you cannot fill Interfaces or Verification, you are not ready to delegate.
 | Architecture, migration, API shape, stuck twice | `foreman-advisor` (≤ ~300 words, read-only) |
 | Implementer CLIs both unavailable | Architect types only after stating the same-family downgrade |
 
-**Unavailable / timeout.** If a lane returns `STATUS: unavailable` or `timeout`,
-re-route and say so in the session. Never silently absorb a vendor substitution
-under the original lane's name. Never use the implementer lane to "audit itself."
-
-Default pairing:
-
-```text
-Grok implements → architect re-runs checks → Codex Sol audits → architect ships
-```
-
-## 4. Worktree lifecycle
-
-Scripts live under `skills/foreman/scripts/`. Shared exit codes from
-`lib/common.sh`: `0` OK, `1` fail, `2` config, `3` missing CLI (scripts may add
-more).
-
-### `wt-new.sh RUN_ID ROLE [SLUG] [BASE_REF]`
-
-- Roles: `search | plan | audit | implement | advisor | misc`
-- Creates sibling worktree, branch `foreman/<RUN_ID>/<role>[/<slug>]`, report
-  scaffolds, and metadata under `~/.foreman/runs/<RUN_ID>/worktrees/`
-- Prints the worktree path on stdout
-- Exit `2` on bad run id / role / slug or if the path already exists
-- Exit `3` if `git` (or `jq`/`python3` fallback) is missing
-
-### `wt-consolidate.sh RUN_ID`
-
-- Copies each tree's `FOREMAN_REPORT.*` into
-  `~/.foreman/runs/<RUN_ID>/reports/`
-- Writes `CONSOLIDATED.md`
-- Does **not** remove worktrees
-- Exit `2` if no worktrees index (run `wt-new` first)
-
-### `wt-merge.sh RUN_ID ROLE [SLUG] [--commit]`
-
-- Squash-applies the worktree branch onto the current branch
-- Default: **staged only** (no commit); `--commit` creates one merge commit
-- Commits pending worker changes onto the worktree branch first (architect-side;
-  workers still never git-write themselves)
-- Exit codes (from the script and `tests/wt-merge.bats`):
-
-| Code | Meaning |
-|---|---|
-| 0 | Merged (staged or committed) |
-| 2 | `jq` / Python required for metadata update missing |
-| 3 | No metadata for that role/slug |
-| 4 | Target index already has staged changes |
-| 5 | Uncommitted target changes overlap incoming files |
-| 7 | Squash merge conflict |
-
-### `wt-cleanup.sh RUN_ID [--force] [--keep-branches]`
-
-- Runs consolidate if `CONSOLIDATED.md` is missing
-- Removes worktrees; deletes branches unless `--keep-branches`
-- Skips dirty worktrees unless `--force`
-- Keeps reports under `~/.foreman/runs/<RUN_ID>/`
-
-Serialize create/remove via the scripts (`flock` when available). Do not mount
-`~/.foreman/runs` secrets into untrusted workers.
-
-## 5. The docs stage
+## 6. The docs stage
 
 After implementation and independent product checks, run:
 
@@ -304,38 +392,34 @@ Tools (fail closed if missing; exit `2`):
 | comment coverage | (script) | Purpose headers + `@description` on bash functions |
 
 Exit codes: `0` all pass, `1` findings, `2` required tool missing.
+**`docs-check.sh` runs exactly these four checks — markdownlint, codespell,
+lychee, and comment coverage — and nothing else.** It has no AI-slop or
+prose-naturalness detector; do not treat a green run as a signal about
+writing quality, only about lint/spelling/links/comment hygiene.
 
 **Iterative rework.** On failure, feed the summary (and `docs-check.json` if
-present) back to the implementer as a corrected five-part spec. Cap loops with
-`[limits] max_rework_rounds` (default `3` in `config/foreman.toml.example`).
-Do not hand-fix prose on the architect model while the implementer lane is up.
+present) back to the implementer as a corrected five-part spec. Cap loops
+with `[limits] max_rework_rounds` (default `3` in
+`config/foreman.toml.example`).
 
-Hard-mode `checks-run.sh` always runs this stage (unconditionally); soft mode
-runs it from the architect session.
-
-## 6. Audits
+## 7. Audits
 
 ### Cross-vendor rule
 
-Auditor vendor **must differ** from worker vendor. Default: Grok implements →
-Codex GPT-5.6 Sol audits via `codex-auditor` (`--sandbox read-only`, high
-reasoning). If Codex implemented, stop with `blocked_same_vendor` and pick another
-review path.
+Auditor vendor **must differ** from worker vendor. Default: Grok implements
+→ Codex GPT-5.6 Sol audits via `codex-auditor` (`--sandbox read-only`, high
+reasoning). If Codex implemented, stop with `blocked_same_vendor` and pick
+another review path.
 
 ### When to audit (soft)
 
-Required after independent verification when any of:
-
-- Multi-file or multi-step deliverable
-- Security-sensitive paths (auth, crypto, network, secrets, shell)
-- Before declaring a multi-step task done
-- After a race between implementers (audit the chosen diff)
-
-Trivial single-file mechanical edits may skip audit if the architect states why.
+Required after independent verification when any of: multi-file or
+multi-step deliverable; security-sensitive paths (auth, crypto, network,
+secrets, shell); before declaring a multi-step task done; after a race
+between implementers (audit the chosen diff). Trivial single-file
+mechanical edits may skip audit if the architect states why.
 
 ### Verdict schema
-
-Schema file: `skills/foreman/scripts/adapters/verdict.schema.json`.
 
 ```json
 {
@@ -359,120 +443,100 @@ Schema file: `skills/foreman/scripts/adapters/verdict.schema.json`.
 | WARNING | Ship only after architect acknowledges findings | May pass; findings attach to PR body |
 | BLOCKED | Rework via implementer with corrected spec | Gate fails |
 
-### What BLOCKED means operationally
-
-- Soft: do not ship; write a corrected five-part spec; send it back to the
-  implementer lane; re-verify; re-audit if still non-trivial
-- Hard: `gate-eval.sh` fails; no PR
-- Architect still owns the ship decision: auditor JSON is gate input, not a
-  rubber stamp. Do not ask the auditor to fix code.
-
-## 7. Maintenance and updates
-
-### `maintenance.sh` flags
-
-```bash
-# usage: maintenance.sh [--stage upstream|graph|compat|all] [--json PATH] [--strict] [--apply]
-
-bash skills/foreman/scripts/maintenance.sh --stage all
-bash skills/foreman/scripts/maintenance.sh --stage upstream
-bash skills/foreman/scripts/maintenance.sh --stage graph
-bash skills/foreman/scripts/maintenance.sh --stage compat
-bash skills/foreman/scripts/maintenance.sh --stage all --json maintenance.json
-bash skills/foreman/scripts/maintenance.sh --stage all --strict
-bash skills/foreman/scripts/maintenance.sh --stage upstream --apply
-```
-
-| Flag | Effect |
-|---|---|
-| `--stage` | `upstream` (VENDORED hashes), `graph` (graphify update), `compat` (tool-check soft profile), `all` |
-| `--json PATH` | Write machine report |
-| `--strict` | Exit `3` when upstream drift, stale graph, or compat drift is found |
-| `--apply` | Re-vendor listed skills from `~/.claude/skills/<name>` and refresh hashes |
-
-Exit codes: `0` report completed (findings informational unless `--strict`),
-`2` bad args / JSON serialization unavailable, `3` strict findings.
-
-### VENDORED.md hash provenance
-
-`skills/VENDORED.md` lists each vendored skill with its origin (an upstream URL,
-or local-skill provenance for skills authored in-repo), vendored date, license
-pointer, and **content hash**. Hash command (matches `maintenance.sh`):
-
-```bash
-find skills/NAME -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
-```
-
-Current rows (hashes change when you re-vendor; re-read the file after apply):
-scrapling, graphify, superpowers. Local overlays (`*.local.md`, cookie vaults)
-are excluded at vendor time and must never be committed.
-
-### Re-vendor procedure
-
-Manual:
-
-```bash
-cp -r ~/.claude/skills/<name> skills/ && rm -rf skills/<name>/.git
-find skills/<name> -name '*.local.md' -delete
-# recompute hash; update skills/VENDORED.md table
-```
-
-Or:
-
-```bash
-bash skills/foreman/scripts/maintenance.sh --stage upstream --apply
-```
-
-### GitHub workflow
-
-`.github/workflows/maintenance.yml` name: "Maintenance and Updates". Triggers:
-`release` (published), monthly cron (`0 6 1 * *`), and `workflow_dispatch`. Job
-runs `maintenance.sh --stage all --json` and opens an issue when the summary
-contains `drift` or `stale`. **Known limit: unexercised until the first real
-release**; validate with `workflow_dispatch` first.
+`[audit.policy]` (`warning_low_resolved`/`warning_medium`/`blocked` in
+`.foreman/config.toml`) is soft-mode architect doctrine only —
+`gate-eval.sh` does not yet bucket findings by resolved/unresolved severity;
+that is a stated v0.3.0 consumer, not silently assumed today.
 
 ## 8. Troubleshooting
 
 ### Grok headless writes nothing
 
-**Symptom:** model narrates edits; tree unchanged; evidence digests identical.
+**Symptom:** model narrates edits; tree unchanged; evidence digests
+identical.
 
-**Cause:** the Grok CLI accepts `--permission-mode acceptEdits` but **silently
-ignores** that value in headless mode. Tool calls that would prompt are
-auto-cancelled.
+**Cause:** the Grok CLI accepts `--permission-mode acceptEdits` but
+**silently ignores** that value in headless mode.
 
 **Fix:** always pass allow rules (capitalized prefixes):
 
 ```bash
-grok --prompt-file "$SPEC" \
-  -m grok-4.5 \
+grok --prompt-file "$SPEC" -m grok-4.5 \
   --allow "Write" --allow "Edit" \
-  --output-format plain \
-  --cwd "$(pwd)"
+  --output-format plain --cwd "$(pwd)"
 ```
 
-Shell stays gated: Grok still cannot delete/rename, chmod, or run verification.
-The wrapper agent runs verification; deletions go to `ARCHITECT_ACTIONS`.
+### Concurrent-worktree git guards (worktree-hardening, v0.2.7.5)
+
+Heavy concurrent worktree use produces specific, documented failure classes.
+The guard bundle:
+
+- **`git-guards.sh REPO`** — idempotent bootstrap: `maintenance.auto=false`
+  (stops the reactive `gc.autoDetach` fork that competes for the object-DB
+  lock mid-commit), `core.fsmonitor=true` + `core.untrackedCache=true`
+  (faster status without a filesystem watcher), `core.longpaths=true`
+  (Windows `MAX_PATH`), `safe.bareRepository=explicit`. It also runs `git
+  maintenance run --auto` directly (throttled via a marker file, default
+  interval 3600s) as the foreman-owned maintenance tick — it deliberately
+  does **not** call `git maintenance register`/`start`, since `start`
+  installs real, host-wide Windows Scheduled Tasks this script cannot itself
+  undo. Re-invoke it periodically (a Setup step, or before a work session)
+  to keep the tick current.
+- **`git_retry`** (`lib/worktree.sh`) — bounded exponential backoff (5
+  attempts, 200→400→800→1600ms) around shared-lock-touching worktree
+  operations, riding out a transient `Unable to create '.git/index.lock'`
+  instead of aborting on the first failure.
+- **`wt_sweep_stale_locks REPO [THRESHOLD_S]`** — removes 0-byte `*.lock`
+  files older than ~30s (default) at lane start, in both `wt-new.sh` and
+  `lane-run.sh`, so a crashed prior process's lock never blocks a fresh lane
+  indefinitely. Never touches a non-empty or fresh lock a live process may
+  hold.
+- **`GIT_OPTIONAL_LOCKS=0`** on read-only git polling (status/diff/log) and
+  **`GIT_ASK_YESNO=false`** lane-wide, so a Windows "Unlink failed. Try
+  again?" prompt auto-declines instead of hanging with no TTY to answer.
+- **`wt-cleanup.sh` SIGINT-before-remove** — before `git worktree remove`,
+  reads the run's event log for the worktree's last `ownership` event and,
+  if that pid is still alive, SIGINTs it, waits a bounded grace period, and
+  escalates to SIGKILL if needed — order is load-bearing, always before
+  removal. This targets the single recorded pid only; a grandchild process
+  (e.g. a git subprocess it spawned) is swept in a best-effort follow-up
+  pass (`taskkill //T` via winpid translation on Windows, a process-group
+  kill on POSIX) — see the README's honest-limits section for why that
+  second pass exists and what it does not guarantee.
+- **Windows Defender exclusions** (operator doctrine, not automated): add
+  path exclusions for the repo and every sibling `*-wt-*` worktree
+  directory — real-time scanning of `.git` internals is a measured
+  stall/unlink-failure cause on this host class.
+
+### The POSIX launcher cascade (pidns)
+
+As of v0.2.7.5 (`posix-cascade-parity`), the POSIX `foreman-launch` build
+self-re-execs under `unshare --pid --mount-proc --fork --kill-child`,
+becoming PID 1 of a fresh PID namespace — killing the launcher for any
+reason now reaps the whole process tree, kernel-enforced. When `unshare` is
+unavailable or fails (checked via a disposable probe before the
+irreversible self-replacement), the launcher falls back to the pre-v0.2.7.5
+`setsid` + `kill(-pgid)` path and logs a **DEGRADED** marker — check for that
+marker before assuming the stronger guarantee held. Full mechanism:
+`launcher/README.md` "POSIX asymmetry."
 
 ### Codex timeout (~600s wall clock)
 
-Implementer and auditor wrappers use `timeout`/`gtimeout` **600** seconds when
-present (`agents/codex-*.md`, `references/lanes.md`). On timeout (`STATUS:
-timeout`), split the work into smaller five-part specs or a narrower audit diff
-and re-route. Do not silently lengthen a single hung call or substitute Claude
-under the Codex lane name. As a rule of thumb, if a task is still growing past
-most of that ~600s wall clock, stop and split before the hard 600s kill.
+Implementer and auditor wrappers use `timeout`/`gtimeout` **600** seconds
+when present. On `STATUS: timeout`, split into smaller five-part specs or a
+narrower audit diff and re-route. Do not silently lengthen a hung call or
+substitute Claude under the Codex lane name.
 
 ### jq on Windows
 
 Hard-mode scripts and some metadata paths prefer `jq`. When `jq` is missing,
 only `wt-merge.sh` accepts `python3` or `python`; `wt-new.sh`,
-`wt-consolidate.sh`, and `wt-cleanup.sh` require `python3` specifically.
-On a Windows-only host where only a `python` command is on PATH (no `python3`
-alias/shim), those three scripts fail with a missing-command error even though
-Python is installed — use a `python3` alias/symlink (or WSL) for them;
-`wt-merge.sh` alone works with plain `python`. Install Python ≥ 3.11 for the
-fallback, or install `jq` in WSL for hard mode.
+`wt-consolidate.sh`, and `wt-cleanup.sh` require `python3` specifically. On
+a Windows-only host where only a `python` command is on PATH (no `python3`
+alias/shim), those three scripts fail with a missing-command error even
+though Python is installed — use a `python3` alias/symlink (or WSL) for
+them; `wt-merge.sh` alone works with plain `python`. Install Python ≥ 3.11
+for the fallback, or install `jq` in WSL for hard mode.
 `env/reference-manifest.toml` marks `jq` required for hard/full on WSL.
 
 ### bats location
@@ -481,8 +545,8 @@ fallback, or install `jq` in WSL for hard mode.
 bash tests/run.sh
 ```
 
-Looks for `bats` on PATH, then `~/.foreman/tools/bats-core/bin/bats`. Install
-hint from the runner:
+Looks for `bats` on PATH, then `~/.foreman/tools/bats-core/bin/bats`.
+Install hint from the runner:
 
 ```bash
 git clone https://github.com/bats-core/bats-core ~/.foreman/tools/bats-core
@@ -493,9 +557,10 @@ Contract is WSL (or Git Bash with bats); PowerShell does not run the suite.
 ### lychee PATH on fresh shells
 
 `docs-check.sh` resolves `lychee` from PATH, then
-`%LOCALAPPDATA%/Microsoft/WinGet/Links/lychee.exe`, then WinGet package folders.
-After a winget install, open a **new** shell so PATH and those locations are
-visible; otherwise lychee is recorded `missing` and docs-check exits `2`.
+`%LOCALAPPDATA%/Microsoft/WinGet/Links/lychee.exe`, then WinGet package
+folders. After a winget install, open a **new** shell so PATH and those
+locations are visible; otherwise lychee is recorded `missing` and
+docs-check exits `2`.
 
 ### Other frequent failures
 
@@ -506,47 +571,48 @@ visible; otherwise lychee is recorded `missing` and docs-check exits `2`.
 | wt-merge exit 5 | Overlap with dirty target files; commit, stash, or partition ownership |
 | wt-cleanup skips tree | Dirty worktree; commit/merge first or pass `--force` |
 | Gate fail closed | Missing audit CLI or checks infra; fix inventory, do not skip gate |
+| Setup reports a vendor NOT-READY | Run the printed auth instruction; a Use request to that vendor is refused at the door, never mid-round |
 
 ## 9. FAQ
 
-**Why the cost discipline?**  
+**Why the cost discipline?**
 The session architect model is the expensive lane. It should emit judgment
 (specs, routing, verdicts), not implementation volume. Graph-query-first and
 cheap implementers keep most tokens off Fable/Opus.
 
-**Why cross-vendor audit?**  
-Same-family self-review shares blind spots. Default pairing (Grok implements,
-Codex Sol audits, Claude architects) decorrelates review. Same-vendor audit of a
-Codex worker via `codex-auditor` is forbidden.
+**Why cross-vendor audit?**
+Same-family self-review shares blind spots. Default pairing (Grok
+implements, Codex Sol audits, Claude architects) decorrelates review.
+Same-vendor audit of a Codex worker via `codex-auditor` is forbidden.
 
-**Can I use only Claude?**  
-You can orchestrate without Grok/Codex, but implementer and auditor agents will
-report `unavailable` rather than silently typing as Claude. Typing on the host
-model is an explicit downgrade the architect must state.
+**Is grok mandatory?**
+No. You can orchestrate without Grok/Codex, but implementer and auditor
+agents will report `unavailable` rather than silently typing as Claude.
+Grok is live and wired into the lane machinery on the reference host, but
+its concurrency beyond one lane is UNVERIFIED (T5b) — see the README's
+honest-limits section — so nothing in this doc treats it as mandatory or
+as concurrency-safe.
 
-**How do I add a lane?**  
-Add an agent under `agents/` with preflight (no silent fallback), evidence
-contract, and report format; document routing in
-`skills/foreman/references/lanes.md` and `SKILL.md`; install copies agents into
-`~/.claude/agents/`. Prefer a vendor CLI that differs from the architect for
-implement and from the worker for audit.
-
-**Where does run state live?**  
-`$FOREMAN_HOME/runs/<run-or-task-id>/` (default `~/.foreman/runs/`), including
-worktree metadata, reports, `CONSOLIDATED.md`, and hard-mode evidence. Worktrees
-themselves sit as siblings of the repo root:
+**Where does run state live?**
+`$FOREMAN_HOME/runs/<run-or-task-id>/` (default `~/.foreman/runs/`),
+including worktree metadata, reports, `CONSOLIDATED.md`, and hard-mode
+evidence. Worktrees themselves sit as siblings of the repo root:
 `<parent>/<repo>-wt-<RUN_ID>-<role>[-slug]/`.
 
-**Soft vs hard: which should I use?**  
-Soft for interactive Claude sessions with Grok/Codex CLIs. Hard when you need
-scripted INIT→GATE enforcement, host evidence, and forbidden-path gates. Hard
-IMPLEMENT (`worker-run.sh`) is still a stub; use soft agents for typing.
+**Soft vs hard: which should I use?**
+Soft for interactive Claude sessions with Grok/Codex CLIs. Hard when you
+need scripted INIT→GATE enforcement, host evidence, and forbidden-path
+gates. Hard mode's IMPLEMENT stage (`worker-run.sh`) is still a stub in this
+release — see the README's hard-mode section for the approved next-release
+design (launcher-only default, container opt-in) — use soft agents for
+typing today.
 
-**What is OpenSpec in this repo?**  
-`openspec/README.md` defines change folders under `openspec/changes/<name>/`
-(proposal, specs, design, tasks). Workflow: propose → approve → implement via
-Foreman lanes → archive. Legacy specs remain in `docs/superpowers/specs/`.
+**What is OpenSpec in this repo?**
+`openspec/README.md` defines change folders under
+`openspec/changes/<name>/` (proposal, specs, design, tasks). Workflow:
+propose → approve → implement via Foreman lanes → archive. Legacy specs
+remain in `docs/superpowers/specs/`.
 
-**How do I preview the docs site?**  
+**How do I preview the docs site?**
 See `site/README.md`: `python -m http.server 8080 --directory site` or open
 `site/index.html` directly.
