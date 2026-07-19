@@ -686,3 +686,39 @@ proposed enhancement. Newest at the bottom.
   actual workload failed 100% of the time — artifact-level assertions
   (task result, logged output) are the evidence, echoing tonight's stdbuf
   entry.
+
+## 2026-07-18/19 — v0.2.7.5 AFK end-to-end run: two recurring process failures
+
+- **Phase:** full v0.2.7.5 release executed autonomously (user AFK), 7
+  packages via Sonnet-implements / Opus-audits lanes.
+- **Failure 1 — gate run under concurrent lane load flakes wall-clock tests.**
+  The architect started a full-suite merge gate WHILE P2/P3 implementer lanes
+  were doing heavy work (grok --round, WSL installs, bun builds). Two
+  timing-sensitive tests (watch.bats VTICK silent-lane, T4b dispatch) flaked
+  RED — neither touched by the merged code. The architect then PUSHED on the
+  background task's "exit 0" (which was the trailing docs-check, not the
+  suite's SUITE_RC=1) — a bad push on a misread exit code.
+  - Root cause: the v0.2.5 gate-mutex serializes bats-vs-bats but NOT
+    bats-vs-heavy-non-bats-load; the host flakes wall-clock tests under
+    contention regardless of the lock.
+  - Correction (held for the rest of the run): gates run ONLY on a quiet host
+    (no active heavy lanes); the gate command captures NOT_OK count explicitly
+    (`grep -c '^not ok'`) so the result is never misread from a compound exit
+    code. Re-ran quiet → 359/359, confirming the 2 failures were load flakes.
+- **Failure 2 — background-and-stop attractor, twice (incl. a lock leak).**
+  The P1 and P4 lanes each backgrounded their final full-suite/lane bats run
+  and ended their turn; P4's left the gate.lock HELD with zero bats processes
+  alive (the lock-leak variant — the lane's release trap never fired because
+  its shell context was gone).
+  - Recovery (hung-lane playbook): probe (lock held? bats running? commits
+    complete?) → clear the orphaned lock single-threaded → architect re-runs
+    the verification. Zero work lost both times (all task commits were
+    already on the branch).
+- **Enhancements confirmed:** (1) "quiet host" is a hard gate precondition,
+  not just "one bats at a time" — v0.2.5's mutex is necessary but not
+  sufficient; (2) always read SUITE_RC / NOT_OK explicitly, never a compound
+  command's exit code, before a push; (3) the attractor still fires on
+  implementer lanes despite explicit foreground-only briefs — the v0.2.5
+  round-ownership/pueue-daemon design (lanes run THROUGH lane-run --round
+  under the daemon) remains the structural fix; until lanes are dispatched
+  that way, detect-and-recover stays a manual architect duty.
