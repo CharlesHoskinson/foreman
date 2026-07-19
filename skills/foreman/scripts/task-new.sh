@@ -49,9 +49,9 @@ cat > "$RD/task.md" <<EOF
 (orchestrator: state the requested change)
 
 ## Constraints
-- Work only inside the worktree; commit all changes before finishing.
+- Work only inside the worktree; do NOT commit — the host commits your changes after review.
 - Never modify: tests/**, .github/**, .foreman/**, lockfiles (unless task says otherwise).
-- No network access is available in hard-mode containers.
+- Network egress in the container profile is default-deny with an allowlist; the launcher-only profile shares host network.
 
 ## Done when
 - The repo's checks pass, run independently by the harness.
