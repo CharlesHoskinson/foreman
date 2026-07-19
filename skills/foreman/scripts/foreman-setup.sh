@@ -63,7 +63,7 @@ done
 fs_auth_instruction() {
   case "$1" in
     grok) echo "grok login --device-code" ;;
-    codex) echo "codex login" ;;
+    codex) echo 'codex login  (interactive/localhost — run in a persistent shell via: ! codex login) OR headless: printenv OPENAI_API_KEY | codex login --with-api-key' ;;
     claude) echo "claude auth login" ;;
     *) echo "(no known auth instruction for $1)" ;;
   esac
