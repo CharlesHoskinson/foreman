@@ -412,11 +412,14 @@ cmd_ensure() {
     fi
   fi
 
-  # grok=1, codex=1: T5b UNVERIFIED (no green row) -- see
-  # docs/research/vendor-concurrency-results.md; do not raise without citing
-  # a GREEN row there.
+  # grok=3, codex=2: raised on the 2026-07-18 LIVE authenticated shared-account
+  # T5b verdict -- grok GREEN@2 and @3 (3/3 lanes clean, config+auth intact,
+  # sessions path-isolated), codex GREEN@2 (both clean, no port collision in
+  # exec mode, auth intact, SQLite-backed state). Rows in
+  # docs/research/vendor-concurrency-results.md. Do not raise further without a
+  # green row at the higher N.
   local spec
-  for spec in grok:1 codex:1 claude:3 misc:2 gate:1; do
+  for spec in grok:3 codex:2 claude:3 misc:2 gate:1; do
     lq_ensure_group "$pueue_bin" "${spec%%:*}" "${spec#*:}"
   done
   echo "lane-queue: ready (groups: grok codex claude misc gate)" >&2

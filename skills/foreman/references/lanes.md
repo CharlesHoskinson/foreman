@@ -71,9 +71,14 @@ before ever spawning grok, and refuses the lane
 (`alert{kind:"grok_secrets_refused"}`, non-zero exit, CMD never spawned) if
 either is found.
 
-Grok is **optional** until t5b (real-vendor destructive-concurrency
-verification, deferred) greens it — see
-`docs/research/vendor-concurrency-results.md`.
+Grok is a **verified default-eligible implementer** as of the 2026-07-18
+live authenticated T5b run (real-vendor destructive-concurrency
+verification), which came back GREEN at N=2 and N=3 — see
+`docs/research/vendor-concurrency-results.md`. Its pueue cap is raised to
+**3** accordingly (codex to **2**, green at N=2). Grok being eligible does
+not change the standing-era default (Sonnet implements, Opus audits); it
+means grok may be dispatched as an implementer up to its cap without the
+prior "one lane, unverified" restriction.
 
 ### Codex implementer flags (soft)
 

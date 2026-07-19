@@ -190,8 +190,8 @@ by `ensure`:
 
 | Group | Parallelism | Purpose |
 |---|---|---|
-| `grok` | 1 | Grok CLI concurrency cap (T5b UNVERIFIED — see §4) |
-| `codex` | 1 | Codex CLI concurrency cap (ditto) |
+| `grok` | 3 | Grok CLI concurrency cap (T5b GREEN 2026-07-18 — see §4) |
+| `codex` | 2 | Codex CLI concurrency cap (T5b GREEN 2026-07-18, N=2) |
 | `claude` | 3 | Claude lane concurrency |
 | `misc` | 2 (explicit, not pueue's incidental default) | Catch-all |
 | `gate` | 1 | **Host-wide bats mutex — every bats invocation, lane/auditor/investigation, enqueues here** |
@@ -250,16 +250,15 @@ frozen path: nothing is exported, `ownership.config_dir` stays `null`, byte-
 identical to pre-T5a behavior.
 
 **T5b (real-vendor destructive verdict) is `docs/research/vendor-
-concurrency-results.md`, status UNVERIFIED.** T5a wires the plumbing only —
-it does not establish whether per-lane `GROK_HOME`/`CODEX_HOME` actually
-prevents cross-lane interference under a real vendor CLI (cache/lock/auth
-state living outside the HOME-style var would still cross-contaminate). The
-protocol is manual, destructive, never gated into CI: dispatch N=2 (then
-N=3) same-vendor throwaway lanes concurrently and observe. The codex half
-can run today; the grok half is blocked (grok CLI absent on this host).
-Pueue caps (`grok`/`codex` above) are raised **only** on a green, recorded
-result — never on the fake-shim plumbing tests (`tests/vendor-isolation.
-bats`) alone.
+concurrency-results.md`, status GREEN (2026-07-18, user-authorized live
+run).** T5a wired the plumbing; the live run then established that per-lane
+isolation holds under real, authenticated vendor CLIs: grok GREEN at N=2 and
+N=3, codex GREEN at N=2 (no port collision in one-shot `exec` mode, auth
+intact, SQLite-serialized state). The protocol is manual, destructive, never
+gated into CI: dispatch N=2 (then N=3) same-vendor throwaway lanes
+concurrently and observe every abort monitor. Pueue caps (`grok`/`codex`
+above) are raised **only** to a green, recorded N — grok to 3, codex to 2 —
+never on the fake-shim plumbing tests (`tests/vendor-isolation.bats`) alone.
 
 ## 5. Merge-freshness gate (`merge-gate.sh`)
 
@@ -395,8 +394,9 @@ a **v0.3.0 consumer**, stated here rather than silently assumed.
 
 ## 8. Known limits carried into v0.3.0
 
-- T5b (real-vendor concurrency verdict) is unrun for both vendors; pueue
-  caps stay at 1 for `grok`/`codex` until a recorded result says otherwise.
+- T5b (real-vendor concurrency verdict) ran GREEN 2026-07-18 (grok N=2/N=3,
+  codex N=2); pueue caps are grok=3, codex=2. codex N=3 is unrun — raise
+  codex to 3 only if a future session records a green codex N=3 row.
 - `gate-eval.sh` does not yet enforce `[audit.policy]` — see §7.
 - Nested Job Objects are validated one level deep (`tests/launcher.bats`);
   the bun025 research chain validated launcher → child → grandchildren, not

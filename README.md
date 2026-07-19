@@ -279,19 +279,18 @@ documented direction, not a capability you can invoke.
 
 ## 7. Honest capabilities and limits
 
-- **Grok concurrency is capped at 1, unverified beyond that.** The
-  real-vendor destructive concurrency test (T5b) could not complete an
-  authenticated run for either grok or codex on the reference host — the
-  credential-staging step needed to seed an isolated auth copy was refused
-  by the host's own safety classifier, not by a failing test. Unauthenticated
-  auxiliary runs (N=2, N=3, no real login) came back clean but do not
-  exercise auth or shared quota, so they do not count. The `grok`/`codex`
-  pueue groups therefore stay `parallel=1` until a session records a genuine
-  authenticated green row (`docs/research/vendor-concurrency-results.md`).
-  Claude Code is separately ruled `REQUIRES-SEPARATE-HOME` from the public
-  issue record (concurrent instances race on `.claude.json`) — run one
-  Claude Code architect session per host identity, not several sharing a
-  config dir.
+- **Grok concurrency is verified to 3 lanes; codex to 2.** The real-vendor
+  destructive concurrency test (T5b) was run live on 2026-07-18 under an
+  explicit user authorization to use the shared, signed-in account. grok came
+  back GREEN at N=2 and N=3 (every lane returned its exact reply, no 429 under
+  the shared quota, session state path-isolated, auth intact after); codex
+  came back GREEN at N=2 (no port collision in one-shot `exec` mode, auth
+  intact, SQLite-serialized state). The `grok` pueue group is therefore raised
+  to `parallel=3` and `codex` to `parallel=2` — each only to its proven-green
+  N (`docs/research/vendor-concurrency-results.md`). Claude Code is separately
+  ruled `REQUIRES-SEPARATE-HOME` from the public issue record (concurrent
+  instances race on `.claude.json`) — run one Claude Code architect session
+  per host identity, not several sharing a config dir.
 - **The POSIX process-tree cascade is closed, with a documented fallback.**
   As of v0.2.7.5 (`posix-cascade-parity`), the POSIX launcher self-re-execs
   under `unshare --pid --mount-proc --fork --kill-child`, becoming PID 1 of

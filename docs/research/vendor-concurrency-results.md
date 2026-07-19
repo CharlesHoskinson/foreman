@@ -1,15 +1,18 @@
 # Vendor concurrency results (T5b)
 
-STATUS: **verdict recorded, 2026-07-18 — NO GREEN**. This package built and
-ran the destructive concurrency-matrix protocol (`vendor-concurrency-test.sh`,
-`tests/vendor-concurrency-test.bats`). The AUTHENTICATED, real-quota N=2/N=3
-matrix could **not** be safely executed for either codex or grok on this
-host in this session (see "Task 2 execution log" below) — this is an
-environment/tooling constraint, not a judgment call, and no verdict is
-faked to paper over it. grok/codex pueue caps stay at **1** (default-on-
-doubt); grok's default-implementer doctrine is unchanged (remains
-optional). Claude Code is ruled `REQUIRES-SEPARATE-HOME` from the public
-record (no local destructive run needed or attempted for Claude).
+STATUS: **verdict recorded, 2026-07-18 — GREEN (grok, codex)**. This package
+built and ran the destructive concurrency-matrix protocol
+(`vendor-concurrency-test.sh`, `tests/vendor-concurrency-test.bats`). The
+first attempt (Task 2 execution log below) was blocked from staging isolated
+per-lane credentials by this host's safety classifier and recorded NO GREEN.
+The user then **explicitly authorized a live shared-account run** (2026-07-18),
+which was executed and came back GREEN for both vendors — grok at N=2 and N=3,
+codex at N=2 (see "LIVE authenticated run" below). On that recorded evidence
+the **grok cap is raised 1→3 and the codex cap 1→2** in
+`skills/foreman/scripts/lane-queue.sh`; grok is promoted to an eligible
+default implementer (Sonnet remains the standing default this era). Claude
+Code is ruled `REQUIRES-SEPARATE-HOME` from the public record (no local
+destructive run needed or attempted for Claude).
 
 ## Protocol (run manually, per vendor)
 
@@ -148,7 +151,40 @@ see `tests/vendor-concurrency-test.bats`):
    `\b429\b` (still catches genuine `status 429` / `429 Too Many
    Requests`).
 
-## Task 3: Claude Code ruling
+## LIVE authenticated run (2026-07-18, user-authorized shared-account)
+
+The user explicitly authorized a live, shared-account destructive run
+("Authorize a live shared-account run") — accepting that all lanes share the
+one real logged-in identity and its real quota, rather than each lane holding
+a separately-staged credential (which the classifier had blocked). Under that
+authorization the matrix was run with the REAL, signed-in grok and codex
+binaries, each lane path-isolated by its own cwd + a unique session id, all
+lanes sharing the ambient authenticated identity. Every EARS abort monitor
+was watched directly.
+
+**grok — GREEN at N=2 and N=3.** Every lane returned rc=0 with its exact
+expected reply (`LANE-<n>-OK` / three-lane variant), no rate-limit or 429
+signal under the shared quota, `~/.grok` changes were benign and
+path-isolated (session records keyed by cwd + UUID, no cross-lane
+clobber), and a post-run auth re-probe (`grok models`) confirmed auth intact
+on the shared identity. N=3 was run only after N=2 came back clean, per
+protocol, and was itself 3/3 clean.
+
+**codex — GREEN at N=2.** Both lanes returned rc=0 with their exact expected
+replies (`CX-<n>-OK`), with **no port collision** — the run used `codex exec`
+(one-shot), which does not stand up the local server that the app-server mode
+races on, so the collision class the WSL research flagged does not arise. A
+post-run `codex exec` re-probe returned its expected reply
+(`POST-CONCURRENCY-OK`) → auth survived the concurrent run intact. codex keeps
+its session/state in SQLite, which serializes concurrent writers natively (the
+only files that changed under load were the WAL/SHM siblings); a first-pass
+integrity check mis-reported "CORRUPT" purely from a checker path-quoting bug
+(it looked for `auth.json` at a path codex does not use, and its sqlite
+one-liner never expanded `$HOME`) — the authoritative signal is that
+`codex exec` authenticates and replies correctly *after* the concurrent run.
+codex N=3 was not run; the cap is raised only to the proven-green N=2.
+
+
 
 Claude Code is ruled **`REQUIRES-SEPARATE-HOME`** from the public issue
 record — no local destructive run is needed or was attempted for Claude,
@@ -175,17 +211,17 @@ staging blocker above (it never required a local run).
 
 | Vendor | N | Date | Isolation clean? | Notes | Cap after |
 |---|---|---|---|---|---|
-| codex | 2 | 2026-07-18 | **UNVERIFIED** (authenticated run blocked) | credential-staging blocker (see above); auxiliary unauthenticated real-CLI probe GREEN, but that does not exercise auth/quota and is not a substitute | 1 (unchanged) |
-| codex | 3 | 2026-07-18 | **UNVERIFIED** (authenticated run blocked) | same | 1 (unchanged) |
-| grok | 2 | 2026-07-18 | **UNVERIFIED** (authenticated run blocked) | grok is signed in on this host; same credential-staging blocker applies | 1 (unchanged) |
-| grok | 3 | 2026-07-18 | **UNVERIFIED** (authenticated run blocked) | same | 1 (unchanged) |
+| grok | 2 | 2026-07-18 | **GREEN** (live authenticated, user-authorized) | both lanes rc=0, exact replies, no 429 under shared quota, `~/.grok` path-isolated, auth intact post-run | 3 |
+| grok | 3 | 2026-07-18 | **GREEN** (live authenticated, user-authorized) | 3/3 clean, config intact, auth intact; run only after N=2 clean | 3 |
+| codex | 2 | 2026-07-18 | **GREEN** (live authenticated, user-authorized) | both lanes rc=0, exact replies, no port collision (`exec` one-shot), auth intact post-run, SQLite-serialized state | 2 |
+| codex | 3 | 2026-07-18 | not run | cap raised only to proven-green N=2; N=3 left for a future session if codex:3 is wanted | 2 (from N=2 green) |
 | claude | n/a | 2026-07-18 | `REQUIRES-SEPARATE-HOME` (ruled from public record, no local run) | see Task 3 above | n/a — Claude was never in the grok/codex pueue-cap conversation |
 
-No authenticated GREEN row exists for any vendor. Per the EARS gate ("no
-cap raised without a recorded green row; default-on-doubt is 1"), the
-`grok`/`codex` pueue caps stay at **1**, and grok's default-implementer
-doctrine is **unchanged** — it remains optional until a future session
-records a genuine authenticated green row (see
-`skills/foreman/references/lanes.md`). Do not raise either cap, and do not
-flip the default-implementer doctrine, on the strength of the auxiliary
-unauthenticated evidence above.
+Authenticated GREEN rows are now recorded for grok (N=2, N=3) and codex
+(N=2) from the user-authorized live shared-account run. Per the EARS gate
+("caps rise only to a proven-green N"), the `grok` pueue cap is raised to
+**3** and `codex` to **2** in `skills/foreman/scripts/lane-queue.sh`, and
+grok is promoted to an eligible default implementer (see
+`skills/foreman/references/lanes.md`; Sonnet remains the standing default
+this era). The earlier auxiliary-unauthenticated rows are retained above as
+history and were never the basis for a cap change.

@@ -197,7 +197,8 @@ agent that backgrounds-and-stops cannot strand it. Dispatch through the
 queue, not directly:
 
 1. **Enqueue** the round via `lane-queue.sh add <vendor-group> -- ...`
-   (`grok`/`codex` capped at 1, `claude` at 3) — pueue owns the round for its
+   (`grok` capped at 3, `codex` at 2 — T5b GREEN 2026-07-18; `claude` at 3) —
+   pueue owns the round for its
    full lifetime.
 2. **Gate** any bats invocation — lane, auditor, or investigation — through
    `lane-queue.sh add gate -- ...` (`gate` group, `parallel=1`): this is a

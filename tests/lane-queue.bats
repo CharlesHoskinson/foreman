@@ -301,10 +301,11 @@ teardown() {
   for g in grok codex claude misc gate; do
     [ -f "$SHIM_STATE/group.$g" ]
   done
-  # parallelism set for grok/codex/claude/gate, and an EXPLICIT cap of 2 for
-  # misc (Rework Round 1, F1 -- deliberate, not the inherited default of 1)
-  grep -qF $'pueue\x1fparallel\x1f1\x1f--group\x1fgrok' "$SHIM_LOG"
-  grep -qF $'pueue\x1fparallel\x1f1\x1f--group\x1fcodex' "$SHIM_LOG"
+  # parallelism: grok=3, codex=2 raised on the 2026-07-18 LIVE T5b green
+  # verdict (docs/research/vendor-concurrency-results.md); claude=3; gate=1
+  # (host-wide mutex); misc=2 (Rework Round 1, F1 -- deliberate).
+  grep -qF $'pueue\x1fparallel\x1f3\x1f--group\x1fgrok' "$SHIM_LOG"
+  grep -qF $'pueue\x1fparallel\x1f2\x1f--group\x1fcodex' "$SHIM_LOG"
   grep -qF $'pueue\x1fparallel\x1f3\x1f--group\x1fclaude' "$SHIM_LOG"
   grep -qF $'pueue\x1fparallel\x1f1\x1f--group\x1fgate' "$SHIM_LOG"
   grep -qF $'pueue\x1fparallel\x1f2\x1f--group\x1fmisc' "$SHIM_LOG"

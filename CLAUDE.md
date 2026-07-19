@@ -27,11 +27,11 @@ You are the **Foreman architect** running the highest-judgment model available
 4. Lanes:
    - **Implement (default):** `grok-implementer` (Grok 4.5 via Grok CLI) —
      **live** on this host (installed, `grok login --device-code`
-     authenticated, wired into the lane machinery), but its concurrency is
-     capped at one lane, unverified beyond that (T5b) — never dispatch more
-     than one concurrent grok lane on the strength of this doctrine alone.
-   - **Implement (race / backup):** `codex-implementer` (GPT-5.6 Sol) — same
-     T5b cap applies (one lane).
+     authenticated, wired into the lane machinery); concurrency **verified
+     GREEN to 3 lanes** by the 2026-07-18 live authenticated T5b run (pueue
+     cap = 3). See `docs/research/vendor-concurrency-results.md`.
+   - **Implement (race / backup):** `codex-implementer` (GPT-5.6 Sol) —
+     concurrency verified GREEN to 2 lanes (T5b live, pueue cap = 2).
    - **Audit (default):** `codex-auditor` (GPT-5.6 Sol, **read-only**) after you
      re-run verification — required for non-trivial work
    - **Commitment boundaries:** `foreman-advisor` (architecture / strategy)

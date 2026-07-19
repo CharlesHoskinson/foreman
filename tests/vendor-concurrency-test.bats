@@ -213,20 +213,21 @@ SHIM
 # Source-level checks, not a full pueue-shim run (tests/lane-queue.bats
 # already covers the live `ensure` topology behaviorally and is out of
 # scope for this file to touch/duplicate). These lock the T5b gating
-# invariant: no cap is raised, and the reason is traceable to a results-doc
-# row, in the one place (lane-queue.sh) T5b is allowed to modify.
+# invariant: every cap is traceable to a results-doc row, in the one place
+# (lane-queue.sh) T5b is allowed to modify. The 2026-07-18 LIVE authorized
+# run recorded GREEN rows (grok N=2/N=3, codex N=2), so the caps are now
+# grok:3 / codex:2 -- raised only to the proven-green N.
 
 @test "lane-queue.sh cites the T5b results doc next to the grok/codex cap topology" {
-  run grep -n -B6 'for spec in grok:1 codex:1' "$SCRIPTS/lane-queue.sh"
+  run grep -n -B8 'for spec in grok:3 codex:2' "$SCRIPTS/lane-queue.sh"
   [ "$status" -eq 0 ]
   [[ "$output" == *"vendor-concurrency-results.md"* ]]
 }
 
-@test "lane-queue.sh keeps grok/codex capped at 1 (no recorded GREEN row)" {
-  run grep -F 'for spec in grok:1 codex:1' "$SCRIPTS/lane-queue.sh"
+@test "lane-queue.sh raises grok/codex caps to the T5b proven-green N (grok:3, codex:2)" {
+  run grep -F 'for spec in grok:3 codex:2' "$SCRIPTS/lane-queue.sh"
   [ "$status" -eq 0 ]
-  [[ "$output" != *"grok:2"* ]]
-  [[ "$output" != *"grok:3"* ]]
-  [[ "$output" != *"codex:2"* ]]
-  [[ "$output" != *"codex:3"* ]]
+  # the pre-verdict default (both capped at 1) must be gone
+  run grep -F 'for spec in grok:1 codex:1' "$SCRIPTS/lane-queue.sh"
+  [ "$status" -ne 0 ]
 }
