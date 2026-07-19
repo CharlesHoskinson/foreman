@@ -153,3 +153,156 @@ EOF
   [ "$status" -eq 124 ]
   grep -q '"kind":"worker_timeout"' "$FH/runs/$T/events.jsonl"
 }
+
+# =======================================================================
+# Task 4: container profile (Docker-guarded)
+#
+# The two shim tests below reuse setup_run_with_meta and
+# make_fake_launcher_writing_heartbeat_then_running_cmd from Task 3 above —
+# same isolated $FH/$WT/$RD, same deterministic fake foreman-launch. A real
+# Docker daemon's own timeout/heartbeat semantics aren't needed to prove
+# worker-run.sh's OWN docker-invocation plumbing (mounts, flags, env-file,
+# network, sync-back) — that is what these two tests assert on. The one
+# test that needs a real Docker daemon (image build + hardened run) is
+# separately Docker-guarded at the bottom of this section.
+# =======================================================================
+
+# @description Install a fake `docker` on PATH that records every
+#   invocation's full argv, one line per call, to $DOCKER_ARGV.
+#   `network inspect` always misses (exit 1), forcing worker-run.sh's
+#   create-if-absent branch to actually call `network create`; `network
+#   create` and `run` both succeed (exit 0) without ever touching a real
+#   container. Sets DOCKER_ARGV.
+# @set DOCKER_ARGV path to the recorded-argv file
+install_docker_shim_recording_argv() {
+  local dir="$BATS_TEST_TMPDIR/docker-shim"
+  mkdir -p "$dir"
+  DOCKER_ARGV="$BATS_TEST_TMPDIR/docker-argv.txt"
+  : > "$DOCKER_ARGV"
+  cat > "$dir/docker" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$DOCKER_ARGV"
+case "\$1" in
+  network)
+    case "\$2" in
+      inspect) exit 1 ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  run) exit 0 ;;
+  *) exit 0 ;;
+esac
+EOF
+  chmod +x "$dir/docker"
+  export PATH="$dir:$PATH"
+  export DOCKER_ARGV
+}
+
+# @description Like install_docker_shim_recording_argv, but its `docker run`
+#   ALSO deletes the given host path before exiting — standing in for a
+#   worker (running for real inside a container this shim never actually
+#   creates) that deleted a file in its copy of the worktree. Proves
+#   worker-run.sh's rsync sync-back is delete-aware (`--delete`), not merely
+#   additive (a plain `tar -x` sync-back would leave the file behind).
+# @arg $1 path absolute host path to delete when `docker run` is invoked
+# @set DOCKER_ARGV path to the recorded-argv file
+install_docker_shim_deleting() {
+  local target="$1"
+  local dir="$BATS_TEST_TMPDIR/docker-shim"
+  mkdir -p "$dir"
+  DOCKER_ARGV="$BATS_TEST_TMPDIR/docker-argv.txt"
+  : > "$DOCKER_ARGV"
+  cat > "$dir/docker" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$DOCKER_ARGV"
+case "\$1" in
+  network)
+    case "\$2" in
+      inspect) exit 1 ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  run)
+    rm -f "$target"
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+EOF
+  chmod +x "$dir/docker"
+  export PATH="$dir:$PATH"
+  export DOCKER_ARGV
+}
+
+# @description Rewrite this run's meta.json base_sha in place (the deletion
+#   test commits a second, later base on top of setup_run_with_meta's own
+#   initial commit, so the "file to delete" actually exists in the archived
+#   HEAD the container branch copies from) and refresh the caller's own
+#   $BASE_SHA to match.
+# @arg $1 new base_sha
+update_meta_base() {
+  local new_base="$1" tmp="$RD/meta.json.tmp"
+  jq --arg s "$new_base" '.base_sha = $s' "$RD/meta.json" > "$tmp" && mv "$tmp" "$RD/meta.json"
+  BASE_SHA="$new_base"
+}
+
+@test "container: copy dir mounted rw, egress bridge, hardened flags, no socket/PAT" {
+  setup_run_with_meta
+  make_fake_launcher_writing_heartbeat_then_running_cmd
+  install_docker_shim_recording_argv
+  run env FOREMAN_LAUNCH="$FAKE_LAUNCH" FOREMAN_HOME="$FH" FOREMAN_GH_PAT="SECRET" \
+    bash "$SCRIPTS/worker-run.sh" "$T" --profile container
+  [ "$status" -eq 0 ]
+  grep -qE -- "-v [^ ]*sandbox-work:/work" "$DOCKER_ARGV"     # the COPY, not $WT
+  ! grep -qF "$WT/.git" "$DOCKER_ARGV"
+  ! grep -qE -- '--network[= ](none|.*--internal)' "$DOCKER_ARGV"
+  grep -qF -- '--cap-drop ALL' "$DOCKER_ARGV"
+  grep -qF -- '--cap-add NET_ADMIN' "$DOCKER_ARGV"
+  grep -qF -- '--security-opt no-new-privileges' "$DOCKER_ARGV"
+  grep -qF -- '--read-only' "$DOCKER_ARGV"
+  grep -qF -- '--tmpfs /home/worker' "$DOCKER_ARGV"           # writable HOME
+  grep -qF -- '--tmpfs /run' "$DOCKER_ARGV"                   # iptables lock
+  ! grep -qF 'docker.sock' "$DOCKER_ARGV"
+  ! grep -qF SECRET "$DOCKER_ARGV"
+  # Bonus (beyond the plan's literal assertion list): the container env-file
+  # itself never carries the ambient secret either, not just the argv.
+  ! grep -qF SECRET "$RD/sandbox.env"
+}
+
+@test "container: worker file DELETION propagates to the host commit (rsync --delete)" {
+  setup_run_with_meta
+  echo old > "$WT/todelete.txt"
+  git -C "$WT" add -A && git -C "$WT" commit -qm base
+  BASE_SHA="$(git -C "$WT" rev-parse HEAD)"
+  update_meta_base "$BASE_SHA"
+  make_fake_launcher_writing_heartbeat_then_running_cmd
+  install_docker_shim_deleting "$RD/sandbox-work/todelete.txt"
+  run env FOREMAN_HOME="$FH" FOREMAN_LAUNCH="$FAKE_LAUNCH" bash "$SCRIPTS/worker-run.sh" "$T" --profile container
+  [ "$status" -eq 0 ]
+  [ ! -f "$WT/todelete.txt" ]                                 # deletion synced back
+  git -C "$WT" show HEAD --stat | grep -q 'todelete.txt'      # and captured in the commit
+}
+
+@test "container: real Docker - hardened run (read-only) firewall default-deny + worker unprivileged" {
+  command -v docker >/dev/null && docker info >/dev/null 2>&1 || skip "docker unavailable"
+  run docker build -t foreman-sandbox:test "$BATS_TEST_DIRNAME/../sandbox"
+  [ "$status" -eq 0 ]
+  # Exercise the SHIPPED run posture: read-only rootfs + tmpfs, cap-drop,
+  # NET_ADMIN. SETUID/SETGID/CHOWN are ALSO part of the shipped posture
+  # (worker-run.sh's own docker run, sandbox/devcontainer.json) — a
+  # deviation from an earlier reading of the plan's literal capability list,
+  # verified necessary against this exact image: without SETUID+SETGID
+  # gosu's setuid(2) drop fails outright ("failed switching to \"worker\":
+  # operation not permitted") and the container never starts the real
+  # command at all; without CHOWN the --tmpfs /home/worker mount stays
+  # root:root 0755 and the third assertion below (HOME writable) fails.
+  # None of the three reach the worker — see sandbox/entrypoint.sh.
+  local HARDEN=(--rm --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add CHOWN \
+                --security-opt no-new-privileges --read-only --tmpfs /tmp --tmpfs /run --tmpfs /home/worker)
+  run docker run "${HARDEN[@]}" foreman-sandbox:test /init-firewall.sh --check
+  [ "$status" -eq 0 ]
+  run docker run "${HARDEN[@]}" foreman-sandbox:test id -un
+  [ "$output" != "root" ]   # N5: full entrypoint runs
+  run docker run "${HARDEN[@]}" foreman-sandbox:test sh -c 'touch $HOME/x && echo ok'
+  [ "$output" = ok ]        # HOME writable
+}

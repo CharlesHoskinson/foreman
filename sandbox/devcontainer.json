@@ -1,0 +1,19 @@
+{
+  "name": "foreman-sandbox",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "worker",
+  "runArgs": [
+    "--cap-drop=ALL",
+    "--cap-add=NET_ADMIN",
+    "--cap-add=SETUID",
+    "--cap-add=SETGID",
+    "--cap-add=CHOWN",
+    "--security-opt=no-new-privileges",
+    "--read-only",
+    "--tmpfs=/tmp",
+    "--tmpfs=/run",
+    "--tmpfs=/home/worker"
+  ]
+}
