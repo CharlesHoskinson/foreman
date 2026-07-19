@@ -37,6 +37,12 @@ RUN npm install -g @xai-official/grok@latest @openai/codex@latest \
 # cache/token-refresh needs).
 RUN useradd --create-home --uid 1000 --shell /bin/bash worker
 
+# Pin HOME to the writable --tmpfs /home/worker mount. gosu does not set HOME,
+# so without this the dropped worker would inherit root's HOME (/root, on the
+# --read-only rootfs) and the vendor CLI's cache/token writes would fail. The
+# container env-file deliberately omits HOME (worker-run.sh) so this stands.
+ENV HOME=/home/worker
+
 COPY init-firewall.sh entrypoint.sh /
 RUN chmod 0755 /init-firewall.sh /entrypoint.sh
 

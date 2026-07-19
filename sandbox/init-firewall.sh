@@ -104,6 +104,20 @@ apply() {
   # matching none of it is dropped.
   iptables -P OUTPUT DROP
 
+  # IPv6: the allowlist is resolved v4-only (getent ahostsv4), so there is no
+  # legitimate v6 egress — deny ALL of it (except loopback/DNS/established) so
+  # a container with any v6 route cannot be used to exfiltrate around the v4
+  # allowlist. Guarded: some minimal images/hosts have no ip6tables or no v6
+  # stack at all, in which case there is nothing to lock down.
+  if command -v ip6tables >/dev/null 2>&1; then
+    ip6tables -F OUTPUT 2>/dev/null || true
+    ip6tables -A OUTPUT -o lo -j ACCEPT 2>/dev/null || true
+    ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || true
+    ip6tables -A OUTPUT -p udp --dport 53 -j ACCEPT 2>/dev/null || true
+    ip6tables -A OUTPUT -p tcp --dport 53 -j ACCEPT 2>/dev/null || true
+    ip6tables -P OUTPUT DROP 2>/dev/null || true
+  fi
+
   local count
   count="$(ipset list "$SET_NAME" 2>/dev/null | awk -F': ' '/^Number of entries/{print $2; exit}')"
   {

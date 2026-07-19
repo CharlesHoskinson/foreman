@@ -267,6 +267,11 @@ update_meta_base() {
   # Bonus (beyond the plan's literal assertion list): the container env-file
   # itself never carries the ambient secret either, not just the argv.
   ! grep -qF SECRET "$RD/sandbox.env"
+  # Regression guard for the host-var leak: the container env-file must carry
+  # a CONTAINER allowlist ONLY — never the native host's PATH/HOME/USERPROFILE/
+  # <vendor>_HOME (injecting those via --env-file overrides the image PATH so
+  # gosu/iptables/the vendor CLI stop resolving and the container fails).
+  ! grep -qE '^(PATH|HOME|USERPROFILE|GROK_HOME|CODEX_HOME)=' "$RD/sandbox.env"
 }
 
 @test "container: worker file DELETION propagates to the host commit (rsync --delete)" {
@@ -277,7 +282,10 @@ update_meta_base() {
   update_meta_base "$BASE_SHA"
   make_fake_launcher_writing_heartbeat_then_running_cmd
   install_docker_shim_deleting "$RD/sandbox-work/todelete.txt"
-  run env FOREMAN_HOME="$FH" FOREMAN_LAUNCH="$FAKE_LAUNCH" bash "$SCRIPTS/worker-run.sh" "$T" --profile container
+  # FOREMAN_SYNC_NO_RSYNC pins the portable manifest-diff fallback (the riskier
+  # custom code) deterministically, regardless of whether this host has rsync.
+  run env FOREMAN_HOME="$FH" FOREMAN_LAUNCH="$FAKE_LAUNCH" FOREMAN_SYNC_NO_RSYNC=1 \
+    bash "$SCRIPTS/worker-run.sh" "$T" --profile container
   [ "$status" -eq 0 ]
   [ ! -f "$WT/todelete.txt" ]                                 # deletion synced back
   git -C "$WT" show HEAD --stat | grep -q 'todelete.txt'      # and captured in the commit
@@ -297,7 +305,13 @@ update_meta_base() {
   # command at all; without CHOWN the --tmpfs /home/worker mount stays
   # root:root 0755 and the third assertion below (HOME writable) fails.
   # None of the three reach the worker — see sandbox/entrypoint.sh.
-  local HARDEN=(--rm --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add CHOWN \
+  # -e FOREMAN_VENDOR_API_HOST=<resolvable host>: worker-run.sh's real run
+  # supplies this (+ FOREMAN_GIT_HOST) so init-firewall resolves a non-empty
+  # allowlist; --check REQUIRES a non-empty allowlist (count>0), so a bare run
+  # without it would (correctly) fail. DNS egress is allowed before the DROP
+  # flip, so the host resolves at container start.
+  local HARDEN=(--rm -e FOREMAN_VENDOR_API_HOST=api.openai.com \
+                --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --cap-add CHOWN \
                 --security-opt no-new-privileges --read-only --tmpfs /tmp --tmpfs /run --tmpfs /home/worker)
   run docker run "${HARDEN[@]}" foreman-sandbox:test /init-firewall.sh --check
   [ "$status" -eq 0 ]

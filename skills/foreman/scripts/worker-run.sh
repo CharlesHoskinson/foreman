@@ -252,7 +252,11 @@ _finalize_and_commit() {
 _sandbox_sync_back() {
   local before_manifest="$1"
 
-  if command -v rsync >/dev/null 2>&1; then
+  # FOREMAN_SYNC_NO_RSYNC forces the portable fallback even where rsync exists
+  # — a test seam so the deletion-propagation test deterministically exercises
+  # the custom (riskier) manifest-diff path regardless of whether the host has
+  # rsync installed. Unset in production => rsync is preferred when present.
+  if [[ -z "${FOREMAN_SYNC_NO_RSYNC:-}" ]] && command -v rsync >/dev/null 2>&1; then
     rsync -a --delete --exclude='.git' "$RD/sandbox-work/" "$WT/"
     return 0
   fi
@@ -331,14 +335,26 @@ case "$PROFILE" in
     docker network inspect foreman-sandbox-net >/dev/null 2>&1 \
       || docker network create foreman-sandbox-net >/dev/null
 
-    # 3. Container env file: the Linux allowlist ONLY (WORKER_ENV_ALLOW as
-    #    built above — no Windows vars, no FOREMAN_GH_PAT, no host env,
-    #    no docker.sock), plus the two hosts init-firewall.sh allowlists.
-    #    A real 0600 file, not `<(process-sub)` — docker is a grandchild of
-    #    the launcher and a /dev/fd substitution would not survive that far.
+    # 3. Container env file: a CONTAINER-SPECIFIC minimal allowlist. Crucially
+    #    NOT the launcher-only WORKER_ENV_ALLOW — that carries host PATH / HOME /
+    #    USERPROFILE / <vendor>_HOME, which are the *native host's* paths; piped
+    #    into the Linux container via --env-file they override the image's own
+    #    PATH (so `gosu`/`iptables`/the vendor CLI stop resolving and the
+    #    container fails before the worker even starts) and point HOME at a
+    #    nonexistent host path (defeating the writable --tmpfs /home/worker).
+    #    The container needs only its task identity + (in api-key mode) the one
+    #    vendor key; HOME/PATH come from the image, the two allowlist hosts are
+    #    appended below. No FOREMAN_GH_PAT, no host env, no docker.sock.
+    CONTAINER_ENV_ALLOW=(FOREMAN_TASK_ID LANE_VENDOR)
+    if [[ "$AUTH_MODE" == "api-key" ]]; then
+      case "$VENDOR" in
+        grok)  CONTAINER_ENV_ALLOW+=(XAI_API_KEY) ;;
+        codex) CONTAINER_ENV_ALLOW+=(OPENAI_API_KEY) ;;
+      esac
+    fi
     : > "$RD/sandbox.env"
     chmod 0600 "$RD/sandbox.env"
-    for _v in "${WORKER_ENV_ALLOW[@]}"; do
+    for _v in "${CONTAINER_ENV_ALLOW[@]}"; do
       [[ -n "${!_v:-}" ]] && printf '%s=%s\n' "$_v" "${!_v}" >> "$RD/sandbox.env"
     done
 
@@ -380,7 +396,12 @@ case "$PROFILE" in
     # empirically against sandbox/ — see sandbox/entrypoint.sh's header.
     # None of the three reach the worker itself: setuid(2) to a non-root uid
     # clears the process's capability sets on the way down.
-    ( "$LAUNCHER" --timeout "$TO" \
+    # MSYS_NO_PATHCONV/ARG_CONV_EXCL: if worker-run.sh is invoked from Windows
+    # Git-Bash, MSYS rewrites the container-side `/work`, `/foreman-prompt.txt`,
+    # `/tmp` etc. args into Windows paths before they reach docker — corrupting
+    # the mounts. No-ops on WSL/Linux (the container profile's intended home).
+    ( export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
+      "$LAUNCHER" --timeout "$TO" \
         --heartbeat-file "$RD/worker-heartbeat.jsonl" -- \
         docker run --rm --name "$CONTAINER_NAME" \
           --network foreman-sandbox-net \
