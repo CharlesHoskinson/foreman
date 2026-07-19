@@ -71,13 +71,18 @@ fi
 # arbitrary username paired with a PAT as the password, so one fixed answer
 # satisfies both prompts.
 ASKPASS="$RD/.askpass.sh"
-cat > "$ASKPASS" <<'EOF'
+# umask 077 so the helper is never group/other-readable, even for the instant
+# between create and chmod; a trap removes it even if a signal lands between
+# here and the explicit rm after the push.
+trap 'rm -f "$ASKPASS"' EXIT
+( umask 077; cat > "$ASKPASS" <<'EOF'
 #!/usr/bin/env bash
 # @description git askpass helper (pr-open.sh): answers any askpass prompt
 #   with FOREMAN_GH_PAT, inherited from the parent process's environment —
 #   the token is never passed as an argument to this script or to git.
 printf '%s' "$FOREMAN_GH_PAT"
 EOF
+)
 chmod 0700 "$ASKPASS"
 
 # NOTE: the plan text describes this as "env GIT_ASKPASS=... git_nohooks
