@@ -806,7 +806,7 @@ proposed enhancement. Newest at the bottom.
 - **Proposed enhancement:** document a "stateful/live-target" soft-mode profile — grok runs in the working checkout,
   architect verifies against the live services, no worktree — and note when worktree fan-out is inapplicable.
 
-## 2026-07-19 — install.ps1 (and 2 more .ps1) unparseable under Windows PowerShell 5.1 — BOM-less UTF-8 + em-dashes
+## 2026-07-19 — install.ps1 (and 2 more .ps1) unparsable under Windows PowerShell 5.1 — BOM-less UTF-8 + em-dashes
 
 - **Phase:** install (Windows), follow-up to the v0.2.8.1 mklink→Junction fix
 - **What happened:** after v0.2.8.1 fixed the `cmd /c mklink` line, `powershell -File install.ps1` STILL

@@ -164,6 +164,41 @@ plan in `docs/superpowers/`).
   `grok agent stdio`; the optional `.foreman/live-target.toml` preflight-WARN.
 - Depends on: v0.2.8.
 
+## v0.2.9 — WSL compatibility (PLANNED)
+
+Ship, wire, and keep-verified the already-built WSL protections + harden the
+Windows↔WSL seam. **Reframe** (from four research lanes — two internal, two external
+via scrapling): WSL-native runtime code is mostly already correct; the gaps are
+built-but-unshipped protections + the seam. Six OpenSpec/EARS packages, plan +
+design written and Opus-audited (APPROVED-WITH-FIXES; the audit caught that the
+"fresh-clone CRLF blocker" is actually an autocrlf-seam issue and that the live
+defect on those files is the exec-bit).
+
+- **P1 wsl-launcher-shipped** (BLOCKER): the POSIX launcher (`build:posix`) is never
+  built for WSL users → every fresh WSL clone silently runs `launcher_absent`/degraded,
+  losing the pidns kill-cascade. Build it in bootstrap/Setup; inventory it in
+  tool-check (NOT-READY when bun present, DEGRADED when bun absent).
+- **P2 crlf-extensionless-hardening** (BLOCKER): 3 extensionless SDD scripts lack the
+  `eol=lf` attribute (CRLF on autocrlf checkouts) AND are `100644` direct-exec'd
+  (Permission denied on ext4). Total `.gitattributes` LF policy + binary carve-out;
+  `git update-index --chmod=+x`; index-based line-endings test.
+- **P3 wsl-preflight**: a Setup + lane-start preflight (FOREMAN_HOME-not-under-/mnt
+  refusal w/ `FOREMAN_ALLOW_MNT_HOME` override; WSL-version/clock; networking mode;
+  tool resolution). Clock pivots to version-currency (WSL 2.1.1 kernel-fixed the
+  severe drift) + dual-NTP jitter.
+- **P4 wsl-tool-path-persistence**: persist WSL-native tool PATH for non-interactive
+  lanes (`~/.foreman/env.sh`); decouple the grok readiness probe from unit tests.
+- **P5 wsl-ci-parity**: `ubuntu-latest` (bats + shellcheck + launcher build + install.sh)
+  and `windows-latest` (`shell: bash`) CI.
+- **P6 wsl-seam-doctrine**: auth-callback-foreground, pueue restart-on-demand (systemd
+  ≠ keepalive), Docker-Desktop-WSL2 detection, exec-bit hygiene.
+- **Residuals (deferred):** non-root WSL Setup migration (inventoried v0.2.7.5).
+- Design: `docs/superpowers/specs/2026-07-19-v029-wsl-compat-design.md`; Plan:
+  `docs/superpowers/plans/2026-07-19-v029-wsl-compat.md`; Packages:
+  `openspec/changes/{wsl-launcher-shipped,crlf-extensionless-hardening,wsl-preflight,
+  wsl-tool-path-persistence,wsl-ci-parity,wsl-seam-doctrine}/`.
+- Depends on: v0.2.8.1.
+
 ## v0.3.0 — session transport (remote branch `dev/foreman-v1`)
 
 Subscription-session workers (zero API keys): codex mcp-server threadId
