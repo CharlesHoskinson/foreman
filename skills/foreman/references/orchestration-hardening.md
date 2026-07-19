@@ -403,3 +403,114 @@ a **v0.3.0 consumer**, stated here rather than silently assumed.
   an arbitrarily deep launcher-of-launchers tree.
 - `WATCH_OWNERSHIP_WAIT`'s default (3000ms) is a bats-test-scale
   compromise, not the deployment recommendation — see §2.
+
+## 9. Concurrent-worktree git guards (worktree-hardening, v0.2.7.5 package 4)
+
+The operator's reported stalls/lock failures under heavy concurrent
+worktree use map to specific, documented failure classes (design.md,
+2026-07-18 research table). This package adds the guard bundle; `lib/
+worktree.sh`'s pre-existing `wt_with_lock` serialization and `wt-cleanup.sh`'s
+pre-existing porcelain-check-before-delete + report-archive (shipped v0.2.5
+T6) already covered two of the spec's requirements, so those are guarded by
+tests here, not reimplemented.
+
+**`git-guards.sh REPO`** (`skills/foreman/scripts/git-guards.sh`): idempotent
+bootstrap applying five repo-LOCAL config settings: `maintenance.auto=false`
+(stop the reactive `gc.autoDetach` background fork that competes for the
+object-DB lock mid-commit), `core.fsmonitor=true` + `core.untrackedCache=true`
+(faster status/checkout without a filesystem watcher on Windows),
+`core.longpaths=true` (Windows MAX_PATH), `safe.bareRepository=explicit`.
+Reports each applied setting; idempotent (a second run changes nothing).
+
+**Maintenance path — deliberately does NOT call `git maintenance register` or
+`git maintenance start`.** Empirically probed during this task (throwaway
+repo + isolated `HOME`): `git maintenance start` installs REAL, persistent,
+HOST-WIDE Windows Scheduled Tasks ("Git Maintenance (hourly|daily|weekly)")
+that do not respect `HOME` redirection at the point they actually run later —
+so there is no way to exercise that path from a test, or even invoke it from
+an idempotent bootstrap script, without leaving host-wide scheduler state
+behind that the script cannot itself undo. `git maintenance register` alone
+(without `start`) is comparatively low-risk (one `[maintenance] repo = ...`
+line in the global gitconfig) but is also INERT on its own — nothing ever
+triggers a scheduled run without `start`, so it would not actually satisfy
+"pack/ref hygiene still occurs" by itself. Instead, `git-guards.sh` itself
+IS the foreman-owned maintenance tick (spec's own "scheduled task **or a
+foreman tick**" language): it runs `git maintenance run --auto` directly
+against the target repo — local, bounded, and throttled via a marker file
+under the repo's own git-common-dir (`GG_TICK_MIN_INTERVAL`, default 3600s) —
+every time it is invoked. **Operator guidance:** re-invoke `git-guards.sh
+REPO` periodically (a Setup step, a personal scheduled task, or simply before
+a work session) to keep the tick current; if you want a REAL OS-scheduled
+`git maintenance run` instead, run `git maintenance register` and `git
+maintenance start` by hand against your own real repo (never automated by
+this script) and inspect/clean up the resulting Scheduled Tasks yourself.
+
+**`git_retry`** (`lib/worktree.sh`): bounded exponential-backoff wrapper (5
+attempts, 200→400→800→1600 ms between them, ~3s worst case) around the
+shared-lock-touching operations in `wt_with_lock` — rides out a transient
+`Unable to create '.git/index.lock'` from a concurrent process instead of
+aborting a worktree op on the first failure. Self-contained (no dependency on
+`lib/common.sh`'s `log`, since this file is sometimes sourced standalone in
+tests). Implementation note: capturing the wrapped command's real exit
+status must use `if cmd; then rc=0; else rc=$?; fi` — NOT `if cmd; then
+return 0; fi; rc=$?`, which always reads 0 (an `if` with no `else` that takes
+its false branch is itself defined to exit 0, regardless of the tested
+command's real status) — and the command must be the `if`'s own condition
+(not a bare statement first), since every caller of this file runs under
+`set -e` and an unguarded failing command outside an if/while/&&/|| context
+aborts the whole script immediately, defeating the retry loop on the very
+first failure.
+
+**`wt_sweep_stale_locks REPO [THRESHOLD_S]`** (`lib/worktree.sh`): removes
+0-byte `*.lock` files (e.g. a leftover `index.lock`) under the repo's git
+directory whose mtime is older than the threshold (default ~30s) — never a
+non-empty or fresh lock a live process may hold. Runs at lane start in both
+`wt-new.sh` (against the shared repo, before `worktree add`) and
+`lane-run.sh` (against the worktree, before the lane's lock is taken), so a
+crashed prior process's lock never blocks a fresh lane indefinitely.
+
+**Scoped `GIT_OPTIONAL_LOCKS`/`GIT_ASK_YESNO`:** `wt-new.sh`'s two read-only
+polls (`rev-parse --show-toplevel`, `rev-parse BASE^{commit}`) carry
+`GIT_OPTIONAL_LOCKS=0` via a temporary env-assignment prefix scoped to just
+that one invocation (confirmed: this reaches the real `git` subprocess a
+wrapped shell function spawns, and reverts immediately after) — never the
+`worktree add` write path. `GIT_ASK_YESNO=false` is exported lane-wide in
+both `wt-new.sh` and `lane-run.sh` (the latter before CMD is ever spawned, so
+CMD inherits it too) so a Windows "Unlink failed. Try again? (y/n)" prompt
+auto-declines instead of hanging with no TTY to answer it — safe script-wide
+since it only affects an interactive retry PROMPT, never lock semantics.
+
+**`wt-cleanup.sh` SIGINT-before-remove (net-new ordering clause):** before
+`git worktree remove` is attempted for a given worktree, `wt-cleanup.sh` now
+reads the run's own event log for the LAST `ownership` event whose
+`payload.worktree` matches that exact worktree path and, if its recorded pid
+is still alive, SIGINTs it — then, because plain SIGINT delivery to a
+non-launcher-wrapped process has already been empirically confirmed
+unreliable on this Windows/MSYS host (`tests/foreman-cleanup.bats`), waits a
+bounded grace period and escalates to SIGKILL if it is still alive, mirroring
+`lane-run.sh`'s own `kill_cmd_bounded` discipline. Order is load-bearing —
+SIGINT/kill always precedes `git worktree remove`, never the reverse (the
+2026-07-16 shutdown-ordering failure). This GUARDS `wt-cleanup.sh` itself
+when invoked standalone; `foreman-cleanup.sh` (v0.2.7.5 lifecycle-three-stage)
+already SIGINTs a run's lane subprocesses before it delegates to this script
+— a separate, run-wide sweep keyed by lane name — so the two are
+complementary, not duplicative. Only fires for a worktree actually about to
+be removed: a worktree skipped as dirty (no `--force`) is never SIGINT'd.
+
+**Windows Defender exclusions (doctrine, not automated by this package):**
+real-time scanning of `.git` internals (and, if applicable, any VHDX-backed
+WSL store) is a measured stall/unlink-failure cause on this class of host —
+the same failure family `GIT_ASK_YESNO`/`core.longpaths`/the stale-lock sweep
+above mitigate from the git side. Operators should add Windows Defender path
+exclusions (Settings → Virus & threat protection → Exclusions, or
+`Add-MpPreference -ExclusionPath <path>` from an elevated PowerShell) for:
+the foreman repo itself, **and every sibling `*-wt-*` worktree directory**
+(the `wt_path` naming convention: `<parent>/<repo>-wt-<RUN_ID>-<ROLE>[-
+<slug>]`, all siblings of the repo in its parent directory) — a wildcard
+exclusion on the parent directory's `*-wt-*` pattern covers present and
+future worktrees without needing to add one exclusion per run. This is
+deliberately left as documented operator guidance, not something
+`git-guards.sh`/`wt-new.sh` configure automatically: modifying Defender
+exclusions requires elevated privileges this harness does not assume, and is
+exactly the kind of host-wide, hard-to-test-safely side effect this package's
+maintenance-path decision (above) already avoided for the same reasons.

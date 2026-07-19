@@ -20,6 +20,14 @@ source "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=lib/worktree.sh
 source "$SCRIPT_DIR/lib/worktree.sh"
 
+# v0.2.7.5 worktree-hardening T4: GIT_ASK_YESNO=false lane-wide, for every git
+# operation this script (and the worktree it provisions) performs, so a
+# Windows "Unlink failed. Try again? (y/n)" prompt auto-declines instead of
+# hanging with no TTY to answer it. Unlike GIT_OPTIONAL_LOCKS (scoped only to
+# read-only polls, below -- never a write path), this is safe script-wide: it
+# only ever affects an interactive retry PROMPT, never lock semantics.
+export GIT_ASK_YESNO=false
+
 RUN_ID="${1:?usage: wt-new.sh RUN_ID ROLE [SLUG] [BASE_REF]}"
 ROLE="${2:?role required}"
 SLUG="${3:-}"
@@ -35,13 +43,40 @@ if ! command -v jq >/dev/null 2>&1; then
   require_cmd python3 "or install jq"
 fi
 
-ROOT="$(git_nohooks rev-parse --show-toplevel)"
+# v0.2.7.5 worktree-hardening T4: GIT_OPTIONAL_LOCKS=0 scoped ONLY to this
+# read-only poll (a temporary env assignment prefixing the call, so it
+# reaches git_nohooks's own real `git` subprocess for the duration of just
+# this one invocation and never leaks into any later write, e.g. `worktree
+# add` below) -- never on a write path, per spec.
+ROOT="$(GIT_OPTIONAL_LOCKS=0 git_nohooks rev-parse --show-toplevel)"
 RD="$(run_dir "$RUN_ID")"
 mkdir -p "$RD/reports" "$RD/worktrees"
 
+# v0.2.7.5 worktree-hardening Rework Round 1 (Risk 1, Opus audit): apply the
+# concurrency-safe repo config + maintenance tick (git-guards.sh, T1) to the
+# SHARED repo at worktree-creation time. Before this, git-guards.sh was
+# wired NOWHERE -- the whole guard bundle only took effect if an operator
+# ran it manually, so foreman itself got zero automatic hardening (the
+# entire point of the package). git-guards.sh's own contract is idempotent,
+# so re-applying it on every wt-new.sh call is cheap and is what makes it
+# auto-effective for the worktree workflow. Best-effort and non-fatal: a
+# failure here must NEVER block worktree creation, so it is the condition
+# of an if/else (safe under this script's own `set -e`, unlike a bare
+# unguarded statement) and only logged either way.
+if bash "$SCRIPT_DIR/git-guards.sh" "$ROOT"; then
+  log "git-guards applied to $ROOT"
+else
+  log "WARN: git-guards.sh failed against $ROOT (non-fatal; worktree creation continues)"
+fi
+
+# v0.2.7.5 worktree-hardening T3: sweep any 0-byte, aged lock (e.g. an
+# index.lock orphaned by a crashed prior process) in the SHARED repo before
+# this lane's own worktree add ever touches it.
+wt_sweep_stale_locks "$ROOT"
+
 WT="$(wt_path "$ROOT" "$RUN_ID" "$ROLE" "$SLUG")"
 BRANCH="$(wt_branch "$RUN_ID" "$ROLE" "$SLUG")"
-BASE_SHA="$(git_nohooks -C "$ROOT" rev-parse "${BASE}^{commit}")"
+BASE_SHA="$(GIT_OPTIONAL_LOCKS=0 git_nohooks -C "$ROOT" rev-parse "${BASE}^{commit}")"
 
 if [[ -e "$WT" ]]; then
   die "$EXIT_CONFIG" "worktree path already exists: $WT"
@@ -123,13 +158,65 @@ open(path,"a").write("\n")
 PY
 fi
 
-# Append to index
+# Append to index.
+# v0.2.7.5 worktree-hardening T6 (soak-discovered fix): this read-modify-
+# write of a SHARED file across concurrent wt-new.sh invocations for the
+# SAME run_id was unsynchronized and used a fixed (not per-process-unique)
+# ".tmp" name -- under a genuine concurrent-lane soak (this task's own T6
+# proof) two lanes racing here reliably crashed one of them ("mv: cannot
+# stat ... index.json.tmp: No such file or directory", the second process's
+# mv finding the first process's mv had already renamed the shared tmp file
+# out from under it) and, even absent a crash, could silently lose an
+# entry (both processes reading the same stale index.json and each
+# overwriting the other's write). Serialized under a bounded mkdir mutex
+# (mkdir is atomic on Git Bash/MSYS -- no flock dependency, matching
+# lib/eventlog.sh's own .seq.lock idiom) with a per-process-unique tmp
+# filename (a belt-and-braces second fix -- the lock alone already
+# prevents the interleaving, but a unique name means a process that timed
+# out waiting for the lock, see below, still cannot collide with another).
 IDX="$RD/worktrees/index.json"
+IDX_LOCK="$RD/worktrees/.index.lock"
+idx_lock_owned=0
+idx_waited=0
+while true; do
+  if mkdir "$IDX_LOCK" 2>/dev/null; then
+    idx_lock_owned=1
+    break
+  fi
+  sleep 0.1
+  idx_waited=$((idx_waited + 1))
+  if (( idx_waited > 300 )); then   # ~30s bound -- never spin forever
+    log "WARN: index.json lock contention exceeded 30s -- proceeding unsynchronized"
+    break
+  fi
+done
+
+# @description Release the index.json mkdir mutex, but ONLY if this process
+#   is the one that actually acquired it (v0.2.7.5 worktree-hardening Rework
+#   Round 1, Risk 2, Opus audit). The critical section below used to have no
+#   `trap`, so a jq/python3 failure BETWEEN `mkdir "$IDX_LOCK"` and the
+#   (former) unconditional `rmdir` at the end aborted this script under
+#   `set -e` before that rmdir ever ran, leaking the lock -- the next
+#   same-run lane would spin the full ~30s bound above and then proceed
+#   unsynchronized, exactly the race T6 already fixed once. A trap firing
+#   this function is the correct fix, not just moving the rmdir earlier: it
+#   fires on ANY exit from this point forward, anticipated or not. Guarded
+#   on idx_lock_owned (set ONLY on the mkdir-succeeded path above) so a
+#   process that gave up after the 30s bound -- and therefore never
+#   actually owns the lock -- can never release a lock some OTHER process
+#   legitimately still holds.
+idx_release_lock() {
+  if [[ "$idx_lock_owned" == "1" ]]; then
+    rmdir "$IDX_LOCK" 2>/dev/null || true
+  fi
+}
+trap idx_release_lock EXIT
+
 if command -v jq >/dev/null 2>&1; then
   if [[ -f "$IDX" ]]; then
-    jq --slurpfile n "$META_FILE" '. + $n' "$IDX" > "$IDX.tmp" && mv "$IDX.tmp" "$IDX"
+    jq --slurpfile n "$META_FILE" '. + $n' "$IDX" > "$IDX.tmp.$$" && mv "$IDX.tmp.$$" "$IDX"
   else
-    jq -n --slurpfile n "$META_FILE" '$n' > "$IDX"
+    jq -n --slurpfile n "$META_FILE" '$n' > "$IDX.tmp.$$" && mv "$IDX.tmp.$$" "$IDX"
   fi
 else
   python3 - "$IDX" "$META_FILE" <<'PY'
@@ -138,10 +225,16 @@ idx, meta = sys.argv[1], sys.argv[2]
 item = json.load(open(meta))
 data = json.load(open(idx)) if os.path.isfile(idx) else []
 data.append(item)
-json.dump(data, open(idx,"w"), indent=2)
-open(idx,"a").write("\n")
+tmp = f"{idx}.tmp.{os.getpid()}"
+json.dump(data, open(tmp, "w"), indent=2)
+with open(tmp, "a") as f:
+    f.write("\n")
+os.replace(tmp, idx)
 PY
 fi
+
+idx_release_lock
+trap - EXIT
 
 log "worktree ready: $WT"
 log "branch: $BRANCH"

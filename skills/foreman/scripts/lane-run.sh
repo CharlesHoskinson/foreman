@@ -113,6 +113,8 @@ source "$SCRIPT_DIR/lib/eventlog.sh"
 source "$SCRIPT_DIR/lib/checkpoint.sh"
 # shellcheck source=lib/config.sh
 source "$SCRIPT_DIR/lib/config.sh"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
 
 # Attempt ids come from lib/eventlog.sh's el_attempt_new (T3, sourced above):
 # monotonic per lane, persisted, lock-serialized. Reconciled at T2 merge --
@@ -178,6 +180,23 @@ WT="$3"
 shift 4
 
 mkdir -p "$WT/.harness"
+
+# v0.2.7.5 worktree-hardening T3: sweep any 0-byte, aged lock (e.g. an
+# index.lock orphaned by a crashed prior lane process against this same
+# worktree) before this lane ever touches it. Never removes a lock a live
+# process may still hold (non-zero size or a recent mtime) -- see
+# wt_sweep_stale_locks's own doc comment in lib/worktree.sh.
+wt_sweep_stale_locks "$WT"
+
+# v0.2.7.5 worktree-hardening T4: GIT_ASK_YESNO=false for every git operation
+# this lane runs, exported into lane-run.sh's own process environment ONCE,
+# before CMD is ever spawned, so CMD inherits it identically on both the
+# launcher-present and launcher-absent spawn branches (same mechanism as
+# LANE_CONFIG_DIR's export further down) -- a Windows "Unlink failed. Try
+# again? (y/n)" prompt auto-declines instead of hanging with no TTY to answer
+# it. Unconditional (not gated on LANE_VENDOR): every lane's git operations
+# are in scope, not just vendor-routed ones.
+export GIT_ASK_YESNO=false
 
 # @description Map LANE_VENDOR to the vendor CLI's own HOME-style env var
 #   (T5a spec section 3: "map vendor->var; one var per vendor", frozen).
