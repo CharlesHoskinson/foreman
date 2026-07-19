@@ -722,3 +722,86 @@ proposed enhancement. Newest at the bottom.
   round-ownership/pueue-daemon design (lanes run THROUGH lane-run --round
   under the daemon) remains the structural fix; until lanes are dispatched
   that way, detect-and-recover stays a manual architect duty.
+
+## 2026-07-19 — install.ps1 fails to parse on Windows PowerShell (mklink line)
+
+- **Phase:** install (Windows skill link)
+- **What happened:** `powershell -ExecutionPolicy Bypass -File .\install.ps1` aborted with a
+  ParserError before doing anything: `Unexpected token '$Link" "$Target" | Out-Null ...'` at
+  `install.ps1:48 char:26`, on the line `cmd /c mklink /J "$Link" "$Target" | Out-Null`.
+- **Evidence:** reproduced from `C:\foreman` on Windows PowerShell 5.1/7; the parser flagged
+  `mklink /J "$Link" "$Target"` — PowerShell tries to parse `/J` and the quoted args as expressions.
+- **Root cause:** `cmd /c mklink ...` with `/J` and interpolated quoted paths is being parsed by
+  PowerShell's own tokenizer, not passed through to cmd. Native-arg passing needs the call operator
+  and/or `--%` stop-parsing, e.g. `cmd /c mklink /J "`"$Link`"" "`"$Target`""` or
+  `& cmd /c "mklink /J `"$Link`" `"$Target`""`, or use `New-Item -ItemType Junction -Path $Link -Target $Target`.
+- **Impact:** Windows-side skill linking is completely broken; `/foreman` never becomes invokable in a
+  Windows Claude Code session. WSL `install.sh` works fine, so the run proceeded WSL-only, but a
+  Windows-host architect cannot invoke the skill at all.
+- **Proposed enhancement:** replace the `cmd /c mklink` line with `New-Item -ItemType Junction` (PS 5+),
+  or apply the stop-parsing/backtick-quoting fix; add a smoke test that runs install.ps1 in CI on windows-latest.
+
+## 2026-07-19 — grok headless --prompt-file: single short burst, writes NOTHING on exploration-heavy specs
+
+- **Phase:** Use — routine implementer lane (grok-4.5, headless)
+- **What happened:** three grok rounds via
+  `grok --prompt-file SPEC -m grok-4.5 --no-plan --allow Write --allow Edit [--allow Read --allow Bash] --cwd ...`
+  each exited code 0 after emitting only a few sentences of plan/orientation narration
+  ("I'll start by reading the run context... Next I'll inspect the ledger-v8 API... reading that next")
+  and created ZERO files — even with `--allow Write --allow Edit` present and `--no-plan` set.
+- **Evidence:** `/tmp/grok-run{1,2}.log` were 0–1 lines of narration; `ls` of the three named deliverables =
+  NONE after each run. grok DID perform Read calls (it surfaced a real API fact: `ZswapLocalState.applyCollapsedUpdate`),
+  so it was not a permission cancel of writes — the single burst simply ended during the read/orient phase
+  before any Write was attempted.
+- **Root cause:** `--prompt-file` (and `-p/--single`) are documented as *single-turn* — grok runs one bounded
+  agentic burst and exits; `--max-turns` did not visibly extend it. Any spec that asks grok to read/introspect
+  before writing spends the whole burst on orientation and produces nothing. grok-implementer.md's "specs must be
+  fully determined" is necessary but under-enforced, and its example invocation gives no guard against this.
+- **Impact:** exploration-then-implement tasks (research-heavy work) are unachievable via `--prompt-file`; the
+  architect must do ALL exploration first and hand grok a spec whose FIRST action is a Write. Cost the run two
+  wasted rounds before the architect took the introspection back in-house.
+- **Proposed enhancement:** (1) grok-implementer.md: state plainly that `--prompt-file` is single-burst and that
+  the spec's first instruction must be "Write <file> now; do not read first" with the needed API facts inlined
+  (zero required reads). (2) For sustained/exploratory work, route through `grok agent stdio|headless` (the
+  multi-turn protocol) or wrap in `lane-run --round` which owns the round to completion. (3) Add an evidence
+  post-check that flags `files_changed == 0` as a FAILED round (grok-implementer already suggests this for
+  cancelled-writes; extend it to the empty-burst case with a distinct hint).
+
+## 2026-07-19 — codex `login --device-auth` falls back to localhost:1455 browser flow (no device code) on codex-cli 0.144.6
+
+- **Phase:** Setup — vendor authentication (auditor lane)
+- **What happened:** on a headless WSL host, `codex login --device-auth` printed the SAME output as plain
+  `codex login`: "Starting local login server on http://localhost:1455 ... navigate to this URL ...", i.e. a
+  browser-redirect OAuth requiring a localhost callback — not a device-code/user-code flow. It also prints the
+  hint "On a remote or headless machine? Use `codex login --device-auth` instead" while `--device-auth` produced
+  that very localhost flow.
+- **Evidence:** `codex login --help` (0.144.6) lists only `--with-api-key` / `--with-access-token` (no
+  `--device-auth`); the runtime hint references a flag the help doesn't document; `/tmp/codex-login.log` showed the
+  localhost:1455 server both with and without the flag. The login server also does not survive detachment without a
+  keepalive, so orchestrator-launched attempts died (SIGTERM/SIGKILL) before the operator could complete it.
+- **Root cause:** codex-cli 0.144.6 has no working headless device-code path; `--device-auth` is either unsupported
+  or aliased to the localhost flow, which needs a browser reaching localhost:1455 (unreliable across the WSL
+  boundary) and a long-lived foreground process.
+- **Impact:** codex (default auditor, GPT-5.6 Sol) could not be authenticated headlessly/orchestrator-driven;
+  the run fell back to Opus-in-session as auditor. Any host without a Windows-browser-to-WSL-localhost path can't
+  auth codex via Setup's documented `codex login`.
+- **Proposed enhancement:** foreman-setup / reference-environment should (a) pin/require a codex-cli version whose
+  `--device-auth` yields a real user-code, or document the `--with-api-key` (OPENAI_API_KEY) path as the headless
+  fallback for codex; (b) note that `codex login`'s localhost server must be run by the operator in a persistent
+  foreground shell (via `! codex login`), never launched-and-detached by the orchestrator.
+
+## 2026-07-19 — soft-mode worktree fan-out doesn't fit a stateful live-network target (env not clean-checkout-able)
+
+- **Phase:** Use — mode/lane selection
+- **What happened:** the target work needed the full Midnight runtime (wallet SDK in a pinned sub-repo's
+  `node_modules`, a running proof-server container, and live testnet endpoints). A foreman worktree of the outer
+  repo does not carry the sub-repo's installed deps or the running services, so `wt-new`/durable-lane isolation
+  breaks the very environment the verification needs.
+- **Evidence:** the SDK lives under `repos/example-counter/counter-cli/node_modules` (a pinned vendored sub-repo),
+  not in the tracked worktree; verification requires the proof server on :6300 and the public indexer/RPC.
+- **Root cause:** foreman's parallel-worktrees doctrine assumes the buildable/verifiable unit == the git worktree.
+  It does not model a target whose runtime state is external to the checkout (installed deps, live services).
+- **Impact:** had to run soft-mode with grok invoked directly in the live working dir (no worktree isolation);
+  the durable-lane/gate machinery was bypassed.
+- **Proposed enhancement:** document a "stateful/live-target" soft-mode profile — grok runs in the working checkout,
+  architect verifies against the live services, no worktree — and note when worktree fan-out is inapplicable.
