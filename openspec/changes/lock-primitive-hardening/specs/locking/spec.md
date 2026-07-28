@@ -121,9 +121,19 @@ resolves to, is available to it, and SHALL refuse every acquisition otherwise.
 A verdict is **trusted** only WHERE it states `atomic` on one of exactly two
 evidence classes:
 
-- `syscall` — a trace taken on this host observed the create issued to the
-  kernel and the kernel returning `EEXIST` (or `ERROR_ALREADY_EXISTS`), as
-  recorded by `env/tool-check.sh` or `env/tool-check.ps1`; or
+- `syscall` — a trace taken on this host observed **the kernel itself
+  arbitrating the exclusion**, as recorded by `env/tool-check.sh` or
+  `env/tool-check.ps1`. What satisfies this is **mechanism-relative**, and a
+  trace SHALL be interpreted against the mechanism it was taken for:
+  - for the `mkdir` mutex, the create issued to the kernel and the kernel
+    returning `EEXIST` (or `ERROR_ALREADY_EXISTS`) to the loser;
+  - for `flock`, the `flock(2)` call issued with `LOCK_EX|LOCK_NB` and the
+    kernel returning `EWOULDBLOCK` to the loser while the holder proceeds.
+  IF a trace is evaluated against a mechanism it was not taken for, THEN it
+  SHALL NOT license any verdict. A definition written in one mechanism's terms
+  and applied to another is not evidence — it is the failure this requirement
+  exists to prevent, and it produced a refusal on every reference host when
+  `flock` was measured against `EEXIST`; or
 - `pinned-mechanism` — the resolved primitive is byte-identical, by SHA-256, to
   an entry in the release's pinned atomicity register in
   `env/reference-manifest.toml`; that entry cites a committed `syscall` trace
@@ -245,7 +255,8 @@ to an unproven primitive or refusing without explanation.
 
 The release documentation SHALL state, for each supported host class, whether
 durable lanes are available and on what evidence: WSL and Linux hosts on
-host-produced `syscall` evidence for `flock`; MSYS2 / Git-Bash hosts on
+host-produced `syscall` evidence for `flock` **in its `flock(2)`/`EWOULDBLOCK`
+form**; MSYS2 / Git-Bash hosts on
 `pinned-mechanism` evidence for the `mkdir` mutex; and any host whose resolved
 primitive is absent from the pinned atomicity register as unavailable until a
 digest is pinned.

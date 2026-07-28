@@ -329,7 +329,7 @@ check using a different predicate.
 
 ### Formal models — three subsystems, seven defects
 
-Three Quint models were built against the shipped code and every result re-run
+Four Quint models were built against the shipped code and every result re-run
 by the architect. Two of the three reproduce a defect that was already measured
 in the field, which is what makes them trustworthy; the third reproduces one
 found only by modelling.
@@ -339,6 +339,7 @@ found only by modelling.
 | `eventlog_concurrency` | VIOLATED x2 | holds x2 | 20k samples + Apalache 8 |
 | `audit_gate` | VIOLATED x2 | holds x2 | Apalache 1-10 |
 | `lane_lifecycle` | VIOLATED x2 | holds | Apalache 12 |
+| `evidence_contract` | VIOLATED x3 | holds | 15k samples |
 
 The concurrency counterexample is `seqHolders: Set(0, 1)` — the exact state
 measured live in the uutils `mkdir` finding, derived independently from the code.
