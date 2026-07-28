@@ -1,0 +1,609 @@
+remain responsible for security, correctness, archi-     A. Who This Note Is For
+tecture, taste, and verification while delegating more
+implementation work to agents [3], [9].                     This note is for engineers who already know
+                                                         how to call an LLM and now need to decide how
+   Autoresearch pushes the same transition into ML       much system architecture to place around it. The
+experimentation. The repository exposes a small          reader should be comfortable with Python, Git,
+single-GPU training setup and asks an agent to make      JSON schemas, and basic graph terminology.
+one change at a time. The source characterizes the
+core code as roughly 630 lines and reports that an
+extended run executed about 700 experiments in two       B. Contributions
+days, retaining approximately 20 useful optimiza-           This synthesis makes three contributions. First,
+tions [1], [10].                                         it maps Karpathy’s progression from autoresearch
+   The next architectural step is collaboration.         to AgentHub onto Anthropic’s workflow infrastruc-
+Karpathy wrote that autoresearch should be-              ture. Second, it treats the knowledge graph as the
+come “asynchronously massively collaborative for         shared memory layer that lets multi-agent systems
+agents,” in the style of SETI@home, and that the         scale without copying every worker transcript into
+goal is to emulate a research community rather           an orchestrator’s context. Third, it provides a staged
+than one PhD student [4]. AgentHub is his sketch         build path from one measured loop to a graph-
+of that layer. It combines a bare Git repository, a      grounded swarm.
+SQLite database, an HTTP service, a thin CLI, and
+a message board [2].
+                                                             II. K ARPATHY ’ S L OOP : AUTORESEARCH
+   Anthropic’s infrastructure materials describe a
+parallel progression. The 2024 “Building Effec-          A. The Smallest Autonomous Research Organiza-
+tive Agents” guide advises teams to prefer sim-          tion
+ple, composable patterns [5]. The 2026 Dynamic
+Workflows material extends that idea by moving       Autoresearch begins with a narrow but impor-
+orchestration into generated JavaScript and spawn-tant design choice: the agent is placed inside an
+ing fresh-context sub-agents in parallel [6]. An- executable research harness. The harness exposes a
+thropic’s Knowledge Graph Construction Cookbook   mutable training program, a fixed evaluation metric,
+then shows how unstructured documents can be      a time budget, a Git history, and instructions [1].
+converted into typed entities and relations, resolvedThree files are central:
+into canonical nodes, assembled as a graph, and     1) prepare.py - fixed data preparation and
+queried through serialized subgraphs [7].               evaluation utilities. Not modified by the agent.
+   The important synthesis is that each architecture2) train.py - the model, optimizer, hyperpa-
+externalizes a different bottleneck:                    rameters, and training loop. The experimental
+                                                        surface the agent edits.
+  • A loop externalizes iteration and evaluation.
+                                                    3) program.md - describes the research pro-
+  • A chain externalizes task order.
+                                                        cess, constraints, metric, logging rules, and
+  • A swarm externalizes parallel search and role
+                                                        autonomy policy.
+    specialization.
+                                                   LOOP FOREVER:
+  • A DAG externalizes experiment lineage.            1. Read current train.py and recent history.
+  • A knowledge graph externalizes shared facts,      2. Propose one motivated change (program.md).
+                                                      3. Commit the candidate change.
+    provenance, and cross-session memory.             4. Run training for ~5 minutes.
+                                                            5. Measure val_bpb and peak memory.
+  Karpathy summarized: “You spin up a swarm of              6. If crash: inspect, fix if mechanical, else
+                                                              revert.
+agents, you have them collaborate to tune smaller           7. If val_bpb improves: keep commit.
+models, you promote the most promising ideas to                Else: reset to previous retained commit.
+                                                            8. Record result and continue without asking
+increasingly larger scales, and humans optionally             human.
+contribute on the edges.”
+B. Programming the Program                                 2) The action is reversible. Git reset returns to
+   The most transferable idea is that program.md              the last retained state.
+is programming the program. In Software 1.0,               3) The horizon is short. Five-minute runs create
+the developer writes explicit instructions. In Soft-          frequent feedback.
+ware 2.0, the developer shapes behavior through            4) The environment is bounded. The repository
+data and training. In Software 3.0, Karpathy ar-              narrows the action space.
+gues that context and prompts become a pro-                 These form a reusable template:
+grammable interface [3], [9]. Autoresearch adds an-        def ratchet_loop(inspect, propose, apply, evaluate,
+                                                                            keep, revert, better, baseline):
+other layer: natural-language instructions configure           history, current = [], baseline
+an autonomous organization.                                    while True:
+                                                                   state = inspect()
+   A useful program.md establishes: the mutable                    change = propose(state)
+and protected files, the metric and direction, the ex-             commit = apply(change)
+                                                                   try:
+periment budget, the run command, output parsing,                      score = evaluate()
+crash handling, commit/revert rules, logging, human                except Exception as exc:
+                                                                       revert(commit)
+escalation policy, and exhaustion criteria.                            history.append(Trial(commit, change,
+                                                                                            None, "crash",
+                                                               str(exc)))
+C. Reported Results and What They Mean                                 continue
+                                                                   if better(score, current):
+   The supplied brief reports approximately 700                        keep(commit); current = score
+experiments over two days and 20 retained opti-                        history.append(Trial(commit, change,
+                                                                                            score, "kept",
+mizations, including changes around QK normal-                 ""))
+ization scaling, value-embedding regularization, and               else:
+                                                                       revert(commit)
+AdamW parameter tuning. An overnight agent re-                         history.append(Trial(commit, change,
+                                                                                            score,
+port shows cumulative improvements from batch-                 "reverted", ""))
+size changes, depth changes, embedding learning
+rate, RoPE base frequency, targeted weight decay,            Karpathy calls recursive model improvement “the
+initialization scale, and warmdown settings [1], [10].    final boss battle” and says frontier labs will pursue
+   The architectural lesson is more reliable than         it [3].
+any one optimization. A human researcher typically
+carries hypotheses, failed attempts, and parameter            III. F ROM L OOP TO S WARM : AGENT H UB
+interactions in working memory. Autoresearch con-         A. GitHub for Agents, Not Humans
+verts these into a machine-readable history. Every           AgentHub describes itself as an agent-first col-
+experiment has a parent state, a code diff, a met-        laboration platform: a bare Git repository plus a
+ric, and a keep-or-discard decision. The loop can         message board for swarms [2]. Its central slogan:
+explore narrow optima, revisit prior lineages, and        GitHub is for humans. AgentHub is for agents.
+continue after a failure.                                    Agent research inverts human Git assumptions.
+   The repository has accumulated more than 86,000        Thousands of agents can explore simultaneously.
+GitHub stars and 12,500 forks. Repository popu-           Most results may never be merged. A failed experi-
+larity is not a scientific performance measure. It is     ment can still contain useful evidence. The primary
+better interpreted as evidence that the pattern is easy   operation is no longer “merge this into main.” It is
+to understand and reproduce: the code is small, the       “traverse the search graph.”
+metric is visible, and the experiment loop is legible.       AgentHub removes convergence abstractions: no
+                                                          required main branch, no pull requests, no merge
+D. Why the Loop Works
+                                                          queue, no assumption that one leaf is canonical.
+  Four conditions make autoresearch unusually
+compatible with autonomous agents:                B. Minimal Architecture
+ 1) The output is verifiable. Training produces a   The source repository describes a compact im-
+    measurable validation result.                 plementation: one Go server binary, one SQLite
+database, one bare Git repository on disk, one API        one condition. A discussion post can describe why,
+key per agent, rate limiting and bundle-size limits,      cite the experiment lineage, and suggest a different
+and a thin ah command-line interface.                     branch point.
+   The design deliberately separates mechanism               The system reduces context copying. An agent
+from culture. AgentHub does not know whether the          does not need every prior transcript. It can query
+agents optimize validation loss, fix tests, search for    relevant lineages, read a few summaries, fetch a
+vulnerabilities, or design APIs. The prompts and          commit, and continue. This is the beginning of
+project instructions define what agents post, how         graph-grounded context construction: retrieve the
+they describe results, and which experiments they         connected state needed for the current decision
+attempt.                                                  rather than replay the entire history.
+C. The CLI as a Graph Interface                           F. AgentHub Is a Sketch
+ ah push                  # Push HEAD commit to hub.
+ ah fetch <hash>          # Fetch any commit.
+                                                     The repository explicitly warns: “Work in
+ ah log [-agent X]       # Show recent commits.   progress. Just a sketch. Thinking...” [2]. Important
+ ah children <hash>       # What was tried above
+     this?
+                                                  missing concerns include distributed storage, reposi-
+ ah leaves                # Frontier: no children.tory compaction, trust among agents, malicious bun-
+ ah lineage <hash>        # Ancestry path to root.
+ ah diff <hash-a> <hash-b> # Compare any two      dles, experiment reproducibility, semantic duplicate
+     commits.                                     detection, compute scheduling, and long-term graph
+                                                  indexing.
+   These commands encode a different unit of col-
+                                                     This limitation strengthens the architectural les-
+laboration. children asks which ideas were tried
+                                                  son. The repository identifies which conventional
+on top of a result. leaves reveals the unexplored
+                                                  abstractions fail first when agents become numer-
+frontier. lineage reconstructs the path that pro-
+                                                  ous: a single main branch, human-paced review,
+duced an outcome.
+                                                  transcript-based memory, and merge-centered col-
+D. The DAG Is the Graph                           laboration.
+   The key insight is literal: the DAG is the graph.
+                                                            IV. A NTHROPIC ’ S I NFRASTRUCTURE : F ROM
+Commits are nodes. Parent links are directed edges.
+                                                                F IVE PATTERNS TO 1,000 AGENTS
+For autoresearch, a commit node can carry: the
+parent commit, the agent that created it, the hy-         A. The Five Workflow Patterns
+pothesis, the code diff, the metric, the runtime, the
+                                                             Anthropic’s 2024 guidance recommends begin-
+memory usage, the environment, the keep-or-discard
+                                                          ning with the simplest composable pattern [5]:
+status, links to discussion posts, and links to related
+                                                             Prompt Chaining. One model call produces an
+experiments.
+                                                          artifact for the next. Fixed sequence.
+   A traversal can answer questions that are awk-
+                                                             Routing. A classifier sends input to a specialized
+ward in a conventional branch model: which re-
+                                                          prompt, model, or tool set.
+tained result has the best metric under a memory
+                                                             Parallelization. Independent calls run concur-
+limit? Which experiments descend from the batch-
+                                                          rently. Sectioning or voting.
+size change? Which agents independently rediscov-
+ered the same optimization? Which leaves have no             Orchestrator-Workers. A central model dynam-
+evaluation? Which lineages improve quickly and            ically decomposes, assigns, and synthesizes.
+then stagnate?                                               Evaluator-Optimizer. One role generates, an-
+                                                          other evaluates against criteria in a loop.
+E. Collaboration Without Shared Context
+   The message board provides the social layer. B. Dynamic Workflows
+Agents can post hypotheses, failures, summaries,    Instead of the developer writing a static fan-
+and coordination notes. A discarded change may out script, Claude writes a JavaScript orchestration
+still teach other agents that an idea fails under program for the current task [6]:
+                                                         class Relation(BaseModel):
+ const files = await tools.glob("src/**/*.ts");              source: str
+ const audits = await gather(                                predicate: str
+   files.map((file) =>                                       target: str
+     spawn("auditor", {
+        file,                                            def extract(text, client) -> ExtractedGraph:
+        instructions:                                        response = client.messages.parse(
+          "Inspect for race conditions. Return JSON."            model="claude-haiku-4-5",
+     })                                                          messages=[{"role": "user",
+   ),                                                                       "content":
+   { concurrency: 16 }                                       PROMPT.format(text=text)}],
+ );                                                              output_format=ExtractedGraph,
+ const suspicious = audits.filter(                           )
+   (r) => r.confidence >= 0.70                               return response.parsed_output
+ );
+ const reviews = await gather(
+   suspicious.map((r) =>                                  The Pydantic schema is the only “training data.”
+     spawn("reviewer", {                                The trained NER and relation classifier collapse into
+        report: r,
+        instructions:                                   one structured-output prompt per document.
+          "Try to refute this finding."
+     })                                                 D. Entity Resolution as a Reasoning Task
+   ),
+   { concurrency: 16 }                                     Extraction creates surface forms, not a clean
+ );
+ return await spawn("synthesizer", {                    graph. The same person or organization may appear
+   audits, reviews,
+   instructions: "Produce one cited report."
+                                                        under abbreviations, aliases, former names, spelling
+ });                                                    variants, or partial names. Simple string similar-
+                                                        ity misses cases where labels differ substantially
+   Key specifications: up to 16 concurrent sub-         (“Edwin Aldrin” vs “Buzz Aldrin” - zero character
+agents, hard cap of 1,000 per workflow, fresh           overlap) and can incorrectly merge people who
+context for each sub-agent, intermediate state in       share names.
+script variables, trigger via word “workflow” or           The cookbook uses descriptions as contextual
+ultracode mode.                                         evidence. It groups candidates by entity type, then
+   The Bun runtime port: approximately 750,000          asks a stronger model to propose canonical clusters.
+lines Zig to Rust in 11 days, 99.8% tests pass-         At scale, cheap blocking signals should narrow the
+ing [12].                                               candidate set before model arbitration.
+                                                           Resolution should be additive and inspectable.
+C. Knowledge Graph Construction
+                                                        A canonical entity should retain its aliases, source
+   Anthropic’s Cookbook replaces a classical            documents, resolution rationale, confidence, and the
+NLP pipeline with model calls and structured            run that created the merge. Incorrect merges can
+schemas [7]:                                            then be reversed without reconstructing the entire
+  1) Extraction (Haiku). Schema-constrained call        pipeline.
+     extracts typed entities and S-P-O relations.
+                                                   E. Graph Assembly and Querying
+  2) Resolution (Sonnet). Candidates clustered by
+     type and context. “Edwin Aldrin” → “Buzz        A property-style graph stores the minimum useful
+     Aldrin.”                                      provenance:
+  3) Assembly. NetworkX MultiDiGraph. Nodes G = nx.MultiDiGraph()
+     carry type, source, count. Edges carry predi- def add_entity(entity, source_doc):
+     cate, provenance.                                  G.add_node(entity.canonical_id,
+                                                            name=entity.name,
+  4) Querying (Sonnet). Serialize subgraph as               entity_type=entity.type,
+                                                            description=entity.description,
+     triples. Claude reasons with edge-level cita-          source_docs={source_doc},
+     tions.                                                 aliases=set(entity.aliases))
+
+ class Entity(BaseModel):                                def add_relation(relation, source_doc):
+     name: str                                               G.add_edge(relation.source_id,
+     type: EntityType                                            relation.target_id,
+     description: str                                            predicate=relation.predicate,
+                                                                 source_doc=source_doc,
+                       TABLE I                                              validator.check_provenance(
+  G RAPH ROLES ACROSS A NTHROPIC W ORKFLOW PATTERNS                             update.nodes, update.edges, update.run_id)
+                                                                            with graph.transaction() as tx:
+                                                                                tx.upsert_versioned_nodes(update.nodes)
+  Pattern           Graph Role         How It Helps                             tx.add_edges(update.edges)
+  Augmented LLM     Retrieval source   Graph traversal for multi-               tx.link_run(update.run_id, update.agent_id,
+                                       hop questions                                        update.nodes, update.edges)
+  Prompt Chaining   Gate signal        Check entities against cur-              tx.commit()
+                                       rent graph
+  Routing           Classifier input   Entity type and degree route      Grounding layer. An evaluator checks claims
+                                       queries
+  Parallelization   Shared surface     Workers      publish    non-   against evidence. Consider the claim: “Vendor
+                                       overlapping findings           X supplied the component involved in Incident
+  Orch.-Workers     Shared memory      Workers read/write graph;
+                                       orchestrator stays clean       Y.” A graph-grounded evaluator can check for
+  Eval.-Optimizer   Grounding layer    Evaluator checks claims        edges (Vendor X, supplied, Component
+                                       against graph edges
+                                                                      Z) and (Component Z, involved_in,
+                                                                      Incident Y). When an edge is missing, the
+                                                                      evaluator returns structured feedback:
+            confidence=relation.confidence)
+                                                                       {
+                                                                           "decision": "revise",
+    Multi-hop querying should not dump the whole                           "claim": "Vendor X supplied the component in Y",
+graph into the model. The application identifies                           "reason": "No supported path from Vendor X to Y",
+                                                                           "required_evidence": [
+starting entities, traverses a bounded neighborhood,                         "A source-backed supplied relation",
+filters edges by type or date, and serializes the                            "A source-backed involved_in relation"
+                                                                           ]
+result. The answer can cite edge identifiers. If a                     }
+statement is unsupported, the evaluator can identify
+the missing or contradictory edge.                                       This is more actionable than a free-form critique.
+                                                                         Persistent world model. The phrase the agent
+F. From “You Build the Workflow” to “Claude                           forgets, the graph does not captures the distinc-
+Builds the Workflow”                                                  tion. Persistence enables: long-running investiga-
+   The 2024 guide says engineers should build                         tions, cross-session planning, incremental document
+simple workflows. The 2026 feature says Claude                        ingestion, contradiction tracking, temporal facts,
+can build a workflow on the fly. This changes the                     versioned decisions, audit trails, handoff between
+abstraction boundary but does not remove engi-                        different models, and recovery after a failed run.
+neering responsibility. The human still defines: the A. The Commit DAG and Knowledge Graph Are
+objective, the files in scope, the output contract, the Complementary
+permissions, the verification policy, the concurrency
+                                                          AgentHub’s commit DAG represents work lin-
+and token budget, the rollback rule, and the evidence
+                                                        eage. A knowledge graph represents domain
+required for synthesis.
+                                                        knowledge. They should not be collapsed.
+      V. T HE G RAPH AS S HARED M EMORY                   The commit DAG answers: What changed?
+                                                        Which experiment is the parent? Which agent pro-
+   Three roles of the graph:
+                                                        duced the change? Which lineages remain active?
+   Shared memory. Workers write findings as struc-
+                                                          The knowledge graph answers: Which entities
+tured graph updates. A synthesizer traverses the
+                                                        exist? How are they related? Which sources support
+graph to combine findings even if no worker saw
+                                                        the relation? Which claims conflict?
+all source documents.
+                                                          A production platform connects the two:
+ @dataclass
+ class GraphUpdate:                                                    (agent_run_183)
+     nodes: list[dict]                                                     -produced-> (claim_441)
+     edges: list[dict]                                                     -modified-> (commit_a81f)
+     run_id: str                                                           -evaluated_by-> (evaluation_92)
+     agent_id: str
+                                                                       (claim_441)
+ def publish(update, graph, validator):                                    -about-> (entity_autoresearch)
+     validator.check_schema(update.nodes,                                  -supported_by-> (source_readme)
+     update.edges)                                                         -supersedes-> (claim_238)
+B. Context Construction From a Graph                           ]
+                                                           }
+   The graph should not become a new form of
+context dumping. Each worker needs a task-specific           Validate dependencies before execution. Preserve
+subgraph. A context builder can: (1) resolve entities     successful work during replanning. Cap retries and
+mentioned in the task; (2) expand one or two hops         total cost.
+over allowed edge types; (3) include current artifact
+versions; (4) prioritize recent verified claims; (5)      D. Week 2: Go Multi-Agent
+include conflicts and uncertainty; (6) serialize within     Begin with generator and critic. A useful software
+a token budget; (7) attach stable edge identifiers for    configuration includes: planner, implementer, test
+citation.                                                 author, reviewer, security reviewer, and synthesizer.
+                                                          Every handoff should be an artifact contract. A
+ VI. P RACTICAL B UILD PATH : F ROM L OOP TO
+                                                          reviewer returns criterion-level defects, not “looks
+                   G RAPH
+                                                          good.” Use worktree isolation when multiple coding
+A. Day 1: Build Karpathy’s Loop                           agents modify the same repository.
+  Take one existing LLM call whose output can
+be evaluated. Add: stored first draft, evaluator with E. Month 1: Wire Into a Graph
+explicit criteria, revision step, stopping rule. Store    Begin with versioned JSON or relational tables.
+every artifact.                                        Store: entities, claims, sources, relations, artifacts,
+ def reflective_task(task, gen, eval, max_rounds=3):   agent runs, evaluations, versions, aliases, open ques-
+     versions = [gen(task)]
+     for _ in range(max_rounds):
+                                                       tions. Add entity extraction with Haiku and resolu-
+          review = eval(task, versions[-1])            tion with Sonnet. Attach provenance to every edge.
+         if review["decision"] == "approve":
+             return {"result": versions[-1],
+                     "versions": versions}                F. Month 2: Scale to a Swarm
+         versions.append(gen(task,
+     prior=versions[-1],                                 Select one embarrassingly parallel workload: au-
+      instructions=review["changes"]))
+                                                      dit every file for one defect class, extract entities
+      return {"result": versions[-1],                 from thousands of documents, generate tests for
+               "status": "iteration_limit"}
+                                                      independent modules, compare candidate configura-
+                                                      tions, or investigate independent hypotheses. Define
+B. Day 2: Add Tools                                   a reducer before fan-out. Set concurrency limit, total
+    Add one tool that addresses a measured failure. worker cap, token budget, per-worker timeout, retry
+Code execution, web search, database access, or policy, evidence contract, deduplication policy, and
+file operations. Each tool requires typed schema, final evaluation gate.
+permissions, and result confirmation.
+                                                      G. Reference Production Architecture
+C. Week 1: Add Planning                                  A practical architecture separates five planes:
+    Use planning only when the task path varies.         Control plane. Receives objectives, creates
+Require a JSON plan before execution:                 plans, allocates budgets, starts workflows, and de-
+  {                                                   cides when to stop.
+    "objective": "Construct verified knowledge
+      graph",
+                                                         Execution plane. Runs tools, tests, training jobs,
+    "steps": [                                        code modifications, and sub-agents in isolated envi-
+      {"id": "s1", "action": "extract",
+       "input": "documents", "depends_on": [],        ronments.
+       "success": "Each doc returns ExtractedGraph"},    Artifact plane. Stores plans, drafts, code
+      {"id": "s2", "action": "resolve_entities",
+       "input": "s1.entities", "depends_on": ["s1"],  changes,   reports, metrics, and evaluations as im-
+       "success": "Every surface form maps to one     mutable versions.
+      ID"},
+      {"id": "s3", "action": "assemble_graph",           Graph plane. Stores entities, claims, relations,
+       "input": ["s1.relations", "s2.mapping"],
+       "depends_on": ["s1", "s2"],
+                                                      provenance, experiment lineage, and task dependen-
+       "success": "All endpoints resolve to nodes"}   cies.
+                           TABLE II                                                                        TABLE III
+                   I MPLEMENTATION T IMELINE                                                     E VALUATION M ETRICS BY L AYER
+
+Stage              Time      Complexity   Exit Criterion                            Layer          Metric                   Common      Misread-
+                                                                                                                            ing
+Reflective loop    Day 1     Low          Measured quality improvement
+Tool use           Day 2     Low          Tool reduces known error class            Extraction     Entity/relation F1       High precision hides
+Planning           Week 1    Medium       Variable tasks complete                                                           missing entities
+Multi-agent        Week 2    Medium       Role split beats single agent             Resolution     Pairwise prec./recall    Compression alone
+Persistent graph   Month 1   High         Cross-session queries work                                                        rewards over-merging
+Swarm workflow     Month 2   High         Wall-clock gain, no quality loss          Graph          Components, density      One component is not
+                                                                                                                            always desirable
+                                                                                    Query          Accuracy, cited paths    Fluent answers can
+                                                                                                                            cite irrelevant edges
+                                                                                    Workflow       Task success, cost       More agents can in-
+  Evaluation plane. Runs deterministic checks,                                                                              crease activity with-
+model evaluators, statistical scorers, and human                                                                            out value
+                                                                                    Operations     Recovery, corrections    Average success hides
+review.                                                                                                                     catastrophic cases
+  The separation prevents one chat transcript from
+becoming the database, workflow engine, and audit
+                                                                                                         TABLE IV
+log.                                                                                     W HEN TO U SE E ACH A RCHITECTURE L EVEL
+
+           VII. E VALUATION AND Q UALITY                                     Situation                      Start With            Why
+A. The Evaluation Feedback Loop                                              Simple low-risk question       Zero-shot             Lowest latency
+                                                                             Output can be checked          Loop                  Repeated feedback im-
+  The evaluation harness has the same shape as                                                                                    proves artifact
+                                                                             Stable sequence                Chain                 Predictable,     testable
+autoresearch:                                                                                                                     stages
+ Read current extraction prompt and score history                            Clear categories               Router                Separates policies and
+   -> Propose one prompt or schema change                                                                                         models
+   -> Run extraction on gold set                                             Independent units              Parallel              Reduces wall-clock time
+   -> Compute precision, recall, F1, cost, latency                           Variable decomposition         Orch.-workers         Dynamic specialization
+   -> If improved: keep change                                               Alternatives must remain       Commit DAG            Preserves     experiment
+   -> If worse: revert change                                                                                                     branches
+                                                                             Facts must survive sessions    Knowledge graph       Persistent shared mem-
+                                                                                                                                  ory
+   This is graph autoresearch. The artifact being                            Very large parallel work       Dynamic workflow      Automates fan-out and
+optimized is not train.py; it is the extraction                                                                                   fan-in
+
+prompt, ontology, resolution policy, or query seri-
+alizer.
+                                                                             Create adversarial cases with misleading aliases,
+B. Extraction and Resolution Metrics                                         contradictory dates, and disconnected paths.
+   Create a gold set. Measure entity precision, recall,                      D. Monitoring in Production
+F1, schema-valid response rate, cost, and latency.
+For resolution: compression ratio (raw surface forms                            Track trends rather than isolated scores: ex-
+/ canonical entities), pairwise precision and recall,                        traction rate by document type, schema failure
+false merge rate, missed merge rate, and manual                              rate, resolution compression, connected-component
+review rate. A high compression ratio is not auto-                           changes, query latency, subgraph size, cited-edge
+matically good - over-merging creates a connected                            validity, token cost, stale entity count, graph update
+but false graph.                                                             failures, and agent retry rates. A sudden increase in
+                                                                             isolated nodes may signal resolution regression. A
+C. Query Evaluation                                                          sudden decrease may signal over-merging.
+   Multi-hop answers should be evaluated against                   VIII. D ECISION F RAMEWORK
+both the answer and the path. A valid answer must:
+resolve question entities correctly, retrieve a relevant A. Six Selection Questions
+subgraph, use supported edges, respect time and            1. Can success be verified? If not, do not
+source constraints, distinguish fact from inference, begin with autonomy. Define a test, rubric, source
+cite the edges used, and identify missing evidence. requirement, or human decision.
+   2. Are the steps stable? If yes, use a chain. If      training platform. The correct transfer is the archi-
+no, consider planning or an orchestrator.                tecture: bounded changes, measurable evaluation,
+   3. Are subtasks independent? If yes, parallelize.     reversibility, and durable history.
+If no, model dependencies explicitly and limit con-
+current writes.                                          B. Metrics Can Be Gamed
+   4. Must alternative lineages remain available?
+If yes, use a DAG rather than forcing every result          A ratchet improves the metric it can see. It may
+into one branch.                                         reduce validation loss while increasing inference
+   5. Must facts survive the run? If yes, persist        cost, decreasing robustness, or overfitting the eval-
+artifacts and graph state. Do not rely on transcript     uation set. For model training, retain constraints on
+summaries.                                               memory, throughput, stability, and generalization.
+   6. Can the organization afford the cost and           For knowledge graphs, optimize extraction quality
+latency? Set budgets before adding workers.              without destroying resolution precision or query
+                                                         latency.
+B. Complexity Budget
+   Every run should declare: maximum model calls,        C. AgentHub Is Not Production Software
+maximum sub-agents, maximum concurrent work-
+ers, maximum tool calls, maximum wall-clock time,           AgentHub explicitly presents itself as a
+maximum tokens, maximum financial cost, maxi-            sketch [2]. A production version would need
+mum retries, maximum graph writes, and minimum           stronger authentication, authorization, isolation,
+evidence required for finalization.                      abuse prevention, storage durability, indexing,
+   When the budget is exhausted, return the best         observation, reproducibility, conflict policy, and
+current artifact, completed work, unresolved issues,     governance. A DAG can also grow without bound
+and a reason for stopping. Do not hide partial failure   and needs pruning, archiving, and summarization.
+behind a fluent final answer.
+                                                         D. Dynamic Workflows Are Expensive
+C. When Not to Use a Graph
+   Do not introduce a knowledge graph merely be-            Large fan-out consumes tokens quickly. A 1,000-
+cause the system has agents. A graph may be unnec-       sub-agent run at high effort can cost tens of dol-
+essary when: tasks are independent, no cross-session     lars [6]. Parallel workers also create correlated er-
+state is required, answers depend on one document,       rors. A verification wave helps only if reviewers
+relations are fixed and simple, a relational table       have a different prompt, evidence set, or role.
+answers every query, provenance is not needed, or
+extraction errors would outweigh traversal value.        E. Fragmentation Can Reduce Quality
+   A graph earns its cost when connected queries,
+                                                            Some tasks require one coherent context. Ar-
+evolving relations, provenance, or shared world state
+                                                         chitecture design, narrative writing, tightly coupled
+are central.
+                                                         refactors, and subtle product decisions may degrade
+                 IX. L IMITATIONS                        when divided into isolated units.
+A. Autoresearch Does Not Equal Frontier Research
+                                                         F. Knowledge Graphs Reflect Their Corpus
+  Karpathy’s small harness works because the
+repository and metric are bounded. Frontier train-          A graph is only as good as its sources, extraction
+ing systems contain distributed infrastructure, data     prompts, ontology, and resolution policy. A biased
+pipelines, hardware failures, security constraints,      corpus produces a biased graph. Missing documents
+many objectives, and experiments requiring days or       produce missing edges. The graph preserves claims,
+weeks. A loop that works on one GPU does not             sources, and relationships so they can be inspected
+prove an agent can safely self-modify a production       - it does not convert claims into truth.
+G. Entity Resolution Can Cause Catastrophic Er- A commit DAG remembers which work descends
+rors                                                 from which experiment. A knowledge graph remem-
+   A false merge can contaminate many traversals. bers which claims connect to which entities and
+If two people are collapsed into one node, every sources. Together, these structures prevent agents
+downstream query may combine their employers, from rebuilding the world from scratch in every
+projects, dates, and actions. Resolution must retain context window.
+aliases, evidence, confidence, and reversible deci-     The practical recommendation is incremental:
+sions.                                                build one measured loop, make failures reversible,
+                                                      add one tool for one error class, plan only when
+H. The Graph Amplifies Builder Judgment
+                                                      paths vary, split roles only when specialization adds
+   A loop amplifies the objective and evaluator signal, store artifacts before storing conversations,
+chosen by the builder. A graph amplifies the on- use a DAG when alternatives should remain alive,
+tology and source policy. If the system is told to use a knowledge graph when relationships and per-
+optimize the wrong thing or represent the world sistence matter, scale to a swarm only when the task
+incorrectly, automation increases the scale of the is parallel and the reducer is defined.
+error. The architecture therefore requires deliberate
+human ownership of specifications, quality bars, and    Each pattern addresses a specific limitation of the
+correction mechanisms.                                previous stage: the loop addresses single-pass errors,
+                                                      tools address knowledge gaps, planning addresses
+                 X. C ONCLUSION                       complexity, multi-agent addresses perspective lim-
+   Karpathy built a loop that turns a compact train- its, the DAG addresses lineage tracking, and the
+ing program into an autonomous experimental pro- knowledge graph addresses persistent shared mem-
+cess. He then described the need for asynchronous ory. The progression is not mandatory, but it is
+collaboration and built AgentHub, where agents directional.
+coordinate through a commit DAG rather than a               Karpathy’s README closes its opening future
+single main branch. Anthropic’s workflow patterns        history with a vision of “autonomous swarms of AI
+provide a production vocabulary for chains, routes,      agents running across compute cluster megastruc-
+parallel workers, orchestrators, and evaluator loops.    tures in the skies” [1]. The near-term engineering
+Dynamic Workflows move variable orchestration            work is less cinematic and more valuable: define
+into generated scripts that spawn up to 1,000 sub-       typed contracts, preserve lineage, evaluate every
+agents. The Knowledge Graph Construction Cook-           change, ground claims, and place memory outside
+book supplies a persistent layer for entities, rela-     the context window.
+tions, provenance, and multi-hop querying.
+   The progression can be stated in three steps:            A reliable graph-engineering system should make
+  1) Vibe coding: the human expresses intent and         this statement true: Every important output can be
+     the model writes.                                   traced to an objective, a plan, an artifact, a source,
+  2) Agentic engineering: the human specifies, or-       a graph path, an evaluator decision, and a bounded
+     chestrates, verifies, and remains responsible for   execution record.
+     quality.                                               When that statement is false, adding more agents
+  3) Graph engineering: agents share durable state       usually increases opacity. When it is true, loops,
+     through typed, queryable graphs of work and         swarms, DAGs, and knowledge graphs become
+     knowledge.                                          composable engineering mechanisms rather than
+   The single most important insight is that the         opaque behavior. The path from loops to graphs is
+bottleneck is often not the next model call. It is the   not a path from simplicity to complexity. It is a path
+placement of memory and evaluation. A loop can           from implicit state to explicit state, from volatile
+remember the current code and a local experiment         memory to durable memory, and from estimation to
+log. A swarm can create many independent contexts.       evidence.
+      ACKNOWLEDGMENT AND S OURCE N OTE                                                                   TABLE VI
+                                                                                                   P RODUCTION C HECKLIST
+  This document is an independent synthesis as-
+sembled for study. It is not affiliated with or en-                            Element                Ask Yourself            Failure If Missing
+dorsed by Andrej Karpathy, Anthropic, Sequoia                                  Objective              Is the task testable?   Agents      optimize
+                                                                                                                              wrong thing
+Capital, Bun, or any other organization mentioned.                             Metric                 Distinguish             Activity     without
+                                                                                                      improvement?            progress
+                           R EFERENCES                                         Reversibility          Can updates be un-      Failed experiment
+                                                                                                      done?                   damages state
+ [1] A. Karpathy, “autoresearch,” GitHub repository, March 2026.               Tool schema            Arguments typed?        Invalid calls, silent
+ [2] A. Karpathy, “AgentHub,” GitHub repository, March 2026.                                                                  errors
+ [3] A. Karpathy, “From Vibe Coding to Agentic Engineering,” Sequoia AI        Artifact contract      What must workers       Inconsistent prose
+     Ascent, April 2026.                                                                              return?
+ [4] A. Karpathy, public post on collaborative agent swarms, March 8, 2026.    Provenance             Every claim has         Outputs        not
+ [5] E. Schluntz and B. Zhang, “Building Effective Agents,” Anthropic                                 source?                 auditable
+     Engineering, December 2024.                                               Resolution policy      Decisions               False merges con-
+ [6] Anthropic, “Dynamic Workflows,” Claude Code orchestration, May                                   reversible?             taminate graph
+     2026.                                                                     Budget                 Limits explicit?        Unbounded
+ [7] Anthropic, Knowledge Graph Construction Cookbook, claude-                                                                resources
+     cookbooks repository.                                                     Monitoring             Metrics tracked?        Regressions invisi-
+                                                                                                                              ble
+ [8] L. Martin, G. Cemaj, M. Cohen, “Scaling Managed Agents,” Anthropic
+                                                                               Recovery               Resume         from     Every interruption
+     Engineering, April 2026.
+                                                                                                      state?                  restarts
+ [9] A. Karpathy, “Software 3.0, Agentic Engineering, and Jagged Intelli-
+     gence,” summary post, April 30, 2026.
+[10] Fortune, “Why everyone is talking about Karpathy’s autonomous AI
+     research agent,” March 17, 2026.
+                                                                     EVALUATES,
+[11] Anthropic, “Building Effective AI Agents: Architecture Patterns,” 2026.              REVISES,         SUPERSEDES,
+[12] J. Sumner, Bun Zig-to-Rust port using Dynamic Workflows, May 2026.
+                                                                     DEPENDS_ON, PARENT_OF, RESOLVED_TO.
+                                                                        Every graph write satisfies four invariants: (1)
+                         A PPENDIX
+                                                                     every claim has a source or is marked inference;
+                                                                     (2) every artifact has an authoring run and version;
+                            TABLE V                                  (3) every evaluation identifies a rubric; (4) every
+                   T ERMS U SED IN T HIS N OTE
+                                                                     superseded object remains addressable.
+   Term                 Meaning                                         A practical default for a graph-grounded agent
+   Autoresearch         Autonomous experimentation repo: agent
+                                                                     task:
+                        edits train.py, evaluates, keeps or reverts    1) Receive objective and constraints
+   AgentHub             Agent-first collaboration: bare Git repo,
+                        SQLite, API, CLI, message board                2) Resolve task entities against the graph
+   DAG                  Directed acyclic graph. Commits are
+                        nodes, parent links are edges                  3) Retrieve bounded subgraph with provenance
+   Agent swarm          Agents that explore, implement, or evalu-      4) Create typed plan, validate dependencies
+                        ate concurrently
+   Dynamic Workflows    Generated scripts that spawn and gather        5) Assign independent steps to isolated workers
+                        sub-agent tasks
+   Knowledge graph      Entities as nodes, typed relations as edges,   6) Require structured artifacts and evidence
+                        with provenance                                7) Publish candidate graph updates
+   Structured outputs   Model responses constrained to a Pydantic
+                        schema                                         8) Validate schemas, permissions, provenance
+   Provenance           Where a claim came from, which run
+                        produced it                                    9) Run deterministic tests
+   program.md           Natural-language control specification for    10) Run evaluator agents against rubrics
+                        the autoresearch loop
+   Ratchet loop         Iterative process retaining only metric im-   11) Resolve conflicts or escalate uncertainty
+                        provements
+   Graph grounding      Constraining generation with facts re-
+                                                                      12) Publish versioned final artifact
+                        trieved from a graph                          13) Link to sources, graph paths, runs, evaluations
+                                                                      14) Record cost, latency, failures, open questions
+  Node types: Entity, Claim, Source,                                    A reliable system makes this true: Every impor-
+Artifact, AgentRun, Evaluation, Task, tant output can be traced to an objective, a plan,
+Commit, Metric.                                                      an artifact, a source, a graph path, an evaluator
+  Edge         types:       MENTIONS,                  SUPPORTS, decision, and a bounded execution record.
+CONTRADICTS, DERIVED_FROM, PRODUCED,
+

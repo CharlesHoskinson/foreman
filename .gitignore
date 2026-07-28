@@ -25,3 +25,8 @@ graphify-out/manifest.json
 # foreman-launch (T1): compiled artifacts + local node_modules are not vendored
 launcher/dist/
 launcher/node_modules/
+
+# Formal verification: model checker output and vendored kit are not deliverables
+formal/.artifacts/
+formal/_apalache-out/
+formal/quint-kit/
