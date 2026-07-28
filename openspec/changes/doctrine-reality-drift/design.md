@@ -116,7 +116,7 @@ the registry.
 has zero completed checkboxes while `ROADMAP.md` records the work as shipped is
 a contradiction between two documents rather than between a document and the
 code, but it is the same defect and the same probe shape. Three exist today
-(`hard-mode-launcher`, `el-emit-spawn-reduction`, `test-harness-fork-tax`), and
+(`el-emit-spawn-reduction`, `test-harness-fork-tax`), and
 R5 flags all three.
 
 **Unstamped workarounds.** R2's P21 and N1 §8.4 together: a workaround added for

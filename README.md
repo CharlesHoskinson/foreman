@@ -257,7 +257,7 @@ and exits; use soft-mode `grok-implementer` / `codex-implementer` instead.
 and open the PR by hand with the evidence summary.
 
 **The upgrade path is an approved spec, not shipped functionality.**
-`openspec/changes/hard-mode-launcher/` is recorded **"APPROVED SPEC
+`openspec/changes/archive/2026-07-19-hard-mode-launcher/` is recorded **"APPROVED SPEC
 (executed next release, not in v0.2.7.5)"** — a next-release design, chosen
 over inventing hard mode's IMPLEMENT stage here so this release stays
 shippable in one cycle. It replaces the old "containerized Docker worker"

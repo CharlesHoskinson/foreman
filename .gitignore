@@ -30,3 +30,6 @@ launcher/node_modules/
 formal/.artifacts/
 formal/_apalache-out/
 formal/quint-kit/
+
+# Apalache/quint verify output at the repo root (quint verify writes here)
+_apalache-out/
