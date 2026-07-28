@@ -826,3 +826,444 @@ proposed enhancement. Newest at the bottom.
 - **Proposed enhancement:** add `*.ps1 text working-tree-encoding=UTF-8-BOM` handling (or a repo hook /
   CI check that fails on a BOM-less .ps1 containing bytes > 127); extend the windows-latest CI smoke test to
   invoke via `powershell.exe` (5.1), not only `pwsh`, so this class of bug is caught.
+
+## 2026-07-28 — Monitor watchdog died instantly (exit 127) arming a WSL lane watchdog
+
+- **Phase:** Use / dispatch (quint-lean-formalization P0 round, two Grok lanes)
+- **Evidence:** `Monitor(command: 'wsl -e bash /root/foreman-wt/watchdog.sh')` → exit 127,
+  stderr `bash: C:/Program Files/Git/root/foreman-wt/watchdog.sh: No such file or directory`
+- **Root cause:** Git Bash MSYS path translation rewrites a bare `/root/...` ARGUMENT into a
+  Windows path before `wsl` sees it. Same family as the known Write-tool WSL path trap, but on
+  the argv side rather than the file-write side.
+- **Impact:** watchdog was silently absent for ~1 min of a two-lane parallel round; a lane hang in
+  that window would have gone unnoticed, which is the exact failure the watchdog exists to prevent.
+  Cost was low only because the failure was loud (exit 127) rather than silent.
+- **Enhancement:** never pass a WSL path as a bare argv element from Git Bash. Always
+  `wsl -e bash -lc '<command with paths inside the quoted string>'`, which is not translated.
+  Worth making the default form in the foreman lane/watch scripts.
+
+## 2026-07-28 — grok-implementer agent backgrounds its run, then stops (strands the round)
+
+- **Phase:** Use / implement (quint-lean-formalization P0, lanes item1 + item2)
+- **Evidence:** lane B agent returned after 22 min / 192k tokens / 50 tool uses with the literal
+  result "I'll pause here and wait for the background watchdog to notify me when the Grok run
+  finishes, rather than continue polling." The grok run it launched (systemd unit grok-p0item2)
+  was still active at that moment and ran to completion unattended. Lane A ran 27 min and never
+  launched a unit at all before I stopped it.
+- **Root cause:** the agent launched the vendor CLI under systemd-run (correct — nohup gets
+  reaped here) but then treated "backgrounded" as "finished" and exited. Nothing owned the round
+  from CMD through gate through report. This is exactly the failure the foreman
+  orchestration-hardening notes describe: the round must be owned end-to-end by the launcher
+  (lane-run.sh --round), never by an agent that can stop mid-flight.
+- **Impact:** two lanes, ~50 min wall clock, zero FOREMAN_REPORT.md written by either. Lane B's
+  work survived only because the systemd unit outlived its parent agent. Lane B exited "success"
+  (ExecMainStatus=0) with a RED BUILD — the worker's exit status is not evidence, confirming the
+  standing rule. Had I trusted the agent's completion notification I would have merged a broken
+  tree.
+- **Enhancement:** dispatch vendor CLI rounds directly as systemd units from the architect and
+  watch the UNIT, not the agent. My first two watchdogs both watched the wrong signal (file
+  mtimes, which my own spec writes perturbed) and produced false STALLs while the real run was
+  healthy. Watch `systemctl is-active <unit>` — that is the round's true liveness.
+
+## 2026-07-28 — backticks in a heredoc eaten by the outer double-quoted wsl -lc wrapper
+
+- **Phase:** Use / dispatch (rework prompt for lane B)
+- **Evidence:** `wsl -e bash -lc "cat > /tmp/p.txt <<'EOF' ... "` — despite the quoted heredoc
+  delimiter, the OUTER double quotes made the Windows-side shell perform command substitution
+  first. Output showed `hEq: command not found`, `termination_by: command not found`,
+  `decreasing_by: command not found`, and the delivered prompt had those three terms silently
+  replaced by empty strings.
+- **Root cause:** `<<'EOF'` protects against the INNER shell only. Anything inside a double-quoted
+  `-lc` argument is expanded by the outer shell before the inner heredoc exists.
+- **Impact:** near-miss. The corrupted prompt would have told Grok to fix a termination error
+  while omitting the three technical terms naming the remedies. Caught within ~10 s because the
+  substitution errors printed; had the eaten tokens not been command-like, it would have been
+  silent and I would have blamed the model for ignoring the guidance.
+- **Enhancement:** never build a prompt or script inline through `wsl -lc "..."`. Write the file
+  with the Write tool to the scratchpad and `cp` it into WSL through /mnt/c, then verify with a
+  grep for a few known-distinctive tokens before dispatch. Same trap family as the Write-tool WSL
+  path hazard — the boundary, not the model, is the hazard.
+
+## 2026-07-28 — grok --prompt-file is SINGLE-TURN; a round can exit 0 having written nothing
+
+- **Phase:** Use / implement (quint-lean-formalization P0 item 1, rework round)
+- **Evidence:** `journalctl -u grok-p0item1b` — the run started 08:53:30, printed a plan ending
+  "Replacing the broken forcing block with a clean rewrite modeled on Metatheory's working
+  proofs.", and deactivated at 08:54:28. 58 s wall, 14 s CPU, **zero files changed**,
+  ExecMainStatus=0, Result=success. `git status --short -- lean` empty; `lake build` still 25
+  errors. `grok --help`: "--prompt-file  Single-turn prompt from a file. Prints the response to
+  stdout and exits."
+- **Root cause:** the headless prompt modes are single-turn. There is an agentic tool-loop inside
+  that turn (lane B's 20-minute round proves it), but the model may end the turn after merely
+  ANNOUNCING the next action. Nothing in the launcher distinguishes "finished the work" from
+  "finished talking".
+- **Impact:** a round reported success with the defect untouched. Two lanes have now exited 0 in
+  states that were not done — one with a red build, one with no edits at all. The exit status of a
+  vendor CLI carries no information about whether the round was completed.
+- **Enhancement:** (1) pass `--max-turns <N>` explicitly; (2) open every prompt with an
+  anti-announce directive — do not describe an intended edit and stop, make the edit, rebuild,
+  iterate until green; (3) the launcher must assert a FRESH ARTIFACT before declaring round_done —
+  a changed-file count and a build result, not the process exit code. This is precisely the
+  "attempt-fresh report assert" the foreman orchestration-hardening notes specify, and skipping it
+  is what let both of these rounds be scored as successes.
+
+## 2026-07-28 — codex-auditor agent cannot start in a detached-HEAD host repo
+
+- **Phase:** Use / audit (lane B cold-diff audit)
+- **Evidence:** `Agent(subagent_type: codex-auditor)` failed immediately with
+  `Failed to resolve base branch "HEAD": git rev-parse failed`. The host session's cwd repo is on a
+  detached HEAD, and the agent's worktree/diff bootstrap resolves a base branch before running.
+- **Root cause:** the audit lane assumes a named base branch in the *session* repo. The actual
+  audit target was a WSL repo elsewhere with a perfectly good `main`, but the agent never got far
+  enough to look at it.
+- **Impact:** audit lane unavailable via the agent path; ~1 min lost, no silent degradation because
+  it failed loudly.
+- **Enhancement:** drive Codex directly for out-of-tree targets —
+  `timeout 1200 codex exec --sandbox read-only -C <target> -c model_reasoning_effort=high - < prompt`
+  under `systemd-run`, writing its verdict to a file. Keeps the cross-vendor invariant, drops the
+  worktree bootstrap entirely, and honours the 20-minute cap.
+
+## 2026-07-28 — Codex audit lane reached a verdict but exhausted its turn before writing the report
+
+- **Phase:** v0.2.9 plan review, cross-vendor audit lane (GPT-5.6 Sol via `codex exec`)
+- **What happened:** `codex exec` exited **0** after a full review of 16 change
+  packages plus four planning documents. It reached a verdict (`BLOCKED`) and
+  printed `Completed the buildability, gate-soundness, dependency, and
+  honest-assessment review. The report is ready for its required final
+  repository write.` — then ended the turn. `REVIEW-codex.md` did not exist.
+- **Evidence:** exit code 0; `/tmp/codex-review.log` 1.64 MB containing the full
+  analysis; the lane's own final self-check ran
+  `test -e docs/research/vnext/REVIEW-codex.md && echo present || echo absent`
+  and printed `absent` — it observed its own missing deliverable and still
+  ended.
+- **Root cause:** the deliverable was specified as the *final* action after an
+  open-ended analysis phase. The analysis consumed the turn. This is the same
+  family as grok's documented empty-burst (a burst spent orienting, writing
+  nothing), but with a worse signature: **exit 0 and a confident completion
+  message**, so it reads as success to any caller checking the exit code.
+- **Impact:** none to the work — `codex exec resume --last` with a
+  write-first-say-nothing prompt recovered the full 596-line report in one
+  round. Cost was one extra round and the risk that an unattended caller would
+  have recorded a successful audit with no audit.
+- **Proposed enhancement:** (1) the repo's write-first doctrine currently
+  targets grok's `--prompt-file`; it should be **vendor-neutral** and applied to
+  every headless lane — instruct the deliverable file be created (even as a
+  skeleton) *before* analysis begins, then filled. (2) An audit lane's success
+  predicate must be **the artifact existing**, never the exit code — this is
+  the same "assert the artifact, not the status" rule
+  `three-outcome-verdicts` applies to `audit-verdict.json`, and it generalises.
+  (3) The `vendor-multiround.sh` generalisation specified in
+  `vendor-adapter-contract` should cover audit lanes, not only implement lanes;
+  its git-status write-evidence digest would have caught this immediately.
+
+## 2026-07-28 — Second lane in one session ended without its deliverable, different vendor
+
+- **Phase:** v0.2.9 planning, Grok design council (TerminusDB adapter lane)
+- **What happened:** the lane wrote `proposal.md` (117 lines) and then ended its
+  turn with `I'm ending this turn without further action to wait for the
+  background task notification.` There was no background task to wait for. Three
+  of its four deliverable files were never written, so
+  `openspec validate terminusdb-adapter --strict` fails with "no deltas found".
+- **Evidence:** 191,444 tokens and 85 tool calls consumed; one file on disk. Its
+  sibling lane (`terminusdb-operations`), same brief shape and same environment,
+  produced all four files (693 lines) and validates clean — so the task was
+  achievable and the environment was not at fault.
+- **Root cause:** the lane invented a reason to wait. This is the second
+  occurrence in a single session of the same class — earlier today a `codex exec`
+  audit lane analysed for its whole turn, announced its report was "ready for its
+  required final repository write", **exited 0, and wrote nothing**, having run
+  its own existence check and seen the file absent. Two different vendors, two
+  different harnesses, same shape: **effort spent on analysis, deliverable never
+  emitted, terminal state reported as normal.**
+- **Impact:** both recovered — codex via `codex exec resume --last` with a
+  write-first-say-nothing prompt (596-line report recovered in one round), the
+  council lane via a direct "write the three missing files now, spec.md first"
+  message. Cost was two extra rounds. The real risk is an unattended caller
+  recording success for a lane that produced nothing.
+- **Proposed enhancement:** this is now a cross-vendor pattern, not a grok
+  quirk, so the mitigation must be structural rather than per-vendor prompting:
+  1. **The success predicate for every lane is the artifact, never the exit code
+     or the model's own account of its state.** `three-outcome-verdicts` already
+     applies this to `audit-verdict.json`; generalise it to every lane
+     deliverable.
+  2. **Write-first is vendor-neutral doctrine.** The repo currently scopes it to
+     grok's `--prompt-file`. Every headless lane should create its deliverable
+     skeleton before analysis, then fill it — the skeleton is cheap and turns a
+     silent nothing into an obvious partial.
+  3. **Order deliverables so the validity-critical file is written first.** For
+     an OpenSpec package that is `specs/<capability>/spec.md`: a package with
+     only `proposal.md` fails validation, while a package with only `spec.md`
+     passes and can be completed later.
+  4. `vendor-multiround.sh` (specified in `vendor-adapter-contract`) must cover
+     **planning and audit lanes, not only implement lanes** — its git-status
+     write-evidence digest would have caught both of these immediately.
+
+## 2026-07-28 — grok empty burst traced to permission flags, not model behaviour
+
+- **Phase:** v0.2.9 planning, Grok design council (TerminusDB operations lane)
+- **What happened:** the lane dispatched grok CLI 0.2.112 with
+  `--allow "Write" --allow "Edit"` and got **two consecutive empty bursts** —
+  narration, zero tool calls, confirmed by an unchanged `git status` digest.
+  `grok-multiround.sh` correctly reported `EMPTY-BURST FAILED after 3 rounds`.
+  Switching the same prompt to `--always-approve --max-turns 30` **fixed it
+  immediately**: the debug log shows 6 tool-call turns and
+  `stop_reason="stop"`, and the lane went on to produce all four package files
+  (693 lines) validating clean.
+- **Evidence:** same prompt, same lane, same repo, two flag sets, opposite
+  outcomes; git-status write-evidence digest distinguishing narration from
+  writes; grok debug log turn counts and stop reason.
+- **Root cause:** almost certainly **not** the documented "grok spends its
+  single burst orienting" model-behaviour story. With `--allow` alone the run
+  produced no tool calls at all, which points at the permission/approval
+  handshake blocking tool use rather than the model choosing to narrate. The
+  repo's existing doctrine (write-first, API facts inlined, exploration-heavy
+  specs routed through `grok-multiround.sh`) treats the symptom; this points at
+  a cause that is one flag away from being fixed outright.
+- **Impact on this session:** three wasted rounds on one lane before the flag
+  change; historically this failure class has consumed far more (it is the
+  documented reason `grok-multiround.sh` exists, and it produced the
+  v0.2.8.1 "single-burst write-first doctrine" work).
+- **Proposed enhancement:**
+  1. Re-test the empty-burst class against `--always-approve --max-turns N`
+     under controlled conditions. If it reproduces the fix, the
+     `grok-implementer.md` known-limits section and the `lanes.md` recipe are
+     both **wrong about the cause** and should be corrected, not merely
+     amended.
+  2. `vendor-adapter-contract` should carry the approval/permission mode as an
+     explicit adapter contract point per vendor, since this is the second
+     vendor in this release where the headless approval mode silently
+     suppresses writes — the Google lane has the same shape (its headless
+     default treats `ask_user` as `deny`, so the model narrates success while
+     writing nothing).
+  3. Keep `grok-multiround.sh` regardless: it is what **detected** this. The
+     bounded re-prompt loop plus git-status digest is the only reason the two
+     empty bursts were distinguishable from real work.
+- **Caveat, stated honestly:** this is one lane's observation on one CLI
+  version, reported by that lane rather than reproduced independently by the
+  architect. It is a strong lead, not a settled root cause, and the enhancement
+  above is written as "re-test" for that reason.
+
+## 2026-07-28 — grok empty burst traced to PermissionCancelled in one lane (SUPERSEDED IN PART — see the correction below)
+
+- **Phase:** v0.2.9 planning, Grok design council (schema lane) — independent
+  confirmation of the entry above
+- **What happened:** two lanes of the same council independently traced the
+  empty-burst failure to the permission layer, by different routes. Council 3
+  found `--allow "Write" --allow "Edit"` produced two empty bursts while
+  `--always-approve --max-turns 30` worked immediately. Council 1 recovered the
+  mechanism from the debug log: the model attempted `run_terminal_command`
+  (probably a `mkdir -p` for the package directory) **before** writing; that
+  verb was absent from the `--allow` list; and the **entire turn** terminated
+  with `stopReason: cancelled` / `cancellationCategory: PermissionCancelled`,
+  zero files written.
+- **Evidence:** grok debug logs from two independent lanes; the `stopReason`
+  and `cancellationCategory` fields; git-status write-evidence digests
+  unchanged across the failed bursts; both lanes succeeding after their
+  respective fix.
+- **Root cause (now confirmed):** a denied tool permission **cancels the whole
+  turn** rather than being refused locally and letting the model continue with
+  an allowed verb. A single unlisted tool call — one the model did not even
+  need, since Write creates parent directories itself — discards every bit of
+  work in that burst. The repo doctrine attributes this failure to the model
+  spending its burst orienting. **That attribution is wrong**, and the
+  write-first mitigation only ever helped by accident: it reduced the chance
+  that an unlisted verb was attempted first.
+- **Impact:** three wasted rounds on the schema lane and two on the operations
+  lane in this session alone. Historically this class produced the whole
+  v0.2.8.1 single-burst write-first doctrine and `grok-multiround.sh`.
+- **Fixes, in preference order:** (1) allow the terminal verb, or use
+  `--always-approve --max-turns N` for planning lanes; (2) state in the spec
+  that no terminal command is needed because Write creates parent directories;
+  (3) keep `grok-multiround.sh` regardless — it is what *detected* both cases,
+  and its git-status digest is the only thing distinguishing an empty burst
+  from real work.
+- **Doctrine correction required:** the known-limits section of
+  `agents/grok-implementer.md` and the `lanes.md` recipe both state the wrong
+  cause and should be rewritten rather than amended.
+  `vendor-adapter-contract` must carry the approval mode as an explicit
+  per-vendor contract point — this is the second vendor in this release whose
+  headless approval mode silently suppresses writes.
+
+## 2026-07-28 — architect hit the documented WSL inline-heredoc trap while logging the entry above
+
+- **Phase:** v0.2.9 planning, architect appending to this log
+- **What happened:** appending the previous entry via
+  `wsl -e bash -lc 'cat >> bugeventlog.md <<ENTRY ... ENTRY'` truncated
+  mid-sentence at an apostrophe and then executed several content lines as
+  shell commands (`its: command not found`, `mitigation: command not found`).
+  The heredoc terminator was never reached.
+- **Evidence:** `warning: here-document at line 1 delimited by end-of-file`;
+  the appended text ends at "The repos"; roughly a dozen
+  `command not found` errors from prose lines.
+- **Root cause:** markdown prose containing backticks, apostrophes and
+  parentheses passed through an outer single-quoted `bash -lc` string. The
+  outer quoting consumes those characters before the heredoc is parsed. This
+  is a **known, already-documented trap** in this environment, and the
+  architect used the unsafe form anyway after having used the safe one four
+  times earlier in the same session.
+- **Impact:** a partial entry appended and one repair round. No stray files, no
+  git writes, no data loss beyond the truncated text.
+- **Proposed enhancement:** the safe form is the only form — write the content
+  to a file, then `tr -d '\r' < file >> target`. Worth encoding as a lint or a
+  pre-flight check in the docs gate: any `bash -lc` invocation containing both
+  a heredoc and a backtick is a defect. The general lesson matches this
+  release's own theme: a known hazard that relies on the operator remembering
+  it is not mitigated, it is merely documented.
+
+## 2026-07-28 — CORRECTION to the entry above: the empty burst has at least two distinct causes
+
+- **Phase:** v0.2.9 planning, Grok design council (adapter lane) — third
+  independent observation, which **refutes the universal claim** made two
+  entries above
+- **What happened:** the entry titled "grok empty burst CONFIRMED as
+  PermissionCancelled, not model behaviour" generalised from two lanes. The
+  third lane ran the better experiment and the generalisation does not hold.
+  Council 2 hit five consecutive empty bursts, then **isolated the cause with a
+  control**: it ran a trivial sanity-check spec through the *same CLI and the
+  same `--allow` wiring*, and Grok wrote the file correctly. Permissions were
+  therefore not the cause in that lane. The actual cause was that its spec
+  instructed Grok to read all four `graph-store-port` files (~1,000+ lines)
+  before finishing, consuming the single-burst budget on research. The fix was
+  to inline the three needed quotes verbatim and **forbid the Read tool
+  outright**; that version then succeeded in round 1.
+- **Evidence:** a control run with identical permission wiring that succeeded;
+  five failed bursts on the research-heavy spec; success in one round after
+  inlining and forbidding Read. Contrast with Council 1, whose debug log showed
+  an explicit `stopReason: cancelled` / `cancellationCategory:
+  PermissionCancelled` after an unlisted `run_terminal_command`.
+- **Corrected root cause:** there are **at least two distinct failure modes
+  that present identically** — narration, zero files, terminal state reported
+  normally:
+  1. **PermissionCancelled** — an unlisted tool verb cancels the entire turn
+     (Council 1; confirmed by debug-log fields).
+  2. **Research-budget exhaustion** — the single burst is spent reading, and
+     nothing is written (Council 2; confirmed by control experiment). This is
+     the original documented doctrine, and it is **correct**, not wrong.
+- **What the previous entry got wrong:** it declared the documented "spends its
+  burst orienting" doctrine to be a misattribution, on two observations and no
+  control. One lane's confirmed mechanism was generalised into a universal
+  cause. The doctrine should be **extended with the permission mode, not
+  rewritten** — the recommendation in the entry above to rewrite
+  `grok-implementer.md`'s known-limits section rather than amend it is
+  withdrawn.
+- **Diagnostic rule that actually follows:** the two modes are
+  indistinguishable from the outside, so **never infer the cause — read
+  `stopReason` and `cancellationCategory` from the grok debug log.**
+  `PermissionCancelled` means fix the allow-list; absence of it with a
+  research-heavy spec means inline the facts and forbid Read.
+- **Second-order lesson, and the one worth keeping:** a research-heavy spec
+  carries a **second, easily-missed research burden** — sibling-package
+  reading. This release's own doctrine says "inline the facts", and all three
+  council briefs did inline the primary research (R7/R8) while still delegating
+  cross-package reading to the model. Inlining literal source quotes and
+  forbidding Read is the stronger form.
+- **Process note on the architect's own error:** the overclaiming entry was
+  written after two consistent observations and before the third lane
+  reported. The lesson matches this release's own gate doctrine — two agreeing
+  lanes are a stronger signal than one, but they are still not a control, and a
+  confident title ("CONFIRMED") should have waited for the lane that was still
+  running.
+
+## 2026-07-28 — the write-evidence digest itself returned a false negative
+
+- **Phase:** v0.2.9 planning, grok wave lane (`regression-harness-tiers`)
+- **What happened:** `grok-multiround.sh` reported
+  `EMPTY-BURST FAILED after 3 rounds` — its terminal "the lane wrote nothing"
+  verdict — while the lane had in fact written **all four package files
+  correctly**. The architect independently confirmed the package exists (4
+  files, 490 lines) and passes `openspec validate --strict`.
+- **Evidence:** the wrapper's failure message; the package on disk, valid; the
+  lane's own byte-for-byte diff against its source content.
+- **Mechanism (not yet determined).** `snap()` at `grok-multiround.sh:72` is
+  `git -C "$WD" status --porcelain | sha256sum`. Two candidate explanations,
+  neither confirmed: a race between grok's file-write flush and the post-round
+  snapshot, or a `--cwd` that did not contain the written path. Concurrent
+  sibling lanes writing elsewhere in the shared repo would produce **false
+  positives**, not false negatives, so that is unlikely to be the cause here
+  and is recorded as ruled-out-pending-evidence rather than ruled out.
+- **Why this matters more than the incident:** the git-status digest is the
+  **only** mechanism that distinguished real work from narration in the four
+  empty-burst/no-artifact failures earlier today, and
+  `openspec/changes/evidence-contracts/` — authored hours ago — specifies
+  precisely this digest as the release's answer to that failure class. **The
+  fix has now been observed giving a wrong answer.**
+- **This is the fifth checker failure of the session**, and the first one
+  located in a checker this release is introducing rather than one it is
+  replacing. The prior four: an audit lane whose predicate was the exit code;
+  a `grep "violation"` matching `[ok] No violation found`; an invariant
+  trivially true in the scenario it was meant to detect; a model checked
+  against the wrong module's step function.
+- **Consequence for `evidence-contracts`:** the digest requirement needs a
+  **positive control of its own** — the same discipline
+  `test-infrastructure-hardening` now demands of every other check. Concretely:
+  the digest SHALL be verified against a known-written file before its verdict
+  is trusted, and a "no change" verdict SHALL be treated as **inconclusive**
+  rather than terminal until corroborated by an independent artifact check
+  (existence, line count, or validator). A digest that can report both
+  false-positive and false-negative needs its failure direction stated in the
+  spec.
+- **Proposed enhancement:** determine the mechanism (instrument `snap()` to log
+  the porcelain output on both sides of the round, and record `$WD` alongside
+  the written paths); then either fix the race or downgrade the digest from a
+  terminal verdict to one signal among several. Do **not** delete it — it
+  remains the only thing that caught the earlier failures, and a mechanism with
+  a known false-negative rate is still far better than trusting an exit code.
+
+## 2026-07-28 — ROOT CAUSE of the write-evidence false negative: the digest is structurally blind
+
+- **Phase:** v0.2.9 planning — supersedes the "mechanism not yet determined"
+  note in the entry above
+- **What happened:** the mechanism was found, and it is not a race. A grok
+  line-edit lane observed its own before/after digests were byte-identical
+  despite writing a 254-line file, and diagnosed it correctly: *"porcelain
+  digest only tracks path-level status, not content within an already-untracked
+  directory."* The architect reproduced it in isolation.
+- **Reproduction (10 seconds, deterministic):**
+
+  ```text
+  git init; git commit --allow-empty -m base
+  mkdir pkg; echo one > pkg/a.md
+  git status --porcelain          ->  ?? pkg/
+  echo two > pkg/b.md; echo three > pkg/c.md
+  git status --porcelain          ->  ?? pkg/      # IDENTICAL
+  ```
+
+  `git status --porcelain` collapses an untracked directory to **one line**
+  regardless of how many files it contains. It is also blind to **content
+  changes in untracked files**.
+- **Root cause:** `grok-multiround.sh:72` is
+  `snap() { git -C "$WD" status --porcelain | sha256sum | cut -d' ' -f1; }`.
+  For the single most common Foreman planning task — a lane creating
+  `openspec/changes/<name>/` and writing four files into it — the directory
+  becomes untracked on the **first** write, and **every subsequent write in
+  that round and all later rounds is invisible to the digest.**
+- **Blast radius, stated precisely:** the false negative is not rare and not
+  environmental. It is the *expected* behaviour for new-package authoring, which
+  is what most of this release's planning consisted of. Any lane whose
+  deliverable is new files in a new directory can be declared EMPTY-BURST FAILED
+  while succeeding. The earlier W1 (`regression-harness-tiers`) incident is now
+  fully explained: the package directory already existed as untracked from a
+  prior round.
+- **Fix, verified:** `git status --porcelain -uall` (`--untracked-files=all`)
+  lists each untracked file individually and **detects the added files**. Same
+  repro, `-uall` digest changes as required.
+- **Residual after the fix, also verified:** `-uall` is **still blind to content
+  changes within an untracked file**. A lane that rewrites an existing untracked
+  deliverable — the second and later rounds of any re-prompt loop — remains
+  undetectable by path-level status alone. **A path-level digest cannot be the
+  whole mechanism.** It must be paired with a content hash over the declared
+  deliverable set, or with an artifact assertion (existence, line count,
+  validator exit).
+- **Consequence for `evidence-contracts`:** that package specifies this digest
+  as the release's answer to the empty-burst class. It must be amended before
+  implementation: require `-uall`, add the content-hash or artifact-assertion
+  pairing, and state the blind spots explicitly so the next reader does not
+  rediscover them. A "no change" verdict remains **inconclusive**, never
+  terminal.
+- **The lesson this release keeps re-learning:** the check that was meant to
+  catch work-that-did-not-happen could not see work that did. It was caught by
+  an editor noticing an anomaly in its own evidence block and reporting it
+  rather than moving on — which is the sixth checker failure of the session and
+  the second found inside a mechanism this release is introducing. Positive
+  controls are not paperwork; every one of these was invisible until something
+  independent contradicted it.
