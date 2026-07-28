@@ -1,0 +1,14 @@
+- [ ] 1. Define a shared write-evidence digest API (pre/post workspace change digest in the git-status / changed-file-set / content-hash family) usable from orchestration scripts without hard-locking to a single shell one-liner.
+- [ ] 2. Wire pre-round and post-round digest capture into lane-run.sh / lane-supervise.sh (or equivalent) for every lane type: implement, audit, planning, research.
+- [ ] 3. Implement the success predicate: unchanged digest ⇒ round non-success; exit code and agent self-report never sufficient alone; require corroborating artifacts/content where the lane type defines them.
+- [ ] 4. Capture and persist vendor termination/stop reason (stopReason, cancellationCategory, or adapter-best-effort equivalent) alongside each round’s digest result, including an unknown/unavailable bucket when the vendor does not surface one.
+- [ ] 5. Label unchanged-digest failures with recorded termination metadata so empty-burst vs cancelled-writes remain distinguishable after the fact (no inference from digest alone).
+- [ ] 6. Extract/generalize grok-multiround.sh into a vendor- and lane-agnostic bounded evidence-loop that invokes vendors only through vendor-adapter-contract (no argv shape defined here).
+- [ ] 7. Implement explicit loud terminal failure when the round budget is exhausted without a qualifying digest change: visible run status, report fields, and downstream gate block (never silent pass-through).
+- [ ] 8. Apply the evidence-loop to non-grok vendors (codex, claude, gemini, others) and non-implement lane types with the same budget and terminal-failure semantics.
+- [ ] 9. Add a scoped mutation-probe stage to checks-run.sh that mutates only diff-touched lines and re-runs the existing suite per mutant.
+- [ ] 10. Report surviving mutants as unprotected changed lines and fail/flag the mutation-probe stage accordingly.
+- [ ] 11. Schedule the mutation probe at merge-gate as primary cadence; expose optional/on-demand invocation outside that gate; do not mandate it on every commit.
+- [ ] 12. Document co-requisites: vendor-adapter-contract owns argv/invocation; test-infrastructure-hardening owns positive-control/can-fail; this package owns digests, termination-reason capture, evidence-loop, and mutation probe only.
+- [ ] 13. Add integration coverage that asserts: narration-only / unchanged-digest rounds fail; budget exhaustion is loud terminal failure; termination reason is recorded; mutation probe flags at least one planted unprotected line in a fixture.
+- [ ] 14. Final gate: run openspec validate on the evidence-contracts change and confirm packaging (proposal, design, tasks, spec) is complete and consistent with R1–R6.
