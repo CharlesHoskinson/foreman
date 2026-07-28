@@ -5,8 +5,11 @@ edges have identity). T2-T5 are serial along the pipeline. T6-T9 may run in
 parallel once T5 lands. T10 is the gate.
 
 Preconditions: `knowledge-plane-refresh` (GP-3) has landed, so the graph is
-directed, version-stamped and freshness-measurable; `work-dag-projection` (GP-4)
-has landed, so `worklog.jsonl` exists. This package does **not** wait on
+version-stamped, freshness-measurable and single-writer safe;
+`work-dag-projection` (GP-4) has landed, so `worklog.jsonl` exists. Note what
+GP-3 does **not** provide: the published artifact carries `"directed": false` —
+no graphify CLI cadence can publish anything else — and direction is
+reconstructed here at load with `build_from_json(raw, directed=True)`. This package does **not** wait on
 `graph-store-port` (GP-6) and must not acquire a dependency on it.
 
 ## T1 — edge identity
@@ -38,6 +41,10 @@ has landed, so `worklog.jsonl` exists. This package does **not** wait on
 
 ## T3 — candidate generation and ranking
 
+- [ ] Load `graph.json` with `build_from_json(raw, directed=True)` under the
+      pinned interpreter; never branch on the artifact's `directed` field, which
+      is `false` on every merge-cadence refresh. Test that `u → v` is present
+      and `v → u` absent after the load.
 - [ ] 2-hop bounded expansion from the seeds over the allowlist; hard bound k=2.
 - [ ] Candidate cap with truncation by hop distance then ascending degree; set
       the `truncated` flag.
@@ -130,6 +137,9 @@ has landed, so `worklog.jsonl` exists. This package does **not** wait on
       function.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
 - [ ] `openspec validate graph-context-builder --strict` passes.
+- [ ] Assert no code path in this package reads the `directed` field of
+      `graph.json` — direction comes from the load, not from the artifact's
+      self-description.
 - [ ] Confirm no import, config key or code path in this package references the
       graph store — the files-only boundary is a deliverable, not an intention.
 - [ ] Record in `skills/foreman/references/graph-context.md` that this package

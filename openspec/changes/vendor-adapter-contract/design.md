@@ -90,21 +90,37 @@ in a prompt-from-stdin position, that the prompt string appears exactly once
 and as the value of the flag the adapter declares, and that any
 order-sensitive flag occupies the position the adapter's caps declare.
 
-## Write evidence is a contract point, not a grok workaround
+## Write evidence is a contract point — owned by `evidence-contracts`, consumed here
 
-`grok-multiround.sh` was written for grok's single-burst behaviour, but its
-load-bearing line is vendor-neutral: a sha256 of `git status --porcelain` in
-the target worktree, compared before and after. Multiple silent-zero-write
+`grok-multiround.sh` was written for grok's single-burst behaviour, and the
+*capability* it provides is vendor-neutral: multiple silent-zero-write
 mechanisms exist across the vendor set, all ending `rc=0` with the model
 narrating a completed edit. No vendor's own report is admissible evidence that
-a file changed.
+a file changed. That much generalizes.
 
-The generalization keeps two details that look incidental and are not:
-`grok-multiround.sh:66-67` hard-fails when the working dir is not a git work
-tree, because the digest would otherwise be empty every round and the loop
-would report `EMPTY-BURST FAILED` even when the worker wrote correctly; and the
-re-prompt preamble is fed forward with the prior round's captured output. Both
-carry over verbatim.
+**Its predicate does not.** The load-bearing line was a sha256 of
+`git status --porcelain` in the target worktree, compared before and after. On
+2026-07-28 that predicate was measured returning a false negative on the most
+common Foreman task: porcelain collapses an untracked directory to a single
+`?? pkg/` line, so files 2..N written inside it produce a byte-identical digest,
+and it is blind to content changes inside untracked files besides. `-uall` fixes
+the first and not the second. A lane that had written all four required package
+files correctly was reported `EMPTY-BURST FAILED`.
+
+So the original plan to promote `snap()` into `lib/evidence.sh` under this
+package is withdrawn on both counts. **`evidence-contracts` owns and implements
+`lib/evidence.sh` and `vendor-multiround.sh`**, and replaces the predicate with
+a content hash over a declared deliverable set plus a lane-type artifact
+assertion. This package is a declared consumer. Its whole obligation at that
+boundary is `adapter_implement_argv` and `adapter_caps`, plus two negative
+assertions in `tests/adapters.bats`: no adapter decides a round on a status
+digest, and any `git status` invocation this package still owns passes
+`--untracked-files=all`.
+
+The two details that looked incidental and are not — the hard failure when the
+working dir is not a git work tree (`grok-multiround.sh:66-67`), and the
+feed-forward of the prior round's captured output into the re-prompt preamble —
+carry over into `evidence-contracts`' implementation, which specifies both.
 
 ## What "no behaviour change for grok and codex" means
 
@@ -142,3 +158,14 @@ explicitly specced here, that is a defect in this package, not an improvement.
   Y"; the router answers "which X". Conflating them is how `audit-run.sh:35-37`
   ended up refusing every non-codex auditor in the middle of an invocation
   builder.
+
+## Demonstrated rejection — the two predicates this package still owns at the evidence boundary
+
+| Predicate | Known-bad input it is demonstrated to reject | Demonstration |
+|---|---|---|
+| No adapter decides a round on a `git status --porcelain` digest | An adapter that reintroduces a local status-digest acceptance check | Fixture adapter containing a `status --porcelain \| sha256sum` acceptance branch; `tests/adapters.bats` must fail on it. A grep that passes trivially after reformatting is not sufficient — assert on the adapter's decision path, not on the string alone. |
+| Any surviving `git status` invocation passes `--untracked-files=all` | A `git status --porcelain` call without `-uall`, which is verified to miss files 2..N inside an untracked directory | Fixture invocation without the flag must fail the assertion, and the same fixture must be shown to miss the second file. |
+
+Both are negative assertions about this package's own code. The positive
+control for the evidence mechanism itself is `evidence-contracts`' planted-write
+corpus, which is where it belongs now that the mechanism has one owner.

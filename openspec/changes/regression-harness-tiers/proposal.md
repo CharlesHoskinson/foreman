@@ -25,16 +25,20 @@ own, and none of it exercises Foreman's own decision logic (which gate
 fired, which verdict was reached) rather than a vendor's code-writing
 skill.
 
-This package specifies a four-tier regression harness that separates
+This package specifies a three-tier regression harness that separates
 "did the orchestration layer regress" (cheap, deterministic, gates every
 commit) from "did vendor-quality drift" (expensive, statistical,
 non-gating), so the harness stops asking every question at every price
-point.
+point. A fourth tier -- a fixed external-benchmark drift anchor -- was
+scoped and then cut by the 2026-07-28 proportionality review; the reasoning
+above is why it was considered, and the Cuts section of `design.md` records
+why it is not in this release.
 
 ## What changes
 
-- Define four tiers (Tier 0-3) with an explicit statement of what each
-  tier establishes and does not establish.
+- Define three active tiers (Tier 0-2) with an explicit statement of what
+  each tier establishes and does not establish, and record that an
+  external-benchmark drift tier is cut from this release.
 - Tier 0: slice the existing bats suite into baseline-locked per-slice
   gates (per-slice baseline mechanics themselves are owned by
   test-infrastructure-hardening) and add an annual regression-injection
@@ -43,15 +47,26 @@ point.
 - Tier 1: a deterministic vendor-replay corpus of 10-12 golden rounds,
   recorded as vendor transcripts, seeded from every failure class in
   bugeventlog.md, asserting only on the decision trace (gate fired,
-  verdict reached, events emitted) and never on model prose.
+  verdict reached, events emitted) and never on model prose. Every round
+  ships a paired defective decision trace and a `demonstration.json`
+  record, and the Tier 1 runner re-executes the fail-then-pass pair on
+  every run -- a round that cannot be shown to fail on its own seeded
+  defect fails the Tier 1 suite rather than merely narrowing a claim.
 - Tier 2: 8-12 locked specs with seeded defects, pinned vendor models,
-  N=3 runs, and bootstrap confidence intervals, run per release rather
-  than per commit, with an explicit rule that a difference smaller than
+  N=3 runs, and bootstrap confidence intervals, run on demand by an
+  explicit maintainer invocation -- never automatically on a commit, a PR,
+  or a release cut -- with an explicit rule that a difference smaller than
   measured variance is not a result.
-- Tier 3: a 50-task SWE-bench Pro sanity subset that is a drift anchor
-  only and never gates a commit, PR, or release.
-- Explicit cost/runtime budgets and cadence per tier, so nobody
-  accidentally wires Tier 2 or Tier 3 into a per-commit gate.
+- **Cut from this release:** a 50-task SWE-bench Pro external-benchmark
+  drift anchor. Three paid runs do not support the claimed inference and a
+  general coding benchmark tests something other than Foreman's
+  orchestration contract. It carries no requirement, no task and no budget
+  here; reviving it requires a new requirement in a future release's own
+  change.
+- Explicit cost/runtime budgets and cadence per active tier, with a fixed
+  20% material-margin threshold and a stated zero-denominator rule, so
+  nobody accidentally wires Tier 2 into a per-commit gate and no rate is
+  reported as zero when it was never measured.
 
 ## Impact
 

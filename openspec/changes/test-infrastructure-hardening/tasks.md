@@ -4,7 +4,9 @@ Ordering: T1-T2 are serial and land first (helper + runner). T3 is wide and
 mechanical, and depends on both. T4-T7 may run in parallel after T3. T8-T9
 carry the checker-soundness discipline and gate every other group's checks --
 T8 in particular applies to the gates T2 and T7 introduce, so it lands with
-them rather than after them. T10 gates.
+them rather than after them, and it now also builds the registry artefact and
+the full-repository inventory scanner that make the discipline mechanically
+checkable. T10 gates.
 
 ## T1 — the precondition helper
 
@@ -92,9 +94,32 @@ them rather than after them. T10 gates.
 - [ ] The control asserts the check produces the **negative** answer on the
       known-bad arm **and** the positive answer on the known-good arm in the
       same run — a check that classifies both arms identically is rejected.
-- [ ] Audit the release's existing gates and probes for controls: the `mkdir`
-      atomicity probe (`lock-primitive-hardening` T4), the skip-budget check
-      (T2), the per-slice baseline check (T2), the docs gate.
+- [ ] Create `tests/positive-control-registry.tsv` -- the committed registry
+      artefact, header row plus one row per check, fields exactly `check_id`,
+      `kind`, `known_bad_input`, `known_good_input`, `control_record`,
+      `demonstrated_at`. Maintained like `tests/baseline.tsv`: edited
+      deliberately, never regenerated from a run.
+- [ ] Create `tests/lib/check-inventory.sh` -- the scanner. It sweeps the
+      **whole repository tree at the commit under test** (not the release
+      diff), emits `tests/.check-inventory.tsv`, and derives `check_id` as
+      `<repository-relative path>::<check name>` so a row and an inventory
+      member match by string equality. Recognizer grammar is the four kinds
+      the spec names: `gate`, `probe`, `assertion`, `verdict-predicate`.
+- [ ] Add the comparator to the release build: an inventory member with no row
+      fails the build naming the `check_id`; a row whose `check_id` the
+      full-repository inventory does not contain fails the build naming the
+      stale row; an empty inventory fails with `inventory-empty` rather than
+      reporting "no unregistered checks".
+- [ ] Run the scanner at each landing stage's tip, not once at the start of
+      the release, so a check landed by an earlier stage is inventoried before
+      the stage that gates on it.
+- [ ] Use the four known checks as the scanner's acceptance fixture rather
+      than as the inventory itself: assert `check-inventory.sh` independently
+      finds the `mkdir` atomicity probe (`lock-primitive-hardening` T4), the
+      skip-budget check (T2), the per-slice baseline check (T2) and the docs
+      gate, and record any it misses as a grammar gap to be closed. This list
+      is a test of the scanner; it is NOT a hand-maintained inventory and
+      nothing may be registered on the strength of appearing here.
 - [ ] Retrofit the four measured incidents as fixtures: an unanchored
       `violation` substring predicate against `[ok] No violation found`; an
       exit-0-with-no-artifact lane; a truncated checker output; a
@@ -142,9 +167,20 @@ them rather than after them. T10 gates.
 - [ ] `bugeventlog.md` entry recording the triage-tax failure class and this
       enhancement.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] Every gate, probe and assertion introduced by this release has a
-      recorded positive control, and the recording shows the check FAILING on
-      the known-bad arm and passing on the known-good arm in the same run.
+- [ ] The registry/inventory comparator runs in the release build and exits
+      zero: every member of the full-repository inventory has a registry row,
+      no row is stale, and the inventory is non-empty. The gate is the
+      comparator's exit status, not a human reading a list.
+- [ ] Each registry row's `control_record` is present and shows the check
+      FAILING on the known-bad arm and passing on the known-good arm in the
+      same run.
+- [ ] The comparator is itself demonstrated: a deliberately unregistered check
+      is shown failing the build, and adding its row is shown restoring a
+      passing build.
+- [ ] Every rate the runner reports names its denominator, and a run with a
+      zero denominator renders `UNCOMPUTABLE (<denominator name> = 0)` rather
+      than 0, 100%, blank or `n/a`; a gate depending on an uncomputable rate
+      is recorded ERROR, never pass.
 - [ ] No success predicate in the harness, the launchers or the gates reads a
       process exit code, an unanchored substring, or an agent's self-report.
 - [ ] The four measured vacuous-check incidents of 2026-07-28 are present as

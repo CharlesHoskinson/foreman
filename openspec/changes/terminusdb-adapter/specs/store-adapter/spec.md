@@ -193,36 +193,50 @@ require a `TerminusDB-Data-Version` request header for those calls.
 
 ---
 
-### Requirement: normalize_data_version strips and rejects branch prefix
+### Requirement: normalize_data_version validates against the live branch list, never trusts a bare prefix-strip
 
-The adapter SHALL expose `normalize_data_version(ref: str)` that strips a
-leading `branch:` prefix, producing the bare branch name. The adapter
-SHALL accept only the normalized wrapper type (e.g. `DataVersionRef`) in
-`before_data_version`, `after_data_version`, and any other
-`*_data_version` request field. IF a value still carries a `branch:`
-prefix after normalization was required, THEN the adapter SHALL raise
-`AdapterValidationError` and SHALL NOT send the request. Callers SHALL
-NOT be able to place a raw unnormalized string into those fields without
-going through normalization.
+The adapter SHALL define two distinct types: DataVersionToken (opaque,
+produced only by read/write responses, usable only as a
+TerminusDB-Data-Version request header) and DiffRef (a bare branch name or
+commit:<id>, the only type accepted in before_data_version,
+after_data_version, or any other *_data_version diff request field).
 
-#### Scenario: branch-prefixed ref is stripped for bare-name form
+DataVersionToken SHALL NOT be accepted by any function whose parameter type
+is DiffRef, and vice versa -- the two types SHALL NOT be interchangeable at
+the type level.
+normalize_data_version(ref: str) -> DiffRef SHALL strip a leading branch:
+prefix only when the remainder, after stripping, is confirmed against the
+live branch list or matches the commit:<id> shape; otherwise it SHALL raise
+AdapterValidationError.
+The adapter SHALL NOT document or encourage passing a raw
+TerminusDB-Data-Version response header value into normalize_data_version
+or any *_data_version diff field.
 
-- WHEN `normalize_data_version("branch:main")` is invoked
-- THEN the result is the bare name `main` (wrapped as `DataVersionRef`)
+#### Scenario: a hand-written branch ref normalizes cleanly
 
-#### Scenario: Unnormalized branch prefix never reaches HTTP
+- WHEN normalize_data_version("branch:main") is invoked and "main" is
+  present in the live branch list
+- THEN the result is the bare name "main" wrapped as DiffRef
 
-- WHEN a caller attempts a diff whose `before_data_version` would be
-  `branch:main` without successful normalization
-- THEN the adapter raises before the HTTP call
-- AND the silent-empty diff footgun cannot be triggered through the
-  public API
+#### Scenario: an opaque response-header token is rejected, not silently accepted
 
-#### Scenario: commit and bare refs normalize cleanly
+- WHEN normalize_data_version is given the stripped remainder of a real
+  TerminusDB-Data-Version header value (an opaque id, not a branch name)
+- THEN the remainder does not match any name in the live branch list
+- AND the adapter raises AdapterValidationError rather than returning a
+  value that merely lacks a branch: prefix
 
-- WHEN `normalize_data_version` is given `commit:<id>` or `main`
-- THEN the function returns a `DataVersionRef` suitable for
-  `*_data_version` fields without raising
+#### Scenario: commit refs normalize cleanly
+
+- WHEN normalize_data_version is given commit:<id>
+- THEN the function returns a DiffRef without raising
+
+#### Scenario: DataVersionToken and DiffRef are never interchangeable
+
+- WHEN a DataVersionToken value is passed to a function typed to accept
+  DiffRef (or vice versa)
+- THEN the call is a type error, not a runtime coincidence that happens to
+  work
 
 ---
 
@@ -277,12 +291,41 @@ Distinct wrapper (structural enforcement, not a per-call-site reminder).
 
 ---
 
+### Requirement: /api/log is a structurally banned endpoint
+
+The adapter SHALL NOT call /api/log on any query path, and SHALL NOT issue
+a commit-log query using non-zero start (offset) paging. WHEN a call site
+attempts either, the adapter SHALL raise BannedEndpointError naming the
+attempted endpoint, before any HTTP request is issued.
+
+#### Scenario: a direct /api/log call is refused before HTTP
+
+- WHEN any code path attempts to call /api/log
+- THEN the adapter raises BannedEndpointError naming /api/log
+- AND no HTTP request reaches the server
+
+#### Scenario: non-zero offset paging against the commit log is refused
+
+- WHEN a commit-log query is attempted with a non-zero start parameter
+- THEN the adapter raises BannedEndpointError before the HTTP call
+
+#### Scenario: the ban is proven by a negative test, not by absence of code
+
+- WHEN the adapter test suite runs its /api/log negative test
+- THEN attempting the banned call raises BannedEndpointError
+- AND a grep of the adapter module graph finds no direct /api/log call
+  outside this enforcement path
+
+---
+
 ### Requirement: Canary fixtures fail closed when disabled
 
 The adapter test suite SHALL include two named canary fixtures:
-(a) `canary_branch_prefix_diff` — issues or attempts a diff with a
-`branch:`-prefixed ref and asserts the wrapper rejects it before the HTTP
-call; (b) `canary_anyuri_string_unification` — reproduces the
+(a) `canary_branch_prefix_diff` — covers BOTH the hand-written
+`branch:main` form AND the opaque-token form (a stripped remainder that
+does not match the live branch list must also be rejected), and asserts
+the wrapper rejects each before the HTTP call; (b)
+`canary_anyuri_string_unification` — reproduces the
 anyURI-vs-string-literal WOQL unification failure and asserts that
 `expect="results"` raises. Both canaries SHALL be proven to fail (test
 suite goes red) if the assertion or normalization machinery is disabled.
@@ -291,7 +334,8 @@ suite goes red) if the assertion or normalization machinery is disabled.
 
 - WHEN `canary_branch_prefix_diff` runs against a correctly wired adapter
 - THEN the assertion passes because normalization/refusal prevents the
-  HTTP call
+  HTTP call for both the hand-written `branch:main` form and an
+  opaque-token form that does not match the live branch list
 
 #### Scenario: anyURI canary expects UnexpectedEmptyResultError
 
@@ -384,7 +428,9 @@ successfully committed for the target org/db. Re-ingest of an unchanged
 
 The ingest function SHALL require a caller-supplied
 `graphify_version: str` and SHALL stamp that value onto written
-documents. The adapter SHALL NOT read producing graphify version from
+documents. The stamped field is `graphify_version` on the `GraphNode` base
+class the schema package declares; the adapter SHALL NOT invent or rename
+this field. The adapter SHALL NOT read producing graphify version from
 `graph.json` (it is absent there). WHEN `graphify_version` is missing
 or empty, the adapter SHALL raise `AdapterValidationError` before any
 write.
@@ -392,7 +438,8 @@ write.
 #### Scenario: Caller stamp is applied
 
 - WHEN ingest runs with `graphify_version="1.2.3"`
-- THEN written documents carry that producing-version stamp
+- THEN written documents carry that producing-version stamp on the
+  `graphify_version` field
 
 #### Scenario: Missing graphify_version fails closed
 
@@ -428,6 +475,51 @@ the drop SHALL be recorded in the ingest report (not silent).
 
 ---
 
+### Requirement: ingest classifies every node kind and edge relation type against the schema's mapping manifest
+
+The ingest function SHALL classify every graphify node's file_type and every
+graphify edge's relation type against the terminusdb-schema package's
+published mapping manifest, identified by manifest_version, rather than
+inventing its own class or field mapping.
+
+WHEN a node's file_type is absent from the current manifest_version's
+node-kind table, the adapter SHALL raise UnmappedNodeKindError naming the
+node id and file_type, before any write for that node.
+WHEN an edge's relation type is absent from the current manifest_version's
+edge-relation table, the adapter SHALL classify it fail via
+classify_edge_relation and SHALL raise ReificationError naming the relation
+type and edge.
+WHEN graph.json carries a non-empty hyperedges array, the adapter SHALL
+classify every hyperedge object drop-with-record under manifest_version 1
+and SHALL record the drop in the ingest report.
+
+#### Scenario: a mapped node kind writes under its manifest class
+
+- WHEN ingest processes a node with file_type "concept"
+- THEN the document is written as an Entity with kind EntityKind.concept,
+  per the manifest's node-kind table
+
+#### Scenario: an unmapped node kind is rejected before any write
+
+- WHEN ingest processes a node whose file_type is not in the manifest
+- THEN UnmappedNodeKindError is raised naming the node id and file_type
+- AND no document write HTTP call occurs for that node
+
+#### Scenario: an unmapped edge relation type fails closed
+
+- WHEN ingest processes an edge whose relation type is not in the
+  manifest's edge-relation table
+- THEN classify_edge_relation resolves it to fail
+- AND ReificationError is raised naming the relation type and edge
+
+#### Scenario: hyperedges are recorded, not silently dropped
+
+- WHEN graph.json carries hyperedges
+- THEN each is classified drop-with-record under the pinned manifest_version
+- AND the ingest report records the drop
+
+---
+
 ### Requirement: Rename-with-lineage detection via git correlation
 
 WHEN two consecutive successful ingests expose distinct
@@ -457,13 +549,15 @@ raise `RenameCorrelationError` unless the caller set
 The adapter SHALL raise errors only from the closed set:
 `AdapterValidationError`, `CasRequiredError`, `ConflictError`,
 `DataVersionMismatchError`, `UnexpectedEmptyResultError`,
-`IngestSourceError`, `ReificationError`, `RenameCorrelationError`,
+`IngestSourceError`, `ReificationError`, `UnmappedNodeKindError`,
+`BannedEndpointError`, `RenameCorrelationError`,
 `AuthError`, `NotFoundError`, `DocumentIdAlreadyExistsError`,
 `TransportError`, `ServerError`, `DropRebuildError`. Retryable classes
 SHALL be limited to `DataVersionMismatchError` (CAS path) and
 `TransportError` (including 5xx). The retry bound SHALL be max 3
 retries after the initial attempt with exponential backoff base 50ms,
-multiplier 2, and full jitter. All other classes SHALL fail immediately
+multiplier 2, and full jitter. All other classes (including
+`UnmappedNodeKindError` and `BannedEndpointError`) SHALL fail immediately
 without retry.
 
 #### Scenario: Transport error is retried with bounded backoff
@@ -512,18 +606,19 @@ then re-ingest.
 ### Requirement: Response data-version is surfaced only via normalization path
 
 WHEN the server returns a `Terminusdb-Data-Version` response header, the
-adapter SHALL expose that value to callers only through APIs that
-require subsequent use via `normalize_data_version` / `DataVersionRef`
-before any `*_data_version` request field. The adapter SHALL NOT document
-or encourage round-tripping the raw `branch:<id>` header value into diff
-fields.
+adapter SHALL expose that value typed as `DataVersionToken`, not
+`DiffRef`. It is usable only as a CAS request header; it SHALL NOT be
+passed to `normalize_data_version` or placed in any `*_data_version` diff
+field. The adapter SHALL NOT document or encourage round-tripping the raw
+`branch:<id>` header value into diff fields.
 
 #### Scenario: Read returns a version token for optional CAS
 
 - WHEN a document read succeeds
-- THEN the adapter returns the payload and a data-version token
+- THEN the adapter returns the payload and a `DataVersionToken`
 - AND using that token as a CAS precondition on a later write is
   supported when `cas_required` is true
+- AND using that token as a diff ref is not supported
 
 ---
 

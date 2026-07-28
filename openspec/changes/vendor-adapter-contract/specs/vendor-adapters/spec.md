@@ -205,38 +205,53 @@ other value SHALL be treated as non-conforming.
 - AND the choice is recorded in the adapter header with the documented caveat
   it answers.
 
-### Requirement: write evidence is a git-status digest, never vendor narration
+### Requirement: write evidence is consumed from the evidence-contracts helper, never defined here
 
-Foreman SHALL determine whether an implement round changed files by comparing a
-digest of `git status --porcelain` in the target worktree before and after the
-round.
+WHERE this package needs to know whether an implement round changed files, it
+SHALL consume the write-evidence mechanism specified and implemented by
+`evidence-contracts` in `skills/foreman/scripts/lib/evidence.sh`.
 
-The digest SHALL cover untracked and modified files alike.
-The generalized helper SHALL live in `skills/foreman/scripts/lib/evidence.sh`
-and SHALL be usable by every vendor's implement lane.
-`vendor-multiround.sh` SHALL replace `grok-multiround.sh` and SHALL obtain each
-round's invocation from `adapter_implement_argv` rather than appending a
+`evidence-contracts` is the sole implementation owner of
+`skills/foreman/scripts/lib/evidence.sh` and
+`skills/foreman/scripts/vendor-multiround.sh`; this package is a declared
+consumer of both and SHALL NOT define, re-specify or re-implement their
+predicates, their lane-type contracts, or their success semantics.
+This package's obligation at that boundary is to supply
+`adapter_implement_argv` and `adapter_caps` so that `vendor-multiround.sh`
+obtains each round's invocation from the adapter rather than appending a
 grok-specific flag.
-IF the target working directory is not a git work tree, THEN the helper SHALL
-fail loudly before the first round, because an always-empty digest would report
-a correct round as an empty burst.
-WHEN a bounded round budget is exhausted with no digest change, the helper SHALL
-exit nonzero naming the vendor and the round count, and SHALL NOT report
-success on the strength of the vendor's own output.
+No adapter SHALL use a digest of `git status --porcelain` as an acceptance
+verdict, because that predicate is verified blind both to files 2..N inside an
+untracked directory and to content changes within an unchanged status string.
+WHERE any `git status --porcelain` invocation remains anywhere in this
+package's code, it SHALL pass `--untracked-files=all`.
+IF a caller in this package needs a write-evidence result and the helper is
+unavailable, THEN it SHALL fail loudly and SHALL NOT substitute a local
+status-digest check of its own.
 
 #### Scenario: a vendor that narrates success but writes nothing is caught
 
 - WHEN an implement round completes with exit code 0 and the model's output
   describes files it claims to have written
-- AND the git-status digest is unchanged
-- THEN the round is treated as having produced no file changes
-- AND the helper re-prompts within its budget or fails naming the vendor.
+- AND the evidence-contracts helper reports that no declared deliverable's
+  content hash changed and the lane-type artifact assertion fails
+- THEN the round is treated as having produced no qualifying work
+- AND `vendor-multiround.sh` re-prompts within its budget or fails naming the
+  vendor.
+
+#### Scenario: the adapter layer never defines the predicate
+
+- WHEN a reviewer looks for the definition of the write-evidence predicate
+- THEN it is found only in `evidence-contracts`
+- AND no adapter and no file owned by this package restates it, and no adapter
+  decides a round on a `git status --porcelain` digest.
 
 #### Scenario: a non-git working directory fails before the first round
 
 - WHEN `vendor-multiround.sh` is pointed at a directory that is not a git work
   tree
-- THEN it fails immediately with a configuration error
+- THEN the evidence-contracts helper fails immediately with a configuration
+  error
 - AND no vendor invocation is made.
 
 ## MODIFIED Requirements

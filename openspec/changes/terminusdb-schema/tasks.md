@@ -12,8 +12,12 @@ before. T3 is the gate.
       GraphNode/WorkNode/Artifact (abstract), and the 15 concrete
       classes.
 - [ ] Confirm no class or property is named parent_of/PARENT_OF; confirm
-      has_attempt, depends_on (on Task and Artifact separately), and
-      broader_than each exist on exactly the class documented.
+      has_attempt, subtask_of (Task, Optional<Task>), depends_on (Task,
+      dependency-only), artifact_depends_on (Artifact), and broader_than
+      (Entity) each exist on exactly the class documented, and that
+      subtask_of and depends_on are never merged.
+- [ ] Confirm GraphNode.graphify_version exists as Optional xsd:string
+      and is inherited by every concrete class.
 - [ ] Confirm EvaluationTarget is referenced from both Evaluation.target
       (required) and Finding.about (optional).
 - [ ] Confirm Entity.resolved_to is Optional of Entity and
@@ -39,13 +43,36 @@ before. T3 is the gate.
       they differ).
 - [ ] Confirm exactly two questions are recorded as gaps (CQ-16, CQ-22) and
       no others are silently unmapped.
+- [ ] Confirm the graphify -> schema mapping manifest (design.md) covers
+      all six node file_type values and states an explicit fail/drop rule
+      for everything else, including hyperedges.
 
 ## T3 -- gate
 
 - [ ] openspec validate terminusdb-schema --strict passes.
 - [ ] markdownlint-cli2 clean on all four files.
-- [ ] The JSON schema block in design.md is valid JSON (parse it
-      standalone to confirm -- copy the fenced block content to a temp file
-      and run it through a JSON parser).
+- [ ] The JSON schema block in design.md is loaded live and verified, not
+      just parsed: extract the fenced JSON block from design.md
+      deterministically (the largest parseable fenced JSON block in the
+      file); start a fresh pinned `terminusdb/terminusdb-server:v12.0.6`
+      container (digest
+      `sha256:e02eaa3a5b75e01550cee2a662a846db7fceb725193983f1f35e1842ab580fee`);
+      run these four checks and assert success on each:
+      1. `POST /api/document/admin/foreman?graph_type=schema&full_replace=true`
+         with the extracted schema -- assert HTTP 200.
+      2. `GET /api/document/admin/foreman?graph_type=schema&as_list=true` --
+         assert every declared class and enum name from the extracted
+         schema is present in the response.
+      3. `POST /api/document/admin/foreman?author=schema-gate&message=positive-fixture`
+         with a well-formed Agent instance document -- assert HTTP 200/201
+         (positive fixture).
+      4. `POST /api/document/admin/foreman?author=schema-gate&message=negative-fixture`
+         with an Agent instance carrying an invalid `vendor` enum value --
+         assert the write is rejected (negative fixture).
+      Tear the container down after. This is four curl calls and completes
+      in under ten seconds; it replaces the JSON-parse-only check, it does
+      not supplement it with a slower alternative.
+- [ ] Live load-test gate above is required (not optional): all four
+      checks pass against the pinned v12.0.6 container.
 - [ ] bugeventlog.md appended with any workflow friction encountered while
       authoring this package (or a note that none occurred).

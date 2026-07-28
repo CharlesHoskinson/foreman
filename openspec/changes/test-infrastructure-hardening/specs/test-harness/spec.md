@@ -192,6 +192,132 @@ shown to produce the opposite classification in the same run.
 - THEN the change is rejected naming the check
 - AND the check is not counted as coverage.
 
+### Requirement: the positive-control registry is a committed artefact matched against a full-repository check inventory
+
+A hand-curated registry can attest to itself while omitting the gate nobody
+remembered to add: a list of controls someone remembered proves nothing about
+the controls they forgot. Making that claim checkable requires three things the
+registry did not previously have -- a location, an entry schema, and an identity
+key by which an entry is matched to a check -- and an inventory scoped to the
+repository rather than to one release's diff.
+
+**Artefact.** The registry SHALL be a single committed tab-separated file at
+`tests/positive-control-registry.tsv` carrying a header row, maintained the way
+`tests/baseline.tsv` and `tests/skip-budget.tsv` are maintained: edited
+deliberately as part of a change, and never regenerated automatically from a
+run.
+
+**Entry schema.** Each row SHALL carry exactly the fields `check_id`, `kind`,
+`known_bad_input`, `known_good_input`, `control_record`, `demonstrated_at`.
+`kind` SHALL be one of `gate`, `probe`, `assertion`, `verdict-predicate`.
+`known_bad_input`, `known_good_input` and `control_record` SHALL each be a
+repository-relative path that exists; `control_record` SHALL name the recorded
+run in which the check produced the negative answer on the known-bad arm and
+the positive answer on the known-good arm in that same run. `demonstrated_at`
+SHALL be the commit id at which that record was produced. A row with a missing
+field, an unrecognised `kind`, or a path that does not exist SHALL fail the
+build.
+
+**Identity key.** `check_id` SHALL be `<repository-relative path>::<check
+name>`, where `<check name>` is the shell function name, the bats `@test` name,
+or the workflow step id that carries the predicate. The inventory scanner SHALL
+derive the identical key, so a registry row and an inventory member are matched
+by string equality on `check_id` and by nothing else. Renaming a check changes
+its `check_id` and therefore obliges the same change to update its row.
+
+**Inventory scope -- the whole repository at the commit under test, not the
+diff.** The inventory SHALL be derived by `tests/lib/check-inventory.sh`
+scanning the full repository tree at the commit under test, and written to
+`tests/.check-inventory.tsv` (derived, uncommitted, never a substitute for the
+registry). A diff-scoped sweep omits every check it did not touch: a check that
+already existed before this release, a check a sibling package landed earlier
+in the release order, and a check promoted to gating status by configuration
+alone are all outside any single change's diff. A full-tree sweep registers all
+three, and it is what makes the stale-entry rule below survivable across
+releases.
+
+**Recognizer grammar.** The scanner SHALL enumerate exactly four kinds:
+(a) `gate` -- every check invoked by a step in `.github/workflows/`, by
+`tests/run.sh`, or by a `gate-*` / `*-eval.sh` script under
+`skills/foreman/scripts/`; (b) `probe` -- every function that records a verdict
+through the tool-check or probe helpers; (c) `assertion` -- every bats `@test`
+whose body calls an assertion helper; (d) `verdict-predicate` -- every call site
+that parses output for an outcome token. A predicate reachable only through a
+wrapper this grammar does not recognise is NOT covered: the grammar SHALL be
+extended when such a case is found, and the limitation SHALL be stated wherever
+inventory coverage is claimed, rather than the inventory being described as
+exhaustive.
+
+WHEN the release build runs, it SHALL derive the full-repository inventory and
+compare it against the registry by `check_id`.
+IF an inventory member has no registry row, THEN the build SHALL fail naming
+the unregistered `check_id`, and SHALL NOT pass on the theory that an
+unregistered check is not required to carry a control.
+IF a registry row names a `check_id` the full-repository inventory does not
+contain, THEN the build SHALL fail naming the stale row. Because the inventory
+is full-repository rather than diff-scoped, a check untouched since a prior
+release is still found and its row is not stale; only genuine removal or rename
+makes a row stale, and the change that removes or renames the check is the
+change that updates or deletes the row.
+IF the derived inventory is empty, THEN the build SHALL fail with
+`inventory-empty` rather than reporting "no unregistered checks" -- a green
+build over an empty inventory carries no coverage information and SHALL NOT be
+cited as coverage.
+The inventory SHALL be derived at each landing stage's tip rather than once at
+the start of the release, so a check landed by an earlier stage is inventoried
+before the stage that gates on it.
+The derivation mechanism itself SHALL be demonstrated against a known case: a
+check deliberately introduced without a registry row SHALL be shown causing the
+build to fail, and adding the row (or removing the check) SHALL be shown
+restoring a passing build.
+
+#### Scenario: an unregistered gate fails the build instead of passing silently
+
+- WHEN a new gate-eval predicate is added to the release and no row is added to
+  `tests/positive-control-registry.tsv` for it
+- THEN the full-repository inventory finds the gate's `check_id` with no
+  matching row
+- AND the build fails naming the unregistered `check_id`.
+
+#### Scenario: a stale registry row is caught, not left to imply false coverage
+
+- WHEN a registry row names a `check_id` whose check was removed or renamed in
+  the same tree
+- THEN the full-repository inventory does not contain that `check_id`
+- AND the build fails naming the stale row.
+
+#### Scenario: a check untouched by this release's diff is still covered
+
+- WHEN a release changes no line of a gate that was registered two releases ago
+- THEN the full-repository inventory still contains that gate's `check_id` and
+  its registry row is not reported stale
+- AND the build does not fail on an entry whose only defect was being absent
+  from today's diff.
+
+#### Scenario: a check contributed by a sibling package is inventoried
+
+- WHEN a sibling package lands a new probe at an earlier stage and this package
+  touches none of its files
+- THEN the inventory derived at the current stage's tip contains that probe's
+  `check_id`
+- AND the build fails until a registry row for it exists.
+
+#### Scenario: an empty inventory fails rather than passing vacuously
+
+- WHEN the scanner returns zero inventory members on a docs-only or
+  refactor-only release
+- THEN the build fails with `inventory-empty`
+- AND the run is not reported as "no unregistered checks" and is not counted
+  as coverage.
+
+#### Scenario: the derivation mechanism is proven against a known-bad case
+
+- WHEN a check is deliberately added without a registry row as a test of the
+  inventory mechanism
+- THEN the build fails
+- AND adding the row, or removing the check, is shown restoring a passing
+  build.
+
 ### Requirement: a success predicate binds to an artifact and its content
 
 A lane, gate or check SHALL determine success from the artifact it was required
@@ -265,6 +391,54 @@ same purpose.
 - THEN it is accepted only with a positive control demonstrating it failing
   against a known-bad input
 - AND without one it is not counted as coverage.
+
+### Requirement: a rate the harness reports with a zero denominator is uncomputable, never zero and never a pass
+
+Every rate, ratio, share or per-unit figure this package's harness computes
+SHALL name its denominator explicitly, and SHALL define what it reports when
+that denominator is zero. A zero denominator is an absence of measurement, not
+a measurement of zero, and SHALL NOT be rendered as `0`, as `100%`, as blank,
+as `n/a`, or as any value that could satisfy a threshold.
+
+The rates this package owns and their denominators are: per-file pass rate
+(tests executed in that file), aggregate pass rate (tests executed in the run),
+skip-budget utilisation (the file's declared skip budget for the running
+platform), injection detection rate (seeded defects actually run), and
+positive-control coverage (members of the derived check inventory).
+WHEN any of those denominators is zero for a run, THEN the harness SHALL render
+that figure as `UNCOMPUTABLE (<denominator name> = 0)` and SHALL name the run
+and the file or population concerned.
+IF a gating decision depends on a rate that is uncomputable for the run, THEN
+the run SHALL be recorded as ERROR for that gate -- the same treatment the
+unparsable-checker-output rule above gives an unrecognised token -- and SHALL
+NOT be recorded as a pass.
+An uncomputable rate SHALL NOT be compared against a baseline, a budget or a
+coverage target, and SHALL NOT be carried into an aggregate as though it were
+zero.
+
+#### Scenario: a file whose tests all skip does not report a 100% pass rate
+
+- WHEN every test in a file skips on the running platform, so zero tests
+  execute in it
+- THEN the per-file pass rate renders as `UNCOMPUTABLE (tests executed = 0)`
+- AND the file is not compared against its baseline pass count and is not
+  reported as passing.
+
+#### Scenario: a zero-budget file does not report zero skip utilisation
+
+- WHEN a file's declared skip budget for the running platform is 0
+- THEN skip-budget utilisation renders as
+  `UNCOMPUTABLE (declared skip budget = 0)` rather than 0%
+- AND any skip observed in that file is still reported as an over-budget
+  excess by the budget rule.
+
+#### Scenario: an injection run that seeded nothing does not claim full detection
+
+- WHEN the regression-injection harness runs and no seeded defect executed
+- THEN the injection detection rate renders as
+  `UNCOMPUTABLE (seeded defects run = 0)`
+- AND the run is not reported as demonstrating protection for any defect
+  class.
 
 ### Requirement: a result that would change a release decision is corroborated independently
 

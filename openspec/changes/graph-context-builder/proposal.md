@@ -116,8 +116,10 @@ edge identity, so the builder mints it.
   `skills/foreman/scripts/graph-mcp.sh`, `tests/graph-context.bats`,
   `skills/foreman/references/graph-context.md`.
 - **Depends on `knowledge-plane-refresh` (GP-3)** for a graph that is fresh,
-  directed, version-stamped and single-writer safe, and for the freshness figure
-  stamped into every block.
+  version-stamped and single-writer safe, and for the freshness figure stamped
+  into every block. Not for directedness: the artifact is `"directed": false`
+  and this package reconstructs direction at load with
+  `build_from_json(raw, directed=True)`.
 - **Depends on `work-dag-projection` (GP-4)** for `worklog.jsonl` — the work-plane
   half of the served context (prior attempts, verdicts, findings) comes from
   there, keyed by graphify node ID.

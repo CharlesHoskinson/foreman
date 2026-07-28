@@ -33,31 +33,104 @@ directory that may still hold the last successful answer. The inversion:
   complete, and callers that check it keep working.
 - **The artifact is for the gate.** `audit-verdict.json` is written on every
   path, including the failure paths, before the non-zero exit.
-
 Write it atomically (tmp + rename), the same discipline `el_emit` uses for
-`.seq` (`lib/eventlog.sh`): a crash mid-write must leave the previous verdict
-intact rather than a half-parsed one, and the evidence binding below will
-correctly reject the stale intact file.
+`.seq` (`lib/eventlog.sh`): the artifact on disk is at all times a complete
+document rather than a half-parsed one. Atomicity is about the *shape* of the
+file, not about which attempt it describes — see the next section, where the
+prior verdict is deliberately replaced before the audit starts rather than
+after it finishes.
 
-## Evidence binding, and why on content rather than on sha
+## Evidence binding: the attempt and the tree, not the diff hash alone
 
 The stale-verdict hazard is not fixed by remembering to delete a file. It is
 fixed by making the verdict *say what it is about* and having the gate check.
+The first draft of this design made `diff_sha256` the whole predicate. It does
+not discriminate the property the gate claims, in two separate ways, both
+identified by the infrastructure audit.
 
-`audit-verdict.json` carries `evidence: {diff_sha256, base_sha, head_sha,
-attempt}`. `gate-eval.sh` recomputes the diff it is gating and compares
-`diff_sha256`. A mismatch is a distinct gate reason — "audit verdict does not
-match the diff under evaluation" — not a generic schema failure.
+**`diff_sha256` does not discriminate the audit attempt.** The design writes a
+new verdict by tmp+rename and, as first drafted, left the prior artifact intact
+until that rename. An audit of an *unchanged* diff killed before the rename
+therefore leaves the previous `APPROVED` in place — carrying the same diff hash,
+still gate-valid. The gate would authorise a merge on a judgment that was in the
+process of being re-taken.
 
-**Bind on the diff's content hash, not on `head_sha`.** A rebase onto a moved
-base, an amended commit message, or a re-checkpoint produces a new sha with a
-byte-identical diff. Binding on sha would invalidate a perfectly good 27-minute
-audit for a no-op, and the predictable response to that is operators deleting
-the check. Binding on content invalidates exactly when the reviewed bytes
-changed.
+**`diff_sha256` does not discriminate the evaluated tree.** A rebase onto a
+different base can produce a byte-identical patch while changing the resulting
+tree, and with it the dependencies the audit, the independent checks and the
+docs check all ran against. The formal model abstracts this as `DiffId`, so it
+cannot falsify the real predicate — a bounded model checker agreeing with a
+predicate that does not discriminate its property is not evidence.
 
-`base_sha`, `head_sha` and `attempt` are recorded for the lineage record and for
-diagnosis; only `diff_sha256` is the gate predicate.
+### What is bound
+
+`audit-verdict.json` carries `evidence: {diff_sha256, tree_sha256, base_sha,
+head_sha, attempt}` and a top-level `state ∈ {in_progress, complete}`.
+
+- **`diff_sha256`** — content hash of the reviewed diff. Unchanged from the
+  first draft, and still the reason an amend or re-checkpoint that changes no
+  content does not invalidate a 27-minute audit.
+- **`tree_sha256`** — canonical identity of the *evaluated tree*: the git tree
+  object id of `HEAD` in the reviewed worktree, combined with a sorted
+  canonical content digest (path, state, mode, hash — see below) over every
+  path `git status --porcelain=v1 -z -uall --no-renames` reports. That covers
+  untracked files, staged and unstaged content, modes, symlinks, deletions and
+  binary files. This is the same canonical function `checks-run.sh`, the docs
+  check and `evidence-contracts`' `lib/evidence.sh` use, so all of them speak
+  about the same tree with one implementation.
+- **`attempt`** — the audit attempt id, allocated from the existing
+  `el_attempt_new` entity (per-run-per-lane monotonic, persisted, restart-safe).
+  It is allocated and recorded in `$RD` **before** the auditor is spawned.
+- **`state`** — `in_progress` at publish time, `complete` only after the
+  auditor has returned and its output has been interpreted.
+
+### How staleness is detected
+
+Before the auditor is spawned, `audit-run.sh` atomically publishes an
+`UNVERIFIED` / `in_progress` record for the new attempt, with the full evidence
+reference. From that instant there is no previous `APPROVED` on disk to inherit.
+The gate then requires all four of: matching `diff_sha256`, matching
+`tree_sha256`, `attempt` equal to the current published attempt, and
+`state == complete`. Each failure is its own reason string: diff mismatch,
+evaluated-tree mismatch, superseded or unfinished attempt, incomplete audit.
+An uncomputable identity fails closed with its own reason and is never treated
+as a match.
+
+This composes with the requirement binding all three gate inputs.
+`checks-result.json` and `docs-check.json` bind to `{diff_sha256, tree_sha256}`
+and deliberately carry no `attempt`: they are not produced by an audit attempt,
+so an attempt field on them would be meaningless. The verdict is the only
+artifact an audit attempt produces, and the only one the attempt binds.
+
+`base_sha` and `head_sha` remain lineage and diagnosis fields, not predicates.
+They are recorded for diagnosis and are never compared by the gate; the gate
+predicates are `diff_sha256`, `tree_sha256`, `attempt` and `state`, all four.
+
+### Deletions, symlinks and type changes in `tree_sha256`
+
+The first draft defined `tree_sha256` as path, mode and SHA-256 of bytes over
+every porcelain-reported path, which is undefined for the one state porcelain
+most commonly reports: a deletion. Reproduced in a scratch repository —
+porcelain prints ` D deleted.txt`, and both `stat` and `sha256sum` fail because
+the path is gone. Under the fail-closed rule that made an audit of any change
+containing a deletion permanently `UNVERIFIED`, and it invited an implementer
+to invent an unspecified sentinel.
+
+The encoding is therefore fixed-arity with an explicit state character, and
+absence is a value: `-`, mode `000000`, a 64-character zero hash. A deletion
+changes the identity exactly as a write does, and a lane that removed a file is
+distinguishable from a lane that wrote nothing — the property the gate needs.
+Symbolic links hash their target string rather than their referent, so a
+retargeted link is visible and a link pointing outside the worktree is still
+hashable. Directories carry the zero hash and appear only when explicitly
+named. An unreadable path is *not* encoded as absent: that collision would let
+a permissions failure masquerade as a deletion, so it remains uncomputable and
+fails closed on its own reason.
+
+`--no-renames` decomposes a rename into an absent record and a present record,
+which the encoding already covers, and `-z` removes porcelain v1's shell
+quoting of paths containing spaces, quotes or newlines — quoting that would
+otherwise make two distinct trees hash alike after unquoting.
 
 ## What the gate does with UNVERIFIED
 
@@ -102,13 +175,18 @@ discretion. An errored audit would become a merge path.
 section above. Kept here as an explicit rejection because it is the reading of
 R2's P2 that a fast reader will arrive at, and it inverts the mechanism.
 
-**Delete `audit-verdict.json` at the start of every audit.** Rejected as the
-primary mechanism. It fixes the stale-file symptom and leaves the gate unable to
-tell *which* diff any verdict is about, so a fresh verdict against the wrong
-worktree still passes. It also converts a crash between delete and write from
-"stale input" into "missing input" — a different wrong answer, not a right one.
-Evidence binding is the mechanism. Deletion is permitted as redundant safety and
-is not sufficient alone.
+**Delete `audit-verdict.json` at the start of every audit.** Rejected, and
+replaced by a stronger version of the same instinct. Deletion fixes the
+stale-file symptom, leaves the gate unable to tell *which* diff or tree any
+verdict is about, and converts a crash between delete and write from "stale
+input" into "missing input" — a different wrong answer, not a right one. What
+this change does instead is *publish* an `UNVERIFIED` / `in_progress` record for
+the new attempt before the auditor is spawned: there is never a window with no
+artifact, the artifact never authorises anything it should not, and a killed
+audit leaves a correctly-recorded unfinished attempt rather than an inherited
+approval. Evidence binding on `{diff_sha256, tree_sha256, attempt, state}` is
+the mechanism; the pre-audit publish is what makes the attempt binding
+observable. Plain deletion remains insufficient and is not used.
 
 **Retry the audit automatically inside `audit-run.sh` on `UNVERIFIED`.**
 Rejected for this release. Bounded retry belongs to the policy layer that
@@ -271,3 +349,32 @@ satisfaction, not a theorem. Re-run with:
 quint verify formal/specs/audit_gate.qnt --main=<module> \
   --invariant=<invariant> --max-steps=<N> --apalache-version=0.56.1
 ```
+
+## Demonstrated rejection — what each gate predicate here is shown to reject
+
+The workstream's standard applied to this package's own predicates: a predicate
+is evidence only if it discriminates the claimed property, and it is only
+demonstrated to discriminate once a known-bad input is shown to be rejected.
+Every row names an input the **previous** predicate (`diff_sha256` alone)
+accepts and the new one rejects. A control that both predicates pass would
+demonstrate nothing.
+
+| Predicate | Known-bad input it is demonstrated to reject | Demonstration |
+|---|---|---|
+| `evidence.attempt` equals the current published attempt, and `state == complete` | A previous `APPROVED` left standing by a re-audit of a **byte-identical** diff that was killed before it finished | Fixture: record `APPROVED`; spawn a re-audit of the same diff; `SIGKILL` it after the pre-audit publish; run the gate. The gate must fail naming the unfinished attempt. Assert the same fixture **passes** under a `diff_sha256`-only gate — that is the defect being closed. |
+| `evidence.tree_sha256` equals the recomputed evaluated tree | A rebase onto a different base producing a **byte-identical patch** over a different resulting tree | Fixture: audit on base A; rebase onto base B such that `git diff` output is byte-identical; run the gate. The gate must fail naming the evaluated-tree mismatch. Assert the same fixture **passes** under a `diff_sha256`-only gate. |
+| `tree_sha256` canonicalisation | An audit whose worktree carried untracked files, unstaged content or a mode change that a `HEAD^{tree}` id alone would not cover | Fixture: identical `HEAD^{tree}`, differing untracked file / mode; the two `tree_sha256` values must differ. |
+| Pre-audit publish of `UNVERIFIED` / `in_progress` | Any window in which the artifact on disk authorises a merge while an audit for the current attempt is in flight | Fixture: sample the artifact at every point between spawn and completion; no sample may be an authorizing verdict for a superseded attempt. |
+| Fail-closed on uncomputable identity | A gate run in which the diff hash, the tree identity or the attempt id cannot be computed and the comparison silently succeeds | Fixture: force each of the three computations to fail; the gate must fail with three distinct reasons, never pass and never report a match. |
+| Per-artifact distinct reasons | A stale `checks-result.json` reported as a verdict problem, or vice versa | Fixture: stale each of the three artifacts in turn; each must produce its own reason string and name which identity mismatched. |
+
+### A note on what the formal model can and cannot say here
+
+`audit_gate.qnt` abstracts the reviewed change as an opaque `DiffId`. Under that
+abstraction a rebase-with-identical-patch and a fresh diff are the same value,
+and an interrupted attempt is not modelled at all. The model therefore cannot
+falsify either defect above, and its `post_fix` holds are not evidence that the
+real predicate discriminates. The controls in the table are what carry that
+claim; the model carries the ordering and reachability claims it was built for.
+This limitation is stated here so the next reader does not read a green model
+run as coverage of the predicate.

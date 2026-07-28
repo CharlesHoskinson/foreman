@@ -107,8 +107,9 @@ wrapper under weaker maintenance than the server itself.
 - Strict create (optional): `POST` same path; maps
   `api:DocumentIdAlreadyExists` into the error taxonomy.
 - Every response carries `Terminusdb-Data-Version`
-  (`branch:<opaque-id>`); the adapter surfaces this value only through
-  `normalize_data_version` / typed wrappers (D5).
+  (`branch:<opaque-id>`); the adapter surfaces this value as a
+  `DataVersionToken` (D6) usable only as a CAS request header — never as
+  a diff ref.
 
 ### D3 — Commit boundary and batch size
 
@@ -172,25 +173,27 @@ owns the deployment config.
 
 ### D6 — normalize_data_version (diff footgun)
 
-**Decision:**
-
-```text
-normalize_data_version(ref: str) -> DataVersionRef
-```
-
-- If `ref` starts with `branch:`, strip that prefix → bare branch name
-  (e.g. `branch:main` → `main`).
-- Bare names (`main`), `commit:<id>`, and loud-safe forms such as
-  `admin/foreman/local/branch/main` pass through after validation.
-- The type `DataVersionRef` is the **only** accepted type for
-  `before_data_version` / `after_data_version` fields on diff (and any
-  other `*_data_version` request field). Call sites cannot pass a raw
-  `str` into those fields without going through normalization.
-- A post-condition assert: if the value still starts with `branch:`
-  after normalization, raise `AdapterValidationError` (must not reach
-  HTTP).
-- Canary (a): fixture that attempts a diff with a `branch:`-prefixed
-  ref and asserts rejection **before** the HTTP call; with the
+**Decision:** two distinct types replace the single ambiguous ref.
+`DataVersionToken` — opaque, produced ONLY by adapter read/write responses
+(the raw `Terminusdb-Data-Version` header value), usable ONLY as a
+`TerminusDB-Data-Version` request header for CAS preconditions, and SHALL
+NEVER be accepted into a `before_data_version` / `after_data_version` /
+any other `*_data_version` diff field.
+`DiffRef` — a bare branch name or `commit:<id>`, the only types accepted in
+diff fields. `normalize_data_version(ref: str) -> DiffRef` strips a leading
+`branch:` prefix IF AND ONLY IF the remainder, after stripping, matches a
+name in the live branch list (`GET /api/document/{org}/{db}/_meta?type=Branch&as_list=true`)
+or is `commit:<id>` shaped; otherwise it raises `AdapterValidationError`
+rather than returning a value that merely lacks a `branch:` prefix. This
+closes the exact gap R8 flagged: a bare opaque token like
+`97slyhm3dqtqqjeq988v7wzr2pab3go` stripped of nothing (it never had a
+`branch:` prefix as a raw header value; it acquires one only when someone
+mistakenly writes `branch:<token>` by hand) must not pass normalization by
+merely lacking the prefix — it must resolve to a name TerminusDB actually
+recognizes as a branch, or be rejected.
+- Canary (a): fixture that covers BOTH the hand-written `branch:main` form
+  AND the opaque-token form (a stripped remainder that does not match the
+  live branch list must also be rejected); with the
   assertion/normalization machinery disabled, the canary suite MUST go
   red.
 
@@ -256,9 +259,13 @@ answers without Distinct.)
 4. **Producing graphify version stamp:** `graph.json` does **not**
    carry the producing graphify version. The caller MUST supply
    `graphify_version: str` to the ingest function; the adapter stamps it
-   onto every written document (field name coordinated with Council 1
-   schema package; adapter owns the stamping action). Missing stamp →
-   `AdapterValidationError` before any write.
+   onto every written document. The field is `GraphNode.graphify_version`
+   (Optional xsd:string), declared by the schema package on the common
+   ancestor every class inherits, and this adapter stamps that exact field
+   name on every written document. Note that this was verified live before
+   the freeze: a document carrying `graphify_version` against the prior
+   (pre-fix) schema was rejected; against the corrected schema it is
+   accepted. Missing stamp → `AdapterValidationError` before any write.
 
 5. **Node fields consumed (verified sample shape):** `label`,
    `file_type` ∈ {code, document, paper, image, rationale, concept},
@@ -274,10 +281,31 @@ answers without Distinct.)
    uses D2 (`full_replace=true` always). Concrete class shapes come from
    Council 1; this package only performs the HTTP write correctly.
 
+### D9.7 — Manifest-driven node and edge classification
+
+**Decision:** the adapter reads the graphify -> schema mapping manifest
+published by the schema package (`terminusdb-schema/design.md`, "graphify ->
+schema mapping manifest") and pins the `manifest_version` it was built
+against. For every ingested node, the adapter looks up `file_type` in the
+manifest's node-kind table and writes the resulting class/key/field
+mapping; a `file_type` absent from the manifest raises
+`UnmappedNodeKindError` naming the node id and file_type, before any write
+for that node. For every ingested edge, the adapter looks up the relation
+type in the manifest's edge-relation table via `classify_edge_relation`,
+which mirrors `classify_edge_property`'s four-outcome set (reify |
+drop-with-record | fold-onto-node | fail); an unmapped relation type
+defaults to fail, raising `ReificationError` naming the relation type and
+edge. Hyperedge objects are classified drop-with-record by default under
+manifest_version 1 and recorded in the ingest report.
+
 ### D10 — Reification classifier
 
-**Decision:** Every edge property on a link resolves to **exactly one**
-of:
+**Decision:** Every edge *property* on a link resolves to **exactly one**
+of the four outcomes below. This decision classifies edge *properties*
+specifically; D9.7 classifies the edge *relation type* itself — these are
+two independent classifications applied to the same edge (a relation type
+decides which schema field/class the edge maps to; its properties
+separately decide reify/drop/fold/fail per-property).
 
 | Class | Meaning |
 | --- | --- |
@@ -322,7 +350,9 @@ or equivalent) in the repo work tree supplied by the caller.
 | `DataVersionMismatchError` | Single CAS mismatch (internal; may be retried) | Yes — bounded |
 | `UnexpectedEmptyResultError` | `expect="results"` and zero rows | No |
 | `IngestSourceError` | Wrong source file kind (cypher / export) | No |
-| `ReificationError` | Edge property classified `fail` | No |
+| `ReificationError` | Edge property classified `fail`, or unmapped edge relation type | No |
+| `UnmappedNodeKindError` | graphify node file_type absent from schema mapping manifest | No |
+| `BannedEndpointError` | Query path attempted a banned endpoint (`/api/log`) or non-zero-offset paging against the commit log | No |
 | `RenameCorrelationError` | Rename detection failed with fail-closed policy | No |
 | `AuthError` | 401/403 | No |
 | `NotFoundError` | 404 db/document | No |
@@ -357,6 +387,17 @@ or equivalent) in the repo work tree supplied by the caller.
    (`DropRebuildError`). Default safe path: selective delete of
    graph.json-derived `@type`s (types named by Council 1 schema package)
    then re-ingest.
+
+### D14 — Banned endpoint enforcement
+
+**Decision:** the adapter's query-issuing layer SHALL refuse to call
+`/api/log` on any code path, and SHALL refuse any commit-log query that
+uses non-zero `start` (offset) paging. Both refusals happen before the HTTP
+call, raising `BannedEndpointError` naming the attempted endpoint.
+Rationale (R8 measured): `/api/log` is a ~2.4 ms/commit linear scan with
+O(offset) paging, and the fast alternative is Enterprise-gated — this is
+the mitigation for R8's single most load-bearing finding, and it must be
+structurally enforced, not merely documented.
 
 ## Alternatives Considered
 

@@ -31,7 +31,42 @@ it. The two must not both rewrite that block.
       verdict, worktree mutation, missing CLI, unauthenticated CLI.
 - [ ] Add the provenance block: vendor, model, effort, started_at, ended_at,
       duration_s — recording what actually ran, not what was configured.
-- [ ] Add `evidence: {diff_sha256, base_sha, head_sha, attempt}`.
+- [ ] Add `evidence: {diff_sha256, tree_sha256, base_sha, head_sha, attempt}`
+      and a top-level `state` of `in_progress` or `complete`. `base_sha` and
+      `head_sha` are lineage fields, not predicates.
+- [ ] Compute `tree_sha256` with one canonical function shared with the gate,
+      `checks-run.sh`, the docs check and `evidence-contracts`' `lib/evidence.sh`:
+      git tree object id of `HEAD` combined with a sorted canonical content
+      digest over every path `git status --porcelain=v1 -z -uall --no-renames`
+      reports, so untracked files, staged and unstaged content, modes, symlinks,
+      deletions and binary files are covered. Exactly one implementation exists
+      in the harness; the gate, the checks artifact and the evidence helper all
+      call it.
+- [ ] Implement the canonical record: sorted by bytewise-ascending path, one
+      fixed-arity NUL-separated newline-terminated record per path carrying
+      path, state, six-digit mode, 64-char lowercase hex hash. States: `f` +
+      git file mode + SHA-256 of bytes; `l` + `120000` + SHA-256 of the link
+      TARGET STRING (not the referent); `d` + `040000` + 64 zeros; `-` +
+      `000000` + 64 zeros for a path that does not exist.
+- [ ] A deleted path is encoded with the absent state, never omitted. `-z`
+      because porcelain v1 shell-quotes paths with spaces/quotes/newlines;
+      `--no-renames` so a rename decomposes into an absent record plus a present
+      record. Assert both flags in a test, as `-uall` is asserted.
+- [ ] A reported path that exists but cannot be read is UNCOMPUTABLE, not
+      absent: record `UNVERIFIED` naming the path. Encoding it as absent would
+      make a permissions failure indistinguishable from a deletion; state this
+      in the code comment so it is not "simplified" later.
+- [ ] Before spawning the auditor: allocate the attempt id from
+      `el_attempt_new`, record it atomically in `$RD` as the current audit
+      attempt, and atomically publish `audit-verdict.json` with
+      `verdict:"UNVERIFIED"`, `state:"in_progress"` and the full evidence
+      reference. The prior verdict is replaced at audit START, not at audit
+      end; that is what makes an interrupted same-diff re-audit detectable.
+- [ ] Set `state:"complete"` only after the auditor returns and its output has
+      been interpreted.
+- [ ] IF the evaluated-tree identity cannot be computed, THEN record
+      `UNVERIFIED` with a reason naming that failure and write no defaulted or
+      empty `tree_sha256`.
 - [ ] Leave `adapters/verdict.schema.json`'s enum at three values, and add a
       comment in both the schema and `audit-run.sh` stating the asymmetry is
       deliberate and why.
@@ -52,13 +87,31 @@ it. The two must not both rewrite that block.
       hunk-scoped re-audits, or session reuse. They are v0.4.0's. Add a
       pointer, not a prototype.
 
-## T4 — gate: evidence binding
+## T4 — gate: bind the verdict to the attempt and the evaluated tree
 
-- [ ] `gate-eval.sh` recomputes the diff content hash for the task under
-      evaluation.
-- [ ] Compare with the verdict's `evidence.diff_sha256`; mismatch is a
-      distinct gate reason naming the mismatch.
-- [ ] Bind on content hash, never on `head_sha`.
+`diff_sha256` alone does not discriminate either the current audit attempt or
+the evaluated tree. Both defects are recorded in `design.md`.
+
+- [ ] `gate-eval.sh` recomputes, for the task under evaluation: the diff
+      content hash, and the evaluated-tree identity `tree_sha256` (git tree
+      object id of `HEAD` combined with the canonical content digest defined in
+      T2 over every path `git status --porcelain=v1 -z -uall --no-renames`
+      reports). Exactly one function for each; `-uall`, `-z` and `--no-renames`
+      are all mandatory.
+- [ ] Read the current audit attempt id from `$RD` (the value `audit-run.sh`
+      published before spawning the auditor).
+- [ ] Require all four to hold: `evidence.diff_sha256` matches,
+      `evidence.tree_sha256` matches, `evidence.attempt` equals the current
+      published attempt, and `state == "complete"`.
+- [ ] Give each of the four failures its own distinct gate reason: diff
+      mismatch, evaluated-tree mismatch, superseded or unfinished attempt,
+      incomplete audit.
+- [ ] Bind on content and tree identity, never on `head_sha`: an amend or
+      re-checkpoint that changes neither content nor tree must not invalidate a
+      valid audit.
+- [ ] IF any of the three identities cannot be computed or read, THEN fail
+      closed with a distinct reason. Never treat uncomputable as a match, as
+      empty, or as a pass.
 - [ ] Preserve the existing fail-closed behaviour for a missing or
       schema-invalid verdict artifact.
 
@@ -109,6 +162,36 @@ it. The two must not both rewrite that block.
 - [ ] Stale-verdict regression: a failed re-audit must not leave a prior
       `APPROVED` readable by the gate. Prove this test goes red against the
       current code.
+- [ ] Planted staleness control A -- interrupted same-diff re-audit: record an
+      `APPROVED`, spawn a re-audit of the byte-identical diff, kill it after the
+      pre-audit publish, run the gate. The gate must fail naming the unfinished
+      attempt. Assert the same fixture PASSES a `diff_sha256`-only gate; a
+      control the old predicate also rejects demonstrates nothing.
+- [ ] Planted staleness control B -- byte-identical patch, different tree:
+      audit on base A, rebase onto base B so the patch is byte-identical, run
+      the gate. The gate must fail naming the evaluated-tree mismatch. Assert
+      the same fixture PASSES a `diff_sha256`-only gate.
+- [ ] Control C -- tree canonicalisation: two worktrees with identical
+      `HEAD^{tree}` but a differing untracked file, unstaged edit, or file mode
+      must produce different `tree_sha256` values.
+- [ ] Control C2 -- deletion: a worktree with a tracked file deleted (porcelain
+      reports ` D path`, `stat` and `sha256sum` both fail on it) must produce a
+      COMPUTED `tree_sha256` differing from the same worktree with the file
+      present. Prove the pre-fix definition goes red on this fixture: it records
+      `UNVERIFIED` for an uncomputable tree on a perfectly valid deletion.
+- [ ] Control C3 -- type change and link target: replacing a regular file with a
+      symlink of the same name, and retargeting an existing symlink, must each
+      change `tree_sha256`. A digest hashing the referent rather than the target
+      string is asserted to FAIL the retarget case.
+- [ ] Control C4 -- unreadable path: chmod a reported path unreadable; the
+      result must be `UNVERIFIED` naming that path, and must NOT be the same
+      identity the deletion fixture produces.
+- [ ] Control D -- no authorizing artifact exists while an audit is in flight:
+      sample `audit-verdict.json` between spawn and completion; no sample may
+      be an authorizing verdict for a superseded attempt.
+- [ ] Control E -- fail-closed: force the diff-hash, tree-identity and
+      attempt-id computations to fail in turn; three distinct gate reasons, no
+      pass, no silent match.
 - [ ] Evidence binding: mismatched diff fails with the mismatch reason;
       byte-identical diff after a rebase still passes.
 - [ ] `UNVERIFIED` fails the gate with a reason distinct from `BLOCKED`, and
@@ -127,27 +210,37 @@ it. The two must not both rewrite that block.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
 - [ ] `openspec validate three-outcome-verdicts --strict`.
 
-## T9 -- bind the other two gate inputs (formal: `post_fix` violations)
+## T9 -- bind the other two gate inputs to the diff and the tree
 
 Apalache found `post_fix / no_unverified_checks_merge` and
 `post_fix / no_unverified_docs_merge` VIOLATED at depth 8 (state 6) with the
 verdict binding of T4 working perfectly. `post_fix_full_binding` holds through
-depth 10. The verdict binding alone is necessary and insufficient.
+depth 10. The verdict binding alone is necessary and insufficient. Note the
+model abstracts the change as an opaque `DiffId`, so it cannot speak to whether
+`diff_sha256` discriminates the evaluated tree -- T4 covers that.
 
 - [ ] `checks-run.sh:41-42` already writes `{sha, command, exit_code, status}`.
-      Add `diff_sha256` for the diff actually evaluated. Do not repurpose `sha`.
-- [ ] Emit the same `diff_sha256` from the docs check into `docs-check.json`.
+      Add `diff_sha256` and `tree_sha256` for the diff and tree actually
+      evaluated. Do not repurpose `sha`.
+- [ ] Emit the same `diff_sha256` and `tree_sha256` from the docs check into
+      `docs-check.json`.
 - [ ] `gate-eval.sh:40` currently reads `jq -r .status` from
-      `checks-result.json` and nothing else. Read and compare `diff_sha256`.
+      `checks-result.json` and nothing else. Read and compare both identities.
 - [ ] `gate-eval.sh:49-52` does the same for `docs-check.json`. Same fix.
-- [ ] Each of the three inputs gets its own distinct mismatch reason string --
-      a reader must be able to tell which artifact was stale.
-- [ ] Reuse T4's hash computation; there SHALL be exactly one diff-hash
-      function in the gate.
+- [ ] Do NOT add an `attempt` field to the checks or docs artifacts. They are
+      not produced by an audit attempt; the attempt binds the verdict only.
+      State this in the code comment so it is not "fixed" later.
+- [ ] Each of the three inputs gets its own distinct mismatch reason string,
+      and each names which identity mismatched -- a reader must be able to tell
+      which artifact was stale and why.
+- [ ] Reuse T4's hash computations; there SHALL be exactly one diff-hash
+      function and exactly one tree-identity function in the gate.
 - [ ] Test: a round-N `pass` in `checks-result.json` must not authorise a
       round-N+1 diff. Prove the test goes red against current code.
-- [ ] Test: the byte-identical-diff-after-rebase case still passes for all
-      three artifacts, not only the verdict.
+- [ ] Test: a `checks-result.json` whose `diff_sha256` matches but whose
+      `tree_sha256` differs must not authorise merge.
+- [ ] Test: the byte-identical-diff-with-identical-tree case still passes for
+      all three artifacts, not only the verdict.
 
 ## T10 -- a separate audit-attempt bound and a terminal state
 

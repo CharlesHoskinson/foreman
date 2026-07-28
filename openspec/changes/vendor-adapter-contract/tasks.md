@@ -67,20 +67,29 @@ can start immediately. T8 gates.
       compare it against `adapter_caps`' `verified_cli_version`; report a
       mismatch as an INFO finding rather than failing the round.
 
-## T5 — generalize the write-evidence loop
+## T5 — consume the write-evidence loop (owned by `evidence-contracts`)
 
-- [ ] Promote `grok-multiround.sh:72`'s `snap()` into
-      `skills/foreman/scripts/lib/evidence.sh`.
-- [ ] Rename `grok-multiround.sh` → `vendor-multiround.sh`, taking a vendor id
-      and routing each round's invocation through `adapter_implement_argv`.
-- [ ] Preserve the non-git-work-tree hard failure (`:66-67`) and its stated
-      reason; an always-empty digest must never be reportable as an empty
-      burst.
-- [ ] Preserve the round>1 preamble and the feed-forward of the prior round's
-      captured output.
-- [ ] Keep a `grok-multiround.sh` compatibility path or update every caller;
-      state which, and do not leave a dangling reference in `lanes.md` or
-      `agents/grok-implementer.md`.
+`evidence-contracts` is the sole implementation owner of `lib/evidence.sh` and
+`vendor-multiround.sh`. Do not implement either here, and do not restate their
+predicates. `snap()` is NOT promoted: its `git status --porcelain` digest was
+shown on 2026-07-28 to be blind to files 2..N inside an untracked directory and
+to content changes within an unchanged status string.
+
+- [ ] Provide `adapter_implement_argv` and `adapter_caps` in a shape
+      `vendor-multiround.sh` can call per round with a vendor id, and record
+      that call contract in each adapter header.
+- [ ] Coordinate the `grok-multiround.sh` → `vendor-multiround.sh` rename with
+      `evidence-contracts`: that package performs the rename and owns the loop;
+      this package updates the callers it owns and removes the grok-specific
+      `--prompt-file`-appending line in favour of `adapter_implement_argv`.
+- [ ] Assert in `tests/adapters.bats` that no adapter and no file owned by this
+      package computes an acceptance verdict from a `git status --porcelain`
+      digest.
+- [ ] Assert that any `git status` invocation remaining in this package's code
+      passes `--untracked-files=all`.
+- [ ] Do not leave a dangling reference: update `lanes.md` and
+      `agents/grok-implementer.md` for the rename, and state that the evidence
+      predicate lives in `evidence-contracts`.
 
 ## T6 — the contract tests
 
@@ -120,8 +129,9 @@ can start immediately. T8 gates.
       the `vendor-multiround.sh` rename.
 - [ ] Full suite green on WSL/Ubuntu 26.04, including the argv-equivalence,
       never-stdin and argument-order tests.
-- [ ] `shellcheck` clean on every adapter, `lib/evidence.sh` and
-      `vendor-multiround.sh`.
+- [ ] `shellcheck` clean on every adapter owned by this package.
+      `lib/evidence.sh` and `vendor-multiround.sh` are `evidence-contracts`'
+      files and are gated there, not here.
 - [ ] `bugeventlog.md` entry recording the half-wired-lane failure class
       (advertised at four sites, unimplementable at the fifth) and this
       enhancement.

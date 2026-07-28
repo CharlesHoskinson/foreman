@@ -60,9 +60,10 @@ Precondition: `graph-store-port`'s port, schema, adapter, and ingest have landed
       auto-generated filter surface.
 - [ ] Publish the manifest: CQ number, query ID, plane, formalism tag, emptiness
       contract.
-- [ ] Record W4 as a partial implementation (no shortest-path operator upstream) and
-      W6/W13/X22/X23 as dependent on graph elements or ingest paths owned by sibling
-      packages.
+- [ ] Record W4 as a partial implementation (no shortest-path operator upstream);
+      record K16 and X22 as schema-frozen/deferred gaps matching the schema
+      package's own dispositions (not "mapped, not gaps"); record W6, W13, and
+      X23 as mapped-but-dependent on same-release sibling-package elements.
 - [ ] Regression suite fixture with hand-computed answers for all 24; wired into CI
       on every schema or query-layer change.
 - [ ] Missing schema element referenced by a named query fails the suite loudly,
@@ -81,8 +82,9 @@ Precondition: `graph-store-port`'s port, schema, adapter, and ingest have landed
 
 ## T7 -- timed drop-and-rebuild
 
-- [ ] Monthly scheduled job: drop, rebuild from `events.jsonl` + `graph.json` + lane
-      journals, run the regression suite, record duration and document count.
+- [ ] Monthly scheduled job: drop, rebuild from `events.jsonl` + `graph.json` +
+      `worklog.jsonl` + run JSON records, run the regression suite, record
+      duration and document count.
 - [ ] Duration budget derived from R8's ~1,070 docs/s measured rate; re-derived as
       corpus grows.
 - [ ] Budget overrun or regression-suite divergence fails loudly and is recorded in
@@ -106,7 +108,9 @@ Precondition: `graph-store-port`'s port, schema, adapter, and ingest have landed
 
 ## T9 -- gate
 
-- [ ] All 24 named queries pass the regression suite against a known fixture.
+- [ ] All 24 named queries pass the regression suite against a known fixture
+      (K16 and X22 pass as recorded-gap assertions -- i.e. the suite asserts they
+      are correctly flagged as gaps, not that they return non-trivial results).
 - [ ] Both `graph-store-port` silent-empty canaries plus this package's Q-X21 canary
       fail closed when assertions are disabled -- verified by running it.
 - [ ] Deployment script refuses on digest mismatch and on a `/mnt/*` data directory

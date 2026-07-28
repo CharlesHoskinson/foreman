@@ -91,9 +91,13 @@ measurements are taken.
   Table III discipline. A high resolution compression ratio is not automatically
   good: compression alone rewards over-merging, and an over-merged graph is
   connected and false.
-- **A pre-registration register**: each kill criterion with its threshold, its
-  action (revert / descope / keep), and a timestamped commit that lands before
-  the measuring run.
+- **A pre-registration register**: each kill criterion with its one metric, its
+  one fixed threshold, its one measuring subject, its one action
+  (revert / descope / keep-off), an explicit rule for when its metric has no
+  value, and a timestamped commit that lands before the measuring run. A
+  criterion whose denominator is zero returns `UNCOMPUTABLE`, which is never a
+  pass; a criterion no achievable measurement could trip is re-baselined or
+  struck.
 
 ## Impact
 
@@ -107,10 +111,15 @@ measurements are taken.
   threshold).
 - **Depends on GP-5 (`graph-context-builder`)** for the artifact under
   evaluation — the hashed, budgeted context block — and on **GP-1
-  (`work-plane-telemetry`)** for the usage, finding and verdict events without
+  (`decision-lineage-and-telemetry`)** for the usage, finding and verdict events without
   which M1–M8 and every cost-matched comparison are uncomputable. Neither is
   implemented here. The census instrumentation is the one part that ships with
   GP-1 rather than waiting.
+- **Sole owner of M5 (cross-vendor unique-catch rate).** `release-metrics`
+  removed its own M5 definition in the fix round and is now a declared
+  consumer, so exactly one definition exists. M5 is the only number that
+  justifies the vendor count, and two definitions of it would have let two
+  packages report different answers to the release's central question.
 - **Governs GP-6 (`graph-store-port`).** The census outcome is the architect's
   documented basis for landing or freezing the store.
 - **May conclude the graph plane was not worth building.** That outcome has a

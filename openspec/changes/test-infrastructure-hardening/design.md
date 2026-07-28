@@ -188,6 +188,52 @@ The requirement is therefore scoped narrowly — to results that would change a
 release decision — rather than applied to every check, which would be
 unaffordable and would decay into a formality.
 
+### Registry inventory must be mechanical, not curated
+
+Incident: a hand-maintained positive-control registry can attest to itself
+while omitting the gate nobody remembered to add. A list of controls
+someone remembered to register proves nothing about the controls they
+forgot -- the registry's own soundness was previously unfalsifiable, because
+nothing checked whether it actually covered every check the release
+introduced.
+
+The fix mirrors the skip-budget mechanism above: pair the human-authorable
+part (writing a positive control) with a mechanical counterweight (a scan
+that enumerates every gate/probe/assertion **present in the repository** and
+fails the build if any of them has no registry row, or if the registry names
+one that no longer exists). Three things the first draft of this requirement
+left undefined are now fixed, because without them neither build-failure
+predicate is computable: the registry is a committed artefact at
+`tests/positive-control-registry.tsv`; each row carries a fixed six-field
+schema; and `check_id` (`<path>::<check name>`) is the identity key the scanner
+derives identically, so matching is string equality and nothing else.
+
+The scan is **full-repository at the commit under test, not diff-scoped.** The
+first draft scoped it to "the release's introduced" checks, which is
+unsatisfiable alongside the stale-entry rule: every row from every prior
+release is absent from today's diff, so the build would fail on every release
+that did not re-touch every check ever registered. A full-tree sweep makes the
+two clauses jointly satisfiable and closes three coverage holes at the same
+time -- an untouched pre-existing check, a check a sibling package landed
+earlier in the release order, and a check promoted to gating status by
+configuration rather than by edit are all outside any single diff. The scan is
+therefore a grep-shaped sweep over the tree rather than over the diff, still
+not a new analysis engine, and it runs at each landing stage's tip so an
+earlier stage's checks are inventoried before a later stage gates on them.
+
+Two honest limits are recorded rather than papered over. An empty derived
+inventory is a **failure** (`inventory-empty`), not a vacuous pass, because
+nothing else distinguishes "no unregistered checks" from "the scanner found
+nothing". And the scanner recognises checks by a named four-kind grammar; a
+predicate reachable only through a wrapper that grammar does not match is not
+covered, so the grammar is extended when such a case appears and the coverage
+claim is stated with that limitation rather than as exhaustive.
+
+The mechanism is demonstrated against a known-bad case (a deliberately
+unregistered check) the same way every other check in this package earns trust
+in the "a check is trusted only after it has been observed failing"
+requirement.
+
 ## Risks
 
 - **Annotation churn across 33 files.** Mechanical but wide. Mitigation: land
@@ -218,3 +264,15 @@ unaffordable and would decay into a formality.
   baseline checks are themselves checks, and neither has been observed failing
   yet. They are in scope for T8, and exempting them would be the first
   instance of the failure this package documents.
+
+
+## Proportionality (2026-07-28 fix round)
+
+The audit's proportionality section did not recommend a cut for this
+package specifically -- its cuts target the formal drift gate (a
+different package), Tiers 2 and 3 (`regression-harness-tiers`), the
+release-metrics active set (`release-metrics`), and the per-diff mutation
+gate (`evidence-contracts`). This package's scope is unchanged by this fix
+round; the only addition is the mechanical-registry requirement, which
+closes a soundness gap in an existing mechanism rather than adding new
+surface area.

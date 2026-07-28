@@ -200,8 +200,9 @@ The graph plane SHALL NOT rely on properties attached to edges.
 
 WHEN an edge carries attributes, the adapter SHALL reify it as an intermediate
 document rather than dropping the attributes.
-`MENTIONS` SHALL be reified as a `Mention` document carrying span and
-confidence.
+`MENTIONS` SHALL NOT be reified, because it is not stored at all — it is a
+derived index excluded from the store, per the requirement above. An adapter
+that creates a `Mention` document SHALL be treated as violating that exclusion.
 Cosmetic edge properties produced by the extraction substrate SHALL be dropped
 explicitly and the drop SHALL be recorded, rather than being lost silently.
 The reified form of `SUPPORTS` and `CONTRADICTS` SHALL be designed and

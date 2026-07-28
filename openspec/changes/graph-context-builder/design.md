@@ -53,8 +53,14 @@ resolves against `graph.json`. Two lookups, both exact, no model.
 
 Including `source_file` and `source_location` in the key is deliberate. Two
 edges that differ only in where they were extracted from are different evidence
-and must be separately citable — which is also why `--directed` is mandated
-upstream in GP-3, since an undirected simple graph cannot hold them both.
+and must be separately citable. Note what this does *not* rely on: the published
+artifact is `"directed": false` — no graphify CLI cadence produces anything else
+(`graphify update` rejects `--directed`; `graphify extract` never passes the
+keyword) — and a directed build would be a `DiGraph` anyway, which cannot hold
+two edges between one ordered pair either. Direction is reconstructed here at
+load with `build_from_json(raw, directed=True)`, the same thing graphify's own
+`path` and `explain` do; genuinely parallel typed edges are store-native and
+never come from `graph.json`.
 
 ## Why layout is specified and syntax is not
 

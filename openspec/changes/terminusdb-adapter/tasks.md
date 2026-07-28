@@ -43,7 +43,8 @@ Council 3 operations package. Do not implement those packages here.
 - [ ] T2.4 Implement closed error types:
       `AdapterValidationError`, `CasRequiredError`, `ConflictError`,
       `DataVersionMismatchError`, `UnexpectedEmptyResultError`,
-      `IngestSourceError`, `ReificationError`, `RenameCorrelationError`,
+      `IngestSourceError`, `ReificationError`, `UnmappedNodeKindError`,
+      `BannedEndpointError`, `RenameCorrelationError`,
       `AuthError`, `NotFoundError`, `DocumentIdAlreadyExistsError`,
       `TransportError`, `ServerError`, `DropRebuildError`.
 - [ ] T2.5 Implement retry helper: max 3 retries after initial attempt,
@@ -54,17 +55,22 @@ Council 3 operations package. Do not implement those packages here.
 
 **Depends on:** T1 (client used in transport retry integration).
 
-## T3 — normalize_data_version and DataVersionRef
+## T3 — normalize_data_version, DataVersionToken, and DiffRef
 
-- [ ] T3.1 Implement `normalize_data_version(ref: str) -> DataVersionRef`
-      stripping leading `branch:`.
-- [ ] T3.2 Make `DataVersionRef` the only accepted type for
-      `*_data_version` request fields (structural, not convention).
-- [ ] T3.3 Post-condition: still-prefixed `branch:` raises
-      `AdapterValidationError` before HTTP.
-- [ ] T3.4 Wire diff API to accept only `DataVersionRef`.
-- [ ] T3.5 Unit tests for bare name, `commit:<id>`, strip `branch:`,
-      rejection path.
+- [ ] T3.1 Implement two types: `DataVersionToken` (opaque CAS header
+      only) and `DiffRef` (bare branch name or `commit:<id>` for diff
+      fields). Implement `normalize_data_version(ref: str) -> DiffRef`
+      that strips leading `branch:` only when the remainder matches the
+      live branch list or is `commit:<id>` shaped; otherwise raise
+      `AdapterValidationError`.
+- [ ] T3.2 Make `DiffRef` the only accepted type for `*_data_version`
+      request fields (structural, not convention); `DataVersionToken`
+      must not be interchangeable.
+- [ ] T3.3 Post-condition: still-prefixed `branch:` or opaque token not
+      in live branch list raises `AdapterValidationError` before HTTP.
+- [ ] T3.4 Wire diff API to accept only `DiffRef`.
+- [ ] T3.5 Unit tests for bare name, `commit:<id>`, strip `branch:main`
+      when live, rejection of opaque-token form, and both canary forms.
 
 **Depends on:** T1, T2.
 
@@ -96,13 +102,17 @@ Council 3 operations package. Do not implement those packages here.
 - [ ] T5.5 Structural Distinct wrapper around every Path-typed WOQL
       builder; no public raw Path without Distinct.
 - [ ] T5.6 Tests for all three expect modes and Distinct injection.
+- [ ] T5.7 Implement the /api/log structural ban and non-zero-offset
+      commit-log-paging ban; raise `BannedEndpointError` before HTTP.
 
 **Depends on:** T1, T2.
 
 ## T6 — Canary fixtures
 
-- [ ] T6.1 Add canary `canary_branch_prefix_diff`: attempts diff with
-      `branch:`-prefixed ref; asserts rejection before HTTP.
+- [ ] T6.1 Add canary `canary_branch_prefix_diff`: covers BOTH the
+      hand-written `branch:main` form AND the opaque-token form (a
+      stripped remainder that does not match the live branch list must
+      also be rejected); asserts rejection before HTTP.
 - [ ] T6.2 Add canary `canary_anyuri_string_unification`: reproduces
       anyURI-vs-string `eq/2` silent empty; asserts
       `expect="results"` raises.
@@ -134,7 +144,9 @@ Council 3 operations package. Do not implement those packages here.
 - [ ] T7.6 Pass 2: batch-upsert links after classification at batch
       size **500**.
 - [ ] T7.7 Stamp `graphify_version` on written documents; missing
-      stamp → `AdapterValidationError` before writes.
+      stamp → `AdapterValidationError` before writes (field name is
+      GraphNode.graphify_version, as declared by the schema package —
+      do not invent a different name).
 - [ ] T7.8 Content-hash per batch; skip HTTP when hash already
       committed for org/db (idempotent re-ingest).
 - [ ] T7.9 Author identity on ingest commits via T2 encoding
@@ -142,6 +154,12 @@ Council 3 operations package. Do not implement those packages here.
 - [ ] T7.10 Tests: source refusal, two-pass order, batch sizing,
       idempotent re-ingest (at least two scenarios), version stamp,
       reification fail-closed.
+- [ ] T7.11 Implement `classify_edge_relation` and node-kind lookup
+      against the schema package's mapping manifest (pin
+      manifest_version); raise `UnmappedNodeKindError` /
+      `ReificationError` per the spec requirement; tests for a mapped
+      node kind, an unmapped node kind, a mapped relation type, an
+      unmapped relation type, and hyperedge drop-with-record.
 
 **Depends on:** T1–T5. Prefer T4 complete so ingest can choose
 `cas_required=false` for distinct-doc fan-in batches.
@@ -213,6 +231,11 @@ Ordering: run after T1–T10 complete.
 - [ ] T11.8 Append `~/foreman/bugeventlog.md` with any workflow
       friction hit while implementing this package (OpenSpec,
       TerminusDB papercuts, canary harness, etc.).
+- [ ] T11.9 Negative test proves `BannedEndpointError` is raised for a
+      direct `/api/log` attempt and for a non-zero-offset commit-log
+      query; a grep of the adapter module for `/api/log` finds no call
+      site outside the enforcement path — verify by running the test,
+      not by reading code.
 
 **Depends on:** T1–T10, T6 canaries, T7 idempotency, T8 rename, T9
 drop-and-rebuild.

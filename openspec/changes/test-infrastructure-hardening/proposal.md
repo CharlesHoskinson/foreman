@@ -112,6 +112,20 @@ right mechanism and it is extended here rather than duplicated.
   counted as coverage. This is the regression-injection idea applied to the
   checker rather than to the code under test, and it is the one mechanism that
   would have caught all four of the incidents above.
+- **The positive-control registry is a committed artefact, checked against a
+  full-repository inventory.** The registry is
+  `tests/positive-control-registry.tsv`, one row per check, six fixed fields,
+  keyed by `check_id` = `<path>::<check name>`. `tests/lib/check-inventory.sh`
+  sweeps the **whole tree at the commit under test** -- not the release diff --
+  and the build fails on an inventory member with no row, on a row whose check
+  no longer exists, and on an empty inventory. Full-tree scope is what makes
+  the stale-entry rule survivable across releases and what registers a check
+  this release never touched, a check a sibling package landed earlier, and a
+  check promoted to gating by configuration alone.
+- **A rate with no denominator is uncomputable, not zero.** Every rate the
+  runner reports names its denominator; a zero denominator renders
+  `UNCOMPUTABLE (<denominator name> = 0)` and a gate that depends on it is
+  recorded ERROR rather than pass.
 - **Success predicates bind to artifacts and content.** Not to a process exit
   code, not to an unanchored substring, not to an agent's own account of its
   state. Output parsed for a verdict matches an anchored outcome token, and
@@ -144,7 +158,10 @@ right mechanism and it is extended here rather than duplicated.
   verified by this suite. Hardening it first is what makes the rest of the
   release's green ticks mean anything.
 - Also new, for the checker-soundness extension:
-  `tests/lib/positive-control.bash`, a fixtures directory holding the four
+  `tests/lib/positive-control.bash`, `tests/positive-control-registry.tsv`
+  (the committed positive-control registry), `tests/lib/check-inventory.sh`
+  (the full-repository inventory scanner, emitting the uncommitted
+  `tests/.check-inventory.tsv`), a fixtures directory holding the four
   measured incidents as regression fixtures, and a registry of predicates
   observed to be vacuous.
 - Also affected: every gate and probe this release introduces — the `mkdir`

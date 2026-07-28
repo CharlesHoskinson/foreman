@@ -23,10 +23,17 @@ transform -- add optional field, add class, widen type) from strengthening chang
 field, delete class, narrow type). That split is real and is the backbone of the
 runbook. The one operation the API cannot do is `ChangeParents` -- documented
 upstream as unimplemented. Because `graph-store-port` already requires the store to
-be fully regenerable from `events.jsonl` + `graph.json` + lane journals, an
-inheritance restructuring is not a blocked operation, it is a drop-and-rebuild under
-the new schema -- the regenerability property doubles as the migration escape hatch
-for the one thing the vendor's own migration API cannot express.
+be fully regenerable from `events.jsonl` + `graph.json` + `worklog.jsonl` + run JSON
+records, an inheritance restructuring is not a blocked operation, it is a
+drop-and-rebuild under the new schema -- the regenerability property doubles as the
+migration escape hatch for the one thing the vendor's own migration API cannot
+express. Note (pre-freeze correction): earlier drafts of this package and its
+siblings referred to 'the lane journals' as a rebuild source artifact. `GraphUpdate`
+never had an owner across any of the three TerminusDB packages, and RECONCILE
+section 5 pre-authorised striking it from the rebuild source set in favor of
+`worklog.jsonl` (produced by `work-dag-projection`) plus the run JSON records, both
+of which already exist and are owned. This package now names only artifacts that
+exist.
 
 **Query layer.** N2 section 9 is explicit that the 24 competency questions *are* the
 specification the ontology exists to satisfy -- 10 need negation-as-failure, 7 need
@@ -51,7 +58,7 @@ get a mechanical rename if Council 1's final names differ):
 | W5 | attempts superseded, and which spec revision triggered it | -- | Q-W5 | true-negative-capable | `SUPERSEDES` (timestamp+reason) + `REVISES` on `Spec` |
 | W6 | agent runs whose vendor/model differs from routing policy | NEG | Q-W6 | true-negative-capable | dependency: routing-policy data as an in-graph fact is Council 1/2 scope |
 | W7 | artifacts from a run missing required provenance (SLSA-incomplete) | NEG | Q-W7 | true-negative-capable | negation over required-field presence |
-| W8 | do any `DEPENDS_ON` cycles exist | REC | Q-W8 | expect-emptiness is the healthy state | non-empty result is an invariant violation, must alert |
+| W8 | do any `DEPENDS_ON` cycles exist | REC | Q-W8 | expect-emptiness is the healthy state | non-empty result is an invariant violation, must alert, scoped to Task.depends_on only (dependency ordering) -- Task.subtask_of (subtask nesting, a separate functional relation added by the schema package's pre-freeze correction) is NOT traversed by this query, and Artifact.artifact_depends_on (renamed from the schema package's earlier Artifact.depends_on to avoid a same-name divergent-range collision) is a different class entirely and is also not traversed by this query |
 | W9 | commits landed on base branch after worktree creation (merge-freshness) | NEG | Q-W9 | true-negative-capable | joins `Commit.created_at` against git ancestry |
 | W10 | attempts that consumed an artifact already superseded at start | -- | Q-W10 | true-negative-capable | time-comparison, `DERIVED_FROM`/consumed + `SUPERSEDES.timestamp` |
 | W11 | attempts before PASS; input-set diff vs. last failure | AGG | Q-W11 | expect-non-empty | aggregation + input-set diff |
@@ -59,19 +66,23 @@ get a mechanical rename if Council 1's final names differ):
 | W13 | full attribution chain for a commit back to architect decision | REC | Q-W13 | expect-non-empty | dependency: architect decision as a node is Council 1 scope; flagged if absent |
 | K14 | claims supported by no source at all | NEG | Q-K14 | true-negative-capable | negation over `sourced_from` |
 | K15 | claims supported only by agent-produced sources, no human anchor | NEG-REC | Q-K15 | true-negative-capable | recursive over `PRODUCED`/`SUPPORTS` |
-| K16 | entities mentioned by 2+ sources, never `RESOLVED_TO` canonical | NEG | Q-K16 | true-negative-capable | aggregation(>=2) + negation |
+| K16 | entities mentioned by 2+ sources, never `RESOLVED_TO` canonical | NEG | Q-K16 | true-negative-capable | GAP, by design -- the schema package (terminusdb-schema design.md CQ table row 16) records this as a gap because MENTIONS is demoted to a derived index outside the frozen schema; Q-K16 can only answer the Entity.resolved_to half, not the mention-count half, until that index exists |
 | K17 | claims audit verdict V contradicts, sources on each side | -- | Q-K17 | expect-non-empty when V has contradictions | direct `CONTRADICTS` |
 | K18 | full provenance chain, claim C back to human-authored source | REC | Q-K18 | expect-non-empty | recursive `Path`, must wrap in `Distinct` |
 | K19 | claim pairs re: same entity, contradicting, neither superseded | NEG | Q-K19 | true-negative-capable | live unresolved contradictions |
 | K20 | superseded claims: when/by-what, does a live artifact still depend on one | -- | Q-K20 | true-negative-capable | `SUPERSEDES` + reverse `DERIVED_FROM` |
 | X21 | specs with no passing evaluation; criteria covered by no evaluation | NEG | Q-X21 | true-negative-capable | the canonical closed-world question -- mandatory third canary alongside R8's two silent-empty canaries |
-| X22 | failed evaluation's feedback contradicts a claim in the run's context | -- | Q-X22 | expect-non-empty when it occurs | dependency: context-block hash reference is GP-5 `graph-context-builder` scope, not yet landed |
+| X22 | failed evaluation's feedback contradicts a claim in the run's context | -- | Q-X22 | expect-non-empty when it occurs | GAP, deferred to v0.3.x -- RECONCILE section 5 deferred graph-context-builder to v0.3.x, so this dependency does not land in this release series at all; Q-X22 is not exercisable until graph-context-builder ships |
 | X23 | bugeventlog failures -> roadmap claim -> now passing evaluation | REC-AGG | Q-X23 | true-negative-capable | dependency: bugeventlog ingestion into the graph is ingest/Council-2 scope |
 | X24 | metrics regressed between commits A/B; which run introduced it | AGG | Q-X24 | expect-non-empty when a regression exists | `Measurement`/`Metric` joined against `Commit` |
 
-Four rows (W6, W13, X22, X23) are flagged as dependent on graph elements or ingest
-paths this package does not itself define -- they are mapped, not gaps, and the
-mapping becomes exercisable once the dependency lands. W4 is a genuine partial
+Two rows are recorded schema-frozen gaps, not exercisable mappings: K16 (MENTIONS
+demoted per the schema package, matching that package's own CQ-16 disposition) and
+X22 (graph-context-builder deferred to v0.3.x per RECONCILE section 5, so this is a
+release-series gap, not a same-release dependency). Two further rows (W6, W13) and
+one more (X23) remain mapped-but-dependent on graph elements or ingest paths this
+package does not itself define, landing this same release; the mapping becomes
+exercisable once that same-release dependency lands. W4 is a genuine partial
 implementation because TerminusDB has no shortest-path primitive.
 
 **Monitoring.** `/api/metrics` (Prometheus) is Enterprise-gated and absent from OSS
@@ -81,6 +92,9 @@ container RSS/disk (via the runtime, not the store), and a document count via th
 store's own listing endpoint, alerting when RSS or disk exceeds 3x the R8 baseline
 (38 MB idle RSS, 9.7 MB/5,500 docs) for the current document count. It never touches
 `/api/log` -- that endpoint is banned from every query path by `graph-store-port`.
+The adapter package now also structurally enforces this ban at the HTTP-client layer
+(terminusdb-adapter D14 / BannedEndpointError), so the prohibition is enforced at two
+independent layers, not merely documented at this one.
 
 **Drop-and-rebuild, timed.** `graph-store-port` requires the store be provably
 regenerable; this package requires that proof be exercised on a schedule against the

@@ -99,7 +99,18 @@ a directly served edge rather than relying on the worker to chain it.
 The builder SHALL bound the block by tokens, SHALL prefer under-serving to
 over-serving, and SHALL never substitute irrelevant context for absent context.
 
-The default graph budget SHALL be 2,000 tokens.
+The default graph budget SHALL be 2,000 tokens, and this number SHALL be
+recorded as **provisional**.
+
+It is inherited from a published knee measured on short Freebase triples.
+Foreman's edges carry longer free text — spec titles, finding summaries, file
+paths — so the same token budget buys materially fewer edges and the knee is
+expected to arrive earlier. Shipping the number is acceptable; shipping it as
+though it were measured here is not.
+The default SHALL be replaced by the outcome of the K/serializer sweep owned by
+`graph-eval-falsification`, and until that sweep reports, any claim that 2,000
+tokens is the right budget for Foreman SHALL be labelled as inherited rather
+than measured.
 The served edge count SHALL be derived from the budget at the measured cost per
 edge and SHALL be clamped to a floor of 40 edges and a ceiling of 290 edges.
 The block SHALL NOT exceed a hard cap of 4,000 tokens under any configuration.
@@ -302,6 +313,37 @@ All MCP access SHALL be read-only.
 - WHEN a wrapped tool call would return more than the cap
 - THEN the result is truncated to the cap
 - AND the truncation is recorded and charged against the lane's budget.
+
+### Requirement: the builder reconstructs direction at load, not from the `directed` field
+
+The builder SHALL treat edge direction as a property of each link's ordered
+endpoints and SHALL reconstruct it when it loads the graph.
+
+WHEN the builder loads `graphify-out/graph.json`, it SHALL build with
+`build_from_json(raw, directed=True)` under the pinned interpreter, regardless of
+the value of the artifact's `directed` field.
+The builder SHALL NOT branch on, warn about, or refuse an artifact whose
+`directed` field is `false`, because the upstream merge cadence
+(`graphify update`) publishes exactly that and no graphify CLI cadence publishes
+anything else.
+The builder's directional distance features SHALL be computed over that
+reconstructed directed graph.
+The builder SHALL NOT expect parallel typed edges between the same ordered pair
+in `graph.json`; WHERE both a supporting and a contradicting edge are required
+between one ordered pair, they SHALL be read store-native.
+
+#### Scenario: an undirected artifact is loaded as a directed graph
+
+- WHEN the builder loads an artifact whose `directed` field is `false`
+- THEN it builds a directed graph from the same link records
+- AND an edge `u → v` is present while `v → u` is absent
+- AND no warning about the `directed` field is emitted.
+
+#### Scenario: ranking uses reconstructed direction
+
+- WHEN directional distance from a seed is scored
+- THEN it is computed over the reconstructed directed graph
+- AND not over an undirected view of the same links.
 
 ### Requirement: the builder runs off files and requires no graph store
 

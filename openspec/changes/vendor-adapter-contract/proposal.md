@@ -47,14 +47,21 @@ that state sits in `RUNNING_IMPL` until the stall watchdog fires and the
 failure is misattributed to the model. Argument order is exactly the kind of
 fact that has to live in one place.
 
-**"Did the worker actually write?" is a grok-specific script.**
+**"Did the worker actually write?" is a grok-specific script — and its predicate
+was unsound.**
 `grok-multiround.sh:72` — `snap() { git -C "$WD" status --porcelain | sha256sum … }`
 — is the only defence Foreman has against a vendor narrating success while
 writing nothing. R3 §6.4 records that this failure class is not grok-specific:
 grok's writes are prompt-cancelled unless `--allow Write --allow Edit`, and the
 Google CLIs gate writes behind an approval mode that denies rather than asks
-when there is no TTY. Both end `rc=0` with confident narration. The digest
-"must be promoted from a grok-specific script to a contract point."
+when there is no TTY. Both end `rc=0` with confident narration. The *capability*
+must be promoted from a grok-specific script to a contract point — but not this
+predicate. On 2026-07-28 `snap()` was shown to return a false negative for the
+most common Foreman task: `git status --porcelain` collapses an untracked
+directory to one `?? pkg/` line, so files 2..N written inside it produce a
+byte-identical digest, and it is blind to content changes inside untracked files
+besides. `evidence-contracts` therefore owns and replaces the predicate; this
+package owns only the argv routing into it.
 
 **Exit codes are not portable, and one vendor has no distinct auth code.**
 Live on the reference box: `agy models` returns rc **0** when authenticated and
@@ -97,10 +104,15 @@ belongs in the adapter, not replicated at every call site.
   the adapter passes it through; where it cannot, the adapter validates the
   parsed object against `adapters/verdict.schema.json` itself and reports a
   non-conforming reply as a failure, never as a verdict.
-- **`grok-multiround.sh` → `vendor-multiround.sh`** with `snap()` promoted into
-  `lib/evidence.sh` and the `--prompt-file`-appending line routed through
-  `adapter_implement_argv`. The git-status digest becomes a contract point for
-  all four vendors.
+- **`grok-multiround.sh` → `vendor-multiround.sh`, owned by `evidence-contracts`.**
+  This package's only obligation there is that the round's invocation comes
+  from `adapter_implement_argv` instead of a grok-specific appended flag. The
+  write-evidence predicate itself is **not** promoted from `snap()`: a digest of
+  `git status --porcelain` is verified blind to files 2..N inside an untracked
+  directory and to content changes within an unchanged status string, so
+  `evidence-contracts` replaces it with a content hash over a declared
+  deliverable set plus a lane-type artifact assertion. No adapter in this
+  package decides a round on a status digest.
 - **The `claude` half-wiring is resolved, not inherited.** Either a working
   `adapters/claude.sh` lands with its `REQUIRES-SEPARATE-HOME` constraint
   honoured, or the four plumbing sites that advertise a claude lane are
@@ -111,13 +123,22 @@ belongs in the adapter, not replicated at every call site.
 - Affected: `skills/foreman/scripts/lib/worker-cmd.sh`,
   `skills/foreman/scripts/audit-run.sh` (`:35-37`, `:78-86`),
   `skills/foreman/scripts/worker-run.sh` (`:116-122,141-144,149`),
-  `skills/foreman/scripts/grok-multiround.sh`, `agents/codex-auditor.md`,
+  `agents/codex-auditor.md`,
   `agents/grok-implementer.md`, `agents/codex-implementer.md`,
   `skills/foreman/references/lanes.md`.
 - New: `skills/foreman/scripts/adapters/{grok,codex,agy,claude}.sh`,
-  `skills/foreman/scripts/lib/evidence.sh`,
-  `skills/foreman/scripts/vendor-multiround.sh`, `tests/adapters.bats`,
-  `tests/vendor-multiround.bats`.
+  `tests/adapters.bats`.
+- **Ownership (resolves the dual-ownership finding).** `evidence-contracts` is
+  the **sole implementation owner** of `skills/foreman/scripts/lib/evidence.sh`
+  and `skills/foreman/scripts/vendor-multiround.sh`. This package is a
+  **declared consumer** of both: it supplies `adapter_implement_argv` and
+  `adapter_caps`, and it does not define the write-evidence predicate, its
+  lane-type contracts, or its success semantics. The same statement appears in
+  `evidence-contracts/proposal.md`. Before this amendment both packages claimed
+  these two files, which would have let incompatible helper semantics land
+  twice. `tests/vendor-multiround.bats` moves to `evidence-contracts` with the
+  script; this package keeps only the argv-routing assertion that
+  `vendor-multiround.sh` obtains its invocation from `adapter_implement_argv`.
 - Depends on nothing. **Every other multi-vendor package in this release
   depends on this one** — `agy-lane-activation` supplies `adapters/agy.sh`,
   `cross-vendor-audit-routing` selects which adapter's `audit` verb runs,

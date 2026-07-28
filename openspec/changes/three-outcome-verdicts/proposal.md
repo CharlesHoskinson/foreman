@@ -87,17 +87,39 @@ happened. That is the same missing-third-outcome problem in the time dimension.
   an out-of-vocabulary verdict, a detected worktree mutation, or a missing or
   unauthenticated CLI. The model-facing `adapters/verdict.schema.json` stays
   three-valued deliberately (see `design.md`).
-- **`audit-run.sh` always writes `audit-verdict.json`.** It never dies without
-  recording. Its exit status speaks to its caller; the artifact speaks to the
-  gate, and the gate must never be left reading a stale file.
+- **`audit-run.sh` always writes `audit-verdict.json`, and publishes the
+  current attempt before the auditor runs.** It never dies without recording.
+  Before spawning the auditor it allocates an attempt id from `el_attempt_new`,
+  records it in `$RD`, and atomically publishes an `UNVERIFIED` /
+  `state:"in_progress"` record, so the prior verdict is replaced at audit start
+  rather than surviving until the final rename. Its exit status speaks to its
+  caller; the artifact speaks to the gate, and the gate is never left reading a
+  stale authorization.
 - **Mandatory provenance on every verdict**: vendor, model, effort, verdict,
-  a reason when `UNVERIFIED`, an evidence reference, and start/end/duration.
-  This is what turns the verdict into a claim with provenance rather than an
-  unexamined gate input.
-- **The gate binds the verdict to the diff it is gating.** `gate-eval.sh` SHALL
-  refuse a verdict whose recorded evidence reference does not match the diff
-  under evaluation. Binding is on the diff's content hash, not the commit sha,
-  so a rebase that changes no content does not invalidate a good audit.
+  `state`, a reason when `UNVERIFIED`, an evidence reference, and
+  start/end/duration. This is what turns the verdict into a claim with
+  provenance rather than an unexamined gate input.
+- **The gate binds the verdict to the current audit attempt and the evaluated
+  tree, not to the diff hash alone.** `diff_sha256` does not discriminate
+  either property: an audit of an unchanged diff killed before it completes
+  would leave a previous `APPROVED` with the same diff hash still gate-valid,
+  and a rebase onto a different base can produce a byte-identical patch over a
+  different resulting tree and different dependencies. `audit-verdict.json`
+  therefore carries `evidence: {diff_sha256, tree_sha256, base_sha, head_sha,
+  attempt}` plus `state`, and `gate-eval.sh` requires all four of: matching
+  diff hash, matching evaluated-tree identity, `attempt` equal to the currently
+  published attempt, and `state == "complete"`. Each failure has its own reason
+  string. `tree_sha256` is the git tree object id of `HEAD` combined with a
+  canonical content digest over everything
+  `git status --porcelain=v1 -z -uall --no-renames` reports, so untracked
+  files, uncommitted content, modes, symlinks, deletions and binaries are
+  covered. The digest is a fixed-arity record per path — path, state, mode,
+  hash — in which absence is a value, so a deletion is canonicalisable rather
+  than uncomputable, and it is the single shared function
+  `evidence-contracts` also uses for write evidence. Binding is not on `head_sha`, so an amend or re-checkpoint that
+  changes neither content nor tree still does not invalidate a good audit. The
+  same `{diff_sha256, tree_sha256}` pair binds `checks-result.json` and
+  `docs-check.json`; only the verdict carries `attempt`.
 - **`UNVERIFIED` fails the gate closed, distinctly.** A separate reason string,
   never conflated with `audit verdict BLOCKED` — in the gate output, in the
   record, and in metrics. And an `UNVERIFIED` gate failure SHALL NOT consume a

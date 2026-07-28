@@ -16,8 +16,13 @@ hand, and the automatic path SHALL be deterministic and free of LLM cost.
 WHEN a merge lands on the default branch, Foreman SHALL run
 `skills/foreman/scripts/graph-refresh.sh --cadence merge`.
 WHILE running the merge cadence, the refresh SHALL invoke only graphify's
-incremental AST update and SHALL NOT invoke semantic extraction, clustering or
-community labelling.
+incremental AST update — `graphify update` under the pinned interpreter — and
+SHALL NOT invoke semantic extraction, clustering or community labelling.
+Verified against graphify 0.9.16: `graphify update` builds through
+`watch._rebuild_code` → `build_from_json(result)` (`watch.py:1050`) with no
+`directed` keyword, so the artifact this cadence publishes carries
+`"directed": false`. That is the defined output of the cadence and SHALL NOT be
+treated as a failure; the direction requirement below governs what is gated.
 The refresh SHALL read `graphify-out/cost.json` before and after the update and
 SHALL assert that both the input-token and output-token deltas are zero.
 IF the merge cadence records a non-zero token delta, THEN the refresh SHALL fail,
@@ -31,7 +36,9 @@ as zero and create the file, and SHALL NOT skip the assertion.
 - WHEN a merge changes only files graphify classifies as code
 - THEN `graph-refresh.sh --cadence merge` completes
 - AND the recorded input-token and output-token deltas are both zero
-- AND `graphify-out/graph.json` is republished with the new `built_at_commit`.
+- AND `graphify-out/graph.json` is republished with the new `built_at_commit`
+- AND the republished artifact carries `"directed": false`, which is not a
+  failure.
 
 #### Scenario: an accidental LLM pass on the merge cadence fails the refresh
 
@@ -39,35 +46,135 @@ as zero and create the file, and SHALL NOT skip the assertion.
 - THEN the refresh fails without publishing
 - AND the failure names the files that triggered semantic extraction.
 
-### Requirement: every refresh runs directed, and a collapsed-edge build is refused
+### Requirement: direction survives as endpoint order and is reconstructed at load
 
-The knowledge plane SHALL be built as a directed graph so that parallel typed
-edges between the same pair of nodes survive.
+The knowledge plane SHALL preserve edge DIRECTION. Direction SHALL be carried by
+the ordered endpoints of every published link and SHALL be reconstructed by the
+consumer at load time. Publication SHALL NOT be gated on the `directed` field of
+`graph.json`.
 
-The refresh SHALL pass `--directed` to every graphify invocation that builds or
-diagnoses the graph.
-WHEN the refresh runs the health diagnostic, it SHALL read the
-`directed_same_endpoint_collapsed_edges` and
-`undirected_same_endpoint_collapsed_edges` counters.
-IF either collapsed-edge counter is non-zero, THEN the refresh SHALL refuse to
-publish and SHALL report that the directed mandate was not in force, because a
-non-zero counter is proof that parallel edges were discarded rather than a
-quality signal to be weighed.
-The refresh SHALL record the `directed` flag of the published document in
-`graphify-out/refresh-meta.json`.
+Established by execution against the pinned graphify 0.9.16
+(`/root/.local/share/uv/tools/graphifyy`, `graphify --version` → `graphify
+0.9.16`):
 
-#### Scenario: an undirected build never reaches the artifact
+- **No shipped CLI entry point builds a directed graph.** `graphify update`
+  rejects `--directed` with exit 2 (`cli.py:1250`, *"unknown update option"*)
+  and builds through `watch._rebuild_code` → `build_from_json(result)`
+  (`watch.py:1050`) with no keyword, publishing `"directed": false`;
+  `graphify extract` — the slow cadence's build — calls `build([merged], …)`
+  (`cli.py:2551`), also with no keyword, publishing `"directed": false`;
+  `--directed` exists only on `diagnose multigraph` (`cli.py:831`), where it
+  simulates direction over an already-built document. Neither cadence can
+  produce `"directed": true`, so a gate requiring it refuses every merge.
+  `"directed": true` is reachable only from the Python API
+  (`build_from_json(..., directed=True)`), which no CLI cadence calls.
+- **Direction is nevertheless preserved in the artifact.** The build stashes the
+  producer endpoints as `_src`/`_tgt` and `to_json` restores them into every
+  link (`export.py:305-311`), so endpoint order in `graph.json` is the
+  producer's order, not a canonicalisation. Measured: an undirected build of a
+  single `zeta → alpha` `calls` edge exports as `zeta → alpha`; the committed
+  `graphify-out/graph.json` carries 1,465 of 3,668 links whose `source` sorts
+  strictly after its `target`, and a re-extracted 208-file subset carries 1,041
+  of 2,531.
+- **Direction is recoverable by the consumer.** Loading the committed
+  `"directed": false` artifact with `build_from_json(raw, directed=True)` yields
+  a `DiGraph` of 3,579 nodes and 3,668 edges in which `has_edge(u, v)` is true
+  and `has_edge(v, u)` is false for the sampled descending pairs. This is what
+  graphify's own readers do: `path`, `explain`, `serve` and `affected` force
+  `{"directed": True}` at load.
 
-- WHEN a refresh produces a document whose `directed` field is `false`
+The refresh SHALL NOT refuse to publish because the published `directed` field
+is `false`, on either cadence.
+The refresh SHALL record the observed `directed` field in
+`graphify-out/refresh-meta.json` as an observation of the artifact, and SHALL
+NOT present it as a gate result.
+WHEN the refresh has produced a candidate artifact, it SHALL count the links
+whose `source` sorts strictly after its `target`, and SHALL record that count.
+IF that count is zero while the candidate contains at least one link, THEN the
+refresh SHALL refuse to publish and SHALL report that endpoint order was
+canonicalised — a writer that discards `_src`/`_tgt` produces exactly zero such
+links, where both measured corpora produce roughly forty per cent.
+Every Foreman consumer of `graph.json` SHALL reconstruct direction at load with
+`build_from_json(raw, directed=True)` and SHALL NOT branch on the artifact's
+`directed` field.
+Parallel typed edges between the same ordered pair — the `SUPPORTS` /
+`CONTRADICTS` case the claim graph requires — SHALL remain **store-native and
+SHALL NOT round-trip through `graph.json`**, because
+`build_from_json(..., directed=True)` returns an `nx.DiGraph` whose
+`is_multigraph()` is false (`build.py:490`) and silently collapses the pair to
+one edge. This requirement governs direction only.
+
+#### Scenario: the merge cadence publishes an undirected artifact and the gate accepts it
+
+- WHEN a merge-cadence refresh publishes an artifact whose `directed` field is
+  `false`
+- THEN the refresh publishes
+- AND `refresh-meta.json` records `directed: false` as an observation
+- AND no gate cites the `directed` field.
+
+#### Scenario: a canonicalising writer is refused
+
+- WHEN a candidate artifact contains links but none whose `source` sorts
+  strictly after its `target`
 - THEN the refresh refuses to publish
-- AND the previous `graphify-out/graph.json` is left unchanged
-- AND the refusal names the collapsed-edge counters it observed.
+- AND the refusal reports the endpoint-order count it observed
+- AND the previous `graphify-out/graph.json` is left unchanged.
 
-#### Scenario: parallel typed edges survive a directed refresh
+#### Scenario: a consumer reads direction without trusting the field
+
+- WHEN a consumer loads a `"directed": false` artifact
+- THEN it builds with `build_from_json(raw, directed=True)`
+- AND an edge `u → v` is present while `v → u` is absent.
+
+#### Scenario: parallel typed edges are not expected from graphify
 
 - WHEN two edges with different relations connect the same ordered pair of nodes
-- THEN both edges are present in the published `graph.json`
-- AND the collapsed-edge counters are zero.
+  in the extraction input
+- THEN the published `graph.json` is permitted to contain only one of them,
+  because the builder produces a simple directed graph
+- AND the refresh SHALL NOT report that parallel typed edges were preserved
+- AND the decision edges that require both SHALL be present store-native rather
+  than sourced from `graph.json`.
+
+### Requirement: a refresh that fails blocks, a refresh that cannot run does not
+
+A refresh that runs and fails SHALL block the merge gate. A host that cannot
+run a refresh at all SHALL record `SKIPPED` and SHALL NOT block.
+
+The asymmetry is deliberate and SHALL be documented where it is enforced. A
+failed refresh is evidence about the graph: the tooling ran, observed the
+corpus, and reported that the artifact is wrong. An absent refresh is evidence
+only about the host, and blocking on it would make every contributor without
+the graph toolchain unable to merge — which converts an advisory quality
+signal into an availability requirement nobody agreed to.
+IF a host records `SKIPPED`, THEN the refresh SHALL name the missing
+prerequisite, and the staleness of the published graph SHALL continue to be
+measured by the freshness contract rather than silently forgiven.
+IF `SKIPPED` is recorded on a host that is expected to be able to refresh —
+CI, or a host whose inventory reports the toolchain present — THEN it SHALL be
+treated as a failure, not a skip.
+
+#### Scenario: a broken graph blocks the gate
+
+- WHEN a refresh runs to completion and the pre-build extraction diagnostic
+  reports a non-zero `directed_same_endpoint_collapsed_edges`
+- THEN the merge gate is blocked
+- AND the refusal names the counter and the stage it was computed at.
+
+#### Scenario: a host without the toolchain does not block
+
+- WHEN a refresh cannot run because the pinned interpreter or graphify version
+  is absent
+- THEN the refresh records `SKIPPED` naming the missing prerequisite
+- AND the merge gate is not blocked
+- AND the freshness contract still reports the graph's staleness.
+
+#### Scenario: a skip in CI is a failure
+
+- WHEN `SKIPPED` is recorded in CI, or on a host whose inventory reports the
+  toolchain present
+- THEN it is treated as a failure and blocks
+- AND the report distinguishes it from a legitimate skip.
 
 ### Requirement: one pinned interpreter and one pinned graphify version, stamped into the output
 
@@ -134,23 +241,64 @@ therefore does not detect two writers adding disjoint nodes.
 - AND the reader observes either the previous or the newly published document,
   never a partial one.
 
-### Requirement: a refresh publishes only after the health diagnostic passes
+### Requirement: each health counter is gated at the only stage where it can fail
 
 The refresh SHALL gate publication on graphify's structural health diagnostic,
-run against the artifact consumers will read.
+and SHALL run each counter at the stage where that counter can observe the
+property it names. A counter SHALL NOT be gated at a stage where its value is
+fixed by construction.
 
 WHEN a refresh has produced a candidate graph, it SHALL run
-`graphify diagnose multigraph --json --directed` against that candidate.
-The refresh SHALL record `dangling_endpoint_edges`, `missing_endpoint_edges`,
-`self_loop_edges`, `non_object_edges`, both collapsed-edge counters,
-`unverified_node_count`, and the fraction of non-isolated nodes in
-`graphify-out/refresh-meta.json`.
-IF any of `dangling_endpoint_edges`, `missing_endpoint_edges` or
-`non_object_edges` is non-zero, THEN the refresh SHALL refuse to publish and
+`graphify diagnose multigraph --json --graph <candidate>` against that candidate
+and SHALL gate on `dangling_endpoint_edges`, `missing_endpoint_edges` and
+`non_object_edges`.
+IF any of those three is non-zero, THEN the refresh SHALL refuse to publish and
 SHALL leave the previously published graph in place.
+Those three are gateable on the artifact because the incremental prune and merge
+paths can leave edges whose endpoints are no longer nodes — measured: zero on a
+freshly published artifact, two after removing one node and keeping its edges,
+which is the corruption `export.prune_dangling_edges` exists to repair.
+The refresh SHALL NOT gate on `directed_same_endpoint_collapsed_edges` or
+`undirected_same_endpoint_collapsed_edges` computed over `graph.json`, because
+neither can be non-zero there: the build has already discarded the duplicate
+producer edge before the file is written, and graphify states it directly —
+*"A normal graph.json is already post-build and cannot recover raw producer
+edges"* (`diagnostics.py`, `format_diagnostic_json`). Measured: a **directed**
+build of the two-parallel-edge fixture that dropped one edge reports
+`directed_same_endpoint_collapsed_edges: 0` on the published file. A check that
+cannot fail SHALL NOT be written as a gate.
+WHERE the collapse counters are required, the refresh SHALL compute them over
+the **pre-build extraction** rather than over the artifact: on the merge cadence,
+the union of the per-file AST extraction records graphify persists under
+`graphify-out/cache/ast/v<pinned-version>/*.json` (`cache.py:340-360`); on the
+slow cadence, an extraction document the refresh itself writes to
+`graphify-out/.refresh-extraction.json` before the build. The refresh SHALL NOT
+assume graphify persists a pre-build extraction of its own — `graphify extract`
+writes `graph.json` directly and materialises no such document — so the slow
+cadence SHALL create that input or SHALL NOT claim the collapse counter for
+that cadence.
+The refresh SHALL gate on `directed_same_endpoint_collapsed_edges` over that
+pre-build extraction and SHALL refuse to publish when it is non-zero, naming the
+ordered pair and the relations involved. Measured: zero on a healthy 208-file
+corpus, and one after seeding a single parallel typed edge — the check fires.
+The refresh SHALL NOT gate on `undirected_same_endpoint_collapsed_edges` over
+the pre-build extraction, because it counts legitimate `u → v` plus `v → u`
+pairs — measured 1 on that same healthy corpus — and SHALL record it as an
+observation.
+The refresh SHALL NOT gate on `dangling_endpoint_edges` over the pre-build
+extraction, because cross-file endpoints are resolved when the per-file records
+are merged and are therefore absent from those records — measured 76 on that
+same healthy corpus — and SHALL record it as an observation.
+The AST-cache layout is private to graphify; the version pin is what makes
+reading it safe, and a pin bump SHALL re-verify the layout before the gate is
+trusted again.
+The refresh SHALL record `dangling_endpoint_edges`, `missing_endpoint_edges`,
+`self_loop_edges`, `non_object_edges`, both collapse counters **with the stage
+each was computed at**, `unverified_node_count`, the endpoint-order count, and
+the fraction of non-isolated nodes in `graphify-out/refresh-meta.json`.
 The refresh SHALL NOT rely on the skill pipeline's Step 4.5 health line as the
-gate, because that check runs pre-build against the extraction dictionary rather
-than against `graph.json`.
+gate, because it runs against an extraction document that cadence does not
+produce.
 
 #### Scenario: a corrupt candidate never replaces a good graph
 
@@ -159,6 +307,27 @@ than against `graph.json`.
 - AND `graphify-out/graph.json` still contains the previous build
 - AND `refresh-meta.json` records the failing counters and marks the last
   refresh as failed.
+
+#### Scenario: a collapsed producer edge is caught where it can still be seen
+
+- WHEN the pre-build extraction contains two edges with different relations
+  between the same ordered pair
+- THEN `directed_same_endpoint_collapsed_edges` over that extraction is non-zero
+- AND the refresh refuses to publish, naming the pair and the relations.
+
+#### Scenario: the collapse counter is not gated where it cannot fail
+
+- WHEN the candidate `graph.json` is diagnosed
+- THEN no gate reads a collapse counter computed over that file
+- AND `refresh-meta.json` records the stage at which each collapse counter was
+  computed.
+
+#### Scenario: a legitimate bidirectional pair does not block a merge
+
+- WHEN the pre-build extraction contains both `u → v` and `v → u`
+- THEN `undirected_same_endpoint_collapsed_edges` is non-zero and is recorded as
+  an observation
+- AND the refresh publishes.
 
 ### Requirement: cohesion and community labels are captured before cleanup destroys them
 
@@ -285,7 +454,8 @@ directly.
 `skills/foreman/scripts/maintenance.sh` currently implements its own graph stage
 at `:249-289`: it selects the first of `python3` or `python` that can import
 graphify, prefers a bare `graphify` on `PATH`, and runs `graphify . --update`
-with no `--directed`, no lock, no health gate and no version stamp.
+with no lock, no health gate, no version stamp and no check that the artifact it
+publishes preserved endpoint order.
 
 `run_graph` SHALL delegate to `skills/foreman/scripts/graph-refresh.sh` and SHALL
 NOT resolve an interpreter itself.

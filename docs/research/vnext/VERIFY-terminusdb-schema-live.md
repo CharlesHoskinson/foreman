@@ -74,3 +74,40 @@ cardinality, subdocument provenance round-tripping, the CAS header, the
 `branch:`-prefixed diff footgun, or any of the 24 competency queries. Those
 remain unverified and the auditors' findings on them stand untouched. The
 container was removed after the run; no state persists.
+
+
+---
+
+## Second run, 2026-07-28 — after the ingest fix (corrects the record above)
+
+**The table above is the PRE-FIX state and check 2 says the opposite of what was
+later claimed from it.** After Fix Lane C added `GraphNode.graphify_version`, the
+schema was re-extracted and re-loaded and the fixtures re-run. That run was
+reported in conversation and **never written here**, so for several hours the
+only artifact on disk contradicted the claim being made about it. The Opus
+re-audit checked the artifact rather than the claim and caught it (TD4). It was
+right to, and the omission is the architect's.
+
+Method identical to the first run: schema block extracted deterministically from
+`terminusdb-schema/design.md` (33 objects), fresh pinned
+`terminusdb/terminusdb-server:v12.0.6`, `full_replace=true`. Fixtures carry every
+required field and only enum values read from the schema — an earlier attempt
+failed four times on invented values and missing fields, which is why the
+fixtures are now derived rather than guessed.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | A `Source` carrying `graphify_version` is accepted | **PASS** (was rejected pre-fix) |
+| 2 | An undeclared field is still rejected | **PASS** |
+| 3 | An invalid enum value is still rejected | **PASS** |
+| 4 | `subtask_of` accepted | **PASS** |
+| 5 | `depends_on` accepted as a distinct relation | **PASS** |
+
+5 passed, 0 failed. The ingest blocker is closed and the schema remains strict.
+Note `@id` must be omitted — these classes use generated keys, and a submitted
+`@id` yields `SubmittedIdDoesNotMatchGeneratedId`.
+
+**What this run does not cover**, unchanged from the first: the
+`EvaluationTarget` exactly-one constraint, `Optional resolved_to` cardinality,
+subdocument provenance round-tripping, the CAS header, the `branch:` diff
+footgun, and all 24 competency queries.

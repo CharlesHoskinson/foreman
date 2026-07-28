@@ -28,15 +28,22 @@ The only automation is `skills/foreman/scripts/maintenance.sh:249-289`
    `SKILL.md` is **0.9.15**. `graphify --help` emits the mismatch warning
    itself, twice. Three code paths, one repo, and the artifact records none of
    them: `graph.json` carries `built_at_commit` and **no `graphify_version`**.
-2. **It does not pass `--directed`.** The committed graph is
-   `"directed": false, "multigraph": false`, and there are **0 duplicate
-   `(source, target)` pairs across 3,668 links** — parallel edges are being
-   collapsed, silently. A claim graph needs `SUPPORTS`, `CONTRADICTS` and
-   `SUPERSEDES` to coexist between the same pair with different provenance.
-   graphify ships a health counter for exactly this
+2. **Nothing checks that direction survived, and nothing can check it where
+   the old draft looked.** The committed graph is
+   `"directed": false, "multigraph": false`. Measured against the pinned
+   graphify 0.9.16, no CLI cadence can change that field: `graphify update`
+   rejects `--directed` (exit 2) and `graphify extract` never passes the
+   keyword, so gating on `"directed": true` would refuse every merge. Direction
+   is nonetheless in the artifact — `to_json` restores the producer endpoints,
+   and 1,465 of 3,668 links are in descending endpoint order — so the check
+   that belongs on the artifact is the endpoint-order count, and consumers
+   reconstruct direction at load with `build_from_json(raw, directed=True)`.
+   graphify's collapse counters
    (`directed_same_endpoint_collapsed_edges` /
-   `undirected_same_endpoint_collapsed_edges`) and describes the class as *the
-   silent-corruption modes of incremental updates*. Nothing runs it.
+   `undirected_same_endpoint_collapsed_edges`) still matter for the
+   silent-corruption class, but only over the **pre-build extraction**: on a
+   post-build `graph.json` they measured 0 on a file where an edge had already
+   been discarded. Nothing runs them anywhere today.
 3. **It takes no lock.** graphify contains exactly one lock in the entire
    package — `watch._rebuild_lock`, a POSIX-only `fcntl.flock` taken by
    `graphify watch`, the git hooks, and interactive `graphify update`. It is
@@ -77,7 +84,7 @@ path must stay AST-only, forever.
 - **New `skills/foreman/scripts/graph-refresh.sh`** — the single supported entry
   point for every write to `graphify-out/`. It resolves one pinned interpreter
   and one pinned graphify version, takes the Foreman graph lock, runs the
-  AST-only incremental update with `--directed`, runs the health diagnostic,
+  AST-only incremental update (`graphify update`), runs the health diagnostic,
   publishes only on a pass, and writes the metadata sidecar. Two modes:
   `--cadence merge` (AST only, asserted zero-token) and `--cadence slow`
   (semantic extraction, clustering and community labels).
@@ -86,18 +93,23 @@ path must stay AST-only, forever.
   `env/reference-manifest.toml` naming the required version. A resolved version
   outside the pin is a refusal, not a warning.
 - **`graphify-out/refresh-meta.json`** — a new committed sidecar carrying
-  `graphify_version`, the resolved interpreter, `built_at_commit`, `directed`,
-  the cadence, the health counters, the cohesion map lifted out of
+  `graphify_version`, the resolved interpreter, `built_at_commit`, the observed
+  `directed` field and endpoint-order count, the cadence, the health counters
+  stamped with the stage each was computed at, the cohesion map lifted out of
   `.graphify_analysis.json` before cleanup, and the refresh timestamp.
   `graph.json` cannot carry these: `graphify --update` rebuilds it from the
   filesystem and would destroy anything injected.
 - **Single-writer discipline.** Every graphify write acquires the Foreman graph
   lock through `lib/lock.sh` (from `lock-primitive-hardening`). Readers — the
   MCP server, `query`, `path`, `explain`, the context builder — do not.
-- **Health gate.** `graphify diagnose multigraph --json --directed` runs on
-  every refresh; `dangling`, `missing`, `collapsed` and `self-loop` counters
-  become gate signals, and a non-zero collapsed count is a hard failure because
-  it proves the directed mandate was not in force.
+- **Health gate, staged so every check can fail.** `graphify diagnose
+  multigraph --json` runs on every refresh against the candidate artifact, where
+  `dangling`, `missing` and `non-object` are gate signals. The collapse counters
+  run against the **pre-build extraction** — the AST-cache union on the merge
+  cadence — because on a post-build `graph.json` they are 0 by construction; a
+  non-zero `directed_same_endpoint_collapsed_edges` there is a hard failure. The
+  candidate is additionally refused if no link is in descending endpoint order,
+  which is what a canonicalising writer produces.
 - **Freshness contract.** `built_at_commit` must be an ancestor of `HEAD`, and
   the drift (commits behind, files unrepresented) is measured and reported by a
   check that needs no graphify installed — so CI can enforce the contract on a

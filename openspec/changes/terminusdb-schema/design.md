@@ -79,13 +79,14 @@ patterns already confirmed to load against TerminusDB 12.0.6.
   "claim": "Claim" },
 
 { "@id": "GraphNode", "@type": "Class", "@abstract": [],
-  "@documentation": { "@comment": "Common base: every node is provenanced and lineage-linked. Thin and stable by design -- the store migration API cannot restructure inheritance (ChangeParents is documented as unimplemented), so this class must not grow." },
+  "@documentation": { "@comment": "Common base: every node is provenanced and lineage-linked. Thin and stable by design -- the store migration API cannot restructure inheritance (ChangeParents is documented as unimplemented), so this class must not grow. This class gained one field, graphify_version (Optional xsd:string), as a deliberate, reviewed pre-freeze weakening exception -- the producing-graphify-version stamp every ingested document must carry, per the live-verified finding that ingest fails without it (see docs/research/vnext/VERIFY-terminusdb-schema-live.md in the read-only research tree)." },
   "created_at": "xsd:dateTime",
   "run_id": { "@type": "Optional", "@class": "xsd:string" },
   "event_offset": { "@type": "Optional", "@class": "xsd:integer" },
   "labels": { "@type": "Set", "@class": "xsd:string" },
   "derived_from": { "@type": "Set", "@class": "GraphNode" },
-  "revises": { "@type": "Optional", "@class": "GraphNode" } },
+  "revises": { "@type": "Optional", "@class": "GraphNode" },
+  "graphify_version": { "@type": "Optional", "@class": "xsd:string" } },
 
 { "@id": "WorkNode", "@type": "Class", "@abstract": [], "@inherits": ["GraphNode"],
   "@documentation": { "@comment": "Work-DAG plane marker. Materialised deterministically from events.jsonl -- never LLM-written. No knowledge-plane class inherits this, which is the structural half of the Entity disjointness requirement." } },
@@ -95,7 +96,7 @@ patterns already confirmed to load against TerminusDB 12.0.6.
   "digest": "xsd:string",
   "kind": "ArtifactKind",
   "path": { "@type": "Optional", "@class": "xsd:string" },
-  "depends_on": { "@type": "Set", "@class": "Artifact" } },
+  "artifact_depends_on": { "@type": "Set", "@class": "Artifact" } },
 
 { "@id": "Task", "@type": "Class", "@inherits": ["WorkNode"],
   "@key": { "@type": "Lexical", "@fields": ["task_key"] },
@@ -103,6 +104,7 @@ patterns already confirmed to load against TerminusDB 12.0.6.
   "title": "xsd:string",
   "state": "TaskState",
   "spec": { "@type": "Optional", "@class": "Spec" },
+  "subtask_of": { "@type": "Optional", "@class": "Task" },
   "depends_on": { "@type": "Set", "@class": "Task" } },
 
 { "@id": "Round", "@type": "Class", "@inherits": ["WorkNode"],
@@ -257,7 +259,7 @@ curl -u admin:$TERMINUSDB_ADMIN_PASS -X POST \
 | 5 | Supersession.old=Attempt, .new, .at, .reason | reason is free text; a formal Spec reference inside Supersession is a candidate future refinement, not added now (kept to what the CQ requires) |
 | 6 | AgentRun.agent (Agent.vendor/model) vs an external routing policy | Agent as a node is the blocking requirement N2 flagged; the policy comparison itself is external logic, not graph data |
 | 7 | AgentRun where invocation_id, resolved_deps, or external_params is absent | representable only because these fields are Optional -- see the AgentRun documentation comment |
-| 8 | Task.depends_on cycle check | not schema-enforced -- TerminusDB constraint language has no cycle check; this is an external invariant, N4 territory |
+| 8 | Task.depends_on cycle check (dependency ordering only -- distinct from Task.subtask_of, which is a separate functional relation not covered by this CQ) | not schema-enforced -- TerminusDB constraint language has no cycle check; this is an external invariant, N4 territory |
 | 9 | Commit.branch vs git branch-head timestamps | schema supplies the Commit data; the "landed after worktree creation" comparison is external, same division as CQ-2 |
 | 10 | AgentRun.consumed vs Supersession/revises timestamps on the consumed Artifact | consumed is not in N2 edge table; added here because no modelled path otherwise answers this CQ (PROV prov:used is the direct precedent, N2 section 7.1) |
 | 11 | Round.has_attempt aggregated across a Task Round set (via Round.task); AgentRun.consumed diff between the passing and last failing attempt | |
@@ -279,6 +281,63 @@ Two gaps are recorded, not silently dropped: CQ-16 MENTIONS half, and
 CQ-22 in full. Both are candidates for the schema next revision if the
 ingest census or a later round shows they are load-bearing.
 
+## graphify -> schema mapping manifest (v1)
+
+This manifest is versioned (`manifest_version: 1`, recorded as a constant
+the adapter reads). It is the authoritative, deterministic mapping from
+graphify's node/edge/hyperedge shapes onto this schema's classes and
+fields. The adapter package consumes it and enforces its reject/drop rule
+-- it does not invent its own mapping.
+
+### Table 1 -- node kind to class
+
+| graphify file_type | Foreman class | class-specific enum/field | key field | key source (from graphify node) | required-field defaults | provenance treatment |
+|---|---|---|---|---|---|---|
+| code | Source | kind = ArtifactKind.code | uri | source_file | digest = sha256 of excerpt (or of label if excerpt absent); path = source_file | see Provenance rule below |
+| document | Source | kind = ArtifactKind.doc | uri | source_file | same as code | same |
+| paper | Source | kind = ArtifactKind.doc | uri | source_file | same as code; paper folds into the doc enum value -- a deliberate, documented lossy fold, not an omission | same |
+| image | Source | kind = ArtifactKind.binary | uri | source_file | digest = sha256 of label (no textual excerpt available for images) | same |
+| concept | Entity | kind = EntityKind.concept | entity_key | id | canonical_name = norm_label if present else label; aliases = {label} when norm_label differs from label | same |
+| rationale | Claim | status = ClaimStatus.live | claim_key | id | text = label; about = empty Set (populated by a later resolution pass, not at ingest); sourced_from = {the Source derived from source_file} when that Source was already ingested in this run, else empty | same |
+
+**Provenance rule** (applies to every row above that carries a Provenance
+subdocument -- Source does not carry Provenance directly since it inherits
+Artifact/GraphNode, not Claim/Entity; Entity and Claim do): confidence is
+derived from graphify node `metadata.confidence_score` when present, bucketed
+as extracted (>=0.85), inferred (0.5-0.85), ambiguous (<0.5 or absent);
+extractor_is_human = false; extracted_at = ingest timestamp;
+source_locator = source_location if present else source_file.
+
+**Reject rule:** any graphify node whose file_type is not one of the six rows
+above SHALL be rejected before any write for that node, naming the node id
+and the unrecognized file_type. (The adapter package names the concrete
+error; see terminusdb-adapter.)
+
+### Table 2 -- edge relation type to schema field
+
+A second, symmetric classification alongside the existing edge-property
+classifier D10 in terminusdb-adapter; this table classifies the relation
+label itself, D10 classifies the properties riding on it:
+
+| graphify relation type | schema treatment |
+|---|---|
+| derived_from | GraphNode.derived_from (plain field) |
+| revises | GraphNode.revises (plain field) |
+| supports | Claim.supports (plain field; both endpoints must resolve to Claim) |
+| contradicts | Claim.contradicts (plain field; both endpoints must resolve to Claim) |
+| cites, references | Claim.sourced_from when the target resolves to a Source; otherwise dropped-with-record |
+| broader_than, subtopic_of | Entity.broader_than (plain field; both endpoints must resolve to Entity) |
+| mentions | dropped-with-record -- MENTIONS is not a stored edge in this schema (see the MENTIONS requirement); the drop is recorded in the ingest report, never silent |
+| any relation type not listed above | fail closed -- the adapter's classify_edge_relation function (mirroring classify_edge_property's four-outcome set) defaults unknown relation types to fail, raising a named error before any write for that edge |
+
+**Hyperedges:** the frozen schema has no reified hyperedge/community class for
+v0.2.9. Every object in graph.json's `hyperedges` array SHALL be classified
+drop-with-record by the adapter and recorded in the ingest report -- never
+silently discarded, never written as an unmapped shape. A future schema
+revision MAY add a reified hyperedge-membership class; this manifest's
+version SHALL be bumped when that happens, and the adapter's drop-with-record
+default for hyperedges retired at that point, not before.
+
 ## Alternatives considered and REJECTED
 
 Keep PARENT_OF as a single relation with a discriminator field.
@@ -286,7 +345,11 @@ Rejected: this is exactly OOPS! P07 (merging different concepts in one
 class) with extra steps -- a discriminator field is still one relation an
 LLM extractor must pick a domain/range for, and Bakker et al. measured that
 choice at F1 approximately 0.03-0.04. Three named relations each have a
-fixed, unambiguous domain/range instead.
+fixed, unambiguous domain/range instead. This schema's own initial draft of
+this requirement made the same mistake in miniature by naming `depends_on`
+for both subtask nesting and dependency ordering; that has been corrected by
+splitting subtask nesting into `subtask_of` -- record this as a self-correction,
+not silently.
 
 Model Spec as Artifact{kind: spec} rather than a subtype. Rejected
 per N2 section 10.4: it forces a kind-filter into every query touching specs

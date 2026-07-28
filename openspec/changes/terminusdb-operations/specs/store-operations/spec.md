@@ -112,7 +112,8 @@ transform for every strengthening change before it is applied.
 IF a proposed schema change would restructure the class inheritance hierarchy, THEN
 the operator SHALL NOT attempt it through the migration API, because `ChangeParents`
 is unimplemented upstream, and SHALL instead perform a drop-and-rebuild from
-`events.jsonl`, `graph.json`, and the lane journals under the new schema.
+`events.jsonl`, `graph.json`, `worklog.jsonl`, and the run JSON records
+under the new schema.
 The dry run's report SHALL be inspected for unexpected instance-data impact before
 the live run is authorized.
 IF the live migration run fails, or produces query results inconsistent with the dry
@@ -169,6 +170,9 @@ The query layer SHALL publish a manifest mapping each of the 24 competency quest
 to its named query identifier, its plane (work-DAG, knowledge, cross-plane), its
 formalism requirement (negation, recursion, aggregation), and its non-emptiness
 contract.
+WHERE a competency question is recorded as a schema-frozen gap by the
+schema package, this package's manifest SHALL record the identical
+disposition rather than independently re-deriving or contradicting it.
 
 #### Scenario: a negation query returns the correct closed-world answer
 
@@ -191,11 +195,14 @@ contract.
 - THEN the regression suite fails, naming the missing element
 - AND no named query silently returns an empty result instead.
 
-#### Scenario: the manifest accounts for all 24 questions
+#### Scenario: the manifest accounts for all 24 questions, gaps included
 
 - WHEN the query-layer manifest is checked against N2 section 9
-- THEN every one of the 24 competency questions maps to exactly one named query
-- AND none is left unmapped.
+- THEN every one of the 24 competency questions maps to exactly one named
+  query OR is recorded as an explicit gap matching the schema package's own
+  disposition for that question
+- AND none is silently absent from the manifest -- a recorded gap is not
+  the same as an omission.
 
 ### Requirement: the store is monitored without Prometheus
 
@@ -240,9 +247,9 @@ job, so it is not aspirational shelfware.
 
 ### Requirement: drop-and-rebuild is timed and run on a schedule
 
-The store SHALL be dropped and rebuilt from `events.jsonl`, `graph.json`, and the
-lane journals on a fixed schedule, and the rebuild SHALL be timed against a
-documented budget rather than run once and forgotten.
+The store SHALL be dropped and rebuilt from `events.jsonl`, `graph.json`,
+`worklog.jsonl`, and the run JSON records on a fixed schedule, and the rebuild
+SHALL be timed against a documented budget rather than run once and forgotten.
 
 The rebuild job SHALL run no less frequently than monthly, and SHALL record
 wall-clock duration, document count, and the query-layer regression-suite result
@@ -269,6 +276,14 @@ directory rather than a synthetic fixture only.
 - WHEN a scheduled rebuild takes longer than the current budget
 - THEN the job fails loudly
 - AND the failure and the measured duration are recorded in the release checklist.
+
+#### Scenario: the rebuild's source artifacts are ones a component actually produces
+
+- WHEN the rebuild job is inspected for its declared source artifacts
+- THEN every named artifact (events.jsonl, graph.json, worklog.jsonl, run
+  JSON records) is produced by an existing, owned component
+- AND no artifact named "the lane journals" or any other undefined journal
+  appears in the source list.
 
 ### Requirement: the exit path to files-only is rehearsed and gated by named numeric tripwires
 

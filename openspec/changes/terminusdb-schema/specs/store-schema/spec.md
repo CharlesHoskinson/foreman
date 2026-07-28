@@ -33,28 +33,45 @@ log, that class SHALL NOT be written or amended by a model.
 - THEN Spec and Commit carry no field indicating knowledge-plane origin
 - AND Source is the only such subtype, and it carries origin.
 
-### Requirement: PARENT_OF does not exist; three named relations replace it
+### Requirement: PARENT_OF does not exist; four named relations replace it
 
 The schema SHALL NOT define a class or property named parent_of or
 PARENT_OF.
 
 The schema SHALL define Round.has_attempt as a Round-to-Attempt set
 property.
+The schema SHALL define Task.subtask_of as an Optional Task-to-Task
+property for subtask nesting only (functional -- at most one parent).
 The schema SHALL define Task.depends_on as a Task-to-Task set property
-for sub-tasking and general task dependency.
+for dependency ordering only -- it SHALL NOT be used for subtask nesting
+now that subtask_of exists.
+The schema SHALL define Artifact.artifact_depends_on as an
+Artifact-to-Artifact set property, kept plane-distinct from
+Task.depends_on by name so a WOQL traversal cannot silently cross the
+work-DAG/knowledge-plane-adjacent boundary.
 The schema SHALL define Entity.broader_than as an Entity-to-Entity set
 property, present only on the knowledge-plane class.
 IF a future revision proposes a single relation covering more than one of
-has_attempt, task dependency, or broader_than, THEN that revision SHALL
-be rejected as a reintroduction of the merged-concept defect this
-requirement exists to prevent.
+has_attempt, subtask_of, task dependency, artifact_depends_on, or
+broader_than, THEN that revision SHALL be rejected as a reintroduction
+of the merged-concept defect this requirement exists to prevent.
 
 #### Scenario: no merged relation exists
 
 - WHEN the schema is scanned for a property or class named parent_of
+  or PARENT_OF
 - THEN no such property or class exists
-- AND has_attempt, depends_on, and broader_than each appear on exactly
-  one class.
+- AND has_attempt, subtask_of, depends_on (on Task, dependency-only),
+  artifact_depends_on, and broader_than each appear on exactly one class
+- AND Task.subtask_of and Task.depends_on are never the same property.
+
+#### Scenario: subtask nesting and dependency ordering are distinct relations
+
+- WHEN a Task is queried for its parent task
+- THEN the answer comes from subtask_of, never from depends_on
+- AND a query for a Task's ordering dependencies comes from depends_on,
+  never from subtask_of
+- AND no single query traverses both relations under one name.
 
 ### Requirement: EVALUATES and Finding targets use a tagged union with exactly one member
 
@@ -242,3 +259,72 @@ or explicitly recorded as a gap in this package design record.
   expression beyond TaggedUnion/@oneOf
 - THEN the revision is rejected as breaking the OWL 2 RL-shaped constraint
 - AND the rejection cites this requirement.
+
+#### Scenario: the frozen schema is proven to load, not merely proven to parse
+
+- WHEN this package's gate runs
+- THEN the exact fenced schema block is loaded into a fresh pinned
+  TerminusDB 12.0.6 container with full_replace=true and read back
+- AND a positive instance fixture is accepted and a negative instance
+  fixture is rejected
+- AND valid JSON syntax alone is not treated as sufficient evidence the
+  schema is usable.
+
+### Requirement: every GraphNode-derived document carries a producer-version stamp
+
+GraphNode SHALL declare graphify_version as an Optional xsd:string field,
+inherited by every concrete class in the schema.
+
+The field SHALL be the sole mechanism by which an ingested document records
+the graphify version that produced it. No other class SHALL declare a
+differently-named field for the same purpose.
+
+#### Scenario: a document stamped with graphify_version is accepted
+
+- WHEN a document of any concrete GraphNode-derived class is written with
+  graphify_version set
+- THEN the write succeeds, because the field is schema-declared
+- AND the value round-trips on read.
+
+#### Scenario: an undeclared field is still rejected
+
+- WHEN a document is written carrying a field name that is not declared on
+  its class or an ancestor
+- THEN TerminusDB rejects the write
+- AND graphify_version does not need this treatment because it is now
+  declared on the common ancestor every class inherits.
+
+### Requirement: the graphify-to-schema mapping is a versioned manifest, not an implicit convention
+
+This package SHALL publish a versioned mapping manifest (design.md,
+"graphify -> schema mapping manifest") that maps every graphify node file_type
+to exactly one schema class, every graphify edge relation type to exactly
+one schema field or an explicit drop rule, and every graphify hyperedge to
+an explicit drop rule, because no schema class or property may be inferred
+by a downstream package without a named, reviewed source of truth.
+
+The manifest SHALL carry a manifest_version integer. Any graphify shape not
+covered by the current manifest_version SHALL be rejected or dropped-with-
+record, never silently written under a best-guess class.
+
+#### Scenario: every graphify node kind maps to exactly one class
+
+- WHEN each of the six graphify file_type values is looked up in the
+  manifest
+- THEN each resolves to exactly one schema class and key-derivation rule
+- AND no file_type resolves to more than one class.
+
+#### Scenario: an unmapped node kind is rejected, not guessed
+
+- WHEN a graphify node carries a file_type not present in the manifest
+- THEN ingest rejects that node before any write, naming the node id and
+  the unrecognized file_type
+- AND no document is written under a best-guess class.
+
+#### Scenario: hyperedges are recorded, not silently dropped
+
+- WHEN graph.json carries a non-empty hyperedges array
+- THEN every hyperedge object is classified drop-with-record under the
+  current manifest_version
+- AND the drop appears in the ingest report, not only in a log line nobody
+  reads.

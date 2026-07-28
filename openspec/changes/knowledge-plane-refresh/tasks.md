@@ -25,9 +25,15 @@ Precondition: `lock-primitive-hardening` has landed. T4 builds on `lib/lock.sh`.
 
 - [ ] Create `skills/foreman/scripts/graph-refresh.sh` with a top-of-file purpose
       comment and shdoc headers on every function.
-- [ ] `--cadence merge` runs the AST-only incremental update; `--cadence slow`
-      runs semantic extraction, clustering and labelling.
-- [ ] `--directed` passed to every build and diagnose invocation.
+- [ ] `--cadence merge` runs the AST-only incremental update (`graphify update`
+      under the pinned interpreter); `--cadence slow` runs semantic extraction,
+      clustering and labelling.
+- [ ] Pass **no** `--directed` on any build invocation: `graphify update` rejects
+      it (`cli.py:1250`, exit 2) and no CLI cadence produces `"directed": true`.
+      Record the observed `directed` field as an observation; never gate on it.
+- [ ] Count the candidate's links whose `source` sorts strictly after its
+      `target`; refuse to publish when that count is zero and links exist
+      (measured baselines: 1,465/3,668 committed, 1,041/2,531 re-extracted).
 - [ ] Read `cost.json` before and after; assert a zero token delta on the merge
       cadence; treat an absent `cost.json` as a zero baseline and create it.
 - [ ] Publish-or-refuse: on any gate failure, leave the previous `graph.json`
@@ -61,15 +67,30 @@ Precondition: `lock-primitive-hardening` has landed. T4 builds on `lib/lock.sh`.
 
 ## T5 — health gate and the metadata sidecar
 
-- [ ] Run `graphify diagnose multigraph --json --directed` against the candidate
-      artifact, not against the pre-build extraction dictionary.
-- [ ] Refuse to publish on non-zero `dangling_endpoint_edges`,
-      `missing_endpoint_edges`, `non_object_edges`, or either collapsed-edge
-      counter.
+- [ ] Run `graphify diagnose multigraph --json --graph <candidate>` against the
+      candidate artifact and gate **only** on `dangling_endpoint_edges`,
+      `missing_endpoint_edges` and `non_object_edges` there.
+- [ ] Do **not** gate either collapse counter on `graph.json`: measured 0 on a
+      file where an edge had already been dropped, and graphify's own note says
+      a post-build `graph.json` cannot recover raw producer edges. Assert in the
+      test suite that no gate reads a collapse counter computed over the
+      artifact.
+- [ ] Compute the collapse counters over the pre-build extraction instead — on
+      the merge cadence, the union of `graphify-out/cache/ast/v<pin>/*.json`
+      (`cache.py:340-360`); on the slow cadence, that cadence's extraction dict.
+      Gate on `directed_same_endpoint_collapsed_edges` only.
+- [ ] Record — and do **not** gate — `undirected_same_endpoint_collapsed_edges`
+      (measured 1 on a healthy 208-file corpus: legitimate `u → v` + `v → u`)
+      and the union's `dangling_endpoint_edges` (measured 76: cross-file
+      endpoints are resolved at merge time, not in the per-file records).
+- [ ] Note at the cache-reading site that `cache/ast/v<version>/` is a private
+      graphify layout, that the version pin is what makes reading it safe, and
+      that a pin bump must re-verify the layout.
 - [ ] Create `graphify-out/refresh-meta.json`: `graphify_version`, interpreter
-      path, `built_at_commit`, `directed`, cadence, timestamp, all health
-      counters, non-isolated-node fraction, token cost, cohesion map, community
-      labels, `renames`, and `last_refresh_failed`.
+      path, `built_at_commit`, the observed `directed` field, the endpoint-order
+      count, cadence, timestamp, all health counters **stamped with the stage
+      each was computed at**, non-isolated-node fraction, token cost, cohesion
+      map, community labels, `renames`, and `last_refresh_failed`.
 - [ ] Lift cohesion and community labels out of `.graphify_analysis.json` before
       any cleanup step deletes it; record unavailability honestly if it is
       already gone.
@@ -105,6 +126,11 @@ Precondition: `lock-primitive-hardening` has landed. T4 builds on `lib/lock.sh`.
       pre-release; the release checklist gains the step).
 - [ ] Record token cost; mark community labels, cluster membership and cohesion
       advisory in `refresh-meta.json`.
+- [ ] Write this cadence's own pre-build extraction to
+      `graphify-out/.refresh-extraction.json` before building, and run the
+      collapse counters over it: `graphify extract` writes `graph.json` directly
+      and persists no extraction document, so the slow cadence must create its
+      own input for that check or drop the claim for this cadence.
 - [ ] Ensure `_origin` remains the discriminator between AST and LLM records
       through the merge, and assert it in a test.
 - [ ] Reject any gate citation that resolves to an advisory record.
@@ -123,15 +149,27 @@ Precondition: `lock-primitive-hardening` has landed. T4 builds on `lib/lock.sh`.
 ## T10 — gate
 
 - [ ] `tests/graph-refresh.bats`: pin refusal on version mismatch; refusal on a
-      non-zero collapsed-edge counter; refusal on dangling endpoints with the
-      previous graph left intact; zero-token assertion failing on a seeded
-      non-zero delta; lock serialisation under at least two concurrent writers
-      adding disjoint nodes; rename map correctness; cohesion captured before
-      cleanup.
+      non-zero `directed_same_endpoint_collapsed_edges` **over a seeded
+      pre-build extraction**; refusal on dangling endpoints with the previous
+      graph left intact; zero-token assertion failing on a seeded non-zero
+      delta; lock serialisation under at least two concurrent writers adding
+      disjoint nodes; rename map correctness; cohesion captured before cleanup.
+- [ ] Direction tests, binding the direction requirement to something
+      executable: a merge-cadence refresh whose artifact reads
+      `"directed": false` **publishes** and records the field as an observation;
+      a candidate whose links are all in ascending endpoint order is **refused**
+      with the endpoint-order count named; a reload of the published artifact
+      with `build_from_json(raw, directed=True)` has `u → v` present and `v → u`
+      absent.
 - [ ] The concurrency test SHALL fail against an unlocked writer — prove it
       detects the defect, do not merely observe it passing.
-- [ ] First directed refresh lands as its own reviewable commit, with the
-      node/edge delta versus the undirected build stated in the commit message.
+- [ ] Prove the relocated collapse gate fires: seed one parallel typed edge into
+      the extraction union and show the counter go 0 → 1 (measured: it does),
+      then show it stays 0 on the published artifact for the same input — that
+      pair of runs is the evidence the check was moved to a stage where it can
+      fail.
+- [ ] The first automated refresh lands as its own reviewable commit, stating
+      the node/edge delta and the endpoint-order count in the commit message.
 - [ ] Freshness after the first automated refresh is zero commits of drift and
       zero unrepresented tracked source files; state both numbers.
 - [ ] `shellcheck` clean on `graph-refresh.sh`, `graph-freshness.sh` and the

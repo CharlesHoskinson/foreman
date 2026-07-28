@@ -98,3 +98,37 @@ generic requirement.
      landing or freezing the store." -- the census may still run and can still inform
      later tuning or an exit-path trigger, but it no longer gates whether the store
      lands; that decision is already made.
+  4. `graph-store-port/design.md` section "Rejected alternatives" (or equivalent): "this
+     package is explicitly deferrable -- SYNTHESIS section 5 grants the architect that
+     call" -- superseded for the same reason as items 1-2; the architect's ship decision
+     has already been made.
+  5. `graph-eval-falsification/specs/evaluation/spec.md`, the requirement titled "a query
+     census classifies one release of real queries before the store is justified" --
+     superseded in framing only: the census may still run and inform later tuning, but
+     it is no longer a precondition for the store's existence, because the store already
+     ships.
+  6. `graph-eval-falsification/specs/evaluation/spec.md`, kill criterion KC-1: "IF the
+     genuine multi-hop-cross-run share ... falls below the registered share, THEN freeze
+     the store package ... descope the store for the release series." -- this is the
+     serious one: a live, registered kill criterion that can still order the shipped
+     store frozen or descoped in a spec RECONCILE explicitly ships at S4. Under the ship
+     decision, this needs rewording (by the architect, in that package) from a land/freeze
+     gate to a tuning/exit-path trigger -- otherwise a v0.3.x-scoped rule contradicts the
+     v0.2.9 product decision this package and its two siblings already implement. Flagged
+     here because this package's exit-path tripwires (see the exit-path requirement above)
+     are the correct home for a reworded version of this signal, not a fresh land/freeze
+     gate.
+  7. `graph-eval-falsification/tasks.md`: "Hand the census verdict to the architect as the
+     documented basis for landing or freezing GP-6." -- superseded for the same reason as
+     item 5; the landing decision is already made, so this task's outcome can inform
+     tuning only.
+  8. `graph-context-builder/design.md`: "if GP-6 is deferred behind the query census, or
+     if the store proves fragile..." -- superseded; GP-6 (the store) is not deferred.
+     Also cross-reference: this package's own CQ table (design.md) now records Q-X22 as
+     deferred to v0.3.x because graph-context-builder itself is deferred, per RECONCILE
+     section 5 -- that is a real, current deferral of a *different* package, not a reason
+     to revisit whether the store ships.
+
+Opus's audit (docs/research/vnext/AUDIT-terminusdb-opus.md, finding N14) found all 8 of
+the above across 4 packages, versus the 3 Council 3 originally reported; this package's
+list is now complete against that audit.

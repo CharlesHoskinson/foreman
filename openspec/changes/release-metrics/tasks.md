@@ -4,6 +4,13 @@ Ordering: T1 is the premise check. T2 is the reference doc and is the
 dependency for everything after it. T3-T5 can proceed in parallel once
 T2's shape is fixed. T6-T7 depend on T2-T5. T8 gates.
 
+Scope note, per the 2026-07-28 proportionality review: **M5 is owned and
+defined by `graph-eval-falsification`, not by this package**, and the
+automated gaming-direction inference is **cut**. No task below may define an
+M5 formula, an M5 report shape, or an automated gaming classifier; where a
+task previously did, it now specifies the consumption discipline and the
+human-review flag the spec retained.
+
 This package does not touch `audit-run.sh`, `gate-eval.sh`,
 `lib/eventlog.sh`, the event schema, the regression harness, or the test
 suite. Where a task needs a field from one of those, cite the field name
@@ -27,19 +34,27 @@ from the owning package's spec; do not invent a parallel one.
 ## T2 — the metrics reference doc
 
 - [ ] Create `skills/foreman/references/release-metrics.md` defining
-      M1-M13: exact formula, units, the documented misreading in one
-      sentence, the required companion number and how it is computed,
-      and at least one concrete gaming vector with its cross-check.
+      M1-M4 and M6-M13: exact formula, units, the named denominator, the
+      documented misreading in one sentence, the required companion number
+      and how it is computed, and at least one concrete gaming vector with
+      the typed companion field a human reviewer checks. M5 is NOT defined
+      here.
 - [ ] For each metric, name the exact upstream field(s) it reads
       (`decision-lineage-and-telemetry`'s event names / `metrics.json`
       keys) or state explicitly that the field does not exist yet and
       the metric is therefore pending.
-- [ ] M5's entry states the per-vendor-pair requirement, the
-      uncomputable-today state and why, and cites the
-      ~2-effective-vote / 11%-recovery counter-evidence verbatim as the
-      reason no aggregate form is ever permitted.
+- [ ] M5's entry is a pointer, not a definition: it names
+      `graph-eval-falsification`'s evaluation spec as the sole owner of M5's
+      formula, per-vendor-pair shape and threshold, records that M5 is not
+      computed or cited in a v0.2.9 report at all, and cites the
+      ~2-effective-vote / 11%-recovery counter-evidence as the reason no
+      aggregate form is ever permitted. It SHALL NOT restate the formula.
 - [ ] Document the minimum sample size per metric below which p90-style
-      and per-100-style figures are marked low-sample.
+      and per-100-style figures are marked low-sample, and the metric's
+      zero-denominator behaviour: the exact
+      `uncomputable -- zero denominator (<denominator name> = 0 over
+      <window>)` string, distinct from the blocked-input uncomputable
+      string.
 
 ## T3 — companion-number and sigma-before-claim enforcement
 
@@ -54,36 +69,58 @@ from the owning package's spec; do not invent a parallel one.
       are numerically present, and the delta's absolute value is less
       than sigma, fail unless the report already states "not
       distinguishable from noise."
+- [ ] Add the uncomputable-render checks: a metric rendering its
+      uncomputable string satisfies the companion rule (no companion is
+      required because no value is claimed), while a blank cell, a
+      placeholder zero or an omitted row does not; a zero-denominator
+      render must name the empty population; a blocked-input render must
+      name a blocking package that exists under `openspec/changes/` and has
+      not landed, and is rejected otherwise.
+- [ ] Add the zero-denominator guard: a metric rendered zero-denominator
+      uncomputable may not satisfy a threshold, carry a comparative claim,
+      or enter an aggregate or period-over-period delta as zero.
+- [ ] Reject any statement describing the v0.2.9 active set as "fully
+      computed": M3 and M4 render uncomputable and M8 uses an interim basis
+      for one input.
 - [ ] Do NOT implement metric computation in this script — it lints
-      already-rendered report text/data, it does not compute M1-M13 from
-      raw events.
+      already-rendered report text/data, it does not compute the metrics
+      from raw events.
 
-## T4 — gaming-detector
+## T4 — gaming exposure: typed companion field and human review
 
-- [ ] For each metric in the reference doc (T2), the gaming-detector
-      logic compares the metric's period-over-period move (in units of
-      its own sigma) against its named companion's move; if the metric
-      moves >1 sigma and the companion does not move correspondingly,
-      mark gaming-candidate in the linter's output.
-- [ ] The gaming-candidate flag is advisory (does not block publication
-      by itself) but SHALL be visually distinct in any generated report
-      and SHALL require an explicit manual annotation before the metric
-      is cited in release notes.
-- [ ] Document, per metric, what "moved correspondingly" means
-      concretely (e.g. for M1/architect-share: both move up together is
-      suspicious; M1 up with architect-share flat or down is not).
+The automated directional-corroboration inference is **cut** by the
+2026-07-28 proportionality review: it was itself an unvalidated predicate
+with no positive control distinguishing real gaming from coincidental
+correlated movement. What remains is the typed companion field and a
+human-review flag.
 
-## T5 — M5 per-vendor-pair shape
+- [ ] For each metric in the reference doc (T2), document at least one
+      concrete way an actor (architect, implementer or auditor) could move
+      the metric without the underlying release quality changing, and name
+      the **typed companion field** a human reviewer checks when
+      investigating that risk.
+- [ ] The linter flags a metric for human review when its reported value
+      moves by more than its measured sigma between consecutive windows,
+      rendering the companion value alongside it. The flag is advisory, is
+      visually distinct, and requires an explicit manual annotation before
+      the metric is cited in release notes.
+- [ ] The linter SHALL NOT auto-classify a flagged move as gaming or as
+      legitimate, and SHALL NOT compute a directional-corroboration verdict
+      from the companion's movement.
 
-- [ ] Specify the exact report shape for M5 once computable: one row per
-      ordered (implementer-vendor, auditor-vendor) pair, each with its
-      own sample size, never a collapsed aggregate.
-- [ ] Specify the explicit uncomputable-state string the linter and any
-      report generator must emit while `decision-lineage-and-telemetry`'s
-      finding-level vendor provenance is absent.
-- [ ] Add a linter check that a report may not omit or blank M5 silently
-      — it must render one of: per-pair figures, or the
-      uncomputable-state string.
+## T5 — M5 consumption discipline (no local definition)
+
+- [ ] Do NOT specify an M5 report shape, formula or threshold here.
+      `graph-eval-falsification` owns all three; this package cites its
+      field names verbatim where it consumes them.
+- [ ] Add the v0.2.9 linter rule: a report that computes or cites M5 — or
+      M1, M6, or any of M9-M13 — is rejected, naming the metric and the
+      deferral.
+- [ ] Add the independence-claim rule with both of its known-bad inputs: a
+      v0.2.9 report asserting cross-vendor independence is rejected naming
+      M5 as not rendered in this release; from the release in which M5
+      becomes computable, a claim citing a collapsed aggregate rather than
+      a per-pair M5 is rejected.
 
 ## T6 — sigma methodology
 
@@ -104,11 +141,24 @@ from the owning package's spec; do not invent a parallel one.
 - [ ] Linter rejects a claim whose stated delta is smaller than its
       stated sigma, unless the report already states the
       noise-indistinguishable language.
-- [ ] Linter flags a metric as gaming-candidate when it moves >1 sigma
-      without its companion corroborating, and does not flag it when the
-      companion corroborates.
-- [ ] Linter rejects a report that silently omits or blanks M5, and
-      accepts one with the explicit uncomputable-state string.
+- [ ] Linter flags a metric for human review when it moves >1 sigma
+      between consecutive windows, renders its companion alongside, and
+      does not auto-classify the move as gaming or as legitimate.
+- [ ] Linter rejects a v0.2.9 report that computes or cites M5, M1, M6 or
+      any of M9-M13.
+- [ ] Linter rejects a v0.2.9 report asserting cross-vendor independence,
+      naming M5 as not rendered in this release.
+- [ ] Linter accepts a metric rendering an uncomputable-state string with
+      no companion, and rejects a blank cell, a placeholder zero, or an
+      omitted row in its place.
+- [ ] Linter renders a zero-denominator metric as
+      `uncomputable -- zero denominator (...)`, rejects a `0`/`0%`/`100%`
+      render for the same window, and rejects a comparative claim built on
+      it.
+- [ ] Linter rejects an uncomputable render naming a blocking package that
+      does not exist under `openspec/changes/` or that has already landed.
+- [ ] Linter rejects a report describing the v0.2.9 active set as "fully
+      computed".
 - [ ] Declare preconditions via `tests/lib/preconditions.bash` per
       `test-infrastructure-hardening`'s helper.
 - [ ] Full suite green on WSL/Ubuntu 26.04.

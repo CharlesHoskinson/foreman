@@ -60,8 +60,16 @@ event log is the only durable-core component that does not use it.
   - `flock` when available (WSL, Linux, and any host with `util-linux`);
   - the `mkdir` mutex **only** as the MSYS2 / Git-Bash fallback, where `flock`
     genuinely does not exist;
-  - and, on the fallback path, a startup probe that refuses a `mkdir` known to
-    be non-atomic rather than silently trusting it.
+  - on either path, a startup check that selects a mechanism only on a trusted,
+    current verdict — `atomic` on this host's own syscall trace, or on a SHA-256
+    match to a pinned entry whose syscall trace was taken on a Foreman-controlled
+    host of the same class — scoped to the filesystem class the lock path
+    resolves to, and refusing rather than silently trusting otherwise. The second
+    evidence class exists because Git-Bash, the fallback's only host, ships no
+    tracer and could otherwise never earn a verdict;
+  - and six ordered, disjoint refusal codes covering nesting, an uncovered
+    filesystem class, a disproved primitive, an unproven primitive, a mechanism
+    that is present but unusable, and a timeout.
 - **`lib/eventlog.sh` migrated onto it** — the three inline spin-loops at
   `:76`, `:221` and `:351` are replaced by calls into `lib/lock.sh`. The
   release discipline (single unconditional release on every path) and the
