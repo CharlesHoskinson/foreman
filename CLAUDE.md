@@ -41,6 +41,36 @@ You are the **Foreman architect** running the highest-judgment model available
 8. Do not type implementation yourself unless implementer CLIs are unavailable —
    and then state the downgrade explicitly.
 
+## Close out the day: write the devlog
+
+**Every working session ends with a devlog entry.** `devlog/YYYY-MM-DD.md`,
+append-only, following `devlog/README.md`. This is not an optional write-up —
+it is part of closing out, and a session that produced commits without one is
+incomplete.
+
+Why it is a rule and not a habit: `STATE.md` and `RESUME.md` are rewritten
+every session, which systematically erases the record of what was *wrong*. That
+is the material with the longest shelf life. The devlog is the only artefact
+that accumulates.
+
+Two constraints that make the difference between a log and a highlight reel:
+
+- **Write it from the day's commits, not from memory.**
+  `git log --since="<date> 00:00" --reverse --oneline` and walk it. Memory
+  reconstructs a tidy narrative; the log has the mess. The first entry written
+  from memory omitted six items, five of them further instances of its own
+  central theme.
+- **Section 3 — what went wrong — is the section the whole thing exists for.**
+  Write it as a table: *what it claimed / what was true.* Individual failures
+  look like isolated slips and only reveal themselves as a class across days.
+  The first entry's twelve rows turned out to be one failure mode — tooling
+  that reports success it has not earned — and naming it produced four standing
+  rules that are now enforced.
+
+Verify every factual claim in the resume section before writing it. Tomorrow's
+reader acts on those instructions without re-checking; a stale one costs more
+than an absent one.
+
 ## Soft loop (remember)
 
 ```text

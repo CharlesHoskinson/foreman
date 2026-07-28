@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: every bash-executed tracked file is LF in its git index on every platform, and LF in the working tree on an autocrlf=true checkout
+## ADDED Requirements
+
+### Requirement: every bash-executed tracked file is LF in its git index on every platform, and LF in the working tree on an autocrlf=true checkout
 
 Every tracked file that bash executes SHALL be LF in its git INDEX (`git
 ls-files --eol` reports `i/lf`) on every platform — this is non-vacuous even
@@ -44,7 +46,7 @@ WSL). This SHALL be verified by a test rather than declared by
 - AND `git add --renormalize .` is a near-no-op here (the index blobs were
   already LF; it may only pick up newly-attributed files).
 
-## ADDED Requirement: binary files are protected from text=auto mis-detection
+### Requirement: binary files are protected from text=auto mis-detection
 
 WHERE a tracked file is a known binary type (`*.png *.jpg *.jpeg *.ico *.pdf
 *.exe`), `.gitattributes` SHALL mark it `binary` so the `* text=auto eol=lf`
@@ -57,7 +59,20 @@ catch-all cannot mis-detect a NUL-free binary as text and rewrite its bytes.
 - AND a tracked binary file's bytes are bit-identical after `git add
   --renormalize .`.
 
-## ADDED Requirement: the three extensionless SDD scripts are executable in the git index
+### Requirement: every directly executed Foreman script is executable in the git index
+
+The scope is an **inventory, not a count**. Three documents gave three
+different numbers for this fix — 34, 33 and 3 — and all three were wrong; the
+measured set is **41** files that are tracked, carry a shebang or are invoked
+directly, are Foreman-owned, and are currently `100644`: 34 under
+`skills/foreman/scripts/**` (including `nats/setup.sh`), 3 extensionless SDD
+scripts, and 4 `skills/superpowers/hooks/*`.
+
+WHEN the exec-bit fix is applied, the set SHALL be derived by a mechanical
+sweep of the index at the commit under test, and the regression test SHALL
+assert that derived inventory rather than a literal number. IF a new directly
+executed script is added without the exec bit, THEN the test SHALL fail naming
+it. A hardcoded count is what produced three contradictory documents.
 
 The three extensionless shebang scripts under
 `skills/superpowers/skills/subagent-driven-development/scripts/` SHALL be
@@ -74,7 +89,7 @@ git mode `100755` (not `100644`), since they are invoked by direct exec
 - AND on a fresh ext4 clone, `scripts/review-package BASE HEAD` runs without
   a `Permission denied` error.
 
-## ADDED Requirement: genuine Windows scripts remain CRLF
+### Requirement: genuine Windows scripts remain CRLF
 
 WHERE a tracked file is a genuine Windows script (`.bat`, `.cmd`, `.ps1`), it
 SHALL be CRLF, and the repo-root catch-all SHALL NOT normalize it to LF.

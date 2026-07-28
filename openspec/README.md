@@ -1,7 +1,22 @@
 # OpenSpec change conventions
 
 Foreman change specs follow [OpenSpec](https://github.com/Fission-AI/OpenSpec)
-folder conventions (CLI optional):
+folder conventions (CLI optional).
+
+**Header shape.** Packages authored from v0.2.9 onward use the form the
+OpenSpec CLI parses, and validate under `openspec validate <change> --strict`:
+
+```text
+## ADDED Requirements
+### Requirement: <title>
+#### Scenario: <name>
+```
+
+Eight packages predating v0.2.9 use `## ADDED Requirement: <title>` and do
+**not** validate. That is recorded rather than silently migrated: they are
+out of this release's scope, and a mechanical transform would touch files
+several in-flight packages already claim. New packages SHALL use the
+parseable form.
 
 - `openspec/changes/<change-name>/` — one folder per change:
   - `proposal.md` — why + what is changing
