@@ -164,7 +164,13 @@ plan in `docs/superpowers/`).
   `grok agent stdio`; the optional `.foreman/live-target.toml` preflight-WARN.
 - Depends on: v0.2.8.
 
-## v0.2.9 — graph engineering, multi-vendor, and an interpretable suite (PLANNED)
+## v0.2.9 — Total GeorgeCall — graph engineering, multi-vendor, and an interpretable suite (PLANNED)
+
+![Total GeorgeCall](assets/v029-total-georgecall.png)
+
+Codename **Total GeorgeCall**, following `v0.2.0` (Nightwatch) and `v0.2.5`
+(Beacon). The release art is committed at
+`assets/v029-total-georgecall.png`.
 
 The largest release so far, and deliberately so: WSL compatibility, a fourth
 vendor lane, a two-plane graph, workflow fixes driven by `bugeventlog.md`, and a
@@ -415,6 +421,7 @@ architect against the shipped source:**
 
 - Research: `docs/research/vnext/` (12 lane reports, `SYNTHESIS.md`,
   `PM-acceptance-criteria.md`, `LANDING-ORDER.md`, `F-uutils-mkdir-blocker.md`)
+- Tag on release: `v0.2.9` (Total GeorgeCall).
 - Depends on: v0.2.8.1. Feeds: v0.3.0 (session transport), v0.4.0 (fast audit).
 
 ## v0.3.0 — session transport (remote branch `dev/foreman-v1`)
