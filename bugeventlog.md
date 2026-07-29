@@ -1639,3 +1639,30 @@ Recorded here because the workflow context is foreman's, though the failures are
   the second found inside a mechanism this release is introducing. Positive
   controls are not paperwork; every one of these was invisible until something
   independent contradicted it.
+
+
+## 2026-07-29 — terminusdb-schema (s9-tdbschema) package authoring
+
+**Context.** Completing `openspec/changes/terminusdb-schema/` (19 tasks): frozen
+schema already present in design.md; added version/change procedure, structural
+checker, live load-test gate, proposal drift fixes, and ran all gates.
+
+**Friction encountered**
+
+1. **markdownlint-cli2 vacuous pass on package files.** The repo
+   `.markdownlint-cli2.jsonc` ignores `openspec/changes/**`. Invoking
+   `markdownlint-cli2 "openspec/changes/terminusdb-schema/**/*.md"` reports
+   `Linting: 0 files` / `0 issues` and exit 0 — a green that proves nothing.
+   Literal path syntax (`:openspec/changes/terminusdb-schema/design.md` …)
+   is required to actually lint the four package files. Observed: 0 issues in
+   4 files when forced.
+
+2. **Pipe masks harness failure exit.** `schema-live-gate.sh --self-test-fail
+   2>&1 | tail` yields exit 0 from `tail` while the harness correctly exited 1.
+   Capture to a file (or `PIPESTATUS`) when asserting non-zero.
+
+**No other workflow friction.** Live pin
+`terminusdb/terminusdb-server:v12.0.6@sha256:e02eaa3a5b75e01550cee2a662a846db7fceb725193983f1f35e1842ab580fee`
+was already present; schema load, positive Agent, invalid-enum reject,
+undeclared-field reject, and drop-rebuild identity all passed on first
+successful ready-wait.

@@ -68,10 +68,11 @@ happened to flag it.
   designed plane-crossing class (`Source`), and the reified classes
   (`Provenance`, `EvaluationTarget`, `Supersession`) needed because
   TerminusDB has no edge properties. See `design.md` for the full JSON.
-- **`PARENT_OF` does not exist in this schema.** It is replaced by three
-  distinct relations: `has_attempt` (`Round` to `Attempt`), `depends_on` used
-  for `Task` to `Task` sub-tasking, and `broader_than` (`Entity` to `Entity`,
-  knowledge plane only).
+- **`PARENT_OF` does not exist in this schema.** It is replaced by four
+  distinct relations: `has_attempt` (`Round` to `Attempt`), `subtask_of`
+  (`Task` to parent `Task`, functional nesting), `depends_on` (`Task` to
+  `Task`, dependency ordering only — never subtask nesting), and
+  `broader_than` (`Entity` to `Entity`, knowledge plane only).
 - **`EVALUATES` and `Finding.about` are a `TaggedUnion`** (`EvaluationTarget`)
   with exactly one of `attempt`/`artifact`/`claim` set, never a union query
   over an untyped target.
@@ -94,10 +95,11 @@ happened to flag it.
   its `origin` field records whether it is a human, external, or
   agent-produced source.
 - **A `Provenance` subdocument** (embedded, never top-level) is required on
-  every LLM-written node (`Claim`, `Entity`, `Finding`) and records the
+  every LLM-written knowledge-plane node (`Claim`, `Entity`) and records the
   extracting agent-or-human, timestamp, a three-value discrete confidence
   enum (`extracted`/`inferred`/`ambiguous` -- never a float), and a required
-  source locator.
+  source locator. `Finding` is work-DAG material (inherits `WorkNode`) and
+  carries no `Provenance` subdocument.
 - **`AgentRun`'s SLSA-shaped provenance fields are `Optional`, not
   required**, so that an incomplete ("unverified") agent run can actually be
   written and then found by a query -- a schema that makes those fields

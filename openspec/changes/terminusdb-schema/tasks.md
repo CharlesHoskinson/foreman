@@ -7,51 +7,51 @@ before. T3 is the gate.
 
 ## T1 -- author the frozen schema
 
-- [ ] Write design.md JSON schema exactly as specified -- 12 enums,
+- [x] Write design.md JSON schema exactly as specified -- 12 enums,
       Provenance (subdocument), EvaluationTarget (TaggedUnion),
       GraphNode/WorkNode/Artifact (abstract), and the 15 concrete
       classes.
-- [ ] Confirm no class or property is named parent_of/PARENT_OF; confirm
+- [x] Confirm no class or property is named parent_of/PARENT_OF; confirm
       has_attempt, subtask_of (Task, Optional<Task>), depends_on (Task,
       dependency-only), artifact_depends_on (Artifact), and broader_than
       (Entity) each exist on exactly the class documented, and that
       subtask_of and depends_on are never merged.
-- [ ] Confirm GraphNode.graphify_version exists as Optional xsd:string
+- [x] Confirm GraphNode.graphify_version exists as Optional xsd:string
       and is inherited by every concrete class.
-- [ ] Confirm EvaluationTarget is referenced from both Evaluation.target
+- [x] Confirm EvaluationTarget is referenced from both Evaluation.target
       (required) and Finding.about (optional).
-- [ ] Confirm Entity.resolved_to is Optional of Entity and
+- [x] Confirm Entity.resolved_to is Optional of Entity and
       resolved_reviewed_by is present.
-- [ ] Confirm Supersession exists as a top-level class and no plain
+- [x] Confirm Supersession exists as a top-level class and no plain
       supersedes field exists on GraphNode.
-- [ ] Confirm no Mention class and no mentions property exist anywhere.
-- [ ] Confirm every LLM-populated field (Provenance.confidence,
+- [x] Confirm no Mention class and no mentions property exist anywhere.
+- [x] Confirm every LLM-populated field (Provenance.confidence,
       Claim.status, Entity.kind) is a closed enum, and that
       Measurement.value is the one documented xsd:decimal exception.
-- [ ] Confirm Claim, Evaluation, Finding, Source carry no
+- [x] Confirm Claim, Evaluation, Finding, Source carry no
       @subdocument, and that Provenance (the only subdocument) keys
       ValueHash, not Lexical.
-- [ ] Confirm AgentRun.invocation_id, .external_params are Optional,
+- [x] Confirm AgentRun.invocation_id, .external_params are Optional,
       and .resolved_deps carries no @min_cardinality.
 
 ## T2 -- competency question audit
 
-- [ ] Walk all 24 of N2 competency questions (docs/research/vnext/
+- [x] Walk all 24 of N2 competency questions (docs/research/vnext/
       N2-ontology-engineering.md section 9) against the finished schema.
-- [ ] Confirm the mapping table in design.md matches the actual schema
+- [x] Confirm the mapping table in design.md matches the actual schema
       field names exactly (not the earlier N2 draft field names, where
       they differ).
-- [ ] Confirm exactly two questions are recorded as gaps (CQ-16, CQ-22) and
+- [x] Confirm exactly two questions are recorded as gaps (CQ-16, CQ-22) and
       no others are silently unmapped.
-- [ ] Confirm the graphify -> schema mapping manifest (design.md) covers
+- [x] Confirm the graphify -> schema mapping manifest (design.md) covers
       all six node file_type values and states an explicit fail/drop rule
       for everything else, including hyperedges.
 
 ## T3 -- gate
 
-- [ ] openspec validate terminusdb-schema --strict passes.
-- [ ] markdownlint-cli2 clean on all four files.
-- [ ] The JSON schema block in design.md is loaded live and verified, not
+- [x] openspec validate terminusdb-schema --strict passes.
+- [x] markdownlint-cli2 clean on all four files.
+- [x] The JSON schema block in design.md is loaded live and verified, not
       just parsed: extract the fenced JSON block from design.md
       deterministically (the largest parseable fenced JSON block in the
       file); start a fresh pinned `terminusdb/terminusdb-server:v12.0.6`
@@ -72,7 +72,7 @@ before. T3 is the gate.
       Tear the container down after. This is four curl calls and completes
       in under ten seconds; it replaces the JSON-parse-only check, it does
       not supplement it with a slower alternative.
-- [ ] Live load-test gate above is required (not optional): all four
+- [x] Live load-test gate above is required (not optional): all four
       checks pass against the pinned v12.0.6 container.
-- [ ] bugeventlog.md appended with any workflow friction encountered while
+- [x] bugeventlog.md appended with any workflow friction encountered while
       authoring this package (or a note that none occurred).
