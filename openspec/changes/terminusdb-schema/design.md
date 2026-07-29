@@ -248,6 +248,35 @@ curl -u admin:$TERMINUSDB_ADMIN_PASS -X POST \
   -H "Content-Type: application/json" --data-binary @foreman-schema.json
 ```
 
+## Schema version and change procedure
+
+**Schema version:** `v0.2.9` (recorded in the `@context` `@documentation.@title`
+above and in this section). This is the frozen ontology for the v0.2.9 release.
+
+**Authoritative source:** the fenced JSON schema block in this file
+(`design.md`). Downstream packages MUST extract that block deterministically
+(largest parseable fenced JSON block in this file) rather than retyping or
+maintaining a parallel copy.
+
+**Change procedure (mandatory for any post-freeze edit):**
+
+1. Open a new OpenSpec change (or a new revision of this package) that names
+   the target schema version (for example `v0.2.10`) and the motivating
+   competency question or production defect.
+2. Human-author the schema delta; no model may extend, amend, or re-author the
+   class or property list without that human review (see store-schema spec,
+   "the schema is authored by one human, reviewed, and frozen").
+3. Update the CQ mapping table and the graphify mapping manifest in the same
+   change. Bump `manifest_version` when node/edge/hyperedge treatment changes.
+4. Run `scripts/schema-live-gate.sh` against pinned
+   `terminusdb/terminusdb-server:v12.0.6` (digest
+   `sha256:e02eaa3a5b75e01550cee2a662a846db7fceb725193983f1f35e1842ab580fee`).
+   All live checks must pass, including positive acceptance, invalid-enum
+   rejection, undeclared-field rejection, and drop-and-rebuild identity.
+5. Record the version bump in this section and in `@documentation.@title`.
+
+Silent drift is a defect: consumers bind to a shape nobody promised.
+
 ## Competency question mapping (N2 section 9, 24 questions)
 
 | CQ | Answered by | Notes |
