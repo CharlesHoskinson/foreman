@@ -2,6 +2,26 @@
 # (`pipefail\r`), and lane worktrees on mixed hosts otherwise churn line
 # endings into every merge. (v0.2.5 T-INFRA; bugeventlog 2026-07-16
 # tool-check-unrunnable-from-WSL entry.)
+#
+# Total policy (crlf-extensionless-hardening): catch-all LF with binary and
+# Windows-script carve-outs. Extension-keyed shell rules remain as documented
+# intent (last match wins for those paths). One pattern per line — git
+# attributes do not accept space-separated pattern lists.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.exe binary
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
 *.sh text eol=lf
 *.bash text eol=lf
 *.bats text eol=lf
+
+# Extensionless shebang scripts (also mirrored under skills/superpowers/.gitattributes)
+skills/superpowers/skills/subagent-driven-development/scripts/review-package text eol=lf
+skills/superpowers/skills/subagent-driven-development/scripts/sdd-workspace text eol=lf
+skills/superpowers/skills/subagent-driven-development/scripts/task-brief text eol=lf
