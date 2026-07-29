@@ -516,3 +516,100 @@ while the plan is being executed, so a premise written against the planning
 snapshot is a claim about a repository that no longer exists. This is the
 standing cost of dogfooding, and it is cheaper than the alternative — but it
 has to be paid deliberately, at dispatch time, by the architect.
+
+---
+
+## D13 — Do not port the orchestration layer to Unison; the defect evidence does not support it
+
+**Decided 2026-07-29.** Explored on the product owner's request. Debate run as
+three lanes: an advocate, a skeptic, and an empirical lane whose only job was to
+classify every defect this project has actually hit. Primary Unison
+documentation was scraped first so no lane argued from impressions. Full
+material: `/tmp/unison/DEBATE-{advocate,skeptic,empirical}.md`.
+
+### The measurement
+
+The empirical lane inventoried **97 distinct evidenced failure mechanisms**
+(recurrences folded — the 13 background-and-stop events count once) and
+classified each into exactly one bucket:
+
+| Bucket | Count | Share |
+|---|---:|---:|
+| A — language/runtime would have prevented it | **3** | **3.09%** |
+| B — logic/specification; the code did what its author intended and the intent was wrong | 52 | 53.61% |
+| C — environment/integration: Windows/WSL seams, vendor CLI behaviour, signals, git semantics | 32 | 32.99% |
+| D — process/orchestration: agents backgrounding turns, exhausting budgets, dying mid-write | 10 | 10.31% |
+
+**And 3.09% is an upper bound.** All three bucket-A rows require rehoming shared
+state into STM or transactional storage. *"A transliteration that continues to
+coordinate through files, Git, and shell commands prevents 0/97 by language
+choice alone."*
+
+### Why the strongest pro-port argument fails
+
+The two best candidates were the `mkdir` mutex non-atomicity and the compaction
+race. Both are **already fixed**, in this repository, at `330d52a` — `flock`
+selection with owner-checked publication and release, and one lock spanning
+append and compaction. The empirical lane found **no defect class where Unison
+is the only plausible fix**; each has several cheaper options, and for the two
+that mattered the cheaper option has already shipped.
+
+That inverts the argument: the races were cited as evidence the language was
+inadequate, and they turned out to be evidence that a hand-rolled durability
+layer was inadequate — which a kernel lock closed.
+
+### What the evidence actually indicts
+
+**Over half of all defects are bucket B — logic and specification.** No language
+addresses those. The characteristic failure of this project is not
+memory-unsafety or untracked effects; it is *enumerating inclusions where
+exclusions were needed*, *a guard ordering that let a mixed state match the
+wrong code*, *a premise asserting a count nobody ran*, and *checkers bound to
+the wrong artifact*. A port would have left every one of them in place.
+
+### The decision
+
+**Do not port.** Adopt the cheaper interventions the empirical lane identified,
+most of which this release is already implementing:
+
+1. **Artifact-bound success** — per-attempt ids, freshness, declared deliverable
+   sets, content hashes, validators. Never a vendor exit code or self-report.
+   → `evidence-contracts`, landed `30935d8`.
+2. **Independent negative controls** — mutation-test every checker; exercise
+   zero denominators, stale artifacts, missing inputs, real backends not shims.
+   → `test-infrastructure-hardening` (`d7b3a83`), `release-metrics` (`020071f`).
+3. **A directly owned supervisor** — launch vendors directly, persist findings
+   incrementally, tag every process, define completion by artifacts.
+   → `lane-ownership-and-reaping`, plus `tools/lanectl.sh` already in use.
+4. **Keep the concurrency fixes** — trusted `flock`, owner-checked release, one
+   lock spanning append and compaction. → `330d52a`.
+5. **Harden platform adapters** — real files instead of nested heredocs,
+   argv-safe launchers, pinned and preflighted vendor CLIs, explicit
+   Windows/WSL path domains. → `wsl-seam-doctrine`, `vendor-preflight`.
+
+### The one idea worth keeping from the port
+
+Option 6 of the empirical lane's recommendations, recorded here so it is not
+lost: **extract only the decision core** — a small typed state-and-evidence
+module, in Unison or any typed language, sitting behind the existing shell and
+platform adapters. That captures most of the readability and testability
+benefit without betting roughly 8,800 lines of OS-facing orchestration on a
+comparatively small runtime surface. Not scheduled; recorded as a candidate for
+after v0.2.9.
+
+### Honest limits of this decision
+
+- The empirical lane notes the count is denominator-sensitive: narrowed to only
+  the skeptic's 12 checker events plus the 8 incident entries it is **0/20**;
+  widened as instructed to include audit reproductions it is 3/97. Either
+  framing supports the same conclusion, which is why the conclusion is held with
+  confidence even though the percentage is not.
+- The advocate lane died twice to a transient API outage and never filed. The
+  empirical lane was therefore instructed to construct the strongest pro-Unison
+  case itself before judging it, and did. The decision rests on the
+  classification, not on the debate being evenly staffed — but the asymmetry is
+  recorded rather than hidden.
+- This decision is about **porting the orchestration layer**. It is not a
+  judgement on Unison, which is a serious piece of work whose content-addressing
+  and effect-typing are genuinely relevant to problems this project does not
+  principally have.
