@@ -77,7 +77,7 @@ _exec_bit_exclusion_entries() {
 sandbox/**|modes set by Dockerfile RUN chmod 0755 at image build
 skills/superpowers/tests/**|test scripts invoked via bash/sh by their runners
 skills/superpowers/scripts/**|documented bash scripts/<name> invocations
-skills/superpowers/skills/*/scripts/**|documented sh skills/…/<name> invocations
+skills/superpowers/skills/brainstorming/scripts/**|documented sh skills/brainstorming/scripts/<name> invocations
 *.bash|sourced helpers, never executed
 # Single documented file exception (suite runner is always bash-invoked):
 tests/run.sh|the suite runner, invoked as bash tests/run.sh
