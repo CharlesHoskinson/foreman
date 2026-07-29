@@ -2,6 +2,12 @@
 *.sh text eol=lf
 hooks/session-start text eol=lf
 
+# Extensionless SDD shebang scripts (direct-exec; no .sh extension)
+skills/subagent-driven-development/scripts/review-package text eol=lf
+skills/subagent-driven-development/scripts/sdd-workspace text eol=lf
+skills/subagent-driven-development/scripts/task-brief text eol=lf
+
+
 # Ensure the polyglot wrapper keeps LF (it's parsed by both cmd and bash)
 *.cmd text eol=lf
 
