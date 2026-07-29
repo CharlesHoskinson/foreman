@@ -382,3 +382,75 @@ membership says what MAY run together, not what MUST. Logical dependencies
 still apply on top of it — D6's 4a should run in wave 1 despite the contention
 graph placing `decision-lineage-and-telemetry` in wave 3, because the split
 removes the dependency that put it there.
+
+---
+
+## D11 — The exec-bit exclusion list, and why it is by pattern
+
+**Decided 2026-07-29, after round 5 of `crlf-extensionless-hardening`.**
+
+D1's amendment ruled that the inventory is derived by **property** rather than
+by directory, because any inclusion list can be relocated out of — which it
+was, five times. Round 5 implemented a whole-repository sweep over the index
+blob shebang and the result is an inventory of **84**: 43 already `100755`, and
+**41 tracked files at `100644`** that the sweep newly covers.
+
+Round 5 correctly **reported** those 41 rather than chmod-ing them, because
+modes are an architect decision. This is that decision.
+
+**"chmod all 41" is wrong.** Verified invocation evidence:
+
+- `sandbox/entrypoint.sh`, `sandbox/init-firewall.sh` — `sandbox/Dockerfile`
+  does `COPY` followed by `RUN chmod 0755`. Container-side direct exec is
+  satisfied at image build, not by the index. An independent audit reached the
+  same conclusion.
+- `skills/superpowers/tests/**` (30 files) — test scripts invoked by their own
+  runners as `bash …` / `sh …`.
+- `skills/superpowers/scripts/lint-shell.sh` — documented as
+  `bash scripts/lint-shell.sh`.
+- `skills/superpowers/skills/brainstorming/scripts/{start,stop}-server.sh` —
+  documented as `sh skills/brainstorming/scripts/start-server.sh`.
+- `tests/helpers.bash` — **sourced**, never executed.
+- `tests/run.sh` — the suite runner, invoked as `bash tests/run.sh`.
+
+And one genuine inclusion the sweep earned:
+
+- `skills/superpowers/skills/systematic-debugging/find-polluter.sh` — invoked
+  as `./find-polluter.sh` in `root-cause-tracing.md:104` **and in its own usage
+  string**. Direct exec, mode `100644`. Broken today, exactly like `install.sh`
+  was.
+
+**Ruling — the exclusion list is BY PATTERN, with a stated reason per entry,
+never by filename.** A filename list is an enumeration, and enumerations are
+what this package has spent five rounds failing to escape. Excluding a pattern
+means a new file added under it inherits a decision someone already justified;
+excluding a filename means the next file gets no decision at all.
+
+The exclusions, each carrying its reason in the code:
+
+| Pattern | Reason |
+|---|---|
+| `sandbox/**` | modes set by `Dockerfile` `RUN chmod 0755` at image build |
+| `skills/superpowers/tests/**` | test scripts invoked via `bash`/`sh` by their runners |
+| `skills/superpowers/scripts/**` | documented `bash scripts/<name>` invocations |
+| `skills/superpowers/skills/*/scripts/**` | documented `sh skills/…/<name>` invocations |
+| `*.bash` | sourced helpers, never executed |
+| `tests/run.sh` | the suite runner, invoked as `bash tests/run.sh` |
+
+Everything the sweep covers and the exclusions do not remove **gets the exec
+bit**. The implementer derives that residue mechanically and reports it; it is
+not enumerated here, for the same reason the inventory is not.
+
+**The standing rule this establishes:** adding a pattern to the exclusion list
+requires writing down why, in the file, at the point of exclusion. An exclusion
+without a reason is indistinguishable from an oversight, and it is how the
+inclusion lists rotted. A reviewer must be able to falsify each entry by
+checking the invocation it claims.
+
+**Honest residual.** The exclusions are justified by how these scripts are
+invoked *today*, read out of documentation and call sites. If a caller changes
+from `bash x` to `./x`, the exclusion silently becomes wrong and nothing
+detects it. The durable fix is to derive direct-exec targets from call sites
+rather than from documentation — noted in `wsl-seam-doctrine` as the checker
+that would close it. Until then this is a documented approximation, not a
+proof, and it is recorded as such rather than presented as settled.
