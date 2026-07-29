@@ -323,6 +323,20 @@ every worktree; never mounted into the worker.
 - In hard mode: treat worker transcripts as evidence; merge without gate pass
 - Run bootstrap installs that need admin/reboot without telling the user
 
+### Reporting and claim discipline
+
+Release metrics (M1–M13 definitions, companions, sigma-before-claim) live in
+`references/release-metrics.md`. Standing doctrine, not optional style:
+
+1. **Companion number** — no metric value without its companion in the same
+   row/sentence.
+2. **Sigma before claim** — no "improved"/"regressed"/"better"/"worse" without
+   a stated sigma; deltas smaller than sigma are noise, not findings.
+3. **Uncomputable / zero-denominator** — never a pass, never a silent zero.
+
+Lint rendered reports with `scripts/lib/metrics-lint.sh` (default **shadow**
+mode reports violations and exits 0; `--mode enforce` fails the build).
+
 ## References
 
 - `references/roles.md` — orchestrator / worker / advisor / **auditor** contracts
@@ -336,4 +350,6 @@ every worktree; never mounted into the worker.
 - `references/orchestration-hardening.md` — v0.2.5 launcher contract, typed
   watch states, pueue groups/quoting, vendor isolation, merge-freshness gate,
   auto-resume
+- `references/release-metrics.md` — metric formulas, companions, sigma,
+  zero-denominator and uncomputable renders; claim discipline for release notes
 - `env/reference-manifest.toml` — tool inventory source of truth

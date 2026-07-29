@@ -19,6 +19,7 @@ who want the operator-facing detail behind a specific claim.
 | Use — durable rounds | Event log, checkpoints, NATS transport, v1 watchdog | [`durable-lanes.md`](durable-lanes.md) |
 | Use — v0.2.5/v0.2.7.5 hardening | Launcher contract, watch.sh v2, pueue/`gate` mutex, vendor isolation, merge-freshness gate, concurrent-worktree git guards | [`orchestration-hardening.md`](orchestration-hardening.md) |
 | Use — audit | Audit dimensions + verdict schema | [`audit-checklist.md`](audit-checklist.md) |
+| Use — release reporting | Metric definitions (M1–M13), companions, sigma-before-claim, linter | [`release-metrics.md`](release-metrics.md) |
 | Cleanup | Covered inline in `orchestration-hardening.md` §9 (git-guards, stale-lock sweep, SIGINT-before-remove) and `reference-environment.md` | — |
 | Security (all stages) | Threats and enforcement map | [`security-model.md`](security-model.md) |
 
