@@ -1,0 +1,7 @@
+file	platform	permitted_skips
+tests/fixtures/test-infrastructure/healthy-slice.bats	linux	0
+tests/fixtures/test-infrastructure/healthy-slice.bats	wsl	0
+tests/fixtures/test-infrastructure/healthy-slice.bats	windows	0
+tests/fixtures/test-infrastructure/regressed-slice.bats	linux	1
+tests/fixtures/test-infrastructure/regressed-slice.bats	wsl	1
+tests/fixtures/test-infrastructure/regressed-slice.bats	windows	1

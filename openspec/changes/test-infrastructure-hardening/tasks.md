@@ -10,24 +10,24 @@ checkable. T10 gates.
 
 ## T1 — the precondition helper
 
-- [ ] Create `tests/lib/preconditions.bash` with `require_platform`,
+- [x] Create `tests/lib/preconditions.bash` with `require_platform`,
       `require_tool`, `require_non_root`, `require_built`, and
       `require_no_live_vendor`.
-- [ ] Every helper skips with a message naming the unmet requirement and, where
+- [x] Every helper skips with a message naming the unmet requirement and, where
       applicable, the command that would satisfy it.
-- [ ] A bare `skip` with no reason is treated as a failure by the runner.
-- [ ] shdoc headers on every function; shellcheck clean.
+- [x] A bare `skip` with no reason is treated as a failure by the runner.
+- [x] shdoc headers on every function; shellcheck clean.
 
 ## T2 — runner: budgets, baselines, reporting
 
-- [ ] Extend `tests/run.sh` to record per-file pass/fail/skip counts.
-- [ ] Add `tests/skip-budget.tsv` (file × platform → permitted skips) and fail
+- [x] Extend `tests/run.sh` to record per-file pass/fail/skip counts.
+- [x] Add `tests/skip-budget.tsv` (file × platform → permitted skips) and fail
       the run when a file exceeds its budget.
-- [ ] Add `tests/baseline.tsv` (file → expected pass count) and fail the run on
+- [x] Add `tests/baseline.tsv` (file → expected pass count) and fail the run on
       any per-slice regression, independent of the aggregate.
-- [ ] Report budget slack so budgets can be ratcheted down.
-- [ ] Emit a machine-readable per-slice report for CI upload.
-- [ ] `tests/baseline.tsv` is never regenerated automatically from a failing
+- [x] Report budget slack so budgets can be ratcheted down.
+- [x] Emit a machine-readable per-slice report for CI upload.
+- [x] `tests/baseline.tsv` is never regenerated automatically from a failing
       run — regeneration is an explicit, separate command.
 
 ## T3 — annotate the existing suite

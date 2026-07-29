@@ -1,0 +1,4 @@
+file	platform	permitted_skips
+tests/fixtures/test-infrastructure/reasoned-skip.bats	linux	1
+tests/fixtures/test-infrastructure/reasoned-skip.bats	wsl	1
+tests/fixtures/test-infrastructure/reasoned-skip.bats	windows	1
