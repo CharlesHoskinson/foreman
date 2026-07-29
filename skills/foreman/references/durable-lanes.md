@@ -154,8 +154,10 @@ unchanged between snapshot and write-back, compaction abandons and leaves
 `events.jsonl` alone.
 
 **Reclamation.** Stale `mkdir` locks (not `flock` descriptors) are reclaimed
-per-lock and owner-aware when `fm_lock_reclaim` is available — never a
-directory sweep, never while a live holder cannot be ruled out.
+per-lock and owner-aware through `fm_lock_reclaim` — never a directory sweep,
+never while a live holder cannot be ruled out, never when the mechanism is
+indeterminate. Reclamation records (success naming lock + dead holder, or
+refusal reason) are surfaced; reclaim is never silent.
 
 ## Honest limits
 

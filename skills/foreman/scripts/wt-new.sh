@@ -94,6 +94,66 @@ WT="$(wt_path "$ROOT" "$RUN_ID" "$ROLE" "$SLUG")"
 BRANCH="$(wt_branch "$RUN_ID" "$ROLE" "$SLUG")"
 BASE_SHA="$(GIT_OPTIONAL_LOCKS=0 git_nohooks -C "$ROOT" rev-parse "${BASE}^{commit}")"
 
+# Append to index (and all irreversible worktree setup) under the shared
+# index lock. v0.2.7.5 worktree-hardening T6: concurrent wt-new.sh for the
+# SAME run_id must serialize the index.json RMW. lock-primitive-hardening:
+# acquire BEFORE any irreversible operation (git worktree add, vendor dirs,
+# reports, metadata) so a refused acquisition leaves nothing half-created
+# and a retry of the same invocation can succeed. Doctrine: "mkdir is atomic
+# on Git Bash/MSYS" is FALSE on Ubuntu 26.04 hybrid coreutils. Mechanism is
+# flock when trusted, mkdir fallback under the same trust rule — never a
+# bare inline mkdir spin and NEVER fail-open after timeout. A timed-out
+# acquisition exits non-zero; index.json is left byte-identical. Raise
+# WT_INDEX_LOCK_TIMEOUT_SEC to wait longer — never bypass the lock.
+IDX="$RD/worktrees/index.json"
+IDX_LOCK="$RD/worktrees/.index.lock"
+mkdir -p "$RD/worktrees"
+
+# Owner-aware reclaim of this lock only (never a sweep). Mechanism
+# conditionality lives inside fm_lock_reclaim. Never reclaim silently:
+# surface the record (success naming lock+dead holder, or refusal reason).
+idx_reclaim_rc=0
+idx_reclaim_errf="$(mktemp "${TMPDIR:-/tmp}/wt-new-reclaim.XXXXXX")" || idx_reclaim_errf=""
+if [[ -n "$idx_reclaim_errf" ]]; then
+  fm_lock_reclaim "$IDX_LOCK" 2>"$idx_reclaim_errf" || idx_reclaim_rc=$?
+  idx_reclaim_msg="$(tr -d '\r' <"$idx_reclaim_errf" 2>/dev/null)"
+  rm -f -- "$idx_reclaim_errf"
+else
+  fm_lock_reclaim "$IDX_LOCK" || idx_reclaim_rc=$?
+  idx_reclaim_msg=""
+fi
+if [[ -n "${idx_reclaim_msg:-}" ]]; then
+  # log goes to stderr via common.sh; keep reclaim records visible.
+  printf '%s\n' "$idx_reclaim_msg" >&2
+fi
+if (( idx_reclaim_rc != 0 )); then
+  log "WARN: fm_lock_reclaim refused for $IDX_LOCK (rc=$idx_reclaim_rc); lock left in place"
+fi
+
+# Configurable timeout; default matches helper (FM_LOCK_TIMEOUT_SEC=30).
+: "${WT_INDEX_LOCK_TIMEOUT_SEC:=${FM_LOCK_TIMEOUT_SEC:-30}}"
+idx_lock_owned=0
+idx_errf="$(mktemp "${TMPDIR:-/tmp}/wt-new-idx-lock.XXXXXX")"
+if ! fm_lock_acquire "$IDX_LOCK" "$WT_INDEX_LOCK_TIMEOUT_SEC" >/dev/null 2>"$idx_errf"; then
+  idx_err="$(tr -d '\r' <"$idx_errf" 2>/dev/null | head -n 1)"
+  rm -f -- "$idx_errf"
+  die "$EXIT_FAIL" "index.json lock acquisition refused for run $RUN_ID: ${idx_err:-FM_LOCK_TIMEOUT} (raise WT_INDEX_LOCK_TIMEOUT_SEC to wait longer; never bypass)"
+fi
+rm -f -- "$idx_errf"
+idx_lock_owned=1
+
+# Release only if this process acquired. Trap covers any exit from the
+# critical section so a later failure cannot leak the lock. Because
+# acquisition precedes irreversible setup, a refuse path never creates a
+# worktree that cannot be retried.
+idx_release_lock() {
+  if [[ "$idx_lock_owned" == "1" ]]; then
+    fm_lock_release "$IDX_LOCK" || true
+    idx_lock_owned=0
+  fi
+}
+trap idx_release_lock EXIT
+
 if [[ -e "$WT" ]]; then
   die "$EXIT_CONFIG" "worktree path already exists: $WT"
 fi
@@ -173,54 +233,6 @@ json.dump({"id":mid,"role":role,"slug":slug,"worktree":wt,"branch":branch,"base_
 open(path,"a").write("\n")
 PY
 fi
-
-# Append to index.
-# v0.2.7.5 worktree-hardening T6 (soak-discovered fix): this read-modify-
-# write of a SHARED file across concurrent wt-new.sh invocations for the
-# SAME run_id was unsynchronized and used a fixed (not per-process-unique)
-# ".tmp" name -- under concurrent soak two lanes raced here and could crash
-# or silently lose an index entry. Serialized under lib/lock.sh
-# (fm_lock_acquire) with a per-process-unique tmp filename.
-#
-# Doctrine correction (lock-primitive-hardening): "mkdir is atomic on Git
-# Bash/MSYS" is FALSE on Ubuntu 26.04 hybrid coreutils (uutils mkdir is
-# check-then-act). Mechanism is flock when trusted, mkdir fallback under
-# the same trust rule — never a bare inline mkdir spin and NEVER fail-open
-# after timeout. Formal model index_fail_open_atomic violates mutual_exclusion
-# at 8 steps even with an atomic primitive when the timeout proceeds
-# unsynchronized. A timed-out acquisition exits non-zero; index.json is left
-# byte-identical. Raise WT_INDEX_LOCK_TIMEOUT_SEC to wait longer — never
-# bypass the lock.
-IDX="$RD/worktrees/index.json"
-IDX_LOCK="$RD/worktrees/.index.lock"
-mkdir -p "$RD/worktrees"
-
-# T11: owner-aware reclaim of this lock only when helper exposes it.
-if declare -F fm_lock_reclaim >/dev/null 2>&1; then
-  fm_lock_reclaim "$IDX_LOCK" 2>/dev/null || true
-fi
-
-# Configurable timeout; default matches helper (FM_LOCK_TIMEOUT_SEC=30).
-: "${WT_INDEX_LOCK_TIMEOUT_SEC:=${FM_LOCK_TIMEOUT_SEC:-30}}"
-idx_lock_owned=0
-idx_errf="$(mktemp "${TMPDIR:-/tmp}/wt-new-idx-lock.XXXXXX")"
-if ! fm_lock_acquire "$IDX_LOCK" "$WT_INDEX_LOCK_TIMEOUT_SEC" >/dev/null 2>"$idx_errf"; then
-  idx_err="$(tr -d '\r' <"$idx_errf" 2>/dev/null | head -n 1)"
-  rm -f -- "$idx_errf"
-  die "$EXIT_FAIL" "index.json lock acquisition refused for run $RUN_ID: ${idx_err:-FM_LOCK_TIMEOUT} (raise WT_INDEX_LOCK_TIMEOUT_SEC to wait longer; never bypass)"
-fi
-rm -f -- "$idx_errf"
-idx_lock_owned=1
-
-# Release only if this process acquired (v0.2.7.5 rework). Trap covers any
-# exit from the critical section so a jq/python3 failure cannot leak the lock.
-idx_release_lock() {
-  if [[ "$idx_lock_owned" == "1" ]]; then
-    fm_lock_release "$IDX_LOCK" || true
-    idx_lock_owned=0
-  fi
-}
-trap idx_release_lock EXIT
 
 if command -v jq >/dev/null 2>&1; then
   if [[ -f "$IDX" ]]; then

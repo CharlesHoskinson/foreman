@@ -50,37 +50,69 @@ if ! declare -F fm_lock_acquire >/dev/null 2>&1; then
 fi
 
 # @description Initialize a run's event log. Single-threaded; call ONCE before
-#   any concurrent emitters start. Clears a leftover .seq.lock from a previous
-#   crashed run — safe here because there is no concurrency at init, which is
-#   why el_emit does no racy in-band lock reclaim.
+#   any concurrent emitters start. Stale mkdir locks are reclaimed only via
+#   fm_lock_reclaim, and only when the selected mechanism is positively the
+#   mkdir fallback. An indeterminate mechanism never authorises deleting a
+#   lock (failure to determine mechanism is not permission to destroy).
+#   el_emit does no racy in-band lock reclaim.
 # @arg $1 run id
 el_init() {
   local rd; rd="$(run_dir "$1")"; mkdir -p "$rd"
-  # Stale-lock reclamation is conditional on the fallback mechanism.
-  # flock releases on process death; a leftover mkdir lock directory does not.
   # .seq.lock and .attempt.lock stay SEPARATE paths (see el_attempt_new).
-  # Owner-aware per-lock reclamation via fm_lock_reclaim is T11; when the
-  # helper exposes it, call it here for these two locks only (never a sweep).
-  # Until then: reclaim leftover mkdir dirs only when the helper would not
-  # select flock for this path. el_init remains single-threaded before
-  # concurrent emitters start (no live holder at this call site).
-  local mech=""
-  mech="$(fm_lock__select_mechanism "$rd/.seq.lock" 2>/dev/null)" || mech=""
-  if [[ "$mech" == "flock" ]]; then
-    : # flock path: no stale directory locks to reclaim
+  # Reclamation is owner-aware and per-lock via fm_lock_reclaim only — never
+  # an unconditional rmdir, never a sweep, never on the flock path.
+  local mech="" select_rc=0 select_err
+  select_err="$(mktemp "${TMPDIR:-/tmp}/el-init-mech.XXXXXX")" || select_err=""
+  if [[ -n "$select_err" ]]; then
+    mech="$(fm_lock__select_mechanism "$rd/.seq.lock" 2>"$select_err")" || select_rc=$?
   else
-    # mkdir fallback, or mechanism not yet selectable (probe untrusted): a
-    # leftover .seq.lock / .attempt.lock directory is a mkdir-era artifact.
-    # rmdir is a no-op when the path is absent or not a directory.
-    rmdir "$rd/.seq.lock" 2>/dev/null || true
-    # v0.2.5 T3: sibling .attempt.lock — same crash-recovery argument.
-    rmdir "$rd/.attempt.lock" 2>/dev/null || true
+    mech="$(fm_lock__select_mechanism "$rd/.seq.lock" 2>/dev/null)" || select_rc=$?
   fi
-  if declare -F fm_lock_reclaim >/dev/null 2>&1; then
-    # Prefer the helper's owner-aware reclaim when present (T11).
-    fm_lock_reclaim "$rd/.seq.lock" 2>/dev/null || true
-    fm_lock_reclaim "$rd/.attempt.lock" 2>/dev/null || true
+  mech="${mech//$'\r'/}"
+  mech="${mech//$'\n'/}"
+  if (( select_rc != 0 )) || [[ -z "$mech" ]]; then
+    # Indeterminate: do nothing to on-disk locks; surface the condition.
+    local why=""
+    [[ -n "$select_err" && -f "$select_err" ]] && why="$(tr -d '\r' <"$select_err" 2>/dev/null | head -n 1)"
+    [[ -n "$select_err" ]] && rm -f -- "$select_err"
+    echo "el_init: lock mechanism indeterminate for $rd (select_rc=$select_rc${why:+; $why}); skipping reclamation (locks left untouched)" >&2
+    return 0
   fi
+  [[ -n "$select_err" ]] && rm -f -- "$select_err"
+  if [[ "$mech" == "flock" ]]; then
+    # flock releases on process death; never reclaim (and never rmdir) here.
+    return 0
+  fi
+  if [[ "$mech" != "mkdir" ]]; then
+    echo "el_init: unexpected mechanism '$mech' for $rd; skipping reclamation (locks left untouched)" >&2
+    return 0
+  fi
+  # Positively selected mkdir fallback: owner-aware reclaim only. Surface
+  # every record (success naming lock+dead holder, or refusal reason).
+  # Never reclaim silently (spec: "never reclaim silently").
+  local _el_reclaim_one
+  _el_reclaim_one() {
+    local lock_path="$1"
+    local errf rc=0 msg
+    errf="$(mktemp "${TMPDIR:-/tmp}/el-init-reclaim.XXXXXX")" || errf=""
+    if [[ -n "$errf" ]]; then
+      fm_lock_reclaim "$lock_path" 2>"$errf" || rc=$?
+      msg="$(tr -d '\r' <"$errf" 2>/dev/null)"
+      rm -f -- "$errf"
+    else
+      fm_lock_reclaim "$lock_path" || rc=$?
+      msg=""
+    fi
+    if [[ -n "$msg" ]]; then
+      printf '%s\n' "$msg" >&2
+    fi
+    if (( rc != 0 )); then
+      echo "el_init: fm_lock_reclaim refused for $lock_path (rc=$rc); lock left in place" >&2
+    fi
+    return 0
+  }
+  _el_reclaim_one "$rd/.seq.lock"
+  _el_reclaim_one "$rd/.attempt.lock"
 }
 
 # @description Emit one event; auto-increments seq for the run.

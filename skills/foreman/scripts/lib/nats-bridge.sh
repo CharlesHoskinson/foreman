@@ -10,8 +10,8 @@
 #   Locking: a per-run lock (.nats-bridge.lock) via lib/lock.sh
 #   (fm_lock_acquire / fm_lock_release). Same helper contract as the event
 #   log: flock when trusted, mkdir fallback under trust; timeout refuses
-#   (never fail-open). Owner-aware reclamation of a wedged lock is T11 via
-#   fm_lock_reclaim at bridge start when the helper exposes it.
+#   (never fail-open). Owner-aware reclamation of a wedged lock is via
+#   fm_lock_reclaim at bridge start (records never swallowed).
 
 # Resolve sibling libs relative to this file (safe when sourced).
 # Guard: common.sh declares readonly EXIT_*; re-sourcing aborts under set -u/e.
@@ -86,10 +86,24 @@ nb_bridge_once() {
   lock="$rd/.nats-bridge.lock"
   mkdir -p "$rd" || return 1
 
-  # T11: owner-aware reclaim of this lock only (never a sweep), when helper
-  # exposes fm_lock_reclaim. Conditional on mkdir fallback inside the helper.
-  if declare -F fm_lock_reclaim >/dev/null 2>&1; then
-    fm_lock_reclaim "$lock" 2>/dev/null || true
+  # Owner-aware reclaim of this lock only (never a sweep). Mechanism
+  # conditionality lives inside fm_lock_reclaim (no-op on flock). Never
+  # reclaim silently: surface the record (success or refusal) on stderr.
+  local _nb_reclaim_rc=0 _nb_reclaim_errf _nb_reclaim_msg
+  _nb_reclaim_errf="$(mktemp "${TMPDIR:-/tmp}/nb-reclaim.XXXXXX")" || _nb_reclaim_errf=""
+  if [[ -n "$_nb_reclaim_errf" ]]; then
+    fm_lock_reclaim "$lock" 2>"$_nb_reclaim_errf" || _nb_reclaim_rc=$?
+    _nb_reclaim_msg="$(tr -d '\r' <"$_nb_reclaim_errf" 2>/dev/null)"
+    rm -f -- "$_nb_reclaim_errf"
+  else
+    fm_lock_reclaim "$lock" || _nb_reclaim_rc=$?
+    _nb_reclaim_msg=""
+  fi
+  if [[ -n "$_nb_reclaim_msg" ]]; then
+    printf '%s\n' "$_nb_reclaim_msg" >&2
+  fi
+  if (( _nb_reclaim_rc != 0 )); then
+    echo "nb_bridge_once: fm_lock_reclaim refused for $lock (rc=$_nb_reclaim_rc); lock left in place" >&2
   fi
 
   # Bounded acquire via shared helper. Refusal (timeout / untrusted / etc.)

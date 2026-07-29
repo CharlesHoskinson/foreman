@@ -220,12 +220,16 @@ appends, or compaction must abandon its write.
 
 **L3 implementation (callers):** `el_compact` acquires el_emit's `.seq.lock`
 via `fm_lock_acquire` for the entire snapshot→transform→validate→write-back.
-A unique tmp name is still used only as a local write staging path; it is
-**not** the concurrency control. Before `mv`, compaction fingerprints
-`events.jsonl` (sha256) and abandons (original untouched) if the fingerprint
-differs from the pre-snapshot value. That belt-and-braces check is not a
-substitute for the exclusive section — it exists so a future regression that
-drops the shared lock still fails closed rather than silently losing events.
+That exclusive section is the concurrency control. The staging path is the
+fixed name `events.jsonl.tmp` (not a unique temporary name). A unique tmp
+name would **not** fix the compaction race — M2 states that explicitly; the
+hazard is the RMW spanning a concurrent append, not a shared staging path —
+so do not "fix" this by renaming the tmp. Before `mv`, compaction also
+fingerprints `events.jsonl` (sha256) and abandons (original untouched) if
+the fingerprint differs from the pre-snapshot value. That check is
+belt-and-braces under the held lock; it is not a substitute for the
+exclusive section, and it does not close a check-to-rename window if the
+shared lock were ever dropped.
 
 ### The NATS lock has no way back
 
