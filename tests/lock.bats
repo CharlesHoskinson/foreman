@@ -325,6 +325,8 @@ run_occupancy_race() {
   [ "$status" -ne 0 ]
   [[ "$stderr" == *"FM_LOCK_NO_ATOMIC_PRIMITIVE"* ]]
   [[ "$stderr" != *"FM_LOCK_PROBE_UNTRUSTED"* ]]
+  assert_stderr_contains "mechanism mkdir"
+  assert_stderr_contains "atomic_primitive=absent"
   [ ! -e "$lock" ]
 }
 
@@ -335,13 +337,21 @@ run_occupancy_race() {
   }
   reset_lock_verdict_cache
   local lock="$BATS_TEST_TMPDIR/network/shared.lock"
+  local protected="$BATS_TEST_TMPDIR/network/protected"
+  mkdir -p "$(dirname "$protected")"
+  printf '%s\n' unchanged >"$protected"
+  local before
+  before="$(sha256sum "$protected")"
 
   run --separate-stderr fm_lock_acquire "$lock" 0
 
   [ "$status" -ne 0 ]
   [[ "$stderr" == *"FM_LOCK_FS_UNSUPPORTED"* ]]
-  assert_stderr_contains "network"
+  assert_stderr_contains "$lock"
+  assert_stderr_contains "detected_class=network"
+  assert_stderr_contains "covered_classes=local"
   [ ! -e "$lock" ]
+  [ "$(sha256sum "$protected")" = "$before" ]
 }
 
 @test "trusted but unusable lock path refuses with operation detail" {

@@ -87,3 +87,48 @@ one was caught by cross-checking an independent result.
 - If something is blocked, say so plainly in your report. A stated blocker is a
   good outcome; a fabricated pass is the failure mode this release exists to
   eliminate.
+
+## 6. Vendor CLI self-update suspends a headless round (observed 2026-07-29)
+
+**Symptom.** A dispatched `grok` round runs for 11 minutes, writes nothing, and
+its output file stays 0 bytes. `git status` in the worktree is unchanged. It
+looks like a slow model or a stalled network call. It is neither.
+
+**Diagnosis.** Check process STATE, not elapsed time:
+
+```
+ps -o pid,etime,time,stat,cmd -p <PID>
+```
+
+- `STAT` = `T` or `Tl` → **STOPPED**, not running. A background process that
+  attempts terminal I/O receives `SIGTTIN`/`SIGTTOU` and is suspended.
+- `TIME` = `00:00:00` after minutes of elapsed time → zero CPU consumed. A
+  working process burns CPU; a wedged one does not.
+- A `<defunct>` / `Zs` child whose elapsed time equals the parent's → the
+  worker died at launch.
+
+**Root cause observed.** `grok` detected version 0.2.114 while 0.2.112 was
+installed, downloaded it to `~/.grok/downloads/`, and tried to interact with
+the terminal about it. The round was suspended before doing any work.
+`~/.grok/version.json` `checked_at` matched the dispatch time to the second.
+
+**What to do.**
+
+- Kill by recorded PID. **Never `pkill -f` by pattern** — it has previously
+  matched its own command line and killed the shell issuing it.
+- Re-dispatch only after confirming the CLI runs headlessly:
+  `timeout 90 grok -p "reply with exactly: READY" < /dev/null`
+- Always redirect stdin from `/dev/null` for headless vendor rounds, so a
+  prompt fails fast instead of suspending the process.
+- Pin or pre-run vendor updates **before** dispatching a round, never during.
+
+**Why this matters beyond the one incident.** A vendor CLI can upgrade itself
+unprompted, mid-release, after a gate's evidence was collected — changing the
+toolchain underneath a round. `openspec/changes/vendor-preflight/` forbids the
+preflight from *invoking* mutating `update` verbs; this incident shows the
+vendor may do it on its own, so currency must be checked and settled before
+dispatch rather than discovered during it.
+
+**Watchdog note.** A liveness watchdog that polls `pgrep` treats a STOPPED
+process as alive and waits forever. A watchdog must test process *state* and
+CPU delta, not mere existence.
