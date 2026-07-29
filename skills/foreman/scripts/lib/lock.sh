@@ -14,7 +14,7 @@
 # Mechanism selection: flock when available and trusted for the lock path;
 # mkdir fallback under the same trust rule and no weaker one; refuse rather
 # than acquire when trust is absent. Trust evaluation is a seam
-# (fm_lock__verdict_for) replaced by round L2; this round fails closed.
+# (fm_lock__verdict_for) implemented by round L2: inventory + pin + local probe.
 #
 # .seq.lock and .attempt.lock remain SEPARATE paths — callers pass distinct
 # lock paths; this helper never collapses them.
@@ -85,46 +85,499 @@ fm_lock__refuse() {
   return 1
 }
 
+# ---------------------------------------------------------------------------
+# T14 — verdict trust plane (reads inventory; never writes it)
+# Trust exactly two evidence classes: syscall | pinned-mechanism.
+# Currency: all six conditions must hold for an inventory row.
+# ---------------------------------------------------------------------------
+
+# Process-local probe cache (never written to disk).
+: "${_FM_LOCK_VINIT:=}"
+: "${_FM_LOCK_VINIT_PID:=}"
+# Cached rows: mech|path|version|sha256|verdict|evidence_class|fs_csv|timestamp
+: "${_FM_LOCK_VROWS:=}"
+: "${_FM_LOCK_LOCAL_PROBED:=}"
+: "${_FM_LOCK_LOCAL_PROBED_MECHS:=}"
+
+fm_lock__repo_root() {
+  local here
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  cd "$here/../../../.." && pwd
+}
+
+fm_lock__inventory_path() {
+  printf '%s\n' "${FOREMAN_TOOL_CHECK_JSON:-${HOME}/.foreman/last-tool-check.json}"
+}
+
+fm_lock__manifest_path() {
+  local root
+  root="$(fm_lock__repo_root 2>/dev/null || true)"
+  if [[ -n "$root" && -f "$root/env/reference-manifest.toml" ]]; then
+    printf '%s\n' "$root/env/reference-manifest.toml"
+    return 0
+  fi
+  if [[ -n "${FOREMAN_REPO:-}" && -f "${FOREMAN_REPO}/env/reference-manifest.toml" ]]; then
+    printf '%s\n' "${FOREMAN_REPO}/env/reference-manifest.toml"
+    return 0
+  fi
+  printf '%s\n' ""
+}
+
+# @description Filesystem class for the directory that will contain LOCKPATH.
+fm_lock__fs_class() {
+  local lock_path="$1" probe="$1"
+  if [[ ! -e "$probe" ]]; then
+    probe="$(dirname -- "$probe")"
+  fi
+  if [[ ! -e "$probe" ]]; then
+    local p="$probe"
+    while [[ ! -e "$p" && "$p" != "/" && "$p" != "." ]]; do
+      p="$(dirname -- "$p")"
+    done
+    probe="$p"
+  fi
+  if [[ "$probe" == //* || "$probe" == \\\\* ]]; then
+    printf '%s\n' "network"
+    return 0
+  fi
+  local fstype="" target=""
+  if command -v findmnt >/dev/null 2>&1; then
+    fstype="$(findmnt -n -o FSTYPE -T "$probe" 2>/dev/null || true)"
+    target="$(findmnt -n -o TARGET -T "$probe" 2>/dev/null || true)"
+  elif command -v df >/dev/null 2>&1; then
+    local line
+    line="$(df -T "$probe" 2>/dev/null | tail -n 1 || true)"
+    fstype="$(awk '{print $2}' <<<"$line")"
+    target="$(awk '{print $NF}' <<<"$line")"
+  fi
+  fstype="${fstype,,}"
+  case "$fstype" in
+    nfs|nfs4|cifs|smb|smb3|smbfs|afs|ncpfs)
+      printf '%s\n' "network"
+      return 0
+      ;;
+  esac
+  if [[ "$probe" == /mnt/* || "$target" == /mnt || "$target" == /mnt/* ]]; then
+    printf '%s\n' "mnt-drvfs"
+    return 0
+  fi
+  case "$fstype" in
+    fuse|fuse.*|fuseblk)
+      printf '%s\n' "fuse"
+      return 0
+      ;;
+  esac
+  printf '%s\n' "local"
+}
+
+fm_lock__resolve_bin() {
+  local mech="$1" bin=""
+  case "$mech" in
+    mkdir) bin="$(command -v mkdir 2>/dev/null || true)" ;;
+    flock) bin="$(command -v flock 2>/dev/null || true)" ;;
+    *) bin="" ;;
+  esac
+  if [[ -z "$bin" ]]; then
+    printf ''
+    return 0
+  fi
+  readlink -f -- "$bin" 2>/dev/null || printf '%s' "$bin"
+}
+
+fm_lock__sha256() {
+  local p="$1" real
+  [[ -z "$p" || ! -e "$p" ]] && { printf ''; return 0; }
+  real="$(readlink -f -- "$p" 2>/dev/null || printf '%s' "$p")"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -- "$real" 2>/dev/null | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -- "$real" 2>/dev/null | awk '{print $1}'
+  else
+    printf ''
+  fi
+}
+
+fm_lock__version_now() {
+  local mech="$1" bin
+  bin="$(fm_lock__resolve_bin "$mech")"
+  [[ -z "$bin" ]] && { printf ''; return 0; }
+  case "$mech" in
+    mkdir)
+      mkdir --version 2>/dev/null | head -n 1 | tr -d '\r' || true
+      ;;
+    flock)
+      local v
+      v="$(flock --version 2>/dev/null | head -n 1 | tr -d '\r' || true)"
+      if [[ -n "$v" ]]; then
+        printf 'flock %s\n' "$v"
+      else
+        printf 'flock:%s\n' "$(command -v flock)"
+      fi
+      ;;
+  esac
+}
+
+fm_lock__bin_mtime() {
+  local p="$1"
+  [[ -z "$p" || ! -e "$p" ]] && { printf '0'; return 0; }
+  stat -c '%Y' -- "$p" 2>/dev/null || stat -f '%m' -- "$p" 2>/dev/null || printf '0'
+}
+
+fm_lock__ts_epoch() {
+  local ts="$1"
+  ts="${ts%Z}"
+  ts="${ts%%.*}"
+  if date -u -d "$ts" +%s 2>/dev/null; then
+    return 0
+  fi
+  if date -u -j -f '%Y-%m-%dT%H:%M:%S' "$ts" +%s 2>/dev/null; then
+    return 0
+  fi
+  printf '0'
+}
+
+fm_lock__load_inventory_rows() {
+  local inv
+  inv="$(fm_lock__inventory_path)"
+  _FM_LOCK_VROWS=""
+  if [[ ! -r "$inv" ]]; then
+    return 0
+  fi
+  local parsed
+  parsed="$(python3 -c '
+import json,sys
+p=sys.argv[1]
+try:
+  d=json.load(open(p,encoding="utf-8"))
+except Exception:
+  raise SystemExit(0)
+for r in (d.get("lock_atomicity") or []):
+  mech=r.get("mechanism") or ""
+  path=r.get("path") or ""
+  version=(r.get("version") or "").replace("|"," ")
+  sha=r.get("sha256") or ""
+  verdict=r.get("verdict") or ""
+  evidence=r.get("evidence_class") or ""
+  fsc=r.get("filesystem_classes") or []
+  fs_csv=fsc if isinstance(fsc,str) else ",".join(fsc)
+  ts=r.get("timestamp") or ""
+  print("|".join([mech,path,version,sha,verdict,evidence,fs_csv,ts]))
+' "$inv" 2>/dev/null || true)"
+  _FM_LOCK_VROWS="$parsed"
+}
+
+fm_lock__row_for() {
+  local mech="$1" line
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    if [[ "${line%%|*}" == "$mech" ]]; then
+      printf '%s\n' "$line"
+      return 0
+    fi
+  done <<<"${_FM_LOCK_VROWS}"
+  return 0
+}
+
+fm_lock__currency_ok() {
+  local mech="$1" lock_path="$2" row="$3"
+  local r_path r_ver r_sha r_verdict r_ev r_fs r_ts
+  IFS='|' read -r _ r_path r_ver r_sha r_verdict r_ev r_fs r_ts <<<"$row"
+  local now_path now_ver now_sha now_fs
+  now_path="$(fm_lock__resolve_bin "$mech")"
+  now_ver="$(fm_lock__version_now "$mech")"
+  now_sha="$(fm_lock__sha256 "$now_path")"
+  now_fs="$(fm_lock__fs_class "$lock_path")"
+  if [[ -z "$r_path" || -z "$now_path" || "$r_path" != "$now_path" ]]; then
+    printf 'path-mismatch'; return 1
+  fi
+  if [[ "$r_ver" != "$now_ver" ]]; then
+    printf 'version-mismatch'; return 1
+  fi
+  if [[ -z "$r_sha" || -z "$now_sha" || "$r_sha" != "$now_sha" ]]; then
+    printf 'digest-mismatch'; return 1
+  fi
+  local covered=0 c
+  local IFS=','
+  local -a _fsa
+  read -ra _fsa <<<"$r_fs"
+  for c in "${_fsa[@]}"; do
+    [[ "$c" == "$now_fs" ]] && covered=1
+  done
+  if (( covered == 0 )); then
+    printf 'fs-uncovered'; return 1
+  fi
+  local ts_e mt
+  ts_e="$(fm_lock__ts_epoch "$r_ts")"
+  mt="$(fm_lock__bin_mtime "$now_path")"
+  if [[ "${ts_e:-0}" -lt "${mt:-0}" ]]; then
+    printf 'ts-before-mtime'; return 1
+  fi
+  local now_e age
+  now_e="$(date -u +%s)"
+  age=$(( now_e - ts_e ))
+  if (( age > 86400 || age < 0 )); then
+    printf 'stale'; return 1
+  fi
+  printf 'ok'
+  return 0
+}
+
+fm_lock__pinned_verdict() {
+  local mech="$1" sha="$2" fs_class="$3"
+  local manifest
+  manifest="$(fm_lock__manifest_path)"
+  if [[ -z "$manifest" || ! -r "$manifest" || -z "$sha" ]]; then
+    printf ''; return 0
+  fi
+  python3 -c '
+import sys
+try:
+  import tomllib
+except ImportError:
+  try:
+    import tomli as tomllib
+  except ImportError:
+    raise SystemExit(0)
+manifest,mech,sha,fs_class=sys.argv[1:5]
+try:
+  data=tomllib.load(open(manifest,"rb"))
+except Exception:
+  raise SystemExit(0)
+la=data.get("lock_atomicity") or {}
+pinned=la.get("pinned") or [] if isinstance(la,dict) else []
+matched=None
+for entry in pinned:
+  if not isinstance(entry,dict):
+    continue
+  if (entry.get("mechanism") or "")!=mech: continue
+  if (entry.get("sha256") or "").lower()!=sha.lower(): continue
+  matched=entry; break
+if matched is None: raise SystemExit(0)
+trace=(matched.get("trace_artifact") or "").strip()
+if not trace: raise SystemExit(0)
+classes=matched.get("filesystem_classes") or []
+verdict=(matched.get("verdict") or "atomic").strip()
+if fs_class in classes:
+  if verdict in ("atomic","non-atomic"): print(verdict)
+  raise SystemExit(0)
+print("fs-unsupported")
+' "$manifest" "$mech" "$sha" "$fs_class" 2>/dev/null || true
+}
+
+# Mechanism-relative local probe (BRIEF section 0). Never writes inventory.
+fm_lock__local_probe_mech() {
+  local mech="$1"
+  local bin path ver sha ts fs_class verdict="unknown" evidence="flavour"
+  bin="$(command -v "$mech" 2>/dev/null || true)"
+  if [[ -z "$bin" ]]; then return 0; fi
+  path="$(readlink -f -- "$bin" 2>/dev/null || printf '%s' "$bin")"
+  ver="$(fm_lock__version_now "$mech")"
+  sha="$(fm_lock__sha256 "$path")"
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local work_parent="${TMPDIR:-/tmp}"
+  fs_class="$(fm_lock__fs_class "$work_parent")"
+  case "$mech" in
+    mkdir)
+      if command -v strace >/dev/null 2>&1; then
+        local work lock trace
+        work="$(mktemp -d "${work_parent}/fm-lock-lp.XXXXXX")"
+        lock="$work/x"
+        mkdir -- "$lock" 2>/dev/null || true
+        trace="$(strace -f -e trace=mkdir,mkdirat,statx "$bin" -- "$lock" 2>&1 || true)"
+        rm -rf -- "$work"
+        if printf '%s\n' "$trace" | grep -qE 'mkdir(at)?\([^)]*\)\s*=\s*-1\s+EEXIST'; then
+          verdict="atomic"; evidence="syscall"
+        elif printf '%s\n' "$trace" | grep -qE 'statx\(' && \
+             ! printf '%s\n' "$trace" | grep -qE 'mkdir(at)?\([^)]*\)\s*=\s*-1\s+EEXIST'; then
+          verdict="non-atomic"; evidence="syscall"
+        else
+          verdict="unknown"; evidence="syscall"
+        fi
+      else
+        verdict="unknown"; evidence="flavour"
+      fi
+      ;;
+    flock)
+      if command -v strace >/dev/null 2>&1; then
+        local work lockf trace hp
+        work="$(mktemp -d "${work_parent}/fm-lock-lf.XXXXXX")"
+        lockf="$work/lockfile"
+        : >"$lockf"
+        (
+          exec 8>>"$lockf"
+          flock -n 8 || exit 9
+          sleep 2
+        ) &
+        hp=$!
+        sleep 0.1
+        trace="$(strace -e trace=flock flock -n 9 9>>"$lockf" 2>&1 || true)"
+        wait "$hp" 2>/dev/null || true
+        rm -rf -- "$work"
+        if printf '%s\n' "$trace" | grep -qE 'flock\([^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)'; then
+          verdict="atomic"; evidence="syscall"
+        else
+          verdict="unknown"; evidence="syscall"
+        fi
+      else
+        verdict="unknown"; evidence="flavour"
+      fi
+      ;;
+  esac
+  if [[ "$verdict" != "atomic" && "$verdict" != "non-atomic" ]]; then
+    local pin
+    pin="$(fm_lock__pinned_verdict "$mech" "$sha" "$fs_class")"
+    if [[ "$pin" == "atomic" || "$pin" == "non-atomic" ]]; then
+      verdict="$pin"; evidence="pinned-mechanism"
+    fi
+  fi
+  printf '%s|%s|%s|%s|%s|%s|%s|%s\n' \
+    "$mech" "$path" "$ver" "$sha" "$verdict" "$evidence" "$fs_class" "$ts"
+}
+
+fm_lock__ensure_verdict_cache() {
+  if [[ "${_FM_LOCK_VINIT_PID:-}" == "${BASHPID:-$$}" && "${_FM_LOCK_VINIT:-}" == "1" ]]; then
+    return 0
+  fi
+  _FM_LOCK_VINIT_PID="${BASHPID:-$$}"
+  _FM_LOCK_VINIT=1
+  _FM_LOCK_LOCAL_PROBED=0
+  _FM_LOCK_LOCAL_PROBED_MECHS=""
+  fm_lock__load_inventory_rows
+}
+
+# @description Replace cache with local probes for the given mechanisms.
+# @arg $@ mechanism names (default: flock mkdir)
+fm_lock__replace_with_local_probe() {
+  local mechs=("$@")
+  if (( ${#mechs[@]} == 0 )); then
+    mechs=(flock mkdir)
+  fi
+  local mech row line m
+  local kept="" probed=""
+  # Drop existing rows for mechanisms we are re-probing
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    m="${line%%|*}"
+    local drop=0 req
+    for req in "${mechs[@]}"; do
+      [[ "$m" == "$req" ]] && drop=1
+    done
+    if (( drop == 0 )); then
+      if [[ -n "$kept" ]]; then kept+=$'\n'; fi
+      kept+="$line"
+    fi
+  done <<<"${_FM_LOCK_VROWS}"
+  for mech in "${mechs[@]}"; do
+    command -v "$mech" >/dev/null 2>&1 || continue
+    row="$(fm_lock__local_probe_mech "$mech")"
+    [[ -z "$row" ]] && continue
+    if [[ -n "$probed" ]]; then probed+=$'\n'; fi
+    probed+="$row"
+  done
+  if [[ -n "$kept" && -n "$probed" ]]; then
+    _FM_LOCK_VROWS="$kept"$'\n'"$probed"
+  elif [[ -n "$probed" ]]; then
+    _FM_LOCK_VROWS="$probed"
+  else
+    _FM_LOCK_VROWS="$kept"
+  fi
+}
+
+fm_lock__ensure_local_probe() {
+  if [[ "${_FM_LOCK_LOCAL_PROBED:-}" == "1" ]]; then return 0; fi
+  _FM_LOCK_LOCAL_PROBED=1
+  # Full local probe of all available mechanisms (inventory was unusable).
+  fm_lock__replace_with_local_probe flock mkdir
+}
+
 # @description Trust-evaluation seam for one (mechanism, lock_path) pair.
 #
-#   CONTRACT (round L1 body; round L2 replaces the body, not the signature):
-#     Called with:
-#       $1 MECHANISM  — "flock" or "mkdir"
-#       $2 LOCKPATH   — absolute or relative path of the lock to acquire
-#     Signals (stdout + exit 0 in all three cases):
-#       trusted-positive : echoes exactly "atomic"
-#         Mechanism is provably atomic for LOCKPATH (trusted, current
-#         verdict covering LOCKPATH's filesystem class).
-#       trusted-negative : echoes exactly "non-atomic"
-#         Atomicity has been positively disproved for this mechanism
-#         (and, for path-sensitive data, for LOCKPATH).
-#       no verdict available : echoes nothing (empty stdout)
-#         No trusted verdict of either polarity is available — atomicity
-#         is unproven, not disproved.
-#       filesystem-class barrier (L2 may also echo): "fs-unsupported"
-#         Mechanism has trusted data on some classes, but LOCKPATH's
-#         filesystem class is covered by none of them. Distinct from
-#         "no verdict" so guard 2 (FM_LOCK_FS_UNSUPPORTED) can fire.
-#
-#   Round L2 is expected to replace this body with the full evaluation:
-#     read ${FOREMAN_TOOL_CHECK_JSON:-$HOME/.foreman/last-tool-check.json},
-#     enforce the six-condition currency check, match SHA-256 digests
-#     against env/reference-manifest.toml, compute LOCKPATH's filesystem
-#     class, and return one of the signals above. L2 must NOT change
-#     callers of this function or the public acquire/release API.
-#
-#   Round L1 CONSERVATIVE DEFAULT: always "no verdict available". No
-#   mechanism earns trust. Failing open here is the defect this package
-#   exists to remove — do not stub trusted-positive for anything.
-#
-# @arg $1 mechanism "flock" or "mkdir"
-# @arg $2 lock_path path the lock would protect / live at
-# @stdout "atomic" | "non-atomic" | "fs-unsupported" | empty
-# @exitcode 0
+#   CONTRACT (round L1 signature; round L2 body):
+#     $1 MECHANISM — "flock" or "mkdir"
+#     $2 LOCKPATH
+#     stdout: "atomic" | "non-atomic" | "fs-unsupported" | empty
+#   Trust only syscall | pinned-mechanism. Version-string match is not a digest match.
+#   Mechanism-relative traces (BRIEF section 0). Never writes inventory.
 fm_lock__verdict_for() {
-  # L1: no verdict source exists yet. Fail closed.
-  # L2 replaces this body.
-  :
+  local mech="${1:-}" lock_path="${2:-}"
+  [[ -z "$mech" || -z "$lock_path" ]] && return 0
+
+  fm_lock__ensure_verdict_cache
+
+  local fs_class now_path now_sha
+  fs_class="$(fm_lock__fs_class "$lock_path")"
+  now_path="$(fm_lock__resolve_bin "$mech")"
+  now_sha="$(fm_lock__sha256 "$now_path")"
+
+  local row currency need_local=0
+  row="$(fm_lock__row_for "$mech")"
+  if [[ -n "$row" ]]; then
+    local r_path r_ver r_sha r_verdict r_ev r_fs r_ts
+    IFS='|' read -r _ r_path r_ver r_sha r_verdict r_ev r_fs r_ts <<<"$row"
+    if [[ "$r_ev" == "syscall" || "$r_ev" == "pinned-mechanism" ]]; then
+      if [[ "$r_verdict" == "atomic" || "$r_verdict" == "non-atomic" ]]; then
+        currency="$(fm_lock__currency_ok "$mech" "$lock_path" "$row" || true)"
+        if [[ "$currency" == "ok" ]]; then
+          printf '%s\n' "$r_verdict"
+          return 0
+        fi
+        if [[ "$currency" == "fs-uncovered" ]]; then
+          # Trusted polarity exists for this mechanism but not this FS class.
+          # Do not re-probe into a different claim; FS barrier is the signal.
+          printf '%s\n' "fs-unsupported"
+          return 0
+        fi
+        # path/version/digest/mtime/stale mismatch → local re-probe
+        need_local=1
+      else
+        need_local=1
+      fi
+    else
+      # untrusted evidence class in inventory cannot license; try local/pin
+      need_local=1
+    fi
+  else
+    need_local=1
+  fi
+
+  if [[ -n "$now_sha" ]]; then
+    local pin
+    pin="$(fm_lock__pinned_verdict "$mech" "$now_sha" "$fs_class")"
+    if [[ "$pin" == "atomic" || "$pin" == "non-atomic" || "$pin" == "fs-unsupported" ]]; then
+      printf '%s\n' "$pin"
+      return 0
+    fi
+  fi
+
+  if (( need_local )); then
+    # Re-probe only THIS mechanism (memory only). Never wipe a current trusted
+    # row for a different mechanism — evidence is mechanism-relative.
+    # Track which mechs have been locally probed via a space-separated list.
+    if [[ " ${_FM_LOCK_LOCAL_PROBED_MECHS:-} " != *" $mech "* ]]; then
+      _FM_LOCK_LOCAL_PROBED_MECHS="${_FM_LOCK_LOCAL_PROBED_MECHS:-} $mech"
+      fm_lock__replace_with_local_probe "$mech"
+    fi
+    row="$(fm_lock__row_for "$mech")"
+    if [[ -n "$row" ]]; then
+      local r_path r_ver r_sha r_verdict r_ev r_fs r_ts
+      IFS='|' read -r _ r_path r_ver r_sha r_verdict r_ev r_fs r_ts <<<"$row"
+      if [[ "$r_ev" == "syscall" || "$r_ev" == "pinned-mechanism" ]]; then
+        if [[ "$r_verdict" == "atomic" || "$r_verdict" == "non-atomic" ]]; then
+          currency="$(fm_lock__currency_ok "$mech" "$lock_path" "$row" || true)"
+          if [[ "$currency" == "ok" ]]; then
+            printf '%s\n' "$r_verdict"
+            return 0
+          fi
+          if [[ "$currency" == "fs-uncovered" ]]; then
+            printf '%s\n' "fs-unsupported"
+            return 0
+          fi
+        fi
+      fi
+    fi
+  fi
+
+  return 0
 }
 
 # @description List lock mechanisms available on this host (not yet trusted).

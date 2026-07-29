@@ -214,10 +214,123 @@ function Check-One([string]$Id) {
   return [pscustomobject]@{ id = $Id; status = $status; detail = $detail }
 }
 
+
+# --- Lock atomicity probe (T4 mirror). PS1 is NOT required to produce syscall
+# evidence — that is what pinned-mechanism exists for. Without a tracer, report
+# weaker class honestly and verdict unknown (never atomic from flavour alone).
+function Get-FsClass([string]$Path) {
+  if ($Path -match '^//|^\\\\') { return "network" }
+  try {
+    $full = [System.IO.Path]::GetFullPath($Path)
+  } catch { $full = $Path }
+  # Drive-letter local fixed volume vs UNC
+  if ($full -match '^[A-Za-z]:\\') { return "local" }
+  if ($full -match '^\\\\') { return "network" }
+  return "local"
+}
+
+function Get-FileSha256([string]$FilePath) {
+  if (-not $FilePath -or -not (Test-Path -LiteralPath $FilePath)) { return "" }
+  try {
+    return (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash.ToLowerInvariant()
+  } catch { return "" }
+}
+
+function Get-LockAtomicityProbe {
+  $ts = $Now
+  $rows = @()
+  $info = @()
+  $trustedAtomic = $false
+
+  # mkdir — Git-Bash / MSYS may expose mkdir.exe; also try where.exe
+  $mkdirCmd = $null
+  foreach ($name in @("mkdir.exe", "mkdir")) {
+    $c = Get-Command $name -ErrorAction SilentlyContinue
+    if ($c) { $mkdirCmd = $c; break }
+  }
+  if ($mkdirCmd) {
+    $mkdirPath = $mkdirCmd.Source
+    if (-not $mkdirPath) { $mkdirPath = $mkdirCmd.Path }
+    $ver = ""
+    try {
+      $verOut = & $mkdirPath --version 2>&1 | Out-String
+      $ver = (($verOut -split "`n")[0]).Trim()
+    } catch { $ver = "mkdir" }
+    $sha = Get-FileSha256 $mkdirPath
+    $fs = Get-FsClass (Split-Path -Parent $mkdirPath)
+    # No Windows strace analogue required here. Flavour/contention cannot license atomic.
+    $verdict = "unknown"
+    $evidence = "flavour"
+    $notes = "Windows/Git-Bash host: no syscall tracer in PS1 mirror; flavour alone licenses nothing; use pinned-mechanism register for mkdir trust"
+    $rows += [pscustomobject]@{
+      mechanism = "mkdir"
+      path = $mkdirPath
+      version = $ver
+      sha256 = $sha
+      verdict = $verdict
+      evidence_class = $evidence
+      filesystem_classes = @($fs)
+      timestamp = $ts
+      notes = $notes
+    }
+  } else {
+    $rows += [pscustomobject]@{
+      mechanism = "mkdir"
+      path = ""
+      version = ""
+      sha256 = ""
+      verdict = "unknown"
+      evidence_class = "flavour"
+      filesystem_classes = @()
+      timestamp = $ts
+      notes = "mkdir not found on Windows PATH"
+    }
+  }
+
+  # flock — typically absent on pure Windows; present under some environments
+  $flockCmd = Get-Command "flock" -ErrorAction SilentlyContinue
+  if ($flockCmd) {
+    $flockPath = $flockCmd.Source
+    if (-not $flockPath) { $flockPath = $flockCmd.Path }
+    $sha = Get-FileSha256 $flockPath
+    $fs = Get-FsClass (Split-Path -Parent $flockPath)
+    $rows += [pscustomobject]@{
+      mechanism = "flock"
+      path = $flockPath
+      version = "flock"
+      sha256 = $sha
+      verdict = "unknown"
+      evidence_class = "flavour"
+      filesystem_classes = @($fs)
+      timestamp = $ts
+      notes = "PS1 mirror: flock present but no syscall evidence produced here; verdict unknown (not atomic)"
+    }
+  } else {
+    $rows += [pscustomobject]@{
+      mechanism = "flock"
+      path = ""
+      version = ""
+      sha256 = ""
+      verdict = "unknown"
+      evidence_class = "flavour"
+      filesystem_classes = @()
+      timestamp = $ts
+      notes = "flock not on Windows PATH (expected for Git-Bash; mkdir fallback uses pinned-mechanism)"
+    }
+  }
+
+  return [pscustomobject]@{
+    rows = $rows
+    trustedAtomic = $trustedAtomic
+    info = $info
+  }
+}
+
+
 $mustSoft = @("git", "python3", "grok", "codex", "foreman_skill")
 $mustHard = @("wsl", "git", "python3", "foreman_skill")
 $mustFull = @("wsl", "git", "python3", "grok", "codex", "foreman_skill")
-$mustDurable = @("git", "jq", "coreutils", "bash")
+$mustDurable = @("git", "jq", "coreutils", "bash", "flock")
 $shouldSoft = @("claude", "node", "npm", "jq", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer")
 $shouldHard = @("gh")
 $shouldFull = @("claude", "node", "npm", "jq", "gh", "docker", "markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer", "bun", "pueue")
@@ -277,6 +390,13 @@ foreach ($m in $must) {
 }
 $ready = ($mustFail.Count -eq 0)
 
+$lockAtomic = Get-LockAtomicityProbe
+$lockAtomicityRows = @($lockAtomic.rows)
+if ($Profile -eq "durable" -and -not $lockAtomic.trustedAtomic) {
+  $mustFail += "lock_atomicity:no_trusted_atomic_mechanism"
+  $ready = $false
+}
+
 $wslReport = $null
 if ($Profile -in @("hard", "full") -and (Test-Cmd "wsl")) {
   $drive = $Root.Substring(0, 1).ToLower()
@@ -313,6 +433,7 @@ if ($Json) {
     repo       = $Root
     tools      = $tools
     skills     = $skills
+    lock_atomicity = $lockAtomicityRows
     missing    = $missing
     outdated   = $outdated
     degraded   = $degraded
@@ -341,6 +462,16 @@ if ($Json) {
   }
   $docsGroup = @($tools | Where-Object { $_.id -in @("markdownlint-cli2", "codespell", "lychee", "psscriptanalyzer") } | ForEach-Object { "$($_.id):$($_.status)" })
   if ($docsGroup.Count) { [void]$lines.Add("DOCS_GROUP: $($docsGroup -join ' ')") }
+  [void]$lines.Add("---")
+  [void]$lines.Add("LOCK_ATOMICITY")
+  [void]$lines.Add(("{0,-8} {1,-10} {2,-16} {3,-12} {4}" -f "MECH", "VERDICT", "EVIDENCE", "FS_CLASSES", "PATH"))
+  foreach ($row in $lockAtomicityRows) {
+    $fsc = ($row.filesystem_classes -join ",")
+    [void]$lines.Add(("{0,-8} {1,-10} {2,-16} {3,-12} {4}" -f $row.mechanism, $row.verdict, $row.evidence_class, $fsc, $row.path))
+    if ($row.sha256) { [void]$lines.Add("  sha256=$($row.sha256)") }
+    if ($row.version) { [void]$lines.Add("  version=$($row.version)") }
+    if ($row.notes) { [void]$lines.Add("  notes=$($row.notes)") }
+  }
   [void]$lines.Add("---")
   [void]$lines.Add("SKILLS")
   [void]$lines.Add(("{0,-16} {1,-10} {2}" -f "SKILL", "STATUS", "DETAIL"))
