@@ -218,6 +218,15 @@ reach for. The hazard is the read-modify-write spanning a concurrent append.
 The snapshot and the write-back must be one serialized section with respect to
 appends, or compaction must abandon its write.
 
+**L3 implementation (callers):** `el_compact` acquires el_emit's `.seq.lock`
+via `fm_lock_acquire` for the entire snapshot→transform→validate→write-back.
+A unique tmp name is still used only as a local write staging path; it is
+**not** the concurrency control. Before `mv`, compaction fingerprints
+`events.jsonl` (sha256) and abandons (original untouched) if the fingerprint
+differs from the pre-snapshot value. That belt-and-braces check is not a
+substitute for the exclusive section — it exists so a future regression that
+drops the shared lock still fails closed rather than silently losing events.
+
 ### The NATS lock has no way back
 
 Two independent problems, both verified in code:

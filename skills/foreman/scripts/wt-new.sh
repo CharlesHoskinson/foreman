@@ -19,6 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=lib/worktree.sh
 source "$SCRIPT_DIR/lib/worktree.sh"
+# shellcheck source=lib/lock.sh
+source "$SCRIPT_DIR/lib/lock.sh"
 
 # v0.2.7.5 worktree-hardening T4: GIT_ASK_YESNO=false lane-wide, for every git
 # operation this script (and the worktree it provisions) performs, so a
@@ -176,52 +178,46 @@ fi
 # v0.2.7.5 worktree-hardening T6 (soak-discovered fix): this read-modify-
 # write of a SHARED file across concurrent wt-new.sh invocations for the
 # SAME run_id was unsynchronized and used a fixed (not per-process-unique)
-# ".tmp" name -- under a genuine concurrent-lane soak (this task's own T6
-# proof) two lanes racing here reliably crashed one of them ("mv: cannot
-# stat ... index.json.tmp: No such file or directory", the second process's
-# mv finding the first process's mv had already renamed the shared tmp file
-# out from under it) and, even absent a crash, could silently lose an
-# entry (both processes reading the same stale index.json and each
-# overwriting the other's write). Serialized under a bounded mkdir mutex
-# (mkdir is atomic on Git Bash/MSYS -- no flock dependency, matching
-# lib/eventlog.sh's own .seq.lock idiom) with a per-process-unique tmp
-# filename (a belt-and-braces second fix -- the lock alone already
-# prevents the interleaving, but a unique name means a process that timed
-# out waiting for the lock, see below, still cannot collide with another).
+# ".tmp" name -- under concurrent soak two lanes raced here and could crash
+# or silently lose an index entry. Serialized under lib/lock.sh
+# (fm_lock_acquire) with a per-process-unique tmp filename.
+#
+# Doctrine correction (lock-primitive-hardening): "mkdir is atomic on Git
+# Bash/MSYS" is FALSE on Ubuntu 26.04 hybrid coreutils (uutils mkdir is
+# check-then-act). Mechanism is flock when trusted, mkdir fallback under
+# the same trust rule — never a bare inline mkdir spin and NEVER fail-open
+# after timeout. Formal model index_fail_open_atomic violates mutual_exclusion
+# at 8 steps even with an atomic primitive when the timeout proceeds
+# unsynchronized. A timed-out acquisition exits non-zero; index.json is left
+# byte-identical. Raise WT_INDEX_LOCK_TIMEOUT_SEC to wait longer — never
+# bypass the lock.
 IDX="$RD/worktrees/index.json"
 IDX_LOCK="$RD/worktrees/.index.lock"
-idx_lock_owned=0
-idx_waited=0
-while true; do
-  if mkdir "$IDX_LOCK" 2>/dev/null; then
-    idx_lock_owned=1
-    break
-  fi
-  sleep 0.1
-  idx_waited=$((idx_waited + 1))
-  if (( idx_waited > 300 )); then   # ~30s bound -- never spin forever
-    log "WARN: index.json lock contention exceeded 30s -- proceeding unsynchronized"
-    break
-  fi
-done
+mkdir -p "$RD/worktrees"
 
-# @description Release the index.json mkdir mutex, but ONLY if this process
-#   is the one that actually acquired it (v0.2.7.5 worktree-hardening Rework
-#   Round 1, Risk 2, Opus audit). The critical section below used to have no
-#   `trap`, so a jq/python3 failure BETWEEN `mkdir "$IDX_LOCK"` and the
-#   (former) unconditional `rmdir` at the end aborted this script under
-#   `set -e` before that rmdir ever ran, leaking the lock -- the next
-#   same-run lane would spin the full ~30s bound above and then proceed
-#   unsynchronized, exactly the race T6 already fixed once. A trap firing
-#   this function is the correct fix, not just moving the rmdir earlier: it
-#   fires on ANY exit from this point forward, anticipated or not. Guarded
-#   on idx_lock_owned (set ONLY on the mkdir-succeeded path above) so a
-#   process that gave up after the 30s bound -- and therefore never
-#   actually owns the lock -- can never release a lock some OTHER process
-#   legitimately still holds.
+# T11: owner-aware reclaim of this lock only when helper exposes it.
+if declare -F fm_lock_reclaim >/dev/null 2>&1; then
+  fm_lock_reclaim "$IDX_LOCK" 2>/dev/null || true
+fi
+
+# Configurable timeout; default matches helper (FM_LOCK_TIMEOUT_SEC=30).
+: "${WT_INDEX_LOCK_TIMEOUT_SEC:=${FM_LOCK_TIMEOUT_SEC:-30}}"
+idx_lock_owned=0
+idx_errf="$(mktemp "${TMPDIR:-/tmp}/wt-new-idx-lock.XXXXXX")"
+if ! fm_lock_acquire "$IDX_LOCK" "$WT_INDEX_LOCK_TIMEOUT_SEC" >/dev/null 2>"$idx_errf"; then
+  idx_err="$(tr -d '\r' <"$idx_errf" 2>/dev/null | head -n 1)"
+  rm -f -- "$idx_errf"
+  die "$EXIT_FAIL" "index.json lock acquisition refused for run $RUN_ID: ${idx_err:-FM_LOCK_TIMEOUT} (raise WT_INDEX_LOCK_TIMEOUT_SEC to wait longer; never bypass)"
+fi
+rm -f -- "$idx_errf"
+idx_lock_owned=1
+
+# Release only if this process acquired (v0.2.7.5 rework). Trap covers any
+# exit from the critical section so a jq/python3 failure cannot leak the lock.
 idx_release_lock() {
   if [[ "$idx_lock_owned" == "1" ]]; then
-    rmdir "$IDX_LOCK" 2>/dev/null || true
+    fm_lock_release "$IDX_LOCK" || true
+    idx_lock_owned=0
   fi
 }
 trap idx_release_lock EXIT

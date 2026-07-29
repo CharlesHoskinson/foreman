@@ -42,6 +42,13 @@
 # it); a BSD/macOS date lacking `-d` fails SAFE -- rc 1, original
 # events.jsonl completely untouched -- see el_compact for the full writeup.
 
+# Resolve sibling lock helper (lock-primitive-hardening L3). Source once.
+_EL_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! declare -F fm_lock_acquire >/dev/null 2>&1; then
+  # shellcheck source=lock.sh
+  source "$_EL_LIB_DIR/lock.sh"
+fi
+
 # @description Initialize a run's event log. Single-threaded; call ONCE before
 #   any concurrent emitters start. Clears a leftover .seq.lock from a previous
 #   crashed run — safe here because there is no concurrency at init, which is
@@ -49,12 +56,31 @@
 # @arg $1 run id
 el_init() {
   local rd; rd="$(run_dir "$1")"; mkdir -p "$rd"
-  rmdir "$rd/.seq.lock" 2>/dev/null || true
-  # v0.2.5 T3 addition: el_attempt_new's sibling .attempt.lock is a separate
-  # mkdir mutex on a separate on-disk file (attempts/$lane.attempt); the
-  # exact same "no concurrency at init" crash-recovery argument that already
-  # covers .seq.lock above applies unchanged, so it is reclaimed here too.
-  rmdir "$rd/.attempt.lock" 2>/dev/null || true
+  # Stale-lock reclamation is conditional on the fallback mechanism.
+  # flock releases on process death; a leftover mkdir lock directory does not.
+  # .seq.lock and .attempt.lock stay SEPARATE paths (see el_attempt_new).
+  # Owner-aware per-lock reclamation via fm_lock_reclaim is T11; when the
+  # helper exposes it, call it here for these two locks only (never a sweep).
+  # Until then: reclaim leftover mkdir dirs only when the helper would not
+  # select flock for this path. el_init remains single-threaded before
+  # concurrent emitters start (no live holder at this call site).
+  local mech=""
+  mech="$(fm_lock__select_mechanism "$rd/.seq.lock" 2>/dev/null)" || mech=""
+  if [[ "$mech" == "flock" ]]; then
+    : # flock path: no stale directory locks to reclaim
+  else
+    # mkdir fallback, or mechanism not yet selectable (probe untrusted): a
+    # leftover .seq.lock / .attempt.lock directory is a mkdir-era artifact.
+    # rmdir is a no-op when the path is absent or not a directory.
+    rmdir "$rd/.seq.lock" 2>/dev/null || true
+    # v0.2.5 T3: sibling .attempt.lock — same crash-recovery argument.
+    rmdir "$rd/.attempt.lock" 2>/dev/null || true
+  fi
+  if declare -F fm_lock_reclaim >/dev/null 2>&1; then
+    # Prefer the helper's owner-aware reclaim when present (T11).
+    fm_lock_reclaim "$rd/.seq.lock" 2>/dev/null || true
+    fm_lock_reclaim "$rd/.attempt.lock" 2>/dev/null || true
+  fi
 }
 
 # @description Emit one event; auto-increments seq for the run.
@@ -65,18 +91,21 @@ el_emit() {
   local rd="$FOREMAN_HOME/runs/$run"
   [[ -d "$rd" ]] || mkdir -p "$rd"
   local log="$rd/events.jsonl" seqf="$rd/.seq" lock="$rd/.seq.lock"
-  # Portable mutex: multiple lanes emit to one run's log concurrently, and the
-  # seq read-modify-write must be atomic to avoid duplicate sequence numbers.
-  # mkdir is atomic on Git Bash and WSL (no flock on MSYS2). This is a pure
-  # mutex with NO in-band stale reclaim: any check-then-rmdir reclaim has an
-  # unavoidable ABA race in bash (stat sees old lock; another process reclaims
-  # + acquires; our rmdir then removes a live lock). Crash recovery is instead
-  # single-threaded in el_init (run start) and the watchdog — see el_init.
-  local tries=0
-  while ! mkdir "$lock" 2>/dev/null; do
-    sleep 0.02; tries=$((tries+1))
-    (( tries > 1500 )) && { echo "el_emit: lock timeout for $run (run el_init?)" >&2; return 1; }
-  done
+  # Serialized under the shared lock helper (lib/lock.sh). Multiple lanes emit
+  # to one run's log concurrently; the seq read-modify-write must be exclusive
+  # to avoid duplicate sequence numbers. Mechanism is flock when trusted, else
+  # mkdir fallback under the same trust rule — never a bare inline mkdir spin.
+  # Doctrine correction (lock-primitive-hardening): "mkdir is atomic on Git
+  # Bash and WSL" is FALSE on Ubuntu 26.04 hybrid coreutils (uutils mkdir does
+  # userspace statx then create; measured 57 mutual-exclusion violations / 15
+  # rounds with 8 racers). See openspec/changes/lock-primitive-hardening/.
+  # Pure mutex with NO in-band stale reclaim here: crash recovery is
+  # single-threaded in el_init (and fm_lock_reclaim when available) — see el_init.
+  # Flat locking: at most one foreman lock held via the helper at a time.
+  if ! fm_lock_acquire "$lock" >/dev/null; then
+    echo "el_emit: lock acquire refused for $run (run el_init? check FM_LOCK_*)" >&2
+    return 1
+  fi
   # Critical section, single exit point, lock released unconditionally.
   # Ordering for uniqueness under failure: build line (jq) → reserve seq (write
   # .seq) → append. A duplicate seq is the only unacceptable outcome; a gap is
@@ -126,7 +155,7 @@ el_emit() {
     # seq already reserved → this leaves a harmless gap, never a duplicate
     rc=1; echo "el_emit: append failed for $run (seq $seq skipped)" >&2
   fi
-  rmdir "$lock" 2>/dev/null   # single, unconditional release on every path
+  fm_lock_release "$lock" || true   # single, unconditional release on every path
   (( rc == 0 )) && echo "$seq"
   return "$rc"
 }
@@ -192,18 +221,20 @@ el_cursor_commit() {
 
 # @description Allocate the next monotonic attempt id for a run+lane (starts
 #   at 1, one counter per lane per run). Serialized under a SIBLING
-#   `.attempt.lock` mkdir mutex -- deliberately NOT el_emit's `.seq.lock`.
+#   `.attempt.lock` via lib/lock.sh -- deliberately NOT el_emit's `.seq.lock`.
 #   Rationale (see FOREMAN_REPORT.md for the full writeup): attempt
 #   allocation touches a completely different on-disk file
 #   (runs/$run/attempts/$lane.attempt) than events.jsonl/.seq, so sharing
 #   el_emit's lock would only add contention to the hot per-emit path -- for
 #   EVERY lane in the run, on EVERY emit -- to protect a file el_emit never
 #   touches. A sibling lock scoped to attempt allocation keeps the two
-#   concerns (and their locks) independent, same portable mkdir-mutex
-#   pattern as el_emit's (mkdir is atomic on Git Bash and WSL; no flock on
-#   MSYS2). This does NOT change el_emit's 5-positional signature: a caller
-#   embeds the returned id as payload.attempt on whatever event(s) it emits
-#   next -- attempt is plain payload content as far as el_emit is concerned.
+#   concerns (and their locks) independent under the same helper contract as
+#   el_emit (flock when trusted; mkdir fallback under trust — NOT the false
+#   "mkdir is atomic on Git Bash and WSL" claim; see lock-primitive-hardening).
+#   Flat rule: never nest .seq.lock and .attempt.lock. This does NOT change
+#   el_emit's 5-positional signature: a caller embeds the returned id as
+#   payload.attempt on whatever event(s) it emits next -- attempt is plain
+#   payload content as far as el_emit is concerned.
 # @arg $1 run id  @arg $2 lane
 # @stdout the newly allocated attempt id (integer, starts at 1)
 # @exitcode 0 success; 1 on lock timeout or a failed atomic persist (on
@@ -217,11 +248,10 @@ el_attempt_new() {
   local dir="$rd/attempts" lock="$rd/.attempt.lock"
   mkdir -p "$dir"
   local f="$dir/$lane.attempt"
-  local tries=0
-  while ! mkdir "$lock" 2>/dev/null; do
-    sleep 0.02; tries=$((tries+1))
-    (( tries > 1500 )) && { echo "el_attempt_new: lock timeout for $run/$lane" >&2; return 1; }
-  done
+  if ! fm_lock_acquire "$lock" >/dev/null; then
+    echo "el_attempt_new: lock acquire refused for $run/$lane (FM_LOCK_*)" >&2
+    return 1
+  fi
   # Critical section, single exit point, lock released unconditionally --
   # same discipline as el_emit's .seq.lock critical section.
   local prev=0 next rc=0
@@ -236,7 +266,7 @@ el_attempt_new() {
     rc=1
     echo "el_attempt_new: failed to persist attempt id for $run/$lane" >&2
   fi
-  rmdir "$lock" 2>/dev/null   # single, unconditional release on every path
+  fm_lock_release "$lock" || true   # single, unconditional release on every path
   (( rc == 0 )) && echo "$next"
   return "$rc"
 }
@@ -303,14 +333,17 @@ el_read_after() {
 #   the original events.jsonl is left completely untouched and this
 #   returns 1.
 #
-#   Locking: acquires el_emit's OWN `.seq.lock` (not a separate lock) for
-#   the full read+transform+validate+mv, because compaction rewrites
-#   events.jsonl itself -- unlike el_attempt_new's sibling lock (a distinct
-#   file el_emit never touches), a concurrent el_emit append between our
-#   read and our mv would otherwise be silently discarded when the tmp file
-#   replaces the original. PIPE_BUF/torn-append safety already depends on
-#   this same mutex serializing all appends (see el_emit); compaction must
-#   join that same serialization point to be safe, not invent a second one.
+#   Locking: acquires el_emit's OWN `.seq.lock` via lib/lock.sh (not a
+#   separate lock) for the full read+transform+validate+mv, because
+#   compaction rewrites events.jsonl itself -- unlike el_attempt_new's
+#   sibling lock (a distinct file el_emit never touches), a concurrent
+#   el_emit append between our read and our mv would otherwise be silently
+#   discarded when the tmp file replaces the original. A unique compaction
+#   tmp name does NOT fix that race (formal model M2 / lock-primitive-
+#   hardening T10): the hazard is the RMW spanning a concurrent append.
+#   Snapshot and write-back are one serialized section under the helper; if
+#   the log cannot be shown unchanged between snapshot and write-back,
+#   compaction ABANDONS and leaves events.jsonl untouched.
 #
 #   Seq gaps: retained lines keep their original seq (a rollup line carries
 #   its collapsed range's LAST seq at the top level, plus the full
@@ -347,13 +380,20 @@ el_compact() {
   # already make elsewhere in this codebase); a BSD/macOS date lacking `-d`
   # fails SAFE here -- the `cutoff=... || ...` guard below returns 1 with the
   # original events.jsonl completely untouched, never a silent misparse.
-  local tries=0
-  while ! mkdir "$lock" 2>/dev/null; do
-    sleep 0.02; tries=$((tries+1))
-    (( tries > 1500 )) && { echo "el_compact: lock timeout for $run" >&2; return 1; }
-  done
+  if ! fm_lock_acquire "$lock" >/dev/null; then
+    echo "el_compact: lock acquire refused for $run (FM_LOCK_*)" >&2
+    return 1
+  fi
 
   local rc=0 raw read_rc=0
+  # Fingerprint the log before snapshot so we can abandon if it changes
+  # under us (defense in depth; under exclusive .seq.lock with el_emit also
+  # taking that lock, appends cannot interleave — unique tmp names alone do
+  # not provide this guarantee).
+  local pre_hash=""
+  if [[ -f "$log" ]]; then
+    pre_hash="$(sha256sum -- "$log" 2>/dev/null | awk '{print $1}')"
+  fi
   raw="$(el_read "$run" 0)" || read_rc=$?
   if (( read_rc != 0 )); then
     echo "el_compact: refusing to compact — el_read reported rc=$read_rc (malformed/torn log); original untouched" >&2
@@ -413,15 +453,24 @@ reduce .[] as $e (
           rm -f "$tmp"
           echo "el_compact: compacted output failed line validation for run $run; original untouched" >&2
           rc=1
-        elif ! mv "$tmp" "$log"; then
-          rm -f "$tmp"
-          echo "el_compact: mv failed for run $run; original untouched" >&2
-          rc=1
+        else
+          # Abandon if events.jsonl changed between snapshot and write-back.
+          local post_hash=""
+          post_hash="$(sha256sum -- "$log" 2>/dev/null | awk '{print $1}')"
+          if [[ -n "$pre_hash" && "$pre_hash" != "$post_hash" ]]; then
+            rm -f "$tmp"
+            echo "el_compact: log changed between snapshot and write-back for run $run; abandoning (original untouched)" >&2
+            rc=1
+          elif ! mv "$tmp" "$log"; then
+            rm -f "$tmp"
+            echo "el_compact: mv failed for run $run; original untouched" >&2
+            rc=1
+          fi
         fi
       fi
     fi
   fi
 
-  rmdir "$lock" 2>/dev/null   # single, unconditional release on every path
+  fm_lock_release "$lock" || true   # single, unconditional release on every path
   return "$rc"
 }

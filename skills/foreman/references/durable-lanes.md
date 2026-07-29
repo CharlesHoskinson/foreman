@@ -111,6 +111,52 @@ actually launches `nats-server` is responsible for passing `-sd` itself.
   CRLF even from an LF-clean log) is stripped at every read boundary rather
   than assumed away.
 
+
+## Locking
+
+Every durable-core lock goes through `skills/foreman/scripts/lib/lock.sh`
+(`fm_lock_acquire` / `fm_lock_release` / `fm_with_lock`). Callers do not
+inline `mkdir` spin-loops.
+
+**Mechanism.** `flock` when available and trusted for the lock path's
+filesystem class; `mkdir` fallback under the same trust rule; refuse when
+trust is absent. Trust is earned only from the host inventory probe
+(`syscall` or `pinned-mechanism` evidence) — never from a version string or
+the historical claim that "mkdir is atomic on Git Bash and WSL". That claim
+is false on Ubuntu 26.04 hybrid coreutils (uutils `mkdir` does a userspace
+`statx` then create; measured 57 mutual-exclusion violations across 15
+rounds with 8 racers). See `openspec/changes/lock-primitive-hardening/`.
+
+**Flat rule (hard).** At most one foreman lock may be held by a process via
+the helper at a time. Nested acquisition is refused with `FM_LOCK_NESTED`.
+There is **no** lock ordering. A stated ordering is standing permission to
+nest, and a deliberately-nesting configuration deadlocks at 5 steps under
+the formal model. Locks in scope stay separate paths:
+
+| Lock | Protects | Reclaimer |
+|---|---|---|
+| `runs/<id>/.seq.lock` | `events.jsonl` + `.seq` (emit + compact) | `el_init` |
+| `runs/<id>/.attempt.lock` | `attempts/<lane>.attempt` | `el_init` |
+| `runs/<id>/.nats-bridge.lock` | bridge cursor advance | bridge start |
+| `runs/<id>/worktrees/.index.lock` | `worktrees/index.json` | `wt-new.sh` start |
+
+**Timeout policy.** A bounded spin that expires **refuses** (named
+`FM_LOCK_TIMEOUT`, non-zero exit). There is no fail-open path into a critical
+section. Callers that need a longer wait raise a timeout env var
+(`FM_LOCK_TIMEOUT_SEC`, or `WT_INDEX_LOCK_TIMEOUT_SEC` for the index lock);
+they never bypass the lock. A refused index update leaves `index.json`
+byte-identical.
+
+**Compaction.** `el_compact` holds `.seq.lock` for snapshot and write-back as
+one serialized section with respect to appends. A unique temporary file name
+does **not** fix a concurrent-append race; if the log cannot be shown
+unchanged between snapshot and write-back, compaction abandons and leaves
+`events.jsonl` alone.
+
+**Reclamation.** Stale `mkdir` locks (not `flock` descriptors) are reclaimed
+per-lock and owner-aware when `fm_lock_reclaim` is available — never a
+directory sweep, never while a live holder cannot be ruled out.
+
 ## Honest limits
 
 - NATS is a harness dependency **only when `[durable] enabled` / the NATS
