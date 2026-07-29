@@ -109,6 +109,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=lib/eventlog.sh
 source "$SCRIPT_DIR/lib/eventlog.sh"
+# shellcheck source=lib/telemetry.sh
+source "$SCRIPT_DIR/lib/telemetry.sh"
 # shellcheck source=lib/checkpoint.sh
 source "$SCRIPT_DIR/lib/checkpoint.sh"
 # shellcheck source=lib/config.sh
@@ -840,8 +842,21 @@ if ! attempt="$(el_attempt_new "$RUN" "$LANE")"; then
   attempt=1
 fi
 
-# prompt event: full CMD joined as a single string
-prompt_payload="$(jq -cn --arg c "$*" '{cmd:$c}' | tr -d '\r')"
+# prompt event: full CMD joined as a single string, plus structured model
+# identity (S4a T5) — requested alias and CLI-reported version are separate
+# fields; never scraped from the command string.
+_model_id="$(tl_model_identity "${LANE_VENDOR:-}")"
+# Queue-wait (S4a T6): if the dispatcher recorded enqueue epoch, record it;
+# otherwise omit (null) rather than invent a zero.
+_queue_wait_s=""
+if [[ -n "${LANE_QUEUED_AT:-}" && "$LANE_QUEUED_AT" =~ ^[0-9]+$ ]]; then
+  _queue_wait_s=$(( round_prompt_epoch - LANE_QUEUED_AT ))
+  (( _queue_wait_s < 0 )) && _queue_wait_s=0
+fi
+prompt_payload="$(
+  jq -cn     --arg c "$*"     --argjson model "$_model_id"     --arg qw "${_queue_wait_s}"     '{cmd:$c, model:$model}
+     + (if $qw == "" then {} else {queue_wait_s: ($qw|tonumber)} end)'   | tr -d '\r'
+)"
 # Guarded like every other el_emit call in this file: el_emit can legitimately
 # fail (mkdir-mutex retry timeout ~30s under .seq.lock contention, a jq
 # failure, or a failed atomic seq write) and under `set -euo pipefail` an
@@ -851,6 +866,10 @@ prompt_payload="$(jq -cn --arg c "$*" '{cmd:$c}' | tr -d '\r')"
 if ! el_emit "$RUN" prompt "$LANE" "$prompt_payload" >/dev/null; then
   echo "lane-run: el_emit prompt failed" >&2
 fi
+# Phase timing anchors (S4a T6): implement starts at CMD spawn; gate starts
+# when ROUND_MODE enters the verifying state.
+implement_start_epoch="$(date -u +%s)"
+gate_duration_s=""
 
 # Prefer stdbuf for line-buffered tee; gstdbuf (coreutils on some hosts) next.
 # When both are absent, output is only as line-buffered as the wrapped CLI
@@ -1103,6 +1122,11 @@ if (( tee_escalated )); then
 fi
 set -e
 
+# Implement-phase duration (S4a T6): wall clock from CMD spawn to CMD exit+reap.
+implement_end_epoch="$(date -u +%s)"
+implement_duration_s=$(( implement_end_epoch - implement_start_epoch ))
+(( implement_duration_s < 0 )) && implement_duration_s=0
+
 # --- Finalization: post-run checkpoint + round_done ---
 # Required if-assignment pattern so set -e does not abort on ckpt_snapshot
 # failure, and the real exit status is still observed for checkpoint_failed.
@@ -1123,6 +1147,18 @@ rm -f "$ckpt_err_file"
 # byte-identical to the pre-T2 shape there (frozen path, existing bats
 # assertions only query specific keys but this keeps the shape honest too).
 # tr -d '\r': Windows jq.exe emits CRLF; strip before storing/passing to el_emit.
+# Usage (S4a T5): prefer vendor-reported figures from the stream when present;
+# otherwise record source:"unavailable" with numeric fields absent (never zero).
+_usage_vendor="${LANE_VENDOR:-}"
+_usage_model="$(tl_requested_alias "${LANE_VENDOR:-}")"
+_usage_effort=""
+case "${LANE_VENDOR:-}" in
+  codex) _usage_effort="${WC_CODEX_REASONING_EFFORT:-medium}" ;;
+  grok)  _usage_effort="${WC_GROK_EFFORT:-}" ;;
+esac
+round_usage="$(tl_usage_from_file "$stream_file_path" "$_usage_vendor" "$_usage_model" "$_usage_effort")"
+_model_id_done="$(tl_model_identity "${LANE_VENDOR:-}")"
+
 round_payload="$(
   jq -cn \
     --argjson exit_code "$rc" \
@@ -1130,7 +1166,22 @@ round_payload="$(
     --argjson stream_failed "$stream_failed" \
     --argjson checkpoint_failed "$checkpoint_failed" \
     --arg exit_source "${cmd_exit_source:-}" \
-    '{exit_code:$exit_code, checkpoint:(if $sha == "" then null else $sha end)}
+    --argjson usage "$round_usage" \
+    --argjson model "$_model_id_done" \
+    --argjson implement_s "${implement_duration_s:-0}" \
+    --arg queue_wait "${_queue_wait_s:-}" \
+    --arg gate_s "${gate_duration_s:-}" \
+    '{
+       exit_code:$exit_code,
+       checkpoint:(if $sha == "" then null else $sha end),
+       usage:$usage,
+       model:$model,
+       phases: (
+         {implement_s: $implement_s}
+         + (if $queue_wait == "" then {} else {queue_wait_s: ($queue_wait|tonumber)} end)
+         + (if $gate_s == "" then {} else {gate_s: ($gate_s|tonumber)} end)
+       )
+     }
      | if $stream_failed != 0 then . + {stream_failed:true} else . end
      | if $checkpoint_failed != 0 then . + {checkpoint_failed:true} else . end
      | if $exit_source != "" then . + {exit_source:$exit_source} else . end' \
@@ -1168,6 +1219,7 @@ if (( ROUND_MODE == 1 )); then
   if ! el_emit "$RUN" state "$LANE" "$state_payload" >/dev/null; then
     echo "lane-run: el_emit state (verifying) failed" >&2
   fi
+  gate_start_epoch="$(date -u +%s)"
   # Backgrounded (`&` + explicit wait), NOT a plain synchronous foreground
   # call, even though set -e is back in effect here (guarded via the
   # if-wraps-wait pattern below, matching this file's ckpt_snapshot capture
@@ -1201,6 +1253,10 @@ if (( ROUND_MODE == 1 )); then
     cmd_pid=""
   fi
 
+  gate_end_epoch="$(date -u +%s)"
+  gate_duration_s=$(( gate_end_epoch - gate_start_epoch ))
+  (( gate_duration_s < 0 )) && gate_duration_s=0
+
   # Attempt-fresh predicate (spec): mtime strictly newer than THIS round's
   # prompt-event ts (round_prompt_epoch, captured before CMD ever ran), OR
   # the report contains "attempt: <current attempt id>" as a secondary
@@ -1219,7 +1275,11 @@ if (( ROUND_MODE == 1 )); then
   fi
 
   if (( gate_rc == 0 )) && [[ "$report_fresh" == "true" ]]; then
-    round_payload="$(jq -c --argjson gate_rc "$gate_rc" '. + {gate_rc:$gate_rc, report_fresh:true}' <<<"$round_payload" | tr -d '\r')"
+    # Fold gate phase duration into the already-built round_done payload (T6).
+    round_payload="$(
+      jq -c         --argjson gate_rc "$gate_rc"         --argjson gate_s "${gate_duration_s:-0}"         '. + {gate_rc:$gate_rc, report_fresh:true}
+         | .phases = ((.phases // {}) + {gate_s: $gate_s})'         <<<"$round_payload" | tr -d '\r'
+    )"
   else
     waiting_payload="$(jq -cn --argjson gate_rc "$gate_rc" --argjson fresh "$([[ "$report_fresh" == "true" ]] && echo true || echo false)" '{gate_rc:$gate_rc, report_fresh:$fresh}' | tr -d '\r')"
     if ! el_emit "$RUN" waiting_child "$LANE" "$waiting_payload" >/dev/null; then

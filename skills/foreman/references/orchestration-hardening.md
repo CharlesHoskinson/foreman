@@ -580,3 +580,30 @@ remote (the fine-grained PAT is HTTPS-only). It pushes via `GIT_ASKPASS` (a
 process argv) and opens the PR with `gh pr create --draft --head <branch>
 --base main -F <body-file>` (never `-b <string>`, never `gh pr ready` — that
 remains a separate, human-invoked step).
+
+
+## 11. Vendor usage reporting (decision-lineage emission)
+
+Per-round cost/token figures on `round_done` / `audit_verdict` use a mandatory
+`usage.source` field. Values:
+
+| source | meaning |
+|---|---|
+| `vendor_reported` | numbers came from the CLI's own accounting (e.g. a usage object in stream JSON) |
+| `estimated` | derived figures; never mixed into a total without their own subtotal |
+| `unavailable` | no figure — **numeric fields are absent, never zero** |
+
+Host probe (2026-07-29) for whether each CLI reports usage **at all** in the
+paths Foreman actually invokes:
+
+| vendor | CLI version (probed) | reports usage in harness path? | notes |
+|---|---|---|---|
+| grok | `grok --version` → 0.2.114 | **no** (default plain / streaming-json path used by lanes does not yield a stable per-round usage object Foreman can join) | `source: unavailable` unless stream JSON contains a usable `usage` object |
+| codex | `codex --version` → 0.146.0 | **partial** (`codex exec --json` can emit event lines with usage; default audit/worker argv does not guarantee it) | prefer stream/session parse; otherwise `unavailable` |
+| claude | `claude --version` → 2.1.x | **no** harness-facing per-round channel today | always `unavailable` until a channel exists |
+
+An absent figure is recorded as `unavailable` and counted in any cost
+aggregate's unavailable share — never silently as zero. Model identity is
+recorded as structured fields at round start: `requested_alias` (what the run
+asked for) and `cli_version` (what the binary reported), separately; they are
+not the same thing.

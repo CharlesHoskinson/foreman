@@ -15,7 +15,10 @@ Three durable substrates plus a transport and a watcher, layered so the
 1. **Event log** (`~/.foreman/runs/<run_id>/events.jsonl`) — append-only, one
    JSON object per line (`skills/foreman/scripts/lib/eventlog.sh`). Every
    `prompt`, `heartbeat`, `checkpoint`, `round_done`, and `alert` a lane emits
-   lands here first, atomically, before anything else sees it.
+   lands here first, atomically, before anything else sees it. Decision and
+   telemetry types (S4a emission half) also land here: `audit_verdict`,
+   `finding`, `finding_outcome`, `gate_decision`, and late `usage` — all
+   structural (never collapsed by `el_compact`), payload-nested only.
 2. **Worktree checkpoints** (`refs/checkpoints/<lane>`) — git-plumbing
    snapshots of the worktree taken via an isolated index (`lib/checkpoint.sh`),
    never touching the agent's own HEAD/index. Each checkpoint's SHA is
@@ -125,3 +128,30 @@ actually launches `nats-server` is responsible for passing `-sd` itself.
 - The stall watchdog's escalation ladder (log line → alert event → kill +
   retry hint) is a *hint*, not an automated kill: `watch.sh` prints the
   retry command on `DEAD`, it does not itself terminate or restart the lane.
+
+
+## Event vocabulary (decision lineage + telemetry)
+
+Additive event types (S4a `decision-lineage-emission`). Library
+(`lib/eventlog.sh`) is untouched — types are free strings; payload is arbitrary
+JSON. `el_compact` only collapses `heartbeat`.
+
+| type | emitter | payload (keys) |
+|---|---|---|
+| `audit_verdict` | `audit-run.sh` | `vendor`, `model`, `effort`, `verdict`, `reason?`, `duration_s`, `usage`, `evidence` (hashes/shas only), `model_identity` |
+| `finding` | `audit-run.sh` | `id` (stable content-derived), `source`, `severity`, `file`, `line`, `upheld` (null at audit time) |
+| `finding_outcome` | later consolidation | `finding_id`, `upheld` (bool), `reason?` — never rewrites the original `finding` |
+| `gate_decision` | `gate-eval.sh` | `pass`, `reasons[]`, `base`, `head`, `inputs_evaluated[]` |
+| `usage` | any stage learning cost late | the usage block + attribution; `source ∈ {vendor_reported, estimated, unavailable}` |
+
+`prompt` and `round_done` also carry structured `model` identity
+(`requested_alias` + `cli_version`, separate fields) and `round_done` carries
+`usage` plus `phases.{queue_wait_s?, implement_s, gate_s?}`. Audit duration is
+recorded by the audit stage on `audit_verdict.duration_s` and is not re-timed
+elsewhere.
+
+**Safety:** payloads carry hashes, ids, counts and references — never prompt
+text, diff text or file contents (beyond the pre-existing `prompt.cmd` for the
+joined command). Emit failures log to stderr and never change a gate or round
+outcome; a failed `gate_decision` emit is recorded as `emission_failed:true`
+inside `gate-decision.json`.
