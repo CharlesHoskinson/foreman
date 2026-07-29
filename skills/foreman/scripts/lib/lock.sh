@@ -20,29 +20,41 @@
 # lock paths; this helper never collapses them.
 #
 # Source this file; do not execute.
+#
+# FM_LOCK_UNAVAILABLE detail-string shape (stable for L2/L4):
+#   "<operation> <target>: <message>"
+# where:
+#   operation — the failing primitive name, one of:
+#     "mkdir -p", "touch", "open fd", "flock -n", "mkdir"
+#   target    — the path (or parent path) the operation acted on
+#   message   — the primitive's stderr text when available; otherwise a short
+#               fallback such as "failed" or "exec redirect failed (rc=N)".
+# Bash does not expose errno numerically; the message is the portable stand-in
+# for "errno" in this shell helper.
 
 # Process-local hold state. At most one held lock (flat rule).
-_FM_LOCK_HELD_PATH=""
-_FM_LOCK_MECHANISM=""
-_FM_LOCK_FD=""
+# Idempotent init: re-sourcing must not erase a live outer lock's record.
+: "${_FM_LOCK_HELD_PATH:=}"
+: "${_FM_LOCK_MECHANISM:=}"
+: "${_FM_LOCK_FD:=}"
 
 # Selected mechanism of the currently held lock (empty when none held).
 # Callers such as el_init read this to decide conditional stale-lock
 # reclamation: flock releases on process death; a mkdir lock does not.
-FM_LOCK_MECHANISM="${FM_LOCK_MECHANISM:-}"
+: "${FM_LOCK_MECHANISM:=}"
 
 # Default bounded spin, matching historical eventlog spin (~1500 * 0.02s).
-FM_LOCK_TIMEOUT_SEC="${FM_LOCK_TIMEOUT_SEC:-30}"
+: "${FM_LOCK_TIMEOUT_SEC:=30}"
 
 # ---------------------------------------------------------------------------
 # Refusal vocabulary — exactly six codes, ordered chain, first match wins.
 # ---------------------------------------------------------------------------
-# 1. FM_LOCK_NESTED
-# 2. FM_LOCK_FS_UNSUPPORTED
-# 3. FM_LOCK_NO_ATOMIC_PRIMITIVE
-# 4. FM_LOCK_PROBE_UNTRUSTED
-# 5. FM_LOCK_UNAVAILABLE   (residual; carries a detail string)
-# 6. FM_LOCK_TIMEOUT
+# 1. FM_LOCK_NESTED              — decided at request time (before arg checks)
+# 2. FM_LOCK_FS_UNSUPPORTED      — no available mechanism covers the FS class
+# 3. FM_LOCK_NO_ATOMIC_PRIMITIVE — every available mechanism trusted-negative
+# 4. FM_LOCK_PROBE_UNTRUSTED     — no trusted verdict of either polarity
+# 5. FM_LOCK_UNAVAILABLE         — residual; carries a detail string
+# 6. FM_LOCK_TIMEOUT             — spin expired on already-selected+engaged mech
 # ---------------------------------------------------------------------------
 
 # @description Emit one refusal in the one-shape form and return non-zero.
@@ -123,14 +135,15 @@ fm_lock__available_mechanisms() {
 #
 #   Ordered refusal chain (first matching guard wins), after NESTED which
 #   is decided at request time by the caller:
-#     2. FM_LOCK_FS_UNSUPPORTED       — any mechanism reports fs-unsupported
-#                                        and none reports atomic
+#     2. FM_LOCK_FS_UNSUPPORTED       — aggregate: no available mechanism
+#                                        has a trusted verdict covering the
+#                                        lock path's filesystem class, and
+#                                        at least one reported fs-unsupported
 #     3. FM_LOCK_NO_ATOMIC_PRIMITIVE  — every available mechanism has a
 #                                        trusted-negative (non-atomic) verdict
 #     4. FM_LOCK_PROBE_UNTRUSTED      — no trusted verdict of either polarity
-#                                        for at least one (equivalently: no
-#                                        atomic selection and not all negative
-#                                        and not purely fs-unsupported)
+#                                        for any available mechanism
+#     residual → FM_LOCK_UNAVAILABLE  — mixed states matching no guard above
 #   On success, echoes the selected mechanism name (flock preferred over mkdir).
 #
 # @arg $1 lock_path
@@ -199,10 +212,15 @@ fm_lock__select_mechanism() {
     fi
   fi
 
-  # No trusted-positive selection. Refuse via ordered guards 2–4.
+  # No trusted-positive selection. Refuse via ordered guards 2–4, then residual.
   # ASSERTION: we have not entered any spin/retry loop.
-  if (( any_fs_unsup )); then
-    # Guard 2: filesystem class covered by no trusted (positive) verdict.
+  #
+  # Guard 2 (aggregate coverage): the lock path's filesystem class is covered
+  # by no trusted verdict (of either polarity) for any available mechanism,
+  # and at least one mechanism reported the fs-unsupported barrier. A single
+  # mechanism reporting fs-unsupported does NOT fire this guard if another
+  # available mechanism has a covering trusted verdict.
+  if (( any_fs_unsup && any_trusted_polarity == 0 )); then
     fm_lock__refuse "FM_LOCK_FS_UNSUPPORTED"
     return 1
   fi
@@ -213,14 +231,24 @@ fm_lock__select_mechanism() {
     fm_lock__refuse "FM_LOCK_NO_ATOMIC_PRIMITIVE"
     return 1
   fi
-  # Guard 4: no trusted verdict of either polarity for at least one
-  # available mechanism that would otherwise be viable — atomicity unproven.
-  fm_lock__refuse "FM_LOCK_PROBE_UNTRUSTED"
+  # Guard 4: no trusted verdict of either polarity for any available mechanism.
+  # Must NOT catch mixed states (some polarity present, no positive selection).
+  if (( any_trusted_polarity == 0 )); then
+    fm_lock__refuse "FM_LOCK_PROBE_UNTRUSTED"
+    return 1
+  fi
+  # Residual: enum total — mixed verdicts matching no guard (e.g. flock
+  # trusted-negative + mkdir absent; flock fs-unsupported + mkdir non-atomic).
+  fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+    "no trusted-positive mechanism available (mixed verdicts)"
   return 1
 }
 
 # @description Spin to acquire via flock on a lock file at LOCK_PATH.
 #   Prerequisite: mechanism already selected and trusted (caller asserts).
+#   Contention (EWOULDBLOCK / empty-stderr non-zero from flock -n) spins until
+#   timeout. Any other flock/open failure is FM_LOCK_UNAVAILABLE immediately
+#   with a detail naming the operation and its message — never TIMEOUT.
 # @arg $1 lock_path
 # @arg $2 timeout_sec
 # @stderr FM_LOCK_UNAVAILABLE detail | FM_LOCK_TIMEOUT
@@ -228,7 +256,7 @@ fm_lock__select_mechanism() {
 fm_lock__acquire_flock() {
   local lock_path="$1"
   local timeout_sec="$2"
-  local parent err
+  local parent err errfile open_rc
   parent="$(dirname -- "$lock_path")"
 
   if [[ -d "$lock_path" ]]; then
@@ -250,24 +278,60 @@ fm_lock__acquire_flock() {
   }
 
   # Open a dedicated FD and hold it for the critical-section lifetime.
+  # Capture open failure message without losing the FD on success.
   local lock_fd
-  exec {lock_fd}>>"$lock_path" || {
+  errfile="$(mktemp "${TMPDIR:-/tmp}/fm-lock-open.XXXXXX")" || {
     fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
-      "open fd for ${lock_path}: failed"
+      "open fd for ${lock_path}: mktemp failed"
     return 1
   }
+  open_rc=0
+  exec 3>&2
+  exec 2>"$errfile"
+  exec {lock_fd}>>"$lock_path" || open_rc=$?
+  exec 2>&3
+  exec 3>&-
+  if (( open_rc != 0 )); then
+    err="$(tr -d '\r' <"$errfile" 2>/dev/null | head -n 1)"
+    rm -f -- "$errfile"
+    fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+      "open fd for ${lock_path}: ${err:-exec redirect failed (rc=${open_rc})}"
+    return 1
+  fi
+  rm -f -- "$errfile"
 
   local start=$SECONDS
+  local flock_err flock_rc engaged=0
   # ASSERTION: trust was resolved before this spin; TIMEOUT is only reachable
-  # on an already-trusted, already-selected mechanism.
+  # on an already-trusted, already-selected mechanism that has been engaged
+  # (contention observed) at least once.
   while true; do
-    if flock -n "$lock_fd" 2>/dev/null; then
+    flock_err="$(flock -n "$lock_fd" 2>&1)"
+    flock_rc=$?
+    if (( flock_rc == 0 )); then
       _FM_LOCK_FD="$lock_fd"
       return 0
     fi
+    # Contention: non-zero with empty stderr (typical EWOULDBLOCK / exit 1).
+    # Operation failure: non-zero with a message (ENOLCK, EOPNOTSUPP, EINVAL…).
+    if [[ -n "$flock_err" ]]; then
+      eval "exec ${lock_fd}>&-" 2>/dev/null || true
+      flock_err="${flock_err//$'\r'/}"
+      flock_err="${flock_err//$'\n'/ }"
+      fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+        "flock -n ${lock_path}: ${flock_err}"
+      return 1
+    fi
+    engaged=1
     if (( SECONDS - start >= timeout_sec )); then
-      eval "exec ${lock_fd}>&-"
-      fm_lock__refuse "FM_LOCK_TIMEOUT"
+      eval "exec ${lock_fd}>&-" 2>/dev/null || true
+      # TIMEOUT only after the mechanism was engaged at least once.
+      if (( engaged )); then
+        fm_lock__refuse "FM_LOCK_TIMEOUT"
+      else
+        fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+          "flock -n ${lock_path}: failed without engagement"
+      fi
       return 1
     fi
     sleep 0.02
@@ -276,6 +340,9 @@ fm_lock__acquire_flock() {
 
 # @description Spin to acquire via mkdir mutex at LOCK_PATH (directory).
 #   Prerequisite: mechanism already selected and trusted (caller asserts).
+#   Contention (EEXIST / path already a directory) spins until timeout.
+#   Any other mkdir failure is FM_LOCK_UNAVAILABLE immediately with a detail
+#   naming the operation and its message — never TIMEOUT.
 # @arg $1 lock_path
 # @arg $2 timeout_sec
 # @stderr FM_LOCK_UNAVAILABLE detail | FM_LOCK_TIMEOUT
@@ -283,7 +350,7 @@ fm_lock__acquire_flock() {
 fm_lock__acquire_mkdir() {
   local lock_path="$1"
   local timeout_sec="$2"
-  local parent err
+  local parent err mkdir_err mkdir_rc
   parent="$(dirname -- "$lock_path")"
 
   if [[ -e "$lock_path" && ! -d "$lock_path" ]]; then
@@ -299,17 +366,32 @@ fm_lock__acquire_mkdir() {
   }
 
   local start=$SECONDS
+  local engaged=0
   # ASSERTION: trust was resolved before this spin; TIMEOUT is only reachable
-  # on an already-trusted, already-selected mechanism.
+  # on an already-trusted, already-selected mechanism that has been engaged
+  # (contention observed) at least once.
   while true; do
-    if mkdir -- "$lock_path" 2>/dev/null; then
+    mkdir_err="$(mkdir -- "$lock_path" 2>&1)"
+    mkdir_rc=$?
+    if (( mkdir_rc == 0 )); then
       return 0
     fi
-    if (( SECONDS - start >= timeout_sec )); then
-      fm_lock__refuse "FM_LOCK_TIMEOUT"
-      return 1
+    # Contention: directory already exists (EEXIST).
+    if [[ -d "$lock_path" ]]; then
+      engaged=1
+      if (( SECONDS - start >= timeout_sec )); then
+        fm_lock__refuse "FM_LOCK_TIMEOUT"
+        return 1
+      fi
+      sleep 0.02
+      continue
     fi
-    sleep 0.02
+    # Operation failure: permission denied, read-only FS, ENOSPC, etc.
+    mkdir_err="${mkdir_err//$'\r'/}"
+    mkdir_err="${mkdir_err//$'\n'/ }"
+    fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+      "mkdir ${lock_path}: ${mkdir_err:-failed}"
+    return 1
   done
 }
 
@@ -330,18 +412,20 @@ fm_lock__acquire_mkdir() {
 # @stderr one FM_LOCK_* code on refusal (UNAVAILABLE includes a detail string)
 # @exitcode 0 acquired; 1 refused
 fm_lock_acquire() {
-  local lock_path="$1"
+  local lock_path="${1:-}"
   local timeout_sec="${2:-$FM_LOCK_TIMEOUT_SEC}"
   local selected
 
-  if [[ -z "$lock_path" ]]; then
-    fm_lock__refuse "FM_LOCK_UNAVAILABLE" "fm_lock_acquire: empty lock_path"
+  # Guard 1: flat locking — refuse nesting rather than order locks.
+  # Evaluated FIRST, before argument validation, so empty-path + held outer
+  # still names FM_LOCK_NESTED (ordered chain requires NESTED at request time).
+  if [[ -n "$_FM_LOCK_HELD_PATH" ]]; then
+    fm_lock__refuse "FM_LOCK_NESTED"
     return 1
   fi
 
-  # Guard 1: flat locking — refuse nesting rather than order locks.
-  if [[ -n "$_FM_LOCK_HELD_PATH" ]]; then
-    fm_lock__refuse "FM_LOCK_NESTED"
+  if [[ -z "$lock_path" ]]; then
+    fm_lock__refuse "FM_LOCK_UNAVAILABLE" "fm_lock_acquire: empty lock_path"
     return 1
   fi
 
@@ -412,7 +496,9 @@ fm_lock_release() {
 }
 
 # @description Acquire LOCK_PATH, run COMMAND, release on every exit path.
-#   The lock is released exactly once whether COMMAND succeeds or fails.
+#   The lock is released exactly once whether COMMAND succeeds, fails, calls
+#   exit, or the shell is terminated by HUP/INT/TERM. A trap plus fall-through
+#   share a once-flag so release is never double.
 #   Acquisition refusal propagates without running COMMAND.
 # @arg $1 lock_path
 # @arg $2 timeout_sec optional; if the next arg is --, $2 is timeout and
@@ -423,8 +509,8 @@ fm_lock_release() {
 # @stderr refusal codes or command stderr
 # @exitcode acquire refusal status, or command status after release
 fm_with_lock() {
-  local lock_path="$1"
-  shift
+  local lock_path="${1:-}"
+  shift || true
   local timeout_sec="$FM_LOCK_TIMEOUT_SEC"
 
   if [[ "${1:-}" == "--" ]]; then
@@ -438,6 +524,12 @@ fm_with_lock() {
     shift
   fi
 
+  # Guard 1 before missing-command validation (same ordering as acquire).
+  if [[ -n "$_FM_LOCK_HELD_PATH" ]]; then
+    fm_lock__refuse "FM_LOCK_NESTED"
+    return 1
+  fi
+
   if [[ $# -lt 1 ]]; then
     fm_lock__refuse "FM_LOCK_UNAVAILABLE" "fm_with_lock: missing command"
     return 1
@@ -448,10 +540,33 @@ fm_with_lock() {
   # Mechanism is exposed via FM_LOCK_MECHANISM after a successful acquire.
   fm_lock_acquire "$lock_path" "$timeout_sec" >/dev/null || return 1
 
+  # Once-flag shared by trap and fall-through — exactly one release.
+  local _fm_wl_path="$lock_path"
+  local _fm_wl_released=0
+
+  # shellcheck disable=SC2329
+  _fm_with_lock_release_once() {
+    if (( _fm_wl_released == 0 )); then
+      _fm_wl_released=1
+      fm_lock_release "$_fm_wl_path" || true
+    fi
+  }
+
+  # EXIT covers normal return paths that still exit the shell (e.g. `exit 7`
+  # inside the critical-section command). Signal traps cover termination.
+  # shellcheck disable=SC2064
+  trap '_fm_with_lock_release_once' EXIT
+  # shellcheck disable=SC2064
+  trap '_fm_with_lock_release_once; trap - EXIT HUP INT TERM; exit 129' HUP
+  # shellcheck disable=SC2064
+  trap '_fm_with_lock_release_once; trap - EXIT HUP INT TERM; exit 130' INT
+  # shellcheck disable=SC2064
+  trap '_fm_with_lock_release_once; trap - EXIT HUP INT TERM; exit 143' TERM
+
   local rc=0
   "$@" || rc=$?
 
-  # Single unconditional release on every exit path from the critical section.
-  fm_lock_release "$lock_path" || true
+  _fm_with_lock_release_once
+  trap - EXIT HUP INT TERM
   return "$rc"
 }
