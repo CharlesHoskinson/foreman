@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: ubuntu-latest runs shellcheck and the bats suite on every relevant PR
+## ADDED Requirements
+
+### Requirement: ubuntu-latest runs shellcheck and the bats suite on every relevant PR
 
 The repository SHALL run `shellcheck` and the bats suite on `ubuntu-latest`
 in CI on every PR that touches shell scripts or the launcher.
@@ -23,7 +25,7 @@ in CI on every PR that touches shell scripts or the launcher.
   and smoke-testing `install.sh`
 - AND a failure in any of those steps fails the PR check.
 
-## ADDED Requirement: windows-latest uses shell: bash for the Git-Bash half
+### Requirement: windows-latest uses shell: bash for the Git-Bash half
 
 WHEN CI runs on `windows-latest`, it SHALL use `shell: bash`.
 
