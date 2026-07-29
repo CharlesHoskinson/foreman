@@ -241,7 +241,7 @@ serialisation rule in `docs/research/vnext/LANDING-ORDER.md`.
 | S1 | `crlf-extensionless-hardening` (widened to 33 files), `lock-primitive-hardening` |
 | S2 | `test-infrastructure-hardening` |
 | S3 | `wsl-launcher-shipped`, `wsl-tool-path-persistence`, `wsl-preflight`, `wsl-seam-doctrine` |
-| S4 | `decision-lineage-and-telemetry`, `three-outcome-verdicts`, `round-ownership-default`, `doctrine-reality-drift` |
+| S4 | `decision-lineage-and-telemetry`, `three-outcome-verdicts`, `round-ownership-default`, `lane-ownership-and-reaping`, `doctrine-reality-drift` |
 | S5 | `vendor-preflight`, `vendor-adapter-contract`, `agy-lane-activation`, `cross-vendor-audit-routing`, `vendor-concurrency-and-quota` |
 | S6 | `knowledge-plane-refresh`, `work-dag-projection`, `audit-groundedness-gate` |
 | S7 | `graph-context-builder` |
