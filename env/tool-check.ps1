@@ -255,15 +255,18 @@ function Get-HostClassForPin {
   return "msys2-git-bash"
 }
 
-function Test-TraceArtifactValid([string]$Mech, [string]$TracePath) {
+function Test-TraceArtifactValid([string]$Mech, [string]$TracePath, [string]$ProbeTarget = "") {
   if (-not $TracePath -or -not (Test-Path -LiteralPath $TracePath)) { return $false }
   try {
     $content = Get-Content -LiteralPath $TracePath -Raw -ErrorAction Stop
   } catch { return $false }
   if (-not $content) { return $false }
   if ($Mech -eq "mkdir") {
-    if ($content -match 'mkdir(at)?\([^)]*\)\s*=\s*-1\s+EEXIST') { return $true }
-    if ($content -match 'ERROR_ALREADY_EXISTS') { return $true }
+    # Integration F3: EEXIST must be bound to the pin's probe_target.
+    if (-not $ProbeTarget) { return $false }
+    $escaped = [regex]::Escape($ProbeTarget)
+    if ($content -match ("mkdir(at)?\([^\n]*" + $escaped + "[^\n]*\)\s*=\s*-1\s+EEXIST")) { return $true }
+    if ($content -match ("mkdir(at)?\([^\n]*" + $escaped + "[^\n]*\).*(EEXIST|ERROR_ALREADY_EXISTS)")) { return $true }
     return $false
   }
   if ($Mech -eq "flock") {
@@ -303,11 +306,15 @@ function Get-PinnedVerdict([string]$Mech, [string]$Sha) {
     if (-not $mTrace) { continue }
     $mVerdict = if ($b -match 'verdict\s*=\s*"([^"]+)"') { $Matches[1] } else { "" }
     if ($mVerdict -notin @("atomic", "non-atomic")) { continue }
+    $mProbe = if ($b -match 'probe_target\s*=\s*"([^"]+)"') { $Matches[1] }
+              elseif ($b -match 'probe_path\s*=\s*"([^"]+)"') { $Matches[1] }
+              else { "" }
+    if ($Mech -eq "mkdir" -and -not $mProbe) { continue }
     $tracePath = $mTrace
     if (-not [System.IO.Path]::IsPathRooted($tracePath)) {
       $tracePath = Join-Path $Root ($mTrace -replace '/', '\')
     }
-    if (-not (Test-TraceArtifactValid $Mech $tracePath)) { continue }
+    if (-not (Test-TraceArtifactValid $Mech $tracePath $mProbe)) { continue }
     $classes = @()
     if ($b -match 'filesystem_classes\s*=\s*\[([^\]]+)\]') {
       $inner = $Matches[1]

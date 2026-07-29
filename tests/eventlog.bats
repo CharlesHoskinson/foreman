@@ -5,6 +5,8 @@ load helpers
 setup() {
   export FOREMAN_HOME="$BATS_TEST_TMPDIR/fh"
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
+  # Hermetic trust: positive eventlog paths must not depend on ambient ptrace.
+  setup_lock_trust_fixture
   source "$SCRIPTS/lib/common.sh"
   source "$SCRIPTS/lib/eventlog.sh"
 }
@@ -122,7 +124,16 @@ setup() {
 }
 
 @test "el_init clears a leftover lock so a new run does not wedge" {
-  local rd; rd="$(run_dir run1)"; mkdir -p "$rd/.seq.lock"   # crashed prior run
+  # Owner-aware reclaim requires positively selected mkdir + dead-holder token.
+  # Default setup uses flock (no reclaim); switch to mkdir trust for this case.
+  setup_lock_mkdir_trust_fixture x
+  source "$SCRIPTS/lib/lock.sh"
+  source "$SCRIPTS/lib/eventlog.sh"
+  # Force mkdir selection (flock would skip reclaim entirely).
+  fm_lock__available_mechanisms() { printf '%s\n' "mkdir"; }
+  local rd; rd="$(run_dir run1)"; mkdir -p "$rd/.seq.lock"
+  # Dead holder token (pid that does not exist).
+  printf 'pid=999999\nstart=1\n' >"$rd/.seq.lock/owner"
   el_init run1                                   # single-threaded crash recovery
   [ ! -d "$rd/.seq.lock" ]
   run el_emit run1 t lane '{"a":1}'              # emit now proceeds
@@ -147,6 +158,11 @@ setup() {
   el_emit run1 a lane '{"n":1}' >/dev/null       # seq 1
   local rd; rd="$(run_dir run1)"
   chmod 000 "$rd/events.jsonl" 2>/dev/null || skip "cannot make log unwritable on this fs"
+  # Root (and some FS setups) ignore mode bits — skip rather than false-fail.
+  if ( : >>"$rd/events.jsonl" ) 2>/dev/null; then
+    chmod 644 "$rd/events.jsonl" 2>/dev/null || true
+    skip "filesystem ignores mode 000 for writer (e.g. root)"
+  fi
   run el_emit run1 b lane '{"n":2}'              # append fails; seq 2 reserved
   chmod 644 "$rd/events.jsonl"
   [ "$status" -ne 0 ]
@@ -207,7 +223,12 @@ setup() {
 }
 
 @test "el_init also clears a leftover .attempt.lock so el_attempt_new does not wedge" {
+  setup_lock_mkdir_trust_fixture x
+  source "$SCRIPTS/lib/lock.sh"
+  source "$SCRIPTS/lib/eventlog.sh"
+  fm_lock__available_mechanisms() { printf '%s\n' "mkdir"; }
   local rd; rd="$(run_dir run1)"; mkdir -p "$rd/.attempt.lock"
+  printf 'pid=999999\nstart=1\n' >"$rd/.attempt.lock/owner"
   el_init run1
   [ ! -d "$rd/.attempt.lock" ]
   run el_attempt_new run1 lane-a

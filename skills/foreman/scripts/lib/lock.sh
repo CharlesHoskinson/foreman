@@ -106,6 +106,9 @@ fm_lock__refuse() {
 : "${FOREMAN_LOCK_HOST_CLASS:=}"
 # Manifest path override for tests (empty = auto)
 : "${FOREMAN_LOCK_MANIFEST:=}"
+# When set to 1, skip ambient local probes (hermetic trust fixtures only).
+# Used by tests so positive paths do not depend on ptrace/strace permissions.
+: "${FOREMAN_LOCK_DISABLE_LOCAL_PROBE:=0}"
 
 fm_lock__repo_root() {
   local here
@@ -306,26 +309,18 @@ fm_lock__trace_valid() {
   [[ -n "$content" ]] || return 1
   case "$mech" in
     mkdir)
-      # Require mkdir/mkdirat returning EEXIST, bound to target when known.
-      if [[ -n "$target_frag" ]]; then
-        # Escape for basic regex; accept quoted or unquoted path containing fragment
-        if printf '%s\n' "$content" | grep -qE "mkdir(at)?\\([^\\n]*${target_frag//\//\\/}[^\\n]*\\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
-          return 0
-        fi
-        # Also accept ERROR_ALREADY_EXISTS (Windows NT form)
-        if printf '%s\n' "$content" | grep -qE "mkdir(at)?\\([^\\n]*${target_frag//\//\\/}[^\\n]*\\).*(EEXIST|ERROR_ALREADY_EXISTS)"; then
-          return 0
-        fi
+      # EEXIST must be bound to the probed target. An unbound EEXIST anywhere
+      # in a trace is not evidence about this lock (integration F3).
+      if [[ -z "$target_frag" ]]; then
         return 1
       fi
-      if printf '%s\n' "$content" | grep -qE 'mkdir(at)?\([^)]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST'; then
+      # Escape for basic regex; accept quoted or unquoted path containing fragment
+      if printf '%s\n' "$content" | grep -qE "mkdir(at)?\\([^\\n]*${target_frag//\//\\/}[^\\n]*\\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
         return 0
       fi
-      if printf '%s\n' "$content" | grep -qiE 'ERROR_ALREADY_EXISTS|EEXIST'; then
-        # Bound-less fallback only when pin notes claim mkdir and content is clearly create-related
-        if printf '%s\n' "$content" | grep -qiE 'mkdir|NtCreateFile|CreateDirectory'; then
-          return 0
-        fi
+      # Also accept ERROR_ALREADY_EXISTS (Windows NT form) on the same path
+      if printf '%s\n' "$content" | grep -qE "mkdir(at)?\\([^\\n]*${target_frag//\//\\/}[^\\n]*\\).*(EEXIST|ERROR_ALREADY_EXISTS)"; then
+        return 0
       fi
       return 1
       ;;
@@ -495,21 +490,26 @@ if verdict not in ("atomic","non-atomic"):
   # missing verdict does NOT default to atomic (F9)
   print("no-verdict")
   raise SystemExit(0)
-# emit: STATUS|verdict|trace_artifact|fs_ok
+# probe_target binds mkdir EEXIST to the contended path (integration F3)
+probe=(matched.get("probe_target") or matched.get("probe_path") or "").strip()
+if mech=="mkdir" and not probe:
+  print("no-probe-target")
+  raise SystemExit(0)
+# emit: STATUS|verdict|trace_artifact|fs_ok|probe_target
 fs_ok = "1" if fs_class in classes else "0"
-print("|".join(["ok", verdict, trace, fs_ok]))
+print("|".join(["ok", verdict, trace, fs_ok, probe]))
 ' "$manifest" "$mech" "$sha" "$fs_class" "$host_now" 2>/dev/null || true)"
 
   if [[ -z "$result" ]]; then
     printf ''; return 0
   fi
   case "$result" in
-    host-mismatch|no-trace|no-verdict)
+    host-mismatch|no-trace|no-verdict|no-probe-target)
       printf ''; return 0
       ;;
   esac
-  local status pin_verdict trace_art fs_ok
-  IFS='|' read -r status pin_verdict trace_art fs_ok <<<"$result"
+  local status pin_verdict trace_art fs_ok probe_target
+  IFS='|' read -r status pin_verdict trace_art fs_ok probe_target <<<"$result"
   if [[ "$status" != "ok" ]]; then
     printf ''; return 0
   fi
@@ -522,9 +522,19 @@ print("|".join(["ok", verdict, trace, fs_ok]))
   if [[ -z "$abs_trace" ]]; then
     printf ''; return 0
   fi
-  # Validate trace content (F9) — no fake artifact
-  if ! fm_lock__trace_valid "$mech" "$abs_trace"; then
-    printf ''; return 0
+  # Validate trace content (F9) — no fake artifact.
+  # mkdir: EEXIST must be bound to the pin's probe_target (F3).
+  if [[ "$mech" == "mkdir" ]]; then
+    if [[ -z "${probe_target:-}" ]]; then
+      printf ''; return 0
+    fi
+    if ! fm_lock__trace_valid "$mech" "$abs_trace" "$probe_target"; then
+      printf ''; return 0
+    fi
+  else
+    if ! fm_lock__trace_valid "$mech" "$abs_trace"; then
+      printf ''; return 0
+    fi
   fi
   printf '%s\n' "$pin_verdict"
 }
@@ -775,7 +785,7 @@ fm_lock__verdict_for() {
     fi
   fi
 
-  if (( need_local )); then
+  if (( need_local )) && [[ "${FOREMAN_LOCK_DISABLE_LOCAL_PROBE:-0}" != "1" ]]; then
     if [[ " ${_FM_LOCK_LOCAL_PROBED_MECHS:-} " != *" $mech "* ]]; then
       _FM_LOCK_LOCAL_PROBED_MECHS="${_FM_LOCK_LOCAL_PROBED_MECHS:-} $mech"
       fm_lock__replace_with_local_probe "$mech"
@@ -1044,6 +1054,7 @@ fm_lock__acquire_mkdir() {
 
   local start=$SECONDS
   local engaged=0
+  local write_rc
   # ASSERTION: trust was resolved before this spin; TIMEOUT is only reachable
   # on an already-trusted, already-selected mechanism that has been engaged
   # (contention observed) at least once.
@@ -1051,7 +1062,43 @@ fm_lock__acquire_mkdir() {
     mkdir_err="$(mkdir -- "$lock_path" 2>&1)"
     mkdir_rc=$?
     if (( mkdir_rc == 0 )); then
-      return 0
+      # Won mkdir. Publish the owner token exclusively (integration F2):
+      # under check-then-act both racers can see mkdir success; only the
+      # exclusive owner create identifies the single winner. A loser must
+      # NOT rmdir (the winner holds the directory).
+      write_rc=0
+      fm_lock__write_owner_token "$lock_path" || write_rc=$?
+      if (( write_rc == 0 )); then
+        return 0
+      fi
+      if (( write_rc == 2 )); then
+        # Lost the exclusive owner race — treat as contention.
+        engaged=1
+        if (( SECONDS - start >= timeout_sec )); then
+          fm_lock__refuse "FM_LOCK_TIMEOUT"
+          return 1
+        fi
+        sleep 0.02
+        continue
+      fi
+      # Hard failure writing token after our mkdir win. Never hold a lock we
+      # cannot prove we own (integration F2). If a valid foreign token is
+      # already present, leave it; otherwise tear down our empty/broken dir
+      # (including a non-file owner artifact that blocked noclobber).
+      rm -f -- "${lock_path}/.owner.tmp."* 2>/dev/null || true
+      if fm_lock__read_owner_token "$lock_path" >/dev/null 2>&1; then
+        :
+      else
+        if [[ -e "${lock_path}/owner" && ! -f "${lock_path}/owner" ]]; then
+          rm -rf -- "${lock_path}/owner" 2>/dev/null || true
+        else
+          rm -f -- "${lock_path}/owner" 2>/dev/null || true
+        fi
+        rmdir -- "$lock_path" 2>/dev/null || true
+      fi
+      fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+        "write owner token ${lock_path}: failed"
+      return 1
     fi
     # Contention: directory already exists (EEXIST).
     if [[ -d "$lock_path" ]]; then
@@ -1122,14 +1169,8 @@ fm_lock_acquire() {
       fm_lock__acquire_flock "$lock_path" "$timeout_sec" || return 1
       ;;
     mkdir)
+      # Owner token is published exclusively inside acquire_mkdir (F2).
       fm_lock__acquire_mkdir "$lock_path" "$timeout_sec" || return 1
-      # Owner token ONLY from the process that won mkdir (reclaim contract).
-      fm_lock__write_owner_token "$lock_path" || {
-        rmdir -- "$lock_path" 2>/dev/null || true
-        fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
-          "write owner token ${lock_path}: failed"
-        return 1
-      }
       ;;
     *)
       fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
@@ -1180,7 +1221,25 @@ fm_lock_release() {
       fi
       ;;
     mkdir)
-      rm -f -- "${lock_path}/owner" 2>/dev/null || true
+      # Release only the token this process owns (integration F2). A
+      # check-then-act loser must never delete the winner's lock.
+      local token_line own_pid own_start my_pid my_start
+      my_pid="${BASHPID:-$$}"
+      my_start="$(fm_lock__proc_start "$my_pid")"
+      if token_line="$(fm_lock__read_owner_token "$lock_path")"; then
+        own_pid="${token_line%% *}"
+        own_start="${token_line#* }"
+        if [[ "$own_pid" != "$my_pid" ]]; then
+          # Foreign token — leave the lock in place.
+          return 0
+        fi
+        if [[ -n "$my_start" && "$own_start" != "unknown" && -n "$own_start" && \
+              "$own_start" != "$my_start" ]]; then
+          # PID match but starttime mismatch (reuse) — leave lock in place.
+          return 0
+        fi
+      fi
+      rm -f -- "${lock_path}/owner" "${lock_path}/.owner.tmp."* 2>/dev/null || true
       rmdir -- "$lock_path" 2>/dev/null || true
       ;;
   esac
@@ -1217,14 +1276,20 @@ fm_lock__write_owner_token() {
     start="unknown"
   fi
   token="pid=${pid}"$'\n'"start=${start}"$'\n'
-  # Write via temp + rename inside the lock dir so losers cannot plant a token
-  # on a lock they did not create (they never enter this path).
-  printf '%s' "$token" >"${lock_path}/.owner.tmp.$$" 2>/dev/null || return 1
-  mv -f -- "${lock_path}/.owner.tmp.$$" "${lock_path}/owner" 2>/dev/null || {
-    rm -f -- "${lock_path}/.owner.tmp.$$" 2>/dev/null || true
-    return 1
-  }
-  return 0
+  # Exclusive create (integration F2): noclobber fails if owner already exists.
+  # mv -f overwrites and lets a check-then-act loser steal the token; O_EXCL
+  # (bash noclobber) identifies exactly one winner.
+  # @exitcode 0 written; 2 lost race (owner present); 1 other failure
+  if (
+    set -C
+    printf '%s' "$token" >"${lock_path}/owner"
+  ) 2>/dev/null; then
+    return 0
+  fi
+  if [[ -e "${lock_path}/owner" ]]; then
+    return 2
+  fi
+  return 1
 }
 
 fm_lock__read_owner_token() {
@@ -1315,6 +1380,40 @@ fm_lock_reclaim() {
     return 1
   fi
 
+  # Integration F1: deletion is authorised ONLY when the selected mechanism is
+  # positively the mkdir fallback. Indeterminate never authorises deletion;
+  # flock releases on process death so reclaim there is meaningless. Gate
+  # inside the helper so every caller (nats-bridge, wt-new, el_init) is safe.
+  local select_rc=0 select_err mech=""
+  select_err="$(mktemp "${TMPDIR:-/tmp}/fm-reclaim-mech.XXXXXX")" || select_err=""
+  _FM_LOCK_SELECTED=""
+  if [[ -n "$select_err" ]]; then
+    fm_lock__select_mechanism "$lock_path" >/dev/null 2>"$select_err" || select_rc=$?
+  else
+    fm_lock__select_mechanism "$lock_path" >/dev/null 2>/dev/null || select_rc=$?
+  fi
+  mech="${_FM_LOCK_SELECTED:-}"
+  if (( select_rc != 0 )) || [[ -z "$mech" ]]; then
+    local why=""
+    [[ -n "$select_err" && -f "$select_err" ]] && \
+      why="$(tr -d '\r' <"$select_err" 2>/dev/null | head -n 1)"
+    [[ -n "$select_err" ]] && rm -f -- "$select_err"
+    printf 'FM_LOCK_RECLAIM_REFUSED lock=%s reason=mechanism_indeterminate%s\n' \
+      "$lock_path" "${why:+ detail=${why}}" >&2
+    return 1
+  fi
+  [[ -n "$select_err" ]] && rm -f -- "$select_err"
+  if [[ "$mech" == "flock" ]]; then
+    printf 'FM_LOCK_RECLAIM_REFUSED lock=%s reason=mechanism_is_flock\n' \
+      "$lock_path" >&2
+    return 1
+  fi
+  if [[ "$mech" != "mkdir" ]]; then
+    printf 'FM_LOCK_RECLAIM_REFUSED lock=%s reason=mechanism_not_mkdir mechanism=%s\n' \
+      "$lock_path" "$mech" >&2
+    return 1
+  fi
+
   local token_line pid start liveness
   if ! token_line="$(fm_lock__read_owner_token "$lock_path")"; then
     printf 'FM_LOCK_RECLAIM_REFUSED lock=%s reason=no_owner_token_liveness_undetermined\n' \
@@ -1344,7 +1443,8 @@ fm_lock_reclaim() {
       ;;
   esac
 
-  # Holder provably dead — remove token then directory (exactly this lock).
+  # Holder provably dead AND mechanism is positively mkdir — remove token then
+  # directory (exactly this lock).
   rm -f -- "${lock_path}/owner" "${lock_path}/.owner.tmp."* 2>/dev/null || true
   if rmdir -- "$lock_path" 2>/dev/null; then
     printf 'FM_LOCK_RECLAIMED lock=%s dead_holder_pid=%s dead_holder_start=%s\n' \

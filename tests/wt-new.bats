@@ -1,7 +1,12 @@
 #!/usr/bin/env bats
 load helpers
 
-setup() { setup_tmp_repo; cd "$REPO"; }
+setup() {
+  setup_tmp_repo
+  # Hermetic trust for index-lock acquire (integration F4).
+  setup_lock_trust_fixture
+  cd "$REPO"
+}
 
 @test "wt-new creates worktree, branch, and report scaffold" {
   run bash "$SCRIPTS/wt-new.sh" run1 implement slug1

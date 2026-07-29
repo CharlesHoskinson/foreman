@@ -63,6 +63,8 @@ setup() {
   nats-server -js -p "$NATS_TEST_PORT" -sd "$NATS_STORE" >/dev/null 2>&1 &
   echo $! > "$BATS_TEST_TMPDIR/nats.pid"
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
+  # Hermetic trust for bridge/eventlog locks (integration F4).
+  setup_lock_trust_fixture
   source "$SCRIPTS/lib/common.sh"
   source "$SCRIPTS/lib/eventlog.sh"
   source "$SCRIPTS/lib/nats-bridge.sh"
@@ -213,36 +215,48 @@ teardown() {
 # bats test_tags=slow
 @test "lock: token match removes a lock this process acquired" {
   local rd; rd="$(seed_run run1)"
-  mkdir -p "$rd/.nats-bridge.lock"
-  local token="cafef00dcafef00d"
-  printf '%s:%s' "$$" "$token" > "$rd/.nats-bridge.lock/owner"
-  _NB_LOCK_PATH="$rd/.nats-bridge.lock"
-  _NB_LOCK_TOKEN="$token"
-  _nb_lock_release "$rd/.nats-bridge.lock"
-  [ ! -d "$rd/.nats-bridge.lock" ]
+  # Trust contract: acquire via shared helper (mkdir mutex) so owner token is
+  # the exclusive pid/start form; release only when this process holds.
+  setup_lock_mkdir_trust_fixture x
+  source "$SCRIPTS/lib/lock.sh"
+  source "$SCRIPTS/lib/nats-bridge.sh"
+  fm_lock__available_mechanisms() { printf '%s\n' "mkdir"; }
+  local lock="$rd/.nats-bridge.lock"
+  fm_lock_acquire "$lock" 5
+  [ -d "$lock" ]
+  [ -f "$lock/owner" ]
+  _NB_LOCK_PATH="$lock"
+  _nb_lock_release "$lock"
+  [ ! -d "$lock" ]
 }
 
 # bats test_tags=slow
-@test "lock: owner-write failure removes the just-created lock and returns 1" {
+@test "lock: owner-write failure removes the just-created lock and returns 5" {
   local rd; rd="$(seed_run run1)"
-  # Wrap mkdir so the real lock-dir mkdir (nb_bridge_once's own acquisition
-  # call) succeeds normally, but the instant it does, occupy the owner path
-  # with a directory of its own -- this makes the subsequent
-  # `printf ... > "$lock/owner"` redirection fail (cannot write a regular
-  # file where a directory already exists) without ever touching
-  # nb_bridge_once's unconditional `mkdir "$lock"` acquisition call itself.
+  # Force mkdir path so the owner-token publish runs. Occupy owner as a
+  # directory the instant the lock dir is created so exclusive noclobber
+  # write fails — acquire must refuse and tear down the unproven lock.
+  setup_lock_mkdir_trust_fixture x
+  source "$SCRIPTS/lib/lock.sh"
+  source "$SCRIPTS/lib/nats-bridge.sh"
+  fm_lock__available_mechanisms() { printf '%s\n' "mkdir"; }
   mkdir() {
-    if [[ "$1" == */.nats-bridge.lock ]]; then
-      command mkdir "$1" || return $?
-      command mkdir "$1/owner"
+    local args=("$@") target="" a
+    for a in "${args[@]}"; do
+      case "$a" in -*) ;; *) target="$a" ;; esac
+    done
+    if [[ "$target" == */.nats-bridge.lock ]]; then
+      command mkdir "${args[@]}" || return $?
+      command mkdir "$target/owner"
       return 0
     fi
-    command mkdir "$@"
+    command mkdir "${args[@]}"
   }
 
   run --separate-stderr nb_bridge_once run1
-  [ "$status" -eq 1 ]
-  [[ "$stderr" == *"failed to record lock ownership"* ]]
+  # Shared helper refuses with FM_LOCK_UNAVAILABLE; bridge maps to rc 5.
+  [ "$status" -eq 5 ]
+  [[ "$stderr" == *"FM_LOCK_UNAVAILABLE"* || "$stderr" == *"write owner token"* || "$stderr" == *"lock acquire refused"* ]]
   # Never hold a lock we cannot prove we own: the lock dir must be gone.
   [ ! -d "$rd/.nats-bridge.lock" ]
 

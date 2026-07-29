@@ -611,9 +611,14 @@ for entry in pinned:
   ok=False
   if mech=="mkdir":
     import re
-    if re.search(r"mkdir(at)?\([^)]*\)\s*=\s*-1\s+EEXIST", content) or "ERROR_ALREADY_EXISTS" in content:
+    # Integration F3: EEXIST must be bound to the pin probe_target.
+    probe=(entry.get("probe_target") or entry.get("probe_path") or "").strip()
+    if not probe:
+      raise SystemExit(0)
+    frag=re.escape(probe)
+    if re.search(r"mkdir(at)?\([^\n]*"+frag+r"[^\n]*\)\s*=\s*-1\s+EEXIST", content):
       ok=True
-    if "holder_acquired" in content and "EEXIST" in content:
+    elif re.search(r"mkdir(at)?\([^\n]*"+frag+r"[^\n]*\).*(EEXIST|ERROR_ALREADY_EXISTS)", content):
       ok=True
   elif mech=="flock":
     import re
