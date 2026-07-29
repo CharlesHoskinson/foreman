@@ -31,6 +31,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/eventlog.sh"
 source "$SCRIPT_DIR/lib/checkpoint.sh"
 source "$SCRIPT_DIR/lib/config.sh"
+# shellcheck source=lib/liveness.sh
+source "$SCRIPT_DIR/lib/liveness.sh"
 
 # @description Pure watchdog state-transition function: given the age
 #   (seconds) since the lane's last liveness event, the previous state, and
@@ -745,20 +747,26 @@ wd_is_queued() {
 }
 
 # @description Whether the ownership-recorded owning process is confirmed
-#   alive. Prefers launcher_pid (the job owner) over pid (CMD/gate's own
-#   root child) -- same precedence lane-supervise.sh's ls_sweep_lane uses
-#   (check_pid="${lpid:-$pid}"). An unrecorded pid (both null/empty -- e.g.
-#   an ownership_timeout) can never be POSITIVELY confirmed dead, so it
-#   defaults to "alive": AGENT_ABANDONED must never fire on missing data
-#   alone, only on a confirmed-dead `kill -0`.
+#   live *work* (state-and-CPU, never existence). Prefers launcher_pid (the
+#   job owner) over pid (CMD/gate's own root child) -- same precedence
+#   lane-supervise.sh's ls_sweep_lane uses (check_pid="${lpid:-$pid}").
+#   An unrecorded pid (both null/empty -- e.g. an ownership_timeout) can
+#   never be POSITIVELY confirmed dead, so it defaults to "alive":
+#   AGENT_ABANDONED must never fire on missing data alone.
+#
+#   Existence-only predicates (pgrep / kill -0) are FORBIDDEN here: a process
+#   with STAT beginning T (SIGTTIN-suspended after a self-update, 2026-07-29)
+#   still answers kill -0 and pgrep, and a watchdog that trusts them waits its
+#   full budget on a process that cannot run. See lib/liveness.sh.
 # @arg $1 launcher_pid (may be empty/"null")  @arg $2 pid (may be empty/"null")
-# @exitcode 0 alive (or unknown); 1 confirmed dead
+# @exitcode 0 alive (or unknown); 1 confirmed not live work (DEAD/SUSPENDED/WEDGED)
 wd_pid_alive() {
   local lpid="$1" pid="$2" check=""
   [[ -n "$lpid" && "$lpid" != "null" ]] && check="$lpid"
   [[ -z "$check" && -n "$pid" && "$pid" != "null" ]] && check="$pid"
   [[ -z "$check" ]] && return 0
-  kill -0 "$check" 2>/dev/null
+  # State-and-CPU judgement — never kill -0 / pgrep existence alone.
+  lv_is_live "$check"
 }
 
 # Single-pass, single-jq-spawn program for the v2 typed-state cascade:

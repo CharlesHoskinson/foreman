@@ -102,6 +102,12 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/eventlog.sh"
 # shellcheck source=lib/config.sh
 source "$SCRIPT_DIR/lib/config.sh"
+# shellcheck source=lib/liveness.sh
+source "$SCRIPT_DIR/lib/liveness.sh"
+# shellcheck source=lib/evidence.sh
+source "$SCRIPT_DIR/lib/evidence.sh"
+# shellcheck source=lib/stall.sh
+source "$SCRIPT_DIR/lib/stall.sh"
 
 # @description Print usage to stderr.
 ls_usage() {
@@ -395,30 +401,58 @@ ls_sweep_lane() {
   # Liveness pid check uses ONLY the latest ROUND's own ownership event (a
   # stale pid from an earlier, already-completed round must never keep a new
   # round looking alive).
+  #
+  # Existence is NOT liveness (2026-07-29): kill -0 / pgrep match a SIGTTIN-
+  # suspended process (STAT=T) identically to a running one. Use lib/liveness.sh
+  # state-and-CPU judgement instead. A SUSPENDED or WEDGED pid is reported via
+  # the stall taxonomy (lib/stall.sh) and is NOT treated as ALIVE.
   local alive=0
+  local stall_line=""
+  local check_pid=""
   local round_ownership
   round_ownership="$(jq -c 'select(.type=="ownership")' <<<"$round_events" | tail -n1 | tr -d '\r')"
   if [[ -n "$round_ownership" ]]; then
-    local lpid pid check_pid
+    local lpid pid
     lpid="$(jq -r '.payload.launcher_pid // empty' <<<"$round_ownership")"
     lpid="${lpid%$'\r'}"
     pid="$(jq -r '.payload.pid // empty' <<<"$round_ownership")"
     pid="${pid%$'\r'}"
     check_pid="${lpid:-$pid}"
-    if [[ -n "$check_pid" ]] && kill -0 "$check_pid" 2>/dev/null; then
-      alive=1
+    if [[ -n "$check_pid" ]]; then
+      stall_line="$(stall_from_pid "$check_pid")"
+      if [[ "$stall_line" == ALIVE* ]]; then
+        alive=1
+      elif [[ "$stall_line" == STALL* ]]; then
+        # Shadow-mode gate (D7): classify and log; do not treat as live work.
+        ls_log "run $run lane $lane: $stall_line"
+      fi
     fi
   fi
   if [[ -n "$wt" && -d "$wt/.harness/lane.lock" ]]; then
-    alive=1
+    # Conservatism preserved from pre-T2: a held lock alone kept the lane
+    # ALIVE (stale lock after hard-kill is an accepted safety/liveness
+    # tradeoff — see header NEVER-RULES). Override only on *positive* stall
+    # evidence (SUSPENDED/WEDGED): existence of the lock must not re-animate
+    # a SIGTTIN-stopped process that kill -0 would have falsely counted live.
+    if [[ "$stall_line" == STALL* ]]; then
+      :
+    else
+      alive=1
+    fi
   fi
 
   if (( alive == 1 )); then
-    ls_log "run $run lane $lane: ALIVE (owning pid live, or lane.lock held); noop -- never respawn a live/locked lane"
+    ls_log "run $run lane $lane: ALIVE (owning pid live work, or lane.lock held without a stalled pid); noop -- never respawn a live/locked lane"
     return 0
   fi
 
-  ls_log "run $run lane $lane: ABANDONED (has a prompt, no round_done, not alive/locked)"
+  # NEVER_LAUNCHED probe (shadow): ownership missing a live vendor after grace.
+  # Report evidence; still fall through to ABANDONED handling.
+  if [[ -n "$stall_line" && "$stall_line" == DEAD* ]]; then
+    ls_log "run $run lane $lane: $(stall_report NEVER_LAUNCHED "ownership pid dead or absent; $stall_line")"
+  fi
+
+  ls_log "run $run lane $lane: ABANDONED (has a prompt, no round_done, not alive/locked${stall_line:+; $stall_line})"
   ls_handle_abandoned "$run" "$lane" "$events" "$round_events" "$wt" "$dry_run"
 }
 
