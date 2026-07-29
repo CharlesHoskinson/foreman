@@ -242,7 +242,7 @@ serialisation rule in `docs/research/vnext/LANDING-ORDER.md`.
 | S2 | `test-infrastructure-hardening` |
 | S3 | `wsl-launcher-shipped`, `wsl-tool-path-persistence`, `wsl-preflight`, `wsl-seam-doctrine` |
 | S4 | `decision-lineage-and-telemetry`, `three-outcome-verdicts`, `round-ownership-default`, `doctrine-reality-drift` |
-| S5 | `vendor-adapter-contract`, `agy-lane-activation`, `cross-vendor-audit-routing`, `vendor-concurrency-and-quota` |
+| S5 | `vendor-preflight`, `vendor-adapter-contract`, `agy-lane-activation`, `cross-vendor-audit-routing`, `vendor-concurrency-and-quota` |
 | S6 | `knowledge-plane-refresh`, `work-dag-projection`, `audit-groundedness-gate` |
 | S7 | `graph-context-builder` |
 | S8 | `graph-store-port`, `terminusdb-schema`, `terminusdb-adapter`, `terminusdb-operations`, `graph-eval-falsification` |

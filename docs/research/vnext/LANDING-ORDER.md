@@ -66,7 +66,7 @@ for it, and `config/foreman.toml.example` at 7 claimants is exactly that shape.
 | **S2** | `test-infrastructure-hardening`, `formal-model-suite` | Everything after is verified by this suite. Hardening it first is what makes later green ticks mean anything. |
 | **S3** | `wsl-launcher-shipped` → `wsl-tool-path-persistence` → `wsl-preflight` → `wsl-seam-doctrine` (serial) | Four of the six `tool-check.sh` claimants and three of the four `foreman-setup.sh` claimants sit here. |
 | **S4** | `decision-lineage-and-telemetry` → `three-outcome-verdicts` → `round-ownership-default` → `doctrine-reality-drift` (serial on `config.toml`/`lane-run.sh`) | Telemetry precedes every comparative claim in the release. Round ownership needs the S1 lock. |
-| **S5** | `vendor-adapter-contract` → `agy-lane-activation` → `cross-vendor-audit-routing` → `vendor-concurrency-and-quota` (serial) | All four claim `config/foreman.toml.example`; three claim `tool-check.sh`. |
+| **S5** | `vendor-preflight` → `vendor-adapter-contract` → `agy-lane-activation` → `cross-vendor-audit-routing` → `vendor-concurrency-and-quota` (serial) | All four claim `config/foreman.toml.example`; three claim `tool-check.sh`. |
 | **S6** | `evidence-contracts`, `regression-harness-tiers`, `release-metrics` | Consume S2 and S4; low contention among themselves. |
 | **S7** | `knowledge-plane-refresh` → `work-dag-projection` → `audit-groundedness-gate` (serial on `gate-eval.sh`) | Graph plane, files-only. GP-2's first five checks need no store. |
 | **S8** | `graph-context-builder` | Consumes S7. |
