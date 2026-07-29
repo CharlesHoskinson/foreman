@@ -21,14 +21,18 @@
 #
 # Source this file; do not execute.
 #
-# FM_LOCK_UNAVAILABLE detail-string shape (stable for L2/L4):
-#   "<operation> <target>: <message>"
+# Refusal detail-string shape (stable for L2/L4):
+#   "<subject> <target>: <message>"
 # where:
-#   operation — the failing primitive name, one of:
+#   subject   — the failing primitive or decision domain, one of:
 #     "mkdir -p", "touch", "open fd", "flock -n", "mkdir"
+#     "filesystem", "mechanism"
 #   target    — the path (or parent path) the operation acted on
 #   message   — the primitive's stderr text when available; otherwise a short
-#               fallback such as "failed" or "exec redirect failed (rc=N)".
+#               fallback or key=value diagnostic fields.
+# FM_LOCK_FS_UNSUPPORTED uses filesystem + lock path and names detected_class
+# and covered_classes. FM_LOCK_NO_ATOMIC_PRIMITIVE and
+# FM_LOCK_PROBE_UNTRUSTED use mechanism + the affected primitive(s).
 # Bash does not expose errno numerically; the message is the portable stand-in
 # for "errno" in this shell helper.
 
@@ -100,6 +104,8 @@ fm_lock__refuse() {
 : "${_FM_LOCK_LOCAL_PROBED_MECHS:=}"
 # Last verdict from fm_lock__verdict_for (avoids subshell cache loss — F7)
 : "${_FM_LOCK_LAST_VERDICT:=}"
+# Covered filesystem classes from the source of an fs-unsupported verdict.
+: "${_FM_LOCK_LAST_COVERED_CLASSES:=}"
 # Selected mechanism from fm_lock__select_mechanism (avoids $() subshell — F7)
 : "${_FM_LOCK_SELECTED:=}"
 # Host class override for tests (empty = auto-detect)
@@ -539,6 +545,50 @@ print("|".join(["ok", verdict, trace, fs_ok, probe]))
   printf '%s\n' "$pin_verdict"
 }
 
+# @description List filesystem classes on the current pin for MECHANISM.
+#   Used only to explain an already-decided fs-unsupported refusal.
+fm_lock__pinned_classes_for() {
+  local mech="$1" sha="$2"
+  local manifest host_now
+  manifest="$(fm_lock__manifest_path)"
+  host_now="$(fm_lock__host_class)"
+  if [[ -z "$manifest" || ! -r "$manifest" || -z "$sha" ]]; then
+    printf ''
+    return 0
+  fi
+  python3 -c '
+import sys
+try:
+  import tomllib
+except ImportError:
+  try:
+    import tomli as tomllib
+  except ImportError:
+    raise SystemExit(0)
+manifest, mech, sha, host_now = sys.argv[1:5]
+try:
+  data = tomllib.load(open(manifest, "rb"))
+except Exception:
+  raise SystemExit(0)
+lock_atomicity = data.get("lock_atomicity") or {}
+pins = lock_atomicity.get("pinned") or [] if isinstance(lock_atomicity, dict) else []
+for entry in pins:
+  if not isinstance(entry, dict):
+    continue
+  if (entry.get("mechanism") or "") != mech:
+    continue
+  if (entry.get("sha256") or "").lower() != sha.lower():
+    continue
+  if (entry.get("host_class") or "").strip() != host_now:
+    continue
+  classes = entry.get("filesystem_classes") or []
+  if isinstance(classes, str):
+    classes = [classes]
+  print(",".join(str(item) for item in classes if item))
+  break
+' "$manifest" "$mech" "$sha" "$host_now" 2>/dev/null || true
+}
+
 # Mechanism-relative local probe (BRIEF section 0). Never writes inventory.
 fm_lock__local_probe_mech() {
   local mech="$1"
@@ -729,6 +779,7 @@ fm_lock__inventory_pin_ok() {
 fm_lock__verdict_for() {
   local mech="${1:-}" lock_path="${2:-}"
   _FM_LOCK_LAST_VERDICT=""
+  _FM_LOCK_LAST_COVERED_CLASSES=""
   [[ -z "$mech" || -z "$lock_path" ]] && return 0
 
   fm_lock__ensure_verdict_cache
@@ -763,6 +814,7 @@ fm_lock__verdict_for() {
         fi
       elif [[ "$currency" == "fs-uncovered" ]]; then
         _FM_LOCK_LAST_VERDICT="fs-unsupported"
+        _FM_LOCK_LAST_COVERED_CLASSES="$r_fs"
         printf '%s\n' "fs-unsupported"
         return 0
       else
@@ -780,6 +832,9 @@ fm_lock__verdict_for() {
     pin="$(fm_lock__pinned_verdict "$mech" "$now_sha" "$fs_class")"
     if [[ "$pin" == "atomic" || "$pin" == "non-atomic" || "$pin" == "fs-unsupported" ]]; then
       _FM_LOCK_LAST_VERDICT="$pin"
+      if [[ "$pin" == "fs-unsupported" ]]; then
+        _FM_LOCK_LAST_COVERED_CLASSES="$(fm_lock__pinned_classes_for "$mech" "$now_sha")"
+      fi
       printf '%s\n' "$pin"
       return 0
     fi
@@ -811,6 +866,7 @@ fm_lock__verdict_for() {
         fi
         if [[ "$currency" == "fs-uncovered" ]]; then
           _FM_LOCK_LAST_VERDICT="fs-unsupported"
+          _FM_LOCK_LAST_COVERED_CLASSES="$r_fs"
           printf '%s\n' "fs-unsupported"
           return 0
         fi
@@ -838,8 +894,8 @@ fm_lock__untrusted_detail() {
   sha="$(fm_lock__sha256 "$path")"
   # lock_path reserved for future path-specific messaging
   : "${lock_path:=}"
-  printf 'host_class=%s durable_lanes=unavailable mechanism=mkdir path=%s sha256=%s remedy=trace-on-Foreman-controlled-host-of-same-class-commit-artifact-add-[[lock_atomicity.pinned]]-in-env/reference-manifest.toml' \
-    "$host" "${path:-none}" "${sha:-none}"
+  printf 'mechanism %s: path=%s host_class=%s sha256=%s durable_lanes=unavailable remedy=trace-on-Foreman-controlled-host-of-same-class-commit-artifact-add-[[lock_atomicity.pinned]]-in-env/reference-manifest.toml' \
+    "${path:-none}" "${path:-none}" "$host" "${sha:-none}"
 }
 
 # @description Resolve which mechanism (if any) is trusted for LOCKPATH.
@@ -847,7 +903,7 @@ fm_lock__untrusted_detail() {
 #   shell (not via $()) so the process-local probe cache is retained (F7).
 fm_lock__select_mechanism() {
   local lock_path="$1"
-  local mech verdict
+  local mech verdict covered
   local any_atomic=0
   local any_fs_unsup=0
   local any_trusted_polarity=0
@@ -855,6 +911,8 @@ fm_lock__select_mechanism() {
   local mech_count=0
   local flock_atomic=0
   local mkdir_atomic=0
+  local covered_classes=""
+  local negative_mechanisms=""
   _FM_LOCK_SELECTED=""
 
   # Warm cache in THIS shell before any per-mechanism work.
@@ -881,10 +939,26 @@ fm_lock__select_mechanism() {
         ;;
       non-atomic)
         any_trusted_polarity=1
+        if [[ -z "$negative_mechanisms" ]]; then
+          negative_mechanisms="$mech"
+        else
+          negative_mechanisms="${negative_mechanisms},${mech}"
+        fi
         ;;
       fs-unsupported)
         any_fs_unsup=1
         all_trusted_negative=0
+        local IFS=','
+        for covered in ${_FM_LOCK_LAST_COVERED_CLASSES:-}; do
+          [[ -z "$covered" ]] && continue
+          if [[ ",$covered_classes," != *",$covered,"* ]]; then
+            if [[ -z "$covered_classes" ]]; then
+              covered_classes="$covered"
+            else
+              covered_classes="${covered_classes},${covered}"
+            fi
+          fi
+        done
         ;;
       *)
         all_trusted_negative=0
@@ -911,11 +985,13 @@ fm_lock__select_mechanism() {
   fi
 
   if (( any_fs_unsup && any_trusted_polarity == 0 )); then
-    fm_lock__refuse "FM_LOCK_FS_UNSUPPORTED"
+    fm_lock__refuse "FM_LOCK_FS_UNSUPPORTED" \
+      "filesystem ${lock_path}: detected_class=$(fm_lock__fs_class "$lock_path") covered_classes=${covered_classes:-none}"
     return 1
   fi
   if (( all_trusted_negative && any_trusted_polarity )); then
-    fm_lock__refuse "FM_LOCK_NO_ATOMIC_PRIMITIVE"
+    fm_lock__refuse "FM_LOCK_NO_ATOMIC_PRIMITIVE" \
+      "mechanism ${negative_mechanisms:-none}: atomic_primitive=absent trusted_verdict=non-atomic"
     return 1
   fi
   if (( any_trusted_polarity == 0 )); then
@@ -1133,7 +1209,7 @@ fm_lock__acquire_mkdir() {
 # @arg $1 lock_path path of the lock (file for flock; directory for mkdir)
 # @arg $2 timeout_sec optional bounded spin seconds (default FM_LOCK_TIMEOUT_SEC)
 # @stdout mechanism name on success (flock|mkdir)
-# @stderr one FM_LOCK_* code on refusal (UNAVAILABLE includes a detail string)
+# @stderr one FM_LOCK_* code on refusal, with detail where the code requires it
 # @exitcode 0 acquired; 1 refused
 fm_lock_acquire() {
   local lock_path="${1:-}"
