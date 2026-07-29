@@ -613,3 +613,54 @@ after v0.2.9.
   judgement on Unison, which is a serious piece of work whose content-addressing
   and effect-typing are genuinely relevant to problems this project does not
   principally have.
+
+---
+
+## D11 correction — a wildcard in an exclusion pattern is an unverified claim about every directory it matches
+
+**2026-07-29. My ruling caused the sixth relocation. This corrects it.**
+
+D11 ruled that the exec-bit exclusion list must be **by pattern, never by
+filename**, because a filename list is an enumeration and enumerations are what
+this package spent five rounds relocating out of. That reasoning was right and
+it is retained.
+
+**What I got wrong was the patterns themselves.** One of them was
+`skills/superpowers/skills/*/scripts/**`, written to exclude
+`brainstorming/scripts/{start,stop}-server.sh`, whose `sh …` invocation I had
+verified. The wildcard `*/` also silently matched
+`skills/superpowers/skills/subagent-driven-development/scripts/` — **the three
+directly-executed SDD scripts this entire package exists to protect.** Their
+committed modes happen to be correct, so nothing broke; but the regression test
+stopped covering them, which means a fourth SDD script would escape exactly as
+the first three did in round 1.
+
+Round 6 also dropped D1's required non-bash `skills/superpowers/hooks/*` sweep,
+so that family lost its protection too.
+
+**The asymmetry I missed.** A pattern is safer than a filename for *inclusions*,
+because it covers files that do not exist yet. For *exclusions* that same
+property is a hazard: a wildcard excludes directories nobody has checked,
+including ones created later. An inclusion wildcard fails safe; an exclusion
+wildcard fails silent.
+
+**Corrected rule.** An exclusion entry MAY use a wildcard only where the stated
+reason is true of **every** current match, and the author MUST enumerate the
+current matches and verify each one. Where the reason is specific to one
+directory, name that directory:
+
+- `skills/superpowers/skills/brainstorming/scripts/**` — documented
+  `sh skills/brainstorming/scripts/<name>` invocations. **Not** the `*/`
+  wildcard, which captures a family with the opposite invocation.
+
+This is not a retreat to enumeration. The rule remains: exclusions are stated as
+patterns and each carries a falsifiable reason. What is added is that **the
+pattern's breadth is part of the claim** — writing `*/` asserts the reason holds
+for every sibling directory, and that assertion has to be checked like any other.
+
+**The test that would have caught me.** A regression asserting the three known
+SDD scripts remain *in* the derived inventory. The suite verified that new files
+are caught; it did not verify that the original three still are. A checker that
+proves it detects additions but never proves it still covers its founding case is
+half a checker — and this is the second time on this package that a test passed
+while the thing it existed to protect had quietly left its scope.
