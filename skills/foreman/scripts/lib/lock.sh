@@ -33,7 +33,16 @@
 # for "errno" in this shell helper.
 
 # Process-local hold state. At most one held lock (flat rule).
-# Idempotent init: re-sourcing must not erase a live outer lock's record.
+# Idempotent across re-source in the SAME process (H5): a genuine outer hold
+# must survive. Inherited values from a parent environment are foreign and
+# must not count as a live hold (N3) — gate on a process-local PID sentinel.
+if [[ "${_FM_LOCK_INIT_PID:-}" != "${BASHPID:-$$}" ]]; then
+  _FM_LOCK_HELD_PATH=""
+  _FM_LOCK_MECHANISM=""
+  _FM_LOCK_FD=""
+  FM_LOCK_MECHANISM=""
+  _FM_LOCK_INIT_PID="${BASHPID:-$$}"
+fi
 : "${_FM_LOCK_HELD_PATH:=}"
 : "${_FM_LOCK_MECHANISM:=}"
 : "${_FM_LOCK_FD:=}"
@@ -279,21 +288,24 @@ fm_lock__acquire_flock() {
 
   # Open a dedicated FD and hold it for the critical-section lifetime.
   # Capture open failure message without losing the FD on success.
-  local lock_fd
+  # Use automatically-allocated descriptors only — never hardcode FD 3 (or
+  # any fixed FD): a caller may already own it (N1).
+  local lock_fd save_stderr
   errfile="$(mktemp "${TMPDIR:-/tmp}/fm-lock-open.XXXXXX")" || {
     fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
       "open fd for ${lock_path}: mktemp failed"
     return 1
   }
   open_rc=0
-  exec 3>&2
+  exec {save_stderr}>&2
   exec 2>"$errfile"
   exec {lock_fd}>>"$lock_path" || open_rc=$?
-  exec 2>&3
-  exec 3>&-
+  exec 2>&"$save_stderr"
+  eval "exec ${save_stderr}>&-" 2>/dev/null || true
   if (( open_rc != 0 )); then
     err="$(tr -d '\r' <"$errfile" 2>/dev/null | head -n 1)"
     rm -f -- "$errfile"
+    eval "exec ${lock_fd}>&-" 2>/dev/null || true
     fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
       "open fd for ${lock_path}: ${err:-exec redirect failed (rc=${open_rc})}"
     return 1
@@ -499,7 +511,11 @@ fm_lock_release() {
 #   The lock is released exactly once whether COMMAND succeeds, fails, calls
 #   exit, or the shell is terminated by HUP/INT/TERM. A trap plus fall-through
 #   share a once-flag so release is never double.
-#   Acquisition refusal propagates without running COMMAND.
+#   COMMAND runs in a subshell so its trap mutations cannot overwrite the
+#   wrapper's cleanup (N2). Pre-existing EXIT/HUP/INT/TERM traps are saved
+#   and restored exactly — never cleared permanently (N2).
+#   Acquisition refusal propagates without running COMMAND and installs no
+#   trap.
 # @arg $1 lock_path
 # @arg $2 timeout_sec optional; if the next arg is --, $2 is timeout and
 #   command follows --; otherwise $2 starts the command and timeout is
@@ -543,6 +559,9 @@ fm_with_lock() {
   # Once-flag shared by trap and fall-through — exactly one release.
   local _fm_wl_path="$lock_path"
   local _fm_wl_released=0
+  # Re-executable trap definitions for EXIT/HUP/INT/TERM (may be empty).
+  local _fm_wl_saved_traps
+  _fm_wl_saved_traps="$(trap -p EXIT HUP INT TERM 2>/dev/null || true)"
 
   # shellcheck disable=SC2329
   _fm_with_lock_release_once() {
@@ -552,21 +571,35 @@ fm_with_lock() {
     fi
   }
 
-  # EXIT covers normal return paths that still exit the shell (e.g. `exit 7`
-  # inside the critical-section command). Signal traps cover termination.
+  # shellcheck disable=SC2329
+  _fm_with_lock_restore_traps() {
+    trap - EXIT HUP INT TERM
+    if [[ -n "${_fm_wl_saved_traps}" ]]; then
+      eval "${_fm_wl_saved_traps}"
+    fi
+  }
+
+  # shellcheck disable=SC2329
+  _fm_with_lock_finish() {
+    _fm_with_lock_release_once
+    _fm_with_lock_restore_traps
+  }
+
+  # EXIT covers shell-exit paths while the lock is held. Signal traps cover
+  # HUP/INT/TERM. All finish paths share the once-flag (no double release).
   # shellcheck disable=SC2064
-  trap '_fm_with_lock_release_once' EXIT
+  trap '_fm_with_lock_finish' EXIT
   # shellcheck disable=SC2064
-  trap '_fm_with_lock_release_once; trap - EXIT HUP INT TERM; exit 129' HUP
+  trap '_fm_with_lock_finish; exit 129' HUP
   # shellcheck disable=SC2064
-  trap '_fm_with_lock_release_once; trap - EXIT HUP INT TERM; exit 130' INT
+  trap '_fm_with_lock_finish; exit 130' INT
   # shellcheck disable=SC2064
-  trap '_fm_with_lock_release_once; trap - EXIT HUP INT TERM; exit 143' TERM
+  trap '_fm_with_lock_finish; exit 143' TERM
 
   local rc=0
-  "$@" || rc=$?
+  # Subshell: command trap changes / `exit` cannot clobber parent cleanup.
+  ( "$@" ) || rc=$?
 
-  _fm_with_lock_release_once
-  trap - EXIT HUP INT TERM
+  _fm_with_lock_finish
   return "$rc"
 }
