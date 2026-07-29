@@ -31,7 +31,7 @@
 # @exitcode 1 NOT-READY -- see the printed NOT-READY line(s) for which
 #   vendor(s)/tools are blocking, and the instruction to fix each
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
