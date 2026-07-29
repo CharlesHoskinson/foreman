@@ -1,3 +1,9 @@
+// coverage: skills/foreman/scripts/gate-eval.sh
+// coverage: skills/foreman/scripts/audit-run.sh
+// coverage: skills/foreman/scripts/checks-run.sh
+// coverage: skills/foreman/scripts/docs-check.sh
+// coverage: skills/foreman/scripts/wt-merge.sh
+// See formal/coverage.tsv for the drift gate.
 // Foreman audit -> verdict -> gate -> merge decision model.
 // M3 round 2 models routing and freshness for every merge-authorizing artifact.
 //

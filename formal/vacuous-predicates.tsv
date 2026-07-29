@@ -1,0 +1,7 @@
+# formal/vacuous-predicates.tsv — predicates that hold vacuously for a named property
+# Columns (tab-separated):
+#   predicate	cannot_answer	use_instead	evidence
+# IF a manifest row or report cites `predicate` as the check for `cannot_answer`,
+# THEN the suite fails. The predicate may still be used for other properties.
+predicate	cannot_answer	use_instead	evidence
+rework_rounds_bounded	UNVERIFIED-loop termination / unbounded auditAttempts under always-error auditor	audit_attempts_bounded_by_three	VERIFY-quint-architect.md ADDENDUM 2: rework_rounds_bounded constrains round which never advances in that loop; trivially true in exactly the failure it was meant to detect. three-outcome-verdicts needs a separate max_audit_attempts bound.

@@ -1,0 +1,4 @@
+Some intermediate output
+[violation] Found an issue (131ms at 466 traces/second).
+Use --seed=0xdeadbeef --backend=rust to reproduce.
+error: Invariant violated

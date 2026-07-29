@@ -1,3 +1,9 @@
+// coverage: skills/foreman/scripts/lane-supervise.sh  (successfulResumePlain ↔ :343-345)
+// coverage: skills/foreman/scripts/lane-run.sh
+// coverage: skills/foreman/scripts/lane-queue.sh
+// coverage: skills/foreman/scripts/watch.sh
+// See formal/coverage.tsv for the drift gate.
+// Note: eventually_terminal is a no-fairness stuttering artifact, not a liveness defect.
 // Foreman lane lifecycle and round-ownership model.
 //
 // Reproduction recipes (Quint 0.32.0):

@@ -1,0 +1,4 @@
+Some intermediate output
+[ok] No violation found (64ms at 1563 traces/second).
+Trace length statistics: max=6, min=6, average=6.00
+You may increase --max-samples and --max-steps.
