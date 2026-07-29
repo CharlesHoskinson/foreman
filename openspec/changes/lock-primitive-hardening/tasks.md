@@ -109,11 +109,25 @@ callers onto it). T4-T6 may run in parallel once T2 lands. T7 is the gate.
 ## T7 — gate
 
 - [ ] Full suite green on WSL/Ubuntu 26.04 (the host that exposed this).
-- [ ] Full suite green on Git-Bash/Windows, **with the fallback actually taken**
-      — the host's `mkdir.exe` digest pinned in `env/reference-manifest.toml`
-      against a committed trace, the lock path on a covered filesystem class, and
-      the acquisition recorded with evidence class `pinned-mechanism`. A run in
-      which every acquisition refused does not satisfy this line.
+- [ ] **AMENDED 2026-07-29 — see D5.** Full suite green on Git-Bash/Windows
+      with the fallback actually taken is **deferred**, because it requires a
+      SHA-256 pinned from a syscall trace captured on a Foreman-controlled
+      MSYS2/Git-Bash host, and no such host is available. Fabricating the entry
+      was explicitly refused; a fabricated pin is worse than an unreachable
+      fallback. What this release requires instead, and what remains fully
+      testable here:
+  - [ ] **Reachability of the code path** proven against a structurally valid
+        register entry in a **temporary** manifest — the `mkdir` fallback IS
+        selected, creates exactly one lock directory, and releases it exactly
+        once including on the error exit path. The real register stays empty.
+  - [ ] **The refusal path on an unpinned host** is exercised and correct: the
+        helper refuses with `FM_LOCK_PROBE_UNTRUSTED`, names the host class and
+        the consequence, and names the pinning procedure as the route back.
+  - [ ] `env/reference-manifest.toml` ships with an **empty** pinned register
+        and a recorded reason; durable lanes on MSYS2/Git-Bash are documented
+        as unavailable until a real pin is committed from a traced host.
+  - [ ] The deferral is recorded in `ROADMAP.md` under honest residuals, not
+        silently carried.
 - [ ] Confirm the refusal path on Git-Bash is reachable too: with the digest
       un-pinned, the helper refuses with `FM_LOCK_PROBE_UNTRUSTED` and names the
       pinning procedure, and non-durable lanes still run.

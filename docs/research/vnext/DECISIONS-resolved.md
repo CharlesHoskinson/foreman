@@ -202,3 +202,49 @@ because they are the specification record for shipped work.
   control inventory, the S4 ordering impossibility, `doctrine-reality-drift`
   failing every later gate, and `GraphUpdate` — an artifact no package
   produces — carrying a load-bearing requirement in `graph-store-port`.
+
+---
+
+## D5 — The Git-Bash half of the S1 gate is deferred, not satisfied
+
+**Decided 2026-07-29 by the product owner.**
+
+`lock-primitive-hardening` T7 required the full suite green on Git-Bash *with
+the mkdir fallback actually taken*, and stated that "a run in which every
+acquisition refused does not satisfy this line." That is unsatisfiable in the
+current environment.
+
+**Why.** Taking the fallback requires a trusted `pinned-mechanism` verdict,
+which requires the resolved `mkdir.exe` SHA-256 to match a register entry
+citing a **committed syscall trace captured on a Foreman-controlled
+MSYS2/Git-Bash host**. No such host is available. The L2 implementer was
+offered the option to seed the register anyway and correctly refused, recording
+in `env/reference-manifest.toml`: *"no Foreman-controlled MSYS2/Git-Bash host
+was available to capture a real syscall trace. Do not invent a digest."*
+
+**What was considered and rejected.** Seeding a plausible digest would make the
+gate pass and the release ship with a trust anchor nobody traced — the precise
+failure this package exists to prevent, committed by the package itself. A
+version-string match is explicitly not a digest match, and the spec says so.
+
+**Decision.** Split the requirement into the part that is testable without the
+host and the part that is not:
+
+- **Kept and required:** the fallback *code path* is proven reachable against a
+  structurally valid entry in a temporary manifest; the refusal path on an
+  unpinned host is exercised and names the route back to availability; the real
+  register ships empty with its reason.
+- **Deferred:** the on-host Git-Bash green run with a real pin.
+
+**What this costs, stated plainly.** Durable lanes on MSYS2/Git-Bash are
+**unavailable** in v0.2.9 — not degraded, unavailable — until someone commits a
+real pin from a traced host. Lanes taking no foreman lock are unaffected. The
+fallback's only reason to exist is that host, so this release ships a mechanism
+that is correct-by-construction and unexercised on the platform it was built
+for. That is a real gap and it belongs in the roadmap's honest residuals, not
+in a footnote.
+
+**What would close it.** One trace on any Foreman-controlled Git-Bash host,
+committed as an artifact, with its digest and covered filesystem classes
+recorded in the register. The procedure is documented; the blocker is access,
+not design.

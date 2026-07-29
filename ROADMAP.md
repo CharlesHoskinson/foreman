@@ -394,6 +394,15 @@ architect against the shipped source:**
 
 ### Honest residuals
 
+- **Durable lanes are unavailable on MSYS2/Git-Bash in this release** (D5). The
+  `mkdir` fallback exists only for that host and can only be selected on a
+  `pinned-mechanism` verdict, which needs a SHA-256 pinned from a syscall trace
+  taken on a Foreman-controlled Git-Bash host. No such host was available, and
+  seeding a plausible digest was refused rather than fabricated. The code path
+  is proven reachable against a temporary manifest and the refusal path names
+  the route back, but the mechanism ships unexercised on the one platform it
+  was built for. One committed trace closes it.
+
 - The baseline suite on a fresh WSL clone is **373 pass / 9 fail**, and only two
   of the nine were product defects. Two (`#138 kill_cmd_bounded`, `#343`
   container hardened-run) remain untriaged and are carried as open items rather
