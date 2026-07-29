@@ -11,9 +11,14 @@ it. The two must not both rewrite that block.
 
 ## T1 — confirm the premises before changing anything
 
-- [ ] Re-confirm the stale-verdict hazard: no path in `audit-run.sh` removes or
-      rewrites `$RD/audit-verdict.json` before an audit starts, and
-      `gate-eval.sh:43-47` performs no freshness check. Record the evidence.
+- [ ] Re-confirm the stale-verdict hazard **behaviourally** (D12 — do not rely
+      on line numbers; `gate-eval.sh` was modified by
+      `decision-lineage-emission` and its line numbering has shifted): no path
+      in `audit-run.sh` removes or rewrites `$RD/audit-verdict.json` before an
+      audit starts, and `gate-eval.sh` performs no freshness check on that
+      artifact. Verify with:
+      `grep -nE 'audit-verdict\.json' skills/foreman/scripts/audit-run.sh skills/foreman/scripts/gate-eval.sh`
+      and record the output as the evidence.
 - [ ] Re-confirm `gate-eval.sh` does not source `lib/config.sh` and does not
       read `[audit.policy]`.
 - [ ] Grep for every consumer of the literal strings `APPROVED`, `WARNING`,

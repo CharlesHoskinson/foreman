@@ -9,11 +9,20 @@ measured non-atomic on the reference host.
 
 ## T1 — confirm the premises before changing anything
 
-- [ ] Re-confirm that `DURABLE_ENABLED` has no consumer: exactly two
-      occurrences, both in `lib/config.sh` (`:66`, `:148`). Record the command
-      and its output.
-- [ ] Re-confirm `lane-run.sh --round`'s completion predicate at `:1143-1245`
-      — gate pass AND attempt-fresh report, `round_done` suppressed otherwise.
+- [ ] Re-confirm that `DURABLE_ENABLED` has no consumer. **CORRECTED (D12):
+      the original premise claimed two occurrences at `:66` and `:148`; the
+      measured count is ONE, at `lib/config.sh:66`, and it was also one at the
+      planning base `65728f7`. The premise was false when written.** Verify
+      with `grep -rn 'DURABLE_ENABLED' skills/foreman/scripts/` and record the
+      output. The load-bearing claim — that the key is inert because nothing
+      reads it — still stands; only the count was wrong.
+- [ ] Re-confirm `lane-run.sh --round`'s completion predicate **behaviourally**
+      (D12 — the previously cited range `:1143-1245` is stale;
+      `decision-lineage-emission` modified this file): the round completes only
+      on gate pass AND an attempt-fresh report, with `round_done` suppressed
+      otherwise. Locate it with
+      `grep -nE 'round_done|attempt.fresh' skills/foreman/scripts/lane-run.sh`
+      and record the output.
 - [ ] Confirm `cfg_get` resolves a boolean key through env > TOML > default
       the same way it resolves the integer `[durable]` keys.
 - [ ] IF any premise fails, stop and record the finding; do not adapt the

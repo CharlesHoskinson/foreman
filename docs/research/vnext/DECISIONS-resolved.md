@@ -454,3 +454,65 @@ detects it. The durable fix is to derive direct-exec targets from call sites
 rather than from documentation — noted in `wsl-seam-doctrine` as the checker
 that would close it. Until then this is a documented approximation, not a
 proof, and it is recorded as such rather than presented as settled.
+
+---
+
+## D12 — Premises cite behaviour and carry their check command; never a line number or an unverified count
+
+**Decided 2026-07-29, after auditing every premise stop-condition in the
+release against the work already committed.**
+
+Five packages open with a "re-confirm the premises, and **stop** if any fails"
+task. That discipline is right — it prevents building on a false assumption —
+but the premises themselves were written in two forms that rot.
+
+**Form 1: pinned to line numbers.** `three-outcome-verdicts` says
+*"`gate-eval.sh:43-47` performs no freshness check"*. After
+`decision-lineage-emission` added `el_emit` to that file, lines 43-47 are the
+**hash-drift check**. The semantic claim is still true; the coordinates are
+not. A lane sent to verify a claim at those lines finds unrelated code.
+`round-ownership-default` cites `lane-run.sh:1143-1245` for a completion
+predicate; that region is now a payload comment block.
+
+**Form 2: an unverified count.** `round-ownership-default` says
+`DURABLE_ENABLED` has *"exactly two occurrences, both in `lib/config.sh`
+(`:66`, `:148`)"*. Measured: **one** occurrence, at `:66`. And at the original
+planning base `65728f7`, also **one**. **The premise was false when written** —
+nobody ran the grep. A lane would have correctly stopped, having spent a round
+to discover something a single command answers.
+
+This is the same defect the release already documents twice over: three
+documents carrying three different counts for the exec-bit fix, all three
+wrong; and an inventory asserting 41 files while structurally unable to see the
+42nd. **A number in a specification is a claim, and an unrun claim is a guess.**
+
+**Ruling.** Every premise SHALL:
+
+1. **State a behaviour, not a location.** "`gate-eval.sh` performs no freshness
+   check on the verdict artifact" is checkable forever. "`gate-eval.sh:43-47`
+   performs no freshness check" expires on the next edit to that file.
+2. **Carry the command that verifies it**, inline, so re-confirmation is
+   mechanical and its result is reproducible by the next reader.
+3. **Never assert a count that has not been run** at the commit the premise is
+   written against. If a count is load-bearing, the command producing it is
+   part of the premise.
+
+**Consequence for the two affected packages.** Their premises are amended in
+place rather than left to fail a lane: the line citations are replaced with
+behavioural statements plus check commands, and the `DURABLE_ENABLED` premise
+is corrected from two occurrences to one, with the grep that establishes it.
+The stop-conditions themselves are kept — they are the part that works.
+
+**Consequence for dogfooding (D9).** Shipping an enhancement invalidates the
+stated premises of packages downstream of it. `release-metrics` T1 told its
+implementer to confirm that `gate-eval.sh` and `audit-run.sh` contain **zero**
+`el_emit` calls and to stop if not — a premise that `decision-lineage-emission`
+inverted **by design**, four hours after it was written. That package was
+re-baselined before dispatch rather than being allowed to stop.
+
+**Therefore: re-baseline the premises of every package downstream of a
+just-shipped enhancement, before dispatching it.** Under D9 the codebase moves
+while the plan is being executed, so a premise written against the planning
+snapshot is a claim about a repository that no longer exists. This is the
+standing cost of dogfooding, and it is cheaper than the alternative — but it
+has to be paid deliberately, at dispatch time, by the architect.
