@@ -248,3 +248,137 @@ in a footnote.
 committed as an artifact, with its digest and covered filesystem classes
 recorded in the register. The procedure is documented; the blocker is access,
 not design.
+
+---
+
+## D6 — S4's impossible order, resolved by splitting rather than reordering
+
+**Closes FINAL-opus F4.**
+
+`decision-lineage-and-telemetry` sits at position 1 of S4 and states in bold
+*"Do not start before `three-outcome-verdicts` has merged"*, which is position
+2. The stated order cannot be executed.
+
+**Root cause:** the dependency is real but applies to only half the package.
+Verdict lineage genuinely needs the three-outcome vocabulary to exist. Token
+counts, cost, model identity, and the plain fact that `gate-eval.sh` and
+`audit-run.sh` call `el_emit` at all need nothing from it.
+
+**Ruling — split the package:**
+
+- **4a `decision-lineage-emission`** — `el_emit` from `gate-eval.sh` and
+  `audit-run.sh`; per-lane tokens, cost, wall-clock, model identity and vendor.
+  **No dependency.** Starts immediately.
+- **4b `decision-lineage-verdicts`** — verdict lineage bound to the diff content
+  hash, consuming the three-outcome vocabulary. Follows `three-outcome-verdicts`.
+
+This is a smaller change than reordering the stage and it unblocks the half we
+most need. Today's session produced roughly fifteen lane dispatches, ten audit
+verdicts and ten hours of wall clock, and **not one byte of it is in
+`events.jsonl`** — so every question about whether the audit rounds were worth
+their cost can currently be answered only in prose. 4a fixes exactly that.
+
+## D7 — Every new gate lands in shadow mode first
+
+**Closes FINAL-opus F1, and is the mechanism for D9.**
+
+`doctrine-reality-drift` as specified fails the merge gate closed for every
+stage after it. The general problem: this release adds several gates, and a
+gate that is wrong is worse than a gate that is absent, because it blocks
+correct work while looking principled.
+
+**Ruling.** Every gate, probe and blocking check introduced by v0.2.9 SHALL
+land in **shadow mode**: it computes its verdict, records it via `el_emit`, and
+reports it — but it does **not** block. It is promoted to gating only after it
+has produced a verdict on **at least ten of Foreman's own runs** with no false
+positive, and the promotion is recorded with the run identifiers that justified
+it.
+
+This is not a weakening. A gate promoted on measured field evidence is stronger
+than one switched on at merge because its author believed it. It also makes
+`doctrine-reality-drift` landable immediately rather than blocking S5 onward.
+
+**Precedent from today:** the lane reaper's first two predicates each produced a
+false positive on their first real run — once against a live interactive
+session, once against a healthy lane blocked on a model response. Both would
+have killed correct work had they shipped gating. Both were caught by running
+them in report-only mode. This ruling generalises that accident into policy.
+
+## D8 — `lib/evidence.sh` is owned by `evidence-contracts`
+
+**Closes FINAL-opus F6.**
+
+`three-outcome-verdicts` (S4) and `evidence-contracts` (S6) both claim
+`skills/foreman/scripts/lib/evidence.sh` and both encode the function
+identically. A pure ownership ruling was required.
+
+**Ruling: `evidence-contracts` owns and creates the file.**
+`three-outcome-verdicts` consumes it and SHALL NOT define it. Two reasons:
+the file is the subject matter of `evidence-contracts` rather than an
+incidental dependency, and under the contention-derived schedule (D9)
+`evidence-contracts` lands in wave 1 while `three-outcome-verdicts` lands in
+wave 6, so the owner lands first in execution order as well as in principle.
+
+## D9 — Dogfood every enhancement in the session that produces it
+
+**The rule: nothing waits for the tag.**
+
+Foreman's enhancements are for orchestrating exactly the work that builds
+Foreman. Holding them until release means the release is built without them,
+which is how this session went — the strandings, the undetected suspension, the
+unattributable foreign watchdog, and the checker that reported a pass it had
+not earned are all failures the release's own packages exist to prevent, and
+all of them happened because those packages were unbuilt.
+
+**Ruling.** Every enhancement SHALL be put into use in Foreman's own workflow
+in the same session it becomes runnable, under D7 shadow mode, and the evidence
+from those runs is what promotes it. Concretely, for the packages now in flight:
+
+| Package | How it is used the day it lands |
+|---|---|
+| `decision-lineage-emission` (4a) | every audit and implement lane this project dispatches is recorded — tokens, cost, model, wall clock. First real dataset on what a round costs. |
+| `evidence-contracts` | lane success is decided by a content hash over a declared deliverable set instead of the architect eyeballing `git status`. |
+| `round-ownership-default` | dispatch stops relying on a prompt telling a lane not to background itself; today that prohibition was stated verbatim and violated twice. |
+| `lane-ownership-and-reaping` | already in use — `tools/lanectl.sh` and `tools/reap-stale-lanes.sh` were written and used the same day. |
+| `vendor-preflight` | run before every dispatch, so a false `not_authenticated` cannot gate a round again. |
+| `test-infrastructure-hardening` | the tiered suite becomes the pre-merge check for every remaining package. |
+
+**Proof this works, from today:** `AGENT_TRAPS.md` was written mid-session and
+handed to every subsequent lane; `lanectl.sh` and `reap-stale-lanes.sh` were
+written and immediately used to diagnose a `SIGTTIN`-suspended lane that a
+`pgrep` watchdog had reported as alive. Same-session use is also what exposed
+both reaper false positives. Deferred tooling would have caught none of it.
+
+**The one constraint.** Dogfooding unreleased gates in the harness that builds
+them is a bootstrap risk: a buggy gate could block correct work. D7 shadow mode
+is precisely the mitigation, and no enhancement may be dogfooded in blocking
+mode before it earns promotion.
+
+## D10 — The remaining work is scheduled by contention, not by stage number
+
+`docs/research/vnext/parallel-schedule.py` derives the conflict graph from the
+same claim-extraction rules as `contention-derive.py` (two packages conflict iff
+they claim a common file, because LANDING-ORDER requires same-file claimants to
+land serially) and greedily colours it into waves of pairwise-disjoint write
+sets.
+
+**Result: 25 remaining packages collapse from 11 sequential stages into 8
+waves, with a widest wave of 10.**
+
+**What actually bounds throughput** — and it is not the graph:
+
+- `lane-run.sh` is claimed by 8 packages, `config/foreman.toml.example` by 7,
+  `env/tool-check.sh` by 6. Those three files serialise most of S3, S4 and S5
+  no matter how the schedule is drawn.
+- Vendor concurrency caps are grok 3, codex 2, claude 3, so a wave wider than
+  about five implement lanes cannot all run regardless of file disjointness.
+- **The real limit is round depth, not width.** S1 took roughly eleven rounds
+  across four packages because each audit must follow its fix and each fix
+  round has historically introduced a new defect. Parallelism cannot compress a
+  serial audit-rework cycle; only better specification up front can.
+
+**Therefore the schedule is advisory on ordering and binding on nothing.** Wave
+membership says what MAY run together, not what MUST. Logical dependencies
+still apply on top of it — D6's 4a should run in wave 1 despite the contention
+graph placing `decision-lineage-and-telemetry` in wave 3, because the split
+removes the dependency that put it there.
