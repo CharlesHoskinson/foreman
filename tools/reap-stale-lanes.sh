@@ -77,9 +77,11 @@ for row in "${ROWS[@]}"; do
   reason=""
 
   if [[ "$stat" == T* ]]; then
-    reason="STOPPED (stat=$stat) — suspended by signal, cannot self-recover"
+    # SUSPENDED: STAT begins with T. Cannot self-recover.
+    reason="SUSPENDED (stat=$stat) — suspended by signal, cannot self-recover"
   elif (( el > GRACE && cp == 0 )); then
-    reason="zero CPU after ${el}s elapsed — never began working"
+    # WEDGED: zero CPU after grace — never began working.
+    reason="WEDGED zero CPU after ${el}s elapsed — never began working"
   fi
 
   [[ -n "$reason" ]] && suspects+=("$pid|$comm|$stat|$cput|$etim|$reason")

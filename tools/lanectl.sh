@@ -10,15 +10,21 @@
 # cannot tell is to leave a wedged process running.
 #
 # Ownership is recorded three ways, deliberately redundant:
-#   1. FM_LANE_OWNER in the environment  -> inherited by every child
-#   2. FM_LANE_LABEL in the environment  -> what the lane is for
-#   3. a PID registry file under $FM_LANE_DIR -> survives exec/argv rewriting
+#   1. FM_LANE_OWNER / FM_LANE_LABEL in the environment -> inherited by children
+#   2. a PID registry file under $FM_LANE_DIR -> survives argv rewriting
+#   3. a directory marker (.fm-lane-owner) via `claim` -> the ONLY source that
+#      survives a vendor CLI re-execing itself. Observed 2026-07-29: grok
+#      replaced its own process (pid 984219 -> 1030746); the replacement carried
+#      neither the inherited FM_LANE_* environment nor the registered pid. The
+#      worktree it ran in did not change, so the directory marker still
+#      attributed it. Keep all three.
 #
 # Never uses `pkill -f`: it has previously matched its own command line.
 #
 # Usage:
 #   lanectl.sh launch LABEL -- CMD...   start a tagged lane (backgrounded)
-#   lanectl.sh adopt PID LABEL          claim an already-running process
+#   lanectl.sh adopt PID LABEL          claim an already-running process subtree
+#   lanectl.sh claim DIR LABEL          write a directory ownership marker
 #   lanectl.sh ps [--all]               list my lanes (or every tagged lane)
 #   lanectl.sh reap [--force]           kill MY wedged lanes only
 #   lanectl.sh sweep                    drop dead PIDs from the registry
@@ -37,7 +43,46 @@ proc_env() {
   tr '\0' '\n' < "/proc/$1/environ" 2>/dev/null | sed -n "s/^$2=//p" | head -1
 }
 
-# @description Owner tag of a pid: environ first, registry as fallback.
+# @description Mark a directory as owned by this lane owner. Attribution by cwd
+#   is the only source that survives a vendor CLI re-execing itself (see header).
+# @arg $1 directory  @arg $2 label
+cmd_claim() {
+  local dir="$1" label="${2:-claimed}"
+  [[ -d "$dir" ]] || { echo "not a directory: $dir" >&2; return 1; }
+  printf 'owner=%s\nlabel=%s\nclaimed=%s\n' \
+    "$FM_LANE_OWNER" "$label" "$(date -u +%FT%TZ)" > "$dir/.fm-lane-owner"
+  echo "claimed $dir owner=$FM_LANE_OWNER label=$label"
+}
+
+# @description Owner recorded by a directory marker, walking up from a cwd.
+owner_by_cwd() {
+  local d="$1" guard=0
+  while [[ -n "$d" && "$d" != "/" ]]; do
+    (( ++guard > 24 )) && break
+    if [[ -r "$d/.fm-lane-owner" ]]; then
+      sed -n 's/^owner=//p' "$d/.fm-lane-owner" | head -1
+      return 0
+    fi
+    d="$(dirname "$d")"
+  done
+  return 1
+}
+
+# @description Label recorded by a directory marker, walking up from a cwd.
+label_by_cwd() {
+  local d="$1" guard=0
+  while [[ -n "$d" && "$d" != "/" ]]; do
+    (( ++guard > 24 )) && break
+    if [[ -r "$d/.fm-lane-owner" ]]; then
+      sed -n 's/^label=//p' "$d/.fm-lane-owner" | head -1
+      return 0
+    fi
+    d="$(dirname "$d")"
+  done
+  return 1
+}
+
+# @description Owner tag of a pid: environ, then registry, then directory marker.
 owner_of() {
   local o; o="$(proc_env "$1" FM_LANE_OWNER)"
   if [[ -n "$o" ]]; then printf '%s\n' "$o"; return 0; fi
@@ -48,6 +93,12 @@ owner_of() {
       basename "$f" .pids; return 0
     fi
   done
+  # Last resort: the directory the process is running in. Survives re-exec.
+  local cwd; cwd="$(readlink -f "/proc/$1/cwd" 2>/dev/null)"
+  if [[ -n "$cwd" ]]; then
+    local co; co="$(owner_by_cwd "$cwd" 2>/dev/null)"
+    if [[ -n "$co" ]]; then printf '%s\n' "$co"; return 0; fi
+  fi
   printf 'UNTAGGED\n'
 }
 
@@ -105,6 +156,10 @@ cmd_ps() {
     [[ "$all" != "--all" && "$o" != "$FM_LANE_OWNER" ]] && continue
     local l; l="$(proc_env "$pid" FM_LANE_LABEL)"
     [[ -z "$l" ]] && l="$(awk -v p="$pid" '$1==p{print $2; exit}' "$REG" 2>/dev/null)"
+    if [[ -z "$l" ]]; then
+      local cw; cw="$(readlink -f "/proc/$pid/cwd" 2>/dev/null)"
+      [[ -n "$cw" ]] && l="$(label_by_cwd "$cw" 2>/dev/null)"
+    fi
     printf '%-8s %-6s %-9s %-10s %-22s %-14s %s\n' \
       "$pid" "$stat" "$cput" "$etim" "$o" "${l:--}" "$comm"
   done < <(ps -eo pid,stat,time,etime,comm --no-headers |
@@ -127,6 +182,7 @@ cmd_reap() {
     [[ -z "$reason" ]] && continue
     echo "REAP pid=$pid ($comm) -- $reason"
     if [[ "$force" == "--force" ]]; then
+      # Kill by recorded PID only. NEVER pkill -f.
       kill -TERM "$pid" 2>/dev/null; sleep 2; kill -KILL "$pid" 2>/dev/null
       killed=$((killed+1))
     fi
@@ -150,8 +206,9 @@ cmd_sweep() {
 case "${1:-ps}" in
   launch) shift; cmd_launch "$@" ;;
   adopt)  shift; cmd_adopt "$@" ;;
+  claim)  shift; cmd_claim "$@" ;;
   ps)     shift; cmd_ps "${1:-}" ;;
   reap)   shift; cmd_reap "${1:-}" ;;
   sweep)  cmd_sweep ;;
-  *) echo "usage: lanectl.sh {launch LABEL -- CMD...|adopt PID LABEL|ps [--all]|reap [--force]|sweep}" >&2; exit 2 ;;
+  *) echo "usage: lanectl.sh {launch LABEL -- CMD...|adopt PID LABEL|claim DIR LABEL|ps [--all]|reap [--force]|sweep}" >&2; exit 2 ;;
 esac
