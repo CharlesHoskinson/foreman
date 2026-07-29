@@ -129,12 +129,12 @@ notes = "Test harness for skills/foreman/scripts (tests/run.sh). Probe-verified 
 
 [[tools]]
 id = "flock"
-profile = ["hard", "full"]
+profile = ["hard", "full", "durable"]
 where = ["wsl"]
 check = "command -v flock"
 install_wsl = "sudo apt-get install -y util-linux"
 required = true
-notes = "Serialized worktree ops. NOT required on the Windows/Git-Bash host: lane locking falls back to mkdir-based atomic locks (see eventlog.sh/wt-new.sh). util-linux flock is unavailable on Git-Bash (no pacman); WSL-side only."
+notes = "Primary durable lock mechanism (lock-primitive-hardening). Required for hard/full/durable on WSL/Linux. NOT available on MSYS2/Git-Bash (no pacman util-linux flock); that host uses the mkdir fallback only when the resolved mkdir.exe digest is in the pinned atomicity register below. Advisory locking on network/DrvFs mounts is filesystem-class scoped — see lock_atomicity probe rows."
 
 # --- Gate parallelism (v0.2.5 --jobs enabler; see docs/research gate-speedup) ---
 [[tools]]
@@ -308,7 +308,7 @@ must = ["git", "python3", "jq", "grok", "codex", "docker", "flock", "foreman_ski
 should = ["claude", "node", "npm", "shellcheck", "bats", "gh", "timeout", "bun", "pueue"]
 
 [profiles.durable]
-must = ["git", "jq", "coreutils", "bash"]
+must = ["git", "jq", "coreutils", "bash", "flock"]
 should = ["nats-server", "nats-cli"]
 
 [[skills]]
@@ -326,3 +326,59 @@ path = "skills/graphify"
 [[skills]]
 id = "superpowers"
 path = "skills/superpowers"
+
+
+# =============================================================================
+# Lock atomicity (lock-primitive-hardening, round L2 / T5)
+# =============================================================================
+# Evidence classes that may license atomic|non-atomic: syscall, pinned-mechanism.
+# contention may license non-atomic only. flavour licenses nothing on its own.
+# Entries in the pinned register come ONLY from a syscall trace taken on a
+# Foreman-controlled host — never from a version string or a vendor claim.
+# A version-string match is not a digest match.
+
+[lock_atomicity.coreutils_hazard]
+date = "2026-07-28"
+host = "Ubuntu 26.04 (WSL2 reference box)"
+summary = """
+Ubuntu 26.04 ships a hybrid coreutils: mkdir, stat, date, sort and ln resolve
+to uutils (Rust) 0.8.0 while mv and rm remain GNU 9.7. Measured 2026-07-28 with
+8 racers on one lock: uutils 57 mutual-exclusion violations / 15 rounds; GNU 0;
+flock 0 on ext4, tmpfs and drvfs. uutils performs a userspace statx check-then-
+act (TOCTOU); GNU issues mkdir(2) and takes EEXIST from the kernel. See
+docs/research/vnext/F-uutils-mkdir-blocker.md and tests/probes/mkdir-atomicity.sh.
+"""
+uutils_utilities = ["mkdir", "stat", "date", "sort", "ln"]
+uutils_version = "0.8.0"
+gnu_utilities = ["mv", "rm"]
+gnu_version = "9.7"
+measured_violations_uutils_15x8 = 57
+measured_violations_gnu_15x8 = 0
+measured_violations_flock_ext4 = 0
+measured_violations_flock_tmpfs = 0
+measured_violations_flock_drvfs = 0
+
+# Pinned atomicity register.
+# Each entry: mechanism, sha256 of the primitive binary, host_class the syscall
+# trace was taken on, path to the committed trace artifact (repo-relative),
+# filesystem_classes the verdict covers, date, and optional notes.
+# Seed policy (BRIEF T5): seed at least one MSYS2/Git-Bash mkdir.exe so the
+# fallback's only host has a reachable trusted path. IF a real Git-Bash trace
+# cannot be obtained in the implementing environment, leave the register with
+# ZERO seeded entries rather than fabricating one. A fabricated entry is worse
+# than an unreachable fallback.
+#
+# [[lock_atomicity.pinned]]
+# mechanism = "mkdir"
+# sha256 = "<hex>"
+# host_class = "msys2-git-bash"
+# trace_artifact = "docs/research/lock-traces/msys2-mkdir-<digest-prefix>.trace"
+# filesystem_classes = ["local"]
+# date = "YYYY-MM-DD"
+# verdict = "atomic"
+# notes = "strace/NT-equivalent observed mkdir create + ERROR_ALREADY_EXISTS"
+
+# Intentionally empty on day of L2 implementation in the WSL-only worktree:
+# no Foreman-controlled MSYS2/Git-Bash host was available to capture a real
+# syscall trace. Do not invent a digest. Git-Bash durable locks remain
+# unreachable until a real pin is committed from a traced host.
