@@ -827,6 +827,378 @@ proposed enhancement. Newest at the bottom.
   CI check that fails on a BOM-less .ps1 containing bytes > 127); extend the windows-latest CI smoke test to
   invoke via `powershell.exe` (5.1), not only `pwsh`, so this class of bug is caught.
 
+## 2026-07-27 — CRLF recurrence: every `*.sh` unrunnable from WSL despite `.gitattributes`
+
+- **Phase:** Setup (soft mode), first invocation of `foreman-setup.sh` from WSL
+- **What happened:** `bash scripts/foreman-setup.sh --profile soft` died immediately with
+  `lib/common.sh: line 3: $'\r': command not found`. Every `.sh` in the repo worktree was CRLF.
+- **Evidence:** `od -c` on `scripts/lib/common.sh` showed `bash \r \n` at line 1; `git show HEAD:...`
+  of the same file showed `bash \n` — i.e. **the blob is correct and only the worktree was wrong**.
+  78 `.sh` files affected.
+- **Root cause:** repo-local `core.autocrlf=true` fighting the repo's own
+  `.gitattributes` (`*.sh text eol=lf`). The attributes rule postdates the checkout, so files
+  already materialized as CRLF were never re-normalized. `.gitattributes` governs *future*
+  checkouts; it does not retroactively fix an existing worktree.
+- **Impact:** total — soft mode cannot start. This is a **recurrence**: the `.gitattributes` comment
+  already cites "bugeventlog 2026-07-16 tool-check-unrunnable-from-WSL". The rule was added but the
+  worktree was never renormalized and `core.autocrlf` was left `true`, so the fix never took effect.
+- **Fix applied:** `tr -d '\r'` across all `*.sh`/`*.bash`/`*.bats` (from WSL — doing it via Git Bash
+  silently re-adds CRLF on write), then `git config core.autocrlf false`. `git diff` confirmed
+  **zero content change** — the 10 files that had shown as modified were pure line-ending artifacts,
+  not WIP.
+- **Proposed enhancement:** (a) ship a `make normalize` / `scripts/fix-eol.sh` that runs
+  `git add --renormalize .`; (b) have `foreman-setup.sh` **detect** CRLF in its own `lib/` and fail
+  with `CRLF detected — run scripts/fix-eol.sh` instead of a raw `$'\r'` syntax error; (c) add a CI
+  check that greps the worktree for CRLF in `*.sh`. A one-line guard would have converted a 40-minute
+  diagnosis into a one-line instruction.
+
+## 2026-07-27 — Skill installed as a detached copy: `env/` absent, Setup stage unrunnable
+
+- **Phase:** Setup (soft mode)
+- **What happened:** `~/.claude/skills/foreman/` contained only `SKILL.md`, `references/`, `scripts/`
+  (46 files). `env/` was entirely missing, as were `worker-run.sh`, `wt-new.sh`, `wt-merge.sh`,
+  `wt-cleanup.sh`, `wt-consolidate.sh` — all five referenced by SKILL.md.
+- **Evidence:** `diff -rq` against `~/foreman/skills/foreman` showed the copy's *contents* identical;
+  it was simply a **real directory, not the symlink `install.sh` creates**.
+- **Root cause:** `install.sh` `link_skill()` refuses to replace a non-symlink destination
+  (`SKIP ... exists and is not a link`) and there is **no `--force`**. Once a real directory exists at
+  the destination — however it got there — every subsequent install silently no-ops, and the skill
+  ages in place. `env/` also lives at **repo root**, not under `skills/foreman/`, so it can only ever
+  resolve when the destination is a link into the repo.
+- **Impact:** `foreman-setup.sh` — the mandatory Setup gate — cannot run at all. The whole
+  "Setup must report READY before Use" contract is unenforceable on a copy-installed host.
+- **Proposed enhancement:** (a) add `install.sh --force` that backs up and replaces a non-link
+  destination; (b) have `install.sh` warn loudly when the destination exists as a real dir, naming
+  the consequence ("env/ will not resolve; Setup stage will be unrunnable"); (c) consider vendoring
+  `env/` **inside** `skills/foreman/` so the skill is self-contained and copy-installs degrade
+  gracefully rather than silently.
+
+## 2026-07-27 — `SCRIPT_DIR` uses logical `pwd`, so `REPO_ROOT` breaks through install.sh's own symlink
+
+- **Phase:** Setup (soft mode), after repairing the install to a junction
+- **What happened:** with `~/.claude/skills/foreman` correctly linked to the repo,
+  `foreman-setup.sh` still could not find `env/tool-check.sh`.
+- **Evidence:** `scripts/foreman-setup.sh:34` is
+  `SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"` — **logical** `pwd`. Line 41 then does
+  `REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"`. Invoked via the link, `SCRIPT_DIR` stays
+  `/mnt/c/Users/charl/.claude/skills/foreman/scripts`, so `../../..` resolves to
+  `/mnt/c/Users/charl/.claude` — which has no `env/`.
+- **Root cause:** **self-inconsistency.** `install.sh` deliberately installs the skill as a *symlink*,
+  but the scripts' repo-root resolution assumes a *physical* path. `pwd` follows the logical path and
+  does not traverse the link; `pwd -P` does. The comment on line 38–40 even claims the resolution is
+  "independent of the caller's cwd" — it is, but not independent of the *install shape* the project's
+  own installer produces.
+- **Impact:** the documented, supported install method breaks the mandatory Setup gate. Anyone
+  following the README hits it. Silently masked on hosts where the skill is a copy — those fail
+  earlier for the *different* reason above, which is why this has stayed hidden.
+- **Proposed enhancement:** change to `SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"`
+  in `foreman-setup.sh` and every script sharing this idiom (`lane-run.sh`'s
+  `lane_resolve_launcher` is explicitly cited as the model, so it likely has the same defect).
+  Add a regression test that invokes each entrypoint **through a symlink**, since testing only from
+  the repo path cannot catch this class.
+
+## 2026-07-27 — `foreman-setup.sh` reports `NOT-READY` without saying why
+
+- **Phase:** Setup (soft mode)
+- **What happened:** the failure surfaced as two lines:
+  `bash: //env/tool-check.sh: No such file or directory` then `SETUP: NOT-READY`.
+- **Evidence:** the doubled slash in `//env/...` is the tell — `REPO_ROOT` had resolved to empty (or
+  to a path lacking `env/`), and the script interpolated it into `$REPO_ROOT/env/tool-check.sh`
+  without validating it.
+- **Root cause:** no precondition check on `TOOL_CHECK` before invoking it, and no diagnostic naming
+  the resolved `REPO_ROOT`.
+- **Impact:** low severity but high friction — the operator cannot tell whether the vendor is
+  unauthenticated, the tool is missing, or the *install shape* is wrong. All three are one message.
+- **Proposed enhancement:** guard with
+  `[[ -f "$TOOL_CHECK" ]] || die "tool-check not found at $TOOL_CHECK (REPO_ROOT=$REPO_ROOT) — is the skill installed as a symlink into the repo?"`.
+  `NOT-READY` should always be accompanied by a machine-readable reason code
+  (`REASON=tool-check-missing|vendor-unauth|tool-missing`), which the SKILL.md contract already
+  implies with its per-vendor verdict lines.
+
+## 2026-07-27 — Dual-home install: a Windows-side install leaves WSL unprovisioned (and vice versa)
+
+- **Phase:** Setup (soft mode), Windows host driving WSL lanes
+- **What happened:** after repairing the Windows install (`C:\Users\charl\.claude\skills\foreman`),
+  `tool-check.sh` run *from WSL* still reported `foreman_skill degraded — repo has skill but not
+  installed to home (run install.sh)` and all four skills `missing`.
+- **Evidence:** WSL's `$HOME` is `/root`, so the check inspects `/root/.claude/skills/…` — a
+  different directory from the Windows `%USERPROFILE%\.claude\skills\…` that had just been fixed.
+  Running `install.sh` from WSL then linked all four skills into `/root/.claude`, `/root/.agents`
+  and `/root/.grok`, and the same check flipped to `ok`.
+- **Root cause:** on a Windows host that runs its lanes in WSL there are **two independent skill
+  homes**, and installing to one says nothing about the other. Neither `install.ps1` nor `install.sh`
+  mentions the other side, and SKILL.md's Setup section reads as if one install suffices.
+- **Impact:** moderate and confusing rather than fatal — the operator sees a `degraded` must-tool
+  immediately after a *successful* install, with a `NEXT:` hint (`run install.sh`) they believe they
+  have already followed.
+- **Proposed enhancement:** (a) have `install.ps1` detect WSL and offer to run `install.sh` inside it
+  (and vice versa); (b) make `tool-check.sh` print **which** home it inspected
+  (`skills home: /root/.claude/skills`), so a dual-home mismatch is self-evident; (c) document the
+  two-homes model explicitly in `reference-environment.md`.
+
+## 2026-07-27 — Post-fix positives, and two small friction points worth keeping
+
+- **Phase:** Setup (soft mode)
+- **What worked well (keep):** `env/bootstrap-wsl.sh --profile soft --yes` was genuinely good —
+  idempotent, installed `codespell` and `lychee` cleanly, emitted a machine-readable
+  `last-tool-check.json`, and correctly refused to authenticate anything itself, printing per-vendor
+  instructions instead. The final `SETUP: READY` + `claude: NOT-READY -- run claude auth login`
+  split (ready to work, one optional lane unauthenticated) is exactly the right shape.
+- **Friction 1:** the `NEXT:` hint prints `bash env/tool-check.sh --profile soft`, a **repo-root
+  relative** path. Copy-pasted from the skill directory — where the operator already is, having just
+  run `scripts/foreman-setup.sh` — it fails with `No such file or directory`. Suggest printing an
+  absolute path, or one relative to the script that emitted it.
+- **Friction 2:** `foreman_skill` is a **must-tool**, so a cosmetic link-shape issue produces
+  `READY: no — fix must-tools before implementation work`, which reads identically to a genuinely
+  unusable environment. Consider demoting link-shape to `degraded`-but-ready when the skill is
+  otherwise reachable, and reserving must-fail for tools that actually block a lane.
+- **Impact:** none blocking, post-fix. Recorded so the next release keeps the good parts and files
+  down the sharp edges.
+
+## 2026-07-27 — Doctrine gap: worktree-default is inapplicable when the work product is UNTRACKED
+
+- **Phase:** Implement (soft mode), OpenSpec package authoring in `/root/quint-formalization`
+- **What happened:** SKILL.md is unambiguous — *"Every soft-mode implement round runs in its own tree
+  (`wt-new <RUN> implement <slug>`); the main checkout is never an implementer target."* I deviated
+  and ran Grok directly in the main checkout.
+- **Evidence:** `git ls-files openspec | wc -l` → **0**. The entire `openspec/` tree (8 change
+  packages, 28 files) is untracked in that repo. `git worktree add` materializes only *tracked*
+  content, so a fresh implement tree would have contained **none** of the eight existing packages the
+  implementer needed to read for house style — nor the `openspec/config.yaml` that
+  `openspec validate` requires to resolve the schema.
+- **Root cause:** the worktree doctrine assumes the artifacts under change are tracked in git. That
+  holds for source code and breaks for any deliverable that is generated, gitignored, or
+  not-yet-committed. Here the implementer's *reference material* and its *output location* were both
+  untracked, so isolation would have removed the context rather than protecting it.
+- **Impact:** moderate. The round ran fine, but with no worktree there was no branch to run
+  `merge-gate.sh check` against, so the v0.2.5 merge-freshness gate was structurally unavailable —
+  a safety mechanism silently dropped, not consciously waived.
+- **Relationship to prior entries:** this is a **sibling of the 2026-07-19 "stateful/live-target"
+  entry** (verifiable unit ≠ git worktree, because deps/services live outside the checkout). Same
+  root assumption, different trigger: there the *runtime state* was external, here the *artifacts
+  themselves* are untracked. Two independent sightings suggests the assumption, not the cases, is
+  what needs revising.
+- **Proposed enhancement:** (a) have `wt-new.sh` **detect** that the spec's target paths are
+  untracked/ignored in the base repo and refuse-with-explanation rather than silently producing a
+  tree missing them; (b) define a documented `no-worktree` soft-mode profile covering both this and
+  the live-target case, stating explicitly which gates (merge-freshness, cold-diff) are unavailable
+  and what compensates (e.g. pre/post file inventory + hash snapshot); (c) note in SKILL.md that
+  worktree-default presumes a tracked work product.
+
+## 2026-07-27 — `pwd -P` fix applied to 1 of 25 scripts sharing the idiom (deliberate, needs follow-up)
+
+- **Phase:** Setup (soft mode), after repairing the symlink-resolution bug logged above
+- **What happened:** I patched only `scripts/foreman-setup.sh` to
+  `cd -P … && pwd -P`, leaving 24 other scripts on the logical-`pwd` idiom.
+- **Evidence:** `grep -rl 'dirname "${BASH_SOURCE[0]}")" && pwd)"' skills/foreman/scripts/ env/`
+  → 25 files, including `lane-run.sh`, `gate-eval.sh`, `merge-gate.sh`, `task-new.sh`, `watch.sh`,
+  `lane-queue.sh`, `resume.sh`, `audit-run.sh`, `checks-run.sh`, `pr-open.sh`.
+- **Root cause / rationale for the deviation:** not every one of the 25 derives a repo-root by
+  walking `../../..`; some only need their own directory, where logical `pwd` is harmless. Patching
+  all 25 blind would have been a 25-file unreviewed change to a repo mid-release, with a real chance
+  of breaking a script that works today. I fixed the one that demonstrably blocked the Setup gate.
+- **Impact:** unknown-but-bounded. Any *other* entrypoint invoked **through the installed symlink**
+  that resolves a repo-root this way will fail the same way. `lane-run.sh` is the highest-risk
+  remaining case — SKILL.md explicitly cites its `lane_resolve_launcher` as the model
+  `foreman-setup.sh` was copied from, so it very likely carries the identical defect, and it sits on
+  the critical path of every durable round.
+- **Proposed enhancement:** (a) audit the 25 and split them — scripts needing only `$SCRIPT_DIR`
+  vs. scripts deriving a repo root; fix the latter set together; (b) factor the resolution into one
+  helper in `lib/common.sh` (`foreman_repo_root()`) so there is a single place to be correct;
+  (c) add a CI job that invokes each entrypoint **through a symlink** — the current tests run from
+  the repo path, which cannot catch this entire class.
+
+## 2026-07-27 — Implement lane invoked via a hand-rolled launcher rather than `grok-implementer`
+
+- **Phase:** Implement (soft mode)
+- **What happened:** the `grok-implementer` agent lane exists and is the documented default, but I
+  drove the Grok CLI directly through a small `run-grok.sh` wrapper.
+- **Rationale for the deviation:** I needed (1) an explicit `timeout`, (2) the full reasoning stream
+  captured to a known log path for later audit, and (3) the same invocation shape already used for
+  the Codex lanes in this session, so the two vendors' rounds were comparable. The agent lane does
+  not expose timeout or log-path control to the caller.
+- **Impact:** low, but it means the round did **not** flow through `lane-run.sh`, so it produced no
+  `prompt`/`heartbeat`/`checkpoint`/`round_done` events and no stall watchdog — the durable-lane
+  machinery was bypassed exactly as in the 2026-07-19 entry, for a different reason.
+- **Proposed enhancement:** let the `grok-implementer` / `codex-implementer` agent lanes accept a
+  timeout and a log destination, and document the one-liner that wraps them in `lane-run.sh` so the
+  durable path is the *easy* path. Right now the ergonomic choice and the observable choice are
+  different choices, and operators will keep picking the ergonomic one.
+
+## 2026-07-27 — Two auditors returned different verdicts; no reconciliation protocol exists
+
+- **Phase:** Audit (soft mode), cross-vendor review of a Grok implement round
+- **What happened:** I ran two audit lanes on the same diff against the same acceptance criteria.
+  **Opus 5 returned `APPROVED WITH CHANGES`** (5 major, 5 minor, "decisive check clean, no
+  blockers"). **GPT-5.6 Sol returned `BLOCKED`** (11 blockers, 5 major) on the same artifacts.
+- **Evidence:** both reviews are complete, specific, and correct as far as they go. GPT found a real
+  defect Opus missed — two requirements demanding the *same* event be both a conclusive verdict and
+  an `inconclusive` one. Opus verified constraint compliance by mtime, which GPT did not attempt.
+  Neither is wrong; they audited to different depths.
+- **Root cause:** `SKILL.md`'s `[audit.policy]` table maps a verdict to an action
+  (`warning_low_resolved` / `warning_medium` / `blocked`) but assumes **one** auditor. There is no
+  documented rule for reconciling divergent verdicts, and the cross-vendor invariant actively
+  *encourages* running more than one.
+- **Impact:** I took the stricter verdict and proceeded to rework. That is a defensible default but
+  it was my judgment, not doctrine — and it is the expensive default, so a project could burn rework
+  rounds on the pessimistic auditor's findings without ever deciding that is the policy.
+- **Proposed enhancement:** extend `[audit.policy]` with a multi-auditor rule — e.g.
+  `divergence = "strictest" | "consensus" | "architect-decides"`, defaulting to `strictest` — and
+  have the consolidate step **surface the divergence explicitly** rather than silently merging the
+  two finding lists. Where auditors agree, mark it; convergence across vendors is much stronger
+  evidence than either report alone, and nothing in the current flow records that distinction.
+
+## 2026-07-27 — A rework round closed 8 findings and introduced 3 new ones; no net-progress check
+
+- **Phase:** Implement → Audit → Implement (rework) → Re-audit
+- **What happened:** after the `BLOCKED` verdict, a fix round addressed the findings. The re-audit
+  returned **`BLOCKED` again**: 8 findings `CLOSED`, 10 still `OPEN`/`PARTIAL`, **and the fix round
+  introduced new contradictions** in three requirements it had edited.
+- **Evidence:** re-audit closure table, `reviews/reaudit-probes-gpt.md`; the three regressions are
+  named against `REQ-PRB-005`, `REQ-PRB-035`, `REQ-PRB-041`.
+- **Root cause:** `max_rework_rounds` bounds the number of loops but nothing measures whether a loop
+  is **net-positive**. A rework round that closes 8 and opens 3 is progress; one that closes 2 and
+  opens 4 is not, and today both look identical to the harness — just "another round".
+- **Impact:** moderate and easy to miss. The loop terminates on a counter, not on convergence, so a
+  project can spend its full rework budget oscillating and still ship the defect it started with.
+- **Proposed enhancement:** have the re-audit stage emit a **closure delta** (`closed`, `still-open`,
+  `newly-introduced`) — GPT produced exactly this shape when asked, so the auditors can already do
+  it — and add a circuit breaker: if `newly-introduced >= closed` on any round, stop and escalate to
+  the architect/advisor instead of spending another round. Also worth stating in the doctrine that a
+  re-audit should be scoped as a **closure check**, not a fresh audit; scoping it that way is what
+  made the delta computable at all.
+
+## 2026-07-27 — Process cost exceeded the work it was gating
+
+- **Phase:** whole-loop observation, offered as calibration rather than a defect
+- **What happened:** three rounds (implement → 2 audits → fix → re-audit) were spent perfecting
+  *specifications for experiments*. I then ran all six of those experiments by hand in under two
+  hours, and they produced six conclusive verdicts plus three findings neither source document had.
+- **Root cause:** nothing in the doctrine asks *is the artifact under review on the critical path,
+  and is reviewing it cheaper than doing the thing it describes?* Foreman's rigor is uniform, so a
+  spec for a 30-minute experiment gets the same implement/audit/rework treatment as a migration.
+- **Impact:** real but not damaging here — the specs are better for it, and the anti-bias property
+  they encode is genuinely load-bearing. But the sequencing was wrong: the experiments should have
+  run first and informed the specs once, rather than the specs being hardened a priori across three
+  rounds.
+- **Proposed enhancement:** add a routing question at spec time — *"is the deliverable an artifact,
+  or a decision?"* For decision-producing work (spikes, probes, measurements) prefer **run-then-
+  specify**: execute the cheapest version, then write the spec from evidence. Reserve the full
+  implement/audit/rework loop for artifacts that persist. This would have inverted the order here
+  and saved two rounds.
+- **Also worth keeping:** the five-part spec delivered **as a file** (rather than an inline prompt)
+  worked well across three separate rounds and two vendors — implementers read it and complied, and
+  it made the cold-diff audit trivial because the acceptance criteria were already written down. No
+  change needed; recording it as a pattern to keep.
+
+## 2026-07-27 — Hand-rolled launcher used for a third consecutive round (recurrence)
+
+- **Phase:** Implement / Audit
+- **What happened:** every lane this session — Grok implement ×3, Codex audit ×2 — went through a
+  small `run-*.sh` wrapper rather than `lane-run.sh` or the `grok-implementer` / `codex-auditor`
+  agent lanes.
+- **Root cause:** unchanged from the earlier entry today — the agent lanes expose no timeout and no
+  log-path control, and I needed both (long rounds, plus a captured reasoning stream for later
+  audit). The wrapper is ~20 lines and works first time.
+- **Impact:** cumulative. Across five lanes, zero `prompt`/`heartbeat`/`checkpoint`/`round_done`
+  events were emitted and no stall watchdog was armed, so the durable-lane subsystem went entirely
+  unexercised in a session that ran ~6 hours of agent work.
+- **Why this is worth re-logging:** the first entry framed it as a one-off preference. Three rounds
+  later it is clearly the **default path**, and the durable machinery is the road not taken. When the
+  ergonomic option and the observable option differ, the ergonomic one wins every time — so the fix
+  is not documentation, it is making `lane-run.sh` (or the agent lanes) accept `--timeout` and
+  `--log` so the observable path is also the shortest one to type.
+
+## 2026-07-27 — RESOLUTION for the divergent-verdict gap: Fable as tie-breaker (operator ruling)
+
+- **Phase:** Audit (soft mode) — closes the open question raised in today's
+  "Two auditors returned different verdicts" entry.
+- **Operator decision:** when two audit lanes return different verdicts on the same diff,
+  **escalate to Fable as the deciding vote.** Do not silently default to the strictest verdict.
+- **Rationale:** "strictest wins" is a reflex, not a decision. It is also the expensive default —
+  it can consume the entire rework budget acting on the pessimistic auditor's findings without
+  anyone having chosen that policy. A third, stronger model adjudicating on the merits costs far
+  less than one unnecessary rework round.
+- **Protocol:** hand Fable both reviews, the governing five-part spec, and the diff. Ask for a
+  per-disputed-finding ruling (uphold / overturn / partially uphold) with reasons, plus an explicit
+  statement of **where the two auditors agreed** — that convergence is stronger evidence than either
+  report alone and should be marked settled rather than re-litigated. Act on the ruling.
+- **Proposed enhancement (supersedes the earlier suggestion):** implement `[audit.policy]`
+  `divergence = "tiebreak"` with a configurable `tiebreak_lane` (default Fable), alongside
+  `"strictest"` / `"consensus"` / `"architect-decides"`. The consolidate step should detect
+  divergence automatically rather than relying on the architect noticing it, and should emit the
+  agreement set separately from the disputed set — the two carry very different evidential weight
+  and today they are merged into one undifferentiated finding list.
+
+## 2026-07-27 — `run-audit.sh` exits 0 on a nonexistent brief; an agent then inferred a task and DESTROYED an artifact
+
+- **Phase:** Implement dispatch (soft mode). **Severity: data loss.**
+- **What happened:** I dispatched a sprint lane with a deliberately-defensive command:
+
+      bash run-audit.sh ../specs/SPEC-sprint-lane-c.md sprintC 2>/dev/null || bash run-grok.sh SPEC-sprint-lane-c.md sprintC
+
+  The path was wrong — `run-audit.sh` reads briefs from `./angles/`, not `../specs/`. The script
+  **still exited 0**, so the `||` fallback never fired. The Codex agent, finding its Step-1 path
+  unresolvable, **inferred** the "uniquely matching" brief (an unrelated probe audit), re-ran it, and
+  wrote the result to *that* brief's output path — overwriting `reviews/audit-probes-gpt.md`, a
+  16 KB audit (11 blockers) that a Fable tie-break ruling had been built on. No VCS history in that
+  directory. **The artifact is unrecoverable.**
+- **Evidence:** the agent disclosed it in its own report — *"The supplied Step-1 path was unrelated,
+  so I used the uniquely matching GPT probe-audit brief… Its previous contents were replaced; this
+  directory has no Git history for local recovery."* Honest, and far too late.
+- **Root cause — two independent faults, either of which alone would have prevented this:**
+  1. **`run-audit.sh` does not validate its brief argument.** It interpolates the path into a prompt
+     and launches the vendor CLI regardless. A missing brief is indistinguishable from a present one
+     at the exit-code level, so `cmd || fallback` — the standard defensive idiom — is silently
+     inert. Any operator writing that idiom against these scripts gets a false sense of safety.
+  2. **The agent treated an unresolvable input as a puzzle to solve rather than a stop condition.**
+     It then wrote to an output path *derived from its own inference*, not from the operator. Task
+     inference plus operator-unsanctioned writes is how a read-only-intent mistake becomes destructive.
+- **Impact:** one primary evidence artifact destroyed. Substance was partly recoverable — the closure
+  re-audit enumerates the original findings by id, and the tie-break restates and adjudicates them —
+  but the primary document is gone, and had the tie-break not already been written it would have been
+  much worse.
+- **Proposed enhancements (in priority order):**
+  1. **Validate inputs in every `run-*.sh` / lane launcher**: `[[ -f "$BRIEF" ]] || { echo "brief not
+     found: $BRIEF" >&2; exit 2; }`. Exit **2** for operator error, distinct from **1** for a lane
+     that ran and failed — so `||` fallbacks work as written.
+  2. **Agent contract:** an unresolvable input path is a STOP, never an inference. Add to the auditor
+     and implementer briefs: *"If a path you were given does not exist, stop and report. Do not
+     substitute a different task."*
+  3. **Never write to an inferred output path.** Output destinations must come from the operator. If
+     an agent derives its own, it must refuse and report instead.
+  4. **Write-safety for review artifacts:** auditors should write to a NEW timestamped file and let
+     the architect promote it, or refuse to overwrite a non-empty file without an explicit
+     `--overwrite`. Reviews are evidence; evidence should be append-only by default.
+- **Also worth noting:** the replacement audit was itself useful — it reviewed the *post-fix* state,
+  found 4 blockers, and independently corroborated two findings the tie-break had ruled on. The loss
+  was of history, not of insight. That is luck, not design.
+
+## 2026-07-27 — Pattern retrospective: five failures, one shape (architect-side, not foreman's)
+
+Recorded here because the workflow context is foreman's, though the failures are the architect's.
+
+- **The five:** (1) claimed all five launcher guards behaviour-tested after testing one — one was
+  broken; (2) overstated an E7 result an audit later downgraded; (3) seven false-negative results from
+  my own checkers, none self-caught; (4) a `||` fallback around a script that exits 0 on bad input,
+  which let an agent destroy an evidence artifact; (5) reused a task-specific launcher as if generic,
+  twice.
+- **The common shape:** verify the thing just changed, then assert the invariant. One sample becomes a
+  universal claim. And a check that *cannot run* reads as a check that *passed* — `if rows:` /
+  `if spec_blob:` guards laundered "could not check" into "agrees" three times in one file.
+- **What actually fixed it** (mechanisms, not intentions):
+  1. `tools/verify-all.sh` — runs every gate, loops over **all** launchers rather than sampling one,
+     treats an unrunnable gate as failure, and prints `GATES FAILED - do not claim verification`.
+     First run correctly refused to pass: 9 gates green, axiom audit showing 2 real violations.
+  2. Hard guards on silent-skip paths (C0-style) rather than `if x:` wrappers.
+  3. Mutation testing as the acceptance test for a test suite — revert the fix, confirm the test
+     breaks. Green output alone is theatre.
+- **Foreman-relevant generalisation:** the harness could offer a `verify` stage between IMPLEMENT and
+  AUDIT whose contract is *"every gate ran, and an unrunnable gate is a failure"*. Today
+  `checks-run.sh` re-runs checks from the pristine commit, which is the right idea, but nothing
+  distinguishes **a check that passed** from **a check that did not execute** — and that distinction
+  is where every one of these five failures lived.
+
 ## 2026-07-28 — Monitor watchdog died instantly (exit 127) arming a WSL lane watchdog
 
 - **Phase:** Use / dispatch (quint-lean-formalization P0 round, two Grok lanes)
