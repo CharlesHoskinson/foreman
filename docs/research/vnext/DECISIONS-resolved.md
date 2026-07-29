@@ -36,6 +36,52 @@ three contradictory documents; a derived one cannot drift.
 
 This closes final-audit blocker **C1** (codex) and **C1** (opus).
 
+### D1 amendment — 2026-07-29, after two independent audits
+
+**The 41 was also wrong.** It was a fourth count, arrived at by enumerating
+three directories, and two audit rounds falsified it:
+
+- GPT-5.6 Sol (round 1) — the SDD family was a hardcoded three-path list, so a
+  new SDD script escaped and the test passed.
+- Claude Opus (round 2) — the fix did not generalise. `skills/foreman/scripts/`
+  was still swept with a `*.sh` filter, so an extensionless script there
+  escaped, proven with a controlled pair whose only variable was the directory.
+  Opus additionally found a **fourth region reached by no pathspec at all**:
+  `install.sh` is tracked, bash-shebang, Foreman-owned, mode `100644`, and
+  `README.md:355` tells users to run `./install.sh` — which fails
+  `Permission denied` on a fresh clone. It satisfies every predicate in the
+  spec's own definition of the measured set.
+
+**Root cause of all three misses: the set was derived by DIRECTORY.** Any
+directory list is an enumeration wearing a sweep's clothing, and a hardcoded
+count is what the decision was supposed to eliminate.
+
+**Amended decision: derive by PROPERTY.** The inventory is every tracked file
+under the Foreman-owned executable trees whose **index blob** begins with a
+bash shebang, plus `skills/superpowers/hooks/*` as a deliberate directory
+sweep (it bundles non-bash members — `run-hook.cmd` is a polyglot, and the
+hook installers package the whole directory). Reading the index blob rather
+than the worktree is what lets the regression test run against a synthetic
+`GIT_INDEX_FILE`.
+
+Two things this settles that a directory sweep could not:
+
+- `skills/foreman/scripts/adapters/verdict.schema.json` is excluded naturally
+  — it has no shebang. Simply dropping the `*.sh` filter would have pulled it
+  in and demanded `100755` of a JSON data file.
+- `install.sh`, `env/bootstrap-wsl.sh`, `env/tool-check.sh` and
+  `env/wsl-clock-preflight.sh` are now covered. Only `install.sh` is invoked by
+  direct exec; the three `env` scripts are invoked as `bash env/…`. **All four
+  get the exec bit anyway.** An exec bit on a bash-invoked shebang script is
+  harmless; hand-carving an exception back into the derivation is the exact
+  defect this decision exists to remove, and it would have to be re-litigated
+  every time a caller changes how it invokes a script.
+
+**The count at this commit is 45. The count is not the specification** — the
+derivation is. Any future document quoting a number instead of the derivation
+is repeating the mistake for a fifth time.
+
+
 ---
 
 ## D2 — The four README ambiguities
