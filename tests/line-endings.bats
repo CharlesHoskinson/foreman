@@ -6,9 +6,9 @@
 #   (c) the property-derived exec-bit inventory is mode 100755 in the index;
 #   (d) Windows carve-out present (eol=crlf on .ps1/.bat/.cmd) + materialised match;
 #   (e) *.png binary present (check-attr) + renormalize-stable incl. NUL-free probe.
-#   Inventory is derived by shebang property under Foreman-owned *regions*
-#   (repo root via ':(glob)*', declared directory trees, plus a deliberate
-#   hooks directory sweep), never a hardcoded path or count (decision D1).
+#   Inventory is derived by WHOLE-REPO shebang property on index blobs, then a
+#   short documented PATTERN exclusion list (decision D11). Inclusion lists of
+#   regions are forbidden — any new shebang script is covered by default.
 load helpers
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
@@ -29,93 +29,229 @@ bash_shebang_files() {
 # @description Read the first line of an index blob by OID without NUL warnings.
 #   Uses a byte-safe Python reader so binary/NUL blobs do not spam
 #   "ignored null byte in input" via bash command substitution.
+#   Invokes git from Python (not a bash pipeline) so large blobs never
+#   SIGPIPE under `set -o pipefail` (helpers.bash) when only the first
+#   line is needed — a whole-repo sweep must touch PNG/binary blobs too.
 # @arg $1 blob OID
-# @stdout first line (CR stripped), may be empty
+# @stdout first line (CR stripped, NULs truncated for bash safety), may be empty
 # @return 0 on success, non-zero if the object cannot be read
 _index_blob_first_line() {
   local oid="$1"
-  git -C "$REPO_ROOT" cat-file blob "$oid" | python3 -c '
-import sys
-data = sys.stdin.buffer.read(8192)
+  python3 -c '
+import subprocess, sys
+repo, oid = sys.argv[1], sys.argv[2]
+try:
+    data = subprocess.check_output(
+        ["git", "-C", repo, "cat-file", "blob", oid],
+        stderr=subprocess.DEVNULL,
+    )
+except (subprocess.CalledProcessError, FileNotFoundError):
+    sys.exit(1)
 if not data:
     sys.exit(0)
 line = data.split(b"\n", 1)[0].rstrip(b"\r")
+# Bash command substitution cannot carry NUL; truncate at first NUL and cap.
+line = line.split(b"\0", 1)[0][:4096]
 sys.stdout.buffer.write(line)
-'
+' "$REPO_ROOT" "$oid"
 }
 
-# @description Mechanically derive the direct-exec inventory (D1 / BRIEF 3b).
-#   Property-based over Foreman-owned *regions* (not literal path singletons):
-#   every tracked regular blob (100644/100755) under those regions whose index
-#   blob starts with a bash shebang — no extension filter. That covers
-#   extensionless scripts under skills/foreman/scripts/ (and lib/), SDD,
-#   repo-root scripts (install.sh and any future root shebang file), env/,
-#   and tests/probes/, and naturally excludes non-exec data such as
-#   skills/foreman/scripts/adapters/verdict.schema.json.
+# @description Documented PATTERN exclusion list for the whole-repo exec-bit
+#   inventory (decision D11). Escaping coverage requires deliberately adding a
+#   PATTERN here with a one-line reason. Patterns only — no filename
+#   enumeration (except the single documented suite runner tests/run.sh).
 #
-#   Regions (git pathspecs):
-#     ':(glob)*'  — repo-root depth-1 only (glob magic does not cross /)
-#     skills/foreman/scripts/*
-#     skills/superpowers/skills/subagent-driven-development/scripts/*
-#     env/*
-#     tests/probes/*
-#   plus a deliberate hooks directory sweep (see below).
+#   Format of each entry (after optional '# comment' lines):
+#     pattern|one-line reason
+#   Pattern language (matched against the full repo-relative path):
+#     literal/path        — exact path match
+#     some/prefix/**      — prefix tree (fnmatch; * crosses '/')
+#     skills/.../*/x/**   — single-segment wildcards allowed
+#     *.bash              — suffix / extension match
+#   The '|' reason is documentation only and is stripped before matching.
 #
-#   Symlinks (120000) and gitlinks (160000) are excluded structurally before
-#   any content read. Object-read failure is a hard error (diagnostic naming
-#   the path) — never a silent "not a script".
-#   Shebang is read from the INDEX blob by OID, so GIT_INDEX_FILE experiments
-#   that only mutate the index are visible to the inventory.
+# @stdout exclusion entries, one per line (pattern|reason)
+_exec_bit_exclusion_entries() {
+  cat <<'EOF'
+# D11 — pattern exclusions (every entry is a PATTERN + reason; not a file list).
+sandbox/**|modes set by Dockerfile RUN chmod 0755 at image build
+skills/superpowers/tests/**|test scripts invoked via bash/sh by their runners
+skills/superpowers/scripts/**|documented bash scripts/<name> invocations
+skills/superpowers/skills/*/scripts/**|documented sh skills/…/<name> invocations
+*.bash|sourced helpers, never executed
+# Single documented file exception (suite runner is always bash-invoked):
+tests/run.sh|the suite runner, invoked as bash tests/run.sh
+EOF
+}
+
+# @description Return 0 if path matches a documented exclusion PATTERN.
+# @arg $1 repo-relative path
+_exec_bit_excluded() {
+  local f="$1" entry path_part
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    [[ "$entry" == \#* ]] && continue
+    path_part="${entry%%|*}"
+    path_part="${path_part%"${path_part##*[![:space:]]}"}" # rtrim
+    path_part="${path_part#"${path_part%%[![:space:]]*}"}" # ltrim
+    [[ -n "$path_part" ]] || continue
+    # Case-sensitive pathname match (fnmatch semantics: * crosses '/').
+    # shellcheck disable=SC2254
+    case "$f" in
+      $path_part) return 0 ;;
+    esac
+  done < <(_exec_bit_exclusion_entries)
+  return 1
+}
+
+# @description Mechanically derive the direct-exec inventory (D1 / D11).
+#   WHOLE-REPOSITORY sweep — not a closed list of regions:
+#     git ls-files -s
+#   For every tracked entry:
+#     - Consider only regular blobs (100644/100755); exclude symlinks (120000)
+#       and gitlinks (160000) structurally before reading content.
+#     - Include any whose index blob's first line is a bash shebang.
+#     - Subtract the short documented PATTERN exclusion list
+#       (_exec_bit_exclusion_entries / D11).
+#
+#   One code path only (REWORK F1): type filter, object existence, and first-line
+#   read apply to every candidate — no separate hooks branch that bypasses them.
+#
+#   Object-read failure is a hard error (diagnostic naming the path) — never a
+#   silent "not a script". Shebang is read from the INDEX blob by OID, so
+#   GIT_INDEX_FILE experiments that only mutate the index are visible.
+#
+#   Implementation: one Python process + `git cat-file --batch` so a 600+ file
+#   whole-repo sweep stays sub-second under pipefail (per-blob bash pipelines
+#   SIGPIPE on large binaries and take tens of seconds).
 # @stdout relative paths, one per line
 # @return 0 on success; 1 if a regular-blob object is unreadable
 exec_bit_inventory() {
-  local f mode oid first line
-  local out
-  out="$(mktemp "${BATS_TEST_TMPDIR:-/tmp}/exec-inv.XXXXXX")"
+  local excl_file rc
+  excl_file="$(mktemp "${BATS_TEST_TMPDIR:-/tmp}/exec-excl.XXXXXX")"
+  _exec_bit_exclusion_entries >"$excl_file"
 
-  while IFS= read -r f; do
-    [[ -n "$f" ]] || continue
-    line="$(git -C "$REPO_ROOT" ls-files -s -- "$f")"
-    [[ -n "$line" ]] || continue
-    mode="$(awk '{print $1}' <<<"$line")"
-    oid="$(awk '{print $2}' <<<"$line")"
+  # Python reads REPO_ROOT from argv, exclusion file from argv.
+  # Prints matching paths on stdout; errors on stderr; exit 1 on bad objects.
+  python3 - "$REPO_ROOT" "$excl_file" <<'PY'
+import fnmatch
+import subprocess
+import sys
+
+repo, excl_path = sys.argv[1], sys.argv[2]
+
+# D11: every exclusion entry is a PATTERN (fnmatch; * crosses '/').
+patterns = []
+with open(excl_path, "r", encoding="utf-8") as fh:
+    for raw in fh:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        path_part = line.split("|", 1)[0].strip()
+        if path_part:
+            patterns.append(path_part)
+
+def excluded(path: str) -> bool:
+    for pat in patterns:
+        if fnmatch.fnmatch(path, pat):
+            return True
+    return False
+
+ls = subprocess.check_output(["git", "-C", repo, "ls-files", "-s"], text=True)
+entries = []  # (mode, oid, path)
+for line in ls.splitlines():
+    if not line:
+        continue
+    if "\t" in line:
+        left, path = line.split("\t", 1)
+    else:
+        parts = line.split(None, 3)
+        if len(parts) < 4:
+            continue
+        left = " ".join(parts[:3])
+        path = parts[3]
+    fields = left.split()
+    if len(fields) < 3:
+        continue
+    mode, oid = fields[0], fields[1]
     # Only regular blobs — exclude symlinks (120000) and gitlinks (160000)
-    # before reading any content.
-    case "$mode" in
-      100644|100755) ;;
-      *) continue ;;
-    esac
-    if [[ -z "$oid" ]] || ! git -C "$REPO_ROOT" cat-file -e "$oid" 2>/dev/null; then
-      echo "error: cannot read index object for path: $f (mode=$mode oid=${oid:-empty})" >&2
-      rm -f "$out"
-      return 1
-    fi
-    if ! first="$(_index_blob_first_line "$oid")"; then
-      echo "error: cannot read index object for path: $f (mode=$mode oid=$oid)" >&2
-      rm -f "$out"
-      return 1
-    fi
-    if [[ "$first" == '#!'*bash* ]]; then
-      printf '%s\n' "$f" >>"$out"
-    fi
-  done < <(git -C "$REPO_ROOT" ls-files \
-    ':(glob)*' \
-    'skills/foreman/scripts/*' \
-    'skills/superpowers/skills/subagent-driven-development/scripts/*' \
-    'env/*' \
-    'tests/probes/*')
+    # structurally before any content read.
+    if mode not in ("100644", "100755"):
+        continue
+    if excluded(path):
+        continue
+    entries.append((mode, oid, path))
 
-  # Hooks directory: deliberate directory sweep, NOT the shebang property.
-  # Cursor/Claude hook installers package every file under hooks/ for direct
-  # exec / copy-as-hook use; hooks.json and hooks-cursor.json ship at 100755
-  # as part of that bundle (and run-hook.cmd is a polyglot with no bash
-  # shebang). Sweeping by property alone would drop the non-bash members
-  # without a separate decision — keep the whole directory by design.
-  git -C "$REPO_ROOT" ls-files 'skills/superpowers/hooks/*' >>"$out"
+if not entries:
+    sys.exit(0)
 
-  sort -u "$out"
-  rm -f "$out"
-  return 0
+oids = "".join(oid + "\n" for _, oid, _ in entries).encode()
+proc = subprocess.run(
+    ["git", "-C", repo, "cat-file", "--batch"],
+    input=oids,
+    capture_output=True,
+)
+if proc.returncode != 0:
+    sys.stderr.write(
+        "error: git cat-file --batch failed (rc=%s)\n" % proc.returncode
+    )
+    sys.exit(1)
+
+raw = proc.stdout
+pos = 0
+hits = []
+for mode, oid, path in entries:
+    nl = raw.find(b"\n", pos)
+    if nl < 0:
+        sys.stderr.write(
+            "error: cannot read index object for path: %s (mode=%s oid=%s)\n"
+            % (path, mode, oid)
+        )
+        sys.exit(1)
+    header = raw[pos:nl].decode("utf-8", "replace")
+    pos = nl + 1
+    parts = header.split()
+    # missing object: "<oid> missing"
+    if len(parts) < 2 or parts[1] == "missing":
+        sys.stderr.write(
+            "error: cannot read index object for path: %s (mode=%s oid=%s)\n"
+            % (path, mode, oid if oid else "empty")
+        )
+        sys.exit(1)
+    if parts[1] != "blob" or len(parts) < 3:
+        sys.stderr.write(
+            "error: cannot read index object for path: %s (mode=%s oid=%s)\n"
+            % (path, mode, oid)
+        )
+        sys.exit(1)
+    try:
+        size = int(parts[2])
+    except ValueError:
+        sys.stderr.write(
+            "error: cannot read index object for path: %s (mode=%s oid=%s)\n"
+            % (path, mode, oid)
+        )
+        sys.exit(1)
+    data = raw[pos : pos + size]
+    pos += size
+    if pos < len(raw) and raw[pos : pos + 1] == b"\n":
+        pos += 1
+    if not data:
+        continue
+    first = data.split(b"\n", 1)[0].rstrip(b"\r").split(b"\0", 1)[0]
+    try:
+        s = first.decode("utf-8", "replace")
+    except Exception:
+        continue
+    if s.startswith("#!") and "bash" in s:
+        hits.append(path)
+
+for p in sorted(set(hits)):
+    print(p)
+PY
+  rc=$?
+  rm -f "$excl_file"
+  return "$rc"
 }
 
 # @description Resolve the eol attribute for a path (lf / crlf / unspecified / ...).
@@ -351,10 +487,14 @@ PY
   local status_before status_after
 
   tmpdir="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/png-carve.XXXXXX")"
-  cleanup_png_test() {
-    rm -rf "$tmpdir"
-  }
-  trap cleanup_png_test EXIT
+  # F2: compose with Bats' EXIT trap; never replace it. Replacing silences
+  # failure diagnostics ("Executed 0 instead of expected 1 tests") because
+  # Bats installs `bats_teardown_trap as-exit-trap` on EXIT for reporting.
+  # Chain: our cleanup, then the prior handler command.
+  local _png_prev_exit_cmd
+  _png_prev_exit_cmd="$(trap -p EXIT 2>/dev/null | sed -n "s/^trap -- '\\(.*\\)' EXIT$/\\1/p")"
+  # shellcheck disable=SC2064
+  trap "rm -rf $(printf '%q' "$tmpdir"); ${_png_prev_exit_cmd}" EXIT
 
   status_before="$(git -C "$REPO_ROOT" status --porcelain -uall)"
 
