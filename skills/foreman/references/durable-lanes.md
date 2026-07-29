@@ -125,3 +125,32 @@ actually launches `nats-server` is responsible for passing `-sd` itself.
 - The stall watchdog's escalation ladder (log line → alert event → kill +
   retry hint) is a *hint*, not an automated kill: `watch.sh` prints the
   retry command on `DEAD`, it does not itself terminate or restart the lane.
+
+## Lock-primitive availability by host class
+
+Durable lanes take foreman locks (`.seq.lock`, `.attempt.lock`,
+`.nats-bridge.lock`, `worktrees/.index.lock`). Availability is therefore
+gated on a trusted, current lock-mechanism verdict — not on "foreman runs".
+
+| Host class | Durable locks available? | Evidence | Notes |
+|---|---|---|---|
+| `wsl-linux` / `linux-native` | Yes, when `flock` earns `atomic` | host-produced `syscall` (`flock(2)` `LOCK_EX\|LOCK_NB` + `EWOULDBLOCK` while holder proceeds) | Ubuntu 26.04 hybrid coreutils: uutils `mkdir` is non-atomic; durable uses `flock` |
+| `msys2-git-bash` | Only with a register pin | `pinned-mechanism` for `mkdir` | No tracer on this host; empty register ⇒ durable lanes **unavailable** (not a silent lockout) |
+| any host whose digest is absent from the pin register | No | — | Non-durable lanes still run |
+
+### Pinning procedure (route back to availability)
+
+1. On a Foreman-controlled host of the **same class** as the target, capture a
+   mechanism-relative syscall trace of the primitive (for `mkdir`: create of
+   the probe target receiving `EEXIST` / `ERROR_ALREADY_EXISTS`; for `flock`:
+   `LOCK_EX\|LOCK_NB` would-block to the loser while the holder proceeds).
+2. Commit the trace artifact under `docs/research/lock-traces/`.
+3. Add a `[[lock_atomicity.pinned]]` entry in `env/reference-manifest.toml`
+   naming: `mechanism`, `sha256`, `host_class`, `trace_artifact`,
+   `filesystem_classes`, `date`, and `verdict`.
+4. Re-run `env/tool-check.sh` / `env/tool-check.ps1` — inventory should report
+   `pinned-mechanism` and durable readiness should clear once currency holds.
+
+An empty pin register is deliberate when no real trace was captured. A
+fabricated digest is worse than an unreachable fallback.
+
