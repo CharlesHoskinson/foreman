@@ -1,0 +1,2 @@
+file	expected_passes
+tests/fixtures/test-infrastructure/reasoned-skip.bats	2

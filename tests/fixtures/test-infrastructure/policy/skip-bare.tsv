@@ -1,0 +1,4 @@
+file	platform	permitted_skips
+tests/fixtures/test-infrastructure/bare-skip.bats	linux	0
+tests/fixtures/test-infrastructure/bare-skip.bats	wsl	0
+tests/fixtures/test-infrastructure/bare-skip.bats	windows	0

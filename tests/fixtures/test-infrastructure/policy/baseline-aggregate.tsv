@@ -1,0 +1,3 @@
+file	expected_passes
+tests/fixtures/test-infrastructure/healthy-slice.bats	32
+tests/fixtures/test-infrastructure/regressed-slice.bats	1
