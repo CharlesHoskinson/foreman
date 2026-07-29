@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: Setup builds the POSIX launcher when absent
+## ADDED Requirements
+
+### Requirement: Setup builds the POSIX launcher when absent
 
 WHEN `foreman-setup` or `bootstrap-wsl.sh` runs on WSL, the implementer SHALL
 ensure `launcher/dist/foreman-launch` exists, building it (`cd launcher &&
@@ -29,7 +31,7 @@ currently absent.
 - THEN it skips the build, logs a warning, and Setup does NOT fail solely for
   this reason.
 
-## ADDED Requirement: readiness reports the launcher's absence loudly, DEGRADED (not NOT-READY) when bun is also absent
+### Requirement: readiness reports the launcher's absence loudly, DEGRADED (not NOT-READY) when bun is also absent
 
 WHEN a Use lane starts on WSL WHERE `launcher/dist/foreman-launch` is absent
 AND `bun` is present on PATH, `env/tool-check.sh` SHALL report NOT-READY
@@ -58,7 +60,7 @@ may not have installed.
 - AND readiness is not permanently blocked solely because the should-tier
   `bun` tool is missing.
 
-## ADDED Requirement: the frozen launcher-absent degraded fallback is unchanged
+### Requirement: the frozen launcher-absent degraded fallback is unchanged
 
 The frozen `lane-run.sh` launcher-absent degraded fallback SHALL remain
 byte-unchanged: the exact `{kind:"degraded",reason:"launcher_absent"}` alert

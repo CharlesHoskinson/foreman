@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: vendor CLIs resolve WSL-native without relying on ~/.bashrc
+## ADDED Requirements
+
+### Requirement: vendor CLIs resolve WSL-native without relying on ~/.bashrc
 
 WHEN a Use lane spawns a vendor CLI on WSL, foreman SHALL resolve it to a
 WSL-native binary (not a `/mnt/c` Windows shim) without depending on
@@ -24,7 +26,7 @@ WSL-native binary (not a `/mnt/c` Windows shim) without depending on
 - AND this holds even when a `/mnt/c` Windows npm-shim path appears earlier
   on the shell's inherited PATH.
 
-## ADDED Requirement: grok-readiness UNIT tests do not depend on live grok reachability
+### Requirement: grok-readiness UNIT tests do not depend on live grok reachability
 
 The grok-readiness UNIT tests SHALL NOT depend on live grok network
 reachability.

@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: the preflight runs before any event-log write and refuses an unsafe FOREMAN_HOME (FOREMAN_HOME only, override available)
+## ADDED Requirements
+
+### Requirement: the preflight runs before any event-log write and refuses an unsafe FOREMAN_HOME (FOREMAN_HOME only, override available)
 
 WHEN a lane starts on WSL, the wsl-preflight SHALL run before any
 timestamped event is written to the event log. IF `FOREMAN_HOME` (where the
@@ -58,7 +60,7 @@ proceed instead of refusing.
 - THEN the preflight does not refuse the run either, regardless of
   `FOREMAN_ALLOW_MNT_HOME`.
 
-## ADDED Requirement: the preflight warns on a stale WSL build
+### Requirement: the preflight warns on a stale WSL build
 
 IF the WSL build is < 2.1.1, THEN the wsl-preflight SHALL warn to run `wsl
 --update`.
@@ -73,7 +75,7 @@ IF the WSL build is < 2.1.1, THEN the wsl-preflight SHALL warn to run `wsl
 - THEN it warns the operator to run `wsl --update`
 - AND the warning is non-fatal (the run proceeds).
 
-## ADDED Requirement: the preflight warns on cross-boundary networking and tool-resolution risk
+### Requirement: the preflight warns on cross-boundary networking and tool-resolution risk
 
 WHERE a cross-boundary `localhost` dependency is configured (NATS
 `nats.url`, or an interactive login expected) AND neither mirrored

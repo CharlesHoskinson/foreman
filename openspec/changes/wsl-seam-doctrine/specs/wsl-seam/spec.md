@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: browser-callback auth flows on WSL are operator-foreground
+## ADDED Requirements
+
+### Requirement: browser-callback auth flows on WSL are operator-foreground
 
 A browser-callback auth flow on WSL SHALL be operator-foreground, never
 orchestrator-detached.
@@ -22,7 +24,7 @@ orchestrator-detached.
 - AND it SHALL NOT be launched by an orchestrator/automation and left to run
   detached.
 
-## ADDED Requirement: the pueue daemon on WSL is restart-on-demand, not persistent
+### Requirement: the pueue daemon on WSL is restart-on-demand, not persistent
 
 WHERE the pueue daemon is used on WSL, foreman SHALL treat it as
 restart-on-demand (not persistent across VM idle-shutdown).
@@ -40,7 +42,7 @@ restart-on-demand (not persistent across VM idle-shutdown).
 - AND the lane proceeds without requiring a persistent Windows-side
   keep-alive handle.
 
-## ADDED Requirement: every directly-exec'd tracked script is executable-or-guarded
+### Requirement: every directly-exec'd tracked script is executable-or-guarded
 
 Every directly-exec'd tracked script SHALL be executable-or-guarded: git
 mode `100755`, or invoked behind an `[[ -x ]]` check.
