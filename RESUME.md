@@ -195,3 +195,130 @@ is round depth, not parallel width — parallelism is worth roughly 4× and cann
 compress a serial audit-rework cycle. Two of crlf's seven rounds were a failure
 to generalise a finding rather than relay the instance, and the sixth block was
 an architect ruling that was too broad.
+
+---
+
+## GRAPHIFY (added at stop, 2026-07-29 ~17:50)
+
+Full rebuild of the **merged** tree on `integrate/v029-w1`. Outputs committed
+under `graphify-out/`: `graph.json`, `graph.html`, `GRAPH_REPORT.md`.
+
+```
+604 files / 1.24M words   ->   4,664 nodes  6,199 edges  63 hyperedges
+   AST (code, free):      1,189 nodes
+   semantic (22 chunks):  3,475 nodes   (0 duplicate IDs across chunks)
+   communities:           489  (auto-labelled from dominant source path)
+```
+
+### KNOWN LIMITATION — read before querying
+
+**The graph is two disconnected halves. `cross-layer edges: 0`.** Nothing joins
+a code node to a doc/concept node. Semantic agents were correctly told not to
+re-extract imports and were given only docs/papers/images, so they never emitted
+a node for a code symbol and no doc->code edge exists.
+
+Consequence: queries like *"which code implements D11?"* or *"trace
+evidence-contracts from spec to implementation"* **cannot be answered** — there
+is no edge to walk. The graph is good for navigating specs/decisions/audits, and
+separately for code structure. Not for connecting them.
+
+**Fix (cheap, ~4-6 agents):** a linking pass over packages that have both a spec
+and an implementation, reading BOTH and emitting only cross-layer edges with
+AST-matching IDs (full repo-relative stem, per the extraction spec). Do this
+before the retrospective if doc<->code traces are wanted.
+
+Also: 489 communities at cohesion 0.04-0.16 is fragmentation caused by the same
+disconnection. Community labels are **auto-derived from dominant source path**,
+not hand-curated — 489 was too many to label individually in the time available.
+
+### Health check, honestly
+
+- **185 dangling edges — benign.** All missing-target, zero missing-source, and
+  the targets are `pathlib`, `json`, `re`, `subprocess`: AST `imports` edges
+  pointing at stdlib modules outside the corpus. Correctly dropped.
+- 43 collapsed directed / 66 collapsed undirected edges (parallel edges between
+  the same pair merged).
+
+### Tooling defects found (belong in bugeventlog)
+
+1. **Installed `graphifyy` was 0.9.16; the skill requires `prompt_file` cache
+   attribution added later.** Upgraded to 0.9.30. Without it, extraction-cache
+   entries produced by an OLDER prompt replay silently — the same stale-read-as-
+   fresh class this release exists to fix, inside the tooling.
+2. **The skill ships a stale copy of itself:** `graphify export html` warns
+   "skill is from graphify 0.9.15, package is 0.9.30. Run graphify
+
+---
+
+## GRAPHIFY (added at stop, 2026-07-29 ~17:50)
+
+Full rebuild of the **merged** tree on `integrate/v029-w1`. Outputs committed
+under `graphify-out/`: `graph.json`, `graph.html`, `GRAPH_REPORT.md`.
+
+```
+604 files / 1.24M words   ->   4,664 nodes  6,199 edges  63 hyperedges
+   AST (code, free):      1,189 nodes
+   semantic (22 chunks):  3,475 nodes   (0 duplicate IDs across chunks)
+   communities:           489  (auto-labelled from dominant source path)
+```
+
+### KNOWN LIMITATION — read this before querying
+
+**The graph is two disconnected halves. `cross-layer edges: 0`.** Nothing joins
+a code node to a doc/concept node. Semantic agents were correctly told not to
+re-extract imports and were given only docs/papers/images, so they never emitted
+a node for a code symbol and no doc-to-code edge exists.
+
+Consequence: queries like *"which code implements D11?"* or *"trace
+evidence-contracts from spec to implementation"* **cannot be answered** — there
+is no edge to walk. The graph is good for navigating specs/decisions/audits, and
+separately for code structure. Not for connecting them.
+
+**Fix (cheap, ~4-6 agents):** a linking pass over the packages that have both a
+spec and an implementation, reading BOTH and emitting only cross-layer edges
+with AST-matching IDs (full repo-relative stem, per the extraction spec). Do
+this before the retrospective if doc-to-code traces are wanted.
+
+Also: 489 communities at cohesion 0.04-0.16 is fragmentation caused by the same
+disconnection. Community labels are **auto-derived from dominant source path**,
+not hand-curated — 489 was too many to label individually in the time available.
+
+### Health check, honestly
+
+- **185 dangling edges, benign.** All missing-target, zero missing-source, and
+  the targets are `pathlib`, `json`, `re`, `subprocess` — AST `imports` edges
+  pointing at stdlib modules outside the corpus. Correctly dropped.
+- 43 collapsed directed / 66 collapsed undirected edges (parallel edges between
+  the same pair merged).
+
+### God nodes (highest degree)
+
+`FilesOnlyGraphStore`, `GraphStore`, `CaseResult` (all from the graph-store-port
+package landed today), `readme_foreman`, `roadmap_v029_total_georgecall`.
+
+### The result worth carrying into the retrospective
+
+The strongest cross-cutting theme the graph found, independently, is
+**"tooling that reports success it has not earned"** — surfacing as a hyperedge
+linking AGENT_TRAPS section 2, the 2026-07-28 devlog twelve-row table, README
+section 8, `test-infrastructure-hardening`, the check-then-act mkdir control
+shim, the two-state `vendor_authed` defect, and the S-8 unsound reaper. Several
+surprising connections point at the same hub, including "the write-evidence
+digest is structurally blind", "markdownlint-cli2 vacuous pass on ignored
+package paths", and "a rework round closed 8 findings and introduced 3".
+
+That is this release's own thesis, confirmed structurally from the corpus rather
+than asserted by its authors.
+
+### Graphify tooling defects found (belong in bugeventlog)
+
+1. **Installed `graphifyy` was 0.9.16; the skill calls `check_semantic_cache`
+   with `prompt_file`, added later.** Upgraded to 0.9.30. Without it,
+   extraction-cache entries produced by an OLDER prompt replay silently — the
+   same stale-read-as-fresh class this release exists to fix, inside the tooling.
+2. **The installed skill is itself stale:** `graphify export html` warns that the
+   skill is from 0.9.15 while the package is 0.9.30, and recommends
+   `graphify install`. Do that before the next run.
+3. **`SKILL.md` points at `references/extraction-spec.md` in the skill
+   directory, where it is not installed.** The real spec ships inside the
+   package at `graphify/skills/claude/references/`.

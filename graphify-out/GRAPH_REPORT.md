@@ -1,1680 +1,2037 @@
-# Graph Report - foreman  (2026-07-19)
+# Graph Report - /root/fm-wt/integrate  (2026-07-29)
 
 ## Corpus Check
-- 344 files · ~576,991 words
-- Verdict: corpus is large enough that graph structure adds value.
+- Large corpus: 604 files · ~1,236,686 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
 
 ## Summary
-- 3579 nodes · 3668 edges · 380 communities (316 shown, 64 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 25 edges (avg confidence: 0.88)
+- 4664 nodes · 6199 edges · 489 communities (360 shown, 129 thin omitted)
+- Extraction: 83% EXTRACTED · 17% INFERRED · 0% AMBIGUOUS · INFERRED: 1025 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
-## Graph Freshness
-- Built from commit: `d4af3a92`
-- Run `git rev-parse HEAD` and compare to check if the graph is stale.
-- Run `graphify update .` after code changes (no API cost).
-
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Community 0|Community 0]]
-- [[_COMMUNITY_Community 1|Community 1]]
-- [[_COMMUNITY_Community 2|Community 2]]
-- [[_COMMUNITY_Community 3|Community 3]]
-- [[_COMMUNITY_Community 4|Community 4]]
-- [[_COMMUNITY_Community 5|Community 5]]
-- [[_COMMUNITY_Community 6|Community 6]]
-- [[_COMMUNITY_Community 7|Community 7]]
-- [[_COMMUNITY_Community 8|Community 8]]
-- [[_COMMUNITY_Community 9|Community 9]]
-- [[_COMMUNITY_Community 10|Community 10]]
-- [[_COMMUNITY_Community 11|Community 11]]
-- [[_COMMUNITY_Community 12|Community 12]]
-- [[_COMMUNITY_Community 13|Community 13]]
-- [[_COMMUNITY_Community 14|Community 14]]
-- [[_COMMUNITY_Community 15|Community 15]]
-- [[_COMMUNITY_Community 16|Community 16]]
-- [[_COMMUNITY_Community 17|Community 17]]
-- [[_COMMUNITY_Community 18|Community 18]]
-- [[_COMMUNITY_Community 19|Community 19]]
-- [[_COMMUNITY_Community 20|Community 20]]
-- [[_COMMUNITY_Community 21|Community 21]]
-- [[_COMMUNITY_Community 22|Community 22]]
-- [[_COMMUNITY_Community 23|Community 23]]
-- [[_COMMUNITY_Community 24|Community 24]]
-- [[_COMMUNITY_Community 25|Community 25]]
-- [[_COMMUNITY_Community 26|Community 26]]
-- [[_COMMUNITY_Community 27|Community 27]]
-- [[_COMMUNITY_Community 28|Community 28]]
-- [[_COMMUNITY_Community 29|Community 29]]
-- [[_COMMUNITY_Community 30|Community 30]]
-- [[_COMMUNITY_Community 31|Community 31]]
-- [[_COMMUNITY_Community 32|Community 32]]
-- [[_COMMUNITY_Community 33|Community 33]]
-- [[_COMMUNITY_Community 34|Community 34]]
-- [[_COMMUNITY_Community 35|Community 35]]
-- [[_COMMUNITY_Community 36|Community 36]]
-- [[_COMMUNITY_Community 37|Community 37]]
-- [[_COMMUNITY_Community 38|Community 38]]
-- [[_COMMUNITY_Community 39|Community 39]]
-- [[_COMMUNITY_Community 40|Community 40]]
-- [[_COMMUNITY_Community 41|Community 41]]
-- [[_COMMUNITY_Community 42|Community 42]]
-- [[_COMMUNITY_Community 43|Community 43]]
-- [[_COMMUNITY_Community 44|Community 44]]
-- [[_COMMUNITY_Community 45|Community 45]]
-- [[_COMMUNITY_Community 46|Community 46]]
-- [[_COMMUNITY_Community 47|Community 47]]
-- [[_COMMUNITY_Community 48|Community 48]]
-- [[_COMMUNITY_Community 49|Community 49]]
-- [[_COMMUNITY_Community 50|Community 50]]
-- [[_COMMUNITY_Community 51|Community 51]]
-- [[_COMMUNITY_Community 52|Community 52]]
-- [[_COMMUNITY_Community 53|Community 53]]
-- [[_COMMUNITY_Community 54|Community 54]]
-- [[_COMMUNITY_Community 55|Community 55]]
-- [[_COMMUNITY_Community 56|Community 56]]
-- [[_COMMUNITY_Community 57|Community 57]]
-- [[_COMMUNITY_Community 58|Community 58]]
-- [[_COMMUNITY_Community 59|Community 59]]
-- [[_COMMUNITY_Community 60|Community 60]]
-- [[_COMMUNITY_Community 61|Community 61]]
-- [[_COMMUNITY_Community 62|Community 62]]
-- [[_COMMUNITY_Community 63|Community 63]]
-- [[_COMMUNITY_Community 64|Community 64]]
-- [[_COMMUNITY_Community 65|Community 65]]
-- [[_COMMUNITY_Community 66|Community 66]]
-- [[_COMMUNITY_Community 67|Community 67]]
-- [[_COMMUNITY_Community 68|Community 68]]
-- [[_COMMUNITY_Community 69|Community 69]]
-- [[_COMMUNITY_Community 70|Community 70]]
-- [[_COMMUNITY_Community 71|Community 71]]
-- [[_COMMUNITY_Community 72|Community 72]]
-- [[_COMMUNITY_Community 73|Community 73]]
-- [[_COMMUNITY_Community 74|Community 74]]
-- [[_COMMUNITY_Community 75|Community 75]]
-- [[_COMMUNITY_Community 76|Community 76]]
-- [[_COMMUNITY_Community 77|Community 77]]
-- [[_COMMUNITY_Community 78|Community 78]]
-- [[_COMMUNITY_Community 79|Community 79]]
-- [[_COMMUNITY_Community 80|Community 80]]
-- [[_COMMUNITY_Community 81|Community 81]]
-- [[_COMMUNITY_Community 82|Community 82]]
-- [[_COMMUNITY_Community 83|Community 83]]
-- [[_COMMUNITY_Community 84|Community 84]]
-- [[_COMMUNITY_Community 85|Community 85]]
-- [[_COMMUNITY_Community 86|Community 86]]
-- [[_COMMUNITY_Community 87|Community 87]]
-- [[_COMMUNITY_Community 88|Community 88]]
-- [[_COMMUNITY_Community 89|Community 89]]
-- [[_COMMUNITY_Community 90|Community 90]]
-- [[_COMMUNITY_Community 91|Community 91]]
-- [[_COMMUNITY_Community 92|Community 92]]
-- [[_COMMUNITY_Community 93|Community 93]]
-- [[_COMMUNITY_Community 94|Community 94]]
-- [[_COMMUNITY_Community 95|Community 95]]
-- [[_COMMUNITY_Community 96|Community 96]]
-- [[_COMMUNITY_Community 97|Community 97]]
-- [[_COMMUNITY_Community 98|Community 98]]
-- [[_COMMUNITY_Community 99|Community 99]]
-- [[_COMMUNITY_Community 100|Community 100]]
-- [[_COMMUNITY_Community 101|Community 101]]
-- [[_COMMUNITY_Community 102|Community 102]]
-- [[_COMMUNITY_Community 103|Community 103]]
-- [[_COMMUNITY_Community 104|Community 104]]
-- [[_COMMUNITY_Community 105|Community 105]]
-- [[_COMMUNITY_Community 106|Community 106]]
-- [[_COMMUNITY_Community 107|Community 107]]
-- [[_COMMUNITY_Community 108|Community 108]]
-- [[_COMMUNITY_Community 109|Community 109]]
-- [[_COMMUNITY_Community 110|Community 110]]
-- [[_COMMUNITY_Community 111|Community 111]]
-- [[_COMMUNITY_Community 112|Community 112]]
-- [[_COMMUNITY_Community 113|Community 113]]
-- [[_COMMUNITY_Community 114|Community 114]]
-- [[_COMMUNITY_Community 115|Community 115]]
-- [[_COMMUNITY_Community 116|Community 116]]
-- [[_COMMUNITY_Community 117|Community 117]]
-- [[_COMMUNITY_Community 118|Community 118]]
-- [[_COMMUNITY_Community 119|Community 119]]
-- [[_COMMUNITY_Community 120|Community 120]]
-- [[_COMMUNITY_Community 121|Community 121]]
-- [[_COMMUNITY_Community 122|Community 122]]
-- [[_COMMUNITY_Community 123|Community 123]]
-- [[_COMMUNITY_Community 124|Community 124]]
-- [[_COMMUNITY_Community 125|Community 125]]
-- [[_COMMUNITY_Community 126|Community 126]]
-- [[_COMMUNITY_Community 127|Community 127]]
-- [[_COMMUNITY_Community 128|Community 128]]
-- [[_COMMUNITY_Community 129|Community 129]]
-- [[_COMMUNITY_Community 130|Community 130]]
-- [[_COMMUNITY_Community 131|Community 131]]
-- [[_COMMUNITY_Community 132|Community 132]]
-- [[_COMMUNITY_Community 133|Community 133]]
-- [[_COMMUNITY_Community 134|Community 134]]
-- [[_COMMUNITY_Community 135|Community 135]]
-- [[_COMMUNITY_Community 136|Community 136]]
-- [[_COMMUNITY_Community 137|Community 137]]
-- [[_COMMUNITY_Community 138|Community 138]]
-- [[_COMMUNITY_Community 139|Community 139]]
-- [[_COMMUNITY_Community 140|Community 140]]
-- [[_COMMUNITY_Community 141|Community 141]]
-- [[_COMMUNITY_Community 142|Community 142]]
-- [[_COMMUNITY_Community 143|Community 143]]
-- [[_COMMUNITY_Community 144|Community 144]]
-- [[_COMMUNITY_Community 145|Community 145]]
-- [[_COMMUNITY_Community 146|Community 146]]
-- [[_COMMUNITY_Community 147|Community 147]]
-- [[_COMMUNITY_Community 148|Community 148]]
-- [[_COMMUNITY_Community 149|Community 149]]
-- [[_COMMUNITY_Community 150|Community 150]]
-- [[_COMMUNITY_Community 151|Community 151]]
-- [[_COMMUNITY_Community 152|Community 152]]
-- [[_COMMUNITY_Community 153|Community 153]]
-- [[_COMMUNITY_Community 154|Community 154]]
-- [[_COMMUNITY_Community 155|Community 155]]
-- [[_COMMUNITY_Community 156|Community 156]]
-- [[_COMMUNITY_Community 157|Community 157]]
-- [[_COMMUNITY_Community 158|Community 158]]
-- [[_COMMUNITY_Community 159|Community 159]]
-- [[_COMMUNITY_Community 160|Community 160]]
-- [[_COMMUNITY_Community 161|Community 161]]
-- [[_COMMUNITY_Community 162|Community 162]]
-- [[_COMMUNITY_Community 163|Community 163]]
-- [[_COMMUNITY_Community 164|Community 164]]
-- [[_COMMUNITY_Community 165|Community 165]]
-- [[_COMMUNITY_Community 166|Community 166]]
-- [[_COMMUNITY_Community 167|Community 167]]
-- [[_COMMUNITY_Community 168|Community 168]]
-- [[_COMMUNITY_Community 169|Community 169]]
-- [[_COMMUNITY_Community 170|Community 170]]
-- [[_COMMUNITY_Community 171|Community 171]]
-- [[_COMMUNITY_Community 172|Community 172]]
-- [[_COMMUNITY_Community 173|Community 173]]
-- [[_COMMUNITY_Community 174|Community 174]]
-- [[_COMMUNITY_Community 175|Community 175]]
-- [[_COMMUNITY_Community 176|Community 176]]
-- [[_COMMUNITY_Community 177|Community 177]]
-- [[_COMMUNITY_Community 178|Community 178]]
-- [[_COMMUNITY_Community 179|Community 179]]
-- [[_COMMUNITY_Community 180|Community 180]]
-- [[_COMMUNITY_Community 181|Community 181]]
-- [[_COMMUNITY_Community 182|Community 182]]
-- [[_COMMUNITY_Community 183|Community 183]]
-- [[_COMMUNITY_Community 184|Community 184]]
-- [[_COMMUNITY_Community 185|Community 185]]
-- [[_COMMUNITY_Community 186|Community 186]]
-- [[_COMMUNITY_Community 187|Community 187]]
-- [[_COMMUNITY_Community 188|Community 188]]
-- [[_COMMUNITY_Community 189|Community 189]]
-- [[_COMMUNITY_Community 190|Community 190]]
-- [[_COMMUNITY_Community 191|Community 191]]
-- [[_COMMUNITY_Community 192|Community 192]]
-- [[_COMMUNITY_Community 193|Community 193]]
-- [[_COMMUNITY_Community 194|Community 194]]
-- [[_COMMUNITY_Community 195|Community 195]]
-- [[_COMMUNITY_Community 196|Community 196]]
-- [[_COMMUNITY_Community 197|Community 197]]
-- [[_COMMUNITY_Community 198|Community 198]]
-- [[_COMMUNITY_Community 199|Community 199]]
-- [[_COMMUNITY_Community 200|Community 200]]
-- [[_COMMUNITY_Community 201|Community 201]]
-- [[_COMMUNITY_Community 202|Community 202]]
-- [[_COMMUNITY_Community 203|Community 203]]
-- [[_COMMUNITY_Community 204|Community 204]]
-- [[_COMMUNITY_Community 205|Community 205]]
-- [[_COMMUNITY_Community 206|Community 206]]
-- [[_COMMUNITY_Community 207|Community 207]]
-- [[_COMMUNITY_Community 208|Community 208]]
-- [[_COMMUNITY_Community 209|Community 209]]
-- [[_COMMUNITY_Community 210|Community 210]]
-- [[_COMMUNITY_Community 211|Community 211]]
-- [[_COMMUNITY_Community 212|Community 212]]
-- [[_COMMUNITY_Community 213|Community 213]]
-- [[_COMMUNITY_Community 214|Community 214]]
-- [[_COMMUNITY_Community 215|Community 215]]
-- [[_COMMUNITY_Community 216|Community 216]]
-- [[_COMMUNITY_Community 217|Community 217]]
-- [[_COMMUNITY_Community 218|Community 218]]
-- [[_COMMUNITY_Community 219|Community 219]]
-- [[_COMMUNITY_Community 220|Community 220]]
-- [[_COMMUNITY_Community 221|Community 221]]
-- [[_COMMUNITY_Community 222|Community 222]]
-- [[_COMMUNITY_Community 223|Community 223]]
-- [[_COMMUNITY_Community 224|Community 224]]
-- [[_COMMUNITY_Community 225|Community 225]]
-- [[_COMMUNITY_Community 226|Community 226]]
-- [[_COMMUNITY_Community 227|Community 227]]
-- [[_COMMUNITY_Community 228|Community 228]]
-- [[_COMMUNITY_Community 229|Community 229]]
-- [[_COMMUNITY_Community 230|Community 230]]
-- [[_COMMUNITY_Community 231|Community 231]]
-- [[_COMMUNITY_Community 232|Community 232]]
-- [[_COMMUNITY_Community 233|Community 233]]
-- [[_COMMUNITY_Community 234|Community 234]]
-- [[_COMMUNITY_Community 235|Community 235]]
-- [[_COMMUNITY_Community 236|Community 236]]
-- [[_COMMUNITY_Community 237|Community 237]]
-- [[_COMMUNITY_Community 239|Community 239]]
-- [[_COMMUNITY_Community 240|Community 240]]
-- [[_COMMUNITY_Community 241|Community 241]]
-- [[_COMMUNITY_Community 242|Community 242]]
-- [[_COMMUNITY_Community 243|Community 243]]
-- [[_COMMUNITY_Community 244|Community 244]]
-- [[_COMMUNITY_Community 245|Community 245]]
-- [[_COMMUNITY_Community 246|Community 246]]
-- [[_COMMUNITY_Community 247|Community 247]]
-- [[_COMMUNITY_Community 248|Community 248]]
-- [[_COMMUNITY_Community 249|Community 249]]
-- [[_COMMUNITY_Community 250|Community 250]]
-- [[_COMMUNITY_Community 251|Community 251]]
-- [[_COMMUNITY_Community 252|Community 252]]
-- [[_COMMUNITY_Community 253|Community 253]]
-- [[_COMMUNITY_Community 254|Community 254]]
-- [[_COMMUNITY_Community 255|Community 255]]
-- [[_COMMUNITY_Community 256|Community 256]]
-- [[_COMMUNITY_Community 257|Community 257]]
-- [[_COMMUNITY_Community 258|Community 258]]
-- [[_COMMUNITY_Community 259|Community 259]]
-- [[_COMMUNITY_Community 260|Community 260]]
-- [[_COMMUNITY_Community 261|Community 261]]
-- [[_COMMUNITY_Community 262|Community 262]]
-- [[_COMMUNITY_Community 263|Community 263]]
-- [[_COMMUNITY_Community 264|Community 264]]
-- [[_COMMUNITY_Community 265|Community 265]]
-- [[_COMMUNITY_Community 266|Community 266]]
-- [[_COMMUNITY_Community 267|Community 267]]
-- [[_COMMUNITY_Community 268|Community 268]]
-- [[_COMMUNITY_Community 269|Community 269]]
-- [[_COMMUNITY_Community 270|Community 270]]
-- [[_COMMUNITY_Community 271|Community 271]]
-- [[_COMMUNITY_Community 272|Community 272]]
-- [[_COMMUNITY_Community 273|Community 273]]
-- [[_COMMUNITY_Community 274|Community 274]]
-- [[_COMMUNITY_Community 275|Community 275]]
-- [[_COMMUNITY_Community 276|Community 276]]
-- [[_COMMUNITY_Community 277|Community 277]]
-- [[_COMMUNITY_Community 278|Community 278]]
-- [[_COMMUNITY_Community 279|Community 279]]
-- [[_COMMUNITY_Community 280|Community 280]]
-- [[_COMMUNITY_Community 281|Community 281]]
-- [[_COMMUNITY_Community 282|Community 282]]
-- [[_COMMUNITY_Community 283|Community 283]]
-- [[_COMMUNITY_Community 284|Community 284]]
-- [[_COMMUNITY_Community 285|Community 285]]
-- [[_COMMUNITY_Community 286|Community 286]]
-- [[_COMMUNITY_Community 287|Community 287]]
-- [[_COMMUNITY_Community 288|Community 288]]
-- [[_COMMUNITY_Community 289|Community 289]]
-- [[_COMMUNITY_Community 290|Community 290]]
-- [[_COMMUNITY_Community 291|Community 291]]
-- [[_COMMUNITY_Community 292|Community 292]]
-- [[_COMMUNITY_Community 293|Community 293]]
-- [[_COMMUNITY_Community 294|Community 294]]
-- [[_COMMUNITY_Community 295|Community 295]]
-- [[_COMMUNITY_Community 296|Community 296]]
-- [[_COMMUNITY_Community 297|Community 297]]
-- [[_COMMUNITY_Community 298|Community 298]]
-- [[_COMMUNITY_Community 306|Community 306]]
-- [[_COMMUNITY_Community 307|Community 307]]
-- [[_COMMUNITY_Community 308|Community 308]]
-- [[_COMMUNITY_Community 309|Community 309]]
-- [[_COMMUNITY_Community 310|Community 310]]
-- [[_COMMUNITY_Community 311|Community 311]]
-- [[_COMMUNITY_Community 312|Community 312]]
-- [[_COMMUNITY_Community 313|Community 313]]
-- [[_COMMUNITY_Community 314|Community 314]]
-- [[_COMMUNITY_Community 315|Community 315]]
-- [[_COMMUNITY_Community 316|Community 316]]
-- [[_COMMUNITY_Community 317|Community 317]]
-- [[_COMMUNITY_Community 318|Community 318]]
-- [[_COMMUNITY_Community 320|Community 320]]
-- [[_COMMUNITY_Community 321|Community 321]]
-- [[_COMMUNITY_Community 322|Community 322]]
-- [[_COMMUNITY_Community 323|Community 323]]
-- [[_COMMUNITY_Community 324|Community 324]]
-- [[_COMMUNITY_Community 325|Community 325]]
-- [[_COMMUNITY_Community 326|Community 326]]
-- [[_COMMUNITY_Community 327|Community 327]]
-- [[_COMMUNITY_Community 328|Community 328]]
-- [[_COMMUNITY_Community 329|Community 329]]
-- [[_COMMUNITY_Community 330|Community 330]]
-- [[_COMMUNITY_Community 331|Community 331]]
-- [[_COMMUNITY_Community 332|Community 332]]
-- [[_COMMUNITY_Community 333|Community 333]]
-- [[_COMMUNITY_Community 334|Community 334]]
-- [[_COMMUNITY_Community 335|Community 335]]
-- [[_COMMUNITY_Community 336|Community 336]]
-- [[_COMMUNITY_Community 337|Community 337]]
-- [[_COMMUNITY_Community 338|Community 338]]
-- [[_COMMUNITY_Community 339|Community 339]]
-- [[_COMMUNITY_Community 340|Community 340]]
-- [[_COMMUNITY_Community 341|Community 341]]
-- [[_COMMUNITY_Community 342|Community 342]]
-- [[_COMMUNITY_Community 343|Community 343]]
-- [[_COMMUNITY_Community 344|Community 344]]
-- [[_COMMUNITY_Community 345|Community 345]]
-- [[_COMMUNITY_Community 346|Community 346]]
-- [[_COMMUNITY_Community 347|Community 347]]
-- [[_COMMUNITY_Community 348|Community 348]]
-- [[_COMMUNITY_Community 349|Community 349]]
-- [[_COMMUNITY_Community 350|Community 350]]
-- [[_COMMUNITY_Community 351|Community 351]]
-- [[_COMMUNITY_Community 352|Community 352]]
-- [[_COMMUNITY_Community 353|Community 353]]
-- [[_COMMUNITY_Community 354|Community 354]]
-- [[_COMMUNITY_Community 355|Community 355]]
-- [[_COMMUNITY_Community 356|Community 356]]
-- [[_COMMUNITY_Community 357|Community 357]]
-- [[_COMMUNITY_Community 358|Community 358]]
-- [[_COMMUNITY_Community 359|Community 359]]
-- [[_COMMUNITY_Community 360|Community 360]]
-- [[_COMMUNITY_Community 361|Community 361]]
-- [[_COMMUNITY_Community 362|Community 362]]
-- [[_COMMUNITY_Community 363|Community 363]]
-- [[_COMMUNITY_Community 364|Community 364]]
-- [[_COMMUNITY_Community 365|Community 365]]
-- [[_COMMUNITY_Community 366|Community 366]]
-- [[_COMMUNITY_Community 367|Community 367]]
-- [[_COMMUNITY_Community 368|Community 368]]
-- [[_COMMUNITY_Community 369|Community 369]]
-- [[_COMMUNITY_Community 370|Community 370]]
-- [[_COMMUNITY_Community 371|Community 371]]
-- [[_COMMUNITY_Community 372|Community 372]]
-- [[_COMMUNITY_Community 373|Community 373]]
-- [[_COMMUNITY_Community 374|Community 374]]
-- [[_COMMUNITY_Community 375|Community 375]]
-- [[_COMMUNITY_Community 376|Community 376]]
-- [[_COMMUNITY_Community 377|Community 377]]
-- [[_COMMUNITY_Community 378|Community 378]]
-- [[_COMMUNITY_Community 379|Community 379]]
+- launcher / src
+- openspec / changes
+- skills / foreman
+- docs / research
+- skills / foreman
+- docs / research
+- skills / graphify
+- docs / research
+- skills / superpowers
+- skills / superpowers
+- docs / research
+- skills / foreman
+- docs / research
+- docs / research
+- docs / research
+- skills / foreman
+- skills / superpowers
+- docs / research
+- formal
+- docs / superpowers
+- openspec / changes
+- skills / foreman
+- devlog
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / superpowers
+- agents
+- docs / research
+- docs / research
+- docs / research
+- skills / scrapling
+- skills / superpowers
+- docs / research
+- docs / research
+- formal / reports
+- docs / notes
+- docs / research
+- docs / superpowers
+- docs / superpowers
+- docs / superpowers
+- launcher
+- skills / superpowers
+- skills / superpowers
+- docs / research
+- docs / research
+- docs / superpowers
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / superpowers
+- devlog
+- docs / research
+- docs / research
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / superpowers
+- docs
+- docs / research
+- docs / research
+- docs / research
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- assets
+- docs / research
+- docs / superpowers
+- skills / superpowers
+- skills / superpowers
+- docs / incidents
+- agents
+- docs / research
+- docs / research
+- docs / research
+- docs / superpowers
+- docs / superpowers
+- openspec / changes
+- skills / foreman
+- openspec / changes
+- skills / superpowers
+- skills / foreman
+- skills / superpowers
+- tests / probes
+- devlog
+- docs / research
+- docs / research
+- docs / research
+- formal / reports
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- assets
+- docs / research
+- docs / research
+- docs / research
+- docs / superpowers
+- formal / reports
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / superpowers
+- tests
+- docs / incidents
+- devlog
+- docs / research
+- docs / research
+- launcher
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tools
+- docs
+- docs / research
+- docs / research
+- formal / reports
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / graphify
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tests
+- docs / research
+- docs / research
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / scrapling
+- skills / superpowers
+- skills / superpowers
+- docs / research
+- docs / research
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / graphify
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- docs / notes
+- docs / research
+- docs / superpowers
+- openspec / changes
+- formal / reports
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tests
+- docs / research
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- docs / research
+- docs / research
+- docs / research
+- formal / reports
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tests / lib
+- tests
+- skills / superpowers
+- docs / research
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tests
+- docs / research
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / scrapling
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- sandbox
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tools
+- docs / research
+- docs / research
+- docs / superpowers
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / scrapling
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tests
+- docs / notes
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- formal / reports
+- Unsourced cluster
+- Unsourced cluster
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / superpowers
+- formal
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- sandbox
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / graphify
+- skills / graphify
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- skills / superpowers
+- tests / fixtures
+- tests / probes
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / research
+- docs / superpowers
+- docs / superpowers
+- docs / superpowers
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- openspec / changes
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
+- skills / foreman
 
 ## God Nodes (most connected - your core abstractions)
-1. `Superpowers Release Notes` - 41 edges
-2. `Foreman workflow bug/event log` - 34 edges
-3. `Writing Skills` - 23 edges
-4. `main()` - 21 edges
-5. `Foreman` - 21 edges
-6. `Lift drill into superpowers as `evals/` — implementation plan` - 17 edges
-7. `Testing Skills With Subagents` - 16 edges
-8. `interface` - 15 edges
-9. `Code Review Reception` - 15 edges
-10. `Subagent-Driven Development` - 15 edges
+1. `FilesOnlyGraphStore` - 33 edges
+2. `GraphStore` - 31 edges
+3. `CaseResult` - 29 edges
+4. `Foreman — cross-vendor architect/worker orchestration` - 22 edges
+5. `main()` - 21 edges
+6. `_case()` - 20 edges
+7. `v0.2.9 — Total GeorgeCall` - 20 edges
+8. `subagent-driven-development (skill)` - 20 edges
+9. `StubEmptyBackend` - 19 edges
+10. `SchemaValidationError` - 17 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Adversarial Review Step` --semantically_similar_to--> `Codex Auditor (GPT-5.6 Sol)`  [INFERRED] [semantically similar]
-  docs/research/anthropic_best_practices.txt → agents/codex-auditor.md
-- `Codex structured review output schema (findings + verdict + confidence)` --semantically_similar_to--> `Audit verdict schema (APPROVED | WARNING | BLOCKED)`  [INFERRED] [semantically similar]
-  docs/research/openai_codex_review.txt → skills/foreman/references/audit-checklist.md
-- `Fable Advisor (DannyMac180)` --semantically_similar_to--> `Foreman Advisor`  [INFERRED] [semantically similar]
-  docs/research/fable_advisor.txt → agents/foreman-advisor.md
-- `Codex SDK Code Review pattern (headless exec in CI)` --semantically_similar_to--> `Audit dimensions (acceptance, regressions, tampering, security, quality, prompt injection)`  [INFERRED] [semantically similar]
-  docs/research/openai_codex_review.txt → skills/foreman/references/audit-checklist.md
-- `Grok Build parallel subagents in worktrees` --semantically_similar_to--> `Parallelism via worktree fan-out`  [INFERRED] [semantically similar]
-  docs/research/xai_grok_news.txt → skills/foreman/SKILL.md
+- `F1 fix â€” reset the heartbeat file before spawning the detached copy` --semantically_similar_to--> `D1 â€” pre-existing artifact credits a no-op lane`  [INFERRED] [semantically similar]
+  launcher/README.md → formal/reports/M4-evidence-contract.md
+- `The write-evidence digest is structurally blind` --semantically_similar_to--> `Tooling that reports success it has not earned`  [INFERRED] [semantically similar]
+  bugeventlog.md → devlog/2026-07-28.md
+- `The plan is a vector for the architect's own mistakes` --semantically_similar_to--> `A rework round closed 8 findings and introduced 3 new ones`  [INFERRED] [semantically similar]
+  docs/notes/2026-07-15-planning-fidelity.md → bugeventlog.md
+- `markdownlint-cli2 vacuous pass on ignored package paths` --semantically_similar_to--> `Tooling that reports success it has not earned`  [INFERRED] [semantically similar]
+  bugeventlog.md → devlog/2026-07-28.md
+- `S-8 the reaper's own predicate was unsound twice` --semantically_similar_to--> `Tooling that reports success it has not earned`  [INFERRED] [semantically similar]
+  docs/incidents/2026-07-29-lane-strandings.md → devlog/2026-07-28.md
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Default Soft Pipeline (architect -> grok -> verify -> codex audit -> advisor)** — claude_foreman_architect, agents_grok_implementer_grok_implementer, agents_codex_auditor_codex_auditor, agents_foreman_advisor_foreman_advisor [EXTRACTED 1.00]
-- **Parallel Worktree Report Consolidation (wt-new -> FOREMAN_REPORT -> wt-consolidate)** — agents_foreman_search_foreman_search, agents_foreman_plan_foreman_plan, agents_foreman_audit_foreman_audit, agents_foreman_search_foreman_report [EXTRACTED 1.00]
-- **No Silent Fallback (STATUS: unavailable, never silently become Claude)** — agents_grok_implementer_grok_implementer, agents_codex_implementer_codex_implementer, agents_codex_auditor_codex_auditor, agents_foreman_audit_foreman_audit [EXTRACTED 1.00]
-- **Soft-mode delegation pipeline (spec, route, verify, audit, advise)** — skills_foreman_skill_soft_mode, skills_foreman_references_five_part_spec_spec_template, skills_foreman_references_lanes_lane_table, skills_foreman_references_audit_checklist_verdict_schema, skills_foreman_references_roles_advisor [EXTRACTED 1.00]
-- **Foreman enhancement changesets CS1-CS4** — docs_superpowers_plans_2026_07_15_foreman_enhancement_evidence_contract, docs_superpowers_plans_2026_07_15_foreman_enhancement_git_write_ban, docs_superpowers_plans_2026_07_15_foreman_enhancement_bats_harness, docs_superpowers_plans_2026_07_15_foreman_enhancement_wt_merge, docs_superpowers_plans_2026_07_15_foreman_enhancement_docs_check, docs_superpowers_plans_2026_07_15_foreman_enhancement_vendored_skills [EXTRACTED 1.00]
-- **Cross-vendor separation defense** — skills_foreman_skill_cross_vendor_invariant, skills_foreman_references_roles_worker, skills_foreman_references_roles_auditor, skills_foreman_references_security_model_threat_enforcement_map [EXTRACTED 1.00]
+- **Checker-soundness workstream: predicates that pass loudly without earning it** — agent_traps_checker_soundness_failure_class, devlog_2026_07_28_unearned_success_class, readme_checker_soundness, roadmap_test_infrastructure_hardening, report_check_then_act_control, docs_incidents_parked_bugeventlog_entries_vendor_authed_two_state, docs_incidents_2026_07_29_lane_strandings_s8_reaper_unsound [EXTRACTED 1.00]
+- **Foreman lane roster: the vendor-routed agent contracts** — agents_grok_implementer_grok_implementer, agents_codex_implementer_codex_implementer, agents_codex_auditor_codex_auditor, agents_foreman_advisor_foreman_advisor, agents_foreman_audit_foreman_audit, agents_foreman_plan_foreman_plan, agents_foreman_search_foreman_search [EXTRACTED 1.00]
+- **Lane strandings: none caught by the mechanism responsible** — docs_incidents_2026_07_29_lane_strandings_s1_audit_died_midwrite, docs_incidents_2026_07_29_lane_strandings_s2_grok_sigttin, docs_incidents_2026_07_29_lane_strandings_s3_s4_background_and_stop, docs_incidents_2026_07_29_lane_strandings_s5_vendor_never_launched, docs_incidents_2026_07_29_lane_strandings_s6_untracked_watchdogs, docs_incidents_2026_07_29_lane_strandings_s7_watchdog_blind, docs_incidents_2026_07_29_lane_strandings_s8_reaper_unsound, docs_incidents_2026_07_29_lane_strandings_lanectl_ownership [EXTRACTED 1.00]
+- **v0.2.5 six prevention criteria (SC-A through SC-F)** — docs_notes_2026_07_18_v025_sc_proof_sc_a_agent_stop_survivability, docs_notes_2026_07_18_v025_sc_proof_sc_b_whole_round_ownership, docs_notes_2026_07_18_v025_sc_proof_sc_c_bounded_auto_resume, docs_notes_2026_07_18_v025_sc_proof_sc_d_stale_report_immunity, docs_notes_2026_07_18_v025_sc_proof_sc_e_no_concurrent_writers_on_resume, docs_notes_2026_07_18_v025_sc_proof_sc_f_completion_provable_without_agent [EXTRACTED 1.00]
+- **Foreman failure modes F1-F6 in the coverage matrix** — docs_research_orchestration_deep_research_report_f1_unreaped_subprocess, docs_research_orchestration_deep_research_report_f2_wrapper_stops_early, docs_research_orchestration_deep_research_report_f3_vendor_cli_serializes, docs_research_orchestration_deep_research_report_f4_mtime_watchdog_false_alarm, docs_research_orchestration_deep_research_report_f5_mid_response_death, docs_research_orchestration_deep_research_report_f6_history_drift [EXTRACTED 1.00]
+- **Default soft pipeline lanes (architect, implementer, auditor, advisor)** — docs_research_qa_2026_07_15_default_soft_pipeline, docs_research_qa_2026_07_15_grok_implementer, docs_research_qa_2026_07_15_codex_auditor, docs_research_qa_2026_07_15_foreman_advisor, docs_research_qa_2026_07_15_five_part_spec [EXTRACTED 1.00]
+- **Windows process-tree ownership stack (Job Objects, race-free spawn, kill-shot proof)** — docs_research_bun025_report_ffi_kill_on_job_close, docs_research_bun025_report_ffi_create_suspended_pattern, docs_research_bun025_report_process_tree_kill_gap, docs_research_bun025_report_process_libuv_implicit_job, docs_research_v025_plan_audit_report_d_sequencing_windows_killshot_test, docs_research_v025_plan_audit_report_b_prevention_detach_flag [INFERRED 0.85]
+- **The mkdir-mutex non-atomicity chain, from measurement to deferred gate** — docs_research_vnext_f_uutils_mkdir_blocker_uutils_mkdir_nonatomic, docs_research_vnext_f_uutils_mkdir_blocker_statx_toctou_mechanism, docs_research_unison_debate_empirical_mkdir_double_winner, docs_research_vnext_final_opus_l1_flock_untrusted, docs_research_vnext_audit_infra_codex_lock_fallback_evidence_gap, docs_research_vnext_decisions_resolved_d5_gitbash_gate_deferred [INFERRED 0.95]
+- **The unsound-evidence-predicate defect class across five independent lanes** — docs_research_vnext_audit_infra_codex_porcelain_digest_unsound, docs_research_vnext_audit_infra_codex_audit_freshness_unbound, docs_research_vnext_audit_infra_codex_positive_control_self_attestation, docs_research_vnext_decision_audit_evidence_root_evidence_root_contradiction, docs_research_vnext_edit_readme_facts_fail_closed_most_misleading, docs_research_vnext_final_opus_f5_inert_rework_budget [INFERRED 0.95]
+- **The G1-G9 deterministic audit-groundedness check family** — docs_research_vnext_n4_symbolic_verification_g1_finding_file_groundedness, docs_research_vnext_n4_symbolic_verification_g2_finding_line_groundedness, docs_research_vnext_n4_symbolic_verification_g3_criterion_coverage, docs_research_vnext_n4_symbolic_verification_g4_cross_vendor_invariant, docs_research_vnext_n4_symbolic_verification_g5_rubric_identification, docs_research_vnext_n4_symbolic_verification_g6_scope_containment, docs_research_vnext_n4_symbolic_verification_g7_provenance_invariants, docs_research_vnext_n4_symbolic_verification_g8_supersedes_integrity, docs_research_vnext_n4_symbolic_verification_g9_verdict_finding_consistency, docs_research_vnext_n4_symbolic_verification_two_speed_gate [EXTRACTED 1.00]
+- **The GP-1 to GP-7 graph-plane package family** — docs_research_vnext_pkg_workflow_summary_decision_lineage_and_telemetry, docs_research_vnext_pkg_graph_workplane_summary_gp2_audit_groundedness_gate, docs_research_vnext_pkg_graph_knowledge_summary_gp3_knowledge_plane_refresh, docs_research_vnext_pkg_graph_workplane_summary_gp4_work_dag_projection, docs_research_vnext_pkg_graph_knowledge_summary_gp5_graph_context_builder, docs_research_vnext_pkg_graph_store_eval_summary_gp6_graph_store_port, docs_research_vnext_pkg_graph_store_eval_summary_gp7_graph_eval_falsification [EXTRACTED 1.00]
+- **The four-lane plan review, re-audit and Fable tie-break** — docs_research_vnext_review_opus_review_opus_approved_with_fixes, docs_research_vnext_review_codex_review_codex_blocked_verdict, docs_research_vnext_reaudit_opus_reaudit_opus_blocked_verdict, docs_research_vnext_reaudit_codex_reaudit_codex_blocked_verdict, docs_research_vnext_reconcile_approved_with_fixes_gated_start, docs_research_vnext_reconcile_fable_tiebreak_ruling [EXTRACTED 1.00]
+- **v0.2.7.5 nine-package usability release** — docs_superpowers_specs_2026_07_18_v0275_usability_design_lifecycle_three_stage, docs_superpowers_specs_2026_07_18_v0275_usability_design_grok_lane_activation, docs_superpowers_specs_2026_07_18_v0275_usability_design_t5b_concurrency_verdict, docs_superpowers_specs_2026_07_18_v0275_usability_design_posix_cascade_parity, docs_superpowers_specs_2026_07_18_v0275_usability_design_worktree_hardening, docs_superpowers_specs_2026_07_18_v0275_usability_design_wsl_reliability_env_refresh, docs_superpowers_specs_2026_07_18_v0275_usability_design_docs_readme_refresh, docs_superpowers_specs_2026_07_18_v0275_usability_design_hard_mode_launcher, docs_superpowers_specs_2026_07_18_v0275_usability_design_v030_soft_mode_report [EXTRACTED 1.00]
+- **The durable-lanes durability spine** — docs_superpowers_specs_2026_07_15_durable_lanes_design_durable_event_log, docs_superpowers_specs_2026_07_15_durable_lanes_design_log_is_truth_invariant, docs_superpowers_specs_2026_07_15_durable_lanes_design_per_consumer_cursor, docs_superpowers_specs_2026_07_15_durable_lanes_design_worktree_checkpoints, docs_superpowers_specs_2026_07_15_durable_lanes_design_stall_watchdog, docs_superpowers_specs_2026_07_15_durable_lanes_design_resume_snapshot_heavy [EXTRACTED 1.00]
+- **v0.2.9 graph-plane package map GP-1..GP-7** — docs_research_vnext_synthesis_gp1_work_plane_telemetry, docs_research_vnext_synthesis_gp2_audit_groundedness_gate, docs_research_vnext_synthesis_gp3_knowledge_plane_refresh, docs_research_vnext_synthesis_gp4_work_dag_projection, docs_research_vnext_synthesis_gp5_graph_context_builder, docs_research_vnext_synthesis_gp6_graph_store_port, docs_research_vnext_synthesis_gp7_graph_eval_falsification [EXTRACTED 1.00]
+- **Foreman Quint formal-verification program (M1-M4 plus architect re-verification)** — formal_reports_m1_lane_lifecycle_m1_model, formal_reports_m2_concurrency_m2_model, formal_reports_m3_audit_gate_m3_model, formal_reports_m4_evidence_contract_m4_model, formal_reports_verify_quint_architect_verification_record, formal_reports_verify_quint_architect_model_must_reproduce_known_defect [EXTRACTED 1.00]
+- **Three vacuous-check incidents in one day across three actors** — formal_reports_verify_quint_architect_grep_violation_false_alarm, formal_reports_verify_quint_architect_rework_rounds_bounded_vacuous_pass, formal_reports_verify_quint_architect_wrong_step_relation_vacuous_pass, formal_reports_verify_quint_architect_vacuous_check_class, formal_reports_verify_quint_architect_regression_injection [EXTRACTED 1.00]
+- **agy lane behaviours that must be verified before the READY verdict** — openspec_changes_agy_lane_activation_tasks_t1_verification_block, openspec_changes_agy_lane_activation_proposal_effort_expressed_twice, openspec_changes_agy_lane_activation_proposal_trusted_workspaces, openspec_changes_agy_lane_activation_proposal_ambiguous_exit_code, openspec_changes_agy_lane_activation_proposal_print_timeout_default, openspec_changes_agy_lane_activation_design_ready_now_verify_later_rejected [EXTRACTED 1.00]
+- **v0.2.7.5 packages attach to the three-stage lifecycle** — openspec_changes_archive_2026_07_18_lifecycle_three_stage_design_three_stage_lifecycle, openspec_changes_archive_2026_07_18_grok_lane_activation_specs_lane_run_spec_grok_auth_is_setup_stage, openspec_changes_archive_2026_07_18_worktree_hardening_proposal_wt_cleanup_porcelain_check, openspec_changes_archive_2026_07_18_docs_readme_refresh_ground_truth_inventory_foreman_setup_sh, openspec_changes_archive_2026_07_18_docs_readme_refresh_ground_truth_inventory_foreman_cleanup_sh [EXTRACTED 1.00]
+- **POSIX whole-tree teardown fallback ladder** — openspec_changes_archive_2026_07_18_posix_cascade_parity_design_pidns_init_cascade, openspec_changes_archive_2026_07_18_posix_cascade_parity_design_kill_child_reverse_edge, openspec_changes_archive_2026_07_18_posix_cascade_parity_design_child_subreaper_net, openspec_changes_archive_2026_07_18_posix_cascade_parity_design_cgroup_kill_fallback, openspec_changes_archive_2026_07_18_posix_cascade_parity_design_systemd_run_scope_fallback, openspec_changes_archive_2026_07_18_posix_cascade_parity_design_setsid_pgid_fast_path [EXTRACTED 1.00]
+- **Per-vendor Setup auth-probe set** — openspec_changes_archive_2026_07_18_lifecycle_three_stage_auth_probes_grok_models_probe, openspec_changes_archive_2026_07_18_lifecycle_three_stage_auth_probes_codex_login_status_probe, openspec_changes_archive_2026_07_18_lifecycle_three_stage_auth_probes_claude_auth_status_probe, openspec_changes_archive_2026_07_18_lifecycle_three_stage_design_readiness_verdict [EXTRACTED 1.00]
+- **The groundedness gate's blocking discipline** — openspec_changes_audit_groundedness_gate_design_closed_world_check, openspec_changes_audit_groundedness_gate_design_structural_zero_false_positive, openspec_changes_audit_groundedness_gate_design_shadow_mode, openspec_changes_audit_groundedness_gate_design_validator_canary, openspec_changes_audit_groundedness_gate_specs_gate_spec_tier_short_circuit, openspec_changes_audit_groundedness_gate_specs_gate_spec_addressed_violation_records [EXTRACTED 1.00]
+- **Cross-vendor invariant: family comparison, tiered enforcement, recorded evidence** — openspec_changes_cross_vendor_audit_routing_design_model_family_invariant, openspec_changes_cross_vendor_audit_routing_specs_audit_routing_spec_every_tier_shared_point, openspec_changes_audit_groundedness_gate_specs_gate_spec_cross_vendor_recorded, openspec_changes_decision_lineage_and_telemetry_specs_decision_lineage_spec_audit_verdict_events, openspec_changes_decision_lineage_and_telemetry_proposal_model_identity_recording [INFERRED 0.95]
+- **Declared state versus verified reality (the fail-open family)** — openspec_changes_archive_2026_07_18_wsl_reliability_env_refresh_proposal_stale_manifest_bug, openspec_changes_crlf_extensionless_hardening_design_line_endings_bats, openspec_changes_audit_groundedness_gate_design_fail_open_validator, openspec_changes_decision_lineage_and_telemetry_specs_run_telemetry_spec_unavailable_never_zero, openspec_changes_audit_groundedness_gate_specs_gate_spec_missing_input_silent [INFERRED 0.85]
+- **Checkers must be provably able to fail** — openspec_changes_doctrine_reality_drift_design_empty_result_rule, openspec_changes_doctrine_reality_drift_specs_doctrine_integrity_spec_mutation_proven_probes, openspec_changes_formal_model_suite_design_outcome_classifier, openspec_changes_evidence_contracts_design_planted_write_positive_control, openspec_changes_graph_store_port_design_canary_fixtures, openspec_changes_graph_eval_falsification_design_fireability [INFERRED 0.85]
+- **Lane evidence contract flow** — openspec_changes_evidence_contracts_design_evidence_loop, openspec_changes_evidence_contracts_design_declared_deliverable_set, openspec_changes_evidence_contracts_design_two_root_model, openspec_changes_evidence_contracts_design_canonical_per_path_record, openspec_changes_evidence_contracts_design_attempt_fresh_production, openspec_changes_evidence_contracts_design_inconclusive_mechanism_property [EXTRACTED 1.00]
+- **Falsification order of operations (census, sigma, locked baseline, graph arm, verdict)** — openspec_changes_graph_eval_falsification_design_query_census, openspec_changes_graph_eval_falsification_design_sigma_noise_floor, openspec_changes_graph_eval_falsification_design_locked_baseline, openspec_changes_graph_eval_falsification_tasks_t4_graph_arm, openspec_changes_graph_eval_falsification_design_pre_registration_register, openspec_changes_graph_eval_falsification_design_uncomputable_state [EXTRACTED 1.00]
+- **Defenses against a wrong answer that looks like a true answer** — openspec_changes_graph_store_port_proposal_assert_non_empty, openspec_changes_graph_store_port_specs_store_spec_canary_fixtures, openspec_changes_regression_harness_tiers_specs_regression_harness_spec_req_zero_denominator_uncomputable, openspec_changes_release_metrics_design_uncomputable_fails_loudly, openspec_changes_knowledge_plane_refresh_specs_graphify_integration_spec_req_counter_staged_gating [INFERRED 0.85]
+- **Checker-soundness rule: every check demonstrated able to fail** — openspec_changes_lock_primitive_hardening_design_deterministic_atomicity_probe, openspec_changes_regression_harness_tiers_design_regression_injection_self_test, openspec_changes_regression_harness_tiers_specs_regression_harness_spec_req_round_demonstrated_to_fail, openspec_changes_lane_ownership_and_reaping_specs_lane_ownership_spec_req_predicate_demonstrated, openspec_changes_readme_refresh_tasks_t3_readme_stage, openspec_changes_lane_ownership_and_reaping_tasks_t5_red_first_gate [INFERRED 0.85]
+- **Graph-plane packages ordered behind the lock primitive** — openspec_changes_lock_primitive_hardening_proposal_lock_primitive_hardening, openspec_changes_knowledge_plane_refresh_proposal_knowledge_plane_refresh, openspec_changes_graph_store_port_proposal_graph_store_port, openspec_changes_lock_primitive_hardening_proposal_ordering_before_graph_plane [EXTRACTED 1.00]
+- **TerminusDB v0.2.9 ships as three sibling packages behind one port** — openspec_changes_terminusdb_adapter_proposal_store_adapter_capability, openspec_changes_terminusdb_schema_proposal_terminusdb_schema, openspec_changes_terminusdb_operations_proposal_terminusdb_operations, openspec_changes_terminusdb_adapter_proposal_graph_store_port [EXTRACTED 1.00]
+- **structural mitigations for TerminusDB's silent-empty failure modes** — openspec_changes_terminusdb_adapter_specs_store_adapter_spec_normalize_live_branch_list, openspec_changes_terminusdb_adapter_specs_store_adapter_spec_expect_parameter, openspec_changes_terminusdb_adapter_specs_store_adapter_spec_distinct_structural, openspec_changes_terminusdb_adapter_specs_store_adapter_spec_api_log_banned, openspec_changes_terminusdb_adapter_specs_store_adapter_spec_canaries_fail_closed, openspec_changes_terminusdb_operations_design_q_x21_canary [EXTRACTED 1.00]
+- **all three merge-gate inputs bound to diff, tree, attempt and state** — openspec_changes_three_outcome_verdicts_specs_audit_verdict_spec_gate_binds_attempt_and_tree, openspec_changes_three_outcome_verdicts_specs_audit_verdict_spec_all_gate_inputs_bound, openspec_changes_three_outcome_verdicts_design_tree_sha256, openspec_changes_three_outcome_verdicts_design_diff_sha256, openspec_changes_three_outcome_verdicts_design_pre_audit_publish [EXTRACTED 1.00]
+- **The seven-function vendor adapter interface** — openspec_changes_vendor_adapter_contract_proposal_adapter_seven_functions, openspec_changes_vendor_adapter_contract_design_adapter_argv_array_convention, openspec_changes_vendor_adapter_contract_tasks_t1_adapter_interface, openspec_changes_vendor_adapter_contract_specs_vendor_adapters_spec_req_adapter_builds_every_invocation, openspec_changes_vendor_adapter_contract_specs_vendor_adapters_spec_req_adapters_publish_capabilities [EXTRACTED 1.00]
+- **Unknown versus disproved: the checker-soundness family** — openspec_changes_vendor_preflight_design_vendor_authed_rc_collapse, openspec_changes_vendor_preflight_design_lock_defect_analogy, openspec_changes_vendor_preflight_design_banner_degrades_to_unknown, openspec_changes_vendor_preflight_specs_vendor_preflight_spec_req_three_state_auth, openspec_changes_vendor_preflight_proposal_checker_soundness_thesis [EXTRACTED 1.00]
+- **The reconstructible-and-diffable determinism invariant** — openspec_changes_work_dag_projection_design_projection_definition, openspec_changes_work_dag_projection_design_determinism_constraint, openspec_changes_work_dag_projection_tasks_t6_determinism_and_check_mode, openspec_changes_work_dag_projection_specs_work_plane_spec_req_reproducible_and_diffable, openspec_changes_work_dag_projection_proposal_no_llm_authorship [EXTRACTED 1.00]
+- **v0.2.9 Windows/WSL compatibility package family** — openspec_changes_wsl_preflight_proposal_wsl_preflight, openspec_changes_wsl_seam_doctrine_proposal_wsl_seam_doctrine, openspec_changes_wsl_tool_path_persistence_proposal_wsl_tool_path_persistence, skills_foreman_references_reference_environment_reference_environment [INFERRED 0.85]
+- **Durable-lanes substrate stack** — skills_foreman_references_durable_lanes_event_log, skills_foreman_references_durable_lanes_worktree_checkpoints, skills_foreman_references_durable_lanes_reasoning_stream_persistence, skills_foreman_references_durable_lanes_nats_jetstream_transport, skills_foreman_references_durable_lanes_stall_watchdog_v1, skills_foreman_references_durable_lanes_resume [EXTRACTED 1.00]
+- **Launcher-owned round lifecycle flow** — skills_foreman_references_orchestration_hardening_launcher_contract, skills_foreman_references_orchestration_hardening_round_ownership, skills_foreman_references_orchestration_hardening_watch_v2_state_machine, skills_foreman_references_orchestration_hardening_pueue_admission_control, skills_foreman_references_orchestration_hardening_auto_resume_supervisor, skills_foreman_references_orchestration_hardening_merge_freshness_gate [EXTRACTED 1.00]
+- **Foreman Cross-Vendor Role Split** — skills_foreman_references_roles_orchestrator, skills_foreman_references_roles_worker, skills_foreman_references_roles_codex_auditor, skills_foreman_references_roles_foreman_advisor [EXTRACTED 1.00]
+- **graphify Detect-Extract-Build Pipeline** — skills_graphify_skill_detect, skills_graphify_skill_ast_structural_extraction, skills_graphify_skill_semantic_extraction, skills_graphify_skill_extraction_merge, skills_graphify_skill_build_from_json, skills_graphify_skill_community_clustering [EXTRACTED 1.00]
+- **Scrapling Fetcher/Selector Family** — skills_scrapling_references_api_quick_ref_fetcher, skills_scrapling_references_api_quick_ref_fetchersession, skills_scrapling_references_api_quick_ref_stealthyfetcher, skills_scrapling_references_api_quick_ref_dynamicfetcher, skills_scrapling_references_api_quick_ref_selector [EXTRACTED 1.00]
+- **Per-harness bootstrap + tool-mapping integration matrix** — skills_superpowers_docs_porting_to_a_new_harness_bootstrap_injection, skills_superpowers_docs_porting_to_a_new_harness_tool_mapping, skills_superpowers_docs_porting_to_a_new_harness_claude_code, skills_superpowers_docs_porting_to_a_new_harness_codex, skills_superpowers_docs_porting_to_a_new_harness_cursor, skills_superpowers_docs_porting_to_a_new_harness_opencode, skills_superpowers_docs_porting_to_a_new_harness_pi, skills_superpowers_docs_porting_to_a_new_harness_antigravity, skills_superpowers_docs_porting_to_a_new_harness_kimi_code [EXTRACTED 1.00]
+- **Detect-and-defer worktree lifecycle** — skills_superpowers_docs_superpowers_plans_2026_03_23_codex_app_compatibility_environment_detection, skills_superpowers_docs_superpowers_plans_2026_04_06_worktree_rototill_native_tool_preference, skills_superpowers_docs_superpowers_plans_2026_04_06_worktree_rototill_submodule_guard, skills_superpowers_docs_superpowers_plans_2026_04_06_worktree_rototill_provenance_based_cleanup, skills_superpowers_docs_superpowers_plans_2026_03_23_codex_app_compatibility_detached_head_handoff, skills_superpowers_docs_superpowers_plans_2026_04_06_worktree_rototill_worktree_consent [EXTRACTED 1.00]
+- **Brainstorm visual companion architecture evolution** — skills_superpowers_docs_plans_2026_01_17_visual_brainstorming_brainstorm_server, skills_superpowers_docs_plans_2026_01_17_visual_brainstorming_helper_library, skills_superpowers_docs_superpowers_plans_2026_02_19_visual_brainstorming_refactor_events_file, skills_superpowers_docs_superpowers_plans_2026_03_11_zero_dep_brainstorm_server_websocket_protocol_layer, skills_superpowers_release_notes_per_session_key [INFERRED 0.95]
+- **Visual Companion Session-Auth Hardening Chain** — skills_superpowers_docs_superpowers_plans_2026_06_09_visual_companion_issues_per_session_secret_key, skills_superpowers_docs_superpowers_specs_2026_06_10_visual_companion_auth_hardening_design_bootstrap_keyed_loads, skills_superpowers_docs_superpowers_specs_2026_06_10_visual_companion_auth_hardening_design_websocket_same_origin_enforcement, skills_superpowers_docs_superpowers_specs_2026_06_10_visual_companion_auth_hardening_design_realpath_containment, skills_superpowers_docs_superpowers_specs_2026_06_11_visual_companion_final_hardening_fixup_design_root_screen_containment, skills_superpowers_docs_superpowers_specs_2026_06_11_visual_companion_final_hardening_fixup_design_fallback_token_isolation, skills_superpowers_skills_brainstorming_visual_companion_session_key_url [INFERRED 0.85]
+- **Git-State-Based Workspace Isolation Protocol** — skills_superpowers_docs_superpowers_specs_2026_03_23_codex_app_compatibility_design_read_only_environment_detection, skills_superpowers_docs_superpowers_specs_2026_03_23_codex_app_compatibility_design_detached_head_handoff_payload, skills_superpowers_docs_superpowers_specs_2026_04_06_worktree_rototill_design_detect_state_not_platform, skills_superpowers_docs_superpowers_specs_2026_04_06_worktree_rototill_design_provenance_based_ownership, skills_superpowers_skills_finishing_a_development_branch_skill_environment_detection_step, skills_superpowers_skills_finishing_a_development_branch_skill_provenance_cleanup [INFERRED 0.85]
+- **Platform-Neutralization Phase Series (A/B/C)** — skills_superpowers_docs_superpowers_specs_2026_05_05_platform_neutral_prose_design_agent_neutral_prose, skills_superpowers_docs_superpowers_specs_2026_05_05_platform_neutral_config_refs_design_instruction_file_neutralization, skills_superpowers_docs_superpowers_specs_2026_05_05_platform_neutral_readme_design_alphabetical_platform_ordering, skills_superpowers_docs_superpowers_specs_2026_05_05_platform_neutral_prose_design_claude_carve_outs [EXTRACTED 1.00]
+- **Superpowers Review Gate Chain (request → template → task gate → reception)** — skills_superpowers_skills_requesting_code_review_skill_requesting_code_review, skills_superpowers_skills_requesting_code_review_code_reviewer_code_reviewer_template, skills_superpowers_skills_subagent_driven_development_task_reviewer_prompt_task_reviewer_prompt_template, skills_superpowers_skills_receiving_code_review_skill_receiving_code_review, skills_superpowers_skills_subagent_driven_development_skill_subagent_driven_development, skills_superpowers_skills_writing_plans_plan_document_reviewer_prompt_plan_document_reviewer_template [EXTRACTED 1.00]
+- **Systematic Debugging Four-Phase Process** — skills_superpowers_skills_systematic_debugging_skill_phase_1_root_cause_investigation, skills_superpowers_skills_systematic_debugging_skill_phase_2_pattern_analysis, skills_superpowers_skills_systematic_debugging_skill_phase_3_hypothesis_and_testing, skills_superpowers_skills_systematic_debugging_skill_phase_4_implementation, skills_superpowers_skills_systematic_debugging_skill_iron_law [EXTRACTED 1.00]
+- **Defense-in-Depth Four Validation Layers** — skills_superpowers_skills_systematic_debugging_defense_in_depth_layer_1_entry_point_validation, skills_superpowers_skills_systematic_debugging_defense_in_depth_layer_2_business_logic_validation, skills_superpowers_skills_systematic_debugging_defense_in_depth_layer_3_environment_guards, skills_superpowers_skills_systematic_debugging_defense_in_depth_layer_4_debug_instrumentation [EXTRACTED 1.00]
+- **RED-GREEN-REFACTOR cycle applied to skill documentation** — skills_superpowers_skills_writing_skills_skill_iron_law, skills_superpowers_skills_writing_skills_skill_red_green_refactor_for_skills, skills_superpowers_skills_writing_skills_testing_skills_with_subagents_red_phase_baseline_testing, skills_superpowers_skills_writing_skills_testing_skills_with_subagents_green_phase_write_minimal_skill, skills_superpowers_skills_writing_skills_testing_skills_with_subagents_refactor_phase_close_loopholes, skills_superpowers_skills_writing_skills_anthropic_best_practices_build_evaluations_first [INFERRED 0.85]
+- **Bulletproofing toolkit against rationalization** — skills_superpowers_skills_writing_skills_skill_bulletproofing_skills, skills_superpowers_skills_writing_skills_skill_close_every_loophole, skills_superpowers_skills_writing_skills_skill_spirit_vs_letter, skills_superpowers_skills_writing_skills_skill_rationalization_table, skills_superpowers_skills_writing_skills_skill_red_flags_list, skills_superpowers_skills_writing_skills_persuasion_principles_authority, skills_superpowers_skills_writing_skills_persuasion_principles_commitment [EXTRACTED 1.00]
+- **Explicit skill-request prompt corpus (skill-invocation trigger tests)** — skills_superpowers_tests_explicit_skill_requests_prompts_action_oriented, skills_superpowers_tests_explicit_skill_requests_prompts_after_planning_flow, skills_superpowers_tests_explicit_skill_requests_prompts_claude_suggested_it, skills_superpowers_tests_explicit_skill_requests_prompts_i_know_what_sdd_means, skills_superpowers_tests_explicit_skill_requests_prompts_mid_conversation_execute_plan, skills_superpowers_tests_explicit_skill_requests_prompts_please_use_brainstorming, skills_superpowers_tests_explicit_skill_requests_prompts_skip_formalities, skills_superpowers_tests_explicit_skill_requests_prompts_subagent_driven_development_please, skills_superpowers_tests_explicit_skill_requests_prompts_use_systematic_debugging [EXTRACTED 1.00]
+- **Foreman workflow stations depicted along the golden path** — assets_foreman_banner_search, assets_foreman_banner_plan, assets_foreman_banner_five_part_spec, assets_foreman_banner_implement, assets_foreman_banner_verify, assets_foreman_banner_audit, assets_foreman_banner_ship [EXTRACTED 1.00]
+- **The five numbered sections that constitute the Five-Part Spec placard** — assets_foreman_banner_spec_objective, assets_foreman_banner_spec_files, assets_foreman_banner_spec_interfaces, assets_foreman_banner_spec_constraints, assets_foreman_banner_spec_verification [EXTRACTED 1.00]
+- **Total Recall Visual Homage Elements** — assets_v029_total_georgecall_rekall_signage, assets_v029_total_georgecall_mars_colony, assets_v029_total_georgecall_exosuit, assets_v029_total_georgecall_total_recall_homage [INFERRED 0.85]
+- **Post-Impressionist Render Treatment** — assets_v029_total_georgecall_van_gogh_impasto_style, assets_v029_total_georgecall_starry_night_sky, assets_v029_total_georgecall_warm_cool_palette_split, assets_v029_total_georgecall_release_art [INFERRED 0.85]
+- **Industrial Frontier Labor Scene** — assets_v029_total_georgecall_foreman_figure, assets_v029_total_georgecall_worker_crew_silhouettes, assets_v029_total_georgecall_industrial_machinery, assets_v029_total_georgecall_foreman_overseer_metaphor [INFERRED 0.75]
+- **Glyph composition: central dot plus two counter-rotating arcs under 180-degree symmetry** — skills_superpowers_assets_app_icon_orbital_glyph_mark, skills_superpowers_assets_app_icon_central_node_dot, skills_superpowers_assets_app_icon_dual_sweeping_arcs, skills_superpowers_assets_app_icon_180_degree_rotational_symmetry [EXTRACTED 1.00]
+- **Icon design constraints for small-size legibility and theme neutrality** — skills_superpowers_assets_app_icon_pure_monochrome_silhouette, skills_superpowers_assets_app_icon_square_canvas_with_generous_padding, skills_superpowers_assets_app_icon_wordless_abstract_branding, skills_superpowers_assets_app_icon [INFERRED 0.85]
+- **Superpowers Small Glyph Composition (arcs + nucleus + point symmetry)** — skills_superpowers_assets_superpowers_small_logo_mark, skills_superpowers_assets_superpowers_small_orbital_arc_pair, skills_superpowers_assets_superpowers_small_central_nucleus_dot, skills_superpowers_assets_superpowers_small_rotational_symmetry [EXTRACTED 1.00]
+- **Small-Size Legibility Constraint Set** — skills_superpowers_assets_superpowers_small_small_size_variant, skills_superpowers_assets_superpowers_small_monochrome_flat_fill, skills_superpowers_assets_superpowers_small_square_viewbox [INFERRED 0.85]
 
-## Communities (380 total, 64 thin omitted)
+## Communities (489 total, 129 thin omitted)
 
-### Community 0 - "Community 0"
-Cohesion: 0.33
-Nodes (12): Codex Auditor (GPT-5.6 Sol), Verdict Schema (verdict.schema.json), Foreman Audit (worktree), Foreman Plan (worktree), FOREMAN_REPORT Worktree Report, Foreman Search (worktree), Cross-Vendor Audit Invariant, Reference Environment Inventory (+4 more)
+### Community 0 - "launcher / src"
+Cohesion: 0.08
+Nodes (41): main(), parseArgs(), ParsedArgs, NOTE: deliberately BEFORE the pidns bootstrap below -- this, resolveCliArgs(), runDetached(), usage(), UsageError (+33 more)
 
-### Community 1 - "Community 1"
-Cohesion: 0.19
-Nodes (13): Foreman documentation site (single page), Foreman docs site README, Audit verdict schema (APPROVED | WARNING | BLOCKED), .foreman/config.toml (mode, worker, audit, checks, limits, gate), foreman.worktree-report.v1 schema (FOREMAN_REPORT.md/.json), Reference environment (Windows host + WSL2 Ubuntu), Pre-implementation tool-check / bootstrap gate, Auditor (cold-diff review) role (+5 more)
+### Community 1 - "openspec / changes"
+Cohesion: 0.04
+Nodes (47): canary_anyuri_string_unification fixture, canary_branch_prefix_diff fixture, D12 error taxonomy and retry policy, D14 banned endpoint enforcement (/api/log), D5 CAS wrapper and write shapes, D6 normalize_data_version, D7 non-empty query wrapper with expect parameter, D8 Distinct mandatory around Path queries (+39 more)
 
-### Community 2 - "Community 2"
-Cohesion: 0.22
-Nodes (10): grok-4.5 model, Grok Build coding agent, Introducing Grok Build (xAI announcement, 2026-05-25), Grok Build parallel subagents in worktrees, bats-core test harness (tests/run.sh, setup_tmp_repo), wt-merge.sh squash-apply script, First dogfood run lessons (five defects), Worktree-by-default implement rounds (+2 more)
+### Community 2 - "skills / foreman"
+Cohesion: 0.07
+Nodes (23): fm_lock_acquire(), fm_lock__acquire_flock(), fm_lock__acquire_mkdir(), fm_lock__ensure_local_probe(), fm_lock__ensure_verdict_cache(), fm_lock__evidence_licenses(), fm_lock__inventory_pin_ok(), fm_lock__load_inventory_rows() (+15 more)
 
-### Community 3 - "Community 3"
-Cohesion: 0.22
-Nodes (10): Codex CLI, codex exec (non-interactive mode), Codex sandbox policy (read-only | workspace-write | danger-full-access), Codex SDK Code Review pattern (headless exec in CI), Codex structured review output schema (findings + verdict + confidence), Codex Sandboxing doc capture (page not found), docs-check.sh documentation & comment-quality gate, Documentation & comment-quality stage (Section 5) (+2 more)
-
-### Community 4 - "Community 4"
-Cohesion: 0.05
-Nodes (36): 1.1 Windows, 1.2 WSL / Linux, 1.3 Boot the architect, 1. Running Setup, 2.1 Create parallel recon worktrees, 2.2 Spawn search and plan, 2.3 Consolidate recon, 2.4 Write the five-part spec and implement (+28 more)
-
-### Community 5 - "Community 5"
-Cohesion: 0.24
-Nodes (11): Agent Skills Standard, agentskills/agentskills GitHub Repo, Progressive Disclosure, Claude Code Agent Teams, Adversarial Review Step, Claude Code Best Practices, Claude Code CLI Reference, Managed Agents Multiagent Orchestration (+3 more)
-
-### Community 6 - "Community 6"
-Cohesion: 0.05
-Nodes (37): Bug Fixes, Bug Fixes, Bug Fixes, Changed, Changes, Codex Fixes, Files Added, Files Changed (+29 more)
-
-### Community 8 - "Community 8"
+### Community 3 - "docs / research"
 Cohesion: 0.06
-Nodes (34): 1. `using-git-worktrees` SKILL.md Rewrite, 2. `finishing-a-development-branch` SKILL.md Rewrite, 3. Integration Updates, 4. Platform-Neutral Instruction File References, Bug Fixes (bundled), Declarative intent, prescriptive fallback, Design, Design Principles (+26 more)
+Nodes (42): Antigravity CLI (agy) as the Google lane, $HOME redirection isolates state but the OAuth token does not travel, agy --json-schema removes R3's biggest Google-lane shim, agy-lane-activation change package, cross-vendor-audit-routing change package, Opt-in dual audit with a Fable tiebreak, Correction of record: R3 characterised @google/gemini-cli, not agy, Forbid claiming reviewer independence absent a unique-catch measurement (+34 more)
 
-### Community 9 - "Community 9"
+### Community 4 - "skills / foreman"
+Cohesion: 0.10
+Nodes (28): Exception, BackendMisconfigurationError, CapabilityUnavailableError, DocumentNotFoundError, GraphStoreError, Raised when a backend cannot start from the given configuration., Base class for every GraphStore port error., Raised when a write is attempted before schema registration. (+20 more)
+
+### Community 5 - "docs / research"
+Cohesion: 0.05
+Nodes (39): Deliberate divergence from R1's asymmetric publication rule, Asymmetric publication: improvements to the DAG, failures to the board, The autoresearch ratchet loop, A community-built knowledge-graph pod with certainty scores, Darwin Derby blind scoring: the verifier is structurally unreachable, Hide the weights, not the metric, Measure keep-rate per model and race them, Median-of-N for noisy metrics (+31 more)
+
+### Community 6 - "skills / graphify"
+Cohesion: 0.08
+Nodes (37): Write-Wave Debounce, graphify add (URL ingest), needs_update Flag for Doc Changes, Folder Watch Mode, Token Reduction Benchmark, Agent-Crawlable Wiki Export, Full-Path Node ID Format, Verbatim source_file Rule (+29 more)
+
+### Community 7 - "docs / research"
+Cohesion: 0.08
+Nodes (33): Reconstructible-and-diffable: byte-identical re-projection, GP-4 work-dag-projection change package, Identifier scheme JK-1 through JK-5, The free join: git diff-tree paths are graphify's source_file key, The ten questions the projection still cannot answer, worklog.jsonl as a pure projection of the event log, Event-log additivity confirmed before relying on it, The background-and-stop attractor as the dominant failure class (+25 more)
+
+### Community 8 - "skills / superpowers"
+Cohesion: 0.09
+Nodes (33): Code Reviewer Prompt Template, Ready-to-Merge Verdict, Issue Severity Calibration (Critical/Important/Minor), BASE_SHA/HEAD_SHA Review Range, requesting-code-review (skill), Review Early, Review Often, Focused-File Code Organization Rule, In-Over-Your-Head Escalation Contract (+25 more)
+
+### Community 9 - "skills / superpowers"
 Cohesion: 0.14
-Nodes (25): test-sync-to-codex-plugin.sh script, add_openai_agent_metadata_fixture(), assert_branch_absent(), assert_contains(), assert_current_branch(), assert_equals(), assert_file_equals(), assert_matches() (+17 more)
+Nodes (25): add_openai_agent_metadata_fixture(), assert_branch_absent(), assert_contains(), assert_current_branch(), assert_equals(), assert_file_equals(), assert_matches(), assert_not_contains() (+17 more)
 
-### Community 10 - "Community 10"
+### Community 10 - "docs / research"
 Cohesion: 0.07
-Nodes (29): Clone superpowers skills to OpenCode config directory, In your OpenCode project, My Skill, OpenCode Support Implementation Plan, Phase 1: Create Shared Core Module, Phase 2: Refactor Codex to Use Shared Core, Phase 3: Build OpenCode Plugin, Phase 4: Documentation (+21 more)
+Nodes (32): Answer absence questions by query, never by model reading, Conflicts served in a separately headed labelled block, Content-hashed, replayable GraphContextBlock, Default graph budget of 2,000 tokens / about 145 edges, Draft ten-step Foreman context-builder algorithm, Deterministic post-generation citation verification, Effective context length is far below the claimed window, Hallucination reduction is unmeasured in the KG-RAG literature (+24 more)
 
-### Community 13 - "Community 13"
-Cohesion: 0.07
-Nodes (29): 1. Explicit Negation in Rules, 2. Entry in Rationalization Table, 3. Red Flag Entry, 4. Update description, Common Mistakes (Same as TDD), Example: TDD Skill Bulletproofing, GREEN Phase: Write Minimal Skill (Make It Pass), Initial Test (Failed) (+21 more)
+### Community 11 - "skills / foreman"
+Cohesion: 0.16
+Nodes (15): PathLike, _as_list(), _atomic_write_json(), FilesOnlyGraphStore, _id_of(), open_files_only(), Any, Path (+7 more)
 
-### Community 14 - "Community 14"
-Cohesion: 0.07
-Nodes (28): author, email, name, url, description, homepage, hooks, interface (+20 more)
-
-### Community 15 - "Community 15"
-Cohesion: 0.07
-Nodes (28): Appendix A — Reference integrations (current), Appendix B — Gotchas that have bitten porters, Before you start, Hard requirement: automatic session-start injection, How to tell which shape you have, Part 1 — How Superpowers works across harnesses, Part 2 — Can this harness be supported?, Part 3 — Definition of done (+20 more)
-
-### Community 16 - "Community 16"
-Cohesion: 0.07
-Nodes (28): A1 — Per-session secret key (chosen approach), A2 — Host allowlist dropped; browser WS Origin retained, A3 — Server crashes on `null` / primitive WS payload, A4 — Frame-length bound in `decodeFrame` (adjacent), A. Server security hardening (`server.cjs`), B1 — macOS resource-fork dotfiles served as screen content, B2 — `stop-server.sh` can kill a reused PID, B3 — WebSocket client: silent reconnect, stale "Connected" (+20 more)
-
-### Community 17 - "Community 17"
-Cohesion: 0.07
-Nodes (28): Architecture, Chosen combination, Config keys (new, under `[audit]` in `.foreman/config.toml`), File-ownership conflicts (flag to the architect before routing to implementers), FOREMAN_REPORT, Goals and non-goals, Metrics, Open questions (+20 more)
-
-### Community 18 - "Community 18"
-Cohesion: 0.07
-Nodes (28): Audit Pipeline Entry Points, Effort Pinning (Model Reasoning), Evidence, Evidence Collection, F10: Graphify Not Injected, F11: Dev-v1 MCP Transport, F12: Model-Family Decorrelation in MCP, F1: Cold-Context Only (No Repo Exploration) (+20 more)
-
-### Community 19 - "Community 19"
-Cohesion: 0.07
-Nodes (27): Antigravity, Claude Code, Codex App, Codex CLI, Commercial Services, Community, Contributing, Cursor (+19 more)
-
-### Community 20 - "Community 20"
-Cohesion: 0.06
-Nodes (34): 2026-07-16 — 4-way parallel Grok fan-out appears to serialize at the CLI, 2026-07-16 — audit wall-clock serializes every merge (27 min full, 24 min scoped), 2026-07-16 — background-and-stop is a recurring cross-model attractor, not a one-off, 2026-07-16 — file-mtime stall watchdogs false-alarm on read-heavy and completed lanes, 2026-07-16 — finisher lane's cwd silently reset to a DIFFERENT lane's worktree, 2026-07-16 — Grok CLI 600s subprocess timeout swallowed the worker's closing message, 2026-07-16 — implementer lane died to a mid-response API server error with zero progress signal, 2026-07-16 — implementer wrapper stopped while its CLI subprocess kept running (+26 more)
-
-### Community 21 - "Community 21"
-Cohesion: 0.07
-Nodes (26): Breaking Changes, Bug Fixes, Commit History, Credits, Documentation, File Changes, For Contributors, For Users (+18 more)
-
-### Community 22 - "Community 22"
-Cohesion: 0.08
-Nodes (25): additionalProperties, type, type, items, type, additionalProperties, properties, required (+17 more)
-
-### Community 23 - "Community 23"
-Cohesion: 0.08
-Nodes (25): Lift drill into superpowers as `evals/` — implementation plan, Task 10: Bash test deletion phase — per-file with subagent gate, Task 10a: Skill-triggering prompts (6 files), Task 10b: explicit-skill-requests (selective deletion), Task 10c: subagent-driven-dev real-project tests, Task 10d: tests/claude-code/test-document-review-system.sh, Task 10e: tests/claude-code/test-requesting-code-review.sh, Task 10f: tests/claude-code/test-worktree-native-preference.sh (+17 more)
-
-### Community 24 - "Community 24"
-Cohesion: 0.14
-Nodes (21): assert, assertBrandedFallbackText(), assertBrandedWithLogo(), assertFramedLogoSupportsDarkTheme(), assertFramedScreenUsesBrandHeader(), assertHeaderAvoidsNarrowOverlap(), assertLogoKeepsTransparentBackground(), assertTelemetryImage() (+13 more)
-
-### Community 25 - "Community 25"
-Cohesion: 0.08
-Nodes (24): Adding New Tests, CI/CD Integration, Claude Code Skills Tests, Current Tests, Debugging Failed Tests, Example Test, Fast Tests (run by default), Integration Tests (use --integration flag) (+16 more)
-
-### Community 26 - "Community 26"
-Cohesion: 0.08
-Nodes (24): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+16 more)
-
-### Community 27 - "Community 27"
-Cohesion: 0.08
-Nodes (24): Create PR, Determine path based on chosen location, Get main repo root for CWD safety, Go, If this returns a path, you're in a submodule, not a worktree — proceed to Step 1, Merge first — verify success before removing anything, Node.js, Only after merge succeeds: remove worktree, then delete branch (+16 more)
-
-### Community 28 - "Community 28"
-Cohesion: 0.08
-Nodes (23): Additional findings not folded into the blocks above (completeness), Cross-cutting, durable-lanes Implementation Plan, Execution through Foreman, Global Constraints, Note on shipped `ckpt_snapshot` (T2, already merged), Portability & correctness checklist (apply to EVERY task's code), Pre-implementation audit — Tasks 3–4 (2026-07-15, Codex GPT-5.6 Sol, high) (+15 more)
-
-### Community 29 - "Community 29"
-Cohesion: 0.08
-Nodes (23): Agent contracts (`agents/grok-implementer.md`, `agents/codex-implementer.md`), Context — lessons from the first dogfood run, Decisions log, Definition of done, Doctrine (SKILL.md, `references/parallel-worktrees.md`), Execution plan (approach A — the enhancement ships via the enhanced loop), Foreman skill enhancement — design, Goals (+15 more)
-
-### Community 30 - "Community 30"
+### Community 12 - "docs / research"
 Cohesion: 0.09
-Nodes (22): 1. verification-before-completion: Add Configuration Change Verification, Anti-Pattern 6: Mocks Derived from Implementation, Context Approaches, Example, Executive Summary, Files to Review, Gate Function, Problem (+14 more)
+Nodes (30): config/foreman.toml.example at seven claimants, Packages claiming the same file land serially, never in parallel worktrees, Whether S7 to S9 belong in this release remains contested, lane-run.sh as the peak-contention file at seven claimants, Modification-claim counting replaces path mentions (revision 2), The S0 to S10 landing order, each stage independently taggable, Two packages had no stage: corrected, Undercounting is the safer error (+22 more)
 
-### Community 31 - "Community 31"
-Cohesion: 0.09
-Nodes (22): 1. Install scrapling, 1. 安装 scrapling, 2. Install this skill, 2. 安装此技能, Claude Code Skill: Scrapling, Cookie Vault, Cookie 保险库, English (+14 more)
+### Community 13 - "docs / research"
+Cohesion: 0.07
+Nodes (30): A sound external verifier owns the verdict; LLM critics are evidence, GSM-Symbolic, LLM-Modulo external-verifier architecture (position paper, no number), Rule Violation Score over the work-DAG, Only closed-world checks may block, The 0/20 ICD-10-CM domain-convention result, Five-category residual defect taxonomy A-E, Tier 3 evidence sufficiency is advisory only (+22 more)
 
-### Community 32 - "Community 32"
-Cohesion: 0.11
-Nodes (14): assert, fs, killAndWait(), newestSessionDir(), path, SERVER, sleep(), { spawn, execFileSync } (+6 more)
+### Community 14 - "docs / research"
+Cohesion: 0.07
+Nodes (30): Every write is additive: supersede and invalidate, never mutate, Closed-world document schema validated at write time, Store commits are an audit trail only, never lineage, Every LLM-populated field is an enum or a reference, GraphStore port with files-only fallback, No re-modelling of git commit ancestry as graph edges, Claim/Evaluation/Finding/Source are top-level documents, never @subdocument, OWL rejected; no second formalism (+22 more)
 
-### Community 33 - "Community 33"
-Cohesion: 0.13
-Nodes (19): assert, assertStartedOnExpectedPort(), cleanup(), CONTENT_DIR, ensureSymlinkWorks(), fs, http, path (+11 more)
-
-### Community 34 - "Community 34"
-Cohesion: 0.09
-Nodes (21): Common Rationalizations, Debugging Integration, Example: Bug Fix, Final Rule, Good Tests, GREEN - Minimal Code, Overview, Red Flags - STOP and Start Over (+13 more)
-
-### Community 35 - "Community 35"
-Cohesion: 0.13
-Nodes (17): assert, assertStartedOnExpectedPort(), cleanup(), CONTENT_DIR, EXPECTED_SECURITY_HEADERS, fs, http, path (+9 more)
-
-### Community 36 - "Community 36"
+### Community 15 - "skills / foreman"
 Cohesion: 0.10
-Nodes (20): author, email, name, description, homepage, interface, capabilities, developerName (+12 more)
+Nodes (17): ABC, files_only_factory(), Factory used by CI: fresh in-memory files-only store, no schema yet., GraphStore, Any, Abstract GraphStore port.      Implementations: ``FilesOnlyGraphStore`` (default, Return the set of optional capabilities this backend provides.          Subset o, Return True iff this backend provides the named optional capability. (+9 more)
 
-### Community 37 - "Community 37"
+### Community 16 - "skills / superpowers"
 Cohesion: 0.10
-Nodes (20): Architecture, Background, Benefits, Code Reuse Strategy, Custom Tools, File Structure, High-Level Structure, Implementation Plan (+12 more)
+Nodes (28): Reasoned Technical Pushback, Condition-Based Waiting, When an Arbitrary Timeout IS Correct, waitFor polling helper, Skill Bulletproofing Against Rationalization, Systematic Debugging Skill Creation Log, Testing Skills With Subagents, Debugging Iron Law: No Fixes Without Root Cause Investigation (+20 more)
 
-### Community 38 - "Community 38"
-Cohesion: 0.12
-Nodes (15): 10. Worktree isolation, 11. The evidence contract, 12. Verification and the audit lane, 13. The documentation stage, 14. Repo understanding (knowledge graph) and maintenance, 1. What Foreman is and the problem it solves, 2. The mental model, 4. Lanes and vendor routing (+7 more)
+### Community 17 - "docs / research"
+Cohesion: 0.08
+Nodes (27): Canonicalisation as an explicit post-hoc phase, Commit to one canonical entity at the write boundary, The faithfulness gap: typecheck catches under half of semantic drift, The grounding / unification problem, Kautz's six-type neurosymbolic taxonomy, Kautz Type 3 pipeline as the default shape, Refusal of end-to-end differentiable neurosymbolic (Type 5), LINC (LLM semantic parser to FOL theorem prover) (+19 more)
 
-### Community 39 - "Community 39"
-Cohesion: 0.10
-Nodes (20): 1a. Native Worktree Tools (preferred), 1b. Git Worktree Fallback, Assuming directory location, Common Mistakes, Create the Worktree, Directory Selection, Fighting the harness, Overview (+12 more)
-
-### Community 40 - "Community 40"
-Cohesion: 0.10
-Nodes (19): Browser Events Format, Cards (visual designs), Cleaning Up, CSS Classes Available, Design Tips, File Naming, How It Works, Mock elements (wireframe building blocks) (+11 more)
-
-### Community 41 - "Community 41"
-Cohesion: 0.10
-Nodes (19): Bulletproofing Elements, Creation Log: Systematic Debugging Skill, Enhancement 1: TDD Reference, Extraction Decisions, Final Outcome, Initial Version, Iterations, Key Insight (+11 more)
-
-### Community 42 - "Community 42"
-Cohesion: 0.10
-Nodes (19): Coverage-neutrality, Coverage-neutrality, Coverage-neutrality (isolation), Coverage-neutrality (kill-bound contract preserved), Current (lines 19-34), Current (lines 9-13), Design — test-harness fork-tax reduction, Edit 1 — B#1: memoize the jq-CRLF probe (`tests/helpers.bash`) (+11 more)
-
-### Community 43 - "Community 43"
-Cohesion: 0.21
-Nodes (17): sync-to-codex-plugin.sh script, append_git_ignored_directory_excludes(), append_git_ignored_file_excludes(), apply_to_preview_checkout(), confirm(), copy_local_destination_overlay(), copy_preserved_destination_metadata(), die() (+9 more)
-
-### Community 44 - "Community 44"
-Cohesion: 0.11
-Nodes (18): Bulk or spray-and-pray PRs, Bundled unrelated changes, "Compliance" changes to skills, Domain-specific skills, Eval harness, Fabricated content, Fork-specific changes, General (+10 more)
-
-### Community 45 - "Community 45"
-Cohesion: 0.11
-Nodes (18): Avoid, "bash is not recognized", Cross-Platform Polyglot Hooks for Claude Code, Do, Example: JSON escaping without external tools, File Structure, Hook doesn't fire at all, Hook runs on Unix but does nothing on Windows (+10 more)
-
-### Community 46 - "Community 46"
-Cohesion: 0.11
-Nodes (17): Bootstrap not appearing, Finding Skills, Getting Help, How It Works, Installation, Loading a Skill, Migrating from the old symlink-based install, Personal Skills (+9 more)
-
-### Community 47 - "Community 47"
-Cohesion: 0.11
-Nodes (17): Acknowledging Correct Feedback, Code Review Reception, Common Mistakes, Forbidden Responses, From External Reviewers, From your human partner, GitHub Thread Replies, Gracefully Correcting Your Pushback (+9 more)
-
-### Community 48 - "Community 48"
-Cohesion: 0.11
-Nodes (17): Changes by File, Core Model, Design, `frame-template.html` (UI frame), `helper.js` (client-side script), `index.js` (server), Key Addition: `.events` File (Per-Screen Event Stream), Key Deletion: `wait-for-feedback.sh` (+9 more)
-
-### Community 49 - "Community 49"
-Cohesion: 0.11
-Nodes (17): 1. `using-git-worktrees/SKILL.md` — Add Step 0 (~12 lines), 2. `finishing-a-development-branch/SKILL.md` — Add Step 1.5 + cleanup guard (~20 lines), 3. `subagent-driven-development/SKILL.md` and `executing-plans/SKILL.md` — 1 line edit each, 4. `codex-tools.md` — Add environment detection docs (~15 lines), Automated (run in Claude Code after implementation), Changes, Codex App Compatibility: Worktree and Finishing Skill Adaptation, Decision Matrix (+9 more)
-
-### Community 50 - "Community 50"
-Cohesion: 0.11
-Nodes (17): Anti-Pattern 1: Testing Mock Behavior, Anti-Pattern 2: Test-Only Methods in Production, Anti-Pattern 3: Mocking Without Understanding, Anti-Pattern 4: Incomplete Mocks, Anti-Pattern 5: Integration Tests as Afterthought, Gate Function, Gate Function, Gate Function (+9 more)
-
-### Community 51 - "Community 51"
-Cohesion: 0.12
-Nodes (16): Documentation Variants to Test, Expected Results, Next Steps, NULL (Baseline - no skills doc), Scenario 1: Time Pressure + Confidence, Scenario 2: Sunk Cost + Works Already, Scenario 3: Authority + Speed Bias, Scenario 4: Familiarity + Efficiency (+8 more)
-
-### Community 52 - "Community 52"
-Cohesion: 0.12
-Nodes (16): Common Mistakes, Finishing a Development Branch, Option 1: Merge Locally, Option 2: Push and Create PR, Option 3: Keep As-Is, Option 4: Discard, Overview, Quick Reference (+8 more)
-
-### Community 53 - "Community 53"
-Cohesion: 0.12
-Nodes (16): Candidate assessments, Claude Code primitives, Executive summary, Failure-mode coverage matrix, Foreman orchestration options for a Windows-hosted multi-agent coding harness, Hardened Foreman with Windows Job Objects and pueue, Hatchet, LangGraph (+8 more)
-
-### Community 54 - "Community 54"
-Cohesion: 0.12
-Nodes (16): Common Rationalizations, Overview, Phase 1: Root Cause Investigation, Phase 2: Pattern Analysis, Phase 3: Hypothesis and Testing, Phase 4: Implementation, Quick Reference, Real-World Impact (+8 more)
-
-### Community 55 - "Community 55"
-Cohesion: 0.12
-Nodes (16): Code Examples, Common Rationalizations for Skipping Testing, Directory Structure, Discovery Workflow, Flowchart Usage, Match the Form to the Failure, Overview, Skill Creation Checklist (TDD Adapted) (+8 more)
-
-### Community 56 - "Community 56"
-Cohesion: 0.12
-Nodes (15): 1. Identify Independent Domains, 2. Create Focused Agent Tasks, 3. Dispatch in Parallel, 4. Review and Integrate, Agent Prompt Structure, Common Mistakes, Dispatching Parallel Agents, Key Benefits (+7 more)
-
-### Community 57 - "Community 57"
-Cohesion: 0.09
-Nodes (21): Bun adoption (stack decision, user-directed 2026-07-16), Environment status (2026-07-18, HOMEOFFICE), foreman-launch contract delta (applies to 2026-07-16-foreman-launch.md), Gate policy (standing, all lanes), NEW Task 8: auto-resume supervisor (bounded), NEW Task T-INFRA: gate-speed foundation (runs FIRST), Ordering & parallelism (REVISED 2026-07-18 — see audit section), Plan audit — 2026-07-18 (4-lens, pre-implementation) (+13 more)
-
-### Community 58 - "Community 58"
-Cohesion: 0.12
-Nodes (15): 1. Bootstrap Keyed Loads, 2. WebSocket Same-Origin Enforcement, 3. Helper Reconnect Credential, 4. `/files/*` Containment, 5. Leak-Reduction Headers, 6. Gitignore Durable Session State, 7. Test Stability And Lint, Acceptance Criteria (+7 more)
-
-### Community 59 - "Community 59"
-Cohesion: 0.12
-Nodes (15): 1. Rebase Onto Current `dev`, 2. Root Screen Containment, 3. Fallback Token Isolation, 4. Stop-Server Ownership Proof, 5. Test Hardening, 6. Docs And PR Consistency, Acceptance Criteria, Background (+7 more)
-
-### Community 60 - "Community 60"
-Cohesion: 0.12
-Nodes (15): 1. Durable event log (on-disk source of truth), 2. Continuous worktree checkpoints (git plumbing), 3. Reasoning-stream persistence, 4. Transport — NATS / JetStream (primary), 5. Stall watchdog + alerts, 6. Resume, Architecture, Components (files) (+7 more)
-
-### Community 61 - "Community 61"
-Cohesion: 0.12
-Nodes (15): Advantages, Constructing Reviewer Prompts, Durable Progress, Example Workflow, File Handoffs, Handling Implementer Status, Handling Reviewer ⚠️ Items, Integration (+7 more)
-
-### Community 62 - "Community 62"
-Cohesion: 0.12
-Nodes (15): 1. Observe the Symptom, 2. Find Immediate Cause, 3. Ask: What Called This?, 4. Keep Tracing Up, 5. Find Original Trigger, Adding Stack Traces, Finding Which Test Causes Pollution, Key Principle (+7 more)
-
-### Community 63 - "Community 63"
-Cohesion: 0.12
-Nodes (15): 1. Authority, 2. Commitment, 3. Scarcity, 4. Social Proof, 5. Unity, 6. Reciprocity, 7. Liking, Ethical Use (+7 more)
-
-### Community 64 - "Community 64"
-Cohesion: 0.13
-Nodes (14): Best practices distilled, Claude Code (Anthropic), Codex (OpenAI), Cross-cutting multi-agent, Docs / site drift (fixed in this pass), Foreman QA + feature pass (2026-07-15), Grok Build (xAI), Hard mode — partial (+6 more)
-
-### Community 65 - "Community 65"
-Cohesion: 0.13
-Nodes (14): Application-Level WebSocket Messages, Architecture, Configuration, Error Handling, File Watching, HTTP Server, Motivation, Platform Compatibility (+6 more)
-
-### Community 66 - "Community 66"
+### Community 18 - "formal"
 Cohesion: 0.18
-Nodes (10): common.sh script, die(), EXIT_CONFIG, EXIT_FAIL, EXIT_MISSING_CLI, EXIT_OK, git_nohooks(), hash_snapshot() (+2 more)
+Nodes (20): assert_toolchain(), build_quint_cmd(), check_coverage_registry(), check_vacuous_registry(), cleanup_owned(), demonstrate_wrong_grep(), die(), fail() (+12 more)
 
-### Community 67 - "Community 67"
+### Community 19 - "docs / superpowers"
+Cohesion: 0.09
+Nodes (26): uutils mkdir mutual-exclusion violations (57/15 rounds), lib/checkpoint.sh, ckpt_snapshot, el_cursor_commit, el_emit, el_init, el_read, lib/eventlog.sh (+18 more)
+
+### Community 20 - "openspec / changes"
+Cohesion: 0.08
+Nodes (26): D2 â€” one audit evidence root cannot meet both roles, Credential seeding is the weakest point; shared home at cap 1 is the fallback, HAL finding that higher reasoning effort reduced accuracy in most runs, Per-lane $HOME with the credential seeded by Setup, REQUIRES-SEPARATE-HOME vendor class, Foreman owns the round timeout, so it derives --print-timeout, Change: agy-lane-activation, Antigravity CLI (agy) 1.1.8 (+18 more)
+
+### Community 21 - "skills / foreman"
+Cohesion: 0.14
+Nodes (16): main(), watch.sh script, wd_classify_v2(), wd_is_queued(), wd_main(), wd_main_v2(), wd_once(), wd_ownership_exists() (+8 more)
+
+### Community 22 - "devlog"
+Cohesion: 0.09
+Nodes (25): Parallelism map and file-ownership conflict callout, uutils vs GNU mkdir contention measurement (57 vs 0 violations), Unison port rejected on measurement (3 of 97 mechanisms), Event log (events.jsonl) as source of truth, Lock soundness limit — mkdir mutex unsafe under uutils coreutils, Telemetry gap — no tokens, cost, or model identity recorded, Work-DAG as deterministic projection of the event log, check-then-act-mkdir known-bad control shim (+17 more)
+
+### Community 23 - "openspec / changes"
+Cohesion: 0.09
+Nodes (25): pkill -f quint verify kills the caller and sibling lanes, Declaring the lane ready now and verifying later is rejected, Inventory honesty: a readiness row must name the binary its lane invokes, Wire every advertised vendor site or none, Misordered --print hangs instead of erroring, Requirement: the readiness inventory names the binary the lanes invoke, Requirement: the prompt is the value of a trailing print flag, Requirement: vendor map, group topology and hard-mode allow-list accept agy (+17 more)
+
+### Community 24 - "openspec / changes"
+Cohesion: 0.09
+Nodes (25): Derived-predicate rule, Fireability check on every threshold, keep-off action enum extension, M5 cross-vendor unique-catch rate, Architect override rule, Pre-registration kill-criteria register, Graph-plane off-switch and A/B path, Requirement: an override records the criterion as failed and leaves the component off (+17 more)
+
+### Community 25 - "skills / foreman"
+Cohesion: 0.29
+Nodes (24): _case(), case_depends_on_cycle_rejected(), case_expected_empty_true_negative(), case_lineage_attempts_from_round(), case_lineage_claims_contradicting(), case_lineage_query_names_complete(), case_lineage_unevaluated_leaves(), case_missing_capability_degrades() (+16 more)
+
+### Community 26 - "skills / superpowers"
+Cohesion: 0.19
+Nodes (24): assert, assertBrandedFallbackText(), assertBrandedWithLogo(), assertFramedLogoSupportsDarkTheme(), assertFramedScreenUsesBrandHeader(), assertHeaderAvoidsNarrowOverlap(), assertLogoKeepsTransparentBackground(), assertTelemetryImage() (+16 more)
+
+### Community 27 - "agents"
+Cohesion: 0.11
+Nodes (24): Fable decides audit tie-breaks, Grok empty burst — two identical-presenting causes, blocked_same_vendor status, ARCHITECT_ACTIONS channel for deletions and renames, codex-implementer lane, Implementer evidence contract (HEAD/status digests), Git discipline — workers never run git write commands, foreman-advisor lane (Fable, ~300 words, read-only) (+16 more)
+
+### Community 28 - "docs / research"
+Cohesion: 0.09
+Nodes (24): Claude Code CLI reference, --bg background session, Codex developer commands reference, CODEX_HOME state and profile isolation, Claude Code process and session primitives, Shared per-project Claude memory across worktrees, CODEX_HOME per-lane state isolation, F3 vendor CLI serializes parallel lanes (+16 more)
+
+### Community 29 - "docs / research"
+Cohesion: 0.09
+Nodes (24): Cheaper intervention 2: independent negative controls, Formal manifest cannot encode its own required rows, A positive-control registry callers populate can attest to itself, B9: ownership still overlaps graph-store-port, B4: N2's relation split and per-edge provenance not implemented, B3: external invariant validator is honest but unowned, N4: five property names carry divergent ranges across classes, Honest declaration plus unassigned ownership (+16 more)
+
+### Community 30 - "docs / research"
+Cohesion: 0.11
+Nodes (24): A SHACL gate can silently become a no-op (fail-open footgun), Known-violating canary fixture asserted before the validator is believed, Mandatory --directed build with a collapsed-edge refusal, Freshness contract checkable with git and jq alone, GP-3 knowledge-plane-refresh change package, One pinned interpreter and version, stamped into refresh-meta.json, Publish-or-refuse health gate on the published artifact, Rename-with-lineage from git diff --find-renames (+16 more)
+
+### Community 31 - "skills / scrapling"
+Cohesion: 0.13
+Nodes (24): graphify MCP stdio Server, Local Overlay Files (.local.md), Per-Fetcher Cookie Format, DynamicFetcher (Playwright), Fetcher (curl_cffi), FetcherSession (session cookies), Selector (network-free parsing), StealthyFetcher (Camoufox) (+16 more)
+
+### Community 32 - "skills / superpowers"
+Cohesion: 0.11
+Nodes (24): Configuration change verification, Explicit file reading for reviewers, Lean context for subagent prompts, Mock-interface drift anti-pattern, Process hygiene for E2E test subagents, Implementer self-reflection before handoff, Skills Improvements from User Feedback, Mandatory skills reading for test subagents (+16 more)
+
+### Community 33 - "docs / research"
+Cohesion: 0.09
+Nodes (23): Name classes with well-known English words, The ontology-learning layer cake, quantified, Single-writer rule over graph.json, mutex owned by Foreman, Sibling artifact, never rows inside graph.json, Mandatory cost source enum: vendor_reported, estimated, unavailable, RA-20: exactly one process writes the graph, Compression ratio: report, never optimise, Entity resolution plus triple reflection denoises an LLM-built KG (+15 more)
+
+### Community 34 - "docs / research"
+Cohesion: 0.13
+Nodes (23): Five-tier gate with strict escalation, The four provenance invariants as concrete constraints, G1 finding-file groundedness, G2 finding-line groundedness, G3 criterion coverage, G4 cross-vendor invariant, G5 rubric identification, G6 scope containment (+15 more)
+
+### Community 35 - "formal / reports"
+Cohesion: 0.11
+Nodes (23): Atomic test-and-set lock primitive, Bounded satisfaction is not a proof, el_init reclaims seq and attempt locks but not the NATS bridge lock, Lock-ordering discipline: seq lock first, attempt lock second, no nesting, M2 â€” Foreman event-log concurrency model, mutual_exclusion invariant, NATS take-then-record-owner crash window, NATS owner-token inversion (loser's token wins the write) (+15 more)
+
+### Community 36 - "docs / notes"
+Cohesion: 0.10
+Nodes (22): Resume checkpoint 2026-07-16 (durable-lanes Round B), Cross-vendor invariant (implementer vendor is not auditor vendor), Hung-lane playbook (probe, stop, short finisher), Round B durable-lanes bundle, seq-0 sentinel fix (wd_last_prompt_seq empty output), Sweep-alert fix (emit_kill_alert sweep status), T3 lane-run lane, T5 watch lane (+14 more)
+
+### Community 37 - "docs / research"
+Cohesion: 0.10
+Nodes (22): The derivation script stamps the HEAD it was derived at, The phantom config/foreman.toml path artifact, Three iterations to get one regex right, Suffix-extensibility, not existence, discriminates the artifact, Fast audit deferred to v0.4.0; only bounding and measurement here, Evidence binding on the diff content hash, not the head sha, A stale APPROVED verdict passes the gate with no freshness check, three-outcome-verdicts change package (+14 more)
+
+### Community 38 - "docs / superpowers"
+Cohesion: 0.09
+Nodes (22): crlf-extensionless-hardening package (S1), Exec-bit scope as a mechanical 41-file inventory, LANDING-ORDER 11-stage landing plan, S1 dispatch (crlf-extensionless-hardening + lock-primitive-hardening first), S4 telemetry as the release spine, 33 uncommitted filemode changes held back deliberately, v0.2.9 Total GeorgeCall implementation, The contention table counts mentions, not modifications (+14 more)
+
+### Community 39 - "docs / superpowers"
+Cohesion: 0.10
+Nodes (22): Grok dispatch recipe (stall mitigation), Never build a heredoc inline through bash -lc, Test-only jq CR-stripping wrapper in helpers.bash, Portability and correctness checklist, CS1 doctrine and lane-contract hardening (lands first), CS4 docs-site truthfulness update, Host-side commit of the worker diff (never inside the sandbox), pr-open.sh (gate → PAT push → draft PR) (+14 more)
+
+### Community 40 - "docs / superpowers"
+Cohesion: 0.10
+Nodes (22): Stamp the producing graphify version at every ingest, JK-1..JK-5 identifier scheme (the join between planes), Make round-mode dispatch the default (durable.enabled=true), worklog.jsonl (work-DAG projection artifact), ckpt_latest, resume.sh, watch.sh (stall watchdog), wd_state (pure state-transition function) (+14 more)
+
+### Community 41 - "launcher"
+Cohesion: 0.10
+Nodes (22): H3 â€” live-but-unproductive lane (detached child keeps heartbeats fresh), Death before first heartbeat is never labelled AGENT_ABANDONED, v2 watch labels are not generally one-tick debounced, Scaled watchdog thresholds and typed v2 watch labels, Authoritative content digest as the fallback for silent porcelain, D5 â€” porcelain is silent while work occurs, process.env does not reach the real environ before an FFI execve, --detach self-re-exec and bounded heartbeat handoff (+14 more)
+
+### Community 42 - "skills / superpowers"
+Cohesion: 0.16
+Nodes (21): assert, firstServerStarted(), fs, httpStatus(), isWindowsLikeShell(), killAndWait(), makeShellTempDir(), newestSessionDir() (+13 more)
+
+### Community 43 - "skills / superpowers"
+Cohesion: 0.15
+Nodes (20): assert, assertStartedOnExpectedPort(), cleanup(), CONTENT_DIR, ensureSymlinkWorks(), fetch(), fs, http (+12 more)
+
+### Community 44 - "docs / research"
+Cohesion: 0.10
+Nodes (21): Cheaper intervention 3: a directly owned supervisor, Cheaper intervention 5: harden platform adapters, v0.2.5 four-lens pre-implementation plan audit, Plan-versus-shipped drift audit (v0.2.5 plan vs v0.2.0 main), foreman-launch insertion is a contract change, not a drop-in, wt-merge aborts when report paths are named in any pathspec, Amendment A: lane-run owns the whole round under the pueue daemon, Amendment B: bounded auto-resume supervisor (Task 8) (+13 more)
+
+### Community 45 - "docs / research"
+Cohesion: 0.10
+Nodes (21): Per-tier timing telemetry and before/after audit metrics, gate-eval fails closed when a mandated deep pass did not run, verdict.schema.v2.json additive and versioned, D2: the four README ambiguities answered from evidence, Claude is a half-wired vendor, not a functional worker, The cross-vendor invariant check is miswired in hard mode, The single most misleading sentence: hard mode is fail-closed at every stage, README fact-checking edit plan (+13 more)
+
+### Community 46 - "docs / superpowers"
+Cohesion: 0.10
+Nodes (21): worker-run container profile (bridge + egress firewall), sandbox/init-firewall.sh (default-deny allowlist), The no-host-secrets guarantee and its documented narrowing, rsync -a --delete sync-back of the worker copy, LANE_READY lane-scoped readiness verdict, NOT_AUTHENTICATED tool-check state, Use-path readiness gate in lane-run, vendor_authed (non-billing auth probe) (+13 more)
+
+### Community 47 - "openspec / changes"
+Cohesion: 0.12
+Nodes (21): foreman-setup.sh lifecycle wrapper, Requirement: CLAUDE.md doctrine matches the shipped lifecycle, Requirement: USAGE documents the lifecycle end-to-end, Requirement: grok authentication is a Setup-stage responsibility, Empirical non-billing auth-probe commands, claude auth status auth probe, codex login status auth probe, Fail-closed auth-probe logic (+13 more)
+
+### Community 48 - "openspec / changes"
+Cohesion: 0.10
+Nodes (21): Attempt-fresh production, Canonical per-path record with absence as a value, INCONCLUSIVE is a property of the mechanism, Ownership split for lib/evidence.sh and vendor-multiround.sh, Planted-write positive control, git status --porcelain digest is unsound in both directions, evidence-contracts change package, lib/evidence.sh (sole implementation owner) (+13 more)
+
+### Community 49 - "skills / foreman"
+Cohesion: 0.15
+Nodes (21): codex-auditor Cold-Diff Auditor, Cross-Vendor Role Separation, Five-Part Spec, foreman-advisor Judgment Advisor, foreman-plan Parallel Design Lane, foreman-search Parallel Recon Lane, Foreman Orchestrator (Architect), Foreman Worker (Implementer) Lane (+13 more)
+
+### Community 50 - "skills / superpowers"
+Cohesion: 0.16
+Nodes (20): assert, assertSecurityHeaders(), assertStartedOnExpectedPort(), cleanup(), CONTENT_DIR, EXPECTED_SECURITY_HEADERS, fs, get() (+12 more)
+
+### Community 51 - "devlog"
+Cohesion: 0.14
+Nodes (20): Host-wide bats mutex discipline, Concurrent bats suites on one host corrupt wall-clock tests, CRLF recurrence — every *.sh unrunnable from WSL, Mechanism test versus load-dependent symptom test, The same defect relocated five times, The derived inventory caught four branches at once, Devlog 2026-07-29 — S1 implemented, four stages opened, Enumerate exclusions, not inclusions (+12 more)
+
+### Community 52 - "docs / research"
+Cohesion: 0.12
+Nodes (20): Foreman launcher (round-owning process), pgid reaper rule, SC-B whole-round ownership, REPORT_compile — bun build --compile for foreman-launch, bun:ffi dlopen of system DLLs inside a compiled binary, 30/60/90-day adoption plan, Event log plus git checkpoint architecture, F1 unreaped subprocess blocks lane (+12 more)
+
+### Community 53 - "docs / research"
+Cohesion: 0.12
+Nodes (20): Content-diff re-port merge strategy (never cherry-pick), Foundational architecture mismatch with main (adapters layer gone), v0.3.0 session-transport series audit: BLOCKED for direct merge, Task 11 live acceptance demo was never executed, AUDIT_BUNDLE pre-packaging so the auditor spends no turns on recon, codex exec versus codex mcp-server thread reuse, GPT-5.6 guaranteed 30-minute prompt-prefix cache, TraceLab: ~19% residual harness overhead over 253k Codex tool calls (+12 more)
+
+### Community 54 - "openspec / changes"
+Cohesion: 0.10
+Nodes (20): Claim registry row schema, Coverage theatre risk, Empty-result rule, Generate documentation from code (rejected for scope), LLM contradiction auditor (rejected as gate), observed_at_registration column, Pinned fact (checkable claim class), Stale change folders check (+12 more)
+
+### Community 55 - "openspec / changes"
+Cohesion: 0.11
+Nodes (20): Requirement: deterministic checker fails on any contradicted claim, Requirement: the checker's own probes are proven able to fail, Stricter agent self-report (rejected), Declared deliverable set (orchestrator-resolved, unforgeable), Evidence loop (declare, baseline, invoke, capture, assert, decide, re-prompt), In-tree audit report contradiction (architect-owned), Lane-type evidence contract, Scoped mutation probe on diff-touched lines (+12 more)
+
+### Community 56 - "openspec / changes"
+Cohesion: 0.13
+Nodes (20): WSL clock-drift pivot to residual dual-NTP jitter, Windows-shim tool-resolution shadowing, wsl-preflight change, wsl-preflight.sh, Requirement: preflight warns on cross-boundary networking and tool-resolution risk, Requirement: preflight warns on a stale WSL build, wslinfo --networking-mode detection, /c/root/.local PATH snippet (Git-Bash-only) (+12 more)
+
+### Community 57 - "skills / superpowers"
+Cohesion: 0.11
+Nodes (20): Avoid Offering Too Many Options, Avoid Time-Sensitive Information, Conditional Workflow Pattern, Use Consistent Terminology, Set Appropriate Degrees of Freedom, Skill Naming Conventions, Test With All Models You Plan to Use, YAML Frontmatter Requirements (name, description) (+12 more)
+
+### Community 58 - "docs"
+Cohesion: 0.12
+Nodes (19): Maintenance and Updates workflow, markdownlint-cli2 vacuous pass on ignored package paths, Query the committed knowledge graph before opening files, Docs-stage tool configuration (markdownlint, codespell, lychee), pueue groups and the host-wide gate mutex doctrine, Foreman use guide, agy fourth lane as routing coverage, not a fourth vote, Architect role (owns specs, routing, verification, ship call) (+11 more)
+
+### Community 59 - "docs / research"
+Cohesion: 0.11
+Nodes (19): Agent Skills open format, agentskills/agentskills specification repository, Agent Skills open-standard governance (Anthropic-originated, Apache-2.0), Progressive disclosure (discovery, activation, execution), SKILL.md (metadata plus instructions entrypoint), CLAUDE.md persistent project context, Specific context in prompts, --bare minimal mode (+11 more)
+
+### Community 60 - "docs / research"
+Cohesion: 0.13
+Nodes (19): bigint handle discipline (u64 returns are bigint, not number), bun:ffi can drive Windows Job Objects (GO-WITH-CAUTIONS), Bun issue #31941 — FFI trampoline segfault in standalone exes, CREATE_SUSPENDED spawn-then-assign-then-resume pattern, Grandchild race: AssignProcessToJobObject is not retroactive, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE crash guarantee, Kilo-Org/kilocode windows-job.ts prior art, Launcher-in-umbrella-job alternative (+11 more)
+
+### Community 61 - "docs / research"
+Cohesion: 0.12
+Nodes (19): Documents-not-commits rule; /api/log banned from query paths, GP-6 graph-store-port change package, The nine guardrails around TerminusDB, The store adopted only as a regenerable materialisation, Rehearsed exit path back to files-only, Three-way concurrency rule from three measurements, Recommendation: adopt with guardrails behind a storage port, Adoption is very weak: about 105 npm downloads a month (+11 more)
+
+### Community 62 - "openspec / changes"
+Cohesion: 0.11
+Nodes (19): Bounded escape hatch: tools return facts, not context, Layout is specified normatively, surface syntax is not, Host-side eleven-step context pipeline, PPR and GNN ranking (rejected), Files-only boundary (no graph store dependency), Worker graph traversal (rejected as primary path), Requirement: direction is reconstructed at load, not read from the directed field, Requirement: the builder runs off files and requires no graph store (+11 more)
+
+### Community 63 - "openspec / changes"
+Cohesion: 0.11
+Nodes (19): Requirement: LLM extraction runs only on the slow cadence and is never evidential, truth, then structure, then prose ordering, README claim ledger, the fail-closed-at-every-stage falsehood, readme-refresh change package, Requirement: every flagged claim carries a recorded disposition before the prose is rewritten, Requirement: a retained claim of shipped behaviour cites code and is registered with the doctrine checker, Requirement: safety claims are stated at the strength the code has at release (+11 more)
+
+### Community 64 - "skills / foreman"
+Cohesion: 0.14
+Nodes (19): Audit verdict schema (APPROVED/WARNING/BLOCKED), Decision-lineage event vocabulary, Event-payload safety rule, [audit.policy] config keys, [audit.policy] is doctrine-only, not wired into gate-eval.sh, Structured model identity (requested_alias + cli_version), Mandatory usage.source field, 2026-07-29 vendor usage-reporting probe (+11 more)
+
+### Community 65 - "skills / superpowers"
+Cohesion: 0.11
+Nodes (19): FOREMAN_GH_PAT Host Credential, gate-decision.json Merge Gate, Foreman Operator Rules, pr-open.sh Gated Draft-PR Opener, evals ruff check/format Pre-Commit Hook, evals ty type-check Pre-Commit Hook, AGENTS.md Pointer to CLAUDE.md, Mandatory Agent Pre-PR Checklist (+11 more)
+
+### Community 66 - "skills / superpowers"
+Cohesion: 0.21
+Nodes (17): append_git_ignored_directory_excludes(), append_git_ignored_file_excludes(), apply_to_preview_checkout(), confirm(), copy_local_destination_overlay(), copy_preserved_destination_metadata(), die(), ignored_directory_has_tracked_descendants() (+9 more)
+
+### Community 67 - "skills / superpowers"
+Cohesion: 0.12
+Nodes (19): Clarify All Unclear Items Before Implementing Any, Ban on Performative Agreement, receiving-code-review (skill), Six-Step Feedback Response Pattern, YAGNI Check for Reviewer-Suggested Features, RED/GREEN TDD Evidence in Report, Reviewers Do Not Re-Run the Suite, Spec Compliance Verdict (Missing/Extra/Misunderstood) (+11 more)
+
+### Community 68 - "skills / superpowers"
+Cohesion: 0.13
+Nodes (19): Durable Progress Ledger, Step 3: Verify Clean Test Baseline, Step 0: Detect Existing Isolation, Step 1b: Git Worktree Fallback, Worktree Directory Ignore Verification, Prefer Native Worktree Tools, Sandbox Permission Fallback, using-git-worktrees (skill) (+11 more)
+
+### Community 69 - "assets"
+Cohesion: 0.14
+Nodes (18): Audit stage, Foreman Project Banner (Starry Night pipeline illustration), Cross-vendor orchestration for coding agents, Five-Part Spec, Foreman, Golden path (artifact flow between stages), Implement stage, Plan stage (+10 more)
+
+### Community 70 - "docs / research"
+Cohesion: 0.14
+Nodes (18): lock-primitive-hardening package (S1), Mechanism-relative syscall evidence definition, events.jsonl as the system of record for work lineage, GP-3 knowledge-plane-refresh, GP-4 work-dag-projection, GP-5 graph-context-builder, graph.json as the sole ingest source, graph-project.sh (work-DAG projector) (+10 more)
+
+### Community 71 - "docs / superpowers"
+Cohesion: 0.12
+Nodes (18): wt-cleanup report-archiver glob fix, foreman-cleanup.sh, foreman-setup.sh, bootstrap-wsl.sh as a full native provisioner, WSL codex PATH-leak fix (appendWindowsPath=false), .wslconfig agent-host tuning, git-guards.sh, git_retry (backoff around shared-lock ops) (+10 more)
+
+### Community 72 - "skills / superpowers"
+Cohesion: 0.14
+Nodes (18): Brainstorm server, Browser helper library (event auto-capture), Screen-file watching and browser reload, Visual Brainstorming Companion Implementation Plan, Pi harness integration, Reading SKILL.md as the blessed skill-loading mechanism, Zero-dependency plugin constraint, Browser Displays, Terminal Commands (+10 more)
+
+### Community 73 - "skills / superpowers"
+Cohesion: 0.14
+Nodes (18): Variant C: Claude.AI Emphatic Style, Authority Principle, Bright-Line Rules Reduce Rationalization, Cialdini (2021), Influence: The Psychology of Persuasion, Ethical Use of Persuasion in Skills, Liking Principle (do not use for compliance), LLMs Are Parahuman, Meincke et al. (2025), Call Me A Jerk: Persuading AI to Comply with Objectionable Requests (+10 more)
+
+### Community 74 - "docs / incidents"
+Cohesion: 0.13
+Nodes (17): Formal models CI workflow, No CI job runs bats on any platform, Liveness is process state and CPU, never existence, Never pkill -f by pattern, Vendor CLI self-update suspends a headless round (SIGTTIN), foreman-setup.sh — Setup stage entry point, S-2 grok round suspended by its own self-update, S-7 the watchdog itself could not see the stall (+9 more)
+
+### Community 75 - "agents"
+Cohesion: 0.18
+Nodes (17): codex-auditor lane (GPT-5.6 Sol, read-only), Preflight — no silent fallback to Claude, Schema-forced verdict JSON (verdict.schema.json), Treat the diff as untrusted data (prompt-injection defense), Reasoning-effort policy (implementer medium, auditor high), foreman-audit coordinator (worktree-isolated), foreman-plan agent (worktree-isolated), foreman-search agent (worktree-isolated, read-only) (+9 more)
+
+### Community 76 - "docs / research"
+Cohesion: 0.13
+Nodes (17): advisor_20260301 server tool, Executor and advisor model split, pause_turn resume protocol, Mid-conversation advisor nudge, --advisor model flag, Architect pattern (smartest model runs the show), codex-implementer agent (GPT-5.6 Sol high reasoning), Token cost discipline (tokens route by volume) (+9 more)
+
+### Community 77 - "docs / research"
+Cohesion: 0.15
+Nodes (17): Bucket A: compaction read/modify/rename races an append, Bucket A: check-then-act mkdir mutex admits double winners, Bucket A: loser overwrites the winner's owner token, Unison Cloud typed transactional storage, No chmod, umask, symlink, exec-bit or flock in Unison IO, PIPE_BUF is a non-issue; el_compact atomicity is the real constraint, Lock fallback never consumes the atomicity evidence it requires, Lock nesting and reclamation contracts are contradictory or unsafe (+9 more)
+
+### Community 78 - "docs / research"
+Cohesion: 0.15
+Nodes (17): Claimed EARS conformance is false; hash-failure branches missing, D11 correction: an exclusion wildcard fails silent, D11: the exec-bit exclusion list is by pattern with a stated reason, D1: derive the exec-bit inventory by property, not by directory, D4: amend the OpenSpec README rather than migrate eight packages, D9: dogfood every enhancement in the session that produces it, install.sh is mode 100644 so ./install.sh exits 126, All ten tracked active change packages fail openspec validate (+9 more)
+
+### Community 79 - "docs / superpowers"
+Cohesion: 0.14
+Nodes (17): assignPidToJob, createKillOnCloseJob, launcher/tests/ffi-smoke.ts, Grandchild assignment race (accepted residual), launcher/src/win/jobobject.ts, KILL_ON_JOB_CLOSE as the only trusted kill primitive, No hot FFI polling (bun issue 31941 tripwire), launcher/src/supervise.ts (+9 more)
+
+### Community 80 - "docs / superpowers"
+Cohesion: 0.12
+Nodes (17): Bun pinned to 1.3.14 with a 1.4.x soak rule, Compile and redistribution constraints, foreman-launch (compiled Bun supervisor executable), Auditor agents never run bats, Scoped Bun adoption, The F1-F6 failure classes from bugeventlog, Keep Foreman in-house; adopt Job Objects + pueue, lane-queue.sh (+9 more)
+
+### Community 81 - "openspec / changes"
+Cohesion: 0.12
+Nodes (17): edge_key durable edge identity, In-block edge alias and alias table, Post-hoc graph provenance attachment (rejected), Absence is a query, not a model question, In-band citation contract, Deterministic citation verification codes, GraphContextBlock, NO GRAPH CONTEXT marker on zero seeds (+9 more)
+
+### Community 82 - "skills / foreman"
+Cohesion: 0.16
+Nodes (17): /mnt/c filesystem boundary invariant, Shared config loader (cfg_load / cfg_get), el_compact serialized compaction, Event log (events.jsonl), Native-filesystem rule for durable state, resume.sh (snapshot-heavy, replay-light), v1 stall watchdog (RUNNING -> STALLED -> DEAD), Worktree checkpoints (refs/checkpoints/<lane>) (+9 more)
+
+### Community 83 - "openspec / changes"
+Cohesion: 0.12
+Nodes (17): Requirement: preflight refuses an unsafe FOREMAN_HOME before any event-log write, FOREMAN_ALLOW_MNT_HOME override, realpath -m FOREMAN_HOME resolution, tests/wsl-preflight.bats, WSL daemon-lifecycle doctrine (restart-on-demand), Docker Desktop WSL2 backend doctrine, Doctrine-first packaging decision, Exec-bit trap (all tracked files mode 100644) (+9 more)
+
+### Community 84 - "skills / superpowers"
+Cohesion: 0.12
+Nodes (16): collaboration, debugging, ./.pi/extensions/superpowers.ts, pi-package, skills, tdd, workflow, description (+8 more)
+
+### Community 85 - "skills / foreman"
+Cohesion: 0.24
+Nodes (15): evidence_canonical_record_to(), evidence_collect_paths_to(), evidence_content_digest(), _evidence_git(), evidence_git_status_to(), evidence_is_git_worktree(), evidence_legacy_porcelain_digest(), evidence_parse_status_paths_file() (+7 more)
+
+### Community 86 - "skills / superpowers"
+Cohesion: 0.15
+Nodes (17): Defense-in-Depth Validation, Layer 1: Entry Point Validation, Layer 2: Business Logic Validation, Layer 3: Environment Guards, Layer 4: Debug Instrumentation, Empty projectDir Case Study, find-polluter.sh bisection script, Root Cause Tracing (+9 more)
+
+### Community 87 - "tests / probes"
+Cohesion: 0.49
+Nodes (16): case_content_blindspot(), case_deletion(), case_flags(), case_harness_nonzero(), case_rename(), case_roots(), case_shellcheck(), case_unreadable() (+8 more)
+
+### Community 88 - "devlog"
+Cohesion: 0.17
+Nodes (16): AGENT_TRAPS.md — consolidated trap register, Checker soundness — the core failure class, Git Bash MSYS leading-slash path conversion, npx openspec resolves to a broken 0.0.0 stub, Standing rules that override agent defaults, Write/Edit on /root paths resolve against Windows, Inline heredoc through bash -lc truncates and executes prose, Every working session ends with a devlog entry (+8 more)
+
+### Community 89 - "docs / research"
+Cohesion: 0.14
+Nodes (16): el_emit event-log emitter, MSYS2 fork-resource exhaustion (errno 11), Host-wide gate mutex (one bats run at a time), Perf bundle (el_emit spawn reduction plus test-harness fork tax), WATCH_VTICK virtual clock, v0.2.5 prevention criteria proof record (2026-07-18), lane-queue.sh (pueue-backed lane queue), codex app-server (experimental local server) (+8 more)
+
+### Community 90 - "docs / research"
+Cohesion: 0.14
+Nodes (16): Cheaper intervention 1: make success artifact-bound, Bucket-A share is 3 of 97 defects (3.09%) as an upper bound, Content-addressed deployments protect identity, not evidence, Four-bucket defect classification (A/B/C/D), Extract only the typed decision core, Unison abilities and handlers as effect isolation, Unison base STM.atomically, Do-not-port position: the mismatch is structural, not scheduling (+8 more)
+
+### Community 91 - "docs / research"
+Cohesion: 0.13
+Nodes (16): Subject-grouped arrow DSL serializer, Inline edge-ID citation contract with deterministic verification, G1-G9 deterministic audit-groundedness checks, GP-1 work-plane-telemetry, GP-2 audit-groundedness-gate, GraphContextBlock (pre-serialized, content-hashed, budgeted), graphify MCP server demoted to bounded read-only escape hatch, Pre-serialization beats agentic graph traversal (+8 more)
+
+### Community 92 - "formal / reports"
+Cohesion: 0.16
+Nodes (16): Background-and-stop attractor (exit zero read as completion), Daemon-owned round (--round mode) completion ownership, eventually_terminal (stuttering-falsifiable temporal property), Persist GATE_CMD and REPORT_PATH in the prompt event payload, H1 â€” run-scoped resume budget consumes later rounds' cap, H2 â€” dirty-refusal retry loop never reaches the cap, H4 â€” durable.enabled is inert (no cfg_get consumer), H5 â€” exit-code collision refuted; gate_rc absence accepted as success (+8 more)
+
+### Community 93 - "openspec / changes"
+Cohesion: 0.14
+Nodes (16): Assert on counterexample content (rejected as the gate), Expectation manifest as a diffable TSV, Generate the manifest from a passing run (rejected), Method and bound printed with every verdict, Anchored outcome classifier, Vacuous-predicate registry, Three vacuous checks in one session, Pinned Quint 0.32.0 / Apalache 0.56.1 toolchain (+8 more)
+
+### Community 94 - "openspec / changes"
+Cohesion: 0.15
+Nodes (16): graph-store-port change package, shrink guard is not a mutual-exclusion primitive, pinned interpreter and graphify version, knowledge-plane-refresh change package, maintenance.sh run_graph four defects, Requirement: maintenance runs the graph stage through the pinned refresh, Requirement: one pinned interpreter and one pinned graphify version, stamped into the output, T1 reproduce the concurrency claim before building on it (+8 more)
+
+### Community 95 - "openspec / changes"
+Cohesion: 0.12
+Nodes (16): graphify watch._rebuild_lock covers only three call sites, single-writer discipline for graphify writes, Requirement: every graphify write is serialised by a Foreman-owned lock, el_compact read-modify-write compaction race, fail-open is a policy defect, not a primitive defect, flat locking chosen over ordered nesting, NATS bridge lock has no reclamation path, per-lock, owner-aware reclamation that refuses when unsure (+8 more)
+
+### Community 96 - "openspec / changes"
+Cohesion: 0.14
+Nodes (16): companion-number rule, decision-lineage-and-telemetry (telemetry owner), documented misreading, M1 first-pass gate rate, M2 rounds-to-green distribution, M3 cost per merged change, M4 wall-clock split by phase, M6 escaped-defect rate per 1k merged lines (+8 more)
+
+### Community 97 - "skills / foreman"
+Cohesion: 0.20
+Nodes (10): cleanup(), emit_kill_alert(), GIT_ASK_YESNO, kill_cmd_bounded(), kill_launcher_bounded(), lane_emit_ownership(), lane_grok_secrets_scan(), lane_refresh_gate_ownership_pid() (+2 more)
+
+### Community 98 - "assets"
+Cohesion: 0.20
+Nodes (15): Blue Crystalline Reactor Tower, Armored Life-Support Exosuit, Suited Foreman Portrait Subject, Foreman-as-Site-Overseer Metaphor, Industrial Refinery Machinery, Mars Colony Cityscape, REKALL Neon Signage, Foreman v0.2.9 Release Artwork (Total Georgecall) (+7 more)
+
+### Community 99 - "docs / research"
+Cohesion: 0.17
+Nodes (15): Git is not typed by rewriting the caller, checkpoint versus commit field collision in event schema v2, Integer line-number cursor must survive attempt/checkpoint replay, Incremental checkpoint-stream audit during implementation, Hunk-hash cache shared by scoped re-audit and stream tier, Event log and git checkpoints unused by the audit path, Audit freshness bound only to diff_sha256, not attempt or tree, One workspace-change predicate imposed on all four lane types (+7 more)
+
+### Community 100 - "docs / research"
+Cohesion: 0.13
+Nodes (15): FORCE_MISSING shim pattern makes both branches deterministic, T5 split: plumbing now, real-grok verdict deferred, enforce_mcp_decorrelation fail-open closure, mcp-session.py fail-closed JSON-RPC parsing, Zero committed automated coverage for ~1900 new lines, Non-overridable always-deep floor in code, lib/audit-call.sh centralizes the cross-vendor check and mutation guard, audit-screen.sh hunk risk classifier (recall-biased) (+7 more)
+
+### Community 101 - "docs / research"
+Cohesion: 0.14
+Nodes (15): Closed-world TerminusDB document schema over OWL-DL, Competency questions as the requirements artefact, Draft set of 24 competency questions, event_offset: the work-DAG plane reconstructible against the log, Freeze the schema by hand, then let the LLM populate against it, Memoryless CQbyCQ: drop accumulated context per competency question, Minimal ontology module as the delete criterion, Do not let an LLM author the work-DAG plane (+7 more)
+
+### Community 102 - "docs / superpowers"
+Cohesion: 0.15
+Nodes (15): agy (Antigravity CLI) re-derivation residual, The cold diff is Foreman's real decorrelation mechanism, Cross-vendor independence is mostly an illusion (~2 effective votes), Frozen launcher CLI + exit-code contract (124 timeout, 125 launcher error), launcher/src/launch.ts (CLI entry), Graded stop resolved: wait grace, then TerminateJobObject, fl_resolve_launcher (lib/launch.sh), worker-run launcher-only profile (default, no Docker) (+7 more)
+
+### Community 103 - "formal / reports"
+Cohesion: 0.15
+Nodes (15): Holding classifier fixture (ok, no violation), Truncated partial output fixture, Violating classifier fixture (violation found), Success line containing the word violation (substring trap fixture), Separate max_audit_attempts / max_consecutive_unverified bound, UNVERIFIED audit loop does not consume a rework round, Outcomes read only from anchored ^[violation] / ^[ok] lines, Anchored line-prefix pass/fail predicate (+7 more)
+
+### Community 104 - "openspec / changes"
+Cohesion: 0.16
+Nodes (15): Graded stop contract with no cooperative phase, A â€” pin LANE_KILL_GRACE=1 in the two kill-escalation tests, B#1 â€” memoize the jq-CRLF probe to a run-scoped flag file, B#2 â€” build the fixture repo once per file and cp -r per test, B#3 â€” drop the $(cd && pwd) SCRIPTS subshell, Design â€” test-harness fork-tax reduction, A git init -b main repo is relocatable, so cp -r yields a valid repo, watch.bats excluded to avoid a WATCH_VTICK collision (+7 more)
+
+### Community 105 - "openspec / changes"
+Cohesion: 0.20
+Nodes (15): Grok is live and wired in, not default, Cross-vendor worker/auditor invariant, Deferral of grok default-implementer promotion, Grok-gated worktree secrets preflight, Grok whole-repo upload risk report, Change: grok-lane-activation, Requirement: grok lanes refuse secrets-bearing worktrees, Tasks — grok-lane-activation (+7 more)
+
+### Community 106 - "openspec / changes"
+Cohesion: 0.13
+Nodes (15): Conditional obligations split into one check per branch, Stratified Datalog with reified violations (rejected), A validator that fails open is worse than no validator, Learned classifier over audit output (refused), Open-world check, SHACL Core engine (rejected), gate-ground.sh Tier-2 groundedness checker, Hallucinated and self-contradictory audit output (+7 more)
+
+### Community 107 - "openspec / changes"
+Cohesion: 0.13
+Nodes (15): Claim ownership routing to owning packages, T4 coordinate the fixes, do not perform them, Fixture counts as end-to-end proof (rejected), Ontology findings, never local workarounds, Named real provenance witnesses across three audit levels, graph-dogfood release exercise, graph.json as the sole ingest source, Manifest v1 fail-closed on unknown relations (+7 more)
+
+### Community 108 - "openspec / changes"
+Cohesion: 0.13
+Nodes (15): graph-eval-falsification (M5 owner), M5 cross-vendor auditor unique-catch rate, recorded unowned-dispatch escape hatch, REJECTED: silent auto-downgrade, stateful/live-target profile exception, Requirement: unowned dispatch is possible, explicit, and recorded, Agent class, AgentRun class (+7 more)
+
+### Community 109 - "skills / foreman"
+Cohesion: 0.14
+Nodes (15): Fable Advisor pattern (soft-routing lineage), Foreman site single-page docs, "The smart model judges. Other models type.", Foreman documentation site (dogfood), GraphStore port, Lineage queries under an emptiness contract, TerminusDB is a regenerable materialisation, never the system of record, Auditor vendor != worker vendor invariant (+7 more)
+
+### Community 110 - "skills / foreman"
+Cohesion: 0.21
+Nodes (15): Six audit dimensions, Durable lanes, Five-part spec template, Reference set index, Soft-mode lane table, Orchestration hardening (v0.2.5), Live-target trade-off (correctness vs isolation), soft_mode.target = live guard (+7 more)
+
+### Community 111 - "skills / foreman"
+Cohesion: 0.21
+Nodes (9): cmd_add(), cmd_ensure(), cmd_kill(), cmd_status(), lq_ensure_group(), lq_is_windows_pueue(), lq_quote_for_shell(), lq_status_probe() (+1 more)
+
+### Community 112 - "skills / superpowers"
+Cohesion: 0.18
+Nodes (15): Migration from symlink-based OpenCode install, Acceptance test: "Let's make a react todo list", Antigravity harness integration, Bootstrap injection, Gemini CLI harness integration, Ship through the harness install mechanism, never edit user config, Kimi Code harness integration, Automatic session-start injection (hard requirement) (+7 more)
+
+### Community 113 - "tests"
+Cohesion: 0.38
+Nodes (14): assert_contains(), case_claim_survives_reexec(), case_foreign_safety(), case_harness_nonzero(), case_healthy_negatives(), case_never_launched(), case_no_output_hash(), case_pgrep_regression() (+6 more)
+
+### Community 114 - "docs / incidents"
+Cohesion: 0.16
+Nodes (14): Codex auto-triggers graphify and stalls 25min+, Background-and-stop is a recurring cross-model attractor, Every new gate lands in shadow mode, Write the skeleton first, fill in place, Lane strandings — 2026-07-29, lanectl.sh lane ownership tags and PID registry, S-1 Opus audit lane died mid-write, analysis lost, S-3/S-4 implement lane backgrounded its round and ended its turn (+6 more)
+
+### Community 115 - "devlog"
+Cohesion: 0.15
+Nodes (14): Audit wall-clock serializes every merge (24-27 min), Foreman workflow bug/event log, Pipe masks harness failure exit status, A rework round closed 8 findings and introduced 3 new ones, The write-evidence digest is structurally blind, Finding rate relocating, not converging, Evidence contract — HEAD and git status digests before/after, Eleven-requirement coverage-gap analysis (3 covered, 1 vacuous, 7 not) (+6 more)
+
+### Community 116 - "docs / research"
+Cohesion: 0.14
+Nodes (14): Agent Skills overview (agentskills.io), Anthropic advisor tool documentation, Orchestrate teams of Claude Code sessions, Best practices for Claude Code, Managed Agents multiagent orchestration (capture incomplete), Extend Claude with skills, Create custom subagents (Claude Code), fable-advisor plugin (DannyMac180) (+6 more)
+
+### Community 117 - "docs / research"
+Cohesion: 0.16
+Nodes (14): Consolidation stays a real model call, not a set union, Sharded audit with a mandatory whole-diff structural pass, Tiered audit: medium-effort screen routing to high-effort deep, Parallel breadth raises recall and false positives together, GPT-5.6 Sol/Terra/Luna tiers and the effort ladder, Sanity math: levers 1 and 2 give a credible 4-6x to 5-9 minutes, Output tokens dominate latency; prompt size barely matters, Reasoning effort is the single biggest latency dial (+6 more)
+
+### Community 118 - "launcher"
+Cohesion: 0.14
+Nodes (13): description, devDependencies, @types/bun, name, packageManager, private, scripts, build (+5 more)
+
+### Community 119 - "openspec / changes"
+Cohesion: 0.20
+Nodes (14): cgroup.kill fallback (cgroup v2), PR_SET_CHILD_SUBREAPER safety net, --kill-child reverse edge (PDEATHSIG), PID-namespace init cascade, setsid + kill(-pgid) graceful fast path, systemd-run --scope --collect fallback, KILL_ON_JOB_CLOSE parity goal, Change: posix-cascade-parity (+6 more)
+
+### Community 120 - "openspec / changes"
+Cohesion: 0.16
+Nodes (14): Coarse file-level model drift gate, The violation is the asset, not the model, audit_gate.qnt Quint model, eventlog_concurrency.qnt Quint model, formal-model-suite change package, lane_lifecycle.qnt Quint model, A drifted model is worse than no model, pkill -f ban in lanes and formal/ (+6 more)
+
+### Community 121 - "skills / foreman"
+Cohesion: 0.21
+Nodes (6): Any, Deliberately broken backend used to prove the suite is backend-agnostic.      *, R8 §6.1 fixture, expressed through the port.      Task/T7 → Round/T7+1 → {A1, A2, _seed_lineage_fixture(), stub_factory(), StubEmptyBackend
+
+### Community 122 - "skills / foreman"
+Cohesion: 0.31
+Nodes (11): ls_handle_abandoned(), ls_lock_cleanup(), ls_log(), ls_print_ready_command(), ls_reenqueue(), ls_sweep_lane(), ls_sweep_run(), ls_sweep_run_body() (+3 more)
+
+### Community 123 - "skills / foreman"
+Cohesion: 0.18
+Nodes (10): die(), EXIT_CONFIG, EXIT_FAIL, EXIT_MISSING_CLI, EXIT_OK, git_nohooks(), hash_snapshot(), log() (+2 more)
+
+### Community 124 - "skills / foreman"
 Cohesion: 0.25
-Nodes (9): maintenance.sh script, append_item(), render_human(), run_compat(), run_graph(), run_upstream(), update_recorded_hash(), usage() (+1 more)
+Nodes (9): append_item(), render_human(), run_compat(), run_graph(), run_upstream(), maintenance.sh script, update_recorded_hash(), usage() (+1 more)
 
-### Community 68 - "Community 68"
-Cohesion: 0.14
-Nodes (13): author, email, name, description, displayName, homepage, hooks, keywords (+5 more)
+### Community 125 - "skills / superpowers"
+Cohesion: 0.21
+Nodes (14): GitHub Funding Config, Installing Superpowers for OpenCode, Windows OpenCode git-plugin install workaround, Post-compaction bootstrap re-injection, Bootstrap dedup guard, OpenCode harness integration, Shape B — In-process plugin / extension, Inject bootstrap as a user-role message (+6 more)
 
-### Community 69 - "Community 69"
-Cohesion: 0.14
-Nodes (13): Findings, Summary, Critical, FOREMAN_REPORT - v0.3.0 session-transport series (cross-vendor audit), High, Low, Medium, Merge Strategy Recommendation (+5 more)
+### Community 126 - "skills / superpowers"
+Cohesion: 0.15
+Nodes (14): Alpine.js Vendoring Dropped (E3), server-started JSON and .server-info File, Zero-Dependency server.js, Instruction-File Neutralization (Phase B), Agent-Neutral Prose (Phase A), CSO to SDO Rename, Alphabetical Platform Ordering (Phase C), Per-File Bash Test Deletion Gate (+6 more)
 
-### Community 70 - "Community 70"
-Cohesion: 0.14
-Nodes (13): File Map, Self-Review Checklist, Task 10: Re-run Security Probes, Task 1: Bootstrap Keyed Root Loads, Task 2: WebSocket Origin Enforcement, Task 3: Helper Uses Stored Key For Reconnect, Task 4: Security Headers, Task 5: `/files/*` Realpath Containment (+5 more)
+### Community 127 - "skills / superpowers"
+Cohesion: 0.20
+Nodes (14): Avoid Deeply Nested References, Concise Is Key: Context Window Is a Public Good, Progressive Disclosure Patterns, Skill Authoring Best Practices (Anthropic), Structure Longer Reference Files With a Table of Contents, Token Budgets: SKILL.md Under 500 Lines, Cross-Referencing Other Skills Without @ Links, Skill Discovery Workflow (+6 more)
 
-### Community 71 - "Community 71"
-Cohesion: 0.14
-Nodes (13): 1. New file: `skills/subagent-driven-development/code-quality-reviewer-prompt.md` becomes self-contained, 2. `skills/subagent-driven-development/spec-reviewer-prompt.md` cleanups, 3. `skills/subagent-driven-development/SKILL.md` controller changes, Cost iterations (post-launch eval economics), Design, Goals, Iterations 4-5 (2026-06-10): variance honesty, structural fixes, positive recipes, Non-goals / explicitly preserved (+5 more)
+### Community 128 - "tools"
+Cohesion: 0.21
+Nodes (7): cmd_adopt(), cmd_claim(), cmd_launch(), cmd_ps(), cmd_reap(), cmd_sweep(), lanectl.sh script
 
-### Community 72 - "Community 72"
+### Community 129 - "docs"
+Cohesion: 0.17
+Nodes (13): Windows install smoke workflow, Two divergent foreman checkouts (WSL live, Windows stale), Logical pwd breaks REPO_ROOT through install.sh's own symlink, appendWindowsPath=false stops a Windows npm shim shadowing WSL binaries, bootstrap-wsl.sh complete WSL-native provisioner, Honest-link behavior — never replace a real directory, Foreman install guide, Foreman roadmap (+5 more)
+
+### Community 130 - "docs / research"
+Cohesion: 0.15
+Nodes (13): Metric M5 has two definitions and two owners, Metrics not computable from their declared dependencies, Proportionality cuts recommended for v0.2.9, Regression Tier 0 and Tier 1 acceptance are unfalsifiable, Tier budgets and statistical gates are not executable, The exit path is specified as rehearsed, not merely documented, N13: release cadence has no tripwire, New section: The record (event log, work-DAG, knowledge plane, store) (+5 more)
+
+### Community 131 - "docs / research"
+Cohesion: 0.15
+Nodes (13): External benchmarks only as an annual sanity anchor, External benchmarks measure the model and hold the scaffold implicit, Foreman has no cost-matched single-agent baseline, Don't Build Multi-Agents: share full traces, conflicting implicit decisions, The Harness Effect: hold models fixed, vary the orchestration layer, The Illusion of Multi-Agent Advantage, MAST: fourteen multi-agent failure modes in three categories, SWE-bench Pro as the contamination-resistant successor (+5 more)
+
+### Community 132 - "formal / reports"
+Cohesion: 0.19
+Nodes (13): Content-hash binding of gate artifacts to the current diff, GateHashMismatch is a dead transition pre-fix, Gate-to-merge TOCTOU unless the diff is frozen, Merge-base freshness check-to-use race, Verdict-only binding leaves stale checks/docs merge-authorizing, artifactBoundToCurrentRound (attempt and evidence-tuple binding), D1 â€” pre-existing artifact credits a no-op lane, D3 â€” deletion has no total tree identity (+5 more)
+
+### Community 133 - "openspec / changes"
+Cohesion: 0.19
+Nodes (13): Claim discipline: citation precision and multi-hop only, graph-context-builder change package (GP-5), K-1 contradiction resolved: KC-1 governs GP-5 only, Query census (instrumented, not recalled), graph-eval-falsification change package (GP-7), Negative evidence base against GraphRAG, No hallucination-reduction claim, Requirement: the census verdict governs the consumption layer and never the store (+5 more)
+
+### Community 134 - "openspec / changes"
+Cohesion: 0.15
+Nodes (13): Accounting identity input = stored + named-drop + rejected + unreached, Arithmetic conservation equations, Competency outcome model (answered / empty-but-valid / unanswerable), Immutable run evidence ledger, Committed baseline corpus counts (3,579 nodes / 3,668 links / 6 hyperedges), Requirement: arithmetic conservation ledger, Requirement: real-graph competency matrix, 24-query real-graph competency matrix tasks (+5 more)
+
+### Community 135 - "openspec / changes"
+Cohesion: 0.15
+Nodes (13): health counters gated at the stage where they can fail, Requirement: each health counter is gated at the only stage where it can fail, T5 health gate and the metadata sidecar, deterministic atomicity probe asserting on mechanism, asymmetry of contention evidence, Requirement: a non-atomic mkdir is detected, never assumed away, T14 wire the mechanism to the verdict, T4 atomicity probe in the host inventory (+5 more)
+
+### Community 136 - "openspec / changes"
+Cohesion: 0.15
+Nodes (13): gaming exposure via typed companion and human review, sigma-before-claim rule, zero denominator is uncomputable, never zero, exit path with named numeric tripwires, upstream bus-factor-1 fragility (93% single author), KC-1 kill criterion contradiction (needs rewording), every LLM-populated field is an enum or a reference, measured bimodal collapse of continuous confidence values (+5 more)
+
+### Community 137 - "openspec / changes"
+Cohesion: 0.18
+Nodes (13): Eight Vendor Contract Points, Frozen grok and codex implement argv, Seven adapter functions, wc_build_argv two-branch argv builder, T1 the adapter interface, T2 migrate the implement verb, env/vendor-preflight.sh, Requirement: the preflight result is machine-readable and carries a timestamp (+5 more)
+
+### Community 138 - "skills / foreman"
+Cohesion: 0.29
+Nodes (11): Raised when a document fails write-time schema validation.      ``field`` names, SchemaValidationError, _as_id_set(), compute_id(), detects_cycle(), _is_single_evaluates_ref(), Any, Compute the deterministic lexical id for a document mapping. (+3 more)
+
+### Community 139 - "skills / foreman"
+Cohesion: 0.15
+Nodes (13): Flat lock rule (no nesting, no ordering), lib/lock.sh lock helper, Lock-atomicity pin register, Owner-aware stale-lock reclamation, Lock timeout policy (refuse, never fail-open), uutils mkdir is non-atomic on Ubuntu 26.04 hybrid coreutils, wt-cleanup.sh SIGINT-before-remove ordering, wt_sweep_stale_locks (+5 more)
+
+### Community 140 - "skills / foreman"
+Cohesion: 0.28
+Nodes (10): ml_blocker_open(), ml_claims_value(), ml_has_companion(), ml_is_uncomputable(), ml_lint_file(), ml_lint_text(), ml_main(), ml_report() (+2 more)
+
+### Community 141 - "skills / graphify"
+Cohesion: 0.15
+Nodes (13): Discrete Confidence-Score Rubric, Extraction Subagent Prompt, Six-Value file_type Enum, Hyperedge Extraction, semantically_similar_to Edges, graphify Honesty Rules, No-API-Key Extraction Policy, Semantic Extraction Cache (+5 more)
+
+### Community 142 - "skills / superpowers"
+Cohesion: 0.28
+Nodes (13): Externally managed worktree cleanup guard, Codex App Compatibility Implementation Plan, Detached-HEAD handoff payload, Worktree environment detection (git-dir vs git-common-dir), Sandbox permission-error fallback, Worktree hooks symlink awareness, Native worktree tool preference (Step 1a), Provenance-based worktree cleanup (+5 more)
+
+### Community 143 - "skills / superpowers"
 Cohesion: 0.37
-Nodes (11): lint-shell.sh script, add_shell_file(), collect_all_shell_files(), collect_changed_shell_files(), collect_requested_shell_files(), die(), ensure_git_work_tree(), is_shell_file() (+3 more)
+Nodes (11): add_shell_file(), collect_all_shell_files(), collect_changed_shell_files(), collect_requested_shell_files(), die(), ensure_git_work_tree(), is_shell_file(), require_tool() (+3 more)
 
-### Community 73 - "Community 73"
+### Community 144 - "skills / superpowers"
 Cohesion: 0.32
-Nodes (8): test-package-codex-plugin.sh script, assert_contains(), assert_equals(), assert_not_matches(), extract_archive(), fail(), pass(), write_metadata_fixture()
+Nodes (8): assert_contains(), assert_equals(), assert_not_matches(), extract_archive(), fail(), pass(), test-package-codex-plugin.sh script, write_metadata_fixture()
 
-### Community 74 - "Community 74"
-Cohesion: 0.15
-Nodes (12): findings, summary, base_sha, branch, merge_strategy, role, run_id, schema (+4 more)
+### Community 145 - "tests"
+Cohesion: 0.22
+Nodes (8): acquire_bats_mutex(), bats_args, lookup_baseline(), lookup_skip_budget(), selected_files, run.sh script, validate_baseline_file(), validate_skip_budget_file()
 
-### Community 75 - "Community 75"
-Cohesion: 0.15
-Nodes (12): Combined result (the full new L20–22 region + L40–41 + L50), Current `el_emit` (relevant lines, eventlog.sh), Design — el_emit spawn reduction, Errexit context (why the F2 guard shape is load-bearing), F1 — CR strip (L50), F2 — seq read (L40–41), F3 — mkdir guard (part of L21), F4 — inline run_dir (rest of L21) (+4 more)
+### Community 146 - "docs / research"
+Cohesion: 0.21
+Nodes (12): Correction: AgentHub is a five-column table with no metric on the node, Correction: the SOURCE note is not Karpathy and misdescribes its sources, karpathy/agenthub is deleted; recovered only from mirrors, AgentHub's commit node carries exactly five fields, Base autoresearch is a linear ratchet, not a DAG, A one-line joinable result schema, joined only by string convention, Reject orphans at the door: push 400s on an unresolvable parent, No Anthropic publication on graph-structured provenance exists (+4 more)
 
-### Community 76 - "Community 76"
-Cohesion: 0.15
-Nodes (12): MODIFIED Requirement: el_emit assigns monotonic non-duplicate sequence numbers, MODIFIED Requirement: el_emit emits one byte-identical JSON event line, MODIFIED Requirement: el_emit ensures the run directory without a redundant spawn, Scenario: append failure leaves a gap, never a duplicate (eventlog.bats:146), Scenario: concurrent emitters, unique 1..N seqs (eventlog.bats:77), Scenario: emit without prior el_init still creates the log (eventlog.bats:12), Scenario: failed reserve preserves .seq (eventlog.bats:132), Scenario: incrementing seq returned (eventlog.bats:12) (+4 more)
+### Community 147 - "docs / research"
+Cohesion: 0.18
+Nodes (12): CAS on shared documents, branch-per-lane for independent work, Falsification harness (ships with the plane or the plane does not ship), GP-6 graph-store-port, GP-7 graph-eval-falsification, Graph retrieval loses to trivial baselines on the common case, LEED case: assembled neurosymbolic pipelines lose to their own baseline, Locked prompt-baseline arm at equal cost, Query census (kill criterion for the store) (+4 more)
 
-### Community 77 - "Community 77"
-Cohesion: 0.15
-Nodes (12): Does this PR contain multiple unrelated changes?, Environment tested, Evaluation, Existing PRs, Human review, Is this change appropriate for the core library?, New harness support (required if this PR adds a new harness), Rigor (+4 more)
+### Community 148 - "openspec / changes"
+Cohesion: 0.21
+Nodes (12): Grok Build (xAI terminal coding agent), Grok headless flag set, GROK_HOME per-lane config root, Requirement: the env manifest describes a real, resolvable grok install, Requirement: the grok-implementer recipe is non-interactive and isolated, Requirement: lane-run maps grok to an isolated GROK_HOME, CLAUDE_CONFIG_DIR does not isolate ~/.claude.json, CODEX_HOME isolation and codex concurrency limits (+4 more)
 
-### Community 78 - "Community 78"
-Cohesion: 0.15
-Nodes (12): Getting Help, Installation, Installing Superpowers for OpenCode, Migrating from the old symlink-based install, Plugin not loading, Prerequisites, Skills not found, Tool mapping (+4 more)
+### Community 149 - "openspec / changes"
+Cohesion: 0.18
+Nodes (12): Probe-evidence acceptance for config work, env/bootstrap-wsl.sh native provisioner, WSL as a co-equal foreman environment, Requirement: WSL is a fully-provisioned co-equal environment, WSL refresh verification gate, Devcontainer + egress-firewall sandbox pattern, Egress-capable bridge narrowed by default-deny allowlist, Post-ship spec reconciliation of the network wording (+4 more)
 
-### Community 79 - "Community 79"
-Cohesion: 0.14
-Nodes (13): Agent roles, Architect rules (Fable), Branches, Claude Code note, Layout, Lifecycle, Parallel recipe (soft), Parallel worktrees — search, plan, audit (+5 more)
+### Community 150 - "openspec / changes"
+Cohesion: 0.17
+Nodes (12): R8 verdict ADOPT-WITH-GUARDRAILS, assert-non-empty everywhere, silent-empty HTTP 200 failure mode, TerminusDB maintainer-concentration fragility, silent-empty canary fixtures, Requirement: an empty result is never silently accepted, zero-denominator rule for harness figures, Requirement: a harness figure with a zero denominator is uncomputable, never zero and never a passing budget (+4 more)
 
-### Community 80 - "Community 80"
-Cohesion: 0.15
-Nodes (12): Architecture after the move, Background, Branching, Concrete path/config edits, Deletion gate (per bash test), Goals, Lift drill into superpowers as `evals/` — design, Migration ordering (+4 more)
+### Community 151 - "openspec / changes"
+Cohesion: 0.17
+Nodes (12): Requirement: round-owned dispatch is the default, enforced in code, T3 enforce at the dispatch boundary, T6 round-ownership.bats tests, T7 package gate, cross-checking against an independent result, the positive control (a check observed failing), regression-injection harness, Requirement: a release-deciding result is corroborated independently (+4 more)
 
-### Community 81 - "Community 81"
-Cohesion: 0.15
-Nodes (12): Also explicitly not-dropped (tested-and-declined, with data), Audit results (2026-06-10, all ~30 skills + prompt templates), Current state, Micro-test design, Positive-Instruction Redesign of Skill Guidance — Design Spec, PR scoping, Result: writing-plans micro-test (run 2026-06-10, after this spec was written), The measured finding this spec generalizes (+4 more)
+### Community 152 - "openspec / changes"
+Cohesion: 0.17
+Nodes (12): diff_sha256 reviewed-diff content hash, evidence binding on attempt and tree, not the diff hash alone, pre-audit publish of UNVERIFIED / in_progress, REJECTED: delete audit-verdict.json at the start of every audit, stale-verdict hazard in the merge gate, Requirement: every gate input is bound to the diff and the evaluated tree, Requirement: the current audit attempt is published before the auditor is spawned, Requirement: every audit writes a verdict artifact (+4 more)
 
-### Community 82 - "Community 82"
-Cohesion: 0.15
-Nodes (12): Budget and sequencing, Judgment guardrail (co-invariant with quality), L1 — Plan-side crispness (writing-plans changes; est. −$1.5-3/run, plus variance reduction), L2 — Controller tier (est. −$4-5/run; the biggest single lever, gated hardest), L3 — Reviewer tier (est. −$0.7-1/run; most likely rung to die on the judgment guardrail), L4 — Resident-context diet (est. −$0.5-1/run), L5 — Re-litigations (explicitly flagged, maintainer-vetoed or counter-thesis), Relationship to existing work (+4 more)
+### Community 153 - "skills / foreman"
+Cohesion: 0.18
+Nodes (12): ::1-not-forwarded localhost gotcha, Requirement: browser-callback auth flows on WSL are operator-foreground, Backend-agnostic contract suite, files_only default backend, Optional capability protocol (query before use), durable-preflight.sh dependency check, NATS/JetStream one-way transport, gate group host-wide bats mutex (+4 more)
 
-### Community 83 - "Community 83"
-Cohesion: 0.15
-Nodes (12): 1. Correction, 2. Warning, 3. Temporary Ban, 4. Permanent Ban, Attribution, Contributor Covenant Code of Conduct, Enforcement, Enforcement Guidelines (+4 more)
+### Community 154 - "skills / foreman"
+Cohesion: 0.21
+Nodes (12): Vendor-agnostic browser-callback auth doctrine, grok readiness-probe / unit-test decoupling, Requirement: grok-readiness UNIT tests do not depend on live grok reachability, write_authed_grok_shim seam, Codex auth doctrine (headless vs interactive), Grok auth doctrine (Setup-stage only), Codex auth: headless vs interactive (v0.2.8.1), Pre-implementation gate (architect duty) (+4 more)
 
-### Community 84 - "Community 84"
-Cohesion: 0.15
-Nodes (13): Brainstorming Visual Companion, Bug Fixes, Contributors, Documentation & Contributor Guidelines, Existing Harness Updates, New Harness Support, One Set of Skills, Every Harness, Subagent-Driven Development (+5 more)
+### Community 155 - "skills / foreman"
+Cohesion: 0.20
+Nodes (12): Original Foreman design (hard-harness lineage), Hard-mode vendor adapters, Windows Defender exclusion doctrine, git-guards.sh repo-local guard bundle, git_retry bounded exponential backoff, Hard-mode shipped path (worker-run.sh + pr-open.sh), launcher-only profile (env -i allowlist), Deliberate refusal of git maintenance start (+4 more)
 
-### Community 85 - "Community 85"
-Cohesion: 0.15
-Nodes (13): Code Review Consolidation, Codex Plugin Mirror Tooling, Community, Contributor Guidelines for AI Agents, Cursor, Documentation & Install, Gemini CLI, OpenCode (+5 more)
+### Community 156 - "skills / foreman"
+Cohesion: 0.20
+Nodes (7): ARGV, LANE_ROOTS, POST_AUTH, PRE_AUTH, vendor-concurrency-test.sh script, vct_auth_status(), vct_build_argv()
 
-### Community 86 - "Community 86"
-Cohesion: 0.15
-Nodes (12): codex exec vs codex mcp-server: startup, resume, caching, GPT-5.6 family and effort tiers (launched 2026-07-08/09), LEVERS RANKED (expected wall-clock impact x confidence), Model + effort configuration, Observed latency differences by effort, Q1. OpenAI Codex CLI: model selection, reasoning effort, exec vs mcp-server, Q2. Parallel audit patterns (shard + consolidate), Q3. xAI Grok CLI ("Grok Build") as third audit vendor (+4 more)
+### Community 157 - "skills / scrapling"
+Cohesion: 0.20
+Nodes (12): Fetcher Decision Tree, Scrapling Claude Code Skill, Scrapling Extras Install Tiers, Prompt Injection Guard for Scraped Content, GitHub Issue Body vs Comments Pattern, Microsoft Learn Docs Pattern, ModuleNotFoundError curl_cffi, Upstream-Aligned CLI Quick Path (+4 more)
 
-### Community 87 - "Community 87"
-Cohesion: 0.15
-Nodes (12): Bite-Sized Task Granularity, Execution Handoff, File Structure, No Placeholders, Overview, Plan Document Header, Remember, Scope Check (+4 more)
+### Community 158 - "skills / superpowers"
+Cohesion: 0.18
+Nodes (12): Host Allowlist Dropped, WS Origin Retained (A2), Per-Session Secret Key (A1), Task: Bootstrap Keyed Root Loads, RED/GREEN Task Loop, Task: WebSocket Origin Enforcement, Task: Fallback Token Isolation, Bootstrap Keyed Loads, WebSocket Same-Origin Enforcement (+4 more)
 
-### Community 88 - "Community 88"
+### Community 159 - "skills / superpowers"
 Cohesion: 0.17
 Nodes (5): afterFirst, afterSecond, firstOutput, result, secondOutput
 
-### Community 89 - "Community 89"
-Cohesion: 0.17
-Nodes (11): Background, Commit plan, Implementation note, In scope, Non-goals, Out of scope, Platform-neutral config-file references — Phase B design, Rule 1: "where to put project-specific conventions" (+3 more)
+### Community 160 - "docs / research"
+Cohesion: 0.18
+Nodes (11): --agents dynamic subagent JSON, Live skill change detection, Skill as plugin (.claude-plugin/plugin.json), Description-driven auto-delegation, Subagent YAML frontmatter (name, description, tools, model), Read-only tool restriction for reviewers, fable-advisor agent (read-only skeptic), Advisor-only mode (cheap session, expensive consult) (+3 more)
 
-### Community 90 - "Community 90"
-Cohesion: 0.17
-Nodes (11): Background, Carve-outs that stay as "Claude", Coined-term rename, Commit plan, Files affected, In scope, Non-goals, Out of scope (+3 more)
+### Community 161 - "docs / research"
+Cohesion: 0.20
+Nodes (11): Config loader is a closed allowlist, so new keys silently no-op, [audit.routing] risk-class to vendor/model/effort/scope table, round-ownership-default refuses and permits the same state, B7: canaries contradict the normalization contract, B2: CAS tokens conflated with diff references, B6: the /api/log ban is asserted three times and enforced nowhere, B5: normalize_data_version silently produces an invalid ref, D12: premises cite behaviour and carry their check command (+3 more)
 
-### Community 91 - "Community 91"
-Cohesion: 0.17
-Nodes (11): Applying the Pattern, Defense-in-Depth Validation, Example from Session, Key Insight, Layer 1: Entry Point Validation, Layer 2: Business Logic Validation, Layer 3: Environment Guards, Layer 4: Debug Instrumentation (+3 more)
+### Community 162 - "openspec / changes"
+Cohesion: 0.27
+Nodes (11): docs-check.sh documentation gate, Ground-truth inventory (docs-readme-refresh Task 1), hard-mode-launcher: approved spec, not shipped, No-invented-flags verification rule, T5b honest cap: UNVERIFIED, not unsafe, Change: docs-readme-refresh, Humanizer prose pass (blader/humanizer), Requirement: the doc set is internally consistent and link-clean (+3 more)
 
-### Community 92 - "Community 92"
-Cohesion: 0.17
-Nodes (11): Common Failures, Key Patterns, Overview, Rationalization Prevention, Red Flags - STOP, The Bottom Line, The Gate Function, The Iron Law (+3 more)
+### Community 163 - "openspec / changes"
+Cohesion: 0.25
+Nodes (11): GIT_ASK_YESNO=false unlink-prompt guard, GIT_OPTIONAL_LOCKS=0 on read-only polls, index.lock contention under parallel lanes, wt_with_lock worktree serialization, Windows Defender path-exclusion doctrine, git_retry bounded-backoff wrapper, Change: worktree-hardening, Requirement: Defender exclusion doctrine is documented (+3 more)
 
-### Community 93 - "Community 93"
-Cohesion: 0.17
-Nodes (12): Advanced: Skills with executable code, [Analysis Title], Anti-patterns to avoid, Avoid offering too many options, Avoid Windows-style paths, Conditional workflow pattern, Examples pattern, Executive summary (+4 more)
+### Community 164 - "openspec / changes"
+Cohesion: 0.18
+Nodes (11): Live bug: reference-manifest.toml claims an absent shellcheck, Requirement: shellcheck and WSL bats-core are actually present, Validator canary, Requirement: the checker proves it can fail before it is trusted, Requirement: gate tiers escalate in order and short-circuit, Repo-root text=auto eol=lf catch-all, tests/line-endings.bats regression test, Requirement: bash-executed files are index-LF everywhere, working-tree LF on autocrlf checkouts (+3 more)
 
-### Community 94 - "Community 94"
+### Community 165 - "openspec / changes"
+Cohesion: 0.20
+Nodes (11): Requirement: a check with a missing input is silent and counted, Fail closed on an unclassifiable model, Gateway CLI (agy) serving multiple model families, Cross-vendor invariant expressed over model family, auditor_selected_because reporting field, Requirement: the cross-vendor invariant is expressed over model family, Requirement: auditor selection and substitution are always reported, Model family classification tasks (+3 more)
+
+### Community 166 - "openspec / changes"
+Cohesion: 0.20
+Nodes (11): Concurrency caps mismatch (ROADMAP grok=1 vs lane-queue grok:3), docs-check.sh documentation gate, doctrine-check.sh deterministic checker, docs/doctrine-claims.tsv claim registry, doctrine-reality-drift change package, The eleven documented claims the code contradicts, Requirement: the doctrine check runs in the documentation gate, T1 registry format (+3 more)
+
+### Community 167 - "openspec / changes"
+Cohesion: 0.18
+Nodes (11): ban on graphify neo4j/falkordb export as ingest source, store as regenerable materialisation, Requirement: ingest reads graph.json through a schema-first, two-pass, idempotent path, Requirement: the store is a regenerable materialisation, never the system of record, T7 ingest, rejected alternative: graphify export as downstream seam, file moves as rename-with-lineage, Requirement: the cypher and graph-database export paths are banned (+3 more)
+
+### Community 169 - "skills / graphify"
 Cohesion: 0.22
-Nodes (8): Codex Implementer (Foreman), Contract, Git discipline (standing rule), Known limits (Codex exec), Preflight — no silent fallback, Rules, Run codex, Verify and report
+Nodes (11): graphify clone (GitHub repo ingest), graphify merge-graphs Cross-Repo Merge, Per-Subfolder Extraction Flow, Native CLAUDE.md Integration, BFS Traversal Mode, DFS Traversal Mode, Graph Label Vocabulary (.vocab.txt), Inline NetworkX Traversal Fallback (+3 more)
 
-### Community 95 - "Community 95"
-Cohesion: 0.15
-Nodes (16): watch.sh script, main(), wd_classify_v2(), wd_is_queued(), wd_main(), wd_main_v2(), wd_once(), wd_ownership_exists() (+8 more)
+### Community 170 - "skills / superpowers"
+Cohesion: 0.20
+Nodes (11): Configurable Idle Timeout and WS Close on Shutdown (C1), Server Death Invisible to User and Agent (C2), Issue-Catalog Scope Reconciliation, Browser Displays, Terminal Converses, Per-Screen .events Interaction Stream, Deletion of wait-for-feedback.sh, fs.watch With Per-Filename Debounce, Drill Actor/Verifier Benchmark (+3 more)
 
-### Community 96 - "Community 96"
+### Community 171 - "skills / superpowers"
+Cohesion: 0.18
+Nodes (11): Consent-as-Authorization Bridge, Explicit Native Tool Naming, Defer to Native Harness Worktree Tools, Composition-Prohibition Backfire, Negative-Instruction Doctrine, Relocating the No-Placeholders List to Self-Review, Recognition Table, Phrase-Level Tripwire (+3 more)
+
+### Community 172 - "skills / superpowers"
+Cohesion: 0.27
+Nodes (10): bootstrapSkillPath, extensionDir, firstNonCompactionSummaryIndex(), getBootstrapContent(), messageContainsBootstrap(), packageRoot, piToolMapping(), skillsDir (+2 more)
+
+### Community 173 - "skills / superpowers"
 Cohesion: 0.38
-Nodes (8): test-lint-shell.sh script, assert_contains(), assert_not_contains(), configure_git_identity(), fail(), make_fixture_repo(), pass(), write_stub_tool()
+Nodes (8): assert_contains(), assert_not_contains(), configure_git_identity(), fail(), make_fixture_repo(), pass(), test-lint-shell.sh script, write_stub_tool()
 
-### Community 97 - "Community 97"
-Cohesion: 0.18
-Nodes (10): author, email, name, description, homepage, keywords, license, name (+2 more)
+### Community 174 - "docs / notes"
+Cohesion: 0.24
+Nodes (10): Content and process-aware watchdog liveness, round_done terminal event, SC-A agent-stop survivability, SC-D stale-report immunity, SC-F completion provable without the agent, Watch v2 lane classifier, CI liveness prior art (Buildkite, GitHub Actions, GitLab Runner), F4 file-mtime watchdog false alarms (+2 more)
 
-### Community 98 - "Community 98"
-Cohesion: 0.18
-Nodes (10): Executing Plans, Integration, Overview, Remember, Step 1: Load and Review Plan, Step 2: Execute Tasks, Step 3: Complete Development, The Process (+2 more)
-
-### Community 99 - "Community 99"
+### Community 175 - "docs / research"
 Cohesion: 0.22
-Nodes (7): bootstrapSkillPath, extensionDir, getBootstrapContent(), packageRoot, piToolMapping(), skillsDir, stripFrontmatter()
+Nodes (10): Define the prompt-only baseline before building the graph plane, Distraction effect: a noisy graph can degrade reasoning, The Illusion of Thinking and its rebuttal, LEED pipeline losing to its own text-only baseline, BM-25 beats all nine GraphRAG systems on true/false, Route by question type, not by ideology, Order of operations: census, sigma, locked baseline, graph arm, verdict, GP-7 graph-eval-falsification change package (+2 more)
 
-### Community 100 - "Community 100"
-Cohesion: 0.18
-Nodes (12): Commitment boundaries, Cost discipline (prime directive), Durable lanes, Durable rounds (v0.2.5), Five-part spec contract, Lanes, Parallelism (worktree fan-out), Soft mode — routing doctrine (+4 more)
+### Community 176 - "docs / superpowers"
+Cohesion: 0.24
+Nodes (10): CS2 machinery (bats harness, wt-merge, docs-check), setup_tmp_repo test helper, wt-merge.sh, merge-gate.sh (merge-freshness gate), wt-merge gitignored-report bug fix, soft_mode.target config key, Worktree-by-default for every soft-mode implement round, wt-merge overlap refusal (+2 more)
 
-### Community 101 - "Community 101"
-Cohesion: 0.18
-Nodes (10): Chunk 1: Server, Template, Client, Tests, Skill, File Map, Task 1: Update `frame-template.html`, Task 2: Update `index.js` — content injection and `.events` file, Task 3: Simplify `helper.js`, Task 4: Update tests for new structure, Task 5: Delete `wait-for-feedback.sh`, Task 6: Rewrite `visual-companion.md` (+2 more)
+### Community 177 - "openspec / changes"
+Cohesion: 0.24
+Nodes (10): el_compact stale-snapshot race discards a concurrent structural append, no_lost_structural_event invariant, Byte-for-byte event-log preservation is the hard requirement, Design â€” el_emit spawn reduction, F1 â€” parameter-expansion CR strip replaces printf | tr, F3 â€” guard the per-emit mkdir -p, F4 â€” inline run_dir as a plain string, Requirement: el_emit emits one byte-identical JSON event line (+2 more)
 
-### Community 102 - "Community 102"
-Cohesion: 0.18
-Nodes (10): Codex App Compatibility Implementation Plan, File Structure, Task 1: Add Step 0 to `using-git-worktrees`, Task 2: Update `using-git-worktrees` Integration section, Task 3: Add Step 1.5 to `finishing-a-development-branch`, Task 4: Add Step 5 cleanup guard to `finishing-a-development-branch`, Task 5: Update Integration lines in `subagent-driven-development` and `executing-plans`, Task 6: Add environment detection docs to `codex-tools.md` (+2 more)
+### Community 178 - "formal / reports"
+Cohesion: 0.22
+Nodes (10): agy gateway collapses CodexCli/AgyCli to one model family, CLI/vendor-name routing permits same-family authorization, M3 â€” audit, verdict, gate and merge decision model, no_merge_on_blocked_or_unverified invariant, no_same_family_authorized_merge invariant, no_unaudited_merge invariant, Stale audit-verdict hole (failure paths never replace the file), WARNING is merge-authorizing policy, not merely informational (+2 more)
 
-### Community 103 - "Community 103"
-Cohesion: 0.18
-Nodes (10): File Map, Self-Review Checklist, Task 0: Rebase And Baseline State, Task 1: Root Screen Containment, Task 2: Fallback Token Isolation, Task 3: Stop-Server Instance-Id Ownership, Task 4: Platform And Fixed-Port Test Hardening, Task 5: Docs And PR Consistency (+2 more)
-
-### Community 104 - "Community 104"
-Cohesion: 0.18
-Nodes (11): Execution through foreman (approach A), ... run grok ..., Self-review notes, Task 2 (CS1): Standing constraints in spec template + lane known-limits table, Task 3 (CS2): bats harness bootstrap + wt-new suite, Task 4 (CS2): wt-merge.sh — TDD, Task 5 (CS2): docs-check stage — configs, script, tests, toolchain, Task 6 (CS2): Loop integration — gate, audit checklist, doctrine (+3 more)
-
-### Community 105 - "Community 105"
-Cohesion: 0.11
-Nodes (17): 1. lifecycle-three-stage (implement, foundational), 2. grok-lane-activation (implement), 3. t5b-concurrency-verdict (implement), 4. posix-cascade-parity (implement), 5. worktree-hardening (implement), 6. wsl-reliability-env-refresh (implement, full WSL setup), 7. docs-readme-refresh (implement, sequenced last), 8. hard-mode-launcher (approved spec, next release) (+9 more)
-
-### Community 106 - "Community 106"
-Cohesion: 0.18
-Nodes (10): DynamicFetcher（Playwright，JS 渲染）, Fetcher（基于 curl_cffi，最快）, FetcherSession（保持会话 cookie）, Response 常用属性, Scrapling API 速查卡, Selector（纯 HTML 解析，无网络请求）, StealthyFetcher（Camoufox，绕过反爬）, 元素方法 (+2 more)
-
-### Community 107 - "Community 107"
-Cohesion: 0.18
-Nodes (10): 404 "page is private", cf_clearance cookie 无效, Cloudflare 403 + "Just a moment", Cloudflare 多轮 Turnstile, Cookie should have a url or a domain/path pair, Expected array, got object at $.cookies, ModuleNotFoundError: curl_cffi, scrapling: command not found (+2 more)
-
-### Community 108 - "Community 108"
-Cohesion: 0.18
-Nodes (10): Cookie 格式速查, Guardrails, References 索引, Scrapling 网页抓取 Skill, 模板索引, 步骤 0：检查版本, 步骤 1：安全预检与 quick path, 步骤 2：选择 Fetcher (+2 more)
-
-### Community 109 - "Community 109"
-Cohesion: 0.18
-Nodes (10): Decisions log, Execution, Files, Goal, README deepening — design, Self-contained scope, Six ASCII diagrams (required, each labeled), Structure (15 sections, in order) (+2 more)
-
-### Community 110 - "Community 110"
-Cohesion: 0.18
-Nodes (10): Requirement: jq-CRLF probe is computed at most once per run, Requirement: kill-escalation tests use a bounded grace of 1 second, Requirement: per-test git repo is copied from a per-file template, Requirement: SCRIPTS is assigned without a subshell, Scenario: jq absent leaves jq unwrapped, Scenario: repeated sourcing spawns the probe once, Scenario: scripts still resolve and run, Scenario: sweep_failed still emits exactly one sweep_failed alert (+2 more)
-
-### Community 111 - "Community 111"
-Cohesion: 0.18
-Nodes (11): Avoid assuming tools are installed, Create verifiable intermediate outputs, MCP tool references, Next steps, Package dependencies, Returns: "OK" or lists conflicts, Runtime environment, Technical notes (+3 more)
-
-### Community 112 - "Community 112"
-Cohesion: 0.20
-Nodes (9): After Codex returns, Codex Auditor (Foreman) — GPT-5.6 Sol, Flag discipline (non-negotiable), How you build the audit prompt, Inputs you expect from the architect, Preflight — no silent fallback, Report format, Rules (+1 more)
-
-### Community 113 - "Community 113"
+### Community 179 - "openspec / changes"
 Cohesion: 0.31
-Nodes (6): fail(), http_check(), pass(), skip(), wait_for_server_info(), windows-lifecycle.test.sh script
+Nodes (10): foreman-cleanup.sh teardown wrapper, MSYS grandchild-orphan cleanup limit, Cleanup stage (ordered teardown), Requirement: Cleanup runs a deterministic teardown set, Guards derived from foreman's own bugeventlog, Stale-lock sweep at lane start, wt-cleanup porcelain check and shutdown ordering, Requirement: stale locks are swept before a lane starts (+2 more)
 
-### Community 114 - "Community 114"
+### Community 180 - "openspec / changes"
 Cohesion: 0.20
-Nodes (9): 1. Current `--compile` capabilities, 2. CRITICAL — bun:ffi dlopen of system DLLs inside a compiled binary: **WORKS (verified locally)**, 3. Code signing (Windows Authenticode), 4. Version pinning / reproducibility, 5. Runtime flags / memory footprint (measured, Bun 1.3.14, Win11), 6. Known open blockers (Windows + `--compile`), statuses checked via GitHub API 2026-07-16, Build recipe (windows-x64), REPORT_compile — Lane B: `bun build --compile` for foreman-launch (Windows) (+1 more)
+Nodes (10): Post-sleep WSL clock-sync hook, Requirement: the event log survives post-sleep clock drift, Guarded emission with a gate_decision asymmetry, audit_verdict event type, gate_decision event type, Per-run metrics.json rollup, Foreman's deciding scripts never write to its lineage store, Requirement: audit decisions enter the event log (+2 more)
 
-### Community 115 - "Community 115"
+### Community 181 - "openspec / changes"
 Cohesion: 0.20
-Nodes (9): 1. Bun x Anthropic acquisition, 2. License, 3. Windows stability track record, 4. Version/installation ops for Foreman, 5. Prior art: process supervisors / CLI tools on Bun, 6. Alternatives sanity check: Go, Foreman v0.2.5 — Lane D: Bun ecosystem/ops research, RISKS (ranked) (+1 more)
+Nodes (10): Substring-matching agent output for success (rejected), Requirement: artifact-based lane success predicate, Vacuous-check problem class, Declare success from stage exit codes (rejected), Requirement: honest terminal report (PASSED / FAILED / INCOMPLETE), Requirement: measured performance and rebuild baseline, Shadow-mode Tier-3 open-world checks, The UNCOMPUTABLE outcome state (+2 more)
 
-### Community 116 - "Community 116"
+### Community 182 - "openspec / changes"
+Cohesion: 0.22
+Nodes (10): LEED neurosymbolic reference failure, Locked prompt-only baseline arm, Locked-measurement threshold rule, Run-to-run sigma as the noise floor, External benchmark as the gate (rejected), Requirement: the prompt-only baseline arm is locked before the graph arm is measured, Requirement: run-to-run variance is measured before any improvement is claimed, T2 measure Foreman's own variance (+2 more)
+
+### Community 183 - "openspec / changes"
 Cohesion: 0.20
-Nodes (9): Empirical test log (this session, 2026-07-16), Minimal viable call plan (all [MEASURED] working, Bun 1.3.14 x64), Q1. bun:ffi API surface + Windows x64 status, Q2. Exact call sequence — and the race question, Q3. Handle lifetime + crash guarantee, Q4. Breaking-change risk + fallbacks, Q5. Prior art — npm/bun packages wrapping Job Objects, RISKS (ranked) (+1 more)
+Nodes (10): durable.enabled is an inert flag, Requirement: durable.enabled has a consumer in code, formal/specs/audit_gate.qnt model, gate-to-merge TOCTOU defect, rework_rounds_bounded vacuous pass under uncapped_errors, WARNING silently authorises merge, [audit.policy] is prose the gate never reads, Requirement: the gate reads the audit policy it documents (+2 more)
 
-### Community 118 - "Community 118"
+### Community 184 - "openspec / changes"
 Cohesion: 0.20
-Nodes (9): Direct GitHub install used an old release, How It Works, Installation, Plugin not loading, Skills not triggering, Superpowers for Kimi Code, Tool Mapping, Troubleshooting (+1 more)
+Nodes (10): D11 rename-with-lineage detection, D13 drop-and-rebuild, D9 graph.json ingest pipeline, REJECTED: ingest from Cypher/Neo4j/FalkorDB export, Requirement: drop-and-rebuild scoped to graph.json-derived facts, Requirement: producing graphify version is stamped from caller, Requirement: migration follows dry-run-then-backup-then-apply, Requirement: drop-and-rebuild is timed and run on a schedule (+2 more)
 
-### Community 119 - "Community 119"
+### Community 185 - "openspec / changes"
+Cohesion: 0.20
+Nodes (10): ubuntu-latest as the practical WSL proxy, Sequenced last after P1 and P2, Requirement: ubuntu-latest runs shellcheck and the bats suite on every relevant PR, Task 1 ubuntu-latest job, Task 4 install.sh smoke test, Build-if-absent in Setup, Frozen launcher_absent degraded fallback, Requirement: the frozen launcher-absent degraded fallback is unchanged (+2 more)
+
+### Community 186 - "skills / foreman"
+Cohesion: 0.22
+Nodes (5): main(), print_report(), Run every case against ``factory``. Never swallows failures into pass., run_suite(), SuiteReport
+
+### Community 187 - "skills / foreman"
 Cohesion: 0.33
-Nodes (6): Vendored reference skills (scrapling, graphify, superpowers), Foreman Combined Skill Design (Fable Advisor + Original Foreman merge), Foreman Skill Enhancement Design, Advisor-only mode, Hard mode (gated harness), Hard-mode task loop (INIT to PR with deterministic gate)
+Nodes (9): open_from_env(), Select a backend from the environment.      * If ``FOREMAN_GRAPH_STORE`` is unse, cmd_capabilities(), cmd_contract(), cmd_smoke(), cmd_version_ref(), _ensure_path(), main() (+1 more)
 
-### Community 120 - "Community 120"
+### Community 188 - "skills / foreman"
+Cohesion: 0.22
+Nodes (10): Grok as verified default-eligible implementer, Grok headless recipe (lane-run), ABANDONED predicate and never-rules, Auto-resume supervisor (lane-supervise.sh), pueue admission control (lane-queue.sh), pueue-absent degraded fallback, Per-shell pueue quoting layer, T5b real-vendor destructive concurrency verdict (+2 more)
+
+### Community 189 - "skills / foreman"
+Cohesion: 0.22
+Nodes (10): --detach handoff (heartbeat-file reset), Graded stop (no cooperative phase), Frozen heartbeat schema, Known limits carried into v0.3.0, foreman-launch launcher contract, Liveness is heartbeat + event log, never file mtime, Nested Job Objects (one level validated), NTSTATUS masking (accepted ambiguity) (+2 more)
+
+### Community 190 - "skills / foreman"
+Cohesion: 0.24
+Nodes (5): lv_classify_pid(), lv_cputime_secs(), lv_etime_secs(), lv_is_dispatched_lane(), liveness.sh script
+
+### Community 191 - "skills / foreman"
+Cohesion: 0.22
+Nodes (3): telemetry.sh script, tl_usage_block(), tl_usage_from_file()
+
+### Community 192 - "skills / superpowers"
 Cohesion: 0.20
-Nodes (9): Artefact index (for tomorrow + the v0.2.5 planning session), Biggest learnings this session (all in bugeventlog.md), Cross-vendor invariant held, Resume checkpoint — 2026-07-17 (v0.2.0 bundle, ~1 hour from tag), State of the tree, TL;DR — what remains to tag v0.2.0, UPDATE (end of 2026-07-17): perf bundle FORCE-MERGED to main, v0.2.0 bundle — final scope (+1 more)
+Nodes (10): Bug Report Issue Template, Platform-vs-plugin issue triage, Issue Template Config (Discord contact link), Feature Request Issue Template, IDE / Platform Support Request Template, Agent provenance disclosure, PRs target the dev branch, New harness support PR requirement (+2 more)
 
-### Community 121 - "Community 121"
+### Community 193 - "skills / superpowers"
+Cohesion: 0.29
+Nodes (10): Superpowers App Icon (monochrome orbital glyph), 180-Degree Rotational Symmetry, Central Solid Dot (nucleus / core node), Dual Diagonal Sweeping Arcs, Orbit / Atom Metaphor, Orbital Glyph Mark, Pure Monochrome Silhouette Treatment, Square Canvas With Generous Padding (+2 more)
+
+### Community 194 - "skills / superpowers"
+Cohesion: 0.29
+Nodes (10): Central Nucleus Dot, Alternate Reading: Interlinked Chain Link, Illustrator Export Provenance (Calque_1), Superpowers Logo Mark (Small Variant), Monochrome Flat-Fill Construction, Orbit / Atom Metaphor, Paired Orbital Arc Glyphs, 180-Degree Rotational Symmetry (+2 more)
+
+### Community 195 - "skills / superpowers"
+Cohesion: 0.27
+Nodes (10): find_skills custom tool, OpenCode Support Design, Skill shadowing (personal over core), Shared skills-core module, use_skill custom tool, extractFrontmatter, findSkillsInDir, OpenCode Support Implementation Plan (+2 more)
+
+### Community 196 - "skills / superpowers"
+Cohesion: 0.24
+Nodes (10): Skills name actions, not tools, Porting Superpowers to a New Harness, Per-harness tool mapping, .version-bump.json manifest registry, Drill Pi backend and log normalization, Pi Extension and Evals Implementation Plan, pi-tools.md tool mapping reference, Per-Harness Installation (+2 more)
+
+### Community 197 - "skills / superpowers"
+Cohesion: 0.24
+Nodes (10): Spec Document Reviewer, Diff-Scope Guard, Brainstorming Nine-Step Checklist, Brainstorming Hard Gate, Inline Spec Self-Review, Spec Reviewer Calibration, Spec Reviewer Prompt Template, Agent Prompt Structure (+2 more)
+
+### Community 198 - "skills / superpowers"
+Cohesion: 0.20
+Nodes (10): Detached-HEAD Handoff Payload, IN_LINKED_WORKTREE Signal, Read-Only Git Environment Detection, Late-Detected Sandbox Fallback, Detect State, Not Platform, Provenance-Based Worktree Ownership, Submodule Guard, Detached-HEAD Reduced Menu (+2 more)
+
+### Community 199 - "skills / superpowers"
+Cohesion: 0.31
+Nodes (10): Build Evaluations First (evaluation-driven development), The Iron Law: No Skill Without A Failing Test First, Micro-Test Wording Before Full Scenarios, No-Guidance Control Arm, RED-GREEN-REFACTOR for Skills, GREEN Phase: Write Minimal Skill, Pressure Scenario, RED Phase: Baseline Testing (Watch It Fail) (+2 more)
+
+### Community 200 - "skills / superpowers"
+Cohesion: 0.31
+Nodes (6): fail(), http_check(), pass(), windows-lifecycle.test.sh script, skip(), wait_for_server_info()
+
+### Community 202 - "skills / superpowers"
 Cohesion: 0.20
 Nodes (5): __dirname, extensionPath, packageJsonPath, piToolsPath, repoRoot
 
-### Community 122 - "Community 122"
-Cohesion: 0.20
-Nodes (9): Chunk 1: Spec Document Reviewer, Chunk 2: Plan Document Reviewer, Chunk 3: Update Plan Document Header, Document Review System Implementation Plan, Task 1: Create Spec Document Reviewer Prompt Template, Task 2: Add Review Loop to Brainstorming Skill, Task 3: Create Plan Document Reviewer Prompt Template, Task 4: Add Review Loop to Writing-Plans Skill (+1 more)
-
-### Community 123 - "Community 123"
-Cohesion: 0.20
-Nodes (9): Chunk 1: WebSocket Protocol Layer, Chunk 2: HTTP Server and Application Logic, Chunk 3: Swap and Cleanup, File Map, Task 1: Implement WebSocket protocol exports, Task 2: Add HTTP server, file watching, and WebSocket connection handling, Task 3: Update start-server.sh and remove old files, Task 4: Manual smoke test (+1 more)
-
-### Community 124 - "Community 124"
-Cohesion: 0.20
-Nodes (9): Finishing, SDD Task-Scoped Review Dispatch Implementation Plan, Task 1: Rewrite the per-task quality reviewer prompt as self-contained, Task 2: Spec reviewer prompt cleanups, Task 3: Implementer prompt — re-run tests after fixing review findings, Task 4: SKILL.md controller changes, Task 5: New eval scenario — per-task quality reviewer catches a planted defect, Task 6: Static verification sweep (+1 more)
-
-### Community 125 - "Community 125"
-Cohesion: 0.20
-Nodes (9): Audit checklist and verdict schema, Default auditor, Dimensions, Documentation & comments (iterative), Hard mode, Soft-mode invocation sketch, Soft mode (required unless user opts out), Verdict schema (+1 more)
-
-### Community 126 - "Community 126"
-Cohesion: 0.18
-Nodes (10): Codex auditor flags (soft) — GPT-5.6 Sol, Codex implementer flags (soft), Config (`.foreman/config.toml`), Default pairing, Grok headless recipe (lane-run, durable lanes), Grok worker flags (soft), Hard-mode adapters, Lanes and CLI adapters (+2 more)
-
-### Community 127 - "Community 127"
-Cohesion: 0.20
-Nodes (9): description, keywords, main, name, pi, extensions, skills, type (+1 more)
-
-### Community 128 - "Community 128"
-Cohesion: 0.20
-Nodes (9): Common Mistakes, Condition-Based Waiting, Core Pattern, Implementation, Overview, Quick Patterns, Real-World Impact, When Arbitrary Timeout IS Correct (+1 more)
-
-### Community 129 - "Community 129"
-Cohesion: 0.20
-Nodes (10): Avoid deeply nested references, Naming conventions, Pattern 1: High-level guide with references, Pattern 2: Domain-specific organization, Pattern 3: Conditional details, Progressive disclosure patterns, Skill structure, Structure longer reference files with table of contents (+2 more)
-
-### Community 130 - "Community 130"
+### Community 204 - "docs / research"
 Cohesion: 0.22
-Nodes (8): Codex invocation (preferred), Foreman Audit (worktree-isolated), FOREMAN_REPORT.json, FOREMAN_REPORT.md, Mandatory outputs, Mission, Preflight, Rules
+Nodes (9): Post-build Authenticode signing, ~94MB compiled binary size floor, bun build --compile single-file executable, --bytecode cross-compile segfault (#18416), Runtime frozen at compile time (pin plus startup assertion), Non-reproducible compiled builds, LGPL-2 obligation on redistributed compiled binaries, opencode and BM2 prior art (+1 more)
 
-### Community 131 - "Community 131"
-Cohesion: 0.20
-Nodes (9): Contract, Git discipline (standing rule), Grok Implementer (Foreman), Known limits (Grok headless), Preflight — no silent fallback, Report, Rules, Run grok (+1 more)
+### Community 205 - "openspec / changes"
+Cohesion: 0.22
+Nodes (9): WSL /mnt/c PATH leak, Live bug: WSL codex resolves the Windows shim, Requirement: WSL codex resolves to a native install, Extensionless shebang script class, pipefail-CR bug on WSL bash, Shared-checkout / autocrlf seam, Exec-bit trap on directly executed scripts, Requirement: every directly executed script is executable in the git index (+1 more)
 
-### Community 132 - "Community 132"
+### Community 206 - "openspec / changes"
+Cohesion: 0.22
+Nodes (9): Cross-vendor invariant checked at the wrong time, Requirement: cross-vendor separation asserted against what actually ran, Enforcement at every tier from one shared point, Ordered auditor preference list over architect judgement, lib/audit-call.sh shared enforcement and selection point, Enforcement asymmetry: six prose statements, one code check, Requirement: the invariant is enforced at every tier from one shared point, Requirement: the auditor is selected from an ordered preference list (+1 more)
+
+### Community 207 - "openspec / changes"
+Cohesion: 0.22
+Nodes (9): GraphStore port, TerminusDB adapter over raw HTTP, Requirement: every graph read and write goes through the GraphStore port, port conformance suite, T9 gate, Reports are claims section, The record section, Requirement: the release's four homeless bodies have sections and honest framing (+1 more)
+
+### Community 208 - "openspec / changes"
+Cohesion: 0.28
+Nodes (9): enforcement at the dispatch boundary, lock-primitive-hardening (ordering prerequisite), REJECTED: detect and recover via watchdogs, REJECTED: prompt harder, round-ownership-default change, warn-and-proceed anti-pattern, background-and-stop failure class, wsl-launcher-shipped dependency (+1 more)
+
+### Community 209 - "openspec / changes"
+Cohesion: 0.25
+Nodes (9): CI void: bats suite runs on no CI platform, CI bash runs --noprofile --norc, New .github/workflows/ci.yml, fl_resolve_launcher and lane_resolve_launcher, A built protection that never gets built, WSL clock jitter guard (timedatectl set-ntp false), Scheduled-Task clock resync demoted to optional, /mnt/c Windows shim shadowing WSL-native binaries (+1 more)
+
+### Community 210 - "skills / foreman"
+Cohesion: 0.25
+Nodes (3): git_retry(), worktree.sh script, wt_with_lock()
+
+### Community 211 - "skills / superpowers"
+Cohesion: 0.31
+Nodes (9): Subagent-gated bash test deletion, evals/ directory, Lift drill into superpowers as evals/, SUPERPOWERS_ROOT default helper, Verbatim rsync lift with explicit excludes, Planted-defect DRY eval scenario, Drill eval harness, tests/ vs evals/ split (+1 more)
+
+### Community 212 - "skills / superpowers"
+Cohesion: 0.22
+Nodes (9): Dotfile Screens Rejected (B1), Task: /files/* Realpath Containment, Task: Leak-Reduction and Anti-Framing Headers, Task: Root Screen Containment, Skip-Aware, Fixed-Port Test Hardening, Companion Threat Model, Leak-Reduction Headers, Realpath Containment for /files/* (+1 more)
+
+### Community 213 - "skills / superpowers"
+Cohesion: 0.22
+Nodes (9): Chunk-by-Chunk Plan Review Loop, Plan Document Reviewer, Review Loop Termination and Disagreement Handling, Merged Single Task Reviewer, Task-Scoped Per-Task Review, Turn Count Beats Token Price, Cheapen Mechanics, Never Judgment, Strict-Cost Experiment Ladder (+1 more)
+
+### Community 214 - "skills / superpowers"
+Cohesion: 0.39
+Nodes (5): cmd_audit(), cmd_bump(), cmd_check(), bump-version.sh script, write_json_field()
+
+### Community 215 - "skills / superpowers"
+Cohesion: 0.42
+Nodes (7): connect(), nextReconnectDelay(), reloadAfterRecovery(), sessionKey(), setStatus(), showTombstone(), websocketUrl()
+
+### Community 216 - "skills / superpowers"
+Cohesion: 0.33
+Nodes (8): combineGraphs(), { execSync }, extractDotBlocks(), extractGraphBody(), fs, main(), path, renderToSvg()
+
+### Community 217 - "skills / superpowers"
+Cohesion: 0.31
+Nodes (9): Pressure Types (time, sunk cost, authority, economic, exhaustion, social, pragmatic), Prompt fixture: action-oriented subagent-driven-development request, Prompt fixture: post-planning execution-choice flow, auth-system.md plan fixture (docs/superpowers/plans/auth-system.md), Prompt fixture: user accepts Claude-suggested SDD option, Prompt fixture: user restates the SDD workflow themselves, Prompt fixture: mid-conversation plan execution request, Prompt fixture: SDD request under 'don't waste time' pressure (+1 more)
+
+### Community 218 - "skills / superpowers"
 Cohesion: 0.22
 Nodes (6): assert, fs, HELPER, moduleShim, path, src
 
-### Community 133 - "Community 133"
+### Community 219 - "skills / superpowers"
 Cohesion: 0.36
-Nodes (6): bad(), ok(), track_dir(), track_pid(), untrack_pid(), stop-server.test.sh script
+Nodes (6): bad(), ok(), stop-server.test.sh script, track_dir(), track_pid(), untrack_pid()
 
-### Community 134 - "Community 134"
-Cohesion: 0.22
-Nodes (8): After the Design, Anti-Pattern: "This Is Too Simple To Need A Design", Brainstorming Ideas Into Designs, Checklist, Key Principles, Process Flow, The Process, Visual Companion
+### Community 220 - "docs / research"
+Cohesion: 0.29
+Nodes (8): Flag absence from --help is not unavailability, claude -p headless print mode, Codex CLI (terminal coding agent), codex exec (non-interactive run), Live CLI flag validation (not flag fiction), grok -p headless mode, --no-auto-update in automation, Headless session ids (--session-id, --resume, --continue)
 
-### Community 135 - "Community 135"
-Cohesion: 0.22
-Nodes (8): 1. Bun.spawn on Windows — exact semantics, 2. stdout/stderr byte counting for heartbeats, 3. Bun Shell ($) — Windows maturity, 4. bun test — enough for launcher unit tests?, 5. Signals / console events on Windows, REPORT_process.md — Lane C: Bun.spawn Windows process semantics, Bun Shell, bun test (Foreman v0.2.5), RISKS (ranked), Spawn design consequence (FFI vs Bun.spawn)
+### Community 221 - "docs / research"
+Cohesion: 0.29
+Nodes (8): /review in-session change review, openai/codex-action GitHub Action, Cold diff in the prompt, Inline review comment publishing, Severity discipline (actionable findings only), Structured review output schema (findings, overall_correctness, confidence), codex-auditor lane, Schema-forced auditor verdict JSON
 
-### Community 136 - "Community 136"
-Cohesion: 0.39
-Nodes (5): bump-version.sh script, cmd_audit(), cmd_bump(), cmd_check(), write_json_field()
-
-### Community 137 - "Community 137"
-Cohesion: 0.22
-Nodes (8): foreman-launch (Bun) Implementation Plan, Global Constraints, Risks (ranked, from the four reports), Sequencing, Task 1: launcher package scaffold + version pin + FFI smoke module, Task 2: supervised spawn — job-owned child with heartbeats and graded stop, Task 3: CLI entry + compiled binary + bats harness tests, Task 4: CI smoke + docs + manifest wiring
-
-### Community 138 - "Community 138"
-Cohesion: 0.22
-Nodes (8): graphify reference: extra exports and benchmark, Step 6b - Wiki (only if --wiki flag), Step 7 - Neo4j export (only if --neo4j or --neo4j-push flag), Step 7a - FalkorDB export (only if --falkordb or --falkordb-push flag), Step 7b - SVG export (only if --svg flag), Step 7c - GraphML export (only if --graphml flag), Step 7d - MCP server (only if --mcp flag), Step 8 - Token reduction benchmark (only if total_words > 5000)
-
-### Community 139 - "Community 139"
-Cohesion: 0.33
-Nodes (5): connect(), reloadAfterRecovery(), sessionKey(), setStatus(), websocketUrl()
-
-### Community 140 - "Community 140"
-Cohesion: 0.22
-Nodes (8): Document Review System Design, Error Handling, Files to Change, Markdown Task Syntax, Overview, Plan Document Reviewer, Spec Document Reviewer, Updated Workflow
-
-### Community 141 - "Community 141"
-Cohesion: 0.22
-Nodes (9): Avoid time-sensitive information, Common patterns, Content guidelines, Implement feedback loops, Skill authoring best practices, Template pattern, Use consistent terminology, Use workflows for complex tasks (+1 more)
-
-### Community 142 - "Community 142"
-Cohesion: 0.31
-Nodes (7): combineGraphs(), { execSync }, extractDotBlocks(), fs, main(), path, renderToSvg()
-
-### Community 143 - "Community 143"
-Cohesion: 0.22
-Nodes (12): Codex Implementer, Evidence contract, Foreman Advisor, How to answer, Never, When you’re called, Evidence contract, Git Discipline (Architect Owns Git Writes) (+4 more)
-
-### Community 144 - "Community 144"
+### Community 222 - "docs / research"
 Cohesion: 0.25
-Nodes (7): Foreman Plan (worktree-isolated), FOREMAN_REPORT.json, FOREMAN_REPORT.md structure, Mandatory outputs, Mission, Return, Rules
+Nodes (8): docs/doctrine-claims.tsv claim registry with deterministic probes, doctrine-reality-drift change package, The checker reports registered claim counts and never a percentage, RA-22: reconcile the stale OpenSpec folders, The claude lane is plumbed at four sites and dies at wc_build_argv, The cross-vendor invariant is enforced in exactly one line, hard mode only, Eleven live doctrine-vs-code contradictions, BL-3: doctrine-reality-drift at S4 deadlocks the docs gate
 
-### Community 145 - "Community 145"
+### Community 223 - "formal / reports"
+Cohesion: 0.29
+Nodes (8): Fail-closed versus fail-open lock policy, wt-new.sh fail-open index lock timeout, No lock acquisition may fail open (lock-primitive-hardening widening), DEGRADED marker instead of silently claiming the cascade guarantee, Degraded fallback ladder (setsid+pgid, systemd-run scope), Bun.spawnSync ignores a live PATH mutation unless env is passed, No distinct not-authenticated exit code (rc 1 is also the general error), Requirement: agy readiness is probed at zero model cost and fails closed
+
+### Community 224 - "openspec / changes"
 Cohesion: 0.25
-Nodes (7): FOREMAN_REPORT.json, FOREMAN_REPORT.md structure, Foreman Search (worktree-isolated), Mandatory outputs (before you finish), Mission, Return to architect, Rules
+Nodes (8): work-DAG modelled as documents, not commits, reification of edge attributes, frozen N2 write-time schema, Requirement: edge attributes are reified because the store has no edge properties, Requirement: the frozen N2 schema is enforced at write time, Requirement: the work-DAG is stored as documents and never queried through the commit log, N2's 24 competency questions, T2 the frozen schema
 
-### Community 146 - "Community 146"
+### Community 225 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): files-only implementation (default), Requirement: a files-only implementation satisfies the port with no database, Requirement: the adapter is pinned and has a rehearsed exit path, the host refreshes, CI enforces the contract, graph freshness contract, graph-freshness.sh, Requirement: a refresh that fails blocks, a refresh that cannot run does not, Requirement: graph freshness is measured, reported, and checkable without graphify
+
+### Community 226 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): rejected CPU-delta hang predicate, Requirement: a liveness predicate is demonstrated against both a wedged and a healthy lane, T5 tests and gate, red-first, hard split between mechanical checks and human judgement, readme stage in docs-check.sh, T3 the readme stage in docs-check.sh, proven able to fail, demonstration.json fail-then-pass record, Requirement: each Tier 1 golden round is demonstrated to fail against its own seeded defect
+
+### Community 227 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): lane-ownership-and-reaping change package, 2026-07-29 lane-strandings incident record, golden corpus seeded from bugeventlog.md failure classes, Requirement: every bugeventlog.md failure class earns a golden round, M2 rounds-to-green, M7 lane mortality per 100 lane-starts, M8 evidence completeness, reduced v0.2.9 active metric set
+
+### Community 228 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): filesystem-class scoping of a lock verdict, pinned-mechanism evidence class, six ordered, disjoint refusal causes, syscall evidence class, Requirement: every lock refusal has one shape and one ordered cause, Requirement: an untrusted mechanism is a stated platform consequence, not a silent lockout, Requirement: a mechanism is selected only on a trusted, current verdict for that mechanism and that filesystem class, T15 one refusal shape, six ordered causes
+
+### Community 229 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): assert on the decision trace, never on model prose, Tier 0 sliced bats gates, Tier 1 deterministic vendor replay, aggregate pass/fail hides subsystem regressions, fresh-clone baseline 373 pass / 9 fail triage, regression-harness-tiers change package, Requirement: Tier 1 vendor replay asserts on the decision trace, never on model prose, Tier 0 slice gates and the annual self-test tasks
+
+### Community 230 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): completion is defined by artifacts, lane-run.sh --round GATE_CMD REPORT_PATH, Requirement: completion is defined by artifacts, never an agent's turn, artifact and content, never exit status, incident 4: exit-code success predicate on an empty lane, Requirement: a success predicate binds to an artifact and its content, Requirement: an assertion that holds vacuously is reported as vacuous, T9 artifact-bound predicates, vacuity, cross-checking
+
+### Community 231 - "openspec / changes"
+Cohesion: 0.29
+Nodes (8): D10 reification classifier (classify_edge_property), D9.7 manifest-driven node and edge classification, Requirement: ingest classifies node kinds and relation types against the manifest, T7 ingest pipeline core, Table 2: edge relation type to schema field, graphify to schema mapping manifest (manifest_version 1), post-freeze schema change procedure, Requirement: the graphify-to-schema mapping is a versioned manifest
+
+### Community 232 - "openspec / changes"
+Cohesion: 0.29
+Nodes (8): D3 commit boundary and batch size 500, Requirement: batched document writes at size 500, Requirement: ingest idempotency via content-hash batch skip, Requirement: single-parent commits only, canonical fixed-arity content digest (path, state, mode, hash), evidence-contracts (shared lib/evidence.sh digest), tree_sha256 evaluated-tree identity, Requirement: every verdict carries provenance and an evidence reference
+
+### Community 233 - "openspec / changes"
+Cohesion: 0.57
+Nodes (7): collect_failures(), extract_schema(), main(), Path, Demonstrate the checker FAILS on known-bad inputs., run_on(), self_test()
+
+### Community 234 - "openspec / changes"
+Cohesion: 0.46
+Nodes (5): fail(), log(), pass(), schema-live-gate.sh script, usage()
+
+### Community 235 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): adapter_caps records verified CLI version, rc_unavailable exit-code set, Requirement: adapters publish capabilities and unavailability signals, Quota exhaustion classified as unavailability, Requirement: quota exhaustion is unavailability, never a model failure, Requirement: the projection records what it consumed, T3 the projector core, /mnt/* FOREMAN_HOME hard refusal
+
+### Community 236 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): Entitlement is not authentication, Rejected: report quota as a number, Requirement: readiness reports entitlement, not only authentication, T3 entitlement and quota reporting, xAI ACP authMethods positive-signal handshake, declared versus probed evidence classes, Per-vendor capability table, T2 declared adapters: claude, codex
+
+### Community 237 - "openspec / changes"
+Cohesion: 0.25
+Nodes (8): Same shape as the lock-primitive defect, vendor_authed rc-collapse defect, Checker-soundness thesis, Setup false negative on an authenticated grok, Three-state auth result, Requirement: every preflight state is demonstrated reachable before the checker is trusted, Requirement: the auth result is three-state and unknown is never a login instruction, T6 tests, red-first
+
+### Community 238 - "skills / foreman"
 Cohesion: 0.39
-Nodes (5): package-codex-plugin.sh script, die(), metadata_root_from_dir(), prepare_metadata_root(), usage()
+Nodes (6): gp_project_file(), gp_project_stream(), gp_usage(), gp_validate_events(), LC_ALL, graph-project.sh script
 
-### Community 147 - "Community 147"
+### Community 239 - "skills / superpowers"
+Cohesion: 0.25
+Nodes (8): Claude Code harness integration, Codex harness integration, GitHub Copilot CLI harness integration, Cursor harness integration, Extensionless hook scripts on Windows, Polyglot run-hook.cmd dispatcher, Shape A — Shell-hook integration, Codex explicit empty hooks object
+
+### Community 240 - "skills / superpowers"
+Cohesion: 0.25
+Nodes (8): No Redundant Reviewer Test Runs, Reviewer Severity Calibration, Fresh Subagent Per Task Thesis, Structured Global Constraints Section, L1 Plan-Side Crispness, Design for Isolation and Clarity, Scope Decomposition Check, Prefer Subagent-Driven Development
+
+### Community 241 - "skills / superpowers"
+Cohesion: 0.39
+Nodes (5): die(), metadata_root_from_dir(), prepare_metadata_root(), package-codex-plugin.sh script, usage()
+
+### Community 242 - "skills / superpowers"
+Cohesion: 0.25
+Nodes (7): dependencies, ws, name, scripts, test, version, ws
+
+### Community 243 - "skills / superpowers"
 Cohesion: 0.36
 Nodes (7): analyze_main_session(), calculate_cost(), format_tokens(), main(), Analyze a session file and return token usage broken down by agent., Format token count with thousands separators., Calculate estimated cost in dollars.
 
-### Community 148 - "Community 148"
-Cohesion: 0.25
-Nodes (7): Actual behavior, Debug log or conversation transcript, Environment (required), Expected behavior, Is this a Superpowers issue or a platform issue?, Steps to reproduce, What happened?
+### Community 245 - "tests"
+Cohesion: 0.57
+Nodes (6): assert_contains(), assert_status(), check_preconditions(), check_runner(), record_failure(), selftest-test-infrastructure.sh script
 
-### Community 149 - "Community 149"
-Cohesion: 0.25
-Nodes (7): Summary, Task 1: Create the Server Foundation, Task 2: Create the Helper Library, Task 3: Write Tests for the Server, Task 4: Add Visual Companion to Brainstorming Skill, Task 5: Add Server to Plugin Ignore (Optional Cleanup), Visual Brainstorming Companion Implementation Plan
-
-### Community 150 - "Community 150"
-Cohesion: 0.12
-Nodes (15): Acceptance, File structure, Global constraints, Ground-truth interfaces (verified 2026-07-19), Self-review, Task 1: bugeventlog.md lint cleanup (unblocks docs-check), Task 2: install.ps1 — native junction (no cmd-shelling), Task 3: windows-latest CI smoke test (+7 more)
-
-### Community 151 - "Community 151"
-Cohesion: 0.25
-Nodes (7): Scrapling 安装与维护, 三 Fetcher 完整验证脚本, 包管理器, 升级, 安装层级, 安装浏览器依赖, 检查安装状态
-
-### Community 152 - "Community 152"
-Cohesion: 0.15
-Nodes (12): Architect report template, Clock-sync: protecting the event log across sleep/resume (v0.2.7.5 package 3), Codex auth: headless vs interactive (v0.2.8.1), Commands, Pre-implementation gate (architect duty), Profiles, Reference environment (Windows + WSL2), Relationship to general wsl-setup (+4 more)
-
-### Community 153 - "Community 153"
-Cohesion: 0.25
-Nodes (7): Advisor (Judgment), Auditor (Cold-diff review), Orchestrator (Architect), Plan (parallel design), Roles, Search (parallel recon), Worker (Implementer)
-
-### Community 154 - "Community 154"
-Cohesion: 0.25
-Nodes (7): API 端点 (REST/GraphQL), Discourse 论坛 (linux.do, meta.discourse.org 等), SPA 应用 (React/Vue/Next.js), 企业 React SPA + CSRF + 懒加载工作台（泛化模式）, 模板：添加新站点模式, 站点抓取模式经验库, 静态博客/文档站 (GitHub Pages, Hugo, Jekyll)
-
-### Community 155 - "Community 155"
-Cohesion: 0.18
-Nodes (10): Foreman roadmap, Later / unscheduled, v0.1.0 — released 2026-07-15, v0.2.0 — durable lanes (released 2026-07-17), v0.2.5 — orchestration hardening (released 2026-07-18), v0.2.7.5 — usability: close the five not-usable-yet gaps (released 2026-07-18), v0.2.8.1 — field-failure fixes (released 2026-07-19), v0.2.8 — vendor concurrency + hard mode (released 2026-07-19) (+2 more)
-
-### Community 156 - "Community 156"
-Cohesion: 0.25
-Nodes (7): Background, Commit plan, In scope, Out of scope, Platform-neutral README ordering — Phase C design, Substitution, Verification
-
-### Community 157 - "Community 157"
-Cohesion: 0.25
-Nodes (7): 1. B#3 — drop the `$(cd&&pwd)` SCRIPTS subshell (6 files), 2. A — pin `LANE_KILL_GRACE=1` (tests/lane-run.bats), 3. B#1 — memoize the jq-CRLF probe (tests/helpers.bash), 4. B#2 half-1 + B#3(line 32) — template + `cp -r` (tests/helpers.bash), 5. Verification (run by the orchestrator, NOT during a live gate), Deferred to v0.2.5 (not in this change), Tasks — test-harness fork-tax reduction
-
-### Community 158 - "Community 158"
-Cohesion: 0.29
-Nodes (6): dependencies, ws, name, scripts, test, version
-
-### Community 159 - "Community 159"
+### Community 246 - "skills / superpowers"
 Cohesion: 0.33
-Nodes (5): config.sh script, _CFG_ENV_VAR, cfg_load(), _cfg_parse_toml(), _CFG_VALUES
+Nodes (6): RFC-6455, assert, crypto, path, runTests(), SERVER_PATH
 
-### Community 161 - "Community 161"
-Cohesion: 0.25
-Nodes (3): worktree.sh script, git_retry(), wt_with_lock()
+### Community 247 - "docs / research"
+Cohesion: 0.33
+Nodes (7): Claude Code agent teams, Quality gates enforced with hooks, Shared task list with self-coordination, Team lead session, Teammate session, Subagent scope (user-level vs project-level), Claude Code subagent
 
-### Community 162 - "Community 162"
+### Community 248 - "openspec / changes"
+Cohesion: 0.38
+Nodes (7): Design â€” agy-lane-activation, Behavioural entanglement across eighteen models (arXiv 2604.07650), Cold-diff audit is the real decorrelation mechanism, Reviewer-independence justification is retired for a fourth vendor, Nine Judges, Two Effective Votes (arXiv 2605.29800), Unique-catch rate per vendor pair as the measurement obligation, Requirement: the lane's justification is recorded, and it is not independence
+
+### Community 249 - "openspec / changes"
+Cohesion: 0.29
+Nodes (7): Worktree file copy, not a read-only bind mount, Requirement: secrets and mounts follow least privilege, Least-privilege plumbing tasks, Generalized post-audit worktree tamper assertion, Requirement: every audit asserts the auditor did not mutate the worktree, Payloads carry references, never contents, Requirement: recorded payloads carry references, never contents
+
+### Community 250 - "openspec / changes"
+Cohesion: 0.29
+Nodes (7): Shadow mode with measured promotion, Requirement: every check ships non-blocking and is promoted by measurement, Shadow measurement and promotion protocol, Every metric ships with its companion number, usage.source: vendor_reported / estimated / unavailable, Requirement: every recorded metric ships with its companion number, Requirement: an unmeasured cost is recorded as unmeasured, never as zero
+
+### Community 251 - "openspec / changes"
+Cohesion: 0.29
+Nodes (7): FM_LANE_OWNER / FM_LANE_LABEL ownership tagging, tools/lanectl.sh, subtree adoption of a running lane, Requirement: every lane and watchdog carries an owner tag, pkill -f forbidden, kill by recorded pid, T1 ownership primitives, T13 lanes shall not pkill -f by pattern
+
+### Community 252 - "openspec / changes"
+Cohesion: 0.29
+Nodes (7): bounded satisfaction is not proof, Tier 2 on-demand statistical vendor research, Requirement: Tier 2 seeded-defect runs are on-demand vendor research with statistical discipline, not a release gate, sigma methodology stated explicitly, gaming-exposure rule with typed companion field, sigma-before-claim rule, T4 gaming exposure: typed companion field and human review
+
+### Community 253 - "openspec / changes"
 Cohesion: 0.43
-Nodes (4): resume.sh script, exact_delete_extras(), main(), usage()
+Nodes (7): Artifact abstract plane-bridge class, Claim class, Entity class, GraphNode abstract class, Table 1: node file_type to class, Provenance subdocument class, Source class (the plane crossing)
 
-### Community 163 - "Community 163"
+### Community 254 - "openspec / changes"
+Cohesion: 0.29
+Nodes (7): Refused: re-modelling git commit ancestry as graph edges, Checkpoint-SHA to source_file bridge, Work-plane edge vocabulary, graph-project.sh deterministic projector, graphify-out/worklog.jsonl, T1 audit the inputs before writing a projector, T2 the record schema
+
+### Community 255 - "skills / foreman"
+Cohesion: 0.33
+Nodes (7): Evidence contract (HEAD + status digests), Documentation & comments dimension (tag: docs), Standing constraints (copy into every spec), grok --permission-mode acceptEdits is silently ignored, Known limits per CLI (soft, headless), Five-part spec contract, Reports are claims, not evidence
+
+### Community 256 - "skills / foreman"
+Cohesion: 0.33
+Nodes (5): _CFG_ENV_VAR, cfg_load(), _cfg_parse_toml(), _CFG_VALUES, config.sh script
+
+### Community 257 - "skills / foreman"
 Cohesion: 0.43
-Nodes (4): stop-server.sh script, command_has_server_id(), is_brainstorm_server(), mark_stopped()
+Nodes (5): stall.sh script, stall_from_pid(), stall_never_launched(), stall_no_output(), stall_report()
 
-### Community 164 - "Community 164"
+### Community 258 - "skills / foreman"
 Cohesion: 0.43
-Nodes (4): test-session-start.sh script, assert_command_output(), fail(), pass()
+Nodes (6): cmd_check(), cmd_record(), EXIT_NOT_MERGEABLE, not_mergeable(), RESPAWN_HINT, merge-gate.sh script
 
-### Community 165 - "Community 165"
-Cohesion: 0.29
-Nodes (6): description, name, owner, email, name, plugins
+### Community 259 - "skills / foreman"
+Cohesion: 0.43
+Nodes (4): exact_delete_extras(), main(), resume.sh script, usage()
 
-### Community 166 - "Community 166"
-Cohesion: 0.18
-Nodes (11): Agent Client Protocol (grok agent stdio), Grok headless mode (-p, output formats, sessions), ARCHITECT_ACTIONS report field, Evidence contract (head SHA + status digests before/after), Git-write ban (standing rule for workers), Lane hardening (CS1: contracts, evidence, known limits), Foreman Skill Enhancement Implementation Plan, Global Constraints (+3 more)
+### Community 260 - "skills / superpowers"
+Cohesion: 0.43
+Nodes (4): command_has_server_id(), is_brainstorm_server(), mark_stopped(), stop-server.sh script
 
-### Community 167 - "Community 167"
-Cohesion: 0.25
-Nodes (7): Foreman — Architect / Worker Orchestration, Hard mode — task loop, Mode selection, Operating model: Setup & Environment → Use → Cleanup, References, Session startup checklist, What you never do
+### Community 261 - "skills / superpowers"
+Cohesion: 0.33
+Nodes (7): NULL Baseline Variant (no skills doc), Variant Success and Failure Criteria, CLAUDE.md Variant Testing Protocol, When a Skill Is Bulletproof, Meta-Testing (asking the agent how the skill should have been written), REFACTOR Phase: Close Loopholes (Stay Green), TDD Skill Bulletproofing Case (6 iterations)
 
-### Community 168 - "Community 168"
-Cohesion: 0.29
-Nodes (6): Context, Environment (required), Is this appropriate for core Superpowers?, Proposed solution, What alternatives did you consider?, What problem does this solve?
+### Community 262 - "skills / superpowers"
+Cohesion: 0.43
+Nodes (7): Claude Code Skills Tests, Headless Claude CLI Invocation (claude -p), run_claude helper, run-skill-tests.sh, test-helpers.sh, test-subagent-driven-development.sh, test-subagent-driven-development-integration.sh
 
-### Community 169 - "Community 169"
-Cohesion: 0.29
-Nodes (6): Architecture, Configuration, Durable lanes, Honest limits, Running a durable lane, Windows / WSL notes
+### Community 263 - "skills / superpowers"
+Cohesion: 0.43
+Nodes (4): assert_command_output(), fail(), pass(), test-session-start.sh script
 
-### Community 170 - "Community 170"
-Cohesion: 0.29
-Nodes (6): EARS phrasing (required for Grok-bound specs), Exact command(s) the orchestrator will re-run, or: python -m http.server 8080  (manual smoke), or: test -f site/index.html && grep -q "Foreman" site/index.html, Quality bar, Standing constraints (copy into EVERY spec's Constraints section)
+### Community 264 - "tests"
+Cohesion: 0.48
+Nodes (6): expect_rc(), known_nodes(), LC_ALL, record(), graph-project-harness.sh script, write_good_log()
 
-### Community 171 - "Community 171"
-Cohesion: 0.29
-Nodes (6): Cookie / token 处理, Prompt injection 与 AI-targeted 输出, Site pattern 处理, 安全与合规边界, 授权、robots.txt、ToS, 最小化与可复验
+### Community 265 - "docs / research"
+Cohesion: 0.33
+Nodes (6): Environment actions taken during the audit (Bun 1.3.14, pueue 4.0.4), Bun 1.3.14 pinned install paths (winget or install.ps1 -Version), CI build/sign/publish pipeline is entirely greenfield, No exact-version-pin mechanism in the reference manifest, pueue 4.0.4 has no package-manager route on this host, reference-manifest.toml is not parsed generically
 
-### Community 172 - "Community 172"
-Cohesion: 0.29
-Nodes (6): Example, How to Request, Integration with Workflows, Red Flags, Requesting Code Review, When to Request Review
+### Community 266 - "openspec / changes"
+Cohesion: 0.33
+Nodes (6): gh pr create with --body-file, not -b, pr-open.sh host-side draft-PR flow, Requirement: pr-open pushes only after the gate and only host-side, Provenance and citation gate, not a correctness gate, What cannot be made symbolic, Requirement: the gate states what the groundedness layer checks
 
-### Community 173 - "Community 173"
-Cohesion: 0.29
-Nodes (7): Agentskills Compliance, Bug Fixes, Community, Improvements, Maintenance, New Features, v5.0.1 (2026-03-10)
+### Community 267 - "openspec / changes"
+Cohesion: 0.33
+Nodes (6): independent cross-family fact-check of the final text, cross-vendor invariant re-keyed on model family, Requirement: the rebuilt README passes an independent cross-vendor fact-check, M5 cross-vendor catch rate (owned elsewhere), vendor-vote correlation counter-evidence, T5 M5 consumption discipline (no local definition)
 
-### Community 174 - "Community 174"
+### Community 268 - "openspec / changes"
+Cohesion: 0.40
+Nodes (6): deferral framing superseded by the ship decision, GraphStore port (graph-store-port), store-adapter capability, AUDIT-terminusdb-opus finding N14, terminusdb-operations package, terminusdb-schema package
+
+### Community 269 - "openspec / changes"
+Cohesion: 0.33
+Nodes (6): Evaluation class, EvaluationTarget TaggedUnion, Finding class, Requirement: EVALUATES and Finding targets use a tagged union, content-derived stable finding id, Requirement: findings carry stable ids and are addressed by id
+
+### Community 270 - "openspec / changes"
+Cohesion: 0.33
+Nodes (6): mechanical full-repository check inventory, declared skip budgets as the coverage counterweight, skip-with-reason mechanism, tests/positive-control-registry.tsv, Requirement: the registry is matched against a full-repository inventory, tests/lib/check-inventory.sh scanner
+
+### Community 271 - "openspec / changes"
+Cohesion: 0.33
+Nodes (6): Claude lane half-wiring, Requirement: a plumbed vendor lane is either functional or absent, T7 resolve the claude half-wiring, Shared agy home hazards (SQLite, settings.json, OAuth token), Requirement: the group topology and its cap citations cover four vendors, T1 topology and cap governance
+
+### Community 272 - "openspec / changes"
+Cohesion: 0.40
+Nodes (6): agy isolation dilemma: isolated or authenticated, not both, Shared-mutable-state monitor (SQLite plus WAL companions), agy isolation lever is $HOME, not GEMINI_CLI_HOME, Requirement: the harness covers every vendor and its real isolation lever, T2 extend the concurrency harness, Conditional cross-boundary networking check
+
+### Community 273 - "openspec / changes"
+Cohesion: 0.33
+Nodes (6): Requirement: vendor readiness is three independent facts, never one boolean, T1 the result model and the capability table, foreman-launch readiness coverage, bun is should_full tier, so absence degrades rather than blocks, Requirement: readiness reports the launcher's absence loudly, Task 2 foreman-launch readiness entry
+
+### Community 274 - "skills / foreman"
+Cohesion: 0.60
+Nodes (6): Claim discipline (standing rules), metrics-lint.sh (shadow by default), Release metrics reference, Sigma definition and minimum sample sizes, Two uncomputable render forms, Reporting and claim discipline
+
+### Community 275 - "skills / foreman"
+Cohesion: 0.60
+Nodes (5): ensure_foreman_stream(), main(), require_nats_deps(), setup.sh script, wait_for_server()
+
+### Community 276 - "skills / scrapling"
+Cohesion: 0.40
+Nodes (6): Cookie/Token Redaction Requirement, Cookie Vault Template, Authorization, robots.txt and ToS Boundary, Cookie/Token Handling Boundary, Minimization and Reproducibility, Scrapling Guardrails
+
+### Community 277 - "skills / superpowers"
+Cohesion: 0.33
+Nodes (6): Read-Only Review Constraint, File Handoffs for Artifacts, scripts/review-package, scripts/task-brief, Diff-Scoped Review Method, Task Interfaces Block (Consumes/Produces)
+
+### Community 278 - "skills / superpowers"
+Cohesion: 0.33
+Nodes (6): Avoid Assuming Tools Are Installed, Avoid Windows-Style Paths, MCP Tool References Must Be Fully Qualified, Provide Utility Scripts, Solve, Don't Punt, Use Visual Analysis
+
+### Community 279 - "skills / superpowers"
+Cohesion: 0.40
+Nodes (6): Testing CLAUDE.md Skills Documentation, Variant A: Soft Suggestion, Variant B: Directive, Variant D: Process-Oriented, Commitment Principle, Implementation Intentions Create Automatic Behavior
+
+### Community 280 - "skills / superpowers"
 Cohesion: 0.53
 Nodes (4): fail(), make_fake_uname(), pass(), start-server.test.sh script
 
-### Community 175 - "Community 175"
-Cohesion: 0.33
-Nodes (4): assert, crypto, path, SERVER_PATH
-
-### Community 176 - "Community 176"
-Cohesion: 0.20
-Nodes (10): lane-run.sh script, cleanup(), emit_kill_alert(), GIT_ASK_YESNO, kill_cmd_bounded(), kill_launcher_bounded(), lane_emit_ownership(), lane_grok_secrets_scan() (+2 more)
-
-### Community 177 - "Community 177"
+### Community 281 - "skills / superpowers"
 Cohesion: 0.53
-Nodes (4): nats-bridge.sh script, nb_bridge(), nb_bridge_once(), _nb_lock_release()
+Nodes (4): fail(), main(), pass(), test-sdd-workspace.sh script
 
-### Community 178 - "Community 178"
+### Community 282 - "skills / superpowers"
+Cohesion: 0.33
+Nodes (4): HOME, OPENCODE_CONFIG_DIR, setup.sh script, XDG_CONFIG_HOME
+
+### Community 283 - "skills / superpowers"
+Cohesion: 0.53
+Nodes (4): assert_contains(), describe_priority_result(), run_opencode(), test-priority.sh script
+
+### Community 284 - "openspec / changes"
+Cohesion: 0.50
+Nodes (5): Closed-world check, Structural-zero-false-positive rule, Single check declaration table, Requirement: only closed-world checks may block a merge, Check registry and the two refusals
+
+### Community 285 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): Additive event-schema premise, Frozen top-level event record shape, Sidecar decisions file (rejected), Requirement: decision events extend the vocabulary additively, T1 additivity premise check (stop condition)
+
+### Community 286 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): graph-refresh.sh single entry point, merge cadence (AST-only, evidential), slow cadence (LLM-priced, advisory), asserted zero-token merge cadence, Requirement: the knowledge graph refreshes automatically, AST-only, per merge
+
+### Community 287 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): existence treated as liveness (pgrep defect), tools/reap-stale-lanes.sh, headless rounds launch with stdin from /dev/null, Requirement: headless vendor rounds detach stdin, Requirement: lane liveness is judged on process state and CPU, never on existence
+
+### Community 288 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): formal/specs/lane_lifecycle.qnt model, auto-resume loses round ownership defect, Requirement: round ownership is recorded in the event log, Requirement: auto-resume refuses to downgrade to plain mode, T8 carry round ownership across auto-resume
+
+### Community 289 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): structural disjointness of work-DAG and knowledge planes, WorkNode abstract class, TerminusDB's thin constraint language (external invariants), Requirement: work-DAG, knowledge, and bridge planes as named classes, Requirement: RESOLVED_TO is functional; acyclicity is external
+
+### Community 290 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): UNVERIFIED costs no rework round, Requirement: repeated UNVERIFIED audits are separately bounded and terminate, Requirement: UNVERIFIED fails the gate closed, distinctly, and costs no rework round, T10 separate audit-attempt bound and terminal Abandoned state, T5 gate: UNVERIFIED and policy
+
+### Community 291 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): Argument-order hazard: agy --print hang, Never-stdin invariant needs an owner, Requirement: order-sensitive vendor flags are placed by the adapter and tested, Requirement: the prompt is never delivered on stdin, T6 the contract tests
+
+### Community 292 - "openspec / changes"
 Cohesion: 0.60
-Nodes (5): setup.sh script, ensure_foreman_stream(), main(), require_nats_deps(), wait_for_server()
+Nodes (5): git status --porcelain digest false negative, evidence-contracts sole-ownership boundary, grok-multiround.sh to vendor-multiround.sh, Requirement: write evidence is consumed, never defined here, T5 consume the write-evidence loop
 
-### Community 179 - "Community 179"
-Cohesion: 0.53
-Nodes (4): test-sdd-workspace.sh script, fail(), main(), pass()
+### Community 293 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): verdict.schema.json conformance is the adapter's job, Requirement: a non-conforming verdict is a failure, not a verdict, A changed banner degrades to unknown, Requirement: each vendor's auth evidence class is declared, T3 probed adapters: grok, agy
 
-### Community 180 - "Community 180"
-Cohesion: 0.33
-Nodes (4): setup.sh script, HOME, OPENCODE_CONFIG_DIR, XDG_CONFIG_HOME
+### Community 294 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): Requirement: the concurrency results document records negative findings, T4 the destructive run or a recorded negative, The honest cannot-answer list, Requirement: the projection reports its own coverage, T7 wiring, coverage and honest reporting
 
-### Community 181 - "Community 181"
-Cohesion: 0.53
-Nodes (4): test-priority.sh script, assert_contains(), describe_priority_result(), run_opencode()
+### Community 295 - "openspec / changes"
+Cohesion: 0.40
+Nodes (5): graphify_version stamp on every record, Rename with lineage, never delete-plus-create, Requirement: an identifier change caused by a file move is a rename with lineage, Requirement: every record is stamped with the graphify version, T5 rename lineage and the version stamp
 
-### Community 182 - "Community 182"
-Cohesion: 0.33
-Nodes (5): Always, Dogfood website task, Foreman project — architect doctrine, Repo understanding: graph first, Soft loop (remember)
-
-### Community 183 - "Community 183"
-Cohesion: 0.33
-Nodes (5): Change: el_emit spawn reduction, Impact, Out of scope (deferred to v0.2.5), What changes, Why
-
-### Community 184 - "Community 184"
-Cohesion: 0.33
-Nodes (5): Do NOT change, Implementation, Ship, Tasks — el_emit spawn reduction, Verification (run in an isolated worktree; NOT on a host with a live gate)
-
-### Community 185 - "Community 185"
-Cohesion: 0.33
-Nodes (5): Merged to main, NOT merged — T3 (lane-run) and T5 (watch), Remaining path to close Round B / v0.2.0, Resume checkpoint — 2026-07-16 (durable-lanes Round B, session cut short), Standing context
-
-### Community 186 - "Community 186"
-Cohesion: 0.33
-Nodes (5): Pi Extension and Evals Implementation Plan, Task 1: Pi package manifest and extension tests, Task 2: Pi tool mapping reference, Task 3: Drill Pi backend and session log normalization, Task 4: Documentation and full verification
-
-### Community 187 - "Community 187"
-Cohesion: 0.33
-Nodes (5): Cookie 保险库模板, Playwright 格式（StealthyFetcher/DynamicFetcher 用）, 备注, 模板：添加新站点, 示例站点 (example.com)
-
-### Community 188 - "Community 188"
-Cohesion: 0.33
-Nodes (5): For /graphify explain, For /graphify path, graphify reference: query, path, explain, Step 0 — Constrained query expansion (REQUIRED before traversal), Step 1 — Traversal
-
-### Community 189 - "Community 189"
-Cohesion: 0.20
-Nodes (9): container (Docker/WSL2), Hard mode (shipped), Honest limits, launcher-only (default, no Docker), Operator rules, pr-open: gate → HTTPS PAT push → draft PR, Security model, Soft mode residual risk (+1 more)
-
-### Community 190 - "Community 190"
-Cohesion: 0.33
-Nodes (5): CLI quick path, Scope boundary, sync checklist, Upstream alignment map, Upstream source of truth
-
-### Community 191 - "Community 191"
-Cohesion: 0.33
-Nodes (5): Foreman Combined Skill — Design, Modes, Non-goals (this scaffold), Success criteria, Summary
-
-### Community 192 - "Community 192"
-Cohesion: 0.33
-Nodes (6): Breaking Changes, Bug Fixes, Documentation, Improvements, New Features, v3.1.0 (2025-10-17)
-
-### Community 193 - "Community 193"
-Cohesion: 0.33
-Nodes (5): Change: test-harness fork-tax reduction, Impact, Out of scope (deferred to v0.2.5), What changes, Why
-
-### Community 194 - "Community 194"
-Cohesion: 0.33
-Nodes (5): Platform Adaptation, Red Flags, Skill Priority, The Rule, User Instructions
-
-### Community 195 - "Community 195"
-Cohesion: 0.33
-Nodes (5): Evidence, Findings, FOREMAN_REPORT, Open questions, Summary
-
-### Community 196 - "Community 196"
-Cohesion: 0.33
-Nodes (6): 1. Rich Description Field, 2. Keyword Coverage, 3. Descriptive Naming, 4. Token Efficiency (Critical), 5. Cross-Referencing Other Skills, Skill Discovery Optimization (SDO)
-
-### Community 197 - "Community 197"
-Cohesion: 0.33
-Nodes (6): Address "Spirit vs Letter" Arguments, Build Rationalization Table, Bulletproofing Skills Against Rationalization, Close Every Loophole Explicitly, Create Red Flags List, Update SDO for Violation Symptoms
-
-### Community 198 - "Community 198"
+### Community 296 - "sandbox"
 Cohesion: 0.70
-Nodes (4): durable-preflight.sh script, dp_one(), dp_verify(), main()
+Nodes (4): apply(), check(), resolve_and_allow(), init-firewall.sh script
 
-### Community 199 - "Community 199"
-Cohesion: 0.60
-Nodes (3): wt-merge.sh script, commit_worktree_pending(), mark_merged()
-
-### Community 200 - "Community 200"
-Cohesion: 0.40
-Nodes (4): Does this tool have a plugin or extension system?, Environment (required), Have you tried manual installation?, Which IDE or platform?
-
-### Community 201 - "Community 201"
-Cohesion: 0.40
-Nodes (4): Planning fidelity — thoughts + a prompt to run after the next release, Stubbed ideas (ranked by leverage), The prompt (paste into a Foreman soft-mode session), Why (grounded in the durable-lanes build, 2026-07-15)
-
-### Community 202 - "Community 202"
-Cohesion: 0.40
-Nodes (4): interface, displayName, name, plugins
-
-### Community 203 - "Community 203"
-Cohesion: 0.50
-Nodes (3): __dirname, normalizePath(), SuperpowersPlugin()
-
-### Community 204 - "Community 204"
-Cohesion: 0.40
-Nodes (5): 15. Further reading, security, layout, license, lineage, Layout, License, Lineage, Security model
-
-### Community 205 - "Community 205"
-Cohesion: 0.40
-Nodes (4): Content notes, Files, Foreman documentation site, Preview
-
-### Community 206 - "Community 206"
-Cohesion: 0.40
-Nodes (4): contextFileName, description, name, version
-
-### Community 207 - "Community 207"
-Cohesion: 0.40
-Nodes (5): Brainstorm Server, Bug Fixes, Codex App Compatibility, Inline Self-Review Replaces Subagent Review Loops, v5.0.6 (2026-03-24)
-
-### Community 208 - "Community 208"
-Cohesion: 0.40
-Nodes (5): Breaking Changes, Fixes, Improvements, Tests, v4.2.0 (2026-02-05)
-
-### Community 209 - "Community 209"
-Cohesion: 0.40
-Nodes (5): Breaking Changes, Major Changes, New Features, Other Improvements, v4.0.0 (2025-12-17)
-
-### Community 210 - "Community 210"
-Cohesion: 0.40
-Nodes (4): Choose A, B, or C, Pressure Test 1: Emergency Production Fix, Scenario, Your Options
-
-### Community 211 - "Community 211"
-Cohesion: 0.40
-Nodes (4): Choose A, B, or C, Pressure Test 2: Sunk Cost + Exhaustion, Scenario, Your Options
-
-### Community 212 - "Community 212"
-Cohesion: 0.40
-Nodes (4): Choose A, B, or C, Pressure Test 3: Authority + Social Pressure, Scenario, Your Options
-
-### Community 213 - "Community 213"
-Cohesion: 0.40
-Nodes (4): [Analysis Title], Executive summary, Key findings, Recommendations
-
-### Community 214 - "Community 214"
-Cohesion: 0.40
-Nodes (5): Anti-Patterns, ❌ Code in Flowcharts, ❌ Generic Labels, ❌ Multi-Language Dilution, ❌ Narrative Example
-
-### Community 215 - "Community 215"
-Cohesion: 0.40
-Nodes (5): Discipline-Enforcing Skills (rules/requirements), Pattern Skills (mental models), Reference Skills (documentation/APIs), Technique Skills (how-to guides), Testing All Skill Types
-
-### Community 216 - "Community 216"
-Cohesion: 0.40
-Nodes (5): GREEN: Write Minimal Skill, Micro-Test Wording Before Full Scenarios, RED-GREEN-REFACTOR for Skills, RED: Write Failing Test (Baseline), REFACTOR: Close Loopholes
-
-### Community 218 - "Community 218"
-Cohesion: 0.83
-Nodes (3): docs-check.sh script, forced_missing(), record()
-
-### Community 220 - "Community 220"
-Cohesion: 0.83
-Nodes (3): test-worktree-path-policy.sh script, assert_contains(), assert_not_contains()
-
-### Community 221 - "Community 221"
-Cohesion: 0.83
-Nodes (3): test-bootstrap-caching.sh script, run_missing_file_check(), run_present_file_check()
-
-### Community 222 - "Community 222"
-Cohesion: 0.83
-Nodes (3): test-tools.sh script, assert_contains(), run_opencode()
-
-### Community 224 - "Community 224"
-Cohesion: 0.50
-Nodes (3): Plugin tests, Skill behavior evals, Testing Superpowers
-
-### Community 225 - "Community 225"
-Cohesion: 0.50
-Nodes (3): hooks, sessionStart, version
-
-### Community 226 - "Community 226"
-Cohesion: 0.13
-Nodes (14): Acceptance, File structure, Global constraints, Ground-truth interfaces (verified against code 2026-07-18; two audits), hard-mode-launcher Implementation Plan (next release · container profile shipped), Self-review, Task 1: shared launcher resolver (`lib/launch.sh`), Task 2: per-vendor worker command builder (`lib/worker-cmd.sh`) (+6 more)
-
-### Community 227 - "Community 227"
-Cohesion: 0.50
-Nodes (3): For /graphify add, For --watch, graphify reference: add a URL and watch a folder
-
-### Community 228 - "Community 228"
-Cohesion: 0.50
-Nodes (3): Codex App Finishing, Environment Detection, Subagent dispatch requires multi-agent support
-
-### Community 229 - "Community 229"
-Cohesion: 0.50
-Nodes (3): For git commit hook, For native CLAUDE.md integration, graphify reference: commit hook and native CLAUDE.md integration
-
-### Community 230 - "Community 230"
-Cohesion: 0.50
-Nodes (3): Pi Tool Mapping, Subagents, Task lists
-
-### Community 231 - "Community 231"
-Cohesion: 0.50
-Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphify reference: incremental update and cluster-only
-
-### Community 232 - "Community 232"
-Cohesion: 0.50
-Nodes (4): Brainstorm Server Reliability, Subagent Context Isolation, v5.0.2 (2026-03-11), Zero-Dependency Brainstorm Server
-
-### Community 233 - "Community 233"
-Cohesion: 0.50
-Nodes (4): Breaking Changes, Improvements, New Features, v5.0.0 (2026-03-09)
-
-### Community 234 - "Community 234"
-Cohesion: 0.50
-Nodes (4): Breaking Changes, Improvements, New Features, v3.2.0 (2025-10-18)
-
-### Community 235 - "Community 235"
-Cohesion: 0.50
-Nodes (4): Bug Fixes, OpenCode, Review Loop Refinements, v5.0.4 (2026-03-16)
-
-### Community 236 - "Community 236"
-Cohesion: 0.50
-Nodes (4): Codex, Harness Support, Lower Per-Session Token Cost, v6.1.0 (2026-06-30)
-
-### Community 237 - "Community 237"
-Cohesion: 0.50
-Nodes (3): audit, exclude, files
-
-### Community 239 - "Community 239"
-Cohesion: 0.83
-Nodes (3): _(), assert_contains(), read()
-
-### Community 240 - "Community 240"
-Cohesion: 0.50
-Nodes (4): Build evaluations first, Develop Skills iteratively with the agent, Evaluation and iteration, Observe how agents navigate Skills
-
-### Community 241 - "Community 241"
-Cohesion: 0.50
-Nodes (4): Checklist for effective Skills, Code and scripts, Core quality, Testing
-
-### Community 242 - "Community 242"
-Cohesion: 0.50
-Nodes (4): Concise is key, Core principles, Set appropriate degrees of freedom, Test with all models you plan to use
-
-### Community 243 - "Community 243"
-Cohesion: 0.50
-Nodes (4): File Organization, Self-Contained Skill, Skill with Heavy Reference, Skill with Reusable Tool
-
-### Community 244 - "Community 244"
-Cohesion: 0.50
-Nodes (4): Pattern, Reference, Skill Types, Technique
-
-### Community 246 - "Community 246"
-Cohesion: 0.60
-Nodes (3): wt-cleanup.sh script, archive_worktree_reports(), wtc_sigint_worktree()
-
-### Community 255 - "Community 255"
-Cohesion: 0.67
-Nodes (3): Added, Fixed, v4.3.1 (2026-02-21)
-
-### Community 256 - "Community 256"
-Cohesion: 0.67
-Nodes (3): Added, Changed, v3.5.0 (2025-11-23)
-
-### Community 257 - "Community 257"
-Cohesion: 0.67
-Nodes (3): Breaking Changes, Fixes, v4.1.0 (2026-01-23)
-
-### Community 258 - "Community 258"
-Cohesion: 0.67
-Nodes (3): Bug Fixes, Changed, v5.0.5 (2026-03-17)
-
-### Community 259 - "Community 259"
-Cohesion: 0.67
-Nodes (3): Bug Fixes, Cursor Support, v5.0.3 (2026-03-15)
-
-### Community 260 - "Community 260"
-Cohesion: 0.67
-Nodes (3): Bug Fixes, Improvements, v3.3.1 (2025-10-28)
-
-### Community 261 - "Community 261"
-Cohesion: 0.67
-Nodes (3): Changed, Fixed, v4.3.0 (2026-02-12)
-
-### Community 262 - "Community 262"
-Cohesion: 0.67
-Nodes (3): Codex, Packaging, v6.1.1 (2026-07-02)
-
-### Community 263 - "Community 263"
-Cohesion: 0.67
-Nodes (3): Files Changed, Improvements, v3.2.2 (2025-10-21)
-
-### Community 264 - "Community 264"
-Cohesion: 0.67
-Nodes (3): Files Changed, New Features, v3.2.1 (2025-10-20)
-
-### Community 265 - "Community 265"
-Cohesion: 0.67
-Nodes (3): GitHub Copilot CLI Support, OpenCode Fixes, v5.0.7 (2026-03-31)
-
-### Community 274 - "Community 274"
-Cohesion: 0.83
-Nodes (3): worker-run.sh script, _finalize_and_commit(), _sandbox_sync_back()
-
-### Community 275 - "Community 275"
-Cohesion: 0.67
-Nodes (3): wt-new.sh script, GIT_ASK_YESNO, idx_release_lock()
-
-### Community 306 - "Community 306"
-Cohesion: 0.08
-Nodes (40): ok, main(), parseArgs(), ParsedArgs, resolveCliArgs(), runDetached(), usage(), UsageError (+32 more)
-
-### Community 307 - "Community 307"
-Cohesion: 0.21
-Nodes (9): lane-queue.sh script, cmd_add(), cmd_ensure(), cmd_kill(), cmd_status(), lq_ensure_group(), lq_is_windows_pueue(), lq_quote_for_shell() (+1 more)
-
-### Community 308 - "Community 308"
-Cohesion: 0.31
-Nodes (11): lane-supervise.sh script, ls_handle_abandoned(), ls_lock_cleanup(), ls_log(), ls_print_ready_command(), ls_reenqueue(), ls_sweep_lane(), ls_sweep_run() (+3 more)
-
-### Community 309 - "Community 309"
-Cohesion: 0.15
-Nodes (12): description, devDependencies, @types/bun, name, packageManager, private, scripts, build (+4 more)
-
-### Community 310 - "Community 310"
-Cohesion: 0.15
-Nodes (12): 10. Hard mode (`worker-run.sh` + `pr-open.sh`, hard-mode-launcher), 1. Launcher contract (`launcher/`), 2. `watch.sh` v2 typed-state machine, 3. pueue admission control (`lane-queue.sh`), 4. Vendor config isolation, 5. Merge-freshness gate (`merge-gate.sh`), 6. Auto-resume supervisor (`lane-supervise.sh`), 7. Config keys added this release (+4 more)
-
-### Community 311 - "Community 311"
-Cohesion: 0.18
-Nodes (10): Amendment A (the one contract change): round-script ownership, Amendment B: add Task 8 — auto-resume supervisor, Amendment C: harden the terminal predicate (edit T2 + T4), One-line summary for the planner, Prevention-Gap Audit — v0.2.5 vs. the background-and-stop attractor, Q1 — The 12 attractor occurrences under foreman-launch (T1) + lane-run T2 + watch T4, Q2 — Contract amendment so "agent stopped early" cannot lose work, Q3 — Auto-resume primitive (bounded) — new plan task (+2 more)
-
-### Community 312 - "Community 312"
-Cohesion: 0.15
-Nodes (12): Build, CLI contract (frozen), `--detach`, Exit codes at a glance, foreman-launch, Graded stop (binding contract — no cooperative phase), Heartbeat schema (frozen — T2 consumes these exact field names), Known caveats carried from the research base (+4 more)
-
-### Community 313 - "Community 313"
-Cohesion: 0.20
-Nodes (9): 1. Bun, 2. pueue, 3. REPORT_compile.md / REPORT_ffi.md — caveats vs. plan's Global Constraints, 4. signtool, 5. env/reference-manifest.toml integration, 6. CI / GitHub Actions, foreman v0.2.5 Environment & Feasibility Audit, GAPS (blocking or open before T0/T1) (+1 more)
-
-### Community 314 - "Community 314"
-Cohesion: 0.25
-Nodes (7): 1. Fold-in analysis + revised task list, 2. Gate strategy, 3. Testability holes, 4. Cross-release check (v0.3.0 on top of the launcher), 5. Missing scope (from last ~15 bugeventlog entries), Priority-ordered top 5 changes, v0.2.5 Plan Audit — Sequencing, Testability, Missing Scope
-
-### Community 315 - "Community 315"
-Cohesion: 0.43
-Nodes (6): merge-gate.sh script, cmd_check(), cmd_record(), EXIT_NOT_MERGEABLE, not_mergeable(), RESPAWN_HINT
-
-### Community 316 - "Community 316"
-Cohesion: 0.20
-Nodes (9): Auxiliary evidence collected (safe, real CLI, deliberately NOT authenticated), Constraints, Credential-staging blocker (both vendors — no authenticated matrix run), Harness (`vendor-concurrency-test.sh`), LIVE authenticated run (2026-07-18, user-authorized shared-account), Protocol (run manually, per vendor), Results, Task 2 execution log (2026-07-18) (+1 more)
-
-### Community 317 - "Community 317"
-Cohesion: 0.50
-Nodes (3): DRIFT AUDIT — v0.2.5 plan (2026-07-16) vs shipped v0.2.0 (main @ fe61fa1), Per-task drift table, The 5 most important amendments (priority order)
-
-### Community 320 - "Community 320"
-Cohesion: 0.14
-Nodes (13): Acceptance, File structure, Global constraints (apply to every task), lifecycle-three-stage Implementation Plan (v0.2.7.5 · package 1/7), Self-review, Task 0: determine each vendor's real, NON-BILLING auth probe (empirical), Task 1: tool-check emits per-vendor auth state, Task 2: a lane-scoped readiness verdict (+5 more)
-
-### Community 321 - "Community 321"
-Cohesion: 0.17
-Nodes (11): Config keys, docs-check.sh — confirmed tool set (no AI-slop detector), Ground-truth inventory (Task 1), Hard mode — shipped vs. approved-spec upgrade path, Lanes (soft mode), Lifecycle wrapper scripts (v0.2.7.5 lifecycle-three-stage), POSIX launcher cascade (pidns), Result (+3 more)
-
-### Community 322 - "Community 322"
-Cohesion: 0.20
-Nodes (7): vendor-concurrency-test.sh script, ARGV, LANE_ROOTS, POST_AUTH, PRE_AUTH, vct_auth_status(), vct_build_argv()
-
-### Community 323 - "Community 323"
-Cohesion: 0.17
-Nodes (11): ADDED Requirement: dependency versions are reconciled to verified currency, ADDED Requirement: shellcheck and WSL bats-core are actually present, ADDED Requirement: the event log survives post-sleep clock drift, ADDED Requirement: the root→non-root migration is inventoried, not executed, ADDED Requirement: WSL codex resolves to a native install, not the Windows shim, ADDED Requirement: WSL is a fully-provisioned, co-equal foreman environment, ADDED Requirement: .wslconfig is tuned for an agent host, Scenario: foreman is fully usable inside WSL (+3 more)
-
-### Community 324 - "Community 324"
-Cohesion: 0.17
-Nodes (11): Acceptance, File structure, Global constraints, Self-review, Task 1: full WSL native provisioner (bootstrap-wsl.sh), Task 2: fix the WSL codex PATH-leak (live bug), Task 3: .wslconfig tuning, Task 4: clock-sync hook (protects the event log) (+3 more)
-
-### Community 325 - "Community 325"
-Cohesion: 0.17
-Nodes (11): Acceptance, File structure, Global constraints, Self-review, Task 1: git-guards config bootstrap, Task 2: git_retry backoff wrapper, Task 3: stale-lock sweep at lane start, Task 4: scoped GIT_OPTIONAL_LOCKS / GIT_ASK_YESNO (+3 more)
-
-### Community 326 - "Community 326"
-Cohesion: 0.17
-Nodes (11): Acceptance, docs-readme-refresh Implementation Plan (v0.2.7.5 · package 7/7), File structure, Global constraints, Self-review, Task 1: ground-truth inventory, Task 2: README.md, Task 3: docs/USAGE.md (+3 more)
-
-### Community 327 - "Community 327"
-Cohesion: 0.18
-Nodes (10): ADDED Requirement: grok authentication is a Setup-stage responsibility, ADDED Requirement: grok lanes refuse secrets-bearing worktrees, ADDED Requirement: lane-run maps the grok vendor to an isolated GROK_HOME, ADDED Requirement: the grok-implementer recipe is non-interactive and isolated, MODIFIED Requirement: the env manifest describes a real, resolvable grok install, Scenario: a clean worktree proceeds, Scenario: a worktree with a .env file blocks the grok lane, Scenario: grok vendor-home reaches CMD and the ownership event (+2 more)
-
-### Community 328 - "Community 328"
-Cohesion: 0.18
-Nodes (10): Acceptance, File structure, Global constraints, grok-lane-activation Implementation Plan (v0.2.7.5 · package 2/7), Self-review, Task 1: verify the grok arm of the vendor map, Task 2: secrets-refusal preflight, Task 3: manifest + Setup-stage auth (+2 more)
-
-### Community 329 - "Community 329"
-Cohesion: 0.18
-Nodes (10): Acceptance, File structure, Global constraints, posix-cascade-parity Implementation Plan (v0.2.7.5 · package 5/7), Self-review, Task 1: subreaper safety net (prctl via bun:ffi), Task 2: pidns bootstrap (the cascade guarantee), Task 3: contract parity (+2 more)
-
-### Community 330 - "Community 330"
-Cohesion: 0.20
-Nodes (9): ADDED Requirement: Cleanup runs a deterministic teardown set, ADDED Requirement: foreman operates in three ordered stages, ADDED Requirement: Setup emits a machine-readable readiness verdict, ADDED Requirement: Setup owns all model authentication, MODIFIED Requirement: SKILL.md documents the lifecycle as the operating frame, Scenario: Cleanup preserves dirty work, Scenario: grok unauthenticated blocks its lane at the door, Scenario: idempotent re-run (+1 more)
-
-### Community 331 - "Community 331"
-Cohesion: 0.20
-Nodes (9): Acceptance, File structure, Global constraints, Self-review, t5b-concurrency-verdict Implementation Plan (v0.2.7.5 · package 6/7), Task 1: matrix-runner harness logic (shim-driven), Task 2: codex + grok destructive runs (manual, contained), Task 3: Claude Code ruling + results doc (+1 more)
-
-### Community 332 - "Community 332"
-Cohesion: 0.20
-Nodes (9): ADDED Requirement: Defender exclusion doctrine is documented, ADDED Requirement: lanes scope optional-lock and yes/no env vars, ADDED Requirement: shared-lock operations retry with bounded backoff, ADDED Requirement: stale locks are swept before a lane starts, ADDED Requirement: the repo carries the concurrency-safe git config, MODIFIED Requirement: wt-cleanup never destroys uncommitted work and orders shutdown, Scenario: a transient index.lock contention succeeds on retry, Scenario: cleanup refuses a dirty worktree by default (+1 more)
-
-### Community 333 - "Community 333"
-Cohesion: 0.22
-Nodes (8): Authentication (both platforms), Boot the architect, Install, Troubleshooting, Uninstall, What install does, Windows, WSL / macOS / Linux
-
-### Community 334 - "Community 334"
-Cohesion: 0.22
-Nodes (8): ADDED Requirement: README describes the current product and both platforms, ADDED Requirement: the blader/humanizer skill runs over user-facing prose, ADDED Requirement: the doc set is internally consistent and link-clean, ADDED Requirement: USAGE documents the lifecycle end-to-end, MODIFIED Requirement: CLAUDE.md doctrine matches the shipped lifecycle, Scenario: a new user follows the quickstart on WSL, Scenario: docs-check is green on the refreshed set, Spec delta — documentation + README refresh
-
-### Community 335 - "Community 335"
-Cohesion: 0.22
-Nodes (8): Residual limits (honest), SC-A — agent-stop survivability: PROVEN LIVE, SC-B — whole-round ownership: permanent tests, SC-C — bounded auto-resume: permanent tests, SC-D — stale-report immunity: permanent tests, SC-E — no concurrent writers on resume: permanent tests, SC-F — completion provable without the agent: permanent tests + SC-A, v0.2.5 prevention criteria — proof record (2026-07-18)
-
-### Community 336 - "Community 336"
-Cohesion: 0.25
-Nodes (7): ADDED Requirement: a subreaper safety net keeps escapees reapable, ADDED Requirement: exit-code and heartbeat contract is unchanged, ADDED Requirement: the POSIX launcher runs as PID-namespace init, MODIFIED Requirement: the launcher README documents the closed asymmetry, Scenario: contract parity across builds, Scenario: killing the launcher reaps a double-forked escapee, Spec delta — POSIX launcher whole-tree teardown parity
-
-### Community 337 - "Community 337"
-Cohesion: 0.25
-Nodes (7): Acceptance, Cross-cutting — release, foreman v0.2.8.1 — field-failure fixes (design), Issue 1 — install.ps1 Windows link is fragile (cmd-shelling), Issue 2 — grok `--prompt-file` single-burst writes NOTHING on exploration-heavy specs, Issue 3 — codex `login --device-auth` has no working headless flow, Issue 4 — worktree fan-out unfit for a stateful/live target
-
-### Community 338 - "Community 338"
-Cohesion: 0.25
-Nodes (7): ADDED Requirement: a green verdict requires all assertions to hold at N, ADDED Requirement: Claude Code is ruled from the public evidence base, ADDED Requirement: grok promotion is gated on a green grok verdict, ADDED Requirement: results are recorded and gate cap changes, ADDED Requirement: the destructive matrix runs under strict containment, Scenario: codex greens at N=2 but not N=3, Spec delta — T5b destructive concurrency verdict
-
-### Community 339 - "Community 339"
-Cohesion: 0.29
-Nodes (6): ADDED Requirement: pr-open pushes only after the gate and only host-side, ADDED Requirement: secrets and mounts follow least privilege, ADDED Requirement: worker-run supervises the worker through foreman-launch, Scenario: gate not passed blocks the PR, Scenario: launcher-only hard-mode task with no Docker, Spec delta — launcher-based hard mode (worker-run + pr-open)
-
-### Community 340 - "Community 340"
-Cohesion: 0.29
-Nodes (6): ADDED Requirement: adapters spawn sessions through foreman-launch, ADDED Requirement: live acceptance gates the merge, ADDED Requirement: no v0.2.x behavior regresses, ADDED Requirement: the re-port preserves per-commit provenance, Scenario: live acceptance catches a schema drift, Spec delta — v0.3.0 session-transport re-port onto soft-mode
-
-### Community 341 - "Community 341"
-Cohesion: 0.33
-Nodes (5): claude — `claude auth status`, codex — `codex login status`, Empirical non-billing auth-probe commands (Task 0), grok — `grok models`, Summary table
-
-### Community 342 - "Community 342"
-Cohesion: 0.33
-Nodes (5): Approach, Design — lifecycle-three-stage, Execution, Motivation, Sequencing
-
-### Community 343 - "Community 343"
-Cohesion: 0.33
-Nodes (5): Approach, Design — hard-mode-launcher (approved spec), Execution (next release), Reconciliation (post-ship, Task 7), Research basis (2026-07-18, cited)
-
-### Community 344 - "Community 344"
-Cohesion: 0.33
-Nodes (5): build, dockerfile, name, remoteUser, runArgs
-
-### Community 345 - "Community 345"
-Cohesion: 0.40
-Nodes (4): Approach, Design — docs-readme-refresh, Execution, Motivation
-
-### Community 346 - "Community 346"
-Cohesion: 0.40
-Nodes (4): Change: docs-readme-refresh, Impact, What changes, Why
-
-### Community 347 - "Community 347"
-Cohesion: 0.40
-Nodes (4): Approach, Design — grok-lane-activation, Execution, Research basis (2026-07-18, verified)
-
-### Community 348 - "Community 348"
-Cohesion: 0.40
-Nodes (4): Change: grok-lane-activation, Impact, What changes, Why
-
-### Community 349 - "Community 349"
-Cohesion: 0.40
-Nodes (4): Change: lifecycle-three-stage, Impact, What changes, Why
-
-### Community 350 - "Community 350"
-Cohesion: 0.40
-Nodes (4): Approach, Design — posix-cascade-parity, Execution, Research basis (2026-07-18, probed live on this WSL)
-
-### Community 351 - "Community 351"
-Cohesion: 0.40
-Nodes (4): Change: posix-cascade-parity, Impact, What changes, Why
-
-### Community 352 - "Community 352"
-Cohesion: 0.40
-Nodes (4): Approach, Design — t5b-concurrency-verdict, Execution, Research basis (2026-07-18, cited)
-
-### Community 353 - "Community 353"
-Cohesion: 0.40
-Nodes (4): Change: t5b-concurrency-verdict, Impact, What changes, Why
-
-### Community 354 - "Community 354"
-Cohesion: 0.40
-Nodes (4): Approach, Design — worktree-hardening, Execution, Research basis (2026-07-18, cited)
-
-### Community 355 - "Community 355"
-Cohesion: 0.40
-Nodes (4): Change: worktree-hardening, Impact, What changes, Why
-
-### Community 356 - "Community 356"
-Cohesion: 0.40
-Nodes (4): Approach, Design — wsl-reliability-env-refresh, Execution, Research basis (2026-07-18, probed live)
-
-### Community 357 - "Community 357"
-Cohesion: 0.40
-Nodes (4): Change: wsl-reliability-env-refresh (full WSL setup + reliability + deps), Impact, What changes, Why
-
-### Community 358 - "Community 358"
+### Community 297 - "skills / foreman"
 Cohesion: 0.70
-Nodes (4): init-firewall.sh script, apply(), check(), resolve_and_allow()
+Nodes (4): dp_one(), dp_verify(), main(), durable-preflight.sh script
 
-### Community 359 - "Community 359"
+### Community 298 - "skills / foreman"
+Cohesion: 0.70
+Nodes (4): nb_bridge(), nb_bridge_once(), _nb_lock_release(), nats-bridge.sh script
+
+### Community 299 - "skills / foreman"
+Cohesion: 0.60
+Nodes (3): archive_worktree_reports(), wt-cleanup.sh script, wtc_sigint_worktree()
+
+### Community 300 - "skills / foreman"
+Cohesion: 0.60
+Nodes (3): commit_worktree_pending(), mark_merged(), wt-merge.sh script
+
+### Community 301 - "skills / superpowers"
 Cohesion: 0.40
-Nodes (4): Change: hard-mode-launcher, Impact, What changes, Why
+Nodes (5): WebSocket Reconnect Backoff and Status Indicator (B3), Task: Helper Uses Stored Key For Reconnect, sessionStorage Reconnect Credential, Connection Status Indicator, OS-Aware Theme Variables
 
-### Community 360 - "Community 360"
-Cohesion: 0.40
-Nodes (4): By lifecycle stage, Forward-looking (not yet shipped), Maintenance, Reference set index
+### Community 302 - "skills / superpowers"
+Cohesion: 0.60
+Nodes (4): __dirname, extractAndStripFrontmatter(), normalizePath(), SuperpowersPlugin()
 
-### Community 361 - "Community 361"
-Cohesion: 0.40
-Nodes (4): Approach, Design — v030-soft-mode-report (approved spec), Execution (next release), Research basis (2026-07-18, cited)
-
-### Community 362 - "Community 362"
-Cohesion: 0.40
-Nodes (4): Change: v030-soft-mode-report, Impact, What changes, Why
-
-### Community 363 - "Community 363"
-Cohesion: 0.83
-Nodes (3): git-guards.sh script, gg_apply_config(), gg_maintenance_tick()
-
-### Community 365 - "Community 365"
+### Community 303 - "skills / superpowers"
 Cohesion: 0.50
-Nodes (4): 3. The three-stage lifecycle: Setup & Environment → Use → Cleanup, Cleanup, Setup & Environment, Use
+Nodes (5): Develop Skills Iteratively With the Agent (Agent A / Agent B), Observe How Agents Navigate Skills, Writing Effective Descriptions, Description = When to Use, NOT What the Skill Does, Rich Description Field
+
+### Community 304 - "tools"
+Cohesion: 0.60
+Nodes (4): cputime_secs(), etime_secs(), is_dispatched_lane(), reap-stale-lanes.sh script
+
+### Community 305 - "docs / research"
+Cohesion: 0.50
+Nodes (4): --strict-config (error on unknown config fields), audit-run.sh host Codex Sol audit stage, CHECK stage fail-closed fix, Foreman hard mode
+
+### Community 306 - "docs / research"
+Cohesion: 0.50
+Nodes (4): Gemini CLI as auditor: no documented thinking-level flag, Grok CLI headless as a third audit vendor, codex exec --output-schema forces a schema-valid verdict, Third vendors are viable for independence but weaker on schema
+
+### Community 307 - "docs / superpowers"
+Cohesion: 0.50
+Nodes (4): dp_one, dp_verify, durable-preflight.sh (single dependency list + verify), nats/setup.sh
+
+### Community 308 - "openspec / changes"
+Cohesion: 0.67
+Nodes (4): maintenance.auto=false plus scheduled git maintenance, Windows path and filesystem guards, git-guards.sh idempotent config bootstrap, Requirement: the repo carries the concurrency-safe git config
+
+### Community 309 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): G1 refinement: path resolves nowhere blocks, outside-diff warns, Requirement: findings that cite nothing real are rejected, finding event type, Requirement: findings are individually recorded and their outcome recorded later
+
+### Community 310 - "openspec / changes"
+Cohesion: 0.67
+Nodes (4): Cancelled writes (permission-gate blocked), Empty burst (narration-only round), Vendor termination-reason capture, Requirement: termination-reason capture for empty-burst vs cancelled-writes
+
+### Community 311 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): Over-serving is the asymmetric failure, 2,000-token provisional graph budget, Requirement: served edges are never summarised or compressed, Requirement: the block is token-budgeted and under-serves by default
+
+### Community 312 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): version stamp in a sidecar, not graph.json, cohesion scores escape every path, graphify-out/refresh-meta.json sidecar, Requirement: cohesion and community labels are captured before cleanup destroys them
+
+### Community 313 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): D1 raw HTTP client, not official SDKs, D2 connection and Basic auth, Requirement: schema writes always pass full_replace=true, Requirement: adapter targets the HTTP API directly
+
+### Community 314 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): ChangeParents unimplemented upstream, schema migration runbook (dry-run, backup, apply), timed, scheduled drop-and-rebuild, rebuild source set (events.jsonl, graph.json, worklog.jsonl, run JSON)
+
+### Community 315 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): v0.2.9 frozen TerminusDB document schema, Metric/Measurement split (SEON), N2's five blocking defects in the R8 draft schema, T1 author the frozen schema
+
+### Community 316 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): Audit verb has no argv builder, Requirement: audit invocations are not duplicated in prose, T3 introduce the audit verb, T8 docs, agents and gate
+
+### Community 317 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): Default-on-doubt cap of 1, No cap raised without a recorded GREEN row, pueue group topology grok:3 codex:2 claude:3 misc:2 gate:1, Requirement: a new vendor's cap is 1 until a GREEN row exists
+
+### Community 318 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): The preflight must not call update, Currency as a pinned version floor, Requirement: the preflight never mutates the toolchain it is inspecting, T4 currency without mutation
+
+### Community 319 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): Rejected: line numbers as identity, JK-1..JK-5 identifier scheme, No edges between runs in events.jsonl, Requirement: work entities carry the canonical identifier scheme
+
+### Community 320 - "openspec / changes"
+Cohesion: 0.50
+Nodes (4): Projection as a pure function of recorded inputs, No LLM may author the work plane, Requirement: the work plane is a deterministic projection of the event log, Requirement: a projection failure never affects a run, a gate or a merge
+
+### Community 321 - "skills / foreman"
+Cohesion: 0.50
+Nodes (4): Default auditor (codex-auditor, GPT-5.6 Sol, read-only), Codex auditor flags (read-only), Commitment boundaries (advisor consult), Deciding rule (audit routing)
+
+### Community 322 - "skills / foreman"
+Cohesion: 0.83
+Nodes (3): forced_missing(), record(), docs-check.sh script
+
+### Community 323 - "skills / foreman"
+Cohesion: 0.83
+Nodes (3): gg_apply_config(), gg_maintenance_tick(), git-guards.sh script
+
+### Community 326 - "skills / foreman"
+Cohesion: 0.83
+Nodes (3): _finalize_and_commit(), _sandbox_sync_back(), worker-run.sh script
+
+### Community 327 - "skills / foreman"
+Cohesion: 0.67
+Nodes (3): GIT_ASK_YESNO, idx_release_lock(), wt-new.sh script
+
+### Community 329 - "skills / superpowers"
+Cohesion: 0.50
+Nodes (4): Comment-Placeholder Content Injection, Brainstorm Companion Frame Template, Mockup Component CSS Library, Content Fragments vs Full Documents
+
+### Community 332 - "skills / superpowers"
+Cohesion: 0.83
+Nodes (3): assert_contains(), assert_not_contains(), test-worktree-path-policy.sh script
+
+### Community 333 - "skills / superpowers"
+Cohesion: 0.83
+Nodes (3): run_missing_file_check(), run_present_file_check(), test-bootstrap-caching.sh script
+
+### Community 334 - "skills / superpowers"
+Cohesion: 0.83
+Nodes (3): assert_contains(), run_opencode(), test-tools.sh script
+
+### Community 335 - "tests"
+Cohesion: 0.67
+Nodes (3): expect_case(), FOREMAN_REPO_ROOT, release-metrics-harness.sh script
+
+### Community 336 - "docs / notes"
+Cohesion: 0.67
+Nodes (3): lane-supervise sweeper, SC-C bounded auto-resume, SC-E no concurrent writers on resume
+
+### Community 337 - "docs / research"
+Cohesion: 0.67
+Nodes (3): Bun issue #15564 — garbled piped stderr on Windows, Streaming stdout/stderr byte counting for heartbeats, Round B lane-run and watch fixes were already shipped
+
+### Community 338 - "docs / research"
+Cohesion: 0.67
+Nodes (3): Process-global setCurrentDirectory is a data race under real concurrency, A port adds shell-quoting seams rather than removing bash, No setEnv, no per-child env or cwd on process.start
+
+### Community 339 - "docs / research"
+Cohesion: 0.67
+Nodes (3): POSIX launcher subsumes group_timeout for v0.3.0, group_timeout process-leak fixes (INT/TERM traps, watchdog sleep reaping), mcp-mode timeout enforcement is single-layered
+
+### Community 340 - "docs / research"
+Cohesion: 0.67
+Nodes (3): Reuse PROV-O as a pattern and naming source, not an imported upper ontology, Reuse the SLSA provenance field schema for AgentRun, Refusal to align to BFO/DOLCE/gUFO/Cyc/schema.org
+
+### Community 341 - "docs / research"
+Cohesion: 0.67
+Nodes (3): Keep every write-path invariant lane-local, SHACL-on-write serialises writers, The 'we turned it off' evidence for write-path validation
+
+### Community 342 - "formal / reports"
+Cohesion: 0.67
+Nodes (3): Apalache server socket-failure fixture, Apalache gRPC loopback socket blocked inside the agent sandbox, quint compile plus direct apalache-mc to bypass the gRPC block
+
+### Community 345 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Wave 1/2/3 check sequencing, Requirement: the rubric an audit claims is identified and resolvable, Requirement: scope and criterion checks wait for the spec format
+
+### Community 346 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Requirement: write evidence fails closed when it cannot be computed, Requirement: INCONCLUSIVE is a property of the evidence mechanism, Requirement: a planted-write positive control gates every evidence verdict
+
+### Community 347 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): graphify MCP server as machine interface (rejected as primary), Thin read-only MCP wrapper, Requirement: the MCP path is a bounded, read-only, wrapped escape hatch
+
+### Community 348 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): direction as a load-time property, endpoint-order count gate, Requirement: direction survives as endpoint order and is reconstructed at load
+
+### Community 349 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): never-launched lane as a first-class stall signal, stall taxonomy SUSPENDED / NEVER_LAUNCHED / NO_OUTPUT / WEDGED, Requirement: a lane that never launched its vendor is a stall, not a silence
+
+### Community 350 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Requirement: tier budgets and Tier 2's statistical discipline are computable, not merely stated in prose, Requirement: each active tier carries an explicit cost/runtime budget and cadence, cost, cadence and budget enforcement tasks
+
+### Community 351 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Q-K16 schema-frozen gap (MENTIONS demoted), MENTIONS demoted to a derived index, Requirement: MENTIONS is not a stored edge
+
+### Community 352 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): TerminusDB has no edge properties, so relations reify, Supersession reified class, Requirement: SUPERSEDES is reified
+
+### Community 353 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): REJECTED: keep PARENT_OF with a discriminator field, PARENT_OF split into four named relations, Requirement: PARENT_OF does not exist; four named relations replace it
+
+### Community 354 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Requirement: skips are budgeted so coverage cannot erode silently, Requirement: a slice regression fails the run regardless of the aggregate, T2 runner: budgets, baselines, reporting
+
+### Community 355 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): bounded audit call with recorded duration, audit latency work deferred to v0.4.0, Requirement: the audit call is bounded in wall clock
+
+### Community 356 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): ADAPTER_ARGV array output convention, Rejected alternative: declarative vendor table, Requirement: every vendor invocation is built by a per-vendor adapter
+
+### Community 357 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Rejected: graphify exporter plugin and neo4j/cypher interchange, Sibling file, not rows inside graph.json, Requirement: the work plane is a sibling of the knowledge graph
+
+### Community 358 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Symbol-refinement rule with file fallback, Requirement: the checkpoint bridge joins an attempt to the code it touched, T4 the checkpoint bridge
+
+### Community 359 - "openspec / changes"
+Cohesion: 0.67
+Nodes (3): Explicit shell: bash for pipefail, Requirement: windows-latest uses shell: bash for the Git-Bash half, Task 2 windows-latest job
+
+### Community 366 - "skills / superpowers"
+Cohesion: 0.67
+Nodes (3): Frame-Length Bound in decodeFrame (A4), Null WebSocket Payload Crashes Server (A3), RFC 6455 Text-Frame-Only Subset
+
+### Community 367 - "skills / superpowers"
+Cohesion: 0.67
+Nodes (3): stop-server.sh Can Kill a Reused PID (B2), Task: Server Instance ID Ownership Proof, Stop-Server Instance-ID Ownership Proof
+
+### Community 370 - "skills / superpowers"
+Cohesion: 1.00
+Nodes (3): Create Verifiable Intermediate Outputs (plan-validate-execute), Implement Feedback Loops (validate, fix, repeat), Use Workflows for Complex Tasks
 
 ## Ambiguous Edges - Review These
-- `Codex sandbox policy (read-only | workspace-write | danger-full-access)` → `Codex Sandboxing doc capture (page not found)`  [AMBIGUOUS]
-  docs/research/openai_codex_sandbox.txt · relation: conceptually_related_to
+- `Codex auto-triggers graphify and stalls 25min+` → `S-1 Opus audit lane died mid-write, analysis lost`  [AMBIGUOUS]
+  docs/incidents/2026-07-29-lane-strandings.md · relation: conceptually_related_to
+- `v0.2.5 prevention criteria proof record (2026-07-18)` → `grok pueue cap raised 1 to 3`  [AMBIGUOUS]
+  docs/notes/2026-07-18-v025-sc-proof.md · relation: references
+- `agy (Antigravity CLI) re-derivation residual` → `root to non-root migration inventoried, not executed`  [AMBIGUOUS]
+  docs/superpowers/plans/2026-07-18-v0275-3-wsl-reliability-env-refresh.md · relation: conceptually_related_to
+- `docs-check.sh documentation gate` → `Requirement: humanizer runs over user-facing prose`  [AMBIGUOUS]
+  openspec/changes/archive/2026-07-18-docs-readme-refresh/specs/documentation/spec.md · relation: references
+- `Requirement: the store is a regenerable materialisation, never the system of record` → `T8 OpenSpec conformance debt`  [AMBIGUOUS]
+  openspec/changes/lock-primitive-hardening/tasks.md · relation: references
+- `T1 the adapter interface` → `T2 migrate the implement verb`  [AMBIGUOUS]
+  openspec/changes/vendor-adapter-contract/tasks.md · relation: conceptually_related_to
+- `Requirement: the projection records what it consumed` → `/mnt/* FOREMAN_HOME hard refusal`  [AMBIGUOUS]
+  openspec/changes/wsl-preflight/design.md · relation: conceptually_related_to
+- `Total Recall Film Homage` → `Total Georgecall Title Pun`  [AMBIGUOUS]
+  assets/v029-total-georgecall.png · relation: rationale_for
+- `Paired Orbital Arc Glyphs` → `Alternate Reading: Interlinked Chain Link`  [AMBIGUOUS]
+  skills/superpowers/assets/superpowers-small.svg · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **2200 isolated node(s):** `schema`, `run_id`, `role`, `slug`, `branch` (+2195 more)
+- **650 isolated node(s):** `check-drift.sh script`, `OWNED_PIDS`, `NO_COLOR`, `name`, `version` (+645 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **64 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **129 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What is the exact relationship between `Codex sandbox policy (read-only | workspace-write | danger-full-access)` and `Codex Sandboxing doc capture (page not found)`?**
+- **What is the exact relationship between `Codex auto-triggers graphify and stalls 25min+` and `S-1 Opus audit lane died mid-write, analysis lost`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Superpowers Release Notes` connect `Community 6` to `Community 256`, `Community 257`, `Community 258`, `Community 259`, `Community 260`, `Community 261`, `Community 262`, `Community 263`, `Community 264`, `Community 265`, `Community 21`, `Community 173`, `Community 192`, `Community 207`, `Community 208`, `Community 209`, `Community 84`, `Community 85`, `Community 232`, `Community 233`, `Community 234`, `Community 235`, `Community 236`, `Community 255`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `v6.0.0 (2026-06-16)` connect `Community 84` to `Community 6`?**
-  _High betweenness centrality (0.001) - this node is a cross-community bridge._
-- **What connects `Fetch frontier coding-agent docs via scrapling for Foreman QA.`, `schema`, `run_id` to the rest of the system?**
-  _2205 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `Community 4` be split into smaller, more focused modules?**
-  _Cohesion score 0.05405405405405406 - nodes in this community are weakly interconnected._
-- **Should `Community 6` be split into smaller, more focused modules?**
-  _Cohesion score 0.05405405405405406 - nodes in this community are weakly interconnected._
-- **Should `Community 8` be split into smaller, more focused modules?**
-  _Cohesion score 0.05714285714285714 - nodes in this community are weakly interconnected._
+- **What is the exact relationship between `v0.2.5 prevention criteria proof record (2026-07-18)` and `grok pueue cap raised 1 to 3`?**
+  _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
+- **What is the exact relationship between `agy (Antigravity CLI) re-derivation residual` and `root to non-root migration inventoried, not executed`?**
+  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
+- **What is the exact relationship between `docs-check.sh documentation gate` and `Requirement: humanizer runs over user-facing prose`?**
+  _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
+- **What is the exact relationship between `Requirement: the store is a regenerable materialisation, never the system of record` and `T8 OpenSpec conformance debt`?**
+  _Edge tagged AMBIGUOUS (relation: references) - confidence is low._
+- **What is the exact relationship between `T1 the adapter interface` and `T2 migrate the implement verb`?**
+  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
+- **What is the exact relationship between `Requirement: the projection records what it consumed` and `/mnt/* FOREMAN_HOME hard refusal`?**
+  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
