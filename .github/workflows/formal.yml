@@ -1,0 +1,113 @@
+# Formal-model suite: typecheck + commit-tier expectation rows.
+#
+# HONEST NOTE: as of this workflow's introduction, no CI job in this repo runs
+# `bats` on any platform. This is the first workflow that exercises the formal
+# models. It does not add a bats job; bats remains a local/host concern gated
+# through flock /tmp/foreman-bats.lock.
+#
+# Per-commit tier is sized for CI budget (simulation bounds from
+# formal/expectations.tsv). The schedule tier (architect-scale samples and
+# Apalache depths) runs on a weekly cron plus workflow_dispatch.
+
+name: Formal models
+
+on:
+  push:
+    paths:
+      - "formal/**"
+      - ".github/workflows/formal.yml"
+  pull_request:
+    paths:
+      - "formal/**"
+      - ".github/workflows/formal.yml"
+  schedule:
+    # Weekly deep tier (Sundays 05:17 UTC — off the hour to reduce forge load).
+    - cron: "17 5 * * 0"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Manifest tier to run"
+        required: true
+        default: "commit"
+        type: choice
+        options:
+          - commit
+          - schedule
+          - all-tiers
+
+permissions:
+  contents: read
+
+jobs:
+  formal-commit:
+    name: formal (${{ github.event_name == 'schedule' && 'schedule' || (github.event.inputs.tier || 'commit') }})
+    runs-on: ubuntu-latest
+    # Apalache / large simulation can be slow on schedule.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (for Quint npm package)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pinned Quint 0.32.0
+        run: |
+          set -euo pipefail
+          npm install -g @informalsystems/quint@0.32.0
+          QUINT_BIN="$(command -v quint)"
+          echo "QUINT_BIN=${QUINT_BIN}" >> "${GITHUB_ENV}"
+          # Refuse multishell-style paths if any tooling injects them.
+          case "${QUINT_BIN}" in
+            */fnm_multishells/*)
+              echo "quint resolved through fnm multishell: ${QUINT_BIN}" >&2
+              exit 1
+              ;;
+          esac
+          ver="$(quint --version | tr -d '[:space:]')"
+          echo "quint version: ${ver}"
+          test "${ver}" = "0.32.0"
+
+      - name: Install Apalache 0.56.1 (schedule tier)
+        if: github.event_name == 'schedule' || github.event.inputs.tier == 'schedule' || github.event.inputs.tier == 'all-tiers'
+        run: |
+          set -euo pipefail
+          # quint verify fetches Apalache on first use; pre-seed the pinned dist
+          # when the cache layout is known. Simulation commit-tier does not need this.
+          mkdir -p "${HOME}/.quint"
+          if [[ ! -d "${HOME}/.quint/apalache-dist-0.56.1" ]]; then
+            echo "Apalache will be resolved by quint verify on first schedule row."
+          fi
+
+      - name: Classifier self-test (no models)
+        run: |
+          set -euo pipefail
+          bash formal/run-checks.sh --self-test
+
+      - name: Run formal suite
+        env:
+          QUINT_BIN: ${{ env.QUINT_BIN }}
+        run: |
+          set -euo pipefail
+          tier="commit"
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            tier="schedule"
+          fi
+          if [[ -n "${{ github.event.inputs.tier }}" ]]; then
+            tier="${{ github.event.inputs.tier }}"
+          fi
+          echo "Running tier=${tier}"
+          # Never pkill -f. The runner kills only owned PIDs / process groups.
+          bash formal/run-checks.sh --tier "${tier}"
+
+      - name: Upload per-row report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formal-report-${{ github.run_id }}
+          path: |
+            formal/out/report.tsv
+            formal/out/report.json
+            formal/out/*.log
+          if-no-files-found: warn

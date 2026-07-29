@@ -1,0 +1,57 @@
+# formal/expectations.tsv — committed expectation manifest (NOT regenerable)
+# Columns (tab-separated):
+#   model	entrypoint	invariant	expected	method	bound	tier	gating	provenance	notes
+# entrypoint: either main=<module> or init=<a>,step=<b> (required; never blank for named configs)
+# expected: VIOLATED | HOLDS | REACHABLE | NOT_REACHABLE
+#   REACHABLE means the negated-goal witness is expected to fire ([violation])
+#   NOT_REACHABLE means the witness is expected not to fire ([ok] within bound)
+# method: simulation | apalache
+# bound: for simulation "samplesxsteps" (e.g. 2000x20); for apalache "depth=N"
+# tier: commit | schedule
+# gating: yes | no  (no = unreproduced / non-gating; recorded but does not fail CI unless --all)
+# provenance: architect-VERIFY | M2-lane | M3-lane | M4-lane | unreproduced
+# This file is never generated from a run. Changing an expected outcome is a
+# semantic change requiring an owning package that explains it.
+#
+# Standing limits (print with every result):
+#   M2 simulation historically 20k samples x 40 steps; commit tier uses smaller
+#   bounds that still discriminate. Apalache depths 8-12. Nothing is a proof.
+#   No claims about fairness, torn writes, real subprocess kill, or hash collisions.
+#   M1 eventually_terminal is a no-fairness stuttering artifact, not a liveness defect.
+model	entrypoint	invariant	expected	method	bound	tier	gating	provenance	notes
+eventlog_concurrency	main=toctou	mutual_exclusion	VIOLATED	simulation	2000x20	commit	yes	architect-VERIFY	pre-fix uutils mkdir TOCTOU; cex seqHolders Set(0,1)
+eventlog_concurrency	main=toctou	seq_uniqueness	VIOLATED	simulation	2000x40	commit	yes	architect-VERIFY	duplicate seq numbers consequence of mutex breach; needs >=40 steps
+eventlog_concurrency	main=atomic	mutual_exclusion	HOLDS	simulation	500x15	commit	yes	architect-VERIFY	post-fix flock/atomic mkdir; bounded satisfaction only
+eventlog_concurrency	main=atomic	seq_uniqueness	HOLDS	simulation	500x15	commit	yes	architect-VERIFY	post-fix; bounded satisfaction only
+eventlog_concurrency	main=toctou	mutual_exclusion	VIOLATED	simulation	20000x40	schedule	yes	architect-VERIFY	architect-scale simulation
+eventlog_concurrency	main=atomic	mutual_exclusion	HOLDS	simulation	20000x40	schedule	yes	architect-VERIFY	architect-scale simulation
+eventlog_concurrency	main=index_fail_open_atomic	mutual_exclusion	VIOLATED	apalache	depth=8	schedule	no	unreproduced	M2 fail-open after 30s spin; not architect re-run
+eventlog_concurrency	main=index_fail_open_atomic	no_lost_index_entry	VIOLATED	apalache	depth=12	schedule	no	unreproduced	M2 lost index entry under fail-open
+eventlog_concurrency	main=nested_atomic	no_deadlock	VIOLATED	apalache	depth=5	schedule	no	unreproduced	M2 deliberate opposite-order nesting
+eventlog_concurrency	main=nats_toctou	nats_token_inversion_witness	REACHABLE	apalache	depth=10	schedule	no	unreproduced	M2 NATS token inversion
+eventlog_concurrency	main=nats_atomic	nats_owner_token_sound	VIOLATED	apalache	depth=10	schedule	no	unreproduced	M2 NATS token soundness under two-step acquire
+audit_gate	main=pre_fix	no_stale_approved_merge	VIOLATED	simulation	1000x12	commit	yes	architect-VERIFY	stale verdict authorises later diff
+audit_gate	main=pre_fix	no_unaudited_merge	VIOLATED	simulation	1000x12	commit	yes	architect-VERIFY	merge without fresh audit
+audit_gate	main=post_fix	no_stale_approved_merge	HOLDS	simulation	500x10	commit	yes	architect-VERIFY	content-hash binding; bounded
+audit_gate	main=post_fix	no_unaudited_merge	HOLDS	simulation	500x10	commit	yes	architect-VERIFY	ALWAYS_WRITE_VERDICT; bounded
+audit_gate	main=uncapped_errors	audit_attempts_bounded_by_three	VIOLATED	simulation	500x15	commit	yes	architect-VERIFY	UNVERIFIED loop; NOT rework_rounds_bounded (vacuous)
+audit_gate	main=capped_errors	audit_attempts_bounded_by_three	HOLDS	simulation	500x15	commit	yes	architect-VERIFY	MAX_AUDIT_ATTEMPTS=3
+audit_gate	main=post_fix	no_unverified_checks_merge	VIOLATED	simulation	1000x12	commit	yes	architect-VERIFY	checks-result.json sha ignored by gate-eval
+audit_gate	main=post_fix	no_unverified_docs_merge	VIOLATED	simulation	1000x12	commit	yes	architect-VERIFY	docs-check.json sha ignored by gate-eval
+audit_gate	main=post_fix_full_binding	no_unverified_checks_merge	HOLDS	simulation	500x10	commit	yes	architect-VERIFY	CHECKS_BIND_CONTENT_HASH=true
+audit_gate	main=post_fix_toctou	no_unaudited_merge	VIOLATED	simulation	1000x12	schedule	no	unreproduced	M3 gate-to-merge TOCTOU
+audit_gate	main=post_fix	no_merge_beyond_freshness_bound	VIOLATED	simulation	1000x12	schedule	no	unreproduced	M3 merge-freshness race
+audit_gate	main=post_fix	no_warning_authorized_merge	VIOLATED	simulation	1000x12	schedule	no	unreproduced	M3 WARNING authorises merge
+audit_gate	main=post_fix	cross_vendor_family_distinct	VIOLATED	simulation	1000x12	schedule	no	unreproduced	M3 cross-vendor gateway; family check absent in gate
+lane_lifecycle	init=init_prefix,step=step_prefix	inv_round_done_requires_fresh_report	VIOLATED	simulation	500x20	commit	yes	architect-VERIFY	pre-fix background-and-stop attractor
+lane_lifecycle	init=init_prefix,step=step_prefix	inv_no_completion_from_exit_code	VIOLATED	simulation	500x20	commit	yes	architect-VERIFY	exit-0 completion without fresh report
+lane_lifecycle	init=init_postfix,step=step_postfix_without_resume	inv_round_done_requires_fresh_report	HOLDS	simulation	500x15	commit	yes	architect-VERIFY	post-fix without resume path
+lane_lifecycle	init=init_postfix,step=step_shipped_resume_bug	witness_shipped_resume_loses_round_ownership	REACHABLE	simulation	500x20	commit	yes	architect-VERIFY	successfulResumePlain loses --round; lane-supervise.sh:343-345
+lane_lifecycle	init=init_postfix,step=step_postfix	witness_shipped_resume_loses_round_ownership	NOT_REACHABLE	simulation	500x15	commit	yes	architect-VERIFY	core resume keeps round ownership within bound
+lane_lifecycle	init=init_prefix,step=step_prefix_bug	inv_round_done_requires_fresh_report	VIOLATED	simulation	1x4	commit	yes	architect-VERIFY	deterministic three-transition pre-fix recipe
+evidence_contract	main=pre_fix,step=step_d1	inv_d1_success_requires_current_artifact	VIOLATED	simulation	1x3	commit	no	M4-lane	D1 stale artifact success; not architect re-run
+evidence_contract	main=pre_fix,step=step_d2	inv_d2_audit_roots_satisfiable	VIOLATED	simulation	1x2	commit	no	M4-lane	D2 dual-root conflict
+evidence_contract	main=pre_fix,step=step_d3	inv_d3_deletion_digest_total	VIOLATED	simulation	1x3	commit	no	M4-lane	D3 deletion digest undefined
+evidence_contract	main=pre_fix,step=step_d4	inv_d4_dispatch_declaration_sound	HOLDS	simulation	200x2	commit	no	M4-lane	D4 already refused by current prose
+evidence_contract	main=pre_fix,step=step_d5	inv_d5_porcelain_reports_every_write	VIOLATED	simulation	1x3	commit	no	M4-lane	D5 silent porcelain on content edit
+evidence_contract	main=post_fix,step=step_d1	inv_d1_success_requires_current_artifact	HOLDS	simulation	200x3	schedule	no	M4-lane	repaired D1; bounded

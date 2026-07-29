@@ -1,3 +1,8 @@
+// coverage: skills/foreman/scripts/eventlog.sh
+// coverage: skills/foreman/scripts/wt-new.sh
+// coverage: skills/foreman/scripts/nats-bridge.sh
+// coverage: tests/probes/mkdir-atomicity.sh
+// See formal/coverage.tsv for the drift gate.
 // Foreman event-log concurrency model (Quint 0.32.0).
 //
 // Select a configuration with:

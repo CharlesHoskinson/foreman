@@ -1,0 +1,21 @@
+# formal/coverage.tsv — which source files each model abstracts
+# Columns (tab-separated):
+#   model	source_file	notes
+# Gate: a change touching a covered source_file with no model or manifest
+# change fails unless the change records why the abstraction is unaffected.
+model	source_file	notes
+eventlog_concurrency	skills/foreman/scripts/eventlog.sh	seq/attempt locks, el_emit, el_compact, el_init reclaim
+eventlog_concurrency	skills/foreman/scripts/wt-new.sh	index.json lock; fail-open at ~:203 after 30s spin
+eventlog_concurrency	skills/foreman/scripts/nats-bridge.sh	.nats-bridge.lock two-step ownership
+eventlog_concurrency	tests/probes/mkdir-atomicity.sh	empirical TOCTOU ground truth for toctou module
+audit_gate	skills/foreman/scripts/gate-eval.sh	stale verdict/checks/docs reads; no content-hash binding pre-fix
+audit_gate	skills/foreman/scripts/audit-run.sh	paths that die without writing audit-verdict.json; vendor name-string check
+audit_gate	skills/foreman/scripts/checks-run.sh	writes checks-result.json with sha already present
+audit_gate	skills/foreman/scripts/docs-check.sh	docs-check.json freshness fields
+audit_gate	skills/foreman/scripts/wt-merge.sh	post-gate commit of pending worker changes (TOCTOU)
+lane_lifecycle	skills/foreman/scripts/lane-supervise.sh	auto-resume; successfulResumePlain at :343-345 loses --round
+lane_lifecycle	skills/foreman/scripts/lane-run.sh	--round mode vs plain agent wrapper
+lane_lifecycle	skills/foreman/scripts/lane-queue.sh	admission / re-enqueue
+lane_lifecycle	skills/foreman/scripts/watch.sh	v2 classifier labels; WATCH_VTICK thresholds
+evidence_contract	skills/foreman/scripts/gate-eval.sh	evidence acceptance boundary
+evidence_contract	docs/research/vnext/REAUDIT-codex.md	D1-D5 acceptance-boundary targets

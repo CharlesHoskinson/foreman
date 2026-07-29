@@ -1,0 +1,2 @@
+java.net.SocketException: Operation not permitted
+Error while starting Apalache server

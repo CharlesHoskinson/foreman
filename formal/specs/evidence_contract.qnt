@@ -1,3 +1,6 @@
+// coverage: skills/foreman/scripts/gate-eval.sh
+// coverage: docs/research/vnext/REAUDIT-codex.md
+// See formal/coverage.tsv for the drift gate.
 // Foreman evidence-contract model (M4).
 //
 // The state machine isolates five acceptance-boundary targets reported in
