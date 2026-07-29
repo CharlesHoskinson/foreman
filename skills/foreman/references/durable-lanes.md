@@ -111,6 +111,54 @@ actually launches `nats-server` is responsible for passing `-sd` itself.
   CRLF even from an LF-clean log) is stripped at every read boundary rather
   than assumed away.
 
+
+## Locking
+
+Every durable-core lock goes through `skills/foreman/scripts/lib/lock.sh`
+(`fm_lock_acquire` / `fm_lock_release` / `fm_with_lock`). Callers do not
+inline `mkdir` spin-loops.
+
+**Mechanism.** `flock` when available and trusted for the lock path's
+filesystem class; `mkdir` fallback under the same trust rule; refuse when
+trust is absent. Trust is earned only from the host inventory probe
+(`syscall` or `pinned-mechanism` evidence) — never from a version string or
+the historical claim that "mkdir is atomic on Git Bash and WSL". That claim
+is false on Ubuntu 26.04 hybrid coreutils (uutils `mkdir` does a userspace
+`statx` then create; measured 57 mutual-exclusion violations across 15
+rounds with 8 racers). See `openspec/changes/lock-primitive-hardening/`.
+
+**Flat rule (hard).** At most one foreman lock may be held by a process via
+the helper at a time. Nested acquisition is refused with `FM_LOCK_NESTED`.
+There is **no** lock ordering. A stated ordering is standing permission to
+nest, and a deliberately-nesting configuration deadlocks at 5 steps under
+the formal model. Locks in scope stay separate paths:
+
+| Lock | Protects | Reclaimer |
+|---|---|---|
+| `runs/<id>/.seq.lock` | `events.jsonl` + `.seq` (emit + compact) | `el_init` |
+| `runs/<id>/.attempt.lock` | `attempts/<lane>.attempt` | `el_init` |
+| `runs/<id>/.nats-bridge.lock` | bridge cursor advance | bridge start |
+| `runs/<id>/worktrees/.index.lock` | `worktrees/index.json` | `wt-new.sh` start |
+
+**Timeout policy.** A bounded spin that expires **refuses** (named
+`FM_LOCK_TIMEOUT`, non-zero exit). There is no fail-open path into a critical
+section. Callers that need a longer wait raise a timeout env var
+(`FM_LOCK_TIMEOUT_SEC`, or `WT_INDEX_LOCK_TIMEOUT_SEC` for the index lock);
+they never bypass the lock. A refused index update leaves `index.json`
+byte-identical.
+
+**Compaction.** `el_compact` holds `.seq.lock` for snapshot and write-back as
+one serialized section with respect to appends. A unique temporary file name
+does **not** fix a concurrent-append race; if the log cannot be shown
+unchanged between snapshot and write-back, compaction abandons and leaves
+`events.jsonl` alone.
+
+**Reclamation.** Stale `mkdir` locks (not `flock` descriptors) are reclaimed
+per-lock and owner-aware through `fm_lock_reclaim` — never a directory sweep,
+never while a live holder cannot be ruled out, never when the mechanism is
+indeterminate. Reclamation records (success naming lock + dead holder, or
+refusal reason) are surfaced; reclaim is never silent.
+
 ## Honest limits
 
 - NATS is a harness dependency **only when `[durable] enabled` / the NATS
@@ -125,3 +173,32 @@ actually launches `nats-server` is responsible for passing `-sd` itself.
 - The stall watchdog's escalation ladder (log line → alert event → kill +
   retry hint) is a *hint*, not an automated kill: `watch.sh` prints the
   retry command on `DEAD`, it does not itself terminate or restart the lane.
+
+## Lock-primitive availability by host class
+
+Durable lanes take foreman locks (`.seq.lock`, `.attempt.lock`,
+`.nats-bridge.lock`, `worktrees/.index.lock`). Availability is therefore
+gated on a trusted, current lock-mechanism verdict — not on "foreman runs".
+
+| Host class | Durable locks available? | Evidence | Notes |
+|---|---|---|---|
+| `wsl-linux` / `linux-native` | Yes, when `flock` earns `atomic` | host-produced `syscall` (`flock(2)` `LOCK_EX\|LOCK_NB` + `EWOULDBLOCK` while holder proceeds) | Ubuntu 26.04 hybrid coreutils: uutils `mkdir` is non-atomic; durable uses `flock` |
+| `msys2-git-bash` | Only with a register pin | `pinned-mechanism` for `mkdir` | No tracer on this host; empty register ⇒ durable lanes **unavailable** (not a silent lockout) |
+| any host whose digest is absent from the pin register | No | — | Non-durable lanes still run |
+
+### Pinning procedure (route back to availability)
+
+1. On a Foreman-controlled host of the **same class** as the target, capture a
+   mechanism-relative syscall trace of the primitive (for `mkdir`: create of
+   the probe target receiving `EEXIST` / `ERROR_ALREADY_EXISTS`; for `flock`:
+   `LOCK_EX\|LOCK_NB` would-block to the loser while the holder proceeds).
+2. Commit the trace artifact under `docs/research/lock-traces/`.
+3. Add a `[[lock_atomicity.pinned]]` entry in `env/reference-manifest.toml`
+   naming: `mechanism`, `sha256`, `host_class`, `trace_artifact`,
+   `filesystem_classes`, `date`, and `verdict`.
+4. Re-run `env/tool-check.sh` / `env/tool-check.ps1` — inventory should report
+   `pinned-mechanism` and durable readiness should clear once currency holds.
+
+An empty pin register is deliberate when no real trace was captured. A
+fabricated digest is worse than an unreachable fallback.
+

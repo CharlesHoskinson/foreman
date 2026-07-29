@@ -269,11 +269,573 @@ check_one() {
   printf '%s\t%s\t%s\n' "$id" "$status" "$detail"
 }
 
+# ---------------------------------------------------------------------------
+# Lock-primitive atomicity probe (lock-primitive-hardening T4)
+# Deterministic mechanism observation — not a contention sample for atomicity.
+# Evidence classes: syscall | pinned-mechanism | contention | flavour
+#   syscall, pinned-mechanism → may license atomic | non-atomic
+#   contention → non-atomic only
+#   flavour → nothing on its own
+# Anything that cannot license atomic reports unknown.
+# Mechanism-relative interpretation (BRIEF §0):
+#   mkdir: mkdir(2)/mkdirat issued AND kernel returned EEXIST to the loser
+#   flock: flock(2) LOCK_EX|LOCK_NB issued AND kernel returned EWOULDBLOCK/EAGAIN
+# A trace taken for one mechanism licenses nothing for the other.
+# ---------------------------------------------------------------------------
+
+# @description Classify the filesystem that owns PATH for lock coverage.
+# @arg $1 path (file or directory; parent used if path does not exist yet)
+# @stdout one of: local | mnt-drvfs | network | fuse
+# @exitcode 0
+fm_tc_fs_class() {
+  local path="$1" probe="$1" fstype="" source="" target=""
+  if [[ ! -e "$probe" ]]; then
+    probe="$(dirname -- "$probe")"
+  fi
+  if [[ ! -e "$probe" ]]; then
+    probe="/"
+  fi
+  # UNC / //server/share
+  if [[ "$probe" == //* || "$probe" == \\\\* ]]; then
+    printf '%s\n' "network"
+    return 0
+  fi
+  if command -v findmnt >/dev/null 2>&1; then
+    # findmnt -T resolves the mount covering PATH
+    fstype="$(findmnt -n -o FSTYPE -T "$probe" 2>/dev/null || true)"
+    source="$(findmnt -n -o SOURCE -T "$probe" 2>/dev/null || true)"
+    target="$(findmnt -n -o TARGET -T "$probe" 2>/dev/null || true)"
+  elif command -v df >/dev/null 2>&1; then
+    # df -T: Filesystem Type 1K-blocks Used Available Use% Mounted on
+    local line
+    line="$(df -T "$probe" 2>/dev/null | tail -n 1 || true)"
+    fstype="$(awk '{print $2}' <<<"$line")"
+    source="$(awk '{print $1}' <<<"$line")"
+    target="$(awk '{print $NF}' <<<"$line")"
+  fi
+  fstype="${fstype,,}"
+  case "$fstype" in
+    nfs|nfs4|cifs|smb|smb3|smbfs|afs|ncpfs)
+      printf '%s\n' "network"
+      return 0
+      ;;
+  esac
+  # Windows-hosted mounts under /mnt (DrvFs, 9p, plan9, virtiofs to host)
+  if [[ "$probe" == /mnt/* || "$target" == /mnt || "$target" == /mnt/* ]]; then
+    case "$fstype" in
+      drvfs|9p|plan9|virtiofs|fuse.drvfs|fuse)
+        printf '%s\n' "mnt-drvfs"
+        return 0
+        ;;
+    esac
+    # WSL /mnt/* is typically host-backed even when type varies
+    printf '%s\n' "mnt-drvfs"
+    return 0
+  fi
+  case "$fstype" in
+    fuse|fuse.*|fuseblk)
+      printf '%s\n' "fuse"
+      return 0
+      ;;
+  esac
+  # local fixed volume (ext4, xfs, btrfs, tmpfs, overlay, zfs, ...)
+  printf '%s\n' "local"
+}
+
+# @description SHA-256 of a resolved binary path.
+# @arg $1 absolute path
+# @stdout hex digest or empty
+fm_tc_sha256() {
+  local p="$1"
+  if [[ -z "$p" || ! -e "$p" ]]; then
+    printf ''
+    return 0
+  fi
+  # Prefer real file (follow symlink once for digest of the executable body)
+  local real
+  real="$(readlink -f -- "$p" 2>/dev/null || printf '%s' "$p")"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -- "$real" 2>/dev/null | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 -- "$real" 2>/dev/null | awk '{print $1}'
+  else
+    printf ''
+  fi
+}
+
+# @description First line of --version for a binary (best-effort).
+fm_tc_version_line() {
+  local bin="$1"
+  if [[ -z "$bin" || ! -x "$bin" ]]; then
+    printf ''
+    return 0
+  fi
+  "$bin" --version 2>/dev/null | head -n 1 | tr -d '\r' || true
+}
+
+# @description Probe mkdir atomicity for one binary on one path's filesystem.
+#   Uses strace when available. Contention may only license non-atomic.
+# @arg $1 mkdir binary path
+# @arg $2 directory in which to create the probe lock (existing dir)
+# @stdout tab fields: verdict\tevidence_class\tfs_class\tnotes
+fm_tc_probe_mkdir_once() {
+  local mkdir_bin="$1" work_parent="$2"
+  local fs_class verdict="unknown" evidence="flavour" notes=""
+  fs_class="$(fm_tc_fs_class "$work_parent")"
+
+  local work lock target_base="x"
+  work="$(mktemp -d --tmpdir="$work_parent" fm-mkdir-probe.XXXXXX 2>/dev/null || mktemp -d "$work_parent/fm-mkdir-probe.XXXXXX")"
+  lock="$work/x"
+  mkdir -- "$lock" 2>/dev/null || true
+
+  if command -v strace >/dev/null 2>&1; then
+    local trace
+    # Trace only create-related syscalls; interpret against mkdir mechanism only.
+    trace="$(strace -f -e trace=mkdir,mkdirat,statx,stat,newfstatat \
+      "$mkdir_bin" -- "$lock" 2>&1 || true)"
+    # F4: EEXIST must be bound to the probed lock target (not any mkdir in the trace)
+    if printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}[^\n]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
+      verdict="atomic"
+      evidence="syscall"
+      notes="mkdir(2) on probe target; kernel returned EEXIST"
+    elif printf '%s\n' "$trace" | grep -qE 'statx\(' && \
+         ! printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}[^\n]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
+      if ! printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}"; then
+        verdict="non-atomic"
+        evidence="syscall"
+        notes="userspace statx check; no mkdir(2) EEXIST (TOCTOU)"
+      else
+        verdict="unknown"
+        evidence="syscall"
+        notes="mkdir syscall observed without clear EEXIST signature on target"
+      fi
+    else
+      verdict="unknown"
+      evidence="syscall"
+      notes="strace inconclusive for mkdir mechanism"
+    fi
+  else
+    # No tracer: cannot license atomic. Flavour is corroboration only.
+    local ver
+    ver="$(fm_tc_version_line "$mkdir_bin")"
+    if [[ "$ver" == *[Uu]utils* || "$ver" == *uutils* ]]; then
+      notes="flavour=uutils (no strace; flavour licenses nothing)"
+      evidence="flavour"
+      verdict="unknown"
+    else
+      notes="no strace; flavour alone cannot license"
+      evidence="flavour"
+      verdict="unknown"
+    fi
+    # Contention may only license non-atomic
+    local total=0
+    local B TRACE_F
+    B="$(mktemp -d --tmpdir="$work_parent" fm-mkdir-ct.XXXXXX 2>/dev/null || mktemp -d)"
+    TRACE_F="$B/t"; : >"$TRACE_F"
+    local LOCK="$B/lock"
+    local i
+    for i in 1 2 3 4 5 6 7 8; do
+      (
+        local tries=0
+        while ! "$mkdir_bin" -- "$LOCK" 2>/dev/null; do
+          sleep 0.01
+          tries=$((tries + 1))
+          [[ $tries -gt 200 ]] && exit 1
+        done
+        echo ENTER >>"$TRACE_F"
+        sleep 0.01
+        echo EXIT >>"$TRACE_F"
+        rmdir -- "$LOCK" 2>/dev/null || true
+      ) &
+    done
+    wait || true
+    total="$(awk '$1=="ENTER"{d++; if(d>1)v++} $1=="EXIT"{d--} END{print (v?v:0)}' "$TRACE_F" 2>/dev/null || echo 0)"
+    rm -rf -- "$B"
+    if [[ "${total:-0}" -gt 0 ]]; then
+      verdict="non-atomic"
+      evidence="contention"
+      notes="contention observed ${total} mutual-exclusion violations (8 racers)"
+    else
+      # F11: clean sample records evidence_class=contention (not flavour)
+      evidence="contention"
+      notes="clean 8-racer sample; contention cannot license atomic (still unknown)"
+      verdict="unknown"
+    fi
+  fi
+
+  rm -rf -- "$work"
+  printf '%s\t%s\t%s\t%s\n' "$verdict" "$evidence" "$fs_class" "$notes"
+}
+
+# @description Probe flock atomicity: LOCK_EX|LOCK_NB under holder must EAGAIN/EWOULDBLOCK.
+# @arg $1 flock binary
+# @arg $2 directory for probe file
+# @stdout tab: verdict\tevidence_class\tfs_class\tnotes
+fm_tc_probe_flock_once() {
+  local flock_bin="$1" work_parent="$2"
+  local fs_class verdict="unknown" evidence="flavour" notes=""
+  fs_class="$(fm_tc_fs_class "$work_parent")"
+
+  if [[ ! -x "$flock_bin" ]]; then
+    printf '%s\t%s\t%s\t%s\n' "unknown" "flavour" "$fs_class" "flock binary missing"
+    return 0
+  fi
+
+  local work lockf marker
+  work="$(mktemp -d --tmpdir="$work_parent" fm-flock-probe.XXXXXX 2>/dev/null || mktemp -d)"
+  lockf="$work/lockfile"
+  marker="$work/holder_ready"
+  : >"$lockf"
+
+  if command -v strace >/dev/null 2>&1; then
+    # Holder on FD 8; wait until holder actually acquired before tracing loser (F12)
+    (
+      exec 8>>"$lockf"
+      if "$flock_bin" -n 8; then
+        printf 'holder_acquired=1\n' >"$marker"
+        sleep 2
+        exit 0
+      fi
+      exit 9
+    ) &
+    local hp=$!
+    local w=0
+    while [[ ! -f "$marker" && $w -lt 50 ]]; do
+      sleep 0.05
+      w=$((w + 1))
+    done
+    local trace
+    if [[ ! -f "$marker" ]]; then
+      kill "$hp" 2>/dev/null || true
+      wait "$hp" 2>/dev/null || true
+      verdict="unknown"
+      evidence="syscall"
+      notes="holder did not proceed; cannot license flock atomicity"
+    else
+      trace="$(strace -e trace=flock,fcntl "$flock_bin" -n 9 9>>"$lockf" 2>&1 || true)"
+      wait "$hp" 2>/dev/null || true
+      # F3: LOCK_EX|LOCK_NB only (not LOCK_SH; no bare-EAGAIN fallback)
+      if printf '%s\n' "$trace" | grep -qE 'flock\([^)]*LOCK_EX[^)]*LOCK_NB[^)]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+(EAGAIN|EWOULDBLOCK)' || \
+         printf '%s\n' "$trace" | grep -qE 'flock\([^)]*LOCK_NB[^)]*LOCK_EX[^)]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+(EAGAIN|EWOULDBLOCK)'; then
+        verdict="atomic"
+        evidence="syscall"
+        notes="flock(2) LOCK_EX|LOCK_NB; kernel returned EWOULDBLOCK/EAGAIN to loser; holder proceeded"
+      elif printf '%s\n' "$trace" | grep -qE 'flock\('; then
+        verdict="unknown"
+        evidence="syscall"
+        notes="flock syscall observed without LOCK_EX|LOCK_NB EAGAIN/EWOULDBLOCK"
+      else
+        verdict="unknown"
+        evidence="syscall"
+        notes="strace inconclusive for flock mechanism"
+      fi
+    fi
+  else
+    verdict="unknown"
+    evidence="flavour"
+    notes="no strace; flock flavour alone cannot license atomic"
+  fi
+
+  rm -rf -- "$work"
+  printf '%s\t%s\t%s\t%s\n' "$verdict" "$evidence" "$fs_class" "$notes"
+}
+
+# @description Run mkdir + flock probes across local probe roots; fill LOCK_ATOMICITY_ROWS.
+# Each row: mechanism\tpath\tversion\tsha256\tverdict\tevidence_class\tfs_classes_csv\ttimestamp\tnotes
+LOCK_ATOMICITY_ROWS=()
+LOCK_ATOMICITY_INFO=()
+LOCK_ATOMICITY_TRUSTED_ATOMIC=0
+
+
+# @description Host class for pin matching (mirrors lock.sh).
+fm_tc_host_class() {
+  if [[ -n "${FOREMAN_LOCK_HOST_CLASS:-}" ]]; then
+    printf '%s\n' "${FOREMAN_LOCK_HOST_CLASS}"
+    return 0
+  fi
+  case "$(uname -s 2>/dev/null || echo unknown)" in
+    MINGW*|MSYS*|CYGWIN*) printf '%s\n' "msys2-git-bash"; return 0 ;;
+  esac
+  if [[ -n "${WSL_DISTRO_NAME:-}" || -n "${WSL_INTEROP:-}" ]] || \
+     grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
+    printf '%s\n' "wsl-linux"
+    return 0
+  fi
+  printf '%s\n' "linux-native"
+}
+
+# @description Look up pinned register for mechanism+sha; validate trace.
+# @stdout verdict\tfs_csv  or empty
+fm_tc_pinned_lookup() {
+  local mech="$1" sha="$2"
+  local manifest="${FOREMAN_LOCK_MANIFEST:-$ROOT/env/reference-manifest.toml}"
+  local host_now
+  host_now="$(fm_tc_host_class)"
+  [[ -n "$sha" && -r "$manifest" ]] || return 0
+  python3 -c '
+import sys, os
+try:
+  import tomllib
+except ImportError:
+  try:
+    import tomli as tomllib
+  except ImportError:
+    raise SystemExit(0)
+manifest,mech,sha,host_now,root=sys.argv[1:6]
+try:
+  data=tomllib.load(open(manifest,"rb"))
+except Exception:
+  raise SystemExit(0)
+la=data.get("lock_atomicity") or {}
+pinned=la.get("pinned") or [] if isinstance(la,dict) else []
+for entry in pinned:
+  if not isinstance(entry,dict):
+    continue
+  if (entry.get("mechanism") or "")!=mech: continue
+  if (entry.get("sha256") or "").lower()!=sha.lower(): continue
+  hc=(entry.get("host_class") or "").strip()
+  if not hc or hc!=host_now: raise SystemExit(0)
+  trace=(entry.get("trace_artifact") or "").strip()
+  if not trace: raise SystemExit(0)
+  verdict=(entry.get("verdict") or "").strip()
+  if verdict not in ("atomic","non-atomic"): raise SystemExit(0)
+  classes=entry.get("filesystem_classes") or []
+  # resolve trace
+  candidates=[trace, os.path.join(root,trace)]
+  path=None
+  for c in candidates:
+    if c and os.path.isfile(c) and os.path.getsize(c)>0:
+      path=c; break
+  if not path: raise SystemExit(0)
+  content=open(path,encoding="utf-8",errors="replace").read()
+  ok=False
+  if mech=="mkdir":
+    import re
+    # Integration F3: EEXIST must be bound to the pin probe_target.
+    probe=(entry.get("probe_target") or entry.get("probe_path") or "").strip()
+    if not probe:
+      raise SystemExit(0)
+    frag=re.escape(probe)
+    if re.search(r"mkdir(at)?\([^\n]*"+frag+r"[^\n]*\)\s*=\s*-1\s+EEXIST", content):
+      ok=True
+    elif re.search(r"mkdir(at)?\([^\n]*"+frag+r"[^\n]*\).*(EEXIST|ERROR_ALREADY_EXISTS)", content):
+      ok=True
+  elif mech=="flock":
+    import re
+    loser=bool(re.search(r"flock\([^)]*LOCK_EX[^)]*LOCK_NB[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)", content) or
+               re.search(r"flock\([^)]*LOCK_NB[^)]*LOCK_EX[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)", content))
+    holder=bool(re.search(r"flock\([^)]*LOCK_EX[^)]*\)\s*=\s*0", content) or "holder_acquired=1" in content or "HOLDER_PROCEEDED" in content)
+    ok=loser and holder
+  if not ok: raise SystemExit(0)
+  print(verdict + "\t" + ",".join(classes))
+  raise SystemExit(0)
+' "$manifest" "$mech" "$sha" "$host_now" "$ROOT" 2>/dev/null || true
+}
+
+fm_tc_run_atomicity_probes() {
+  LOCK_ATOMICITY_ROWS=()
+  LOCK_ATOMICITY_INFO=()
+  LOCK_ATOMICITY_TRUSTED_ATOMIC=0
+  local ts
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  # Probe roots: prefer distinct filesystem classes when reachable.
+  local roots=()
+  local r
+  for r in "${TMPDIR:-/tmp}" /tmp "${HOME:-/root}" /var/tmp; do
+    [[ -d "$r" && -w "$r" ]] || continue
+    local seen=0 existing
+    for existing in "${roots[@]+"${roots[@]}"}"; do
+      if [[ "$(fm_tc_fs_class "$existing")" == "$(fm_tc_fs_class "$r")" && \
+            "$(findmnt -n -o TARGET -T "$existing" 2>/dev/null || echo "$existing")" == \
+            "$(findmnt -n -o TARGET -T "$r" 2>/dev/null || echo "$r")" ]]; then
+        seen=1
+        break
+      fi
+    done
+    if (( seen == 0 )); then
+      roots+=("$r")
+    fi
+  done
+  if (( ${#roots[@]} == 0 )); then
+    roots=(/tmp)
+  fi
+
+  # --- mkdir ---
+  local mkdir_bin=""
+  if have mkdir; then
+    mkdir_bin="$(command -v mkdir)"
+    mkdir_bin="$(readlink -f -- "$mkdir_bin" 2>/dev/null || printf '%s' "$mkdir_bin")"
+  fi
+  if [[ -n "$mkdir_bin" ]]; then
+    local ver sha best_verdict="unknown" best_evidence="flavour" notes_acc=()
+    # F2: coverage is the set of classes that themselves earned the chosen verdict
+    local -A class_verdict=() class_evidence=()
+    ver="$(fm_tc_version_line "$(command -v mkdir)")"
+    sha="$(fm_tc_sha256 "$mkdir_bin")"
+    for r in "${roots[@]}"; do
+      local line v e c n rest
+      line="$(fm_tc_probe_mkdir_once "$(command -v mkdir)" "$r")"
+      v="${line%%$'\t'*}"; rest="${line#*$'\t'}"
+      e="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+      c="${rest%%$'\t'*}"; n="${rest#*$'\t'}"
+      class_verdict["$c"]="$v"
+      class_evidence["$c"]="$e"
+      notes_acc+=("$c:$n")
+      case "$v" in
+        non-atomic)
+          best_verdict="non-atomic"
+          best_evidence="$e"
+          ;;
+        atomic)
+          if [[ "$best_verdict" != "non-atomic" ]]; then
+            best_verdict="atomic"
+            best_evidence="$e"
+          fi
+          ;;
+        *)
+          # F11: keep the probe's evidence class (contention/syscall), not flavour default
+          if [[ "$best_verdict" == "unknown" && "$e" != "flavour" ]]; then
+            best_evidence="$e"
+          fi
+          ;;
+      esac
+    done
+    # Pin may promote (F5) when probe could not license atomic
+    if [[ "$best_verdict" != "atomic" && "$best_verdict" != "non-atomic" ]]; then
+      local pin_line pin_v pin_fs
+      pin_line="$(fm_tc_pinned_lookup mkdir "$sha")"
+      if [[ -n "$pin_line" ]]; then
+        pin_v="${pin_line%%$'\t'*}"
+        pin_fs="${pin_line#*$'\t'}"
+        if [[ "$pin_v" == "atomic" || "$pin_v" == "non-atomic" ]]; then
+          best_verdict="$pin_v"
+          best_evidence="pinned-mechanism"
+          # coverage = classes named by the pin
+          local IFS=',' _pc
+          for _pc in $pin_fs; do
+            class_verdict["$_pc"]="$pin_v"
+            class_evidence["$_pc"]="pinned-mechanism"
+          done
+          notes_acc+=("pin:${pin_v}")
+        fi
+      fi
+    fi
+    # F2: only classes whose own result matches best_verdict are licensed
+    local fs_csv="" cl
+    for cl in local mnt-drvfs network fuse; do
+      if [[ "${class_verdict[$cl]:-}" == "$best_verdict" ]]; then
+        [[ -n "$fs_csv" ]] && fs_csv+=","
+        fs_csv+="$cl"
+      fi
+    done
+    local note_join
+    note_join="$(IFS='; '; printf '%s' "${notes_acc[*]}")"
+    LOCK_ATOMICITY_ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+      "mkdir" "$mkdir_bin" "$ver" "$sha" "$best_verdict" "$best_evidence" "$fs_csv" "$ts" "$note_join")")
+    if [[ "$best_verdict" == "atomic" && ( "$best_evidence" == "syscall" || "$best_evidence" == "pinned-mechanism" ) ]]; then
+      LOCK_ATOMICITY_TRUSTED_ATOMIC=1
+    fi
+    if [[ "$best_verdict" == "non-atomic" ]]; then
+      LOCK_ATOMICITY_INFO+=("mkdir: non-atomic ($best_evidence) path=$mkdir_bin")
+    fi
+  fi
+
+  # --- flock ---
+  local flock_bin=""
+  if have flock; then
+    flock_bin="$(command -v flock)"
+    flock_bin="$(readlink -f -- "$flock_bin" 2>/dev/null || printf '%s' "$flock_bin")"
+  fi
+  if [[ -n "$flock_bin" ]]; then
+    local ver sha best_verdict="unknown" best_evidence="flavour" notes_acc=()
+    local -A class_verdict=() class_evidence=()
+    ver="flock $(flock --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
+    if [[ -z "${ver//flock /}" || "$ver" == "flock " ]]; then
+      ver="flock:$(command -v flock)"
+    fi
+    sha="$(fm_tc_sha256 "$flock_bin")"
+    for r in "${roots[@]}"; do
+      local line v e c n rest
+      line="$(fm_tc_probe_flock_once "$(command -v flock)" "$r")"
+      v="${line%%$'\t'*}"; rest="${line#*$'\t'}"
+      e="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+      c="${rest%%$'\t'*}"; n="${rest#*$'\t'}"
+      class_verdict["$c"]="$v"
+      class_evidence["$c"]="$e"
+      notes_acc+=("$c:$n")
+      case "$v" in
+        non-atomic)
+          best_verdict="non-atomic"
+          best_evidence="$e"
+          ;;
+        atomic)
+          if [[ "$best_verdict" != "non-atomic" ]]; then
+            best_verdict="atomic"
+            best_evidence="$e"
+          fi
+          ;;
+        *)
+          if [[ "$best_verdict" == "unknown" && "$e" != "flavour" ]]; then
+            best_evidence="$e"
+          fi
+          ;;
+      esac
+    done
+    if [[ "$best_verdict" != "atomic" && "$best_verdict" != "non-atomic" ]]; then
+      local pin_line pin_v pin_fs
+      pin_line="$(fm_tc_pinned_lookup flock "$sha")"
+      if [[ -n "$pin_line" ]]; then
+        pin_v="${pin_line%%$'\t'*}"
+        pin_fs="${pin_line#*$'\t'}"
+        if [[ "$pin_v" == "atomic" || "$pin_v" == "non-atomic" ]]; then
+          best_verdict="$pin_v"
+          best_evidence="pinned-mechanism"
+          local IFS=',' _pc
+          for _pc in $pin_fs; do
+            class_verdict["$_pc"]="$pin_v"
+            class_evidence["$_pc"]="pinned-mechanism"
+          done
+          notes_acc+=("pin:${pin_v}")
+        fi
+      fi
+    fi
+    local fs_csv="" cl
+    for cl in local mnt-drvfs network fuse; do
+      if [[ "${class_verdict[$cl]:-}" == "$best_verdict" ]]; then
+        [[ -n "$fs_csv" ]] && fs_csv+=","
+        fs_csv+="$cl"
+      fi
+    done
+    local note_join
+    note_join="$(IFS='; '; printf '%s' "${notes_acc[*]}")"
+    LOCK_ATOMICITY_ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+      "flock" "$flock_bin" "$ver" "$sha" "$best_verdict" "$best_evidence" "$fs_csv" "$ts" "$note_join")")
+    if [[ "$best_verdict" == "atomic" && ( "$best_evidence" == "syscall" || "$best_evidence" == "pinned-mechanism" ) ]]; then
+      LOCK_ATOMICITY_TRUSTED_ATOMIC=1
+    fi
+  else
+    LOCK_ATOMICITY_ROWS+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+      "flock" "" "" "" "unknown" "flavour" "" "$ts" "flock not on PATH")")
+  fi
+
+  # Ready impact: INFO when mkdir non-atomic but flock trusted; NOT-READY when none trusted
+  if (( LOCK_ATOMICITY_TRUSTED_ATOMIC == 0 )); then
+    # Only force NOT-READY for durable (or when flock is a must and failed trust)
+    case "$PROFILE" in
+      durable)
+        must_fail+=("lock_atomicity:no_trusted_atomic_mechanism")
+        READY=0
+        ;;
+    esac
+  fi
+}
+
 # profile membership
 must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
-must_durable=(git jq coreutils bash)
+must_durable=(git jq coreutils bash flock)
 should_soft=(claude node npm jq markdownlint-cli2 codespell lychee)
 should_hard=(shellcheck bats gh timeout grok codex)
 should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue)
@@ -353,6 +915,39 @@ done
 READY=0
 [[ ${#must_fail[@]} -eq 0 ]] && READY=1
 
+# Atomicity probes (T4). Populates LOCK_ATOMICITY_ROWS for inventory JSON.
+# May append must_fail for durable when no trusted atomic mechanism exists.
+fm_tc_run_atomicity_probes
+# Recompute READY after probe may have extended must_fail
+READY=0
+[[ ${#must_fail[@]} -eq 0 ]] && READY=1
+# INFO line when mkdir is non-atomic but flock earned trusted atomic
+_mkdir_non_atomic=0
+_flock_trusted=0
+for _ar in "${LOCK_ATOMICITY_ROWS[@]+"${LOCK_ATOMICITY_ROWS[@]}"}"; do
+  _amid="${_ar%%$'\t'*}"
+  _arest="${_ar#*$'\t'}"
+  # path version sha256 verdict evidence fs ts notes
+  _p="${_arest%%$'\t'*}"; _arest="${_arest#*$'\t'}"
+  _v="${_arest%%$'\t'*}"; _arest="${_arest#*$'\t'}"
+  _s="${_arest%%$'\t'*}"; _arest="${_arest#*$'\t'}"
+  _verdict="${_arest%%$'\t'*}"; _arest="${_arest#*$'\t'}"
+  _ev="${_arest%%$'\t'*}"
+  if [[ "$_amid" == "mkdir" && "$_verdict" == "non-atomic" ]]; then
+    _mkdir_non_atomic=1
+  fi
+  if [[ "$_amid" == "flock" && "$_verdict" == "atomic" && ( "$_ev" == "syscall" || "$_ev" == "pinned-mechanism" ) ]]; then
+    _flock_trusted=1
+  fi
+done
+if (( _mkdir_non_atomic && _flock_trusted )); then
+  LOCK_ATOMICITY_INFO+=("INFO: mkdir non-atomic but flock present and trusted for probed filesystem class(es) — durable locks use flock")
+fi
+if (( LOCK_ATOMICITY_TRUSTED_ATOMIC == 0 )); then
+  LOCK_ATOMICITY_INFO+=("NOT-READY risk: no lock mechanism earned a trusted atomic verdict on this host")
+fi
+
+
 # @description Render the collected tool inventory and profile readiness guidance as a human-readable report.
 # @stdout the formatted Foreman tool-check report
 report_text() {
@@ -380,7 +975,31 @@ report_text() {
   done
   [[ ${#docs_group[@]} -gt 0 ]] && echo "DOCS_GROUP: ${docs_group[*]}"
   echo "---"
+  echo "LOCK_ATOMICITY"
+  printf '%-8s %-10s %-16s %-12s %s\n' "MECH" "VERDICT" "EVIDENCE" "FS_CLASSES" "PATH"
+  for row in "${LOCK_ATOMICITY_ROWS[@]+"${LOCK_ATOMICITY_ROWS[@]}"}"; do
+    mid="${row%%$'\t'*}"
+    rest="${row#*$'\t'}"
+    path="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+    ver="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+    sha="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+    verdict="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+    ev="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+    fsc="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
+    printf '%-8s %-10s %-16s %-12s %s\n' "$mid" "$verdict" "$ev" "$fsc" "$path"
+    if [[ -n "$sha" ]]; then
+      printf '  sha256=%s\n' "$sha"
+    fi
+    if [[ -n "$ver" ]]; then
+      printf '  version=%s\n' "$ver"
+    fi
+  done
+  for info in "${LOCK_ATOMICITY_INFO[@]+"${LOCK_ATOMICITY_INFO[@]}"}"; do
+    echo "$info"
+  done
+  echo "---"
   echo "SKILLS"
+
   printf '%-16s %-10s %s\n' "SKILL" "STATUS" "DETAIL"
   for row in "${SKILL_ROWS[@]}"; do
     id="${row%%$'\t'*}"
@@ -427,12 +1046,21 @@ report_text() {
 # @description Serialize the collected tool inventory and readiness state using the Foreman tool-check JSON schema.
 # @stdout the formatted JSON tool-check report
 report_json() {
-  python3 - "$PROFILE" "$HOST" "$OS" "$IS_WSL" "$NOW" "$ROOT" "$READY" "$LANE" "${ROWS[@]}" --skills-- "${SKILL_ROWS[@]}" <<'PY'
+  # Serialize lock atomicity rows as JSON-ready lines (tab-separated → python)
+  local atomic_args=()
+  local row
+  for row in "${LOCK_ATOMICITY_ROWS[@]+"${LOCK_ATOMICITY_ROWS[@]}"}"; do
+    atomic_args+=("$row")
+  done
+  python3 - "$PROFILE" "$HOST" "$OS" "$IS_WSL" "$NOW" "$ROOT" "$READY" "$LANE" \
+    "${ROWS[@]}" --skills-- "${SKILL_ROWS[@]}" --atomic-- "${atomic_args[@]+"${atomic_args[@]}"}" <<'PY'
 import json, sys
 profile, host, os_, is_wsl, now, root, ready, lane = sys.argv[1:9]
 rows = sys.argv[9:]
 skill_marker = rows.index("--skills--")
-skill_rows = rows[skill_marker + 1:]
+atomic_marker = rows.index("--atomic--")
+skill_rows = rows[skill_marker + 1:atomic_marker]
+atomic_rows = rows[atomic_marker + 1:]
 rows = rows[:skill_marker]
 
 def parse_rows(items):
@@ -445,8 +1073,31 @@ def parse_rows(items):
         parsed.append({"id": tid, "status": st, "detail": det})
     return parsed
 
+def parse_atomic(items):
+    out = []
+    for row in items:
+        parts = row.split("\t")
+        # mechanism path version sha256 verdict evidence fs_csv timestamp notes
+        while len(parts) < 9:
+            parts.append("")
+        mech, path, version, sha, verdict, evidence, fs_csv, ts, notes = parts[:9]
+        fs_classes = [c for c in fs_csv.split(",") if c]
+        out.append({
+            "mechanism": mech,
+            "path": path,
+            "version": version,
+            "sha256": sha,
+            "verdict": verdict,
+            "evidence_class": evidence,
+            "filesystem_classes": fs_classes,
+            "timestamp": ts,
+            "notes": notes,
+        })
+    return out
+
 tools = parse_rows(rows)
 skills = parse_rows(skill_rows)
+lock_atomicity = parse_atomic(atomic_rows)
 out = {
     "schema": "foreman.tool-check.v1",
     "profile": profile,
@@ -458,6 +1109,7 @@ out = {
     "repo": root,
     "tools": tools,
     "skills": skills,
+    "lock_atomicity": lock_atomicity,
     "missing": [t["id"] for t in tools if t["status"] == "missing"],
     "outdated": [t["id"] for t in tools if t["status"] == "outdated"],
     "degraded": [t["id"] for t in tools if t["status"] == "degraded"],

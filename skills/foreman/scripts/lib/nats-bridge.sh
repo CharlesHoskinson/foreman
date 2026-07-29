@@ -7,14 +7,11 @@
 #   truth; on any publish failure the cursor does not advance and events replay
 #   on the next pass. Source this file; no side effects at source time.
 #
-#   Locking: a per-run mkdir mutex (.nats-bridge.lock) is owned by a random
-#   per-acquisition token (not a bare PID — PIDs can be recycled after a
-#   crash), recorded on disk AND kept in an in-memory shell variable; release
-#   only ever acts when both match. Owner-file recording is part of
-#   acquisition itself: a lock whose ownership cannot be durably recorded is
-#   removed immediately rather than left held. Stale-lock recovery (owner
-#   confirmed dead) is intentionally a separate, explicit MANUAL operation —
-#   see the note on _nb_lock_release below — never automatic.
+#   Locking: a per-run lock (.nats-bridge.lock) via lib/lock.sh
+#   (fm_lock_acquire / fm_lock_release). Same helper contract as the event
+#   log: flock when trusted, mkdir fallback under trust; timeout refuses
+#   (never fail-open). Owner-aware reclamation of a wedged lock is via
+#   fm_lock_reclaim at bridge start (records never swallowed).
 
 # Resolve sibling libs relative to this file (safe when sourced).
 # Guard: common.sh declares readonly EXIT_*; re-sourcing aborts under set -u/e.
@@ -31,88 +28,40 @@ if ! declare -F cfg_load >/dev/null 2>&1; then
   # shellcheck source=config.sh
   source "$_NB_LIB_DIR/config.sh"
 fi
+if ! declare -F fm_lock_acquire >/dev/null 2>&1; then
+  # shellcheck source=lock.sh
+  source "$_NB_LIB_DIR/lock.sh"
+fi
 
-# In-memory record of the lock this process itself acquired (path + the
-# random per-acquisition token it wrote to disk). A bare PID is not a durable
-# ownership identity — after a crash the PID can be recycled by an unrelated
-# process, which would then false-match a PID-only owner file and strip a
-# lock it never acquired. A random token cannot be guessed/recycled, so
-# ownership is proven only when the on-disk token matches the token this
-# exact process instance remembers minting. A single path/token pair is
-# sufficient: this library acquires at most one nats-bridge lock at a time
-# per process (nb_bridge_once acquires-then-releases within one call).
+# Path of the nats-bridge lock this process currently holds (empty if none).
+# Used by the nb_bridge TERM trap so a non-holding instance never releases
+# a foreign lock. The helper itself only releases a path it holds.
 _NB_LOCK_PATH="${_NB_LOCK_PATH:-}"
-_NB_LOCK_TOKEN="${_NB_LOCK_TOKEN:-}"
 
-# @description Generate an unguessable per-acquisition token. Falls back to a
-#   PID+time+$RANDOM composite if /dev/urandom or od are unavailable (still
-#   immune to PID-reuse false-matches since it is never reused verbatim).
-# @stdout the token (single line, no whitespace)
-_nb_gen_token() {
-  local t
-  t="$(od -An -N8 -tx8 /dev/urandom 2>/dev/null | tr -d ' \t\r\n')"
-  if [[ -z "$t" ]]; then
-    t="fallback-$$-$RANDOM$RANDOM-$(date +%s%N 2>/dev/null || date +%s)"
-  fi
-  printf '%s' "$t"
-}
-
-# @description Release the mkdir-mutex lock ONLY if the calling process is the
-#   one that acquired it. Ownership is proven by an in-memory token recorded
-#   at acquisition time matching the "$$:$token" content on disk (see
-#   _nb_gen_token and the acquisition block in nb_bridge_once) — never by PID
-#   alone, since a crashed owner's PID can be recycled by an unrelated later
-#   process. This prevents a non-owning process — e.g. a second nb_bridge
-#   instance whose own mkdir never succeeded (lock already held by another
-#   live instance), or a process that merely shares a recycled PID with a
-#   dead owner — from stripping a lock it does not own out from under the
-#   process that does. A non-owning call is a silent no-op: the foreign lock
-#   is left intact.
-#
-#   Stale-lock recovery (owner confirmed dead, lock left behind) is
-#   deliberately NOT automated here: this function will never remove a lock
-#   whose on-disk token does not match this process's own in-memory token,
-#   by design. Recovering a genuinely stale lock is a separate, explicit
-#   manual operation for a human/ops script: confirm the owning process is
-#   actually gone, then `rm -f LOCK/owner && rmdir LOCK`.
-# @arg $1 lock directory path (e.g. "$rd/.nats-bridge.lock")
+# @description Release the nats-bridge lock only if this process holds it
+#   via lib/lock.sh. Safe no-op when this process never acquired the lock
+#   (e.g. a bridge instance whose last tick returned rc=5).
+# @arg $1 lock path (e.g. "$rd/.nats-bridge.lock")
 _nb_lock_release() {
-  local lock="$1" owner
-  # Short-circuit: this process never recorded acquiring this exact lock
-  # path, so it cannot possibly hold a matching token — avoid touching it.
-  if [[ -z "$_NB_LOCK_TOKEN" || "$lock" != "$_NB_LOCK_PATH" ]]; then
+  local lock="$1"
+  if [[ -z "${_NB_LOCK_PATH:-}" || "$lock" != "$_NB_LOCK_PATH" ]]; then
     return 0
   fi
-  owner="$(cat "$lock/owner" 2>/dev/null || true)"
-  owner="${owner%$'\r'}"
-  if [[ "$owner" == "$$:$_NB_LOCK_TOKEN" ]]; then
-    rm -f "$lock/owner" 2>/dev/null || true
-    rmdir "$lock" 2>/dev/null || true
-    _NB_LOCK_PATH=""
-    _NB_LOCK_TOKEN=""
-  fi
+  fm_lock_release "$lock" || true
+  _NB_LOCK_PATH=""
 }
 
 # @description Single bridge pass: publish new log lines for RUN_ID to JetStream.
-#   Acquires a per-run mkdir mutex (.nats-bridge.lock). Owner recording is
-#   part of acquisition: a random per-acquisition token is written as
-#   "$$:$token" and kept in memory, and if that write fails the just-created
-#   lock is removed immediately and this returns 1 (never hold a lock we
-#   cannot prove we own). The mkdir→owner-write interval is protected by a
-#   non-exiting pending-signal TERM trap so a signal in that narrow window
-#   cannot leave an unreleasable lock; any pending signal is honored right
-#   after ownership is durably recorded. All release paths (via
-#   _nb_lock_release) remove the lock only if this process's in-memory token
-#   still matches the on-disk token.
+#   Acquires a per-run lock (.nats-bridge.lock) via lib/lock.sh. On timeout or
+#   other refusal returns 5 (lock not held; never enters the critical section).
 #   Reads via el_read into a temp file first so torn/malformed (rc=2) is observed.
 #   Cursor advances only after nats pub ... -J exits 0 (PubAck granted).
 # @arg $1 run id
 # @exitcode 0 clean pass, or publish failed (cursor held for retry next tick)
-# @exitcode 1 invalid seq/type, corrupt on-disk cursor, cursor commit failure,
-#   owner-file write failure, or a signal was honored during acquisition
+# @exitcode 1 invalid seq/type, corrupt on-disk cursor, cursor commit failure
 # @exitcode 2 invalid run id (usage error), or el_read reported torn/malformed
 #   (valid prefix was published) — disambiguated on stderr
-# @exitcode 5 lock already held
+# @exitcode 5 lock acquisition refused (timeout / untrusted / unavailable)
 nb_bridge_once() {
   local run="$1"
   local rd lock from tmp errf n line seq type
@@ -137,60 +86,34 @@ nb_bridge_once() {
   lock="$rd/.nats-bridge.lock"
   mkdir -p "$rd" || return 1
 
-  # --- Signal-safe acquisition window ---------------------------------
-  # Between a successful mkdir and durably recording ownership, this
-  # process holds a lock no one (including itself, after a crash) can ever
-  # prove ownership of and therefore can never release. A signal delivered
-  # in that narrow window must not be allowed to exit with the default
-  # disposition. Install a non-exiting trap that only records that a
-  # signal arrived; once ownership is recorded (or acquisition is
-  # abandoned), restore whatever trap was previously active — the caller's
-  # own TERM handler when called from nb_bridge's loop, or the default
-  # disposition when called standalone — and, only then, honor a pending
-  # signal by releasing (if owned) and re-delivering it to ourselves so the
-  # restored handler (or default action) runs exactly as it would have.
-  local _nb_prev_term_trap _nb_pending_term=""
-  _nb_prev_term_trap="$(trap -p TERM)"
-  trap '_nb_pending_term=1' TERM
+  # Owner-aware reclaim of this lock only (never a sweep). Mechanism
+  # conditionality lives inside fm_lock_reclaim (no-op on flock). Never
+  # reclaim silently: surface the record (success or refusal) on stderr.
+  local _nb_reclaim_rc=0 _nb_reclaim_errf _nb_reclaim_msg
+  _nb_reclaim_errf="$(mktemp "${TMPDIR:-/tmp}/nb-reclaim.XXXXXX")" || _nb_reclaim_errf=""
+  if [[ -n "$_nb_reclaim_errf" ]]; then
+    fm_lock_reclaim "$lock" 2>"$_nb_reclaim_errf" || _nb_reclaim_rc=$?
+    _nb_reclaim_msg="$(tr -d '\r' <"$_nb_reclaim_errf" 2>/dev/null)"
+    rm -f -- "$_nb_reclaim_errf"
+  else
+    fm_lock_reclaim "$lock" || _nb_reclaim_rc=$?
+    _nb_reclaim_msg=""
+  fi
+  if [[ -n "$_nb_reclaim_msg" ]]; then
+    printf '%s\n' "$_nb_reclaim_msg" >&2
+  fi
+  if (( _nb_reclaim_rc != 0 )); then
+    echo "nb_bridge_once: fm_lock_reclaim refused for $lock (rc=$_nb_reclaim_rc); lock left in place" >&2
+  fi
 
-  if ! mkdir "$lock" 2>/dev/null; then
-    eval "${_nb_prev_term_trap:-trap - TERM}"
-    if [[ -n "$_nb_pending_term" ]]; then
-      kill -s TERM "$$"
-    fi
+  # Bounded acquire via shared helper. Refusal (timeout / untrusted / etc.)
+  # leaves the critical section unentered — never fail-open.
+  local _nb_lock_timeout="${NB_LOCK_TIMEOUT_SEC:-${FM_LOCK_TIMEOUT_SEC:-30}}"
+  if ! fm_lock_acquire "$lock" "$_nb_lock_timeout" >/dev/null; then
+    echo "nb_bridge_once: lock acquire refused for run $run (FM_LOCK_*)" >&2
     return 5
   fi
-
-  local token
-  token="$(_nb_gen_token)"
-  # Owner recording IS acquisition: never hold a lock we cannot prove we
-  # own. On write failure, remove the just-created lock immediately and
-  # fail loud rather than leaving an orphaned, unreleasable lock dir.
-  if ! printf '%s:%s' "$$" "$token" > "$lock/owner" 2>/dev/null; then
-    echo "nb_bridge_once: failed to record lock ownership for run $run; removing the lock just created (never hold a lock we cannot prove we own)" >&2
-    # rm -rf, not a bare rmdir: we just created $lock ourselves via a
-    # successful mkdir moments ago, so we know it is ours to clear even if
-    # something occupies the owner path and left it non-empty (e.g. the
-    # owner path itself unexpectedly being a directory).
-    rm -rf "$lock" 2>/dev/null || true
-    eval "${_nb_prev_term_trap:-trap - TERM}"
-    if [[ -n "$_nb_pending_term" ]]; then
-      kill -s TERM "$$"
-    fi
-    return 1
-  fi
   _NB_LOCK_PATH="$lock"
-  _NB_LOCK_TOKEN="$token"
-  eval "${_nb_prev_term_trap:-trap - TERM}"
-  if [[ -n "$_nb_pending_term" ]]; then
-    # Ownership is now durably recorded, so releasing it here is safe and
-    # provable; re-deliver the deferred signal so any real handler (e.g.
-    # nb_bridge's loop-level trap, now restored above) runs as normal.
-    _nb_lock_release "$lock"
-    kill -s TERM "$$"
-    return 1
-  fi
-  # --- End signal-safe acquisition window ------------------------------
 
   from="$(el_cursor_get "$run" nats-bridge)"
   from="${from%$'\r'}"
