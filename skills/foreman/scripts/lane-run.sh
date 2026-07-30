@@ -1232,8 +1232,34 @@ esac
 round_usage="$(tl_usage_from_file "$stream_file_path" "$_usage_vendor" "$_usage_model" "$_usage_effort")"
 _model_id_done="$(tl_model_identity "${LANE_VENDOR:-}")"
 
+# @description Count paths the WORKER changed in the lane worktree, excluding
+#   artifacts the harness manufactured. Mirrors grok-multiround.sh's
+#   changed_paths exclusions: .harness/** is lane-run's own heartbeat and stream
+#   telemetry, and SPEC-*.md is a spec staged inside the tree by the caller.
+#
+#   Bug ledger 2026-07-30 Event 1: round_done carried exit_code but nothing
+#   about whether the round produced any work, so three lanes recorded
+#   exit_code=0 with checkpoint SHAs having implemented nothing. A count lets a
+#   downstream gate discriminate instead of inferring success from an exit code.
+#   Never fails the round: a non-git or unreadable worktree yields 0.
+# @stdout an integer
+lane_files_changed() {
+  git -C "$WT" status --porcelain 2>/dev/null | awk '
+    {
+      path = substr($0, 4)
+      sub(/^"/, "", path); sub(/"$/, "", path)
+      if (path ~ /^\.harness\//) next
+      if (path ~ /^SPEC-[^\/]*\.md$/) next
+      n++
+    }
+    END { print n+0 }' 2>/dev/null || printf '0'
+}
+_files_changed="$(lane_files_changed)"
+[[ "$_files_changed" =~ ^[0-9]+$ ]] || _files_changed=0
+
 round_payload="$(
   jq -cn \
+    --argjson files_changed "$_files_changed" \
     --argjson exit_code "$rc" \
     --arg sha "$sha" \
     --argjson stream_failed "$stream_failed" \
@@ -1246,6 +1272,7 @@ round_payload="$(
     --arg gate_s "${gate_duration_s:-}" \
     '{
        exit_code:$exit_code,
+       files_changed:$files_changed,
        checkpoint:(if $sha == "" then null else $sha end),
        usage:$usage,
        model:$model,
