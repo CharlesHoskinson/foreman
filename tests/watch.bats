@@ -860,22 +860,46 @@ SHIM
   t4b_hb_line "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "$$" > "$hb"
 
   start_ms="$(cat "$VTICK_FILE")"
-  (
-    while true; do
-      cur="$(cat "$VTICK_FILE" 2>/dev/null || echo "$start_ms")"
-      if (( cur - start_ms >= 10000 )); then
-        t4b_emit_ownership run1 lane1 1 "$$" "" "$REPO"
-        break
-      fi
-      sleep 0.05
-    done
-  ) &
-  bgpid=$!
+  # The late-ownership emitter must be driven by the FAKE clock, not by real
+  # time. watch.sh advances the vtick counter with no wall-clock delay, so an
+  # emitter polling in real time (`sleep 0.05`) loses the race by construction:
+  # watch.sh can burn its entire WATCH_OWNERSHIP_WAIT budget of fake
+  # milliseconds before the emitter's first real sleep returns, ownership never
+  # lands inside the bound, and classification falls to v1. Observed 2026-07-30
+  # as a deterministic `STALLED age=300s`, 3 runs of 3 -- read as a product
+  # regression, but watch.sh honours the clock seam correctly throughout; the
+  # harness was the defect. Emitting from inside WATCH_SLEEP_CMD makes the
+  # arrival instant exact: ownership appears the moment fake time crosses
+  # +10000ms, comfortably inside the 15000ms bound, with no wall-clock coupling.
+  ownership_marker="$BATS_TEST_TMPDIR/ownership-emitted"
+  ownership_payload="$BATS_TEST_TMPDIR/ownership-payload.json"
+  MSYS_NO_PATHCONV=1 jq -cn --argjson attempt 1 --arg lp "$$" --arg wt "$REPO" \
+    '{attempt:$attempt,launcher_pid:($lp|tonumber),pid:null,job_id:null,worktree:$wt,config_dir:null,launcher:true}' \
+    > "$ownership_payload"
+  emit_sleep="$BATS_TEST_TMPDIR/vtick_sleep_emit.sh"
+  cat > "$emit_sleep" <<EOF
+#!/usr/bin/env bash
+# vtick sleep (see helpers.bash vtick_init) plus a one-shot ownership emission
+# the first time fake time crosses +10000ms of the latch.
+delta="\${1:-0}"
+cur="\$(cat "$VTICK_FILE")"
+new=\$(( cur + delta ))
+printf '%s\n' "\$new" > "$VTICK_FILE.tmp.\$\$" && mv -f "$VTICK_FILE.tmp.\$\$" "$VTICK_FILE"
+if (( new - $start_ms >= 10000 )) && [[ ! -e "$ownership_marker" ]]; then
+  : > "$ownership_marker"
+  source "$SCRIPTS/lib/common.sh"
+  source "$SCRIPTS/lib/eventlog.sh"
+  el_emit run1 ownership lane1 "\$(cat "$ownership_payload")" >/dev/null
+fi
+EOF
+  export WATCH_SLEEP_CMD="bash $emit_sleep"
 
   export WATCH_TICK=1 WATCH_OWNERSHIP_WAIT=15000 STALL_DEAD=900 IMPL_STALE=300
   run timeout 20 bash "$SCRIPTS/watch.sh" run1 lane1 "$REPO" --hb "$hb"
-  kill "$bgpid" 2>/dev/null || true
-  wait "$bgpid" 2>/dev/null || true
+  # The emission is synchronous with watch.sh's own clock advance, so by the
+  # time watch.sh has exited the event is already on disk -- assert that rather
+  # than trusting the run alone.
+  [ -e "$ownership_marker" ]
 
   # Lands in v2 (RUNNING_IMPL, $hb+event both fresh once ownership is
   # confirmed) -- never falls back to bare v1 RUNNING/STALLED/DEAD, proving

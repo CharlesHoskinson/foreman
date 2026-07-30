@@ -208,7 +208,15 @@ SHIM
   bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'sleep 100 & echo $! > "'"$WT"'/child.pid"; wait' &
   lr_pid=$!
-  for _ in $(seq 1 50); do
+  # Liveness bound for the SETUP, not the property under test. 50*0.1s is the
+  # tightest wait in this file and the only one that fails under full-suite
+  # load: green standalone and under `run.sh tests/lane-run.bats`, red when it
+  # runs as one of 41 files on a loaded box (observed 2026-07-30, runs 3 and 4;
+  # green in run 1). Same class as tests/eventlog.bats's load-dependent
+  # contention test. Matched to the 150-iteration bound this file already uses
+  # for lane-run.sh's own exit; the assertion below is unchanged, so a
+  # child.pid that never appears still fails.
+  for _ in $(seq 1 150); do
     [ -f "$WT/child.pid" ] && break
     sleep 0.1
   done
@@ -547,6 +555,12 @@ EOF
 # is a failure, and neither should be operator-visible noise.
 # bats test_tags=slow
 @test "lane-run kill_cmd_bounded: clean TERM exit + vacuous real sweep emits zero alert events" {
+  # The "vacuous sweep" outcome requires a real `taskkill` returning its
+  # process-not-found code for the synthetic winpid below (lane-run.sh:461-470).
+  # With no taskkill the outcome is sweep_failed, not vacuously swept, so the
+  # alert this test asserts is absent would legitimately fire.
+  command -v taskkill >/dev/null 2>&1 \
+    || skip "taskkill unavailable: the Windows //T descendant sweep cannot be vacuous on this host"
   proc_root="$BATS_TEST_TMPDIR/proc-c"
   mkdir -p "$proc_root"
   export LANE_PROC_ROOT="$proc_root"

@@ -165,6 +165,10 @@ setup() { setup_tmp_repo; cd "$REPO"; }
 # tests stub taskkill for the identical reason: real cross-process sweep
 # fidelity is not reliably observable from a test).
 @test "wt-cleanup: after the primary recorded pid is confirmed gone, a tree-sweep is attempted against its resolved winpid (Windows //T path)" {
+  # The test shims the real taskkill to observe the sweep invocation; without
+  # one on PATH its own `command -v taskkill` capture fails outright.
+  command -v taskkill >/dev/null 2>&1 \
+    || skip "taskkill unavailable: the Windows //T winpid tree-sweep path cannot be exercised on this host"
   source "$SCRIPTS/lib/common.sh"
   source "$SCRIPTS/lib/eventlog.sh"
   WT="$(bash "$SCRIPTS/wt-new.sh" run1 implement treesig | tail -1)"

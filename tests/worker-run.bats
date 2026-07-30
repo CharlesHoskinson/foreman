@@ -315,8 +315,15 @@ update_meta_base() {
                 --security-opt no-new-privileges --read-only --tmpfs /tmp --tmpfs /run --tmpfs /home/worker)
   run docker run "${HARDEN[@]}" foreman-sandbox:test /init-firewall.sh --check
   [ "$status" -eq 0 ]
+  # The entrypoint's init-firewall banner is written to STDOUT
+  # (sandbox/init-firewall.sh:129) and bats `run` merges it into $output, so
+  # these assertions must bind to the command's own final line. `$output = ok`
+  # could never hold on any host where the firewall actually applies -- the
+  # banner and this assertion landed in the same commit (1ca6bcc), so this
+  # test had never once passed with Docker present. The `!= root` form was
+  # also vacuous: the banner alone made the whole stream differ from "root".
   run docker run "${HARDEN[@]}" foreman-sandbox:test id -un
-  [ "$output" != "root" ]   # N5: full entrypoint runs
+  [ "${lines[-1]}" = worker ]   # N5: full entrypoint runs and drops to worker
   run docker run "${HARDEN[@]}" foreman-sandbox:test sh -c 'touch $HOME/x && echo ok'
-  [ "$output" = ok ]        # HOME writable
+  [ "${lines[-1]}" = ok ]       # HOME writable
 }

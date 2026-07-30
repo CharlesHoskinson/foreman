@@ -379,6 +379,18 @@ teardown() {
 }
 
 @test "add: Windows dialect (.exe pueue binary) -- leading & call operator, doubled-quote escaping" {
+  # Needs a host that resolves a bare `pueue` to a `pueue.exe` on PATH (the
+  # MSYS/Windows PATHEXT-style rule lq_pueue_bin relies on -- lane-queue.sh:75-85).
+  # POSIX has no such rule, so PATH_WITH_EXE_SHIM does NOT shadow a real `pueue`:
+  # the script resolves the HOST's actual binary and the test silently stops
+  # being hermetic (observed 2026-07-30: bound /usr/local/bin/pueue 4.0.4).
+  # Probe the capability itself rather than matching on uname.
+  _pathext_probe="$BATS_TEST_TMPDIR/pathext-probe"
+  mkdir -p "$_pathext_probe"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$_pathext_probe/fmprobe.exe"
+  chmod +x "$_pathext_probe/fmprobe.exe"
+  PATH="$_pathext_probe:$PATH" command -v fmprobe >/dev/null 2>&1 \
+    || skip "host does not resolve <name> to <name>.exe on PATH (POSIX); the .exe shim cannot shadow a real pueue"
   : > "$SHIM_STATE/daemon_up"
   run env PATH="$PATH_WITH_EXE_SHIM" bash "$SCRIPTS/lane-queue.sh" add grok -- echo "it's a test"
   [ "$status" -eq 0 ]

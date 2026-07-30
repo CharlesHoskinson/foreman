@@ -262,6 +262,12 @@ SHIM
 # ---------------------------------------------------------------------
 
 @test "lane-run (fake launcher shim): backslashed LANE_CONFIG_DIR (C:\\x\\y) normalizes to forward-slash form and reaches CMD verbatim" {
+  # norm() is identity without cygpath (vendor-isolation.bats:66-72), so
+  # `expected` keeps its backslashes and this test's own sanity assertion
+  # correctly fires rather than letting it pass vacuously. Backslash path
+  # normalization is a Windows-host concern; there is nothing to normalize here.
+  command -v cygpath >/dev/null 2>&1 \
+    || skip "cygpath unavailable: backslash path normalization is a Windows-host concern"
   stub_dir="$BATS_TEST_TMPDIR/stub"
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
