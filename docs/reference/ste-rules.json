@@ -1,0 +1,320 @@
+[
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.1",
+    "text": "Use words that are: - Approved in the dictionary - Technical nouns - Technical verbs."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.2",
+    "text": "Use approved words from the dictionary only as the specified part of speech."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.3",
+    "text": "Use approved words only with their approved meanings."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.4",
+    "text": "Use only the approved forms of verbs and adjectives."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.5",
+    "text": "You can use words that you can include in a technical noun category."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.6",
+    "text": "Use a word that is not approved in the dictionary, only when it is a technical noun or part of a technical noun."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.7",
+    "text": "Do not use words that are technical nouns as verbs."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.8",
+    "text": "Use technical nouns that are approved in your company, industry, or subject field."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.9",
+    "text": "When you must select a technical noun, use one which is short and easy to understand."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.10",
+    "text": "Do not use regional, slang, or jargon words as technical nouns."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.11",
+    "text": "Do not use different technical nouns for the same item."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.12",
+    "text": "You can use verbs that you can include in a technical verb category."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.13",
+    "text": "Do not use technical verbs as nouns."
+  },
+  {
+    "section": 1,
+    "section_name": "Words",
+    "rule": "1.14",
+    "text": "Use American English spelling unless other official directives tell you differently."
+  },
+  {
+    "section": 2,
+    "section_name": "Multi-word nouns",
+    "rule": "2.1",
+    "text": "Write multi-word nouns of no more than three words."
+  },
+  {
+    "section": 2,
+    "section_name": "Multi-word nouns",
+    "rule": "2.2",
+    "text": "When a technical noun has more than three words, write it in full. Then, you can use one of these methods to make the technical noun clear: - Give a shorter form of the technical noun. - Use hyphens (-) between words that you use as one unit."
+  },
+  {
+    "section": 3,
+    "section_name": "Verbs",
+    "rule": "3.1",
+    "text": "Use only the verb forms that are given in the dictionary."
+  },
+  {
+    "section": 3,
+    "section_name": "Verbs",
+    "rule": "3.2",
+    "text": "Use only these verb forms and tenses of verbs: - The infinitive form - The imperative form (command form) - The simple present tense - The simple past tense - The simple future tense - The past participle form (as an adjective)."
+  },
+  {
+    "section": 3,
+    "section_name": "Verbs",
+    "rule": "3.3",
+    "text": "Use the past participle form as an adjective."
+  },
+  {
+    "section": 3,
+    "section_name": "Verbs",
+    "rule": "3.4",
+    "text": "Do not use auxiliary verbs to make complex verb constructions."
+  },
+  {
+    "section": 3,
+    "section_name": "Verbs",
+    "rule": "3.5",
+    "text": "Use the “-ing” form of a verb only as a technical noun or as a modifier in a technical noun."
+  },
+  {
+    "section": 3,
+    "section_name": "Verbs",
+    "rule": "3.6",
+    "text": "Use the active voice. In descriptive writing, you can use the passive voice only when the agent is unknown."
+  },
+  {
+    "section": 3,
+    "section_name": "Verbs",
+    "rule": "3.7",
+    "text": "Use an approved verb to describe an action, not a noun or other parts of speech."
+  },
+  {
+    "section": 4,
+    "section_name": "Sentences",
+    "rule": "4.1",
+    "text": "Write short and clear sentences."
+  },
+  {
+    "section": 4,
+    "section_name": "Sentences",
+    "rule": "4.2",
+    "text": "Do not omit words or use contractions to make your sentences shorter."
+  },
+  {
+    "section": 4,
+    "section_name": "Sentences",
+    "rule": "4.3",
+    "text": "Use a vertical list for complex texts."
+  },
+  {
+    "section": 4,
+    "section_name": "Sentences",
+    "rule": "4.4",
+    "text": "Use connecting words and connecting phrases to connect sentences that contain related topics."
+  },
+  {
+    "section": 4,
+    "section_name": "Sentences",
+    "rule": "4.5",
+    "text": "When applicable, use an article (the, a, an) or a demonstrative adjective (this, these) before a noun or a multi-word noun."
+  },
+  {
+    "section": 5,
+    "section_name": "Procedural writing",
+    "rule": "5.1",
+    "text": "Write short sentences. Use a maximum of 20 words in each sentence."
+  },
+  {
+    "section": 5,
+    "section_name": "Procedural writing",
+    "rule": "5.2",
+    "text": "Write only one instruction in each sentence unless two or more actions occur at the same time."
+  },
+  {
+    "section": 5,
+    "section_name": "Procedural writing",
+    "rule": "5.3",
+    "text": "Write instructions in the imperative (command) form."
+  },
+  {
+    "section": 5,
+    "section_name": "Procedural writing",
+    "rule": "5.4",
+    "text": "When there is a condition that the reader must know about first, start the instruction with a descriptive statement. Then, divide that descriptive statement from the command with a comma."
+  },
+  {
+    "section": 5,
+    "section_name": "Procedural writing",
+    "rule": "5.5",
+    "text": "Write notes only to give information, not instructions."
+  },
+  {
+    "section": 6,
+    "section_name": "Descriptive writing",
+    "rule": "6.1",
+    "text": "Give information gradually."
+  },
+  {
+    "section": 6,
+    "section_name": "Descriptive writing",
+    "rule": "6.2",
+    "text": "Use key words and key phrases to give your text a logical structure."
+  },
+  {
+    "section": 6,
+    "section_name": "Descriptive writing",
+    "rule": "6.3",
+    "text": "Write short sentences. Use a maximum of 25 words in each sentence."
+  },
+  {
+    "section": 6,
+    "section_name": "Descriptive writing",
+    "rule": "6.4",
+    "text": "Use paragraphs to show related information."
+  },
+  {
+    "section": 6,
+    "section_name": "Descriptive writing",
+    "rule": "6.5",
+    "text": "Make sure that each paragraph has only one topic."
+  },
+  {
+    "section": 6,
+    "section_name": "Descriptive writing",
+    "rule": "6.6",
+    "text": "Make sure that no paragraph has more than six sentences."
+  },
+  {
+    "section": 7,
+    "section_name": "Safety instructions",
+    "rule": "7.1",
+    "text": "Use an applicable word (for example, “warning” or “caution”) to identify the level of risk."
+  },
+  {
+    "section": 7,
+    "section_name": "Safety instructions",
+    "rule": "7.2",
+    "text": "Start a safety instruction with a clear and accurate command or condition."
+  },
+  {
+    "section": 7,
+    "section_name": "Safety instructions",
+    "rule": "7.3",
+    "text": "Give an explanation to show the risk or possible result."
+  },
+  {
+    "section": 8,
+    "section_name": "Punctuation and word count",
+    "rule": "8.1",
+    "text": "You can use all standard English punctuation marks but not the semicolon (;)."
+  },
+  {
+    "section": 8,
+    "section_name": "Punctuation and word count",
+    "rule": "8.2",
+    "text": "Use hyphens (-) to connect words that are directly related."
+  },
+  {
+    "section": 8,
+    "section_name": "Punctuation and word count",
+    "rule": "8.3",
+    "text": "You can use parentheses: - To make references to illustrations or text - To include letters or numbers that identify items on an illustration or in a text - To identify the work steps in a procedure - To include abbreviations - To give the singular and plural forms of a noun at the same time - To explain words or a part of a sentence - To include an alternative."
+  },
+  {
+    "section": 8,
+    "section_name": "Punctuation and word count",
+    "rule": "8.4",
+    "text": "In a vertical list, a colon (:) has the same effect on word count as a period and shows the end of a sentence."
+  },
+  {
+    "section": 8,
+    "section_name": "Punctuation and word count",
+    "rule": "8.5",
+    "text": "When you put text in parentheses, it counts as one word in that sentence."
+  },
+  {
+    "section": 8,
+    "section_name": "Punctuation and word count",
+    "rule": "8.6",
+    "text": "Count each of these elements as one word: - Numbers - Numbers together with units of measurement - Abbreviations - Alphanumeric identifiers - Quoted text - Titles, headings, and text on placards and labels - Proper nouns of individuals, groups, organizations, and geopolitical entities."
+  },
+  {
+    "section": 8,
+    "section_name": "Punctuation and word count",
+    "rule": "8.7",
+    "text": "Hyphenated words count as one word."
+  },
+  {
+    "section": 9,
+    "section_name": "Writing practices",
+    "rule": "9.1",
+    "text": "Use a different sentence construction to write a sentence when a word- for-word replacement is not sufficient."
+  },
+  {
+    "section": 9,
+    "section_name": "Writing practices",
+    "rule": "9.2",
+    "text": "Use each approved word correctly."
+  },
+  {
+    "section": 9,
+    "section_name": "Writing practices",
+    "rule": "9.3",
+    "text": "When you use two words together, do not make phrasal verbs."
+  },
+  {
+    "section": 9,
+    "section_name": "Writing practices",
+    "rule": "9.4",
+    "text": "When you select terminology or wording, always use a consistent style."
+  }
+]
