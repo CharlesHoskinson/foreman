@@ -51,8 +51,9 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+import pathlib
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -74,7 +75,13 @@ CREATE TABLE IF NOT EXISTS facts (
   evidence       TEXT,
   established_ts TEXT NOT NULL,
   session_id     TEXT,
-  superseded_by  INTEGER REFERENCES facts(id)
+  superseded_by  INTEGER REFERENCES facts(id),
+  -- v2: the ontology reifies SUPERSEDES precisely because it must carry `at`
+  -- and `reason` ("a plain field cannot carry them"). A bare foreign key made
+  -- a superseded fact unauditable: you could see that it was replaced but
+  -- never why.
+  superseded_at   TEXT,
+  supersede_reason TEXT
 );
 
 CREATE TABLE IF NOT EXISTS measurements (
@@ -85,7 +92,12 @@ CREATE TABLE IF NOT EXISTS measurements (
   measured_ts  TEXT NOT NULL,
   measured_sha TEXT,
   scope_paths  TEXT,
-  session_id   TEXT
+  session_id   TEXT,
+  -- v2: the ontology's Measurement.value is xsd:decimal. `value` here is the
+  -- human string ("447 pass / 0 fail / 19 skip"), which does not project.
+  -- value_num carries the projectable scalar; NULL means "not a scalar", which
+  -- the projector reports rather than silently coercing.
+  value_num    REAL
 );
 
 CREATE TABLE IF NOT EXISTS obligations (
@@ -144,12 +156,34 @@ def connect():
     conn = sqlite3.connect(str(p))
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # Migrate pre-v2 databases in place. SQLite has no ALTER..IF NOT EXISTS,
+    # so probe the table shape instead of tracking a migration ledger.
+    def cols(table):
+        return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+    for table, col, decl in (
+        ("facts", "superseded_at", "TEXT"),
+        ("facts", "supersede_reason", "TEXT"),
+        ("measurements", "value_num", "REAL"),
+    ):
+        if col not in cols(table):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
     conn.execute(
-        "INSERT OR IGNORE INTO schema_meta(key,value) VALUES('version',?)",
+        "INSERT OR REPLACE INTO schema_meta(key,value) VALUES('version',?)",
         (str(SCHEMA_VERSION),),
     )
     conn.commit()
     return conn
+
+
+def scalar_of(text):
+    """Leading scalar of a value string, or None.
+
+    "447 pass / 0 fail" -> 447.0 ; "26" -> 26.0 ; "green" -> None.
+    Deliberately conservative: a value whose scalar is ambiguous projects as
+    NULL and is reported, never guessed at."""
+    import re
+    m = re.match(r"\s*(-?\d+(?:\.\d+)?)", text or "")
+    return float(m.group(1)) if m else None
 
 
 def mint_session_id():
@@ -283,6 +317,73 @@ def render(rec):
     return "\n".join(L)
 
 
+def project(conn):
+    """Emit TerminusDB documents for the ontology, as NDJSON.
+
+    One direction only: SQLite is the write path, the ontology is the
+    read-optimised projection. Nothing here reads the graph, so a projection
+    failure costs nothing -- the record already survives in SQLite.
+
+    Joins, per docs/design/session-store-ontology-links.md:
+      measured_sha -> Measurement.subject (a Commit; the same git SHA is the
+                      key on both sides, so this join is free)
+      scope_paths  -> Measurement.about (Set<Entity>). The ontology's
+                      Measurement has NO scope field and therefore cannot
+                      compute staleness at all; this is the one thing only the
+                      session store can supply.
+      superseded_* -> Supersession (reified, carrying at + reason)
+      obligations  -> Finding
+    """
+    cur = conn.cursor()
+    docs, skipped = [], []
+
+    for r in cur.execute("SELECT * FROM facts").fetchall():
+        docs.append({
+            "@type": "Claim",
+            "claim_key": f"fm-fact-{r['id']}",
+            "text": r["statement"],
+            "status": "Superseded" if r["superseded_by"] else "Asserted",
+            "provenance": {"@type": "Provenance", "source": r["evidence"] or "unrecorded",
+                           "at": r["established_ts"]},
+        })
+        if r["superseded_by"]:
+            docs.append({
+                "@type": "Supersession",
+                "old": f"Claim/fm-fact-{r['id']}",
+                "new": f"Claim/fm-fact-{r['superseded_by']}",
+                "at": r["superseded_at"] or r["established_ts"],
+                "reason": r["supersede_reason"] or "unrecorded (pre-v2 row)",
+            })
+
+    for r in cur.execute("SELECT * FROM measurements").fetchall():
+        if r["value_num"] is None:
+            # Reported, never coerced: Measurement.value is xsd:decimal and a
+            # non-scalar cannot be projected without inventing a number.
+            skipped.append({"id": r["id"], "metric": r["metric"],
+                            "value": r["value"], "why": "no projectable scalar"})
+            continue
+        docs.append({
+            "@type": "Measurement",
+            "metric": r["metric"],
+            "subject": f"Commit/{r['measured_sha']}" if r["measured_sha"] else None,
+            "value": r["value_num"],
+            "at": r["measured_ts"],
+            "about": [f"Entity/{p}" for p in (r["scope_paths"] or "").split(chr(10))
+                      if p.strip()],
+        })
+
+    for r in cur.execute("SELECT * FROM obligations WHERE status != 'done'").fetchall():
+        docs.append({
+            "@type": "Finding",
+            "text": r["statement"],
+            "severity": "Blocked" if r["status"] == "blocked" else "Open",
+            "at": r["opened_ts"],
+            "blocker": r["blocker"],
+        })
+
+    return docs, skipped
+
+
 def main():
     ap = argparse.ArgumentParser(prog="fm-session.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -295,13 +396,21 @@ def main():
     p.add_argument("metric"); p.add_argument("value")
     p.add_argument("--command", required=True)
     p.add_argument("--scope", action="append", default=[])
+    p.add_argument("--num", type=float, default=None,
+                   help="projectable scalar; auto-extracted from VALUE when omitted")
     p = sub.add_parser("obligation"); p.add_argument("statement"); p.add_argument("--blocker")
     p = sub.add_parser("close")
     p.add_argument("obligation_id", type=int)
     p.add_argument("--status", default="done", choices=["done", "blocked", "open"])
     p.add_argument("--blocker")
+    p = sub.add_parser("project")
+    p.add_argument("--out", default=None, help="NDJSON path (default stdout)")
     p = sub.add_parser("supersede")
-    p.add_argument("fact_id", type=int); p.add_argument("statement"); p.add_argument("--evidence")
+    p.add_argument("fact_id", type=int); p.add_argument("statement")
+    p.add_argument("--evidence")
+    p.add_argument("--reason", required=True,
+                   help="why the old fact stopped being true; required -- an "
+                        "unexplained supersession is unauditable")
 
     a = ap.parse_args()
     conn = connect()
@@ -348,11 +457,12 @@ def main():
             print("refusing: --scope is required. A measurement with no path scope "
                   "can never be shown stale, which is the entire point.", file=sys.stderr)
             return 2
+        vnum = a.num if a.num is not None else scalar_of(a.value)
         cur.execute(
             "INSERT INTO measurements(metric,value,command,measured_ts,measured_sha,"
-            "scope_paths,session_id) VALUES(?,?,?,?,?,?,?)",
+            "scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?)",
             (a.metric, a.value, a.command, now_iso(), git_sha(),
-             "\n".join(a.scope), current_session()))
+             "\n".join(a.scope), current_session(), vnum))
         conn.commit(); print(f"measurement {cur.lastrowid}"); return 0
 
     if a.cmd == "obligation":
@@ -370,12 +480,30 @@ def main():
              a.obligation_id))
         conn.commit(); print(f"obligation {a.obligation_id} -> {a.status}"); return 0
 
+    if a.cmd == "project":
+        docs, skipped = project(conn)
+        lines = "\n".join(json.dumps(d) for d in docs)
+        if a.out:
+            pathlib.Path(a.out).write_text(lines + "\n", encoding="utf-8")
+            print(f"projected {len(docs)} document(s) -> {a.out}")
+        else:
+            print(lines)
+        for sk in skipped:
+            print(f"SKIPPED measurement {sk['id']} ({sk['metric']}): "
+                  f"{sk['why']} — value={sk['value']!r}", file=sys.stderr)
+        if skipped:
+            print(f"{len(skipped)} measurement(s) not projectable; "
+                  f"record --num to include them", file=sys.stderr)
+        return 0
+
     if a.cmd == "supersede":
         cur.execute(
             "INSERT INTO facts(statement,evidence,established_ts,session_id) VALUES(?,?,?,?)",
             (a.statement, a.evidence, now_iso(), current_session()))
         new_id = cur.lastrowid
-        cur.execute("UPDATE facts SET superseded_by=? WHERE id=?", (new_id, a.fact_id))
+        cur.execute(
+            "UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? "
+            "WHERE id=?", (new_id, now_iso(), a.reason, a.fact_id))
         conn.commit(); print(f"fact {a.fact_id} superseded by {new_id}"); return 0
 
     return 2
