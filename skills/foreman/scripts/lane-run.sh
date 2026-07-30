@@ -1410,5 +1410,3 @@ fi
 
 # Always exit with CMD's real exit code (checkpoint/el_emit failures do not alter it).
 exit "$rc"
-
-# staleness probe 1785444518
