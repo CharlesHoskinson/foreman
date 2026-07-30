@@ -338,13 +338,26 @@ def project(conn):
     docs, skipped = [], []
 
     for r in cur.execute("SELECT * FROM facts").fetchall():
+        # ClaimStatus is live|superseded|retracted. "Asserted"/"Superseded"
+        # were outside the enum entirely and would be rejected on write.
         docs.append({
             "@type": "Claim",
             "claim_key": f"fm-fact-{r['id']}",
             "text": r["statement"],
-            "status": "Superseded" if r["superseded_by"] else "Asserted",
-            "provenance": {"@type": "Provenance", "source": r["evidence"] or "unrecorded",
-                           "at": r["established_ts"]},
+            "status": "superseded" if r["superseded_by"] else "live",
+            # Provenance declares extractor_agent, extractor_is_human,
+            # extracted_at, confidence, source_artifact, source_locator. The
+            # previous {source, at} pair matched NONE of them. source_artifact
+            # is genuinely unavailable here -- the session store records
+            # evidence as free text, not as an Artifact node -- so it is
+            # omitted rather than fabricated, and the locator carries the text.
+            "provenance": {
+                "@type": "Provenance",
+                "extractor_is_human": False,
+                "extracted_at": r["established_ts"],
+                "confidence": "extracted",
+                "source_locator": r["evidence"] or "unrecorded",
+            },
         })
         if r["superseded_by"]:
             docs.append({
@@ -373,12 +386,19 @@ def project(conn):
         })
 
     for r in cur.execute("SELECT * FROM obligations WHERE status != 'done'").fetchall():
+        # FindingSeverity is info|minor|major|critical. "Open"/"Blocked" were
+        # a STATUS, not a severity, and are outside the enum. A blocked
+        # obligation is major; an open one is minor. `blocker` is not a
+        # declared Finding field, so its content folds into the text rather
+        # than riding along as an undeclared key.
+        text = r["statement"]
+        if r["blocker"]:
+            text = f"{text} [blocked by: {r['blocker']}]"
         docs.append({
             "@type": "Finding",
-            "text": r["statement"],
-            "severity": "Blocked" if r["status"] == "blocked" else "Open",
+            "text": text,
+            "severity": "major" if r["status"] == "blocked" else "minor",
             "at": r["opened_ts"],
-            "blocker": r["blocker"],
         })
 
     return docs, skipped

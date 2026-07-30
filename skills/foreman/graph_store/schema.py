@@ -52,7 +52,7 @@ ENUMS: dict[str, frozenset[str]] = {
         {"approved", "rejected", "needs_changes", "inconclusive"}
     ),
     "ClaimStatus": frozenset(
-        {"proposed", "supported", "contradicted", "retracted"}
+        {"live", "superseded", "retracted"}
     ),
     "SourceKind": frozenset(
         {"file", "url", "commit", "tool_output", "agent_message", "dataset"}
