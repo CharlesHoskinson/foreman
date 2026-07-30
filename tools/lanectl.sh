@@ -25,7 +25,7 @@
 #   lanectl.sh launch LABEL -- CMD...   start a tagged lane (backgrounded)
 #   lanectl.sh adopt PID LABEL          claim an already-running process subtree
 #   lanectl.sh claim DIR LABEL          write a directory ownership marker
-#   lanectl.sh ps [--all]               list my lanes (or every tagged lane)
+#   lanectl.sh ps [--all]|progress [--watch S]               list my lanes (or every tagged lane)
 #   lanectl.sh reap [--force]           kill MY wedged lanes only
 #   lanectl.sh sweep                    drop dead PIDs from the registry
 set -uo pipefail
@@ -166,6 +166,96 @@ cmd_ps() {
            awk '$5 ~ /^(grok|codex|bash|timeout|sleep)$/')
 }
 
+#!/usr/bin/env bash
+# @description Per-lane progress from the surfaces a lane ACTUALLY emits.
+#
+#   Three healthy lanes were killed on 2026-07-30 because liveness was read from
+#   `ps` — and a lane in preamble has no process-layer signal at all: it spends
+#   its first many minutes in model calls with no child process. Absence of a
+#   vendor process is the normal early state, not a fault.
+#
+#   The valid surfaces already exist and were simply never surfaced together:
+#     <lane>.out             the lane's own stdout — grows whenever it speaks
+#     .harness/heartbeat.ndjson   written by the compiled launcher
+#     .harness/stream.ndjson      CMD stdout, live
+#     git status                  files the worker has actually changed
+#
+#   Byte growth in <lane>.out is the one surface demonstrated to move while a
+#   lane is alive, so it is the primary signal here. `--watch` samples twice and
+#   reports the DELTA, which is what distinguishes "working" from "wedged" —
+#   a single reading cannot.
+#
+# Usage:
+#   lanectl.sh progress [--watch SECONDS] [--all]
+# @stdout one row per lane: bytes, delta, heartbeat age, changed files, state
+cmd_progress() {
+  local watch=0 all=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --watch) watch="${2:-5}"; shift 2 ;;
+      --all)   all="--all"; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  # Snapshot every lane output file this owner has (or all owners with --all).
+  local pat="$FM_LANE_DIR/$FM_LANE_OWNER.*.out"
+  [[ -n "$all" ]] && pat="$FM_LANE_DIR/*.out"
+
+  declare -A before=()
+  local f
+  for f in $pat; do
+    [[ -e "$f" ]] || continue
+    before["$f"]=$(stat -c %s "$f" 2>/dev/null || echo 0)
+  done
+
+  if (( watch > 0 )); then
+    sleep "$watch"
+  fi
+
+  printf '%-22s %-10s %-9s %-11s %-7s %s\n' \
+    LANE BYTES "DELTA/${watch}s" HEARTBEAT CHANGED LAST
+  for f in $pat; do
+    [[ -e "$f" ]] || continue
+    local base label owner now delta wt hb hbage changed last
+    base="$(basename "$f" .out)"
+    owner="${base%%.*}"
+    label="${base#*.}"
+    now=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    delta=$(( now - ${before["$f"]:-0} ))
+
+    # Worktree is discovered from the lane marker, never guessed.
+    wt="$(grep -rl "label=$label" /root/fm-wt/*/.fm-lane-owner 2>/dev/null | head -1)"
+    wt="${wt%/.fm-lane-owner}"
+    [[ -d "$wt" ]] || wt="/root/fm-wt/$label"
+
+    hbage="-"
+    hb="$wt/.harness/heartbeat.ndjson"
+    if [[ -r "$hb" ]]; then
+      local m; m=$(stat -c %Y "$hb" 2>/dev/null || echo 0)
+      hbage="$(( $(date +%s) - m ))s"
+    fi
+
+    changed="-"
+    if [[ -d "$wt/.git" || -f "$wt/.git" ]]; then
+      changed=$(git -C "$wt" status --porcelain -uall 2>/dev/null | wc -l)
+    fi
+
+    last="$(tail -c 120 "$f" 2>/dev/null | tr '\n' ' ' | tail -c 60)"
+
+    printf '%-22s %-10s %-9s %-11s %-7s %s\n' \
+      "$label" "$now" "$delta" "$hbage" "$changed" "${last:--}"
+  done
+
+  if (( watch > 0 )); then
+    echo ""
+    echo "DELTA is bytes written during the ${watch}s window. A lane with"
+    echo "DELTA=0 AND no heartbeat AND no changed files may be wedged — but a"
+    echo "lane in preamble legitimately shows all three, so do not kill on this"
+    echo "alone below the measured ~30min preamble cost (AGENT_TRAPS section 8)."
+  fi
+}
+
 cmd_reap() {
   local force="${1:-}" killed=0
   local pid stat cput etim comm
@@ -208,7 +298,8 @@ case "${1:-ps}" in
   adopt)  shift; cmd_adopt "$@" ;;
   claim)  shift; cmd_claim "$@" ;;
   ps)     shift; cmd_ps "${1:-}" ;;
+  progress) shift; cmd_progress "$@" ;;
   reap)   shift; cmd_reap "${1:-}" ;;
   sweep)  cmd_sweep ;;
-  *) echo "usage: lanectl.sh {launch LABEL -- CMD...|adopt PID LABEL|claim DIR LABEL|ps [--all]|reap [--force]|sweep}" >&2; exit 2 ;;
+  *) echo "usage: lanectl.sh {launch LABEL -- CMD...|adopt PID LABEL|claim DIR LABEL|ps [--all]|progress [--watch S]|reap [--force]|sweep}" >&2; exit 2 ;;
 esac
