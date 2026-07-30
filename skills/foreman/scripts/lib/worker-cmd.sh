@@ -64,6 +64,18 @@ wc_build_argv() {
         -c "model_reasoning_effort=${WC_CODEX_REASONING_EFFORT:-medium}" \
         "$(cat "$prompt_file")")
       ;;
+    # claude is advertised as a lane vendor by wt-new.sh, lane-run.sh, and
+    # lane-queue.sh, but is deliberately out of scope as a *worker* vendor
+    # (REQUIRES-SEPARATE-HOME). Explicit branch so the failure is diagnosable
+    # rather than looking like an unknown-vendor typo.
+    claude)
+      if declare -F die >/dev/null 2>&1 && [[ -n "${EXIT_CONFIG:-}" ]]; then
+        die "$EXIT_CONFIG" "claude is deliberately unsupported as a worker vendor (REQUIRES-SEPARATE-HOME); supported worker vendors: grok, codex"
+      else
+        printf '[foreman] ERROR: claude is deliberately unsupported as a worker vendor (REQUIRES-SEPARATE-HOME); supported worker vendors: grok, codex\n' >&2
+        return 2
+      fi
+      ;;
     *)
       if declare -F die >/dev/null 2>&1 && [[ -n "${EXIT_CONFIG:-}" ]]; then
         die "$EXIT_CONFIG" "unknown worker vendor: $vendor"
