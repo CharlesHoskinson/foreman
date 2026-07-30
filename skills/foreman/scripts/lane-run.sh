@@ -137,22 +137,40 @@ lane_platform() {
 LANE_PLATFORM="$(lane_platform)"
 
 # --- arity / validation (before unguarded positional use under set -u) ---
-# New usage form (T2): an optional leading "--round GATE_CMD REPORT_PATH"
-# triple is consumed FIRST, before the pre-existing positional checks below --
-# once consumed, $@ is realigned to the original "RUN LANE WORKTREE -- CMD..."
-# shape, so every check that follows runs UNCHANGED for both invocation forms.
+# Optional ownership flags are consumed FIRST, before the pre-existing
+# positional checks below. Once consumed, $@ is realigned to the original
+# "RUN LANE WORKTREE -- CMD..." shape, so every check that follows runs
+# unchanged for owned, explicitly unowned, and durable-disabled invocations.
 ROUND_MODE=0
 GATE_CMD=""
 REPORT_PATH=""
-if [[ "${1:-}" == "--round" ]]; then
-  if (( $# < 3 )); then
-    echo "usage: lane-run.sh --round GATE_CMD REPORT_PATH RUN_ID LANE WORKTREE -- CMD..." >&2
-    exit 2
-  fi
-  ROUND_MODE=1
-  GATE_CMD="$2"
-  REPORT_PATH="$3"
-  shift 3
+UNOWNED_MODE=0
+UNOWNED_REASON=""
+case "${1:-}" in
+  --round)
+    if (( $# < 3 )); then
+      echo "usage: lane-run.sh --round GATE_CMD REPORT_PATH RUN_ID LANE WORKTREE -- CMD..." >&2
+      exit 2
+    fi
+    ROUND_MODE=1
+    GATE_CMD="$2"
+    REPORT_PATH="$3"
+    shift 3
+    ;;
+  --unowned)
+    if (( $# < 2 )) || [[ ! "${2:-}" =~ [^[:space:]] ]]; then
+      echo "usage: lane-run.sh --unowned REASON RUN_ID LANE WORKTREE -- CMD... (REASON must be non-empty)" >&2
+      exit 2
+    fi
+    UNOWNED_MODE=1
+    UNOWNED_REASON="$2"
+    shift 2
+    ;;
+esac
+
+if [[ "${1:-}" == "--round" || "${1:-}" == "--unowned" ]]; then
+  echo "usage: lane-run.sh accepts at most one leading ownership flag: --round GATE_CMD REPORT_PATH or --unowned REASON" >&2
+  exit 2
 fi
 
 if (( $# < 5 )); then
@@ -180,6 +198,32 @@ RUN="$1"
 LANE="$2"
 WT="$3"
 shift 4
+
+# Admission is intentionally before harness mkdir, stale-lock sweeping, event
+# attempts, or child spawn. cfg_load is documented as safe to re-run; the
+# later interval-resolution call remains unchanged.
+cfg_load
+durable_enabled="$(cfg_get durable enabled true)"
+
+if (( ROUND_MODE == 0 && UNOWNED_MODE == 0 )) && [[ "$durable_enabled" == "true" ]]; then
+  echo "lane-run: round ownership is required while durable.enabled=true; use --round GATE_CMD REPORT_PATH or explicit --unowned REASON" >&2
+  exit 2
+fi
+
+if (( ROUND_MODE == 1 )) && [[ ! "$GATE_CMD" =~ [^[:space:]] ]]; then
+  echo "lane-run: round ownership requires a non-empty gate command" >&2
+  exit 2
+fi
+
+if (( UNOWNED_MODE == 1 )) && [[ "$durable_enabled" == "true" ]]; then
+  unowned_payload="$(
+    jq -cn --arg reason "$UNOWNED_REASON" \
+      '{kind:"unowned_dispatch",reason:$reason}' | tr -d '\r'
+  )"
+  if ! el_emit "$RUN" alert "$LANE" "$unowned_payload" >/dev/null; then
+    echo "lane-run: el_emit alert (unowned_dispatch) failed" >&2
+  fi
+fi
 
 mkdir -p "$WT/.harness"
 

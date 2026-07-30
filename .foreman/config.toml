@@ -26,12 +26,12 @@ forbidden_paths = [
 hash_paths = ["tests/**", ".github/**"]
 
 [durable]
-enabled = false
+enabled = true            # enforce round-owned dispatch at the lane-run.sh boundary
 checkpoint_interval = 20   # seconds
 heartbeat_interval = 30
 stall_warn = 300
 stall_dead = 900
-# resume_max_attempts = 2   # v0.2.5 T8: lane-supervise.sh bounded auto-resume cap
+resume_max_attempts = 2   # v0.2.5 T8: lane-supervise.sh bounded auto-resume cap
 # starting_stale = 90   # v0.2.5 T4b: watch.sh v2 typed-state thresholds (env: STARTING_STALE)
 # impl_stale = 300      # (env: IMPL_STALE)
 # verify_stale = 600    # (env: VERIFY_STALE)

@@ -27,6 +27,7 @@ tests/nats-bridge.bats	12
 tests/pr-open.bats	6
 tests/readme-structure.bats	12
 tests/release-metrics.bats	13
+tests/round-ownership.bats	8
 tests/resume.bats	10
 tests/soft-mode-target.bats	3
 tests/telemetry.bats	9

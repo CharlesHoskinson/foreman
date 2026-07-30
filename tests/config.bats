@@ -273,6 +273,7 @@ EOF
 @test "(f1) lane-run.sh resolves checkpoint_interval through the loader (TOML-only)" {
   setup_tmp_repo
   source "$SCRIPTS/lib/common.sh"
+  export DURABLE_ENABLED=false
   toml="$BATS_TEST_TMPDIR/lane-run.toml"
   cat > "$toml" <<'EOF'
 [durable]

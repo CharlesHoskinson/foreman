@@ -171,17 +171,27 @@ invoking it bare: the **event log is the source of truth**, checkpoints are
 continuous, and **NATS/JetStream is only the transport** (one-way, disposable
 — a lost stream never loses data still in the log).
 
-When `.foreman/config.toml` has `[durable] enabled = true` (or the run
-explicitly opts in):
+Round-owned dispatch is the default because `durable.enabled` defaults to
+`true`:
 
-1. Run the round via `skills/foreman/scripts/lane-run.sh RUN_ID LANE
-   WORKTREE -- CMD...` — tees the reasoning stream, checkpoints the worktree,
-   emits `prompt`/`heartbeat`/`checkpoint`/`round_done` lifecycle events.
+1. Run the round via `skills/foreman/scripts/lane-run.sh --round GATE_CMD
+   REPORT_PATH RUN_ID LANE WORKTREE -- CMD...` — tees the reasoning stream,
+   checkpoints the worktree, gates it, requires an attempt-fresh report, and
+   only then emits `round_done`.
 2. Watch it with `skills/foreman/scripts/watch.sh RUN_ID LANE WORKTREE` —
    per-lane stall watchdog (`RUNNING → STALLED → DEAD`); on `DEAD` it prints a
    kill+retry hint against the lane's latest checkpoint and exits 3.
 3. Recover a `DEAD`/crashed lane with `skills/foreman/scripts/resume.sh
    RUN_ID LANE WORKTREE`.
+
+For a stateful or live target whose verifiable unit is not the worktree, use
+the explicit opt-out `lane-run.sh --unowned REASON RUN_ID LANE WORKTREE --
+CMD...`. While durable mode is enabled, the reason is required and recorded
+as an `alert`.
+
+Keep long-running commands in the foreground as defence in depth. No design in
+this package depends on that instruction holding: `lane-run.sh` enforces round
+ownership at the dispatch boundary.
 
 `[durable]`/`[nats]` config keys resolve through the shared loader
 (`skills/foreman/scripts/lib/config.sh`), precedence env var > TOML > default.
@@ -195,6 +205,9 @@ WORKTREE -- CMD...` — this owns the **whole** round (CMD → gate → attempt-
 fresh report assert → `round_done`), never just the bare vendor CLI, so an
 agent that backgrounds-and-stops cannot strand it. Dispatch through the
 queue, not directly:
+
+Use `checks-run.sh TASK_ID` as the recommended migration gate command. It is
+operator-supplied; `lane-run.sh` never invents or defaults a gate.
 
 1. **Enqueue** the round via `lane-queue.sh add <vendor-group> -- ...`
    (`grok` capped at 3, `codex` at 2 — T5b GREEN 2026-07-18; `claude` at 3) —

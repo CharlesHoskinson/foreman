@@ -9,6 +9,7 @@ setup() {
   cd "$REPO"
   export FOREMAN_HOME="$BATS_TEST_TMPDIR/foreman-home"
   mkdir -p "$FOREMAN_HOME"
+  export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
   source "$SCRIPTS/lib/common.sh"

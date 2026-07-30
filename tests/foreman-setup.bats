@@ -79,3 +79,27 @@ EOF
   [[ "$output" == *"SETUP: NOT-READY"* ]]
   [[ "$output" == *"LANE_READY: grok=no"* ]]
 }
+
+@test "setup reports durable default drift without rewriting repository config" {
+  fixture_scripts="$REPO/skills/foreman/scripts"
+  mkdir -p "$fixture_scripts/lib" "$REPO/env" "$REPO/.foreman"
+  cp "$SCRIPTS/foreman-setup.sh" "$fixture_scripts/"
+  cp "$SCRIPTS/lib/common.sh" "$SCRIPTS/lib/config.sh" "$fixture_scripts/lib/"
+  cat > "$REPO/env/tool-check.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "fixture tool check"
+EOF
+  cat > "$REPO/.foreman/config.toml" <<'EOF'
+[durable]
+enabled = false
+EOF
+  before="$(sha256sum "$REPO/.foreman/config.toml" | awk '{print $1}')"
+
+  run bash "$fixture_scripts/foreman-setup.sh" --profile soft
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"durable.enabled=false"* ]]
+  [[ "$output" == *"differs from the shipped"* ]]
+  after="$(sha256sum "$REPO/.foreman/config.toml" | awk '{print $1}')"
+  [ "$after" = "$before" ]
+}
