@@ -265,6 +265,15 @@ mkdir -p -- "$report_parent"
 REPORT_TMP="$(mktemp "$report_parent/.foreman-test-slices.XXXXXX")"
 printf 'file\tplatform\tpass\tfail\tskip\tbare_skip\tskip_budget\tbudget_slack\tbaseline\tpass_delta\ttest_verdict\tbudget_verdict\tbaseline_verdict\tskip_reasons\n' >"$REPORT_TMP"
 
+_FILE_TIMEOUT_BIN=""
+if command -v timeout >/dev/null 2>&1; then
+  _FILE_TIMEOUT_BIN=timeout
+elif command -v gtimeout >/dev/null 2>&1; then
+  _FILE_TIMEOUT_BIN=gtimeout
+else
+  printf 'WARN timeout not found; per-file bound disabled (a wedged file can hold the host)\n' >&2
+fi
+
 platform="$(preconditions_platform)"
 total_pass=0
 total_fail=0
@@ -278,7 +287,19 @@ for file in "${selected_files[@]}"; do
   slice_index=$((slice_index + 1))
   key="$(slice_key "$file")"
   tap_file="$RUN_TMP/slice-$slice_index.tap"
-  "$BATS" --formatter tap "${bats_args[@]}" "$file" >"$tap_file" 2>&1
+  # R1: bound every file. tests/decision-events.bats once hung 31 minutes on a
+  # single test while holding the host-wide bats mutex, and three unrelated
+  # verifications queued behind it with no output. A gate that can hang forever
+  # is worse than no gate, because silence reads as progress. This converts a
+  # deadlock into a failure, and a failure is actionable.
+  # --kill-after: a file that ignores TERM is still killed, or the bound is
+  # advisory. Absent `timeout`, run unbounded rather than refusing to run.
+  if [[ -n "$_FILE_TIMEOUT_BIN" ]]; then
+    "$_FILE_TIMEOUT_BIN" --kill-after=30 "${TEST_FILE_TIMEOUT_S:-600}" \
+      "$BATS" --formatter tap "${bats_args[@]}" "$file" >"$tap_file" 2>&1
+  else
+    "$BATS" --formatter tap "${bats_args[@]}" "$file" >"$tap_file" 2>&1
+  fi
   bats_status=$?
 
   printf '\n=== %s ===\n' "$key"
@@ -315,7 +336,15 @@ for file in "${selected_files[@]}"; do
 
   observed=$((pass_count + fail_count + skip_count))
   test_verdict=PASS
-  if (( planned < 0 || planned != observed )); then
+  if (( bats_status == 124 || bats_status == 137 )); then
+    # 124 = timeout expiry, 137 = SIGKILL after --kill-after.
+    printf 'TIMEOUT %s exceeded %ss\n' "$key" "${TEST_FILE_TIMEOUT_S:-600}" >&2
+    test_verdict=TIMEOUT
+    runner_errors=$((runner_errors + 1))
+  fi
+  if [[ "$test_verdict" == TIMEOUT ]]; then
+    : # already accounted for above; do not relabel a timeout as unparsable TAP
+  elif (( planned < 0 || planned != observed )); then
     printf 'ERROR unparsable TAP for %s: planned=%s observed=%s bats_exit=%s\n' \
       "$key" "$planned" "$observed" "$bats_status" >&2
     test_verdict=ERROR
