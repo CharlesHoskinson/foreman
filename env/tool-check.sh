@@ -67,17 +67,22 @@ vendor_authed() {
         return 1
       fi
       out="$("$tmo" 10 grok models 2>&1)" || rc=$?
-      # Timeout (rc=124) or any other nonzero exit: never authenticated.
-      (( rc != 0 )) && return 1
-      [[ -z "$out" ]] && return 1
-      # Explicit negative wording always wins, even if a positive substring
-      # also happens to appear somewhere in a longer error banner.
+      # Content before exit status. Measured 2026-07-30: `grok models` prints
+      # "You are logged in with grok.com." then hangs (rc=124 after timeout,
+      # 32 bytes of banner). rc=124 is not decisive on its own — a banner
+      # already received is evidence; the process failing to exit afterwards
+      # does not retract it. Negative wording still wins over a positive
+      # substring. Success binds to artifact content, never to exit code alone.
       if [[ "$out" == *"not authenticated"* || "$out" == *"sign in"* || "$out" == *"log in"* ]]; then
         return 1
       fi
-      # Positive signal required (auth-probes.md transcript): a signed-in
-      # `grok models` opens with "You are logged in with grok.com.".
-      [[ "$out" == *"logged in"* ]]
+      if [[ "$out" == *"logged in"* ]]; then
+        return 0
+      fi
+      # No positive signal: fall back to exit status / empty output.
+      (( rc != 0 )) && return 1
+      [[ -z "$out" ]] && return 1
+      return 1
       ;;
     codex)  codex login status >/dev/null 2>&1 ;;
     claude) claude auth status >/dev/null 2>&1 ;;
