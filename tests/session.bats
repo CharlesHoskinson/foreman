@@ -1,0 +1,150 @@
+#!/usr/bin/env bats
+# @description Tests for fm-session.py, the canonical session recovery store.
+#   The load-bearing property is that a measurement's validity is COMPUTED at
+#   read time from git, never stored -- so a number cannot be quoted without a
+#   freshness verdict. That is what these tests exist to pin.
+
+setup() {
+  SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
+  SESS="python3 $SCRIPTS/fm-session.py"
+  REPO="$BATS_TEST_TMPDIR/repo"
+  mkdir -p "$REPO"
+  git -C "$REPO" init -q -b main
+  git -C "$REPO" config user.email t@e.com
+  git -C "$REPO" config user.name t
+  mkdir -p "$REPO/src"
+  echo one > "$REPO/src/a.sh"
+  git -C "$REPO" add -A
+  git -C "$REPO" -c core.hooksPath= commit -qm base
+  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/session.db"
+}
+
+@test "recover on an empty store succeeds and reports no session" {
+  cd "$REPO"
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"last session: (none"* ]]
+}
+
+@test "begin mints a session and recover then reports it" {
+  cd "$REPO"
+  run $SESS begin --note "first"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"SESSION BEGUN:"* ]]
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"first"* ]]
+}
+
+@test "a fact survives recovery with its evidence" {
+  cd "$REPO"
+  $SESS fact "the gate is wired" --evidence "commit deadbeef"
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"the gate is wired"* ]]
+  [[ "$output" == *"commit deadbeef"* ]]
+}
+
+# The core mechanism. A measurement is fresh until a commit touches its scope,
+# and stale immediately afterwards -- with no write to the store in between.
+@test "a measurement is fresh, then STALE once a commit touches its scope" {
+  cd "$REPO"
+  $SESS measure "suite pass count" 12 --command "bats tests/x.bats" --scope src/a.sh
+  # Assert on the COUNT, not a bare "STALE" substring -- the counts header
+  # reads "fresh=1 STALE=0" and always contains the word.
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"STALE=0"* ]]
+
+  echo two >> "$REPO/src/a.sh"
+  git -C "$REPO" add -A
+  git -C "$REPO" -c core.hooksPath= commit -qm "touch the scope"
+
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"STALE=1"* ]]
+  # the re-run command must ride along, or staleness is a dead end
+  [[ "$output" == *"bats tests/x.bats"* ]]
+}
+
+@test "a commit OUTSIDE the scope leaves the measurement fresh" {
+  cd "$REPO"
+  $SESS measure "suite pass count" 12 --command "bats tests/x.bats" --scope src/a.sh
+  echo unrelated > "$REPO/other.txt"
+  git -C "$REPO" add -A
+  git -C "$REPO" -c core.hooksPath= commit -qm "unrelated change"
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"STALE=0"* ]]
+}
+
+@test "measure refuses without --scope (a measurement that cannot go stale is the original bug)" {
+  cd "$REPO"
+  run $SESS measure "metric" 1 --command "cmd"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"--scope is required"* ]]
+}
+
+@test "supersede requires a reason and records it" {
+  cd "$REPO"
+  $SESS fact "old belief"
+  run $SESS supersede 1 "new belief"
+  [ "$status" -ne 0 ]
+
+  run $SESS supersede 1 "new belief" --reason "measured again after the fix"
+  [ "$status" -eq 0 ]
+  run $SESS recover
+  [[ "$output" == *"new belief"* ]]
+  [[ "$output" != *"old belief"* ]]
+}
+
+@test "obligations appear until closed" {
+  cd "$REPO"
+  $SESS obligation "wire the projector"
+  run $SESS recover
+  [[ "$output" == *"wire the projector"* ]]
+  $SESS close 1 --status done
+  run $SESS recover
+  [[ "$output" != *"wire the projector"* ]]
+}
+
+@test "the launch point names unfresh measurements" {
+  cd "$REPO"
+  $SESS measure "m" 5 --command "c" --scope src/a.sh
+  echo x >> "$REPO/src/a.sh"
+  git -C "$REPO" add -A
+  git -C "$REPO" -c core.hooksPath= commit -qm "touch"
+  run $SESS recover
+  [[ "$output" == *"LAUNCH POINT"* ]]
+  [[ "$output" == *"not fresh"* ]]
+}
+
+@test "project emits typed documents and reports non-scalar values rather than coercing" {
+  cd "$REPO"
+  $SESS fact "a durable thing" --evidence "commit abc"
+  $SESS measure "scalar metric" 26 --command "c" --scope src/a.sh
+  $SESS measure "prose metric" "green everywhere" --command "c" --scope src/a.sh
+  run $SESS project
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"@type": "Claim"'* ]]
+  [[ "$output" == *'"@type": "Measurement"'* ]]
+  # The scalar projects. The prose one is REPORTED rather than coerced into an
+  # invented number -- note bats merges stderr into $output, so assert on the
+  # report itself rather than on the absence of the value.
+  [[ "$output" == *"26"* ]]
+  [[ "$output" == *"SKIPPED"* ]]
+  [[ "$output" == *"no projectable scalar"* ]]
+  # and it must not have been smuggled into a Measurement document
+  run bash -c "python3 $SCRIPTS/fm-session.py project 2>/dev/null | grep Measurement"
+  [[ "$output" != *"green everywhere"* ]]
+}
+
+@test "project renders a Supersession carrying at and reason" {
+  cd "$REPO"
+  $SESS fact "first"
+  $SESS supersede 1 "second" --reason "the tree changed"
+  run $SESS project
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"@type": "Supersession"'* ]]
+  [[ "$output" == *"the tree changed"* ]]
+}
