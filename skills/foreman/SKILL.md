@@ -286,7 +286,17 @@ All security-critical enforcement is in **scripts**, not prompts. See
 | **CHECK** | `scripts/checks-run.sh TASK_ID` | **Shipped** | Orchestrator re-runs checks from **pristine commit**, not dirty worktree |
 | **AUDIT** | `scripts/audit-run.sh` or soft `codex-auditor` | **Shipped (host Codex)** | Cold diff + criteria; **GPT-5.6 Sol via Codex** (≠ worker) |
 | **GATE** | `scripts/gate-eval.sh TASK_ID` | **Shipped** | Forbidden paths + hash drift + checks green + not BLOCKED |
-| **PR** | `scripts/pr-open.sh TASK_ID` | **Shipped** | Gate must pass; host-side HTTPS-PAT push + `gh pr create --draft -F` (worker never holds the token); CI remains final authority |
+> **Verification authority (2026-07-30).** "CI remains final authority" was
+> false when written — the bats suite ran on no CI platform at all — and remote
+> CI is now unavailable to this project regardless. `tools/ci-local.sh` is the
+> single local entrypoint and runs the gates a CI job would have:
+> shellcheck, strict OpenSpec validation of every change package, the bats suite
+> (launched detached under the host-wide mutex, because the suite returns a
+> different verdict depending on how it was launched), an `install.sh` smoke test
+> in a disposable `HOME`, and lane completeness. `--quick` defers the slow bats
+> gate for a pre-commit pass.
+
+| **PR** | `scripts/pr-open.sh TASK_ID` | **Shipped** | Gate must pass; host-side HTTPS-PAT push + `gh pr create --draft -F` (worker never holds the token); `tools/ci-local.sh` is the verification authority |
 
 Run state: `$FOREMAN_HOME/runs/<task-id>/` (default `~/.foreman/runs/`) — **outside**
 every worktree; never mounted into the worker.

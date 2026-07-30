@@ -46,6 +46,14 @@ CLI absent; caps stay grok=1 codex=1); `[audit.policy]` keys wired but
 consumed only from v0.3.0; launcher-absent lanes outside auto-resume
 scope; WATCH_VTICK's `bats --jobs` parallelism still deferred.
 
+> **Superseded 2026-07-30 (doctrine-reality-drift).** The caps residual above
+> is no longer true and is retained only as the v0.2.5 record: T5b was later
+> resolved and `lane-queue.sh:422` now ships `grok:3 codex:2 claude:3 misc:2
+> gate:1`. Verified today by reading that line and by
+> `tests/vendor-concurrency-test.bats` ("lane-queue.sh raises grok/codex caps
+> to the T5b proven-green N"). A present-tense claim in a dated residual list
+> is exactly the drift class this package exists to remove.
+
 - Plan: `docs/superpowers/plans/2026-07-16-v025-orchestration-hardening.md`
   (as amended by the 2026-07-18 4-lens audit, recorded in the plan itself)
 - Reference: `skills/foreman/references/orchestration-hardening.md`
