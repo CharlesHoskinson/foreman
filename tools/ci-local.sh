@@ -8,9 +8,10 @@
 # Gates (in order):
 #   1. shellcheck   - warning-level scan of the shell tree; FAIL only on error
 #   2. openspec     - strict validation of every change package
-#   3. bats         - tests/run.sh under the host-wide bats mutex (skip with --quick)
-#   4. install      - install.sh smoke test under a disposable HOME
-#   5. lanes        - lane-complete-check over /root/fm-wt/* (informational only)
+#   3. formal       - Quint commit-tier + drift (skip with --quick or if no quint)
+#   4. bats         - tests/run.sh under the host-wide bats mutex (skip with --quick)
+#   5. install      - install.sh smoke test under a disposable HOME
+#   6. lanes        - lane-complete-check over /root/fm-wt/* (informational only)
 #
 # Usage:
 #   tools/ci-local.sh [--quick]
@@ -127,7 +128,53 @@ gate_openspec() {
 }
 
 # ---------------------------------------------------------------------------
-# Gate 3: bats suite via tests/run.sh
+# Gate 3: formal models (Quint commit-tier + drift)
+# ---------------------------------------------------------------------------
+gate_formal() {
+  local name="formal"
+  if [[ "$QUICK" -eq 1 ]]; then
+    echo "GATE ${name} SKIP --quick"
+    return 0
+  fi
+
+  if ! command -v quint >/dev/null 2>&1; then
+    echo "GATE ${name} SKIP quint not installed"
+    return 0
+  fi
+
+  local checks_out checks_rc drift_out drift_rc
+  # Detach pipefail so a non-zero runner does not abort the gate body before
+  # we can format a single GATE line from both sub-checks.
+  set +o pipefail
+  checks_out="$(bash "$REPO_ROOT/formal/run-checks.sh" --tier commit 2>&1)"
+  checks_rc=$?
+  drift_out="$(bash "$REPO_ROOT/formal/check-drift.sh" 2>&1)"
+  drift_rc=$?
+  set -o pipefail
+
+  if [[ "$checks_rc" -ne 0 || "$drift_rc" -ne 0 ]]; then
+    local detail=""
+    if [[ "$checks_rc" -ne 0 ]]; then
+      local checks_tail
+      checks_tail="$(printf '%s\n' "$checks_out" | tail -n 5 | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+      detail+="run-checks rc=${checks_rc}: ${checks_tail}"
+    fi
+    if [[ "$drift_rc" -ne 0 ]]; then
+      local drift_msg
+      drift_msg="$(printf '%s\n' "$drift_out" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+      [[ -n "$detail" ]] && detail+="; "
+      detail+="check-drift rc=${drift_rc}: ${drift_msg}"
+    fi
+    echo "GATE ${name} FAIL ${detail}"
+    return 1
+  fi
+
+  echo "GATE ${name} PASS commit-tier+drift"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Gate 4: bats suite via tests/run.sh
 # ---------------------------------------------------------------------------
 gate_bats() {
   local name="bats"
@@ -177,7 +224,7 @@ gate_bats() {
 }
 
 # ---------------------------------------------------------------------------
-# Gate 4: install.sh smoke test under disposable HOME
+# Gate 5: install.sh smoke test under disposable HOME
 # ---------------------------------------------------------------------------
 gate_install() {
   local name="install"
@@ -205,7 +252,7 @@ gate_install() {
 }
 
 # ---------------------------------------------------------------------------
-# Gate 5: lane completeness (informational — never fails the run)
+# Gate 6: lane completeness (informational — never fails the run)
 # ---------------------------------------------------------------------------
 gate_lanes() {
   local name="lanes"
@@ -242,6 +289,7 @@ gate_lanes() {
 # ---------------------------------------------------------------------------
 if ! gate_shellcheck; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_openspec; then gates_failed=$((gates_failed + 1)); fi
+if ! gate_formal; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_bats; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_install; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_lanes; then gates_failed=$((gates_failed + 1)); fi
