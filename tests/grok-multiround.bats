@@ -44,3 +44,48 @@ EOF
   [ "$status" -eq 0 ]; [[ "$output" == *"rounds=1"* ]]
   ! grep -q 'no file changes' "$PROMPTLOG"
 }
+
+# @description Bug ledger 2026-07-30 Event 1. The change detector digested every
+#   path git reported, including artifacts the HARNESS or the CALLER created
+#   rather than the worker. A spec opening with "write SPEC-NOTES.md first" -- an
+#   anti-empty-burst guard -- satisfied the digest by itself; three lanes
+#   recorded round_done exit_code=0 having implemented nothing, and the false
+#   green was caught only by diffing the worktrees by hand.
+@test "manufactured artifacts (.harness/, SPEC-*.md) do not count as worker progress" {
+  cat > "$SHIM/grok" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "$REPO/.harness"
+echo hb >> "$REPO/.harness/heartbeat.ndjson"
+echo notes > "$REPO/SPEC-NOTES.md"
+echo "I will orient first, reading the run context..."
+exit 0
+EOF
+  chmod +x "$SHIM/grok"
+  run bash "$SCRIPTS/grok-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"EMPTY-BURST FAILED"* ]]
+  # Non-vacuous: the artifacts really were written. Without these assertions the
+  # test would also pass against a shim that did nothing at all.
+  [ -f "$REPO/.harness/heartbeat.ndjson" ]
+  [ -f "$REPO/SPEC-NOTES.md" ]
+}
+
+# @description Positive control for the exclusion above: it must not be so broad
+#   that genuine work stops counting. Same shim shape, plus one real source file.
+@test "a real source file still counts as worker progress alongside harness noise" {
+  cat > "$SHIM/grok" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "$REPO/.harness"
+echo hb >> "$REPO/.harness/heartbeat.ndjson"
+echo notes > "$REPO/SPEC-NOTES.md"
+echo real > "$REPO/src.sh"
+exit 0
+EOF
+  chmod +x "$SHIM/grok"
+  run bash "$SCRIPTS/grok-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"files changed"* ]]
+  [ -f "$REPO/src.sh" ]
+}

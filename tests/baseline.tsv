@@ -12,7 +12,7 @@ tests/gate-eval.bats	1
 tests/git-guards.bats	5
 tests/graph-project.bats	10
 tests/grok-lane.bats	11
-tests/grok-multiround.bats	3
+tests/grok-multiround.bats	5
 tests/lane-queue.bats	21
 tests/lane-run.bats	30
 tests/lane-supervise.bats	17
