@@ -77,6 +77,9 @@ tests/nats-bridge.bats	windows	0
 tests/pr-open.bats	linux	0
 tests/pr-open.bats	wsl	0
 tests/pr-open.bats	windows	0
+tests/round-ownership.bats	linux	0
+tests/round-ownership.bats	wsl	0
+tests/round-ownership.bats	windows	0
 tests/readme-structure.bats	linux	0
 tests/readme-structure.bats	wsl	0
 tests/readme-structure.bats	windows	0

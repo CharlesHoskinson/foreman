@@ -31,12 +31,12 @@ hash_paths = ["tests/**", ".github/**"]
 
 [durable]              # durable-lanes instrumentation (lane-run.sh / watch.sh)
 # merge_base_max_commits = 50   # merge-gate staleness bound (commits behind origin/main)
-enabled = false
+enabled = true            # enforce round-owned dispatch at the lane-run.sh boundary
 checkpoint_interval = 20   # seconds
 heartbeat_interval = 30
 stall_warn = 300
 stall_dead = 900
-# resume_max_attempts = 2   # v0.2.5 T8: lane-supervise.sh bounded auto-resume cap (env: RESUME_MAX_ATTEMPTS)
+resume_max_attempts = 2   # v0.2.5 T8: lane-supervise.sh bounded auto-resume cap (env: RESUME_MAX_ATTEMPTS)
 # v0.2.5 T4b: watch.sh v2 typed-state phase thresholds (stall_warn/stall_dead
 # above stay as the v1-compatibility fallback and the shared DEAD bound).
 # starting_stale = 90    # seconds a lane may sit in STARTING before STALLED (env: STARTING_STALE)

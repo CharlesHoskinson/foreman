@@ -130,6 +130,20 @@ fallback signal) — a prior round's report never satisfies the predicate
 and the script exits nonzero directly, bypassing `round_done` entirely
 (`lane-run.sh`'s `ROUND_MODE` block).
 
+#### Default refusal and explicit unowned escape hatch
+
+`durable.enabled` defaults to `true`. While it resolves to the literal `true`,
+an invocation without ownership is refused before harness setup or child
+spawn. Supply `--round GATE_CMD REPORT_PATH`; an empty or whitespace-only gate
+is always refused, never replaced with a success command.
+
+For a stateful or live target whose installed dependencies and running
+services live outside the git checkout, use `lane-run.sh --unowned REASON
+RUN_ID LANE WORKTREE -- CMD...`. The non-empty reason is required and an
+`alert` with `kind: unowned_dispatch` records it verbatim. This is an explicit
+exception for cases where worktree isolation structurally does not apply, not
+a silent downgrade from an owned round.
+
 ## 2. `watch.sh` v2 typed-state machine
 
 The v1 3-state machine (`RUNNING → STALLED → DEAD`, age-of-last-liveness-

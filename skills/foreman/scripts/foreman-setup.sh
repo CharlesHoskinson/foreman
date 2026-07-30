@@ -34,12 +34,29 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/config.sh
+source "$SCRIPT_DIR/lib/config.sh"
 
 # Three levels up from skills/foreman/scripts (mirrors lane-run.sh's own
 # lane_resolve_launcher repo-root resolution) -- independent of the caller's
 # cwd, so this script works the same regardless of where it is invoked from.
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TOOL_CHECK="$REPO_ROOT/env/tool-check.sh"
+
+# Setup reports the repository's committed TOML value, independent of an
+# environment override in the operator's shell.
+FOREMAN_CONFIG="$REPO_ROOT/.foreman/config.toml" cfg_load
+# Read the parser result directly because cfg_get would apply env overrides,
+# while migration reporting is specifically about the repository's TOML.
+durable_toml="${_CFG_VALUES[durable.enabled]:-}"
+launcher_status="absent"
+if [[ -f "$REPO_ROOT/launcher/dist/foreman-launch" ||
+  -f "$REPO_ROOT/launcher/dist/foreman-launch.exe" ]]; then
+  launcher_status="present"
+fi
+if [[ "$durable_toml" == "false" ]]; then
+  echo "SETUP CONFIG: durable.enabled=false differs from the shipped true default that prevents a subagent backgrounding a long command and ending its turn; launcher=$launcher_status"
+fi
 
 PROFILE="soft"
 LANE=""

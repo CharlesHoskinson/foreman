@@ -47,15 +47,17 @@ Three durable substrates plus a transport and a watcher, layered so the
 ## Running a durable lane
 
 ```bash
-skills/foreman/scripts/lane-run.sh RUN_ID LANE WORKTREE -- CMD...   # implement round
+skills/foreman/scripts/lane-run.sh --round GATE_CMD REPORT_PATH \
+  RUN_ID LANE WORKTREE -- CMD...                                   # owned round
 skills/foreman/scripts/watch.sh RUN_ID LANE WORKTREE                # stall watchdog
 skills/foreman/scripts/resume.sh RUN_ID LANE WORKTREE               # after a DEAD/crash
 ```
 
-When `[durable] enabled = true` in config, soft-mode implement rounds should
-be run through `lane-run.sh` (not invoked bare), monitored by a `watch.sh`
-instance per lane, and recovered with `resume.sh` on a `DEAD` exit. Before
-enabling `[nats]`-backed transport on a fresh host, run
+`durable.enabled` defaults to `true`, so `lane-run.sh` requires round-owned
+dispatch by default. `checks-run.sh TASK_ID` is the recommended migration gate
+command; it is supplied explicitly and is never a code default. Monitor the
+round with a `watch.sh` instance per lane, and recover with `resume.sh` on a
+`DEAD` exit. Before enabling `[nats]`-backed transport on a fresh host, run
 `bash skills/foreman/scripts/durable-preflight.sh` — it is the single source
 of truth for which durable-lanes dependencies (git/jq/coreutils/bash always;
 `nats-server`/`nats` CLI when NATS is in use) are present, and prints install
@@ -71,7 +73,7 @@ flags win by exporting the dedicated env var before calling `cfg_get`.
 
 | TOML key | Env var override | Default | Used by |
 |---|---|---|---|
-| `durable.enabled` | `DURABLE_ENABLED` | `false` | (documented gate; soft-mode routing) |
+| `durable.enabled` | `DURABLE_ENABLED` | `true` | `lane-run.sh` dispatch-boundary refusal |
 | `durable.checkpoint_interval` | `DURABLE_CHECKPOINT_INTERVAL` | `20` | `lane-run.sh` |
 | `durable.heartbeat_interval` | `DURABLE_HEARTBEAT_INTERVAL` | `30` | `lane-run.sh` |
 | `durable.stall_warn` | `STALL_WARN` | `300` | `watch.sh` |
@@ -164,6 +166,10 @@ refusal reason) are surfaced; reclaim is never silent.
 
 ## Honest limits
 
+- On upgrade, a repository with no `[durable]` section moves from unowned to
+  round-owned dispatch. An explicit `enabled = false` remains unowned and
+  Setup reports that it differs from the shipped default without rewriting
+  the repository configuration.
 - NATS is a harness dependency **only when `[durable] enabled` / the NATS
   transport is actually used**; the event log itself has no NATS dependency
   and is always the durability guarantee.

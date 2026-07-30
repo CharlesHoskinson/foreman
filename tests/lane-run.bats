@@ -19,10 +19,12 @@ load helpers
 # which simply shadows this default within that test's own body.
 setup() {
   export FOREMAN_HOME="$BATS_TEST_TMPDIR/fh"
+  export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
+  setup_lock_trust_fixture
   WT="$BATS_TEST_TMPDIR/wt"
   mkdir -p "$WT"
   git -C "$WT" init -q -b main
