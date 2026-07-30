@@ -113,6 +113,18 @@ source "$SCRIPT_DIR/lib/eventlog.sh"
 source "$SCRIPT_DIR/lib/telemetry.sh"
 # shellcheck source=lib/checkpoint.sh
 source "$SCRIPT_DIR/lib/checkpoint.sh"
+
+# Non-interactive lane shells never source ~/.bashrc, so a PATH fix that lives
+# in a profile file never reaches a lane, and vendor CLIs resolve by luck -- or
+# resolve to a Windows shim leaked through WSL appendWindowsPath. foreman writes
+# its own env file (env/foreman-env-write.sh) and lanes source it explicitly so
+# vendor CLIs resolve to their WSL-native paths. No-op when absent; `|| true`
+# because this script runs under `set -euo pipefail` and a missing or failing
+# env file must never abort the round.
+if [[ -r "${HOME}/.foreman/env.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "${HOME}/.foreman/env.sh" || true
+fi
 # shellcheck source=lib/config.sh
 source "$SCRIPT_DIR/lib/config.sh"
 # shellcheck source=lib/worktree.sh
