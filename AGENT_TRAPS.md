@@ -132,3 +132,147 @@ dispatch rather than discovered during it.
 **Watchdog note.** A liveness watchdog that polls `pgrep` treats a STOPPED
 process as alive and waits forever. A watchdog must test process *state* and
 CPU delta, not mere existence.
+
+---
+
+## 7. Dispatching a grok lane — what actually determines success (2026-07-30)
+
+Five dispatches, same chain, same model, same worker. The only variable was
+spec shape. This is measurement, not preference.
+
+| Spec shape | Result |
+|---|---|
+| "read the OpenSpec change, then implement" (×3 lanes) | EMPTY-BURST, 3 rounds each |
+| 2 deliverables + "wire it where appropriate" | EMPTY-BURST, 3 rounds |
+| 1 deliverable, defective function pasted in, exact change stated | files changed, **round 1, 26s** |
+| 1 deliverable, exact insertion block pasted in | files changed, **round 1** |
+| 1 deliverable, existing helper + status vocabulary pasted in | files changed, **round 2** |
+
+**`grok --prompt-file` is single-turn.** The consequence is the part that bites:
+a round that must *read* before it can *write* spends its only turn reading and
+exits having written nothing. `grok-multiround` re-issuing the same spec cannot
+fix it — every round has the same one-turn budget, so three rounds are three
+identical failures, not three attempts. **Raising `--max-rounds` buys nothing.**
+
+Rules:
+
+1. **Inline every fact.** If the worker must open a file to learn what to
+   change, the spec is not finished. Paste in the current source of the function
+   to change, the measured evidence, and the target semantics. Producing that
+   costs the architect a diagnosis pass — that pass *is* the work, and it is not
+   delegable to a single-turn worker.
+2. **One deliverable per dispatch.** Two deliverables empty-burst even when both
+   are individually well-specified and richly inlined. Necessary but not
+   sufficient — see 4.
+3. **Write-first must name the REAL deliverable, never a sentinel.** "Your first
+   action is to EDIT `env/tool-check.sh`" is correct. "Create SPEC-NOTES.md
+   first" is a defect: it manufactures exactly the artifact the change detector
+   measures, and produced three lanes reporting `round_done exit_code=0` having
+   implemented nothing. (`grok-multiround` now excludes such artifacts, but do
+   not rely on that — do not ask for them.)
+4. **Budget the whole round, not just the implementation.** A spec whose
+   *verification* section requires a multi-step stateful experiment (move a file,
+   re-run, restore, re-run) is asking for two things in one turn however singular
+   its code change. Keep the worker's verification to a single pass; stateful
+   setup/teardown belongs to the architect after the diff lands.
+5. **Know when to stop delegating.** A five-line insertion already specified to
+   the character is not worth a fourth round. Compare remaining lane cost against
+   doing it directly. The specification effort is never wasted — it becomes the
+   commit message and the review criteria.
+6. Keep the spec OUTSIDE the worktree (`/root/fm-specs/`, not `$WT/SPEC-*.md`).
+   A spec staged inside the tree is another artifact that can flip a change
+   detector.
+
+## 8. Lane liveness has no process-layer signal during preamble (2026-07-30)
+
+**A lane that has not yet spawned its vendor process has NO liveness signal at
+the process layer.** `ps | grep grok` returning nothing is the normal early
+state, not a fault. Absence of a process is not evidence of death.
+
+Three healthy lanes were killed at 18 minutes on exactly this misreading. All
+three returned "now dispatching grok" when stopped. The entry above them in
+`bugeventlog.md`, written the day before about a different watchdog, already
+said so — and said the threshold had been "set from impatience, not from
+measurement."
+
+- The only valid early-phase surface is the lane's own **output stream growing**:
+  `stat -c %s /root/.foreman-lanes/<owner>.<label>.out`.
+- **No kill threshold below the measured preamble cost (~30 min) is defensible**
+  without that surface. A lane briefed to read `AGENT_TRAPS.md` in full plus four
+  spec files legitimately spends that long before writing anything.
+- Still true, and not in tension with the above: a *running* process must be
+  judged by STATE and CPU delta, never by existence — a `SIGTTIN`-suspended
+  process answers `kill -0` exactly like a healthy one.
+
+## 9. Destructive proofs must never cross a turn boundary (2026-07-30)
+
+A destructive proof is two-phase: sabotage → observe RED → restore → observe
+GREEN. A worker's turn can end between any two phases, and nothing makes the
+restore atomic with the sabotage.
+
+Observed: a lane sabotaged an enforcement predicate to
+`[[ "$durable_enabled" == "__disabled_for_independent_proof__" ]]` — a literal
+that can never match, leaving the refusal branch dead so every unowned dispatch
+would proceed silently — then its turn ended before the restore. It reported
+success. It had not lied; it correctly reported the proof as unfinished. **The
+hazard is that the leftover filesystem state looks like completed work in
+`git status`.**
+
+- **A destructive proof is architect-run, or run against a COPY outside the
+  worktree.** Never ask a worker to leave a worktree deliberately broken.
+- **Never commit a lane's output on the lane's own account of it.** Re-run the
+  suites yourself. This programme has a dozen checker-soundness incidents; this
+  was the first where the false signal was *filesystem state* rather than a
+  check result.
+- **Run `skills/foreman/scripts/lane-complete-check.sh WORKTREE` before any
+  commit.** It refuses a report still containing `(TBD)` and any sabotage
+  sentinel in tracked source. Both conditions are mechanical; reading the prose
+  is what fails under time pressure.
+- What actually caught it was the **registered pass baseline** disagreeing with
+  the observed count (8 vs 7). Register every new `.bats` file in
+  `tests/baseline.tsv` AND `tests/skip-budget.tsv` — eight packages skipped this,
+  and it is the cheapest tripwire in the repo.
+
+## 10. The suite's verdict depends on how it was launched (2026-07-30)
+
+`tests/run.sh` can return different results for the same tree:
+
+| invocation | `lane-run` test 8 |
+|---|---|
+| standalone `bats tests/lane-run.bats`, detached | ok |
+| `bash tests/run.sh tests/lane-run.bats` | ok |
+| full 41-file suite under load | **not ok** |
+
+- **Launch the full suite detached, with stdin from `/dev/null`:**
+  `nohup setsid flock /tmp/foreman-bats.lock bash tests/run.sh > LOG 2>&1 < /dev/null &`
+  A backgrounded process that touches the terminal gets `SIGTTIN`-suspended.
+- **Never run the full suite while lanes are running.** It takes the host-wide
+  bats mutex and starves them; a lane's remaining budget is scarcer than your
+  verification.
+- Setup-liveness timeouts are not the property under test — make them generous.
+  Only the asserted property should be tight.
+- A test that can only pass on one platform must carry a **capability guard**
+  (`command -v taskkill`, `command -v cygpath`, a PATHEXT probe), never a
+  platform assumption. Four tests failed rather than skipped on POSIX because
+  they asserted Windows behaviour with no guard.
+
+## 11. Verification commands that read ambient state need a baseline (2026-07-30)
+
+Checking whether a generated env file duplicated `PATH` entries:
+
+```
+. ~/.foreman/env.sh; . ~/.foreman/env.sh
+tr ':' '\n' <<<"$PATH" | grep -c "$HOME/.local/bin"      -> 3
+```
+
+`3` was read as a duplicate-entry defect. It was not — the ambient WSL `PATH`
+already contained that directory several times, so the count conflated "entries
+the file added" with "entries already there". A false defect report was avoided
+only because the number looked implausible enough to re-test.
+
+Re-run controlled: `env -i HOME=/root PATH=/usr/bin:/bin bash -c '…'` →
+baseline 0, after one source 1, after two sources 1. Idempotent, correct.
+
+**A verification command that reads inherited state must establish its baseline
+in a controlled environment before its output means anything.** `grep -c`
+against an ambient `PATH` is not evidence.
