@@ -276,3 +276,51 @@ baseline 0, after one source 1, after two sources 1. Idempotent, correct.
 **A verification command that reads inherited state must establish its baseline
 in a controlled environment before its output means anything.** `grep -c`
 against an ambient `PATH` is not evidence.
+
+## 12. A verification result has an implicit timestamp and tree state (2026-07-30)
+
+Three times in one session the architect measured a moving target once and
+quoted the number later as though it still held. Same shape each time:
+
+| Claim | What was actually true |
+|---|---|
+| "the env file duplicates PATH entries — count is 3" | The ambient `PATH` already contained the directory 3 times. The check had no baseline, so it could not separate "entries the file added" from "entries already there". Controlled re-run: 0 → 1 → 1, correct. |
+| "the lane is stalled — no vendor process, no writes for 20 minutes" | It was alive and mid-preamble, twice. Its report later grew 4.4 KB → 18 KB. |
+| "the tov lane is sound: 13/13 green, just needs registration" | Its suite had **26** tests by then. The 13/13 was measured against a tree state that no longer existed, and the worktree already contained work from a later dispatch. |
+
+**Rules:**
+
+1. **Never carry a green result across a turn boundary for a worktree that has a
+   live lane writing to it.** The lane is a writer, your measurement is a read,
+   and there is no lock between them. Re-run before you rely on it.
+2. **A verification command that reads ambient state must establish its baseline
+   in a controlled environment.** `grep -c` against an inherited `PATH` is not
+   evidence. `env -i HOME=... PATH=...` is.
+3. **Quote a result with what it was measured against**, or re-measure. "13/13
+   green" is not a fact about a package; it is a fact about one tree state at one
+   moment.
+4. n=2 is not a demonstration of nondeterminism. If you believe something is
+   flaky, either read the mechanism that makes it so, or sample enough to report
+   a rate with its sample size. The architect published a flakiness finding on
+   n=2; it was right by luck, and the actual proof came from reading the runner
+   (an unseeded probabilistic search given a bound with zero margin over its own
+   documented requirement).
+
+## 13. Escalate a blocker to three DIFFERENT lenses, not three votes (2026-07-30)
+
+Two blockers were escalated to a panel: one agent measuring root cause
+empirically, one ruling on design given the defect exists, and one instructed to
+**refute** both claims and default to REFUTED where evidence did not support them.
+
+The adversarial lane — the only one told to attack — produced both corrections
+the panel yielded. It refuted one claim outright and confirmed the other while
+demolishing the evidence offered for it. The two constructive lanes produced
+compatible, useful, and *uncorrective* answers.
+
+- **Two agreeing lanes are not a control.** They were never going to disagree
+  with the framing they were handed.
+- Give each lane a distinct lens: measure it / decide it / break it. Redundancy
+  catches transcription errors; diversity catches wrong premises.
+- Hand the refuter the strongest version of the claim AND the evidence behind it,
+  and tell it explicitly to default to REFUTED. A refuter that must argue against
+  a strawman returns nothing.
