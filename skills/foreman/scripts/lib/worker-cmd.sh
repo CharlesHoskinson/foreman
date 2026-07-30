@@ -64,6 +64,32 @@ wc_build_argv() {
         -c "model_reasoning_effort=${WC_CODEX_REASONING_EFFORT:-medium}" \
         "$(cat "$prompt_file")")
       ;;
+    agy)
+      # Antigravity CLI (Google lane). NOT @google/gemini-cli -- different
+      # flags, exit codes and isolation behaviour; agy is the OAuth-authenticated
+      # CLI this shop uses (/root/.local/bin/agy).
+      #
+      # TRAP: --print takes the PROMPT as its value, so it MUST stay LAST. Any
+      # flag placed after it is consumed as the prompt text and the lane fails
+      # silently. Do not reorder these for tidiness.
+      #
+      # agy has no --cwd; the working directory is expressed with --add-dir.
+      # --dangerously-skip-permissions is agy's auto-approve posture, required
+      # for a non-interactive worker (the grok lane's --allow equivalent).
+      # agy encodes reasoning effort IN the model name (`agy models` on this
+      # host lists gemini-3.1-pro-high / -low, gemini-3.6-flash-high/-medium/-low
+      # ...). There is therefore no separate --effort passed here: supplying both
+      # a suffixed model and --effort states the same thing twice and invites the
+      # two to disagree. Override the whole choice via WC_AGY_MODEL.
+      # Verified against `agy models` 2026-07-30 -- an unlisted name is rejected
+      # at run time, so this default must stay a name that command prints.
+      WC_ARGV=(agy
+        --model "${WC_AGY_MODEL:-gemini-3.1-pro-high}"
+        --dangerously-skip-permissions
+        --add-dir "$workdir"
+        --output-format text
+        --print "$(cat "$prompt_file")")
+      ;;
     # claude is advertised as a lane vendor by wt-new.sh, lane-run.sh, and
     # lane-queue.sh, but is deliberately out of scope as a *worker* vendor
     # (REQUIRES-SEPARATE-HOME). Explicit branch so the failure is diagnosable
