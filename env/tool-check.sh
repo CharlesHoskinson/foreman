@@ -266,6 +266,33 @@ check_one() {
         status=missing
       fi
       ;;
+    foreman-launch)
+      # The compiled launcher is what makes a durable lane durable: heartbeats,
+      # bounded kill, ownership events. lane_resolve_launcher (lane-run.sh)
+      # picks launcher/dist/foreman-launch on POSIX and .exe on Windows.
+      #
+      # Readiness must NEVER be permanently blocked on a should-tier tool: bun
+      # is only should_full (see the should_ lists below), so a host without bun
+      # cannot build the launcher and must degrade loudly rather than report
+      # NOT-READY forever.
+      local fl_root fl_bin fl_suffix
+      fl_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+      case "$(uname -s 2>/dev/null || echo unknown)" in
+        MINGW*|MSYS*|CYGWIN*) fl_suffix=".exe" ;;
+        *) fl_suffix="" ;;
+      esac
+      fl_bin="$fl_root/launcher/dist/foreman-launch$fl_suffix"
+      if [[ -x "$fl_bin" ]]; then
+        status=ok
+        detail="$fl_bin"
+      elif have bun; then
+        status=missing
+        detail="$fl_bin absent; build it: (cd launcher && bun run build:posix)"
+      else
+        status=degraded
+        detail="$fl_bin absent and bun is not installed (bun is should-tier); durable lanes run without a launcher"
+      fi
+      ;;
     foreman_home_fs)
       local fh_path fh_probe fh_class
       fh_path="${FOREMAN_HOME:-$HOME/.foreman}"
@@ -861,10 +888,10 @@ must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
 must_durable=(git jq coreutils bash flock)
-should_soft=(claude node npm jq markdownlint-cli2 codespell lychee foreman_home_fs)
-should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
-should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs)
-should_durable=(nats-server nats-cli foreman_home_fs)
+should_soft=(claude node npm jq markdownlint-cli2 codespell lychee foreman_home_fs foreman-launch)
+should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs foreman-launch)
+should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs foreman-launch)
+should_durable=(nats-server nats-cli foreman_home_fs foreman-launch)
 
 case "$PROFILE" in
   soft) must=("${must_soft[@]}"); should=("${should_soft[@]}") ;;
