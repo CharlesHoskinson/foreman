@@ -66,10 +66,40 @@ done
 git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || die "$EXIT_CONFIG" "grok-multiround: --cwd is not a git work tree ($WD); files_changed detection requires git"
 
-# @description Digest the working dir's git status (untracked + modified),
-#   so "did grok write anything" is evidence, not grok's own narration.
+# @description Paths git reports as changed in WD, EXCLUDING any the harness
+#   or the caller manufactured rather than the worker.
+#
+#   A change detector that counts artifacts created by its own caller reports
+#   success for a round that did nothing. Observed 2026-07-30: a spec opening
+#   with "write SPEC-NOTES.md first" -- an anti-empty-burst guard -- satisfied
+#   this digest by itself. Three lanes recorded round_done exit_code=0 having
+#   implemented nothing, and the false green was caught only by diffing the
+#   worktrees by hand. The instruction and the checker were authored by the
+#   same party, and the instruction defeated the checker.
+#
+#   Excluded:
+#     .harness/**  lane-run's own heartbeat + stream telemetry, written into
+#                  the worktree by the supervisor, not by the worker.
+#     SPEC-*.md    a spec staged inside the worktree by the caller.
+#   Note `.harness/` is normally also covered by porcelain's untracked-directory
+#   collapse, but that is an accident of formatting, not a guarantee -- exclude
+#   it explicitly so the property does not depend on how git chooses to print.
+# @stdout one porcelain line per genuinely worker-changed path
+changed_paths() {
+  git -C "$WD" status --porcelain 2>/dev/null | awk '
+    {
+      path = substr($0, 4)
+      sub(/^"/, "", path); sub(/"$/, "", path)
+      if (path ~ /^\.harness\//) next
+      if (path ~ /^SPEC-[^\/]*\.md$/) next
+      print
+    }'
+}
+
+# @description Digest of changed_paths, so "did grok write anything" is
+#   evidence, not grok's own narration.
 # @stdout a sha256 hex digest
-snap() { git -C "$WD" status --porcelain 2>/dev/null | sha256sum | cut -d' ' -f1; }
+snap() { changed_paths | sha256sum | cut -d' ' -f1; }
 
 before="$(snap)"
 LAST_OUT="$(mktemp -t grok-multiround-out.XXXXXX 2>/dev/null || mktemp -t grok-multiround-out)"
@@ -101,10 +131,14 @@ while [[ $round -lt $MAX_ROUNDS ]]; do
 
   after="$(snap)"
   if [[ "$after" != "$before" ]]; then
-    echo "grok-multiround: files changed (rounds=$round)"
+    n_changed="$(changed_paths | wc -l | tr -d ' ')"
+    echo "grok-multiround: files changed (rounds=$round, paths=$n_changed)"
+    changed_paths | sed 's/^/grok-multiround:   /'
     exit "$EXIT_OK"
   fi
 done
 
-echo "grok-multiround: EMPTY-BURST FAILED after $round rounds — grok narrated orientation but wrote nothing; re-issue a write-first spec or raise --max-rounds" >&2
+echo "grok-multiround: EMPTY-BURST FAILED after $round rounds — grok narrated orientation but wrote nothing." >&2
+echo "grok-multiround: re-issue a spec whose FIRST instruction names the real deliverable (the source file to edit). Do NOT instruct the worker to create a notes/plan/sentinel file first: this detector excludes such artifacts, and before 2026-07-30 it counted them and reported a false success." >&2
+echo "grok-multiround: a round is single-turn. A spec the worker must READ before it can WRITE cannot succeed at any --max-rounds; inline the facts instead of raising the budget." >&2
 exit "$EXIT_FAIL"
