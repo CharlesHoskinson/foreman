@@ -6,7 +6,7 @@ Foreman's central quality claim is that the auditor's vendor differs from the
 worker's. That claim is stated in prose in six places — `SKILL.md:113`,
 `SKILL.md:320`, `README.md:44`, `README.md:165`,
 `references/lanes.md:156,162`, and `agents/codex-auditor.md` — and enforced in
-code in **exactly one**: `audit-run.sh:31-33`, a single `if` comparing two
+code in **exactly one**: `audit-run.sh:318-321`, a single `if` comparing two
 strings read from `.foreman/config.toml`, in a hard-mode-only script.
 
 **Soft mode has no code enforcement of the invariant at all.** It is doctrine
@@ -27,7 +27,7 @@ a fourth vendor can audit codex-implemented work, and a single non-participating
 vendor can audit both arms of a race.
 
 **And there is a second `if` that refuses to let any of that happen.**
-`audit-run.sh:35-37`: `if [[ "$AUDIT_VENDOR" != "codex" ]]; then die
+`audit-run.sh:322-325`: `if [[ "$AUDIT_VENDOR" != "codex" ]]; then die
 "$EXIT_MISSING_CLI" "audit-run currently only auto-invokes Codex…"`. Any
 non-codex auditor is refused outright, in the middle of what is nominally an
 invocation builder.
@@ -69,7 +69,7 @@ ordered preference list that the router filters the worker vendor out of.
   centralized (the `lib/audit-call.sh` shape `ROADMAP.md:238-239` already
   names) and enforced in soft mode as well as hard mode, rather than living as
   one `if` in a script most rounds never reach.
-- **`audit-run.sh:35-37`'s codex-only refusal is removed**, replaced by
+- **`audit-run.sh:322-325`'s codex-only refusal is removed**, replaced by
   dispatch through `adapter_audit_argv` for whichever vendor the router
   selected. A vendor with no audit adapter is refused by the router at
   selection time, with a named reason — not by a `die` in the middle of an
@@ -102,9 +102,9 @@ ordered preference list that the router filters the worker vendor out of.
   Coordinates with `agy-lane-activation`, which supplies the fourth vendor and
   makes its model family observable.
 - **Ownership boundary:** this package owns the post-audit tamper assertion at
-  `audit-run.sh:90-93`. `vendor-adapter-contract` explicitly does not touch it.
+  `audit-run.sh:430-432`. `vendor-adapter-contract` explicitly does not touch it.
 - Behaviour change: a repo with a scalar `[audit] vendor` continues to work —
   the scalar is read as a one-element list — but a repo whose worker vendor
   equals its sole configured auditor now fails at selection with a named
-  reason, where hard mode previously failed at `audit-run.sh:31-33` and soft
+  reason, where hard mode previously failed at `audit-run.sh:318-321` and soft
   mode previously did not fail at all.

@@ -151,7 +151,7 @@ happened. That is the same missing-third-outcome problem in the time dimension.
 - **Depends on `vendor-adapter-contract`** for the audit call's argv shape.
   That package owns *how* an auditor is invoked across vendors; this one owns
   *what the result means* and *what the gate does with it*. Where the two meet
-  — the audit invocation site in `audit-run.sh:78-86` — the argv construction
+  — the audit invocation site in `audit-run.sh:379-387` — the argv construction
   is theirs and the timeout, exit-status interpretation, and verdict recording
   are this package's. Neither blocks the other; they must not both rewrite that
   block.

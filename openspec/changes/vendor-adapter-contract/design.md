@@ -143,7 +143,7 @@ explicitly specced here, that is a defect in this package, not an improvement.
   test suite; an adapter with no passing lane test does not count as finished.
 - **`audit-run.sh` is on the gate path.** Replacing its inline invocation
   touches the one script whose output `gate-eval.sh:43-47` consumes. The
-  post-audit tamper check at `audit-run.sh:90-93` must survive the refactor
+  post-audit tamper check at `audit-run.sh:430-432` must survive the refactor
   unchanged in effect; `cross-vendor-audit-routing` strengthens it, and the two
   packages must not both rewrite it.
 - **Vendor CLIs move under us.** `agy` self-updates: it carries an `updater/`
@@ -155,7 +155,7 @@ explicitly specced here, that is a defect in this package, not an improvement.
   unverified one with no signal.
 - **Scope creep into routing.** Deciding *which* vendor audits is deliberately
   not in this package. The adapter answers "how do I invoke vendor X for verb
-  Y"; the router answers "which X". Conflating them is how `audit-run.sh:35-37`
+  Y"; the router answers "which X". Conflating them is how `audit-run.sh:322-325`
   ended up refusing every non-codex auditor in the middle of an invocation
   builder.
 

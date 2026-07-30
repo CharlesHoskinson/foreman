@@ -12,7 +12,7 @@ sample, each verified against the code:
 | `ROADMAP.md:44-47` — concurrency caps stay `grok=1 codex=1` | `lane-queue.sh:422` ships `grok:3 codex:2` |
 | `.foreman/config.toml:48-54` + `SKILL.md:250-259` — `[audit.policy]` is gate policy | `gate-eval.sh` never sources `lib/config.sh` and never reads it |
 | `SKILL.md:174-215` — durable lanes read as the normal path | `.foreman/config.toml:29` — `enabled = false`, and nothing reads the key |
-| `references/lanes.md:162` — `audit.vendor` empty means auto | `audit-run.sh:35-37` hard-refuses anything but `codex` |
+| `references/lanes.md:162` — `audit.vendor` empty means auto | `audit-run.sh:322-325` hard-refuses anything but `codex` |
 | `wt-new.sh:109`, `lane-run.sh:210`, `lane-queue.sh:422`, `tool-check.sh:83` — `claude` is a worker lane | `lib/worker-cmd.sh` has no `claude` branch; the lane dies at the argv builder |
 | `README.md:605`, `maintenance.sh:249` — graphify refresh is automated | `maintenance.yml:23` runs `--stage upstream` only, with an in-file comment saying CI lacks graphify |
 | `SKILL.md:276` — "CI remains final authority" | the bats suite runs on no CI platform at all |

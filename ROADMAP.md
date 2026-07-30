@@ -174,6 +174,50 @@ plan in `docs/superpowers/`).
 
 ## v0.2.9 — Total GeorgeCall — graph engineering, multi-vendor, and an interpretable suite (PLANNED)
 
+> **Storage decision, 2026-07-30 — TerminusDB is OUT; SQLite is the store.**
+>
+> The release ships two SQLite stores and no graph server.
+>
+> **Session store + canonical recovery** (`skills/foreman/scripts/fm-session.py`,
+> `skills/checkpoint/SKILL.md`). Three typed record kinds — facts, measurements,
+> obligations — in `.foreman/session.db`. A session begins by recovering and
+> receives a launch point. The load-bearing property: a measurement's validity is
+> **computed at read time** via `git rev-list <measured_sha>..HEAD -- <scope>` and
+> never stored, so a number cannot be quoted without a freshness verdict and the
+> command to re-run it. `--scope` is mandatory; a measurement that cannot be shown
+> stale defeats the mechanism. Liveness is deliberately not a record kind — ask the
+> process. Recovery is exact SQL, never similarity search: two resumes of the same
+> tree must see the same world.
+>
+> **Ontology** — the `terminusdb-schema` class vocabulary (`Claim`, `Measurement`,
+> `Finding`, `Supersession`, `Entity`, `Commit`, `Provenance`, …) is retained as
+> the vocabulary and re-expressed as SQLite tables with enum lookup tables + FK
+> (not `CHECK`, which needs a table rebuild to extend and gets widened to TEXT the
+> first time that is inconvenient), junction tables for `@type: Set`, and
+> traversals shipped as committed views with depth caps and cycle guards.
+>
+> **What was rejected, and why.**
+> - *TerminusDB* — a server, auth, backups and an unwritten operations package,
+>   against a release that moved all CI local specifically to shed infrastructure.
+>   Decisive argument: recovery runs mid-lane and offline, so a store that can be
+>   down during recovery cannot hold recovery-relevant state.
+> - *mem0 + pgvector* — its pipeline is ADD-only ("Your sole operation is ADD"),
+>   `get_all` has no `ORDER BY`, `created_at` is stored but never sorted on, and
+>   there is no upsert-by-key or supersedes edge. It would have returned two
+>   contradictory values as equally-ranked neighbours: the same staleness bug,
+>   re-expressed as embeddings instead of prose.
+> - *sqlite-graph* — evaluated by building it and running 28 queries. It enforces
+>   zero schema (the validation module has no callers), silently returns wrong
+>   answers (`AND` yields `[]`; `ORDER BY`/`LIMIT`/`count` ignored; `SET` and
+>   `DELETE` are no-ops that report success; trailing garbage accepted), cannot be
+>   loaded by Python's stdlib `sqlite3` in either a source build or the published
+>   binary, and has no variable-length path operator — so it cannot express a
+>   supersession chain, the one shape needed.
+>
+> Vector search may still earn a place as *advisory recall* — "have I hit this
+> before" — but never on the canonical recovery path.
+
+
 ![Total GeorgeCall](assets/v029-total-georgecall.png)
 
 Codename **Total GeorgeCall**, following `v0.2.0` (Nightwatch) and `v0.2.5`

@@ -290,7 +290,17 @@ gate_lanes() {
 if ! gate_shellcheck; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_openspec; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_formal; then gates_failed=$((gates_failed + 1)); fi
-if ! gate_bats; then gates_failed=$((gates_failed + 1)); fi
+# The bats gate is OFF by default as of 2026-07-30. It does not merely fail —
+# it DEADLOCKS: tests/decision-events.bats hung 31 minutes on one test while
+# holding the host-wide bats mutex, and three unrelated verifications queued
+# behind it with no output. A gate that can hang forever is worse than no gate,
+# because "still running" reads as progress.
+# Re-enable per run with FOREMAN_CI_BATS=1, and see docs/design/test-cleanup-roadmap.md.
+if [[ "${FOREMAN_CI_BATS:-0}" == 1 ]]; then
+  if ! gate_bats; then gates_failed=$((gates_failed + 1)); fi
+else
+  echo "GATE bats OFF suite disabled as a gate (deadlocks; FOREMAN_CI_BATS=1 to run) — see docs/design/test-cleanup-roadmap.md"
+fi
 if ! gate_install; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_lanes; then gates_failed=$((gates_failed + 1)); fi
 

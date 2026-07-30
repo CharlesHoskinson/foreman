@@ -60,7 +60,7 @@ None needs a model, a graph store, or a new runtime dependency.
 
 ### The cross-vendor invariant is checked at the wrong time
 
-`audit-run.sh:31-33` compares the **configured** `audit.vendor` against the
+`audit-run.sh:318-321` compares the **configured** `audit.vendor` against the
 **configured** `worker.vendor` and dies if they match. That is a check on
 intent, at audit start. It says nothing about which vendor actually produced
 the diff, and nothing about which auditor actually ran. `bugeventlog.md`

@@ -4,7 +4,7 @@ Ordering: T1 is the premise check. T2-T3 are serial and own `audit-run.sh`.
 T4-T5 own `gate-eval.sh` and may run once T2's artifact shape is fixed. T6-T7
 run in parallel after T3. T8 gates.
 
-Coordinate the audit invocation block (`audit-run.sh:78-86`) with
+Coordinate the audit invocation block (`audit-run.sh:379-387`) with
 `vendor-adapter-contract`, which owns the argv construction. This package owns
 the timeout, the exit-status interpretation, and the verdict recording around
 it. The two must not both rewrite that block.
@@ -128,7 +128,7 @@ the evaluated tree. Both defects are recorded in `design.md`.
 - [ ] Ensure an `UNVERIFIED` failure is not counted against
       `limits.max_rework_rounds`, and name where that count lives.
 - [ ] Source `lib/config.sh` and read `[audit.policy]`; every read takes the
-      `audit-run.sh:27-29` pattern — value with a hard-coded fallback.
+      `audit-run.sh:56-58` pattern — value with a hard-coded fallback.
 - [ ] Add `audit.policy.unverified`, default `retry`, to `lib/config.sh`'s
       key tables and to both config files.
 - [ ] Never collapse `UNVERIFIED` into `BLOCKED` in any output.
@@ -291,7 +291,7 @@ policy read: `[audit.policy]` is prose the gate never reads.
 - [ ] The gate's verdict branch must not be "not `BLOCKED` therefore pass".
       Every verdict value takes an explicit arm.
 - [ ] `WARNING` resolves `warning_low_resolved` and `warning_medium` through
-      the `audit-run.sh:27-29` fallback pattern introduced by T5.
+      the `audit-run.sh:56-58` fallback pattern introduced by T5.
 - [ ] Test: an unresolved medium `WARNING` fails the gate with a reason naming
       the finding; a resolved-low `WARNING` passes because policy said so.
 

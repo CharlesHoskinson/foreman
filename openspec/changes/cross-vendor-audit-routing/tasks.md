@@ -46,13 +46,13 @@ family reporting.
 
 ## T4 — wire both tiers
 
-- [ ] `audit-run.sh:27-29` reads the preference list through the shared
+- [ ] `audit-run.sh:56-58` reads the preference list through the shared
       component.
-- [ ] `audit-run.sh:31-33`'s inline equality check is replaced by the shared
+- [ ] `audit-run.sh:318-321`'s inline equality check is replaced by the shared
       component's family-based check.
-- [ ] `audit-run.sh:35-37`'s codex-only refusal is removed.
-- [ ] `audit-run.sh:78-86` dispatches through `adapter_audit_argv`.
-- [ ] `audit-run.sh:90-93`'s tamper assertion is generalized to every vendor
+- [ ] `audit-run.sh:322-325`'s codex-only refusal is removed.
+- [ ] `audit-run.sh:379-387` dispatches through `adapter_audit_argv`.
+- [ ] `audit-run.sh:430-432`'s tamper assertion is generalized to every vendor
       and both tiers, with the declared-report-path exception. **This package
       owns this line**; `vendor-adapter-contract` must not touch it.
 - [ ] Soft mode records `auditor_vendor`, `auditor_model`, `auditor_family`

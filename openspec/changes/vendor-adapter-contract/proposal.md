@@ -13,7 +13,7 @@ vendors (grok, codex); claude is out of scope (REQUIRES-SEPARATE-HOME)"*
 (`worker-cmd.sh:6-7`). It is implement-only and reached only from hard mode
 (`worker-run.sh:116-122`).
 
-**The audit verb has no argv builder at all.** `audit-run.sh:78-86` hard-codes
+**The audit verb has no argv builder at all.** `audit-run.sh:379-387` hard-codes
 one `codex exec … --sandbox read-only --output-schema … --output-last-message
 … - < "$PROMPT"` block, and `agents/codex-auditor.md` restates a second copy of
 the same invocation in prose for the soft-mode lane. Two hand-maintained

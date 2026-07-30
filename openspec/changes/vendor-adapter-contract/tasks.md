@@ -39,13 +39,13 @@ can start immediately. T8 gates.
 ## T3 — introduce the audit verb
 
 - [ ] Implement `adapter_audit_argv` for codex, reproducing
-      `audit-run.sh:78-86` exactly, plus `--ephemeral` (audit lanes never
+      `audit-run.sh:379-387` exactly, plus `--ephemeral` (audit lanes never
       resume, and it removes session-file contention entirely — R3 §2.1).
 - [ ] Expose `codex exec review --base "$BASE"` as the hard-mode cold-diff
       form, matching Foreman's worktree-branch-vs-base model (R3 §2.3).
 - [ ] Implement `adapter_audit_argv` for grok (`--permission-mode plan`,
       `--json-schema "$(cat SCHEMA)"`, `--no-leader`).
-- [ ] Replace `audit-run.sh:78-86`'s inline invocation with the adapter call.
+- [ ] Replace `audit-run.sh:379-387`'s inline invocation with the adapter call.
       Do NOT touch the post-audit tamper check at `:90-93` — it is strengthened
       by `cross-vendor-audit-routing`, and both packages must not rewrite it.
 - [ ] Pass `--no-leader` on every grok invocation: `grok agent` defaults to a

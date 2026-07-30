@@ -242,7 +242,7 @@ optimises against it.
 
 - **`gate-eval.sh` gains a dependency.** It sources `lib/config.sh` for the
   first time. The deterministic gate must not acquire a new failure mode: every
-  policy read takes the `audit-run.sh:27-29` pattern — `toml_get` with a
+  policy read takes the `audit-run.sh:56-58` pattern — `toml_get` with a
   hard-coded fallback — so a missing or malformed config degrades to the
   built-in defaults rather than failing the gate.
 - **Evidence binding can over-fire.** Mitigated by hashing content rather than

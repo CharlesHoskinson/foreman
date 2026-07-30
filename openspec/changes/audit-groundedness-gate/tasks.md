@@ -78,7 +78,7 @@ to change.
 - [ ] G4 SHALL NOT infer a vendor from a config value or from a config-home path.
 - [ ] G5 — rubric identifier and version present, and the version resolves in the
       repository at `BASE_SHA`.
-- [ ] Confirm the existing configured-vendor check in `audit-run.sh:31-33` stays
+- [ ] Confirm the existing configured-vendor check in `audit-run.sh:318-321` stays
       as-is; it guards intent at audit start and G4 guards the record at the gate.
       Do not delete one for the other.
 
