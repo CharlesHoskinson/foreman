@@ -20,7 +20,7 @@
 #   M1 eventually_terminal is a no-fairness stuttering artifact, not a liveness defect.
 model	entrypoint	invariant	expected	method	bound	tier	gating	provenance	notes
 eventlog_concurrency	main=toctou	mutual_exclusion	VIOLATED	simulation	2000x20	commit	yes	architect-VERIFY	pre-fix uutils mkdir TOCTOU; cex seqHolders Set(0,1)
-eventlog_concurrency	main=toctou	seq_uniqueness	VIOLATED	simulation	2000x40	commit	yes	architect-VERIFY	duplicate seq numbers consequence of mutex breach; needs >=40 steps
+eventlog_concurrency	main=toctou	seq_uniqueness	VIOLATED	simulation	20000x40	commit	yes	architect-VERIFY	duplicate seq numbers consequence of mutex breach; needs >=40 steps
 eventlog_concurrency	main=atomic	mutual_exclusion	HOLDS	simulation	500x15	commit	yes	architect-VERIFY	post-fix flock/atomic mkdir; bounded satisfaction only
 eventlog_concurrency	main=atomic	seq_uniqueness	HOLDS	simulation	500x15	commit	yes	architect-VERIFY	post-fix; bounded satisfaction only
 eventlog_concurrency	main=toctou	mutual_exclusion	VIOLATED	simulation	20000x40	schedule	yes	architect-VERIFY	architect-scale simulation

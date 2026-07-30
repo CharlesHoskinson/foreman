@@ -61,8 +61,12 @@ else
     findings+=("FOREMAN_REPORT.md still has $n unfilled placeholder section(s)")
   fi
   # A report that still announces itself as in progress is not a finished report.
-  if grep -qE '^[[:space:]]*(##[[:space:]]*)?Status[[:space:]]*:?[[:space:]]*$' "$report" \
-     || grep -qiE '^[[:space:]]*(IN[ _-]?PROGRESS|STATUS:[[:space:]]*IN[ _-]?PROGRESS)' "$report"; then
+  # Deliberately does NOT match a bare `## Status` heading: every well-formed
+  # report has one, and this arm previously flagged all of them. A gate that
+  # fires on correct input trains people to ignore it -- observed on this very
+  # check, which rejected an accurate post-mortem report for having a Status
+  # section at all.
+  if grep -qiE '^[[:space:]]*(##[[:space:]]*)?(STATUS[[:space:]]*:?[[:space:]]*)?IN[ _-]?PROGRESS' "$report"; then
     findings+=("FOREMAN_REPORT.md still declares IN PROGRESS")
   fi
 fi
