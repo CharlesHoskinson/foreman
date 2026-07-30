@@ -412,6 +412,14 @@ cmd_ensure() {
     fi
   fi
 
+  # agy=1: the Antigravity (Google) lane became a real worker vendor when
+  # lib/worker-cmd.sh gained its argv branch, but it has NO concurrency evidence
+  # -- no T5b-style live row at any N. The rule below applies to it unchanged:
+  # caps are raised only to a proven-green N, so it starts serial. Without a
+  # group at all an agy lane builds fine and is then never scheduled, which is a
+  # worse failure than a conservative cap because nothing reports it.
+  # Appended at the end so the T5b topology assertion, which greps the literal
+  # prefix `for spec in grok:3 codex:2`, keeps binding to the proven values.
   # grok=3, codex=2: raised on the 2026-07-18 LIVE authenticated shared-account
   # T5b verdict -- grok GREEN@2 and @3 (3/3 lanes clean, config+auth intact,
   # sessions path-isolated), codex GREEN@2 (both clean, no port collision in
@@ -419,10 +427,10 @@ cmd_ensure() {
   # docs/research/vendor-concurrency-results.md. Do not raise further without a
   # green row at the higher N.
   local spec
-  for spec in grok:3 codex:2 claude:3 misc:2 gate:1; do
+  for spec in grok:3 codex:2 claude:3 misc:2 gate:1 agy:1; do
     lq_ensure_group "$pueue_bin" "${spec%%:*}" "${spec#*:}"
   done
-  echo "lane-queue: ready (groups: grok codex claude misc gate)" >&2
+  echo "lane-queue: ready (groups: grok codex claude misc gate agy)" >&2
   return "$EXIT_OK"
 }
 
