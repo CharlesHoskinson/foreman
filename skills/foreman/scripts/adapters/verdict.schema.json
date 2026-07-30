@@ -1,4 +1,5 @@
 {
+  "$comment": "The model may emit only APPROVED, WARNING, or BLOCKED. UNVERIFIED is deliberately assigned by the harness, never by the model.",
   "type": "object",
   "required": [
     "verdict",

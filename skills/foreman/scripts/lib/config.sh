@@ -3,7 +3,7 @@
 #   the durable-lanes harness. Precedence: dedicated env var (if set and
 #   non-empty) > TOML value > built-in default. CLI flags stay in the callers
 #   -- they already parse their own flags and win by exporting the dedicated
-#   env var before calling cfg_get. Parses ONLY the 19 documented
+#   env var before calling cfg_get. Parses ONLY the 20 documented
 #   [durable]/[nats]/[audit.policy] keys (v0.2.5 T8 adds
 #   durable.resume_max_attempts, default 2, env RESUME_MAX_ATTEMPTS -- the
 #   bounded auto-resume supervisor's cap; v0.2.5 T4b adds four more, see
@@ -13,8 +13,8 @@
 #   -- watch.sh's wd_is_queued pueue-status-probe bound, previously env-only
 #   (see the _CFG_ENV_VAR comment below on how that differs from
 #   durable.watch_tick, which STAYS env-only); v0.2.5 T7 also adds the
-#   THREE-key `[audit.policy]` dotted section -- warning_low_resolved,
-#   warning_medium, blocked (string values) -- the architect's soft-mode
+#   FOUR-key `[audit.policy]` dotted section -- warning_low_resolved,
+#   warning_medium, blocked, unverified (string values) -- the architect's
 #   verdict-to-action doctrine, see references/orchestration-hardening.md)
 #   with a minimal bash
 #   TOML-subset parser ("[section]" headers, "key = value", quoted or
@@ -30,7 +30,7 @@
 # Env var cfg_get resolves for each section.key it is asked about. This is
 # broader than the TOML "known keys" allowlist by exactly one entry
 # (durable.watch_tick -> WATCH_TICK): watch.sh's poll tick is not one of the
-# 19 documented [durable]/[nats]/[audit.policy] keys (see _cfg_parse_toml's
+# 20 documented [durable]/[nats]/[audit.policy] keys (see _cfg_parse_toml's
 # explicit case statement below, which is the actual TOML allowlist), but it
 # still needs a uniform cfg_get call site that honors its own pre-existing
 # env var. Adding it here does NOT make it TOML-storable -- _cfg_parse_toml
@@ -55,13 +55,10 @@
 # STAYS env-only -- queue_timeout is a new v0.2.5 key with no legacy
 # env-only callers to preserve compatibility for, so there was no reason to
 # leave it asymmetric the way watch_tick's pre-existing contract required).
-# v0.2.5 T7 also adds the THREE-key `[audit.policy]` dotted section --
-# warning_low_resolved/warning_medium/blocked, string-valued -- keyed here as
+# v0.2.5 T7 adds the `[audit.policy]` dotted section; three-outcome-verdicts
+# adds its fourth key, unverified. All four string values are keyed here as
 # literal "audit.policy.<key>" (the section header IS "audit.policy", a
-# literal bracket string as far as this hand-rolled parser is concerned; see
-# _cfg_parse_toml's section-tracking comment). Consumed today as soft-mode
-# architect doctrine only (SKILL.md); gate-eval.sh does not read them yet --
-# see references/orchestration-hardening.md for the "v0.3.0 consumer" note.
+# literal bracket string as far as this hand-rolled parser is concerned.
 declare -Ag _CFG_ENV_VAR=(
   [durable.enabled]=DURABLE_ENABLED
   [durable.checkpoint_interval]=DURABLE_CHECKPOINT_INTERVAL
@@ -83,6 +80,7 @@ declare -Ag _CFG_ENV_VAR=(
   [audit.policy.warning_low_resolved]=AUDIT_POLICY_WARNING_LOW_RESOLVED
   [audit.policy.warning_medium]=AUDIT_POLICY_WARNING_MEDIUM
   [audit.policy.blocked]=AUDIT_POLICY_BLOCKED
+  [audit.policy.unverified]=AUDIT_POLICY_UNVERIFIED
 )
 
 declare -Ag _CFG_VALUES=()
@@ -101,7 +99,7 @@ _CFG_WARNED=0
 #   matching, same as real TOML's nested-table semantics treat it as a
 #   distinct sub-table of "audit") -- are tracked for header purposes only
 #   and never inspected for value syntax, so they can never trip this parser.
-#   Only the 19 documented section.key combinations (the case statement below
+#   Only the 20 documented section.key combinations (the case statement below
 #   -- NOT the broader _CFG_ENV_VAR table, which also carries watch_tick for
 #   cfg_get's env resolution only) are stored; any other key inside
 #   [durable]/[nats]/[audit.policy] is ignored, not an error. Any line inside
@@ -150,7 +148,8 @@ _cfg_parse_toml() {
         durable.starting_stale|durable.impl_stale|durable.verify_stale|durable.grace| \
         durable.merge_base_max_commits|durable.queue_timeout| \
         nats.url|nats.store_dir|nats.stream|nats.subject_prefix| \
-        audit.policy.warning_low_resolved|audit.policy.warning_medium|audit.policy.blocked)
+        audit.policy.warning_low_resolved|audit.policy.warning_medium| \
+        audit.policy.blocked|audit.policy.unverified)
           _CFG_VALUES["$section.$key"]="$val"
           ;;
         *) : ;; # unknown key (or watch_tick, which has no TOML representation) ignored

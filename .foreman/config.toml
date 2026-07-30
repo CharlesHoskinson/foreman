@@ -7,6 +7,7 @@ model  = "grok-4.5"
 [audit]
 vendor = "codex"
 model  = "gpt-5.6-sol"
+# timeout_min = 30    # wall-clock audit bound; defaults from limits.round_timeout_min
 
 [checks]
 command = "bash -lc 'test -f site/index.html && test -f site/styles.css && test -f site/app.js'"
@@ -14,6 +15,7 @@ command = "bash -lc 'test -f site/index.html && test -f site/styles.css && test 
 [limits]
 max_rework_rounds = 3
 round_timeout_min = 30
+# max_audit_attempts = 3  # consecutive UNVERIFIED cap; independent of rework rounds
 
 [gate]
 forbidden_paths = [
@@ -45,10 +47,9 @@ store_dir = "~/.foreman/nats-store"
 stream = "FOREMAN"
 subject_prefix = "foreman"
 
-# v0.2.5 T7: architect verdict-to-action doctrine (soft-mode consumer only --
-# see skills/foreman/references/orchestration-hardening.md section 7; not
-# yet read by gate-eval.sh). Values shown are the built-in defaults.
+# Verdict-to-action policy. Values shown are the built-in defaults.
 # [audit.policy]
 # warning_low_resolved = "merge"   # (env: AUDIT_POLICY_WARNING_LOW_RESOLVED)
 # warning_medium = "ask"           # (env: AUDIT_POLICY_WARNING_MEDIUM)
 # blocked = "never"                # (env: AUDIT_POLICY_BLOCKED)
+# unverified = "retry"              # (env: AUDIT_POLICY_UNVERIFIED)

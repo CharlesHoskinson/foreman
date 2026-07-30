@@ -202,3 +202,27 @@ tl_file_sha256() {
   [[ -f "$path" ]] || { printf ''; return 0; }
   sha256sum "$path" 2>/dev/null | awk '{print $1}'
 }
+
+# @description Hash the exact git diff bytes evaluated by audit/check/gate.
+# @arg $1 worktree git worktree
+# @arg $2 base_sha merge-base lineage used for BASE...HEAD
+# @stdout 64-character lowercase SHA-256
+# @exitcode 0 on success; 1 when the diff or hash cannot be computed
+tl_diff_sha256() {
+  local worktree="$1" base_sha="$2" diff_file digest
+  diff_file="$(mktemp)" || return 1
+  if ! git_nohooks -C "$worktree" diff "$base_sha...HEAD" >"$diff_file"; then
+    rm -f "$diff_file"
+    return 1
+  fi
+  if ! digest="$(tl_file_sha256 "$diff_file")"; then
+    rm -f "$diff_file"
+    return 1
+  fi
+  rm -f "$diff_file"
+  if [[ ! "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+    return 1
+  fi
+  printf '%s\n' "$digest"
+  return 0
+}

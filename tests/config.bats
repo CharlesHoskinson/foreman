@@ -4,7 +4,7 @@
 #   all known keys (v0.2.5 T8 adds durable.resume_max_attempts; v0.2.5 T4b
 #   adds durable.starting_stale/impl_stale/verify_stale/grace; v0.2.5 T7 adds
 #   durable.queue_timeout and the `[audit.policy]` dotted section --
-#   warning_low_resolved/warning_medium/blocked), env-beats-TOML precedence,
+#   warning_low_resolved/warning_medium/blocked/unverified), env-beats-TOML precedence,
 #   defaults when neither is set, ~ expansion in nats.store_dir, malformed-
 #   file fail-safe, and a TOML-only spot-check that lane-run.sh/watch.sh each
 #   resolve one interval through the loader.
@@ -20,6 +20,7 @@ setup() {
     STARTING_STALE IMPL_STALE VERIFY_STALE WATCH_GRACE \
     MERGE_BASE_MAX_COMMITS WATCH_QUEUE_TIMEOUT \
     AUDIT_POLICY_WARNING_LOW_RESOLVED AUDIT_POLICY_WARNING_MEDIUM AUDIT_POLICY_BLOCKED \
+    AUDIT_POLICY_UNVERIFIED \
     NATS_URL NATS_STORE NATS_STREAM NATS_SUBJECT_PREFIX 2>/dev/null || true
 }
 
@@ -119,19 +120,21 @@ EOF
   [ "$(cfg_get durable queue_timeout 3)" = "9" ]
 }
 
-@test "(a6) v0.2.5 T7: [audit.policy] warning_low_resolved/warning_medium/blocked resolve from TOML only (env unset)" {
+@test "(a6) [audit.policy] warning_low_resolved/warning_medium/blocked/unverified resolve from TOML only (env unset)" {
   toml="$BATS_TEST_TMPDIR/t7_policy.toml"
   cat > "$toml" <<'EOF'
 [audit.policy]
 warning_low_resolved = "merge"
 warning_medium = "ask"
 blocked = "never"
+unverified = "manual-retry"
 EOF
   export FOREMAN_CONFIG="$toml"
   cfg_load
   [ "$(cfg_get audit.policy warning_low_resolved merge)" = "merge" ]
   [ "$(cfg_get audit.policy warning_medium ask)" = "ask" ]
   [ "$(cfg_get audit.policy blocked never)" = "never" ]
+  [ "$(cfg_get audit.policy unverified retry)" = "manual-retry" ]
 }
 
 @test "(b) env beats TOML; an unrelated key still resolves from TOML" {
@@ -198,6 +201,7 @@ EOF
 warning_low_resolved = "merge"
 warning_medium = "ask"
 blocked = "never"
+unverified = "manual-retry"
 EOF
   export FOREMAN_CONFIG="$toml"
   export AUDIT_POLICY_WARNING_MEDIUM="env-ask"
@@ -206,6 +210,7 @@ EOF
   # Unset-env keys still resolve from TOML, not the built-in default.
   [ "$(cfg_get audit.policy warning_low_resolved merge)" = "merge" ]
   [ "$(cfg_get audit.policy blocked never)" = "never" ]
+  [ "$(cfg_get audit.policy unverified retry)" = "manual-retry" ]
 }
 
 @test "(c) defaults when neither env nor TOML supplies a value" {
@@ -229,6 +234,7 @@ EOF
   [ "$(cfg_get audit.policy warning_low_resolved merge)" = "merge" ]
   [ "$(cfg_get audit.policy warning_medium ask)" = "ask" ]
   [ "$(cfg_get audit.policy blocked never)" = "never" ]
+  [ "$(cfg_get audit.policy unverified retry)" = "retry" ]
 }
 
 @test "(d) ~ expansion in nats.store_dir: TOML value, env value, and default all expand" {

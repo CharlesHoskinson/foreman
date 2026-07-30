@@ -9,6 +9,7 @@ model  = "grok-4.5"
 [audit]
 vendor = "codex"      # default auditor family (must differ from worker)
 model  = "gpt-5.6-sol"  # GPT-5.6 Sol via Codex CLI (codex-auditor in soft mode)
+# timeout_min = 30    # wall-clock audit bound; defaults from limits.round_timeout_min
 # empty vendor = auto: prefer codex when worker is grok
 
 [checks]
@@ -17,6 +18,7 @@ command = ""          # empty = auto-detect package.json / pyproject.toml
 [limits]
 max_rework_rounds = 3
 round_timeout_min = 30
+# max_audit_attempts = 3  # consecutive UNVERIFIED cap; independent of rework rounds
 max_tokens_per_round = 400000
 
 [gate]
@@ -49,3 +51,10 @@ url = "nats://127.0.0.1:4222"
 store_dir = "~/.foreman/nats-store"
 stream = "FOREMAN"
 subject_prefix = "foreman"
+
+# Verdict-to-action policy. Values shown are the built-in defaults.
+# [audit.policy]
+# warning_low_resolved = "merge"   # (env: AUDIT_POLICY_WARNING_LOW_RESOLVED)
+# warning_medium = "ask"           # (env: AUDIT_POLICY_WARNING_MEDIUM)
+# blocked = "never"                # (env: AUDIT_POLICY_BLOCKED)
+# unverified = "retry"             # (env: AUDIT_POLICY_UNVERIFIED)

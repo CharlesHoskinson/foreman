@@ -40,3 +40,4 @@ tests/wsl-clock-preflight.bats	7
 tests/wt-cleanup.bats	6
 tests/wt-merge.bats	11
 tests/wt-new.bats	14
+tests/audit-verdict.bats	26
