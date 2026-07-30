@@ -266,6 +266,26 @@ check_one() {
         status=missing
       fi
       ;;
+    foreman_home_fs)
+      local fh_path fh_probe fh_class
+      fh_path="${FOREMAN_HOME:-$HOME/.foreman}"
+      fh_probe="$fh_path"
+      # Classify nearest existing parent when FOREMAN_HOME is not yet created.
+      while [[ ! -e "$fh_probe" && "$fh_probe" != "/" && "$fh_probe" != "." ]]; do
+        fh_probe="$(dirname -- "$fh_probe")"
+      done
+      fh_class="$(fm_tc_fs_class "$fh_probe")"
+      case "$fh_class" in
+        mnt-drvfs|network)
+          status=degraded
+          detail="$fh_path class=$fh_class (event log fsync guarantees do not hold on this filesystem)"
+          ;;
+        *)
+          status=ok
+          detail="$fh_path class=$fh_class"
+          ;;
+      esac
+      ;;
     *)
       status=unknown
       detail="no checker for $id"
@@ -841,10 +861,10 @@ must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
 must_durable=(git jq coreutils bash flock)
-should_soft=(claude node npm jq markdownlint-cli2 codespell lychee)
-should_hard=(shellcheck bats gh timeout grok codex)
-should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue)
-should_durable=(nats-server nats-cli)
+should_soft=(claude node npm jq markdownlint-cli2 codespell lychee foreman_home_fs)
+should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
+should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs)
+should_durable=(nats-server nats-cli foreman_home_fs)
 
 case "$PROFILE" in
   soft) must=("${must_soft[@]}"); should=("${should_soft[@]}") ;;

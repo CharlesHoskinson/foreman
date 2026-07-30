@@ -857,6 +857,23 @@ prompt_payload="$(
   jq -cn     --arg c "$*"     --argjson model "$_model_id"     --arg qw "${_queue_wait_s}"     '{cmd:$c, model:$model}
      + (if $qw == "" then {} else {queue_wait_s: ($qw|tonumber)} end)'   | tr -d '\r'
 )"
+# WSL clock-drift preflight (wsl-preflight): env/wsl-clock-preflight.sh has
+# existed and been tested since v0.2.7.5 but was called from nowhere. WSL2's
+# guest clock can lag the host after a sleep/resume cycle, and a lagging clock
+# corrupts the event log's ordering invariants. Run it BEFORE the first
+# timestamped event. No-op off WSL. Never hard-fails the lane: a preflight that
+# cannot reach the host clock must not make lanes unrunnable.
+if [[ "${FOREMAN_WSL_CLOCK_PREFLIGHT:-1}" == 1 ]] \
+   && { [[ -n "${WSL_DISTRO_NAME:-}" || -n "${WSL_INTEROP:-}" ]] \
+        || grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; }; then
+  _wcp_repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || _wcp_repo_root=""
+  _wcp="${_wcp_repo_root:+$_wcp_repo_root/}env/wsl-clock-preflight.sh"
+  if [[ -n "$_wcp_repo_root" && ( -x "$_wcp" || -f "$_wcp" ) ]]; then
+    if ! bash "$_wcp" --threshold "${FOREMAN_WSL_CLOCK_THRESHOLD:-5}" >&2; then
+      echo "lane-run: WSL clock preflight refused (drift beyond threshold); continuing, event ordering may be affected" >&2
+    fi
+  fi
+fi
 # Guarded like every other el_emit call in this file: el_emit can legitimately
 # fail (mkdir-mutex retry timeout ~30s under .seq.lock contention, a jq
 # failure, or a failed atomic seq write) and under `set -euo pipefail` an
