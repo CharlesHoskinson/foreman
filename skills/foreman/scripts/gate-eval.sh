@@ -10,12 +10,16 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/eventlog.sh"
 # shellcheck source=lib/telemetry.sh
 source "$SCRIPT_DIR/lib/telemetry.sh"
+# shellcheck source=lib/evidence.sh
+source "$SCRIPT_DIR/lib/evidence.sh"
+# shellcheck source=lib/config.sh
+source "$SCRIPT_DIR/lib/config.sh"
 
 TASK_ID="${1:?usage: gate-eval.sh TASK_ID}"
 RD="$(run_dir "$TASK_ID")"
 require_cmd jq; require_cmd git
 
-for f in meta.json hashes.txt checks-result.json audit-verdict.json; do
+for f in meta.json hashes.txt checks-result.json; do
   [[ -f "$RD/$f" ]] || die "$EXIT_CONFIG" "missing gate input: $RD/$f"
 done
 
@@ -29,6 +33,46 @@ LANE="$(jq -r '.lane // "gate"' "$RD/meta.json" 2>/dev/null || echo gate)"
 
 REASONS=()
 INPUTS_EVALUATED=()
+
+FOREMAN_CONFIG="$CONFIG"
+cfg_load
+WARNING_LOW_POLICY="$(cfg_get audit.policy warning_low_resolved merge)"
+WARNING_MEDIUM_POLICY="$(cfg_get audit.policy warning_medium ask)"
+BLOCKED_POLICY="$(cfg_get audit.policy blocked never)"
+UNVERIFIED_POLICY="$(cfg_get audit.policy unverified retry)"
+
+CURRENT_DIFF_SHA=""
+CURRENT_DIFF_VALID=false
+if CURRENT_DIFF_SHA="$(tl_diff_sha256 "$WT" "$BASE_SHA")"; then
+  CURRENT_DIFF_VALID=true
+else
+  REASONS+=("gate diff hash computation failed (cannot bind gate inputs)")
+fi
+
+CURRENT_TREE_SHA=""
+CURRENT_TREE_VALID=false
+tree_tmp="$(mktemp)"
+if evidence_tree_sha256 "$WT" >"$tree_tmp"; then
+  CURRENT_TREE_SHA="$(<"$tree_tmp")"
+  CURRENT_TREE_VALID=true
+  rm -f "$tree_tmp"
+else
+  tree_reason="${EVIDENCE_REASON:-tree-identity-uncomputable}"
+  rm -f "$tree_tmp"
+  REASONS+=("gate evaluated-tree identity computation failed ($tree_reason)")
+fi
+
+CURRENT_ATTEMPT=""
+CURRENT_ATTEMPT_VALID=false
+if [[ -r "$RD/audit-attempt.current" ]]; then
+  CURRENT_ATTEMPT="$(<"$RD/audit-attempt.current")"
+  if [[ "$CURRENT_ATTEMPT" =~ ^[0-9]+$ ]]; then
+    CURRENT_ATTEMPT_VALID=true
+  fi
+fi
+if [[ "$CURRENT_ATTEMPT_VALID" != "true" ]]; then
+  REASONS+=("audit current attempt id computation failed (audit-attempt.current missing or malformed)")
+fi
 
 mapfile -t FORBIDDEN < <(toml_get "$CONFIG" gate.forbidden_paths $'tests/**\n.github/**\n.foreman/**\n*.lock\npackage-lock.json' 2>/dev/null || true)
 if [[ ${#FORBIDDEN[@]} -eq 0 ]]; then
@@ -49,21 +93,118 @@ if [[ -s "$RD/hashes.txt" ]]; then
 fi
 INPUTS_EVALUATED+=("hash_paths")
 
-[[ "$(jq -r .status "$RD/checks-result.json")" == "pass" ]] \
-  || REASONS+=("independent checks failed (exit $(jq -r .exit_code "$RD/checks-result.json"))")
+checks_status="$(jq -r '.status // empty' "$RD/checks-result.json" 2>/dev/null || true)"
+checks_exit="$(jq -r '.exit_code // "unknown"' "$RD/checks-result.json" 2>/dev/null || echo unknown)"
+checks_diff="$(jq -r '.diff_sha256 // empty' "$RD/checks-result.json" 2>/dev/null || true)"
+checks_tree="$(jq -r '.tree_sha256 // empty' "$RD/checks-result.json" 2>/dev/null || true)"
+if [[ "$checks_status" != "pass" ]]; then
+  REASONS+=("independent checks failed (exit $checks_exit)")
+fi
+if [[ "$CURRENT_DIFF_VALID" == "true" && "$checks_diff" != "$CURRENT_DIFF_SHA" ]]; then
+  REASONS+=("checks-result diff hash mismatch (stale independent-checks artifact)")
+fi
+if [[ "$CURRENT_TREE_VALID" == "true" && "$checks_tree" != "$CURRENT_TREE_SHA" ]]; then
+  REASONS+=("checks-result evaluated-tree mismatch (stale independent-checks artifact)")
+fi
 INPUTS_EVALUATED+=("checks_result")
 
-if ! jq -e '.verdict | IN("APPROVED","WARNING","BLOCKED")' "$RD/audit-verdict.json" >/dev/null 2>&1; then
+AUDIT_VALID=false
+if jq -e \
+  'type == "object"
+   and (.verdict | IN("APPROVED","WARNING","BLOCKED","UNVERIFIED"))' \
+  "$RD/audit-verdict.json" >/dev/null 2>&1; then
+  AUDIT_VALID=true
+fi
+if [[ "$AUDIT_VALID" != "true" ]]; then
   REASONS+=("audit verdict missing or schema-invalid")
-elif [[ "$(jq -r .verdict "$RD/audit-verdict.json")" == "BLOCKED" ]]; then
-  REASONS+=("audit verdict BLOCKED")
+else
+  audit_diff="$(jq -r '.evidence.diff_sha256 // empty' "$RD/audit-verdict.json")"
+  audit_tree="$(jq -r '.evidence.tree_sha256 // empty' "$RD/audit-verdict.json")"
+  audit_attempt="$(jq -r '.evidence.attempt // empty' "$RD/audit-verdict.json")"
+  audit_state="$(jq -r '.state // empty' "$RD/audit-verdict.json")"
+  if [[ "$CURRENT_DIFF_VALID" == "true" && "$audit_diff" != "$CURRENT_DIFF_SHA" ]]; then
+    REASONS+=("audit verdict diff hash mismatch (stale verdict for a different diff)")
+  fi
+  if [[ "$CURRENT_TREE_VALID" == "true" && "$audit_tree" != "$CURRENT_TREE_SHA" ]]; then
+    REASONS+=("audit verdict evaluated-tree mismatch (worktree changed since the audit ran)")
+  fi
+  if [[ "$CURRENT_ATTEMPT_VALID" == "true" ]] \
+    && { [[ ! "$audit_attempt" =~ ^[0-9]+$ ]] || (( 10#$audit_attempt != 10#$CURRENT_ATTEMPT )); }; then
+    REASONS+=("audit verdict attempt superseded or unfinished (a fresher or still-running audit exists)")
+  fi
+  if [[ "$audit_state" != "complete" ]]; then
+    REASONS+=("audit verdict incomplete (state is not complete)")
+  fi
+
+  AUDIT_VERDICT="$(jq -r .verdict "$RD/audit-verdict.json")"
+  case "$AUDIT_VERDICT" in
+    APPROVED)
+      :
+      ;;
+    WARNING)
+      warning_has_higher="$(
+        jq -r '[.findings[]? | (.severity // "unknown")] | any(. != "low")' \
+          "$RD/audit-verdict.json" 2>/dev/null || echo true
+      )"
+      warning_policy="$WARNING_LOW_POLICY"
+      warning_selector='.findings[]?'
+      if [[ "$warning_has_higher" == "true" ]]; then
+        warning_policy="$WARNING_MEDIUM_POLICY"
+        warning_selector='.findings[]? | select((.severity // "unknown") != "low")'
+      fi
+      if [[ "$warning_policy" != "merge" ]]; then
+        mapfile -t warning_findings < <(
+          jq -r "$warning_selector |
+            \"\\(.severity // \"unknown\") \\(.file // \"<unknown>\"):\\(.line // 0) \\(.summary // \"<no summary>\")\"" \
+            "$RD/audit-verdict.json" 2>/dev/null
+        )
+        if [[ ${#warning_findings[@]} -eq 0 ]]; then
+          REASONS+=("audit WARNING unresolved findings (policy: $warning_policy)")
+        else
+          for finding in "${warning_findings[@]}"; do
+            REASONS+=("audit WARNING unresolved finding ($finding; policy: $warning_policy)")
+          done
+        fi
+      fi
+      ;;
+    BLOCKED)
+      if [[ "$BLOCKED_POLICY" != "merge" ]]; then
+        REASONS+=("audit verdict BLOCKED (policy: $BLOCKED_POLICY)")
+      fi
+      ;;
+    UNVERIFIED)
+      audit_unverified_reason="$(jq -r '.reason // "unspecified"' "$RD/audit-verdict.json")"
+      REASONS+=("audit verdict UNVERIFIED (reason: $audit_unverified_reason; policy: $UNVERIFIED_POLICY)")
+      ;;
+  esac
 fi
 INPUTS_EVALUATED+=("audit_verdict")
 
+if [[ -f "$RD/task-state.json" ]] \
+  && [[ "$(jq -r '.state // empty' "$RD/task-state.json" 2>/dev/null || true)" == "Abandoned" ]]; then
+  task_state_reason="$(
+    jq -r '.reason // "audit_attempts_exhausted"' "$RD/task-state.json" 2>/dev/null \
+      || echo audit_attempts_exhausted
+  )"
+  REASONS+=("task state Abandoned ($task_state_reason)")
+fi
+INPUTS_EVALUATED+=("task_state")
+
 if [[ ! -f "$RD/docs-check.json" ]]; then
   REASONS+=("docs-check missing (fail closed)")
-elif [[ "$(jq -r .status "$RD/docs-check.json" 2>/dev/null)" != "pass" ]]; then
-  REASONS+=("docs-check failed: $(jq -r .status "$RD/docs-check.json" 2>/dev/null)")
+else
+  docs_status="$(jq -r '.status // empty' "$RD/docs-check.json" 2>/dev/null || true)"
+  docs_diff="$(jq -r '.diff_sha256 // empty' "$RD/docs-check.json" 2>/dev/null || true)"
+  docs_tree="$(jq -r '.tree_sha256 // empty' "$RD/docs-check.json" 2>/dev/null || true)"
+  if [[ "$docs_status" != "pass" ]]; then
+    REASONS+=("docs-check failed: ${docs_status:-invalid}")
+  fi
+  if [[ "$CURRENT_DIFF_VALID" == "true" && "$docs_diff" != "$CURRENT_DIFF_SHA" ]]; then
+    REASONS+=("docs-check diff hash mismatch (stale docs-check artifact)")
+  fi
+  if [[ "$CURRENT_TREE_VALID" == "true" && "$docs_tree" != "$CURRENT_TREE_SHA" ]]; then
+    REASONS+=("docs-check evaluated-tree mismatch (stale docs-check artifact)")
+  fi
 fi
 INPUTS_EVALUATED+=("docs_check")
 

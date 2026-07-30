@@ -440,3 +440,45 @@ evidence_records_to() {
   EVIDENCE_STATUS="OK"
   return 0
 }
+
+# three-outcome-verdicts: this is the ONE place tree_sha256 is computed.
+# audit-run.sh and the later gate-eval.sh/checks-run.sh/docs-check.sh dispatches
+# all call this function so the harness has exactly one implementation.
+# @arg $1 root git work tree
+# @stdout 64-character lowercase tree identity
+# @exitcode 0 on success; otherwise propagates the content-digest failure or
+#   returns 1 with EVIDENCE_STATUS/EVIDENCE_REASON set for tree-id failures
+evidence_tree_sha256() {
+  local root="$1" tree_oid content_digest digest_file rc
+
+  if ! evidence_is_git_worktree "$root"; then
+    EVIDENCE_STATUS="INCONCLUSIVE"
+    EVIDENCE_REASON="non-git-work-root:${root}"
+    return 1
+  fi
+
+  if ! tree_oid="$(_evidence_git -C "$root" rev-parse "HEAD^{tree}" 2>/dev/null)"; then
+    EVIDENCE_STATUS="UNCOMPUTABLE"
+    EVIDENCE_REASON="head-tree-rev-parse-failed:${root}"
+    return 1
+  fi
+
+  digest_file="$(mktemp)"
+  if evidence_content_digest "$root" work >"$digest_file"; then
+    content_digest="$(<"$digest_file")"
+    rm -f "$digest_file"
+  else
+    rc=$?
+    rm -f "$digest_file"
+    # evidence_content_digest already supplied the precise status and reason.
+    return "$rc"
+  fi
+
+  EVIDENCE_DIGEST="$(
+    printf '%s:%s' "$tree_oid" "$content_digest" | evidence_sha256_stdin
+  )"
+  EVIDENCE_STATUS="OK"
+  EVIDENCE_REASON=""
+  printf '%s\n' "$EVIDENCE_DIGEST"
+  return 0
+}

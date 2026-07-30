@@ -125,3 +125,6 @@ tests/wt-merge.bats	windows	0
 tests/wt-new.bats	linux	0
 tests/wt-new.bats	wsl	0
 tests/wt-new.bats	windows	0
+tests/audit-verdict.bats	linux	0
+tests/audit-verdict.bats	wsl	0
+tests/audit-verdict.bats	windows	0
