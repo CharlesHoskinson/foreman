@@ -188,3 +188,61 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"recorded from the main worktree"* ]]
 }
+
+# B1. A retire that updates no row must not print a success line. The target
+# was never checked, so a typo in the id read as a completed retirement.
+@test "retire refuses a measurement id that does not exist" {
+  cd "$REPO"
+  $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
+  run $SESS retire 99 --by 1 --reason "nonexistent target"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"no measurement 99"* ]]
+  [[ "$output" != *"retired, superseded by"* ]]
+  run $SESS recover
+  [[ "$output" == *"= 26"* ]]
+}
+
+# B3. A retired row must not supersede anything. Two rows could point at each
+# other, and then recover reported zero measurements as fully fresh.
+@test "retire refuses to supersede with an already-retired measurement" {
+  cd "$REPO"
+  $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
+  $SESS measure "suite pass count" "11" --command "bats t.bats" --scope src/a.sh
+  $SESS retire 1 --by 2 --reason "host state poisoned the first reading"
+  run $SESS retire 2 --by 1 --reason "cycle back onto the retired row"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"is itself superseded"* ]]
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"= 11"* ]]
+  [[ "$output" != *"= 26"* ]]
+}
+
+# B3, second half. An empty live set is not a fresh one. The launch point said
+# "every measurement is fresh" over zero rows, which reads as an all-clear.
+@test "the launch point does not claim freshness when no measurement exists" {
+  cd "$REPO"
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"every measurement is fresh"* ]]
+  [[ "$output" == *"no measurement is recorded"* ]]
+}
+
+# B2. The projector and recover must describe the same live set. The projector
+# read every row, so a retired measurement was exported as a live one.
+@test "project drops a retired measurement and records the retirement" {
+  cd "$REPO"
+  $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
+  $SESS measure "suite pass count" "11" --command "bats t.bats" --scope src/a.sh
+  $SESS retire 1 --by 2 --reason "host state poisoned the first reading"
+  run bash -c "python3 $SCRIPTS/fm-session.py project 2>/dev/null"
+  [ "$status" -eq 0 ]
+  # the live set agrees with recover: 11 projects, 26 does not
+  [[ "$output" == *'"value": 11.0'* ]]
+  [[ "$output" != *'"value": 26.0'* ]]
+  # lossless, not merely filtered: the retirement itself is a document
+  [[ "$output" == *'"@type": "Supersession"'* ]]
+  [[ "$output" == *"Measurement/fm-measurement-1"* ]]
+  [[ "$output" == *"Measurement/fm-measurement-2"* ]]
+  [[ "$output" == *"host state poisoned the first reading"* ]]
+}

@@ -40,7 +40,9 @@
 #   fm-session.py retire <measurement_id> --by <id> --reason TEXT
 #
 # Env:
-#   FOREMAN_SESSION_DB   override db path (default <repo>/.foreman/session.db)
+#   FOREMAN_SESSION_DB   override db path. The default is .foreman/session.db
+#                        beside the COMMON git dir, so every worktree of one
+#                        repository shares a single store.
 #
 # @exitcode 0 ok; 2 usage error
 import argparse
@@ -154,13 +156,39 @@ def git_sha():
         return None
 
 
+def warn_orphan_store(chosen):
+    """Name a second store that nothing reads any more.
+
+    repo_root() moved from --show-toplevel to --git-common-dir. Every worktree
+    that already held its own .foreman/session.db still holds it, and nothing
+    reads it now. Silence there is the same defect this store exists to stop:
+    a record on disk that no consumer ever sees. The warning goes to stderr,
+    because `recover --json` and `project` write machine-readable stdout."""
+    try:
+        top = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except Exception:
+        return
+    if not top:
+        return
+    orphan = (Path(top) / ".foreman" / "session.db").resolve()
+    if orphan == Path(chosen).resolve() or not orphan.exists():
+        return
+    print(f"WARNING: an orphaned session store sits at {orphan}. "
+          f"Nothing reads it. The store in use is {chosen}.", file=sys.stderr)
+
+
 def db_path():
     env = os.environ.get("FOREMAN_SESSION_DB")
     if env:
         return Path(env)
     d = repo_root() / ".foreman"
     d.mkdir(parents=True, exist_ok=True)
-    return d / "session.db"
+    chosen = d / "session.db"
+    warn_orphan_store(chosen)
+    return chosen
 
 
 def connect():
@@ -325,9 +353,15 @@ def render(rec):
             A(f"       blocked by: {o['blocker']}")
     A("")
     stale = c["measurements_stale"] + c["measurements_unknown"]
+    live = len(rec["measurements"])
     if stale:
         A(f"LAUNCH POINT: {stale} measurement(s) are not fresh — re-run them before "
           f"quoting any of their numbers. Then work the open obligations above.")
+    elif live == 0:
+        # "every measurement is fresh" over zero rows is a true sentence that
+        # reads as an all-clear. An empty live set is not evidence of health.
+        A("LAUNCH POINT: no measurement is recorded, so nothing here is measured. "
+          "Measure before you quote a number. Then work the open obligations above.")
     else:
         A("LAUNCH POINT: every measurement is fresh. Work the open obligations above.")
     return "\n".join(L)
@@ -385,6 +419,20 @@ def project(conn):
             })
 
     for r in cur.execute("SELECT * FROM measurements").fetchall():
+        if r["superseded_by"]:
+            # The live set is what `recover` shows, and it excludes retired
+            # rows. A projector that exported them made two consumers of one
+            # store disagree about the same number. The retirement is still
+            # emitted, so the projection is lossless rather than merely
+            # filtered -- exactly what the facts loop above does.
+            docs.append({
+                "@type": "Supersession",
+                "old": f"Measurement/fm-measurement-{r['id']}",
+                "new": f"Measurement/fm-measurement-{r['superseded_by']}",
+                "at": r["superseded_at"] or r["measured_ts"],
+                "reason": r["supersede_reason"] or "unrecorded (pre-v3 row)",
+            })
+            continue
         if r["value_num"] is None:
             # Reported, never coerced: Measurement.value is xsd:decimal and a
             # non-scalar cannot be projected without inventing a number.
@@ -393,6 +441,7 @@ def project(conn):
             continue
         docs.append({
             "@type": "Measurement",
+            "measurement_key": f"fm-measurement-{r['id']}",
             "metric": r["metric"],
             "subject": f"Commit/{r['measured_sha']}" if r["measured_sha"] else None,
             "value": r["value_num"],
@@ -553,14 +602,38 @@ def main():
         if a.by == a.measurement_id:
             print("refusing: a measurement cannot supersede itself", file=sys.stderr)
             return 2
-        row = cur.execute("SELECT id FROM measurements WHERE id=?", (a.by,)).fetchone()
+        target = cur.execute(
+            "SELECT id FROM measurements WHERE id=?",
+            (a.measurement_id,)).fetchone()
+        if target is None:
+            # The target was never checked. A typo in the id updated zero rows
+            # and still printed a success line.
+            print(f"refusing: no measurement {a.measurement_id} to retire",
+                  file=sys.stderr)
+            return 2
+        row = cur.execute(
+            "SELECT id, superseded_by FROM measurements WHERE id=?",
+            (a.by,)).fetchone()
         if row is None:
             print(f"refusing: no measurement {a.by} to supersede it", file=sys.stderr)
+            return 2
+        if row["superseded_by"] is not None:
+            # A retired row must not supersede anything. Two rows could point
+            # at each other, and then the live set was empty while the launch
+            # point still reported every measurement fresh.
+            print(f"refusing: measurement {a.by} is itself superseded by "
+                  f"{row['superseded_by']}. A retired measurement cannot "
+                  f"supersede another one.", file=sys.stderr)
             return 2
         cur.execute(
             "UPDATE measurements SET superseded_by=?, superseded_at=?, "
             "supersede_reason=? WHERE id=?",
             (a.by, now_iso(), a.reason, a.measurement_id))
+        if cur.rowcount != 1:  # pragma: no cover - the checks above cover it
+            conn.rollback()
+            print(f"refusing: retire changed {cur.rowcount} row(s), expected 1",
+                  file=sys.stderr)
+            return 2
         conn.commit()
         print(f"measurement {a.measurement_id} retired, superseded by {a.by}")
         return 0
