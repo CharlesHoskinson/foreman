@@ -148,3 +148,32 @@ setup() {
   [[ "$output" == *'"@type": "Supersession"'* ]]
   [[ "$output" == *"the tree changed"* ]]
 }
+
+@test "a retired measurement disappears from recovery and its successor remains" {
+  cd "$REPO"
+  $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
+  $SESS measure "suite pass count" "11" --command "bats t.bats" --scope src/a.sh
+  run $SESS retire 1 --by 2 --reason "host state poisoned the first reading"
+  [ "$status" -eq 0 ]
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"= 26"* ]]
+  [[ "$output" == *"= 11"* ]]
+}
+
+@test "retire refuses without a reason" {
+  cd "$REPO"
+  $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
+  $SESS measure "suite pass count" "11" --command "bats t.bats" --scope src/a.sh
+  run $SESS retire 1 --by 2
+  [ "$status" -eq 2 ]
+}
+
+@test "retire refuses to point a measurement at itself" {
+  cd "$REPO"
+  $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
+  run $SESS retire 1 --by 1 --reason "nonsense"
+  [ "$status" -eq 2 ]
+  run $SESS recover
+  [[ "$output" == *"= 26"* ]]
+}

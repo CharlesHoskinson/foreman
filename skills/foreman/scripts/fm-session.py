@@ -37,6 +37,7 @@
 #   fm-session.py obligation <statement> [--blocker B]
 #   fm-session.py close <obligation_id> [--status done|blocked] [--blocker B]
 #   fm-session.py supersede <fact_id> <new_statement> [--evidence E]
+#   fm-session.py retire <measurement_id> --by <id> --reason TEXT
 #
 # Env:
 #   FOREMAN_SESSION_DB   override db path (default <repo>/.foreman/session.db)
@@ -53,7 +54,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import pathlib
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -98,6 +99,12 @@ CREATE TABLE IF NOT EXISTS measurements (
   -- value_num carries the projectable scalar; NULL means "not a scalar", which
   -- the projector reports rather than silently coercing.
   value_num    REAL
+  ,
+  -- v3: a measurement proven wrong must be retirable. Its successor is already
+  -- a row, so this points the old row at the new one. Rows are never deleted.
+  superseded_by    INTEGER REFERENCES measurements(id),
+  superseded_at    TEXT,
+  supersede_reason TEXT
 );
 
 CREATE TABLE IF NOT EXISTS obligations (
@@ -164,6 +171,9 @@ def connect():
         ("facts", "superseded_at", "TEXT"),
         ("facts", "supersede_reason", "TEXT"),
         ("measurements", "value_num", "REAL"),
+        ("measurements", "superseded_by", "INTEGER"),
+        ("measurements", "superseded_at", "TEXT"),
+        ("measurements", "supersede_reason", "TEXT"),
     ):
         if col not in cols(table):
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
@@ -235,7 +245,7 @@ def build_recovery(conn):
 
     measurements = []
     for r in cur.execute(
-        "SELECT * FROM measurements ORDER BY id DESC"
+        "SELECT * FROM measurements WHERE superseded_by IS NULL ORDER BY id DESC"
     ).fetchall():
         validity, why = measurement_validity(r["measured_sha"], r["scope_paths"])
         measurements.append({
@@ -431,6 +441,13 @@ def main():
     p.add_argument("--reason", required=True,
                    help="why the old fact stopped being true; required -- an "
                         "unexplained supersession is unauditable")
+    p = sub.add_parser("retire")
+    p.add_argument("measurement_id", type=int)
+    p.add_argument("--by", type=int, required=True,
+                   help="id of the measurement that supersedes this one")
+    p.add_argument("--reason", required=True,
+                   help="why the old measurement stopped being true; required -- "
+                        "an unexplained retirement is unauditable")
 
     a = ap.parse_args()
     conn = connect()
@@ -525,6 +542,22 @@ def main():
             "UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? "
             "WHERE id=?", (new_id, now_iso(), a.reason, a.fact_id))
         conn.commit(); print(f"fact {a.fact_id} superseded by {new_id}"); return 0
+
+    if a.cmd == "retire":
+        if a.by == a.measurement_id:
+            print("refusing: a measurement cannot supersede itself", file=sys.stderr)
+            return 2
+        row = cur.execute("SELECT id FROM measurements WHERE id=?", (a.by,)).fetchone()
+        if row is None:
+            print(f"refusing: no measurement {a.by} to supersede it", file=sys.stderr)
+            return 2
+        cur.execute(
+            "UPDATE measurements SET superseded_by=?, superseded_at=?, "
+            "supersede_reason=? WHERE id=?",
+            (a.by, now_iso(), a.reason, a.measurement_id))
+        conn.commit()
+        print(f"measurement {a.measurement_id} retired, superseded by {a.by}")
+        return 0
 
     return 2
 
