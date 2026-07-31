@@ -38,6 +38,16 @@ EOF
   printf '%s' "$rd"
 }
 
+# @description List the PIDs of "sleep" processes in one process group,
+# sorted. The scope is this test's own group, so processes started by other
+# agents on the host cannot change the result.
+# @arg $1 process group id
+sleeps_in_pgroup() {
+  ps -eo pid=,pgid=,comm= \
+    | awk -v g="$1" '$2 == g && $3 == "sleep" { print $1 }' \
+    | sort
+}
+
 # --- T1 premise (additivity) ----------------------------------------------
 
 @test "T1 premise: el_emit accepts new types; el_read returns them; compact keeps them" {
@@ -280,19 +290,54 @@ FAKE
   chmod +x "$fake_bin/codex"
   export PATH="$fake_bin:$PATH"
 
-  local rd base before after
+  local rd base pgid before after leaked pid outfile runner
   rd="$(seed_run run-audit-reap)"
   base="$(git -C "$REPO" rev-parse HEAD)"
   cat > "$rd/meta.json" <<EOF
 {"worktree":"$REPO","repo_root":"$REPO","base_sha":"$base","lane":"audit-lane"}
 EOF
   mkdir -p "$REPO/.foreman"
+  outfile="$BATS_TEST_TMPDIR/audit-run.out"
 
-  before="$(pgrep -c -x sleep || true)"
-  run bash "$SCRIPTS/audit-run.sh" run-audit-reap
-  after="$(pgrep -c -x sleep || true)"
+  # The runner detaches the audit from every descriptor that bats holds,
+  # in particular the bats output pipe on fd 3. A leaked watchdog would
+  # otherwise keep that pipe open, "run" would block for the full
+  # 30-minute timeout, and the assertions below would never execute.
+  runner="$BATS_TEST_TMPDIR/run-detached.sh"
+  cat > "$runner" <<'RUNNER'
+#!/usr/bin/env bash
+script="$1"
+out="$2"
+exec 0</dev/null
+exec >"$out" 2>&1
+for entry in /proc/self/fd/*; do
+  fd="${entry##*/}"
+  if [[ "$fd" =~ ^[0-9]+$ ]] && (( fd > 2 )); then
+    eval "exec ${fd}>&-" || true
+  fi
+done
+exec bash "$script" run-audit-reap
+RUNNER
+  chmod +x "$runner"
 
-  # The watchdog must not outlive the audit. Compare counts, never pkill:
-  # pgrep -f matches other agents' command lines.
-  [ "${after:-0}" -le "${before:-0}" ]
+  # Scope the sample to this test's own process group. A host-wide count
+  # moves under concurrent agents, so it can fail or pass by accident.
+  # "timeout --foreground" keeps the audit in this group; plain "timeout"
+  # starts a new group and hides the leak.
+  pgid="$(ps -o pgid= -p "$BASHPID" | tr -d " ")"
+  before="$(sleeps_in_pgroup "$pgid")"
+  run timeout --foreground 120 bash "$runner" "$SCRIPTS/audit-run.sh" "$outfile"
+  after="$(sleeps_in_pgroup "$pgid")"
+
+  # Kill any leak by exact PID before asserting. A failed assertion must
+  # not leave a 30-minute sleep on the host. Never pkill: pgrep -f and
+  # pkill -f match other agents' command lines.
+  leaked="$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after"))"
+  for pid in $leaked; do
+    kill -KILL "$pid" 2>/dev/null || true
+  done
+
+  [ "$status" -ne 124 ]
+  [ -z "$leaked" ]
+  [ -f "$rd/audit-verdict.json" ]
 }
