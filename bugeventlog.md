@@ -1640,6 +1640,100 @@ Recorded here because the workflow context is foreman's, though the failures are
   controls are not paperwork; every one of these was invisible until something
   independent contradicted it.
 
+## 2026-07-29 — Monitor watchdog died on the Git Bash path trap
+
+- **Phase:** Foreman run `t3rev3-halfA`, dispatch — arming the lane stall watchdog.
+- **Evidence:** Monitor exited 127. stderr:
+  `bash: C:/Program Files/Git/root/foreman-wt/lane-watchdog.sh: No such file or directory`
+- **Root cause:** the Monitor tool runs its command in Git Bash. `wsl -e bash /root/...`
+  passes `/root/...` as a standalone leading-slash argument, which MSYS path-converts to
+  `C:/Program Files/Git/root/...`. Documented in `devlog/2026-07-28.md` §3 as "Git Bash
+  rewrites `/mnt/...`" — the same conversion applies to *every* leading-slash argument, not
+  just `/mnt`, which is the part the existing note understates.
+- **Impact:** low. Failed immediately and loudly at arm time, so no lane ran unwatched for
+  more than a few seconds. A silent-failure variant of this would have been worse: the
+  watchdog exists precisely to catch silent hangs, so a watchdog that dies quietly is a
+  false-confidence defect of the same class the tier-3 work is fixing.
+- **Fix applied:** invoke as `wsl -e bash -lc "cd /root/foreman-wt && exec bash <script>"`.
+  The path is embedded mid-string, so MSYS does not convert it. `MSYS_NO_PATHCONV=1` is the
+  alternative.
+- **Enhancement:** the devlog trap table says "Git Bash rewrites `/mnt/...`". Widen it to
+  "Git Bash rewrites any leading-slash argument" and add the `-lc "cd … && exec …"` form as
+  the standing invocation for WSL scripts from a Windows-side tool.
+
+## 2026-07-29 — Stall watchdog fired a false positive on both cleanup lanes
+
+- **Phase:** Foreman run `t3rev3-cleanup`, mid-round monitoring.
+- **Evidence:** `STALL: cleanup lane controls idle 15m` and the same for `council`, both at
+  T+16min. Checked before acting: `git status --porcelain` in both worktrees showed only the
+  seeded `AGENT_TRAPS.md`/`SPEC.md`/`repos` symlink, no agent writes; but the harness task
+  directory had a background task written 0.0 min earlier. Lanes were alive and mid-analysis.
+- **Root cause:** the watchdog's signal was "newest file mtime under the lane's worktree".
+  That measures *artifact production*, not liveness. A lane reading nine council reports
+  (~250 KB) or enumerating five Quint models legitimately writes nothing for a long stretch.
+  No file written is not the same as dead.
+- **Impact:** medium, and the interesting part is second-order. The alert itself was cheap —
+  one check disproved it. But the script latched `stalled[lane]=1` and only reset when idle
+  dropped below threshold, so after a false positive a genuine later death would have gone
+  **unwarned**. A false negative manufactured by a false positive is worse than no watchdog,
+  and it is exactly the false-confidence class the tier-3 checker work is fixing. The same
+  flawed script was watching the two Half A lanes, so both were replaced, not just the one
+  that fired.
+- **Fix applied:** v3/v4 require BOTH signals stale before alerting — per-lane worktree
+  writes (progress, 30m) AND harness task/scratchpad activity (liveness, 10m). A
+  live-but-thinking lane keeps the global signal fresh and stays quiet; a dead lane or a
+  rebooted WSL VM goes stale on both. New script files rather than edits, per trap B4.
+- **Enhancement:** add to `tools/AGENT_TRAPS.md` §D — a watchdog must be checked for what
+  its signal actually tracks before it is trusted, and a latching alert flag must not be
+  able to suppress a later real event. Same rule as E2: a monitor that has never been shown
+  to fire correctly, and to keep firing, is not evidence of liveness.
+
+## 2026-07-29 — PowerShell ate `$(...)` and a fixture built into the repo root
+
+- **Phase:** Project Feynman, Half A rework round 3 (t3rev3-halfA-rework), C1 verification.
+- **Evidence:** `wsl -e bash -lc "... d=\$(mktemp -d /tmp/fixchk-XXXXXX) && python3 tools/mutation/mk_h4_fixture.py build \$d ..."`
+  run through the **PowerShell** tool. PowerShell reported
+  `mktemp: The term 'mktemp' is not recognized as a name of a cmdlet` — it evaluated the
+  command substitution itself instead of passing it to bash. `$d` arrived empty, the fixture
+  built into `Path("")` relative to the repo, and `git status -uall` later showed
+  `?? " /architecture/Failures.fs"` — a directory literally named `" "` inside the worktree.
+- **Root cause:** `AGENT_TRAPS` B1 ("write a script file, then run the file") applied to a
+  one-liner that looked too small to need it. The Windows-side shell interpolates `$(...)`
+  before `wsl -e bash -lc` ever sees it; escaping `\$` protects `$d` but not `$(...)`.
+- **Impact:** ~5 minutes, plus a stray directory in a worktree about to be committed. Caught
+  only because `git status --porcelain -uall` was run before staging; plain
+  `git status --porcelain` also showed it, but as an opaque `?? " /"`.
+- **Enhancement:** never put `$(...)` inside a `wsl -e bash -lc "..."` string from PowerShell —
+  the substitution belongs in a script file. And run `git status -uall` before every commit in
+  an agent worktree, not `git status`.
+
+## 2026-07-29 — PowerShell rejects `<` at parse time, before WSL is reached
+
+- **Phase:** preserving the blind-gates lane's work after an API 529; a one-liner to snapshot
+  its diff and count the untracked paths.
+- **Evidence:** the command never reached WSL. PowerShell's own parser rejected it:
+
+  ```
+  ParserError:
+  Line |
+     1 |  …  \$SNAP/untracked.txt 2>/dev/null; echo \"  patch: \$(wc -l < \$SNAP/ …
+       |                                                                ~
+       | The '<' operator is reserved for future use.
+  ```
+
+- **Root cause:** `<` is a reserved operator in PowerShell. Any `wsl -e bash -c "... < file ..."`
+  invoked through the PowerShell tool fails at PowerShell's parse step — the redirection is
+  never seen by bash. Same family as the `$(...)` interpolation and backtick-vs-backslash
+  entries: the outer shell processes the string before WSL does.
+- **Impact:** low in isolation — it fails loudly and immediately. It matters because it is a
+  *third* distinct way the outer shell mangles an inner bash command, and the first two are
+  already trap entries. The general rule those three share is the one worth holding: any
+  non-trivial bash goes in a script file, never inline.
+- **Fix applied:** wrote the snapshot as a script file and ran `wsl -e bash <script>`.
+- **Enhancement:** add to `tools/AGENT_TRAPS.md` §B alongside B5/B6. It was proposed for that
+  file earlier today and correctly **refused** by the lane doing the update, because no measured
+  instance existed anywhere in the repo — I had hit it but never logged it. This entry is that
+  missing evidence. A trap asserted from memory is exactly what the file must not contain.
 
 ## 2026-07-29 — terminusdb-schema (s9-tdbschema) package authoring
 
@@ -1666,3 +1760,871 @@ checker, live load-test gate, proposal drift fixes, and ran all gates.
 was already present; schema load, positive Agent, invalid-enum reject,
 undeclared-field reject, and drop-rebuild identity all passed on first
 successful ready-wait.
+
+## 2026-07-30 · Wave-1 dispatch, Project Feynman
+
+### Event 1 — the stall watchdog measured a file that is written only at completion
+
+**Phase:** wave-1 lane dispatch (3 Grok implementers in worktrees).
+
+**Evidence:** watchdog fired `NO ACTIVITY on any of the 3 lanes for 3 min (transcript bytes
+flat)` within minutes of dispatch. `stat -c %s` on all three agent output files returned
+**0 bytes** with fresh mtimes; `ps` showed **no grok process running**, and each worktree had
+only the untracked `repos` symlink.
+
+**Root cause:** the subagent transcript (`tasks/<id>.output`) is written on completion, not
+incrementally. So "transcript bytes flat" is the signature of a *healthy running lane*. The
+alarm would have fired on every interval of a normal run and gone silent exactly when the work
+finished — an alarm that is loud when nothing is wrong and quiet when something is.
+
+**Impact:** no lost work; one false alarm and ~10 minutes of investigation. The cost would have
+been higher had it been trusted.
+
+**Class:** identical to the 2026-07-29 watchdog defect (keyed on worktree writes; a lane reading
+250 KB wrote nothing → false stall on both lanes → latched → would have been silent through a
+real death). **The rule "check what a monitor's signal actually tracks" was written into
+`docs/superpowers/specs/2026-07-30-feynman-resume-design.md` §5 and the plan's Global
+Constraints THIS MORNING, by the same author, hours before this instrument was armed.**
+
+**Enhancement:** a liveness signal must be a surface the work actually moves. Replacement watches
+three: (a) is a `grok`/`codex` process executing, (b) has any owned file been touched in the last
+5 minutes, (c) how many commits exist on the lane branch beyond the base. It alarms only when
+(a) and (b) are both empty, re-reports each interval, and announces recovery — no latch.
+
+**Standing lesson, third instance:** fixing one occurrence of a failure class does not inoculate
+against the class. Writing the rule down does not either.
+
+### Event 2 — `repos/` in .gitignore does not match a `repos` symlink, and per-worktree
+`info/exclude` is not read
+
+**Phase:** same dispatch.
+
+**Evidence:** `.gitignore:2` is `repos/`. Main shows `!! repos/` (ignored). Each lane worktree
+showed `?? repos` — the symlink created to give lanes the Haskell tree. Writing `repos` to
+`.git/worktrees/<name>/info/exclude` changed nothing; after writing it to the **common**
+`.git/info/exclude`, all three lanes went to 0 untracked and main stayed clean.
+
+**Root cause:** two independent facts. A trailing-slash gitignore pattern matches directories
+only, not symlinks-to-directories. And worktrees read `info/exclude` from `$GIT_COMMON_DIR`,
+not from the per-worktree git dir.
+
+**Impact:** a lane running `git add -A` would have committed a symlink pointing into another
+checkout. Caught before any lane committed.
+
+**Enhancement:** when handing a lane a symlinked resource, exclude it in the common git dir at
+setup time and verify `git status` is empty in every worktree before dispatch — do not rely on
+the brief saying "owned files only". A brief is not enforcement.
+
+### Event 3 — a watchdog with two blind surfaces killed three live lanes
+
+**Phase:** wave-1 execution, 2026-07-30 ~08:12.
+
+**What happened:** the replacement watchdog (itself written to fix Event 1) fired three
+consecutive STALL SUSPECT reports. On the third, three Grok lanes were stopped. They were alive
+and nearly finished.
+
+**Evidence they were working:**
+- `/root/wt/w1-stub/tools/mutation/{MUT-A1-experiments.sh,mutate_ledger.py}` carry mtime
+  **08:01:58** with `+24` lines of real mutation cases — written by the lane while the watchdog
+  was reporting "no owned file touched".
+- W1-cite's final message on kill: *"All cases pass, including the `--strict-uninspected fails
+  on it` case. Now checking the code comment's exact line numbers…"* — acceptance criteria 1 and
+  2 complete, on criterion 3 of 3.
+
+**Root cause — both surfaces were blind:**
+1. `find <paths> -newermt '-5 minutes'` returns **nothing** on this GNU find; the relative form
+   is not parsed. Verified: the same find with `-newermt "$(date -d '-20 minutes' '+%F %T')"`
+   returns matches immediately. So the file-activity surface reported 0 on every poll,
+   unconditionally.
+2. The process surface greps for a running `grok`/`codex`. A lane spends its first many minutes
+   in model calls with NO child process, and only later spawns `grok`. Absence of the process is
+   the normal early state, not a fault signal.
+
+An AND of two signals that are both silent-by-construction is guaranteed to fire.
+
+**Impact:** three lanes killed ~30 minutes in, minutes from completing. Work discarded and
+redone. The killed W1-stub's edits survived as uncommitted changes in its worktree and were then
+inherited by the relaunched lane — a provenance mix that has to be disclosed to its auditor.
+
+**Class:** third instance today of "the instrument is wrong", and the second watchdog in two days
+with a defect of exactly the kind the standing rule names. Events 1 and 3 are the same rule
+violated twice by the same author within one hour, the second time while fixing the first.
+
+**Enhancement — the rule was not specific enough.** "Check what a monitor's signal actually
+tracks" is too weak. Replacement rule: **a monitor's predicate must be executed once against a
+known-positive case and shown to fire BEFORE the monitor is armed.** A watchdog is a checker,
+and this programme's standing requirement for checkers — it must be shown to fail on an injected
+defect before its silence means anything — applies to monitors with no exception. The third
+watchdog now runs on `stat -c %s /tmp/lanes/<lane>.out`, a surface demonstrated to grow
+(355-496 bytes at 20 seconds) before being trusted.
+
+**Second lesson:** kill thresholds must be justified against the observed cost structure. 30
+minutes of preamble is normal for a lane briefed to read a 912-line plan and a full trap file
+before acting. The threshold was set from impatience, not from measurement.
+
+### Event 3 — a watchdog with two blind surfaces killed three live lanes
+
+**Phase:** wave-1 execution, 2026-07-30 ~08:12.
+
+**What happened:** the replacement watchdog (itself written to fix Event 1) fired three
+consecutive STALL SUSPECT reports. On the third, three Grok lanes were stopped. They were alive
+and nearly finished.
+
+**Evidence they were working:**
+- `/root/wt/w1-stub/tools/mutation/{MUT-A1-experiments.sh,mutate_ledger.py}` carry mtime
+  **08:01:58** with `+24` lines of real mutation cases — written by the lane while the watchdog
+  was reporting "no owned file touched".
+- W1-cite's final message on kill: *"All cases pass, including the `--strict-uninspected fails
+  on it` case. Now checking the code comment's exact line numbers…"* — acceptance criteria 1 and
+  2 complete, on criterion 3 of 3.
+
+**Root cause — both surfaces were blind:**
+1. `find <paths> -newermt '-5 minutes'` returns **nothing** on this GNU find; the relative form
+   is not parsed. Verified: the same find with `-newermt "$(date -d '-20 minutes' '+%F %T')"`
+   returns matches immediately. So the file-activity surface reported 0 on every poll,
+   unconditionally.
+2. The process surface greps for a running `grok`/`codex`. A lane spends its first many minutes
+   in model calls with NO child process, and only later spawns `grok`. Absence of the process is
+   the normal early state, not a fault signal.
+
+An AND of two signals that are both silent-by-construction is guaranteed to fire.
+
+**Impact:** three lanes killed ~30 minutes in, minutes from completing. Work discarded and
+redone. The killed W1-stub's edits survived as uncommitted changes in its worktree and were then
+inherited by the relaunched lane — a provenance mix that has to be disclosed to its auditor.
+
+**Class:** third instance today of "the instrument is wrong", and the second watchdog in two days
+with a defect of exactly the kind the standing rule names. Events 1 and 3 are the same rule
+violated twice by the same author within one hour, the second time while fixing the first.
+
+**Enhancement — the rule was not specific enough.** "Check what a monitor's signal actually
+tracks" is too weak. Replacement rule: **a monitor's predicate must be executed once against a
+known-positive case and shown to fire BEFORE the monitor is armed.** A watchdog is a checker,
+and this programme's standing requirement for checkers — it must be shown to fail on an injected
+defect before its silence means anything — applies to monitors with no exception. The third
+watchdog now runs on `stat -c %s /tmp/lanes/<lane>.out`, a surface demonstrated to grow
+(355-496 bytes at 20 seconds) before being trusted.
+
+**Second lesson:** kill thresholds must be justified against the observed cost structure. 30
+minutes of preamble is normal for a lane briefed to read a 912-line plan and a full trap file
+before acting. The threshold was set from impatience, not from measurement.
+
+### Event 3 — a watchdog with two blind surfaces killed three live lanes
+
+**Phase:** wave-1 execution, 2026-07-30 ~08:12.
+
+**What happened:** the replacement watchdog (itself written to fix Event 1) fired three
+consecutive STALL SUSPECT reports. On the third, three Grok lanes were stopped. They were alive
+and nearly finished.
+
+**Evidence they were working:**
+- `/root/wt/w1-stub/tools/mutation/{MUT-A1-experiments.sh,mutate_ledger.py}` carry mtime
+  **08:01:58** with `+24` lines of real mutation cases — written by the lane while the watchdog
+  was reporting "no owned file touched".
+- W1-cite's final message on kill: *"All cases pass, including the `--strict-uninspected fails
+  on it` case. Now checking the code comment's exact line numbers…"* — acceptance criteria 1 and
+  2 complete, on criterion 3 of 3.
+
+**Root cause — both surfaces were blind:**
+1. `find <paths> -newermt '-5 minutes'` returns **nothing** on this GNU find; the relative form
+   is not parsed. Verified: the same find with `-newermt "$(date -d '-20 minutes' '+%F %T')"`
+   returns matches immediately. So the file-activity surface reported 0 on every poll,
+   unconditionally.
+2. The process surface greps for a running `grok`/`codex`. A lane spends its first many minutes
+   in model calls with NO child process, and only later spawns `grok`. Absence of the process is
+   the normal early state, not a fault signal.
+
+An AND of two signals that are both silent-by-construction is guaranteed to fire.
+
+**Impact:** three lanes killed ~30 minutes in, minutes from completing. Work discarded and
+redone. The killed W1-stub's edits survived as uncommitted changes in its worktree and were then
+inherited by the relaunched lane — a provenance mix that has to be disclosed to its auditor.
+
+**Class:** third instance today of "the instrument is wrong", and the second watchdog in two days
+with a defect of exactly the kind the standing rule names. Events 1 and 3 are the same rule
+violated twice by the same author within one hour, the second time while fixing the first.
+
+**Enhancement — the rule was not specific enough.** "Check what a monitor's signal actually
+tracks" is too weak. Replacement rule: **a monitor's predicate must be executed once against a
+known-positive case and shown to fire BEFORE the monitor is armed.** A watchdog is a checker,
+and this programme's standing requirement for checkers — it must be shown to fail on an injected
+defect before its silence means anything — applies to monitors with no exception. The third
+watchdog now runs on `stat -c %s /tmp/lanes/<lane>.out`, a surface demonstrated to grow
+(355-496 bytes at 20 seconds) before being trusted.
+
+**Second lesson:** kill thresholds must be justified against the observed cost structure. 30
+minutes of preamble is normal for a lane briefed to read a 912-line plan and a full trap file
+before acting. The threshold was set from impatience, not from measurement.
+
+---
+
+## 2026-07-30 — Event 1: `grok-multiround` reported success for a lane that implemented nothing
+
+**Phase:** implement (v0.2.9 first wave — vendor-preflight, wsl-preflight,
+wsl-tool-path-persistence, dispatched through the real Foreman chain).
+
+**Dispatch:** `lanectl launch <label> -- lane-run.sh v029 <lane> <wt> --
+grok-multiround.sh SPEC --max-rounds 3 -- grok -m grok-4.5 --allow Write --allow
+Edit --output-format plain --cwd <wt>`
+
+**Evidence.** All three lanes recorded a clean success in the event log:
+
+```
+{"seq":8,"type":"round_done","lane":"wtpp","commit":"04cd81b0...","payload":{"exit_code":0,"phases":{"implement_s":29},"exit_source":"child"}}
+{"seq":9,"type":"round_done","lane":"wpre","commit":"1b52f138...","payload":{"exit_code":0,"phases":{"implement_s":31},"exit_source":"child"}}
+```
+
+`ownership` events carried `"launcher":true` — the compiled launcher supervised
+correctly. Heartbeats were written. Every mechanical part of the durable core
+did its job.
+
+The actual product of all three lanes:
+
+```
+?? .harness/heartbeat.ndjson
+?? .harness/stream.ndjson
+?? SPEC-NOTES.md
+?? SPEC-<package>.md
+commits: 0
+```
+
+**Zero implementation. Zero commits. `exit_code=0` on all three.**
+
+**Root cause.** `grok-multiround.sh` decides "did grok write anything" from a
+git-status digest of the target working dir — deliberately, so it never trusts
+grok's own narration. Sound in principle. But the architect's spec opened with:
+
+> WRITE FIRST. Before reading anything else, create `SPEC-NOTES.md` in the repo
+> root of your --cwd with a one-line plan.
+
+That instruction was added to defeat the documented empty-burst failure
+(`grok --prompt-file` is single-turn; a round can exit 0 having written
+nothing). grok complied exactly: it wrote `SPEC-NOTES.md` and exited. The digest
+flipped, multiround concluded "files changed", exited 0, and `lane-run.sh`
+faithfully recorded a successful round with a checkpoint commit.
+
+**The detector was satisfied by an artifact created for the sole purpose of
+satisfying it.** The predicate ("some file in the worktree changed") does not
+discriminate the property ("the package was implemented"). Worse, the architect
+also wrote the spec file itself INTO the worktree, so a second unrelated
+untracked file was flipping the same digest.
+
+**Class.** Same family as the twelve checker-soundness failures already logged:
+a confident green from a predicate that never bound to the property. New
+variation, and a nastier one — here the *instruction* and the *checker* were
+authored by the same party, and the instruction defeated the checker.
+
+**Impact.** Three lanes, ~30s each, reported green having done nothing. Had the
+architect trusted `round_done exit_code=0` — which is exactly what that field
+exists to convey — three unimplemented packages would have advanced to audit.
+Caught only by manually diffing the worktrees against the base commit.
+
+**Enhancement (proposed, not yet implemented).**
+1. `grok-multiround.sh` must exclude from its digest any path the spec itself
+   instructed the worker to create, and any file the harness wrote
+   (`.harness/**`, `SPEC-*.md`). A change detector must ignore artifacts it or
+   its caller manufactured.
+2. Stronger: the digest should count changes to **tracked** files, or to files
+   matching the package's declared touch points from `tasks.md`, rather than any
+   path at all. "A file appeared" is not "work happened".
+3. Doctrine: **never instruct a worker to write a file whose existence is what
+   the success detector measures.** Anti-empty-burst guards must be orthogonal
+   to the empty-burst detector.
+4. `round_done.exit_code` should not be reported as 0 when the round produced no
+   change to tracked files; at minimum the payload needs a `files_changed` count
+   so a downstream gate can discriminate.
+
+---
+
+## 2026-07-30 — Event 2: architect killed three lanes at 18 minutes, repeating the immediately preceding entry's lesson
+
+**Phase:** implement (same first wave, earlier attempt via harness subagents).
+
+**Evidence.** Three lanes (`vpre`, `wpre`, `wtpp`) were stopped after 18 minutes
+on the grounds that they were stale: no `grok` process had ever appeared, no
+tracked file had changed, and the load average was falling. On kill, each
+returned its actual state:
+
+- "Spec already validates cleanly. Now let's capture evidence-before state and write the full spec for grok."
+- "Good — it's gitignored (won't interfere with commits/diffs). Now let's write the full spec file for Grok."
+- "Good, the openspec change already validates. Now let's check the docs-check.bats baseline entry..."
+
+All three were alive, progressing, and minutes from dispatching. A fourth lane
+relaunched with an execution-forcing brief reached "Now dispatching grok with the
+full inlined five-part spec" before it too was stopped.
+
+**Root cause.** The architect used absence-of-vendor-process plus
+absence-of-file-change as a stall signal. The entry immediately above this one in
+this log — written the previous day, about a different watchdog — states:
+
+> "A lane spends its first many minutes in model calls with NO child process, and
+> only later spawns `grok`. Absence of the process is the normal early state, not
+> a fault signal."
+
+and
+
+> "kill thresholds must be justified against the observed cost structure. 30
+> minutes of preamble is normal for a lane briefed to read a 912-line plan and a
+> full trap file before acting. The threshold was set from impatience, not from
+> measurement."
+
+The architect had read `AGENT_TRAPS.md` in full and had briefed every lane to do
+the same, then applied an 18-minute threshold chosen from impatience, against a
+signal the log had already documented as silent-by-construction.
+
+**Impact.** Six lane-starts discarded (three original, three relaunched), roughly
+25 minutes of lane preamble thrown away and redone. No output was lost
+permanently because the lanes had not yet written product code — which is
+precisely why the kill looked justified and was not.
+
+**Class.** Second occurrence in two days of "absence of a process treated as
+evidence of death". The standing rule already exists and was violated by someone
+who had read it that same session.
+
+**Enhancement.** The rule "liveness is process STATE and CPU, never existence"
+is insufficient because it still presumes a process exists. Proposed addition to
+`AGENT_TRAPS.md`: **a lane that has not yet spawned its vendor process has no
+liveness signal at all at the process layer; the only valid early-phase signal is
+its own output stream growing** (`stat -c %s <lane>.out`), and no kill threshold
+below the measured preamble cost (~30 min) is defensible without that surface.
+
+---
+
+## 2026-07-30 — Event 3: the 41-file suite had never completed, and was masking six failures
+
+**Phase:** verify (resuming from the 2026-07-29 stop point).
+
+**Evidence.** `RESUME.md` recorded that the suite "has never run to completion on
+the integrated tree" because it had been started once and killed for holding the
+host-wide bats mutex. First completed run, uncontended and detached:
+
+```
+TOTAL pass=434 fail=6 skip=15 tests=455 bare_skip=0 platform=wsl
+RESULT FAIL test_failures=6
+```
+
+The 07-29 devlog's "fourteen packages merged clean" therefore meant *they
+merged*, not *they work together*.
+
+**Root cause of the six (none was a product defect):**
+- 4 Windows-coupled tests that FAIL rather than SKIP on POSIX (`lane-queue` 7,
+  `vendor-isolation` 9, `wt-cleanup` 6, `lane-run` 17) — missing capability
+  guards for `taskkill`, `cygpath`, and MSYS PATHEXT resolution.
+- `worker-run` 5: the init-firewall banner writes to **stdout**
+  (`sandbox/init-firewall.sh:129`) and bats `run` merges it into `$output`, so
+  `[ "$output" = ok ]` could never hold. The banner and the assertion landed in
+  the same commit (`1ca6bcc`) — **the test had never once passed on a host with
+  Docker.** Its sibling `[ "$output" != "root" ]` was vacuous for the same reason.
+- `watch` 58: the test raced a real-time emitter against a virtual clock that
+  advances with no wall-clock delay, so ownership could never arrive inside the
+  bound. `watch.sh` honoured the clock seam correctly throughout.
+
+**Impact.** Six defects sat undetected behind an integration step performed once,
+at the end, on fourteen packages. All were test-side; the product was correct.
+But "merged clean" had been carried forward as a readiness signal.
+
+**Enhancement.** Integrate continuously rather than in one batch — every one of
+these six existed only in the merged tree. And a test that can only pass on one
+platform must carry a capability guard, not a platform assumption; four of six
+were tests asserting Windows behaviour with no skip.
+
+---
+
+## 2026-07-30 — Event 4: `tests/run.sh` returns a different verdict for the same tree depending on how it was launched
+
+**Phase:** verify.
+
+**Evidence.** `lane-run` test 8 ("bounded-kills CMD's own pid on TERM"):
+
+| invocation | result |
+|---|---|
+| `bats tests/lane-run.bats` standalone, detached | ok |
+| `bash tests/run.sh tests/lane-run.bats` | ok |
+| full 41-file suite, runs 3 and 4 | **not ok** |
+| full 41-file suite, run 1 | ok |
+
+The failing assertion is `[ -f "$WT/child.pid" ]` after a 5s bounded wait
+(`seq 1 50` at 0.1s). It is the tightest wait in that file; the file's own later
+waits use 100 and 150 iterations.
+
+**Root cause.** Load-dependent, not deterministic: the setup's liveness bound is
+too tight when the file runs as one of 41 on a loaded box. Same class as the
+already-documented `tests/eventlog.bats` contention test.
+
+**Impact.** The suite's verdict was not a function of the tree alone. Two full
+runs (~25 min each) were spent attributing the failure to a code change before
+the invocation-dependence was isolated.
+
+**Enhancement.** Bound widened to 150 iterations to match the file's own
+convention; the assertion is unchanged, so a `child.pid` that never appears still
+fails. More generally: a setup-liveness timeout is not the property under test
+and should be generous; only the asserted property should be tight.
+
+---
+
+## 2026-07-30 — Event 5: eight test files were merged registered in neither policy file
+
+**Phase:** verify / gate.
+
+**Evidence.** 41 `.bats` files, 33 rows in `tests/baseline.tsv`. Unregistered:
+`decision-events`, `evidence`, `graph-project`, `line-endings`, `lock`,
+`readme-structure`, `release-metrics`, `telemetry` — every one added by a v0.2.9
+package. Each produced `baseline=MISSING budget=MISSING` and a policy ERROR.
+
+Separately, committed baselines had been recorded on Windows and were
+unreachable on WSL: `launcher.bats` expected 14 passes on a platform that can
+produce at most 4 (10 tests skip for an unbuilt Windows `.exe`), against a
+`platform=wsl` skip budget of 0.
+
+**Impact.** Latent, because `TEST_GATE_MODE` defaults to `shadow` (exit 0). The
+moment `wsl-ci-parity` — the stage that owns the bats gate — sets `enforce`, the
+suite fails on the project's own primary dev platform for policy reasons alone.
+
+**Enhancement.** Policy regenerated from the measured run: baseline is the WSL
+floor, skip budgets are measured per-platform, `windows` left at 0 so a wrong
+assumption fails loudly on first contact rather than gating nothing. Structural
+fix still owed: `baseline.tsv` has no platform column, so one number must hold
+everywhere — that is what made the Windows-recorded values unreachable. Adding a
+platform column would let each platform be gated tightly instead of at the floor.
+
+**Process rule:** a package that adds a `.bats` file must register it in both
+policy files in the same change. Eight consecutive packages did not.
+
+---
+
+## 2026-07-30 — Event 6: single-turn grok cannot read-then-write, so "go read the spec" lanes always empty-burst
+
+**Phase:** implement (v0.2.9 first wave, third dispatch attempt).
+
+**Evidence.** Three lanes dispatched through the correct Foreman chain
+(`lanectl launch -> lane-run.sh -> grok-multiround.sh -> grok`) with specs that
+pointed at the OpenSpec change and said "read them, then implement":
+
+```
+grok-multiround: EMPTY-BURST FAILED after 3 rounds — grok narrated orientation
+but wrote nothing; re-issue a write-first spec or raise --max-rounds
+```
+
+`round_done exit_code=1` on all three, worktrees clean. Correct reporting — the
+detector was honest once Event 1's pollution was removed.
+
+A fourth dispatch of the same package, same chain, same model, with a spec that
+**inlined the defective function verbatim, the measured probe output, and the
+exact change to make**, produced:
+
+```
+grok-multiround: files changed (rounds=1)
+round_done exit_code=0, implement_s=26
+env/tool-check.sh | 21 +++++++++++++--------
+```
+
+A correct fix, first round, 26 seconds.
+
+**Root cause.** `grok --prompt-file` is single-turn — already documented. The
+under-appreciated consequence: a round that must *read* before it can *write*
+spends its only turn reading and exits having written nothing. This is not a
+grok defect and not a multiround defect; `grok-multiround` re-issuing the same
+read-then-write spec cannot fix it, because every round has the same one-turn
+budget. Raising `--max-rounds` buys nothing. The three rounds burned were
+identical failures, not progressive attempts.
+
+The trap file already says "inline every fact" for grok dispatch. What was
+missing is *why*: it is not a quality preference, it is a hard consequence of
+single-turn. A spec containing a path to read is a spec that cannot succeed.
+
+**Second finding — the two guards are in tension.** `grok-multiround`'s own
+failure message advises "re-issue a write-first spec". Taken literally (write
+*any* file first) that is exactly what produced Event 1's false green: the
+sentinel file satisfied the change detector. The two are only compatible under a
+sharper rule.
+
+**Impact.** Three lanes x 3 rounds wasted before the diagnosis. Roughly 25
+minutes of lane time and two full dispatch cycles.
+
+**Enhancement — doctrine.**
+1. **Write-first must name the real deliverable, never a sentinel.** "Your first
+   action is to EDIT `env/tool-check.sh`" is correct. "Create SPEC-NOTES.md
+   first" is the Event 1 defect. Amend `grok-multiround.sh`'s failure message
+   accordingly — as written it recommends the thing that breaks its own checker.
+2. **A grok spec must be self-contained.** If the worker has to open a file to
+   learn what to change, the spec is not finished. Inline the current source of
+   the function to change, the measured evidence, and the target semantics.
+   Producing that costs the architect a diagnosis pass — which is the actual
+   work, and is not delegable to a single-turn worker.
+3. Corollary for routing: exploratory packages (where the change is not yet
+   known) are **not** grok-lane work under `--prompt-file`. Either diagnose
+   first and hand over a closed spec, or route to a multi-turn worker.
+
+**Confirming datum for the enhancement:** the successful spec's diagnosis —
+that `vendor_authed()` checked `(( rc != 0 )) && return 1` before examining
+content, discarding a captured "You are logged in with grok.com." banner because
+`grok models` prints it and then hangs (rc=124) — was produced by the architect
+in three commands, and is the entire reason the lane succeeded in one round.
+
+---
+
+## 2026-07-30 — Event 7: grok lane success is a step function in spec closure — one deliverable per dispatch
+
+**Phase:** implement (v0.2.9 first wave). Five dispatches, same chain, same
+model, same worker. The only variable was spec shape.
+
+| # | Spec shape | Result |
+|---|---|---|
+| 1 | "read the OpenSpec change, then implement" (x3 lanes) | EMPTY-BURST, 3 rounds each |
+| 2 | 2 deliverables + "wire it where appropriate" (`wsl-preflight`) | EMPTY-BURST, 3 rounds |
+| 3 | **1 deliverable, defective function pasted in, exact change stated** (`vendor-preflight`) | **files changed, round 1, 26s** |
+| 4 | **1 deliverable, exact insertion block pasted in** (`wsl-preflight` clock) | **files changed, round 1** |
+| 5 | **1 deliverable, existing classifier + status vocabulary pasted in** (`wsl-preflight` fs guard) | **files changed, round 2** |
+| 6 | 2 deliverables: create a new file AND edit an existing one (`wsl-tool-path-persistence`) | EMPTY-BURST, 3 rounds |
+
+**Finding.** Closure is not a gradient, it is a threshold. Dispatch 6 was as
+richly inlined as dispatches 3-5 — measured tool paths, the fnm-multishell
+hazard, the exact sourcing block, idempotency requirements — and still failed.
+The distinguishing property is not how much context the spec carries. It is
+**how many separate things the round must decide.** One deliverable succeeds;
+two deliverables empty-burst even when both are individually well-specified.
+
+This is consistent with single-turn: the worker gets one turn, and a turn spent
+choosing between two work items is a turn not spent writing.
+
+**Secondary observation, unconfirmed.** All three successes were EDITS to
+existing code with the surrounding block quoted. Dispatch 6 required CREATING a
+new file. Whether "create" is independently harder than "edit" is not
+established by this evidence — deliverable count is confounded with it. Worth an
+isolated test: dispatch a pure single-file creation and see.
+
+**Impact.** Dispatch 6 cost 3 rounds. Cumulatively the open-spec attempts cost
+roughly 12 wasted rounds across the wave.
+
+**Enhancement — routing rule.**
+1. **One deliverable per grok dispatch.** If a package has two changes, that is
+   two dispatches, sequenced. Do not bundle, however related they seem.
+2. Prefer framing work as an EDIT to a quoted block over a from-scratch CREATE
+   until the confound above is resolved.
+3. The architect's diagnosis pass is the real cost and the real deliverable;
+   splitting a package into single-change specs is part of that pass, not
+   overhead on top of it.
+
+### Event 7 addendum — confound resolved: it is deliverable COUNT, not create-vs-edit
+
+The secondary observation in Event 7 (that all three successes were EDITs and
+the failure was a CREATE) was tested directly rather than left open.
+
+Dispatch 7: the same `wsl-tool-path-persistence` work, split so the round had
+**one** deliverable — create `env/foreman-env-write.sh`, edit nothing else.
+
+Result: **files changed, round 2.** A correct, atomic, idempotent writer.
+
+So CREATE is not harder than EDIT. Dispatch 6 failed because it carried two
+deliverables (create a file AND edit `lane-run.sh`), not because one of them was
+a creation. The rule stands unqualified and is now confirmed rather than
+suspected:
+
+> **One deliverable per grok dispatch.** Two deliverables empty-burst even when
+> both are individually well-specified and richly inlined.
+
+Retract enhancement item 2 from Event 7 ("prefer EDIT over CREATE") — it was
+based on the confound and is not supported.
+
+### Event 7 addendum 2 — the architect's own verification checker was unsound
+
+Verifying the writer's source-idempotency, the architect ran:
+
+```
+. ~/.foreman/env.sh; . ~/.foreman/env.sh
+tr ':' '\n' <<<"$PATH" | grep -c "$HOME/.local/bin"      -> 3
+```
+
+and briefly read `3` as a duplicate-entry defect. It was not. The ambient WSL
+`PATH` already contained that directory several times, so the count conflated
+"entries the file added" with "entries that were already there". **The check had
+no baseline, so it could not discriminate the property it was measuring.**
+
+Re-run under a controlled environment:
+
+```
+env -i HOME=/root PATH=/usr/bin:/bin bash -c '. /root/.foreman/env.sh; ...'
+baseline 0 -> after one source 1 -> after two sources 1
+final: /root/.local/bin:/usr/local/bin:/usr/bin:/bin
+```
+
+Idempotent, correct order.
+
+**Class:** the standing checker-soundness failure, committed by the architect
+while verifying a worker's output — the thirteenth-plus instance in this
+programme and the second by this author today (see Event 2). A false defect
+report was avoided only because the number looked implausible enough to re-test.
+
+**Rule reinforced:** a verification command that reads ambient state must
+establish a baseline in a controlled environment before its output means
+anything. `grep -c` against an inherited `PATH` is not evidence.
+
+---
+
+## 2026-07-30 — Event 8: "one deliverable" is necessary but NOT sufficient — a counterexample
+
+**Phase:** implement (`wsl-tool-path-persistence` deliverable 2).
+
+Event 7 concluded that grok-lane success is determined by deliverable count.
+Dispatch 8 falsifies the strong reading of that rule.
+
+**The spec.** One deliverable. One file (`lane-run.sh`). One insertion. The
+exact five lines to add were quoted verbatim in the spec. The anchor — the
+`source "$SCRIPT_DIR/lib/*.sh"` block at line 107-115 — was quoted verbatim. It
+was, if anything, more closed than the `vendor-preflight` spec that succeeded in
+one round.
+
+**Result:** EMPTY-BURST FAILED after 3 rounds. Zero files changed.
+
+**What is actually different about it.** Two candidate explanations, neither
+confirmed:
+
+1. **The verification section was itself multi-step.** It asked the worker to
+   move `$HOME/.foreman/env.sh` aside, run the suite, restore it, and run again.
+   That is a stateful four-step experiment on the host. The successful specs
+   asked for verification that was a single command or two. A heavy verification
+   section may consume the single turn just as a second deliverable does — the
+   round has one turn for *everything*, not one turn per phase.
+2. **Stochasticity.** grok is not deterministic; 3/3 failures is suggestive but
+   not proof of a structural cause.
+
+**Resolution.** The architect implemented the five-line change directly, since
+it was already exactly specified and three rounds had been spent. Verified both
+branches of the guard: `tests/lane-run.bats` reports 33 ok with the env file
+present and 33 ok with it moved aside, confirming the no-op path. Committed as
+`a0e809d`.
+
+**Impact.** 3 rounds spent, then done by hand in one step. Net cost of the
+attempt: the lane budget, not the outcome.
+
+**Enhancement — amend the Event 7 rule.**
+
+> One deliverable per dispatch is **necessary but not sufficient.** Budget the
+> whole round, not just the implementation: a spec whose *verification* requires
+> a multi-step stateful experiment is asking for two things in one turn, however
+> singular its code change.
+
+Practical form: keep the worker's verification to commands it can run in one
+pass. Stateful setup/teardown experiments (move a file, re-run, restore) belong
+to the architect after the diff lands, not to the single-turn worker.
+
+**Second lesson — know when to stop delegating.** A five-line insertion that has
+already been specified to the character is not worth a fourth round. The
+delegation decision should compare the remaining lane cost against the cost of
+doing it directly; for changes this small the architect is simply cheaper, and
+the specification effort is not wasted because it became the commit message and
+the review criteria.
+
+---
+
+## 2026-07-30 — Event 9: a lane left sabotaged code in the worktree after a destructive proof and reported success
+
+**Phase:** implement (`round-ownership-default`, codex lane).
+
+**Near-miss severity: high.** Committing on the lane's own account would have
+shipped code that permanently disables the enforcement the package exists to add.
+
+**Evidence.** The lane's completion summary claimed: core mechanism landed and
+independently verified; a regression it caused in five unrelated suites found,
+scoped and fixed; all previously-broken suites confirmed green by its own runs.
+It named one outstanding step — a destructive proof, "temporarily disabling the
+enforcement code to confirm the refusal test goes RED, then restoring it" —
+and stated it would restore from `/tmp/lane-run.independent-check.before.sh`.
+
+Two independently checkable facts contradicted the impression that summary gave:
+
+1. `FOREMAN_REPORT.md` was still the **skeleton**. `## Changes`,
+   `## Verification`, `## Evidence`, `## Gaps` all read `(TBD)`. The lane wrote
+   the report first as briefed, then exhausted its turn before filling it in —
+   the documented codex failure mode, occurring in the very lane briefed about it.
+2. Architect re-ran the suites rather than trusting the summary:
+
+```
+round-ownership  7 ok  1 FAIL      (registered baseline: 8)
+lane-run         33 ok  0
+foreman-setup     4 ok  0
+config           16 ok  0
+```
+
+The single failure was `round ownership refusal blocks unowned dispatch before
+child spawn`, expecting exit 2 — precisely the test a destructive proof
+disables. Diffing the worktree against the lane's own backup:
+
+```
+208c208
+< if (( ROUND_MODE == 0 && UNOWNED_MODE == 0 )) && [[ "$durable_enabled" == "true" ]]; then
+---
+> if (( ROUND_MODE == 0 && UNOWNED_MODE == 0 )) && [[ "$durable_enabled" == "__disabled_for_independent_proof__" ]]; then
+```
+
+**The worktree contained the sabotaged predicate.** A string literal that can
+never equal `$durable_enabled`, so the refusal branch is dead and every unowned
+dispatch proceeds silently. The restore step never ran.
+
+**Root cause.** A destructive proof is a two-phase operation — sabotage, observe
+RED, restore, observe GREEN — executed by a worker whose turn can end between
+any two phases. Nothing in the protocol makes the restore atomic with the
+sabotage, and nothing detects a worktree left mid-proof. The lane did not lie:
+it correctly reported the proof as unfinished. The hazard is that its file-system
+side effect *looks* like finished work to anyone reading `git status`.
+
+**Why it was caught.** Only because the architect re-ran the suites instead of
+accepting the summary, and because the registered baseline (8) disagreed with
+the observed count (7). **The baseline row is what turned a silent sabotage into
+a visible discrepancy** — the same policy layer that eight packages had skipped.
+
+**Resolution.** Architect restored from the backup, verified the sentinel was
+gone, and completed the proof properly: sabotaged predicate -> refusal test RED;
+restored -> 8/8 GREEN. Both halves observed rather than asserted. Committed as
+`b080687`.
+
+**Enhancements.**
+1. **A destructive proof must be architect-run, not worker-run**, or must be
+   performed on a COPY of the file outside the worktree. A worker must never
+   leave the worktree in a deliberately-broken state across a turn boundary.
+2. **A lane whose `FOREMAN_REPORT.md` still contains `(TBD)` is not complete**,
+   regardless of what its summary says. That is a mechanical, checkable gate and
+   should be enforced before any commit — cheaper and more reliable than reading
+   the prose.
+3. **Never commit a lane's output on the lane's account of it.** This programme
+   already had twelve checker-soundness incidents; this is the first where the
+   false signal was a *file-system state* rather than a check result.
+4. Consider a pre-commit guard rejecting obvious sabotage sentinels
+   (`__disabled_`, `__proof__`, `DO_NOT_COMMIT`) anywhere in tracked source.
+
+---
+
+## 2026-07-30 — Event 10: a GATING formal control is nondeterministic, and nobody could have known
+
+**Phase:** verify (adding the formal-model gate to `tools/ci-local.sh` after
+remote CI became unavailable).
+
+**Evidence.** Two back-to-back runs of the commit tier on an unchanged tree:
+
+```
+run 1  rc=1   formal: === summary: run=19 matched=18 skipped=17 failures=1 tier=commit ===
+              formal: SUITE FAILED
+run 2  rc=0   formal: === summary: run=19 matched=19 skipped=17 failures=0 tier=commit ===
+              formal: SUITE PASSED
+```
+
+The differing row, from `formal/out/report.tsv`:
+
+```
+model=eventlog_concurrency  invariant=seq_uniqueness
+expected=VIOLATED  observed=HOLDS  match=no  gating=yes
+```
+
+**Why this matters more than an ordinary flake.** This row is a **control**. It
+expects `VIOLATED` precisely to demonstrate that the model can still *detect*
+the violation. When it observes `HOLDS`, the honest reading is not "the system is
+fine" — it is "the detector did not fire this time." A control that
+intermittently fails to detect what it exists to detect provides no evidence in
+either direction, and this programme's standing rule is that an invariant which
+holds vacuously is reported as vacuous, not as a pass.
+
+Compounding it: the row is `gating=yes`. A gate wired to a coin-flip either
+blocks good work roughly half the time or, if someone "fixes" it by retrying
+until green, silently converts a control into a rubber stamp.
+
+**Why it went unnoticed.** `formal.yml` was the first and only CI job in this
+repo that ran any verification suite, and it ran remotely where nobody read the
+per-row report. The flakiness surfaced within minutes of moving the suite onto a
+host where a human was watching the exit code. **Remote CI was not verifying
+this; it was laundering it.**
+
+**Not fixed here.** Diagnosing why the Quint search sometimes misses the
+violation — bound too small, seed-dependent randomised simulation, or a genuine
+model weakening — is real formal-methods work and outside the scope of adding
+the gate. Reported as a stated blocker rather than papered over, and the gate was
+committed reporting the truth it observes.
+
+**Enhancements.**
+1. **Pin determinism before trusting any formal row as gating.** A randomised
+   search used as a gate needs a fixed seed, or a bound proven sufficient, or it
+   must be demoted from `gating=yes`.
+2. **Re-run every gating control N times and require N/N**, not 1/1. A control
+   that must FAIL to be meaningful should be shown to fail reproducibly, exactly
+   as this repo already requires of every other checker.
+3. **Audit the other 18 rows for the same property.** Determinism was never
+   checked for any of them; one flake found on the first careful look is not
+   evidence the rest are sound.
+4. Treat "moved a check from remote CI to a local host" as a **re-verification
+   event**, not a migration. Two guarantees this repo believed it had — the bats
+   suite and the formal suite — turned out to be untested and flaky respectively
+   the moment someone watched them run.
+
+---
+
+## 2026-07-30 — Event 11: three-lens adversarial review corrected the architect on both open blockers
+
+**Phase:** decide (two blockers escalated to a three-agent panel with deliberately
+different lenses: empirical root cause, gate design, adversarial refutation).
+
+### Correction 1 — the flake was real, but the architect's evidence was not
+
+The architect reported `eventlog_concurrency/seq_uniqueness` as nondeterministic
+on the strength of **n=2** (two back-to-back runs, rc=1 then rc=0) and logged it
+as Event 10. The adversarial lane's verdict: **CONFIRMED by mechanism, REFUTED as
+evidence.** n=2 distinguishes nothing; the conclusion happened to be right.
+
+What actually establishes it, from reading `formal/run-checks.sh`:
+
+- `build_quint_cmd` emits `quint run --max-samples=2000 --max-steps=40
+  --backend=rust` with **no `--seed`**. Quint's simulator seeds randomly per run.
+- Row 23 of `formal/expectations.tsv` expects `VIOLATED` — random search must
+  *find* a counterexample.
+- That row's own note says **"needs >=40 steps" while `--max-steps` is exactly
+  40.** Zero margin.
+
+A probabilistic search sitting exactly at its detection threshold, unseeded, is
+nondeterministic by construction. No sampling was needed to know that; the code
+said so.
+
+The lane also killed all three alternative explanations the architect had NOT
+ruled out before publishing Event 10:
+- cwd sensitivity — paths derive from `SCRIPT_DIR` (line 31), so cwd is irrelevant
+- leftover state from run 1 — `run_manifest` truncates the report and overwrites
+  each row's logfile, so nothing survives between runs
+- a stale expectation — the `toctou` entrypoint is the deliberately-broken
+  variant and *should* violate
+
+**Consequence for the fix.** The gate-design lane independently recommended a
+bounded witness-retry, reasoning that `expected=VIOLATED` is an EXISTENTIAL
+claim ("the detector CAN produce a witness"), so re-running samples for a witness
+rather than rubber-stamping — a distinction that only holds for existential rows
+and would be cheating on an `expected=HOLDS` row. That reasoning is sound, but
+the root cause reframes it: **a retry shim treats a symptom whose actual cause is
+a bound with no margin.** Raise `--max-steps` above the documented requirement and
+pin `--seed`, and the row may become reliably `VIOLATED`, making the shim
+unnecessary rather than permanent.
+
+### Correction 2 — the tov lane's soundness evidence was void
+
+The architect reported tov's work as "13/13 green, just needs policy
+registration." **REFUTED.**
+
+- `tests/audit-verdict.bats` now contains **26 tests**, not 13. The 13/13 result
+  was measured against an earlier tree state and verifies nothing about what is
+  on disk now.
+- `gate-eval.sh` in that worktree already contains dispatch-2 work (attempt/tree
+  binding, UNVERIFIED policy, `cfg_get audit.policy`), contradicting both the
+  lane's own premise check and its "proceeding to Dispatch 2" status line.
+
+**Class.** Third instance today of the same architect error: a measurement whose
+baseline moved out from under it (see also Event 7 addendum 2, the ambient-PATH
+`grep -c`, and Event 2's process-absence liveness read). The common shape is
+**measuring a moving target once and quoting the number later as if it still
+held.** With no baseline registered for that file, nothing independent would have
+caught it — the same blind spot that hid the `__disabled_for_independent_proof__`
+sabotage.
+
+**Enhancement.** A verification result carries an implicit timestamp and tree
+state. Quote it with both, or re-run it. Specifically: **never carry a green
+result across a turn boundary for a worktree that has a live lane writing to it.**
+The lane is a writer; the measurement is a read; there is no lock between them.
+
+**Process note.** Three lenses were used rather than three of the same. The
+gate-design and adversarial lanes reached compatible but non-identical
+conclusions, and the adversarial lane — the only one told to refute — produced
+both corrections. Two agreeing lanes would have produced neither.
