@@ -2628,3 +2628,54 @@ The lane is a writer; the measurement is a read; there is no lock between them.
 gate-design and adversarial lanes reached compatible but non-identical
 conclusions, and the adversarial lane — the only one told to refute — produced
 both corrections. Two agreeing lanes would have produced neither.
+
+
+## 2026-07-31 — Event 12: the shims were the cause, not the deadlock — measurement 2 was right, the checkpoint's advice was wrong
+
+**Phase:** verify (re-ran the obligation-16 experiment after the leaked codex
+shims were killed; recorded the verdict as two scoped measurements).
+
+### The checkpoint told readers to trust the wrong number
+
+`CHECKPOINT-2026-07-30-evening.md` says: "Do not quote measurement 2. Prefer
+measurement 9." That instruction is wrong.
+
+Measurement 9 reads 11 pass then a 600s TIMEOUT. That reading was taken while
+two leaked codex shims held stdin open (fact 20). The shims caused the
+timeout. The reading is not evidence about the suite.
+
+Measurement 2's value of 26 was correct. This session's unit `fm-ob16` ran
+`tests/audit-verdict.bats` with the shims dead. The log declares `1..26` and
+shows 26 `ok` lines before the `===SPLIT===` marker. Recorded as measurement
+10: 26 pass, 0 fail, file COMPLETED. Measurement 2 and measurement 10 agree.
+Measurement 9 was the poisoned reading, not the true one.
+
+### A measurement can be wrong with no commit touching its scope
+
+Fact 19 already names the mechanism. Freshness in this store is computed only
+from git commits that touch a measurement's scope path. A leaked process is
+not a commit. So a measurement can be invalidated by host state, and
+`recover` will still print it fresh. Measurement 2 stayed `OK/fresh` through
+the whole poisoned episode, because nothing had committed to
+`tests/audit-verdict.bats` in the meantime. The staleness computation is
+git-only. The failure that struck it was not.
+
+Obligation 20 already records this gap as open. Obligation 21 already records
+that measurements cannot be superseded, so the wrong row (measurement 9) keeps
+printing next to the right one (measurement 2) with no marker between them.
+A reader has to be told which one to trust. The checkpoint did that, and told
+them wrong.
+
+### `tests/decision-events.bats` is a separate, still-open problem
+
+The same log also carries `tests/decision-events.bats`. It is not part of the
+shim story. Recorded as measurement 11: 4 pass, 2 fail (tests 3 and 5),
+INCOMPLETE — stopped at test 7 of 9, blocked on the leaked `audit-run.sh`
+timeout watchdog (fact 30, obligation 25, still open). The value string
+states the incompleteness instead of a bare pass count. A bare number here
+would be the same false-green this store exists to prevent.
+
+**Enhancement.** A checkpoint telling a reader which of two conflicting
+measurements to trust is itself a claim. Verify that claim against a clean
+re-run before it is propagated, the same way any other measurement gets
+verified.
