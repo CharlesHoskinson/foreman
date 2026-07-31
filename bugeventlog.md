@@ -2737,3 +2737,188 @@ Nothing records that the closer checked the tree before closing. Bind `close`
 to a verification command recorded alongside the closure, the same way a
 measurement records its re-run command. An obligation should not be closable
 without the evidence that proves it.
+
+
+## 2026-07-31 — Event 14: a review agent wrote to, and then deleted from, the live store it was reviewing
+
+**Phase:** review (Task 6 of the v0.2.9 sprint plan: the plugin drift checker).
+
+### The reviewer changed the record it was checking
+
+A review agent ran `fm-session.py` against the live store. It misused the CLI.
+The call created a spurious obligation. The statement of that row was the
+literal string `"list"`. The agent then removed the row with a direct SQL
+`DELETE`.
+
+The store is append-only by design. The schema comment says "Rows are never
+deleted". No CLI subcommand can delete a row. Only a direct write can. The
+`DELETE` therefore broke a property the whole design rests on.
+
+The damage was small and permanent. Obligation ids ran 1-26, then 28-32. Id 27
+was gone. Nothing recorded what it had been.
+
+### There is no read-only path today
+
+`connect()` writes `schema_meta` on every invocation. It also runs the v2/v3
+column migration. So every read of the store is also a write to the store.
+
+A reviewer cannot open the record under review without changing it. That is
+not a discipline failure. It is a missing capability.
+
+### Repair
+
+Obligation 27 was restored as a tombstone. The insert used `python3` and
+`sqlite3`, because the CLI cannot set an explicit id. The new row states what
+happened, names the original content, and is closed as done. The repair is an
+`INSERT`, never a `DELETE`.
+
+### Enhancement
+
+Give `fm-session.py` a read-only mode. Open the file with SQLite's `mode=ro`
+URI, skip the schema write, and skip the migration. Refuse to run a write
+subcommand in that mode. Then a reviewer can read the record under review
+without touching it.
+
+
+## 2026-07-31 — Event 15: the watchdog fix took two rounds, and the first round leaked twice
+
+**Phase:** implement, then review (Task 7 of the v0.2.9 sprint plan:
+`audit-run.sh` leaked its timeout watchdog).
+
+### The first fix removed one leak and added two
+
+The original defect was a plain subshell. The `EXIT` trap killed the subshell.
+A killed shell does not signal its own child. The `sleep` inside it survived
+and held an inherited pipe open for the rest of a 30-minute timeout.
+
+The first fix ran the watchdog under `setsid`. That removed the original
+orphan. It also introduced two new leaks.
+
+- The reap ran a group kill on every exit path. On a real timeout the watchdog
+  was mid-escalation, inside its own 0.25 second TERM-to-KILL window. The reap
+  killed the watchdog there. A descendant that ignores TERM then survived the
+  audit.
+- `setsid` detached the watchdog from the script's process group. A SIGKILL of
+  the script no longer reached it. The `sleep` leaked again, by a new route.
+
+### Only adversarial review found them
+
+No test failed. The suite was green across the first fix. The two leaks were
+found by A/B review of the diff, with process snapshots taken on each side.
+
+The second fix reverted to a watchdog inside the script's own process group.
+The watchdog now sleeps in one-second slices. It checks `kill -0` on the parent
+each slice. It ends by itself inside one second when the parent dies.
+
+A third defect survived both rounds and was caught by the final whole-branch
+review. On the timeout path an explicit `wait` reaps the watchdog and frees its
+PID. The script then reaped that same number again. On a recycled PID that
+signals a stranger. The fix clears `AUDIT_WATCHDOG_PID` after the `wait`.
+
+### Enhancement
+
+Process-lifetime fixes need process-level evidence, not a green suite. Require
+a before-and-after process snapshot for any change to a spawn, a signal, or a
+reap. The suite passed through all three defects.
+
+
+## 2026-07-31 — Event 16: a guard fired on its own documentation
+
+**Phase:** verify (Task 8 of the v0.2.9 sprint plan: the first completed run of
+the full suite).
+
+### The predicate did not match the claim
+
+`tests/lock.bats` held a guard against pattern-matching kills. Its claim is
+that no operational script *invokes* `pkill -f`. Its predicate was a bare
+substring search for the text `pkill -f`.
+
+Task 7 added a comment to `ar_reap_watchdog`. The comment warns developers
+never to use `pkill -f`. The guard read that warning and failed.
+
+The suite reported this as a real regression. It was not one. The code was
+correct. The documentation of the code tripped the check.
+
+### A substring is not an invocation
+
+The fix strips the comment from each line before the search. The search pattern
+itself is byte-identical. Coverage is unchanged. A wrapped invocation such as
+`xargs pkill -f` still fires.
+
+The guard now prints the file, the line number, and the source line on failure.
+The old form printed nothing useful.
+
+### Enhancement
+
+A static guard states a claim about code. Write its predicate against code, not
+against file bytes. Strip comments and strings first. Then a file that
+documents a prohibition can never violate it.
+
+
+## 2026-07-31 — Event 17: two silent file-edit corruptions, in two different tools
+
+**Phase:** implement (Tasks 3 and 4 of the v0.2.9 sprint plan).
+
+### A WSL splice dropped an executable bit
+
+Task 4 changed `repo_root()` in `fm-session.py`. The WSL heredoc trap forbids
+inline multi-line content. So the new body went to a Windows temp file and was
+spliced in with `head`, `cat` and `tail`.
+
+The splice wrote a fresh file. It did not preserve the mode. `100755` became
+`100644`. Nothing reported it. It was found in `git show --stat` after the
+commit, and repaired in `ca56916`.
+
+### A bad `sed -i` corrupted a baseline row
+
+Task 3 edited `tests/baseline.tsv` line 45. A bad `sed -i` substitution
+rewrote the metric name to `tests/sessio.bats`. The `n` was gone.
+
+That row is the pass baseline for a test file. A missing file in
+`baseline.tsv` reads as an unregistered slice, not as a typo. It was caught by
+`diff` before the commit and never reached git.
+
+### One shape
+
+Both defects are the same shape. A whole-file rewrite replaced a targeted edit,
+and the rewrite lost something the tool never checked. Mode is not content.
+A `sed` pattern is not a match.
+
+### Enhancement
+
+Verify a file after every splice, not only its text. Check the mode with
+`stat -c %a`. Check a single-line edit with `git diff --stat`, and require
+exactly one changed line. Both defects were one command away from detection.
+
+
+## 2026-07-31 — Event 18: the architect relayed an unverified claim, and the implementer refused it
+
+**Phase:** implement (Task 5 of the v0.2.9 sprint plan: true up the obligations
+ledger).
+
+### The brief asserted a state the store did not hold
+
+The task brief said obligation 24 was already closed. That statement came from
+the architect. It was not read from the store.
+
+The implementer queried the store first. Obligation 24 was open. The brief and
+the record disagreed.
+
+### The implementer did not reconcile silently
+
+The implementer did not close the row to match the brief. It did not edit the
+brief to match the row. It reported the conflict, named both sources, and
+stopped for a ruling.
+
+That is the correct behaviour, and it is worth recording because the cheap
+alternative is invisible. Closing the row would have produced a green task and
+a corrupt ledger. Nobody would have seen the difference.
+
+Obligation 24 was later corrected a second time, from done back to blocked. It
+had been closed on half its text.
+
+### Enhancement
+
+An architect's statement about the record is a claim, not a fact. Brief it with
+the command that reads it, so the implementer can re-run the read. Where a
+brief and the store disagree, the store wins and the conflict gets reported.
