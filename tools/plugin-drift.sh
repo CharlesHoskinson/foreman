@@ -18,11 +18,13 @@ if [[ ! -d "$repo" ]]; then
   exit 2
 fi
 if [[ ! -d "$installed" ]]; then
-  echo "MISSING (entire install): $installed" >&2
+  echo "MISSING (entire install): $installed"
   exit 1
 fi
 
 missing=0
+# NOTE: -printf is GNU find only (missing on BSD/macOS find). This project
+# targets Linux and WSL, so that is fine here.
 while IFS= read -r rel; do
   if [[ ! -e "$installed/$rel" ]]; then
     echo "MISSING $rel"

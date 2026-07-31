@@ -2,6 +2,7 @@
 # @description Tests for tools/plugin-drift.sh, which fails when the installed
 #   skill is missing files the repo ships. The installed plugin once lacked the
 #   entire session store and ontology while reporting no problem at all.
+bats_require_minimum_version 1.5.0
 
 setup() {
   DRIFT="$BATS_TEST_DIRNAME/../tools/plugin-drift.sh"
@@ -25,4 +26,12 @@ setup() {
   run bash "$DRIFT" "$INSTALLED" "$REPO_SKILL"
   [ "$status" -eq 0 ]
   [[ "$output" == *"no drift"* ]]
+}
+
+@test "a fully absent install directory reports MISSING on stdout" {
+  rm -rf "$INSTALLED"
+  run --separate-stderr bash "$DRIFT" "$INSTALLED" "$REPO_SKILL"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"MISSING"* ]]
+  [[ "$stderr" != *"MISSING"* ]]
 }
