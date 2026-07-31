@@ -12,6 +12,7 @@
 #   4. bats         - tests/run.sh under the host-wide bats mutex (skip with --quick)
 #   5. install      - install.sh smoke test under a disposable HOME
 #   6. lanes        - lane-complete-check over /root/fm-wt/* (informational only)
+#   7. plugin-drift - installed skill vs repo skill (informational only)
 #
 # Usage:
 #   tools/ci-local.sh [--quick]
@@ -285,6 +286,49 @@ gate_lanes() {
 }
 
 # ---------------------------------------------------------------------------
+# Gate 7: plugin drift (informational — never fails the run)
+# ---------------------------------------------------------------------------
+# The installed skill path exists only on a developer host. A hosted runner has
+# no ~/.claude, so a failing gate here would fail CI for an absent directory,
+# not for drift. It reports and never fails, like the lanes gate above.
+gate_plugin_drift() {
+  local name="plugin-drift"
+  local checker="$REPO_ROOT/tools/plugin-drift.sh"
+  local repo_skill="$REPO_ROOT/skills/foreman"
+  local installed="${FOREMAN_INSTALLED_SKILL:-$HOME/.claude/skills/foreman}"
+
+  if [[ ! -f "$checker" ]]; then
+    echo "GATE ${name} SKIP plugin-drift.sh missing"
+    return 0
+  fi
+  if [[ ! -d "$repo_skill" ]]; then
+    echo "GATE ${name} SKIP repo skill dir missing: ${repo_skill}"
+    return 0
+  fi
+  if [[ ! -d "$installed" ]]; then
+    echo "GATE ${name} SKIP install path absent: ${installed}"
+    return 0
+  fi
+
+  local out rc missing
+  set +o pipefail
+  out="$(bash "$checker" "$installed" "$repo_skill" 2>&1)"
+  rc=$?
+  set -o pipefail
+
+  if [[ "$rc" -eq 0 ]]; then
+    echo "GATE ${name} PASS no drift (informational)"
+    return 0
+  fi
+
+  printf '%s\n' "$out"
+  missing="$(printf '%s\n' "$out" | grep -c '^MISSING' || true)"
+  missing="${missing:-0}"
+  echo "GATE ${name} PASS drift=${missing} file(s) missing from ${installed} (informational)"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Run all gates
 # ---------------------------------------------------------------------------
 if ! gate_shellcheck; then gates_failed=$((gates_failed + 1)); fi
@@ -303,6 +347,7 @@ else
 fi
 if ! gate_install; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_lanes; then gates_failed=$((gates_failed + 1)); fi
+if ! gate_plugin_drift; then gates_failed=$((gates_failed + 1)); fi
 
 if [[ "$gates_failed" -eq 0 ]]; then
   echo "CI-LOCAL RESULT PASS gates_failed=0"
