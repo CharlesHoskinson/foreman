@@ -461,6 +461,10 @@ EC=$?
 # descendant that ignores TERM would survive the audit.
 if [[ -f "$AUDIT_TIMEOUT_MARKER" ]]; then
   wait "$AUDIT_WATCHDOG_PID" 2>/dev/null || true
+  # The wait reaped the watchdog, so this script no longer owns that PID.
+  # The kernel can hand the same number to any process. Clearing it here
+  # makes the reap below a no-op, instead of a signal to a stranger.
+  AUDIT_WATCHDOG_PID=""
 fi
 ar_reap_watchdog
 AUDIT_CHILD_PID=""
