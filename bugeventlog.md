@@ -2679,3 +2679,61 @@ would be the same false-green this store exists to prevent.
 measurements to trust is itself a claim. Verify that claim against a clean
 re-run before it is propagated, the same way any other measurement gets
 verified.
+
+
+## 2026-07-31 — Event 13: the obligations ledger held three closed items open
+
+**Phase:** verify (Task 5 of the v0.2.9 sprint plan: true up the obligations
+ledger before release).
+
+### The ledger did not match the tree
+
+Three obligations read open. All three were already done.
+
+- Obligation 8 asked for `superseded_at` and `supersede_reason` on the facts
+  table. Both columns exist. `grep -n "superseded_at\|supersede_reason"
+  fm-session.py` returns four lines.
+- Obligation 9 asked for a numeric measurement value. `measurements.value_num`
+  exists as a real column. `grep -n "value_num" fm-session.py` confirms it.
+- Obligation 10 asked for a projector function. `def project(conn)` exists at
+  `fm-session.py:336`.
+
+The store has a `close` command. No one had run it for these three rows. The
+work was done. The record was not updated to say so.
+
+### Obligation 10 named a withdrawn dependency
+
+Obligation 10 asked for a "SQLite -> TerminusDB projector." TerminusDB was
+withdrawn at `b3bbdc3`. The projector that exists targets the SQLite ontology.
+It does not target TerminusDB.
+
+The obligation's verb was satisfied. Its premise was not. Fact 33 records this
+distinction, so a future reader does not credit the projector with a
+TerminusDB link that no longer exists.
+
+### Every remaining open and blocked row was checked against the tree
+
+18 rows remained after the close. Each row was checked against the tree. No
+row was closed on the strength of its age alone. Two examples:
+
+- Obligation 5 claims 30 files are excluded from the exec-bit inventory on a
+  reason never verified per file. `docs/research/vnext/DECISIONS-resolved.md`
+  confirms the exclusion is by pattern (`skills/superpowers/tests/**`). The
+  D11 correction in that same document rules that a wildcard exclusion is an
+  unverified claim about every file it covers, unless each file is checked.
+  No such per-file check exists for this pattern. The obligation stays open.
+- Obligation 17 claims a worktree was abandoned mid-turn with nothing to
+  salvage. `git log` and `git status` inside
+  `/root/fm-wt/integrate-wt-xps-run-implement-xps` show 0 commits ahead of
+  `integrate/v029-w1` and 0 dirty files. Confirmed. The obligation stays open.
+
+Obligation 22 asked for exactly this close-8/9/10 work. That work is done, so
+obligation 22 is closed too.
+
+### Enhancement
+
+Closure is a manual step today. Typing `close` needs no evidence attached.
+Nothing records that the closer checked the tree before closing. Bind `close`
+to a verification command recorded alongside the closure, the same way a
+measurement records its re-run command. An obligation should not be closable
+without the evidence that proves it.
