@@ -131,3 +131,6 @@ tests/audit-verdict.bats	windows	0
 tests/session.bats	linux	0
 tests/session.bats	wsl	0
 tests/session.bats	windows	0
+tests/plugin-drift.bats	linux	0
+tests/plugin-drift.bats	wsl	0
+tests/plugin-drift.bats	windows	0
