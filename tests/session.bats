@@ -177,3 +177,14 @@ setup() {
   run $SESS recover
   [[ "$output" == *"= 26"* ]]
 }
+
+@test "a linked worktree shares the repo's session store" {
+  cd "$REPO"
+  unset FOREMAN_SESSION_DB
+  $SESS fact "recorded from the main worktree"
+  git -C "$REPO" worktree add -q "$BATS_TEST_TMPDIR/wt" -b side
+  cd "$BATS_TEST_TMPDIR/wt"
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"recorded from the main worktree"* ]]
+}

@@ -128,12 +128,18 @@ def now_iso():
 
 
 def repo_root():
+    """The directory holding the COMMON git dir, identical from every worktree.
+
+    --show-toplevel differs per worktree, which gave each worktree its own
+    session.db and fragmented the store. --git-common-dir returns the same
+    path from all of them. --path-format=absolute is required: the bare form
+    returns a relative '.git' from the main worktree."""
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
             capture_output=True, text=True, check=True,
         ).stdout.strip()
-        return Path(out)
+        return Path(out).resolve().parent
     except Exception:
         return Path.cwd()
 
