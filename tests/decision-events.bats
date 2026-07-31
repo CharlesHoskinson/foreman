@@ -262,3 +262,37 @@ EOF
   [ "$orig" = "$after" ]
   el_read run-fo 0 | jq -e 'select(.type=="finding_outcome") | .payload.upheld == true' >/dev/null
 }
+
+@test "audit-run leaves no timeout watchdog behind after it returns" {
+  local fake_bin="$BATS_TEST_TMPDIR/fakebin-reap"
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/codex" <<'FAKE'
+#!/usr/bin/env bash
+out=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output-last-message) out="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+printf '{"verdict":"APPROVED","summary":"ok","findings":[]}\n' > "$out"
+FAKE
+  chmod +x "$fake_bin/codex"
+  export PATH="$fake_bin:$PATH"
+
+  local rd base before after
+  rd="$(seed_run run-audit-reap)"
+  base="$(git -C "$REPO" rev-parse HEAD)"
+  cat > "$rd/meta.json" <<EOF
+{"worktree":"$REPO","repo_root":"$REPO","base_sha":"$base","lane":"audit-lane"}
+EOF
+  mkdir -p "$REPO/.foreman"
+
+  before="$(pgrep -c -x sleep || true)"
+  run bash "$SCRIPTS/audit-run.sh" run-audit-reap
+  after="$(pgrep -c -x sleep || true)"
+
+  # The watchdog must not outlive the audit. Compare counts, never pkill:
+  # pgrep -f matches other agents' command lines.
+  [ "${after:-0}" -le "${before:-0}" ]
+}

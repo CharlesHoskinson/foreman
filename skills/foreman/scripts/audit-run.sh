@@ -89,12 +89,25 @@ AUDIT_TIMEOUT_MARKER=""
 AUDIT_OUT_TMP=""
 AUDIT_ERR_TMP=""
 
-ar_cleanup_processes() {
+# @description Reap the timeout watchdog by signalling its whole process
+# group. The watchdog runs under its own setsid group (see the audit
+# invocation below), so the wrapper shell and its "sleep" child share one
+# group. A plain "kill $AUDIT_WATCHDOG_PID" only reached the wrapper: the
+# wrapper died on the signal, but its still-running "sleep" child was
+# merely reparented and kept sleeping for the rest of the timeout. That
+# reparenting, not a missing kill call, was the leak.
+ar_reap_watchdog() {
   if [[ -n "$AUDIT_WATCHDOG_PID" ]]; then
-    kill -TERM "$AUDIT_WATCHDOG_PID" 2>/dev/null || true
+    kill -TERM -- "-$AUDIT_WATCHDOG_PID" 2>/dev/null || true
+    kill -KILL -- "-$AUDIT_WATCHDOG_PID" 2>/dev/null || true
     wait "$AUDIT_WATCHDOG_PID" 2>/dev/null || true
     AUDIT_WATCHDOG_PID=""
   fi
+  return 0
+}
+
+ar_cleanup_processes() {
+  ar_reap_watchdog
   if [[ -n "$AUDIT_CHILD_PID" ]]; then
     kill -TERM -- "-$AUDIT_CHILD_PID" 2>/dev/null || true
     kill -KILL -- "-$AUDIT_CHILD_PID" 2>/dev/null || true
@@ -386,30 +399,31 @@ setsid codex exec \
   --output-last-message "$AUDIT_OUT_TMP" \
   - <"$PROMPT" 2>"$AUDIT_ERR_TMP" &
 AUDIT_CHILD_PID=$!
-(
-  sleep "$AUDIT_TIMEOUT_S"
-  if kill -0 "$AUDIT_CHILD_PID" 2>/dev/null; then
-    printf 'timeout\n' >"${AUDIT_TIMEOUT_MARKER}.tmp.$$"
-    mv -f "${AUDIT_TIMEOUT_MARKER}.tmp.$$" "$AUDIT_TIMEOUT_MARKER"
+# A plain "( ... ) &" subshell shares this script's process group. If the
+# subshell is killed while blocked inside "sleep", the subshell dies but
+# the "sleep" process itself is only reparented, not signalled — it keeps
+# sleeping for the rest of the timeout. That is the leak this fixes. Run
+# the watchdog under its own setsid group instead, so ar_reap_watchdog can
+# reap the wrapper and "sleep" together with one group-signal, on every
+# exit path.
+setsid bash -c '
+  sleep "$1"
+  if kill -0 "$2" 2>/dev/null; then
+    printf "timeout\n" >"$3.tmp.$$"
+    mv -f "$3.tmp.$$" "$3"
     # The auditor is a setsid-created process-group leader. Signal the whole
     # group, then escalate because descendants may deliberately ignore TERM.
-    kill -TERM -- "-$AUDIT_CHILD_PID" 2>/dev/null || true
+    kill -TERM -- "-$2" 2>/dev/null || true
     sleep 0.25
-    kill -KILL -- "-$AUDIT_CHILD_PID" 2>/dev/null || true
+    kill -KILL -- "-$2" 2>/dev/null || true
   fi
-) &
+' _ "$AUDIT_TIMEOUT_S" "$AUDIT_CHILD_PID" "$AUDIT_TIMEOUT_MARKER" &
 AUDIT_WATCHDOG_PID=$!
 
 wait "$AUDIT_CHILD_PID"
 EC=$?
-if [[ -f "$AUDIT_TIMEOUT_MARKER" ]]; then
-  wait "$AUDIT_WATCHDOG_PID" 2>/dev/null || true
-else
-  kill -TERM "$AUDIT_WATCHDOG_PID" 2>/dev/null || true
-  wait "$AUDIT_WATCHDOG_PID" 2>/dev/null || true
-fi
+ar_reap_watchdog
 AUDIT_CHILD_PID=""
-AUDIT_WATCHDOG_PID=""
 set -e
 
 if [[ -s "$AUDIT_ERR_TMP" ]]; then

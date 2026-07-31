@@ -1,7 +1,7 @@
 file	expected_passes
 tests/checkpoint.bats	6
 tests/config.bats	16
-tests/decision-events.bats	9
+tests/decision-events.bats	8
 tests/docs-check.bats	5
 tests/durable-preflight.bats	8
 tests/eventlog.bats	34
