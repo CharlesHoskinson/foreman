@@ -462,11 +462,32 @@ run_occupancy_race() {
   [ ! -e "$lock" ]
 }
 
-@test "operational scripts never use pkill -f pattern matching" {
-  run find "$SCRIPTS" -type f -name '*.sh' -print
+# @description Report every line of a shell file that invokes a pattern-matching
+#   kill. The comment is stripped from each line first, so a comment that names
+#   the pattern does not count. A "#" starts a comment only at the start of a
+#   word, so "${#array[@]}" survives the strip and is still scanned.
+# @arg $@ shell files to scan
+# @stdout "path:line: text" for each invocation found
+scan_pattern_kill_invocations() {
+  awk '
+    {
+      code = $0
+      sub(/(^|[[:space:]])#.*$/, "", code)
+      if (code ~ /pkill[[:space:]]+-f([[:space:]]|$)/) {
+        printf "%s:%d: %s\n", FILENAME, FNR, $0
+      }
+    }
+  ' "$@"
+}
+
+@test "operational scripts never invoke pkill -f pattern matching" {
+  local script_files=()
+  mapfile -t script_files < <(find "$SCRIPTS" -type f -name '*.sh' -print | sort)
+  [ "${#script_files[@]}" -gt 0 ]
+  run scan_pattern_kill_invocations "${script_files[@]}"
   [ "$status" -eq 0 ]
-  [ "${#lines[@]}" -gt 0 ]
-  run rg -n 'pkill[[:space:]]+-f([[:space:]]|$)' "$SCRIPTS" --glob '*.sh'
-  [ "$status" -eq 1 ]
+  if [ -n "$output" ]; then
+    printf 'pattern-matching kill invoked at:\n%s\n' "$output" >&3
+  fi
   [ -z "$output" ]
 }
