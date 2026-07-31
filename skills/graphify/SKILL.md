@@ -147,22 +147,19 @@ Skip this step entirely if `detect` returned zero `video` files. When the corpus
 
 ### Step 3 - Extract entities and relationships
 
-**Before starting:** note whether `--mode deep` was given. You must pass `DEEP_MODE=true` to every subagent in Step B2 if it was. Track this from the original invocation - do not lose it.
+**Before starting:** note whether `--mode deep` was given. Pass it as `deep_mode=True` to a configured runtime backend or as `DEEP_MODE=true` to every host-agent chunk. Track this from the original invocation.
 
 This step has two parts: **structural extraction** (deterministic, free) and **semantic extraction** (LLM, costs tokens).
 
-> **graphify needs no API key. Never ask the user for one, and never block on one.** Code is extracted structurally (AST) with no LLM and no key at all — a code-only corpus (the common `/graphify .` on a repo) skips semantic extraction entirely, so it needs nothing here: go straight to Part A and skip Part B. Semantic extraction (only for docs, papers, and images) uses Gemini **only if** `GEMINI_API_KEY`/`GOOGLE_API_KEY` is already set; otherwise the host agent itself is the LLM. graphify does **not** read `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or any other provider key. If you catch yourself about to prompt for, wait on, or stop because of a missing API key, that is a misread of this skill — proceed without one.
+> **graphify needs no particular API key. Never ask the user for a specific provider, and never block on one.** Code is extracted structurally (AST) with no LLM or key. Semantic extraction for docs, papers, and images may use any backend supported by the installed Graphify runtime, including custom providers; when none is configured, the host agent itself is the LLM.
 
-**Before semantic extraction:** check whether `GEMINI_API_KEY` or `GOOGLE_API_KEY` is set. If neither is set, print this one-liner to the user:
-> Tip: set `GEMINI_API_KEY` or `GOOGLE_API_KEY` to use Gemini for semantic extraction (`pip install 'graphifyy[gemini]'`).
+**Before semantic extraction:** honor an explicit `--backend` from the user. Otherwise use `graphify.llm.detect_backend()` (or the `graphify extract` CLI's automatic detection) and pass the selected name to `graphify.llm.extract_corpus_parallel(files, backend=backend)`. Never print, inspect, or expose key values. Do not emit unsolicited provider-specific setup tips.
 
-Print it once, then continue — do not wait for the user to supply a key. If `GEMINI_API_KEY` or `GOOGLE_API_KEY` IS set, use `graphify.llm.extract_corpus_parallel(files, backend="gemini")` for semantic extraction instead of dispatching subagents. The default Gemini model is `gemini-3-flash-preview`; set `GRAPHIFY_GEMINI_MODEL` or pass `--model` in headless CLI flows to override it.
+No provider is required or preferred by this skill. If Graphify finds no configured backend, continue with host-agent extraction: dispatch the Part B subagents when available, or extract inline when dispatch is unavailable. A code-only corpus still skips semantic extraction and writes the empty semantic file before Part C.
 
-> **No other API keys are read.** When `GEMINI_API_KEY`/`GOOGLE_API_KEY` are unset, semantic extraction falls to the host agent itself — the running session is the LLM. On a host that dispatches subagents (e.g. Claude Code), dispatch them as written in Part B. On a host that runs the CLI directly in a terminal and cannot dispatch subagents, do not stall: a code-only corpus has no semantic work, so write the empty semantic file (Part B "Fast path") and continue to Part C; for a corpus with docs/papers/images, either set a Gemini key or extract those inline yourself, but in no case prompt for `ANTHROPIC_API_KEY` — that prompt is a misread of this skill.
+**Run Part A (AST) and Part B (semantic) in parallel.** Start AST extraction together with either the configured runtime backend or all host-agent chunks. They operate on different file types. Merge results in Part C.
 
-**Run Part A (AST) and Part B (semantic) in parallel. Dispatch all semantic subagents AND start AST extraction in the same message. Both can run simultaneously since they operate on different file types. Merge results in Part C as before.**
-
-Note: Parallelizing AST + semantic saves 5-15s on large corpora. AST is deterministic and fast; start it while subagents are processing docs/papers.
+Note: Parallelizing AST + semantic saves 5-15s on large corpora. AST is deterministic and fast; start it while the selected semantic path processes docs/papers.
 
 #### Part A - Structural extraction for code files
 
@@ -190,7 +187,7 @@ else:
 "
 ```
 
-#### Part B - Semantic extraction (parallel subagents)
+#### Part B - Semantic extraction
 
 **Fast path:** If detection found zero docs, papers, and images (code-only corpus), skip Part B entirely and go straight to Part C. AST handles code - there is nothing for semantic subagents to do. **First write an empty semantic file** so Part C's merge has its input (it reads `.graphify_semantic.json` unconditionally; without this a code-only run hits `FileNotFoundError`):
 
@@ -202,9 +199,39 @@ Path('graphify-out/.graphify_semantic.json').write_text(json.dumps({'nodes':[],'
 "
 ```
 
-**MANDATORY: You MUST use the Agent tool here. Reading files yourself one-by-one is forbidden - it is 5-10x slower. If you do not use the Agent tool you are doing this wrong.**
+**Configured-backend path:** If backend detection returned a name, use it and do not dispatch semantic subagents:
 
-Before dispatching subagents, print a timing estimate:
+```bash
+$(cat graphify-out/.graphify_python) -c "
+import json
+from graphify.llm import extract_corpus_parallel
+from pathlib import Path
+
+detect = json.loads(Path('graphify-out/.graphify_detect.json').read_text(encoding='utf-8'))
+files = [
+    Path(f)
+    for category in ('document', 'paper', 'image')
+    for f in detect['files'].get(category, [])
+]
+result = extract_corpus_parallel(
+    files,
+    backend='SELECTED_BACKEND',
+    root=Path('INPUT_PATH'),
+    deep_mode=DEEP_MODE,
+)
+Path('graphify-out/.graphify_semantic.json').write_text(
+    json.dumps(result, indent=2, ensure_ascii=False),
+    encoding='utf-8',
+)
+print(f'Semantic: {len(result[\"nodes\"])} nodes, {len(result[\"edges\"])} edges via SELECTED_BACKEND')
+"
+```
+
+Replace `SELECTED_BACKEND`, `INPUT_PATH`, and `DEEP_MODE` with resolved values, then skip to Part C.
+
+**Host-agent fallback:** Only when no runtime backend is configured, you MUST use the Agent tool here. Reading files yourself one-by-one is forbidden when dispatch is available; it is 5-10x slower. If dispatch is unavailable, extract the same chunks inline.
+
+Before dispatching host-agent chunks, print a timing estimate:
 - Load `total_words` and file counts from `graphify-out/.graphify_detect.json`
 - Estimate agents needed: `ceil(uncached_non_code_files / 22)` (chunk size is 20-25)
 - Estimate time: ~45s per agent batch (they run in parallel, so total ≈ 45s × ceil(agents/parallel_limit))
