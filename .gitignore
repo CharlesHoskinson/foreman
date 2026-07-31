@@ -39,3 +39,6 @@ formal/out/
 
 # session store is machine-local state, not source
 .foreman/session.db
+
+# subagent-driven-development scratch (ledger, briefs, reports)
+.superpowers/
