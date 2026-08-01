@@ -44,9 +44,14 @@ setup() {
   export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
+  export FAKE_TOOL_CHECK="$BATS_TEST_TMPDIR/fake-tool-check"
+  write_fake_tool_check "$FAKE_TOOL_CHECK"
+  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
+  unset FAKE_TOOL_CHECK_READY
   unset LANE_VENDOR LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
+  setup_lock_trust_fixture
   WT="$BATS_TEST_TMPDIR/wt"
   mkdir -p "$WT"
   git -C "$WT" init -q -b main
@@ -55,6 +60,31 @@ setup() {
   echo x > "$WT/f"
   git -C "$WT" add -A
   git -C "$WT" commit -qm base
+}
+
+# @description Deterministic readiness probe. Reports the requested lane ready
+#   unless FAKE_TOOL_CHECK_READY=no is exported by the negative-control run.
+# @arg $1 path to write the probe to
+write_fake_tool_check() {
+  local path="$1"
+  cat > "$path" <<'SHIM'
+#!/usr/bin/env bash
+set -uo pipefail
+lane=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --lane) lane="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [[ "${FAKE_TOOL_CHECK_READY:-yes}" == "yes" ]]; then
+  printf 'LANE_READY: %s=yes\n' "$lane"
+  exit 0
+fi
+printf 'LANE_READY: %s=no\n' "$lane"
+exit 1
+SHIM
+  chmod +x "$path"
 }
 
 # @description Mirrors lane-run.sh's own lane_normalize_config_dir exactly
@@ -195,6 +225,7 @@ SHIM
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
   mkdir -p "$WT/.harness/vendor-home/grok"   # mirrors wt-new.sh's own provisioning
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
@@ -212,6 +243,7 @@ SHIM
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
   export LANE_VENDOR=codex
   export LANE_CONFIG_DIR="$BATS_TEST_TMPDIR/custom-codex-home"
   mkdir -p "$LANE_CONFIG_DIR"
@@ -229,17 +261,27 @@ SHIM
   [ "$output" = "$expected" ]
 }
 
-@test "lane-run (LANE_VENDOR=claude, fake launcher shim): CLAUDE_CONFIG_DIR exported, normalized (third vendor mapping)" {
+@test "lane-run (LANE_VENDOR=claude, fake launcher/probe): CLAUDE_CONFIG_DIR is normalized; NOT-READY probe refuses before CMD" {
   stub_dir="$BATS_TEST_TMPDIR/stub"
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
+  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
   export LANE_VENDOR=claude
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'printf "%s" "$CLAUDE_CONFIG_DIR" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
   expected="$(norm "$WT/.harness/vendor-home/claude")"
   [ "$(cat "$WT/env-dump")" = "$expected" ]
+
+  export FAKE_TOOL_CHECK_READY=no
+  run bash "$SCRIPTS/lane-run.sh" run-not-ready lane-a "$WT" -- \
+    bash -c 'echo should-not-run > "'"$WT"'/should-not-exist"'
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"claude lane NOT-READY -- run Setup (foreman-setup) before Use"* ]]
+  [ ! -f "$WT/should-not-exist" ]
+  [ ! -d "$WT/.harness/lane.lock" ]
+  [ ! -f "$(run_dir run-not-ready)/events.jsonl" ]
 }
 
 @test "lane-run (LANE_VENDOR=grok, launcher-absent direct-spawn branch): normalized GROK_HOME still reaches CMD without a launcher" {

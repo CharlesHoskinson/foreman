@@ -102,16 +102,23 @@
 #   stays null -- byte-identical to pre-T5a behavior (all existing lane-run
 #   tests pass unmodified). Destructive real-vendor concurrency verdict
 #   (T5b) is deferred; see docs/research/vendor-concurrency-results.md.
+# @env FOREMAN_TOOL_CHECK Optional executable readiness-probe override. When
+#   non-empty, it runs instead of env/tool-check.sh and must emit the unchanged
+#   `LANE_READY: <vendor>=yes` contract. Unset/empty uses the real repo probe.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=lib/eventlog.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/eventlog.sh"
 # shellcheck source=lib/telemetry.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/telemetry.sh"
 # shellcheck source=lib/checkpoint.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/checkpoint.sh"
 
 # Non-interactive lane shells never source ~/.bashrc, so a PATH fix that lives
@@ -126,8 +133,10 @@ if [[ -r "${HOME}/.foreman/env.sh" ]]; then
   . "${HOME}/.foreman/env.sh" || true
 fi
 # shellcheck source=lib/config.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/config.sh"
 # shellcheck source=lib/worktree.sh
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/worktree.sh"
 
 # Attempt ids come from lib/eventlog.sh's el_attempt_new (T3, sourced above):
@@ -379,9 +388,16 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
   # matters for auth (must_soft/should_hard/should_full all include them) --
   # see env/tool-check.sh's profile membership arrays.
   lane_repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || lane_repo_root=""
-  if [[ -n "$lane_repo_root" && -f "$lane_repo_root/env/tool-check.sh" ]]; then
+  lane_tool_check="${FOREMAN_TOOL_CHECK:-}"
+  if [[ -n "$lane_tool_check" ]]; then
     lane_ready_report=""
-    lane_ready_report="$(bash "$lane_repo_root/env/tool-check.sh" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
+    lane_ready_report="$("$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
+  elif [[ -n "$lane_repo_root" && -f "$lane_repo_root/env/tool-check.sh" ]]; then
+    lane_tool_check="$lane_repo_root/env/tool-check.sh"
+    lane_ready_report=""
+    lane_ready_report="$(bash "$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
+  fi
+  if [[ -n "$lane_tool_check" ]]; then
     if [[ "$lane_ready_report" != *"LANE_READY: ${LANE_VENDOR}=yes"* ]]; then
       echo "lane-run: $LANE_VENDOR lane NOT-READY -- run Setup (foreman-setup) before Use" >&2
       exit "$EXIT_CONFIG"
@@ -484,6 +500,7 @@ emit_kill_alert() {
 #   not exist) exits 128 with "ERROR: The process ... not found."; that rc is
 #   folded into the "swept" outcome alongside rc==0.
 # @arg $1 pid pid to terminate
+# shellcheck disable=SC2329  # invoked indirectly by cleanup traps
 kill_cmd_bounded() {
   local pid="$1" grace="${LANE_KILL_GRACE:-5}" waited=0
   local escalated=0
@@ -734,6 +751,7 @@ lane_emit_ownership() {
 # @arg $1 launcher_pid
 # @arg $2 child_pid optional POSIX pgid target (empty on Windows / on an
 #   ownership-parse timeout -- best-effort in that case)
+# shellcheck disable=SC2329  # invoked indirectly by cleanup traps
 kill_launcher_bounded() {
   local lpid="$1" cpid="${2:-}"
   [[ -z "$lpid" ]] && return 0
@@ -836,6 +854,7 @@ LANE_OWNERSHIP_PID=""
 #   any background watcher. Invoked on EXIT/INT/TERM so nothing survives the
 #   script, and lane-run.sh itself can never hang here even if CMD ignores
 #   TERM or a detached descendant keeps the output pipe open.
+# shellcheck disable=SC2329  # invoked indirectly by EXIT/INT/TERM traps
 cleanup() {
   if [[ -n "${cmd_pid:-}" ]]; then
     kill_cmd_bounded "$cmd_pid"
