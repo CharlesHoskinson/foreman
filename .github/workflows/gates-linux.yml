@@ -35,12 +35,30 @@ jobs:
           sudo apt-get install --yes bats jq python3 shellcheck util-linux
           npm install --global \
             @fission-ai/openspec@1.6.0 \
-            @informalsystems/quint@0.32.0
+            @informalsystems/quint@0.32.0 \
+            markdownlint-cli2@0.23.1
+          python3 -m pip install --user --quiet codespell==2.4.1
+          printf '%s\n' "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+          lychee_tgz="$(mktemp)"
+          curl --silent --show-error --location --fail \
+            --output "$lychee_tgz" \
+            https://github.com/lycheeverse/lychee/releases/download/lychee-v0.24.2/lychee-x86_64-unknown-linux-gnu.tar.gz
+          printf '%s  %s\n' \
+            1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a \
+            "$lychee_tgz" | sha256sum --check --strict
+          sudo tar --extract --gzip --file "$lychee_tgz" \
+            --directory /usr/local/bin --strip-components=1 \
+            lychee-x86_64-unknown-linux-gnu/lychee
           sudo ln --symbolic --force \
             "$(readlink --canonicalize "$(command -v openspec)")" \
             /usr/local/bin/openspec
           /usr/local/bin/openspec --version
           quint --version
+          markdownlint-cli2 --version
+          command -v codespell
+          codespell --version
+          lychee --version
 
       # launcher/dist is gitignored; build the POSIX binary the bats suite expects.
       - name: Set up Bun
