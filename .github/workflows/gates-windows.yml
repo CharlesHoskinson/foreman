@@ -55,7 +55,11 @@ jobs:
         shell: bash
         env:
           TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
-        run: bash tools/ci-local.sh
+        run: |
+          # Install step placed openspec/quint here and verified by absolute path;
+          # without this on PATH the gates SKIP rather than run.
+          export PATH="/usr/local/bin:$PATH"
+          bash tools/ci-local.sh
 
       - name: Upload gate reports
         if: always()
