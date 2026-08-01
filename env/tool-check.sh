@@ -917,17 +917,28 @@ fm_tc_run_atomicity_probes() {
 }
 
 # profile membership
-must_soft=(git python3 grok codex foreman_skill)
-must_hard=(git python3 jq docker flock foreman_skill)
-must_full=(git python3 jq grok codex docker flock foreman_skill)
-must_durable=(git jq coreutils bash flock)
-# strace is `should` on every POSIX profile rather than `must`: a host can run
-# without it, but only by fail-closing every durable lock, so its absence must
-# be visible in the report instead of surfacing later as unexplained refusals.
-should_soft=(node npm jq markdownlint-cli2 codespell lychee strace foreman_home_fs)
-should_hard=(shellcheck bats gh timeout grok codex strace foreman_home_fs)
-should_full=(node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue strace foreman_home_fs)
-should_durable=(nats-server nats-cli strace foreman_home_fs)
+# strace is `must` on every POSIX profile, matching required = true in
+# env/reference-manifest.toml. It is not a diagnostic: the syscall evidence
+# class is the ONLY one that can license a lock mechanism as atomic -- flavour
+# licenses nothing and contention can license only non-atomic or unknown -- so
+# on ANY host without it no mechanism earns trust and lib/lock.sh fail-closes
+# every durable lock. Grading it `should` was a hedge: it let a host report
+# READY: yes and then fail 102 tests on refusals that had nothing to do with
+# the code under test.
+must_soft=(git python3 grok codex strace foreman_skill)
+must_hard=(git python3 jq docker flock strace foreman_skill)
+# The gate tooling is `must` on full and nowhere else. reference-manifest.toml
+# marks bats, markdownlint-cli2, codespell and lychee required = true, and full
+# is the profile that runs the gates -- a development host missing them cannot
+# run the suite or the docs gate, which is a NOT-READY condition, not a note.
+# They are deliberately absent from soft: a host that only drives lanes has no
+# use for a docs linter.
+must_full=(git python3 jq grok codex docker flock strace bats markdownlint-cli2 codespell lychee foreman_skill)
+must_durable=(git jq coreutils bash flock strace)
+should_soft=(node npm jq foreman_home_fs)
+should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
+should_full=(node npm shellcheck gh timeout bun pueue foreman_home_fs)
+should_durable=(nats-server nats-cli foreman_home_fs)
 if (( IS_WSL )); then
   should_soft+=(foreman-launch)
   should_hard+=(foreman-launch)

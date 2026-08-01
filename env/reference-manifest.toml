@@ -204,7 +204,7 @@ required = true
 
 [[tools]]
 id = "markdownlint-cli2"
-profile = ["soft", "full"]
+profile = ["full"]
 where = ["windows", "wsl"]
 check = "markdownlint-cli2 --version"
 install_wsl = "npm install -g markdownlint-cli2"
@@ -214,7 +214,7 @@ notes = "docs group -- markdown lint. HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency
 
 [[tools]]
 id = "codespell"
-profile = ["soft", "full"]
+profile = ["full"]
 where = ["windows", "wsl"]
 check = "codespell --version || python3 -m codespell_lib --version || python -m codespell_lib --version"
 install_wsl = "sudo apt-get install -y codespell"
@@ -224,7 +224,7 @@ notes = "docs group -- spelling. HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency tabl
 
 [[tools]]
 id = "lychee"
-profile = ["soft", "full"]
+profile = ["full"]
 where = ["windows", "wsl"]
 check = "lychee --version"
 install_windows = "winget install --id lycheeverse.lychee -e --accept-package-agreements --accept-source-agreements"

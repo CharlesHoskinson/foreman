@@ -38,6 +38,28 @@ checker_ids="$(
     | tr ' ' '\n' | sed '/^$/d' | sort -u
 )"
 
+# ids the checker treats as MANDATORY (must_* arrays only). Presence agreement
+# is not enough: a tool can be declared required = true in the manifest and
+# graded `should` by the checker, and the two records then disagree about
+# whether a host missing it is ready. That exact split shipped for strace and
+# this checker passed it, because it compared names and nothing else.
+checker_must="$(
+  sed -n 's/^must_[a-z]*=(\(.*\))$/\1/p' "$CHECKER" \
+    | tr ' ' '\n' | sed '/^$/d' | sort -u
+)"
+
+# ids the manifest declares required = true, read by walking each [[tools]]
+# block and pairing its id with the required flag in the same block.
+manifest_required="$(
+  awk '
+    /^\[\[tools\]\]/ { id=""; req="" ; next }
+    /^id = "/        { id=$0; sub(/^id = "/,"",id); sub(/"$/,"",id) }
+    /^required = /   { req=$3 }
+    /^$/             { if (id != "" && req == "true") print id; id=""; req="" }
+    END              { if (id != "" && req == "true") print id }
+  ' "$MANIFEST" | sort -u
+)"
+
 [[ -n "$checker_ids" ]] || {
   printf 'ERROR parsed zero ids from %s -- the array format changed; fix this script rather than ignoring it\n' "$CHECKER" >&2
   exit 2
@@ -109,6 +131,19 @@ while read -r id; do
     note "DRIFT checker gates on '$id' but env/bootstrap-wsl.sh has no install route for it (looked for '$(provided_by "$id")')"
   fi
 done <<<"$checker_ids"
+
+# 4. Tier agreement. A tool the manifest marks required = true must be gated as
+#    mandatory by the checker, or a host missing it reports READY: yes.
+while read -r id; do
+  [[ -n "$id" ]] || continue
+  is_pseudo "$id" && continue
+  # Windows-only entries are legitimately absent from the POSIX checker; those
+  # are already reported as INFO by rule 2, so only flag ids the checker knows.
+  grep -qxF "$id" <<<"$checker_ids" || continue
+  if ! grep -qxF "$id" <<<"$checker_must"; then
+    note "DRIFT env/reference-manifest.toml marks '$id' required = true but env/tool-check.sh grades it should_*, so a host without it still reports READY"
+  fi
+done <<<"$manifest_required"
 
 if (( drift )); then
   printf '\nDEPENDENCY DRIFT -- records disagree. Reconcile all three, then re-run.\n'
