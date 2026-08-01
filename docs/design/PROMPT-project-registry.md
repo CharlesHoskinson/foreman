@@ -40,7 +40,7 @@ implies before you choose an approach.
 **The load-bearing mechanism.** `measurement_validity(measured_sha, scope_paths)`
 computes `fresh | stale | unknown` at read time by running:
 
-```
+```bash
 git rev-list <measured_sha>..HEAD -- <scope_paths>
 ```
 

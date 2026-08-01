@@ -1135,7 +1135,9 @@ proposed enhancement. Newest at the bottom.
 - **Phase:** Implement dispatch (soft mode). **Severity: data loss.**
 - **What happened:** I dispatched a sprint lane with a deliberately-defensive command:
 
+  ```bash
       bash run-audit.sh ../specs/SPEC-sprint-lane-c.md sprintC 2>/dev/null || bash run-grok.sh SPEC-sprint-lane-c.md sprintC
+  ```
 
   The path was wrong — `run-audit.sh` reads briefs from `./angles/`, not `../specs/`. The script
   **still exited 0**, so the `||` fallback never fired. The Codex agent, finding its Step-1 path
@@ -1713,7 +1715,7 @@ Recorded here because the workflow context is foreman's, though the failures are
   its diff and count the untracked paths.
 - **Evidence:** the command never reached WSL. PowerShell's own parser rejected it:
 
-  ```
+  ```text
   ParserError:
   Line |
      1 |  …  \$SNAP/untracked.txt 2>/dev/null; echo \"  patch: \$(wc -l < \$SNAP/ …
@@ -1878,7 +1880,7 @@ Edit --output-format plain --cwd <wt>`
 
 **Evidence.** All three lanes recorded a clean success in the event log:
 
-```
+```json
 {"seq":8,"type":"round_done","lane":"wtpp","commit":"04cd81b0...","payload":{"exit_code":0,"phases":{"implement_s":29},"exit_source":"child"}}
 {"seq":9,"type":"round_done","lane":"wpre","commit":"1b52f138...","payload":{"exit_code":0,"phases":{"implement_s":31},"exit_source":"child"}}
 ```
@@ -1889,7 +1891,7 @@ did its job.
 
 The actual product of all three lanes:
 
-```
+```text
 ?? .harness/heartbeat.ndjson
 ?? .harness/stream.ndjson
 ?? SPEC-NOTES.md
@@ -2008,7 +2010,7 @@ below the measured preamble cost (~30 min) is defensible without that surface.
 the integrated tree" because it had been started once and killed for holding the
 host-wide bats mutex. First completed run, uncontended and detached:
 
-```
+```text
 TOTAL pass=434 fail=6 skip=15 tests=455 bare_skip=0 platform=wsl
 RESULT FAIL test_failures=6
 ```
@@ -2111,7 +2113,7 @@ policy files in the same change. Eight consecutive packages did not.
 (`lanectl launch -> lane-run.sh -> grok-multiround.sh -> grok`) with specs that
 pointed at the OpenSpec change and said "read them, then implement":
 
-```
+```text
 grok-multiround: EMPTY-BURST FAILED after 3 rounds — grok narrated orientation
 but wrote nothing; re-issue a write-first spec or raise --max-rounds
 ```
@@ -2123,7 +2125,7 @@ A fourth dispatch of the same package, same chain, same model, with a spec that
 **inlined the defective function verbatim, the measured probe output, and the
 exact change to make**, produced:
 
-```
+```text
 grok-multiround: files changed (rounds=1)
 round_done exit_code=0, implement_s=26
 env/tool-check.sh | 21 +++++++++++++--------
@@ -2243,7 +2245,7 @@ based on the confound and is not supported.
 
 Verifying the writer's source-idempotency, the architect ran:
 
-```
+```text
 . ~/.foreman/env.sh; . ~/.foreman/env.sh
 tr ':' '\n' <<<"$PATH" | grep -c "$HOME/.local/bin"      -> 3
 ```
@@ -2255,7 +2257,7 @@ no baseline, so it could not discriminate the property it was measuring.**
 
 Re-run under a controlled environment:
 
-```
+```text
 env -i HOME=/root PATH=/usr/bin:/bin bash -c '. /root/.foreman/env.sh; ...'
 baseline 0 -> after one source 1 -> after two sources 1
 final: /root/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -2352,7 +2354,7 @@ Two independently checkable facts contradicted the impression that summary gave:
    the documented codex failure mode, occurring in the very lane briefed about it.
 2. Architect re-ran the suites rather than trusting the summary:
 
-```
+```text
 round-ownership  7 ok  1 FAIL      (registered baseline: 8)
 lane-run         33 ok  0
 foreman-setup     4 ok  0
@@ -2363,7 +2365,7 @@ The single failure was `round ownership refusal blocks unowned dispatch before
 child spawn`, expecting exit 2 — precisely the test a destructive proof
 disables. Diffing the worktree against the lane's own backup:
 
-```
+```text
 208c208
 < if (( ROUND_MODE == 0 && UNOWNED_MODE == 0 )) && [[ "$durable_enabled" == "true" ]]; then
 ---
@@ -2415,7 +2417,7 @@ remote CI became unavailable).
 
 **Evidence.** Two back-to-back runs of the commit tier on an unchanged tree:
 
-```
+```text
 run 1  rc=1   formal: === summary: run=19 matched=18 skipped=17 failures=1 tier=commit ===
               formal: SUITE FAILED
 run 2  rc=0   formal: === summary: run=19 matched=19 skipped=17 failures=0 tier=commit ===
@@ -2424,7 +2426,7 @@ run 2  rc=0   formal: === summary: run=19 matched=19 skipped=17 failures=0 tier=
 
 The differing row, from `formal/out/report.tsv`:
 
-```
+```text
 model=eventlog_concurrency  invariant=seq_uniqueness
 expected=VIOLATED  observed=HOLDS  match=no  gating=yes
 ```

@@ -96,7 +96,7 @@ looks like a slow model or a stalled network call. It is neither.
 
 **Diagnosis.** Check process STATE, not elapsed time:
 
-```
+```bash
 ps -o pid,etime,time,stat,cmd -p <PID>
 ```
 
@@ -260,7 +260,7 @@ hazard is that the leftover filesystem state looks like completed work in
 
 Checking whether a generated env file duplicated `PATH` entries:
 
-```
+```text
 . ~/.foreman/env.sh; . ~/.foreman/env.sh
 tr ':' '\n' <<<"$PATH" | grep -c "$HOME/.local/bin"      -> 3
 ```
@@ -427,4 +427,3 @@ architect's, and the third was a lane's.
    component that was recently hardened, suspect the fixture before the
    component, and settle it by running the component against the fixture by
    hand and reading its stated reasons.
-
