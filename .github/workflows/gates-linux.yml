@@ -42,6 +42,21 @@ jobs:
           /usr/local/bin/openspec --version
           quint --version
 
+      # launcher/dist is gitignored; build the POSIX binary the bats suite expects.
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Build POSIX launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd launcher
+          bun run build:posix
+          test -x dist/foreman-launch
+          ls -la dist/foreman-launch
+
       # Keep TEST_GATE_MODE unset: ci-local.sh defaults the bats gate to shadow.
       # Enforcing it is tag criterion 2 and requires three consecutive green runs.
       - name: Run the shared gate definition
