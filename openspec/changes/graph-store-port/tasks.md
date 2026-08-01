@@ -1,153 +1,193 @@
 # Tasks — graph-store-port
 
-Ordering note: T1 and T2 are serial and own the port and the schema. T3 (files-only)
-must land before T4 (adapter) — the fallback is not allowed to be the thing written
-last. T5–T8 may run in parallel once T4 lands. T9 is the gate.
+Ordering note: commit `933c308` already landed the port, files-only backend,
+named errors, and 18-case backend-neutral contract suite. Completed checkboxes
+below identify that shipped foundation. The remaining work extends it; no task
+reimplements or replaces it.
 
-Precondition: `lock-primitive-hardening` has landed. GP-3 supplies a fresh,
-`--directed`, version-stamped `graph.json`; GP-4 supplies `worklog.jsonl` under
-JK-1..5. Neither is built here.
+Precondition: GP-3 supplies a fresh, directed, version-stamped `graph.json` and
+GP-4 supplies `worklog.jsonl`. Neither is built here.
 
-## T1 — the GraphStore port
+## T1 — retain and harden the landed GraphStore port
 
-- [ ] Define the `GraphStore` port: schema registration, document upsert, typed
-      document lookup, the lineage query set, and the expected-emptiness
-      contract. Shdoc headers on every function.
-- [ ] Keep store-specific concepts (branches, commits, data-version tokens) out
-      of the required argument surface.
-- [ ] Define the optional-capability protocol: time-travel, branch/merge, and
-      cross-run query ergonomics are queried before use and degrade rather than
-      raise when absent.
-- [ ] Write the port conformance suite first, against the port alone, so both
-      implementations are graded by the same assertions.
-- [ ] Add a repository scan to the gate: no TerminusDB import, endpoint URL, or
-      WOQL AST construction outside the adapter directory.
+- [x] Define the `GraphStore` port with schema registration, deterministic
+      upsert, typed lookup, named lineage queries, optional capabilities, and
+      the expected-emptiness contract.
+- [x] Keep backend-specific concepts out of the required argument surface.
+- [x] Ship the files-only backend, named errors, and a backend-neutral
+      conformance suite with a deliberately broken negative-control backend.
+- [ ] Add a repository gate proving Foreman core issues no SQL against the
+      ontology and opens no ontology database outside the SQLite ontology
+      adapter or its tests.
+- [ ] Run the existing suite unchanged against both files-only and the SQLite
+      ontology adapter; backend-specific tests may add assertions but may not
+      waive shared ones.
 
-## T2 — the frozen schema
+## T2 — pin and discriminate the authoritative SQLite schema
 
-- [ ] Author the schema document covering `Task`, `Round`, `Attempt`,
-      `AgentRun`, `Agent`, `Artifact` (+ `Spec`, `Commit`, `Source` subtypes),
-      `Evaluation`, `Claim`, `Entity`, `Metric`, `Measurement`.
-- [ ] Split `PARENT_OF` into `HAS_ATTEMPT`, `SUBTASK_OF`, `BROADER_THAN`.
-- [ ] `EVALUATES` as a tagged union with exactly one target.
-- [ ] `RESOLVED_TO` functional, acyclic, with provenance and a reviewer field.
-- [ ] `SUPERSEDES` carries timestamp and reason; `DERIVED_FROM` / `REVISES` /
-      `SUPERSEDES` mutually exclusive on a pair.
-- [ ] `DEPENDS_ON` acyclicity checked, not assumed.
-- [ ] `MENTIONS` demoted to a derived index, excluded from anything served to a
-      model. Record the measurement N2 asked for: `MENTIONS` share of edges in
-      the real `graph.json`, and which of the 24 competency questions degrade
+- [ ] Pin `skills/foreman/ontology/schema.sql` at SHA-256
+      `1a7c15a97fe594a07746d285a9e14b3a0820b3386c40c0206d55389f7a6eb76f`.
+- [ ] Verify each connection enables and reads back `PRAGMA foreign_keys=ON`
+      before any data access.
+- [ ] Prove `node_kind(kind, plane)` rejects cross-plane kinds rather than
+      relying on an adapter-only check.
+- [ ] Prove all enum `CHECK` constraints reject an out-of-domain value and all
+      lexical `UNIQUE` keys reject a duplicate.
+- [ ] Prove set-valued relations use their declared junction tables and cannot
+      create self-links where the schema forbids them.
+- [ ] Prove `supersession` retains `at` and `reason`, rejects blank reasons and
+      self-links, and permits at most one successor per old node.
+- [ ] Add negative controls for every lint view; a seeded violation must make
+      its view nonempty and a clean database must return zero rows.
+- [ ] Add cycle fixtures for `claim_head` and
+      `claim_contradiction_reach`; both queries must terminate.
+- [ ] Assert every `claim_head` consumer checks `still_superseded` before
+      treating `head_key` as current.
+- [ ] Retain relational representations for `Task`, `Round`, `Attempt`,
+      `AgentRun`, `Agent`, `Artifact`, `Spec`, `Source`, and `Evaluation`; do
+      not claim full adapter conformance while a required type is absent.
+- [ ] Keep `HAS_ATTEMPT`, `SUBTASK_OF`, and `BROADER_THAN` distinct and check
+      the latter two for cycles.
+- [ ] Model `EVALUATES` as exactly one target from `Attempt`, `Artifact`, or
+      `Claim`; add a two-target rejection test.
+- [ ] Make `RESOLVED_TO` functional and acyclic and retain its provenance and
+      reviewer in the declared relational representation.
+- [ ] Check `DEPENDS_ON` acyclicity and keep `DERIVED_FROM`, `REVISES`, and
+      `SUPERSEDES` mutually exclusive on each ordered pair.
+- [ ] Keep `MENTIONS` a derived index excluded from model context; measure its
+      share of the real graph and record which competency questions degrade
       without it.
-- [ ] Every LLM-populated field an enum or a reference — no free floats, no
-      open strings.
-- [ ] `Claim` / `Evaluation` / `Finding` / `Source` top-level, never
-      sub-documents.
-- [ ] No relation both symmetric and transitive.
-- [ ] Abstract bases thin and stable (the parent-changing migration operation
-      is unimplemented upstream).
-- [ ] OWL 2 RL-shaped: no property chains, no complex class expressions.
-- [ ] One human author, reviewed, frozen. Record the freeze and the reviewer.
-- [ ] Map each of N2's 24 competency questions to the schema elements that
-      answer it; any CQ with no mapping is a gap and is recorded as one.
+- [ ] Require every LLM-populated field to use a closed enum or reference; no
+      free float or open string.
+- [ ] Keep `Claim`, `Evaluation`, `Finding`, and `Source` independently
+      addressable rather than cascade-owned subrecords.
+- [ ] Prohibit a relation from being both symmetric and transitive; keep the
+      kind/plane base thin and the schema OWL 2 RL-shaped for mechanical RDF
+      export.
+- [ ] Map all 24 competency questions to exact tables, junctions, views, or a
+      named gap; no entry may disappear.
+- [ ] Keep schema authorship human-reviewed and require a versioned migration
+      or full rebuild for every future schema-hash change.
 
-## T3 — the files-only implementation (lands before the adapter)
+## T3 — preserve the files-only default
 
-- [ ] Implement the port over `graph.json` + `worklog.jsonl` + run-dir JSON,
-      with no database, no container, no network.
-- [ ] Make it the default implementation; the adapter is opt-in per host.
-- [ ] Report the three optional capabilities as unavailable, by name.
-- [ ] Full conformance suite green, and wired into CI on every commit.
-- [ ] Prove a full round runs end to end with no store: gate evaluates,
-      context block builds and hashes, run record complete.
+- [x] Implement the port with no database, container, or network and make that
+      implementation the default.
+- [x] Report `time_travel`, `branch_merge`, and `cross_run_query` unavailable
+      by name and require callers to query capabilities before use.
+- [x] Run the full contract suite and soundness control against files-only.
+- [ ] Wire the files-only conformance suite into every-commit CI.
+- [ ] Prove a full round evaluates the gate, builds and hashes the context
+      block, and completes the run record with no ontology database present.
 
-## T4 — the TerminusDB adapter
+## T4 — implement the SQLite ontology adapter
 
-- [ ] Target the HTTP API directly; do not depend on the thin clients (both are
-      in dependabot-only maintenance).
-- [ ] Schema registration, including the full-replace requirement that applies
-      whenever the payload carries a context object.
-- [ ] Document upsert via create-or-replace with deterministic lexical keys.
-- [ ] The lineage query set, expressed against documents.
-- [ ] Never call the commit-log endpoint on a query path; add a test that
-      fails if such a call is made.
-- [ ] Never page the commit log with a non-zero start offset.
-- [ ] Commit author carries run and lane identity; record the authenticated
-      user as the non-spoofable identity.
-- [ ] Full conformance suite green against the adapter, with only the declared
-      optional capabilities diverging from files-only.
+- [ ] Create a fresh local database file by applying the exact pinned
+      `schema.sql`; never synthesise or mutate the schema in adapter code.
+- [ ] Verify the schema hash before opening an existing database or creating a
+      new one; raise a named configuration error with expected and observed
+      hashes on mismatch.
+- [ ] Record ontology version, schema hash, and hash algorithm in database
+      metadata and verify them before use.
+- [ ] Implement port registration as schema verification, not as an alternate
+      schema authoring path.
+- [ ] Map deterministic lexical business keys to the schema's `UNIQUE` columns
+      and return the stable row identity needed for round-trip evidence.
+- [ ] Execute parameterised SQL only inside the adapter; reject undeclared
+      fields before constructing a statement.
+- [ ] Query ordinary relationships through tables/junctions and recursive
+      relationships only through the shipped guarded views.
+- [ ] Run the complete shared conformance suite with divergences limited to
+      honestly reported optional capabilities.
 
-## T5 — the query wrapper and the non-emptiness contract
+## T5 — permanent SQL competency and emptiness suite
 
-- [ ] Every query and diff declares expected-empty or expected-non-empty.
-- [ ] Unexpected emptiness raises a named error; it never returns empty.
-- [ ] Normalise version references; reject the response-header prefix form
-      explicitly, naming the accepted forms.
-- [ ] Wrap every path query in the deduplication operator — a path query
-      returns one row per path, not one per answer.
-- [ ] Canary fixture 1: the prefixed version reference. Must fail closed.
-- [ ] Canary fixture 2: URI-versus-string unification failure. Must fail
-      closed.
-- [ ] Prove both canaries detect a disabled assertion layer by running the
-      suite with assertions off and confirming both fail.
+- [ ] Port all 24 archived competency entries to named parameterised SQL or an
+      explicit ontology-gap entry; no question may disappear.
+- [ ] Execute every mapped query in CI and record query ID, expected-emptiness
+      contract, elapsed time, row count, and outcome.
+- [ ] Keep successful nonempty, successful expected-empty, ontology gap, SQL
+      failure, and not-run as distinct states.
+- [ ] Unexpected emptiness raises the existing named error and never returns
+      an unqualified empty result.
+- [ ] Wrap all recursive traversal through the shipped views and deduplicate
+      answer identities where multiple paths reach the same row.
+- [ ] Canary 1: a known-positive join with a deliberately mismatched type must
+      fail the expected-nonempty assertion.
+- [ ] Canary 2: a known-positive traversal with its assertion layer disabled
+      must make the suite fail closed.
+- [ ] Prove both canaries discriminate by running the suite with the relevant
+      guard disabled and observing nonzero status.
 
-## T6 — concurrency
+## T6 — SQLite concurrency
 
-- [ ] Distinct-document appends: no compare-and-swap.
-- [ ] Shared-document read-modify-write: data-version precondition mandatory;
-      wrapper refuses the call without it.
-- [ ] Independent lane work: branch-per-lane plus apply.
-- [ ] Version-mismatch responses treated as retryable conflicts with bounded
-      retry, then a named error — no silent infinite retry.
-- [ ] Raise the store worker count above the default of eight before running
-      more than eight lanes; record the setting.
-- [ ] Concurrency tests reproducing R8's three measured cases: twelve
-      distinct-document writers, contending shared-document writers, and the
-      compare-and-swap rejection.
+- [ ] Enable WAL and use short transactions with a finite `busy_timeout` or
+      bounded retry policy; record the selected bounds.
+- [ ] Distinct-row inserts may fan in, but every accepted insert must be
+      visible after contention completes.
+- [ ] Shared read-modify-write begins a guarded write transaction before the
+      read, rechecks observed state, and raises a named retryable conflict on
+      staleness.
+- [ ] Apply each independent lane batch atomically; uniqueness, foreign-key, or
+      stale-state conflict rolls back the whole batch.
+- [ ] Bound conflict retry and raise a named terminal error after exhaustion;
+      no silent infinite retry.
+- [ ] Add tests for twelve distinct writers, two contending shared updates,
+      busy-retry exhaustion, and whole-batch rollback.
 
-## T7 — ingest
+## T7 — graph and session projection ingest
 
-- [ ] Read `graph.json` directly; refuse Cypher and graph-database export files
-      with an error naming the dropped fields.
-- [ ] Schema registered before the first document write.
-- [ ] Two passes: documents before link-valued properties.
-- [ ] Idempotent re-ingest — same input twice produces no document differences.
-- [ ] Stamp the producing extraction-substrate version on every batch.
-- [ ] Identifier change recorded as rename-with-lineage, never delete+create.
-- [ ] Reify `Mention`; drop cosmetic edge properties explicitly and record the
-      drop; fail ingest on an edge property with neither a reified target nor a
-      drop rule.
-- [ ] Document the designed-but-unapplied reification of `SUPPORTS` and
-      `CONTRADICTS`, so it is later an insert rather than a migration.
+- [ ] Read `graphify-out/graph.json` directly and refuse Cypher, Neo4j,
+      FalkorDB, GraphML, and visualization exports with an error naming their
+      lost fields.
+- [ ] Verify the schema hash and initialise the empty database before the first
+      input write.
+- [ ] Classify every node, link, and hyperedge before writing; unknown shapes
+      fail closed and produce an ontology finding.
+- [ ] Use two passes inside an atomic batch: nodes/base rows before link and
+      junction rows.
+- [ ] Make re-ingest idempotent through lexical unique keys and explicit
+      conflict handling; identical input twice produces no row differences.
+- [ ] Stamp the graphify version and exact input hash on every batch.
+- [ ] Record identifier changes as lineage through a declared representation,
+      never as silent delete-and-create.
+- [ ] Represent set links with junction tables and attributed relations with
+      declared reified tables; fail on an attribute with neither a mapping nor
+      a named drop rule.
+- [ ] Preserve `fm-session.py project()` as one direction only: canonical
+      session SQLite rows project into the ontology, and ontology rows never
+      write back into the session store.
 
-## T8 — pinning, backup, health, exit
+## T8 — schema pin, backup, integrity, rebuild, and exit
 
-- [ ] Pin server version and image digest; refuse to start on a mismatch.
-- [ ] Stop-and-tar backup procedure, mandatory before any version change.
-- [ ] Prove the rebuild path: delete the data directory, rebuild from the
-      source artifacts, confirm conformance queries match.
-- [ ] Quarterly health re-check with named triggers: commit cadence, second
-      maintainer, release cadence, and any in-use capability moving behind the
-      paid tier. Calendarise it with the release checklist.
-- [ ] Document the exit path — fall back to files-only within one release — and
-      **rehearse it once** by running a full round on files-only after the
-      adapter has been in use.
-- [ ] Degradation behaviour when the store disappears mid-round: continue on
-      files-only, report which capabilities degraded.
+- [ ] Refuse use when the observed `schema.sql` hash differs from the pinned
+      hash and report both values.
+- [ ] Document a transactionally consistent backup using SQLite's backup API
+      or an equivalent copy that includes required WAL state.
+- [ ] Prove the rebuild path by deleting only a run-scoped ontology database,
+      recreating it from `schema.sql` and grounded inputs, and comparing all
+      tables plus query classifications.
+- [ ] Run `PRAGMA integrity_check`, every lint view, the 24-query suite, and a
+      timed drop/rebuild at least quarterly and before a schema-pin change.
+- [ ] Keep the four withdrawal gate checks permanent: positive acceptance,
+      invalid-enum rejection, undeclared-field rejection, and drop/rebuild
+      identity.
+- [ ] Document and rehearse fallback to files-only within one release.
+- [ ] If the ontology database becomes unavailable mid-round, continue on
+      files-only and record each degraded optional capability.
 
 ## T9 — gate
 
-- [ ] Conformance suite green against both implementations; divergences limited
-      to the three declared optional capabilities.
-- [ ] The no-store round passes end to end.
-- [ ] The drop-and-rebuild test passes.
-- [ ] Both silent-empty canaries fail closed when assertions are disabled —
-      verified by running it, not by reading the code.
-- [ ] The commit-log-on-a-query-path test fails when such a call is introduced.
+- [ ] Shared conformance suite green against files-only and the SQLite ontology
+      adapter, with divergence limited to declared optional capabilities.
+- [ ] The no-ontology full round passes end to end.
+- [ ] Schema-hash mismatch, foreign-keys-off, invalid enum, undeclared field,
+      guarded-cycle, and shared-clobber negative controls all discriminate.
+- [ ] All 24 competency entries are present; every mapped SQL query runs in CI
+      and every gap remains named.
+- [ ] Drop/rebuild yields identical table contents and query classifications.
 - [ ] The adapter-boundary repository scan is clean.
-- [ ] Every one of N2's 24 competency questions is either mapped to schema
-      elements or recorded as a known gap.
-- [ ] `shellcheck` clean on every new script; docs gate green
-      (`markdownlint-cli2`, `codespell`, `lychee`).
+- [ ] `shellcheck` is clean on every new script and repository documentation
+      checks pass.
 - [ ] `openspec validate graph-store-port --strict` passes.
-- [ ] `bugeventlog.md` appended with any workflow failure or friction event
-      encountered while implementing this package.
+- [ ] Append any workflow failure or friction event to `bugeventlog.md`.

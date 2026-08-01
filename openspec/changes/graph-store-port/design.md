@@ -1,257 +1,219 @@
 # Design — graph-store-port
 
-## The shape of the decision
+## Decision shape
 
-There are two independent questions here and they are worth keeping apart:
+The storage boundary has two implementations:
 
-1. **Does Foreman need a queryable, versioned, schema-enforced store?**
-   Unresolved. GP-7's query census answers it. Nothing in this package
-   pretends otherwise.
-2. **If it does, what bounds the downside?**
-   A port with a working files-only implementation on the other side of it.
+1. `FilesOnlyGraphStore`, landed in commit `933c308`, remains the default and
+   supports the required port behavior without a database, container, or
+   network.
+2. The SQLite ontology adapter is opt-in and materialises the same grounded
+   data into a local database created from
+   `skills/foreman/ontology/schema.sql`.
 
-This package answers (2) properly so that (1) can be answered late, by
-measurement, without either answer being expensive. That is the whole design.
+Every graph consumer uses the existing `GraphStore` port. The SQLite adapter is
+the only component allowed to issue ontology SQL. GP-1 through GP-5 retain
+their direct file inputs and must not acquire an ontology dependency.
 
-## Why a port, and why the files-only implementation is the default
+## Historical decision record
 
-R8's health verdict is *alive but fragile*: one human wrote ~93% of the last
-year's commits, the founder left in April 2025, the project produced 27 commits
-in the whole of 2024 and shipped nothing for 12½ months, and the current npm
-client sees 105 downloads a month. No fork has more than one star. There is no
-successor project to fall back to.
+R8 evaluated TerminusDB 12.0.6 live on 2026-07-28 and found working schema
+validation, lineage queries, distinct-document concurrency, and time-travel.
+The same dated run found two silent-empty query paths, linear commit-log scans,
+last-write-wins shared updates, and severe project-health concentration.
 
-The mitigation is not "pick something else" — R8 ranked the alternatives and
-TerminusDB won on the two axes that matter here, versioning and ontology
-enforcement, and lost on every other axis. The mitigation is that **losing the
-store must cost a re-materialisation, not a rewrite**. Two properties deliver
-that:
+On 2026-07-28, R8 ranked TerminusDB first only while native versioning and
+ontology enforcement were weighted heavily. It rejected direct adoption
+without a port, commit-log lineage, per-edge commits, and unguarded empty
+results. Those rejected alternatives remain historical evidence; none is a
+current implementation target.
 
-- **Regenerability.** Everything in the store is derivable from `events.jsonl`
-  (append-only, frozen schema v2), `graph.json`, and the per-lane `GraphUpdate`
-  journals. The store holds no fact that exists nowhere else. This is a
-  requirement, and the CI drop-and-rebuild test is what keeps it true rather
-  than aspirational.
-- **A files-only implementation that is exercised on every commit**, not a
-  stub kept warm on paper. If it is only run when the store breaks, it will be
-  broken when the store breaks.
+On 2026-07-30, commit `b3bbdc3` withdrew TerminusDB after a four-lens council:
+recovery must work offline, the release was moving CI local, and no adapter,
+server, or stored data existed. The archived withdrawal record requires two
+ideas to survive: the 24 competency queries as a permanent CI suite, and the
+four-way live gate covering acceptance, invalid enum, undeclared field, and
+drop/rebuild identity.
 
-Making files-only the *default* rather than the fallback is the load-bearing
-choice. A fallback that nobody runs is a fallback that does not work; a default
-that everyone runs is tested by definition. The TerminusDB adapter is opt-in
-per host.
+The 2026-07-28 measurement that `/api/log` scaled at roughly 2.4 ms per commit
+and exceeded one second at 478 commits remains the historical reason lineage is
+stored and queried as data rather than reconstructed from store history. The
+2026-07-28 observation that TerminusDB relations could not carry attributes
+remains the historical reason edge facts were designed for reification.
 
-## Why the work-DAG is documents, not commits
+## SQLite ontology boundary
 
-The obvious design — one commit per graph write, then read lineage out of the
-commit log — is the design TerminusDB's marketing invites. R8 measured it and
-it does not survive:
+`schema.sql` is the single authoritative definition. The adapter verifies its
+pinned SHA-256 before opening or creating a database, enables foreign keys on
+every connection, and applies the schema to an empty local file before the
+first data write. A mismatch is a hard configuration error, not an implicit
+migration.
 
-| Commits on branch | `/api/log` full scan |
-|---|---|
-| 178 | 459 ms |
-| 278 | 680 ms |
-| 378 | 932 ms |
-| 478 | 1,152 ms |
+The schema supplies the invariants:
 
-~2.4 ms per commit, a clean linear fit, extrapolating to ~24 s at 10,000
-commits. Offset paging is O(offset): `count=10 start=400` costs 442 ms against
-35 ms at `start=0`. You can read the head of history cheaply; you cannot walk
-back through it. And the fast version is explicitly the paid tier — the README
-sells *"very fast commit history queries"* and *"query millions of commits with
-sub-second response times"* as Enterprise features.
+- `node_kind(kind, plane)` plus the composite foreign key store-enforces
+  disjointness across work, artifact, knowledge, and lineage planes;
+- `CHECK` constraints close enum and scalar domains;
+- lexical business keys are `UNIQUE`;
+- set-valued relations use junction tables;
+- `supersession` is a row with `old_id`, `new_id`, `at`, and `reason`, and its
+  unique `old_id` index forbids ambiguous successor forks;
+- lint views must return zero rows;
+- `claim_head` and `claim_contradiction_reach` are the public traversal forms.
 
-Modelled as documents, the same lineage questions run at ~230 ms over 5,000
-documents **independent of commit count**. So the division of labour is:
+The tested baseline does not authorise the adapter to forget requirements that
+already exist at the port boundary. Full conformance still requires relational
+forms for the remaining work/artifact types; distinct `HAS_ATTEMPT`,
+`SUBTASK_OF`, and `BROADER_THAN`; exactly-one-target `EVALUATES`; functional,
+reviewed, acyclic `RESOLVED_TO`; acyclic dependencies; mutually exclusive
+lineage relations; derived-only `MENTIONS`; closed LLM fields; independently
+addressable Claim/Evaluation/Finding/Source rows; and the OWL 2 RL-shaped export
+boundary. If the current pinned schema lacks one of those forms, the result is
+a named gap until a human-reviewed versioned schema revision changes the hash.
+An adapter-private side table is not conformance.
 
-- `events.jsonl` — system of record for work lineage;
-- store documents — queryable projection;
-- store commits — audit trail only, never on a query path.
+The adapter does not duplicate recursive CTEs. SQLite has no `CYCLE` clause,
+and the repository measured the unguarded supersession walk hanging. Shipping
+the traversal as a view makes the path delimiter, depth cap, and cycle guard
+part of the schema contract. A `claim_head` consumer must inspect
+`still_superseded`; nonzero means the walk stopped on a guard and is not a true
+current head.
 
-The commit `author` field carries `run_id`/lane (an arbitrary caller-supplied
-string, verified), and the authenticated `user` field carries the
-non-spoofable identity. Both are useful. Neither is load-bearing.
+## Port and landed files-only behavior
 
-## Why the two silent-empty footguns get hard requirements
+The port already exposes schema registration, deterministic upsert, typed
+lookup, named lineage queries, expected emptiness, and optional capabilities.
+The rewrite preserves that surface. SQLite-specific path names, pragmas,
+transactions, table names, and SQL do not become required port arguments.
 
-R8 found two independent paths where this database returns a wrong answer with
-HTTP 200:
+Files-only remains the default because it is exercised continuously. It reports
+time-travel, branch/merge, and cross-run query ergonomics unavailable and lets
+callers degrade. The SQLite adapter may advertise only capabilities it actually
+implements; a local database file does not imply native time-travel or branch
+merge.
 
-```
-{"before_data_version":"main",        "after_data_version":"lane-b"} -> correct diff
-{"before_data_version":"commit:<id>", ...}                           -> correct diff
-{"before_data_version":"branch:main", ...}                           -> [] SILENTLY
-{"before_data_version":"admin/foreman/local/branch/main", ...}       -> errors loudly
-```
+The contract suite runs unchanged against files-only and against the SQLite
+adapter. Backend-specific additions may test schema hashing, SQL, transactions,
+and the shipped views, but may not relax the shared assertions.
 
-and the vendor's own troubleshooting page names silent-empty WOQL results as
-*"the single most common WOQL debugging issue"*, caused by comparing a
-URI-typed value against a string literal where unification simply fails.
+## Query discipline and the permanent competency suite
 
-For most applications a silently empty result is a bug. For an audit trail it
-is worse than a bug: it is *"the audit says nothing changed"* when something
-did. A gate that reads an empty result as "no violations found" is N4's
-pySHACL canary failure all over again — a no-op check is worse than no check,
-because it is trusted.
+Every SQL statement is parameterised and lives inside the adapter. Ordinary
+lookups may query tables directly. Recursive traversal must query the shipped
+views. No caller copies a recursive CTE into core code.
 
-Hence: every query declares its expected-emptiness, version references are
-normalised at the wrapper boundary, and CI carries one canary fixture per known
-silent-empty path whose *only* job is to fail if the assertion machinery stops
-working. The canaries assert on mechanism, not on luck.
+Every query declares expected-empty or expected-non-empty. An unexpected empty
+raises the existing named error; an expected true negative returns an empty
+result carrying that declaration. The guard is tested with known-positive
+fixtures and with the assertion layer deliberately disabled, so a no-op suite
+cannot pass.
 
-## Alternatives considered and REJECTED
+The 24 competency questions archived with the withdrawn operations package are
+ported to named SQL statements or explicit gap entries and run permanently in
+CI. All mapped SQL executes. A successful zero-row result, an ontology gap, a
+SQL error, and a not-run query remain four different states.
 
-**Adopt TerminusDB directly, without a port.** Rejected on the health numbers.
-Bus factor 1 with a prior 14-month dormancy is not a risk you take without an
-exit, and an exit you have not built is not an exit. The port costs perhaps a
-day of the ~5-day estimate; a rewrite under duress costs the release.
+## Schema discrimination and rebuild identity
 
-**Skip the store entirely; keep files only.** Genuinely tempting, and GP-7 may
-yet choose it. Rejected *as the specification* because the ontology work, the
-identifier scheme and the ingest path are store-agnostic and have to be
-written either way, and because writing them against a port costs nothing
-extra while writing them against files-forever forecloses the measurement.
-Note that this package is explicitly deferrable — SYNTHESIS §5 grants the
-architect that call, and the specs are shaped so deferral is a decision, not a
-rewrite.
+Acceptance alone is not evidence that constraints work. The adapter gate keeps
+the repository's existing discrimination style:
 
-**Postgres / SQLite with explicit tables** (R8's rank 2). Zero longevity risk,
-total operational familiarity, hireable. Rejected as the *first* adapter
-because you then hand-build versioning, time-travel, branch/merge and
-write-time schema enforcement — the four things that are the entire reason a
-store is being considered — and R4 §9.2 lists exactly those as the things a
-git-like store gives free. It remains the strongest second adapter, and the
-port exists so that writing it later is a contained piece of work rather than
-a migration.
+- a conforming write is accepted;
+- an invalid enum is rejected by the engine;
+- an undeclared field is rejected at the adapter boundary before SQL;
+- rebuilding a fresh database from the same grounded inputs produces identical
+  rows and query classifications.
 
-**Neo4j** (R8 rank 5). Best-in-class traversal, huge community, real hiring
-pool. Rejected: GPL/commercial licensing, JVM weight on a single WSL box, and
-version control is entirely the caller's problem — which is the requirement,
-not a nice-to-have.
+The ontology's existing 18 checks remain required. Adapter tests add negative
+controls for every lint view, both traversal guards, schema-hash mismatch,
+foreign keys disabled, unexpected emptiness, and shared-update contention.
 
-**FalkorDB** (R8 rank 6), already a graphify exporter target so it looks free.
-Rejected: no versioning, no ontology enforcement, weak provenance. R8's phrase
-is exact — *a query cache, not a system of record*. It would be a reasonable
-read replica and a bad store.
+## Ingest and one-way projection
 
-**Oxigraph / a plain RDF store** (R8 rank 4). Apache-2.0, embeddable, real
-SPARQL 1.1 property paths. Rejected: no versioning, no write-time schema
-enforcement (SHACL is bolt-on, and N4 measured a SHACL engine silently
-reporting `Conforms: True` while evaluating nothing), and RDF's ergonomics tax
-without the document layer that makes TerminusDB pleasant.
+Graphify ingest reads `graphify-out/graph.json` directly. It does not accept
+Cypher, Neo4j, FalkorDB, GraphML, or visualization exports because they omit
+audit fields and graph shapes. The adapter classifies every input before
+writing, creates base rows before link rows, uses deterministic lexical keys,
+and commits a batch atomically. Re-ingesting identical input leaves no row
+differences.
 
-**OWL as the formalism.** Rejected upstream by SYNTHESIS §2.5 and not
-relitigated here: 10 of N2's 24 competency questions require
-negation-as-failure, which is unanswerable in principle under the open-world
-assumption. Foreman's graph records a bounded, fully-observed process, so
-closed-world is the correct model of the world and not merely a convenience.
-R8 then verified the negation query live in WOQL. The schema stays OWL 2
-RL-shaped — no property chains, no complex class expressions — purely so a
-mechanical RDF export remains possible later.
+Attributes on relations require a declared relational representation. Sets use
+junction tables; facts with their own attributes use reified tables, as
+`supersession` does. An attribute with neither a table mapping nor an explicit
+named drop rule stops ingest and records a finding.
 
-**TerminusDB commits as the lineage representation.** Rejected on the measured
-linear scan above. This is the single most load-bearing rejection in the
-package, because it is the design the product's own documentation leads you to.
+`fm-session.py project()` is one-directional: the canonical session SQLite
+store supplies Claim, Measurement, Finding, Provenance, Commit, Entity, and
+Supersession projection records; the ontology never writes back. A projection
+failure cannot destroy the source record.
 
-**`graphify export neo4j` / `falkordb` as the ingest path.** Rejected
-absolutely. It emits 5 fields and drops `source_file`, `source_location`,
-`confidence_score`, hyperedges and communities (R7 §8.3). It would ingest a
-graph stripped of precisely the provenance the store is for. Ingest reads
-`graph.json`.
+## Concurrency
 
-**Per-triple provenance via one commit per edge.** Rejected: it is the same
-linear-scan trap approached from the other side, at ~28 ms p50 per commit
-(~35 commits/s serial). Provenance lives as fields on the document
-(`run_id` on `GraphNode`) instead.
+SQLite WAL permits readers with a writer but still serialises writes. The
+adapter therefore distinguishes three cases without exposing them through the
+port:
 
-**`@subdocument` for `Claim`/`Evaluation`/`Finding`/`Source`.** Rejected —
-cascade-delete silently violates the invariant that superseded objects remain
-addressable (N4 §6.4). They are top-level document classes.
+- distinct inserts use short transactions and bounded retry on `SQLITE_BUSY`;
+- a shared read-modify-write starts a guarded write transaction before the
+  read, rechecks the observed state, and commits atomically; stale state becomes
+  a named retryable conflict rather than a last-write-wins success;
+- independent lane batches stage their complete changes and apply them in one
+  transaction, rejecting uniqueness, foreign-key, or stale-state conflicts as
+  a unit.
 
-**A deep inheritance hierarchy.** Rejected: the migration API's
-`ChangeParents` operation is documented as **unimplemented**, so the
-inheritance hierarchy is the one part of the schema that cannot be restructured
-by migration. `GraphNode` and `WorkNode` stay thin and stable, and everything
-interesting hangs off them as properties.
+Busy retry is bounded and observable. Partial batches and infinite retry are
+forbidden.
 
-## Reification, and paying for it once
+## Schema hash, integrity, backup, and exit
 
-TerminusDB is a document graph. Edges are RDF predicates and cannot carry
-attributes. graphify's exporters set `SET r += $props` on every edge; there is
-nowhere for those to go.
+The release pin for `schema.sql` is
+`1a7c15a97fe594a07746d285a9e14b3a0820b3386c40c0206d55389f7a6eb76f`.
+The adapter verifies the file hash before use and records it in database
+metadata. A new hash requires a reviewed schema change and explicit migration
+or rebuild; it is never accepted automatically.
 
-The decision is to reify `Mention` now (span and confidence are genuine edge
-attributes and R8's live schema already does it), drop cosmetic edge props, and
-**design** the reification of `SUPPORTS`/`CONTRADICTS` now while writing it
-later. The asymmetry is deliberate: adding a reified class before data exists is
-a schema addition; adding it afterwards is `MoveClassProperty` plus a backfill
-across every existing claim. Writing the target shape down now converts a future
-migration into a future insert.
+Backups use SQLite's online backup API or a transactionally consistent copy,
+including WAL state where applicable. `PRAGMA integrity_check`, lint views,
+the 24-query suite, and timed drop/rebuild run at least quarterly and before a
+schema-pin change. If the ontology becomes unavailable or fails integrity, the
+round continues on files-only and records degraded capabilities.
 
-## Concurrency: three rules from three measurements
+## Rejected current alternatives
 
-R8 ran three tests and they give three different answers, which is why one blanket
-rule would be wrong:
+**Expose SQLite directly to Foreman core.** Rejected because it would erase the
+landed port boundary and make future storage changes a core rewrite.
 
-- **12 concurrent writers, distinct documents, one branch** → 12/12 HTTP 200,
-  12 documents landed, 12 serialized commits, zero errors. The optimistic
-  retry machinery works. This is Foreman's fan-in case and it needs no CAS.
-- **10 concurrent writers, same document** → 10/10 HTTP 200 and the last writer
-  silently won. No conflict, no error, no warning. Same-branch contention is
-  last-write-wins; conflict detection exists only at *merge*, between
-  *branches*.
-- **CAS via the `TerminusDB-Data-Version` header** → the stale write was
-  rejected with `api:DataVersionMismatch` and did not clobber. This is not on
-  the docs' concurrency page; R8 found it by testing.
+**Replace files-only with SQLite as the default.** Rejected because GP-1 through
+GP-5 intentionally have no database dependency and the existing default is
+already implemented and continuously tested.
 
-The catch is that the precondition is **branch-scoped, not document-scoped**:
-under N lanes, any other commit invalidates the token, so blanket CAS produces a
-retry storm. Hence the three-way rule in the spec — no CAS for distinct-document
-appends, CAS required for shared-document read-modify-write, branch-per-lane
-plus `/api/apply` for independent lane work. And `TERMINUSDB_SERVER_WORKERS` is
-raised above its default of 8 before running ~10 lanes.
+**Copy recursive SQL into each caller.** Rejected because a missed guard can
+hang; the views are the tested executable traversal contract.
 
-## What this package deliberately does not do
+**Use sqlite-graph.** Rejected by the 2026-07-30 council after 28 queries showed
+no schema enforcement, silently wrong answers, incompatibility with Python's
+stdlib `sqlite3`, and no variable-length path operator.
 
-- It does not make the store load-bearing for the merge gate, the context
-  block, or the run record. Those are GP-2, GP-5 and GP-1, and they run on
-  files.
-- It does not add a reasoner, a SHACL engine, or a Datalog engine. Write-time
-  document-schema validation is the only validation the store performs.
-- It does not re-model git commit ancestry as graph edges. `Commit` nodes hold
-  a sha reference; git answers children/leaves/lineage/diff.
-- It does not claim TerminusDB's schema acceptance is a trust signal. N1 §6.3
-  measured single-axiom ontology edits achieving 93.3% attack success with
-  100% consistency-checker stealth and detection at chance. Ontology changes
-  are code: reviewed, signed, gated.
+**Treat schema acceptance as sufficient.** Rejected. The dated N1 result that
+single-axiom edits could remain consistent while changing outcomes is why
+ontology changes remain human-reviewed code and every constraint needs a
+negative control.
 
 ## Risks
 
-- **The store becomes load-bearing by accident.** The most likely way this
-  package fails is that someone writes a gate check or a context builder that
-  quietly requires the adapter, and the files-only path rots. Mitigation: the
-  conformance suite runs the identical assertions against both
-  implementations, and CI runs the files-only path by default.
-- **The silent-empty assertions are themselves silently disabled.** A wrapper
-  that stops asserting looks exactly like a wrapper that asserts and passes.
-  Mitigation: the two canary fixtures, which must fail closed; this is
-  directly N4's pySHACL lesson.
-- **The linear extrapolation of commit-log cost is `INFERRED`.** R8 measured
-  to 478 commits and extrapolated to 10k/100k on a clean linear fit. If the
-  curve bends favourably, the documents-not-commits decision is merely
-  unnecessary rather than wrong — the risk is one-directional, which is why
-  it is acceptable to act on the extrapolation.
-- **Cross-version store-directory compatibility is undocumented.** `/api/info`
-  reports `storage.version: "2"`; upgrade and downgrade rules are stated
-  nowhere in 296 crawled pages. Mitigation: pin the digest, back up by
-  stop-and-tar before any version bump, and prove the rebuild path works
-  rather than trusting the directory.
-- **The project dies again.** It already did once. Mitigation is the exit
-  path, and the honest statement that the exit path costs a
-  re-materialisation and the loss of time-travel — which is a real loss, and
-  a survivable one.
-- **Enterprise creep.** Performance headroom, RDF serialisations and
-  Prometheus metrics are already gated, and there is no pricing page and no
-  edition-comparison matrix anywhere in the documentation. Mitigation: use
-  OSS-only features, re-check each release, and treat any OSS capability
-  moving behind the paywall as a health-check trigger.
+- **Core bypasses the adapter.** Mitigation: a repository scan for ontology SQL
+  and direct `sqlite3` ontology access outside the adapter and its tests.
+- **Foreign keys are left off.** Mitigation: set and verify
+  `PRAGMA foreign_keys=ON` on every connection, then run a discriminating bad
+  write.
+- **A recursive query bypasses its guard.** Mitigation: expose traversals only
+  through shipped views and test cycles plus `still_superseded`.
+- **A schema change is accepted accidentally.** Mitigation: the hard hash pin,
+  recorded expected/observed hashes, and reviewed migration/rebuild decision.
+- **The files-only path rots.** Mitigation: it remains the default and its full
+  contract suite runs on every commit.
+- **A shared update silently clobbers.** Mitigation: guarded transactions,
+  stale-state detection, bounded retry, and a contention test.
+- **A correct empty answer is confused with a broken query.** Mitigation: the
+  expected-emptiness contract and permanent positive canaries for the SQL
+  competency suite.
