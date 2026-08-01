@@ -402,6 +402,19 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
       echo "lane-run: $LANE_VENDOR lane NOT-READY -- run Setup (foreman-setup) before Use" >&2
       exit "$EXIT_CONFIG"
     fi
+  else
+    # No probe could be found: FOREMAN_TOOL_CHECK is unset and env/tool-check.sh
+    # is absent (e.g. a detached skill install, see bugeventlog.md "Skill
+    # installed as a detached copy"). The lane still runs -- Setup cannot have
+    # run in such a deployment either, so an unauthenticated vendor fails loudly
+    # at the vendor call anyway -- but the gap is announced and recorded, because
+    # a gate that silently does not run is indistinguishable from one that
+    # passed, and that is the failure class this release keeps finding.
+    echo "lane-run: $LANE_VENDOR readiness NOT-VERIFIED -- no probe found (FOREMAN_TOOL_CHECK unset and env/tool-check.sh absent); continuing UNVERIFIED" >&2
+    if ! el_emit "$RUN" alert "$LANE" \
+        "$(jq -cn --arg vendor "$LANE_VENDOR" '{kind:"lane_ready_unverified", vendor:$vendor}')" >/dev/null; then
+      echo "lane-run: el_emit alert (lane_ready_unverified) failed" >&2
+    fi
   fi
 
   # --- Task 2 (package 2, grok-lane-activation): secrets-refusal preflight -
