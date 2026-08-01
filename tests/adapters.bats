@@ -461,11 +461,11 @@ assert_adapter_verb_prompt_contract() {
 @test "audit runner delegates argv while preserving stdin and process control" {
   local runner="$BATS_TEST_DIRNAME/../skills/foreman/scripts/audit-run.sh"
 
-  run grep -F 'source "$SCRIPT_DIR/adapters/codex.sh"' "$runner"
+  run grep -F 'source "$SCRIPT_DIR/adapters/${AUDIT_VENDOR}.sh"' "$runner"
   [ "$status" -eq 0 ]
-  run grep -F 'adapter_audit_argv codex "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"' "$runner"
+  run grep -F 'adapter_audit_argv "$AUDIT_VENDOR" "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"' "$runner"
   [ "$status" -eq 0 ]
-  run grep -F 'setsid "${ADAPTER_ARGV[@]}" <"$PROMPT" 2>"$AUDIT_ERR_TMP" &' "$runner"
+  run grep -F 'setsid "${ADAPTER_ARGV[@]}" <"$AUDIT_STDIN" >"$AUDIT_STDOUT_TMP" 2>"$AUDIT_ERR_TMP" &' "$runner"
   [ "$status" -eq 0 ]
   run grep -F 'AUDIT_CHILD_PID=$!' "$runner"
   [ "$status" -eq 0 ]

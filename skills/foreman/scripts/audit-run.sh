@@ -87,6 +87,7 @@ AUDIT_WATCHDOG_PID=""
 AUDIT_TIMEOUT_MARKER=""
 AUDIT_TIMEOUT_MARKER_TMP=""
 AUDIT_OUT_TMP=""
+AUDIT_STDOUT_TMP=""
 AUDIT_ERR_TMP=""
 
 # @description Wait out the audit timeout in one-second slices.
@@ -156,6 +157,7 @@ ar_cleanup_processes() {
   [[ -n "$AUDIT_TIMEOUT_MARKER" ]] && rm -f "$AUDIT_TIMEOUT_MARKER"
   [[ -n "$AUDIT_TIMEOUT_MARKER_TMP" ]] && rm -f "$AUDIT_TIMEOUT_MARKER_TMP"
   [[ -n "$AUDIT_OUT_TMP" ]] && rm -f "$AUDIT_OUT_TMP"
+  [[ -n "$AUDIT_STDOUT_TMP" ]] && rm -f "$AUDIT_STDOUT_TMP"
   [[ -n "$AUDIT_ERR_TMP" ]] && rm -f "$AUDIT_ERR_TMP"
   return 0
 }
@@ -376,28 +378,32 @@ else
     "could not compute evaluated-tree identity ($tree_reason)"
 fi
 
-# Replace any stale verdict before any auditor process (or CLI probe) starts.
+# Replace any stale verdict and raw output before any auditor process (or CLI
+# probe) starts. A successful zero-output attempt must never reuse an older
+# vendor's judgment.
+rm -f "$OUT"
 ar_write_unverified in_progress audit_in_progress
 
 # shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
 source "$SCRIPT_DIR/lib/audit-call.sh"
 if ! ac_select_auditor "$CONFIG" "$WORKER_VENDOR" >/dev/null; then
-  if [[ "$AC_REASON" == "codex: not ready" ]]; then
+  if [[ -n "$AC_MISSING_VENDOR" ]]; then
+    AUDIT_VENDOR="${AC_MISSING_VENDOR%%,*}"
+    ACTUAL_VENDOR="$AUDIT_VENDOR"
+    AUDIT_MODEL="$(_ac_configured_model "$CONFIG" audit "$AUDIT_VENDOR")"
+    ACTUAL_MODEL="$AUDIT_MODEL"
     ar_fail "$EXIT_MISSING_CLI" missing_cli \
-      "required command not found: codex — install OpenAI Codex CLI and run codex login"
+      "required command not found for selected audit vendor $AUDIT_VENDOR ($AC_REASON)"
   fi
   ar_fail "$EXIT_CONFIG" invalid_audit_vendor "$AC_REASON"
 fi
 AUDIT_VENDOR="$AC_AUDITOR"
 ACTUAL_VENDOR="$AUDIT_VENDOR"
-if [[ "$AUDIT_VENDOR" != "codex" ]]; then
-  # T4 owns replacing this refusal by wiring both audit invocation tiers.
+AUDIT_MODEL="$(_ac_configured_model "$CONFIG" audit "$AUDIT_VENDOR")"
+ACTUAL_MODEL="$AUDIT_MODEL"
+if ! command -v "$AUDIT_VENDOR" >/dev/null 2>&1; then
   ar_fail "$EXIT_MISSING_CLI" missing_cli \
-    "audit selection succeeded for vendor $AUDIT_VENDOR, but invocation is not wired for that vendor"
-fi
-if ! command -v codex >/dev/null 2>&1; then
-  ar_fail "$EXIT_MISSING_CLI" missing_cli \
-    "required command not found: codex — install OpenAI Codex CLI and run codex login"
+    "required command not found for selected audit vendor $AUDIT_VENDOR"
 fi
 if ! command -v setsid >/dev/null 2>&1; then
   ar_fail "$EXIT_MISSING_CLI" missing_cli \
@@ -406,8 +412,8 @@ fi
 
 SCHEMA="$SCRIPT_DIR/adapters/verdict.schema.json"
 [[ -f "$SCHEMA" ]] || ar_fail "$EXIT_CONFIG" missing_schema "missing schema: $SCHEMA"
-# shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
-source "$SCRIPT_DIR/adapters/codex.sh"
+# shellcheck disable=SC1090  # Adapter path is selected from the audited vendor id.
+source "$SCRIPT_DIR/adapters/${AUDIT_VENDOR}.sh"
 
 prompt_tmp="${PROMPT}.tmp.$$"
 {
@@ -436,6 +442,7 @@ mv -f "$prompt_tmp" "$PROMPT"
 
 AUDIT_CLI_VERSION="$(tl_cli_version "$AUDIT_VENDOR")"
 AUDIT_OUT_TMP="${OUT}.tmp.$$"
+AUDIT_STDOUT_TMP="${OUT}.stdout.tmp.$$"
 AUDIT_ERR_TMP="${RD}/audit-stderr.tmp.$$"
 AUDIT_TIMEOUT_MARKER="${RD}/audit-timeout.${ATTEMPT}"
 # Name the marker temp file once, in this shell. The watchdog writes
@@ -452,11 +459,27 @@ AUDIT_TIMEOUT_S="$(
      }'
 )"
 
-ADAPTER_CODEX_AUDIT_MODEL="$AUDIT_MODEL" \
-ADAPTER_CODEX_AUDIT_REASONING_EFFORT="$AUDIT_EFFORT" \
-  adapter_audit_argv codex "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"
+audit_model_var="ADAPTER_${AUDIT_VENDOR^^}_AUDIT_MODEL"
+printf -v "$audit_model_var" '%s' "$AUDIT_MODEL"
+export "${audit_model_var?}"
+export ADAPTER_CODEX_AUDIT_REASONING_EFFORT="$AUDIT_EFFORT"
+if ! adapter_audit_argv "$AUDIT_VENDOR" "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"; then
+  ar_fail "$EXIT_CONFIG" invalid_audit_vendor \
+    "audit adapter refused selected vendor $AUDIT_VENDOR"
+fi
+[[ ${#ADAPTER_ARGV[@]} -gt 0 ]] || ar_fail "$EXIT_CONFIG" invalid_audit_vendor \
+  "audit adapter returned empty argv for selected vendor $AUDIT_VENDOR"
+ACTUAL_VENDOR="${ADAPTER_ARGV[0]##*/}"
+if [[ "$ACTUAL_VENDOR" != "$AUDIT_VENDOR" ]]; then
+  ar_fail "$EXIT_CONFIG" invalid_audit_vendor \
+    "audit adapter selected $AUDIT_VENDOR but would invoke $ACTUAL_VENDOR"
+fi
+AUDIT_STDIN=/dev/null
+if [[ "${ADAPTER_ARGV[${#ADAPTER_ARGV[@]} - 1]}" == - ]]; then
+  AUDIT_STDIN="$PROMPT"
+fi
 set +e
-setsid "${ADAPTER_ARGV[@]}" <"$PROMPT" 2>"$AUDIT_ERR_TMP" &
+setsid "${ADAPTER_ARGV[@]}" <"$AUDIT_STDIN" >"$AUDIT_STDOUT_TMP" 2>"$AUDIT_ERR_TMP" &
 AUDIT_CHILD_PID=$!
 # The watchdog stays in this script's own process group. A process-group
 # sweep therefore reaches it, and shellcheck can read the body. It ends by
@@ -496,9 +519,12 @@ set -e
 if [[ -s "$AUDIT_ERR_TMP" ]]; then
   cat "$AUDIT_ERR_TMP" >&2
 fi
-if [[ -f "$AUDIT_OUT_TMP" ]]; then
+if [[ -s "$AUDIT_OUT_TMP" ]]; then
   mv -f "$AUDIT_OUT_TMP" "$OUT"
   AUDIT_OUT_TMP=""
+elif [[ -s "$AUDIT_STDOUT_TMP" ]]; then
+  mv -f "$AUDIT_STDOUT_TMP" "$OUT"
+  AUDIT_STDOUT_TMP=""
 fi
 
 tree_after_tmp="$(mktemp)"
@@ -512,13 +538,13 @@ if [[ "$TREE_SHA_AFTER" != "$TREE_SHA" ]]; then
   ar_fail "$EXIT_FAIL" worktree_mutation "auditor mutated the worktree — audit invalid"
 fi
 if [[ -f "$AUDIT_TIMEOUT_MARKER" ]]; then
-  ar_fail "$EXIT_FAIL" timeout "codex audit exceeded ${AUDIT_TIMEOUT_MIN} minute timeout"
+  ar_fail "$EXIT_FAIL" timeout "$ACTUAL_VENDOR audit exceeded ${AUDIT_TIMEOUT_MIN} minute timeout"
 fi
 if [[ $EC -ne 0 ]]; then
   if grep -Eiq 'unauthenticated|not logged in|login required|authentication|credentials|(^|[^0-9])401([^0-9]|$)' "$AUDIT_ERR_TMP" 2>/dev/null; then
-    ar_fail "$EXIT_FAIL" unauthenticated_cli "codex CLI is not authenticated"
+    ar_fail "$EXIT_FAIL" unauthenticated_cli "$ACTUAL_VENDOR CLI is not authenticated"
   fi
-  ar_fail "$EXIT_FAIL" nonzero_exit "codex exec failed (exit $EC)"
+  ar_fail "$EXIT_FAIL" nonzero_exit "$ACTUAL_VENDOR audit failed (exit $EC)"
 fi
 if [[ ! -s "$OUT" ]]; then
   ar_fail "$EXIT_FAIL" empty_output "empty audit output"
