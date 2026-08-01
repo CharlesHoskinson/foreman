@@ -77,6 +77,40 @@ while IFS=$'\t' read -r h rf; do
   [[ -n "$match" ]] && fail "root file duplicates documentation: $rf is byte-identical to ${match}-- delete the root copy"
 done < <(awk -F'\t' '$2 !~ /\// {print}' "$HASHES")
 
+# --- Rule 5: no file mode regression against the base branch ---------------
+# Three times in one session a Windows-side edit silently dropped mode 100755
+# to 100644. tests/line-endings.bats catches most of it, but it derives a BASH
+# shebang inventory, so a python script (fm-session.py) lost its bit and that
+# test still passed.
+#
+# The check is deliberately a REGRESSION check, not an absolute rule. "A file
+# with a shebang must be executable" sounds right and is wrong here: 105 of 189
+# tracked shebang files are correctly 100644, because .bats files are run by
+# bats rather than executed. Asserting the absolute form would reproduce the
+# documented failure where a hand re-derivation flagged 42 files against the
+# real checker's one, by ignoring exclusions the real checker documents.
+base=""
+for candidate in "${FOREMAN_HYGIENE_BASE:-}" origin/main main; do
+  [[ -n "$candidate" ]] || continue
+  if git rev-parse --verify --quiet "$candidate" >/dev/null; then base="$candidate"; break; fi
+done
+
+if [[ -z "$base" ]]; then
+  # Absence of a base is reported, never silently treated as clean: a diagnostic
+  # that cannot say "I did not run" is the same defect as one that cannot fail.
+  printf 'INFO  mode-regression check SKIPPED: no base ref (tried FOREMAN_HYGIENE_BASE, origin/main, main)\n'
+else
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    base_mode="$(git ls-tree "$base" -- "$f" | awk '{print $1}')"
+    head_mode="$(git ls-files -s -- "$f" | awk '{print $1}')"
+    [[ -n "$base_mode" && -n "$head_mode" ]] || continue   # added or deleted
+    if [[ "$base_mode" != "$head_mode" ]]; then
+      fail "file mode changed vs ${base}: $f ${base_mode} -> ${head_mode} -- if deliberate, say so; if not, git update-index --chmod=+x"
+    fi
+  done < <(git diff --name-only "$base"...HEAD 2>/dev/null)
+fi
+
 if (( violations )); then
   printf '\nREPO HYGIENE FAILED: %d violation(s).\n' "$violations"
   exit 1
