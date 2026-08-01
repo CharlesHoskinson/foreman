@@ -198,6 +198,7 @@ plan in `docs/superpowers/`).
 > committed views with depth caps and cycle guards.
 >
 > **What was rejected, and why.**
+>
 > - *TerminusDB* — a server, auth, backups and an unwritten operations package,
 >   against a release that moved all CI local specifically to shed infrastructure.
 >   Decisive argument: recovery runs mid-lane and offline, so a store that can be
@@ -217,7 +218,6 @@ plan in `docs/superpowers/`).
 >
 > Vector search may still earn a place as *advisory recall* — "have I hit this
 > before" — but never on the canonical recovery path.
-
 
 ![Total GeorgeCall](assets/v029-total-georgecall.png)
 

@@ -318,7 +318,7 @@ not have to state anything false to induce it; the three deferrals it does name
 create the impression that the open set is enumerated, and it is the completeness
 of that list, not the truth of any sentence, that misleads.
 
-### 3.4 Dishonesty: no. Overstatement: yes.
+### 3.4 Dishonesty: no. Overstatement: yes
 
 Stated plainly, per the brief. Nothing in this document is a lie. §3 volunteers
 five of the actor's own errors, a false premise the actor authored, and 77 minutes

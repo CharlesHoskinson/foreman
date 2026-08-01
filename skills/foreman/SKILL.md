@@ -286,6 +286,7 @@ All security-critical enforcement is in **scripts**, not prompts. See
 | **CHECK** | `scripts/checks-run.sh TASK_ID` | **Shipped** | Orchestrator re-runs checks from **pristine commit**, not dirty worktree |
 | **AUDIT** | `scripts/audit-run.sh` or soft `codex-auditor` | **Shipped (host Codex)** | Cold diff + criteria; **GPT-5.6 Sol via Codex** (≠ worker) |
 | **GATE** | `scripts/gate-eval.sh TASK_ID` | **Shipped** | Forbidden paths + hash drift + checks green + not BLOCKED |
+
 > **Verification authority (2026-07-30).** "CI remains final authority" was
 > false when written — the bats suite ran on no CI platform at all — and remote
 > CI is now unavailable to this project regardless. `tools/ci-local.sh` is the
