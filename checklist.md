@@ -45,10 +45,12 @@ remain open.
       `decision-lineage-and-telemetry` (4b owed), `doctrine-reality-drift`
       (9 claims). `vendor-adapter-contract` T1 landed four vendor adapters with
       seven contract functions each.*
-- [ ] **2. Suite** — completes and passes on **three consecutive runs**; bats
+- [x] **2. Suite** — completes and passes on **three consecutive runs**; bats
       gate switched back ON in `ci-local.sh` and CI.
       *`gates-linux` reports **547 pass / 0 fail / 31 skip**. Consecutive green
-      runs: **2**. All 26 old failures are resolved: the POSIX launcher build,
+      runs: **3** — c71d7b15, 95b7f902 and 5758649f, each running the suite because
+      `gates-linux.yml` sets `FOREMAN_CI_BATS=1`. `gates-windows` is at four.
+      All 26 old failures are resolved: the POSIX launcher build,
       pidns capability guard, evidence-probe non-root fix, stale gate fixture
       and test-9 kill-order fix. It succeeded on 6bfe7a19 and 9451182b, failed
       on 584ddfbb, then succeeded on 725c1294 and 4ff8959f. The 584ddfbb result
@@ -57,8 +59,14 @@ remain open.
       the 600s `TEST_FILE_TIMEOUT_S` bound while every test in the file passed.
       It runs in 18s locally and the timeout did not reproduce in six
       consecutive local runs. The mechanism is unknown and recorded as an open
-      obligation. `tools/ci-local.sh` only calls `gate_bats` under
-      `FOREMAN_CI_BATS=1`; `gates-linux` sets it, so the suite does run.*
+      obligation. `gates-linux.yml` sets `FOREMAN_CI_BATS=1`
+          explicitly, so CI ran the suite even before the default changed.
+      The bats gate now also defaults ON in `tools/ci-local.sh`
+      (`${FOREMAN_CI_BATS:-1}`, merged b4ed7bd), so the suite gates locally as well as
+      in CI; `FOREMAN_CI_BATS=0` skips it for one run and `--quick` still defers it.
+      The original disable reason — a file could hang forever holding the host-wide
+      mutex — is bounded by `tests/run.sh`'s `timeout --kill-after=30
+      ${TEST_FILE_TIMEOUT_S:-600}`, a bound exercised in production on run 584ddfbb.*
 - [x] **3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
       a **recorded red run** proving it can fail.
       *Green `gates-linux` runs: 6bfe7a19, 9451182b, 725c1294 and 4ff8959f.
