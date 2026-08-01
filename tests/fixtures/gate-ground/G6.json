@@ -6,5 +6,11 @@
   "changed_paths": ["docs/out-of-scope.md"],
   "scope": ["src/**"],
   "criteria": ["AC-1"],
-  "discharged_criteria": ["AC-1"]
+  "discharged_criteria": ["AC-1"],
+  "repository_head": {"paths":["src/example.sh"]},
+  "citation_revision": {"files":{"src/example.sh":{"line_count":10,"changed_ranges":[[1,5]]}}},
+  "separation_policy": "cross_vendor",
+  "base_sha": "fixture-base",
+  "rubric_versions": {"audit-checklist":["v1"]},
+  "criterion_misses": []
 }

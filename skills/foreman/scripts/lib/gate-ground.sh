@@ -8,8 +8,8 @@
 # warn, the model verdict is one signal among several, and that verdict is
 # itself checked. An unproved promotion is refused and remains in shadow.
 #
-# This file intentionally contains no groundedness predicate. T3 onward supply
-# gg_canary_evaluate_fixture(), then call gg_canary_run before trusting results.
+# T3 predicates are sourced at the end of this declaration-only library so the
+# evaluator is installed by the library, never supplied by an individual caller.
 
 GG_DEFAULT_REGISTRY="${BASH_SOURCE[0]%/lib/gate-ground.sh}/gate-ground-registry.tsv"
 GG_BLOCKING_CAP=0
@@ -253,7 +253,8 @@ gg_canary_corpus_readable() {
 }
 
 # @description Run every registered canary mutant and compare exact count/focus.
-# The caller must define gg_canary_evaluate_fixture FIXTURE, which writes one
+# gg_canary_evaluate_fixture FIXTURE is now provided by lib/gate-ground-checks.sh,
+# which this library sources. A caller may still override it; it writes one
 # check<TAB>focus row per observed violation. This separation lets T2 ship the
 # fail-closed harness before T3 supplies any real groundedness check.
 # @arg $1 canary corpus directory
@@ -375,3 +376,6 @@ gg_canary_run() {
     "$expected_total" "${#GG_REGISTRY_IDS[@]}" "$elapsed"
   return 0
 }
+
+# shellcheck source=gate-ground-checks.sh
+source "${BASH_SOURCE[0]%/*}/gate-ground-checks.sh"
