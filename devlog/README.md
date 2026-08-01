@@ -3,17 +3,23 @@
 One file per working day, `YYYY-MM-DD.md`. Append-only. Entries are kept even
 when what they describe is superseded — especially then.
 
-## Why this exists separately from STATE and RESUME
+## Why this exists separately from the session store and RESUME
 
-| File | Answers | Lifecycle |
+| Artefact | Answers | Lifecycle |
 |---|---|---|
-| `STATE.md` | Where are we? | Continuously rewritten |
-| `RESUME.md` | What next? | Continuously rewritten |
+| `.foreman/session.db` | Where are we? What is owed? | Current by construction |
+| `RESUME.md` | How do I pick this up cold? | A runbook; states no status |
 | `devlog/*.md` | What happened, and what did it teach us? | **Append-only** |
 
-The first two are rewritten every session, which means they systematically
-erase the record of what was wrong — exactly the material with the longest
-shelf life. The devlog is the only one of the three that accumulates.
+Status documents get rewritten every session, which systematically erases the
+record of what was *wrong* — exactly the material with the longest shelf life.
+The devlog is the only artefact that accumulates.
+
+This is not hypothetical. `STATE.md` was named in this table long after it
+stopped existing, and four competing resume documents accumulated at the
+repository root — the undated one read as canonical while naming a branch that
+had been dead for days. Status now lives in the session store, and history
+lives here.
 
 ## Entry structure
 
