@@ -115,7 +115,7 @@ Each committed SQLite write SHALL cause the authenticated run launcher to append
 `author` field SHALL carry the run and lane identity and the authenticated
 `user` field SHALL be recorded as the non-spoofable identity.
 The adapter SHALL NOT scan or page the write-audit events during ontology queries.
-`events.jsonl` SHALL be treated as audit evidence only on those query paths.
+The write-audit event log SHALL be treated as an audit trail only.
 IF a proposed query can only be answered by scanning write-audit history, THEN it
 SHALL be re-expressed against documents or declared unsupported.
 
@@ -277,9 +277,9 @@ raise a named error and SHALL NOT return an empty result to the caller.
 The wrapper SHALL validate the schema-hash pin before use, and SHALL reject a
 schema-hash reference carrying a prefix or any noncanonical form, because it
 could otherwise select an incompatible schema and yield an empty result.
-The wrapper SHALL apply its deduplication operator around every path query, so
-each query returns one row per answer rather than one row per distinct traversal
-path.
+The wrapper SHALL apply the store's deduplication operator around every path
+query, because a path query returns one row per distinct path rather than one
+row per answer.
 The wrapper SHALL query the shipped guarded views for every path-shaped SQL
 query, because copied recursive SQL can omit the cycle guard and return an
 incorrect answer.

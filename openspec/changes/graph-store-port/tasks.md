@@ -102,9 +102,9 @@ JK-1..5. Neither is built here.
 - [ ] Configure a finite busy timeout before running more than eight lanes;
       record the setting.
 - [ ] Concurrency tests reproducing R8's three measured cases: twelve
-      distinct-document writers, contending shared-document writers, and the
-      unguarded shared-write rejection; require both lanes' changes in the final
-      document.
+      distinct-document writers, contending shared-document writers (require
+      both lanes' changes in the final document), and the unguarded shared-write
+      rejection.
 
 ## T7 — ingest
 
