@@ -92,9 +92,24 @@ gate's *promotion* is what is unfinished.
 Tier 2 is seeded-defect statistical comparison against a pinned vendor model:
 8–12 specs at N=3 runs per condition. That is real vendor spend, and the package
 requires Tier 2 to have **no automatic trigger at all** — no CI workflow, no
-commit hook. The machinery exists and is tested against recorded fixtures. No
-comparison has been run. Any Tier 2 number quoted anywhere would therefore be
-fabricated; there are none.
+commit hook. No comparison has been run. Any Tier 2 number quoted anywhere would
+therefore be fabricated; there are none.
+
+**Correction — the machinery is not in this tree.** This entry previously said
+"the machinery exists and is tested against recorded fixtures." It exists on
+`origin/lane/tier2-machinery`, an unverified branch that was never audited and
+deliberately not merged; `git ls-tree -r main | grep tier2` returns only two
+evidence text files. Either that branch is verified and landed, or this release
+ships without the machinery at all — and until one of those happens, "built" is
+not true of what you can check out.
+
+Four things must exist before Tier 2 could be fired even with spend authorised,
+and none does: a live vendor adapter, a locked spec set, a chosen model pin, and
+**a definition of what the per-spec score in [0,1] actually measures.** The last
+is a specification gap, not an implementation gap, which is why this was never
+really a spend decision. Note also that the declared USD 18 budget is a ceiling
+asserted before any measurement — Foreman cannot currently measure vendor cost
+at all, because every vendor reports `source: "unavailable"`.
 
 ### The mkdir atomicity alternation was never reproduced locally
 
