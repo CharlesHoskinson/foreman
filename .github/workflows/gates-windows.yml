@@ -1,0 +1,72 @@
+name: gates-windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gates-windows:
+    name: gates-windows
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install gate dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          winget.exe install --id koalaman.shellcheck --exact \
+            --accept-package-agreements --accept-source-agreements \
+            --disable-interactivity
+          printf '%s\n' "${LOCALAPPDATA}\\Microsoft\\WinGet\\Links" >> "${GITHUB_PATH}"
+
+          mkdir -p /usr/local/bin
+          npm install --global --prefix "$(cygpath --windows /usr/local/bin)" \
+            @fission-ai/openspec@1.6.0 \
+            @informalsystems/quint@0.32.0
+          printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
+            > /usr/local/bin/python3
+          chmod +x /usr/local/bin/python3
+          /usr/local/bin/openspec --version
+          /usr/local/bin/quint --version
+          jq --version
+          python3 --version
+          node --version
+
+      # ci-local.sh reports host-only gates as unavailable with their reason.
+      # The install.ps1-only smoke remains owned by windows-smoke.yml.
+      - name: Run the shared gate definition with Git Bash
+        shell: bash
+        env:
+          TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
+        run: |
+          # Install step placed openspec/quint here and verified by absolute path;
+          # without this on PATH the gates SKIP rather than run.
+          export PATH="/usr/local/bin:$PATH"
+          bash tools/ci-local.sh
+
+      - name: Upload gate reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gates-windows-reports-${{ github.run_id }}
+          path: |
+            formal/out/
+            ${{ runner.temp }}/foreman-test-slices.tsv
+          if-no-files-found: warn
