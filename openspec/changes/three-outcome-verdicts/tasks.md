@@ -11,7 +11,7 @@ it. The two must not both rewrite that block.
 
 ## T1 — confirm the premises before changing anything
 
-- [ ] Re-confirm the stale-verdict hazard **behaviourally** (D12 — do not rely
+- [x] Re-confirm the stale-verdict hazard **behaviourally** (D12 — do not rely
       on line numbers; `gate-eval.sh` was modified by
       `decision-lineage-emission` and its line numbering has shifted): no path
       in `audit-run.sh` removes or rewrites `$RD/audit-verdict.json` before an
@@ -19,27 +19,27 @@ it. The two must not both rewrite that block.
       artifact. Verify with:
       `grep -nE 'audit-verdict\.json' skills/foreman/scripts/audit-run.sh skills/foreman/scripts/gate-eval.sh`
       and record the output as the evidence.
-- [ ] Re-confirm `gate-eval.sh` does not source `lib/config.sh` and does not
+- [x] Re-confirm `gate-eval.sh` does not source `lib/config.sh` and does not
       read `[audit.policy]`.
-- [ ] Grep for every consumer of the literal strings `APPROVED`, `WARNING`,
+- [x] Grep for every consumer of the literal strings `APPROVED`, `WARNING`,
       `BLOCKED` across scripts, tests, agents and references. Produce the list
       before writing any code; the fourth value must reach all of them.
-- [ ] IF any premise fails, stop and record the finding rather than adapting
+- [x] IF any premise fails, stop and record the finding rather than adapting
       the change to it.
 
 ## T2 — the verdict artifact
 
-- [ ] `audit-run.sh` writes `audit-verdict.json` on every path, atomically
+- [x] `audit-run.sh` writes `audit-verdict.json` on every path, atomically
       (tmp + rename), before returning.
-- [ ] Add `UNVERIFIED` with a machine-readable `reason` for each condition:
+- [x] Add `UNVERIFIED` with a machine-readable `reason` for each condition:
       non-zero exit, timeout, empty output, no JSON object, out-of-vocabulary
       verdict, worktree mutation, missing CLI, unauthenticated CLI.
-- [ ] Add the provenance block: vendor, model, effort, started_at, ended_at,
+- [x] Add the provenance block: vendor, model, effort, started_at, ended_at,
       duration_s — recording what actually ran, not what was configured.
-- [ ] Add `evidence: {diff_sha256, tree_sha256, base_sha, head_sha, attempt}`
+- [x] Add `evidence: {diff_sha256, tree_sha256, base_sha, head_sha, attempt}`
       and a top-level `state` of `in_progress` or `complete`. `base_sha` and
       `head_sha` are lineage fields, not predicates.
-- [ ] Compute `tree_sha256` with one canonical function shared with the gate,
+- [x] Compute `tree_sha256` with one canonical function shared with the gate,
       `checks-run.sh`, the docs check and `evidence-contracts`' `lib/evidence.sh`:
       git tree object id of `HEAD` combined with a sorted canonical content
       digest over every path `git status --porcelain=v1 -z -uall --no-renames`
@@ -47,13 +47,13 @@ it. The two must not both rewrite that block.
       deletions and binary files are covered. Exactly one implementation exists
       in the harness; the gate, the checks artifact and the evidence helper all
       call it.
-- [ ] Implement the canonical record: sorted by bytewise-ascending path, one
+- [x] Implement the canonical record: sorted by bytewise-ascending path, one
       fixed-arity NUL-separated newline-terminated record per path carrying
       path, state, six-digit mode, 64-char lowercase hex hash. States: `f` +
       git file mode + SHA-256 of bytes; `l` + `120000` + SHA-256 of the link
       TARGET STRING (not the referent); `d` + `040000` + 64 zeros; `-` +
       `000000` + 64 zeros for a path that does not exist.
-- [ ] A deleted path is encoded with the absent state, never omitted. `-z`
+- [x] A deleted path is encoded with the absent state, never omitted. `-z`
       because porcelain v1 shell-quotes paths with spaces/quotes/newlines;
       `--no-renames` so a rename decomposes into an absent record plus a present
       record. Assert both flags in a test, as `-uall` is asserted.
@@ -61,31 +61,31 @@ it. The two must not both rewrite that block.
       absent: record `UNVERIFIED` naming the path. Encoding it as absent would
       make a permissions failure indistinguishable from a deletion; state this
       in the code comment so it is not "simplified" later.
-- [ ] Before spawning the auditor: allocate the attempt id from
+- [x] Before spawning the auditor: allocate the attempt id from
       `el_attempt_new`, record it atomically in `$RD` as the current audit
       attempt, and atomically publish `audit-verdict.json` with
       `verdict:"UNVERIFIED"`, `state:"in_progress"` and the full evidence
       reference. The prior verdict is replaced at audit START, not at audit
       end; that is what makes an interrupted same-diff re-audit detectable.
-- [ ] Set `state:"complete"` only after the auditor returns and its output has
+- [x] Set `state:"complete"` only after the auditor returns and its output has
       been interpreted.
-- [ ] IF the evaluated-tree identity cannot be computed, THEN record
+- [x] IF the evaluated-tree identity cannot be computed, THEN record
       `UNVERIFIED` with a reason naming that failure and write no defaulted or
       empty `tree_sha256`.
-- [ ] Leave `adapters/verdict.schema.json`'s enum at three values, and add a
+- [x] Leave `adapters/verdict.schema.json`'s enum at three values, and add a
       comment in both the schema and `audit-run.sh` stating the asymmetry is
       deliberate and why.
-- [ ] Exit status keeps its current meaning for callers.
+- [x] Exit status keeps its current meaning for callers.
 
 ## T3 — bound the audit call
 
-- [ ] Add `audit.timeout_min` to the config loader, defaulting from
+- [x] Add `audit.timeout_min` to the config loader, defaulting from
       `limits.round_timeout_min`.
-- [ ] Bound the audit invocation; on expiry terminate the process group, not
+- [x] Bound the audit invocation; on expiry terminate the process group, not
       just the process — the orphan-reaping failure class
       (`bugeventlog.md:180-217`, ~70 minutes on one lane) is the reason.
-- [ ] Timeout records `UNVERIFIED` / `reason:"timeout"` / `duration_s`.
-- [ ] Set the initial default generously; an over-tight bound manufactures the
+- [x] Timeout records `UNVERIFIED` / `reason:"timeout"` / `duration_s`.
+- [x] Set the initial default generously; an over-tight bound manufactures the
       failures this package exists to represent. Record the reasoning next to
       the value.
 - [ ] Do NOT implement effort tiering, audit sharding, audit bundles,
@@ -97,53 +97,53 @@ it. The two must not both rewrite that block.
 `diff_sha256` alone does not discriminate either the current audit attempt or
 the evaluated tree. Both defects are recorded in `design.md`.
 
-- [ ] `gate-eval.sh` recomputes, for the task under evaluation: the diff
+- [x] `gate-eval.sh` recomputes, for the task under evaluation: the diff
       content hash, and the evaluated-tree identity `tree_sha256` (git tree
       object id of `HEAD` combined with the canonical content digest defined in
       T2 over every path `git status --porcelain=v1 -z -uall --no-renames`
       reports). Exactly one function for each; `-uall`, `-z` and `--no-renames`
       are all mandatory.
-- [ ] Read the current audit attempt id from `$RD` (the value `audit-run.sh`
+- [x] Read the current audit attempt id from `$RD` (the value `audit-run.sh`
       published before spawning the auditor).
-- [ ] Require all four to hold: `evidence.diff_sha256` matches,
+- [x] Require all four to hold: `evidence.diff_sha256` matches,
       `evidence.tree_sha256` matches, `evidence.attempt` equals the current
       published attempt, and `state == "complete"`.
-- [ ] Give each of the four failures its own distinct gate reason: diff
+- [x] Give each of the four failures its own distinct gate reason: diff
       mismatch, evaluated-tree mismatch, superseded or unfinished attempt,
       incomplete audit.
-- [ ] Bind on content and tree identity, never on `head_sha`: an amend or
+- [x] Bind on content and tree identity, never on `head_sha`: an amend or
       re-checkpoint that changes neither content nor tree must not invalidate a
       valid audit.
-- [ ] IF any of the three identities cannot be computed or read, THEN fail
+- [x] IF any of the three identities cannot be computed or read, THEN fail
       closed with a distinct reason. Never treat uncomputable as a match, as
       empty, or as a pass.
-- [ ] Preserve the existing fail-closed behaviour for a missing or
+- [x] Preserve the existing fail-closed behaviour for a missing or
       schema-invalid verdict artifact.
 
 ## T5 — gate: UNVERIFIED and policy
 
-- [ ] Accept `UNVERIFIED` as a valid verdict value at `gate-eval.sh:43`.
-- [ ] Fail with a reason string distinct from the `BLOCKED` reason, carrying
+- [x] Accept `UNVERIFIED` as a valid verdict value at `gate-eval.sh:43`.
+- [x] Fail with a reason string distinct from the `BLOCKED` reason, carrying
       the recorded `UNVERIFIED` reason.
-- [ ] Ensure an `UNVERIFIED` failure is not counted against
+- [x] Ensure an `UNVERIFIED` failure is not counted against
       `limits.max_rework_rounds`, and name where that count lives.
-- [ ] Source `lib/config.sh` and read `[audit.policy]`; every read takes the
+- [x] Source `lib/config.sh` and read `[audit.policy]`; every read takes the
       `audit-run.sh:56-58` pattern — value with a hard-coded fallback.
-- [ ] Add `audit.policy.unverified`, default `retry`, to `lib/config.sh`'s
+- [x] Add `audit.policy.unverified`, default `retry`, to `lib/config.sh`'s
       key tables and to both config files.
-- [ ] Never collapse `UNVERIFIED` into `BLOCKED` in any output.
+- [x] Never collapse `UNVERIFIED` into `BLOCKED` in any output.
 
 ## T6 — findings by id
 
-- [ ] Derive a stable finding id in the normaliser from file, line, severity
+- [x] Derive a stable finding id in the normaliser from file, line, severity
       and a conservatively normalised summary (case, whitespace, punctuation
       only).
-- [ ] Retain the raw finding text alongside the id.
+- [x] Retain the raw finding text alongside the id.
 - [ ] `wt-consolidate.sh` merges findings by id, selects a representative, and
       names every source lane against it.
 - [ ] Consolidation never rewrites, paraphrases or synthesizes evidence text —
       assert byte-identity of the representative against a source finding.
-- [ ] Do not add an id field to `adapters/verdict.schema.json`.
+- [x] Do not add an id field to `adapters/verdict.schema.json`.
 
 ## T7 — doctrine
 
@@ -154,14 +154,14 @@ the evaluated tree. Both defects are recorded in `design.md`.
       evidence binding, and the harness-assigns-UNVERIFIED rule.
 - [ ] `references/lanes.md` — correct any statement implying the verdict
       vocabulary is three-valued at the gate.
-- [ ] `lib/config.sh:62-64` — remove the "gate-eval.sh does not read them yet"
+- [x] `lib/config.sh:62-64` — remove the "gate-eval.sh does not read them yet"
       note once it is false. Do not leave the code and the comment
       disagreeing.
 
 ## T8 — tests and gate
 
-- [ ] New `tests/audit-verdict.bats`.
-- [ ] Each `UNVERIFIED` condition produces the right reason: non-zero exit,
+- [x] New `tests/audit-verdict.bats`.
+- [x] Each `UNVERIFIED` condition produces the right reason: non-zero exit,
       timeout, empty output, no JSON object, bad verdict value, worktree
       mutation, missing CLI.
 - [ ] Stale-verdict regression: a failed re-audit must not leave a prior
@@ -176,7 +176,7 @@ the evaluated tree. Both defects are recorded in `design.md`.
       audit on base A, rebase onto base B so the patch is byte-identical, run
       the gate. The gate must fail naming the evaluated-tree mismatch. Assert
       the same fixture PASSES a `diff_sha256`-only gate.
-- [ ] Control C -- tree canonicalisation: two worktrees with identical
+- [x] Control C -- tree canonicalisation: two worktrees with identical
       `HEAD^{tree}` but a differing untracked file, unstaged edit, or file mode
       must produce different `tree_sha256` values.
 - [ ] Control C2 -- deletion: a worktree with a tracked file deleted (porcelain
@@ -191,7 +191,7 @@ the evaluated tree. Both defects are recorded in `design.md`.
 - [ ] Control C4 -- unreadable path: chmod a reported path unreadable; the
       result must be `UNVERIFIED` naming that path, and must NOT be the same
       identity the deletion fixture produces.
-- [ ] Control D -- no authorizing artifact exists while an audit is in flight:
+- [x] Control D -- no authorizing artifact exists while an audit is in flight:
       sample `audit-verdict.json` between spawn and completion; no sample may
       be an authorizing verdict for a superseded attempt.
 - [ ] Control E -- fail-closed: force the diff-hash, tree-identity and
@@ -203,7 +203,7 @@ the evaluated tree. Both defects are recorded in `design.md`.
       leaves the rework count unchanged across two consecutive occurrences.
 - [ ] Malformed `.foreman/config.toml` leaves the gate's outcome unchanged.
 - [ ] Consolidation merges by id and preserves evidence bytes exactly.
-- [ ] Timeout leaves no surviving audit process — assert on the process table,
+- [x] Timeout leaves no surviving audit process — assert on the process table,
       not on the exit code.
 - [ ] Declare preconditions via `tests/lib/preconditions.bash` and register
       skip budgets (`test-infrastructure-hardening` owns that helper).
@@ -213,7 +213,7 @@ the evaluated tree. Both defects are recorded in `design.md`.
 - [ ] `bugeventlog.md` entry recording the stale-verdict hazard, its evidence,
       and this enhancement.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate three-outcome-verdicts --strict`.
+- [x] `openspec validate three-outcome-verdicts --strict`.
 
 ## T9 -- bind the other two gate inputs to the diff and the tree
 
@@ -224,27 +224,27 @@ depth 10. The verdict binding alone is necessary and insufficient. Note the
 model abstracts the change as an opaque `DiffId`, so it cannot speak to whether
 `diff_sha256` discriminates the evaluated tree -- T4 covers that.
 
-- [ ] `checks-run.sh:41-42` already writes `{sha, command, exit_code, status}`.
+- [x] `checks-run.sh:41-42` already writes `{sha, command, exit_code, status}`.
       Add `diff_sha256` and `tree_sha256` for the diff and tree actually
       evaluated. Do not repurpose `sha`.
-- [ ] Emit the same `diff_sha256` and `tree_sha256` from the docs check into
+- [x] Emit the same `diff_sha256` and `tree_sha256` from the docs check into
       `docs-check.json`.
-- [ ] `gate-eval.sh:40` currently reads `jq -r .status` from
+- [x] `gate-eval.sh:40` currently reads `jq -r .status` from
       `checks-result.json` and nothing else. Read and compare both identities.
-- [ ] `gate-eval.sh:49-52` does the same for `docs-check.json`. Same fix.
-- [ ] Do NOT add an `attempt` field to the checks or docs artifacts. They are
+- [x] `gate-eval.sh:49-52` does the same for `docs-check.json`. Same fix.
+- [x] Do NOT add an `attempt` field to the checks or docs artifacts. They are
       not produced by an audit attempt; the attempt binds the verdict only.
       State this in the code comment so it is not "fixed" later.
-- [ ] Each of the three inputs gets its own distinct mismatch reason string,
+- [x] Each of the three inputs gets its own distinct mismatch reason string,
       and each names which identity mismatched -- a reader must be able to tell
       which artifact was stale and why.
-- [ ] Reuse T4's hash computations; there SHALL be exactly one diff-hash
+- [x] Reuse T4's hash computations; there SHALL be exactly one diff-hash
       function and exactly one tree-identity function in the gate.
 - [ ] Test: a round-N `pass` in `checks-result.json` must not authorise a
       round-N+1 diff. Prove the test goes red against current code.
-- [ ] Test: a `checks-result.json` whose `diff_sha256` matches but whose
+- [x] Test: a `checks-result.json` whose `diff_sha256` matches but whose
       `tree_sha256` differs must not authorise merge.
-- [ ] Test: the byte-identical-diff-with-identical-tree case still passes for
+- [x] Test: the byte-identical-diff-with-identical-tree case still passes for
       all three artifacts, not only the verdict.
 
 ## T10 -- a separate audit-attempt bound and a terminal state
@@ -254,12 +254,12 @@ depth 8 (state 7); `capped_errors` holds and reaches `Abandoned` at state 6,
 within `2 * cap` transitions. `rework_rounds_bounded` passes *vacuously* in the
 failing configuration because `round` never advances -- do not cite it.
 
-- [ ] Add the bound as its own config key with a conservative default. Name it
+- [x] Add the bound as its own config key with a conservative default. Name it
       `limits.max_audit_attempts` (or `audit.max_consecutive_unverified`), and
       state in the key's comment that it MUST NOT be `max_rework_rounds`.
-- [ ] Do NOT derive the default from `limits.max_rework_rounds`.
-- [ ] Persist the attempt count in `$RD` so it survives an agent restart.
-- [ ] Add the terminal `Abandoned` state with a reason distinct from rework
+- [x] Do NOT derive the default from `limits.max_rework_rounds`.
+- [x] Persist the attempt count in `$RD` so it survives an agent restart.
+- [x] Add the terminal `Abandoned` state with a reason distinct from rework
       exhaustion; the gate refuses to merge from it under every policy value.
 - [ ] Test: an always-`UNVERIFIED` auditor reaches `Abandoned`, with the
       rework-round count still zero.
@@ -288,11 +288,11 @@ Apalache: `post_fix / no_warning_authorized_merge` VIOLATED at depth 6
 (state 4) -- `WARNING` reaches a merge. This is the same root cause as T5's
 policy read: `[audit.policy]` is prose the gate never reads.
 
-- [ ] The gate's verdict branch must not be "not `BLOCKED` therefore pass".
+- [x] The gate's verdict branch must not be "not `BLOCKED` therefore pass".
       Every verdict value takes an explicit arm.
-- [ ] `WARNING` resolves `warning_low_resolved` and `warning_medium` through
+- [x] `WARNING` resolves `warning_low_resolved` and `warning_medium` through
       the `audit-run.sh:56-58` fallback pattern introduced by T5.
-- [ ] Test: an unresolved medium `WARNING` fails the gate with a reason naming
+- [x] Test: an unresolved medium `WARNING` fails the gate with a reason naming
       the finding; a resolved-low `WARNING` passes because policy said so.
 
 T8 remains the final gate for this package, and its checklist now also covers
