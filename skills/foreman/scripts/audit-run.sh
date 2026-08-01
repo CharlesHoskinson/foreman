@@ -10,13 +10,13 @@
 # never changes the audit outcome (D7).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
+# shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
 source "$SCRIPT_DIR/lib/common.sh"
-# shellcheck source=lib/eventlog.sh
+# shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
 source "$SCRIPT_DIR/lib/eventlog.sh"
-# shellcheck source=lib/telemetry.sh
+# shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
 source "$SCRIPT_DIR/lib/telemetry.sh"
-# shellcheck source=lib/evidence.sh
+# shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
 source "$SCRIPT_DIR/lib/evidence.sh"
 
 TASK_ID="${1:?usage: audit-run.sh TASK_ID}"
@@ -380,6 +380,8 @@ fi
 
 SCHEMA="$SCRIPT_DIR/adapters/verdict.schema.json"
 [[ -f "$SCHEMA" ]] || ar_fail "$EXIT_CONFIG" missing_schema "missing schema: $SCHEMA"
+# shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
+source "$SCRIPT_DIR/adapters/codex.sh"
 
 prompt_tmp="${PROMPT}.tmp.$$"
 {
@@ -424,16 +426,11 @@ AUDIT_TIMEOUT_S="$(
      }'
 )"
 
+ADAPTER_CODEX_AUDIT_MODEL="$AUDIT_MODEL" \
+ADAPTER_CODEX_AUDIT_REASONING_EFFORT="$AUDIT_EFFORT" \
+  adapter_audit_argv codex "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"
 set +e
-setsid codex exec \
-  --model "$AUDIT_MODEL" \
-  -c model_reasoning_effort=high \
-  --sandbox read-only \
-  --skip-git-repo-check \
-  --cd "$WT" \
-  --output-schema "$SCHEMA" \
-  --output-last-message "$AUDIT_OUT_TMP" \
-  - <"$PROMPT" 2>"$AUDIT_ERR_TMP" &
+setsid "${ADAPTER_ARGV[@]}" <"$PROMPT" 2>"$AUDIT_ERR_TMP" &
 AUDIT_CHILD_PID=$!
 # The watchdog stays in this script's own process group. A process-group
 # sweep therefore reaches it, and shellcheck can read the body. It ends by

@@ -15,7 +15,12 @@ FUNCTIONS=(
   adapter_caps
 )
 
-# @description Reproduce the pre-T2 grok and codex implement builders exactly.
+# Intentional post-T2 additions to the frozen Grok implement argv.
+# Added 2026-07-31: `grok agent` defaults to a shared ~/.grok/leader.sock, so
+# --no-leader prevents a lane from coupling to another lane's leader process.
+GROK_INTENTIONAL_ADDITIONS=(--no-leader)
+
+# @description Frozen pre-T2 implement argv; do not edit it to match adapters.
 # @arg $1 vendor grok or codex
 # @arg $2 prompt_file prompt path consumed by the legacy builder
 # @arg $3 workdir worker working directory
@@ -70,7 +75,7 @@ assert_argv_equal() {
   done
 }
 
-@test "grok implement argv is indexed and grants Write and Edit as separate argv values" {
+@test "grok implement argv is indexed, grants Write and Edit, and disables the leader" {
   local prompt="$BATS_TEST_TMPDIR/prompt file.md"
   printf 'implement this safely\n' >"$prompt"
   source "$ADAPTER_DIR/grok.sh"
@@ -87,10 +92,12 @@ assert_argv_equal() {
   [ "${ADAPTER_ARGV[8]}" = Edit ]
   [[ " ${ADAPTER_ARGV[*]} " == *" --output-format plain "* ]]
   [[ " ${ADAPTER_ARGV[*]} " == *" --cwd /work tree "* ]]
+  [[ " ${ADAPTER_ARGV[*]} " == *" --no-leader "* ]]
 }
 
-@test "grok and codex implement argv match the frozen pre-T2 builder byte for byte" {
+@test "grok and codex implement argv match the frozen builder plus declared additions byte for byte" {
   local vendor prompt="$BATS_TEST_TMPDIR/prompt file.md"
+  local -a expected
   printf 'first line\nsecond line\n\n' >"$prompt"
   WC_GROK_MODEL="grok-test-model"
   WC_CODEX_MODEL="codex-test-model"
@@ -99,12 +106,16 @@ assert_argv_equal() {
 
   for vendor in grok codex; do
     legacy_implement_argv "$vendor" "$prompt" "/work tree"
+    expected=("${LEGACY_ARGV[@]}")
+    if [ "$vendor" = grok ]; then
+      expected+=("${GROK_INTENTIONAL_ADDITIONS[@]}")
+    fi
     source "$ADAPTER_DIR/$vendor.sh"
     adapter_implement_argv "$vendor" "$prompt" "/work tree"
-    assert_argv_equal LEGACY_ARGV ADAPTER_ARGV
+    assert_argv_equal expected ADAPTER_ARGV
     [[ "$(declare -p ADAPTER_ARGV)" == "declare -a "* ]]
     wc_build_argv "$vendor" "$prompt" "/work tree"
-    assert_argv_equal LEGACY_ARGV WC_ARGV
+    assert_argv_equal expected WC_ARGV
     [[ "$(declare -p WC_ARGV)" == "declare -a "* ]]
   done
 }
@@ -156,8 +167,65 @@ assert_argv_equal() {
   adapter_audit_argv codex "$prompt" "/work tree" "$schema" "$out"
   [[ " ${ADAPTER_ARGV[*]} " == *" --sandbox read-only "* ]]
   [[ " ${ADAPTER_ARGV[*]} " != *" danger-full-access "* ]]
+  [[ " ${ADAPTER_ARGV[*]} " == *" --ephemeral "* ]]
   [[ " ${ADAPTER_ARGV[*]} " == *" --output-schema $schema "* ]]
   [[ " ${ADAPTER_ARGV[*]} " == *" --output-last-message $out "* ]]
+  [ "${ADAPTER_ARGV[${#ADAPTER_ARGV[@]}-1]}" = - ]
+}
+
+@test "codex audit defaults to stdin prompt delivery and selects cold review by base" {
+  local prompt="$BATS_TEST_TMPDIR/prompt.md"
+  local schema="$ADAPTER_DIR/verdict.schema.json"
+  local out="$BATS_TEST_TMPDIR/result.json"
+  local -a expected
+  printf 'soft-mode acceptance criteria\n' >"$prompt"
+  source "$ADAPTER_DIR/codex.sh"
+  ADAPTER_CODEX_AUDIT_MODEL=codex-audit-test
+  ADAPTER_CODEX_AUDIT_REASONING_EFFORT=xhigh
+
+  adapter_audit_argv codex "$prompt" "/work tree" "$schema" "$out"
+  expected=(codex exec
+    --model codex-audit-test
+    -c model_reasoning_effort=xhigh
+    --sandbox read-only
+    --ephemeral
+    --skip-git-repo-check
+    --cd "/work tree"
+    --output-schema "$schema"
+    --output-last-message "$out"
+    -)
+  assert_argv_equal expected ADAPTER_ARGV
+
+  adapter_audit_argv codex "$prompt" "/work tree" "$schema" "$out" review-base main
+  expected=(codex exec
+    --model codex-audit-test
+    -c model_reasoning_effort=xhigh
+    --sandbox read-only
+    --ephemeral
+    --skip-git-repo-check
+    --cd "/work tree"
+    --output-schema "$schema"
+    --output-last-message "$out"
+    review --base main
+    -)
+  assert_argv_equal expected ADAPTER_ARGV
+
+  run adapter_audit_argv codex "$prompt" "/work tree" "$schema" "$out" review-base
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"review-base requires BASE"* ]]
+}
+
+@test "audit runner delegates argv while preserving stdin and process control" {
+  local runner="$BATS_TEST_DIRNAME/../skills/foreman/scripts/audit-run.sh"
+
+  run grep -F 'source "$SCRIPT_DIR/adapters/codex.sh"' "$runner"
+  [ "$status" -eq 0 ]
+  run grep -F 'adapter_audit_argv codex "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"' "$runner"
+  [ "$status" -eq 0 ]
+  run grep -F 'setsid "${ADAPTER_ARGV[@]}" <"$PROMPT" 2>"$AUDIT_ERR_TMP" &' "$runner"
+  [ "$status" -eq 0 ]
+  run grep -F 'AUDIT_CHILD_PID=$!' "$runner"
+  [ "$status" -eq 0 ]
 }
 
 @test "agy uses HOME and keeps --print plus its prompt as the final two argv elements" {
@@ -234,7 +302,7 @@ assert_argv_equal() {
   [[ "$caps" == *$'audit=false\n'* || "$caps" == *'audit=false' ]]
 }
 
-@test "all supported argv builders keep stdin out of the prompt path" {
+@test "implement builders and non-codex audit builders keep stdin out of the prompt path" {
   local vendor verb item prompt="$BATS_TEST_TMPDIR/prompt.md"
   local schema="$ADAPTER_DIR/verdict.schema.json"
   local out="$BATS_TEST_TMPDIR/result.json"
@@ -243,6 +311,9 @@ assert_argv_equal() {
   for vendor in grok codex agy; do
     source "$ADAPTER_DIR/$vendor.sh"
     for verb in implement audit; do
+      if [ "$vendor:$verb" = codex:audit ]; then
+        continue
+      fi
       if [ "$verb" = implement ]; then
         adapter_implement_argv "$vendor" "$prompt" /work
       else

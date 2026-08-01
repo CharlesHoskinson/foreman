@@ -29,7 +29,8 @@ adapter_implement_argv() {
     -m "${WC_GROK_MODEL:-grok-4.5}"
     --allow Write --allow Edit
     --output-format plain
-    --cwd "$workdir")
+    --cwd "$workdir"
+    --no-leader)
 }
 
 # @description Build read-only Grok argv for an audit burst.
@@ -54,8 +55,7 @@ adapter_audit_argv() {
   ADAPTER_ARGV=(grok --prompt-file "$prompt_file"
     -m "${ADAPTER_GROK_AUDIT_MODEL:-${WC_GROK_MODEL:-grok-4.5}}"
     --permission-mode plan
-    --json-schema "$schema"
-    --no-leader
+    --json-schema "$schema" --no-leader
     --output-format json
     --cwd "$workdir")
 }
