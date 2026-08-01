@@ -31,7 +31,13 @@
 set -uo pipefail
 
 FM_LANE_OWNER="${FM_LANE_OWNER:-$(hostname -s)-$$}"
-FM_LANE_DIR="${FM_LANE_DIR:-/root/.foreman-lanes}"
+# Default under $HOME rather than a literal /root: on the reference host HOME is
+# /root, so this resolves to the same /root/.foreman-lanes it always did, while a
+# checkout owned by any other user gets a writable registry instead of EACCES.
+FM_LANE_DIR="${FM_LANE_DIR:-$HOME/.foreman-lanes}"
+# Worktree root, same rule. Previously hardcoded /root/fm-wt at the two lookup
+# sites below with no override, which made them unreachable off the root host.
+FM_WT_DIR="${FM_WT_DIR:-$HOME/fm-wt}"
 REG="$FM_LANE_DIR/$FM_LANE_OWNER.pids"
 mkdir -p "$FM_LANE_DIR"
 touch "$REG"
@@ -240,9 +246,9 @@ cmd_progress() {
     delta=$(( now - ${before["$f"]:-0} ))
 
     # Worktree is discovered from the lane marker, never guessed.
-    wt="$(grep -rl "label=$label" /root/fm-wt/*/.fm-lane-owner 2>/dev/null | head -1)"
+    wt="$(grep -rl "label=$label" "$FM_WT_DIR"/*/.fm-lane-owner 2>/dev/null | head -1)"
     wt="${wt%/.fm-lane-owner}"
-    [[ -d "$wt" ]] || wt="/root/fm-wt/$label"
+    [[ -d "$wt" ]] || wt="$FM_WT_DIR/$label"
 
     hbage="-"
     hb="$wt/.harness/heartbeat.ndjson"
