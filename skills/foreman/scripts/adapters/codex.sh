@@ -6,6 +6,14 @@
 #   its existing stdin prompt delivery. Implement runs are workspace-write and
 #   audits are read-only. This adapter never emits an unrestricted sandbox mode
 #   or sandbox escape hatch.
+#   Codex documents both `codex exec PROMPT` and piping the prompt to stdin;
+#   a positional `-` explicitly forces the latter. Implement rejects that idiom
+#   because an open pipe can wait forever for EOF and the launcher supplies
+#   /dev/null. Audit is the narrow legacy exception and redirects a finite
+#   regular prompt file explicitly. Official source establishes that forced `-`
+#   reads through EOF and errors on empty input; an open pipe with no EOF can
+#   therefore hang. Any `-` outside the declared last prompt slot remains
+#   unestablished rather than guessed at by this contract.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
 # Codex forces the final audit message through --output-schema. Local

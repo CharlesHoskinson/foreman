@@ -5,6 +5,11 @@
 #   positional prompt before a valueless `--print` hangs instead of erroring.
 #   Isolation is intentionally reported as partial: GEMINI_CLI_HOME is a no-op
 #   for agy, while relocating HOME moves mutable state but not the OAuth token.
+#   Google's documented headless idiom is `agy --print "PROMPT"`; no documented
+#   shell stdin-piping prompt idiom was established. Foreman refuses inherited
+#   stdin and invokes that flag/value form with /dev/null. A misplaced positional
+#   prompt followed by valueless `--print` was safely established to hang, not
+#   error, so both the final position and value attachment are load-bearing.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
 # agy's schema forcing is partial: it covers only the final result in
