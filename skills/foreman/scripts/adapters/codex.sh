@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # @description Standalone Codex adapter. This file sources nothing and is safe
-#   to source repeatedly. It always fills the indexed ADAPTER_ARGV array and
-#   passes prompt contents positionally; a bare `-` would make `codex exec`
-#   read stdin, but Foreman's launcher attaches stdin to the null device.
-#   Implement runs are workspace-write and audits are read-only. This adapter
-#   never emits an unrestricted sandbox mode or sandbox escape hatch.
+#   to source repeatedly. It always fills the indexed ADAPTER_ARGV array.
+#   Implement prompts are positional because Foreman's worker launcher attaches
+#   stdin to the null device; audit argv ends in `-` so audit-run can preserve
+#   its existing stdin prompt delivery. Implement runs are workspace-write and
+#   audits are read-only. This adapter never emits an unrestricted sandbox mode
+#   or sandbox escape hatch.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
 # @description Build Codex argv for an implementation round.
@@ -48,31 +49,58 @@ adapter_implement_argv() {
 
 # @description Build Codex argv for a read-only audit round.
 # @arg $1 vendor expected vendor id: codex
-# @arg $2 prompt_file file whose contents become one positional prompt argument
+# @arg $2 prompt_file file that the audit caller redirects to stdin
 # @arg $3 workdir audited worktree passed to --cd
 # @arg $4 schema_file verdict schema passed to --output-schema
 # @arg $5 out_file final assistant message destination
+# @arg $6 audit_form optional prompt (default) or review-base
+# @arg $7 base required branch/base ref when audit_form is review-base
 # @set ADAPTER_ARGV complete Codex invocation as an indexed bash array
-# @exitcode 0 argv built; 2 vendor mismatch
+# @exitcode 0 argv built; 2 vendor mismatch or invalid audit form
 adapter_audit_argv() {
-  local vendor="${1:-codex}" prompt_file="${2:-}" workdir="${3:-.}" prompt=''
+  local vendor="${1:-codex}" workdir="${3:-.}"
   local schema_file="${4:-${BASH_SOURCE[0]%/*}/verdict.schema.json}"
   local out_file="${5:-$workdir/.foreman-audit-last.json}"
+  local audit_form="${6:-prompt}" base="${7:-}"
   ADAPTER_ARGV=()
   if [[ "$vendor" != codex ]]; then
     printf 'codex adapter: vendor mismatch: %s\n' "$vendor" >&2
     return 2
   fi
-  if [[ -f "$prompt_file" ]]; then prompt="$(<"$prompt_file")"; fi
   ADAPTER_ARGV=(codex exec
     --model "${ADAPTER_CODEX_AUDIT_MODEL:-gpt-5.6-sol}"
     -c "model_reasoning_effort=${ADAPTER_CODEX_AUDIT_REASONING_EFFORT:-high}"
     --sandbox read-only
+    --ephemeral
     --skip-git-repo-check
     --cd "$workdir"
     --output-schema "$schema_file"
-    --output-last-message "$out_file"
-    "$prompt")
+    --output-last-message "$out_file")
+  case "$audit_form" in
+    prompt)
+      if (( $# > 6 )); then
+        ADAPTER_ARGV=()
+        printf 'codex adapter: prompt audit form accepts no BASE\n' >&2
+        return 2
+      fi
+      ;;
+    review-base)
+      if [[ -z "$base" ]] || (( $# != 7 )); then
+        ADAPTER_ARGV=()
+        printf 'codex adapter: review-base requires BASE\n' >&2
+        return 2
+      fi
+      ;;
+    *)
+      ADAPTER_ARGV=()
+      printf 'codex adapter: unknown audit form: %s\n' "$audit_form" >&2
+      return 2
+      ;;
+  esac
+  if [[ "$audit_form" == review-base ]]; then
+    ADAPTER_ARGV+=(review --base "$base")
+  fi
+  ADAPTER_ARGV+=(-)
 }
 
 # @description Print the environment variable that relocates Codex state.
