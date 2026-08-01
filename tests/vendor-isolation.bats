@@ -261,27 +261,24 @@ SHIM
   [ "$output" = "$expected" ]
 }
 
-@test "lane-run (LANE_VENDOR=claude, fake launcher/probe): CLAUDE_CONFIG_DIR is normalized; NOT-READY probe refuses before CMD" {
-  stub_dir="$BATS_TEST_TMPDIR/stub"
-  mkdir -p "$stub_dir"
-  write_fake_launcher "$stub_dir"
-  export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
-  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
+@test "lane-run rejects LANE_VENDOR=claude (T7: advertising removed; isolated HOME unverified) before CMD" {
+  # T7 retired the claude lane: CLAUDE_CONFIG_DIR was insufficient isolation
+  # and a distinct $HOME was never implemented. A LANE_VENDOR=claude dispatch
+  # must be refused (not mapped to CLAUDE_CONFIG_DIR). Pin the refusal so the
+  # half-wiring cannot quietly return. Same shape as the unknown-vendor test
+  # above: prove refusal before CMD by using a CMD that would create a file.
   export LANE_VENDOR=claude
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
-    bash -c 'printf "%s" "$CLAUDE_CONFIG_DIR" > "'"$WT"'/env-dump"'
-  [ "$status" -eq 0 ]
-  expected="$(norm "$WT/.harness/vendor-home/claude")"
-  [ "$(cat "$WT/env-dump")" = "$expected" ]
-
-  export FAKE_TOOL_CHECK_READY=no
-  run bash "$SCRIPTS/lane-run.sh" run-not-ready lane-a "$WT" -- \
     bash -c 'echo should-not-run > "'"$WT"'/should-not-exist"'
-  [ "$status" -eq 2 ]
-  [[ "$output" == *"claude lane NOT-READY -- run Setup (foreman-setup) before Use"* ]]
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"claude"* ]]
+  [[ "$output" == *"T7 decision"* ]]
+  [[ "$output" == *"LANE_VENDOR 'claude' rejected by T7 decision: claude lane advertising removed because isolated HOME is unverified"* ]]
   [ ! -f "$WT/should-not-exist" ]
+  # Refused dispatch leaves no lane lock and no events (mirrors unknown-vendor
+  # rejection; verified here rather than assumed from the code path alone).
   [ ! -d "$WT/.harness/lane.lock" ]
-  [ ! -f "$(run_dir run-not-ready)/events.jsonl" ]
+  [ ! -f "$(run_dir run1)/events.jsonl" ]
 }
 
 @test "lane-run (LANE_VENDOR=grok, launcher-absent direct-spawn branch): normalized GROK_HOME still reaches CMD without a launcher" {
