@@ -175,7 +175,7 @@ Precondition: `lock-primitive-hardening` has landed. T4 builds on `lib/lock.sh`.
 - [ ] `shellcheck` clean on `graph-refresh.sh`, `graph-freshness.sh` and the
       modified `maintenance.sh`.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate knowledge-plane-refresh --strict` passes.
+- [x] `openspec validate knowledge-plane-refresh --strict` passes.
 - [ ] `bugeventlog.md` entry appended: manual-refresh drift as a workflow failure
       class, with the measured 3-commit / 26-file evidence, root cause, impact
       and the enhancement.
