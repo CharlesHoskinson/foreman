@@ -462,7 +462,13 @@ AUDIT_TIMEOUT_S="$(
 audit_model_var="ADAPTER_${AUDIT_VENDOR^^}_AUDIT_MODEL"
 printf -v "$audit_model_var" '%s' "$AUDIT_MODEL"
 export "${audit_model_var?}"
-export ADAPTER_CODEX_AUDIT_REASONING_EFFORT="$AUDIT_EFFORT"
+# Per-vendor, exactly like the model var above. This previously exported the
+# codex-named knob for whichever vendor was selected -- a single-vendor
+# assumption sitting next to multi-vendor dispatch. For codex it still resolves
+# to ADAPTER_CODEX_AUDIT_REASONING_EFFORT, which adapters/codex.sh reads.
+audit_effort_var="ADAPTER_${AUDIT_VENDOR^^}_AUDIT_REASONING_EFFORT"
+printf -v "$audit_effort_var" '%s' "$AUDIT_EFFORT"
+export "${audit_effort_var?}"
 if ! adapter_audit_argv "$AUDIT_VENDOR" "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"; then
   ar_fail "$EXIT_CONFIG" invalid_audit_vendor \
     "audit adapter refused selected vendor $AUDIT_VENDOR"
