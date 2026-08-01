@@ -61,7 +61,7 @@ EOF
   [[ "$output" == *"NOT_AUTHENTICATED:"*"codex"* ]]
 }
 
-@test "tool-check reports claude not_authenticated when installed but not signed in" {
+@test "tool-check omits the unsupported claude readiness row even when claude is installed" {
   cat > "$SHIM/claude" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
@@ -72,8 +72,14 @@ esac
 EOF
   chmod +x "$SHIM/claude"
   run env PATH="$SHIM:$PATH" bash "$TC" --profile soft
-  [[ "$output" == *"claude"*"not_authenticated"* ]]
-  [[ "$output" == *"NOT_AUTHENTICATED:"*"claude"* ]]
+  ! grep -Eq '^claude[[:space:]]+(ok|missing|not_authenticated)' <<<"$output"
+  [[ "$output" != *"NOT_AUTHENTICATED:"*"claude"* ]]
+}
+
+@test "tool-check rejects --lane claude with the T7 decision" {
+  run bash "$TC" --profile soft --lane claude
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"T7 removed claude lane advertising because isolated HOME is unverified"* ]]
 }
 
 @test "tool-check --json emits a not_authenticated array alongside missing/outdated/degraded" {

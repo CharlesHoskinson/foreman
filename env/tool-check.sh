@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Foreman reference-env inventory (Linux / WSL).
-# Usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex|claude]
+# Usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex]
 set -euo pipefail
 
 PROFILE="soft"
@@ -14,12 +14,21 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="$2"; shift 2 ;;
     --lane) LANE="$2"; shift 2 ;;
     -h|--help)
-      echo "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex|claude]"
+      echo "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex]"
       exit 0
       ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+case "$LANE" in
+  ""|grok|codex) ;;
+  claude)
+    echo "unsupported --lane claude: T7 removed claude lane advertising because isolated HOME is unverified" >&2
+    exit 2
+    ;;
+  *) echo "bad lane: $LANE (grok|codex)" >&2; exit 2 ;;
+esac
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMMON_SKILLS_ROOT=""
@@ -49,11 +58,11 @@ have() { command -v "$1" >/dev/null 2>&1; }
 #   tool-check path AND inside every lane-run readiness gate) AND fail-CLOSED
 #   (requires a POSITIVE signed-in signal, never "absence of the negative
 #   string" alone -- an error banner lacking the exact phrase
-#   "not authenticated" must never be misread as READY). codex/claude's own
-#   subcommands already distinguish authenticated/not via a genuine exit-code
+#   "not authenticated" must never be misread as READY). codex's own
+#   subcommand already distinguishes authenticated/not via a genuine exit-code
 #   contract (a real positive signal, not an absence-of-negative shape), so
-#   they are left as plain exit-code checks.
-# @arg $1 vendor id (grok|codex|claude)
+#   it is left as a plain exit-code check.
+# @arg $1 vendor id (grok|codex)
 # @exitcode 0 authenticated; 1 not authenticated (or unknown vendor id)
 vendor_authed() {
   case "$1" in
@@ -84,8 +93,7 @@ vendor_authed() {
       [[ -z "$out" ]] && return 1
       return 1
       ;;
-    codex)  codex login status >/dev/null 2>&1 ;;
-    claude) claude auth status >/dev/null 2>&1 ;;
+    codex) codex login status >/dev/null 2>&1 ;;
     *) return 0 ;;
   esac
 }
@@ -95,7 +103,8 @@ vendor_authed() {
 # @arg $2 cmd reserved command field; currently unused by the checks
 # @stdout one tab-separated tool, status, and detail row
 check_one() {
-  local id="$1" cmd="$2"
+  local id="$1"
+  : "$2"
   local status="missing" detail=""
   case "$id" in
     git)
@@ -150,13 +159,6 @@ check_one() {
         else status=not_authenticated; detail="$detail (run: codex login)"; fi
       else status=missing; fi
       ;;
-    claude)
-      if have claude; then
-        detail="$(claude --version 2>&1 | head -1)"
-        if vendor_authed claude; then status=ok
-        else status=not_authenticated; detail="$detail (run: claude auth login)"; fi
-      else status=missing; fi
-      ;;
     node)
       if have node; then status=ok; detail="$(node --version 2>&1)"; else status=missing; fi
       ;;
@@ -183,7 +185,7 @@ check_one() {
       if have bats; then
         status=ok; detail="$(bats --version 2>&1)"
       elif [[ -x "$HOME/.foreman/tools/bats-core/bin/bats" ]]; then
-        status=ok; detail="$($HOME/.foreman/tools/bats-core/bin/bats --version 2>&1)"
+        status=ok; detail="$("$HOME"/.foreman/tools/bats-core/bin/bats --version 2>&1)"
       else
         status=missing
       fi
@@ -238,6 +240,7 @@ check_one() {
         LYCHEE_CMD="${LOCALAPPDATA:-}/Microsoft/WinGet/Links/lychee.exe"
       fi
       if [[ -z "$LYCHEE_CMD" ]]; then
+        # shellcheck disable=SC2012  # Intentional glob over WinGet's package layout.
         LYCHEE_CMD="$(ls "${LOCALAPPDATA:-}"/Microsoft/WinGet/Packages/lycheeverse.lychee*/*/lychee.exe 2>/dev/null | head -1 || true)"
       fi
       if [[ -n "$LYCHEE_CMD" ]] && "$LYCHEE_CMD" --version >/dev/null 2>&1; then
@@ -340,7 +343,7 @@ check_one() {
 # @stdout one of: local | mnt-drvfs | network | fuse
 # @exitcode 0
 fm_tc_fs_class() {
-  local path="$1" probe="$1" fstype="" source="" target=""
+  local path="$1" probe="$1" fstype="" target=""
   if [[ ! -e "$probe" ]]; then
     probe="$(dirname -- "$probe")"
   fi
@@ -355,14 +358,12 @@ fm_tc_fs_class() {
   if command -v findmnt >/dev/null 2>&1; then
     # findmnt -T resolves the mount covering PATH
     fstype="$(findmnt -n -o FSTYPE -T "$probe" 2>/dev/null || true)"
-    source="$(findmnt -n -o SOURCE -T "$probe" 2>/dev/null || true)"
     target="$(findmnt -n -o TARGET -T "$probe" 2>/dev/null || true)"
   elif command -v df >/dev/null 2>&1; then
     # df -T: Filesystem Type 1K-blocks Used Available Use% Mounted on
     local line
     line="$(df -T "$probe" 2>/dev/null | tail -n 1 || true)"
     fstype="$(awk '{print $2}' <<<"$line")"
-    source="$(awk '{print $1}' <<<"$line")"
     target="$(awk '{print $NF}' <<<"$line")"
   fi
   fstype="${fstype,,}"
@@ -485,8 +486,7 @@ fm_tc_probe_mkdir_once() {
     B="$(mktemp -d --tmpdir="$work_parent" fm-mkdir-ct.XXXXXX 2>/dev/null || mktemp -d)"
     TRACE_F="$B/t"; : >"$TRACE_F"
     local LOCK="$B/lock"
-    local i
-    for i in 1 2 3 4 5 6 7 8; do
+    for _ in 1 2 3 4 5 6 7 8; do
       (
         local tries=0
         while ! "$mkdir_bin" -- "$LOCK" 2>/dev/null; do
@@ -723,7 +723,7 @@ fm_tc_run_atomicity_probes() {
   if [[ -n "$mkdir_bin" ]]; then
     local ver sha best_verdict="unknown" best_evidence="flavour" notes_acc=()
     # F2: coverage is the set of classes that themselves earned the chosen verdict
-    local -A class_verdict=() class_evidence=()
+    local -A class_verdict=()
     ver="$(fm_tc_version_line "$(command -v mkdir)")"
     sha="$(fm_tc_sha256 "$mkdir_bin")"
     for r in "${roots[@]}"; do
@@ -733,7 +733,6 @@ fm_tc_run_atomicity_probes() {
       e="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
       c="${rest%%$'\t'*}"; n="${rest#*$'\t'}"
       class_verdict["$c"]="$v"
-      class_evidence["$c"]="$e"
       notes_acc+=("$c:$n")
       case "$v" in
         non-atomic)
@@ -768,7 +767,6 @@ fm_tc_run_atomicity_probes() {
           local IFS=',' _pc
           for _pc in $pin_fs; do
             class_verdict["$_pc"]="$pin_v"
-            class_evidence["$_pc"]="pinned-mechanism"
           done
           notes_acc+=("pin:${pin_v}")
         fi
@@ -802,7 +800,7 @@ fm_tc_run_atomicity_probes() {
   fi
   if [[ -n "$flock_bin" ]]; then
     local ver sha best_verdict="unknown" best_evidence="flavour" notes_acc=()
-    local -A class_verdict=() class_evidence=()
+    local -A class_verdict=()
     ver="flock $(flock --version 2>/dev/null | head -n1 | tr -d '\r' || true)"
     if [[ -z "${ver//flock /}" || "$ver" == "flock " ]]; then
       ver="flock:$(command -v flock)"
@@ -815,7 +813,6 @@ fm_tc_run_atomicity_probes() {
       e="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
       c="${rest%%$'\t'*}"; n="${rest#*$'\t'}"
       class_verdict["$c"]="$v"
-      class_evidence["$c"]="$e"
       notes_acc+=("$c:$n")
       case "$v" in
         non-atomic)
@@ -847,7 +844,6 @@ fm_tc_run_atomicity_probes() {
           local IFS=',' _pc
           for _pc in $pin_fs; do
             class_verdict["$_pc"]="$pin_v"
-            class_evidence["$_pc"]="pinned-mechanism"
           done
           notes_acc+=("pin:${pin_v}")
         fi
@@ -889,9 +885,9 @@ must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
 must_durable=(git jq coreutils bash flock)
-should_soft=(claude node npm jq markdownlint-cli2 codespell lychee foreman_home_fs foreman-launch)
+should_soft=(node npm jq markdownlint-cli2 codespell lychee foreman_home_fs foreman-launch)
 should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs foreman-launch)
-should_full=(claude node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs foreman-launch)
+should_full=(node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs foreman-launch)
 should_durable=(nats-server nats-cli foreman_home_fs foreman-launch)
 
 case "$PROFILE" in

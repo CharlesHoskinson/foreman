@@ -105,18 +105,14 @@ to content changes within an unchanged status string.
 
 ## T7 — resolve the claude half-wiring (architect decision)
 
-- [ ] Decide: finish the claude lane, or remove the four sites that advertise
-      it. Record the decision and its reason. Leaving it as-is is not an
-      option this change permits.
-- [ ] IF finishing: `adapters/claude.sh` with the `REQUIRES-SEPARATE-HOME`
-      constraint honoured (a distinct `$HOME`, not only `CLAUDE_CONFIG_DIR` —
-      T5b ruled the latter insufficient), plus a passing lane test.
-- [ ] IF removing: delete the vendor-home provisioning (`wt-new.sh:106-109`),
-      the vendor map entry (`lane-run.sh:210`), the pueue group
-      (`lane-queue.sh:422`) and the readiness row, and state the absence in the
-      inventory rather than implying support.
-- [ ] Either way, update `lib/worker-cmd.sh:6-7`'s scope note so it stops
-      describing a state that no longer exists.
+- [x] Remove the sites that advertise a runnable claude lane, retain the
+      adapter's explicit unsupported refusal, and update `lib/worker-cmd.sh`'s
+      scope note.
+
+Decision: remove the advertising. T5b established that `CLAUDE_CONFIG_DIR` is
+insufficient and a distinct `$HOME` is required; without a live authenticated
+Claude and destructive concurrency test, that isolation claim cannot be
+verified, so the existing adapter refusal remains the honest end state.
 
 ## T8 — docs, agents, and gate
 

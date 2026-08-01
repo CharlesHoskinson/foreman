@@ -2,7 +2,7 @@
 # @description Queue-based lane admission wrapper over pueue (v4.0.4 staged at
 #   $HOME/.foreman/tools/pueue/{pueue.exe,pueued.exe}). Foreman lanes call this
 #   instead of spawning coding-CLI processes directly whenever pueue is
-#   available, so per-vendor concurrency groups (grok/codex/claude) plus a
+#   available, so per-vendor concurrency groups (grok/codex/agy) plus a
 #   host-wide `gate` group (parallel=1, meant to eventually serialize every
 #   bats invocation on the host) are enforced centrally rather than left to
 #   each lane's own judgment. `misc` is the catch-all group for everything
@@ -13,7 +13,9 @@
 #   incidental rather than intentional, and truly unlimited (parallel 0)
 #   would violate this host's keep-concurrency-low doctrine. 2 is the
 #   deliberate middle ground for a catch-all bucket that is not one of the
-#   three named vendor lanes.
+#   three named vendor lanes. T7 removed the former claude group because a
+#   distinct-HOME isolation claim cannot be verified without a live
+#   authenticated destructive concurrency test.
 #
 #   When pueue is unavailable -- not on PATH, not staged under
 #   $HOME/.foreman/tools/pueue, or LANE_QUEUE_FORCE_MISSING=1 is set (test
@@ -143,7 +145,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/common.sh"
 
 # --- arity guard (before unguarded positional use under set -u) ---
@@ -372,15 +374,12 @@ lq_ensure_group() {
 # @description `ensure` subcommand: resolve pueue, start pueued if the daemon
 #   is unreachable (empirically, the pueue CLIENT never autostarts it -- see
 #   the AUTOSTART DOCTRINE note in this file's header), then idempotently
-#   create the fixed group topology (grok=1, codex=1, claude=3, misc=2
-#   EXPLICIT -- see the header's Rework Round 1 F1 note, gate=1). grok=1 and
-#   codex=1 are pinned by the T5b destructive-concurrency verdict
-#   (docs/research/vendor-concurrency-results.md, "Results" table, 2026-07-18):
-#   NO vendor has a recorded GREEN row on this host -- the authenticated
-#   N=2/N=3 matrix could not be safely run there (see that doc's "Task 2
-#   execution log"), so both stay at the UNVERIFIED default per EARS ("no
-#   cap raised without a recorded green row; default-on-doubt is 1"). A
-#   future cap raise here MUST cite a specific GREEN row added to that doc.
+#   create the fixed group topology (grok=3, codex=2, misc=2 EXPLICIT -- see
+#   the header's Rework Round 1 F1 note, gate=1, agy=1). The grok and codex
+#   caps are pinned by the authenticated T5b destructive-concurrency GREEN
+#   rows (docs/research/vendor-concurrency-results.md, 2026-07-18). A future
+#   cap raise MUST cite a GREEN row at the higher N; agy stays at the
+#   default-on-doubt cap of 1 because it has no live concurrency evidence.
 # @exitcode 0 ready; 1 daemon unreachable after bounded retry; 3 pueue absent
 cmd_ensure() {
   local pueue_bin pueued_bin
@@ -427,10 +426,10 @@ cmd_ensure() {
   # docs/research/vendor-concurrency-results.md. Do not raise further without a
   # green row at the higher N.
   local spec
-  for spec in grok:3 codex:2 claude:3 misc:2 gate:1 agy:1; do
+  for spec in grok:3 codex:2 misc:2 gate:1 agy:1; do
     lq_ensure_group "$pueue_bin" "${spec%%:*}" "${spec#*:}"
   done
-  echo "lane-queue: ready (groups: grok codex claude misc gate agy)" >&2
+  echo "lane-queue: ready (groups: grok codex misc gate agy)" >&2
   return "$EXIT_OK"
 }
 

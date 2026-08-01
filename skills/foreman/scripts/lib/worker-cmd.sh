@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# @description Compatibility shim for per-vendor hard-mode worker adapters.
+# @description Compatibility shim for runnable hard-mode worker adapters
+#   (grok, codex, and agy). Claude remains selectable only so its retained
+#   adapter can return the explicit T7 unsupported refusal; it is not a
+#   runnable or advertised worker lane.
 #   THE PROMPT MUST
 #   NEVER ARRIVE ON STDIN — foreman-launch nulls CMD's stdin unconditionally
 #   (launcher/README.md:32-33: "CMD's stdin is the null device"), so every
@@ -19,7 +22,8 @@
 #   copies ADAPTER_ARGV element-for-element into WC_ARGV. Callers spawn
 #   WC_ARGV directly (no shell re-interpretation), e.g. under foreman-launch:
 #   `"$LAUNCHER" ... -- "${WC_ARGV[@]}"`.
-# @arg $1 vendor worker vendor: grok | codex
+# @arg $1 vendor worker vendor: grok | codex | agy; claude returns the
+#   adapter's explicit unsupported refusal
 # @arg $2 prompt_file path to the prompt file (contents become codex's
 #   positional argument; grok reads the file itself via --prompt-file)
 # @arg $3 workdir worker's working directory
