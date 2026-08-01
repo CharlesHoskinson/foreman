@@ -21,18 +21,53 @@ seed_gate_fixture() {
   local run="$1" verdict_json="$2" docs="${3:-pass}"
   local rd
   rd="$(seed_run "$run")"
-  local base
+  local attempt=1 base diff_sha head tree_sha
+  if ! declare -F evidence_tree_sha256 >/dev/null 2>&1; then
+    source "$SCRIPTS/lib/evidence.sh"
+  fi
   base="$(git -C "$REPO" rev-parse HEAD)"
+  head="$(git_nohooks -C "$REPO" rev-parse HEAD)"
+  diff_sha="$(tl_diff_sha256 "$REPO" "$base")"
+  tree_sha="$(evidence_tree_sha256 "$REPO")"
   cat > "$rd/meta.json" <<EOF
 {"worktree":"$REPO","repo_root":"$REPO","base_sha":"$base","lane":"lane-a"}
 EOF
   : > "$rd/hashes.txt"
-  printf '{"status":"pass","exit_code":0}\n' > "$rd/checks-result.json"
-  printf '%s\n' "$verdict_json" > "$rd/audit-verdict.json"
+  printf '%s\n' "$attempt" > "$rd/audit-attempt.current"
+  jq -cn \
+    --arg diff_sha "$diff_sha" \
+    --arg tree_sha "$tree_sha" \
+    '{status:"pass", exit_code:0, diff_sha256:$diff_sha, tree_sha256:$tree_sha}' \
+    > "$rd/checks-result.json"
+  jq -cn \
+    --argjson verdict "$verdict_json" \
+    --arg diff_sha "$diff_sha" \
+    --arg tree_sha "$tree_sha" \
+    --arg base_sha "$base" \
+    --arg head_sha "$head" \
+    --argjson attempt "$attempt" \
+    '$verdict + {
+       state:"complete",
+       evidence:{
+         diff_sha256:$diff_sha,
+         tree_sha256:$tree_sha,
+         base_sha:$base_sha,
+         head_sha:$head_sha,
+         attempt:$attempt
+       }
+     }' > "$rd/audit-verdict.json"
   if [[ "$docs" == "pass" ]]; then
-    printf '{"status":"pass"}\n' > "$rd/docs-check.json"
+    jq -cn \
+      --arg diff_sha "$diff_sha" \
+      --arg tree_sha "$tree_sha" \
+      '{status:"pass", diff_sha256:$diff_sha, tree_sha256:$tree_sha}' \
+      > "$rd/docs-check.json"
   elif [[ "$docs" == "fail" ]]; then
-    printf '{"status":"fail"}\n' > "$rd/docs-check.json"
+    jq -cn \
+      --arg diff_sha "$diff_sha" \
+      --arg tree_sha "$tree_sha" \
+      '{status:"fail", diff_sha256:$diff_sha, tree_sha256:$tree_sha}' \
+      > "$rd/docs-check.json"
   fi
   # no docs file when docs=absent
   printf '%s' "$rd"
