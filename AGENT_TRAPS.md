@@ -518,3 +518,35 @@ explanation before checking whether its predicate had run at all.
 Before arming a monitor, execute its predicate against a known-positive case
 and watch it fire. When a checker reports failure, confirm that its predicate
 ran at all before believing its explanation.
+
+## 24. Liveness read from the parent shell's command line (observed 2026-08-01)
+
+Two codex lanes ran concurrently. The poller asked `pgrep -f "fm-wt/$name"` for
+both and reported one RUNNING and one DONE. The DONE one had been dispatched two
+minutes earlier and was in fact working normally.
+
+The predicate matched a string that happened to be present for one lane and
+absent for the other, for a reason unrelated to liveness. The first lane's
+dispatcher ran `git worktree add ... /root/fm-wt/roticks && ... ` in the shell's
+own command line, so the worktree path was in `/proc/<pid>/cmdline`. The second
+was dispatched as `cd "$WT" && codex exec ...`, which puts the path in the
+process's *working directory* and never in its argv. Same liveness, opposite
+answer, decided by how the dispatch line was written.
+
+Three predicates against the same two lanes:
+
+```
+             cmdline   sandbox-cwd   log-growing
+  roticks      YES         NO           YES         (alive)
+  batch5       NO          NO           YES         (alive)
+```
+
+Only the third was right for both. `cmdline` was wrong for one; `sandbox-cwd`
+was wrong for both, because the sandbox helper is transient and absent whenever
+the worker is between tool calls.
+
+**Rule:** Liveness is growth of the thing the process produces, not the presence
+of a process that matches a pattern. Sample the output twice with a gap and
+compare. A quiescent log needs a longer second sample before it means anything —
+a 6-second window called the same lane QUIESCENT that a 30-second window showed
+GROWING by 4KB.
