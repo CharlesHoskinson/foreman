@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: discovery emits a captured-facts artifact with provenance
+## ADDED Requirements
+
+### Requirement: discovery emits a captured-facts artifact with provenance
 
 `foreman-discover` SHALL emit a `captured-facts.md` artifact (per
 `skills/foreman/templates/captured-facts.md`) in the run dir, containing
@@ -22,7 +24,7 @@ established it.
   naming the live probe that established it
 - AND no fact appears without a cited probe.
 
-## ADDED Requirement: a discovery-derived grok spec inlines the facts (write-first, zero reads-first)
+### Requirement: a discovery-derived grok spec inlines the facts (write-first, zero reads-first)
 
 WHEN the architect composes a grok implementation sub-spec from a
 `captured-facts.md` artifact, the architect SHALL INLINE the relevant
