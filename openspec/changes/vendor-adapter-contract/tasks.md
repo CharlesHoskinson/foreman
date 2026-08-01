@@ -93,13 +93,13 @@ to content changes within an unchanged status string.
 
 ## T6 — the contract tests
 
-- [ ] `tests/adapters.bats`: for every vendor and both verbs, assert the built
+- [x] `tests/adapters.bats`: for every vendor and both verbs, assert the built
       argv contains no bare `-` in a prompt-from-stdin position.
-- [ ] Assert the prompt string appears exactly once and in the position
+- [x] Assert the prompt string appears exactly once and in the position
       `adapter_caps` declares, for every vendor and both verbs.
-- [ ] Assert every adapter's documented invocation runs with stdin at the null
+- [x] Assert every adapter's documented invocation runs with stdin at the null
       device.
-- [ ] Record in each adapter's header why the vendor's own documented
+- [x] Record in each adapter's header why the vendor's own documented
       stdin-piping idiom is refused, where one exists, and what a misordered
       invocation does (error or hang).
 

@@ -5,6 +5,11 @@
 #   ADAPTER_ARGV array. `--prompt-file` is one burst and exits; it never reads
 #   stdin. Headless implementation must include separate `--allow Write` and
 #   `--allow Edit` grants or tool calls are silently denied as an empty burst.
+#   Grok's headless documentation uses `grok -p/--single "PROMPT"`; its only
+#   documented stdin idiom is `grok agent stdio`, a JSON-RPC ACP transport,
+#   not a shell-piped task prompt. This contract refuses that transport because
+#   Foreman spawns a one-shot argv with stdin at /dev/null. What a misplaced
+#   bare `-` does in Grok headless mode is unestablished; no real CLI was probed.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
 # Grok forces the audit schema for JSON output. The adapter still validates

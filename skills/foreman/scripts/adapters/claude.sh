@@ -5,6 +5,11 @@
 #   builders rather than inventing runnable flags. CLAUDE_CONFIG_DIR alone is
 #   insufficient isolation; a distinct HOME would be required. Capability
 #   values describe Foreman support today, not every feature of Claude's CLI.
+#   Claude documents `cat file | claude -p "query"` as its stdin-piping idiom.
+#   This contract refuses it: both builders are unsupported, and any future
+#   builder must keep the task in argv while the launcher supplies /dev/null so
+#   an inherited open pipe cannot masquerade as a working lane. The outcome of
+#   a misordered Claude invocation is unestablished; no real CLI was probed.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
 # Claude schema enforcement is absent from Foreman's unsupported builder.

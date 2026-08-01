@@ -88,6 +88,220 @@ assert_argv_equal() {
   done
 }
 
+# @description Read one required adapter capability without treating an absent
+#   key as an empty value. Duplicate declarations are also contract failures.
+# @arg $1 capability map returned by adapter_caps
+# @arg $2 capability key
+# @stdout the capability value
+# @exitcode 0 exactly one declaration; 1 missing or duplicate declaration
+adapter_cap_value() {
+  local caps="$1" wanted="$2" key value found=0 result=''
+  while IFS='=' read -r key value; do
+    if [ "$key" = "$wanted" ]; then
+      found=$((found + 1))
+      result="$value"
+    fi
+  done <<<"$caps"
+  if [ "$found" -ne 1 ]; then
+    printf 'adapter caps must declare %s exactly once (found %d)\n' \
+      "$wanted" "$found" >&2
+    return 1
+  fi
+  printf '%s\n' "$result"
+}
+
+# @description Install a vendor-named executable that records argv-independent
+#   stdin evidence. It never delegates to a real vendor CLI.
+# @arg $1 vendor executable name
+# @set ADAPTER_PROBE_BIN directory to prepend to PATH
+# @exitcode 0 shim created
+make_adapter_invocation_shim() {
+  local vendor="$1"
+  ADAPTER_PROBE_BIN="$BATS_TEST_TMPDIR/invocation-bin-$vendor"
+  mkdir -p "$ADAPTER_PROBE_BIN"
+  cat >"$ADAPTER_PROBE_BIN/$vendor" <<'SHIM'
+#!/usr/bin/env bash
+stdin_target="$(readlink /proc/self/fd/0 2>/dev/null || true)"
+printf '%s\n' "$stdin_target" >"$ADAPTER_PROBE_STDIN_TARGET"
+cat >"$ADAPTER_PROBE_STDIN_COPY"
+SHIM
+  chmod +x "$ADAPTER_PROBE_BIN/$vendor"
+}
+
+# @description Run the built argv through lane-run.sh, the documented
+#   production boundary that owns vendor-command stdin detachment, and assert
+#   the shim actually observes /dev/null rather than inherited harness stdin.
+# @arg $1 vendor id
+# @arg $2 verb implement or audit
+# @arg $3 stdin target report path
+# @arg $4 stdin byte-copy path
+# @exitcode 0 lane completed and fd 0 was /dev/null; 1 otherwise
+assert_adapter_lane_null_stdin() {
+  local vendor="$1" verb="$2" target_file="$3" copy_file="$4"
+  local lane_run="$BATS_TEST_DIRNAME/../skills/foreman/scripts/lane-run.sh"
+  local lane_home="$BATS_TEST_TMPDIR/$vendor-$verb-foreman-home"
+  local lane_wt="$BATS_TEST_TMPDIR/$vendor-$verb-worktree"
+  local inherited_stdin="$BATS_TEST_TMPDIR/$vendor-$verb-inherited-stdin"
+
+  mkdir -p "$lane_wt"
+  git -C "$lane_wt" init -q -b main
+  git -C "$lane_wt" config user.email t6@example.com
+  git -C "$lane_wt" config user.name "T6 Adapter Test"
+  printf 'fixture\n' >"$lane_wt/fixture"
+  git -C "$lane_wt" add fixture
+  git -C "$lane_wt" commit -qm base
+  printf 'INHERITED_STDIN_MUST_NOT_REACH_VENDOR\n' >"$inherited_stdin"
+
+  run env -u LANE_VENDOR PATH="$ADAPTER_PROBE_BIN:$PATH" \
+    FOREMAN_HOME="$lane_home" \
+    FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch" \
+    DURABLE_ENABLED=false DURABLE_CHECKPOINT_INTERVAL=0 \
+    DURABLE_HEARTBEAT_INTERVAL=0 \
+    ADAPTER_PROBE_STDIN_TARGET="$target_file" \
+    ADAPTER_PROBE_STDIN_COPY="$copy_file" \
+    bash "$lane_run" "t6-$vendor-$verb" lane-a "$lane_wt" -- \
+    "${ADAPTER_ARGV[@]}" <"$inherited_stdin"
+  [ "$status" -eq 0 ]
+  [ "$(<"$target_file")" = /dev/null ]
+  [ ! -s "$copy_file" ]
+}
+
+# @description Assert one supported builder's prompt carrier occurs exactly
+#   once at the caps-declared position, and any stdin sentinel occupies only
+#   that declared prompt slot. Then execute the argv through a shim to prove
+#   its non-prompt invocation attaches stdin to /dev/null.
+# @arg $1 vendor id
+# @arg $2 verb implement or audit
+# @exitcode 0 contract holds or unsupported verb refuses by name; 1 otherwise
+assert_adapter_verb_prompt_contract() {
+  local vendor="$1" verb="$2"
+  local prompt_file="$BATS_TEST_TMPDIR/$vendor-$verb-prompt.md"
+  local schema="$ADAPTER_DIR/verdict.schema.json"
+  local out="$BATS_TEST_TMPDIR/$vendor-$verb-result.json"
+  local stderr_file="$BATS_TEST_TMPDIR/$vendor-$verb-builder.stderr"
+  local prompt_text="T6_PROMPT_${vendor}_${verb}_ONLY"
+  local caps prompt_flag prompt_position supported rc=0
+  local carrier='' carrier_index=-1 flag_count=0 carrier_count=0 dash_count=0
+  local prompt_text_count=0
+  local i n target_file copy_file
+
+  printf '%s' "$prompt_text" >"$prompt_file"
+  source "$ADAPTER_DIR/$vendor.sh"
+  caps="$(adapter_caps "$vendor")"
+  prompt_flag="$(adapter_cap_value "$caps" prompt_flag)"
+  prompt_position="$(adapter_cap_value "$caps" prompt_flag_position)"
+
+  if [ "$verb" = implement ]; then
+    if adapter_implement_argv "$vendor" "$prompt_file" "/work tree" \
+      2>"$stderr_file"; then
+      rc=0
+    else
+      rc=$?
+    fi
+  else
+    if adapter_audit_argv "$vendor" "$prompt_file" "/work tree" \
+      "$schema" "$out" 2>"$stderr_file"; then
+      rc=0
+    else
+      rc=$?
+    fi
+  fi
+
+  if [ "$rc" -ne 0 ]; then
+    [ "$vendor" = claude ]
+    supported="$(adapter_cap_value "$caps" "$verb")"
+    [ "$supported" = false ]
+    [ "$prompt_flag" = unsupported ]
+    [ "$prompt_position" = unsupported ]
+    [ "${#ADAPTER_ARGV[@]}" -eq 0 ]
+    [[ "$(<"$stderr_file")" == *"$vendor $verb unsupported"* ]]
+    return 0
+  fi
+
+  if supported="$(adapter_cap_value "$caps" "$verb" 2>/dev/null)"; then
+    [ "$supported" != false ]
+  fi
+  [[ "$(declare -p ADAPTER_ARGV)" == "declare -a "* ]]
+  n="${#ADAPTER_ARGV[@]}"
+  [ "$n" -gt 0 ]
+
+  case "$prompt_position" in
+    flag-value)
+      [ "$prompt_flag" != positional ]
+      for i in "${!ADAPTER_ARGV[@]}"; do
+        if [ "${ADAPTER_ARGV[i]}" = "$prompt_flag" ]; then
+          flag_count=$((flag_count + 1))
+          carrier_index=$((i + 1))
+        fi
+      done
+      [ "$flag_count" -eq 1 ]
+      [ "$carrier_index" -lt "$n" ]
+      carrier="${ADAPTER_ARGV[carrier_index]}"
+      [ "$carrier" = "$prompt_file" ]
+      ;;
+    last)
+      carrier_index=$((n - 1))
+      carrier="${ADAPTER_ARGV[carrier_index]}"
+      if [ "$prompt_flag" != positional ]; then
+        [ "$n" -ge 2 ]
+        [ "${ADAPTER_ARGV[n-2]}" = "$prompt_flag" ]
+      else
+        [ "$n" -ge 2 ]
+        [[ "${ADAPTER_ARGV[n-2]}" != -* ]]
+      fi
+      if [ "$carrier" != - ]; then
+        [ "$carrier" = "$prompt_text" ]
+      fi
+      ;;
+    *)
+      printf 'unsupported prompt_flag_position for %s %s: %s\n' \
+        "$vendor" "$verb" "$prompt_position" >&2
+      return 1
+      ;;
+  esac
+
+  for i in "${!ADAPTER_ARGV[@]}"; do
+    [ "${ADAPTER_ARGV[i]}" = "$carrier" ] && carrier_count=$((carrier_count + 1))
+    [ "${ADAPTER_ARGV[i]}" = "$prompt_text" ] && \
+      prompt_text_count=$((prompt_text_count + 1))
+    if [ "${ADAPTER_ARGV[i]}" = - ]; then
+      dash_count=$((dash_count + 1))
+      [ "$verb" = audit ]
+      [ "$prompt_flag" = positional ]
+      [ "$prompt_position" = last ]
+      [ "$i" -eq "$carrier_index" ]
+    fi
+  done
+  [ "$carrier_count" -eq 1 ]
+  if [ "$carrier" = - ]; then
+    [ "$dash_count" -eq 1 ]
+    [ "$prompt_text_count" -eq 0 ]
+  else
+    [ "$dash_count" -eq 0 ]
+    if [ "$carrier" = "$prompt_text" ]; then
+      [ "$prompt_text_count" -eq 1 ]
+    else
+      [ "$prompt_text_count" -eq 0 ]
+    fi
+  fi
+
+  make_adapter_invocation_shim "$vendor"
+  target_file="$BATS_TEST_TMPDIR/$vendor-$verb-stdin-target"
+  copy_file="$BATS_TEST_TMPDIR/$vendor-$verb-stdin-copy"
+  if [ "$carrier" = - ]; then
+    run env PATH="$ADAPTER_PROBE_BIN:$PATH" \
+      ADAPTER_PROBE_STDIN_TARGET="$target_file" \
+      ADAPTER_PROBE_STDIN_COPY="$copy_file" \
+      "${ADAPTER_ARGV[@]}" <"$prompt_file"
+    [ "$status" -eq 0 ]
+    cmp -s "$prompt_file" "$copy_file"
+  fi
+
+  # Redirecting lane-run.sh's vendor child from anything other than /dev/null
+  # turns every supported combination red when the shim reports the real fd.
+  assert_adapter_lane_null_stdin "$vendor" "$verb" "$target_file" "$copy_file"
+}
+
 @test "each adapter double-sources standalone and defines exactly seven contract functions" {
   local vendor actual expected
   expected="$(printf '%s\n' "${FUNCTIONS[@]}" | sort)"
@@ -586,4 +800,48 @@ SHIM
       fi
     done
   done
+}
+
+# Adding a bare `-`, duplicating the prompt path, or moving its flag/value
+# pair makes this test fail before any Grok process could start.
+@test "T6 grok implement prompt and null-stdin contract" {
+  assert_adapter_verb_prompt_contract grok implement
+}
+
+# Appending a bare `-` or duplicating the --prompt-file carrier turns this red.
+@test "T6 grok audit prompt and null-stdin contract" {
+  assert_adapter_verb_prompt_contract grok audit
+}
+
+# Replacing the final positional prompt with `-` or duplicating it turns red.
+@test "T6 codex implement prompt and null-stdin contract" {
+  assert_adapter_verb_prompt_contract codex implement
+}
+
+# Moving Codex audit's legitimate `-` away from the caps-declared last slot,
+# or adding a second stdin sentinel, turns this red without hardcoding Codex.
+@test "T6 codex audit prompt and null-stdin contract" {
+  assert_adapter_verb_prompt_contract codex audit
+}
+
+# Moving anything after the final --print value, or duplicating it, turns red.
+@test "T6 agy implement prompt and null-stdin contract" {
+  assert_adapter_verb_prompt_contract agy implement
+}
+
+# A valueless/misordered audit --print or a duplicate prompt turns this red.
+@test "T6 agy audit prompt and null-stdin contract" {
+  assert_adapter_verb_prompt_contract agy audit
+}
+
+# Returning success, omitting implement=false, or losing the named refusal
+# turns this unsupported-combination assertion red.
+@test "T6 claude implement refusal contract" {
+  assert_adapter_verb_prompt_contract claude implement
+}
+
+# Returning success, omitting audit=false, or losing the named refusal turns
+# this unsupported-combination assertion red.
+@test "T6 claude audit refusal contract" {
+  assert_adapter_verb_prompt_contract claude audit
 }
