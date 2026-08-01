@@ -1,0 +1,65 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "stall-no-output-undefined-predicate",
+  "failure_class": "FC-01-monitor-predicate-cannot-fire",
+  "implementation": {
+    "repository_commit": "5af3f34abd7753f7e3e7b46100cb3932f05e02c5",
+    "source": "skills/foreman/scripts/lib/stall.sh"
+  },
+  "demonstrated_case": "unchanged",
+  "events": [
+    {
+      "seq": 1,
+      "case": "unchanged",
+      "decision": "evaluate_content_digest",
+      "outcome": "computed",
+      "evidence": {
+        "comparison": "baseline_equals_current"
+      }
+    },
+    {
+      "seq": 2,
+      "case": "unchanged",
+      "decision": "classify_no_output",
+      "outcome": "predicate_fired",
+      "verdict": "STALL NO_OUTPUT",
+      "emitted": "STALL NO_OUTPUT evidence=content hash unchanged hash=6caba305..."
+    },
+    {
+      "seq": 3,
+      "case": "changed",
+      "decision": "evaluate_content_digest",
+      "outcome": "computed",
+      "evidence": {
+        "comparison": "baseline_differs_from_current"
+      }
+    },
+    {
+      "seq": 4,
+      "case": "changed",
+      "decision": "classify_no_output",
+      "outcome": "predicate_did_not_fire",
+      "verdict": "OK",
+      "emitted": "OK evidence=content hash changed before=6caba305... after=1d3298b8..."
+    },
+    {
+      "seq": 5,
+      "case": "uncomputable",
+      "decision": "evaluate_content_digest",
+      "outcome": "inconclusive",
+      "evidence": {
+        "status": "INCONCLUSIVE",
+        "reason": "non-git-work-root:..."
+      }
+    },
+    {
+      "seq": 6,
+      "case": "uncomputable",
+      "decision": "classify_no_output",
+      "outcome": "refused_to_classify",
+      "verdict": "UNVERIFIED",
+      "emitted": "UNVERIFIED evidence=content digest unavailable EVIDENCE_STATUS=INCONCLUSIVE EVIDENCE_REASON=non-git-work-root:..."
+    }
+  ],
+  "final_verdict": "STALL NO_OUTPUT"
+}
