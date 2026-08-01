@@ -1071,9 +1071,13 @@
     };
 
     export const evolve = (
-      _state: RunState,
+      state: RunState,
       event: DomainEvent
     ): RunState => {
+      if (isTerminal(state)) {
+        return state;
+      }
+
       switch (event._tag) {
         case "RunPlanned":
           return {

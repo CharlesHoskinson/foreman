@@ -185,7 +185,11 @@ export const decide = (
   }
 };
 
-export const evolve = (_state: RunState, event: DomainEvent): RunState => {
+export const evolve = (state: RunState, event: DomainEvent): RunState => {
+  if (isTerminal(state)) {
+    return state;
+  }
+
   switch (event._tag) {
     case "RunPlanned":
       return {

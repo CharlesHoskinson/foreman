@@ -1,4 +1,9 @@
-import type { ArtifactId, RunId, UtcTimestamp } from "@council/schema";
+import type {
+  ArtifactId,
+  DomainEvent,
+  RunId,
+  UtcTimestamp,
+} from "@council/schema";
 import { describe, expect, it } from "vitest";
 import {
   decide,
@@ -72,5 +77,30 @@ describe("run reducer", () => {
       _tag: "Rejected",
       error: { _tag: "TerminalStateIsAbsorbing", state: "Cancelled" },
     });
+  });
+
+  it("keeps the first terminal state when later events are evolved or replayed", () => {
+    const events: readonly DomainEvent[] = [
+      {
+        schemaVersion: 1,
+        _tag: "RunPlanned",
+        runId,
+        planArtifactId: planId,
+        at,
+      },
+      { schemaVersion: 1, _tag: "RunStarted", runId, at },
+      {
+        schemaVersion: 1,
+        _tag: "RunCompleted",
+        runId,
+        resultArtifactId: resultId,
+        at,
+      },
+      { schemaVersion: 1, _tag: "RunFailed", runId, code: "late", at },
+    ];
+    const completed = replay(events.slice(0, 3));
+
+    expect(evolve(completed, events[3]!)).toBe(completed);
+    expect(replay(events)).toEqual(completed);
   });
 });
