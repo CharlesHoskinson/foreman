@@ -455,6 +455,42 @@ gate_dependencies() {
 }
 
 # ---------------------------------------------------------------------------
+# Fails, like the dependencies gate and unlike plugin-drift. Document debt is
+# not cosmetic here: two lane artifacts at the repository root caused 27
+# redundant evidence files, and four competing resume documents at that same
+# root left the undated one -- which read as canonical -- naming a branch that
+# had been dead for days.
+# @description Refuse root-document sprawl and duplicated evidence.
+# @stdout violation details when present followed by one normalized GATE hygiene result line
+# @exitcode 0 the tree is clean, or the checker is absent
+# @exitcode 1 hygiene violations exist
+gate_hygiene() {
+  local name="hygiene"
+  local checker="$REPO_ROOT/tools/repo-hygiene.sh"
+
+  if [[ ! -f "$checker" ]]; then
+    echo "GATE ${name} SKIP repo-hygiene.sh missing"
+    return 0
+  fi
+
+  local out rc count
+  set +o pipefail
+  out="$(bash "$checker" 2>&1)"
+  rc=$?
+  set -o pipefail
+
+  if [[ "$rc" -eq 0 ]]; then
+    echo "GATE ${name} PASS root allowlist + no duplicate evidence"
+    return 0
+  fi
+
+  printf '%s\n' "$out"
+  count="$(printf '%s\n' "$out" | grep -c '^VIOLATION' || true)"
+  echo "GATE ${name} FAIL violations=${count:-0}"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
 # Run all gates
 # ---------------------------------------------------------------------------
 if ! gate_shellcheck; then gates_failed=$((gates_failed + 1)); fi
@@ -485,6 +521,7 @@ if ! gate_lanes; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_docs; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_plugin_drift; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_dependencies; then gates_failed=$((gates_failed + 1)); fi
+if ! gate_hygiene; then gates_failed=$((gates_failed + 1)); fi
 
 if [[ "$gates_failed" -eq 0 ]]; then
   echo "CI-LOCAL RESULT PASS gates_failed=0"
