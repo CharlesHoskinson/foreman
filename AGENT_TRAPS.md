@@ -550,3 +550,18 @@ of a process that matches a pattern. Sample the output twice with a gap and
 compare. A quiescent log needs a longer second sample before it means anything —
 a 6-second window called the same lane QUIESCENT that a 30-second window showed
 GROWING by 4KB.
+
+**Amendment, twenty minutes later.** The rule above was implemented as a waiter
+that sampled each lane log twice with a **60-second** gap and dispatched a new
+lane when fewer than the cap were growing. It fired while both lanes were alive,
+putting three codex lanes against a measured cap of two. Sampling twice was
+necessary and not sufficient: a worker that thinks between tool calls writes
+nothing for longer than 60s, so a short window reports a live lane as finished.
+The same lane had already been seen QUIESCENT over 6s and GROWING over 30s.
+
+**Rule:** A growth window must exceed the longest silence the process legitimately
+produces, which for a reasoning worker is its think time between tool calls, not
+its write cadence. Prefer a completion signal the worker itself emits — a report
+file, an exit status — over any inference from output timing. Timing-based
+liveness is a fallback, and its window must be justified by a measured silence,
+not chosen for convenience.
