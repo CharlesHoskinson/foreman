@@ -12,7 +12,7 @@ setup() {
   # These lifecycle tests predate the WSL launcher build and exercise only
   # readiness/auth/config behavior. Keep their real-checkout calls read-only;
   # wsl-launcher-shipped.bats owns the forced-WSL build fixtures.
-  export FOREMAN_WSL_FORCE=0
+  export FOREMAN_TEST_WSL_FORCE=0
   SHIM="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$SHIM"
 }

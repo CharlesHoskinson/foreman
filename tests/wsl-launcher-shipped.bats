@@ -29,10 +29,24 @@ make_bun_builder() {
   cat > "$SHIM/bun" <<'SHIM'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "run" && "${2:-}" == "build:posix" ]]; then
+  out="dist/foreman-launch"
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --outfile) out="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
   printf 'build:posix cwd=%s\n' "$PWD" >> "${BUN_BUILD_LOG:?}"
-  mkdir -p dist
-  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > dist/foreman-launch
-  chmod +x dist/foreman-launch
+  mkdir -p "$(dirname "$out")"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'if [[ "${1:-}" == "--version" ]]; then echo "foreman-launch 0.2.5 (fixture)"; exit 0; fi' \
+    'exit 0' > "$out"
+  chmod +x "$out"
+  exit 0
+fi
+if [[ "${1:-}" == "--version" ]]; then
+  echo "1.3.14"
   exit 0
 fi
 exit 64
@@ -51,7 +65,7 @@ make_git_noop() {
   export BUN_BUILD_LOG="$BATS_TEST_TMPDIR/bun-build.log"
   printf 'MUTATED INPUT: wsl=1 launcher=absent bun=present\n'
 
-  run env FOREMAN_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
+  run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
     PATH="$SHIM:/usr/bin:/bin" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
@@ -61,7 +75,7 @@ make_git_noop() {
   printf 'OBSERVED: %s\n' "$(grep 'built launcher' <<<"$output")"
 
   printf 'MUTATED INPUT: wsl=1 launcher=executable bun=present\n'
-  run env FOREMAN_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
+  run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
     PATH="$SHIM:/usr/bin:/bin" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
@@ -74,7 +88,7 @@ make_git_noop() {
   make_setup_fixture
   printf 'MUTATED INPUT: wsl=1 launcher=absent bun=absent\n'
 
-  run env FOREMAN_WSL_FORCE=1 PATH="/usr/bin:/bin" \
+  run env FOREMAN_TEST_WSL_FORCE=1 PATH="/usr/bin:/bin" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
   [ ! -e "$FIXTURE/launcher/dist/foreman-launch" ]
@@ -88,7 +102,7 @@ make_git_noop() {
   missing="$BATS_TEST_TMPDIR/missing-foreman-launch"
   printf 'MUTATED INPUT: wsl=1 profile=hard launcher=%s(absent) bun=present\n' "$missing"
 
-  run env FOREMAN_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
+  run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
     BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" PATH="$SHIM:/usr/bin:/bin" \
     bash "$REPO_ROOT/env/tool-check.sh" --profile hard
   [ "$status" -ne 0 ]
@@ -103,7 +117,7 @@ make_git_noop() {
   missing="$BATS_TEST_TMPDIR/missing-foreman-launch"
   printf 'MUTATED INPUT: wsl=1 profile=hard launcher=%s(absent) bun=absent\n' "$missing"
 
-  run env FOREMAN_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
+  run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
     PATH="$SHIM:/usr/bin:/bin" \
     bash "$REPO_ROOT/env/tool-check.sh" --profile hard
   [[ "$output" == *"foreman-launch"*"degraded"*"bun"* ]]
@@ -114,7 +128,7 @@ make_git_noop() {
     "$(grep -E '^(foreman-launch|READY:|MUST_FAIL:|DEGRADED:)' <<<"$output")"
 }
 
-@test "reference manifest inventories the WSL launcher for hard and full profiles" {
+@test "reference manifest inventories the WSL launcher for every profile" {
   run awk '
     /^\[\[tools\]\]$/ { in_tool=1; id=""; profile=""; where=""; next }
     in_tool && /^id = "foreman-launch"$/ { id=$0 }
@@ -127,7 +141,7 @@ make_git_noop() {
   ' "$REPO_ROOT/env/reference-manifest.toml"
   [ "$status" -eq 0 ]
   [[ "$output" == *'id = "foreman-launch"'* ]]
-  [[ "$output" == *'profile = ["hard", "full"]'* ]]
+  [[ "$output" == *'profile = ["soft", "hard", "full", "durable"]'* ]]
   [[ "$output" == *'where = ["wsl"]'* ]]
 }
 
@@ -145,5 +159,122 @@ make_git_noop() {
   for file in docs/INSTALL.md docs/USAGE.md launcher/README.md; do
     grep -Eqi 'Setup.*build|build.*Setup' "$REPO_ROOT/$file"
     grep -Fq 'cd launcher && bun run build:posix' "$REPO_ROOT/$file"
+  done
+}
+
+@test "failed build partial is removed and the next WSL Setup run rebuilds" {
+  make_setup_fixture
+  export BUN_BUILD_LOG="$BATS_TEST_TMPDIR/bun-build.log"
+  cat > "$SHIM/bun" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "run" && "${2:-}" == "build:posix" ]]; then
+  out="dist/foreman-launch"
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --outfile) out="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  mkdir -p dist "$(dirname "$out")"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 125' > dist/foreman-launch
+  chmod +x dist/foreman-launch
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 125' > "$out"
+  chmod +x "$out"
+  if [[ -x dist/foreman-launch ]]; then
+    echo "CONTROL: partial artifact present=yes path=$PWD/dist/foreman-launch"
+  else
+    echo "CONTROL: partial artifact present=no path=$PWD/dist/foreman-launch"
+  fi
+  exit 23
+fi
+exit 64
+SHIM
+  chmod +x "$SHIM/bun"
+
+  run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
+    PATH="$SHIM:/usr/bin:/bin" \
+    bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"CONTROL: partial artifact present=yes"* ]]
+  [[ "$output" == *"POSIX launcher build failed"* ]]
+  [[ "$output" == *"SETUP: NOT-READY"* ]]
+  [ ! -e "$FIXTURE/launcher/dist/foreman-launch" ]
+  [ -z "$(find "$FIXTURE/launcher/dist" -maxdepth 1 -name '.foreman-launch.build.*' -print -quit)" ]
+  printf 'OBSERVED FAILED CONTROL:\n%s\n' \
+    "$(grep -E '^(CONTROL:|SETUP:)|POSIX launcher build failed' <<<"$output")"
+
+  make_bun_builder
+  run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
+    PATH="$SHIM:/usr/bin:/bin" \
+    bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
+  [ "$status" -eq 0 ]
+  [ -x "$FIXTURE/launcher/dist/foreman-launch" ]
+  [ "$(wc -l < "$BUN_BUILD_LOG")" -eq 1 ]
+  [[ "$output" == *"built launcher"* ]]
+  [[ "$output" != *"launcher already built"* ]]
+  printf 'OBSERVED RECOVERY: %s\n' "$(grep 'built launcher' <<<"$output")"
+}
+
+@test "test-scoped WSL force is loud and the old force name cannot disable the build" {
+  make_setup_fixture
+  make_bun_builder
+  export BUN_BUILD_LOG="$BATS_TEST_TMPDIR/bun-build.log"
+
+  run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_WSL_FORCE=0 \
+    BUN_BUILD_LOG="$BUN_BUILD_LOG" PATH="$SHIM:/usr/bin:/bin" \
+    bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
+  [ "$status" -eq 0 ]
+  [ -x "$FIXTURE/launcher/dist/foreman-launch" ]
+  [ "$(wc -l < "$BUN_BUILD_LOG")" -eq 1 ]
+  [[ "$output" == *"TEST OVERRIDE"*"FOREMAN_TEST_WSL_FORCE=1"*"wsl=1"* ]]
+  printf 'OBSERVED: %s\n' "$(grep 'TEST OVERRIDE' <<<"$output")"
+}
+
+@test "Setup parses help and unknown arguments without attempting a WSL build" {
+  make_setup_fixture
+  make_bun_builder
+  export BUN_BUILD_LOG="$BATS_TEST_TMPDIR/bun-build.log"
+
+  run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
+    PATH="$SHIM:/usr/bin:/bin" \
+    bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --help
+  [ "$status" -eq 0 ]
+  [[ "$output" == usage:* ]]
+  [ ! -e "$BUN_BUILD_LOG" ]
+  [ ! -e "$FIXTURE/launcher/dist/foreman-launch" ]
+  [[ "$output" != *"building POSIX launcher"* ]]
+  printf 'OBSERVED HELP: %s\n' "$output"
+
+  run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
+    PATH="$SHIM:/usr/bin:/bin" \
+    bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --unknown
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unknown arg: --unknown"* ]]
+  [ ! -e "$BUN_BUILD_LOG" ]
+  [ ! -e "$FIXTURE/launcher/dist/foreman-launch" ]
+  [[ "$output" != *"building POSIX launcher"* ]]
+  printf 'OBSERVED UNKNOWN: %s\n' "$output"
+}
+
+@test "WSL tool-check keeps launcher should-tier in every profile and promotes hard and full" {
+  make_bun_builder
+  make_git_noop
+  missing="$BATS_TEST_TMPDIR/missing-foreman-launch"
+
+  for profile in soft durable hard full; do
+    run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
+      BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" \
+      PATH="$SHIM:/usr/bin:/bin" \
+      bash "$REPO_ROOT/env/tool-check.sh" --profile "$profile"
+    [[ "$output" == *"TEST OVERRIDE"*"FOREMAN_TEST_WSL_FORCE=1"*"wsl=1"* ]]
+    [[ "$output" == *"foreman-launch"*"missing"* ]]
+    must_fail_line="$(grep '^MUST_FAIL:' <<<"$output" || true)"
+    case "$profile" in
+      hard|full) [[ "$must_fail_line" == *"foreman-launch:missing"* ]] ;;
+      soft|durable) [[ "$must_fail_line" != *"foreman-launch"* ]] ;;
+    esac
+    printf 'OBSERVED %s:\n%s\n' "$profile" \
+      "$(grep -E '^(foreman-launch|READY:|MUST_FAIL:)' <<<"$output")"
   done
 }

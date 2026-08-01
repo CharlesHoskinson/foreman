@@ -40,9 +40,15 @@ NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 HOST="$(hostname 2>/dev/null || echo unknown)"
 OS="$(uname -s 2>/dev/null || echo unknown)"
 IS_WSL=0
-case "${FOREMAN_WSL_FORCE:-}" in
-  1) IS_WSL=1 ;;
-  0) IS_WSL=0 ;;
+case "${FOREMAN_TEST_WSL_FORCE:-}" in
+  1)
+    IS_WSL=1
+    echo "[foreman] TEST OVERRIDE: FOREMAN_TEST_WSL_FORCE=1 forced WSL detection to wsl=1" >&2
+    ;;
+  0)
+    IS_WSL=0
+    echo "[foreman] TEST OVERRIDE: FOREMAN_TEST_WSL_FORCE=0 forced WSL detection to wsl=0" >&2
+    ;;
   *) grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=1 ;;
 esac
 
@@ -894,8 +900,10 @@ should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
 should_full=(node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs)
 should_durable=(nats-server nats-cli foreman_home_fs)
 if (( IS_WSL )); then
+  should_soft+=(foreman-launch)
   should_hard+=(foreman-launch)
   should_full+=(foreman-launch)
+  should_durable+=(foreman-launch)
 fi
 
 case "$PROFILE" in

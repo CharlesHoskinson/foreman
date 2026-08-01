@@ -254,7 +254,7 @@ notes = "HELD at 1.3.14 both sides (v0.2.7.5 pkg-3 dependency table -- 1.4 is ca
 
 [[tools]]
 id = "foreman-launch"
-profile = ["hard", "full"]
+profile = ["soft", "hard", "full", "durable"]
 where = ["wsl"]
 check = "test -x launcher/dist/foreman-launch"
 install_wsl = "cd launcher && bun run build:posix"

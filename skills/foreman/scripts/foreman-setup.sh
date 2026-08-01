@@ -13,7 +13,8 @@
 #   drive blindly. Composes env/tool-check.sh rather than re-implementing its
 #   checks (plan architecture: "two thin wrapper scripts COMPOSE existing
 #   scripts ... not a rewrite"). The launcher build is idempotent: a second
-#   run sees the executable and skips without invoking bun again.
+#   run sees a runnable, self-identifying executable and skips without
+#   invoking bun again.
 #
 #   --lane SCOPING: without --lane, readiness is the WHOLE profile's
 #   tool-check verdict (every must-tool, including non-vendor ones, must be
@@ -43,48 +44,118 @@ source "$SCRIPT_DIR/lib/config.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TOOL_CHECK="$REPO_ROOT/env/tool-check.sh"
 
-# @description Return whether Setup is running under WSL. FOREMAN_WSL_FORCE is
-#   an explicit test seam: 1 forces WSL and 0 forces non-WSL.
+# @description Return whether Setup is running under WSL.
+#   FOREMAN_TEST_WSL_FORCE is an explicit test-only seam: 1 forces WSL and 0
+#   forces non-WSL. Every override is logged so it cannot silently contradict
+#   the host's /proc/version.
 # @exitcode 0 on WSL; 1 otherwise
 fs_is_wsl() {
-  case "${FOREMAN_WSL_FORCE:-}" in
-    1) return 0 ;;
-    0) return 1 ;;
+  case "${FOREMAN_TEST_WSL_FORCE:-}" in
+    1)
+      log "TEST OVERRIDE: FOREMAN_TEST_WSL_FORCE=1 forced WSL detection to wsl=1"
+      return 0
+      ;;
+    0)
+      log "TEST OVERRIDE: FOREMAN_TEST_WSL_FORCE=0 forced WSL detection to wsl=0"
+      return 1
+      ;;
   esac
   grep -qi microsoft /proc/version 2>/dev/null
 }
 
-# @description Build launcher/dist/foreman-launch once during WSL Setup. An
-#   absent bun is a loud degradation, not a Setup failure; a failed build or a
-#   build that produces no executable is a real failure.
+# @description Verify that a launcher executable identifies itself cheaply.
+# @arg $1 launcher path
+# @exitcode 0 when PATH executes and reports a foreman-launch version
+fs_launcher_runnable() {
+  local launcher="$1" version=""
+  [[ -x "$launcher" ]] || return 1
+  version="$("$launcher" --version 2>/dev/null)" || return 1
+  [[ "$version" == foreman-launch\ * ]]
+}
+
+# @description Build launcher/dist/foreman-launch atomically during WSL Setup.
+#   An absent bun is a loud degradation, not a Setup failure; a failed build or
+#   build that produces no runnable executable is a real failure. Bun writes to
+#   a same-filesystem temporary path, which is renamed into place only after it
+#   passes the version probe.
 # @exitcode 0 already present, built successfully, off WSL, or bun unavailable
-# @exitcode 1 bun ran but the launcher build failed or produced no executable
+# @exitcode 1 launcher cleanup, build, validation, or publication failed
 fs_ensure_posix_launcher() {
   fs_is_wsl || return 0
 
   local launcher="$REPO_ROOT/launcher/dist/foreman-launch"
-  if [[ -x "$launcher" ]]; then
+  local launcher_dir="$REPO_ROOT/launcher/dist"
+  local build_dir="" build_launcher=""
+  if fs_launcher_runnable "$launcher"; then
     log "launcher already built: $launcher"
     return 0
+  fi
+  if [[ -e "$launcher" || -L "$launcher" ]]; then
+    log "WARN: removing non-runnable launcher before rebuild: $launcher"
+    if ! rm -f -- "$launcher"; then
+      log "ERROR: could not remove non-runnable launcher: $launcher"
+      return 1
+    fi
   fi
   if ! command -v bun >/dev/null 2>&1; then
     log "WARN: bun is unavailable; POSIX launcher remains absent. Install bun, then run: (cd launcher && bun run build:posix)"
     return 0
   fi
 
+  if ! mkdir -p -- "$launcher_dir"; then
+    log "ERROR: could not create launcher output directory: $launcher_dir"
+    return 1
+  fi
+  if ! build_dir="$(mktemp -d "$launcher_dir/.foreman-launch.build.XXXXXX")"; then
+    log "ERROR: could not create temporary launcher build directory under: $launcher_dir"
+    return 1
+  fi
+  build_launcher="$build_dir/foreman-launch"
+
   log "building POSIX launcher: (cd launcher && bun run build:posix)"
-  if ! (cd "$REPO_ROOT/launcher" && bun run build:posix); then
+  if ! (cd "$REPO_ROOT/launcher" && bun run build:posix --outfile "$build_launcher"); then
+    rm -f -- "$build_launcher"
+    fs_launcher_runnable "$launcher" || rm -f -- "$launcher"
+    rmdir -- "$build_dir" 2>/dev/null || true
     log "ERROR: POSIX launcher build failed"
     return 1
   fi
-  if [[ ! -x "$launcher" ]]; then
-    log "ERROR: POSIX launcher build completed without executable output: $launcher"
+  if ! fs_launcher_runnable "$build_launcher"; then
+    rm -f -- "$build_launcher"
+    fs_launcher_runnable "$launcher" || rm -f -- "$launcher"
+    rmdir -- "$build_dir" 2>/dev/null || true
+    log "ERROR: POSIX launcher build completed without runnable executable output: $launcher"
     return 1
   fi
+  if ! mv -f -- "$build_launcher" "$launcher"; then
+    rm -f -- "$build_launcher"
+    fs_launcher_runnable "$launcher" || rm -f -- "$launcher"
+    rmdir -- "$build_dir" 2>/dev/null || true
+    log "ERROR: could not publish POSIX launcher atomically: $launcher"
+    return 1
+  fi
+  rmdir -- "$build_dir" 2>/dev/null || true
   log "built launcher: $launcher"
 }
 
-fs_ensure_posix_launcher
+PROFILE="soft"
+LANE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --profile) PROFILE="$2"; shift 2 ;;
+    --lane) LANE="$2"; shift 2 ;;
+    -h|--help)
+      echo "usage: foreman-setup.sh [--profile soft|hard|full] [--lane grok|codex|claude]"
+      exit 0
+      ;;
+    *) die "$EXIT_CONFIG" "unknown arg: $1" ;;
+  esac
+done
+
+if ! fs_ensure_posix_launcher; then
+  echo "SETUP: NOT-READY"
+  exit 1
+fi
 
 # Setup reports the repository's committed TOML value, independent of an
 # environment override in the operator's shell.
@@ -100,20 +171,6 @@ fi
 if [[ "$durable_toml" == "false" ]]; then
   echo "SETUP CONFIG: durable.enabled=false differs from the shipped true default that prevents a subagent backgrounding a long command and ending its turn; launcher=$launcher_status"
 fi
-
-PROFILE="soft"
-LANE=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --profile) PROFILE="$2"; shift 2 ;;
-    --lane) LANE="$2"; shift 2 ;;
-    -h|--help)
-      echo "usage: foreman-setup.sh [--profile soft|hard|full] [--lane grok|codex|claude]"
-      exit 0
-      ;;
-    *) die "$EXIT_CONFIG" "unknown arg: $1" ;;
-  esac
-done
 
 # @description Map a vendor id to its operator-facing, non-billing auth
 #   instruction (auth-probes.md: the real login subcommand for each CLI --
