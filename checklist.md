@@ -35,16 +35,24 @@ remain open.
 
 - [ ] **1. Scope** — all 30 packages implemented; `openspec validate --strict`
       green on all 30; shipped packages archived.
-      *7 packages have zero code: `audit-groundedness-gate`,
-      `cross-vendor-audit-routing`,
-      `knowledge-plane-refresh`, `graph-context-builder`, `graph-dogfood`,
-      `graph-eval-falsification`, `regression-harness-tiers`. 3 partial:
-      `three-outcome-verdicts` (T2, T3 and T4 proven ALREADY IMPLEMENTED by a
-      behavioural probe on 2026-08-01, not by grep; remaining work is a
-      re-scope of dispatches 3-5 rather than the original plan),
-      `decision-lineage-and-telemetry` (4b owed), `doctrine-reality-drift`
-      (9 claims). `vendor-adapter-contract` T1 landed four vendor adapters with
-      seven contract functions each.*
+          *Measured at `e7b735f`: **34 packages, 384 tasks ticked, 933 open, 14
+          still at zero ticks.** The session began at 59 ticked and 30 at zero —
+          most of that gap was the RECORD, not the code: task files were written
+          as plans and never ticked as work landed, and a file census found 22 of
+          the 28 zero-tick packages already naming deliverables on disk. Eleven
+          reconciliations have since re-derived tick state from commands.*
+
+          *The 14 still at zero are the genuine remainder:
+          `audit-groundedness-gate` and `cross-vendor-audit-routing` T3–T6 are in
+          flight; `captured-facts-convergence`, `foreman-discover-lane`,
+          `graph-context-builder`, `spec-triage-gate`, `workload-fit-accounting`
+          and `wsl-seam-doctrine` name no file that exists; `graph-dogfood`,
+          `graph-eval-falsification` and `work-dag-projection` are the graph plane
+          (falsification last); `doctrine-reality-drift`, `vendor-preflight`,
+          `wsl-preflight` and `wsl-launcher-shipped` have partial deliverables but
+          no demonstrable behaviour. `wsl-launcher-shipped` is the cautionary one:
+          all six files it names exist and it still reconciled to zero, which is
+          why the census ranks what to examine and never what to tick.*
 - [x] **2. Suite** — completes and passes on **three consecutive runs**; bats
       gate switched back ON in `ci-local.sh` and CI.
       *`gates-linux` reports **547 pass / 0 fail / 31 skip**. Consecutive green
