@@ -6,11 +6,11 @@ Implementer: Sonnet 5 · Audit: Opus 4.8.
   (`skills/foreman/scripts/foreman-setup.sh` / `env/bootstrap-wsl.sh`) writes
   an idempotent `~/.foreman/env.sh` that prepends the resolved WSL-native
   tool dirs (grok, codex, bun, node, `/usr/local/bin`) onto PATH.
-- [ ] **2. Lane sourcing** — the lane launch path sources
+- [x] **2. Lane sourcing** — the lane launch path sources
   `~/.foreman/env.sh` explicitly before invoking a vendor CLI, since
   non-interactive shells skip `~/.bashrc`; confirm PATH ordering wins even
   when `appendWindowsPath=true` leaks a Windows shim in.
-- [ ] **3. Readiness-probe seam** — generalize the existing
+- [x] **3. Readiness-probe seam** — generalize the existing
   `write_authed_grok_shim` pattern so grok-lane and vendor-isolation UNIT
   tests do not depend on live grok reachability; confirm any remaining
   live-binary test stays skip-guarded and is not required for the unit
