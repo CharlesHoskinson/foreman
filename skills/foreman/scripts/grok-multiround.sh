@@ -7,9 +7,8 @@
 #   the spec across a bounded number of rounds, feeding forward a preamble
 #   that tells grok the prior round produced no file changes and it must
 #   write now instead of reading again. "Did grok write anything" is
-#   detected via a git-status digest of the target working dir (untracked
-#   AND modified files both flip the digest), never by parsing grok's own
-#   narration.
+#   detected via a content digest of worker-owned paths in the target working
+#   dir, never by parsing grok's own narration.
 # Usage: grok-multiround.sh SPEC [--max-rounds N] -- GROK_CMD [ARGS...]
 #   SPEC          path to the five-part spec file (round 1 prompt, verbatim)
 #   --max-rounds  bounded round budget (default 3)
@@ -25,6 +24,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/evidence.sh
+source "$SCRIPT_DIR/lib/evidence.sh"
 
 [[ $# -ge 1 ]] || die "$EXIT_CONFIG" "usage: grok-multiround.sh SPEC [--max-rounds N] -- GROK_CMD [ARGS...]"
 SPEC="$1"; shift
@@ -60,9 +61,9 @@ while [[ $i -lt ${#GROK_ARGV[@]} ]]; do
   fi
   i=$((i+1))
 done
-# files_changed is a git-status digest, so WD MUST be a git work tree; on a
-# non-git dir the digest is empty every round and the loop would silently
-# report EMPTY-BURST FAILED even if grok wrote files. Fail loudly up front.
+# files_changed uses git status to identify its worker-owned evidence set, so
+# WD MUST be a git work tree. Fail loudly up front rather than silently report
+# EMPTY-BURST FAILED when the evidence set cannot be enumerated.
 git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || die "$EXIT_CONFIG" "grok-multiround: --cwd is not a git work tree ($WD); files_changed detection requires git"
 
@@ -81,27 +82,67 @@ git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 #     .harness/**  lane-run's own heartbeat + stream telemetry, written into
 #                  the worktree by the supervisor, not by the worker.
 #     SPEC-*.md    a spec staged inside the worktree by the caller.
-#   Note `.harness/` is normally also covered by porcelain's untracked-directory
-#   collapse, but that is an accident of formatting, not a guarantee -- exclude
-#   it explicitly so the property does not depend on how git chooses to print.
-# @stdout one porcelain line per genuinely worker-changed path
-changed_paths() {
-  git -C "$WD" status --porcelain 2>/dev/null | awk '
-    {
-      path = substr($0, 4)
-      sub(/^"/, "", path); sub(/"$/, "", path)
-      if (path ~ /^\.harness\//) next
-      if (path ~ /^SPEC-[^\/]*\.md$/) next
-      print
-    }'
+#   Porcelain is NUL-delimited and uses -uall so every untracked file is an
+#   individual candidate. Paths stay in an array so unusual names are not
+#   split while being passed to the evidence library.
+CHANGED_PATHS=()
+CHANGED_STATUS=()
+collect_changed_paths() {
+  local status_file entry path
+  CHANGED_PATHS=()
+  CHANGED_STATUS=()
+  if ! status_file="$(mktemp -t grok-multiround-status.XXXXXX 2>/dev/null || mktemp -t grok-multiround-status)"; then
+    EVIDENCE_STATUS="INCONCLUSIVE"
+    EVIDENCE_REASON="status-buffer-create-failed:${WD}"
+    return 1
+  fi
+  if ! git -C "$WD" status --porcelain=v1 -z -uall --no-renames >"$status_file" 2>/dev/null; then
+    rm -f "$status_file"
+    EVIDENCE_STATUS="INCONCLUSIVE"
+    EVIDENCE_REASON="status-enumeration-failed:${WD}"
+    return 1
+  fi
+  while IFS= read -r -d '' entry || [[ -n "${entry:-}" ]]; do
+    [[ ${#entry} -ge 4 ]] || continue
+    path="${entry:3}"
+    [[ "$path" == .harness/* ]] && continue
+    [[ "$path" =~ ^SPEC-[^/]*\.md$ ]] && continue
+    CHANGED_PATHS+=("$path")
+    CHANGED_STATUS+=("$entry")
+  done <"$status_file"
+  rm -f "$status_file"
 }
 
-# @description Digest of changed_paths, so "did grok write anything" is
-#   evidence, not grok's own narration.
-# @stdout a sha256 hex digest
-snap() { changed_paths | sha256sum | cut -d' ' -f1; }
+# @description Content digest of the filtered worker-owned path set. Artifact
+#   mode is intentional: work mode unions every status path back into the set,
+#   which would reintroduce the excluded SPEC-*.md and .harness/** paths.
+# @sets SNAP_DIGEST to a sha256 hex digest
+SNAP_DIGEST=""
+snap() {
+  local digest_file rc
+  collect_changed_paths || return 1
+  if ! digest_file="$(mktemp -t grok-multiround-digest.XXXXXX 2>/dev/null || mktemp -t grok-multiround-digest)"; then
+    EVIDENCE_STATUS="INCONCLUSIVE"
+    EVIDENCE_REASON="digest-buffer-create-failed:${WD}"
+    return 1
+  fi
+  if evidence_content_digest "$WD" artifact "${CHANGED_PATHS[@]}" >"$digest_file"; then
+    SNAP_DIGEST="$(<"$digest_file")"
+    rm -f "$digest_file"
+    return 0
+  else
+    rc=$?
+    rm -f "$digest_file"
+    return "$rc"
+  fi
+}
 
-before="$(snap)"
+evidence_failure() {
+  die "$EXIT_FAIL" "grok-multiround: evidence mechanism failed (${EVIDENCE_STATUS:-INCONCLUSIVE}): ${EVIDENCE_REASON:-unknown-reason}"
+}
+
+snap || evidence_failure
+before="$SNAP_DIGEST"
 LAST_OUT="$(mktemp -t grok-multiround-out.XXXXXX 2>/dev/null || mktemp -t grok-multiround-out)"
 GENERATED_SPECS=()
 # @description Remove this run's temp files (last-output capture + any
@@ -129,11 +170,14 @@ while [[ $round -lt $MAX_ROUNDS ]]; do
 
   "${GROK_ARGV[@]}" --prompt-file "$ROUND_SPEC" >"$LAST_OUT" 2>&1 || true
 
-  after="$(snap)"
+  snap || evidence_failure
+  after="$SNAP_DIGEST"
   if [[ "$after" != "$before" ]]; then
-    n_changed="$(changed_paths | wc -l | tr -d ' ')"
+    n_changed="${#CHANGED_PATHS[@]}"
     echo "grok-multiround: files changed (rounds=$round, paths=$n_changed)"
-    changed_paths | sed 's/^/grok-multiround:   /'
+    if [[ $n_changed -gt 0 ]]; then
+      printf 'grok-multiround:   %s\n' "${CHANGED_STATUS[@]}"
+    fi
     exit "$EXIT_OK"
   fi
 done
