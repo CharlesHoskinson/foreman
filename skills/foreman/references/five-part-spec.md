@@ -51,6 +51,16 @@ npm test
 - Prefer absolute-from-repo-root paths.
 - One task per spec when files overlap; parallelize only independent specs.
 
+## Discovery-derived specs
+
+A spec derived from discovery MUST inline the relevant captured interfaces,
+request and response shapes, and constraints directly into its `## Interfaces`
+and `## Constraints` sections. Never make the worker read the captured-facts
+artifact before writing. A determined sub-spec carries the facts it needs
+inline, preserving the
+[single-burst write-first contract](../../../agents/grok-implementer.md#single-burst-write-first-specs)
+so its first action can be a concrete write with zero repository reads first.
+
 ## EARS phrasing (required for Grok-bound specs)
 
 Write Interfaces/Constraints/Verification requirements in EARS (Easy Approach
