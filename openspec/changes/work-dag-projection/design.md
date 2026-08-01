@@ -14,8 +14,8 @@ Three properties follow, and they are the entire safety argument for this plane:
 
 1. **It is regenerable.** Deleting it loses nothing. That is what makes the
    downstream store (`graph-store-port`) a materialisation rather than a system
-   of record, and it is what bounds the TerminusDB bus-factor risk to a
-   re-materialisation instead of a rewrite.
+   of record. Before the 2026-07-30 withdrawal, this property bounded the
+   TerminusDB bus-factor risk to a re-materialisation instead of a rewrite.
 2. **It is verifiable.** "Is the graph correct?" becomes "re-project and diff",
    which is a deterministic check rather than an audit.
 3. **It has nowhere to put a model.** A projection cannot hallucinate, because
@@ -70,9 +70,10 @@ export, and `source_file`, `source_location`, `confidence_score`, hyperedges and
 communities do not. The audit trail is the thing being built here; an export that
 destroys it is not an option at any convenience.
 
-**TerminusDB as the write target now.** Rejected for this package, deferred to
-`graph-store-port`. The store is a queryable materialisation, never the system of
-record (SYNTHESIS §0.3). Writing the projection to files first means the context
+**TerminusDB as the write target.** This option was rejected for this package
+and deferred to `graph-store-port`. The backend was withdrawn on 2026-07-30. The
+proposed store was a queryable materialisation, never the system of record
+(SYNTHESIS §0.3). Writing the projection to files first means the context
 builder and the gate never block on the store, and a store that dies costs a
 re-materialisation.
 

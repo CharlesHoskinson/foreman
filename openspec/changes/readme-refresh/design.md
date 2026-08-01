@@ -71,7 +71,8 @@ a hard split, stated per requirement rather than assumed:
   relocations are mechanical; the rule going forward is not.
 - *Does the record section oversell?* Judged against the roadmap's own
   disconfirming evidence: BM-25 beating all nine GraphRAG systems, ~2 effective
-  independent votes across nine frontier models, TerminusDB's bus factor of one.
+  independent votes across nine frontier models, and TerminusDB's bus factor of
+  one. This evidence produced the 2026-07-30 withdrawal.
 - *Was a sentence rewritten only to move a count?* Goodhart's guard, judged by
   the architect.
 - *Does the final text make ungrounded claims?* An audit lane on a different

@@ -76,8 +76,8 @@ as a script.
   `launcher/README.md` and `reference-environment.md`.
 - **Two new sections carry v0.2.9**: "Reports are claims" absorbs evidence,
   verification, audit and checker soundness into one doctrine; "The record"
-  carries the event log, the work-DAG projection, the knowledge plane, and
-  TerminusDB behind a `GraphStore` port with a files-only fallback.
+  carries the event log, the work-DAG projection, the knowledge plane, and the
+  SQLite ontology adapter behind a `GraphStore` port with a files-only fallback.
 - **The cross-vendor invariant is re-keyed on model family, not CLI name**,
   because `agy` is a multi-model gateway and an agy lane on a `claude-*` model
   auditing Claude-written work is same-family review in a different binary.

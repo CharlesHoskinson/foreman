@@ -144,8 +144,8 @@ path must stay AST-only, forever.
   by a known graphify version at a known commit.
 - **Consumed by `graph-context-builder` (GP-5)** — the context builder reads
   `graph.json` and stamps `refresh-meta.json`'s freshness into every block.
-- **Does not depend on `graph-store-port` (GP-6).** Nothing here touches
-  TerminusDB. If the store is deferred or abandoned, this package is unaffected.
+- **Does not depend on `graph-store-port` (GP-6).** Nothing here reads or writes
+  the SQLite ontology. Changes to its adapter do not affect this package.
 - Behaviour change: a refresh that fails its health gate publishes nothing and
   leaves the previous `graph.json` in place. Today a failing extraction can
   still overwrite the artifact, guarded only by the shrink guard.
