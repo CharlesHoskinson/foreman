@@ -1847,6 +1847,36 @@
           ])
         ).toMatchObject({ independentDomains: 1 });
       });
+
+      it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+        "rejects invalid minimum proposal threshold %p",
+        (minimumProposals) => {
+          expect(evaluateAutomaticQuorum([], minimumProposals, 2)).toEqual({
+            _tag: "InvalidQuorumPolicy",
+            field: "minimumProposals",
+            actual: minimumProposals
+          });
+        }
+      );
+
+      it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+        "rejects invalid minimum domain threshold %p",
+        (minimumDomains) => {
+          expect(evaluateAutomaticQuorum([], 3, minimumDomains)).toEqual({
+            _tag: "InvalidQuorumPolicy",
+            field: "minimumDomains",
+            actual: minimumDomains
+          });
+        }
+      );
+
+      it("rejects zero thresholds before an empty participant list can meet quorum", () => {
+        expect(evaluateAutomaticQuorum([], 0, 0)).toEqual({
+          _tag: "InvalidQuorumPolicy",
+          field: "minimumProposals",
+          actual: 0
+        });
+      });
     });
 
     describe("confidence weighting", () => {
@@ -1944,13 +1974,36 @@
           readonly _tag: "QuorumNotMet";
           readonly admissibleProposals: number;
           readonly independentDomains: number;
+        }
+      | {
+          readonly _tag: "InvalidQuorumPolicy";
+          readonly field: "minimumProposals" | "minimumDomains";
+          readonly actual: number;
         };
+
+    const isValidQuorumThreshold = (threshold: number): boolean =>
+      Number.isSafeInteger(threshold) && threshold > 0;
 
     export const evaluateAutomaticQuorum = (
       participants: ReadonlyArray<QuorumParticipant>,
       minimumProposals = 3,
       minimumDomains = 2
     ): QuorumDecision => {
+      if (!isValidQuorumThreshold(minimumProposals)) {
+        return {
+          _tag: "InvalidQuorumPolicy",
+          field: "minimumProposals",
+          actual: minimumProposals
+        };
+      }
+      if (!isValidQuorumThreshold(minimumDomains)) {
+        return {
+          _tag: "InvalidQuorumPolicy",
+          field: "minimumDomains",
+          actual: minimumDomains
+        };
+      }
+
       const admissible = participants.filter(
         (participant) => participant.admissible
       );

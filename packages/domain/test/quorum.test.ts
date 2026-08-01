@@ -74,6 +74,44 @@ describe("automatic quorum", () => {
       independentDomains: 2,
     });
   });
+
+  it.each([
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  ])("rejects invalid minimum proposal threshold %p", (minimumProposals) => {
+    expect(evaluateAutomaticQuorum([], minimumProposals, 2)).toEqual({
+      _tag: "InvalidQuorumPolicy",
+      field: "minimumProposals",
+      actual: minimumProposals,
+    });
+  });
+
+  it.each([
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+  ])("rejects invalid minimum domain threshold %p", (minimumDomains) => {
+    expect(evaluateAutomaticQuorum([], 3, minimumDomains)).toEqual({
+      _tag: "InvalidQuorumPolicy",
+      field: "minimumDomains",
+      actual: minimumDomains,
+    });
+  });
+
+  it("rejects zero thresholds before an empty participant list can meet quorum", () => {
+    expect(evaluateAutomaticQuorum([], 0, 0)).toEqual({
+      _tag: "InvalidQuorumPolicy",
+      field: "minimumProposals",
+      actual: 0,
+    });
+  });
 });
 
 describe("confidence weighting", () => {

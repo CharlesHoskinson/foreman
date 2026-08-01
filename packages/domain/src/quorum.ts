@@ -15,13 +15,36 @@ export type QuorumDecision =
       readonly _tag: "QuorumNotMet";
       readonly admissibleProposals: number;
       readonly independentDomains: number;
+    }
+  | {
+      readonly _tag: "InvalidQuorumPolicy";
+      readonly field: "minimumProposals" | "minimumDomains";
+      readonly actual: number;
     };
+
+const isValidQuorumThreshold = (threshold: number): boolean =>
+  Number.isSafeInteger(threshold) && threshold > 0;
 
 export const evaluateAutomaticQuorum = (
   participants: ReadonlyArray<QuorumParticipant>,
   minimumProposals = 3,
   minimumDomains = 2,
 ): QuorumDecision => {
+  if (!isValidQuorumThreshold(minimumProposals)) {
+    return {
+      _tag: "InvalidQuorumPolicy",
+      field: "minimumProposals",
+      actual: minimumProposals,
+    };
+  }
+  if (!isValidQuorumThreshold(minimumDomains)) {
+    return {
+      _tag: "InvalidQuorumPolicy",
+      field: "minimumDomains",
+      actual: minimumDomains,
+    };
+  }
+
   const admissible = participants.filter(
     (participant) => participant.admissible,
   );
