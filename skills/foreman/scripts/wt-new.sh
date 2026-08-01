@@ -146,6 +146,7 @@ idx_lock_owned=1
 # critical section so a later failure cannot leak the lock. Because
 # acquisition precedes irreversible setup, a refuse path never creates a
 # worktree that cannot be retried.
+# @description Release the shared worktree-index lock only when this process owns it, and clear the ownership flag for idempotent exit cleanup.
 idx_release_lock() {
   if [[ "$idx_lock_owned" == "1" ]]; then
     fm_lock_release "$IDX_LOCK" || true

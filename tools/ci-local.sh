@@ -27,6 +27,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 QUICK=0
+# @description Print ci-local usage to standard error and terminate with a usage error.
+# @exitcode 2 always
 usage() {
   echo "usage: tools/ci-local.sh [--quick]" >&2
   exit 2
@@ -54,6 +56,10 @@ cd "$REPO_ROOT" || {
 # ---------------------------------------------------------------------------
 # Gate 1: shellcheck
 # ---------------------------------------------------------------------------
+# @description Run warning-level ShellCheck across the shell tree, skipping when unavailable and failing only when ShellCheck reports errors.
+# @stdout one normalized GATE shellcheck result line
+# @exitcode 0 pass or skip
+# @exitcode 1 one or more ShellCheck errors
 gate_shellcheck() {
   local name="shellcheck"
   if ! command -v shellcheck >/dev/null 2>&1; then
@@ -98,6 +104,10 @@ gate_shellcheck() {
 # ---------------------------------------------------------------------------
 # Gate 2: OpenSpec strict validation
 # ---------------------------------------------------------------------------
+# @description Strictly validate every open OpenSpec change package and fail if the validator is unavailable or any package is invalid.
+# @stdout one normalized GATE openspec result line
+# @exitcode 0 every open package is valid
+# @exitcode 1 validator unavailable or at least one package invalid
 gate_openspec() {
   local name="openspec"
   local openspec_bin="/usr/local/bin/openspec"
@@ -132,6 +142,10 @@ gate_openspec() {
 # ---------------------------------------------------------------------------
 # Gate 3: formal models (Quint commit-tier + drift)
 # ---------------------------------------------------------------------------
+# @description Run the Quint commit-tier and formal drift checks, or skip them in quick mode or when Quint is unavailable.
+# @stdout one normalized GATE formal result line
+# @exitcode 0 pass or skip
+# @exitcode 1 either formal sub-check failed
 gate_formal() {
   local name="formal"
   if [[ "$QUICK" -eq 1 ]]; then
@@ -178,6 +192,10 @@ gate_formal() {
 # ---------------------------------------------------------------------------
 # Gate 4: bats suite via tests/run.sh
 # ---------------------------------------------------------------------------
+# @description Run tests/run.sh under the host-wide Bats mutex, preserve its TAP output best-effort, and accept only PASS or SHADOW results.
+# @stdout one normalized GATE bats result line
+# @exitcode 0 pass, shadow, or quick-mode skip
+# @exitcode 1 the runner failed or emitted no recognized result
 gate_bats() {
   local name="bats"
   if [[ "$QUICK" -eq 1 ]]; then
@@ -235,6 +253,10 @@ gate_bats() {
 # ---------------------------------------------------------------------------
 # Gate 5: install.sh smoke test under disposable HOME
 # ---------------------------------------------------------------------------
+# @description Smoke-test install.sh with a disposable HOME so the operator's real home is not modified.
+# @stdout one normalized GATE install result line
+# @exitcode 0 the installer succeeded
+# @exitcode 1 install.sh is missing or failed
 gate_install() {
   local name="install"
   local installer="$REPO_ROOT/install.sh"
@@ -263,6 +285,9 @@ gate_install() {
 # ---------------------------------------------------------------------------
 # Gate 6: lane completeness (informational — never fails the run)
 # ---------------------------------------------------------------------------
+# @description Report completeness for discovered Foreman lane worktrees as an informational gate that never fails CI.
+# @stdout lane-check output followed by one normalized GATE lanes result line
+# @exitcode 0 always
 gate_lanes() {
   local name="lanes"
   local checker="$REPO_ROOT/skills/foreman/scripts/lane-complete-check.sh"
@@ -299,6 +324,9 @@ gate_lanes() {
 # The installed skill path exists only on a developer host. A hosted runner has
 # no ~/.claude, so a failing gate here would fail CI for an absent directory,
 # not for drift. It reports and never fails, like the lanes gate above.
+# @description Compare the installed Foreman skill with the repository copy as an informational drift gate that never fails CI.
+# @stdout drift details when present followed by one normalized GATE plugin-drift result line
+# @exitcode 0 always
 gate_plugin_drift() {
   local name="plugin-drift"
   local checker="$REPO_ROOT/tools/plugin-drift.sh"

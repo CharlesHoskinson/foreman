@@ -37,6 +37,7 @@ export LC_ALL=C
 
 # --- argument parsing -------------------------------------------------------
 
+# @description Print graph-project command usage to standard error.
 gp_usage() {
   cat >&2 <<'EOF'
 usage: graph-project.sh --run RUN [--events PATH] [--out PATH] [--check]

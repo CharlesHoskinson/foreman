@@ -102,6 +102,9 @@ owner_of() {
   printf 'UNTAGGED\n'
 }
 
+# @description Convert a ps elapsed-time value in [[days-]hours:]minutes:seconds form to whole seconds.
+# @arg $1 elapsed-time value
+# @stdout elapsed seconds
 etime_secs() {
   local t="$1" d=0 h=0 m=0 s=0
   case "$t" in *-*) d="${t%%-*}"; t="${t#*-}";; esac
@@ -113,6 +116,10 @@ etime_secs() {
   echo $(( 10#${d:-0}*86400 + 10#${h:-0}*3600 + 10#${m:-0}*60 + 10#${s:-0} ))
 }
 
+# @description Launch a detached command with lane ownership labels, append its PID to this owner's registry, and capture output in the lane log.
+# @arg $1 lane label
+# @arg $2 optional -- separator followed by the command and its arguments
+# @stdout the launched PID, owner, and label
 cmd_launch() {
   local label="$1"; shift
   [[ "${1:-}" == "--" ]] && shift
@@ -134,6 +141,12 @@ _descendants() {
   printf '%s\n' "${out[@]}"
 }
 
+# @description Adopt a live process and all current descendants into this owner's lane registry.
+# @arg $1 root process PID
+# @arg $2 optional lane label, default adopted
+# @stdout the adopted process count, root PID, owner, and label
+# @exitcode 0 the live process subtree was registered
+# @exitcode 1 the root PID was not alive
 cmd_adopt() {
   local pid="$1" label="${2:-adopted}" n=0 p
   if ! kill -0 "$pid" 2>/dev/null; then echo "pid $pid not alive" >&2; return 1; fi
@@ -146,6 +159,9 @@ cmd_adopt() {
   echo "adopted $n pid(s) rooted at $pid owner=$FM_LANE_OWNER label=$label"
 }
 
+# @description List tagged lane-related processes, showing only this owner's lanes unless --all is requested.
+# @arg $1 optional --all
+# @stdout a process table with ownership and lane labels
 cmd_ps() {
   local all="${1:-}"
   printf '%-8s %-6s %-9s %-10s %-22s %-14s %s\n' PID STAT CPU ELAPSED OWNER LABEL CMD
@@ -256,6 +272,9 @@ cmd_progress() {
   fi
 }
 
+# @description Identify this owner's stopped or long-idle vendor processes and, only with --force, terminate those exact PIDs.
+# @arg $1 optional --force; otherwise perform a dry run
+# @stdout candidate reaps, dry-run status, and the killed-process count
 cmd_reap() {
   local force="${1:-}" killed=0
   local pid stat cput etim comm
@@ -281,6 +300,8 @@ cmd_reap() {
   echo "reaped=$killed owner=$FM_LANE_OWNER"
 }
 
+# @description Atomically remove dead process entries from this owner's lane registry while preserving live entries.
+# @stdout counts of removed dead entries and retained live entries
 cmd_sweep() {
   local tmp; tmp="$(mktemp)"
   local n=0

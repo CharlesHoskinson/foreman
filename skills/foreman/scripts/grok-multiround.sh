@@ -87,6 +87,9 @@ git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 #   split while being passed to the evidence library.
 CHANGED_PATHS=()
 CHANGED_STATUS=()
+# @description Collect worker-owned changed paths and statuses, excluding harness and caller artifacts, to define the evidence set used to decide whether a vendor round produced work.
+# @exitcode 0 the evidence set was enumerated
+# @exitcode 1 enumeration was inconclusive and must not be treated as an empty round
 collect_changed_paths() {
   local status_file entry path
   CHANGED_PATHS=()
@@ -118,6 +121,9 @@ collect_changed_paths() {
 #   which would reintroduce the excluded SPEC-*.md and .harness/** paths.
 # @sets SNAP_DIGEST to a sha256 hex digest
 SNAP_DIGEST=""
+# @description Digest the filtered worker-owned evidence set so successive snapshots decide whether a vendor round produced work without trusting vendor narration.
+# @exitcode 0 SNAP_DIGEST contains the content digest
+# @exitcode 1 the evidence set or digest was uncomputable and must fail closed
 snap() {
   local digest_file rc
   collect_changed_paths || return 1
@@ -137,6 +143,8 @@ snap() {
   fi
 }
 
+# @description Fail closed when round evidence cannot be measured, rather than misclassifying an unmeasurable vendor round as producing no work.
+# @exitcode 1 always; terminates through die with the evidence status and reason
 evidence_failure() {
   die "$EXIT_FAIL" "grok-multiround: evidence mechanism failed (${EVIDENCE_STATUS:-INCONCLUSIVE}): ${EVIDENCE_REASON:-unknown-reason}"
 }

@@ -684,6 +684,7 @@ for entry in pinned:
 ' "$manifest" "$mech" "$sha" "$host_now" "$ROOT" 2>/dev/null || true
 }
 
+# @description Probe mkdir and flock atomicity across distinct writable filesystem classes, record the evidence rows, and fail durable-profile readiness closed when no trusted atomic mechanism is found.
 fm_tc_run_atomicity_probes() {
   LOCK_ATOMICITY_ROWS=()
   LOCK_ATOMICITY_INFO=()

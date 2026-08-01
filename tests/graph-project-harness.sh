@@ -57,6 +57,8 @@ WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/gp-harness.XXXXXX")"
 # shellcheck disable=SC2064
 trap 'rm -rf -- "$WORKDIR"' EXIT
 
+# @description Write the canonical valid event-log fixture used by graph projection harness cases.
+# @arg $1 destination event-log path
 write_good_log() {
   local path="$1"
   cat > "$path" <<'EOF'
@@ -72,6 +74,9 @@ write_good_log() {
 EOF
 }
 
+# @description Emit a stable sorted view of projected nodes, content edges, and incomplete markers while excluding log-wide coverage records.
+# @arg $1 graph-project JSONL output path
+# @stdout selected projection records sorted bytewise
 known_nodes() {
   # Nodes + content edges, excluding coverage (which tracks log-wide max_seq).
   jq -c 'select(.kind == "node" or .kind == "edge" or .kind == "incomplete")' "$1" | LC_ALL=C sort

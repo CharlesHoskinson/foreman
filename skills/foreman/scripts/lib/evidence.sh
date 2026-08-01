@@ -62,6 +62,10 @@ _evidence_git() {
   git -c safe.directory=* -c core.hooksPath= -c core.quotePath=false "$@"
 }
 
+# @description Verify that a directory is exactly a Git worktree root, rejecting nested directories that could masquerade as independent work roots.
+# @arg $1 root directory path
+# @exitcode 0 the directory is the worktree top level
+# @exitcode 1 the directory is missing, not a worktree, or below its top level
 evidence_is_git_worktree() {
   local root="$1" top root_abs top_abs
   [[ -n "$root" && -d "$root" ]] || return 1
@@ -444,6 +448,7 @@ evidence_records_to() {
 # three-outcome-verdicts: this is the ONE place tree_sha256 is computed.
 # audit-run.sh and the later gate-eval.sh/checks-run.sh/docs-check.sh dispatches
 # all call this function so the harness has exactly one implementation.
+# @description Compute the evaluated-tree identity from the HEAD tree and the worktree content digest; fail closed when either identity cannot be established.
 # @arg $1 root git work tree
 # @stdout 64-character lowercase tree identity
 # @exitcode 0 on success; otherwise propagates the content-digest failure or
