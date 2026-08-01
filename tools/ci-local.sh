@@ -370,16 +370,23 @@ gate_plugin_drift() {
 if ! gate_shellcheck; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_openspec; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_formal; then gates_failed=$((gates_failed + 1)); fi
-# The bats gate is OFF by default as of 2026-07-30. It does not merely fail —
-# it DEADLOCKS: tests/decision-events.bats hung 31 minutes on one test while
-# holding the host-wide bats mutex, and three unrelated verifications queued
-# behind it with no output. A gate that can hang forever is worse than no gate,
-# because "still running" reads as progress.
-# Re-enable per run with FOREMAN_CI_BATS=1, and see docs/design/test-cleanup-roadmap.md.
-if [[ "${FOREMAN_CI_BATS:-0}" == 1 ]]; then
+# The bats suite gates by default. It was previously off because a hung file
+# could hold the host-wide bats mutex indefinitely: tests/decision-events.bats
+# once hung 31 minutes on one test with three unrelated verifications queued
+# behind it, and "still running" reads as progress.
+#
+# That failure mode is now bounded. tests/run.sh wraps every file in
+# `timeout --kill-after=30 ${TEST_FILE_TIMEOUT_S:-600}`, and the bound was
+# exercised in production on 2026-08-01: run 584ddfbb saw audit-verdict.bats
+# exceed 600s, get killed, and the run COMPLETE with test_verdict=TIMEOUT
+# rather than hang. A hung file now costs at most ten minutes and yields a
+# verdict instead of silence.
+#
+# Set FOREMAN_CI_BATS=0 to skip it for a single run; --quick still skips it too.
+if [[ "${FOREMAN_CI_BATS:-1}" == 1 ]]; then
   if ! gate_bats; then gates_failed=$((gates_failed + 1)); fi
 else
-  echo "GATE bats OFF suite disabled as a gate (deadlocks; FOREMAN_CI_BATS=1 to run) — see docs/design/test-cleanup-roadmap.md"
+  echo "GATE bats OFF disabled for this run by FOREMAN_CI_BATS=0"
 fi
 if ! gate_install; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_lanes; then gates_failed=$((gates_failed + 1)); fi
