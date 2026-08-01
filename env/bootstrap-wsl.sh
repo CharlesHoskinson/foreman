@@ -92,7 +92,15 @@ install_apt() {
 # clock-sync resume hook (env/wsl-clock-resync-task.xml runs `hwclock -s`
 # inside WSL); discovered missing (dpkg -L util-linux has no bin/sbin
 # entries for it at all) while wiring up that hook for real.
-install_apt ca-certificates curl git jq util-linux util-linux-extra coreutils bash python3 python3-pip python3-venv
+#
+# strace is NOT optional despite reading like a debugging convenience. It is
+# the ONLY evidence class that can license a lock mechanism as `atomic`:
+# flavour licenses nothing and contention can license only `non-atomic` or
+# `unknown` (env/tool-check.sh:440). Without it, a host whose /bin/mkdir is
+# uutils -- the Ubuntu 26.04 default -- has no trusted mechanism at all, and
+# lib/lock.sh fail-closes with FM_LOCK_UNAVAILABLE, which failed 102 tests
+# here until strace was installed.
+install_apt ca-certificates curl git jq util-linux util-linux-extra coreutils bash python3 python3-pip python3-venv strace
 
 # Durable-lanes transport (optional at runtime, installed by the durable profile)
 if [[ "$PROFILE" == "durable" ]]; then
@@ -375,7 +383,15 @@ fi
 link_native() {
   local name="$1" src="$2"
   [[ -x "$src" ]] || return 0
-  ln -sf "$src" "/usr/local/bin/$name"
+  # /usr/local/bin is root-owned. The bare ln succeeds when bootstrap runs as
+  # root (the reference host uses /root/foreman); for any other user it fails
+  # with EACCES and, under set -e, aborts the run before the closing
+  # install.sh and tool-check steps ever execute. Fall back to sudo, and warn
+  # rather than abort when neither can write -- a missing convenience symlink
+  # must not cost the rest of the provisioner.
+  ln -sf "$src" "/usr/local/bin/$name" 2>/dev/null \
+    || sudo ln -sf "$src" "/usr/local/bin/$name" 2>/dev/null \
+    || log "WARN: cannot link $name into /usr/local/bin (needs root); PATH must reach $src"
 }
 
 if [[ -n "$NODE_BIN_DIR" ]]; then

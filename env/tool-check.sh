@@ -203,6 +203,18 @@ check_one() {
     markdownlint-cli2)
       if have markdownlint-cli2; then status=ok; detail="$(markdownlint-cli2 --version 2>&1 | head -1)"; else status=missing; fi
       ;;
+    strace)
+      # Reported because it is load-bearing, not diagnostic: the syscall
+      # evidence class is the only one that can license a lock mechanism as
+      # atomic, so on a host whose mkdir is uutils its absence means no
+      # trusted mechanism and a fail-closed lock. It was silently absent here
+      # and cost 102 test failures before anyone looked for it.
+      if have strace; then
+        status=ok; detail="$(strace --version 2>&1 | head -1)"
+      else
+        status=missing; detail="lock atomicity cannot be licensed without it (syscall evidence)"
+      fi
+      ;;
     codespell)
       if have codespell && codespell --version >/dev/null 2>&1; then
         status=ok; detail="$(codespell --version 2>&1 | head -1)"
@@ -909,10 +921,13 @@ must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
 must_durable=(git jq coreutils bash flock)
-should_soft=(node npm jq markdownlint-cli2 codespell lychee foreman_home_fs)
-should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
-should_full=(node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs)
-should_durable=(nats-server nats-cli foreman_home_fs)
+# strace is `should` on every POSIX profile rather than `must`: a host can run
+# without it, but only by fail-closing every durable lock, so its absence must
+# be visible in the report instead of surfacing later as unexplained refusals.
+should_soft=(node npm jq markdownlint-cli2 codespell lychee strace foreman_home_fs)
+should_hard=(shellcheck bats gh timeout grok codex strace foreman_home_fs)
+should_full=(node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue strace foreman_home_fs)
+should_durable=(nats-server nats-cli strace foreman_home_fs)
 if (( IS_WSL )); then
   should_soft+=(foreman-launch)
   should_hard+=(foreman-launch)
