@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: foreman-discover is a bounded top-model empirical lane that emits facts + determined sub-specs, never product code
+## ADDED Requirements
+
+### Requirement: foreman-discover is a bounded top-model empirical lane that emits facts + determined sub-specs, never product code
 
 `agents/foreman-discover.md` SHALL define a top-Claude-tier (Fable/Opus),
 worktree-isolated agent that, given a DISCOVERY BRIEF (the unknowns, the
@@ -33,7 +35,7 @@ below.
   sub-specs into its worktree report
 - AND no product code file is created or modified by the discovery lane.
 
-## ADDED Requirement: on budget exhaustion, foreman-discover self-reports partial with remaining unknowns (advisory, not coded enforcement)
+### Requirement: on budget exhaustion, foreman-discover self-reports partial with remaining unknowns (advisory, not coded enforcement)
 
 IF the declared discovery budget (probe iterations / token cap /
 wall-clock) is exhausted BEFORE convergence, THEN `foreman-discover` is
@@ -61,7 +63,7 @@ this limit plainly rather than claiming the budget "never loops forever."
 - AND this stop-on-exhaustion behavior is the agent's self-report per its
   instructions, not a coded kill enforced against it.
 
-## ADDED Requirement: grok is not eligible for discovery
+### Requirement: grok is not eligible for discovery
 
 Discovery SHALL run only on a top-Claude-tier model (Fable/Opus). Grok (and
 any non-top-Claude vendor) SHALL NOT be an eligible discovery-lane

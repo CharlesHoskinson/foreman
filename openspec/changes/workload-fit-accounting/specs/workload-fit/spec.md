@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: the architect declares an up-front fit estimate and warns on poor cost-fit, seeding the fit ledger
+## ADDED Requirements
+
+### Requirement: the architect declares an up-front fit estimate and warns on poor cost-fit, seeding the fit ledger
 
 The architect SHALL declare a `## Meta` line `fit: discovery_fraction: high |
 medium | low` at task start, estimating what fraction of the workload will
@@ -26,7 +28,7 @@ obtain an explicit proceed before continuing.
 - AND `$RD/fit.jsonl` gains its first line,
   `{"phase":"estimate","discovery_fraction":"high"}`.
 
-## ADDED Requirement: foreman-fit-report reads the fit ledger — NOT the event log — and emits a discovery-vs-offload split with a poor-fit verdict
+### Requirement: foreman-fit-report reads the fit ledger — NOT the event log — and emits a discovery-vs-offload split with a poor-fit verdict
 
 `foreman-fit-report.sh RUN_ID` SHALL read the run's **fit ledger**
 (`$RD/fit.jsonl`, one JSON object per line; `phase` ∈ `estimate | discover |

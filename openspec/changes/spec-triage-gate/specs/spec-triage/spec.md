@@ -2,7 +2,9 @@
 
 EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
 
-## ADDED Requirement: an under-determined spec is refused at all three grok entry points and routed to foreman-discover
+## ADDED Requirements
+
+### Requirement: an under-determined spec is refused at all three grok entry points and routed to foreman-discover
 
 WHEN a spec is submitted for grok/worker dispatch — soft mode via
 `grok-implementer`'s Preflight, hard mode via `worker-run.sh`, or the durable
@@ -47,7 +49,7 @@ worker/grok process SHALL NOT be spawned, with a hint to route the spec to
 - AND a lane with `LANE_VENDOR` unset (the frozen path) is unaffected by this
   block.
 
-## ADDED Requirement: the under-determination scan is narrowly anchored — it does not false-positive on legitimately-determined specs
+### Requirement: the under-determination scan is narrowly anchored — it does not false-positive on legitimately-determined specs
 
 The gate's scan SHALL match only unambiguous, anchored empirical-discovery
 PHRASES in the Objective/Interfaces text — "reverse-engineer", "figure out
@@ -88,7 +90,7 @@ that merely contains the word "explore", or the legitimate EARS example
 - THEN `spec-triage.sh` exits non-zero with `spec_underdetermined`, because
   no concrete verification line survives.
 
-## ADDED Requirement: the declaration alone is not sufficient — the narrow scan also refuses a mis-declared spec
+### Requirement: the declaration alone is not sufficient — the narrow scan also refuses a mis-declared spec
 
 The gate SHALL NOT trust the `determinability:` declaration alone. WHEN a
 spec declares `determinability: determined` BUT its Objective/Interfaces
@@ -106,7 +108,7 @@ gate SHALL STILL REFUSE the dispatch.
 - AND the declaration is overridden by the scan finding, not honored at face
   value.
 
-## ADDED Requirement: after discovery converges, the gate admits — but does not compel — offloading a determined sub-spec (C4 doctrine, not an enforced gate)
+### Requirement: after discovery converges, the gate admits — but does not compel — offloading a determined sub-spec (C4 doctrine, not an enforced gate)
 
 WHEN `foreman-discover` converges and emits determined implementation
 sub-specs, the architect SHOULD re-run the spec-triage gate on each
