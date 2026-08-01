@@ -266,11 +266,11 @@ disagreements between lanes rather than averaging them:
 - **The knowledge plane is graphify's, on two cadences** — AST-only per merge
   (measured zero tokens), semantic extraction and clustering on a slow cadence.
   No LLM in the per-commit path, ever.
-- **TerminusDB is a regenerable materialisation behind a `GraphStore` port with
-  a files-only fallback — never the system of record.** GP-1 through GP-5 carry
-  no store dependency at all, so if the store is deferred or the project dies,
-  the plane loses time-travel and cross-run query ergonomics — not the gate, not
-  the context, not the record.
+- **The SQLite ontology is a regenerable materialisation behind a `GraphStore`
+  port with a files-only fallback — never the system of record.** TerminusDB was
+  withdrawn on 2026-07-30. GP-1 through GP-5 carry no store dependency at all, so
+  if the store is deferred or the project dies, the plane loses time-travel and
+  cross-run query ergonomics — not the gate, not the context, not the record.
 - **Closed-world document schema; OWL rejected** — 10 of 24 competency questions
   require negation-as-failure. Confirmed live: the draft 18-class ontology
   loaded into TerminusDB 12.0.6 and all three lineage queries, including the
@@ -465,14 +465,16 @@ architect against the shipped source:**
   a leaky credential seed.
 - Audit latency (chronic 24-27 min) is **bounded and measured here, not solved**
   — effort tiering, sharding, bundles and session reuse stay with v0.4.0.
-- **The store question is decided: TerminusDB ships.** The product owner chose
-  adoption over the PM lane's recommendation to defer the adapter behind the
-  query census. That reasoning is preserved in `PM-acceptance-criteria.md`
-  K-3f, and every guardrail it argued for is kept: the `GraphStore` port
-  stays, the files-only implementation stays and runs in CI, GP-1 through
-  GP-5 carry no store dependency, and the timed drop-and-rebuild remains a
-  per-release gate. Adoption changes which implementation is default, not
-  whether the plane can survive without one.
+- **The store question is decided: SQLite is the store.** The product owner first
+  chose TerminusDB adoption over the PM lane's recommendation to defer the
+  adapter behind the query census. That reasoning is preserved in
+  `PM-acceptance-criteria.md` K-3f. On 2026-07-30 the adoption decision was
+  reversed: TerminusDB is out, and the SQLite ontology sits behind the port.
+  Every guardrail the PM lane argued for is kept: the `GraphStore` port stays,
+  the files-only implementation stays and runs in CI, GP-1 through GP-5 carry
+  no store dependency, and the timed drop-and-rebuild remains a per-release
+  gate. The default implementation changed. The plane still survives without a
+  store.
 - The longevity risk is accepted, not resolved: bus-factor 1, a prior
   12.5-month dormancy, and 105 npm downloads/month.
   `terminusdb-operations` carries the named tripwires and a rehearsed exit
