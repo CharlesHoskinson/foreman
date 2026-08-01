@@ -1,0 +1,46 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "grok-single-turn-empty-burst",
+  "failure_class": "FC-03-lane-terminal-without-deliverable",
+  "implementation": {
+    "repository_commit": "81f004dd05eb2157360bc3572fda35150a091964",
+    "source": "skills/foreman/scripts/grok-multiround.sh"
+  },
+  "demonstrated_case": "zero_files_changed",
+  "events": [
+    {
+      "seq": 1,
+      "case": "zero_files_changed",
+      "decision": "invoke_vendor_process",
+      "outcome": "exited_zero_each_round",
+      "evidence": {
+        "rounds": 2,
+        "vendor_exit_status": 0
+      },
+      "emitted": "I will orient first, reading the run context..."
+    },
+    {
+      "seq": 2,
+      "case": "zero_files_changed",
+      "decision": "check_fresh_artifact",
+      "outcome": "no_file_change",
+      "evidence": {
+        "rounds": 2,
+        "changed_files": 0,
+        "mechanism": "git-status digest"
+      }
+    },
+    {
+      "seq": 3,
+      "case": "zero_files_changed",
+      "decision": "classify_round_completion",
+      "outcome": "rejected_missing_deliverable",
+      "evidence": {
+        "exit_status": 1
+      },
+      "verdict": "EMPTY-BURST FAILED",
+      "emitted": "grok-multiround: EMPTY-BURST FAILED after 2 rounds — grok narrated orientation but wrote nothing; re-issue a write-first spec or raise --max-rounds"
+    }
+  ],
+  "final_verdict": "EMPTY-BURST FAILED"
+}

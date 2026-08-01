@@ -1,0 +1,38 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "crlf-worktree-shell-unrunnable",
+  "failure_class": "FC-06-cross-boundary-representation",
+  "implementation": {
+    "repository_commit": "f02f2071219004911f472b518ff08286b603622d",
+    "source": ".gitattributes and tests/line-endings.bats"
+  },
+  "demonstrated_case": "autocrlf_shell_checkout",
+  "events": [
+    {
+      "seq": 1,
+      "case": "autocrlf_shell_checkout",
+      "decision": "apply_checkout_policy",
+      "outcome": "lf_for_bash_files",
+      "evidence": {
+        "catch_all": "* text=auto eol=lf",
+        "windows_script_carve_outs": [
+          "*.bat text eol=crlf",
+          "*.cmd text eol=crlf",
+          "*.ps1 text eol=crlf"
+        ]
+      }
+    },
+    {
+      "seq": 2,
+      "case": "autocrlf_shell_checkout",
+      "decision": "assert_bash_shebang_worktree_eol",
+      "outcome": "no_cr_bytes",
+      "evidence": {
+        "policy_test": "on autocrlf=true checkout, bash-shebang working trees contain no CR"
+      },
+      "verdict": "PASS",
+      "emitted": "on autocrlf=true checkout, bash-shebang working trees contain no CR"
+    }
+  ],
+  "final_verdict": "PASS"
+}

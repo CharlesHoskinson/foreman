@@ -105,6 +105,359 @@ assert_stall_no_output_defect() {
   ' "$trace_path" >/dev/null 2>&1
 }
 
+# @description Assert the corrected FC-02 formal-gate capability contract.
+# @arg $1 decision-trace JSON path
+assert_formal_setsid_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-02-checker-verdict-unestablished"
+    and .demonstrated_case == "setsid_unavailable"
+    and .final_verdict == "SUITE PASSED"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["probe_setsid_capability", "spawn_formal_rows", "summarize_formal_gate"]
+    and [.events[].outcome] == ["announced_degradation", "plain_background_spawn", "models_executed"]
+    and all(.events[]; .case == "setsid_unavailable")
+    and ([.events[] | select(
+      .decision == "probe_setsid_capability"
+      and .outcome == "announced_degradation"
+      and (.emitted | startswith("setsid unavailable (Git Bash/Windows) -- DEGRADED:"))
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "summarize_formal_gate"
+      and .outcome == "models_executed"
+      and .evidence.run == 19
+      and .evidence.matched == 19
+      and .evidence.failures == 0
+      and .verdict == "SUITE PASSED"
+      and .emitted == "formal: === summary: run=19 matched=19 skipped=17 failures=0 tier=commit ==="
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-02 trace never executed the models.
+# @arg $1 defective decision-trace JSON path
+assert_formal_setsid_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-02-checker-verdict-unestablished"
+    and .demonstrated_case == "setsid_unavailable"
+    and .final_verdict == "SUITE FAILED"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["spawn_formal_row", "classify_formal_rows", "summarize_formal_gate"]
+    and [.events[].outcome] == ["command_not_found", "all_rows_error", "verdict_without_model_execution"]
+    and all(.events[]; .case == "setsid_unavailable")
+    and ([.events[] | select(
+      .decision == "spawn_formal_row"
+      and .outcome == "command_not_found"
+      and .evidence.command == "setsid"
+      and (.evidence.error | endswith("formal/run-checks.sh: line 547: setsid: command not found"))
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "summarize_formal_gate"
+      and .outcome == "verdict_without_model_execution"
+      and .evidence.run == 19
+      and .evidence.matched == 0
+      and .evidence.failures == 19
+      and .verdict == "SUITE FAILED"
+      and .emitted == "formal: === summary: run=19 matched=0 skipped=17 failures=19 tier=commit ==="
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Assert the corrected FC-03 empty-burst decision contract.
+# @arg $1 decision-trace JSON path
+assert_grok_empty_burst_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-03-lane-terminal-without-deliverable"
+    and .demonstrated_case == "zero_files_changed"
+    and .final_verdict == "EMPTY-BURST FAILED"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["invoke_vendor_process", "check_fresh_artifact", "classify_round_completion"]
+    and [.events[].outcome] == ["exited_zero_each_round", "no_file_change", "rejected_missing_deliverable"]
+    and all(.events[]; .case == "zero_files_changed")
+    and ([.events[] | select(
+      .decision == "check_fresh_artifact"
+      and .outcome == "no_file_change"
+      and .evidence.rounds == 2
+      and .evidence.changed_files == 0
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "classify_round_completion"
+      and .outcome == "rejected_missing_deliverable"
+      and .evidence.exit_status == 1
+      and .verdict == "EMPTY-BURST FAILED"
+      and (.emitted | startswith("grok-multiround: EMPTY-BURST FAILED after 2 rounds"))
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-03 trace trusted exit zero without output.
+# @arg $1 defective decision-trace JSON path
+assert_grok_empty_burst_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-03-lane-terminal-without-deliverable"
+    and .demonstrated_case == "zero_files_changed"
+    and .final_verdict == "Result=success"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["invoke_vendor_process", "verify_deliverable", "classify_round_completion"]
+    and [.events[].outcome] == ["exited", "missing", "trusted_process_exit"]
+    and all(.events[]; .case == "zero_files_changed")
+    and ([.events[] | select(
+      .decision == "verify_deliverable"
+      and .outcome == "missing"
+      and .evidence.changed_files == 0
+      and .evidence.build_errors == 25
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "classify_round_completion"
+      and .outcome == "trusted_process_exit"
+      and .evidence.exit_status == 0
+      and .verdict == "Result=success"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Assert the corrected FC-04 watchdog ownership contract.
+# @arg $1 decision-trace JSON path
+assert_audit_watchdog_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-04-process-ownership-leak"
+    and .demonstrated_case == "audit_returns_before_timeout"
+    and .final_verdict == "PASS"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["wait_for_timeout_watchdog", "reap_timeout_watchdog", "compare_owned_sleep_processes"]
+    and [.events[].outcome] == ["one_second_slices", "watchdog_and_sleep_reaped", "no_leak"]
+    and all(.events[]; .case == "audit_returns_before_timeout")
+    and ([.events[] | select(
+      .decision == "reap_timeout_watchdog"
+      and .outcome == "watchdog_and_sleep_reaped"
+      and .evidence.scope == "test_process_group"
+      and .evidence.kill_target == "exact PID"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "compare_owned_sleep_processes"
+      and .outcome == "no_leak"
+      and .evidence.leaked_pids == []
+      and .verdict == "PASS"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-04 trace left the watchdog sleep alive.
+# @arg $1 defective decision-trace JSON path
+assert_audit_watchdog_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-04-process-ownership-leak"
+    and .demonstrated_case == "audit_returns_before_timeout"
+    and .final_verdict == "TIMEOUT"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["spawn_timeout_watchdog", "cleanup_timeout_watchdog", "observe_watchdog_child"]
+    and [.events[].outcome] == ["plain_subshell", "wrapper_only_killed", "sleep_reparented"]
+    and all(.events[]; .case == "audit_returns_before_timeout")
+    and ([.events[] | select(
+      .decision == "cleanup_timeout_watchdog"
+      and .outcome == "wrapper_only_killed"
+      and .evidence.timeout_seconds == 1800
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "observe_watchdog_child"
+      and .outcome == "sleep_reparented"
+      and .evidence.stdout_pipe_held_open == true
+      and .verdict == "TIMEOUT"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Assert the corrected FC-05 pid-namespace capability guard.
+# @arg $1 decision-trace JSON path
+assert_launcher_pidns_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-05-environment-capability-gap"
+    and .demonstrated_case == "pid_namespace_unavailable"
+    and .final_verdict == "SKIP"
+    and (.events | length == 2)
+    and [.events[].seq] == [1, 2]
+    and [.events[].decision] == ["probe_pid_namespace_capability", "run_kernel_cascade_assertion"]
+    and [.events[].outcome] == ["capability_absent", "skipped"]
+    and all(.events[]; .case == "pid_namespace_unavailable")
+    and ([.events[] | select(
+      .decision == "probe_pid_namespace_capability"
+      and .outcome == "capability_absent"
+      and .evidence.command == "unshare --pid --mount-proc --fork true"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "run_kernel_cascade_assertion"
+      and .outcome == "skipped"
+      and .verdict == "SKIP"
+      and .emitted == "pid namespaces unavailable on this host; the kernel cascade this test asserts cannot occur (see test 12 for the degraded setsid+pgid contract)"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-05 guard checked a binary, not capability.
+# @arg $1 defective decision-trace JSON path
+assert_launcher_pidns_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-05-environment-capability-gap"
+    and .demonstrated_case == "pid_namespace_unavailable"
+    and .final_verdict == "FAIL"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["guard_kernel_cascade_assertion", "launch_pid_namespace", "run_kernel_cascade_assertion"]
+    and [.events[].outcome] == ["binary_present", "degraded", "failed_without_capability"]
+    and all(.events[]; .case == "pid_namespace_unavailable")
+    and ([.events[] | select(
+      .decision == "guard_kernel_cascade_assertion"
+      and .outcome == "binary_present"
+      and .evidence.command == "command -v unshare"
+      and .evidence.path == "/usr/bin/unshare"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "run_kernel_cascade_assertion"
+      and .outcome == "failed_without_capability"
+      and .verdict == "FAIL"
+      and (.emitted | startswith("not ok 11 POSIX pidns: killing launcher_pid reaps a setsid/backgrounded escapee"))
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Assert the corrected FC-06 LF checkout contract.
+# @arg $1 decision-trace JSON path
+assert_crlf_worktree_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-06-cross-boundary-representation"
+    and .demonstrated_case == "autocrlf_shell_checkout"
+    and .final_verdict == "PASS"
+    and (.events | length == 2)
+    and [.events[].seq] == [1, 2]
+    and [.events[].decision] == ["apply_checkout_policy", "assert_bash_shebang_worktree_eol"]
+    and [.events[].outcome] == ["lf_for_bash_files", "no_cr_bytes"]
+    and all(.events[]; .case == "autocrlf_shell_checkout")
+    and ([.events[] | select(
+      .decision == "apply_checkout_policy"
+      and .outcome == "lf_for_bash_files"
+      and .evidence.catch_all == "* text=auto eol=lf"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "assert_bash_shebang_worktree_eol"
+      and .outcome == "no_cr_bytes"
+      and .evidence.policy_test == "on autocrlf=true checkout, bash-shebang working trees contain no CR"
+      and .verdict == "PASS"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-06 trace materialized CRLF shell input.
+# @arg $1 defective decision-trace JSON path
+assert_crlf_worktree_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-06-cross-boundary-representation"
+    and .demonstrated_case == "autocrlf_shell_checkout"
+    and .final_verdict == "$'"'"'\\r'"'"': command not found"
+    and (.events | length == 2)
+    and [.events[].seq] == [1, 2]
+    and [.events[].decision] == ["materialize_shell_checkout", "run_foreman_setup"]
+    and [.events[].outcome] == ["crlf", "shell_parse_failed"]
+    and all(.events[]; .case == "autocrlf_shell_checkout")
+    and ([.events[] | select(
+      .decision == "materialize_shell_checkout"
+      and .outcome == "crlf"
+      and .evidence.affected_sh_files == 78
+      and .evidence.index_blob_eol == "LF"
+      and .evidence.worktree_eol == "CRLF"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "run_foreman_setup"
+      and .outcome == "shell_parse_failed"
+      and .verdict == "$'"'"'\\r'"'"': command not found"
+      and .emitted == "lib/common.sh: line 3: $'"'"'\\r'"'"': command not found"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Assert the corrected FC-08 task-record reconciliation.
+# @arg $1 decision-trace JSON path
+assert_vendor_task_state_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-08-record-state-disagreement"
+    and .demonstrated_case == "implemented_tasks_unticked"
+    and .final_verdict == "23 done / 19 open"
+    and (.events | length == 2)
+    and [.events[].seq] == [1, 2]
+    and [.events[].decision] == ["verify_implemented_task_state", "reconcile_task_record"]
+    and [.events[].outcome] == ["verified", "record_matches_verified_state"]
+    and all(.events[]; .case == "implemented_tasks_unticked")
+    and ([.events[] | select(
+      .decision == "verify_implemented_task_state"
+      and .outcome == "verified"
+      and .evidence.done == 23
+      and .evidence.open == 19
+      and .evidence.t5_done == 0
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "reconcile_task_record"
+      and .outcome == "record_matches_verified_state"
+      and .verdict == "23 done / 19 open"
+      and .emitted == "23 done / 19 open"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-08 task record contradicted merged code.
+# @arg $1 defective decision-trace JSON path
+assert_vendor_task_state_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-08-record-state-disagreement"
+    and .demonstrated_case == "implemented_tasks_unticked"
+    and .final_verdict == "0 of 42 tasks done"
+    and (.events | length == 2)
+    and [.events[].seq] == [1, 2]
+    and [.events[].decision] == ["read_task_record", "compare_record_to_repository"]
+    and [.events[].outcome] == ["reported", "disagreement"]
+    and all(.events[]; .case == "implemented_tasks_unticked")
+    and ([.events[] | select(
+      .decision == "read_task_record"
+      and .outcome == "reported"
+      and .evidence.done == 0
+      and .evidence.total == 42
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "compare_record_to_repository"
+      and .outcome == "disagreement"
+      and .evidence.repository_state == "T1 through T4 implemented, verified and merged"
+      and .verdict == "0 of 42 tasks done"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
 # @description Assert that a defective trace contains its round-specific witness.
 # @arg $1 round id
 # @arg $2 defective decision-trace JSON path
@@ -113,8 +466,26 @@ assert_seeded_defect() {
   local round_id="$1" trace_path="$2"
 
   case "$round_id" in
+    audit-watchdog-orphaned-sleep)
+      assert_audit_watchdog_defect "$trace_path"
+      ;;
+    crlf-worktree-shell-unrunnable)
+      assert_crlf_worktree_defect "$trace_path"
+      ;;
+    formal-setsid-unavailable)
+      assert_formal_setsid_defect "$trace_path"
+      ;;
+    grok-single-turn-empty-burst)
+      assert_grok_empty_burst_defect "$trace_path"
+      ;;
+    launcher-pidns-capability-guard)
+      assert_launcher_pidns_defect "$trace_path"
+      ;;
     stall-no-output-undefined-predicate)
       assert_stall_no_output_defect "$trace_path"
+      ;;
+    vendor-adapter-task-state)
+      assert_vendor_task_state_defect "$trace_path"
       ;;
     *)
       return 1
@@ -136,8 +507,26 @@ assert_decision_trace() {
   : "$recorded_response"
 
   case "$round_id" in
+    audit-watchdog-orphaned-sleep)
+      assert_audit_watchdog_trace "$trace_path"
+      ;;
+    crlf-worktree-shell-unrunnable)
+      assert_crlf_worktree_trace "$trace_path"
+      ;;
+    formal-setsid-unavailable)
+      assert_formal_setsid_trace "$trace_path"
+      ;;
+    grok-single-turn-empty-burst)
+      assert_grok_empty_burst_trace "$trace_path"
+      ;;
+    launcher-pidns-capability-guard)
+      assert_launcher_pidns_trace "$trace_path"
+      ;;
     stall-no-output-undefined-predicate)
       assert_stall_no_output_trace "$trace_path"
+      ;;
+    vendor-adapter-task-state)
+      assert_vendor_task_state_trace "$trace_path"
       ;;
     *)
       return 1
@@ -323,7 +712,7 @@ report_coverage() {
   fi
   printf '\n'
   if (( demonstrated_count < ${#all_classes[@]} )); then
-    printf 'COVERAGE NOTE: incomplete corpus is loud but non-blocking until task 2.3 seeds the remaining rounds.\n'
+    printf 'COVERAGE NOTE: incomplete corpus is loud; a newly recorded failure class is not closed until its golden round and demonstration record exist.\n'
   fi
 }
 

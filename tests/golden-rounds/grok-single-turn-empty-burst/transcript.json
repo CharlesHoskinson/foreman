@@ -1,0 +1,20 @@
+{
+  "round_id": "grok-single-turn-empty-burst",
+  "failure_class": "FC-03-lane-terminal-without-deliverable",
+  "vendor": {
+    "name": "xAI Grok",
+    "model": "not recorded",
+    "interface": "grok --prompt-file",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Repair the Lean forcing block, rebuild, and leave the requested file changes.",
+    "repository_state": "defective direct single-turn invocation at 1e21a81fe0a51be5b7f0fc35cc4b6569bd490a82; corrected decision uses wrapper 81f004dd05eb2157360bc3572fda35150a091964",
+    "network_access": false
+  },
+  "response_text": "The recorded run printed a plan ending: \"Replacing the broken forcing block with a clean rewrite modeled on Metatheory's working proofs.\" It deactivated after 58 seconds wall and 14 seconds CPU with ExecMainStatus=0, Result=success, zero files changed, and lake build still at 25 errors. The corrected wrapper reports: grok-multiround: EMPTY-BURST FAILED after 2 rounds — grok narrated orientation but wrote nothing; re-issue a write-first spec or raise --max-rounds",
+  "recorded_at": "2026-07-28T08:54:28-06:00",
+  "recorded_version": "grok-empty-burst/81f004dd05eb2157360bc3572fda35150a091964",
+  "defective_trace": "tests/golden-rounds/grok-single-turn-empty-burst/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/grok-single-turn-empty-burst/corrected-trace.json"
+}

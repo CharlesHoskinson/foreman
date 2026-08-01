@@ -1,0 +1,11 @@
+{
+  "round_id": "audit-watchdog-orphaned-sleep",
+  "failure_class": "FC-04-process-ownership-leak",
+  "defective_trace": "tests/golden-rounds/audit-watchdog-orphaned-sleep/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/audit-watchdog-orphaned-sleep/corrected-trace.json",
+  "defective_verdict": "TIMEOUT",
+  "corrected_verdict": "PASS",
+  "harness_version": "tier1-round-layout/v1",
+  "demonstrated_at": "2026-07-31T15:45:49-06:00",
+  "demonstrated_by": "Tier 1 job"
+}

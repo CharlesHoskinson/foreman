@@ -1,0 +1,11 @@
+{
+  "round_id": "grok-single-turn-empty-burst",
+  "failure_class": "FC-03-lane-terminal-without-deliverable",
+  "defective_trace": "tests/golden-rounds/grok-single-turn-empty-burst/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/grok-single-turn-empty-burst/corrected-trace.json",
+  "defective_verdict": "Result=success",
+  "corrected_verdict": "EMPTY-BURST FAILED",
+  "harness_version": "tier1-round-layout/v1",
+  "demonstrated_at": "2026-07-19T10:23:47-06:00",
+  "demonstrated_by": "Tier 1 job"
+}

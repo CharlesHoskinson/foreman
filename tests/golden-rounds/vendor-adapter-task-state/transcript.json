@@ -1,0 +1,20 @@
+{
+  "round_id": "vendor-adapter-task-state",
+  "failure_class": "FC-08-record-state-disagreement",
+  "vendor": {
+    "name": "OpenAI Codex",
+    "model": "GPT-5.6 Sol",
+    "interface": "codex agent",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Reconcile vendor-adapter-contract task checkboxes with implementation that is already verified and merged.",
+    "repository_state": "defective a54c51b9b8b35f377351fb5db17126890764a45e; corrected 2189c1686a8dd29879f36b9ad7fb8d31ab7b9439",
+    "network_access": false
+  },
+  "response_text": "The package reported 0 of 42 tasks done while T1 through T4 were implemented, verified and merged. Corrected state: 23 done / 19 open, distributed T1 6, T2 5, T3 5, T4 5, T8 2. T5 remains 0 ticks.",
+  "recorded_at": "2026-08-01T00:47:46-06:00",
+  "recorded_version": "vendor-adapter-task-state/2189c1686a8dd29879f36b9ad7fb8d31ab7b9439",
+  "defective_trace": "tests/golden-rounds/vendor-adapter-task-state/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/vendor-adapter-task-state/corrected-trace.json"
+}

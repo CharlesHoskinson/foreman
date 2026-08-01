@@ -1,0 +1,20 @@
+{
+  "round_id": "crlf-worktree-shell-unrunnable",
+  "failure_class": "FC-06-cross-boundary-representation",
+  "vendor": {
+    "name": "Recorded repository incident",
+    "model": "not applicable",
+    "interface": "WSL bash on an autocrlf checkout",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Run foreman-setup.sh from WSL on the shared checkout and verify bash-executed files retain LF line endings.",
+    "repository_state": "defective bfc8af40c8d0e0f98ecb185733733bb932f88fe1; corrected f02f2071219004911f472b518ff08286b603622d",
+    "network_access": false
+  },
+  "response_text": "Defective checkout: lib/common.sh: line 3: $'\\r': command not found. od -c showed bash \\r \\n in the worktree while git show showed bash \\n; 78 .sh files were affected. Corrected policy and regression: * text=auto eol=lf; on autocrlf=true checkout, bash-shebang working trees contain no CR — PASS.",
+  "recorded_at": "2026-07-29T08:59:41-06:00",
+  "recorded_version": "crlf-total-policy/f02f2071219004911f472b518ff08286b603622d",
+  "defective_trace": "tests/golden-rounds/crlf-worktree-shell-unrunnable/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/crlf-worktree-shell-unrunnable/corrected-trace.json"
+}

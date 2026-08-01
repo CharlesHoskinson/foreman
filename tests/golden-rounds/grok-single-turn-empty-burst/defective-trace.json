@@ -1,0 +1,47 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "grok-single-turn-empty-burst",
+  "failure_class": "FC-03-lane-terminal-without-deliverable",
+  "implementation": {
+    "repository_commit": "1e21a81fe0a51be5b7f0fc35cc4b6569bd490a82",
+    "source": "grok --prompt-file single-turn invocation"
+  },
+  "demonstrated_case": "zero_files_changed",
+  "events": [
+    {
+      "seq": 1,
+      "case": "zero_files_changed",
+      "decision": "invoke_vendor_process",
+      "outcome": "exited",
+      "evidence": {
+        "wall_seconds": 58,
+        "cpu_seconds": 14,
+        "exit_status": 0,
+        "systemd_result": "success"
+      },
+      "emitted": "Replacing the broken forcing block with a clean rewrite modeled on Metatheory's working proofs."
+    },
+    {
+      "seq": 2,
+      "case": "zero_files_changed",
+      "decision": "verify_deliverable",
+      "outcome": "missing",
+      "evidence": {
+        "changed_files": 0,
+        "build_errors": 25
+      }
+    },
+    {
+      "seq": 3,
+      "case": "zero_files_changed",
+      "decision": "classify_round_completion",
+      "outcome": "trusted_process_exit",
+      "evidence": {
+        "exit_status": 0
+      },
+      "verdict": "Result=success",
+      "emitted": "ExecMainStatus=0, Result=success"
+    }
+  ],
+  "final_verdict": "Result=success"
+}
