@@ -4,30 +4,36 @@
 If this file disagrees with `fm-session.py recover`, the DB wins.
 
 ```bash
-cd /root/fm-wt/integrate
 python3 skills/foreman/scripts/fm-session.py recover
 ```
 
-Last updated 2026-08-01. Numbers come from the session store and the first CI
-runs. Scope decision: **full roadmap scope** (30 packages), taken with the cost
-stated. Four further packages exist as v0.3.x candidates and are not in the
-v0.2.9 thirty.
+Scope decision: **full roadmap scope**, taken with the cost stated. Four further
+packages exist as v0.3.x candidates and are not in the v0.2.9 thirty.
 
 ---
 
 ## Where the release stands
 
-**One of twelve tag criteria is met.** CI now has green Linux and Windows runs
-and recorded red runs proving both gates can fail. The other eleven criteria
-remain open.
+This section states **commands, not values.** Every number this file used to
+carry had gone stale, and several were contradicting each other inside the same
+document — three different package counts and three different tick counts across
+three files. A count with no way to re-derive it is an assertion of authority
+the document has not earned, so the values live in the session store and this
+table tells you how to ask.
 
-| Measure | Value |
+| Measure | How to get it |
 |---|---|
-| Packages implemented | **34 change packages** exist (was 30). Four rescued 2026-08-01 from a stale checkout, migrated to the parseable delta shape, and parked as **v0.3.x candidates** (not in the v0.2.9 thirty; valid but unimplemented). `openspec validate --strict` green on all 34. **7 packages have zero code**; `vendor-adapter-contract` T1 landed. 3 partial |
-| Full suite | **547 pass / 0 fail / 31 skip** on `gates-linux`, from the TAP artifacts of runs 30688804041 and 30688873294 |
-| Obligations | The session store is authoritative; see `fm-session.py recover` |
-| Measurements fresh | 2 of 14 — most went stale because commits touched their scoped paths (store working as designed) |
-| Plans complete | 1 of 6 — Plan 2 largely proven already built; Plan 3 workflows merged |
+| Packages | `ls -d openspec/changes/*/ \| grep -v archive \| wc -l` |
+| Tasks ticked / open / packages at zero | census over `openspec/changes/*/tasks.md` counting `- [x]` and `- [ ]` |
+| Full suite totals | `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` — read the `GATE bats` line |
+| Obligations open / blocked | `fm-session.py recover` |
+| Measurements still quotable | `fm-session.py freshness --stale-only --format tsv` — anything listed is **not** quotable |
+| Consecutive green CI | `gh run list --workflow gates-linux.yml --branch main --json conclusion,status` |
+| Evidence artifacts | `find docs/evidence -type f -exec md5sum {} + \| awk '{print $1}' \| sort -u \| wc -l` — count **unique**, not files |
+
+The last row is not pedantry. This file previously claimed "101 artifacts under
+`docs/evidence/`" when 27 of them were byte-identical copies of two files, one
+of which had been checked in sixteen times.
 
 ---
 
@@ -35,64 +41,107 @@ remain open.
 
 - [ ] **1. Scope** — all 30 packages implemented; `openspec validate --strict`
       green on all 30; shipped packages archived.
-          *Measured at `e7b735f`: **34 packages, 384 tasks ticked, 933 open, 14
-          still at zero ticks.** The session began at 59 ticked and 30 at zero —
-          most of that gap was the RECORD, not the code: task files were written
-          as plans and never ticked as work landed, and a file census found 22 of
-          the 28 zero-tick packages already naming deliverables on disk. Eleven
-          reconciliations have since re-derived tick state from commands.*
+      *Re-derive the counts with the census in "Where the release stands";
+      do not read them from here. Most of the original gap was the RECORD
+      rather than the code — task files were written as plans and never
+      ticked as work landed, and a file census found most zero-tick packages
+      already naming deliverables on disk.*
 
-          *The 14 still at zero are the genuine remainder:
-          `audit-groundedness-gate` and `cross-vendor-audit-routing` T3–T6 are in
-          flight; `captured-facts-convergence`, `foreman-discover-lane`,
-          `graph-context-builder`, `spec-triage-gate`, `workload-fit-accounting`
-          and `wsl-seam-doctrine` name no file that exists; `graph-dogfood`,
-          `graph-eval-falsification` and `work-dag-projection` are the graph plane
-          (falsification last); `doctrine-reality-drift`, `vendor-preflight`,
-          `wsl-preflight` and `wsl-launcher-shipped` have partial deliverables but
-          no demonstrable behaviour. `wsl-launcher-shipped` is the cautionary one:
-          all six files it names exist and it still reconciled to zero, which is
-          why the census ranks what to examine and never what to tick.*
+  *The packages still at zero fall into four groups: `audit-groundedness-gate`
+      and `cross-vendor-audit-routing` T3–T6 are in flight;
+      `foreman-discover-lane`, `spec-triage-gate` and `workload-fit-accounting`
+      lack a checkable contract rather than an implementation, and
+      `wsl-seam-doctrine` is direction-reversed against native Docker;
+      `graph-context-builder`, `graph-dogfood`, `graph-eval-falsification`
+      and `work-dag-projection` are the graph plane (falsification last);
+      `doctrine-reality-drift`, `vendor-preflight` and
+      `wsl-preflight` have partial deliverables but
+      no demonstrable behaviour. `wsl-launcher-shipped` is the cautionary one:
+      all six files it names exist and it still reconciled to zero, which is
+      why the census ranks what to examine and never what to tick.*
 - [ ] **2. Suite** — completes and passes on **three consecutive runs**; bats
       gate switched back ON in `ci-local.sh` and CI.
-      *`gates-linux` reports **547 pass / 0 fail / 31 skip**. Consecutive green
-      runs: **3** — c71d7b15, 95b7f902 and 5758649f, each running the suite because
-      `gates-linux.yml` sets `FOREMAN_CI_BATS=1`. `gates-windows` is at four.
-      All 26 old failures are resolved: the POSIX launcher build,
-      pidns capability guard, evidence-probe non-root fix, stale gate fixture
-      and test-9 kill-order fix. It succeeded on 6bfe7a19 and 9451182b, failed
-      on 584ddfbb, then succeeded on 725c1294 and 4ff8959f. The 584ddfbb result
-      was not a test failure: it reported `ok=547 not_ok=0`, but
-      `tests/audit-verdict.bats` carried `test_verdict=TIMEOUT` after exceeding
-      the 600s `TEST_FILE_TIMEOUT_S` bound while every test in the file passed.
-      It runs in 18s locally and the timeout did not reproduce in six
-      consecutive local runs. The mechanism is unknown and recorded as an open
-      obligation. `gates-linux.yml` sets `FOREMAN_CI_BATS=1`
-          explicitly, so CI ran the suite even before the default changed.
-      The bats gate now also defaults ON in `tools/ci-local.sh`
-      (`${FOREMAN_CI_BATS:-1}`, merged b4ed7bd), so the suite gates locally as well as
-      in CI; `FOREMAN_CI_BATS=0` skips it for one run and `--quick` still defers it.
-      The original disable reason — a file could hang forever holding the host-wide
-      mutex — is bounded by `tests/run.sh`'s `timeout --kill-after=30
-      ${TEST_FILE_TIMEOUT_S:-600}`, a bound exercised in production on run 584ddfbb.*
-- [ ] **3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
+      *The suite half is met and the CI half is not, so this stays unticked.
+      `gates-linux` runs the suite (`FOREMAN_CI_BATS: "1"`) and has more than
+      three consecutive green completed runs; the bats gate also defaults ON in
+      `tools/ci-local.sh` (`${FOREMAN_CI_BATS:-1}`). But
+      `.github/workflows/gates-windows.yml:73` sets `FOREMAN_CI_BATS: "0"`, so
+      the suite gates on Linux only and "ON in CI" is false for half of CI.
+      Re-derive both with `grep -rn FOREMAN_CI_BATS .github/workflows/`.*
+
+  *Ticking this requires one of: turning the suite on for `gates-windows`
+      and getting it green there — `docs/RESIDUALS.md` records that bats has
+      never passed on that runner — or narrowing the criterion to Linux and
+      saying so.*
+
+  *Note that a green `gates-linux` does not mean the bats gate enforces.
+      `tests/run.sh` separates TEST failures from POLICY failures: a test
+      failure exits 1 in either mode, but skip-budget, pass-baseline and
+      bare-skip violations only fail the run under `GATE_MODE=enforce`, and the
+      current runs report `RESULT SHADOW`. The suite passing and the policy gate
+      enforcing are two claims; only the first is currently true.*
+- [X] **3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
       a **recorded red run** proving it can fail.
-      *Green `gates-linux` runs: 6bfe7a19, 9451182b, 725c1294 and 4ff8959f.
-      Green `gates-windows` runs: 5758649f and 95b7f902. Recorded red
-      `gates-linux` runs include a54c51b9, 74ebd625, 20b42994, c8de1cee and
-      87d16537. `gates-windows` run 30682495436, like every Windows run before
-      5758649f, was red. Its `formal` result, `run=19 matched=0 failures=19`,
-      was not 19 model failures: every per-row log contained only
-      `setsid: command not found`. Git Bash has no `setsid`, so each row died in
-      1-2s and classified ERROR. `run_bounded` now announces once per run that
-      it is degrading to a plain background spawn when `setsid` is absent. The
-      post-fix Windows artifact shows 11 VIOLATED, 8 HOLDS and `match=yes` on
-      all 19, identical to Linux.*
+      *Met. Both workflows are green on `main` with a run of consecutive green
+      completed runs behind them, and both have recorded reds. Re-derive with
+      `gh run list --workflow gates-linux.yml --branch main --json conclusion,status`
+      and the same for `gates-windows.yml`.*
+
+  *Count consecutive greens from the newest completed run backwards, stopping
+      at the first non-success. Do not count from the oldest: mis-reading a streak
+      by inspecting the newest run instead of the first red one cost real time.*
+
+  *The recorded `gates-windows` red is instructive and worth keeping: its
+      `formal` result read `run=19 matched=0 failures=19`, which was not 19 model
+      failures — every per-row log contained only `setsid: command not found`.
+      Git Bash has no `setsid`, so each row died in 1-2s and classified ERROR.
+      `run_bounded` now announces once per run that it is degrading to a plain
+      background spawn when `setsid` is absent.*
 - [ ] **4. Negative controls** — every verdict-emitting checker registered, the
       completeness gate green, every control observed firing.
-      *About 6 exist. The registry is not built. Scope measured at `ea17b37`: **110 verdict emission sites across 23 files**, not the ~60-80 previously estimated — and those two units fall on opposite sides of that estimate. The distribution is very uneven (`tools/ci-local.sh` alone holds 34 sites; five files hold 72 of 110), so a registry keyed on files would report complete while leaving most individual verdicts uncontrolled. The unit must be fixed before the registry is built — obligation 65. Ownership: the negative-control registry belongs to `evidence-contracts`; `audit-groundedness-gate`’s registry is a different thing, covering audit-artifact checks only.*
-- [ ] **5. Audit** — a `codex-auditor` verdict per package; zero `BLOCKED`; any
+      *The registry is not built, and the unit must be fixed before it is —
+      obligation 65. The "110 verdict emission sites across 23 files" census
+      should key nothing: it is a keyword scan, unsound in both directions. It
+      counts help text and `SKIP` branches as emissions, and it misses whole
+      checkers whose verdict tokens it does not know — `formal/run-checks.sh`,
+      `lane-complete-check.sh` and `docs-check.sh` among them.*
+
+  *The unit that matches the intent is the **named check**, already specified
+      as `check_id = <path>::<check name>` in
+      `openspec/changes/test-infrastructure-hardening/specs/test-harness/spec.md`.
+      Counted that way the total lands inside the original "order of 60-80"
+      estimate, which was never wrong — only the census's unit was. Two working
+      exemplars of the pattern already exist: `gate-ground-registry.tsv` with a
+      mutant per check, and `formal/expectations.tsv` with rows carrying
+      `expected=VIOLATED`.*
+
+  *Ownership correction: the negative-control registry belongs to
+      `test-infrastructure-hardening`, which specifies its path and schema — not
+      to `evidence-contracts`, whose negative-control language is about the
+      write-evidence control corpus. `audit-groundedness-gate`'s registry is a
+      third thing, covering audit-artifact checks only.*
+
+  *`tools/ci-local.sh` holds 34 of the 110 sites but is a reporting layer
+      over 9 gates, not 34 checkers — and keyed that way it exposes a defect a
+      site-count buries: `gate_lanes`, `gate_docs` and `gate_plugin_drift` have
+      no FAIL path at all. Three of the gate runner's own gates cannot fail.*
+- [ ] **5. Audit** — a cross-vendor audit verdict per package, the auditor chosen
+      by `ac_select_auditor` and its vendor, model and **model family** recorded
+      with the verdict; zero `BLOCKED` unresolved at the tag commit; any
       `WARNING` with unresolved medium-or-higher findings resolved.
+      *Reworded — obligation 89. It previously required a `codex-auditor` verdict
+      per package, which is unsatisfiable by construction: `lib/audit-call.sh`
+      refuses any auditor sharing the worker's model family, and codex
+      implemented nearly every package this release, so every audit correctly
+      routed to grok. Naming a vendor in a release criterion is what made it
+      stale; the enforced property is family separation, not a CLI name.*
+
+  *Still blocked on obligation 90: nothing defines what a per-PACKAGE verdict
+      artifact is. `audit-run.sh` writes `audit-verdict.json` per RUN, and this
+      release audited per LANE. Any "N of 34 audited" figure is unfounded until
+      that artifact is defined — including the 30-of-34 grep proxy, which counts
+      a package NAME appearing anywhere under `docs/evidence` and therefore
+      measures scope rather than auditing.*
 - [ ] **6. Session DB** — no release-blocking obligation open; **every
       measurement fresh at the tag commit**; no number in the release notes
       without its freshness verdict and re-run command.
@@ -116,17 +165,17 @@ remain open.
       per-lane isolation unsolved; audit latency bounded not solved; formal
       results bounded (Apalache 8-12) and sampled (20k traces).
 
-          *Stated in `docs/RESIDUALS.md` (`d24695f`). Carries the four above and
-          adds six from this release: the groundedness gate may not leave shadow
-          (canary unbound to an entrypoint, an empty registry yields a vacuous
-          `CANARY_OK`, `G1` declares an input its predicate never reads); Tier 2
-          is built but has never been executed, so any Tier 2 number would be
-          fabricated and there are none; the mkdir atomicity alternation was
-          never reproduced locally because this host's ptrace policy rejects
-          `strace`; `bats` is provisioned on Windows but has never PASSED there;
-          and measurement freshness is undischarged. The criterion's word is
-          **stated**, not resolved. Criterion 12 must link this document from
-          the release notes.*
+  *Stated in `docs/RESIDUALS.md` (`d24695f`). Carries the four above and
+      adds six from this release: the groundedness gate may not leave shadow
+      (canary unbound to an entrypoint, an empty registry yields a vacuous
+      `CANARY_OK`, `G1` declares an input its predicate never reads); Tier 2
+      is built but has never been executed, so any Tier 2 number would be
+      fabricated and there are none; the mkdir atomicity alternation was
+      never reproduced locally because this host's ptrace policy rejects
+      `strace`; `bats` is provisioned on Windows but has never PASSED there;
+      and measurement freshness is undischarged. The criterion's word is
+      **stated**, not resolved. Criterion 12 must link this document from
+      the release notes.*
 - [ ] **12. Record** — ROADMAP marked released; devlog correction block landed
       (obligation 13); `bugeventlog.md` complete; `v0.2.9` tagged
       **Total GeorgeCall** with the committed release art.
@@ -205,7 +254,10 @@ grep -rln "TerminusDB" --include=*.md openspec/changes/ | grep -v archive
       per-file timeouts.
 - [X] Four final-review blockers fixed, each with a negative control verified
       failing first.
-- [X] Evidence trail landed: 101 artifacts under `docs/evidence/`.
+- [X] Evidence trail landed under `docs/evidence/`. The original entry claimed
+      101 artifacts; 27 of those were byte-identical copies of two files, one
+      checked in sixteen times, and have since been deleted. Count unique
+      content, not files — the command is in "Where the release stands".
 - [X] Branch cleanup: 24 remote and 31 local branches deleted, 30 worktrees
       removed, every one verified to carry zero commits main lacks.
 
