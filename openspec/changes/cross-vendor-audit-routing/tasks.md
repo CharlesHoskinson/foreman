@@ -10,27 +10,27 @@ family reporting.
 
 ## T1 — the shared enforcement and selection point
 
-- [ ] Create `skills/foreman/scripts/lib/audit-call.sh` — the single place the
+- [x] Create `skills/foreman/scripts/lib/audit-call.sh` — the single place the
       invariant is implemented, as `ROADMAP.md:238-239` already describes.
-- [ ] Implement candidate filtering: remove every worker vendor in the round,
+- [x] Implement candidate filtering: remove every worker vendor in the round,
       including every arm of a race.
-- [ ] Implement selection: first remaining candidate that is ready,
+- [x] Implement selection: first remaining candidate that is ready,
       family-distinct, and has an audit adapter.
-- [ ] Deterministic selection — same config, worker set and readiness state
+- [x] Deterministic selection — same config, worker set and readiness state
       always yields the same auditor.
-- [ ] Refuse with a reason naming every rejected candidate when none remains.
-- [ ] shdoc headers; shellcheck clean.
+- [x] Refuse with a reason naming every rejected candidate when none remains.
+- [x] shdoc headers; shellcheck clean.
 
 ## T2 — model family classification
 
 - [ ] Each adapter publishes the model family for a configured model.
-- [ ] Handle gateway CLIs: the family is the family of the model actually
+- [x] Handle gateway CLIs: the family is the family of the model actually
       selected, never the family associated with the CLI. `agy`'s live model
       list on the reference box spans Gemini, Anthropic and OpenAI-lineage
       models, so this is not hypothetical.
-- [ ] Fail closed on an unclassifiable model: refuse it as an auditor and name
+- [x] Fail closed on an unclassifiable model: refuse it as an auditor and name
       it. Do not assume distinctness.
-- [ ] Test the specific trap: worker `claude`, auditor `agy` pinned to an
+- [x] Test the specific trap: worker `claude`, auditor `agy` pinned to an
       Anthropic-family model, must be refused.
 
 ## T3 — config and migration
@@ -48,9 +48,9 @@ family reporting.
 
 - [ ] `audit-run.sh:56-58` reads the preference list through the shared
       component.
-- [ ] `audit-run.sh:318-321`'s inline equality check is replaced by the shared
+- [x] `audit-run.sh:318-321`'s inline equality check is replaced by the shared
       component's family-based check.
-- [ ] `audit-run.sh:322-325`'s codex-only refusal is removed.
+- [x] `audit-run.sh:322-325`'s codex-only refusal is removed.
 - [ ] `audit-run.sh:379-387` dispatches through `adapter_audit_argv`.
 - [ ] `audit-run.sh:430-432`'s tamper assertion is generalized to every vendor
       and both tiers, with the declared-report-path exception. **This package
@@ -83,9 +83,9 @@ family reporting.
       refusal, scalar-config compatibility, substitution reporting, soft-mode
       gate failure, tamper assertion for a non-codex auditor.
 - [ ] Full suite green on WSL/Ubuntu 26.04.
-- [ ] `shellcheck` clean on `lib/audit-call.sh` and `audit-run.sh`.
+- [x] `shellcheck` clean on `lib/audit-call.sh` and `audit-run.sh`.
 - [ ] `bugeventlog.md` entry recording the enforcement-asymmetry failure class:
       an invariant stated in six prose locations and enforced in one line of
       one hard-mode script, with soft mode — the default — unenforced.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate cross-vendor-audit-routing --strict` passes.
+- [x] `openspec validate cross-vendor-audit-routing --strict` passes.
