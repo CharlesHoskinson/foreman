@@ -2,21 +2,34 @@
 
 ## 1. Tier 0 — slice gates and the annual self-test
 
-- [ ] 1.1 Confirm the ~14 per-slice groupings of the existing 33 bats
+- [x] 1.1 Confirm the ~14 per-slice groupings of the existing 33 bats
       files map cleanly onto test-infrastructure-hardening's baseline
       mechanism; do not invent a second baseline store.
-- [ ] 1.2 Write the annual regression-injection self-test harness: inject
+      Evidence: 46 top-level `.bats` files, 46 unique `tests/baseline.tsv`
+      entries, and 46 unique `tests/skip-budget.tsv` entries; both set
+      comparisons are empty.
+- [x] 1.2 Write the annual regression-injection self-test harness: inject
       one defect per run into a single named slice, capture the
       owning-slice pass-rate delta and the aggregate pass-rate delta.
-- [ ] 1.3 Assert the stated detection criterion for each injected defect:
+      Evidence: `measure_delta_pair` in
+      `tests/selftest-test-infrastructure.sh` reads both drops from the
+      `aggregate-enforce.tsv` slice report and measures `100.00pp` and
+      `3.03pp` for the named regressed fixture.
+- [x] 1.3 Assert the stated detection criterion for each injected defect:
       owning-slice pass-rate drop >= 20 percentage points AND exceeding the
       aggregate drop by >= 15 percentage points. Fail the self-test loudly
       when either figure is not met, naming both measured drops. Compare
       differences, never a ratio of the two drops.
-- [ ] 1.4 Record each self-test run's delta pair so next year's run has a
+      Evidence: `check_detection_criterion` compares the two differences;
+      the forced 120pp control exits non-zero and names both measured drops.
+- [x] 1.4 Record each self-test run's delta pair so next year's run has a
       comparison baseline.
-- [ ] 1.5 Add a documentation flag/check that marks the self-test overdue
+      Evidence: `docs/evidence/regression-harness-tier0-deltas.tsv` is an
+      append-only, greppable UTC run log containing the slice and both drops.
+- [x] 1.5 Add a documentation flag/check that marks the self-test overdue
       once 12 months have elapsed since the last recorded run.
+      Evidence: `report_annual_status` prints `SELFTEST OVERDUE` after 12
+      months, and `check_annual_overdue_report` asserts that status stays 0.
 
 ## 2. Tier 1 — vendor-replay golden corpus
 
