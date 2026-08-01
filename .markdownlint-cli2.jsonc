@@ -2,7 +2,11 @@
   // Foreman docs style: permissive on line length/HTML (doctrine tables), strict on structure.
   // MD024 siblings_only: repeated subsection headings under different parents are intended
   // (chronological logs, per-finding reports); the rule still fires on same-parent duplicates.
-  "config": { "default": true, "MD013": false, "MD029": { "style": "ordered" }, "MD033": false, "MD041": false, "MD060": false, "MD024": { "siblings_only": true } },
+  // MD046 fenced: the repo uses ~2080 fenced blocks. Unset, the rule INFERS the
+  // expected style from each file's first block, so bugeventlog.md (which opens
+  // with an indented one) reported all 13 of its fenced blocks as wrong. Pinned,
+  // total findings drop 79 -> 67 and the rule still fires on genuine departures.
+  "config": { "default": true, "MD013": false, "MD029": { "style": "ordered" }, "MD033": false, "MD041": false, "MD060": false, "MD024": { "siblings_only": true }, "MD046": { "style": "fenced" } },
   // Archived evidence is exempt: they are archives of what happened, and editing an archive to satisfy a style linter falsifies it.
   "ignores": [
     "skills/scrapling/**", "skills/graphify/**", "skills/superpowers/**",
