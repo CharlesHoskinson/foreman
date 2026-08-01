@@ -16,9 +16,12 @@ const NonNegativeInteger = Schema.Number.pipe(
   Schema.int(),
   Schema.nonNegative(),
 );
-const Extensions = Schema.Record({
-  key: Schema.String,
-  value: Schema.Unknown,
+const Extensions = Schema.Struct({
+  schemaVersion: VersionOne,
+  values: Schema.Record({
+    key: Schema.String,
+    value: Schema.Unknown,
+  }),
 });
 
 const baseCommand = {
