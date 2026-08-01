@@ -2833,3 +2833,47 @@ had been closed on half its text.
 An architect's statement about the record is a claim, not a fact. Brief it with
 the command that reads it, so the implementer can re-run the read. Where a
 brief and the store disagree, the store wins and the conflict gets reported.
+
+## 2026-08-01 — Event 19: four sites advertised a vendor lane that the fifth could not build
+
+**Phase:** design and implement (`vendor-adapter-contract` T7 and T8).
+
+### Four sites said the Claude lane was runnable
+
+The lane existed in four pieces of operational documentation-as-code:
+
+- `lane-run.sh` mapped the vendor to `CLAUDE_CONFIG_DIR`.
+- `lane-queue.sh` created a `claude:3` pueue group.
+- `tool-check.sh` accepted `--lane claude`.
+- `wt-new.sh` provisioned and reported a `vendor-home/claude` directory.
+
+Each piece was plausible in isolation. Together they advertised a capability.
+At the fifth site, where the adapter had to build executable argv, the
+capability could not be implemented honestly.
+
+### A config directory was not an isolation boundary
+
+T5b ruled that `CLAUDE_CONFIG_DIR` does not cover Claude's top-level session
+state. Safe concurrent isolation needs a genuinely distinct `$HOME` per lane.
+Without a live authenticated Claude and the destructive concurrency evidence
+required to verify that boundary, an implementation would have converted an
+unsupported capability into an unverified isolation claim.
+
+### T7 removed the operational advertising
+
+T7 chose removal over pretending the lane worked. Commit `af42efa` removed the
+executable advertising from the lane-run vendor map, the pueue topology, and
+tool-check, while keeping the adapter's explicit refusal. The generic empty
+vendor-home scaffold remains inert provisioning; it no longer has a runnable
+Claude path behind it.
+
+This is the half-wired-lane failure class: four records say a capability
+exists, but the component that must realize it cannot. The record disagrees
+with the code precisely where execution begins.
+
+### Enhancement
+
+Vendor argv now has one owner: the adapter contract. T8 removes copied vendor
+commands from agent definitions and makes `docs-check.sh` fail with file and
+line evidence if an agent restates a raw vendor invocation. A drift guard must
+prove both sides: the clean tree passes, and an injected command makes it fail.

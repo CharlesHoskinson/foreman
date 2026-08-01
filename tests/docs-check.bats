@@ -49,3 +49,18 @@ EOF
   DOCS_CHECK_FORCE_MISSING=lychee run bash "$SCRIPTS/docs-check.sh"
   [ "$status" -eq 2 ]
 }
+
+@test "docs-check fails on raw vendor invocation in agent definition" {
+  mkdir -p agents
+  cat > agents/bad-agent.md <<'EOF'
+# Agent fixture
+
+```bash
+codex exec --sandbox workspace-write
+```
+EOF
+  run bash "$SCRIPTS/docs-check.sh" --json out.json
+  [ "$status" -eq 1 ]
+  grep -q 'raw vendor invocation: agents/bad-agent.md:4:' <<< "$output"
+  grep -A2 '"agent-invocations"' out.json | grep -q '"status": *"fail"'
+}

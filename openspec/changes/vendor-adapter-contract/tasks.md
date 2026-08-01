@@ -116,10 +116,10 @@ verified, so the existing adapter refusal remains the honest end state.
 
 ## T8 — docs, agents, and gate
 
-- [ ] `agents/codex-auditor.md`, `agents/codex-implementer.md`,
+- [x] `agents/codex-auditor.md`, `agents/codex-implementer.md`,
       `agents/grok-implementer.md`: cite the adapter, remove restated vendor
       flags.
-- [ ] Add a docs check asserting no agent file contains a raw vendor
+- [x] Add a docs check asserting no agent file contains a raw vendor
       invocation.
 - [ ] `skills/foreman/references/lanes.md` updated for the adapter layer and
       the `vendor-multiround.sh` rename.
@@ -128,7 +128,7 @@ verified, so the existing adapter refusal remains the honest end state.
 - [x] `shellcheck` clean on every adapter owned by this package.
       `lib/evidence.sh` and `vendor-multiround.sh` are `evidence-contracts`'
       files and are gated there, not here.
-- [ ] `bugeventlog.md` entry recording the half-wired-lane failure class
+- [x] `bugeventlog.md` entry recording the half-wired-lane failure class
       (advertised at four sites, unimplementable at the fifth) and this
       enhancement.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.

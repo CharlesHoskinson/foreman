@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # @description Fail-closed documentation and comment-quality gate: markdownlint-cli2,
-#   codespell, lychee (offline by default), and bash comment-coverage. Emits a human
-#   summary and optional JSON (--json PATH) for gate consumption.
+#   codespell, lychee (offline by default), agent vendor-invocation drift, and bash
+#   comment-coverage. Emits a human summary and optional JSON (--json PATH) for gate
+#   consumption.
 # Usage: docs-check.sh [--online] [--json PATH]
 # Env: DOCS_CHECK_FORCE_MISSING=tool1,tool2 forces named tool(s) missing (test hook)
 # @exitcode 0 all checks pass
@@ -89,6 +90,42 @@ if [[ -n "$LYCHEE_CMD" ]]; then
   else record lychee fail "$(grep -c 'ERROR\|✗' <<<"$OUT" || true)"; echo "$OUT" | tail -20; fi
 else record lychee missing; fi
 
+# Agent vendor invocations must come from scripts/adapters/<vendor>.sh, never
+# from agent prose. Scan fenced command blocks, bare command lines, and inline
+# command spans. There is deliberately no historical/example exemption marker:
+# raw argv examples do not belong in an operational agent definition.
+AGENT_INVOCATION_FINDINGS=0
+while IFS= read -r -d '' f; do
+  while IFS= read -r finding; do
+    echo "$finding"
+    AGENT_INVOCATION_FINDINGS=$((AGENT_INVOCATION_FINDINGS + 1))
+  done < <(awk -v file="$f" '
+    function is_vendor_command(source, text) {
+      text = source
+      sub(/^[[:space:]]+/, "", text)
+      if (text ~ /^#/) return 0
+      return text ~ /(^|[[:space:]&;|])(grok|codex|claude|agy)[[:space:]]+(exec([[:space:]\\]|$)|--?[[:alnum:]][[:alnum:]-]*)/
+    }
+    /^[[:space:]]*(```+|~~~+)/ { fenced = !fenced; next }
+    {
+      raw = 0
+      if (fenced && is_vendor_command($0)) raw = 1
+      if (!fenced) {
+        text = $0
+        sub(/^[[:space:]]*(\$[[:space:]]*)?/, "", text)
+        if (text ~ /^(grok|codex|claude|agy)[[:space:]]+(exec([[:space:]\\]|$)|--?[[:alnum:]][[:alnum:]-]*)/) raw = 1
+        if ($0 ~ /`(grok|codex|claude|agy)[[:space:]]+(exec[[:space:]][^`]*--|--?[[:alnum:]])[^`]*`/) raw = 1
+      }
+      if (raw) printf "raw vendor invocation: %s:%d: %s\n", file, FNR, $0
+    }
+  ' "$f")
+done < <(find agents .agents .claude/agents .codex/agents -maxdepth 1 -type f -name '*.md' -print0 2>/dev/null)
+if [[ "$AGENT_INVOCATION_FINDINGS" -gt 0 ]]; then
+  record agent-invocations fail "$AGENT_INVOCATION_FINDINGS"
+else
+  record agent-invocations pass 0
+fi
+
 # comment coverage over scripts/**/*.sh (repo-relative; excludes vendored)
 COV_FINDINGS=0
 while IFS= read -r f; do
@@ -125,6 +162,7 @@ tools = {
   "markdownlint": {"status": "${T_STATUS[markdownlint]:-missing}", "findings": ${T_FINDINGS[markdownlint]:-0}},
   "codespell":    {"status": "${T_STATUS[codespell]:-missing}",    "findings": ${T_FINDINGS[codespell]:-0}},
   "lychee":       {"status": "${T_STATUS[lychee]:-missing}",       "findings": ${T_FINDINGS[lychee]:-0}},
+  "agent-invocations": {"status": "${T_STATUS[agent-invocations]:-missing}", "findings": ${T_FINDINGS[agent-invocations]:-0}},
   "comments":     {"status": "${T_STATUS[comments]:-missing}",     "findings": ${T_FINDINGS[comments]:-0}},
 }
 status = "pass" if all(t["status"] == "pass" for t in tools.values()) else "fail"
@@ -132,7 +170,7 @@ json.dump({"schema": "foreman.docs-check.v1", "status": status, "tools": tools},
 PY
 fi
 
-echo "docs-check: markdownlint=${T_STATUS[markdownlint]:-?} codespell=${T_STATUS[codespell]:-?} lychee=${T_STATUS[lychee]:-?} comments=${T_STATUS[comments]:-?}"
+echo "docs-check: markdownlint=${T_STATUS[markdownlint]:-?} codespell=${T_STATUS[codespell]:-?} lychee=${T_STATUS[lychee]:-?} agent-invocations=${T_STATUS[agent-invocations]:-?} comments=${T_STATUS[comments]:-?}"
 [[ "$MISSING" -eq 1 ]] && exit 2
 [[ "$FAIL" -eq 1 ]] && exit 1
 exit 0

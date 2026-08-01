@@ -2,8 +2,8 @@
 name: foreman-audit
 description: >
   Parallel Foreman audit coordinator in an isolated worktree. Prepares cold
-  context, preferably drives Codex GPT-5.6 Sol (codex-auditor / codex exec
-  read-only), writes FOREMAN_REPORT.md into the audit worktree for later
+  context, preferably drives Codex GPT-5.6 Sol through codex-auditor and the
+  read-only vendor adapter, writes FOREMAN_REPORT.md into the audit worktree for later
   consolidate. Use after implement or for multi-lane review. Never implements.
 model: sonnet
 tools: Bash, Read, Grep, Glob
@@ -20,19 +20,18 @@ run `wt-consolidate` across search/plan/audit in parallel.
 
 1. Ensure you are in the audit worktree (or Claude-created isolation worktree).
 2. Obtain the diff under review (from brief: base SHA, branch, or path to patch).
-3. Prefer **Codex GPT-5.6 Sol** read-only review (`codex exec` + `--output-schema`
-   or the `codex-auditor` contract). If Codex unavailable, report
+3. Prefer **Codex GPT-5.6 Sol** read-only review through `codex-auditor` and
+   `skills/foreman/scripts/adapters/codex.sh`'s `adapter_audit_argv` contract.
+   If Codex is unavailable, report
    `STATUS: unavailable` — do not silently become a Claude-only fake audit unless
    the architect explicitly allowed a downgrade.
 4. Write the verdict into FOREMAN_REPORT files in the worktree root.
 
 ## Preflight
 
-```bash
-command -v codex && codex --version
-pwd
-git rev-parse --show-toplevel
-```
+Use `skills/foreman/scripts/adapters/codex.sh`'s `adapter_auth_probe` for the
+vendor check. Separately confirm the current directory and repository root with
+read-only shell and Git commands.
 
 ## Mandatory outputs
 
@@ -85,14 +84,10 @@ when possible.
 
 ## Codex invocation (preferred)
 
-Use the same discipline as `codex-auditor`:
-
-- `--model gpt-5.6-sol`
-- `-c model_reasoning_effort=high`
-- `--sandbox read-only`
-- `--output-schema` → verdict.schema.json
-- `--output-last-message` file
-- After: `git status --porcelain` must show **only** report files (or clean)
+Use the same adapter-owned discipline as `codex-auditor`. The complete argv
+comes from `skills/foreman/scripts/adapters/codex.sh` and
+`adapter_audit_argv`; do not restate its vendor flags here. After the audit,
+`git status --porcelain` must show **only** report files or a clean tree.
 
 If the worktree was created from base without the implementer commits, the brief
 must pass a patch path or the implementer branch name — **do not invent a diff**.
