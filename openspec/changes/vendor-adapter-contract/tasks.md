@@ -6,64 +6,64 @@ can start immediately. T8 gates.
 
 ## T1 — the adapter interface
 
-- [ ] Create `skills/foreman/scripts/adapters/` with one file per vendor:
+- [x] Create `skills/foreman/scripts/adapters/` with one file per vendor:
       `grok.sh`, `codex.sh`, `agy.sh`, `claude.sh`.
-- [ ] Define the seven functions per adapter: `adapter_implement_argv`,
+- [x] Define the seven functions per adapter: `adapter_implement_argv`,
       `adapter_audit_argv`, `adapter_home_var`, `adapter_auth_probe`,
       `adapter_result_text`, `adapter_result_verdict`, `adapter_caps`.
-- [ ] Output convention: fill the global `ADAPTER_ARGV` array; never emit a
+- [x] Output convention: fill the global `ADAPTER_ARGV` array; never emit a
       string that a caller must re-split.
-- [ ] Adapters source nothing (same self-containment rule as
+- [x] Adapters source nothing (same self-containment rule as
       `lib/worker-cmd.sh:9-14` and `lib/launch.sh`), so they can be sourced
       standalone by tests without a readonly double-source collision.
-- [ ] shdoc headers on every function; shellcheck clean.
-- [ ] `adapter_caps` publishes at minimum: `resume`, `schema`, `sandbox`,
+- [x] shdoc headers on every function; shellcheck clean.
+- [x] `adapter_caps` publishes at minimum: `resume`, `schema`, `sandbox`,
       `cap_n`, `rc_unavailable`, `prompt_flag`, `prompt_flag_position`,
       `verified_cli_version`.
 
 ## T2 — migrate the implement verb
 
-- [ ] Move the grok branch (`worker-cmd.sh:46-57`) into `adapters/grok.sh`
+- [x] Move the grok branch (`worker-cmd.sh:46-57`) into `adapters/grok.sh`
       unchanged, including the single-burst NOTE at `:47-51`.
-- [ ] Move the codex branch (`worker-cmd.sh:58-66`) into `adapters/codex.sh`
+- [x] Move the codex branch (`worker-cmd.sh:58-66`) into `adapters/codex.sh`
       unchanged, including `WC_CODEX_MODEL` / `WC_CODEX_REASONING_EFFORT`.
-- [ ] Add `-p/--profile` passthrough to the codex adapter so a repo can pin
+- [x] Add `-p/--profile` passthrough to the codex adapter so a repo can pin
       model, effort and sandbox in `$CODEX_HOME/<name>.config.toml` — this is
       what "broaden GPT" means in practice (R3 §2.4).
-- [ ] `lib/worker-cmd.sh` becomes a shim delegating to the adapters, or is
+- [x] `lib/worker-cmd.sh` becomes a shim delegating to the adapters, or is
       retired with its callers moved; either way `WC_ARGV`'s contract with
       `worker-run.sh:116-122,141-144,149` is preserved.
-- [ ] Byte-for-byte argv equivalence test for grok and codex against the
+- [x] Byte-for-byte argv equivalence test for grok and codex against the
       pre-change builder.
 
 ## T3 — introduce the audit verb
 
-- [ ] Implement `adapter_audit_argv` for codex, reproducing
+- [x] Implement `adapter_audit_argv` for codex, reproducing
       `audit-run.sh:379-387` exactly, plus `--ephemeral` (audit lanes never
       resume, and it removes session-file contention entirely — R3 §2.1).
-- [ ] Expose `codex exec review --base "$BASE"` as the hard-mode cold-diff
+- [x] Expose `codex exec review --base "$BASE"` as the hard-mode cold-diff
       form, matching Foreman's worktree-branch-vs-base model (R3 §2.3).
-- [ ] Implement `adapter_audit_argv` for grok (`--permission-mode plan`,
+- [x] Implement `adapter_audit_argv` for grok (`--permission-mode plan`,
       `--json-schema "$(cat SCHEMA)"`, `--no-leader`).
-- [ ] Replace `audit-run.sh:379-387`'s inline invocation with the adapter call.
+- [x] Replace `audit-run.sh:379-387`'s inline invocation with the adapter call.
       Do NOT touch the post-audit tamper check at `:90-93` — it is strengthened
       by `cross-vendor-audit-routing`, and both packages must not rewrite it.
-- [ ] Pass `--no-leader` on every grok invocation: `grok agent` defaults to a
+- [x] Pass `--no-leader` on every grok invocation: `grok agent` defaults to a
       shared `~/.grok/leader.sock`, which is a latent cross-lane coupling point
       (R3 §3).
 
 ## T4 — result capture, verdict validation, version recording
 
-- [ ] `adapter_result_text` / `adapter_result_verdict` capture stdout and
+- [x] `adapter_result_text` / `adapter_result_verdict` capture stdout and
       stderr to separate files and parse whichever carries the payload.
-- [ ] No adapter relies on a pipeline exit status.
-- [ ] Where the vendor forces a schema, pass it through; where it cannot, or
+- [x] No adapter relies on a pipeline exit status.
+- [x] Where the vendor forces a schema, pass it through; where it cannot, or
       where enforcement covers only some output formats, validate the parsed
       object against `adapters/verdict.schema.json` in the adapter and fail the
       audit on non-conformance.
-- [ ] Keep `lane-run.sh`'s merged `2>&1` transcript for human reading, and give
+- [x] Keep `lane-run.sh`'s merged `2>&1` transcript for human reading, and give
       the machine-readable capture its own un-merged stderr file.
-- [ ] Record the vendor CLI version actually invoked in the round report, and
+- [x] Record the vendor CLI version actually invoked in the round report, and
       compare it against `adapter_caps`' `verified_cli_version`; report a
       mismatch as an INFO finding rather than failing the round.
 
@@ -129,11 +129,11 @@ to content changes within an unchanged status string.
       the `vendor-multiround.sh` rename.
 - [ ] Full suite green on WSL/Ubuntu 26.04, including the argv-equivalence,
       never-stdin and argument-order tests.
-- [ ] `shellcheck` clean on every adapter owned by this package.
+- [x] `shellcheck` clean on every adapter owned by this package.
       `lib/evidence.sh` and `vendor-multiround.sh` are `evidence-contracts`'
       files and are gated there, not here.
 - [ ] `bugeventlog.md` entry recording the half-wired-lane failure class
       (advertised at four sites, unimplementable at the fifth) and this
       enhancement.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate vendor-adapter-contract --strict` passes.
+- [x] `openspec validate vendor-adapter-contract --strict` passes.
