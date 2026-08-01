@@ -139,3 +139,88 @@ EOF
   run env PATH="$PATH" bash "$TC" --profile soft
   [[ "$output" != *"LANE_READY:"* ]]
 }
+
+@test "tool-check distinguishes a tracer that did not run from an inconclusive trace" {
+  cat > "$SHIM/grok" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  --version) echo "grok 0.2.103"; exit 0 ;;
+  models) echo "You are logged in with grok.com."; exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+  cat > "$SHIM/codex" <<'EOF'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "--version ") echo "codex-cli 0.144.5"; exit 0 ;;
+  "login status") exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+  cat > "$SHIM/strace" <<'EOF'
+#!/usr/bin/env bash
+echo "strace: forced attach failure" >&2
+exit 125
+EOF
+  chmod +x "$SHIM/grok" "$SHIM/codex" "$SHIM/strace"
+
+  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --json
+
+  mkdir_row="$(jq -c '.lock_atomicity[] | select(.mechanism == "mkdir")' <<<"$output")"
+  [ "$(jq -r '.verdict' <<<"$mkdir_row")" = "unknown" ]
+  [ "$(jq -r '.evidence_class' <<<"$mkdir_row")" = "syscall" ]
+  [[ "$(jq -r '.notes' <<<"$mkdir_row")" == *"tracer did not run"* ]]
+  [[ "$(jq -r '.notes' <<<"$mkdir_row")" == *"exit=125"* ]]
+}
+
+@test "tool-check reads mkdir syscalls from the dedicated strace output" {
+  cat > "$SHIM/grok" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  --version) echo "grok 0.2.103"; exit 0 ;;
+  models) echo "You are logged in with grok.com."; exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+  cat > "$SHIM/codex" <<'EOF'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "--version ") echo "codex-cli 0.144.5"; exit 0 ;;
+  "login status") exit 0 ;;
+  *) exit 1 ;;
+esac
+EOF
+  cat > "$SHIM/strace" <<'EOF'
+#!/usr/bin/env bash
+trace_file=""
+last_arg=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o)
+      trace_file="$2"
+      shift 2
+      ;;
+    *)
+      last_arg="$1"
+      shift
+      ;;
+  esac
+done
+if [[ -z "$trace_file" ]]; then
+  echo "strace: expected -o FILE" >&2
+  exit 125
+fi
+printf 'mkdir("%s", 0777) = -1 EEXIST (File exists)\n' "$last_arg" >"$trace_file"
+printf '+++ exited with 1 +++\n' >>"$trace_file"
+echo 'tracee stderr noise: mkdir("/interleaved' >&2
+exit 1
+EOF
+  chmod +x "$SHIM/grok" "$SHIM/codex" "$SHIM/strace"
+
+  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --json
+
+  mkdir_row="$(jq -c '.lock_atomicity[] | select(.mechanism == "mkdir")' <<<"$output")"
+  [ "$(jq -r '.verdict' <<<"$mkdir_row")" = "atomic" ]
+  [ "$(jq -r '.evidence_class' <<<"$mkdir_row")" = "syscall" ]
+  [[ "$(jq -r '.notes' <<<"$mkdir_row")" == *"kernel returned EEXIST"* ]]
+}
