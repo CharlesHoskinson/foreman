@@ -1,0 +1,65 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "reaudit-rework-no-convergence",
+  "failure_class": "FC-09-decision-policy-nonconvergent",
+  "implementation": {
+    "repository_commit": "not recorded",
+    "source": "skills/foreman/SKILL.md"
+  },
+  "demonstrated_case": "rework_decision_repeats_without_convergence",
+  "events": [
+    {
+      "seq": 1,
+      "case": "rework_decision_repeats_without_convergence",
+      "decision": "apply_audit_policy",
+      "outcome": "rework",
+      "evidence": {
+        "round": 1,
+        "verdict": "BLOCKED",
+        "decision_changed": false
+      },
+      "emitted": "round 1: BLOCKED -> REWORK"
+    },
+    {
+      "seq": 2,
+      "case": "rework_decision_repeats_without_convergence",
+      "decision": "apply_audit_policy",
+      "outcome": "rework",
+      "evidence": {
+        "round": 2,
+        "verdict": "BLOCKED",
+        "decision_changed": false
+      },
+      "emitted": "round 2: BLOCKED -> REWORK"
+    },
+    {
+      "seq": 3,
+      "case": "rework_decision_repeats_without_convergence",
+      "decision": "apply_audit_policy",
+      "outcome": "rework",
+      "evidence": {
+        "round": 3,
+        "verdict": "BLOCKED",
+        "decision_changed": false
+      },
+      "emitted": "round 3: BLOCKED -> REWORK"
+    },
+    {
+      "seq": 4,
+      "case": "rework_decision_repeats_without_convergence",
+      "decision": "evaluate_convergence",
+      "outcome": "no_progress_criterion",
+      "evidence": {
+        "rounds_observed": 3,
+        "decision_sequence": [
+          "rework",
+          "rework",
+          "rework"
+        ]
+      },
+      "verdict": "REWORK",
+      "emitted": "rounds=3 decision=REWORK convergence=undefined"
+    }
+  ],
+  "final_verdict": "REWORK"
+}

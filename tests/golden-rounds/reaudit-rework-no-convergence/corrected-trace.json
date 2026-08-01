@@ -1,0 +1,51 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "reaudit-rework-no-convergence",
+  "failure_class": "FC-09-decision-policy-nonconvergent",
+  "implementation": {
+    "repository_commit": "not recorded",
+    "source": "skills/foreman/SKILL.md"
+  },
+  "demonstrated_case": "rework_decision_repeats_without_convergence",
+  "events": [
+    {
+      "seq": 1,
+      "case": "rework_decision_repeats_without_convergence",
+      "decision": "record_closure_delta",
+      "outcome": "computed",
+      "evidence": {
+        "round": 2,
+        "closed": 8,
+        "still_open": 10,
+        "newly_introduced": 3
+      }
+    },
+    {
+      "seq": 2,
+      "case": "rework_decision_repeats_without_convergence",
+      "decision": "evaluate_net_progress",
+      "outcome": "progress_measured",
+      "evidence": {
+        "net_closed": 5,
+        "criterion": "newly_introduced < closed"
+      }
+    },
+    {
+      "seq": 3,
+      "case": "rework_decision_repeats_without_convergence",
+      "decision": "apply_rework_bound",
+      "outcome": "escalated_at_bound",
+      "evidence": {
+        "rounds_observed": 2,
+        "max_rework_rounds": 2,
+        "decision_sequence": [
+          "rework",
+          "escalate"
+        ]
+      },
+      "verdict": "ESCALATE",
+      "emitted": "rounds=2 decision=ESCALATE net_closed=5"
+    }
+  ],
+  "final_verdict": "ESCALATE"
+}

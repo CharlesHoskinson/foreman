@@ -1,0 +1,20 @@
+{
+  "round_id": "lane-lint-worktree-artifact-leak",
+  "failure_class": "FC-07-isolation-artifact-safety",
+  "vendor": {
+    "name": "Recorded repository incident",
+    "model": "not applicable",
+    "interface": "markdownlint-cli2 inside a lane worktree",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Measure the repository-wide Markdown corpus without allowing lane-scoped artifacts to move the repository total.",
+    "repository_state": "defective lane worktree measurement included SPEC-tier1.md; corrected measurement excludes lane-manufactured artifacts",
+    "network_access": false
+  },
+  "response_text": "Defective measurement: markdownlint checked 119 Markdown files, including the lane-scoped SPEC-tier1.md alongside 118 repository files. Corrected measurement: markdownlint checked 118 repository files and explicitly excluded 1 lane artifact, SPEC-tier1.md.",
+  "recorded_at": "2026-08-01T12:00:00-06:00",
+  "recorded_version": "tier1-fc07/lane-artifact-isolation",
+  "defective_trace": "tests/golden-rounds/lane-lint-worktree-artifact-leak/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/lane-lint-worktree-artifact-leak/corrected-trace.json"
+}

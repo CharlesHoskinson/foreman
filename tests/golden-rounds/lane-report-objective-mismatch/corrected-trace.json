@@ -1,0 +1,52 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "lane-report-objective-mismatch",
+  "failure_class": "FC-10-orchestration-task-mismatch",
+  "implementation": {
+    "repository_commit": "not recorded",
+    "source": "FOREMAN_REPORT.md"
+  },
+  "demonstrated_case": "worker_success_for_different_objective",
+  "events": [
+    {
+      "seq": 1,
+      "case": "worker_success_for_different_objective",
+      "decision": "dispatch_lane_objective",
+      "outcome": "objective_recorded",
+      "evidence": {
+        "objective": "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass",
+        "required_artifact": "FOREMAN_REPORT.md"
+      }
+    },
+    {
+      "seq": 2,
+      "case": "worker_success_for_different_objective",
+      "decision": "validate_worker_artifact",
+      "outcome": "report_complete",
+      "evidence": {
+        "required_sections": [
+          "Changes",
+          "Verification",
+          "Evidence",
+          "Gaps"
+        ],
+        "completed_sections": 4,
+        "tbd_placeholders": 0,
+        "worker_objective": "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass"
+      }
+    },
+    {
+      "seq": 3,
+      "case": "worker_success_for_different_objective",
+      "decision": "classify_task_completion",
+      "outcome": "objective_and_artifact_match",
+      "evidence": {
+        "expected_tests": 8,
+        "passing_tests": 8
+      },
+      "verdict": "TASK MATCH",
+      "emitted": "task objective matched; FOREMAN_REPORT.md complete; round-ownership 8 of 8 pass"
+    }
+  ],
+  "final_verdict": "TASK MATCH"
+}

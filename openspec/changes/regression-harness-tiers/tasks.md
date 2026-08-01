@@ -39,7 +39,7 @@
       of the paired defective and corrected decision traces.
 - [x] 2.2 Read bugeventlog.md and enumerate every distinct failure class
       recorded there.
-- [ ] 2.3 Seed one golden round per failure class (10-12 rounds
+- [x] 2.3 Seed one golden round per failure class (10-12 rounds
       initially), each reproducing the decision-trace conditions of that
       failure.
       Evidence-backed progress is 7 of 10 classes. FC-07, FC-09, and FC-10

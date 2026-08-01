@@ -1,0 +1,52 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "lane-report-objective-mismatch",
+  "failure_class": "FC-10-orchestration-task-mismatch",
+  "implementation": {
+    "repository_commit": "not recorded",
+    "source": "FOREMAN_REPORT.md"
+  },
+  "demonstrated_case": "worker_success_for_different_objective",
+  "events": [
+    {
+      "seq": 1,
+      "case": "worker_success_for_different_objective",
+      "decision": "dispatch_lane_objective",
+      "outcome": "objective_recorded",
+      "evidence": {
+        "objective": "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass",
+        "required_artifact": "FOREMAN_REPORT.md"
+      }
+    },
+    {
+      "seq": 2,
+      "case": "worker_success_for_different_objective",
+      "decision": "observe_worker_completion",
+      "outcome": "process_success",
+      "evidence": {
+        "exit_status": 0,
+        "worker_claim": "Core mechanism landed and independently verified"
+      }
+    },
+    {
+      "seq": 3,
+      "case": "worker_success_for_different_objective",
+      "decision": "compare_task_to_artifact",
+      "outcome": "objective_mismatch",
+      "evidence": {
+        "worker_objective": "Run the destructive refusal proof",
+        "dispatched_objective": "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass",
+        "report_sections": [
+          "Changes=(TBD)",
+          "Verification=(TBD)",
+          "Evidence=(TBD)",
+          "Gaps=(TBD)"
+        ],
+        "completed_sections": 0
+      },
+      "verdict": "Result=success",
+      "emitted": "ExecMainStatus=0, Result=success; FOREMAN_REPORT.md sections complete=0 of 4"
+    }
+  ],
+  "final_verdict": "Result=success"
+}
