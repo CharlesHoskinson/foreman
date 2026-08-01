@@ -61,6 +61,11 @@ from pathlib import Path
 import pathlib
 
 SCHEMA_VERSION = 3
+
+# Commands that only read the store. Opening these read-only is what makes their
+# documented "no side effects" true, and they are also the commands that must NOT
+# trigger a sidecar refresh. The sidecar command writes a file, never the store.
+READ_ONLY_CMDS = {"recover", "freshness", "project", "sidecar"}
 SIDECAR_FORMAT = "foreman-session-sidecar"
 SIDECAR_FORMAT_VERSION = 1
 
@@ -255,7 +260,45 @@ def connect(path=None):
         (str(SCHEMA_VERSION),),
     )
     conn.commit()
+    _rebuild_from_sidecar_if_empty(conn, p)
     return conn
+
+
+def _rebuild_from_sidecar_if_empty(conn, p):
+    """Rehydrate an empty store from the NDJSON sidecar sitting beside it.
+
+    The sidecar is the tracked artefact and the .db is a derived cache, so a
+    fresh clone has session.ndjson and no session.db at all. Without this, the
+    first `recover` on a new machine would create an empty database and print a
+    confident, empty recovery -- the recovery mechanism failing silently at
+    exactly the moment it exists for. That is strictly worse than crashing.
+
+    Only ever fires when the store has NO rows. A store with content is never
+    touched, so this cannot overwrite work or resurrect retired rows.
+    """
+    try:
+        row = conn.execute(
+            "SELECT (SELECT COUNT(*) FROM facts)"
+            " + (SELECT COUNT(*) FROM measurements)"
+            " + (SELECT COUNT(*) FROM obligations)"
+            " + (SELECT COUNT(*) FROM sessions) AS n"
+        ).fetchone()
+    except sqlite3.Error:
+        return
+    if row is None or row["n"]:
+        return
+
+    sidecar = Path(p).with_suffix(".ndjson")
+    if not sidecar.exists():
+        return
+    try:
+        n = import_sidecar(conn, sidecar)
+    except Exception as e:  # a corrupt sidecar must be loud, never silent
+        print(f"WARNING: session store is empty and the sidecar at {sidecar} "
+              f"could not be imported: {e}", file=sys.stderr)
+        return
+    print(f"rehydrated {n} row(s) from {sidecar} (the .db is a derived cache; "
+          f"the sidecar is what git tracks)", file=sys.stderr)
 
 
 def scalar_of(text):
@@ -828,7 +871,6 @@ def main():
     # Commands that only read. Opening these read-only is what makes their
     # documented "no side effects" true; see connect_readonly. `sidecar` writes
     # a file but never the store, so it belongs here too.
-    READ_ONLY_CMDS = {"recover", "freshness", "project", "sidecar"}
     if a.cmd == "import-sidecar":
         try:
             conn = connect(a.into)
@@ -1006,5 +1048,43 @@ def main():
     return 2
 
 
+def main_with_sidecar():
+    """Run the command, then keep the tracked sidecar in step with the store.
+
+    The .db is a derived cache and .ndjson is what git tracks, so a write that
+    updated only the database would leave the tracked record behind. That is not
+    hypothetical: the committed sidecar was found at 127 rows against a 408-row
+    store, so the mergeable mirror had silently stopped tracking the thing it
+    mirrors for weeks.
+
+    Refresh failures are reported and do not change the exit code -- the write
+    already succeeded and claiming otherwise would be a lie in the other
+    direction -- but they are never silent.
+    """
+    rc = main()
+    if rc != 0 or len(sys.argv) < 2 or sys.argv[1] in READ_ONLY_CMDS:
+        return rc
+    try:
+        store = db_path()
+        out = store.parent / "session.ndjson"
+        # The store itself can BE session.ndjson when FOREMAN_SESSION_DB points
+        # there. Refreshing then overwrites the store with its own dump and
+        # destroys it. The sidecar command already refuses this; the automatic
+        # refresh must refuse it too, or it is a data-loss path that only fires
+        # when nobody asked for it.
+        if paths_alias(out, store):
+            return rc
+        conn = connect_readonly()
+        lines, row_count = sidecar_ndjson(conn)
+        write_atomic(out, lines)
+        conn.close()
+        print(f"sidecar refreshed: {row_count} row(s) -> {out}", file=sys.stderr)
+    except Exception as e:
+        print(f"WARNING: the store was written but its sidecar could not be "
+              f"refreshed ({e}). The tracked record is now BEHIND the database; "
+              f"run `fm-session.py sidecar` before committing.", file=sys.stderr)
+    return rc
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main_with_sidecar())

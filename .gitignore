@@ -41,3 +41,10 @@ formal/out/
 
 # subagent-driven-development scratch (ledger, briefs, reports)
 .superpowers/
+
+# The session store .db is a DERIVED CACHE. The tracked artefact is
+# .foreman/session.ndjson, which merges as text; a binary sqlite file in git
+# conflicts unmergeably whenever two lanes both record a fact, and it was
+# rewritten on every READ until the read path was opened read-only. A cold
+# clone rehydrates the .db from the sidecar automatically.
+.foreman/session.db
