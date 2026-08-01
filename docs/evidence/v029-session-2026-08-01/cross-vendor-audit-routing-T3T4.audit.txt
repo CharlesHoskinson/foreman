@@ -1,0 +1,46 @@
+# Cross-vendor audit verdict — grok auditing codex-implemented work
+# Captured 2026-08-01 from /tmp/t4-audit.txt. Verbatim; not edited.
+
+[05:49:00] round 1 quiet=0 size=1121115
+[05:54:00] round 2 quiet=0 size=1623729
+[05:59:00] round 3 quiet=0 size=2289896
+[06:04:00] round 4 quiet=0 size=2348393
+[06:09:00] round 5 quiet=1 size=2348393
+[06:14:00] round 6 quiet=2 size=2348393
+
+=== THE central check: is the dual hardcode gone? ===
+--- adapter_audit_argv call sites (must carry NO literal vendor) ---
+466:if ! adapter_audit_argv "$AUDIT_VENDOR" "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"; then
+--- any surviving '!= codex' gate? (must be none) ---
+none — good
+--- ACTUAL_VENDOR assignments ---
+69:ACTUAL_VENDOR="$AUDIT_VENDOR"
+392:    ACTUAL_VENDOR="$AUDIT_VENDOR"
+401:ACTUAL_VENDOR="$AUDIT_VENDOR"
+472:ACTUAL_VENDOR="${ADAPTER_ARGV[0]##*/}"
+
+=== mechanical checks ===
+commits ahead: 1
+shellcheck clean rc=0
+Change 'cross-vendor-audit-routing' is valid
+ticked=18 open=15
+=== obligation 63: all four audit-run.sh drivers ===
+  tests/audit-routing.bats ok=22 not_ok=0 baseline=16
+  tests/audit-verdict.bats ok=26 not_ok=0 baseline=26
+  tests/adapters.bats ok=27 not_ok=0 baseline=19
+  tests/decision-events.bats ok=10 not_ok=0 baseline=8
+
+=== cross-vendor audit (grok) ===
+prompt bytes: 5924
+VERDICT: BLOCKED
+
+1. **[AC1] Early config-failure path never binds ACTUAL_VENDOR.** On `ac_select_auditor` failure without `AC_MISSING_VENDOR`, the script jumps straight to `ar_fail "$EXIT_CONFIG" invalid_audit_vendor` without setting `AUDIT_VENDOR`/`ACTUAL_VENDOR`. Same-vendor and other selection rejections can therefore leave ACTUAL_VENDOR empty or stale, so the verdict does not reliably name the selected/rejected vendor on every failure path.
+
+2. **[AC3/AC4/AC5] Selection logic not in the audit package — criteria not demonstrated.** `ac_select_auditor` (capability filter, candidate set, same-vendor → EXIT_CONFIG, missing CLI → EXIT_MISSING_CLI, `audit.vendors` vs legacy `audit.vendor` precedence) is only *called*, not shown. Empty `==diff==`, `==new/changed tests==`, and `==config==` sections leave no evidence that candidates are filtered on real audit capability (vs adapter-file existence), that `claude` stays excluded (T7), or that dual config forms have a documented, implemented rule.
+
+3. **[Timeout / post-invocation paths not shown.]** Snippet ends at `adapter_audit_argv` / empty `ADAPTER_ARGV`. Timeout, unauthenticated CLI, and non-zero process outcomes are required for AC1 (“EVERY path including … timeout”) and are absent; no basis to confirm ACTUAL_VENDOR still matches the process that ran (or was attempted) on those paths.
+
+4. **[Prior dual-site bug — call site only looks fixed.]** In the provided fragment, the `!= codex` gate is gone and invocation is `adapter_audit_argv "$AUDIT_VENDOR" …` plus `source …/adapters/${AUDIT_VENDOR}.sh` (no literal vendor at the call site). That addresses the T1/T2 split *if* adapters/`adapter_audit_argv` truly dispatch on the argument; adapters are not inlined, so identity agreement is still not fully closed.
+
+5. **[Codex-only residual at invocation.]** Unconditional `export ADAPTER_CODEX_AUDIT_REASONING_EFFORT="$AUDIT_EFFORT"` still hard-wires a Codex-named knob for every selected vendor — not a second process identity by itself, but a leftover single-vendor assumption next to the multi-vendor dispatch.
+AUDIT COMPLETE

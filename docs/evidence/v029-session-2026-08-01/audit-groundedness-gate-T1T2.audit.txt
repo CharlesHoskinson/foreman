@@ -1,0 +1,57 @@
+# Cross-vendor audit verdict — grok auditing codex-implemented work
+# Captured 2026-08-01 from /tmp/ground-audit.txt. Verbatim; not edited.
+
+[05:48:17] round 1 quiet=0 size=1746760
+[05:53:17] round 2 quiet=0 size=2878892
+[05:58:17] round 3 quiet=0 size=2970066
+[06:03:17] round 4 quiet=1 size=2970066
+[06:08:17] round 5 quiet=2 size=2970066
+
+=== mechanical checks (architect, not the lane's report) ===
+--- numstat ---
+--- untracked ---
+--- shellcheck ---
+shellcheck clean rc=0
+--- openspec ---
+Change 'audit-groundedness-gate' is valid
+--- registry ---
+# blocking_cap=9
+id	tier	world	blocking	mode	required_inputs	zero_fp_rationale
+G1	2	closed	1	shadow	diff,repository_head,findings	A cited path absent from the complete diff and repository path sets cannot be a real citation.
+G2	2	closed	1	shadow	citation_revision,findings	A line beyond the recorded cited revision's complete line range cannot exist in that revision.
+G3	2	closed	1	shadow	criterion_ids,discharges	Set difference over declared criterion identifiers and recorded discharges cannot invent an uncovered identifier.
+G4	2	closed	1	shadow	recorded_worker_vendor,recorded_audit_vendor,separation_policy	Equality of two recorded vendor identities against the recorded separation policy is a complete structural comparison.
+G5	2	closed	1	shadow	base_sha,rubric,rubric_version	Absence of a named rubric version from the complete tree at the recorded base commit is a repository fact.
+G6	2	closed	1	shadow	changed_paths,scope_globs	A changed path outside every declared scope glob is a complete set-membership fact.
+G9a	2	closed	1	shadow	verdict,findings	An APPROVED verdict and a recorded critical or high finding structurally violate their declared implication.
+G9b	2	closed	1	shadow	verdict,findings,criterion_misses	A BLOCKED verdict with neither a critical or high finding nor a criterion miss structurally lacks its declared justification.
+G9c	2	closed	1	shadow	verdict,findings	A WARNING verdict with an empty complete findings set structurally violates its declared implication.
+--- fixture count vs registry rows ---
+registry_rows=10 fixture_json=10 (expect one mutant per check plus a baseline)
+--- bats tests/gate-ground.bats ---
+ok=16 not_ok=0
+baseline=16
+
+=== cross-vendor audit (grok; codex implemented this) ===
+prompt bytes: 27281
+I'll treat this as a cold audit of the inlined T1/T2 package. Reading the offloaded full prompt for the truncated middle of the source and tests — not opening project files.VERDICT: WARNING
+
+1. **high** — Canary “evaluation” is content-blind by contract. `gg_canary_shape_valid` is the only consumer of fixture JSON; `gg_canary_evaluate_fixture` may ignore every semantic field and still produce `CANARY_OK` (the bats double only uses `basename`). That is a permanent green path with no groundedness predicate firing — the project’s named blind-checker class, deferred rather than closed. T2’s claim that the corpus “proves the checks CAN fail” is only proved for the harness comparison, not for G1–G9c.
+
+2. **high** — AC4 is not mechanized. Nothing in this package runs `gg_canary_run` on every real gate invocation before results are trusted; the library is source-safe and does no canary on load. The test “canary evaluates the corpus on every invocation” only calls the helper twice and asserts both succeed — it does not bind canary to a gate entrypoint.
+
+3. **medium** — A valid empty registry (`blocking_cap=0`, header, zero rows) makes the canary vacuous: `expected_total=1`, only `baseline`, zero per-check mutants. `CANARY_OK` then means “baseline matched empty output,” not “any registered check can fail.”
+
+4. **medium** — Open-world enforcing refusal and no-promotion demotion are cooperative APIs only. Callers that read `GG_REGISTRY_MODE[id]` (or apply config) without `gg_refuse_open_enforcing` / `gg_check_mode` skip both named refusals. Through the provided helpers AC2/AC3 hold; there is no choke point that forces them.
+
+5. **medium** — Mutation proof exercises env-var knobs on the test double (`GG_TEST_NOOP_CHECK`, `GG_TEST_WRONG_FOCUS_CHECK`), not deletion or corruption of a real predicate. It correctly traps harness regression; it does not trap a future T3 evaluator that copies the basename stub and reports success forever on live audits.
+
+6. **low** — On `canary_result_mismatch`, diagnostics emit only the first expected/actual focus (`exit` after first row). Full sorted multiset compare is still correct; multi-violation failures are harder to diagnose.
+
+7. **low** — Architect shellcheck evidence is referenced (“see result above”) but not present in the audit package; cleanliness of `lib/gate-ground.sh` is unverified here.
+
+**AC map (for the judge vectors):**  
+(b) flag-everything is blocked by exact count+focus and `baseline` `expected_count=0`.  
+(d) distrust reasons are `canary_*` / `UNVERIFIED`, not shared with a genuine `groundedness_violation` string.  
+(a)/(c) drive findings 1–4. Registry load rules (closed-only blocking, cap, open+blocking reject) and the two named refusals via the intended API look sound for T1.
+AUDIT COMPLETE

@@ -1,0 +1,107 @@
+# Cross-vendor audit verdict — grok auditing codex-implemented work
+# Captured 2026-08-01 from /tmp/both-report.txt. Verbatim; not edited.
+
+########## ggt3 ##########
+[06:55:54] ggt3 round quiet=1 size=1650604
+[07:00:54] ggt3 round quiet=2 size=1650604
+--- status / numstat ---
+--- MODES on new shell files (obligation 75) ---
+--- shellcheck ---
+--- openspec ---
+Change 'audit-groundedness-gate' is valid
+--- ticks ---
+  ticked=21 open=35
+--- THE question: is gg_canary_evaluate_fixture still only a test double? ---
+./skills/foreman/scripts/lib/gate-ground-checks.sh:219:gg_canary_evaluate_fixture() {
+./skills/foreman/scripts/lib/gate-ground.sh:256:# gg_canary_evaluate_fixture FIXTURE is now provided by lib/gate-ground-checks.sh,
+./skills/foreman/scripts/lib/gate-ground.sh:280:  if ! declare -F gg_canary_evaluate_fixture >/dev/null 2>&1; then
+./skills/foreman/scripts/lib/gate-ground.sh:336:    if ! actual_output="$(gg_canary_evaluate_fixture "$fixture")"; then
+./tests/gate-ground.bats:32:    run bash -c 'source "$1"; declare -F gg_canary_evaluate_fixture >/dev/null' \
+./tests/gate-ground.bats:180:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:188:  run gg_canary_evaluate_fixture "$old_side"
+./tests/gate-ground.bats:192:  run gg_canary_evaluate_fixture "$CORPUS/G1.json"
+./tests/gate-ground.bats:198:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:201:  run gg_canary_evaluate_fixture "$CORPUS/G2.json"
+./tests/gate-ground.bats:207:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:210:  run gg_canary_evaluate_fixture "$CORPUS/G3.json"
+./tests/gate-ground.bats:216:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:219:  run gg_canary_evaluate_fixture "$CORPUS/G4.json"
+./tests/gate-ground.bats:225:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:228:  run gg_canary_evaluate_fixture "$CORPUS/G5.json"
+./tests/gate-ground.bats:234:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:237:  run gg_canary_evaluate_fixture "$CORPUS/G6.json"
+./tests/gate-ground.bats:243:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:246:  run gg_canary_evaluate_fixture "$CORPUS/G9a.json"
+./tests/gate-ground.bats:252:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:255:  run gg_canary_evaluate_fixture "$CORPUS/G9b.json"
+./tests/gate-ground.bats:261:  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+./tests/gate-ground.bats:264:  run gg_canary_evaluate_fixture "$CORPUS/G9c.json"
+./tests/gate-ground.bats:274:  run gg_canary_evaluate_fixture "$advisory"
+./tests/gate-ground.bats:283:  run gg_canary_evaluate_fixture "$advisory"
+./tests/gate-ground.bats:288:  run gg_canary_evaluate_fixture "$advisory.line-zero"
+./tests/gate-ground.bats:297:  gg_canary_evaluate_fixture "$incomplete" >"$actual"
+./tests/gate-ground.bats:305:  run gg_canary_evaluate_fixture "$CORPUS/G9a.json"
+./tests/gate-ground.bats:308:  run gg_canary_evaluate_fixture "$renamed"
+--- did it re-tick the two withdrawn T2 items? ---
+36:- [ ] The checker evaluates the corpus on every invocation, before trusting its
+42:- [x] Prove the canary works by mutation: break one check on purpose, confirm the
+--- bats ---
+  ok=29 not_ok=0 baseline=29
+--- cross-vendor grok audit (content, not diff) ---
+  prompt bytes: 40380
+I'll audit from the offloaded prompt materials only—no repo file opens—and judge whether the real evaluator and mutation proofs actually re-earn the withdrawn checkboxes.VERDICT: WARNING
+
+1. **HIGH — Prior gate-entrypoint binding still unproved.** Materials show a real library-installed evaluator and a green canary suite, but nothing that invokes `gg_canary_run` from a production gate entrypoint/CLI. Last round’s second HIGH (“nothing bound the canary to a gate entrypoint”) is therefore **not** re-earned on this evidence. Re-ticking that T2 checkbox would be false.
+
+2. **MEDIUM — Real evaluator and registry dispatch are genuine (this part is fixed).** `gg_canary_evaluate_fixture` in `lib/gate-ground-checks.sh` iterates `GG_REGISTRY_IDS`, calls `gg_check_$id`, and decides from fixture JSON via jq — not basename/order. Rename test proves content stability. Library `source`s checks so the evaluator is no longer “caller-supplied only.” This closes the previous double-keying defect.
+
+3. **MEDIUM — Mutation proof is against a real predicate (this part is fixed).** The no-op mutation prefixes the live G1 jq with `false and`, expects `canary_result_mismatch` / `check=G1` / `expected_count=1 actual_count=0`, then restores the real file to green. That is not an env knob on a basename double.
+
+4. **MEDIUM — G1 predicate does not match its own documented dual-set rule.** Docs claim repository-only citations are advisory and “neither set” is blocking-form; the check only tests `changed_paths | index($path) == null`, while still `gg_check_require`ing `repository_head` and never using it in the violation jq. Canary still “fires G1,” but the claimed groundedness fact is oversold relative to the code.
+
+5. **LOW — Focus is not content-derived.** Every violation is hard-coded `artifact:$id`. Exact count/focus matching therefore proves check id emission, not path/line/criterion focus fidelity.
+
+6. **PASS (constraint 4) — Nothing leaves shadow.** Registry rows are all `mode=shadow`; configs are asserted shadow; unproved promoting still refuses to enforcing.
+
+7. **Checkbox hygiene.** Only re-tick T2 items that this round actually proved: content/registry evaluator + real-predicate mutation. Do **not** re-tick gate-entrypoint binding without a caller path into `gg_canary_run` outside bats.
+
+########## four ##########
+[07:07:17] four round quiet=1 size=1350163
+[07:12:17] four round quiet=0 size=1354954
+[07:17:17] four round quiet=0 size=1764726
+[07:22:17] four round quiet=0 size=2028619
+[07:27:17] four round quiet=0 size=2411831
+[07:32:17] four round quiet=0 size=3245523
+[07:37:17] four round quiet=1 size=3245523
+[07:42:17] four round quiet=2 size=3245523
+--- status / numstat ---
+ M env/reference-manifest.toml
+ M env/tool-check.sh
+ M skills/foreman/scripts/foreman-setup.sh
+ M tests/baseline.tsv
+ M tests/foreman-setup.bats
+ M tests/wsl-launcher-shipped.bats
+1	1	env/reference-manifest.toml
+11	3	env/tool-check.sh
+86	29	skills/foreman/scripts/foreman-setup.sh
+1	1	tests/baseline.tsv
+1	1	tests/foreman-setup.bats
+141	10	tests/wsl-launcher-shipped.bats
+--- verdicts ---
+UNDERSPECIFIED`: its proposal/design hard-refuse a `/mnt/*` worktree while its tasks/delta spec explicitly say wor
+IMPLEMENTABLE`: all required branches, messages, call sites, and tests are concrete
+UNDERSPECIFIED
+UNDERSPECIFIED
+UNDERSPECIFIED
+IMPLEMENTABLE
+UNDERSPECIFIED
+UNDERSPECIFIED
+UNDERSPECIFIED
+IMPLEMENTABLE
+--- validates ---
+  doctrine-reality-drift     Change 'doctrine-reality-drift' is valid
+  vendor-preflight           Change 'vendor-preflight' is valid
+  wsl-preflight              Change 'wsl-preflight' is valid
+  wsl-launcher-shipped       Change 'wsl-launcher-shipped' is valid
+--- modes on new shell files ---
+REPORT COMPLETE

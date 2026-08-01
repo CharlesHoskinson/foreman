@@ -1,0 +1,407 @@
+# lane/tier2-machinery self-report — UNVERIFIED, tail of the lane log.
+# The branch is on origin/lane/tier2-machinery and was NOT merged.
+# These are the lane's CLAIMS. Verify them before merging:
+#   no live vendor call; the inconclusive rule and model-drift flag
+#   demonstrated firing; the absence-of-trigger proof; bats vs baseline;
+#   shellcheck; file modes.
+
++            f"baseline={pins['baseline']!r} candidate={pins['candidate']!r}"
++        )
++    return reasons
++
++
++def comparison_configuration(data: dict[str, Any]) -> tuple[int, int, float, int]:
++    expected_n = data.get("expected_n")
++    if expected_n != 3:
++        raise InputError("expected_n must be exactly 3")
++    bootstrap = data.get("bootstrap")
++    if not isinstance(bootstrap, dict):
++        raise InputError("bootstrap configuration is required")
++    resamples = bootstrap.get("resamples")
++    confidence_level = bootstrap.get("confidence_level")
++    seed = bootstrap.get("seed")
++    if isinstance(resamples, bool) or not isinstance(resamples, int) or resamples < 1:
++        raise InputError("bootstrap.resamples must be a positive integer")
++    confidence = number(confidence_level, "bootstrap.confidence_level")
++    if not 0 < confidence < 1:
++        raise InputError("bootstrap.confidence_level must be between zero and one")
++    if isinstance(seed, bool) or not isinstance(seed, int):
++        raise InputError("bootstrap.seed must be an integer")
++    return expected_n, resamples, confidence, seed
++
++
++def locked_specs(data: dict[str, Any]) -> list[str]:
++    specs = data.get("locked_specs")
++    if (
++        not isinstance(specs, list)
++        or not 8 <= len(specs) <= 12
++        or len(set(specs)) != len(specs)
++        or not all(isinstance(spec, str) and spec for spec in specs)
++    ):
++        raise InputError("locked_specs must contain 8 to 12 unique spec identifiers")
++    return specs
++
++
++def condition_samples(condition: dict[str, Any], spec_id: str) -> list[float]:
++    runs = condition.get("runs")
++    if not isinstance(runs, list):
++        raise InputError("condition runs must be an array")
++    samples: list[float] = []
++    for run in runs:
++        if not isinstance(run, dict):
++            raise InputError("each condition run must be an object")
++        scores = run.get("scores")
++        if not isinstance(scores, dict):
++            raise InputError("each condition run must carry a scores object")
++        if spec_id not in scores:
++            continue
++        score = number(scores[spec_id], f"score for {spec_id}")
++        if not 0 <= score <= 1:
++            raise InputError(f"score for {spec_id} must be between zero and one")
++        samples.append(score)
++    return samples
++
++
++def validate_run_structure(
++    conditions: dict[str, Any], specs: list[str], expected_n: int
++) -> None:
++    spec_set = set(specs)
++    for condition_name in ("baseline", "candidate"):
++        runs = conditions[condition_name].get("runs")
++        if not isinstance(runs, list) or len(runs) != expected_n:
++            raise InputError(
++                f"{condition_name} condition must contain exactly {expected_n} run records"
++            )
++        run_ids = []
++        for run in runs:
++            if not isinstance(run, dict):
++                raise InputError(f"{condition_name} run records must be objects")
++            run_id = run.get("run_id")
++            if not isinstance(run_id, str) or not run_id:
++                raise InputError(f"{condition_name} run_id values must be nonempty strings")
++            run_ids.append(run_id)
++            scores = run.get("scores")
++            if not isinstance(scores, dict):
++                raise InputError(f"{condition_name} run {run_id} must carry a scores object")
++            extra_specs = sorted(set(scores) - spec_set)
++            if extra_specs:
++                raise InputError(
++                    f"{condition_name} run {run_id} has unlocked score keys: "
++                    + ", ".join(extra_specs)
++                )
++        if len(set(run_ids)) != len(run_ids):
++            raise InputError(f"{condition_name} run_id values must be unique")
++
++
++def planned_comparison(
++    specs: list[str], expected_n: int, policy: dict[str, Any]
++) -> dict[str, Any]:
++    declared = policy["tiers"]["tier2"]
++    condition_count = number(
++        declared.get("comparison_conditions"), "tier2.comparison_conditions"
++    )
++    per_call_cost = number(
++        declared.get("max_cost_per_vendor_call_usd"),
++        "tier2.max_cost_per_vendor_call_usd",
++    )
++    calls = int(condition_count * len(specs) * expected_n)
++    expected_cost = rounded(calls * per_call_cost)
++    if calls > declared["max_vendor_calls"] or expected_cost > declared["max_cost_usd"]:
++        raise InputError("comparison plan exceeds the declared Tier 2 call or cost budget")
++    return {
++        "comparison_conditions": int(condition_count),
++        "locked_spec_count": len(specs),
++        "expected_n": expected_n,
++        "planned_vendor_calls": calls,
++        "max_cost_per_vendor_call_usd": per_call_cost,
++        "declared_expected_cost_usd": expected_cost,
++        "declared_max_cost_usd": declared["max_cost_usd"],
++    }
++
++
++def condition_result(
++    condition_name: str,
++    condition: dict[str, Any],
++    spec_id: str,
++    expected_n: int,
++    resamples: int,
++    confidence_level: float,
++    seed: int,
++) -> dict[str, Any]:
++    samples = condition_samples(condition, spec_id)
++    point_estimate: Any
++    if samples:
++        point_estimate = sum(samples) / len(samples)
++    else:
++        point_estimate = {
++            "status": "uncomputable",
++            "denominator": {"name": "observed runs", "value": 0},
++        }
++    return {
++        "model": condition.get("pinned_model"),
++        "n": len(samples),
++        "point_estimate": point_estimate,
++        "confidence_interval": bootstrap_ci(
++            samples,
++            expected_n=expected_n,
++            resamples=resamples,
++            confidence_level=confidence_level,
++            seed=f"{seed}:{condition_name}:{spec_id}",
++        ),
++    }
++
++
++def evaluate_comparison(data: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
++    if data.get("schema_version") != "tier2-comparison-input/v1":
++        raise InputError("unsupported Tier 2 comparison input schema")
++    specs = locked_specs(data)
++    expected_n, resamples, confidence_level, seed = comparison_configuration(data)
++    conditions = data.get("conditions")
++    if not isinstance(conditions, dict) or not all(
++        isinstance(conditions.get(name), dict) for name in ("baseline", "candidate")
++    ):
++        raise InputError("baseline and candidate conditions are required")
++    validate_run_structure(conditions, specs, expected_n)
++
++    measurement = data.get("measurement")
++    if not isinstance(measurement, dict) or measurement.get("tier") != "tier2":
++        raise InputError("a Tier 2 measurement run record is required")
++    run_record = evaluate_budget(measurement, policy)
++
++    invalid_reasons = validate_model_pin(data)
++    if not run_record["cadence_permitted"]:
++        invalid_reasons.append(
++            "Tier 2 comparison invocation refused by cadence policy: "
++            f"source={run_record['cadence_check']['source']}"
++        )
++    results = []
++    for spec_id in specs:
++        baseline = condition_result(
++            "baseline", conditions["baseline"], spec_id,
++            expected_n, resamples, confidence_level, seed,
++        )
++        candidate = condition_result(
++            "candidate", conditions["candidate"], spec_id,
++            expected_n, resamples, confidence_level, seed,
++        )
++        baseline_point = baseline["point_estimate"]
++        candidate_point = candidate["point_estimate"]
++        ci_computed = (
++            baseline["confidence_interval"]["status"] == "computed"
++            and candidate["confidence_interval"]["status"] == "computed"
++        )
++        points_computed = isinstance(baseline_point, float) and isinstance(candidate_point, float)
++        absolute_difference: Any = None
++        point_estimate_difference: Any = None
++        relative_difference: dict[str, Any]
++        uncertainty_half_width: Any = None
++        if points_computed:
++            difference = candidate_point - baseline_point
++            point_estimate_difference = difference
++            absolute_difference = abs(difference)
++            relative_difference = rate_record(
++                difference,
++                "baseline condition point estimate",
++                baseline_point,
++            )
++        else:
++            difference = 0.0
++            relative_difference = {
++                "status": "uncomputable",
++                "denominator": {
++                    "name": "baseline condition point estimate",
++                    "value": baseline_point,
++                },
++                "decision": "not_evaluated",
++            }
++
++        if invalid_reasons:
++            outcome = "INVALID"
++            decision = "not_evaluated"
++        elif (
++            not ci_computed
++            or not points_computed
++            or relative_difference["status"] == "uncomputable"
++        ):
++            outcome = "INCONCLUSIVE"
++            decision = "not_evaluated"
++        else:
++            uncertainty_half_width = max(
++                baseline["confidence_interval"]["half_width"],
++                candidate["confidence_interval"]["half_width"],
++            )
++            if abs(difference) <= uncertainty_half_width:
++                outcome = "INCONCLUSIVE"
++                decision = "not_evaluated"
++            elif difference > 0:
++                outcome = "IMPROVEMENT"
++                decision = "evaluated"
++            else:
++                outcome = "REGRESSION"
++                decision = "evaluated"
++
++        results.append({
++            "spec_id": spec_id,
++            "baseline": baseline,
++            "candidate": candidate,
++            "point_estimate_difference": point_estimate_difference,
++            "absolute_difference": absolute_difference,
++            "relative_difference": relative_difference,
++            "uncertainty_half_width": uncertainty_half_width,
++            "outcome": outcome,
++            "decision": decision,
++        })
++
++    return {
++        "schema_version": "tier2-comparison-result/v1",
++        "comparison_id": data.get("comparison_id"),
++        "research_only": True,
++        "expected_n": expected_n,
++        "bootstrap": {
++            "resamples": resamples,
++            "confidence_level": confidence_level,
++            "seed": seed,
++        },
++        "locked_specs": specs,
++        "validity": {
++            "status": "invalid" if invalid_reasons else "valid",
++            "reasons": invalid_reasons,
++        },
++        "plan": planned_comparison(specs, expected_n, policy),
++        "run_record": run_record,
++        "results": results,
++    }
++
++
++def print_comparison_summary(result: dict[str, Any]) -> None:
++    if result["validity"]["status"] == "invalid":
++        for reason in result["validity"]["reasons"]:
++            print(f"INVALID comparison_id={result['comparison_id']} reason={reason}")
++    for row in result["results"]:
++        difference = row["absolute_difference"]
++        uncertainty = row["uncertainty_half_width"]
++        print(
++            f"RESULT spec_id={row['spec_id']} outcome={row['outcome']} "
++            f"absolute_difference={difference if difference is not None else 'uncomputable'} "
++            f"uncertainty_half_width={uncertainty if uncertainty is not None else 'uncomputable'}"
++        )
++    if result["run_record"]["budget_review"]:
++        print("BUDGET_REVIEW tier=tier2")
++
++
++def compare_command(args: argparse.Namespace) -> int:
++    result = evaluate_comparison(load_json(args.input), load_budgets(args.budgets))
++    write_json(result, args.output)
++    if args.output is not None:
++        print_comparison_summary(result)
++    return 1 if result["validity"]["status"] == "invalid" else 0
++
++
++def rate_command(args: argparse.Namespace) -> int:
++    data = load_json(args.input)
++    if data.get("schema_version") != "tier-rate-input/v1":
++        raise InputError("unsupported rate input schema")
++    denominator = data.get("denominator")
++    if not isinstance(denominator, dict) or not isinstance(denominator.get("name"), str):
++        raise InputError("rate denominator must carry a name and value")
++    result = {
++        "schema_version": "tier-rate-result/v1",
++        "rate_id": data.get("rate_id"),
++        "rate": rate_record(
++            number(data.get("numerator"), "rate numerator"),
++            denominator["name"],
++            number(denominator.get("value"), "rate denominator"),
++        ),
++    }
++    write_json(result, args.output)
++    if args.output is not None:
++        rate = result["rate"]
++        print(
++            f"RATE rate_id={result['rate_id']} status={rate['status']} "
++            f"denominator={rate['denominator']['name']}:{rate['denominator']['value']:g}"
++        )
++    return 0
++
++
++def budget_command(args: argparse.Namespace) -> int:
++    data = load_json(args.input)
++    if data.get("schema_version") != "tier-run-input/v1" or not isinstance(data.get("runs"), list):
++        raise InputError("unsupported tier run input schema")
++    policy = load_budgets(args.budgets)
++    runs = [evaluate_budget(run, policy) for run in data["runs"]]
++    result = {
++        "schema_version": "tier-budget-result/v1",
++        "material_margin_percent": policy["material_margin_percent"],
++        "runs": runs,
++    }
++    write_json(result, args.output)
++    if args.output is not None:
++        for run in runs:
++            print(
++                f"BUDGET run_id={run['run_id']} breach={str(run['budget_breach']).lower()} "
++                f"review={str(run['budget_review']).lower()}"
++            )
++    return 0 if all(run["cadence_permitted"] for run in runs) else 1
++
++
++def output_path(value: str) -> Path:
++    return Path(value)
++
++
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(
++        description="Evaluate recorded Tier 2 research; never invokes a vendor.",
++    )
++    subparsers = parser.add_subparsers(dest="command", required=True)
++    for name, function in (
++        ("compare", compare_command),
++        ("rate", rate_command),
++        ("budget", budget_command),
++    ):
++        subparser = subparsers.add_parser(name)
++        subparser.add_argument("input", type=Path)
++        subparser.add_argument("--output", type=output_path)
++        subparser.add_argument("--budgets", type=Path, default=DEFAULT_BUDGETS)
++        subparser.set_defaults(function=function)
++    return parser
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = build_parser()
++    args = parser.parse_args(argv)
++    try:
++        return args.function(args)
++    except InputError as exc:
++        print(f"ERROR: {exc}", file=sys.stderr)
++        return 2
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+
+tokens used
+269,405
+Implemented Tier 2’s manual-only machinery exactly as scoped. No live vendor call, paid comparison, Git command, automatic trigger, or full Bats-suite run occurred—only recorded-fixture controls.
+
+Key deliverables:
+
+- Manual acknowledged collector: [tier2-collect.sh](/root/fm-wt/tier2/tests/tier2-collect.sh)
+- Statistical evaluator and policy engine: [tier2-compare.sh](/root/fm-wt/tier2/tests/tier2-compare.sh), [tier2_compare.py](/root/fm-wt/tier2/tests/tier2_compare.py)
+- Trigger-absence scanner: [tier2-trigger-scan.sh](/root/fm-wt/tier2/tests/tier2-trigger-scan.sh)
+- 27 fixture-driven controls: [tier2-compare.bats](/root/fm-wt/tier2/tests/tier2-compare.bats)
+- Tier budgets/cadence: [regression-tier-budgets.json](/root/fm-wt/tier2/skills/foreman/references/regression-tier-budgets.json)
+- Updated task evidence: [tasks.md](/root/fm-wt/tier2/openspec/changes/regression-harness-tiers/tasks.md)
+
+Evidence:
+
+- Targeted gate: 27/27 passed; baseline 27, skips 0 on Linux/WSL/Windows.
+- Inconclusive control printed mutated values: difference `0.04`, wider CI half-width `0.1` → `INCONCLUSIVE`, `not_evaluated`.
+- Model drift printed the changed version, exited 1, and made every outcome `INVALID`.
+- Zero trials rendered `uncomputable`, denominator `trials: 0`, with no numeric rate.
+- Trigger proof printed an empty grep block: `grep_exit=1 output_bytes=0`; planted extensionless-hook control failed.
+- Fixture collector made exactly 48 offline calls: 2 conditions × 8 specs × N=3.
+- `shellcheck -S warning`, Bash parsing, Python 3.13 grammar, JSON, LF, executable modes, and strict OpenSpec validation passed.
+- No generated bytecode/cache artifacts remain.
+
+Ticked: §3.2–3.7, §5.1–5.4, §6.1.  
+Left open: §3.1, because locking real specs against a pinned live model requires the separate human-authorized paid run.

@@ -1,0 +1,105 @@
+########## fresh ##########
+[08:05:30] fresh quiet=0 size=422358
+[08:10:30] fresh quiet=0 size=488308
+[08:15:30] fresh quiet=0 size=674147
+[08:20:30] fresh quiet=1 size=674147
+[08:25:30] fresh quiet=2 size=674147
+--- status ---
+ M .foreman/session.db
+ M skills/foreman/scripts/fm-session.py
+ M tests/baseline.tsv
+ M tests/session.bats
+-	-	.foreman/session.db
+60	0	skills/foreman/scripts/fm-session.py
+1	1	tests/baseline.tsv
+63	0	tests/session.bats
+--- shellcheck ---
+  no shell files
+--- the deliverable finding: fresh / stale-with-command / stale-without ---
+`freshness` supports text/TSV output, `--stale-only`, missing-command markers, full SHAs, scopes, timestamps, and unknown/non-fresh legacy rows. It never executes recorded commands.
+First ten stale rows:
+[57] openspec packages with zero ticks = 28  verdict=STALE  reason=23 commit(s) touched its scope since measurement  command=python3 count of tasks.md files with no "- [x]" line  scope=openspec/changes  sha=150aa0b41a9248b7e17c6cf7bfce6d6187a341ab  timestamp=2026-08-01T10:25:51Z
+[56] openspec tasks ticked = 132  verdict=STALE  reason=23 commit(s) touched its scope since measurement  command=python3 - <<PY ... count "- [x]" across openspec/changes/*/tasks.md PY  scope=openspec/changes  sha=150aa0b41a9248b7e17c6cf7bfce6d6187a341ab  timestamp=2026-08-01T10:25:51Z
+[53] openspec tasks ticked = 59  verdict=STALE  reason=28 commit(s) touched its scope since measurement  command=cat openspec/changes/*/tasks.md | grep -c "^- \[x\]"  scope=openspec/changes  sha=5087aba7d11937448a7e549a2466863c5048111f  timestamp=2026-08-01T09:57:27Z
+[52] openspec packages with zero ticks = 30  verdict=STALE  reason=28 commit(s) touched its scope since measurement  command=for d in openspec/changes/*/; do grep -c "^- \[x\]" "$d/tasks.md"; done | grep -c "^0$"  scope=openspec/changes  sha=5087aba7d11937448a7e549a2466863c5048111f  timestamp=2026-08-01T09:57:27Z
+[51] tier1 failure classes demonstrated = 7  verdict=STALE  reason=2 commit(s) touched its scope since measurement  command=bash tests/tier1-replay.sh | grep -oE "COVERAGE: [0-9]+ of 10"  scope=tests/golden-rounds,tests/tier1-replay.sh,docs/design/tier1-failure-classes.md  sha=eb2ab1aef2cb404d105af00548aede43d5639456  timestamp=2026-08-01T09:46:14Z
+[50] gates-linux bats skipped = 31  verdict=STALE  reason=25 commit(s) touched its scope since measurement  command=id=$(gh run list --workflow=gates-linux.yml --limit 10 --json databaseId,status -q ".[] | select(.status==\"completed\") | .databaseId" | head -1); gh run download "$id" && grep -c "# skip" foreman-test-tap.log  scope=tests,launcher  sha=918a2e02bf0a8693976d5c75f2d8ffb308b7fb0f  timestamp=2026-08-01T09:39:36Z
+[49] gates-linux bats failing = 0  verdict=STALE  reason=29 commit(s) touched its scope since measurement  command=id=$(gh run list --workflow=gates-linux.yml --limit 10 --json databaseId,status -q ".[] | select(.status==\"completed\") | .databaseId" | head -1); gh run download "$id" && grep -c "^not ok" foreman-test-tap.log  scope=tests,skills/foreman/scripts,launcher  sha=918a2e02bf0a8693976d5c75f2d8ffb308b7fb0f  timestamp=2026-08-01T09:39:36Z
+[48] gates-linux bats passing = 562  verdict=STALE  reason=29 commit(s) touched its scope since measurement  command=id=$(gh run list --workflow=gates-linux.yml --limit 10 --json databaseId,status -q ".[] | select(.status==\"completed\") | .databaseId" | head -1); gh run download "$id" && grep -c "^ok" foreman-test-tap.log  scope=tests,skills/foreman/scripts,launcher  sha=918a2e02bf0a8693976d5c75f2d8ffb308b7fb0f  timestamp=2026-08-01T09:39:36Z
+[47] regression-harness-tiers tasks done = 12  verdict=STALE  reason=26 commit(s) touched its scope since measurement  command=grep -c "^- \[x\]" openspec/changes/regression-harness-tiers/tasks.md  scope=openspec/changes/regression-harness-tiers,tests  sha=bb9e24c43506872d283cc3e7ea56fe4102957e7a  timestamp=2026-08-01T09:15:41Z
+[46] gates-windows consecutive green runs = 3  verdict=STALE  reason=35 commit(s) touched its scope since measurement  command=gh run list --workflow=gates-windows.yml  scope=tests,skills/foreman/scripts,.github/workflows,formal  sha=9d1489adc331aae93a0ef66893331cb38cf9bb86  timestamp=2026-08-01T09:02:31Z
+--- recover output byte-identical? ---
+ #   fm-session.py begin [--note TEXT]        start a session; prints recovery
+ #   fm-session.py recover [--json]           canonical recovery, no side effects
+     p = sub.add_parser("recover"); p.add_argument("--json", action="store_true")
+diff --git a/tests/baseline.tsv b/tests/baseline.tsv
+diff --git a/tests/session.bats b/tests/session.bats
+- `recover` pre/post deterministic diff: `Files ... are identical`
+--- the new subcommand, run for real ---
+WARNING: an orphaned session store sits at /root/fm-wt/fresh/.foreman/session.db. Nothing reads it. The store in use is /root/foreman/.foreman/session.db.
+[57] openspec packages with zero ticks = 28  verdict=STALE  reason=23 commit(s) touched its scope since measurement  command=python3 count of tasks.md files with no "- [x]" line  scope=openspec/changes  sha=150aa0b41a9248b7e17c6cf7bfce6d6187a341ab  timestamp=2026-08-01T10:25:51Z
+[56] openspec tasks ticked = 132  verdict=STALE  reason=23 commit(s) touched its scope since measurement  command=python3 - <<PY ... count "- [x]" across openspec/changes/*/tasks.md PY  scope=openspec/changes  sha=150aa0b41a9248b7e17c6cf7bfce6d6187a341ab  timestamp=2026-08-01T10:25:51Z
+[53] openspec tasks ticked = 59  verdict=STALE  reason=28 commit(s) touched its scope since measurement  command=cat openspec/changes/*/tasks.md | grep -c "^- \[x\]"  scope=openspec/changes  sha=5087aba7d11937448a7e549a2466863c5048111f  timestamp=2026-08-01T09:57:27Z
+[52] openspec packages with zero ticks = 30  verdict=STALE  reason=28 commit(s) touched its scope since measurement  command=for d in openspec/changes/*/; do grep -c "^- \[x\]" "$d/tasks.md"; done | grep -c "^0$"  scope=openspec/changes  sha=5087aba7d11937448a7e549a2466863c5048111f  timestamp=2026-08-01T09:57:27Z
+[51] tier1 failure classes demonstrated = 7  verdict=STALE  reason=2 commit(s) touched its scope since measurement  command=bash tests/tier1-replay.sh | grep -oE "COVERAGE: [0-9]+ of 10"  scope=tests/golden-rounds,tests/tier1-replay.sh,docs/design/tier1-failure-classes.md  sha=eb2ab1aef2cb404d105af00548aede43d5639456  timestamp=2026-08-01T09:46:14Z
+[50] gates-linux bats skipped = 31  verdict=STALE  reason=25 commit(s) touched its scope since measurement  command=id=$(gh run list --workflow=gates-linux.yml --limit 10 --json databaseId,status -q ".[] | select(.status==\"completed\") | .databaseId" | head -1); gh run download "$id" && grep -c "# skip" foreman-test-tap.log  scope=tests,launcher  sha=918a2e02bf0a8693976d5c75f2d8ffb308b7fb0f  timestamp=2026-08-01T09:39:36Z
+[49] gates-linux bats failing = 0  verdict=STALE  reason=29 commit(s) touched its scope since measurement  command=id=$(gh run list --workflow=gates-linux.yml --limit 10 --json databaseId,status -q ".[] | select(.status==\"completed\") | .databaseId" | head -1); gh run download "$id" && grep -c "^not ok" foreman-test-tap.log  scope=tests,skills/foreman/scripts,launcher  sha=918a2e02bf0a8693976d5c75f2d8ffb308b7fb0f  timestamp=2026-08-01T09:39:36Z
+[48] gates-linux bats passing = 562  verdict=STALE  reason=29 commit(s) touched its scope since measurement  command=id=$(gh run list --workflow=gates-linux.yml --limit 10 --json databaseId,status -q ".[] | select(.status==\"completed\") | .databaseId" | head -1); gh run download "$id" && grep -c "^ok" foreman-test-tap.log  scope=tests,skills/foreman/scripts,launcher  sha=918a2e02bf0a8693976d5c75f2d8ffb308b7fb0f  timestamp=2026-08-01T09:39:36Z
+[47] regression-harness-tiers tasks done = 12  verdict=STALE  reason=26 commit(s) touched its scope since measurement  command=grep -c "^- \[x\]" openspec/changes/regression-harness-tiers/tasks.md  scope=openspec/changes/regression-harness-tiers,tests  sha=bb9e24c43506872d283cc3e7ea56fe4102957e7a  timestamp=2026-08-01T09:15:41Z
+[46] gates-windows consecutive green runs = 3  verdict=STALE  reason=35 commit(s) touched its scope since measurement  command=gh run list --workflow=gates-windows.yml  scope=tests,skills/foreman/scripts,.github/workflows,formal  sha=9d1489adc331aae93a0ef66893331cb38cf9bb86  timestamp=2026-08-01T09:02:31Z
+[45] gates-linux consecutive green runs = 0  verdict=STALE  reason=35 commit(s) touched its scope since measurement  command=gh run list --workflow=gates-linux.yml  scope=tests,skills/foreman/scripts,.github/workflows,formal  sha=9d1489adc331aae93a0ef66893331cb38cf9bb86  timestamp=2026-08-01T09:02:30Z
+--- the REAL mode checker (obligation 84) ---
+  line-endings not_ok=0
+########## tier2 ##########
+[08:30:39] tier2 quiet=0 size=5022238
+[08:35:39] tier2 quiet=0 size=5252069
+[08:40:39] tier2 quiet=1 size=5252069
+[08:45:39] tier2 quiet=2 size=5252069
+--- status ---
+ M openspec/changes/regression-harness-tiers/tasks.md
+ M skills/foreman/references/index.md
+ M tests/baseline.tsv
+ M tests/skip-budget.tsv
+?? skills/foreman/references/regression-tier-budgets.json
+?? skills/foreman/references/regression-tier-budgets.md
+?? tests/fixtures/tier2/collection-plan.json
+?? tests/fixtures/tier2/comparison.json
+?? tests/fixtures/tier2/fixture-adapter.sh
+?? tests/fixtures/tier2/rate-zero-trials.json
+?? tests/fixtures/tier2/tier-run-records.json
+?? tests/tier2-collect.sh
+?? tests/tier2-compare.bats
+?? tests/tier2-compare.sh
+?? tests/tier2-trigger-scan.sh
+?? tests/tier2_collect.py
+?? tests/tier2_compare.py
+57	11	openspec/changes/regression-harness-tiers/tasks.md
+1	0	skills/foreman/references/index.md
+1	0	tests/baseline.tsv
+3	0	tests/skip-budget.tsv
+--- shellcheck ---
+  rc=0 clean
+--- the four honesty mechanisms ---
++    resamples = bootstrap.get("resamples")
++    confidence_level = bootstrap.get("confidence_level")
++    seed = bootstrap.get("seed")
++        raise InputError("bootstrap.resamples must be a positive integer")
++    confidence = number(confidence_level, "bootstrap.confidence_level")
++        raise InputError("bootstrap.confidence_level must be between zero and one")
++        raise InputError("bootstrap.seed must be an integer")
++        "confidence_interval": bootstrap_ci(
++            outcome = "INCONCLUSIVE"
++                outcome = "INCONCLUSIVE"
++        "bootstrap": {
+- Trigger-absence scanner: [tier2-trigger-scan.sh](/root/fm-wt/tier2/tests/tier2-trigger-scan.sh)
+- Inconclusive control printed mutated values: difference `0.04`, wider CI half-width `0.1` → `INCONCLUSIVE`, `not_evaluated`.
+- Model drift printed the changed version, exited 1, and made every outcome `INVALID`.
+--- proof of NO live vendor call ---
+./README.md:143:**Grok is live.** Grok Build is installed on the reference host; the bootstrap
+./env/reference-manifest.toml:92:notes = "Needed to install codex/grok via npm if not already present. Reprovisioned via fnm 2026-07-18 (v0.2.7.5 pkg-3): apt's own nodejs+npm pairing had drifted (node 22 + npm 9.2.0 -- npm shipped with node 22 is normally 10.x+), which is suspected to be why an earlier WSL codex install never pulled its platform optionalDependency correctly. fnm-managed LTS (v24.18.0 / npm 11.16.0 at probe time) is a coherent, current pair; env/bootstrap-wsl.sh symlinks its node/npm/npx into /usr/local/bin so they resolve ahead of the apt package without needing any shell profile sourced."
+./env/bootstrap-windows.ps1:158:Log "bootstrap finished. Auth if needed: grok login ; codex login"
+./docs/research/xai_grok_news.txt:1:Introducing Grok Build | SpaceXAI Products Solutions Developer Company Pricing News Contact Sales Try for free Products Grok Business Government Download iOS Android Grok on X Developers API Console Documentation CLI Try for free Back to news May 25, 2026 Introducing Grok Build Now in early beta for all SuperGrok and X Premium Plus subscribers — Grok Build is a new coding agent that runs right from your terminal. Today we're launching an early beta of Grok Build, a powerful new coding agent and CLI for professional software engineering and complex coding work. Available now to all SuperGrok and X Premium Plus subscribers. Install Grok Build with a single command and sign in with your account: $ curl -fsSL https://x.ai/cli/install.sh | bash Upgrade ~/Documents/GitHub/xai | 4.2% | ◆ Thought for 3.8s ❯ grok-build Enter :run │ Esc :reset │ Tab :next example │ Type :custom command Plan, review, approve For complex tasks, start Grok Build in plan mode. You can approve the plan, comment on individual steps, or rewrite it entirely before execution begins. Once a plan is approved, every change shows up as a clean diff. ~/Documents/GitHub/xai | 3.91% | ❯ tighten install docs for headless mode ◆ Edit docs/install.md plan.md 1 Install Docs Refresh Plan 2 Quick Assessment 3 • docs/install.md skips headless mode and ACP entirely, so the install path should be rewritten to cover the bootstrap, the `-p` flag, and config.toml in one pass. 4 Implementation Plan 5 1. Replace the install snippet with the curl bootstrap 6 2. Document `-p` headless mode and ACP compatibility 7 3. Point users to `config.toml` for models and API keys 8 4. Cross-link the auth and feedback sections #1 review diff [turn: 21s, ↕16.8k] ❯ grok-build Enter :run │ Type :swap prompt │ Esc :clear input Works with what you already use Your AGENTS.md, plugins, hooks, skills, and MCP servers all work out of the box. Start Grok Build in your repo and it picks up your conventions instantly. ~/Documents/GitHub/xai | 3.95% | ◆ Thought for 9.2s I'll search the marketplace and install the browser-review plugin. ❯ install browser-review and open its skills Hooks Plugins Marketplace Skills MCP Servers /browser All ⌄ › browser-review v0.8.2 (community) [preview] Scroll this example into view to watch the plugin install flow. [turn: 31s, ↕39.1k] ❯ grok-build Click :take over │ Enter :run │ Tab :switch tabs │ Esc :clear input Subagents that work in parallel For larger tasks, Grok Build delegates work to specialized subagents that run in parallel. Grok Build also supports deep worktree integrations, and you can launch subagents in their own worktrees. ~/Documents/GitHub/xai | 4.32% | explore Explore checkout flow explore · grok-build explore Explore infra and CI explore · grok-build explore Explore shared Go libraries explore · grok-build explore Explore order services explore · grok-build explore Explore fulfillment jobs explore · grok-build explore Explore pricing engine explore · grok-build ❯ find the source of the p99 latency regression | Diff recent deploys explore · grok-build [running] | Rank slowest endpoints explore · grok-build [running] | Pull slow query plans general · grok-build [running] Splitting deploys, slow endpoints, DB plans, and cache hit rates into parallel digs. [turn: 54s, ↕39.8k] [turn: 54s, ↕39.8k] ❯ grok-build Enter :launch │ Click :pin agent │ Type :change task │ Esc :clear input Built to fit your workflow Headless mode ( -p ) allows easily running agents inside scripts and automations. The CLI also provides full ACP support to build your own bots and agent orchestration apps. Try it today This is an early beta, and your feedback is the fastest way to make it better. Type /feedback in the CLI to send bugs, requests, and reactions straight to the team. SuperGrok and X Premium Plus subscribers can install Grok Build with the command above and start building. If you don't have SuperGrok yet, upgrade here — we're excited to see what you create. $ curl -fsSL https://x.ai/cli/install.sh | bash Upgrade © 2026 X.AI LLC Built with Grok Products Chat Build Imagine Voice Grokipedia Download grok.com iOS Android Grok on X Solutions Business Government Customer Support Legal Security Use Cases Developers API Overview Pricing Models Console Docs Status Enterprise Contact Sales FAQs BAA DPA Company About Colossus Careers News Contact Trust Safety Security Privacy Portal Subprocessors Help Center Legal Terms Enterprise Terms Privacy Cookies AUP Brand Social @spacexai @grok Discord Built with Grok
+./docs/research/fetch-index.json:125:    "excerpt": "Introducing Grok Build | SpaceXAI Products Solutions Developer Company Pricing News Contact Sales Try for free Products Grok Business Government Download iOS Android Grok on X Developers API Console Documentation CLI Try for free Back to news May 25, 2026 Introducing Grok Build Now in early beta for all SuperGrok and X Premium Plus subscribers \u2014 Grok Build is a new coding agent that runs right from your terminal. Today we're launching an early beta of Grok Build, a powerful new coding agent and CLI for professional software engineering and complex coding work. Available now to all SuperGrok and X Premium Plus subscribers. Install Grok Build with a single command and sign in with your account: $ curl -fsSL https://x.ai/cli/install.sh | bash Upgrade ~/Documents/GitHub/xai | 4.2% | \u25c6 Thought for 3.8s \u276f grok-build Enter :run \u2502 Esc :reset \u2502 Tab :next example \u2502 Type :custom command Plan, review, approve For complex tasks, start Grok Build in plan mode. You can approve the plan, comment on individual steps, or rewrite it entirely before execution begins. Once a plan is approved, every change shows up as a clean diff. ~/Documents/GitHub/xai | 3.91% | \u276f tighten install docs for headless mode \u25c6 Edit docs/install.md plan.md 1 Install Docs Refresh Plan 2 Quick Assessment 3 \u2022 docs/install.md skips headless mode and ACP entirely, so the install path should be rewritten to cover the bootstrap, the `-p` flag, and config.toml in one pass. 4 Implementation Plan 5 1. Replace the install snippet with the curl bootstrap 6 2. Document `-p` headless mode and ACP compatibility 7 3. Point users to `config.toml` for models and API keys 8 4. Cross-link the auth and feedback sections #1 review diff [turn: 21s, \u219516.8k] \u276f grok-build Enter :run \u2502 Type :swap prompt \u2502 Esc :clear input Works with what you already use Your AGENTS.md, plugins, hooks, skills, and MCP servers all work out of the box. Start Grok Build in your repo and it picks up your conventions instantly. ~/Documents/GitHub/xai | 3.95% | \u25c6 Thought for 9.2s I'll search the marketplace and install the browser-review plugin. \u276f install browser-review and open its skills Hooks Plugins Marketplace Skills MCP Servers /browser All \u2304 \u203a browser-review v0.8.2 (community) [preview] Scroll this example into view to watch the plugin install flow. [turn: 31s, \u219539.1k] \u276f grok-build Click :take over \u2502 Enter :run \u2502 Tab :switch tabs \u2502 Esc :clear input Subagents that work in parallel For larger tasks, Grok Build delegates work to specialized subagents that run in parallel. Grok Build also supports deep worktree integrations, and you can launch subagents in their own worktrees. ~/Documents/GitHub/xai | 4.32% | explore Explore checkout flow explore \u00b7 grok-build explore Explore infra and CI explore \u00b7 grok-build explore Explore shared Go libraries explore \u00b7 grok-build explore Explore order services explore \u00b7 grok-build explore Explore fulfillment jobs explore \u00b7 grok-build explore Explore pricing engine explore \u00b7 grok-build \u276f find the source of the p99 latency regression | Diff recent deploys explore \u00b7 grok-build [running] | Rank slowest endpoints explore \u00b7 grok-build [running] | Pull slow query plans general \u00b7 grok-build [running] Splitting deploys, slow endpoints, DB plans, and cache hit rates into parallel digs. [turn: 54s, \u219539.8k] [turn: 54s, \u219539.8k] \u276f grok-build Enter :launch \u2502 Click :pin agent \u2502 Type :change task \u2502 Esc :clear input Built to fit your workflow Headless mode ( -p ) allows easily running agents inside scripts and automations. The CLI also provides full ACP support to build your own bots and agent orchestration apps. Try it today This is an early beta, and your feedback is the fastest way to make it better. Type /feedback in the CLI to send bugs, requests, and reactions straight to the team. SuperGrok and X Premium Plus subscribers can install Grok Build with the command above and start building. If you don't have SuperGrok yet, upgrade here \u2014 we're excited to see what you create. $ curl -fsSL https://x.ai/cli/install.sh | bash Upgrade \u00a9 2026 X.AI LLC Built with Grok Products Chat Build Imagine Voice Grokipedia Download grok.com iOS Android Grok on X Solutions Business Government Customer Support Legal Security Use Cases Developers API Overview Pricing Models Console Docs Status Enterprise Contact Sales FAQs BAA DPA Company About Colossus Careers News Contact Trust Safety Security Privacy Portal Subprocessors Help Center Legal Terms Enterprise Terms Privacy Cookies AUP Brand Social @spacexai @grok Discord Built with Grok",
+--- the REAL mode checker (obligation 84) ---
+  line-endings not_ok=0
+REPORT COMPLETE
