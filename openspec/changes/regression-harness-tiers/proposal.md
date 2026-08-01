@@ -2,8 +2,19 @@
 
 ## Why
 
-Foreman's orchestration layer has 33 bats files / 382 tests and runs on no
-CI on any platform. A fresh-clone baseline is 373 pass / 9 fail, and
+Foreman's orchestration layer has 50 bats files / 635 tests
+(`find tests -maxdepth 1 -type f -name '*.bats' | wc -l` and
+`find tests -maxdepth 1 -type f -name '*.bats' | xargs grep -h '^@test' | wc -l`;
+`tests/run.sh` selects that top-level set, and the gate prints `tests=635`).
+`grep -rn FOREMAN_CI_BATS .github/workflows/` shows `gates-linux.yml`
+setting `FOREMAN_CI_BATS: "1"`, so the suite runs and gates on Linux for
+pushes to `main` and every pull request (`on.push.branches: [main]` plus
+`pull_request`), and `gates-windows.yml` setting it to `"0"`, which
+disables the full suite as a gate; Windows still executes a deliberate
+two-file non-gating bats probe over `tests/line-endings.bats` and
+`tests/plugin-drift.bats` (`gates-windows.yml` lines 86–114).
+A historical fresh-clone baseline (2026-07-28 hand-triage recorded in
+test-infrastructure-hardening) was 373 pass / 9 fail, and
 hand-triage of that baseline found only 2 of the 9 failures were product
 defects; the rest were platform, privilege, build-artefact or
 test-validity problems wearing the same red as a real bug. A flat

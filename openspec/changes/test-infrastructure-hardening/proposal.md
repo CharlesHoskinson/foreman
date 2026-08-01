@@ -25,12 +25,28 @@ failing and was not noticed.
 
 Three further gaps compound it:
 
-- **The bats suite runs on no CI at all.** `.github/workflows/` holds exactly
-  two jobs: `maintenance.yml` (a report) and `windows-smoke.yml` (runs
-  `install.ps1` and asserts junctions). 33 test files and 382 tests have never
-  run in CI on any platform. The v0.2.9 `wsl-ci-parity` package addresses the
-  Linux half; this package makes the suite CI-ready enough to be worth running.
-- **Aggregate pass counts hide regressions.** With 382 tests, a subsystem
+- **The bats suite gates on Linux CI; Windows runs a non-gating bats probe.**
+  `ls .github/workflows/` lists five files: `formal.yml`, `gates-linux.yml`,
+  `gates-windows.yml`, `maintenance.yml`, and `windows-smoke.yml`.
+  `grep -rn FOREMAN_CI_BATS .github/workflows/` shows `gates-linux.yml`
+  setting `FOREMAN_CI_BATS: "1"`, so the suite runs and gates on Linux for
+  pushes to `main` and every pull request (`on.push.branches: [main]` plus
+  `pull_request` in `gates-linux.yml`), and `gates-windows.yml` setting it
+  to `"0"`, which disables the full suite as a gate on the Windows runner.
+  Windows still executes bats as a deliberate non-gating probe in
+  `gates-windows.yml` (lines 86–114): `tests/line-endings.bats` and
+  `tests/plugin-drift.bats`, each under a timeout bound, capturing bats'
+  own exit status with `continue-on-error: true`.
+  `find tests -maxdepth 1 -type f -name '*.bats' | wc -l` is 50;
+  `find tests -maxdepth 1 -type f -name '*.bats' | xargs grep -h '^@test' | wc -l`
+  is 635 (the set `tests/run.sh` selects with `-maxdepth 1`, and the number
+  the gate prints as `tests=635`).
+  Those tests therefore gate on Linux and have never gated on Windows.
+  The withdrawn `wsl-ci-parity` package targeted the Linux half that
+  `gates-linux.yml` already covers. This package still makes the suite
+  CI-ready enough for the remaining Windows gap and for interpretable skips.
+- **Aggregate pass counts hide regressions.** With 635 tests
+  (`find tests -maxdepth 1 -type f -name '*.bats' | xargs grep -h '^@test' | wc -l`), a subsystem
   breaking entirely moves the headline by a couple of percent. Measured
   evidence for this effect: injected regressions moved an aggregate score only
   −1.7 to −5.9 pp while the owning slice dropped −25 to −91 pp
@@ -97,8 +113,10 @@ right mechanism and it is extended here rather than duplicated.
 - **Determinism.** Load-sensitive timing tests move onto the existing
   `WATCH_VTICK` injectable clock rather than wall-clock sleeps.
 - **CI runs the suite** on `ubuntu-latest` and on `windows-latest` under
-  `shell: bash`, per-slice, uploading the per-slice report. Coordinated with
-  the `wsl-ci-parity` package rather than duplicating it.
+  `shell: bash`, per-slice, uploading the per-slice report. Coordinates with
+  `gates-linux.yml` / `gates-windows.yml` (the live CI entry points) rather
+  than duplicating them; the withdrawn `wsl-ci-parity` package is not a live
+  dependency.
 - **`install.sh` stops dirtying the tree** — the exec bit is fixed in the index
   via `git update-index --chmod=+x` (owned by `crlf-extensionless-hardening`),
   so the installer no longer needs to chmod the working tree at all.
@@ -145,14 +163,19 @@ right mechanism and it is extended here rather than duplicated.
 
 ## Impact
 
-- Affected: `tests/run.sh`, all 33 `tests/*.bats` (mechanical precondition
-  annotations), `install.sh:61-63`, `.github/workflows/`.
+- Affected: `tests/run.sh`, all 50 `*.bats` files
+  (`find tests -maxdepth 1 -type f -name '*.bats' | wc -l`) (mechanical precondition annotations),
+  `install.sh:61-63`, `.github/workflows/`.
 - New: `tests/lib/preconditions.bash`, `tests/baseline.tsv`,
   `tests/skip-budget.tsv`, `tests/inject-regressions.sh`,
   `.github/workflows/tests.yml`.
 - Coordinates with: `crlf-extensionless-hardening` (owns the exec-bit index
-  fix), `wsl-ci-parity` (owns the Linux CI job), `wsl-launcher-shipped` (owns
-  building `launcher/dist`), `lock-primitive-hardening` (owns tests 43/50/54).
+  fix), `gates-linux.yml` / `gates-windows.yml` (own the CI entry points —
+  Linux full suite on via `FOREMAN_CI_BATS: "1"`, Windows full suite off via
+  `"0"` with a non-gating two-file bats probe; `wsl-ci-parity` was withdrawn
+  when its "no CI" premise died),
+  `wsl-launcher-shipped` (owns building `launcher/dist`),
+  `lock-primitive-hardening` (owns tests 43/50/54).
   This package SHALL NOT re-implement any of those; it consumes them.
 - **Ordering: this lands early.** Every other package in the release is
   verified by this suite. Hardening it first is what makes the rest of the

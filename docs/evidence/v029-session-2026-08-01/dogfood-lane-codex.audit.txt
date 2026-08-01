@@ -1,0 +1,47 @@
+# Cross-vendor audit of the dogfood lane (codex auditing a grok lane)
+
+Final verdict and findings, extracted from the full transcript.
+The lane implemented, the architect verified, codex audited -- this
+project forbids same-vendor audit and enforces it in code.
+
+Round 1 returned BLOCKED with 8 findings, 7 of which traced to the
+ARCHITECT spec rather than the implementer (see session store fact 231).
+Round 2, below, confirms those five named findings fixed and blocks on
+six further stale claims outside the lane's scope (obligation 94).
+
+---
+
+VERDICT: BLOCKED
+SUMMARY: The five named rework findings are fixed, and structure and validation pass. Approval remains blocked by stale current-state, workflow, and package-ownership claims.
+
+FINDINGS:
+- severity: medium
+  file: openspec/changes/test-infrastructure-hardening/proposal.md
+  line: 5
+  summary: The proposal still presents the superseded 373-pass and 9-fail baseline as a current fresh-clone result.
+  evidence: `find tests -maxdepth 1 -type f -name '*.bats' | wc -l` output `50`; the corresponding `^@test` command output `635`, not the stated 382 total.
+- severity: medium
+  file: openspec/changes/test-infrastructure-hardening/proposal.md
+  line: 54
+  summary: The install-tree-dirtying premise and its crlf-extensionless-hardening ownership attribution are stale.
+  evidence: `git ls-files --stage 'skills/foreman/scripts/*.sh' 'skills/foreman/scripts/lib/*.sh' | awk '{count[$1]++} END {for (mode in count) print mode, count[mode]}'` output `100755 49`; `crlf-extensionless-hardening/proposal.md` lines 23–29 and 48–49 cover three unrelated extensionless Superpowers scripts.
+- severity: medium
+  file: openspec/changes/test-infrastructure-hardening/proposal.md
+  line: 117
+  summary: The rework says the package will use the two live gate workflows without duplication, but Impact still declares a new `.github/workflows/tests.yml`.
+  evidence: `rg -n 'rather than duplicating|workflows/tests.yml' openspec/changes/test-infrastructure-hardening/proposal.md` output lines `117-119` for non-duplication and line `171` for the new workflow.
+- severity: medium
+  file: openspec/changes/test-infrastructure-hardening/proposal.md
+  line: 178
+  summary: The live coordination reference “tests 43/50/54” uses obsolete ordinal test numbers.
+  evidence: Enumerating `^@test` entries over the sorted top-level set maps ordinals 43, 50, and 54 to audit tests; the three referenced eventlog tests are now 129, 136, and 140.
+- severity: medium
+  file: openspec/changes/test-infrastructure-hardening/proposal.md
+  line: 194
+  summary: The proposal says formal-model-suite applies the requirements to three Quint models, but the current formal suite contains four.
+  evidence: `find formal -maxdepth 2 -type f -name '*.qnt' | wc -l` output `4`: `audit_gate.qnt`, `eventlog_concurrency.qnt`, `evidence_contract.qnt`, and `lane_lifecycle.qnt`.
+- severity: medium
+  file: openspec/changes/test-infrastructure-hardening/proposal.md
+  line: 198
+  summary: The proposal assigns the lane write-evidence digest to vendor-adapter-contract, contrary to the current ownership contract.
+  evidence: `rg -n 'sole implementation owner|declared consumer|content hash' openspec/changes/{evidence-contracts,vendor-adapter-contract}/proposal.md` shows evidence-contracts as sole owner and vendor-adapter-contract as only a declared consumer.
