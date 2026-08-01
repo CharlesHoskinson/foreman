@@ -116,7 +116,6 @@ actually launches `nats-server` is responsible for passing `-sd` itself.
   CRLF even from an LF-clean log) is stripped at every read boundary rather
   than assumed away.
 
-
 ## Locking
 
 Every durable-core lock goes through `skills/foreman/scripts/lib/lock.sh`

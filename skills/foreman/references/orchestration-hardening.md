@@ -595,7 +595,6 @@ process argv) and opens the PR with `gh pr create --draft --head <branch>
 --base main -F <body-file>` (never `-b <string>`, never `gh pr ready` — that
 remains a separate, human-invoked step).
 
-
 ## 11. Vendor usage reporting (decision-lineage emission)
 
 Per-round cost/token figures on `round_done` / `audit_verdict` use a mandatory

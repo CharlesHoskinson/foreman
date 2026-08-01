@@ -1795,6 +1795,7 @@ three: (a) is a `grok`/`codex` process executing, (b) has any owned file been to
 against the class. Writing the rule down does not either.
 
 ### Event 2 — `repos/` in .gitignore does not match a `repos` symlink, and per-worktree
+
 `info/exclude` is not read
 
 **Phase:** same dispatch.
@@ -1824,6 +1825,7 @@ consecutive STALL SUSPECT reports. On the third, three Grok lanes were stopped. 
 and nearly finished.
 
 **Evidence they were working:**
+
 - `/root/wt/w1-stub/tools/mutation/{MUT-A1-experiments.sh,mutate_ledger.py}` carry mtime
   **08:01:58** with `+24` lines of real mutation cases — written by the lane while the watchdog
   was reporting "no owned file touched".
@@ -1832,6 +1834,7 @@ and nearly finished.
   2 complete, on criterion 3 of 3.
 
 **Root cause — both surfaces were blind:**
+
 1. `find <paths> -newermt '-5 minutes'` returns **nothing** on this GNU find; the relative form
    is not parsed. Verified: the same find with `-newermt "$(date -d '-20 minutes' '+%F %T')"`
    returns matches immediately. So the file-activity surface reported 0 on every poll,
@@ -1871,6 +1874,7 @@ consecutive STALL SUSPECT reports. On the third, three Grok lanes were stopped. 
 and nearly finished.
 
 **Evidence they were working:**
+
 - `/root/wt/w1-stub/tools/mutation/{MUT-A1-experiments.sh,mutate_ledger.py}` carry mtime
   **08:01:58** with `+24` lines of real mutation cases — written by the lane while the watchdog
   was reporting "no owned file touched".
@@ -1879,6 +1883,7 @@ and nearly finished.
   2 complete, on criterion 3 of 3.
 
 **Root cause — both surfaces were blind:**
+
 1. `find <paths> -newermt '-5 minutes'` returns **nothing** on this GNU find; the relative form
    is not parsed. Verified: the same find with `-newermt "$(date -d '-20 minutes' '+%F %T')"`
    returns matches immediately. So the file-activity surface reported 0 on every poll,
@@ -1918,6 +1923,7 @@ consecutive STALL SUSPECT reports. On the third, three Grok lanes were stopped. 
 and nearly finished.
 
 **Evidence they were working:**
+
 - `/root/wt/w1-stub/tools/mutation/{MUT-A1-experiments.sh,mutate_ledger.py}` carry mtime
   **08:01:58** with `+24` lines of real mutation cases — written by the lane while the watchdog
   was reporting "no owned file touched".
@@ -1926,6 +1932,7 @@ and nearly finished.
   2 complete, on criterion 3 of 3.
 
 **Root cause — both surfaces were blind:**
+
 1. `find <paths> -newermt '-5 minutes'` returns **nothing** on this GNU find; the relative form
    is not parsed. Verified: the same find with `-newermt "$(date -d '-20 minutes' '+%F %T')"`
    returns matches immediately. So the file-activity surface reported 0 on every poll,
@@ -2020,6 +2027,7 @@ exists to convey — three unimplemented packages would have advanced to audit.
 Caught only by manually diffing the worktrees against the base commit.
 
 **Enhancement (proposed, not yet implemented).**
+
 1. `grok-multiround.sh` must exclude from its digest any path the spec itself
    instructed the worker to create, and any file the harness wrote
    (`.harness/**`, `SPEC-*.md`). A change detector must ignore artifacts it or
@@ -2107,6 +2115,7 @@ The 07-29 devlog's "fourteen packages merged clean" therefore meant *they
 merged*, not *they work together*.
 
 **Root cause of the six (none was a product defect):**
+
 - 4 Windows-coupled tests that FAIL rather than SKIP on POSIX (`lane-queue` 7,
   `vendor-isolation` 9, `wt-cleanup` 6, `lane-run` 17) — missing capability
   guards for `taskkill`, `cygpath`, and MSYS PATHEXT resolution.
@@ -2242,6 +2251,7 @@ sharper rule.
 minutes of lane time and two full dispatch cycles.
 
 **Enhancement — doctrine.**
+
 1. **Write-first must name the real deliverable, never a sentinel.** "Your first
    action is to EDIT `env/tool-check.sh`" is correct. "Create SPEC-NOTES.md
    first" is the Event 1 defect. Amend `grok-multiround.sh`'s failure message
@@ -2297,6 +2307,7 @@ isolated test: dispatch a pure single-file creation and see.
 roughly 12 wasted rounds across the wave.
 
 **Enhancement — routing rule.**
+
 1. **One deliverable per grok dispatch.** If a package has two changes, that is
    two dispatches, sequenced. Do not bundle, however related they seem.
 2. Prefer framing work as an EDIT to a quoted block over a from-scratch CREATE
@@ -2479,6 +2490,7 @@ restored -> 8/8 GREEN. Both halves observed rather than asserted. Committed as
 `b080687`.
 
 **Enhancements.**
+
 1. **A destructive proof must be architect-run, not worker-run**, or must be
    performed on a COPY of the file outside the worktree. A worker must never
    leave the worktree in a deliberately-broken state across a turn boundary.
@@ -2540,6 +2552,7 @@ the gate. Reported as a stated blocker rather than papered over, and the gate wa
 committed reporting the truth it observes.
 
 **Enhancements.**
+
 1. **Pin determinism before trusting any formal row as gating.** A randomised
    search used as a gate needs a fixed seed, or a bound proven sufficient, or it
    must be demoted from `gating=yes`.
@@ -2583,6 +2596,7 @@ said so.
 
 The lane also killed all three alternative explanations the architect had NOT
 ruled out before publishing Event 10:
+
 - cwd sensitivity — paths derive from `SCRIPT_DIR` (line 31), so cwd is irrelevant
 - leftover state from run 1 — `run_manifest` truncates the report and overwrites
   each row's logfile, so nothing survives between runs
@@ -2628,7 +2642,6 @@ The lane is a writer; the measurement is a read; there is no lock between them.
 gate-design and adversarial lanes reached compatible but non-identical
 conclusions, and the adversarial lane — the only one told to refute — produced
 both corrections. Two agreeing lanes would have produced neither.
-
 
 ## 2026-07-31 — Event 12: the shims were the cause, not the deadlock — measurement 2 was right, the checkpoint's advice was wrong
 
@@ -2679,7 +2692,6 @@ would be the same false-green this store exists to prevent.
 measurements to trust is itself a claim. Verify that claim against a clean
 re-run before it is propagated, the same way any other measurement gets
 verified.
-
 
 ## 2026-07-31 — Event 13: the obligations ledger held three closed items open
 
@@ -2738,7 +2750,6 @@ to a verification command recorded alongside the closure, the same way a
 measurement records its re-run command. An obligation should not be closable
 without the evidence that proves it.
 
-
 ## 2026-07-31 — Event 14: a review agent wrote to, and then deleted from, the live store it was reviewing
 
 **Phase:** review (Task 6 of the v0.2.9 sprint plan: the plugin drift checker).
@@ -2778,7 +2789,6 @@ Give `fm-session.py` a read-only mode. Open the file with SQLite's `mode=ro`
 URI, skip the schema write, and skip the migration. Refuse to run a write
 subcommand in that mode. Then a reviewer can read the record under review
 without touching it.
-
 
 ## 2026-07-31 — Event 15: the watchdog fix took two rounds, and the first round leaked twice
 
@@ -2821,7 +2831,6 @@ Process-lifetime fixes need process-level evidence, not a green suite. Require
 a before-and-after process snapshot for any change to a spawn, a signal, or a
 reap. The suite passed through all three defects.
 
-
 ## 2026-07-31 — Event 16: a guard fired on its own documentation
 
 **Phase:** verify (Task 8 of the v0.2.9 sprint plan: the first completed run of
@@ -2853,7 +2862,6 @@ The old form printed nothing useful.
 A static guard states a claim about code. Write its predicate against code, not
 against file bytes. Strip comments and strings first. Then a file that
 documents a prohibition can never violate it.
-
 
 ## 2026-07-31 — Event 17: two silent file-edit corruptions, in two different tools
 
@@ -2889,7 +2897,6 @@ A `sed` pattern is not a match.
 Verify a file after every splice, not only its text. Check the mode with
 `stat -c %a`. Check a single-line edit with `git diff --stat`, and require
 exactly one changed line. Both defects were one command away from detection.
-
 
 ## 2026-07-31 — Event 18: the architect relayed an unverified claim, and the implementer refused it
 
