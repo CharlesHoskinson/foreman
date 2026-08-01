@@ -1,0 +1,10 @@
+{
+  "verdict": "APPROVED",
+  "summary": "Mutant with a citation to no real path.",
+  "findings": [{"id":"F-G1","severity":"low","file":"src/does-not-exist.sh","line":1,"summary":"Missing path","evidence":"No repository path resolves."}],
+  "provenance": {"worker_vendor":"grok","audit_vendor":"codex","rubric":"audit-checklist","rubric_version":"v1"},
+  "changed_paths": ["src/example.sh"],
+  "scope": ["src/**"],
+  "criteria": ["AC-1"],
+  "discharged_criteria": ["AC-1"]
+}

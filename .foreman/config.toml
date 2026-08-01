@@ -27,6 +27,17 @@ forbidden_paths = [
 ]
 hash_paths = ["tests/**", ".github/**"]
 
+[gate.groundedness]
+g1 = "shadow"
+g2 = "shadow"
+g3 = "shadow"
+g4 = "shadow"
+g5 = "shadow"
+g6 = "shadow"
+g9a = "shadow"
+g9b = "shadow"
+g9c = "shadow"
+
 [durable]
 enabled = true            # enforce round-owned dispatch at the lane-run.sh boundary
 checkpoint_interval = 20   # seconds
