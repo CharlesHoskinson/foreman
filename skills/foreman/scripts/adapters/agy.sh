@@ -23,7 +23,7 @@ adapter_implement_argv() {
   if [[ -f "$prompt_file" ]]; then prompt="$(<"$prompt_file")"; fi
   ADAPTER_ARGV=(agy
     --model "${WC_AGY_MODEL:-gemini-3.1-pro-high}"
-    --dangerously-skip-permissions
+    --mode accept-edits
     --add-dir "$workdir"
     --output-format text
     --print "$prompt")
@@ -146,6 +146,7 @@ adapter_result_verdict() {
 }
 
 # @description Publish agy capabilities and its unresolved isolation gap as k=v.
+#   Implementation uses accept-edits mode and retains normal permission checks.
 # @arg $1 vendor expected vendor id: agy
 # @stdout capability map, one k=v entry per line
 # @exitcode 0 vendor matches; 2 vendor mismatch
@@ -158,7 +159,7 @@ adapter_caps() {
   printf '%s\n' \
     'resume=true' \
     'schema=true' \
-    'sandbox=implement:unrestricted,audit:plan' \
+    'sandbox=implement:accept-edits,audit:plan' \
     'cap_n=1' \
     'rc_unavailable=' \
     'prompt_flag=--print' \

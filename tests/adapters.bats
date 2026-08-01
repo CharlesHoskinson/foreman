@@ -81,6 +81,8 @@ FUNCTIONS=(
 
   adapter_implement_argv agy "$prompt" "/work tree"
   n="${#ADAPTER_ARGV[@]}"
+  [[ " ${ADAPTER_ARGV[*]} " == *" --mode accept-edits "* ]]
+  [[ " ${ADAPTER_ARGV[*]} " != *" --dangerously-skip-permissions "* ]]
   [ "${ADAPTER_ARGV[n-2]}" = --print ]
   [ "${ADAPTER_ARGV[n-1]}" = "agy prompt with spaces" ]
 
@@ -130,6 +132,7 @@ FUNCTIONS=(
   source "$ADAPTER_DIR/agy.sh"
   caps="$(adapter_caps agy)"
   [[ "$caps" == *$'cap_n=1\n'* ]]
+  [[ "$caps" == *'sandbox=implement:accept-edits,audit:plan'* ]]
   [[ "$caps" == *$'isolation=partial\n'* ]]
   [[ "$caps" == *'oauth_token_isolated=false' ]]
 
@@ -184,22 +187,17 @@ SHIM
     PATH="$shim:$PATH" adapter_auth_probe "$vendor"
   done
 
-  cat >"$shim/grok" <<'SHIM'
+  for vendor in "${VENDORS[@]}"; do
+    cat >"$shim/$vendor" <<'SHIM'
 #!/usr/bin/env bash
-printf 'temporary service response\n'
+printf 'You are not authenticated.\n'
+exit 0
 SHIM
-  chmod +x "$shim/grok"
-  source "$ADAPTER_DIR/grok.sh"
-  run env PATH="$shim:$PATH" bash -c 'source "$1"; adapter_auth_probe grok' _ "$ADAPTER_DIR/grok.sh"
-  [ "$status" -ne 0 ]
-
-  cat >"$shim/agy" <<'SHIM'
-#!/usr/bin/env bash
-printf 'request completed\n'
-SHIM
-  chmod +x "$shim/agy"
-  run env PATH="$shim:$PATH" bash -c 'source "$1"; adapter_auth_probe agy' _ "$ADAPTER_DIR/agy.sh"
-  [ "$status" -ne 0 ]
+    chmod +x "$shim/$vendor"
+    run env PATH="$shim:$PATH" bash -c 'source "$1"; adapter_auth_probe "$2"' \
+      _ "$ADAPTER_DIR/$vendor.sh" "$vendor"
+    [ "$status" -ne 0 ]
+  done
 }
 
 @test "result extractors prefer the explicit output and reject invalid verdicts" {

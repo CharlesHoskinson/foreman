@@ -4,7 +4,7 @@
 #   passes prompt contents positionally; a bare `-` would make `codex exec`
 #   read stdin, but Foreman's launcher attaches stdin to the null device.
 #   Implement runs are workspace-write and audits are read-only. This adapter
-#   never emits danger-full-access or the sandbox-bypass escape hatch.
+#   never emits danger-full-access or an unrestricted sandbox escape hatch.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
 # @description Build Codex argv for an implementation round.
@@ -73,16 +73,26 @@ adapter_home_var() {
 }
 
 # @description Probe Codex authentication without running a model inference.
+#   A successful command is insufficient: explicit signed-in content is
+#   required, and recognised signed-out wording wins over positive substrings.
 # @arg $1 vendor expected vendor id: codex
-# @exitcode 0 authenticated; 1 absent or unauthenticated; 2 vendor mismatch
+# @exitcode 0 authenticated; 1 absent, unauthenticated, or indeterminate; 2 mismatch
 adapter_auth_probe() {
-  local vendor="${1:-codex}"
+  local vendor="${1:-codex}" out='' rc=0
   if [[ "$vendor" != codex ]]; then
     printf 'codex adapter: vendor mismatch: %s\n' "$vendor" >&2
     return 2
   fi
   command -v codex >/dev/null 2>&1 || return 1
-  codex login status >/dev/null 2>&1
+  out="$(codex login status 2>&1)" || rc=$?
+  (( rc == 0 )) || return 1
+  out="${out,,}"
+  if [[ "$out" == *'not logged in'* || "$out" == *'not authenticated'* ||
+        "$out" == *'unauthenticated'* || "$out" == *'sign in'* ||
+        "$out" == *'log in'* ]]; then
+    return 1
+  fi
+  [[ "$out" == *'logged in using '* ]]
 }
 
 # @description Print final Codex assistant text from separate result streams.

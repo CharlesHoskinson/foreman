@@ -59,16 +59,34 @@ adapter_home_var() {
 }
 
 # @description Probe Claude authentication without running a model inference.
+#   The status command must succeed and return valid JSON whose loggedIn field
+#   is true; missing, malformed, or false content fails closed with a reason.
 # @arg $1 vendor expected vendor id: claude
-# @exitcode 0 authenticated; 1 absent or unauthenticated; 2 vendor mismatch
+# @exitcode 0 authenticated; 1 absent, unauthenticated, or indeterminate; 2 mismatch
 adapter_auth_probe() {
-  local vendor="${1:-claude}"
+  local vendor="${1:-claude}" out='' rc=0
   if [[ "$vendor" != claude ]]; then
     printf 'claude adapter: vendor mismatch: %s\n' "$vendor" >&2
     return 2
   fi
-  command -v claude >/dev/null 2>&1 || return 1
-  claude auth status >/dev/null 2>&1
+  if ! command -v claude >/dev/null 2>&1; then
+    printf 'claude adapter: auth status unavailable because claude is absent\n' >&2
+    return 1
+  fi
+  out="$(claude auth status 2>&1)" || rc=$?
+  if (( rc != 0 )); then
+    printf 'claude adapter: auth status command did not succeed\n' >&2
+    return 1
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    printf 'claude adapter: cannot verify auth status JSON because jq is absent\n' >&2
+    return 1
+  fi
+  if jq -e 'type == "object" and .loggedIn == true' <<<"$out" >/dev/null 2>&1; then
+    return 0
+  fi
+  printf 'claude adapter: auth status did not contain loggedIn=true\n' >&2
+  return 1
 }
 
 # @description Print final Claude assistant text from separate result streams.
