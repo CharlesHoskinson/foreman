@@ -516,8 +516,8 @@ SHALL contain exactly the following criteria:
   release's actual corpus size, **does not complete**, **OR** its diff against
   the dropped state is not clean, **OR** its wall clock exceeds **60 seconds**.
   Threshold: that predicate is true. Measurement: the release's drop-and-rebuild
-  run. Subject: the TerminusDB adapter behind GP-6. Action: **revert** GP-6 to
-  files-only. Report: all three input values, and which one made the predicate
+  run. Subject: the SQLite ontology adapter behind GP-6. Action: **revert** GP-6
+  to files-only. Report: all three input values, and which one made the predicate
   true. Uncomputable: the drop-and-rebuild run was not attempted, or the corpus
   size at which it ran is not recorded — a run that did not happen is not a run
   that did not complete. Basis: PM §4 K-3b, judgement anchored on measurement —
@@ -538,8 +538,9 @@ SHALL contain exactly the following criteria:
 - **KC-14 store usage** — metric: the count of time-travel queries and
   graph-diff queries actually issued during the release. Threshold: **0**.
   Measurement: PM K-3c Measurement 1, from the same query census instrumentation
-  as KC-1. Subject: the TerminusDB adapter behind GP-6. Action: **keep-off** —
-  the port stays, the ontology stays, the adapter is shelved. Uncomputable: the
+  as KC-1. Subject: the SQLite ontology adapter behind GP-6. Action:
+  **keep-off** — the port stays, the ontology stays, the adapter is shelved.
+  Uncomputable: the
   census instrumentation did not run for the release, or did not cover the store
   — an absent instrumentation record is `UNCOMPUTABLE` and SHALL NOT be read as
   a measured count of zero, which would otherwise let an uninstrumented release
@@ -549,12 +550,12 @@ SHALL contain exactly the following criteria:
 - **KC-15 files-only head-to-head** — metric: one derived predicate over inputs
   from one measurement, stated in full: a files-only arm answers **all three**
   cross-run architect questions correctly **AND** its latency is at most **2
-  times** the TerminusDB arm's latency, both at the release's actual corpus
+  times** the SQLite ontology arm's latency, both at the release's actual corpus
   size. Threshold: that predicate is true. Measurement: PM K-3c Measurement 2.
-  Subject: the TerminusDB adapter behind GP-6. Action: **keep-off**. Report: the
-  per-question correctness of both arms, both latencies, and the ratio; and
+  Subject: the SQLite ontology adapter behind GP-6. Action: **keep-off**.
+  Report: the per-question correctness of both arms, both latencies, and the ratio; and
   record the corpus size at which the question is reopened. Uncomputable: the
-  TerminusDB arm did not run, or its measured latency is zero — the ratio's
+  SQLite ontology arm did not run, or its measured latency is zero — the ratio's
   denominator is that latency — or fewer than three questions were put to both
   arms. Basis: PM §4 K-3c Measurement 2, judgement on the 2 times band, anchored
   on R8's measured 202 ms document listing and about 230 ms negation scan;

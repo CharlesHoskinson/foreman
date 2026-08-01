@@ -145,9 +145,9 @@ packages whose behaviour the README describes.
       caveats routed to the limits section, not the table.
 - [ ] Write "The record": event log as source of truth, work-DAG as a
       deterministic projection no model writes, knowledge plane on two cadences
-      with no model in the per-merge path, TerminusDB as a regenerable
-      materialisation behind a `GraphStore` port with a files-only fallback and
-      never the system of record, consumption as a pre-serialized,
+      with no model in the per-merge path, the SQLite ontology adapter as a
+      regenerable materialisation behind a `GraphStore` port with a files-only
+      fallback and never the system of record, consumption as a pre-serialized,
       content-hashed, token-budgeted context block.
 - [ ] Frame the plane as cross-session provenance and deterministic gate checks.
       Do not frame it as retrieval accuracy or hallucination reduction.
@@ -160,8 +160,9 @@ packages whose behaviour the README describes.
       derived from `formal/specs/`.
 - [ ] Do not present four lanes as four independent votes.
 - [ ] Architect review against the roadmap's disconfirming evidence — BM-25 over
-      all nine GraphRAG systems, ~2 effective independent votes, TerminusDB bus
-      factor 1. Record the review.
+      all nine GraphRAG systems, ~2 effective independent votes, and
+      TerminusDB's bus factor 1 as recorded before its 2026-07-30
+      withdrawal. Record the review.
 
 ## T8 — the prose rule
 

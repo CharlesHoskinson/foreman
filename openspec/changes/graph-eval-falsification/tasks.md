@@ -193,7 +193,7 @@ pre-registered.
       maintenance hours (KC-9), gold-set relations, extracted nodes, gold-sample
       size and merged nodes (KC-11a–d), lane-starts and a non-zero before-window
       (KC-12), an attempted rebuild run (KC-13), an existing instrumentation
-      record (KC-14), a run TerminusDB arm with non-zero latency (KC-15).
+      record (KC-14), a run SQLite ontology arm with non-zero latency (KC-15).
 - [ ] State the **measured-zero rule**: a metric whose inputs were never recorded
       is `UNCOMPUTABLE`, never a measured zero. KC-14's threshold is literally
       zero, so without this rule an uninstrumented release satisfies it.
