@@ -104,6 +104,9 @@ tests/telemetry.bats	windows	0
 tests/tier1-replay.bats	linux	0
 tests/tier1-replay.bats	wsl	0
 tests/tier1-replay.bats	windows	0
+tests/tier2-compare.bats	linux	0
+tests/tier2-compare.bats	wsl	0
+tests/tier2-compare.bats	windows	0
 tests/tool-check-auth.bats	linux	0
 tests/tool-check-auth.bats	wsl	0
 tests/tool-check-auth.bats	windows	0

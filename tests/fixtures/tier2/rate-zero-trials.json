@@ -1,0 +1,9 @@
+{
+  "schema_version": "tier-rate-input/v1",
+  "rate_id": "recorded-zero-trial-control",
+  "numerator": 0,
+  "denominator": {
+    "name": "trials",
+    "value": 0
+  }
+}

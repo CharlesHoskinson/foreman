@@ -1,0 +1,33 @@
+{
+  "schema_version": "regression-tier-budgets/v1",
+  "material_margin_percent": 20,
+  "tiers": {
+    "tier0": {
+      "max_duration_s": 120,
+      "max_cost_usd": 0,
+      "cadence": "per_commit",
+      "allowed_invocation_sources": ["commit"],
+      "automatic_triggers": ["commit"]
+    },
+    "tier1": {
+      "max_duration_s": 30,
+      "max_cost_usd": 0,
+      "cadence": "per_commit_or_pull_request",
+      "allowed_invocation_sources": ["commit", "pull_request"],
+      "automatic_triggers": ["commit", "pull_request"]
+    },
+    "tier2": {
+      "max_duration_s": 7200,
+      "max_cost_usd": 18,
+      "cadence": "on_demand_manual_only",
+      "allowed_invocation_sources": ["manual"],
+      "automatic_triggers": [],
+      "expected_n": 3,
+      "min_specs": 8,
+      "max_specs": 12,
+      "comparison_conditions": 2,
+      "max_vendor_calls": 72,
+      "max_cost_per_vendor_call_usd": 0.25
+    }
+  }
+}
