@@ -12,9 +12,16 @@
 #   3. formal       - Quint commit-tier + drift (skip with --quick or if no quint)
 #   4. bats         - tests/run.sh under the host-wide bats mutex (skip with --quick)
 #   5. install      - install.sh smoke test under a disposable HOME
-#   6. lanes        - lane-complete-check over /root/fm-wt/* (informational only)
-#   7. docs         - docs-check.sh (informational only; criterion 9 not yet scoped)
-#   8. plugin-drift - installed skill vs repo skill (informational only)
+#   6. lanes        - lane-complete-check over $FM_WT_DIR/* ; FAIL on incomplete
+#   7. docs         - docs-check.sh ; FAIL on any sub-check reporting fail
+#   8. plugin-drift - installed skill vs repo skill ; FAIL on drift, SKIP if absent
+#   9. dependencies - manifest vs tool-check vs bootstrap ; FAIL on disagreement
+#  10. hygiene      - root allowlist, no duplicate evidence ; FAIL on violation
+#
+# Gates 6-8 were informational until 2026-08-01 and always printed PASS. Three
+# gates that could not fail sat inside the gate runner itself, which is the
+# decoration criterion 4 exists to find. Gate 6 was doubly vacuous: it also
+# scanned a hardcoded /root path that does not exist on a non-root checkout.
 #
 # Usage:
 #   tools/ci-local.sh [--quick]
@@ -311,10 +318,15 @@ gate_lanes() {
     return 0
   fi
 
+  # Worktree root followed a literal /root/fm-wt, so on any checkout not owned by
+  # root this loop matched nothing and the gate reported checked=0 forever --
+  # vacuous by path as well as by verdict. $HOME resolves to the same /root/fm-wt
+  # on the reference host and to a real directory everywhere else.
+  local wt_dir="${FM_WT_DIR:-$HOME/fm-wt}"
   local checked=0 complete=0 incomplete=0
   local wt report verdict
   shopt -s nullglob
-  for wt in /root/fm-wt/*/; do
+  for wt in "$wt_dir"/*/; do
     report="${wt}FOREMAN_REPORT.md"
     [[ -f "$report" ]] || continue
     checked=$((checked + 1))
@@ -328,13 +340,19 @@ gate_lanes() {
   done
   shopt -u nullglob
 
-  # Informational only: always PASS so mid-flight lanes do not fail CI.
-  echo "GATE ${name} PASS checked=${checked} complete=${complete} incomplete=${incomplete} (informational)"
+  # A lane that WROTE a report and still does not read LANE_COMPLETE is the exact
+  # defect this gate exists to catch, so it now fails on one. Nothing to check is
+  # not a failure -- a hosted runner has no worktrees and reports checked=0.
+  if (( incomplete > 0 )); then
+    echo "GATE ${name} FAIL checked=${checked} complete=${complete} incomplete=${incomplete} in ${wt_dir}"
+    return 1
+  fi
+  echo "GATE ${name} PASS checked=${checked} complete=${complete} incomplete=${incomplete}"
   return 0
 }
 
 # ---------------------------------------------------------------------------
-# Gate 7: docs-check (informational — never fails the run)
+# Gate 7: docs-check -- FAILS. Criterion 9 asks for docs-check green, which an
 # ---------------------------------------------------------------------------
 # @description Run docs-check.sh and report each sub-gate state as an informational
 #   line that never fails CI. Visibility for criterion 9 until its scope is settled.
@@ -360,18 +378,34 @@ gate_docs() {
   set -o pipefail
 
   summary="$(printf '%s\n' "$out" | grep -E '^docs-check:' | tail -n1 || true)"
+  # A diagnostic that cannot report absence of a result is worse than none: an
+  # empty summary previously printed PASS, so docs-check dying produced the same
+  # line as docs-check succeeding.
   if [[ -z "$summary" ]]; then
-    echo "GATE ${name} PASS no summary line from docs-check (informational)"
-    return 0
+    printf '%s\n' "$out" | tail -n 20
+    echo "GATE ${name} FAIL docs-check produced no summary line"
+    return 1
   fi
   # Strip the "docs-check: " prefix; keep markdownlint=… codespell=… lychee=… comments=…
   summary="${summary#docs-check: }"
-  echo "GATE ${name} PASS ${summary} (informational)"
+
+  # This gate used to be informational, and it always printed PASS -- including
+  # while markdownlint was failing repo-wide. Criterion 9 asks for docs-check to
+  # be green, which a gate that cannot report red can never establish.
+  local failed
+  failed="$(printf '%s\n' "$summary" | grep -oE '[a-z-]+=fail' || true)"
+  if [[ -n "$failed" ]]; then
+    printf '%s\n' "$out" | grep -vE '^\s*$' | tail -n 30
+    echo "GATE ${name} FAIL ${summary}"
+    return 1
+  fi
+
+  echo "GATE ${name} PASS ${summary}"
   return 0
 }
 
 # ---------------------------------------------------------------------------
-# Gate 8: plugin drift (informational — never fails the run)
+# Gate 8: plugin drift -- FAILS on real drift, SKIPs when no install exists.
 # ---------------------------------------------------------------------------
 # The installed skill path exists only on a developer host. A hosted runner has
 # no ~/.claude, so a failing gate here would fail CI for an absent directory,
@@ -405,15 +439,21 @@ gate_plugin_drift() {
   set -o pipefail
 
   if [[ "$rc" -eq 0 ]]; then
-    echo "GATE ${name} PASS no drift (informational)"
+    echo "GATE ${name} PASS no drift"
     return 0
   fi
 
+  # Drift on a host that HAS an install is a real defect, and the expensive kind:
+  # the installed plugin once pointed at a stale /mnt/c checkout and resolved to
+  # ZERO files while the repository shipped 76, so every session that believed it
+  # was running the installed skill was running nothing. The absent-install case
+  # is still a SKIP above -- a hosted runner has no ~/.claude, and failing for a
+  # missing directory is not failing for drift.
   printf '%s\n' "$out"
   missing="$(printf '%s\n' "$out" | grep -c '^MISSING' || true)"
   missing="${missing:-0}"
-  echo "GATE ${name} PASS drift=${missing} file(s) missing from ${installed} (informational)"
-  return 0
+  echo "GATE ${name} FAIL drift=${missing} file(s) missing from ${installed}"
+  return 1
 }
 
 # ---------------------------------------------------------------------------

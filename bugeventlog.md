@@ -1743,7 +1743,7 @@ Recorded here because the workflow context is foreman's, though the failures are
 schema already present in design.md; added version/change procedure, structural
 checker, live load-test gate, proposal drift fixes, and ran all gates.
 
-**Friction encountered**
+### Friction encountered
 
 1. **markdownlint-cli2 vacuous pass on package files.** The repo
    `.markdownlint-cli2.jsonc` ignores `openspec/changes/**`. Invoking

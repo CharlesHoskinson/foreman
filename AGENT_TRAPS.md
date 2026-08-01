@@ -527,7 +527,7 @@ minutes earlier and was in fact working normally.
 
 The predicate matched a string that happened to be present for one lane and
 absent for the other, for a reason unrelated to liveness. The first lane's
-dispatcher ran `git worktree add ... /root/fm-wt/roticks && ... ` in the shell's
+dispatcher ran `git worktree add ... /root/fm-wt/roticks && ...` in the shell's
 own command line, so the worktree path was in `/proc/<pid>/cmdline`. The second
 was dispatched as `cd "$WT" && codex exec ...`, which puts the path in the
 process's *working directory* and never in its argv. Same liveness, opposite
@@ -535,7 +535,7 @@ answer, decided by how the dispatch line was written.
 
 Three predicates against the same two lanes:
 
-```
+```text
              cmdline   sandbox-cwd   log-growing
   roticks      YES         NO           YES         (alive)
   batch5       NO          NO           YES         (alive)

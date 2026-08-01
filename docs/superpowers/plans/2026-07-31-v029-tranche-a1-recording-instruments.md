@@ -26,12 +26,14 @@
 ### Task 1: Recover the stranded defect ledger
 
 **Files:**
+
 - Modify: `bugeventlog.md` (in `/root/fm-wt/integrate`)
 - Read-only source: stage 3 of `bugeventlog.md` in `/root/foreman`'s damaged index
 
 **Interfaces:**
+
 - Consumes: nothing.
-- Produces: a `bugeventlog.md` in `integrate` containing every `## ` heading from both inputs. Every later task appends to this file.
+- Produces: a `bugeventlog.md` in `integrate` containing every `##` heading from both inputs. Every later task appends to this file.
 
 **Why this is first:** 960 lines exist only in an unmerged index entry. Any `git reset --hard`, `git checkout` or `git clean` in `/root/foreman` destroys them permanently.
 
@@ -128,10 +130,12 @@ python3 skills/foreman/scripts/fm-session.py close 18 --status done
 ### Task 2: Record the obligation-16 verdict as a scoped measurement
 
 **Files:**
+
 - Modify: `.foreman/session.db` (via the CLI only — never hand-edit)
 - Read-only: `/root/fm-logs/ob16-0731.log`
 
 **Interfaces:**
+
 - Consumes: Task 1's committed ledger (the finding is appended to it).
 - Produces: two measurements with `--scope`, and a fact recording causation.
 
@@ -177,7 +181,7 @@ python3 skills/foreman/scripts/fm-session.py fact \
 
 - [ ] **Step 4: Append the finding to the ledger and commit**
 
-Append a `## 2026-07-31 — ` section to `bugeventlog.md` recording: a measurement can be invalidated by host state with no commit touching its scope, so `recover` reported it fresh; and the checkpoint's instruction to prefer measurement 9 over measurement 2 was wrong, because measurement 9 was the poisoned reading.
+Append a `## 2026-07-31 —` section to `bugeventlog.md` recording: a measurement can be invalidated by host state with no commit touching its scope, so `recover` reported it fresh; and the checkpoint's instruction to prefer measurement 9 over measurement 2 was wrong, because measurement 9 was the poisoned reading.
 
 ```bash
 cd /root/fm-wt/integrate
@@ -192,11 +196,13 @@ python3 skills/foreman/scripts/fm-session.py close 16 --status done
 ### Task 3: Let a wrong measurement be retired (obligation 21)
 
 **Files:**
+
 - Modify: `skills/foreman/scripts/fm-session.py` (SCHEMA block, `connect()` migration loop, `build_recovery()`, `main()`)
 - Test: `tests/session.bats`
 - Modify: `tests/baseline.tsv:45`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: CLI `fm-session.py retire <measurement_id> --by <measurement_id> --reason TEXT`, exit 0 on success, exit 2 on refusal. `build_recovery()` excludes retired measurements from `measurements` and from all `counts`.
 
@@ -324,7 +330,7 @@ And before `return 2` at the end of the dispatch chain:
 
 Add the usage line to the module docstring, under the existing `supersede` line:
 
-```
+```text
 #   fm-session.py retire <measurement_id> --by <id> --reason TEXT
 ```
 
@@ -335,7 +341,7 @@ Expected: PASS, `14 tests, 0 failures`.
 
 - [ ] **Step 7: Update the registered baseline**
 
-Change `tests/baseline.tsv:45` from `tests/session.bats	11` to `tests/session.bats	14`. The separator is a literal TAB.
+Change `tests/baseline.tsv:45` from `tests/session.bats 11` to `tests/session.bats 14`. The separator is a literal TAB.
 
 Run: `cd /root/fm-wt/integrate && grep -P '^tests/session\.bats\t14$' tests/baseline.tsv`
 Expected: the line prints. No output means the separator is not a tab.
@@ -372,11 +378,13 @@ python3 skills/foreman/scripts/fm-session.py close 21 --status done
 ### Task 4: One session store per repository, not per worktree (fact 16 / fact 28)
 
 **Files:**
+
 - Modify: `skills/foreman/scripts/fm-session.py:123-131` (`repo_root()`)
 - Test: `tests/session.bats`
 - Modify: `tests/baseline.tsv:45`
 
 **Interfaces:**
+
 - Consumes: Task 3's schema (the migration loop runs against whichever DB is opened).
 - Produces: `repo_root()` returns the same path from a repo and from all of its linked worktrees.
 
@@ -433,7 +441,7 @@ Expected: PASS, `15 tests, 0 failures`.
 
 - [ ] **Step 5: Update the baseline**
 
-Change `tests/baseline.tsv:45` to `tests/session.bats	15` (literal TAB).
+Change `tests/baseline.tsv:45` to `tests/session.bats 15` (literal TAB).
 
 - [ ] **Step 6: Migrate the live databases**
 
@@ -482,9 +490,11 @@ identical from all 14 worktrees and that decision was never applied to the code.
 ### Task 5: True up the obligations ledger
 
 **Files:**
+
 - Modify: `.foreman/session.db` (via the CLI only)
 
 **Interfaces:**
+
 - Consumes: Tasks 3 and 4 (obligations 21 and 16 are closed by those tasks).
 - Produces: an obligations list where every open row is genuinely owed.
 
@@ -531,7 +541,7 @@ Read every remaining row. For any row whose statement no longer matches the tree
 
 - [ ] **Step 5: Append the finding to the ledger and commit**
 
-Append a `## 2026-07-31 — ` section to `bugeventlog.md`: the obligations ledger carried three completed items as open because closure is manual and unbound to evidence; the enhancement is to bind `close` to a verification command recorded alongside the closure.
+Append a `## 2026-07-31 —` section to `bugeventlog.md`: the obligations ledger carried three completed items as open because closure is manual and unbound to evidence; the enhancement is to bind `close` to a verification command recorded alongside the closure.
 
 ```bash
 git add bugeventlog.md
@@ -544,6 +554,7 @@ git -c user.name="Charles Hoskinson" -c user.email="charles.hoskinson@gmail.com"
 ### Task 6: Stop the plugin shipping without its headline feature
 
 **Files:**
+
 - Create: `tools/plugin-drift.sh`
 - Create: `tests/plugin-drift.bats`
 - Modify: `tests/baseline.tsv`, `tests/skip-budget.tsv`
@@ -551,6 +562,7 @@ git -c user.name="Charles Hoskinson" -c user.email="charles.hoskinson@gmail.com"
 **Not a CI gate, deliberately:** the installed-skill path does not exist on a hosted runner, so this runs locally and at release time. Registering it as a `ci-local` gate would make it fail on every CI run for a reason unrelated to the tree.
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `tools/plugin-drift.sh <installed-dir> <repo-skill-dir>` — exit 0 when no repo file is missing from the install, exit 1 otherwise, printing one `MISSING <relpath>` line per absent file.
 
@@ -651,14 +663,14 @@ Expected: PASS, `2 tests, 0 failures`.
 
 - [ ] **Step 5: Register the new test file in BOTH policy files**
 
-Add to `tests/baseline.tsv` (literal TAB): `tests/plugin-drift.bats	2`
+Add to `tests/baseline.tsv` (literal TAB): `tests/plugin-drift.bats 2`
 
 Add three rows to `tests/skip-budget.tsv` (literal TABs):
 
-```
-tests/plugin-drift.bats	linux	0
-tests/plugin-drift.bats	wsl	0
-tests/plugin-drift.bats	windows	0
+```text
+tests/plugin-drift.bats linux 0
+tests/plugin-drift.bats wsl 0
+tests/plugin-drift.bats windows 0
 ```
 
 Run: `cd /root/fm-wt/integrate && bash tools/ci-local.sh --quick`
@@ -714,10 +726,12 @@ python3 skills/foreman/scripts/fm-session.py close 24 --status done
 ### Task 7: Reap the leaked audit-run timeout watchdog
 
 **Files:**
+
 - Modify: `skills/foreman/scripts/audit-run.sh:366-400`
 - Test: `tests/decision-events.bats`
 
 **Interfaces:**
+
 - Consumes: nothing.
 - Produces: `audit-run.sh` leaves no `sleep` process behind after it returns, on every exit path.
 
@@ -856,6 +870,7 @@ python3 skills/foreman/scripts/fm-session.py close 25 --status done
 **Files:** none modified.
 
 **Interfaces:**
+
 - Consumes: every preceding task.
 - Produces: a scoped measurement of the full suite.
 
