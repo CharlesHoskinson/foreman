@@ -1,0 +1,115 @@
+{
+  "generated_at": "2026-08-01",
+  "scope": "Cross-CLI Council deliberation, aggregation, judge bias, diversity, quorum, and confidence calibration",
+  "sources": [
+    {
+      "id": "du2024debate",
+      "title": "Improving Factuality and Reasoning in Language Models through Multiagent Debate",
+      "authors": ["Yilun Du", "Shuang Li", "Antonio Torralba", "Josh Tenenbaum", "Igor Mordatch"],
+      "date": "2024-07",
+      "source_type": "peer-reviewed conference paper (ICML 2024)",
+      "url": "https://proceedings.mlr.press/v235/du24e.html",
+      "local_paths": ["extracts/curated-evidence.md"]
+    },
+    {
+      "id": "chen2024reconcile",
+      "title": "ReConcile: Round-Table Conference Improves Reasoning via Consensus among Diverse LLMs",
+      "authors": ["Justin Chen", "Swarnadeep Saha", "Mohit Bansal"],
+      "date": "2024-08",
+      "source_type": "peer-reviewed conference paper (ACL 2024)",
+      "url": "https://aclanthology.org/2024.acl-long.381/",
+      "local_paths": ["extracts/reconcile-acl-2024.md", "extracts/reconcile-acl-2024.pdf", "visuals/reconcile/reconcile-acl-2024.png.tiles/tiles.json"]
+    },
+    {
+      "id": "liang2024mad",
+      "title": "Encouraging Divergent Thinking in Large Language Models through Multi-Agent Debate",
+      "authors": ["Tian Liang", "Zhiwei He", "Wenxiang Jiao", "Xing Wang", "Yan Wang", "Rui Wang", "Yujiu Yang", "Shuming Shi", "Zhaopeng Tu"],
+      "date": "2024-11",
+      "source_type": "peer-reviewed conference paper (EMNLP 2024)",
+      "url": "https://aclanthology.org/2024.emnlp-main.992/",
+      "local_paths": ["extracts/mad-emnlp-2024.md"]
+    },
+    {
+      "id": "li2024moreagents",
+      "title": "More Agents Is All You Need",
+      "authors": ["Junyou Li", "Qin Zhang", "Yangbin Yu", "Qiang Fu", "Deheng Ye"],
+      "date": "2024-10-11",
+      "source_type": "peer-reviewed journal paper (TMLR 2024); primary arXiv page",
+      "url": "https://arxiv.org/abs/2402.05120",
+      "local_paths": ["extracts/curated-evidence.md"]
+    },
+    {
+      "id": "choi2025debatevote",
+      "title": "Debate or Vote: Which Yields Better Decisions in Multi-Agent Large Language Models?",
+      "authors": ["Hyeong Kyu Choi", "Xiaojin Zhu", "Yixuan Li"],
+      "date": "2025-08-24",
+      "source_type": "primary arXiv preprint",
+      "url": "https://arxiv.org/abs/2508.17536",
+      "local_paths": ["extracts/curated-evidence.md"]
+    },
+    {
+      "id": "zhu2026demystifying",
+      "title": "Demystifying Multi-Agent Debate: The Role of Confidence and Diversity",
+      "authors": ["Xiaochen Zhu", "Caiqi Zhang", "Yizhou Chi", "Tom Stafford", "Nigel Collier", "Andreas Vlachos"],
+      "date": "2026-07",
+      "source_type": "peer-reviewed conference paper (Findings of ACL 2026)",
+      "url": "https://aclanthology.org/2026.findings-acl.1694/",
+      "local_paths": ["extracts/curated-evidence.md"]
+    },
+    {
+      "id": "he2026minority",
+      "title": "Minority Sentinel: When to Overturn Majority Voting in Multi-Agent LLM Debates",
+      "authors": ["Chuan He", "Zebin Chen", "Zhengyi Yang", "Shaobo Qiao", "Mingchen Ju", "Jiate Liu", "Dong Wen", "Guanfeng Liu"],
+      "date": "2026-06-28",
+      "source_type": "primary arXiv preprint",
+      "url": "https://arxiv.org/abs/2606.29270",
+      "local_paths": ["extracts/curated-evidence.md"]
+    },
+    {
+      "id": "jiang2023blender",
+      "title": "LLM-Blender: Ensembling Large Language Models with Pairwise Ranking and Generative Fusion",
+      "authors": ["Dongfu Jiang", "Xiang Ren", "Bill Yuchen Lin"],
+      "date": "2023-07",
+      "source_type": "peer-reviewed conference paper (ACL 2023)",
+      "url": "https://aclanthology.org/2023.acl-long.792/",
+      "local_paths": ["extracts/curated-evidence.md"]
+    },
+    {
+      "id": "zheng2023judge",
+      "title": "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena",
+      "authors": ["Lianmin Zheng", "Wei-Lin Chiang", "Ying Sheng", "Siyuan Zhuang", "Zhanghao Wu", "Yonghao Zhuang", "Zi Lin", "Zhuohan Li", "Dacheng Li", "Eric P. Xing", "Hao Zhang", "Joseph E. Gonzalez", "Ion Stoica"],
+      "date": "2023-12",
+      "source_type": "peer-reviewed conference paper (NeurIPS 2023 Datasets and Benchmarks)",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2023/hash/91f18a1287b398d378ef22505bf41832-Abstract-Datasets_and_Benchmarks.html",
+      "local_paths": ["extracts/llm-as-judge-neurips-2023.md"]
+    },
+    {
+      "id": "panickssery2024selfpreference",
+      "title": "LLM Evaluators Recognize and Favor Their Own Generations",
+      "authors": ["Arjun Panickssery", "Samuel R. Bowman", "Shi Feng"],
+      "date": "2024-12",
+      "source_type": "peer-reviewed conference paper (NeurIPS 2024)",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/7f1f0218e45f5414c79c0679633e47bc-Abstract-Conference.html",
+      "local_paths": ["extracts/self-preference-neurips-2024.md"]
+    },
+    {
+      "id": "wang2024fairevaluators",
+      "title": "Large Language Models are not Fair Evaluators",
+      "authors": ["Peiyi Wang", "Lei Li", "Liang Chen", "Zefan Cai", "Dawei Zhu", "Binghuai Lin", "Yunbo Cao", "Lingpeng Kong", "Qi Liu", "Tianyu Liu", "Zhifang Sui"],
+      "date": "2024-08",
+      "source_type": "peer-reviewed conference paper (ACL 2024)",
+      "url": "https://aclanthology.org/2024.acl-long.511/",
+      "local_paths": ["extracts/curated-evidence.md"]
+    },
+    {
+      "id": "tian2023calibration",
+      "title": "Just Ask for Calibration: Strategies for Eliciting Calibrated Confidence Scores from Language Models Fine-Tuned with Human Feedback",
+      "authors": ["Katherine Tian", "Eric Mitchell", "Allan Zhou", "Archit Sharma", "Rafael Rafailov", "Huaxiu Yao", "Chelsea Finn", "Christopher Manning"],
+      "date": "2023-12",
+      "source_type": "peer-reviewed conference paper (EMNLP 2023)",
+      "url": "https://aclanthology.org/2023.emnlp-main.330/",
+      "local_paths": ["extracts/curated-evidence.md"]
+    }
+  ],
+  "excluded_from_index": [".venv/", ".pixelshot_deps/"]
+}
