@@ -324,3 +324,79 @@ compatible, useful, and *uncorrective* answers.
 - Hand the refuter the strongest version of the claim AND the evidence behind it,
   and tell it explicitly to default to REFUTED. A refuter that must argue against
   a strawman returns nothing.
+
+## 14. Three ways a lane round dies silently (observed 2026-08-01)
+
+Each of these produced an outcome indistinguishable from "the worker did
+nothing", and each cost a round before the real cause was found.
+
+| Claim | What was actually true |
+| --- | --- |
+| "grok narrated orientation but wrote nothing — EMPTY-BURST FAILED" | Headless grok DENIES every tool call unless `--allow Write --allow Edit` are passed. The writes were attempted and refused. `grok-multiround.sh`'s own failure text blames spec design and advises inlining facts; it never names the missing permission flags. Second dispatch with the flags succeeded in round 1. |
+| "the second round produced no file change" | `grok-multiround.sh` detects change with a digest of `git status --porcelain` — that is WHICH PATHS changed, not their content. A second round editing an already-modified file leaves the porcelain line identical and reports a false EMPTY-BURST. Commit between rounds. |
+| "the lane started; the log is empty because it produced nothing" | The lane was never running. A lane detached with shell-level `(cmd &)` inside a `wsl.exe` invocation is killed when the wrapper exits. Two lanes left 0-byte logs and no process. An empty log looks identical to a lane that started and wrote nothing. |
+
+**Rules:**
+
+1. Always pass `--allow Write --allow Edit` to headless grok. A denied write is
+   indistinguishable from an empty burst.
+2. grok is single-burst: it cannot read-then-write. Inline every fact the spec
+   needs. Route any read-then-write task to codex.
+3. Commit between multiround rounds, or the change digest cannot see the second
+   round's work.
+4. Confirm a dispatched lane is actually running — check for the process, not
+   just for the log file. A 0-byte log is not evidence of a quiet worker.
+
+## 15. A verification that cannot see the failure it checks for (observed 2026-08-01)
+
+Four verifications reported clean over something broken. In each case the
+command was reasonable and the blind spot was structural, not careless.
+
+| Claim | What was actually true |
+| --- | --- |
+| "the formatter changed no words — `git diff --word-diff` is clean" | `--word-diff` classifies tabs as whitespace, not content. MD010 had replaced 10 literal TAB bytes with spaces inside TSV examples in a document whose own instructions require literal TABs. Caught by a cross-vendor audit, not by the check. |
+| "before and after are identical, so the audit finding is wrong" | The shell wrapper ate the command substitution, leaving `git show :path` — valid syntax meaning the INDEX, not the merge base. After a commit the index equals HEAD, so BEFORE and AFTER printed the same text. The auditor was right. |
+| "nothing was weakened: requirements 10 → 10, scenarios 27 → 27" | Counting is not identity. Set comparison of the headings showed 22 of 27 scenarios had been REPLACED. Five guarantees had been dropped with no re-expression. |
+| "the withdrawn dependency is gone — `grep -n TerminusDB` returns 7 lines, all historical" | Package names are lowercase (`terminusdb-operations`), the product is camel-case. `grep -in terminus` returned 11, including a claim that a longevity risk was "accepted, not resolved" when withdrawing the dependency had eliminated it. |
+
+**Rules:**
+
+1. A whitespace-insensitive diff cannot verify a whitespace-sensitive file. For
+   TSV, Makefiles, or anything with significant tabs, compare bytes.
+2. Print the resolved SHAs alongside any before/after comparison. An empty rev
+   is valid syntax and fails silently.
+3. Compare SETS, not counts. Equal counts are consistent with total replacement.
+4. Sweep case-insensitively when retiring a named thing; its package names will
+   not match its product name.
+
+## 16. Re-express by editing, never by regenerating (observed 2026-08-01)
+
+A task to re-express two specs against a replacement dependency was given as an
+open rewrite. The worker regenerated the text: 1435 insertions against 1459
+deletions, replacing 22 of 27 scenarios. Audit round 1 found five dropped
+guarantees. They were restored. Audit round 2 found five DIFFERENT ones. A third
+round of the same method would have found a third set, because every pass over a
+rewrite that large discovers different collateral loss.
+
+The method was then changed: restore the original text, edit only the terms that
+name something store-specific. The diff became 59 insertions and 59 deletions,
+with every heading in one file byte-identical.
+
+Then a fourth audit returned BLOCKED again — because the rule had been applied
+to the spec deltas but NOT to the task lists, which still carried the wholesale
+rewrite. Twelve of its fourteen findings were dropped TASKS.
+
+**Rules:**
+
+1. For a re-expression — same behaviour, different dependency — constrain the
+   worker to EDIT, not regenerate. A guarantee cannot be dropped by an edit that
+   never touches its line.
+2. Give the permitted substitutions as an explicit table, and require every hunk
+   to be explainable by it.
+3. Apply the rule to EVERY normative surface. A task list directs a worker
+   exactly as a spec does; covering one and not the other leaves the drop risk
+   fully intact on the surface left uncovered.
+4. A rework instruction can itself delete a guarantee. "Restore the quarterly
+   triggers and mark them as the vendor-exit history they are" converted a live
+   recurring obligation into an archive entry. Re-pointing the SUBJECT of an
+   obligation is legitimate; converting the obligation into history deletes it.
