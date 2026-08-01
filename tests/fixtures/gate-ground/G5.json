@@ -1,0 +1,10 @@
+{
+  "verdict": "APPROVED",
+  "summary": "Mutant with an incomplete rubric pin.",
+  "findings": [],
+  "provenance": {"worker_vendor":"grok","audit_vendor":"codex","rubric":"audit-checklist"},
+  "changed_paths": ["src/example.sh"],
+  "scope": ["src/**"],
+  "criteria": ["AC-1"],
+  "discharged_criteria": ["AC-1"]
+}

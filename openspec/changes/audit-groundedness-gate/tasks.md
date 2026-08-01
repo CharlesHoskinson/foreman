@@ -13,35 +13,35 @@ to change.
 
 ## T1 — the rule, the registry, and the refusal
 
-- [ ] Write the two-speed rule into gate doctrine before writing checker code:
+- [x] Write the two-speed rule into gate doctrine before writing checker code:
       only closed-world checks block; open-world checks warn; the model's verdict
       is one signal and is itself checked.
-- [ ] Create the check registry: one entry per check with `id`, `tier`, `world`,
+- [x] Create the check registry: one entry per check with `id`, `tier`, `world`,
       `blocking`, `mode`, the required inputs, and the structural-zero-false-
       positive sentence.
-- [ ] Implement the refusal: a check declared `world = open` cannot be configured
+- [x] Implement the refusal: a check declared `world = open` cannot be configured
       enforcing; the checker exits with a named error rather than honouring it.
-- [ ] Implement the refusal's twin: a check with no promotion record runs in
+- [x] Implement the refusal's twin: a check with no promotion record runs in
       shadow regardless of configuration, and says so.
-- [ ] Add the `[gate.groundedness]` block to `config/foreman.toml.example` and
+- [x] Add the `[gate.groundedness]` block to `config/foreman.toml.example` and
       `.foreman/config.toml` with every check defaulting to `shadow`.
-- [ ] Record the declared cap on the number of blocking checks.
+- [x] Record the declared cap on the number of blocking checks.
 
 ## T2 — the canary, before the checks it protects
 
-- [ ] Build `tests/fixtures/gate-ground/` — one conforming baseline audit
+- [x] Build `tests/fixtures/gate-ground/` — one conforming baseline audit
       artifact plus one mutant per registered check.
-- [ ] Each fixture declares its expected violation count and the expected focus
+- [x] Each fixture declares its expected violation count and the expected focus
       of each violation.
 - [ ] The checker evaluates the corpus on every invocation, before trusting its
       own result.
-- [ ] Assert count and focus, never non-emptiness.
-- [ ] A short corpus, an unreadable corpus, or a corpus whose shape does not
+- [x] Assert count and focus, never non-emptiness.
+- [x] A short corpus, an unreadable corpus, or a corpus whose shape does not
       match the parsed artifact produces `UNVERIFIED` and a gate failure with its
       own reason string.
 - [ ] Prove the canary works by mutation: break one check on purpose, confirm the
       canary catches it, restore. Record the evidence in the test.
-- [ ] Measure the canary's wall-clock cost; if it is not milliseconds, the corpus
+- [x] Measure the canary's wall-clock cost; if it is not milliseconds, the corpus
       is too large.
 
 ## T3 — wave 1: the checks that need nothing new

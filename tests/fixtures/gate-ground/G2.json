@@ -1,0 +1,10 @@
+{
+  "verdict": "APPROVED",
+  "summary": "Mutant with an impossible line citation.",
+  "findings": [{"id":"F-G2","severity":"low","file":"src/example.sh","line":900,"summary":"Impossible line","evidence":"The fixture file is shorter."}],
+  "provenance": {"worker_vendor":"grok","audit_vendor":"codex","rubric":"audit-checklist","rubric_version":"v1"},
+  "changed_paths": ["src/example.sh"],
+  "scope": ["src/**"],
+  "criteria": ["AC-1"],
+  "discharged_criteria": ["AC-1"]
+}

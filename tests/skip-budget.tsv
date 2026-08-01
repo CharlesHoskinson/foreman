@@ -32,6 +32,9 @@ tests/foreman-setup.bats	windows	0
 tests/gate-eval.bats	linux	0
 tests/gate-eval.bats	wsl	0
 tests/gate-eval.bats	windows	0
+tests/gate-ground.bats	linux	0
+tests/gate-ground.bats	wsl	0
+tests/gate-ground.bats	windows	0
 tests/git-guards.bats	linux	0
 tests/git-guards.bats	wsl	0
 tests/git-guards.bats	windows	0

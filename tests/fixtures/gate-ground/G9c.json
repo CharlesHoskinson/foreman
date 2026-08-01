@@ -1,0 +1,10 @@
+{
+  "verdict": "WARNING",
+  "summary": "Mutant warning without any finding.",
+  "findings": [],
+  "provenance": {"worker_vendor":"grok","audit_vendor":"codex","rubric":"audit-checklist","rubric_version":"v1"},
+  "changed_paths": ["src/example.sh"],
+  "scope": ["src/**"],
+  "criteria": ["AC-1"],
+  "discharged_criteria": ["AC-1"]
+}

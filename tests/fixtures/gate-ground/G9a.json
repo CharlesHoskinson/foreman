@@ -1,0 +1,10 @@
+{
+  "verdict": "APPROVED",
+  "summary": "Mutant with a high finding under approval.",
+  "findings": [{"id":"F-G9A","severity":"high","file":"src/example.sh","line":1,"summary":"Contradictory finding","evidence":"Approval contradicts severity."}],
+  "provenance": {"worker_vendor":"grok","audit_vendor":"codex","rubric":"audit-checklist","rubric_version":"v1"},
+  "changed_paths": ["src/example.sh"],
+  "scope": ["src/**"],
+  "criteria": ["AC-1"],
+  "discharged_criteria": ["AC-1"]
+}

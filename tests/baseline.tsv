@@ -10,6 +10,7 @@ tests/evidence.bats	2
 tests/foreman-cleanup.bats	5
 tests/foreman-setup.bats	3
 tests/gate-eval.bats	1
+tests/gate-ground.bats	16
 tests/git-guards.bats	5
 tests/graph-project.bats	10
 tests/grok-lane.bats	11

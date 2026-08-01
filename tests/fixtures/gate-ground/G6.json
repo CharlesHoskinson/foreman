@@ -1,0 +1,10 @@
+{
+  "verdict": "APPROVED",
+  "summary": "Mutant with a changed path outside declared scope.",
+  "findings": [],
+  "provenance": {"worker_vendor":"grok","audit_vendor":"codex","rubric":"audit-checklist","rubric_version":"v1"},
+  "changed_paths": ["docs/out-of-scope.md"],
+  "scope": ["src/**"],
+  "criteria": ["AC-1"],
+  "discharged_criteria": ["AC-1"]
+}
