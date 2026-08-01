@@ -218,7 +218,11 @@ gate_bats() {
   if [[ -x "$REPO_ROOT/tools/lanectl.sh" ]]; then
     local lane_ps
     lane_ps="$(bash "$REPO_ROOT/tools/lanectl.sh" ps 2>/dev/null || true)"
-    if [[ -n "$(printf '%s' "$lane_ps" | sed '/^$/d' | grep -v '^OWNER\|^---' || true)" ]]; then
+    # The header must be stripped by its ACTUAL first column. It begins "PID",
+    # not "OWNER" -- OWNER is the fifth column -- so the old filter kept the
+    # header on every run and the warning fired unconditionally, including with
+    # zero lanes. A diagnostic that always fires carries no information.
+    if [[ -n "$(printf '%s' "$lane_ps" | sed '/^$/d' | grep -v '^PID\|^OWNER\|^---' || true)" ]]; then
       echo "WARNING: tools/lanectl.sh ps shows running lanes; bats holds /tmp/foreman-bats.lock and may starve them" >&2
       printf '%s\n' "$lane_ps" >&2
     fi
@@ -413,6 +417,44 @@ gate_plugin_drift() {
 }
 
 # ---------------------------------------------------------------------------
+# Unlike plugin-drift above, this gate FAILS. Foreman states its dependencies in
+# three unreconciled places -- env/reference-manifest.toml, the must_*/should_*
+# arrays in env/tool-check.sh, and the install routes in env/bootstrap-wsl.sh --
+# and nothing compared them. That is how `strace` came to be required by the
+# lock, missing from all three records, and invisible on a host reporting
+# READY: yes while 102 tests failed. Making this informational would rebuild the
+# same failure one level up: a check whose result changes nothing is decoration.
+# @description Reconcile the three dependency records and fail the gate when they disagree.
+# @stdout drift details when present followed by one normalized GATE dependencies result line
+# @exitcode 0 the three records agree, or the checker is absent
+# @exitcode 1 the records disagree
+gate_dependencies() {
+  local name="dependencies"
+  local checker="$REPO_ROOT/dependencies/check-drift.sh"
+
+  if [[ ! -f "$checker" ]]; then
+    echo "GATE ${name} SKIP check-drift.sh missing"
+    return 0
+  fi
+
+  local out rc drifts
+  set +o pipefail
+  out="$(bash "$checker" 2>&1)"
+  rc=$?
+  set -o pipefail
+
+  if [[ "$rc" -eq 0 ]]; then
+    echo "GATE ${name} PASS manifest+tool-check+bootstrap agree"
+    return 0
+  fi
+
+  printf '%s\n' "$out"
+  drifts="$(printf '%s\n' "$out" | grep -c '^DRIFT' || true)"
+  echo "GATE ${name} FAIL drift=${drifts:-0} record(s) disagree"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
 # Run all gates
 # ---------------------------------------------------------------------------
 if ! gate_shellcheck; then gates_failed=$((gates_failed + 1)); fi
@@ -442,6 +484,7 @@ if ! gate_lanes; then gates_failed=$((gates_failed + 1)); fi
 # scope decision (obligation 56). Becomes gating when criterion 9's scope is settled.
 if ! gate_docs; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_plugin_drift; then gates_failed=$((gates_failed + 1)); fi
+if ! gate_dependencies; then gates_failed=$((gates_failed + 1)); fi
 
 if [[ "$gates_failed" -eq 0 ]]; then
   echo "CI-LOCAL RESULT PASS gates_failed=0"

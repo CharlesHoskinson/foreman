@@ -136,6 +136,24 @@ install_wsl = "sudo apt-get install -y util-linux"
 required = true
 notes = "Primary durable lock mechanism (lock-primitive-hardening). Required for hard/full/durable on WSL/Linux. NOT available on MSYS2/Git-Bash (no pacman util-linux flock); that host uses the mkdir fallback only when the resolved mkdir.exe digest is in the pinned atomicity register below. Advisory locking on network/DrvFs mounts is filesystem-class scoped — see lock_atomicity probe rows."
 
+[[tools]]
+id = "strace"
+profile = ["soft", "hard", "full", "durable"]
+where = ["wsl"]
+check = "command -v strace"
+install_wsl = "sudo apt-get install -y strace"
+required = true
+notes = "Load-bearing, not diagnostic: the syscall evidence class is the ONLY one that can license a lock mechanism as `atomic` (flavour licenses nothing; contention can license only `non-atomic` or `unknown`). On Ubuntu 26.04, where mkdir resolves to uutils and is permanently distrusted (docs/research/vnext/F-uutils-mkdir-blocker.md), a host without strace has no trusted mechanism at all and lib/lock.sh fail-closes with FM_LOCK_UNAVAILABLE. Probe-verified 2026-08-01: absent on a fresh WSL host, which failed 102 bats tests across 11 files until it was installed; with it, flock probes atomic (syscall) and the suite is 604/0. Reported by tool-check on every POSIX profile so the absence is visible up front."
+
+[[tools]]
+id = "bash"
+profile = ["soft", "hard", "full", "durable"]
+where = ["windows", "wsl"]
+check = "bash --version"
+install_wsl = "sudo apt-get install -y bash"
+required = true
+notes = "Every Foreman script is bash and uses arrays, `local`, and `[[ ]]`; it is not POSIX-sh portable. Declared explicitly because tool-check gates on it for the durable profile and the manifest previously omitted it. Probe-verified 2026-08-01: GNU bash 5.3.9 on WSL Ubuntu 26.04."
+
 # --- Gate parallelism (v0.2.5 --jobs enabler; see docs/research gate-speedup) ---
 [[tools]]
 id = "parallel"
