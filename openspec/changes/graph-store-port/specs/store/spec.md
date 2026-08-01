@@ -231,7 +231,7 @@ The adapter SHALL select its concurrency mechanism from the shape of the write,
 not from a single blanket policy.
 
 WHERE a write appends distinct documents, the adapter SHALL write without a
-compare-and-swap precondition.
+precondition check.
 WHERE a write is a read-modify-write against a document another lane may also
 hold, the adapter SHALL begin a guarded write transaction before the read,
 recheck the observed state before commit, and SHALL treat stale state as a

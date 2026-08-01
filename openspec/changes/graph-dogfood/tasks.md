@@ -78,7 +78,7 @@ required artifact and numeric checks.
       back, and record schema object count, content hash, startup wall clock,
       initial disk bytes, and idle RSS bytes.
 - [ ] 4.4 Verify the live generated-key behavior by using returned identifiers
-      only; no graphify ID may be submitted as a SQLite row ID.
+      only; no graphify ID may be submitted as the store's generated document key.
 - [ ] 4.5 Add negative tests for schema path mismatch, schema hash mismatch,
       undeclared fields, invalid enum values, and caller-submitted generated
       identifiers.
@@ -138,7 +138,7 @@ required artifact and numeric checks.
 
 ## 7. Execute the 24-query real-graph competency matrix
 
-- [ ] 7.1 Evaluate all operations-owned competency entries `Q-W1` through
+- [ ] 7.1 Evaluate all graph-store-port-owned competency entries `Q-W1` through
       `Q-W13`, `Q-K14` through `Q-K20`, and `Q-X21` through `Q-X24`; invoke each
       mapped query through its expected-emptiness wrapper and evaluate
       owner-declared gap entries K16 and X22 without inventing queries.
@@ -191,7 +191,7 @@ required artifact and numeric checks.
 - [ ] 9.2 Label 2.6-second startup, 38 MB idle RSS, 9.7 MB for 5,500 documents,
       and approximately 1,070 documents/second as historical reference values,
       never current measurements.
-- [ ] 9.3 Invoke the operations-owned drop-and-rebuild path against the
+- [ ] 9.3 Invoke the graph-store-port-owned drop-and-rebuild path against the
       run-scoped local database file, record its wall clock, and repeat
       database recount, conservation, provenance, and competency checks.
 - [ ] 9.4 Compare pre-drop and post-rebuild document/relation counts and every
