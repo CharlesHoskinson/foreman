@@ -41,6 +41,7 @@ tests/watch.bats	59
 tests/worker-cmd.bats	3
 tests/worker-run.bats	5
 tests/wsl-clock-preflight.bats	7
+tests/wsl-launcher-shipped.bats	7
 tests/wt-cleanup.bats	6
 tests/wt-merge.bats	11
 tests/wt-new.bats	14

@@ -125,6 +125,9 @@ tests/worker-run.bats	windows	0
 tests/wsl-clock-preflight.bats	linux	0
 tests/wsl-clock-preflight.bats	wsl	0
 tests/wsl-clock-preflight.bats	windows	0
+tests/wsl-launcher-shipped.bats	linux	0
+tests/wsl-launcher-shipped.bats	wsl	0
+tests/wsl-launcher-shipped.bats	windows	0
 tests/wt-cleanup.bats	linux	1
 tests/wt-cleanup.bats	wsl	1
 tests/wt-cleanup.bats	windows	0

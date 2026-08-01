@@ -83,6 +83,15 @@ bash env/bootstrap-wsl.sh --profile soft --yes   # or hard | full | durable
 bash skills/foreman/scripts/foreman-setup.sh --profile soft
 ```
 
+On WSL, Setup builds `launcher/dist/foreman-launch` automatically when the
+binary is absent and `bun` is available. The build is idempotent: an executable
+already on disk is left untouched. If Setup warns that `bun` is unavailable,
+install the pinned Bun version and use the manual fallback:
+
+```bash
+cd launcher && bun run build:posix
+```
+
 As of v0.2.7.5 (`wsl-reliability-env-refresh`), `bootstrap-wsl.sh` is a
 **complete WSL-native provisioner** — bats-core, shellcheck, bun (pinned
 1.3.14), pueue (GitHub release binary staged under

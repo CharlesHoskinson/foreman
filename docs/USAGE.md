@@ -39,6 +39,15 @@ bash env/bootstrap-wsl.sh --profile soft --yes   # full WSL-native provisioning
 bash skills/foreman/scripts/foreman-setup.sh --profile soft
 ```
 
+On WSL, Setup automatically builds `launcher/dist/foreman-launch` when it is
+absent and `bun` is available. An existing executable is a no-op. If the
+automatic build cannot run because `bun` is absent, install Bun and run the
+manual fallback before re-running Setup:
+
+```bash
+cd launcher && bun run build:posix
+```
+
 `foreman-setup.sh` (`skills/foreman/scripts/foreman-setup.sh [--profile
 soft|hard|full] [--lane grok|codex|claude]`) composes `env/tool-check.sh`
 rather than reimplementing it, and is bash-only — run it under Git Bash on
@@ -519,6 +528,15 @@ irreversible self-replacement), the launcher falls back to the pre-v0.2.7.5
 `setsid` + `kill(-pgid)` path and logs a **DEGRADED** marker — check for that
 marker before assuming the stronger guarantee held. Full mechanism:
 `launcher/README.md` "POSIX asymmetry."
+
+If `launcher/dist/foreman-launch` itself is absent, there is no pidns launcher
+to enter and `lane-run.sh` emits the frozen `launcher_absent` degraded alert.
+Re-run Setup, which builds the launcher automatically on WSL when `bun` is
+present, or build it manually:
+
+```bash
+cd launcher && bun run build:posix
+```
 
 ### Codex timeout (~600s wall clock)
 

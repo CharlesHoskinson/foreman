@@ -1093,6 +1093,7 @@ if FOREMAN_LAUNCH_RESOLVED="$(lane_resolve_launcher)"; then
   :
 else
   FOREMAN_LAUNCH_RESOLVED=""
+  echo "lane-run: DEGRADED launcher absent; build it during Setup with: (cd launcher && bun run build:posix)" >&2
   if ! el_emit "$RUN" alert "$LANE" '{"kind":"degraded","reason":"launcher_absent"}' >/dev/null; then
     echo "lane-run: el_emit alert (degraded) failed" >&2
   fi

@@ -40,7 +40,11 @@ NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 HOST="$(hostname 2>/dev/null || echo unknown)"
 OS="$(uname -s 2>/dev/null || echo unknown)"
 IS_WSL=0
-grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=1
+case "${FOREMAN_WSL_FORCE:-}" in
+  1) IS_WSL=1 ;;
+  0) IS_WSL=0 ;;
+  *) grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=1 ;;
+esac
 
 # @description Test whether an executable is available on PATH.
 # @arg $1 command executable name to resolve
@@ -284,16 +288,16 @@ check_one() {
         MINGW*|MSYS*|CYGWIN*) fl_suffix=".exe" ;;
         *) fl_suffix="" ;;
       esac
-      fl_bin="$fl_root/launcher/dist/foreman-launch$fl_suffix"
+      fl_bin="${FOREMAN_LAUNCH:-$fl_root/launcher/dist/foreman-launch$fl_suffix}"
       if [[ -x "$fl_bin" ]]; then
         status=ok
         detail="$fl_bin"
       elif have bun; then
         status=missing
-        detail="$fl_bin absent; build it: (cd launcher && bun run build:posix)"
+        detail="NOT-READY: $fl_bin absent; build it: (cd launcher && bun run build:posix)"
       else
         status=degraded
-        detail="$fl_bin absent and bun is not installed (bun is should-tier); durable lanes run without a launcher"
+        detail="DEGRADED: $fl_bin absent and bun is not installed (bun is should-tier); install bun, then run: (cd launcher && bun run build:posix)"
       fi
       ;;
     foreman_home_fs)
@@ -885,10 +889,14 @@ must_soft=(git python3 grok codex foreman_skill)
 must_hard=(git python3 jq docker flock foreman_skill)
 must_full=(git python3 jq grok codex docker flock foreman_skill)
 must_durable=(git jq coreutils bash flock)
-should_soft=(node npm jq markdownlint-cli2 codespell lychee foreman_home_fs foreman-launch)
-should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs foreman-launch)
-should_full=(node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs foreman-launch)
-should_durable=(nats-server nats-cli foreman_home_fs foreman-launch)
+should_soft=(node npm jq markdownlint-cli2 codespell lychee foreman_home_fs)
+should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
+should_full=(node npm shellcheck bats gh timeout markdownlint-cli2 codespell lychee bun pueue foreman_home_fs)
+should_durable=(nats-server nats-cli foreman_home_fs)
+if (( IS_WSL )); then
+  should_hard+=(foreman-launch)
+  should_full+=(foreman-launch)
+fi
 
 case "$PROFILE" in
   soft) must=("${must_soft[@]}"); should=("${should_soft[@]}") ;;
@@ -960,6 +968,22 @@ for id in "${must[@]}"; do
     if [[ "$st" != "ok" ]]; then must_fail+=("$id:$st"); fi
   done
 done
+
+# On WSL hard/full, a missing launcher is a blocking Setup deliverable only
+# when bun is present and can build it. If bun is absent, check_one reports a
+# loud degraded row instead so a should-tier builder can never permanently
+# block readiness.
+if (( IS_WSL )) && [[ "$PROFILE" == "hard" || "$PROFILE" == "full" ]]; then
+  for row in "${ROWS[@]}"; do
+    id="${row%%$'\t'*}"
+    [[ "$id" == "foreman-launch" ]] || continue
+    rest="${row#*$'\t'}"
+    st="${rest%%$'\t'*}"
+    if [[ "$st" == "missing" ]]; then
+      must_fail+=("foreman-launch:missing")
+    fi
+  done
+fi
 
 READY=0
 [[ ${#must_fail[@]} -eq 0 ]] && READY=1
