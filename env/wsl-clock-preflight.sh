@@ -62,7 +62,11 @@ done
 default_host_clock() {
   local ps="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
   if [[ -x "$ps" ]]; then
-    "$ps" -NoProfile -Command "[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()" 2>/dev/null
+    # Run from a Windows-resolvable cwd. Interop translates the process's cwd
+    # to a UNC path, and that translation cannot traverse a mode-700 /root, so
+    # any cwd beneath /root fails with "Invalid argument" — measured on this
+    # host. The reading must not depend on where the caller happened to be.
+    ( cd /mnt/c 2>/dev/null || cd / ; "$ps" -NoProfile -Command "[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()" 2>/dev/null )
   else
     date +%s
   fi
