@@ -4,30 +4,46 @@
 #   passes prompt contents positionally; a bare `-` would make `codex exec`
 #   read stdin, but Foreman's launcher attaches stdin to the null device.
 #   Implement runs are workspace-write and audits are read-only. This adapter
-#   never emits danger-full-access or an unrestricted sandbox escape hatch.
+#   never emits an unrestricted sandbox mode or sandbox escape hatch.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
 # @description Build Codex argv for an implementation round.
 # @arg $1 vendor expected vendor id: codex
 # @arg $2 prompt_file file whose contents become one positional prompt argument
 # @arg $3 workdir writable worktree and final-message location
+# @arg $4 profile_flag optional -p or --profile; when present the profile owns
+#   model, reasoning effort, and sandbox instead of the default WC_* settings
+# @arg $5 profile_name profile in CODEX_HOME configuration
 # @set ADAPTER_ARGV complete Codex invocation as an indexed bash array
-# @exitcode 0 argv built; 2 vendor mismatch
+# @exitcode 0 argv built; 2 vendor mismatch or malformed profile arguments
 adapter_implement_argv() {
-  local vendor="${1:-codex}" prompt_file="${2:-}" workdir="${3:-.}" prompt=''
+  local vendor="${1:-codex}" prompt_file="${2:-}" workdir="${3:-.}"
+  local profile_flag="${4:-}" profile_name="${5:-}"
   ADAPTER_ARGV=()
   if [[ "$vendor" != codex ]]; then
     printf 'codex adapter: vendor mismatch: %s\n' "$vendor" >&2
     return 2
   fi
-  if [[ -f "$prompt_file" ]]; then prompt="$(<"$prompt_file")"; fi
-  ADAPTER_ARGV=(codex exec
-    --sandbox workspace-write
-    --skip-git-repo-check
-    --output-last-message "$workdir/.foreman-last.txt"
-    --model "${WC_CODEX_MODEL:-gpt-5.6-sol}"
-    -c "model_reasoning_effort=${WC_CODEX_REASONING_EFFORT:-medium}"
-    "$prompt")
+  if (( $# > 3 )); then
+    if [[ "$profile_flag" != -p && "$profile_flag" != --profile ]] ||
+       [[ -z "$profile_name" ]] || (( $# != 5 )); then
+      printf 'codex adapter: expected -p/--profile NAME after workdir\n' >&2
+      return 2
+    fi
+    ADAPTER_ARGV=(codex exec
+      "$profile_flag" "$profile_name"
+      --skip-git-repo-check
+      --output-last-message "$workdir/.foreman-last.txt"
+      "$(cat "$prompt_file")")
+  else
+    ADAPTER_ARGV=(codex exec
+      --sandbox workspace-write
+      --skip-git-repo-check
+      --output-last-message "$workdir/.foreman-last.txt"
+      --model "${WC_CODEX_MODEL:-gpt-5.6-sol}"
+      -c "model_reasoning_effort=${WC_CODEX_REASONING_EFFORT:-medium}"
+      "$(cat "$prompt_file")")
+  fi
 }
 
 # @description Build Codex argv for a read-only audit round.
