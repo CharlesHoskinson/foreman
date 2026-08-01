@@ -42,12 +42,12 @@
 - [ ] 2.3 Seed one golden round per failure class (10-12 rounds
       initially), each reproducing the decision-trace conditions of that
       failure.
-- [ ] 2.4 Build the replay harness: feed a recorded transcript in place
+- [x] 2.4 Build the replay harness: feed a recorded transcript in place
       of a live vendor call, with zero network access.
-- [ ] 2.5 Write decision-trace assertions only (gate fired, verdict
+- [x] 2.5 Write decision-trace assertions only (gate fired, verdict
       reached, events emitted) — no assertion may depend on literal
       vendor prose.
-- [ ] 2.6 Add a coverage check that compares bugeventlog.md failure
+- [x] 2.6 Add a coverage check that compares bugeventlog.md failure
       classes against golden rounds **with a demonstrated fail/pass pair**,
       not merely against seeded rounds, and names any gap explicitly.
 - [ ] 2.7 Wire a process rule: a new bugeventlog.md entry is not
@@ -59,7 +59,7 @@
       `failure_class`, `defective_trace`, `corrected_trace`,
       `defective_verdict`, `corrected_verdict`, `harness_version`,
       `demonstrated_at`, `demonstrated_by`.
-- [ ] 2.9 Build the demonstration into the Tier 1 runner: on every Tier 1
+- [x] 2.9 Build the demonstration into the Tier 1 runner: on every Tier 1
       execution, replay each round against both traces and compare the
       observed pair against `demonstration.json`. A missing artefact, a
       record that is not fail-then-pass, or a replay that does not reproduce
