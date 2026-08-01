@@ -1,34 +1,18 @@
 #!/usr/bin/env bats
-# @description T1/T2 contract tests for the groundedness registry and canary.
-# Groundedness predicates deliberately do not live here or in the T1/T2 library.
-# The evaluator below is a test double for the callback T3 will implement.
+# @description T1-T3 contract tests for the groundedness registry and canary.
 
 load helpers
 
 setup() {
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   LIB="$SCRIPTS/lib/gate-ground.sh"
+  CHECKS="$SCRIPTS/lib/gate-ground-checks.sh"
   REGISTRY="$SCRIPTS/gate-ground-registry.tsv"
   CORPUS="$BATS_TEST_DIRNAME/fixtures/gate-ground"
-  unset GG_TEST_NOOP_CHECK GG_TEST_WRONG_FOCUS_CHECK
   if [[ -f "$LIB" ]]; then
     # shellcheck source=/dev/null
     source "$LIB"
   fi
-}
-
-# T2 test double: it emits the result a future registered check would produce.
-# It is intentionally content-agnostic so this lane does not implement T3 checks.
-gg_canary_evaluate_fixture() {
-  local fixture="$1" id focus
-  id="$(basename "$fixture" .json)"
-  [[ "$id" == "baseline" ]] && return 0
-  [[ "$id" == "${GG_TEST_NOOP_CHECK:-}" ]] && return 0
-  focus="artifact:$id"
-  if [[ "$id" == "${GG_TEST_WRONG_FOCUS_CHECK:-}" ]]; then
-    focus="artifact:wrong-focus"
-  fi
-  printf '%s\t%s\n' "$id" "$focus"
 }
 
 write_registry() {
@@ -40,12 +24,16 @@ write_registry() {
   } >"$path"
 }
 
-@test "library sources without output or filesystem side effects" {
+@test "libraries source without output or filesystem side effects" {
   [ -f "$LIB" ]
+  [ -f "$CHECKS" ]
   before="$(find "$BATS_TEST_TMPDIR" -mindepth 1 -maxdepth 1 -print | sort)"
-  run bash -c 'source "$1"' _ "$LIB"
-  [ "$status" -eq 0 ]
-  [ -z "$output" ]
+  for library in "$LIB" "$CHECKS"; do
+    run bash -c 'source "$1"; declare -F gg_canary_evaluate_fixture >/dev/null' \
+      _ "$library"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+  done
   after="$(find "$BATS_TEST_TMPDIR" -mindepth 1 -maxdepth 1 -print | sort)"
   [ "$after" = "$before" ]
 }
@@ -166,8 +154,13 @@ write_registry() {
   echo "state=green_before $output"
   [ "$status" -eq 0 ]
 
-  export GG_TEST_NOOP_CHECK=G1
-  echo "mutated_value=GG_TEST_NOOP_CHECK=$GG_TEST_NOOP_CHECK"
+  mutated_checks="$BATS_TEST_TMPDIR/gate-ground-checks-mutated.sh"
+  cp "$CHECKS" "$mutated_checks"
+  sed '0,/| any(\$artifact\.findings\[\];/s//| false and any($artifact.findings[];/' \
+    "$CHECKS" >"$mutated_checks"
+  echo "mutation_applied=G1_predicate_prefixed_with_false_and"
+  # shellcheck source=/dev/null
+  source "$mutated_checks"
   run gg_canary_run "$CORPUS"
   echo "state=broken $output"
   [ "$status" -ne 0 ]
@@ -175,26 +168,147 @@ write_registry() {
   [[ "$output" == *"check=G1"* ]]
   [[ "$output" == *"expected_count=1 actual_count=0"* ]]
 
-  unset GG_TEST_NOOP_CHECK
-  echo "restored_value=GG_TEST_NOOP_CHECK=unset"
+  echo "restoration_applied=source_original_real_predicates"
+  # shellcheck source=/dev/null
+  source "$CHECKS"
   run gg_canary_run "$CORPUS"
   echo "state=green_after $output"
   [ "$status" -eq 0 ]
+}
 
-  export GG_TEST_WRONG_FOCUS_CHECK=G2
-  echo "mutated_value=GG_TEST_WRONG_FOCUS_CHECK=$GG_TEST_WRONG_FOCUS_CHECK"
-  run gg_canary_run "$CORPUS"
-  echo "state=wrong_focus $output"
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"reason=canary_result_mismatch"* ]]
-  [[ "$output" == *"check=G2 expected_count=1 actual_count=1"* ]]
-  [[ "$output" == *"expected_focus=artifact:G2 actual_focus=artifact:wrong-focus"* ]]
-
-  unset GG_TEST_WRONG_FOCUS_CHECK
-  echo "restored_value=GG_TEST_WRONG_FOCUS_CHECK=unset"
-  run gg_canary_run "$CORPUS"
-  echo "state=final_green $output"
+@test "G1 reads complete diff and repository path sets" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
   [ "$status" -eq 0 ]
+  [ -z "$output" ]
+
+  old_side="$BATS_TEST_TMPDIR/G1-old-side.json"
+  jq '.findings = [{"id":"F-R","severity":"low","file":"src/old-name.sh","line":0,"summary":"Rename","evidence":"Cites the old side."}]
+      | .changed_paths += ["src/old-name.sh"]' \
+    "$CORPUS/baseline.json" >"$old_side"
+  run gg_canary_evaluate_fixture "$old_side"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+
+  run gg_canary_evaluate_fixture "$CORPUS/G1.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G1\tartifact:G1' ]
+}
+
+@test "G2 reads citation ranges and flags only an impossible line" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G2.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G2\tartifact:G2' ]
+}
+
+@test "G3 reads criterion identifiers and discharges" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G3.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G3\tartifact:G3' ]
+}
+
+@test "G4 reads recorded vendors and separation policy" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G4.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G4\tartifact:G4' ]
+}
+
+@test "G5 reads the base and rubric pin" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G5.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G5\tartifact:G5' ]
+}
+
+@test "G6 reads changed paths and scope globs" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G6.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G6\tartifact:G6' ]
+}
+
+@test "G9a reads APPROVED and high-severity findings" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G9a.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G9a\tartifact:G9a' ]
+}
+
+@test "G9b reads BLOCKED findings and criterion misses" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G9b.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G9b\tartifact:G9b' ]
+}
+
+@test "G9c reads WARNING and the complete findings set" {
+  run gg_canary_evaluate_fixture "$CORPUS/baseline.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run gg_canary_evaluate_fixture "$CORPUS/G9c.json"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G9c\tartifact:G9c' ]
+}
+
+@test "G1 counts an existing path outside the complete diff path set" {
+  advisory="$BATS_TEST_TMPDIR/G1-advisory.json"
+  jq '.findings = [{"id":"F-A","severity":"low","file":"docs/example.md","line":0,"summary":"Outside diff","evidence":"Repository-only citation."}]
+      | .repository_head.paths += ["docs/example.md"]' \
+    "$CORPUS/baseline.json" >"$advisory"
+  run gg_canary_evaluate_fixture "$advisory"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G1\tartifact:G1' ]
+}
+
+@test "G2 counts an out-of-hunk line but never treats line zero as a violation" {
+  advisory="$BATS_TEST_TMPDIR/G2-advisory.json"
+  jq '.findings = [{"id":"F-A","severity":"low","file":"src/example.sh","line":8,"summary":"Outside hunk","evidence":"The line exists outside the changed range."}]' \
+    "$CORPUS/baseline.json" >"$advisory"
+  run gg_canary_evaluate_fixture "$advisory"
+  [ "$status" -eq 0 ]
+  [ "$output" = $'G2\tartifact:G2' ]
+
+  jq '.findings[0].line = 0' "$advisory" >"$advisory.line-zero"
+  run gg_canary_evaluate_fixture "$advisory.line-zero"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "a check with a missing declared input is unevaluated rather than passed" {
+  incomplete="$BATS_TEST_TMPDIR/G1-missing-input.json"
+  jq 'del(.repository_head)' "$CORPUS/G1.json" >"$incomplete"
+  actual="$BATS_TEST_TMPDIR/G1-missing-input.actual"
+  gg_canary_evaluate_fixture "$incomplete" >"$actual"
+  [ ! -s "$actual" ]
+  [ "${GG_CHECK_LAST_UNEVALUATED[G1]}" = "repository_head" ]
+}
+
+@test "renaming a fixture leaves its content-derived verdict unchanged" {
+  renamed="$BATS_TEST_TMPDIR/not-the-check-id.json"
+  cp "$CORPUS/G9a.json" "$renamed"
+  run gg_canary_evaluate_fixture "$CORPUS/G9a.json"
+  original="$output"
+  [ "$status" -eq 0 ]
+  run gg_canary_evaluate_fixture "$renamed"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$original" ]
+  [ "$output" = $'G9a\tartifact:G9a' ]
 }
 
 @test "short corpus fails UNVERIFIED with its own reason" {

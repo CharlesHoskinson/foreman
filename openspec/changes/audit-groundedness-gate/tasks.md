@@ -33,13 +33,13 @@ to change.
       artifact plus one mutant per registered check.
 - [x] Each fixture declares its expected violation count and the expected focus
       of each violation.
-- [ ] The checker evaluates the corpus on every invocation, before trusting its
+- [x] The checker evaluates the corpus on every invocation, before trusting its
       own result.
 - [x] Assert count and focus, never non-emptiness.
 - [x] A short corpus, an unreadable corpus, or a corpus whose shape does not
       match the parsed artifact produces `UNVERIFIED` and a gate failure with its
       own reason string.
-- [ ] Prove the canary works by mutation: break one check on purpose, confirm the
+- [x] Prove the canary works by mutation: break one check on purpose, confirm the
       canary catches it, restore. Record the evidence in the test.
 - [x] Measure the canary's wall-clock cost; if it is not milliseconds, the corpus
       is too large.
@@ -50,19 +50,19 @@ to change.
       `$RD/gate-ground.json`, emits one addressed record per violation with
       `check`, `focus`, `path`, `message`, `required_evidence[]`, `world`,
       `blocking`.
-- [ ] G9a — `APPROVED` with a `critical` or `high` finding.
-- [ ] G9b — `BLOCKED` with no `critical`/`high` finding and no declared criterion
+- [x] G9a — `APPROVED` with a `critical` or `high` finding.
+- [x] G9b — `BLOCKED` with no `critical`/`high` finding and no declared criterion
       miss.
-- [ ] G9c — `WARNING` with no findings.
+- [x] G9c — `WARNING` with no findings.
 - [ ] Keep G9a/b/c as three checks with three messages; do not collapse them into
       one disjunctive check.
-- [ ] G1 blocking form — cited path resolves nowhere, after consulting the diff's
+- [x] G1 blocking form — cited path resolves nowhere, after consulting the diff's
       old-side names and `git diff --find-renames`.
-- [ ] G1 advisory form — cited path exists but is outside the diff; counted.
-- [ ] G2 blocking form — cited line beyond the file's line count at `HEAD`.
-- [ ] G2 advisory form — cited line outside every changed hunk; counted.
-- [ ] `line: 0` treated as a file-level finding, never a line violation.
-- [ ] Every check reports `unevaluated` with the named missing input rather than
+- [x] G1 advisory form — cited path exists but is outside the diff; counted.
+- [x] G2 blocking form — cited line beyond the file's line count at `HEAD`.
+- [x] G2 advisory form — cited line outside every changed hunk; counted.
+- [x] `line: 0` treated as a file-level finding, never a line violation.
+- [x] Every check reports `unevaluated` with the named missing input rather than
       passing when an input is absent.
 
 ## T4 — wave 2: two prose invariants become enforced

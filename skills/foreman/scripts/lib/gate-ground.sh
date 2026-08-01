@@ -8,8 +8,8 @@
 # warn, the model verdict is one signal among several, and that verdict is
 # itself checked. An unproved promotion is refused and remains in shadow.
 #
-# This file intentionally contains no groundedness predicate. T3 onward supply
-# gg_canary_evaluate_fixture(), then call gg_canary_run before trusting results.
+# T3 predicates are sourced at the end of this declaration-only library so the
+# evaluator is installed by the library, never supplied by an individual caller.
 
 GG_DEFAULT_REGISTRY="${BASH_SOURCE[0]%/lib/gate-ground.sh}/gate-ground-registry.tsv"
 GG_BLOCKING_CAP=0
@@ -375,3 +375,6 @@ gg_canary_run() {
     "$expected_total" "${#GG_REGISTRY_IDS[@]}" "$elapsed"
   return 0
 }
+
+# shellcheck source=gate-ground-checks.sh
+source "${BASH_SOURCE[0]%/*}/gate-ground-checks.sh"
