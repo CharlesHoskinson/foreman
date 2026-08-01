@@ -67,6 +67,25 @@ done
 git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || die "$EXIT_CONFIG" "grok-multiround: --cwd is not a git work tree ($WD); files_changed detection requires git"
 
+# The caller stages its spec inside the worktree by convention and passes that
+# path. Exclude exactly THAT file from the evidence set rather than matching a
+# filename pattern: `^SPEC-[^/]*\.md$` is anchored to the root, so
+# `d/SPEC-notes.md` counted as work (false SUCCESS), while widening the pattern
+# would exclude a lane whose real deliverable is `docs/SPEC-foo.md` (false
+# EMPTY-BURST). The path is known; the pattern was a guess.
+SPEC_REL=""
+if [[ -n "${SPEC:-}" ]]; then
+  _spec_dir="$(cd "$(dirname "$SPEC")" 2>/dev/null && pwd || true)"
+  _wd_abs="$(cd "$WD" 2>/dev/null && pwd || true)"
+  if [[ -n "$_spec_dir" && -n "$_wd_abs" ]]; then
+    _spec_abs="$_spec_dir/$(basename "$SPEC")"
+    case "$_spec_abs" in
+      "$_wd_abs"/*) SPEC_REL="${_spec_abs#"$_wd_abs"/}" ;;
+    esac
+  fi
+  unset _spec_dir _wd_abs _spec_abs
+fi
+
 # @description Paths git reports as changed in WD, EXCLUDING any the harness
 #   or the caller manufactured rather than the worker.
 #
@@ -81,13 +100,15 @@ git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
 #   Excluded:
 #     .harness/**  lane-run's own heartbeat + stream telemetry, written into
 #                  the worktree by the supervisor, not by the worker.
-#     SPEC-*.md    a spec staged inside the worktree by the caller.
+#     SPEC_REL     the exact caller-staged spec path (if inside the worktree),
+#                  not a filename pattern — so a real deliverable like
+#                  docs/SPEC-foo.md still counts as work.
 #   Porcelain is NUL-delimited and uses -uall so every untracked file is an
 #   individual candidate. Paths stay in an array so unusual names are not
 #   split while being passed to the evidence library.
 CHANGED_PATHS=()
 CHANGED_STATUS=()
-# @description Collect worker-owned changed paths and statuses, excluding harness and caller artifacts, to define the evidence set used to decide whether a vendor round produced work.
+# @description Collect worker-owned changed paths and statuses, excluding harness and the exact caller-staged spec path, to define the evidence set used to decide whether a vendor round produced work.
 # @exitcode 0 the evidence set was enumerated
 # @exitcode 1 enumeration was inconclusive and must not be treated as an empty round
 collect_changed_paths() {
@@ -109,7 +130,7 @@ collect_changed_paths() {
     [[ ${#entry} -ge 4 ]] || continue
     path="${entry:3}"
     [[ "$path" == .harness/* ]] && continue
-    [[ "$path" =~ ^SPEC-[^/]*\.md$ ]] && continue
+    [[ -n "$SPEC_REL" && "$path" == "$SPEC_REL" ]] && continue
     CHANGED_PATHS+=("$path")
     CHANGED_STATUS+=("$entry")
   done <"$status_file"
@@ -118,7 +139,7 @@ collect_changed_paths() {
 
 # @description Content digest of the filtered worker-owned path set. Artifact
 #   mode is intentional: work mode unions every status path back into the set,
-#   which would reintroduce the excluded SPEC-*.md and .harness/** paths.
+#   which would reintroduce the excluded SPEC_REL and .harness/** paths.
 # @sets SNAP_DIGEST to a sha256 hex digest
 SNAP_DIGEST=""
 # @description Digest the filtered worker-owned evidence set so successive snapshots decide whether a vendor round produced work without trusting vendor narration.
