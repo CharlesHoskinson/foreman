@@ -51,7 +51,10 @@ describe("commitment authorization", () => {
 
   it("denies a missing approval", () => {
     expect(
-      authorizeCommitment({ ...approvedContext, approval: { _tag: "Missing" } }),
+      authorizeCommitment({
+        ...approvedContext,
+        approval: { _tag: "Missing" },
+      }),
     ).toEqual({ _tag: "Denied", reason: "approval_missing" });
   });
 
@@ -82,10 +85,12 @@ describe("commitment authorization", () => {
   });
 
   it("denies an explicit policy rejection", () => {
-    expect(authorizeCommitment({ ...approvedContext, policy: "deny" })).toEqual({
-      _tag: "Denied",
-      reason: "policy_denied",
-    });
+    expect(authorizeCommitment({ ...approvedContext, policy: "deny" })).toEqual(
+      {
+        _tag: "Denied",
+        reason: "policy_denied",
+      },
+    );
   });
 
   it.each([
@@ -107,7 +112,10 @@ describe("commitment authorization", () => {
     "fails closed when %s is invalid",
     (field) => {
       expect(
-        authorizeCommitment({ ...approvedContext, [field]: "invalid" } as const),
+        authorizeCommitment({
+          ...approvedContext,
+          [field]: "invalid",
+        } as const),
       ).toEqual({
         _tag: "Denied",
         reason: field + "_invalid",

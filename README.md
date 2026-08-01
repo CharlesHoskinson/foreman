@@ -6,7 +6,13 @@ The project takes inspiration from [Karpathy's llm-council](https://github.com/k
 
 ## Current status
 
-The architecture is approved and recorded as an OpenSpec change. Implementation has not started. The change intentionally has no `tasks.md`; implementation planning begins only after review of the written specification.
+The architecture is approved and recorded as an OpenSpec change. The versioned schemas and pure domain foundation are implemented and covered by the complete local quality gate. Provider adapters, Effect application services, research tools, the MCP server, and native host plugins are not yet implemented.
+
+Run the local verification gate with:
+
+```sh
+corepack pnpm check
+```
 
 - [Proposal](openspec/changes/design-council-core/proposal.md)
 - [Architecture design](openspec/changes/design-council-core/design.md)
@@ -30,9 +36,12 @@ The architecture is approved and recorded as an OpenSpec change. Implementation 
 
 ## Repository layout
 
+- `packages/schema/`: versioned serialized contracts and strict decoding.
+- `packages/domain/`: runtime-free domain decisions, evolution, replay, authorization, budgets, quorum, and outcomes.
+- `tests/architecture/` and `scripts/`: workspace and dependency-boundary verification.
 - `openspec/changes/design-council-core/`: approved proposal, design, and capability specs.
 - `docs/research/`: source reports, committee memos, and graph artifacts.
 - `docs/superpowers/specs/`: dated design approval record.
 - `docs/ROADMAP.md`: delivery sequence and deferred scope.
 
-The planned implementation layout is documented in the architecture design. No package scaffolding is present yet.
+The remaining implementation layout is documented in the architecture design.

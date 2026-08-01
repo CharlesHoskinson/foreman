@@ -1,7 +1,10 @@
 .claude/
 .codex/
 .gemini/
+.superpowers/
 docs/research/
+docs/superpowers/
+openspec/
 node_modules/
 dist/
 coverage/

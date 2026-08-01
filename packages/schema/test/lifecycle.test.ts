@@ -61,6 +61,7 @@ describe("lifecycle contracts", () => {
   it("requires an explicit envelope schema version", () => {
     const { schemaVersion: _schemaVersion, ...envelopeWithoutVersion } =
       validEnvelope;
+    void _schemaVersion;
 
     expect(() =>
       decodeStrictSync(DomainEventEnvelope, envelopeWithoutVersion),

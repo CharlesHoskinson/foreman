@@ -90,7 +90,9 @@ export const authorizeCommitment = (
     return {
       _tag: "Denied",
       reason:
-        context.citation === "unknown" ? "citation_unknown" : "citation_invalid",
+        context.citation === "unknown"
+          ? "citation_unknown"
+          : "citation_invalid",
     };
   }
 

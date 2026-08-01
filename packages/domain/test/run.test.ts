@@ -80,7 +80,7 @@ describe("run reducer", () => {
   });
 
   it("keeps the first terminal state when later events are evolved or replayed", () => {
-    const events: readonly DomainEvent[] = [
+    const events = [
       {
         schemaVersion: 1,
         _tag: "RunPlanned",
@@ -97,10 +97,10 @@ describe("run reducer", () => {
         at,
       },
       { schemaVersion: 1, _tag: "RunFailed", runId, code: "late", at },
-    ];
+    ] as const satisfies readonly DomainEvent[];
     const completed = replay(events.slice(0, 3));
 
-    expect(evolve(completed, events[3]!)).toBe(completed);
+    expect(evolve(completed, events[3])).toBe(completed);
     expect(replay(events)).toEqual(completed);
   });
 });
