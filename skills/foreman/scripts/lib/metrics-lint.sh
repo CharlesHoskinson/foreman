@@ -71,6 +71,11 @@ ml_read_file() {
 
 # Companion keywords required when a metric claims a numeric value.
 # Returns 0 if companion present in context, 1 if missing.
+# @description Check whether a metric's lowercase context includes the companion terms required to make its numeric value meaningful.
+# @arg $1 metric id
+# @arg $2 lowercase context containing the metric claim
+# @exitcode 0 required terms are present or the metric has no companion check
+# @exitcode 1 required companion terms are missing
 ml_has_companion() {
   local mid="$1" ctx_lc="$2"
   case "$mid" in
@@ -361,6 +366,12 @@ ml_lint_file() {
 # ---------------------------------------------------------------------------
 # CLI entry (only when executed, not sourced)
 # ---------------------------------------------------------------------------
+# @description Parse CLI options and lint the requested rendered release-metrics report.
+# @arg $@ metrics-lint CLI arguments
+# @stdout help text or the lint report
+# @exitcode 0 help, a clean report, or shadow-mode violations
+# @exitcode 1 enforce-mode violations
+# @exitcode 2 invalid options or a missing/unreadable report
 ml_main() {
   local report=""
   while [[ $# -gt 0 ]]; do

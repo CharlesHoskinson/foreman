@@ -138,6 +138,8 @@ ar_reap_watchdog() {
   return 0
 }
 
+# @description Reap the watchdog and auditor process group, then remove process-control temporary files during exit cleanup.
+# @exitcode 0 cleanup is best-effort and always completes successfully
 ar_cleanup_processes() {
   ar_reap_watchdog
   if [[ -n "$AUDIT_CHILD_PID" ]]; then
@@ -156,6 +158,8 @@ trap ar_cleanup_processes EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# @description Capture the audit end time and set a non-negative elapsed duration in the audit timing globals.
+# @exitcode 0 timing globals were updated
 ar_end_timing() {
   local ended_epoch
   ended_epoch="$(date -u +%s)"
@@ -208,6 +212,9 @@ ar_write_unverified() {
   mv -f "$tmp" "$VERDICT_FILE"
 }
 
+# @description Atomically replace an integer state file using a same-directory temporary file and rename.
+# @arg $1 destination path
+# @arg $2 integer value to write
 ar_atomic_integer() {
   local path="$1" value="$2" tmp
   tmp="${path}.tmp.$$"
@@ -215,6 +222,8 @@ ar_atomic_integer() {
   mv -f "$tmp" "$path"
 }
 
+# @description Record whether the audit was UNVERIFIED, resetting its retry count after a real verdict or abandoning the task when the retry limit is reached.
+# @arg $1 audit verdict
 ar_record_outcome() {
   local verdict="$1" count=0 state_tmp
   if [[ "$verdict" != "UNVERIFIED" ]]; then
@@ -331,6 +340,10 @@ ar_emit_lineage() {
   done
 }
 
+# @description Fail closed by publishing an UNVERIFIED audit outcome and lineage, updating retry state, logging the error, and exiting with the requested code.
+# @arg $1 process exit code
+# @arg $2 machine-readable UNVERIFIED reason
+# @arg $3 human-readable error message
 ar_fail() {
   local exit_code="$1" reason="$2" message="$3"
   ar_end_timing
