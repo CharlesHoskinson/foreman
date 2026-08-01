@@ -712,7 +712,7 @@ closed. All commands below were executed by the orchestrating architect on the s
 outside the agent sandbox, against the final 928-line `specs/lane_lifecycle.qnt`
 (Quint 0.32.0 / Apalache 0.56.1 / OpenJDK 21.0.11):
 
-```
+```text
 quint typecheck specs/lane_lifecycle.qnt
   -> clean (exit 0)
 
