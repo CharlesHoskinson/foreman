@@ -400,3 +400,31 @@ rewrite. Twelve of its fourteen findings were dropped TASKS.
    triggers and mark them as the vendor-exit history they are" converted a live
    recurring obligation into an archive entry. Re-pointing the SUBJECT of an
    obligation is legitimate; converting the obligation into history deletes it.
+
+## 17. Three ways a green signal lies (observed 2026-08-01)
+
+Each of these produced a confident, wrong conclusion. Two were the
+architect's, and the third was a lane's.
+
+| Claim | What was actually true |
+| --- | --- |
+| "the lane implemented the fix — shellcheck and the tests still pass" | The lane changed ZERO tracked files. It produced a numbered design with alternatives considered, then closed with "Approve this design so I can implement it?" and exited. shellcheck and the existing tests passed because nothing had changed. Only the round gate caught the no-op; the transcript read like successful work. |
+| "all four adapters bind auth to probe content — test 8 asserts it and passes" | Test 8 is named "auth probes are shimmed, positive-signal based, and never bill" and it passed, but it only asserted the content-failure case for TWO of the four vendors. The other two ran their probe with output discarded and returned on exit status alone — the exact defect a prior commit had already fixed once. The test's NAME generalised past its assertions and was quoted as coverage it did not have. |
+| "these two test failures reproduce locally, so they are real product defects" | Reproducing locally proves a failure is not environmental. It does not prove the product is wrong. Both failures were a STALE FIXTURE: the gate had been hardened to bind a verdict to its attempt and evaluated tree, and the fixture never supplied those bindings. Running the gate against the fixture by hand printed eight refusal reasons, every one naming a missing binding. The product was correct and stricter than its own test. |
+
+**Rules:**
+
+1. A lane's transcript is not evidence that it did the work. Diff the tracked
+   files. A round gate that asserts a fresh artifact catches the no-op; a
+   reader skimming a log does not.
+2. State explicitly in a lane spec that the worker is authorised to implement
+   and must not stop to ask. "Fix exactly these" is not enough.
+3. Read what a test ASSERTS, never what it is NAMED. A green test whose name
+   generalises past its assertions is worse than no test, because it is quoted
+   as coverage.
+4. Local reproduction distinguishes environmental from non-environmental. It
+   says nothing about which side is wrong. When a test fails against a
+   component that was recently hardened, suspect the fixture before the
+   component, and settle it by running the component against the fixture by
+   hand and reading its stated reasons.
+
