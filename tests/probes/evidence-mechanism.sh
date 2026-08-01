@@ -283,19 +283,46 @@ case_unreadable() {
 
   local rc=0
   set +e
-  # Subshell as nobody: real permission denied on sha256sum.
-  runuser -u nobody -- env LIB="$lib_copy" ROOT="$r" bash -c '
-    set -euo pipefail
-    source "$LIB"
-    set +e
-    evidence_content_digest "$ROOT" work secret.txt >/dev/null
-    rc=$?
-    set -e
-    printf "EVIDENCE_STATUS=%s\n" "$EVIDENCE_STATUS"
-    printf "EVIDENCE_REASON=%s\n" "$EVIDENCE_REASON"
-    printf "rc=%s\n" "$rc"
-    exit "$rc"
-  ' >"$out" 2>"$LOG_DIR/case4-unreadable.err"
+  # Root bypasses mode bits and must drop privileges; non-root is already
+  # denied by mode bits and cannot use runuser.
+  if (( EUID == 0 )); then
+    if ! command -v runuser >/dev/null 2>&1; then
+      set -e
+      chmod 644 "$r/secret.txt" 2>/dev/null || true
+      note "SKIP: unreadable — missing runuser capability required to drop privileges as root"
+      return
+    fi
+    # Subshell as nobody: real permission denied on sha256sum.
+    # Variables expand in the child shell.
+    # shellcheck disable=SC2016
+    runuser -u nobody -- env LIB="$lib_copy" ROOT="$r" bash -c '
+      set -euo pipefail
+      source "$LIB"
+      set +e
+      evidence_content_digest "$ROOT" work secret.txt >/dev/null
+      rc=$?
+      set -e
+      printf "EVIDENCE_STATUS=%s\n" "$EVIDENCE_STATUS"
+      printf "EVIDENCE_REASON=%s\n" "$EVIDENCE_REASON"
+      printf "rc=%s\n" "$rc"
+      exit "$rc"
+    ' >"$out" 2>"$LOG_DIR/case4-unreadable.err"
+  else
+    # Variables expand in the child shell.
+    # shellcheck disable=SC2016
+    env LIB="$lib_copy" ROOT="$r" bash -c '
+      set -euo pipefail
+      source "$LIB"
+      set +e
+      evidence_content_digest "$ROOT" work secret.txt >/dev/null
+      rc=$?
+      set -e
+      printf "EVIDENCE_STATUS=%s\n" "$EVIDENCE_STATUS"
+      printf "EVIDENCE_REASON=%s\n" "$EVIDENCE_REASON"
+      printf "rc=%s\n" "$rc"
+      exit "$rc"
+    ' >"$out" 2>"$LOG_DIR/case4-unreadable.err"
+  fi
   rc=$?
   set -e
   note "nobody digest rc=$rc"
