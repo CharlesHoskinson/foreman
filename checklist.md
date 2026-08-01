@@ -112,9 +112,21 @@ remain open.
       restructuring a failure-log entry.*
 - [ ] **10. Plugin** — the installed skill resolves to a current checkout and
       the drift check passes. **Blocked on a human decision** (obligation 24).
-- [ ] **11. Residuals stated** — D5's Git-Bash syscall trace still owed; `agy`
+- [x] **11. Residuals stated** — D5's Git-Bash syscall trace still owed; `agy`
       per-lane isolation unsolved; audit latency bounded not solved; formal
       results bounded (Apalache 8-12) and sampled (20k traces).
+
+          *Stated in `docs/RESIDUALS.md` (`d24695f`). Carries the four above and
+          adds six from this release: the groundedness gate may not leave shadow
+          (canary unbound to an entrypoint, an empty registry yields a vacuous
+          `CANARY_OK`, `G1` declares an input its predicate never reads); Tier 2
+          is built but has never been executed, so any Tier 2 number would be
+          fabricated and there are none; the mkdir atomicity alternation was
+          never reproduced locally because this host's ptrace policy rejects
+          `strace`; `bats` is provisioned on Windows but has never PASSED there;
+          and measurement freshness is undischarged. The criterion's word is
+          **stated**, not resolved. Criterion 12 must link this document from
+          the release notes.*
 - [ ] **12. Record** — ROADMAP marked released; devlog correction block landed
       (obligation 13); `bugeventlog.md` complete; `v0.2.9` tagged
       **Total GeorgeCall** with the committed release art.
