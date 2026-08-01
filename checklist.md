@@ -66,8 +66,16 @@ of which had been checked in sixteen times.
       three consecutive green completed runs; the bats gate also defaults ON in
       `tools/ci-local.sh` (`${FOREMAN_CI_BATS:-1}`). But
       `.github/workflows/gates-windows.yml:73` sets `FOREMAN_CI_BATS: "0"`, so
-      the suite gates on Linux only and "ON in CI" is false for half of CI.
+      the full gate runs on Linux only and "ON in CI" is false for half of CI.
       Re-derive both with `grep -rn FOREMAN_CI_BATS .github/workflows/`.*
+
+  *Two precisions a cross-vendor audit forced, both of which had been stated too
+      strongly here and in the README. Windows is not bats-free: `gates-windows`
+      runs a deliberate two-file NON-GATING probe over `tests/line-endings.bats`
+      and `tests/plugin-drift.bats`, so the flag disables the gate rather than
+      every execution. And `gates-linux` does not run on every push — its push
+      trigger is `branches: [main]`, so it covers pushes to `main` plus every
+      pull request.*
 
   *Ticking this requires one of: turning the suite on for `gates-windows`
       and getting it green there — `docs/RESIDUALS.md` records that bats has

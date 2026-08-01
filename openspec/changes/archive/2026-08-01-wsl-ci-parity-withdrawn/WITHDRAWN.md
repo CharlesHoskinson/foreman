@@ -30,9 +30,17 @@ with a recorded red run proving each can fail — is met and ticked.
 ## What must NOT be lost
 
 **Parity is not achieved, only Linux coverage is.** `gates-windows.yml:73` sets
-`FOREMAN_CI_BATS: "0"`, so the suite does not run on the Windows runner at all.
-`docs/RESIDUALS.md` records that bats has never passed there, and that
-provisioning a tool and passing with it are different claims.
+`FOREMAN_CI_BATS: "0"`, which disables the **full gate** on the Windows runner.
+
+Be precise about what that does and does not mean — an earlier draft of this
+file said the suite "does not run on the Windows runner at all", and a
+cross-vendor audit caught it. `gates-windows.yml` runs a deliberate **two-file,
+non-gating probe** over `tests/line-endings.bats` and `tests/plugin-drift.bats`,
+each under the same timeout bound `tests/run.sh` uses and capturing bats' own
+exit status rather than a pipeline's. So Windows does execute bats; what it does
+not do is gate on the suite. `docs/RESIDUALS.md` records that provisioning a
+tool and passing with it are different claims — and this is a third claim again:
+running a probe is not running the suite.
 
 That gap is the surviving half of this package's intent, and it is why
 checklist criterion 2 stays unticked: the criterion asks for the bats gate ON

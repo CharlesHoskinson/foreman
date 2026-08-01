@@ -625,12 +625,22 @@ fine-grained, single-repo, expiring token.
   not solved.
 - **The Bats suite needs Bash plus `bats`** (PATH or
   `~/.foreman/tools/bats-core/bin/bats`). Plain PowerShell does not run it
-  directly; native Linux, WSL, and Git Bash can. It **runs and gates on
-  `gates-linux`** (`FOREMAN_CI_BATS: "1"`) — but **not on `gates-windows`**,
-  which sets it to `"0"`, so the suite has never passed on the Windows runner.
+  directly; native Linux, WSL, and Git Bash can. It **gates on `gates-linux`**
+  (`FOREMAN_CI_BATS: "1"`), on pushes to `main` and on every pull request —
+  not on every push, since that workflow's push trigger is `branches: [main]`.
+  On `gates-windows` the flag is `"0"`, which disables the **full gate** but
+  not every Windows execution: that workflow runs a deliberate **two-file,
+  non-gating probe** over `tests/line-endings.bats` and `tests/plugin-drift.bats`.
   `maintenance.yml` is reporting only; `windows-smoke.yml` exercises
   `install.ps1` only. Re-derive with
-  `grep -rn FOREMAN_CI_BATS .github/workflows/`.
+  `grep -rn FOREMAN_CI_BATS .github/workflows/` and by reading the probe step in
+  `gates-windows.yml`.
+- **The suite is 50 files / 635 tests, not the repository's 56 / 685.**
+  `tests/run.sh` selects `find "$TESTS_DIR" -maxdepth 1 -type f -name '*.bats'`,
+  so fixtures under `tests/fixtures/**` and the archived
+  `docs/evidence/**/graph-store-contract.bats` are not executed. Counting with
+  `git ls-files '*.bats'` overstates the suite by six files and fifty tests;
+  the gate's own `tests=` figure is the one to quote.
 - **Nested Job Objects, Windows NTSTATUS masking, and jq-vs-python3 PATH
   quirks** are documented in `launcher/README.md` and
   `skills/foreman/references/reference-environment.md` — component limits with
