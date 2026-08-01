@@ -82,7 +82,7 @@ remain open.
       all 19, identical to Linux.*
 - [ ] **4. Negative controls** — every verdict-emitting checker registered, the
       completeness gate green, every control observed firing.
-      *About 6 exist. The registry is not built. ~60-80 checkers in scope.*
+      *About 6 exist. The registry is not built. Scope measured at `ea17b37`: **110 verdict emission sites across 23 files**, not the ~60-80 previously estimated — and those two units fall on opposite sides of that estimate. The distribution is very uneven (`tools/ci-local.sh` alone holds 34 sites; five files hold 72 of 110), so a registry keyed on files would report complete while leaving most individual verdicts uncontrolled. The unit must be fixed before the registry is built — obligation 65. Ownership: the negative-control registry belongs to `evidence-contracts`; `audit-groundedness-gate`’s registry is a different thing, covering audit-artifact checks only.*
 - [ ] **5. Audit** — a `codex-auditor` verdict per package; zero `BLOCKED`; any
       `WARNING` with unresolved medium-or-higher findings resolved.
 - [ ] **6. Session DB** — no release-blocking obligation open; **every
