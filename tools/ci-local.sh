@@ -110,9 +110,19 @@ gate_shellcheck() {
 # @exitcode 1 validator unavailable or at least one package invalid
 gate_openspec() {
   local name="openspec"
-  local openspec_bin="/usr/local/bin/openspec"
-  if [[ ! -x "$openspec_bin" ]]; then
-    echo "GATE ${name} FAIL ${openspec_bin} not executable"
+  # Resolve through PATH first. Hardcoding one absolute path made a correctly
+  # installed openspec read as a failed gate: the tool sits at
+  # /root/.local/bin/openspec on a developer host and at /usr/local/bin in CI.
+  # Same defect shape as the codespell check in gates-linux, which verified an
+  # absolute path and so proved a file existed while masking whether the tool
+  # resolved at all.
+  local openspec_bin
+  openspec_bin="$(command -v openspec 2>/dev/null || true)"
+  if [[ -z "$openspec_bin" && -x /usr/local/bin/openspec ]]; then
+    openspec_bin=/usr/local/bin/openspec
+  fi
+  if [[ -z "$openspec_bin" ]]; then
+    echo "GATE ${name} NOT-AVAILABLE openspec not found on PATH or at /usr/local/bin/openspec — packages are UNVALIDATED"
     return 1
   fi
 
