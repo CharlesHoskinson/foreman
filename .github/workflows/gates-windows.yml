@@ -54,6 +54,17 @@ jobs:
       - name: Run the shared gate definition with Git Bash
         shell: bash
         env:
+          # bats is not provisioned on this runner: the Linux job installs it
+          # with apt, the Windows dependency step installs shellcheck and npm
+          # packages only. Running the suite here yields rc=127 (command not
+          # found), which is what turned this workflow red on b4ed7bd7 once
+          # ci-local.sh's bats default flipped ON.
+          #
+          # Stated explicitly rather than inherited: gates-linux opts IN with
+          # "1", so this opts OUT with "0" and neither depends on the default.
+          # Provisioning bats here and running the suite on Windows is real
+          # work, tracked separately — it has never run on this platform.
+          FOREMAN_CI_BATS: "0"
           TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
           TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
         run: |
