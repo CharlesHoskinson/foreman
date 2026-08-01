@@ -123,6 +123,15 @@ invariant: the reset happens strictly before that writer's lifetime begins.
 
 ## Build
 
+On WSL, `skills/foreman/scripts/foreman-setup.sh` builds the POSIX launcher
+automatically when `dist/foreman-launch` is absent and `bun` is available. It
+skips an existing executable, so repeated Setup runs do not rebuild it. The
+manual fallback is:
+
+```bash
+cd launcher && bun run build:posix
+```
+
 ```powershell
 pwsh -File build.ps1
 ```

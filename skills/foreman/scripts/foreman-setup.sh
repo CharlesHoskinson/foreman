@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # @description Setup & Environment stage wrapper (v0.2.7.5 lifecycle-three-stage,
-#   Task 3): a pure, idempotent READ of env/tool-check.sh's readiness verdict.
+#   Task 3): an idempotent Setup wrapper around env/tool-check.sh's readiness
+#   verdict. On WSL, Setup also builds the POSIX launcher when it is absent;
+#   that build is its only repository mutation.
 #   Setup owns vendor authentication per spec R2 ("Setup owns all model
 #   authentication"), but this script NEVER authenticates anything itself --
 #   device/interactive auth (`grok login --device-code`, `codex login`,
@@ -10,10 +12,9 @@
 #   offers a safe, non-interactive, headless auto-login this script could
 #   drive blindly. Composes env/tool-check.sh rather than re-implementing its
 #   checks (plan architecture: "two thin wrapper scripts COMPOSE existing
-#   scripts ... not a rewrite"). Idempotent by construction: this script
-#   mutates nothing on disk, so two runs against an unchanged host print
-#   byte-identical verdicts (spec: "a second run ... shall change nothing and
-#   re-report READY").
+#   scripts ... not a rewrite"). The launcher build is idempotent: a second
+#   run sees a runnable, self-identifying executable and skips without
+#   invoking bun again.
 #
 #   --lane SCOPING: without --lane, readiness is the WHOLE profile's
 #   tool-check verdict (every must-tool, including non-vendor ones, must be
@@ -43,20 +44,99 @@ source "$SCRIPT_DIR/lib/config.sh"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TOOL_CHECK="$REPO_ROOT/env/tool-check.sh"
 
-# Setup reports the repository's committed TOML value, independent of an
-# environment override in the operator's shell.
-FOREMAN_CONFIG="$REPO_ROOT/.foreman/config.toml" cfg_load
-# Read the parser result directly because cfg_get would apply env overrides,
-# while migration reporting is specifically about the repository's TOML.
-durable_toml="${_CFG_VALUES[durable.enabled]:-}"
-launcher_status="absent"
-if [[ -f "$REPO_ROOT/launcher/dist/foreman-launch" ||
-  -f "$REPO_ROOT/launcher/dist/foreman-launch.exe" ]]; then
-  launcher_status="present"
-fi
-if [[ "$durable_toml" == "false" ]]; then
-  echo "SETUP CONFIG: durable.enabled=false differs from the shipped true default that prevents a subagent backgrounding a long command and ending its turn; launcher=$launcher_status"
-fi
+# @description Return whether Setup is running under WSL.
+#   FOREMAN_TEST_WSL_FORCE is an explicit test-only seam: 1 forces WSL and 0
+#   forces non-WSL. Every override is logged so it cannot silently contradict
+#   the host's /proc/version.
+# @exitcode 0 on WSL; 1 otherwise
+fs_is_wsl() {
+  case "${FOREMAN_TEST_WSL_FORCE:-}" in
+    1)
+      log "TEST OVERRIDE: FOREMAN_TEST_WSL_FORCE=1 forced WSL detection to wsl=1"
+      return 0
+      ;;
+    0)
+      log "TEST OVERRIDE: FOREMAN_TEST_WSL_FORCE=0 forced WSL detection to wsl=0"
+      return 1
+      ;;
+  esac
+  grep -qi microsoft /proc/version 2>/dev/null
+}
+
+# @description Verify that a launcher executable identifies itself cheaply.
+# @arg $1 launcher path
+# @exitcode 0 when PATH executes and reports a foreman-launch version
+fs_launcher_runnable() {
+  local launcher="$1" version=""
+  [[ -x "$launcher" ]] || return 1
+  version="$("$launcher" --version 2>/dev/null)" || return 1
+  [[ "$version" == foreman-launch\ * ]]
+}
+
+# @description Build launcher/dist/foreman-launch atomically during WSL Setup.
+#   An absent bun is a loud degradation, not a Setup failure; a failed build or
+#   build that produces no runnable executable is a real failure. Bun writes to
+#   a same-filesystem temporary path, which is renamed into place only after it
+#   passes the version probe.
+# @exitcode 0 already present, built successfully, off WSL, or bun unavailable
+# @exitcode 1 launcher cleanup, build, validation, or publication failed
+fs_ensure_posix_launcher() {
+  fs_is_wsl || return 0
+
+  local launcher="$REPO_ROOT/launcher/dist/foreman-launch"
+  local launcher_dir="$REPO_ROOT/launcher/dist"
+  local build_dir="" build_launcher=""
+  if fs_launcher_runnable "$launcher"; then
+    log "launcher already built: $launcher"
+    return 0
+  fi
+  if [[ -e "$launcher" || -L "$launcher" ]]; then
+    log "WARN: removing non-runnable launcher before rebuild: $launcher"
+    if ! rm -f -- "$launcher"; then
+      log "ERROR: could not remove non-runnable launcher: $launcher"
+      return 1
+    fi
+  fi
+  if ! command -v bun >/dev/null 2>&1; then
+    log "WARN: bun is unavailable; POSIX launcher remains absent. Install bun, then run: (cd launcher && bun run build:posix)"
+    return 0
+  fi
+
+  if ! mkdir -p -- "$launcher_dir"; then
+    log "ERROR: could not create launcher output directory: $launcher_dir"
+    return 1
+  fi
+  if ! build_dir="$(mktemp -d "$launcher_dir/.foreman-launch.build.XXXXXX")"; then
+    log "ERROR: could not create temporary launcher build directory under: $launcher_dir"
+    return 1
+  fi
+  build_launcher="$build_dir/foreman-launch"
+
+  log "building POSIX launcher: (cd launcher && bun run build:posix)"
+  if ! (cd "$REPO_ROOT/launcher" && bun run build:posix --outfile "$build_launcher"); then
+    rm -f -- "$build_launcher"
+    fs_launcher_runnable "$launcher" || rm -f -- "$launcher"
+    rmdir -- "$build_dir" 2>/dev/null || true
+    log "ERROR: POSIX launcher build failed"
+    return 1
+  fi
+  if ! fs_launcher_runnable "$build_launcher"; then
+    rm -f -- "$build_launcher"
+    fs_launcher_runnable "$launcher" || rm -f -- "$launcher"
+    rmdir -- "$build_dir" 2>/dev/null || true
+    log "ERROR: POSIX launcher build completed without runnable executable output: $launcher"
+    return 1
+  fi
+  if ! mv -f -- "$build_launcher" "$launcher"; then
+    rm -f -- "$build_launcher"
+    fs_launcher_runnable "$launcher" || rm -f -- "$launcher"
+    rmdir -- "$build_dir" 2>/dev/null || true
+    log "ERROR: could not publish POSIX launcher atomically: $launcher"
+    return 1
+  fi
+  rmdir -- "$build_dir" 2>/dev/null || true
+  log "built launcher: $launcher"
+}
 
 PROFILE="soft"
 LANE=""
@@ -71,6 +151,26 @@ while [[ $# -gt 0 ]]; do
     *) die "$EXIT_CONFIG" "unknown arg: $1" ;;
   esac
 done
+
+if ! fs_ensure_posix_launcher; then
+  echo "SETUP: NOT-READY"
+  exit 1
+fi
+
+# Setup reports the repository's committed TOML value, independent of an
+# environment override in the operator's shell.
+FOREMAN_CONFIG="$REPO_ROOT/.foreman/config.toml" cfg_load
+# Read the parser result directly because cfg_get would apply env overrides,
+# while migration reporting is specifically about the repository's TOML.
+durable_toml="${_CFG_VALUES[durable.enabled]:-}"
+launcher_status="absent"
+if [[ -x "$REPO_ROOT/launcher/dist/foreman-launch" ||
+  -x "$REPO_ROOT/launcher/dist/foreman-launch.exe" ]]; then
+  launcher_status="present"
+fi
+if [[ "$durable_toml" == "false" ]]; then
+  echo "SETUP CONFIG: durable.enabled=false differs from the shipped true default that prevents a subagent backgrounding a long command and ending its turn; launcher=$launcher_status"
+fi
 
 # @description Map a vendor id to its operator-facing, non-billing auth
 #   instruction (auth-probes.md: the real login subcommand for each CLI --
