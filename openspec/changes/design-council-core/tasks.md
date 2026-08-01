@@ -1,6 +1,6 @@
 ## 1. Workspace and Architecture Guardrails
 
-- [ ] 1.1 Create the pnpm TypeScript workspace, strict compiler configuration, formatting, linting, Vitest, package scripts, and pinned dependency baseline.
+- [x] 1.1 Create the pnpm TypeScript workspace, strict compiler configuration, formatting, linting, Vitest, package scripts, and pinned dependency baseline.
 - [ ] 1.2 Create focused `schema`, `domain`, `application`, `platform-node`, `runtime-node`, `mcp-server`, `testing`, and `adapter-conformance` package boundaries.
 - [ ] 1.3 Add automated dependency-direction and forbidden-import checks that keep the domain runtime-free and provider DTOs out of public exports.
 - [ ] 1.4 Add CI for formatting, linting, type checking, unit tests, architecture tests, OpenSpec validation, and clean generated artifacts.
@@ -8,9 +8,9 @@
 ## 2. Versioned Contracts and Pure Domain
 
 - [ ] 2.1 Define branded identifiers, authority classes, lifecycle unions, closed error unions, envelopes, and versioned schema decoding rules in `@council/schema`.
-- [ ] 2.2 Implement immutable run state, commands, authoritative events, and total `decide`, `evolve`, and `replay` functions in `@council/domain`.
+- [x] 2.2 Implement immutable run state, commands, authoritative events, and total `decide`, `evolve`, and `replay` functions in `@council/domain`.
 - [ ] 2.3 Add terminal-state, event-sequence, checkpoint, cancellation, and late-evidence invariants with unit and property tests.
-- [ ] 2.4 Add pure budget reservation and reconciliation with concurrent-final-reservation property tests.
+- [x] 2.4 Add pure budget reservation and reconciliation with concurrent-final-reservation property tests.
 - [ ] 2.5 Add task-contract, amendment, exact-approval, side-effect-state, and fail-closed commitment decision logic.
 - [ ] 2.6 Add pure failure-domain quorum, confidence-calibration eligibility, deliberation-stop, and typed-abstention policies.
 
