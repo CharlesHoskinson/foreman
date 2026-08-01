@@ -442,12 +442,26 @@ fm_tc_probe_mkdir_once() {
   mkdir -- "$lock" 2>/dev/null || true
 
   if command -v strace >/dev/null 2>&1; then
-    local trace
-    # Trace only create-related syscalls; interpret against mkdir mechanism only.
-    trace="$(strace -f -e trace=mkdir,mkdirat,statx,stat,newfstatat \
-      "$mkdir_bin" -- "$lock" 2>&1 || true)"
+    local trace="" trace_file="$work/strace.trace" trace_err="$work/strace.stderr" trace_rc=0
+    # Keep strace's syscall channel separate from the tracee's stderr. With -f,
+    # merging those streams can interleave and corrupt the target-bound EEXIST
+    # line. The tracee is expected to exit nonzero because the lock exists, so
+    # a nonzero strace status alone is not a tracer failure.
+    if strace -f -e trace=mkdir,mkdirat,statx,stat,newfstatat \
+      -o "$trace_file" "$mkdir_bin" -- "$lock" 2>"$trace_err"; then
+      trace_rc=0
+    else
+      trace_rc=$?
+    fi
+    if [[ -r "$trace_file" ]]; then
+      trace="$(<"$trace_file")"
+    fi
     # F4: EEXIST must be bound to the probed lock target (not any mkdir in the trace)
-    if printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}[^\n]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
+    if [[ ! -s "$trace_file" ]]; then
+      verdict="unknown"
+      evidence="syscall"
+      notes="tracer did not run (strace exit=${trace_rc}; no trace output)"
+    elif printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}[^\n]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
       verdict="atomic"
       evidence="syscall"
       notes="mkdir(2) on probe target; kernel returned EEXIST"
