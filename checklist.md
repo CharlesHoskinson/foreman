@@ -53,7 +53,7 @@ remain open.
           no demonstrable behaviour. `wsl-launcher-shipped` is the cautionary one:
           all six files it names exist and it still reconciled to zero, which is
           why the census ranks what to examine and never what to tick.*
-- [x] **2. Suite** — completes and passes on **three consecutive runs**; bats
+- [ ]*2. Suite** — completes and passes on **three consecutive runs**; bats
       gate switched back ON in `ci-local.sh` and CI.
       *`gates-linux` reports **547 pass / 0 fail / 31 skip**. Consecutive green
       runs: **3** — c71d7b15, 95b7f902 and 5758649f, each running the suite because
@@ -75,7 +75,7 @@ remain open.
       The original disable reason — a file could hang forever holding the host-wide
       mutex — is bounded by `tests/run.sh`'s `timeout --kill-after=30
       ${TEST_FILE_TIMEOUT_S:-600}`, a bound exercised in production on run 584ddfbb.*
-- [x] **3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
+- [ ]*3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
       a **recorded red run** proving it can fail.
       *Green `gates-linux` runs: 6bfe7a19, 9451182b, 725c1294 and 4ff8959f.
       Green `gates-windows` runs: 5758649f and 95b7f902. Recorded red
