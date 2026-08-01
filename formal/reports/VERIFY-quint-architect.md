@@ -116,7 +116,7 @@ space* — not that the fixed systems are correct for all executions.
 
 ---
 
-# ADDENDUM — M1 re-verified against its final artifact (correction)
+## ADDENDUM — M1 re-verified against its final artifact (correction)
 
 ## Correcting my own assessment above
 
@@ -203,9 +203,9 @@ no-fairness stuttering artifact and should not be cited as a liveness bug.
 
 ---
 
-# ADDENDUM 2 — M3 final results, and a correction to my own termination claim
+## ADDENDUM 2 — M3 final results, and a correction to my own termination claim
 
-## Correction: UNVERIFIED non-termination is REAL. I reported the opposite.
+## Correction: UNVERIFIED non-termination is REAL. I reported the opposite
 
 Earlier in this document I wrote that M3 "settles an open design question:
 `rework_rounds_bounded` holds in both `uncapped_errors` and `capped_errors`, so
@@ -293,7 +293,7 @@ kill, torn writes, or hash collisions. It also hit a gRPC sandbox block on
 
 ---
 
-# ADDENDUM 3 — M2 final results: a race that survives the lock fix
+## ADDENDUM 3 — M2 final results: a race that survives the lock fix
 
 M2 completed with three new races. The second is the important one, because it
 **defeats the fix specified in `lock-primitive-hardening`.**
