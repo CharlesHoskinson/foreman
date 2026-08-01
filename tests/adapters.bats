@@ -3,6 +3,8 @@
 #   Vendor commands are represented only by local shims; no test reaches a
 #   live CLI, authentication service, model endpoint, or network resource.
 
+bats_require_minimum_version 1.5.0
+
 ADAPTER_DIR="$BATS_TEST_DIRNAME/../skills/foreman/scripts/adapters"
 VENDORS=(grok codex agy claude)
 FUNCTIONS=(
@@ -14,6 +16,26 @@ FUNCTIONS=(
   adapter_result_verdict
   adapter_caps
 )
+
+# @description Install version-only vendor shims for result-parser tests so no
+#   live vendor binary, authentication service, or billable endpoint is used.
+# @set RESULT_SHIM_DIR directory prepended to PATH by the calling test
+make_result_version_shims() {
+  local vendor
+  RESULT_SHIM_DIR="$BATS_TEST_TMPDIR/result-version-bin"
+  mkdir -p "$RESULT_SHIM_DIR"
+  for vendor in "${VENDORS[@]}"; do
+    cat >"$RESULT_SHIM_DIR/$vendor" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "${1:-}" == --version ]]; then
+  printf '%s 0.0.0\n' "$(basename "$0")"
+  exit 0
+fi
+exit 91
+SHIM
+    chmod +x "$RESULT_SHIM_DIR/$vendor"
+  done
+}
 
 # Intentional post-T2 additions to the frozen Grok implement argv.
 # Added 2026-07-31: `grok agent` defaults to a shared ~/.grok/leader.sock, so
@@ -364,14 +386,16 @@ SHIM
 
 @test "result extractors prefer the explicit output and reject invalid verdicts" {
   local vendor out="$BATS_TEST_TMPDIR/out" stdout="$BATS_TEST_TMPDIR/stdout"
-  local stderr="$BATS_TEST_TMPDIR/stderr"
+  local stderr_file="$BATS_TEST_TMPDIR/stderr"
   printf 'final assistant text\n' >"$out"
   printf 'stream transcript\n' >"$stdout"
-  : >"$stderr"
+  : >"$stderr_file"
+  make_result_version_shims
+  PATH="$RESULT_SHIM_DIR:$PATH"
 
   for vendor in "${VENDORS[@]}"; do
     source "$ADAPTER_DIR/$vendor.sh"
-    run adapter_result_text "$vendor" "$out" "$stdout" "$stderr"
+    run --separate-stderr adapter_result_text "$vendor" "$out" "$stdout" "$stderr_file"
     [ "$status" -eq 0 ]
     [ "$output" = "final assistant text" ]
   done
@@ -380,21 +404,118 @@ SHIM
     source "$ADAPTER_DIR/$vendor.sh"
 
     printf '{"verdict":"APPROVED","summary":"clean","findings":[]}\n' >"$out"
-    run adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr"
+    run --separate-stderr adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr_file"
     [ "$status" -eq 0 ]
     [ "$(printf '%s\n' "$output" | jq -r .verdict)" = APPROVED ]
 
     printf '{"verdict":"UNVERIFIED","summary":"bad","findings":[]}\n' >"$out"
-    run adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr"
+    run --separate-stderr adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr_file"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"non-conforming verdict"* ]]
+    [[ "$stderr" == *"verdict.schema.json"* ]]
 
     printf '%s\n' \
       '{"verdict":"BLOCKED","summary":"fractional line","findings":[' \
       '{"severity":"high","file":"x.sh","line":1.5,"summary":"bad line","evidence":"fixture"}' \
       ']}' >"$out"
-    run adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr"
+    run --separate-stderr adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr_file"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"non-conforming verdict"* ]]
+    [[ "$stderr" == *"verdict.schema.json"* ]]
+
+    printf '%s\n' \
+      '{"verdict":"APPROVED","summary":"first object","findings":[]}' \
+      '{"verdict":"BLOCKED","summary":"second object","findings":[]}' >"$out"
+    run --separate-stderr adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr_file"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"verdict.schema.json"* ]]
+  done
+}
+
+@test "verdict extraction preserves the stream carrying payload or failure" {
+  local vendor out="$BATS_TEST_TMPDIR/out" stdout="$BATS_TEST_TMPDIR/stdout"
+  local stderr_file="$BATS_TEST_TMPDIR/stderr"
+  : >"$out"
+  make_result_version_shims
+  PATH="$RESULT_SHIM_DIR:$PATH"
+
+  for vendor in "${VENDORS[@]}"; do
+    source "$ADAPTER_DIR/$vendor.sh"
+
+    printf 'human transcript, not JSON\n' >"$stdout"
+    printf '{"verdict":"WARNING","summary":"stderr payload","findings":[]}\n' >"$stderr_file"
+    run --separate-stderr adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr_file"
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | jq -r .summary)" = "stderr payload" ]
+
+    : >"$stdout"
+    printf '{"error":"vendor failed despite rc 0"}\n' >"$stderr_file"
+    run --separate-stderr adapter_result_text "$vendor" "$out" "$stdout" "$stderr_file"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"stderr"* ]]
+
+    run --separate-stderr adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr_file"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"stderr"* ]]
+    [[ "$stderr" == *"verdict.schema.json"* ]]
+  done
+}
+
+@test "verdict validation consumes the colocated schema instead of a duplicated predicate" {
+  local vendor fixture_dir adapter out stdout stderr_file
+  out="$BATS_TEST_TMPDIR/out"
+  stdout="$BATS_TEST_TMPDIR/stdout"
+  stderr_file="$BATS_TEST_TMPDIR/stderr"
+  printf '{"verdict":"APPROVED","summary":"would pass a duplicated validator","findings":[]}\n' >"$out"
+  : >"$stdout"
+  : >"$stderr_file"
+  make_result_version_shims
+  PATH="$RESULT_SHIM_DIR:$PATH"
+
+  for vendor in "${VENDORS[@]}"; do
+    fixture_dir="$BATS_TEST_TMPDIR/schema-$vendor"
+    mkdir -p "$fixture_dir"
+    adapter="$fixture_dir/$vendor.sh"
+    cp "$ADAPTER_DIR/$vendor.sh" "$adapter"
+    printf '%s\n' \
+      '{"type":"object","required":["verdict","findings","summary"],' \
+      '"properties":{"verdict":{"type":"string","enum":["BLOCKED"]},' \
+      '"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"object"}}},' \
+      '"additionalProperties":false}' >"$fixture_dir/verdict.schema.json"
+
+    source "$adapter"
+    run --separate-stderr adapter_result_verdict "$vendor" "$out" "$stdout" "$stderr_file"
+    [ "$status" -ne 0 ]
+    [[ "$stderr" == *"verdict.schema.json"* ]]
+  done
+}
+
+@test "actual CLI version is recorded and drift is INFO-only" {
+  local shim="$BATS_TEST_TMPDIR/version-bin" vendor
+  local out="$BATS_TEST_TMPDIR/out" stdout="$BATS_TEST_TMPDIR/stdout"
+  local stderr_file="$BATS_TEST_TMPDIR/stderr"
+  mkdir -p "$shim"
+  printf '{"verdict":"APPROVED","summary":"valid","findings":[]}\n' >"$out"
+  : >"$stdout"
+  : >"$stderr_file"
+
+  for vendor in "${VENDORS[@]}"; do
+    cat >"$shim/$vendor" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "${1:-}" == --version ]]; then
+  printf '%s 99.0.0\n' "$(basename "$0")"
+  exit 17
+fi
+exit 91
+SHIM
+    chmod +x "$shim/$vendor"
+
+    run --separate-stderr env PATH="$shim:$PATH" bash -c \
+      'source "$1"; adapter_result_verdict "$2" "$3" "$4" "$5"' \
+      _ "$ADAPTER_DIR/$vendor.sh" "$vendor" "$out" "$stdout" "$stderr_file"
+    [ "$status" -eq 0 ]
+    [ "$(printf '%s\n' "$output" | jq -r .verdict)" = APPROVED ]
+    [[ "$stderr" == *"INFO"* ]]
+    [[ "$stderr" == *"cli_version=99.0.0"* ]]
+    [[ "$stderr" == *"verified_cli_version="* ]]
+    [[ "$stderr" == *"mismatch"* ]]
   done
 }

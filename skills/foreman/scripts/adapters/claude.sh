@@ -7,6 +7,91 @@
 #   values describe Foreman support today, not every feature of Claude's CLI.
 # shellcheck disable=SC2034  # ADAPTER_ARGV is the documented caller-consumed output.
 
+# Claude schema enforcement is absent from Foreman's unsupported builder.
+# The standalone result parser therefore treats local verdict.schema.json
+# validation as load-bearing without claiming the audit verb can run.
+
+# @description Record the Claude CLI version resolved on PATH and compare it
+#   with adapter_caps. Version drift is deliberately INFO-only.
+# @arg $1 vendor expected vendor id: claude
+# @set ADAPTER_CLI_VERSION parsed CLI version, or unknown
+# @set ADAPTER_VERSION_INFO comparison message emitted to stderr
+# @exitcode 0 always; version discovery and mismatch never fail a result
+_adapter_report_cli_version() {
+  local vendor="$1" raw='' expected='' key='' value=''
+  ADAPTER_CLI_VERSION=unknown
+  raw="$("$vendor" --version 2>/dev/null)" || :
+  if [[ "$raw" =~ ([0-9]+([.][0-9]+){1,3}([-+][[:alnum:]_.-]+)?) ]]; then
+    ADAPTER_CLI_VERSION="${BASH_REMATCH[1]}"
+  fi
+  while IFS='=' read -r key value; do
+    [[ "$key" == verified_cli_version ]] && expected="$value"
+  done < <(adapter_caps "$vendor")
+  if [[ "$ADAPTER_CLI_VERSION" == "$expected" ]]; then
+    ADAPTER_VERSION_INFO="INFO: $vendor cli_version=$ADAPTER_CLI_VERSION verified_cli_version=$expected match"
+  else
+    ADAPTER_VERSION_INFO="INFO: $vendor cli_version=$ADAPTER_CLI_VERSION verified_cli_version=$expected mismatch (non-fatal)"
+  fi
+  printf '%s\n' "$ADAPTER_VERSION_INFO" >&2
+  return 0
+}
+
+# @description Validate one captured JSON file against the colocated verdict
+#   schema without trusting a pipeline status.
+# @arg $1 stream stream label used in a conformance error
+# @arg $2 candidate captured stream file
+# @set _ADAPTER_VERDICT_JSON compact validated JSON on success
+# @set _ADAPTER_RESULT_ERROR stream-specific validation error on failure
+# @exitcode 0 conforming object; 1 invalid JSON, missing schema, or non-conformance
+_adapter_validate_verdict_file() {
+  local stream="$1" candidate="$2"
+  local schema_file="${BASH_SOURCE[0]%/*}/verdict.schema.json" payload=''
+  _ADAPTER_VERDICT_JSON=''
+  _ADAPTER_RESULT_ERROR=''
+  if [[ ! -r "$schema_file" ]]; then
+    _ADAPTER_RESULT_ERROR="claude adapter: cannot read verdict.schema.json"
+    return 1
+  fi
+  if ! jq -e . "$candidate" >/dev/null 2>/dev/null; then
+    _ADAPTER_RESULT_ERROR="claude adapter: invalid JSON in $stream"
+    return 1
+  fi
+  if payload="$(jq -sce --slurpfile schema "$schema_file" '
+    def is_type($value; $wanted):
+      if $wanted == "object" then ($value | type) == "object"
+      elif $wanted == "array" then ($value | type) == "array"
+      elif $wanted == "string" then ($value | type) == "string"
+      elif $wanted == "integer" then (($value | type) == "number" and $value == ($value | floor))
+      elif $wanted == "number" then ($value | type) == "number"
+      elif $wanted == "boolean" then ($value | type) == "boolean"
+      elif $wanted == "null" then $value == null
+      else false end;
+    def conforms($value; $rule):
+      (if $rule | has("type") then is_type($value; $rule.type) else true end) and
+      (if $rule | has("enum") then ($rule.enum | index($value)) != null else true end) and
+      (if ($rule.type // "") == "object" and (($value | type) == "object") then
+         (($rule.required // []) | all(. as $key | $value | has($key))) and
+         (if $rule.additionalProperties == false then
+            ((($value | keys_unsorted) - (($rule.properties // {}) | keys_unsorted)) | length) == 0
+          else true end) and
+         (($rule.properties // {}) | to_entries | all(. as $property |
+           if $value | has($property.key)
+           then conforms($value[$property.key]; $property.value)
+           else true end))
+       else true end) and
+      (if ($rule.type // "") == "array" and (($value | type) == "array") and ($rule | has("items"))
+       then ($value | all(.[]; conforms(.; $rule.items)))
+       else true end);
+    if (length == 1 and conforms(.[0]; $schema[0]))
+    then .[0] else error("verdict.schema.json conformance failure") end
+  ' "$candidate" 2>/dev/null)" && [[ -n "$payload" ]]; then
+    _ADAPTER_VERDICT_JSON="$payload"
+    return 0
+  fi
+  _ADAPTER_RESULT_ERROR="claude adapter: $stream JSON does not conform to verdict.schema.json"
+  return 1
+}
+
 # @description Refuse Claude implementation argv until the T7 decision lands.
 # @arg $1 vendor expected vendor id: claude
 # @arg $2 prompt_file reserved common-contract prompt path
@@ -104,6 +189,7 @@ adapter_result_text() {
     printf 'claude adapter: vendor mismatch: %s\n' "$vendor" >&2
     return 2
   fi
+  _adapter_report_cli_version "$vendor"
   if [[ -n "$out_file" && -s "$out_file" ]]; then cat -- "$out_file"; return 0; fi
   if [[ -n "$stdout_file" && -s "$stdout_file" ]]; then cat -- "$stdout_file"; return 0; fi
   if [[ -n "$stderr_file" && -s "$stderr_file" ]]; then
@@ -124,18 +210,26 @@ adapter_result_text() {
 # @stdout schema-conforming verdict JSON
 # @exitcode 0 valid verdict; 1 absent or non-conforming; 2 vendor mismatch
 adapter_result_verdict() {
-  local vendor="${1:-claude}" candidate
+  local vendor="${1:-claude}" candidate stream failure=''
   if [[ "$vendor" != claude ]]; then
     printf 'claude adapter: vendor mismatch: %s\n' "$vendor" >&2
     return 2
   fi
-  for candidate in "${2:-}" "${3:-}" "${4:-}"; do
+  _adapter_report_cli_version "$vendor"
+  for stream in out_file stdout stderr; do
+    case "$stream" in
+      out_file) candidate="${2:-}" ;;
+      stdout) candidate="${3:-}" ;;
+      stderr) candidate="${4:-}" ;;
+    esac
     [[ -n "$candidate" && -s "$candidate" ]] || continue
-    if jq -e 'select(type == "object" and ((keys | sort) == ["findings","summary","verdict"]) and (.verdict == "APPROVED" or .verdict == "WARNING" or .verdict == "BLOCKED") and (.summary | type == "string") and (.findings | type == "array") and all(.findings[]; type == "object" and ((keys | sort) == ["evidence","file","line","severity","summary"]) and (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low") and (.file | type == "string") and (.line | if type == "number" then . == floor else false end) and (.summary | type == "string") and (.evidence | type == "string")))' "$candidate" 2>/dev/null; then
+    if _adapter_validate_verdict_file "$stream" "$candidate"; then
+      printf '%s\n' "$_ADAPTER_VERDICT_JSON"
       return 0
     fi
+    [[ -n "$failure" ]] || failure="$_ADAPTER_RESULT_ERROR"
   done
-  printf 'claude adapter: non-conforming verdict or verdict missing\n' >&2
+  printf '%s\n' "${failure:-claude adapter: verdict missing from out_file, stdout, and stderr}" >&2
   return 1
 }
 
