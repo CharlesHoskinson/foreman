@@ -1859,6 +1859,22 @@
         }
       );
 
+      it("accepts the maximum safe minimum proposal threshold as a valid policy", () => {
+        expect(evaluateAutomaticQuorum([], Number.MAX_SAFE_INTEGER, 2)).toEqual({
+          _tag: "QuorumNotMet",
+          admissibleProposals: 0,
+          independentDomains: 0
+        });
+      });
+
+      it("rejects a minimum proposal threshold above the safe integer limit", () => {
+        expect(evaluateAutomaticQuorum([], Number.MAX_SAFE_INTEGER + 1, 2)).toEqual({
+          _tag: "InvalidQuorumPolicy",
+          field: "minimumProposals",
+          actual: Number.MAX_SAFE_INTEGER + 1
+        });
+      });
+
       it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
         "rejects invalid minimum domain threshold %p",
         (minimumDomains) => {
@@ -1869,6 +1885,22 @@
           });
         }
       );
+
+      it("accepts the maximum safe minimum domain threshold as a valid policy", () => {
+        expect(evaluateAutomaticQuorum([], 3, Number.MAX_SAFE_INTEGER)).toEqual({
+          _tag: "QuorumNotMet",
+          admissibleProposals: 0,
+          independentDomains: 0
+        });
+      });
+
+      it("rejects a minimum domain threshold above the safe integer limit", () => {
+        expect(evaluateAutomaticQuorum([], 3, Number.MAX_SAFE_INTEGER + 1)).toEqual({
+          _tag: "InvalidQuorumPolicy",
+          field: "minimumDomains",
+          actual: Number.MAX_SAFE_INTEGER + 1
+        });
+      });
 
       it("rejects zero thresholds before an empty participant list can meet quorum", () => {
         expect(evaluateAutomaticQuorum([], 0, 0)).toEqual({
