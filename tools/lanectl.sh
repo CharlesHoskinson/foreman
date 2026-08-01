@@ -233,9 +233,8 @@ cmd_progress() {
     LANE BYTES "DELTA/${watch}s" HEARTBEAT CHANGED LAST
   for f in $pat; do
     [[ -e "$f" ]] || continue
-    local base label owner now delta wt hb hbage changed last
+    local base label now delta wt hb hbage changed last
     base="$(basename "$f" .out)"
-    owner="${base%%.*}"
     label="${base#*.}"
     now=$(stat -c %s "$f" 2>/dev/null || echo 0)
     delta=$(( now - ${before["$f"]:-0} ))
