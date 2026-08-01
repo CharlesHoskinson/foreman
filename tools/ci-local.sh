@@ -13,7 +13,8 @@
 #   4. bats         - tests/run.sh under the host-wide bats mutex (skip with --quick)
 #   5. install      - install.sh smoke test under a disposable HOME
 #   6. lanes        - lane-complete-check over /root/fm-wt/* (informational only)
-#   7. plugin-drift - installed skill vs repo skill (informational only)
+#   7. docs         - docs-check.sh (informational only; criterion 9 not yet scoped)
+#   8. plugin-drift - installed skill vs repo skill (informational only)
 #
 # Usage:
 #   tools/ci-local.sh [--quick]
@@ -329,7 +330,44 @@ gate_lanes() {
 }
 
 # ---------------------------------------------------------------------------
-# Gate 7: plugin drift (informational — never fails the run)
+# Gate 7: docs-check (informational — never fails the run)
+# ---------------------------------------------------------------------------
+# @description Run docs-check.sh and report each sub-gate state as an informational
+#   line that never fails CI. Visibility for criterion 9 until its scope is settled.
+# @stdout one normalized GATE docs result line
+# @exitcode 0 always
+gate_docs() {
+  local name="docs"
+  if [[ "$QUICK" -eq 1 ]]; then
+    echo "GATE ${name} SKIP --quick"
+    return 0
+  fi
+
+  local checker="$REPO_ROOT/skills/foreman/scripts/docs-check.sh"
+  if [[ ! -x "$checker" && ! -f "$checker" ]]; then
+    echo "GATE ${name} SKIP docs-check.sh missing"
+    return 0
+  fi
+
+  local out summary
+  # Guard non-zero exit from docs-check so set -e / pipefail cannot abort ci-local.
+  set +o pipefail
+  out="$(bash "$checker" 2>&1)" || true
+  set -o pipefail
+
+  summary="$(printf '%s\n' "$out" | grep -E '^docs-check:' | tail -n1 || true)"
+  if [[ -z "$summary" ]]; then
+    echo "GATE ${name} PASS no summary line from docs-check (informational)"
+    return 0
+  fi
+  # Strip the "docs-check: " prefix; keep markdownlint=… codespell=… lychee=… comments=…
+  summary="${summary#docs-check: }"
+  echo "GATE ${name} PASS ${summary} (informational)"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Gate 8: plugin drift (informational — never fails the run)
 # ---------------------------------------------------------------------------
 # The installed skill path exists only on a developer host. A hosted runner has
 # no ~/.claude, so a failing gate here would fail CI for an absent directory,
@@ -400,6 +438,9 @@ else
 fi
 if ! gate_install; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_lanes; then gates_failed=$((gates_failed + 1)); fi
+# Informational only: markdownlint is at 45 findings with 44 pending an owner
+# scope decision (obligation 56). Becomes gating when criterion 9's scope is settled.
+if ! gate_docs; then gates_failed=$((gates_failed + 1)); fi
 if ! gate_plugin_drift; then gates_failed=$((gates_failed + 1)); fi
 
 if [[ "$gates_failed" -eq 0 ]]; then
