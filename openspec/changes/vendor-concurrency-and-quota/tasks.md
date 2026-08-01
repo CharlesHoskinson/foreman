@@ -10,15 +10,15 @@ lane wiring and the credential-seeding decision).
 
 ## T1 — topology and cap governance
 
-- [ ] Add `agy:1` to the group topology at `lane-queue.sh:422`.
-- [ ] Add the inline citation for the agy cap: no GREEN row exists,
+- [x] Add `agy:1` to the group topology at `lane-queue.sh:422`.
+- [x] Add the inline citation for the agy cap: no GREEN row exists,
       default-on-doubt is 1, per `:375-383` and `:415-421`.
-- [ ] Leave the grok, codex and claude caps and citations untouched.
-- [ ] IF `vendor-adapter-contract` T7 removes the claude lane, remove the
+- [x] Leave the grok, codex and claude caps and citations untouched.
+- [x] IF `vendor-adapter-contract` T7 removes the claude lane, remove the
       `claude:3` group in that change, not this one — the topology must never
       advertise a lane that cannot run, and ownership of that removal stays
       with the package that makes the decision.
-- [ ] State in the header that a cap raise requires a GREEN row at that N and
+- [x] State in the header that a cap raise requires a GREEN row at that N and
       may not be justified by analogy with another vendor.
 
 ## T2 — extend the concurrency harness
@@ -73,8 +73,8 @@ lane wiring and the credential-seeding decision).
       without a citation fails a check; quota-exhausted rounds do not decrement
       the rework budget; a model mismatch is surfaced.
 - [ ] Full suite green on WSL/Ubuntu 26.04.
-- [ ] `shellcheck` clean on `lane-queue.sh` and `vendor-concurrency-test.sh`.
+- [x] `shellcheck` clean on `lane-queue.sh` and `vendor-concurrency-test.sh`.
 - [ ] `bugeventlog.md` entry if any finding from T4 is negative, recording the
       evidence and the constraint.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate vendor-concurrency-and-quota --strict` passes.
+- [x] `openspec validate vendor-concurrency-and-quota --strict` passes.
