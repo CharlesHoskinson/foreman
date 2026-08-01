@@ -236,6 +236,13 @@ wait_for_in_progress() {
 
 stop_background_audit() {
   local runner_pid="$1" fake_pid="" pgid="" own_pgid=""
+  # Signal the RUNNER first. Killing the fake codex first leaves the runner
+  # alive with a just-died child, and it then finalises a complete
+  # nonzero_exit verdict -- correct behaviour, but not the cancellation path
+  # this test asserts. On a quiet host the runner's own TERM wins that race; on
+  # a loaded CI runner it does not, which is the entire cause of this test's
+  # CI-only failure (diagnosed from the run 30687969380 artifact).
+  kill -TERM "$runner_pid" 2>/dev/null || true
   if [[ -s "$FAKE_CODEX_PID_FILE" ]]; then
     fake_pid="$(<"$FAKE_CODEX_PID_FILE")"
     pgid="$(ps -o pgid= -p "$fake_pid" 2>/dev/null | tr -d ' ' || true)"
@@ -248,7 +255,6 @@ stop_background_audit() {
       kill -TERM "$fake_pid" 2>/dev/null || true
     fi
   fi
-  kill -TERM "$runner_pid" 2>/dev/null || true
   wait "$runner_pid" 2>/dev/null || true
 }
 
