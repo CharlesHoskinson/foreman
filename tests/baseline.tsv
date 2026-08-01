@@ -19,7 +19,7 @@ tests/lane-supervise.bats	17
 tests/launch-lib.bats	3
 tests/launcher.bats	4
 tests/lifecycle-gate.bats	3
-tests/line-endings.bats	5
+tests/line-endings.bats	6
 tests/lock.bats	13
 tests/maintenance.bats	8
 tests/merge-gate.bats	11
@@ -42,5 +42,5 @@ tests/wt-cleanup.bats	6
 tests/wt-merge.bats	11
 tests/wt-new.bats	14
 tests/audit-verdict.bats	26
-tests/session.bats	19
+tests/session.bats	31
 tests/plugin-drift.bats	3
