@@ -328,6 +328,16 @@ stop_background_audit() {
   before="$(sha256sum "$RD/audit-verdict.json" | awk '{print $1}')"
   stop_background_audit "$runner_pid"
   after="$(sha256sum "$RD/audit-verdict.json" | awk '{print $1}')"
+  if [ "$after" != "$before" ]; then
+    echo "byte-identity contract violated across the process-group kill" >&2
+    echo "  before sha: $before" >&2
+    echo "  after  sha: $after" >&2
+    echo "  artifact after the kill:" >&2
+    jq -S . "$RD/audit-verdict.json" >&2 2>/dev/null \
+      || cat "$RD/audit-verdict.json" >&2
+    echo "  audit-run log tail:" >&2
+    tail -n 20 "$BATS_TEST_TMPDIR/audit.log" >&2 2>/dev/null || true
+  fi
   [ "$after" = "$before" ]
   jq -e --argjson attempt "$attempt" \
     '.verdict == "UNVERIFIED"
