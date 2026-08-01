@@ -526,3 +526,64 @@ SHIM
     [[ "$stderr" == *"mismatch"* ]]
   done
 }
+
+@test "verdict validation fails closed when the colocated schema is unavailable" {
+  local vendor sandbox
+  local good="$BATS_TEST_TMPDIR/good.json"
+  printf '{"verdict":"APPROVED","summary":"valid","findings":[]}\n' >"$good"
+
+  for vendor in "${VENDORS[@]}"; do
+    # Copy the adapter into a sandbox. The helper resolves its schema as
+    # "${BASH_SOURCE[0]%/*}/verdict.schema.json", i.e. next to the adapter file,
+    # so a copy lets us remove the schema WITHOUT touching the tracked one. A
+    # test that deletes a repo file and restores it strands the tree when it
+    # fails midway.
+    sandbox="$BATS_TEST_TMPDIR/$vendor-sandbox"
+    mkdir -p "$sandbox"
+    cp "$ADAPTER_DIR/$vendor.sh" "$sandbox/"
+    cp "$ADAPTER_DIR/verdict.schema.json" "$sandbox/"
+
+    # baseline: with the schema in place a valid verdict is accepted, so the
+    # rejections below are attributable to the schema and nothing else
+    run bash -c 'source "$1"; adapter_result_verdict "$2" "$3" /dev/null /dev/null' \
+      _ "$sandbox/$vendor.sh" "$vendor" "$good"
+    [ "$status" -eq 0 ]
+
+    # schema MISSING -> must reject
+    rm -f "$sandbox/verdict.schema.json"
+    run bash -c 'source "$1"; adapter_result_verdict "$2" "$3" /dev/null /dev/null' \
+      _ "$sandbox/$vendor.sh" "$vendor" "$good"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cannot read verdict.schema.json"* ]]
+
+    # schema UNREADABLE -> must reject. A dangling symlink is used deliberately
+    # instead of chmod 000: this suite runs as root on WSL, and root bypasses
+    # the mode bits, so a chmod-based control reads as readable and would assert
+    # nothing while still passing.
+    ln -s /nonexistent/nope.json "$sandbox/verdict.schema.json"
+    run bash -c 'source "$1"; adapter_result_verdict "$2" "$3" /dev/null /dev/null' \
+      _ "$sandbox/$vendor.sh" "$vendor" "$good"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cannot read verdict.schema.json"* ]]
+  done
+}
+
+@test "the duplicated adapter helpers stay identical across vendors" {
+  local fn vendor body first
+  # The adapters source nothing by design, so these helpers are copy-pasted into
+  # all four files. Nothing else keeps the copies in step; this does.
+  for fn in _adapter_report_cli_version _adapter_validate_verdict_file; do
+    first=""
+    for vendor in "${VENDORS[@]}"; do
+      # normalise the vendor's own name out — the copies legitimately differ
+      # only in the error strings that name the vendor
+      body="$(sed -n "/^$fn()/,/^}/p" "$ADAPTER_DIR/$vendor.sh" | sed "s/\\b$vendor\\b/VENDOR/g")"
+      [ -n "$body" ]
+      if [ -z "$first" ]; then
+        first="$body"
+      else
+        [ "$body" = "$first" ]
+      fi
+    done
+  done
+}
