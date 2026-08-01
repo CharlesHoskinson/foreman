@@ -17,15 +17,15 @@ v0.2.9 thirty.
 
 ## Where the release stands
 
-**One of twelve tag criteria is substantially advanced.** Today moved the
-release from "cannot be measured" to "can be measured". That was the
-prerequisite for everything else. It was not itself release content.
+**One of twelve tag criteria is met.** CI now has green Linux and Windows runs
+and recorded red runs proving both gates can fail. The other eleven criteria
+remain open.
 
 | Measure | Value |
 |---|---|
 | Packages implemented | **34 change packages** exist (was 30). Four rescued 2026-08-01 from a stale checkout, migrated to the parseable delta shape, and parked as **v0.3.x candidates** (not in the v0.2.9 thirty; valid but unimplemented). `openspec validate --strict` green on all 34. **7 packages have zero code**; `vendor-adapter-contract` T1 landed. 3 partial |
-| Full suite | First CI run ever (ubuntu-latest): **482 pass / 26 fail / 20 skip of 528**. **The 26 contain zero product defects** (see criterion 2) |
-| Obligations | 26 open, 3 blocked |
+| Full suite | **547 pass / 0 fail / 31 skip** on `gates-linux`, from the TAP artifacts of runs 30688804041 and 30688873294 |
+| Obligations | The session store is authoritative; see `fm-session.py recover` |
 | Measurements fresh | 2 of 14 — most went stale because commits touched their scoped paths (store working as designed) |
 | Plans complete | 1 of 6 — Plan 2 largely proven already built; Plan 3 workflows merged |
 
@@ -47,40 +47,31 @@ prerequisite for everything else. It was not itself release content.
       seven contract functions each.*
 - [ ] **2. Suite** — completes and passes on **three consecutive runs**; bats
       gate switched back ON in `ci-local.sh` and CI.
-      *First CI suite run: 482 pass / 26 fail / 20 skip of 528. Zero of the 26
-      is a product defect. 19 of 26: POSIX launcher never built
-      (`launcher/dist` gitignored, nothing built it) — `launcher.bats` 0 of 14,
-      `vendor-isolation` lost 4, `launch-lib` 1, all "compiled exe not found".
-      A build step was added to `gates-linux` on 2026-08-01. 5 of 26:
-      environment-only and pass on a developer host (`docs-check` 3,
-      `audit-verdict` 1, `evidence` 1). 2 of 26: `decision-events` 3 and 5 —
-      STALE TEST FIXTURE, not a gate-eval defect. Running `gate-eval.sh`
-      against the test's own fixture refuses with eight reasons, every one the
-      fixture failing to supply an evidence binding the hardened gate now
-      requires: missing `audit-attempt.current`, diff and tree hash mismatches
-      on `checks-result.json`, on the audit verdict and on `docs-check.json`,
-      and a verdict whose `state` is not `complete`. The fixture predates the
-      `three-outcome-verdicts` hardening. The gate is correct and stricter than
-      its own test. The bats gate is not merely off: it is never invoked.
-      `tools/ci-local.sh` only calls `gate_bats` when `FOREMAN_CI_BATS=1`, so
-      the `TEST_GATE_MODE` shadow default inside that function is unreachable.
-      `gates-linux` sets `FOREMAN_CI_BATS=1`, which is why the suite ran on CI.*
-- [ ] **3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
+      *`gates-linux` reports **547 pass / 0 fail / 31 skip**. Consecutive green
+      runs: **2**. All 26 old failures are resolved: the POSIX launcher build,
+      pidns capability guard, evidence-probe non-root fix, stale gate fixture
+      and test-9 kill-order fix. It succeeded on 6bfe7a19 and 9451182b, failed
+      on 584ddfbb, then succeeded on 725c1294 and 4ff8959f. The 584ddfbb result
+      was not a test failure: it reported `ok=547 not_ok=0`, but
+      `tests/audit-verdict.bats` carried `test_verdict=TIMEOUT` after exceeding
+      the 600s `TEST_FILE_TIMEOUT_S` bound while every test in the file passed.
+      It runs in 18s locally and the timeout did not reproduce in six
+      consecutive local runs. The mechanism is unknown and recorded as an open
+      obligation. `tools/ci-local.sh` only calls `gate_bats` under
+      `FOREMAN_CI_BATS=1`; `gates-linux` sets it, so the suite does run.*
+- [x] **3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
       a **recorded red run** proving it can fail.
-      *`gates-linux` and `gates-windows` were written and merged on 2026-08-01
-      and are the first workflows in this repository to gate a general change —
-      the three that existed are path-filtered or release-only, so eight pushes
-      touching specs and docs had triggered zero runs. Both call
-      `tools/ci-local.sh` rather than re-listing gates in YAML. The recorded
-      red run exists: `gates-windows` run 30682495436 failed with
-      `CI-LOCAL RESULT FAIL gates_failed=1`, with `formal` the single failing
-      gate at `run=19 matched=0 failures=19` — a Windows-only matcher fault,
-      since the same suite passes 19 of 19 in 28 seconds on a developer host
-      and passed on ubuntu-latest. What remains is a GREEN run on each. The
-      "out of GitHub Actions credits" premise was already known false; two
-      files still asserting it were corrected on 2026-08-01 — including a
-      worked example in `skills/checkpoint/SKILL.md` that would have written
-      the false claim into every new session store.*
+      *Green `gates-linux` runs: 6bfe7a19, 9451182b, 725c1294 and 4ff8959f.
+      Green `gates-windows` runs: 5758649f and 95b7f902. Recorded red
+      `gates-linux` runs include a54c51b9, 74ebd625, 20b42994, c8de1cee and
+      87d16537. `gates-windows` run 30682495436, like every Windows run before
+      5758649f, was red. Its `formal` result, `run=19 matched=0 failures=19`,
+      was not 19 model failures: every per-row log contained only
+      `setsid: command not found`. Git Bash has no `setsid`, so each row died in
+      1-2s and classified ERROR. `run_bounded` now announces once per run that
+      it is degrading to a plain background spawn when `setsid` is absent. The
+      post-fix Windows artifact shows 11 VIOLATED, 8 HOLDS and `match=yes` on
+      all 19, identical to Linux.*
 - [ ] **4. Negative controls** — every verdict-emitting checker registered, the
       completeness gate green, every control observed firing.
       *About 6 exist. The registry is not built. ~60-80 checkers in scope.*
@@ -96,8 +87,13 @@ prerequisite for everything else. It was not itself release content.
       difference is called an improvement. *Blocked on `decision-lineage` 4b.*
 - [ ] **9. Documentation** — the doc sprint complete; `docs-check.sh` green;
       zero live references to the withdrawn store outside dated history.
-      *`ROADMAP.md` still contradicts itself: line 177 says TerminusDB is OUT,
-      line 468 says it ships.*
+      *`docs-check.sh` reports **markdownlint=fail codespell=pass lychee=pass
+      comments=pass**. The comments gate is closed: zero undocumented
+      functions after documenting 41 functions across 13 files. Markdownlint
+      has **45 findings**, down from 91; 44 are in dated session-record files,
+      including 30 in one plan file, whose in-scope status is an open owner
+      decision. One MD036 remains deliberately in `bugeventlog.md` rather than
+      restructuring a failure-log entry.*
 - [ ] **10. Plugin** — the installed skill resolves to a current checkout and
       the drift check passes. **Blocked on a human decision** (obligation 24).
 - [ ] **11. Residuals stated** — D5's Git-Bash syscall trace still owed; `agy`
@@ -120,7 +116,7 @@ has no falsification test.
 
 Design: `docs/superpowers/specs/2026-07-31-v029-release-closeout-design.md`.
 
-- [x] **Plan 1 — recording instruments** (`docs/superpowers/plans/2026-07-31-v029-tranche-a1-recording-instruments.md`)
+- [X] **Plan 1 — recording instruments** (`docs/superpowers/plans/2026-07-31-v029-tranche-a1-recording-instruments.md`)
 - [ ] **Plan 2 — telemetry spine.** `three-outcome-verdicts` 3-5,
       `decision-lineage-and-telemetry` 4b. **Gates everything comparative.**
 - [ ] **Plan 3 — CI/CD.** One gate definition, hosted runners, recorded red
@@ -137,7 +133,7 @@ The documentation sprint runs as a final pass across Plans 3-6.
 
 ### Prerequisite that blocks Plan 6 from dispatching at all
 
-- [x] Rewrite the graph-plane specs against the SQLite ontology.
+- [X] Rewrite the graph-plane specs against the SQLite ontology.
       Completed 2026-08-01 across all six packages. Re-check with:
 
 ```bash
@@ -166,35 +162,35 @@ grep -rln "TerminusDB" --include=*.md openspec/changes/ | grep -v archive
 
 ## Done 2026-07-31
 
-- [x] Design spec written, approved section by section, committed.
-- [x] Six-plan series defined with dependency-forced ordering.
-- [x] **Recovered 960 defect-ledger lines** that existed on no branch, from a
+- [X] Design spec written, approved section by section, committed.
+- [X] Six-plan series defined with dependency-forced ordering.
+- [X] **Recovered 960 defect-ledger lines** that existed on no branch, from a
       damaged index at `/root/foreman`.
-- [x] `fm-session.py retire` — a measurement proven wrong stops reporting fresh.
-- [x] Session store keyed on the common git dir; stopped fragmenting per
+- [X] `fm-session.py retire` — a measurement proven wrong stops reporting fresh.
+- [X] Session store keyed on the common git dir; stopped fragmenting per
       worktree.
-- [x] Obligations ledger trued up. Three rows were already done.
-- [x] `tools/plugin-drift.sh` — proves the installed plugin is 20 files behind.
-- [x] **Fixed the leaked 1800s watchdog in `audit-run.sh`** — the single defect
+- [X] Obligations ledger trued up. Three rows were already done.
+- [X] `tools/plugin-drift.sh` — proves the installed plugin is 20 files behind.
+- [X] **Fixed the leaked 1800s watchdog in `audit-run.sh`** — the single defect
       that stopped the suite ever completing.
-- [x] **Full suite completed for the first time**: 493/515, ~19 min, zero
+- [X] **Full suite completed for the first time**: 493/515, ~19 min, zero
       per-file timeouts.
-- [x] Four final-review blockers fixed, each with a negative control verified
+- [X] Four final-review blockers fixed, each with a negative control verified
       failing first.
-- [x] Evidence trail landed: 101 artifacts under `docs/evidence/`.
-- [x] Branch cleanup: 24 remote and 31 local branches deleted, 30 worktrees
+- [X] Evidence trail landed: 101 artifacts under `docs/evidence/`.
+- [X] Branch cleanup: 24 remote and 31 local branches deleted, 30 worktrees
       removed, every one verified to carry zero commits main lacks.
 
 ### Corrections to the record, found by dogfooding
 
-- [x] **"Out of GitHub Actions credits" is false.** The repo is public, Actions
+- [X] **"Out of GitHub Actions credits" is false.** The repo is public, Actions
       is enabled, and a workflow ran green after the claim was written.
       `wsl-ci-parity` lost its scope to it.
-- [x] Three obligations driving the sprint were already satisfied.
-- [x] Three false-success paths inside the session store, one of them from code
+- [X] Three obligations driving the sprint were already satisfied.
+- [X] Three false-success paths inside the session store, one of them from code
       the plan itself supplied: `retire` reported success for a measurement
       that did not exist; the projector exported retired measurements as live;
       `recover` announced "every measurement is fresh" over an empty set.
-- [x] A guard whose predicate matched its own documentation: `lock.bats`
+- [X] A guard whose predicate matched its own documentation: `lock.bats`
       searched for the literal `pkill -f` and fired on a comment warning
       against `pkill -f`.
