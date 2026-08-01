@@ -12,8 +12,13 @@
 #
 # Source this file; do not execute. Requires liveness.sh and evidence.sh.
 
-# shellcheck source=liveness.sh
-# shellcheck source=evidence.sh
+if ! declare -F evidence_content_digest >/dev/null 2>&1; then
+  _STALL_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # shellcheck source=evidence.sh
+  # shellcheck disable=SC1091  # Resolved from this library's directory at runtime.
+  source "$_STALL_LIB_DIR/evidence.sh"
+  unset _STALL_LIB_DIR
+fi
 
 # Grace defaults (seconds). Overridable via env for tests.
 STALL_VENDOR_GRACE="${STALL_VENDOR_GRACE:-90}"
@@ -89,14 +94,23 @@ stall_no_output() {
   local root="$1" baseline="$2" elapsed="$3"
   shift 3
   local grace="${STALL_OUTPUT_GRACE}"
-  local current
+  local current digest_file
   if (( elapsed < grace )); then
     printf 'PENDING evidence=output grace not reached elapsed=%ss grace=%ss\n' \
       "$elapsed" "$grace"
     return 0
   fi
-  current="$(ev_content_hash "$root" "$@")"
-  if ev_hash_unchanged "$baseline" "$current"; then
+  digest_file="$(mktemp)"
+  if evidence_content_digest "$root" work "$@" >"$digest_file"; then
+    current="$(<"$digest_file")"
+    rm -f "$digest_file"
+  else
+    rm -f "$digest_file"
+    printf 'UNVERIFIED evidence=content digest unavailable EVIDENCE_STATUS=%s EVIDENCE_REASON=%s root=%s\n' \
+      "${EVIDENCE_STATUS:-INCONCLUSIVE}" "${EVIDENCE_REASON:-unknown-reason}" "$root"
+    return 0
+  fi
+  if [[ "$baseline" == "$current" ]]; then
     stall_report NO_OUTPUT \
       "content hash unchanged hash=$current root=$root (not git status --porcelain)"
     return 0
@@ -141,7 +155,7 @@ stall_classify() {
 
   if [[ -n "$root" && -n "$baseline" ]]; then
     line="$(stall_no_output "$root" "$baseline" "$elapsed")"
-    if [[ "$line" == STALL\ NO_OUTPUT* ]]; then
+    if [[ "$line" == STALL\ NO_OUTPUT* || "$line" == UNVERIFIED* ]]; then
       printf '%s\n' "$line"
       return 0
     fi

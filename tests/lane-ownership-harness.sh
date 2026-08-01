@@ -441,16 +441,16 @@ case_no_output_hash() {
   mkdir -p "$wt/out/nested"
   echo v1 > "$wt/out/nested/report.md"
   local base_hash porc1 porc2 uall1 uall2
-  base_hash="$(ev_content_hash "$wt" out)"
-  porc1="$(ev_porcelain_digest "$wt")"
-  uall1="$(ev_porcelain_uall_digest "$wt")"
+  base_hash="$(evidence_content_digest "$wt" work out)"
+  porc1="$(evidence_legacy_porcelain_digest "$wt")"
+  uall1="$(evidence_path_level_digest "$wt")"
 
   # Content edit inside untracked tree (same path, different bytes)
   echo v2 > "$wt/out/nested/report.md"
   local after_hash
-  after_hash="$(ev_content_hash "$wt" out)"
-  porc2="$(ev_porcelain_digest "$wt")"
-  uall2="$(ev_porcelain_uall_digest "$wt")"
+  after_hash="$(evidence_content_digest "$wt" work out)"
+  porc2="$(evidence_legacy_porcelain_digest "$wt")"
+  uall2="$(evidence_path_level_digest "$wt")"
 
   # RED: porcelain without -uall is often unchanged across nested content edits
   # (dir appears as single untracked entry). Prove content hash catches it.
