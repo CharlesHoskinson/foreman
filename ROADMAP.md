@@ -189,12 +189,13 @@ plan in `docs/superpowers/`).
 > process. Recovery is exact SQL, never similarity search: two resumes of the same
 > tree must see the same world.
 >
-> **Ontology** — the `terminusdb-schema` class vocabulary (`Claim`, `Measurement`,
-> `Finding`, `Supersession`, `Entity`, `Commit`, `Provenance`, …) is retained as
-> the vocabulary and re-expressed as SQLite tables with enum lookup tables + FK
-> (not `CHECK`, which needs a table rebuild to extend and gets widened to TEXT the
-> first time that is inconvenient), junction tables for `@type: Set`, and
-> traversals shipped as committed views with depth caps and cycle guards.
+> **Ontology** — the class vocabulary (`Claim`, `Measurement`, `Finding`,
+> `Supersession`, `Entity`, `Commit`, `Provenance`, …) survives from the archived
+> `terminusdb-schema` package. It lives at `skills/foreman/ontology/schema.sql`
+> as SQLite tables with enum lookup tables + FK (not `CHECK`, which needs a
+> table rebuild to extend and gets widened to TEXT the first time that is
+> inconvenient), junction tables for `@type: Set`, and traversals shipped as
+> committed views with depth caps and cycle guards.
 >
 > **What was rejected, and why.**
 > - *TerminusDB* — a server, auth, backups and an unwritten operations package,
@@ -297,7 +298,7 @@ serialisation rule in `docs/research/vnext/LANDING-ORDER.md`.
 | S5 | `vendor-preflight`, `vendor-adapter-contract`, `agy-lane-activation`, `cross-vendor-audit-routing`, `vendor-concurrency-and-quota` |
 | S6 | `knowledge-plane-refresh`, `work-dag-projection`, `audit-groundedness-gate` |
 | S7 | `graph-context-builder` |
-| S8 | `graph-store-port`, `terminusdb-schema`, `terminusdb-adapter`, `terminusdb-operations`, `graph-eval-falsification` |
+| S8 | `graph-store-port`, `graph-eval-falsification` (active); `terminusdb-schema`, `terminusdb-adapter`, `terminusdb-operations` withdrawn 2026-07-30 |
 | S9 | `wsl-ci-parity` |
 
 `env/tool-check.sh` and `lane-run.sh` are each claimed by eight packages, and
@@ -475,10 +476,10 @@ architect against the shipped source:**
   no store dependency, and the timed drop-and-rebuild remains a per-release
   gate. The default implementation changed. The plane still survives without a
   store.
-- The longevity risk is accepted, not resolved: bus-factor 1, a prior
-  12.5-month dormancy, and 105 npm downloads/month.
-  `terminusdb-operations` carries the named tripwires and a rehearsed exit
-  path back to files-only.
+- The longevity concern — bus-factor 1, a prior 12.5-month dormancy, and
+  105 npm downloads/month — was one reason the dependency was withdrawn on
+  2026-07-30. The files-only implementation is now the fallback behind the
+  `GraphStore` port. There is no server to exit from.
 - `audit-groundedness-gate` remains independent of the store either way — its
   first five checks need no graph at all and catch a failure class nothing
   catches today.
