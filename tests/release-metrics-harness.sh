@@ -15,8 +15,11 @@ trap 'rm -rf "$TMP"' EXIT
 FAILS=0
 PASS=0
 
+# @description Run the enforce-mode metrics linter against the prepared report
+#   and record whether its exit status and optional violation text match.
 # @arg $1 name  @arg $2 expected_exit (0|nonzero)  @arg $3 expected substring (optional)
 # remaining: ignored; report file is $TMP/case.md already written
+# @stdout formatted PASS result, or FAIL result with captured linter output
 expect_case() {
   local name="$1" want_exit="$2" want_sub="${3:-}"
   local out ec=0

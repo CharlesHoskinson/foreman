@@ -25,6 +25,10 @@ SKIP=0
 RESULTS=()
 
 # @description Record a case outcome.
+# @arg $1 case name
+# @arg $2 outcome status: PASS, FAIL, or SKIP
+# @arg $3 human-readable result detail
+# @stdout formatted case result
 record() {
   local name="$1" status="$2" detail="$3"
   RESULTS+=("$status|$name|$detail")
@@ -35,6 +39,10 @@ record() {
   esac
 }
 
+# @description Return whether a string contains a requested substring.
+# @arg $1 string to search
+# @arg $2 substring to find
+# @exitcode 0 when the substring is present; 1 otherwise
 assert_contains() {
   local hay="$1" needle="$2"
   [[ "$hay" == *"$needle"* ]]
@@ -43,6 +51,8 @@ assert_contains() {
 # ---------------------------------------------------------------------------
 # Case 1: SIGSTOP stub → SUSPENDED, not alive
 # ---------------------------------------------------------------------------
+# @description Establish that stopped processes are SUSPENDED and incur stall
+#   tax, while the known-bad existence-only predicate incorrectly calls them live.
 case_suspended() {
   local name="1_SIGSTOP_SUSPENDED"
   printf '\n== %s ==\n' "$name"
@@ -100,6 +110,8 @@ case_suspended() {
 # ---------------------------------------------------------------------------
 # Case 2: pgrep regression (explicit)
 # ---------------------------------------------------------------------------
+# @description Explicitly establish that state classification recognizes a
+#   stopped process that known-bad existence checks would report as alive.
 case_pgrep_regression() {
   local name="2_pgrep_regression"
   printf '\n== %s ==\n' "$name"
@@ -139,6 +151,8 @@ case_pgrep_regression() {
 # ---------------------------------------------------------------------------
 # Case 3: NEVER_LAUNCHED
 # ---------------------------------------------------------------------------
+# @description Establish that a missing vendor remains pending during its grace
+#   period and is classified as NEVER_LAUNCHED after that grace expires.
 case_never_launched() {
   local name="3_NEVER_LAUNCHED"
   printf '\n== %s ==\n' "$name"
@@ -166,6 +180,8 @@ case_never_launched() {
 # ---------------------------------------------------------------------------
 # Case 4: foreign safety — listed, not signalled, still alive
 # ---------------------------------------------------------------------------
+# @description Establish that reaping one owner leaves another owner's lane
+#   alive, and exercise the all-owner listing without signalling the foreign lane.
 case_foreign_safety() {
   local name="4_foreign_safety"
   printf '\n== %s ==\n' "$name"
@@ -219,6 +235,8 @@ case_foreign_safety() {
 # ---------------------------------------------------------------------------
 # Case 5: subtree adoption
 # ---------------------------------------------------------------------------
+# @description Establish that adopting a wrapper registers both the wrapper and
+#   its discoverable child in the owner's lane registry.
 case_subtree_adopt() {
   local name="5_subtree_adopt"
   printf '\n== %s ==\n' "$name"
@@ -262,6 +280,8 @@ case_subtree_adopt() {
 # ---------------------------------------------------------------------------
 # Case 6: healthy-lane negatives (blocked model + interactive)
 # ---------------------------------------------------------------------------
+# @description Establish that healthy low-CPU dispatched work inside its grace
+#   period and interactive work outside the dispatch tree are not reaped as wedged.
 case_healthy_negatives() {
   local name="6_healthy_negatives"
   printf '\n== %s ==\n' "$name"
@@ -372,6 +392,8 @@ PY
 # ---------------------------------------------------------------------------
 # Case 7: harness exits non-zero when a case fails (meta)
 # ---------------------------------------------------------------------------
+# @description Establish that a deliberately failing known-bad mini-harness
+#   propagates a non-zero exit status.
 case_harness_nonzero() {
   local name="7_harness_nonzero"
   printf '\n== %s ==\n' "$name"
@@ -382,6 +404,10 @@ case_harness_nonzero() {
 #!/usr/bin/env bash
 set -uo pipefail
 FAIL=0
+# @description Record a mini-harness failure for the known-bad exit-code control.
+# @arg $1 case name
+# @arg $2 outcome status
+# @stdout status and case name
 record() { [[ "$2" == FAIL ]] && FAIL=$((FAIL+1)); echo "$2 $1"; }
 record deliberate FAIL "known bad"
 exit "$FAIL"
@@ -398,6 +424,8 @@ EOF
 # ---------------------------------------------------------------------------
 # Case 8: NO_OUTPUT content hash vs porcelain blindness
 # ---------------------------------------------------------------------------
+# @description Establish that content hashing detects nested edits and drives
+#   NO_OUTPUT, while the known-bad collapsed porcelain digest can miss them.
 case_no_output_hash() {
   local name="8_NO_OUTPUT_content_hash"
   printf '\n== %s ==\n' "$name"
@@ -465,6 +493,8 @@ case_no_output_hash() {
 # ---------------------------------------------------------------------------
 # Case 9: directory marker survives "re-exec" (T1 claim)
 # ---------------------------------------------------------------------------
+# @description Establish that a lane's directory marker preserves ownership
+#   when a replacement process has neither owner environment nor registry entry.
 case_claim_survives_reexec() {
   local name="9_claim_survives_reexec"
   printf '\n== %s ==\n' "$name"
@@ -513,6 +543,8 @@ case_claim_survives_reexec() {
 # ---------------------------------------------------------------------------
 # Case 10: shellcheck clean
 # ---------------------------------------------------------------------------
+# @description Establish that the lane tools and supporting libraries pass
+#   static analysis, or record a skip when ShellCheck is unavailable.
 case_shellcheck() {
   local name="10_shellcheck"
   printf '\n== %s ==\n' "$name"
@@ -536,6 +568,9 @@ case_shellcheck() {
 }
 
 # ---------------------------------------------------------------------------
+# @description Run every lane-ownership control and exit non-zero if any failed.
+# @stdout per-control results followed by aggregate counts and harness status
+# @exitcode 0 when no control failed; 1 otherwise
 main() {
   printf 'lane-ownership harness — red-first verification\n'
   case_suspended
