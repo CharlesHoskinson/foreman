@@ -159,7 +159,7 @@ SHIM
 # wt-new.sh: unconditional per-lane vendor-home provisioning
 # ---------------------------------------------------------------------
 
-@test "wt-new provisions empty vendor-home dirs for grok/codex/claude and prints their paths" {
+@test "wt-new provisions empty vendor-home dirs for grok/codex (not claude) and prints their paths" {
   setup_tmp_repo
   cd "$REPO"
   run bash "$SCRIPTS/wt-new.sh" run1 implement slug1
@@ -167,15 +167,15 @@ SHIM
   wt="${lines[-1]}"
   [ -d "$wt/.harness/vendor-home/grok" ]
   [ -d "$wt/.harness/vendor-home/codex" ]
-  [ -d "$wt/.harness/vendor-home/claude" ]
+  # T7: claude vendor-home is not provisioned (isolated $HOME unverified).
+  [ ! -d "$wt/.harness/vendor-home/claude" ]
   # Empty on purpose (T5b, deferred, is what seeds real vendor config content).
   [ -z "$(ls -A "$wt/.harness/vendor-home/grok")" ]
   [ -z "$(ls -A "$wt/.harness/vendor-home/codex")" ]
-  [ -z "$(ls -A "$wt/.harness/vendor-home/claude")" ]
   # Paths printed via log() (stderr; bats' `run` captures it into $output).
   [[ "$output" == *"vendor-home (grok): $wt/.harness/vendor-home/grok"* ]]
   [[ "$output" == *"vendor-home (codex): $wt/.harness/vendor-home/codex"* ]]
-  [[ "$output" == *"vendor-home (claude): $wt/.harness/vendor-home/claude"* ]]
+  [[ "$output" != *"vendor-home (claude):"* ]]
 }
 
 # ---------------------------------------------------------------------
