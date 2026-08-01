@@ -427,3 +427,94 @@ architect's, and the third was a lane's.
    component that was recently hardened, suspect the fixture before the
    component, and settle it by running the component against the fixture by
    hand and reading its stated reasons.
+
+## 18. An absolute path is not a PATH lookup (observed 2026-08-01)
+
+Twice in one session, a gate checked one assumed location instead of checking
+whether its caller could resolve the tool. `gates-linux` verified codespell as
+`"$HOME/.local/bin/codespell"`, proving only that a file existed there and
+masking the PATH lookup that was the point of the check. Then
+`tools/ci-local.sh` hardcoded `/usr/local/bin/openspec` while
+`command -v openspec` correctly returned `/root/.local/bin/openspec`.
+
+The installed, working tool was reported as `not executable`, and that single
+false failure made the entire local runner report FAIL. A check that lies this
+way teaches people to ignore the runner.
+
+**Rule:** To check that a tool is usable, resolve it the way its callers will:
+use `command -v`, with a fixed-path fallback if one is required, never the
+reverse.
+
+## 19. Privilege level decides which "unreadable" technique is valid (observed 2026-08-01)
+
+`chmod 000` does not deny root, and this repository runs WSL as root. An
+architect control used it to simulate an unreadable file, proved nothing, and
+briefly made the product look fail-open. CI contained the mirror-image failure:
+its evidence probe used `runuser` to drop to `nobody`, but the hosted runner was
+non-root and could not construct its own precondition.
+
+**Rule:** A control that simulates "cannot read" must branch on EUID: drop
+privileges when root and rely on mode bits when non-root. Prefer a dangling
+symlink when possible; it denies both and is the simplest portable choice.
+
+## 20. Windows interop fails for any cwd under /root (observed 2026-08-01)
+
+`powershell.exe` invoked from WSL returns `Invalid argument` when its cwd is
+beneath `/root`: interop translates the cwd to a UNC path but cannot traverse
+the mode-700 directory. The boundary was measured. `/`, `/tmp`, `/var`,
+`/home`, `/opt`, `/usr`, `/tmp/deep/a/b/c`, and `/root` itself worked;
+`/root/foreman`, `/root/fm-wt`, and `/root/probedir` failed. Making `/root`
+mode 755 made those paths work.
+
+The tempting explanation that any Linux-only cwd breaks interop is false:
+`/tmp` is equally Linux-only and worked. Carrying that bad explanation forward
+cost a false clock-drift alert on every lane round after checkout moved under
+`/root`.
+
+**Rule:** Run an interop call in a subshell that sets its own
+Windows-resolvable cwd. Never let it inherit an arbitrary caller cwd.
+
+## 21. Grok's limit is the size of the emitted edit (observed 2026-08-01)
+
+Five dispatches established the boundary: a two-line insert and a two-line
+replacement succeeded, while a 98-line deletion, a 147-line exact
+reproduction, and a roughly 70-line append all empty-bursted. The files were
+verified unchanged, so these were genuine failures, not detector blindness.
+The one-file append also ruled out deliverable count, and the successful small
+writes ruled out a read-versus-write distinction.
+
+**Rule:** Route large-payload edits to codex and keep grok for small, precise
+edits. Count deleted text as payload, not merely its coordinates: an edit tool
+matches the content, so "delete lines 1819-1916" is a read-then-write task
+wearing line numbers.
+
+## 22. The lane spec pollutes measurements taken in its own worktree (observed 2026-08-01)
+
+By convention, `SPEC-*.md` is staged at a lane worktree's root.
+`grok-multiround.sh` excludes that name from its change digest, but a repo-wide
+`**/*.md` lint run inside the same worktree still counts it. One spec's two H1s
+and unlabelled fenced blocks moved the total from 67 to 71 and shifted two rule
+counts, making the change under test appear to have side effects.
+
+**Rule:** Take repo-wide measurements from a clean tree, or explicitly exclude
+`SPEC-*.md`. A number measured inside a lane worktree includes the lane.
+
+## 23. A monitor whose predicate does not exist (observed 2026-08-01)
+
+`lib/stall.sh` called `ev_content_hash`, `ev_hash_unchanged`,
+`ev_porcelain_digest`, and `ev_porcelain_uall_digest`, but none was defined
+anywhere in the repository. In production, `stall_no_output()` therefore hit
+`command not found` twice, received an empty result, evaluated a false `if`,
+and fell through unconditionally to the OK line. Both no change and real change
+printed the same string; the NO_OUTPUT arm could never fire, so an empty lane
+could be reported healthy indefinitely.
+
+The catching harness said "content hash failed to detect nested edit", naming
+the wrong failure: no hash had been computed. A missing predicate and a blind
+predicate are different defects. Three readings chased the harness's
+explanation before checking whether its predicate had run at all.
+
+**Rule:** This is the third instance of the class in this project's own log.
+Before arming a monitor, execute its predicate against a known-positive case
+and watch it fire. When a checker reports failure, confirm that its predicate
+ran at all before believing its explanation.
