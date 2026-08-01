@@ -500,3 +500,66 @@ PY
   [[ "$output" == *"sqlite3.OperationalError"* ]]
   [[ "$output" != *"refusing: cannot open target store"* ]]
 }
+
+@test "freshness text reports every field and names a missing command" {
+  cd "$REPO"
+  $SESS measure "suite pass count" "31 pass" \
+    --command "bats tests/session.bats" --scope src/a.sh --scope tests/session.bats
+  sqlite3 "$FOREMAN_SESSION_DB" \
+    "UPDATE measurements SET command = NULL WHERE id = 1"
+
+  run $SESS freshness
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[1] suite pass count = 31 pass"* ]]
+  [[ "$output" == *"verdict=fresh"* ]]
+  [[ "$output" == *"command=(no command recorded)"* ]]
+  [[ "$output" == *"scope=src/a.sh,tests/session.bats"* ]]
+  [[ "$output" == *"sha=$(git -C "$REPO" rev-parse HEAD)"* ]]
+  [[ "$output" == *"timestamp="* ]]
+
+  run $SESS freshness --format tsv
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$output" | awk -F '\t' 'NR == 2 { print $6 }')" = \
+    "(no command recorded)" ]
+}
+
+@test "freshness stale-only reports only stale rows and their invalidation" {
+  cd "$REPO"
+  echo stable > "$REPO/stable.txt"
+  git -C "$REPO" add -A
+  git -C "$REPO" -c core.hooksPath= commit -qm "add stable scope"
+  $SESS measure "stale metric" 1 --command "rerun stale" --scope src/a.sh
+  $SESS measure "fresh metric" 2 --command "rerun fresh" --scope stable.txt
+  $SESS measure "unknown metric" 3 --command "rerun unknown" --scope stable.txt
+  sqlite3 "$FOREMAN_SESSION_DB" \
+    "UPDATE measurements SET measured_sha = NULL WHERE id = 3"
+
+  echo two >> "$REPO/src/a.sh"
+  git -C "$REPO" add -A
+  git -C "$REPO" -c core.hooksPath= commit -qm "touch stale scope"
+
+  run $SESS freshness --stale-only
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"stale metric"* ]]
+  [[ "$output" == *"verdict=STALE"* ]]
+  [[ "$output" == *"commit(s) touched its scope since measurement"* ]]
+  [[ "$output" == *"command=rerun stale"* ]]
+  [[ "$output" != *"fresh metric"* ]]
+  [[ "$output" == *"unknown metric"* ]]
+  [[ "$output" == *"verdict=unknown"* ]]
+  [[ "$output" == *"no measured_sha recorded"* ]]
+}
+
+@test "freshness tsv has fixed columns and preserves the command verbatim" {
+  cd "$REPO"
+  rerun='printf "%s\n" "$HOME" && echo *.bats'
+  $SESS measure "suite pass count" 31 --command "$rerun" --scope src/a.sh
+
+  run $SESS freshness --format tsv
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$output" | awk -F '\t' 'NR == 1 { print NF }')" -eq 9 ]
+  [ "$(printf '%s\n' "$output" | awk -F '\t' 'NR == 2 { print NF }')" -eq 9 ]
+  [ "$(printf '%s\n' "$output" | awk -F '\t' 'NR == 2 { print $6 }')" = "$rerun" ]
+  [ "$(printf '%s\n' "$output" | sed -n '1p')" = \
+    $'id\tmetric\tvalue\tverdict\treason\tcommand\tscope\tsha\ttimestamp' ]
+}

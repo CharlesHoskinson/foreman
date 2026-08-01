@@ -31,6 +31,7 @@
 # Usage:
 #   fm-session.py begin [--note TEXT]        start a session; prints recovery
 #   fm-session.py recover [--json]           canonical recovery, no side effects
+#   fm-session.py freshness [--stale-only] [--format text|tsv]
 #   fm-session.py end [SESSION_ID]           close a session
 #   fm-session.py fact <statement> [--evidence E]
 #   fm-session.py measure <metric> <value> --command CMD [--scope PATH ...]
@@ -319,6 +320,57 @@ def build_recovery(conn):
             "obligations_blocked": sum(1 for o in obligations if o["status"] == "blocked"),
         },
     }
+
+
+def build_freshness(conn, stale_only=False):
+    """Return the live measurement set with validity and re-run metadata."""
+    measurements = []
+    rows = conn.execute(
+        "SELECT * FROM measurements WHERE superseded_by IS NULL ORDER BY id DESC"
+    ).fetchall()
+    for row in rows:
+        validity, why = measurement_validity(
+            row["measured_sha"], row["scope_paths"]
+        )
+        if stale_only and validity == "fresh":
+            continue
+        measurements.append({
+            "id": row["id"],
+            "metric": row["metric"],
+            "value": row["value"],
+            "verdict": "STALE" if validity == "stale" else validity,
+            "reason": why,
+            "command": row["command"] or "(no command recorded)",
+            "scope": ",".join(
+                path for path in (row["scope_paths"] or "").split("\n") if path
+            ),
+            "sha": row["measured_sha"] or "",
+            "timestamp": row["measured_ts"],
+        })
+    return measurements
+
+
+def render_freshness(measurements, output_format="text"):
+    """Render a human-readable or pipeable measurement freshness report."""
+    columns = (
+        "id", "metric", "value", "verdict", "reason", "command", "scope",
+        "sha", "timestamp",
+    )
+    if output_format == "tsv":
+        lines = ["\t".join(columns)]
+        lines.extend(
+            "\t".join(str(measurement[column]) for column in columns)
+            for measurement in measurements
+        )
+        return "\n".join(lines)
+
+    return "\n".join(
+        f"[{measurement['id']}] {measurement['metric']} = {measurement['value']}  "
+        f"verdict={measurement['verdict']}  reason={measurement['reason']}  "
+        f"command={measurement['command']}  scope={measurement['scope']}  "
+        f"sha={measurement['sha']}  timestamp={measurement['timestamp']}"
+        for measurement in measurements
+    )
 
 
 def render(rec):
@@ -700,6 +752,9 @@ def main():
 
     p = sub.add_parser("begin"); p.add_argument("--note", default=None)
     p = sub.add_parser("recover"); p.add_argument("--json", action="store_true")
+    p = sub.add_parser("freshness")
+    p.add_argument("--stale-only", action="store_true")
+    p.add_argument("--format", choices=["text", "tsv"], default="text")
     p = sub.add_parser("end"); p.add_argument("session_id", nargs="?")
     p = sub.add_parser("fact"); p.add_argument("statement"); p.add_argument("--evidence")
     p = sub.add_parser("measure")
@@ -768,6 +823,11 @@ def main():
     if a.cmd == "recover":
         rec = build_recovery(conn)
         print(json.dumps(rec, indent=2) if a.json else render(rec))
+        return 0
+
+    if a.cmd == "freshness":
+        measurements = build_freshness(conn, stale_only=a.stale_only)
+        print(render_freshness(measurements, output_format=a.format))
         return 0
 
     if a.cmd == "end":

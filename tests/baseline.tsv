@@ -47,5 +47,5 @@ tests/wt-merge.bats	11
 tests/wt-new.bats	14
 tests/audit-verdict.bats	26
 tests/audit-routing.bats	16
-tests/session.bats	31
+tests/session.bats	34
 tests/plugin-drift.bats	3
