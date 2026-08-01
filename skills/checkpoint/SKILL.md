@@ -50,7 +50,7 @@ Always attach evidence (a SHA, a path, a command).
 
 ```bash
 fm-session.py fact "vendor-preflight fixed: auth binds to probe content not exit status" --evidence "commit ad2366f"
-fm-session.py fact "remote CI is unavailable (out of GitHub Actions credits); tools/ci-local.sh is the verification authority" --evidence "tools/ci-local.sh"
+fm-session.py fact "SQLite ontology replaced TerminusDB" --evidence "commit b3bbdc3"
 ```
 
 ### 2. Measurements — perishable, and the reason this system exists

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # @description Local CI entrypoint: run every gate a CI job would have run, on
-#   this host, reproducibly. The project is out of GitHub Actions credits, so
-#   all CI must run here. Gates run in order; every gate runs even if an early
-#   one fails, so one invocation reports everything. Exit non-zero if any
-#   failable gate failed.
+#   this host, reproducibly. Valuable whether or not remote CI exists — one
+#   host-local, ordered report of every gate. The out-of-credits premise that
+#   once justified this file was disproven on 2026-07-31. Gates run in order;
+#   every gate runs even if an early one fails, so one invocation reports
+#   everything. Exit non-zero if any failable gate failed.
 #
 # Gates (in order):
 #   1. shellcheck   - warning-level scan of the shell tree; FAIL only on error
