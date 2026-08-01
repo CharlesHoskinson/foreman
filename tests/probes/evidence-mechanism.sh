@@ -26,15 +26,28 @@ RESULTS=()
 LOG_DIR="${EVIDENCE_PROBE_LOG:-$(mktemp -d /tmp/evidence-probe.XXXXXX)}"
 mkdir -p "$LOG_DIR"
 
+# @description Print an indented probe note.
+# @arg $@ note text; joined with spaces
+# @stdout formatted note
 note() { printf '  %s\n' "$*"; }
+# @description Print a titled probe section separator.
+# @arg $@ section title; joined with spaces
+# @stdout formatted section title
 section() { printf '\n== %s ==\n' "$*"; }
 
+# @description Record and print a successful probe assertion.
+# @arg $1 assertion label
+# @stdout formatted PASS result
 pass() {
   PASS=$((PASS + 1))
   RESULTS+=("PASS: $1")
   printf 'PASS: %s\n' "$1"
 }
 
+# @description Record and print a failed probe assertion.
+# @arg $1 assertion label
+# @arg $2 failure detail
+# @stdout formatted FAIL result
 fail() {
   FAIL=$((FAIL + 1))
   RESULTS+=("FAIL: $1 — $2")
@@ -42,6 +55,8 @@ fail() {
 }
 
 # init a throwaway git repo at $1
+# @description Replace a fixture directory with an empty initialized Git repository.
+# @arg $1 fixture directory path
 init_repo() {
   local d="$1"
   rm -rf "$d"
@@ -57,6 +72,8 @@ init_repo() {
 # ---------------------------------------------------------------------------
 # Case 0: status argv carries all three required flags
 # ---------------------------------------------------------------------------
+# @description Establish that status enumeration requests porcelain v1, NUL
+#   delimiters, all untracked files, and disabled rename detection.
 case_flags() {
   section "0. Status argv flags (-uall, -z, --no-renames)"
   local joined="${EVIDENCE_STATUS_ARGV[*]}"
@@ -79,6 +96,8 @@ case_flags() {
 # ---------------------------------------------------------------------------
 # Case 1: untracked-directory collapse (central claim)
 # ---------------------------------------------------------------------------
+# @description Establish that content digests distinguish added files inside an
+#   untracked directory while the known-bad legacy porcelain digest collapses them.
 case_untracked_collapse() {
   section "1. Untracked-directory collapse (central claim)"
   local r="$LOG_DIR/repo-collapse"
@@ -129,6 +148,8 @@ case_untracked_collapse() {
 # ---------------------------------------------------------------------------
 # Case 2: deletion changes the digest
 # ---------------------------------------------------------------------------
+# @description Establish that deleting a declared file changes the digest and
+#   emits its canonical absent-state record.
 case_deletion() {
   section "2. Deletion changes the digest"
   local r="$LOG_DIR/repo-delete"
@@ -193,6 +214,8 @@ PY
 # ---------------------------------------------------------------------------
 # Case 3: rename decomposes into absent + present
 # ---------------------------------------------------------------------------
+# @description Establish that a rename changes the digest and is represented as
+#   an absent old path plus a present new path when rename detection is disabled.
 case_rename() {
   section "3. Rename decomposes into absent + present"
   local r="$LOG_DIR/repo-rename"
@@ -257,6 +280,8 @@ PY
 # ---------------------------------------------------------------------------
 # Case 4: unreadable path → UNCOMPUTABLE, not absent
 # ---------------------------------------------------------------------------
+# @description Establish that an unreadable file is UNCOMPUTABLE and distinct
+#   from an absent file, rejecting the known-bad unreadable-as-absent encoding.
 case_unreadable() {
   section "4. Unreadable path yields UNCOMPUTABLE, not absent"
   # Root bypasses chmod 000, so run the digest as `nobody` against a mode-000
@@ -367,6 +392,8 @@ case_unreadable() {
 # ---------------------------------------------------------------------------
 # Case 5: non-git work root INCONCLUSIVE; non-git artifact root OK
 # ---------------------------------------------------------------------------
+# @description Establish that non-Git work roots are INCONCLUSIVE but non-Git
+#   artifact roots compute normally, rejecting the known-bad reject-all behavior.
 case_roots() {
   section "5. Non-git work root INCONCLUSIVE; non-git artifact root OK"
   local art="$LOG_DIR/artifact-root-nongit"
@@ -425,6 +452,8 @@ case_roots() {
 # ---------------------------------------------------------------------------
 # Case 6: content change with unchanged status string
 # ---------------------------------------------------------------------------
+# @description Establish that content digests detect a rewritten untracked file
+#   while the known-bad path-level digest remains blind to unchanged status text.
 case_content_blindspot() {
   section "6. Content change with unchanged status string"
   local r="$LOG_DIR/repo-content"
@@ -473,6 +502,7 @@ case_content_blindspot() {
 # ---------------------------------------------------------------------------
 # Case 7: shellcheck clean
 # ---------------------------------------------------------------------------
+# @description Establish that the evidence library passes shellcheck.
 case_shellcheck() {
   section "7. shellcheck clean"
   local out="$LOG_DIR/shellcheck.txt"
@@ -497,6 +527,8 @@ case_shellcheck() {
 # ---------------------------------------------------------------------------
 # Case 8: harness exits non-zero when any case fails (meta-proof)
 # ---------------------------------------------------------------------------
+# @description Establish that an injected known-bad failure makes a child probe
+#   print the failure and exit non-zero.
 case_harness_nonzero() {
   section "8. Harness exits non-zero when a case fails (meta-proof)"
   # Spawn a child that injects a forced failure via FAIL_CASE=1 and assert
@@ -526,6 +558,10 @@ case_harness_nonzero() {
 }
 
 # ---------------------------------------------------------------------------
+# @description Run every evidence-mechanism control, or only the injected meta
+#   control in a child process, and exit non-zero if any assertion failed.
+# @stdout probe diagnostics, assertion results, summary, and log directory
+# @exitcode 0 when no assertion failed; 1 otherwise
 main() {
   printf 'evidence-mechanism probe — log dir: %s\n' "$LOG_DIR"
 
