@@ -513,10 +513,14 @@ later.
   cross-session provenance and deterministic gate checks — **not** as
   retrieval accuracy (BM-25 beat GraphRAG systems on the research bench; the
   falsification package carries pre-registered kill criteria).
-- **TerminusDB** is a regenerable materialisation behind a `GraphStore` port
-  with a files-only fallback — never the system of record. If the store is
-  deferred or unavailable, the plane loses time-travel ergonomics, not the
-  gate or the record.
+- **The materialisation is SQLite** — `skills/foreman/ontology/schema.sql` —
+  behind a `GraphStore` port with a files-only fallback, never the system of
+  record. If the store is deferred or unavailable, the plane loses time-travel
+  ergonomics, not the gate or the record. TerminusDB was **withdrawn on
+  2026-07-30** (`openspec/changes/archive/2026-07-30-terminusdb-withdrawn-schema/`):
+  recovery runs mid-lane and offline, and a store that can be down during
+  recovery cannot hold recovery-relevant state. Disjointness is now
+  store-enforced by a composite foreign key rather than by discipline.
 - **Consumption** for workers is a pre-serialized, content-hashed,
   token-budgeted context block — the design where the audit trail can prove
   what the worker saw — not open-ended agentic graph traversal.
@@ -594,8 +598,11 @@ fine-grained, single-repo, expiring token.
 - **`wt-cleanup`'s SIGINT-before-remove targets one recorded pid; a
   grandchild process needs the follow-up sweep.** Best-effort defense in
   depth, never a hard gate on worktree removal.
-- **`[audit.policy]` config keys are doctrine-only today.** `gate-eval.sh`
-  does not yet bucket audit findings by severity.
+- **`[audit.policy]` config keys are live.** `gate-eval.sh` reads
+  `warning_low_resolved`, `warning_medium`, `blocked` and `unverified`, and
+  buckets audit findings by severity against them. This entry previously said
+  the keys were doctrine-only and that severity bucketing did not exist; both
+  had been implemented and the README was not updated.
 - **`durable.enabled` is inert.** It is parsed into `DURABLE_ENABLED`, but no
   runtime consumer reads that flag — `true` and `false` do not switch durable
   lanes.
@@ -603,23 +610,27 @@ fine-grained, single-repo, expiring token.
   26.04 with uutils coreutils 0.8.0 (measured violations); `flock` measured
   clean. `wt-new` fails open after ~30s. Package:
   `openspec/changes/lock-primitive-hardening/`.
-- **Telemetry gap.** Foreman today records no tokens, no cost, and no model
-  identity in the lineage store; hard-mode audit/gate scripts do not emit
-  verdicts into the event log. Comparative claims that need those signals are
-  not yet computable.
+- **Telemetry gap — the vendors, not the recorder.** `lib/telemetry.sh` records
+  vendor, model, effort, input/output/cached tokens and `cost_usd`. What is
+  missing is the data: no vendor CLI surfaces a reliable per-round figure, so
+  the recorder writes `source: "unavailable"` with the numerics **absent**,
+  under the standing rule that an absent figure is data and never zero.
+  Comparative claims that need those signals remain uncomputable — but because
+  nobody will report them, not because nothing records them.
 - **Formal models.** Four Quint models under `formal/specs/`
   (`lane_lifecycle`, `eventlog_concurrency`, `audit_gate`,
   `evidence_contract`) report reachability and absence-within-depth at bounded
   depths — not unbounded correctness.
 - **Audit latency** (often tens of minutes) is measured and bounded in process,
   not solved.
-- **TerminusDB longevity** is accepted with guardrails: bus-factor risk, prior
-  dormancy, files-only fallback retained.
 - **The Bats suite needs Bash plus `bats`** (PATH or
   `~/.foreman/tools/bats-core/bin/bats`). Plain PowerShell does not run it
-  directly; native Linux, WSL, and Git Bash can. There is no CI workflow that
-  runs the Bats suite; `maintenance.yml` is reporting only;
-  `windows-smoke.yml` exercises `install.ps1` only.
+  directly; native Linux, WSL, and Git Bash can. It **runs and gates on
+  `gates-linux`** (`FOREMAN_CI_BATS: "1"`) — but **not on `gates-windows`**,
+  which sets it to `"0"`, so the suite has never passed on the Windows runner.
+  `maintenance.yml` is reporting only; `windows-smoke.yml` exercises
+  `install.ps1` only. Re-derive with
+  `grep -rn FOREMAN_CI_BATS .github/workflows/`.
 - **Nested Job Objects, Windows NTSTATUS masking, and jq-vs-python3 PATH
   quirks** are documented in `launcher/README.md` and
   `skills/foreman/references/reference-environment.md` — component limits with
