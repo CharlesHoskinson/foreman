@@ -84,6 +84,27 @@ tests/run.sh|the suite runner, invoked as bash tests/run.sh
 EOF
 }
 
+# @description Directory sweeps (D1). These regions are swept as DIRECTORIES,
+#   deliberately NOT by the bash-shebang property, because the hook installers
+#   package the whole directory and run-hook.cmd is a polyglot with no bash
+#   shebang. Round 6 dropped this sweep; REWORK F2 restores it.
+#
+#   Measured on this tree 2026-07-30 (D11 enumeration): of the four tracked
+#   skills/superpowers/hooks/* entries, only session-start carries a bash
+#   shebang. hooks.json, hooks-cursor.json and run-hook.cmd carry none, so a
+#   shebang-only sweep covers ONE of the four. That is the whole reason this
+#   list exists, and it is why the reason is a directory-packaging fact rather
+#   than a property of the file contents.
+#
+#   Format of each entry: prefix|one-line reason. The prefix is matched as a
+#   literal path prefix and must end in '/' so it cannot straddle a segment.
+# @stdout sweep entries, one per line (prefix|reason)
+_exec_bit_directory_sweeps() {
+  cat <<'EOF'
+skills/superpowers/hooks/|installers package the whole directory; run-hook.cmd is a polyglot with no bash shebang
+EOF
+}
+
 # @description Return 0 if path matches a documented exclusion PATTERN.
 # @arg $1 repo-relative path
 _exec_bit_excluded() {
@@ -127,18 +148,20 @@ _exec_bit_excluded() {
 # @stdout relative paths, one per line
 # @return 0 on success; 1 if a regular-blob object is unreadable
 exec_bit_inventory() {
-  local excl_file rc
+  local excl_file sweep_file rc
   excl_file="$(mktemp "${BATS_TEST_TMPDIR:-/tmp}/exec-excl.XXXXXX")"
   _exec_bit_exclusion_entries >"$excl_file"
+  sweep_file="$(mktemp "${BATS_TEST_TMPDIR:-/tmp}/exec-sweep.XXXXXX")"
+  _exec_bit_directory_sweeps >"$sweep_file"
 
   # Python reads REPO_ROOT from argv, exclusion file from argv.
   # Prints matching paths on stdout; errors on stderr; exit 1 on bad objects.
-  python3 - "$REPO_ROOT" "$excl_file" <<'PY'
+  python3 - "$REPO_ROOT" "$excl_file" "$sweep_file" <<'PY'
 import fnmatch
 import subprocess
 import sys
 
-repo, excl_path = sys.argv[1], sys.argv[2]
+repo, excl_path, sweep_path = sys.argv[1], sys.argv[2], sys.argv[3]
 
 # D11: every exclusion entry is a PATTERN (fnmatch; * crosses '/').
 patterns = []
@@ -156,6 +179,20 @@ def excluded(path: str) -> bool:
         if fnmatch.fnmatch(path, pat):
             return True
     return False
+
+# D1/F2: directory sweeps. Included regardless of the shebang property.
+sweeps = []
+with open(sweep_path, "r", encoding="utf-8") as fh:
+    for raw in fh:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        prefix = line.split("|", 1)[0].strip()
+        if prefix:
+            sweeps.append(prefix)
+
+def swept(path: str) -> bool:
+    return any(path.startswith(prefix) for prefix in sweeps)
 
 ls = subprocess.check_output(["git", "-C", repo, "ls-files", "-s"], text=True)
 entries = []  # (mode, oid, path)
@@ -236,14 +273,25 @@ for mode, oid, path in entries:
     pos += size
     if pos < len(raw) and raw[pos : pos + 1] == b"\n":
         pos += 1
+    # Inclusion predicate (F1 + F2): bash shebang OR inside a swept directory.
+    # The type filter, object-existence check and object read above have already
+    # been applied to this candidate -- a swept path takes the SAME path through
+    # every check, it only skips the shebang requirement at the end. This is
+    # what keeps F2 from reintroducing the bypass F1 removed.
+    in_sweep = swept(path)
     if not data:
+        # An empty blob has no shebang but is still packaged by the installers.
+        if in_sweep:
+            hits.append(path)
         continue
     first = data.split(b"\n", 1)[0].rstrip(b"\r").split(b"\0", 1)[0]
     try:
         s = first.decode("utf-8", "replace")
     except Exception:
+        if in_sweep:
+            hits.append(path)
         continue
-    if s.startswith("#!") and "bash" in s:
+    if (s.startswith("#!") and "bash" in s) or in_sweep:
         hits.append(path)
 
 for p in sorted(set(hits)):
@@ -552,6 +600,70 @@ PY
     echo "PNG binary carve-out check failed:" >&2
     printf '  %s\n' "${bad[@]}" >&2
     printf 'offending: %s\n' "${bad[@]}" >&2
+    return 1
+  fi
+}
+
+# @description REWORK F3 — the regression that would have caught F1.
+#   The suite proved it detects ADDITIONS to the inventory; it never proved it
+#   still covers its FOUNDING case. That is half a checker, and it is the second
+#   time on this package that a test passed green while the thing it protects
+#   had quietly left scope: D11's original exclusion wildcard
+#   `skills/superpowers/skills/*/scripts/**` silently swallowed the three
+#   directly-executed SDD scripts this entire package exists to protect.
+#
+#   The three SDD paths below are LITERALS on purpose. Deriving them would
+#   re-run the very sweep whose failure mode this test exists to catch, so the
+#   assertion would drift along with the bug instead of pinning it. A regression
+#   pinning a founding case is the one place a literal is defensible, and this
+#   is the written-down reason the brief asks for.
+#
+#   The hooks entries are deliberately NOT literals: D1's requirement is that
+#   the WHOLE hooks directory is swept, so they are derived from the directory
+#   and a fifth hook added tomorrow is covered automatically. Measured
+#   2026-07-30: three of the four tracked hooks entries carry no bash shebang,
+#   so without the directory sweep this assertion fails on three of four.
+@test "derived exec-bit inventory still covers its founding cases (SDD scripts + hooks)" {
+  local inv_file f h
+  local -a missing=() founding=()
+  inv_file="$(mktemp "${BATS_TEST_TMPDIR:-/tmp}/exec-inv-founding.XXXXXX")"
+
+  if ! exec_bit_inventory >"$inv_file"; then
+    echo "exec_bit_inventory failed — unreadable index object (see error above)" >&2
+    rm -f "$inv_file"
+    return 1
+  fi
+
+  founding=(
+    skills/superpowers/skills/subagent-driven-development/scripts/review-package
+    skills/superpowers/skills/subagent-driven-development/scripts/sdd-workspace
+    skills/superpowers/skills/subagent-driven-development/scripts/task-brief
+  )
+
+  while IFS= read -r h; do
+    [[ -n "$h" ]] || continue
+    founding+=("$h")
+  done < <(git -C "$REPO_ROOT" ls-files -- 'skills/superpowers/hooks/')
+
+  # Non-vacuous: the hooks half must actually contribute paths, otherwise a
+  # deleted/renamed hooks directory would silently reduce this to the SDD half.
+  if ((${#founding[@]} <= 3)); then
+    echo "no tracked files under skills/superpowers/hooks/ — hooks coverage would be vacuous" >&2
+    rm -f "$inv_file"
+    return 1
+  fi
+
+  for f in "${founding[@]}"; do
+    if ! grep -Fxq -- "$f" "$inv_file"; then
+      missing+=("$f")
+      echo "offending: $f (founding case absent from derived inventory)" >&2
+    fi
+  done
+  rm -f "$inv_file"
+
+  if ((${#missing[@]} > 0)); then
+    echo "founding cases missing from the derived exec-bit inventory:" >&2
+    printf '  %s\n' "${missing[@]}" >&2
     return 1
   fi
 }
