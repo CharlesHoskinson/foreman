@@ -77,7 +77,7 @@ must not duplicate it. Therefore:
   - **Empty-burst**: grok narrated orientation (reading files, describing a
     plan) but never reached a Write/Edit call at all — see "Single-burst:
     write-first specs" below. Next step: re-issue as a write-first spec, or
-    route through `grok-multiround.sh` for genuinely exploratory work.
+    route through `vendor-multiround.sh` for genuinely exploratory work.
   - **Cancelled-writes**: Grok attempted a Write/Edit and it was denied by a
     permission regression. Next step: confirm the invocation came from the
     adapter, then re-run.
@@ -96,7 +96,7 @@ interfaces **inlined** — zero required reads before the first Write. If the
 task is genuinely exploratory (grok must discover something before it can
 write anything), do not spec it as a single burst: either do the exploration
 architect-side first and inline the findings, or route it through
-`skills/foreman/scripts/grok-multiround.sh` — a bounded re-prompt loop that
+`skills/foreman/scripts/vendor-multiround.sh` — a bounded re-prompt loop that
 re-issues the spec with a fed-forward preamble across several rounds until a
 write lands, failing loudly (`EMPTY-BURST FAILED`) if it never does.
 

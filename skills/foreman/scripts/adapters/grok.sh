@@ -114,7 +114,7 @@ adapter_implement_argv() {
   # read/introspect before writing can exhaust the burst on orientation and
   # write nothing (an "empty-burst" round). Keep hard-mode worker specs
   # write-first; for genuinely exploratory work route through
-  # skills/foreman/scripts/grok-multiround.sh (bounded re-prompt loop).
+  # skills/foreman/scripts/vendor-multiround.sh (bounded re-prompt loop).
   ADAPTER_ARGV=(grok --prompt-file "$prompt_file"
     -m "${WC_GROK_MODEL:-grok-4.5}"
     --allow Write --allow Edit
