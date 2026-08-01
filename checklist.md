@@ -8,8 +8,10 @@ cd /root/fm-wt/integrate
 python3 skills/foreman/scripts/fm-session.py recover
 ```
 
-Last updated 2026-07-31 at `567890c`. Scope decision: **full roadmap scope**
-(30 packages), taken with the cost stated.
+Last updated 2026-08-01. Numbers come from the session store and the first CI
+runs. Scope decision: **full roadmap scope** (30 packages), taken with the cost
+stated. Four further packages exist as v0.3.x candidates and are not in the
+v0.2.9 thirty.
 
 ---
 
@@ -21,11 +23,11 @@ prerequisite for everything else. It was not itself release content.
 
 | Measure | Value |
 |---|---|
-| Packages implemented | ~22 of 30; **8 have zero code (~407 tasks)**, 3 partial |
-| Full suite | **Completes** (first time ever): 493 pass / 3 fail / 19 skip of 515 |
-| Obligations | 19 open, 5 blocked |
-| Measurements fresh | 3 of 13 |
-| Plans complete | 1 of 6 |
+| Packages implemented | **34 change packages** exist (was 30). Four rescued 2026-08-01 from a stale checkout, migrated to the parseable delta shape, and parked as **v0.3.x candidates** (not in the v0.2.9 thirty; valid but unimplemented). `openspec validate --strict` green on all 34. **7 packages have zero code**; `vendor-adapter-contract` T1 landed. 3 partial |
+| Full suite | First CI run ever (ubuntu-latest): **482 pass / 26 fail / 20 skip of 528**. **The 26 contain zero product defects** (see criterion 2) |
+| Obligations | 26 open, 3 blocked |
+| Measurements fresh | 2 of 14 — most went stale because commits touched their scoped paths (store working as designed) |
+| Plans complete | 1 of 6 — Plan 2 largely proven already built; Plan 3 workflows merged |
 
 ---
 
@@ -33,20 +35,52 @@ prerequisite for everything else. It was not itself release content.
 
 - [ ] **1. Scope** — all 30 packages implemented; `openspec validate --strict`
       green on all 30; shipped packages archived.
-      *8 packages have zero code: `audit-groundedness-gate`,
-      `cross-vendor-audit-routing`, `vendor-adapter-contract`,
+      *7 packages have zero code: `audit-groundedness-gate`,
+      `cross-vendor-audit-routing`,
       `knowledge-plane-refresh`, `graph-context-builder`, `graph-dogfood`,
       `graph-eval-falsification`, `regression-harness-tiers`. 3 partial:
-      `three-outcome-verdicts` (2 of 5 dispatches),
+      `three-outcome-verdicts` (T2, T3 and T4 proven ALREADY IMPLEMENTED by a
+      behavioural probe on 2026-08-01, not by grep; remaining work is a
+      re-scope of dispatches 3-5 rather than the original plan),
       `decision-lineage-and-telemetry` (4b owed), `doctrine-reality-drift`
-      (9 claims).*
+      (9 claims). `vendor-adapter-contract` T1 landed four vendor adapters with
+      seven contract functions each.*
 - [ ] **2. Suite** — completes and passes on **three consecutive runs**; bats
       gate switched back ON in `ci-local.sh` and CI.
-      *Completes now. 3 failures remain: `decision-events` 3 and 5 (gate-eval
-      emission, Plan 2), `vendor-isolation` 7 (environment-sensitive,
-      obligation 32). Gate still off.*
+      *First CI suite run: 482 pass / 26 fail / 20 skip of 528. Zero of the 26
+      is a product defect. 19 of 26: POSIX launcher never built
+      (`launcher/dist` gitignored, nothing built it) — `launcher.bats` 0 of 14,
+      `vendor-isolation` lost 4, `launch-lib` 1, all "compiled exe not found".
+      A build step was added to `gates-linux` on 2026-08-01. 5 of 26:
+      environment-only and pass on a developer host (`docs-check` 3,
+      `audit-verdict` 1, `evidence` 1). 2 of 26: `decision-events` 3 and 5 —
+      STALE TEST FIXTURE, not a gate-eval defect. Running `gate-eval.sh`
+      against the test's own fixture refuses with eight reasons, every one the
+      fixture failing to supply an evidence binding the hardened gate now
+      requires: missing `audit-attempt.current`, diff and tree hash mismatches
+      on `checks-result.json`, on the audit verdict and on `docs-check.json`,
+      and a verdict whose `state` is not `complete`. The fixture predates the
+      `three-outcome-verdicts` hardening. The gate is correct and stricter than
+      its own test. The bats gate is not merely off: it is never invoked.
+      `tools/ci-local.sh` only calls `gate_bats` when `FOREMAN_CI_BATS=1`, so
+      the `TEST_GATE_MODE` shadow default inside that function is unreachable.
+      `gates-linux` sets `FOREMAN_CI_BATS=1`, which is why the suite ran on CI.*
 - [ ] **3. CI** — `gates-linux` and `gates-windows` green on `main`, each with
-      a **recorded red run** proving it can fail. Not started; Plan 3.
+      a **recorded red run** proving it can fail.
+      *`gates-linux` and `gates-windows` were written and merged on 2026-08-01
+      and are the first workflows in this repository to gate a general change —
+      the three that existed are path-filtered or release-only, so eight pushes
+      touching specs and docs had triggered zero runs. Both call
+      `tools/ci-local.sh` rather than re-listing gates in YAML. The recorded
+      red run exists: `gates-windows` run 30682495436 failed with
+      `CI-LOCAL RESULT FAIL gates_failed=1`, with `formal` the single failing
+      gate at `run=19 matched=0 failures=19` — a Windows-only matcher fault,
+      since the same suite passes 19 of 19 in 28 seconds on a developer host
+      and passed on ubuntu-latest. What remains is a GREEN run on each. The
+      "out of GitHub Actions credits" premise was already known false; two
+      files still asserting it were corrected on 2026-08-01 — including a
+      worked example in `skills/checkpoint/SKILL.md` that would have written
+      the false claim into every new session store.*
 - [ ] **4. Negative controls** — every verdict-emitting checker registered, the
       completeness gate green, every control observed firing.
       *About 6 exist. The registry is not built. ~60-80 checkers in scope.*
@@ -103,10 +137,8 @@ The documentation sprint runs as a final pass across Plans 3-6.
 
 ### Prerequisite that blocks Plan 6 from dispatching at all
 
-- [ ] Rewrite the graph-plane specs against the SQLite ontology.
-      `graph-dogfood`, `graph-eval-falsification`, `graph-store-port` and
-      `readme-refresh` still specify **TerminusDB**, withdrawn 2026-07-30.
-      Dispatching them as written makes lanes implement a withdrawn dependency.
+- [x] Rewrite the graph-plane specs against the SQLite ontology.
+      Completed 2026-08-01 across all six packages. Re-check with:
 
 ```bash
 grep -rln "TerminusDB" --include=*.md openspec/changes/ | grep -v archive
