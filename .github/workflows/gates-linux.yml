@@ -64,6 +64,7 @@ jobs:
         env:
           FOREMAN_CI_BATS: "1"
           TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
+          TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
         run: bash tools/ci-local.sh
 
       - name: Upload gate reports
@@ -74,4 +75,5 @@ jobs:
           path: |
             formal/out/
             ${{ runner.temp }}/foreman-test-slices.tsv
+            ${{ runner.temp }}/foreman-test-tap.log
           if-no-files-found: warn
