@@ -197,6 +197,39 @@ def db_path():
     return chosen
 
 
+def connect_readonly(path=None):
+    """Open the store for a genuine read, or fall back when that is impossible.
+
+    `recover` and `freshness` document themselves as having no side effects, and
+    they did not: connect() runs the schema DDL and unconditionally does an
+    INSERT OR REPLACE into schema_meta followed by a commit, so EVERY read
+    rewrote the file. Measured -- the checksum changed on each successive
+    `recover`, and the store showed as modified in `git status` immediately
+    after a read with no other command in between. That made "the tree is clean"
+    unverifiable: you could never tell a recorded fact from a look.
+
+    A missing store still needs creating, and a schema older than this build
+    still needs migrating, so both fall back to the writable path. The read-only
+    open is an optimisation of the common case, not a guarantee we can always
+    honour -- callers must not depend on it for correctness.
+    """
+    p = Path(path) if path is not None else db_path()
+    if not p.exists():
+        return connect(p)
+    try:
+        conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        # A store predating this schema version cannot be read correctly without
+        # the migration in connect(); detect that and hand back a writable one.
+        have = {r["name"] for r in conn.execute("PRAGMA table_info(measurements)")}
+        if not {"value_num", "superseded_by"} <= have:
+            conn.close()
+            return connect(p)
+        return conn
+    except sqlite3.Error:
+        return connect(p)
+
+
 def connect(path=None):
     p = Path(path) if path is not None else db_path()
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -792,12 +825,18 @@ def main():
                         "an unexplained retirement is unauditable")
 
     a = ap.parse_args()
+    # Commands that only read. Opening these read-only is what makes their
+    # documented "no side effects" true; see connect_readonly. `sidecar` writes
+    # a file but never the store, so it belongs here too.
+    READ_ONLY_CMDS = {"recover", "freshness", "project", "sidecar"}
     if a.cmd == "import-sidecar":
         try:
             conn = connect(a.into)
         except sqlite3.Error as e:
             print(f"refusing: cannot open target store: {e}", file=sys.stderr)
             return 2
+    elif a.cmd in READ_ONLY_CMDS:
+        conn = connect_readonly()
     else:
         conn = connect()
     cur = conn.cursor()
