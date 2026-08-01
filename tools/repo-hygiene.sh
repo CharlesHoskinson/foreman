@@ -104,7 +104,28 @@ else
     [[ -n "$f" ]] || continue
     base_mode="$(git ls-tree "$base" -- "$f" | awk '{print $1}')"
     head_mode="$(git ls-files -s -- "$f" | awk '{print $1}')"
-    [[ -n "$base_mode" && -n "$head_mode" ]] || continue   # added or deleted
+    [[ -n "$head_mode" ]] || continue                      # deleted on this branch
+
+    if [[ -z "$base_mode" ]]; then
+      # NEW file: there is no base mode to regress from, so the rule above is
+      # blind to it. That blindness shipped and immediately cost a red gate --
+      # tools/repo-hygiene.sh, this very file, landed 100644 and only
+      # tests/line-endings.bats caught it.
+      #
+      # Reported, not failed. The authoritative inventory lives in
+      # tests/line-endings.bats, which encodes exclusions this cannot see: 105
+      # of 189 tracked shebang files are correctly 100644 because .bats files
+      # are run by bats rather than executed. Failing here would re-derive that
+      # inventory badly, which is the documented trap.
+      if [[ -f "$f" ]] && head -c2 "$f" 2>/dev/null | grep -q '#!' \
+         && [[ "$head_mode" != "100755" ]] \
+         && [[ "$f" != *.bats ]]; then
+        printf 'INFO  new file has a shebang and is not executable: %s (%s) -- run via an interpreter on purpose, or missing git update-index --chmod=+x? tests/line-endings.bats is the authority.\n' \
+          "$f" "$head_mode"
+      fi
+      continue
+    fi
+
     if [[ "$base_mode" != "$head_mode" ]]; then
       fail "file mode changed vs ${base}: $f ${base_mode} -> ${head_mode} -- if deliberate, say so; if not, git update-index --chmod=+x"
     fi
