@@ -46,8 +46,8 @@ remain the store for commit ancestry.
 
 Foreman SHALL access the graph plane exclusively through a `GraphStore` port.
 
-Foreman core SHALL NOT import a TerminusDB client, construct a TerminusDB URL,
-or build a WOQL or GraphQL document outside the TerminusDB adapter.
+Foreman core SHALL NOT import `sqlite3` for ontology access, open the local ontology database file,
+or build a SQL statement outside the SQLite ontology adapter.
 The port SHALL expose the operations the plane actually needs — schema
 registration, document upsert, typed document lookup, the lineage query set,
 and the expected-emptiness contract of the query wrapper — and SHALL NOT expose
@@ -59,9 +59,9 @@ use, and callers SHALL degrade rather than fail when it is absent.
 
 #### Scenario: no direct store access outside the adapter
 
-- WHEN the repository is scanned for TerminusDB client imports, endpoint URLs,
-  or WOQL AST construction
-- THEN every occurrence is inside the TerminusDB adapter or its own tests
+- WHEN the repository is scanned for direct `sqlite3` ontology access, local ontology database file opens,
+  or SQL statement construction
+- THEN every occurrence is inside the SQLite ontology adapter or its own tests
 - AND the scan runs as part of the gate.
 
 #### Scenario: an optional capability is absent and the caller degrades
@@ -79,19 +79,19 @@ installed, no container running, and no network access, backed only by
 `graph.json`, `worklog.jsonl`, and run-dir JSON.
 
 The files-only implementation SHALL be the default implementation, and the
-TerminusDB adapter SHALL be opt-in per host.
+SQLite ontology adapter SHALL be opt-in per host.
 The port conformance suite SHALL run in full against both implementations, and
 SHALL run against the files-only implementation on every commit.
 WHERE the files-only implementation cannot provide a capability, the omission
 SHALL be limited to time-travel, graph branch and merge, and cross-run query
 ergonomics.
 IF a merge-gate check, a context block, or a run record would fail when the
-TerminusDB adapter is absent, THEN that component SHALL be treated as
+SQLite ontology adapter is absent, THEN that component SHALL be treated as
 defective and the failure SHALL block the gate.
 
 #### Scenario: the whole plane runs with no store at all
 
-- WHEN a full round runs on a host with no TerminusDB container and the
+- WHEN a full round runs on a host with no local ontology database file and the
   files-only implementation selected
 - THEN the merge gate evaluates, the context block is built and hashed, and the
   run record is complete
@@ -100,36 +100,36 @@ defective and the failure SHALL block the gate.
 #### Scenario: conformance is identical across implementations
 
 - WHEN the port conformance suite runs against the files-only implementation
-  and against the TerminusDB adapter over the same fixture data
+  and against the SQLite ontology adapter over the same fixture data
 - THEN every assertion outside the declared optional capabilities produces the
   same result in both
 - AND any divergence is reported as a conformance failure naming the operation.
 
-### Requirement: the work-DAG is stored as documents and never queried through the commit log
+### Requirement: the work-DAG is stored as documents and never queried through the write-audit event log
 
 Lineage queries SHALL be answered from typed documents, and SHALL NOT depend on
-the store's commit log.
+the write-audit records in `events.jsonl`.
 
-The TerminusDB adapter SHALL NOT call `/api/log` on any query path.
-The store's commits SHALL be treated as an audit trail only; the commit
+The SQLite ontology adapter SHALL NOT read write-audit records from `events.jsonl` on any query path.
+Each committed SQLite write SHALL cause the authenticated run launcher to append a write-audit event to `events.jsonl`; the event's
 `author` field SHALL carry the run and lane identity and the authenticated
 `user` field SHALL be recorded as the non-spoofable identity.
-The adapter SHALL NOT use offset paging with a non-zero start value against the
-commit log, because paging cost is proportional to the offset.
-IF a proposed query can only be answered by scanning commit history, THEN it
+The adapter SHALL NOT scan or page the write-audit events during ontology queries.
+The write-audit event log SHALL be treated as an audit trail only.
+IF a proposed query can only be answered by scanning write-audit history, THEN it
 SHALL be re-expressed against documents or declared unsupported.
 
-#### Scenario: lineage cost is independent of commit count
+#### Scenario: lineage cost is independent of write-audit event count
 
 - WHEN the lineage query set runs against a store holding a fixed document
-  population and a commit count an order of magnitude larger than the initial
+  population and a write-audit event count an order of magnitude larger than the initial
   ingest
 - THEN query latency is unchanged within measurement noise
-- AND no lineage query issued a commit-log request.
+- AND no lineage query issued a write-audit event-log request.
 
-#### Scenario: a commit-log query path is refused
+#### Scenario: a write-audit event-log query path is refused
 
-- WHEN a code path calls the commit-log endpoint during query evaluation
+- WHEN a code path reads the write-audit event log during query evaluation
 - THEN the adapter raises a named error identifying the banned call
 - AND the gate fails.
 
@@ -231,38 +231,38 @@ The adapter SHALL select its concurrency mechanism from the shape of the write,
 not from a single blanket policy.
 
 WHERE a write appends distinct documents, the adapter SHALL write without a
-compare-and-swap precondition.
+precondition check.
 WHERE a write is a read-modify-write against a document another lane may also
-hold, the adapter SHALL send the store's data-version header as a
-compare-and-swap precondition and SHALL treat a version-mismatch response as a
+hold, the adapter SHALL begin a guarded write transaction before the read,
+recheck the observed state before commit, and SHALL treat stale state as a
 retryable conflict.
 WHERE lanes perform independent bodies of work, the adapter SHALL use one
-branch per lane and merge through the store's apply operation, which is the
+complete batch per lane and apply each batch in one transaction, which is the
 only path with real conflict detection.
 IF a read-modify-write is issued against a shared document without the
-compare-and-swap precondition, THEN the operation SHALL be refused by the
-wrapper, because the store accepts contending writes with a success status and
+guarded write transaction, THEN the operation SHALL be refused by the
+wrapper, because an unguarded stale update can succeed while SQLite
 silently keeps the last one.
-The deployment SHALL raise the store's worker count above its default of eight
+The deployment SHALL configure finite busy timeout or bounded retry handling
 before running more than eight concurrent lanes.
 
 #### Scenario: contending writes cannot silently clobber
 
 - WHEN two lanes read the same document and both write a modified version
-- THEN the second write is rejected as a version mismatch and retried against
+- THEN the second write detects stale state and is retried against
   the current state
 - AND both lanes' changes are present in the final document.
 
 #### Scenario: fan-in appends need no precondition
 
-- WHEN twelve lanes concurrently append distinct documents to one branch
+- WHEN twelve lanes concurrently append distinct documents to one local database file
 - THEN every append succeeds
 - AND every document is present.
 
 #### Scenario: an unguarded shared-document write is refused
 
 - WHEN a caller issues a read-modify-write against a shared document without a
-  data-version precondition
+  guarded write transaction
 - THEN the wrapper refuses the call before it reaches the store
 - AND the error names the missing precondition.
 
@@ -274,25 +274,28 @@ declaration.
 
 IF a query declared as expecting results returns none, THEN the wrapper SHALL
 raise a named error and SHALL NOT return an empty result to the caller.
-The wrapper SHALL normalise version references before use, and SHALL reject a
-version reference carrying the response-header prefix form, because that form
-is accepted and returns an empty diff with a success status.
+The wrapper SHALL validate the schema-hash pin before use, and SHALL reject a
+schema-hash reference carrying a prefix or any noncanonical form, because it
+could otherwise select an incompatible schema and yield an empty result.
 The wrapper SHALL apply the store's deduplication operator around every path
 query, because a path query returns one row per distinct path rather than one
 row per answer.
+The wrapper SHALL query the shipped guarded views for every path-shaped SQL
+query, because copied recursive SQL can omit the cycle guard and return an
+incorrect answer.
 The test suite SHALL carry one canary fixture per known silent-empty path — the
-prefixed version reference and the URI-versus-string unification failure — and
+schema-hash mismatch and a guarded traversal stopped by a cycle — and
 each canary SHALL fail when the assertion machinery is disabled.
 A query whose correct answer is genuinely empty SHALL be declared as
 expecting emptiness, so that an empty result is always distinguishable from a
 failed query.
 
-#### Scenario: a prefixed version reference is rejected rather than answered
+#### Scenario: a prefixed schema-hash reference is rejected rather than answered
 
-- WHEN a diff is requested with a version reference in the response-header
-  prefix form
+- WHEN a query is requested with a schema-hash reference in a prefixed or noncanonical
+  form
 - THEN the wrapper rejects the request before issuing it
-- AND the error names the accepted reference forms.
+- AND the error names the accepted hash form.
 
 #### Scenario: an unexpectedly empty query fails loudly
 
@@ -315,18 +318,24 @@ failed query.
 
 ### Requirement: the adapter is pinned and has a rehearsed exit path
 
-The TerminusDB adapter SHALL pin the server version and the container image
-digest, and SHALL refuse to run against an unpinned or mismatched image.
+The SQLite ontology adapter SHALL pin `skills/foreman/ontology/schema.sql` at SHA-256
+`1a7c15a97fe594a07746d285a9e14b3a0820b3386c40c0206d55389f7a6eb76f`, and SHALL refuse to run against a mismatched schema.
 
-The store's data directory SHALL be backed up by stopping the server and
-archiving the directory, and the backup SHALL be taken before any version
-change, because cross-version directory compatibility is undocumented.
-A health re-check SHALL run at least quarterly, recording commit cadence,
-whether a second maintainer has appeared, release cadence, and whether any
-capability in use has moved behind the paid tier.
-The health re-check SHALL carry named trigger conditions, and WHEN any trigger
-fires the documented response SHALL be to fall back to the files-only
-implementation within one release.
+The local database file SHALL be backed up with SQLite's online backup API or
+a transactionally consistent copy that includes required WAL state, and the
+backup SHALL be taken before any schema-hash change.
+A health re-check SHALL run at least quarterly against the upstream project that
+supplies the selected non-files-only store, recording commit cadence, whether a
+second maintainer has appeared, release cadence, and whether any capability in
+use has moved behind a paid tier.
+The health re-check SHALL carry these named trigger conditions:
+`commit-cadence` fires at fewer than 50 upstream commits in any rolling six-month
+window; `maintainer-concentration` fires when a single author's share of upstream
+commits remains above 90% across two consecutive quarterly checks;
+`release-cadence` fires when no stable release occurs in any rolling nine-month
+window; and `paid-tier-movement` fires when any capability in use moves behind a
+paid tier. WHEN any trigger fires, the documented response SHALL be to fall back
+to the files-only implementation within one release.
 The exit path SHALL be rehearsed at least once before the store is relied upon,
 by running a full round on the files-only implementation after the adapter has
 been in use.
@@ -334,16 +343,16 @@ IF the store becomes unavailable in normal operation, THEN Foreman SHALL
 continue on the files-only implementation and SHALL report the degradation
 rather than failing the round.
 
-#### Scenario: an unpinned image is refused
+#### Scenario: an unpinned schema is refused
 
-- WHEN the adapter starts against a container whose digest does not match the
-  pinned digest
+- WHEN the adapter starts against a schema whose hash does not match the
+  pinned hash
 - THEN the adapter refuses to start
-- AND the error names both digests.
+- AND the error names both hashes.
 
 #### Scenario: a health trigger produces a decision, not a discussion
 
-- WHEN the quarterly health re-check finds a trigger condition met
+- WHEN the live quarterly health re-check finds a named trigger condition met
 - THEN the check emits the trigger, the evidence, and the documented fallback
   action
 - AND the finding is recorded in the release checklist.

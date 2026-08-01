@@ -12,8 +12,8 @@ required artifact and numeric checks.
       `artifacts/graph-dogfood/<run-id>/`.
 - [ ] 1.2 Write `run-manifest.json` before database mutation with repository
       commit, dirty status, graph path/hash/build commit, graphify version,
-      refresh cadence, schema hash, `manifest_version`, TerminusDB version and
-      digest, tracked-file count, represented files, unrepresented files, and
+      refresh cadence, schema path and hash, `manifest_version`, ontology adapter
+      version, tracked-file count, represented files, unrepresented files, and
       per-stage states.
 - [ ] 1.3 Make every stage transition atomic and restrict states to
       `pending`, `running`, `passed`, `failed`, `skipped`, and `not-run`; a
@@ -26,9 +26,10 @@ required artifact and numeric checks.
 ## 2. Compose the owner-package preflight and graph refresh
 
 - [ ] 2.1 Verify the required interfaces from
-      `knowledge-plane-refresh`, `terminusdb-schema`,
-      `terminusdb-adapter`, and `terminusdb-operations` exist and record their
-      content hashes; stop before writes if any owner prerequisite is absent.
+      `knowledge-plane-refresh`, `skills/foreman/ontology/schema.sql`, the
+      ontology adapter, and SQL query suite owned by `graph-store-port` exist
+      and record their content hashes; stop before writes if any owner
+      prerequisite is absent.
 - [ ] 2.2 Invoke only
       `skills/foreman/scripts/graph-refresh.sh` for the release refresh; do not
       call graphify directly from the dogfood runner.
@@ -65,20 +66,20 @@ required artifact and numeric checks.
       canonicalize all endpoint order; each mutation must trip a different
       named predicate.
 
-## 4. Start a fresh pinned TerminusDB and load the frozen schema
+## 4. Start a fresh schema-pinned SQLite ontology and load the frozen schema
 
-- [ ] 4.1 Use the deployment interface owned by
-      `terminusdb-operations` to start TerminusDB 12.0.6 at digest
-      `sha256:e02eaa3a5b75e01550cee2a662a846db7fceb725193983f1f35e1842ab580fee`
-      with a new native-filesystem data directory for this run.
-- [ ] 4.2 Refuse a version/digest mismatch before schema load and record both
+- [ ] 4.1 Use the ontology adapter to create a fresh local database file from
+      `skills/foreman/ontology/schema.sql` at SHA-256
+      `1a7c15a97fe594a07746d285a9e14b3a0820b3386c40c0206d55389f7a6eb76f`
+      for this run.
+- [ ] 4.2 Refuse a schema-hash mismatch before schema load and record both
       expected and observed values.
 - [ ] 4.3 Load the exact frozen 33-object schema through the adapter, read it
       back, and record schema object count, content hash, startup wall clock,
       initial disk bytes, and idle RSS bytes.
 - [ ] 4.4 Verify the live generated-key behavior by using returned identifiers
-      only; no graphify ID may be submitted as TerminusDB `@id`.
-- [ ] 4.5 Add negative tests for digest mismatch, schema hash mismatch,
+      only; no graphify ID may be submitted as the store's generated document key.
+- [ ] 4.5 Add negative tests for schema path mismatch, schema hash mismatch,
       undeclared fields, invalid enum values, and caller-submitted generated
       identifiers.
 
@@ -89,9 +90,9 @@ required artifact and numeric checks.
       timings, batch results, returned generated identifiers, and all
       drop-with-record outcomes.
 - [ ] 5.2 Recount top-level documents by class, auxiliary/reified documents by
-      class, and native relations by schema field directly from TerminusDB;
-      record each `input_key -> returned_db_id`, and compare the database
-      document recount to the distinct projected-ID set rather than to the
+      class, and native relations by schema field directly from the SQLite
+      ontology; record each `input_key -> returned_db_id`, and compare the
+      database document recount to the distinct projected-ID set rather than to the
       count of node primary outcomes. Do not use adapter log totals as the
       database recount.
 - [ ] 5.3 Write `counts.json` with input operands, primary stored outcomes,
@@ -137,7 +138,7 @@ required artifact and numeric checks.
 
 ## 7. Execute the 24-query real-graph competency matrix
 
-- [ ] 7.1 Evaluate all operations-owned competency entries `Q-W1` through
+- [ ] 7.1 Evaluate all graph-store-port-owned competency entries `Q-W1` through
       `Q-W13`, `Q-K14` through `Q-K20`, and `Q-X21` through `Q-X24`; invoke each
       mapped query through its expected-emptiness wrapper and evaluate
       owner-declared gap entries K16 and X22 without inventing queries.
@@ -159,8 +160,8 @@ required artifact and numeric checks.
 - [ ] 7.5 Assert K16 and X22 retain the owner packages' gap dispositions, W4 is
       identified as partial, and W6, W13, and X23 report whether their
       same-release dependencies are present in the actual graph.
-- [ ] 7.6 Add a negative test in which a query wrapper returns HTTP success
-      with zero rows despite an `expect-results` contract; it must be a failed
+- [ ] 7.6 Add a negative test in which a query wrapper reports successful SQL
+      execution with zero rows despite an `expect-results` contract; it must be a failed
       query, not `empty-but-valid`.
 
 ## 8. Record ontology findings without working around them
@@ -178,7 +179,8 @@ required artifact and numeric checks.
 - [ ] 8.4 Assert schema and manifest content hashes remain unchanged from
       preflight through teardown.
 - [ ] 8.5 Render the findings into `report.md` as proposals to
-      `terminusdb-schema`, never as changes silently applied by dogfood.
+      `skills/foreman/ontology/schema.sql`, never as changes silently applied
+      by dogfood.
 
 ## 9. Measure first ingest and timed drop-and-rebuild
 
@@ -189,9 +191,9 @@ required artifact and numeric checks.
 - [ ] 9.2 Label 2.6-second startup, 38 MB idle RSS, 9.7 MB for 5,500 documents,
       and approximately 1,070 documents/second as historical reference values,
       never current measurements.
-- [ ] 9.3 Invoke the operations-owned drop-and-rebuild path against the
-      run-scoped live data directory, record its wall clock, and repeat database
-      recount, conservation, provenance, and competency checks.
+- [ ] 9.3 Invoke the graph-store-port-owned drop-and-rebuild path against the
+      run-scoped local database file, record its wall clock, and repeat
+      database recount, conservation, provenance, and competency checks.
 - [ ] 9.4 Compare pre-drop and post-rebuild document/relation counts and every
       competency classification; any divergence fails with the differing keys.
 - [ ] 9.5 Add a negative test that removes one required metric and verify the
@@ -218,7 +220,7 @@ required artifact and numeric checks.
 ## 11. Gate — run the real Foreman dogfood and verify the artifacts
 
 - [ ] 11.1 Run the full exercise at a named clean Foreman commit against a
-      fresh pinned TerminusDB and preserve the complete
+      fresh schema-pinned SQLite ontology and preserve the complete
       `artifacts/graph-dogfood/<run-id>/` directory.
 - [ ] 11.2 Run `skills/foreman/scripts/graph-dogfood-gate.sh <run-dir>` and
       verify it checks file presence and schemas, three zero residuals, three

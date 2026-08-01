@@ -17,7 +17,7 @@ WHERE the dogfood corpus is the Foreman repository itself, the dogfood runner SH
 
 ### Requirement: Pinned end-to-end execution
 
-WHEN a release dogfood run is executed, the runner SHALL refresh the graph through `knowledge-plane-refresh`, map the resulting `graph.json` through the frozen manifest owned by `terminusdb-schema`, ingest through the two-pass adapter owned by `terminusdb-adapter`, and query through the layer owned by `terminusdb-operations`. The database SHALL be a fresh TerminusDB 12.0.6 instance pinned to digest `sha256:e02eaa3a5b75e01550cee2a662a846db7fceb725193983f1f35e1842ab580fee`. The report SHALL record the outcome and elapsed wall clock of every stage without redefining the behavior owned by those packages.
+WHEN a release dogfood run is executed, the runner SHALL refresh the graph through `knowledge-plane-refresh`, map the resulting `graph.json` through the frozen manifest owned by `graph-store-port`, ingest through its two-pass SQLite ontology adapter, and query through its SQL layer and shipped guarded views. The database SHALL be a fresh local SQLite ontology file created from `skills/foreman/ontology/schema.sql` pinned to SHA-256 `1a7c15a97fe594a07746d285a9e14b3a0820b3386c40c0206d55389f7a6eb76f`. The report SHALL record the outcome and elapsed wall clock of every stage without redefining the behavior owned by those packages.
 
 #### Scenario: Complete the pipeline in dependency order
 
@@ -27,8 +27,8 @@ WHEN a release dogfood run is executed, the runner SHALL refresh the graph throu
 
 #### Scenario: Refuse an unpinned database
 
-- WHEN the running TerminusDB version or image digest differs from the required pin
-- THEN the run stops before schema load and records the observed version and digest
+- WHEN the observed ontology schema hash differs from the required pin
+- THEN the run stops before schema load and records the observed schema hash
 
 ### Requirement: Arithmetic conservation ledger
 
@@ -81,7 +81,7 @@ WHEN an input graph element maps to stored data, the stored representation SHALL
 
 #### Scenario: Trace the named sample
 
-- WHEN the named `skills/foreman/SKILL.md` sample bundle is retrieved from TerminusDB
+- WHEN the named `skills/foreman/SKILL.md` sample bundle is retrieved from the local database file
 - THEN the report shows an unbroken trace for node `foreman_skill` and its named `contains` link through any generated database identifiers to source locations `L1` and `L14`
 - AND the link's retrieved `confidence_score` is 1.0 and its audit level is `EXTRACTED`, equal to `graph.json`
 
@@ -98,7 +98,7 @@ WHEN an input graph element maps to stored data, the stored representation SHALL
 
 ### Requirement: Real-graph competency matrix
 
-WHEN ingest has completed, all 24 competency questions owned by `terminusdb-operations` SHALL be evaluated against the real Foreman graph. Every mapped query SHALL execute; an owner-declared gap with no executable query SHALL be evaluated from its manifest disposition without inventing a query. The report SHALL contain exactly one row per named question with query status, elapsed time, result count, and a classification field. A successfully evaluated row SHALL carry exactly one classification from `answered`, `empty-but-valid`, or `unanswerable`; owner-declared gaps such as K16 and X22 SHALL be `unanswerable` and name the missing capability. A failed or not-run mapped query row SHALL carry no answer classification and SHALL instead name its error or blocking stage, causing the competency stage and overall run to fail or remain incomplete. An `empty-but-valid` result SHALL require a successfully executed query returning zero results; a transport, syntax, schema, timeout, or adapter failure SHALL not be classified as empty or unanswerable. For a completed competency stage, the three classification totals SHALL sum arithmetically to 24; every report, including a partial one, SHALL satisfy `answered + empty-but-valid + unanswerable + failed + not-run = 24`.
+WHEN ingest has completed, all 24 competency questions owned by `graph-store-port` SHALL be evaluated against the real Foreman graph. Every mapped query SHALL execute; an owner-declared gap with no executable query SHALL be evaluated from its manifest disposition without inventing a query. The report SHALL contain exactly one row per named question with query status, elapsed time, result count, and a classification field. A successfully evaluated row SHALL carry exactly one classification from `answered`, `empty-but-valid`, or `unanswerable`; owner-declared gaps such as K16 and X22 SHALL be `unanswerable` and name the missing capability. A failed or not-run mapped query row SHALL carry no answer classification and SHALL instead name its error or blocking stage, causing the competency stage and overall run to fail or remain incomplete. An `empty-but-valid` result SHALL require a successfully executed query returning zero results; a transport, syntax, schema, timeout, or adapter failure SHALL not be classified as empty or unanswerable. For a completed competency stage, the three classification totals SHALL sum arithmetically to 24; every report, including a partial one, SHALL satisfy `answered + empty-but-valid + unanswerable + failed + not-run = 24`.
 
 #### Scenario: Distinguish zero results from failure
 
@@ -120,7 +120,7 @@ WHEN ingest has completed, all 24 competency questions owned by `terminusdb-oper
 
 ### Requirement: Ontology findings remain findings
 
-IF the real Foreman corpus contains a graph element or property that the frozen 33-object schema and mapping manifest cannot represent, THEN the runner SHALL apply only the manifest-declared drop or fail disposition, record the evidence as an ontology finding, and propose a versioned change to `terminusdb-schema`. A fail disposition SHALL be accounted as `rejected` and SHALL fail the run; it SHALL NOT be relabeled as a drop to balance conservation. The dogfood run SHALL NOT add undeclared fields, coerce invalid enum values, conflate distinct relations such as `subtask_of` and `depends_on`, submit caller-selected identifiers for generated-key classes, or silently invent an ingest-only workaround.
+IF the real Foreman corpus contains a graph element or property that the frozen 33-object schema and mapping manifest cannot represent, THEN the runner SHALL apply only the manifest-declared drop or fail disposition, record the evidence as an ontology finding, and propose a versioned change to `skills/foreman/ontology/schema.sql`. A fail disposition SHALL be accounted as `rejected` and SHALL fail the run; it SHALL NOT be relabeled as a drop to balance conservation. The dogfood run SHALL NOT add undeclared fields, coerce invalid enum values, conflate distinct relations such as `subtask_of` and `depends_on`, submit caller-selected identifiers for generated-key classes, or silently invent an ingest-only workaround.
 
 #### Scenario: Record a schema gap
 
