@@ -1,0 +1,37 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "vendor-adapter-task-state",
+  "failure_class": "FC-08-record-state-disagreement",
+  "implementation": {
+    "repository_commit": "2189c1686a8dd29879f36b9ad7fb8d31ab7b9439",
+    "source": "openspec/changes/vendor-adapter-contract/tasks.md"
+  },
+  "demonstrated_case": "implemented_tasks_unticked",
+  "events": [
+    {
+      "seq": 1,
+      "case": "implemented_tasks_unticked",
+      "decision": "verify_implemented_task_state",
+      "outcome": "verified",
+      "evidence": {
+        "done": 23,
+        "open": 19,
+        "t1_done": 6,
+        "t2_done": 5,
+        "t3_done": 5,
+        "t4_done": 5,
+        "t8_done": 2,
+        "t5_done": 0
+      }
+    },
+    {
+      "seq": 2,
+      "case": "implemented_tasks_unticked",
+      "decision": "reconcile_task_record",
+      "outcome": "record_matches_verified_state",
+      "verdict": "23 done / 19 open",
+      "emitted": "23 done / 19 open"
+    }
+  ],
+  "final_verdict": "23 done / 19 open"
+}

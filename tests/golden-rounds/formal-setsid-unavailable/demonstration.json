@@ -1,0 +1,11 @@
+{
+  "round_id": "formal-setsid-unavailable",
+  "failure_class": "FC-02-checker-verdict-unestablished",
+  "defective_trace": "tests/golden-rounds/formal-setsid-unavailable/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/formal-setsid-unavailable/corrected-trace.json",
+  "defective_verdict": "SUITE FAILED",
+  "corrected_verdict": "SUITE PASSED",
+  "harness_version": "tier1-round-layout/v1",
+  "demonstrated_at": "2026-08-01T01:32:44-06:00",
+  "demonstrated_by": "Tier 1 job"
+}

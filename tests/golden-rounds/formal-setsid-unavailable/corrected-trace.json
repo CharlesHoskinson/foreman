@@ -1,0 +1,48 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "formal-setsid-unavailable",
+  "failure_class": "FC-02-checker-verdict-unestablished",
+  "implementation": {
+    "repository_commit": "7fc613b679ff2bc50c259544c4956be68a360607",
+    "source": "formal/run-checks.sh"
+  },
+  "demonstrated_case": "setsid_unavailable",
+  "events": [
+    {
+      "seq": 1,
+      "case": "setsid_unavailable",
+      "decision": "probe_setsid_capability",
+      "outcome": "announced_degradation",
+      "evidence": {
+        "command": "command -v setsid",
+        "capability": "absent"
+      },
+      "emitted": "setsid unavailable (Git Bash/Windows) -- DEGRADED: rows spawn without their own process group; timeout falls back to a single-pid kill"
+    },
+    {
+      "seq": 2,
+      "case": "setsid_unavailable",
+      "decision": "spawn_formal_rows",
+      "outcome": "plain_background_spawn",
+      "evidence": {
+        "observed_violated": 11,
+        "observed_holds": 8
+      }
+    },
+    {
+      "seq": 3,
+      "case": "setsid_unavailable",
+      "decision": "summarize_formal_gate",
+      "outcome": "models_executed",
+      "evidence": {
+        "run": 19,
+        "matched": 19,
+        "skipped": 17,
+        "failures": 0
+      },
+      "verdict": "SUITE PASSED",
+      "emitted": "formal: === summary: run=19 matched=19 skipped=17 failures=0 tier=commit ==="
+    }
+  ],
+  "final_verdict": "SUITE PASSED"
+}

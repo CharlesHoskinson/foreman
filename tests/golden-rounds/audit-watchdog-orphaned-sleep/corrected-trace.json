@@ -1,0 +1,46 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "audit-watchdog-orphaned-sleep",
+  "failure_class": "FC-04-process-ownership-leak",
+  "implementation": {
+    "repository_commit": "880f0b9ce843900875ec04a0e326789f0445a5a3",
+    "source": "skills/foreman/scripts/audit-run.sh"
+  },
+  "demonstrated_case": "audit_returns_before_timeout",
+  "events": [
+    {
+      "seq": 1,
+      "case": "audit_returns_before_timeout",
+      "decision": "wait_for_timeout_watchdog",
+      "outcome": "one_second_slices",
+      "evidence": {
+        "parent_liveness_checked": true,
+        "auditor_liveness_checked": true
+      }
+    },
+    {
+      "seq": 2,
+      "case": "audit_returns_before_timeout",
+      "decision": "reap_timeout_watchdog",
+      "outcome": "watchdog_and_sleep_reaped",
+      "evidence": {
+        "scope": "test_process_group",
+        "kill_target": "exact PID",
+        "watchdog_pid_cleared_after_wait": true
+      }
+    },
+    {
+      "seq": 3,
+      "case": "audit_returns_before_timeout",
+      "decision": "compare_owned_sleep_processes",
+      "outcome": "no_leak",
+      "evidence": {
+        "leaked_pids": [],
+        "audit_verdict_exists": true
+      },
+      "verdict": "PASS",
+      "emitted": "audit-run leaves no timeout watchdog behind after it returns"
+    }
+  ],
+  "final_verdict": "PASS"
+}

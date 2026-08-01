@@ -1,0 +1,38 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "launcher-pidns-capability-guard",
+  "failure_class": "FC-05-environment-capability-gap",
+  "implementation": {
+    "repository_commit": "1d90cb52b2cbdf25ae7ebabd86c3b8bfe5cfc47f",
+    "source": "tests/launcher.bats"
+  },
+  "demonstrated_case": "pid_namespace_unavailable",
+  "events": [
+    {
+      "seq": 1,
+      "case": "pid_namespace_unavailable",
+      "decision": "guard_kernel_cascade_assertion",
+      "outcome": "binary_present",
+      "evidence": {
+        "command": "command -v unshare",
+        "path": "/usr/bin/unshare"
+      }
+    },
+    {
+      "seq": 2,
+      "case": "pid_namespace_unavailable",
+      "decision": "launch_pid_namespace",
+      "outcome": "degraded",
+      "emitted": "foreman-launch: unshare unavailable/failed (availability probe) -- DEGRADED: falling back to setsid+pgid, no kernel pidns cascade guarantee"
+    },
+    {
+      "seq": 3,
+      "case": "pid_namespace_unavailable",
+      "decision": "run_kernel_cascade_assertion",
+      "outcome": "failed_without_capability",
+      "verdict": "FAIL",
+      "emitted": "not ok 11 POSIX pidns: killing launcher_pid reaps a setsid/backgrounded escapee"
+    }
+  ],
+  "final_verdict": "FAIL"
+}

@@ -1,0 +1,11 @@
+{
+  "round_id": "launcher-pidns-capability-guard",
+  "failure_class": "FC-05-environment-capability-gap",
+  "defective_trace": "tests/golden-rounds/launcher-pidns-capability-guard/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/launcher-pidns-capability-guard/corrected-trace.json",
+  "defective_verdict": "FAIL",
+  "corrected_verdict": "SKIP",
+  "harness_version": "tier1-round-layout/v1",
+  "demonstrated_at": "2026-07-31T23:46:33-06:00",
+  "demonstrated_by": "Tier 1 job"
+}

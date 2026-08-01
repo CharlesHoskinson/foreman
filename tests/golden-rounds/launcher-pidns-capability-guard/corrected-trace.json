@@ -1,0 +1,31 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "launcher-pidns-capability-guard",
+  "failure_class": "FC-05-environment-capability-gap",
+  "implementation": {
+    "repository_commit": "70bc81813cb065fa0c8b9b6400b10d8f48124eb9",
+    "source": "tests/launcher.bats"
+  },
+  "demonstrated_case": "pid_namespace_unavailable",
+  "events": [
+    {
+      "seq": 1,
+      "case": "pid_namespace_unavailable",
+      "decision": "probe_pid_namespace_capability",
+      "outcome": "capability_absent",
+      "evidence": {
+        "command": "unshare --pid --mount-proc --fork true",
+        "binary": "/usr/bin/unshare"
+      }
+    },
+    {
+      "seq": 2,
+      "case": "pid_namespace_unavailable",
+      "decision": "run_kernel_cascade_assertion",
+      "outcome": "skipped",
+      "verdict": "SKIP",
+      "emitted": "pid namespaces unavailable on this host; the kernel cascade this test asserts cannot occur (see test 12 for the degraded setsid+pgid contract)"
+    }
+  ],
+  "final_verdict": "SKIP"
+}

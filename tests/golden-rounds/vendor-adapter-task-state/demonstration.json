@@ -1,0 +1,11 @@
+{
+  "round_id": "vendor-adapter-task-state",
+  "failure_class": "FC-08-record-state-disagreement",
+  "defective_trace": "tests/golden-rounds/vendor-adapter-task-state/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/vendor-adapter-task-state/corrected-trace.json",
+  "defective_verdict": "0 of 42 tasks done",
+  "corrected_verdict": "23 done / 19 open",
+  "harness_version": "tier1-round-layout/v1",
+  "demonstrated_at": "2026-08-01T00:47:46-06:00",
+  "demonstrated_by": "Tier 1 job"
+}

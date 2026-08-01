@@ -1,0 +1,48 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "formal-setsid-unavailable",
+  "failure_class": "FC-02-checker-verdict-unestablished",
+  "implementation": {
+    "repository_commit": "4ff8959f0eddebe051f9b8dbfb226bd18b0357fe",
+    "source": "formal/run-checks.sh"
+  },
+  "demonstrated_case": "setsid_unavailable",
+  "events": [
+    {
+      "seq": 1,
+      "case": "setsid_unavailable",
+      "decision": "spawn_formal_row",
+      "outcome": "command_not_found",
+      "evidence": {
+        "command": "setsid",
+        "error": "/d/a/foreman/foreman/formal/run-checks.sh: line 547: setsid: command not found"
+      }
+    },
+    {
+      "seq": 2,
+      "case": "setsid_unavailable",
+      "decision": "classify_formal_rows",
+      "outcome": "all_rows_error",
+      "evidence": {
+        "rows": 19,
+        "classification": "ERROR",
+        "duration": "1-2 seconds per row"
+      }
+    },
+    {
+      "seq": 3,
+      "case": "setsid_unavailable",
+      "decision": "summarize_formal_gate",
+      "outcome": "verdict_without_model_execution",
+      "evidence": {
+        "run": 19,
+        "matched": 0,
+        "skipped": 17,
+        "failures": 19
+      },
+      "verdict": "SUITE FAILED",
+      "emitted": "formal: === summary: run=19 matched=0 skipped=17 failures=19 tier=commit ==="
+    }
+  ],
+  "final_verdict": "SUITE FAILED"
+}

@@ -1,0 +1,33 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "crlf-worktree-shell-unrunnable",
+  "failure_class": "FC-06-cross-boundary-representation",
+  "implementation": {
+    "repository_commit": "bfc8af40c8d0e0f98ecb185733733bb932f88fe1",
+    "source": ".gitattributes"
+  },
+  "demonstrated_case": "autocrlf_shell_checkout",
+  "events": [
+    {
+      "seq": 1,
+      "case": "autocrlf_shell_checkout",
+      "decision": "materialize_shell_checkout",
+      "outcome": "crlf",
+      "evidence": {
+        "affected_sh_files": 78,
+        "index_blob_eol": "LF",
+        "worktree_eol": "CRLF",
+        "core_autocrlf": true
+      }
+    },
+    {
+      "seq": 2,
+      "case": "autocrlf_shell_checkout",
+      "decision": "run_foreman_setup",
+      "outcome": "shell_parse_failed",
+      "verdict": "$'\\r': command not found",
+      "emitted": "lib/common.sh: line 3: $'\\r': command not found"
+    }
+  ],
+  "final_verdict": "$'\\r': command not found"
+}

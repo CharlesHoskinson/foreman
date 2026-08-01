@@ -42,6 +42,9 @@
 - [ ] 2.3 Seed one golden round per failure class (10-12 rounds
       initially), each reproducing the decision-trace conditions of that
       failure.
+      Evidence-backed progress is 7 of 10 classes. FC-07, FC-09, and FC-10
+      remain deliberately unseeded for the reasons recorded in
+      `docs/design/tier1-failure-classes.md`, so this task remains open.
 - [x] 2.4 Build the replay harness: feed a recorded transcript in place
       of a live vendor call, with zero network access.
 - [x] 2.5 Write decision-trace assertions only (gate fired, verdict
@@ -50,7 +53,7 @@
 - [x] 2.6 Add a coverage check that compares bugeventlog.md failure
       classes against golden rounds **with a demonstrated fail/pass pair**,
       not merely against seeded rounds, and names any gap explicitly.
-- [ ] 2.7 Wire a process rule: a new bugeventlog.md entry is not
+- [x] 2.7 Wire a process rule: a new bugeventlog.md entry is not
       considered closed until its golden round exists and its demonstration
       record exists.
 - [x] 2.8 Create the round layout `tests/golden-rounds/<round_id>/` holding
@@ -65,7 +68,7 @@
       record that is not fail-then-pass, or a replay that does not reproduce
       the pair FAILS the Tier 1 run naming the `round_id` -- a suite failure,
       not only a narrowing of the claimed coverage.
-- [ ] 2.10 Name the actors: the Tier 1 job (per commit or PR) executes the
+- [x] 2.10 Name the actors: the Tier 1 job (per commit or PR) executes the
       demonstration; the maintainer adding or modifying a round authors
       `defective-trace.json`, and a round may not be added without one.
 

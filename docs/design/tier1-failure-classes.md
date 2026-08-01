@@ -9,9 +9,12 @@ entries**, all **87 are assigned exactly once**, no entry is unassigned, and no
 entry is counted twice. A compound entry stays in its dominant class; its table
 note names any material secondary class.
 
-Only one exemplar round is seeded by this foundation task:
-`stall-no-output-undefined-predicate`. It demonstrates the transcript and round
-layout; it is **not corpus coverage** for the other nine classes.
+Seven classes now have evidence-backed rounds. The original
+`stall-no-output-undefined-predicate` exemplar covers FC-01; six additional
+rounds reconstruct recorded defects and their fixes from repository commits,
+incident output, and pinning tests. FC-07, FC-09, and FC-10 remain deliberately
+unseeded because the repository does not contain a test-pinned corrected trace
+for their recorded before-states. They are coverage gaps, not inferred fixtures.
 
 ## Coverage arithmetic
 
@@ -22,6 +25,37 @@ layout; it is **not corpus coverage** for the other nine classes.
 | Unassigned entries | 0 |
 | Entries cited more than once | 0 |
 | Failure classes | 10 |
+
+## Golden-round coverage and evidence boundary
+
+| Failure class | Round | Evidence |
+| --- | --- | --- |
+| FC-01 | `stall-no-output-undefined-predicate` | Defective `4ff8959`; corrected `5af3f34`; `tests/tier1-replay.bats` removes the predicate witness and observes failure. |
+| FC-02 | `formal-setsid-unavailable` | Windows artifact: `run=19 matched=0 failures=19` and `setsid: command not found`; corrected by `7fc613b`; the PATH-without-setsid run records `run=19 matched=19 failures=0`. |
+| FC-03 | `grok-single-turn-empty-burst` | The recorded single-turn run exited 0 with zero changed files and 25 build errors; `81f004d` added the fail-closed multiround gate and `tests/grok-multiround.bats` pins the empty-burst result. |
+| FC-04 | `audit-watchdog-orphaned-sleep` | The plain watchdog subshell left its 1800-second `sleep` alive; fixes `340b482`, `fd0ebef`, and `880f0b9` close the observed leak paths, and `tests/decision-events.bats` pins the no-leak process-group comparison. |
+| FC-05 | `launcher-pidns-capability-guard` | Hosted-Linux TAP recorded test 11 failing after the launcher announced pidns degradation; `70bc818` probes the required operation and the existing test now skips with the recorded reason. |
+| FC-06 | `crlf-worktree-shell-unrunnable` | The incident recorded 78 CRLF `.sh` files and `lib/common.sh: line 3: $'\r': command not found`; `f02f207` added the total LF policy and `tests/line-endings.bats` pins the autocrlf checkout contract. |
+| FC-07 | deliberately unseeded | Event 9 records the sabotaged predicate and its manual restore, and `da14358` adds a completeness checker, but no repository regression test replays the sabotaged before-state against that checker. A corrected decision trace would therefore be unpinned. |
+| FC-08 | `vendor-adapter-task-state` | `vendor-adapter-contract/tasks.md` reported 0 of 42 done while T1-T4 were merged; `2189c16` verified and reconciled the record to 23 done / 19 open. |
+| FC-09 | deliberately unseeded | The entries end in operator policy and a Fable tie-break ruling. No deterministic resolver implementation and test reproduce the divergent-verdict before-state and a convergent corrected state. |
+| FC-10 | deliberately unseeded | The entries record orchestration-fit and process-cost judgments, but no single corrective commit and regression test reconstruct an observed mismatched shape and a corrected decision trace. |
+
+## Closure rule and actors
+
+A new `bugeventlog.md` entry that introduces a failure class is not closed until
+the class has a golden-round directory and that directory has a valid
+`demonstration.json`. The coverage check reads every stable id in this document;
+a newly added id with no demonstrated round is therefore named in Tier 1 output
+at the point the class is recorded. Deliberately unseeded historical classes
+remain named gaps until real reconstructable evidence exists.
+
+The Tier 1 job executes every defective/corrected demonstration on each commit
+or pull request. The maintainer who adds or modifies a round authors its
+`defective-trace.json`; a round may not be added without that file. The runner
+enforces both actor responsibilities by replaying the pair and failing a round
+that lacks the defective trace, lacks `demonstration.json`, or does not reproduce
+the recorded fail-then-pass decision pair.
 
 The counting unit is a top-level heading matching `^## 20` in
 `bugeventlog.md`. Sub-events and addenda inside one dated entry do not create

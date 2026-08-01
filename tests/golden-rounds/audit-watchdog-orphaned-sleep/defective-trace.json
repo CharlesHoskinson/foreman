@@ -1,0 +1,45 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "audit-watchdog-orphaned-sleep",
+  "failure_class": "FC-04-process-ownership-leak",
+  "implementation": {
+    "repository_commit": "fcad89fa48b5c89caaae5f95315d5122d9064e75",
+    "source": "skills/foreman/scripts/audit-run.sh"
+  },
+  "demonstrated_case": "audit_returns_before_timeout",
+  "events": [
+    {
+      "seq": 1,
+      "case": "audit_returns_before_timeout",
+      "decision": "spawn_timeout_watchdog",
+      "outcome": "plain_subshell",
+      "evidence": {
+        "timeout_seconds": 1800,
+        "child_command": "sleep"
+      }
+    },
+    {
+      "seq": 2,
+      "case": "audit_returns_before_timeout",
+      "decision": "cleanup_timeout_watchdog",
+      "outcome": "wrapper_only_killed",
+      "evidence": {
+        "timeout_seconds": 1800,
+        "signal_target": "watchdog subshell PID"
+      }
+    },
+    {
+      "seq": 3,
+      "case": "audit_returns_before_timeout",
+      "decision": "observe_watchdog_child",
+      "outcome": "sleep_reparented",
+      "evidence": {
+        "stdout_pipe_held_open": true,
+        "remaining_lifetime": "rest of the 30-minute timeout"
+      },
+      "verdict": "TIMEOUT",
+      "emitted": "tests/decision-events.bats timed out before the per-file 600-second limit"
+    }
+  ],
+  "final_verdict": "TIMEOUT"
+}

@@ -1,0 +1,11 @@
+{
+  "round_id": "crlf-worktree-shell-unrunnable",
+  "failure_class": "FC-06-cross-boundary-representation",
+  "defective_trace": "tests/golden-rounds/crlf-worktree-shell-unrunnable/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/crlf-worktree-shell-unrunnable/corrected-trace.json",
+  "defective_verdict": "$'\\r': command not found",
+  "corrected_verdict": "PASS",
+  "harness_version": "tier1-round-layout/v1",
+  "demonstrated_at": "2026-07-29T08:59:41-06:00",
+  "demonstrated_by": "Tier 1 job"
+}

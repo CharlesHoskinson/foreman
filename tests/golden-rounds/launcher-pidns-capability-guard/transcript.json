@@ -1,0 +1,20 @@
+{
+  "round_id": "launcher-pidns-capability-guard",
+  "failure_class": "FC-05-environment-capability-gap",
+  "vendor": {
+    "name": "GitHub Actions",
+    "model": "hosted Linux runner",
+    "interface": "Bats TAP artifact",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Verify the POSIX launcher kernel cascade on a host where unshare is installed but PID namespaces are unavailable.",
+    "repository_state": "defective 1d90cb52b2cbdf25ae7ebabd86c3b8bfe5cfc47f; corrected 70bc81813cb065fa0c8b9b6400b10d8f48124eb9",
+    "network_access": false
+  },
+  "response_text": "not ok 11 POSIX pidns: killing launcher_pid reaps a setsid/backgrounded escapee\n# `wait_until 5 \"! kill -0 $escapee_pid 2>/dev/null\"' failed\n# foreman-launch: unshare unavailable/failed (availability probe) -- DEGRADED: falling back to setsid+pgid, no kernel pidns cascade guarantee\n\nCorrected negative control:\nok 11 POSIX pidns: killing launcher_pid reaps a setsid/backgrounded escapee # skip pid namespaces unavailable on this host; the kernel cascade this test asserts cannot occur (see test 12 for the degraded setsid+pgid contract)",
+  "recorded_at": "2026-07-31T23:46:33-06:00",
+  "recorded_version": "launcher-pidns-guard/70bc81813cb065fa0c8b9b6400b10d8f48124eb9",
+  "defective_trace": "tests/golden-rounds/launcher-pidns-capability-guard/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/launcher-pidns-capability-guard/corrected-trace.json"
+}
