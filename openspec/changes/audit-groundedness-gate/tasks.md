@@ -33,7 +33,7 @@ to change.
       artifact plus one mutant per registered check.
 - [x] Each fixture declares its expected violation count and the expected focus
       of each violation.
-- [x] The checker evaluates the corpus on every invocation, before trusting its
+- [ ] The checker evaluates the corpus on every invocation, before trusting its
       own result.
 - [x] Assert count and focus, never non-emptiness.
 - [x] A short corpus, an unreadable corpus, or a corpus whose shape does not

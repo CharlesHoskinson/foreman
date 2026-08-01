@@ -253,7 +253,8 @@ gg_canary_corpus_readable() {
 }
 
 # @description Run every registered canary mutant and compare exact count/focus.
-# The caller must define gg_canary_evaluate_fixture FIXTURE, which writes one
+# gg_canary_evaluate_fixture FIXTURE is now provided by lib/gate-ground-checks.sh,
+# which this library sources. A caller may still override it; it writes one
 # check<TAB>focus row per observed violation. This separation lets T2 ship the
 # fail-closed harness before T3 supplies any real groundedness check.
 # @arg $1 canary corpus directory
