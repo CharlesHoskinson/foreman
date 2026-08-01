@@ -16,14 +16,14 @@ measured non-atomic on the reference host.
       with `grep -rn 'DURABLE_ENABLED' skills/foreman/scripts/` and record the
       output. The load-bearing claim — that the key is inert because nothing
       reads it — still stands; only the count was wrong.
-- [ ] Re-confirm `lane-run.sh --round`'s completion predicate **behaviourally**
+- [x] Re-confirm `lane-run.sh --round`'s completion predicate **behaviourally**
       (D12 — the previously cited range `:1143-1245` is stale;
       `decision-lineage-emission` modified this file): the round completes only
       on gate pass AND an attempt-fresh report, with `round_done` suppressed
       otherwise. Locate it with
       `grep -nE 'round_done|attempt.fresh' skills/foreman/scripts/lane-run.sh`
       and record the output.
-- [ ] Confirm `cfg_get` resolves a boolean key through env > TOML > default
+- [x] Confirm `cfg_get` resolves a boolean key through env > TOML > default
       the same way it resolves the integer `[durable]` keys.
 - [ ] IF any premise fails, stop and record the finding; do not adapt the
       change to a premise that turned out false.
@@ -31,66 +31,66 @@ measured non-atomic on the reference host.
 ## T2 — resolve the flag
 
 - [ ] Add `durable.enabled` to the loader's default table with default `true`.
-- [ ] Set `enabled = true` in `config/foreman.toml.example` with a comment
+- [x] Set `enabled = true` in `config/foreman.toml.example` with a comment
       naming what it enforces.
-- [ ] Set `enabled = true` in this repo's `.foreman/config.toml`.
-- [ ] Set `resume_max_attempts` explicitly in both config files (uncomment,
+- [x] Set `enabled = true` in this repo's `.foreman/config.toml`.
+- [x] Set `resume_max_attempts` explicitly in both config files (uncomment,
       conservative value) — bounded auto-resume becomes reachable.
-- [ ] Correct the "Used by" column for `durable.enabled` in
+- [x] Correct the "Used by" column for `durable.enabled` in
       `references/durable-lanes.md:71`.
 
 ## T3 — enforce at the dispatch boundary
 
-- [ ] In `lane-run.sh`, resolve `durable.enabled` before any spawn.
-- [ ] Refuse an unowned invocation while it is true: named reason, non-zero
+- [x] In `lane-run.sh`, resolve `durable.enabled` before any spawn.
+- [x] Refuse an unowned invocation while it is true: named reason, non-zero
       exit, no child spawned, no vendor CLI billed.
-- [ ] Refuse round mode with an empty or whitespace-only gate command; add no
+- [x] Refuse round mode with an empty or whitespace-only gate command; add no
       default gate under any circumstance.
-- [ ] Implement the escape hatch: an explicit unowned-dispatch flag carrying a
+- [x] Implement the escape hatch: an explicit unowned-dispatch flag carrying a
       required reason string, which emits an `alert` recording that reason.
-- [ ] Never downgrade an owned dispatch to unowned — a missing launcher, queue
+- [x] Never downgrade an owned dispatch to unowned — a missing launcher, queue
       daemon, or gate is a degrade or a refusal, never a disown.
-- [ ] shdoc header on any new function; shellcheck clean.
+- [x] shdoc header on any new function; shellcheck clean.
 
 ## T4 — Setup migration
 
-- [ ] `foreman-setup.sh` detects an explicit `durable.enabled = false` and
+- [x] `foreman-setup.sh` detects an explicit `durable.enabled = false` and
       reports the divergence, naming the background-and-stop failure class.
-- [ ] Setup writes nothing to the user's `.foreman/config.toml`. Assert this
+- [x] Setup writes nothing to the user's `.foreman/config.toml`. Assert this
       by byte-comparing the file before and after.
-- [ ] Report the launcher's presence in the same breath, since a round-owned
+- [x] Report the launcher's presence in the same breath, since a round-owned
       default on a launcher-less host is a degraded default.
 
 ## T5 — doctrine
 
-- [ ] `SKILL.md` — round-owned dispatch is the described default path; the
+- [x] `SKILL.md` — round-owned dispatch is the described default path; the
       unowned form is documented as the explicit, reason-carrying opt-out.
-- [ ] `SKILL.md` — keep the foreground-only instruction as defence in depth,
+- [x] `SKILL.md` — keep the foreground-only instruction as defence in depth,
       and state plainly that no design depends on it holding.
-- [ ] `references/orchestration-hardening.md` — record the escape hatch, its
+- [x] `references/orchestration-hardening.md` — record the escape hatch, its
       reason requirement, and the stateful/live-target case it exists for.
-- [ ] `references/durable-lanes.md` — the honest-limits section states what
+- [x] `references/durable-lanes.md` — the honest-limits section states what
       changes for an existing user on upgrade.
-- [ ] Recommend `checks-run.sh TASK_ID` as the migration gate command in docs
+- [x] Recommend `checks-run.sh TASK_ID` as the migration gate command in docs
       only. It is never a code default.
 
 ## T6 — tests
 
-- [ ] New `tests/round-ownership.bats`.
-- [ ] Refusal fires: unowned dispatch while enabled → non-zero, named reason,
+- [x] New `tests/round-ownership.bats`.
+- [x] Refusal fires: unowned dispatch while enabled → non-zero, named reason,
       zero child processes spawned.
-- [ ] Refusal does not fire: owned dispatch while enabled → proceeds
+- [x] Refusal does not fire: owned dispatch while enabled → proceeds
       unchanged.
-- [ ] Opt-out honoured: `durable.enabled=false` → unowned dispatch runs as
+- [x] Opt-out honoured: `durable.enabled=false` → unowned dispatch runs as
       before.
-- [ ] `DURABLE_ENABLED` env override reaches the enforcement point.
-- [ ] Empty gate command is refused; no `round_done` is written.
-- [ ] Escape hatch emits an `alert` carrying the stated reason verbatim.
-- [ ] Consumer test: fails IF no code path reads `durable.enabled`.
-- [ ] Prove the refusal test detects the defect — run it against the
+- [x] `DURABLE_ENABLED` env override reaches the enforcement point.
+- [x] Empty gate command is refused; no `round_done` is written.
+- [x] Escape hatch emits an `alert` carrying the stated reason verbatim.
+- [x] Consumer test: fails IF no code path reads `durable.enabled`.
+- [x] Prove the refusal test detects the defect — run it against the
       enforcement removed, and confirm it goes red. A test that cannot fail is
       not a test.
-- [ ] Declare preconditions via `tests/lib/preconditions.bash` and register
+- [x] Declare preconditions via `tests/lib/preconditions.bash` and register
       skip budgets, per `test-infrastructure-hardening`. Do not re-implement
       that helper here.
 
@@ -102,15 +102,15 @@ measured non-atomic on the reference host.
 - [ ] Read `NOT_OK` / `SUITE_RC` explicitly; never conclude from a compound
       command's exit code.
 - [ ] Full suite green on Git-Bash/Windows.
-- [ ] Run one real round end to end with the new default and confirm from the
+- [x] Run one real round end to end with the new default and confirm from the
       event log — not from the console — that `round_done` was emitted with a
       passing gate and an attempt-fresh report.
-- [ ] Run one deliberately unowned dispatch and confirm the refusal fires
+- [x] Run one deliberately unowned dispatch and confirm the refusal fires
       before any vendor process starts.
 - [ ] `bugeventlog.md` entry recording this failure class, its 11+ occurrence
       count, and this structural enhancement.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate round-ownership-default --strict`.
+- [x] `openspec validate round-ownership-default --strict`.
 
 ## T8 -- carry round ownership across auto-resume
 
