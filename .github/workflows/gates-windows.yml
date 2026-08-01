@@ -55,6 +55,7 @@ jobs:
         shell: bash
         env:
           TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
+          TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
         run: |
           # Install step placed openspec/quint here and verified by absolute path;
           # without this on PATH the gates SKIP rather than run.
@@ -69,4 +70,5 @@ jobs:
           path: |
             formal/out/
             ${{ runner.temp }}/foreman-test-slices.tsv
+            ${{ runner.temp }}/foreman-test-tap.log
           if-no-files-found: warn

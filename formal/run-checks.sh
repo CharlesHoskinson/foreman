@@ -77,8 +77,18 @@ unset FORCE_COLOR || true
 # Logging
 # ---------------------------------------------------------------------------
 
+# @description Emit a message with the formal-runner prefix.
+# @arg $@ message fragments
+# @stderr prefixed message
 log()  { printf 'formal: %s\n' "$*" >&2; }
+# @description Report a fatal usage or environment error and terminate the runner.
+# @arg $@ error-message fragments
+# @stderr prefixed fatal error
+# @exitcode 2 always
 die()  { log "ERROR: $*"; exit 2; }
+# @description Record a non-fatal check failure for the final suite verdict.
+# @arg $@ failure-message fragments
+# @stderr prefixed failure message
 fail() { log "FAIL: $*"; FAILURES=$((FAILURES + 1)); }
 
 # ---------------------------------------------------------------------------
@@ -87,6 +97,10 @@ fail() { log "FAIL: $*"; FAILURES=$((FAILURES + 1)); }
 # leader). Never uses pkill -f — that once matched its own command line and
 # would kill sibling lanes sharing an Apalache server.
 # ---------------------------------------------------------------------------
+# @description Terminate one owned live PID or process group, escalating from
+#   SIGTERM to SIGKILL after a brief bounded wait.
+# @arg $1 recorded child PID; empty or already-dead PIDs are ignored
+# @exitcode 0 after the target is absent or termination has been attempted
 # shellcheck disable=SC2329 # invoked via cleanup_owned trap
 kill_owned_pid() {
   local pid="${1:-}"
@@ -108,6 +122,8 @@ kill_owned_pid() {
 # ## cleanup_owned
 # On EXIT, terminate every PID this runner recorded as owned.
 # ---------------------------------------------------------------------------
+# @description Terminate all recorded child PIDs and clear the ownership list.
+# @exitcode 0 after cleanup attempts finish
 # shellcheck disable=SC2329 # EXIT trap
 cleanup_owned() {
   local pid
@@ -123,6 +139,11 @@ trap cleanup_owned EXIT
 # Resolve the quint binary to a stable absolute path. Refuse fnm multishell
 # paths. Absent checker → fail (never skip).
 # ---------------------------------------------------------------------------
+# @description Resolve a usable Quint executable while rejecting ephemeral fnm
+#   multishell paths and preferring configured stable candidates.
+# @stdout path to the resolved Quint executable
+# @stderr skipped-path diagnostics or a fatal missing-tool error
+# @exitcode 0 resolved; 2 no stable Quint executable found
 resolve_quint() {
   local cand real
   for cand in "${DEFAULT_QUINT_CANDIDATES[@]}"; do
@@ -161,6 +182,11 @@ resolve_quint() {
 # ## assert_toolchain
 # Pin and assert Quint 0.32.0 and Apalache 0.56.1 presence/version.
 # ---------------------------------------------------------------------------
+# @description Require the pinned Quint version and record whether the pinned
+#   Apalache installation is available for rows that need it.
+# @arg $1 resolved Quint executable path
+# @stderr detected versions, warnings, or a fatal version mismatch
+# @exitcode 0 Quint matches; 2 Quint version mismatch
 assert_toolchain() {
   local quint_bin="$1"
   local ver
@@ -187,6 +213,11 @@ assert_toolchain() {
 # Anchors only: ^\[violation\] and ^\[ok\]. Unanchored "violation" is wrong —
 # the success line is "[ok] No violation found".
 # ---------------------------------------------------------------------------
+# @description Classify a checker output file using only anchored outcome lines,
+#   treating missing, truncated, or unrecognized output as ERROR.
+# @arg $1 checker output file
+# @stdout VIOLATED, HOLDS, or ERROR
+# @exitcode 0 always
 classify_output() {
   local file="$1"
   if [[ ! -f "${file}" ]]; then
@@ -211,6 +242,10 @@ classify_output() {
 # REACHABLE → expect VIOLATED (negated goal fires)
 # NOT_REACHABLE → expect HOLDS
 # ---------------------------------------------------------------------------
+# @description Translate manifest expectation vocabulary into classifier
+#   vocabulary, returning ERROR for an unknown expectation.
+# @arg $1 expected outcome label
+# @stdout VIOLATED, HOLDS, or ERROR
 expected_to_observed_class() {
   case "$1" in
     VIOLATED|REACHABLE) printf 'VIOLATED\n' ;;
@@ -224,6 +259,10 @@ expected_to_observed_class() {
 # Show that grep "violation" misclassifies the success string. Observed FAIL
 # of the wrong predicate is required evidence before trusting the anchored one.
 # ---------------------------------------------------------------------------
+# @description Prove the bare-word grep is a false positive on the success
+#   fixture while the anchored classifier correctly reports HOLDS.
+# @stderr control result or failure diagnostic
+# @exitcode 0 control behaved as expected; 1 mismatch; 2 fixture missing
 demonstrate_wrong_grep() {
   local f="${FIXTURES_DIR}/success-contains-violation.txt"
   [[ -f "${f}" ]] || die "missing fixture ${f}"
@@ -246,6 +285,10 @@ demonstrate_wrong_grep() {
 # Positive controls: known-violating → VIOLATED, known-holding → HOLDS,
 # truncated → ERROR. Abort the suite if any misclassifies.
 # ---------------------------------------------------------------------------
+# @description Validate the classifier against fixed positive, holding, and
+#   truncated fixtures, optional live fixtures, and the wrong-grep control.
+# @stderr per-control results and failure diagnostics
+# @exitcode 0 all controls pass; 1 a control fails; 2 a required fixture is missing
 run_classifier_controls() {
   local c v h e
   log "--- classifier positive controls ---"
@@ -308,6 +351,10 @@ run_classifier_controls() {
 # for the property it cannot answer. Also used to report VACUOUS when a row
 # would treat rework_rounds_bounded as an UNVERIFIED-loop termination check.
 # ---------------------------------------------------------------------------
+# @description Reject gating expectations that rely on registered vacuous
+#   predicates and require the seeded rework-rounds vacuity entry.
+# @stderr registry evidence, vacuity guidance, and failure diagnostics
+# @exitcode 0 registry is sound; 1 a vacuity check fails; 2 registry file missing
 check_vacuous_registry() {
   [[ -f "${VACUOUS}" ]] || die "missing ${VACUOUS}"
   [[ -f "${EXPECTATIONS}" ]] || die "missing ${EXPECTATIONS}"
@@ -345,6 +392,11 @@ check_vacuous_registry() {
 # ## typecheck_all
 # Typecheck every .qnt under formal/specs/ with the pinned quint.
 # ---------------------------------------------------------------------------
+# @description Typecheck every formal specification with the resolved pinned
+#   Quint executable, continuing through files to report all failures.
+# @arg $1 resolved Quint executable path
+# @stderr per-model progress and any typechecker output
+# @exitcode 0 all models typecheck; 1 one or more models fail
 typecheck_all() {
   local quint_bin="$1"
   local f rc=0
@@ -368,14 +420,23 @@ typecheck_all() {
 # ## parse_bound
 # Parse bound field into samples/steps or depth.
 # ---------------------------------------------------------------------------
+# @description Extract the sample count before "x" from a simulation bound.
+# @arg $1 simulation bound in samplesxsteps form
+# @stdout sample count
 parse_bound_samples() {
   local bound="$1"
   printf '%s\n' "${bound%%x*}"
 }
+# @description Extract the step count after "x" from a simulation bound.
+# @arg $1 simulation bound in samplesxsteps form
+# @stdout step count
 parse_bound_steps() {
   local bound="$1"
   printf '%s\n' "${bound##*x}"
 }
+# @description Remove the depth= prefix from an Apalache bound.
+# @arg $1 Apalache bound in depth=N form
+# @stdout depth value
 parse_bound_depth() {
   local bound="$1"
   printf '%s\n' "${bound#depth=}"
@@ -386,6 +447,16 @@ parse_bound_depth() {
 # Build the quint argv for a manifest entrypoint + method + bound.
 # Requires explicit entrypoint (main= and/or init=/step=). Refuses blank.
 # ---------------------------------------------------------------------------
+# @description Validate one manifest row and assemble its Quint invocation in
+#   the global QUINT_CMD array for simulation or Apalache verification.
+# @arg $1 resolved Quint executable path
+# @arg $2 model name without the .qnt suffix
+# @arg $3 comma-separated main=, init=, or step= entrypoint tokens
+# @arg $4 invariant name
+# @arg $5 method: simulation or apalache
+# @arg $6 method-specific bound
+# @stderr missing-model or invalid-entrypoint diagnostics
+# @exitcode 0 command assembled; 1 row cannot produce a valid command
 build_quint_cmd() {
   local quint_bin="$1"
   local model="$2"
@@ -460,6 +531,12 @@ build_quint_cmd() {
 # Writes stdout+stderr to $outfile. Returns the command exit code (or 124
 # on timeout). Does not use pkill.
 # ---------------------------------------------------------------------------
+# @description Run a command in a new session under a wall-clock watchdog,
+#   recording its PID and killing only its owned process group on timeout.
+# @arg $1 timeout in seconds
+# @arg $2 combined stdout/stderr output file
+# @arg $3... command and arguments
+# @exitcode command status, or 124 after timeout
 run_bounded() {
   local timeout_s="$1"
   local outfile="$2"
@@ -495,6 +572,11 @@ run_bounded() {
 # ## normalize_expected_label
 # Pretty-print expected for reports (keep REACHABLE vocabulary).
 # ---------------------------------------------------------------------------
+# @description Explain an observed-versus-expected result mismatch in terms of
+#   lost model discrimination, a modeled-fix regression, or a generic mismatch.
+# @arg $1 raw manifest expectation
+# @arg $2 observed classifier result
+# @stdout one-line mismatch explanation
 mismatch_message() {
   local expected_raw="$1"
   local observed="$2"
@@ -513,6 +595,10 @@ mismatch_message() {
 # ## run_manifest
 # Execute selected rows and compare observed vs expected in both directions.
 # ---------------------------------------------------------------------------
+# @description Execute selected expectation rows with bounded Quint commands,
+#   compare anchored outcomes, update suite counters, and write TSV/JSON reports.
+# @arg $1 resolved Quint executable path
+# @stderr row progress, method-honesty statements, and mismatch diagnostics
 run_manifest() {
   local quint_bin="$1"
   mkdir -p "${OUT_DIR}"
@@ -671,6 +757,10 @@ PY
 # Soft presence check for coverage.tsv paths (does not implement full drift
 # gate against git diff — that is for CI optional step).
 # ---------------------------------------------------------------------------
+# @description Require the coverage registry and report its number of
+#   non-comment model-to-source mappings.
+# @stderr coverage-row count or a fatal missing-file error
+# @exitcode 0 registry exists; 2 registry missing
 check_coverage_registry() {
   [[ -f "${COVERAGE}" ]] || die "missing ${COVERAGE}"
   local n
@@ -681,6 +771,8 @@ check_coverage_registry() {
 # ---------------------------------------------------------------------------
 # ## usage
 # ---------------------------------------------------------------------------
+# @description Print the script's header-based command-line usage text.
+# @stdout usage and exit-code documentation
 usage() {
   sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
 }
@@ -688,6 +780,11 @@ usage() {
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
+# @description Parse runner options, execute controls and registry checks, then
+#   typecheck and run the selected formal-model manifest rows.
+# @arg $@ command-line options
+# @stderr progress, diagnostics, and final suite summary
+# @exitcode 0 selected suite passes; 1 checks fail; 2 invalid usage or environment
 main() {
   while [[ $# -gt 0 ]]; do
     case "$1" in

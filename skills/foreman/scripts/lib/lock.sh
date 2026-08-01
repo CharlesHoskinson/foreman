@@ -116,16 +116,24 @@ fm_lock__refuse() {
 # Used by tests so positive paths do not depend on ptrace/strace permissions.
 : "${FOREMAN_LOCK_DISABLE_LOCAL_PROBE:=0}"
 
+# @description Resolve the repository root relative to this sourced helper.
+# @stdout absolute repository-root path
 fm_lock__repo_root() {
   local here
   here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   cd "$here/../../../.." && pwd
 }
 
+# @description Select the lock-evidence inventory path from the environment or
+#   the default per-user Foreman inventory location.
+# @stdout inventory JSON path
 fm_lock__inventory_path() {
   printf '%s\n' "${FOREMAN_TOOL_CHECK_JSON:-${HOME}/.foreman/last-tool-check.json}"
 }
 
+# @description Find the lock-atomicity reference manifest using the test
+#   override, this repository, or FOREMAN_REPO, in that order.
+# @stdout manifest path when found; otherwise an empty line
 fm_lock__manifest_path() {
   if [[ -n "${FOREMAN_LOCK_MANIFEST:-}" && -f "${FOREMAN_LOCK_MANIFEST}" ]]; then
     printf '%s\n' "${FOREMAN_LOCK_MANIFEST}"
@@ -211,6 +219,9 @@ fm_lock__fs_class() {
   printf '%s\n' "local"
 }
 
+# @description Resolve the supported lock mechanism to its canonical executable.
+# @arg $1 mechanism: mkdir or flock
+# @stdout canonical executable path, or empty for missing/unknown mechanisms
 fm_lock__resolve_bin() {
   local mech="$1" bin=""
   case "$mech" in
@@ -225,6 +236,9 @@ fm_lock__resolve_bin() {
   readlink -f -- "$bin" 2>/dev/null || printf '%s' "$bin"
 }
 
+# @description Compute a file's SHA-256 digest with an available platform tool.
+# @arg $1 file path
+# @stdout hex digest, or empty when the file or digest tool is unavailable
 fm_lock__sha256() {
   local p="$1" real
   [[ -z "$p" || ! -e "$p" ]] && { printf ''; return 0; }
@@ -238,6 +252,9 @@ fm_lock__sha256() {
   fi
 }
 
+# @description Read the current mechanism binary's version or stable identity.
+# @arg $1 mechanism: mkdir or flock
+# @stdout version/identity string, or empty when the binary is unavailable
 fm_lock__version_now() {
   local mech="$1" bin
   bin="$(fm_lock__resolve_bin "$mech")"
@@ -258,12 +275,19 @@ fm_lock__version_now() {
   esac
 }
 
+# @description Read a binary's modification time as Unix epoch seconds.
+# @arg $1 binary path
+# @stdout modification epoch, or 0 when unavailable
 fm_lock__bin_mtime() {
   local p="$1"
   [[ -z "$p" || ! -e "$p" ]] && { printf '0'; return 0; }
   stat -c '%Y' -- "$p" 2>/dev/null || stat -f '%m' -- "$p" 2>/dev/null || printf '0'
 }
 
+# @description Convert an ISO UTC timestamp to Unix epoch seconds using GNU or
+#   BSD date syntax.
+# @arg $1 timestamp
+# @stdout parsed epoch, or 0 when neither parser accepts it
 fm_lock__ts_epoch() {
   local ts="$1"
   ts="${ts%Z}"
@@ -356,6 +380,8 @@ fm_lock__trace_valid() {
   esac
 }
 
+# @description Load lock-atomicity inventory rows into the process-local cache,
+#   treating an unreadable or malformed inventory as an empty cache.
 fm_lock__load_inventory_rows() {
   local inv
   inv="$(fm_lock__inventory_path)"
@@ -386,6 +412,10 @@ for r in (d.get("lock_atomicity") or []):
   _FM_LOCK_VROWS="$parsed"
 }
 
+# @description Return the first cached inventory row for a lock mechanism.
+# @arg $1 mechanism name
+# @stdout pipe-delimited inventory row, or nothing when absent
+# @exitcode 0 always
 fm_lock__row_for() {
   local mech="$1" line
   while IFS= read -r line; do
@@ -398,6 +428,13 @@ fm_lock__row_for() {
   return 0
 }
 
+# @description Validate an inventory row against the current binary path,
+#   version, digest, filesystem coverage, binary mtime, and 24-hour age limit.
+# @arg $1 mechanism name
+# @arg $2 target lock path
+# @arg $3 pipe-delimited inventory row
+# @stdout ok, or the first currency-failure reason
+# @exitcode 0 current; 1 stale or mismatched
 fm_lock__currency_ok() {
   local mech="$1" lock_path="$2" row="$3"
   local r_path r_ver r_sha r_verdict r_ev r_fs r_ts
@@ -590,6 +627,10 @@ for entry in pins:
 }
 
 # Mechanism-relative local probe (BRIEF section 0). Never writes inventory.
+# @description Probe one lock mechanism for syscall-backed atomicity, falling
+#   back to a matching manifest pin when tracing cannot establish polarity.
+# @arg $1 mechanism: mkdir or flock
+# @stdout one pipe-delimited process-local evidence row, or nothing if missing
 fm_lock__local_probe_mech() {
   local mech="$1"
   local bin path ver sha ts fs_class verdict="unknown" evidence="flavour"
@@ -688,6 +729,8 @@ fm_lock__local_probe_mech() {
     "$mech" "$path" "$ver" "$sha" "$verdict" "$evidence" "$fs_class" "$ts"
 }
 
+# @description Initialize the process-local verdict cache once per Bash process,
+#   resetting local-probe state and loading inventory evidence.
 fm_lock__ensure_verdict_cache() {
   if [[ "${_FM_LOCK_VINIT_PID:-}" == "${BASHPID:-$$}" && "${_FM_LOCK_VINIT:-}" == "1" ]]; then
     return 0
@@ -736,6 +779,8 @@ fm_lock__replace_with_local_probe() {
   fi
 }
 
+# @description Run both ambient mechanism probes at most once and replace their
+#   inventory rows in the process-local verdict cache.
 fm_lock__ensure_local_probe() {
   if [[ "${_FM_LOCK_LOCAL_PROBED:-}" == "1" ]]; then return 0; fi
   _FM_LOCK_LOCAL_PROBED=1
@@ -1330,6 +1375,10 @@ fm_lock_release() {
 # Written ONLY by the process that won mkdir acquisition.
 # ---------------------------------------------------------------------------
 
+# @description Read a process start-time identity from Linux /proc to
+#   distinguish a live holder from PID reuse.
+# @arg $1 process ID
+# @stdout /proc start-time field, or empty when unavailable
 fm_lock__proc_start() {
   local pid="$1"
   if [[ -r "/proc/${pid}/stat" ]]; then
@@ -1340,6 +1389,10 @@ fm_lock__proc_start() {
   printf ''
 }
 
+# @description Exclusively publish the current process PID and start identity as
+#   the owner token for a newly won mkdir lock.
+# @arg $1 mkdir lock path
+# @exitcode 0 written; 2 another owner token won the race; 1 other failure
 fm_lock__write_owner_token() {
   local lock_path="$1"
   local pid start token
@@ -1355,7 +1408,6 @@ fm_lock__write_owner_token() {
   # Exclusive create (integration F2): noclobber fails if owner already exists.
   # mv -f overwrites and lets a check-then-act loser steal the token; O_EXCL
   # (bash noclobber) identifies exactly one winner.
-  # @exitcode 0 written; 2 lost race (owner present); 1 other failure
   if (
     set -C
     printf '%s' "$token" >"${lock_path}/owner"
@@ -1368,6 +1420,10 @@ fm_lock__write_owner_token() {
   return 1
 }
 
+# @description Parse a mkdir lock's owner token into holder identity fields.
+# @arg $1 mkdir lock path
+# @stdout space-separated PID and start identity
+# @exitcode 0 valid token; 1 unreadable token or missing PID
 fm_lock__read_owner_token() {
   local lock_path="$1" owner_file="${1}/owner"
   if [[ ! -r "$owner_file" ]]; then

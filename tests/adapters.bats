@@ -42,7 +42,14 @@ SHIM
 # --no-leader prevents a lane from coupling to another lane's leader process.
 GROK_INTENTIONAL_ADDITIONS=(--no-leader)
 
-# @description Frozen pre-T2 implement argv; do not edit it to match adapters.
+# FROZEN copy of the pre-refactor builder — reference for the equivalence test.
+# Do NOT update this to match the adapters. If both change together, the test
+# compares new behaviour against itself and asserts nothing while still passing.
+# If an adapter's argv must genuinely change: change the adapter, leave this
+# frozen, and let the test FAIL. Then declare the addition in
+# GROK_INTENTIONAL_ADDITIONS above, with the date and the reason.
+# Verified faithful to the real pre-refactor builder when written.
+# @description Reproduce the pre-T2 grok and codex implement builders exactly.
 # @arg $1 vendor grok or codex
 # @arg $2 prompt_file prompt path consumed by the legacy builder
 # @arg $3 workdir worker working directory
