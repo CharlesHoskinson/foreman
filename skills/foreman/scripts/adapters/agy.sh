@@ -21,6 +21,24 @@ adapter_implement_argv() {
     return 2
   fi
   if [[ -f "$prompt_file" ]]; then prompt="$(<"$prompt_file")"; fi
+  # Antigravity CLI (Google lane). NOT @google/gemini-cli -- different
+  # flags, exit codes and isolation behaviour; agy is the OAuth-authenticated
+  # CLI this shop uses (/root/.local/bin/agy).
+  #
+  # TRAP: --print takes the PROMPT as its value, so it MUST stay LAST. Any
+  # flag placed after it is consumed as the prompt text and the lane fails
+  # silently. Do not reorder these for tidiness.
+  #
+  # agy has no --cwd; the working directory is expressed with --add-dir.
+  # agy encodes reasoning effort IN the model name (`agy models` on this
+  # host lists gemini-3.1-pro-high / -low, gemini-3.6-flash-high/-medium/-low
+  # ...). There is therefore no separate --effort passed here: supplying both
+  # a suffixed model and --effort states the same thing twice and invites the
+  # two to disagree. Override the whole choice via WC_AGY_MODEL.
+  # Verified against `agy models` 2026-07-30 -- an unlisted name is rejected
+  # at run time, so this default must stay a name that command prints.
+  # Auto-approve posture is --mode accept-edits; --dangerously-skip-permissions
+  # was deliberately removed as a default.
   ADAPTER_ARGV=(agy
     --model "${WC_AGY_MODEL:-gemini-3.1-pro-high}"
     --mode accept-edits
@@ -46,6 +64,9 @@ adapter_audit_argv() {
     return 2
   fi
   if [[ -f "$prompt_file" ]]; then prompt="$(<"$prompt_file")"; fi
+  # TRAP: --print takes the PROMPT as its value, so it MUST stay LAST. Any
+  # flag placed after it is consumed as the prompt text and the lane fails
+  # silently.
   ADAPTER_ARGV=(agy
     --model "${ADAPTER_AGY_AUDIT_MODEL:-${WC_AGY_MODEL:-gemini-3.1-pro-high}}"
     --mode plan

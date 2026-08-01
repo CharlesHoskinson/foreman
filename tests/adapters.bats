@@ -15,6 +15,45 @@ FUNCTIONS=(
   adapter_caps
 )
 
+# @description Reproduce the pre-T2 grok and codex implement builders exactly.
+# @arg $1 vendor grok or codex
+# @arg $2 prompt_file prompt path consumed by the legacy builder
+# @arg $3 workdir worker working directory
+# @set LEGACY_ARGV frozen pre-T2 invocation as an indexed bash array
+legacy_implement_argv() {
+  local vendor="$1" prompt_file="$2" workdir="$3"
+  case "$vendor" in
+    grok)
+      LEGACY_ARGV=(grok --prompt-file "$prompt_file"
+        -m "${WC_GROK_MODEL:-grok-4.5}"
+        --allow "Write" --allow "Edit"
+        --output-format plain
+        --cwd "$workdir")
+      ;;
+    codex)
+      LEGACY_ARGV=(codex exec
+        --sandbox workspace-write
+        --skip-git-repo-check
+        --output-last-message "$workdir/.foreman-last.txt"
+        --model "${WC_CODEX_MODEL:-gpt-5.6-sol}"
+        -c "model_reasoning_effort=${WC_CODEX_REASONING_EFFORT:-medium}"
+        "$(cat "$prompt_file")")
+      ;;
+  esac
+}
+
+# @description Assert two named indexed arrays have identical element bytes.
+# @arg $1 expected_name name of the expected array
+# @arg $2 actual_name name of the actual array
+assert_argv_equal() {
+  local -n expected_ref="$1" actual_ref="$2"
+  local i
+  [ "${#actual_ref[@]}" -eq "${#expected_ref[@]}" ]
+  for i in "${!expected_ref[@]}"; do
+    [ "${actual_ref[i]}" = "${expected_ref[i]}" ]
+  done
+}
+
 @test "each adapter double-sources standalone and defines exactly seven contract functions" {
   local vendor actual expected
   expected="$(printf '%s\n' "${FUNCTIONS[@]}" | sort)"
@@ -48,6 +87,58 @@ FUNCTIONS=(
   [ "${ADAPTER_ARGV[8]}" = Edit ]
   [[ " ${ADAPTER_ARGV[*]} " == *" --output-format plain "* ]]
   [[ " ${ADAPTER_ARGV[*]} " == *" --cwd /work tree "* ]]
+}
+
+@test "grok and codex implement argv match the frozen pre-T2 builder byte for byte" {
+  local vendor prompt="$BATS_TEST_TMPDIR/prompt file.md"
+  printf 'first line\nsecond line\n\n' >"$prompt"
+  WC_GROK_MODEL="grok-test-model"
+  WC_CODEX_MODEL="codex-test-model"
+  WC_CODEX_REASONING_EFFORT="high"
+  source "$BATS_TEST_DIRNAME/../skills/foreman/scripts/lib/worker-cmd.sh"
+
+  for vendor in grok codex; do
+    legacy_implement_argv "$vendor" "$prompt" "/work tree"
+    source "$ADAPTER_DIR/$vendor.sh"
+    adapter_implement_argv "$vendor" "$prompt" "/work tree"
+    assert_argv_equal LEGACY_ARGV ADAPTER_ARGV
+    [[ "$(declare -p ADAPTER_ARGV)" == "declare -a "* ]]
+    wc_build_argv "$vendor" "$prompt" "/work tree"
+    assert_argv_equal LEGACY_ARGV WC_ARGV
+    [[ "$(declare -p WC_ARGV)" == "declare -a "* ]]
+  done
+}
+
+@test "worker command compatibility shim delegates implement argv to each supported adapter" {
+  local vendor prompt="$BATS_TEST_TMPDIR/prompt.md"
+  local -a expected
+  printf 'delegate this\n' >"$prompt"
+  source "$BATS_TEST_DIRNAME/../skills/foreman/scripts/lib/worker-cmd.sh"
+
+  for vendor in grok codex agy; do
+    source "$ADAPTER_DIR/$vendor.sh"
+    adapter_implement_argv "$vendor" "$prompt" "/work tree"
+    expected=("${ADAPTER_ARGV[@]}")
+    wc_build_argv "$vendor" "$prompt" "/work tree"
+    assert_argv_equal expected WC_ARGV
+    [[ "$(declare -p WC_ARGV)" == "declare -a "* ]]
+  done
+}
+
+@test "codex implement profile passthrough accepts -p and --profile" {
+  local flag prompt="$BATS_TEST_TMPDIR/prompt.md"
+  local -a expected
+  printf 'use repository profile\n' >"$prompt"
+  source "$ADAPTER_DIR/codex.sh"
+
+  for flag in -p --profile; do
+    adapter_implement_argv codex "$prompt" "/work tree" "$flag" repo-worker
+    expected=(codex exec "$flag" repo-worker
+      --skip-git-repo-check
+      --output-last-message "/work tree/.foreman-last.txt"
+      "use repository profile")
+    assert_argv_equal expected ADAPTER_ARGV
+  done
 }
 
 @test "codex uses workspace-write for implement and read-only for audit" {
