@@ -1,406 +1,392 @@
 # Spec delta — graph store
 
+EARS-phrased. See `skills/foreman/references/five-part-spec.md`.
+
+Note on format: this delta uses the header shape the OpenSpec CLI actually
+parses (`## ADDED Requirements` → `### Requirement:` → `#### Scenario:`), as
+established by `lock-primitive-hardening`.
+
 ## ADDED Requirements
 
 ### Requirement: the store is a regenerable materialisation, never the system of record
 
 The graph store SHALL hold no fact that cannot be regenerated from
-`events.jsonl`, `graphify-out/graph.json`, the per-lane `GraphUpdate` journals,
-or the canonical session SQLite store through its one-way projector.
+`events.jsonl`, `graphify-out/graph.json`, and the per-lane `GraphUpdate`
+journals.
 
-The SQLite ontology database SHALL be rebuildable from those artifacts and
-`skills/foreman/ontology/schema.sql` by one documented command that requires no
-manual step and no data extracted from the ontology database itself. WHEN the
-rebuild runs against an empty database, it SHALL produce table contents and
-query classifications equal to those produced incrementally from the same
-inputs. IF a component would write a fact with no grounded counterpart, THEN
-the adapter SHALL reject the write with a named error. The event log SHALL
-remain the system of record for work lineage, git SHALL remain the store for
-commit ancestry, and the canonical session database SHALL remain the write
-path for session recovery.
+The store SHALL be rebuildable from those artifacts by a single documented
+command that requires no manual step and no data extracted from the store
+itself.
+WHEN the rebuild runs against an empty store, it SHALL produce a store whose
+query results are equal to those of a store built incrementally from the same
+artifacts.
+IF any component would write a fact to the store that has no counterpart in
+those artifacts, THEN the write SHALL be rejected and the component SHALL be
+treated as defective.
+The event log SHALL remain the system of record for work lineage, and git SHALL
+remain the store for commit ancestry.
 
-#### Scenario: the ontology database is destroyed and rebuilt with no loss
+#### Scenario: the store is destroyed and rebuilt with no loss
 
-- WHEN a run-scoped ontology database file is deleted and the documented
-  rebuild command is run against the same grounded inputs
-- THEN every table and every conformance-query classification matches the
-  pre-deletion result
-- AND no manual reconstruction or ontology-database export is required
+- WHEN the store's data directory is deleted and the documented rebuild command
+  is run against the same `events.jsonl`, `graph.json` and lane journals
+- THEN every conformance query returns the same result set as before the
+  deletion
+- AND no manual reconstruction step is required.
 
 #### Scenario: a store-only fact is refused
 
-- WHEN a component proposes fields that cannot be derived from a named source
-  artifact or canonical session row
+- WHEN a component attempts to write a document whose fields cannot be derived
+  from the event log, `graph.json`, or a lane journal
 - THEN the write is rejected with a named error identifying the ungrounded
   fields
-- AND the ontology database is unchanged
+- AND the store contents are unchanged.
 
 ### Requirement: every graph read and write goes through the GraphStore port
 
-Foreman SHALL access the persistent graph plane exclusively through the landed
-`GraphStore` port.
+Foreman SHALL access the graph plane exclusively through a `GraphStore` port.
 
-Foreman core SHALL NOT issue SQL against the ontology, open the ontology
-database, or construct ontology table or view names outside the SQLite ontology
-adapter. The port SHALL continue to expose schema registration, deterministic
-upsert, typed lookup, the named lineage query set, and expected emptiness; it
-SHALL NOT expose database paths, pragmas, transactions, table names, or SQL as
-required arguments. WHERE a capability exists in one implementation and not
-another, the port SHALL expose it as explicitly optional, callers SHALL query
-it before use, and callers SHALL degrade rather than fail when it is absent.
+Foreman core SHALL NOT import `sqlite3` for ontology access, open the local ontology database file,
+or build a SQL statement outside the SQLite ontology adapter.
+The port SHALL expose the operations the plane actually needs — schema
+registration, document upsert, typed document lookup, the lineage query set,
+and the expected-emptiness contract of the query wrapper — and SHALL NOT expose
+store-specific concepts such as branches, commits, or data-version tokens as
+required arguments.
+WHERE a capability exists in one implementation and not the other, the port
+SHALL expose it as an explicitly optional capability that callers query before
+use, and callers SHALL degrade rather than fail when it is absent.
 
-#### Scenario: no direct ontology access exists outside the adapter
+#### Scenario: no direct store access outside the adapter
 
-- WHEN the repository is scanned for ontology SQL, direct `sqlite3` ontology
-  connections, and references to ontology tables or views
-- THEN every executable occurrence is inside the SQLite ontology adapter or
-  its own tests
-- AND the scan runs as part of the gate
+- WHEN the repository is scanned for direct `sqlite3` ontology access, local ontology database file opens,
+  or SQL statement construction
+- THEN every occurrence is inside the SQLite ontology adapter or its own tests
+- AND the scan runs as part of the gate.
 
 #### Scenario: an optional capability is absent and the caller degrades
 
-- WHEN a caller requests time-travel and the active implementation does not
-  provide it
-- THEN the port reports the capability unavailable
-- AND the caller returns a result marked current-state-only rather than
-  failing the round
+- WHEN a caller requests time-travel to a prior state and the active
+  implementation does not provide it
+- THEN the port reports the capability as unavailable
+- AND the caller returns a result marked as current-state-only rather than
+  raising an error.
 
-### Requirement: the landed files-only implementation remains the default
+### Requirement: a files-only implementation satisfies the port with no database
 
-The `GraphStore` port SHALL retain an implementation that runs with no database
-installed, no container, and no network, backed only by `graph.json`,
-`worklog.jsonl`, and run-dir JSON.
+The `GraphStore` port SHALL have an implementation that runs with no database
+installed, no container running, and no network access, backed only by
+`graph.json`, `worklog.jsonl`, and run-dir JSON.
 
-The files-only implementation SHALL remain the default and the SQLite ontology
-adapter SHALL be opt-in per host. The port conformance suite SHALL run in full
-against both implementations and SHALL run against files-only on every commit.
-WHERE files-only cannot provide a capability, the omission SHALL remain limited
-to time-travel, graph branch/merge, and cross-run query ergonomics. IF a merge
-gate, context block, or run record fails when the SQLite ontology adapter is
-absent, THEN that component SHALL be treated as defective and SHALL block the
-gate.
+The files-only implementation SHALL be the default implementation, and the
+SQLite ontology adapter SHALL be opt-in per host.
+The port conformance suite SHALL run in full against both implementations, and
+SHALL run against the files-only implementation on every commit.
+WHERE the files-only implementation cannot provide a capability, the omission
+SHALL be limited to time-travel, graph branch and merge, and cross-run query
+ergonomics.
+IF a merge-gate check, a context block, or a run record would fail when the
+SQLite ontology adapter is absent, THEN that component SHALL be treated as
+defective and the failure SHALL block the gate.
 
-#### Scenario: the whole plane runs with no ontology database
+#### Scenario: the whole plane runs with no store at all
 
-- WHEN a full round runs with files-only selected and no ontology database
-  present
-- THEN the merge gate evaluates, the context block is built and hashed, and
-  the run record is complete
-- AND no required step reports a missing store
+- WHEN a full round runs on a host with no local ontology database file and the
+  files-only implementation selected
+- THEN the merge gate evaluates, the context block is built and hashed, and the
+  run record is complete
+- AND no step reports a missing store.
 
-#### Scenario: conformance remains identical across implementations
+#### Scenario: conformance is identical across implementations
 
-- WHEN the shared suite runs over identical fixture data against files-only and
-  the SQLite ontology adapter
-- THEN every assertion outside declared optional capabilities has the same
-  outcome
-- AND any divergence is a named conformance failure
+- WHEN the port conformance suite runs against the files-only implementation
+  and against the SQLite ontology adapter over the same fixture data
+- THEN every assertion outside the declared optional capabilities produces the
+  same result in both
+- AND any divergence is reported as a conformance failure naming the operation.
 
-### Requirement: ontology lineage is queried as data through shipped guarded views
+### Requirement: the work-DAG is stored as documents and never queried through the write-audit event log
 
-Lineage queries SHALL be answered from ontology tables, junction tables, and
-the guarded views shipped by `schema.sql`; they SHALL NOT be reconstructed from
-git ancestry, session history, adapter logs, or an unguarded recursive CTE.
+Lineage queries SHALL be answered from typed documents, and SHALL NOT depend on
+the write-audit records in `events.jsonl`.
 
-The SQLite ontology adapter SHALL query `claim_head` for supersession heads and
-`claim_contradiction_reach` for contradiction reachability. Every consumer of
-`claim_head` SHALL inspect `still_superseded`; a nonzero value SHALL NOT be
-reported as a true head. IF a proposed traversal is not supplied by a guarded
-view, THEN it SHALL be added through a reviewed schema revision or declared
-unsupported. Query cost SHALL be independent of unrelated `Commit` rows.
+The SQLite ontology adapter SHALL NOT read write-audit records from `events.jsonl` on any query path.
+Each committed SQLite write SHALL cause the authenticated run launcher to append a write-audit event to `events.jsonl`; the event's
+`author` field SHALL carry the run and lane identity and the authenticated
+`user` field SHALL be recorded as the non-spoofable identity.
+The adapter SHALL NOT scan or page the write-audit events during ontology queries.
+`events.jsonl` SHALL be treated as audit evidence only on those query paths.
+IF a proposed query can only be answered by scanning write-audit history, THEN it
+SHALL be re-expressed against documents or declared unsupported.
 
-#### Scenario: a guarded supersession cycle terminates without a false head
+#### Scenario: lineage cost is independent of write-audit event count
 
-- WHEN a cycle fixture is queried through `claim_head`
-- THEN the query terminates within its configured bound
-- AND any row with nonzero `still_superseded` is reported as guard-stopped, not
-  current
+- WHEN the lineage query set runs against a store holding a fixed document
+  population and a write-audit event count an order of magnitude larger than the initial
+  ingest
+- THEN query latency is unchanged within measurement noise
+- AND no lineage query issued a write-audit event-log request.
 
-#### Scenario: lineage ignores unrelated commit population
+#### Scenario: a write-audit event-log query path is refused
 
-- WHEN the lineage query set runs before and after the database receives an
-  order of magnitude more unrelated `Commit` rows
-- THEN result sets remain equal and latency remains within measurement noise
-- AND no query reads git history or adapter logs
+- WHEN a code path reads the write-audit event log during query evaluation
+- THEN the adapter raises a named error identifying the banned call
+- AND the gate fails.
 
-### Requirement: schema.sql is the pinned store-enforced ontology contract
+### Requirement: the frozen N2 schema is enforced at write time
 
-The SQLite ontology adapter SHALL use
-`skills/foreman/ontology/schema.sql` as the single authoritative schema and
-SHALL verify its pinned SHA-256 before opening or creating an ontology database.
+The store SHALL validate every write against a single human-authored schema
+covering the nine node types and the edge types of the graph plane, and SHALL
+reject any document that does not conform.
 
-Every connection SHALL enable and verify `PRAGMA foreign_keys=ON`. The
-`node_kind(kind, plane)` composite foreign key SHALL store-enforce kind/plane
-disjointness. Enum domains SHALL remain `CHECK`-constrained, lexical business
-keys SHALL remain `UNIQUE`, sets SHALL use declared junction tables, and
-numeric measurements SHALL reject nonnumeric values. `Claim`, `Measurement`,
-`Finding`, `Entity`, `Commit`, `Metric`, `Provenance`, and reified
-`Supersession` SHALL use their declared relational forms. `Supersession` SHALL
-carry `at` and nonblank `reason`, SHALL reject self-links, and SHALL permit at
-most one successor per old node. All lint views SHALL return zero rows on an
-accepted database. The schema SHALL remain human-authored and reviewed; a
-model SHALL NOT extend it during ingest.
+The schema SHALL define `Task`, `Round`, `Attempt`, `AgentRun`, `Agent`,
+`Artifact` with its `Spec`, `Commit` and `Source` subtypes, `Evaluation`,
+`Claim`, `Entity`, `Metric` and `Measurement`.
+The schema SHALL NOT define a single `PARENT_OF` relation; it SHALL define
+`HAS_ATTEMPT` (`Round` → `Attempt`), `SUBTASK_OF` (`Task` → `Task`, acyclic)
+and `BROADER_THAN` (`Entity` → `Entity`, acyclic, knowledge plane only) as
+three distinct relations.
+`EVALUATES` SHALL have exactly one target, modelled as a tagged union of
+`Attempt`, `Artifact` and `Claim`.
+`RESOLVED_TO` SHALL be functional, acyclic, and SHALL carry its own provenance
+and a reviewer field.
+`DEPENDS_ON` SHALL be acyclic and the acyclicity SHALL be checked, not assumed.
+`SUPERSEDES` SHALL carry a timestamp and a reason, and `DERIVED_FROM`,
+`REVISES` and `SUPERSEDES` SHALL be mutually exclusive on any given pair.
+`MENTIONS` SHALL NOT be a stored edge; it SHALL be a derived index, excluded
+from anything served to a model.
+Every field populated by an LLM SHALL be an enum or a reference; the schema
+SHALL NOT admit a free float or an open string in any LLM-populated field.
+`Claim`, `Evaluation`, `Finding` and `Source` SHALL be top-level document
+classes and SHALL NOT be sub-documents.
+The schema SHALL NOT declare any relation both symmetric and transitive.
+The abstract bases SHALL stay thin and stable, because the migration
+operation that changes a class's parents is unimplemented in the store.
+The schema SHALL remain OWL 2 RL-shaped, using no property chains and no
+complex class expressions, so that a mechanical RDF export stays possible.
+The schema SHALL be authored by one human, reviewed, and frozen; it SHALL NOT
+be authored, extended, or amended by a model.
 
-The complete port ontology SHALL also retain relational representations for
-`Task`, `Round`, `Attempt`, `AgentRun`, `Agent`, `Artifact`, `Spec`, `Source`,
-and `Evaluation`; the adapter SHALL NOT claim full conformance while any
-required representation is absent. It SHALL NOT use a generic `PARENT_OF`
-relation: `HAS_ATTEMPT` (`Round` to `Attempt`), `SUBTASK_OF` (`Task` to `Task`),
-and `BROADER_THAN` (`Entity` to `Entity`, knowledge plane only) SHALL remain
-distinct. `EVALUATES` SHALL have exactly one target from `Attempt`, `Artifact`,
-or `Claim`. `RESOLVED_TO` SHALL be functional and acyclic and SHALL retain its
-provenance and reviewer. `DEPENDS_ON`, `SUBTASK_OF`, and `BROADER_THAN` SHALL be
-checked for cycles. `DERIVED_FROM`, `REVISES`, and `SUPERSEDES` SHALL be
-mutually exclusive on one ordered pair. `MENTIONS` SHALL remain a derived index
-excluded from data served to a model. Every LLM-populated field SHALL be an
-enum or reference and SHALL NOT admit a free float or open string. `Claim`,
-`Evaluation`, `Finding`, and `Source` SHALL remain independently addressable
-rows rather than cascade-owned subrecords. No relation SHALL be both symmetric
-and transitive. The abstract kind/plane base SHALL remain thin and stable. The
-schema SHALL remain OWL 2 RL-shaped, with no property chains or complex class
-expressions, so mechanical RDF export remains possible. Any representation
-not present in the current pinned baseline SHALL be added only by a
-human-reviewed versioned `schema.sql` revision with a new hash and explicit
-migration or rebuild; it SHALL NOT be approximated in adapter-private tables.
+#### Scenario: a non-conforming write is rejected at the boundary
 
-#### Scenario: disjointness is rejected by the store
-
-- WHEN a write attempts to attach an `Entity` node to the work plane
-- THEN SQLite rejects the row through the composite foreign key
-- AND the adapter reports the offending kind and plane
-
-#### Scenario: invalid enum and undeclared field both fail closed
-
-- WHEN a write supplies an out-of-domain claim status or a field absent from
-  the adapter's declared mapping
-- THEN the enum is rejected by a schema constraint and the undeclared field is
-  rejected before SQL execution
-- AND neither write changes the database
-
-#### Scenario: supersession remains attributed and unambiguous
-
-- WHEN a caller records a successor
-- THEN the stored row includes old node, new node, timestamp, and nonblank
-  reason
-- AND a second successor for the same old node is rejected
+- WHEN a lane journal proposes a `Claim` whose confidence is a free float
+  rather than the discrete confidence enum
+- THEN the write is rejected before it reaches the store
+- AND the rejection names the offending field and the enum it must use.
 
 #### Scenario: the three split relations stay distinct
 
-- WHEN SQL asks for the attempts of a round
-- THEN it traverses the declared `HAS_ATTEMPT` representation only
-- AND no result arrives through `SUBTASK_OF` or `BROADER_THAN`
+- WHEN a query asks for the attempts of a round
+- THEN it traverses `HAS_ATTEMPT` only
+- AND no result arrives via `SUBTASK_OF` or `BROADER_THAN`.
 
 #### Scenario: an evaluation with two targets is refused
 
-- WHEN a write proposes one `Evaluation` targeting both an `Attempt` and an
+- WHEN a write proposes an `Evaluation` referencing both an `Attempt` and an
   `Artifact`
-- THEN the write is rejected atomically
-- AND the error states that `EVALUATES` takes exactly one target
-
-#### Scenario: entity resolution stays reviewed and acyclic
-
-- WHEN a `RESOLVED_TO` write would create a cycle or a second target
 - THEN the write is rejected
-- AND every accepted resolution retains its provenance and reviewer
+- AND the error states that `EVALUATES` takes exactly one target.
 
-### Requirement: attributed relations use declared relational representations
+#### Scenario: entity resolution stays reviewable and acyclic
 
-The graph plane SHALL NOT rely on properties that exist only on an in-memory
-edge.
+- WHEN a `RESOLVED_TO` write would create a cycle or a second resolution target
+  for the same entity
+- THEN the write is rejected
+- AND an accepted `RESOLVED_TO` write records its provenance and its reviewer.
 
-WHEN a relation carries attributes, the SQLite ontology adapter SHALL represent
-it with a declared reified table, as `supersession` does, rather than discard
-the attributes. Set-valued relations SHALL use declared junction tables.
-Cosmetic properties MAY be dropped only by an explicit named rule whose count
-is recorded. IF an attribute has neither a declared table mapping nor a named
-drop rule, THEN ingest SHALL fail atomically. The adapter SHALL NOT create
-ingest-only columns or tables outside `schema.sql`.
-The reified forms of `SUPPORTS` and `CONTRADICTS` SHALL be
-designed and documented before first ingest. WHEN per-relation confidence is
-required, a human-reviewed schema revision SHALL add the pre-documented
-reified table without moving existing relation data.
+### Requirement: edge attributes are reified because the store has no edge properties
 
-#### Scenario: an attributed relation is never silently lost
+The graph plane SHALL NOT rely on properties attached to edges.
 
-- WHEN ingest encounters a relation property with neither a declared
-  relational mapping nor a named drop rule
-- THEN ingest fails with the relation type and property name
-- AND the current batch leaves no partial rows
+WHEN an edge carries attributes, the adapter SHALL reify it as an intermediate
+document rather than dropping the attributes.
+`MENTIONS` SHALL NOT be reified, because it is not stored at all — it is a
+derived index excluded from the store, per the requirement above. An adapter
+that creates a `Mention` document SHALL be treated as violating that exclusion.
+Cosmetic edge properties produced by the extraction substrate SHALL be dropped
+explicitly and the drop SHALL be recorded, rather than being lost silently.
+The reified form of `SUPPORTS` and `CONTRADICTS` SHALL be designed and
+documented before first ingest, and SHALL be applied when per-edge confidence
+is first required.
+IF an edge attribute would be silently discarded by the adapter, THEN ingest
+SHALL fail rather than complete.
 
-#### Scenario: supersession attributes round-trip
+#### Scenario: an edge attribute is never silently lost
 
-- WHEN a supersession row is written and retrieved
-- THEN its old node, new node, timestamp, and reason equal the input values
-- AND no attribute is inferred from adapter logs or neighboring rows
+- WHEN ingest encounters an edge carrying a property that has neither a reified
+  target document nor an explicit drop rule
+- THEN ingest fails with an error naming the edge type and the property
+- AND no partial ingest is left behind.
 
 #### Scenario: the reification of a decision edge is a schema addition, not a migration
 
-- WHEN per-relation confidence is first required on `SUPPORTS`
-- THEN a human-reviewed schema revision adds the pre-documented reified table
-- AND no existing relation data requires migration
+- WHEN per-edge confidence is first required on `SUPPORTS`
+- THEN the pre-documented reified class is added to the schema and populated
+  going forward
+- AND no existing document requires a property move.
 
 ### Requirement: concurrent writes follow the measured three-way concurrency rule
 
-The SQLite ontology adapter SHALL select its transaction discipline from the
-shape of the write and SHALL NOT treat lock contention or stale shared state as
-successful completion.
-After contention, both lanes' changes SHALL be present in the final state. The
-adapter SHALL reject the losing update. The losing lane SHALL retry its change
-against the current state. The adapter SHALL NOT drop either lane's change.
+The adapter SHALL select its concurrency mechanism from the shape of the write,
+not from a single blanket policy.
 
-WHERE lanes insert distinct rows, the adapter SHALL use short transactions and
-bounded handling of `SQLITE_BUSY`. WHERE a lane performs a shared
-read-modify-write, it SHALL begin a guarded write transaction before the read,
-recheck the observed state, and treat staleness as a named retryable conflict.
-IF a caller omits this guard, THEN the `GraphStore` port SHALL reject the
-operation before the adapter executes SQL.
-WHERE a lane applies a batch, every row in that batch SHALL commit or roll back
-as one unit. Retry SHALL be finite and observable. IF the bound is exhausted,
-THEN the adapter SHALL raise a named terminal error and SHALL NOT return
-success.
+WHERE a write appends distinct documents, the adapter SHALL write without a
+compare-and-swap precondition.
+WHERE a write is a read-modify-write against a document another lane may also
+hold, the adapter SHALL begin a guarded write transaction before the read,
+recheck the observed state before commit, and SHALL treat stale state as a
+retryable conflict.
+WHERE lanes perform independent bodies of work, the adapter SHALL use one
+complete batch per lane and apply each batch in one transaction, which is the
+only path with real conflict detection.
+IF a read-modify-write is issued against a shared document without the
+guarded write transaction, THEN the operation SHALL be refused by the
+wrapper, because an unguarded stale update can succeed while SQLite
+silently keeps the last one.
+The deployment SHALL configure finite busy timeout or bounded retry handling
+before running more than eight concurrent lanes.
 
-#### Scenario: distinct inserts fan in without loss
+#### Scenario: contending writes cannot silently clobber
 
-- WHEN twelve lanes concurrently insert distinct valid ontology rows
-- THEN every accepted insert is present after the writers complete
-- AND any busy retry is bounded and recorded
+- WHEN two lanes read the same document and both write a modified version
+- THEN the second write detects stale state and is retried against
+  the current state
+- AND both lanes' changes are present in the final document.
 
-#### Scenario: contending shared updates cannot silently clobber
+#### Scenario: fan-in appends need no precondition
 
-- WHEN two lanes attempt to update the same logical fact from the same observed
-  state
-- THEN the adapter rejects the stale update with a named retryable conflict
-- AND the losing lane retries its change against the current row
-- AND both lanes' changes are present in the final state
+- WHEN twelve lanes concurrently append distinct documents to one local database file
+- THEN every append succeeds
+- AND every document is present.
 
 #### Scenario: an unguarded shared-document write is refused
 
-- WHEN a caller submits a shared-row update without the required write guard
-- THEN the `GraphStore` port refuses the operation before it reaches SQLite
-- AND the named error identifies the missing guard
+- WHEN a caller issues a read-modify-write against a shared document without a
+  guarded write transaction
+- THEN the wrapper refuses the call before it reaches the store
+- AND the error names the missing precondition.
 
-#### Scenario: a failing batch is atomic
+### Requirement: an empty result is never silently accepted
 
-- WHEN one row in a lane batch violates uniqueness or a foreign key
-- THEN the entire batch rolls back
-- AND no earlier row from that batch remains committed
+Every query and every diff issued through the store wrapper SHALL declare
+whether it expects a non-empty result, and the wrapper SHALL enforce that
+declaration.
 
-### Requirement: empty results are explicit and all 24 competency queries run in CI
+IF a query declared as expecting results returns none, THEN the wrapper SHALL
+raise a named error and SHALL NOT return an empty result to the caller.
+The wrapper SHALL validate the schema-hash pin before use, and SHALL reject a
+schema-hash reference carrying a prefix or any noncanonical form, because it
+could otherwise select an incompatible schema and yield an empty result.
+The wrapper SHALL query the shipped guarded views for every path-shaped SQL
+query, because copied recursive SQL can omit the cycle guard and return an
+incorrect answer.
+The test suite SHALL carry one canary fixture per known silent-empty path — the
+schema-hash mismatch and a guarded traversal stopped by a cycle — and
+each canary SHALL fail when the assertion machinery is disabled.
+A query whose correct answer is genuinely empty SHALL be declared as
+expecting emptiness, so that an empty result is always distinguishable from a
+failed query.
 
-Every query issued through the store wrapper SHALL declare whether it expects
-an empty or nonempty result, and the wrapper SHALL enforce that declaration.
+#### Scenario: a prefixed schema-hash reference is rejected rather than answered
 
-IF a query declared expected-nonempty returns no rows, THEN the wrapper SHALL
-raise a named error and SHALL NOT return an empty result to its caller. A query
-whose correct answer is empty SHALL be declared expected-empty. The archived
-24 competency questions SHALL each have a permanent entry consisting of named
-parameterised SQL or an explicit ontology gap. Every mapped SQL query SHALL run
-in CI. Successfully nonempty, successfully expected-empty, ontology gap, SQL
-failure, and not-run SHALL remain distinct states. The suite SHALL contain
-known-positive canaries that fail when expected-emptiness enforcement is
-disabled.
-WHERE an implementation offers snapshot comparison or diff as an optional
-capability, every comparison SHALL use the same emptiness declaration and SHALL
-validate its snapshot reference before SQL. A malformed or unsupported
-reference SHALL fail before query execution and SHALL NOT be converted into an
-empty comparison. Every path-shaped SQL query SHALL deduplicate answer
-identities so multiple paths do not become duplicate answers.
+- WHEN a query is requested with a schema-hash reference in a prefixed or noncanonical
+  form
+- THEN the wrapper rejects the request before issuing it
+- AND the error names the accepted hash form.
 
-#### Scenario: an unexpectedly empty SQL query fails loudly
+#### Scenario: an unexpectedly empty query fails loudly
 
-- WHEN a known-positive query declared expected-nonempty returns zero rows
-- THEN the wrapper raises the named unexpected-empty error
-- AND no caller receives a result it could mistake for a true negative
+- WHEN a query declared as expecting results returns no rows
+- THEN the wrapper raises a named error identifying the query
+- AND no caller receives an empty result it could mistake for a true negative.
 
-#### Scenario: a true negative remains expressible
+#### Scenario: a true negative is expressible
 
-- WHEN a query declared expected-empty executes successfully and returns zero
-  rows
+- WHEN a query for attempts with no evaluation runs against a fixture where
+  every attempt has one
 - THEN the wrapper returns an empty result marked as an expected true negative
-- AND no error is raised
+- AND no error is raised.
 
-#### Scenario: the competency suite cannot silently shrink
+#### Scenario: the canaries fail closed
 
-- WHEN the permanent competency suite is evaluated
-- THEN exactly 24 named entries are present and every mapped SQL query has an
-  execution outcome
-- AND disabling the emptiness assertion makes the known-positive canaries fail
+- WHEN the non-emptiness assertions are disabled and the test suite runs
+- THEN both silent-empty canaries fail
+- AND the gate blocks.
 
-### Requirement: the adapter is schema-hash pinned and has a rehearsed exit path
+### Requirement: the adapter is pinned and has a rehearsed exit path
 
-The SQLite ontology adapter SHALL pin `schema.sql` at SHA-256
-`1a7c15a97fe594a07746d285a9e14b3a0820b3386c40c0206d55389f7a6eb76f` and SHALL
-refuse use when the observed hash differs.
+The SQLite ontology adapter SHALL pin `skills/foreman/ontology/schema.sql` at SHA-256
+`1a7c15a97fe594a07746d285a9e14b3a0820b3386c40c0206d55389f7a6eb76f`, and SHALL refuse to run against a mismatched schema.
 
-The adapter SHALL record expected and observed hashes and SHALL NOT migrate or
-accept a new schema implicitly. A transactionally consistent backup SHALL be
-taken before an approved schema change. At least quarterly and before every
-schema-pin change, the gate SHALL run `PRAGMA integrity_check`, every lint view,
-the 24-query suite, and a timed drop-and-rebuild. The exit path SHALL be
-rehearsed by completing a full round on files-only after SQLite ontology use.
-The quarterly gate SHALL also evaluate named health triggers. WHEN a trigger
-fires, the gate SHALL decide to switch to files-only within one release. The
-report SHALL record this named fallback action instead of an open-ended report.
-IF the ontology database becomes unavailable, THEN Foreman SHALL continue on
-files-only and SHALL report degraded optional capabilities.
+The local database file SHALL be backed up with SQLite's online backup API or
+a transactionally consistent copy that includes required WAL state, and the
+backup SHALL be taken before any schema-hash change.
+The withdrawn-vendor exit-health history SHALL retain the quarterly record of commit cadence,
+whether a second maintainer has appeared, release cadence, and whether any
+capability in use has moved behind the paid tier.
+The withdrawn-vendor exit-health history SHALL retain the named trigger conditions, and WHEN any trigger
+fires the documented response SHALL be to fall back to the files-only
+implementation within one release.
+The exit path SHALL be rehearsed at least once before the store is relied upon,
+by running a full round on the files-only implementation after the adapter has
+been in use.
+IF the store becomes unavailable in normal operation, THEN Foreman SHALL
+continue on the files-only implementation and SHALL report the degradation
+rather than failing the round.
 
-#### Scenario: a schema-hash mismatch is refused
+#### Scenario: an unpinned schema is refused
 
-- WHEN the adapter observes a `schema.sql` hash different from the release pin
-- THEN it refuses database use before executing data SQL
-- AND the error records both hashes
+- WHEN the adapter starts against a schema whose hash does not match the
+  pinned hash
+- THEN the adapter refuses to start
+- AND the error names both hashes.
 
 #### Scenario: a health trigger produces a decision, not a discussion
 
-- WHEN the quarterly health check finds a named trigger condition
-- THEN the check records the trigger, evidence, and decision to use files-only
-  within one release
-- AND the report names the fallback action instead of an open-ended discussion
+- WHEN the historical vendor-exit record shows a quarterly trigger condition met
+- THEN the check emits the trigger, the evidence, and the documented fallback
+  action
+- AND the finding is recorded in the release checklist.
 
-#### Scenario: the ontology disappears mid-round
+#### Scenario: the store disappears mid-round
 
-- WHEN the ontology database cannot be opened or fails integrity during a
-  round
-- THEN the round completes through files-only
-- AND the run record names every degraded optional capability
+- WHEN the store becomes unreachable during a round
+- THEN the round completes on the files-only implementation
+- AND the run record states which capabilities were degraded.
 
-### Requirement: ingest is schema-first, two-pass, idempotent, and one-way
+### Requirement: ingest reads graph.json through a schema-first, two-pass, idempotent path
 
-Graph ingest SHALL read `graphify-out/graph.json` directly and SHALL reject
-Cypher, Neo4j, FalkorDB, GraphML, HTML, or visualization exports as inputs.
+Ingest SHALL read `graphify-out/graph.json` directly.
 
-Ingest SHALL verify and apply the pinned schema before the first data write,
-classify every input before mutation, write base rows before link and junction
-rows, and commit each batch atomically. Deterministic lexical keys and explicit
-conflict handling SHALL make identical re-ingest produce no row differences.
-Every batch SHALL record the graphify version and exact input hash. Identifier
-changes SHALL be represented with declared lineage rather than silent
-delete-and-create. The `fm-session.py project()` path SHALL remain one-way from
-the canonical session SQLite store into the ontology; the ontology adapter
-SHALL NOT write back into session tables.
+Ingest SHALL NOT use the extraction substrate's Cypher or graph-database export
+files, because that export emits five fields and drops source file, source
+location, confidence score, hyperedges and communities.
+Ingest SHALL register the schema before the first document write.
+Ingest SHALL run in two passes, writing documents before the link-valued
+properties that reference them.
+Ingest SHALL use the store's create-or-replace upsert with deterministic
+lexical keys, so that re-ingesting the same input is idempotent and leaves the
+store unchanged.
+Ingest SHALL stamp the producing version of the extraction substrate on every
+ingested batch, because the interchange artifact does not record it.
+WHEN a node identifier changes between ingests, the store SHALL record it as a
+rename with lineage and SHALL NOT record it as a delete followed by a create.
 
-#### Scenario: re-ingesting an identical graph changes nothing
+#### Scenario: re-ingesting the same graph changes nothing
 
-- WHEN the same `graph.json` is ingested twice under the same schema pin
-- THEN the second ingest produces no table differences
-- AND row counts and query classifications remain unchanged
+- WHEN the same `graph.json` is ingested twice
+- THEN the second ingest produces no document differences
+- AND the store's document count is unchanged.
 
 #### Scenario: the lossy export path is unavailable
 
-- WHEN ingest receives a graph-database or visualization export instead of
-  `graph.json`
-- THEN it refuses before mapping and names the provenance or shape fields that
-  source cannot preserve
+- WHEN ingest is invoked with a Cypher or graph-database export file
+- THEN ingest refuses with an error naming the fields that export drops
+- AND directs the caller to `graph.json`.
 
 #### Scenario: a moved file is a rename, not a deletion
 
-- WHEN a file moves between two ingests and its symbols get new identifiers
-- THEN the ontology records renames with lineage to the prior identifiers
-- AND it does not record deletions plus unrelated insertions
-
-#### Scenario: session projection cannot reverse direction
-
-- WHEN session rows are projected into the ontology
-- THEN projected Claim, Measurement, Finding, Provenance, Commit, Entity, and
-  Supersession data can be queried from the ontology
-- AND no ontology operation mutates the canonical session database
+- WHEN a file move re-identifies every symbol it contains
+- THEN the affected documents record a rename with lineage to their prior
+  identifiers
+- AND no document is deleted.
