@@ -33,23 +33,23 @@ from the owning package's spec; do not invent a parallel one.
 
 ## T2 — the metrics reference doc
 
-- [ ] Create `skills/foreman/references/release-metrics.md` defining
+- [x] Create `skills/foreman/references/release-metrics.md` defining
       M1-M4 and M6-M13: exact formula, units, the named denominator, the
       documented misreading in one sentence, the required companion number
       and how it is computed, and at least one concrete gaming vector with
       the typed companion field a human reviewer checks. M5 is NOT defined
       here.
-- [ ] For each metric, name the exact upstream field(s) it reads
+- [x] For each metric, name the exact upstream field(s) it reads
       (`decision-lineage-and-telemetry`'s event names / `metrics.json`
       keys) or state explicitly that the field does not exist yet and
       the metric is therefore pending.
-- [ ] M5's entry is a pointer, not a definition: it names
+- [x] M5's entry is a pointer, not a definition: it names
       `graph-eval-falsification`'s evaluation spec as the sole owner of M5's
       formula, per-vendor-pair shape and threshold, records that M5 is not
       computed or cited in a v0.2.9 report at all, and cites the
       ~2-effective-vote / 11%-recovery counter-evidence as the reason no
       aggregate form is ever permitted. It SHALL NOT restate the formula.
-- [ ] Document the minimum sample size per metric below which p90-style
+- [x] Document the minimum sample size per metric below which p90-style
       and per-100-style figures are marked low-sample, and the metric's
       zero-denominator behaviour: the exact
       `uncomputable -- zero denominator (<denominator name> = 0 over
@@ -58,14 +58,14 @@ from the owning package's spec; do not invent a parallel one.
 
 ## T3 — companion-number and sigma-before-claim enforcement
 
-- [ ] Add a report-linter check (new file under
+- [x] Add a report-linter check (new file under
       `skills/foreman/scripts/lib/`, e.g. `metrics-lint.sh`) that scans a
       generated report for every metric name it contains and fails if a
       metric's companion is not present in the same row/sentence.
-- [ ] Add the sigma check: any sentence characterizing a metric as
+- [x] Add the sigma check: any sentence characterizing a metric as
       "improved," "regressed," "better," or "worse" between two releases
       must have an adjacent stated sigma value; fail otherwise.
-- [ ] Add the smaller-than-sigma check: if both the delta and the sigma
+- [x] Add the smaller-than-sigma check: if both the delta and the sigma
       are numerically present, and the delta's absolute value is less
       than sigma, fail unless the report already states "not
       distinguishable from noise."
@@ -79,10 +79,10 @@ from the owning package's spec; do not invent a parallel one.
 - [ ] Add the zero-denominator guard: a metric rendered zero-denominator
       uncomputable may not satisfy a threshold, carry a comparative claim,
       or enter an aggregate or period-over-period delta as zero.
-- [ ] Reject any statement describing the v0.2.9 active set as "fully
+- [x] Reject any statement describing the v0.2.9 active set as "fully
       computed": M3 and M4 render uncomputable and M8 uses an interim basis
       for one input.
-- [ ] Do NOT implement metric computation in this script — it lints
+- [x] Do NOT implement metric computation in this script — it lints
       already-rendered report text/data, it does not compute the metrics
       from raw events.
 
@@ -99,24 +99,24 @@ human-review flag.
       the metric without the underlying release quality changing, and name
       the **typed companion field** a human reviewer checks when
       investigating that risk.
-- [ ] The linter flags a metric for human review when its reported value
+- [x] The linter flags a metric for human review when its reported value
       moves by more than its measured sigma between consecutive windows,
       rendering the companion value alongside it. The flag is advisory, is
       visually distinct, and requires an explicit manual annotation before
       the metric is cited in release notes.
-- [ ] The linter SHALL NOT auto-classify a flagged move as gaming or as
+- [x] The linter SHALL NOT auto-classify a flagged move as gaming or as
       legitimate, and SHALL NOT compute a directional-corroboration verdict
       from the companion's movement.
 
 ## T5 — M5 consumption discipline (no local definition)
 
-- [ ] Do NOT specify an M5 report shape, formula or threshold here.
+- [x] Do NOT specify an M5 report shape, formula or threshold here.
       `graph-eval-falsification` owns all three; this package cites its
       field names verbatim where it consumes them.
-- [ ] Add the v0.2.9 linter rule: a report that computes or cites M5 — or
+- [x] Add the v0.2.9 linter rule: a report that computes or cites M5 — or
       M1, M6, or any of M9-M13 — is rejected, naming the metric and the
       deferral.
-- [ ] Add the independence-claim rule with both of its known-bad inputs: a
+- [x] Add the independence-claim rule with both of its known-bad inputs: a
       v0.2.9 report asserting cross-vendor independence is rejected naming
       M5 as not rendered in this release; from the release in which M5
       becomes computable, a claim citing a collapsed aggregate rather than
@@ -124,29 +124,29 @@ human-review flag.
 
 ## T6 — sigma methodology
 
-- [ ] Document, per metric, the population sigma is measured over
+- [x] Document, per metric, the population sigma is measured over
       (repeated windows of unchanged code from `regression-harness-tiers`)
       and the minimum window count before a sigma is publishable.
-- [ ] Add the "sigma not yet estimated (n=<k>, need n>=<threshold>)"
+- [x] Add the "sigma not yet estimated (n=<k>, need n>=<threshold>)"
       state as the required output when sample size is insufficient.
 
 ## T7 — tests
 
-- [ ] New `tests/release-metrics.bats`.
-- [ ] Linter rejects a report with a metric and no adjacent companion.
-- [ ] Linter accepts a report with metric + companion in the same
+- [x] New `tests/release-metrics.bats`.
+- [x] Linter rejects a report with a metric and no adjacent companion.
+- [x] Linter accepts a report with metric + companion in the same
       row/sentence.
-- [ ] Linter rejects an "improved"/"regressed" claim with no sigma
+- [x] Linter rejects an "improved"/"regressed" claim with no sigma
       stated.
-- [ ] Linter rejects a claim whose stated delta is smaller than its
+- [x] Linter rejects a claim whose stated delta is smaller than its
       stated sigma, unless the report already states the
       noise-indistinguishable language.
-- [ ] Linter flags a metric for human review when it moves >1 sigma
+- [x] Linter flags a metric for human review when it moves >1 sigma
       between consecutive windows, renders its companion alongside, and
       does not auto-classify the move as gaming or as legitimate.
-- [ ] Linter rejects a v0.2.9 report that computes or cites M5, M1, M6 or
+- [x] Linter rejects a v0.2.9 report that computes or cites M5, M1, M6 or
       any of M9-M13.
-- [ ] Linter rejects a v0.2.9 report asserting cross-vendor independence,
+- [x] Linter rejects a v0.2.9 report asserting cross-vendor independence,
       naming M5 as not rendered in this release.
 - [ ] Linter accepts a metric rendering an uncomputable-state string with
       no companion, and rejects a blank cell, a placeholder zero, or an
@@ -155,9 +155,9 @@ human-review flag.
       `uncomputable -- zero denominator (...)`, rejects a `0`/`0%`/`100%`
       render for the same window, and rejects a comparative claim built on
       it.
-- [ ] Linter rejects an uncomputable render naming a blocking package that
+- [x] Linter rejects an uncomputable render naming a blocking package that
       does not exist under `openspec/changes/` or that has already landed.
-- [ ] Linter rejects a report describing the v0.2.9 active set as "fully
+- [x] Linter rejects a report describing the v0.2.9 active set as "fully
       computed".
 - [ ] Declare preconditions via `tests/lib/preconditions.bash` per
       `test-infrastructure-hardening`'s helper.
@@ -169,9 +169,9 @@ human-review flag.
 - [ ] `bugeventlog.md` entry recording that none of the release's
       comparative claims were computable before this package, with the
       grep evidence from T1.
-- [ ] `SKILL.md` reporting section gains a pointer to
+- [x] `SKILL.md` reporting section gains a pointer to
       `references/release-metrics.md` and states the companion-number
       and sigma-before-claim rules as standing doctrine, not just linter
       behavior.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate release-metrics --strict`.
+- [x] `openspec validate release-metrics --strict`.

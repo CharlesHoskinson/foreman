@@ -11,7 +11,7 @@ crlf-extensionless-hardening (consumes both).
 - [ ] **2. `windows-latest` job** — `defaults.run.shell: bash`; `shellcheck`
   + the line-endings check (the Git-Bash half); deliberately narrower than
   the Ubuntu job.
-- [ ] **3. Explicit `bash` + explicit tool paths** — confirm every step
+- [x] **3. Explicit `bash` + explicit tool paths** — confirm every step
   needing `pipefail` declares `shell: bash`; no step relies on `~/.bashrc`
   being sourced; tool dirs (bun, bats-core, shellcheck) are put on PATH by
   the workflow's own steps.
