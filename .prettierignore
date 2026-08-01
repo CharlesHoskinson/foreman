@@ -1,0 +1,7 @@
+.claude/
+.codex/
+.gemini/
+docs/research/
+node_modules/
+dist/
+coverage/
