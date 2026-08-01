@@ -38,6 +38,8 @@
 #   fm-session.py close <obligation_id> [--status done|blocked] [--blocker B]
 #   fm-session.py supersede <fact_id> <new_statement> [--evidence E]
 #   fm-session.py retire <measurement_id> --by <id> --reason TEXT
+#   fm-session.py sidecar [--out PATH]
+#   fm-session.py import-sidecar PATH [--into DB] [--force]
 #
 # Env:
 #   FOREMAN_SESSION_DB   override db path. The default is .foreman/session.db
@@ -51,12 +53,15 @@ import os
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 import pathlib
 
 SCHEMA_VERSION = 3
+SIDECAR_FORMAT = "foreman-session-sidecar"
+SIDECAR_FORMAT_VERSION = 1
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -191,8 +196,8 @@ def db_path():
     return chosen
 
 
-def connect():
-    p = db_path()
+def connect(path=None):
+    p = Path(path) if path is not None else db_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(p))
     conn.row_factory = sqlite3.Row
@@ -469,6 +474,226 @@ def project(conn):
     return docs, skipped
 
 
+def quote_identifier(name):
+    """Quote an identifier discovered from SQLite's own schema."""
+    return '"' + name.replace('"', '""') + '"'
+
+
+def store_schema(conn):
+    """Return every application table, column, and primary key from SQLite."""
+    tables = [
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_schema "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        ).fetchall()
+    ]
+    schema = {}
+    for table in tables:
+        info = conn.execute(
+            f"PRAGMA table_info({quote_identifier(table)})"
+        ).fetchall()
+        columns = [row["name"] for row in info]
+        primary_key = [
+            row["name"]
+            for row in sorted(info, key=lambda row: row["pk"])
+            if row["pk"]
+        ]
+        if not primary_key:
+            raise ValueError(
+                f"cannot serialize table {table}: table has no primary key"
+            )
+        schema[table] = {"columns": columns, "primary_key": primary_key}
+    return schema
+
+
+def sidecar_ndjson(conn):
+    """Return a canonical, faithful NDJSON dump of the session store."""
+    owns_transaction = not conn.in_transaction
+    if owns_transaction:
+        conn.execute("BEGIN")
+    try:
+        documents = [{
+            "format": SIDECAR_FORMAT,
+            "format_version": SIDECAR_FORMAT_VERSION,
+        }]
+        row_count = 0
+        for table, table_schema in store_schema(conn).items():
+            columns = table_schema["columns"]
+            selected = ", ".join(quote_identifier(column) for column in columns)
+            ordering = ", ".join(
+                quote_identifier(column) for column in table_schema["primary_key"]
+            )
+            query = (
+                f"SELECT {selected} FROM {quote_identifier(table)} "
+                f"ORDER BY {ordering}"
+            )
+            for record in conn.execute(query).fetchall():
+                row = {column: record[column] for column in columns}
+                documents.append({"table": table, "row": row})
+                row_count += 1
+        lines = "\n".join(
+            json.dumps(document, sort_keys=True) for document in documents
+        )
+        if owns_transaction:
+            conn.commit()
+        return lines + "\n", row_count
+    except Exception:
+        if owns_transaction:
+            conn.rollback()
+        raise
+
+
+def paths_alias(left, right):
+    left, right = Path(left), Path(right)
+    try:
+        if left.resolve() == right.resolve():
+            return True
+    except OSError:
+        pass
+    try:
+        return os.path.samefile(left, right)
+    except OSError:
+        return False
+
+
+def write_atomic(path, text):
+    """Publish text without exposing a partial or truncated sidecar."""
+    path = Path(path)
+    fd, temporary = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        if hasattr(os, "O_DIRECTORY"):
+            directory_fd = os.open(path.parent, os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+    finally:
+        try:
+            Path(temporary).unlink()
+        except FileNotFoundError:
+            pass
+
+
+def read_sidecar(path):
+    documents = []
+    with Path(path).open("r", encoding="utf-8") as stream:
+        for line_number, line in enumerate(stream, 1):
+            if not line.strip():
+                continue
+            try:
+                doc = json.loads(line)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"invalid NDJSON at line {line_number}: {e.msg}") from e
+            if not isinstance(doc, dict):
+                raise ValueError(f"invalid NDJSON at line {line_number}: expected object")
+            documents.append(doc)
+    return documents
+
+
+def describe_row(row):
+    """Render a stable row description for refusal messages."""
+    return json.dumps(row, sort_keys=True)
+
+
+def validate_sidecar(conn, path):
+    """Validate the format envelope and every row against the target schema."""
+    documents = read_sidecar(path)
+    if not documents:
+        raise ValueError("missing sidecar format record")
+
+    header = documents[0]
+    if header.get("format") != SIDECAR_FORMAT:
+        raise ValueError(f"unsupported sidecar format: {header.get('format')!r}")
+    version = header.get("format_version")
+    if version != SIDECAR_FORMAT_VERSION:
+        raise ValueError(f"unsupported sidecar format version: {version!r}")
+    if set(header) != {"format", "format_version"}:
+        raise ValueError("invalid sidecar format record")
+
+    schema = store_schema(conn)
+    rows = []
+    for document in documents[1:]:
+        if "format" in document or "format_version" in document:
+            raise ValueError("sidecar must contain exactly one format record")
+        table = document.get("table")
+        row = document.get("row")
+        if not isinstance(table, str) or not isinstance(row, dict):
+            raise ValueError(f"invalid sidecar row record: {document!r}")
+        if set(document) != {"table", "row"}:
+            raise ValueError(
+                f"cannot restore table {table}, row {describe_row(row)}: "
+                "record must contain only table and row"
+            )
+        if table not in schema:
+            raise ValueError(
+                f"cannot restore table {table}, row {describe_row(row)}: "
+                "table is not present in the target schema"
+            )
+        expected = set(schema[table]["columns"])
+        actual = set(row)
+        if actual != expected:
+            missing = sorted(expected - actual)
+            extra = sorted(actual - expected)
+            raise ValueError(
+                f"cannot restore table {table}, row {describe_row(row)}: "
+                f"columns differ (missing={missing}, extra={extra})"
+            )
+        rows.append((table, row))
+    return schema, rows
+
+
+def import_sidecar(conn, path, force=False):
+    """Restore a faithful sidecar without deriving or synthesising any row."""
+    schema, rows = validate_sidecar(conn, path)
+    data_tables = [table for table in schema if table != "schema_meta"]
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if any(conn.execute(
+            f"SELECT 1 FROM {quote_identifier(table)} LIMIT 1"
+        ).fetchone()
+               for table in data_tables) and not force:
+            raise ValueError("target store already has rows; use --force to replace it")
+
+        for table in reversed(schema):
+            conn.execute(f"DELETE FROM {quote_identifier(table)}")
+        if conn.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='sqlite_sequence'"
+        ).fetchone():
+            conn.execute(
+                "DELETE FROM sqlite_sequence WHERE name IN ({})".format(
+                    ",".join("?" for _ in schema)
+                ),
+                tuple(schema),
+            )
+        for table, row in rows:
+            columns = schema[table]["columns"]
+            names = ", ".join(quote_identifier(column) for column in columns)
+            placeholders = ", ".join("?" for _ in columns)
+            try:
+                conn.execute(
+                    f"INSERT INTO {quote_identifier(table)} ({names}) "
+                    f"VALUES ({placeholders})",
+                    tuple(row[column] for column in columns),
+                )
+            except sqlite3.Error as e:
+                raise ValueError(
+                    f"cannot restore table {table}, row {describe_row(row)}: {e}"
+                ) from e
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return len(rows)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="fm-session.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -490,6 +715,13 @@ def main():
     p.add_argument("--blocker")
     p = sub.add_parser("project")
     p.add_argument("--out", default=None, help="NDJSON path (default stdout)")
+    p = sub.add_parser("sidecar")
+    p.add_argument("--out", default=None,
+                   help="NDJSON path (default beside the session store)")
+    p = sub.add_parser("import-sidecar")
+    p.add_argument("path")
+    p.add_argument("--into", default=None, help="target session database")
+    p.add_argument("--force", action="store_true")
     p = sub.add_parser("supersede")
     p.add_argument("fact_id", type=int); p.add_argument("statement")
     p.add_argument("--evidence")
@@ -505,7 +737,14 @@ def main():
                         "an unexplained retirement is unauditable")
 
     a = ap.parse_args()
-    conn = connect()
+    if a.cmd == "import-sidecar":
+        try:
+            conn = connect(a.into)
+        except sqlite3.Error as e:
+            print(f"refusing: cannot open target store: {e}", file=sys.stderr)
+            return 2
+    else:
+        conn = connect()
     cur = conn.cursor()
 
     def current_session():
@@ -571,6 +810,33 @@ def main():
             (a.status, a.blocker, now_iso() if a.status == "done" else None,
              a.obligation_id))
         conn.commit(); print(f"obligation {a.obligation_id} -> {a.status}"); return 0
+
+    if a.cmd == "sidecar":
+        out = Path(a.out) if a.out else db_path().parent / "session.ndjson"
+        store_name = conn.execute("PRAGMA database_list").fetchone()["file"]
+        store = Path(store_name) if store_name else db_path()
+        if paths_alias(out, store):
+            print(f"refusing: sidecar output {out} aliases the session store {store}",
+                  file=sys.stderr)
+            return 2
+        try:
+            lines, row_count = sidecar_ndjson(conn)
+            write_atomic(out, lines)
+        except (OSError, TypeError, ValueError) as e:
+            print(f"refusing: cannot write sidecar {out}: {e}", file=sys.stderr)
+            return 2
+        print(f"dumped {row_count} row(s) -> {out}")
+        return 0
+
+    if a.cmd == "import-sidecar":
+        try:
+            count = import_sidecar(conn, a.path, a.force)
+        except (OSError, UnicodeError, ValueError, KeyError, sqlite3.Error) as e:
+            print(f"refusing: {e}", file=sys.stderr)
+            return 2
+        target = Path(a.into) if a.into else db_path()
+        print(f"imported {count} document(s) -> {target}")
+        return 0
 
     if a.cmd == "project":
         docs, skipped = project(conn)

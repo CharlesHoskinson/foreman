@@ -32,6 +32,43 @@ availability requirements.
 One direction only. Bidirectional sync would reintroduce two writers, which is
 the original disease.
 
+## The store travels with the repository
+
+The earlier decision to ignore `.foreman/session.db` as machine-local state is
+reversed. The SQLite store is the authoritative record of session facts,
+measurements, and obligations, so it must be tracked and travel between hosts.
+
+SQLite is a binary format, and Git cannot merge two hosts' changes to it. The
+generated `.foreman/session.ndjson` sidecar is a deterministic, faithful text
+dump of that database. It is a recovery artifact, not another write path:
+normal commands write SQLite, and `sidecar` regenerates the text file.
+
+The sidecar and the ontology projection are deliberately different
+serialisers. `project` remains a lossy, one-directional view shaped as
+`Claim`, `Measurement`, `Finding`, and `Supersession` documents for the graph.
+The sidecar instead emits one `{table, row}` record for every SQLite row and
+discovers every table, column, and primary key from SQLite's schema. Records
+are ordered by table name and primary key, JSON keys are sorted, and a single
+format-version record leads the file. All schema and row reads share one SQLite
+read transaction, so concurrent writes cannot produce a dump assembled from
+different database states. This prevents a future schema column from
+disappearing merely because a hand-maintained field list was not updated.
+
+`import-sidecar` restores those row dictionaries exactly inside one write
+transaction. It refuses an unknown format version, a row that does not match
+the target schema, or any row SQLite cannot insert; it never fabricates a
+replacement. The populated-target check remains inside the same transaction
+and requires `--force` before existing operational rows can be replaced.
+
+Measurement freshness is absent from the sidecar because it is absent from the
+database: validity remains computed from Git at read time. To resolve a
+conflict, merge `.foreman/session.ndjson` as text first, keeping one format
+record and reconciling rows by table and primary key. Remove the conflicted
+`.foreman/session.db`, rebuild it with `fm-session.py import-sidecar
+.foreman/session.ndjson`, regenerate the sidecar with `fm-session.py sidecar`,
+and stage both generated files. This recovers the reviewable database contents
+instead of choosing either host's SQLite blob.
+
 ## The four links that actually matter
 
 ### 1. `measured_sha` → `Commit` (the join key that already exists)
