@@ -15,6 +15,35 @@ which by doctrine can only license `non-atomic` or `unknown` — never `atomic`.
 Windows therefore reports `unknown` and the system falls back accordingly. This
 is conservative and correct; it is not knowledge.
 
+### `mkdir` stays permanently distrusted on Ubuntu 26.04
+
+Not a new finding — see `docs/research/vnext/F-uutils-mkdir-blocker.md`, which
+established in July that Ubuntu 26.04 resolves `mkdir` to uutils 0.8.0, that it
+performs a userspace `statx` check-then-act instead of issuing `mkdir(2)`, and
+that GNU `mkdir` does not. A fresh eight-racer sample on this host reproduces it
+at **20 violations in 40 rounds**, against **0 of 40** for GNU `gnumkdir`.
+
+What is worth recording as a residual is the standing consequence: `mkdir` can
+never earn a trusted verdict on this platform, so every durable lock rests on
+`flock` alone, and `lib/lock.sh` fail-closes if `flock` is unavailable or
+unlicensed. Pinning GNU `mkdir` when `gnu-coreutils` is present would restore a
+second mechanism; nobody has decided whether that is worth it, and it matters
+only for a host with no usable `flock`.
+
+### `strace` is a hard dependency of the lock, and reads like a debugging tool
+
+The syscall evidence class is the **only** one that can license a mechanism as
+`atomic`: flavour licenses nothing, and contention can license only `non-atomic`
+or `unknown`. So on any host whose `mkdir` is uutils, no `strace` means no
+trusted mechanism, and `lib/lock.sh` fail-closes with `FM_LOCK_UNAVAILABLE`.
+That is not a theoretical cost — it failed **102 tests across 11 files** on a
+freshly provisioned Ubuntu 26.04 host, and every one of them was the lock
+refusing rather than the code under test being wrong. `strace` is now installed
+by `env/bootstrap-wsl.sh` and reported by `env/tool-check.sh` on every POSIX
+profile, so its absence is visible up front instead of arriving later as
+unexplained refusals. It remains a `should` rather than a `must`: a host can run
+without it, but only by fail-closing every durable lock.
+
 ### `agy` per-lane isolation unsolved
 
 `agy` is a gateway CLI whose model may come from several vendor lineages, and it
@@ -77,6 +106,22 @@ that ran and said nothing. The second is confirmed. **The alternation itself was
 never reproduced on the development host**, because local ptrace policy rejects
 `strace` outright, giving `unknown` 100 of 100 both before and after. Whether the
 flapping is fully closed is a question only CI answers.
+
+A *second* and independent source of verdict alternation has since been measured
+and must not be mistaken for this one: because the contention sample is drawn
+once per run and violates roughly half the time on uutils `mkdir`, the verdict
+alternates between `unknown` (clean sample) and `non-atomic` (violations seen) on
+the same binary and host — see the `mkdir` entry above. That is a different pair
+from the `atomic` ↔ `unknown` flapping described here, which turns on whether
+`strace` attached, and it leaves this residual open.
+
+One premise of this entry did not survive contact with a second host. "Local
+ptrace policy rejects `strace` outright" was not true here: `strace` was simply
+**not installed**, and `ptrace_scope` is `1`, which permits tracing one's own
+descendants — precisely what the probe does. Once installed it traced without
+complaint and licensed `flock` as `atomic`. Whether the original host genuinely
+denied `ptrace` or merely lacked the binary was never distinguished, and the two
+look identical through `command -v strace`.
 
 ### bats has never passed on the Windows runner
 
