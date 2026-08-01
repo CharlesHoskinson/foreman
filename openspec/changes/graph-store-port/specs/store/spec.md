@@ -277,6 +277,9 @@ raise a named error and SHALL NOT return an empty result to the caller.
 The wrapper SHALL validate the schema-hash pin before use, and SHALL reject a
 schema-hash reference carrying a prefix or any noncanonical form, because it
 could otherwise select an incompatible schema and yield an empty result.
+The wrapper SHALL apply its deduplication operator around every path query, so
+each query returns one row per answer rather than one row per distinct traversal
+path.
 The wrapper SHALL query the shipped guarded views for every path-shaped SQL
 query, because copied recursive SQL can omit the cycle guard and return an
 incorrect answer.
@@ -321,12 +324,18 @@ The SQLite ontology adapter SHALL pin `skills/foreman/ontology/schema.sql` at SH
 The local database file SHALL be backed up with SQLite's online backup API or
 a transactionally consistent copy that includes required WAL state, and the
 backup SHALL be taken before any schema-hash change.
-The withdrawn-vendor exit-health history SHALL retain the quarterly record of commit cadence,
-whether a second maintainer has appeared, release cadence, and whether any
-capability in use has moved behind the paid tier.
-The withdrawn-vendor exit-health history SHALL retain the named trigger conditions, and WHEN any trigger
-fires the documented response SHALL be to fall back to the files-only
-implementation within one release.
+A health re-check SHALL run at least quarterly against the upstream project that
+supplies the selected non-files-only store, recording commit cadence, whether a
+second maintainer has appeared, release cadence, and whether any capability in
+use has moved behind a paid tier.
+The health re-check SHALL carry these named trigger conditions:
+`commit-cadence` fires at fewer than 50 upstream commits in any rolling six-month
+window; `maintainer-concentration` fires when a single author's share of upstream
+commits remains above 90% across two consecutive quarterly checks;
+`release-cadence` fires when no stable release occurs in any rolling nine-month
+window; and `paid-tier-movement` fires when any capability in use moves behind a
+paid tier. WHEN any trigger fires, the documented response SHALL be to fall back
+to the files-only implementation within one release.
 The exit path SHALL be rehearsed at least once before the store is relied upon,
 by running a full round on the files-only implementation after the adapter has
 been in use.
@@ -343,7 +352,7 @@ rather than failing the round.
 
 #### Scenario: a health trigger produces a decision, not a discussion
 
-- WHEN the historical vendor-exit record shows a quarterly trigger condition met
+- WHEN the live quarterly health re-check finds a named trigger condition met
 - THEN the check emits the trigger, the evidence, and the documented fallback
   action
 - AND the finding is recorded in the release checklist.
