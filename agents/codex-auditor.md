@@ -27,9 +27,9 @@ family worker defeats the point of this lane.
 
 ## Preflight — no silent fallback
 
-```bash
-command -v codex && codex --version
-```
+The Codex adapter owns preflight in
+`skills/foreman/scripts/adapters/codex.sh`; use its `adapter_auth_probe`
+contract rather than spelling vendor commands here.
 
 If missing or unauthenticated:
 
@@ -124,66 +124,17 @@ with read-only tools only.
 
 ## Run Codex — GPT-5.6 Sol, read-only, high reasoning
 
-Prefer **schema-forced** `codex exec` (OpenAI cookbook pattern: read-only sandbox +
-`--output-schema`). Schema file in this skill:
+The complete audit argv is owned by
+`skills/foreman/scripts/adapters/codex.sh` and its `adapter_audit_argv`
+contract. Pass it the prompt file, audit worktree, verdict schema, and final
+message destination, then execute the returned `ADAPTER_ARGV` array without
+re-splitting it. The adapter owns the model, reasoning, sandbox, schema,
+capture, and prompt-transport details.
 
-`skills/foreman/scripts/adapters/verdict.schema.json`
-
-(or the installed copy under `~/.claude/skills/foreman/scripts/adapters/verdict.schema.json`)
-
-```bash
-T=$(command -v gtimeout || command -v timeout || true)
-# Resolve schema relative to skill install if present
-SCHEMA="${FOREMAN_VERDICT_SCHEMA:-}"
-if [ -z "$SCHEMA" ]; then
-  for c in \
-    "$(pwd)/skills/foreman/scripts/adapters/verdict.schema.json" \
-    "$HOME/.claude/skills/foreman/scripts/adapters/verdict.schema.json" \
-    "$HOME/.agents/skills/foreman/scripts/adapters/verdict.schema.json"
-  do
-    [ -f "$c" ] && SCHEMA="$c" && break
-  done
-fi
-[ -n "$SCHEMA" ] || { echo "CODEX AUDIT REPORT"; echo "STATUS: fail"; echo "REASON: verdict.schema.json not found"; exit 0; }
-
-${T:+$T 600} codex exec \
-  --model gpt-5.6-sol \
-  -c model_reasoning_effort=high \
-  --sandbox read-only \
-  --skip-git-repo-check \
-  --cd "$(pwd)" \
-  --output-schema "$SCHEMA" \
-  --output-last-message "$OUT" \
-  - < "$PROMPT"
-```
-
-**Alternate (native review subcommand):** when the architect wants uncommitted-tree
-review without a custom prompt file:
-
-```bash
-codex exec review --uncommitted \
-  --model gpt-5.6-sol \
-  --sandbox read-only \
-  --output-schema "$SCHEMA" \
-  --output-last-message "$OUT"
-```
-
-Still map the result into the Foreman verdict schema in your report. Prefer the
-custom five-part-criteria prompt for soft-mode acceptance checks.
-
-### Flag discipline (non-negotiable)
-
-| Flag | Why |
-|---|---|
-| `--model gpt-5.6-sol` | Auditor producer is GPT-5.6 Sol, pinned |
-| `-c model_reasoning_effort=high` | Audit needs deep reasoning |
-| `--sandbox read-only` | **Never** `workspace-write` or danger-full-access |
-| `--output-schema` | Schema-forced JSON (APPROVED/WARNING/BLOCKED) |
-| `--output-last-message` / `-o` | Capture final verdict text |
-| Prompt via stdin / file | No shell-quoting of large diffs |
-
-If the caller's config names a different OpenAI model for audit, use that only
-when explicitly specified; default remains `gpt-5.6-sol`.
+Use the adapter's prompt form for the custom five-part-criteria audit. When the
+architect explicitly requests a branch-vs-base cold review, use its
+`review-base` form and supply the base ref. In either form, map the result into
+the Foreman verdict schema in your report.
 
 ## After Codex returns
 

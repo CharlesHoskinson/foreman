@@ -17,11 +17,9 @@ report. The architect stays on the host model family; typing is cross-vendor.
 
 ## Preflight — no silent fallback
 
-First action, always:
-
-```bash
-command -v grok && grok --version
-```
+The Grok adapter owns preflight in
+`skills/foreman/scripts/adapters/grok.sh`; use its `adapter_auth_probe`
+contract rather than spelling vendor commands here.
 
 If grok is missing or not authenticated, **stop** and return:
 
@@ -62,14 +60,14 @@ Report all four values. If `HEAD_B != HEAD_A`, set
 
 ## Known limits (Grok headless)
 
-The grok CLI's `--permission-mode` flag only honors `bypassPermissions` and
-`default` — passing `acceptEdits` is accepted but silently ignored (see grok
-user-guide 22-permissions-and-safety). In headless runs any tool call that
-would prompt is auto-cancelled and reported to the model, so without allow
-rules Grok narrates edits while writing NOTHING. Therefore:
+In headless runs, any tool call that would prompt is auto-cancelled and reported
+to the model, so an incorrect permission posture lets Grok narrate edits while
+writing NOTHING. The adapter owns the verified permission posture; agent prose
+must not duplicate it. Therefore:
 
-- ALWAYS pass `--allow "Write" --allow "Edit"` (capitalized rule prefixes) —
-  this auto-approves file writes/edits and nothing else.
+- Use `skills/foreman/scripts/adapters/grok.sh` and its
+  `adapter_implement_argv` contract, which approves file writes and edits but
+  nothing else.
 - Shell stays gated by design: Grok still cannot delete/rename files, chmod,
   or run verification commands. You run verification yourself;
   deletions/renames go in `ARCHITECT_ACTIONS`.
@@ -80,15 +78,14 @@ rules Grok narrates edits while writing NOTHING. Therefore:
     plan) but never reached a Write/Edit call at all — see "Single-burst:
     write-first specs" below. Next step: re-issue as a write-first spec, or
     route through `grok-multiround.sh` for genuinely exploratory work.
-  - **Cancelled-writes**: grok attempted a Write/Edit and it was denied
-    (missing `--allow "Write" --allow "Edit"`, or a permission-mode
-    regression). Next step: confirm the allow flags were passed verbatim,
-    then re-run.
+  - **Cancelled-writes**: Grok attempted a Write/Edit and it was denied by a
+    permission regression. Next step: confirm the invocation came from the
+    adapter, then re-run.
 
 ## Single-burst: write-first specs
 
-`grok --prompt-file` / `-p` runs **one agentic burst and exits** — there is
-no follow-up turn. A spec that requires grok to read or introspect the repo
+The adapter's implementation verb runs **one agentic burst and exits** — there
+is no follow-up turn. A spec that requires Grok to read or introspect the repo
 before it can write spends the entire burst orienting, and grok exits having
 written NOTHING (an **empty-burst** failure, distinct from cancelled-writes
 above, where a write was attempted and denied).
@@ -105,35 +102,14 @@ write lands, failing loudly (`EMPTY-BURST FAILED`) if it never does.
 
 ## Run grok
 
-1. Write the spec to a unique temp file (never fixed paths; parallel lanes collide):
-
-   ```bash
-   SPEC=$(mktemp -t grok-spec.XXXXXX 2>/dev/null || mktemp -t grok-spec)
-   cat > "$SPEC" << 'SPEC_EOF'
-   [full five-part spec]
-   Run the verification command and include its actual output in your final message.
-   SPEC_EOF
-   ```
-
-2. Invoke headlessly:
-
-   ```bash
-   T=$(command -v gtimeout || command -v timeout || true)
-   FINAL="${TMPDIR:-/tmp}/grok-final-$$.txt"
-   
-   ${T:+$T 600} grok --prompt-file "$SPEC" \
-     -m grok-4.5 \
-     --allow "Write" --allow "Edit" \
-     --output-format plain \
-     --cwd "$(pwd)" \
-     > "$FINAL" 2>&1
-   ```
-
-   On Windows PowerShell without bash temp, write the spec under `$env:TEMP\grok-spec-<random>.txt`
-   and invoke `grok` equivalently.
-
-3. **Verify independently.** `git diff` / `git status`, re-run the verification command
-   yourself. Grok’s claim is not evidence.
+1. Write the full five-part spec to a unique temporary file; fixed paths collide
+   across parallel lanes.
+2. Use `skills/foreman/scripts/adapters/grok.sh` and its
+   `adapter_implement_argv` contract. Pass it the spec file and worktree, then
+   execute the returned `ADAPTER_ARGV` array without re-splitting it. The
+   adapter owns all vendor-specific flags and prompt placement.
+3. **Verify independently.** Use `git diff` and `git status`, then re-run the
+   verification command yourself. Grok's claim is not evidence.
 
 ## Report
 

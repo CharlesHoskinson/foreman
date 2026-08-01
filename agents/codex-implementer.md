@@ -16,9 +16,9 @@ yourself — **Codex writes it**. Deliver the spec, supervise, verify, report.
 
 ## Preflight — no silent fallback
 
-```bash
-command -v codex && codex --version
-```
+The Codex adapter owns preflight in
+`skills/foreman/scripts/adapters/codex.sh`; use its `adapter_auth_probe`
+contract rather than spelling vendor commands here.
 
 If missing or unauthenticated:
 
@@ -56,48 +56,26 @@ DIG_A=$(git status --porcelain | sha256sum | cut -d' ' -f1)
 Report all four values. If `HEAD_B != HEAD_A`, set
 `unauthorized_git_activity: true` and list `git log --oneline HEAD_B..HEAD_A`.
 
-## Known limits (Codex exec)
+## Known limits
 
-`codex exec --sandbox workspace-write` cannot write outside the workspace,
-cannot run network installs, and receives the prompt on stdin. Codex is
-technically able to delete/rename inside the workspace, but the Standing
-constraints still forbid it: request deletions/renames via ARCHITECT_ACTIONS.
-If a diff contains one anyway, flag it there as a violation for architect
-review.
+The adapter-built write lane cannot write outside the workspace or run network
+installs. Codex is technically able to delete or rename inside the workspace,
+but the standing constraints still forbid it: request those operations via
+ARCHITECT_ACTIONS. If a diff contains one anyway, flag it there as a violation
+for architect review.
 
 ## Run codex
 
-```bash
-SPEC=$(mktemp -t codex-spec.XXXXXX 2>/dev/null || mktemp -t codex-spec)
-FINAL=$(mktemp -t codex-final.XXXXXX 2>/dev/null || mktemp -t codex-final)
+Write the full five-part spec to a unique temporary file. The complete
+implementation argv is owned by `skills/foreman/scripts/adapters/codex.sh` and
+its `adapter_implement_argv` contract. Pass it the spec file and worktree, then
+execute the returned `ADAPTER_ARGV` array without re-splitting it.
 
-cat > "$SPEC" << 'SPEC_EOF'
-[full five-part spec]
-Run the verification command and include its actual output in your final message.
-SPEC_EOF
-
-T=$(command -v gtimeout || command -v timeout || true)
-
-${T:+$T 600} codex exec \
-  --model gpt-5.6-sol \
-  -c model_reasoning_effort=medium \
-  --sandbox workspace-write \
-  --skip-git-repo-check \
-  --cd "$(pwd)" \
-  --output-last-message "$FINAL" \
-  - < "$SPEC"
-```
-
-**Reasoning effort.** Implementers run at `model_reasoning_effort=medium` for
-speed: the five-part spec determines the outcome, so deep reasoning is wasted
-wall-clock and risks the 600s timeout. Use `=high` only when the architect
-flags a correctness-critical or unusually subtle task in the spec. The
-**auditor** lane stays at `=high` — judgment is the point there. If a task
-needs the fastest possible turnaround for a mechanical change, `=low` is
-acceptable when the spec says so.
-
-If `gpt-5.6-sol` is unavailable, report `STATUS: unavailable` with the exact error —
-do not silently pick another model unless the architect’s spec names one.
+The adapter owns the model, reasoning, sandbox, capture, and prompt-transport
+details. A repo profile may override those defaults only when the architect's
+spec explicitly requests it. If the configured lane is unavailable, report
+`STATUS: unavailable` with the exact error rather than silently substituting a
+different model.
 
 ## Verify and report
 
