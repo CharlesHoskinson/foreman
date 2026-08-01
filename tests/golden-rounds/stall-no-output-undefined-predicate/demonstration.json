@@ -1,0 +1,11 @@
+{
+  "round_id": "stall-no-output-undefined-predicate",
+  "failure_class": "FC-01-monitor-predicate-cannot-fire",
+  "defective_trace": "tests/golden-rounds/stall-no-output-undefined-predicate/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/stall-no-output-undefined-predicate/corrected-trace.json",
+  "defective_verdict": "OK",
+  "corrected_verdict": "STALL NO_OUTPUT",
+  "harness_version": "tier1-round-layout/v1",
+  "demonstrated_at": "2026-08-01T01:30:16-06:00",
+  "demonstrated_by": "OpenAI Codex GPT-5.6 Sol"
+}

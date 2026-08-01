@@ -1,0 +1,20 @@
+{
+  "round_id": "stall-no-output-undefined-predicate",
+  "failure_class": "FC-01-monitor-predicate-cannot-fire",
+  "vendor": {
+    "name": "OpenAI Codex",
+    "model": "GPT-5.6 Sol",
+    "interface": "codex agent",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Repair and demonstrate the NO_OUTPUT stall predicate against unchanged, changed, and uncomputable inputs.",
+    "repository_state": "defective 4ff8959f0eddebe051f9b8dbfb226bd18b0357fe; corrected 5af3f34abd7753f7e3e7b46100cb3932f05e02c5",
+    "network_access": false
+  },
+  "response_text": "Defective demonstration:\nnothing changed:  OK evidence=content hash changed before=SOME_BASELINE after=\nreal change made: OK evidence=content hash changed before=SOME_BASELINE after=\n\nCorrected demonstration:\nunchanged: STALL NO_OUTPUT evidence=content hash unchanged hash=6caba305...\nchanged: OK evidence=content hash changed before=6caba305... after=1d3298b8...\nuncomputable: UNVERIFIED evidence=content digest unavailable EVIDENCE_STATUS=INCONCLUSIVE EVIDENCE_REASON=non-git-work-root:...",
+  "recorded_at": "2026-08-01T01:30:16-06:00",
+  "recorded_version": "stall-fix/5af3f34abd7753f7e3e7b46100cb3932f05e02c5",
+  "defective_trace": "tests/golden-rounds/stall-no-output-undefined-predicate/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/stall-no-output-undefined-predicate/corrected-trace.json"
+}

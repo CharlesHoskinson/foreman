@@ -1,0 +1,49 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "stall-no-output-undefined-predicate",
+  "failure_class": "FC-01-monitor-predicate-cannot-fire",
+  "implementation": {
+    "repository_commit": "4ff8959f0eddebe051f9b8dbfb226bd18b0357fe",
+    "source": "skills/foreman/scripts/lib/stall.sh"
+  },
+  "demonstrated_case": "unchanged",
+  "events": [
+    {
+      "seq": 1,
+      "case": "unchanged",
+      "decision": "evaluate_content_digest",
+      "outcome": "predicate_unavailable",
+      "evidence": {
+        "undefined_functions": [
+          "ev_content_hash",
+          "ev_hash_unchanged",
+          "ev_porcelain_digest",
+          "ev_porcelain_uall_digest"
+        ]
+      }
+    },
+    {
+      "seq": 2,
+      "case": "unchanged",
+      "decision": "classify_no_output",
+      "outcome": "fallthrough",
+      "verdict": "OK",
+      "emitted": "OK evidence=content hash changed before=SOME_BASELINE after="
+    },
+    {
+      "seq": 3,
+      "case": "changed",
+      "decision": "evaluate_content_digest",
+      "outcome": "predicate_unavailable"
+    },
+    {
+      "seq": 4,
+      "case": "changed",
+      "decision": "classify_no_output",
+      "outcome": "fallthrough",
+      "verdict": "OK",
+      "emitted": "OK evidence=content hash changed before=SOME_BASELINE after="
+    }
+  ],
+  "final_verdict": "OK"
+}

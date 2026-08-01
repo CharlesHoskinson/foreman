@@ -33,11 +33,11 @@
 
 ## 2. Tier 1 — vendor-replay golden corpus
 
-- [ ] 2.1 Define the recorded-transcript format: vendor identity, input
+- [x] 2.1 Define the recorded-transcript format: vendor identity, input
       context, full response text, recorded-at timestamp/version, plus
       `round_id`, the covered `bugeventlog.md` failure class, and the paths
       of the paired defective and corrected decision traces.
-- [ ] 2.2 Read bugeventlog.md and enumerate every distinct failure class
+- [x] 2.2 Read bugeventlog.md and enumerate every distinct failure class
       recorded there.
 - [ ] 2.3 Seed one golden round per failure class (10-12 rounds
       initially), each reproducing the decision-trace conditions of that
@@ -53,7 +53,7 @@
 - [ ] 2.7 Wire a process rule: a new bugeventlog.md entry is not
       considered closed until its golden round exists and its demonstration
       record exists.
-- [ ] 2.8 Create the round layout `tests/golden-rounds/<round_id>/` holding
+- [x] 2.8 Create the round layout `tests/golden-rounds/<round_id>/` holding
       `transcript.json`, `defective-trace.json`, `corrected-trace.json` and
       `demonstration.json`, with `demonstration.json` fields `round_id`,
       `failure_class`, `defective_trace`, `corrected_trace`,
