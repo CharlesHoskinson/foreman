@@ -173,7 +173,8 @@ assert_formal_setsid_defect() {
 assert_grok_empty_burst_trace() {
   local trace_path="$1"
   jq -e '
-    .trace_version == "decision-trace/v1"
+    . as $trace
+    | .trace_version == "decision-trace/v1"
     and .failure_class == "FC-03-lane-terminal-without-deliverable"
     and .demonstrated_case == "zero_files_changed"
     and .final_verdict == "EMPTY-BURST FAILED"
@@ -193,7 +194,10 @@ assert_grok_empty_burst_trace() {
       and .outcome == "rejected_missing_deliverable"
       and .evidence.exit_status == 1
       and .verdict == "EMPTY-BURST FAILED"
-      and (.emitted | startswith("grok-multiround: EMPTY-BURST FAILED after 2 rounds"))
+      and (.emitted | startswith(
+        (($trace.implementation.source | split("/")[-1] | rtrimstr(".sh"))
+        + ": EMPTY-BURST FAILED after 2 rounds")
+      ))
     )] | length == 1)
   ' "$trace_path" >/dev/null 2>&1
 }

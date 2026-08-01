@@ -26,7 +26,7 @@ EOF
 
 @test "writes on round 2 -> success, rounds=2, fed-forward preamble present" {
   make_grok_shim 2
-  run bash "$SCRIPTS/grok-multiround.sh" "$SPEC" --max-rounds 3 -- "$SHIM/grok" --cwd "$REPO"
+  run bash "$SCRIPTS/vendor-multiround.sh" "$SPEC" --max-rounds 3 -- "$SHIM/grok" --cwd "$REPO"
   [ "$status" -eq 0 ]
   [[ "$output" == *"rounds=2"* ]]
   [ -f "$REPO/out.txt" ]
@@ -34,13 +34,13 @@ EOF
 }
 @test "never writes -> empty-burst FAILED, non-zero" {
   make_grok_shim 0
-  run bash "$SCRIPTS/grok-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
+  run bash "$SCRIPTS/vendor-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
   [ "$status" -ne 0 ]
   [[ "$output" == *"empty-burst"* || "$output" == *"EMPTY-BURST"* ]]
 }
 @test "writes immediately -> rounds=1, no re-prompt" {
   make_grok_shim 1
-  run bash "$SCRIPTS/grok-multiround.sh" "$SPEC" --max-rounds 3 -- "$SHIM/grok" --cwd "$REPO"
+  run bash "$SCRIPTS/vendor-multiround.sh" "$SPEC" --max-rounds 3 -- "$SHIM/grok" --cwd "$REPO"
   [ "$status" -eq 0 ]; [[ "$output" == *"rounds=1"* ]]
   ! grep -q 'no file changes' "$PROMPTLOG"
 }
@@ -62,7 +62,7 @@ echo "I will orient first, reading the run context..."
 exit 0
 EOF
   chmod +x "$SHIM/grok"
-  run bash "$SCRIPTS/grok-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
+  run bash "$SCRIPTS/vendor-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
   [ "$status" -ne 0 ]
   [[ "$output" == *"EMPTY-BURST FAILED"* ]]
   # Non-vacuous: the artifacts really were written. Without these assertions the
@@ -84,7 +84,7 @@ echo real > "$REPO/src.sh"
 exit 0
 EOF
   chmod +x "$SHIM/grok"
-  run bash "$SCRIPTS/grok-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
+  run bash "$SCRIPTS/vendor-multiround.sh" "$SPEC" --max-rounds 2 -- "$SHIM/grok" --cwd "$REPO"
   [ "$status" -eq 0 ]
   [[ "$output" == *"files changed"* ]]
   [ -f "$REPO/src.sh" ]

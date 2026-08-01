@@ -29,7 +29,7 @@ non-OpenAI auditor and say so explicitly.
 - `--cwd` / working directory explicit
 - Wall clock ~600s when `timeout`/`gtimeout` exists
 - grok `--prompt-file` is single-burst → write-first specs; exploratory work
-  → `grok-multiround.sh`
+  → `vendor-multiround.sh`
 
 ### Grok headless recipe (lane-run, durable lanes)
 

@@ -41,9 +41,9 @@ tests/graph-project.bats	windows	0
 tests/grok-lane.bats	linux	0
 tests/grok-lane.bats	wsl	0
 tests/grok-lane.bats	windows	0
-tests/grok-multiround.bats	linux	0
-tests/grok-multiround.bats	wsl	0
-tests/grok-multiround.bats	windows	0
+tests/vendor-multiround.bats	linux	0
+tests/vendor-multiround.bats	wsl	0
+tests/vendor-multiround.bats	windows	0
 tests/lane-queue.bats	linux	2
 tests/lane-queue.bats	wsl	2
 tests/lane-queue.bats	windows	0

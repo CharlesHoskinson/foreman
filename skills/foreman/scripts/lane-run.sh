@@ -1271,7 +1271,7 @@ round_usage="$(tl_usage_from_file "$stream_file_path" "$_usage_vendor" "$_usage_
 _model_id_done="$(tl_model_identity "${LANE_VENDOR:-}")"
 
 # @description Count paths the WORKER changed in the lane worktree, excluding
-#   artifacts the harness manufactured. Mirrors grok-multiround.sh's
+#   artifacts the harness manufactured. Mirrors vendor-multiround.sh's
 #   changed_paths exclusions: .harness/** is lane-run's own heartbeat and stream
 #   telemetry, and SPEC-*.md is a spec staged inside the tree by the caller.
 #

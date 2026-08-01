@@ -153,7 +153,7 @@ plan in `docs/superpowers/`).
 - **grok `--prompt-file` empty-burst** — single-burst grok can spend the burst
   orienting and write nothing on exploration-heavy specs. Added write-first
   doctrine (spec's first action must be a Write, API facts inlined), an
-  empty-burst-vs-cancelled-writes distinction, and `grok-multiround.sh` — a bounded
+  empty-burst-vs-cancelled-writes distinction, and `vendor-multiround.sh` — a bounded
   re-prompt loop that feeds forward "wrote nothing; Write now" until files change or
   the round budget is spent (then a loud EMPTY-BURST FAILED).
 - **codex headless auth** — `codex login --device-auth` (0.144.x) falls back to a

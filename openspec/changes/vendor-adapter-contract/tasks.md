@@ -78,8 +78,8 @@ to content changes within an unchanged status string.
 - [ ] Provide `adapter_implement_argv` and `adapter_caps` in a shape
       `vendor-multiround.sh` can call per round with a vendor id, and record
       that call contract in each adapter header.
-- [ ] Coordinate the `grok-multiround.sh` → `vendor-multiround.sh` rename with
-      `evidence-contracts`: that package performs the rename and owns the loop;
+- [ ] Coordinate the `vendor-multiround.sh` handoff with `evidence-contracts`:
+      that package performs the rename and owns the loop;
       this package updates the callers it owns and removes the grok-specific
       `--prompt-file`-appending line in favour of `adapter_implement_argv`.
 - [ ] Assert in `tests/adapters.bats` that no adapter and no file owned by this
