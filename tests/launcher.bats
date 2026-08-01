@@ -307,8 +307,8 @@ last_hb_field() {
 @test "POSIX pidns: killing launcher_pid reaps a setsid/backgrounded escapee (kill-shot, WSL)" {
   posix_launcher_or_skip
   command -v unshare >/dev/null 2>&1 || skip "unshare absent on this host"
-  unshare --pid --mount-proc --fork true >/dev/null 2>&1 \
-    || skip "pid namespaces unavailable on this host; the kernel cascade this test asserts cannot occur (see test 12 for the degraded setsid+pgid contract)"
+  unshare --pid --mount-proc --fork --kill-child -- true >/dev/null 2>&1 \
+    || skip "the launcher's own pidns capability probe (unshare --pid --mount-proc --fork --kill-child -- true) does not succeed on this host, so the kernel cascade this test asserts cannot occur; the degraded contract is covered by 'POSIX pidns: forced unshare-absent run logs the downgrade and still honors the frozen contract via setsid+pgid'"
   hb="./hb-posix-killshot.jsonl"
   marker="999.$$"
   "$POSIX_EXE" --heartbeat-file "$hb" --heartbeat-interval 1 -- \
