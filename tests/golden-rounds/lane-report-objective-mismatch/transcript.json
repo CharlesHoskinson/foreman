@@ -1,0 +1,20 @@
+{
+  "round_id": "lane-report-objective-mismatch",
+  "failure_class": "FC-10-orchestration-task-mismatch",
+  "vendor": {
+    "name": "OpenAI Codex",
+    "model": "not recorded",
+    "interface": "codex lane under lane-run.sh",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Implement round-ownership-default, prove all 8 round-ownership tests pass, and complete FOREMAN_REPORT.md with the dispatched objective's evidence.",
+    "repository_state": "defective lane exited zero after a different destructive-proof objective while all four report sections remained (TBD); corrected lane reconciles objective, report, and 8 of 8 test evidence",
+    "network_access": false
+  },
+  "response_text": "Defective completion: ExecMainStatus=0 and Result=success, but FOREMAN_REPORT.md still had Changes, Verification, Evidence, and Gaps all equal to (TBD); the worker described a destructive refusal proof rather than the dispatched implementation objective. Corrected completion: the worker objective matches dispatch, all 4 report sections are complete with 0 TBD placeholders, and round-ownership reports 8 of 8 pass.",
+  "recorded_at": "2026-08-01T12:02:00-06:00",
+  "recorded_version": "tier1-fc10/task-objective-reconciliation",
+  "defective_trace": "tests/golden-rounds/lane-report-objective-mismatch/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/lane-report-objective-mismatch/corrected-trace.json"
+}

@@ -1,0 +1,48 @@
+{
+  "trace_version": "decision-trace/v1",
+  "round_id": "lane-lint-worktree-artifact-leak",
+  "failure_class": "FC-07-isolation-artifact-safety",
+  "implementation": {
+    "repository_commit": "not recorded",
+    "source": "markdownlint-cli2 repo-wide invocation inside a lane worktree"
+  },
+  "demonstrated_case": "lane_artifact_contaminates_repository_total",
+  "events": [
+    {
+      "seq": 1,
+      "case": "lane_artifact_contaminates_repository_total",
+      "decision": "enumerate_markdown_inputs",
+      "outcome": "worktree_wide_glob",
+      "evidence": {
+        "glob": "**/*.md",
+        "repository_files": 118,
+        "lane_artifacts": 1
+      }
+    },
+    {
+      "seq": 2,
+      "case": "lane_artifact_contaminates_repository_total",
+      "decision": "read_lane_scoped_artifact",
+      "outcome": "included_outside_measurement_boundary",
+      "evidence": {
+        "path": "SPEC-tier1.md",
+        "expected_scope": "lane_only",
+        "observed_scope": "repository_lint"
+      }
+    },
+    {
+      "seq": 3,
+      "case": "lane_artifact_contaminates_repository_total",
+      "decision": "summarize_repository_lint",
+      "outcome": "contaminated_by_lane_artifact",
+      "evidence": {
+        "checked_files": 119,
+        "repository_files": 118,
+        "lane_artifacts_included": 1
+      },
+      "verdict": "119 Markdown files checked",
+      "emitted": "markdownlint: checked=119 repository_files=118 lane_artifacts_included=1 path=SPEC-tier1.md"
+    }
+  ],
+  "final_verdict": "119 Markdown files checked"
+}

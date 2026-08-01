@@ -5,13 +5,21 @@ bats_require_minimum_version 1.5.0
 setup() {
   RUNNER="$BATS_TEST_DIRNAME/tier1-replay.sh"
   ROUND_ID="stall-no-output-undefined-predicate"
-  NEW_ROUND_IDS=(
+  ROUND_IDS=(
     audit-watchdog-orphaned-sleep
     crlf-worktree-shell-unrunnable
     formal-setsid-unavailable
     grok-single-turn-empty-burst
     launcher-pidns-capability-guard
     vendor-adapter-task-state
+    lane-lint-worktree-artifact-leak
+    reaudit-rework-no-convergence
+    lane-report-objective-mismatch
+  )
+  NEW_ROUND_IDS=(
+    lane-lint-worktree-artifact-leak
+    reaudit-rework-no-convergence
+    lane-report-objective-mismatch
   )
 }
 
@@ -20,21 +28,16 @@ prepare_corpus() {
   cp -R "$BATS_TEST_DIRNAME/golden-rounds" "$CORPUS"
 }
 
-@test "replays seven demonstrated classes and reports the three evidence gaps" {
+@test "replays all ten demonstrated failure classes" {
   run bash "$RUNNER"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"PASS round_id=$ROUND_ID"* ]]
-  for round_id in "${NEW_ROUND_IDS[@]}"; do
+  for round_id in "${ROUND_IDS[@]}"; do
     [[ "$output" == *"PASS round_id=$round_id"* ]]
   done
-  [[ "$output" == *"7 of 10 failure classes demonstrated"* ]]
-  for missing in \
-    FC-07-isolation-artifact-safety \
-    FC-09-decision-policy-nonconvergent \
-    FC-10-orchestration-task-mismatch; do
-    [[ "$output" == *"$missing"* ]]
-  done
+  [[ "$output" == *"COVERAGE: 10 of 10 failure classes demonstrated"* ]]
+  [[ "$output" == *"Tier 1 replay: PASS (10 round(s))"* ]]
 }
 
 @test "a newly documented class with no round is visible before closure" {
@@ -45,7 +48,7 @@ prepare_corpus() {
   run env TIER1_CLASS_DOCUMENT="$class_document" bash "$RUNNER"
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"7 of 11 failure classes demonstrated"* ]]
+  [[ "$output" == *"10 of 11 failure classes demonstrated"* ]]
   [[ "$output" == *"FC-11-newly-recorded-unseeded"* ]]
   [[ "$output" == *"not closed until its golden round and demonstration record exist"* ]]
 }
@@ -115,7 +118,7 @@ prepare_corpus() {
 }
 
 @test "every newly seeded round fails when its defective witness is absent" {
-  for round_id in "${NEW_ROUND_IDS[@]}"; do
+  for round_id in "${ROUND_IDS[@]}"; do
     corpus="$BATS_TEST_TMPDIR/golden-rounds-$round_id"
     cp -R "$BATS_TEST_DIRNAME/golden-rounds" "$corpus"
     trace="$corpus/$round_id/defective-trace.json"
@@ -131,7 +134,7 @@ prepare_corpus() {
 }
 
 @test "every new trace event decision is constrained by its round assertion" {
-  for round_id in "${NEW_ROUND_IDS[@]}"; do
+  for round_id in "${ROUND_IDS[@]}"; do
     for trace_name in defective-trace corrected-trace; do
       source_trace="$BATS_TEST_DIRNAME/golden-rounds/$round_id/$trace_name.json"
       event_count="$(jq '.events | length' "$source_trace")"
@@ -165,4 +168,41 @@ prepare_corpus() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"FAIL round_id=$ROUND_ID"* ]]
   [[ "$output" == *"demonstration record is not fail-then-pass"* ]]
+}
+
+@test "each missing-class assertion prints its corruption, fails, then passes" {
+  corruption_filters=(
+    '(.events[] | select(.decision == "enumerate_markdown_inputs") | .evidence.excluded_lane_artifacts) = 0'
+    '(.events[] | select(.decision == "apply_rework_bound") | .evidence.decision_sequence) = ["rework", "rework"]'
+    '(.events[] | select(.decision == "validate_worker_artifact") | .evidence.tbd_placeholders) = 1'
+  )
+  corruption_descriptions=(
+    'excluded_lane_artifacts: 1 -> 0'
+    'decision_sequence: [rework, escalate] -> [rework, rework]'
+    'tbd_placeholders: 0 -> 1'
+  )
+
+  for ((round_index = 0; round_index < ${#NEW_ROUND_IDS[@]}; round_index++)); do
+    round_id="${NEW_ROUND_IDS[$round_index]}"
+    corpus="$BATS_TEST_TMPDIR/corruption-$round_id"
+    cp -R "$BATS_TEST_DIRNAME/golden-rounds" "$corpus"
+    trace="$corpus/$round_id/corrected-trace.json"
+
+    printf '# CORRUPTION round_id=%s: %s\n' \
+      "$round_id" "${corruption_descriptions[$round_index]}" >&3
+    jq "${corruption_filters[$round_index]}" "$trace" > "$trace.tmp"
+    mv "$trace.tmp" "$trace"
+
+    run env TIER1_GOLDEN_ROOT="$corpus" bash "$RUNNER"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"FAIL round_id=$round_id"* ]]
+    [[ "$output" == *"corrected decision trace does not satisfy the round assertion"* ]]
+
+    cp "$BATS_TEST_DIRNAME/golden-rounds/$round_id/corrected-trace.json" "$trace"
+    run env TIER1_GOLDEN_ROOT="$corpus" bash "$RUNNER"
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"PASS round_id=$round_id"* ]]
+  done
 }

@@ -1,0 +1,20 @@
+{
+  "round_id": "reaudit-rework-no-convergence",
+  "failure_class": "FC-09-decision-policy-nonconvergent",
+  "vendor": {
+    "name": "Recorded cross-vendor re-audit",
+    "model": "not recorded",
+    "interface": "implement-audit-rework loop",
+    "version": "not recorded"
+  },
+  "input_context": {
+    "prompt": "Reconcile a repeated BLOCKED verdict into a bounded action using an explicit closure delta and convergence rule.",
+    "repository_state": "defective policy returned REWORK for three growing rounds without a convergence criterion; corrected policy measures net closure and escalates at round 2",
+    "network_access": false
+  },
+  "response_text": "Defective loop: rounds 1, 2, and 3 each mapped BLOCKED to REWORK; the round count grew while the decision remained REWORK and convergence was undefined. Corrected loop: round 2 recorded closed=8, still_open=10, newly_introduced=3, net_closed=5, then applied max_rework_rounds=2 and emitted ESCALATE.",
+  "recorded_at": "2026-08-01T12:01:00-06:00",
+  "recorded_version": "tier1-fc09/bounded-rework",
+  "defective_trace": "tests/golden-rounds/reaudit-rework-no-convergence/defective-trace.json",
+  "corrected_trace": "tests/golden-rounds/reaudit-rework-no-convergence/corrected-trace.json"
+}

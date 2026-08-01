@@ -33,7 +33,7 @@ tests/round-ownership.bats	8
 tests/resume.bats	10
 tests/soft-mode-target.bats	3
 tests/telemetry.bats	9
-tests/tier1-replay.bats	10
+tests/tier1-replay.bats	11
 tests/tool-check-auth.bats	9
 tests/vendor-concurrency-test.bats	16
 tests/vendor-isolation.bats	8

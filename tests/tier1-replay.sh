@@ -403,6 +403,83 @@ assert_crlf_worktree_defect() {
   ' "$trace_path" >/dev/null 2>&1
 }
 
+# @description Assert the corrected FC-07 lane-artifact isolation contract.
+# @arg $1 decision-trace JSON path
+assert_lane_lint_isolation_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-07-isolation-artifact-safety"
+    and .demonstrated_case == "lane_artifact_contaminates_repository_total"
+    and .final_verdict == "118 repository Markdown files checked; 1 lane artifact excluded"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["define_isolation_boundary", "enumerate_markdown_inputs", "summarize_repository_lint"]
+    and [.events[].outcome] == ["lane_artifacts_excluded", "repository_scope_only", "stable_repository_total"]
+    and all(.events[]; .case == "lane_artifact_contaminates_repository_total")
+    and ([.events[] | select(
+      .decision == "define_isolation_boundary"
+      and .outcome == "lane_artifacts_excluded"
+      and .evidence.excluded_patterns == ["SPEC-*.md", ".harness/**", "FOREMAN_REPORT.*"]
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "enumerate_markdown_inputs"
+      and .outcome == "repository_scope_only"
+      and .evidence.checked_files == 118
+      and .evidence.excluded_lane_artifacts == 1
+      and .evidence.excluded_paths == ["SPEC-tier1.md"]
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "summarize_repository_lint"
+      and .outcome == "stable_repository_total"
+      and .evidence.repository_files == 118
+      and .evidence.lane_artifacts_included == 0
+      and .verdict == "118 repository Markdown files checked; 1 lane artifact excluded"
+      and .emitted == "markdownlint: checked=118 repository_files=118 excluded_lane_artifacts=1 path=SPEC-tier1.md"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-07 measurement crossed its lane boundary.
+# @arg $1 defective decision-trace JSON path
+assert_lane_lint_isolation_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-07-isolation-artifact-safety"
+    and .demonstrated_case == "lane_artifact_contaminates_repository_total"
+    and .final_verdict == "119 Markdown files checked"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["enumerate_markdown_inputs", "read_lane_scoped_artifact", "summarize_repository_lint"]
+    and [.events[].outcome] == ["worktree_wide_glob", "included_outside_measurement_boundary", "contaminated_by_lane_artifact"]
+    and all(.events[]; .case == "lane_artifact_contaminates_repository_total")
+    and ([.events[] | select(
+      .decision == "enumerate_markdown_inputs"
+      and .outcome == "worktree_wide_glob"
+      and .evidence.glob == "**/*.md"
+      and .evidence.repository_files == 118
+      and .evidence.lane_artifacts == 1
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "read_lane_scoped_artifact"
+      and .outcome == "included_outside_measurement_boundary"
+      and .evidence.path == "SPEC-tier1.md"
+      and .evidence.expected_scope == "lane_only"
+      and .evidence.observed_scope == "repository_lint"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "summarize_repository_lint"
+      and .outcome == "contaminated_by_lane_artifact"
+      and .evidence.checked_files == 119
+      and .evidence.repository_files == 118
+      and .evidence.lane_artifacts_included == 1
+      and .verdict == "119 Markdown files checked"
+      and .emitted == "markdownlint: checked=119 repository_files=118 lane_artifacts_included=1 path=SPEC-tier1.md"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
 # @description Assert the corrected FC-08 task-record reconciliation.
 # @arg $1 decision-trace JSON path
 assert_vendor_task_state_trace() {
@@ -462,6 +539,156 @@ assert_vendor_task_state_defect() {
   ' "$trace_path" >/dev/null 2>&1
 }
 
+# @description Assert the corrected FC-09 bounded rework decision contract.
+# @arg $1 decision-trace JSON path
+assert_reaudit_convergence_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-09-decision-policy-nonconvergent"
+    and .demonstrated_case == "rework_decision_repeats_without_convergence"
+    and .final_verdict == "ESCALATE"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["record_closure_delta", "evaluate_net_progress", "apply_rework_bound"]
+    and [.events[].outcome] == ["computed", "progress_measured", "escalated_at_bound"]
+    and all(.events[]; .case == "rework_decision_repeats_without_convergence")
+    and ([.events[] | select(
+      .decision == "record_closure_delta"
+      and .outcome == "computed"
+      and .evidence.round == 2
+      and .evidence.closed == 8
+      and .evidence.still_open == 10
+      and .evidence.newly_introduced == 3
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "evaluate_net_progress"
+      and .outcome == "progress_measured"
+      and .evidence.net_closed == 5
+      and .evidence.criterion == "newly_introduced < closed"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "apply_rework_bound"
+      and .outcome == "escalated_at_bound"
+      and .evidence.rounds_observed == 2
+      and .evidence.max_rework_rounds == 2
+      and .evidence.decision_sequence == ["rework", "escalate"]
+      and .verdict == "ESCALATE"
+      and .emitted == "rounds=2 decision=ESCALATE net_closed=5"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-09 policy repeats without settling.
+# @arg $1 defective decision-trace JSON path
+assert_reaudit_convergence_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-09-decision-policy-nonconvergent"
+    and .demonstrated_case == "rework_decision_repeats_without_convergence"
+    and .final_verdict == "REWORK"
+    and (.events | length == 4)
+    and [.events[].seq] == [1, 2, 3, 4]
+    and [.events[].decision] == ["apply_audit_policy", "apply_audit_policy", "apply_audit_policy", "evaluate_convergence"]
+    and [.events[].outcome] == ["rework", "rework", "rework", "no_progress_criterion"]
+    and all(.events[]; .case == "rework_decision_repeats_without_convergence")
+    and ([.events[] | select(
+      .decision == "apply_audit_policy"
+      and .outcome == "rework"
+      and .evidence.verdict == "BLOCKED"
+      and .evidence.decision_changed == false
+    )] | length == 3)
+    and ([.events[] | select(.decision == "apply_audit_policy") | .evidence.round] == [1, 2, 3])
+    and ([.events[] | select(
+      .decision == "evaluate_convergence"
+      and .outcome == "no_progress_criterion"
+      and .evidence.rounds_observed == 3
+      and .evidence.decision_sequence == ["rework", "rework", "rework"]
+      and .verdict == "REWORK"
+      and .emitted == "rounds=3 decision=REWORK convergence=undefined"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Assert the corrected FC-10 task/objective reconciliation contract.
+# @arg $1 decision-trace JSON path
+assert_lane_report_objective_trace() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-10-orchestration-task-mismatch"
+    and .demonstrated_case == "worker_success_for_different_objective"
+    and .final_verdict == "TASK MATCH"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["dispatch_lane_objective", "validate_worker_artifact", "classify_task_completion"]
+    and [.events[].outcome] == ["objective_recorded", "report_complete", "objective_and_artifact_match"]
+    and all(.events[]; .case == "worker_success_for_different_objective")
+    and ([.events[] | select(
+      .decision == "dispatch_lane_objective"
+      and .outcome == "objective_recorded"
+      and .evidence.objective == "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass"
+      and .evidence.required_artifact == "FOREMAN_REPORT.md"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "validate_worker_artifact"
+      and .outcome == "report_complete"
+      and .evidence.required_sections == ["Changes", "Verification", "Evidence", "Gaps"]
+      and .evidence.completed_sections == 4
+      and .evidence.tbd_placeholders == 0
+      and .evidence.worker_objective == "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "classify_task_completion"
+      and .outcome == "objective_and_artifact_match"
+      and .evidence.expected_tests == 8
+      and .evidence.passing_tests == 8
+      and .verdict == "TASK MATCH"
+      and .emitted == "task objective matched; FOREMAN_REPORT.md complete; round-ownership 8 of 8 pass"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
+# @description Prove the defective FC-10 lane succeeded against a different task.
+# @arg $1 defective decision-trace JSON path
+assert_lane_report_objective_defect() {
+  local trace_path="$1"
+  jq -e '
+    .trace_version == "decision-trace/v1"
+    and .failure_class == "FC-10-orchestration-task-mismatch"
+    and .demonstrated_case == "worker_success_for_different_objective"
+    and .final_verdict == "Result=success"
+    and (.events | length == 3)
+    and [.events[].seq] == [1, 2, 3]
+    and [.events[].decision] == ["dispatch_lane_objective", "observe_worker_completion", "compare_task_to_artifact"]
+    and [.events[].outcome] == ["objective_recorded", "process_success", "objective_mismatch"]
+    and all(.events[]; .case == "worker_success_for_different_objective")
+    and ([.events[] | select(
+      .decision == "dispatch_lane_objective"
+      and .outcome == "objective_recorded"
+      and .evidence.objective == "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass"
+      and .evidence.required_artifact == "FOREMAN_REPORT.md"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "observe_worker_completion"
+      and .outcome == "process_success"
+      and .evidence.exit_status == 0
+      and .evidence.worker_claim == "Core mechanism landed and independently verified"
+    )] | length == 1)
+    and ([.events[] | select(
+      .decision == "compare_task_to_artifact"
+      and .outcome == "objective_mismatch"
+      and .evidence.worker_objective == "Run the destructive refusal proof"
+      and .evidence.dispatched_objective == "Implement round-ownership-default and prove 8 of 8 round-ownership tests pass"
+      and .evidence.report_sections == ["Changes=(TBD)", "Verification=(TBD)", "Evidence=(TBD)", "Gaps=(TBD)"]
+      and .evidence.completed_sections == 0
+      and .verdict == "Result=success"
+      and .emitted == "ExecMainStatus=0, Result=success; FOREMAN_REPORT.md sections complete=0 of 4"
+    )] | length == 1)
+  ' "$trace_path" >/dev/null 2>&1
+}
+
 # @description Assert that a defective trace contains its round-specific witness.
 # @arg $1 round id
 # @arg $2 defective decision-trace JSON path
@@ -484,6 +711,15 @@ assert_seeded_defect() {
       ;;
     launcher-pidns-capability-guard)
       assert_launcher_pidns_defect "$trace_path"
+      ;;
+    lane-lint-worktree-artifact-leak)
+      assert_lane_lint_isolation_defect "$trace_path"
+      ;;
+    lane-report-objective-mismatch)
+      assert_lane_report_objective_defect "$trace_path"
+      ;;
+    reaudit-rework-no-convergence)
+      assert_reaudit_convergence_defect "$trace_path"
       ;;
     stall-no-output-undefined-predicate)
       assert_stall_no_output_defect "$trace_path"
@@ -525,6 +761,15 @@ assert_decision_trace() {
       ;;
     launcher-pidns-capability-guard)
       assert_launcher_pidns_trace "$trace_path"
+      ;;
+    lane-lint-worktree-artifact-leak)
+      assert_lane_lint_isolation_trace "$trace_path"
+      ;;
+    lane-report-objective-mismatch)
+      assert_lane_report_objective_trace "$trace_path"
+      ;;
+    reaudit-rework-no-convergence)
+      assert_reaudit_convergence_trace "$trace_path"
       ;;
     stall-no-output-undefined-predicate)
       assert_stall_no_output_trace "$trace_path"
