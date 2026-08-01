@@ -143,8 +143,13 @@ ar_reap_watchdog() {
 ar_cleanup_processes() {
   ar_reap_watchdog
   if [[ -n "$AUDIT_CHILD_PID" ]]; then
-    kill -TERM -- "-$AUDIT_CHILD_PID" 2>/dev/null || true
-    kill -KILL -- "-$AUDIT_CHILD_PID" 2>/dev/null || true
+    # Group kill first, then the pid itself. A child that is not a
+    # process-group leader is not in the group addressed by -PID, so without
+    # the pid fallback neither signal lands and the wait below blocks forever
+    # on a live child. Every other kill site in this repo pairs the two
+    # (stop_background_audit, run_bounded); this one did not.
+    kill -TERM -- "-$AUDIT_CHILD_PID" 2>/dev/null || kill -TERM "$AUDIT_CHILD_PID" 2>/dev/null || true
+    kill -KILL -- "-$AUDIT_CHILD_PID" 2>/dev/null || kill -KILL "$AUDIT_CHILD_PID" 2>/dev/null || true
     wait "$AUDIT_CHILD_PID" 2>/dev/null || true
     AUDIT_CHILD_PID=""
   fi
