@@ -225,20 +225,7 @@ gg_canary_unverified() {
 # @exitcode 0 if the fixture has the parsed audit-artifact shape
 gg_canary_shape_valid() {
   local fixture="$1"
-  jq -e '
-    type == "object"
-    and (.verdict == "APPROVED" or .verdict == "WARNING" or .verdict == "BLOCKED")
-    and (.summary | type == "string")
-    and (.findings | type == "array")
-    and all(.findings[];
-      type == "object"
-      and (.severity == "critical" or .severity == "high"
-        or .severity == "medium" or .severity == "low")
-      and (.file | type == "string")
-      and (.line | type == "number" and . == floor)
-      and (.summary | type == "string")
-      and (.evidence | type == "string"))
-  ' "$fixture" >/dev/null 2>&1
+  jq -e "try ($GG_CANARY_SHAPE_JQ) catch false" "$fixture" >/dev/null 2>&1
 }
 
 # @description Probe whether the current process can enumerate a corpus.
@@ -263,7 +250,7 @@ gg_canary_corpus_readable() {
 gg_canary_run() {
   local corpus="$1" start_ms end_ms elapsed expected_total actual_total
   local fixture sidecar id expected_count expected_rows actual_output actual_count
-  local expected_pairs actual_pairs check_name expected_focus actual_focus
+  local expected_pairs actual_pairs check_name expected_focus actual_focus evaluator_status
   start_ms="$(gg_now_ms)"
   GG_CANARY_LAST_REASON=""
 
@@ -306,11 +293,6 @@ gg_canary_run() {
       gg_canary_unverified "canary_unreadable" "$start_ms" "fixture=$id"
       return 1
     fi
-    if ! gg_canary_shape_valid "$fixture"; then
-      gg_canary_unverified "canary_shape_mismatch" "$start_ms" "fixture=$id"
-      return 1
-    fi
-
     if ! expected_count="$(awk -F '\t' '
       $1 == "expected_count" { count++; value=$2 }
       END { if (count != 1 || value !~ /^[0-9]+$/) exit 1; print value }
@@ -333,8 +315,15 @@ gg_canary_run() {
       return 1
     fi
 
-    if ! actual_output="$(gg_canary_evaluate_fixture "$fixture")"; then
-      gg_canary_unverified "canary_evaluator_error" "$start_ms" "fixture=$id"
+    if actual_output="$(gg_canary_evaluate_fixture "$fixture")"; then
+      :
+    else
+      evaluator_status=$?
+      if (( evaluator_status == 2 )); then
+        gg_canary_unverified "canary_shape_mismatch" "$start_ms" "fixture=$id"
+      else
+        gg_canary_unverified "canary_evaluator_error" "$start_ms" "fixture=$id"
+      fi
       return 1
     fi
     if [[ -n "$actual_output" ]] && ! awk -F '\t' \
