@@ -138,7 +138,17 @@ while [[ $round -lt $MAX_ROUNDS ]]; do
   fi
 done
 
-echo "grok-multiround: EMPTY-BURST FAILED after $round rounds — grok narrated orientation but wrote nothing." >&2
+FAILED_OUT="${TMPDIR:-/tmp}/grok-multiround-failed.$$.log"
+cp -f "$LAST_OUT" "$FAILED_OUT" 2>/dev/null || FAILED_OUT=""
+echo "grok-multiround: EMPTY-BURST FAILED after $round rounds — no worker-owned file changed." >&2
+if [[ -n "$FAILED_OUT" && -s "$FAILED_OUT" ]]; then
+  echo "grok-multiround: the worker's own output is preserved at $FAILED_OUT" >&2
+  echo "grok-multiround: --- last 40 lines of that output ---" >&2
+  tail -n 40 "$FAILED_OUT" >&2
+  echo "grok-multiround: --- end of worker output ---" >&2
+else
+  echo "grok-multiround: the worker produced NO output at all (not even narration)." >&2
+fi
 echo "grok-multiround: re-issue a spec whose FIRST instruction names the real deliverable (the source file to edit). Do NOT instruct the worker to create a notes/plan/sentinel file first: this detector excludes such artifacts, and before 2026-07-30 it counted them and reported a false success." >&2
 echo "grok-multiround: a round is single-turn. A spec the worker must READ before it can WRITE cannot succeed at any --max-rounds; inline the facts instead of raising the budget." >&2
 exit "$EXIT_FAIL"
