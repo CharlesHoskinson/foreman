@@ -263,7 +263,63 @@ setup() {
   run $SESS sidecar --out "$BATS_TEST_TMPDIR/b.ndjson"
   [ "$status" -eq 0 ]
   cmp "$BATS_TEST_TMPDIR/a.ndjson" "$BATS_TEST_TMPDIR/b.ndjson"
+  run python3 - "$BATS_TEST_TMPDIR/a.ndjson" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    for line in stream:
+        document = json.loads(line)
+        if line.rstrip("\n") != json.dumps(document, sort_keys=True):
+            raise SystemExit(1)
+PY
+  [ "$status" -eq 0 ]
+  [ "$(head -n 1 "$BATS_TEST_TMPDIR/a.ndjson")" = \
+    '{"format": "foreman-session-sidecar", "format_version": 1}' ]
   ! grep -q '"validity"' "$BATS_TEST_TMPDIR/a.ndjson"
+}
+
+@test "sidecar reads every table from one SQLite snapshot" {
+  cd "$REPO"
+  run python3 - "$SCRIPTS/fm-session.py" "$FOREMAN_SESSION_DB" <<'PY'
+import importlib.util
+import json
+import sqlite3
+import sys
+
+spec = importlib.util.spec_from_file_location("fm_session", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+reader = module.connect(sys.argv[2])
+reader.execute("PRAGMA journal_mode=WAL")
+writer = sqlite3.connect(sys.argv[2])
+writer.execute("PRAGMA journal_mode=WAL")
+committed = False
+
+def commit_between_table_reads(sql):
+    global committed
+    if committed or 'FROM "measurements"' not in sql:
+        return
+    writer.execute(
+        "INSERT INTO facts(statement,established_ts) VALUES('concurrent fact','now')"
+    )
+    writer.execute(
+        "INSERT INTO measurements(metric,value,command,measured_ts,scope_paths) "
+        "VALUES('concurrent metric','1','rerun','now','docs')"
+    )
+    writer.commit()
+    committed = True
+
+reader.set_trace_callback(commit_between_table_reads)
+text, _ = module.sidecar_ndjson(reader)
+documents = [json.loads(line) for line in text.splitlines()]
+facts = [d for d in documents if d.get("table") == "facts"]
+measurements = [d for d in documents if d.get("table") == "measurements"]
+if not committed:
+    raise SystemExit("writer did not commit between table reads")
+raise SystemExit(0 if len(facts) == len(measurements) else 1)
+PY
+  [ "$status" -eq 0 ]
 }
 
 @test "sidecar defaults beside FOREMAN_SESSION_DB" {
@@ -276,21 +332,47 @@ setup() {
   [ -f "$BATS_TEST_TMPDIR/nested/session.ndjson" ]
 }
 
-@test "import-sidecar rebuilds a projection-equivalent empty store" {
+@test "import-sidecar restores every database row and column exactly" {
   cd "$REPO"
-  $SESS fact "old fact"
-  $SESS supersede 1 "current fact" --reason "new evidence"
-  $SESS measure "suite count" "26" --command "old command" --scope src/a.sh
-  $SESS measure "suite count" "27" --command "new command" --scope src/a.sh
-  $SESS retire 1 --by 2 --reason "rerun"
-  $SESS obligation "blocked work" --blocker "waiting"
-  $SESS sidecar --out "$BATS_TEST_TMPDIR/original.ndjson"
+  source_db="$FOREMAN_SESSION_DB"
+  $SESS begin --note "fidelity probe"
+  $SESS fact "a fact" --evidence "some evidence"
+  $SESS measure some_metric 42 --command "the exact rerun command" \
+    --scope docs --scope tests
+  $SESS obligation "an obligation" --blocker "the blocker text"
+  $SESS measure some_metric 7 --command "second reading" --scope docs
+  $SESS retire 1 --by 2 --reason "proven wrong"
+  $SESS sidecar --out "$BATS_TEST_TMPDIR/fidelity.ndjson"
 
-  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/imported/session.db"
-  run $SESS import-sidecar "$BATS_TEST_TMPDIR/original.ndjson"
+  target_db="$BATS_TEST_TMPDIR/imported/session.db"
+  export FOREMAN_SESSION_DB="$target_db"
+  run $SESS import-sidecar "$BATS_TEST_TMPDIR/fidelity.ndjson"
   [ "$status" -eq 0 ]
-  $SESS sidecar --out "$BATS_TEST_TMPDIR/rebuilt.ndjson"
-  cmp "$BATS_TEST_TMPDIR/original.ndjson" "$BATS_TEST_TMPDIR/rebuilt.ndjson"
+
+  tables=$(sqlite3 "$source_db" \
+    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+  for table in $tables; do
+    run sqlite3 "$source_db" "SELECT * FROM \"$table\" ORDER BY 1"
+    [ "$status" -eq 0 ]
+    source_rows="$output"
+    run sqlite3 "$target_db" "SELECT * FROM \"$table\" ORDER BY 1"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$source_rows" ]
+  done
+
+  [ "$(sqlite3 "$target_db" \
+    "SELECT command FROM measurements WHERE id=1")" = \
+    "the exact rerun command" ]
+  [ "$(sqlite3 "$target_db" \
+    "SELECT blocker FROM obligations WHERE id=1")" = "the blocker text" ]
+  [ "$(sqlite3 "$target_db" \
+    "SELECT count(DISTINCT session_id) FROM facts \
+     WHERE session_id IS NOT NULL")" -eq 1 ]
+  [ "$(sqlite3 "$target_db" \
+    "SELECT superseded_by || '|' || supersede_reason \
+     FROM measurements WHERE id=1")" = "2|proven wrong" ]
+  ! sqlite3 "$target_db" ".dump" | grep -q \
+    "recovered superseded measurement"
 }
 
 @test "import-sidecar refuses a populated store unless forced" {
@@ -373,41 +455,48 @@ module.import_sidecar(conn, sys.argv[3])
 begin = next(i for i, sql in enumerate(statements) if sql == "BEGIN IMMEDIATE")
 row_check = next(
     i for i, sql in enumerate(statements)
-    if sql.startswith("SELECT 1 FROM sessions")
+    if sql.startswith('SELECT 1 FROM "sessions"')
 )
 raise SystemExit(0 if begin < row_check else 1)
 PY
   [ "$status" -eq 0 ]
 }
 
-@test "import-sidecar rejects duplicate supersessions without replacing the target" {
+@test "import-sidecar names an unrestorable row and rolls back the target" {
   cd "$REPO"
-  sidecar="$BATS_TEST_TMPDIR/duplicate.ndjson"
+  sidecar="$BATS_TEST_TMPDIR/invalid-row.ndjson"
   printf '%s\n' \
-    '{"@type":"Measurement","measurement_key":"fm-measurement-2","metric":"m","subject":null,"value":2.0,"at":"now","about":[]}' \
-    '{"@type":"Measurement","measurement_key":"fm-measurement-3","metric":"m","subject":null,"value":3.0,"at":"now","about":[]}' \
-    '{"@type":"Supersession","old":"Measurement/fm-measurement-1","new":"Measurement/fm-measurement-2","at":"now","reason":"first"}' \
-    '{"@type":"Supersession","old":"Measurement/fm-measurement-1","new":"Measurement/fm-measurement-3","at":"now","reason":"second"}' > "$sidecar"
+    '{"format":"foreman-session-sidecar","format_version":1}' \
+    '{"row":{"established_ts":"now","evidence":null,"id":7,"session_id":null,"statement":null,"supersede_reason":null,"superseded_at":null,"superseded_by":null},"table":"facts"}' \
+    > "$sidecar"
   $SESS fact "target fact"
 
   run $SESS import-sidecar "$sidecar" --force
   [ "$status" -eq 2 ]
-  [[ "$output" == *"duplicate supersession"* ]]
+  [[ "$output" == *"table facts"* ]]
+  [[ "$output" == *'"id": 7'* ]]
+  [[ "$output" == *"NOT NULL constraint failed"* ]]
   run $SESS recover
   [[ "$output" == *"target fact"* ]]
 }
 
-@test "import-sidecar rejects supersession cycles without replacing the target" {
+@test "import-sidecar refuses an unknown format version" {
   cd "$REPO"
-  sidecar="$BATS_TEST_TMPDIR/cycle.ndjson"
+  sidecar="$BATS_TEST_TMPDIR/future.ndjson"
   printf '%s\n' \
-    '{"@type":"Supersession","old":"Measurement/fm-measurement-1","new":"Measurement/fm-measurement-2","at":"now","reason":"forward"}' \
-    '{"@type":"Supersession","old":"Measurement/fm-measurement-2","new":"Measurement/fm-measurement-1","at":"now","reason":"back"}' > "$sidecar"
-  $SESS fact "target fact"
+    '{"format":"foreman-session-sidecar","format_version":99}' > "$sidecar"
 
-  run $SESS import-sidecar "$sidecar" --force
+  run $SESS import-sidecar "$sidecar"
   [ "$status" -eq 2 ]
-  [[ "$output" == *"supersession cycle"* ]]
+  [[ "$output" == *"unsupported sidecar format version: 99"* ]]
+}
+
+@test "legacy commands retain database-open failure behavior" {
+  cd "$REPO"
+  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR"
+
   run $SESS recover
-  [[ "$output" == *"target fact"* ]]
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"sqlite3.OperationalError"* ]]
+  [[ "$output" != *"refusing: cannot open target store"* ]]
 }

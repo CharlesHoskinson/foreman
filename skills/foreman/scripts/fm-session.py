@@ -60,6 +60,8 @@ from pathlib import Path
 import pathlib
 
 SCHEMA_VERSION = 3
+SIDECAR_FORMAT = "foreman-session-sidecar"
+SIDECAR_FORMAT_VERSION = 1
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -390,7 +392,7 @@ def project(conn):
     cur = conn.cursor()
     docs, skipped = [], []
 
-    for r in cur.execute("SELECT * FROM facts ORDER BY id").fetchall():
+    for r in cur.execute("SELECT * FROM facts").fetchall():
         # ClaimStatus is live|superseded|retracted. "Asserted"/"Superseded"
         # were outside the enum entirely and would be rejected on write.
         docs.append({
@@ -421,7 +423,7 @@ def project(conn):
                 "reason": r["supersede_reason"] or "unrecorded (pre-v2 row)",
             })
 
-    for r in cur.execute("SELECT * FROM measurements ORDER BY id").fetchall():
+    for r in cur.execute("SELECT * FROM measurements").fetchall():
         if r["superseded_by"]:
             # The live set is what `recover` shows, and it excludes retired
             # rows. A projector that exported them made two consumers of one
@@ -453,9 +455,7 @@ def project(conn):
                       if p.strip()],
         })
 
-    for r in cur.execute(
-        "SELECT * FROM obligations WHERE status != 'done' ORDER BY id"
-    ).fetchall():
+    for r in cur.execute("SELECT * FROM obligations WHERE status != 'done'").fetchall():
         # FindingSeverity is info|minor|major|critical. "Open"/"Blocked" were
         # a STATUS, not a severity, and are outside the enum. A blocked
         # obligation is major; an open one is minor. `blocker` is not a
@@ -474,11 +474,74 @@ def project(conn):
     return docs, skipped
 
 
-def projection_ndjson(conn):
-    """Return the existing ontology projection encoded as NDJSON."""
-    docs, skipped = project(conn)
-    lines = "\n".join(json.dumps(d) for d in docs)
-    return lines + "\n", docs, skipped
+def quote_identifier(name):
+    """Quote an identifier discovered from SQLite's own schema."""
+    return '"' + name.replace('"', '""') + '"'
+
+
+def store_schema(conn):
+    """Return every application table, column, and primary key from SQLite."""
+    tables = [
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_schema "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        ).fetchall()
+    ]
+    schema = {}
+    for table in tables:
+        info = conn.execute(
+            f"PRAGMA table_info({quote_identifier(table)})"
+        ).fetchall()
+        columns = [row["name"] for row in info]
+        primary_key = [
+            row["name"]
+            for row in sorted(info, key=lambda row: row["pk"])
+            if row["pk"]
+        ]
+        if not primary_key:
+            raise ValueError(
+                f"cannot serialize table {table}: table has no primary key"
+            )
+        schema[table] = {"columns": columns, "primary_key": primary_key}
+    return schema
+
+
+def sidecar_ndjson(conn):
+    """Return a canonical, faithful NDJSON dump of the session store."""
+    owns_transaction = not conn.in_transaction
+    if owns_transaction:
+        conn.execute("BEGIN")
+    try:
+        documents = [{
+            "format": SIDECAR_FORMAT,
+            "format_version": SIDECAR_FORMAT_VERSION,
+        }]
+        row_count = 0
+        for table, table_schema in store_schema(conn).items():
+            columns = table_schema["columns"]
+            selected = ", ".join(quote_identifier(column) for column in columns)
+            ordering = ", ".join(
+                quote_identifier(column) for column in table_schema["primary_key"]
+            )
+            query = (
+                f"SELECT {selected} FROM {quote_identifier(table)} "
+                f"ORDER BY {ordering}"
+            )
+            for record in conn.execute(query).fetchall():
+                row = {column: record[column] for column in columns}
+                documents.append({"table": table, "row": row})
+                row_count += 1
+        lines = "\n".join(
+            json.dumps(document, sort_keys=True) for document in documents
+        )
+        if owns_transaction:
+            conn.commit()
+        return lines + "\n", row_count
+    except Exception:
+        if owns_transaction:
+            conn.rollback()
+        raise
 
 
 def paths_alias(left, right):
@@ -519,17 +582,8 @@ def write_atomic(path, text):
             pass
 
 
-def sidecar_id(value, prefix):
-    if not isinstance(value, str) or not value.startswith(prefix):
-        raise ValueError(f"expected {prefix}<id>, got {value!r}")
-    raw = value[len(prefix):]
-    if not raw.isdigit() or int(raw) < 1:
-        raise ValueError(f"expected {prefix}<id>, got {value!r}")
-    return int(raw)
-
-
 def read_sidecar(path):
-    docs = []
+    documents = []
     with Path(path).open("r", encoding="utf-8") as stream:
         for line_number, line in enumerate(stream, 1):
             if not line.strip():
@@ -540,161 +594,104 @@ def read_sidecar(path):
                 raise ValueError(f"invalid NDJSON at line {line_number}: {e.msg}") from e
             if not isinstance(doc, dict):
                 raise ValueError(f"invalid NDJSON at line {line_number}: expected object")
-            docs.append(doc)
-    return docs
+            documents.append(doc)
+    return documents
+
+
+def describe_row(row):
+    """Render a stable row description for refusal messages."""
+    return json.dumps(row, sort_keys=True)
+
+
+def validate_sidecar(conn, path):
+    """Validate the format envelope and every row against the target schema."""
+    documents = read_sidecar(path)
+    if not documents:
+        raise ValueError("missing sidecar format record")
+
+    header = documents[0]
+    if header.get("format") != SIDECAR_FORMAT:
+        raise ValueError(f"unsupported sidecar format: {header.get('format')!r}")
+    version = header.get("format_version")
+    if version != SIDECAR_FORMAT_VERSION:
+        raise ValueError(f"unsupported sidecar format version: {version!r}")
+    if set(header) != {"format", "format_version"}:
+        raise ValueError("invalid sidecar format record")
+
+    schema = store_schema(conn)
+    rows = []
+    for document in documents[1:]:
+        if "format" in document or "format_version" in document:
+            raise ValueError("sidecar must contain exactly one format record")
+        table = document.get("table")
+        row = document.get("row")
+        if not isinstance(table, str) or not isinstance(row, dict):
+            raise ValueError(f"invalid sidecar row record: {document!r}")
+        if set(document) != {"table", "row"}:
+            raise ValueError(
+                f"cannot restore table {table}, row {describe_row(row)}: "
+                "record must contain only table and row"
+            )
+        if table not in schema:
+            raise ValueError(
+                f"cannot restore table {table}, row {describe_row(row)}: "
+                "table is not present in the target schema"
+            )
+        expected = set(schema[table]["columns"])
+        actual = set(row)
+        if actual != expected:
+            missing = sorted(expected - actual)
+            extra = sorted(actual - expected)
+            raise ValueError(
+                f"cannot restore table {table}, row {describe_row(row)}: "
+                f"columns differ (missing={missing}, extra={extra})"
+            )
+        rows.append((table, row))
+    return schema, rows
 
 
 def import_sidecar(conn, path, force=False):
-    """Rebuild projection-equivalent SQLite rows from ontology NDJSON."""
-    docs = read_sidecar(path)
-    tables = ("sessions", "facts", "measurements", "obligations")
-
-    claims = [d for d in docs if d.get("@type") == "Claim"]
-    measurements = [d for d in docs if d.get("@type") == "Measurement"]
-    findings = [d for d in docs if d.get("@type") == "Finding"]
-    supersessions = [d for d in docs if d.get("@type") == "Supersession"]
-    supported = {"Claim", "Measurement", "Finding", "Supersession"}
-    unknown = [d.get("@type") for d in docs if d.get("@type") not in supported]
-    if unknown:
-        raise ValueError(f"unsupported sidecar document type: {unknown[0]!r}")
-
-    fact_ids = {
-        sidecar_id(d.get("claim_key"), "fm-fact-") for d in claims
-    }
-    measurement_ids = {
-        sidecar_id(d.get("measurement_key"), "fm-measurement-")
-        for d in measurements
-    }
-    measurement_old_ids = set()
-    parsed_supersessions = []
-    superseded_records = set()
-    for d in supersessions:
-        old, new = d.get("old"), d.get("new")
-        if isinstance(old, str) and old.startswith("Claim/"):
-            old_id = sidecar_id(old, "Claim/fm-fact-")
-            new_id = sidecar_id(new, "Claim/fm-fact-")
-            if old_id not in fact_ids or new_id not in fact_ids:
-                raise ValueError("fact supersession refers to a missing Claim")
-            kind = "fact"
-        elif isinstance(old, str) and old.startswith("Measurement/"):
-            old_id = sidecar_id(old, "Measurement/fm-measurement-")
-            new_id = sidecar_id(new, "Measurement/fm-measurement-")
-            measurement_old_ids.add(old_id)
-            kind = "measurement"
-        else:
-            raise ValueError(f"unsupported supersession reference: {old!r}")
-        record = (kind, old_id)
-        if record in superseded_records:
-            raise ValueError(f"duplicate supersession for {old!r}")
-        superseded_records.add(record)
-        parsed_supersessions.append((kind, old_id, new_id, d))
-
-    for kind in ("fact", "measurement"):
-        next_by_id = {
-            old_id: new_id
-            for edge_kind, old_id, new_id, _ in parsed_supersessions
-            if edge_kind == kind
-        }
-        for start in next_by_id:
-            seen = set()
-            current = start
-            while current in next_by_id:
-                if current in seen:
-                    raise ValueError(f"{kind} supersession cycle")
-                seen.add(current)
-                current = next_by_id[current]
-
-    measurement_universe = measurement_ids | measurement_old_ids
-    if any(kind == "measurement" and new_id not in measurement_universe
-           for kind, _, new_id, _ in parsed_supersessions):
-        raise ValueError("measurement supersession refers to a missing Measurement")
-
+    """Restore a faithful sidecar without deriving or synthesising any row."""
+    schema, rows = validate_sidecar(conn, path)
+    data_tables = [table for table in schema if table != "schema_meta"]
     conn.execute("BEGIN IMMEDIATE")
-    with conn:
-        if any(conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
-               for table in tables) and not force:
+    try:
+        if any(conn.execute(
+            f"SELECT 1 FROM {quote_identifier(table)} LIMIT 1"
+        ).fetchone()
+               for table in data_tables) and not force:
             raise ValueError("target store already has rows; use --force to replace it")
-        if force:
-            for table in tables:
-                conn.execute(f"DELETE FROM {table}")
-            conn.execute(
-                "DELETE FROM sqlite_sequence WHERE name IN "
-                "('facts','measurements','obligations')"
-            )
 
-        for d in claims:
-            fact_id = sidecar_id(d.get("claim_key"), "fm-fact-")
-            provenance = d.get("provenance") or {}
-            evidence = provenance.get("source_locator")
-            if evidence == "unrecorded":
-                evidence = None
+        for table in reversed(schema):
+            conn.execute(f"DELETE FROM {quote_identifier(table)}")
+        if conn.execute(
+            "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='sqlite_sequence'"
+        ).fetchone():
             conn.execute(
-                "INSERT INTO facts(id,statement,evidence,established_ts,session_id) "
-                "VALUES(?,?,?,?,NULL)",
-                (fact_id, d["text"], evidence, provenance["extracted_at"]),
+                "DELETE FROM sqlite_sequence WHERE name IN ({})".format(
+                    ",".join("?" for _ in schema)
+                ),
+                tuple(schema),
             )
-
-        for d in measurements:
-            measurement_id = sidecar_id(
-                d.get("measurement_key"), "fm-measurement-"
-            )
-            value = d["value"]
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError("Measurement.value must be numeric")
-            subject = d.get("subject")
-            if subject is None:
-                measured_sha = None
-            elif isinstance(subject, str) and subject.startswith("Commit/"):
-                measured_sha = subject[len("Commit/"):]
-            else:
-                raise ValueError(f"unsupported Measurement.subject: {subject!r}")
-            about = d.get("about") or []
-            if not isinstance(about, list) or any(
-                not isinstance(item, str) or not item.startswith("Entity/")
-                for item in about
-            ):
-                raise ValueError("Measurement.about must contain Entity references")
-            scope_paths = "\n".join(item[len("Entity/"):] for item in about)
-            conn.execute(
-                "INSERT INTO measurements(id,metric,value,command,measured_ts,"
-                "measured_sha,scope_paths,session_id,value_num) "
-                "VALUES(?,?,?,NULL,?,?,?,NULL,?)",
-                (measurement_id, d["metric"], str(value), d["at"],
-                 measured_sha, scope_paths, float(value)),
-            )
-
-        supersession_at = {
-            old_id: d["at"] for kind, old_id, _, d in parsed_supersessions
-            if kind == "measurement"
-        }
-        for measurement_id in sorted(measurement_old_ids - measurement_ids):
-            conn.execute(
-                "INSERT INTO measurements(id,metric,value,command,measured_ts,"
-                "measured_sha,scope_paths,session_id,value_num) "
-                "VALUES(?,?,'0',NULL,?,NULL,NULL,NULL,0)",
-                (measurement_id, "recovered superseded measurement",
-                 supersession_at[measurement_id]),
-            )
-
-        for d in findings:
-            severity = d.get("severity")
-            if severity not in ("minor", "major"):
-                raise ValueError(f"unsupported Finding.severity: {severity!r}")
-            conn.execute(
-                "INSERT INTO obligations(statement,status,blocker,opened_ts,"
-                "closed_ts,session_id) VALUES(?,?,NULL,?,NULL,NULL)",
-                (d["text"], "blocked" if severity == "major" else "open", d["at"]),
-            )
-
-        for kind, old_id, new_id, d in parsed_supersessions:
-            table = "facts" if kind == "fact" else "measurements"
-            conn.execute(
-                f"UPDATE {table} SET superseded_by=?, superseded_at=?, "
-                "supersede_reason=? WHERE id=?",
-                (new_id, d["at"], d["reason"], old_id),
-            )
-
-    return len(docs)
+        for table, row in rows:
+            columns = schema[table]["columns"]
+            names = ", ".join(quote_identifier(column) for column in columns)
+            placeholders = ", ".join("?" for _ in columns)
+            try:
+                conn.execute(
+                    f"INSERT INTO {quote_identifier(table)} ({names}) "
+                    f"VALUES ({placeholders})",
+                    tuple(row[column] for column in columns),
+                )
+            except sqlite3.Error as e:
+                raise ValueError(
+                    f"cannot restore table {table}, row {describe_row(row)}: {e}"
+                ) from e
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return len(rows)
 
 
 def main():
@@ -740,11 +737,14 @@ def main():
                         "an unexplained retirement is unauditable")
 
     a = ap.parse_args()
-    try:
-        conn = connect(a.into if a.cmd == "import-sidecar" else None)
-    except sqlite3.Error as e:
-        print(f"refusing: cannot open target store: {e}", file=sys.stderr)
-        return 2
+    if a.cmd == "import-sidecar":
+        try:
+            conn = connect(a.into)
+        except sqlite3.Error as e:
+            print(f"refusing: cannot open target store: {e}", file=sys.stderr)
+            return 2
+    else:
+        conn = connect()
     cur = conn.cursor()
 
     def current_session():
@@ -812,7 +812,6 @@ def main():
         conn.commit(); print(f"obligation {a.obligation_id} -> {a.status}"); return 0
 
     if a.cmd == "sidecar":
-        lines, docs, skipped = projection_ndjson(conn)
         out = Path(a.out) if a.out else db_path().parent / "session.ndjson"
         store_name = conn.execute("PRAGMA database_list").fetchone()["file"]
         store = Path(store_name) if store_name else db_path()
@@ -821,17 +820,12 @@ def main():
                   file=sys.stderr)
             return 2
         try:
+            lines, row_count = sidecar_ndjson(conn)
             write_atomic(out, lines)
-        except OSError as e:
+        except (OSError, TypeError, ValueError) as e:
             print(f"refusing: cannot write sidecar {out}: {e}", file=sys.stderr)
             return 2
-        print(f"projected {len(docs)} document(s) -> {out}")
-        for sk in skipped:
-            print(f"SKIPPED measurement {sk['id']} ({sk['metric']}): "
-                  f"{sk['why']} — value={sk['value']!r}", file=sys.stderr)
-        if skipped:
-            print(f"{len(skipped)} measurement(s) not projectable; "
-                  f"record --num to include them", file=sys.stderr)
+        print(f"dumped {row_count} row(s) -> {out}")
         return 0
 
     if a.cmd == "import-sidecar":
@@ -845,12 +839,13 @@ def main():
         return 0
 
     if a.cmd == "project":
-        lines, docs, skipped = projection_ndjson(conn)
+        docs, skipped = project(conn)
+        lines = "\n".join(json.dumps(d) for d in docs)
         if a.out:
-            pathlib.Path(a.out).write_text(lines, encoding="utf-8")
+            pathlib.Path(a.out).write_text(lines + "\n", encoding="utf-8")
             print(f"projected {len(docs)} document(s) -> {a.out}")
         else:
-            print(lines, end="")
+            print(lines)
         for sk in skipped:
             print(f"SKIPPED measurement {sk['id']} ({sk['metric']}): "
                   f"{sk['why']} — value={sk['value']!r}", file=sys.stderr)
