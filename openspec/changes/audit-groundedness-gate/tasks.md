@@ -33,13 +33,13 @@ to change.
       artifact plus one mutant per registered check.
 - [x] Each fixture declares its expected violation count and the expected focus
       of each violation.
-- [x] The checker evaluates the corpus on every invocation, before trusting its
+- [ ] The checker evaluates the corpus on every invocation, before trusting its
       own result.
 - [x] Assert count and focus, never non-emptiness.
 - [x] A short corpus, an unreadable corpus, or a corpus whose shape does not
       match the parsed artifact produces `UNVERIFIED` and a gate failure with its
       own reason string.
-- [x] Prove the canary works by mutation: break one check on purpose, confirm the
+- [ ] Prove the canary works by mutation: break one check on purpose, confirm the
       canary catches it, restore. Record the evidence in the test.
 - [x] Measure the canary's wall-clock cost; if it is not milliseconds, the corpus
       is too large.
