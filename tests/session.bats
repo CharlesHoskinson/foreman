@@ -180,10 +180,15 @@ setup() {
 
 @test "a linked worktree shares the repo's session store" {
   cd "$REPO"
-  unset FOREMAN_SESSION_DB
+  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/shared/session.db"
   $SESS fact "recorded from the main worktree"
   git -C "$REPO" worktree add -q "$BATS_TEST_TMPDIR/wt" -b side
+  main_root=$(python3 -c \
+    "import runpy; print(runpy.run_path('$SCRIPTS/fm-session.py')['repo_root']())")
   cd "$BATS_TEST_TMPDIR/wt"
+  worktree_root=$(python3 -c \
+    "import runpy; print(runpy.run_path('$SCRIPTS/fm-session.py')['repo_root']())")
+  [ "$main_root" = "$worktree_root" ]
   run $SESS recover
   [ "$status" -eq 0 ]
   [[ "$output" == *"recorded from the main worktree"* ]]
@@ -245,4 +250,164 @@ setup() {
   [[ "$output" == *"Measurement/fm-measurement-1"* ]]
   [[ "$output" == *"Measurement/fm-measurement-2"* ]]
   [[ "$output" == *"host state poisoned the first reading"* ]]
+}
+
+@test "sidecar is deterministic and omits computed measurement validity" {
+  cd "$REPO"
+  $SESS fact "deterministic fact" --evidence "spec"
+  $SESS measure "suite count" "26" --command "bats tests/session.bats" --scope src/a.sh
+  $SESS obligation "deterministic obligation"
+
+  run $SESS sidecar --out "$BATS_TEST_TMPDIR/a.ndjson"
+  [ "$status" -eq 0 ]
+  run $SESS sidecar --out "$BATS_TEST_TMPDIR/b.ndjson"
+  [ "$status" -eq 0 ]
+  cmp "$BATS_TEST_TMPDIR/a.ndjson" "$BATS_TEST_TMPDIR/b.ndjson"
+  ! grep -q '"validity"' "$BATS_TEST_TMPDIR/a.ndjson"
+}
+
+@test "sidecar defaults beside FOREMAN_SESSION_DB" {
+  cd "$REPO"
+  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/nested/session.db"
+  $SESS fact "travels beside the store"
+
+  run $SESS sidecar
+  [ "$status" -eq 0 ]
+  [ -f "$BATS_TEST_TMPDIR/nested/session.ndjson" ]
+}
+
+@test "import-sidecar rebuilds a projection-equivalent empty store" {
+  cd "$REPO"
+  $SESS fact "old fact"
+  $SESS supersede 1 "current fact" --reason "new evidence"
+  $SESS measure "suite count" "26" --command "old command" --scope src/a.sh
+  $SESS measure "suite count" "27" --command "new command" --scope src/a.sh
+  $SESS retire 1 --by 2 --reason "rerun"
+  $SESS obligation "blocked work" --blocker "waiting"
+  $SESS sidecar --out "$BATS_TEST_TMPDIR/original.ndjson"
+
+  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/imported/session.db"
+  run $SESS import-sidecar "$BATS_TEST_TMPDIR/original.ndjson"
+  [ "$status" -eq 0 ]
+  $SESS sidecar --out "$BATS_TEST_TMPDIR/rebuilt.ndjson"
+  cmp "$BATS_TEST_TMPDIR/original.ndjson" "$BATS_TEST_TMPDIR/rebuilt.ndjson"
+}
+
+@test "import-sidecar refuses a populated store unless forced" {
+  cd "$REPO"
+  $SESS fact "source fact"
+  $SESS sidecar --out "$BATS_TEST_TMPDIR/source.ndjson"
+
+  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/target/session.db"
+  $SESS fact "target fact"
+  run $SESS import-sidecar "$BATS_TEST_TMPDIR/source.ndjson"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"target store already has rows"* ]]
+  run $SESS recover
+  [[ "$output" == *"target fact"* ]]
+
+  run $SESS import-sidecar "$BATS_TEST_TMPDIR/source.ndjson" --force
+  [ "$status" -eq 0 ]
+  run $SESS recover
+  [[ "$output" == *"source fact"* ]]
+  [[ "$output" != *"target fact"* ]]
+}
+
+@test "import-sidecar --into overrides FOREMAN_SESSION_DB" {
+  cd "$REPO"
+  $SESS fact "source fact"
+  $SESS sidecar --out "$BATS_TEST_TMPDIR/source.ndjson"
+  target="$BATS_TEST_TMPDIR/explicit/session.db"
+
+  run $SESS import-sidecar "$BATS_TEST_TMPDIR/source.ndjson" --into "$target"
+  [ "$status" -eq 0 ]
+  [ -f "$target" ]
+  export FOREMAN_SESSION_DB="$target"
+  run $SESS recover
+  [[ "$output" == *"source fact"* ]]
+}
+
+@test "sidecar refuses to overwrite the live SQLite store" {
+  cd "$REPO"
+  $SESS fact "must survive"
+
+  run $SESS sidecar --out "$FOREMAN_SESSION_DB"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"aliases the session store"* ]]
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"must survive"* ]]
+}
+
+@test "sidecar refuses when its default path is the SQLite store" {
+  cd "$REPO"
+  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/session.ndjson"
+  $SESS fact "must survive"
+
+  run $SESS sidecar
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"aliases the session store"* ]]
+  run $SESS recover
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"must survive"* ]]
+}
+
+@test "import-sidecar checks for rows after acquiring the write lock" {
+  cd "$REPO"
+  $SESS fact "source fact"
+  $SESS sidecar --out "$BATS_TEST_TMPDIR/source.ndjson"
+
+  target="$BATS_TEST_TMPDIR/concurrent/session.db"
+  run python3 - "$SCRIPTS/fm-session.py" "$target" \
+    "$BATS_TEST_TMPDIR/source.ndjson" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("fm_session", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+conn = module.connect(sys.argv[2])
+statements = []
+conn.set_trace_callback(statements.append)
+module.import_sidecar(conn, sys.argv[3])
+begin = next(i for i, sql in enumerate(statements) if sql == "BEGIN IMMEDIATE")
+row_check = next(
+    i for i, sql in enumerate(statements)
+    if sql.startswith("SELECT 1 FROM sessions")
+)
+raise SystemExit(0 if begin < row_check else 1)
+PY
+  [ "$status" -eq 0 ]
+}
+
+@test "import-sidecar rejects duplicate supersessions without replacing the target" {
+  cd "$REPO"
+  sidecar="$BATS_TEST_TMPDIR/duplicate.ndjson"
+  printf '%s\n' \
+    '{"@type":"Measurement","measurement_key":"fm-measurement-2","metric":"m","subject":null,"value":2.0,"at":"now","about":[]}' \
+    '{"@type":"Measurement","measurement_key":"fm-measurement-3","metric":"m","subject":null,"value":3.0,"at":"now","about":[]}' \
+    '{"@type":"Supersession","old":"Measurement/fm-measurement-1","new":"Measurement/fm-measurement-2","at":"now","reason":"first"}' \
+    '{"@type":"Supersession","old":"Measurement/fm-measurement-1","new":"Measurement/fm-measurement-3","at":"now","reason":"second"}' > "$sidecar"
+  $SESS fact "target fact"
+
+  run $SESS import-sidecar "$sidecar" --force
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"duplicate supersession"* ]]
+  run $SESS recover
+  [[ "$output" == *"target fact"* ]]
+}
+
+@test "import-sidecar rejects supersession cycles without replacing the target" {
+  cd "$REPO"
+  sidecar="$BATS_TEST_TMPDIR/cycle.ndjson"
+  printf '%s\n' \
+    '{"@type":"Supersession","old":"Measurement/fm-measurement-1","new":"Measurement/fm-measurement-2","at":"now","reason":"forward"}' \
+    '{"@type":"Supersession","old":"Measurement/fm-measurement-2","new":"Measurement/fm-measurement-1","at":"now","reason":"back"}' > "$sidecar"
+  $SESS fact "target fact"
+
+  run $SESS import-sidecar "$sidecar" --force
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"supersession cycle"* ]]
+  run $SESS recover
+  [[ "$output" == *"target fact"* ]]
 }

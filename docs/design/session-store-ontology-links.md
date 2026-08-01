@@ -32,6 +32,26 @@ availability requirements.
 One direction only. Bidirectional sync would reintroduce two writers, which is
 the original disease.
 
+## The store travels with the repository
+
+The earlier decision to ignore `.foreman/session.db` as machine-local state is
+reversed. The SQLite store is the authoritative record of session facts,
+measurements, and obligations, so it must be tracked and travel between hosts.
+
+SQLite is a binary format, and Git cannot merge two hosts' changes to it. The
+generated `.foreman/session.ndjson` sidecar is the deterministic, text form of
+the existing ontology projection. It is a recovery artifact, not another write
+path: normal commands write SQLite, and `sidecar` regenerates the text file.
+Measurement freshness is deliberately absent because validity remains computed
+from Git at read time.
+
+To resolve a conflict, merge `.foreman/session.ndjson` as text first, preserving
+unique keys and valid supersession references. Remove the conflicted
+`.foreman/session.db`, rebuild it with `fm-session.py import-sidecar
+.foreman/session.ndjson`, regenerate the sidecar with `fm-session.py sidecar`,
+and stage both generated files. This recovers from the reviewable text instead
+of choosing either host's SQLite blob.
+
 ## The four links that actually matter
 
 ### 1. `measured_sha` → `Commit` (the join key that already exists)
