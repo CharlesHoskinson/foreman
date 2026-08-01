@@ -294,21 +294,24 @@ teardown() {
 @test "ensure: spawns pueued when unreachable, creates the fixed group topology" {
   run env PATH="$PATH_WITH_SHIM" bash "$SCRIPTS/lane-queue.sh" ensure
   [ "$status" -eq 0 ]
-  [[ "$output" == *"ready"* ]]
+  [[ "$output" == *"lane-queue: ready (groups: grok codex misc gate agy)"* ]]
   # daemon was (re)started via the shim
   [ -f "$SHIM_STATE/daemon_up" ]
-  # all five groups created exactly once
-  for g in grok codex claude misc gate; do
+  # T7 topology: all five supported groups are created, and claude is not.
+  for g in grok codex misc gate agy; do
     [ -f "$SHIM_STATE/group.$g" ]
   done
+  [ ! -e "$SHIM_STATE/group.claude" ]
+  [ "$(find "$SHIM_STATE" -maxdepth 1 -type f -name 'group.*' | wc -l)" -eq 5 ]
   # parallelism: grok=3, codex=2 raised on the 2026-07-18 LIVE T5b green
-  # verdict (docs/research/vendor-concurrency-results.md); claude=3; gate=1
-  # (host-wide mutex); misc=2 (Rework Round 1, F1 -- deliberate).
+  # verdict (docs/research/vendor-concurrency-results.md); gate=1 (host-wide
+  # mutex); misc=2 (Rework Round 1, F1 -- deliberate); agy=1 (unproven).
   grep -qF $'pueue\x1fparallel\x1f3\x1f--group\x1fgrok' "$SHIM_LOG"
   grep -qF $'pueue\x1fparallel\x1f2\x1f--group\x1fcodex' "$SHIM_LOG"
-  grep -qF $'pueue\x1fparallel\x1f3\x1f--group\x1fclaude' "$SHIM_LOG"
   grep -qF $'pueue\x1fparallel\x1f1\x1f--group\x1fgate' "$SHIM_LOG"
   grep -qF $'pueue\x1fparallel\x1f2\x1f--group\x1fmisc' "$SHIM_LOG"
+  grep -qF $'pueue\x1fparallel\x1f1\x1f--group\x1fagy' "$SHIM_LOG"
+  ! grep -qF $'--group\x1fclaude' "$SHIM_LOG"
 }
 
 @test "ensure: idempotent re-run tolerates already-exists groups and still exits 0" {

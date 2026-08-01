@@ -64,11 +64,11 @@
 #   full repro and the `env -u LD_PRELOAD` defense-in-depth.
 #
 # CONTRACT (T5a, v0.2.5 vendor config isolation plumbing): env contract
-#   `LANE_VENDOR=grok|codex|claude` + optional `LANE_CONFIG_DIR=<abs path>`
+#   `LANE_VENDOR=grok|codex` + optional `LANE_CONFIG_DIR=<abs path>`
 #   (default: wt-new.sh's provisioned `<WT>/.harness/vendor-home/<vendor>/`).
 #   When LANE_VENDOR is set, lane-run.sh exports the mapped vendor env var
-#   (grok->GROK_HOME, codex->CODEX_HOME, claude->CLAUDE_CONFIG_DIR -- one var
-#   per vendor) into its OWN process environment, ONCE, before CMD is ever
+#   (grok->GROK_HOME, codex->CODEX_HOME -- one var per vendor) into its OWN
+#   process environment, ONCE, before CMD is ever
 #   spawned -- NOT into a per-branch argv. Both CMD-spawn sites (launcher-
 #   present and launcher-absent, further down this file) therefore inherit
 #   it identically with no branch-specific code: the launcher-absent branch
@@ -100,8 +100,11 @@
 #   to end). UNSET LANE_VENDOR is the frozen path: the entire block below is
 #   skipped, nothing is exported, and the ownership payload's config_dir
 #   stays null -- byte-identical to pre-T5a behavior (all existing lane-run
-#   tests pass unmodified). Destructive real-vendor concurrency verdict
-#   (T5b) is deferred; see docs/research/vendor-concurrency-results.md.
+#   tests pass unmodified). T7 deliberately removed the former claude lane:
+#   CLAUDE_CONFIG_DIR does not isolate Claude's HOME-relative state, and no
+#   live authenticated destructive concurrency test is available to verify a
+#   distinct-HOME implementation. The adapter's explicit unsupported refusal
+#   remains the honest contract. See docs/research/vendor-concurrency-results.md.
 # @env FOREMAN_TOOL_CHECK Optional executable readiness-probe override. When
 #   non-empty, it runs instead of env/tool-check.sh and must emit the unchanged
 #   `LANE_READY: <vendor>=yes` contract. Unset/empty uses the real repo probe.
@@ -267,14 +270,13 @@ export GIT_ASK_YESNO=false
 
 # @description Map LANE_VENDOR to the vendor CLI's own HOME-style env var
 #   (T5a spec section 3: "map vendor->var; one var per vendor", frozen).
-# @arg $1 vendor grok | codex | claude
+# @arg $1 vendor grok | codex
 # @stdout the mapped env var name
 # @exitcode 0 known vendor; 1 anything else
 lane_vendor_env_var() {
   case "$1" in
     grok) echo GROK_HOME ;;
     codex) echo CODEX_HOME ;;
-    claude) echo CLAUDE_CONFIG_DIR ;;
     *) return 1 ;;
   esac
 }
@@ -371,7 +373,11 @@ lane_grok_secrets_scan() {
 # perturb the frozen, pre-T5a behavior.
 if [[ -n "${LANE_VENDOR:-}" ]]; then
   if ! LANE_VENDOR_ENV_VAR="$(lane_vendor_env_var "$LANE_VENDOR")"; then
-    echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex|claude)" >&2
+    if [[ "$LANE_VENDOR" == "claude" ]]; then
+      echo "lane-run: LANE_VENDOR 'claude' rejected by T7 decision: claude lane advertising removed because isolated HOME is unverified" >&2
+    else
+      echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex)" >&2
+    fi
     exit "$EXIT_CONFIG"
   fi
 
@@ -384,7 +390,7 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
   # action (Setup), never something lane-run.sh attempts itself. `--profile
   # soft` is deliberate and fixed here (not the run's own hard/full profile):
   # `--lane` scopes the verdict to this one vendor's own row regardless of
-  # profile, and grok/codex/claude are checked under every profile that
+  # profile, and grok/codex are checked under every profile that
   # matters for auth (must_soft/should_hard/should_full all include them) --
   # see env/tool-check.sh's profile membership arrays.
   lane_repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || lane_repo_root=""
@@ -424,9 +430,9 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
   # specific worktree contain secret material), and both apply to a grok
   # lane. Runs strictly AFTER the readiness gate (spec order) and strictly
   # BEFORE CMD is ever spawned. Gated on LANE_VENDOR=="grok" specifically
-  # (not codex/claude, and not merely "LANE_VENDOR is set") -- the
+  # (not codex, and not merely "LANE_VENDOR is set") -- the
   # whole-repo-upload concern this guards against is a grok-specific,
-  # currently-unrefuted behavior of Grok Build; codex/claude lanes and the
+  # currently-unrefuted behavior of Grok Build; codex lanes and the
   # unset-LANE_VENDOR frozen path are byte-unaffected by this block.
   if [[ "$LANE_VENDOR" == "grok" ]]; then
     if ! lane_grok_secrets_scan "$WT"; then
