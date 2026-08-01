@@ -379,13 +379,21 @@ fi
 # Replace any stale verdict before any auditor process (or CLI probe) starts.
 ar_write_unverified in_progress audit_in_progress
 
-if [[ "$AUDIT_VENDOR" == "$WORKER_VENDOR" ]]; then
-  ar_fail "$EXIT_CONFIG" invalid_audit_vendor \
-    "audit vendor ($AUDIT_VENDOR) must differ from worker vendor ($WORKER_VENDOR)"
+# shellcheck disable=SC1091  # Resolved from SCRIPT_DIR at runtime.
+source "$SCRIPT_DIR/lib/audit-call.sh"
+if ! ac_select_auditor "$CONFIG" "$WORKER_VENDOR" >/dev/null; then
+  if [[ "$AC_REASON" == "codex: not ready" ]]; then
+    ar_fail "$EXIT_MISSING_CLI" missing_cli \
+      "required command not found: codex — install OpenAI Codex CLI and run codex login"
+  fi
+  ar_fail "$EXIT_CONFIG" invalid_audit_vendor "$AC_REASON"
 fi
+AUDIT_VENDOR="$AC_AUDITOR"
+ACTUAL_VENDOR="$AUDIT_VENDOR"
 if [[ "$AUDIT_VENDOR" != "codex" ]]; then
+  # T4 owns replacing this refusal by wiring both audit invocation tiers.
   ar_fail "$EXIT_MISSING_CLI" missing_cli \
-    "audit-run currently only auto-invokes Codex; set audit.vendor=codex or write audit-verdict.json manually"
+    "audit selection succeeded for vendor $AUDIT_VENDOR, but invocation is not wired for that vendor"
 fi
 if ! command -v codex >/dev/null 2>&1; then
   ar_fail "$EXIT_MISSING_CLI" missing_cli \
