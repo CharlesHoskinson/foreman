@@ -68,11 +68,13 @@ git -C "$WD" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
   || die "$EXIT_CONFIG" "grok-multiround: --cwd is not a git work tree ($WD); files_changed detection requires git"
 
 # The caller stages its spec inside the worktree by convention and passes that
-# path. Exclude exactly THAT file from the evidence set rather than matching a
-# filename pattern: `^SPEC-[^/]*\.md$` is anchored to the root, so
-# `d/SPEC-notes.md` counted as work (false SUCCESS), while widening the pattern
-# would exclude a lane whose real deliverable is `docs/SPEC-foo.md` (false
-# EMPTY-BURST). The path is known; the pattern was a guess.
+# path. Progress detection excludes a UNION of two rules, not a choice:
+#   SPEC_REL     exact caller-staged path (robust to any filename)
+#   SPEC-*.md    root-level manufactured-artifact guard (pins the
+#                SPEC-NOTES.md false-SUCCESS defect from 2026-07-30)
+# The path rule alone misses a manufactured SPEC-NOTES.md that is not the
+# staged spec; the pattern alone can miss a staged spec named outside the
+# convention. Both stay.
 SPEC_REL=""
 if [[ -n "${SPEC:-}" ]]; then
   _spec_dir="$(cd "$(dirname "$SPEC")" 2>/dev/null && pwd || true)"
@@ -97,18 +99,20 @@ fi
 #   worktrees by hand. The instruction and the checker were authored by the
 #   same party, and the instruction defeated the checker.
 #
-#   Excluded:
+#   Excluded (UNION — both rules apply):
 #     .harness/**  lane-run's own heartbeat + stream telemetry, written into
 #                  the worktree by the supervisor, not by the worker.
 #     SPEC_REL     the exact caller-staged spec path (if inside the worktree),
-#                  not a filename pattern — so a real deliverable like
-#                  docs/SPEC-foo.md still counts as work.
+#                  robust when the caller does not use the SPEC-*.md convention.
+#     SPEC-*.md    root-level manufactured-artifact guard. A lane once
+#                  satisfied this detector by writing SPEC-NOTES.md when told
+#                  to take notes first; tests/grok-multiround.bats pins that.
 #   Porcelain is NUL-delimited and uses -uall so every untracked file is an
 #   individual candidate. Paths stay in an array so unusual names are not
 #   split while being passed to the evidence library.
 CHANGED_PATHS=()
 CHANGED_STATUS=()
-# @description Collect worker-owned changed paths and statuses, excluding harness and the exact caller-staged spec path, to define the evidence set used to decide whether a vendor round produced work.
+# @description Collect worker-owned changed paths and statuses, excluding harness, the exact caller-staged spec path (SPEC_REL), and root-level SPEC-*.md manufactured artifacts, to define the evidence set used to decide whether a vendor round produced work.
 # @exitcode 0 the evidence set was enumerated
 # @exitcode 1 enumeration was inconclusive and must not be treated as an empty round
 collect_changed_paths() {
@@ -130,7 +134,17 @@ collect_changed_paths() {
     [[ ${#entry} -ge 4 ]] || continue
     path="${entry:3}"
     [[ "$path" == .harness/* ]] && continue
+    # UNION of two exclusions, not a choice between them.
+    #   SPEC_REL   the exact caller-staged spec, whatever it is named — robust
+    #              when the caller does not use the SPEC-*.md convention.
+    #   SPEC-*.md  the manufactured-artifact guard. A lane once satisfied this
+    #              detector by writing SPEC-NOTES.md when told to take notes
+    #              first, and reported a false SUCCESS; tests/grok-multiround.bats
+    #              pins that behaviour. Dropping the pattern in favour of the
+    #              path alone let that false success back in and turned
+    #              gates-linux red.
     [[ -n "$SPEC_REL" && "$path" == "$SPEC_REL" ]] && continue
+    [[ "$path" =~ ^SPEC-[^/]*\.md$ ]] && continue
     CHANGED_PATHS+=("$path")
     CHANGED_STATUS+=("$entry")
   done <"$status_file"
