@@ -61,6 +61,15 @@ EOF
   second_output="$(grep -v '^time: ' <<<"$output")"
   [ "$status" -eq 0 ]
   [[ "$second_output" == *"SETUP: READY"* ]]
+  if [ "$second_output" != "$first_output" ]; then
+    echo "idempotence broken: the two reports differ (time: lines already stripped)" >&2
+    echo "--- first run" >&2
+    printf '%s\n' "$first_output" >&2
+    echo "--- second run" >&2
+    printf '%s\n' "$second_output" >&2
+    echo "--- unified diff (< first, > second)" >&2
+    diff <(printf '%s\n' "$first_output") <(printf '%s\n' "$second_output") >&2 || true
+  fi
   [ "$second_output" = "$first_output" ]
 }
 
