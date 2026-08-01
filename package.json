@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.eslint.json --noEmit --pretty false"
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.eslint.json --noEmit --pretty false",
+    "verify": "corepack pnpm check && openspec validate design-council-core --strict --no-interactive && git diff --check"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

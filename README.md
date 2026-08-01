@@ -8,10 +8,16 @@ The project takes inspiration from [Karpathy's llm-council](https://github.com/k
 
 The architecture is approved and recorded as an OpenSpec change. The versioned schemas and pure domain foundation are implemented and covered by the complete local quality gate. Provider adapters, Effect application services, research tools, the MCP server, and native host plugins are not yet implemented.
 
-Run the local verification gate with:
+Run the code-quality suite (formatting, lint, type checking, architecture, and tests) with:
 
 ```sh
 corepack pnpm check
+```
+
+Run the complete local verification gate, including strict OpenSpec validation and a clean diff check, with:
+
+```sh
+corepack pnpm verify
 ```
 
 - [Proposal](openspec/changes/design-council-core/proposal.md)

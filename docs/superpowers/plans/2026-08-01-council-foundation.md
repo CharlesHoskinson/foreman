@@ -2094,12 +2094,12 @@
 - Consumes: the complete schema and domain source trees.
 - Produces: a deterministic boundary check that returns non-zero for prohibited imports and a documented foundation command.
 
-- [ ] **Step 1: Add a failing architecture regression fixture in the test**
+- [ ] **Step 1: Add failing syntax-aware architecture regression fixtures**
 
     Replace tests/architecture/workspace.test.ts with:
 
-    import { access, unlink, writeFile } from "node:fs/promises";
     import { spawnSync } from "node:child_process";
+    import { access, unlink, writeFile } from "node:fs/promises";
     import { describe, expect, it } from "vitest";
 
     const requiredFiles = [
@@ -2109,6 +2109,23 @@
       "packages/domain/tsconfig.json"
     ] as const;
 
+    const runArchitecture = async (
+      fixtures: ReadonlyArray<{ path: string; source: string }>
+    ) => {
+      const written: string[] = [];
+      try {
+        for (const fixture of fixtures) {
+          await writeFile(fixture.path, fixture.source, "utf8");
+          written.push(fixture.path);
+        }
+        return spawnSync(process.execPath, ["scripts/check-architecture.mjs"], {
+          encoding: "utf8"
+        });
+      } finally {
+        await Promise.all(written.map((path) => unlink(path)));
+      }
+    };
+
     describe("workspace", () => {
       for (const file of requiredFiles) {
         it("contains " + file, async () => {
@@ -2116,25 +2133,115 @@
         });
       }
 
-      it("rejects Effect runtime imports from domain source", async () => {
-        const fixture =
-          "packages/domain/src/__boundary_violation__.ts";
-        await writeFile(
-          fixture,
-          'import * as Effect from "effect/Effect";\nvoid Effect;\n',
-          "utf8"
-        );
-        try {
-          const result = spawnSync(
-            process.execPath,
-            ["scripts/check-architecture.mjs"],
-            { encoding: "utf8" }
-          );
-          expect(result.status).toBe(1);
-          expect(result.stderr).toContain("domain-runtime-import effect/Effect");
-        } finally {
-          await unlink(fixture);
+      it("rejects prohibited import forms and dependency layers", async () => {
+        const result = await runArchitecture([
+          {
+            path: "packages/schema/src/__boundary_violations__.ts",
+            source: [
+              'import "effect/SideEffect";',
+              'import { pipe } from "effect/Static";',
+              'import DefaultEffect from "effect/Default";',
+              'import type { Effect } from "effect/TypeOnly";',
+              'export { Effect as ExportedEffect } from "effect/Export";',
+              'void import("effect/Dynamic");',
+              'import ImportEqualsEffect = require("effect/ImportEquals");',
+              'require("effect/Require");',
+              'import "effect";',
+              'import "fs/promises";',
+              'import "node:path";',
+              'import "@council/domain";',
+              "void pipe;",
+              "void DefaultEffect;",
+              "void ImportEqualsEffect;"
+            ].join("\n")
+          },
+          {
+            path: "packages/domain/src/__boundary_violations__.ts",
+            source: [
+              'import "effect/DomainSideEffect";',
+              'import { pipe } from "effect/DomainStatic";',
+              'import DefaultEffect from "effect/DomainDefault";',
+              'import type { Effect } from "effect/DomainTypeOnly";',
+              'export { Effect as ExportedEffect } from "effect/DomainExport";',
+              'void import("effect/DomainDynamic");',
+              'import ImportEqualsEffect = require("effect/DomainImportEquals");',
+              'require("effect/DomainRequire");',
+              'import "path/posix";',
+              'import "node:fs";',
+              'import "@council/application/services";',
+              'import "@council/platform-node/sqlite";',
+              'import "@council/adapter-claude";',
+              'import "@council/runtime-node";',
+              'import "@council/mcp-server/protocol";',
+              "void pipe;",
+              "void DefaultEffect;",
+              "void ImportEqualsEffect;"
+            ].join("\n")
+          }
+        ]);
+
+        expect(result.status).toBe(1);
+        for (const violation of [
+          "schema-runtime-import effect/SideEffect",
+          "schema-runtime-import effect/Static",
+          "schema-runtime-import effect/Default",
+          "schema-runtime-import effect/TypeOnly",
+          "schema-runtime-import effect/Export",
+          "schema-runtime-import effect/Dynamic",
+          "schema-runtime-import effect/ImportEquals",
+          "schema-runtime-import effect/Require",
+          "schema-runtime-import effect",
+          "schema-runtime-import fs/promises",
+          "schema-runtime-import node:path",
+          "schema-layer-import @council/domain",
+          "domain-runtime-import effect/DomainSideEffect",
+          "domain-runtime-import effect/DomainStatic",
+          "domain-runtime-import effect/DomainDefault",
+          "domain-runtime-import effect/DomainTypeOnly",
+          "domain-runtime-import effect/DomainExport",
+          "domain-runtime-import effect/DomainDynamic",
+          "domain-runtime-import effect/DomainImportEquals",
+          "domain-runtime-import effect/DomainRequire",
+          "domain-runtime-import path/posix",
+          "domain-runtime-import node:fs",
+          "domain-layer-import @council/application/services",
+          "domain-layer-import @council/platform-node/sqlite",
+          "domain-layer-import @council/adapter-claude",
+          "domain-layer-import @council/runtime-node",
+          "domain-layer-import @council/mcp-server/protocol"
+        ]) {
+          expect(result.stderr).toContain(violation);
         }
+      });
+
+      it("allows comments, ordinary strings, and permitted imports", async () => {
+        const result = await runArchitecture([
+          {
+            path: "packages/schema/src/__boundary_allowed__.ts",
+            source: [
+              'import * as Schema from "effect/Schema";',
+              '// import "effect/Effect";',
+              'const example = \'import("node:fs")\';',
+              "void Schema;",
+              "void example;"
+            ].join("\n")
+          },
+          {
+            path: "packages/domain/src/__boundary_allowed__.ts",
+            source: [
+              'import type { RunId } from "@council/schema";',
+              'import { runtimePolicy } from "./runtime-policy.js";',
+              'export { adapterPolicy } from "./adapter-policy.js";',
+              '// require("effect/Effect");',
+              'const example = \'from "node:path"\';',
+              "void runtimePolicy;",
+              "void example;"
+            ].join("\n")
+          }
+        ]);
+
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe("");
       });
     });
 
@@ -2142,14 +2249,16 @@
 
     Run: corepack pnpm test tests/architecture/workspace.test.ts
 
-    Expected: FAIL because scripts/check-architecture.mjs does not exist.
+    Expected: FAIL because the regex checker misses prohibited syntax forms and reports false positives for comments, strings, and local paths.
 
 - [ ] **Step 3: Implement the deterministic boundary checker**
 
     scripts/check-architecture.mjs:
 
     import { readdir, readFile } from "node:fs/promises";
+    import { builtinModules } from "node:module";
     import { extname, join, relative } from "node:path";
+    import ts from "typescript";
 
     const roots = {
       schema: "packages/schema/src",
@@ -2158,6 +2267,7 @@
 
     const walk = async (directory) => {
       const entries = await readdir(directory, { withFileTypes: true });
+      entries.sort((left, right) => left.name.localeCompare(right.name));
       const nested = await Promise.all(
         entries.map((entry) => {
           const path = join(directory, entry.name);
@@ -2167,39 +2277,108 @@
       return nested.flat();
     };
 
-    const importPattern =
-      /(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g;
+    const bareBuiltinRoots = new Set(
+      builtinModules
+        .filter((specifier) => !specifier.startsWith("node:"))
+        .map((specifier) => specifier.split("/")[0])
+    );
+
+    const isNodeBuiltin = (specifier) =>
+      specifier.startsWith("node:") ||
+      bareBuiltinRoots.has(specifier.split("/")[0]);
+
+    const isEffectModule = (specifier) =>
+      specifier === "effect" || specifier.startsWith("effect/");
+
+    const councilPackage = (specifier) =>
+      /^@council\/[^/]+/.exec(specifier)?.[0];
+
+    const isForbiddenDomainLayer = (specifier) => {
+      const packageName = councilPackage(specifier);
+      return (
+        packageName === "@council/application" ||
+        packageName === "@council/platform-node" ||
+        packageName === "@council/runtime-node" ||
+        packageName === "@council/mcp-server" ||
+        packageName?.startsWith("@council/adapter-") === true
+      );
+    };
+
+    const moduleSpecifiers = (file, source) => {
+      const sourceFile = ts.createSourceFile(
+        file,
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TS
+      );
+      const specifiers = [];
+
+      const addStringLiteral = (node) => {
+        if (node !== undefined && ts.isStringLiteralLike(node)) {
+          specifiers.push(node.text);
+        }
+      };
+
+      const visit = (node) => {
+        if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+          addStringLiteral(node.moduleSpecifier);
+        } else if (
+          ts.isImportEqualsDeclaration(node) &&
+          ts.isExternalModuleReference(node.moduleReference)
+        ) {
+          addStringLiteral(node.moduleReference.expression);
+        } else if (
+          ts.isCallExpression(node) &&
+          (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) &&
+              node.expression.text === "require"))
+        ) {
+          addStringLiteral(node.arguments[0]);
+        }
+        ts.forEachChild(node, visit);
+      };
+
+      visit(sourceFile);
+      return specifiers;
+    };
 
     const violations = [];
     for (const [layer, root] of Object.entries(roots)) {
       for (const file of await walk(root)) {
         if (extname(file) !== ".ts") continue;
         const source = await readFile(file, "utf8");
-        for (const match of source.matchAll(importPattern)) {
-          const specifier = match[1];
-          if (specifier === undefined) continue;
-          if (
-            layer === "schema" &&
-            (specifier.startsWith("node:") ||
-              (specifier.startsWith("effect/") &&
-                specifier !== "effect/Schema"))
-          ) {
-            violations.push(
-              relative(".", file) + ": schema-runtime-import " + specifier
-            );
+        for (const specifier of moduleSpecifiers(file, source)) {
+          if (layer === "schema") {
+            if (
+              isNodeBuiltin(specifier) ||
+              (isEffectModule(specifier) && specifier !== "effect/Schema")
+            ) {
+              violations.push(
+                relative(".", file) + ": schema-runtime-import " + specifier
+              );
+            } else {
+              const packageName = councilPackage(specifier);
+              if (
+                packageName !== undefined &&
+                packageName !== "@council/schema"
+              ) {
+                violations.push(
+                  relative(".", file) + ": schema-layer-import " + specifier
+                );
+              }
+            }
           }
-          if (
-            layer === "domain" &&
-            (specifier === "effect" ||
-              specifier.startsWith("effect/") ||
-              specifier.startsWith("node:") ||
-              specifier.includes("platform") ||
-              specifier.includes("adapter") ||
-              specifier.includes("runtime"))
-          ) {
-            violations.push(
-              relative(".", file) + ": domain-runtime-import " + specifier
-            );
+          if (layer === "domain") {
+            if (isNodeBuiltin(specifier) || isEffectModule(specifier)) {
+              violations.push(
+                relative(".", file) + ": domain-runtime-import " + specifier
+              );
+            } else if (isForbiddenDomainLayer(specifier)) {
+              violations.push(
+                relative(".", file) + ": domain-layer-import " + specifier
+              );
+            }
           }
         }
       }
@@ -2241,16 +2420,19 @@
 
     .gitignore:
 
+    .worktrees/
+    .superpowers/
     node_modules/
     dist/
     coverage/
     .DS_Store
     *.tsbuildinfo
 
-    Add architecture to the root check command in package.json:
+    Add architecture to the code-quality suite and add the complete local gate in package.json:
 
     "architecture": "node scripts/check-architecture.mjs",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm architecture && pnpm test"
+    "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm architecture && corepack pnpm test",
+    "verify": "corepack pnpm check && openspec validate design-council-core --strict --no-interactive && git diff --check"
 
 - [ ] **Step 5: Run the focused regression test, then the full quality gate**
 
@@ -2258,13 +2440,27 @@
 
     Expected: PASS; the injected forbidden import is detected and cleaned up.
 
-    Run: corepack pnpm check && openspec validate design-council-core --strict --no-interactive && git diff --check
+    Run: corepack pnpm verify
 
-    Expected: all commands exit 0 with no lint, type, test, architecture, OpenSpec, or whitespace failures.
+    Expected: all commands exit 0 from a dirty but diff-clean worktree with no format, lint, type, architecture, test, OpenSpec, or whitespace failures.
 
 - [ ] **Step 6: Document the implemented foundation without overstating later phases**
 
-    Update README.md Current status to state that schemas and the pure domain are implemented only after the preceding full check passes. Add corepack pnpm check as the local verification command. Leave provider adapters, Effect application services, research tools, MCP, and native plugins explicitly unimplemented.
+    Update README.md Current status to state that schemas and the pure domain are implemented only after the preceding full check passes. Document the commands without conflating their scope:
+
+    Run the code-quality suite (formatting, lint, type checking, architecture, and tests) with:
+
+    ```sh
+    corepack pnpm check
+    ```
+
+    Run the complete local verification gate, including strict OpenSpec validation and a clean diff check, with:
+
+    ```sh
+    corepack pnpm verify
+    ```
+
+    Leave provider adapters, Effect application services, research tools, MCP, and native plugins explicitly unimplemented.
 
 - [ ] **Step 7: Commit the architecture gate**
 
