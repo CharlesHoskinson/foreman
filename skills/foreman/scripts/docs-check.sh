@@ -75,6 +75,7 @@ if ! forced_missing lychee; then
     LYCHEE_CMD="${LOCALAPPDATA:-}/Microsoft/WinGet/Links/lychee.exe"
   fi
   if [[ -z "$LYCHEE_CMD" ]]; then
+    # shellcheck disable=SC2012 # globbed package layout is intentionally resolved by ls
     LYCHEE_CMD="$(ls "${LOCALAPPDATA:-}"/Microsoft/WinGet/Packages/lycheeverse.lychee*/*/lychee.exe 2>/dev/null | head -1 || true)"
   fi
 fi
@@ -109,7 +110,7 @@ while IFS= read -r f; do
     }
     { doc=0 }
   ' "$f")
-done < <(find . -path ./.git -prune -o -path ./.claude -prune -o -name '*.sh' -print | sed 's|^\./||')
+done < <(find . -path ./.git -prune -o -path ./.claude -prune -o -path ./openspec/changes/archive -prune -o -name '*.sh' -print | sed 's|^\./||')
 if [[ "$COV_FINDINGS" -gt 0 ]]; then record comments fail "$COV_FINDINGS"; else record comments pass 0; fi
 
 # JSON output
