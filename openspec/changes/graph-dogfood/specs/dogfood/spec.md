@@ -143,14 +143,19 @@ WHEN an input maps to stored data, the representation SHALL retain or traceably
 reference its `source_file`, nullable `source_location`, `confidence_score`,
 and explicit audit level `EXTRACTED`, `INFERRED`, or `AMBIGUOUS` according to
 the frozen manifest. The audit SHALL compare retrieved values with
-`graph.json`, reject undeclared-table/column workarounds, and record three named
-spot-check bundles: the `EXTRACTED` node/link bundle from
-`skills/foreman/SKILL.md`; the `INFERRED` link at input index 1200 with score
-0.95; and the `AMBIGUOUS` link at input index 3614 with score 0.3. Each bundle
-SHALL include input identity, lexical ontology key, integer row ID when stored,
-retrieved fields, and originating file. IF the pinned schema cannot represent a
-witness, THEN the runner SHALL record a counted ontology finding and SHALL NOT
-invent a side table or undeclared column.
+`graph.json`. The audit SHALL reject undeclared-table/column workarounds. The
+audit SHALL record three named spot-check bundles. The `EXTRACTED` bundle SHALL
+contain the node and link from `skills/foreman/SKILL.md`. The `INFERRED` bundle
+SHALL use input index 1200 with score 0.95.
+Input index 1200 SHALL have source `agents_codex_implementer_evidence_contract`.
+Input index 1200 SHALL have target `agents_grok_implementer_evidence_contract`.
+The `AMBIGUOUS` bundle SHALL use input index 3614 with score 0.3.
+Input index 3614 SHALL have source `docs_research_openai_codex_exec_sandbox_policy`.
+Input index 3614 SHALL have target `docs_research_openai_codex_sandbox_page_not_found`.
+Each bundle SHALL include input identity, lexical ontology key, integer row ID
+when stored, retrieved fields, and originating file. IF the pinned schema
+cannot represent a witness, THEN the runner SHALL record a counted ontology
+finding. The runner SHALL NOT invent a side table or undeclared column.
 
 #### Scenario: Trace the named sample
 
@@ -184,8 +189,10 @@ SHALL carry no answer classification and SHALL name their error or blocker. An
 `empty-but-valid` result SHALL require successful SQL whose contract permits
 zero. SQL syntax, constraint, timeout, busy, guard, or wrapper failure SHALL NOT
 be classified empty or unanswerable. A completed stage SHALL satisfy
-`answered + empty-but-valid + unanswerable = 24`; every report SHALL satisfy
+`answered + empty-but-valid + unanswerable = 24`. Every report SHALL satisfy
 `answered + empty-but-valid + unanswerable + failed + not-run = 24`.
+Explicit gap entries such as K16 and X22 SHALL be `unanswerable`. Each gap entry
+SHALL name the missing capability.
 
 #### Scenario: Distinguish zero rows from failure
 
@@ -195,7 +202,7 @@ be classified empty or unanswerable. A completed stage SHALL satisfy
 
 #### Scenario: Name every unanswerable question
 
-- WHEN the graph or pinned ontology cannot answer a competency question
+- WHEN K16, X22, or another competency question is an explicit ontology gap
 - THEN the report names the question and exact absent data or representation
 - AND aggregate counts alone fail the matrix gate
 

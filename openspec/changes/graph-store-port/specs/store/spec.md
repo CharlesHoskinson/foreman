@@ -215,6 +215,10 @@ Cosmetic properties MAY be dropped only by an explicit named rule whose count
 is recorded. IF an attribute has neither a declared table mapping nor a named
 drop rule, THEN ingest SHALL fail atomically. The adapter SHALL NOT create
 ingest-only columns or tables outside `schema.sql`.
+The reified forms of `SUPPORTS` and `CONTRADICTS` SHALL be
+designed and documented before first ingest. WHEN per-relation confidence is
+required, a human-reviewed schema revision SHALL add the pre-documented
+reified table without moving existing relation data.
 
 #### Scenario: an attributed relation is never silently lost
 
@@ -229,16 +233,27 @@ ingest-only columns or tables outside `schema.sql`.
 - THEN its old node, new node, timestamp, and reason equal the input values
 - AND no attribute is inferred from adapter logs or neighboring rows
 
-### Requirement: concurrent writes cannot silently clobber
+#### Scenario: the reification of a decision edge is a schema addition, not a migration
+
+- WHEN per-relation confidence is first required on `SUPPORTS`
+- THEN a human-reviewed schema revision adds the pre-documented reified table
+- AND no existing relation data requires migration
+
+### Requirement: concurrent writes follow the measured three-way concurrency rule
 
 The SQLite ontology adapter SHALL select its transaction discipline from the
 shape of the write and SHALL NOT treat lock contention or stale shared state as
 successful completion.
+After contention, both lanes' changes SHALL be present in the final state. The
+adapter SHALL reject the losing update. The losing lane SHALL retry its change
+against the current state. The adapter SHALL NOT drop either lane's change.
 
 WHERE lanes insert distinct rows, the adapter SHALL use short transactions and
 bounded handling of `SQLITE_BUSY`. WHERE a lane performs a shared
 read-modify-write, it SHALL begin a guarded write transaction before the read,
 recheck the observed state, and treat staleness as a named retryable conflict.
+IF a caller omits this guard, THEN the `GraphStore` port SHALL reject the
+operation before the adapter executes SQL.
 WHERE a lane applies a batch, every row in that batch SHALL commit or roll back
 as one unit. Retry SHALL be finite and observable. IF the bound is exhausted,
 THEN the adapter SHALL raise a named terminal error and SHALL NOT return
@@ -254,9 +269,15 @@ success.
 
 - WHEN two lanes attempt to update the same logical fact from the same observed
   state
-- THEN at most one stale update commits without rereading current state
-- AND the other lane receives a named retryable conflict or retries against the
-  current row
+- THEN the adapter rejects the stale update with a named retryable conflict
+- AND the losing lane retries its change against the current row
+- AND both lanes' changes are present in the final state
+
+#### Scenario: an unguarded shared-document write is refused
+
+- WHEN a caller submits a shared-row update without the required write guard
+- THEN the `GraphStore` port refuses the operation before it reaches SQLite
+- AND the named error identifies the missing guard
 
 #### Scenario: a failing batch is atomic
 
@@ -317,6 +338,9 @@ taken before an approved schema change. At least quarterly and before every
 schema-pin change, the gate SHALL run `PRAGMA integrity_check`, every lint view,
 the 24-query suite, and a timed drop-and-rebuild. The exit path SHALL be
 rehearsed by completing a full round on files-only after SQLite ontology use.
+The quarterly gate SHALL also evaluate named health triggers. WHEN a trigger
+fires, the gate SHALL decide to switch to files-only within one release. The
+report SHALL record this named fallback action instead of an open-ended report.
 IF the ontology database becomes unavailable, THEN Foreman SHALL continue on
 files-only and SHALL report degraded optional capabilities.
 
@@ -325,6 +349,13 @@ files-only and SHALL report degraded optional capabilities.
 - WHEN the adapter observes a `schema.sql` hash different from the release pin
 - THEN it refuses database use before executing data SQL
 - AND the error records both hashes
+
+#### Scenario: a health trigger produces a decision, not a discussion
+
+- WHEN the quarterly health check finds a named trigger condition
+- THEN the check records the trigger, evidence, and decision to use files-only
+  within one release
+- AND the report names the fallback action instead of an open-ended discussion
 
 #### Scenario: the ontology disappears mid-round
 
@@ -360,6 +391,12 @@ SHALL NOT write back into session tables.
   `graph.json`
 - THEN it refuses before mapping and names the provenance or shape fields that
   source cannot preserve
+
+#### Scenario: a moved file is a rename, not a deletion
+
+- WHEN a file moves between two ingests and its symbols get new identifiers
+- THEN the ontology records renames with lineage to the prior identifiers
+- AND it does not record deletions plus unrelated insertions
 
 #### Scenario: session projection cannot reverse direction
 
