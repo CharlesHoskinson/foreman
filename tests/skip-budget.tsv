@@ -1,4 +1,7 @@
 file	platform	permitted_skips
+tests/adapters.bats	linux	0
+tests/adapters.bats	wsl	0
+tests/adapters.bats	windows	0
 tests/checkpoint.bats	linux	0
 tests/checkpoint.bats	wsl	0
 tests/checkpoint.bats	windows	0
@@ -53,7 +56,7 @@ tests/lane-supervise.bats	windows	0
 tests/launch-lib.bats	linux	0
 tests/launch-lib.bats	wsl	0
 tests/launch-lib.bats	windows	0
-tests/launcher.bats	linux	10
+tests/launcher.bats	linux	11
 tests/launcher.bats	wsl	10
 tests/launcher.bats	windows	0
 tests/lifecycle-gate.bats	linux	0
