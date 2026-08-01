@@ -279,7 +279,7 @@ The lane material SHALL NOT present four lanes as four independent votes.
 - WHEN the record and limits sections are drafted
 - THEN the architect checks each against the roadmap's own disconfirming
   evidence — BM-25 beating all nine GraphRAG systems, the ~2 effective
-  independent votes, and the withdrawn graph backend's bus factor of one as
+  independent votes, and TerminusDB's bus factor of one as
   recorded before its 2026-07-30 withdrawal — and rejects any sentence
   that would read as a capability claim the research does not support
 - AND the judgement and its outcome are recorded; there is no automatic check

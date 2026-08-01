@@ -160,8 +160,8 @@ packages whose behaviour the README describes.
       derived from `formal/specs/`.
 - [ ] Do not present four lanes as four independent votes.
 - [ ] Architect review against the roadmap's disconfirming evidence — BM-25 over
-      all nine GraphRAG systems, ~2 effective independent votes, and the
-      withdrawn graph backend's bus factor 1 as recorded before its 2026-07-30
+      all nine GraphRAG systems, ~2 effective independent votes, and
+      TerminusDB's bus factor 1 as recorded before its 2026-07-30
       withdrawal. Record the review.
 
 ## T8 — the prose rule
