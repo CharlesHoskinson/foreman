@@ -1,6 +1,8 @@
 {
   // Foreman docs style: permissive on line length/HTML (doctrine tables), strict on structure.
-  "config": { "default": true, "MD013": false, "MD029": { "style": "ordered" }, "MD033": false, "MD041": false, "MD060": false },
+  // MD024 siblings_only: repeated subsection headings under different parents are intended
+  // (chronological logs, per-finding reports); the rule still fires on same-parent duplicates.
+  "config": { "default": true, "MD013": false, "MD029": { "style": "ordered" }, "MD033": false, "MD041": false, "MD060": false, "MD024": { "siblings_only": true } },
   // Archived evidence is exempt: they are archives of what happened, and editing an archive to satisfy a style linter falsifies it.
   "ignores": [
     "skills/scrapling/**", "skills/graphify/**", "skills/superpowers/**",
@@ -9,3 +11,4 @@
     "docs/evidence/**"
   ]
 }
+
