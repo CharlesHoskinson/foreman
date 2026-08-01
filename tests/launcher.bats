@@ -307,6 +307,8 @@ last_hb_field() {
 @test "POSIX pidns: killing launcher_pid reaps a setsid/backgrounded escapee (kill-shot, WSL)" {
   posix_launcher_or_skip
   command -v unshare >/dev/null 2>&1 || skip "unshare absent on this host"
+  unshare --pid --mount-proc --fork true >/dev/null 2>&1 \
+    || skip "pid namespaces unavailable on this host; the kernel cascade this test asserts cannot occur (see test 12 for the degraded setsid+pgid contract)"
   hb="./hb-posix-killshot.jsonl"
   marker="999.$$"
   "$POSIX_EXE" --heartbeat-file "$hb" --heartbeat-interval 1 -- \
