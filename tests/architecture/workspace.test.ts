@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { access, unlink, writeFile } from "node:fs/promises";
+import { access, readFile, unlink, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 const requiredFiles = [
@@ -142,5 +142,123 @@ describe("workspace", () => {
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
+  });
+
+  it("rejects executable sidecars, computed loading, and runtime globals", async () => {
+    const result = await runArchitecture([
+      {
+        path: "packages/schema/src/__sidecar_violation__.mjs",
+        source: 'import "node:fs";',
+      },
+      {
+        path: "packages/domain/src/__runtime_violations__.js",
+        source: [
+          'const moduleName = "effect/Effect";',
+          "void import(moduleName);",
+          "require(moduleName);",
+          "void process;",
+          "void Buffer;",
+          "void global;",
+          "void globalThis;",
+          "void __dirname;",
+          "void __filename;",
+          "void setTimeout;",
+          "void fetch;",
+          "void crypto;",
+          "void performance;",
+          "void Date.now();",
+          "void Math.random();",
+          'void Date["now"]();',
+          'void Math["random"]();',
+          'const clockMethod = "now";',
+          "void Date[clockMethod]();",
+        ].join("\n"),
+      },
+      {
+        path: "packages/domain/src/__shadowed_require__.ts",
+        source: [
+          "const load = (require: (value: string) => unknown, name: string) =>",
+          "  require(name);",
+          "void load;",
+        ].join("\n"),
+      },
+    ]);
+
+    expect(result.status).toBe(1);
+    for (const violation of [
+      "schema-runtime-import node:fs",
+      "domain-nonliteral-dynamic-import",
+      "domain-direct-require",
+      "domain-runtime-global process",
+      "domain-runtime-global Buffer",
+      "domain-runtime-global global",
+      "domain-runtime-global globalThis",
+      "domain-runtime-global __dirname",
+      "domain-runtime-global __filename",
+      "domain-runtime-global setTimeout",
+      "domain-runtime-global fetch",
+      "domain-runtime-global crypto",
+      "domain-runtime-global performance",
+      "domain-runtime-access Date.now",
+      "domain-runtime-access Math.random",
+    ]) {
+      expect(result.stderr).toContain(violation);
+    }
+    expect(result.stderr.match(/domain-direct-require/g)).toHaveLength(2);
+    expect(
+      result.stderr.match(/domain-runtime-access Date\.now/g),
+    ).toHaveLength(2);
+    expect(
+      result.stderr.match(/domain-runtime-access Math\.random/g),
+    ).toHaveLength(2);
+    expect(result.stderr).toContain("domain-runtime-access Date[computed]");
+  });
+
+  it("allows property names, comments, strings, and deterministic date parsing", async () => {
+    const result = await runArchitecture([
+      {
+        path: "packages/schema/src/__runtime_allowed__.ts",
+        source: [
+          "const record = { process: 1, Buffer: 2, require: 3 };",
+          "void record.process;",
+          "void record.Buffer;",
+          "void record.require;",
+          '// process Buffer require Date.now() Math.random() import("node:fs")',
+          "const text = 'process Buffer require Date.now() Math.random()';",
+          'const instant = Date.parse("2026-08-01T12:00:00.000Z");',
+          'const date = new Date("2026-08-01T12:00:00.000Z");',
+          "void text;",
+          "void instant;",
+          "void date;",
+        ].join("\n"),
+      },
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+  });
+
+  it("removes Node ambient types from pure package builds", async () => {
+    for (const path of [
+      "packages/schema/tsconfig.json",
+      "packages/domain/tsconfig.json",
+    ]) {
+      const config = JSON.parse(await readFile(path, "utf8")) as {
+        compilerOptions?: { types?: unknown };
+      };
+      expect(config.compilerOptions?.types).toEqual([]);
+    }
+  });
+
+  it("pins and locally executes OpenSpec in the complete verification gate", async () => {
+    const manifest = JSON.parse(await readFile("package.json", "utf8")) as {
+      scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(manifest.devDependencies["@fission-ai/openspec"]).toBe("1.7.0");
+    expect(manifest.scripts.verify).toContain(
+      "corepack pnpm exec openspec validate",
+    );
+    expect(manifest.scripts.verify).toContain("git diff HEAD --check");
   });
 });

@@ -9,7 +9,6 @@ export default tseslint.config(
   {
     files: ["**/*.ts"],
     languageOptions: {
-      globals: globals.node,
       parserOptions: {
         project: "./tsconfig.eslint.json",
         tsconfigRootDir: import.meta.dirname,
@@ -19,6 +18,12 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-non-null-assertion": "error",
+    },
+  },
+  {
+    files: ["**/test/**/*.ts", "tests/**/*.ts"],
+    languageOptions: {
+      globals: globals.node,
     },
   },
   {

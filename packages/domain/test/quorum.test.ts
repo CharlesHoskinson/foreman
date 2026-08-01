@@ -1,5 +1,9 @@
-import type { FailureDomainId } from "@council/schema";
-import { describe, expect, it } from "vitest";
+import type {
+  ArtifactId,
+  EpochMilliseconds,
+  FailureDomainId,
+} from "@council/schema";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   confidenceWeightEligible,
   evaluateAutomaticQuorum,
@@ -154,31 +158,75 @@ describe("confidence weighting", () => {
   const calibration = {
     schemaVersion: 1 as const,
     modelTaskKey: "model-a:research",
-    validUntilEpochMs: 2_000,
-    calibrationArtifactId: "calibration-a",
+    validUntilEpochMs: 2_000 as EpochMilliseconds,
+    calibrationArtifactId:
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as ArtifactId,
   };
 
   it("requires an applicable unexpired calibration record", () => {
     expect(
-      confidenceWeightEligible(calibration, "model-a:research", 1_000),
+      confidenceWeightEligible(
+        calibration,
+        "model-a:research",
+        1_000 as EpochMilliseconds,
+      ),
     ).toBe(true);
-    expect(confidenceWeightEligible(null, "model-a:research", 1_000)).toBe(
-      false,
-    );
+    expect(
+      confidenceWeightEligible(
+        null,
+        "model-a:research",
+        1_000 as EpochMilliseconds,
+      ),
+    ).toBe(false);
   });
 
   it("rejects a calibration for a different model-task key", () => {
     expect(
-      confidenceWeightEligible(calibration, "model-b:research", 1_000),
+      confidenceWeightEligible(
+        calibration,
+        "model-b:research",
+        1_000 as EpochMilliseconds,
+      ),
     ).toBe(false);
   });
 
   it("rejects an expired calibration and accepts its exact expiry", () => {
     expect(
-      confidenceWeightEligible(calibration, "model-a:research", 2_001),
+      confidenceWeightEligible(
+        calibration,
+        "model-a:research",
+        2_001 as EpochMilliseconds,
+      ),
     ).toBe(false);
     expect(
-      confidenceWeightEligible(calibration, "model-a:research", 2_000),
+      confidenceWeightEligible(
+        calibration,
+        "model-a:research",
+        2_000 as EpochMilliseconds,
+      ),
     ).toBe(true);
+  });
+
+  it("accepts the validated epoch millisecond boundaries", () => {
+    expect(
+      confidenceWeightEligible(
+        { ...calibration, validUntilEpochMs: 0 as EpochMilliseconds },
+        "model-a:research",
+        0 as EpochMilliseconds,
+      ),
+    ).toBe(true);
+    expect(
+      confidenceWeightEligible(
+        {
+          ...calibration,
+          validUntilEpochMs: Number.MAX_SAFE_INTEGER as EpochMilliseconds,
+        },
+        "model-a:research",
+        Number.MAX_SAFE_INTEGER as EpochMilliseconds,
+      ),
+    ).toBe(true);
+    expectTypeOf(confidenceWeightEligible)
+      .parameter(2)
+      .toEqualTypeOf<EpochMilliseconds>();
   });
 });

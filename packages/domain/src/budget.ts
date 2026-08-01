@@ -41,6 +41,30 @@ export type BudgetReservationDecision =
       readonly requested: number;
     };
 
+export type BudgetReconciliationDecision =
+  | { readonly _tag: "Reconciled"; readonly state: BudgetState }
+  | {
+      readonly _tag: "Rejected";
+      readonly reason: "release_exceeds_reserved";
+      readonly dimension: BudgetDimension;
+      readonly activeReserved: number;
+      readonly release: number;
+    }
+  | {
+      readonly _tag: "ObservedOverrun";
+      readonly dimension: BudgetDimension;
+      readonly reserved: number;
+      readonly observed: number;
+      readonly state: BudgetState;
+    }
+  | {
+      readonly _tag: "BudgetExhausted";
+      readonly dimension: Exclude<BudgetDimension, "concurrency">;
+      readonly limit: number;
+      readonly accounted: number;
+      readonly state: BudgetState;
+    };
+
 const mapVector = (
   left: BudgetVector,
   right: BudgetVector,
@@ -68,8 +92,14 @@ export const reserveBudget = (
   request: BudgetVector,
 ): BudgetReservationDecision => {
   for (const dimension of budgetDimensions) {
-    const available = state.limits[dimension] - state.reserved[dimension];
-    if (request[dimension] > available) {
+    const consumed =
+      dimension === "concurrency" ? 0 : state.observed[dimension];
+    const available = Math.max(
+      0,
+      state.limits[dimension] - consumed - state.reserved[dimension],
+    );
+    const accounted = consumed + state.reserved[dimension];
+    if (accounted > state.limits[dimension] || request[dimension] > available) {
       return {
         _tag: "Rejected",
         dimension,
@@ -92,10 +122,63 @@ export const reconcileBudget = (
   state: BudgetState,
   reservation: BudgetVector,
   observed: BudgetVector,
-): BudgetState => ({
-  ...state,
-  reserved: mapVector(state.reserved, reservation, (total, release) =>
-    Math.max(0, total - release),
-  ),
-  observed: mapVector(state.observed, observed, (a, b) => a + b),
-});
+): BudgetReconciliationDecision => {
+  for (const dimension of budgetDimensions) {
+    if (reservation[dimension] > state.reserved[dimension]) {
+      return {
+        _tag: "Rejected",
+        reason: "release_exceeds_reserved",
+        dimension,
+        activeReserved: state.reserved[dimension],
+        release: reservation[dimension],
+      };
+    }
+  }
+
+  const nextReserved = mapVector(
+    state.reserved,
+    reservation,
+    (total, release) => total - release,
+  );
+  const nextObserved: BudgetVector = {
+    ...mapVector(
+      state.observed,
+      observed,
+      (accounted, actual) => accounted + actual,
+    ),
+    concurrency: Math.max(state.observed.concurrency, observed.concurrency),
+  };
+  const nextState: BudgetState = {
+    ...state,
+    reserved: nextReserved,
+    observed: nextObserved,
+  };
+
+  for (const dimension of budgetDimensions) {
+    if (dimension === "concurrency") continue;
+    const accounted = nextObserved[dimension] + nextReserved[dimension];
+    if (accounted > state.limits[dimension]) {
+      return {
+        _tag: "BudgetExhausted",
+        dimension,
+        limit: state.limits[dimension],
+        accounted,
+        state: nextState,
+      };
+    }
+  }
+
+  for (const dimension of budgetDimensions) {
+    if (observed[dimension] > reservation[dimension]) {
+      return {
+        _tag: "ObservedOverrun",
+        dimension,
+        reserved: reservation[dimension],
+        observed: observed[dimension],
+        state: nextState,
+      };
+    }
+  }
+
+  return { _tag: "Reconciled", state: nextState };
+};

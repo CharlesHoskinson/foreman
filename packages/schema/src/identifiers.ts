@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 
-const ulid = "[0-9A-HJKMNP-TV-Z]{26}";
+const ulid = "[0-7][0-9A-HJKMNP-TV-Z]{25}";
 const sha256 = "[a-f0-9]{64}";
 
 export const RunId = Schema.String.pipe(
@@ -131,6 +131,20 @@ export type FailureDomainId = typeof FailureDomainId.Type;
 
 export const UtcTimestamp = Schema.String.pipe(
   Schema.pattern(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+  Schema.filter((value) => {
+    const epochMilliseconds = Date.parse(value);
+    return (
+      Number.isFinite(epochMilliseconds) &&
+      new Date(epochMilliseconds).toISOString() === value
+    );
+  }),
   Schema.brand("UtcTimestamp"),
 );
 export type UtcTimestamp = typeof UtcTimestamp.Type;
+
+export const EpochMilliseconds = Schema.Number.pipe(
+  Schema.filter(Number.isSafeInteger),
+  Schema.nonNegative(),
+  Schema.brand("EpochMilliseconds"),
+);
+export type EpochMilliseconds = typeof EpochMilliseconds.Type;

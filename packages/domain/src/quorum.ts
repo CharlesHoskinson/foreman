@@ -1,4 +1,8 @@
-import type { CalibrationRecord, FailureDomainId } from "@council/schema";
+import type {
+  CalibrationRecord,
+  EpochMilliseconds,
+  FailureDomainId,
+} from "@council/schema";
 
 export type QuorumParticipant = {
   readonly admissible: boolean;
@@ -68,7 +72,7 @@ export const evaluateAutomaticQuorum = (
 export const confidenceWeightEligible = (
   calibration: CalibrationRecord | null,
   modelTaskKey: string,
-  nowEpochMs: number,
+  nowEpochMs: EpochMilliseconds,
 ): boolean =>
   calibration !== null &&
   calibration.modelTaskKey === modelTaskKey &&

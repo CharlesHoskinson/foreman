@@ -1,7 +1,14 @@
 import * as Schema from "effect/Schema";
-import { CandidateId, FailureDomainId, UtcTimestamp } from "./identifiers.js";
+import {
+  ArtifactId,
+  CandidateId,
+  EpochMilliseconds,
+  FailureDomainId,
+  UtcTimestamp,
+} from "./identifiers.js";
 
 export const ProposalEligibility = Schema.Struct({
+  schemaVersion: Schema.Literal(1),
   candidateId: CandidateId,
   admissible: Schema.Boolean,
   failureDomain: Schema.NullOr(FailureDomainId),
@@ -12,8 +19,8 @@ export type ProposalEligibility = typeof ProposalEligibility.Type;
 export const CalibrationRecord = Schema.Struct({
   schemaVersion: Schema.Literal(1),
   modelTaskKey: Schema.String,
-  validUntilEpochMs: Schema.Number,
-  calibrationArtifactId: Schema.String,
+  validUntilEpochMs: EpochMilliseconds,
+  calibrationArtifactId: ArtifactId,
 });
 export type CalibrationRecord = typeof CalibrationRecord.Type;
 

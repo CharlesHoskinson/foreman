@@ -6,7 +6,7 @@
 
 **Architecture:** The schema package owns every serialized contract and uses only Effect Schema. The domain package imports schema types, contains immutable values and total pure functions, and never imports the Effect runtime, Node APIs, persistence, provider code, or platform code. This plan stops at deterministic in-memory behavior; Effect services and live I/O start in the next subsystem plan.
 
-**Tech Stack:** Node.js 24, pnpm 11.18.0, TypeScript 7.0.2, Effect 3.22.1, Vitest 4.1.10, fast-check 4.9.0, ESLint 10.0.1, typescript-eslint 8.65.0, and Prettier 3.9.6.
+**Tech Stack:** Node.js 24, pnpm 11.18.0, TypeScript 7.0.2, Effect 3.22.1, Vitest 4.1.10, fast-check 4.9.0, ESLint 10.0.1, typescript-eslint 8.65.0, Prettier 3.9.6, and OpenSpec 1.7.0.
 
 ## Global Constraints
 
@@ -20,6 +20,19 @@
 - Terminal run states are absorbing.
 - Inputs that depend on time, randomness, hashing, policy, or storage arrive as validated command data.
 - New behavior follows red-green-refactor and each task ends with a focused commit.
+
+---
+
+## Cold-review API corrections
+
+These corrections are normative and supersede older illustrative snippets in Tasks 5 through 8.
+
+- `reserveBudget` subtracts cumulative `observed` use and active reservations from every limit except renewable `concurrency`. `reconcileBudget` returns `BudgetReconciliationDecision`: `Reconciled`, `Rejected` with `release_exceeds_reserved`, `ObservedOverrun`, or `BudgetExhausted`. Every non-rejected result carries the next immutable state so actual observations remain accounted. Concurrency becomes available only after its active reservation is reconciled.
+- `CommitmentContext` consumes a decoded `RequestedAction`, a `Present | Missing` approval with `ValidationStatus`, a `Present | Missing` current-contract reference with `ValidationStatus`, and a validated `UtcTimestamp` supplied as `now`. Authorization denies every non-valid approval or contract status, expiry, authority failure, hash or policy mismatch, and all prior policy, capability, destination, provenance, citation, and secret-scan failures. Only `trusted_instruction` and `approved_contract` are authority-bearing approval classes.
+- The ULID body is `[0-7][0-9A-HJKMNP-TV-Z]{25}`. `UtcTimestamp` requires an exact millisecond UTC parse-and-serialize round trip. `EpochMilliseconds` is a branded, nonnegative safe integer.
+- `ProposalEligibility` and `CalibrationRecord` are version 1 boundaries. Calibration records use `EpochMilliseconds` and `ArtifactId`; `confidenceWeightEligible` accepts `EpochMilliseconds` for the current instant.
+- The architecture gate scans `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, and `.cjs` source files. It rejects prohibited imports, nonliteral dynamic imports, every direct `require` call (including a locally shadowed binding), Node/runtime globals, `Date.now`, and `Math.random`. Pure package builds set `types: []`. ESLint grants Node globals only to tests and Node configuration or script files.
+- The exact verification command is `corepack pnpm check && corepack pnpm exec openspec validate design-council-core --strict --no-interactive && git diff HEAD --check`. OpenSpec 1.7.0 is an exact local development dependency.
 
 ---
 
@@ -1146,7 +1159,7 @@
 
 **Interfaces:**
 - Consumes: non-negative integer budget vectors supplied as validated values.
-- Produces: BudgetVector, BudgetState, reserveBudget, reconcileBudget, BudgetReservationDecision.
+- Produces: BudgetVector, BudgetState, reserveBudget, reconcileBudget, BudgetReservationDecision, BudgetReconciliationDecision.
 
 - [ ] **Step 1: Write unit and property tests for hard-limit preservation**
 
@@ -1945,12 +1958,15 @@
 
     import * as Schema from "effect/Schema";
     import {
+      ArtifactId,
       CandidateId,
+      EpochMilliseconds,
       FailureDomainId,
       UtcTimestamp
     } from "./identifiers.js";
 
     export const ProposalEligibility = Schema.Struct({
+      schemaVersion: Schema.Literal(1),
       candidateId: CandidateId,
       admissible: Schema.Boolean,
       failureDomain: Schema.NullOr(FailureDomainId),
@@ -1961,8 +1977,8 @@
     export const CalibrationRecord = Schema.Struct({
       schemaVersion: Schema.Literal(1),
       modelTaskKey: Schema.String,
-      validUntilEpochMs: Schema.Number,
-      calibrationArtifactId: Schema.String
+      validUntilEpochMs: EpochMilliseconds,
+      calibrationArtifactId: ArtifactId
     });
     export type CalibrationRecord = typeof CalibrationRecord.Type;
 
@@ -1988,6 +2004,7 @@
 
     import type {
       CalibrationRecord,
+      EpochMilliseconds,
       FailureDomainId
     } from "@council/schema";
 
@@ -2059,7 +2076,7 @@
     export const confidenceWeightEligible = (
       calibration: CalibrationRecord | null,
       modelTaskKey: string,
-      nowEpochMs: number
+      nowEpochMs: EpochMilliseconds
     ): boolean =>
       calibration !== null &&
       calibration.modelTaskKey === modelTaskKey &&
@@ -2432,7 +2449,7 @@
 
     "architecture": "node scripts/check-architecture.mjs",
     "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm architecture && corepack pnpm test",
-    "verify": "corepack pnpm check && openspec validate design-council-core --strict --no-interactive && git diff --check"
+    "verify": "corepack pnpm check && corepack pnpm exec openspec validate design-council-core --strict --no-interactive && git diff HEAD --check"
 
 - [ ] **Step 5: Run the focused regression test, then the full quality gate**
 
