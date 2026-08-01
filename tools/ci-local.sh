@@ -205,6 +205,13 @@ gate_bats() {
   rc=$?
   set -o pipefail
 
+  # Persist the full TAP stream (pass and fail). Best-effort only: a write
+  # failure must not change the gate verdict.
+  local tap_log
+  tap_log="${TEST_TAP_LOG:-${TMPDIR:-/tmp}/foreman-test-tap.log}"
+  mkdir -p -- "$(dirname "$tap_log")" 2>/dev/null || true
+  printf '%s\n' "$out" >"$tap_log" 2>/dev/null || true
+
   result="$(printf '%s\n' "$out" | grep -E '^RESULT ' | tail -n1 || true)"
   total="$(printf '%s\n' "$out" | grep -E '^TOTAL ' | tail -n1 || true)"
   local report
@@ -213,15 +220,15 @@ gate_bats() {
   # PASS / SHADOW / ERROR / FAIL from the runner. Treat RESULT PASS and
   # RESULT SHADOW as green; anything else (or missing RESULT) as fail.
   if [[ "$result" == RESULT\ PASS* || "$result" == RESULT\ SHADOW* ]]; then
-    echo "GATE ${name} PASS ${result#RESULT } ${total} ${report}"
+    echo "GATE ${name} PASS ${result#RESULT } ${total} ${report} ${tap_log}"
     return 0
   fi
 
   if [[ -z "$result" ]]; then
-    echo "GATE ${name} FAIL no RESULT line from tests/run.sh rc=${rc}"
+    echo "GATE ${name} FAIL no RESULT line from tests/run.sh rc=${rc} ${tap_log}"
     return 1
   fi
-  echo "GATE ${name} FAIL ${result#RESULT } ${total} rc=${rc}"
+  echo "GATE ${name} FAIL ${result#RESULT } ${total} rc=${rc} ${tap_log}"
   return 1
 }
 
