@@ -39,12 +39,14 @@ jobs:
           mkdir -p /usr/local/bin
           npm install --global --prefix "$(cygpath --windows /usr/local/bin)" \
             @fission-ai/openspec@1.6.0 \
-            @informalsystems/quint@0.32.0
+            @informalsystems/quint@0.32.0 \
+            bats@1.11.0
           printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
             > /usr/local/bin/python3
           chmod +x /usr/local/bin/python3
           /usr/local/bin/openspec --version
           /usr/local/bin/quint --version
+          /usr/local/bin/bats --version
           jq --version
           python3 --version
           node --version
@@ -54,16 +56,20 @@ jobs:
       - name: Run the shared gate definition with Git Bash
         shell: bash
         env:
-          # bats is not provisioned on this runner: the Linux job installs it
-          # with apt, the Windows dependency step installs shellcheck and npm
-          # packages only. Running the suite here yields rc=127 (command not
-          # found), which is what turned this workflow red on b4ed7bd7 once
-          # ci-local.sh's bats default flipped ON.
+          # bats IS now provisioned here (npm bats@1.11.0, install step above),
+          # but the gate stays OFF. Provisioning and passing are different
+          # claims: the suite has never executed on Windows, so nobody knows
+          # what it does there. Flipping this to "1" on the strength of the
+          # binary existing would repeat b4ed7bd7, where the default flipped ON
+          # against an unprovisioned runner and the workflow went red for seven
+          # runs with rc=127.
+          #
+          # The non-gating probe step below is how that gets answered: it runs a
+          # small slice with continue-on-error and publishes the result. This
+          # flag flips only once that evidence exists, in its own commit.
           #
           # Stated explicitly rather than inherited: gates-linux opts IN with
           # "1", so this opts OUT with "0" and neither depends on the default.
-          # Provisioning bats here and running the suite on Windows is real
-          # work, tracked separately — it has never run on this platform.
           FOREMAN_CI_BATS: "0"
           TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
           TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
@@ -72,6 +78,29 @@ jobs:
           # without this on PATH the gates SKIP rather than run.
           export PATH="/usr/local/bin:$PATH"
           bash tools/ci-local.sh
+
+      # Evidence, not enforcement (obligation 60). bats has never run on Windows;
+      # this establishes what it actually does, without any power to fail the
+      # workflow. continue-on-error is deliberate and must stay until the
+      # results justify moving these files into the gate.
+      - name: Probe the bats suite on Windows (non-gating)
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          export PATH="/usr/local/bin:$PATH"
+          echo "bats: $(bats --version 2>&1 || echo UNAVAILABLE)"
+          for f in tests/line-endings.bats tests/plugin-drift.bats; do
+            echo "===== $f ====="
+            # Never let a hung file hold the runner: same bound tests/run.sh uses.
+            # Capture bats' OWN status, not tail's: piping would make $? report
+            # the last stage, so a failing suite behind a successful tail would
+            # be recorded as exit 0 and this probe would answer its own question
+            # wrongly.
+            out="$(timeout --kill-after=30 600 bats "$f" 2>&1)"; rc=$?
+            printf '%s\n' "$out" | tail -40
+            echo "  bats rc=$rc ok=$(printf '%s\n' "$out" | grep -c '^ok ') not_ok=$(printf '%s\n' "$out" | grep -c '^not ok ')"
+          done
 
       - name: Upload gate reports
         if: always()
