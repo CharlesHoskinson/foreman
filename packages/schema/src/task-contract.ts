@@ -1,4 +1,5 @@
 import * as Schema from "effect/Schema";
+import { AuthorityClass } from "./authority.js";
 import {
   ActionHash,
   ApprovalId,
@@ -81,6 +82,7 @@ export const Approval = Schema.Struct({
   actionHash: ActionHash,
   contractHash: ContractHash,
   approver: Schema.String,
+  approverAuthority: AuthorityClass,
   expiresAt: UtcTimestamp,
 });
 export type Approval = typeof Approval.Type;

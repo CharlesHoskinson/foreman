@@ -1,6 +1,26 @@
 import type { ActionHash, ContractHash } from "@council/schema";
 import { describe, expect, it } from "vitest";
-import { authorizeCommitment } from "../src/index.js";
+import {
+  authorizeCommitment,
+  type CommitmentDenialReason,
+} from "../src/index.js";
+
+const denialReasons: readonly CommitmentDenialReason[] = [
+  "approval_missing",
+  "approval_mismatch",
+  "policy_unknown",
+  "policy_denied",
+  "capability_unknown",
+  "capability_invalid",
+  "destination_unknown",
+  "destination_invalid",
+  "provenance_unknown",
+  "provenance_invalid",
+  "citation_unknown",
+  "citation_invalid",
+  "secretScan_unknown",
+  "secretScan_blocked",
+];
 
 const matching = {
   contractHash:
@@ -48,6 +68,26 @@ describe("commitment authorization", () => {
     ).toEqual({ _tag: "Denied", reason: "approval_mismatch" });
   });
 
+  it("denies an approval for a different contract", () => {
+    expect(
+      authorizeCommitment({
+        ...approvedContext,
+        approval: {
+          ...approvedContext.approval,
+          contractHash:
+            "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" as ContractHash,
+        },
+      }),
+    ).toEqual({ _tag: "Denied", reason: "approval_mismatch" });
+  });
+
+  it("denies an explicit policy rejection", () => {
+    expect(authorizeCommitment({ ...approvedContext, policy: "deny" })).toEqual({
+      _tag: "Denied",
+      reason: "policy_denied",
+    });
+  });
+
   it.each([
     "policy",
     "capability",
@@ -61,5 +101,27 @@ describe("commitment authorization", () => {
       _tag: "Denied",
       reason: field + "_unknown",
     });
+  });
+
+  it.each(["capability", "destination", "provenance", "citation"] as const)(
+    "fails closed when %s is invalid",
+    (field) => {
+      expect(
+        authorizeCommitment({ ...approvedContext, [field]: "invalid" } as const),
+      ).toEqual({
+        _tag: "Denied",
+        reason: field + "_invalid",
+      });
+    },
+  );
+
+  it("fails closed when the secret scan is blocked", () => {
+    expect(
+      authorizeCommitment({ ...approvedContext, secretScan: "blocked" }),
+    ).toEqual({ _tag: "Denied", reason: "secretScan_blocked" });
+  });
+
+  it("enumerates every commitment denial reason", () => {
+    expect(denialReasons).toHaveLength(14);
   });
 });

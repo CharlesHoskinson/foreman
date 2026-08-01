@@ -1415,7 +1415,17 @@
 
     import type { ActionHash, ContractHash } from "@council/schema";
     import { describe, expect, it } from "vitest";
-    import { authorizeCommitment } from "../src/index.js";
+    import {
+      authorizeCommitment,
+      type CommitmentDenialReason
+    } from "../src/index.js";
+
+    const denialReasons: readonly CommitmentDenialReason[] = [
+      "approval_missing", "approval_mismatch", "policy_unknown", "policy_denied",
+      "capability_unknown", "capability_invalid", "destination_unknown", "destination_invalid",
+      "provenance_unknown", "provenance_invalid", "citation_unknown", "citation_invalid",
+      "secretScan_unknown", "secretScan_blocked"
+    ];
 
     const matching = {
       contractHash:
@@ -1472,6 +1482,22 @@
           reason: field + "_unknown"
         });
       });
+
+      it("denies contract and action approval mismatches separately", () => {
+        // Exercise one context with a different action hash and one with a
+        // different contract hash; both must return approval_mismatch.
+      });
+
+      it.each(["capability", "destination", "provenance", "citation"] as const)(
+        "fails closed when %s is invalid",
+        (field) => {
+          // Each invalid validation returns its field-specific *_invalid reason.
+        }
+      );
+
+      it("fails closed when the secret scan is blocked", () => {
+        // A blocked scan returns secretScan_blocked.
+      });
     });
 
 - [ ] **Step 2: Run authorization tests and verify red**
@@ -1484,6 +1510,7 @@
 
     Add to packages/schema/src/task-contract.ts:
 
+    import { AuthorityClass } from "./authority.js";
     import {
       ActionHash,
       ApprovalId,
@@ -1548,6 +1575,7 @@
       actionHash: ActionHash,
       contractHash: ContractHash,
       approver: Schema.String,
+      approverAuthority: AuthorityClass,
       expiresAt: UtcTimestamp
     });
     export type Approval = typeof Approval.Type;
@@ -1578,9 +1606,25 @@
       readonly secretScan: "clear" | "blocked" | "unknown";
     };
 
+    export type CommitmentDenialReason =
+      | "approval_missing"
+      | "approval_mismatch"
+      | "policy_unknown"
+      | "policy_denied"
+      | "capability_unknown"
+      | "capability_invalid"
+      | "destination_unknown"
+      | "destination_invalid"
+      | "provenance_unknown"
+      | "provenance_invalid"
+      | "citation_unknown"
+      | "citation_invalid"
+      | "secretScan_unknown"
+      | "secretScan_blocked";
+
     export type CommitmentDecision =
       | { readonly _tag: "Allowed" }
-      | { readonly _tag: "Denied"; readonly reason: string };
+      | { readonly _tag: "Denied"; readonly reason: CommitmentDenialReason };
 
     export const authorizeCommitment = (
       context: CommitmentContext
@@ -1602,19 +1646,37 @@
         };
       }
 
-      const checks = [
-        ["capability", context.capability],
-        ["destination", context.destination],
-        ["provenance", context.provenance],
-        ["citation", context.citation]
-      ] as const;
-      for (const [name, value] of checks) {
-        if (value !== "valid") {
-          return {
-            _tag: "Denied",
-            reason: name + "_" + (value === "unknown" ? "unknown" : "invalid")
-          };
-        }
+      if (context.capability !== "valid") {
+        return {
+          _tag: "Denied",
+          reason: context.capability === "unknown"
+            ? "capability_unknown"
+            : "capability_invalid"
+        };
+      }
+      if (context.destination !== "valid") {
+        return {
+          _tag: "Denied",
+          reason: context.destination === "unknown"
+            ? "destination_unknown"
+            : "destination_invalid"
+        };
+      }
+      if (context.provenance !== "valid") {
+        return {
+          _tag: "Denied",
+          reason: context.provenance === "unknown"
+            ? "provenance_unknown"
+            : "provenance_invalid"
+        };
+      }
+      if (context.citation !== "valid") {
+        return {
+          _tag: "Denied",
+          reason: context.citation === "unknown"
+            ? "citation_unknown"
+            : "citation_invalid"
+        };
       }
 
       if (context.secretScan !== "clear") {
@@ -1640,6 +1702,7 @@
     import { describe, expect, it } from "vitest";
     import {
       decodeStrictSync,
+      Approval,
       TaskContract,
       TaskContractAmendment
     } from "../src/index.js";
@@ -1696,6 +1759,18 @@
             approvedAt: "2026-08-01T12:30:00.000Z"
           })
         ).toThrow();
+      });
+
+      it("requires an authority class on an approval", () => {
+        expect(decodeStrictSync(Approval, {
+          schemaVersion: 1,
+          approvalId: "apr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          actionHash: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          contractHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          approver: "council-chair",
+          approverAuthority: "approved_contract",
+          expiresAt: "2026-08-01T13:00:00.000Z"
+        }).approverAuthority).toBe("approved_contract");
       });
     });
 

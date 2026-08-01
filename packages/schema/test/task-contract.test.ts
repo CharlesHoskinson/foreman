@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   decodeStrictSync,
+  Approval,
   TaskContract,
   TaskContractAmendment,
 } from "../src/index.js";
@@ -57,5 +58,36 @@ describe("task contracts", () => {
         approvedAt: "2026-08-01T12:30:00.000Z",
       }),
     ).toThrow();
+  });
+
+  it("requires an authority class on an approval", () => {
+    expect(
+      decodeStrictSync(Approval, {
+        schemaVersion: 1,
+        approvalId: "apr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        actionHash:
+          "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        contractHash:
+          "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        approver: "council-chair",
+        approverAuthority: "approved_contract",
+        expiresAt: "2026-08-01T13:00:00.000Z",
+      }).approverAuthority,
+    ).toBe("approved_contract");
+  });
+
+  it("rejects an approval without an authority class", () => {
+    expect(() =>
+      decodeStrictSync(Approval, {
+        schemaVersion: 1,
+        approvalId: "apr_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        actionHash:
+          "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        contractHash:
+          "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        approver: "council-chair",
+        expiresAt: "2026-08-01T13:00:00.000Z",
+      }),
+    ).toThrow(/approverAuthority/);
   });
 });
