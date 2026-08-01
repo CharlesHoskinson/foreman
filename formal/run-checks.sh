@@ -543,8 +543,18 @@ run_bounded() {
   shift 2
   # Use bash background + sleep watchdog with recorded PID (no pkill -f).
   (
-    # New session so we can kill the process group by PGID == PID.
-    setsid "$@" >"${outfile}" 2>&1 &
+    # New session so we can kill the process group by PGID == PID. setsid does
+    # not exist in Git Bash on Windows, where its absence previously made every
+    # row die with "setsid: command not found" and classify as ERROR (19 rows,
+    # matched=0). Degrade to a plain background spawn there: the timeout path
+    # below already falls back from a process-group kill to a single-pid kill,
+    # so the only property lost is the group guarantee, and that is worth far
+    # more than a suite that cannot run at all.
+    if command -v setsid >/dev/null 2>&1; then
+      setsid "$@" >"${outfile}" 2>&1 &
+    else
+      "$@" >"${outfile}" 2>&1 &
+    fi
     local child=$!
     # Record in a file the parent can read (subshell isolation).
     printf '%s\n' "${child}" > "${outfile}.pid"
@@ -824,6 +834,10 @@ main() {
   esac
 
   mkdir -p "${OUT_DIR}"
+
+  if ! command -v setsid >/dev/null 2>&1; then
+    log "setsid unavailable (Git Bash/Windows) -- DEGRADED: rows spawn without their own process group; timeout falls back to a single-pid kill"
+  fi
 
   # --- controls first; abort before any real row if classifier is unsound ---
   if ! run_classifier_controls; then
