@@ -160,13 +160,20 @@ write_registry() {
   echo "state=green_before $output"
   [ "$status" -eq 0 ]
 
-  mutated_checks="$BATS_TEST_TMPDIR/gate-ground-checks-mutated.sh"
-  cp "$CHECKS" "$mutated_checks"
-  sed '0,/| any(\$artifact\.findings\[\];/s//| false and any($artifact.findings[];/' \
-    "$CHECKS" >"$mutated_checks"
-  echo "mutation_applied=G1_predicate_prefixed_with_false_and"
-  # shellcheck source=/dev/null
-  source "$mutated_checks"
+  # A no-op registered check, expressed the way the rewritten evaluator works.
+  # gg_check_<id> is an INSTALLER: it sets GG_CHECK_PROGRAM to a jq fragment,
+  # and gg_canary_evaluate_fixture composes every registered fragment into one
+  # program and parses the fixture once. So the mutation must install a valid
+  # fragment that never reports a violation. Two wrong ways, both tried:
+  # installing nothing (return 1) leaves the composed program malformed and
+  # yields GG_CHECK_FIXTURE_INVALID rather than a missed violation; and editing
+  # the fragment text to prefix "false and" is jq-version-sensitive - valid on
+  # jq 1.8.1, a parse failure on the CI runner jq-1.7 - so the assertion
+  # depended on which jq was installed.
+  echo "mutation_applied=gg_check_G1_installs_violated_false"
+  gg_check_G1() {
+    GG_CHECK_PROGRAM='{id:"G1", missing:null, violated:false}'
+  }
   run gg_canary_run "$CORPUS"
   echo "state=broken $output"
   [ "$status" -ne 0 ]
