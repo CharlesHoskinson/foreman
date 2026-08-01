@@ -945,7 +945,7 @@ if [[ "${FOREMAN_WSL_CLOCK_PREFLIGHT:-1}" == 1 ]] \
   _wcp="${_wcp_repo_root:+$_wcp_repo_root/}env/wsl-clock-preflight.sh"
   if [[ -n "$_wcp_repo_root" && ( -x "$_wcp" || -f "$_wcp" ) ]]; then
     if ! bash "$_wcp" --threshold "${FOREMAN_WSL_CLOCK_THRESHOLD:-5}" >&2; then
-      echo "lane-run: WSL clock preflight refused (drift beyond threshold); continuing, event ordering may be affected" >&2
+      echo "lane-run: WSL clock preflight refused (see its message above); continuing, event ordering may be affected" >&2
     fi
   fi
 fi
