@@ -41,7 +41,7 @@ record the command and its output.
 
 ## T2 — the adapter
 
-- [ ] `skills/foreman/scripts/adapters/agy.sh` implementing the seven contract
+- [x] `skills/foreman/scripts/adapters/agy.sh` implementing the seven contract
       functions.
 - [ ] `adapter_implement_argv`: `--mode accept-edits`, pinned `--model`,
       authoritative effort mechanism, derived `--print-timeout`, `--add-dir` /
@@ -49,9 +49,9 @@ record the command and its output.
 - [ ] `adapter_audit_argv`: `--mode plan`, pinned `--model`, `--json-schema`
       pointing at `adapters/verdict.schema.json`, an output format the schema
       enforcement covers, and `--print "$PROMPT"` last.
-- [ ] `adapter_home_var` → `HOME`. Record in the header that `GEMINI_CLI_HOME`
+- [x] `adapter_home_var` → `HOME`. Record in the header that `GEMINI_CLI_HOME`
       was probed and has no effect on this CLI.
-- [ ] `adapter_auth_probe` → bounded `agy models`, positive-signal required,
+- [x] `adapter_auth_probe` → bounded `agy models`, positive-signal required,
       fail closed.
 - [ ] `adapter_caps` → resume via `--continue` / `--conversation`, schema
       forced (with the streaming caveat), sandbox via `--sandbox`, `cap_n=1`,
@@ -125,4 +125,4 @@ record the command and its output.
       wrong tool for a day — with its evidence, root cause, impact and this
       enhancement.
 - [ ] Docs gate: `markdownlint-cli2`, `codespell`, `lychee`.
-- [ ] `openspec validate agy-lane-activation --strict` passes.
+- [x] `openspec validate agy-lane-activation --strict` passes.

@@ -101,7 +101,7 @@ packages whose behaviour the README describes.
       verification and the docs stage into "Reports are claims"; fold the
       graphify query material into "The record" and the maintenance paragraph
       into further reading.
-- [ ] Replace every numbered cross-reference with a named anchor link,
+- [x] Replace every numbered cross-reference with a named anchor link,
       including the five already-broken ones at `:95`, `:134`, `:223`, `:228`
       and `:591`.
 - [ ] Run the structure and reference checks; iterate until clean.
@@ -115,10 +115,10 @@ packages whose behaviour the README describes.
 - [ ] Move the three launcher bullets (nested Job Objects, NTSTATUS
       byte-masking, jq-vs-python3) to `launcher/README.md` and
       `reference-environment.md`.
-- [ ] Reduce the Grok write-cancellation walkthrough to its principle and its
+- [x] Reduce the Grok write-cancellation walkthrough to its principle and its
       one load-bearing sentence — the model narrates edits while writing
       nothing, `DIG_B == DIG_A` — and drop the flag forensics.
-- [ ] Move the version-stamped provenance to `ROADMAP.md` under the release that
+- [x] Move the version-stamped provenance to `ROADMAP.md` under the release that
       introduced it.
 - [ ] Run the relocation and provenance checks; iterate until clean.
 
@@ -126,11 +126,11 @@ packages whose behaviour the README describes.
 
 - [ ] Rewrite each section against its ledger rows. A section whose ledger rows
       are undispositioned is not ready to be written.
-- [ ] State enforcement strength explicitly for the five safety claims:
+- [x] State enforcement strength explicitly for the five safety claims:
       cross-vendor invariant, git-write ban, lock serialisation, dirty-safety,
       and the gate. Each reads as enforced-by-code with a citation,
       enforced-in-one-place with the place named, or doctrine-only.
-- [ ] Write the gate sentence against whichever outcome `audit-groundedness-gate`
+- [x] Write the gate sentence against whichever outcome `audit-groundedness-gate`
       produced, and cite the code either way.
 - [ ] Re-derive every row of the shipped/stub table from the code, not from the
       previous table.
@@ -149,16 +149,16 @@ packages whose behaviour the README describes.
       regenerable materialisation behind a `GraphStore` port with a files-only
       fallback and never the system of record, consumption as a pre-serialized,
       content-hashed, token-budgeted context block.
-- [ ] Frame the plane as cross-session provenance and deterministic gate checks.
+- [x] Frame the plane as cross-session provenance and deterministic gate checks.
       Do not frame it as retrieval accuracy or hallucination reduction.
-- [ ] Add checker soundness as the fourth movement of "Reports are claims": a
+- [x] Add checker soundness as the fourth movement of "Reports are claims": a
       checker whose predicate does not match its claim passes loudly, and a loud
       pass is trusted.
-- [ ] Add to the limits section: the telemetry gap (no tokens, no cost, no model
+- [x] Add to the limits section: the telemetry gap (no tokens, no cost, no model
       identity; verdicts outside the lineage store) and the Quint models as
       bounded reachability and absence-within-depth results, with the count
       derived from `formal/specs/`.
-- [ ] Do not present four lanes as four independent votes.
+- [x] Do not present four lanes as four independent votes.
 - [ ] Architect review against the roadmap's disconfirming evidence — BM-25 over
       all nine GraphRAG systems, ~2 effective independent votes, and
       TerminusDB's bus factor 1 as recorded before its 2026-07-30
@@ -203,4 +203,4 @@ packages whose behaviour the README describes.
       claim.
 - [ ] Every human review named in T2, T6, T7 and T8 has a written artefact
       naming what was compared against what. A checkbox is not a judgement.
-- [ ] `openspec validate readme-refresh --strict` passes.
+- [x] `openspec validate readme-refresh --strict` passes.
