@@ -129,10 +129,16 @@ write_registry() {
 
 @test "canary validates exact count and focus and reports millisecond cost" {
   gg_registry_load "$REGISTRY"
+  jq_count="$BATS_TEST_TMPDIR/jq-count"
+  jq() {
+    printf '1\n' >>"$jq_count"
+    command jq "$@"
+  }
   run gg_canary_run "$CORPUS"
   echo "$output"
   [ "$status" -eq 0 ]
   [[ "$output" =~ ^CANARY_OK\ fixtures=10\ checks=9\ elapsed_ms=[0-9]+$ ]]
+  [ "$(wc -l <"$jq_count" | tr -d '[:space:]')" -eq 10 ]
 }
 
 @test "canary evaluates the corpus on every invocation" {
