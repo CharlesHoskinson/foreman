@@ -83,6 +83,7 @@ setup_audit_run_fixture() {
   AUDIT_TASK_ID="audit-routing-fixture"
   AUDIT_RD="$FOREMAN_HOME/runs/$AUDIT_TASK_ID"
   AUDIT_CODEX_MARKER="$BATS_TEST_TMPDIR/codex-executed"
+  AUDIT_GROK_MARKER="$BATS_TEST_TMPDIR/grok-executed"
   mkdir -p "$AUDIT_RD/evidence" "$REPO/.foreman"
   base_sha="$(git -C "$REPO" rev-parse HEAD)"
   cat >"$AUDIT_RD/meta.json" <<EOF
@@ -114,11 +115,32 @@ SHIM
   chmod +x "$SHIM/codex"
 }
 
+# @description Replace the selector's grok command shim with an audit-capable
+#   process that records execution and writes a valid verdict to stdout.
+write_audit_grok_shim() {
+  cat >"$SHIM/grok" <<'SHIM'
+#!/usr/bin/env bash
+set -u
+if [[ "${1:-}" == "--version" ]]; then
+  printf 'grok-test 1.0\n'
+  exit 0
+fi
+printf 'grok\n' >"$AUDIT_GROK_MARKER"
+if IFS= read -r unexpected_stdin; then
+  printf 'unexpected stdin: %s\n' "$unexpected_stdin" >&2
+  exit 9
+fi
+printf '{"verdict":"APPROVED","summary":"ok","findings":[]}\n'
+SHIM
+  chmod +x "$SHIM/grok"
+}
+
 # @description Run audit-run with only hermetic vendor commands on PATH.
 run_audit_runner() {
   run env \
-    PATH="$SHIM:$PATH" \
+    PATH="$SHIM:/usr/bin:/bin" \
     AUDIT_CODEX_MARKER="$AUDIT_CODEX_MARKER" \
+    AUDIT_GROK_MARKER="$AUDIT_GROK_MARKER" \
     FOREMAN_HOME="$FOREMAN_HOME" \
     FOREMAN_TOOL_CHECK_JSON="$FOREMAN_TOOL_CHECK_JSON" \
     FOREMAN_LOCK_MANIFEST="$FOREMAN_LOCK_MANIFEST" \
@@ -322,11 +344,18 @@ TOML
   [ "$status" -ne 0 ]
   run grep -F 'audit-run currently only auto-invokes Codex' "$AUDIT_RUN"
   [ "$status" -ne 0 ]
+  run grep -F 'adapter_audit_argv "$AUDIT_VENDOR" "$PROMPT" "$WT" "$SCHEMA" "$AUDIT_OUT_TMP"' "$AUDIT_RUN"
+  [ "$status" -eq 0 ]
+  run grep -F 'adapter_audit_argv codex' "$AUDIT_RUN"
+  [ "$status" -ne 0 ]
+  run grep -F '!= "codex"' "$AUDIT_RUN"
+  [ "$status" -ne 0 ]
 }
 
-@test "selected non-codex auditor refuses when its invocation is not wired" {
+@test "selected non-codex auditor is invoked and recorded as the actual vendor" {
   setup_audit_run_fixture
   write_audit_codex_shim
+  write_audit_grok_shim
   cat >"$REPO/.foreman/config.toml" <<'TOML'
 [worker]
 vendor = "codex"
@@ -337,22 +366,99 @@ model = "grok-4.5"
 model_grok = "grok-4.5"
 model_codex = "gpt-5.6-sol"
 TOML
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$REPO/.foreman/config.toml"
+
+  run_audit_runner
+  recorded_vendor="$(jq -r '.vendor' "$AUDIT_RD/audit-verdict.json")"
+  recorded_verdict="$(jq -r '.verdict' "$AUDIT_RD/audit-verdict.json")"
+  if [[ -e "$AUDIT_GROK_MARKER" ]]; then executed="$(<"$AUDIT_GROK_MARKER")"; else executed=none; fi
+  printf 'status=%s ACTUAL_VENDOR=%s executed_process=%s verdict=%s\n' \
+    "$status" "$recorded_vendor" "$executed" "$recorded_verdict"
+
+  [ "$status" -eq 0 ]
+  [ "$recorded_vendor" = grok ]
+  [ "$executed" = grok ]
+  [ "$recorded_verdict" = APPROVED ]
+  [ ! -e "$AUDIT_CODEX_MARKER" ]
+}
+
+@test "adapter file and stub do not make claude audit-capable" {
+  cat >"$CONFIG" <<'TOML'
+[worker]
+vendor = "grok"
+model = "grok-4.5"
+[audit]
+vendors = ["claude"]
+model_claude = "claude-opus-4-6"
+TOML
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$CONFIG"
+  printf 'mutated state: candidate=claude adapter_file=%s executable=%s\n' \
+    "$([[ -f "$BATS_TEST_DIRNAME/../skills/foreman/scripts/adapters/claude.sh" ]] && printf present || printf absent)" \
+    "$(command -v claude 2>/dev/null || printf absent)"
+
+  select_auditor grok
+  printf 'selector refusal: %s\n' "$AC_REASON"
+  [ "$SELECT_RC" -ne 0 ]
+  [[ "$AC_REASON" == *"claude: audit capability unavailable"* ]]
+}
+
+@test "missing selected vendor CLI is missing_cli and names that vendor" {
+  setup_audit_run_fixture
+  write_audit_codex_shim
+  mv "$SHIM/grok" "$SHIM/grok.unavailable"
+  cat >"$REPO/.foreman/config.toml" <<'TOML'
+[worker]
+vendor = "codex"
+model = "gpt-5.6-sol"
+[audit]
+vendors = ["grok"]
+model_grok = "grok-4.5"
+TOML
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$REPO/.foreman/config.toml"
+  printf 'mutated state: grok executable=%s\n' \
+    "$(PATH="$SHIM:/usr/bin:/bin" command -v grok 2>/dev/null || printf absent)"
 
   run_audit_runner
   recorded_vendor="$(jq -r '.vendor' "$AUDIT_RD/audit-verdict.json")"
   recorded_reason="$(jq -r '.reason' "$AUDIT_RD/audit-verdict.json")"
-  if [[ -e "$AUDIT_CODEX_MARKER" ]]; then executed=codex; else executed=none; fi
-  printf 'status=%s reason=%s selected_vendor=%s executed=%s\n' \
-    "$status" "$recorded_reason" "$recorded_vendor" "$executed"
-  printf 'message=%s\n' "$output"
+  printf 'status=%s reason=%s ACTUAL_VENDOR=%s message=%s\n' \
+    "$status" "$recorded_reason" "$recorded_vendor" "$output"
 
   [ "$status" -eq 3 ]
   [ "$recorded_reason" = missing_cli ]
   [ "$recorded_vendor" = grok ]
-  [ "$executed" = none ]
-  [[ "$output" == *"selection succeeded"* ]]
-  [[ "$output" == *"invocation is not wired"* ]]
   [[ "$output" == *"grok"* ]]
+  [ ! -e "$AUDIT_CODEX_MARKER" ]
+}
+
+@test "setting audit vendor and vendors together refuses by documented policy" {
+  setup_audit_run_fixture
+  write_audit_codex_shim
+  cat >"$REPO/.foreman/config.toml" <<'TOML'
+[worker]
+vendor = "grok"
+model = "grok-4.5"
+[audit]
+vendor = "codex"
+vendors = ["codex"]
+model = "gpt-5.6-sol"
+model_codex = "gpt-5.6-sol"
+TOML
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$REPO/.foreman/config.toml"
+
+  run_audit_runner
+  recorded_reason="$(jq -r '.reason' "$AUDIT_RD/audit-verdict.json")"
+  printf 'status=%s reason=%s message=%s\n' "$status" "$recorded_reason" "$output"
+
+  [ "$status" -eq 2 ]
+  [ "$recorded_reason" = invalid_audit_vendor ]
+  [[ "$output" == *"audit.vendor"* ]]
+  [[ "$output" == *"audit.vendors"* ]]
+  [ ! -e "$AUDIT_CODEX_MARKER" ]
 }
 
 @test "same-vendor audit selection still refuses as invalid configuration" {
@@ -366,6 +472,8 @@ model = "gpt-5.6-sol"
 vendor = "codex"
 model = "gpt-5.6-sol"
 TOML
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$REPO/.foreman/config.toml"
 
   run_audit_runner
   recorded_reason="$(jq -r '.reason' "$AUDIT_RD/audit-verdict.json")"
@@ -399,4 +507,106 @@ TOML
   [ "$recorded_vendor" = codex ]
   [ "$recorded_verdict" = APPROVED ]
   [ "$(<"$AUDIT_CODEX_MARKER")" = codex ]
+}
+
+@test "successful non-codex audit cannot reuse stale raw output" {
+  setup_audit_run_fixture
+  cat >"$SHIM/grok" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then printf 'grok-test 1.0\n'; exit 0; fi
+printf 'grok\n' >"$AUDIT_GROK_MARKER"
+exit 0
+SHIM
+  chmod +x "$SHIM/grok"
+  cat >"$REPO/.foreman/config.toml" <<'TOML'
+[worker]
+vendor = "codex"
+model = "gpt-5.6-sol"
+[audit]
+vendors = ["grok"]
+model_grok = "grok-4.5"
+TOML
+  printf '{"verdict":"APPROVED","summary":"stale","findings":[]}\n' \
+    >"$AUDIT_RD/audit-verdict.raw.json"
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$REPO/.foreman/config.toml"
+  printf 'mutated state: stale_raw=%s\n' \
+    "$(jq -c . "$AUDIT_RD/audit-verdict.raw.json")"
+
+  run_audit_runner
+  recorded_vendor="$(jq -r '.vendor' "$AUDIT_RD/audit-verdict.json")"
+  recorded_reason="$(jq -r '.reason' "$AUDIT_RD/audit-verdict.json")"
+  printf 'status=%s reason=%s ACTUAL_VENDOR=%s executed_process=%s\n' \
+    "$status" "$recorded_reason" "$recorded_vendor" "$(<"$AUDIT_GROK_MARKER")"
+
+  [ "$status" -eq 1 ]
+  [ "$recorded_reason" = empty_output ]
+  [ "$recorded_vendor" = grok ]
+  [ "$(<"$AUDIT_GROK_MARKER")" = grok ]
+}
+
+@test "non-codex process failure records the process vendor" {
+  setup_audit_run_fixture
+  cat >"$SHIM/grok" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then printf 'grok-test 1.0\n'; exit 0; fi
+printf 'grok\n' >"$AUDIT_GROK_MARKER"
+printf 'fixture failure\n' >&2
+exit 7
+SHIM
+  chmod +x "$SHIM/grok"
+  cat >"$REPO/.foreman/config.toml" <<'TOML'
+[worker]
+vendor = "codex"
+model = "gpt-5.6-sol"
+[audit]
+vendors = ["grok"]
+model_grok = "grok-4.5"
+TOML
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$REPO/.foreman/config.toml"
+
+  run_audit_runner
+  recorded_vendor="$(jq -r '.vendor' "$AUDIT_RD/audit-verdict.json")"
+  recorded_reason="$(jq -r '.reason' "$AUDIT_RD/audit-verdict.json")"
+  printf 'status=%s reason=%s ACTUAL_VENDOR=%s executed_process=%s\n' \
+    "$status" "$recorded_reason" "$recorded_vendor" "$(<"$AUDIT_GROK_MARKER")"
+
+  [ "$status" -eq 1 ]
+  [ "$recorded_reason" = nonzero_exit ]
+  [ "$recorded_vendor" = grok ]
+  [ "$(<"$AUDIT_GROK_MARKER")" = grok ]
+}
+
+@test "non-codex timeout records the process vendor" {
+  setup_audit_run_fixture
+  cat >"$SHIM/grok" <<'SHIM'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then printf 'grok-test 1.0\n'; exit 0; fi
+printf 'grok\n' >"$AUDIT_GROK_MARKER"
+sleep 30
+SHIM
+  chmod +x "$SHIM/grok"
+  cat >"$REPO/.foreman/config.toml" <<'TOML'
+[worker]
+vendor = "codex"
+model = "gpt-5.6-sol"
+[audit]
+vendors = ["grok"]
+model_grok = "grok-4.5"
+timeout_min = 0.01
+TOML
+  printf 'mutated config:\n'
+  sed -n '1,20p' "$REPO/.foreman/config.toml"
+
+  run_audit_runner
+  recorded_vendor="$(jq -r '.vendor' "$AUDIT_RD/audit-verdict.json")"
+  recorded_reason="$(jq -r '.reason' "$AUDIT_RD/audit-verdict.json")"
+  printf 'status=%s reason=%s ACTUAL_VENDOR=%s executed_process=%s\n' \
+    "$status" "$recorded_reason" "$recorded_vendor" "$(<"$AUDIT_GROK_MARKER")"
+
+  [ "$status" -eq 1 ]
+  [ "$recorded_reason" = timeout ]
+  [ "$recorded_vendor" = grok ]
+  [ "$(<"$AUDIT_GROK_MARKER")" = grok ]
 }

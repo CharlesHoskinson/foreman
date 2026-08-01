@@ -7,10 +7,16 @@ vendor = "grok"       # claude | codex | grok — must differ from orchestrator 
 model  = "grok-4.5"
 
 [audit]
-vendor = "codex"      # default auditor family (must differ from worker)
-model  = "gpt-5.6-sol"  # GPT-5.6 Sol via Codex CLI (codex-auditor in soft mode)
+vendors = ["codex"]      # audit-capable vendors; Claude remains disabled by its adapter capability
+model_codex = "gpt-5.6-sol"  # pin one model per configured vendor
+# model_grok = "grok-4.5"     # required when "grok" is listed in vendors
+# model_agy = "gemini-3.1-pro-high"  # required when "agy" is listed; its model determines family
+# Legacy migration: vendor = "codex" plus model = "gpt-5.6-sol" is read as a
+# one-element list. Do not set vendor and vendors together: selection refuses
+# the ambiguous config instead of silently choosing one key.
+# If the worker equals the only configured auditor, selection now fails with a
+# named worker-vendor reason; soft mode previously did not fail at selection.
 # timeout_min = 30    # wall-clock audit bound; defaults from limits.round_timeout_min
-# empty vendor = auto: prefer codex when worker is grok
 
 [checks]
 command = ""          # empty = auto-detect package.json / pyproject.toml

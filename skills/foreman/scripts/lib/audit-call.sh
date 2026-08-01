@@ -5,10 +5,12 @@
 # ac_select_auditor explicitly to read configuration and probe readiness.
 #
 # Candidate vendors come from audit.vendors, or from the legacy scalar
-# audit.vendor as a one-element list. Each configured name is checked against
-# the adapter directory, which is enumerated rather than hardcoded. Candidates
-# are sorted lexically before filtering: determinism comes from that explicit
-# sort, never from directory enumeration order (which is not stable).
+# audit.vendor as a one-element list. Setting both keys is invalid and refuses
+# selection by name; neither key silently takes precedence. Each configured
+# name is checked against the audit capability published by its adapter, not
+# merely the presence of an adapter file. Candidates are sorted lexically
+# before filtering: determinism comes from that explicit sort, never from
+# directory enumeration order (which is not stable).
 #
 # WORKER_VENDORS_CSV accepts every vendor in a raced implementation. The
 # current hard-mode caller supplies worker.vendor as a one-element CSV; the
@@ -19,6 +21,7 @@
 AC_AUDITOR="${AC_AUDITOR:-}"
 AC_STATUS="${AC_STATUS:-}"
 AC_REASON="${AC_REASON:-}"
+AC_MISSING_VENDOR="${AC_MISSING_VENDOR:-}"
 
 # @description Read one dotted TOML key without requiring common.sh.
 # @arg $1 config path
@@ -156,6 +159,36 @@ _ac_has_adapter() {
   return 1
 }
 
+# @description True when VENDOR's adapter publishes a usable audit capability.
+#   A stub adapter function is insufficient: the capability map must describe
+#   an audit sandbox and must not explicitly advertise audit=false. This keeps
+#   Claude's T7-disabled lane unavailable without hardcoding vendor names.
+# @arg $1 adapter directory
+# @arg $2 vendor id
+# @exitcode 0 adapter_audit_argv exists and audit capability is published; 1 otherwise
+_ac_has_audit_capability() {
+  local adapter_dir="$1" vendor="$2"
+  local adapter_path="$adapter_dir/$vendor.sh" caps="" key="" value=""
+  local capability=0
+  [[ -f "$adapter_path" ]] || return 1
+  (
+    # shellcheck disable=SC1090  # Adapter path is selected from the enumerated directory.
+    source "$adapter_path"
+    declare -F adapter_audit_argv >/dev/null 2>&1 || exit 1
+    declare -F adapter_caps >/dev/null 2>&1 || exit 1
+    caps="$(adapter_caps "$vendor" 2>/dev/null)" || exit 1
+    while IFS='=' read -r key value; do
+      if [[ "$key" == audit && "$value" == false ]]; then
+        exit 1
+      fi
+      if [[ "$key" == sandbox && "$value" == *audit:* ]]; then
+        capability=1
+      fi
+    done <<<"$caps"
+    (( capability == 1 ))
+  )
+}
+
 # @description True when VENDOR's CLI is executable at routing time.
 #   Authentication is owned by Foreman's mandatory Setup-stage readiness gate;
 #   repeating an auth protocol here would couple selection to vendor-specific
@@ -184,9 +217,17 @@ ac_select_auditor() {
   AC_AUDITOR=""
   AC_STATUS="REFUSED"
   AC_REASON=""
+  AC_MISSING_VENDOR=""
 
   lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   adapter_dir="${AC_ADAPTER_DIR:-$lib_dir/../adapters}"
+
+  if _ac_config_get "$config" audit.vendor >/dev/null 2>&1 \
+    && _ac_config_get "$config" audit.vendors >/dev/null 2>&1; then
+    AC_REASON="audit.vendor and audit.vendors cannot both be set"
+    printf 'audit selection refused: %s\n' "$AC_REASON" >&2
+    return 1
+  fi
 
   while IFS= read -r item || [[ -n "$item" ]]; do
     item="${item#"${item%%[![:space:]]*}"}"
@@ -209,6 +250,9 @@ ac_select_auditor() {
     rejection=""
     if ! _ac_has_adapter "$adapter_dir" "$candidate"; then
       rejection="missing audit adapter"
+    fi
+    if [[ -z "$rejection" ]] && ! _ac_has_audit_capability "$adapter_dir" "$candidate"; then
+      rejection="audit capability unavailable"
     fi
 
     if [[ -z "$rejection" ]]; then
@@ -244,6 +288,7 @@ ac_select_auditor() {
 
     if [[ -z "$rejection" ]] && ! _ac_vendor_ready "$candidate"; then
       rejection="not ready"
+      AC_MISSING_VENDOR+="${AC_MISSING_VENDOR:+,}$candidate"
     fi
 
     if [[ -z "$rejection" ]]; then

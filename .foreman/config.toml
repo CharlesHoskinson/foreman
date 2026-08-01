@@ -5,8 +5,8 @@ vendor = "grok"
 model  = "grok-4.5"
 
 [audit]
-vendor = "codex"
-model  = "gpt-5.6-sol"
+vendors = ["codex"]
+model_codex = "gpt-5.6-sol"
 # timeout_min = 30    # wall-clock audit bound; defaults from limits.round_timeout_min
 
 [checks]

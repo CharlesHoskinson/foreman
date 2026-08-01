@@ -37,21 +37,21 @@ family reporting.
 
 - [ ] Replace scalar `[audit] vendor` with `[audit] vendors = [...]` in
       `lib/config.sh` and `config/foreman.toml.example`.
-- [ ] Read a scalar `[audit] vendor` as a one-element list so existing repos
+- [x] Read a scalar `[audit] vendor` as a one-element list so existing repos
       keep working.
-- [ ] Add per-vendor auditor model keys and state that each must be pinned.
-- [ ] Document the behaviour change: a repo whose worker equals its only
+- [x] Add per-vendor auditor model keys and state that each must be pinned.
+- [x] Document the behaviour change: a repo whose worker equals its only
       configured auditor now fails at selection with a named reason, where soft
       mode previously did not fail at all.
 
 ## T4 — wire both tiers
 
-- [ ] `audit-run.sh:56-58` reads the preference list through the shared
+- [x] `audit-run.sh:56-58` reads the preference list through the shared
       component.
 - [x] `audit-run.sh:318-321`'s inline equality check is replaced by the shared
       component's family-based check.
 - [x] `audit-run.sh:322-325`'s codex-only refusal is removed.
-- [ ] `audit-run.sh:379-387` dispatches through `adapter_audit_argv`.
+- [x] `audit-run.sh:379-387` dispatches through `adapter_audit_argv`.
 - [ ] `audit-run.sh:430-432`'s tamper assertion is generalized to every vendor
       and both tiers, with the declared-report-path exception. **This package
       owns this line**; `vendor-adapter-contract` must not touch it.
