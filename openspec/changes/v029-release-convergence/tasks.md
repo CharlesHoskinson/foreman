@@ -2,10 +2,19 @@
 
 ## T0: recover the review plane
 
-- [ ] Admit authenticated `agy` through Setup with a zero-inference probe.
-- [ ] Keep `agy` concurrency at one until isolated credential seeding is verified.
-- [ ] Re-run verification for the crash-preserved Council Task 2 rework.
-- [ ] Commit the verified Council rework on its implementation branch.
+- [x] Admit authenticated `agy` through Setup with a zero-inference probe.
+  Evidence: commit `1e127c6`, Pueue task 40, 73 focused tests, and live
+  `LANE_READY: agy=yes` plus `SETUP: READY` output.
+- [x] Keep `agy` concurrency at one until isolated credential seeding is verified.
+  Evidence: `skills/foreman/scripts/lane-queue.sh` declares `agy:1`; the
+  focused audit-routing and Setup gate passed at that limit in Pueue task 40.
+- [x] Re-run verification for the crash-preserved Council Task 2 rework.
+  Evidence: Council round-4 candidate evidence contains 27 targeted tests,
+  docs-check, six line-ending tests, strict OpenSpec validation, and Agy
+  plugin validation.
+- [x] Commit the verified Council rework on its implementation branch.
+  Evidence: Council implementation commit
+  `8a6ef2363a3ca6f70816126ed5963ba63ec9c2a8`.
 - [ ] Build a new immutable bundle and complete a dissent-free Council round.
 
 ## T1: reconcile scope and packages
@@ -14,9 +23,14 @@
   Evidence: commit `8c4adfeb17ac8a18beb020fc0962e73cb6479013`,
   `skills/foreman/scripts/package-matrix-check.sh`, and
   `bats tests/package-matrix-check.bats` (20 tests).
-- [ ] Add one matrix row for every active OpenSpec package.
-- [ ] Bind each `v029-implemented` row to consuming code and a verification command.
-- [ ] Split each partial package into shipped v0.2.9.0 scope and preserved v0.3.x scope.
+- [x] Add one matrix row for every active OpenSpec package.
+  Evidence: the matrix checker accepts all 35 active package rows.
+- [x] Bind each `v029-implemented` row to consuming code and a verification command.
+  Evidence: eight implemented rows contain all required evidence fields and
+  pass `package-matrix-check.sh`.
+- [x] Split each partial package into shipped v0.2.9.0 scope and preserved v0.3.x scope.
+  Evidence: eight split rows name tracked `V030-RESIDUAL.md` preservation
+  files in their owning packages.
 - [x] Correct `checklist.md` against SessionDB Fact 238.
   Evidence: commit `2c7332c` narrows the release scope and preserves the
   graph work for v0.3.0.
