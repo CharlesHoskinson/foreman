@@ -3046,3 +3046,161 @@ in the worktree. Root docs-check passed after those changes.
 `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` then passed with 629 pass, 0 fail,
 19 skip, 648 tests, and `gates_failed=0`. The changes remain uncommitted and
 await Council re-review.
+
+## 2026-08-02 — Event 24: Task 2 commit landed; operational docs still said uncommitted
+
+**Phase:** after Task 2 product commit `ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e`,
+Council round 2 on the committed bundle.
+
+### What happened
+
+Task 2 product files were committed at
+`ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e` on the implementation lane. The
+committed operational docs still described those files as uncommitted.
+Council round 2 (`/tmp/council-skill-r2-advisory.json`) reached quorum across
+OpenAI, Google, and Anthropic and returned `changes_requested`.
+
+### Evidence
+
+- Bundle identity from `/tmp/council-skill-r2-advisory.json`:
+  `base_sha=bb3124ff5c053ad0bb9b17a7aa9108ecaee7b05a`,
+  `head_sha=ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e`,
+  `diff_sha256=bc6980dcd8dfc8cbce215e2dec030060d0e5d6127a30051f0ff1764adc159371`.
+- OpenAI medium findings named `devlog/2026-08-02.md` and
+  `docs/superpowers/plans/2026-08-02-council-v030-localization.md` for false
+  "uncommitted" current-status claims.
+- OpenAI low finding named `bugeventlog.md` Event 23 remediation text that
+  still said the changes remain uncommitted after the product commit.
+- Google domain returned `approved` with exact bundle identity.
+- Anthropic domain returned `changes_requested` for weak test predicates
+  (see Event 25). Outcome of the round was `changes_requested`.
+
+### Root cause
+
+Status and resume prose were written for the pre-commit worktree state and
+were not rewritten when Task 2 was committed. Chronological history is valid.
+Current-status and resume instructions must track the head commit.
+
+### Impact
+
+An operator reading the committed docs would try to commit work that was
+already at `ba1164b`. Council correctly blocked progress on stale status text.
+
+### Enhancement
+
+Mark pre-commit claims as historical. Rewrite current status and resume
+instructions to state the commit SHA, that the work is not on
+`release/v0.3.0-council` yet, and that a fresh Council round is still
+required after further fixes.
+
+Remediation status: operational docs updated in this worktree after round 2.
+Event 23 text is left as the historical pre-commit record. A new immutable
+bundle and three-domain Council re-review are still required.
+
+## 2026-08-02 — Event 25: docs-check and localization guards were not fail-capable against injection
+
+**Phase:** Council round 2 Anthropic findings on committed Task 2 tests.
+
+### What happened
+
+The committed "not whole subtree" guards in `tests/docs-check.bats` and some
+assertions in `tests/council-localization.bats` could pass while the property
+they claimed to protect was false.
+
+### Evidence
+
+- Anthropic findings in `/tmp/council-skill-r2-advisory.json` on
+  `tests/docs-check.bats` and `tests/council-localization.bats`.
+- Red injection against the committed weak predicates
+  (`/tmp/council-r2-fix/red-codespell-weak.txt`,
+  `/tmp/council-r2-fix/red-markdownlint-weak.txt`):
+  - codespell trailing `,./components/council` → weak predicates MISS
+  - markdownlint `"components/council/**/*"` and `"components/council/**/*.md"`
+    → weak predicates MISS
+  - markdownlint `"./components/council/*"` → weak predicates MISS
+- Localization defects: unquoted backticks in a double-quoted `[[ ]]` pattern,
+  installer SKIP matched any line, ownership used whole-file generic
+  `||` fallbacks (`dispatch`, `fix`, `finding`, `replay`).
+- Baseline reconciliation is not a product defect. Command set in
+  `/tmp/council-r2-fix/baseline-reconcile.txt`: base `bb3124f` had 6
+  `@test` blocks while `tests/baseline.tsv` said 5. Task 2 added 2 tests and
+  corrected the row to 8. `tests/baseline.tsv` is not changed in this fix
+  round.
+
+### Root cause
+
+Guards matched a small set of literals on the current file only. They did not
+normalize skip or ignore tokens. They did not inject forbidden spellings into
+temp copies and re-run the same guard. Localization still had residual
+loose-token patterns of the Event 22 class.
+
+### Impact
+
+A future config edit could skip the entire `components/council` subtree and
+still leave the docs-check tests green. Ownership or installer regressions
+could pass on incidental prose or unrelated SKIP lines.
+
+### Enhancement
+
+Add shared guard helpers that normalize tokens and reject the forbidden
+whole-subtree set. Negative-control tests copy the real config, inject each
+forbidden spelling first/middle/last (codespell) or into the ignores array
+(markdownlint), and assert the same guard returns nonzero. Bind ownership
+phrases to named `##` sections. Bind the installer preservation message to
+the exact Council destination path. Replace the unquoted-backtick pattern
+with a single-quoted literal.
+
+Remediation status: robust guards and localization fixes landed in the
+worktree. Targeted suite passed 24/24 in
+`/tmp/council-r2-fix/green-targeted.out`. Root docs-check passed. A new
+immutable committed-bundle Council re-review is still required.
+
+## 2026-08-02 — Event 26: docs-check baseline left at 8 after rework added two tests
+
+**Phase:** Architect review of the round-2 rework worktree before commit.
+
+### What happened
+
+The round-2 rework added two negative-control `@test` blocks to
+`tests/docs-check.bats`. Live count became 10. The `tests/baseline.tsv` row
+stayed at 8. Shadow mode still reported PASS because it accepts
+`pass >= baseline`. The release candidate uses exact current totals, so
+delta +2 is a rework defect.
+
+### Evidence
+
+- `rg -c '^@test ' tests/docs-check.bats` → 10 after the rework.
+- Prior committed baseline row at `ba1164b`: `tests/docs-check.bats` expected
+  passes 8 (`git show ba1164b:tests/baseline.tsv | rg docs-check`).
+- First rework verification reported docs-check pass=10 baseline=8 delta=+2
+  (`/tmp/council-r2-fix/green-targeted.out`).
+- `tests/run.sh` baseline check fails only when `pass_count < baseline`
+  (shadow and enforce share that comparison; shadow only suppresses exit).
+- Historical path remains true: base 6 tests vs baseline 5, Task 2 then 8,
+  this fix round then 10 (`/tmp/council-r2-fix/baseline-reconcile.txt`).
+
+### Root cause
+
+The rework preserved a stale baseline under a constraint that said not to
+edit `tests/baseline.tsv`. That constraint matched the Anthropic A7 non-
+defect explanation for the Task 2 +3 mystery. It did not match the new
+live total after two added tests. Shadow mode hid the drift.
+
+### Impact
+
+A release-candidate or enforce gate that requires exact totals would not
+match the worktree. Operators reading pass=10 baseline=8 would think the
+baseline still trailed the suite.
+
+### Enhancement
+
+Set `tests/baseline.tsv` expected_passes for `tests/docs-check.bats` to the
+exact live `@test` count after every rework that adds or removes tests.
+Prefer a generalized root-ignore predicate over an example-only list so new
+wildcard spellings stay covered without new `@test` blocks.
+
+Remediation status: generalized `is_forbidden_council_root_path` landed in
+`tests/docs-check.bats`. Baseline row set to 10. Targeted runner reports
+baseline 10, delta 0 (`/tmp/council-r2-harden/green-targeted.out`). Root
+docs-check and line-endings re-verified. Commit, new immutable bundle, and
+Council re-review remain open.

@@ -27,18 +27,33 @@ frontmatter_body() {
   ' "$path"
 }
 
-# @description Extract one ## section body from the protocol file by exact title.
-# @arg $1 section title without the leading "## "
+# @description Extract one ## section body from a markdown file by exact title.
+# @arg $1 absolute path to a markdown file
+# @arg $2 section title without the leading "## "
 # @stdout section body lines (heading itself omitted)
-protocol_section() {
-  local heading="$1"
-  local protocol="$CANONICAL/references/protocol.md"
+md_section() {
+  local path="$1"
+  local heading="$2"
   awk -v h="$heading" '
     BEGIN { found = 0 }
     $0 == "## " h { found = 1; next }
     found && /^## / { exit }
     found { print }
-  ' "$protocol"
+  ' "$path"
+}
+
+# @description Extract one ## section body from the protocol file by exact title.
+# @arg $1 section title without the leading "## "
+# @stdout section body lines (heading itself omitted)
+protocol_section() {
+  md_section "$CANONICAL/references/protocol.md" "$1"
+}
+
+# @description Extract one ## section body from the ownership file by exact title.
+# @arg $1 section title without the leading "## "
+# @stdout section body lines (heading itself omitted)
+ownership_section() {
+  md_section "$CANONICAL/references/ownership.md" "$1"
 }
 
 # @description Collapse whitespace so exact phrases match across markdown wraps.
@@ -135,7 +150,9 @@ PY
   [[ "$dissent" == *"new immutable review bundle"* ]]
 
   [[ "$authority" == *"gate-eval.sh"* ]]
-  [[ "$authority" == *"merge path only"* ]] || [[ "$authority" == *"`gate-eval.sh` / merge path only"* ]]
+  # Literal-safe: single quotes keep backticks as characters, not command
+  # substitution. The committed Authority boundary table row is exact.
+  [[ "$authority" == *'`gate-eval.sh` / merge path only'* ]]
 
   [[ "$non_approval" == *"schema_invalid"* ]]
   [[ "$non_approval" == *"quorum_not_met"* ]]
@@ -203,30 +220,33 @@ PY
 @test "ownership partitions Foreman, Council, and architect duties" {
   local ownership="$CANONICAL/references/ownership.md"
   [ -f "$ownership" ]
-  local text
-  text="$(cat "$ownership")"
 
-  [[ "$text" == *"Foreman"* ]]
-  [[ "$text" == *"Council"* ]]
-  [[ "$text" == *"architect"* ]] || [[ "$text" == *"Architect"* ]]
+  # Exact phrases inside named ownership sections (no whole-file generic fallback).
+  local foreman council architect
+  foreman="$(collapse_ws "$(ownership_section "Foreman owns")")"
+  council="$(collapse_ws "$(ownership_section "Council owns")")"
+  architect="$(collapse_ws "$(ownership_section "Architect owns")")"
+  [ -n "$foreman" ]
+  [ -n "$council" ]
+  [ -n "$architect" ]
 
-  # Foreman ownership surface.
-  [[ "$text" == *"provider dispatch"* ]] || [[ "$text" == *"dispatch"* ]]
-  [[ "$text" == *"credential"* ]] || [[ "$text" == *"credentials"* ]]
-  [[ "$text" == *"worktree"* ]]
-  [[ "$text" == *"checkpoint"* ]]
-  [[ "$text" == *"merge gate"* ]] || [[ "$text" == *"merge gates"* ]]
+  # Foreman ownership surface — exact list phrases in the Foreman section.
+  [[ "$foreman" == *"provider dispatch"* ]]
+  [[ "$foreman" == *"credentials"* ]]
+  [[ "$foreman" == *"worktrees"* ]]
+  [[ "$foreman" == *"checkpoints"* ]]
+  [[ "$foreman" == *"merge gates"* ]]
 
-  # Council ownership surface.
-  [[ "$text" == *"deliberation"* ]]
-  [[ "$text" == *"quorum"* ]]
-  [[ "$text" == *"dissent"* ]]
-  [[ "$text" == *"abstention"* ]]
-  [[ "$text" == *"advisory replay"* ]] || [[ "$text" == *"replay"* ]]
+  # Council ownership surface — exact list phrases in the Council section.
+  [[ "$council" == *"typed deliberation"* ]]
+  [[ "$council" == *"quorum"* ]]
+  [[ "$council" == *"dissent"* ]]
+  [[ "$council" == *"abstention"* ]]
+  [[ "$council" == *"advisory replay"* ]]
 
-  # Architect owns fixes and next-round decision.
-  [[ "$text" == *"fix"* ]] || [[ "$text" == *"finding"* ]]
-  [[ "$text" == *"next round"* ]] || [[ "$text" == *"next-round"* ]] || [[ "$text" == *"run the next round"* ]]
+  # Architect owns fixes and next-round decision — exact phrases in that section.
+  [[ "$architect" == *"fixing each admissible finding from Council"* ]]
+  [[ "$architect" == *"deciding when to run the next round"* ]]
 }
 
 @test "openai.yaml quotes the required Council interface strings" {
@@ -357,7 +377,12 @@ PY
   [ ! -L "$home/.claude/skills/council" ]
   [ -f "$home/.claude/skills/council/marker.local.md" ]
   [ "$(cat "$home/.claude/skills/council/marker.local.md")" = "preserve-marker" ]
-  [[ "$output" == *"SKIP"* ]] || [[ "$output" == *"skipped"* ]]
+
+  # Bind the preservation message to the exact Council destination path.
+  # A SKIP token from another skill line must not pass this assertion.
+  local council_dest
+  council_dest="$home/.claude/skills/council"
+  [[ "$output" == *"[foreman] SKIP ${council_dest}:"* ]]
 }
 
 @test "tool-check skill inventory includes council from the checkout link" {
