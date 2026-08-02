@@ -26,15 +26,18 @@ Council SHALL run schema, policy, citation, test, and reference checks before de
 - **THEN** Council excludes that candidate before aggregation and ranking
 
 ### Requirement: Automatic quorum uses independent failure domains
-Automatic closure SHALL require at least three completed substantive verdicts from at least two approved failure domains by default; raw worker count MUST NOT satisfy diversity. Provider infrastructure failures and completed abstentions MUST NOT count as substantive verdicts.
+Automatic proposal closure SHALL require at least three admissible independent proposals from at least two approved failure domains by default; raw worker count MUST NOT satisfy diversity.
 
 #### Scenario: Three same-family workers agree
 - **WHEN** all agreeing workers share one registered failure domain
 - **THEN** Council denies automatic quorum and reports one independent domain
 
+### Requirement: Completed review quorum counts substantive verdicts only
+Automatic review closure SHALL require at least three completed substantive verdicts from at least two approved failure domains by default. Provider infrastructure failures and completed abstentions MUST NOT count as substantive verdicts.
+
 #### Scenario: Three completed reviewers abstain
 - **WHEN** three identity-bound reviewers return completed typed abstentions
-- **THEN** Council preserves the abstentions and reports zero substantive verdicts for quorum
+- **THEN** Council preserves the abstentions and reports zero substantive verdicts for review quorum
 
 ### Requirement: Round-zero metrics are immutable
 Council SHALL persist the unweighted vote, calibrated weighted vote, disagreement, admissible count, independent-domain count, evidence conflicts, and stop eligibility before critique.
