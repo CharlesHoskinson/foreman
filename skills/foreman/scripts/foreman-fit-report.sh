@@ -33,7 +33,14 @@ if [[ ! -f "$LEDGER" ]]; then
   exit 1
 fi
 
-# Refuse the whole report on any bad record — silent skip inflates the verdict.
+# @description Refuse the whole report, naming the offending ledger line.
+#   Refusal rather than a silent skip is deliberate: dropping an unreadable
+#   record inflates the verdict, and a ledger that was five-sixths discovery
+#   once reported fit_verdict=good because bad records were silently dropped.
+# @arg $1 line_no 1-based line number of the offending record
+# @arg $2 reason short cause, e.g. "unrecognised phase" or "invalid weight"
+# @stderr the refusal message naming the line and reason
+# @exitcode 1 always — the caller must not continue with a partial tally
 malformed() {
   local line_no="$1" reason="$2"
   printf 'foreman-fit-report: malformed ledger record at line %s: %s\n' \

@@ -51,7 +51,13 @@ mkdir -p "$OUT_DIR" || {
   exit 2
 }
 
-# Exclude architect/lane meta from every list and from the body.
+# @description Test whether a path is architect or lane meta rather than lane output.
+#   SPEC.md is the architect's instruction and FOREMAN_REPORT.md is the lane's own
+#   report; neither is the change under review, and a bundle that lists what it
+#   will not show misleads the reviewer.
+# @arg $1 path repository-relative path to test
+# @exitcode 0 the path is meta and must be excluded
+# @exitcode 1 the path is lane output
 _is_meta_path() {
   case "$1" in
     SPEC.md|FOREMAN_REPORT.md) return 0 ;;
@@ -59,7 +65,11 @@ _is_meta_path() {
   esac
 }
 
-# Paths → JSON string array via jq --args (handles spaces, quotes, backslashes).
+# @description Convert path arguments to a JSON string array via jq --args.
+#   jq builds the array so paths containing spaces, double quotes or backslashes
+#   survive; string concatenation would mangle them.
+# @arg $@ paths zero or more repository-relative paths
+# @stdout a JSON array of strings, `[]` when given no arguments
 _paths_to_json() {
   if [[ "$#" -eq 0 ]]; then
     printf '%s' '[]'

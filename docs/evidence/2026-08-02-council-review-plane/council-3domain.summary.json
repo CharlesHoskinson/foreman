@@ -1,0 +1,23 @@
+{
+  "quorum": "QUORUM_MET",
+  "admissible": 3,
+  "domains": 3,
+  "outcome": "changes_requested",
+  "verdicts": [
+    {
+      "id": "r1",
+      "failureDomain": "openai",
+      "verdict": "approved"
+    },
+    {
+      "id": "r2",
+      "failureDomain": "google",
+      "verdict": "approved"
+    },
+    {
+      "id": "r3",
+      "failureDomain": "anthropic",
+      "verdict": "changes_requested"
+    }
+  ]
+}
