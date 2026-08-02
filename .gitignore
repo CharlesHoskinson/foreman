@@ -48,3 +48,10 @@ formal/out/
 # rewritten on every READ until the read path was opened read-only. A cold
 # clone rehydrates the .db from the sidecar automatically.
 .foreman/session.db
+
+# graphify-out is a DERIVED INDEX, regenerable with graphify --update. It was
+# tracked at 5.1MB and sat 322 commits behind HEAD, while CLAUDE.md told every
+# agent to consult it BEFORE opening a file. A generated index that goes stale
+# in days is a cache, not a record - the same call already made for the session
+# store .db.
+graphify-out/

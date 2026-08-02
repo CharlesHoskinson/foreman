@@ -115,22 +115,20 @@ you verify, a cross-vendor auditor audits the diff, advisor only for IA commitme
 
 ## Repo understanding: graph first
 
-The committed knowledge graph at `graphify-out/graph.json` can save 45-77% of
-the tokens a raw read costs — but only while it is fresh, and it is not fresh by
-default. **Check before you trust it:**
+A knowledge graph over this repo can save 45-77% of the tokens a raw read costs.
+**It is no longer tracked**, because a generated index that goes stale in days is
+a cache and not a record — the same call already made for the session store's
+`.db`. It was committed at 5.1 MB and sat 322 commits behind HEAD while this
+file ordered every agent to consult it *before* opening any source file.
+
+If you want the saving, build it yourself and check its age before trusting it:
 
 ```bash
-git rev-list --count "$(git log -1 --format=%H -- graphify-out/)..HEAD"
+graphify --update                       # generates graphify-out/ locally
+graphify query "<question>" --budget 1500
 ```
 
-- **Under ~50 commits behind:** query it first —
-  `graphify query "<question>" --budget 1500` — and follow `source_location`
-  pointers into files only for the specific facts you need.
-- **Further behind than that:** read the files. Do not query it, and do not
-  "note the staleness" — an index that far behind returns confident answers
-  about code that has since moved, which is worse than no index.
-
-This rule used to mandate querying the graph first, unconditionally. The graph
-then sat 301 commits behind HEAD while doctrine still ordered every agent to
-consult it before opening a file. Refresh with `graphify --update` when you want
-the saving back.
+Follow `source_location` pointers into files only for the specific facts you
+need. If your local index is more than ~50 commits behind HEAD, read the files
+instead — an index that far behind answers confidently about code that has since
+moved, which is worse than no index at all.
