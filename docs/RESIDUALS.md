@@ -95,13 +95,23 @@ requires Tier 2 to have **no automatic trigger at all** — no CI workflow, no
 commit hook. No comparison has been run. Any Tier 2 number quoted anywhere would
 therefore be fabricated; there are none.
 
-**Correction — the machinery is not in this tree.** This entry previously said
-"the machinery exists and is tested against recorded fixtures." It exists on
-`origin/lane/tier2-machinery`, an unverified branch that was never audited and
-deliberately not merged; `git ls-tree -r main | grep tier2` returns only two
-evidence text files. Either that branch is verified and landed, or this release
-ships without the machinery at all — and until one of those happens, "built" is
-not true of what you can check out.
+**The machinery is now in the tree.** This entry twice said something untrue and
+both are recorded here rather than quietly edited. It first claimed "the
+machinery exists and is tested against recorded fixtures" while the code sat
+unmerged on `origin/lane/tier2-machinery`; that was corrected to say the
+machinery was absent. It is now present: the branch was verified against its own
+six-item check-first list — no live vendor invocation, the inconclusive rule and
+model-drift flag demonstrated firing, an empty trigger-absence proof, 27/27 bats
+with a baseline row, shellcheck clean, correct file modes — and merged. So
+"built but never executed" is now an accurate description of what you can check
+out, which it was not when the phrase was first written.
+
+Two gaps found during that verification are open and both concern *firing* Tier
+2 rather than building it: the trigger-absence scan does not cover `tests/`,
+where the suite invokes the collector with a fixture adapter on every commit
+(obligation 95); and the collector demands a numeric `cost_usd` with no
+`unavailable` path, while every vendor reports exactly that (obligation 96), so
+the budget check cannot be honestly computed.
 
 Four things must exist before Tier 2 could be fired even with spend authorised,
 and none does: a live vendor adapter, a locked spec set, a chosen model pin, and
