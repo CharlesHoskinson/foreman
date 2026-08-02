@@ -66,6 +66,35 @@
 - [ ] Add a report-first SessionDB freshness sweep.
 - [ ] Run freshness apply mode only at the final candidate commit.
 
+## T4A: execute the dependency-ordered closeout packages
+
+- [ ] C1: Admit the WSL preflight, vendor preflight, inventory scanner,
+  metrics rollup, doctrine checker, GraphStore, knowledge refresh, round
+  ownership, freshness, audit-index, and Tier 2 candidates only after their
+  host gates and independent cold audits pass.
+- [ ] C2: Correct the stale test-infrastructure claims and record the four
+  user-delegated README decisions plus the initial claim-ledger scaffold.
+- [ ] I1: Implement and verify the idempotent WSL-native environment file and
+  non-interactive lane sourcing.
+- [ ] I2: Wire Setup, lane launch, and tool-check to one identity-bound vendor
+  readiness record with exact remediation.
+- [ ] I3: Seed the doctrine registry and integrate it with docs-check, release
+  records, Windows checks, and bounded probe execution.
+- [ ] I4: Implement the repeated unchanged-code sigma calculator with
+  per-metric qualification and an explicit `not_evaluated` result.
+- [ ] I5: Complete the README ledger, twelve-section rewrite, doctrine rows,
+  fact check, and structure gate after all described behavior has landed.
+- [ ] I7: Remove live TerminusDB doctrine and correct the devlog, bug ledger,
+  release notes, roadmap, and checklist against accepted implementation.
+- [ ] R1: Freeze the release manifest and finalize the matrix, archive, and
+  package-audit-index predicates before control capture.
+- [ ] I6: Capture real known-bad and known-good records for every member of the
+  frozen `kind: gate` inventory and prove the comparator itself can fail.
+- [ ] R2: Archive each shipped package with source cold-audit evidence, then
+  produce its immutable cross-family audit artifact and the final index.
+- [ ] R3: Refresh SessionDB, Graphify, measurements, release prose, and Council
+  evidence at one final candidate commit.
+
 ## T5: finalize the release
 
 - [ ] Archive each shipped OpenSpec package with its evidence.
@@ -76,3 +105,5 @@
 - [ ] Complete the devlog correction block and release notes.
 - [ ] Mark the roadmap and checklist released.
 - [ ] Create tag `v0.2.9` with message `Total GeorgeCall` only after all gates pass.
+- [ ] Prove no tracked file changed after the final Council bundle and before
+  tag creation.

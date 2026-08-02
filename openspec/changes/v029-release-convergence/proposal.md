@@ -11,13 +11,19 @@ This contract separates implementation gaps from record gaps and deferred scope.
 
 ## What Changes
 
-- Add one package matrix for every active OpenSpec package.
+- Add one frozen release manifest and one package matrix that reconcile active
+  and archived OpenSpec packages.
 - Bind each implemented claim to consuming code and a verification command.
+- Preserve each source audit verdict and build one immutable cross-family
+  package audit for every shipped package.
+- Capture positive controls only after every release gate predicate is frozen.
 - Preserve deferred work in a named v0.3.x destination.
 - Run Grok implementation through Foreman worktrees.
 - Run Council review on immutable committed bundles.
 - Write SessionDB checkpoints at least once per hour during AFK execution.
 - Refuse the release tag until all final gates pass.
+- Remove live withdrawn doctrine and bind the devlog, bug ledger, release
+  notes, roadmap, and checklist to the final candidate commit.
 
 ## Scope
 
@@ -40,4 +46,3 @@ It can also dispatch capability fixes through their owning OpenSpec packages.
 
 This change does not give Council release authority.
 This change does not authorize paid Tier 2 comparisons.
-

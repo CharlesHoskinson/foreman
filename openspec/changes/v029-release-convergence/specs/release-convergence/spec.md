@@ -19,11 +19,16 @@ v0.2.9.0 SHALL NOT enable a default graph-context path.
 
 ### Requirement: every package disposition has executable evidence
 
-Foreman SHALL maintain `evidence/package-matrix.tsv` for every active OpenSpec package.
+Foreman SHALL maintain `evidence/package-matrix.tsv` for every OpenSpec package
+named by the frozen v0.2.9.0 release manifest.
+The manifest SHALL reconcile active packages, archived shipped packages, and
+preserved deferred or residual destinations.
 
 A `v029-implemented` row SHALL name the owner requirement, consuming code, verification command, and result artifact.
 A `v030-deferred`, `parked`, `withdrawn`, or `split` row SHALL name a destination package or preservation file.
 Foreman SHALL reject missing, duplicate, or unknown package rows.
+Foreman SHALL reject a package that appears as both active and archived.
+Foreman SHALL reject a shipped package that is absent from the frozen manifest.
 
 #### Scenario: an unticked task does not prove missing implementation
 
@@ -38,6 +43,50 @@ Foreman SHALL reject missing, duplicate, or unknown package rows.
 - AND no consuming path or fail-capable test proves its behavior
 - THEN the package remains `v029-gap`
 - AND Grok receives a bounded implementation specification.
+
+#### Scenario: archive movement cannot erase release scope
+
+- WHEN a shipped package moves from the active directory to the archive
+- THEN its frozen manifest identity remains unchanged
+- AND the matrix resolves the archived package
+- AND its deferred or residual destinations remain present.
+
+### Requirement: every shipped package has immutable audit evidence
+
+Foreman SHALL preserve each source auditor verdict as byte-identical evidence.
+Foreman SHALL build one versioned package audit for every shipped package.
+The package audit SHALL bind to the matrix row, candidate base and head, tree,
+diff content, complete audited scope, verification records, worker model
+family, auditor model family, source verdict path, and source verdict digest.
+
+The worker and auditor model families SHALL differ.
+An aggregate index SHALL NOT rewrite or replace a source verdict.
+Missing, stale, malformed, same-family, blocked, unverified, or unresolved
+audit evidence SHALL fail release convergence.
+
+#### Scenario: aggregation cannot erase dissent
+
+- WHEN a source verdict contains a release-grade finding
+- AND no descendant correction and fresh verification resolve that finding
+- THEN the package audit remains unresolved
+- AND the aggregate index fails.
+
+### Requirement: positive controls bind to the frozen gate set
+
+Foreman SHALL finalize the release gate inventory, matrix predicate, archive
+predicate, and package-audit-index predicate before positive-control capture.
+Each `kind: gate` control record SHALL bind to the demonstrated source commit,
+the predicate digest, and the known-bad and known-good input digests.
+The evidence commit SHALL descend from the demonstrated source commit.
+The current candidate SHALL contain the same predicate and input bytes.
+The control SHALL show the same real predicate rejecting the known-bad arm and
+accepting the known-good arm.
+
+#### Scenario: a later gate edit invalidates control evidence
+
+- WHEN a release gate predicate changes after control capture
+- THEN the prior control record is stale
+- AND Foreman recaptures the affected control before release.
 
 ### Requirement: Grok implementation uses Foreman ownership
 
@@ -88,13 +137,17 @@ The checkpoint SHALL NOT record process liveness as a fact.
 
 Foreman SHALL refuse tag `v0.2.9` while any release condition remains unproved.
 
-Foreman SHALL run the full local release gate at the final candidate commit.
+Foreman SHALL run `tools/ci-local.sh` at the final candidate commit.
+Foreman SHALL run `merge-gate.sh check` with the recorded release run, lane,
+and branch identities.
 Foreman SHALL refresh quoted measurements at that commit.
 Foreman SHALL record all residuals and deferred scope before the tag.
+Foreman SHALL require the final typed Council outcome `approved`.
+The outcomes `insufficient_evidence`, `judge_unstable`, and `outcome_unknown`
+SHALL fail closed.
 
 #### Scenario: one final gate fails
 
 - WHEN any final gate returns nonzero
 - THEN Foreman does not create the release tag
 - AND the failure enters a new Grok and Council rework loop.
-
