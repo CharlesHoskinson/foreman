@@ -16,12 +16,17 @@ family performs the cold audit. Council reviews immutable commits and remains
 advisory. SessionDB is the recovery authority. Graphify is a derived view and
 must refresh from the final commit.
 
-**Tech stack:** Bash 5, Bats, jq, Python 3, Git worktrees, OpenSpec,
-SessionDB, Graphify, Foreman, Grok, Codex, Agy, and Council.
+**Tech stack:** Node.js 24, TypeScript, Effect, `node:test`, npm lockfiles, Git
+worktrees, OpenSpec, SessionDB, Graphify, Foreman, Grok, Codex, Agy, and
+Council. Existing Bash/Bats commands remain compatibility gates during the
+migration; they are not the target architecture.
 
 ## Global constraints
 
 - Work on the v0.2.9.0 release branch. Do not merge the Council v0.3.0 branch.
+- Apply the Node.js and TypeScript Iron Rule in `AGENTS.md` and
+  `openspec/changes/node-typescript-runtime/`. Express every new product core
+  and test in TypeScript. Do not add Python or shell implementation logic.
 - Preserve untracked `SPEC.md`, `.harness/`, and worker report files.
 - Pass provider prompts through files. Do not place task text on a process
   command line.
@@ -72,7 +77,9 @@ and worker reports in each isolated worktree.
   without the common admission gate.
 - [ ] Route each concrete cold-audit finding back to the same worktree in a
   new rework round. Add one named regression test for each defect class.
-- [ ] Require optimized and normal Python contract runs for GraphStore.
+- [ ] Require strict TypeScript compilation and Node.js contract runs for
+  GraphStore. Use the prior Python outputs only as parity fixtures, then delete
+  the Python implementation.
 - [ ] Require byte-exact process-boundary tests for WSL and vendor preflight.
 - [ ] Require duplicate-key, torn-record, replay, attribution, and source-
   digest tests for metrics.
@@ -347,7 +354,7 @@ that require final refresh.
   `openspec/changes/v029-release-convergence/evidence/release-manifest.tsv`
 - Modify: `skills/foreman/scripts/package-matrix-check.sh`
 - Modify: `tests/package-matrix-check.bats`
-- Modify: `skills/foreman/scripts/package-audit.py`
+- Add: `packages/release/src/package-audit.ts`
 - Modify: `tests/package-audit.bats`
 
 - [ ] Add failing fixtures for an archived package missing from the manifest,
@@ -420,7 +427,7 @@ discrimination evidence from its real predicate.
 **Files:**
 
 - Add: `skills/foreman/schemas/package-audit.schema.json`
-- Modify: `skills/foreman/scripts/package-audit.py`
+- Modify: `packages/release/src/package-audit.ts`
 - Modify: `tests/package-audit.bats`
 - Add: `docs/evidence/v029/package-audits/README.md`
 - Add per package: `docs/evidence/v029/package-audits/<package>/source-verdict.json`
@@ -445,7 +452,7 @@ discrimination evidence from its real predicate.
 - [ ] Use this recorder interface for each package:
 
 ```bash
-python3 skills/foreman/scripts/package-audit.py record \
+node packages/release/dist/package-audit.js record \
   --package "$package" --matrix "$matrix" --base "$base" --head "$head" \
   --source-verdict "$source_verdict" --scope "$scope_manifest" \
   --worker "$worker_manifest" --verification "$verification_manifest" \
@@ -455,7 +462,7 @@ python3 skills/foreman/scripts/package-audit.py record \
 - [ ] Build the index twice and require byte-identical output:
 
 ```bash
-python3 skills/foreman/scripts/package-audit.py check \
+node packages/release/dist/package-audit.js check \
   --matrix openspec/changes/v029-release-convergence/evidence/package-matrix.tsv \
   --manifest openspec/changes/v029-release-convergence/evidence/release-manifest.tsv \
   --evidence-root docs/evidence/v029/package-audits \

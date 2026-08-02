@@ -10,7 +10,10 @@
 
 ## Global Constraints
 
-- **Design doc:** `docs/superpowers/specs/2026-07-31-v029-release-closeout-design.md` (committed at `557321f`). Where this plan and the spec disagree, the spec wins.
+- **Current controlling design:**
+  `docs/superpowers/specs/2026-08-02-v029-afk-release-convergence-design.md`.
+  Commit `557321f` records the superseded design that governed this historical
+  tranche. The current design wins any disagreement.
 - **Working tree:** all work happens in `/root/fm-wt/integrate` on branch `integrate/v029-w1`. Do **not** work in `/root/foreman` — its index is damaged and holds unrecovered data until Task 1 completes.
 - **Line endings:** the repo is total-LF. Every file written from Windows must be passed through `tr -d '\r'`. `tests/line-endings.bats` gates this.
 - **Every new `.bats` file MUST be registered in BOTH `tests/baseline.tsv` and `tests/skip-budget.tsv`** (one row per platform: `linux`, `wsl`, `windows`). Eight files once shipped registered in neither; `tools/ci-local.sh` now reports this on every run.

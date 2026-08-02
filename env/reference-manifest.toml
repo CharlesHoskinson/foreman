@@ -248,7 +248,7 @@ where = ["windows", "wsl"]
 check = "python -c \"import graphify\" || python3 -c \"import graphify\""
 install_hint = "pip install graphifyy  (module name: graphify)"
 required = false
-notes = "Knowledge-graph repo understanding; graph committed at graphify-out/graph.json"
+notes = "Knowledge-graph repo understanding; graphify-out is an ignored local index regenerated with graphify update ."
 
 [[tools]]
 id = "openspec"

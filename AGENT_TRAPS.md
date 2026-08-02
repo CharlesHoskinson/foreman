@@ -18,8 +18,8 @@ here.
 | `Write`/`Edit` tools on `/root/...` paths | They resolve against **Windows**, not WSL, silently creating phantom files. Use WSL redirection instead. |
 | Any leading-slash argument passed through Git Bash | MSYS path-converts it — `wsl -e bash /root/x.sh` becomes `C:/Program Files/Git/root/x.sh`. This applies to **every** leading-slash argv, not just `/mnt/...`. Use `wsl -e bash -lc "cd /root/dir && exec bash script"` (path embedded mid-string), or `MSYS_NO_PATHCONV=1`. |
 | `npx openspec` | Resolves to a broken 0.0.0 stub; the global `.bin` symlink is missing. Use `/usr/local/bin/openspec`. This fooled three audit agents. |
-| Two divergent foreman checkouts | `/root/foreman` (WSL) is live; `C:\Users\charl\foreman` (Windows) is stale. Work done in one never reaches the other. |
-| Live sessions in `/root/foreman` | Interactive `codex` sessions run there and append to `bugeventlog.md` mid-session. Never `git add -A` in the main checkout. Work in your assigned worktree only. |
+| Two divergent foreman checkouts | `/home/charl/foreman` is the current WSL base checkout. `C:\Users\charl\foreman` can be a separate Windows checkout. Resolve the Git common directory and assigned worktree before editing. |
+| Live sessions in the base checkout | Interactive sessions can append to `bugeventlog.md` or SessionDB while a worker runs. Never `git add -A` in the base checkout. Work in your assigned worktree only. |
 | The 33/41 filemode changes in `git status` | Deliberate, not dirt. They belong to `crlf-extensionless-hardening` and must not ride along in an unrelated commit. |
 | `foreman-setup.sh` / `tool-check.sh` vendor auth | Known false negative: reports `grok: not_authenticated` while `grok -p` answers fine. Verify a vendor directly before believing the checker. |
 

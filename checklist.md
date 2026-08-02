@@ -285,7 +285,8 @@ ship if its own falsification test passes has no falsification test.
 
 ## Plan series
 
-Design: `docs/superpowers/specs/2026-07-31-v029-release-closeout-design.md`.
+Current design:
+`docs/superpowers/specs/2026-08-02-v029-afk-release-convergence-design.md`.
 
 - [X] **Plan 1 — recording instruments** (`docs/superpowers/plans/2026-07-31-v029-tranche-a1-recording-instruments.md`)
 - [ ] **Plan 2 — telemetry spine.** `three-outcome-verdicts` 3-5,
@@ -335,8 +336,8 @@ prerequisite remains true for the v0.3.0 dispatch.
       (`sqlite3 /home/charl/foreman/.foreman/session.db "select id,status,statement from obligations where id=24;"`).
       Drift check: `bash tools/plugin-drift.sh /home/charl/.claude/skills/foreman skills/foreman`
       → `plugin-drift: no drift` (exit 0).
-- [ ] **Stranded crlf F2+F3.** `RESUME-2026-07-30.md` lists it as landed at
-      `60850ab`. It is **not on main**. Branch
+- [ ] **Stranded crlf F2+F3.** Commit `60850ab` records it as landed. It is
+      **not on main**. Branch
       `s1/crlf-extensionless-hardening` carries the test main lacks. Land it or
       record why not. Obligation 33.
 

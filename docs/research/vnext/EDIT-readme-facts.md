@@ -71,7 +71,7 @@ not merely specified or described elsewhere.
 | 459–467 | `wt-new` roles/metadata and `wt-consolidate` behavior. | `skills/foreman/scripts/wt-new.sh:31-38`, `:91-119`, `:153-173`; `skills/foreman/scripts/wt-consolidate.sh:31-108`. |
 | 482–485 | Cleanup archives reports and skips dirty trees unless forced. | `skills/foreman/scripts/wt-cleanup.sh:165-230`. |
 | 572–591 | `docs-check.sh` checks markdown, spelling, links, and Bash comment coverage, with 0/1/2 exits. | `skills/foreman/scripts/docs-check.sh:1-21`, `:46-137`. |
-| 595 | A committed `graphify-out/graph.json` path exists. | Path existence was checked directly. Per the remit, Graphify was not invoked and the graph was not queried or refreshed. |
+| 595 | **Superseded:** `graphify-out/` is an ignored local derived index. | `.gitignore` excludes the directory and `git ls-files graphify-out` returns no tracked paths. |
 | 610–612 | The only maintenance workflow invokes the upstream reporting stage. | `.github/workflows/maintenance.yml:16-39`. |
 | 631–650, 653–659 | The displayed top-level paths and stated license files exist. | Every displayed path was resolved in the checkout; `LICENSE`, `skills/VENDORED.md`, and `skills/superpowers/LICENSE` exist. |
 

@@ -11,18 +11,8 @@ site/dist/
 *.pyc
 __pycache__/
 
-# graphify: keep graph.json + GRAPH_REPORT.md tracked; ignore volatile artifacts
-graphify-out/cost.json
-graphify-out/graph.html
-graphify-out/.graphify_*
-graphify-out/.cache/
-graphify-out/.experiment_*
 FOREMAN_REPORT.md
 FOREMAN_REPORT.json
-graphify-out/cache/
-graphify-out/manifest.json
-graphify-out/.vocab.txt
-graphify-out/reflections/
 
 # foreman-launch (T1): compiled artifacts + local node_modules are not vendored
 launcher/dist/
@@ -49,7 +39,7 @@ formal/out/
 # clone rehydrates the .db from the sidecar automatically.
 .foreman/session.db
 
-# graphify-out is a DERIVED INDEX, regenerable with graphify --update. It was
+# graphify-out is a DERIVED INDEX, regenerable with graphify update . It was
 # tracked at 5.1MB and sat 322 commits behind HEAD, while CLAUDE.md told every
 # agent to consult it BEFORE opening a file. A generated index that goes stale
 # in days is a cache, not a record - the same call already made for the session
