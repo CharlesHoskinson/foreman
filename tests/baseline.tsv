@@ -3,7 +3,7 @@ tests/adapters.bats	19
 tests/checkpoint.bats	6
 tests/config.bats	16
 tests/decision-events.bats	8
-tests/docs-check.bats	10
+tests/docs-check.bats	13
 tests/durable-preflight.bats	8
 tests/eventlog.bats	34
 tests/evidence.bats	2

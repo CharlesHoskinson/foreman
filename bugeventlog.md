@@ -3204,3 +3204,120 @@ Remediation status: generalized `is_forbidden_council_root_path` landed in
 baseline 10, delta 0 (`/tmp/council-r2-harden/green-targeted.out`). Root
 docs-check and line-endings re-verified. Commit, new immutable bundle, and
 Council re-review remain open.
+
+## 2026-08-02 — Event 27: raw-token markdownlint guard and Council release-authority prose
+
+**Phase:** Council localization round 3 advisory review of committed candidate
+`fd10951ab4bc8330e64f9e220d4690eb33338025`. Persistent advisory:
+`/home/charl/.foreman/runs/council-v030-20260802/council-r3-advisory.json`.
+
+### What happened
+
+Council round 3 produced three admissible verdicts across OpenAI and Google.
+Two OpenAI reviewers requested changes. Google approved. Dissent required
+rework. The review named two defect classes:
+
+1. `markdownlint_council_ignore_ok` scanned raw quoted tokens with
+   `grep | sed`. It did not decode the JSONC `ignores` array. Escaped
+   solidus and Unicode-star whole-root forms could bypass the guard.
+   Comments and unrelated string properties could false-trigger it.
+2. Operational prose treated Council advice as release authority. Text said
+   Council could approve, clear, or block release eligibility.
+
+### RED controls
+
+Host added two fail-capable tests in `tests/docs-check.bats` (baseline 12):
+
+- `markdownlint guard rejects JSONC-escaped whole-subtree ignores`
+- `markdownlint guard ignores prohibited-looking text outside ignores`
+
+Those tests were the only intended failures against the raw-token helper.
+
+### Impact
+
+A config could hide the whole `components/council` subtree through JSON
+escapes and still leave docs-check green. Operators could also treat an
+advisory Council outcome as a release gate.
+
+### Root cause
+
+The guard used a raw quoted-token scan instead of fail-closed JSONC decode
+of `ignores` values only. Status and resume prose mixed advisory Council
+input with Foreman release authority.
+
+### Enhancement
+
+Replace the raw-token scan with a Python 3 standard-library JSONC decoder
+that:
+
+- removes comments only outside strings
+- removes trailing commas only outside strings
+- requires a top-level object whose `ignores` member is an array of strings
+- emits decoded values through an unambiguous delimiter
+- rejects embedded NUL, malformed JSONC, and parser or temp-file failure
+
+Pass each decoded value through `normalize_path_token` and
+`is_forbidden_council_root_path`. Rewrite current-status and resume prose so
+Council remains advisory input. Only Foreman audit, check, and merge gates
+decide release eligibility. Keep validated Council findings as engineering
+defects that still require correction.
+
+Remediation status: helper and operational prose rework are in the round-4
+candidate after `fd10951`. Host gate results and commit state are external
+facts.
+
+## 2026-08-02 — Event 28: JSONC decoder silent success on malformed comments
+
+**Phase:** Architect cold review of round-4 GREEN candidate after the
+JSONC ignores decoder landed.
+
+### What happened
+
+The round-4 JSONC comment stripper failed closed for ordinary JSON parse
+errors, but not for two comment-malformed forms:
+
+1. A complete top-level object with a valid `ignores` array, then an
+   unterminated `/*` block. The stripper discarded the open comment and
+   returned success.
+2. A numeric decoy whose tokens a closed block comment separated, for
+   example `1/* comment */2`. The stripper concatenated the tokens into
+   `12` and returned success.
+
+### RED control
+
+Fail-capable test in `tests/docs-check.bats` (baseline 13):
+
+- `markdownlint guard fails closed on malformed JSONC comments`
+
+RED evidence:
+`.harness/council-localization-r4-harden-red.out` (named test `not ok`).
+
+### Impact
+
+Malformed JSONC could pass the markdownlint council-ignore guard. Operators
+could trust a green guard on inputs that were not well-formed.
+
+### Root cause
+
+The comment stripper deleted comment text without whitespace replacement.
+It also treated an unclosed `/*` as a silent end-of-input success path.
+
+### Enhancement
+
+In the embedded Python JSONC decoder:
+
+- raise a parse error when `/*` has no closing `*/`
+- replace each removed comment with whitespace; preserve newlines
+- never concatenate JSON tokens that a comment separated
+- keep comment markers inside strings unchanged
+- keep decoded-`ignores` scope, trailing-comma support, top-level and
+  string-array checks, NUL refusal, and NUL-delimited handoff
+
+Also remove ephemeral current-status claims from operational prose. State
+lineage rules: `fd10951` is historical round-3; later branch changes are
+round-4 rework; `git rev-parse HEAD` identifies the committed candidate; an
+immutable bundle identifies the reviewed candidate when one binds that head;
+Council remains advisory input only.
+
+Remediation status: decoder harden and status-prose fix are in the
+worktree. Host gate results and commit state are external facts.

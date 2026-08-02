@@ -13,42 +13,43 @@
 | Task | Status |
 |---|---|
 | Task 1 | Incomplete. Setup does not yet admit the authenticated `agy` lane. |
-| Task 2 | Product implementation committed at `ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e` on the implementation lane. Council round 2 returned `changes_requested`. The next candidate contains predicate and documentation fixes and awaits a new immutable-bundle review. |
+| Task 2 | Round-3 candidate `fd10951ab4bc8330e64f9e220d4690eb33338025` is historical. Branch changes after it are round-4 rework. Identify the committed candidate with `git rev-parse HEAD`. An immutable bundle manifest identifies the reviewed candidate when one binds that head; otherwise the operator builds one. |
 | Tasks 3–7 | Not started. |
 
 Notes for this status:
 
-- Task 2 product files are committed at
-  `ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e` on
+- Implementation lane:
   `foreman/council-v030-20260802/implement/council`.
-- Do not claim that `release/v0.3.0-council` contains that commit. It does not
-  yet.
-- **Historical:** before that commit, product files lived only in the
-  worktree. Pre-commit status notes that said "uncommitted" described that
-  earlier state.
-- First Council review outcome was `quorum_not_met` (see
-  `/tmp/council-skill-r1-advisory.json`). Council did not approve that round.
-- Second Council review on the committed bundle
-  (`/tmp/council-skill-r2-advisory.json`) reached 3 admissible verdicts
-  across 3 domains. Outcome: `changes_requested`. Google approved. OpenAI
-  and Anthropic requested changes.
-- Independent local verification after the baseline-10 harden pass: targeted
-  Foreman tests 24/24 with docs-check baseline 10 and delta 0
-  (`bash tests/run.sh tests/docs-check.bats tests/council-localization.bats tests/plugin-drift.bats`
-  → `/tmp/council-r2-harden/green-targeted.out`), root docs-check passed,
-  `bats tests/line-endings.bats` 6/6, and `git diff --check` clean.
-- Prior full-gate evidence at the Task 2 product commit:
-  `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` passed with 629 pass, 0 fail,
-  19 skip, and 648 tests. It reported `gates_failed=0`.
-- Baseline history for `tests/docs-check.bats`: base commit `bb3124f` had 6
-  `@test` blocks while the baseline row said 5. Task 2 added 2 tests and
-  corrected the row to 8. The round-2 rework added 2 negative-control tests
-  (live total 10) but first left the baseline at 8. That was an architect-
-  detected rework defect: shadow mode accepts `pass >= baseline`, while the
-  release candidate uses exact current totals. The row is now 10. Commands:
-  `rg -c '^@test ' tests/docs-check.bats` → 10;
-  `rg '^tests/docs-check\.bats' tests/baseline.tsv` → expected_passes **10**.
-  Earlier reconciliation: `/tmp/council-r2-fix/baseline-reconcile.txt`.
+- Do not claim that `release/v0.3.0-council` contains this work. It does not.
+- Council advice is advisory input. It does not approve, clear, block, or
+  grant authority for a release. Only Foreman audit, check, and merge gates
+  determine release eligibility. Validated Council findings still require
+  correction as engineering defects.
+- **History:** Task 2 product files first landed at
+  `ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e`. Before that commit, product
+  files lived only in the worktree.
+- **History:** round-1 and round-2 `/tmp` artifacts
+  (`/tmp/council-skill-r1-advisory.json`,
+  `/tmp/council-skill-r2-advisory.json`) are historical evidence only. They
+  are not the current candidate identity or the current review record.
+- **History:** commit `fd10951ab4bc8330e64f9e220d4690eb33338025` was the
+  committed round-3 candidate. After this rework it is historical.
+- Persistent round-3 advisory:
+  `/home/charl/.foreman/runs/council-v030-20260802/council-r3-advisory.json`.
+  It records `changes_requested` from three admissible verdicts across two
+  model-family domains (OpenAI and Google). Two OpenAI reviewers requested
+  changes. Google approved.
+- Branch changes after `fd10951` are round-4 rework. Identify the committed
+  candidate with `git rev-parse HEAD`. If an immutable bundle binds that
+  head, that manifest identifies the reviewed candidate. If no bundle binds
+  the current head, the operator builds one. Do not make this status depend
+  on whether the worktree is dirty.
+- **History:** prior full-gate evidence at the Task 2 product commit
+  `ba1164b`: `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` passed with 629
+  pass, 0 fail, 19 skip, and 648 tests. It reported `gates_failed=0`.
+- **History:** baseline path for `tests/docs-check.bats` was base 6 tests
+  vs baseline 5, Task 2 then 8, round-2 rework then 10, round-4 RED then
+  12, decoder harden then 13. Live expected_passes is **13**.
 
 ## Global Constraints
 
@@ -146,13 +147,29 @@ Expected result: all Bats tests pass. The live Setup command reports `SETUP: REA
 
 #### Status (2026-08-02)
 
-Committed at `ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e` on the implementation
-lane. Council round 2 on that commit returned `changes_requested` (OpenAI and
-Anthropic findings). The next candidate contains the round-2 predicate fixes,
-the generalized root-ignore guard, baseline 10, and documentation updates.
-Its authority comes from its next immutable Council bundle. Not
-release-complete. Task 1 remains incomplete and is not replaced by this task.
-Do not claim that `release/v0.3.0-council` holds this work.
+**History:** product files first landed at
+`ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e` on the implementation lane.
+**History:** commit `fd10951ab4bc8330e64f9e220d4690eb33338025` was the
+committed round-3 candidate. The persistent advisory is
+`/home/charl/.foreman/runs/council-v030-20260802/council-r3-advisory.json`.
+It records `changes_requested` from three admissible verdicts across OpenAI
+and Google.
+
+Branch changes after `fd10951` are round-4 rework. Identify the committed
+candidate with `git rev-parse HEAD`. If an immutable bundle binds that head,
+that manifest identifies the reviewed candidate. If no bundle binds the
+current head, the operator builds one. Do not make this status depend on
+worktree dirtiness.
+
+Council advice is advisory input. It does not approve, clear, block, or
+grant authority for a release. Only Foreman audit, check, and merge gates
+determine release eligibility. Validated Council findings still require
+correction as engineering defects.
+
+Not release-complete. Task 1 remains incomplete until Foreman Setup admits
+the authenticated `agy` lane. Task 1 is not replaced by this task. Do not
+claim that `release/v0.3.0-council` holds this work. Host gate results and
+commit state are external facts, not promises in this section.
 
 #### Objective
 
