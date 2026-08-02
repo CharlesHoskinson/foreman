@@ -10,12 +10,19 @@
 
 ## T1: reconcile scope and packages
 
-- [ ] Add a fail-closed validator for `evidence/package-matrix.tsv`.
+- [x] Add a fail-closed validator for `evidence/package-matrix.tsv`.
+  Evidence: commit `8c4adfeb17ac8a18beb020fc0962e73cb6479013`,
+  `skills/foreman/scripts/package-matrix-check.sh`, and
+  `bats tests/package-matrix-check.bats` (20 tests).
 - [ ] Add one matrix row for every active OpenSpec package.
 - [ ] Bind each `v029-implemented` row to consuming code and a verification command.
 - [ ] Split each partial package into shipped v0.2.9.0 scope and preserved v0.3.x scope.
-- [ ] Correct `checklist.md` against SessionDB Fact 238.
-- [ ] Prove that v0.2.9.0 has no default graph-context path.
+- [x] Correct `checklist.md` against SessionDB Fact 238.
+  Evidence: commit `2c7332c` narrows the release scope and preserves the
+  graph work for v0.3.0.
+- [x] Prove that v0.2.9.0 has no default graph-context path.
+  Evidence: the `2c7332c` reconciliation records the source and configuration
+  scan at the 243-file graph snapshot.
 
 ## T2: implement safety controls
 
@@ -51,4 +58,3 @@
 - [ ] Complete the devlog correction block and release notes.
 - [ ] Mark the roadmap and checklist released.
 - [ ] Create tag `v0.2.9` with message `Total GeorgeCall` only after all gates pass.
-
