@@ -7,7 +7,7 @@ If this file disagrees with `fm-session.py recover`, the DB wins.
 python3 skills/foreman/scripts/fm-session.py recover
 ```
 
-Scope decision: **full roadmap scope**, taken with the cost stated.
+Scope decision: **v0.2.9 convergence scope from SessionDB Fact 238**. The four-package graph plane is deferred to v0.3.0; its specifications, kill criteria, and off-switch contract remain.
 
 Packages outside the v0.2.9 scope now say so in their own directory rather than
 only here — a package you cannot classify by opening it is how a reader ends up
@@ -24,7 +24,11 @@ trusting this file over the tree:
   `PARKED.md` files record the one change that would un-park each.
 - **Split**: `workload-fit-accounting`. Its report reader was fully specified and
   is implemented; only its architect-kept doctrine (task 1) remains open.
-- Four further packages were rescued earlier and remain v0.3.x candidates.
+- Four graph packages deferred to v0.3.0 by SessionDB Fact 238 (alongside the
+  separate advisory Council plane; release-gate authority unchanged):
+  `graph-context-builder`,
+  `graph-dogfood`, `graph-eval-falsification`, `work-dag-projection`. Not
+  implemented in v0.2.9.
 
 Re-derive the live count with
 `ls -d openspec/changes/*/ | grep -v archive | wc -l`.
@@ -58,6 +62,23 @@ of which had been checked in sixteen times.
 
 ## Tag criteria
 
+### Scope decision (SessionDB Fact 238)
+
+SessionDB Fact 238 moves `graph-context-builder`, `graph-dogfood`,
+`graph-eval-falsification`, and `work-dag-projection` to v0.3.0 alongside
+Council. Specifications, falsification kill criteria, and the executable
+off-switch contract remain. v0.2.9 ships no default graph-context path.
+
+Deriving evidence (re-derived at planning commit `20a8a2b`):
+
+- Open task boxes in the four graph packages: **243**
+  `grep -h '^\s*- \[ \]' openspec/changes/{graph-context-builder,graph-dogfood,graph-eval-falsification,work-dag-projection}/tasks.md | wc -l`
+- No default graph-context consumer in the searched v0.2.9 runtime/configuration
+  surface (exit 1, no match):
+  `rg -n 'graph\.context|graph_context|context_builder|work_dag' .foreman config skills/foreman/scripts env tests`
+
+Do not treat these four packages as implemented in v0.2.9.
+
 - [ ] **1. Scope** — all 30 packages implemented; `openspec validate --strict`
       green on all 30; shipped packages archived.
       *Re-derive the counts with the census in "Where the release stands";
@@ -72,7 +93,9 @@ of which had been checked in sixteen times.
       lack a checkable contract rather than an implementation, and
       `wsl-seam-doctrine` is direction-reversed against native Docker;
       `graph-context-builder`, `graph-dogfood`, `graph-eval-falsification`
-      and `work-dag-projection` are the graph plane (falsification last);
+      and `work-dag-projection` are the graph plane, deferred to v0.3.0 by
+      Fact 238 (not a v0.2.9 tag dependency; falsification still last in
+      v0.3.0);
       `doctrine-reality-drift`, `vendor-preflight` and
       `wsl-preflight` have partial deliverables but
       no demonstrable behaviour. `wsl-launcher-shipped` is the cautionary one:
@@ -199,22 +222,32 @@ of which had been checked in sixteen times.
 - [ ] **6. Session DB** — no release-blocking obligation open; **every
       measurement fresh at the tag commit**; no number in the release notes
       without its freshness verdict and re-run command.
-- [ ] **7. Falsification** — `graph-eval-falsification`'s ten pre-registered
-      kill criteria evaluated and **published**, including on a negative
-      verdict, with the executable off-switch. *Package has zero code.*
+- [X] **7. Falsification** — narrowed for v0.2.9: prove the Fact 238
+      deferral and that the default graph-context path is disabled. **Met.**
+      Fact 238 moves the four graph packages to v0.3.0; their specifications,
+      ten kill criteria, and executable off-switch contract remain. The
+      searched v0.2.9 surface has no default graph-context consumer
+      (`rg -n 'graph\.context|graph_context|context_builder|work_dag' .foreman
+      config skills/foreman/scripts env tests` — exit 1, no match). The four
+      packages still hold **243** open task boxes
+      (`grep -h '^\s*- \[ \]' openspec/changes/{graph-context-builder,graph-dogfood,graph-eval-falsification,work-dag-projection}/tasks.md | wc -l`).
+      The ten kill criteria remain owed to v0.3.0 and are **not waived**.
 - [ ] **8. Telemetry honesty** — Foreman's own sigma published before any
       difference is called an improvement. *Blocked on `decision-lineage` 4b.*
 - [ ] **9. Documentation** — the doc sprint complete; `docs-check.sh` green;
       zero live references to the withdrawn store outside dated history.
-      *`docs-check.sh` reports **markdownlint=fail codespell=pass lychee=pass
-      comments=pass**. The comments gate is closed: zero undocumented
-      functions after documenting 41 functions across 13 files. Markdownlint
-      has **45 findings**, down from 91; 44 are in dated session-record files,
-      including 30 in one plan file, whose in-scope status is an open owner
-      decision. One MD036 remains deliberately in `bugeventlog.md` rather than
-      restructuring a failure-log entry.*
-- [ ] **10. Plugin** — the installed skill resolves to a current checkout and
-      the drift check passes. **Blocked on a human decision** (obligation 24).
+      *`bash skills/foreman/scripts/docs-check.sh` exited zero and printed
+      `docs-check: markdownlint=pass codespell=pass lychee=pass
+      agent-invocations=pass comments=pass` (re-derived at planning commit
+      `20a8a2b`). That line proves the docs-check gate is green. It does not
+      by itself prove the full documentation sprint or that every withdrawn-store
+      reference is gone; those need separate evidence. Criterion stays open.*
+- [X] **10. Plugin** — the installed skill resolves to a current checkout and
+      the drift check passes. **Met.**
+      `bash tools/plugin-drift.sh /home/charl/.claude/skills/foreman skills/foreman`
+      exited zero and printed `plugin-drift: no drift`. SessionDB obligation 24
+      is `done`
+      (`sqlite3 /home/charl/foreman/.foreman/session.db "select id,status,statement from obligations where id=24;"`).
 - [x] **11. Residuals stated** — D5's Git-Bash syscall trace still owed; `agy`
       per-lane isolation unsolved; audit latency bounded not solved; formal
       results bounded (Apalache 8-12) and sampled (20k traces).
@@ -233,13 +266,20 @@ of which had been checked in sixteen times.
 - [ ] **12. Record** — ROADMAP marked released; devlog correction block landed
       (obligation 13); `bugeventlog.md` complete; `v0.2.9` tagged
       **Total GeorgeCall** with the committed release art.
+      *Incomplete: roadmap, devlog correction, bug event log, and tag are not
+      all proved. Do not claim the tag exists. Tracked release art is present at
+      `assets/v029-total-georgecall.png`
+      (`git ls-files --error-unmatch assets/v029-total-georgecall.png` exited
+      zero and named that path).*
 
 ### The anti-criterion
 
-**If `graph-eval-falsification` returns a negative verdict, tag anyway.** Ship
-the graph plane disabled through its off-switch and publish the verdict that
-killed it. A release that can only ship if its own falsification test passes
-has no falsification test.
+**If a later `graph-eval-falsification` run returns a negative verdict,
+publish the off-switch result.** Fact 238 defers the graph plane to v0.3.0;
+v0.2.9 is not blocked on executing the ten kill criteria. When those criteria
+run in v0.3.0, a negative verdict still ships the plane disabled through its
+off-switch and publishes the verdict that killed it. A release that can only
+ship if its own falsification test passes has no falsification test.
 
 ---
 
@@ -257,10 +297,17 @@ Design: `docs/superpowers/specs/2026-07-31-v029-release-closeout-design.md`.
       serial: all three write `audit-run.sh`.
 - [ ] **Plan 5 — test plane.** `regression-harness-tiers`, R3-R7 cleanup, the
       negative-control registry, bats gate back ON.
-- [ ] **Plan 6 — graph plane.** 249 tasks. `graph-eval-falsification` lands
-      last so it can honestly fail.
+- [ ] **Plan 6 — graph plane.** Deferred to **v0.3.0** by SessionDB Fact 238
+      (with Council). The four packages
+      (`graph-context-builder`, `graph-dogfood`, `graph-eval-falsification`,
+      `work-dag-projection`) hold **243** open task boxes
+      (`grep -h '^\s*- \[ \]' openspec/changes/{graph-context-builder,graph-dogfood,graph-eval-falsification,work-dag-projection}/tasks.md | wc -l`).
+      Not a v0.2.9 tag dependency. Specifications, kill criteria, and the
+      off-switch contract remain; `graph-eval-falsification` still lands last
+      in v0.3.0 so it can honestly fail.
 
-The documentation sprint runs as a final pass across Plans 3-6.
+The documentation sprint runs as a final pass across Plans 3-5 (Plan 6 is
+out of v0.2.9 tag scope).
 
 ### Prerequisite that blocks Plan 6 from dispatching at all
 
@@ -271,19 +318,23 @@ The documentation sprint runs as a final pass across Plans 3-6.
 grep -rln "TerminusDB" --include=*.md openspec/changes/ | grep -v archive
 ```
 
+Fact 238 further records that Plan 6 is out of v0.2.9 tag scope; the rewrite
+prerequisite remains true for the v0.3.0 dispatch.
+
 ---
 
 ## Decisions owed by the product owner
 
-- [ ] **Scope.** Full scope is weeks of sessions. Descoping the four-package
-      graph plane alone removes 249 of ~407 tasks and puts v0.2.9 in realistic
-      reach; the vendor plane, test plane, CI/CD and doc sprint are all bounded
-      work. The graph plane would move to v0.3.x with its falsification
-      criteria intact.
-- [ ] **The stale plugin checkout.** `C:\Users\charl\foreman` has ~190 local
-      modifications and diverged history. `git pull --ff-only` was refused and
-      not forced. Nothing repoints until someone decides what those
-      modifications are worth. Obligation 24.
+- [X] **Scope (graph plane).** SessionDB Fact 238 moved
+      `graph-context-builder`, `graph-dogfood`, `graph-eval-falsification`, and
+      `work-dag-projection` to v0.3.0 alongside Council. Specifications,
+      falsification kill criteria, and the off-switch contract remain. Open
+      task boxes in those four packages: **243** (same deriving command as
+      under Tag criteria → Scope decision).
+- [X] **The stale plugin checkout.** Obligation 24 is `done`
+      (`sqlite3 /home/charl/foreman/.foreman/session.db "select id,status,statement from obligations where id=24;"`).
+      Drift check: `bash tools/plugin-drift.sh /home/charl/.claude/skills/foreman skills/foreman`
+      → `plugin-drift: no drift` (exit 0).
 - [ ] **Stranded crlf F2+F3.** `RESUME-2026-07-30.md` lists it as landed at
       `60850ab`. It is **not on main**. Branch
       `s1/crlf-extensionless-hardening` carries the test main lacks. Land it or
