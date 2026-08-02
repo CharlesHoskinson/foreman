@@ -7,7 +7,7 @@ tests/checks-run.bats	5
 tests/config.bats	16
 tests/council-localization.bats	11
 tests/decision-events.bats	8
-tests/docs-check.bats	13
+tests/docs-check.bats	15
 tests/durable-preflight.bats	8
 tests/eventlog.bats	34
 tests/evidence.bats	2

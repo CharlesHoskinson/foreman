@@ -174,7 +174,17 @@ def main() -> int:
         return 2
     try:
         cleaned = strip_trailing_commas(strip_jsonc_comments(raw))
-        data = json.loads(cleaned)
+
+        # JSONC forbids nonstandard numeric constants. Python's default
+        # json.loads accepts NaN/Infinity/-Infinity; reject them here via
+        # parse_constant so string contents cannot false-trigger.
+        def reject_nonstandard_constant(name: str) -> None:
+            raise ValueError(f"nonstandard JSON constant: {name}")
+
+        data = json.loads(
+            cleaned,
+            parse_constant=reject_nonstandard_constant,
+        )
     except (json.JSONDecodeError, ValueError, TypeError, RecursionError):
         return 1
     if not isinstance(data, dict):
@@ -204,17 +214,25 @@ PY
     return 1
   fi
 
-  local entry norm
+  # Open the decoded handoff on a checked FD before any unlink. If the path
+  # disappeared after Python returned success, fail closed here — do not let
+  # later cleanup or an explicit return 0 mask a failed redirection.
+  local entry norm fd
+  if ! exec {fd}<"$tmp_ignores"; then
+    rm -f "$tmp_ignores"
+    return 2
+  fi
+  rm -f "$tmp_ignores"
   while IFS= read -r -d '' entry || [ -n "$entry" ]; do
     [ -n "$entry" ] || continue
     norm="$(normalize_path_token "$entry")"
     if is_forbidden_council_root_path "$norm"; then
       printf 'FORBIDDEN markdownlint ignore: %s (normalized %s)\n' "$entry" "$norm" >&2
-      rm -f "$tmp_ignores"
+      exec {fd}<&- || true
       return 1
     fi
-  done < "$tmp_ignores"
-  rm -f "$tmp_ignores"
+  done <&"$fd"
+  exec {fd}<&- || true
   return 0
 }
 
@@ -521,6 +539,50 @@ PY
   tmp="$(mktemp "${BATS_TEST_TMPDIR}/mdlint-concat-XXXXXX.jsonc")"
   printf '%s\n' '{ "decoy": 1/* comment */2, "ignores": [] }' > "$tmp"
   run markdownlint_council_ignore_ok "$tmp"
+  [ "$status" -ne 0 ]
+  rm -f "$tmp"
+}
+
+@test "markdownlint guard rejects nonstandard JSON numeric constants" {
+  local tmp token
+
+  for token in NaN Infinity -Infinity; do
+    tmp="$(mktemp "${BATS_TEST_TMPDIR}/mdlint-constant-XXXXXX.jsonc")"
+    printf '{ "decoy": %s, "ignores": [] }\n' "$token" > "$tmp"
+    run markdownlint_council_ignore_ok "$tmp"
+    [ "$status" -ne 0 ]
+    rm -f "$tmp"
+  done
+}
+
+@test "markdownlint guard fails closed when decoded handoff disappears" {
+  local real_cfg tmp real_python shim_dir old_path
+  real_cfg="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/.markdownlint-cli2.jsonc"
+  tmp="$(mktemp "${BATS_TEST_TMPDIR}/mdlint-handoff-XXXXXX.jsonc")"
+  cp "$real_cfg" "$tmp"
+
+  real_python="$(command -v python3)"
+  shim_dir="${BATS_TEST_TMPDIR}/handoff-bin"
+  mkdir -p "$shim_dir"
+  cat > "$shim_dir/python3" <<'SH'
+#!/usr/bin/env bash
+set -u
+"${REAL_PYTHON:?}" "$@"
+rc=$?
+if [[ "$rc" -eq 0 && "${1:-}" == "-" && $# -ge 3 ]]; then
+  rm -f -- "$3"
+fi
+exit "$rc"
+SH
+  chmod +x "$shim_dir/python3"
+
+  old_path="$PATH"
+  PATH="$shim_dir:$PATH"
+  export REAL_PYTHON="$real_python"
+  run markdownlint_council_ignore_ok "$tmp"
+  PATH="$old_path"
+  unset REAL_PYTHON
+
   [ "$status" -ne 0 ]
   rm -f "$tmp"
 }
