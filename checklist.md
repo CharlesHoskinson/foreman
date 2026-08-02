@@ -7,8 +7,27 @@ If this file disagrees with `fm-session.py recover`, the DB wins.
 python3 skills/foreman/scripts/fm-session.py recover
 ```
 
-Scope decision: **full roadmap scope**, taken with the cost stated. Four further
-packages exist as v0.3.x candidates and are not in the v0.2.9 thirty.
+Scope decision: **full roadmap scope**, taken with the cost stated.
+
+Packages outside the v0.2.9 scope now say so in their own directory rather than
+only here — a package you cannot classify by opening it is how a reader ends up
+trusting this file over the tree:
+
+- **Withdrawn**, archived under `openspec/changes/archive/` with a `WITHDRAWN.md`
+  giving the reason and what must not be lost: `wsl-ci-parity` (its premise, that
+  the suite runs on no CI, is measurably false) and `wsl-seam-doctrine` (Docker
+  task direction-reversed, exec-bit task superseded, design census wrong by 463
+  files).
+- **Parked as v0.3.x candidates**, each carrying a `PARKED.md`:
+  `spec-triage-gate` and `foreman-discover-lane`. Both lack a checkable contract
+  rather than an implementation, which cannot be implemented around. Their
+  `PARKED.md` files record the one change that would un-park each.
+- **Split**: `workload-fit-accounting`. Its report reader was fully specified and
+  is implemented; only its architect-kept doctrine (task 1) remains open.
+- Four further packages were rescued earlier and remain v0.3.x candidates.
+
+Re-derive the live count with
+`ls -d openspec/changes/*/ | grep -v archive | wc -l`.
 
 ---
 
