@@ -29,6 +29,7 @@ tests/lock.bats	13
 tests/maintenance.bats	8
 tests/merge-gate.bats	11
 tests/nats-bridge.bats	12
+tests/package-matrix-check.bats	20
 tests/plugin-drift.bats	3
 tests/pr-open.bats	6
 tests/readme-structure.bats	12
