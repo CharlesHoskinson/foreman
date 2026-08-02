@@ -43,12 +43,12 @@ notes = "HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency table -- current stable both
 
 [[tools]]
 id = "jq"
-profile = ["hard", "full"]
+profile = ["soft", "hard", "full", "durable"]
 where = ["wsl"]
 check = "jq --version"
 install_wsl = "sudo apt-get install -y jq"
 required = true
-notes = "Hard-mode scripts (meta.json, gate) need jq. HELD 2026-07-18 (v0.2.7.5 pkg-3 dependency table -- current stable, jq-1.8.1 WSL / jq-1.8.2 Windows probe-verified)."
+notes = "Hard-mode scripts (meta.json, gate) need jq. Widened to every profile on 2026-08-01: foreman-fit-report.sh reads the fit ledger and is invoked from foreman-cleanup.sh, which closes runs in soft mode too. It REQUIRES jq and refuses without it rather than falling back -- a jq-optional regex path was tried and a cross-vendor audit proved it silently miscounts VALID nested JSON, parsing a record whose nested object carries a decoy phase as implement/1 under jq and discover/5 under the regex. A regex cannot parse JSON structure, and for a metric a wrong number is worse than a refusal. HELD 2026-07-18 for the version pin (jq-1.8.1 WSL / jq-1.8.2 Windows probe-verified)."
 
 [[tools]]
 id = "grok"

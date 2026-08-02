@@ -925,7 +925,7 @@ fm_tc_run_atomicity_probes() {
 # every durable lock. Grading it `should` was a hedge: it let a host report
 # READY: yes and then fail 102 tests on refusals that had nothing to do with
 # the code under test.
-must_soft=(git python3 grok codex strace foreman_skill)
+must_soft=(git python3 jq grok codex strace foreman_skill)
 must_hard=(git python3 jq docker flock strace foreman_skill)
 # The gate tooling is `must` on full and nowhere else. reference-manifest.toml
 # marks bats, markdownlint-cli2, codespell and lychee required = true, and full
@@ -935,7 +935,7 @@ must_hard=(git python3 jq docker flock strace foreman_skill)
 # use for a docs linter.
 must_full=(git python3 jq grok codex docker flock strace bats markdownlint-cli2 codespell lychee foreman_skill)
 must_durable=(git jq coreutils bash flock strace)
-should_soft=(node npm jq foreman_home_fs)
+should_soft=(node npm foreman_home_fs)
 should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
 should_full=(node npm shellcheck gh timeout bun pueue foreman_home_fs)
 should_durable=(nats-server nats-cli foreman_home_fs)

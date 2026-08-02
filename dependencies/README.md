@@ -50,7 +50,7 @@ Without these Foreman does not run at all.
 | `bash` | all | Every script is bash; arrays and `local` are used throughout | Nothing runs | `apt install bash` | 5.3.9 |
 | `python3` (≥3.11) | all | Session store, gate evaluation, MCP session transport | No session store, no `recover` | `apt install python3 python3-pip python3-venv` | 3.14.4 |
 | `python3` `sqlite3` module | all | `.foreman/session.db` is SQLite; the **stdlib module** is what reads it | No facts, measurements or obligations | ships with `python3` | lib 3.46.1 |
-| `jq` | hard, full, durable | `meta.json`, gate evaluation, verdict parsing | Gate cannot evaluate | `apt install jq` | 1.8.1 |
+| `jq` | **all** | `meta.json`, gate evaluation, verdict parsing, and the fit ledger | Gate cannot evaluate; `foreman-fit-report.sh` refuses | `apt install jq` | 1.8.1 |
 | `flock` (util-linux) | hard, full, durable | **Carries every durable lock on Linux** — see [Locking](#locking--read-this-before-changing-coreutils) | Event log and lane locks fail closed | `apt install util-linux` | 2.41.3 |
 | `strace` | all POSIX | The **only** evidence class that can license a lock mechanism as atomic | No trusted lock; `FM_LOCK_UNAVAILABLE`; 102 tests fail | `apt install strace` | 6.19 |
 | `coreutils` | all | `timeout`, `stat`, `mkdir`, `rmdir` throughout | Timeouts and bounds unenforceable | `apt install coreutils` | see [Locking](#locking--read-this-before-changing-coreutils) |
@@ -123,6 +123,23 @@ Consequences you must not undo:
    tests that have nothing to do with the code under test.
 3. Verify with `bash tests/probes/mkdir-atomicity.sh` — it reports both the
    mechanism and a contention sample. Do not reimplement it.
+
+## Why `jq` is required rather than optional
+
+`foreman-fit-report.sh` reads a JSON-lines ledger and is invoked from
+`foreman-cleanup.sh`, which closes runs in **every** profile — so `jq` is a
+`must` everywhere, not just on hard and full.
+
+It was written jq-optional, with a `grep`/`awk` fallback for hosts without it.
+A cross-vendor audit proved the fallback silently miscounts **valid** JSON: a
+record whose nested object carries a decoy `phase` parsed as `implement/1` under
+`jq` and `discover/5` under the regex, and a trailing comma that `jq` rejects was
+silently accepted. A regex cannot parse JSON structure, so the fallback could
+only ever agree on the cases someone thought to test.
+
+This is a metric. A number that is quietly wrong is worse than a refusal,
+because someone will quote it. The script now refuses without `jq` and names
+this file in the message.
 
 ## Why this directory exists
 
