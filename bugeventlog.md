@@ -3007,3 +3007,57 @@ the target project already keeps them.
 a quoted command substitution inside WSL. For graphify: honour an existing graph
 location, or add the output directory to the project's ignore files as part of
 generating it.
+
+## 2026-08-02 — Event 6: the review aggregator turned "I cannot tell" into "yes"
+
+**Phase:** first live 3-domain Council review, over Council's own Phase 1 output.
+
+**Evidence:** three reviewers across three distinct families returned:
+
+```text
+r1 (codex, openai):     approved
+r2 (agy, google):       insufficient_evidence
+r3 (claude, anthropic): insufficient_evidence
+quorum: QUORUM_MET admissible=3 domains=3
+outcome: approved
+```
+
+Two of three reviewers said they could not judge, and the aggregate outcome was
+`approved`. The rule was `if any(changes_requested) then changes_requested else
+approved` — so anything that was not an explicit objection counted as consent.
+
+**Root cause, two layers.**
+
+The aggregator treated `insufficient_evidence` as a non-objection rather than as
+a typed outcome. Council's spec lists it as a first-class outcome precisely so it
+cannot be collapsed into approval; the Bash aggregator did not honour that.
+
+The reason the reviewers could not judge is a second defect, in the bundle
+builder: the lane's deliverable was four **new** files, `git diff` shows nothing
+for untracked paths, and the bundle was 1092 bytes of filenames with no content.
+The two reviewers who said `insufficient_evidence` were **right**, and the one
+that said `approved` approved a diff it had not seen.
+
+So the panel behaved correctly and the machinery around it produced a false
+approval from an honest set of answers. That is worse than a wrong reviewer: a
+wrong reviewer is visible in its own verdict, and this was visible only in the
+aggregate.
+
+**Cost:** none realised — the round was Council reviewing itself and the outcome
+was inspected rather than acted on. Had this run on a real lane, an unreviewable
+change would have been recorded as approved by a three-domain quorum, which is a
+stronger claim than any single auditor has ever made in this repo.
+
+**Enhancement:** outcome precedence now refuses to be stronger than the panel.
+`changes_requested` if any reviewer objects; `approved` only when a **majority**
+of admissible verdicts are explicit approvals; otherwise
+`insufficient_evidence`. An outcome must never exceed what was actually said.
+The bundle builder now appends untracked file bodies under a `=== NEW FILE ===`
+marker, excludes the architect's `SPEC.md` and the lane's `FOREMAN_REPORT.md`,
+and truncates on line boundaries — `head -c` was cutting mid-character, making
+invalid UTF-8 that `jq` rejected while the redirect left an empty bundle with no
+error.
+
+**Standing rule:** when a panel is unanimous only in its uncertainty, the
+aggregate must say so. Any aggregation whose output can be more confident than
+its inputs is a defect, regardless of how the inputs were obtained.
