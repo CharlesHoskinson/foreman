@@ -222,7 +222,13 @@ PY
     rm -f "$tmp_ignores"
     return 2
   fi
-  rm -f "$tmp_ignores"
+  # Every path after a successful open must close the descriptor explicitly.
+  # Check post-open unlink. On failure, close the FD and return nonzero so
+  # set -e, later cleanup, or an explicit return 0 cannot mask the error.
+  if ! rm -f "$tmp_ignores"; then
+    exec {fd}<&- || true
+    return 2
+  fi
   while IFS= read -r -d '' entry || [ -n "$entry" ]; do
     [ -n "$entry" ] || continue
     norm="$(normalize_path_token "$entry")"
@@ -584,5 +590,76 @@ SH
   unset REAL_PYTHON
 
   [ "$status" -ne 0 ]
+  rm -f "$tmp"
+}
+
+@test "markdownlint guard fails closed when post-open handoff unlink fails" {
+  local real_cfg tmp real_python shim_dir controlled_tmp
+  local old_path old_tmpdir status fdpath target live_handoff
+
+  real_cfg="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/.markdownlint-cli2.jsonc"
+  tmp="$(mktemp "${BATS_TEST_TMPDIR}/mdlint-unlink-XXXXXX.jsonc")"
+  cp "$real_cfg" "$tmp"
+
+  # Own TMPDIR so the helper handoff path is known and controllable.
+  controlled_tmp="${BATS_TEST_TMPDIR}/handoff-unlink-tmp"
+  mkdir -m 700 -p "$controlled_tmp"
+
+  real_python="$(command -v python3)"
+  shim_dir="${BATS_TEST_TMPDIR}/unlink-fail-bin"
+  mkdir -p "$shim_dir"
+  # After a successful decode write, revoke directory write permission.
+  # Open of an existing file still succeeds. Post-open unlink then fails.
+  # chmod is POSIX. No optional host utility is required.
+  cat > "$shim_dir/python3" <<'SH'
+#!/usr/bin/env bash
+set -u
+"${REAL_PYTHON:?}" "$@"
+rc=$?
+if [[ "$rc" -eq 0 && "${1:-}" == "-" && $# -ge 3 ]]; then
+  handoff_dir="$(dirname -- "$3")"
+  chmod a-w -- "$handoff_dir"
+fi
+exit "$rc"
+SH
+  chmod +x "$shim_dir/python3"
+
+  old_path="$PATH"
+  old_tmpdir="${TMPDIR-}"
+  PATH="$shim_dir:$PATH"
+  export REAL_PYTHON="$real_python"
+  export TMPDIR="$controlled_tmp"
+
+  # Call in this shell (not `run`) so a leaked handoff FD stays visible
+  # under /proc/$$/fd after the helper returns.
+  status=0
+  markdownlint_council_ignore_ok "$tmp" || status=$?
+
+  PATH="$old_path"
+  if [[ -n "${old_tmpdir}" ]]; then
+    export TMPDIR="$old_tmpdir"
+  else
+    unset TMPDIR
+  fi
+  unset REAL_PYTHON
+
+  # Nonzero: failed post-open unlink must not report success.
+  [ "$status" -ne 0 ]
+
+  # Descriptor cleanup: after return, no live FD may reference the handoff
+  # directory (including an unlinked-but-still-open path).
+  live_handoff=0
+  for fdpath in /proc/$$/fd/*; do
+    target="$(readlink "$fdpath" 2>/dev/null || true)"
+    case "$target" in
+      "$controlled_tmp"/*)
+        live_handoff=1
+        ;;
+    esac
+  done
+  [ "$live_handoff" -eq 0 ]
+
+  chmod u+w -- "$controlled_tmp" 2>/dev/null || true
+  rm -rf -- "$controlled_tmp"
   rm -f "$tmp"
 }
