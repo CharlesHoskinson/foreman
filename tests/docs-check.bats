@@ -7,6 +7,96 @@ setup() {
   mkdir -p scripts
 }
 
+# @description Normalize a path-like ignore/skip token: strip surrounding
+#   whitespace and a single leading "./".
+# @arg $1 raw token
+# @stdout normalized token
+normalize_path_token() {
+  local t="$1"
+  t="${t#"${t%%[![:space:]]*}"}"
+  t="${t%"${t##*[![:space:]]}"}"
+  if [[ "$t" == ./* ]]; then
+    t="${t#./}"
+  fi
+  printf '%s' "$t"
+}
+
+# @description Return 0 when a normalized path is a forbidden whole-subtree
+#   Council root ignore/skip. Reject exact root components/council with or
+#   without a trailing slash. Reject any entry whose first path segment after
+#   components/council/ starts with "*". Permit a fixed first subpath such as
+#   components/council/openspec/changes/** or components/council/packages/*/dist.
+# @arg $1 normalized path token
+# @return 0 when forbidden, 1 when permitted or not a Council root form
+is_forbidden_council_root_path() {
+  local norm="$1"
+  case "$norm" in
+    'components/council'|'components/council/')
+      return 0
+      ;;
+    components/council/*)
+      local rest first
+      rest="${norm#components/council/}"
+      first="${rest%%/*}"
+      # First segment begins with a glob wildcard.
+      if [[ "$first" == '*'* ]]; then
+        return 0
+      fi
+      return 1
+      ;;
+  esac
+  return 1
+}
+
+# @description Return 0 when a markdownlint-cli2 config has no whole-subtree
+#   Council ignore entry. Return 1 when a forbidden normalized entry is found.
+#   Uses is_forbidden_council_root_path. Permitted fixed-subpath entries such as
+#   components/council/openspec/changes/** are not rejected.
+# @arg $1 path to .markdownlint-cli2.jsonc (or a temp copy)
+markdownlint_council_ignore_ok() {
+  local cfg="$1"
+  [ -f "$cfg" ] || return 2
+
+  # Extract double-quoted string literals. JSONC comments stay outside strings.
+  local entry norm
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    norm="$(normalize_path_token "$entry")"
+    if is_forbidden_council_root_path "$norm"; then
+      printf 'FORBIDDEN markdownlint ignore: %s (normalized %s)\n' "$entry" "$norm" >&2
+      return 1
+    fi
+  done < <(grep -oE '"[^"]+"' "$cfg" | sed 's/^"//;s/"$//')
+  return 0
+}
+
+# @description Return 0 when a codespell config skip list has no whole-subtree
+#   Council element. Return 1 when a forbidden normalized element is found
+#   first, middle, or last. Uses is_forbidden_council_root_path. Lockfile and
+#   packages/*/dist paths stay permitted.
+# @arg $1 path to .codespellrc (or a temp copy)
+codespell_council_skip_ok() {
+  local cfg="$1"
+  [ -f "$cfg" ] || return 2
+
+  local skip_line value
+  skip_line="$(grep -E '^[[:space:]]*skip[[:space:]]*=' "$cfg" || true)"
+  [ -n "$skip_line" ] || return 2
+  value="${skip_line#*=}"
+  value="${value#"${value%%[![:space:]]*}"}"
+
+  local part norm
+  IFS=',' read -r -a parts <<<"$value"
+  for part in "${parts[@]}"; do
+    norm="$(normalize_path_token "$part")"
+    if is_forbidden_council_root_path "$norm"; then
+      printf 'FORBIDDEN codespell skip: %s (normalized %s)\n' "$part" "$norm" >&2
+      return 1
+    fi
+  done
+  return 0
+}
+
 @test "docs-check passes on a clean fixture" {
   cat > scripts/good.sh <<'EOF'
 #!/usr/bin/env bash
@@ -78,10 +168,55 @@ EOF
   [[ "$text" == *'"components/council/openspec/changes/**"'* ]] \
     || [[ "$text" == *'components/council/openspec/changes/**'* ]]
 
-  # Must not blanket-ignore the whole imported Council tree.
-  ! grep -Eq '"components/council/\*\*"|"components/council/\*"|"\./components/council/\*\*"' "$cfg"
-  [[ "$text" != *'"components/council/**"'* ]]
-  [[ "$text" != *'"components/council/*"'* ]]
+  # Guard must pass on the real root config (narrow subpaths only).
+  run markdownlint_council_ignore_ok "$cfg"
+  [ "$status" -eq 0 ]
+}
+
+@test "markdownlint guard rejects injected whole-subtree council ignores" {
+  local real_cfg tmp entry
+  real_cfg="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/.markdownlint-cli2.jsonc"
+  [ -f "$real_cfg" ]
+
+  local -a forbidden=(
+    'components/council'
+    'components/council/'
+    'components/council/*'
+    'components/council/**'
+    'components/council/**/*'
+    'components/council/**/*.md'
+    'components/council/*.md'
+    'components/council/**/**'
+    'components/council/**/README.md'
+    './components/council'
+    './components/council/'
+    './components/council/*'
+    './components/council/**'
+    './components/council/**/*'
+    './components/council/**/*.md'
+    './components/council/*.md'
+    './components/council/**/**'
+    './components/council/**/README.md'
+  )
+
+  for entry in "${forbidden[@]}"; do
+    tmp="$(mktemp "${BATS_TEST_TMPDIR}/mdlint-XXXXXX.jsonc")"
+    # Copy real config, then inject the forbidden ignore as the first ignores entry.
+    python3 - "$real_cfg" "$tmp" "$entry" <<'PY'
+import sys
+from pathlib import Path
+src, dst, entry = sys.argv[1], sys.argv[2], sys.argv[3]
+text = Path(src).read_text(encoding="utf-8")
+needle = '"ignores": ['
+assert needle in text, "ignores array missing"
+text = text.replace(needle, needle + f'\n    "{entry}",', 1)
+Path(dst).write_text(text, encoding="utf-8")
+PY
+    # Same guard used on the real config must return nonzero.
+    run markdownlint_council_ignore_ok "$tmp"
+    [ "$status" -ne 0 ]
+    rm -f "$tmp"
+  done
 }
 
 @test "codespell skips council lockfile and package dist not whole subtree" {
@@ -95,16 +230,60 @@ EOF
   [[ "$text" == *"components/council/pnpm-lock.yaml"* ]]
   [[ "$text" == *"components/council/packages/*/dist"* ]]
 
-  # Must not skip the entire Council subtree (source and human docs stay scanned).
-  ! grep -Eq '(^|[,=])(\./)?components/council/\*\*?(,|$)' "$cfg"
-  [[ "$text" != *"./components/council,"* ]]
-  [[ "$text" != *"./components/council/"* ]] || {
-    # Allow only the narrow lockfile and packages/*/dist entries already required.
-    local skip_line
-    skip_line="$(grep -E '^skip\s*=' "$cfg" || true)"
-    [[ "$skip_line" != *"./components/council,"* ]]
-    [[ "$skip_line" != *",./components/council,"* ]]
-    [[ "$skip_line" != *"./components/council/**"* ]]
-    [[ "$skip_line" != *"components/council/**"* ]]
-  }
+  # Guard must pass on the real root config (narrow subpaths only).
+  run codespell_council_skip_ok "$cfg"
+  [ "$status" -eq 0 ]
+}
+
+@test "codespell guard rejects injected whole-subtree council skips" {
+  local real_cfg tmp spelling
+  real_cfg="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/.codespellrc"
+  [ -f "$real_cfg" ]
+
+  local -a forbidden=(
+    'components/council'
+    'components/council/'
+    'components/council/*'
+    'components/council/**'
+    'components/council/**/*'
+    'components/council/**/*.md'
+    'components/council/*.md'
+    'components/council/**/**'
+    'components/council/**/README.md'
+    './components/council'
+    './components/council/'
+    './components/council/*'
+    './components/council/**'
+    './components/council/**/*'
+    './components/council/**/*.md'
+    './components/council/*.md'
+    './components/council/**/**'
+    './components/council/**/README.md'
+  )
+
+  for spelling in "${forbidden[@]}"; do
+    # Last element (no trailing comma) — the weak-predicate miss class.
+    tmp="$(mktemp "${BATS_TEST_TMPDIR}/codespell-last-XXXXXX.rc")"
+    sed "s|^\\([[:space:]]*skip[[:space:]]*=[[:space:]]*\\)\\(.*\\)$|\\1\\2,${spelling}|" \
+      "$real_cfg" > "$tmp"
+    run codespell_council_skip_ok "$tmp"
+    [ "$status" -ne 0 ]
+    rm -f "$tmp"
+
+    # First element.
+    tmp="$(mktemp "${BATS_TEST_TMPDIR}/codespell-first-XXXXXX.rc")"
+    sed "s|^\\([[:space:]]*skip[[:space:]]*=[[:space:]]*\\)\\(.*\\)$|\\1${spelling},\\2|" \
+      "$real_cfg" > "$tmp"
+    run codespell_council_skip_ok "$tmp"
+    [ "$status" -ne 0 ]
+    rm -f "$tmp"
+
+    # Middle element (after first comma).
+    tmp="$(mktemp "${BATS_TEST_TMPDIR}/codespell-mid-XXXXXX.rc")"
+    sed "s|^\\([[:space:]]*skip[[:space:]]*=[[:space:]]*[^,]*\\),\\(.*\\)$|\\1,${spelling},\\2|" \
+      "$real_cfg" > "$tmp"
+    run codespell_council_skip_ok "$tmp"
+    [ "$status" -ne 0 ]
+    rm -f "$tmp"
+  done
 }
