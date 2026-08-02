@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Normative spec:** `openspec/changes/council-review-plane/`. That package is the
+authority — requirements in `specs/council-review/spec.md`, rationale in
+`design.md`, and the tick ledger in `tasks.md`. This plan is the execution
+guide: it carries the step-by-step and the code, and it defers to the package on
+every requirement. If the two disagree, the package wins and this file is stale.
+
 **Goal:** Replace the single-auditor review step on grok-4.5 lanes with a Council-shaped deliberation that has a quorum, blinded candidates and non-author judges, without Council ever becoming a release authority.
 
 **Architecture:** Foreman stays the execution and release-control plane. Council owns typed deliberation and produces an advisory record. A narrow bridge writes an immutable review bundle from a lane, runs deliberation over it, and writes an advisory artifact that `gate-eval.sh` may read but is never bound by. Tasks 1–3 need no Council code at all and fix the review loop's measured defects immediately; tasks 4–6 wire the real thing.
