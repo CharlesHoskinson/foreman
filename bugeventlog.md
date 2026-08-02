@@ -3582,5 +3582,7 @@ preserved dissent and forced this round-5 rework. Do not treat a round-5
 verdict, release authority, or host action as a lasting current fact in this
 entry.
 
-Remediation status: helper rework is in the worktree. Host gate results and
-commit state are external facts.
+Remediation lineage: round-5 helper changes for nonstandard constants and
+checked handoff open are recorded at commit
+`6c6e1bc1bdadc821adb6937a24a949398872ea92`. Host gate results and later
+commit identity are external facts.
