@@ -13,7 +13,7 @@
 | Task | Status |
 |---|---|
 | Task 1 | Incomplete. Setup does not yet admit the authenticated `agy` lane. |
-| Task 2 | Round-3 candidate `fd10951ab4bc8330e64f9e220d4690eb33338025` and round-4 candidate `8a6ef2363a3ca6f70816126ed5963ba63ec9c2a8` are historical. Round 4 preserved dissent and forced round-5 rework. Identify the committed candidate with `git rev-parse HEAD`. An immutable bundle manifest identifies the reviewed candidate when one binds that head; otherwise the operator builds one. |
+| Task 2 | Round-3 candidate `fd10951ab4bc8330e64f9e220d4690eb33338025` and round-4 candidate `8a6ef2363a3ca6f70816126ed5963ba63ec9c2a8` are historical. Round-5 candidate `6c6e1bc1bdadc821adb6937a24a949398872ea92` and round-6 candidate `98644dd75ebd04230dc222b5a8b54db2e815e860` are historical sealed commits. An immutable bundle manifest identifies a reviewed candidate when one binds an exact head; otherwise the operator builds one. Later branch, worktree, and gate state are external facts. |
 | Tasks 3–7 | Not started. |
 
 Notes for this status:
@@ -31,7 +31,7 @@ Notes for this status:
 - **History:** round-1 and round-2 `/tmp` artifacts
   (`/tmp/council-skill-r1-advisory.json`,
   `/tmp/council-skill-r2-advisory.json`) are historical evidence only. They
-  are not the current candidate identity or the current review record.
+  are not a candidate identity or a review record.
 - **History:** commit `fd10951ab4bc8330e64f9e220d4690eb33338025` was the
   committed round-3 candidate. After later rework it is historical.
 - Persistent round-3 advisory:
@@ -46,19 +46,25 @@ Notes for this status:
   `changes_requested`. Actionable findings: `json.loads` accepted
   nonstandard `NaN`/`Infinity`/`-Infinity`; a missing decoded handoff
   could still return success after a failed Bash read.
-- Branch changes after `8a6ef236` are round-5 rework. Identify the
-  committed candidate with `git rev-parse HEAD`. If an immutable bundle
-  binds that head, that manifest identifies the reviewed candidate. If no
-  bundle binds the current head, the operator builds one. Do not make this
-  status depend on whether the worktree is dirty. Do not record a round-5
-  verdict here.
+- **History:** commit `6c6e1bc1bdadc821adb6937a24a949398872ea92` was the
+  committed round-5 candidate. It closed the nonstandard-constant and
+  checked-handoff-open findings. Round 5 preserved dissent and forced
+  round-6 rework.
+- **History:** commit `98644dd75ebd04230dc222b5a8b54db2e815e860` was the
+  committed round-6 candidate. Focused `tests/docs-check.bats` result at
+  that commit was **16** passing tests with expected_passes **16**. Round 6
+  preserved dissent on unlink and descriptor portability, masked close
+  errors, and mutable status prose. Later branch, worktree, and gate state
+  are external facts. Do not identify a candidate through current `HEAD`.
 - **History:** prior full-gate evidence at the Task 2 product commit
   `ba1164b`: `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` passed with 629
   pass, 0 fail, 19 skip, and 648 tests. It reported `gates_failed=0`.
 - **History:** baseline path for `tests/docs-check.bats` was base 6 tests
   vs baseline 5, Task 2 then 8, round-2 rework then 10, round-4 RED then
-  12, decoder harden then 13, host round-5 RED then **15**. Live
-  expected_passes is **15**.
+  12, decoder harden then 13, host round-5 RED then **15** (historical at
+  round-5 commit `6c6e1bc1bdadc821adb6937a24a949398872ea92`), host round-6
+  then **16** (historical at round-6 commit
+  `98644dd75ebd04230dc222b5a8b54db2e815e860`).
 
 ## Global Constraints
 
@@ -167,12 +173,16 @@ and Google.
 committed round-4 candidate. Round 4 preserved dissent and forced round-5
 rework. Google approved. One OpenAI reviewer returned
 `insufficient_evidence`. One OpenAI reviewer returned `changes_requested`.
+**History:** commit `6c6e1bc1bdadc821adb6937a24a949398872ea92` was the
+committed round-5 candidate.
+**History:** commit `98644dd75ebd04230dc222b5a8b54db2e815e860` was the
+committed round-6 candidate. Focused docs-check result at that commit was
+16 passing tests. Round 6 preserved dissent and forced later rework.
 
-Branch changes after `8a6ef236` are round-5 rework. Identify the committed
-candidate with `git rev-parse HEAD`. If an immutable bundle binds that head,
-that manifest identifies the reviewed candidate. If no bundle binds the
-current head, the operator builds one. Do not make this status depend on
-worktree dirtiness. Do not record a round-5 verdict here.
+Do not identify a candidate through current `HEAD`. An immutable bundle
+manifest identifies a reviewed candidate when one binds an exact head.
+Later branch, worktree, and gate state are external facts. Do not record a
+later verdict here.
 
 Council advice is advisory input. It does not approve, clear, block, or
 grant authority for a release. Only Foreman audit, check, and merge gates
