@@ -3061,3 +3061,31 @@ error.
 **Standing rule:** when a panel is unanimous only in its uncertainty, the
 aggregate must say so. Any aggregation whose output can be more confident than
 its inputs is a defect, regardless of how the inputs were obtained.
+
+## 2026-08-02 — Event 7: Agy auth probe inherited an open stdin pipe under Pueue
+
+**Phase:** soft Setup with lane `agy` inside the same Pueue context as a queued
+non-interactive lane.
+
+**Evidence:**
+
+- Foreman/Pueue left an open stdin pipe for a non-interactive lane.
+- Pueue task 28 ran `agy models`, blocked in `anon_pipe_read`, and was killed.
+- Pueue task 29 ran the same bounded model-list probe with stdin from
+  `/dev/null`. It returned the authenticated model list and exit 0 in 2.7
+  seconds.
+- SessionDB Fact 275 records the durable root-cause decision.
+
+**Root cause:** Setup correctly called the adapter. The adapter violated its
+headless probe contract by inheriting stdin. A queue that leaves a pipe open
+with no data turns that inheritance into a hang.
+
+**Regression test:** holds an input pipe open without data. Distinguishes EOF
+from timeout. Asserts the probe exits 0 under that condition.
+
+**Remediation:** close stdin in `adapter_auth_probe` for the bounded
+`agy models` command (`</dev/null`). The probe does not perform inference. The
+probe does not perform login. No other adapter function changes.
+
+**Standing rule:** a headless auth probe must not inherit stdin from a queued
+caller. Close stdin at the adapter boundary.

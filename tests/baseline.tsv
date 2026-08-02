@@ -1,6 +1,6 @@
 file	expected_passes
-tests/adapters.bats	19
-tests/audit-routing.bats	16
+tests/adapters.bats	28
+tests/audit-routing.bats	22
 tests/audit-verdict.bats	26
 tests/checkpoint.bats	6
 tests/config.bats	16
@@ -11,7 +11,7 @@ tests/eventlog.bats	34
 tests/evidence.bats	2
 tests/fit-report.bats	18
 tests/foreman-cleanup.bats	5
-tests/foreman-setup.bats	3
+tests/foreman-setup.bats	6
 tests/gate-eval.bats	1
 tests/gate-ground.bats	29
 tests/git-guards.bats	5
@@ -42,7 +42,7 @@ tests/soft-mode-target.bats	3
 tests/telemetry.bats	9
 tests/tier1-replay.bats	11
 tests/tier2-compare.bats	27
-tests/tool-check-auth.bats	12
+tests/tool-check-auth.bats	17
 tests/vendor-concurrency-test.bats	16
 tests/vendor-isolation.bats	8
 tests/vendor-multiround.bats	5

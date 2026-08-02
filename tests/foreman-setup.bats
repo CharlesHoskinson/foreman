@@ -116,3 +116,45 @@ EOF
   after="$(sha256sum "$REPO/.foreman/config.toml" | awk '{print $1}')"
   [ "$after" = "$before" ]
 }
+
+@test "setup --lane agy reports READY from the adapter model-list probe" {
+  cat > "$SHIM/agy" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  --version) echo "agy version 1.1.8"; exit 0 ;;
+  models) echo "gemini-3.6-flash-high"; exit 0 ;;
+  --print|-p|--prompt)
+    echo "INFERENCE-WAS-CALLED" > "$BATS_TEST_TMPDIR/agy-inference-called"
+    exit 99
+    ;;
+  *) exit 1 ;;
+esac
+EOF
+  chmod +x "$SHIM/agy"
+
+  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane agy
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"LANE_READY: agy=yes"* ]]
+  [[ "$output" == *"SETUP: READY"* ]]
+  [ ! -e "$BATS_TEST_TMPDIR/agy-inference-called" ]
+}
+
+@test "setup --lane agy reports NOT-READY with an interactive sign-in instruction" {
+  cat > "$SHIM/agy" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  --version) echo "agy version 1.1.8"; exit 0 ;;
+  models) echo "Error: Please sign in to view available models."; exit 1 ;;
+  *) exit 1 ;;
+esac
+EOF
+  chmod +x "$SHIM/agy"
+
+  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane agy
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"LANE_READY: agy=no"* ]]
+  [[ "$output" == *"run agy interactively and complete sign-in"* ]]
+  [[ "$output" == *"SETUP: NOT-READY"* ]]
+}

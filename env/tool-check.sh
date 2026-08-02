@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Foreman reference-env inventory (Linux / WSL).
-# Usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex]
+# Usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex|agy]
 set -euo pipefail
 
 PROFILE="soft"
@@ -14,7 +14,7 @@ while [[ $# -gt 0 ]]; do
     --out) OUT="$2"; shift 2 ;;
     --lane) LANE="$2"; shift 2 ;;
     -h|--help)
-      echo "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex]"
+      echo "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex|agy]"
       exit 0
       ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -22,12 +22,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$LANE" in
-  ""|grok|codex) ;;
+  ""|grok|codex|agy) ;;
   claude)
     echo "unsupported --lane claude: T7 removed claude lane advertising because isolated HOME is unverified" >&2
     exit 2
     ;;
-  *) echo "bad lane: $LANE (grok|codex)" >&2; exit 2 ;;
+  *) echo "bad lane: $LANE (grok|codex|agy)" >&2; exit 2 ;;
 esac
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -72,7 +72,7 @@ have() { command -v "$1" >/dev/null 2>&1; }
 #   subcommand already distinguishes authenticated/not via a genuine exit-code
 #   contract (a real positive signal, not an absence-of-negative shape), so
 #   it is left as a plain exit-code check.
-# @arg $1 vendor id (grok|codex)
+# @arg $1 vendor id (grok|codex|agy)
 # @exitcode 0 authenticated; 1 not authenticated (or unknown vendor id)
 vendor_authed() {
   case "$1" in
@@ -104,7 +104,14 @@ vendor_authed() {
       return 1
       ;;
     codex) codex login status >/dev/null 2>&1 ;;
-    *) return 0 ;;
+    agy)
+      (
+        # shellcheck source=../skills/foreman/scripts/adapters/agy.sh
+        source "$ROOT/skills/foreman/scripts/adapters/agy.sh"
+        adapter_auth_probe agy
+      )
+      ;;
+    *) return 1 ;;
   esac
 }
 
@@ -167,6 +174,13 @@ check_one() {
         detail="$(codex --version 2>&1 | head -1)"
         if vendor_authed codex; then status=ok
         else status=not_authenticated; detail="$detail (run: codex login)"; fi
+      else status=missing; fi
+      ;;
+    agy)
+      if have agy; then
+        detail="$(agy --version 2>&1 | head -1)"
+        if vendor_authed agy; then status=ok
+        else status=not_authenticated; detail="$detail (run: agy interactively and complete sign-in)"; fi
       else status=missing; fi
       ;;
     node)
@@ -935,9 +949,9 @@ must_hard=(git python3 jq docker flock strace foreman_skill)
 # use for a docs linter.
 must_full=(git python3 jq grok codex docker flock strace bats markdownlint-cli2 codespell lychee foreman_skill)
 must_durable=(git jq coreutils bash flock strace)
-should_soft=(node npm foreman_home_fs)
-should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
-should_full=(node npm shellcheck gh timeout bun pueue foreman_home_fs)
+should_soft=(node npm agy foreman_home_fs)
+should_hard=(shellcheck bats gh timeout grok codex agy foreman_home_fs)
+should_full=(node npm shellcheck gh timeout bun pueue agy foreman_home_fs)
 should_durable=(nats-server nats-cli foreman_home_fs)
 if (( IS_WSL )); then
   should_soft+=(foreman-launch)

@@ -27,7 +27,7 @@
 #   grok lane ready" without being coupled to the rest of the host's
 #   provisioning state -- matching spec R1's "the readiness verdict SHALL be
 #   NOT-READY for THAT LANE" (lane-scoped, not whole-host).
-# Usage: foreman-setup.sh [--profile soft|hard|full] [--lane grok|codex|claude]
+# Usage: foreman-setup.sh [--profile soft|hard|full] [--lane grok|codex|agy|claude]
 # @exitcode 0 READY (see --lane SCOPING above for what "ready" means here)
 # @exitcode 1 NOT-READY -- see the printed NOT-READY line(s) for which
 #   vendor(s)/tools are blocking, and the instruction to fix each
@@ -145,7 +145,7 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="$2"; shift 2 ;;
     --lane) LANE="$2"; shift 2 ;;
     -h|--help)
-      echo "usage: foreman-setup.sh [--profile soft|hard|full] [--lane grok|codex|claude]"
+      echo "usage: foreman-setup.sh [--profile soft|hard|full] [--lane grok|codex|agy|claude]"
       exit 0
       ;;
     *) die "$EXIT_CONFIG" "unknown arg: $1" ;;
@@ -175,12 +175,13 @@ fi
 # @description Map a vendor id to its operator-facing, non-billing auth
 #   instruction (auth-probes.md: the real login subcommand for each CLI --
 #   never a headless/automated login attempt run BY this script).
-# @arg $1 vendor id (grok|codex|claude)
+# @arg $1 vendor id (grok|codex|agy|claude)
 # @stdout the instruction text; a generic fallback for an unrecognized id
 fs_auth_instruction() {
   case "$1" in
     grok) echo "grok login --device-code" ;;
     codex) echo 'codex login  (interactive/localhost — run in a persistent shell via: ! codex login) OR headless: printenv OPENAI_API_KEY | codex login --with-api-key' ;;
+    agy) echo "agy interactively and complete sign-in" ;;
     claude) echo "claude auth login" ;;
     *) echo "(no known auth instruction for $1)" ;;
   esac

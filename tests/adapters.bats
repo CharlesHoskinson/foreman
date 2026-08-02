@@ -845,3 +845,39 @@ SHIM
 @test "T6 claude audit refusal contract" {
   assert_adapter_verb_prompt_contract claude audit
 }
+
+@test "agy auth probe closes inherited stdin for queued headless use" {
+  # PATH-first agy shim: only accepts `models`.
+  # Distinguishes EOF (stdin closed) from an open pipe with no data via bounded read.
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  cat > "$BATS_TEST_TMPDIR/bin/agy" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -ne 1 || "$1" != "models" ]]; then
+  exit 91
+fi
+# Bounded read: EOF → exit 1; open pipe with no data → timeout (typically 142).
+set +e
+read -t 0.2 -r _line
+rc=$?
+set -e
+if [[ "$rc" -eq 1 ]]; then
+  # EOF: stdin closed /dev/null-style
+  printf 'gemini-3.1-pro-high\n'
+  exit 0
+fi
+# Timed out or unexpected data while pipe held open (the defect class).
+printf 'agy-shim: timed out reading open inherited stdin (anon_pipe_read hang class)\n' >&2
+exit 87
+SH
+  chmod +x "$BATS_TEST_TMPDIR/bin/agy"
+
+  # Child shell stdin is an open pipe that holds and writes no data.
+  # Current production adapter inherits this pipe into `agy models` → shim exits 87.
+  # After the fix, adapter closes stdin (e.g. </dev/null) → shim sees EOF → exit 0.
+  run env PATH="$BATS_TEST_TMPDIR/bin:$PATH" bash -c '
+    source "$1"
+    adapter_auth_probe agy
+  ' _ "$ADAPTER_DIR/agy.sh" < <(sleep 1)
+  [ "$status" -eq 0 ]
+}

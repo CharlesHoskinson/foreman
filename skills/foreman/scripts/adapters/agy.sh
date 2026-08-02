@@ -182,6 +182,7 @@ adapter_home_var() {
 }
 
 # @description Probe agy authentication with bounded, non-billing `agy models`.
+# Closes inherited stdin for queued headless execution.
 #   Exit 1 is also agy's general error, so success requires rc 0 and a positive
 #   model-family token; absence of a known negative phrase is never enough.
 # @arg $1 vendor expected vendor id: agy
@@ -200,7 +201,7 @@ adapter_auth_probe() {
   else
     return 1
   fi
-  out="$("$timeout_cmd" 10 agy models 2>&1)" || rc=$?
+  out="$("$timeout_cmd" 10 agy models </dev/null 2>&1)" || rc=$?
   (( rc == 0 )) || return 1
   out="${out,,}"
   if [[ "$out" == *'please sign in'* || "$out" == *'not authenticated'* || "$out" == *'unauthorized'* ]]; then
