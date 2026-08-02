@@ -8,6 +8,28 @@
 
 **Tech Stack:** Bash 5, Bats, TypeScript 6, Effect 3, Vitest, OpenSpec, Git subtree, and Antigravity customization plugins.
 
+## Status (2026-08-02)
+
+| Task | Status |
+|---|---|
+| Task 1 | Incomplete. Setup does not yet admit the authenticated `agy` lane. |
+| Task 2 | Implementation complete in the worktree. Awaiting immutable committed-bundle Council re-review. |
+| Tasks 3–7 | Not started. |
+
+Notes for this status:
+
+- Task 2 product files remain uncommitted in the implement worktree.
+- Do not claim that `release/v0.3.0-council` contains those uncommitted
+  worktree changes.
+- First Council review outcome was `quorum_not_met` (see
+  `/tmp/council-skill-r1-advisory.json`). Council did not approve the round.
+- Independent local verification after rework: targeted Foreman tests 22/22,
+  Council package verify 114/114, line-ending tests 6/6, root docs-check
+  passed, skill validation passed, Antigravity validation passed, and
+  `git diff --check` passed.
+- `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` passed with 629 pass, 0 fail,
+  19 skip, and 648 tests. It reported `gates_failed=0`.
+
 ## Global Constraints
 
 - Base the integration on Foreman commit `7981538f25e60e16dbd8ad2b202eee29b9a8e16b`.
@@ -101,6 +123,12 @@ Expected result: all Bats tests pass. The live Setup command reports `SETUP: REA
 ---
 
 ### Task 2: Add the Canonical Council Skill and Antigravity Wrapper
+
+#### Status (2026-08-02)
+
+Implementation complete in the worktree. Awaiting immutable committed-bundle
+Council re-review. Not release-complete. Task 1 remains incomplete and is
+not replaced by this task.
 
 #### Objective
 

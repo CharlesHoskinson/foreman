@@ -64,3 +64,47 @@ EOF
   grep -q 'raw vendor invocation: agents/bad-agent.md:4:' <<< "$output"
   grep -A2 '"agent-invocations"' out.json | grep -q '"status": *"fail"'
 }
+
+# Real checkout configs (not the throwaway fixture). Fail-capable assertions for
+# the nested Council docs-gate exclusions required after the subtree import.
+@test "markdownlint excludes nested council openspec changes not whole subtree" {
+  local cfg
+  cfg="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/.markdownlint-cli2.jsonc"
+  [ -f "$cfg" ]
+  local text
+  text="$(cat "$cfg")"
+
+  # Nested OpenSpec change records: same class as root openspec/changes/**.
+  [[ "$text" == *'"components/council/openspec/changes/**"'* ]] \
+    || [[ "$text" == *'components/council/openspec/changes/**'* ]]
+
+  # Must not blanket-ignore the whole imported Council tree.
+  ! grep -Eq '"components/council/\*\*"|"components/council/\*"|"\./components/council/\*\*"' "$cfg"
+  [[ "$text" != *'"components/council/**"'* ]]
+  [[ "$text" != *'"components/council/*"'* ]]
+}
+
+@test "codespell skips council lockfile and package dist not whole subtree" {
+  local cfg
+  cfg="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/.codespellrc"
+  [ -f "$cfg" ]
+  local text
+  text="$(cat "$cfg")"
+
+  # Narrow skips measured by the root docs gate against the imported subtree.
+  [[ "$text" == *"components/council/pnpm-lock.yaml"* ]]
+  [[ "$text" == *"components/council/packages/*/dist"* ]]
+
+  # Must not skip the entire Council subtree (source and human docs stay scanned).
+  ! grep -Eq '(^|[,=])(\./)?components/council/\*\*?(,|$)' "$cfg"
+  [[ "$text" != *"./components/council,"* ]]
+  [[ "$text" != *"./components/council/"* ]] || {
+    # Allow only the narrow lockfile and packages/*/dist entries already required.
+    local skip_line
+    skip_line="$(grep -E '^skip\s*=' "$cfg" || true)"
+    [[ "$skip_line" != *"./components/council,"* ]]
+    [[ "$skip_line" != *",./components/council,"* ]]
+    [[ "$skip_line" != *"./components/council/**"* ]]
+    [[ "$skip_line" != *"components/council/**"* ]]
+  }
+}
