@@ -138,6 +138,26 @@ complaint and licensed `flock` as `atomic`. Whether the original host genuinely
 denied `ptrace` or merely lacked the binary was never distinguished, and the two
 look identical through `command -v strace`.
 
+### Negative controls cover `kind: gate` only
+
+Tag criterion 4 is scoped to the `check_id` unit at `kind: gate` for v0.2.9 —
+roughly 38 rows. Two kinds are deliberately outside it.
+
+`kind: verdict-predicate` is the larger gap and the one that matters: it covers
+the 22 distinct refusal reasons in `gate-eval.sh` and the 5 in `merge-gate.sh`,
+which between them **are the merge decision**. Those predicates are not
+registered and have no negative controls, so nothing proves any of them can
+fire. Counting them would put the unit near 90 rows and the work at 3–5 weeks.
+
+`kind: assertion` is excluded permanently rather than deferred. Including it
+makes the unit ~710 rows, and the design that coined this criterion already
+answered that: "503 negative controls is not a plan."
+
+The exemplars to copy when this is picked up already exist and should not be
+redesigned: `skills/foreman/scripts/gate-ground-registry.tsv` carries 9 checks
+with a mutant fixture each, and `formal/expectations.tsv` carries 19 rows with
+`expected=VIOLATED` — a built-in known-bad arm that runs in CI.
+
 ### The Windows bats gate is off, and the probe says why
 
 Superseded detail for the entry below, measured 2026-08-01 from the live CI log

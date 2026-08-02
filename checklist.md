@@ -143,8 +143,16 @@ of which had been checked in sixteen times.
       Git Bash has no `setsid`, so each row died in 1-2s and classified ERROR.
       `run_bounded` now announces once per run that it is degrading to a plain
       background spawn when `setsid` is absent.*
-- [ ] **4. Negative controls** — every verdict-emitting checker registered, the
-      completeness gate green, every control observed firing.
+- [ ] **4. Negative controls** — every checker of `kind: gate` registered in
+      `tests/positive-control-registry.tsv` under the `check_id` unit
+      (`<repository-relative path>::<check name>`, as specified in
+      `openspec/changes/test-infrastructure-hardening/specs/test-harness/spec.md`),
+      the completeness gate green over that kind, and every registered control
+      observed firing. `kind: probe` and `kind: verdict-predicate` are **out of
+      scope for v0.2.9** and stated in `docs/RESIDUALS.md`; `kind: assertion` is
+      excluded entirely, because including it makes the unit ~710 rows and the
+      design's own words apply — "503 negative controls is not a plan".
+      *Unit decision recorded against obligation 65.*
       *The registry is not built, and the unit must be fixed before it is —
       obligation 65. The "110 verdict emission sites across 23 files" census
       should key nothing: it is a keyword scan, unsound in both directions. It
