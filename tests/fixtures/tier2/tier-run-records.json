@@ -1,0 +1,37 @@
+{
+  "schema_version": "tier-run-input/v1",
+  "runs": [
+    {
+      "run_id": "tier0-within-material-margin",
+      "tier": "tier0",
+      "started_at": "2026-07-31T17:00:00Z",
+      "duration_s": 140.0,
+      "cost_usd": 0.0,
+      "invocation": {"source": "commit", "explicit_override": false}
+    },
+    {
+      "run_id": "tier0-over-material-margin",
+      "tier": "tier0",
+      "started_at": "2026-07-31T17:05:00Z",
+      "duration_s": 145.0,
+      "cost_usd": 0.0,
+      "invocation": {"source": "commit", "explicit_override": false}
+    },
+    {
+      "run_id": "tier1-unexpected-spend",
+      "tier": "tier1",
+      "started_at": "2026-07-31T17:10:00Z",
+      "duration_s": 12.0,
+      "cost_usd": 0.01,
+      "invocation": {"source": "pull_request", "explicit_override": false}
+    },
+    {
+      "run_id": "tier2-within-budget",
+      "tier": "tier2",
+      "started_at": "2026-07-31T18:00:00Z",
+      "duration_s": 84.25,
+      "cost_usd": 9.0,
+      "invocation": {"source": "manual", "explicit_override": false}
+    }
+  ]
+}

@@ -76,20 +76,46 @@
 
 - [ ] 3.1 Lock 8-12 specs with seeded defects against pinned vendor model
       versions.
-- [ ] 3.2 Implement N=3 repeated runs per spec per comparison condition.
-- [ ] 3.3 Implement bootstrap confidence interval computation over the
+      Remains open: the eight `seeded-*` identifiers are recorded test
+      fixtures, not specs locked by a paid run against a live vendor model.
+- [x] 3.2 Implement N=3 repeated runs per spec per comparison condition.
+      Evidence: the explicit-manual `tests/tier2-collect.sh` collector requires
+      acknowledgement before invoking its supplied adapter; its recorded
+      fixture control performs exactly 48 calls (2 conditions x 8 specs x 3),
+      writes three complete run records per condition, and rejects any input
+      condition that does not contain exactly three unique run ids.
+- [x] 3.3 Implement bootstrap confidence interval computation over the
       N=3 results.
-- [ ] 3.4 Implement the inconclusive-result rule: a difference smaller
+      Evidence: `bootstrap_ci` performs 1,000 deterministic percentile
+      resamples at 95% confidence and every per-spec result records bounds,
+      width, half-width, N, resamples, confidence, and the observed-run
+      denominator; short inputs are `uncomputable`.
+- [x] 3.4 Implement the inconclusive-result rule: a difference smaller
       than the bootstrap CI width is reported as inconclusive, never as a
       detected regression or improvement.
-- [ ] 3.5 Report pinned model identifier/version, N, point estimate, and
+      Evidence: the mutated `seeded-01` control prints baseline
+      `[0.4,0.5,0.6]` and candidate `[0.44,0.54,0.64]`, then records the
+      `0.04` difference below the wider `0.1` CI half-width as
+      `INCONCLUSIVE` / `not_evaluated`; the equality and full-precision
+      boundary are also mechanical rather than rounded before classification.
+- [x] 3.5 Report pinned model identifier/version, N, point estimate, and
       CI together on every Tier 2 result.
-- [ ] 3.6 Detect and flag an unpinned/updated model mid-comparison as
+      Evidence: all eight recorded result rows carry both conditions' pinned
+      vendor, model identifier/version, observed N, point estimate, and CI.
+- [x] 3.6 Detect and flag an unpinned/updated model mid-comparison as
       invalidating that comparison.
-- [ ] 3.7 Confirm Tier 2 has no automatic trigger at all: no CI workflow,
+      Evidence: the printed mutation changes candidate run 2's observed
+      version to `2026-08-01-drift`; the evaluator exits 1, marks validity
+      `invalid`, and makes every result `INVALID` / `not_evaluated`. An
+      unpinned collection plan is refused before its first adapter call.
+- [x] 3.7 Confirm Tier 2 has no automatic trigger at all: no CI workflow,
       release script, tag hook or scheduled job invokes it on a commit, a
       PR, or a release cut. Tier 2 runs only on explicit maintainer
       invocation, per the spec's on-demand cadence.
+      Evidence: `tests/tier2-trigger-scan.sh` prints its recursive grep over
+      `.github`, hooks, Foreman scripts, tools, environment schedulers, and
+      installers; the output block is empty with `grep_exit=1 output_bytes=0`.
+      Its planted extensionless pre-commit control makes the scanner fail.
 
 ## 4. External-benchmark drift anchor — CUT from v0.2.9, no tasks
 
@@ -104,19 +130,31 @@ rather than inferred from an absence.
 
 ## 5. Cost, cadence and budget enforcement
 
-- [ ] 5.1 Declare a runtime/cost budget and cadence for each of the three
+- [x] 5.1 Declare a runtime/cost budget and cadence for each of the three
       active tiers (Tier 0: seconds, `cost_usd` budget 0, per commit; Tier
       1: low seconds, `cost_usd` budget 0, per commit/PR; Tier 2: declared
       vendor-call cost for N=3 x 8-12 specs, on demand only -- never on a
       commit, a PR, or a release cut). No Tier 3 budget is declared; the
       tier is cut.
-- [ ] 5.2 Add a budget-review flag when a tier's actual runtime or cost
+      Evidence: `regression-tier-budgets.json` declares Tier 0 at 120s/USD 0
+      per commit, Tier 1 at 30s/USD 0 per commit or PR, and Tier 2 at
+      7,200s/USD 18 on-demand/manual only. For eight specs the evaluator
+      records 48 planned calls and USD 12 expected maximum cost; no Tier 3
+      entry exists.
+- [x] 5.2 Add a budget-review flag when a tier's actual runtime or cost
       exceeds its declared budget by more than the fixed 20%
       material-margin threshold, recorded as a constant alongside the
       budget constants rather than chosen per run.
-- [ ] 5.3 Confirm no automation path can trigger Tier 2 on a commit push, a
+      Evidence: recorded 140s and 145s Tier 0 controls against 120s both
+      breach, but only 145s (20.83% over) sets `budget_review: true`; the
+      material margin is the fixed policy value 20. Automatic Tier 2 cadence
+      is refused even when an override is claimed and invalidates comparison
+      outcomes.
+- [x] 5.3 Confirm no automation path can trigger Tier 2 on a commit push, a
       PR, or a release cut.
-- [ ] 5.4 Implement the zero-denominator rule in the run record: every rate
+      Evidence: the same empty-output trigger scan and planted-trigger
+      positive control prove this independently of the policy declaration.
+- [x] 5.4 Implement the zero-denominator rule in the run record: every rate
       names its denominator; a zero denominator records `uncomputable` with
       the denominator's name rather than a number; a zero declared
       `cost_usd` budget with non-zero measured cost records
@@ -124,9 +162,17 @@ rather than inferred from an absence.
       short Tier 2 results array records the CI `uncomputable` and the
       comparison `inconclusive`; any decision depending on an uncomputable
       figure records `not_evaluated`, never a pass.
+      Evidence: the zero-trial fixture records `uncomputable`, denominator
+      `trials: 0`, no numeric value/percent, and `not_evaluated`; the short
+      Tier 2 array does the same for its CI; a zero baseline forces
+      `INCONCLUSIVE`; and USD 0 budget with USD 0.01 spend is an unconditional
+      breach/review with no percentage.
 
 ## 6. Gate
 
-- [ ] 6.1 `wsl -e bash -lc 'cd /root/foreman && /usr/local/bin/openspec
+- [x] 6.1 `wsl -e bash -lc 'cd /root/foreman && /usr/local/bin/openspec
       validate regression-harness-tiers --strict'` passes with no
       errors.
+      Evidence: local WSL execution of
+      `openspec validate regression-harness-tiers --strict` reports
+      `Change 'regression-harness-tiers' is valid`.

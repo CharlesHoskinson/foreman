@@ -1,0 +1,109 @@
+{
+  "schema_version": "tier2-comparison-input/v1",
+  "comparison_id": "recorded-seeded-defect-control",
+  "expected_n": 3,
+  "bootstrap": {
+    "resamples": 1000,
+    "confidence_level": 0.95,
+    "seed": 20260801
+  },
+  "locked_specs": [
+    "seeded-01",
+    "seeded-02",
+    "seeded-03",
+    "seeded-04",
+    "seeded-05",
+    "seeded-06",
+    "seeded-07",
+    "seeded-08"
+  ],
+  "measurement": {
+    "run_id": "recorded-tier2-control",
+    "tier": "tier2",
+    "started_at": "2026-07-31T18:00:00Z",
+    "duration_s": 84.25,
+    "cost_usd": 9.0,
+    "invocation": {
+      "source": "manual",
+      "explicit_override": false
+    }
+  },
+  "conditions": {
+    "baseline": {
+      "label": "before",
+      "pinned_model": {
+        "vendor": "recorded-fixture-vendor",
+        "identifier": "research-model",
+        "version": "2026-07-15",
+        "pinned": true
+      },
+      "runs": [
+        {
+          "run_id": "baseline-1",
+          "observed_model": {
+            "vendor": "recorded-fixture-vendor",
+            "identifier": "research-model",
+            "version": "2026-07-15"
+          },
+          "scores": {"seeded-01": 0.4, "seeded-02": 0.3, "seeded-03": 0.5, "seeded-04": 0.4, "seeded-05": 0.2, "seeded-06": 0.5, "seeded-07": 0.3, "seeded-08": 0.4}
+        },
+        {
+          "run_id": "baseline-2",
+          "observed_model": {
+            "vendor": "recorded-fixture-vendor",
+            "identifier": "research-model",
+            "version": "2026-07-15"
+          },
+          "scores": {"seeded-01": 0.5, "seeded-02": 0.4, "seeded-03": 0.6, "seeded-04": 0.5, "seeded-05": 0.3, "seeded-06": 0.6, "seeded-07": 0.4, "seeded-08": 0.5}
+        },
+        {
+          "run_id": "baseline-3",
+          "observed_model": {
+            "vendor": "recorded-fixture-vendor",
+            "identifier": "research-model",
+            "version": "2026-07-15"
+          },
+          "scores": {"seeded-01": 0.6, "seeded-02": 0.5, "seeded-03": 0.7, "seeded-04": 0.6, "seeded-05": 0.4, "seeded-06": 0.7, "seeded-07": 0.5, "seeded-08": 0.6}
+        }
+      ]
+    },
+    "candidate": {
+      "label": "after",
+      "pinned_model": {
+        "vendor": "recorded-fixture-vendor",
+        "identifier": "research-model",
+        "version": "2026-07-15",
+        "pinned": true
+      },
+      "runs": [
+        {
+          "run_id": "candidate-1",
+          "observed_model": {
+            "vendor": "recorded-fixture-vendor",
+            "identifier": "research-model",
+            "version": "2026-07-15"
+          },
+          "scores": {"seeded-01": 0.8, "seeded-02": 0.7, "seeded-03": 0.9, "seeded-04": 0.8, "seeded-05": 0.6, "seeded-06": 0.9, "seeded-07": 0.7, "seeded-08": 0.8}
+        },
+        {
+          "run_id": "candidate-2",
+          "observed_model": {
+            "vendor": "recorded-fixture-vendor",
+            "identifier": "research-model",
+            "version": "2026-07-15"
+          },
+          "scores": {"seeded-01": 0.9, "seeded-02": 0.8, "seeded-03": 1.0, "seeded-04": 0.9, "seeded-05": 0.7, "seeded-06": 1.0, "seeded-07": 0.8, "seeded-08": 0.9}
+        },
+        {
+          "run_id": "candidate-3",
+          "observed_model": {
+            "vendor": "recorded-fixture-vendor",
+            "identifier": "research-model",
+            "version": "2026-07-15"
+          },
+          "scores": {"seeded-01": 1.0, "seeded-02": 0.9, "seeded-03": 1.0, "seeded-04": 1.0, "seeded-05": 0.8, "seeded-06": 1.0, "seeded-07": 0.9, "seeded-08": 1.0}
+        }
+      ]
+    }
+  }
+}

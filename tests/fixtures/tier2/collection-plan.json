@@ -1,0 +1,40 @@
+{
+  "schema_version": "tier2-collection-plan/v1",
+  "comparison_id": "recorded-seeded-defect-collection-control",
+  "expected_n": 3,
+  "bootstrap": {
+    "resamples": 1000,
+    "confidence_level": 0.95,
+    "seed": 20260801
+  },
+  "locked_specs": [
+    "seeded-01",
+    "seeded-02",
+    "seeded-03",
+    "seeded-04",
+    "seeded-05",
+    "seeded-06",
+    "seeded-07",
+    "seeded-08"
+  ],
+  "conditions": {
+    "baseline": {
+      "label": "before",
+      "pinned_model": {
+        "vendor": "recorded-fixture-vendor",
+        "identifier": "research-model",
+        "version": "2026-07-15",
+        "pinned": true
+      }
+    },
+    "candidate": {
+      "label": "after",
+      "pinned_model": {
+        "vendor": "recorded-fixture-vendor",
+        "identifier": "research-model",
+        "version": "2026-07-15",
+        "pinned": true
+      }
+    }
+  }
+}
