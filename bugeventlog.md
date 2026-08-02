@@ -2877,3 +2877,172 @@ Vendor argv now has one owner: the adapter contract. T8 removes copied vendor
 commands from agent definitions and makes `docs-check.sh` fail with file and
 line evidence if an agent restates a raw vendor invocation. A drift guard must
 prove both sides: the clean tree passes, and an injected command makes it fail.
+
+## 2026-08-02 — Event 20: first Council bundle used equal base and head commits
+
+**Phase:** Council review (Task 2 localization, first three-domain round).
+
+### What happened
+
+The first Council review bundle set
+`base_sha` and `head_sha` to the same commit
+`bb3124ff5c053ad0bb9b17a7aa9108ecaee7b05a`. Exact bundle identity therefore
+described an empty committed diff. Uncommitted and untracked Task 2 files
+were not bound by that identity.
+
+### Evidence
+
+- `/tmp/council-skill-r1-advisory.json` records
+  `bundleIdentity.base_sha` equal to `bundleIdentity.head_sha`.
+- `/tmp/council-skill-r1-bundle/bundle.json` carries the same equal SHAs.
+- Anthropic admissible finding: base equals head, so the committed checkout
+  lacks the skill and its test registration rows.
+
+### Root cause
+
+The review ran against a dirty worktree before the architect committed the
+round. Bundle construction used HEAD for both ends instead of a committed
+base/head pair with a real tree diff.
+
+### Impact
+
+Council could not bind the uncommitted skill, tests, or tool-check changes.
+Google still approved the presented bundle text. Anthropic correctly requested
+changes. Outcome was `quorum_not_met`. The review did not approve the work.
+
+### Enhancement
+
+Refuse to open a Council round when `base_sha == head_sha` unless the operator
+explicitly requests an empty-diff protocol check. Require a commit before
+bundle construction for product rounds. Re-review only after a new immutable
+bundle with differing SHAs.
+
+Remediation status: not complete. Product work remains uncommitted.
+
+## 2026-08-02 — Event 21: Codex transcript contaminated the Council verdict body
+
+**Phase:** Council review (Codex member of the first three-domain round).
+
+### What happened
+
+The Codex member response was stored as an inadmissible verdict. The body
+contained CLI banner, session metadata, and the full prompt transcript instead
+of a clean `VERDICT:` block alone.
+
+### Evidence
+
+- `/tmp/council-skill-r1-advisory.json` verdict `r1`:
+  `admissible: false`, `verdict: "inadmissible"`, `failureDomain: null`.
+- Body prefix includes `Reading additional input from stdin...`,
+  `OpenAI Codex v0.145.0`, workdir, model, session id, and the user prompt.
+- Admissible count remained 2 (Google + Anthropic). Codex did not contribute a
+  domain.
+
+### Root cause
+
+The wrapper captured mixed CLI stream output as the verdict file. Final-message
+isolation and separate stderr were not applied for that capture path.
+
+### Impact
+
+One of three planned domains was lost. Quorum could not be met even if the
+other two had agreed. The contaminated body also risked polluting later
+automated parsers that expect a strict verdict shape.
+
+### Enhancement
+
+Use the Codex CLI final-message output option for the verdict artifact. Send
+diagnostics to stderr only. Mark any body that lacks a leading clean
+`VERDICT:` line as inadmissible before domain counting.
+
+Remediation status: wrapper direction is recorded. Do not call the path fully
+verified until a fresh Codex member produces an admissible structured verdict
+under the fixed capture.
+
+## 2026-08-02 — Event 22: Council localization assertions used loose tokens
+
+**Phase:** implement and Council rework (Task 2 tests).
+
+### What happened
+
+`tests/council-localization.bats` asserted inventory and content properties
+with cross-row status tokens and generic prose words. Claims did not bind to
+the exact Council inventory row or to named protocol sections.
+
+### Evidence
+
+- Anthropic finding in `/tmp/council-skill-r1-advisory.json`: whole-block
+  substring checks for `ok` and `missing` over the multi-row SKILLS block.
+- Same finding: content checks matched `model`, `provider`, and `advisory`
+  as common words rather than required protocol phrases.
+- Second tool-check invocation read `$output` without asserting `$status`.
+
+### Root cause
+
+Fail-capable intent was stated, but the predicates tested ambient text. A
+passing nearby skill row or ordinary prose could satisfy the assertion while
+the Council row or section stayed wrong.
+
+### Impact
+
+Green tests could hide a missing or broken Council inventory row. Content
+checks could pass without the sealed blinding and bundle-identity rules that
+the skill claims to require. Council correctly classed this as medium severity.
+
+### Enhancement
+
+Extract the inventory row whose first field is `council` and bind status and
+detail to that row only. Assert named protocol sections and exact phrases
+after whitespace collapse. Assert documented exit codes on every tool-check
+invocation before reading output.
+
+Remediation status: rework landed in the worktree and the targeted slice
+passed 22/22 in `/tmp/council-rework-green.out`. Not complete for release
+until an immutable committed bundle re-review accepts the tests.
+
+## 2026-08-02 — Event 23: docs-check tail hid the nested import finding surface
+
+**Phase:** docs gate after importing `components/council/`.
+
+### What happened
+
+Root docs-check failed after the Council subtree import. The first operator
+view of markdownlint looked smaller than the real nested finding set because
+`docs-check.sh` tails markdownlint output.
+
+### Evidence
+
+- `/tmp/council-docs-check.out` shows a tailed markdownlint slice plus
+  codespell hits in `components/council/pnpm-lock.yaml` and
+  `packages/domain/dist/*.d.ts.map`.
+- `FOREMAN_REPORT.md` records that the first measured surface looked smaller
+  than the real 579-finding set once the full inventory was examined.
+- Nested OpenSpec change records under
+  `components/council/openspec/changes/**` matched the same archive class
+  already ignored at root `openspec/changes/**`.
+
+### Root cause
+
+Docs-check summarizes with a tail. A large nested markdownlint failure
+surface is truncated in the default operator view. Operators who act on the
+tail alone under-count findings and under-scope exclusions.
+
+### Impact
+
+Early triage under-estimated work. Full green required narrow path exclusions
+for nested archive classes and generated artifacts, not a whole-subtree
+ignore. Without the full surface, the gate could have been "fixed" with an
+over-broad skip.
+
+### Enhancement
+
+On docs-check failure, open the full tool log or re-run the underlying
+markdownlint command without the tail. Keep exclusions path-narrow and
+fail-capable. Prove nested openspec skips without ignoring all of
+`components/council/**`.
+
+Remediation status: narrow exclusions and fail-capable docs-check tests exist
+in the worktree. Root docs-check passed after those changes.
+`FOREMAN_CI_BATS=1 bash tools/ci-local.sh` then passed with 629 pass, 0 fail,
+19 skip, 648 tests, and `gates_failed=0`. The changes remain uncommitted and
+await Council re-review.

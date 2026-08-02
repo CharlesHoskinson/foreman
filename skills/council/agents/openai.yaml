@@ -1,0 +1,4 @@
+interface:
+  display_name: "Council"
+  short_description: "Run cross-family advisory review loops"
+  default_prompt: "Use $council to review this implementation round and keep iterating until all actionable findings are fixed."

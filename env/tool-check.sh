@@ -962,10 +962,14 @@ for id in "${must[@]}" "${should[@]}"; do
   ROWS+=("$(check_one "$id" "")")
 done
 
-SKILL_IDS=(foreman scrapling graphify superpowers)
+SKILL_IDS=(foreman scrapling graphify superpowers council)
 SKILL_ROWS=()
 for id in "${SKILL_IDS[@]}"; do
   skill_path="${HOME}/.claude/skills/$id"
+  if [[ ! -d "$ROOT/skills/$id" ]]; then
+    SKILL_ROWS+=("$(printf '%s\tmissing\trepo skill directory missing: skills/%s' "$id" "$id")")
+    continue
+  fi
   repo_skill_path="$(cd "$ROOT/skills/$id" && pwd -P)"
   if [[ -L "$skill_path" ]]; then
     link_target="$(readlink "$skill_path")"

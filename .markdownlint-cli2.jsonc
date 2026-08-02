@@ -12,6 +12,18 @@
     "skills/scrapling/**", "skills/graphify/**", "skills/superpowers/**",
     "docs/research/**", "sandbox/**", "node_modules/**", "**/node_modules/**", "FOREMAN_REPORT.md", "FOREMAN_REPORT.json",
     "graphify-out/**", ".foreman/**", "openspec/changes/**",
+    // Nested Council OpenSpec change records: same archive class as root openspec/changes/**
+    // (do not edit imported OpenSpec history merely to satisfy the root linter).
+    "components/council/openspec/changes/**",
+    // Nested root-parity research archives and superpowers plan/spec dumps inside the
+    // imported subtree. Root already ignores docs/research/** and skills/superpowers/**.
+    "components/council/docs/research/**",
+    "components/council/docs/superpowers/**",
+    // Embedded OpenSpec CLI skill/command copies shipped inside the Council import
+    // (.claude/.codex/.gemini). Not Council human docs; not a blanket subtree ignore.
+    "components/council/.claude/**",
+    "components/council/.codex/**",
+    "components/council/.gemini/**",
     "docs/evidence/**"
   ]
 }

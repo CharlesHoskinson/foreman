@@ -149,3 +149,6 @@ tests/session.bats	windows	0
 tests/plugin-drift.bats	linux	0
 tests/plugin-drift.bats	wsl	0
 tests/plugin-drift.bats	windows	0
+tests/council-localization.bats	linux	0
+tests/council-localization.bats	wsl	0
+tests/council-localization.bats	windows	0
