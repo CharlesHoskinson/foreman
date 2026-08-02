@@ -1,0 +1,35 @@
+{
+  "name": "council",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "architecture": "node scripts/check-architecture.mjs",
+    "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm architecture && corepack pnpm test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.eslint.json --noEmit --pretty false",
+    "verify": "corepack pnpm check && corepack pnpm exec openspec validate design-council-core --strict --no-interactive && git diff HEAD --check"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@fission-ai/openspec": "1.7.0",
+    "@types/node": "26.1.2",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "@vitest/coverage-v8": "4.1.10",
+    "eslint": "10.0.1",
+    "fast-check": "4.9.0",
+    "globals": "17.8.0",
+    "prettier": "3.9.6",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}
