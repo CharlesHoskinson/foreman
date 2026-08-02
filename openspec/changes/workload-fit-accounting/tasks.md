@@ -29,8 +29,10 @@ Implementer: Sonnet 5 · Audit: Opus 4.8.
   offload), compute `offload_fraction` as `round(100 * offload / (discovery +
   offload))` (0 when the denominator is 0), print `foreman-fit report
   RUN_ID=<id> discovery=<d> offload=<o> offload_fraction=<p>%
-  fit_verdict=<good|poor>` (`poor` when `offload_fraction < 50`); use `jq`
-  if available, else a `grep`/`awk` fallback (keep it `jq`-optional);
+  fit_verdict=<good|poor>` (`poor` when `offload_fraction < 50`); require
+  `jq` (refuse with `foreman-fit-report: jq is required to read the fit ledger
+  (see dependencies/README.md)` and non-zero exit when absent — no
+  regex/grep/awk/sed fallback);
   shellcheck-clean.
 - [ ] **3. Wire into Cleanup (resolved wiring point)** — `foreman-cleanup.sh
   RUN_ID` (the confirmed run-close script, `SKILL.md:60`): after the

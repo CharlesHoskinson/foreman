@@ -1,5 +1,7 @@
 file	expected_passes
 tests/adapters.bats	19
+tests/audit-routing.bats	16
+tests/audit-verdict.bats	26
 tests/checkpoint.bats	6
 tests/config.bats	16
 tests/decision-events.bats	8
@@ -7,6 +9,7 @@ tests/docs-check.bats	5
 tests/durable-preflight.bats	8
 tests/eventlog.bats	34
 tests/evidence.bats	2
+tests/fit-report.bats	18
 tests/foreman-cleanup.bats	5
 tests/foreman-setup.bats	3
 tests/gate-eval.bats	1
@@ -14,8 +17,8 @@ tests/gate-ground.bats	29
 tests/git-guards.bats	5
 tests/graph-project.bats	10
 tests/grok-lane.bats	11
-tests/vendor-multiround.bats	5
 tests/lane-queue.bats	21
+tests/lane-review-bundle.bats	5
 tests/lane-run.bats	30
 tests/lane-supervise.bats	17
 tests/launch-lib.bats	3
@@ -26,11 +29,14 @@ tests/lock.bats	13
 tests/maintenance.bats	8
 tests/merge-gate.bats	11
 tests/nats-bridge.bats	12
+tests/plugin-drift.bats	3
 tests/pr-open.bats	6
 tests/readme-structure.bats	12
 tests/release-metrics.bats	13
-tests/round-ownership.bats	8
 tests/resume.bats	10
+tests/review-quorum.bats	5
+tests/round-ownership.bats	8
+tests/session.bats	34
 tests/soft-mode-target.bats	3
 tests/telemetry.bats	9
 tests/tier1-replay.bats	11
@@ -38,6 +44,7 @@ tests/tier2-compare.bats	27
 tests/tool-check-auth.bats	12
 tests/vendor-concurrency-test.bats	16
 tests/vendor-isolation.bats	8
+tests/vendor-multiround.bats	5
 tests/watch.bats	59
 tests/worker-cmd.bats	3
 tests/worker-run.bats	5
@@ -46,7 +53,3 @@ tests/wsl-launcher-shipped.bats	11
 tests/wt-cleanup.bats	6
 tests/wt-merge.bats	11
 tests/wt-new.bats	14
-tests/audit-verdict.bats	26
-tests/audit-routing.bats	16
-tests/session.bats	34
-tests/plugin-drift.bats	3

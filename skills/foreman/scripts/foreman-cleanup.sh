@@ -122,5 +122,13 @@ for stale in "$RD/.seq.lock" "$RD/.attempt.lock" "$RD/.supervise.lock"; do
   fi
 done
 
+# --- (e) fit report when the architect kept a ledger (workload-fit-accounting) ---
+# Skip silently when no ledger: a plain determined run keeps none and needs no
+# fit report. When present, print the discovery-vs-offload line into the run
+# summary stream (stdout alongside the final RD path).
+if [[ -f "$RD/fit.jsonl" ]]; then
+  bash "$SCRIPT_DIR/foreman-fit-report.sh" "$RUN_ID"
+fi
+
 log "cleanup $RUN_ID complete"
 echo "$RD"
