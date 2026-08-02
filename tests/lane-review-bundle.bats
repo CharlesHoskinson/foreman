@@ -112,10 +112,42 @@ setup() {
   run bash "$SCRIPTS/lane-review-bundle.sh" "$REPO" "$base" "$BUNDLE_OUT"
   [ "$status" -eq 0 ]
 
-  expected="$(git diff "$base" -- . | head -c 400000)"
+  expected="$(git diff "$base" -- .)"
   actual="$(jq -r '.round_diff' "$BUNDLE_OUT/bundle.json")"
-  [ "$actual" = "$expected" ]
-  # Explicit markers must survive (this is why jq -n --arg is mandatory).
+  # The tracked diff must appear verbatim, as a PREFIX rather than the whole
+  # value: the bundle also appends untracked file bodies. See the new-file test.
+  [[ "$actual" == "$expected"* ]]
+  # Explicit markers must survive (this is why jq --rawfile is mandatory).
   [[ "$actual" == *'"quote"'* ]]
   [[ "$actual" == *'\\'* ]] || [[ "$actual" == *'backslash'* ]]
+}
+
+@test "new files appear in the bundle with their contents, not just their names" {
+  base="$(git rev-parse HEAD)"
+  # A lane whose whole deliverable is new files produced a 1092-byte bundle of
+  # filenames with no content, because git diff shows nothing for untracked
+  # paths. Reviewers were asked to judge four new scripts they could not see.
+  printf 'echo "brand new content marker"\n' > newly-added.sh
+
+  run bash "$SCRIPTS/lane-review-bundle.sh" "$REPO" "$base" "$BUNDLE_OUT"
+  [ "$status" -eq 0 ]
+
+  actual="$(jq -r '.round_diff' "$BUNDLE_OUT/bundle.json")"
+  [[ "$actual" == *"=== NEW FILE: newly-added.sh ==="* ]]
+  [[ "$actual" == *"brand new content marker"* ]]
+}
+
+@test "the architect's spec and lane report are excluded from the bundle" {
+  base="$(git rev-parse HEAD)"
+  printf 'architect spec, not lane output\n' > SPEC.md
+  printf 'lane report, not lane output\n' > FOREMAN_REPORT.md
+  printf 'real lane output\n' > real-output.txt
+
+  run bash "$SCRIPTS/lane-review-bundle.sh" "$REPO" "$base" "$BUNDLE_OUT"
+  [ "$status" -eq 0 ]
+
+  actual="$(jq -r '.round_diff' "$BUNDLE_OUT/bundle.json")"
+  [[ "$actual" != *"architect spec, not lane output"* ]]
+  [[ "$actual" != *"lane report, not lane output"* ]]
+  [[ "$actual" == *"real lane output"* ]]
 }

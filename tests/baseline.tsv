@@ -18,7 +18,7 @@ tests/git-guards.bats	5
 tests/graph-project.bats	10
 tests/grok-lane.bats	11
 tests/lane-queue.bats	21
-tests/lane-review-bundle.bats	5
+tests/lane-review-bundle.bats	7
 tests/lane-run.bats	30
 tests/lane-supervise.bats	17
 tests/launch-lib.bats	3

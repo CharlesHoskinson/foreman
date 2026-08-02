@@ -48,7 +48,28 @@ mkdir -p "$OUT_DIR" || {
 # would mangle quotes).
 diff_tmp="$(mktemp)"
 trap 'rm -f "$diff_tmp"' EXIT
-git -C "$WT" diff "$base_sha" -- . | head -c 400000 >"$diff_tmp"
+git -C "$WT" diff "$base_sha" -- . >"$diff_tmp"
+
+# `git diff` shows nothing for UNTRACKED files, so a lane whose whole deliverable
+# is new files produced a bundle of filenames with no content -- reviewers were
+# asked to judge four new scripts they could not see. Append each untracked
+# file's body under a marker. Without this the bundle is technically correct and
+# practically useless, which is the worst kind of review input.
+while IFS= read -r nf; do
+  [ -n "$nf" ] || continue
+  case "$nf" in SPEC.md|FOREMAN_REPORT.md) continue ;; esac
+  [ -f "$WT/$nf" ] || continue
+  printf '\n=== NEW FILE: %s ===\n' "$nf" >>"$diff_tmp"
+  cat "$WT/$nf" >>"$diff_tmp"
+done < <(git -C "$WT" ls-files --others --exclude-standard)
+
+# Truncate on a LINE boundary. `head -c` cuts mid-character on a large diff, the
+# result is invalid UTF-8, jq rejects it, and the redirect leaves an empty
+# bundle behind with no error.
+if [ "$(wc -c <"$diff_tmp")" -gt 400000 ]; then
+  head -n 5000 "$diff_tmp" >"$diff_tmp.cut" && mv "$diff_tmp.cut" "$diff_tmp"
+  printf '\n=== TRUNCATED: bundle exceeded 400000 bytes ===\n' >>"$diff_tmp"
+fi
 
 # files_changed: one path per porcelain line (status columns stripped).
 # Paths with spaces stay intact after the three-byte XY+space prefix.
