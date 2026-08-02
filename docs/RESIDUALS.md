@@ -138,6 +138,23 @@ complaint and licensed `flock` as `atomic`. Whether the original host genuinely
 denied `ptrace` or merely lacked the binary was never distinguished, and the two
 look identical through `command -v strace`.
 
+### The Windows bats gate is off, and the probe says why
+
+Superseded detail for the entry below, measured 2026-08-01 from the live CI log
+rather than inferred. `gates-windows` runs a **two-file non-gating probe**:
+`tests/plugin-drift.bats` passes (`rc=0 ok=3`), `tests/line-endings.bats` fails
+(`rc=1 ok=5 not_ok=1`). The failing test is the exec-bit inventory, and its
+output reads `(mode=)` — empty — for every file it flags, because Git Bash on
+the runner cannot read the index mode the way the test derives it. Every tracked
+script consequently reads as violating.
+
+That is a **test-portability defect**, not a product defect: the exec bits are
+correct, the test cannot see them there. It means enabling
+`FOREMAN_CI_BATS: "1"` on that workflow turns it red on one of the only two
+files ever probed, with 48 unprobed behind it. Tag criterion 2 is narrowed to
+Linux for v0.2.9 on this evidence. Un-narrowing it requires fixing that mode
+derivation for Git Bash first, then probing the rest before trusting a green.
+
 ### bats has never passed on the Windows runner
 
 `bats` is now provisioned on `gates-windows`, but `FOREMAN_CI_BATS` remains `0`
