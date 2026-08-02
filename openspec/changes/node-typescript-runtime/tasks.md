@@ -48,7 +48,9 @@
 - [ ] Preserve Linux/WSL process-group and Windows tree-termination contracts,
       or report a typed degraded capability before launch.
 
-## Sprint 4A — migrate the event log
+## Sprint 4 — migrate the event log and SessionDB
+
+### Sprint 4A — migrate the event log
 
 - [ ] Implement closed event schemas, duplicate-key refusal, bounded NDJSON
       replay, cursors, and attempt identity in `@foreman/event-log`.
@@ -57,7 +59,7 @@
 - [ ] Preserve event append, lock, and byte contracts through a thin adapter,
       then remove domain decoding from `lib/eventlog.sh`.
 
-## Sprint 4B — migrate SessionDB
+### Sprint 4B — migrate SessionDB
 
 - [ ] Implement facts, measurements, obligations, recovery, freshness,
       supersession, retirement, sidecar hydrate/export, and graph projection in

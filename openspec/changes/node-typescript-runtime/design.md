@@ -86,15 +86,16 @@ advertises its command.
    package after parity.
 3. Make launcher behavior Node-compatible. Remove Bun-specific APIs and the
    subreaper mode that adopts children without continuously reaping them.
-4. Replace duplicate event decoders with `@foreman/event-log`.
-5. Replace SessionDB Python with `@foreman/session`, including typed retraction,
+4. Replace duplicate event decoders with `@foreman/event-log` and replace
+   SessionDB Python with `@foreman/session`, including typed retraction,
    existing-successor supersession, lossless sidecar, and a separate derived
    current-authority export.
-6. Implement release metrics and package audits in `@foreman/release`.
-7. Implement graph refresh and doctrine checks in `@foreman/knowledge`.
-8. Implement round ownership and preflight in `@foreman/orchestration`.
-9. Convert remaining callers to adapters, delete dead implementations, remove
-   all residual Python, and run release convergence.
+5. Implement release metrics and package audits in `@foreman/release`.
+6. Implement graph refresh and doctrine checks in `@foreman/knowledge`.
+7. Implement round ownership and preflight in `@foreman/orchestration`.
+8. Convert remaining callers to adapters, delete dead implementations, and
+   remove all residual Python.
+9. Run release convergence at one unchanged commit.
 
 The detailed sprint outcomes, work, and exit predicates are in `sprints.md`.
 
