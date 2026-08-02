@@ -1,0 +1,43 @@
+{
+  "preflightStageFailed": true,
+  "preflightFailure": {
+    "stage": "provider",
+    "reason": "Error: --json-schema is not a valid JSON Schema: no schema with key or ref \"https://json-schema.org/draft/2020-12/schema\"",
+    "retry": "changed_preflight"
+  },
+  "terminal": {
+    "schemaVersion": 1,
+    "modelTurnStarted": false,
+    "terminalRecordObserved": true,
+    "terminalState": "preflight_failed",
+    "exitCode": 1,
+    "stopReason": null,
+    "pendingToolCalls": 0,
+    "failedToolCalls": 0,
+    "parserComplete": false,
+    "structuredOutputPresent": false,
+    "structuredOutputError": null,
+    "stdoutDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "stderrDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "errorMessage": "Error: --json-schema is not a valid JSON Schema: no schema with key or ref \"https://json-schema.org/draft/2020-12/schema\""
+  },
+  "readyTokenCurrent": false,
+  "expectedReadyTokenHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "expectedContractHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expectedPromptHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "expectedBundle": {
+    "schemaVersion": 1,
+    "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "diffSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "expectedReviewerId": "reviewer-a",
+  "expectedCandidateId": "cand_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "expectedArtifactIds": [
+    "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  ],
+  "verifiedArtifactIds": [],
+  "bundleVerified": false,
+  "designatedStructuredValid": false,
+  "declaredEvidenceNamespace": ["acceptance-criteria", "diff-patch"]
+}
