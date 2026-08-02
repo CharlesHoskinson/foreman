@@ -3,7 +3,7 @@ load helpers
 
 setup() {
   setup_tmp_repo
-  cd "$REPO"
+  cd "$REPO" || return
   mkdir -p scripts
 }
 
@@ -225,8 +225,11 @@ PY
   # Every path after a successful open must close the descriptor explicitly.
   # Check post-open unlink. On failure, close the FD and return nonzero so
   # set -e, later cleanup, or an explicit return 0 cannot mask the error.
+  # Check every close. Do not mask close status with || true.
   if ! rm -f "$tmp_ignores"; then
-    exec {fd}<&- || true
+    if ! exec {fd}<&-; then
+      return 2
+    fi
     return 2
   fi
   while IFS= read -r -d '' entry || [ -n "$entry" ]; do
@@ -234,12 +237,45 @@ PY
     norm="$(normalize_path_token "$entry")"
     if is_forbidden_council_root_path "$norm"; then
       printf 'FORBIDDEN markdownlint ignore: %s (normalized %s)\n' "$entry" "$norm" >&2
-      exec {fd}<&- || true
+      if ! exec {fd}<&-; then
+        return 2
+      fi
       return 1
     fi
   done <&"$fd"
-  exec {fd}<&- || true
+  if ! exec {fd}<&-; then
+    return 2
+  fi
   return 0
+}
+
+# @description Run a command with a temporary PATH prefix in this process.
+#   PATH is local to this function so bats test subshells do not trigger
+#   Shellcheck SC2030/SC2031 across tests. The command still runs in the
+#   current shell (not a nested subshell), so descriptor-leak probes that
+#   call markdownlint_council_ignore_ok through this helper stay valid.
+# @arg $1 directory to prepend to PATH
+# @arg $@ command and arguments
+with_path_prefix() {
+  local prefix="$1"
+  shift
+  local PATH="$prefix${PATH:+:$PATH}"
+  "$@"
+}
+
+# @description Restore PATH and TMPDIR after a shimmed test path. Call on
+#   every early-return and normal path when the test modified those values
+#   in the outer test scope (TMPDIR) or after with_path_prefix returns
+#   (PATH was local to the helper and needs no restore).
+# @arg $1 saved PATH value
+# @arg $2 saved TMPDIR value, or empty when TMPDIR was previously unset
+restore_path_tmpdir() {
+  PATH="$1"
+  if [[ -n "${2}" ]]; then
+    export TMPDIR="$2"
+  else
+    unset TMPDIR
+  fi
 }
 
 # @description Return 0 when a codespell config skip list has no whole-subtree
@@ -582,11 +618,12 @@ exit "$rc"
 SH
   chmod +x "$shim_dir/python3"
 
+  # PATH is scoped inside with_path_prefix (local). Capture and restore the
+  # outer value explicitly on the normal path for auditability.
   old_path="$PATH"
-  PATH="$shim_dir:$PATH"
   export REAL_PYTHON="$real_python"
-  run markdownlint_council_ignore_ok "$tmp"
-  PATH="$old_path"
+  with_path_prefix "$shim_dir" run markdownlint_council_ignore_ok "$tmp"
+  restore_path_tmpdir "$old_path" "${TMPDIR-}"
   unset REAL_PYTHON
 
   [ "$status" -ne 0 ]
@@ -594,72 +631,118 @@ SH
 }
 
 @test "markdownlint guard fails closed when post-open handoff unlink fails" {
-  local real_cfg tmp real_python shim_dir controlled_tmp
-  local old_path old_tmpdir status fdpath target live_handoff
+  local real_cfg tmp real_rm shim_dir controlled_tmp
+  local old_path old_tmpdir status expected_fd reused_fd probe_fd
+  local helper_body
 
   real_cfg="$(cd "$BATS_TEST_DIRNAME/.." && pwd)/.markdownlint-cli2.jsonc"
   tmp="$(mktemp "${BATS_TEST_TMPDIR}/mdlint-unlink-XXXXXX.jsonc")"
   cp "$real_cfg" "$tmp"
 
   # Own TMPDIR so the helper handoff path is known and controllable.
+  # Create first, then set mode (SC2174: -m with -p only affects the leaf).
   controlled_tmp="${BATS_TEST_TMPDIR}/handoff-unlink-tmp"
-  mkdir -m 700 -p "$controlled_tmp"
+  mkdir -p "$controlled_tmp"
+  chmod 700 "$controlled_tmp"
 
-  real_python="$(command -v python3)"
+  # Capture the real rm before the shim is first on PATH. The shim fails only
+  # the decoded handoff unlink and delegates every other call as argv data.
+  real_rm="$(command -v rm)"
   shim_dir="${BATS_TEST_TMPDIR}/unlink-fail-bin"
   mkdir -p "$shim_dir"
-  # After a successful decode write, revoke directory write permission.
-  # Open of an existing file still succeeds. Post-open unlink then fails.
-  # chmod is POSIX. No optional host utility is required.
-  cat > "$shim_dir/python3" <<'SH'
+  cat > "$shim_dir/rm" <<'SH'
 #!/usr/bin/env bash
 set -u
-"${REAL_PYTHON:?}" "$@"
-rc=$?
-if [[ "$rc" -eq 0 && "${1:-}" == "-" && $# -ge 3 ]]; then
-  handoff_dir="$(dirname -- "$3")"
-  chmod a-w -- "$handoff_dir"
-fi
-exit "$rc"
+# Fail only when unlinking a path under CONTROLLED_TMP (the handoff dir).
+# Treat every argv element as data. Do not interpret paths as shell code.
+for arg in "$@"; do
+  case "$arg" in
+    -*) continue ;;
+  esac
+  case "$arg" in
+    "${CONTROLLED_TMP:?}"|"${CONTROLLED_TMP}"/*)
+      printf 'rm-shim: refusing handoff unlink: %s\n' "$arg" >&2
+      exit 1
+      ;;
+  esac
+done
+exec "${REAL_RM:?}" "$@"
 SH
-  chmod +x "$shim_dir/python3"
+  chmod +x "$shim_dir/rm"
 
+  # Fail-capable structure: post-open closes must not mask errors with || true.
+  helper_body="$(awk '/^markdownlint_council_ignore_ok\(\)/,/^}/' \
+    "$BATS_TEST_FILENAME")"
+  if grep -qE 'exec \{fd\}<&-[[:space:]]*\|\|[[:space:]]*true' \
+    <<<"$helper_body"; then
+    printf 'masked descriptor close found in helper\n' >&2
+    rm -f "$tmp"
+    return 1
+  fi
+
+  # PATH stays outer until with_path_prefix (local PATH). TMPDIR is set here
+  # so the helper handoff lands under the controlled directory.
   old_path="$PATH"
   old_tmpdir="${TMPDIR-}"
-  PATH="$shim_dir:$PATH"
-  export REAL_PYTHON="$real_python"
+  export REAL_RM="$real_rm"
+  export CONTROLLED_TMP="$controlled_tmp"
   export TMPDIR="$controlled_tmp"
 
-  # Call in this shell (not `run`) so a leaked handoff FD stays visible
-  # under /proc/$$/fd after the helper returns.
-  status=0
-  markdownlint_council_ignore_ok "$tmp" || status=$?
-
-  PATH="$old_path"
-  if [[ -n "${old_tmpdir}" ]]; then
-    export TMPDIR="$old_tmpdir"
-  else
-    unset TMPDIR
+  # Bash-only descriptor probe. Record the next free dynamic FD, close it,
+  # run the helper, then open again. A leaked handoff FD forces a new number.
+  # No /proc, lsof, fuser, or host-specific command.
+  if ! exec {probe_fd}</dev/null; then
+    restore_path_tmpdir "$old_path" "$old_tmpdir"
+    unset REAL_RM CONTROLLED_TMP
+    rm -rf -- "$controlled_tmp"
+    rm -f "$tmp"
+    return 1
   fi
-  unset REAL_PYTHON
+  expected_fd=$probe_fd
+  if ! exec {probe_fd}<&-; then
+    restore_path_tmpdir "$old_path" "$old_tmpdir"
+    unset REAL_RM CONTROLLED_TMP
+    rm -rf -- "$controlled_tmp"
+    rm -f "$tmp"
+    return 1
+  fi
+
+  # Call in this shell (not `run`) via with_path_prefix so a leaked handoff
+  # FD remains in this process. PATH is local to with_path_prefix.
+  status=0
+  with_path_prefix "$shim_dir" markdownlint_council_ignore_ok "$tmp" \
+    || status=$?
+
+  restore_path_tmpdir "$old_path" "$old_tmpdir"
+  unset REAL_RM CONTROLLED_TMP
 
   # Nonzero: failed post-open unlink must not report success.
-  [ "$status" -ne 0 ]
+  if [[ "$status" -eq 0 ]]; then
+    rm -rf -- "$controlled_tmp"
+    rm -f "$tmp"
+    return 1
+  fi
 
-  # Descriptor cleanup: after return, no live FD may reference the handoff
-  # directory (including an unlinked-but-still-open path).
-  live_handoff=0
-  for fdpath in /proc/$$/fd/*; do
-    target="$(readlink "$fdpath" 2>/dev/null || true)"
-    case "$target" in
-      "$controlled_tmp"/*)
-        live_handoff=1
-        ;;
-    esac
-  done
-  [ "$live_handoff" -eq 0 ]
+  # Descriptor reuse: the new probe must receive the recorded number.
+  if ! exec {probe_fd}</dev/null; then
+    rm -rf -- "$controlled_tmp"
+    rm -f "$tmp"
+    return 1
+  fi
+  reused_fd=$probe_fd
+  if ! exec {probe_fd}<&-; then
+    rm -rf -- "$controlled_tmp"
+    rm -f "$tmp"
+    return 1
+  fi
+  if [[ "$reused_fd" -ne "$expected_fd" ]]; then
+    printf 'descriptor leak: expected fd %s, reused %s\n' \
+      "$expected_fd" "$reused_fd" >&2
+    rm -rf -- "$controlled_tmp"
+    rm -f "$tmp"
+    return 1
+  fi
 
-  chmod u+w -- "$controlled_tmp" 2>/dev/null || true
   rm -rf -- "$controlled_tmp"
   rm -f "$tmp"
 }

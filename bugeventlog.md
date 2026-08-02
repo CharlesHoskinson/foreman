@@ -3503,13 +3503,15 @@ In the embedded Python JSONC decoder:
   string-array checks, NUL refusal, and NUL-delimited handoff
 
 Also remove ephemeral current-status claims from operational prose. State
-lineage rules: `fd10951` is historical round-3; later branch changes are
-round-4 rework; `git rev-parse HEAD` identifies the committed candidate; an
-immutable bundle identifies the reviewed candidate when one binds that head;
-Council remains advisory input only.
+lineage rules: `fd10951` is historical round-3; `8a6ef236` is historical
+round-4; `6c6e1bc1bdadc821adb6937a24a949398872ea92` is historical round-5;
+`98644dd75ebd04230dc222b5a8b54db2e815e860` is historical round-6; an
+immutable bundle identifies the reviewed candidate when one binds an exact
+head; Council remains advisory input only.
 
-Remediation status: decoder harden and status-prose fix are in the
-worktree. Host gate results and commit state are external facts.
+Remediation lineage: decoder harden and status-prose fix are recorded through
+round-6 commit `98644dd75ebd04230dc222b5a8b54db2e815e860` and its ancestors.
+Host gate results and later commit identity are external facts.
 
 ## 2026-08-02 — Event 29: JSONC nonstandard numerics and handoff open race
 
