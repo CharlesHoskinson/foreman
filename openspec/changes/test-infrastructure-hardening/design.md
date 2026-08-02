@@ -198,10 +198,11 @@ nothing checked whether it actually covered every check the release
 introduced.
 
 The fix mirrors the skip-budget mechanism above: pair the human-authorable
-part (writing a positive control) with a mechanical counterweight (a scan
-that enumerates every gate/probe/assertion **present in the repository** and
-fails the build if any of them has no registry row, or if the registry names
-one that no longer exists). Three things the first draft of this requirement
+part (writing a positive control) with a mechanical counterweight. For v0.2.9,
+the scan enumerates every named `kind: gate` check present in the repository
+and fails the build if any of them has no registry row, or if the registry names
+one that no longer exists. Probe and verdict-predicate expansion is preserved
+for v0.3; exhaustive assertion registration is withdrawn. Three things the first draft of this requirement
 left undefined are now fixed, because without them neither build-failure
 predicate is computable: the registry is a committed artefact at
 `tests/positive-control-registry.tsv`; each row carries a fixed six-field

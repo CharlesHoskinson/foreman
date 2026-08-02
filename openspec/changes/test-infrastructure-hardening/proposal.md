@@ -124,15 +124,15 @@ right mechanism and it is extended here rather than duplicated.
   seeds known defects and asserts the owning slice detects each one. A test
   that cannot fail is not a test.
 
-- **Every new check ships with a positive control.** A gate, probe or assertion
-  introduced by this release is demonstrated to FAIL against a known-bad input
-  before it is trusted. A check that has never been observed failing is not
-  counted as coverage. This is the regression-injection idea applied to the
-  checker rather than to the code under test, and it is the one mechanism that
-  would have caught all four of the incidents above.
+- **Every v0.2.9 gate ships with a positive control.** A named gate introduced
+  by this release is demonstrated to FAIL against a known-bad input before it
+  is trusted. A gate that has never been observed failing is not counted as
+  coverage. Probe and verdict-predicate expansion is preserved for v0.3 in
+  `positive-control-expansion`; exhaustive assertion registration is
+  withdrawn.
 - **The positive-control registry is a committed artefact, checked against a
   full-repository inventory.** The registry is
-  `tests/positive-control-registry.tsv`, one row per check, six fixed fields,
+  `tests/positive-control-registry.tsv`, one row per selected check, six fixed fields,
   keyed by `check_id` = `<path>::<check name>`. `tests/lib/check-inventory.sh`
   sweeps the **whole tree at the commit under test** -- not the release diff --
   and the build fails on an inventory member with no row, on a row whose check

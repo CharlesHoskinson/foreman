@@ -85,12 +85,17 @@ checkable. T10 gates.
 
 ## T8 — positive controls: prove every predicate discriminates
 
+v0.2.9 scope is `kind: gate` under the named `check_id` unit. Probe and
+verdict-predicate expansion moves to `positive-control-expansion` for v0.3.
+Exhaustive assertion registration is withdrawn. The broad historical tasks
+below remain visible; only their `kind: gate` portion is part of v0.2.9.
+
 - [ ] Add `tests/lib/positive-control.bash` providing the helper a check uses
       to record that it was run against an input it must reject and did reject
       it.
-- [ ] Every gate, probe or assertion introduced by this release carries a
-      positive control before it is trusted; a check with none is not counted
-      as coverage.
+- [ ] Every `kind: gate` check introduced by this release carries a positive
+      control before it is trusted; a gate with none is not counted as
+      coverage.
 - [ ] The control asserts the check produces the **negative** answer on the
       known-bad arm **and** the positive answer on the known-good arm in the
       same run — a check that classifies both arms identically is rejected.
@@ -99,12 +104,11 @@ checkable. T10 gates.
       `kind`, `known_bad_input`, `known_good_input`, `control_record`,
       `demonstrated_at`. Maintained like `tests/baseline.tsv`: edited
       deliberately, never regenerated from a run.
-- [ ] Create `tests/lib/check-inventory.sh` -- the scanner. It sweeps the
+- [ ] Create `tests/lib/check-inventory.sh` -- the v0.2.9 gate scanner. It sweeps the
       **whole repository tree at the commit under test** (not the release
       diff), emits `tests/.check-inventory.tsv`, and derives `check_id` as
       `<repository-relative path>::<check name>` so a row and an inventory
-      member match by string equality. Recognizer grammar is the four kinds
-      the spec names: `gate`, `probe`, `assertion`, `verdict-predicate`.
+      member match by string equality. This release implements `kind: gate`.
 - [ ] Add the comparator to the release build: an inventory member with no row
       fails the build naming the `check_id`; a row whose `check_id` the
       full-repository inventory does not contain fails the build naming the

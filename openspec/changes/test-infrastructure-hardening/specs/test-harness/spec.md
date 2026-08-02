@@ -155,8 +155,11 @@ suite.
 
 ### Requirement: a check is trusted only after it has been observed failing
 
-Every gate, probe, assertion or verdict predicate introduced by this release
-SHALL be demonstrated to FAIL against a known-bad input before it is relied on.
+For v0.2.9, every named check of `kind: gate` SHALL be demonstrated to FAIL
+against a known-bad input before it is relied on. Probe and verdict-predicate
+inventory plus controls are preserved in `positive-control-expansion` for
+v0.3. Exhaustive assertion registration is withdrawn; each feature package
+still proves its own new assertions fail-capable.
 
 WHEN a new check is added, the change SHALL supply a positive control: an input
 the check is required to reject, and evidence that it did reject it.
@@ -187,7 +190,7 @@ shown to produce the opposite classification in the same run.
 
 #### Scenario: a gate added without a positive control does not merge
 
-- WHEN a change introduces a new gate or probe and supplies no evidence of it
+- WHEN a change introduces a new gate and supplies no evidence of it
   failing against a known-bad input
 - THEN the change is rejected naming the check
 - AND the check is not counted as coverage.
@@ -236,20 +239,21 @@ alone are all outside any single change's diff. A full-tree sweep registers all
 three, and it is what makes the stale-entry rule below survivable across
 releases.
 
-**Recognizer grammar.** The scanner SHALL enumerate exactly four kinds:
-(a) `gate` -- every check invoked by a step in `.github/workflows/`, by
-`tests/run.sh`, or by a `gate-*` / `*-eval.sh` script under
-`skills/foreman/scripts/`; (b) `probe` -- every function that records a verdict
-through the tool-check or probe helpers; (c) `assertion` -- every bats `@test`
-whose body calls an assertion helper; (d) `verdict-predicate` -- every call site
-that parses output for an outcome token. A predicate reachable only through a
-wrapper this grammar does not recognise is NOT covered: the grammar SHALL be
-extended when such a case is found, and the limitation SHALL be stated wherever
-inventory coverage is claimed, rather than the inventory being described as
-exhaustive.
+**v0.2.9 recognizer grammar.** The scanner SHALL enumerate `kind: gate`: every
+named check invoked by a direct gate step in `.github/workflows/`, by
+`tests/run.sh`, by `formal/run-checks.sh`, or by a `gate-*`, `*-eval.sh`, or
+`*-gate.sh` script under `skills/foreman/scripts/`. A workflow wrapper that
+only calls an already inventoried script SHALL NOT create a duplicate identity.
+A predicate reachable only through a wrapper this grammar does not recognize
+is NOT covered: the grammar SHALL be extended when such a case is found, and
+the limitation SHALL be stated wherever inventory coverage is claimed.
 
-WHEN the release build runs, it SHALL derive the full-repository inventory and
-compare it against the registry by `check_id`.
+The v0.3 `positive-control-expansion` package owns recognizer and control work
+for `probe` and `verdict-predicate`. Exhaustive `assertion` recognition is
+withdrawn.
+
+WHEN the v0.2.9 release build runs, it SHALL derive the full-repository
+`kind: gate` inventory and compare it against the registry by `check_id`.
 IF an inventory member has no registry row, THEN the build SHALL fail naming
 the unregistered `check_id`, and SHALL NOT pass on the theory that an
 unregistered check is not required to carry a control.

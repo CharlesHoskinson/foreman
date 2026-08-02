@@ -27,6 +27,10 @@
 ## T2: implement safety controls
 
 - [ ] Implement criterion 4 at the `kind: gate` and `check_id` unit.
+- [x] Preserve probe and verdict-predicate control expansion for v0.3 and
+  withdraw exhaustive assertion registration.
+  Evidence: `openspec/changes/positive-control-expansion/` and plan commit
+  `10ff0af`.
 - [ ] Prove registry completeness and every negative control.
 - [ ] Extend the Tier 2 trigger scan across its real invocation surface.
 - [ ] Add a `not_evaluated` path for unavailable Tier 2 cost.
