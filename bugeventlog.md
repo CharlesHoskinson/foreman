@@ -2877,3 +2877,133 @@ Vendor argv now has one owner: the adapter contract. T8 removes copied vendor
 commands from agent definitions and makes `docs-check.sh` fail with file and
 line evidence if an agent restates a raw vendor invocation. A drift guard must
 prove both sides: the clean tree passes, and an injected command makes it fail.
+
+## 2026-08-02 — Review-loop and tooling defects found while dogfooding Foreman on itself
+
+Five entries from one session. The unifying shape: **the review machinery was
+wrong more often than the code under review**, and every instance produced a
+confident, well-formatted answer that was false.
+
+### Event 1 — a stale lane worktree produced two false HIGH findings in one audit round
+
+**Phase:** round-3 cross-vendor audit of the `workload-fit-accounting` fit-report lane.
+
+**Evidence:** the auditor returned three HIGH findings. Verifying each: the lane
+worktree sat at `3eb6af6` while the release branch was at `d5501ad`. Finding 2
+said `jq` had not been promoted to a mandatory dependency; on the release branch
+`profile = ["soft", "hard", "full", "durable"]` and `must_soft` contains `jq` —
+promoted three commits earlier. Finding 3 flagged `foreman-cleanup.sh` as an
+out-of-scope fifth file; its 8-line diff is the task-3 wiring from **round 1**,
+uncommitted only because the lane has not merged.
+
+**Root cause:** the architect never synced the lane worktree after committing to
+the release branch, and hands the auditor cumulative uncommitted worktree state
+rather than the round's diff. An auditor reading superseded records files
+correct-looking findings about problems that are already fixed, and cannot
+distinguish carry-over from a scope violation. Two of three HIGH findings in
+that round were artifacts of this; only one was a real defect.
+
+**Cost:** a full rework cycle would have been spent on two non-problems had the
+findings not been independently verified first.
+
+**Enhancement:** `lane-review-bundle.sh` (Task 1 of
+`docs/superpowers/plans/2026-08-02-council-review-plane.md`) builds an immutable
+bundle carrying `base_sha`, `head_sha` and the round diff, and **refuses** when
+the base is not an ancestor of the lane HEAD. The reviewer never sees the
+worktree.
+
+### Event 2 — verification that re-ran the spec's own commands confirmed the wrong answer twice
+
+**Phase:** round-1 verification of the dogfooded grok lane correcting a CI premise.
+
+**Evidence:** the architect's spec told the implementer to size the bats suite
+with `git ls-files '*.bats'` — 56 files, 685 tests. `tests/run.sh:250` selects
+`find "$TESTS_DIR" -maxdepth 1`, which runs **50 files, 635 tests**; 635 is the
+figure the gate itself prints. The architect had been quoting 635 correctly all
+session while writing 685 into a spec. The spec also asserted the suite "does not
+run on the Windows runner at all" (a two-file non-gating probe runs there) and
+that `gates-linux` runs "on every push" (its trigger is `branches: [main]`).
+
+**Root cause:** the verification step re-ran the commands **from the architect's
+own spec**. That is an echo, not a check: if the spec asserts a wrong derivation,
+running it twice confirms the wrong answer twice. Seven of eight findings in that
+audit traced to the spec rather than to the implementer, who had faithfully
+implemented what it said.
+
+**Enhancement:** derive each fact from the code that **consumes** it, never from
+the spec that asserts it — suite size from the `find` in `tests/run.sh`, the CI
+trigger from the workflow's `on:` block, Windows behaviour from the probe step.
+Three false claims had already propagated into `README.md`, `checklist.md` and a
+`WITHDRAWN.md` before a different model family caught them.
+
+### Event 3 — seven exec-bit drops, and the gate written to catch them was blind to its own file
+
+**Phase:** the whole session; every file edited through a Windows-side path.
+
+**Evidence:** `env/bootstrap-wsl.sh`, `env/tool-check.sh`, `tools/ci-local.sh`,
+`tools/lanectl.sh`, `dependencies/check-drift.sh`, `skills/foreman/scripts/fm-session.py`
+and `tools/repo-hygiene.sh` each lost mode `100755`. `tests/line-endings.bats`
+caught six. It missed `fm-session.py` because it derives a **bash**-shebang
+inventory and that file is Python. A mode-regression rule added to
+`tools/repo-hygiene.sh` then missed `tools/repo-hygiene.sh` itself, because it
+skipped files with no base mode — that is, every **new** file.
+
+**Root cause:** editing across a filesystem boundary silently drops file modes,
+and both checkers had blind spots on axes their authors did not consider —
+interpreter for one, novelty for the other. A naive fix ("a file with a shebang
+must be executable") was measured before being written and would have flagged
+**105 of 189** tracked shebang files, because `.bats` files are correctly `100644`.
+
+**Enhancement:** `tools/repo-hygiene.sh` now compares index modes against the
+base ref for changed files and reports new shebang files as INFO, deferring to
+`tests/line-endings.bats` as the authoritative inventory. It states when it did
+not run rather than passing silently. The residual gap, stated rather than
+hidden: it reads committed state only and cannot warn before a bad commit lands.
+
+### Event 4 — a generated index counted as a citation, nearly preserving 2.6MB of dead weight
+
+**Phase:** the `docs/research/` cleanup.
+
+**Evidence:** a review claimed 44 of 82 files under `docs/research/` had zero
+inbound references. A first measurement contradicted it at **2 of 82**. That
+measurement counted `graphify-out/graph.json` — a generated index over the whole
+repository, which mentions nearly every filename. Excluding generated indexes
+gives **40 of 82**, close to the original claim. Of those 40, only **24** are
+safe to delete: 16 have no reference from outside `docs/research/` but are linked
+from an index **inside** it, including four `v025-plan-audit/REPORT_*` files
+hanging off a README that itself carries 81 inbound references.
+
+**Root cause:** "what mentions this file" and "what depends on this file" are
+different questions, and a generated index answers the first for everything. The
+reviewer was right and the measurement was wrong; acting on the measurement would
+have kept 2.6MB of dead weight, and acting on it naively would have broken an
+index and failed the `lychee` gate.
+
+**Enhancement:** exclude generated indexes (`graphify-out/`, `.foreman/`) from
+reference counting, and split zero-inbound into *unreachable* and
+*index-linked* before deleting anything.
+
+### Event 5 — tooling that loses vendor rounds and breaks the project it indexes
+
+**Phase:** dispatching vendor lanes and graphifying the Council component.
+
+**Evidence:** passing a five-part spec inline through `wsl.exe` produced
+`--single: prompt is empty` from grok and a wasted round; the same defect had
+already killed a codex run earlier. The prompt contains apostrophes, backticks
+and `$()`, all destroyed in transit. Separately, `graphify update .` inside
+`components/council/` wrote `graphify-out/` into a directory listed in neither
+`.prettierignore` nor `.gitignore`, breaking that component's `pnpm verify` with
+~60 prettier failures — and Council already ships a graph at
+`docs/research/graphify/`, so the default output path created a **second**
+competing graph. `graphify update` also rejects `--no-viz`, a flag its own help
+documents one command away under `cluster-only`, and prints its skill-version
+warning twice per invocation.
+
+**Root cause:** prompts and scripts crossing a Windows→WSL boundary must travel
+as **data**, not as shell arguments. Generated artifacts must default to where
+the target project already keeps them.
+
+**Enhancement:** write the prompt to a file and have a small runner read it with
+a quoted command substitution inside WSL. For graphify: honour an existing graph
+location, or add the output directory to the project's ignore files as part of
+generating it.
