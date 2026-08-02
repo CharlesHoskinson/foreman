@@ -26,11 +26,15 @@ Council SHALL run schema, policy, citation, test, and reference checks before de
 - **THEN** Council excludes that candidate before aggregation and ranking
 
 ### Requirement: Automatic quorum uses independent failure domains
-Automatic closure SHALL require at least three admissible independent proposals from at least two approved failure domains by default; raw worker count MUST NOT satisfy diversity.
+Automatic closure SHALL require at least three completed substantive verdicts from at least two approved failure domains by default; raw worker count MUST NOT satisfy diversity. Provider infrastructure failures and completed abstentions MUST NOT count as substantive verdicts.
 
 #### Scenario: Three same-family workers agree
 - **WHEN** all agreeing workers share one registered failure domain
 - **THEN** Council denies automatic quorum and reports one independent domain
+
+#### Scenario: Three completed reviewers abstain
+- **WHEN** three identity-bound reviewers return completed typed abstentions
+- **THEN** Council preserves the abstentions and reports zero substantive verdicts for quorum
 
 ### Requirement: Round-zero metrics are immutable
 Council SHALL persist the unweighted vote, calibrated weighted vote, disagreement, admissible count, independent-domain count, evidence conflicts, and stop eligibility before critique.
@@ -88,9 +92,13 @@ Council SHALL rank only admissible candidates before synthesis and SHALL provide
 - **WHEN** a material conflict remains unresolved
 - **THEN** synthesis preserves the disagreement and does not manufacture consensus
 
-### Requirement: Abstention and escalation are typed outcomes
-Council SHALL support typed outcomes including `insufficient_evidence`, `quorum_not_met`, `judge_unstable`, `policy_blocked`, `budget_exhausted`, `unsupported_claims`, `schema_invalid`, and `outcome_unknown` with the unmet condition and available next action.
+### Requirement: Abstention, infrastructure failure, and closure are separate outcomes
+Council SHALL represent a completed `insufficient_evidence` response as a review abstention with the unmet condition, declared evidence reference, and available next action. Council SHALL represent prompt, dispatch, provider, transport, and parser failures as review infrastructure failures. Council SHALL represent `quorum_not_met`, `judge_unstable`, `policy_blocked`, `budget_exhausted`, `unsupported_claims`, and `outcome_unknown` as closure outcomes. These types MUST remain disjoint.
 
 #### Scenario: Budget expires before quorum
 - **WHEN** the hard budget expires before independent quorum exists
 - **THEN** Council stops new work and returns `budget_exhausted` with partial evidence references
+
+#### Scenario: Schema negotiation fails before a model turn
+- **WHEN** a provider rejects its schema dialect before the model starts
+- **THEN** Council returns a review infrastructure failure and records no abstention, verdict, or dissent

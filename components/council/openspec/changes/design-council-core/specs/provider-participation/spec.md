@@ -5,11 +5,15 @@ Defines how installed subscription CLIs join Council through verified capabiliti
 ## ADDED Requirements
 
 ### Requirement: Provider readiness is verified before admission
-Council SHALL verify each required executable, resolved path, version, authentication mode, machine-output mode, and required capability before committing the run plan.
+Council SHALL verify each required executable, resolved path, version, authentication mode, machine-output mode, and required capability before committing the run plan. Council SHALL also require a current tool-free semantic canary for the exact provider, model, CLI version, and response-schema dialect before starting a review attempt.
 
 #### Scenario: Gemini is installed but not authenticated
 - **WHEN** Gemini is required and its bounded read-only probe cannot verify authentication
 - **THEN** Council reports Gemini as unavailable and does not silently substitute another provider
+
+#### Scenario: A canary returns a body and then cancels
+- **WHEN** a provider emits schema-shaped output but does not complete its terminal turn
+- **THEN** Council reports a provider infrastructure failure and does not start the review attempt
 
 ### Requirement: Subscription identity is not shadowed silently
 Council SHALL detect credential precedence that would replace a requested subscription login and MUST remove undeclared API-key variables from the child environment.
@@ -40,11 +44,15 @@ Adapters SHALL produce an executable plus argument array, explicit working direc
 - **THEN** the data reaches the provider as an argument or stdin payload and is never evaluated by a shell
 
 ### Requirement: Terminal classification uses compound evidence
-Council MUST classify an attempt from exit status, signal, terminal provider event, parser completeness, cancellation state, usage, and side-effect state rather than exit code alone.
+Council MUST classify an attempt from exit status, signal, terminal provider event, parser completeness, cancellation state, usage, side-effect state, and the designated structured-output channel rather than exit code or JSON-looking text alone. Council MUST classify transport completion before it parses a deliberation outcome.
 
 #### Scenario: Exit zero with truncated output
 - **WHEN** a provider exits zero without a complete terminal record
 - **THEN** Council returns a typed protocol failure and retains a bounded, sanitized diagnostic reference
+
+#### Scenario: An interim abstention precedes cancellation
+- **WHEN** a provider emits `insufficient_evidence` in ordinary text and then terminates as cancelled
+- **THEN** Council returns a review-attempt infrastructure failure and records no abstention or verdict
 
 ### Requirement: Failure-domain metadata controls diversity
 Council SHALL record provider, model family, model version, serving stack when known, and shared-lineage classification for every participant; unknown classifications MUST count as one common domain.
