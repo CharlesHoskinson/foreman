@@ -11,10 +11,10 @@ The root workspace owns exact versions of TypeScript, Node.js type definitions,
 Effect, and the bundler. Package-level manifests must not select a different
 version.
 
-Authoritative module source lives under `skills/foreman/packages/<name>/src`.
-The build emits self-contained Node.js ESM bundles under
-`skills/foreman/dist/`. Generated bundles are not authoritative source and
-must never be hand-edited.
+Authoritative module source lives under `packages/<name>/src`. The build emits
+self-contained Node.js ESM bundles under `skills/foreman/runtime/dist/` and a
+digest manifest at `skills/foreman/runtime/manifest.json`. Generated bundles
+are not authoritative source and must never be hand-edited.
 
 ## Package boundaries
 
@@ -23,6 +23,7 @@ The migration uses these product packages:
 | Package | Responsibility | First legacy source replaced |
 |---|---|---|
 | `@foreman/core` | closed schemas, typed errors, canonical JSON, safe filesystem and process interfaces | duplicated helpers across scripts |
+| `@foreman/event-log` | closed event schemas, bounded NDJSON replay, cursor and attempt identity | `lib/eventlog.sh` and duplicate event decoders |
 | `@foreman/session` | SessionDB facts, measurements, supersession, recovery, sidecar, and current-authority export | `fm-session.py` and freshness sweep logic |
 | `@foreman/graph-store` | GraphStore port and files-only materialization | `skills/foreman/graph_store/` |
 | `@foreman/launcher` | process supervision, heartbeats, cancellation, and platform adapters | `launcher/` Bun runtime |
@@ -67,30 +68,35 @@ branch. Adapter tests prove exact byte and exit-code parity.
 `install.sh` symlinks and `install.ps1` junctions `skills/foreman/` into each
 vendor skill home. A copied install can contain only that subtree. Therefore,
 every runtime entry point and its production dependencies must be present in
-`skills/foreman/dist/`; runtime code cannot resolve a sibling repository path
-or a root `node_modules` directory.
+`skills/foreman/runtime/dist/`; runtime code cannot resolve a sibling
+repository path or a root `node_modules` directory.
 
 Setup builds deterministic self-contained bundles from the workspace and writes
-one digest manifest inside `skills/foreman/dist/`. Plugin-drift and Setup verify
-the manifest and every bundle. A copied install must copy the built skill tree
-and pass the same check. Source maps can remain local build artifacts, but a
-runtime bundle cannot be omitted from an install that advertises its command.
+one digest manifest at `skills/foreman/runtime/manifest.json`. Plugin-drift and
+Setup verify the manifest and every bundle. A copied install must copy the
+built skill tree and pass the same check. Source maps can remain local build
+artifacts, but a runtime bundle cannot be omitted from an install that
+advertises its command.
 
-## Migration order
+## Sprint order
 
+0. Freeze governance, the baseline, and Council-reviewed sprint plan.
 1. Land the root workspace, policy gate, and shared core primitives.
 2. Replace GraphStore Python with `@foreman/graph-store` and delete the Python
    package after parity.
-3. Replace SessionDB Python with `@foreman/session`, including typed retraction,
+3. Make launcher behavior Node-compatible. Remove Bun-specific APIs and the
+   subreaper mode that adopts children without continuously reaping them.
+4. Replace duplicate event decoders with `@foreman/event-log`.
+5. Replace SessionDB Python with `@foreman/session`, including typed retraction,
    existing-successor supersession, lossless sidecar, and a separate derived
    current-authority export.
-4. Make launcher behavior Node-compatible. Remove Bun-specific APIs and the
-   subreaper mode that adopts children without continuously reaping them.
-5. Implement release metrics and package audits in `@foreman/release`.
-6. Implement graph refresh and doctrine checks in `@foreman/knowledge`.
-7. Implement round ownership and preflight in `@foreman/orchestration`.
-8. Convert remaining callers to adapters, delete dead implementations, and
-   remove retired runtime dependencies.
+6. Implement release metrics and package audits in `@foreman/release`.
+7. Implement graph refresh and doctrine checks in `@foreman/knowledge`.
+8. Implement round ownership and preflight in `@foreman/orchestration`.
+9. Convert remaining callers to adapters, delete dead implementations, remove
+   all residual Python, and run release convergence.
+
+The detailed sprint outcomes, work, and exit predicates are in `sprints.md`.
 
 GraphStore starts first because it is an isolated port, is currently Python,
 and supplies reusable filesystem/schema patterns. Launcher supervision follows

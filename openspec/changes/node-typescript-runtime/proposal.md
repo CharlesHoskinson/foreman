@@ -20,9 +20,9 @@ existing product incrementally without breaking current command contracts.
 - Implement new behavior in TypeScript packages. Do not add executable Python,
   shell, PowerShell, CMD, JavaScript, MJS, or CJS source.
 - Restrict existing non-TypeScript entry points to thin compatibility adapters.
-- Migrate GraphStore, launcher supervision, release metrics, knowledge refresh,
-  SessionDB, doctrine checks, round ownership, preflight, and package audits in
-  dependency order.
+- Migrate GraphStore, launcher supervision, the event log, release metrics,
+  knowledge refresh, SessionDB, doctrine checks, round ownership, preflight,
+  and package audits in dependency order.
 - Delete each legacy implementation after all callers use its TypeScript
   replacement and parity controls pass.
 - Add a policy gate that rejects architecture regressions.

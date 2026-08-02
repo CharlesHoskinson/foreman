@@ -39,8 +39,8 @@ OpenSpec, Foreman, Grok, Codex, Claude TypeScript LSP, Council, and Graphify.
 ## Work package 1: workspace and policy gate
 
 **Add:** root `package.json`, `package-lock.json`, `tsconfig.base.json`,
-`skills/foreman/packages/core/`, `skills/foreman/dist/`, and a TypeScript
-runtime-policy checker.
+`packages/core/`, `packages/policy/`, `skills/foreman/runtime/dist/`, and a
+TypeScript runtime-policy checker.
 
 - Add Node.js 24 engine enforcement and exact TypeScript, Node type, and Effect
   pins.
@@ -56,7 +56,7 @@ runtime-policy checker.
 ## Work package 2: GraphStore
 
 **Replace:** `skills/foreman/graph_store/` with
-`skills/foreman/packages/graph-store/src/` and TypeScript contract tests.
+`packages/graph-store/src/` and TypeScript contract tests.
 
 - Port the behavior contract, not the Python implementation shape.
 - Reject unknown/missing schema fields, corrupt generations, links, external
@@ -78,10 +78,21 @@ runtime-policy checker.
 - Report an unsupported ownership capability before dispatch instead of
   claiming a guarantee the host cannot provide.
 
-## Work package 4: SessionDB
+## Work package 4: event log
+
+**Replace:** domain decoding in `skills/foreman/scripts/lib/eventlog.sh` with
+`packages/event-log/`.
+
+- Implement one closed decoder, bounded NDJSON replay, cursor rules, and
+  attempt identity.
+- Reject duplicate keys, non-finite values, trailing documents, invalid UTF-8,
+  and torn records.
+- Make SessionDB, metrics, and orchestration consume this module.
+
+## Work package 5: SessionDB
 
 **Replace:** `skills/foreman/scripts/fm-session.py` and freshness-sweep domain
-logic with `skills/foreman/packages/session/`.
+logic with `packages/session/`.
 
 - Preserve facts, measurements, obligations, recovery, freshness, sidecar,
   hydration, and graph projection.
@@ -90,9 +101,9 @@ logic with `skills/foreman/packages/session/`.
   view that cannot hydrate the store.
 - Migrate hourly checkpoints and release gates, then delete the Python core.
 
-## Work package 5: release evidence
+## Work package 6: release evidence
 
-**Add:** `skills/foreman/packages/release/`.
+**Add:** `packages/release/`.
 
 - Implement strict metrics event parsing, rollup, and release sigma.
 - Implement package matrix and immutable package audits in TypeScript.
@@ -101,9 +112,9 @@ logic with `skills/foreman/packages/session/`.
 - Refuse duplicate keys, non-finite values, suffix data, torn records, stale
   cursors, mixed definitions, and mutable sources.
 
-## Work package 6: knowledge and doctrine
+## Work package 7: knowledge and doctrine
 
-**Add:** `skills/foreman/packages/knowledge/`.
+**Add:** `packages/knowledge/`.
 
 - Implement Graphify refresh and freshness from immutable captured inputs.
 - Use descriptor-bound reads and publications. Reject symlink/hard-link races,
@@ -113,9 +124,9 @@ logic with `skills/foreman/packages/session/`.
 - Keep canonical SessionDB lineage lossless. Exclude retired facts only from a
   separate non-hydratable current view.
 
-## Work package 7: orchestration and preflight
+## Work package 8: orchestration and preflight
 
-**Add:** `skills/foreman/packages/orchestration/`.
+**Add:** `packages/orchestration/`.
 
 - Implement round ownership and crash recovery with unique identities, closed
   provenance, trusted events, durable transactions, and typed sync failures.
@@ -123,7 +134,7 @@ logic with `skills/foreman/packages/session/`.
   bounded outputs, and scoped cleanup.
 - Convert Setup, lane-run, and tool-check scripts to compatibility adapters.
 
-## Work package 8: stale knowledge and legacy deletion
+## Work package 9: stale knowledge and legacy deletion
 
 - Delete superseded live plans, status snapshots, duplicate evidence, and
   obsolete records after updating current references.
@@ -132,7 +143,7 @@ logic with `skills/foreman/packages/session/`.
 - Rebuild Graphify and require zero missing sources, dangling references, stale
   locations, and current-authority edges to deleted paths.
 
-## Work package 9: convergence
+## Work package 10: convergence
 
 - Run clean npm install, strict type checks, Node tests, runtime policy, legacy
   compatibility gates, docs checks, and strict OpenSpec validation.
