@@ -1,0 +1,130 @@
+{
+  "collected_at": "2026-08-01T10:16:00-06:00",
+  "corpus_root": "/mnt/c/Users/charl/.codex/tmp/council-best-practices/security",
+  "sources": [
+    {
+      "id": "S01",
+      "title": "Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection",
+      "type": "research_paper",
+      "published": "2023-05-05",
+      "url": "https://arxiv.org/abs/2302.12173",
+      "evidence_strength": "high",
+      "local_paths": ["notes/paper-and-standard-evidence.md"]
+    },
+    {
+      "id": "S02",
+      "title": "Defeating Prompt Injections by Design",
+      "type": "research_preprint",
+      "published": "2025-06-24",
+      "url": "https://arxiv.org/abs/2503.18813",
+      "evidence_strength": "moderate-high",
+      "local_paths": ["notes/paper-and-standard-evidence.md"]
+    },
+    {
+      "id": "S03",
+      "title": "AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents",
+      "type": "peer_reviewed_paper",
+      "published": "2024",
+      "url": "https://proceedings.nips.cc/paper_files/paper/2024/hash/97091a5177d8dc64b1da8bf3e1f6fb54-Abstract-Datasets_and_Benchmarks_Track.html",
+      "evidence_strength": "high",
+      "local_paths": [
+        "notes/paper-and-standard-evidence.md",
+        "screenshots/agentdojo/papers.neurips.cc_paper_files_paper_2024_file_97091a5177d8dc64b1da8bf3e1f6fb54-Paper-Datasets_and_Benchmarks_Track.pdf.png.tiles/tile_0000.jpg"
+      ]
+    },
+    {
+      "id": "S04",
+      "title": "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
+      "type": "government_standard_profile",
+      "published": "2024-07",
+      "url": "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf",
+      "evidence_strength": "very-high",
+      "local_paths": ["notes/paper-and-standard-evidence.md"]
+    },
+    {
+      "id": "S05",
+      "title": "Security and Privacy Controls for Information Systems and Organizations, NIST SP 800-53 Rev. 5",
+      "type": "government_control_catalog",
+      "published": "2020-09",
+      "url": "https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf",
+      "evidence_strength": "very-high",
+      "local_paths": ["notes/paper-and-standard-evidence.md"]
+    },
+    {
+      "id": "S06",
+      "title": "PROV-O: The PROV Ontology",
+      "type": "w3c_recommendation",
+      "published": "2013-04-30",
+      "url": "https://www.w3.org/TR/prov-o/",
+      "evidence_strength": "very-high",
+      "sha256": "b2c6e53f76e7e4818f7faf7877d88d99fd3e51b38810fbbd2d625d381d654582",
+      "local_paths": ["extracts/w3c-prov-o.md"]
+    },
+    {
+      "id": "S07",
+      "title": "Content Credentials: C2PA Technical Specification 2.2",
+      "type": "industry_technical_standard",
+      "published": "2.2",
+      "url": "https://spec.c2pa.org/specifications/specifications/2.2/specs/C2PA_Specification.html",
+      "companion_url": "https://c2pa.org/specifications/specifications/2.2/explainer/Explainer.html",
+      "evidence_strength": "high",
+      "sha256": "76b4b8cb6bdaafef4f2df98f5d8211e744eb3f041282ae0950e05dec18f6e9ff",
+      "local_paths": [
+        "extracts/c2pa-2.2.md",
+        "notes/visual-pass.md",
+        "screenshots/c2pa/spec.c2pa.org_specifications_specifications_2.2_specs_C2PA_Specification.html.png.tiles/tiles.json",
+        "screenshots/c2pa/spec.c2pa.org_specifications_specifications_2.2_specs_C2PA_Specification.html.png.tiles/tile_0027.jpg",
+        "screenshots/c2pa/spec.c2pa.org_specifications_specifications_2.2_specs_C2PA_Specification.html.png.tiles/tile_0033.jpg",
+        "screenshots/c2pa/spec.c2pa.org_specifications_specifications_2.2_specs_C2PA_Specification.html.png.tiles/tile_0038.jpg"
+      ],
+      "excluded_from_index": "Other generated screenshot tiles are intentionally not enumerated."
+    },
+    {
+      "id": "S08",
+      "title": "Server-Side Request Forgery Prevention Cheat Sheet",
+      "type": "security_consensus_guidance",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html",
+      "evidence_strength": "moderate-high",
+      "sha256": "d5a8c6a54f47a6b5d075cea281a8c9074d30954375ce171f72e46d0550c3bb09",
+      "local_paths": ["extracts/owasp-ssrf-prevention.md"]
+    },
+    {
+      "id": "S09",
+      "title": "Logging Cheat Sheet",
+      "type": "security_consensus_guidance",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html",
+      "evidence_strength": "moderate-high",
+      "sha256": "1bf07a56c06c4367c5bd958bb91405f0e8fe3466b2cefdf58ab9f32b02e4e773",
+      "local_paths": ["extracts/owasp-logging.md"]
+    },
+    {
+      "id": "S10",
+      "title": "Site Isolation Design Document",
+      "type": "official_engineering_design",
+      "url": "https://www.chromium.org/developers/design-documents/site-isolation/",
+      "evidence_strength": "moderate-high",
+      "sha256": "cdfa94f704825351bb3438006ea42bf1d0402557765de95d1913823a3f29f48d",
+      "local_paths": ["extracts/chromium-site-isolation.md"]
+    },
+    {
+      "id": "S11",
+      "title": "Mitigating the risk of prompt injections in browser use",
+      "type": "official_engineering_security_post",
+      "published": "2025-11-24",
+      "url": "https://www.anthropic.com/research/prompt-injection-defenses",
+      "evidence_strength": "moderate",
+      "sha256": "9edd470ed543623c415426f240a16bb1b25c55a9c580b6397a36d73b2d2b9860",
+      "local_paths": ["extracts/anthropic-prompt-injection-defenses.md"]
+    },
+    {
+      "id": "S12",
+      "title": "Deep Research System Card",
+      "type": "official_system_card",
+      "published": "2025-02-25",
+      "url": "https://deploymentsafety.openai.com/deep-research/browsing",
+      "evidence_strength": "moderate-high",
+      "sha256": "ae9c7097cdd7fbda97ceb36ccb48110bd8df0f8472fd2aec49422c08b2d3f41b",
+      "local_paths": ["extracts/openai-deep-research-system-card.md"]
+    }
+  ]
+}
