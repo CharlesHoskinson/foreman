@@ -3321,3 +3321,77 @@ Council remains advisory input only.
 
 Remediation status: decoder harden and status-prose fix are in the
 worktree. Host gate results and commit state are external facts.
+
+## 2026-08-02 — Event 29: JSONC nonstandard numerics and handoff open race
+
+**Phase:** Council localization round-4 advisory review of committed candidate
+`8a6ef2363a3ca6f70816126ed5963ba63ec9c2a8`. Round 4 preserved dissent and
+forced round-5 rework. Google approved. One OpenAI reviewer returned
+`insufficient_evidence`. One OpenAI reviewer returned `changes_requested`.
+
+### What happened
+
+Two actionable OpenAI implementation findings remained after the round-4
+decoder harden:
+
+1. Python `json.loads` accepts `NaN`, `Infinity`, and `-Infinity` by default.
+   JSONC does not permit those constants. The markdownlint council-ignore
+   helper returned success when a decoy member used them.
+2. If the decoded temporary handoff disappeared after Python returned
+   success, the Bash `while` redirection failed, but later cleanup and an
+   explicit `return 0` masked that failure. The helper still reported
+   success.
+
+### RED controls
+
+Host added two fail-capable tests in `tests/docs-check.bats` (baseline 15):
+
+- `markdownlint guard rejects nonstandard JSON numeric constants`
+- `markdownlint guard fails closed when decoded handoff disappears`
+
+RED evidence:
+`.harness/council-localization-r5-red.out` SHA-256
+`874b94d086009c41aaa979eedfdc0da25c1d9bcb02209e0563b149797c558c28`
+(both named tests `not ok` against the prior helper).
+
+Earlier malformed-comment RED remains historical evidence:
+`.harness/council-localization-r4-harden-red.out` SHA-256
+`3ccc933f14aaa771b89d0d139c0e81282bd0190e69e5d7b424f659cc38327bf9`.
+
+### Impact
+
+Configs with nonstandard numeric constants could pass the guard. A missing
+decoded handoff could also pass. Operators could trust a green guard on
+inputs the decoder did not fully validate.
+
+### Root cause
+
+1. `json.loads` default constant acceptance without a `parse_constant`
+   rejection callback.
+2. Path-based handoff read after Python success, with cleanup and
+   `return 0` after a failed redirection, instead of a checked open that
+   fails before cleanup can mask the error.
+
+### Enhancement
+
+In `markdownlint_council_ignore_ok`:
+
+- pass `parse_constant` to `json.loads` so every nonstandard numeric
+  constant raises a caught parse failure (no token pre-scan that can
+  false-trigger inside a string)
+- open the decoded handoff with a checked Bash file descriptor, unlink the
+  path, read the open descriptor, and close the descriptor on success and
+  each early return
+
+Preserve decoded-`ignores` scope, comment markers inside strings, whitespace
+comment replacement, unterminated block refusal, trailing commas, top-level
+object, string-array requirement, NUL refusal, normalized forbidden paths,
+and permitted fixed subpaths.
+
+Baseline history for `tests/docs-check.bats` runs through 15. Round 4
+preserved dissent and forced this round-5 rework. Do not treat a round-5
+verdict, release authority, or host action as a lasting current fact in this
+entry.
+
+Remediation status: helper rework is in the worktree. Host gate results and
+commit state are external facts.
