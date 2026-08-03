@@ -38,6 +38,24 @@ The runtime SHALL keep the provider executable value unchanged.
 - **WHEN** a valid request names a provider executable without a path
 - **THEN** the runtime preserves the name for child-environment `PATH` lookup
 
+### Requirement: The canary schema binds the challenge nonce
+
+The canary materializer SHALL constrain the response nonce to the exact
+challenge nonce.
+
+The host SHALL still verify nonce equality after terminal classification and
+strict response decoding.
+
+#### Scenario: A provider attempts another nonce
+
+- **WHEN** a provider produces structured output with another nonce
+- **THEN** the provider schema or the host nonce check rejects the response
+
+#### Scenario: A challenge nonce changes
+
+- **WHEN** the host creates a canary with a different nonce
+- **THEN** the canary response schema bytes and schema hash change
+
 ### Requirement: The release uses exact-candidate evidence
 
 Foreman SHALL bind local checks, hosted checks, live canaries, release records, and the knowledge graph to one candidate commit.
