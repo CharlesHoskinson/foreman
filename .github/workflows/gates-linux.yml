@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --yes bats jq python3 shellcheck util-linux
+          sudo apt-get install --yes bats jq python3 shellcheck unzip util-linux
           npm install --global \
             @fission-ai/openspec@1.6.0 \
             @informalsystems/quint@0.32.0 \
@@ -59,6 +59,40 @@ jobs:
           command -v codespell
           codespell --version
           lychee --version
+
+      - name: Install NATS test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          nats_dir="$(mktemp -d)"
+          server_archive="$nats_dir/nats-server.tar.gz"
+          cli_archive="$nats_dir/nats-cli.zip"
+
+          curl --silent --show-error --location --fail --retry 3 \
+            --output "$server_archive" \
+            https://github.com/nats-io/nats-server/releases/download/v2.14.4/nats-server-v2.14.4-linux-amd64.tar.gz
+          curl --silent --show-error --location --fail --retry 3 \
+            --output "$cli_archive" \
+            https://github.com/nats-io/natscli/releases/download/v0.4.0/nats-0.4.0-linux-amd64.zip
+
+          printf '%s  %s\n' \
+            20f9d6a199560f243610908bcccea2e27e9f47213242d1c609ca46d1d73e91ea \
+            "$server_archive" | sha256sum --check --strict
+          printf '%s  %s\n' \
+            8dbd437c826b953dbd7432cf890ef22ba3c33dccc3dce5e71b3e8d055427849c \
+            "$cli_archive" | sha256sum --check --strict
+
+          tar --extract --gzip --file "$server_archive" --directory "$nats_dir"
+          unzip -q "$cli_archive" -d "$nats_dir"
+          sudo install --mode=0755 \
+            "$nats_dir/nats-server-v2.14.4-linux-amd64/nats-server" \
+            /usr/local/bin/nats-server
+          sudo install --mode=0755 \
+            "$nats_dir/nats-0.4.0-linux-amd64/nats" \
+            /usr/local/bin/nats
+
+          test "$(nats-server --version)" = "nats-server: v2.14.4"
+          test "$(nats --version)" = "0.4.0"
 
       # launcher/dist is gitignored; build the POSIX binary the bats suite expects.
       - name: Set up Bun
