@@ -9,7 +9,7 @@
 - [x] 1.5 Add compiled-process and provider-start negative tests.
 - [x] 1.6 Add the runtime composition-root architecture gate.
 - [x] 1.7 Normalize relative runtime paths before artifact access and provider dispatch.
-- [ ] 1.8 Bind the exact challenge nonce in the canary response schema.
+- [x] 1.8 Bind the exact challenge nonce in the canary response schema.
 
 ## 2. Verification
 

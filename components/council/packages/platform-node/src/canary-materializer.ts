@@ -73,13 +73,16 @@ export type CanaryMaterial = {
   readonly canarySchemaVariantHash: ContentHash;
 };
 
-const closedCanaryResponseSchema = (expectedCheckResult: string) => ({
+const closedCanaryResponseSchema = (
+  expectedCheckResult: string,
+  nonce: string,
+) => ({
   type: "object",
   additionalProperties: false,
   required: ["schemaVersion", "nonce", "checkResult", "status"],
   properties: {
     schemaVersion: { type: "integer", enum: [1] },
-    nonce: { type: "string" },
+    nonce: { type: "string", enum: [nonce] },
     checkResult: { type: "string", enum: [expectedCheckResult] },
     status: { type: "string", enum: ["ready"] },
   },
@@ -87,8 +90,8 @@ const closedCanaryResponseSchema = (expectedCheckResult: string) => ({
 
 /**
  * Build deterministic canary prompt bytes and the closed response schema
- * bound to the challenge expected check result. Hash is over exact UTF-8
- * schema JSON bytes as branded ContentHash `sha256:<digest>`.
+ * bound to the challenge expected check result and challenge nonce. Hash is
+ * over exact UTF-8 schema JSON bytes as branded ContentHash `sha256:<digest>`.
  */
 export const buildCanaryMaterial = (
   challenge: CanaryChallengeV1,
@@ -108,7 +111,7 @@ export const buildCanaryMaterial = (
   };
   const promptBytes = encodeUtf8(stringifyCanonicalJson(envelope));
   const schemaJson = stringifyCanonicalJson(
-    closedCanaryResponseSchema(challenge.expectedCheckResult),
+    closedCanaryResponseSchema(challenge.expectedCheckResult, challenge.nonce),
   );
   const digest = sha256Hex(encodeUtf8(schemaJson));
   const canarySchemaVariantHash = `sha256:${digest}` as ContentHash;

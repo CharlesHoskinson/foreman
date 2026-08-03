@@ -27,7 +27,7 @@ const expectedSchema = {
   required: ["schemaVersion", "nonce", "checkResult", "status"],
   properties: {
     schemaVersion: { type: "integer", enum: [1] },
-    nonce: { type: "string" },
+    nonce: { type: "string", enum: ["nonce-canary-test-001"] },
     checkResult: { type: "string", enum: ["2"] },
     status: { type: "string", enum: ["ready"] },
   },
@@ -150,6 +150,19 @@ describe("buildCanaryMaterial", () => {
     const expected = `sha256:${digest}` as ContentHash;
     expect(material.canarySchemaVariantHash).toBe(expected);
     expect(material.canarySchemaVariantHash.startsWith("sha256:")).toBe(true);
+  });
+
+  it("changes schema bytes and hash when the challenge nonce changes", () => {
+    const first = buildCanaryMaterial(challenge());
+    const second = buildCanaryMaterial({
+      ...challenge(),
+      nonce: "nonce-canary-test-002",
+    });
+
+    expect(first.schemaJson).not.toBe(second.schemaJson);
+    expect(first.canarySchemaVariantHash).not.toBe(
+      second.canarySchemaVariantHash,
+    );
   });
 });
 
