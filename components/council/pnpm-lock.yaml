@@ -113,6 +113,30 @@ importers:
         specifier: 3.22.1
         version: 3.22.1
 
+  packages/runtime-node:
+    dependencies:
+      "@council/adapter-claude":
+        specifier: workspace:*
+        version: link:../adapter-claude
+      "@council/adapter-codex":
+        specifier: workspace:*
+        version: link:../adapter-codex
+      "@council/adapter-grok":
+        specifier: workspace:*
+        version: link:../adapter-grok
+      "@council/application":
+        specifier: workspace:*
+        version: link:../application
+      "@council/platform-node":
+        specifier: workspace:*
+        version: link:../platform-node
+      "@council/schema":
+        specifier: workspace:*
+        version: link:../schema
+      effect:
+        specifier: 3.22.1
+        version: 3.22.1
+
   packages/schema:
     dependencies:
       "@noble/hashes":
