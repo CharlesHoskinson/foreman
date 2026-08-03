@@ -5,6 +5,9 @@ tests/adapters.bats	windows	0
 tests/checkpoint.bats	linux	0
 tests/checkpoint.bats	wsl	0
 tests/checkpoint.bats	windows	0
+tests/checks-run.bats	linux	0
+tests/checks-run.bats	wsl	0
+tests/checks-run.bats	windows	0
 tests/config.bats	linux	0
 tests/config.bats	wsl	0
 tests/config.bats	windows	0
