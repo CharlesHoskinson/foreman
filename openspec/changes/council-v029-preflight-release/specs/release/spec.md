@@ -20,6 +20,24 @@ The executable SHALL fail closed for provider family `google`.
 - **WHEN** one supported provider returns a valid terminal canary result
 - **THEN** the executable returns one ready result with a current token
 
+### Requirement: The runtime normalizes host filesystem paths once
+
+The Node runtime SHALL resolve each relative `cwd`, observed diff path, and
+artifact path against the CLI invocation directory before artifact access or
+provider dispatch.
+
+The runtime SHALL keep the provider executable value unchanged.
+
+#### Scenario: A request uses relative runtime paths
+
+- **WHEN** a valid request contains relative host filesystem paths
+- **THEN** every supported provider receives one absolute working directory
+
+#### Scenario: A request uses a bare executable name
+
+- **WHEN** a valid request names a provider executable without a path
+- **THEN** the runtime preserves the name for child-environment `PATH` lookup
+
 ### Requirement: The release uses exact-candidate evidence
 
 Foreman SHALL bind local checks, hosted checks, live canaries, release records, and the knowledge graph to one candidate commit.

@@ -8,6 +8,7 @@
 - [x] 1.4 Build a self-contained Node.js 24 ESM executable.
 - [x] 1.5 Add compiled-process and provider-start negative tests.
 - [x] 1.6 Add the runtime composition-root architecture gate.
+- [ ] 1.7 Normalize relative runtime paths before artifact access and provider dispatch.
 
 ## 2. Verification
 

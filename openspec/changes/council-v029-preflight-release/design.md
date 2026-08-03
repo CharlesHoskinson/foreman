@@ -10,18 +10,24 @@ Council compiles the ACE contract before it starts a provider process. A compile
 
 Foreman selects one closed provider family. Google fails before dispatch because the release has no Gemini adapter.
 
+The Node runtime normalizes relative host paths before artifact access or
+provider dispatch. It resolves `cwd`, the observed diff path, and artifact
+paths against the CLI invocation directory. It does not change the provider
+executable value.
+
 ## Evidence flow
 
 1. Build the executable from the exact candidate commit.
 2. Run the local Council check from an absent bundle.
-3. Run bounded canaries for Grok, Claude, and Codex.
-4. Run one external repository workflow through Foreman.
-5. Obtain a different-family audit for the external change.
-6. Pass the target repository gate.
-7. Preserve the Council shadow outcome without promoting a non-token-bound
+3. Normalize all relative host paths at the Node runtime boundary.
+4. Run bounded canaries for Grok, Claude, and Codex.
+5. Run one external repository workflow through Foreman.
+6. Obtain a different-family audit for the external change.
+7. Pass the target repository gate.
+8. Preserve the Council shadow outcome without promoting a non-token-bound
    audit to a Council verdict.
-8. Pass hosted Linux and Windows gates on the exact candidate.
-9. Build the knowledge graph from the same candidate.
+9. Pass hosted Linux and Windows gates on the exact candidate.
+10. Build the knowledge graph from the same candidate.
 
 ## Failure policy
 
