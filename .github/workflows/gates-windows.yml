@@ -41,6 +41,24 @@ jobs:
             @fission-ai/openspec@1.6.0 \
             @informalsystems/quint@0.32.0 \
             bats@1.11.0
+
+          # Quint otherwise queries the unauthenticated GitHub Releases API on
+          # the first simulation. A rate-limit response makes every formal row
+          # fail before evaluation. Pre-seed the exact evaluator asset from its
+          # stable release URL and verify the publisher-recorded digest.
+          evaluator_dir="${HOME}/.quint/rust-evaluator-v0.6.0"
+          evaluator_stage="$(mktemp -d)"
+          evaluator_zip="${evaluator_stage}/quint-evaluator-v0.6.0-windows.zip"
+          curl --silent --show-error --location --fail --retry 3 \
+            --output "${evaluator_zip}" \
+            https://github.com/quint-co/quint/releases/download/evaluator/v0.6.0/quint_evaluator-x86_64-pc-windows-msvc.zip
+          printf '%s  %s\n' \
+            41275a43a74f2d601b9a4bf245960cea00fac669be61a8f9ca5f9059340988f7 \
+            "${evaluator_zip}" | sha256sum --check --strict
+          mkdir -p "${evaluator_dir}"
+          unzip -q "${evaluator_zip}" -d "${evaluator_dir}"
+          test -s "${evaluator_dir}/quint_evaluator.exe"
+
           printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
             > /usr/local/bin/python3
           chmod +x /usr/local/bin/python3
