@@ -1,5 +1,10 @@
 # Council Preflight CLI Implementation Plan
 
+**Status:** Released as `v0.2.9.0` at commit `fbe2325`. The unchecked boxes
+below preserve the original executable worker instructions. They are not the
+current backlog. The OpenSpec release task ledger records completion and links
+to the release evidence.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:test-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship one compiled Node.js 24 CLI that converts a strict Council request into one provider-neutral preflight result.
