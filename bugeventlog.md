@@ -1,5 +1,11 @@
 # Foreman workflow bug/event log
 
+> **Historical and non-authoritative.** This append-only log preserves what was
+> observed at the time. Entries can contain superseded plans, counts, release
+> names, or proposed fixes. Use `ROADMAP.md`, `checklist.md`, and
+> `docs/RESIDUALS.md` for current release guidance. Do not delete an old entry
+> merely because later evidence corrected it.
+
 Append-only log of workflow failures, friction, and near-misses observed while
 running Foreman, so recurring patterns can be studied and the workflow enhanced.
 Format per entry: date, phase, what happened, evidence, root cause, impact,

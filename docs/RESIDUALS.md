@@ -1,209 +1,85 @@
-# Residuals — what v0.2.9.0 does not do
+# v0.2.8.2 residuals
 
-Tag criterion 11 requires these to be stated, not resolved. Each entry says what
-is unsolved, what is nevertheless true, and how you would know if it started to
-matter. Nothing here is a promise; several are permanent.
+This file states the known limits of v0.2.8.2. It is current release guidance,
+not a historical audit log.
 
-## Carried from earlier releases
+## External pilot boundary
 
-### D5 — Git-Bash syscall trace still owed
+- The external pilot covers one Gobox change: the DOSBox dependency-closure
+  installer. It does not prove general compatibility with every repository or
+  build system.
+- The pilot passed Gobox `make check` and Foreman's pristine-archive gate. It
+  did not test a stateful service target, a monorepo with multiple independent
+  gates, or a target on a Windows filesystem.
+- The pilot worker was Grok and the cold diff reviewer was Codex. Other worker
+  and reviewer combinations were not part of this release proof.
 
-The lock-atomicity probe licenses `atomic` only from an observed
-`mkdir(2) … EEXIST` on the probe target. On Git Bash under Windows that trace has
-never been captured, so the Windows verdict rests on flavour and contention,
-which by doctrine can only license `non-atomic` or `unknown` — never `atomic`.
-Windows therefore reports `unknown` and the system falls back accordingly. This
-is conservative and correct; it is not knowledge.
+## Orchestration residuals
 
-### `mkdir` stays permanently distrusted on Ubuntu 26.04
+- Pueue can report its socket as ready and then reject an immediate enqueue
+  with `connection refused`. The Council dogfood run reproduced this condition
+  and used direct Foreman round ownership. Queue admission needs a separate
+  readiness fix.
+- A Foreman target worktree can receive `.harness` and `FOREMAN_REPORT.*`
+  artifacts. The Gobox product commit excluded them, but artifact placement and
+  changed-file telemetry still need a cleaner target boundary.
+- The pilot used one bounded cold audit and two rework rounds. This proves the
+  hard-stop policy for that workload; it does not prove automatic enforcement
+  for every lane entry point.
+- External support still depends on an explicit target check. Foreman detects
+  Make and Go gates, but an unfamiliar repository can require an operator
+  check override.
 
-Not a new finding — see `docs/research/vnext/F-uutils-mkdir-blocker.md`, which
-established in July that Ubuntu 26.04 resolves `mkdir` to uutils 0.8.0, that it
-performs a userspace `statx` check-then-act instead of issuing `mkdir(2)`, and
-that GNU `mkdir` does not. A fresh eight-racer sample on this host reproduces it
-at **20 violations in 40 rounds**, against **0 of 40** for GNU `gnumkdir`.
+## Provider residuals
 
-What is worth recording as a residual is the standing consequence: `mkdir` can
-never earn a trusted verdict on this platform, so every durable lock rests on
-`flock` alone, and `lib/lock.sh` fail-closes if `flock` is unavailable or
-unlicensed. Pinning GNU `mkdir` when `gnu-coreutils` is present would restore a
-second mechanism; nobody has decided whether that is worth it, and it matters
-only for a host with no usable `flock`.
+- The local Grok CLI is stable `0.2.118`. The existing Foreman adapter still
+  records `0.2.114` as its verified version. Do not update that declaration
+  until a real canary passes on the newer CLI.
+- Council v0.3 work is on separate draft pull requests. Its ACE preflight and
+  TypeScript Grok transport are not part of v0.2.8.2 and do not change this
+  release's supported interface.
 
-### `strace` is a hard dependency of the lock, and reads like a debugging tool
+## Platform and gate residuals
 
-The syscall evidence class is the **only** one that can license a mechanism as
-`atomic`: flavour licenses nothing, and contention can license only `non-atomic`
-or `unknown`. So on any host whose `mkdir` is uutils, no `strace` means no
-trusted mechanism, and `lib/lock.sh` fail-closes with `FM_LOCK_UNAVAILABLE`.
-That is not a theoretical cost — it failed **102 tests across 11 files** on a
-freshly provisioned Ubuntu 26.04 host, and every one of them was the lock
-refusing rather than the code under test being wrong. `strace` is now installed
-by `env/bootstrap-wsl.sh` and reported by `env/tool-check.sh` on every POSIX
-profile, so its absence is visible up front instead of arriving later as
-unexplained refusals. It remains a `should` rather than a `must`: a host can run
-without it, but only by fail-closing every durable lock.
+- The Linux workflow runs the full Bats gate. The Windows workflow is required
+  to be green, but its Bats coverage remains a non-gating probe. A green
+  Windows workflow is not a claim that all Bats tests ran on Windows.
+- The Linux workflow now installs checksum-pinned NATS Server 2.14.4 and NATS
+  CLI 0.4.0 binaries. Foreman PR #10 passed all 12 NATS integration tests.
+  Windows does not make the same NATS integration claim.
+- WSL can fall back from an unavailable process namespace to `setsid` and a
+  process group. That fallback does not provide the same kernel cascade
+  guarantee as a process namespace.
+- The repository still contains shell and Python implementation modules. The
+  Node.js and TypeScript migration is a separate roadmap and is not complete
+  in this release. New Council executable code follows the Node.js and
+  TypeScript rule.
 
-### `agy` per-lane isolation unsolved
+## Scope and cleanup residuals
 
-`agy` is a gateway CLI whose model may come from several vendor lineages, and it
-has no per-lane isolated home. Two `agy` lanes share credentials and state. The
-model-family classification added in `cross-vendor-audit-routing` handles the
-lineage question — the family is the family of the model actually selected, never
-one associated with the CLI — but isolation itself is unsolved. Do not run two
-`agy` lanes concurrently and expect independence.
+- The withdrawn v0.2.9 work is preserved at `v0.2.9-preserve`. Formal, graph,
+  Tier 2, and wrong-premise package cuts were not executed in this release.
+- Historical research, evidence, archived OpenSpec packages, and SessionDB
+  facts can name v0.2.9. They are retained as dated evidence and are not
+  current guidance.
+- Dirty worktrees were not removed in bulk. Each worktree still requires an
+  ownership and recovery check before removal.
+- The `dev/foreman-v1` session-transport branch was not merged or evaluated as
+  part of v0.2.8.2.
+- The stale generated knowledge graph must not be promoted. A fresh graph must
+  record its source commit and pass graph queries before it replaces the old
+  output.
 
-### Audit latency bounded, not solved
+## Commands to re-verify release claims
 
-Audit rounds are bounded by a wall-clock timeout, which converts an unbounded
-wait into a failed round. That is a bound, not a latency guarantee. A slow
-auditor still costs the round.
+```bash
+FOREMAN_CI_BATS=1 bash tools/ci-local.sh
+gh run list --workflow gates-linux.yml --branch main
+gh run list --workflow gates-windows.yml --branch main
+git rev-parse main origin/main
+git rev-list -n 1 v0.2.9-preserve
+git -C /home/charl/gobox rev-parse main origin/main
+git -C /home/charl/gobox status --short
+```
 
-### Formal results bounded and sampled
-
-Apalache runs are bounded (8–12 steps) and trace exploration is sampled (20k
-traces). A property that holds within those bounds may fail outside them. The
-suite reports `VIOLATED` / `HOLDS` against the bound, and the bound is part of
-the result, not a footnote to it.
-
-## Added by the v0.2.9.0 work
-
-### The groundedness gate may not leave shadow
-
-`audit-groundedness-gate` ships with all nine registered checks in `shadow`, and
-this is enforced in the resolution path rather than by configuration: no
-promotion-record implementation exists, so `gg_effective_mode` forces `shadow`
-regardless of what any config says. Three things must close before any check
-enforces:
-
-- the canary is not bound to a gate entrypoint, so "evaluates the corpus on every
-  invocation" is not mechanised — that checkbox was withdrawn twice rather than
-  claimed;
-- a validly-loaded registry with **zero rows** yields a vacuous `CANARY_OK`
-  meaning "no checks ran", not "no violations found";
-- `G1` declares `repository_head` among its required inputs while its predicate
-  tests `changed_paths` only, contradicting its own zero-false-positive rationale.
-
-The checks are real and their mutation proof disables a real predicate. The
-gate's *promotion* is what is unfinished.
-
-### Tier 2 is built but has never been executed
-
-Tier 2 is seeded-defect statistical comparison against a pinned vendor model:
-8–12 specs at N=3 runs per condition. That is real vendor spend, and the package
-requires Tier 2 to have **no automatic trigger at all** — no CI workflow, no
-commit hook. No comparison has been run. Any Tier 2 number quoted anywhere would
-therefore be fabricated; there are none.
-
-**The machinery is now in the tree.** This entry twice said something untrue and
-both are recorded here rather than quietly edited. It first claimed "the
-machinery exists and is tested against recorded fixtures" while the code sat
-unmerged on `origin/lane/tier2-machinery`; that was corrected to say the
-machinery was absent. It is now present: the branch was verified against its own
-six-item check-first list — no live vendor invocation, the inconclusive rule and
-model-drift flag demonstrated firing, an empty trigger-absence proof, 27/27 bats
-with a baseline row, shellcheck clean, correct file modes — and merged. So
-"built but never executed" is now an accurate description of what you can check
-out, which it was not when the phrase was first written.
-
-Two gaps found during that verification are open and both concern *firing* Tier
-2 rather than building it: the trigger-absence scan does not cover `tests/`,
-where the suite invokes the collector with a fixture adapter on every commit
-(obligation 95); and the collector demands a numeric `cost_usd` with no
-`unavailable` path, while every vendor reports exactly that (obligation 96), so
-the budget check cannot be honestly computed.
-
-Four things must exist before Tier 2 could be fired even with spend authorised,
-and none does: a live vendor adapter, a locked spec set, a chosen model pin, and
-**a definition of what the per-spec score in [0,1] actually measures.** The last
-is a specification gap, not an implementation gap, which is why this was never
-really a spend decision. Note also that the declared USD 18 budget is a ceiling
-asserted before any measurement — Foreman cannot currently measure vendor cost
-at all, because every vendor reports `source: "unavailable"`.
-
-### The mkdir atomicity alternation was never reproduced locally
-
-The probe was observed returning `atomic` then `unknown` for the same binary on
-the same host seconds apart, in CI. Two causes were found and fixed: strace
-output was captured on the same channel as the traced process's stderr under
-`-f`, and a tracer that failed to *attach* was indistinguishable from a trace
-that ran and said nothing. The second is confirmed. **The alternation itself was
-never reproduced on the development host**, because local ptrace policy rejects
-`strace` outright, giving `unknown` 100 of 100 both before and after. Whether the
-flapping is fully closed is a question only CI answers.
-
-A *second* and independent source of verdict alternation has since been measured
-and must not be mistaken for this one: because the contention sample is drawn
-once per run and violates roughly half the time on uutils `mkdir`, the verdict
-alternates between `unknown` (clean sample) and `non-atomic` (violations seen) on
-the same binary and host — see the `mkdir` entry above. That is a different pair
-from the `atomic` ↔ `unknown` flapping described here, which turns on whether
-`strace` attached, and it leaves this residual open.
-
-One premise of this entry did not survive contact with a second host. "Local
-ptrace policy rejects `strace` outright" was not true here: `strace` was simply
-**not installed**, and `ptrace_scope` is `1`, which permits tracing one's own
-descendants — precisely what the probe does. Once installed it traced without
-complaint and licensed `flock` as `atomic`. Whether the original host genuinely
-denied `ptrace` or merely lacked the binary was never distinguished, and the two
-look identical through `command -v strace`.
-
-### Negative controls cover `kind: gate` only
-
-Tag criterion 4 is scoped to the `check_id` unit at `kind: gate` for v0.2.9 —
-roughly 38 rows. Two kinds are deliberately outside it.
-
-`kind: verdict-predicate` is the larger gap and the one that matters: it covers
-the 22 distinct refusal reasons in `gate-eval.sh` and the 5 in `merge-gate.sh`,
-which between them **are the merge decision**. Those predicates are not
-registered and have no negative controls, so nothing proves any of them can
-fire. Counting them would put the unit near 90 rows and the work at 3–5 weeks.
-
-`kind: assertion` is excluded permanently rather than deferred. Including it
-makes the unit ~710 rows, and the design that coined this criterion already
-answered that: "503 negative controls is not a plan."
-
-The exemplars to copy when this is picked up already exist and should not be
-redesigned: `skills/foreman/scripts/gate-ground-registry.tsv` carries 9 checks
-with a mutant fixture each, and `formal/expectations.tsv` carries 19 rows with
-`expected=VIOLATED` — a built-in known-bad arm that runs in CI.
-
-### The Windows bats gate is off, and the probe says why
-
-Superseded detail for the entry below, measured 2026-08-01 from the live CI log
-rather than inferred. `gates-windows` runs a **two-file non-gating probe**:
-`tests/plugin-drift.bats` passes (`rc=0 ok=3`), `tests/line-endings.bats` fails
-(`rc=1 ok=5 not_ok=1`). The failing test is the exec-bit inventory, and its
-output reads `(mode=)` — empty — for every file it flags, because Git Bash on
-the runner cannot read the index mode the way the test derives it. Every tracked
-script consequently reads as violating.
-
-That is a **test-portability defect**, not a product defect: the exec bits are
-correct, the test cannot see them there. It means enabling
-`FOREMAN_CI_BATS: "1"` on that workflow turns it red on one of the only two
-files ever probed, with 48 unprobed behind it. Tag criterion 2 is narrowed to
-Linux for v0.2.9 on this evidence. Un-narrowing it requires fixing that mode
-derivation for Git Bash first, then probing the rest before trusting a green.
-
-### bats has never passed on the Windows runner
-
-`bats` is now provisioned on `gates-windows`, but `FOREMAN_CI_BATS` remains `0`
-and the suite runs only under a non-gating probe. Provisioning and passing are
-different claims. Nobody yet knows what the suite does on Windows; the probe
-exists to find out, and until it reports, "the suite passes on Windows" is
-unsupported.
-
-### Measurement freshness is not discharged
-
-The session store carries stale measurements whose recorded re-run commands were
-not readable from the report a human would consult. Criterion 6 requires every
-measurement fresh at the tag commit and no number in the release notes without
-its re-run command. Until that sweep is done, treat any number in this repository
-as carrying the commit it was measured at, which the store records, and check it
-rather than quoting it.
-
-## How to read this document
-
-Every entry above was found by something failing, or by an audit refusing to
-certify a claim. That is the intended mechanism. A release with no residuals
-document is not a release without residuals — it is one that has not looked.
+The release notes must record the exact commit used for final verification.

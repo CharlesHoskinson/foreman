@@ -1,5 +1,11 @@
 # Start here — v0.2.9 Total GeorgeCall implementation
 
+> **Historical planning record — superseded 2026-08-03.** Do not use this file
+> to resume work or infer current scope. The v0.2.9 release was withdrawn and
+> preserved at tag `v0.2.9-preserve`. The active roadmap is `ROADMAP.md`; the
+> active release checklist is `checklist.md`. Counts, branches, credentials,
+> and environment notes below describe the old planning boundary only.
+
 Written at the end of the planning session so tomorrow starts without
 reconstruction. Branch: `plan/v029-graph-multivendor`. Nothing pushed.
 
