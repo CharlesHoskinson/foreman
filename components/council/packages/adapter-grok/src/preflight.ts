@@ -87,12 +87,22 @@ export const buildGrokCanaryInvocation = (
   };
 };
 
-const asNullableString = (value: unknown): string | null => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "string") return value;
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  return null;
+/**
+ * Accept only absent, null, or string for Grok outer string|null fields.
+ * Numbers, booleans, and objects are rejected — never coerced.
+ */
+const asStrictNullableString = (
+  value: unknown,
+):
+  | { readonly ok: true; readonly value: string | null }
+  | { readonly ok: false } => {
+  if (value === undefined || value === null) {
+    return { ok: true, value: null };
+  }
+  if (typeof value === "string") {
+    return { ok: true, value };
+  }
+  return { ok: false };
 };
 
 /**
@@ -280,8 +290,31 @@ export const decodeGrokCanaryTerminal = (
   }
 
   const wire = parsed.wire;
-  const stopReason = asNullableString(wire.stopReason);
-  const structuredOutputError = asNullableString(wire.structuredOutputError);
+  const stopReasonField = asStrictNullableString(wire.stopReason);
+  const structuredOutputErrorField = asStrictNullableString(
+    wire.structuredOutputError,
+  );
+  // Present non-(string|null) outer fields fail closed — no coercion.
+  if (!stopReasonField.ok || !structuredOutputErrorField.ok) {
+    return {
+      structuredOutput: null,
+      terminal: baseTerminal(observation, {
+        modelTurnStarted: false,
+        terminalRecordObserved: false,
+        terminalState: "error",
+        stopReason: null,
+        pendingToolCalls: 0,
+        failedToolCalls: 0,
+        parserComplete: false,
+        structuredOutputPresent: false,
+        structuredOutputError: null,
+        errorMessage:
+          "provider outer JSON has a malformed stopReason or structuredOutputError field type",
+      }),
+    };
+  }
+  const stopReason = stopReasonField.value;
+  const structuredOutputError = structuredOutputErrorField.value;
   // Never promote `text` — only the designated structuredOutput field.
   const structuredOutput =
     wire.structuredOutput === undefined ? null : wire.structuredOutput;

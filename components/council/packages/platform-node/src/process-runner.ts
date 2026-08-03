@@ -124,10 +124,9 @@ class BoundedStreamCollector {
     // Invalid sequences are replaced by the platform decoder; digest is over
     // the sanitized UTF-8 bytes, not the raw stream bytes.
     const asText = raw.toString("utf8");
-    let sanitized = sanitizeText(asText, homePaths);
-    if (this.truncated) {
-      sanitized = stripPartialSecretSuffix(sanitized);
-    }
+    // Always strip unterminated private-key blocks and trailing partial secret
+    // suffixes — including when the spool is below its byte cap.
+    const sanitized = stripPartialSecretSuffix(sanitizeText(asText, homePaths));
     let body = Buffer.from(sanitized, "utf8");
     if (this.truncated) {
       // Overflow observed: reserve marker space only now.

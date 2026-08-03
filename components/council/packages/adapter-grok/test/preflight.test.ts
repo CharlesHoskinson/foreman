@@ -247,4 +247,90 @@ describe("decodeGrokCanaryTerminal", () => {
     expect(decoded.terminal.terminalRecordObserved).toBe(false);
     expect(isSuccessfulTerminalObservation(decoded.terminal)).toBe(false);
   });
+
+  it("fails closed when stopReason is present but not a string or null", () => {
+    const cases: readonly unknown[] = [42, true, false, { reason: "end_turn" }];
+    for (const stopReason of cases) {
+      const outer = {
+        stopReason,
+        structuredOutput: structured,
+        structuredOutputError: null,
+        num_turns: 1,
+        text: "",
+      };
+      const decoded = decodeGrokCanaryTerminal(
+        observation(JSON.stringify(outer)),
+      );
+      expect(decoded.structuredOutput).toBeNull();
+      expect(decoded.terminal.parserComplete).toBe(false);
+      expect(decoded.terminal.terminalRecordObserved).toBe(false);
+      expect(decoded.terminal.structuredOutputPresent).toBe(false);
+      expect(isSuccessfulTerminalObservation(decoded.terminal)).toBe(false);
+      // Must not coerce numbers/booleans into stopReason strings.
+      expect(decoded.terminal.stopReason).toBeNull();
+    }
+  });
+
+  it("fails closed when structuredOutputError is present but not a string or null", () => {
+    const cases: readonly unknown[] = [
+      7,
+      false,
+      { message: "schema mismatch" },
+    ];
+    for (const structuredOutputError of cases) {
+      const outer = {
+        stopReason: "end_turn",
+        structuredOutput: structured,
+        structuredOutputError,
+        num_turns: 1,
+        text: "",
+      };
+      const decoded = decodeGrokCanaryTerminal(
+        observation(JSON.stringify(outer)),
+      );
+      expect(decoded.structuredOutput).toBeNull();
+      expect(decoded.terminal.parserComplete).toBe(false);
+      expect(decoded.terminal.terminalRecordObserved).toBe(false);
+      expect(isSuccessfulTerminalObservation(decoded.terminal)).toBe(false);
+      // Must not map objects to null and continue as a successful parse.
+      expect(decoded.terminal.structuredOutputError).toBeNull();
+    }
+  });
+
+  it("still accepts string | null stopReason and structuredOutputError", () => {
+    const withNulls = {
+      stopReason: null,
+      structuredOutput: structured,
+      structuredOutputError: null,
+      num_turns: 1,
+      text: "",
+    };
+    const decodedNulls = decodeGrokCanaryTerminal(
+      observation(JSON.stringify(withNulls)),
+    );
+    expect(decodedNulls.terminal.stopReason).toBeNull();
+    expect(decodedNulls.terminal.structuredOutputError).toBeNull();
+    // null stopReason is a successful stop reason when structured output is present.
+    expect(isSuccessfulTerminalObservation(decodedNulls.terminal)).toBe(true);
+
+    const withStrings = {
+      stopReason: "end_turn",
+      structuredOutput: null,
+      structuredOutputError: "model did not produce structured output",
+      num_turns: 1,
+      text: "",
+    };
+    const decodedStrings = decodeGrokCanaryTerminal(
+      observation(JSON.stringify(withStrings)),
+    );
+    expect(decodedStrings.terminal.stopReason).toBe("end_turn");
+    expect(decodedStrings.terminal.structuredOutputError).toBe(
+      "model did not produce structured output",
+    );
+    expect(decodedStrings.terminal.parserComplete).toBe(true);
+    expect(decodedStrings.terminal.terminalRecordObserved).toBe(true);
+    expect(isSuccessfulTerminalObservation(decodedStrings.terminal)).toBe(
+      false,
+    );
+  });
 });

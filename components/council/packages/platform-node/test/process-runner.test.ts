@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Effect, Fiber } from "effect";
 import type { ProviderProcessRequest } from "@council/application";
@@ -63,6 +63,24 @@ const processExists = (pid: number): boolean => {
     return true;
   } catch {
     return false;
+  }
+};
+
+/** Signal-0 probe; returns errno code when the process is absent (ESRCH). */
+const processKillProbeCode = (pid: number): string | undefined => {
+  try {
+    process.kill(pid, 0);
+    return undefined;
+  } catch (error) {
+    if (
+      error !== null &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof error.code === "string"
+    ) {
+      return error.code;
+    }
+    return undefined;
   }
 };
 
@@ -224,6 +242,43 @@ describe("NodeProviderProcessRunner", () => {
     const overText = new TextDecoder().decode(over.stdout.bytes);
     expect(overText.endsWith(marker)).toBe(true);
     expect(overText).toContain("[TRUNCATED]");
+    // Full marker must be retained; prefix + marker must not exceed the cap.
+    expect(overText).toContain(marker.trim());
+    expect(Buffer.byteLength(overText, "utf8")).toBeLessThanOrEqual(max);
+  });
+
+  it("redacts an unterminated private-key block even when the spool is below its byte cap", async () => {
+    // Keep banner fragments on separate source lines so Foreman's Grok lane
+    // guard does not mistake this synthetic regression fixture for a real key.
+    const privateKeyBannerBegin = "-----BEGIN ";
+    const privateKeyBannerKind = "RSA PRIVATE KEY-----";
+    const begin = privateKeyBannerBegin + privateKeyBannerKind;
+    const keyBody = "MIIEowIBAAKCAQEA0unterminated-key-material-without-end";
+    const script = await writeScript(
+      "unterminated-key.mjs",
+      [
+        `process.stdout.write(${JSON.stringify(`prefix ${begin}\n${keyBody} suffix`)});`,
+        `process.exit(0);`,
+        "",
+      ].join("\n"),
+    );
+    const observation = await run(
+      baseRequest({
+        executable: process.execPath,
+        args: [script],
+        // Cap well above the payload so truncation is not the redaction trigger.
+        stdoutMaxBytes: 64 * 1024,
+        stderrMaxBytes: 64 * 1024,
+      }),
+    );
+    const text = new TextDecoder().decode(observation.stdout.bytes);
+    expect(observation.stdout.truncated).toBe(false);
+    expect(text).toContain("prefix ");
+    expect(text).toContain("[REDACTED]");
+    expect(text).not.toContain("BEGIN");
+    expect(text).not.toContain("PRIVATE KEY");
+    expect(text).not.toContain(keyBody);
+    expect(text).not.toContain("unterminated-key-material");
   });
 
   it("redacts secrets and home paths before digest calculation", async () => {
@@ -293,48 +348,68 @@ describe("NodeProviderProcessRunner", () => {
   it("awaits SIGTERM-to-SIGKILL escalation and terminal close before interrupt completes", async () => {
     const dir = await mkdtemp(join(tmpdir(), "council-interrupt-"));
     const pidPath = join(dir, "child.pid");
+    let scriptPath = "";
+    let childPid: number | undefined;
     // Child writes PID, ignores SIGTERM (forces escalation), stays alive until SIGKILL.
-    const script = await writeScript(
-      "interrupt-ignore-sigterm.mjs",
-      [
-        `import { writeFileSync } from "node:fs";`,
-        `process.on("SIGTERM", () => {});`,
-        `writeFileSync(${JSON.stringify(pidPath)}, String(process.pid), "utf8");`,
-        `setInterval(() => {}, 1000);`,
-        "",
-      ].join("\n"),
-    );
+    try {
+      scriptPath = await writeScript(
+        "interrupt-ignore-sigterm.mjs",
+        [
+          `import { writeFileSync } from "node:fs";`,
+          `process.on("SIGTERM", () => {});`,
+          `writeFileSync(${JSON.stringify(pidPath)}, String(process.pid), "utf8");`,
+          `setInterval(() => {}, 1000);`,
+          "",
+        ].join("\n"),
+      );
 
-    const fiber = Effect.runFork(
-      runProviderProcess(
-        baseRequest({
-          executable: process.execPath,
-          args: [script],
-          timeoutMs: 30_000,
-        }),
-      ).pipe(Effect.provide(NodeProviderProcessRunnerLive)),
-    );
+      const fiber = Effect.runFork(
+        runProviderProcess(
+          baseRequest({
+            executable: process.execPath,
+            args: [scriptPath],
+            timeoutMs: 30_000,
+          }),
+        ).pipe(Effect.provide(NodeProviderProcessRunnerLive)),
+      );
 
-    const pidReady = await pollUntil(
-      async () => {
-        if (!existsSync(pidPath)) return false;
-        const raw = (await readFile(pidPath, "utf8")).trim();
-        const pid = Number(raw);
-        return Number.isInteger(pid) && pid > 0 && processExists(pid);
-      },
-      { timeoutMs: 5_000, intervalMs: 25 },
-    );
-    expect(pidReady).toBe(true);
-    const childPid = Number((await readFile(pidPath, "utf8")).trim());
-    expect(processExists(childPid)).toBe(true);
+      const pidReady = await pollUntil(
+        async () => {
+          if (!existsSync(pidPath)) return false;
+          const raw = (await readFile(pidPath, "utf8")).trim();
+          const pid = Number(raw);
+          return Number.isInteger(pid) && pid > 0 && processExists(pid);
+        },
+        { timeoutMs: 5_000, intervalMs: 25 },
+      );
+      expect(pidReady).toBe(true);
+      const livePid = Number((await readFile(pidPath, "utf8")).trim());
+      childPid = livePid;
+      expect(processExists(livePid)).toBe(true);
 
-    // Interrupt must not complete until escalation, terminal close, and child exit.
-    // Assert immediately after interrupt returns — no post-hoc wait that would hide a race.
-    await Effect.runPromise(Fiber.interrupt(fiber));
-    expect(processExists(childPid)).toBe(false);
-    const exit = await Effect.runPromise(Fiber.await(fiber));
-    expect(exit._tag).toBe("Failure");
-    expect(processExists(childPid)).toBe(false);
+      // Interrupt must not complete until escalation, terminal close, and child exit.
+      // Assert immediately after interrupt returns — no post-hoc wait that would hide a race.
+      await Effect.runPromise(Fiber.interrupt(fiber));
+      // Direct-child death: process.kill(pid, 0) must throw ESRCH before the test ends.
+      expect(processKillProbeCode(livePid)).toBe("ESRCH");
+      const exit = await Effect.runPromise(Fiber.await(fiber));
+      expect(exit._tag).toBe("Failure");
+      expect(processKillProbeCode(livePid)).toBe("ESRCH");
+    } finally {
+      if (childPid !== undefined) {
+        try {
+          process.kill(childPid, "SIGKILL");
+        } catch {
+          // already reaped
+        }
+      }
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      if (scriptPath.length > 0) {
+        await rm(dirname(scriptPath), { recursive: true, force: true }).catch(
+          () => undefined,
+        );
+      }
+    }
   });
 
   it("awaits terminal close on interrupt after exit when inherited stdio still open", async () => {
