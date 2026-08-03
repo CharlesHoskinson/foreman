@@ -33,10 +33,11 @@ admissible `changes_requested` result.
    semantic lint, and reject free prose before any provider starts.
 2. **Verify and materialize immutable evidence.** Bind `base_sha`, `head_sha`,
    and the diff content hash. Verify every required artifact length and digest.
-3. **Blind identities before final prompt materialization.** BEFORE prompt
-   hashing and ready-token issuance, Foreman removes direct provider, model,
-   CLI, worker, and author identity and replaces it with random candidate
-   identifiers. The ready token must bind the exact blinded prompt bytes that
+3. **Blinding boundary: blind identities before final prompt materialization.**
+   BEFORE prompt hashing and ready-token issuance, Foreman removes direct
+   provider, model, CLI, worker, and author identity and replaces it with random
+   candidate identifiers. Foreman keeps the identity mapping sealed outside the
+   review input. The ready token must bind the exact blinded prompt bytes that
    reviewers receive.
 4. **Lower the provider schema without weakening the host boundary.** Record
    the canonical schema hash and each provider **review-response**

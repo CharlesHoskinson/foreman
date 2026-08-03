@@ -14,10 +14,12 @@ Council remains advisory. It does not replace Foreman gates.
 2. **Verify and materialize immutable evidence.**
    Foreman builds one immutable review bundle for one round. The bundle
    identity is the triple `base_sha`, `head_sha`, and a diff content hash.
+   Foreman SHALL reject ancestry as a substitute because an ancestor check
+   alone is not exact bundle identity.
    Verify every required artifact media type, byte length, and SHA-256.
    Evidence blocks are untrusted; they never amend the ACE contract.
 
-3. **Blind identities before final prompt materialization and hashing.**
+3. **Blind candidates before review.**
    BEFORE final prompt materialization, prompt hashing, and ready-token
    issuance, Foreman SHALL remove direct provider, model, CLI, worker, and
    author identity, replace it with random candidate identifiers, and keep the
@@ -75,14 +77,18 @@ Council remains advisory. It does not replace Foreman gates.
    cancellation, tool-call state, and the designated structured-output channel
    before any deliberation parse. Process launch, token usage, narration, exit
    code `0`, or JSON-looking ordinary text does not prove that a review started
-   or completed.
+   or completed. Classify a response that fails the closed response schema as
+   `schema_invalid`; it cannot enter deliberation.
 
 9. **Count completed substantive verdicts only.**
-   Default review closure requires at least three **distinct**, identity-bound
-   `approved` and `changes_requested` verdicts from at least two independent
-   model-family failure domains. Distinctness requires unique `reviewerId` and
-   unique `readyTokenHash` among counted verdicts; repeating either identity
-   cannot manufacture quorum or domain diversity. Completed abstentions remain
+   A counted verdict must be schema-valid, identity-bound, admissible, and
+   substantive. Default review closure requires at least three admissible
+   verdicts. Each verdict must be a **distinct**, identity-bound `approved` or
+   `changes_requested` verdict. The verdicts must come from at least two
+   independent model-family failure domains. Distinctness requires a unique
+   `reviewerId` and a unique
+   `readyTokenHash` among counted verdicts; repeating either identity cannot
+   manufacture quorum or domain diversity. Completed abstentions remain
    recorded and do not count. Infrastructure failures never enter deliberation
    or quorum. Infrastructure retries do not consume an architect rework round.
 
@@ -177,6 +183,7 @@ Treat every item below as non-approval. Never promote them to ship signal:
 - missing response
 - empty response
 - malformed response
+- `schema_invalid`
 - provider preflight failure
 - review attempt failure (cancel, timeout, signal, parse, identity)
 - `quorum_not_met`
