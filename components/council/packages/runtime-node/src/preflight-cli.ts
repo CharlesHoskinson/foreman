@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import {
   decodePreflightCliRequestV1,
   decodeStrictSync,
@@ -5,6 +6,7 @@ import {
   type PreflightCliRequestV1,
   type PromptPreflightResultV1 as PromptPreflightResult,
 } from "@council/schema";
+import { executePreflightRequest } from "./preflight-program.js";
 
 export const MAX_STDIN_BYTES = 1_048_576;
 export const MAX_STDERR_BYTES = 4_096;
@@ -16,6 +18,27 @@ export type PreflightCliIo = {
   readonly execute: (
     request: PreflightCliRequestV1,
   ) => Promise<PromptPreflightResult>;
+};
+
+const writeStreamBytes = (
+  stream: NodeJS.WriteStream,
+  bytes: Uint8Array,
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    stream.write(bytes, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+
+const nodeIo: PreflightCliIo = {
+  stdin: process.stdin,
+  writeStdout: (bytes) => writeStreamBytes(process.stdout, bytes),
+  writeStderr: (bytes) => writeStreamBytes(process.stderr, bytes),
+  execute: executePreflightRequest,
 };
 
 const textEncoder = new TextEncoder();
@@ -133,3 +156,14 @@ export const runPreflightCli = async (
 
   return writeResultLine(io, result);
 };
+
+if (import.meta.main) {
+  void runPreflightCli(process.argv.slice(2), nodeIo).then(
+    (code) => {
+      process.exitCode = code;
+    },
+    () => {
+      process.exitCode = 1;
+    },
+  );
+}

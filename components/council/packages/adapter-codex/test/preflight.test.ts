@@ -20,10 +20,15 @@ import {
 const digestOf = (text: string): Sha256Digest =>
   createHash("sha256").update(text).digest("hex") as Sha256Digest;
 
-const byteSpool = (bytes: Uint8Array, truncated = false) => ({
+const byteSpool = (
+  bytes: Uint8Array,
+  truncated = false,
+  sourceUtf8Valid = true,
+) => ({
   bytes,
   digest: createHash("sha256").update(bytes).digest("hex") as Sha256Digest,
   truncated,
+  sourceUtf8Valid,
 });
 
 const emptySpool = (text = "", truncated = false) =>
@@ -387,7 +392,7 @@ describe("decodeCodexCanaryTerminal", () => {
     bytes.set(suffix, prefix.byteLength + 1);
 
     const decodedInvalid = decodeCodexCanaryTerminal(
-      observation("", { stdout: byteSpool(bytes) }),
+      observation("", { stdout: byteSpool(bytes, false, false) }),
     );
     expect(decodedInvalid.structuredOutput).toBeNull();
     expect(isSuccessfulTerminalObservation(decodedInvalid.terminal)).toBe(

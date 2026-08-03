@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process";
+import { access, chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   decodeStrictSync,
@@ -345,9 +349,8 @@ describe("runPreflightCli", () => {
 
   it("fails closed on trailing JSON data without execute", async () => {
     const body = `${JSON.stringify(validRequest)}\n{"extra":true}`;
-    const { io, capture } = makeIo(
-      bytesStdin([textEncoder.encode(body)]),
-      () => Promise.resolve(typedFailure),
+    const { io, capture } = makeIo(bytesStdin([textEncoder.encode(body)]), () =>
+      Promise.resolve(typedFailure),
     );
     const code = await runPreflightCli([], io);
     expect(code).toBe(1);
@@ -367,9 +370,8 @@ describe("runPreflightCli", () => {
   });
 
   it("writes exactly one stdout line and returns 0 for ready results", async () => {
-    const { io, capture } = makeIo(
-      bytesStdin([encodeJson(validRequest)]),
-      () => Promise.resolve(readyResult),
+    const { io, capture } = makeIo(bytesStdin([encodeJson(validRequest)]), () =>
+      Promise.resolve(readyResult),
     );
     const code = await runPreflightCli([], io);
     expect(code).toBe(0);
@@ -380,9 +382,8 @@ describe("runPreflightCli", () => {
   });
 
   it("returns 1 for typed executor failures with exact one-line stdout", async () => {
-    const { io, capture } = makeIo(
-      bytesStdin([encodeJson(validRequest)]),
-      () => Promise.resolve(typedFailure),
+    const { io, capture } = makeIo(bytesStdin([encodeJson(validRequest)]), () =>
+      Promise.resolve(typedFailure),
     );
     const code = await runPreflightCli([], io);
     expect(code).toBe(1);
@@ -391,9 +392,8 @@ describe("runPreflightCli", () => {
   });
 
   it("calls execute exactly once only after a valid request", async () => {
-    const { io, capture } = makeIo(
-      bytesStdin([encodeJson(validRequest)]),
-      () => Promise.resolve(typedFailure),
+    const { io, capture } = makeIo(bytesStdin([encodeJson(validRequest)]), () =>
+      Promise.resolve(typedFailure),
     );
     await runPreflightCli([], io);
     expect(capture.executeCalls).toBe(1);
@@ -406,14 +406,12 @@ describe("runPreflightCli", () => {
 
   it("maps invalid executor results to a static parse-stage failure", async () => {
     const secret = "SECRET_INVALID_RESULT_/env/API_KEY=xyz";
-    const { io, capture } = makeIo(
-      bytesStdin([encodeJson(validRequest)]),
-      () =>
-        Promise.resolve({
-          _tag: "ready",
-          schemaVersion: 1,
-          leak: secret,
-        } as unknown as PromptPreflightResult),
+    const { io, capture } = makeIo(bytesStdin([encodeJson(validRequest)]), () =>
+      Promise.resolve({
+        _tag: "ready",
+        schemaVersion: 1,
+        leak: secret,
+      } as unknown as PromptPreflightResult),
     );
     const code = await runPreflightCli([], io);
     expect(code).toBe(1);
@@ -429,9 +427,8 @@ describe("runPreflightCli", () => {
 
   it("maps thrown executor errors to a static parse-stage failure without reflection", async () => {
     const secret = "SECRET_THROW path=/home/user/.env token=abc123";
-    const { io, capture } = makeIo(
-      bytesStdin([encodeJson(validRequest)]),
-      () => Promise.reject(new Error(secret)),
+    const { io, capture } = makeIo(bytesStdin([encodeJson(validRequest)]), () =>
+      Promise.reject(new Error(secret)),
     );
     const code = await runPreflightCli([], io);
     expect(code).toBe(1);
@@ -474,6 +471,95 @@ describe("runPreflightCli", () => {
     expect(capture.stderr.length).toBeGreaterThan(0);
     for (const chunk of capture.stderr) {
       expect(chunk.byteLength).toBeLessThanOrEqual(MAX_STDERR_BYTES);
+    }
+  });
+});
+
+describe("compiled council-preflight process", () => {
+  it("runs the built entrypoint and emits one strict failure line", () => {
+    const child = spawnSync(
+      process.execPath,
+      ["packages/runtime-node/dist/preflight-cli.js"],
+      {
+        cwd: process.cwd(),
+        input: "{}\n",
+        encoding: "utf8",
+        timeout: 10_000,
+      },
+    );
+
+    expect(child.status).toBe(1);
+    expect(child.stderr).toBe("");
+    expect(child.stdout.endsWith("\n")).toBe(true);
+    expect(child.stdout.slice(0, -1).includes("\n")).toBe(false);
+
+    const parsed: unknown = JSON.parse(child.stdout.slice(0, -1));
+    const result = decodeStrictSync(PromptPreflightResultV1, parsed);
+    expect(result._tag).toBe("failure");
+    if (result._tag === "failure") {
+      expect(result.failure.stage).toBe("parse");
+      expect(result.terminal).toBe(null);
+    }
+  });
+
+  it("rejects invalid ACE before starting the provider process", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "council-preflight-ace-"));
+    const markerPath = join(tempDir, "provider-started.marker");
+    const isWindows = process.platform === "win32";
+    const executablePath = isWindows
+      ? join(tempDir, "provider-fixture.exe")
+      : join(tempDir, "provider-fixture");
+
+    try {
+      if (!isWindows) {
+        const script = `#!/usr/bin/env node
+import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(markerPath)}, "started\\n");
+process.stdout.write("1.0.0\\n");
+`;
+        await writeFile(executablePath, script, "utf8");
+        await chmod(executablePath, 0o755);
+      }
+
+      const request = {
+        ...validRequest,
+        contract: {
+          ...validRequest.contract,
+          aceSource: "Reviewer maybe checks things.",
+        },
+        provider: {
+          ...validRequest.provider,
+          executable: executablePath,
+        },
+      };
+
+      const child = spawnSync(
+        process.execPath,
+        ["packages/runtime-node/dist/preflight-cli.js"],
+        {
+          cwd: process.cwd(),
+          input: `${JSON.stringify(request)}\n`,
+          encoding: "utf8",
+          timeout: 10_000,
+        },
+      );
+
+      expect(child.status).toBe(1);
+      expect(child.stderr).toBe("");
+      expect(child.stdout.endsWith("\n")).toBe(true);
+      expect(child.stdout.slice(0, -1).includes("\n")).toBe(false);
+
+      const parsed: unknown = JSON.parse(child.stdout.slice(0, -1));
+      const result = decodeStrictSync(PromptPreflightResultV1, parsed);
+      expect(result._tag).toBe("failure");
+      if (result._tag === "failure") {
+        expect(result.failure.stage).toBe("prompt");
+        expect(result.terminal).toBe(null);
+      }
+
+      await expect(access(markerPath)).rejects.toBeDefined();
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
     }
   });
 });
