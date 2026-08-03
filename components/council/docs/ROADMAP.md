@@ -16,6 +16,7 @@ Exit condition: the written design is reviewed and accepted as the implementatio
 - Define versioned Effect Schema contracts, brands, tagged errors, and migrations.
 - Implement runtime-free `decide`, `evolve`, and `replay` functions.
 - Prove lifecycle, budget, authorization, quorum, and terminal-state invariants with property and replay tests.
+- Status: Hosted root `gates-linux` and `gates-windows` now run the deterministic Council Node 24 gate (`pnpm check` and strict OpenSpec-all) on pull requests without provider credentials.
 
 ## Phase 2 — Effect application shell
 
