@@ -210,7 +210,9 @@ if [[ -z "$trace_file" ]]; then
   echo "strace: expected -o FILE" >&2
   exit 125
 fi
-printf 'mkdir("%s", 0777) = -1 EEXIST (File exists)\n' "$last_arg" >"$trace_file"
+# Keep an "n" in the target path. In grep ERE, [^\n] excludes the literal
+# letter n rather than matching any non-newline character.
+printf 'mkdir("/tmp/contains-n/x", 0777) = -1 EEXIST (File exists)\n' >"$trace_file"
 printf '+++ exited with 1 +++\n' >>"$trace_file"
 echo 'tracee stderr noise: mkdir("/interleaved' >&2
 exit 1

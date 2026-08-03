@@ -483,13 +483,13 @@ fm_tc_probe_mkdir_once() {
       verdict="unknown"
       evidence="syscall"
       notes="tracer did not run (strace exit=${trace_rc}; no trace output)"
-    elif printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}[^\n]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
+    elif printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^)]*/${target_base}[^)]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
       verdict="atomic"
       evidence="syscall"
       notes="mkdir(2) on probe target; kernel returned EEXIST"
     elif printf '%s\n' "$trace" | grep -qE 'statx\(' && \
-         ! printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}[^\n]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
-      if ! printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^\n]*/${target_base}"; then
+         ! printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^)]*/${target_base}[^)]*\)[[:space:]]*=[[:space:]]*-1[[:space:]]+EEXIST"; then
+      if ! printf '%s\n' "$trace" | grep -qE "mkdir(at)?\([^)]*/${target_base}"; then
         verdict="non-atomic"
         evidence="syscall"
         notes="userspace statx check; no mkdir(2) EEXIST (TOCTOU)"
