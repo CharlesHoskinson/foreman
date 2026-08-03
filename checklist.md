@@ -43,8 +43,8 @@ is not a release criterion by itself.
 - [ ] Validate Markdown links and repository hygiene.
 - [ ] Validate all active OpenSpec packages with strict mode.
 - [ ] Confirm that the replacement graph records the release candidate commit.
-- [ ] Commit and push the release-record cleanup branch.
-- [ ] Merge the cleanup branch to `main` after its workflows pass.
+- [x] Commit and push the release-record cleanup branch as PR #12.
+- [x] Merge the cleanup branch to `main` as `d9eafbb` after its workflows pass.
 - [ ] Re-run criterion 1 on the merged commit.
 - [ ] Confirm criterion 2 on the merged commit.
 - [ ] Mark the three criteria complete in one final release-record commit.

@@ -17,6 +17,7 @@ three release gates.
 | Fix the external soft-mode defects | Complete | Foreman PR [#7](https://github.com/CharlesHoskinson/foreman/pull/7), merge `525cfb0` |
 | Restore Linux NATS coverage | Complete | Foreman PR [#10](https://github.com/CharlesHoskinson/foreman/pull/10), merge `09e0715`, 12 of 12 NATS tests passed |
 | Replace stale active release guidance | Complete | Foreman PR [#12](https://github.com/CharlesHoskinson/foreman/pull/12), merge `d9eafbb` |
+| Remove Quint's rate-limited first-run fetch | In progress | Foreman PR [#14](https://github.com/CharlesHoskinson/foreman/pull/14); Windows and standalone formal checks are green |
 | Rebuild the knowledge graph from the merged tree | In progress | The replacement must record its source commit before promotion |
 | Run the three release gates and tag | Pending | See `checklist.md` |
 
