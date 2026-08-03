@@ -72,10 +72,17 @@
       missing terminal event, and valid-looking output followed by cancellation.
 - [x] 4.2 Implement one tool-free, one-turn, deadline-bounded canary through an
       Effect provider-health port.
-- [ ] 4.3 Implement shell-free Claude, Gemini, and Grok canary invocations and
-      terminal decoders. Keep provider wire types private.
-- [ ] 4.4 Add a Node.js TypeScript preflight CLI that emits one provider-neutral
+- [x] 4.3.a Implement the shell-free Claude canary invocation and terminal decoder.
+- [x] 4.3.b Implement the shell-free Grok canary invocation and terminal decoder.
+- [x] 4.3.c Implement the shell-free Codex canary invocation and terminal decoder.
+- [ ] 4.3.d Implement the shell-free Gemini canary invocation and terminal decoder.
+      Keep provider wire types private.
+- [x] 4.4 Add a Node.js TypeScript preflight CLI that emits one provider-neutral
       JSON result and uses stderr for bounded diagnostics.
+  - [x] 4.4.a Add the closed request decoder and canonical canary material.
+  - [x] 4.4.b Compose prompt compilation, provider canary, and token issuance.
+  - [x] 4.4.c Add the bounded Node CLI boundary and exact exit-code contract.
+  - [x] 4.4.d Add red-first unit and compiled-process tests.
 - [x] 4.5 Preserve bounded sanitized stdout and stderr spools and their digests
       for every attempt.
 
@@ -108,11 +115,15 @@
 - [x] 6.2 State that pre-review failure is retryable infrastructure state, not
       dissent, rejection, abstention, or approval.
 - [x] 6.3 Run local TypeScript checks and strict OpenSpec validation.
-- [ ] 6.4 Run bounded live canaries for every selected non-author provider and
+- [x] 6.4 Run bounded live canaries for every selected non-author provider and
       preserve provider-neutral, secret-safe results.
   - [x] 6.4.a Run one bounded xAI schema-handshake smoke. The compiler passed,
         but the provider returned `stopReason: "Cancelled"`, no designated
         structured output, and a structured-output error. This is an
         infrastructure failure and does not complete task 6.4.
+  - [x] 6.4.b Run provisional release canaries for xAI, Anthropic, and OpenAI.
+        All three returned provider-neutral `ready` results with completed
+        terminal observations. Preserve the secret-safe receipts under
+        `docs/evidence/v029-council-live-canaries/`.
 - [ ] 6.5 Run the corrected migration-plan Council round with a newly compiled
       contract. Count only completed substantive verdicts.

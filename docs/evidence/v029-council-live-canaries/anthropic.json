@@ -1,0 +1,80 @@
+{
+  "_tag": "ready",
+  "canary": {
+    "canarySchemaVariantHash": "sha256:0645b622a76f2d4bb7a8e7e17d3d86a7a0ad3723e895b5e008a0db200f850f1c",
+    "challenge": {
+      "checkExpression": "1+1",
+      "expectedCheckResult": "2",
+      "nonce": "8fa0e30fdcb5b6bcc9ebcffce526b2622f69b0a04452605ee21a8ef9aaad2a06",
+      "schemaVersion": 1
+    },
+    "challengeHash": "sha256:aff4ccb955bd5d7618c00e0977bc10f30ee8dd9256bd0601d2c2a78095f6cd65",
+    "cliVersion": "2.1.220 (Claude Code)",
+    "contractClass": "council-ace-1",
+    "expiresAt": "2026-08-03T19:31:46.820Z",
+    "model": "claude-sonnet-5",
+    "observedAt": "2026-08-03T19:21:46.820Z",
+    "promptHash": "sha256:48ac574769765d55e6ae9799ef34d3d1540349afe22db8efea0aafc941eb7f21",
+    "providerFamily": "anthropic",
+    "response": {
+      "checkResult": "2",
+      "nonce": "8fa0e30fdcb5b6bcc9ebcffce526b2622f69b0a04452605ee21a8ef9aaad2a06",
+      "schemaVersion": 1,
+      "status": "ready"
+    },
+    "schemaVariantHash": "sha256:7689100f1287a004c42612fcb2aa1362855455201adf71e2ef57ef31f6b5d335",
+    "schemaVersion": 1,
+    "terminal": {
+      "errorMessage": null,
+      "exitCode": 0,
+      "failedToolCalls": 0,
+      "modelTurnStarted": true,
+      "parserComplete": true,
+      "pendingToolCalls": 0,
+      "schemaVersion": 1,
+      "stderrDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutDigest": "869e7cf1e114aa3021c20e9472e1169f8d4913e135f2055bc23d1eee543fc727",
+      "stopReason": "stop",
+      "structuredOutputError": null,
+      "structuredOutputPresent": true,
+      "terminalRecordObserved": true,
+      "terminalState": "completed"
+    }
+  },
+  "prompt": {
+    "artifactIds": [
+      "sha256:c4543b64debe9d1b6159345853c066ab2b9e10e72bf3d67d96e19d9f2ba510f4",
+      "sha256:94cfef715566063807b8678130e80821ecc46e12be43eda5813d600750c42311",
+      "sha256:91c0479e52f6ffa375ea6e2bbac23e9cb67b86cab19059d40c17f5cc91fa173b",
+      "sha256:4033e6f229164922f1600f00a2dacd22e9b9bbdad58f82dd95095b0bb648eb83"
+    ],
+    "bundle": {
+      "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "diffSha256": "c4543b64debe9d1b6159345853c066ab2b9e10e72bf3d67d96e19d9f2ba510f4",
+      "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "schemaVersion": 1
+    },
+    "candidateId": "cand_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "canonicalAceText": "Every reviewer must verify the bundle-identity.\nEvery reviewer must inspect every required-artifact.\nEvery reviewer must evaluate every acceptance-criterion.\nEvery reviewer must cite every material-finding.\nEvery reviewer must emit exactly one final-response.\nEvery reviewer must not emit a premature-response.\nIf a reviewer detects a material-defect then the reviewer must request a change.\nIf a reviewer approves the candidate then the reviewer must detect no material-defect.\nIf a reviewer reserves the abstention then the reviewer must identify a required-evidence-gap.",
+    "contractHash": "sha256:89a10b423934fd05de5e07a378c15be99c914f8b950a6b9fc298e5bfa18736d6",
+    "profile": "council-ace-1",
+    "promptByteLength": 2252,
+    "promptHash": "sha256:48ac574769765d55e6ae9799ef34d3d1540349afe22db8efea0aafc941eb7f21",
+    "responseSchemaArtifactId": "sha256:91c0479e52f6ffa375ea6e2bbac23e9cb67b86cab19059d40c17f5cc91fa173b",
+    "schemaVariantHash": "sha256:7689100f1287a004c42612fcb2aa1362855455201adf71e2ef57ef31f6b5d335",
+    "schemaVersion": 1
+  },
+  "schemaVersion": 1,
+  "token": {
+    "cliVersion": "2.1.220 (Claude Code)",
+    "contractHash": "sha256:89a10b423934fd05de5e07a378c15be99c914f8b950a6b9fc298e5bfa18736d6",
+    "expiresAt": "2026-08-03T19:27:03.821Z",
+    "issuedAt": "2026-08-03T19:22:03.821Z",
+    "model": "claude-sonnet-5",
+    "nonce": "8fa0e30fdcb5b6bcc9ebcffce526b2622f69b0a04452605ee21a8ef9aaad2a06",
+    "promptHash": "sha256:48ac574769765d55e6ae9799ef34d3d1540349afe22db8efea0aafc941eb7f21",
+    "providerFamily": "anthropic",
+    "schemaVariantHash": "sha256:7689100f1287a004c42612fcb2aa1362855455201adf71e2ef57ef31f6b5d335",
+    "schemaVersion": 1
+  }
+}

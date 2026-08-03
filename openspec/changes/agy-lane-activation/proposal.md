@@ -143,9 +143,8 @@ no lane uses. That is fixed here.
 - Depends on `vendor-adapter-contract` (supplies the adapter interface this
   package fills in for `agy`).
 - Coordinates with `vendor-concurrency-and-quota` (owns the cap and the
-  concurrency evidence) and `cross-vendor-audit-routing` (owns which vendor
-  audits, and the model-family invariant that `agy`'s multi-family model list
-  makes necessary). This package SHALL NOT set the cap or the routing policy
-  itself.
+  concurrency evidence) and the current audit router (owns which vendor audits
+  and the model-family invariant that `agy`'s multi-family model list makes
+  necessary). This package SHALL NOT set the cap or the routing policy itself.
 - **`@google/gemini-cli` is treated as installed-but-unused.** This change does
   not remove it and does not wire a lane to it.

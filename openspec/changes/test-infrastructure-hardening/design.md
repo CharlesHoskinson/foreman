@@ -271,8 +271,8 @@ requirement.
 The audit's proportionality section did not recommend a cut for this
 package specifically -- its cuts target the formal drift gate (a
 different package), Tiers 2 and 3 (`regression-harness-tiers`), the
-release-metrics active set (`release-metrics`), and the per-diff mutation
-gate (`evidence-contracts`). This package's scope is unchanged by this fix
+release-metric claim set, and the per-diff mutation gate
+(`evidence-contracts`). This package's scope is unchanged by this fix
 round; the only addition is the mechanical-registry requirement, which
 closes a soundness gap in an existing mechanism rather than adding new
 surface area.

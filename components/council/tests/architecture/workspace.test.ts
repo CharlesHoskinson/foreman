@@ -28,6 +28,8 @@ const requiredFiles = [
   "packages/adapter-claude/tsconfig.json",
   "packages/adapter-codex/package.json",
   "packages/adapter-codex/tsconfig.json",
+  "packages/runtime-node/package.json",
+  "packages/runtime-node/tsconfig.json",
 ] as const;
 
 const packageRoots = [
@@ -39,6 +41,7 @@ const packageRoots = [
   "packages/adapter-grok/src",
   "packages/adapter-claude/src",
   "packages/adapter-codex/src",
+  "packages/runtime-node/src",
 ] as const;
 
 /**
@@ -466,6 +469,19 @@ describe("workspace", () => {
     expect(result.stderr).toContain("application-runtime-import node:crypto");
     expect(result.stderr).toContain(
       "application-layer-import @council/platform-node",
+    );
+  });
+
+  it("rejects higher-layer imports from runtime-node", async () => {
+    const result = await runArchitectureIsolated([
+      {
+        path: "packages/runtime-node/src/__boundary_violations__.ts",
+        source: 'import "@council/mcp-server";',
+      },
+    ]);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "runtime-node-layer-import @council/mcp-server",
     );
   });
 

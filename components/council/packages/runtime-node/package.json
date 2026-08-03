@@ -1,0 +1,21 @@
+{
+  "name": "@council/runtime-node",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "council-preflight": "./dist/preflight-cli.js"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@council/adapter-claude": "workspace:*",
+    "@council/adapter-codex": "workspace:*",
+    "@council/adapter-grok": "workspace:*",
+    "@council/application": "workspace:*",
+    "@council/platform-node": "workspace:*",
+    "@council/schema": "workspace:*",
+    "effect": "3.22.1"
+  }
+}

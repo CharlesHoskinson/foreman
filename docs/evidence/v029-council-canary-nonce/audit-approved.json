@@ -1,0 +1,1 @@
+{"verdict":"APPROVED","summary":"The scoped diff meets all acceptance criteria. It binds the exact nonce through a single-value enum, preserves existing host checks and prompt bytes, keeps schemas separate, and adds focused deterministic hash-variance coverage.","findings":[]}

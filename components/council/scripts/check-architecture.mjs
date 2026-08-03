@@ -13,6 +13,7 @@ const roots = {
   "adapter-grok": "packages/adapter-grok/src",
   "adapter-claude": "packages/adapter-claude/src",
   "adapter-codex": "packages/adapter-codex/src",
+  "runtime-node": "packages/runtime-node/src",
 };
 
 const pureLayers = new Set([
@@ -119,6 +120,25 @@ const isForbiddenAdapterLayer = (specifier, ownPackage) => {
     (packageName?.startsWith("@council/adapter-") === true &&
       packageName !== ownPackage)
   );
+};
+
+const runtimeNodeAllowedPackages = new Set([
+  "@council/schema",
+  "@council/domain",
+  "@council/application",
+  "@council/platform-node",
+  "@council/adapter-grok",
+  "@council/adapter-claude",
+  "@council/adapter-codex",
+]);
+
+const isForbiddenRuntimeLayer = (specifier) => {
+  const packageName = councilPackage(specifier);
+  if (packageName === undefined) {
+    // Non-Council imports are not layer violations for the composition root.
+    return false;
+  }
+  return !runtimeNodeAllowedPackages.has(packageName);
 };
 
 const runtimeGlobals = new Set([
@@ -362,6 +382,13 @@ for (const [layer, root] of Object.entries(roots)) {
         ) {
           violations.push(
             relative(".", file) + ": adapter-codex-layer-import " + specifier,
+          );
+        }
+      }
+      if (ruleLayer === "runtime-node") {
+        if (isForbiddenRuntimeLayer(specifier)) {
+          violations.push(
+            relative(".", file) + ": runtime-node-layer-import " + specifier,
           );
         }
       }

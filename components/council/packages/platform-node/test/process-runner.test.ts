@@ -569,6 +569,45 @@ describe("NodeProviderProcessRunner", () => {
     }
   });
 
+  // Preserve the POSIX guard for this platform-specific process-runner fixture.
+  it.runIf(isPosixHost)(
+    "records sourceUtf8Valid false when raw stdout is not valid UTF-8",
+    async () => {
+      const script = await writeScript(
+        "invalid-utf8-stdout",
+        [
+          "process.stdout.write(Buffer.from([0xff, 0x0a]));",
+          "process.exit(0);",
+          "",
+        ].join("\n"),
+      );
+      const max = 64 * 1024;
+      const observation = await run(
+        baseRequest({
+          executable: process.execPath,
+          args: [script],
+          stdoutMaxBytes: max,
+          stderrMaxBytes: max,
+        }),
+      );
+      expect(observation.started).toBe(true);
+      expect(observation.exitCode).toBe(0);
+      // Provenance must mark the pre-sanitization capture invalid. Public bytes
+      // stay bounded and secret-sanitized; raw invalid sequences stay internal.
+      expect(Reflect.get(observation.stdout, "sourceUtf8Valid")).toBe(false);
+      expect(observation.stdout.truncated).toBe(false);
+      expect(observation.stdout.bytes.byteLength).toBeLessThanOrEqual(max);
+      expect(observation.stdout.digest).toBe(
+        sha256Hex(observation.stdout.bytes),
+      );
+      expect(() =>
+        new TextDecoder("utf-8", { fatal: true }).decode(
+          observation.stdout.bytes,
+        ),
+      ).not.toThrow();
+    },
+  );
+
   // This fixture depends on POSIX descendant handle inheritance to keep the
   // direct child's stdout binding open after exit. Native Windows needs the
   // planned Job Object owner (design-council-core task 5.3) for its equivalent

@@ -141,7 +141,7 @@ belongs in the adapter, not replicated at every call site.
   `vendor-multiround.sh` obtains its invocation from `adapter_implement_argv`.
 - Depends on nothing. **Every other multi-vendor package in this release
   depends on this one** — `agy-lane-activation` supplies `adapters/agy.sh`,
-  `cross-vendor-audit-routing` selects which adapter's `audit` verb runs,
+  the current audit router selects which adapter's `audit` verb runs, and
   `vendor-concurrency-and-quota` reads `adapter_caps`.
 - Contends with `test-infrastructure-hardening` on `tests/` and with the WSL
   packages on `lane-run.sh`. R5 §7.1 already flags `lane-run.sh` as the

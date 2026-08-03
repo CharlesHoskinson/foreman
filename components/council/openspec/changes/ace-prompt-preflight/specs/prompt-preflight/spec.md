@@ -138,3 +138,36 @@ timeout, cancellation, and provider replacement.
   passes
 - **THEN** Council uses a new attempt identifier and nonce while preserving the
   immutable contract identity
+
+### Requirement: The preflight CLI emits one provider-neutral result
+
+Council SHALL provide a compiled Node.js 24 TypeScript executable named
+`council-preflight`. The executable SHALL read one bounded, closed request from
+stdin and SHALL emit exactly one `PromptPreflightResultV1` JSON value on stdout.
+
+The executable SHALL resolve the selected CLI version before token issuance.
+The executable MUST NOT trust a caller-supplied CLI version or environment.
+
+The executable SHALL use stderr only for bounded secret-safe diagnostics. It
+MUST NOT write provider output, environment values, prompt bytes, schema bytes,
+or filesystem paths to diagnostics.
+
+#### Scenario: ACE preprocessing fails
+
+- **WHEN** the request contains a contract that fails ACE parsing or semantic lint
+- **THEN** the executable emits one typed failure and starts no provider process
+
+#### Scenario: Provider preflight succeeds
+
+- **WHEN** one supported provider returns a complete valid canary response
+- **THEN** the executable emits one strict ready result with a current token
+
+#### Scenario: The request selects Google without a Gemini adapter
+
+- **WHEN** the request selects provider family `google`
+- **THEN** the executable fails closed before provider dispatch
+
+#### Scenario: Diagnostics contain sensitive runtime data
+
+- **WHEN** a provider process fails with sensitive output or environment data
+- **THEN** stderr contains only a bounded static provider-neutral diagnostic

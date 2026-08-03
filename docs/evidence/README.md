@@ -12,8 +12,8 @@ Use these files for current release guidance:
 - `ROADMAP.md` for current scope and status;
 - `checklist.md` for release criteria;
 - `docs/RESIDUALS.md` for known limitations;
-- `docs/releases/v0.2.8.2-notes.md` for release claims;
-- `docs/releases/v0.2.8.2-cleanup-log.md` for cleanup dispositions.
+- `docs/releases/v0.2.9.0-notes.md` for active candidate claims;
+- `docs/releases/v0.2.9.0-cleanup-log.md` for active cleanup dispositions.
 
 Do not rewrite historical evidence only to remove `v0.2.9` text. If a record
 is wrong or superseded, add a dated correction or label at the authority entry

@@ -1,0 +1,22 @@
+{
+  "verdict": "BLOCKED",
+  "summary": "The change violates the absolute-path preservation criterion. Task 1.7 must remain incomplete until absolute paths remain byte-for-byte unchanged.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "components/council/packages/runtime-node/src/preflight-program.ts",
+      "line": 385,
+      "title": "Absolute paths are normalized instead of preserved",
+      "evidence": "The function passes `diffPath`, every artifact path, and `cwd` through `resolve(invocationDirectory, path)` without checking `isAbsolute(path)`. `resolve` rewrites absolute paths containing lexical segments. For example, `/var/root/link/../artifact` becomes `/var/root/artifact`. This can change the target when `link` is a symbolic link, causing preflight to access or verify a different artifact than the caller specified.",
+      "recommendation": "Return each path unchanged when `isAbsolute(path)` is true. Resolve only relative paths against `invocationDirectory`. Add absolute-path tests containing `..` or another lexical form that `resolve` would rewrite. Keep OpenSpec task 1.7 incomplete until this is fixed."
+    },
+    {
+      "severity": "low",
+      "file": "components/council/packages/runtime-node/test/preflight-program.test.ts",
+      "line": 872,
+      "title": "Relative test paths use hard-coded separators",
+      "evidence": "The new test constructs `run/artifacts/diff-patch` and `run/artifacts/${artifactId}` with `/` instead of using `node:path` construction. This does not satisfy the explicit platform-neutral path-construction criterion.",
+      "recommendation": "Construct these relative paths with `join(\"run\", \"artifacts\", ...)` and use the same values in the expectations."
+    }
+  ]
+}

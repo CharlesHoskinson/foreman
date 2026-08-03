@@ -115,9 +115,9 @@ measurements are taken.
   which M1–M8 and every cost-matched comparison are uncomputable. Neither is
   implemented here. The census instrumentation is the one part that ships with
   GP-1 rather than waiting.
-- **Sole owner of M5 (cross-vendor unique-catch rate).** `release-metrics`
-  removed its own M5 definition in the fix round and is now a declared
-  consumer, so exactly one definition exists. M5 is the only number that
+- **Sole owner of M5 (cross-vendor unique-catch rate).** The current metric
+  reference consumes this package's definition, so exactly one definition
+  exists. M5 is the only number that
   justifies the vendor count, and two definitions of it would have let two
   packages report different answers to the release's central question.
 - **Governs GP-6 (`graph-store-port`).** The census outcome is the architect's

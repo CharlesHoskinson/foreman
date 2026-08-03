@@ -47,7 +47,7 @@ can start immediately. T8 gates.
       `--json-schema "$(cat SCHEMA)"`, `--no-leader`).
 - [x] Replace `audit-run.sh:379-387`'s inline invocation with the adapter call.
       Do NOT touch the post-audit tamper check at `:90-93` — it is strengthened
-      by `cross-vendor-audit-routing`, and both packages must not rewrite it.
+      by the current audit router, and this package must not rewrite it.
 - [x] Pass `--no-leader` on every grok invocation: `grok agent` defaults to a
       shared `~/.grok/leader.sock`, which is a latent cross-lane coupling point
       (R3 §3).

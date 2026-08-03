@@ -9,7 +9,8 @@
   },
   "scripts": {
     "architecture": "node scripts/check-architecture.mjs",
-    "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm architecture && corepack pnpm test",
+    "build": "tsc -b --pretty false && node --experimental-strip-types scripts/build-runtime.ts",
+    "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm architecture && corepack pnpm build && corepack pnpm test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
@@ -24,6 +25,7 @@
     "@types/node": "26.1.2",
     "@typescript/native": "npm:typescript@7.0.2",
     "@vitest/coverage-v8": "4.1.10",
+    "esbuild": "0.27.0",
     "eslint": "10.0.1",
     "fast-check": "4.9.0",
     "globals": "17.8.0",

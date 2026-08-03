@@ -235,6 +235,49 @@ export class ReadyTokenIssuanceError extends Data.TaggedError(
   readonly reason: string;
 }> {}
 
+/**
+ * Closed CLI version probe failure. Only a stable category and a secret-safe
+ * reason are allowed. Never retain executable paths, environment values, or
+ * raw probe output.
+ */
+export type ProviderVersionProbeErrorCategory =
+  "start_failed" | "timeout" | "invalid_output" | "internal";
+
+export class ProviderVersionProbeError extends Data.TaggedError(
+  "ProviderVersionProbeError",
+)<{
+  readonly category: ProviderVersionProbeErrorCategory;
+  readonly reason: string;
+}> {}
+
+/**
+ * Closed canary materialization failure. Static secret-safe reason only.
+ * Never retain challenge text, temporary paths, schema bytes, or environment.
+ */
+export type CanaryMaterializerErrorCategory =
+  "unsupported_family" | "prepare_failed" | "internal";
+
+export class CanaryMaterializerError extends Data.TaggedError(
+  "CanaryMaterializerError",
+)<{
+  readonly category: CanaryMaterializerErrorCategory;
+  readonly reason: string;
+}> {}
+
+/**
+ * Closed preflight identity (nonce / clock) failure. Static secret-safe
+ * reason only. Never retain raw entropy, clock sources, or host details.
+ */
+export type PreflightIdentityErrorCategory =
+  "nonce_failed" | "clock_failed" | "internal";
+
+export class PreflightIdentityError extends Data.TaggedError(
+  "PreflightIdentityError",
+)<{
+  readonly category: PreflightIdentityErrorCategory;
+  readonly reason: string;
+}> {}
+
 export type PromptCompileError =
   | ContractDecodeError
   | AceParseError

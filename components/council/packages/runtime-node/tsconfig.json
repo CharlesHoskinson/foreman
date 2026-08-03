@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "references": [
+    { "path": "../schema" },
+    { "path": "../application" },
+    { "path": "../platform-node" },
+    { "path": "../adapter-grok" },
+    { "path": "../adapter-claude" },
+    { "path": "../adapter-codex" }
+  ],
+  "include": ["src/**/*.ts"]
+}
