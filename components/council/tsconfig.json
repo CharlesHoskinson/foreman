@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/schema" },
+    { "path": "./packages/domain" },
+    { "path": "./packages/application" },
+    { "path": "./packages/platform-node" },
+    { "path": "./packages/adapter-grok" },
+    { "path": "./packages/adapter-claude" },
+    { "path": "./packages/adapter-codex" }
+  ]
+}

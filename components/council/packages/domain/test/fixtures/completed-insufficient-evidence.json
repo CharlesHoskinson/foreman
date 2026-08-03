@@ -1,0 +1,70 @@
+{
+  "preflightStageFailed": false,
+  "terminal": {
+    "schemaVersion": 1,
+    "modelTurnStarted": true,
+    "terminalRecordObserved": true,
+    "terminalState": "completed",
+    "exitCode": 0,
+    "stopReason": "end_turn",
+    "pendingToolCalls": 0,
+    "failedToolCalls": 0,
+    "parserComplete": true,
+    "structuredOutputPresent": true,
+    "structuredOutputError": null,
+    "stdoutDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "stderrDigest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "errorMessage": null
+  },
+  "readyTokenCurrent": true,
+  "expectedReadyTokenHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "expectedContractHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expectedPromptHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "expectedBundle": {
+    "schemaVersion": 1,
+    "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "diffSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "expectedReviewerId": "reviewer-a",
+  "expectedCandidateId": "cand_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "expectedArtifactIds": [
+    "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  ],
+  "verifiedArtifactIds": [
+    "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  ],
+  "bundleVerified": true,
+  "designatedStructuredValid": true,
+  "declaredEvidenceNamespace": ["acceptance-criteria", "diff-patch"],
+  "response": {
+    "schemaVersion": 1,
+    "readyTokenHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "contractHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "promptHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "bundle": {
+      "schemaVersion": 1,
+      "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "diffSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "reviewerId": "reviewer-a",
+    "candidateId": "cand_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "inspectedArtifactIds": [
+      "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+    ],
+    "advice": {
+      "kind": "abstention",
+      "abstention": {
+        "kind": "insufficient_evidence",
+        "evidenceGaps": [
+          {
+            "evidenceRef": "acceptance-criteria",
+            "unmetCondition": "declared acceptance criteria artifact is missing from the bundle"
+          }
+        ],
+        "nextAction": "attach the acceptance-criteria artifact and re-run the review"
+      }
+    }
+  }
+}

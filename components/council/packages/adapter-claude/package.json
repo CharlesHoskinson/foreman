@@ -1,0 +1,14 @@
+{
+  "name": "@council/adapter-claude",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@council/application": "workspace:*",
+    "@council/schema": "workspace:*",
+    "effect": "3.22.1"
+  }
+}

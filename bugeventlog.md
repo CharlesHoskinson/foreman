@@ -3067,3 +3067,525 @@ error.
 **Standing rule:** when a panel is unanimous only in its uncertainty, the
 aggregate must say so. Any aggregation whose output can be more confident than
 its inputs is a defect, regardless of how the inputs were obtained.
+
+## 2026-08-02 — Event 20: first Council bundle used equal base and head commits
+
+**Phase:** Council review (Task 2 localization, first three-domain round).
+
+### What happened
+
+The first Council review bundle set
+`base_sha` and `head_sha` to the same commit
+`bb3124ff5c053ad0bb9b17a7aa9108ecaee7b05a`. Exact bundle identity therefore
+described an empty committed diff. Uncommitted and untracked Task 2 files
+were not bound by that identity.
+
+### Evidence
+
+- `/tmp/council-skill-r1-advisory.json` records
+  `bundleIdentity.base_sha` equal to `bundleIdentity.head_sha`.
+- `/tmp/council-skill-r1-bundle/bundle.json` carries the same equal SHAs.
+- Anthropic admissible finding: base equals head, so the committed checkout
+  lacks the skill and its test registration rows.
+
+### Root cause
+
+The review ran against a dirty worktree before the architect committed the
+round. Bundle construction used HEAD for both ends instead of a committed
+base/head pair with a real tree diff.
+
+### Impact
+
+Council could not bind the uncommitted skill, tests, or tool-check changes.
+Google still approved the presented bundle text. Anthropic correctly requested
+changes. Outcome was `quorum_not_met`. The review did not approve the work.
+
+### Enhancement
+
+Refuse to open a Council round when `base_sha == head_sha` unless the operator
+explicitly requests an empty-diff protocol check. Require a commit before
+bundle construction for product rounds. Re-review only after a new immutable
+bundle with differing SHAs.
+
+Remediation status: not complete. Product work remains uncommitted.
+
+## 2026-08-02 — Event 21: Codex transcript contaminated the Council verdict body
+
+**Phase:** Council review (Codex member of the first three-domain round).
+
+### What happened
+
+The Codex member response was stored as an inadmissible verdict. The body
+contained CLI banner, session metadata, and the full prompt transcript instead
+of a clean `VERDICT:` block alone.
+
+### Evidence
+
+- `/tmp/council-skill-r1-advisory.json` verdict `r1`:
+  `admissible: false`, `verdict: "inadmissible"`, `failureDomain: null`.
+- Body prefix includes `Reading additional input from stdin...`,
+  `OpenAI Codex v0.145.0`, workdir, model, session id, and the user prompt.
+- Admissible count remained 2 (Google + Anthropic). Codex did not contribute a
+  domain.
+
+### Root cause
+
+The wrapper captured mixed CLI stream output as the verdict file. Final-message
+isolation and separate stderr were not applied for that capture path.
+
+### Impact
+
+One of three planned domains was lost. Quorum could not be met even if the
+other two had agreed. The contaminated body also risked polluting later
+automated parsers that expect a strict verdict shape.
+
+### Enhancement
+
+Use the Codex CLI final-message output option for the verdict artifact. Send
+diagnostics to stderr only. Mark any body that lacks a leading clean
+`VERDICT:` line as inadmissible before domain counting.
+
+Remediation status: wrapper direction is recorded. Do not call the path fully
+verified until a fresh Codex member produces an admissible structured verdict
+under the fixed capture.
+
+## 2026-08-02 — Event 22: Council localization assertions used loose tokens
+
+**Phase:** implement and Council rework (Task 2 tests).
+
+### What happened
+
+`tests/council-localization.bats` asserted inventory and content properties
+with cross-row status tokens and generic prose words. Claims did not bind to
+the exact Council inventory row or to named protocol sections.
+
+### Evidence
+
+- Anthropic finding in `/tmp/council-skill-r1-advisory.json`: whole-block
+  substring checks for `ok` and `missing` over the multi-row SKILLS block.
+- Same finding: content checks matched `model`, `provider`, and `advisory`
+  as common words rather than required protocol phrases.
+- Second tool-check invocation read `$output` without asserting `$status`.
+
+### Root cause
+
+Fail-capable intent was stated, but the predicates tested ambient text. A
+passing nearby skill row or ordinary prose could satisfy the assertion while
+the Council row or section stayed wrong.
+
+### Impact
+
+Green tests could hide a missing or broken Council inventory row. Content
+checks could pass without the sealed blinding and bundle-identity rules that
+the skill claims to require. Council correctly classed this as medium severity.
+
+### Enhancement
+
+Extract the inventory row whose first field is `council` and bind status and
+detail to that row only. Assert named protocol sections and exact phrases
+after whitespace collapse. Assert documented exit codes on every tool-check
+invocation before reading output.
+
+Remediation status: rework landed in the worktree and the targeted slice
+passed 22/22 in `/tmp/council-rework-green.out`. Not complete for release
+until an immutable committed bundle re-review accepts the tests.
+
+## 2026-08-02 — Event 23: docs-check tail hid the nested import finding surface
+
+**Phase:** docs gate after importing `components/council/`.
+
+### What happened
+
+Root docs-check failed after the Council subtree import. The first operator
+view of markdownlint looked smaller than the real nested finding set because
+`docs-check.sh` tails markdownlint output.
+
+### Evidence
+
+- `/tmp/council-docs-check.out` shows a tailed markdownlint slice plus
+  codespell hits in `components/council/pnpm-lock.yaml` and
+  `packages/domain/dist/*.d.ts.map`.
+- `FOREMAN_REPORT.md` records that the first measured surface looked smaller
+  than the real 579-finding set once the full inventory was examined.
+- Nested OpenSpec change records under
+  `components/council/openspec/changes/**` matched the same archive class
+  already ignored at root `openspec/changes/**`.
+
+### Root cause
+
+Docs-check summarizes with a tail. A large nested markdownlint failure
+surface is truncated in the default operator view. Operators who act on the
+tail alone under-count findings and under-scope exclusions.
+
+### Impact
+
+Early triage under-estimated work. Full green required narrow path exclusions
+for nested archive classes and generated artifacts, not a whole-subtree
+ignore. Without the full surface, the gate could have been "fixed" with an
+over-broad skip.
+
+### Enhancement
+
+On docs-check failure, open the full tool log or re-run the underlying
+markdownlint command without the tail. Keep exclusions path-narrow and
+fail-capable. Prove nested openspec skips without ignoring all of
+`components/council/**`.
+
+Remediation status: narrow exclusions and fail-capable docs-check tests exist
+in the worktree. Root docs-check passed after those changes.
+`FOREMAN_CI_BATS=1 bash tools/ci-local.sh` then passed with 629 pass, 0 fail,
+19 skip, 648 tests, and `gates_failed=0`. The changes remain uncommitted and
+await Council re-review.
+
+## 2026-08-02 — Event 24: Task 2 commit landed; operational docs still said uncommitted
+
+**Phase:** after Task 2 product commit `ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e`,
+Council round 2 on the committed bundle.
+
+### What happened
+
+Task 2 product files were committed at
+`ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e` on the implementation lane. The
+committed operational docs still described those files as uncommitted.
+Council round 2 (`/tmp/council-skill-r2-advisory.json`) reached quorum across
+OpenAI, Google, and Anthropic and returned `changes_requested`.
+
+### Evidence
+
+- Bundle identity from `/tmp/council-skill-r2-advisory.json`:
+  `base_sha=bb3124ff5c053ad0bb9b17a7aa9108ecaee7b05a`,
+  `head_sha=ba1164b8b8e8406d0b25b3b395a62b6cb5e9f43e`,
+  `diff_sha256=bc6980dcd8dfc8cbce215e2dec030060d0e5d6127a30051f0ff1764adc159371`.
+- OpenAI medium findings named `devlog/2026-08-02.md` and
+  `docs/superpowers/plans/2026-08-02-council-v030-localization.md` for false
+  "uncommitted" current-status claims.
+- OpenAI low finding named `bugeventlog.md` Event 23 remediation text that
+  still said the changes remain uncommitted after the product commit.
+- Google domain returned `approved` with exact bundle identity.
+- Anthropic domain returned `changes_requested` for weak test predicates
+  (see Event 25). Outcome of the round was `changes_requested`.
+
+### Root cause
+
+Status and resume prose were written for the pre-commit worktree state and
+were not rewritten when Task 2 was committed. Chronological history is valid.
+Current-status and resume instructions must track the head commit.
+
+### Impact
+
+An operator reading the committed docs would try to commit work that was
+already at `ba1164b`. Council correctly blocked progress on stale status text.
+
+### Enhancement
+
+Mark pre-commit claims as historical. Rewrite current status and resume
+instructions to state the commit SHA, that the work is not on
+`release/v0.3.0-council` yet, and that a fresh Council round is still
+required after further fixes.
+
+Remediation status: operational docs updated in this worktree after round 2.
+Event 23 text is left as the historical pre-commit record. A new immutable
+bundle and three-domain Council re-review are still required.
+
+## 2026-08-02 — Event 25: docs-check and localization guards were not fail-capable against injection
+
+**Phase:** Council round 2 Anthropic findings on committed Task 2 tests.
+
+### What happened
+
+The committed "not whole subtree" guards in `tests/docs-check.bats` and some
+assertions in `tests/council-localization.bats` could pass while the property
+they claimed to protect was false.
+
+### Evidence
+
+- Anthropic findings in `/tmp/council-skill-r2-advisory.json` on
+  `tests/docs-check.bats` and `tests/council-localization.bats`.
+- Red injection against the committed weak predicates
+  (`/tmp/council-r2-fix/red-codespell-weak.txt`,
+  `/tmp/council-r2-fix/red-markdownlint-weak.txt`):
+  - codespell trailing `,./components/council` → weak predicates MISS
+  - markdownlint `"components/council/**/*"` and `"components/council/**/*.md"`
+    → weak predicates MISS
+  - markdownlint `"./components/council/*"` → weak predicates MISS
+- Localization defects: unquoted backticks in a double-quoted `[[ ]]` pattern,
+  installer SKIP matched any line, ownership used whole-file generic
+  `||` fallbacks (`dispatch`, `fix`, `finding`, `replay`).
+- Baseline reconciliation is not a product defect. Command set in
+  `/tmp/council-r2-fix/baseline-reconcile.txt`: base `bb3124f` had 6
+  `@test` blocks while `tests/baseline.tsv` said 5. Task 2 added 2 tests and
+  corrected the row to 8. `tests/baseline.tsv` is not changed in this fix
+  round.
+
+### Root cause
+
+Guards matched a small set of literals on the current file only. They did not
+normalize skip or ignore tokens. They did not inject forbidden spellings into
+temp copies and re-run the same guard. Localization still had residual
+loose-token patterns of the Event 22 class.
+
+### Impact
+
+A future config edit could skip the entire `components/council` subtree and
+still leave the docs-check tests green. Ownership or installer regressions
+could pass on incidental prose or unrelated SKIP lines.
+
+### Enhancement
+
+Add shared guard helpers that normalize tokens and reject the forbidden
+whole-subtree set. Negative-control tests copy the real config, inject each
+forbidden spelling first/middle/last (codespell) or into the ignores array
+(markdownlint), and assert the same guard returns nonzero. Bind ownership
+phrases to named `##` sections. Bind the installer preservation message to
+the exact Council destination path. Replace the unquoted-backtick pattern
+with a single-quoted literal.
+
+Remediation status: robust guards and localization fixes landed in the
+worktree. Targeted suite passed 24/24 in
+`/tmp/council-r2-fix/green-targeted.out`. Root docs-check passed. A new
+immutable committed-bundle Council re-review is still required.
+
+## 2026-08-02 — Event 26: docs-check baseline left at 8 after rework added two tests
+
+**Phase:** Architect review of the round-2 rework worktree before commit.
+
+### What happened
+
+The round-2 rework added two negative-control `@test` blocks to
+`tests/docs-check.bats`. Live count became 10. The `tests/baseline.tsv` row
+stayed at 8. Shadow mode still reported PASS because it accepts
+`pass >= baseline`. The release candidate uses exact current totals, so
+delta +2 is a rework defect.
+
+### Evidence
+
+- `rg -c '^@test ' tests/docs-check.bats` → 10 after the rework.
+- Prior committed baseline row at `ba1164b`: `tests/docs-check.bats` expected
+  passes 8 (`git show ba1164b:tests/baseline.tsv | rg docs-check`).
+- First rework verification reported docs-check pass=10 baseline=8 delta=+2
+  (`/tmp/council-r2-fix/green-targeted.out`).
+- `tests/run.sh` baseline check fails only when `pass_count < baseline`
+  (shadow and enforce share that comparison; shadow only suppresses exit).
+- Historical path remains true: base 6 tests vs baseline 5, Task 2 then 8,
+  this fix round then 10 (`/tmp/council-r2-fix/baseline-reconcile.txt`).
+
+### Root cause
+
+The rework preserved a stale baseline under a constraint that said not to
+edit `tests/baseline.tsv`. That constraint matched the Anthropic A7 non-
+defect explanation for the Task 2 +3 mystery. It did not match the new
+live total after two added tests. Shadow mode hid the drift.
+
+### Impact
+
+A release-candidate or enforce gate that requires exact totals would not
+match the worktree. Operators reading pass=10 baseline=8 would think the
+baseline still trailed the suite.
+
+### Enhancement
+
+Set `tests/baseline.tsv` expected_passes for `tests/docs-check.bats` to the
+exact live `@test` count after every rework that adds or removes tests.
+Prefer a generalized root-ignore predicate over an example-only list so new
+wildcard spellings stay covered without new `@test` blocks.
+
+Remediation status: generalized `is_forbidden_council_root_path` landed in
+`tests/docs-check.bats`. Baseline row set to 10. Targeted runner reports
+baseline 10, delta 0 (`/tmp/council-r2-harden/green-targeted.out`). Root
+docs-check and line-endings re-verified. Commit, new immutable bundle, and
+Council re-review remain open.
+
+## 2026-08-02 — Event 27: raw-token markdownlint guard and Council release-authority prose
+
+**Phase:** Council localization round 3 advisory review of committed candidate
+`fd10951ab4bc8330e64f9e220d4690eb33338025`. Persistent advisory:
+`/home/charl/.foreman/runs/council-v030-20260802/council-r3-advisory.json`.
+
+### What happened
+
+Council round 3 produced three admissible verdicts across OpenAI and Google.
+Two OpenAI reviewers requested changes. Google approved. Dissent required
+rework. The review named two defect classes:
+
+1. `markdownlint_council_ignore_ok` scanned raw quoted tokens with
+   `grep | sed`. It did not decode the JSONC `ignores` array. Escaped
+   solidus and Unicode-star whole-root forms could bypass the guard.
+   Comments and unrelated string properties could false-trigger it.
+2. Operational prose treated Council advice as release authority. Text said
+   Council could approve, clear, or block release eligibility.
+
+### RED controls
+
+Host added two fail-capable tests in `tests/docs-check.bats` (baseline 12):
+
+- `markdownlint guard rejects JSONC-escaped whole-subtree ignores`
+- `markdownlint guard ignores prohibited-looking text outside ignores`
+
+Those tests were the only intended failures against the raw-token helper.
+
+### Impact
+
+A config could hide the whole `components/council` subtree through JSON
+escapes and still leave docs-check green. Operators could also treat an
+advisory Council outcome as a release gate.
+
+### Root cause
+
+The guard used a raw quoted-token scan instead of fail-closed JSONC decode
+of `ignores` values only. Status and resume prose mixed advisory Council
+input with Foreman release authority.
+
+### Enhancement
+
+Replace the raw-token scan with a Python 3 standard-library JSONC decoder
+that:
+
+- removes comments only outside strings
+- removes trailing commas only outside strings
+- requires a top-level object whose `ignores` member is an array of strings
+- emits decoded values through an unambiguous delimiter
+- rejects embedded NUL, malformed JSONC, and parser or temp-file failure
+
+Pass each decoded value through `normalize_path_token` and
+`is_forbidden_council_root_path`. Rewrite current-status and resume prose so
+Council remains advisory input. Only Foreman audit, check, and merge gates
+decide release eligibility. Keep validated Council findings as engineering
+defects that still require correction.
+
+Remediation status: helper and operational prose rework are in the round-4
+candidate after `fd10951`. Host gate results and commit state are external
+facts.
+
+## 2026-08-02 — Event 28: JSONC decoder silent success on malformed comments
+
+**Phase:** Architect cold review of round-4 GREEN candidate after the
+JSONC ignores decoder landed.
+
+### What happened
+
+The round-4 JSONC comment stripper failed closed for ordinary JSON parse
+errors, but not for two comment-malformed forms:
+
+1. A complete top-level object with a valid `ignores` array, then an
+   unterminated `/*` block. The stripper discarded the open comment and
+   returned success.
+2. A numeric decoy whose tokens a closed block comment separated, for
+   example `1/* comment */2`. The stripper concatenated the tokens into
+   `12` and returned success.
+
+### RED control
+
+Fail-capable test in `tests/docs-check.bats` (baseline 13):
+
+- `markdownlint guard fails closed on malformed JSONC comments`
+
+RED evidence:
+`.harness/council-localization-r4-harden-red.out` (named test `not ok`).
+
+### Impact
+
+Malformed JSONC could pass the markdownlint council-ignore guard. Operators
+could trust a green guard on inputs that were not well-formed.
+
+### Root cause
+
+The comment stripper deleted comment text without whitespace replacement.
+It also treated an unclosed `/*` as a silent end-of-input success path.
+
+### Enhancement
+
+In the embedded Python JSONC decoder:
+
+- raise a parse error when `/*` has no closing `*/`
+- replace each removed comment with whitespace; preserve newlines
+- never concatenate JSON tokens that a comment separated
+- keep comment markers inside strings unchanged
+- keep decoded-`ignores` scope, trailing-comma support, top-level and
+  string-array checks, NUL refusal, and NUL-delimited handoff
+
+Also remove ephemeral current-status claims from operational prose. State
+lineage rules: `fd10951` is historical round-3; `8a6ef236` is historical
+round-4; `6c6e1bc1bdadc821adb6937a24a949398872ea92` is historical round-5;
+`98644dd75ebd04230dc222b5a8b54db2e815e860` is historical round-6; an
+immutable bundle identifies the reviewed candidate when one binds an exact
+head; Council remains advisory input only.
+
+Remediation lineage: decoder harden and status-prose fix are recorded through
+round-6 commit `98644dd75ebd04230dc222b5a8b54db2e815e860` and its ancestors.
+Host gate results and later commit identity are external facts.
+
+## 2026-08-02 — Event 29: JSONC nonstandard numerics and handoff open race
+
+**Phase:** Council localization round-4 advisory review of committed candidate
+`8a6ef2363a3ca6f70816126ed5963ba63ec9c2a8`. Round 4 preserved dissent and
+forced round-5 rework. Google approved. One OpenAI reviewer returned
+`insufficient_evidence`. One OpenAI reviewer returned `changes_requested`.
+
+### What happened
+
+Two actionable OpenAI implementation findings remained after the round-4
+decoder harden:
+
+1. Python `json.loads` accepts `NaN`, `Infinity`, and `-Infinity` by default.
+   JSONC does not permit those constants. The markdownlint council-ignore
+   helper returned success when a decoy member used them.
+2. If the decoded temporary handoff disappeared after Python returned
+   success, the Bash `while` redirection failed, but later cleanup and an
+   explicit `return 0` masked that failure. The helper still reported
+   success.
+
+### RED controls
+
+Host added two fail-capable tests in `tests/docs-check.bats` (baseline 15):
+
+- `markdownlint guard rejects nonstandard JSON numeric constants`
+- `markdownlint guard fails closed when decoded handoff disappears`
+
+RED evidence:
+`.harness/council-localization-r5-red.out` SHA-256
+`874b94d086009c41aaa979eedfdc0da25c1d9bcb02209e0563b149797c558c28`
+(both named tests `not ok` against the prior helper).
+
+Earlier malformed-comment RED remains historical evidence:
+`.harness/council-localization-r4-harden-red.out` SHA-256
+`3ccc933f14aaa771b89d0d139c0e81282bd0190e69e5d7b424f659cc38327bf9`.
+
+### Impact
+
+Configs with nonstandard numeric constants could pass the guard. A missing
+decoded handoff could also pass. Operators could trust a green guard on
+inputs the decoder did not fully validate.
+
+### Root cause
+
+1. `json.loads` default constant acceptance without a `parse_constant`
+   rejection callback.
+2. Path-based handoff read after Python success, with cleanup and
+   `return 0` after a failed redirection, instead of a checked open that
+   fails before cleanup can mask the error.
+
+### Enhancement
+
+In `markdownlint_council_ignore_ok`:
+
+- pass `parse_constant` to `json.loads` so every nonstandard numeric
+  constant raises a caught parse failure (no token pre-scan that can
+  false-trigger inside a string)
+- open the decoded handoff with a checked Bash file descriptor, unlink the
+  path, read the open descriptor, and close the descriptor on success and
+  each early return
+
+Preserve decoded-`ignores` scope, comment markers inside strings, whitespace
+comment replacement, unterminated block refusal, trailing commas, top-level
+object, string-array requirement, NUL refusal, normalized forbidden paths,
+and permitted fixed subpaths.
+
+Baseline history for `tests/docs-check.bats` runs through 15. Round 4
+preserved dissent and forced this round-5 rework. Do not treat a round-5
+verdict, release authority, or host action as a lasting current fact in this
+entry.
+
+Remediation lineage: round-5 helper changes for nonstandard constants and
+checked handoff open are recorded at commit
+`6c6e1bc1bdadc821adb6937a24a949398872ea92`. Host gate results and later
+commit identity are external facts.

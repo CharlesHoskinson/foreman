@@ -22,6 +22,17 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Run Council Node 24 gate
+        working-directory: components/council
+        env:
+          CI: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm check
+          corepack pnpm exec openspec validate --all --strict --no-interactive
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

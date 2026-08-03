@@ -11,6 +11,9 @@ tests/checks-run.bats	windows	0
 tests/config.bats	linux	0
 tests/config.bats	wsl	0
 tests/config.bats	windows	0
+tests/council-localization.bats	linux	0
+tests/council-localization.bats	wsl	0
+tests/council-localization.bats	windows	0
 tests/decision-events.bats	linux	0
 tests/decision-events.bats	wsl	0
 tests/decision-events.bats	windows	0

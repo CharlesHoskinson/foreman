@@ -1,0 +1,41 @@
+{
+  "preflightStageFailed": false,
+  "terminal": {
+    "schemaVersion": 1,
+    "modelTurnStarted": true,
+    "terminalRecordObserved": true,
+    "terminalState": "cancelled",
+    "exitCode": 0,
+    "stopReason": "Cancelled",
+    "pendingToolCalls": 0,
+    "failedToolCalls": 1,
+    "parserComplete": false,
+    "structuredOutputPresent": false,
+    "structuredOutputError": "model did not produce structured output",
+    "stdoutDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "stderrDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "errorMessage": null
+  },
+  "readyTokenCurrent": true,
+  "expectedReadyTokenHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "expectedContractHash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "expectedPromptHash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "expectedBundle": {
+    "schemaVersion": 1,
+    "baseSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "headSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "diffSha256": "3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "expectedReviewerId": "reviewer-a",
+  "expectedCandidateId": "cand_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "expectedArtifactIds": [
+    "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  ],
+  "verifiedArtifactIds": [
+    "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  ],
+  "bundleVerified": true,
+  "designatedStructuredValid": false,
+  "declaredEvidenceNamespace": ["acceptance-criteria", "diff-patch"],
+  "ordinaryText": "{\"kind\":\"insufficient_evidence\",\"evidenceGaps\":[{\"evidenceRef\":\"diff-patch\",\"unmetCondition\":\"candidate not inspected\"}],\"nextAction\":\"retry after cancellation\"}"
+}
