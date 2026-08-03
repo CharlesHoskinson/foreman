@@ -202,6 +202,25 @@ export class ProviderHealthError extends Data.TaggedError(
   readonly terminal: TerminalObservationV1 | null;
 }> {}
 
+/**
+ * Closed ready-review token issuance failure. Only a stable category and a
+ * secret-safe reason are allowed. Never retain an input object, raw output,
+ * environment value, path, prompt bytes, or schema bytes.
+ */
+export type ReadyTokenIssuanceErrorCategory =
+  | "prompt_invalid"
+  | "canary_invalid"
+  | "identity_mismatch"
+  | "chronology_invalid"
+  | "result_invalid";
+
+export class ReadyTokenIssuanceError extends Data.TaggedError(
+  "ReadyTokenIssuanceError",
+)<{
+  readonly category: ReadyTokenIssuanceErrorCategory;
+  readonly reason: string;
+}> {}
+
 export type PromptCompileError =
   | ContractDecodeError
   | AceParseError

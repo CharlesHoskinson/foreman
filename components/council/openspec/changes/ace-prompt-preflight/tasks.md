@@ -54,29 +54,29 @@
 - [x] 3.1 Write failing tests for deterministic prompt bytes, stable hashes,
       artifact ordering, evidence boundary escaping, missing artifacts, wrong
       lengths, wrong digests, and mismatched bundle identity.
-- [ ] 3.2 Implement the Effect application service for contract decode,
+- [x] 3.2 Implement the Effect application service for contract decode,
       ACE compile, artifact verification, provider schema lowering, prompt
       materialization, and ready-review token issuance.
   - [x] 3.2.a Implement contract decode, ACE compile, artifact verification,
         provider schema lowering, and prompt materialization. Ready-review token
-        issuance remains open, so task 3.2 remains incomplete.
+        issuance is complete via `issueReadyReviewToken`.
 - [x] 3.3 Preserve one canonical schema and record each provider-specific
       schema-variant hash. Reject any lowering that weakens a required semantic
       constraint across the combined provider and host validation boundary.
 
 ## 4. Provider health canary
 
-- [ ] 4.1 Write deterministic fake-provider tests for success, executable
+- [x] 4.1 Write deterministic fake-provider tests for success, executable
       absence, authentication failure, schema rejection, timeout, cancellation,
       signal termination, malformed JSON, nonce mismatch, reasoning mismatch,
       missing terminal event, and valid-looking output followed by cancellation.
-- [ ] 4.2 Implement one tool-free, one-turn, deadline-bounded canary through an
+- [x] 4.2 Implement one tool-free, one-turn, deadline-bounded canary through an
       Effect provider-health port.
 - [ ] 4.3 Implement shell-free Claude, Gemini, and Grok canary invocations and
       terminal decoders. Keep provider wire types private.
 - [ ] 4.4 Add a Node.js TypeScript preflight CLI that emits one provider-neutral
       JSON result and uses stderr for bounded diagnostics.
-- [ ] 4.5 Preserve bounded sanitized stdout and stderr spools and their digests
+- [x] 4.5 Preserve bounded sanitized stdout and stderr spools and their digests
       for every attempt.
 
 ## 5. Review response admission
