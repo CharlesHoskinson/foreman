@@ -569,15 +569,13 @@ describe("NodeProviderProcessRunner", () => {
     }
   });
 
-  // Shebang scripts are a POSIX executable contract. Native Windows CI must not
-  // attempt to exec a #!/usr/bin/env node fixture as the process image.
+  // Preserve the POSIX guard for this platform-specific process-runner fixture.
   it.runIf(isPosixHost)(
     "records sourceUtf8Valid false when raw stdout is not valid UTF-8",
     async () => {
       const script = await writeScript(
         "invalid-utf8-stdout",
         [
-          "#!/usr/bin/env node",
           "process.stdout.write(Buffer.from([0xff, 0x0a]));",
           "process.exit(0);",
           "",
@@ -586,8 +584,8 @@ describe("NodeProviderProcessRunner", () => {
       const max = 64 * 1024;
       const observation = await run(
         baseRequest({
-          executable: script,
-          args: [],
+          executable: process.execPath,
+          args: [script],
           stdoutMaxBytes: max,
           stderrMaxBytes: max,
         }),
