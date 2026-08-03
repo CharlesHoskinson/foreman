@@ -3,7 +3,7 @@
 This file is the current release roadmap. Dated plans, research reports, and
 evidence files are historical records. They do not override this file.
 
-## Current release: v0.2.8.2
+## Latest release: v0.2.8.2
 
 The v0.2.8.2 release reduces the abandoned v0.2.9 scope to one external pilot,
 the portability changes that the pilot required, current release records, and
@@ -18,8 +18,8 @@ three release gates.
 | Restore Linux NATS coverage | Complete | Foreman PR [#10](https://github.com/CharlesHoskinson/foreman/pull/10), merge `09e0715`, 12 of 12 NATS tests passed |
 | Replace stale active release guidance | Complete | Foreman PR [#12](https://github.com/CharlesHoskinson/foreman/pull/12), merge `d9eafbb` |
 | Remove Quint's rate-limited first-run fetch | Complete | Foreman PR [#14](https://github.com/CharlesHoskinson/foreman/pull/14), merge `074f3c4`; exact-main formal, Linux, and Windows workflows passed |
-| Rebuild the knowledge graph from the merged tree | In progress | The authority-filtered replacement is building from `074f3c4`; promotion requires final-candidate validation |
-| Run the three release gates and tag | Pending | See `checklist.md` |
+| Rebuild the knowledge graph from the merged tree | Complete | The authority-filtered graph records exact release commit `076c014`; it has 1,434 nodes, 2,618 links, and no duplicate or dangling records |
+| Run the three release gates and tag | Complete | Annotated tag `v0.2.8.2` targets `076c014`; exact-commit local, Linux, and Windows gates passed |
 
 ### Release purpose
 
@@ -60,7 +60,7 @@ The remaining limitations are in `docs/RESIDUALS.md`.
 | `v0.2.7.5` | 2026-07-18 | Setup, use, and cleanup lifecycle |
 | `v0.2.8` | 2026-07-19 | Vendor concurrency and hard mode |
 | `v0.2.8.1` | 2026-07-19 | Field-failure fixes |
-| `v0.2.8.2` | Pending | External soft-mode pilot and portability fixes |
+| `v0.2.8.2` | 2026-08-03 | External soft-mode pilot and portability fixes |
 
 Git tags and release notes preserve the complete history. Use Git history when
 an old release decision matters; do not add old plans back to this live file.

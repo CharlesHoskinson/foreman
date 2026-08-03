@@ -1,8 +1,8 @@
 # v0.2.8.2 release checklist
 
-This is the only active release checklist. The SessionDB is the recovery
-record, but a historical SessionDB statement does not change the current
-release scope.
+This is the completed v0.2.8.2 release checklist. No later release scope is
+active. The SessionDB is the recovery record, but a historical SessionDB
+statement does not change the current release scope.
 
 ## Completed pivot preconditions
 
@@ -25,14 +25,14 @@ release scope.
 
 The release has exactly three criteria:
 
-- [ ] **1. Linux suite:** Build the current legacy launcher with
-      `(cd launcher && bun run build:posix)`, then run
-      `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` on the release commit. Both
-      commands exit zero. Record the final `GATE` verdict and test totals in
-      the annotated tag and GitHub release.
-- [ ] **2. Main CI:** both `gates-linux` and `gates-windows` complete green on
-      the exact `main` commit that will be tagged.
-- [ ] **3. Honest records:** `docs/RESIDUALS.md`,
+- [x] **1. Linux suite:** The current legacy launcher was built with
+      `(cd launcher && bun run build:posix)`. Then
+      `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` ran on the release commit.
+      Both commands exited zero. The annotated tag and GitHub release record
+      the final `GATE` verdict and test totals.
+- [x] **2. Main CI:** Both `gates-linux` and `gates-windows` completed green on
+      the exact `main` commit that is tagged.
+- [x] **3. Honest records:** `docs/RESIDUALS.md`,
       `docs/releases/v0.2.8.2-notes.md`, and the cleanup log describe the
       shipped boundary and all known limitations without a current v0.2.9
       claim.
@@ -42,37 +42,37 @@ is not a release criterion by itself.
 
 ## Release actions
 
-- [ ] Validate Markdown links and repository hygiene.
-- [ ] Validate all active OpenSpec packages with strict mode.
-- [ ] Confirm that the replacement graph records the release candidate commit.
+- [x] Validate Markdown links and repository hygiene.
+- [x] Validate all active OpenSpec packages with strict mode.
+- [x] Confirm that the replacement graph records the release candidate commit.
 - [x] Commit and push the release-record cleanup branch as PR #12.
 - [x] Merge the cleanup branch to `main` as `d9eafbb` after its workflows pass.
-- [ ] Merge final release-record PR
+- [x] Merge final release-record PR
       [#16](https://github.com/CharlesHoskinson/foreman/pull/16) after its
       Linux and Windows workflows pass.
-- [ ] Re-run criterion 1 on the merged commit.
-- [ ] Confirm criterion 2 on the merged commit.
-- [ ] Confirm that the final release commit does not change between gate
+- [x] Re-run criterion 1 on the merged commit.
+- [x] Confirm criterion 2 on the merged commit.
+- [x] Confirm that the final release commit does not change between gate
       dispatch and tag creation.
-- [ ] Record the three terminal criterion results in the annotated tag and
+- [x] Record the three terminal criterion results in the annotated tag and
       GitHub release.
-- [ ] Create and push annotated tag `v0.2.8.2`.
-- [ ] Verify that GitHub and the local repository resolve the tag to the same
+- [x] Create and push annotated tag `v0.2.8.2`.
+- [x] Verify that GitHub and the local repository resolve the tag to the same
       commit.
 
-The final commit cannot contain its own commit ID or workflow run IDs. Record
-the exact tag target, final workflow run IDs, and artifact digests in the
-annotated tag and GitHub release. A later current-roadmap update can record the
-completed release without changing the tag target.
+The final commit does not contain its own commit ID or workflow run IDs. The
+annotated tag and GitHub release record the exact tag target, final workflow
+run IDs, and artifact digests.
 
-## Current candidate evidence
+## Final release evidence
 
-Exact main commit `074f3c4d9ac8a02a5cf10cb1b2892ae7d81f59a6`
-passed the standalone formal workflow, `gates-linux`, and `gates-windows`.
-The Linux run reported 685 passed, 0 failed, and 19 skipped Bats cases, with
-12 of 12 NATS cases passed. The Windows workflow passed its required gate; its
-non-gating line-ending probe reported five passed and one failed. This evidence
-must be repeated on the final tag target.
+Exact release commit `076c014a8123d8df341b8037b3be5756c7cf6354`
+passed the local release gate with 685 passed, 0 failed, and 19 skipped Bats
+cases. All 12 NATS cases passed. Hosted Linux run `30819569495` and hosted
+Windows run `30819569488` passed on the same commit. The annotated tag and
+GitHub release both resolve to this commit. The authority graph records this
+exact commit with 1,434 nodes, 2,618 links, and no duplicate or dangling
+records.
 
 ## Criteria retired from v0.2.8.2
 
