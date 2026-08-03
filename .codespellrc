@@ -1,5 +1,5 @@
 [codespell]
-skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/research,./sandbox,./FOREMAN_REPORT.md,./FOREMAN_REPORT.json,./node_modules,./launcher/node_modules,./launcher/dist,./site/style.css,./graphify-out,./.foreman,./components/council/pnpm-lock.yaml,./components/council/packages/*/dist
+skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/research,./sandbox,./FOREMAN_REPORT.md,./FOREMAN_REPORT.json,./node_modules,./launcher/node_modules,./launcher/dist,./site/style.css,./graphify-out,./.foreman,./.harness,./components/council/pnpm-lock.yaml,./components/council/packages/*/dist
 # disjointness: correct ontology term (node_kind plane property); not "disjointedness".
 # sessio: intentional corruption quoted in bugeventlog/evidence (bad sed stripped the 'n'); not a typo.
 ignore-words-list = grok,codex,worktree,worktrees,shdoc,bats,toml,fable,jsonc,ans,disjointness,sessio,pre-empt

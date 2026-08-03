@@ -319,6 +319,20 @@ EOF
   grep -q '"status": *"pass"' out.json
 }
 
+@test "docs-check ignores Foreman runtime documentation under .harness" {
+  mkdir -p .harness/vendor-home/grok
+  cat > .harness/vendor-home/grok/README.md <<'EOF'
+# Vendor-owned runtime file
+
+```
+This fence intentionally has no language.
+```
+EOF
+  run bash "$SCRIPTS/docs-check.sh" --json out.json
+  [ "$status" -eq 0 ]
+  grep -q '"status": *"pass"' out.json
+}
+
 @test "docs-check fails on undocumented bash function" {
   cat > scripts/bad.sh <<'EOF'
 #!/usr/bin/env bash

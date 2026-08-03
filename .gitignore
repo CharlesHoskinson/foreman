@@ -5,6 +5,7 @@ Thumbs.db
 .env.*
 !.env.example
 node_modules/
+.harness/
 .foreman/runs/
 !.foreman/config.toml
 site/dist/

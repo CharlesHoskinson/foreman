@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-VENDORED=(skills/scrapling skills/graphify skills/superpowers docs/research sandbox FOREMAN_REPORT.md FOREMAN_REPORT.json node_modules)
+VENDORED=(skills/scrapling skills/graphify skills/superpowers docs/research sandbox .harness FOREMAN_REPORT.md FOREMAN_REPORT.json node_modules)
 
 # DOCS_CHECK_FORCE_MISSING=tool1,tool2 — test hook: force named tool(s) to
 # resolve as missing regardless of PATH (used by tests/docs-check.bats to
