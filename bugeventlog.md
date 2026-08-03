@@ -3067,6 +3067,7 @@ error.
 **Standing rule:** when a panel is unanimous only in its uncertainty, the
 aggregate must say so. Any aggregation whose output can be more confident than
 its inputs is a defect, regardless of how the inputs were obtained.
+
 ## 2026-08-02 — Event 20: first Council bundle used equal base and head commits
 
 **Phase:** Council review (Task 2 localization, first three-domain round).
