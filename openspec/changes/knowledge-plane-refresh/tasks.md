@@ -141,10 +141,9 @@ Precondition: `lock-primitive-hardening` has landed. T4 builds on `lib/lock.sh`.
       `cypher.txt` outside the paragraph that documents the ban.
 - [ ] Record the fidelity table (five values survive; the audit trail does not)
       in the doc that states the ban, so the next reader does not re-derive it.
-- [ ] Update `skills/foreman/SKILL.md:87-91` and `README.md:595-605`: the graph
-      doctrine now names `graph-refresh.sh` rather than a bare
-      `graphify update .`, and states that `graph.json` is the only supported
-      downstream source.
+- [ ] Update the active Foreman skill and README: the graph doctrine names
+      `graph-refresh.sh` rather than direct Graphify refresh commands, and
+      states that `graph.json` is the only supported downstream source.
 
 ## T10 — gate
 

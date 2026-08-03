@@ -29,7 +29,7 @@ The only automation is `skills/foreman/scripts/maintenance.sh:249-289`
    itself, twice. Three code paths, one repo, and the artifact records none of
    them: `graph.json` carries `built_at_commit` and **no `graphify_version`**.
 2. **Nothing checks that direction survived, and nothing can check it where
-   the old draft looked.** The committed graph is
+   the old draft looked.** The historical baseline graph built at `d4af3a92` is
    `"directed": false, "multigraph": false`. Measured against the pinned
    graphify 0.9.16, no CLI cadence can change that field: `graphify update`
    rejects `--directed` (exit 2) and `graphify extract` never passes the
@@ -97,8 +97,9 @@ path must stay AST-only, forever.
   `directed` field and endpoint-order count, the cadence, the health counters
   stamped with the stage each was computed at, the cohesion map lifted out of
   `.graphify_analysis.json` before cleanup, and the refresh timestamp.
-  `graph.json` cannot carry these: `graphify update .` rebuilds it from the
-  filesystem and would destroy anything injected.
+  `graph.json` cannot carry these: Graphify rebuilds it from the filesystem
+  through its code-only update path or semantic extraction path and would
+  destroy anything injected.
 - **Single-writer discipline.** Every graphify write acquires the Foreman graph
   lock through `lib/lock.sh` (from `lock-primitive-hardening`). Readers — the
   MCP server, `query`, `path`, `explain`, the context builder — do not.

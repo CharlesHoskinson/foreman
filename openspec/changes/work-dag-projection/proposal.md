@@ -52,10 +52,11 @@ structural rather than aspirational — a projection has no place to put a model
 
 ### And it cannot live inside `graph.json`
 
-R5 §4.5 is decisive on the storage question. `graphify update .` **rebuilds from
-the filesystem**: any node the harness injected that is not derivable from a file
-on disk is unspecified under an incremental rebuild, and nothing in the committed
-artifact records a "preserve these nodes" contract. Work-DAG records written into
+R5 §4.5 is decisive on the storage question. Graphify **rebuilds from the
+filesystem** through a code-only update or semantic extraction: any node the
+harness injected that is not derivable from a file on disk is unspecified under
+an incremental rebuild, and nothing in the current local artifact records a
+"preserve these nodes" contract. Work-DAG records written into
 `graph.json` are at risk on every refresh.
 
 The secondary reasons are as strong. `graph.json` is a 2.6 MiB git-tracked JSON

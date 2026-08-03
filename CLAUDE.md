@@ -133,14 +133,17 @@ a cache and not a record — the same call already made for the session store's
 `.db`. It was committed at 5.1 MB and sat 322 commits behind HEAD while this
 file ordered every agent to consult it *before* opening any source file.
 
-If you want the saving, build it yourself and check its age before trusting it:
+If you want the saving, build it from the current checkout. Documentation or
+mixed changes require semantic extraction:
 
 ```bash
-graphify update .                       # generates graphify-out/ locally
+graphify extract .                      # generates graphify-out/ locally
+graphify cluster-only .                 # names communities and writes the report
 graphify query "<question>" --budget 1500
 ```
 
-Follow `source_location` pointers into files only for the specific facts you
-need. If your local index is more than ~50 commits behind HEAD, read the files
-instead — an index that far behind answers confidently about code that has since
-moved, which is worse than no index at all.
+Use `graphify update .` only for code-only changes to an existing current
+semantic corpus. Follow `source_location` pointers into files only for the
+specific facts you need. Do not query unless `graph.json` records the exact
+current commit in `built_at_commit`. If it does not, refresh the graph or read
+the source files directly.

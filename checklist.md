@@ -47,6 +47,9 @@ is not a release criterion by itself.
 - [ ] Confirm that the replacement graph records the release candidate commit.
 - [x] Commit and push the release-record cleanup branch as PR #12.
 - [x] Merge the cleanup branch to `main` as `d9eafbb` after its workflows pass.
+- [ ] Merge final release-record PR
+      [#16](https://github.com/CharlesHoskinson/foreman/pull/16) after its
+      Linux and Windows workflows pass.
 - [ ] Re-run criterion 1 on the merged commit.
 - [ ] Confirm criterion 2 on the merged commit.
 - [ ] Confirm that the final release commit does not change between gate

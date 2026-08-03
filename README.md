@@ -526,17 +526,22 @@ later.
   what the worker saw — not open-ended agentic graph traversal.
 
 The repository treats `graphify-out/` as a local derived index. It is not
-tracked. For concepts, architecture, or file relationships, refresh the index
-from the current checkout, then query it:
+tracked. For concepts, architecture, or file relationships, first confirm that
+`graphify-out/graph.json` records the exact current commit. For a missing graph
+or a checkout with documentation or mixed changes, run semantic extraction and
+then generate the report:
 
 ```bash
-graphify update .
+graphify extract .
+graphify cluster-only .
 graphify query "<question>" --budget 1500
 ```
 
-Follow `source_location` pointers into files only for the facts you need.
-If the graph is stale relative to HEAD, check
-`graphify-out/GRAPH_REPORT.md` and refresh with `graphify update .`.
+For code-only changes to an existing current semantic corpus,
+`graphify update .` performs the local AST refresh. Follow `source_location`
+pointers into files only for the facts you need. Do not query a graph whose
+`built_at_commit` differs from `git rev-parse HEAD`; refresh it or read source
+files directly.
 
 Without `--apply`, `maintenance.sh` reports vendored-skill hash drift, graph
 freshness, and soft-profile tool inventory drift. With `--apply`, the

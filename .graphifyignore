@@ -3,6 +3,8 @@
 .foreman/**
 graphify-out/**
 bugeventlog.md
+devlog/**
+assets/v029-total-georgecall.png
 
 # Dated evidence, research, designs, incidents, and notes are historical.
 docs/**
@@ -19,8 +21,13 @@ docs/design/**
 !docs/evidence/
 !docs/evidence/README.md
 
-# Archived OpenSpec packages are not current change authority.
-openspec/changes/archive/**
+# Only approved post-release OpenSpec packages are current change authority.
+# Git and v0.2.9-preserve retain the deferred packages.
+openspec/changes/**
+!openspec/changes/council-*/
+!openspec/changes/council-*/**
+!openspec/changes/node-typescript-runtime/
+!openspec/changes/node-typescript-runtime/**
 
 # These skills are vendored snapshots, not Foreman implementation authority.
 skills/graphify/**

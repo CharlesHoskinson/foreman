@@ -71,9 +71,15 @@ not a historical audit log.
 - The `dev/foreman-v1` session-transport branch was not merged or evaluated as
   part of v0.2.8.2.
 - `.graphifyignore` defines the current-authority corpus. It excludes
-  historical evidence, archived OpenSpec changes, the old generated graph,
-  and vendored skill copies. A fresh graph must record the final source commit
-  and pass graph queries before it replaces the old output.
+  historical evidence, dated devlogs, withdrawn release art, deferred and
+  archived OpenSpec changes, the old generated graph, and vendored skill
+  copies. It admits the approved Council v0.3 and Node.js with TypeScript
+  change packages. A fresh graph must record the final source commit and pass
+  graph queries before it replaces the old output.
+- The reference host runs Graphify 0.9.32, while the linked vendored Graphify
+  skill reports 0.9.15. This release validates commands against the installed
+  CLI and excludes the vendored skill copy from the authority graph. It does
+  not claim that the package and skill versions are equal.
 
 ## Commands to re-verify release claims
 

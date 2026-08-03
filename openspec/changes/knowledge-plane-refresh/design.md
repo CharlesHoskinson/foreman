@@ -54,9 +54,10 @@ false against the pinned graphify 0.9.16:
 What is actually true is better: **direction is in the data regardless of the
 field.** The build stashes producer endpoints as `_src`/`_tgt` and `to_json`
 restores them into every link (`export.py:305-311`). Measured — an undirected
-build of `zeta → alpha` exports as `zeta → alpha`; the committed graph has
-1,465 of 3,668 links whose `source` sorts after its `target`, and a re-extracted
-208-file subset has 1,041 of 2,531. A canonicalising writer would produce
+build of `zeta → alpha` exports as `zeta → alpha`; the historical baseline
+graph built at `d4af3a92` has 1,465 of 3,668 links whose `source` sorts after
+its `target`, and a re-extracted 208-file subset has 1,041 of 2,531. A
+canonicalising writer would produce
 exactly zero. So the gate that replaces the `directed` field is the
 **endpoint-order count**: zero-with-links is a refusal, and it is the shape of
 failure the old gate was reaching for.
@@ -72,10 +73,12 @@ pair — are therefore store-native and never round-trip through `graph.json`.
 
 ## Why the version stamp lives in a sidecar and not in `graph.json`
 
-`graphify update .` rebuilds `graph.json` from the filesystem. Anything Foreman
-injects into it is unspecified under the next refresh — this is the same
-mechanism that keeps the work-DAG out of `graph.json` (GP-4). So the stamp goes
-in a sibling file that graphify does not own.
+Graphify rebuilds `graph.json` from the filesystem. `graphify update .` handles
+code-only changes to an existing semantic corpus; `graphify extract .` handles
+documentation or mixed changes. Anything Foreman injects into the graph is
+unspecified under the next refresh — this is the same mechanism that keeps the
+work-DAG out of `graph.json` (GP-4). So the stamp goes in a sibling file that
+Graphify does not own.
 
 The stamp matters because node IDs are path-derived and **a graphify upgrade can
 migrate the whole ID space**. That has already happened once upstream: #1504

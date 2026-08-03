@@ -92,10 +92,11 @@ index — the lane cannot run git, so it reports the need under
   is unchanged; with the advisory record absent, the gate verdict is unchanged.
   Then implement reporting only.
 
-- [ ] **12. Dogfood it** — run the plane over one real grok lane finishing
-  v0.2.9.0, capture the advisory record under `docs/evidence/`, and record in
-  `devlog/` and `bugeventlog.md` every defect the plane itself exhibits. The
-  plane reviewing its own introduction is the first honest test of it.
+- [ ] **12. Dogfood it** — run the plane over one real Grok lane before Council
+  v0.3 is declared stable, capture the advisory record under `docs/evidence/`,
+  and record in `devlog/` and `bugeventlog.md` every defect the plane itself
+  exhibits. The plane reviewing its own introduction is the first honest test
+  of it.
 
 ## Out of scope, deliberately
 
