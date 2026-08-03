@@ -4,6 +4,7 @@
     { "path": "./packages/schema" },
     { "path": "./packages/domain" },
     { "path": "./packages/application" },
-    { "path": "./packages/platform-node" }
+    { "path": "./packages/platform-node" },
+    { "path": "./packages/adapter-grok" }
   ]
 }

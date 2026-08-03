@@ -156,6 +156,20 @@ export class DigestError extends Data.TaggedError("DigestError")<{
   readonly reason: string;
 }> {}
 
+/**
+ * Closed process-transport failure. Only a stable category and a secret-safe
+ * reason are allowed. Never include environment values, raw output, cwd, or
+ * home paths.
+ */
+export type ProviderProcessErrorCategory = "start_failed" | "internal";
+
+export class ProviderProcessError extends Data.TaggedError(
+  "ProviderProcessError",
+)<{
+  readonly category: ProviderProcessErrorCategory;
+  readonly reason: string;
+}> {}
+
 export type PromptCompileError =
   | ContractDecodeError
   | AceParseError

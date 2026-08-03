@@ -10,6 +10,7 @@ const roots = {
   application: "packages/application/src",
   "application-test": "packages/application/test",
   "platform-node": "packages/platform-node/src",
+  "adapter-grok": "packages/adapter-grok/src",
 };
 
 const pureLayers = new Set([
@@ -17,6 +18,7 @@ const pureLayers = new Set([
   "domain",
   "application",
   "application-test",
+  "adapter-grok",
 ]);
 
 const executableExtensions = new Set([
@@ -100,6 +102,18 @@ const isForbiddenPlatformLayer = (specifier) => {
     packageName === "@council/runtime-node" ||
     packageName === "@council/mcp-server" ||
     packageName?.startsWith("@council/adapter-") === true
+  );
+};
+
+const isForbiddenAdapterLayer = (specifier) => {
+  const packageName = councilPackage(specifier);
+  return (
+    packageName === "@council/domain" ||
+    packageName === "@council/platform-node" ||
+    packageName === "@council/runtime-node" ||
+    packageName === "@council/mcp-server" ||
+    (packageName?.startsWith("@council/adapter-") === true &&
+      packageName !== "@council/adapter-grok")
   );
 };
 
@@ -303,6 +317,17 @@ for (const [layer, root] of Object.entries(roots)) {
         if (isForbiddenPlatformLayer(specifier)) {
           violations.push(
             relative(".", file) + ": platform-node-layer-import " + specifier,
+          );
+        }
+      }
+      if (ruleLayer === "adapter-grok") {
+        if (isNodeBuiltin(specifier)) {
+          violations.push(
+            relative(".", file) + ": adapter-grok-runtime-import " + specifier,
+          );
+        } else if (isForbiddenAdapterLayer(specifier)) {
+          violations.push(
+            relative(".", file) + ": adapter-grok-layer-import " + specifier,
           );
         }
       }

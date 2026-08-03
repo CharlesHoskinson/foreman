@@ -14,6 +14,7 @@ import type {
   ConstraintWeakeningError,
   DigestError,
   PromptMaterializationError,
+  ProviderProcessError,
   SchemaLoweringError,
 } from "./errors.js";
 
@@ -152,3 +153,42 @@ export interface ProviderSchemaLowererService {
 export class ProviderSchemaLowerer extends Context.Tag(
   "@council/application/ProviderSchemaLowerer",
 )<ProviderSchemaLowerer, ProviderSchemaLowererService>() {}
+
+/**
+ * Shell-free provider process request. Arguments are an indexed array only;
+ * never a shell command string.
+ */
+export type ProviderProcessRequest = {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly environment: Readonly<Record<string, string>>;
+  readonly timeoutMs: number;
+  readonly stdoutMaxBytes: number;
+  readonly stderrMaxBytes: number;
+};
+
+export type BoundedSpool = {
+  readonly bytes: Uint8Array;
+  readonly digest: Sha256Digest;
+  readonly truncated: boolean;
+};
+
+export type ProviderProcessObservation = {
+  readonly started: boolean;
+  readonly exitCode: number | null;
+  readonly signal: string | null;
+  readonly timedOut: boolean;
+  readonly stdout: BoundedSpool;
+  readonly stderr: BoundedSpool;
+};
+
+export interface ProviderProcessRunnerService {
+  readonly run: (
+    request: ProviderProcessRequest,
+  ) => Effect.Effect<ProviderProcessObservation, ProviderProcessError>;
+}
+
+export class ProviderProcessRunner extends Context.Tag(
+  "@council/application/ProviderProcessRunner",
+)<ProviderProcessRunner, ProviderProcessRunnerService>() {}

@@ -22,6 +22,8 @@ const requiredFiles = [
   "packages/application/tsconfig.json",
   "packages/platform-node/package.json",
   "packages/platform-node/tsconfig.json",
+  "packages/adapter-grok/package.json",
+  "packages/adapter-grok/tsconfig.json",
 ] as const;
 
 const packageRoots = [
@@ -30,6 +32,7 @@ const packageRoots = [
   "packages/application/src",
   "packages/application/test",
   "packages/platform-node/src",
+  "packages/adapter-grok/src",
 ] as const;
 
 /**
@@ -158,6 +161,17 @@ describe("workspace", () => {
           'import "@council/mcp-server";',
         ].join("\n"),
       },
+      {
+        path: "packages/adapter-grok/src/__boundary_violations__.ts",
+        source: [
+          'import "node:fs";',
+          'import "@council/domain";',
+          'import "@council/platform-node";',
+          'import "@council/runtime-node";',
+          'import "@council/mcp-server";',
+          'import "@council/adapter-claude";',
+        ].join("\n"),
+      },
     ]);
 
     expect(result.status).toBe(1);
@@ -198,6 +212,12 @@ describe("workspace", () => {
       "platform-node-layer-import @council/adapter-claude",
       "platform-node-layer-import @council/runtime-node",
       "platform-node-layer-import @council/mcp-server",
+      "adapter-grok-runtime-import node:fs",
+      "adapter-grok-layer-import @council/domain",
+      "adapter-grok-layer-import @council/platform-node",
+      "adapter-grok-layer-import @council/runtime-node",
+      "adapter-grok-layer-import @council/mcp-server",
+      "adapter-grok-layer-import @council/adapter-claude",
     ]) {
       expect(result.stderr).toContain(violation);
     }
@@ -246,6 +266,16 @@ describe("workspace", () => {
           'import type { Sha256Digest } from "@council/schema";',
           "void readFile;",
           "void Effect;",
+        ].join("\n"),
+      },
+      {
+        path: "packages/adapter-grok/src/__boundary_allowed__.ts",
+        source: [
+          'import type { ProviderProcessRequest } from "@council/application";',
+          'import type { TerminalObservationV1 } from "@council/schema";',
+          "type _Keep = ProviderProcessRequest | TerminalObservationV1;",
+          "const keep = null as unknown as _Keep;",
+          "void keep;",
         ].join("\n"),
       },
     ]);
@@ -576,6 +606,7 @@ describe("workspace", () => {
       "packages/schema/tsconfig.json",
       "packages/domain/tsconfig.json",
       "packages/application/tsconfig.json",
+      "packages/adapter-grok/tsconfig.json",
     ]) {
       const config = JSON.parse(await readFile(path, "utf8")) as {
         compilerOptions?: { types?: unknown };
