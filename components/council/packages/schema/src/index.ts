@@ -5,3 +5,4 @@ export * from "./lifecycle.js";
 export * from "./task-contract.js";
 export * from "./deliberation.js";
 export * from "./prompt-preflight.js";
+export * from "./preflight-cli.js";
