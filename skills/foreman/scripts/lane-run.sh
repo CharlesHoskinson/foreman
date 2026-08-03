@@ -220,8 +220,41 @@ fi
 
 RUN="$1"
 LANE="$2"
-WT="$3"
+WT="$(cd "$3" && pwd)"
 shift 4
+
+# Resolve Foreman's own tools independently from the target repository. A lane
+# can run in a foreign worktree, but readiness probes, the process launcher,
+# and the WSL clock preflight remain Foreman-owned resources.
+FOREMAN_TOOL_ROOT="${FOREMAN_TOOL_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+FOREMAN_TOOL_ROOT="$(cd "$FOREMAN_TOOL_ROOT" 2>/dev/null && pwd)" || {
+  echo "lane-run: invalid FOREMAN_TOOL_ROOT" >&2
+  exit "$EXIT_CONFIG"
+}
+
+if [[ -z "${TARGET_REPO_ROOT:-}" ]]; then
+  target_common_dir="$(git_nohooks -C "$WT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [[ -n "$target_common_dir" ]]; then
+    TARGET_REPO_ROOT="$(cd "$(dirname "$target_common_dir")" && pwd)"
+  else
+    TARGET_REPO_ROOT="$WT"
+  fi
+fi
+TARGET_REPO_ROOT="$(cd "$TARGET_REPO_ROOT" 2>/dev/null && pwd)" || {
+  echo "lane-run: invalid TARGET_REPO_ROOT" >&2
+  exit "$EXIT_CONFIG"
+}
+
+# Session records produced by a worker belong to this run. Never let an
+# external lane inherit Foreman's repository-level session store, and never
+# create an untracked session database inside the target worktree.
+FOREMAN_SESSION_DB="${FOREMAN_SESSION_DB:-$(run_dir "$RUN")/session.db}"
+export FOREMAN_TOOL_ROOT TARGET_REPO_ROOT FOREMAN_SESSION_DB
+
+# The worker and its gate execute in the selected target worktree regardless
+# of the architect's invocation directory. Foreman-owned resources above stay
+# addressable through FOREMAN_TOOL_ROOT.
+cd "$WT"
 
 # Admission is intentionally before harness mkdir, stale-lock sweeping, event
 # attempts, or child spawn. cfg_load is documented as safe to re-run; the
@@ -393,13 +426,12 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
   # profile, and grok/codex are checked under every profile that
   # matters for auth (must_soft/should_hard/should_full all include them) --
   # see env/tool-check.sh's profile membership arrays.
-  lane_repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || lane_repo_root=""
   lane_tool_check="${FOREMAN_TOOL_CHECK:-}"
   if [[ -n "$lane_tool_check" ]]; then
     lane_ready_report=""
     lane_ready_report="$("$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
-  elif [[ -n "$lane_repo_root" && -f "$lane_repo_root/env/tool-check.sh" ]]; then
-    lane_tool_check="$lane_repo_root/env/tool-check.sh"
+  elif [[ -f "$FOREMAN_TOOL_ROOT/env/tool-check.sh" ]]; then
+    lane_tool_check="$FOREMAN_TOOL_ROOT/env/tool-check.sh"
     lane_ready_report=""
     lane_ready_report="$(bash "$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
   fi
@@ -641,13 +673,12 @@ lane_resolve_launcher() {
     fi
     return 1
   fi
-  local repo_root candidate
-  repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || repo_root=""
-  if [[ -n "$repo_root" ]]; then
+  local candidate
+  if [[ -n "$FOREMAN_TOOL_ROOT" ]]; then
     if [[ "$LANE_PLATFORM" == "windows" ]]; then
-      candidate="$repo_root/launcher/dist/foreman-launch.exe"
+      candidate="$FOREMAN_TOOL_ROOT/launcher/dist/foreman-launch.exe"
     else
-      candidate="$repo_root/launcher/dist/foreman-launch"
+      candidate="$FOREMAN_TOOL_ROOT/launcher/dist/foreman-launch"
     fi
     [[ -x "$candidate" ]] && { printf '%s\n' "$candidate"; return 0; }
   fi
@@ -960,9 +991,8 @@ prompt_payload="$(
 if [[ "${FOREMAN_WSL_CLOCK_PREFLIGHT:-1}" == 1 ]] \
    && { [[ -n "${WSL_DISTRO_NAME:-}" || -n "${WSL_INTEROP:-}" ]] \
         || grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; }; then
-  _wcp_repo_root="$(cd "$SCRIPT_DIR/../../.." && pwd 2>/dev/null)" || _wcp_repo_root=""
-  _wcp="${_wcp_repo_root:+$_wcp_repo_root/}env/wsl-clock-preflight.sh"
-  if [[ -n "$_wcp_repo_root" && ( -x "$_wcp" || -f "$_wcp" ) ]]; then
+  _wcp="$FOREMAN_TOOL_ROOT/env/wsl-clock-preflight.sh"
+  if [[ -x "$_wcp" || -f "$_wcp" ]]; then
     if ! bash "$_wcp" --threshold "${FOREMAN_WSL_CLOCK_THRESHOLD:-5}" >&2; then
       echo "lane-run: WSL clock preflight refused (see its message above); continuing, event ordering may be affected" >&2
     fi

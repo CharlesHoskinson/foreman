@@ -119,6 +119,63 @@ SHIM
   [ "$status" -eq 2 ]
 }
 
+@test "lane-run exports distinct tool, target, and run-scoped session roots to an external target" {
+  unset FOREMAN_TOOL_ROOT TARGET_REPO_ROOT FOREMAN_SESSION_DB
+  result="$BATS_TEST_TMPDIR/resolved-roots"
+  export result
+  caller="$BATS_TEST_TMPDIR/unrelated-caller"
+  mkdir -p "$caller"
+  cd "$caller"
+
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c '
+    printf "%s\n%s\n%s\n%s\n" \
+      "$PWD" "$FOREMAN_TOOL_ROOT" "$TARGET_REPO_ROOT" "$FOREMAN_SESSION_DB" > "$result"
+    python3 "$FOREMAN_TOOL_ROOT/skills/foreman/scripts/fm-session.py" \
+      fact "external lane state" --evidence "run1" >/dev/null
+  '
+
+  [ "$status" -eq 0 ]
+  mapfile -t roots < "$result"
+  [ "${roots[0]}" = "$WT" ]
+  [ "${roots[1]}" = "$(cd "$SCRIPTS/../../.." && pwd)" ]
+  [ "${roots[2]}" = "$WT" ]
+  [ "${roots[3]}" = "$FOREMAN_HOME/runs/run1/session.db" ]
+  [ -f "$FOREMAN_HOME/runs/run1/session.db" ]
+  [ ! -e "$WT/.foreman/session.db" ]
+}
+
+@test "lane-run resolves readiness, launcher, and WSL preflight from FOREMAN_TOOL_ROOT" {
+  tool_root="$BATS_TEST_TMPDIR/tool-root"
+  mkdir -p "$tool_root/env" "$tool_root/launcher/dist"
+  write_fake_launcher "$tool_root/launcher/dist"
+  cat > "$tool_root/env/tool-check.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'ready\n' > "$TOOL_MARKER"
+printf 'LANE_READY: grok=yes\n'
+EOF
+  cat > "$tool_root/env/wsl-clock-preflight.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" > "$CLOCK_MARKER"
+EOF
+  chmod +x "$tool_root/env/tool-check.sh" "$tool_root/env/wsl-clock-preflight.sh"
+  export FOREMAN_TOOL_ROOT="$tool_root"
+  export TOOL_MARKER="$BATS_TEST_TMPDIR/tool-marker"
+  export CLOCK_MARKER="$BATS_TEST_TMPDIR/clock-marker"
+  export LANE_VENDOR=grok
+  export WSL_DISTRO_NAME=ForemanTest
+  export FOREMAN_WSL_CLOCK_PREFLIGHT=1
+  unset FOREMAN_LAUNCH
+
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'true'
+
+  [ "$status" -eq 0 ]
+  [ -f "$TOOL_MARKER" ]
+  [ -f "$CLOCK_MARKER" ]
+  grep -q -- '--threshold 5' "$CLOCK_MARKER"
+  run jq -rc 'select(.type=="ownership") | .payload.launcher' "$(run_dir run1)/events.jsonl"
+  [ "$output" = true ]
+}
+
 @test "lane-run refuses worktree when lane.lock already held" {
   mkdir -p "$WT/.harness/lane.lock"
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'touch "'"$WT"'/should-not-exist"'

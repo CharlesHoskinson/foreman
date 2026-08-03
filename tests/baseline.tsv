@@ -3,6 +3,7 @@ tests/adapters.bats	19
 tests/audit-routing.bats	16
 tests/audit-verdict.bats	26
 tests/checkpoint.bats	6
+tests/checks-run.bats	5
 tests/config.bats	16
 tests/decision-events.bats	8
 tests/docs-check.bats	5

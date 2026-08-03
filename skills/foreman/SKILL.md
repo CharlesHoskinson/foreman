@@ -164,6 +164,25 @@ wt-new (search | plan | audit)  →  parallel agents  →  each FOREMAN_REPORT.m
 Scripts: `scripts/wt-new.sh`, `wt-consolidate.sh`, `wt-cleanup.sh`.  
 Doctrine: `references/parallel-worktrees.md`.
 
+### External target repositories
+
+Foreman can orchestrate a repository other than its own. Keep the two roots
+explicit:
+
+- Run `wt-new.sh` from the target repository so its run index records the
+  target `repo_root` and worktree.
+- `FOREMAN_TOOL_ROOT` identifies the Foreman checkout that owns readiness,
+  launcher, and WSL preflight tools. `TARGET_REPO_ROOT` identifies the target's
+  shared Git root. `lane-run.sh` resolves and exports both.
+- Lane session state defaults to
+  `$FOREMAN_HOME/runs/<run-id>/session.db`; it must not enter either repository.
+- Verify a soft-mode result with
+  `checks-run.sh RUN_ID WORKTREE_ID`. The worktree ID is mandatory, including
+  runs with one worktree. Verification uses a pristine commit archive and the
+  target's configured check, `make check`, or its native stack fallback.
+- Use the target's own release gate. For example, run `make check` for Gobox;
+  do not substitute Foreman's `tools/ci-local.sh`.
+
 ### Durable lanes
 
 For long implement rounds, wrap the implementer invocation instead of
@@ -206,8 +225,10 @@ fresh report assert → `round_done`), never just the bare vendor CLI, so an
 agent that backgrounds-and-stops cannot strand it. Dispatch through the
 queue, not directly:
 
-Use `checks-run.sh TASK_ID` as the recommended migration gate command. It is
-operator-supplied; `lane-run.sh` never invents or defaults a gate.
+Use `checks-run.sh TASK_ID` for a hard-mode task, or
+`checks-run.sh RUN_ID WORKTREE_ID` for a soft-mode worktree, as the migration
+gate command. It is operator-supplied; `lane-run.sh` never invents or defaults
+a gate.
 
 1. **Enqueue** the round via `lane-queue.sh add <vendor-group> -- ...`
    (`grok` capped at 3, `codex` at 2 — T5b GREEN 2026-07-18; `claude` at 3) —
