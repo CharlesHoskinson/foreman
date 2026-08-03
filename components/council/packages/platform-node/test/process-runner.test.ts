@@ -13,6 +13,8 @@ import {
   runProviderProcess,
 } from "../src/process-runner.js";
 
+const isPosixHost = process.platform !== "win32";
+
 const sha256Hex = (bytes: Uint8Array): string =>
   createHash("sha256").update(bytes).digest("hex");
 
@@ -144,7 +146,7 @@ describe("NodeProviderProcessRunner", () => {
     );
   });
 
-  it("records signal termination as an observation", async () => {
+  it("records platform termination as an observation", async () => {
     const script = await writeScript(
       "self-sigterm.mjs",
       `process.kill(process.pid, "SIGTERM");\nsetInterval(() => {}, 1000);\n`,
@@ -158,8 +160,17 @@ describe("NodeProviderProcessRunner", () => {
     );
     expect(observation.started).toBe(true);
     expect(observation.timedOut).toBe(false);
-    expect(observation.signal).toBe("SIGTERM");
-    expect(observation.exitCode).toBeNull();
+    if (isPosixHost) {
+      expect(observation.signal).toBe("SIGTERM");
+      expect(observation.exitCode).toBeNull();
+    } else {
+      // Native Windows does not deliver POSIX SIGTERM. A process that calls
+      // process.kill on itself is force-terminated and Node reports a non-zero
+      // exit without a signal. Adapters classify both terminal fields.
+      expect(observation.signal).toBeNull();
+      expect(observation.exitCode).not.toBeNull();
+      expect(observation.exitCode).not.toBe(0);
+    }
   });
 
   it("truncates stdout and stderr at exact byte caps with a marker", async () => {
@@ -558,74 +569,81 @@ describe("NodeProviderProcessRunner", () => {
     }
   });
 
-  it("awaits terminal close on interrupt after exit when inherited stdio still open", async () => {
-    // Race: Node emits exit before close; close stays pending while a grandchild
-    // holds the inherited stdout open. Interruption must not return after exit alone.
-    const dir = await mkdtemp(join(tmpdir(), "council-exit-before-close-"));
-    const parentPidPath = join(dir, "parent.pid");
-    const sentinelPath = join(dir, "grandchild.sentinel");
-    const grandchildLifetimeMs = 500;
+  // This fixture depends on POSIX descendant handle inheritance to keep the
+  // direct child's stdout binding open after exit. Native Windows needs the
+  // planned Job Object owner (design-council-core task 5.3) for its equivalent
+  // process-tree contract; plain child_process is not that owner.
+  it.runIf(isPosixHost)(
+    "awaits terminal close on interrupt after exit when inherited stdio still open",
+    async () => {
+      // Race: Node emits exit before close; close stays pending while a grandchild
+      // holds the inherited stdout open. Interruption must not return after exit alone.
+      const dir = await mkdtemp(join(tmpdir(), "council-exit-before-close-"));
+      const parentPidPath = join(dir, "parent.pid");
+      const sentinelPath = join(dir, "grandchild.sentinel");
+      const grandchildLifetimeMs = 500;
 
-    const grandchildScript = await writeScript(
-      "grandchild-hold-stdout.mjs",
-      [
-        `import { writeFileSync } from "node:fs";`,
-        // Keep inherited stdout open for a short bounded period, then self-exit.
-        `await new Promise((r) => setTimeout(r, ${String(grandchildLifetimeMs)}));`,
-        `writeFileSync(${JSON.stringify(sentinelPath)}, "done", "utf8");`,
-        `process.exit(0);`,
-        "",
-      ].join("\n"),
-    );
+      const grandchildScript = await writeScript(
+        "grandchild-hold-stdout.mjs",
+        [
+          `import { writeFileSync } from "node:fs";`,
+          // Keep inherited stdout open for a short bounded period, then self-exit.
+          `await new Promise((r) => setTimeout(r, ${String(grandchildLifetimeMs)}));`,
+          `writeFileSync(${JSON.stringify(sentinelPath)}, "done", "utf8");`,
+          `process.exit(0);`,
+          "",
+        ].join("\n"),
+      );
 
-    const parentScript = await writeScript(
-      "parent-exit-leave-stdio.mjs",
-      [
-        `import { writeFileSync } from "node:fs";`,
-        `import { spawn } from "node:child_process";`,
-        `writeFileSync(${JSON.stringify(parentPidPath)}, String(process.pid), "utf8");`,
-        `const child = spawn(process.execPath, [${JSON.stringify(grandchildScript)}], {`,
-        `  stdio: ["ignore", "inherit", "ignore"],`,
-        `  detached: false,`,
-        `});`,
-        // Exit without waiting: parent exit fires while grandchild still holds stdout.
-        `child.unref();`,
-        `process.exit(0);`,
-        "",
-      ].join("\n"),
-    );
+      const parentScript = await writeScript(
+        "parent-exit-leave-stdio.mjs",
+        [
+          `import { writeFileSync } from "node:fs";`,
+          `import { spawn } from "node:child_process";`,
+          `writeFileSync(${JSON.stringify(parentPidPath)}, String(process.pid), "utf8");`,
+          `const child = spawn(process.execPath, [${JSON.stringify(grandchildScript)}], {`,
+          `  stdio: ["ignore", "inherit", "ignore"],`,
+          `  detached: false,`,
+          `});`,
+          // Exit without waiting: parent exit fires while grandchild still holds stdout.
+          `child.unref();`,
+          `process.exit(0);`,
+          "",
+        ].join("\n"),
+      );
 
-    const fiber = Effect.runFork(
-      runProviderProcess(
-        baseRequest({
-          executable: process.execPath,
-          args: [parentScript],
-          timeoutMs: 30_000,
-        }),
-      ).pipe(Effect.provide(NodeProviderProcessRunnerLive)),
-    );
+      const fiber = Effect.runFork(
+        runProviderProcess(
+          baseRequest({
+            executable: process.execPath,
+            args: [parentScript],
+            timeoutMs: 30_000,
+          }),
+        ).pipe(Effect.provide(NodeProviderProcessRunnerLive)),
+      );
 
-    // Wait until the direct child has exited (PID gone) and the grandchild has
-    // not yet written the sentinel — exit has fired, close is still pending.
-    const raceWindow = await pollUntil(
-      async () => {
-        if (!existsSync(parentPidPath)) return false;
-        if (existsSync(sentinelPath)) return false;
-        const raw = (await readFile(parentPidPath, "utf8")).trim();
-        const pid = Number(raw);
-        if (!Number.isInteger(pid) || pid <= 0) return false;
-        return !processExists(pid);
-      },
-      { timeoutMs: 5_000, intervalMs: 10 },
-    );
-    expect(raceWindow).toBe(true);
-    expect(existsSync(sentinelPath)).toBe(false);
+      // Wait until the direct child has exited (PID gone) and the grandchild has
+      // not yet written the sentinel — exit has fired, close is still pending.
+      const raceWindow = await pollUntil(
+        async () => {
+          if (!existsSync(parentPidPath)) return false;
+          if (existsSync(sentinelPath)) return false;
+          const raw = (await readFile(parentPidPath, "utf8")).trim();
+          const pid = Number(raw);
+          if (!Number.isInteger(pid) || pid <= 0) return false;
+          return !processExists(pid);
+        },
+        { timeoutMs: 5_000, intervalMs: 10 },
+      );
+      expect(raceWindow).toBe(true);
+      expect(existsSync(sentinelPath)).toBe(false);
 
-    // Interrupt during the exit-before-close window. Must not complete until the
-    // grandchild has exited (sentinel) and the binding terminal close has occurred.
-    await Effect.runPromise(Fiber.interrupt(fiber));
-    expect(existsSync(sentinelPath)).toBe(true);
-    const exit = await Effect.runPromise(Fiber.await(fiber));
-    expect(exit._tag).toBe("Failure");
-  });
+      // Interrupt during the exit-before-close window. Must not complete until the
+      // grandchild has exited (sentinel) and the binding terminal close has occurred.
+      await Effect.runPromise(Fiber.interrupt(fiber));
+      expect(existsSync(sentinelPath)).toBe(true);
+      const exit = await Effect.runPromise(Fiber.await(fiber));
+      expect(exit._tag).toBe("Failure");
+    },
+  );
 });
