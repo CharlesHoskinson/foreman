@@ -455,7 +455,7 @@ const layerBuildInput = (
   executable: canaryInput.executable,
   model: canaryInput.model,
   prompt: { kind: "stdin", bytes: canaryInput.promptBytes },
-  canaryResponseSchemaJson: canaryInput.schemaJson,
+  schema: { kind: "inline", json: canaryInput.schemaJson },
   cwd: canaryInput.cwd,
   environment: canaryInput.environment,
   timeoutMs: canaryInput.timeoutMs,
@@ -493,6 +493,38 @@ describe("ClaudeProviderCanaryAdapterLive", () => {
     const error = expectAdapterError(exit);
     expect(error.category).toBe("invalid_invocation");
     expect(error.reason.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a file schema variant as a typed adapter error without leaking path or schema body", async () => {
+    const privatePath = "/tmp/secret-claude-schema.json";
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(
+        layerBuildInput({
+          schema: { kind: "file", path: privatePath },
+        }),
+      );
+    }).pipe(Effect.provide(ClaudeProviderCanaryAdapterLive));
+
+    const exit = await Effect.runPromiseExit(program);
+    const error = expectAdapterError(exit);
+    expect(error.category).toBe("invalid_invocation");
+    expect(error.reason).not.toContain(privatePath);
+    expect(error.reason).not.toContain(canaryInput.schemaJson);
+  });
+
+  it("accepts only the inline schema variant and preserves exact Claude argv", async () => {
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(layerBuildInput());
+    }).pipe(Effect.provide(ClaudeProviderCanaryAdapterLive));
+
+    const request = await Effect.runPromise(program);
+    const expected = buildClaudeCanaryInvocation(canaryInput);
+    expect(request.args).toEqual(expected.args);
+    expect(request.stdin).toEqual(expected.stdin);
+    expect(request.args).toContain("--json-schema");
+    expect(request.args).toContain(canaryInput.schemaJson);
   });
 
   it("builds the exact Claude argv and stdin contract for a valid anthropic input", async () => {

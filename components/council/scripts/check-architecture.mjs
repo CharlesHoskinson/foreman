@@ -12,6 +12,7 @@ const roots = {
   "platform-node": "packages/platform-node/src",
   "adapter-grok": "packages/adapter-grok/src",
   "adapter-claude": "packages/adapter-claude/src",
+  "adapter-codex": "packages/adapter-codex/src",
 };
 
 const pureLayers = new Set([
@@ -21,6 +22,7 @@ const pureLayers = new Set([
   "application-test",
   "adapter-grok",
   "adapter-claude",
+  "adapter-codex",
 ]);
 
 const executableExtensions = new Set([
@@ -347,6 +349,19 @@ for (const [layer, root] of Object.entries(roots)) {
         ) {
           violations.push(
             relative(".", file) + ": adapter-claude-layer-import " + specifier,
+          );
+        }
+      }
+      if (ruleLayer === "adapter-codex") {
+        if (isNodeBuiltin(specifier)) {
+          violations.push(
+            relative(".", file) + ": adapter-codex-runtime-import " + specifier,
+          );
+        } else if (
+          isForbiddenAdapterLayer(specifier, "@council/adapter-codex")
+        ) {
+          violations.push(
+            relative(".", file) + ": adapter-codex-layer-import " + specifier,
           );
         }
       }

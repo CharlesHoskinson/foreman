@@ -565,10 +565,19 @@ export const ClaudeProviderCanaryAdapterLive = Layer.succeed(
             }),
           );
         }
+        if (input.schema.kind !== "inline") {
+          return yield* Effect.fail(
+            new ProviderCanaryAdapterError({
+              category: "invalid_invocation",
+              reason:
+                "Claude provider canary adapter requires inline schema JSON",
+            }),
+          );
+        }
         return buildClaudeCanaryInvocation({
           executable: input.executable,
           promptBytes: input.prompt.bytes,
-          schemaJson: input.canaryResponseSchemaJson,
+          schemaJson: input.schema.json,
           model: input.model,
           cwd: input.cwd,
           environment: input.environment,

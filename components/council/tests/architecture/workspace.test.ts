@@ -26,6 +26,8 @@ const requiredFiles = [
   "packages/adapter-grok/tsconfig.json",
   "packages/adapter-claude/package.json",
   "packages/adapter-claude/tsconfig.json",
+  "packages/adapter-codex/package.json",
+  "packages/adapter-codex/tsconfig.json",
 ] as const;
 
 const packageRoots = [
@@ -36,6 +38,7 @@ const packageRoots = [
   "packages/platform-node/src",
   "packages/adapter-grok/src",
   "packages/adapter-claude/src",
+  "packages/adapter-codex/src",
 ] as const;
 
 /**
@@ -138,6 +141,7 @@ describe("workspace", () => {
           'import "@council/application/services";',
           'import "@council/platform-node/sqlite";',
           'import "@council/adapter-claude";',
+          'import "@council/adapter-codex";',
           'import "@council/runtime-node";',
           'import "@council/mcp-server/protocol";',
           "void pipe;",
@@ -151,6 +155,7 @@ describe("workspace", () => {
           'import "node:fs";',
           'import "@council/platform-node";',
           'import "@council/adapter-claude";',
+          'import "@council/adapter-codex";',
           'import "@council/runtime-node";',
           'import "@council/mcp-server";',
         ].join("\n"),
@@ -160,6 +165,7 @@ describe("workspace", () => {
         source: [
           'import "@council/domain";',
           'import "@council/adapter-claude";',
+          'import "@council/adapter-codex";',
           'import "@council/runtime-node";',
           'import "@council/mcp-server";',
         ].join("\n"),
@@ -173,6 +179,7 @@ describe("workspace", () => {
           'import "@council/runtime-node";',
           'import "@council/mcp-server";',
           'import "@council/adapter-claude";',
+          'import "@council/adapter-codex";',
         ].join("\n"),
       },
       {
@@ -184,6 +191,19 @@ describe("workspace", () => {
           'import "@council/runtime-node";',
           'import "@council/mcp-server";',
           'import "@council/adapter-grok";',
+          'import "@council/adapter-codex";',
+        ].join("\n"),
+      },
+      {
+        path: "packages/adapter-codex/src/__boundary_violations__.ts",
+        source: [
+          'import "node:fs";',
+          'import "@council/domain";',
+          'import "@council/platform-node";',
+          'import "@council/runtime-node";',
+          'import "@council/mcp-server";',
+          'import "@council/adapter-grok";',
+          'import "@council/adapter-claude";',
         ].join("\n"),
       },
     ]);
@@ -215,15 +235,18 @@ describe("workspace", () => {
       "domain-layer-import @council/application/services",
       "domain-layer-import @council/platform-node/sqlite",
       "domain-layer-import @council/adapter-claude",
+      "domain-layer-import @council/adapter-codex",
       "domain-layer-import @council/runtime-node",
       "domain-layer-import @council/mcp-server/protocol",
       "application-runtime-import node:fs",
       "application-layer-import @council/platform-node",
       "application-layer-import @council/adapter-claude",
+      "application-layer-import @council/adapter-codex",
       "application-layer-import @council/runtime-node",
       "application-layer-import @council/mcp-server",
       "platform-node-layer-import @council/domain",
       "platform-node-layer-import @council/adapter-claude",
+      "platform-node-layer-import @council/adapter-codex",
       "platform-node-layer-import @council/runtime-node",
       "platform-node-layer-import @council/mcp-server",
       "adapter-grok-runtime-import node:fs",
@@ -232,12 +255,21 @@ describe("workspace", () => {
       "adapter-grok-layer-import @council/runtime-node",
       "adapter-grok-layer-import @council/mcp-server",
       "adapter-grok-layer-import @council/adapter-claude",
+      "adapter-grok-layer-import @council/adapter-codex",
       "adapter-claude-runtime-import node:fs",
       "adapter-claude-layer-import @council/domain",
       "adapter-claude-layer-import @council/platform-node",
       "adapter-claude-layer-import @council/runtime-node",
       "adapter-claude-layer-import @council/mcp-server",
       "adapter-claude-layer-import @council/adapter-grok",
+      "adapter-claude-layer-import @council/adapter-codex",
+      "adapter-codex-runtime-import node:fs",
+      "adapter-codex-layer-import @council/domain",
+      "adapter-codex-layer-import @council/platform-node",
+      "adapter-codex-layer-import @council/runtime-node",
+      "adapter-codex-layer-import @council/mcp-server",
+      "adapter-codex-layer-import @council/adapter-grok",
+      "adapter-codex-layer-import @council/adapter-claude",
     ]) {
       expect(result.stderr).toContain(violation);
     }
@@ -300,6 +332,16 @@ describe("workspace", () => {
       },
       {
         path: "packages/adapter-claude/src/__boundary_allowed__.ts",
+        source: [
+          'import type { ProviderProcessRequest } from "@council/application";',
+          'import type { TerminalObservationV1 } from "@council/schema";',
+          "type _Keep = ProviderProcessRequest | TerminalObservationV1;",
+          "const keep = null as unknown as _Keep;",
+          "void keep;",
+        ].join("\n"),
+      },
+      {
+        path: "packages/adapter-codex/src/__boundary_allowed__.ts",
         source: [
           'import type { ProviderProcessRequest } from "@council/application";',
           'import type { TerminalObservationV1 } from "@council/schema";',
@@ -638,6 +680,7 @@ describe("workspace", () => {
       "packages/application/tsconfig.json",
       "packages/adapter-grok/tsconfig.json",
       "packages/adapter-claude/tsconfig.json",
+      "packages/adapter-codex/tsconfig.json",
     ]) {
       const config = JSON.parse(await readFile(path, "utf8")) as {
         compilerOptions?: { types?: unknown };

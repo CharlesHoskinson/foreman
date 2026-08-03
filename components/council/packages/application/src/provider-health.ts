@@ -18,6 +18,7 @@ import type {
 import { ProviderHealthError } from "./errors.js";
 import {
   type ProviderCanaryPrompt,
+  type ProviderCanarySchema,
   ProviderCanaryAdapter,
   ProviderProcessRunner,
 } from "./ports.js";
@@ -39,7 +40,7 @@ export type RunProviderHealthCanaryInput = {
   readonly expiresAt: UtcTimestamp;
   readonly executable: string;
   readonly prompt: ProviderCanaryPrompt;
-  readonly canaryResponseSchemaJson: string;
+  readonly schema: ProviderCanarySchema;
   readonly cwd: string;
   readonly environment: Readonly<Record<string, string>>;
   readonly timeoutMs: number;
@@ -139,7 +140,7 @@ export const runProviderHealthCanary = (
         executable: input.executable,
         model: input.model,
         prompt: input.prompt,
-        canaryResponseSchemaJson: input.canaryResponseSchemaJson,
+        schema: input.schema,
         cwd: input.cwd,
         environment: input.environment,
         timeoutMs: input.timeoutMs,

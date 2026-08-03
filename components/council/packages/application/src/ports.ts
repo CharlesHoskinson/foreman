@@ -200,11 +200,20 @@ export class ProviderProcessRunner extends Context.Tag(
 
 /**
  * Provider-neutral canary prompt transport. File path for providers such as
- * Grok; stdin bytes for providers such as Claude. Immutable.
+ * Grok; stdin bytes for providers such as Claude and Codex. Immutable.
  */
 export type ProviderCanaryPrompt =
   | { readonly kind: "file"; readonly path: string }
   | { readonly kind: "stdin"; readonly bytes: Uint8Array };
+
+/**
+ * Provider-neutral canary schema transport. Inline JSON for providers that
+ * accept a schema string on argv; file path for providers that require a
+ * materialized schema file. Immutable.
+ */
+export type ProviderCanarySchema =
+  | { readonly kind: "inline"; readonly json: string }
+  | { readonly kind: "file"; readonly path: string };
 
 /**
  * Provider-neutral canary invocation input. Collections are readonly.
@@ -215,7 +224,7 @@ export type ProviderCanaryBuildInput = {
   readonly executable: string;
   readonly model: string;
   readonly prompt: ProviderCanaryPrompt;
-  readonly canaryResponseSchemaJson: string;
+  readonly schema: ProviderCanarySchema;
   readonly cwd: string;
   readonly environment: Readonly<Record<string, string>>;
   readonly timeoutMs: number;

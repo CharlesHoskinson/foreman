@@ -455,11 +455,20 @@ export const GrokProviderCanaryAdapterLive = Layer.succeed(
             }),
           );
         }
+        if (input.schema.kind !== "inline") {
+          return yield* Effect.fail(
+            new ProviderCanaryAdapterError({
+              category: "invalid_invocation",
+              reason:
+                "Grok provider canary adapter requires inline schema JSON",
+            }),
+          );
+        }
         try {
           return buildGrokCanaryInvocation({
             executable: input.executable,
             promptFile: input.prompt.path,
-            schemaJson: input.canaryResponseSchemaJson,
+            schemaJson: input.schema.json,
             model: input.model,
             cwd: input.cwd,
             environment: input.environment,

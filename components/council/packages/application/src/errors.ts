@@ -186,6 +186,20 @@ export class ProviderCanaryAdapterError extends Data.TaggedError(
 }> {}
 
 /**
+ * Closed schema-file materialization failure. Static secret-safe reason only.
+ * Never include schema text, temporary paths, home paths, or environment.
+ */
+export type SchemaFileMaterializationErrorCategory =
+  "create_failed" | "write_failed" | "cleanup_failed" | "unsupported_platform";
+
+export class SchemaFileMaterializationError extends Data.TaggedError(
+  "SchemaFileMaterializationError",
+)<{
+  readonly category: SchemaFileMaterializationErrorCategory;
+  readonly reason: string;
+}> {}
+
+/**
  * Closed provider-health canary failure. Retains a stable category, a
  * secret-safe reason, and the provider-neutral terminal observation when one
  * exists. Never retains raw stdout, raw stderr, environment values, working

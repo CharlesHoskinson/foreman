@@ -87,7 +87,7 @@ const baseInput = (): RunProviderHealthCanaryInput => ({
   expiresAt,
   executable: "/usr/bin/grok",
   prompt: { kind: "file", path: "/tmp/canary-prompt.txt" },
-  canaryResponseSchemaJson: '{"type":"object"}',
+  schema: { kind: "inline", json: '{"type":"object"}' },
   cwd: "/work",
   environment: { PATH: "/usr/bin" },
   timeoutMs: 30_000,

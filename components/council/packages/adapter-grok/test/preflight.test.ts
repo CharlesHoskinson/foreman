@@ -371,7 +371,7 @@ const layerBuildInput = (
   executable: canaryInput.executable,
   model: canaryInput.model,
   prompt: { kind: "file", path: canaryInput.promptFile },
-  canaryResponseSchemaJson: canaryInput.schemaJson,
+  schema: { kind: "inline", json: canaryInput.schemaJson },
   cwd: canaryInput.cwd,
   environment: canaryInput.environment,
   timeoutMs: canaryInput.timeoutMs,
@@ -427,6 +427,36 @@ describe("GrokProviderCanaryAdapterLive", () => {
     const exit = await Effect.runPromiseExit(program);
     const error = expectAdapterError(exit);
     expect(error.category).toBe("invalid_invocation");
+  });
+
+  it("rejects a file schema variant as a typed adapter error without leaking path or schema body", async () => {
+    const privatePath = "/tmp/secret-schema-path.json";
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(
+        layerBuildInput({
+          schema: { kind: "file", path: privatePath },
+        }),
+      );
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const exit = await Effect.runPromiseExit(program);
+    const error = expectAdapterError(exit);
+    expect(error.category).toBe("invalid_invocation");
+    expect(error.reason).not.toContain(privatePath);
+    expect(error.reason).not.toContain(canaryInput.schemaJson);
+  });
+
+  it("accepts only the inline schema variant and preserves exact Grok argv", async () => {
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(layerBuildInput());
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const request = await Effect.runPromise(program);
+    expect(request.args).toEqual(buildGrokCanaryInvocation(canaryInput).args);
+    expect(request.args).toContain("--json-schema");
+    expect(request.args).toContain(canaryInput.schemaJson);
   });
 
   it("sets stdin to null for Grok file-prompt requests", async () => {

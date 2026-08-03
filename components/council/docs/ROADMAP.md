@@ -41,7 +41,7 @@ Exit condition: the written design is reviewed and accepted as the implementatio
 - Add and independently certify Claude, Codex, Gemini, and Grok adapters.
 - Implement the readiness doctor, effective subscription checks, capability evidence, version degradation, and failure-domain quorum.
 - Never replace an unavailable requested provider with a different provider without an explicit contract amendment.
-- Status: Grok and Claude canary adapters are in tree with focused unit tests. Codex and Gemini adapters, readiness doctor, and live multi-provider certification remain open.
+- Status: Grok, Claude, and Codex canary adapters are in tree with focused unit tests. Schema-file materialization supports POSIX/WSL and refuses native Windows until an ACL-aware backend exists. Gemini adapter, readiness doctor, and live multi-provider certification remain open.
 
 ## Phase 6 — Authorization and deep research
 
