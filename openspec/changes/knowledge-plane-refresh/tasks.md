@@ -143,7 +143,7 @@ Precondition: `lock-primitive-hardening` has landed. T4 builds on `lib/lock.sh`.
       in the doc that states the ban, so the next reader does not re-derive it.
 - [ ] Update `skills/foreman/SKILL.md:87-91` and `README.md:595-605`: the graph
       doctrine now names `graph-refresh.sh` rather than a bare
-      `graphify --update`, and states that `graph.json` is the only supported
+      `graphify update .`, and states that `graph.json` is the only supported
       downstream source.
 
 ## T10 — gate

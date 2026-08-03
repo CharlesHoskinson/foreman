@@ -1,0 +1,28 @@
+# Build the current-authority graph from implementation and live guidance.
+# Git history and the preservation tag retain every excluded record.
+.foreman/**
+graphify-out/**
+bugeventlog.md
+
+# Dated evidence, research, designs, incidents, and notes are historical.
+docs/**
+!docs/RESIDUALS.md
+!docs/USAGE.md
+!docs/INSTALL.md
+!docs/design/
+docs/design/**
+!docs/design/session-store-ontology-links.md
+!docs/design/tier1-failure-classes.md
+!docs/releases/
+!docs/releases/v0.2.8.2-notes.md
+!docs/releases/v0.2.8.2-cleanup-log.md
+!docs/evidence/
+!docs/evidence/README.md
+
+# Archived OpenSpec packages are not current change authority.
+openspec/changes/archive/**
+
+# These skills are vendored snapshots, not Foreman implementation authority.
+skills/graphify/**
+skills/scrapling/**
+skills/superpowers/**

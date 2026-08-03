@@ -51,7 +51,7 @@ gate rather than trusted forever.
 ## Why a sibling file, and the alternatives rejected
 
 **Rows inside `graph.json`.** Rejected, and this is the load-bearing rejection.
-`graphify --update` rebuilds from the filesystem; a record not derivable from a
+`graphify update .` rebuilds from the filesystem; a record not derivable from a
 file on disk is unspecified under an incremental rebuild, and no "preserve these
 nodes" contract exists in the artifact. Injected lineage would be destroyed on a
 routine refresh — silently, and at the worst possible time, since refresh is

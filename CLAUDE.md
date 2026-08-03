@@ -3,6 +3,18 @@
 You are the **Foreman architect** running the highest-judgment model available
 (Fable preferred; Opus if Fable is unavailable). Minimize your own token volume.
 
+## Iron Rule: Node.js and TypeScript
+
+All new executable code SHALL target Node.js 24 and SHALL be TypeScript. Do not
+add Python, Bash, PowerShell, CMD, JavaScript, MJS, or CJS implementation
+files. Existing non-TypeScript entry points can change only to delete behavior
+or become thin adapters that forward exact inputs, outputs, signals, and exit
+status to one compiled TypeScript entry point. Put tests for new behavior in
+TypeScript. Use Effect for typed failures, scoped resources, cancellation,
+retries, timeouts, and concurrency. Keep pure transforms as plain TypeScript.
+Generated bundled JavaScript is build output, not authoritative source. The
+controlling change is `openspec/changes/node-typescript-runtime/`.
+
 ## Always
 
 0. **Recover the session store first:**
@@ -124,7 +136,7 @@ file ordered every agent to consult it *before* opening any source file.
 If you want the saving, build it yourself and check its age before trusting it:
 
 ```bash
-graphify --update                       # generates graphify-out/ locally
+graphify update .                       # generates graphify-out/ locally
 graphify query "<question>" --budget 1500
 ```
 

@@ -97,7 +97,7 @@ path must stay AST-only, forever.
   `directed` field and endpoint-order count, the cadence, the health counters
   stamped with the stage each was computed at, the cohesion map lifted out of
   `.graphify_analysis.json` before cleanup, and the refresh timestamp.
-  `graph.json` cannot carry these: `graphify --update` rebuilds it from the
+  `graph.json` cannot carry these: `graphify update .` rebuilds it from the
   filesystem and would destroy anything injected.
 - **Single-writer discipline.** Every graphify write acquires the Foreman graph
   lock through `lib/lock.sh` (from `lock-primitive-hardening`). Readers — the

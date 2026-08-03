@@ -72,7 +72,7 @@ pair — are therefore store-native and never round-trip through `graph.json`.
 
 ## Why the version stamp lives in a sidecar and not in `graph.json`
 
-`graphify --update` rebuilds `graph.json` from the filesystem. Anything Foreman
+`graphify update .` rebuilds `graph.json` from the filesystem. Anything Foreman
 injects into it is unspecified under the next refresh — this is the same
 mechanism that keeps the work-DAG out of `graph.json` (GP-4). So the stamp goes
 in a sibling file that graphify does not own.

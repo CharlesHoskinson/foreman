@@ -17,8 +17,8 @@ three release gates.
 | Fix the external soft-mode defects | Complete | Foreman PR [#7](https://github.com/CharlesHoskinson/foreman/pull/7), merge `525cfb0` |
 | Restore Linux NATS coverage | Complete | Foreman PR [#10](https://github.com/CharlesHoskinson/foreman/pull/10), merge `09e0715`, 12 of 12 NATS tests passed |
 | Replace stale active release guidance | Complete | Foreman PR [#12](https://github.com/CharlesHoskinson/foreman/pull/12), merge `d9eafbb` |
-| Remove Quint's rate-limited first-run fetch | In progress | Foreman PR [#14](https://github.com/CharlesHoskinson/foreman/pull/14); Windows and standalone formal checks are green |
-| Rebuild the knowledge graph from the merged tree | In progress | The replacement must record its source commit before promotion |
+| Remove Quint's rate-limited first-run fetch | Complete | Foreman PR [#14](https://github.com/CharlesHoskinson/foreman/pull/14), merge `074f3c4`; exact-main formal, Linux, and Windows workflows passed |
+| Rebuild the knowledge graph from the merged tree | In progress | The authority-filtered replacement is building from `074f3c4`; promotion requires final-candidate validation |
 | Run the three release gates and tag | Pending | See `checklist.md` |
 
 ### Release purpose
@@ -70,7 +70,8 @@ an old release decision matters; do not add old plans back to this live file.
 The following work is separate from this release:
 
 - Council v0.3, including the ACE preflight and provider runtime;
-- the Node.js and TypeScript migration of existing shell and Python modules;
+- the Node.js and TypeScript migration in `typescriptmigration.md` and
+  `openspec/changes/node-typescript-runtime/`;
 - the `dev/foreman-v1` session-transport branch review;
 - the skill dependency manifest and any later Superpowers extraction;
 - a fresh decision on the formal, graph, and Tier 2 work preserved by
