@@ -2,6 +2,8 @@
   "files": [],
   "references": [
     { "path": "./packages/schema" },
-    { "path": "./packages/domain" }
+    { "path": "./packages/domain" },
+    { "path": "./packages/application" },
+    { "path": "./packages/platform-node" }
   ]
 }

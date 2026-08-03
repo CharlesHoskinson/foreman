@@ -7,7 +7,17 @@ import ts from "typescript";
 const roots = {
   schema: "packages/schema/src",
   domain: "packages/domain/src",
+  application: "packages/application/src",
+  "application-test": "packages/application/test",
+  "platform-node": "packages/platform-node/src",
 };
+
+const pureLayers = new Set([
+  "schema",
+  "domain",
+  "application",
+  "application-test",
+]);
 
 const executableExtensions = new Set([
   ".ts",
@@ -67,6 +77,26 @@ const isForbiddenDomainLayer = (specifier) => {
   return (
     packageName === "@council/application" ||
     packageName === "@council/platform-node" ||
+    packageName === "@council/runtime-node" ||
+    packageName === "@council/mcp-server" ||
+    packageName?.startsWith("@council/adapter-") === true
+  );
+};
+
+const isForbiddenApplicationLayer = (specifier) => {
+  const packageName = councilPackage(specifier);
+  return (
+    packageName === "@council/platform-node" ||
+    packageName === "@council/runtime-node" ||
+    packageName === "@council/mcp-server" ||
+    packageName?.startsWith("@council/adapter-") === true
+  );
+};
+
+const isForbiddenPlatformLayer = (specifier) => {
+  const packageName = councilPackage(specifier);
+  return (
+    packageName === "@council/domain" ||
     packageName === "@council/runtime-node" ||
     packageName === "@council/mcp-server" ||
     packageName?.startsWith("@council/adapter-") === true
@@ -207,15 +237,30 @@ const inspectSource = (file, source) => {
 
 const violations = [];
 for (const [layer, root] of Object.entries(roots)) {
+  // application-test reuses the application import rules and labels.
+  const ruleLayer = layer === "application-test" ? "application" : layer;
   for (const file of await walk(root)) {
     if (!executableExtensions.has(extname(file))) continue;
     const source = await readFile(file, "utf8");
     const inspection = inspectSource(file, source);
-    for (const violation of inspection.sourceViolations) {
-      violations.push(`${relative(".", file)}: ${layer}-${violation}`);
+    if (pureLayers.has(layer)) {
+      for (const violation of inspection.sourceViolations) {
+        violations.push(`${relative(".", file)}: ${ruleLayer}-${violation}`);
+      }
+    } else {
+      // platform-node: still ban nonliteral dynamic import / direct require
+      // for consistency, but allow Node globals.
+      for (const violation of inspection.sourceViolations) {
+        if (
+          violation === "nonliteral-dynamic-import" ||
+          violation === "direct-require"
+        ) {
+          violations.push(`${relative(".", file)}: ${ruleLayer}-${violation}`);
+        }
+      }
     }
     for (const specifier of inspection.specifiers) {
-      if (layer === "schema") {
+      if (ruleLayer === "schema") {
         if (
           isNodeBuiltin(specifier) ||
           (isEffectModule(specifier) && specifier !== "effect/Schema")
@@ -232,7 +277,7 @@ for (const [layer, root] of Object.entries(roots)) {
           }
         }
       }
-      if (layer === "domain") {
+      if (ruleLayer === "domain") {
         if (isNodeBuiltin(specifier) || isEffectModule(specifier)) {
           violations.push(
             relative(".", file) + ": domain-runtime-import " + specifier,
@@ -240,6 +285,24 @@ for (const [layer, root] of Object.entries(roots)) {
         } else if (isForbiddenDomainLayer(specifier)) {
           violations.push(
             relative(".", file) + ": domain-layer-import " + specifier,
+          );
+        }
+      }
+      if (ruleLayer === "application") {
+        if (isNodeBuiltin(specifier)) {
+          violations.push(
+            relative(".", file) + ": application-runtime-import " + specifier,
+          );
+        } else if (isForbiddenApplicationLayer(specifier)) {
+          violations.push(
+            relative(".", file) + ": application-layer-import " + specifier,
+          );
+        }
+      }
+      if (ruleLayer === "platform-node") {
+        if (isForbiddenPlatformLayer(specifier)) {
+          violations.push(
+            relative(".", file) + ": platform-node-layer-import " + specifier,
           );
         }
       }
