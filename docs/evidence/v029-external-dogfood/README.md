@@ -33,6 +33,16 @@ The reviewer returned `APPROVED` with no findings. A second local target-gate
 run passed the same 9 test files and 122 tests.
 
 This evidence satisfies the external worker, target-gate, and different-family
-audit criteria. It does not claim Council quorum. The exact diff still needs
-three admissible Council verdicts from at least two non-author model-family
-failure domains.
+audit criteria.
+
+## Council shadow outcome
+
+The cold Codex audit is not ready-token-bound. Council therefore counts zero
+completed verdicts and zero independent domains for this bundle. The preserved
+operator outcome is `quorum_not_met`.
+
+This outcome is not approval, dissent, or abstention. It is not a release gate.
+Foreman's target, local, Linux, and Windows gates remain the release authority.
+See `council-closure.json` for the exact bundle and counters.
+Its SHA-256 is
+`dc95bc4d7839e51ff15795a4b3a356b5bb83e592e14a807ccd5ae10503f4e49c`.

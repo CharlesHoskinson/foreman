@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "recordType": "council.operator-closure.v1",
+  "outcome": "quorum_not_met",
+  "bundle": {
+    "baseSha": "369723b34d3fa96bb869f828562f0ba2dc18cd17",
+    "headSha": "31e26eacc7ac441a3d613e9b23122d95515b1772",
+    "diffSha256": "3c5aef5e4170bdc4a36fd777dc12a01bfd85fa7920cb3c679896e9b593aaa7a8"
+  },
+  "policy": {
+    "minimumCompletedVerdicts": 3,
+    "minimumIndependentDomains": 2
+  },
+  "observed": {
+    "admissibleCompletedVerdicts": 0,
+    "independentDomains": 0,
+    "ordinaryDifferentFamilyAudits": 1
+  },
+  "reason": "The cold Codex audit was not ready-token-bound and is not a Council verdict. The release has no production review dispatcher.",
+  "advisory": true,
+  "releaseAuthority": false
+}

@@ -19,7 +19,9 @@
 - [x] 2.6 Run one external repository workflow through Foreman.
 - [x] 2.7 Pass the external repository gate.
 - [x] 2.8 Obtain an independent audit for the external change.
-- [ ] 2.9 Preserve admissible Council advice for the exact external diff.
+- [x] 2.9 Preserve the Council shadow outcome for the exact external diff.
+      Record `quorum_not_met`; do not promote the ordinary audit to a Council
+      verdict or release approval.
 
 ## 3. Release
 

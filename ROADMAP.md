@@ -78,7 +78,7 @@ The v0.2.9.0 candidate has one product boundary. It ships the bounded
 | Pass hosted Linux and Windows gates | Provisional pass | PR #22 passed both workflows at `04e42be`; final candidate rerun remains required |
 | Pass live Grok, Claude, and Codex canaries | Provisional pass | Three secret-safe provider-neutral receipts at `04e42be`; final candidate rerun remains required |
 | Complete one external Foreman workflow | Complete | Grok commit `31e26ea`; 122 target tests passed; independent Codex audit approved the exact diff |
-| Preserve Council advice for the external diff | Pending | Exact three-verdict Council closure remains required |
+| Preserve the Council shadow outcome | Complete | Exact external bundle records `quorum_not_met`; the ordinary cold audit is not promoted to a Council verdict |
 | Replace stale release knowledge | In progress | New OpenSpec package and cleanup register |
 | Rebuild the exact-candidate graph | Pending | Graph source commit must match the release candidate |
 

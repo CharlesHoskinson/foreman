@@ -48,3 +48,15 @@ The release SHALL NOT claim Gemini support, complete Council review orchestratio
 
 - **WHEN** a release record makes one excluded claim
 - **THEN** the release gate rejects the record
+
+### Requirement: Council shadow outcomes stay advisory
+
+Foreman SHALL preserve the Council outcome for the exact external bundle.
+
+Foreman SHALL NOT promote an ordinary audit to a ready-token-bound Council
+verdict. A `quorum_not_met` outcome SHALL NOT become release approval.
+
+#### Scenario: The external audit is not a Council verdict
+
+- **WHEN** the external audit is not ready-token-bound
+- **THEN** Foreman records `quorum_not_met` and keeps release authority in the Foreman gates

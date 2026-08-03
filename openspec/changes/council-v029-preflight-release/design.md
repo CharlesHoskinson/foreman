@@ -18,12 +18,17 @@ Foreman selects one closed provider family. Google fails before dispatch because
 4. Run one external repository workflow through Foreman.
 5. Obtain a different-family audit for the external change.
 6. Pass the target repository gate.
-7. Pass hosted Linux and Windows gates on the exact candidate.
-8. Build the knowledge graph from the same candidate.
+7. Preserve the Council shadow outcome without promoting a non-token-bound
+   audit to a Council verdict.
+8. Pass hosted Linux and Windows gates on the exact candidate.
+9. Build the knowledge graph from the same candidate.
 
 ## Failure policy
 
 A provider failure is infrastructure state. It is not approval, dissent, or abstention.
+
+A `quorum_not_met` Council shadow outcome is not release approval. Council is
+advisory. Foreman gates remain the release authority.
 
 Gemini is outside this release. A Google request returns one static dispatch failure.
 

@@ -26,7 +26,8 @@ This checklist is the current release authority. Evidence must name one exact ca
 - [x] Produce one substantive Grok worker commit.
 - [x] Obtain one independent different-family audit.
 - [x] Pass the target repository native gate.
-- [ ] Preserve Council advice for the exact external diff.
+- [x] Preserve the Council shadow outcome for the exact external diff. The
+      outcome is `quorum_not_met`; it is not approval or a release gate.
 
 ## Exact-candidate gates
 
