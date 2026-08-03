@@ -5,3 +5,4 @@ export * from "./provider-health.js";
 export * from "./ready-token.js";
 export * from "./schema-lowering.js";
 export * from "./prompt-preflight.js";
+export * from "./run-preflight.js";

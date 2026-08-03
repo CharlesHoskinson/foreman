@@ -1,22 +1,28 @@
 import type {
+  CanaryChallengeV1,
+  ContentHash,
   ProviderFamilyV1,
   ReviewArtifactDescriptorV1,
   ReviewBundleIdentityV1,
   Sha256Digest,
   TerminalObservationV1,
+  UtcTimestamp,
 } from "@council/schema";
-import { Context, type Effect } from "effect";
+import { Context, type Effect, type Scope } from "effect";
 import type {
   ArtifactLimitExceeded,
   ArtifactMissing,
   ArtifactReadError,
   BundleVerificationError,
   CanonicalSchemaInvalid,
+  CanaryMaterializerError,
   ConstraintWeakeningError,
   DigestError,
+  PreflightIdentityError,
   PromptMaterializationError,
   ProviderCanaryAdapterError,
   ProviderProcessError,
+  ProviderVersionProbeError,
   SchemaLoweringError,
 } from "./errors.js";
 
@@ -260,3 +266,56 @@ export interface ProviderCanaryAdapterService {
 export class ProviderCanaryAdapter extends Context.Tag(
   "@council/application/ProviderCanaryAdapter",
 )<ProviderCanaryAdapter, ProviderCanaryAdapterService>() {}
+
+/**
+ * Provider-neutral prepared canary material. Prompt and schema transports are
+ * immutable. The canary schema hash is independent of the review schema hash.
+ */
+export type PreparedCanary = {
+  readonly prompt: ProviderCanaryPrompt;
+  readonly schema: ProviderCanarySchema;
+  readonly canarySchemaVariantHash: ContentHash;
+};
+
+/**
+ * Resolve the selected CLI executable version. Shell-free; never trusts a
+ * caller-supplied version string.
+ */
+export interface ProviderVersionProbeService {
+  readonly resolve: (
+    executable: string,
+    cwd: string,
+    environment: Readonly<Record<string, string>>,
+  ) => Effect.Effect<string, ProviderVersionProbeError>;
+}
+
+export class ProviderVersionProbe extends Context.Tag(
+  "@council/application/ProviderVersionProbe",
+)<ProviderVersionProbe, ProviderVersionProbeService>() {}
+
+/**
+ * Materialize provider-neutral canary prompt/schema transports for one
+ * challenge. Scoped so temporary files are released after the canary.
+ */
+export interface CanaryMaterializerService {
+  readonly prepare: (
+    challenge: CanaryChallengeV1,
+    providerFamily: ProviderFamilyV1,
+  ) => Effect.Effect<PreparedCanary, CanaryMaterializerError, Scope.Scope>;
+}
+
+export class CanaryMaterializer extends Context.Tag(
+  "@council/application/CanaryMaterializer",
+)<CanaryMaterializer, CanaryMaterializerService>() {}
+
+/**
+ * Nonce and clock source for preflight identity. Tests inject fixed values.
+ */
+export interface PreflightIdentitySourceService {
+  readonly nonce: Effect.Effect<string, PreflightIdentityError>;
+  readonly now: Effect.Effect<UtcTimestamp, PreflightIdentityError>;
+}
+
+export class PreflightIdentitySource extends Context.Tag(
+  "@council/application/PreflightIdentitySource",
+)<PreflightIdentitySource, PreflightIdentitySourceService>() {}
