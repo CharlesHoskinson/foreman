@@ -4,7 +4,7 @@
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import type {
   CanaryMaterializerService,
   ProviderProcessObservation,
@@ -47,6 +47,7 @@ import {
   createPreflightIdentitySource,
   createProviderVersionProbe,
   executePreflightRequest,
+  normalizePreflightRequestPaths,
   type CanaryTransportOps,
 } from "../src/preflight-program.js";
 
@@ -862,6 +863,87 @@ const buildValidRequest = (options: {
     cwd: options.cwd,
   });
 };
+
+describe("normalizePreflightRequestPaths", () => {
+  it("normalizes runtime paths against one invocation directory", () => {
+    const invocationDirectory = resolve("/tmp", "council-invocation");
+    const relativeCwd = join("run");
+    const relativeDiffPath = join("run", "artifacts", "diff-patch");
+    const request = buildValidRequest({
+      executable: "grok",
+      diffPath: relativeDiffPath,
+      artifactPathForId: (artifactId) => join("run", "artifacts", artifactId),
+      cwd: relativeCwd,
+    });
+    const original = structuredClone(request);
+
+    const normalized = normalizePreflightRequestPaths(
+      request,
+      invocationDirectory,
+    );
+
+    expect(normalized.cwd).toBe(resolve(invocationDirectory, relativeCwd));
+    expect(normalized.observedBundle.diffPath).toBe(
+      resolve(invocationDirectory, relativeDiffPath),
+    );
+    expect(normalized.artifactPaths).toEqual(
+      request.artifactPaths.map((item) => ({
+        ...item,
+        path: resolve(invocationDirectory, item.path),
+      })),
+    );
+    expect(normalized.provider.executable).toBe("grok");
+    expect(request).toEqual(original);
+  });
+
+  it("leaves absolute runtime paths unchanged", () => {
+    const invocationDirectory = resolve("/tmp", "council-invocation");
+    const absoluteRoot = resolve("/var", "council-absolute");
+    // Keep a lexical ".." segment so path.resolve would rewrite the string.
+    // Byte-for-byte preservation must retain the original absolute form.
+    const absoluteCwd = [absoluteRoot, "work", "..", "retained"].join(sep);
+    const absoluteDiffPath = [
+      absoluteRoot,
+      "artifacts",
+      "..",
+      "artifacts",
+      "diff-patch",
+    ].join(sep);
+    const request = buildValidRequest({
+      executable: "grok",
+      diffPath: absoluteDiffPath,
+      artifactPathForId: (artifactId) =>
+        [absoluteRoot, "artifacts", "..", "artifacts", artifactId].join(sep),
+      cwd: absoluteCwd,
+    });
+    const original = structuredClone(request);
+
+    const normalized = normalizePreflightRequestPaths(
+      request,
+      invocationDirectory,
+    );
+
+    expect(absoluteCwd.includes(`${sep}..${sep}`)).toBe(true);
+    expect(normalized.cwd).toBe(request.cwd);
+    expect(normalized.cwd).toBe(absoluteCwd);
+    expect(normalized.observedBundle.diffPath).toBe(
+      request.observedBundle.diffPath,
+    );
+    expect(normalized.observedBundle.diffPath).toBe(absoluteDiffPath);
+    expect(normalized.artifactPaths).toEqual(request.artifactPaths);
+    for (const item of request.artifactPaths) {
+      const matched = normalized.artifactPaths.find(
+        (candidate) => candidate.artifactId === item.artifactId,
+      );
+      expect(matched).toBeDefined();
+      expect(matched?.path).toBe(item.path);
+      expect(item.path.includes(`${sep}..${sep}`)).toBe(true);
+    }
+    expect(normalized.provider.executable).toBe("grok");
+    expect(normalized.provider.executable).toBe(request.provider.executable);
+    expect(request).toEqual(original);
+  });
+});
 
 describe("executePreflightRequest", () => {
   it("fails closed for google before dispatch without reading marker paths", async () => {

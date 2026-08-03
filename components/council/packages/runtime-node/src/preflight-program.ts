@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isAbsolute, resolve } from "node:path";
 import {
   BundleVerificationError,
   BundleVerifier,
@@ -371,11 +372,51 @@ const createObservedBundleVerifier = (
     }),
 });
 
+const normalizeRuntimePath = (
+  pathValue: string,
+  invocationDirectory: string,
+): string =>
+  isAbsolute(pathValue) ? pathValue : resolve(invocationDirectory, pathValue);
+
+export const normalizePreflightRequestPaths = (
+  request: PreflightCliRequestV1,
+  invocationDirectory: string,
+): PreflightCliRequestV1 => {
+  const [first, ...rest] = request.artifactPaths;
+  return {
+    ...request,
+    observedBundle: {
+      ...request.observedBundle,
+      diffPath: normalizeRuntimePath(
+        request.observedBundle.diffPath,
+        invocationDirectory,
+      ),
+    },
+    artifactPaths: [
+      {
+        ...first,
+        path: normalizeRuntimePath(first.path, invocationDirectory),
+      },
+      ...rest.map((item) => ({
+        ...item,
+        path: normalizeRuntimePath(item.path, invocationDirectory),
+      })),
+    ],
+    cwd: normalizeRuntimePath(request.cwd, invocationDirectory),
+  };
+};
+
 export const executePreflightRequest = (
   request: PreflightCliRequestV1,
   environmentSource: Readonly<Record<string, string | undefined>> = process.env,
+  invocationDirectory: string = process.cwd(),
 ): Promise<PromptPreflightResultV1> => {
-  const selection = selectProvider(request.provider.family);
+  const normalizedRequest = normalizePreflightRequestPaths(
+    request,
+    invocationDirectory,
+  );
+
+  const selection = selectProvider(normalizedRequest.provider.family);
   if (selection._tag === "unavailable") {
     return Promise.resolve(
       decodeStrictSync(PromptPreflightResultV1Schema, {
@@ -392,9 +433,14 @@ export const executePreflightRequest = (
   }
 
   const compilationArtifactLayer = filesystemArtifactReaderLayer(
-    new Map(request.artifactPaths.map((item) => [item.artifactId, item.path])),
+    new Map(
+      normalizedRequest.artifactPaths.map((item) => [
+        item.artifactId,
+        item.path,
+      ]),
+    ),
   );
-  const observedVerifier = createObservedBundleVerifier(request);
+  const observedVerifier = createObservedBundleVerifier(normalizedRequest);
   const environment = buildChildEnvironment(environmentSource);
 
   const layer = Layer.mergeAll(
@@ -412,13 +458,13 @@ export const executePreflightRequest = (
 
   return Effect.runPromise(
     runPromptPreflight({
-      contract: request.contract,
+      contract: normalizedRequest.contract,
       providerFamily: selection.family,
-      executable: request.provider.executable,
-      model: request.provider.model,
-      cwd: request.cwd,
+      executable: normalizedRequest.provider.executable,
+      model: normalizedRequest.provider.model,
+      cwd: normalizedRequest.cwd,
       environment,
-      timeoutMs: request.contract.limits.maxWallTimeMs,
+      timeoutMs: normalizedRequest.contract.limits.maxWallTimeMs,
       stdoutMaxBytes: CANARY_STDOUT_MAX_BYTES,
       stderrMaxBytes: CANARY_STDERR_MAX_BYTES,
     }).pipe(Effect.provide(layer)),
