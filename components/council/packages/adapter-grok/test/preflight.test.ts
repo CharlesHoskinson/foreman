@@ -1,15 +1,21 @@
 import { createHash } from "node:crypto";
+import { Cause, Effect } from "effect";
+import type { Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import type {
+  ProviderCanaryAdapterError,
+  ProviderCanaryBuildInput,
   ProviderProcessObservation,
   ProviderProcessRequest,
 } from "@council/application";
+import { ProviderCanaryAdapter } from "@council/application";
 import type { Sha256Digest } from "@council/schema";
 import { isSuccessfulTerminalObservation } from "@council/schema";
 import {
   buildGrokCanaryInvocation,
   decodeGrokCanaryTerminal,
-} from "../src/preflight.js";
+  GrokProviderCanaryAdapterLive,
+} from "../src/index.js";
 
 const digestOf = (text: string): Sha256Digest =>
   createHash("sha256").update(text).digest("hex") as Sha256Digest;
@@ -332,5 +338,110 @@ describe("decodeGrokCanaryTerminal", () => {
     expect(isSuccessfulTerminalObservation(decodedStrings.terminal)).toBe(
       false,
     );
+  });
+});
+
+const firstFail = (cause: Cause.Cause<unknown>): unknown => {
+  if (cause._tag === "Fail") return cause.error;
+  if (cause._tag === "Parallel" || cause._tag === "Sequential") {
+    return firstFail(cause.left) ?? firstFail(cause.right);
+  }
+  return undefined;
+};
+
+const expectAdapterError = (
+  exit: Exit.Exit<unknown, ProviderCanaryAdapterError>,
+): ProviderCanaryAdapterError => {
+  expect(exit._tag).toBe("Failure");
+  if (exit._tag !== "Failure") {
+    throw new Error("expected failure");
+  }
+  // Must be a typed Fail, not a Die defect.
+  expect(Cause.isDie(exit.cause)).toBe(false);
+  const error = firstFail(exit.cause) as ProviderCanaryAdapterError;
+  expect(error).toBeDefined();
+  expect(error._tag).toBe("ProviderCanaryAdapterError");
+  return error;
+};
+
+const layerBuildInput = (
+  overrides: Partial<ProviderCanaryBuildInput> = {},
+): ProviderCanaryBuildInput => ({
+  providerFamily: "xai",
+  executable: canaryInput.executable,
+  model: canaryInput.model,
+  promptFile: canaryInput.promptFile,
+  canaryResponseSchemaJson: canaryInput.schemaJson,
+  cwd: canaryInput.cwd,
+  environment: canaryInput.environment,
+  timeoutMs: canaryInput.timeoutMs,
+  stdoutMaxBytes: canaryInput.stdoutMaxBytes,
+  stderrMaxBytes: canaryInput.stderrMaxBytes,
+  ...overrides,
+});
+
+describe("GrokProviderCanaryAdapterLive", () => {
+  it("rejects a non-xai family as a typed adapter error, not a defect", async () => {
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(
+        layerBuildInput({ providerFamily: "anthropic" }),
+      );
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const exit = await Effect.runPromiseExit(program);
+    const error = expectAdapterError(exit);
+    expect(error.category).toBe("unsupported_family");
+    expect(error.reason.length).toBeGreaterThan(0);
+  });
+
+  it("rejects a .json prompt file as a typed adapter error, not a defect", async () => {
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(
+        layerBuildInput({ promptFile: "/tmp/prompt.json" }),
+      );
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const exit = await Effect.runPromiseExit(program);
+    const error = expectAdapterError(exit);
+    expect(error.category).toBe("invalid_invocation");
+    expect(error.reason).toMatch(/\.json/i);
+  });
+
+  it("builds the exact Grok 0.2.118 argument contract for a valid xai input", async () => {
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(layerBuildInput());
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const request = await Effect.runPromise(program);
+    expect(request.args).toEqual(buildGrokCanaryInvocation(canaryInput).args);
+  });
+
+  it("returns non-success terminals for application classification", async () => {
+    const outer = {
+      stopReason: "Cancelled",
+      structuredOutput: {
+        schemaVersion: 1,
+        nonce: "n1",
+        checkResult: "2",
+        status: "ready",
+      },
+      structuredOutputError: null,
+      num_turns: 1,
+      text: "",
+    };
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.decodeObservation(
+        observation(JSON.stringify(outer)),
+      );
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const decoded = await Effect.runPromise(program);
+    expect(decoded.terminal.stopReason).toBe("Cancelled");
+    expect(isSuccessfulTerminalObservation(decoded.terminal)).toBe(false);
+    expect(decoded.structuredOutput).toEqual(outer.structuredOutput);
   });
 });

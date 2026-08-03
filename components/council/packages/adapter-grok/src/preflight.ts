@@ -1,9 +1,14 @@
-import type {
-  ProviderProcessObservation,
-  ProviderProcessRequest,
+import {
+  type ProviderCanaryBuildInput,
+  type ProviderCanaryDecoded,
+  type ProviderProcessObservation,
+  type ProviderProcessRequest,
+  ProviderCanaryAdapter,
+  ProviderCanaryAdapterError,
 } from "@council/application";
 import type { TerminalObservationV1 } from "@council/schema";
 import { isSuccessfulStopReason } from "@council/schema";
+import { Effect, Layer } from "effect";
 
 /**
  * Grok-stable (0.2.118) canary invocation input. Provider-neutral fields only;
@@ -416,3 +421,63 @@ export const decodeGrokCanaryTerminal = (
     }),
   };
 };
+
+/**
+ * Grok implementation of ProviderCanaryAdapter.
+ *
+ * - Accepts only provider family `xai`.
+ * - Wraps the existing `.json` prompt-file refusal as a typed adapter error.
+ * - Keeps the exact Grok 0.2.118 argument contract via buildGrokCanaryInvocation.
+ * - Never promotes the outer `text` field (decodeGrokCanaryTerminal).
+ * - Returns all non-success terminal states for application classification.
+ */
+export const GrokProviderCanaryAdapterLive = Layer.succeed(
+  ProviderCanaryAdapter,
+  {
+    buildRequest: (input: ProviderCanaryBuildInput) =>
+      Effect.gen(function* () {
+        if (input.providerFamily !== "xai") {
+          return yield* Effect.fail(
+            new ProviderCanaryAdapterError({
+              category: "unsupported_family",
+              reason:
+                "Grok provider canary adapter accepts only provider family xai",
+            }),
+          );
+        }
+        try {
+          return buildGrokCanaryInvocation({
+            executable: input.executable,
+            promptFile: input.promptFile,
+            schemaJson: input.canaryResponseSchemaJson,
+            model: input.model,
+            cwd: input.cwd,
+            environment: input.environment,
+            timeoutMs: input.timeoutMs,
+            stdoutMaxBytes: input.stdoutMaxBytes,
+            stderrMaxBytes: input.stderrMaxBytes,
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Grok canary invocation is invalid";
+          return yield* Effect.fail(
+            new ProviderCanaryAdapterError({
+              category: "invalid_invocation",
+              reason: message,
+            }),
+          );
+        }
+      }),
+    decodeObservation: (
+      observation: ProviderProcessObservation,
+    ): Effect.Effect<ProviderCanaryDecoded> => {
+      const decoded = decodeGrokCanaryTerminal(observation);
+      return Effect.succeed({
+        terminal: decoded.terminal,
+        structuredOutput: decoded.structuredOutput,
+      });
+    },
+  },
+);

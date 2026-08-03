@@ -3,6 +3,7 @@ import type {
   ReviewArtifactDescriptorV1,
   ReviewBundleIdentityV1,
   Sha256Digest,
+  TerminalObservationV1,
 } from "@council/schema";
 import { Context, type Effect } from "effect";
 import type {
@@ -14,6 +15,7 @@ import type {
   ConstraintWeakeningError,
   DigestError,
   PromptMaterializationError,
+  ProviderCanaryAdapterError,
   ProviderProcessError,
   SchemaLoweringError,
 } from "./errors.js";
@@ -192,3 +194,49 @@ export interface ProviderProcessRunnerService {
 export class ProviderProcessRunner extends Context.Tag(
   "@council/application/ProviderProcessRunner",
 )<ProviderProcessRunner, ProviderProcessRunnerService>() {}
+
+/**
+ * Provider-neutral canary invocation input. Collections are readonly.
+ * No Grok (or other provider) wire types are exposed here.
+ */
+export type ProviderCanaryBuildInput = {
+  readonly providerFamily: ProviderFamilyV1;
+  readonly executable: string;
+  readonly model: string;
+  readonly promptFile: string;
+  readonly canaryResponseSchemaJson: string;
+  readonly cwd: string;
+  readonly environment: Readonly<Record<string, string>>;
+  readonly timeoutMs: number;
+  readonly stdoutMaxBytes: number;
+  readonly stderrMaxBytes: number;
+};
+
+/**
+ * Decoded provider-neutral terminal evidence plus the designated structured
+ * output value, or null when absent/invalid at the adapter boundary.
+ */
+export type ProviderCanaryDecoded = {
+  readonly terminal: TerminalObservationV1;
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- designated value or null
+  readonly structuredOutput: unknown | null;
+};
+
+/**
+ * Provider-neutral canary adapter port. Builds a shell-free process request and
+ * decodes a process observation into terminal evidence. Returns typed,
+ * secret-safe adapter errors — never throws a defect for an invalid invocation
+ * or a malformed provider result.
+ */
+export interface ProviderCanaryAdapterService {
+  readonly buildRequest: (
+    input: ProviderCanaryBuildInput,
+  ) => Effect.Effect<ProviderProcessRequest, ProviderCanaryAdapterError>;
+  readonly decodeObservation: (
+    observation: ProviderProcessObservation,
+  ) => Effect.Effect<ProviderCanaryDecoded, ProviderCanaryAdapterError>;
+}
+
+export class ProviderCanaryAdapter extends Context.Tag(
+  "@council/application/ProviderCanaryAdapter",
+)<ProviderCanaryAdapter, ProviderCanaryAdapterService>() {}

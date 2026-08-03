@@ -1,3 +1,4 @@
+import type { TerminalObservationV1 } from "@council/schema";
 import { Data } from "effect";
 
 /**
@@ -168,6 +169,37 @@ export class ProviderProcessError extends Data.TaggedError(
 )<{
   readonly category: ProviderProcessErrorCategory;
   readonly reason: string;
+}> {}
+
+/**
+ * Closed adapter invocation / decode failure. Secret-safe reason only.
+ * Never include environment values, raw output, cwd, prompt paths, or home.
+ */
+export type ProviderCanaryAdapterErrorCategory =
+  "unsupported_family" | "invalid_invocation" | "decode_failed";
+
+export class ProviderCanaryAdapterError extends Data.TaggedError(
+  "ProviderCanaryAdapterError",
+)<{
+  readonly category: ProviderCanaryAdapterErrorCategory;
+  readonly reason: string;
+}> {}
+
+/**
+ * Closed provider-health canary failure. Retains a stable category, a
+ * secret-safe reason, and the provider-neutral terminal observation when one
+ * exists. Never retains raw stdout, raw stderr, environment values, working
+ * directory, prompt-file path, or home path.
+ */
+export type ProviderHealthErrorCategory =
+  "adapter" | "process_start" | "process" | "terminal" | "response" | "receipt";
+
+export class ProviderHealthError extends Data.TaggedError(
+  "ProviderHealthError",
+)<{
+  readonly category: ProviderHealthErrorCategory;
+  readonly reason: string;
+  readonly terminal: TerminalObservationV1 | null;
 }> {}
 
 export type PromptCompileError =

@@ -52,6 +52,9 @@ importers:
       "@council/schema":
         specifier: workspace:*
         version: link:../schema
+      effect:
+        specifier: 3.22.1
+        version: 3.22.1
 
   packages/application:
     dependencies:

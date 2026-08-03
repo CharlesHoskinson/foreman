@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@council/application": "workspace:*",
-    "@council/schema": "workspace:*"
+    "@council/schema": "workspace:*",
+    "effect": "3.22.1"
   }
 }
