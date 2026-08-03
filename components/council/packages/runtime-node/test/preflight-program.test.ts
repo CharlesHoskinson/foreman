@@ -2,6 +2,9 @@
  * Red TDD tests for preflight-program runtime helpers.
  * No live provider process spawn.
  */
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   CanaryMaterializerService,
   ProviderProcessObservation,
@@ -21,17 +24,29 @@ import {
 } from "@council/platform-node";
 import type {
   CanaryChallengeV1,
+  PreflightCliRequestV1,
   Sha256Digest,
   UtcTimestamp,
 } from "@council/schema";
+import {
+  decodePreflightCliRequestV1,
+  decodeStrictSync,
+  PromptPreflightResultV1,
+} from "@council/schema";
 import { Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
+import {
+  bytesById,
+  diffBytes,
+  makeContract,
+} from "../../application/test/test-helpers.js";
 import {
   CHILD_ENV_NAMES,
   buildChildEnvironment,
   createCanaryMaterializer,
   createPreflightIdentitySource,
   createProviderVersionProbe,
+  executePreflightRequest,
   type CanaryTransportOps,
 } from "../src/preflight-program.js";
 
@@ -760,5 +775,241 @@ describe("createCanaryMaterializer", () => {
     expect(counters.promptReleased).toBe(0);
     expect(counters.schemaAcquired).toBe(1);
     expect(counters.schemaReleased).toBe(1);
+  });
+});
+
+const PATH_SAFE_ENV: Readonly<Record<string, string | undefined>> = {
+  PATH: process.env.PATH,
+};
+
+const assertSanitizedResult = (result: unknown, marker: string): void => {
+  const decoded = decodeStrictSync(PromptPreflightResultV1, result);
+  const serialized = JSON.stringify(decoded);
+  expect(serialized).not.toContain("API_KEY");
+  expect(serialized).not.toContain("PATH=");
+  expect(serialized).not.toContain("/home/");
+  expect(serialized).not.toContain(marker);
+  expect(serialized).not.toContain("stdout");
+  expect(serialized).not.toContain("stderr");
+  for (const bytes of bytesById().values()) {
+    const text = new TextDecoder().decode(bytes);
+    if (text.length > 0) {
+      expect(serialized).not.toContain(text);
+    }
+  }
+};
+
+const contractBundle = (
+  contract: ReturnType<typeof makeContract>,
+): { readonly baseSha: string; readonly headSha: string } => {
+  const bundle = contract.bundle as {
+    readonly baseSha: string;
+    readonly headSha: string;
+  };
+  return { baseSha: bundle.baseSha, headSha: bundle.headSha };
+};
+
+const contractLimits = (
+  contract: ReturnType<typeof makeContract>,
+): { readonly maxArtifactBytes: number } => {
+  const limits = contract.limits as { readonly maxArtifactBytes: number };
+  return { maxArtifactBytes: limits.maxArtifactBytes };
+};
+
+const artifactPathsFor = (
+  contract: ReturnType<typeof makeContract>,
+  pathForId: (artifactId: string) => string,
+): ReadonlyArray<{ readonly artifactId: string; readonly path: string }> => {
+  const artifacts = contract.artifacts as ReadonlyArray<{
+    readonly artifactId: string;
+  }>;
+  const store = bytesById();
+  return artifacts.map((artifact) => {
+    expect(store.has(artifact.artifactId)).toBe(true);
+    return {
+      artifactId: artifact.artifactId,
+      path: pathForId(artifact.artifactId),
+    };
+  });
+};
+
+const buildValidRequest = (options: {
+  readonly family?: "xai" | "google" | "anthropic" | "openai";
+  readonly executable?: string;
+  readonly model?: string;
+  readonly baseSha?: string;
+  readonly headSha?: string;
+  readonly diffPath: string;
+  readonly artifactPathForId: (artifactId: string) => string;
+  readonly cwd: string;
+}): PreflightCliRequestV1 => {
+  const contract = makeContract();
+  const bundle = contractBundle(contract);
+  return decodePreflightCliRequestV1({
+    schemaVersion: 1,
+    contract,
+    provider: {
+      family: options.family ?? "xai",
+      executable: options.executable ?? process.execPath,
+      model: options.model ?? "grok-4.5",
+    },
+    observedBundle: {
+      baseSha: options.baseSha ?? bundle.baseSha,
+      headSha: options.headSha ?? bundle.headSha,
+      diffPath: options.diffPath,
+    },
+    artifactPaths: artifactPathsFor(contract, options.artifactPathForId),
+    cwd: options.cwd,
+  });
+};
+
+describe("executePreflightRequest", () => {
+  it("fails closed for google before dispatch without reading marker paths", async () => {
+    const marker = SECRET_MARKER;
+    const request = buildValidRequest({
+      family: "google",
+      executable: `/nonexistent/${marker}/gemini-bin`,
+      model: "gemini-canary",
+      diffPath: `/nonexistent/${marker}/observed.diff`,
+      artifactPathForId: (artifactId) =>
+        `/nonexistent/${marker}/artifacts/${artifactId}`,
+      cwd: `/nonexistent/${marker}/cwd`,
+    });
+
+    const result = await executePreflightRequest(request, {});
+    const decoded = decodeStrictSync(PromptPreflightResultV1, result);
+
+    expect(decoded._tag).toBe("failure");
+    if (decoded._tag !== "failure") {
+      throw new Error("expected failure");
+    }
+    expect(decoded.failure.stage).toBe("dispatch");
+    expect(decoded.failure.reason).toBe(
+      "Gemini provider canary adapter is not implemented",
+    );
+    expect(decoded.terminal).toBeNull();
+    assertSanitizedResult(decoded, marker);
+  });
+
+  it("returns a prompt failure when observed base SHA mismatches", async () => {
+    const marker = SECRET_MARKER;
+    const otherBase = "c".repeat(40);
+
+    const request = buildValidRequest({
+      family: "xai",
+      executable: process.execPath,
+      baseSha: otherBase,
+      diffPath: `/nonexistent/${marker}/base-mismatch.diff`,
+      artifactPathForId: (artifactId) =>
+        `/nonexistent/${marker}/artifacts/${artifactId}`,
+      cwd: process.cwd(),
+    });
+    expect(request.observedBundle.baseSha).not.toBe(
+      request.contract.bundle.baseSha,
+    );
+
+    const result = await executePreflightRequest(request, PATH_SAFE_ENV);
+    const decoded = decodeStrictSync(PromptPreflightResultV1, result);
+
+    expect(decoded._tag).toBe("failure");
+    if (decoded._tag !== "failure") {
+      throw new Error("expected failure");
+    }
+    expect(decoded.failure.stage).toBe("prompt");
+    expect(decoded.terminal).toBeNull();
+    assertSanitizedResult(decoded, marker);
+  });
+
+  it("returns a prompt failure when the observed diff path is missing", async () => {
+    const marker = SECRET_MARKER;
+    const request = buildValidRequest({
+      family: "xai",
+      executable: process.execPath,
+      diffPath: `/nonexistent/${marker}/missing-observed.diff`,
+      artifactPathForId: (artifactId) =>
+        `/nonexistent/${marker}/artifacts/${artifactId}`,
+      cwd: process.cwd(),
+    });
+
+    const result = await executePreflightRequest(request, PATH_SAFE_ENV);
+    const decoded = decodeStrictSync(PromptPreflightResultV1, result);
+
+    expect(decoded._tag).toBe("failure");
+    if (decoded._tag !== "failure") {
+      throw new Error("expected failure");
+    }
+    expect(decoded.failure.stage).toBe("prompt");
+    expect(decoded.terminal).toBeNull();
+    assertSanitizedResult(decoded, marker);
+  });
+
+  it("verifies the observed diff then fails at artifact compilation", async () => {
+    const marker = SECRET_MARKER;
+    const root = await mkdtemp(join(tmpdir(), "council-preflight-"));
+    try {
+      const diffPath = join(root, "observed.diff");
+      await writeFile(diffPath, diffBytes);
+
+      const request = buildValidRequest({
+        family: "xai",
+        executable: process.execPath,
+        diffPath,
+        artifactPathForId: (artifactId) =>
+          join(root, "missing-artifacts", marker, artifactId),
+        cwd: process.cwd(),
+      });
+
+      const result = await executePreflightRequest(request, PATH_SAFE_ENV);
+      const decoded = decodeStrictSync(PromptPreflightResultV1, result);
+
+      expect(decoded._tag).toBe("failure");
+      if (decoded._tag !== "failure") {
+        throw new Error("expected failure");
+      }
+      expect(decoded.failure.stage).toBe("prompt");
+      expect(decoded.terminal).toBeNull();
+      assertSanitizedResult(decoded, marker);
+      expect(JSON.stringify(decoded)).not.toContain(diffPath);
+      expect(JSON.stringify(decoded)).not.toContain(root);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns a prompt failure for an oversized observed diff", async () => {
+    const marker = SECRET_MARKER;
+    const root = await mkdtemp(join(tmpdir(), "council-preflight-oversize-"));
+    try {
+      const contract = makeContract();
+      const { maxArtifactBytes } = contractLimits(contract);
+      const oversized = new Uint8Array(maxArtifactBytes + 1);
+      oversized.fill(0x61);
+      const diffPath = join(root, `${marker}-oversized.diff`);
+      await writeFile(diffPath, oversized);
+
+      const request = buildValidRequest({
+        family: "xai",
+        executable: process.execPath,
+        diffPath,
+        artifactPathForId: (artifactId) =>
+          join(root, "artifacts", marker, artifactId),
+        cwd: process.cwd(),
+      });
+
+      const result = await executePreflightRequest(request, PATH_SAFE_ENV);
+      const decoded = decodeStrictSync(PromptPreflightResultV1, result);
+
+      expect(decoded._tag).toBe("failure");
+      if (decoded._tag !== "failure") {
+        throw new Error("expected failure");
+      }
+      expect(decoded.failure.stage).toBe("prompt");
+      expect(decoded.terminal).toBeNull();
+      assertSanitizedResult(decoded, marker);
+      expect(JSON.stringify(decoded)).not.toContain(diffPath);
+      expect(JSON.stringify(decoded)).not.toContain(root);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

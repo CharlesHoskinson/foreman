@@ -253,7 +253,7 @@ const secretSafeDefectFailure = (): FailureCandidate =>
   );
 
 /**
- * Run prompt preflight: version → compile → nonce → prepare-canary →
+ * Run prompt preflight: compile → version → nonce → prepare-canary →
  * run-canary → issue-token.
  *
  * Always succeeds with a strictly decoded `PromptPreflightResultV1`. Expected
@@ -281,18 +281,7 @@ export const runPromptPreflight = (
     const identity = yield* PreflightIdentitySource;
     const materializer = yield* CanaryMaterializer;
 
-    // 1. version — derive CLI version; never accept from input.
-    const cliVersionEither = yield* versionProbe
-      .resolve(input.executable, input.cwd, input.environment)
-      .pipe(Effect.either);
-    if (cliVersionEither._tag === "Left") {
-      return yield* decodeOrParseFailure(
-        mapVersionError(cliVersionEither.left),
-      );
-    }
-    const cliVersion = cliVersionEither.right;
-
-    // 2. compile — no provider process may start on failure.
+    // 1. compile — no provider process may start on failure.
     const compiledEither = yield* compileReviewPrompt({
       contract: input.contract,
       providerFamily: input.providerFamily,
@@ -302,6 +291,17 @@ export const runPromptPreflight = (
     }
     const compiled = compiledEither.right;
     const providerFamily = compiled.loweringReceipt.providerFamily;
+
+    // 2. version — derive CLI version; never accept from input.
+    const cliVersionEither = yield* versionProbe
+      .resolve(input.executable, input.cwd, input.environment)
+      .pipe(Effect.either);
+    if (cliVersionEither._tag === "Left") {
+      return yield* decodeOrParseFailure(
+        mapVersionError(cliVersionEither.left),
+      );
+    }
+    const cliVersion = cliVersionEither.right;
 
     // 3. nonce — fixed Profile 1 challenge (1+1 → 2).
     const nonceEither = yield* identity.nonce.pipe(Effect.either);

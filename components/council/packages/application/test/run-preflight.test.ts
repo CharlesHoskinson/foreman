@@ -318,11 +318,11 @@ const assertSecretSafeFailure = (result: PromptPreflightResultV1): void => {
 };
 
 describe("runPromptPreflight", () => {
-  it("follows exact successful order version→compile→nonce→prepare-canary→run-canary→issue-token", async () => {
+  it("follows exact successful order compile→version→nonce→prepare-canary→run-canary→issue-token", async () => {
     const { result, events } = await runPreflight({});
     expect(events).toEqual([
-      "version",
       "compile",
+      "version",
       "nonce",
       "prepare-canary",
       "run-canary",
@@ -341,15 +341,14 @@ describe("runPromptPreflight", () => {
     );
   });
 
-  it("version probe failure stops before compile and provider execution", async () => {
+  it("version probe failure stops after compile and before provider execution", async () => {
     const { result, events } = await runPreflight({
       versionFail: new ProviderVersionProbeError({
         category: "start_failed",
         reason: "provider CLI version probe failed to start",
       }),
     });
-    expect(events).toEqual(["version"]);
-    expect(events).not.toContain("compile");
+    expect(events).toEqual(["compile", "version"]);
     expect(events).not.toContain("run-canary");
     expect(events).not.toContain("issue-token");
     expect(result._tag).toBe("failure");
@@ -366,8 +365,8 @@ describe("runPromptPreflight", () => {
     const { result, events } = await runPreflight({
       compileBroken: true,
     });
-    expect(events[0]).toBe("version");
-    expect(events).toContain("compile");
+    expect(events).toEqual(["compile"]);
+    expect(events).not.toContain("version");
     expect(events).not.toContain("nonce");
     expect(events).not.toContain("prepare-canary");
     expect(events).not.toContain("run-canary");
@@ -391,8 +390,8 @@ describe("runPromptPreflight", () => {
     });
     const { result, events } = await runPreflight({ terminal });
     expect(events).toEqual([
-      "version",
       "compile",
+      "version",
       "nonce",
       "prepare-canary",
       "run-canary",
@@ -493,7 +492,7 @@ describe("runPromptPreflight", () => {
         reason: "provider family is not supported for canary materialization",
       }),
     });
-    expect(events).toEqual(["version", "compile", "nonce", "prepare-canary"]);
+    expect(events).toEqual(["compile", "version", "nonce", "prepare-canary"]);
     expect(events).not.toContain("run-canary");
     expect(result._tag).toBe("failure");
     if (result._tag !== "failure") {
