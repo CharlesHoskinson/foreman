@@ -28,8 +28,6 @@ corepack pnpm verify
 - [Approved design record](docs/superpowers/specs/2026-08-01-council-core-design.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Research reports](docs/research/)
-- [Knowledge graph report](docs/research/graphify/GRAPH_REPORT.md)
-- [Interactive knowledge graph](docs/research/graphify/graph.html)
 
 ## Design baseline
 

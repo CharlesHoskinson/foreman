@@ -33,3 +33,12 @@ openspec/changes/**
 skills/graphify/**
 skills/scrapling/**
 skills/superpowers/**
+
+# Council implementation and current guidance are authority. Dated evidence,
+# research, generated graphs, plans, and embedded tool copies are not.
+components/council/.claude/**
+components/council/.codex/**
+components/council/.gemini/**
+components/council/docs/evidence/**
+components/council/docs/research/**
+components/council/docs/superpowers/**
