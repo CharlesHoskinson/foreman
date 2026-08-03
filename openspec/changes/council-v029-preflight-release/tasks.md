@@ -27,8 +27,16 @@
 
 ## 3. Release
 
-- [ ] 3.1 Pass hosted Linux and Windows gates on the exact candidate.
-- [ ] 3.2 Rebuild and validate the knowledge graph from the exact candidate.
-- [ ] 3.3 Execute the approved stale-document cleanup package.
-- [ ] 3.4 Publish current release notes and residuals.
-- [ ] 3.5 Tag and publish v0.2.9.0 after every criterion passes.
+- [x] 3.1 Pass hosted Linux and Windows gates on the exact candidate.
+      Runs `30860945352` and `30860945387` passed for commit `fbe2325`.
+- [x] 3.2 Rebuild and validate the knowledge graph from the exact candidate.
+      The validated graph for commit `fbe2325` has SHA-256 digest
+      `0a513b5c971fac3fbb5301e53ae35ffb0d57b0a654dc51787be254f964be9dc2`.
+- [x] 3.3 Execute the approved stale-document cleanup package.
+      Commit `6fd003b` records the cleanup and recovery paths.
+- [x] 3.4 Publish current release notes and residuals.
+      Pull request 23 merged the final notes. The notes retain the Council
+      `quorum_not_met` residual and the excluded scope.
+- [x] 3.5 Tag and publish v0.2.9.0 after every criterion passes.
+      The published release tag resolves to commit `fbe2325`:
+      https://github.com/CharlesHoskinson/foreman/releases/tag/v0.2.9.0
