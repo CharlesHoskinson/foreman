@@ -80,6 +80,7 @@ const emptySpool = {
   bytes: new Uint8Array(0),
   digest: digest("00"),
   truncated: false,
+  sourceUtf8Valid: true,
 };
 
 const defaultObservation = (): ProviderProcessObservation => ({

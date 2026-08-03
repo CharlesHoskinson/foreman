@@ -30,6 +30,7 @@ const byteSpool = (bytes: Uint8Array) => {
     bytes,
     digest: createHash("sha256").update(bytes).digest("hex") as Sha256Digest,
     truncated: false,
+    sourceUtf8Valid: true,
   };
 };
 

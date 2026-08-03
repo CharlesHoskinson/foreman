@@ -120,6 +120,15 @@ class BoundedStreamCollector {
 
   finalize(homePaths: readonly string[]): BoundedSpool {
     const raw = Buffer.concat(this.chunks, this.size);
+    // Report strict validity of the captured source bytes once, before
+    // non-fatal decode, secret sanitization, and re-encoding. Public bytes
+    // stay bounded and sanitized; raw capture is never exposed.
+    let sourceUtf8Valid = true;
+    try {
+      new TextDecoder("utf-8", { fatal: true }).decode(raw);
+    } catch {
+      sourceUtf8Valid = false;
+    }
     // Decode as UTF-8 for string sanitization of secrets, then re-encode.
     // Invalid sequences are replaced by the platform decoder; digest is over
     // the sanitized UTF-8 bytes, not the raw stream bytes.
@@ -151,6 +160,7 @@ class BoundedStreamCollector {
         bytes: new Uint8Array(bytes),
         digest: digestOf(bytes),
         truncated: true,
+        sourceUtf8Valid,
       };
     }
     if (body.byteLength > this.maxBytes) {
@@ -167,12 +177,14 @@ class BoundedStreamCollector {
         bytes: new Uint8Array(withMarker),
         digest: digestOf(withMarker),
         truncated: true,
+        sourceUtf8Valid,
       };
     }
     return {
       bytes: new Uint8Array(body),
       digest: digestOf(body),
       truncated: false,
+      sourceUtf8Valid,
     };
   }
 }

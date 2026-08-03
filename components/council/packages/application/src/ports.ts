@@ -183,6 +183,12 @@ export type BoundedSpool = {
   readonly bytes: Uint8Array;
   readonly digest: Sha256Digest;
   readonly truncated: boolean;
+  /**
+   * Strict validity of captured source bytes before secret sanitization and
+   * re-encoding. Public `bytes` remain the bounded, sanitized stream; the
+   * digest is over those public bytes. Raw capture bytes are never exposed.
+   */
+  readonly sourceUtf8Valid: boolean;
 };
 
 export type ProviderProcessObservation = {
