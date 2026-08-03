@@ -373,9 +373,10 @@ lane_normalize_config_dir() {
 #   *.pem, *.key, *.p12, *.pfx). Filename-only -- never evaluates file
 #   CONTENT for this check, so it is injection-safe regardless of what a
 #   matched file contains.
-#   Check 2 (content): the pre-existing PEM private-key banner grep,
-#   unchanged in scope (catches an embedded/renamed key Check 1's filename
-#   list would miss), ported to the same capture-then-test form. Still
+#   Check 2 (content): a PEM private-key banner at the start of a line
+#   (catches an embedded/renamed key Check 1's filename list would miss).
+#   The line anchor prevents documentation and test source that mentions the
+#   marker inline from making Foreman's own repository unroutable. Still
 #   `find ... -exec grep ... {} +` (never `xargs`): with zero matched files,
 #   `-exec ... {} +` is a documented no-op, whereas an `xargs` pipeline fed
 #   empty input would instead invoke `grep` with no file operand, which
@@ -393,7 +394,7 @@ lane_grok_secrets_scan() {
        \) -print 2>/dev/null)" || true
   [[ -n "$hits" ]] && return 1
   hits="$(find "$wt" \( -path "$wt/.harness" -o -path "$wt/.git" \) -prune -o \
-       -type f -exec grep -lIE -- '-----BEGIN[[:space:]].*PRIVATE KEY-----' {} + \
+       -type f -exec grep -lIE -- '^[[:space:]]*-----BEGIN[[:space:]].*PRIVATE KEY-----[[:space:]]*$' {} + \
        2>/dev/null)" || true
   [[ -n "$hits" ]] && return 1
   return 0

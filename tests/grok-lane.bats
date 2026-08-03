@@ -216,6 +216,19 @@ EOF
   [[ "$output" == *"grok_secrets_refused"* ]]
 }
 
+@test "grok lane permits documentation that mentions a private-key marker inline" {
+  write_authed_grok_shim "$SHIM"
+  export PATH="$SHIM:$PATH"
+  mkdir -p "$WT/.harness/vendor-home/grok"
+  printf '%s\n' \
+    'The scanner rejects -----BEGIN RSA PRIVATE KEY----- when it starts a PEM line.' \
+    'This sentence is documentation, not private-key material.' > "$WT/security-notes.md"
+  export LANE_VENDOR=grok
+  run bash "$SCRIPTS/lane-run.sh" run9 lane-a "$WT" -- bash -c 'echo RAN > "'"$WT"'/ran"'
+  [ "$status" -eq 0 ]
+  [ -f "$WT/ran" ]
+}
+
 # ---------------------------------------------------------------------
 # Rework Round 1 (Opus audit): Nit A (pipefail-safe capture-then-test, no
 # behavioral surface of its own to assert directly -- covered indirectly by
