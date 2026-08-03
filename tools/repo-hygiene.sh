@@ -27,7 +27,9 @@ command -v git >/dev/null 2>&1 || { printf 'ERROR git not on PATH\n' >&2; exit 2
 # Markdown permitted at the repository root. Everything else belongs under
 # docs/. Keep this list SHORT -- each entry is a claim that the file is a
 # doctrine document or a canonical ledger, not a work product.
-ALLOWED_ROOT_MD="README.md CLAUDE.md ROADMAP.md RESUME.md AGENT_TRAPS.md bugeventlog.md checklist.md"
+# AGENTS.md is repository doctrine. typescriptmigration.md is the canonical
+# post-v0.2.8.2 migration checklist.
+ALLOWED_ROOT_MD="README.md CLAUDE.md AGENTS.md ROADMAP.md RESUME.md AGENT_TRAPS.md bugeventlog.md checklist.md typescriptmigration.md"
 
 violations=0
 

@@ -48,6 +48,24 @@ jobs:
             @fission-ai/openspec@1.6.0 \
             @informalsystems/quint@0.32.0 \
             markdownlint-cli2@0.23.1
+
+          # Avoid Quint's unauthenticated release-API lookup on the first Rust
+          # simulation. Download the pinned evaluator asset directly and check
+          # its publisher-recorded digest before placing it in Quint's cache.
+          evaluator_dir="${HOME}/.quint/rust-evaluator-v0.6.0"
+          evaluator_archive="$(mktemp)"
+          curl --silent --show-error --location --fail --retry 3 \
+            --output "${evaluator_archive}" \
+            https://github.com/quint-co/quint/releases/download/evaluator/v0.6.0/quint_evaluator-x86_64-unknown-linux-gnu.tar.gz
+          printf '%s  %s\n' \
+            61755a09d5052d93a4e75e840059edfd0d3674aeda164b9d2464be3d6e21b1c2 \
+            "${evaluator_archive}" | sha256sum --check --strict
+          mkdir -p "${evaluator_dir}"
+          tar --extract --gzip --file "${evaluator_archive}" \
+            --directory "${evaluator_dir}"
+          chmod +x "${evaluator_dir}/quint_evaluator"
+          test -x "${evaluator_dir}/quint_evaluator"
+
           python3 -m pip install --user --quiet codespell==2.4.1
           printf '%s\n' "$HOME/.local/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.local/bin:$PATH"

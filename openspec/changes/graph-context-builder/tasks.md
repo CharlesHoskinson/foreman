@@ -16,8 +16,9 @@ reconstructed here at load with `build_from_json(raw, directed=True)`. This pack
 
 - [ ] Implement `edge_key` = truncated `sha256(source ‖ target ‖ relation ‖
       source_file ‖ source_location)`, computable from `graph.json` alone.
-- [ ] Verify against the committed graph that the key is unique across all links
-      — report any collisions rather than truncating harder to hide them.
+- [ ] Verify against the current local graph artifact that the key is unique
+      across all links — report any collisions rather than truncating harder
+      to hide them.
 - [ ] In-block short aliases (`e01`, …) plus the alias-to-`edge_key` table, with
       the table inside the content hash.
 - [ ] Confirm that two edges differing only in `source_location` get distinct

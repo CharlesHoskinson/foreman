@@ -25,9 +25,11 @@ release scope.
 
 The release has exactly three criteria:
 
-- [ ] **1. Linux suite:** `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` exits zero
-      on the release commit. Record the final `GATE` verdict and test totals in
-      the v0.2.8.2 release notes.
+- [ ] **1. Linux suite:** Build the current legacy launcher with
+      `(cd launcher && bun run build:posix)`, then run
+      `FOREMAN_CI_BATS=1 bash tools/ci-local.sh` on the release commit. Both
+      commands exit zero. Record the final `GATE` verdict and test totals in
+      the annotated tag and GitHub release.
 - [ ] **2. Main CI:** both `gates-linux` and `gates-windows` complete green on
       the exact `main` commit that will be tagged.
 - [ ] **3. Honest records:** `docs/RESIDUALS.md`,
@@ -43,14 +45,34 @@ is not a release criterion by itself.
 - [ ] Validate Markdown links and repository hygiene.
 - [ ] Validate all active OpenSpec packages with strict mode.
 - [ ] Confirm that the replacement graph records the release candidate commit.
-- [ ] Commit and push the release-record cleanup branch.
-- [ ] Merge the cleanup branch to `main` after its workflows pass.
+- [x] Commit and push the release-record cleanup branch as PR #12.
+- [x] Merge the cleanup branch to `main` as `d9eafbb` after its workflows pass.
+- [ ] Merge final release-record PR
+      [#16](https://github.com/CharlesHoskinson/foreman/pull/16) after its
+      Linux and Windows workflows pass.
 - [ ] Re-run criterion 1 on the merged commit.
 - [ ] Confirm criterion 2 on the merged commit.
-- [ ] Mark the three criteria complete in one final release-record commit.
+- [ ] Confirm that the final release commit does not change between gate
+      dispatch and tag creation.
+- [ ] Record the three terminal criterion results in the annotated tag and
+      GitHub release.
 - [ ] Create and push annotated tag `v0.2.8.2`.
 - [ ] Verify that GitHub and the local repository resolve the tag to the same
       commit.
+
+The final commit cannot contain its own commit ID or workflow run IDs. Record
+the exact tag target, final workflow run IDs, and artifact digests in the
+annotated tag and GitHub release. A later current-roadmap update can record the
+completed release without changing the tag target.
+
+## Current candidate evidence
+
+Exact main commit `074f3c4d9ac8a02a5cf10cb1b2892ae7d81f59a6`
+passed the standalone formal workflow, `gates-linux`, and `gates-windows`.
+The Linux run reported 685 passed, 0 failed, and 19 skipped Bats cases, with
+12 of 12 NATS cases passed. The Windows workflow passed its required gate; its
+non-gating line-ending probe reported five passed and one failed. This evidence
+must be repeated on the final tag target.
 
 ## Criteria retired from v0.2.8.2
 

@@ -34,7 +34,8 @@ infer the value.
 - WHEN the projector runs
 - THEN no model invocation and no network call is made
 - AND the output is derived only from the event log, the checkpoint commits, the
-  run-directory artifacts and the committed graph.
+  run-directory artifacts, and the current local graph artifact with its
+  recorded source commit.
 
 #### Scenario: a missing input is marked, not filled in
 
@@ -222,8 +223,8 @@ identifier to the new one through the recorded rename.
 The projection SHALL record, for every record that references a knowledge-plane
 identifier, the graphify version that produced that identifier.
 
-The version SHALL be read from the knowledge-plane refresh metadata, because the
-committed graph does not record it.
+The version SHALL be read from the knowledge-plane refresh metadata, because
+`graph.json` does not record it.
 IF the version is unavailable, THEN the projector SHALL mark the affected records
 as having an unknown producing version, and SHALL NOT omit the field.
 WHERE two records carry different producing versions, a consumer comparing their

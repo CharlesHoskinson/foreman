@@ -525,16 +525,23 @@ later.
   token-budgeted context block — the design where the audit trail can prove
   what the worker saw — not open-ended agentic graph traversal.
 
-This repo commits a knowledge graph at `graphify-out/graph.json`. For
-concepts, architecture, or file relationships, query first:
+The repository treats `graphify-out/` as a local derived index. It is not
+tracked. For concepts, architecture, or file relationships, first confirm that
+`graphify-out/graph.json` records the exact current commit. For a missing graph
+or a checkout with documentation or mixed changes, run semantic extraction and
+then generate the report:
 
 ```bash
+graphify extract .
+graphify cluster-only .
 graphify query "<question>" --budget 1500
 ```
 
-Follow `source_location` pointers into files only for the facts you need.
-If the graph is stale relative to HEAD, check
-`graphify-out/GRAPH_REPORT.md` and refresh with `graphify --update`.
+For code-only changes to an existing current semantic corpus,
+`graphify update .` performs the local AST refresh. Follow `source_location`
+pointers into files only for the facts you need. Do not query a graph whose
+`built_at_commit` differs from `git rev-parse HEAD`; refresh it or read source
+files directly.
 
 Without `--apply`, `maintenance.sh` reports vendored-skill hash drift, graph
 freshness, and soft-profile tool inventory drift. With `--apply`, the
@@ -635,12 +642,11 @@ fine-grained, single-repo, expiring token.
   `install.ps1` only. Re-derive with
   `grep -rn FOREMAN_CI_BATS .github/workflows/` and by reading the probe step in
   `gates-windows.yml`.
-- **The suite is 50 files / 635 tests, not the repository's 56 / 685.**
-  `tests/run.sh` selects `find "$TESTS_DIR" -maxdepth 1 -type f -name '*.bats'`,
-  so fixtures under `tests/fixtures/**` and the archived
-  `docs/evidence/**/graph-store-contract.bats` are not executed. Counting with
-  `git ls-files '*.bats'` overstates the suite by six files and fifty tests;
-  the gate's own `tests=` figure is the one to quote.
+- **Derive suite size; do not copy a fixed count into release claims.**
+  `tests/run.sh` selects top-level `tests/*.bats`. Use the runner's own
+  `tests=` result for an executed gate and compare registration with
+  `tests/baseline.tsv`. Repository-wide `git ls-files '*.bats'` also counts
+  fixtures and archived evidence, so it is not the gate size.
 - **Nested Job Objects, Windows NTSTATUS masking, and jq-vs-python3 PATH
   quirks** are documented in `launcher/README.md` and
   `skills/foreman/references/reference-environment.md` — component limits with
@@ -675,7 +681,7 @@ foreman/
 ├── skills/superpowers/      # vendored: planning, TDD, debugging, code-review, git-worktree skills
 ├── skills/VENDORED.md       # provenance + content hashes
 ├── agents/                  # Claude Code subagents (implement, audit, advisor, …)
-├── launcher/                # foreman-launch: process-tree-owning supervisor (Bun/TypeScript)
+├── launcher/                # legacy launcher being migrated to Node.js/TypeScript
 ├── env/                     # reference-manifest, tool-check, bootstrap (Windows + WSL)
 ├── formal/                  # Quint models + verification reports
 ├── config/foreman.toml.example
@@ -683,7 +689,7 @@ foreman/
 ├── openspec/                # OpenSpec-like change-folder layout
 ├── site/                    # static documentation website (dogfood target)
 ├── tests/                   # bats suite + run.sh
-├── graphify-out/            # committed knowledge graph
+├── graphify-out/            # ignored local knowledge-graph index
 ├── docs/                    # USAGE.md, INSTALL.md, research / design notes
 └── CLAUDE.md                # project architect doctrine
 ```

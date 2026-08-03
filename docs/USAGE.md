@@ -230,7 +230,7 @@ successful `wt-merge`; those reports are already archived under
 | Audit (default) | GPT-5.6 Sol (high) | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
 | Judgment | Fable / Opus | Session model or `model: fable` agent |
 
-**Grok is live on the reference host**: Grok Build (0.2.103) installed via
+**Grok is live on the reference host**: Grok Build (0.2.118) installed via
 `npm i -g @xai-official/grok`, signed in via `grok login --device-code`, and
 one-shot headless completions return rc 0. The CLI accepts
 `--permission-mode acceptEdits` but **silently ignores** it in headless

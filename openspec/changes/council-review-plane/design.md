@@ -84,8 +84,8 @@ forbids.
 
 The advisory plane can be ignored. If nobody reads the advisory record, the
 review loop is exactly as good as it is today and the machinery is decoration.
-This is accepted deliberately for v0.2.9.0 rather than mitigated by making
-Council binding: a shadow plane that quietly becomes an authority is a worse
-outcome than one that is ignored. The counter-measure is reporting, not
-enforcement — `gate-eval.sh` may surface the advisory outcome so it is visible
-at the moment a human decides.
+This is accepted deliberately for Council v0.3. Council does not become
+binding: a shadow plane that quietly becomes an authority is a worse outcome
+than one that is ignored. The counter-measure is reporting, not enforcement —
+`gate-eval.sh` may surface the advisory outcome so it is visible at the moment
+a human decides.

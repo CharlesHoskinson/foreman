@@ -44,6 +44,10 @@ not a historical audit log.
 - The Linux workflow runs the full Bats gate. The Windows workflow is required
   to be green, but its Bats coverage remains a non-gating probe. A green
   Windows workflow is not a claim that all Bats tests ran on Windows.
+- Exact-main Windows run `30805814536` passed its required gate. Its
+  non-gating line-ending probe reported five passed and one failed. Plugin
+  drift reported three passed and zero failed. The release does not convert
+  that probe result into a Windows Bats claim.
 - The Linux workflow now installs checksum-pinned NATS Server 2.14.4 and NATS
   CLI 0.4.0 binaries. Foreman PR #10 passed all 12 NATS integration tests.
   Windows does not make the same NATS integration claim.
@@ -66,13 +70,21 @@ not a historical audit log.
   ownership and recovery check before removal.
 - The `dev/foreman-v1` session-transport branch was not merged or evaluated as
   part of v0.2.8.2.
-- The stale generated knowledge graph must not be promoted. A fresh graph must
-  record its source commit and pass graph queries before it replaces the old
-  output.
+- `.graphifyignore` defines the current-authority corpus. It excludes
+  historical evidence, dated devlogs, withdrawn release art, deferred and
+  archived OpenSpec changes, the old generated graph, and vendored skill
+  copies. It admits the approved Council v0.3 and Node.js with TypeScript
+  change packages. A fresh graph must record the final source commit and pass
+  graph queries before it replaces the old output.
+- The reference host runs Graphify 0.9.32, while the linked vendored Graphify
+  skill reports 0.9.15. This release validates commands against the installed
+  CLI and excludes the vendored skill copy from the authority graph. It does
+  not claim that the package and skill versions are equal.
 
 ## Commands to re-verify release claims
 
 ```bash
+(cd launcher && bun run build:posix)
 FOREMAN_CI_BATS=1 bash tools/ci-local.sh
 gh run list --workflow gates-linux.yml --branch main
 gh run list --workflow gates-windows.yml --branch main

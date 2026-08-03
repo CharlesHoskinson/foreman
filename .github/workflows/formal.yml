@@ -69,6 +69,23 @@ jobs:
           echo "quint version: ${ver}"
           test "${ver}" = "0.32.0"
 
+          # `quint run --backend=rust` otherwise queries the unauthenticated
+          # GitHub Releases API during the first row. Pre-seed the pinned asset
+          # so a rate-limit response cannot turn the full matrix into ERROR.
+          evaluator_dir="${HOME}/.quint/rust-evaluator-v0.6.0"
+          evaluator_archive="$(mktemp)"
+          curl --silent --show-error --location --fail --retry 3 \
+            --output "${evaluator_archive}" \
+            https://github.com/quint-co/quint/releases/download/evaluator/v0.6.0/quint_evaluator-x86_64-unknown-linux-gnu.tar.gz
+          printf '%s  %s\n' \
+            61755a09d5052d93a4e75e840059edfd0d3674aeda164b9d2464be3d6e21b1c2 \
+            "${evaluator_archive}" | sha256sum --check --strict
+          mkdir -p "${evaluator_dir}"
+          tar --extract --gzip --file "${evaluator_archive}" \
+            --directory "${evaluator_dir}"
+          chmod +x "${evaluator_dir}/quint_evaluator"
+          test -x "${evaluator_dir}/quint_evaluator"
+
       - name: Install Apalache 0.56.1 (schedule tier)
         if: github.event_name == 'schedule' || github.event.inputs.tier == 'schedule' || github.event.inputs.tier == 'all-tiers'
         run: |
