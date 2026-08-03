@@ -3,23 +3,36 @@
  * No live provider process spawn.
  */
 import type {
+  CanaryMaterializerService,
   ProviderProcessObservation,
   ProviderProcessRequest,
   ProviderProcessRunnerService,
 } from "@council/application";
 import {
+  CanaryMaterializerError,
   PreflightIdentityError,
   ProviderProcessError,
   ProviderVersionProbeError,
+  SchemaFileMaterializationError,
 } from "@council/application";
-import type { Sha256Digest, UtcTimestamp } from "@council/schema";
-import { Effect } from "effect";
+import {
+  buildCanaryMaterial,
+  CanaryMaterializationError,
+} from "@council/platform-node";
+import type {
+  CanaryChallengeV1,
+  Sha256Digest,
+  UtcTimestamp,
+} from "@council/schema";
+import { Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   CHILD_ENV_NAMES,
   buildChildEnvironment,
+  createCanaryMaterializer,
   createPreflightIdentitySource,
   createProviderVersionProbe,
+  type CanaryTransportOps,
 } from "../src/preflight-program.js";
 
 const DIGEST = "ab".repeat(32) as Sha256Digest;
@@ -76,8 +89,7 @@ const resolveVersion = (
   executable = "grok",
   cwd = "/work",
   environment: Readonly<Record<string, string>> = { PATH: "/bin" },
-) =>
-  createProviderVersionProbe(runner).resolve(executable, cwd, environment);
+) => createProviderVersionProbe(runner).resolve(executable, cwd, environment);
 
 describe("CHILD_ENV_NAMES", () => {
   it("is exactly the closed allowlist in order", () => {
@@ -463,4 +475,290 @@ describe("createPreflightIdentitySource", () => {
       expect(JSON.stringify(either.left)).not.toContain(SECRET_MARKER);
     },
   );
+});
+
+const TRANSPORT_CHALLENGE: CanaryChallengeV1 = {
+  schemaVersion: 1,
+  nonce: "nonce-runtime-transport",
+  checkExpression: "1+1",
+  expectedCheckResult: "2",
+};
+
+type TransportCounters = {
+  promptAcquired: number;
+  promptReleased: number;
+  schemaAcquired: number;
+  schemaReleased: number;
+};
+
+const makeTransportOps = (
+  overrides: Partial<CanaryTransportOps> = {},
+): {
+  readonly ops: CanaryTransportOps;
+  readonly counters: TransportCounters;
+} => {
+  const counters: TransportCounters = {
+    promptAcquired: 0,
+    promptReleased: 0,
+    schemaAcquired: 0,
+    schemaReleased: 0,
+  };
+
+  const promptFile: CanaryTransportOps["promptFile"] = () =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        counters.promptAcquired += 1;
+        return "/scoped/prompt.txt";
+      }),
+      () =>
+        Effect.sync(() => {
+          counters.promptReleased += 1;
+        }),
+    );
+
+  const schemaFile: CanaryTransportOps["schemaFile"] = () =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        counters.schemaAcquired += 1;
+        return "/scoped/schema.json";
+      }),
+      () =>
+        Effect.sync(() => {
+          counters.schemaReleased += 1;
+        }),
+    );
+
+  const ops: CanaryTransportOps = {
+    build: buildCanaryMaterial,
+    promptFile,
+    schemaFile,
+    ...overrides,
+  };
+
+  return { ops, counters };
+};
+
+const prepareWith =
+  (service: CanaryMaterializerService) =>
+  (family: "anthropic" | "xai" | "openai" | "google") =>
+    service.prepare(TRANSPORT_CHALLENGE, family).pipe(Effect.scoped);
+
+describe("createCanaryMaterializer", () => {
+  it("anthropic returns stdin prompt, inline schema, exact hash, and acquires no file", async () => {
+    const { ops, counters } = makeTransportOps();
+    const material = buildCanaryMaterial(TRANSPORT_CHALLENGE);
+    const service = createCanaryMaterializer(ops);
+
+    const prepared = await Effect.runPromise(prepareWith(service)("anthropic"));
+
+    expect(prepared.prompt).toEqual({
+      kind: "stdin",
+      bytes: material.promptBytes,
+    });
+    expect(prepared.schema).toEqual({
+      kind: "inline",
+      json: material.schemaJson,
+    });
+    expect(prepared.canarySchemaVariantHash).toBe(
+      material.canarySchemaVariantHash,
+    );
+    expect(counters.promptAcquired).toBe(0);
+    expect(counters.promptReleased).toBe(0);
+    expect(counters.schemaAcquired).toBe(0);
+    expect(counters.schemaReleased).toBe(0);
+  });
+
+  it("xai returns file prompt, inline schema, exact hash, acquires only prompt, and releases after scope", async () => {
+    const { ops, counters } = makeTransportOps();
+    const material = buildCanaryMaterial(TRANSPORT_CHALLENGE);
+    const service = createCanaryMaterializer(ops);
+
+    const prepared = await Effect.runPromise(
+      Effect.gen(function* () {
+        const result = yield* service.prepare(TRANSPORT_CHALLENGE, "xai");
+        expect(counters.promptAcquired).toBe(1);
+        expect(counters.promptReleased).toBe(0);
+        expect(counters.schemaAcquired).toBe(0);
+        expect(counters.schemaReleased).toBe(0);
+        return result;
+      }).pipe(Effect.scoped),
+    );
+
+    expect(prepared.prompt).toEqual({
+      kind: "file",
+      path: "/scoped/prompt.txt",
+    });
+    expect(prepared.schema).toEqual({
+      kind: "inline",
+      json: material.schemaJson,
+    });
+    expect(prepared.canarySchemaVariantHash).toBe(
+      material.canarySchemaVariantHash,
+    );
+    expect(counters.promptAcquired).toBe(1);
+    expect(counters.promptReleased).toBe(1);
+    expect(counters.schemaAcquired).toBe(0);
+    expect(counters.schemaReleased).toBe(0);
+  });
+
+  it("openai returns stdin prompt, schema file, exact hash, acquires only schema, and releases after scope", async () => {
+    const { ops, counters } = makeTransportOps();
+    const material = buildCanaryMaterial(TRANSPORT_CHALLENGE);
+    const service = createCanaryMaterializer(ops);
+
+    const prepared = await Effect.runPromise(
+      Effect.gen(function* () {
+        const result = yield* service.prepare(TRANSPORT_CHALLENGE, "openai");
+        expect(counters.promptAcquired).toBe(0);
+        expect(counters.promptReleased).toBe(0);
+        expect(counters.schemaAcquired).toBe(1);
+        expect(counters.schemaReleased).toBe(0);
+        return result;
+      }).pipe(Effect.scoped),
+    );
+
+    expect(prepared.prompt).toEqual({
+      kind: "stdin",
+      bytes: material.promptBytes,
+    });
+    expect(prepared.schema).toEqual({
+      kind: "file",
+      path: "/scoped/schema.json",
+    });
+    expect(prepared.canarySchemaVariantHash).toBe(
+      material.canarySchemaVariantHash,
+    );
+    expect(counters.promptAcquired).toBe(0);
+    expect(counters.promptReleased).toBe(0);
+    expect(counters.schemaAcquired).toBe(1);
+    expect(counters.schemaReleased).toBe(1);
+  });
+
+  it("google fails with unsupported_family, static nonempty reason, no file acquisition, and no fallback transport", async () => {
+    const { ops, counters } = makeTransportOps();
+    const service = createCanaryMaterializer(ops);
+
+    const either = await Effect.runPromise(
+      Effect.either(prepareWith(service)("google")),
+    );
+
+    expect(either._tag).toBe("Left");
+    if (either._tag !== "Left") {
+      throw new Error("expected failure");
+    }
+    expect(either.left).toBeInstanceOf(CanaryMaterializerError);
+    expect(either.left._tag).toBe("CanaryMaterializerError");
+    expect(either.left.category).toBe("unsupported_family");
+    expect(typeof either.left.reason).toBe("string");
+    expect(either.left.reason.length).toBeGreaterThan(0);
+    expect(counters.promptAcquired).toBe(0);
+    expect(counters.promptReleased).toBe(0);
+    expect(counters.schemaAcquired).toBe(0);
+    expect(counters.schemaReleased).toBe(0);
+    // No successful PreparedCanary / fallback transport on the error path.
+    expect(either.left).not.toHaveProperty("prompt");
+    expect(either.left).not.toHaveProperty("schema");
+    expect(either.left).not.toHaveProperty("canarySchemaVariantHash");
+  });
+
+  it.each([
+    {
+      name: "prompt-file typed failure",
+      family: "xai" as const,
+      overrides: {
+        promptFile: () =>
+          Effect.fail(
+            new CanaryMaterializationError({
+              category: "create_failed",
+              reason: `prompt materialization boom ${SECRET_MARKER}`,
+            }),
+          ),
+      },
+    },
+    {
+      name: "schema-file typed failure",
+      family: "openai" as const,
+      overrides: {
+        schemaFile: () =>
+          Effect.fail(
+            new SchemaFileMaterializationError({
+              category: "create_failed",
+              reason: `schema materialization boom ${SECRET_MARKER}`,
+            }),
+          ),
+      },
+    },
+  ])(
+    "maps $name to CanaryMaterializerError prepare_failed without secret leakage",
+    async ({ family, overrides }) => {
+      const { ops, counters } = makeTransportOps(overrides);
+      const service = createCanaryMaterializer(ops);
+
+      const either = await Effect.runPromise(
+        Effect.either(prepareWith(service)(family)),
+      );
+
+      expect(either._tag).toBe("Left");
+      if (either._tag !== "Left") {
+        throw new Error("expected failure");
+      }
+      expect(either.left).toBeInstanceOf(CanaryMaterializerError);
+      expect(either.left._tag).toBe("CanaryMaterializerError");
+      expect(either.left.category).toBe("prepare_failed");
+      expect(typeof either.left.reason).toBe("string");
+      expect(either.left.reason.length).toBeGreaterThan(0);
+      expect(either.left.reason).not.toContain(SECRET_MARKER);
+      expect(JSON.stringify(either.left)).not.toContain(SECRET_MARKER);
+      expect(counters.promptReleased).toBe(counters.promptAcquired);
+      expect(counters.schemaReleased).toBe(counters.schemaAcquired);
+    },
+  );
+
+  it("releases the prompt file when the continuation fails after xai acquisition", async () => {
+    const { ops, counters } = makeTransportOps();
+    const service = createCanaryMaterializer(ops);
+
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const prepared = yield* service.prepare(TRANSPORT_CHALLENGE, "xai");
+        expect(prepared.prompt).toEqual({
+          kind: "file",
+          path: "/scoped/prompt.txt",
+        });
+        expect(counters.promptAcquired).toBe(1);
+        expect(counters.promptReleased).toBe(0);
+        return yield* Effect.fail("caller-failure-after-prompt" as const);
+      }).pipe(Effect.scoped),
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(counters.promptAcquired).toBe(1);
+    expect(counters.promptReleased).toBe(1);
+    expect(counters.schemaAcquired).toBe(0);
+    expect(counters.schemaReleased).toBe(0);
+  });
+
+  it("releases the schema file when the continuation is interrupted after openai acquisition", async () => {
+    const { ops, counters } = makeTransportOps();
+    const service = createCanaryMaterializer(ops);
+
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        const prepared = yield* service.prepare(TRANSPORT_CHALLENGE, "openai");
+        expect(prepared.schema).toEqual({
+          kind: "file",
+          path: "/scoped/schema.json",
+        });
+        expect(counters.schemaAcquired).toBe(1);
+        expect(counters.schemaReleased).toBe(0);
+        return yield* Effect.interrupt;
+      }).pipe(Effect.scoped),
+    );
+
+    expect(Exit.isInterrupted(exit)).toBe(true);
+    expect(counters.promptAcquired).toBe(0);
+    expect(counters.promptReleased).toBe(0);
+    expect(counters.schemaAcquired).toBe(1);
+    expect(counters.schemaReleased).toBe(1);
+  });
 });

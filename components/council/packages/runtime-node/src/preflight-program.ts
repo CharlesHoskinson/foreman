@@ -1,15 +1,23 @@
 import { randomBytes } from "node:crypto";
 import {
+  CanaryMaterializer,
+  CanaryMaterializerError,
   PreflightIdentityError,
   PreflightIdentitySource,
   ProviderProcessError,
   ProviderVersionProbe,
   ProviderVersionProbeError,
+  type CanaryMaterializerService,
   type PreflightIdentitySourceService,
   type ProviderProcessRunnerService,
   type ProviderVersionProbeService,
 } from "@council/application";
-import { NodeProviderProcessRunner } from "@council/platform-node";
+import {
+  buildCanaryMaterial,
+  materializeCanaryPromptFile,
+  materializeCanarySchemaFile,
+  NodeProviderProcessRunner,
+} from "@council/platform-node";
 import { UtcTimestamp, decodeStrictSync } from "@council/schema";
 import { Effect, Layer } from "effect";
 
@@ -176,4 +184,92 @@ export const NodeProviderVersionProbeLive = Layer.succeed(
 export const NodePreflightIdentitySourceLive = Layer.succeed(
   PreflightIdentitySource,
   createPreflightIdentitySource(),
+);
+
+export type CanaryTransportOps = {
+  readonly build: typeof buildCanaryMaterial;
+  readonly promptFile: typeof materializeCanaryPromptFile;
+  readonly schemaFile: typeof materializeCanarySchemaFile;
+};
+
+const defaultCanaryTransportOps: CanaryTransportOps = {
+  build: buildCanaryMaterial,
+  promptFile: materializeCanaryPromptFile,
+  schemaFile: materializeCanarySchemaFile,
+};
+
+const prepareFailedError = () =>
+  new CanaryMaterializerError({
+    category: "prepare_failed",
+    reason: "provider canary material preparation failed",
+  });
+
+export const createCanaryMaterializer = (
+  ops: CanaryTransportOps = defaultCanaryTransportOps,
+): CanaryMaterializerService => ({
+  prepare: (challenge, providerFamily) => {
+    if (providerFamily === "google") {
+      return Effect.fail(
+        new CanaryMaterializerError({
+          category: "unsupported_family",
+          reason: "Gemini provider canary materialization is not implemented",
+        }),
+      );
+    }
+
+    return Effect.gen(function* () {
+      const material = yield* Effect.try({
+        try: () => ops.build(challenge),
+        catch: () => prepareFailedError(),
+      });
+
+      switch (providerFamily) {
+        case "anthropic":
+          return {
+            prompt: {
+              kind: "stdin" as const,
+              bytes: material.promptBytes,
+            },
+            schema: {
+              kind: "inline" as const,
+              json: material.schemaJson,
+            },
+            canarySchemaVariantHash: material.canarySchemaVariantHash,
+          };
+        case "xai": {
+          const path = yield* ops.promptFile(material.promptBytes);
+          return {
+            prompt: {
+              kind: "file" as const,
+              path,
+            },
+            schema: {
+              kind: "inline" as const,
+              json: material.schemaJson,
+            },
+            canarySchemaVariantHash: material.canarySchemaVariantHash,
+          };
+        }
+        case "openai": {
+          const path = yield* ops.schemaFile(material.schemaJson);
+          return {
+            prompt: {
+              kind: "stdin" as const,
+              bytes: material.promptBytes,
+            },
+            schema: {
+              kind: "file" as const,
+              path,
+            },
+            canarySchemaVariantHash: material.canarySchemaVariantHash,
+          };
+        }
+      }
+    }).pipe(Effect.mapError(() => prepareFailedError()));
+  },
+});
+
+export const NodeCanaryMaterializerLive = Layer.succeed(
+  CanaryMaterializer,
+  createCanaryMaterializer(),
 );
