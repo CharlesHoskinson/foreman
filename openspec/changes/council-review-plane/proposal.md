@@ -41,9 +41,9 @@ Foreman lane ownership, and `host-integration/spec.md` requires that provider
 workers cannot control Council. Foreman already owns dispatch through
 `ac_select_auditor` and the lane machinery.
 
-So the split is: **Foreman dispatches reviewers, Council decides.** That is what
-makes this reachable inside v0.2.9.0 rather than after the Effect application
-shell exists.
+So the split is: **Foreman dispatches reviewers, Council decides.** This split
+makes the advisory plane reachable in Council v0.3 before the Effect
+application shell exists.
 
 ## What Changes
 
@@ -73,7 +73,7 @@ shell exists.
   `tests/council-advise.bats`, `tests/baseline.tsv`.
 - **Not affected, deliberately:** `gate-eval.sh` and `merge-gate.sh` remain the
   only release and merge authorities. `audit-verdict.json` stays Foreman's.
-  Council remains advisory for the whole of v0.2.9.0.
+  Council remains advisory for the whole of Council v0.3.
 - Risk if this ships wrong: a shadow plane that quietly becomes an authority.
   The mitigation is structural rather than procedural — `council-advise.sh`
   refuses gate artifact filenames by name, and a test proves the refusal.

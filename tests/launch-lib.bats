@@ -20,7 +20,7 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
-@test "no override resolves the committed launcher/dist binary (fallback)" {
+@test "no override resolves an available launcher/dist binary (fallback)" {
   unset FOREMAN_LAUNCH
   run fl_resolve_launcher
   [ "$status" -eq 0 ]

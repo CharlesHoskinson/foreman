@@ -53,8 +53,8 @@ The pinned schema hash is
 A mismatch stops before database use.
 
 A release run uses a named clean Foreman commit. A baseline replay may use the
-committed graph but must identify `d4af3a92` as its build commit rather than
-pretending it was built at replay time.
+historical graph artifact that Git preserves, but it must identify `d4af3a92`
+as its build commit rather than pretend that it was built at replay time.
 
 The run directory contains:
 
