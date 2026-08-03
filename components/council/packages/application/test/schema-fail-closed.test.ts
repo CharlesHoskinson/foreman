@@ -187,7 +187,7 @@ describe("safe canonical JSON and UTF-8", () => {
     const vectors: ReadonlyArray<{ sample: string; hex: string }> = [
       { sample: "ascii", hex: "6173636969" },
       // café
-      { sample: "caf\u00e9", hex: "636166c3a9" },
+      { sample: "café", hex: "636166c3a9" },
       // 日本語
       { sample: "\u65e5\u672c\u8a9e", hex: "e697a5e69cace8aa9e" },
       // musical symbol G clef U+1D11E

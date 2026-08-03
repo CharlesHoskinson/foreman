@@ -6,7 +6,9 @@ The project takes inspiration from [Karpathy's llm-council](https://github.com/k
 
 ## Current status
 
-The architecture is approved and recorded as an OpenSpec change. The versioned schemas and pure domain foundation are implemented and covered by the complete local quality gate. Provider adapters, Effect application services, research tools, the MCP server, and native host plugins are not yet implemented.
+The architecture is approved and recorded as an OpenSpec change. The versioned schemas, pure domain foundation, ACE Profile 1 parser and semantic linter, Effect prompt compiler, provider-schema lowerer, and Node prompt-materialization boundary are implemented. The complete local quality gate covers these components.
+
+Council is not ready for live release decisions. Provider-health services, bounded process spools, provider terminal decoders, ready-token issuance, the TypeScript preflight CLI, the durable runtime, the MCP server, and native host plugins are not implemented. A bounded xAI smoke test on 2026-08-03 confirmed this boundary: prompt compilation passed, but the provider returned no admissible structured output. See [the xAI live-smoke record](docs/evidence/2026-08-03-xai-live-smoke.md).
 
 Run the code-quality suite (formatting, lint, type checking, architecture, and tests) with:
 

@@ -51,13 +51,16 @@
 
 ## 3. Prompt materialization
 
-- [ ] 3.1 Write failing tests for deterministic prompt bytes, stable hashes,
+- [x] 3.1 Write failing tests for deterministic prompt bytes, stable hashes,
       artifact ordering, evidence boundary escaping, missing artifacts, wrong
       lengths, wrong digests, and mismatched bundle identity.
 - [ ] 3.2 Implement the Effect application service for contract decode,
       ACE compile, artifact verification, provider schema lowering, prompt
       materialization, and ready-review token issuance.
-- [ ] 3.3 Preserve one canonical schema and record each provider-specific
+  - [x] 3.2.a Implement contract decode, ACE compile, artifact verification,
+        provider schema lowering, and prompt materialization. Ready-review token
+        issuance remains open, so task 3.2 remains incomplete.
+- [x] 3.3 Preserve one canonical schema and record each provider-specific
       schema-variant hash. Reject any lowering that weakens a required semantic
       constraint across the combined provider and host validation boundary.
 
@@ -104,8 +107,12 @@
       and live canary completion occur before review dispatch.
 - [x] 6.2 State that pre-review failure is retryable infrastructure state, not
       dissent, rejection, abstention, or approval.
-- [ ] 6.3 Run local TypeScript checks and strict OpenSpec validation.
+- [x] 6.3 Run local TypeScript checks and strict OpenSpec validation.
 - [ ] 6.4 Run bounded live canaries for every selected non-author provider and
       preserve provider-neutral, secret-safe results.
+  - [x] 6.4.a Run one bounded xAI schema-handshake smoke. The compiler passed,
+        but the provider returned `stopReason: "Cancelled"`, no designated
+        structured output, and a structured-output error. This is an
+        infrastructure failure and does not complete task 6.4.
 - [ ] 6.5 Run the corrected migration-plan Council round with a newly compiled
       contract. Count only completed substantive verdicts.
