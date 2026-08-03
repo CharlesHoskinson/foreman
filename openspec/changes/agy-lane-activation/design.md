@@ -51,9 +51,8 @@ R6's evidence — where the whole problem is that different families already
 collapse to about two effective votes — routing that collapses two lanes into
 one family is not a cosmetic defect. It is the failure mode the fourth vendor
 was supposed to avoid. The invariant is therefore written against **model
-family**, and it is owned by `cross-vendor-audit-routing`; this package's job
-is to make the family of every agy round observable so that invariant has
-something to check.
+family**. The current audit router owns this invariant. This package makes the
+family of every agy round observable so that invariant has something to check.
 
 ## Why `$HOME` isolation, when `$HOME` isolation breaks auth
 

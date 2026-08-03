@@ -18,6 +18,8 @@ docs/design/**
 !docs/releases/
 !docs/releases/v0.2.8.2-notes.md
 !docs/releases/v0.2.8.2-cleanup-log.md
+!docs/releases/v0.2.9.0-notes.md
+!docs/releases/v0.2.9.0-cleanup-log.md
 !docs/evidence/
 !docs/evidence/README.md
 

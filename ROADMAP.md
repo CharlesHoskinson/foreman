@@ -65,25 +65,31 @@ The remaining limitations are in `docs/RESIDUALS.md`.
 Git tags and release notes preserve the complete history. Use Git history when
 an old release decision matters; do not add old plans back to this live file.
 
-## Work after v0.2.8.2
+## Active release candidate: v0.2.9.0
 
-The following work is separate from this release:
+The v0.2.9.0 candidate has one product boundary. It ships the bounded
+`council-preflight` executable for Grok, Claude, and Codex.
 
-- Council v0.3, including the ACE preflight and provider runtime;
-- the Node.js and TypeScript migration in `typescriptmigration.md` and
-  `openspec/changes/node-typescript-runtime/`;
-- the `dev/foreman-v1` session-transport branch review;
-- the skill dependency manifest and any later Superpowers extraction;
-- a fresh decision on the formal, graph, and Tier 2 work preserved by
-  `v0.2.9-preserve`.
+| Work item | Status | Evidence |
+|---|---|---|
+| Build the Node.js 24 TypeScript preflight executable | Complete | Implementation stack through `04e42be`, PR #22 |
+| Compile ACE before provider startup | Complete | Compiled-process marker test and independent review |
+| Pass the local Council gate | Complete | 39 files and 1,123 tests passed |
+| Pass hosted Linux and Windows gates | Provisional pass | PR #22 passed both workflows at `04e42be`; final candidate rerun remains required |
+| Pass live Grok, Claude, and Codex canaries | Provisional pass | Three secret-safe provider-neutral receipts at `04e42be`; final candidate rerun remains required |
+| Complete one external Foreman workflow | Complete | Grok commit `31e26ea`; 122 target tests passed; independent Codex audit approved the exact diff |
+| Preserve Council advice for the external diff | Pending | Exact three-verdict Council closure remains required |
+| Replace stale release knowledge | In progress | New OpenSpec package and cleanup register |
+| Rebuild the exact-candidate graph | Pending | Graph source commit must match the release candidate |
 
-The version `v0.2.9` is not an active release plan. It remains reserved for a
-later release with a separately approved scope and broader external evidence.
+The release excludes Gemini, npm publication, formal scope, Tier 2 scope, and
+complete Python removal. The release does not claim a complete Council runtime.
 
 ## Current authority
 
 - Release criteria: `checklist.md`
 - Known limitations: `docs/RESIDUALS.md`
-- Release changes: `docs/releases/v0.2.8.2-notes.md`
-- Cleanup decisions: `docs/releases/v0.2.8.2-cleanup-log.md`
+- Release changes: `docs/releases/v0.2.9.0-notes.md`
+- Cleanup decisions: `docs/releases/v0.2.9.0-cleanup-log.md`
+- Release OpenSpec: `openspec/changes/council-v029-preflight-release/`
 - Historical evidence rules: `docs/evidence/README.md`

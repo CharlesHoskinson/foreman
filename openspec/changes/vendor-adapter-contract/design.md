@@ -144,8 +144,8 @@ explicitly specced here, that is a defect in this package, not an improvement.
 - **`audit-run.sh` is on the gate path.** Replacing its inline invocation
   touches the one script whose output `gate-eval.sh:43-47` consumes. The
   post-audit tamper check at `audit-run.sh:430-432` must survive the refactor
-  unchanged in effect; `cross-vendor-audit-routing` strengthens it, and the two
-  packages must not both rewrite it.
+  unchanged in effect. The current audit-routing implementation owns any
+  strengthening of that check; this package must not rewrite it.
 - **Vendor CLIs move under us.** `agy` self-updates: it carries an `updater/`
   directory and a `last_check.timestamp`, and it moved from 1.1.7 to 1.1.8
   during the single session in which this package was written. An adapter's
