@@ -11,6 +11,7 @@ const roots = {
   "application-test": "packages/application/test",
   "platform-node": "packages/platform-node/src",
   "adapter-grok": "packages/adapter-grok/src",
+  "adapter-claude": "packages/adapter-claude/src",
 };
 
 const pureLayers = new Set([
@@ -19,6 +20,7 @@ const pureLayers = new Set([
   "application",
   "application-test",
   "adapter-grok",
+  "adapter-claude",
 ]);
 
 const executableExtensions = new Set([
@@ -105,7 +107,7 @@ const isForbiddenPlatformLayer = (specifier) => {
   );
 };
 
-const isForbiddenAdapterLayer = (specifier) => {
+const isForbiddenAdapterLayer = (specifier, ownPackage) => {
   const packageName = councilPackage(specifier);
   return (
     packageName === "@council/domain" ||
@@ -113,7 +115,7 @@ const isForbiddenAdapterLayer = (specifier) => {
     packageName === "@council/runtime-node" ||
     packageName === "@council/mcp-server" ||
     (packageName?.startsWith("@council/adapter-") === true &&
-      packageName !== "@council/adapter-grok")
+      packageName !== ownPackage)
   );
 };
 
@@ -325,9 +327,26 @@ for (const [layer, root] of Object.entries(roots)) {
           violations.push(
             relative(".", file) + ": adapter-grok-runtime-import " + specifier,
           );
-        } else if (isForbiddenAdapterLayer(specifier)) {
+        } else if (
+          isForbiddenAdapterLayer(specifier, "@council/adapter-grok")
+        ) {
           violations.push(
             relative(".", file) + ": adapter-grok-layer-import " + specifier,
+          );
+        }
+      }
+      if (ruleLayer === "adapter-claude") {
+        if (isNodeBuiltin(specifier)) {
+          violations.push(
+            relative(".", file) +
+              ": adapter-claude-runtime-import " +
+              specifier,
+          );
+        } else if (
+          isForbiddenAdapterLayer(specifier, "@council/adapter-claude")
+        ) {
+          violations.push(
+            relative(".", file) + ": adapter-claude-layer-import " + specifier,
           );
         }
       }

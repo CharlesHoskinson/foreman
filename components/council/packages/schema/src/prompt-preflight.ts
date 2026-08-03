@@ -237,8 +237,8 @@ export const isSuccessfulTerminalObservation = (terminal: {
   readonly terminalState: string;
   readonly exitCode: number | null;
   readonly stopReason: string | null;
-  readonly pendingToolCalls: number;
-  readonly failedToolCalls: number;
+  readonly pendingToolCalls: number | null;
+  readonly failedToolCalls: number | null;
   readonly parserComplete: boolean;
   readonly structuredOutputPresent: boolean;
   readonly structuredOutputError: string | null;
@@ -563,8 +563,9 @@ export const TerminalObservationV1 = Schema.Struct({
   terminalState: TerminalStateV1,
   exitCode: Schema.NullOr(SafeInteger),
   stopReason: Schema.NullOr(Schema.String),
-  pendingToolCalls: SafeNonNegativeInteger,
-  failedToolCalls: SafeNonNegativeInteger,
+  // Null means the provider did not expose trustworthy tool-state evidence.
+  pendingToolCalls: Schema.NullOr(SafeNonNegativeInteger),
+  failedToolCalls: Schema.NullOr(SafeNonNegativeInteger),
   parserComplete: Schema.Boolean,
   structuredOutputPresent: Schema.Boolean,
   structuredOutputError: Schema.NullOr(Schema.String),

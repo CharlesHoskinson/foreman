@@ -370,7 +370,7 @@ const layerBuildInput = (
   providerFamily: "xai",
   executable: canaryInput.executable,
   model: canaryInput.model,
-  promptFile: canaryInput.promptFile,
+  prompt: { kind: "file", path: canaryInput.promptFile },
   canaryResponseSchemaJson: canaryInput.schemaJson,
   cwd: canaryInput.cwd,
   environment: canaryInput.environment,
@@ -399,7 +399,9 @@ describe("GrokProviderCanaryAdapterLive", () => {
     const program = Effect.gen(function* () {
       const adapter = yield* ProviderCanaryAdapter;
       return yield* adapter.buildRequest(
-        layerBuildInput({ promptFile: "/tmp/prompt.json" }),
+        layerBuildInput({
+          prompt: { kind: "file", path: "/tmp/prompt.json" },
+        }),
       );
     }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
 
@@ -407,6 +409,34 @@ describe("GrokProviderCanaryAdapterLive", () => {
     const error = expectAdapterError(exit);
     expect(error.category).toBe("invalid_invocation");
     expect(error.reason).toMatch(/\.json/i);
+  });
+
+  it("rejects the stdin prompt variant as a typed adapter error, not a defect", async () => {
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(
+        layerBuildInput({
+          prompt: {
+            kind: "stdin",
+            bytes: new TextEncoder().encode("not for grok"),
+          },
+        }),
+      );
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const exit = await Effect.runPromiseExit(program);
+    const error = expectAdapterError(exit);
+    expect(error.category).toBe("invalid_invocation");
+  });
+
+  it("sets stdin to null for Grok file-prompt requests", async () => {
+    const program = Effect.gen(function* () {
+      const adapter = yield* ProviderCanaryAdapter;
+      return yield* adapter.buildRequest(layerBuildInput());
+    }).pipe(Effect.provide(GrokProviderCanaryAdapterLive));
+
+    const request = await Effect.runPromise(program);
+    expect(request.stdin).toBeNull();
   });
 
   it("builds the exact Grok 0.2.118 argument contract for a valid xai input", async () => {

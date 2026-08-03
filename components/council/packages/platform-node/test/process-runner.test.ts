@@ -25,6 +25,7 @@ const baseRequest = (
   timeoutMs: 5_000,
   stdoutMaxBytes: 64 * 1024,
   stderrMaxBytes: 64 * 1024,
+  stdin: null,
   ...overrides,
 });
 
@@ -391,6 +392,151 @@ describe("NodeProviderProcessRunner", () => {
       // Assert immediately after interrupt returns — no post-hoc wait that would hide a race.
       await Effect.runPromise(Fiber.interrupt(fiber));
       // Direct-child death: process.kill(pid, 0) must throw ESRCH before the test ends.
+      expect(processKillProbeCode(livePid)).toBe("ESRCH");
+      const exit = await Effect.runPromise(Fiber.await(fiber));
+      expect(exit._tag).toBe("Failure");
+      expect(processKillProbeCode(livePid)).toBe("ESRCH");
+    } finally {
+      if (childPid !== undefined) {
+        try {
+          process.kill(childPid, "SIGKILL");
+        } catch {
+          // already reaped
+        }
+      }
+      await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+      if (scriptPath.length > 0) {
+        await rm(dirname(scriptPath), { recursive: true, force: true }).catch(
+          () => undefined,
+        );
+      }
+    }
+  });
+
+  it("writes exact stdin bytes, completes stdin, and keeps prompt out of argv", async () => {
+    const payload = new TextEncoder().encode("exact-stdin-bytes-42\n");
+    const script = await writeScript(
+      "echo-stdin.mjs",
+      [
+        `import { readFileSync } from "node:fs";`,
+        `const bytes = readFileSync(0);`,
+        `process.stdout.write(bytes);`,
+        `process.exit(0);`,
+        "",
+      ].join("\n"),
+    );
+    const observation = await run(
+      baseRequest({
+        executable: process.execPath,
+        args: [script],
+        stdin: payload,
+      }),
+    );
+    expect(observation.started).toBe(true);
+    expect(observation.exitCode).toBe(0);
+    expect(observation.stdout.bytes).toEqual(payload);
+    // Prompt/body must travel only via stdin, never as argv elements.
+    expect([script]).not.toContain(new TextDecoder().decode(payload).trim());
+  });
+
+  it("returns a typed secret-safe error after terminating the child on stdin write failure", async () => {
+    // Child exits immediately without reading the large stdin payload so the
+    // write cannot complete. After the real child close, the runner returns a
+    // typed secret-safe error (never a success observation).
+    const script = await writeScript("stdin-reject.mjs", `process.exit(0);\n`);
+    const large = new Uint8Array(1024 * 1024);
+    large.fill(0x61);
+    const error = await Effect.runPromise(
+      runProviderProcess(
+        baseRequest({
+          executable: process.execPath,
+          args: [script],
+          stdin: large,
+          timeoutMs: 2_000,
+        }),
+      ).pipe(Effect.provide(NodeProviderProcessRunnerLive), Effect.flip),
+    );
+    expect(error).toBeInstanceOf(ProviderProcessError);
+    expect(error._tag).toBe("ProviderProcessError");
+    expect(error.category).toBe("internal");
+    expect(typeof error.reason).toBe("string");
+    expect(error.reason.length).toBeGreaterThan(0);
+    // Secret-safe: no environment keys, home paths, or raw payload bytes.
+    expect(error.reason).not.toMatch(/\/home\//);
+    expect(JSON.stringify(error)).not.toContain("HOME");
+    expect(error.reason).not.toContain("aaaa");
+  });
+
+  it("closes stdin, reaps the child on timeout when stdin was opened", async () => {
+    const script = await writeScript(
+      "stdin-hang.mjs",
+      [
+        `import { readFileSync } from "node:fs";`,
+        // Read a little then hang so stdin opened and timeout still reaps.
+        `try { readFileSync(0); } catch {}`,
+        `setInterval(() => {}, 1000);`,
+        "",
+      ].join("\n"),
+    );
+    const observation = await run(
+      baseRequest({
+        executable: process.execPath,
+        args: [script],
+        stdin: new TextEncoder().encode("hang-payload"),
+        timeoutMs: 100,
+      }),
+    );
+    expect(observation.started).toBe(true);
+    expect(observation.timedOut).toBe(true);
+    expect(observation.exitCode === null || observation.signal !== null).toBe(
+      true,
+    );
+  });
+
+  it("reaps the child immediately after interruption when stdin was opened", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "council-stdin-interrupt-"));
+    const pidPath = join(dir, "child.pid");
+    let scriptPath = "";
+    let childPid: number | undefined;
+    try {
+      scriptPath = await writeScript(
+        "stdin-interrupt-hang.mjs",
+        [
+          `import { writeFileSync } from "node:fs";`,
+          `process.on("SIGTERM", () => {});`,
+          `writeFileSync(${JSON.stringify(pidPath)}, String(process.pid), "utf8");`,
+          // Hold stdin open and stay alive until SIGKILL.
+          `process.stdin.resume();`,
+          `setInterval(() => {}, 1000);`,
+          "",
+        ].join("\n"),
+      );
+
+      const fiber = Effect.runFork(
+        runProviderProcess(
+          baseRequest({
+            executable: process.execPath,
+            args: [scriptPath],
+            stdin: new TextEncoder().encode("interrupt-stdin"),
+            timeoutMs: 30_000,
+          }),
+        ).pipe(Effect.provide(NodeProviderProcessRunnerLive)),
+      );
+
+      const pidReady = await pollUntil(
+        async () => {
+          if (!existsSync(pidPath)) return false;
+          const raw = (await readFile(pidPath, "utf8")).trim();
+          const pid = Number(raw);
+          return Number.isInteger(pid) && pid > 0 && processExists(pid);
+        },
+        { timeoutMs: 5_000, intervalMs: 25 },
+      );
+      expect(pidReady).toBe(true);
+      const livePid = Number((await readFile(pidPath, "utf8")).trim());
+      childPid = livePid;
+
+      await Effect.runPromise(Fiber.interrupt(fiber));
       expect(processKillProbeCode(livePid)).toBe("ESRCH");
       const exit = await Effect.runPromise(Fiber.await(fiber));
       expect(exit._tag).toBe("Failure");

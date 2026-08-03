@@ -16,7 +16,11 @@ import type {
   ProviderProcessError,
 } from "./errors.js";
 import { ProviderHealthError } from "./errors.js";
-import { ProviderCanaryAdapter, ProviderProcessRunner } from "./ports.js";
+import {
+  type ProviderCanaryPrompt,
+  ProviderCanaryAdapter,
+  ProviderProcessRunner,
+} from "./ports.js";
 
 /**
  * Identity and adapter-invocation fields required to run one bounded canary
@@ -34,7 +38,7 @@ export type RunProviderHealthCanaryInput = {
   readonly observedAt: UtcTimestamp;
   readonly expiresAt: UtcTimestamp;
   readonly executable: string;
-  readonly promptFile: string;
+  readonly prompt: ProviderCanaryPrompt;
   readonly canaryResponseSchemaJson: string;
   readonly cwd: string;
   readonly environment: Readonly<Record<string, string>>;
@@ -134,7 +138,7 @@ export const runProviderHealthCanary = (
         providerFamily: input.providerFamily,
         executable: input.executable,
         model: input.model,
-        promptFile: input.promptFile,
+        prompt: input.prompt,
         canaryResponseSchemaJson: input.canaryResponseSchemaJson,
         cwd: input.cwd,
         environment: input.environment,

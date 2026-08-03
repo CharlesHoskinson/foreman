@@ -89,6 +89,7 @@ export const buildGrokCanaryInvocation = (
     timeoutMs: input.timeoutMs,
     stdoutMaxBytes: input.stdoutMaxBytes,
     stderrMaxBytes: input.stderrMaxBytes,
+    stdin: null,
   };
 };
 
@@ -445,10 +446,19 @@ export const GrokProviderCanaryAdapterLive = Layer.succeed(
             }),
           );
         }
+        if (input.prompt.kind !== "file") {
+          return yield* Effect.fail(
+            new ProviderCanaryAdapterError({
+              category: "invalid_invocation",
+              reason:
+                "Grok provider canary adapter requires a file prompt path",
+            }),
+          );
+        }
         try {
           return buildGrokCanaryInvocation({
             executable: input.executable,
-            promptFile: input.promptFile,
+            promptFile: input.prompt.path,
             schemaJson: input.canaryResponseSchemaJson,
             model: input.model,
             cwd: input.cwd,

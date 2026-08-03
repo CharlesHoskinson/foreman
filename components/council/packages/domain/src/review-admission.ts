@@ -282,6 +282,13 @@ export const classifyReviewAttempt = (
     );
   }
 
+  if (
+    input.terminal.pendingToolCalls === null ||
+    input.terminal.failedToolCalls === null
+  ) {
+    return attemptFailure(input, "provider tool state is unknown", "provider");
+  }
+
   if (input.terminal.pendingToolCalls > 0) {
     return attemptFailure(
       input,

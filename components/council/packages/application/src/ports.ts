@@ -158,7 +158,8 @@ export class ProviderSchemaLowerer extends Context.Tag(
 
 /**
  * Shell-free provider process request. Arguments are an indexed array only;
- * never a shell command string.
+ * never a shell command string. Stdin is null when the provider uses argv or
+ * a prompt file; non-null bytes are written exactly and the stream is closed.
  */
 export type ProviderProcessRequest = {
   readonly executable: string;
@@ -168,6 +169,8 @@ export type ProviderProcessRequest = {
   readonly timeoutMs: number;
   readonly stdoutMaxBytes: number;
   readonly stderrMaxBytes: number;
+  /** Null when stdin is unused; exact bytes when the provider reads stdin. */
+  readonly stdin: Uint8Array | null;
 };
 
 export type BoundedSpool = {
@@ -196,6 +199,14 @@ export class ProviderProcessRunner extends Context.Tag(
 )<ProviderProcessRunner, ProviderProcessRunnerService>() {}
 
 /**
+ * Provider-neutral canary prompt transport. File path for providers such as
+ * Grok; stdin bytes for providers such as Claude. Immutable.
+ */
+export type ProviderCanaryPrompt =
+  | { readonly kind: "file"; readonly path: string }
+  | { readonly kind: "stdin"; readonly bytes: Uint8Array };
+
+/**
  * Provider-neutral canary invocation input. Collections are readonly.
  * No Grok (or other provider) wire types are exposed here.
  */
@@ -203,7 +214,7 @@ export type ProviderCanaryBuildInput = {
   readonly providerFamily: ProviderFamilyV1;
   readonly executable: string;
   readonly model: string;
-  readonly promptFile: string;
+  readonly prompt: ProviderCanaryPrompt;
   readonly canaryResponseSchemaJson: string;
   readonly cwd: string;
   readonly environment: Readonly<Record<string, string>>;

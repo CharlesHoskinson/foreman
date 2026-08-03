@@ -86,7 +86,7 @@ const baseInput = (): RunProviderHealthCanaryInput => ({
   observedAt,
   expiresAt,
   executable: "/usr/bin/grok",
-  promptFile: "/tmp/canary-prompt.txt",
+  prompt: { kind: "file", path: "/tmp/canary-prompt.txt" },
   canaryResponseSchemaJson: '{"type":"object"}',
   cwd: "/work",
   environment: { PATH: "/usr/bin" },
@@ -121,6 +121,7 @@ const defaultRequest: ProviderProcessRequest = {
   timeoutMs: 30_000,
   stdoutMaxBytes: 65_536,
   stderrMaxBytes: 65_536,
+  stdin: null,
 };
 
 type AdapterConfig = {

@@ -24,6 +24,8 @@ const requiredFiles = [
   "packages/platform-node/tsconfig.json",
   "packages/adapter-grok/package.json",
   "packages/adapter-grok/tsconfig.json",
+  "packages/adapter-claude/package.json",
+  "packages/adapter-claude/tsconfig.json",
 ] as const;
 
 const packageRoots = [
@@ -33,6 +35,7 @@ const packageRoots = [
   "packages/application/test",
   "packages/platform-node/src",
   "packages/adapter-grok/src",
+  "packages/adapter-claude/src",
 ] as const;
 
 /**
@@ -172,6 +175,17 @@ describe("workspace", () => {
           'import "@council/adapter-claude";',
         ].join("\n"),
       },
+      {
+        path: "packages/adapter-claude/src/__boundary_violations__.ts",
+        source: [
+          'import "node:fs";',
+          'import "@council/domain";',
+          'import "@council/platform-node";',
+          'import "@council/runtime-node";',
+          'import "@council/mcp-server";',
+          'import "@council/adapter-grok";',
+        ].join("\n"),
+      },
     ]);
 
     expect(result.status).toBe(1);
@@ -218,6 +232,12 @@ describe("workspace", () => {
       "adapter-grok-layer-import @council/runtime-node",
       "adapter-grok-layer-import @council/mcp-server",
       "adapter-grok-layer-import @council/adapter-claude",
+      "adapter-claude-runtime-import node:fs",
+      "adapter-claude-layer-import @council/domain",
+      "adapter-claude-layer-import @council/platform-node",
+      "adapter-claude-layer-import @council/runtime-node",
+      "adapter-claude-layer-import @council/mcp-server",
+      "adapter-claude-layer-import @council/adapter-grok",
     ]) {
       expect(result.stderr).toContain(violation);
     }
@@ -270,6 +290,16 @@ describe("workspace", () => {
       },
       {
         path: "packages/adapter-grok/src/__boundary_allowed__.ts",
+        source: [
+          'import type { ProviderProcessRequest } from "@council/application";',
+          'import type { TerminalObservationV1 } from "@council/schema";',
+          "type _Keep = ProviderProcessRequest | TerminalObservationV1;",
+          "const keep = null as unknown as _Keep;",
+          "void keep;",
+        ].join("\n"),
+      },
+      {
+        path: "packages/adapter-claude/src/__boundary_allowed__.ts",
         source: [
           'import type { ProviderProcessRequest } from "@council/application";',
           'import type { TerminalObservationV1 } from "@council/schema";',
@@ -607,6 +637,7 @@ describe("workspace", () => {
       "packages/domain/tsconfig.json",
       "packages/application/tsconfig.json",
       "packages/adapter-grok/tsconfig.json",
+      "packages/adapter-claude/tsconfig.json",
     ]) {
       const config = JSON.parse(await readFile(path, "utf8")) as {
         compilerOptions?: { types?: unknown };

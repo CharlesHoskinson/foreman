@@ -6,9 +6,9 @@ The project takes inspiration from [Karpathy's llm-council](https://github.com/k
 
 ## Current status
 
-The architecture is approved and recorded as an OpenSpec change. The versioned schemas, pure domain foundation, ACE Profile 1 parser and semantic linter, Effect prompt compiler, provider-schema lowerer, and Node prompt-materialization boundary are implemented. The complete local quality gate covers these components.
+The architecture is approved and recorded as an OpenSpec change. The versioned schemas, pure domain foundation, ACE Profile 1 parser and semantic linter, Effect prompt compiler, provider-schema lowerer, Node prompt-materialization boundary, bounded process runner with optional stdin transport, provider-health canary service, ready-token issuance, Grok canary adapter, and Claude canary adapter are implemented. The complete local quality gate covers these components.
 
-Council is not ready for live release decisions. Provider-health services, bounded process spools, provider terminal decoders, ready-token issuance, the TypeScript preflight CLI, the durable runtime, the MCP server, and native host plugins are not implemented. A bounded xAI smoke test on 2026-08-03 confirmed this boundary: prompt compilation passed, but the provider returned no admissible structured output. See [the xAI live-smoke record](docs/evidence/2026-08-03-xai-live-smoke.md).
+Council is not ready for live release decisions. The TypeScript preflight CLI, durable runtime, MCP server, Codex and Gemini adapters, and native host plugins are not implemented. A bounded xAI smoke test on 2026-08-03 confirmed an earlier boundary: prompt compilation passed, but the provider returned no admissible structured output. See [the xAI live-smoke record](docs/evidence/2026-08-03-xai-live-smoke.md).
 
 Run the code-quality suite (formatting, lint, type checking, architecture, and tests) with:
 
@@ -46,6 +46,10 @@ corepack pnpm verify
 
 - `packages/schema/`: versioned serialized contracts and strict decoding.
 - `packages/domain/`: runtime-free domain decisions, evolution, replay, authorization, budgets, quorum, and outcomes.
+- `packages/application/`: Effect ports, prompt preflight, provider-health, and ready-token services.
+- `packages/platform-node/`: Node process runner, prompt materializer, digests, and artifact helpers.
+- `packages/adapter-grok/`: Grok canary adapter (file prompt, `stdin: null`).
+- `packages/adapter-claude/`: Claude canary adapter (stdin prompt bytes).
 - `tests/architecture/` and `scripts/`: workspace and dependency-boundary verification.
 - `openspec/changes/design-council-core/`: approved proposal, design, and capability specs.
 - `docs/research/`: source reports, committee memos, and graph artifacts.

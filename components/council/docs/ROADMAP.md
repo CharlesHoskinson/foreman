@@ -34,12 +34,14 @@ Exit condition: the written design is reviewed and accepted as the implementatio
 - Implement fail-safe process-tree guards for Linux, macOS, native Windows, and Windows-to-WSL execution.
 - Certify one read-only provider adapter through golden fixtures, stream fuzzing, cancellation, and live canaries.
 - Verify parent-death cleanup and zero owned orphan processes before expanding adapter scope.
+- Status: Node process runner with optional stdin transport, provider-health canary service, and Grok adapter unit certification are in tree. Full OS matrix process-tree guards and live canary evidence remain open.
 
 ## Phase 5 — Four-provider participation
 
 - Add and independently certify Claude, Codex, Gemini, and Grok adapters.
 - Implement the readiness doctor, effective subscription checks, capability evidence, version degradation, and failure-domain quorum.
 - Never replace an unavailable requested provider with a different provider without an explicit contract amendment.
+- Status: Grok and Claude canary adapters are in tree with focused unit tests. Codex and Gemini adapters, readiness doctor, and live multi-provider certification remain open.
 
 ## Phase 6 — Authorization and deep research
 

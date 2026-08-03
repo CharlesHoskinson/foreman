@@ -182,6 +182,20 @@ describe("classifyReviewAttempt completion gates", () => {
     expect(result.failure.reason).toContain("failed tool");
   });
 
+  it("rejects unknown tool state", () => {
+    const result = classifyReviewAttempt({
+      ...baseInput(),
+      terminal: {
+        ...completedTerminal,
+        pendingToolCalls: null,
+        failedToolCalls: null,
+      },
+    });
+    expect(result._tag).toBe("ReviewAttemptFailed");
+    if (result._tag !== "ReviewAttemptFailed") return;
+    expect(result.failure.reason).toContain("tool state is unknown");
+  });
+
   it("rejects terminal cancellation even with structured output present", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),

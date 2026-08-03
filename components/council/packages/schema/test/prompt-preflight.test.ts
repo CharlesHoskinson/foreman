@@ -103,6 +103,14 @@ const terminalCompleted = {
   errorMessage: null,
 };
 
+const terminalWithUnknownToolCounts = {
+  ...terminalCompleted,
+  terminalState: "error" as const,
+  pendingToolCalls: null,
+  failedToolCalls: null,
+  errorMessage: "tool state was not observed",
+};
+
 const identityFields = {
   schemaVersion: 1 as const,
   readyTokenHash,
@@ -863,6 +871,24 @@ describe("TerminalObservationV1", () => {
       Schema.decodeUnknownSync(TerminalObservationV1)({
         ...terminalCompleted,
         pendingToolCalls: 0.5,
+      }),
+    ).toThrow();
+  });
+
+  it("decodes null tool counts when the provider did not expose tool state", () => {
+    expect(
+      Schema.decodeUnknownSync(TerminalObservationV1)(
+        terminalWithUnknownToolCounts,
+      ),
+    ).toEqual(terminalWithUnknownToolCounts);
+  });
+
+  it("does not accept unknown tool counts as a successful terminal", () => {
+    expect(() =>
+      Schema.decodeUnknownSync(SuccessfulTerminalObservationV1)({
+        ...terminalCompleted,
+        pendingToolCalls: null,
+        failedToolCalls: null,
       }),
     ).toThrow();
   });

@@ -247,9 +247,20 @@ const markTerminalClose = (state: TerminalCloseState): void => {
  * The waiter is registered before the shared-state check so a close that
  * races between register and check still wakes this cleanup.
  */
+const closeStdin = (child: ChildProcess): void => {
+  const stream = child.stdin;
+  if (stream === null || stream.destroyed) return;
+  try {
+    stream.destroy();
+  } catch {
+    // ignore
+  }
+};
+
 const terminateAndAwaitClose = (
   child: ChildProcess,
   closeState: TerminalCloseState,
+  onBeforeTerminate?: () => void,
 ): Effect.Effect<undefined> =>
   Effect.async<undefined>((resume) => {
     let done = false;
@@ -264,6 +275,8 @@ const terminateAndAwaitClose = (
       finish();
       return;
     }
+    onBeforeTerminate?.();
+    closeStdin(child);
     terminateChild(child);
   });
 
@@ -277,6 +290,8 @@ const runNodeProviderProcess = (
     let settled = false;
     let timedOut = false;
     let started = false;
+    let stdinFailed = false;
+    const openStdin = request.stdin !== null;
 
     let child: ChildProcess;
     try {
@@ -284,7 +299,9 @@ const runNodeProviderProcess = (
         cwd: request.cwd,
         env: { ...request.environment },
         shell: false,
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: openStdin
+          ? ["pipe", "pipe", "pipe"]
+          : ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });
     } catch {
@@ -303,6 +320,9 @@ const runNodeProviderProcess = (
     const running = child;
     // Track the real close event immediately after spawn — not exitCode alone.
     const closeState = createTerminalCloseState();
+    // When stdin is open, do not settle success until the write path finishes.
+    let stdinWriteFinished = !openStdin;
+    let closedObservation: ProviderProcessObservation | null = null;
 
     const timeoutMs =
       Number.isSafeInteger(request.timeoutMs) && request.timeoutMs > 0
@@ -310,6 +330,9 @@ const runNodeProviderProcess = (
         : 1;
     const timer = setTimeout(() => {
       timedOut = true;
+      // Abandon an in-flight stdin write so close can settle as timeout.
+      stdinWriteFinished = true;
+      closeStdin(running);
       terminateChild(running);
     }, timeoutMs);
     timer.unref();
@@ -328,6 +351,49 @@ const runNodeProviderProcess = (
       resume(Effect.succeed(observation));
     };
 
+    const maybeSettleClosedObservation = () => {
+      if (settled || stdinFailed || !stdinWriteFinished) return;
+      if (closedObservation !== null) {
+        settleOk(closedObservation);
+      }
+    };
+
+    /**
+     * Stdin write failures are typed only after the child is terminated and
+     * the real close event has fired. Never include payload bytes in the reason.
+     */
+    const failAfterStdinError = () => {
+      if (stdinFailed) return;
+      stdinFailed = true;
+      stdinWriteFinished = true;
+      closedObservation = null;
+      closeStdin(running);
+      if (closeState.closed) {
+        settleFail(
+          new ProviderProcessError({
+            category: "internal",
+            reason: "provider process stdin write failed",
+          }),
+        );
+        return;
+      }
+      closeState.waiters.push(() => {
+        settleFail(
+          new ProviderProcessError({
+            category: "internal",
+            reason: "provider process stdin write failed",
+          }),
+        );
+      });
+      terminateChild(running);
+    };
+
+    const markStdinWriteFinished = () => {
+      if (stdinFailed) return;
+      stdinWriteFinished = true;
+      maybeSettleClosedObservation();
+    };
+
     const stdoutStream = running.stdout;
     const stderrStream = running.stderr;
     if (stdoutStream !== null) {
@@ -339,6 +405,28 @@ const runNodeProviderProcess = (
       stderrStream.on("data", (chunk: Buffer) => {
         stderr.write(chunk);
       });
+    }
+
+    if (request.stdin !== null) {
+      const payload = request.stdin;
+      const stdinStream = running.stdin;
+      if (stdinStream === null) {
+        failAfterStdinError();
+      } else {
+        stdinStream.on("error", () => {
+          // EPIPE / write after close — secret-safe typed failure after reap.
+          failAfterStdinError();
+        });
+        try {
+          // Write exact bytes then complete stdin. Errors surface on "error";
+          // the no-arg finish callback marks successful write completion.
+          stdinStream.end(Buffer.from(payload), () => {
+            markStdinWriteFinished();
+          });
+        } catch {
+          failAfterStdinError();
+        }
+      }
     }
 
     running.on("error", (error: NodeJS.ErrnoException) => {
@@ -359,19 +447,43 @@ const runNodeProviderProcess = (
 
     running.on("close", (code, exitSignal) => {
       markTerminalClose(closeState);
-      settleOk({
+      // Stdin failure owns the terminal outcome; do not settle as observation.
+      if (stdinFailed) {
+        settleFail(
+          new ProviderProcessError({
+            category: "internal",
+            reason: "provider process stdin write failed",
+          }),
+        );
+        return;
+      }
+      // Child closed before stdin write completed (and not a deliberate
+      // timeout/interrupt abandonment) — fail closed after real close.
+      if (openStdin && !stdinWriteFinished && !timedOut) {
+        settleFail(
+          new ProviderProcessError({
+            category: "internal",
+            reason: "provider process stdin write failed",
+          }),
+        );
+        return;
+      }
+      closedObservation = {
         started,
         exitCode: code,
         signal: exitSignal,
         timedOut,
         stdout: stdout.finalize(homePaths),
         stderr: stderr.finalize(homePaths),
-      });
+      };
+      maybeSettleClosedObservation();
     });
 
-    // On fiber interruption: terminate, escalate, and await the terminal close
-    // before the interrupt completes. Returning this Effect is the contract.
-    return terminateAndAwaitClose(running, closeState);
+    // On fiber interruption: abandon stdin write, close stdin, terminate,
+    // escalate, and await the terminal close before the interrupt completes.
+    return terminateAndAwaitClose(running, closeState, () => {
+      stdinWriteFinished = true;
+    });
   });
 
 export const NodeProviderProcessRunner: ProviderProcessRunnerService = {
