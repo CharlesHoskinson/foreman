@@ -57,55 +57,75 @@ esac
 # @exitcode 0 if the executable is available; nonzero otherwise
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# @description Probe whether a vendor CLI is authenticated (not merely present).
-#   Uses the non-billing auth-status command determined empirically in Task 0
-#   (../openspec/changes/lifecycle-three-stage/auth-probes.md). MUST NOT run a
-#   billed model inference (never `grok -p` / `codex exec` / `claude -p`).
-#   grok has no exit-code-based auth signal of its own (`grok models` always
-#   exits 0) -- its branch greps captured stdout+stderr instead of trusting
-#   the exit code, and (Rework Round 1, Opus audit) is BOTH bounded (a
-#   network stall must never hang Setup/Use -- this runs on the default
-#   tool-check path AND inside every lane-run readiness gate) AND fail-CLOSED
-#   (requires a POSITIVE signed-in signal, never "absence of the negative
-#   string" alone -- an error banner lacking the exact phrase
-#   "not authenticated" must never be misread as READY). codex's own
-#   subcommand already distinguishes authenticated/not via a genuine exit-code
-#   contract (a real positive signal, not an absence-of-negative shape), so
-#   it is left as a plain exit-code check.
+# Tracked TypeScript vendor-preflight runtime (Setup adapter authority for
+# grok/codex). Shell never reimplements auth or version classification.
+VENDOR_PREFLIGHT_JS="$ROOT/skills/foreman/runtime/dist/vendor-preflight.js"
+
+# @description Invoke the TypeScript vendor-preflight tool-check-row adapter
+#   for one advertised lane vendor (grok|codex). Parses exactly three TSV
+#   fields (vendor, status, detail). Never falls back to shell probes. Never
+#   runs login or update. On Node/runtime failure emits degraded — never
+#   not_authenticated.
 # @arg $1 vendor id (grok|codex)
-# @exitcode 0 authenticated; 1 not authenticated (or unknown vendor id)
-vendor_authed() {
-  case "$1" in
-    grok)
-      local out rc=0 tmo=""
-      if have timeout; then tmo="timeout"
-      elif have gtimeout; then tmo="gtimeout"
-      else
-        # No bounded-wait tool resolvable: refuse the unbounded network call
-        # rather than risk hanging the caller -- fail closed.
-        return 1
-      fi
-      out="$("$tmo" 10 grok models 2>&1)" || rc=$?
-      # Content before exit status. Measured 2026-07-30: `grok models` prints
-      # "You are logged in with grok.com." then hangs (rc=124 after timeout,
-      # 32 bytes of banner). rc=124 is not decisive on its own — a banner
-      # already received is evidence; the process failing to exit afterwards
-      # does not retract it. Negative wording still wins over a positive
-      # substring. Success binds to artifact content, never to exit code alone.
-      if [[ "$out" == *"not authenticated"* || "$out" == *"sign in"* || "$out" == *"log in"* ]]; then
-        return 1
-      fi
-      if [[ "$out" == *"logged in"* ]]; then
-        return 0
-      fi
-      # No positive signal: fall back to exit status / empty output.
-      (( rc != 0 )) && return 1
-      [[ -z "$out" ]] && return 1
-      return 1
+# @stdout one tab-separated tool, status, and detail row (no trailing fields)
+fm_tc_vendor_preflight_row() {
+  local vendor="$1"
+  local out="" rc=0 status detail vid tabs
+  if ! have node; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "node unavailable; cannot run vendor-preflight"
+    return 0
+  fi
+  if [[ ! -f "$VENDOR_PREFLIGHT_JS" ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight runtime artifact missing at skills/foreman/runtime/dist/vendor-preflight.js"
+    return 0
+  fi
+  # Capture stdout only; stderr is diagnostic and must not enter the TSV row.
+  # Require runtime exit zero. Nonzero with nonempty stdout is degraded, never ok.
+  # Command substitution strips trailing LFs; any remaining newline means a
+  # second line was present and must not be trusted.
+  out="$(node "$VENDOR_PREFLIGHT_JS" tool-check-row "$vendor" 2>/dev/null)" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight exit ${rc}"
+    return 0
+  fi
+  if [[ -z "$out" ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight produced no row (exit=0)"
+    return 0
+  fi
+  if [[ "$out" == *$'\n'* ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight produced multiple output lines"
+    return 0
+  fi
+  if [[ "$out" == *$'\r'* ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row contains CR"
+    return 0
+  fi
+  # Exactly three fields: vendor, status, detail (exactly two tab separators).
+  tabs="${out//[!$'\t']/}"
+  if [[ ${#tabs} -ne 2 ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row field count invalid"
+    return 0
+  fi
+  IFS=$'\t' read -r vid status detail <<<"$out" || true
+  if [[ "$vid" != "$vendor" ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row vendor mismatch"
+    return 0
+  fi
+  case "$status" in
+    ok|missing|outdated|not_authenticated|degraded) ;;
+    *)
+      printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight returned invalid status field"
+      return 0
       ;;
-    codex) codex login status >/dev/null 2>&1 ;;
-    *) return 0 ;;
   esac
+  # Bounded nonempty detail; residual separators are impossible with exactly
+  # two tabs but keep a closed non-blank cell contract.
+  if [[ -z "${detail:-}" ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row detail empty"
+    return 0
+  fi
+  printf '%s\t%s\t%s\n' "$vendor" "$status" "$detail"
+  return 0
 }
 
 # @description Inspect one known Foreman dependency and emit its availability status and version detail.
@@ -156,18 +176,22 @@ check_one() {
       if have nats; then status=ok; detail="$(nats --version 2>&1 | head -1)"; else status=missing; fi
       ;;
     grok)
-      if have grok; then
-        detail="$(grok --version 2>&1 | head -1)"
-        if vendor_authed grok; then status=ok
-        else status=not_authenticated; detail="$detail (run: grok login --device-code)"; fi
-      else status=missing; fi
+      # TypeScript vendor-preflight is the only authority for grok readiness.
+      local vp_row vp_status vp_detail
+      vp_row="$(fm_tc_vendor_preflight_row grok)"
+      vp_status="$(printf '%s\n' "$vp_row" | cut -f2)"
+      vp_detail="$(printf '%s\n' "$vp_row" | cut -f3-)"
+      status="$vp_status"
+      detail="$vp_detail"
       ;;
     codex)
-      if have codex; then
-        detail="$(codex --version 2>&1 | head -1)"
-        if vendor_authed codex; then status=ok
-        else status=not_authenticated; detail="$detail (run: codex login)"; fi
-      else status=missing; fi
+      # TypeScript vendor-preflight is the only authority for codex readiness.
+      local vp_row vp_status vp_detail
+      vp_row="$(fm_tc_vendor_preflight_row codex)"
+      vp_status="$(printf '%s\n' "$vp_row" | cut -f2)"
+      vp_detail="$(printf '%s\n' "$vp_row" | cut -f3-)"
+      status="$vp_status"
+      detail="$vp_detail"
       ;;
     node)
       if have node; then status=ok; detail="$(node --version 2>&1)"; else status=missing; fi

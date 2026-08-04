@@ -17302,6 +17302,96 @@ var liveVendorPreflightLayer = Layer_exports.mergeAll(
   livePreflightClock
 );
 
+// packages/orchestration/src/vendor-preflight-tool-check.ts
+var TOOL_CHECK_ROW_VENDORS = ["grok", "codex"];
+var MAX_TOOL_CHECK_DETAIL_BYTES = 512;
+function sanitizeToolCheckDetail(raw) {
+  let s = raw.replace(/[\t\r\n]+/g, " ").replace(/ +/g, " ").trim();
+  if (s.length === 0) {
+    return "no detail";
+  }
+  if (Buffer.byteLength(s, "utf8") <= MAX_TOOL_CHECK_DETAIL_BYTES) {
+    return s;
+  }
+  let end3 = s.length;
+  while (end3 > 0 && Buffer.byteLength(s.slice(0, end3), "utf8") > MAX_TOOL_CHECK_DETAIL_BYTES) {
+    end3 -= 1;
+  }
+  const ellipsis = "\u2026";
+  const ellipsisBytes = Buffer.byteLength(ellipsis, "utf8");
+  while (end3 > 0 && Buffer.byteLength(s.slice(0, end3), "utf8") + ellipsisBytes > MAX_TOOL_CHECK_DETAIL_BYTES) {
+    end3 -= 1;
+  }
+  return (end3 > 0 ? s.slice(0, end3) : "") + ellipsis;
+}
+function joinDetailParts(parts2) {
+  const cleaned = [];
+  for (const p of parts2) {
+    if (p === null || p === void 0) continue;
+    const t = p.trim();
+    if (t.length === 0) continue;
+    cleaned.push(t);
+  }
+  if (cleaned.length === 0) return "no detail";
+  return cleaned.join(" \u2014 ");
+}
+function projectVendorPreflightToToolCheckRow(record) {
+  const disc = record.facts.discoverable.value;
+  const auth = record.facts.authenticated.value;
+  const curr = record.facts.current.value;
+  const rem = record.remediation;
+  const ver = record.reportedVersion;
+  let status;
+  let detailRaw;
+  if (disc === "missing") {
+    status = "missing";
+    detailRaw = joinDetailParts([
+      rem.kind === "install" ? rem.instruction : null,
+      record.facts.discoverable.reason
+    ]);
+  } else if (auth === "not-authenticated") {
+    status = "not_authenticated";
+    detailRaw = joinDetailParts([
+      ver,
+      rem.kind === "login" ? rem.instruction : record.facts.authenticated.reason
+    ]);
+  } else if (auth === "unknown") {
+    status = "degraded";
+    detailRaw = joinDetailParts([
+      rem.kind === "diagnose" ? rem.instruction : null,
+      record.facts.authenticated.reason
+    ]);
+  } else if (auth === "authenticated" && curr === "outdated") {
+    status = "outdated";
+    detailRaw = joinDetailParts([
+      ver,
+      record.facts.current.reason,
+      rem.kind === "update" ? rem.instruction : null
+    ]);
+  } else if (curr === "unknown" || disc === "unknown") {
+    status = "degraded";
+    detailRaw = joinDetailParts([
+      rem.kind === "diagnose" ? rem.instruction : null,
+      curr === "unknown" ? record.facts.current.reason : record.facts.discoverable.reason
+    ]);
+  } else {
+    status = "ok";
+    detailRaw = joinDetailParts([ver, record.facts.current.reason]);
+  }
+  return {
+    vendor: record.vendor,
+    status,
+    detail: sanitizeToolCheckDetail(detailRaw)
+  };
+}
+function formatToolCheckRowTsv(row) {
+  const detail = sanitizeToolCheckDetail(row.detail);
+  return `${row.vendor}	${row.status}	${detail}`;
+}
+function isToolCheckRowVendorId(v) {
+  return TOOL_CHECK_ROW_VENDORS.includes(v);
+}
+
 // packages/orchestration/src/vendor-preflight-cli.ts
 var EXIT_READY = 0;
 var EXIT_NOT_READY = 1;
@@ -17324,12 +17414,21 @@ function stripPreflightNodeArgv(argv) {
 function parsePreflightArgv(argv) {
   const args2 = stripPreflightNodeArgv(argv);
   if (args2.length !== 2) return { _tag: "Invalid" };
-  if (args2[0] !== "inspect") return { _tag: "Invalid" };
+  const command = args2[0];
   const vendor = args2[1];
   if (vendor === void 0 || vendor.trim().length === 0) {
     return { _tag: "Invalid" };
   }
-  return { _tag: "Inspect", vendor };
+  if (command === "inspect") {
+    return { _tag: "Inspect", vendor };
+  }
+  if (command === "tool-check-row") {
+    if (!isToolCheckRowVendorId(vendor)) {
+      return { _tag: "Invalid" };
+    }
+    return { _tag: "ToolCheckRow", vendor };
+  }
+  return { _tag: "Invalid" };
 }
 function isVendorId(v) {
   return VENDOR_IDS.includes(v);
@@ -17370,6 +17469,15 @@ function runVendorPreflightCli(argv, io2, env) {
     if (isVendorPreflightContractFailure(decoded)) {
       io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return EXIT_BOUNDARY_FAILURE;
+    }
+    if (decoded.vendor !== parsed.vendor) {
+      io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      return EXIT_BOUNDARY_FAILURE;
+    }
+    if (parsed._tag === "ToolCheckRow") {
+      const row = projectVendorPreflightToToolCheckRow(decoded);
+      io2.writeStdout(formatToolCheckRowTsv(row) + "\n");
+      return EXIT_READY;
     }
     let line;
     try {

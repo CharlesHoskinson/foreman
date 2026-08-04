@@ -1,5 +1,5 @@
 /**
- * vendor-preflight CLI: inspect <vendor>
+ * vendor-preflight CLI: inspect <vendor> | tool-check-row <grok|codex>
  */
 
 import { Effect, Layer } from "effect";
@@ -29,6 +29,11 @@ import {
   inspectVendor,
   livePreflightClock,
 } from "./vendor-preflight-live.js";
+import {
+  formatToolCheckRowTsv,
+  isToolCheckRowVendorId,
+  projectVendorPreflightToToolCheckRow,
+} from "./vendor-preflight-tool-check.js";
 
 export const EXIT_READY = 0;
 export const EXIT_NOT_READY = 1;
@@ -48,6 +53,7 @@ export type PreflightCliIo = {
 
 export type ParsedPreflightArgv =
   | { readonly _tag: "Inspect"; readonly vendor: string }
+  | { readonly _tag: "ToolCheckRow"; readonly vendor: string }
   | { readonly _tag: "Invalid" };
 
 /**
@@ -84,12 +90,22 @@ export function parsePreflightArgv(
 ): ParsedPreflightArgv {
   const args = stripPreflightNodeArgv(argv);
   if (args.length !== 2) return { _tag: "Invalid" };
-  if (args[0] !== "inspect") return { _tag: "Invalid" };
+  const command = args[0];
   const vendor = args[1];
   if (vendor === undefined || vendor.trim().length === 0) {
     return { _tag: "Invalid" };
   }
-  return { _tag: "Inspect", vendor };
+  if (command === "inspect") {
+    return { _tag: "Inspect", vendor };
+  }
+  if (command === "tool-check-row") {
+    // Adapter command accepts only the advertised Setup lanes.
+    if (!isToolCheckRowVendorId(vendor)) {
+      return { _tag: "Invalid" };
+    }
+    return { _tag: "ToolCheckRow", vendor };
+  }
+  return { _tag: "Invalid" };
 }
 
 function isVendorId(v: string): v is VendorId {
@@ -173,6 +189,22 @@ export function runVendorPreflightCli(
     if (isVendorPreflightContractFailure(decoded)) {
       io.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return EXIT_BOUNDARY_FAILURE;
+    }
+    // Bind every successful inspect result to the requested vendor before
+    // JSON or TSV emission. An injected or corrupted record for a different
+    // vendor is a typed internal/boundary failure with no stdout.
+    if (decoded.vendor !== parsed.vendor) {
+      io.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      return EXIT_BOUNDARY_FAILURE;
+    }
+
+    if (parsed._tag === "ToolCheckRow") {
+      // Adapter path: one TSV row for shell tool-check. Exit 0 whenever a
+      // valid row is produced so set -e shell callers can parse status from
+      // the row rather than the process exit code.
+      const row = projectVendorPreflightToToolCheckRow(decoded);
+      io.writeStdout(formatToolCheckRowTsv(row) + "\n");
+      return EXIT_READY;
     }
 
     let line: string;

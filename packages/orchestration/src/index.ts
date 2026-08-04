@@ -289,6 +289,19 @@ export {
 } from "./vendor-preflight-cli.js";
 
 export {
+  TOOL_CHECK_ROW_STATUSES,
+  TOOL_CHECK_ROW_VENDORS,
+  MAX_TOOL_CHECK_DETAIL_BYTES,
+  sanitizeToolCheckDetail,
+  projectVendorPreflightToToolCheckRow,
+  formatToolCheckRowTsv,
+  isToolCheckRowVendorId,
+  type ToolCheckRowStatus,
+  type ToolCheckRowVendorId,
+  type ToolCheckRowV1,
+} from "./vendor-preflight-tool-check.js";
+
+export {
   tryGetEmbeddedCapabilityTable,
   getEmbeddedCapabilityDigest,
   loadCapabilityTableFromTomlText,

@@ -16,6 +16,7 @@ import {
   type RunIgnoredStdioOptions,
 } from "./queue-services.js";
 import {
+  EXIT_BOUNDARY_FAILURE,
   EXIT_INVALID_ARGUMENTS,
   EXIT_NOT_READY,
   EXIT_READY,
@@ -29,7 +30,10 @@ import {
   isVendorPreflightContractFailure,
 } from "./vendor-preflight-contract.js";
 import type { VendorCapabilityTableV1 } from "./vendor-preflight-manifest.js";
-import { PreflightClock } from "./vendor-preflight-live.js";
+import {
+  PreflightClock,
+  VendorPreflightFailure,
+} from "./vendor-preflight-live.js";
 
 const FIXED_TS = "2026-08-04T15:00:00.000Z";
 
@@ -184,6 +188,22 @@ describe("parsePreflightArgv", () => {
       ["inspect", "x"],
     );
   });
+
+  it("parses tool-check-row for grok|codex only", () => {
+    assert.deepEqual(parsePreflightArgv(["tool-check-row", "grok"]), {
+      _tag: "ToolCheckRow",
+      vendor: "grok",
+    });
+    assert.deepEqual(parsePreflightArgv(["tool-check-row", "codex"]), {
+      _tag: "ToolCheckRow",
+      vendor: "codex",
+    });
+    assert.equal(
+      parsePreflightArgv(["tool-check-row", "claude"])._tag,
+      "Invalid",
+    );
+    assert.equal(parsePreflightArgv(["tool-check-row"])._tag, "Invalid");
+  });
 });
 
 describe("runVendorPreflightCli", () => {
@@ -269,5 +289,134 @@ describe("runVendorPreflightCli", () => {
     );
     assert.equal(code, EXIT_INVALID_ARGUMENTS);
     assert.equal(cap.stdout(), "");
+  });
+
+  it("tool-check-row writes one TSV row and one LF", async () => {
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["tool-check-row", "grok"], cap.io, {
+        capabilityTable: table,
+        layer: readyLayer(),
+      }),
+    );
+    assert.equal(code, EXIT_READY);
+    const out = cap.stdout();
+    assert.ok(out.endsWith("\n"));
+    const lines = out.split("\n").filter((l) => l.length > 0);
+    assert.equal(lines.length, 1);
+    const parts = lines[0]!.split("\t");
+    assert.equal(parts.length, 3);
+    assert.equal(parts[0], "grok");
+    assert.equal(parts[1], "ok");
+    assert.ok(parts[2]!.length > 0);
+    assert.ok(!parts[2]!.includes("\t"));
+    // Must not emit JSON for the adapter command.
+    assert.ok(!out.trimStart().startsWith("{"));
+  });
+
+  it("tool-check-row invalid args and boundary failures write no stdout", async () => {
+    const capInvalid = ioCapture();
+    const codeInvalid = await Effect.runPromise(
+      runVendorPreflightCli(["tool-check-row", "claude"], capInvalid.io, {
+        capabilityTable: table,
+        layer: readyLayer(),
+      }),
+    );
+    assert.equal(codeInvalid, EXIT_INVALID_ARGUMENTS);
+    assert.equal(capInvalid.stdout(), "");
+
+    const capBoundary = ioCapture();
+    const codeBoundary = await Effect.runPromise(
+      runVendorPreflightCli(["tool-check-row", "grok"], capBoundary.io, {
+        capabilityTable: table,
+        inspect: () =>
+          Effect.fail(new VendorPreflightFailure("internal", "boom")),
+      }),
+    );
+    assert.equal(codeBoundary, EXIT_BOUNDARY_FAILURE);
+    assert.equal(capBoundary.stdout(), "");
+  });
+
+  it("binds inspect result vendor to the requested vendor before emission", async () => {
+    // Injected inspect returns a valid Codex ready record for a Grok request.
+    // Must not emit a Codex row or JSON; exit is boundary/internal failure.
+    const codexReady = {
+      schemaVersion: 1 as const,
+      vendor: "codex" as const,
+      timestamp: FIXED_TS,
+      resolvedPath: "/usr/bin/codex",
+      reportedVersion: "0.146.0",
+      versionFloor: "0.146.0",
+      facts: {
+        discoverable: {
+          value: "discoverable" as const,
+          evidenceClass: "declared" as const,
+          reason: "CLI resolved",
+        },
+        authenticated: {
+          value: "authenticated" as const,
+          evidenceClass: "declared" as const,
+          reason: "signed in",
+        },
+        current: {
+          value: "current" as const,
+          evidenceClass: "declared" as const,
+          reason: "meets floor",
+        },
+      },
+      probes: [
+        {
+          kind: "version" as const,
+          argv: ["codex", "--version"],
+          outcome: "completed" as const,
+          exitCode: 0,
+        },
+        {
+          kind: "auth" as const,
+          argv: ["codex", "login", "status"],
+          outcome: "completed" as const,
+          exitCode: 0,
+        },
+      ],
+      remediation: { kind: "none" as const, instruction: null },
+    };
+
+    const capRow = ioCapture();
+    const codeRow = await Effect.runPromise(
+      runVendorPreflightCli(["tool-check-row", "grok"], capRow.io, {
+        capabilityTable: table,
+        inspect: () => Effect.succeed(codexReady),
+      }),
+    );
+    assert.equal(codeRow, EXIT_BOUNDARY_FAILURE);
+    assert.equal(capRow.stdout(), "");
+    assert.ok(capRow.stderr().length > 0);
+
+    const capInspect = ioCapture();
+    const codeInspect = await Effect.runPromise(
+      runVendorPreflightCli(["inspect", "grok"], capInspect.io, {
+        capabilityTable: table,
+        inspect: () => Effect.succeed(codexReady),
+      }),
+    );
+    assert.equal(codeInspect, EXIT_BOUNDARY_FAILURE);
+    assert.equal(capInspect.stdout(), "");
+    assert.ok(capInspect.stderr().length > 0);
+  });
+
+  it("inspect command output and exit codes remain unchanged", async () => {
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["inspect", "grok"], cap.io, {
+        capabilityTable: table,
+        layer: readyLayer(),
+      }),
+    );
+    assert.equal(code, EXIT_READY);
+    const line = cap.stdout().replace(/\n$/, "");
+    assert.ok(isCanonicalJsonText(line));
+    const decoded = decodeVendorPreflightRecordV1(JSON.parse(line));
+    assert.ok(!isVendorPreflightContractFailure(decoded));
+    assert.equal(decoded.vendor, "grok");
   });
 });

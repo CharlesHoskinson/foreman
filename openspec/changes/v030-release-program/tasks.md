@@ -151,6 +151,20 @@
       The remaining Sprint 3 work stays open (R4B+ shell migration,
         ownership, heartbeat, reaping, credential profiles, and other
         open Sprint 3 ports).
+      - Sprint 3 R4B Setup vendor-preflight adapter (partial): pure
+        `projectVendorPreflightToToolCheckRow` + `tool-check-row <grok|codex>`
+        CLI command on the existing `vendor-preflight.js` artifact; shell
+        `env/tool-check.sh` is a thin Node adapter (deleted `vendor_authed`
+        and direct grok/codex auth/version probes). Unknown auth/currency
+        maps to `degraded` with diagnose detail — never `not_authenticated`
+        / login. Cold-audit boundary correction: CLI requires
+        `decoded.vendor === parsed.vendor` before emit; shell requires exit
+        0 + exactly one three-field TSV row bound to the requested vendor
+        (wrong vendor, fourth field, second line, nonzero exit → degraded).
+        Focused package tests 20/20; bats tool-check-auth + foreman-setup
+        26/26; typecheck/build/verify-runtime/verify green (554 pass, 1
+        skip). Live dogfood: both lanes `ok` with floor versions on this
+        host. lane-run JSON consumption and full Sprint 3 close remain open.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

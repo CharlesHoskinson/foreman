@@ -64,15 +64,31 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
 
 ## T5 — wire the callers
 
-- [ ] `foreman-setup.sh` composes the preflight and renders each vendor's three
-      facts on their own line, with the correct remediation per fact: login for
-      `not-authenticated`, update for `outdated`, install for `missing`, and
-      the named probe failure for `unknown`.
+- [x] **Partial (Sprint 3 R4B Setup adapter):** `env/tool-check.sh` invokes the
+      tracked TypeScript runtime
+      `skills/foreman/runtime/dist/vendor-preflight.js tool-check-row <grok|codex>`
+      and parses exactly three TSV fields. Shell `vendor_authed` and direct
+      `grok models` / `codex login status` / vendor `--version` probes are
+      deleted. Projection maps missing → `missing`, signed-out →
+      `not_authenticated` (login detail only), auth/currency unknown →
+      `degraded` (diagnose, never login), outdated → `outdated`, ready → `ok`.
+      `foreman-setup.sh` still composes tool-check and emits login instructions
+      only from `NOT_AUTHENTICATED` (positive signed-out). Full per-fact three-
+      line rendering and lane-run JSON record consumption remain open.
+- [x] **Partial (R4B cold-audit boundary correction):** CLI binds
+      `decoded.vendor === parsed.vendor` before JSON/TSV emission (mismatch →
+      exit 3, no stdout). Shell `fm_tc_vendor_preflight_row` requires runtime
+      exit 0, exactly one line, exactly three TSV fields, requested vendor,
+      closed status, nonempty detail; wrong vendor / fourth field / second
+      line / nonzero exit all map to one `degraded` row. Focused package
+      tests 20/20; bats tool-check-auth + foreman-setup 26/26; full verify
+      554 pass + 1 skip. Live dogfood grok/codex `ok` at floors.
 - [ ] `lane-run.sh`'s readiness gate reads the JSON record rather than
       re-probing, and reproduces the recorded reason verbatim in its refusal.
-- [ ] A vendor whose auth fact is `unknown` fails the gate closed — but the
-      message SHALL state that readiness could not be determined, and SHALL NOT
-      assert the vendor is signed out.
+- [x] **Partial (R4B):** A vendor whose auth fact is `unknown` projects to
+      tool-check `degraded` (not `not_authenticated`); Setup does not print a
+      login instruction for that case. Bats: unmatched banner, auth timeout,
+      codex unrecognized nonzero.
 
 ## T6 — tests, red-first
 
