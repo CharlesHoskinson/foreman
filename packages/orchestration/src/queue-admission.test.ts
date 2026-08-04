@@ -29,6 +29,7 @@ import {
   EnvVars,
   liveProcessExec,
   MAX_CAPTURE_BYTES,
+  OWNED_CHILD_CANCEL_WAIT_MS,
   PathLookup,
   ProcessExec,
   ProcessFailure,
@@ -1458,6 +1459,130 @@ describe("process bounds and cancellation", () => {
         }
       }
       assert.equal(alive, false, "owned child must be dead after interrupt");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("live: POSIX child with descendant — interrupt kills group and observes close within bound", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+    const dir = mkdtempSync(join(tmpdir(), "lq-grp-"));
+    const leaderPidFile = join(dir, "leader");
+    const descPidFile = join(dir, "desc");
+    try {
+      // Group leader starts a long-lived descendant in the same process group
+      // via a shell pipeline (sleep inherits the leader's PGID).
+      const script = `
+        const fs = require("node:fs");
+        const { spawn } = require("node:child_process");
+        fs.writeFileSync(${JSON.stringify(leaderPidFile)}, String(process.pid));
+        // Explicitly keep the same process group (do not detach).
+        const desc = spawn("sleep", ["60"], {
+          detached: false,
+          stdio: "ignore",
+        });
+        if (desc.pid === undefined) process.exit(2);
+        fs.writeFileSync(${JSON.stringify(descPidFile)}, String(desc.pid));
+        // Stay alive so the owned child remains open until SIGKILL to the group.
+        setInterval(() => {}, 1000);
+      `;
+      const effect = Effect.gen(function* () {
+        const proc = yield* ProcessExec;
+        return yield* proc.runCaptured({
+          command: process.execPath,
+          args: ["-e", script],
+          maxOutputBytes: MAX_CAPTURE_BYTES,
+          timeoutMs: 60_000,
+        });
+      }).pipe(Effect.provide(liveProcessExec));
+
+      const fiber = Effect.runFork(effect);
+
+      let leaderPid: number | undefined;
+      let descPid: number | undefined;
+      const deadline = Date.now() + 5_000;
+      while (Date.now() < deadline) {
+        try {
+          const lt = readFileSync(leaderPidFile, "utf8").trim();
+          if (lt.length > 0) leaderPid = Number(lt);
+        } catch {
+          /* not yet */
+        }
+        try {
+          const dt = readFileSync(descPidFile, "utf8").trim();
+          if (dt.length > 0) descPid = Number(dt);
+        } catch {
+          /* not yet */
+        }
+        if (leaderPid !== undefined && descPid !== undefined) break;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      assert.ok(
+        leaderPid !== undefined && Number.isFinite(leaderPid),
+        "leader pid",
+      );
+      assert.ok(
+        descPid !== undefined && Number.isFinite(descPid),
+        "descendant pid",
+      );
+
+      // Confirm descendant shares the leader process group before interrupt.
+      const pgidOf = (pid: number): number | null => {
+        try {
+          // POSIX: getpgid via node is not exposed; read /proc.
+          const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+          // pid (comm) state ppid pgrp ...
+          const closeParen = stat.lastIndexOf(")");
+          const rest = stat.slice(closeParen + 2).split(" ");
+          const pgrp = Number(rest[2]);
+          return Number.isFinite(pgrp) ? pgrp : null;
+        } catch {
+          return null;
+        }
+      };
+      const leaderPgid = pgidOf(leaderPid!);
+      const descPgid = pgidOf(descPid!);
+      assert.ok(leaderPgid !== null && descPgid !== null, "pgids readable");
+      assert.equal(descPgid, leaderPgid, "descendant must share process group");
+      assert.equal(leaderPgid, leaderPid, "leader must be group leader");
+
+      const t0 = Date.now();
+      await Effect.runPromise(Fiber.interrupt(fiber));
+      const closeObservedMs = Date.now() - t0;
+      assert.ok(
+        closeObservedMs <= OWNED_CHILD_CANCEL_WAIT_MS,
+        `close observation bound: ${closeObservedMs}ms`,
+      );
+
+      const deadDeadline = Date.now() + 3_000;
+      /**
+       * A process is "gone" when it no longer exists or is only a zombie
+       * (SIGKILL delivered; unreaped because the group leader died first).
+       */
+      const stillRunning = (pid: number): boolean => {
+        try {
+          const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+          const closeParen = stat.lastIndexOf(")");
+          const state = stat.slice(closeParen + 2).split(" ")[0];
+          if (state === "Z") return false;
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      let leaderAlive = true;
+      let descAlive = true;
+      while (Date.now() < deadDeadline) {
+        leaderAlive = stillRunning(leaderPid!);
+        descAlive = stillRunning(descPid!);
+        if (!leaderAlive && !descAlive) break;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      assert.equal(leaderAlive, false, "group leader must be gone");
+      assert.equal(descAlive, false, "descendant must be gone");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

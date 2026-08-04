@@ -50,6 +50,7 @@ const REQUIRED_V2 = new Set([
   "dist/architecture-policy.js",
   "dist/destruction-guard.js",
   "dist/lane-queue.js",
+  "dist/lane-round.js",
 ]);
 
 function decodeArtifactObject(

@@ -22,6 +22,11 @@ const ENTRIES = [
     entry: join(root, "packages/orchestration/src/queue-main.ts"),
     relativePath: "dist/lane-queue.js",
   },
+  {
+    id: "lane-round",
+    entry: join(root, "packages/orchestration/src/round-main.ts"),
+    relativePath: "dist/lane-round.js",
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

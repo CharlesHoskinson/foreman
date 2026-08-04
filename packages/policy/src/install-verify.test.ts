@@ -45,6 +45,7 @@ const trackedManifest = join(trackedRuntime, "manifest.json");
 const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
+const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -73,6 +74,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedGuard, join(rt, "dist/destruction-guard.js"));
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
+  cpSync(trackedRound, join(rt, "dist/lane-round.js"));
   return rt;
 }
 
@@ -453,6 +455,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
+    const roundBytes = readFileSync(trackedRound);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -463,6 +466,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const polPath = "/skill/runtime/dist/architecture-policy.js";
     const guardPath = "/skill/runtime/dist/destruction-guard.js";
     const queuePath = "/skill/runtime/dist/lane-queue.js";
+    const roundPath = "/skill/runtime/dist/lane-round.js";
 
     const nodes = new Map([
       [
@@ -487,10 +491,11 @@ describe("verifyInstalledSkillRoot live controls", () => {
           kind: "dir" as const,
           identity: dirIdentity({ ino: "12" }),
           names: [
-            "architecture-policy.js",
-            "destruction-guard.js",
-            "lane-queue.js",
-          ],
+              "architecture-policy.js",
+              "destruction-guard.js",
+              "lane-queue.js",
+              "lane-round.js",
+            ],
         },
       ],
       [
@@ -538,6 +543,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: fileIdentity({
             ino: "23",
             size: queueBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        roundPath,
+        {
+          kind: "file" as const,
+          bytes: roundBytes,
+          identity: fileIdentity({
+            ino: "24",
+            size: roundBytes.byteLength,
           }),
         },
       ],
@@ -611,6 +627,7 @@ describe("runtime plugin-drift", () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
+    const roundBytes = readFileSync(trackedRound);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -652,6 +669,7 @@ describe("runtime plugin-drift", () => {
               "architecture-policy.js",
               "destruction-guard.js",
               "lane-queue.js",
+              "lane-round.js",
             ],
           },
         ],
@@ -698,6 +716,17 @@ describe("runtime plugin-drift", () => {
             identity: fileIdentity({
               ino: prefix + "-q",
               size: queueBytes.byteLength,
+            }),
+          },
+        ],
+        [
+          `${dist}/lane-round.js`,
+          {
+            kind: "file",
+            bytes: roundBytes,
+            identity: fileIdentity({
+              ino: prefix + "-r",
+              size: roundBytes.byteLength,
             }),
           },
         ],
@@ -765,6 +794,7 @@ describe("skill-root and directory stability seams", () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
+    const roundBytes = readFileSync(trackedRound);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -799,10 +829,11 @@ describe("skill-root and directory stability seams", () => {
       kind: "dir",
       identity: dirIdentity({ ino: opts?.distIno ?? "12" }),
       names: [
-        "architecture-policy.js",
-        "destruction-guard.js",
-        "lane-queue.js",
-      ],
+              "architecture-policy.js",
+              "destruction-guard.js",
+              "lane-queue.js",
+              "lane-round.js",
+            ],
       lstatCount: { count: 0 },
       ...(opts?.distIdentityAfter !== undefined
         ? {
@@ -856,6 +887,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "23",
             size: queueBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/lane-round.js`,
+        {
+          kind: "file",
+          bytes: roundBytes,
+          identity: fileIdentity({
+            ino: "24",
+            size: roundBytes.byteLength,
           }),
         },
       ],
@@ -1017,6 +1059,7 @@ describe("memory InstallFs path separator seam", () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
+    const roundBytes = readFileSync(trackedRound);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1047,10 +1090,11 @@ describe("memory InstallFs path separator seam", () => {
           kind: "dir",
           identity: dirIdentity({ ino: "12" }),
           names: [
-            "architecture-policy.js",
-            "destruction-guard.js",
-            "lane-queue.js",
-          ],
+              "architecture-policy.js",
+              "destruction-guard.js",
+              "lane-queue.js",
+              "lane-round.js",
+            ],
         },
       ],
       [
@@ -1094,6 +1138,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "23",
             size: queueBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/lane-round.js`,
+        {
+          kind: "file",
+          bytes: roundBytes,
+          identity: fileIdentity({
+            ino: "24",
+            size: roundBytes.byteLength,
           }),
         },
       ],

@@ -32688,7 +32688,8 @@ function normalizeRelativePath2(p) {
 var REQUIRED_V2 = /* @__PURE__ */ new Set([
   "dist/architecture-policy.js",
   "dist/destruction-guard.js",
-  "dist/lane-queue.js"
+  "dist/lane-queue.js",
+  "dist/lane-round.js"
 ]);
 function decodeArtifactObject(aobj) {
   const aUnk = rejectUnknownKeys(aobj, [

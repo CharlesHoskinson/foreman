@@ -55,12 +55,16 @@ export type RunCapturedOptions = {
   readonly maxOutputBytes?: number;
   readonly timeoutMs?: number;
   readonly env?: NodeJS.ProcessEnv;
+  /** Optional working directory. When absent, inherits the parent cwd. */
+  readonly cwd?: string;
 };
 
 export type RunForegroundOptions = {
   readonly command: string;
   readonly args: readonly string[];
   readonly env?: NodeJS.ProcessEnv;
+  /** Optional working directory. When absent, inherits the parent cwd. */
+  readonly cwd?: string;
 };
 
 /**
@@ -73,7 +77,12 @@ export type RunIgnoredStdioOptions = {
   readonly args: readonly string[];
   readonly timeoutMs?: number;
   readonly env?: NodeJS.ProcessEnv;
+  /** Optional working directory. When absent, inherits the parent cwd. */
+  readonly cwd?: string;
 };
+
+/** Maximum wait for an owned child to close after cancellation (milliseconds). */
+export const OWNED_CHILD_CANCEL_WAIT_MS = 5_000;
 
 export class ProcessExec extends Context.Tag("ProcessExec")<
   ProcessExec,
@@ -326,6 +335,56 @@ export function terminateOwnedChild(child: ChildProcess): void {
   }
 }
 
+function spawnOptsBase(opts: {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env?: NodeJS.ProcessEnv;
+  readonly cwd?: string;
+  readonly stdio: "inherit" | readonly ["ignore", "pipe", "pipe"] | readonly ["ignore", "ignore", "ignore"];
+  readonly detached: boolean;
+}): Parameters<typeof spawn>[2] {
+  const base: Parameters<typeof spawn>[2] = {
+    env: opts.env ?? process.env,
+    stdio: opts.stdio as "inherit",
+    windowsHide: true,
+    detached: opts.detached,
+  };
+  if (opts.cwd !== undefined) {
+    base.cwd = opts.cwd;
+  }
+  return base;
+}
+
+/**
+ * Finalizer: kill owned child and observe close within the cancel wait bound.
+ * An exit or signal code alone is not a close observation — only the `close`
+ * event (or the wait bound) completes the finalizer.
+ * Does not resume the outer Effect (interrupt ownership stays with Effect).
+ */
+function cancelOwnedFinalizer(child: ChildProcess): Effect.Effect<void> {
+  return Effect.async<void>((resume) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resume(Effect.void);
+    };
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
+    // Register close first. Exit/signal alone must not finish the finalizer.
+    child.once("close", () => {
+      clearTimeout(timer);
+      finish();
+    });
+    // Never started: no pid means there is no child to observe.
+    if (child.pid === undefined) {
+      clearTimeout(timer);
+      finish();
+      return;
+    }
+    terminateOwnedChild(child);
+  });
+}
+
 function runCapturedOwned(
   opts: RunCapturedOptions,
 ): Effect.Effect<CapturedProcessResult, ProcessFailure> {
@@ -348,12 +407,18 @@ function runCapturedOwned(
     const maxBytes = opts.maxOutputBytes ?? MAX_CAPTURE_BYTES;
     const useGroup = process.platform !== "win32";
     try {
-      child = spawn(opts.command, [...opts.args], {
-        env: opts.env ?? process.env,
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-        detached: useGroup,
-      });
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...(opts.env !== undefined ? { env: opts.env } : {}),
+          ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: useGroup,
+        }),
+      );
     } catch {
       settle(Effect.fail(new ProcessFailure("spawn_failed")));
       return;
@@ -411,11 +476,11 @@ function runCapturedOwned(
       );
     });
 
-    return Effect.sync(() => {
-      if (settled) return;
+    return Effect.suspend(() => {
+      if (settled) return Effect.void;
       settled = true;
       if (timer !== undefined) clearTimeout(timer);
-      terminateOwnedChild(owned);
+      return cancelOwnedFinalizer(owned);
     });
   });
 }
@@ -437,12 +502,18 @@ function runForegroundOwned(
 
     const useGroup = process.platform !== "win32";
     try {
-      child = spawn(opts.command, [...opts.args], {
-        env: opts.env ?? process.env,
-        stdio: "inherit",
-        windowsHide: true,
-        detached: useGroup,
-      });
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...(opts.env !== undefined ? { env: opts.env } : {}),
+          ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+          stdio: "inherit",
+          detached: useGroup,
+        }),
+      );
     } catch {
       settle(Effect.fail(new ProcessFailure("spawn_failed")));
       return;
@@ -457,10 +528,10 @@ function runForegroundOwned(
       settle(Effect.succeed(code ?? 1));
     });
 
-    return Effect.sync(() => {
-      if (settled) return;
+    return Effect.suspend(() => {
+      if (settled) return Effect.void;
       settled = true;
-      terminateOwnedChild(owned);
+      return cancelOwnedFinalizer(owned);
     });
   });
 }
@@ -489,12 +560,18 @@ function runIgnoredStdioOwned(
 
     const useGroup = process.platform !== "win32";
     try {
-      child = spawn(opts.command, [...opts.args], {
-        env: opts.env ?? process.env,
-        stdio: ["ignore", "ignore", "ignore"],
-        windowsHide: true,
-        detached: useGroup,
-      });
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...(opts.env !== undefined ? { env: opts.env } : {}),
+          ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}),
+          stdio: ["ignore", "ignore", "ignore"],
+          detached: useGroup,
+        }),
+      );
     } catch {
       settle(Effect.fail(new ProcessFailure("spawn_failed")));
       return;
@@ -543,6 +620,8 @@ export const liveProcessExec = Layer.succeed(ProcessExec, {
   runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
   runForeground: (opts) => runForegroundOwned(opts),
 });
+
+
 
 export const liveQueueServices = Layer.mergeAll(
   liveProcessExec,

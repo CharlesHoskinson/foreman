@@ -53,6 +53,7 @@ export {
   EnvVars,
   MAX_CAPTURE_BYTES,
   MAX_CONFIG_BYTES,
+  OWNED_CHILD_CANCEL_WAIT_MS,
   TIMEOUT_STATUS_PROBE_MS,
   TIMEOUT_QUEUE_OP_MS,
   liveQueueServices,
@@ -144,3 +145,36 @@ export {
   type RoundEventDraft,
   type RoundTransactionServices,
 } from "./round-transaction.js";
+
+// --- Sprint 3 R3: live round runtime ---
+
+export {
+  makeLiveRoundServices,
+  liveReportRead,
+  buildGateProcessVector,
+  sanitizedCheckpointEnv,
+  parseCheckpointCommit,
+  CHECKPOINT_OUTPUT_BOUND_BYTES,
+  type LiveRoundContext,
+  type GateProcessVector,
+  type ReportReadSeams,
+} from "./round-live-services.js";
+
+export {
+  parseRoundArgv,
+  stripRoundNodeArgv,
+  preflightRoundParsed,
+  isEqualOrDescendant,
+  runRoundCli,
+  EXIT_COMPLETED,
+  EXIT_INCOMPLETE_OR_DEFECT,
+  EXIT_INVALID_ARGUMENTS,
+  EXIT_BOUNDARY_FAILURE,
+  MSG_INVALID_ARGUMENTS,
+  MSG_BOUNDARY_FAILURE,
+  MSG_INTERNAL_FAILURE,
+  type ParsedRoundArgv,
+  type RoundPreflightResult,
+  type RoundCliIo,
+  type RoundCliEnv,
+} from "./round-cli.js";

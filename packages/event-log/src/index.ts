@@ -1,15 +1,14 @@
 /**
  * @foreman/event-log — schema-version-1 stored-event decoder, bounded NDJSON
- * replay, physical-line cursor primitives, and attempt identity.
+ * replay, physical-line cursor primitives, attempt identity, and the live
+ * external run journal (Sprint 3 R3).
  *
- * R1 foundation only. Deferred (not in this package yet):
- * - event append / filesystem writers
+ * Deferred (not in this package yet):
  * - cursor filesystem storage
- * - attempt filesystem allocation and operational propagation
- * - consumer migration (SessionDB, release, knowledge, orchestration)
+ * - consumer migration (SessionDB, release, knowledge)
  * - thin-adapter migration of skills/foreman/scripts/lib/eventlog.sh
  * - closed per-type payload schemas / all-event payload typing
- * - locks, compaction, queue admission, report freshness, resume policy
+ * - durable ownership, compaction, resume protocol
  */
 
 export {
@@ -84,3 +83,17 @@ export {
   checkEventStructure,
   checkJsonNestingText,
 } from "./structure.js";
+
+export {
+  RunJournal,
+  makeLiveRunJournalLayer,
+  runJournalFailure,
+  isRunJournalFailure,
+  RUN_JOURNAL_FAILURE_BRAND,
+  JOURNAL_LOCK_BOUND_MS,
+  MAX_ATTEMPT_COUNTER_BYTES,
+  type StoredEventDraftV1,
+  type RunJournalFailure,
+  type RunJournalFailureReason,
+  type LiveRunJournalOptions,
+} from "./run-journal.js";
