@@ -4,20 +4,30 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { Effect, Layer } from "effect";
 import {
   EXIT_INVALID_ARGUMENTS,
   EXIT_NOT_READY,
+  EXIT_OUTPUT_WRITE_FAILED,
   EXIT_READY,
   parseToolCheckArgv,
 } from "./tool-check-cli.js";
 import {
   resolveRepoRoot,
   runToolCheck,
+  MAX_INVENTORY_OUT_PATH_BYTES,
+  writeInventoryOutAtomic,
   type ToolCheckIo,
 } from "./tool-check-run.js";
 import type { ToolRow } from "./tool-check-report.js";
@@ -102,13 +112,29 @@ describe("platform pure helpers", () => {
     );
   });
 
-  it("resolveRepoRoot finds this repository", () => {
+  it("resolveRepoRoot finds this repository from source tree path", () => {
     const root = resolveRepoRoot(import.meta.url);
     assert.ok(root.length > 0);
-    // packages/orchestration/src → repo root
     assert.ok(
-      root.includes("foreman") || root.endsWith("tool-check-ts-ci-20260804") || true,
+      existsSync(join(root, "env/reference-manifest.toml")),
+      `expected manifest under ${root}`,
     );
+    assert.ok(
+      existsSync(join(root, "packages/orchestration/src/tool-check-run.ts")),
+    );
+  });
+
+  it("resolveRepoRoot finds this repository from bundled dist path shape", () => {
+    // Simulate the bundled layout URL without requiring the built file.
+    const fakeBundleUrl = new URL(
+      "file://" +
+        join(
+          resolveRepoRoot(import.meta.url),
+          "skills/foreman/runtime/dist/tool-check.js",
+        ),
+    );
+    const root = resolveRepoRoot(fakeBundleUrl.href);
+    assert.ok(existsSync(join(root, "env/reference-manifest.toml")));
   });
 });
 
@@ -324,6 +350,112 @@ describe("JSON --out write", () => {
   });
 });
 
+describe("writeInventoryOutAtomic", () => {
+  it("writes exact bytes via exclusive temp + rename", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-tc-atomic-out-"));
+    try {
+      const out = join(dir, "out.json");
+      const body = '{"schema":"foreman.tool-check.v1"}\n';
+      const r = writeInventoryOutAtomic(out, body);
+      assert.equal(r._tag, "Ok");
+      assert.equal(readFileSync(out, "utf8"), body);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects path containing NUL", () => {
+    const r = writeInventoryOutAtomic("/tmp/out\0.json", "x\n");
+    assert.equal(r._tag, "Failed");
+    if (r._tag === "Failed") assert.match(r.reason, /NUL|nul|invalid/i);
+  });
+
+  it("rejects UTF-8 path over MAX_INVENTORY_OUT_PATH_BYTES before mutation", () => {
+    const prefix = "/tmp/";
+    const over =
+      prefix +
+      "a".repeat(
+        MAX_INVENTORY_OUT_PATH_BYTES - Buffer.byteLength(prefix, "utf8") + 1,
+      );
+    assert.equal(
+      Buffer.byteLength(over, "utf8"),
+      MAX_INVENTORY_OUT_PATH_BYTES + 1,
+    );
+    const r = writeInventoryOutAtomic(over, "x\n");
+    assert.equal(r._tag, "Failed");
+    if (r._tag === "Failed") {
+      assert.match(r.reason, /MAX_INVENTORY_OUT_PATH_BYTES/);
+    }
+  });
+
+  it("accepts exact MAX_INVENTORY_OUT_PATH_BYTES through the bound check", () => {
+    const prefix = "/tmp/";
+    const exact =
+      prefix +
+      "a".repeat(
+        MAX_INVENTORY_OUT_PATH_BYTES - Buffer.byteLength(prefix, "utf8"),
+      );
+    assert.equal(
+      Buffer.byteLength(exact, "utf8"),
+      MAX_INVENTORY_OUT_PATH_BYTES,
+    );
+    const r = writeInventoryOutAtomic(exact, "x\n");
+    // Bound check must not reject exact length; later FS failure is allowed.
+    if (r._tag === "Failed") {
+      assert.doesNotMatch(r.reason, /MAX_INVENTORY_OUT_PATH_BYTES/);
+    }
+  });
+
+  it("refuses to follow a pre-existing output symlink", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-tc-out-sym-"));
+    try {
+      const real = join(dir, "real.json");
+      writeFileSync(real, "original\n", "utf8");
+      const link = join(dir, "out.json");
+      symlinkSync(real, link);
+      const r = writeInventoryOutAtomic(link, "replaced\n");
+      assert.equal(r._tag, "Failed");
+      assert.equal(readFileSync(real, "utf8"), "original\n");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("failed --out write does not report readiness success", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-tc-out-fail-"));
+    try {
+      const real = join(dir, "real.json");
+      writeFileSync(real, "x\n", "utf8");
+      const link = join(dir, "out.json");
+      symlinkSync(real, link);
+      const io = captureIo();
+      const result = await Effect.runPromise(
+        runToolCheck(
+          ["--profile", "soft", "--json", "--out", link],
+          io,
+          {
+            repoRoot: resolveRepoRoot(import.meta.url),
+            capabilityTable: emptyTable,
+            layer: stubLayer(),
+            nowUtc: () => FIXED,
+            vendorRowOverride: (v) =>
+              Effect.succeed({
+                id: v,
+                status: "ok",
+                detail: "ready",
+              }),
+          },
+        ),
+      );
+      assert.equal(result.exitCode, EXIT_OUTPUT_WRITE_FAILED);
+      assert.notEqual(result.exitCode, EXIT_READY);
+      assert.match(io.stderr, /failed to write|symlink|output/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("parseToolCheckArgv durable profile", () => {
   it("accepts durable", () => {
     const p = parseToolCheckArgv(["--profile", "durable"]);
@@ -332,5 +464,4 @@ describe("parseToolCheckArgv durable profile", () => {
   });
 });
 
-// silence unused import in some strict configs
-void writeFileSync;
+void dirname;

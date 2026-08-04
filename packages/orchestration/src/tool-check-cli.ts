@@ -12,6 +12,8 @@ export type ToolCheckLane = (typeof TOOL_CHECK_LANES)[number];
 export const EXIT_READY = 0;
 export const EXIT_NOT_READY = 1;
 export const EXIT_INVALID_ARGUMENTS = 2;
+/** Inventory body was produced but the atomic --out write failed. */
+export const EXIT_OUTPUT_WRITE_FAILED = 3;
 
 export const USAGE =
   "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex]";

@@ -1155,7 +1155,7 @@ var dedupeWith = /* @__PURE__ */ dual(2, (self, isEquivalent) => {
   return [];
 });
 var dedupe = (self) => dedupeWith(self, equivalence());
-var join = /* @__PURE__ */ dual(2, (self, sep) => fromIterable(self).join(sep));
+var join = /* @__PURE__ */ dual(2, (self, sep2) => fromIterable(self).join(sep2));
 
 // node_modules/effect/dist/esm/Number.js
 var Order = number2;
@@ -7252,18 +7252,18 @@ var parallelErrors = (self) => matchCauseEffect(self, {
   onSuccess: succeed
 });
 var patchFiberRefs = (patch9) => updateFiberRefs((fiberId3, fiberRefs3) => pipe(patch9, patch6(fiberId3, fiberRefs3)));
-var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve, signal) => {
+var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve2, signal) => {
   try {
-    evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(die2(e)));
+    evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
   } catch (e) {
-    resolve(die2(e));
+    resolve2(die2(e));
   }
-}) : async_((resolve) => {
+}) : async_((resolve2) => {
   try {
     ;
-    evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(die2(e)));
+    evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
   } catch (e) {
-    resolve(die2(e));
+    resolve2(die2(e));
   }
 });
 var provideService = /* @__PURE__ */ dual(3, (self, tag, service3) => contextWithEffect((env) => provideContext(self, add2(env, tag, service3))));
@@ -7389,19 +7389,19 @@ var tryPromise = (arg) => {
   }
   const fail8 = (e) => catcher ? failSync(() => catcher(e)) : fail2(new UnknownException(e, "An unknown error occurred in Effect.tryPromise"));
   if (evaluate2.length >= 1) {
-    return async_((resolve, signal) => {
+    return async_((resolve2, signal) => {
       try {
-        evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(fail8(e)));
+        evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
       } catch (e) {
-        resolve(fail8(e));
+        resolve2(fail8(e));
       }
     });
   }
-  return async_((resolve) => {
+  return async_((resolve2) => {
     try {
-      evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(fail8(e)));
+      evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
     } catch (e) {
-      resolve(fail8(e));
+      resolve2(fail8(e));
     }
   });
 };
@@ -13974,14 +13974,14 @@ var unsafeRunPromise = /* @__PURE__ */ makeDual((runtime4, effect2, options) => 
     }
   }
 }));
-var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve) => {
+var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve2) => {
   const op = fastPath(effect2);
   if (op) {
-    resolve(op);
+    resolve2(op);
   }
   const fiber = unsafeFork3(runtime4)(effect2);
   fiber.addObserver((exit4) => {
-    resolve(exit4);
+    resolve2(exit4);
   });
   if (options?.signal !== void 0) {
     if (options.signal.aborted) {
@@ -16186,15 +16186,22 @@ function loadCapabilityTableFromTomlText(text) {
 }
 
 // packages/orchestration/src/tool-check-run.ts
+import { randomBytes } from "node:crypto";
 import {
+  closeSync as closeSync2,
+  constants as fsConstants3,
   existsSync as existsSync4,
-  lstatSync,
+  fsyncSync,
+  lstatSync as lstatSync2,
   mkdirSync as mkdirSync2,
+  openSync as openSync2,
   readlinkSync,
-  realpathSync as realpathSync2,
-  writeFileSync as writeFileSync2
+  realpathSync as realpathSync3,
+  renameSync,
+  unlinkSync as unlinkSync2,
+  writeSync
 } from "node:fs";
-import { dirname as dirname2, isAbsolute as isAbsolute3, join as join6 } from "node:path";
+import { dirname as dirname2, isAbsolute as isAbsolute4, join as join6 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packages/orchestration/src/queue-services.ts
@@ -17301,6 +17308,7 @@ var TOOL_CHECK_LANES = ["grok", "codex"];
 var EXIT_READY = 0;
 var EXIT_NOT_READY = 1;
 var EXIT_INVALID_ARGUMENTS = 2;
+var EXIT_OUTPUT_WRITE_FAILED = 3;
 var USAGE = "usage: tool-check.sh [--profile soft|hard|full|durable] [--json] [--out FILE] [--lane grok|codex]";
 var MSG_LANE_CLAUDE = "unsupported --lane claude: T7 removed claude lane advertising because isolated HOME is unverified";
 function stripToolCheckNodeArgv(argv) {
@@ -17378,15 +17386,22 @@ function parseToolCheckArgv(argv) {
 }
 
 // packages/orchestration/src/tool-check-atomicity.ts
+import { spawn as spawn2 } from "node:child_process";
 import {
+  accessSync as accessSync2,
+  constants as fsConstants2,
   existsSync as existsSync3,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync as readFileSync2,
+  realpathSync as realpathSync2,
   rmSync,
+  rmdirSync,
+  unlinkSync,
   writeFileSync
 } from "node:fs";
-import { join as join5 } from "node:path";
+import { isAbsolute as isAbsolute3, join as join5, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 
 // packages/orchestration/src/tool-check-platform.ts
@@ -17417,6 +17432,22 @@ function detectWslFromEnv(env, procVersionText) {
     return { isWsl: true, overrideNote: null };
   }
   return { isWsl: false, overrideNote: null };
+}
+function classifyHostClass(env, osName, isWsl) {
+  if (env.FOREMAN_LOCK_HOST_CLASS) {
+    const v = env.FOREMAN_LOCK_HOST_CLASS.trim();
+    if (v === "linux-native" || v === "wsl-linux" || v === "msys2-git-bash" || v === "windows-native") {
+      return v;
+    }
+  }
+  if (/^MINGW|^MSYS|^CYGWIN/i.test(osName)) {
+    return "msys2-git-bash";
+  }
+  if (process.platform === "win32") {
+    return "windows-native";
+  }
+  if (isWsl) return "wsl-linux";
+  return "linux-native";
 }
 function classifyFsClassFromProbe(path, fstype, mountTarget) {
   const probe = path;
@@ -17597,6 +17628,18 @@ function captureHostnameOs() {
 function captureText2(r) {
   return `${r.stdout}${r.stderr}`.replace(/\r/g, "");
 }
+var PINNED_ALLOWED_KEYS = /* @__PURE__ */ new Set([
+  "mechanism",
+  "sha256",
+  "host_class",
+  "trace_artifact",
+  "probe_target",
+  "probe_path",
+  "filesystem_classes",
+  "verdict",
+  "date",
+  "notes"
+]);
 function firstLine(s) {
   return s.replace(/\r/g, "").split("\n")[0]?.trim() ?? "";
 }
@@ -17611,6 +17654,469 @@ function versionLine(bin) {
     }).pipe(Effect_exports.either);
     if (r._tag === "Left") return "";
     return firstLine(captureText2(r.right));
+  });
+}
+function stripTomlComment(line) {
+  let inStr = false;
+  let out = "";
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"' && line[i - 1] !== "\\") inStr = !inStr;
+    if (!inStr && ch === "#") break;
+    out += ch;
+  }
+  const t = out.trim();
+  return t.length === 0 ? null : t;
+}
+function parseTomlString2(raw) {
+  if (!(raw.startsWith('"') && raw.endsWith('"'))) return null;
+  const inner = raw.slice(1, -1);
+  let s = "";
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === "\\") {
+      const n = inner[i + 1];
+      if (n === void 0) return null;
+      if (n === "n") {
+        s += "\n";
+        i++;
+        continue;
+      }
+      if (n === "t") {
+        s += "	";
+        i++;
+        continue;
+      }
+      if (n === "\\" || n === '"') {
+        s += n;
+        i++;
+        continue;
+      }
+      return null;
+    }
+    s += ch;
+  }
+  return s;
+}
+function parseTomlStringArray(raw) {
+  const t = raw.trim();
+  if (!(t.startsWith("[") && t.endsWith("]"))) return null;
+  const body = t.slice(1, -1).trim();
+  if (body.length === 0) return [];
+  const items = [];
+  let i = 0;
+  const skipWs = () => {
+    while (i < body.length && /\s/.test(body[i])) i++;
+  };
+  skipWs();
+  while (i < body.length) {
+    if (body[i] !== '"') return null;
+    let end3 = i + 1;
+    let s = "";
+    while (end3 < body.length) {
+      if (body[end3] === "\\" && end3 + 1 < body.length) {
+        s += body[end3 + 1];
+        end3 += 2;
+        continue;
+      }
+      if (body[end3] === '"') break;
+      s += body[end3];
+      end3++;
+    }
+    if (body[end3] !== '"') return null;
+    items.push(s);
+    i = end3 + 1;
+    skipWs();
+    if (i >= body.length) break;
+    if (body[i] !== ",") return null;
+    i++;
+    skipWs();
+  }
+  return items;
+}
+function parsePinnedRegisterToml(text) {
+  if (typeof text !== "string" || text.includes("\0")) return [];
+  const lines = text.split(/\r?\n/);
+  const tables = [];
+  let current = null;
+  let inPinned = false;
+  const flush = () => {
+    if (current !== null) tables.push(current);
+    current = null;
+  };
+  for (const rawLine of lines) {
+    const line = stripTomlComment(rawLine);
+    if (line === null) continue;
+    if (line.startsWith("[")) {
+      if (line === "[[lock_atomicity.pinned]]") {
+        flush();
+        current = {};
+        inPinned = true;
+        continue;
+      }
+      flush();
+      inPinned = false;
+      continue;
+    }
+    if (!inPinned || current === null) continue;
+    const eq = line.indexOf("=");
+    if (eq < 0) {
+      current = null;
+      inPinned = false;
+      continue;
+    }
+    const key = line.slice(0, eq).trim();
+    const valRaw = line.slice(eq + 1).trim();
+    if (!PINNED_ALLOWED_KEYS.has(key) || key in current) {
+      current = null;
+      inPinned = false;
+      continue;
+    }
+    if (key === "filesystem_classes") {
+      const arr = parseTomlStringArray(valRaw);
+      if (arr === null) {
+        current = null;
+        inPinned = false;
+        continue;
+      }
+      current[key] = arr;
+    } else {
+      const s = parseTomlString2(valRaw);
+      if (s === null) {
+        current = null;
+        inPinned = false;
+        continue;
+      }
+      current[key] = s;
+    }
+  }
+  flush();
+  const out = [];
+  for (const t of tables) {
+    const mechanism = t["mechanism"];
+    const sha256 = t["sha256"];
+    const host_class = t["host_class"];
+    const trace_artifact = t["trace_artifact"];
+    const verdictRaw = t["verdict"];
+    if (typeof mechanism !== "string" || typeof sha256 !== "string" || typeof host_class !== "string" || typeof trace_artifact !== "string" || typeof verdictRaw !== "string") {
+      continue;
+    }
+    if (verdictRaw !== "atomic" && verdictRaw !== "non-atomic") continue;
+    if (mechanism !== "mkdir" && mechanism !== "flock") continue;
+    if (!host_class.trim() || !sha256.trim() || !trace_artifact.trim()) continue;
+    let probe_target = "";
+    if (typeof t["probe_target"] === "string") {
+      probe_target = t["probe_target"];
+    } else if (typeof t["probe_path"] === "string") {
+      probe_target = t["probe_path"];
+    }
+    if (mechanism === "mkdir" && !probe_target.trim()) continue;
+    let filesystem_classes = [];
+    if (Array.isArray(t["filesystem_classes"])) {
+      filesystem_classes = t["filesystem_classes"].filter(
+        (c) => typeof c === "string" && c.length > 0
+      );
+    }
+    const allowedFs = /* @__PURE__ */ new Set(["local", "mnt-drvfs", "network", "fuse"]);
+    if (filesystem_classes.some((c) => !allowedFs.has(c))) continue;
+    if (filesystem_classes.length === 0) filesystem_classes = ["local"];
+    out.push({
+      mechanism,
+      sha256,
+      host_class: host_class.trim(),
+      trace_artifact: trace_artifact.trim(),
+      probe_target: probe_target.trim(),
+      filesystem_classes,
+      verdict: verdictRaw,
+      ...typeof t["date"] === "string" ? { date: t["date"] } : {},
+      ...typeof t["notes"] === "string" ? { notes: t["notes"] } : {}
+    });
+  }
+  return out;
+}
+function validatePinnedTraceContent(args2) {
+  const { mechanism, probeTarget, content } = args2;
+  if (!content) return false;
+  if (mechanism === "mkdir") {
+    if (!probeTarget) return false;
+    const frag = probeTarget.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re1 = new RegExp(
+      `mkdir(at)?\\([^\\n]*${frag}[^\\n]*\\)\\s*=\\s*-1\\s+EEXIST`
+    );
+    const re2 = new RegExp(
+      `mkdir(at)?\\([^\\n]*${frag}[^\\n]*\\).*(EEXIST|ERROR_ALREADY_EXISTS)`
+    );
+    return re1.test(content) || re2.test(content);
+  }
+  if (mechanism === "flock") {
+    const loser = /flock\([^)]*LOCK_EX[^)]*LOCK_NB[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)/.test(
+      content
+    ) || /flock\([^)]*LOCK_NB[^)]*LOCK_EX[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)/.test(
+      content
+    );
+    const holder = /flock\([^)]*LOCK_EX[^)]*\)\s*=\s*0/.test(content) || content.includes("holder_acquired=1") || content.includes("HOLDER_PROCEEDED");
+    return loser && holder;
+  }
+  return false;
+}
+function pathIsInsideRoot(candidate, root) {
+  try {
+    const realCand = realpathSync2(candidate);
+    const realRoot = realpathSync2(root);
+    if (realCand === realRoot) return true;
+    const rel = relative(realRoot, realCand);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute3(rel);
+  } catch {
+    return false;
+  }
+}
+function resolveTracePath(artifact, repoRoot2) {
+  const candidates = isAbsolute3(artifact) ? [artifact] : [join5(repoRoot2, artifact), artifact];
+  for (const c of candidates) {
+    try {
+      if (!existsSync3(c)) continue;
+      const st = lstatSync(c);
+      if (st.isSymbolicLink()) return null;
+      if (!st.isFile() || st.size === 0) continue;
+      if (!pathIsInsideRoot(c, repoRoot2)) return null;
+      return c;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+function lookupPinnedVerdict(args2) {
+  const sha = args2.sha256.trim();
+  if (!sha) return null;
+  const manifest = args2.manifestPath ?? join5(args2.repoRoot, "env", "reference-manifest.toml");
+  let text;
+  try {
+    if (!existsSync3(manifest)) return null;
+    const st = lstatSync(manifest);
+    if (st.isSymbolicLink() || !st.isFile()) return null;
+    text = readFileSync2(manifest, "utf8");
+  } catch {
+    return null;
+  }
+  const entries2 = parsePinnedRegisterToml(text);
+  for (const entry of entries2) {
+    if (entry.mechanism !== args2.mechanism) continue;
+    if (entry.sha256.toLowerCase() !== sha.toLowerCase()) continue;
+    if (!entry.host_class || entry.host_class !== args2.hostClass) return null;
+    const tracePath = resolveTracePath(entry.trace_artifact, args2.repoRoot);
+    if (!tracePath) return null;
+    let content;
+    try {
+      content = readFileSync2(tracePath, "utf8");
+    } catch {
+      return null;
+    }
+    if (!validatePinnedTraceContent({
+      mechanism: entry.mechanism,
+      probeTarget: entry.probe_target,
+      content
+    })) {
+      return null;
+    }
+    return {
+      verdict: entry.verdict,
+      filesystem_classes: entry.filesystem_classes,
+      evidence_class: "pinned-mechanism"
+    };
+  }
+  return null;
+}
+function countMkdirContentionViolations(traceText) {
+  let depth = 0;
+  let violations = 0;
+  for (const line of traceText.split(/\r?\n/)) {
+    const t = line.trim();
+    if (t === "ENTER") {
+      depth += 1;
+      if (depth > 1) violations += 1;
+    } else if (t === "EXIT") {
+      depth -= 1;
+    }
+  }
+  return violations;
+}
+function sleepMsAsync(ms) {
+  return new Promise((resolve2) => {
+    setTimeout(resolve2, Math.max(0, ms));
+  });
+}
+function waitForChildExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve2) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.off("exit", onExit4);
+      child.off("error", onExit4);
+      resolve2();
+    };
+    const onExit4 = () => {
+      finish();
+    };
+    const timer = setTimeout(finish, Math.max(0, timeoutMs));
+    child.once("exit", onExit4);
+    child.once("error", onExit4);
+    if (child.exitCode !== null || child.signalCode !== null) {
+      finish();
+    }
+  });
+}
+async function waitUntil(predicate, timeoutMs, pollMs = 20) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return true;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await sleepMsAsync(Math.min(pollMs, remaining));
+  }
+  return predicate();
+}
+async function reapChild(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  try {
+    child.kill("SIGTERM");
+  } catch {
+  }
+  await waitForChildExit(child, timeoutMs);
+  if (child.exitCode === null && child.signalCode === null) {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+    }
+    await waitForChildExit(child, 500);
+  }
+}
+async function runMkdirContentionSample(mkdirBin, workParent) {
+  let base;
+  try {
+    base = mkdtempSync(join5(workParent, "fm-mkdir-ct."));
+  } catch {
+    base = mkdtempSync(join5(tmpdir(), "fm-mkdir-ct."));
+  }
+  const lock = join5(base, "lock");
+  const trace = join5(base, "t");
+  writeFileSync(trace, "");
+  const children = [];
+  try {
+    for (let i = 0; i < 8; i++) {
+      const code = `
+const {spawnSync}=require("node:child_process");
+const {appendFileSync,rmdirSync}=require("node:fs");
+const mkdirBin=${JSON.stringify(mkdirBin)};
+const lock=${JSON.stringify(lock)};
+const trace=${JSON.stringify(trace)};
+let tries=0;
+while(true){
+  const r=spawnSync(mkdirBin,["--",lock],{stdio:"ignore"});
+  if(r.status===0)break;
+  tries++;
+  if(tries>200)process.exit(1);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);
+}
+appendFileSync(trace,"ENTER\\n");
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);
+appendFileSync(trace,"EXIT\\n");
+try{rmdirSync(lock);}catch{}
+`;
+      children.push(
+        spawn2(process.execPath, ["-e", code], {
+          stdio: "ignore",
+          detached: false
+        })
+      );
+    }
+    const overallMs = 15e3;
+    const started = Date.now();
+    await Promise.all(
+      children.map(async (c) => {
+        const remaining = Math.max(0, overallMs - (Date.now() - started));
+        await waitForChildExit(c, remaining);
+        if (c.exitCode === null && c.signalCode === null) {
+          await reapChild(c, 1e3);
+        }
+      })
+    );
+    const text = readFileSync2(trace, "utf8");
+    const violations = countMkdirContentionViolations(text);
+    if (violations > 0) {
+      return {
+        violations,
+        notes: `contention observed ${violations} mutual-exclusion violations (8 racers)`
+      };
+    }
+    return {
+      violations: 0,
+      notes: "clean 8-racer sample; contention cannot license atomic (still unknown)"
+    };
+  } finally {
+    await Promise.all(children.map((c) => reapChild(c, 500)));
+    try {
+      rmSync(base, { recursive: true, force: true });
+    } catch {
+    }
+  }
+}
+function resolveMountTarget(path) {
+  return Effect_exports.gen(function* () {
+    if (process.platform === "win32") return path;
+    const paths = yield* PathLookup;
+    const findmnt = yield* paths.which("findmnt");
+    const exec = yield* ProcessExec;
+    if (findmnt) {
+      const r = yield* exec.runCaptured({
+        command: findmnt,
+        args: ["-n", "-o", "TARGET", "-T", path],
+        timeoutMs: 3e3,
+        maxOutputBytes: 4096
+      }).pipe(Effect_exports.either);
+      if (r._tag === "Right") {
+        const t = captureText2(r.right).trim().split("\n")[0] ?? "";
+        if (t) return t;
+      }
+    }
+    return path;
+  });
+}
+function pickProbeRoots(args2) {
+  return Effect_exports.gen(function* () {
+    const candidates = args2?.candidates ?? [
+      process.env.TMPDIR || tmpdir(),
+      "/tmp",
+      process.env.HOME || "/root",
+      "/var/tmp"
+    ];
+    const fallback = args2?.fallback ?? "/tmp";
+    const roots = [];
+    const seenKeys = /* @__PURE__ */ new Set();
+    for (const r of candidates) {
+      if (!r) continue;
+      try {
+        if (!existsSync3(r)) continue;
+        accessSync2(r, fsConstants2.W_OK);
+      } catch {
+        continue;
+      }
+      const fsClass = yield* resolveFsClass(r);
+      const mount = yield* resolveMountTarget(r);
+      const key = `${fsClass}\0${mount}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      roots.push(r);
+    }
+    if (roots.length === 0) {
+      roots.push(fallback);
+    }
+    return roots;
   });
 }
 function probeMkdirOnce(mkdirBin, workParent) {
@@ -17709,14 +18215,19 @@ function probeMkdirOnce(mkdirBin, workParent) {
       return { verdict: verdict2, evidence: evidence2, fsClass, notes: notes2 };
     }
     const ver = yield* versionLine(mkdirBin);
-    let notes;
-    const evidence = "flavour";
-    const verdict = "unknown";
+    let flavourNote;
     if (/[Uu]utils|uutils/.test(ver)) {
-      notes = "flavour=uutils (no strace; flavour licenses nothing)";
+      flavourNote = "flavour=uutils (no strace; flavour licenses nothing)";
     } else {
-      notes = "no strace; flavour alone cannot license";
+      flavourNote = "no strace; flavour alone cannot license";
     }
+    void flavourNote;
+    const sample = yield* Effect_exports.promise(
+      () => runMkdirContentionSample(mkdirBin, workParent)
+    );
+    const verdict = sample.violations > 0 ? "non-atomic" : "unknown";
+    const evidence = "contention";
+    const notes = sample.notes;
     try {
       rmSync(work, { recursive: true, force: true });
     } catch {
@@ -17752,6 +18263,7 @@ function probeFlockOnce(flockBin, workParent) {
       work = mkdtempSync(join5(tmpdir(), "fm-flock-probe."));
     }
     const lockf = join5(work, "lockfile");
+    const marker = join5(work, "holder_ready");
     writeFileSync(lockf, "");
     const strace = yield* paths.which("strace");
     if (!strace) {
@@ -17766,33 +18278,69 @@ function probeFlockOnce(flockBin, workParent) {
         notes: "no strace; flock flavour alone cannot license atomic"
       };
     }
-    const exec = yield* ProcessExec;
-    const r = yield* exec.runCaptured({
-      command: strace,
-      args: ["-e", "trace=flock,fcntl", flockBin, "-n", "9"],
-      timeoutMs: 5e3,
-      maxOutputBytes: 64e3,
-      env: { ...process.env }
-    }).pipe(Effect_exports.either);
-    let trace = "";
-    if (r._tag === "Right") {
-      trace = captureText2(r.right);
-    }
+    const holderCode = `
+const {writeFileSync}=require("node:fs");
+writeFileSync(${JSON.stringify(marker)}, "holder_acquired=1\\n");
+Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,2000);
+`;
+    const holder = spawn2(
+      flockBin,
+      ["-n", lockf, process.execPath, "-e", holderCode],
+      { stdio: "ignore" }
+    );
+    const markerReady = yield* Effect_exports.promise(
+      () => waitUntil(() => existsSync3(marker), 2500, 20)
+    );
     let verdict = "unknown";
     let evidence = "syscall";
     let notes = "strace inconclusive for flock mechanism";
-    if (/flock\([^)]*LOCK_EX[^)]*LOCK_NB[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)/.test(
-      trace
-    ) || /flock\([^)]*LOCK_NB[^)]*LOCK_EX[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)/.test(
-      trace
-    )) {
-      verdict = "atomic";
-      notes = "flock(2) LOCK_EX|LOCK_NB; kernel returned EWOULDBLOCK/EAGAIN to loser; holder proceeded";
-    } else if (/flock\(/.test(trace)) {
-      notes = "flock syscall observed without LOCK_EX|LOCK_NB EAGAIN/EWOULDBLOCK";
-    } else if (r._tag === "Left" || r._tag === "Right" && !trace) {
-      notes = "no strace; flock flavour alone cannot license atomic";
-      evidence = "flavour";
+    const exec = yield* ProcessExec;
+    if (!markerReady) {
+      yield* Effect_exports.promise(() => reapChild(holder, 2e3));
+      verdict = "unknown";
+      evidence = "syscall";
+      notes = "holder did not proceed; cannot license flock atomicity";
+    } else {
+      const r = yield* exec.runCaptured({
+        command: strace,
+        args: [
+          "-e",
+          "trace=flock,fcntl",
+          flockBin,
+          "-n",
+          lockf,
+          process.execPath,
+          "-e",
+          "process.exit(0)"
+        ],
+        timeoutMs: 5e3,
+        maxOutputBytes: 64e3
+      }).pipe(Effect_exports.either);
+      yield* Effect_exports.promise(() => reapChild(holder, 3e3));
+      let trace = "";
+      if (r._tag === "Right") {
+        trace = captureText2(r.right);
+      }
+      let holderObserved = false;
+      try {
+        holderObserved = readFileSync2(marker, "utf8").includes(
+          "holder_acquired=1"
+        );
+      } catch {
+        holderObserved = false;
+      }
+      if (holderObserved && (/flock\([^)]*LOCK_EX[^)]*LOCK_NB[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)/.test(
+        trace
+      ) || /flock\([^)]*LOCK_NB[^)]*LOCK_EX[^)]*\)\s*=\s*-1\s+(EAGAIN|EWOULDBLOCK)/.test(
+        trace
+      ))) {
+        verdict = "atomic";
+        notes = "flock(2) LOCK_EX|LOCK_NB; kernel returned EWOULDBLOCK/EAGAIN to loser; holder proceeded";
+      } else if (/flock\(/.test(trace)) {
+        notes = "flock syscall observed without LOCK_EX|LOCK_NB EAGAIN/EWOULDBLOCK";
+      } else if (r._tag === "Left" || r._tag === "Right" && !trace) {
+        notes = "strace inconclusive for flock mechanism";
+      }
     }
     try {
       rmSync(work, { recursive: true, force: true });
@@ -17801,42 +18349,64 @@ function probeFlockOnce(flockBin, workParent) {
     return { verdict, evidence, fsClass, notes };
   });
 }
-function pickProbeRoots() {
-  const candidates = [
-    process.env.TMPDIR || tmpdir(),
-    "/tmp",
-    process.env.HOME || "/root",
-    "/var/tmp"
-  ];
-  const roots = [];
-  for (const r of candidates) {
-    if (!r || !existsSync3(r)) continue;
-    roots.push(r);
-    if (roots.length >= 2) break;
-  }
-  if (roots.length === 0) roots.push(tmpdir());
-  return roots;
-}
 function runAtomicityProbes(args2) {
   return Effect_exports.gen(function* () {
     const rows = [];
     const info = [];
     let trustedAtomic = false;
     const paths = yield* PathLookup;
-    const roots = pickProbeRoots();
+    const roots = yield* pickProbeRoots();
     const ts = args2.timestamp;
+    const env = args2.processEnv ?? process.env;
+    const manifestOverride = env.FOREMAN_LOCK_MANIFEST;
     if (process.platform === "win32") {
-      rows.push({
-        mechanism: "mkdir",
-        path: "",
-        version: "",
-        sha256: "",
-        verdict: "unknown",
-        evidence_class: "flavour",
-        filesystem_classes: [],
-        timestamp: ts,
-        notes: "POSIX lock atomicity probes unsupported on windows-native host"
-      });
+      const mkdirResolved2 = (yield* paths.which("mkdir.exe")) ?? (yield* paths.which("mkdir"));
+      if (mkdirResolved2) {
+        const mkdirBin = resolveRealPath(mkdirResolved2);
+        const ver = yield* versionLine(mkdirResolved2);
+        const sha = sha256FileSync(mkdirBin);
+        let verdict = "unknown";
+        let evidence = "flavour";
+        let fsClasses = ["local"];
+        let notes = "Windows/Git-Bash host: no syscall tracer in TS path; flavour alone licenses nothing; use pinned-mechanism register for mkdir trust";
+        const pin = lookupPinnedVerdict({
+          mechanism: "mkdir",
+          sha256: sha,
+          hostClass: args2.hostClass,
+          repoRoot: args2.repoRoot,
+          ...typeof manifestOverride === "string" && manifestOverride.length > 0 ? { manifestPath: manifestOverride } : {}
+        });
+        if (pin) {
+          verdict = pin.verdict;
+          evidence = pin.evidence_class;
+          fsClasses = [...pin.filesystem_classes];
+          notes = "pinned-mechanism from register (host_class match + validated trace); fallback reachable";
+          if (verdict === "atomic") trustedAtomic = true;
+        }
+        rows.push({
+          mechanism: "mkdir",
+          path: mkdirBin,
+          version: ver,
+          sha256: sha,
+          verdict,
+          evidence_class: evidence,
+          filesystem_classes: fsClasses,
+          timestamp: ts,
+          notes
+        });
+      } else {
+        rows.push({
+          mechanism: "mkdir",
+          path: "",
+          version: "",
+          sha256: "",
+          verdict: "unknown",
+          evidence_class: "flavour",
+          filesystem_classes: [],
+          timestamp: ts,
+          notes: "mkdir not found on Windows PATH"
+        });
+      }
       rows.push({
         mechanism: "flock",
         path: "",
@@ -17846,12 +18416,14 @@ function runAtomicityProbes(args2) {
         evidence_class: "flavour",
         filesystem_classes: [],
         timestamp: ts,
-        notes: "POSIX lock atomicity probes unsupported on windows-native host"
+        notes: "flock not on Windows PATH (expected for Git-Bash; mkdir fallback uses pinned-mechanism)"
       });
-      info.push(
-        "NOT-READY risk: no lock mechanism earned a trusted atomic verdict on this host"
-      );
-      return { rows, info, trustedAtomic: false };
+      if (!trustedAtomic) {
+        info.push(
+          "NOT-READY risk: no lock mechanism earned a trusted atomic verdict on this host"
+        );
+      }
+      return { rows, info, trustedAtomic };
     }
     const mkdirResolved = yield* paths.which("mkdir");
     if (mkdirResolved) {
@@ -17874,6 +18446,23 @@ function runAtomicityProbes(args2) {
           bestEvidence = once4.evidence;
         } else if (bestVerdict === "unknown" && once4.evidence !== "flavour") {
           bestEvidence = once4.evidence;
+        }
+      }
+      if (bestVerdict !== "atomic" && bestVerdict !== "non-atomic") {
+        const pin = lookupPinnedVerdict({
+          mechanism: "mkdir",
+          sha256: sha,
+          hostClass: args2.hostClass,
+          repoRoot: args2.repoRoot,
+          ...typeof manifestOverride === "string" && manifestOverride.length > 0 ? { manifestPath: manifestOverride } : {}
+        });
+        if (pin) {
+          bestVerdict = pin.verdict;
+          bestEvidence = pin.evidence_class;
+          for (const c of pin.filesystem_classes) {
+            classVerdict.set(c, pin.verdict);
+          }
+          notesAcc.push(`pin:${pin.verdict}`);
         }
       }
       const fsCsv = [];
@@ -17902,9 +18491,7 @@ function runAtomicityProbes(args2) {
     if (flockResolved) {
       const flockBin = resolveRealPath(flockResolved);
       let ver = `flock ${firstLine(
-        yield* versionLine(flockResolved).pipe(
-          Effect_exports.map((v) => v)
-        )
+        yield* versionLine(flockResolved).pipe(Effect_exports.map((v) => v))
       )}`;
       if (ver === "flock " || ver === "flock") {
         ver = `flock:${flockResolved}`;
@@ -17926,6 +18513,23 @@ function runAtomicityProbes(args2) {
           bestEvidence = once4.evidence;
         } else if (bestVerdict === "unknown" && once4.evidence !== "flavour") {
           bestEvidence = once4.evidence;
+        }
+      }
+      if (bestVerdict !== "atomic" && bestVerdict !== "non-atomic") {
+        const pin = lookupPinnedVerdict({
+          mechanism: "flock",
+          sha256: sha,
+          hostClass: args2.hostClass,
+          repoRoot: args2.repoRoot,
+          ...typeof manifestOverride === "string" && manifestOverride.length > 0 ? { manifestPath: manifestOverride } : {}
+        });
+        if (pin) {
+          bestVerdict = pin.verdict;
+          bestEvidence = pin.evidence_class;
+          for (const c of pin.filesystem_classes) {
+            classVerdict.set(c, pin.verdict);
+          }
+          notesAcc.push(`pin:${pin.verdict}`);
         }
       }
       const fsCsv = [];
@@ -18617,20 +19221,20 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
     }
     let repoSkillPath;
     try {
-      repoSkillPath = realpathSync2(repoSkillDir);
+      repoSkillPath = realpathSync3(repoSkillDir);
     } catch {
       repoSkillPath = repoSkillDir;
     }
     try {
-      const st = lstatSync(skillPath);
+      const st = lstatSync2(skillPath);
       if (st.isSymbolicLink()) {
         let linkTarget = readlinkSync(skillPath);
-        if (!isAbsolute3(linkTarget)) {
+        if (!isAbsolute4(linkTarget)) {
           linkTarget = join6(dirname2(skillPath), linkTarget);
         }
         if (existsSync4(linkTarget)) {
           try {
-            linkTarget = realpathSync2(linkTarget);
+            linkTarget = realpathSync3(linkTarget);
           } catch {
           }
         }
@@ -18656,6 +19260,86 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
     }
   }
   return out;
+}
+var MAX_INVENTORY_OUT_PATH_BYTES = MAX_PATH_BYTES;
+function writeInventoryOutAtomic(outPath, body) {
+  if (outPath.includes("\0")) {
+    return { _tag: "Failed", reason: "output path contains NUL" };
+  }
+  if (outPath.length === 0) {
+    return { _tag: "Failed", reason: "output path is empty" };
+  }
+  if (Buffer.byteLength(outPath, "utf8") > MAX_INVENTORY_OUT_PATH_BYTES) {
+    return {
+      _tag: "Failed",
+      reason: `output path exceeds MAX_INVENTORY_OUT_PATH_BYTES (${MAX_INVENTORY_OUT_PATH_BYTES})`
+    };
+  }
+  let dir;
+  try {
+    dir = dirname2(outPath);
+    mkdirSync2(dir, { recursive: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { _tag: "Failed", reason: `cannot create parent directory: ${msg}` };
+  }
+  try {
+    if (existsSync4(outPath)) {
+      const st = lstatSync2(outPath);
+      if (st.isSymbolicLink()) {
+        return {
+          _tag: "Failed",
+          reason: "refusing to follow pre-existing output symlink"
+        };
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { _tag: "Failed", reason: `cannot stat output path: ${msg}` };
+  }
+  const tmpName = `.tool-check-out.${randomBytes(16).toString("hex")}.tmp`;
+  const tmpPath = join6(dir, tmpName);
+  let fd;
+  try {
+    fd = openSync2(
+      tmpPath,
+      fsConstants3.O_CREAT | fsConstants3.O_EXCL | fsConstants3.O_WRONLY,
+      384
+    );
+    const buf = Buffer.from(body, "utf8");
+    let offset = 0;
+    while (offset < buf.byteLength) {
+      const n = writeSync(fd, buf, offset, buf.byteLength - offset);
+      offset += n;
+    }
+    fsyncSync(fd);
+    closeSync2(fd);
+    fd = void 0;
+    renameSync(tmpPath, outPath);
+    try {
+      const dirFd = openSync2(dir, fsConstants3.O_RDONLY);
+      try {
+        fsyncSync(dirFd);
+      } finally {
+        closeSync2(dirFd);
+      }
+    } catch {
+    }
+    return { _tag: "Ok" };
+  } catch (e) {
+    if (fd !== void 0) {
+      try {
+        closeSync2(fd);
+      } catch {
+      }
+    }
+    try {
+      unlinkSync2(tmpPath);
+    } catch {
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    return { _tag: "Failed", reason: msg };
+  }
 }
 function runToolCheck(argv, io2, env) {
   return Effect_exports.gen(function* () {
@@ -18728,10 +19412,13 @@ function runToolCheck(argv, io2, env) {
           }
         }
       }
+      const hostClass = classifyHostClass(processEnv, os, isWsl);
       const atomic = yield* runAtomicityProbes({
         timestamp: time,
         profile: parsed.profile,
-        hostClass: "linux-native"
+        hostClass,
+        repoRoot: env.repoRoot,
+        processEnv
       });
       if (parsed.profile === "durable" && !atomic.trustedAtomic) {
         mustFail.push("lock_atomicity:no_trusted_atomic_mechanism");
@@ -18755,16 +19442,20 @@ function runToolCheck(argv, io2, env) {
       const body = parsed.json ? renderInventoryJson(model) : renderReportText(model);
       io2.writeStdout(body + "\n");
       if (parsed.out) {
-        try {
-          mkdirSync2(dirname2(parsed.out), { recursive: true });
-          writeFileSync2(parsed.out, body + "\n", "utf8");
-          io2.writeStderr(`[tool-check] wrote ${parsed.out}
-`);
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          io2.writeStderr(`[tool-check] failed to write ${parsed.out}: ${msg}
-`);
+        const written = writeInventoryOutAtomic(parsed.out, body + "\n");
+        if (written._tag === "Failed") {
+          io2.writeStderr(
+            `[tool-check] failed to write ${parsed.out}: ${written.reason}
+`
+          );
+          return {
+            exitCode: EXIT_OUTPUT_WRITE_FAILED,
+            body,
+            model
+          };
         }
+        io2.writeStderr(`[tool-check] wrote ${parsed.out}
+`);
       }
       return {
         exitCode: ready ? EXIT_READY : EXIT_NOT_READY,
@@ -18809,7 +19500,7 @@ function resolveRepoRoot(url = import.meta.url) {
 
 // packages/orchestration/src/tool-check-main.ts
 function writeFully(stream, text) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve2, reject) => {
     const onError3 = (err) => {
       stream.off("error", onError3);
       reject(err);
@@ -18818,7 +19509,7 @@ function writeFully(stream, text) {
     stream.write(text, (err) => {
       stream.off("error", onError3);
       if (err) reject(err);
-      else resolve();
+      else resolve2();
     });
   });
 }

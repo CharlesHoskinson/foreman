@@ -3,13 +3,20 @@
  * Vendor rows use TypeScript vendor-preflight inspect + projection directly.
  */
 
+import { randomBytes } from "node:crypto";
 import {
+  closeSync,
+  constants as fsConstants,
   existsSync,
+  fsyncSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readlinkSync,
   realpathSync,
-  writeFileSync,
+  renameSync,
+  unlinkSync,
+  writeSync,
 } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,9 +40,11 @@ import {
   projectVendorPreflightToToolCheckRow,
   type ToolCheckRowStatus,
 } from "./vendor-preflight-tool-check.js";
+import { MAX_PATH_BYTES } from "./vendor-preflight-contract.js";
 import {
   EXIT_INVALID_ARGUMENTS,
   EXIT_NOT_READY,
+  EXIT_OUTPUT_WRITE_FAILED,
   EXIT_READY,
   USAGE,
   parseToolCheckArgv,
@@ -45,6 +54,7 @@ import {
 import { runAtomicityProbes } from "./tool-check-atomicity.js";
 import {
   captureHostnameOs,
+  classifyHostClass,
   detectWslFromEnv,
   readProcVersion,
   resolveCommonSkillsRoot,
@@ -571,6 +581,111 @@ export type ToolCheckResult = {
   readonly model: ReportModel | null;
 };
 
+export type InventoryOutWriteResult =
+  | { readonly _tag: "Ok" }
+  | { readonly _tag: "Failed"; readonly reason: string };
+
+/**
+ * UTF-8 byte bound for the `--out` destination path. Same ceiling as the
+ * public vendor-preflight path bound; validated before any filesystem mutation.
+ */
+export const MAX_INVENTORY_OUT_PATH_BYTES = MAX_PATH_BYTES;
+
+/**
+ * Bounded atomic inventory write in the destination directory:
+ * validate path (no NUL, UTF-8 byte bound), refuse pre-existing symlink target,
+ * exclusive temp create, write exact bytes, fsync file, close, rename, fsync
+ * parent where supported, clean up temp on failure.
+ */
+export function writeInventoryOutAtomic(
+  outPath: string,
+  body: string,
+): InventoryOutWriteResult {
+  if (outPath.includes("\0")) {
+    return { _tag: "Failed", reason: "output path contains NUL" };
+  }
+  if (outPath.length === 0) {
+    return { _tag: "Failed", reason: "output path is empty" };
+  }
+  if (Buffer.byteLength(outPath, "utf8") > MAX_INVENTORY_OUT_PATH_BYTES) {
+    return {
+      _tag: "Failed",
+      reason: `output path exceeds MAX_INVENTORY_OUT_PATH_BYTES (${MAX_INVENTORY_OUT_PATH_BYTES})`,
+    };
+  }
+
+  let dir: string;
+  try {
+    dir = dirname(outPath);
+    mkdirSync(dir, { recursive: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { _tag: "Failed", reason: `cannot create parent directory: ${msg}` };
+  }
+
+  try {
+    if (existsSync(outPath)) {
+      const st = lstatSync(outPath);
+      if (st.isSymbolicLink()) {
+        return {
+          _tag: "Failed",
+          reason: "refusing to follow pre-existing output symlink",
+        };
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { _tag: "Failed", reason: `cannot stat output path: ${msg}` };
+  }
+
+  const tmpName = `.tool-check-out.${randomBytes(16).toString("hex")}.tmp`;
+  const tmpPath = join(dir, tmpName);
+  let fd: number | undefined;
+  try {
+    fd = openSync(
+      tmpPath,
+      fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+      0o600,
+    );
+    const buf = Buffer.from(body, "utf8");
+    let offset = 0;
+    while (offset < buf.byteLength) {
+      const n = writeSync(fd, buf, offset, buf.byteLength - offset);
+      offset += n;
+    }
+    fsyncSync(fd);
+    closeSync(fd);
+    fd = undefined;
+    renameSync(tmpPath, outPath);
+    try {
+      const dirFd = openSync(dir, fsConstants.O_RDONLY);
+      try {
+        fsyncSync(dirFd);
+      } finally {
+        closeSync(dirFd);
+      }
+    } catch {
+      // Parent fsync is best-effort (not supported on all platforms).
+    }
+    return { _tag: "Ok" };
+  } catch (e) {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+      /* ignore */
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    return { _tag: "Failed", reason: msg };
+  }
+}
+
 /**
  * Run a full tool-check inventory once.
  */
@@ -667,10 +782,13 @@ export function runToolCheck(
         }
       }
 
+      const hostClass = classifyHostClass(processEnv, os, isWsl);
       const atomic = yield* runAtomicityProbes({
         timestamp: time,
         profile: parsed.profile,
-        hostClass: "linux-native",
+        hostClass,
+        repoRoot: env.repoRoot,
+        processEnv,
       });
 
       if (parsed.profile === "durable" && !atomic.trustedAtomic) {
@@ -701,14 +819,18 @@ export function runToolCheck(
       io.writeStdout(body + "\n");
 
       if (parsed.out) {
-        try {
-          mkdirSync(dirname(parsed.out), { recursive: true });
-          writeFileSync(parsed.out, body + "\n", "utf8");
-          io.writeStderr(`[tool-check] wrote ${parsed.out}\n`);
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          io.writeStderr(`[tool-check] failed to write ${parsed.out}: ${msg}\n`);
+        const written = writeInventoryOutAtomic(parsed.out, body + "\n");
+        if (written._tag === "Failed") {
+          io.writeStderr(
+            `[tool-check] failed to write ${parsed.out}: ${written.reason}\n`,
+          );
+          return {
+            exitCode: EXIT_OUTPUT_WRITE_FAILED,
+            body,
+            model,
+          } satisfies ToolCheckResult;
         }
+        io.writeStderr(`[tool-check] wrote ${parsed.out}\n`);
       }
 
       return {
