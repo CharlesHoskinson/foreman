@@ -45,25 +45,29 @@ item results. Their sum SHALL equal 44. `mapped_item_count` SHALL count only
 count only `contradiction`. `unevidenced_defer_count` SHALL count only
 `unevidenced_defer`.
 
-An evidenced defer SHALL name reason, owner, target release, blocking
-dependency, and acceptance evidence. An evidenced defer SHALL NOT be a defect.
-An unevidenced defer SHALL be a defect.
+An `evidenced_defer` disposition SHALL name nonblank reason, owner, target
+release, blocking dependency, and acceptance evidence. An `evidenced_defer`
+SHALL NOT be a defect. An `unevidenced_defer` SHALL be a defect.
+
+Every `mapped` result SHALL contain nonblank sprint, requirement, acceptance
+evidence, and status.
 
 Invented completions SHALL be a separate sorted set of `InventedCompletionV1`
 records. `invented_completion_count` SHALL equal the set size. Duplicate
 invention-record digests SHALL make the response invalid.
 
 An `InventedCompletionV1` record SHALL be an actionable source-located record.
-After a reviewer detects an invented completion, the host SHALL select the
-smallest complete CommonMark block that contains the claim. The host SHALL use
-CommonMark 0.31.2 plus GFM table and task-list source ranges. Ties SHALL use
-earliest start byte, then shortest byte length. The record SHALL include
-artifact alias, artifact SHA-256, zero-based start byte, exclusive end byte,
-exact-slice SHA-256, short summary, and corrective action. The host SHALL
-verify the byte range and digest against immutable artifact bytes. Invention
-records SHALL be sorted by digest byte order. The record digest SHALL be
-SHA-256 over artifact digest, NUL, decimal start, NUL, decimal end, NUL, and
-the exact source bytes. The host SHALL NOT use free-form claim IDs.
+After a reviewer detects an invented completion, the host SHALL select a
+whole-line byte range that contains the claim. The range SHALL start at byte
+zero or immediately after LF. The range SHALL end at EOF or include a
+terminating LF. The range SHALL be nonempty valid UTF-8. The host SHALL
+verify artifact, range, exact-slice, and record digests against immutable
+artifact bytes. The record SHALL include artifact alias, artifact SHA-256,
+zero-based start byte, exclusive end byte, exact-slice SHA-256, short
+summary, and corrective action. Invention records SHALL be sorted by digest
+byte order. The record digest SHALL be SHA-256 over artifact digest, NUL,
+decimal start, NUL, decimal end, NUL, and the exact source bytes. The host
+SHALL NOT use free-form claim IDs.
 
 Canonical encoding SHALL be UTF-8 JSON with recursively sorted object keys, no
 insignificant whitespace, and one trailing LF. Counts SHALL be derived from

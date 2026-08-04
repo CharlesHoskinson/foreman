@@ -42,7 +42,9 @@
 
 ## 2. Release convergence
 
-- [ ] 2.1 Verify all coverage rows have shipped evidence or an approved defer.
+- [ ] 2.1 Verify all coverage rows have shipped evidence or an
+      `evidenced_defer` that names reason, owner, target release, blocking
+      dependency, and acceptance evidence.
 - [ ] 2.2 Verify the destruction log has no unknown recovery owner.
 - [ ] 2.3 Verify zero in-scope Python and no new non-TypeScript product logic.
 - [ ] 2.4 Rebuild Graphify as one current knowledge unit.

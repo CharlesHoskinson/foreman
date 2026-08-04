@@ -8,8 +8,8 @@ below contain detailed module tasks only. They do not define release order.
 - [x] Add repository agent doctrine for Node.js 24 and TypeScript.
 - [x] Define the runtime, package, Effect, adapter, and deletion boundaries.
 - [x] Record the migration as post-v0.2.8.2 work in `ROADMAP.md`.
-- [ ] Complete a Council review of the immutable sprint plan with no unresolved
-      admissible dissent.
+- [ ] Complete a Council review of the immutable migration groups with no
+      unresolved admissible dissent.
 
 ## M1 — workspace and architecture gate
 
@@ -63,12 +63,13 @@ below contain detailed module tasks only. They do not define release order.
 ## M4B — migrate SessionDB
 
 - [ ] Implement facts, measurements, obligations, recovery, freshness,
-      supersession, retirement, sidecar hydrate/export, and graph projection in
+      supersession, retirement, and sidecar hydrate/export in
       `@foreman/session`.
 - [ ] Add typed fact retraction and `supersede --by <existing-id>` so stale
       facts can leave current authority without duplicate replacement claims.
 - [ ] Keep the canonical NDJSON sidecar lossless. Add a separate derived,
-      non-hydratable current-authority export.
+      non-hydratable current-authority export that is distinct from
+      `graph-project`.
 - [ ] Preserve the existing command contract through a thin adapter, migrate
       hourly checkpoints and release gates, then delete `fm-session.py`.
 
@@ -84,8 +85,11 @@ below contain detailed module tasks only. They do not define release order.
 
 ## M6 — migrate knowledge modules
 
-- [ ] Implement Graphify refresh, freshness, and current-authority projection
-      in `@foreman/knowledge`.
+- [ ] Implement Graphify refresh, freshness, current-authority projection, and
+      `graph-project` in `@foreman/knowledge`.
+- [ ] Make `graph-project` consume typed `@foreman/event-log` inputs.
+      `@foreman/event-log` remains the system of record. `graph-project` does
+      not become the event-log system of record.
 - [ ] Bind executable identity, version bytes, Git state, source manifest, and
       publication generations. Fail closed on races, links, Git errors,
       warnings, timeouts, output overflow, and detached descendants.
@@ -111,7 +115,10 @@ below contain detailed module tasks only. They do not define release order.
       superseded status snapshots from live repository paths.
 - [ ] Rebuild Graphify from the accepted candidate and verify that no current
       node points to a deleted or retired authority.
-- [ ] Port or retire the two research calculators, archived schema checker,
+- [ ] Port or retire the three research Python files
+      `docs/research/vnext/contention-derive.py`,
+      `docs/research/vnext/parallel-schedule.py`, and
+      `docs/research/fetch_frontier_docs.py`, the archived schema checker,
       ontology test, five vendored Scrapling files, and Superpowers Python test
       utility.
 - [ ] Require `git ls-files '*.py'` to return no paths.

@@ -24,7 +24,8 @@ stable ID in `coverage-matrix.md` and one of these classes:
 
 - `released_truth`: a shipped fact that the candidate must not contradict.
 - `carried_work`: unfinished work that the candidate must map to a sprint or
-  explicitly defer with a reason and a later owner.
+  record as `evidenced_defer` with reason, owner, target release, blocking
+  dependency, and acceptance evidence.
 - `negative_boundary`: capability that the prior release did not ship.
 - `destruction_constraint`: material that cannot be removed until its recovery
   or replacement condition passes.
@@ -56,9 +57,12 @@ results. Their sum equals 44.
 - `contradiction_count` counts only `contradiction`.
 - `unevidenced_defer_count` counts only `unevidenced_defer`.
 
-An evidenced defer names reason, owner, target release, blocking dependency,
-and acceptance evidence. An evidenced defer is not a defect. An unevidenced
-defer is a defect.
+An `evidenced_defer` disposition names nonblank reason, owner, target release,
+blocking dependency, and acceptance evidence. An `evidenced_defer` is not a
+defect. An `unevidenced_defer` is a defect.
+
+Every `mapped` result contains nonblank sprint, requirement, acceptance
+evidence, and status.
 
 ### InventedCompletionV1
 
@@ -66,10 +70,11 @@ Invented completions are a separate sorted set of `InventedCompletionV1`
 records. `invented_completion_count` equals the set size.
 
 An `InventedCompletionV1` record is an actionable source-located record. After
-a reviewer detects an invented completion, the host selects the smallest
-complete CommonMark block that contains the claim. The host uses CommonMark
-0.31.2 plus GFM table and task-list source ranges. Ties use earliest start
-byte, then shortest byte length.
+a reviewer detects an invented completion, the host selects a whole-line byte
+range that contains the claim. The range starts at byte zero or immediately
+after LF. The range ends at EOF or includes a terminating LF. The range is
+nonempty valid UTF-8. The host verifies artifact, range, exact-slice, and
+record digests against immutable artifact bytes.
 
 The record fields are:
 
@@ -81,7 +86,6 @@ The record fields are:
 - short summary
 - corrective action
 
-The host verifies the byte range and digest against immutable artifact bytes.
 Sort invention records by digest byte order. The record digest is SHA-256 over
 artifact digest, NUL, decimal start, NUL, decimal end, NUL, and the exact
 source bytes. Do not use free-form claim IDs. Duplicate invention-record

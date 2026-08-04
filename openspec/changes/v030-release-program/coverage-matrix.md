@@ -88,26 +88,29 @@ Each row names these fields:
 - `omitted_item_count` counts only `omitted`.
 - `contradiction_count` counts only `contradiction`.
 - `unevidenced_defer_count` counts only `unevidenced_defer`.
-- An evidenced defer names reason, owner, target release, blocking dependency,
-  and acceptance evidence. An evidenced defer is not a defect.
-- An unevidenced defer is a defect.
+- An `evidenced_defer` disposition names nonblank reason, owner, target
+  release, blocking dependency, and acceptance evidence. An `evidenced_defer`
+  is not a defect.
+- An `unevidenced_defer` is a defect.
 - Invented completions are a separate sorted set of `InventedCompletionV1`
   records. `invented_completion_count` equals that set size.
 - An `InventedCompletionV1` record is an actionable source-located record.
-  After a reviewer detects an invented completion, the host selects the
-  smallest complete CommonMark block that contains the claim. The host uses
-  CommonMark 0.31.2 plus GFM table and task-list source ranges. Ties use
-  earliest start byte, then shortest byte length. The record fields are
-  artifact alias, artifact SHA-256, zero-based start byte, exclusive end
-  byte, exact-slice SHA-256, short summary, and corrective action. The host
-  verifies the byte range and digest against immutable artifact bytes. Sort
-  invention records by digest byte order. The record digest is SHA-256 over
-  artifact digest, NUL, decimal start, NUL, decimal end, NUL, and the exact
-  source bytes. Do not use free-form claim IDs.
+  After a reviewer detects an invented completion, the host selects a
+  whole-line byte range that contains the claim. The range starts at byte
+  zero or immediately after LF. The range ends at EOF or includes a
+  terminating LF. The range is nonempty valid UTF-8. The host verifies
+  artifact, range, exact-slice, and record digests against immutable
+  artifact bytes. The record fields are artifact alias, artifact SHA-256,
+  zero-based start byte, exclusive end byte, exact-slice SHA-256, short
+  summary, and corrective action. Sort invention records by digest byte
+  order. The record digest is SHA-256 over artifact digest, NUL, decimal
+  start, NUL, decimal end, NUL, and the exact source bytes. Do not use
+  free-form claim IDs.
 - Duplicate invention-record digests make the response invalid.
 - Counts are derived from arrays. Counts are not accepted as independent model
   claims.
-- A mapped item names a sprint, requirement, acceptance evidence, and status.
+- Every `mapped` result contains nonblank sprint, requirement, acceptance
+  evidence, and status.
 - Canonical result encoding is recursively key-sorted UTF-8 JSON with no
   insignificant whitespace and one trailing LF.
 - The outcome is `accept` only when `mapped + evidenced_defer = 44`, every

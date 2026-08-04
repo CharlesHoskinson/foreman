@@ -79,9 +79,11 @@ The program orders work in sprint bands. None of these bands is complete:
 - GraphStore, launcher, SessionDB, and project registry
 - current-main session transport
 - Council advisory plane, durable runtime, Gemini, MCP, and host plugins
-- release evidence, knowledge and Graphify convergence, and orchestration
-- zero-Python cleanup, external dogfood, Windows boundary, and
-  exact-candidate convergence
+- Council supervised research, evidence provenance, and Council evaluation
+- release evidence, formal-model reconciliation, knowledge and Graphify
+  convergence, and orchestration
+- zero-Python cleanup, Superpowers dependency-manifest decision, external
+  dogfood, Windows boundary, and exact-candidate convergence
 
 Do not present unfinished v0.3.0 work as shipped work.
 

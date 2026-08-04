@@ -29,7 +29,7 @@ The migration uses these nine product package families:
 | `@foreman/graph-store` | GraphStore port and files-only materialization | `skills/foreman/graph_store/` |
 | `@foreman/launcher` | process supervision, heartbeats, cancellation, and platform adapters | `launcher/` Bun runtime |
 | `@foreman/release` | metrics rollup, sigma, package manifest, and immutable audits | metrics scripts and planned `package-audit.py` |
-| `@foreman/knowledge` | Graphify refresh, freshness, doctrine registry, and current-authority projection | graph/doctrine shell scripts |
+| `@foreman/knowledge` | Graphify refresh, freshness, doctrine registry, current-authority projection, and `graph-project` | graph/doctrine shell scripts |
 | `@foreman/orchestration` | round ownership, vendor preflight, WSL preflight, and caller integration | orchestration shell cores |
 
 Packages can land one module at a time. A package does not need to wait for
@@ -95,12 +95,18 @@ Module dependency map:
   Effect supervision without Bun-only APIs
 - `@foreman/session` follows the event-log foundation
 - `@foreman/release` follows the event-log foundation for metrics inputs
-- `@foreman/knowledge` follows core and consumes event-log inputs for
-  current-authority projection
+- `@foreman/knowledge` follows core and owns `graph-project`. It consumes
+  typed `@foreman/event-log` inputs for current-authority projection and
+  `graph-project`. `@foreman/event-log` remains the system of record for run
+  events. `graph-project` does not become the event-log system of record.
 - `@foreman/orchestration` follows core and launcher contracts for round
   ownership and preflight
 - residual Python, Bun, and stale current-authority cleanup follows the ports
   that replace those implementations
+
+`graph-project` is owned by `@foreman/knowledge`. It consumes typed
+`@foreman/event-log` inputs. It is distinct from the SessionDB
+current-authority export. `@foreman/event-log` remains the system of record.
 
 GraphStore is a preferred early port because it is isolated, is currently
 Python, and supplies reusable filesystem and schema patterns. Launcher

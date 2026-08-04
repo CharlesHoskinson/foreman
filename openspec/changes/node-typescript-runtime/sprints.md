@@ -16,9 +16,10 @@ a new candidate and a new Council round.
 
 **Outcome:** Freeze the runtime decision and remove known stale authorities.
 
-**Work:** Add the Iron Rule, this OpenSpec, `typescriptmigration.md`, the
-current Graphify inventory, and the first tracked-file purge. Record the
-migration as post-v0.2.8.2 work in `ROADMAP.md`.
+**Work:** Add the Iron Rule, this OpenSpec, `typescriptmigration.md`, and the
+current Graphify inventory. Record the migration as post-v0.2.8.2 work in
+`ROADMAP.md`. No tracked destruction occurs until the fail-closed guard ships
+and a current destruction-log row authorizes the exact action.
 
 **Exit:** Strict OpenSpec, docs, link, and diff checks pass.
 Council reviews one immutable planning commit with three admissible verdicts
@@ -98,7 +99,9 @@ Python helpers and remove every planned `package-audit.py` reference.
 trusting path races or stale live prose.
 
 **Work:** Implement Graphify contract, refresh, generations, freshness,
-doctrine registry, and current-authority projection in `@foreman/knowledge`.
+doctrine registry, current-authority projection, and `graph-project` in
+`@foreman/knowledge`. `graph-project` consumes typed `@foreman/event-log`
+inputs. `@foreman/event-log` remains the system of record.
 
 **Exit:** One deadline owns version, update, and diagnose. Executable identity,
 Git tree, source manifest, stdout, stderr, argv, status, and artifact digests
@@ -123,11 +126,14 @@ only.
 
 **Outcome:** Remove all residual Python, not only product Python.
 
-**Work:** Port or retire two research calculators, one archived evidence
-script, one ontology test, one Superpowers test utility, and the five vendored
-Scrapling files. Externalize Scrapling instead of silently maintaining a fork
-if parity is not part of Foreman's product scope. Delete migrated legacy logic
-and correct every active reference.
+**Work:** Port or retire the three research Python files
+`docs/research/vnext/contention-derive.py`,
+`docs/research/vnext/parallel-schedule.py`, and
+`docs/research/fetch_frontier_docs.py`, one archived evidence script, one
+ontology test, one Superpowers test utility, and the five vendored Scrapling
+files. Externalize Scrapling instead of silently maintaining a fork if parity
+is not part of Foreman's product scope. Delete migrated legacy logic and
+correct every active reference.
 
 **Exit:** `git ls-files '*.py'` returns no paths. The runtime policy reports no
 new non-TypeScript executable source. Graphify health and current-authority
