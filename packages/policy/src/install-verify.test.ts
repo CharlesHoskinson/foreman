@@ -24,6 +24,7 @@ import {
   compareRuntimePluginDrift,
   dirIdentity,
   fileIdentity,
+  InstallFs,
   installFail,
   linkIdentity,
   liveInstallFs,
@@ -873,6 +874,219 @@ describe("skill-root and directory stability seams", () => {
     }
   });
 });
+
+describe("memory InstallFs path separator seam", () => {
+  it("looks up slash-seeded nodes via backslash-form paths", async () => {
+    // Platform-independent regression for the Windows hosted failure:
+    // production uses node:path.join (backslash on win32); tests seed POSIX keys.
+    const fileBytes = new TextEncoder().encode("payload");
+    const nodes = new Map<string, MemoryNode>([
+      [
+        "/skill/runtime",
+        {
+          kind: "dir",
+          identity: dirIdentity({ ino: "rt-sep" }),
+          names: ["manifest.json", "dist"],
+        },
+      ],
+      [
+        "/skill/runtime/manifest.json",
+        {
+          kind: "file",
+          bytes: fileBytes,
+          identity: fileIdentity({
+            ino: "mf-sep",
+            size: fileBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        "C:/skill root 测试/runtime",
+        {
+          kind: "dir",
+          identity: dirIdentity({ ino: "drive-sep" }),
+          names: ["only"],
+        },
+      ],
+    ]);
+    const layer = makeMemoryInstallFs({ nodes });
+    const backslashRuntime = "\\skill\\runtime";
+    const backslashManifest = "\\skill\\runtime\\manifest.json";
+    const driveMixed = "C:\\skill root 测试\\runtime";
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* InstallFs;
+        const dirId = yield* fs.lstat(backslashRuntime);
+        const names = yield* fs.readdirNames(backslashRuntime);
+        const opened = yield* fs.withOpenFile(backslashManifest, (file) =>
+          file.readBounded(1024),
+        );
+        const driveId = yield* fs.lstat(driveMixed);
+        const driveNames = yield* fs.readdirNames(driveMixed);
+        return { dirId, names, opened, driveId, driveNames };
+      }).pipe(Effect.provide(layer)),
+    );
+
+    assert.equal(result.dirId.ino, "rt-sep");
+    assert.deepEqual([...result.names].sort(), ["dist", "manifest.json"]);
+    assert.equal(new TextDecoder().decode(result.opened), "payload");
+    assert.equal(result.driveId.ino, "drive-sep");
+    assert.deepEqual([...result.driveNames], ["only"]);
+  });
+
+  it("end-to-end verify passes when resolve target forces backslash joins", async () => {
+    // On Linux, path.join keeps POSIX separators for slash roots. Force the
+    // Windows failure mode by resolving to a backslash-form synthetic root so
+    // joinRuntime emits mixed separators that must still hit slash-seeded nodes.
+    const policyBytes = readFileSync(trackedPolicy);
+    const guardBytes = readFileSync(trackedGuard);
+    const mfBytes = new TextEncoder().encode(
+      readFileSync(trackedManifest, "utf8"),
+    );
+    const skillSlash = "/skill";
+    const skillBackslash = "\\skill";
+    const runtime = "/skill/runtime";
+    const dist = "/skill/runtime/dist";
+    const nodes = new Map<string, MemoryNode>([
+      [
+        skillSlash,
+        {
+          kind: "dir",
+          identity: dirIdentity({ ino: "10" }),
+          names: ["runtime"],
+        },
+      ],
+      [
+        runtime,
+        {
+          kind: "dir",
+          identity: dirIdentity({ ino: "11" }),
+          names: ["dist", "manifest.json"],
+        },
+      ],
+      [
+        dist,
+        {
+          kind: "dir",
+          identity: dirIdentity({ ino: "12" }),
+          names: ["architecture-policy.js", "destruction-guard.js"],
+        },
+      ],
+      [
+        `${runtime}/manifest.json`,
+        {
+          kind: "file",
+          bytes: mfBytes,
+          identity: fileIdentity({
+            ino: "20",
+            size: mfBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/architecture-policy.js`,
+        {
+          kind: "file",
+          bytes: policyBytes,
+          identity: fileIdentity({
+            ino: "21",
+            size: policyBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/destruction-guard.js`,
+        {
+          kind: "file",
+          bytes: guardBytes,
+          identity: fileIdentity({
+            ino: "22",
+            size: guardBytes.byteLength,
+          }),
+        },
+      ],
+    ]);
+    const layer = makeMemoryInstallFs({
+      // Supplied root is slash-form; resolved target is backslash-form so
+      // subsequent node:path.join children contain `\` on every platform.
+      resolveMap: new Map([[skillSlash, skillBackslash]]),
+      nodes,
+    });
+
+    const r = await Effect.runPromise(
+      verifyInstalledSkillRoot(skillSlash).pipe(Effect.provide(layer)),
+    );
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+  });
+
+  it("resolve-map and counters stay deterministic across separator forms", async () => {
+    const resolveMap = new Map([
+      ["/link", "/skill"],
+      ["/skill", "/skill"],
+    ]);
+    const nodes = new Map<string, MemoryNode>([
+      [
+        "/skill",
+        {
+          kind: "dir",
+          identity: dirIdentity({ ino: "s1" }),
+          names: ["runtime"],
+        },
+      ],
+      [
+        "/link",
+        {
+          kind: "symlink",
+          identity: linkIdentity({ ino: "l1" }),
+          target: "/skill",
+        },
+      ],
+    ]);
+    const seen: Array<{ path: string; callCount: number }> = [];
+    const layer = makeMemoryInstallFs({
+      resolveMap,
+      nodes,
+      hooks: {
+        afterResolve: (path, callCount) => {
+          seen.push({ path, callCount });
+          // Mutate with the exact path string the hook received (may be `\link`).
+          // Last-writer among canonical-equivalent keys must win so the second
+          // resolve (slash form) observes /other, not the shadowed seed.
+          if (memoryPathIsFirstLink(path) && callCount === 1) {
+            resolveMap.set(path, "/other");
+            nodes.set("/other", {
+              kind: "dir",
+              identity: dirIdentity({ ino: "other" }),
+              names: [],
+            });
+          }
+        },
+      },
+    });
+
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const fs = yield* InstallFs;
+        const first = yield* fs.resolvePath("\\link");
+        const second = yield* fs.resolvePath("/link");
+        return { first, second };
+      }).pipe(Effect.provide(layer)),
+    );
+
+    assert.equal(result.first, "/skill");
+    assert.equal(result.second, "/other");
+    assert.equal(seen.length, 2);
+    assert.equal(seen[0]?.path, "\\link");
+    assert.equal(seen[0]?.callCount, 1);
+    assert.equal(seen[1]?.callCount, 2);
+  });
+});
+
+/** Local helper: treat slash and backslash link roots as the same hook path. */
+function memoryPathIsFirstLink(path: string): boolean {
+  return path === "/link" || path === "\\link";
+}
 
 describe("install CLI argv and emission", () => {
   it("parses verify-install and plugin-drift strictly", () => {

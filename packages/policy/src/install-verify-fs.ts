@@ -259,6 +259,42 @@ export type MemoryInstallFsHooks = {
   readonly afterResolve?: (path: string, callCount: number) => void;
 };
 
+/**
+ * Canonical key for synthetic memory-map lookup only.
+ * Treats `\` and `/` as equivalent separators so Windows path.join results
+ * match slash-form test seeds. Preserves drive letters, Unicode, spaces, and
+ * ordinary characters. Does not call the live filesystem.
+ */
+function memoryPathKey(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+/**
+ * Look up a synthetic map entry under either separator form of `path`.
+ *
+ * Collision rule (deterministic): among all stored keys that share the same
+ * canonical form as `path`, return the **last insertion-order** entry.
+ * `Map` preserves insertion order; `set` of a new separator form appends, so a
+ * hook mutation with either `\` or `/` wins over an earlier seed with the other
+ * form. Same-key `set` updates in place and is still observed.
+ */
+function memoryMapGet<V>(map: Map<string, V>, path: string): V | undefined {
+  const key = memoryPathKey(path);
+  let found: V | undefined;
+  let hit = false;
+  for (const [stored, value] of map) {
+    if (memoryPathKey(stored) === key) {
+      found = value;
+      hit = true;
+    }
+  }
+  return hit ? found : undefined;
+}
+
+function memoryMapHas(map: Map<string, unknown>, path: string): boolean {
+  return memoryMapGet(map, path) !== undefined;
+}
+
 export function makeMemoryInstallFs(args: {
   readonly resolveMap?: Map<string, string>;
   readonly nodes: Map<string, MemoryNode>;
@@ -272,17 +308,20 @@ export function makeMemoryInstallFs(args: {
   return Layer.succeed(InstallFs, {
     resolvePath: (path) =>
       Effect.gen(function* () {
+        const key = memoryPathKey(path);
         let target: string | undefined;
-        if (resolveMap.has(path)) {
-          target = resolveMap.get(path);
-        } else if (nodes.has(path)) {
+        if (memoryMapHas(resolveMap, path)) {
+          // Return the stored synthetic target string as seeded (not rewritten).
+          target = memoryMapGet(resolveMap, path);
+        } else if (memoryMapHas(nodes, path)) {
           target = path;
         }
         if (target === undefined) {
           return yield* Effect.fail(new InstallFsError("not_resolved"));
         }
-        const n = (resolveCounts.get(path) ?? 0) + 1;
-        resolveCounts.set(path, n);
+        // Count under the canonical key so mixed-separator calls stay deterministic.
+        const n = (resolveCounts.get(key) ?? 0) + 1;
+        resolveCounts.set(key, n);
         // Return the pre-hook target so call N is stable; hooks may retarget
         // the map for call N+1 (end re-resolve / retarget control).
         const resolved = target;
@@ -293,7 +332,7 @@ export function makeMemoryInstallFs(args: {
       }),
     lstat: (path) =>
       Effect.gen(function* () {
-        const n = nodes.get(path);
+        const n = memoryMapGet(nodes, path);
         if (!n) return yield* Effect.fail(new InstallFsError("missing"));
         if (n.kind === "dir") {
           if (n.unreadable) {
@@ -318,7 +357,7 @@ export function makeMemoryInstallFs(args: {
       }),
     withOpenFile: (path, use) =>
       Effect.gen(function* () {
-        const n = nodes.get(path);
+        const n = memoryMapGet(nodes, path);
         if (!n) return yield* Effect.fail(new InstallFsError("missing"));
         if (n.kind !== "file") {
           return yield* Effect.fail(new InstallFsError("unreadable"));
@@ -350,7 +389,7 @@ export function makeMemoryInstallFs(args: {
       }),
     readdirNames: (path) =>
       Effect.gen(function* () {
-        const n = nodes.get(path);
+        const n = memoryMapGet(nodes, path);
         if (!n) return yield* Effect.fail(new InstallFsError("missing"));
         if (n.kind !== "dir") {
           return yield* Effect.fail(new InstallFsError("unreadable"));
