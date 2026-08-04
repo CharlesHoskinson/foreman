@@ -450,11 +450,20 @@ const runPueue = (
     });
   });
 
+/**
+ * Daemon reachability only. Uses `status --json "last 1"` so the probe does
+ * not capture full historical task volume under the 1 MiB capture bound.
+ * Public `cmdStatus` keeps full `status --json` behavior.
+ */
 const statusProbe = (
   pueueBin: string,
 ): Effect.Effect<boolean, never, ProcessExec> =>
   Effect.gen(function* () {
-    const r = yield* runPueue(pueueBin, ["status"], TIMEOUT_STATUS_PROBE_MS);
+    const r = yield* runPueue(
+      pueueBin,
+      ["status", "--json", "last 1"],
+      TIMEOUT_STATUS_PROBE_MS,
+    );
     return r.exitCode === 0;
   }).pipe(Effect.catchAll(() => Effect.succeed(false)));
 
@@ -550,12 +559,14 @@ export const cmdEnsure = (
         return EXIT_FAIL;
       }
 
+      // Daemonizer boundary: ignore stdio so a forked pueued cannot retain
+      // capture pipes. Wait for the launcher to exit (10s). Timeout kills only
+      // this owned launcher/group. Reachability remains the five-probe loop.
       const proc = yield* ProcessExec;
       yield* proc
-        .runCaptured({
+        .runIgnoredStdio({
           command: pueuedBin,
           args: ["-d"],
-          maxOutputBytes: MAX_CAPTURE_BYTES,
           timeoutMs: TIMEOUT_QUEUE_OP_MS,
         })
         .pipe(Effect.catchAll(() => Effect.succeed(null)));

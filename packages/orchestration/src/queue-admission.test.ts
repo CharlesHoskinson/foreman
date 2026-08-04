@@ -281,6 +281,8 @@ type Call = {
   cmd: string;
   args: readonly string[];
   timeoutMs: number | undefined;
+  /** Which ProcessExec boundary recorded the call. */
+  kind: "captured" | "ignored" | "foreground";
 };
 
 function makeIo(): QueueIo & { stdout: string; stderr: string } {
@@ -332,13 +334,41 @@ function testLayer(opts: {
             cmd: o.command,
             args: o.args,
             timeoutMs: o.timeoutMs,
+            kind: "captured",
           });
           const r = opts.handler(o.command, o.args, o);
           if (r instanceof ProcessFailure) return yield* Effect.fail(r);
           return r;
         }),
+      runIgnoredStdio: (o) =>
+        Effect.gen(function* () {
+          opts.callLog?.push({
+            cmd: o.command,
+            args: o.args,
+            timeoutMs: o.timeoutMs,
+            kind: "ignored",
+          });
+          // Daemon start never captures streams; reuse the same handler with a
+          // synthetic RunCapturedOptions so existing spawn mocks stay simple.
+          const synthetic: RunCapturedOptions = {
+            command: o.command,
+            args: o.args,
+            maxOutputBytes: 0,
+            ...(o.timeoutMs !== undefined ? { timeoutMs: o.timeoutMs } : {}),
+            ...(o.env !== undefined ? { env: o.env } : {}),
+          };
+          const r = opts.handler(o.command, o.args, synthetic);
+          if (r instanceof ProcessFailure) return yield* Effect.fail(r);
+          return { exitCode: r.exitCode, stdout: "", stderr: "" };
+        }),
       runForeground: (o) =>
         Effect.gen(function* () {
+          opts.callLog?.push({
+            cmd: o.command,
+            args: o.args,
+            timeoutMs: undefined,
+            kind: "foreground",
+          });
           const fn = opts.foreground ?? (() => 0);
           const r = fn(o.command, o.args);
           if (r instanceof ProcessFailure) return yield* Effect.fail(r);
@@ -628,6 +658,74 @@ describe("cmdEnsure", () => {
     );
     assert.equal(code, EXIT_FAIL);
     assert.equal(sleeps.length, 5);
+  });
+
+  it("status probe uses bounded --json last 1 (not full historical status)", async () => {
+    const io = makeIo();
+    const calls: Call[] = [];
+    const code = await run(
+      cmdEnsure(io),
+      testLayer({
+        callLog: calls,
+        handler: readyHandler(),
+      }),
+    );
+    assert.equal(code, EXIT_OK);
+    const statusCalls = calls.filter((c) => c.args[0] === "status");
+    assert.ok(statusCalls.length >= 1, "expected at least one status probe");
+    for (const c of statusCalls) {
+      assert.deepEqual(
+        [...c.args],
+        ["status", "--json", "last 1"],
+        "readiness probe must bound history via status --json last 1",
+      );
+      assert.equal(c.timeoutMs, TIMEOUT_STATUS_PROBE_MS);
+      assert.equal(c.kind, "captured");
+    }
+  });
+
+  it("daemon start uses ignored-stdio boundary, not runCaptured pipes", async () => {
+    const io = makeIo();
+    let daemonUp = false;
+    const calls: Call[] = [];
+    const code = await run(
+      cmdEnsure(io),
+      testLayer({
+        callLog: calls,
+        handler: (cmd, args) => {
+          if (cmd === "/bin/pueued" && args[0] === "-d") {
+            daemonUp = true;
+            return { exitCode: 0, stdout: "", stderr: "" };
+          }
+          if (args[0] === "status") {
+            return daemonUp
+              ? { exitCode: 0, stdout: "ok", stderr: "" }
+              : { exitCode: 1, stdout: "", stderr: "no daemon" };
+          }
+          if (args[0] === "group" || args[0] === "parallel") {
+            return { exitCode: 0, stdout: "", stderr: "" };
+          }
+          return { exitCode: 1, stdout: "", stderr: "unexpected" };
+        },
+      }),
+    );
+    assert.equal(code, EXIT_OK);
+    const daemonCalls = calls.filter(
+      (c) => c.cmd === "/bin/pueued" && c.args[0] === "-d",
+    );
+    assert.equal(daemonCalls.length, 1);
+    assert.equal(
+      daemonCalls[0]!.kind,
+      "ignored",
+      "pueued -d must not open capture pipes the daemon can retain",
+    );
+    assert.equal(daemonCalls[0]!.timeoutMs, TIMEOUT_QUEUE_OP_MS);
+    assert.ok(
+      calls.every(
+        (c) => !(c.kind === "captured" && c.cmd === "/bin/pueued"),
+      ),
+      "daemonizer must not go through runCaptured",
+    );
   });
 });
 
@@ -1074,6 +1172,31 @@ describe("cmdStatus / cmdKill", () => {
     assert.equal(io.stdout.trim(), '{"degraded":true}');
   });
 
+  it("public status keeps full status --json (not last-1 probe shape)", async () => {
+    const json = '{"tasks":{},"groups":{}}';
+    const io = makeIo();
+    const calls: Call[] = [];
+    const code = await run(
+      cmdStatus(io, undefined),
+      testLayer({
+        callLog: calls,
+        handler: (_c, a) =>
+          a[0] === "status"
+            ? { exitCode: 0, stdout: json, stderr: "" }
+            : { exitCode: 1, stdout: "", stderr: "" },
+      }),
+    );
+    assert.equal(code, EXIT_OK);
+    const statusCalls = calls.filter((c) => c.args[0] === "status");
+    assert.equal(statusCalls.length, 1);
+    assert.deepEqual(
+      [...statusCalls[0]!.args],
+      ["status", "--json"],
+      "public status must remain full-queue --json, not the last-1 probe",
+    );
+    assert.ok(!statusCalls[0]!.args.includes("last 1"));
+  });
+
   it("status full / single / missing / bad JSON for both modes", async () => {
     const json =
       '{"tasks":{"7":{"id":7,"status":{"Running":{}}}},"groups":{}}';
@@ -1402,6 +1525,78 @@ describe("process bounds and cancellation", () => {
       assert.equal(String(exit.left.reason), "spawn_failed");
       assert.ok(!("stack" in exit.left));
       assert.ok(!("message" in exit.left));
+    }
+  });
+
+  it("live: runIgnoredStdio waits for exit, returns empty streams, times out owned launcher only", async () => {
+    // Success path: ignored streams yield a closed empty capture.
+    const ok = await Effect.runPromise(
+      Effect.gen(function* () {
+        const proc = yield* ProcessExec;
+        return yield* proc.runIgnoredStdio({
+          command: process.execPath,
+          args: [
+            "-e",
+            "process.stdout.write('secret-out'); process.stderr.write('secret-err'); process.exit(7);",
+          ],
+          timeoutMs: 5_000,
+        });
+      }).pipe(Effect.provide(liveProcessExec)),
+    );
+    assert.equal(ok.exitCode, 7);
+    assert.equal(ok.stdout, "");
+    assert.equal(ok.stderr, "");
+
+    // Timeout path: only the owned launcher is terminated.
+    const dir = mkdtempSync(join(tmpdir(), "lq-ign-"));
+    const pidFile = join(dir, "pid");
+    try {
+      const script = `
+        const fs = require("node:fs");
+        fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
+        setInterval(() => {}, 1000);
+      `;
+      const either = await Effect.runPromise(
+        Effect.either(
+          Effect.gen(function* () {
+            const proc = yield* ProcessExec;
+            return yield* proc.runIgnoredStdio({
+              command: process.execPath,
+              args: ["-e", script],
+              timeoutMs: 200,
+            });
+          }).pipe(Effect.provide(liveProcessExec)),
+        ),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assert.ok(either.left instanceof ProcessFailure);
+        assert.equal(either.left.reason, "timeout");
+      }
+
+      let pid: number | undefined;
+      try {
+        const text = readFileSync(pidFile, "utf8").trim();
+        if (text.length > 0) pid = Number(text);
+      } catch {
+        /* may already be reaped before writing */
+      }
+      if (pid !== undefined && Number.isFinite(pid)) {
+        const deadDeadline = Date.now() + 3_000;
+        let alive = true;
+        while (Date.now() < deadDeadline) {
+          try {
+            process.kill(pid, 0);
+            await new Promise((r) => setTimeout(r, 20));
+          } catch {
+            alive = false;
+            break;
+          }
+        }
+        assert.equal(alive, false, "timed-out ignored-stdio child must die");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

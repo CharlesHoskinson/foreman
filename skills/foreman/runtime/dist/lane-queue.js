@@ -15892,8 +15892,65 @@ function runForegroundOwned(opts) {
     });
   });
 }
+function runIgnoredStdioOwned(opts) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    let timer;
+    let child;
+    const settle = (outcome) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      resume2(outcome);
+    };
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(opts.command, [...opts.args], {
+        env: opts.env ?? process.env,
+        stdio: ["ignore", "ignore", "ignore"],
+        windowsHide: true,
+        detached: useGroup
+      });
+    } catch {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+    const owned = child;
+    let timedOut = false;
+    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        terminateOwnedChild(owned);
+      }, opts.timeoutMs);
+    }
+    owned.on("error", () => {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+    });
+    owned.on("close", (code) => {
+      if (settled) return;
+      if (timedOut) {
+        settle(Effect_exports.fail(new ProcessFailure("timeout")));
+        return;
+      }
+      settle(
+        Effect_exports.succeed({
+          exitCode: code ?? 1,
+          stdout: "",
+          stderr: ""
+        })
+      );
+    });
+    return Effect_exports.sync(() => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      terminateOwnedChild(owned);
+    });
+  });
+}
 var liveProcessExec = Layer_exports.succeed(ProcessExec, {
   runCaptured: (opts) => runCapturedOwned(opts),
+  runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
   runForeground: (opts) => runForegroundOwned(opts)
 });
 var liveQueueServices = Layer_exports.mergeAll(
@@ -16134,7 +16191,11 @@ var runPueue = (pueueBin, args2, timeoutMs) => Effect_exports.gen(function* () {
   });
 });
 var statusProbe = (pueueBin) => Effect_exports.gen(function* () {
-  const r = yield* runPueue(pueueBin, ["status"], TIMEOUT_STATUS_PROBE_MS);
+  const r = yield* runPueue(
+    pueueBin,
+    ["status", "--json", "last 1"],
+    TIMEOUT_STATUS_PROBE_MS
+  );
   return r.exitCode === 0;
 }).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(false)));
 var ensureGroup = (pueueBin, name, parallel4) => Effect_exports.gen(function* () {
@@ -16197,10 +16258,9 @@ var cmdEnsure = (io2, options) => Effect_exports.gen(function* () {
       return EXIT_FAIL;
     }
     const proc = yield* ProcessExec;
-    yield* proc.runCaptured({
+    yield* proc.runIgnoredStdio({
       command: pueuedBin,
       args: ["-d"],
-      maxOutputBytes: MAX_CAPTURE_BYTES,
       timeoutMs: TIMEOUT_QUEUE_OP_MS
     }).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(null)));
     const sleeper = yield* Sleeper;

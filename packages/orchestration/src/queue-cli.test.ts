@@ -80,6 +80,7 @@ describe("runQueueCli exit matrix", () => {
   const forceLayer = Layer.mergeAll(
     Layer.succeed(ProcessExec, {
       runCaptured: () => Effect.die("no"),
+      runIgnoredStdio: () => Effect.die("no"),
       runForeground: () => Effect.succeed(0),
     }),
     Layer.succeed(Sleeper, { sleep: () => Effect.void }),

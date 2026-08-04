@@ -63,11 +63,31 @@ export type RunForegroundOptions = {
   readonly env?: NodeJS.ProcessEnv;
 };
 
+/**
+ * Spawn a short-lived launcher (e.g. `pueued -d`) with all standard streams
+ * ignored so a daemonized child cannot retain capture pipes. Waits for the
+ * launcher process to exit. Returns a closed typed result with empty streams.
+ */
+export type RunIgnoredStdioOptions = {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly timeoutMs?: number;
+  readonly env?: NodeJS.ProcessEnv;
+};
+
 export class ProcessExec extends Context.Tag("ProcessExec")<
   ProcessExec,
   {
     readonly runCaptured: (
       opts: RunCapturedOptions,
+    ) => Effect.Effect<CapturedProcessResult, ProcessFailure>;
+    /**
+     * Run a process with stdin/stdout/stderr ignored. Wait for exit. On
+     * timeout, terminate only the owned launcher process or process group.
+     * stdout and stderr in the success result are always empty strings.
+     */
+    readonly runIgnoredStdio: (
+      opts: RunIgnoredStdioOptions,
     ) => Effect.Effect<CapturedProcessResult, ProcessFailure>;
     readonly runForeground: (
       opts: RunForegroundOptions,
@@ -445,8 +465,82 @@ function runForegroundOwned(
   });
 }
 
+/**
+ * Spawn with all stdio ignored. Wait for the launcher to exit. On timeout,
+ * kill only the owned launcher (process group on POSIX). Success always
+ * returns empty stdout/stderr — never open capture pipes a daemon can retain.
+ */
+function runIgnoredStdioOwned(
+  opts: RunIgnoredStdioOptions,
+): Effect.Effect<CapturedProcessResult, ProcessFailure> {
+  return Effect.async<CapturedProcessResult, ProcessFailure>((resume) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    let child: ChildProcess | undefined;
+
+    const settle = (
+      outcome: Effect.Effect<CapturedProcessResult, ProcessFailure>,
+    ) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      resume(outcome);
+    };
+
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(opts.command, [...opts.args], {
+        env: opts.env ?? process.env,
+        stdio: ["ignore", "ignore", "ignore"],
+        windowsHide: true,
+        detached: useGroup,
+      });
+    } catch {
+      settle(Effect.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+
+    const owned = child;
+    let timedOut = false;
+
+    if (opts.timeoutMs !== undefined && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        terminateOwnedChild(owned);
+      }, opts.timeoutMs);
+    }
+
+    owned.on("error", () => {
+      settle(Effect.fail(new ProcessFailure("spawn_failed")));
+    });
+
+    owned.on("close", (code) => {
+      if (settled) return;
+      if (timedOut) {
+        settle(Effect.fail(new ProcessFailure("timeout")));
+        return;
+      }
+      settle(
+        Effect.succeed({
+          exitCode: code ?? 1,
+          stdout: "",
+          stderr: "",
+        }),
+      );
+    });
+
+    return Effect.sync(() => {
+      if (settled) return;
+      settled = true;
+      if (timer !== undefined) clearTimeout(timer);
+      terminateOwnedChild(owned);
+    });
+  });
+}
+
 export const liveProcessExec = Layer.succeed(ProcessExec, {
   runCaptured: (opts) => runCapturedOwned(opts),
+  runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
   runForeground: (opts) => runForegroundOwned(opts),
 });
 

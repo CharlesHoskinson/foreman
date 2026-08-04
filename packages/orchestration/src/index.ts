@@ -65,4 +65,5 @@ export {
   type QueueIo,
   type RunCapturedOptions,
   type RunForegroundOptions,
+  type RunIgnoredStdioOptions,
 } from "./queue-services.js";
