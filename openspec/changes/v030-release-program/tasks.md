@@ -11,11 +11,13 @@
 - [ ] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix is
       tracked. The immutable Council bundle is pending.
 - [ ] 0.5 Run a ledger-bound Council review with `SpecCorrectnessV1`.
-- [x] 0.6 Record every cleanup candidate before any destructive action.
+- [ ] 0.6 Record every cleanup candidate before any destructive action. The
+      register exists. Owner and digest completion plus the `DST-0052`
+      late-registration incident remain open.
 
 ## 1. Program execution
 
-- [ ] 1.1 Execute Sprints 1 through 16 in `sprints.md` order.
+- [ ] 1.1 Execute Sprints 1 through 17 in `sprints.md` order.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

@@ -24,17 +24,31 @@ and WSL/Linux side by side, see [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ## Current release: Total Georgecall (v0.2.9.0)
 
-![Total Georgecall release artwork](assets/v029-total-georgecall.png)
+![Total Georgecall release artwork](https://raw.githubusercontent.com/CharlesHoskinson/foreman/v0.2.9.0/assets/v029-total-georgecall.png)
 
 Annotated tag `v0.2.9.0` targets exact commit
 `fbe23257fc389036d6feaa8f38e7b377f3106406`.
 
 Total Georgecall ships the bounded Node.js 24 TypeScript Council preflight.
-The executable compiles ACE before any provider process starts. Live Grok,
-Claude, and Codex canaries return nonce-bound ready receipts. Exact
-verification records 39 Council test files, 1,126 tests, 708 passed Foreman
-Bats cases, 0 failed cases, and 19 skipped cases. External dogfood preserves
-honest `quorum_not_met`.
+The executable compiles ACE before any provider process starts.
+
+Live-canary evidence uses exact canary candidate
+`2ec886c3454b49420405aec87afaa6594ccbfdf8`. xAI Grok 4.5, Anthropic Claude
+Sonnet 5, and OpenAI GPT-5.4 returned nonce-bound `ready` receipts with
+completed terminal state, exit code 0, zero pending or failed tool calls, and
+empty standard error. GitHub evidence is
+<https://github.com/CharlesHoskinson/foreman/pull/22#issuecomment-5171848075>.
+The Council package tree is byte-identical at candidate `2ec886c` and release
+commit `fbe23257fc389036d6feaa8f38e7b377f3106406`. Both resolve
+`components/council/packages` to tree
+`fe0af13811a6bbed482af60a57eb869fbebde075`. The only Council path changed
+after the canary candidate is `components/council/vitest.config.ts`. These
+receipts are not exact-merge receipts. The canaries did not run on the
+release commit.
+
+Exact verification records 39 Council test files, 1,126 tests, 708 passed
+Foreman Bats cases, 0 failed cases, and 19 skipped cases. External dogfood
+preserves honest `quorum_not_met`.
 
 - Release notes: [`docs/releases/v0.2.9.0-notes.md`](docs/releases/v0.2.9.0-notes.md)
 - Accomplishment ledger:

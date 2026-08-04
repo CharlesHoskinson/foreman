@@ -10,8 +10,21 @@ Annotated tag `v0.2.9.0` targets exact commit
 
 The product boundary is the bounded Node.js 24 TypeScript Council preflight
 executable named `council-preflight`. The executable compiles ACE before any
-provider process starts. Live Grok, Claude, and Codex canaries return
-nonce-bound ready receipts. Google fails closed because Gemini is absent.
+provider process starts. Google fails closed because Gemini is absent.
+
+Live-canary evidence uses exact canary candidate
+`2ec886c3454b49420405aec87afaa6594ccbfdf8`. xAI Grok 4.5, Anthropic Claude
+Sonnet 5, and OpenAI GPT-5.4 returned nonce-bound `ready` receipts with
+completed terminal state, exit code 0, zero pending or failed tool calls, and
+empty standard error. GitHub evidence is
+<https://github.com/CharlesHoskinson/foreman/pull/22#issuecomment-5171848075>.
+The Council package tree is byte-identical at candidate `2ec886c` and release
+commit `fbe23257fc389036d6feaa8f38e7b377f3106406`. Both resolve
+`components/council/packages` to tree
+`fe0af13811a6bbed482af60a57eb869fbebde075`. The only Council path changed
+after the canary candidate is `components/council/vitest.config.ts`. These
+receipts are not exact-merge receipts. The canaries did not run on the
+release commit.
 
 | Work item | Status | Evidence |
 |---|---|---|
@@ -20,7 +33,7 @@ nonce-bound ready receipts. Google fails closed because Gemini is absent.
 | Pass the local Council gate | Complete | 39 test files and 1,126 tests |
 | Pass the local Foreman gate | Complete | 708 passed, 0 failed, and 19 skipped Bats cases |
 | Pass hosted Linux and Windows gates | Complete | Linux run `30860945352` and Windows run `30860945387` |
-| Pass live Grok, Claude, and Codex canaries | Complete | Exact-merge nonce-bound ready receipts |
+| Pass live Grok, Claude, and Codex canaries | Complete | Candidate `2ec886c` receipts. Council packages tree `fe0af138`. PR comment `5171848075` |
 | Complete one external Foreman workflow | Complete | Grok commit `31e26eac`, 122 target tests, independent Codex audit |
 | Preserve the Council shadow outcome | Complete | Exact external bundle records honest `quorum_not_met` |
 | Rebuild the exact release graph | Complete | 2,781 nodes, 5,104 edges, and 20 hyperedges on the tag commit |
@@ -60,13 +73,15 @@ retries, timeouts, and concurrency.
 The program orders work in sprint bands. None of these bands is complete:
 
 - authority baseline, destruction inventory, and ledger reconciliation
-- Node workspace, core policy, queue, resume, credentials, and secret scans
-- graph store, launcher, event log, session, and project registry
+- Node workspace, core, and policy
+- typed event-log foundation
+- queue, resume, credentials, and fixture-aware secret scans
+- GraphStore, launcher, SessionDB, and project registry
 - current-main session transport
 - Council advisory plane, durable runtime, Gemini, MCP, and host plugins
-- release metrics, knowledge and Graphify convergence, and orchestration
-- zero-Python cleanup, external dogfood matrix, and exact-candidate
-  convergence
+- release evidence, knowledge and Graphify convergence, and orchestration
+- zero-Python cleanup, external dogfood, Windows boundary, and
+  exact-candidate convergence
 
 Do not present unfinished v0.3.0 work as shipped work.
 

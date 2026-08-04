@@ -19,13 +19,24 @@ The canonical inventory is
 
 ## Live evidence
 
-- [x] Pass one bounded live Grok canary on the release commit. Exact-merge
-      nonce-bound ready receipt.
-- [x] Pass one bounded live Claude canary on the release commit. Exact-merge
-      nonce-bound ready receipt.
-- [x] Pass one bounded live Codex canary on the release commit. Exact-merge
-      nonce-bound ready receipt.
-- [x] Preserve release-bound provider-neutral receipts without secrets.
+- [x] Record live canary evidence on exact canary candidate
+      `2ec886c3454b49420405aec87afaa6594ccbfdf8`.
+- [x] Confirm xAI Grok 4.5, Anthropic Claude Sonnet 5, and OpenAI GPT-5.4
+      returned nonce-bound `ready` receipts with completed terminal state,
+      exit code 0, zero pending or failed tool calls, and empty standard
+      error.
+- [x] Cite GitHub evidence
+      <https://github.com/CharlesHoskinson/foreman/pull/22#issuecomment-5171848075>.
+- [x] Confirm the Council package tree is byte-identical at candidate
+      `2ec886c` and release commit
+      `fbe23257fc389036d6feaa8f38e7b377f3106406`. Both resolve
+      `components/council/packages` to tree
+      `fe0af13811a6bbed482af60a57eb869fbebde075`.
+- [x] Confirm the only Council path changed after the canary candidate is
+      `components/council/vitest.config.ts`.
+- [x] Do not claim exact-merge canary receipts. Do not claim the canaries
+      ran on the release commit.
+- [x] Preserve provider-neutral receipts without secrets.
 
 ## External dogfood
 
