@@ -33,7 +33,7 @@ Each row names these fields:
 | ID | Class | Target sprint | Mapped requirement or boundary | Acceptance evidence | Baseline status |
 |---|---|---:|---|---|---|
 | CW-001 | carried_work | 0 | Correct stale release authority, OpenSpec task state, and residual records. | Sprint 0 authority diff and docs-check | open |
-| CW-002 | destruction_constraint | 0 | Trace historical `DST-0030` through current `DST-0039` across both destruction records and inventory worktrees before removal. | `docs/releases/v0.2.9.0-cleanup-log.md` for historical `DST-0030`, `docs/releases/v0.3.0-destruction-log.md` for current `DST-0039`, with owner and digests | open |
+| CW-002 | destruction_constraint | 0 | Trace historical `DST-0030` through current `DST-0039` across both destruction records and inventory worktrees. Ship the fail-closed `DST-0059` guard before any later removal. | Both destruction records, complete owner and digest evidence, and passing pre-destruction guard tests | open |
 | CW-003 | carried_work | 1 | Create the Node.js 24 workspace, `@foreman/core`, and `@foreman/policy`. | Clean install, strict type check, and policy known-bad tests | open |
 | CW-004 | carried_work | 3 | Fix queue admission, attempt-bound report freshness, resume semantics, and external runtime state. | Sprint 3 deterministic tests after accepted Sprint 2 event-log commit | open |
 | CW-005 | carried_work | 3 | Add explicit credential provisioning for isolated provider profiles. | Credential isolation tests and external state root checks | open |
