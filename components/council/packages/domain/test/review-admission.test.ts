@@ -21,6 +21,8 @@ import {
   isQuorumEligibleClassification,
   type ReviewAttemptInput,
 } from "../src/review-admission.js";
+import { alignSpecCorrectnessWithClassification } from "../src/spec-correctness-admission.js";
+import * as DomainRoot from "../src/index.js";
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 
@@ -534,5 +536,195 @@ describe("classifyReviewAttempt completion gates", () => {
       designatedStructuredValid: false,
     });
     expect(result._tag).toBe("ProviderPreflightFailed");
+  });
+});
+
+const cleanMetrics = {
+  schemaVersion: 1 as const,
+  baselineItemCount: 44 as const,
+  mappedItemCount: 44,
+  evidencedDeferCount: 0,
+  omittedItemCount: 0,
+  contradictionCount: 0,
+  unevidencedDeferCount: 0,
+  inventedCompletionCount: 0,
+  coverageRatio: { numerator: 44, denominator: 44 as const },
+};
+
+describe("alignSpecCorrectnessWithClassification", () => {
+  it("is not exported from the domain root barrel", () => {
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        DomainRoot,
+        "alignSpecCorrectnessWithClassification",
+      ),
+    ).toBe(false);
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        DomainRoot,
+        "SpecCorrectnessClassificationAlignment",
+      ),
+    ).toBe(false);
+  });
+
+  it("aligns Valid/accept with CompletedVerdict approved", () => {
+    const classification = classifyReviewAttempt(baseInput());
+    const alignment = alignSpecCorrectnessWithClassification(
+      {
+        schemaVersion: 1,
+        _tag: "Valid",
+        outcome: "accept",
+        metrics: cleanMetrics,
+        findings: [],
+      },
+      classification,
+    );
+    expect(alignment).toEqual({ _tag: "approved" });
+  });
+
+  it("aligns Valid/changes_requested with CompletedVerdict changes", () => {
+    const response: FinalReviewResponseV1 = {
+      ...baseResponse,
+      advice: {
+        kind: "changes_requested",
+        findings: [
+          {
+            artifactId,
+            location: "row 1",
+            summary: "defect",
+            nextAction: "fix",
+          },
+        ],
+      },
+    };
+    const classification = classifyReviewAttempt({
+      ...baseInput(),
+      response,
+    });
+    const alignment = alignSpecCorrectnessWithClassification(
+      {
+        schemaVersion: 1,
+        _tag: "Valid",
+        outcome: "changes_requested",
+        metrics: {
+          ...cleanMetrics,
+          mappedItemCount: 43,
+          omittedItemCount: 1,
+          coverageRatio: { numerator: 43, denominator: 44 },
+        },
+        findings: [
+          {
+            location: "coverage",
+            summary: "omission",
+            nextAction: "map it",
+          },
+        ],
+      },
+      classification,
+    );
+    expect(alignment).toEqual({ _tag: "changes_requested" });
+  });
+
+  it("aligns Valid/abstain with CompletedAbstention and never quorum", () => {
+    const response: FinalReviewResponseV1 = {
+      ...baseResponse,
+      advice: {
+        kind: "abstention",
+        abstention: {
+          kind: "insufficient_evidence",
+          evidenceGaps: [
+            {
+              evidenceRef: "acceptance-criteria",
+              unmetCondition: "missing proof",
+            },
+          ],
+          nextAction: "supply evidence",
+        },
+      },
+    };
+    const classification = classifyReviewAttempt({
+      ...baseInput(),
+      response,
+    });
+    expect(isQuorumEligibleClassification(classification)).toBe(false);
+    const alignment = alignSpecCorrectnessWithClassification(
+      {
+        schemaVersion: 1,
+        _tag: "Valid",
+        outcome: "abstain",
+        metrics: cleanMetrics,
+        evidenceGaps: [
+          {
+            evidenceRef: "acceptance-criteria",
+            unmetCondition: "missing proof",
+          },
+        ],
+        nextAction: "supply evidence",
+      },
+      classification,
+    );
+    expect(alignment).toEqual({ _tag: "abstention" });
+  });
+
+  it("rejects Invalid evaluation and advice mismatches", () => {
+    const approved = classifyReviewAttempt(baseInput());
+    expect(
+      alignSpecCorrectnessWithClassification(
+        {
+          schemaVersion: 1,
+          _tag: "Invalid",
+          reason: "provider_response_invalid",
+        },
+        approved,
+      )._tag,
+    ).toBe("mismatch");
+
+    expect(
+      alignSpecCorrectnessWithClassification(
+        {
+          schemaVersion: 1,
+          _tag: "Valid",
+          outcome: "accept",
+          metrics: cleanMetrics,
+          findings: [],
+        },
+        classifyReviewAttempt({
+          ...baseInput(),
+          response: {
+            ...baseResponse,
+            advice: {
+              kind: "changes_requested",
+              findings: [
+                {
+                  artifactId,
+                  location: "x",
+                  summary: "y",
+                  nextAction: "z",
+                },
+              ],
+            },
+          },
+        }),
+      )._tag,
+    ).toBe("mismatch");
+
+    expect(
+      alignSpecCorrectnessWithClassification(
+        {
+          schemaVersion: 1,
+          _tag: "Valid",
+          outcome: "abstain",
+          metrics: cleanMetrics,
+          evidenceGaps: [
+            {
+              evidenceRef: "acceptance-criteria",
+              unmetCondition: "missing",
+            },
+          ],
+          nextAction: "act",
+        },
+        approved,
+      )._tag,
+    ).toBe("mismatch");
   });
 });

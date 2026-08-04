@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { access, chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -561,5 +563,28 @@ process.stdout.write("1.0.0\\n");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * Exact identity of the clean preflight bundle at 7aabc73. A size cap alone is
+ * insufficient: admission-only symbols must not appear in the preflight entry.
+ */
+const CLEAN_PREFLIGHT_BYTE_COUNT = 845_594;
+const CLEAN_PREFLIGHT_SHA256 =
+  "35fea54fb3790380d2d61be88aa390bddf918a9d52f3be07ea6583e03c62142f";
+const PREFLIGHT_FORBIDDEN =
+  /SpecCorrectnessPrimitives|NodeSpecCorrectnessPrimitives|spec-correctness-admission|markdown-it/;
+
+describe("compiled council-preflight isolation", () => {
+  it("matches the clean preflight byte count, SHA-256, and forbidden-string set", () => {
+    const bundlePath = "packages/runtime-node/dist/preflight-cli.js";
+    const bytes = readFileSync(bundlePath);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const text = bytes.toString("utf8");
+
+    expect(bytes.byteLength).toBe(CLEAN_PREFLIGHT_BYTE_COUNT);
+    expect(digest).toBe(CLEAN_PREFLIGHT_SHA256);
+    expect(PREFLIGHT_FORBIDDEN.test(text)).toBe(false);
   });
 });

@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "bin": {
-    "council-preflight": "./dist/preflight-cli.js"
+    "council-preflight": "./dist/preflight-cli.js",
+    "council-spec-correctness": "./dist/spec-correctness-cli.js"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./spec-correctness-program": "./src/spec-correctness-program.ts"
   },
   "dependencies": {
     "@council/adapter-claude": "workspace:*",

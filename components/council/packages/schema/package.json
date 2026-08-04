@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./spec-correctness": "./src/spec-correctness.ts"
+    "./spec-correctness": "./src/spec-correctness.ts",
+    "./spec-correctness-admission": "./src/spec-correctness-admission.ts"
   },
   "dependencies": {
     "@noble/hashes": "2.2.0",

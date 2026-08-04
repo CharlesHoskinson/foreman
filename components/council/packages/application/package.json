@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./spec-correctness-admission": "./src/spec-correctness-admission.ts",
+    "./spec-correctness-primitives": "./src/spec-correctness-primitives.ts"
   },
   "dependencies": {
     "@council/domain": "workspace:*",
