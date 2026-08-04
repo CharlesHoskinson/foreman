@@ -29,52 +29,84 @@ stable ID in `coverage-matrix.md` and one of these classes:
 - `destruction_constraint`: material that cannot be removed until its recovery
   or replacement condition passes.
 
-The baseline contains 7 `RT-*` rows and 32 `CW-*` rows. The baseline count is
-39.
+The baseline contains 7 `RT-*` rows and 37 `CW-*` rows. The baseline count is
+44.
 
 ### Closed item-result dispositions
 
-A reviewer emits exactly one item result for every sorted baseline ID. The
-closed disposition set is:
+A reviewer emits exactly one item result for every baseline ID. Sort item
+results by UTF-8 byte order of item ID. The exact canonical sequence is
+`CW-001` through `CW-037`, then `RT-001` through `RT-007`.
+
+The closed disposition set is:
 
 - `mapped`
+- `evidenced_defer`
 - `omitted`
 - `contradiction`
 - `unevidenced_defer`
 
-Duplicate, unknown, or missing IDs make the response invalid. The four
-disposition counts are computed from those mutually exclusive item results.
-Their sum equals 39.
+Duplicate, unknown, or missing IDs make the response invalid. The five
+disposition counts are host-derived from those mutually exclusive item
+results. Their sum equals 44.
 
 - `mapped_item_count` counts only `mapped`.
+- `evidenced_defer_count` counts only `evidenced_defer`.
 - `omitted_item_count` counts only `omitted`.
 - `contradiction_count` counts only `contradiction`.
 - `unevidenced_defer_count` counts only `unevidenced_defer`.
 
-### Invented completions
+An evidenced defer names reason, owner, target release, blocking dependency,
+and acceptance evidence. An evidenced defer is not a defect. An unevidenced
+defer is a defect.
 
-Invented completions are a separate sorted set of canonical claim SHA-256
-digests. An invented claim can have no baseline ID.
-`invented_completion_count` equals the set size. Duplicate claim digests make
-the response invalid.
+### InventedCompletionV1
+
+Invented completions are a separate sorted set of `InventedCompletionV1`
+records. `invented_completion_count` equals the set size.
+
+An `InventedCompletionV1` record is an actionable source-located record. After
+a reviewer detects an invented completion, the host selects the smallest
+complete CommonMark block that contains the claim. The host uses CommonMark
+0.31.2 plus GFM table and task-list source ranges. Ties use earliest start
+byte, then shortest byte length.
+
+The record fields are:
+
+- artifact alias
+- artifact SHA-256
+- zero-based start byte
+- exclusive end byte
+- exact-slice SHA-256
+- short summary
+- corrective action
+
+The host verifies the byte range and digest against immutable artifact bytes.
+Sort invention records by digest byte order. The record digest is SHA-256 over
+artifact digest, NUL, decimal start, NUL, decimal end, NUL, and the exact
+source bytes. Do not use free-form claim IDs. Duplicate invention-record
+digests make the response invalid.
 
 ### Canonical encoding and derived counts
 
-Canonical encoding is UTF-8 JSON with recursively sorted object keys, baseline
-item results sorted by item ID, claim digests sorted by byte order, no
-insignificant whitespace, and one trailing LF. Counts are derived from arrays.
-Counts are not accepted as independent model claims.
+Canonical encoding is recursively key-sorted UTF-8 JSON with no insignificant
+whitespace and one trailing LF. Baseline item results are sorted by item ID.
+Invention records are sorted by digest byte order. Counts are derived from
+arrays. Counts are not accepted as independent model claims.
 
-The coverage ratio is `mapped_item_count / baseline_item_count`. The ratio is
-reported as a fraction and is not rounded. Counts have priority over the
+The coverage ratio is
+`(mapped_item_count + evidenced_defer_count) / baseline_item_count`. The ratio
+is reported as a fraction and is not rounded. Counts have priority over the
 ratio.
 
 ### Outcome rule
 
-The outcome is `accept` only when all 39 items are `mapped`, every defect count
-is zero, every bound identity matches, and the response is valid. Otherwise
-the outcome is `changes_requested`, except that a reviewer can use `abstain`
-only for a named evidence gap under the existing Council rules.
+The outcome is `accept` only when `mapped + evidenced_defer = 44`, every
+defect count is zero, invented completions are zero, every bound identity
+matches, and the response is valid. Defect counts are `omitted_item_count`,
+`contradiction_count`, and `unevidenced_defer_count`. Otherwise the outcome is
+`changes_requested`, except that a reviewer can use `abstain` only for a named
+evidence gap under the existing Council rules.
 
 Council requests changes when any of these conditions is true:
 
@@ -82,6 +114,7 @@ Council requests changes when any of these conditions is true:
 - `contradiction_count` is not zero.
 - `invented_completion_count` is not zero.
 - `unevidenced_defer_count` is not zero.
+- `mapped + evidenced_defer` is not 44.
 - Any bound identity is missing or mismatched.
 - The response is invalid.
 
@@ -127,13 +160,15 @@ Sprint order is dependency-correct:
 7. current-main session transport
 8. minimal Council advisory plane
 9. durable Council runtime and security
-10. Gemini, aggregate readiness, and full deliberation
+10. Gemini, aggregate readiness, full deliberation, supervised research
+    gateway, and evidence provenance
 11. Council MCP, host plugins, and package-publication decision
-12. release evidence
+12. release evidence and formal-model plane reconciliation
 13. knowledge and Graphify convergence
 14. orchestration
-15. zero-Python and residual cleanup
-16. external dogfood and Windows boundary
+15. zero-Python, Superpowers, and residual cleanup
+16. external dogfood, Windows boundary, ready-token multi-domain Council
+    closure, and Council evaluation program
 17. exact-candidate convergence
 
 Sprint 3 depends on the accepted Sprint 2 event-log commit.
@@ -141,7 +176,8 @@ Sprint 3 depends on the accepted Sprint 2 event-log commit.
 Focused packages keep their detailed acceptance tests. This release package
 owns cross-package order, scope coverage, exact-candidate convergence, and the
 final destruction record. `openspec/changes/node-typescript-runtime/` retains
-detailed module contracts and package-level acceptance tests.
+detailed module contracts and package-level acceptance tests. It does not
+define release order.
 
 ## Package inventory and ownership
 
@@ -178,6 +214,9 @@ The destruction log records the path or ref, reason, recovery method, owner,
 precondition, evidence digest, disposition, and timestamp. The team deletes no
 material item when recovery ownership is unknown. A proposed action with
 incomplete evidence says `pending` and remains unauthorized.
+
+Historical process incidents remain in history. They do not authorize current
+actions and do not satisfy the pre-registration rule.
 
 ## Review boundaries
 

@@ -1,6 +1,9 @@
 # Tasks — Node.js and TypeScript runtime migration
 
-## Sprint 0 — establish the rule
+Release order is owned by `openspec/changes/v030-release-program/`. The groups
+below contain detailed module tasks only. They do not define release order.
+
+## M0 — establish the rule
 
 - [x] Add repository agent doctrine for Node.js 24 and TypeScript.
 - [x] Define the runtime, package, Effect, adapter, and deletion boundaries.
@@ -8,7 +11,7 @@
 - [ ] Complete a Council review of the immutable sprint plan with no unresolved
       admissible dissent.
 
-## Sprint 1 — workspace and architecture gate
+## M1 — workspace and architecture gate
 
 - [ ] Add the root npm workspace, lockfile, strict shared TypeScript config,
       Node.js 24 engine constraint, and exact dependency pins.
@@ -24,7 +27,7 @@
       plugin-drift verify the same bundle manifest without resolving repository
       siblings or root `node_modules` at runtime.
 
-## Sprint 2 — migrate GraphStore
+## M2 — migrate GraphStore
 
 - [ ] Write the GraphStore contract tests in TypeScript before implementation.
 - [ ] Implement the port, closed document schemas, expected-emptiness contract,
@@ -36,7 +39,7 @@
 - [ ] Convert current callers to the TypeScript entry point, run parity tests,
       then delete `skills/foreman/graph_store/*.py`.
 
-## Sprint 3 — migrate launcher supervision
+## M3 — migrate launcher supervision
 
 - [ ] Port the launcher CLI and supervision core to Node.js.
 - [ ] Remove Bun imports, Bun process APIs, and the Bun build requirement.
@@ -48,7 +51,7 @@
 - [ ] Preserve Linux/WSL process-group and Windows tree-termination contracts,
       or report a typed degraded capability before launch.
 
-## Sprint 4A — migrate the event log
+## M4A — migrate the event log
 
 - [ ] Implement closed event schemas, duplicate-key refusal, bounded NDJSON
       replay, cursors, and attempt identity in `@foreman/event-log`.
@@ -57,7 +60,7 @@
 - [ ] Preserve event append, lock, and byte contracts through a thin adapter,
       then remove domain decoding from `lib/eventlog.sh`.
 
-## Sprint 4B — migrate SessionDB
+## M4B — migrate SessionDB
 
 - [ ] Implement facts, measurements, obligations, recovery, freshness,
       supersession, retirement, sidecar hydrate/export, and graph projection in
@@ -69,7 +72,7 @@
 - [ ] Preserve the existing command contract through a thin adapter, migrate
       hourly checkpoints and release gates, then delete `fm-session.py`.
 
-## Sprint 5 — migrate release evidence modules
+## M5 — migrate release evidence modules
 
 - [ ] Implement metrics rollup and release sigma in `@foreman/release` with
       closed event schemas, duplicate-key refusal, source digests, and
@@ -79,7 +82,7 @@
 - [ ] Replace planned Python commands and migrate Tier 2 collection/compare
       helpers before adding new behavior to them.
 
-## Sprint 6 — migrate knowledge modules
+## M6 — migrate knowledge modules
 
 - [ ] Implement Graphify refresh, freshness, and current-authority projection
       in `@foreman/knowledge`.
@@ -89,7 +92,7 @@
 - [ ] Implement doctrine registry validation in the same package.
 - [ ] Keep existing shell paths only as thin adapters until callers migrate.
 
-## Sprint 7 — migrate orchestration modules
+## M7 — migrate orchestration modules
 
 - [ ] Implement round ownership and recovery in `@foreman/orchestration` with
       unique recovery identities, closed provenance, durable transactions,
@@ -98,7 +101,7 @@
       typed readiness facts, bounded output, and scoped cleanup.
 - [ ] Convert Setup, lane, and tool-check callers to adapters.
 
-## Sprint 8 — delete legacy implementations and all residual Python
+## M8 — delete legacy implementations and all residual Python
 
 - [ ] Delete a legacy implementation only after every caller uses the
       TypeScript module and compatibility gates pass.
@@ -113,11 +116,11 @@
       utility.
 - [ ] Require `git ls-files '*.py'` to return no paths.
 
-## Sprint 9 — release acceptance
+## M9 — release acceptance package
 
 - [ ] Run npm clean install, strict type check, Node.js tests, policy checks,
       existing compatibility gates, strict OpenSpec validation, and docs gates.
 - [ ] Obtain independent cold audits for each module package.
 - [ ] Run Council on one immutable final candidate and preserve dissent.
 - [ ] Commit and push every accepted package. Do not tag until all release
-      criteria pass at one unchanged commit.
+      criteria pass at one unchanged commit under the v0.3.0 release program.

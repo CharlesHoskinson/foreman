@@ -94,5 +94,6 @@ Do not present unfinished v0.3.0 work as shipped work.
 - Current destruction log: `docs/releases/v0.3.0-destruction-log.md`
 - Shipped v0.2.9.0 cleanup record:
   `docs/releases/v0.2.9.0-cleanup-log.md`
+- Shipped v0.2.9.0 release record: `checklist.md`
 - Current residuals: `docs/RESIDUALS.md`
 - Historical evidence rules: `docs/evidence/README.md`

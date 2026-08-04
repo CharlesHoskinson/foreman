@@ -18,11 +18,12 @@ are not authoritative source and must never be hand-edited.
 
 ## Package boundaries
 
-The migration uses these product packages:
+The migration uses these nine product package families:
 
 | Package | Responsibility | First legacy source replaced |
 |---|---|---|
 | `@foreman/core` | closed schemas, typed errors, canonical JSON, safe filesystem and process interfaces | duplicated helpers across scripts |
+| `@foreman/policy` | fail-capable architecture policy and known-bad fixtures for new non-TypeScript product logic | ad hoc policy checks across scripts |
 | `@foreman/event-log` | closed event schemas, bounded NDJSON replay, cursor and attempt identity | `lib/eventlog.sh` and duplicate event decoders |
 | `@foreman/session` | SessionDB facts, measurements, supersession, recovery, sidecar, and current-authority export | `fm-session.py` and freshness sweep logic |
 | `@foreman/graph-store` | GraphStore port and files-only materialization | `skills/foreman/graph_store/` |
@@ -78,31 +79,36 @@ built skill tree and pass the same check. Source maps can remain local build
 artifacts, but a runtime bundle cannot be omitted from an install that
 advertises its command.
 
-## Sprint order
+## Module dependency map
 
-0. Freeze governance, the baseline, and Council-reviewed sprint plan.
-1. Land the root workspace, policy gate, and shared core primitives.
-2. Replace GraphStore Python with `@foreman/graph-store` and delete the Python
-   package after parity.
-3. Make launcher behavior Node-compatible. Remove Bun-specific APIs and the
-   subreaper mode that adopts children without continuously reaping them.
-4. Replace duplicate event decoders with `@foreman/event-log`, then replace
-   SessionDB Python with `@foreman/session`, including typed retraction,
-   existing-successor supersession, lossless sidecar, and a separate derived
-   current-authority export.
-5. Implement release metrics and package audits in `@foreman/release`.
-6. Implement graph refresh and doctrine checks in `@foreman/knowledge`.
-7. Implement round ownership and preflight in `@foreman/orchestration`.
-8. Convert remaining callers to adapters, delete dead implementations, and
-   remove all residual Python and stale current-authority references.
-9. Run release convergence for a separately approved migration release.
+Release order is owned by `openspec/changes/v030-release-program/`. This
+package records module dependencies and detailed module contracts only. It does
+not define release order.
 
-The detailed sprint outcomes, work, and exit predicates are in `sprints.md`.
+Module dependency map:
 
-GraphStore starts first because it is an isolated port, is currently Python,
-and supplies reusable filesystem/schema patterns. Launcher supervision follows
-because current long-running Foreman workers have demonstrated adopted zombie
-accumulation when the Bun subreaper path is active.
+- workspace, `@foreman/core`, and `@foreman/policy` land before product ports
+- `@foreman/event-log` lands before SessionDB, release metrics, knowledge
+  consumers, and other event consumers
+- `@foreman/graph-store` can land as an isolated port after core primitives
+- `@foreman/launcher` follows core because long-running workers need Node and
+  Effect supervision without Bun-only APIs
+- `@foreman/session` follows the event-log foundation
+- `@foreman/release` follows the event-log foundation for metrics inputs
+- `@foreman/knowledge` follows core and consumes event-log inputs for
+  current-authority projection
+- `@foreman/orchestration` follows core and launcher contracts for round
+  ownership and preflight
+- residual Python, Bun, and stale current-authority cleanup follows the ports
+  that replace those implementations
+
+GraphStore is a preferred early port because it is isolated, is currently
+Python, and supplies reusable filesystem and schema patterns. Launcher
+supervision is required because current long-running Foreman workers have
+demonstrated adopted zombie accumulation when the Bun subreaper path is active.
+
+The detailed module outcomes, work, and exit predicates are in `sprints.md` as
+migration groups `M0` through `M9`. Those groups do not define release order.
 
 ## Policy enforcement
 

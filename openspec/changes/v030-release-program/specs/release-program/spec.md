@@ -8,8 +8,8 @@ WHEN the architect creates or revises a v0.3.0 specification, Foreman SHALL
 compare it with the canonical accomplishment ledger and the program coverage
 matrix.
 
-The coverage matrix SHALL contain 7 `RT-*` rows and 32 `CW-*` rows. The
-baseline count SHALL be 39.
+The coverage matrix SHALL contain 7 `RT-*` rows and 37 `CW-*` rows. The
+baseline count SHALL be 44.
 
 #### Scenario: a prior release fact changes in a proposed spec
 
@@ -27,28 +27,52 @@ baseline count SHALL be 39.
 ### Requirement: SpecCorrectnessV1 uses a deterministic item-result algorithm
 
 WHEN Council reviews a release specification, the reviewer SHALL emit exactly
-one item result for every sorted baseline ID.
+one item result for every baseline ID.
 
-The closed item-result disposition set SHALL be `mapped`, `omitted`,
-`contradiction`, and `unevidenced_defer`.
+Item results SHALL be sorted by UTF-8 byte order of item ID. The exact
+canonical sequence SHALL be `CW-001` through `CW-037`, then `RT-001` through
+`RT-007`.
+
+The closed item-result disposition set SHALL be `mapped`, `evidenced_defer`,
+`omitted`, `contradiction`, and `unevidenced_defer`.
 
 Duplicate, unknown, or missing IDs SHALL make the response invalid.
 
-The four disposition counts SHALL be computed from those mutually exclusive
-item results. Their sum SHALL equal 39. `mapped_item_count` SHALL count only
-`mapped`. The other three item counts SHALL count their matching dispositions.
+The five disposition counts SHALL be host-derived from those mutually exclusive
+item results. Their sum SHALL equal 44. `mapped_item_count` SHALL count only
+`mapped`. `evidenced_defer_count` SHALL count only `evidenced_defer`.
+`omitted_item_count` SHALL count only `omitted`. `contradiction_count` SHALL
+count only `contradiction`. `unevidenced_defer_count` SHALL count only
+`unevidenced_defer`.
 
-Invented completions SHALL be a separate sorted set of canonical claim SHA-256
-digests. `invented_completion_count` SHALL equal the set size. Duplicate claim
-digests SHALL make the response invalid.
+An evidenced defer SHALL name reason, owner, target release, blocking
+dependency, and acceptance evidence. An evidenced defer SHALL NOT be a defect.
+An unevidenced defer SHALL be a defect.
 
-Canonical encoding SHALL be UTF-8 JSON with recursively sorted object keys,
-baseline item results sorted by item ID, claim digests sorted by byte order,
-no insignificant whitespace, and one trailing LF. Counts SHALL be derived from
+Invented completions SHALL be a separate sorted set of `InventedCompletionV1`
+records. `invented_completion_count` SHALL equal the set size. Duplicate
+invention-record digests SHALL make the response invalid.
+
+An `InventedCompletionV1` record SHALL be an actionable source-located record.
+After a reviewer detects an invented completion, the host SHALL select the
+smallest complete CommonMark block that contains the claim. The host SHALL use
+CommonMark 0.31.2 plus GFM table and task-list source ranges. Ties SHALL use
+earliest start byte, then shortest byte length. The record SHALL include
+artifact alias, artifact SHA-256, zero-based start byte, exclusive end byte,
+exact-slice SHA-256, short summary, and corrective action. The host SHALL
+verify the byte range and digest against immutable artifact bytes. Invention
+records SHALL be sorted by digest byte order. The record digest SHALL be
+SHA-256 over artifact digest, NUL, decimal start, NUL, decimal end, NUL, and
+the exact source bytes. The host SHALL NOT use free-form claim IDs.
+
+Canonical encoding SHALL be UTF-8 JSON with recursively sorted object keys, no
+insignificant whitespace, and one trailing LF. Counts SHALL be derived from
 arrays and SHALL NOT be accepted as independent model claims.
 
-The outcome SHALL be `accept` only when all 39 items are `mapped`, every defect
-count is zero, every bound identity matches, and the response is valid.
+The outcome SHALL be `accept` only when `mapped + evidenced_defer = 44`, every
+defect count is zero, invented completions are zero, every bound identity
+matches, and the response is valid. Defect counts SHALL be
+`omitted_item_count`, `contradiction_count`, and `unevidenced_defer_count`.
 Otherwise the outcome SHALL be `changes_requested`, except that a reviewer can
 use `abstain` only for a named evidence gap under the existing Council rules.
 
@@ -58,13 +82,32 @@ use `abstain` only for a named evidence gap under the existing Council rules.
 - THEN the response is invalid
 - AND Council requests changes.
 
-#### Scenario: all baseline items are mapped with zero defects
+#### Scenario: all baseline items are mapped or evidenced-deferred with zero defects
 
-- WHEN all 39 item results are `mapped`
+- WHEN the sum of `mapped` and `evidenced_defer` item results is 44
 - AND every defect count is zero
+- AND invented completions are zero
 - AND every bound identity matches
 - AND the response is valid
 - THEN the outcome is `accept`.
+
+#### Scenario: an evidenced defer is not a defect
+
+- WHEN one baseline item result is `evidenced_defer`
+- AND that result names reason, owner, target release, blocking dependency,
+  and acceptance evidence
+- AND the remaining items are `mapped`
+- AND every defect count is zero
+- AND invented completions are zero
+- AND every bound identity matches
+- AND the response is valid
+- THEN the outcome is `accept`.
+
+#### Scenario: an unevidenced defer is a defect
+
+- WHEN one baseline item result is `unevidenced_defer`
+- THEN `SpecCorrectnessV1` reports one unevidenced defer
+- AND Council requests changes.
 
 ### Requirement: the correctness result is typed and bundle-bound
 
@@ -185,6 +228,9 @@ The destruction log SHALL record owner, evidence or digest, and recorded-at
 fields for every row. A proposed action with incomplete evidence SHALL say
 `pending` and SHALL remain unauthorized.
 
+Historical process incidents SHALL remain in history. They SHALL NOT authorize
+current actions and SHALL NOT satisfy the pre-registration rule.
+
 #### Scenario: recovery ownership is unknown
 
 - WHEN a worktree contains untracked material and has no recovery owner
@@ -199,6 +245,21 @@ fields for every row. A proposed action with incomplete evidence SHALL say
   `3c8abfe4e70751b5f08e1cb51bcbea3c776ccb5470a80e0d527c34fb20d8b9dd`
 - THEN the state is `blocked`
 - AND no removal is authorized.
+
+#### Scenario: a historical late-registration incident does not authorize action
+
+- WHEN the historical process incident for `DST-0052` remains in history
+- THEN that incident does not satisfy the pre-registration rule
+- AND that incident does not authorize any current removal
+- AND the current register is accepted only when no current action is
+  authorized by that incident.
+
+#### Scenario: DST-0059 remains unauthorized until the guard ships
+
+- WHEN the current register records `DST-0059` with state `unauthorized`
+- AND evidence and recorded-at remain pending
+- THEN no later tracked authority, worktree, branch, or artifact removal is
+  authorized by that row.
 
 ### Requirement: sprint order follows dependencies
 
@@ -219,13 +280,15 @@ The program SHALL use this sprint order:
 7. current-main session transport
 8. minimal Council advisory plane
 9. durable Council runtime and security
-10. Gemini, aggregate readiness, and full deliberation
+10. Gemini, aggregate readiness, full deliberation, supervised research
+    gateway, and evidence provenance
 11. Council MCP, host plugins, and package-publication decision
-12. release evidence
+12. release evidence and formal-model plane reconciliation
 13. knowledge and Graphify convergence
 14. orchestration
-15. zero-Python and residual cleanup
-16. external dogfood and Windows boundary
+15. zero-Python, Superpowers, and residual cleanup
+16. external dogfood, Windows boundary, ready-token multi-domain Council
+    closure, and Council evaluation program
 17. exact-candidate convergence
 
 Sprint 3 SHALL depend on the accepted Sprint 2 event-log commit.

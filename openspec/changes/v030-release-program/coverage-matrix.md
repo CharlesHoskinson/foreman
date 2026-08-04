@@ -4,8 +4,8 @@ This matrix is the stable item index for `SpecCorrectnessV1`. The canonical
 accomplishment ledger supplies the detailed release evidence. The status in
 this file describes the v0.3.0 baseline, not a completion claim.
 
-The baseline contains 7 `RT-*` rows and 32 `CW-*` rows. The baseline count is
-39.
+The baseline contains 7 `RT-*` rows and 37 `CW-*` rows. The baseline count is
+44.
 
 Each row names these fields:
 
@@ -33,7 +33,7 @@ Each row names these fields:
 | ID | Class | Target sprint | Mapped requirement or boundary | Acceptance evidence | Baseline status |
 |---|---|---:|---|---|---|
 | CW-001 | carried_work | 0 | Correct stale release authority, OpenSpec task state, and residual records. | Sprint 0 authority diff and docs-check | open |
-| CW-002 | destruction_constraint | 0 | Inventory worktrees and resolve `DST-0030` ownership before removal. | Destruction log entry with owner and digests | open |
+| CW-002 | destruction_constraint | 0 | Trace historical `DST-0030` through current `DST-0039` across both destruction records and inventory worktrees before removal. | `docs/releases/v0.2.9.0-cleanup-log.md` for historical `DST-0030`, `docs/releases/v0.3.0-destruction-log.md` for current `DST-0039`, with owner and digests | open |
 | CW-003 | carried_work | 1 | Create the Node.js 24 workspace, `@foreman/core`, and `@foreman/policy`. | Clean install, strict type check, and policy known-bad tests | open |
 | CW-004 | carried_work | 3 | Fix queue admission, attempt-bound report freshness, resume semantics, and external runtime state. | Sprint 3 deterministic tests after accepted Sprint 2 event-log commit | open |
 | CW-005 | carried_work | 3 | Add explicit credential provisioning for isolated provider profiles. | Credential isolation tests and external state root checks | open |
@@ -64,31 +64,57 @@ Each row names these fields:
 | CW-030 | destruction_constraint | 0 | Resolve `DST-0039` blocked worktree ownership and untracked `SPEC.md` before any removal. | Destruction log head, digest, owner, and blocked state | open |
 | CW-031 | destruction_constraint | 0 | Complete `DST-0056` worktree and run-artifact inventory before removal. | Per-worktree head, dirty state, digests, owner, and recovery path | open |
 | CW-032 | carried_work | 2 | Ship the typed `@foreman/event-log` foundation before queue and session dependents. | Event-log contract tests and accepted Sprint 2 commit | open |
+| CW-033 | carried_work | 12 | Formal-model plane packages and workflows plus the formal release-scope decision. | Reconciled formal-package state and explicit release-criteria proof | open |
+| CW-034 | carried_work | 15 | Superpowers extraction blocked on a complete dependency manifest. | Passing complete manifest or an explicit retirement or externalization decision | open |
+| CW-035 | carried_work | 10 | Council supervised research gateway after the Sprint 9 security base. | Bounded tools, quarantine, and denial controls | open |
+| CW-036 | carried_work | 10 | Council evidence provenance and claim verification. | Content-bound identities, exact locators, lineage, and verification | open |
+| CW-037 | carried_work | 16 | Council evaluation and release program. | Reproducible evaluation manifests, attack and utility controls, platform recovery tests, and signed release inputs | open |
 
 ## Metric rules
 
-- `baseline_item_count` is 39.
+- `baseline_item_count` is 44.
 - The baseline is the set of all `RT-*` and `CW-*` rows in this file.
-- A reviewer emits exactly one item result for every sorted baseline ID.
+- A reviewer emits exactly one item result for every baseline ID.
+- Sort item results by UTF-8 byte order of item ID.
+- The exact canonical sequence is `CW-001` through `CW-037`, then `RT-001`
+  through `RT-007`.
 - Each item result uses one disposition from the closed set `mapped`,
-  `omitted`, `contradiction`, and `unevidenced_defer`.
+  `evidenced_defer`, `omitted`, `contradiction`, and `unevidenced_defer`.
 - Duplicate, unknown, or missing IDs make the response invalid.
-- The four disposition counts are derived from those mutually exclusive item
-  results. Their sum equals 39.
+- The five disposition counts are host-derived from those mutually exclusive
+  item results. Their sum equals 44.
 - `mapped_item_count` counts only `mapped`.
+- `evidenced_defer_count` counts only `evidenced_defer`.
 - `omitted_item_count` counts only `omitted`.
 - `contradiction_count` counts only `contradiction`.
 - `unevidenced_defer_count` counts only `unevidenced_defer`.
-- Invented completions are a separate sorted set of canonical claim SHA-256
-  digests. `invented_completion_count` equals that set size.
-- Duplicate claim digests make the response invalid.
+- An evidenced defer names reason, owner, target release, blocking dependency,
+  and acceptance evidence. An evidenced defer is not a defect.
+- An unevidenced defer is a defect.
+- Invented completions are a separate sorted set of `InventedCompletionV1`
+  records. `invented_completion_count` equals that set size.
+- An `InventedCompletionV1` record is an actionable source-located record.
+  After a reviewer detects an invented completion, the host selects the
+  smallest complete CommonMark block that contains the claim. The host uses
+  CommonMark 0.31.2 plus GFM table and task-list source ranges. Ties use
+  earliest start byte, then shortest byte length. The record fields are
+  artifact alias, artifact SHA-256, zero-based start byte, exclusive end
+  byte, exact-slice SHA-256, short summary, and corrective action. The host
+  verifies the byte range and digest against immutable artifact bytes. Sort
+  invention records by digest byte order. The record digest is SHA-256 over
+  artifact digest, NUL, decimal start, NUL, decimal end, NUL, and the exact
+  source bytes. Do not use free-form claim IDs.
+- Duplicate invention-record digests make the response invalid.
 - Counts are derived from arrays. Counts are not accepted as independent model
   claims.
 - A mapped item names a sprint, requirement, acceptance evidence, and status.
-- A defer is valid only when it names the reason, owner, target release, and
-  dependency that blocks current implementation.
-- The outcome is `accept` only when all 39 items are `mapped`, every defect
-  count is zero, every bound identity matches, and the response is valid.
+- Canonical result encoding is recursively key-sorted UTF-8 JSON with no
+  insignificant whitespace and one trailing LF.
+- The outcome is `accept` only when `mapped + evidenced_defer = 44`, every
+  defect count is zero, invented completions are zero, every bound identity
+  matches, and the response is valid.
+- Defect counts are `omitted_item_count`, `contradiction_count`, and
+  `unevidenced_defer_count`.
 - Otherwise the outcome is `changes_requested`, except a reviewer may `abstain`
   only for a named evidence gap under the existing Council rules.
 - An identity mismatch is not an abstention. The result is excluded from

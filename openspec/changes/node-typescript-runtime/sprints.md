@@ -1,14 +1,18 @@
-# Sprint plan — Node.js and TypeScript runtime migration
+# Migration groups — Node.js and TypeScript runtime migration
 
-## Execution rule
+## Authority rule
 
-Run sprints in numeric order. A later sprint can start only after the earlier
-sprint's immutable accepted commit is pushed. Each sprint uses Grok for
-implementation, a different model family for cold audit, and Council at the
-listed commitment boundary. One admissible Council `changes_requested`
-verdict requires a new candidate and a new Council round.
+Release order is owned by `openspec/changes/v030-release-program/`. The groups
+below contain detailed module outcomes only. They do not define release order.
+Do not read `M0` through `M9` as Sprint 0 through Sprint 9 of the v0.3.0
+release program.
 
-## Sprint 0 — governance and baseline
+Each group uses Grok for implementation, a different model family for cold
+audit, and Council at the listed commitment boundary when the release program
+admits that work. One admissible Council `changes_requested` verdict requires
+a new candidate and a new Council round.
+
+## M0 — governance and baseline
 
 **Outcome:** Freeze the runtime decision and remove known stale authorities.
 
@@ -21,7 +25,7 @@ Council reviews one immutable planning commit with three admissible verdicts
 from at least two non-author model-family failure domains and no unresolved
 dissent.
 
-## Sprint 1 — workspace, core, and architecture policy
+## M1 — workspace, core, and architecture policy
 
 **Outcome:** Establish the build and shared safe primitives before a product
 port uses them.
@@ -35,7 +39,7 @@ double-build byte comparison, copied-skill smoke test, Linux policy controls,
 and Windows policy controls pass. Known-bad fixtures prove every policy branch
 can fail.
 
-## Sprint 2 — GraphStore
+## M2 — GraphStore
 
 **Outcome:** Replace the first production Python module.
 
@@ -47,7 +51,7 @@ queries in TypeScript.
 and query controls pass through the compiled Node.js CLI. No product caller or
 current document references Python GraphStore. Delete its seven Python files.
 
-## Sprint 3 — launcher
+## M3 — launcher
 
 **Outcome:** Run Foreman supervision on Node.js without Bun-only APIs or
 unreaped adopted children.
@@ -61,7 +65,7 @@ the zombie count while the worker remains live. Linux/WSL and Windows controls
 pass. The launcher refuses unsupported hard containment before dispatch and no
 longer requires Bun.
 
-## Sprint 4 — event log and SessionDB
+## M4 — event log and SessionDB
 
 **Outcome:** Put recovery and durable session authority on one typed event
 foundation.
@@ -75,7 +79,7 @@ records, stale cursors, and transaction crash seams fail closed. The canonical
 sidecar round-trips byte-identically. Hourly checkpoint and recovery commands
 use Node.js. Delete `fm-session.py`.
 
-## Sprint 5 — release evidence
+## M5 — release evidence
 
 **Outcome:** Make release measurements and package evidence typed and
 deterministic.
@@ -88,7 +92,7 @@ package matrix, immutable package audits, and Tier 2 trigger/cost finality in
 denominators, and commands. Mixed or mutable sources fail. Delete both Tier 2
 Python helpers and remove every planned `package-audit.py` reference.
 
-## Sprint 6 — knowledge and doctrine
+## M6 — knowledge and doctrine
 
 **Outcome:** Build one current knowledge unit from immutable inputs without
 trusting path races or stale live prose.
@@ -102,7 +106,7 @@ are bound. Link races, hard links, Git failures, overflow, detached descendants,
 and publication crash seams fail closed. The rebuilt graph has no current edge
 to deleted sources.
 
-## Sprint 7 — orchestration and preflight
+## M7 — orchestration and preflight
 
 **Outcome:** Move round recovery and environment readiness into typed modules.
 
@@ -115,7 +119,7 @@ are visible, event inputs are validated, process output is bounded, and cleanup
 is scoped. Existing Setup, lane, and tool-check paths contain forwarding logic
 only.
 
-## Sprint 8 — zero-Python and stale-knowledge closure
+## M8 — zero-Python and stale-knowledge closure
 
 **Outcome:** Remove all residual Python, not only product Python.
 
@@ -130,15 +134,16 @@ new non-TypeScript executable source. Graphify health and current-authority
 checks report zero deleted-source, dangling, stale-location, or retired-doctrine
 references.
 
-## Sprint 9 — release convergence
+## M9 — release acceptance package
 
 **Outcome:** Produce one reviewable migration candidate for a separately
-approved release.
+approved release under the v0.3.0 program.
 
 **Work:** Run clean install, type checks, Node tests, deterministic build,
 runtime-manifest verification, compatibility gates, strict OpenSpec, docs,
-Graphify, cold audits, immutable package audits, and final Council.
+Graphify, cold audits, immutable package audits, and final Council when the
+release program admits that candidate.
 
-**Exit:** All release predicates pass at one unchanged pushed commit. Council
-has quorum with no unresolved dissent. Only then can the merge gate authorize
-the tag.
+**Exit:** All package-level predicates pass at one unchanged pushed commit.
+Council has quorum with no unresolved dissent. Only then can the release
+program merge gate authorize the tag.

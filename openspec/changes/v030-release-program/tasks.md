@@ -12,8 +12,8 @@
       tracked. The immutable Council bundle is pending.
 - [ ] 0.5 Run a ledger-bound Council review with `SpecCorrectnessV1`.
 - [ ] 0.6 Record every cleanup candidate before any destructive action. The
-      register exists. Owner and digest completion plus the `DST-0052`
-      late-registration incident remain open.
+      register exists. The `DST-0052` historical-process incident mitigation
+      and the `DST-0059` fail-closed pre-destruction guard remain unfinished.
 - [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
       that include `@foreman/policy` as its own package family (CW-023).
       Acceptance evidence: `typescriptmigration.md` states nine package
