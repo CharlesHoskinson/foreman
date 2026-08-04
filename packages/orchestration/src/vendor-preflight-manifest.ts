@@ -10,6 +10,9 @@ import {
   sha256Hex,
 } from "@foreman/core";
 import {
+  MAX_PROBE_ARG_BYTES,
+  MAX_PROBE_ARGV_ENTRIES,
+  MAX_PROBE_ARGV_TOTAL_BYTES,
   VENDOR_EVIDENCE_CLASSES,
   VENDOR_IDS,
   isVendorPreflightContractFailure,
@@ -102,9 +105,17 @@ function decodeNonBlank(
   return v;
 }
 
+/**
+ * Marker / non-argv string arrays: entry count + non-blank + optional per-entry
+ * UTF-8 byte bound. Not executable vectors.
+ */
 function decodeStringArray(
   v: unknown,
-  opts: { readonly allowEmpty: boolean; readonly maxEntries?: number },
+  opts: {
+    readonly allowEmpty: boolean;
+    readonly maxEntries?: number;
+    readonly maxEntryBytes?: number;
+  },
 ): readonly string[] | CapabilityParseFailure {
   if (!Array.isArray(v)) {
     return vendorPreflightContractFailure("invalid_schema");
@@ -116,6 +127,7 @@ function decodeStringArray(
   if (!opts.allowEmpty && v.length === 0) {
     return vendorPreflightContractFailure("blank_string");
   }
+  const maxEntryBytes = opts.maxEntryBytes ?? 4_096;
   const out: string[] = [];
   for (const entry of v) {
     if (typeof entry !== "string") {
@@ -124,9 +136,49 @@ function decodeStringArray(
     if (hasNul(entry)) {
       return vendorPreflightContractFailure("nul_rejected");
     }
-    // markers may be non-blank; argv entries after executable may be empty? no
     if (entry.trim().length === 0) {
       return vendorPreflightContractFailure("blank_string");
+    }
+    if (utf8ByteLength(entry) > maxEntryBytes) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+    out.push(entry);
+  }
+  return out;
+}
+
+/**
+ * Capability argv tails: same UTF-8 entry and total bounds as the public probe
+ * argv contract (per-entry 65_536, total 262_144, entry count 64).
+ */
+function decodeCapabilityArgv(
+  v: unknown,
+): readonly string[] | CapabilityParseFailure {
+  if (!Array.isArray(v)) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  if (v.length === 0 || v.length > MAX_PROBE_ARGV_ENTRIES) {
+    return vendorPreflightContractFailure("bound_exceeded");
+  }
+  let total = 0;
+  const out: string[] = [];
+  for (const entry of v) {
+    if (typeof entry !== "string") {
+      return vendorPreflightContractFailure("invalid_schema");
+    }
+    if (hasNul(entry)) {
+      return vendorPreflightContractFailure("nul_rejected");
+    }
+    if (entry.trim().length === 0) {
+      return vendorPreflightContractFailure("blank_string");
+    }
+    const n = utf8ByteLength(entry);
+    if (n > MAX_PROBE_ARG_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+    total += n;
+    if (total > MAX_PROBE_ARGV_TOTAL_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
     }
     out.push(entry);
   }
@@ -159,11 +211,9 @@ export function decodeVendorCapabilityV1(
     return vendorPreflightContractFailure("invalid_schema");
   }
 
-  const authArgv = decodeStringArray(obj["authArgv"], { allowEmpty: false });
+  const authArgv = decodeCapabilityArgv(obj["authArgv"]);
   if (isVendorPreflightContractFailure(authArgv)) return authArgv;
-  const versionArgv = decodeStringArray(obj["versionArgv"], {
-    allowEmpty: false,
-  });
+  const versionArgv = decodeCapabilityArgv(obj["versionArgv"]);
   if (isVendorPreflightContractFailure(versionArgv)) return versionArgv;
 
   const versionFloor = decodeNonBlank(obj["versionFloor"], 256);
@@ -190,7 +240,7 @@ export function decodeVendorCapabilityV1(
   if (obj["updateCheckArgv"] === null) {
     updateCheckArgv = null;
   } else {
-    const u = decodeStringArray(obj["updateCheckArgv"], { allowEmpty: false });
+    const u = decodeCapabilityArgv(obj["updateCheckArgv"]);
     if (isVendorPreflightContractFailure(u)) return u;
     updateCheckArgv = u;
   }
@@ -334,39 +384,84 @@ function parseTomlString(raw: string): string | null {
   return s;
 }
 
+/**
+ * Strict capability-slice TOML string-array parser.
+ * Accepts whitespace around one comma and a single trailing comma.
+ * Rejects missing separators, doubled separators, leading separators,
+ * trailing non-array content (via outer bracket match), and unterminated strings.
+ */
 function parseTomlArray(raw: string): string[] | null {
-  if (!(raw.startsWith("[") && raw.endsWith("]"))) return null;
-  const body = raw.slice(1, -1).trim();
-  if (body.length === 0) return [];
-  const items: string[] = [];
+  const t = raw.trim();
+  if (!(t.startsWith("[") && t.endsWith("]"))) return null;
+  // Reject content after the matching closing bracket only when the raw trim
+  // form is not a pure array — already enforced by startsWith/endsWith on trim.
+  const body = t.slice(1, -1);
   let i = 0;
-  while (i < body.length) {
-    while (i < body.length && (body[i] === " " || body[i] === "\t" || body[i] === ",")) {
-      i++;
-    }
-    if (i >= body.length) break;
+  const isWs = (ch: string | undefined): boolean =>
+    ch === " " || ch === "\t" || ch === "\n" || ch === "\r";
+
+  const skipWs = (): void => {
+    while (i < body.length && isWs(body[i])) i++;
+  };
+
+  const parseString = (): string | null => {
     if (body[i] !== '"') return null;
-    let j = i + 1;
+    i++;
     let s = "";
-    while (j < body.length) {
-      if (body[j] === "\\" && body[j + 1] !== undefined) {
-        const n = body[j + 1]!;
+    while (i < body.length) {
+      const ch = body[i]!;
+      if (ch === "\\") {
+        const n = body[i + 1];
+        if (n === undefined) return null;
         if (n === "n") s += "\n";
         else if (n === "t") s += "\t";
         else if (n === "\\" || n === '"') s += n;
         else return null;
-        j += 2;
+        i += 2;
         continue;
       }
-      if (body[j] === '"') {
-        items.push(s);
-        i = j + 1;
-        break;
+      if (ch === '"') {
+        i++;
+        return s;
       }
-      s += body[j]!;
-      j++;
+      s += ch;
+      i++;
     }
-    if (j >= body.length && body[body.length - 1] !== '"') return null;
+    // Unterminated string.
+    return null;
+  };
+
+  skipWs();
+  if (i >= body.length) return [];
+
+  // Leading separator is invalid.
+  if (body[i] === ",") return null;
+
+  const items: string[] = [];
+  const first = parseString();
+  if (first === null) return null;
+  items.push(first);
+
+  for (;;) {
+    skipWs();
+    if (i >= body.length) break;
+    if (body[i] !== ",") {
+      // Missing separator (e.g. ["auth" "status"]).
+      return null;
+    }
+    i++; // consume one comma
+    skipWs();
+    if (i >= body.length) {
+      // Valid trailing comma.
+      break;
+    }
+    if (body[i] === ",") {
+      // Doubled separator.
+      return null;
+    }
+    const next = parseString();
+    if (next === null) return null;
+    items.push(next);
   }
   return items;
 }

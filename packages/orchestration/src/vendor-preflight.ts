@@ -28,41 +28,70 @@ export type SemVer = {
   readonly prerelease: readonly (string | number)[];
 };
 
+/**
+ * Standalone SemVer core + optional prerelease/build.
+ * Negative lookbehind/lookahead keep the token free of adjacent word chars
+ * and reject an extra numeric component (e.g. 1.2.3.4 must not yield 1.2.3).
+ */
 const SEMVER_TOKEN =
-  /\bv?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?\b/;
+  /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?(?![\w.-])/;
 
 /**
  * Parse the first standalone semantic-version token from vendor version output.
  * Accepts an optional leading `v`. Returns null when unparsable or absent.
+ * Does not extract a three-part core from a longer dotted numeric sequence.
  */
 export function parseFirstSemVer(text: string | null | undefined): SemVer | null {
   if (text === null || text === undefined) return null;
   if (typeof text !== "string" || text.trim().length === 0) return null;
-  const m = SEMVER_TOKEN.exec(text);
-  if (!m) return null;
-  const major = Number(m[1]);
-  const minor = Number(m[2]);
-  const patch = Number(m[3]);
-  if (
-    !Number.isSafeInteger(major) ||
-    !Number.isSafeInteger(minor) ||
-    !Number.isSafeInteger(patch)
-  ) {
-    return null;
-  }
-  const preRaw = m[4];
-  const prerelease: (string | number)[] = [];
-  if (preRaw !== undefined && preRaw.length > 0) {
-    for (const id of preRaw.split(".")) {
-      if (id.length === 0) return null;
-      if (/^(0|[1-9]\d*)$/.test(id)) {
-        prerelease.push(Number(id));
-      } else {
-        prerelease.push(id);
+  // Scan for candidates; skip invalid prerelease / unsafe numbers and continue.
+  const re = new RegExp(SEMVER_TOKEN.source, "g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const major = Number(m[1]);
+    const minor = Number(m[2]);
+    const patch = Number(m[3]);
+    if (
+      !Number.isSafeInteger(major) ||
+      !Number.isSafeInteger(minor) ||
+      !Number.isSafeInteger(patch)
+    ) {
+      continue;
+    }
+    const preRaw = m[4];
+    const prerelease: (string | number)[] = [];
+    let preOk = true;
+    if (preRaw !== undefined && preRaw.length > 0) {
+      for (const id of preRaw.split(".")) {
+        if (id.length === 0) {
+          preOk = false;
+          break;
+        }
+        // Pure-digit identifiers are numeric: reject leading zeroes and
+        // values outside Number.isSafeInteger.
+        if (/^\d+$/.test(id)) {
+          if (!/^(0|[1-9]\d*)$/.test(id)) {
+            preOk = false;
+            break;
+          }
+          const n = Number(id);
+          if (!Number.isSafeInteger(n)) {
+            preOk = false;
+            break;
+          }
+          prerelease.push(n);
+        } else if (/^[0-9A-Za-z-]+$/.test(id)) {
+          prerelease.push(id);
+        } else {
+          preOk = false;
+          break;
+        }
       }
     }
+    if (!preOk) continue;
+    return { major, minor, patch, prerelease };
   }
-  return { major, minor, patch, prerelease };
+  return null;
 }
 
 /**

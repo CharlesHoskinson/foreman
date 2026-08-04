@@ -403,6 +403,49 @@ describe("inspectVendor live adapter", () => {
     }
   });
 
+  it("normalizes a relative PathLookup result to an absolute path before any probe", async () => {
+    const { resolve, isAbsolute } = await import("node:path");
+    const relativeWhich = "bin/grok";
+    const expectedAbs = resolve(relativeWhich);
+    assert.equal(isAbsolute(relativeWhich), false);
+    assert.equal(isAbsolute(expectedAbs), true);
+
+    const calls: Call[] = [];
+    const layer = makeLayers({
+      which: relativeWhich,
+      calls,
+      run: (o) => {
+        if (o.args[0] === "models") {
+          return Effect.succeed({
+            exitCode: 0,
+            stdout: "You are logged in with grok.com.\n",
+            stderr: "",
+          });
+        }
+        return Effect.succeed({
+          exitCode: 0,
+          stdout: "0.2.118\n",
+          stderr: "",
+        });
+      },
+    });
+    const rec = await runInspect(grokCap, layer);
+    assert.equal(rec.facts.discoverable.value, "discoverable");
+    assert.equal(rec.resolvedPath, expectedAbs);
+    assert.equal(isAbsolute(rec.resolvedPath!), true);
+    assert.ok(calls.length >= 1);
+    for (const c of calls) {
+      assert.equal(
+        c.command,
+        expectedAbs,
+        "spawned executable must equal absolute resolvedPath",
+      );
+    }
+    for (const p of rec.probes) {
+      assert.equal(p.argv[0], expectedAbs);
+    }
+  });
+
   it("timeout, output overflow, spawn failure, empty, cancel stay typed fail-closed", async () => {
     const cases: Array<{
       readonly fail: "timeout" | "output_bound" | "spawn_failed" | "cancelled";

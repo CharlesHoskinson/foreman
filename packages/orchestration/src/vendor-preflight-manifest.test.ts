@@ -178,6 +178,181 @@ diagnose_instruction = "diagnose"
     assert.equal(findCapability(table, "codex")?.versionFloor, "0.146.0");
     assert.equal(findCapability(table, "grok")?.versionFloor, "0.2.118");
   });
+
+  it("rejects capability argv per-entry and total UTF-8 byte overflow", () => {
+    const hugeEntry = "x".repeat(65_537);
+    for (const field of ["authArgv", "versionArgv", "updateCheckArgv"] as const) {
+      const base: Record<string, unknown> = {
+        vendor: "grok",
+        cliName: "grok",
+        evidenceClass: "probed",
+        authArgv: ["models"],
+        versionArgv: ["--version"],
+        versionFloor: "0.2.118",
+        authPositiveMarkers: ["You are logged in with grok.com."],
+        authNegativeMarkers: ["not authenticated"],
+        updateMutates: true,
+        updateCheckArgv: ["update", "--check", "--json"],
+        loginInstruction: "grok login --device-code",
+        installInstruction: "npm install -g @xai-official/grok@latest",
+        updateInstruction: "npm install -g @xai-official/grok@latest",
+        diagnoseInstruction: "diagnose",
+      };
+      base[field] = [hugeEntry];
+      const per = decodeVendorCapabilityTableV1({
+        schemaVersion: 1,
+        capabilities: [base],
+      });
+      assert.ok(
+        isVendorPreflightContractFailure(per),
+        `${field} per-entry overflow must fail`,
+      );
+      assert.equal(per.reason, "bound_exceeded");
+    }
+
+    // Total argv bytes > 262_144 with each entry under the per-entry cap.
+    const chunk = "y".repeat(65_536);
+    const many = Array.from({ length: 5 }, () => chunk); // 327_680 total
+    for (const field of ["authArgv", "versionArgv", "updateCheckArgv"] as const) {
+      const base: Record<string, unknown> = {
+        vendor: "claude",
+        cliName: "claude",
+        evidenceClass: "declared",
+        authArgv: ["auth", "status"],
+        versionArgv: ["--version"],
+        versionFloor: "2.1.220",
+        authPositiveMarkers: [],
+        authNegativeMarkers: [],
+        updateMutates: true,
+        updateCheckArgv: null,
+        loginInstruction: "claude auth login",
+        installInstruction: "Install Claude Code",
+        updateInstruction: "claude update",
+        diagnoseInstruction: "diagnose",
+      };
+      base[field] = many;
+      const tot = decodeVendorCapabilityTableV1({
+        schemaVersion: 1,
+        capabilities: [base],
+      });
+      assert.ok(
+        isVendorPreflightContractFailure(tot),
+        `${field} total overflow must fail`,
+      );
+      assert.equal(tot.reason, "bound_exceeded");
+    }
+
+    // Marker arrays are not argv: a long marker string may be rejected as a
+    // bounded string, but must not be treated as an executable vector overflow
+    // via the argv entry-count/total path alone when under string bounds.
+    const markerOk = decodeVendorCapabilityTableV1({
+      schemaVersion: 1,
+      capabilities: [
+        {
+          vendor: "grok",
+          cliName: "grok",
+          evidenceClass: "probed",
+          authArgv: ["models"],
+          versionArgv: ["--version"],
+          versionFloor: "0.2.118",
+          authPositiveMarkers: ["ok-marker"],
+          authNegativeMarkers: ["x".repeat(100)],
+          updateMutates: true,
+          updateCheckArgv: null,
+          loginInstruction: "grok login --device-code",
+          installInstruction: "install",
+          updateInstruction: "update",
+          diagnoseInstruction: "diagnose",
+        },
+      ],
+    });
+    assert.ok(!isVendorPreflightContractFailure(markerOk));
+  });
+
+  it("rejects missing, doubled, leading separators and unterminated strings in capability TOML arrays", () => {
+    const wrap = (authLine: string) => `
+[[vendor_capabilities]]
+vendor = "claude"
+cli_name = "claude"
+evidence_class = "declared"
+${authLine}
+version_argv = ["--version"]
+version_floor = "2.1.220"
+auth_positive_markers = []
+auth_negative_markers = []
+update_mutates = true
+login_instruction = "claude auth login"
+install_instruction = "Install Claude Code"
+update_instruction = "claude update"
+diagnose_instruction = "Re-run claude auth status"
+`;
+
+    const missingSep = parseVendorCapabilitiesFromToml(
+      wrap('auth_argv = ["auth" "status"]'),
+    );
+    assert.ok(isVendorPreflightContractFailure(missingSep));
+    assert.equal(missingSep.reason, "invalid_schema");
+
+    const doubled = parseVendorCapabilitiesFromToml(
+      wrap('auth_argv = ["auth",,"status"]'),
+    );
+    assert.ok(isVendorPreflightContractFailure(doubled));
+    assert.equal(doubled.reason, "invalid_schema");
+
+    const leading = parseVendorCapabilitiesFromToml(
+      wrap('auth_argv = [,"auth","status"]'),
+    );
+    assert.ok(isVendorPreflightContractFailure(leading));
+    assert.equal(leading.reason, "invalid_schema");
+
+    const trailingJunk = parseVendorCapabilitiesFromToml(
+      wrap('auth_argv = ["auth", "status"] trailing'),
+    );
+    assert.ok(isVendorPreflightContractFailure(trailingJunk));
+    assert.equal(trailingJunk.reason, "invalid_schema");
+
+    const unterminated = parseVendorCapabilitiesFromToml(
+      wrap('auth_argv = ["auth", "status'),
+    );
+    assert.ok(isVendorPreflightContractFailure(unterminated));
+    assert.equal(unterminated.reason, "invalid_schema");
+  });
+
+  it("accepts whitespace around one comma and a valid trailing comma in TOML arrays", () => {
+    const wrap = (authLine: string) => `
+[[vendor_capabilities]]
+vendor = "claude"
+cli_name = "claude"
+evidence_class = "declared"
+${authLine}
+version_argv = ["--version"]
+version_floor = "2.1.220"
+auth_positive_markers = []
+auth_negative_markers = []
+update_mutates = true
+login_instruction = "claude auth login"
+install_instruction = "Install Claude Code"
+update_instruction = "claude update"
+diagnose_instruction = "Re-run claude auth status"
+`;
+    const spaced = parseVendorCapabilitiesFromToml(
+      wrap('auth_argv = [ "auth" , "status" ]'),
+    );
+    assert.ok(!isVendorPreflightContractFailure(spaced));
+    assert.deepEqual(findCapability(spaced, "claude")?.authArgv, [
+      "auth",
+      "status",
+    ]);
+
+    const trailingComma = parseVendorCapabilitiesFromToml(
+      wrap('auth_argv = ["auth", "status",]'),
+    );
+    assert.ok(!isVendorPreflightContractFailure(trailingComma));
+    assert.deepEqual(findCapability(trailingComma, "claude")?.authArgv, [
+      "auth",
+      "status",
+    ]);
+  });
 });
 
 describe("argvContainsMutatingUpdate", () => {

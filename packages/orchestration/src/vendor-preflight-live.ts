@@ -3,6 +3,7 @@
  * Reuses ProcessExec and PathLookup; never mutates the toolchain.
  */
 
+import { isAbsolute, resolve as resolvePath } from "node:path";
 import { Context, Effect, Layer } from "effect";
 import {
   MAX_CAPTURE_BYTES,
@@ -219,8 +220,30 @@ export const inspectVendor = (
       });
     }
 
-    // Prefer absolute resolved path as the executable for probes.
-    const executable = resolved;
+    // Absolute-path contract before any probe: normalize a relative
+    // PathLookup.which result with the host path resolver, or fail closed
+    // with an existing boundary reason if the result is blank/unusable.
+    const resolvedTrimmed = resolved.trim();
+    if (resolvedTrimmed.length === 0 || resolvedTrimmed.includes("\0")) {
+      return yield* Effect.fail(
+        new VendorPreflightFailure(
+          "internal",
+          "PathLookup returned an unusable resolved path",
+        ),
+      );
+    }
+    const absoluteResolved = isAbsolute(resolvedTrimmed)
+      ? resolvedTrimmed
+      : resolvePath(resolvedTrimmed);
+    if (!isAbsolute(absoluteResolved)) {
+      return yield* Effect.fail(
+        new VendorPreflightFailure(
+          "internal",
+          "resolved path could not be made absolute before probe execution",
+        ),
+      );
+    }
+    const executable = absoluteResolved;
 
     // Version probe first (currency independent of auth).
     const versionCap = yield* runProbe(
@@ -328,7 +351,7 @@ export const inspectVendor = (
     return buildDiscoveredRecord({
       vendor: capability.vendor,
       timestamp,
-      resolvedPath: resolved,
+      resolvedPath: absoluteResolved,
       capability,
       auth,
       currency,

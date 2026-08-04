@@ -105,8 +105,23 @@
         without spawn. Focused tests 53/53 pass after correction;
         `npm run typecheck`, `npm run build`, `npm run verify`,
         docs-check, and strict OpenSpec validation of `vendor-preflight`
-        and `v030-release-program` all green. Setup/`foreman-setup.sh`
-        and lane callers are intentionally not wired in this slice.
+        and `v030-release-program` all green. R4A gate correction round 3
+        (candidate `f7185af39bd58ee0fe3789d790b177df34c8b3ce`): capability
+        argv tails enforce public-probe UTF-8 bounds (per-entry 65_536,
+        total 262_144) on `authArgv`/`versionArgv`/`updateCheckArgv`;
+        capability-slice TOML array parser rejects missing/doubled/leading
+        separators, trailing non-array content, and unterminated strings
+        while accepting spaced and trailing commas; `parseFirstSemVer`
+        accepts only one standalone SemVer token (rejects `1.2.3.4`,
+        `1.2.3-01`, unsafe numeric prerelease); live adapter normalizes a
+        relative `PathLookup.which` result to an absolute path before any
+        probe and records/spawns that same absolute path. Focused tests
+        58/58 pass; typecheck/build/verify/docs-check and strict OpenSpec
+        validation of `vendor-preflight` and `v030-release-program` green;
+        two builds of `dist/vendor-preflight.js` byte-identical
+        (sha256 `bbc57443579139ec6b83b6b025b15fa423e2635ecd64f8941f4ba4304a66b92c`).
+        Setup/`foreman-setup.sh` and lane callers are intentionally not
+        wired in this slice.
       The remaining Sprint 3 work stays open (R4B+ shell migration,
         ownership, heartbeat, reaping, credential profiles, and other
         open Sprint 3 ports).

@@ -16473,6 +16473,7 @@ function decodeStringArray(v, opts) {
   if (!opts.allowEmpty && v.length === 0) {
     return vendorPreflightContractFailure("blank_string");
   }
+  const maxEntryBytes = opts.maxEntryBytes ?? 4096;
   const out = [];
   for (const entry of v) {
     if (typeof entry !== "string") {
@@ -16483,6 +16484,40 @@ function decodeStringArray(v, opts) {
     }
     if (entry.trim().length === 0) {
       return vendorPreflightContractFailure("blank_string");
+    }
+    if (utf8ByteLength2(entry) > maxEntryBytes) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+    out.push(entry);
+  }
+  return out;
+}
+function decodeCapabilityArgv(v) {
+  if (!Array.isArray(v)) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  if (v.length === 0 || v.length > MAX_PROBE_ARGV_ENTRIES) {
+    return vendorPreflightContractFailure("bound_exceeded");
+  }
+  let total = 0;
+  const out = [];
+  for (const entry of v) {
+    if (typeof entry !== "string") {
+      return vendorPreflightContractFailure("invalid_schema");
+    }
+    if (hasNul2(entry)) {
+      return vendorPreflightContractFailure("nul_rejected");
+    }
+    if (entry.trim().length === 0) {
+      return vendorPreflightContractFailure("blank_string");
+    }
+    const n = utf8ByteLength2(entry);
+    if (n > MAX_PROBE_ARG_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+    total += n;
+    if (total > MAX_PROBE_ARGV_TOTAL_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
     }
     out.push(entry);
   }
@@ -16507,11 +16542,9 @@ function decodeVendorCapabilityV1(value) {
   if (isAbsolute2(cliName) || cliName.includes("/") || cliName.includes("\\")) {
     return vendorPreflightContractFailure("invalid_schema");
   }
-  const authArgv = decodeStringArray(obj["authArgv"], { allowEmpty: false });
+  const authArgv = decodeCapabilityArgv(obj["authArgv"]);
   if (isVendorPreflightContractFailure(authArgv)) return authArgv;
-  const versionArgv = decodeStringArray(obj["versionArgv"], {
-    allowEmpty: false
-  });
+  const versionArgv = decodeCapabilityArgv(obj["versionArgv"]);
   if (isVendorPreflightContractFailure(versionArgv)) return versionArgv;
   const versionFloor = decodeNonBlank(obj["versionFloor"], 256);
   if (isVendorPreflightContractFailure(versionFloor)) return versionFloor;
@@ -16534,7 +16567,7 @@ function decodeVendorCapabilityV1(value) {
   if (obj["updateCheckArgv"] === null) {
     updateCheckArgv = null;
   } else {
-    const u = decodeStringArray(obj["updateCheckArgv"], { allowEmpty: false });
+    const u = decodeCapabilityArgv(obj["updateCheckArgv"]);
     if (isVendorPreflightContractFailure(u)) return u;
     updateCheckArgv = u;
   }
@@ -16617,32 +16650,55 @@ function argvContainsMutatingUpdate(argv, vendorBinding) {
   return true;
 }
 
+// packages/orchestration/src/vendor-preflight-live.ts
+import { isAbsolute as isAbsolute3, resolve as resolvePath } from "node:path";
+
 // packages/orchestration/src/vendor-preflight.ts
-var SEMVER_TOKEN = /\bv?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?\b/;
+var SEMVER_TOKEN = /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?(?![\w.-])/;
 function parseFirstSemVer(text) {
   if (text === null || text === void 0) return null;
   if (typeof text !== "string" || text.trim().length === 0) return null;
-  const m = SEMVER_TOKEN.exec(text);
-  if (!m) return null;
-  const major = Number(m[1]);
-  const minor = Number(m[2]);
-  const patch9 = Number(m[3]);
-  if (!Number.isSafeInteger(major) || !Number.isSafeInteger(minor) || !Number.isSafeInteger(patch9)) {
-    return null;
-  }
-  const preRaw = m[4];
-  const prerelease = [];
-  if (preRaw !== void 0 && preRaw.length > 0) {
-    for (const id of preRaw.split(".")) {
-      if (id.length === 0) return null;
-      if (/^(0|[1-9]\d*)$/.test(id)) {
-        prerelease.push(Number(id));
-      } else {
-        prerelease.push(id);
+  const re = new RegExp(SEMVER_TOKEN.source, "g");
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const major = Number(m[1]);
+    const minor = Number(m[2]);
+    const patch9 = Number(m[3]);
+    if (!Number.isSafeInteger(major) || !Number.isSafeInteger(minor) || !Number.isSafeInteger(patch9)) {
+      continue;
+    }
+    const preRaw = m[4];
+    const prerelease = [];
+    let preOk = true;
+    if (preRaw !== void 0 && preRaw.length > 0) {
+      for (const id of preRaw.split(".")) {
+        if (id.length === 0) {
+          preOk = false;
+          break;
+        }
+        if (/^\d+$/.test(id)) {
+          if (!/^(0|[1-9]\d*)$/.test(id)) {
+            preOk = false;
+            break;
+          }
+          const n = Number(id);
+          if (!Number.isSafeInteger(n)) {
+            preOk = false;
+            break;
+          }
+          prerelease.push(n);
+        } else if (/^[0-9A-Za-z-]+$/.test(id)) {
+          prerelease.push(id);
+        } else {
+          preOk = false;
+          break;
+        }
       }
     }
+    if (!preOk) continue;
+    return { major, minor, patch: patch9, prerelease };
   }
-  return { major, minor, patch: patch9, prerelease };
+  return null;
 }
 function compareSemVer(a, b) {
   if (a.major !== b.major) return a.major < b.major ? -1 : 1;
@@ -17069,7 +17125,25 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
       capability
     });
   }
-  const executable = resolved;
+  const resolvedTrimmed = resolved.trim();
+  if (resolvedTrimmed.length === 0 || resolvedTrimmed.includes("\0")) {
+    return yield* Effect_exports.fail(
+      new VendorPreflightFailure(
+        "internal",
+        "PathLookup returned an unusable resolved path"
+      )
+    );
+  }
+  const absoluteResolved = isAbsolute3(resolvedTrimmed) ? resolvedTrimmed : resolvePath(resolvedTrimmed);
+  if (!isAbsolute3(absoluteResolved)) {
+    return yield* Effect_exports.fail(
+      new VendorPreflightFailure(
+        "internal",
+        "resolved path could not be made absolute before probe execution"
+      )
+    );
+  }
+  const executable = absoluteResolved;
   const versionCap = yield* runProbe(
     executable,
     capability.versionArgv,
@@ -17148,7 +17222,7 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
   return buildDiscoveredRecord({
     vendor: capability.vendor,
     timestamp,
-    resolvedPath: resolved,
+    resolvedPath: absoluteResolved,
     capability,
     auth,
     currency,

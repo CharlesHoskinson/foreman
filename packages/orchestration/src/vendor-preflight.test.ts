@@ -105,6 +105,34 @@ describe("parseFirstSemVer / compareSemVer", () => {
     // Never lexical: 1.0.0-beta vs 1.0.0-alpha numerically by identifier rules
     assert.ok(compareSemVer(c, a) > 0);
   });
+
+  it("rejects extra numeric components, leading-zero numeric prerelease, and unsafe numeric ids", () => {
+    // Must not extract 1.2.3 from a four-component token.
+    assert.equal(parseFirstSemVer("1.2.3.4"), null);
+    assert.equal(parseFirstSemVer("version 1.2.3.4 released"), null);
+    // Numeric prerelease identifiers with leading zeroes are invalid.
+    assert.equal(parseFirstSemVer("1.2.3-01"), null);
+    assert.equal(parseFirstSemVer("1.2.3-1.01"), null);
+    // Oversized numeric core / prerelease that cannot be a safe integer.
+    assert.equal(parseFirstSemVer("1.2.3-" + "9".repeat(20)), null);
+    assert.equal(
+      parseFirstSemVer("9007199254740993.0.0"),
+      null,
+    );
+    // Still accepts valid optional v, build metadata, and first standalone token.
+    assert.deepEqual(parseFirstSemVer("tool v1.2.3+build.7 next"), {
+      major: 1,
+      minor: 2,
+      patch: 3,
+      prerelease: [],
+    });
+    assert.deepEqual(parseFirstSemVer("1.2.3-beta.0"), {
+      major: 1,
+      minor: 2,
+      patch: 3,
+      prerelease: ["beta", 0],
+    });
+  });
 });
 
 describe("classifyCurrency", () => {
