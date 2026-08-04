@@ -12,7 +12,10 @@ validate under `/usr/local/bin/openspec validate <change> --strict`:
 #### Scenario: <name>
 ```
 
-All 33 live change packages validate under `--strict` (verified 2026-07-29).
+All 32 tracked non-archive change packages validate under `--strict`
+(verified 2026-08-04). This count includes
+`council-v029-preflight-release`, which is a protected `released_reference`
+pending the registered `DST-0061` archive relocation. It is not active work.
 The five S3 WSL packages (`wsl-ci-parity`, `wsl-launcher-shipped`,
 `wsl-preflight`, `wsl-seam-doctrine`, `wsl-tool-path-persistence`) were
 migrated from the legacy `## ADDED Requirement: <title>` form by a

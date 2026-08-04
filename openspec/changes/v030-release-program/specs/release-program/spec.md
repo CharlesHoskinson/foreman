@@ -333,6 +333,24 @@ current actions and SHALL NOT satisfy the pre-registration rule.
 - THEN no later tracked authority, worktree, branch, or artifact removal is
   authorized by that row.
 
+#### Scenario: the first guard use denies DST-0060
+
+- WHEN the compiled Node.js 24 destruction guard reads the exact current
+  `DST-0060` intent from the canonical register
+- AND the entry state remains `blocked`
+- THEN the guard returns `Denied`
+- AND the source and recovery target remain unchanged
+- AND this denial proves the operational guard path without authorizing the
+  relocation.
+
+#### Scenario: an executor does not exist for the requested action
+
+- WHEN a register entry requests worktree removal, branch deletion,
+  tracked-file deletion, or artifact deletion
+- AND no typed executor exists for that exact action kind
+- THEN the guard denies the action even if the entry says `approved`
+- AND no legacy shell command receives authority from the entry.
+
 ### Requirement: sprint order follows dependencies
 
 WHEN the program starts a sprint, Foreman SHALL verify that every required

@@ -42,9 +42,8 @@
 - [x] 2.3 Seed one golden round per failure class (10-12 rounds
       initially), each reproducing the decision-trace conditions of that
       failure.
-      Evidence-backed progress is 7 of 10 classes. FC-07, FC-09, and FC-10
-      remain deliberately unseeded for the reasons recorded in
-      `docs/design/tier1-failure-classes.md`, so this task remains open.
+      Evidence: all 10 classes have a golden round with a demonstrated
+      fail/pass pair. Commit `a394ddc` added FC-07, FC-09, and FC-10.
 - [x] 2.4 Build the replay harness: feed a recorded transcript in place
       of a live vendor call, with zero network access.
 - [x] 2.5 Write decision-trace assertions only (gate fired, verdict

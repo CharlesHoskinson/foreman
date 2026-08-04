@@ -22,6 +22,16 @@ below contain detailed module tasks only. They do not define release order.
 - [ ] Add a TypeScript policy checker with fail-capable fixtures for new
       Python, shell, PowerShell, CMD, JavaScript, MJS, CJS, Bun-only imports,
       and a legacy adapter that contains domain logic.
+- [ ] Add the fail-closed destruction register, pure admission evaluator, and
+      compiled `foreman-destruction-guard` command in `@foreman/policy`.
+      Support `check` and exact `artifact_relocate` only. Keep every other
+      destructive action unsupported and denied.
+- [ ] Convert the current destruction register to one sentinel-delimited
+      canonical JSON block inside the existing Markdown log. Reject projection
+      drift, missing or duplicate sentinels, duplicate IDs, unknown fields,
+      pending approvals, historical incidents, and identity mismatches.
+- [ ] Prove the compiled guard denies the current exact `DST-0060` request.
+      Do not mark `DST-0059` complete or relocate `DST-0060` in this task.
 - [ ] Run the policy gate in Linux and Windows CI.
 - [ ] Make Setup, symlink installs, junction installs, copied installs, and
       plugin-drift verify the same bundle manifest without resolving repository

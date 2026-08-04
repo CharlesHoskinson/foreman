@@ -126,6 +126,20 @@ adapter grammar plus named known-bad controls.
 The gate reports legacy files separately. Existing debt does not make the gate
 fail merely because it exists, but a change cannot increase that debt.
 
+The first `@foreman/policy` slice also owns destruction admission. One exact
+sentinel-delimited canonical JSON block inside the destruction log is the
+register source of truth; no parallel JSON register is permitted. The pure
+evaluator decides whether an exact action is admissible. Effect services own
+bounded file reads, fatal UTF-8 decoding, Git identity, clock access, hashing,
+exclusive temporary files, flush, atomic rename, verification, interruption,
+and cleanup.
+
+The initial executor implements only `artifact_relocate`. It never follows a
+symbolic link, never expands a glob, never accepts a group target, and never
+unlinks the source before the recovery copy is atomically published and
+verified. Other destructive actions remain denied until their own typed
+executors land. Existing shell cleanup is not an admitted executor.
+
 ## Testing
 
 New modules use `node:test` and deterministic injected services. Each migration

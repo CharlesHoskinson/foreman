@@ -103,3 +103,68 @@ installed `skills/foreman` tree.
 - AND the repository root and root `node_modules` are absent
 - THEN the copied command passes its smoke test with Node.js 24
 - AND bundle-manifest verification reports no missing or changed runtime file.
+
+### Requirement: destructive actions require typed admission and execution
+
+WHEN Foreman proposes a destructive action, `@foreman/policy` SHALL deny the
+action unless one strict current-register entry authorizes the exact action
+and a typed executor implements it.
+
+- The canonical register SHALL be one sentinel-delimited canonical JSON block
+  in `docs/releases/v0.3.0-destruction-log.md`.
+- The decoder SHALL reject missing or duplicate sentinels, unknown fields,
+  duplicate IDs, malformed UTF-8, oversized input, glob targets, group
+  targets, incomplete owner or recovery evidence, pending values, expired
+  approval, and candidate, tree, digest, size, or action mismatch.
+- Historical incidents SHALL never authorize current action.
+- An `approved` state SHALL be necessary but SHALL NOT be sufficient. The
+  executor, exact action identity, current repository identity, and recovery
+  contract SHALL also match.
+- The first typed executor SHALL support only `artifact_relocate`. Worktree
+  removal, branch deletion, tracked-file deletion, artifact deletion, and
+  unknown action kinds SHALL remain unsupported and denied.
+
+#### Scenario: current DST-0060 is checked before approval
+
+- WHEN the compiled guard checks the exact `DST-0060` intent while its register
+  state is `blocked`
+- THEN it emits one canonical `Denied` JSON line
+- AND it exits 1
+- AND it does not modify the source or recovery target.
+
+#### Scenario: an exact approved artifact is relocated
+
+- WHEN one unexpired `approved` `artifact_relocate` entry binds the current
+  candidate, source regular-file identity, byte length, SHA-256 digest,
+  recovery owner, and exclusive recovery target
+- THEN the Effect executor copies to an exclusive temporary file beside the
+  recovery target, flushes it, renames it atomically, verifies the target, and
+  only then unlinks the source
+- AND interruption preserves at least one verified copy
+- AND the command emits one canonical result line without raw paths,
+  exceptions, environment values, or input text.
+
+#### Scenario: an approved worktree removal has no executor
+
+- WHEN an entry says `approved` for worktree removal
+- THEN the guard returns `Denied` with reason `unsupported_action`
+- AND no shell cleanup command runs.
+
+### Requirement: destruction guard command has a closed interface
+
+WHEN Node.js invokes the compiled `foreman-destruction-guard` bundle, the
+command SHALL accept only `check` or `relocate-artifact`, read bounded JSON
+from stdin, and emit exactly one canonical JSON line.
+
+- Exit 0 SHALL mean `Authorized` for `check` or `Completed` for
+  `relocate-artifact`.
+- Exit 1 SHALL mean `Denied` or a typed runtime failure.
+- Exit 64 SHALL mean invalid invocation.
+- Results SHALL contain stable identifiers and closed reason codes. They SHALL
+  NOT contain raw paths, provider output, stack traces, or secret text.
+
+#### Scenario: copied install runs the same guard
+
+- WHEN only a copied `skills/foreman` tree and Node.js 24 are available
+- THEN manifest verification and the `DST-0060` denial smoke test pass without
+  repository siblings or root `node_modules`.

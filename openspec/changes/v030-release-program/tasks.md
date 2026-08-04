@@ -7,7 +7,13 @@
 - [ ] 0.2 Correct README, ROADMAP, checklist, residuals, and release metadata.
       Tracked authority is current. GitHub release metadata still needs the
       merged notes.
-- [ ] 0.3 Reconcile implemented, partial, absent, parked, and stale OpenSpec tasks.
+- [x] 0.3 Reconcile implemented, partial, absent, parked, and stale OpenSpec
+      tasks. The bounded 2026-08-04 reconciliation corrected four stale task
+      boxes and one completed 10-of-10 Tier 1 evidence statement. It kept
+      gate-dependent and parked tasks open. The shipped v0.2.9 preflight
+      package remains a protected `released_reference`; `DST-0061` registers
+      its later archive relocation. All 32 tracked non-archive packages pass
+      strict OpenSpec validation.
 - [x] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix,
       strict `SpecCorrectnessV1` evaluator, and Effect admission command are
       tracked. The first exact live activation record is in
@@ -19,6 +25,11 @@
 - [ ] 0.6 Record every cleanup candidate before any destructive action. The
       register exists. The `DST-0052` historical-process incident mitigation
       and the `DST-0059` fail-closed pre-destruction guard remain unfinished.
+      The first executable slice is `@foreman/core` plus `@foreman/policy`: one
+      canonical embedded register, a pure evaluator, an Effect-backed compiled
+      command, and an exact `DST-0060` denial smoke test. Only
+      `artifact_relocate` receives a typed executor; all other destructive
+      action kinds remain denied.
 - [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
       that include `@foreman/policy` as its own package family (CW-023).
       Acceptance evidence: `typescriptmigration.md` states nine package
