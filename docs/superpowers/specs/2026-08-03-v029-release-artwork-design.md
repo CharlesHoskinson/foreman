@@ -1,9 +1,10 @@
-# Total Georgecall Release Presentation Design
+# Total Georgecall Release Truth Design
 
 ## Purpose
 
-Correct the presentation of the Foreman v0.2.9.0 release. The release name is
-`Total Georgecall`. The release notes must show the approved release artwork.
+Correct the presentation and the active documentation authority for Foreman
+v0.2.9.0. The release name is `Total Georgecall`. The release notes must show
+the approved artwork and the complete verified release record.
 
 ## Scope
 
@@ -14,12 +15,29 @@ Correct the presentation of the Foreman v0.2.9.0 release. The release name is
 - Put the approved artwork directly below the version text.
 - Use the image at `assets/v029-total-georgecall.png`.
 - Use a URL that resolves through the immutable `v0.2.9.0` tag.
+- Add one canonical accomplishment ledger for v0.2.8.2 and v0.2.9.0.
+- Expand the v0.2.9.0 notes from the verified ledger and exact release evidence.
+- Add a current release summary and links to `README.md`.
+- Mark v0.2.9.0 as the latest release in `ROADMAP.md`.
+- Convert `checklist.md` from a provisional checklist to a completed release record.
+- Keep incomplete work separate as v0.3.0 input. Do not present it as v0.2.9.0 scope.
 
 ## Data Flow
 
-The tracked release notes are the source for the published GitHub release body.
+The canonical accomplishment ledger records exact shipped work, verification,
+cleanup, and explicit limits. The tracked release notes summarize that ledger.
+The README and roadmap link to the ledger and release notes. The tracked release
+notes are the source for the published GitHub release body.
+
 The published body loads the image from the tagged repository content. The
-release title is GitHub metadata and does not change the Git tag.
+release title is GitHub metadata. The metadata update does not change the Git
+tag or the existing release assets.
+
+The v0.3.0 planning package consumes the accomplishment ledger and current
+residuals as required Council review inputs. A Council reviewer must request
+changes when a proposed v0.3.0 specification invents completed work, loses an
+unfinished item, or contradicts a recorded release boundary. A reviewer can
+abstain when the supplied evidence cannot determine coverage.
 
 ## Integrity
 
@@ -33,8 +51,13 @@ or change the existing release evidence assets.
 ## Validation
 
 - Confirm that Markdownlint passes.
+- Confirm that the accomplishment ledger covers both exact release records.
+- Confirm that release claims cite a commit, gate, artifact, or tracked source.
+- Confirm that incomplete work appears only in a limits or future-work section.
 - Confirm that the image URL returns the tagged image.
 - Confirm that the tracked release notes contain the title and image.
+- Confirm that the README and roadmap identify v0.2.9.0 as the latest release.
+- Confirm that the top-level checklist has no provisional or unchecked release action.
 - Confirm that the published release title is `Total Georgecall`.
 - Confirm that the published release body contains the tag-pinned image URL.
 - Confirm that the `v0.2.9.0` tag still resolves to `fbe2325`.
