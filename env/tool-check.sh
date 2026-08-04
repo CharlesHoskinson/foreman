@@ -70,7 +70,7 @@ VENDOR_PREFLIGHT_JS="$ROOT/skills/foreman/runtime/dist/vendor-preflight.js"
 # @stdout one tab-separated tool, status, and detail row (no trailing fields)
 fm_tc_vendor_preflight_row() {
   local vendor="$1"
-  local out="" rc=0 status detail vid tabs detail_bytes capfile nls
+  local out="" rc=0 status detail vid tabs detail_bytes capfile nls raw_bytes stripped_bytes
   if ! have node; then
     printf '%s\tdegraded\t%s\n' "$vendor" "node unavailable; cannot run vendor-preflight"
     return 0
@@ -88,11 +88,26 @@ fm_tc_vendor_preflight_row() {
   # row", and "row plus extra trailing blank lines". Write stdout to a temp
   # file, then rehydrate with a trailing sentinel so framing is preserved.
   # Accept only exactly one row ending in exactly one LF.
+  #
+  # Bash command substitution also removes NUL bytes when a file is loaded
+  # into a variable. A raw row gr<NUL>ok<TAB>ok<TAB>detail<LF> would become
+  # grok<TAB>ok<TAB>detail<LF> after load. Inspect the raw capture and reject
+  # any NUL before variable load. Always remove the temp file on every path
+  # after creation.
   capfile="$(mktemp "${TMPDIR:-/tmp}/fm-vp-row.XXXXXX")" || {
     printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight capture failed"
     return 0
   }
   node "$VENDOR_PREFLIGHT_JS" tool-check-row "$vendor" >"$capfile" 2>/dev/null || rc=$?
+  # Byte-length compare (not locale character count): any NUL shrinks the
+  # stripped stream relative to the raw capture.
+  raw_bytes=$(wc -c <"$capfile" | tr -d '[:space:]')
+  stripped_bytes=$(tr -d '\0' <"$capfile" | wc -c | tr -d '[:space:]')
+  if [[ "${raw_bytes:-0}" -ne "${stripped_bytes:-0}" ]]; then
+    rm -f "$capfile"
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row contains NUL"
+    return 0
+  fi
   # Preserve exact trailing LFs: append a non-newline sentinel, then strip it.
   out="$(cat "$capfile"; printf x)"
   out="${out%x}"

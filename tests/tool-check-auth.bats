@@ -431,6 +431,15 @@ if [[ " \$* " == *" tool-check-row "* ]]; then
       printf '%s\tok\tready detail with extra blank\n\n' "\$vendor"
       exit 0
       ;;
+    nul-in-vendor)
+      # Malformed vendor field with an embedded NUL:
+      #   gr<NUL>ok<TAB>ok<TAB>detail<LF>
+      # Bash command substitution strips NULs when loading a file into a
+      # variable, so this becomes grok<TAB>ok<TAB>detail<LF> and can be
+      # accepted as ready. Must be rejected from the raw capture before load.
+      printf 'gr\0ok\tok\tdetail\n'
+      exit 0
+      ;;
     *)
       exec "\$REAL_NODE" "\$@"
       ;;
@@ -515,6 +524,19 @@ EOF
   # Cold-audit residual: an extra trailing blank line after the required LF
   # is collapsed by \$(...) and must still be rejected (not LANE_READY=yes).
   install_spoof_node extra-trailing-blank
+  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
+  [[ "$output" == *"grok"*"degraded"* ]]
+  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
+  [[ "$output" == *"LANE_READY: grok=no"* ]]
+  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
+}
+
+@test "shell adapter degrades when vendor field contains embedded NUL" {
+  # Cold-audit residual: Bash strips NULs when a capture file is loaded into
+  # a variable, so gr<NUL>ok becomes "grok" and an otherwise-valid ready row
+  # can produce LANE_READY: grok=yes. Reject any NUL in the raw capture
+  # before variable load.
+  install_spoof_node nul-in-vendor
   run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
   [[ "$output" == *"grok"*"degraded"* ]]
   ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"

@@ -100,6 +100,13 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
       `LANE_READY: grok=yes`). RED observed before fix on both shapes. Bats
       tool-check-auth + foreman-setup 30/30; focused package 20/20; full
       verify 554 pass + 1 skip.
+- [x] **Partial (R4B raw-byte NUL residual):** Shell inspects the raw capture
+      file and rejects any NUL byte before content is loaded into a Bash
+      variable (Bash strips NULs on substitution, so `gr<NUL>ok` became
+      `grok` and could produce `LANE_READY: grok=yes`). Temp-file cleanup on
+      every path after creation. RED observed before fix on `nul-in-vendor`
+      spoof. Bats tool-check-auth + foreman-setup 31/31; shell adapter 9/9;
+      focused package 20/20; shellcheck clean; full verify 554 pass + 1 skip.
 - [ ] `lane-run.sh`'s readiness gate reads the JSON record rather than
       re-probing, and reproduces the recorded reason verbatim in its refusal.
 - [x] **Partial (R4B):** A vendor whose auth fact is `unknown` projects to

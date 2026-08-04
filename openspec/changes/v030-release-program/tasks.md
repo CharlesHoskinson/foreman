@@ -171,11 +171,15 @@
         `out="$(node ...)"` (strips trailing LFs); preserves exact framing via
         temp-file + sentinel and accepts only exactly one LF-terminated row.
         Missing final LF and extra trailing blank both → `degraded` / no lane
-        ready (RED before fix). Focused package tests 20/20; bats
-        tool-check-auth + foreman-setup 30/30; typecheck/build/verify-runtime/
-        verify green (554 pass, 1 skip). Live dogfood: both lanes `ok` with
-        floor versions on this host (prior residual). lane-run JSON
-        consumption and full Sprint 3 close remain open.
+        ready (RED before fix). Raw-byte NUL residual: shell rejects any NUL
+        in the capture file before Bash variable load (Bash strips NULs, so
+        `gr<NUL>ok` → `grok` was accepted as ready before fix); one `degraded`
+        row and no lane readiness; temp-file cleanup retained. Focused package
+        tests 20/20; bats tool-check-auth + foreman-setup 31/31; shell adapter
+        9/9; shellcheck clean; typecheck/build/verify-runtime/verify green
+        (554 pass, 1 skip). Live dogfood: both lanes `ok` with floor versions
+        on this host (prior residual). lane-run JSON consumption and full
+        Sprint 3 close remain open.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.
