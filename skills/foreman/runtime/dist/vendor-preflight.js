@@ -16305,6 +16305,15 @@ function checkRecordConsistency(rec) {
   if (auth === "not-authenticated" && rem.kind !== "login") {
     return vendorPreflightContractFailure("inconsistent_state");
   }
+  let authProbeCount = 0;
+  let versionProbeCount = 0;
+  for (const p of rec.probes) {
+    if (p.kind === "auth") authProbeCount++;
+    else if (p.kind === "version") versionProbeCount++;
+  }
+  if (authProbeCount > 1 || versionProbeCount > 1) {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
   if (auth === "authenticated" || auth === "not-authenticated") {
     const authProbe = rec.probes.find((p) => p.kind === "auth");
     if (authProbe === void 0 || authProbe.outcome !== "completed") {
@@ -17176,6 +17185,14 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
       new VendorPreflightFailure(
         "internal",
         "resolved path could not be made absolute before probe execution"
+      )
+    );
+  }
+  if (Buffer.byteLength(absoluteResolved, "utf8") > MAX_PATH_BYTES) {
+    return yield* Effect_exports.fail(
+      new VendorPreflightFailure(
+        "capability_invalid",
+        "resolved executable path exceeds MAX_PATH_BYTES"
       )
     );
   }

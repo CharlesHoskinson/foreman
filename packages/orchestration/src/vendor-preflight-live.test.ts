@@ -20,6 +20,7 @@ import {
   inspectVendor,
 } from "./vendor-preflight-live.js";
 import { argvContainsMutatingUpdate } from "./vendor-preflight-manifest.js";
+import { MAX_PATH_BYTES } from "./vendor-preflight-contract.js";
 
 const FIXED_TS = "2026-08-04T12:00:00.000Z";
 
@@ -550,6 +551,64 @@ describe("inspectVendor live adapter", () => {
       assert.equal(eitherBytes.left.reason, "capability_invalid");
     }
     assert.equal(callsBytes.length, 0, "must not spawn on total-byte overflow");
+  });
+
+  it("enforces MAX_PATH_BYTES on absolute resolved executable before any process", async () => {
+    // Exactly MAX_PATH_BYTES: path form "/" + (MAX_PATH_BYTES - 1) of 'a'.
+    const exactPath = `/${"a".repeat(MAX_PATH_BYTES - 1)}`;
+    assert.equal(Buffer.byteLength(exactPath, "utf8"), MAX_PATH_BYTES);
+    const callsExact: Call[] = [];
+    const layerExact = makeLayers({
+      which: exactPath,
+      calls: callsExact,
+      run: (o) => {
+        if (o.args[0] === "models") {
+          return Effect.succeed({
+            exitCode: 0,
+            stdout: "You are logged in with grok.com.\n",
+            stderr: "",
+          });
+        }
+        return Effect.succeed({
+          exitCode: 0,
+          stdout: "0.2.118\n",
+          stderr: "",
+        });
+      },
+    });
+    const recExact = await runInspect(grokCap, layerExact);
+    assert.equal(recExact.resolvedPath, exactPath);
+    assert.ok(callsExact.length >= 1, "exact MAX_PATH_BYTES path may probe");
+    for (const c of callsExact) {
+      assert.equal(c.command, exactPath);
+    }
+
+    // MAX_PATH_BYTES + 1: must fail closed with zero processes.
+    const overPath = `/${"a".repeat(MAX_PATH_BYTES)}`;
+    assert.equal(Buffer.byteLength(overPath, "utf8"), MAX_PATH_BYTES + 1);
+    const callsOver: Call[] = [];
+    const layerOver = makeLayers({
+      which: overPath,
+      calls: callsOver,
+      run: () =>
+        Effect.succeed({
+          exitCode: 0,
+          stdout: "should never spawn\n",
+          stderr: "",
+        }),
+    });
+    const eitherOver = await Effect.runPromise(
+      inspectVendor(grokCap).pipe(Effect.provide(layerOver), Effect.either),
+    );
+    assert.equal(eitherOver._tag, "Left");
+    if (eitherOver._tag === "Left") {
+      assert.equal(eitherOver.left.reason, "capability_invalid");
+    }
+    assert.equal(
+      callsOver.length,
+      0,
+      "must not spawn when resolved path exceeds MAX_PATH_BYTES",
+    );
   });
 
   it("timeout, output overflow, spawn failure, empty, cancel stay typed fail-closed", async () => {

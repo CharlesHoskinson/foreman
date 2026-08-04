@@ -420,6 +420,18 @@ export function checkRecordConsistency(
     return vendorPreflightContractFailure("inconsistent_state");
   }
 
+  // This slice records at most one probe per kind. Duplicate same-kind
+  // probes are ambiguous (ProbeRecordV1 has no attempt identity).
+  let authProbeCount = 0;
+  let versionProbeCount = 0;
+  for (const p of rec.probes) {
+    if (p.kind === "auth") authProbeCount++;
+    else if (p.kind === "version") versionProbeCount++;
+  }
+  if (authProbeCount > 1 || versionProbeCount > 1) {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+
   // Positive or signed-out auth facts require a completed auth probe.
   // (Signed-out signal is a classification obligation; the record does not
   // carry raw probe output, so completed auth outcome is the structural gate.)

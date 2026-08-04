@@ -773,6 +773,180 @@ describe("decodeVendorPreflightRecordV1", () => {
     assert.ok(!isVendorPreflightContractFailure(decoded));
   });
 
+  it("rejects more than one probe of the same kind (auth and version)", () => {
+    // completed-then-timeout auth duplicates
+    const authCompletedTimeout = validDiscoverableRecord({
+      reportedVersion: null,
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "ambiguous duplicate auth probes",
+        },
+        current: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "no completed version",
+        },
+      },
+      probes: [
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+      ],
+      remediation: {
+        kind: "diagnose",
+        instruction: "Re-run bounded probes",
+      },
+    });
+    const d1 = decodeVendorPreflightRecordV1(authCompletedTimeout);
+    assert.ok(isVendorPreflightContractFailure(d1));
+    assert.equal(d1.reason, "inconsistent_state");
+
+    // timeout-then-completed auth duplicates
+    const authTimeoutCompleted = validDiscoverableRecord({
+      reportedVersion: null,
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "ambiguous duplicate auth probes",
+        },
+        current: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "no completed version",
+        },
+      },
+      probes: [
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+      ],
+      remediation: {
+        kind: "diagnose",
+        instruction: "Re-run bounded probes",
+      },
+    });
+    const d2 = decodeVendorPreflightRecordV1(authTimeoutCompleted);
+    assert.ok(isVendorPreflightContractFailure(d2));
+    assert.equal(d2.reason, "inconsistent_state");
+
+    // completed-then-timeout version duplicates
+    const versionCompletedTimeout = validDiscoverableRecord({
+      reportedVersion: null,
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "no auth probe",
+        },
+        current: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "ambiguous duplicate version probes",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+      ],
+      remediation: {
+        kind: "diagnose",
+        instruction: "Re-run bounded probes",
+      },
+    });
+    const d3 = decodeVendorPreflightRecordV1(versionCompletedTimeout);
+    assert.ok(isVendorPreflightContractFailure(d3));
+    assert.equal(d3.reason, "inconsistent_state");
+
+    // timeout-then-completed version duplicates
+    const versionTimeoutCompleted = validDiscoverableRecord({
+      reportedVersion: null,
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "no auth probe",
+        },
+        current: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "ambiguous duplicate version probes",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+      ],
+      remediation: {
+        kind: "diagnose",
+        instruction: "Re-run bounded probes",
+      },
+    });
+    const d4 = decodeVendorPreflightRecordV1(versionTimeoutCompleted);
+    assert.ok(isVendorPreflightContractFailure(d4));
+    assert.equal(d4.reason, "inconsistent_state");
+  });
+
   it("rejects invalid enum values", () => {
     const rec = validDiscoverableRecord();
     const bad = {

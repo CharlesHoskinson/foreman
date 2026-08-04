@@ -22,6 +22,7 @@ import {
   processFailureToProbeOutcome,
 } from "./vendor-preflight.js";
 import {
+  MAX_PATH_BYTES,
   validateProbeArgv,
   type ProbeOutcome,
   type ProbeRecordV1,
@@ -241,6 +242,17 @@ export const inspectVendor = (
         new VendorPreflightFailure(
           "internal",
           "resolved path could not be made absolute before probe execution",
+        ),
+      );
+    }
+
+    // Enforce public MAX_PATH_BYTES on the exact absolute resolved executable
+    // before full-argv validation or any process start.
+    if (Buffer.byteLength(absoluteResolved, "utf8") > MAX_PATH_BYTES) {
+      return yield* Effect.fail(
+        new VendorPreflightFailure(
+          "capability_invalid",
+          "resolved executable path exceeds MAX_PATH_BYTES",
         ),
       );
     }

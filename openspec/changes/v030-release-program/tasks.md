@@ -135,6 +135,17 @@
         validation of `vendor-preflight` and `v030-release-program` green;
         two builds of `dist/vendor-preflight.js` byte-identical
         (sha256 `a3f05637c2e64062edf81ebdccbf3a6faf0ba94671fd2e7f0bf2f18c44328ab9`).
+        R4A closure correction round 5 (candidate
+        `dd1578dd5aeacae7505eb9d608f21eb70ebf11eb`): public-record decoder
+        rejects more than one probe of the same `kind` (completed-then-timeout
+        and timeout-then-completed for auth and version); live adapter enforces
+        `MAX_PATH_BYTES` (32_768 UTF-8) on the exact absolute resolved
+        executable before full-argv validation or any process (oversize path
+        returns `capability_invalid` with zero spawns; exact 32_768 accepted).
+        Focused tests 67/67 pass; typecheck/build/verify/docs-check and strict
+        OpenSpec validation of `vendor-preflight` and `v030-release-program`
+        green; two builds of `dist/vendor-preflight.js` byte-identical
+        (sha256 `7f102935a52b8d6152ff4e42ef32dfd06036012c47c03cfdd38a2ac38d204051`).
         Setup/`foreman-setup.sh` and lane callers are intentionally not
         wired in this slice.
       The remaining Sprint 3 work stays open (R4B+ shell migration,
