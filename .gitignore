@@ -9,6 +9,8 @@ node_modules/
 .foreman/runs/
 !.foreman/config.toml
 site/dist/
+packages/*/dist/
+packages/*/*.tsbuildinfo
 *.pyc
 __pycache__/
 

@@ -25,11 +25,12 @@
 - [ ] 0.6 Record every cleanup candidate before any destructive action. The
       register exists. The `DST-0052` historical-process incident mitigation
       and the `DST-0059` fail-closed pre-destruction guard remain unfinished.
-      The first executable slice is `@foreman/core` plus `@foreman/policy`: one
-      canonical embedded register, a pure evaluator, an Effect-backed compiled
-      command, and an exact `DST-0060` denial smoke test. Only
-      `artifact_relocate` receives a typed executor; all other destructive
-      action kinds remain denied.
+      R2 slice: `@foreman/core` plus `@foreman/policy` with one canonical
+      sentinel register (no projection table), pure evaluator with closed
+      approval facts, committed-HEAD authority binding, DST-0060 denial
+      (`state_blocked` when clean; `authority_dirty` when uncommitted), and
+      live relocate fail-closed (`platform_invariant_unproven`). Keep open
+      until DST-0059 and incident mitigation finish.
 - [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
       that include `@foreman/policy` as its own package family (CW-023).
       Acceptance evidence: `typescriptmigration.md` states nine package

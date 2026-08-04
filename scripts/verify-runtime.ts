@@ -1,0 +1,218 @@
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
+import { buildTo } from "./build-runtime.js";
+import { verifyRuntimeManifest } from "./verify-runtime-manifest.js";
+import { canonicalize } from "../packages/core/src/canonical-json.js";
+import {
+  CANONICAL_REGISTER_ID,
+  CANONICAL_REGISTER_RELPATH,
+} from "../packages/policy/src/schema.js";
+import {
+  BEGIN_SENTINEL,
+  END_SENTINEL,
+} from "../packages/policy/src/register.js";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+function fail(msg: string): never {
+  process.stderr.write(msg + "\n");
+  process.exit(1);
+}
+
+function bytesEqual(a: Buffer, b: Buffer): boolean {
+  return a.byteLength === b.byteLength && a.equals(b);
+}
+
+function git(repo: string, args: string[]): string {
+  const r = spawnSync("git", args, {
+    cwd: repo,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@t",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@t",
+    },
+  });
+  if (r.status !== 0) {
+    fail(`git ${args.join(" ")}: ${r.stderr || r.stdout}`);
+  }
+  return (r.stdout || "").trim();
+}
+
+// 1. Tracked runtime
+const trackedRuntime = join(root, "skills/foreman/runtime");
+const trackedManifestPath = join(trackedRuntime, "manifest.json");
+const trackedBundlePath = join(trackedRuntime, "dist/destruction-guard.js");
+const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
+if (existsSync(unintendedDistManifest)) {
+  fail("unintended dist/manifest.json present");
+}
+const trackedCheck = verifyRuntimeManifest(trackedRuntime);
+if (!trackedCheck.ok) {
+  fail("tracked runtime manifest: " + trackedCheck.reason);
+}
+const trackedManifest = readFileSync(trackedManifestPath);
+const trackedBundle = readFileSync(trackedBundlePath);
+
+// 2. Two temp builds match tracked
+const tmpA = mkdtempSync(join(tmpdir(), "foreman-build-a-"));
+const tmpB = mkdtempSync(join(tmpdir(), "foreman-build-b-"));
+try {
+  const a = await buildTo({
+    bundlePath: join(tmpA, "destruction-guard.js"),
+    manifestPath: join(tmpA, "manifest.json"),
+  });
+  const b = await buildTo({
+    bundlePath: join(tmpB, "destruction-guard.js"),
+    manifestPath: join(tmpB, "manifest.json"),
+  });
+  if (!bytesEqual(readFileSync(a.bundlePath), readFileSync(b.bundlePath))) {
+    fail("non-deterministic temp builds");
+  }
+  if (!bytesEqual(readFileSync(a.bundlePath), trackedBundle)) {
+    fail("bundle drift");
+  }
+  if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
+    fail("manifest drift");
+  }
+} finally {
+  rmSync(tmpA, { recursive: true, force: true });
+  rmSync(tmpB, { recursive: true, force: true });
+}
+
+// 3. Negative manifest probes
+{
+  const probe = mkdtempSync(join(tmpdir(), "foreman-mf-"));
+  try {
+    const rt = join(probe, "runtime");
+    mkdirSync(join(rt, "dist"), { recursive: true });
+    writeFileSync(join(rt, "manifest.json"), trackedManifest);
+    const miss = verifyRuntimeManifest(rt);
+    if (miss.ok || miss.reason !== "bundle_missing") {
+      fail("expected bundle_missing got " + JSON.stringify(miss));
+    }
+    writeFileSync(join(rt, "dist/destruction-guard.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered bundle should fail");
+    cpSync(trackedBundlePath, join(rt, "dist/destruction-guard.js"));
+    writeFileSync(
+      join(rt, "manifest.json"),
+      '{"bundle":{"byteLength":1,"relativePath":"dist/destruction-guard.js","sha256":"' +
+        "a".repeat(64) +
+        '"},"nodeRange":">=24 <25","schemaVersion":1}\n',
+    );
+    if (verifyRuntimeManifest(rt).ok) fail("tampered manifest should fail");
+  } finally {
+    rmSync(probe, { recursive: true, force: true });
+  }
+}
+
+// 4. pathToFileURL
+{
+  const href = pathToFileURL(
+    join(root, "packages/core/src/canonical-json.ts"),
+  ).href;
+  if (!href.startsWith("file:")) fail("pathToFileURL");
+  const core = await import(href);
+  if (typeof core.canonicalize !== "function") fail("dynamic import");
+}
+
+// 5. Copied skill + isolated git with blocked DST-0060
+const tmp = mkdtempSync(join(tmpdir(), "foreman-copied-"));
+try {
+  const copiedSkill = join(tmp, "skill-copy", "foreman");
+  mkdirSync(dirname(copiedSkill), { recursive: true });
+  cpSync(join(root, "skills/foreman"), copiedSkill, { recursive: true });
+  const copiedRuntime = join(copiedSkill, "runtime");
+  const copiedOk = verifyRuntimeManifest(copiedRuntime);
+  if (!copiedOk.ok) fail("copied runtime: " + copiedOk.reason);
+
+  const repo = join(tmp, "iso-repo");
+  mkdirSync(repo, { recursive: true });
+  git(repo, ["init"]);
+  git(repo, ["config", "user.email", "t@t"]);
+  git(repo, ["config", "user.name", "t"]);
+  git(repo, ["config", "commit.gpgsign", "false"]);
+
+  const regJson = canonicalize({
+    currentEntries: [
+      {
+        actionKind: "artifact_relocate",
+        artifactRelocate: {
+          byteLength: 5359,
+          recoveryPath: "/r",
+          sha256:
+            "90b74c67fcafccb4c04b1402ba6b275e6809debd4aa096efdc7b23b7c97275db",
+          sourcePath: "/s",
+        },
+        evidence: "e",
+        id: "DST-0060",
+        owner: "Sprint 0 architect",
+        recordedAt: "2026-08-04T00:00:41-06:00",
+        recoveryStatus: "external_path_pending_guard",
+        requiredCondition: "guard",
+        state: "blocked",
+        targetOrAction: "spec",
+      },
+    ],
+    historicalIncidents: [],
+    registerId: CANONICAL_REGISTER_ID,
+    schemaVersion: 1,
+  });
+  const regPath = join(repo, CANONICAL_REGISTER_RELPATH);
+  mkdirSync(dirname(regPath), { recursive: true });
+  writeFileSync(
+    regPath,
+    ["# log", BEGIN_SENTINEL, regJson, END_SENTINEL, "", "Prose.", ""].join(
+      "\n",
+    ),
+    "utf8",
+  );
+  git(repo, ["add", CANONICAL_REGISTER_RELPATH]);
+  git(repo, ["commit", "-m", "blocked"]);
+
+  const emptyCwd = join(tmp, "empty-cwd");
+  mkdirSync(emptyCwd, { recursive: true });
+  const bundleCopied = join(copiedRuntime, "dist/destruction-guard.js");
+  const run = spawnSync(
+    process.execPath,
+    [bundleCopied, "check", "--repo-root", repo],
+    {
+      cwd: emptyCwd,
+      encoding: "utf8",
+      input: canonicalize({ entryId: "DST-0060", schemaVersion: 1 }),
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+      },
+    },
+  );
+  if (run.status !== 1) {
+    fail(`copied check exit ${run.status}: ${run.stdout} ${run.stderr}`);
+  }
+  const line = (run.stdout || "").trim();
+  const expected = canonicalize({
+    _tag: "Denied",
+    entryId: "DST-0060",
+    reason: "state_blocked",
+    schemaVersion: 1,
+  });
+  if (line !== expected) fail("copied check output: " + line);
+  if ((run.stderr || "").length > 0) fail("copied check stderr not empty");
+} finally {
+  rmSync(tmp, { recursive: true, force: true });
+}
+
+process.stdout.write("verify-runtime: ok\n");

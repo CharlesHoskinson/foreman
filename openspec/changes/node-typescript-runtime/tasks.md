@@ -13,29 +13,35 @@ below contain detailed module tasks only. They do not define release order.
 
 ## M1 — workspace and architecture gate
 
-- [ ] Add the root npm workspace, lockfile, strict shared TypeScript config,
+- [x] Add the root npm workspace, lockfile, strict shared TypeScript config,
       Node.js 24 engine constraint, and exact dependency pins.
-- [ ] Put authoritative source under `packages/` and emit deterministic
+- [x] Put authoritative source under `packages/` and emit deterministic
       self-contained Node.js bundles under `skills/foreman/runtime/dist/` plus
       `skills/foreman/runtime/manifest.json`.
-- [ ] Add `@foreman/core` with closed error and schema primitives.
+- [x] Add `@foreman/core` with closed error and schema primitives.
 - [ ] Add a TypeScript policy checker with fail-capable fixtures for new
       Python, shell, PowerShell, CMD, JavaScript, MJS, CJS, Bun-only imports,
       and a legacy adapter that contains domain logic.
-- [ ] Add the fail-closed destruction register, pure admission evaluator, and
+- [x] Add the fail-closed destruction register, pure admission evaluator, and
       compiled `foreman-destruction-guard` command in `@foreman/policy`.
-      Support `check` and exact `artifact_relocate` only. Keep every other
-      destructive action unsupported and denied.
-- [ ] Convert the current destruction register to one sentinel-delimited
-      canonical JSON block inside the existing Markdown log. Reject projection
-      drift, missing or duplicate sentinels, duplicate IDs, unknown fields,
-      pending approvals, historical incidents, and identity mismatches.
-- [ ] Prove the compiled guard denies the current exact `DST-0060` request.
+      Support `check` bound to committed HEAD authority. Live
+      `artifact_relocate` remains fail-closed (`platform_invariant_unproven`)
+      until portable no-replace and bound-source primitives are proved.
+      Keep every other destructive action unsupported and denied.
+- [x] Convert the current destruction register to one sentinel-delimited
+      canonical JSON block inside the existing Markdown log. There is no
+      parallel human projection table. Reject a second structured
+      register/projection, missing or duplicate sentinels, duplicate IDs,
+      unknown fields, pending approvals, historical incidents, and identity
+      mismatches.
+- [x] Prove the compiled guard denies the current exact `DST-0060` request.
       Do not mark `DST-0059` complete or relocate `DST-0060` in this task.
-- [ ] Run the policy gate in Linux and Windows CI.
+- [ ] Run the policy gate in Linux and Windows CI. Workflow wiring is tracked;
+      keep this open until both hosted jobs pass the exact candidate.
 - [ ] Make Setup, symlink installs, junction installs, copied installs, and
       plugin-drift verify the same bundle manifest without resolving repository
-      siblings or root `node_modules` at runtime.
+      siblings or root `node_modules` at runtime. The copied-install smoke is
+      green. Setup, symlink, junction, and plugin-drift wiring remain open.
 
 ## M2 — migrate GraphStore
 

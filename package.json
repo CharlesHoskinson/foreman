@@ -1,0 +1,23 @@
+{
+  "name": "foreman",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.16.0",
+  "engines": { "node": ">=24 <25" },
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.all.json --pretty false",
+    "test": "node --import tsx --test packages/core/src/**/*.test.ts packages/policy/src/**/*.test.ts",
+    "build": "tsx scripts/build-runtime.ts",
+    "verify-runtime": "tsx scripts/verify-runtime.ts",
+    "verify": "npm run typecheck && npm run test && npm run verify-runtime && npm run verify-register-doc && npm run smoke:dst-0060",
+    "verify-register-doc": "tsx scripts/verify-register-doc.ts",
+    "smoke:dst-0060": "tsx scripts/smoke-dst-0060.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "esbuild": "0.27.0",
+    "tsx": "4.20.5",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}
