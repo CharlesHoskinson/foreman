@@ -417,6 +417,20 @@ if [[ " \$* " == *" tool-check-row "* ]]; then
       printf '%s\tok\t%s\n' "\$vendor" "\$detail"
       exit 0
       ;;
+    missing-final-lf)
+      # Otherwise-valid ready row with no terminating LF. Bash \$(...)
+      # strips trailing newlines, so a capture that loses framing would
+      # accept this as ok; the adapter must require exactly one LF.
+      printf '%s\tok\tready detail no final lf' "\$vendor"
+      exit 0
+      ;;
+    extra-trailing-blank)
+      # Exactly one valid LF-terminated row plus one extra blank line.
+      # Command substitution collapses trailing LFs; framing must still
+      # reject more than one LF.
+      printf '%s\tok\tready detail with extra blank\n\n' "\$vendor"
+      exit 0
+      ;;
     *)
       exec "\$REAL_NODE" "\$@"
       ;;
@@ -482,5 +496,28 @@ EOF
   run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
   grep -Eq '^grok[[:space:]]+ok' <<<"$output"
   [[ "$output" == *"LANE_READY: grok=yes"* ]]
+  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
+}
+
+@test "shell adapter degrades when ready row is missing final LF" {
+  # Cold-audit residual: bash command substitution strips trailing newlines,
+  # so a capture that does not preserve framing accepts a ready row with no
+  # final LF as ok. Require exactly one LF-terminated row.
+  install_spoof_node missing-final-lf
+  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
+  [[ "$output" == *"grok"*"degraded"* ]]
+  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
+  [[ "$output" == *"LANE_READY: grok=no"* ]]
+  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
+}
+
+@test "shell adapter degrades when ready row has extra trailing blank line" {
+  # Cold-audit residual: an extra trailing blank line after the required LF
+  # is collapsed by \$(...) and must still be rejected (not LANE_READY=yes).
+  install_spoof_node extra-trailing-blank
+  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
+  [[ "$output" == *"grok"*"degraded"* ]]
+  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
+  [[ "$output" == *"LANE_READY: grok=no"* ]]
   [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
 }

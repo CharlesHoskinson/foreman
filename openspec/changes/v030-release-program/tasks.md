@@ -167,11 +167,15 @@
         `LANE_READY: grok=yes`. Acceptance correction: Bats spoof fixtures use
         shell-native byte generation (`head -c N /dev/zero | tr`), not
         Python; explicit 512-byte lower-bound case → `ok` /
-        `LANE_READY: grok=yes`. Focused package tests 20/20; bats
-        tool-check-auth + foreman-setup 28/28; typecheck/build/verify-runtime/
+        `LANE_READY: grok=yes`. LF framing residual: shell no longer uses bare
+        `out="$(node ...)"` (strips trailing LFs); preserves exact framing via
+        temp-file + sentinel and accepts only exactly one LF-terminated row.
+        Missing final LF and extra trailing blank both → `degraded` / no lane
+        ready (RED before fix). Focused package tests 20/20; bats
+        tool-check-auth + foreman-setup 30/30; typecheck/build/verify-runtime/
         verify green (554 pass, 1 skip). Live dogfood: both lanes `ok` with
-        floor versions on this host. lane-run JSON consumption and full
-        Sprint 3 close remain open.
+        floor versions on this host (prior residual). lane-run JSON
+        consumption and full Sprint 3 close remain open.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

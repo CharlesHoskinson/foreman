@@ -70,7 +70,7 @@ VENDOR_PREFLIGHT_JS="$ROOT/skills/foreman/runtime/dist/vendor-preflight.js"
 # @stdout one tab-separated tool, status, and detail row (no trailing fields)
 fm_tc_vendor_preflight_row() {
   local vendor="$1"
-  local out="" rc=0 status detail vid tabs detail_bytes
+  local out="" rc=0 status detail vid tabs detail_bytes capfile nls
   if ! have node; then
     printf '%s\tdegraded\t%s\n' "$vendor" "node unavailable; cannot run vendor-preflight"
     return 0
@@ -81,9 +81,22 @@ fm_tc_vendor_preflight_row() {
   fi
   # Capture stdout only; stderr is diagnostic and must not enter the TSV row.
   # Require runtime exit zero. Nonzero with nonempty stdout is degraded, never ok.
-  # Command substitution strips trailing LFs; any remaining newline means a
-  # second line was present and must not be trusted.
-  out="$(node "$VENDOR_PREFLIGHT_JS" tool-check-row "$vendor" 2>/dev/null)" || rc=$?
+  #
+  # Bash command substitution strips ALL trailing newlines, so
+  #   out="$(node ...)"
+  # cannot distinguish "row with no final LF", "exactly one LF-terminated
+  # row", and "row plus extra trailing blank lines". Write stdout to a temp
+  # file, then rehydrate with a trailing sentinel so framing is preserved.
+  # Accept only exactly one row ending in exactly one LF.
+  capfile="$(mktemp "${TMPDIR:-/tmp}/fm-vp-row.XXXXXX")" || {
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight capture failed"
+    return 0
+  }
+  node "$VENDOR_PREFLIGHT_JS" tool-check-row "$vendor" >"$capfile" 2>/dev/null || rc=$?
+  # Preserve exact trailing LFs: append a non-newline sentinel, then strip it.
+  out="$(cat "$capfile"; printf x)"
+  out="${out%x}"
+  rm -f "$capfile"
   if [[ "$rc" -ne 0 ]]; then
     printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight exit ${rc}"
     return 0
@@ -92,10 +105,19 @@ fm_tc_vendor_preflight_row() {
     printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight produced no row (exit=0)"
     return 0
   fi
-  if [[ "$out" == *$'\n'* ]]; then
+  # Framing: must end with LF and contain exactly one LF (no missing terminator,
+  # no second line, no extra trailing blank lines).
+  if [[ "$out" != *$'\n' ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row missing final LF"
+    return 0
+  fi
+  nls="${out//[!$'\n']/}"
+  if [[ ${#nls} -ne 1 ]]; then
     printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight produced multiple output lines"
     return 0
   fi
+  # Drop the single terminating LF for field parsing.
+  out="${out%$'\n'}"
   if [[ "$out" == *$'\r'* ]]; then
     printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row contains CR"
     return 0

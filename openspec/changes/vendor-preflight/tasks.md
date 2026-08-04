@@ -92,6 +92,14 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
       bound test for exactly 512 → `ok` / `LANE_READY: grok=yes`. Bats
       tool-check-auth + foreman-setup 28/28; focused package 20/20; full
       verify 554 pass + 1 skip.
+- [x] **Partial (R4B LF framing residual):** Shell capture no longer uses bare
+      `out="$(node ...)"` (strips trailing LFs). Runtime stdout is written to a
+      temp file and rehydrated with a sentinel so framing is preserved.
+      Accept only exactly one row ending in exactly one LF. Missing final LF
+      and extra trailing blank line both map to one `degraded` row (no
+      `LANE_READY: grok=yes`). RED observed before fix on both shapes. Bats
+      tool-check-auth + foreman-setup 30/30; focused package 20/20; full
+      verify 554 pass + 1 skip.
 - [ ] `lane-run.sh`'s readiness gate reads the JSON record rather than
       re-probing, and reproduces the recorded reason verbatim in its refusal.
 - [x] **Partial (R4B):** A vendor whose auth fact is `unknown` projects to
