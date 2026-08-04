@@ -4,7 +4,8 @@ Foreman change specs follow [OpenSpec](https://github.com/Fission-AI/OpenSpec)
 folder conventions (CLI optional).
 
 **Header shape.** Live packages use the form the OpenSpec CLI parses, and
-validate under `/usr/local/bin/openspec validate <change> --strict`:
+validate under `openspec validate <change> --strict` when `openspec` is on
+`PATH`:
 
 ```text
 ## ADDED Requirements
@@ -20,8 +21,10 @@ The five S3 WSL packages (`wsl-ci-parity`, `wsl-launcher-shipped`,
 `wsl-preflight`, `wsl-seam-doctrine`, `wsl-tool-path-persistence`) were
 migrated from the legacy `## ADDED Requirement: <title>` form by a
 content-preserving header transform only. New packages SHALL use the
-parseable form above. Prefer `/usr/local/bin/openspec` over `npx openspec`
-(the latter resolves to a broken 0.0.0 stub in some environments).
+parseable form above. Prefer `openspec` from `PATH` over a hard-coded path.
+If `openspec` is absent, install with
+`npm install -g @fission-ai/openspec` or use
+`npx --yes @fission-ai/openspec@latest` for a one-shot validate.
 
 - `openspec/changes/<change-name>/` — one folder per change:
   - `proposal.md` — why + what is changing

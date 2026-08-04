@@ -16,20 +16,25 @@ docs/design/**
 !docs/design/session-store-ontology-links.md
 !docs/design/tier1-failure-classes.md
 !docs/releases/
+docs/releases/**
 !docs/releases/v0.2.8.2-notes.md
-!docs/releases/v0.2.8.2-cleanup-log.md
 !docs/releases/v0.2.9.0-notes.md
-!docs/releases/v0.2.9.0-cleanup-log.md
+!docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md
+!docs/releases/v0.3.0-destruction-log.md
 !docs/evidence/
+docs/evidence/**
 !docs/evidence/README.md
 
 # Only approved post-release OpenSpec packages are current change authority.
-# Git and v0.2.9-preserve retain the deferred packages.
+# Git and v0.2.9-preserve retain the deferred packages and shipped history.
+# council-v029-preflight-release stays excluded (released history; DST-0061).
 openspec/changes/**
-!openspec/changes/council-*/
-!openspec/changes/council-*/**
+!openspec/changes/v030-release-program/
+!openspec/changes/v030-release-program/**
 !openspec/changes/node-typescript-runtime/
 !openspec/changes/node-typescript-runtime/**
+!openspec/changes/council-review-plane/
+!openspec/changes/council-review-plane/**
 
 # These skills are vendored snapshots, not Foreman implementation authority.
 skills/graphify/**

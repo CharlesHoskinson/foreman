@@ -245,10 +245,10 @@ notes = "docs group -- PowerShell lint"
 id = "graphify"
 profile = ["soft", "full"]
 where = ["windows", "wsl"]
-check = "python -c \"import graphify\" || python3 -c \"import graphify\""
+check = "graphify --version"
 install_hint = "pip install graphifyy  (module name: graphify)"
 required = false
-notes = "Knowledge-graph repo understanding; graph committed at graphify-out/graph.json"
+notes = "Knowledge-graph repo understanding. graphify-out/ is a derived local index, not a committed graph."
 
 [[tools]]
 id = "openspec"

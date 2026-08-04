@@ -65,27 +65,29 @@ an old release decision matters. Do not add old plans back to this live file.
 ## Active release program: v0.3.0
 
 The active program lives at `openspec/changes/v030-release-program/`.
+v0.3.0 is not released.
 
 All new executable code uses Node.js 24 and TypeScript under the repository
 Iron Rule. Effect owns typed failures, scoped resources, cancellation,
 retries, timeouts, and concurrency.
 
-The program orders work in sprint bands. None of these bands is complete:
+Status at base commit `3164cfa5779b8aac8eebeea710c16f3f9688d56f`:
 
-- authority baseline, destruction inventory, and ledger reconciliation
-- Node workspace, core, and policy
-- typed event-log foundation
-- queue, resume, credentials, and fixture-aware secret scans
-- GraphStore, launcher, SessionDB, and project registry
-- current-main session transport
-- Council advisory plane, durable runtime, Gemini, MCP, and host plugins
-- Council supervised research, evidence provenance, and Council evaluation
-- release evidence, formal-model reconciliation, knowledge and Graphify
-  convergence, and orchestration
-- zero-Python cleanup, Superpowers dependency-manifest decision, external
-  dogfood, Windows boundary, and exact-candidate convergence
+| Band | Status | Notes |
+|---|---|---|
+| Authority baseline, destruction inventory, and ledger reconciliation | Landed | Ledger, coverage matrix freeze, destruction register, and program package |
+| Node workspace, `@foreman/core`, and `@foreman/policy` | Landed | Architecture policy, destruction admission, installed-runtime integrity, Windows path-seam fixes |
+| Typed `@foreman/event-log` foundation | Landed | Closed StoredEvent decoder, bounded NDJSON replay, cursors, attempt identity |
+| Queue, resume, credentials, and fixture-aware secret scans (Sprint 3) | Open | Not in this base |
+| GraphStore, launcher, SessionDB, and project registry | Open | Not in this base |
+| Current-main session transport | Open | Not in this base |
+| Council advisory plane, durable runtime, Gemini, MCP, and host plugins | Partial / open | Spec-correctness admission and live records exist. Full advisory plane remains open |
+| Council supervised research, evidence provenance, and Council evaluation | Open | Not in this base |
+| Release evidence, formal-model reconciliation, knowledge and Graphify | Open | Not in this base |
+| Zero-Python cleanup, Superpowers, external dogfood, Windows boundary, exact-candidate convergence | Open | Not in this base |
 
-Do not present unfinished v0.3.0 work as shipped work.
+Do not present unfinished v0.3.0 work as shipped work. Sprint 3 queue work
+is not in this base and remains open.
 
 ## Current authority
 
@@ -94,8 +96,7 @@ Do not present unfinished v0.3.0 work as shipped work.
 - Active v0.3.0 release program: `openspec/changes/v030-release-program/`
 - TypeScript migration checklist: `typescriptmigration.md`
 - Current destruction log: `docs/releases/v0.3.0-destruction-log.md`
-- Shipped v0.2.9.0 cleanup record:
-  `docs/releases/v0.2.9.0-cleanup-log.md`
+- Shipped v0.2.9.0 release notes: `docs/releases/v0.2.9.0-notes.md`
 - Shipped v0.2.9.0 release record: `checklist.md`
 - Current residuals: `docs/RESIDUALS.md`
 - Historical evidence rules: `docs/evidence/README.md`

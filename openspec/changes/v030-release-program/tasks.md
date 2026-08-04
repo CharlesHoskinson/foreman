@@ -20,17 +20,24 @@
       `docs/evidence/v0.3.0/spec-correctness-round-001/`.
 - [ ] 0.5 Ship the Effect admission command, then run a ledger-bound Council
       review with `SpecCorrectnessV1` on one exact candidate.
-      One live Grok verdict is admitted for exact head `71b6fbd`. The default
-      three-verdict, two-model-family Council quorum remains pending.
+      Landed evidence: specification-correctness core and admission at
+      `a45b0a2c5fb4c95bdc67caef678c51c278c7f314` and
+      `71b6fbdee5887f123891433266064db3d50b5def`. Live activation record at
+      `b193ffdd97fbeb428fce0d410fe1405612843a6b` for head `71b6fbd`. One live
+      Grok verdict is admitted. The default three-verdict, two-model-family
+      Council quorum remains pending. Keep this task open.
 - [ ] 0.6 Record every cleanup candidate before any destructive action. The
       register exists. The `DST-0052` historical-process incident mitigation
-      and the `DST-0059` fail-closed pre-destruction guard remain unfinished.
+      remains unfinished. Destruction-admission code landed at
+      `d360fbec540a3c99d1eba50ac5712c50e838b5b0` with review record
+      `e8f9686cf8ae77145d7812a65f8fc573a521bca9`
+      (`docs/evidence/v0.3.0/destruction-guard-spec-correctness-round-001/`).
       R2 slice: `@foreman/core` plus `@foreman/policy` with one canonical
       sentinel register (no projection table), pure evaluator with closed
       approval facts, committed-HEAD authority binding, DST-0060 denial
       (`state_blocked` when clean; `authority_dirty` when uncommitted), and
       live relocate fail-closed (`platform_invariant_unproven`). Keep open
-      until DST-0059 and incident mitigation finish.
+      until DST-0059 register disposition and incident mitigation finish.
 - [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
       that include `@foreman/policy` as its own package family (CW-023).
       Acceptance evidence: `typescriptmigration.md` states nine package
@@ -51,6 +58,20 @@
 ## 1. Program execution
 
 - [ ] 1.1 Execute Sprints 1 through 17 in `sprints.md` order.
+      Landed partial evidence at base
+      `3164cfa5779b8aac8eebeea710c16f3f9688d56f` (do not mark complete):
+      - Architecture policy:
+        `99accf3ba5d75c311aa9ede3460b4a4a49d9aa3e` (feat),
+        `96d0f0750f415697985b4201f47b915734146d9b` (review record).
+      - Installed-runtime integrity:
+        `6a0bc5fdcfc6e06b9b56f52d7a3e9787ea99ae72` (feat),
+        `524290f5f0a59c1f4ae05bcb4ceb8acf4fd15c88` (review record).
+      - Windows path-seam:
+        `aba8124d54ba35d34c1ffe973ea2031b6073ab8e` (memory install paths),
+        `3164cfa5779b8aac8eebeea710c16f3f9688d56f` (delayed handle release).
+      - Event-log foundation:
+        `cbe27e831b3dcc95db8de248168374fe08e20350`.
+      Sprint 3 queue admission is not in this base and remains open.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

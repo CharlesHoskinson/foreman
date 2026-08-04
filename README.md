@@ -92,8 +92,8 @@ Roles and producers are keyed by **model family**, not by CLI name. A gateway
 CLI that serves another vendor's models counts as that family for audit
 routing. Live soft-mode producers today are Grok (xAI), Codex/GPT (OpenAI),
 and Claude (Anthropic, advisor/architect). A fourth gateway lane (`agy`,
-Antigravity CLI) is specified for this release as routing coverage — not as a
-fourth independent vote — with isolation still unsolved (see
+Antigravity CLI) is planned v0.3.0 routing coverage — not a v0.2.9.0 feature
+and not a fourth independent vote — with isolation still unsolved (see
 [Honest capabilities and limits](#11-honest-capabilities-and-limits)).
 
 One host-side run directory defaults to `~/.foreman/runs/<id>/`; operators
@@ -528,11 +528,11 @@ bash skills/foreman/scripts/docs-check.sh --json docs-check.json
 bash skills/foreman/scripts/docs-check.sh --online   # full link check (network)
 ```
 
-This stage checks markdown lint, spelling, links, and bash comment coverage
-only (exit `0` pass, `1` findings, `2` required tool missing — fail closed).
-Tool configs and comment-coverage rules: [`docs/USAGE.md`](docs/USAGE.md).
-Prose quality is a human/architect judgment call, not something
-`docs-check.sh` measures.
+This stage checks markdown lint, spelling, links, vendor-invocation drift,
+and Bash comment coverage (exit `0` pass, `1` findings, `2` required tool
+missing — fail closed). Tool configs and comment-coverage rules:
+[`docs/USAGE.md`](docs/USAGE.md). Prose quality is a human/architect judgment
+call, not something `docs-check.sh` measures.
 
 ## 9. The record: event log, work-DAG, knowledge plane, store
 
@@ -627,12 +627,13 @@ fine-grained, single-repo, expiring token.
   across sessions. Claude is half-wired as a worker vendor: worktrees and
   pueue groups exist, but the hard worker command builder accepts only Grok
   and Codex.
-- **agy (fourth lane) is routing coverage, not a fourth vote.** Nine frontier
-  LLMs collapse to roughly two effective independent votes in research; the
-  fourth lane closes the hole where Codex-implemented work had no
-  cross-vendor auditor. Cap 1, shared home, isolation unsolved
-  (`GEMINI_CLI_HOME` is a no-op for `agy`; an isolated `HOME` is
-  credential-less). Spec: `openspec/changes/agy-lane-activation/`.
+- **agy (fourth lane) is planned v0.3.0 routing coverage, not a v0.2.9.0
+  feature and not a fourth vote.** Nine frontier LLMs collapse to roughly two
+  effective independent votes in research; the fourth lane closes the hole
+  where Codex-implemented work had no cross-vendor auditor. Cap 1, shared
+  home, isolation unsolved (`GEMINI_CLI_HOME` is a no-op for `agy`; an
+  isolated `HOME` is credential-less). Spec:
+  `openspec/changes/agy-lane-activation/`.
 - **POSIX process-tree cascade.** The POSIX launcher self-re-execs under
   `unshare --pid --mount-proc --fork --kill-child` when available; otherwise
   it falls back to `setsid` + `kill(-pgid)` and logs **DEGRADED**. See
@@ -742,8 +743,7 @@ Scrapling and graphify license pointers are listed in the same table.
 
 - Soft routing doctrine inspired by [DannyMac180/fable-advisor](https://github.com/DannyMac180/fable-advisor)
 - Hard harness design from the original Foreman orchestrator/worker spec
-- The repo uses an OpenSpec-like change-folder layout under `openspec/`;
-  some active packages currently fail `openspec validate` (observed: five
-  WSL packages invalid while others validate). See `openspec/README.md` for
-  the intended workflow — do not treat the tree as fully OpenSpec-conformant
-  until invalid packages are repaired.
+- The repo uses an OpenSpec-like change-folder layout under `openspec/`.
+  All 32 tracked non-archive packages passed strict validation on
+  2026-08-04. See `openspec/README.md` for the workflow and the released
+  reference package status.
