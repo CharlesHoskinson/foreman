@@ -61,6 +61,7 @@ const trackedGuardPath = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicyPath = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueuePath = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRoundPath = join(trackedRuntime, "dist/lane-round.js");
+const trackedPreflightPath = join(trackedRuntime, "dist/vendor-preflight.js");
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -74,6 +75,7 @@ const trackedGuard = readFileSync(trackedGuardPath);
 const trackedPolicy = readFileSync(trackedPolicyPath);
 const trackedQueue = readFileSync(trackedQueuePath);
 const trackedRound = readFileSync(trackedRoundPath);
+const trackedPreflight = readFileSync(trackedPreflightPath);
 
 // No extra files under dist/
 {
@@ -83,6 +85,7 @@ const trackedRound = readFileSync(trackedRoundPath);
     "destruction-guard.js",
     "lane-queue.js",
     "lane-round.js",
+    "vendor-preflight.js",
   ];
   if (JSON.stringify(distFiles) !== JSON.stringify(expected)) {
     fail("unexpected dist files: " + distFiles.join(","));
@@ -103,14 +106,20 @@ try {
   const bQueue = readFileSync(join(tmpB, "dist/lane-queue.js"));
   const aRound = readFileSync(join(tmpA, "dist/lane-round.js"));
   const bRound = readFileSync(join(tmpB, "dist/lane-round.js"));
+  const aPreflight = readFileSync(join(tmpA, "dist/vendor-preflight.js"));
+  const bPreflight = readFileSync(join(tmpB, "dist/vendor-preflight.js"));
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
   if (!bytesEqual(aRound, bRound)) fail("non-deterministic lane-round");
+  if (!bytesEqual(aPreflight, bPreflight)) {
+    fail("non-deterministic vendor-preflight");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
   if (!bytesEqual(aRound, trackedRound)) fail("lane-round drift");
+  if (!bytesEqual(aPreflight, trackedPreflight)) fail("vendor-preflight drift");
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
   }
@@ -137,6 +146,7 @@ try {
     writeFileSync(join(rt, "dist/architecture-policy.js"), trackedPolicy);
     writeFileSync(join(rt, "dist/lane-queue.js"), trackedQueue);
     writeFileSync(join(rt, "dist/lane-round.js"), trackedRound);
+    writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
@@ -148,6 +158,9 @@ try {
     writeFileSync(join(rt, "dist/lane-round.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered lane-round should fail");
     cpSync(trackedRoundPath, join(rt, "dist/lane-round.js"));
+    writeFileSync(join(rt, "dist/vendor-preflight.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered vendor-preflight should fail");
+    cpSync(trackedPreflightPath, join(rt, "dist/vendor-preflight.js"));
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {
@@ -181,6 +194,17 @@ try {
       rmSync(join(rt, "dist/lane-round.js"));
       writeFileSync(join(rt, "dist/lane-round.js"), trackedRound);
     }
+    // Linked vendor-preflight bundle must fail
+    {
+      const realPreflight = join(rt, "vendor-preflight.real.js");
+      writeFileSync(realPreflight, trackedPreflight);
+      rmSync(join(rt, "dist/vendor-preflight.js"));
+      symlinkSync(realPreflight, join(rt, "dist/vendor-preflight.js"));
+      const linkedPreflight = verifyRuntimeManifest(rt);
+      if (linkedPreflight.ok) fail("linked vendor-preflight should fail");
+      rmSync(join(rt, "dist/vendor-preflight.js"));
+      writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
+    }
     // Missing lane-round must fail
     {
       rmSync(join(rt, "dist/lane-round.js"));
@@ -189,6 +213,18 @@ try {
         fail("expected bundle_missing for lane-round got " + JSON.stringify(missRound));
       }
       writeFileSync(join(rt, "dist/lane-round.js"), trackedRound);
+    }
+    // Missing vendor-preflight must fail
+    {
+      rmSync(join(rt, "dist/vendor-preflight.js"));
+      const missPreflight = verifyRuntimeManifest(rt);
+      if (missPreflight.ok || missPreflight.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for vendor-preflight got " +
+            JSON.stringify(missPreflight),
+        );
+      }
+      writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     }
     // Tamper manifest digests
     writeFileSync(
@@ -218,6 +254,12 @@ try {
             id: "lane-round",
             relativePath: "dist/lane-round.js",
             sha256: "d".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "vendor-preflight",
+            relativePath: "dist/vendor-preflight.js",
+            sha256: "e".repeat(64),
           },
         ],
         nodeRange: ">=24 <25",

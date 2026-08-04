@@ -3,29 +3,45 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  capabilityTableDigest,
+  capabilityTableToCanonicalJson,
+  parseVendorCapabilitiesFromToml,
+} from "../packages/orchestration/src/vendor-preflight-manifest.js";
+import { isVendorPreflightContractFailure } from "../packages/orchestration/src/vendor-preflight-contract.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const ENTRIES = [
   {
-    id: "destruction-guard",
-    entry: join(root, "packages/policy/src/main.ts"),
-    relativePath: "dist/destruction-guard.js",
-  },
-  {
     id: "architecture-policy",
     entry: join(root, "packages/policy/src/architecture-main.ts"),
     relativePath: "dist/architecture-policy.js",
+    injectCapabilities: false,
+  },
+  {
+    id: "destruction-guard",
+    entry: join(root, "packages/policy/src/main.ts"),
+    relativePath: "dist/destruction-guard.js",
+    injectCapabilities: false,
   },
   {
     id: "lane-queue",
     entry: join(root, "packages/orchestration/src/queue-main.ts"),
     relativePath: "dist/lane-queue.js",
+    injectCapabilities: false,
   },
   {
     id: "lane-round",
     entry: join(root, "packages/orchestration/src/round-main.ts"),
     relativePath: "dist/lane-round.js",
+    injectCapabilities: false,
+  },
+  {
+    id: "vendor-preflight",
+    entry: join(root, "packages/orchestration/src/vendor-preflight-main.ts"),
+    relativePath: "dist/vendor-preflight.js",
+    injectCapabilities: true,
   },
 ] as const;
 
@@ -51,6 +67,40 @@ function canonicalize(value: unknown): string {
   throw new Error("unsupported");
 }
 
+/**
+ * Read and validate the authored capability table. Returns canonical JSON
+ * text and its SHA-256 digest for injection into only the vendor-preflight
+ * runtime artifact.
+ */
+export function loadAuthoredCapabilityEmbed(): {
+  readonly jsonText: string;
+  readonly digest: string;
+} {
+  const tomlPath = join(root, "env/reference-manifest.toml");
+  const text = readFileSync(tomlPath, "utf8");
+  const table = parseVendorCapabilitiesFromToml(text);
+  if (isVendorPreflightContractFailure(table)) {
+    throw new Error(
+      `vendor capability table invalid in ${tomlPath}: ${table.reason}`,
+    );
+  }
+  // Require the three configured lanes; refuse silent empty tables.
+  const ids = new Set(table.capabilities.map((c) => c.vendor));
+  for (const need of ["claude", "codex", "grok"] as const) {
+    if (!ids.has(need)) {
+      throw new Error(`vendor capability table missing ${need}`);
+    }
+  }
+  if (ids.has("agy")) {
+    throw new Error(
+      "agy capability must not be authored until probe and floor are specified",
+    );
+  }
+  const jsonText = capabilityTableToCanonicalJson(table);
+  const digest = capabilityTableDigest(table);
+  return { jsonText, digest };
+}
+
 export type ArtifactBuild = {
   readonly id: string;
   readonly relativePath: string;
@@ -64,7 +114,7 @@ export type BuildPaths = {
   readonly runtimeRoot: string;
 };
 
-/** Build both ESM bundles and write the multi-artifact manifest. */
+/** Build all ESM bundles and write the multi-artifact manifest. */
 export async function buildTo(paths: BuildPaths): Promise<{
   readonly artifacts: readonly ArtifactBuild[];
   readonly manifestPath: string;
@@ -73,11 +123,12 @@ export async function buildTo(paths: BuildPaths): Promise<{
   const distDir = join(paths.runtimeRoot, "dist");
   mkdirSync(distDir, { recursive: true });
   const artifacts: ArtifactBuild[] = [];
+  const caps = loadAuthoredCapabilityEmbed();
 
   for (const e of ENTRIES) {
     const bundlePath = join(paths.runtimeRoot, e.relativePath);
     mkdirSync(dirname(bundlePath), { recursive: true });
-    await esbuild.build({
+    const buildOptions: esbuild.BuildOptions = {
       entryPoints: [e.entry],
       outfile: bundlePath,
       bundle: true,
@@ -90,7 +141,15 @@ export async function buildTo(paths: BuildPaths): Promise<{
       logLevel: "silent",
       packages: "bundle",
       absWorkingDir: root,
-    });
+    };
+    if (e.injectCapabilities) {
+      // Inject only into vendor-preflight. Other artifacts stay free of the table.
+      buildOptions.define = {
+        __FOREMAN_VENDOR_CAPS_JSON__: JSON.stringify(caps.jsonText),
+        __FOREMAN_VENDOR_CAPS_DIGEST__: JSON.stringify(caps.digest),
+      };
+    }
+    await esbuild.build(buildOptions);
     const bytes = readFileSync(bundlePath);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     artifacts.push({

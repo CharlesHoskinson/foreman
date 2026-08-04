@@ -1,8 +1,8 @@
 /**
- * @foreman/orchestration — queue admission (Sprint 3 R1) and attempt-bound
- * round transaction core (Sprint 3 R2).
- *
- * Preflight, remaining orchestration ports, and thin shell adapters remain open.
+ * @foreman/orchestration — queue admission (Sprint 3 R1), attempt-bound
+ * round transaction core (Sprint 3 R2 / R3), and typed vendor preflight
+ * (Sprint 3 R4A). Remaining orchestration ports and shell adapter seams stay
+ * open.
  */
 
 export {
@@ -178,3 +178,116 @@ export {
   type RoundCliIo,
   type RoundCliEnv,
 } from "./round-cli.js";
+
+// --- Sprint 3 R4A: typed vendor preflight ---
+
+export {
+  VENDOR_IDS,
+  VENDOR_EVIDENCE_CLASSES,
+  DISCOVERABLE_VALUES,
+  AUTH_VALUES,
+  CURRENCY_VALUES,
+  PROBE_KINDS,
+  PROBE_OUTCOMES,
+  REMEDIATION_KINDS,
+  MAX_REASON_BYTES,
+  MAX_INSTRUCTION_BYTES,
+  MAX_VERSION_BYTES,
+  MAX_PATH_BYTES,
+  MAX_PROBE_ARGV_ENTRIES,
+  MAX_PROBE_ARG_BYTES,
+  MAX_PROBE_ARGV_TOTAL_BYTES,
+  MAX_PROBES,
+  VENDOR_PREFLIGHT_CONTRACT_FAILURE_BRAND,
+  vendorPreflightContractFailure,
+  isVendorPreflightContractFailure,
+  isStrictUtcRfc3339,
+  checkRecordConsistency,
+  decodeVendorPreflightRecordV1,
+  recordIsFullyReady,
+  type VendorId,
+  type VendorEvidenceClass,
+  type DiscoverableValue,
+  type AuthValue,
+  type CurrencyValue,
+  type ProbeKind,
+  type ProbeOutcome,
+  type RemediationKind,
+  type VendorPreflightContractFailureReason,
+  type VendorPreflightContractFailure,
+  type VendorFactV1,
+  type ProbeRecordV1,
+  type RemediationV1,
+  type VendorPreflightRecordV1,
+} from "./vendor-preflight-contract.js";
+
+export {
+  decodeVendorCapabilityV1,
+  decodeVendorCapabilityTableV1,
+  capabilityTableToCanonicalJson,
+  capabilityTableDigest,
+  findCapability,
+  parseVendorCapabilitiesFromToml,
+  FORBIDDEN_MUTATING_UPDATE_ARGV_TAILS,
+  argvContainsMutatingUpdate,
+  type VendorCapabilityV1,
+  type VendorCapabilityTableV1,
+  type CapabilityParseFailure,
+} from "./vendor-preflight-manifest.js";
+
+export {
+  parseFirstSemVer,
+  compareSemVer,
+  formatSemVer,
+  classifyCurrency,
+  classifyClaudeAuth,
+  classifyCodexAuth,
+  classifyGrokAuth,
+  classifyAuthForVendor,
+  decideRemediation,
+  makeFact,
+  buildMissingRecord,
+  buildDiscoveredRecord,
+  processFailureToProbeOutcome,
+  type SemVer,
+  type CurrencyClassification,
+  type AuthClassification,
+  type RemediationDecision,
+} from "./vendor-preflight.js";
+
+export {
+  PREFLIGHT_PROBE_TIMEOUT_MS,
+  PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES,
+  VendorPreflightFailure,
+  PreflightClock,
+  livePreflightClock,
+  VendorPreflight,
+  inspectVendor,
+  liveVendorPreflight,
+  liveVendorPreflightLayer,
+  type VendorPreflightFailureReason,
+} from "./vendor-preflight-live.js";
+
+export {
+  EXIT_READY as PREFLIGHT_EXIT_READY,
+  EXIT_NOT_READY as PREFLIGHT_EXIT_NOT_READY,
+  EXIT_INVALID_ARGUMENTS as PREFLIGHT_EXIT_INVALID_ARGUMENTS,
+  EXIT_BOUNDARY_FAILURE as PREFLIGHT_EXIT_BOUNDARY_FAILURE,
+  MSG_INVALID_ARGUMENTS as PREFLIGHT_MSG_INVALID_ARGUMENTS,
+  MSG_UNCONFIGURED_VENDOR as PREFLIGHT_MSG_UNCONFIGURED_VENDOR,
+  MSG_BOUNDARY_FAILURE as PREFLIGHT_MSG_BOUNDARY_FAILURE,
+  MSG_INTERNAL_FAILURE as PREFLIGHT_MSG_INTERNAL_FAILURE,
+  stripPreflightNodeArgv,
+  parsePreflightArgv,
+  runVendorPreflightCli,
+  type PreflightCliIo,
+  type ParsedPreflightArgv,
+  type PreflightCliRuntime,
+  type PreflightCliEnv,
+} from "./vendor-preflight-cli.js";
+
+export {
+  tryGetEmbeddedCapabilityTable,
+  getEmbeddedCapabilityDigest,
+  loadCapabilityTableFromTomlText,
+} from "./vendor-preflight-embedded.js";

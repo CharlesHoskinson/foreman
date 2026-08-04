@@ -24,6 +24,7 @@ const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
+const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 
 function seedCleanCopy(): string {
   const dir = mkdtempSync(join(tmpdir(), "foreman-vrm-"));
@@ -34,6 +35,7 @@ function seedCleanCopy(): string {
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
+  cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   return rt;
 }
 

@@ -78,7 +78,23 @@
         OpenSpec at `784b4a9`, `4f3287b`, and `238225c`; Node 24
         TypeScript and Effect implementation at
         `04a310acd824d8dc06fe2b81dd19b8fa543e649b`.
-      The remaining Sprint 3 work stays open.
+      - Sprint 3 R3 live round runtime: landed as the live Effect adapters,
+        `lane-round` CLI/main, and tracked `dist/lane-round.js` runtime
+        artifact under the same Node 24 TypeScript program; Setup and
+        shell ownership seams remain open.
+      - Sprint 3 R4A typed vendor preflight (partial): closed contract,
+        capability table from `env/reference-manifest.toml` only, pure
+        classifier, Effect `VendorPreflight` + `ProcessExec`/`PathLookup`
+        live adapter, `vendor-preflight` CLI, and embedded capability
+        injection into `skills/foreman/runtime/dist/vendor-preflight.js`.
+        Focused package tests 45/45 pass; host typecheck fixed by aligning
+        `PreflightCliEnv.layer` to `ProcessExec | PathLookup | PreflightClock`
+        (CLI calls `inspectVendor` directly and must not require the
+        unused `VendorPreflight` tag). Setup/`foreman-setup.sh` and lane
+        callers are intentionally not wired in this slice.
+      The remaining Sprint 3 work stays open (R4B+ shell migration,
+        ownership, heartbeat, reaping, credential profiles, and other
+        open Sprint 3 ports).
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

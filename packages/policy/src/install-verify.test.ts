@@ -46,6 +46,7 @@ const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
+const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -75,6 +76,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
+  cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   return rt;
 }
 
@@ -456,6 +458,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const preflightBytes = readFileSync(trackedPreflight);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -467,6 +470,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const guardPath = "/skill/runtime/dist/destruction-guard.js";
     const queuePath = "/skill/runtime/dist/lane-queue.js";
     const roundPath = "/skill/runtime/dist/lane-round.js";
+    const preflightPath = "/skill/runtime/dist/vendor-preflight.js";
 
     const nodes = new Map([
       [
@@ -495,6 +499,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "vendor-preflight.js",
             ],
         },
       ],
@@ -554,6 +559,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: fileIdentity({
             ino: "24",
             size: roundBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        preflightPath,
+        {
+          kind: "file" as const,
+          bytes: preflightBytes,
+          identity: fileIdentity({
+            ino: "25",
+            size: preflightBytes.byteLength,
           }),
         },
       ],
@@ -628,6 +644,7 @@ describe("runtime plugin-drift", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const preflightBytes = readFileSync(trackedPreflight);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -670,6 +687,7 @@ describe("runtime plugin-drift", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "vendor-preflight.js",
             ],
           },
         ],
@@ -727,6 +745,17 @@ describe("runtime plugin-drift", () => {
             identity: fileIdentity({
               ino: prefix + "-r",
               size: roundBytes.byteLength,
+            }),
+          },
+        ],
+        [
+          `${dist}/vendor-preflight.js`,
+          {
+            kind: "file",
+            bytes: preflightBytes,
+            identity: fileIdentity({
+              ino: prefix + "-vp",
+              size: preflightBytes.byteLength,
             }),
           },
         ],
@@ -795,6 +824,7 @@ describe("skill-root and directory stability seams", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const preflightBytes = readFileSync(trackedPreflight);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -833,6 +863,7 @@ describe("skill-root and directory stability seams", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "vendor-preflight.js",
             ],
       lstatCount: { count: 0 },
       ...(opts?.distIdentityAfter !== undefined
@@ -898,6 +929,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "24",
             size: roundBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/vendor-preflight.js`,
+        {
+          kind: "file",
+          bytes: preflightBytes,
+          identity: fileIdentity({
+            ino: "25",
+            size: preflightBytes.byteLength,
           }),
         },
       ],
@@ -1060,6 +1102,7 @@ describe("memory InstallFs path separator seam", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const preflightBytes = readFileSync(trackedPreflight);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1094,6 +1137,7 @@ describe("memory InstallFs path separator seam", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "vendor-preflight.js",
             ],
         },
       ],
@@ -1149,6 +1193,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "24",
             size: roundBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/vendor-preflight.js`,
+        {
+          kind: "file",
+          bytes: preflightBytes,
+          identity: fileIdentity({
+            ino: "25",
+            size: preflightBytes.byteLength,
           }),
         },
       ],
