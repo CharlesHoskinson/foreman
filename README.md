@@ -22,6 +22,28 @@ walkthrough, selected command and exit-code reference, and troubleshooting,
 see [`docs/USAGE.md`](docs/USAGE.md). For the install/setup story on Windows
 and WSL/Linux side by side, see [`docs/INSTALL.md`](docs/INSTALL.md).
 
+## Current release: Total Georgecall (v0.2.9.0)
+
+![Total Georgecall release artwork](assets/v029-total-georgecall.png)
+
+Annotated tag `v0.2.9.0` targets exact commit
+`fbe23257fc389036d6feaa8f38e7b377f3106406`.
+
+Total Georgecall ships the bounded Node.js 24 TypeScript Council preflight.
+The executable compiles ACE before any provider process starts. Live Grok,
+Claude, and Codex canaries return nonce-bound ready receipts. Exact
+verification records 39 Council test files, 1,126 tests, 708 passed Foreman
+Bats cases, 0 failed cases, and 19 skipped cases. External dogfood preserves
+honest `quorum_not_met`.
+
+- Release notes: [`docs/releases/v0.2.9.0-notes.md`](docs/releases/v0.2.9.0-notes.md)
+- Accomplishment ledger:
+  [`docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`](docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md)
+- GitHub release:
+  <https://github.com/CharlesHoskinson/foreman/releases/tag/v0.2.9.0>
+- Active v0.3.0 program:
+  [`openspec/changes/v030-release-program/`](openspec/changes/v030-release-program/)
+
 ## 1. What Foreman is and the problem it solves
 
 A single model session that plans, types, tests, and declares "done" fails in
