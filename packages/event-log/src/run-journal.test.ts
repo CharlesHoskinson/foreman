@@ -554,7 +554,8 @@ describe("RunJournal append", () => {
       const either = await Effect.runPromise(
         Effect.either(
           appendEffect(root, draft({ type: "prompt" }), {
-            afterJournalWriteSync: ({ path }) => {
+            afterJournalWriteSync: ({ path, fd }) => {
+              closeSync(fd);
               const tmp = path + ".swap";
               writeFileSync(tmp, eventLine(1));
               renameSync(tmp, path);
@@ -577,7 +578,8 @@ describe("RunJournal append", () => {
       const either = await Effect.runPromise(
         Effect.either(
           appendEffect(root, draft({ type: "prompt" }), {
-            afterJournalWriteSync: ({ path }) => {
+            afterJournalWriteSync: ({ path, fd }) => {
+              closeSync(fd);
               unlinkSync(path);
             },
           }),
