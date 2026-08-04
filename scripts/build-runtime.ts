@@ -43,6 +43,12 @@ const ENTRIES = [
     relativePath: "dist/vendor-preflight.js",
     injectCapabilities: true,
   },
+  {
+    id: "tool-check",
+    entry: join(root, "packages/orchestration/src/tool-check-main.ts"),
+    relativePath: "dist/tool-check.js",
+    injectCapabilities: true,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

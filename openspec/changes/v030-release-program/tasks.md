@@ -180,6 +180,16 @@
         (554 pass, 1 skip). Live dogfood: both lanes `ok` with floor versions
         on this host (prior residual). lane-run JSON consumption and full
         Sprint 3 close remain open.
+      - Sprint 3 R4B2 tool-check TypeScript migration (partial, worktree):
+        product logic in `packages/orchestration/src/tool-check*.ts`; generated
+        `skills/foreman/runtime/dist/tool-check.js`; thin six-line
+        `env/tool-check.sh` adapter; vendor authority is TypeScript
+        inspect+project (no shell TSV/NUL parser). Focused tool-check 34/34;
+        vendor-preflight 82/82; bats tool-check-auth + foreman-setup 24/24
+        (mode 100644); full verify 588 pass + 1 skip. Live soft grok/codex
+        LANE_READY=yes. Architecture Pass after host commits worktree
+        (isolated sim empty findings); uncommitted HEAD still fails pre-
+        migration findings. lane-run JSON consumption remains open.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

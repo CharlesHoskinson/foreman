@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+# bats test data (mode 100644; run via `bats`, not as a legacy executable)
 # @description Coverage for lifecycle-three-stage Task 3 + Sprint 3 R4B:
 #   foreman-setup.sh Setup stage. Login instructions print only for positive
 #   signed-out (not_authenticated). Unknown/degraded must not instruct login.

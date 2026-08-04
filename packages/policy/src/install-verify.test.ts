@@ -47,6 +47,7 @@ const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
+const trackedToolCheck = join(trackedRuntime, "dist/tool-check.js");
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -77,6 +78,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
+  cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
   return rt;
 }
 
@@ -459,6 +461,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
+    const toolCheckBytes = readFileSync(trackedToolCheck);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -471,6 +474,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const queuePath = "/skill/runtime/dist/lane-queue.js";
     const roundPath = "/skill/runtime/dist/lane-round.js";
     const preflightPath = "/skill/runtime/dist/vendor-preflight.js";
+    const toolCheckPath = "/skill/runtime/dist/tool-check.js";
 
     const nodes = new Map([
       [
@@ -499,6 +503,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "tool-check.js",
               "vendor-preflight.js",
             ],
         },
@@ -570,6 +575,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: fileIdentity({
             ino: "25",
             size: preflightBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        toolCheckPath,
+        {
+          kind: "file" as const,
+          bytes: toolCheckBytes,
+          identity: fileIdentity({
+            ino: "26",
+            size: toolCheckBytes.byteLength,
           }),
         },
       ],
@@ -645,6 +661,7 @@ describe("runtime plugin-drift", () => {
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
+    const toolCheckBytes = readFileSync(trackedToolCheck);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -687,6 +704,7 @@ describe("runtime plugin-drift", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "tool-check.js",
               "vendor-preflight.js",
             ],
           },
@@ -759,6 +777,17 @@ describe("runtime plugin-drift", () => {
             }),
           },
         ],
+        [
+          `${dist}/tool-check.js`,
+          {
+            kind: "file",
+            bytes: toolCheckBytes,
+            identity: fileIdentity({
+              ino: prefix + "-tc",
+              size: toolCheckBytes.byteLength,
+            }),
+          },
+        ],
       ]);
     }
 
@@ -825,6 +854,7 @@ describe("skill-root and directory stability seams", () => {
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
+    const toolCheckBytes = readFileSync(trackedToolCheck);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -863,6 +893,7 @@ describe("skill-root and directory stability seams", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "tool-check.js",
               "vendor-preflight.js",
             ],
       lstatCount: { count: 0 },
@@ -940,6 +971,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "25",
             size: preflightBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/tool-check.js`,
+        {
+          kind: "file",
+          bytes: toolCheckBytes,
+          identity: fileIdentity({
+            ino: "26",
+            size: toolCheckBytes.byteLength,
           }),
         },
       ],
@@ -1103,6 +1145,7 @@ describe("memory InstallFs path separator seam", () => {
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
+    const toolCheckBytes = readFileSync(trackedToolCheck);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1137,6 +1180,7 @@ describe("memory InstallFs path separator seam", () => {
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
+              "tool-check.js",
               "vendor-preflight.js",
             ],
         },
@@ -1207,6 +1251,18 @@ describe("memory InstallFs path separator seam", () => {
           }),
         },
       ],
+      [
+        `${dist}/tool-check.js`,
+        {
+          kind: "file",
+          bytes: toolCheckBytes,
+          identity: fileIdentity({
+            ino: "26",
+            size: toolCheckBytes.byteLength,
+          }),
+        },
+      ],
+
     ]);
     const layer = makeMemoryInstallFs({
       // Supplied root is slash-form; resolved target is backslash-form so

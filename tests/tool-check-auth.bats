@@ -1,10 +1,14 @@
-#!/usr/bin/env bats
-# @description Coverage for lifecycle-three-stage Tasks 1-2 + Sprint 3 R4B:
-#   env/tool-check.sh uses the TypeScript vendor-preflight tool-check-row
-#   adapter for grok/codex. Distinguishes not_authenticated (positive
-#   signed-out) from degraded (unknown/timeout/unmatched), outdated, missing,
-#   and ok. Lane-scoped LANE_READY gates on that status. Shim-based: fake
-#   vendor CLIs on PATH; real node + tracked runtime artifact under the repo.
+# bats test data (mode 100644; run via `bats`, not as a legacy executable)
+# @description Coverage for lifecycle-three-stage Tasks 1-2 + Sprint 3 R4B/R4B2:
+#   env/tool-check.sh is a thin Node adapter; TypeScript tool-check + vendor-
+#   preflight is the authority for grok/codex. Distinguishes not_authenticated
+#   (positive signed-out) from degraded (unknown/timeout/unmatched), outdated,
+#   missing, and ok. Lane-scoped LANE_READY gates on that status. Shim-based:
+#   fake vendor CLIs on PATH; real node + tracked runtime artifact under the
+#   repo. Shell TSV-framing regressions are replaced by TypeScript boundary
+#   tests in packages/orchestration/src/tool-check-run.test.ts (vendor binding,
+#   projection, detail bounds) — the shell framing/NUL parser was deleted with
+#   the shell domain logic.
 load helpers
 
 setup() {
@@ -350,196 +354,56 @@ EOF
 }
 
 @test "tool-check never falls back to shell vendor_authed probes" {
-  # Static contract: the shell adapter deleted vendor_authed and direct
-  # version/auth probes for grok/codex.
+  # Static contract: the thin adapter has no domain logic and no shell
+  # vendor probes for grok/codex. TypeScript is the only authority.
   ! grep -q 'vendor_authed' "$TC"
   ! grep -Eq 'grok models|codex login status' "$TC"
   ! grep -Eq 'grok --version|codex --version' "$TC"
+  # Closed thin-adapter grammar: exec node bundle only.
+  grep -q 'skills/foreman/runtime/dist/tool-check.js' "$TC"
+  grep -q 'exec "\$NODE" "\$BUNDLE" "\$@"' "$TC"
 }
 
-# --- R4B cold-audit boundary: shell accepts only exit 0 + one valid row ---
+@test "thin adapter has exactly six non-comment productions" {
+  # Architecture policy inspectLegacyAdapter closed grammar:
+  # blank/comment lines ignored, but shebang (#!) counts as a production.
+  mapfile -t lines < <(awk '
+    /^#!/ { print; next }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*$/ { next }
+    { print }
+  ' "$TC")
+  [ "${#lines[@]}" -eq 6 ]
+  [[ "${lines[0]}" == "#!/usr/bin/env bash" ]]
+  [[ "${lines[1]}" == "set -euo pipefail" ]]
+  [[ "${lines[2]}" == ROOT=* ]]
+  [[ "${lines[3]}" == NODE=* ]]
+  [[ "${lines[4]}" == BUNDLE=*tool-check.js\" ]]
+  [[ "${lines[5]}" == 'exec "$NODE" "$BUNDLE" "$@"' ]]
+}
 
-# Fake node that spoofs tool-check-row stdout/exit while delegating other
-# invocations to the real node. Modes via FOREMAN_TEST_VP_MODE.
-install_spoof_node() {
-  local mode="$1"
-  local real_node
-  real_node="$(command -v node)"
-  cat > "$SHIM/node" <<EOF
+@test "TypeScript and shell adapter agree on soft lane grok for signed-out shim" {
+  cat > "$SHIM/grok" <<EOF
 #!/usr/bin/env bash
-set -euo pipefail
-REAL_NODE=$(printf '%q' "$real_node")
-MODE=$(printf '%q' "$mode")
-# Detect vendor-preflight tool-check-row invocation.
-if [[ " \$* " == *" tool-check-row "* ]]; then
-  vendor=""
-  prev=""
-  for a in "\$@"; do
-    if [[ "\$prev" == "tool-check-row" ]]; then
-      vendor="\$a"
-    fi
-    prev="\$a"
-  done
-  case "\$MODE" in
-    wrong-vendor)
-      # Valid-looking ready row for a different vendor than requested.
-      if [[ "\$vendor" == "grok" ]]; then
-        printf 'codex\tok\tspoofed ready detail\n'
-      else
-        printf 'grok\tok\tspoofed ready detail\n'
-      fi
-      exit 0
-      ;;
-    fourth-field)
-      printf '%s\tok\tdetail\textra\n' "\$vendor"
-      exit 0
-      ;;
-    second-line)
-      printf '%s\tok\tdetail\nsecond-line-must-not-be-trusted\n' "\$vendor"
-      exit 0
-      ;;
-    nonzero-exit)
-      # Valid-looking single ready row paired with nonzero runtime exit.
-      printf '%s\tok\tdetail\n' "\$vendor"
-      exit 3
-      ;;
-    detail-oversize)
-      # Otherwise-valid ready row whose detail is one byte over the
-      # MAX_TOOL_CHECK_DETAIL_BYTES (512) contract.
-      # Shell-native: 513 ASCII bytes (no Python/Perl/Ruby).
-      detail=\$(head -c 513 /dev/zero | tr '\\0' 'x')
-      printf '%s\tok\t%s\n' "\$vendor" "\$detail"
-      exit 0
-      ;;
-    detail-exact-512)
-      # Lower boundary: exactly 512 ASCII bytes of detail must remain ok.
-      detail=\$(head -c 512 /dev/zero | tr '\\0' 'x')
-      printf '%s\tok\t%s\n' "\$vendor" "\$detail"
-      exit 0
-      ;;
-    missing-final-lf)
-      # Otherwise-valid ready row with no terminating LF. Bash \$(...)
-      # strips trailing newlines, so a capture that loses framing would
-      # accept this as ok; the adapter must require exactly one LF.
-      printf '%s\tok\tready detail no final lf' "\$vendor"
-      exit 0
-      ;;
-    extra-trailing-blank)
-      # Exactly one valid LF-terminated row plus one extra blank line.
-      # Command substitution collapses trailing LFs; framing must still
-      # reject more than one LF.
-      printf '%s\tok\tready detail with extra blank\n\n' "\$vendor"
-      exit 0
-      ;;
-    nul-in-vendor)
-      # Malformed vendor field with an embedded NUL:
-      #   gr<NUL>ok<TAB>ok<TAB>detail<LF>
-      # Bash command substitution strips NULs when loading a file into a
-      # variable, so this becomes grok<TAB>ok<TAB>detail<LF> and can be
-      # accepted as ready. Must be rejected from the raw capture before load.
-      printf 'gr\0ok\tok\tdetail\n'
-      exit 0
-      ;;
-    *)
-      exec "\$REAL_NODE" "\$@"
-      ;;
-  esac
-fi
-exec "\$REAL_NODE" "\$@"
+case "\$1" in
+  --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
+  models) echo "You are not authenticated."; exit 0 ;;
+  login|update)
+    echo "TEST-MUST-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
+    exit 0
+    ;;
+  *) exit 1 ;;
+esac
 EOF
-  chmod +x "$SHIM/node"
-}
-
-@test "shell adapter degrades on wrong-vendor TSV field from runtime" {
-  install_spoof_node wrong-vendor
+  chmod +x "$SHIM/grok"
+  BUNDLE="$BATS_TEST_DIRNAME/../skills/foreman/runtime/dist/tool-check.js"
   run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
+  shell_out="$output"
+  shell_st="$status"
+  run env PATH="$SHIM:$PATH" node "$BUNDLE" --profile soft --lane grok
+  [ "$status" -eq "$shell_st" ]
   [[ "$output" == *"LANE_READY: grok=no"* ]]
-  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
-}
-
-@test "shell adapter degrades on fourth TSV field" {
-  install_spoof_node fourth-field
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=no"* ]]
-}
-
-@test "shell adapter degrades on second output line" {
-  install_spoof_node second-line
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=no"* ]]
-  # Must not trust or surface the second line as detail.
-  [[ "$output" != *"second-line-must-not-be-trusted"* ]]
-}
-
-@test "shell adapter degrades on valid-looking stdout with nonzero runtime exit" {
-  install_spoof_node nonzero-exit
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=no"* ]]
-  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
-}
-
-@test "shell adapter degrades when detail exceeds 512 UTF-8 bytes" {
-  # Cold-audit residual: an otherwise-valid ready row with detail of 513
-  # bytes (MAX_TOOL_CHECK_DETAIL_BYTES + 1) must not be accepted as ok.
-  # Fixture uses shell-native head/tr (no Python).
-  install_spoof_node detail-oversize
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=no"* ]]
-  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
-}
-
-@test "shell adapter accepts detail of exactly 512 UTF-8 bytes" {
-  # Lower boundary: exactly MAX_TOOL_CHECK_DETAIL_BYTES must remain ok.
-  # Fixture uses shell-native head/tr (no Python).
-  install_spoof_node detail-exact-512
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=yes"* ]]
-  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
-}
-
-@test "shell adapter degrades when ready row is missing final LF" {
-  # Cold-audit residual: bash command substitution strips trailing newlines,
-  # so a capture that does not preserve framing accepts a ready row with no
-  # final LF as ok. Require exactly one LF-terminated row.
-  install_spoof_node missing-final-lf
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=no"* ]]
-  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
-}
-
-@test "shell adapter degrades when ready row has extra trailing blank line" {
-  # Cold-audit residual: an extra trailing blank line after the required LF
-  # is collapsed by \$(...) and must still be rejected (not LANE_READY=yes).
-  install_spoof_node extra-trailing-blank
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=no"* ]]
-  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
-}
-
-@test "shell adapter degrades when vendor field contains embedded NUL" {
-  # Cold-audit residual: Bash strips NULs when a capture file is loaded into
-  # a variable, so gr<NUL>ok becomes "grok" and an otherwise-valid ready row
-  # can produce LANE_READY: grok=yes. Reject any NUL in the raw capture
-  # before variable load.
-  install_spoof_node nul-in-vendor
-  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
-  [[ "$output" == *"grok"*"degraded"* ]]
-  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
-  [[ "$output" == *"LANE_READY: grok=no"* ]]
-  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
+  [[ "$shell_out" == *"LANE_READY: grok=no"* ]]
+  [[ "$output" == *"not_authenticated"* ]]
+  [ ! -f "$BATS_TEST_TMPDIR/mutate-called" ]
 }

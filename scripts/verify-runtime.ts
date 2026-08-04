@@ -62,6 +62,7 @@ const trackedPolicyPath = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueuePath = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRoundPath = join(trackedRuntime, "dist/lane-round.js");
 const trackedPreflightPath = join(trackedRuntime, "dist/vendor-preflight.js");
+const trackedToolCheckPath = join(trackedRuntime, "dist/tool-check.js");
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -76,6 +77,7 @@ const trackedPolicy = readFileSync(trackedPolicyPath);
 const trackedQueue = readFileSync(trackedQueuePath);
 const trackedRound = readFileSync(trackedRoundPath);
 const trackedPreflight = readFileSync(trackedPreflightPath);
+const trackedToolCheck = readFileSync(trackedToolCheckPath);
 
 // No extra files under dist/
 {
@@ -85,6 +87,7 @@ const trackedPreflight = readFileSync(trackedPreflightPath);
     "destruction-guard.js",
     "lane-queue.js",
     "lane-round.js",
+    "tool-check.js",
     "vendor-preflight.js",
   ];
   if (JSON.stringify(distFiles) !== JSON.stringify(expected)) {
@@ -108,6 +111,8 @@ try {
   const bRound = readFileSync(join(tmpB, "dist/lane-round.js"));
   const aPreflight = readFileSync(join(tmpA, "dist/vendor-preflight.js"));
   const bPreflight = readFileSync(join(tmpB, "dist/vendor-preflight.js"));
+  const aToolCheck = readFileSync(join(tmpA, "dist/tool-check.js"));
+  const bToolCheck = readFileSync(join(tmpB, "dist/tool-check.js"));
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
@@ -115,11 +120,15 @@ try {
   if (!bytesEqual(aPreflight, bPreflight)) {
     fail("non-deterministic vendor-preflight");
   }
+  if (!bytesEqual(aToolCheck, bToolCheck)) {
+    fail("non-deterministic tool-check");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
   if (!bytesEqual(aRound, trackedRound)) fail("lane-round drift");
   if (!bytesEqual(aPreflight, trackedPreflight)) fail("vendor-preflight drift");
+  if (!bytesEqual(aToolCheck, trackedToolCheck)) fail("tool-check drift");
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
   }
@@ -147,6 +156,7 @@ try {
     writeFileSync(join(rt, "dist/lane-queue.js"), trackedQueue);
     writeFileSync(join(rt, "dist/lane-round.js"), trackedRound);
     writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
+    writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
@@ -161,6 +171,9 @@ try {
     writeFileSync(join(rt, "dist/vendor-preflight.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered vendor-preflight should fail");
     cpSync(trackedPreflightPath, join(rt, "dist/vendor-preflight.js"));
+    writeFileSync(join(rt, "dist/tool-check.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered tool-check should fail");
+    cpSync(trackedToolCheckPath, join(rt, "dist/tool-check.js"));
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {
@@ -205,6 +218,17 @@ try {
       rmSync(join(rt, "dist/vendor-preflight.js"));
       writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     }
+    // Linked tool-check bundle must fail
+    {
+      const realToolCheck = join(rt, "tool-check.real.js");
+      writeFileSync(realToolCheck, trackedToolCheck);
+      rmSync(join(rt, "dist/tool-check.js"));
+      symlinkSync(realToolCheck, join(rt, "dist/tool-check.js"));
+      const linkedToolCheck = verifyRuntimeManifest(rt);
+      if (linkedToolCheck.ok) fail("linked tool-check should fail");
+      rmSync(join(rt, "dist/tool-check.js"));
+      writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
+    }
     // Missing lane-round must fail
     {
       rmSync(join(rt, "dist/lane-round.js"));
@@ -225,6 +249,18 @@ try {
         );
       }
       writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
+    }
+    // Missing tool-check must fail
+    {
+      rmSync(join(rt, "dist/tool-check.js"));
+      const missToolCheck = verifyRuntimeManifest(rt);
+      if (missToolCheck.ok || missToolCheck.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for tool-check got " +
+            JSON.stringify(missToolCheck),
+        );
+      }
+      writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     }
     // Tamper manifest digests
     writeFileSync(
@@ -254,6 +290,12 @@ try {
             id: "lane-round",
             relativePath: "dist/lane-round.js",
             sha256: "d".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "tool-check",
+            relativePath: "dist/tool-check.js",
+            sha256: "f".repeat(64),
           },
           {
             byteLength: 1,

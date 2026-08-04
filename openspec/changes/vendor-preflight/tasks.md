@@ -113,6 +113,20 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
       tool-check `degraded` (not `not_authenticated`); Setup does not print a
       login instruction for that case. Bats: unmatched banner, auth timeout,
       codex unrecognized nonzero.
+- [x] **Partial (Sprint 3 R4B2 tool-check TypeScript runtime):** Domain logic
+      moved to `packages/orchestration/src/tool-check*.ts`. Generated runtime
+      artifact `skills/foreman/runtime/dist/tool-check.js` (manifest id
+      `tool-check`). `env/tool-check.sh` is the closed six-production thin
+      adapter (`inspectLegacyAdapter` → null). Vendor rows use TypeScript
+      `inspectVendor` + `projectVendorPreflightToToolCheckRow` directly (no
+      recursive spawn of vendor-preflight CLI; no shell TSV/NUL parser).
+      Focused tool-check tests 34/34; vendor-preflight 82/82; bats
+      tool-check-auth + foreman-setup 24/24 (mode 100644 data files, no
+      shebang); shellcheck clean; `npm run typecheck` / `verify-runtime` /
+      `verify` 588 pass + 1 skip. Live soft lane grok/codex both LANE_READY=yes
+      at floors; adapter and Node CLI agree. Architecture against PR base
+      returns Pass when worktree is committed (isolated sim); uncommitted HEAD
+      still shows the pre-migration findings.
 
 ## T6 — tests, red-first
 

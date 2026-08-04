@@ -306,3 +306,60 @@ export {
   getEmbeddedCapabilityDigest,
   loadCapabilityTableFromTomlText,
 } from "./vendor-preflight-embedded.js";
+
+// --- Sprint 3 R4B2: tool-check TypeScript runtime ---
+
+export {
+  TOOL_CHECK_PROFILES,
+  TOOL_CHECK_LANES,
+  EXIT_READY as TOOL_CHECK_EXIT_READY,
+  EXIT_NOT_READY as TOOL_CHECK_EXIT_NOT_READY,
+  EXIT_INVALID_ARGUMENTS as TOOL_CHECK_EXIT_INVALID_ARGUMENTS,
+  USAGE as TOOL_CHECK_USAGE,
+  MSG_LANE_CLAUDE,
+  stripToolCheckNodeArgv,
+  parseToolCheckArgv,
+  type ToolCheckProfile,
+  type ToolCheckLane,
+  type ParsedToolCheckArgv,
+} from "./tool-check-cli.js";
+
+export {
+  buildInventoryJson,
+  renderInventoryJson,
+  renderReportText,
+  laneReadyFromTools,
+  profileToolIds,
+  SKILL_IDS,
+  type ToolStatus,
+  type ToolRow,
+  type LockAtomicityRow,
+  type ToolCheckInventoryV1,
+  type ReportModel,
+} from "./tool-check-report.js";
+
+export {
+  detectWslFromEnv,
+  classifyHostClass,
+  classifyFsClassFromProbe,
+  nearestExistingPath,
+  resolveFsClass,
+  type FsClass,
+  type HostClass,
+} from "./tool-check-platform.js";
+
+export {
+  probeMkdirOnce,
+  probeFlockOnce,
+  runAtomicityProbes,
+  type AtomicityProbeResult,
+} from "./tool-check-atomicity.js";
+
+export {
+  checkOne,
+  runToolCheck,
+  resolveRepoRoot,
+  type ToolCheckIo,
+  type ToolCheckRunEnv,
+  type ToolCheckResult,
+} from "./tool-check-run.js";
