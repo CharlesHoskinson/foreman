@@ -20,6 +20,8 @@ import {
   MAX_DRIFT_INPUT_BYTES,
   MSG_NO_DRIFT,
   PSEUDO_IDS,
+  REL_BOOTSTRAP,
+  REL_MANIFEST,
   UNPROVISIONED_IDS,
   buildCheckerAuthority,
   collectCheckerAuthority,
@@ -31,6 +33,27 @@ import {
   type DriftIo,
   type ManifestToolRecord,
 } from "./dependency-drift.js";
+
+/**
+ * One platform-native fixture root. Production CLI builds manifest and
+ * bootstrap paths with node:path.join(repoRoot, REL_*). In-memory memFs keys
+ * must use the same join so Windows backslash paths hit the fixture map
+ * (hosted Windows run 30956029311: literal POSIX "/repo/..." keys returned
+ * Absent and exit 2).
+ */
+const FIXTURE_ROOT = join("fixture-repo");
+
+function fixturePaths(root: string = FIXTURE_ROOT): {
+  readonly root: string;
+  readonly manifest: string;
+  readonly bootstrap: string;
+} {
+  return {
+    root,
+    manifest: join(root, REL_MANIFEST),
+    bootstrap: join(root, REL_BOOTSTRAP),
+  };
+}
 
 function captureIo(): DriftIo & {
   readonly stdout: () => string;
@@ -256,17 +279,18 @@ required = true
   });
 
   it("CLI returns exit 2 for duplicate required key", async () => {
+    const fx = fixturePaths();
     const io = captureIo();
     const code = await Effect.runPromise(
       runDependencyDrift(["node", "dependency-drift.js"], io, {
-        repoRoot: "/repo",
+        repoRoot: fx.root,
         layer: memFs(
           new Map([
             [
-              "/repo/env/reference-manifest.toml",
+              fx.manifest,
               `[[tools]]\nid = "git"\nrequired = true\nrequired = false\n`,
             ],
-            ["/repo/env/bootstrap-wsl.sh", "git\n"],
+            [fx.bootstrap, "git\n"],
           ]),
         ),
         authority: {
@@ -480,8 +504,15 @@ describe("stripDriftNodeArgv", () => {
   it("strips node binary and script path", () => {
     assert.deepEqual(
       stripDriftNodeArgv([
-        "/usr/bin/node",
-        "/repo/skills/foreman/runtime/dist/dependency-drift.js",
+        join("usr", "bin", "node"),
+        join(
+          FIXTURE_ROOT,
+          "skills",
+          "foreman",
+          "runtime",
+          "dist",
+          "dependency-drift.js",
+        ),
       ]),
       [],
     );
@@ -489,7 +520,27 @@ describe("stripDriftNodeArgv", () => {
 });
 
 describe("runDependencyDrift CLI", () => {
+  it("fixture root keys match join(repoRoot, REL_*) used by the CLI reader", () => {
+    // Pure seam: prove memFs keys are exactly the paths production builds with
+    // node:path.join. Hosted Windows run 30956029311 failed when fixtures used
+    // literal POSIX "/repo/..." while join produced backslash paths.
+    const fx = fixturePaths();
+    assert.equal(fx.manifest, join(fx.root, REL_MANIFEST));
+    assert.equal(fx.bootstrap, join(fx.root, REL_BOOTSTRAP));
+    assert.equal(fx.manifest, join(FIXTURE_ROOT, "env", "reference-manifest.toml"));
+    assert.equal(fx.bootstrap, join(FIXTURE_ROOT, "env", "bootstrap-wsl.sh"));
+    const files = new Map<string, string>([
+      [fx.manifest, "manifest"],
+      [fx.bootstrap, "bootstrap"],
+    ]);
+    assert.equal(files.get(join(fx.root, REL_MANIFEST)), "manifest");
+    assert.equal(files.get(join(fx.root, REL_BOOTSTRAP)), "bootstrap");
+    // Literal POSIX keys must not be assumed equal to platform join results.
+    assert.notEqual(fx.manifest, "/repo/env/reference-manifest.toml");
+  });
+
   it("agrees on explicit test inputs (exit 0, no drift)", async () => {
+    const fx = fixturePaths();
     const manifest = `
 [[tools]]
 id = "git"
@@ -503,11 +554,11 @@ required = false
     const io = captureIo();
     const code = await Effect.runPromise(
       runDependencyDrift(["node", "dependency-drift.js"], io, {
-        repoRoot: "/repo",
+        repoRoot: fx.root,
         layer: memFs(
           new Map([
-            ["/repo/env/reference-manifest.toml", manifest],
-            ["/repo/env/bootstrap-wsl.sh", bootstrap],
+            [fx.manifest, manifest],
+            [fx.bootstrap, bootstrap],
           ]),
         ),
         authority: {
@@ -522,10 +573,11 @@ required = false
   });
 
   it("rejects unknown arguments with exit 2", async () => {
+    const fx = fixturePaths();
     const io = captureIo();
     const code = await Effect.runPromise(
       runDependencyDrift(["node", "dependency-drift.js", "--nope"], io, {
-        repoRoot: "/repo",
+        repoRoot: fx.root,
         layer: memFs(new Map()),
       }),
     );
@@ -534,13 +586,14 @@ required = false
   });
 
   it("fail-closed on unreadable / absent manifest", async () => {
+    const fx = fixturePaths();
     const io = captureIo();
     const code = await Effect.runPromise(
       runDependencyDrift(["node", "dependency-drift.js"], io, {
-        repoRoot: "/repo",
+        repoRoot: fx.root,
         layer: memFs(
           new Map([
-            ["/repo/env/bootstrap-wsl.sh", "git\n"],
+            [fx.bootstrap, "git\n"],
           ]),
         ),
         authority: {
@@ -551,18 +604,20 @@ required = false
     );
     assert.equal(code, EXIT_FAIL_CLOSED);
     assert.match(io.stderr(), /unreadable|absent|ERROR/i);
-    assert.doesNotMatch(io.stderr(), /\/repo\//);
+    // Diagnostics must not leak absolute fixture paths.
+    assert.doesNotMatch(io.stderr(), /fixture-repo/);
   });
 
   it("fail-closed on oversized input over MAX_DRIFT_INPUT_BYTES", async () => {
+    const fx = fixturePaths();
     const io = captureIo();
     const files = new Map<string, BoundedReadResult | string>([
-      ["/repo/env/reference-manifest.toml", { _tag: "Oversized" }],
-      ["/repo/env/bootstrap-wsl.sh", "git\n"],
+      [fx.manifest, { _tag: "Oversized" }],
+      [fx.bootstrap, "git\n"],
     ]);
     const code = await Effect.runPromise(
       runDependencyDrift(["node", "dependency-drift.js"], io, {
-        repoRoot: "/repo",
+        repoRoot: fx.root,
         layer: memFs(files),
         authority: {
           checkerIds: ["git"],
@@ -572,21 +627,19 @@ required = false
     );
     assert.equal(code, EXIT_FAIL_CLOSED);
     assert.match(io.stderr(), /oversized|ERROR/i);
-    assert.doesNotMatch(io.stderr(), /\/repo\//);
+    assert.doesNotMatch(io.stderr(), /fixture-repo/);
   });
 
   it("fail-closed on malformed tools table", async () => {
+    const fx = fixturePaths();
     const io = captureIo();
     const code = await Effect.runPromise(
       runDependencyDrift(["node", "dependency-drift.js"], io, {
-        repoRoot: "/repo",
+        repoRoot: fx.root,
         layer: memFs(
           new Map([
-            [
-              "/repo/env/reference-manifest.toml",
-              `[[tools]]\nrequired = true\n`,
-            ],
-            ["/repo/env/bootstrap-wsl.sh", "git\n"],
+            [fx.manifest, `[[tools]]\nrequired = true\n`],
+            [fx.bootstrap, "git\n"],
           ]),
         ),
         authority: {
@@ -600,17 +653,18 @@ required = false
   });
 
   it("reports DRIFT exit 1 for fixture disagreement", async () => {
+    const fx = fixturePaths();
     const io = captureIo();
     const code = await Effect.runPromise(
       runDependencyDrift(["node", "dependency-drift.js"], io, {
-        repoRoot: "/repo",
+        repoRoot: fx.root,
         layer: memFs(
           new Map([
             [
-              "/repo/env/reference-manifest.toml",
+              fx.manifest,
               `[[tools]]\nid = "git"\nrequired = true\n`,
             ],
-            ["/repo/env/bootstrap-wsl.sh", "git mystery\n"],
+            [fx.bootstrap, "git mystery\n"],
           ]),
         ),
         authority: {
@@ -645,14 +699,14 @@ required = false
     const dir = mkdtempSync(join(tmpdir(), "drift-"));
     mkdirSync(join(dir, "env"), { recursive: true });
     writeFileSync(
-      join(dir, "env/reference-manifest.toml"),
+      join(dir, REL_MANIFEST),
       `[[tools]]\nid = "git"\nrequired = true\n`,
       "utf8",
     );
-    writeFileSync(join(dir, "env/bootstrap-wsl.sh"), "git\n", "utf8");
+    writeFileSync(join(dir, REL_BOOTSTRAP), "git\n", "utf8");
     // Unreadable trap at tool-check path — must not be opened.
-    writeFileSync(join(dir, "env/tool-check.sh"), "must_soft=(git)\n", "utf8");
-    chmodSync(join(dir, "env/tool-check.sh"), 0o000);
+    writeFileSync(join(dir, "env", "tool-check.sh"), "must_soft=(git)\n", "utf8");
+    chmodSync(join(dir, "env", "tool-check.sh"), 0o000);
 
     const io = captureIo();
     try {
@@ -668,7 +722,7 @@ required = false
       assert.equal(code, EXIT_AGREE);
     } finally {
       try {
-        chmodSync(join(dir, "env/tool-check.sh"), 0o644);
+        chmodSync(join(dir, "env", "tool-check.sh"), 0o644);
       } catch {
         /* ignore */
       }
