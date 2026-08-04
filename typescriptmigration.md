@@ -21,8 +21,9 @@ logic in compatibility scripts.
 
 - [ ] `@foreman/core`: strict JSON, canonical JSON, digests, paths, locks,
       atomic files, Git, subprocess services, and tagged errors.
-- [ ] `@foreman/policy`: architecture language policy, merge-base debt
-      reporting, and fail-capable known-bad controls.
+- [x] `@foreman/policy`: architecture language policy, merge-base debt
+      reporting, and fail-capable known-bad controls. (Compiled
+      `architecture-policy.js` + destruction guard; hosted CI still open.)
 - [ ] `@foreman/graph-store`: port, closed schemas, safe generations,
       files-only backend, lineage queries, and CLI.
 - [ ] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
@@ -94,7 +95,8 @@ is withdrawn because it contradicts the release-program order.
 - [ ] Build twice and compare bundle bytes.
 - [ ] Verify the installed-skill runtime manifest and copied-install smoke test.
 - [ ] Run existing CLI compatibility tests.
-- [ ] Run the architecture policy against the merge base.
+- [x] Run the architecture policy against the merge base.
+      (`npm run policy-check -- --base <ref>`; PR workflows wired.)
 - [ ] Obtain a cross-family cold audit of the complete diff.
 - [ ] Fix every actionable finding in a new bounded round.
 - [ ] Commit, checkpoint, Graphify, and push only after acceptance.

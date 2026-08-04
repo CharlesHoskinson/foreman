@@ -58,3 +58,29 @@ export { sanitizedGitEnv, gitArgv } from "./git-env.js";
 export { loadCommittedAuthority, mapAuthorityError } from "./authority.js";
 export { relocateArtifact, type RelocateArgs } from "./relocate.js";
 export { runCli, type CliIo } from "./cli.js";
+export {
+  parseArchitectureArgv,
+  runArchitectureCli,
+  type ArchCliIo,
+  type ParsedArchArgs,
+} from "./architecture-cli.js";
+export {
+  evaluateArchitecturePolicy,
+  type EvaluateInput,
+} from "./architecture-evaluate.js";
+export {
+  parseNameStatusDelta,
+  type DeltaRecord,
+} from "./architecture-delta.js";
+export {
+  ARCHITECTURE_SCHEMA_VERSION,
+  type ArchitectureCheckResult,
+  type PolicyFinding,
+  type LegacyDebtRecord,
+  type PolicyReason,
+} from "./architecture-schema.js";
+export {
+  runArchitectureCheck,
+  liveArchitectureGit,
+  ArchitectureGit,
+} from "./architecture-git.js";

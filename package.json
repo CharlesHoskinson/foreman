@@ -3,16 +3,22 @@
   "private": true,
   "type": "module",
   "packageManager": "npm@11.16.0",
-  "engines": { "node": ">=24 <25" },
-  "workspaces": ["packages/*"],
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.all.json --pretty false",
-    "test": "node --import tsx --test packages/core/src/**/*.test.ts packages/policy/src/**/*.test.ts",
+    "test": "node --import tsx --test packages/core/src/**/*.test.ts packages/policy/src/**/*.test.ts scripts/**/*.test.ts",
     "build": "tsx scripts/build-runtime.ts",
     "verify-runtime": "tsx scripts/verify-runtime.ts",
     "verify": "npm run typecheck && npm run test && npm run verify-runtime && npm run verify-register-doc && npm run smoke:dst-0060",
     "verify-register-doc": "tsx scripts/verify-register-doc.ts",
-    "smoke:dst-0060": "tsx scripts/smoke-dst-0060.ts"
+    "smoke:dst-0060": "tsx scripts/smoke-dst-0060.ts",
+    "policy-check": "node skills/foreman/runtime/dist/architecture-policy.js check",
+    "policy:check": "node skills/foreman/runtime/dist/architecture-policy.js check"
   },
   "devDependencies": {
     "@types/node": "26.1.2",

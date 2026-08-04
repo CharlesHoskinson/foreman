@@ -19,9 +19,12 @@ below contain detailed module tasks only. They do not define release order.
       self-contained Node.js bundles under `skills/foreman/runtime/dist/` plus
       `skills/foreman/runtime/manifest.json`.
 - [x] Add `@foreman/core` with closed error and schema primitives.
-- [ ] Add a TypeScript policy checker with fail-capable fixtures for new
+- [x] Add a TypeScript policy checker with fail-capable fixtures for new
       Python, shell, PowerShell, CMD, JavaScript, MJS, CJS, Bun-only imports,
-      and a legacy adapter that contains domain logic.
+      and a legacy adapter that contains domain logic. Compiled entry:
+      `skills/foreman/runtime/dist/architecture-policy.js`. CLI:
+      `check --base <ref> [--repo-root <path>]`. Hosted CI job pass on the
+      exact candidate remains open (workflow wiring is present).
 - [x] Add the fail-closed destruction register, pure admission evaluator, and
       compiled `foreman-destruction-guard` command in `@foreman/policy`.
       Support `check` bound to committed HEAD authority. Live
