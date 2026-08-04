@@ -141,3 +141,60 @@ human-readable output.
 - AND it refuses to spawn WHERE that vendor's auth fact is not `authenticated`
 - AND its refusal message reproduces the recorded reason verbatim rather than
   restating it.
+
+### Requirement: Setup persists one bounded record for each supported lane
+
+Setup SHALL persist the validated canonical JSON record for each requested
+vendor lane. The default path SHALL be
+`$FOREMAN_HOME/preflight/<vendor>.json`. The default `FOREMAN_HOME` value SHALL
+be `$HOME/.foreman`.
+
+The writer SHALL create the parent directory with owner-only permissions. The
+writer SHALL write a temporary file in the same directory. The writer SHALL
+set owner-only permissions on the record. The writer SHALL replace the target
+only after the complete record is durable.
+
+The writer SHALL reject a record larger than 1,048,576 bytes. The writer SHALL
+remove its temporary file after a failed write. This requirement does not set
+a record age limit. A later credential-profile change owns record freshness.
+
+#### Scenario: Setup replaces a complete vendor record
+
+- WHEN Setup inspects the `grok` lane
+- THEN it writes one validated canonical JSON record to the `grok` store path
+- AND an interrupted write does not replace the previous complete record
+- AND the record mode permits access by the owner only.
+
+### Requirement: lane admission uses only the persisted record
+
+The Node.js `lane-gate` command SHALL read one persisted record. It SHALL NOT
+resolve a CLI. It SHALL NOT start a vendor process. It SHALL NOT run an auth or
+version probe.
+
+The command SHALL require a closed vendor identifier and an absolute record
+path. It SHALL bound the input before JSON parsing. It SHALL use the public
+`VendorPreflightRecordV1` decoder. It SHALL reject a record for a different
+vendor.
+
+The command SHALL pass only when all three recorded facts are ready. It SHALL
+fail closed when the file is missing, unreadable, oversized, malformed, or
+vendor-mismatched. For a valid not-ready record, it SHALL emit the selected
+recorded reason without rewriting that reason.
+
+`lane-run.sh` SHALL call the tracked Node.js runtime before it touches the lane
+lock. A missing runtime, a missing record, or an invalid record SHALL stop the
+lane. `lane-run.sh` SHALL NOT continue with an unverified vendor lane.
+
+#### Scenario: a missing record stops the lane without a live probe
+
+- WHEN `lane-run.sh` starts a configured vendor lane without its record
+- THEN the Node.js lane gate returns a boundary failure
+- AND `lane-run.sh` does not start the vendor command
+- AND no vendor preflight process runs.
+
+#### Scenario: a valid refusal preserves the recorded diagnosis
+
+- WHEN the stored auth fact is `unknown` with reason `auth probe timed out`
+- THEN the lane gate refuses the lane
+- AND its diagnostic contains `auth probe timed out` unchanged
+- AND its diagnostic does not contain a login instruction.

@@ -128,6 +128,31 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
       returns Pass when worktree is committed (isolated sim); uncommitted HEAD
       still shows the pre-migration findings.
 
+### R4C — persisted record and lane gate
+
+- [ ] Add an Effect `PreflightRecordStore` service in
+      `@foreman/orchestration`.
+- [ ] Bound stored input to 1,048,576 bytes before JSON parsing.
+- [ ] Write canonical JSON through a same-directory temporary file.
+- [ ] Use owner-only permissions for the directory and record.
+- [ ] Remove the temporary file after each failed write.
+- [ ] Add `write-record <vendor> <absolute-path>` to `vendor-preflight.js`.
+- [ ] Add `lane-gate <vendor> <absolute-path>` to `vendor-preflight.js`.
+- [ ] Make `lane-gate` read and decode only the stored record.
+- [ ] Prove that `lane-gate` does not call `PathLookup` or `ProcessExec`.
+- [ ] Reject missing, unreadable, oversized, malformed, and mismatched records.
+- [ ] Emit the selected recorded reason unchanged for a valid refusal.
+- [ ] Make Setup persist each requested `grok` or `codex` record.
+- [ ] Make `lane-run.sh` call `lane-gate` before it touches the lane lock.
+- [ ] Remove the current live tool-check probe and unverified continuation from
+      the vendor lane admission path.
+- [ ] Keep shell changes as argument forwarding and exit-code handling only.
+- [ ] Observe the focused tests fail before the implementation change.
+- [ ] Run focused tests, typecheck, deterministic build, runtime verification,
+      affected Bats tests, architecture policy, and repository hygiene.
+- [ ] Run a different-family Codex cold audit on the immutable commit.
+- [ ] Run Linux, Windows, and formal hosted gates on the exact pushed commit.
+
 ## T6 — tests, red-first
 
 - [ ] New `tests/vendor-preflight.bats` driven by stub CLIs on `PATH`, so every
