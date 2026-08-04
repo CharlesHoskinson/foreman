@@ -71,14 +71,15 @@ All new executable code uses Node.js 24 and TypeScript under the repository
 Iron Rule. Effect owns typed failures, scoped resources, cancellation,
 retries, timeouts, and concurrency.
 
-Status at base commit `3164cfa5779b8aac8eebeea710c16f3f9688d56f`:
+Status through Sprint 3 R1 commit
+`a1e0dcf142eb02f5f198c0da730a51c11396a196`:
 
 | Band | Status | Notes |
 |---|---|---|
 | Authority baseline, destruction inventory, and ledger reconciliation | Landed | Ledger, coverage matrix freeze, destruction register, and program package |
 | Node workspace, `@foreman/core`, and `@foreman/policy` | Landed | Architecture policy, destruction admission, installed-runtime integrity, Windows path-seam fixes |
 | Typed `@foreman/event-log` foundation | Landed | Closed StoredEvent decoder, bounded NDJSON replay, cursors, attempt identity |
-| Queue, resume, credentials, and fixture-aware secret scans (Sprint 3) | Open | Not in this base |
+| Queue, resume, credentials, and fixture-aware secret scans (Sprint 3) | Partial | TypeScript queue admission and the thin adapter are landed. Attempt-bound rounds, resume, external state, credentials, and scans remain open |
 | GraphStore, launcher, SessionDB, and project registry | Open | Not in this base |
 | Current-main session transport | Open | Not in this base |
 | Council advisory plane, durable runtime, Gemini, MCP, and host plugins | Partial / open | Spec-correctness admission and live records exist. Full advisory plane remains open |
@@ -86,8 +87,8 @@ Status at base commit `3164cfa5779b8aac8eebeea710c16f3f9688d56f`:
 | Release evidence, formal-model reconciliation, knowledge and Graphify | Open | Not in this base |
 | Zero-Python cleanup, Superpowers, external dogfood, Windows boundary, exact-candidate convergence | Open | Not in this base |
 
-Do not present unfinished v0.3.0 work as shipped work. Sprint 3 queue work
-is not in this base and remains open.
+Do not present unfinished v0.3.0 work as shipped work. Sprint 3 is partial and
+remains open.
 
 ## Current authority
 

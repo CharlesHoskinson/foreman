@@ -58,8 +58,8 @@
 ## 1. Program execution
 
 - [ ] 1.1 Execute Sprints 1 through 17 in `sprints.md` order.
-      Landed partial evidence at base
-      `3164cfa5779b8aac8eebeea710c16f3f9688d56f` (do not mark complete):
+      Landed partial evidence through
+      `a1e0dcf142eb02f5f198c0da730a51c11396a196` (do not mark complete):
       - Architecture policy:
         `99accf3ba5d75c311aa9ede3460b4a4a49d9aa3e` (feat),
         `96d0f0750f415697985b4201f47b915734146d9b` (review record).
@@ -71,7 +71,9 @@
         `3164cfa5779b8aac8eebeea710c16f3f9688d56f` (delayed handle release).
       - Event-log foundation:
         `cbe27e831b3dcc95db8de248168374fe08e20350`.
-      Sprint 3 queue admission is not in this base and remains open.
+      - Sprint 3 R1 queue admission:
+        `a1e0dcf142eb02f5f198c0da730a51c11396a196`.
+      The remaining Sprint 3 work stays open.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.
