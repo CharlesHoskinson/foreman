@@ -12,9 +12,11 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readlinkSync,
   realpathSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeSync,
 } from "node:fs";
@@ -107,6 +109,105 @@ function whichOrNull(
     const paths = yield* PathLookup;
     return yield* paths.which(name);
   });
+}
+
+/** WinGet package id prefix for lychee under LOCALAPPDATA Packages. */
+export const WINGET_LYCHEE_PACKAGE_PREFIX = "lycheeverse.lychee";
+
+/**
+ * Bound on package directories scanned under
+ * Microsoft/WinGet/Packages/lycheeverse.lychee prefix match.
+ */
+export const MAX_WINGET_LYCHEE_PACKAGE_DIRS = 64;
+
+/**
+ * Bound on version directories scanned under each package directory
+ * (Packages/prefix-match/version/lychee.exe).
+ */
+export const MAX_WINGET_LYCHEE_VERSION_DIRS = 32;
+
+/**
+ * Injected filesystem for WinGet package layout lookup (tests inject maps).
+ * Live production uses {@link liveLycheeWinGetFs}.
+ */
+export type LycheeWinGetFs = {
+  readonly listNames: (dir: string) => readonly string[] | null;
+  readonly isFile: (path: string) => boolean;
+};
+
+const liveLycheeWinGetFs: LycheeWinGetFs = {
+  listNames: (dir) => {
+    try {
+      return readdirSync(dir);
+    } catch {
+      return null;
+    }
+  },
+  isFile: (path) => {
+    try {
+      return existsSync(path) && statSync(path).isFile();
+    } catch {
+      return false;
+    }
+  },
+};
+
+function isSafeDirName(name: string): boolean {
+  return (
+    name.length > 0 &&
+    name !== "." &&
+    name !== ".." &&
+    !name.includes("\0") &&
+    !name.includes("/") &&
+    !name.includes("\\")
+  );
+}
+
+function sortLex(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Bounded deterministic lookup for WinGet Packages lychee.exe layout:
+ * LOCALAPPDATA/Microsoft/WinGet/Packages/lycheeverse.lychee…/version/lychee.exe.
+ *
+ * Ordering: package directory names ascending, then version directory names
+ * ascending; first existing lychee.exe wins. Does not recurse beyond that
+ * two-level package layout and never walks unbounded trees.
+ */
+export function resolveLycheeWinGetPackageExe(
+  localAppData: string,
+  fs: LycheeWinGetFs = liveLycheeWinGetFs,
+): string | null {
+  if (!localAppData || localAppData.includes("\0")) return null;
+  const packagesRoot = join(
+    localAppData,
+    "Microsoft",
+    "WinGet",
+    "Packages",
+  );
+  const packageNames = fs.listNames(packagesRoot);
+  if (packageNames === null) return null;
+  const packageDirs = packageNames
+    .filter(
+      (n) => isSafeDirName(n) && n.startsWith(WINGET_LYCHEE_PACKAGE_PREFIX),
+    )
+    .sort(sortLex)
+    .slice(0, MAX_WINGET_LYCHEE_PACKAGE_DIRS);
+  for (const pkg of packageDirs) {
+    const pkgPath = join(packagesRoot, pkg);
+    const versionNames = fs.listNames(pkgPath);
+    if (versionNames === null) continue;
+    const versionDirs = versionNames
+      .filter((n) => isSafeDirName(n))
+      .sort(sortLex)
+      .slice(0, MAX_WINGET_LYCHEE_VERSION_DIRS);
+    for (const ver of versionDirs) {
+      const exe = join(pkgPath, ver, "lychee.exe");
+      if (fs.isFile(exe)) return exe;
+    }
+  }
+  return null;
 }
 
 function runCmd(
@@ -361,11 +462,17 @@ export function checkOne(
       case "lychee": {
         let lychee = env.LYCHEE || (yield* whichOrNull("lychee")) || "";
         if (!lychee && env.LOCALAPPDATA) {
-          const winget = join(
+          const wingetLinks = join(
             env.LOCALAPPDATA,
             "Microsoft/WinGet/Links/lychee.exe",
           );
-          if (existsSync(winget)) lychee = winget;
+          if (existsSync(wingetLinks)) lychee = wingetLinks;
+        }
+        if (!lychee && env.LOCALAPPDATA) {
+          // Predecessor Windows fallback: Packages layout when Links shim
+          // is absent. Bounded deterministic two-level lookup only.
+          lychee =
+            resolveLycheeWinGetPackageExe(env.LOCALAPPDATA) ?? "";
         }
         if (!lychee) return row("lychee", "missing", "");
         const r = yield* runCmd(lychee, ["--version"]);

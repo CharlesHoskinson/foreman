@@ -16195,9 +16195,11 @@ import {
   lstatSync as lstatSync2,
   mkdirSync as mkdirSync2,
   openSync as openSync2,
+  readdirSync,
   readlinkSync,
   realpathSync as realpathSync3,
   renameSync,
+  statSync as statSync3,
   unlinkSync as unlinkSync2,
   writeSync
 } from "node:fs";
@@ -17811,15 +17813,13 @@ function parsePinnedRegisterToml(text) {
       probe_target = t["probe_path"];
     }
     if (mechanism === "mkdir" && !probe_target.trim()) continue;
-    let filesystem_classes = [];
-    if (Array.isArray(t["filesystem_classes"])) {
-      filesystem_classes = t["filesystem_classes"].filter(
-        (c) => typeof c === "string" && c.length > 0
-      );
-    }
+    if (!Array.isArray(t["filesystem_classes"])) continue;
+    const filesystem_classes = t["filesystem_classes"].filter(
+      (c) => typeof c === "string" && c.length > 0
+    );
+    if (filesystem_classes.length === 0) continue;
     const allowedFs = /* @__PURE__ */ new Set(["local", "mnt-drvfs", "network", "fuse"]);
     if (filesystem_classes.some((c) => !allowedFs.has(c))) continue;
-    if (filesystem_classes.length === 0) filesystem_classes = ["local"];
     out.push({
       mechanism,
       sha256,
@@ -18853,6 +18853,56 @@ function whichOrNull(name) {
     return yield* paths.which(name);
   });
 }
+var WINGET_LYCHEE_PACKAGE_PREFIX = "lycheeverse.lychee";
+var MAX_WINGET_LYCHEE_PACKAGE_DIRS = 64;
+var MAX_WINGET_LYCHEE_VERSION_DIRS = 32;
+var liveLycheeWinGetFs = {
+  listNames: (dir) => {
+    try {
+      return readdirSync(dir);
+    } catch {
+      return null;
+    }
+  },
+  isFile: (path) => {
+    try {
+      return existsSync4(path) && statSync3(path).isFile();
+    } catch {
+      return false;
+    }
+  }
+};
+function isSafeDirName(name) {
+  return name.length > 0 && name !== "." && name !== ".." && !name.includes("\0") && !name.includes("/") && !name.includes("\\");
+}
+function sortLex(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+function resolveLycheeWinGetPackageExe(localAppData, fs = liveLycheeWinGetFs) {
+  if (!localAppData || localAppData.includes("\0")) return null;
+  const packagesRoot = join6(
+    localAppData,
+    "Microsoft",
+    "WinGet",
+    "Packages"
+  );
+  const packageNames = fs.listNames(packagesRoot);
+  if (packageNames === null) return null;
+  const packageDirs = packageNames.filter(
+    (n) => isSafeDirName(n) && n.startsWith(WINGET_LYCHEE_PACKAGE_PREFIX)
+  ).sort(sortLex).slice(0, MAX_WINGET_LYCHEE_PACKAGE_DIRS);
+  for (const pkg of packageDirs) {
+    const pkgPath = join6(packagesRoot, pkg);
+    const versionNames = fs.listNames(pkgPath);
+    if (versionNames === null) continue;
+    const versionDirs = versionNames.filter((n) => isSafeDirName(n)).sort(sortLex).slice(0, MAX_WINGET_LYCHEE_VERSION_DIRS);
+    for (const ver of versionDirs) {
+      const exe = join6(pkgPath, ver, "lychee.exe");
+      if (fs.isFile(exe)) return exe;
+    }
+  }
+  return null;
+}
 function runCmd(command, args2, timeoutMs = 8e3) {
   return Effect_exports.gen(function* () {
     const exec = yield* ProcessExec;
@@ -19075,11 +19125,14 @@ function checkOne(id, ctx) {
       case "lychee": {
         let lychee = env.LYCHEE || (yield* whichOrNull("lychee")) || "";
         if (!lychee && env.LOCALAPPDATA) {
-          const winget = join6(
+          const wingetLinks = join6(
             env.LOCALAPPDATA,
             "Microsoft/WinGet/Links/lychee.exe"
           );
-          if (existsSync4(winget)) lychee = winget;
+          if (existsSync4(wingetLinks)) lychee = wingetLinks;
+        }
+        if (!lychee && env.LOCALAPPDATA) {
+          lychee = resolveLycheeWinGetPackageExe(env.LOCALAPPDATA) ?? "";
         }
         if (!lychee) return row("lychee", "missing", "");
         const r = yield* runCmd(lychee, ["--version"]);

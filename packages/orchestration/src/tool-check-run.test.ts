@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import {
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -27,6 +28,8 @@ import {
   resolveRepoRoot,
   runToolCheck,
   MAX_INVENTORY_OUT_PATH_BYTES,
+  MAX_WINGET_LYCHEE_PACKAGE_DIRS,
+  resolveLycheeWinGetPackageExe,
   writeInventoryOutAtomic,
   type ToolCheckIo,
 } from "./tool-check-run.js";
@@ -309,6 +312,178 @@ describe("vendor binding and projection (R4B boundaries in TypeScript)", () => {
     );
     assert.match(io.stdout, /LANE_READY: grok=no/);
     assert.match(io.stdout, /NOT_AUTHENTICATED: grok/);
+  });
+});
+
+describe("lychee WinGet Packages fallback", () => {
+  it("resolveLycheeWinGetPackageExe selects deterministic package-layout path", () => {
+    const localAppData = "/virt/AppData/Local";
+    const packagesRoot = join(
+      localAppData,
+      "Microsoft/WinGet/Packages",
+    );
+    const namesByDir = new Map<string, readonly string[]>([
+      [
+        packagesRoot,
+        [
+          "other.pkg",
+          "lycheeverse.lychee_2.0.0",
+          "lycheeverse.lychee_1.0.0",
+        ],
+      ],
+      [
+        join(packagesRoot, "lycheeverse.lychee_1.0.0"),
+        ["0.24.1", "0.24.0"],
+      ],
+      [
+        join(packagesRoot, "lycheeverse.lychee_2.0.0"),
+        ["0.25.0"],
+      ],
+    ]);
+    const files = new Set([
+      join(
+        packagesRoot,
+        "lycheeverse.lychee_1.0.0",
+        "0.24.0",
+        "lychee.exe",
+      ),
+      join(
+        packagesRoot,
+        "lycheeverse.lychee_1.0.0",
+        "0.24.1",
+        "lychee.exe",
+      ),
+      join(
+        packagesRoot,
+        "lycheeverse.lychee_2.0.0",
+        "0.25.0",
+        "lychee.exe",
+      ),
+    ]);
+    // Lexicographic package then version order: 1.0.0 before 2.0.0, 0.24.0 before 0.24.1.
+    const expected = join(
+      packagesRoot,
+      "lycheeverse.lychee_1.0.0",
+      "0.24.0",
+      "lychee.exe",
+    );
+    const hit = resolveLycheeWinGetPackageExe(localAppData, {
+      listNames: (dir) => namesByDir.get(dir) ?? null,
+      isFile: (path) => files.has(path),
+    });
+    assert.equal(hit, expected);
+  });
+
+  it("resolveLycheeWinGetPackageExe returns null when no package layout match", () => {
+    const hit = resolveLycheeWinGetPackageExe("/virt/AppData/Local", {
+      listNames: () => [],
+      isFile: () => false,
+    });
+    assert.equal(hit, null);
+  });
+
+  it("resolveLycheeWinGetPackageExe bounds package directory scan", () => {
+    const localAppData = "/virt/AppData/Local";
+    const packagesRoot = join(
+      localAppData,
+      "Microsoft/WinGet/Packages",
+    );
+    const many = Array.from(
+      { length: MAX_WINGET_LYCHEE_PACKAGE_DIRS + 5 },
+      (_, i) => `lycheeverse.lychee_z${String(i).padStart(3, "0")}`,
+    );
+    // Only a directory past the bound would contain the executable.
+    const beyond = many[MAX_WINGET_LYCHEE_PACKAGE_DIRS]!;
+    const hit = resolveLycheeWinGetPackageExe(localAppData, {
+      listNames: (dir) => {
+        if (dir === packagesRoot) return many;
+        if (dir === join(packagesRoot, beyond)) return ["v1"];
+        return [];
+      },
+      isFile: (path) =>
+        path === join(packagesRoot, beyond, "v1", "lychee.exe"),
+    });
+    assert.equal(hit, null);
+  });
+
+  it("Windows package-layout lychee is selected and spawned when Links shim is absent", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-tc-lychee-winget-"));
+    try {
+      const localAppData = join(dir, "Local");
+      const packageExe = join(
+        localAppData,
+        "Microsoft/WinGet/Packages",
+        "lycheeverse.lychee_0.24.2",
+        "0.24.2",
+        "lychee.exe",
+      );
+      mkdirSync(dirname(packageExe), { recursive: true });
+      writeFileSync(packageExe, "", "utf8");
+      // Links shim intentionally absent.
+      const links = join(
+        localAppData,
+        "Microsoft/WinGet/Links/lychee.exe",
+      );
+      assert.equal(existsSync(links), false);
+
+      const spawned: string[] = [];
+      const layer = Layer.mergeAll(
+        Layer.succeed(ProcessExec, {
+          runCaptured: (opts) => {
+            spawned.push(opts.command);
+            if (opts.command === packageExe) {
+              return Effect.succeed({
+                exitCode: 0,
+                stdout: "lychee 0.24.2\n",
+                stderr: "",
+              });
+            }
+            return Effect.fail(new ProcessFailure("spawn_failed"));
+          },
+          runIgnoredStdio: () =>
+            Effect.fail(new ProcessFailure("spawn_failed")),
+          runForeground: () =>
+            Effect.fail(new ProcessFailure("spawn_failed")),
+        }),
+        Layer.succeed(PathLookup, {
+          which: () => Effect.succeed(null),
+          fileExists: (p) => Effect.succeed(existsSync(p)),
+          isExecutable: (p) => Effect.succeed(existsSync(p)),
+        }),
+        Layer.succeed(PreflightClock, {
+          nowUtcRfc3339: () => Effect.succeed(FIXED),
+        }),
+      );
+
+      const io = captureIo();
+      await Effect.runPromise(
+        runToolCheck(["--profile", "full"], io, {
+          repoRoot: resolveRepoRoot(import.meta.url),
+          capabilityTable: emptyTable,
+          layer,
+          nowUtc: () => FIXED,
+          processEnv: {
+            LOCALAPPDATA: localAppData,
+            HOME: join(dir, "home"),
+            PATH: "",
+          },
+          vendorRowOverride: (v) =>
+            Effect.succeed({
+              id: v,
+              status: "missing",
+              detail: "not installed",
+            }),
+        }),
+      );
+
+      assert.ok(
+        spawned.includes(packageExe),
+        `expected spawn of package exe, got: ${JSON.stringify(spawned)}`,
+      );
+      assert.match(io.stdout, /lychee\s+ok/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

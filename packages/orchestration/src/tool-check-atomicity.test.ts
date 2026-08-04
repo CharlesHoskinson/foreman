@@ -146,6 +146,50 @@ invented = "no"
     const entries = parsePinnedRegisterToml(text);
     assert.equal(entries.length, 0);
   });
+
+  it("rejects pinned table when filesystem_classes is omitted", () => {
+    const text = `
+[[lock_atomicity.pinned]]
+mechanism = "mkdir"
+sha256 = "abc"
+host_class = "linux-native"
+trace_artifact = "docs/t.trace"
+probe_target = "x"
+verdict = "atomic"
+`;
+    const entries = parsePinnedRegisterToml(text);
+    assert.equal(entries.length, 0);
+  });
+
+  it("rejects pinned table when filesystem_classes is empty", () => {
+    const text = `
+[[lock_atomicity.pinned]]
+mechanism = "mkdir"
+sha256 = "abc"
+host_class = "linux-native"
+trace_artifact = "docs/t.trace"
+probe_target = "x"
+filesystem_classes = []
+verdict = "atomic"
+`;
+    const entries = parsePinnedRegisterToml(text);
+    assert.equal(entries.length, 0);
+  });
+
+  it("rejects pinned table when filesystem_classes is filtered-empty", () => {
+    const text = `
+[[lock_atomicity.pinned]]
+mechanism = "mkdir"
+sha256 = "abc"
+host_class = "linux-native"
+trace_artifact = "docs/t.trace"
+probe_target = "x"
+filesystem_classes = [""]
+verdict = "atomic"
+`;
+    const entries = parsePinnedRegisterToml(text);
+    assert.equal(entries.length, 0);
+  });
 });
 
 describe("validatePinnedTraceContent", () => {

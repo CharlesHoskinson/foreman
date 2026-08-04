@@ -283,15 +283,16 @@ export function parsePinnedRegisterToml(text: string): PinnedRegisterEntry[] {
     }
     if (mechanism === "mkdir" && !probe_target.trim()) continue;
 
-    let filesystem_classes: string[] = [];
-    if (Array.isArray(t["filesystem_classes"])) {
-      filesystem_classes = t["filesystem_classes"].filter(
-        (c): c is string => typeof c === "string" && c.length > 0,
-      );
-    }
+    // filesystem_classes is required evidence. Never invent a default (e.g.
+    // ["local"]) for omitted, empty, or filtered-empty lists — incomplete pins
+    // must not promote to pinned-mechanism authority.
+    if (!Array.isArray(t["filesystem_classes"])) continue;
+    const filesystem_classes = t["filesystem_classes"].filter(
+      (c): c is string => typeof c === "string" && c.length > 0,
+    );
+    if (filesystem_classes.length === 0) continue;
     const allowedFs = new Set(["local", "mnt-drvfs", "network", "fuse"]);
     if (filesystem_classes.some((c) => !allowedFs.has(c))) continue;
-    if (filesystem_classes.length === 0) filesystem_classes = ["local"];
 
     out.push({
       mechanism,
