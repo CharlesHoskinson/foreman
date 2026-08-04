@@ -181,17 +181,51 @@ diagnose_instruction = "diagnose"
 });
 
 describe("argvContainsMutatingUpdate", () => {
-  it("flags bare update and allows grok update --check --json only", () => {
-    assert.equal(argvContainsMutatingUpdate(["claude", "update"]), true);
-    assert.equal(argvContainsMutatingUpdate(["codex", "update"]), true);
-    assert.equal(argvContainsMutatingUpdate(["grok", "update"]), true);
+  it("flags bare update for every vendor binding", () => {
+    assert.equal(argvContainsMutatingUpdate(["claude", "update"], "claude"), true);
+    assert.equal(argvContainsMutatingUpdate(["codex", "update"], "codex"), true);
+    assert.equal(argvContainsMutatingUpdate(["grok", "update"], "grok"), true);
+    assert.equal(argvContainsMutatingUpdate(["agy", "update"], "agy"), true);
+    assert.equal(argvContainsMutatingUpdate(["claude", "update"], null), true);
+  });
+
+  it("allows update --check --json only when vendor binding is grok", () => {
+    const checkTail = ["update", "--check", "--json"] as const;
     assert.equal(
-      argvContainsMutatingUpdate(["grok", "update", "--check", "--json"]),
+      argvContainsMutatingUpdate(["grok", ...checkTail], "grok"),
       false,
     );
-    assert.equal(argvContainsMutatingUpdate(["grok", "models"]), false);
+    // Executable/CLI name alone must not authorize the exception.
     assert.equal(
-      argvContainsMutatingUpdate(["claude", "auth", "status"]),
+      argvContainsMutatingUpdate(["grok", ...checkTail], "claude"),
+      true,
+    );
+    assert.equal(
+      argvContainsMutatingUpdate(["claude", ...checkTail], "claude"),
+      true,
+    );
+    assert.equal(
+      argvContainsMutatingUpdate(["codex", ...checkTail], "codex"),
+      true,
+    );
+    assert.equal(
+      argvContainsMutatingUpdate(["agy", ...checkTail], "agy"),
+      true,
+    );
+    assert.equal(
+      argvContainsMutatingUpdate(["grok", ...checkTail], null),
+      true,
+    );
+    assert.equal(
+      argvContainsMutatingUpdate(["any-name", ...checkTail], null),
+      true,
+    );
+  });
+
+  it("does not flag non-update probe vectors", () => {
+    assert.equal(argvContainsMutatingUpdate(["grok", "models"], "grok"), false);
+    assert.equal(
+      argvContainsMutatingUpdate(["claude", "auth", "status"], "claude"),
       false,
     );
   });

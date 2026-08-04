@@ -102,10 +102,11 @@ type ProbeCapture =
 function runProbe(
   executable: string,
   tailArgv: readonly string[],
+  vendorBinding: VendorCapabilityV1["vendor"],
 ): Effect.Effect<ProbeCapture, never, ProcessExec> {
   return Effect.gen(function* () {
     const fullArgv = [executable, ...tailArgv];
-    if (argvContainsMutatingUpdate(fullArgv)) {
+    if (argvContainsMutatingUpdate(fullArgv, vendorBinding)) {
       // Defensive: never spawn a mutating update.
       return {
         _tag: "failed" as const,
@@ -190,11 +191,12 @@ export const inspectVendor = (
 > =>
   Effect.gen(function* () {
     // Refuse capabilities that embed mutating update in probe vectors.
+    // Authorization is bound to capability.vendor, never to path/CLI name.
     const authFull = [capability.cliName, ...capability.authArgv];
     const verFull = [capability.cliName, ...capability.versionArgv];
     if (
-      argvContainsMutatingUpdate(authFull) ||
-      argvContainsMutatingUpdate(verFull)
+      argvContainsMutatingUpdate(authFull, capability.vendor) ||
+      argvContainsMutatingUpdate(verFull, capability.vendor)
     ) {
       return yield* Effect.fail(
         new VendorPreflightFailure(
@@ -221,7 +223,11 @@ export const inspectVendor = (
     const executable = resolved;
 
     // Version probe first (currency independent of auth).
-    const versionCap = yield* runProbe(executable, capability.versionArgv);
+    const versionCap = yield* runProbe(
+      executable,
+      capability.versionArgv,
+      capability.vendor,
+    );
     const versionProbe = probeRecord(
       "version",
       executable,
@@ -246,7 +252,11 @@ export const inspectVendor = (
     );
 
     // Auth probe
-    const authCap = yield* runProbe(executable, capability.authArgv);
+    const authCap = yield* runProbe(
+      executable,
+      capability.authArgv,
+      capability.vendor,
+    );
     const authProbe = probeRecord(
       "auth",
       executable,

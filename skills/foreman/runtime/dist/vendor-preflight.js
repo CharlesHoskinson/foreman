@@ -16275,8 +16275,6 @@ function decodeRemediation(value) {
   const kind = obj["kind"];
   const instruction = obj["instruction"];
   if (instruction === null) {
-    if (kind !== "none") {
-    }
     return { kind, instruction: null };
   }
   const instr = decodeNonBlankBounded(instruction, MAX_INSTRUCTION_BYTES);
@@ -16287,6 +16285,7 @@ function checkRecordConsistency(rec) {
   const disc = rec.facts.discoverable.value;
   const auth = rec.facts.authenticated.value;
   const curr = rec.facts.current.value;
+  const rem = rec.remediation;
   if (disc === "missing") {
     if (rec.resolvedPath !== null) {
       return vendorPreflightContractFailure("inconsistent_state");
@@ -16309,7 +16308,17 @@ function checkRecordConsistency(rec) {
   if (rec.resolvedPath !== null && !isAbsolute(rec.resolvedPath)) {
     return vendorPreflightContractFailure("relative_path");
   }
-  if (auth === "unknown" && rec.remediation.kind === "login") {
+  if (rem.kind === "none") {
+    if (rem.instruction !== null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  } else if (rem.instruction === null) {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+  if (rem.kind === "login" && auth !== "not-authenticated") {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+  if (auth === "not-authenticated" && rem.kind !== "login") {
     return vendorPreflightContractFailure("inconsistent_state");
   }
   if (auth === "not-authenticated") {
@@ -16593,16 +16602,19 @@ function decodeVendorCapabilityTableV1(value) {
 function findCapability(table2, vendor) {
   return table2.capabilities.find((c) => c.vendor === vendor) ?? null;
 }
-function argvContainsMutatingUpdate(argv) {
+var GROK_NON_MUTATING_UPDATE_CHECK_ARGV = [
+  "update",
+  "--check",
+  "--json"
+];
+function argvContainsMutatingUpdate(argv, vendorBinding) {
   if (argv.length < 2) return false;
   const tail = argv.slice(1);
-  if (tail[0] === "update") {
-    if (tail.length === 3 && tail[1] === "--check" && tail[2] === "--json") {
-      return false;
-    }
-    return true;
+  if (tail[0] !== "update") return false;
+  if (vendorBinding === "grok" && tail.length === GROK_NON_MUTATING_UPDATE_CHECK_ARGV.length && tail[0] === GROK_NON_MUTATING_UPDATE_CHECK_ARGV[0] && tail[1] === GROK_NON_MUTATING_UPDATE_CHECK_ARGV[1] && tail[2] === GROK_NON_MUTATING_UPDATE_CHECK_ARGV[2]) {
+    return false;
   }
-  return false;
+  return true;
 }
 
 // packages/orchestration/src/vendor-preflight.ts
@@ -16970,10 +16982,10 @@ var livePreflightClock = Layer_exports.succeed(PreflightClock, {
 });
 var VendorPreflight = class extends Context_exports.Tag("VendorPreflight")() {
 };
-function runProbe(executable, tailArgv) {
+function runProbe(executable, tailArgv, vendorBinding) {
   return Effect_exports.gen(function* () {
     const fullArgv = [executable, ...tailArgv];
-    if (argvContainsMutatingUpdate(fullArgv)) {
+    if (argvContainsMutatingUpdate(fullArgv, vendorBinding)) {
       return {
         _tag: "failed",
         outcome: "spawn_failed",
@@ -17038,7 +17050,7 @@ function probeRecord(kind, executable, tailArgv, capture2) {
 var inspectVendor = (capability) => Effect_exports.gen(function* () {
   const authFull = [capability.cliName, ...capability.authArgv];
   const verFull = [capability.cliName, ...capability.versionArgv];
-  if (argvContainsMutatingUpdate(authFull) || argvContainsMutatingUpdate(verFull)) {
+  if (argvContainsMutatingUpdate(authFull, capability.vendor) || argvContainsMutatingUpdate(verFull, capability.vendor)) {
     return yield* Effect_exports.fail(
       new VendorPreflightFailure(
         "mutating_argv_refused",
@@ -17058,7 +17070,11 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
     });
   }
   const executable = resolved;
-  const versionCap = yield* runProbe(executable, capability.versionArgv);
+  const versionCap = yield* runProbe(
+    executable,
+    capability.versionArgv,
+    capability.vendor
+  );
   const versionProbe = probeRecord(
     "version",
     executable,
@@ -17079,7 +17095,11 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
     capability.versionFloor,
     versionOutcome
   );
-  const authCap = yield* runProbe(executable, capability.authArgv);
+  const authCap = yield* runProbe(
+    executable,
+    capability.authArgv,
+    capability.vendor
+  );
   const authProbe = probeRecord(
     "auth",
     executable,

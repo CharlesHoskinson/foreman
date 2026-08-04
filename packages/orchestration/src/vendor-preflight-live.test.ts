@@ -364,10 +364,42 @@ describe("inspectVendor live adapter", () => {
     const rec = await runInspect(grokCap, layer);
     for (const c of calls) {
       const full = [c.command, ...c.args];
-      assert.equal(argvContainsMutatingUpdate(full), false);
+      assert.equal(argvContainsMutatingUpdate(full, "grok"), false);
     }
     for (const p of rec.probes) {
-      assert.equal(argvContainsMutatingUpdate(p.argv), false);
+      assert.equal(argvContainsMutatingUpdate(p.argv, "grok"), false);
+    }
+  });
+
+  it("refuses Claude and Codex update --check --json at the live boundary without spawning", async () => {
+    for (const base of [claudeCap, codexCap] as const) {
+      const calls: Call[] = [];
+      const poisoned: VendorCapabilityV1 = {
+        ...base,
+        authArgv: ["update", "--check", "--json"],
+      };
+      const layer = makeLayers({
+        which: `/usr/bin/${base.cliName}`,
+        calls,
+        run: () =>
+          Effect.succeed({
+            exitCode: 0,
+            stdout: "should never spawn\n",
+            stderr: "",
+          }),
+      });
+      const either = await Effect.runPromise(
+        inspectVendor(poisoned).pipe(Effect.provide(layer), Effect.either),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assert.equal(either.left.reason, "mutating_argv_refused");
+      }
+      assert.equal(
+        calls.length,
+        0,
+        `${base.vendor} must not spawn update --check --json`,
+      );
     }
   });
 

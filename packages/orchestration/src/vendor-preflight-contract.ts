@@ -371,11 +371,7 @@ function decodeRemediation(
   const kind = obj["kind"] as RemediationKind;
   const instruction = obj["instruction"];
   if (instruction === null) {
-    if (kind !== "none") {
-      // non-none remediations should carry instruction; allow null only for none
-      // (diagnose may also have instruction). Consistency is checked separately
-      // for login/unknown pairing; blank instruction is rejected when present.
-    }
+    // Instruction presence is validated against kind in checkRecordConsistency.
     return { kind, instruction: null };
   }
   const instr = decodeNonBlankBounded(instruction, MAX_INSTRUCTION_BYTES);
@@ -392,6 +388,7 @@ export function checkRecordConsistency(
   const disc = rec.facts.discoverable.value;
   const auth = rec.facts.authenticated.value;
   const curr = rec.facts.current.value;
+  const rem = rec.remediation;
 
   if (disc === "missing") {
     if (rec.resolvedPath !== null) {
@@ -418,15 +415,29 @@ export function checkRecordConsistency(
     return vendorPreflightContractFailure("relative_path");
   }
 
-  // unknown authentication never has login remediation
-  if (auth === "unknown" && rec.remediation.kind === "login") {
+  // Remediation instruction pairing:
+  // - kind "none" requires instruction === null
+  // - every other kind requires a non-null instruction
+  if (rem.kind === "none") {
+    if (rem.instruction !== null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  } else if (rem.instruction === null) {
     return vendorPreflightContractFailure("inconsistent_state");
   }
 
-  // not-authenticated may only pair with login (or diagnose is wrong);
-  // require that a not-authenticated fact comes with at least one completed
-  // auth probe (positive signed-out signal is a classification obligation —
-  // the record shape requires a completed auth probe when not-authenticated).
+  // login remediation pairs only with not-authenticated.
+  // not-authenticated pairs only with login remediation.
+  if (rem.kind === "login" && auth !== "not-authenticated") {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+  if (auth === "not-authenticated" && rem.kind !== "login") {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+
+  // not-authenticated requires a completed auth probe (positive signed-out
+  // signal is a classification obligation; the record does not carry raw
+  // probe output, so completed auth outcome is the structural gate).
   if (auth === "not-authenticated") {
     const authProbe = rec.probes.find((p) => p.kind === "auth");
     if (authProbe === undefined || authProbe.outcome !== "completed") {

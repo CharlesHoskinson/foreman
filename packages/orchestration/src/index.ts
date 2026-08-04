@@ -229,6 +229,7 @@ export {
   findCapability,
   parseVendorCapabilitiesFromToml,
   FORBIDDEN_MUTATING_UPDATE_ARGV_TAILS,
+  GROK_NON_MUTATING_UPDATE_CHECK_ARGV,
   argvContainsMutatingUpdate,
   type VendorCapabilityV1,
   type VendorCapabilityTableV1,

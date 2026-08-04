@@ -528,23 +528,41 @@ export const FORBIDDEN_MUTATING_UPDATE_ARGV_TAILS: readonly (readonly string[])[
     ["update", "--disable"],
   ] as const;
 
+/**
+ * Sole non-mutating update exception: exact tail `update --check --json`.
+ * Authorization is vendor-bound — only capability vendor `grok` may use it.
+ * Callers must pass the capability's vendor id; executable path and CLI name
+ * alone never authorize the exception.
+ */
+export const GROK_NON_MUTATING_UPDATE_CHECK_ARGV = [
+  "update",
+  "--check",
+  "--json",
+] as const;
+
+/**
+ * True when argv would execute a mutating update command.
+ *
+ * @param argv - Full argv as `[executable, ...tail]`.
+ * @param vendorBinding - Capability vendor id that owns this argv, or `null`
+ *   when no valid vendor binding exists. Path/CLI-name inference is refused.
+ */
 export function argvContainsMutatingUpdate(
   argv: readonly string[],
+  vendorBinding: VendorId | null,
 ): boolean {
-  // argv is [executable, ...tail]
   if (argv.length < 2) return false;
   const tail = argv.slice(1);
-  // Bare `update` without --check is mutating for all three vendors.
-  if (tail[0] === "update") {
-    // Allowed only exactly: update --check --json (grok non-mutating check)
-    if (
-      tail.length === 3 &&
-      tail[1] === "--check" &&
-      tail[2] === "--json"
-    ) {
-      return false;
-    }
-    return true;
+  if (tail[0] !== "update") return false;
+  // Exact non-mutating exception only for grok capability binding.
+  if (
+    vendorBinding === "grok" &&
+    tail.length === GROK_NON_MUTATING_UPDATE_CHECK_ARGV.length &&
+    tail[0] === GROK_NON_MUTATING_UPDATE_CHECK_ARGV[0] &&
+    tail[1] === GROK_NON_MUTATING_UPDATE_CHECK_ARGV[1] &&
+    tail[2] === GROK_NON_MUTATING_UPDATE_CHECK_ARGV[2]
+  ) {
+    return false;
   }
-  return false;
+  return true;
 }

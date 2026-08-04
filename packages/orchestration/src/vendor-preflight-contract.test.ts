@@ -314,6 +314,197 @@ describe("decodeVendorPreflightRecordV1", () => {
     assert.equal(decoded.reason, "inconsistent_state");
   });
 
+  it("rejects every non-none remediation whose instruction is null", () => {
+    for (const kind of ["install", "login", "update", "diagnose"] as const) {
+      const rec = validDiscoverableRecord({
+        facts: {
+          discoverable: {
+            value: "discoverable",
+            evidenceClass: "probed",
+            reason: "CLI resolved on PATH",
+          },
+          authenticated: {
+            value: kind === "login" ? "not-authenticated" : "authenticated",
+            evidenceClass: "probed",
+            reason:
+              kind === "login"
+                ? "signed out"
+                : "auth probe matched positive marker",
+          },
+          current: {
+            value: kind === "update" ? "outdated" : "current",
+            evidenceClass: "probed",
+            reason:
+              kind === "update"
+                ? "below floor"
+                : "reported version meets floor",
+          },
+        },
+        probes: [
+          {
+            kind: "version",
+            argv: ["grok", "--version"],
+            outcome: "completed",
+            exitCode: 0,
+          },
+          {
+            kind: "auth",
+            argv: ["grok", "models"],
+            outcome: "completed",
+            exitCode: 0,
+          },
+        ],
+        remediation: { kind, instruction: null },
+      });
+      const decoded = decodeVendorPreflightRecordV1(rec);
+      assert.ok(
+        isVendorPreflightContractFailure(decoded),
+        `expected reject for remediation kind ${kind} with null instruction`,
+      );
+      assert.equal(decoded.reason, "inconsistent_state");
+    }
+  });
+
+  it("rejects a none remediation whose instruction is non-null", () => {
+    const rec = validDiscoverableRecord({
+      remediation: {
+        kind: "none",
+        instruction: "should not be present",
+      },
+    });
+    const decoded = decodeVendorPreflightRecordV1(rec);
+    assert.ok(isVendorPreflightContractFailure(decoded));
+    assert.equal(decoded.reason, "inconsistent_state");
+  });
+
+  it("rejects not-authenticated paired with any remediation other than login", () => {
+    for (const kind of ["none", "install", "update", "diagnose"] as const) {
+      const rec = validDiscoverableRecord({
+        facts: {
+          discoverable: {
+            value: "discoverable",
+            evidenceClass: "probed",
+            reason: "CLI resolved on PATH",
+          },
+          authenticated: {
+            value: "not-authenticated",
+            evidenceClass: "probed",
+            reason: "signed out",
+          },
+          current: {
+            value: "unknown",
+            evidenceClass: "probed",
+            reason: "currency not evaluated after signed-out",
+          },
+        },
+        reportedVersion: null,
+        probes: [
+          {
+            kind: "auth",
+            argv: ["grok", "models"],
+            outcome: "completed",
+            exitCode: 0,
+          },
+        ],
+        remediation: {
+          kind,
+          instruction: kind === "none" ? null : "some instruction",
+        },
+      });
+      const decoded = decodeVendorPreflightRecordV1(rec);
+      assert.ok(
+        isVendorPreflightContractFailure(decoded),
+        `expected reject for not-authenticated with remediation ${kind}`,
+      );
+      assert.equal(decoded.reason, "inconsistent_state");
+    }
+  });
+
+  it("rejects login remediation paired with authentication other than not-authenticated", () => {
+    for (const auth of ["authenticated", "unknown"] as const) {
+      const rec = validDiscoverableRecord({
+        facts: {
+          discoverable: {
+            value: "discoverable",
+            evidenceClass: "probed",
+            reason: "CLI resolved on PATH",
+          },
+          authenticated: {
+            value: auth,
+            evidenceClass: "probed",
+            reason: auth === "unknown" ? "timeout" : "logged in",
+          },
+          current: {
+            value: "unknown",
+            evidenceClass: "probed",
+            reason: "version not evaluated",
+          },
+        },
+        reportedVersion: null,
+        probes: [
+          {
+            kind: "auth",
+            argv: ["grok", "models"],
+            outcome: auth === "unknown" ? "timeout" : "completed",
+            exitCode: auth === "unknown" ? null : 0,
+          },
+        ],
+        remediation: {
+          kind: "login",
+          instruction: "grok login --device-code",
+        },
+      });
+      const decoded = decodeVendorPreflightRecordV1(rec);
+      assert.ok(
+        isVendorPreflightContractFailure(decoded),
+        `expected reject for login remediation with auth ${auth}`,
+      );
+      assert.equal(decoded.reason, "inconsistent_state");
+    }
+  });
+
+  it("accepts not-authenticated with login remediation and completed auth probe", () => {
+    const rec = validDiscoverableRecord({
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "not-authenticated",
+          evidenceClass: "probed",
+          reason: "signed out",
+        },
+        current: {
+          value: "current",
+          evidenceClass: "probed",
+          reason: "meets floor",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+      ],
+      remediation: {
+        kind: "login",
+        instruction: "grok login --device-code",
+      },
+    });
+    const decoded = decodeVendorPreflightRecordV1(rec);
+    assert.ok(!isVendorPreflightContractFailure(decoded));
+  });
+
   it("rejects invalid enum values", () => {
     const rec = validDiscoverableRecord();
     const bad = {

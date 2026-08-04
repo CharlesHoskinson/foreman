@@ -81,17 +81,32 @@
       - Sprint 3 R3 live round runtime: landed as the live Effect adapters,
         `lane-round` CLI/main, and tracked `dist/lane-round.js` runtime
         artifact under the same Node 24 TypeScript program; Setup and
-        shell ownership seams remain open.
+        shell ownership seams remain open. Converged hosted evidence at
+        exact commit `88cb164e462243e62c524b818e9bf7d00c7e8385` (Grok
+        implementation + Windows correction; independent cold audit
+        approved; Linux/Windows/formal workflows green).
       - Sprint 3 R4A typed vendor preflight (partial): closed contract,
         capability table from `env/reference-manifest.toml` only, pure
         classifier, Effect `VendorPreflight` + `ProcessExec`/`PathLookup`
         live adapter, `vendor-preflight` CLI, and embedded capability
         injection into `skills/foreman/runtime/dist/vendor-preflight.js`.
-        Focused package tests 45/45 pass; host typecheck fixed by aligning
-        `PreflightCliEnv.layer` to `ProcessExec | PathLookup | PreflightClock`
-        (CLI calls `inspectVendor` directly and must not require the
-        unused `VendorPreflight` tag). Setup/`foreman-setup.sh` and lane
-        callers are intentionally not wired in this slice.
+        First-pass host evidence: focused package tests 45/45 pass;
+        typecheck fixed by aligning `PreflightCliEnv.layer` to
+        `ProcessExec | PathLookup | PreflightClock` (CLI calls
+        `inspectVendor` directly and must not require the unused
+        `VendorPreflight` tag). R4A audit correction round 2: strict
+        public-record decoder rejects non-`none` remediation with null
+        instruction, `none` with non-null instruction,
+        `not-authenticated` without `login` remediation, and `login`
+        remediation without `not-authenticated`; vendor-bound mutating
+        update guard allows exact `update --check --json` only when
+        capability vendor is `grok` (CLI name/path alone never
+        authorizes); live adapter refuses Claude/Codex poisoned vectors
+        without spawn. Focused tests 53/53 pass after correction;
+        `npm run typecheck`, `npm run build`, `npm run verify`,
+        docs-check, and strict OpenSpec validation of `vendor-preflight`
+        and `v030-release-program` all green. Setup/`foreman-setup.sh`
+        and lane callers are intentionally not wired in this slice.
       The remaining Sprint 3 work stays open (R4B+ shell migration,
         ownership, heartbeat, reaping, credential profiles, and other
         open Sprint 3 ports).
