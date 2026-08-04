@@ -406,7 +406,14 @@ if [[ " \$* " == *" tool-check-row "* ]]; then
     detail-oversize)
       # Otherwise-valid ready row whose detail is one byte over the
       # MAX_TOOL_CHECK_DETAIL_BYTES (512) contract.
-      detail=\$(python3 -c 'print("x" * 513)')
+      # Shell-native: 513 ASCII bytes (no Python/Perl/Ruby).
+      detail=\$(head -c 513 /dev/zero | tr '\\0' 'x')
+      printf '%s\tok\t%s\n' "\$vendor" "\$detail"
+      exit 0
+      ;;
+    detail-exact-512)
+      # Lower boundary: exactly 512 ASCII bytes of detail must remain ok.
+      detail=\$(head -c 512 /dev/zero | tr '\\0' 'x')
       printf '%s\tok\t%s\n' "\$vendor" "\$detail"
       exit 0
       ;;
@@ -459,10 +466,21 @@ EOF
 @test "shell adapter degrades when detail exceeds 512 UTF-8 bytes" {
   # Cold-audit residual: an otherwise-valid ready row with detail of 513
   # bytes (MAX_TOOL_CHECK_DETAIL_BYTES + 1) must not be accepted as ok.
+  # Fixture uses shell-native head/tr (no Python).
   install_spoof_node detail-oversize
   run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
   [[ "$output" == *"grok"*"degraded"* ]]
   ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
   [[ "$output" == *"LANE_READY: grok=no"* ]]
+  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
+}
+
+@test "shell adapter accepts detail of exactly 512 UTF-8 bytes" {
+  # Lower boundary: exactly MAX_TOOL_CHECK_DETAIL_BYTES must remain ok.
+  # Fixture uses shell-native head/tr (no Python).
+  install_spoof_node detail-exact-512
+  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
+  grep -Eq '^grok[[:space:]]+ok' <<<"$output"
+  [[ "$output" == *"LANE_READY: grok=yes"* ]]
   [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
 }

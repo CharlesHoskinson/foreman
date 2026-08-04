@@ -164,8 +164,11 @@
         Detail-byte boundary residual: shell rejects detail UTF-8 byte length
         > 512 (`MAX_TOOL_CHECK_DETAIL_BYTES`); exactly 512 accepted; 513+ →
         one `degraded` row. RED before fix: spoofed 513-byte ready row yielded
+        `LANE_READY: grok=yes`. Acceptance correction: Bats spoof fixtures use
+        shell-native byte generation (`head -c N /dev/zero | tr`), not
+        Python; explicit 512-byte lower-bound case → `ok` /
         `LANE_READY: grok=yes`. Focused package tests 20/20; bats
-        tool-check-auth + foreman-setup 27/27; typecheck/build/verify-runtime/
+        tool-check-auth + foreman-setup 28/28; typecheck/build/verify-runtime/
         verify green (554 pass, 1 skip). Live dogfood: both lanes `ok` with
         floor versions on this host. lane-run JSON consumption and full
         Sprint 3 close remain open.

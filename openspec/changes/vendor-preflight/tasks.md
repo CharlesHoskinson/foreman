@@ -87,8 +87,11 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
       rejects detail whose UTF-8 byte length exceeds
       `MAX_TOOL_CHECK_DETAIL_BYTES` (512); exactly 512 accepted; 513+ emits one
       `degraded` row (no `ok`, `LANE_READY: grok=no`). RED observed before fix
-      (`LANE_READY: grok=yes` on 513-byte spoof). Bats tool-check-auth +
-      foreman-setup 27/27; focused package 20/20; full verify 554 pass + 1 skip.
+      (`LANE_READY: grok=yes` on 513-byte spoof). Acceptance: Bats fixture is
+      shell-native (`head -c N /dev/zero | tr`) — no Python; explicit lower
+      bound test for exactly 512 → `ok` / `LANE_READY: grok=yes`. Bats
+      tool-check-auth + foreman-setup 28/28; focused package 20/20; full
+      verify 554 pass + 1 skip.
 - [ ] `lane-run.sh`'s readiness gate reads the JSON record rather than
       re-probing, and reproduces the recorded reason verbatim in its refusal.
 - [x] **Partial (R4B):** A vendor whose auth fact is `unknown` projects to
