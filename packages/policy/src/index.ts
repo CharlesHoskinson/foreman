@@ -84,3 +84,22 @@ export {
   liveArchitectureGit,
   ArchitectureGit,
 } from "./architecture-git.js";
+export {
+  verifyInstalledSkillRoot,
+  verifyInstalledSkillRootDetailed,
+  verifyRuntimeTree,
+  verifyRuntimeTreeDetailed,
+  compareRuntimePluginDrift,
+  compareVerifiedSnapshots,
+  liveInstallFs,
+  InstallFs,
+  parseInstallArgv,
+  runInstallCli,
+  isInstallCommand,
+  INSTALL_VERIFY_SCHEMA_VERSION,
+  type InstallVerifyResult,
+  type InstallVerifyReason,
+  type VerifiedInstallSnapshot,
+  type PluginDriftResult,
+  type InstallCliIo,
+} from "./install-verify-exports.js";

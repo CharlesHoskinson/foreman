@@ -95,7 +95,13 @@ installed `skills/foreman` tree.
 
 - A runtime bundle SHALL NOT require a repository sibling or root
   `node_modules` directory.
-- Setup and plugin-drift SHALL verify one bundle digest manifest before Use.
+- The compiled `verify-install` command SHALL verify one bundle digest
+  manifest before Use for repository, copied, symlink, and junction skill
+  roots.
+- Runtime plugin-drift (`plugin-drift` on the architecture-policy CLI) SHALL
+  compare verified source and installed runtime manifests. Legacy Setup and
+  whole-skill `tools/plugin-drift.sh` ports remain open until the
+  orchestration sprint.
 
 #### Scenario: a copied skill runs without the repository
 

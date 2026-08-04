@@ -45,6 +45,12 @@ starts until Setup has reported READY for every lane it needs:
    device/interactive auth is always an operator action Setup only
    instructs. Idempotent: a second run on an already-ready host changes
    nothing and re-reports READY. See `references/reference-environment.md`.
+   **Before Use**, verify the installed skill runtime with the compiled
+   command (repository, symlink, junction, or copied skill root):
+   `node skills/foreman/runtime/dist/architecture-policy.js verify-install
+   --skill-root <path-to-skills/foreman>`. Exit 0 and `_tag":"Pass"` are
+   required. This is the canonical installed-runtime check; the legacy
+   Setup shell script is not yet a thin adapter to it.
 2. **Use** assumes an authenticated, provisioned environment and never
    authenticates. This is enforced as a real gate, not just a report:
    `lane-run.sh`, when `LANE_VENDOR` is set, refuses to spawn the lane's

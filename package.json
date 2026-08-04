@@ -18,7 +18,9 @@
     "verify-register-doc": "tsx scripts/verify-register-doc.ts",
     "smoke:dst-0060": "tsx scripts/smoke-dst-0060.ts",
     "policy-check": "node skills/foreman/runtime/dist/architecture-policy.js check",
-    "policy:check": "node skills/foreman/runtime/dist/architecture-policy.js check"
+    "policy:check": "node skills/foreman/runtime/dist/architecture-policy.js check",
+    "verify-install": "node skills/foreman/runtime/dist/architecture-policy.js verify-install",
+    "plugin-drift": "node skills/foreman/runtime/dist/architecture-policy.js plugin-drift"
   },
   "devDependencies": {
     "@types/node": "26.1.2",

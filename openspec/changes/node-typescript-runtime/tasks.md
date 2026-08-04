@@ -41,10 +41,22 @@ below contain detailed module tasks only. They do not define release order.
       Do not mark `DST-0059` complete or relocate `DST-0060` in this task.
 - [ ] Run the policy gate in Linux and Windows CI. Workflow wiring is tracked;
       keep this open until both hosted jobs pass the exact candidate.
-- [ ] Make Setup, symlink installs, junction installs, copied installs, and
-      plugin-drift verify the same bundle manifest without resolving repository
-      siblings or root `node_modules` at runtime. The copied-install smoke is
-      green. Setup, symlink, junction, and plugin-drift wiring remain open.
+- [x] Add the canonical TypeScript installed-runtime verifier and runtime
+      plugin-drift command on the architecture-policy CLI
+      (`verify-install --skill-root`, `plugin-drift --source-root
+      --installed-root`). Prove repository, copied, path-with-spaces skill
+      roots without resolving repository siblings or root `node_modules`.
+      One verified snapshot binds `manifestDigest` and artifact descriptors
+      per pass; plugin-drift compares snapshots without a second resolve or
+      manifest open. Root/runtime/dist directory identities are rechecked;
+      skill-root is re-resolved at end. POSIX symlink and Windows junction
+      live controls use real link creation (`symlinkSync`; junction type on
+      Windows) with native `node:test` skip on the non-applicable platform.
+      Hosted Windows CI pass for the junction control is still not claimed.
+- [ ] Port legacy Setup (`foreman-setup.sh`), installers (`install.sh` /
+      `install.ps1`), and whole-skill `tools/plugin-drift.sh` to thin adapters
+      or TypeScript in the ordered orchestration sprint. Do not claim full
+      Sprint 1 installation migration while those legacy paths remain.
 
 ## M2 — migrate GraphStore
 

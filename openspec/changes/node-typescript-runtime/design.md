@@ -73,11 +73,28 @@ every runtime entry point and its production dependencies must be present in
 repository path or a root `node_modules` directory.
 
 Setup builds deterministic self-contained bundles from the workspace and writes
-one digest manifest at `skills/foreman/runtime/manifest.json`. Plugin-drift and
-Setup verify the manifest and every bundle. A copied install must copy the
-built skill tree and pass the same check. Source maps can remain local build
-artifacts, but a runtime bundle cannot be omitted from an install that
-advertises its command.
+one digest manifest at `skills/foreman/runtime/manifest.json`. The canonical
+installed-runtime verifier is the TypeScript `verify-install` command on the
+compiled architecture-policy CLI. It accepts a skill root (repository copy,
+symlink, junction, or plain directory), resolves the root once, and proves
+`runtime/manifest.json` plus every declared `runtime/dist` artifact with
+descriptor-bound reads. Links inside the resolved runtime tree are not valid
+manifest or bundle authority. Runtime plugin-drift (`plugin-drift` on the same
+CLI) runs that verifier on a source skill root and an installed skill root,
+then compares exact canonical manifest bytes and artifact descriptors. It is
+not whole-skill parity with legacy `tools/plugin-drift.sh`.
+
+**Completed for this boundary:** canonical TypeScript verification for
+repository and copy skill roots; real POSIX symlink and Windows junction
+controls in tests (each skipped on the other platform via `node:test`); one
+verified snapshot per pass (`manifestDigest` + descriptors) used by runtime
+plugin-drift without a second resolve/read; root/runtime/dist identity
+recheck and skill-root re-resolve; copied-skill smoke without repository
+siblings or root `node_modules`.
+
+**Still open:** hosted Windows CI green for the junction control; legacy Setup
+shell, installers, and full whole-skill plugin-drift ports in the ordered
+orchestration sprint. Do not mark those workflows migrated until ports land.
 
 ## Module dependency map
 

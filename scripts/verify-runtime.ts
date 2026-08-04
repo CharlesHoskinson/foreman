@@ -295,6 +295,60 @@ try {
     fail("copied policy not Pass: " + pol.stdout);
   }
   if ((pol.stderr || "").length > 0) fail("copied policy stderr not empty");
+
+  // Compiled verify-install on the copied skill (no NODE_PATH / repo modules)
+  const vi = spawnSync(
+    process.execPath,
+    [policyBundle, "verify-install", "--skill-root", copiedSkill],
+    {
+      cwd: emptyCwd,
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+      },
+    },
+  );
+  if (vi.status !== 0) {
+    fail(`copied verify-install exit ${vi.status}: ${vi.stdout} ${vi.stderr}`);
+  }
+  const viBody = JSON.parse((vi.stdout || "").trim());
+  if (viBody._tag !== "Pass") {
+    fail("copied verify-install not Pass: " + vi.stdout);
+  }
+  if ((vi.stderr || "").length > 0) {
+    fail("copied verify-install stderr not empty");
+  }
+  // Runtime plugin-drift: source skill vs copied skill must match
+  const pd = spawnSync(
+    process.execPath,
+    [
+      policyBundle,
+      "plugin-drift",
+      "--source-root",
+      join(root, "skills/foreman"),
+      "--installed-root",
+      copiedSkill,
+    ],
+    {
+      cwd: emptyCwd,
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+      },
+    },
+  );
+  if (pd.status !== 0) {
+    fail(`copied plugin-drift exit ${pd.status}: ${pd.stdout} ${pd.stderr}`);
+  }
+  const pdBody = JSON.parse((pd.stdout || "").trim());
+  if (pdBody._tag !== "Pass") {
+    fail("copied plugin-drift not Pass: " + pd.stdout);
+  }
+  if ((pd.stderr || "").length > 0) {
+    fail("copied plugin-drift stderr not empty");
+  }
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

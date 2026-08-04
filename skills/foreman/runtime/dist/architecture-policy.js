@@ -20827,8 +20827,8 @@ var fromFlatLoop = (flat, prefix, config, split) => {
         }
         if (isRight2(left3) && isRight2(right3)) {
           const path = pipe(prefix, join("."));
-          const fail9 = fromFlatLoopFail(prefix, path);
-          const [lefts, rights] = extend(fail9, fail9, pipe(left3.right, map2(right2)), pipe(right3.right, map2(right2)));
+          const fail10 = fromFlatLoopFail(prefix, path);
+          const [lefts, rights] = extend(fail10, fail10, pipe(left3.right, map2(right2)), pipe(right3.right, map2(right2)));
           return pipe(lefts, zip(rights), forEachSequential(([left4, right4]) => pipe(zip2(left4, right4), map8(([left5, right5]) => op.zip(left5, right5)))));
         }
         throw new Error("BUG: ConfigProvider.fromFlatLoop - please report an issue at https://github.com/Effect-TS/effect/issues");
@@ -22044,21 +22044,21 @@ var tryPromise = (arg) => {
     evaluate2 = arg.try;
     catcher = arg.catch;
   }
-  const fail9 = (e) => catcher ? failSync(() => catcher(e)) : fail2(new UnknownException(e, "An unknown error occurred in Effect.tryPromise"));
+  const fail10 = (e) => catcher ? failSync(() => catcher(e)) : fail2(new UnknownException(e, "An unknown error occurred in Effect.tryPromise"));
   if (evaluate2.length >= 1) {
     return async_((resolve, signal) => {
       try {
-        evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(fail9(e)));
+        evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(fail10(e)));
       } catch (e) {
-        resolve(fail9(e));
+        resolve(fail10(e));
       }
     });
   }
   return async_((resolve) => {
     try {
-      evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(fail9(e)));
+      evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(fail10(e)));
     } catch (e) {
-      resolve(fail9(e));
+      resolve(fail10(e));
     }
   });
 };
@@ -30351,11 +30351,11 @@ function parseJsonRejectDuplicateKeys(text) {
   function peek() {
     return i < s.length ? s[i] : "";
   }
-  function fail9() {
+  function fail10() {
     return parseFail(invalidJson());
   }
   function parseString() {
-    if (peek() !== '"') return fail9();
+    if (peek() !== '"') return fail10();
     i += 1;
     let out = "";
     while (i < s.length) {
@@ -30366,7 +30366,7 @@ function parseJsonRejectDuplicateKeys(text) {
       }
       if (c === "\\") {
         i += 1;
-        if (i >= s.length) return fail9();
+        if (i >= s.length) return fail10();
         const e = s[i];
         i += 1;
         switch (e) {
@@ -30391,48 +30391,48 @@ function parseJsonRejectDuplicateKeys(text) {
             out += "	";
             break;
           case "u": {
-            if (i + 4 > s.length) return fail9();
+            if (i + 4 > s.length) return fail10();
             const hex = s.slice(i, i + 4);
-            if (!/^[0-9a-fA-F]{4}$/.test(hex)) return fail9();
+            if (!/^[0-9a-fA-F]{4}$/.test(hex)) return fail10();
             out += String.fromCharCode(parseInt(hex, 16));
             i += 4;
             break;
           }
           default:
-            return fail9();
+            return fail10();
         }
       } else if (c.charCodeAt(0) < 32) {
-        return fail9();
+        return fail10();
       } else {
         out += c;
         i += 1;
       }
     }
-    return fail9();
+    return fail10();
   }
   function parseNumber() {
     const start3 = i;
     if (peek() === "-") i += 1;
-    if (peek() < "0" || peek() > "9") return fail9();
+    if (peek() < "0" || peek() > "9") return fail10();
     if (peek() === "0") {
       i += 1;
-      if (peek() >= "0" && peek() <= "9") return fail9();
+      if (peek() >= "0" && peek() <= "9") return fail10();
     } else {
       while (peek() >= "0" && peek() <= "9") i += 1;
     }
     if (peek() === ".") {
       i += 1;
-      if (peek() < "0" || peek() > "9") return fail9();
+      if (peek() < "0" || peek() > "9") return fail10();
       while (peek() >= "0" && peek() <= "9") i += 1;
     }
     if (peek() === "e" || peek() === "E") {
       i += 1;
       if (peek() === "+" || peek() === "-") i += 1;
-      if (peek() < "0" || peek() > "9") return fail9();
+      if (peek() < "0" || peek() > "9") return fail10();
       while (peek() >= "0" && peek() <= "9") i += 1;
     }
     const num = Number(s.slice(start3, i));
-    if (!Number.isFinite(num)) return fail9();
+    if (!Number.isFinite(num)) return fail10();
     return num;
   }
   function parseValue() {
@@ -30442,25 +30442,25 @@ function parseJsonRejectDuplicateKeys(text) {
     if (c === "{") return parseObject();
     if (c === "[") return parseArray();
     if (c === "t") {
-      if (s.slice(i, i + 4) !== "true") return fail9();
+      if (s.slice(i, i + 4) !== "true") return fail10();
       i += 4;
       return true;
     }
     if (c === "f") {
-      if (s.slice(i, i + 5) !== "false") return fail9();
+      if (s.slice(i, i + 5) !== "false") return fail10();
       i += 5;
       return false;
     }
     if (c === "n") {
-      if (s.slice(i, i + 4) !== "null") return fail9();
+      if (s.slice(i, i + 4) !== "null") return fail10();
       i += 4;
       return null;
     }
     if (c === "-" || c >= "0" && c <= "9") return parseNumber();
-    return fail9();
+    return fail10();
   }
   function parseObject() {
-    if (peek() !== "{") return fail9();
+    if (peek() !== "{") return fail10();
     i += 1;
     skipWs();
     const obj = /* @__PURE__ */ Object.create(null);
@@ -30476,7 +30476,7 @@ function parseJsonRejectDuplicateKeys(text) {
       if (seen.has(key)) return parseFail(duplicateJsonKey());
       seen.add(key);
       skipWs();
-      if (peek() !== ":") return fail9();
+      if (peek() !== ":") return fail10();
       i += 1;
       const val = parseValue();
       if (isParseFail(val)) return val;
@@ -30495,11 +30495,11 @@ function parseJsonRejectDuplicateKeys(text) {
         i += 1;
         return obj;
       }
-      return fail9();
+      return fail10();
     }
   }
   function parseArray() {
-    if (peek() !== "[") return fail9();
+    if (peek() !== "[") return fail10();
     i += 1;
     skipWs();
     const arr = [];
@@ -30520,7 +30520,7 @@ function parseJsonRejectDuplicateKeys(text) {
         i += 1;
         return arr;
       }
-      return fail9();
+      return fail10();
     }
   }
   const value = parseValue();
@@ -32632,42 +32632,956 @@ function parseArchitectureArgv(argv, defaultCwd) {
     repoRoot: repoRoot ?? defaultCwd
   };
 }
-function emit(io, result) {
-  io.writeStdout(canonicalize(result) + "\n");
+function emit(io2, result) {
+  io2.writeStdout(canonicalize(result) + "\n");
 }
-function runArchitectureCli(argv, io, defaultCwd) {
+function runArchitectureCli(argv, io2, defaultCwd) {
   return Effect_exports.gen(function* () {
     const parsed = parseArchitectureArgv(argv, defaultCwd);
     if ("error" in parsed) {
-      emit(io, failedResult("schema_mismatch"));
+      emit(io2, failedResult("schema_mismatch"));
       return 64;
     }
     const result = yield* runArchitectureCheck(parsed.repoRoot, parsed.base);
-    emit(io, result);
+    emit(io2, result);
     if (result._tag === "Pass") return 0;
     return 1;
   });
 }
 
-// packages/policy/src/architecture-main.ts
-var program = Effect_exports.gen(function* () {
-  return yield* runArchitectureCli(process.argv, {
-    writeStdout: (line) => {
-      process.stdout.write(line);
-    },
-    writeStderr: (line) => {
-      process.stderr.write(line);
+// packages/policy/src/install-verify.ts
+import { join as join3 } from "node:path";
+
+// packages/policy/src/install-verify-decode.ts
+function fail9(reason) {
+  return { ok: false, reason };
+}
+function normalizeRelativePath2(p) {
+  if (p.length === 0) return null;
+  if (p.startsWith("/") || p.includes("\\") || p.includes("\0")) return null;
+  if (p.includes("..")) return null;
+  let s = p;
+  while (s.startsWith("./")) s = s.slice(2);
+  if (s.includes("//")) return null;
+  return s;
+}
+var REQUIRED_V2 = /* @__PURE__ */ new Set([
+  "dist/architecture-policy.js",
+  "dist/destruction-guard.js"
+]);
+function decodeArtifactObject(aobj) {
+  const aUnk = rejectUnknownKeys(aobj, [
+    "byteLength",
+    "id",
+    "relativePath",
+    "sha256"
+  ]);
+  if (aUnk) return { ok: false, reason: "manifest_unknown_field" };
+  if (aobj["id"] !== void 0) {
+    const id = expectString(aobj["id"]);
+    if (isCoreFailure(id) || id.length === 0) {
+      return { ok: false, reason: "manifest_schema" };
     }
-  }, process.cwd());
-}).pipe(Effect_exports.provide(liveArchitectureGit));
+  }
+  const relativePathRaw = expectString(aobj["relativePath"]);
+  if (isCoreFailure(relativePathRaw)) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const relativePath = normalizeRelativePath2(relativePathRaw);
+  if (relativePath === null || !relativePath.startsWith("dist/")) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const rest = relativePath.slice("dist/".length);
+  if (rest.length === 0 || rest.includes("/") || rest.includes("\\") || rest.includes("..")) {
+    return { ok: false, reason: "manifest_relative_path" };
+  }
+  const sha256 = expectString(aobj["sha256"]);
+  if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
+    return { ok: false, reason: "manifest_sha256" };
+  }
+  const byteLength = expectNumber(aobj["byteLength"]);
+  if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
+    return { ok: false, reason: "manifest_byte_length" };
+  }
+  return {
+    ok: true,
+    artifact: { relativePath, sha256, byteLength }
+  };
+}
+function decodeInstallManifestText(text) {
+  if (!text.endsWith("\n")) {
+    return fail9("manifest_missing_trailing_lf");
+  }
+  const body = text.slice(0, -1);
+  const parsed = parseJsonRejectDuplicateKeys(body);
+  if (isCoreFailure(parsed)) {
+    return fail9("manifest_invalid_json");
+  }
+  let canonicalBody;
+  try {
+    canonicalBody = canonicalize(parsed);
+  } catch {
+    return fail9("manifest_non_canonical");
+  }
+  if (canonicalBody !== body) {
+    return fail9("manifest_non_canonical");
+  }
+  const obj = expectObject(parsed);
+  if (isCoreFailure(obj)) return fail9("manifest_schema");
+  const schemaVersion = obj["schemaVersion"];
+  if (schemaVersion === 1) {
+    const unk = rejectUnknownKeys(obj, ["bundle", "nodeRange", "schemaVersion"]);
+    if (unk) return fail9("manifest_unknown_field");
+    const nodeRange = expectString(obj["nodeRange"]);
+    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
+      return fail9("manifest_node_range");
+    }
+    const bundle = expectObject(obj["bundle"]);
+    if (isCoreFailure(bundle)) return fail9("manifest_schema");
+    const bUnk = rejectUnknownKeys(bundle, [
+      "byteLength",
+      "relativePath",
+      "sha256"
+    ]);
+    if (bUnk) return fail9("manifest_unknown_field");
+    const relativePathRaw = expectString(bundle["relativePath"]);
+    if (isCoreFailure(relativePathRaw) || relativePathRaw !== "dist/destruction-guard.js") {
+      return fail9("manifest_relative_path");
+    }
+    const sha256 = expectString(bundle["sha256"]);
+    if (isCoreFailure(sha256) || !isSha256Hex(sha256)) {
+      return fail9("manifest_sha256");
+    }
+    const byteLength = expectNumber(bundle["byteLength"]);
+    if (isCoreFailure(byteLength) || !Number.isInteger(byteLength) || byteLength < 0) {
+      return fail9("manifest_byte_length");
+    }
+    return {
+      ok: true,
+      manifest: {
+        schemaVersion: 1,
+        nodeRange,
+        artifacts: [{ relativePath: relativePathRaw, sha256, byteLength }],
+        canonicalBody
+      }
+    };
+  }
+  if (schemaVersion === 2) {
+    const unk = rejectUnknownKeys(obj, [
+      "artifacts",
+      "nodeRange",
+      "schemaVersion"
+    ]);
+    if (unk) return fail9("manifest_unknown_field");
+    const sv = expectExactLiteral(obj["schemaVersion"], 2);
+    if (isCoreFailure(sv)) return fail9("manifest_schema");
+    const nodeRange = expectString(obj["nodeRange"]);
+    if (isCoreFailure(nodeRange) || nodeRange !== ">=24 <25") {
+      return fail9("manifest_node_range");
+    }
+    const artifactsRaw = expectArray(obj["artifacts"]);
+    if (isCoreFailure(artifactsRaw) || artifactsRaw.length === 0) {
+      return fail9("manifest_schema");
+    }
+    const artifacts = [];
+    const seen = /* @__PURE__ */ new Set();
+    const required = new Set(REQUIRED_V2);
+    for (const item of artifactsRaw) {
+      const aobj = expectObject(item);
+      if (isCoreFailure(aobj)) return fail9("manifest_schema");
+      const art = decodeArtifactObject(aobj);
+      if (!art.ok) return fail9(art.reason);
+      if (seen.has(art.artifact.relativePath)) {
+        return fail9("manifest_duplicate_path");
+      }
+      seen.add(art.artifact.relativePath);
+      artifacts.push(art.artifact);
+      required.delete(art.artifact.relativePath);
+    }
+    if (required.size > 0) {
+      return fail9("manifest_missing_required_artifact");
+    }
+    return {
+      ok: true,
+      manifest: {
+        schemaVersion: 2,
+        nodeRange,
+        artifacts,
+        canonicalBody
+      }
+    };
+  }
+  return fail9("manifest_schema");
+}
+
+// packages/policy/src/install-verify-fs.ts
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readdirSync,
+  readSync,
+  realpathSync
+} from "node:fs";
+var InstallFsError = class {
+  constructor(kind) {
+    this.kind = kind;
+  }
+  _tag = "InstallFsError";
+};
+var InstallFs = class extends Context_exports.Tag("InstallFs")() {
+};
+function identityFromStats(s) {
+  return {
+    dev: String(s.dev),
+    ino: String(s.ino),
+    size: s.size,
+    nlink: s.nlink,
+    mode: s.mode,
+    mtimeMs: s.mtimeMs,
+    ctimeMs: s.ctimeMs,
+    isFile: s.isFile(),
+    isDirectory: s.isDirectory(),
+    isSymbolicLink: s.isSymbolicLink()
+  };
+}
+function identitiesEqual(a, b) {
+  return a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.nlink === b.nlink && a.mode === b.mode && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs && a.isFile === b.isFile && a.isDirectory === b.isDirectory && a.isSymbolicLink === b.isSymbolicLink;
+}
+function openFlags() {
+  const nofollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
+  return fsConstants.O_RDONLY | nofollow;
+}
+function readFdBoundedSync(fd, maxBytes) {
+  const cap = maxBytes + 1;
+  const buf = Buffer.allocUnsafe(cap);
+  let offset = 0;
+  while (offset < cap) {
+    const n = readSync(fd, buf, offset, cap - offset, offset);
+    if (n === 0) break;
+    offset += n;
+  }
+  if (offset > maxBytes) {
+    throw new InstallFsError("oversize");
+  }
+  return new Uint8Array(buf.buffer, buf.byteOffset, offset);
+}
+var liveInstallFs = Layer_exports.succeed(InstallFs, {
+  resolvePath: (path) => Effect_exports.try({
+    try: () => realpathSync(path),
+    catch: () => new InstallFsError("not_resolved")
+  }),
+  lstat: (path) => Effect_exports.try({
+    try: () => identityFromStats(lstatSync(path)),
+    catch: (e) => {
+      const err = e;
+      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+        return new InstallFsError("missing");
+      }
+      return new InstallFsError("unreadable");
+    }
+  }),
+  withOpenFile: (path, use) => Effect_exports.acquireUseRelease(
+    Effect_exports.try({
+      try: () => {
+        const fd = openSync(path, openFlags());
+        try {
+          const st = fstatSync(fd);
+          return { fd, identity: identityFromStats(st) };
+        } catch (e) {
+          closeSync(fd);
+          throw e;
+        }
+      },
+      catch: (e) => {
+        if (e instanceof InstallFsError) return e;
+        const err = e;
+        if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+          return new InstallFsError("missing");
+        }
+        return new InstallFsError("unreadable");
+      }
+    }),
+    ({ fd, identity: identity2 }) => use({
+      identity: identity2,
+      readBounded: (maxBytes) => Effect_exports.try({
+        try: () => readFdBoundedSync(fd, maxBytes),
+        catch: (e) => e instanceof InstallFsError ? e : new InstallFsError("unreadable")
+      }),
+      recheckIdentity: () => Effect_exports.try({
+        try: () => identityFromStats(fstatSync(fd)),
+        catch: () => new InstallFsError("unreadable")
+      })
+    }),
+    ({ fd }) => Effect_exports.sync(() => {
+      try {
+        closeSync(fd);
+      } catch {
+      }
+    })
+  ),
+  readdirNames: (path) => Effect_exports.try({
+    try: () => readdirSync(path),
+    catch: (e) => {
+      const err = e;
+      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+        return new InstallFsError("missing");
+      }
+      return new InstallFsError("unreadable");
+    }
+  })
+});
+
+// packages/policy/src/install-verify-schema.ts
+var INSTALL_VERIFY_SCHEMA_VERSION = 1;
+function installPass(manifestDigest, artifacts) {
+  const sorted = [...artifacts].sort(
+    (a, b) => a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0
+  );
+  return {
+    schemaVersion: INSTALL_VERIFY_SCHEMA_VERSION,
+    _tag: "Pass",
+    manifestDigest,
+    artifacts: sorted
+  };
+}
+function installFail(reason, artifact = null) {
+  return {
+    schemaVersion: INSTALL_VERIFY_SCHEMA_VERSION,
+    _tag: "Fail",
+    reason,
+    artifact
+  };
+}
+function installFailed(reason = "schema_mismatch") {
+  return {
+    schemaVersion: INSTALL_VERIFY_SCHEMA_VERSION,
+    _tag: "Failed",
+    reason,
+    artifact: null
+  };
+}
+function pluginDriftPass() {
+  return {
+    schemaVersion: INSTALL_VERIFY_SCHEMA_VERSION,
+    _tag: "Pass"
+  };
+}
+function pluginDriftFail(args2) {
+  return {
+    schemaVersion: INSTALL_VERIFY_SCHEMA_VERSION,
+    _tag: "Fail",
+    reason: args2.reason,
+    sourceReason: args2.sourceReason ?? null,
+    installedReason: args2.installedReason ?? null
+  };
+}
+function pluginDriftFailed(reason = "schema_mismatch") {
+  return {
+    schemaVersion: INSTALL_VERIFY_SCHEMA_VERSION,
+    _tag: "Failed",
+    reason,
+    sourceReason: null,
+    installedReason: null
+  };
+}
+
+// packages/policy/src/install-verify.ts
+function mapFsMissing(e, missing, unreadable) {
+  if (e.kind === "missing") return installFail(missing);
+  if (e.kind === "oversize") return installFail("manifest_oversize");
+  return installFail(unreadable);
+}
+function joinRuntime(runtimeRoot, ...parts2) {
+  return join3(runtimeRoot, ...parts2);
+}
+function isHardLinked(id) {
+  return id.nlink > 1;
+}
+function verifyRuntimeTreeDetailed(runtimeRoot) {
+  return Effect_exports.gen(function* () {
+    const fs = yield* InstallFs;
+    const rtStatE = yield* Effect_exports.either(fs.lstat(runtimeRoot));
+    if (rtStatE._tag === "Left") {
+      return {
+        ok: false,
+        result: mapFsMissing(
+          rtStatE.left,
+          "runtime_missing",
+          "runtime_unreadable"
+        )
+      };
+    }
+    const rtStat = rtStatE.right;
+    if (rtStat.isSymbolicLink) {
+      return { ok: false, result: installFail("runtime_linked") };
+    }
+    if (!rtStat.isDirectory) {
+      return {
+        ok: false,
+        result: installFail("runtime_not_directory")
+      };
+    }
+    const distDir = joinRuntime(runtimeRoot, "dist");
+    const distPreE = yield* Effect_exports.either(fs.lstat(distDir));
+    if (distPreE._tag === "Left") {
+      if (distPreE.left.kind === "missing") {
+        return { ok: false, result: installFail("dist_missing") };
+      }
+      return { ok: false, result: installFail("dist_unreadable") };
+    }
+    const distPre = distPreE.right;
+    if (distPre.isSymbolicLink) {
+      return { ok: false, result: installFail("dist_linked") };
+    }
+    if (!distPre.isDirectory) {
+      return {
+        ok: false,
+        result: installFail("dist_not_directory")
+      };
+    }
+    const manifestPath = joinRuntime(runtimeRoot, "manifest.json");
+    const manifestRead = yield* readRegularFile(fs, {
+      path: manifestPath,
+      maxBytes: MAX_INPUT_BYTES,
+      linked: "manifest_linked",
+      notFile: "manifest_not_file",
+      hardLinked: "manifest_hard_linked",
+      oversize: "manifest_oversize",
+      unreadable: "manifest_unreadable",
+      missing: "manifest_missing",
+      identityChanged: "manifest_identity_changed",
+      artifact: null
+    });
+    if (!manifestRead.ok) {
+      return { ok: false, result: manifestRead.result };
+    }
+    const manifestDigest = sha256Hex(manifestRead.bytes);
+    const text = decodeUtf8Fatal(manifestRead.bytes);
+    if (isCoreFailure(text)) {
+      return {
+        ok: false,
+        result: installFail("manifest_invalid_json")
+      };
+    }
+    const decoded = decodeInstallManifestText(text);
+    if (!decoded.ok) {
+      return { ok: false, result: installFail(decoded.reason) };
+    }
+    const artifacts = decoded.manifest.artifacts;
+    for (const art of artifacts) {
+      const one = yield* verifyOneArtifact(fs, runtimeRoot, art);
+      if (one !== null) return { ok: false, result: one };
+    }
+    const dist = yield* enumerateDistExact(fs, runtimeRoot, distPre);
+    if (!dist.ok) return { ok: false, result: dist.result };
+    const declared = new Set(artifacts.map((a) => a.relativePath));
+    for (const name of dist.names) {
+      if (!declared.has(name)) {
+        return {
+          ok: false,
+          result: installFail("dist_extra_entry", name)
+        };
+      }
+    }
+    for (const name of declared) {
+      if (!dist.names.has(name)) {
+        return {
+          ok: false,
+          result: installFail("bundle_missing", name)
+        };
+      }
+    }
+    const rtPostE = yield* Effect_exports.either(fs.lstat(runtimeRoot));
+    if (rtPostE._tag === "Left" || !identitiesEqual(rtStat, rtPostE.right)) {
+      return {
+        ok: false,
+        result: installFail("runtime_identity_changed")
+      };
+    }
+    const distPostE = yield* Effect_exports.either(fs.lstat(distDir));
+    if (distPostE._tag === "Left" || !identitiesEqual(distPre, distPostE.right)) {
+      return {
+        ok: false,
+        result: installFail("dist_identity_changed")
+      };
+    }
+    const pass = installPass(manifestDigest, artifacts);
+    return {
+      ok: true,
+      result: pass,
+      snapshot: {
+        manifestDigest: pass.manifestDigest,
+        artifacts: pass.artifacts
+      }
+    };
+  });
+}
+function verifyInstalledSkillRootDetailed(skillRoot) {
+  return Effect_exports.gen(function* () {
+    const fs = yield* InstallFs;
+    const preE = yield* Effect_exports.either(fs.lstat(skillRoot));
+    if (preE._tag === "Left") {
+      return {
+        ok: false,
+        result: mapFsMissing(
+          preE.left,
+          "skill_root_missing",
+          "skill_root_unreadable"
+        )
+      };
+    }
+    const resolvedE = yield* Effect_exports.either(fs.resolvePath(skillRoot));
+    if (resolvedE._tag === "Left") {
+      return {
+        ok: false,
+        result: installFail("skill_root_unreadable")
+      };
+    }
+    const resolved = resolvedE.right;
+    const rootStatE = yield* Effect_exports.either(fs.lstat(resolved));
+    if (rootStatE._tag === "Left") {
+      return {
+        ok: false,
+        result: mapFsMissing(
+          rootStatE.left,
+          "skill_root_missing",
+          "skill_root_unreadable"
+        )
+      };
+    }
+    const rootStat = rootStatE.right;
+    if (rootStat.isSymbolicLink || !rootStat.isDirectory) {
+      return {
+        ok: false,
+        result: installFail("skill_root_not_directory")
+      };
+    }
+    const runtimeRoot = joinRuntime(resolved, "runtime");
+    const tree = yield* verifyRuntimeTreeDetailed(runtimeRoot);
+    if (!tree.ok) return tree;
+    const rootPostE = yield* Effect_exports.either(fs.lstat(resolved));
+    if (rootPostE._tag === "Left" || !identitiesEqual(rootStat, rootPostE.right)) {
+      return {
+        ok: false,
+        result: installFail("skill_root_identity_changed")
+      };
+    }
+    const resolvedAgainE = yield* Effect_exports.either(fs.resolvePath(skillRoot));
+    if (resolvedAgainE._tag === "Left") {
+      return {
+        ok: false,
+        result: installFail("skill_root_retargeted")
+      };
+    }
+    if (resolvedAgainE.right !== resolved) {
+      return {
+        ok: false,
+        result: installFail("skill_root_retargeted")
+      };
+    }
+    return {
+      ok: true,
+      result: tree.result,
+      snapshot: tree.snapshot
+    };
+  });
+}
+function verifyInstalledSkillRoot(skillRoot) {
+  return Effect_exports.gen(function* () {
+    const r = yield* verifyInstalledSkillRootDetailed(skillRoot);
+    return r.result;
+  });
+}
+function readRegularFile(fs, args2) {
+  return Effect_exports.gen(function* () {
+    const preE = yield* Effect_exports.either(fs.lstat(args2.path));
+    if (preE._tag === "Left") {
+      if (preE.left.kind === "missing") {
+        return {
+          ok: false,
+          result: installFail(args2.missing, args2.artifact)
+        };
+      }
+      return {
+        ok: false,
+        result: installFail(args2.unreadable, args2.artifact)
+      };
+    }
+    const pre = preE.right;
+    if (pre.isSymbolicLink) {
+      return {
+        ok: false,
+        result: installFail(args2.linked, args2.artifact)
+      };
+    }
+    if (!pre.isFile) {
+      return {
+        ok: false,
+        result: installFail(args2.notFile, args2.artifact)
+      };
+    }
+    if (isHardLinked(pre)) {
+      return {
+        ok: false,
+        result: installFail(args2.hardLinked, args2.artifact)
+      };
+    }
+    if (pre.size > args2.maxBytes) {
+      return {
+        ok: false,
+        result: installFail(args2.oversize, args2.artifact)
+      };
+    }
+    const opened = yield* Effect_exports.either(
+      fs.withOpenFile(
+        args2.path,
+        (file) => Effect_exports.gen(function* () {
+          if (!identitiesEqual(pre, file.identity)) {
+            return yield* Effect_exports.fail(new InstallFsError("identity_changed"));
+          }
+          if (file.identity.isSymbolicLink || !file.identity.isFile) {
+            return yield* Effect_exports.fail(new InstallFsError("unreadable"));
+          }
+          if (isHardLinked(file.identity)) {
+            return yield* Effect_exports.fail(new InstallFsError("hard_linked"));
+          }
+          const bytes = yield* file.readBounded(args2.maxBytes);
+          const after3 = yield* file.recheckIdentity();
+          if (!identitiesEqual(file.identity, after3)) {
+            return yield* Effect_exports.fail(new InstallFsError("identity_changed"));
+          }
+          return { bytes, identity: file.identity };
+        })
+      )
+    );
+    if (opened._tag === "Left") {
+      const e = opened.left;
+      if (e.kind === "missing") {
+        return {
+          ok: false,
+          result: installFail(args2.missing, args2.artifact)
+        };
+      }
+      if (e.kind === "oversize") {
+        return {
+          ok: false,
+          result: installFail(args2.oversize, args2.artifact)
+        };
+      }
+      if (e.kind === "hard_linked") {
+        return {
+          ok: false,
+          result: installFail(args2.hardLinked, args2.artifact)
+        };
+      }
+      if (e.kind === "identity_changed") {
+        return {
+          ok: false,
+          result: installFail(args2.identityChanged, args2.artifact)
+        };
+      }
+      return {
+        ok: false,
+        result: installFail(args2.unreadable, args2.artifact)
+      };
+    }
+    return { ok: true, bytes: opened.right.bytes };
+  });
+}
+function verifyOneArtifact(fs, runtimeRoot, art) {
+  return Effect_exports.gen(function* () {
+    if (art.relativePath.includes("..") || art.relativePath.includes("\\") || !art.relativePath.startsWith("dist/")) {
+      return installFail("bundle_path_escape", art.relativePath);
+    }
+    const rest = art.relativePath.slice("dist/".length);
+    if (rest.includes("/") || rest.length === 0) {
+      return installFail("bundle_path_escape", art.relativePath);
+    }
+    const full = joinRuntime(runtimeRoot, art.relativePath);
+    const read = yield* readRegularFile(fs, {
+      path: full,
+      maxBytes: MAX_BLOB_BYTES,
+      linked: "bundle_linked",
+      notFile: "bundle_not_file",
+      hardLinked: "bundle_hard_linked",
+      oversize: "bundle_oversize",
+      unreadable: "bundle_unreadable",
+      missing: "bundle_missing",
+      identityChanged: "bundle_identity_changed",
+      artifact: art.relativePath
+    });
+    if (!read.ok) return read.result;
+    if (read.bytes.byteLength !== art.byteLength) {
+      return installFail("bundle_size_mismatch", art.relativePath);
+    }
+    const dig = sha256Hex(read.bytes);
+    if (dig !== art.sha256) {
+      return installFail("bundle_digest_mismatch", art.relativePath);
+    }
+    return null;
+  });
+}
+function enumerateDistExact(fs, runtimeRoot, distPre) {
+  return Effect_exports.gen(function* () {
+    const distDir = joinRuntime(runtimeRoot, "dist");
+    const stE = yield* Effect_exports.either(fs.lstat(distDir));
+    if (stE._tag === "Left") {
+      return {
+        ok: false,
+        result: installFail("dist_identity_changed")
+      };
+    }
+    if (!identitiesEqual(distPre, stE.right)) {
+      return {
+        ok: false,
+        result: installFail("dist_identity_changed")
+      };
+    }
+    const namesE = yield* Effect_exports.either(fs.readdirNames(distDir));
+    if (namesE._tag === "Left") {
+      return { ok: false, result: installFail("dist_unreadable") };
+    }
+    const names = /* @__PURE__ */ new Set();
+    const fold = /* @__PURE__ */ new Map();
+    for (const entName of namesE.right) {
+      if (entName.includes("/") || entName.includes("\\") || entName.includes("\0") || entName === ".." || entName === ".") {
+        return {
+          ok: false,
+          result: installFail("dist_path_escape", `dist/${entName}`)
+        };
+      }
+      const rel = `dist/${entName}`;
+      const folded = entName.toLowerCase();
+      const prior = fold.get(folded);
+      if (prior !== void 0 && prior !== entName) {
+        return {
+          ok: false,
+          result: installFail("dist_case_fold_collision", rel)
+        };
+      }
+      fold.set(folded, entName);
+      const full = joinRuntime(distDir, entName);
+      const estE = yield* Effect_exports.either(fs.lstat(full));
+      if (estE._tag === "Left") {
+        return { ok: false, result: installFail("dist_unreadable") };
+      }
+      const est = estE.right;
+      if (est.isSymbolicLink) {
+        return {
+          ok: false,
+          result: installFail("dist_entry_linked", rel)
+        };
+      }
+      if (est.isDirectory) {
+        return {
+          ok: false,
+          result: installFail("dist_unexpected_directory", rel)
+        };
+      }
+      if (!est.isFile) {
+        return {
+          ok: false,
+          result: installFail("dist_entry_not_file", rel)
+        };
+      }
+      if (names.has(rel)) {
+        return {
+          ok: false,
+          result: installFail("dist_duplicate_path", rel)
+        };
+      }
+      names.add(rel);
+    }
+    return { ok: true, names };
+  });
+}
+
+// packages/policy/src/install-plugin-drift.ts
+function artifactKey(a) {
+  return `${a.relativePath}\0${a.sha256}\0${a.byteLength}`;
+}
+function artifactSetEqual(a, b) {
+  if (a.length !== b.length) return false;
+  const sa = [...a].map(artifactKey).sort((x, y) => x < y ? -1 : x > y ? 1 : 0);
+  const sb = [...b].map(artifactKey).sort((x, y) => x < y ? -1 : x > y ? 1 : 0);
+  for (let i = 0; i < sa.length; i += 1) {
+    if (sa[i] !== sb[i]) return false;
+  }
+  return true;
+}
+function failReasonOf(r) {
+  if (r._tag === "Pass") return "internal_failed";
+  return r.reason;
+}
+function compareVerifiedSnapshots(source, installed) {
+  if (source.manifestDigest !== installed.manifestDigest) {
+    return pluginDriftFail({ reason: "manifest_mismatch" });
+  }
+  if (!artifactSetEqual(source.artifacts, installed.artifacts)) {
+    return pluginDriftFail({ reason: "artifact_set_mismatch" });
+  }
+  return pluginDriftPass();
+}
+function compareRuntimePluginDrift(sourceRoot, installedRoot) {
+  return Effect_exports.gen(function* () {
+    const source = yield* verifyInstalledSkillRootDetailed(sourceRoot);
+    if (!source.ok) {
+      return pluginDriftFail({
+        reason: "source_invalid",
+        sourceReason: failReasonOf(source.result)
+      });
+    }
+    const installed = yield* verifyInstalledSkillRootDetailed(installedRoot);
+    if (!installed.ok) {
+      return pluginDriftFail({
+        reason: "installed_invalid",
+        installedReason: failReasonOf(installed.result)
+      });
+    }
+    return compareVerifiedSnapshots(source.snapshot, installed.snapshot);
+  });
+}
+
+// packages/policy/src/install-verify-cli.ts
+function parseInstallArgv(argv) {
+  let args2 = [...argv];
+  if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].includes("node.exe") || args2[0].endsWith("nodejs"))) {
+    args2 = args2.slice(1);
+  }
+  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("architecture-policy"))) {
+    args2 = args2.slice(1);
+  }
+  if (args2.length === 0) return { error: true };
+  const command = args2[0];
+  if (command !== "verify-install" && command !== "plugin-drift") {
+    return { error: true };
+  }
+  if (command === "verify-install") {
+    let skillRoot = null;
+    const seen2 = /* @__PURE__ */ new Set();
+    for (let i = 1; i < args2.length; i += 1) {
+      const a = args2[i];
+      if (!a.startsWith("--")) return { error: true };
+      if (a === "--skill-root") {
+        if (seen2.has("skill-root")) return { error: true };
+        seen2.add("skill-root");
+        const v = args2[i + 1];
+        if (v === void 0 || v.startsWith("--") || v.length === 0) {
+          return { error: true };
+        }
+        skillRoot = v;
+        i += 1;
+        continue;
+      }
+      return { error: true };
+    }
+    if (skillRoot === null) return { error: true };
+    return { command: "verify-install", skillRoot };
+  }
+  let sourceRoot = null;
+  let installedRoot = null;
+  const seen = /* @__PURE__ */ new Set();
+  for (let i = 1; i < args2.length; i += 1) {
+    const a = args2[i];
+    if (!a.startsWith("--")) return { error: true };
+    if (a === "--source-root") {
+      if (seen.has("source-root")) return { error: true };
+      seen.add("source-root");
+      const v = args2[i + 1];
+      if (v === void 0 || v.startsWith("--") || v.length === 0) {
+        return { error: true };
+      }
+      sourceRoot = v;
+      i += 1;
+      continue;
+    }
+    if (a === "--installed-root") {
+      if (seen.has("installed-root")) return { error: true };
+      seen.add("installed-root");
+      const v = args2[i + 1];
+      if (v === void 0 || v.startsWith("--") || v.length === 0) {
+        return { error: true };
+      }
+      installedRoot = v;
+      i += 1;
+      continue;
+    }
+    return { error: true };
+  }
+  if (sourceRoot === null || installedRoot === null) return { error: true };
+  return { command: "plugin-drift", sourceRoot, installedRoot };
+}
+function emit2(io2, value) {
+  io2.writeStdout(canonicalize(value) + "\n");
+}
+function runInstallCli(argv, io2) {
+  return Effect_exports.gen(function* () {
+    const parsed = parseInstallArgv(argv);
+    if ("error" in parsed) {
+      const raw = argv.join(" ");
+      if (raw.includes("plugin-drift")) {
+        emit2(io2, pluginDriftFailed("schema_mismatch"));
+      } else {
+        emit2(io2, installFailed("schema_mismatch"));
+      }
+      return 64;
+    }
+    if (parsed.command === "verify-install") {
+      const result2 = yield* verifyInstalledSkillRoot(
+        parsed.skillRoot
+      );
+      emit2(io2, result2);
+      return result2._tag === "Pass" ? 0 : 1;
+    }
+    const result = yield* compareRuntimePluginDrift(
+      parsed.sourceRoot,
+      parsed.installedRoot
+    );
+    emit2(io2, result);
+    return result._tag === "Pass" ? 0 : 1;
+  });
+}
+function isInstallCommand(argv) {
+  let args2 = [...argv];
+  if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].includes("node.exe") || args2[0].endsWith("nodejs"))) {
+    args2 = args2.slice(1);
+  }
+  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("architecture-policy"))) {
+    args2 = args2.slice(1);
+  }
+  const c = args2[0];
+  return c === "verify-install" || c === "plugin-drift";
+}
+
+// packages/policy/src/architecture-main.ts
+var io = {
+  writeStdout: (line) => {
+    process.stdout.write(line);
+  },
+  writeStderr: (line) => {
+    process.stderr.write(line);
+  }
+};
+var program = isInstallCommand(process.argv) ? runInstallCli(process.argv, io).pipe(Effect_exports.provide(liveInstallFs)) : runArchitectureCli(process.argv, io, process.cwd()).pipe(
+  Effect_exports.provide(liveArchitectureGit)
+);
 Effect_exports.runPromise(program).then(
   (code) => {
     process.exit(code);
   },
   () => {
-    process.stdout.write(
-      '{"_tag":"Failed","base":null,"findings":[],"head":null,"legacyDebt":[],"mergeBase":null,"reason":"internal_failed","schemaVersion":1}\n'
-    );
+    if (isInstallCommand(process.argv)) {
+      process.stdout.write(
+        '{"_tag":"Failed","artifact":null,"reason":"internal_failed","schemaVersion":1}\n'
+      );
+    } else {
+      process.stdout.write(
+        '{"_tag":"Failed","base":null,"findings":[],"head":null,"legacyDebt":[],"mergeBase":null,"reason":"internal_failed","schemaVersion":1}\n'
+      );
+    }
     process.exit(1);
   }
 );
