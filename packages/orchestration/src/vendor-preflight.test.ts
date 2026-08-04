@@ -133,6 +133,34 @@ describe("parseFirstSemVer / compareSemVer", () => {
       prerelease: ["beta", 0],
     });
   });
+
+  it("accepts only valid SemVer build metadata identifiers", () => {
+    // Leading, trailing, and doubled dots are invalid when + is present.
+    assert.equal(parseFirstSemVer("1.2.3+foo..bar"), null);
+    assert.equal(parseFirstSemVer("1.2.3+foo."), null);
+    assert.equal(parseFirstSemVer("1.2.3+."), null);
+    assert.equal(parseFirstSemVer("1.2.3+"), null);
+    assert.equal(parseFirstSemVer("1.2.3+.bar"), null);
+    // Empty build after + is invalid; bare + must not yield a core match.
+    assert.equal(parseFirstSemVer("tool 1.2.3+ end"), null);
+    // Valid build: nonempty dot-separated alnum/hyphen ids; leading zeroes OK.
+    assert.deepEqual(parseFirstSemVer("1.2.3+build.007"), {
+      major: 1,
+      minor: 2,
+      patch: 3,
+      prerelease: [],
+    });
+    assert.deepEqual(parseFirstSemVer("1.2.3-beta.1+exp.sha.5114f85"), {
+      major: 1,
+      minor: 2,
+      patch: 3,
+      prerelease: ["beta", 1],
+    });
+    // Build metadata is precedence-neutral (ignored in compare).
+    const a = parseFirstSemVer("1.0.0+aaa")!;
+    const b = parseFirstSemVer("1.0.0+zzz")!;
+    assert.equal(compareSemVer(a, b), 0);
+  });
 });
 
 describe("classifyCurrency", () => {

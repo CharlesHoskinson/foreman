@@ -149,7 +149,8 @@ function decodeStringArray(
 
 /**
  * Capability argv tails: same UTF-8 entry and total bounds as the public probe
- * argv contract (per-entry 65_536, total 262_144, entry count 64).
+ * argv contract (per-entry 65_536, total 262_144), with one entry reserved for
+ * the resolved executable so the full probe vector never exceeds 64 entries.
  */
 function decodeCapabilityArgv(
   v: unknown,
@@ -157,7 +158,9 @@ function decodeCapabilityArgv(
   if (!Array.isArray(v)) {
     return vendorPreflightContractFailure("invalid_schema");
   }
-  if (v.length === 0 || v.length > MAX_PROBE_ARGV_ENTRIES) {
+  // Reserve one slot for the resolved executable in the full probe argv.
+  const maxTailEntries = MAX_PROBE_ARGV_ENTRIES - 1;
+  if (v.length === 0 || v.length > maxTailEntries) {
     return vendorPreflightContractFailure("bound_exceeded");
   }
   let total = 0;

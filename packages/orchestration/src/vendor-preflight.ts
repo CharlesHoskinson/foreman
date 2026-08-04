@@ -32,19 +32,37 @@ export type SemVer = {
  * Standalone SemVer core + optional prerelease/build.
  * Negative lookbehind/lookahead keep the token free of adjacent word chars
  * and reject an extra numeric component (e.g. 1.2.3.4 must not yield 1.2.3).
+ * Lookahead includes `+` so a bare trailing `+` cannot match the core alone.
+ * Build metadata is captured and validated separately.
  */
 const SEMVER_TOKEN =
-  /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?(?![\w.-])/;
+  /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?(?![\w.+-])/;
+
+/**
+ * SemVer build metadata: one or more nonempty dot-separated identifiers,
+ * each using only ASCII alphanumeric or hyphen. Leading zeroes in numeric
+ * build identifiers are allowed. Rejects leading/trailing/doubled dots.
+ */
+function isValidBuildMetadata(build: string): boolean {
+  if (build.length === 0) return false;
+  const ids = build.split(".");
+  for (const id of ids) {
+    if (id.length === 0) return false;
+    if (!/^[0-9A-Za-z-]+$/.test(id)) return false;
+  }
+  return true;
+}
 
 /**
  * Parse the first standalone semantic-version token from vendor version output.
  * Accepts an optional leading `v`. Returns null when unparsable or absent.
  * Does not extract a three-part core from a longer dotted numeric sequence.
+ * When `+` is present, build metadata must be valid (ignored for precedence).
  */
 export function parseFirstSemVer(text: string | null | undefined): SemVer | null {
   if (text === null || text === undefined) return null;
   if (typeof text !== "string" || text.trim().length === 0) return null;
-  // Scan for candidates; skip invalid prerelease / unsafe numbers and continue.
+  // Scan for candidates; skip invalid prerelease / build / unsafe numbers.
   const re = new RegExp(SEMVER_TOKEN.source, "g");
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -89,6 +107,16 @@ export function parseFirstSemVer(text: string | null | undefined): SemVer | null
       }
     }
     if (!preOk) continue;
+
+    // When + is present, require valid build metadata (captured in group 5).
+    const buildRaw = m[5];
+    const matched = m[0]!;
+    if (matched.includes("+")) {
+      if (buildRaw === undefined || !isValidBuildMetadata(buildRaw)) {
+        continue;
+      }
+    }
+
     return { major, minor, patch, prerelease };
   }
   return null;

@@ -446,6 +446,112 @@ describe("inspectVendor live adapter", () => {
     }
   });
 
+  it("preserves exact PathLookup.which bytes including legal whitespace when resolving", async () => {
+    const { resolve, isAbsolute } = await import("node:path");
+    // Leading space is legal on the wire; must not be trim()'d away before
+    // resolve or record. trim() is only for all-whitespace detection.
+    const exactWhich = " bin/grok";
+    const expectedAbs = resolve(exactWhich);
+    assert.equal(isAbsolute(exactWhich), false);
+    assert.notEqual(exactWhich, exactWhich.trim());
+    assert.notEqual(expectedAbs, resolve(exactWhich.trim()));
+
+    const calls: Call[] = [];
+    const layer = makeLayers({
+      which: exactWhich,
+      calls,
+      run: (o) => {
+        if (o.args[0] === "models") {
+          return Effect.succeed({
+            exitCode: 0,
+            stdout: "You are logged in with grok.com.\n",
+            stderr: "",
+          });
+        }
+        return Effect.succeed({
+          exitCode: 0,
+          stdout: "0.2.118\n",
+          stderr: "",
+        });
+      },
+    });
+    const rec = await runInspect(grokCap, layer);
+    assert.equal(rec.resolvedPath, expectedAbs);
+    assert.ok(calls.length >= 1);
+    for (const c of calls) {
+      assert.equal(
+        c.command,
+        expectedAbs,
+        "spawned executable must be absolute resolution of exact which bytes",
+      );
+    }
+    for (const p of rec.probes) {
+      assert.equal(p.argv[0], expectedAbs);
+    }
+  });
+
+  it("refuses invalid full probe argv at live boundary with zero processes", async () => {
+    // Full vector entry count: tail of 64 + executable => 65 > MAX.
+    const oversizedTail = Array.from({ length: 64 }, (_, i) => `x${i}`);
+    const poisonedCount: VendorCapabilityV1 = {
+      ...grokCap,
+      versionArgv: oversizedTail,
+    };
+    const callsCount: Call[] = [];
+    const layerCount = makeLayers({
+      which: "/usr/bin/grok",
+      calls: callsCount,
+      run: () =>
+        Effect.succeed({
+          exitCode: 0,
+          stdout: "should never spawn\n",
+          stderr: "",
+        }),
+    });
+    const eitherCount = await Effect.runPromise(
+      inspectVendor(poisonedCount).pipe(
+        Effect.provide(layerCount),
+        Effect.either,
+      ),
+    );
+    assert.equal(eitherCount._tag, "Left");
+    if (eitherCount._tag === "Left") {
+      assert.equal(eitherCount.left.reason, "capability_invalid");
+    }
+    assert.equal(callsCount.length, 0, "must not spawn on entry-count overflow");
+
+    // Full vector total bytes: long absolute path + large tail exceeds 262_144.
+    const chunk = "y".repeat(65_536);
+    const largeTail = [chunk, chunk, chunk, chunk]; // 262_144 tail alone
+    const longPath = "/usr/bin/" + "g".repeat(100);
+    const poisonedBytes: VendorCapabilityV1 = {
+      ...grokCap,
+      versionArgv: largeTail,
+    };
+    const callsBytes: Call[] = [];
+    const layerBytes = makeLayers({
+      which: longPath,
+      calls: callsBytes,
+      run: () =>
+        Effect.succeed({
+          exitCode: 0,
+          stdout: "should never spawn\n",
+          stderr: "",
+        }),
+    });
+    const eitherBytes = await Effect.runPromise(
+      inspectVendor(poisonedBytes).pipe(
+        Effect.provide(layerBytes),
+        Effect.either,
+      ),
+    );
+    assert.equal(eitherBytes._tag, "Left");
+    if (eitherBytes._tag === "Left") {
+      assert.equal(eitherBytes.left.reason, "capability_invalid");
+    }
+    assert.equal(callsBytes.length, 0, "must not spawn on total-byte overflow");
+  });
+
   it("timeout, output overflow, spawn failure, empty, cancel stay typed fail-closed", async () => {
     const cases: Array<{
       readonly fail: "timeout" | "output_bound" | "spawn_failed" | "cancelled";

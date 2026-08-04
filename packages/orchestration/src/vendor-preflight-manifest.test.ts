@@ -179,6 +179,63 @@ diagnose_instruction = "diagnose"
     assert.equal(findCapability(table, "grok")?.versionFloor, "0.2.118");
   });
 
+  it("rejects capability argv tails that do not reserve one entry for the executable", () => {
+    const maxTail = Array.from({ length: 64 }, (_, i) => `a${i}`);
+    for (const field of ["authArgv", "versionArgv"] as const) {
+      const base: Record<string, unknown> = {
+        vendor: "grok",
+        cliName: "grok",
+        evidenceClass: "probed",
+        authArgv: ["models"],
+        versionArgv: ["--version"],
+        versionFloor: "0.2.118",
+        authPositiveMarkers: ["You are logged in with grok.com."],
+        authNegativeMarkers: ["not authenticated"],
+        updateMutates: true,
+        updateCheckArgv: null,
+        loginInstruction: "grok login --device-code",
+        installInstruction: "install",
+        updateInstruction: "update",
+        diagnoseInstruction: "diagnose",
+      };
+      base[field] = maxTail;
+      const decoded = decodeVendorCapabilityTableV1({
+        schemaVersion: 1,
+        capabilities: [base],
+      });
+      assert.ok(
+        isVendorPreflightContractFailure(decoded),
+        `${field} with 64 entries must fail (full vector would be 65)`,
+      );
+      assert.equal(decoded.reason, "bound_exceeded");
+    }
+    // 63-entry tail reserves one slot for the executable and is accepted.
+    const okTail = Array.from({ length: 63 }, (_, i) => `b${i}`);
+    const ok = decodeVendorCapabilityTableV1({
+      schemaVersion: 1,
+      capabilities: [
+        {
+          vendor: "grok",
+          cliName: "grok",
+          evidenceClass: "probed",
+          authArgv: okTail,
+          versionArgv: ["--version"],
+          versionFloor: "0.2.118",
+          authPositiveMarkers: ["You are logged in with grok.com."],
+          authNegativeMarkers: ["not authenticated"],
+          updateMutates: true,
+          updateCheckArgv: null,
+          loginInstruction: "grok login --device-code",
+          installInstruction: "install",
+          updateInstruction: "update",
+          diagnoseInstruction: "diagnose",
+        },
+      ],
+    });
+    assert.ok(!isVendorPreflightContractFailure(ok));
+    assert.equal(ok.capabilities[0]!.authArgv.length, 63);
+  });
+
   it("rejects capability argv per-entry and total UTF-8 byte overflow", () => {
     const hugeEntry = "x".repeat(65_537);
     for (const field of ["authArgv", "versionArgv", "updateCheckArgv"] as const) {

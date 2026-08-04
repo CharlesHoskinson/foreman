@@ -16205,30 +16205,14 @@ function decodeArgv(value) {
   if (!Array.isArray(value)) {
     return vendorPreflightContractFailure("invalid_schema");
   }
-  if (value.length === 0 || value.length > MAX_PROBE_ARGV_ENTRIES) {
-    return vendorPreflightContractFailure("bound_exceeded");
-  }
-  let total = 0;
+  const checked = validateProbeArgv(value);
+  if (checked !== null) return checked;
   const out = [];
   for (const entry of value) {
     if (typeof entry !== "string") {
       return vendorPreflightContractFailure("invalid_schema");
     }
-    if (hasNul(entry)) {
-      return vendorPreflightContractFailure("nul_rejected");
-    }
-    const n = utf8ByteLength(entry);
-    if (n > MAX_PROBE_ARG_BYTES) {
-      return vendorPreflightContractFailure("bound_exceeded");
-    }
-    total += n;
-    if (total > MAX_PROBE_ARGV_TOTAL_BYTES) {
-      return vendorPreflightContractFailure("bound_exceeded");
-    }
     out.push(entry);
-  }
-  if (out[0].trim().length === 0) {
-    return vendorPreflightContractFailure("blank_string");
   }
   return out;
 }
@@ -16321,11 +16305,47 @@ function checkRecordConsistency(rec) {
   if (auth === "not-authenticated" && rem.kind !== "login") {
     return vendorPreflightContractFailure("inconsistent_state");
   }
-  if (auth === "not-authenticated") {
+  if (auth === "authenticated" || auth === "not-authenticated") {
     const authProbe = rec.probes.find((p) => p.kind === "auth");
     if (authProbe === void 0 || authProbe.outcome !== "completed") {
       return vendorPreflightContractFailure("inconsistent_state");
     }
+  }
+  if (curr === "current" || curr === "outdated") {
+    const versionProbe = rec.probes.find((p) => p.kind === "version");
+    if (versionProbe === void 0 || versionProbe.outcome !== "completed") {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+    if (rec.reportedVersion === null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  }
+  return null;
+}
+function validateProbeArgv(argv) {
+  if (argv.length === 0 || argv.length > MAX_PROBE_ARGV_ENTRIES) {
+    return vendorPreflightContractFailure("bound_exceeded");
+  }
+  let total = 0;
+  for (let i = 0; i < argv.length; i++) {
+    const entry = argv[i];
+    if (typeof entry !== "string") {
+      return vendorPreflightContractFailure("invalid_schema");
+    }
+    if (hasNul(entry)) {
+      return vendorPreflightContractFailure("nul_rejected");
+    }
+    const n = utf8ByteLength(entry);
+    if (n > MAX_PROBE_ARG_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+    total += n;
+    if (total > MAX_PROBE_ARGV_TOTAL_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+  }
+  if (argv[0].trim().length === 0) {
+    return vendorPreflightContractFailure("blank_string");
   }
   return null;
 }
@@ -16496,7 +16516,8 @@ function decodeCapabilityArgv(v) {
   if (!Array.isArray(v)) {
     return vendorPreflightContractFailure("invalid_schema");
   }
-  if (v.length === 0 || v.length > MAX_PROBE_ARGV_ENTRIES) {
+  const maxTailEntries = MAX_PROBE_ARGV_ENTRIES - 1;
+  if (v.length === 0 || v.length > maxTailEntries) {
     return vendorPreflightContractFailure("bound_exceeded");
   }
   let total = 0;
@@ -16654,7 +16675,16 @@ function argvContainsMutatingUpdate(argv, vendorBinding) {
 import { isAbsolute as isAbsolute3, resolve as resolvePath } from "node:path";
 
 // packages/orchestration/src/vendor-preflight.ts
-var SEMVER_TOKEN = /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?(?![\w.-])/;
+var SEMVER_TOKEN = /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?(?![\w.+-])/;
+function isValidBuildMetadata(build3) {
+  if (build3.length === 0) return false;
+  const ids3 = build3.split(".");
+  for (const id of ids3) {
+    if (id.length === 0) return false;
+    if (!/^[0-9A-Za-z-]+$/.test(id)) return false;
+  }
+  return true;
+}
 function parseFirstSemVer(text) {
   if (text === null || text === void 0) return null;
   if (typeof text !== "string" || text.trim().length === 0) return null;
@@ -16696,6 +16726,13 @@ function parseFirstSemVer(text) {
       }
     }
     if (!preOk) continue;
+    const buildRaw = m[5];
+    const matched = m[0];
+    if (matched.includes("+")) {
+      if (buildRaw === void 0 || !isValidBuildMetadata(buildRaw)) {
+        continue;
+      }
+    }
     return { major, minor, patch: patch9, prerelease };
   }
   return null;
@@ -17125,8 +17162,7 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
       capability
     });
   }
-  const resolvedTrimmed = resolved.trim();
-  if (resolvedTrimmed.length === 0 || resolvedTrimmed.includes("\0")) {
+  if (resolved.trim().length === 0 || resolved.includes("\0")) {
     return yield* Effect_exports.fail(
       new VendorPreflightFailure(
         "internal",
@@ -17134,7 +17170,7 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
       )
     );
   }
-  const absoluteResolved = isAbsolute3(resolvedTrimmed) ? resolvedTrimmed : resolvePath(resolvedTrimmed);
+  const absoluteResolved = isAbsolute3(resolved) ? resolved : resolvePath(resolved);
   if (!isAbsolute3(absoluteResolved)) {
     return yield* Effect_exports.fail(
       new VendorPreflightFailure(
@@ -17144,6 +17180,18 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
     );
   }
   const executable = absoluteResolved;
+  const versionFull = [executable, ...capability.versionArgv];
+  const authFullResolved = [executable, ...capability.authArgv];
+  const versionArgvCheck = validateProbeArgv(versionFull);
+  const authArgvCheck = validateProbeArgv(authFullResolved);
+  if (versionArgvCheck !== null || authArgvCheck !== null) {
+    return yield* Effect_exports.fail(
+      new VendorPreflightFailure(
+        "capability_invalid",
+        "full probe argv exceeds public entry or UTF-8 byte bounds"
+      )
+    );
+  }
   const versionCap = yield* runProbe(
     executable,
     capability.versionArgv,

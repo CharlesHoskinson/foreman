@@ -289,31 +289,16 @@ function decodeArgv(
   if (!Array.isArray(value)) {
     return vendorPreflightContractFailure("invalid_schema");
   }
-  if (value.length === 0 || value.length > MAX_PROBE_ARGV_ENTRIES) {
-    return vendorPreflightContractFailure("bound_exceeded");
-  }
-  let total = 0;
+  const checked = validateProbeArgv(value as readonly string[]);
+  if (checked !== null) return checked;
+  // validateProbeArgv only type-checks entries as strings via runtime checks;
+  // re-walk to build a frozen copy after schema string confirmation.
   const out: string[] = [];
   for (const entry of value) {
     if (typeof entry !== "string") {
       return vendorPreflightContractFailure("invalid_schema");
     }
-    if (hasNul(entry)) {
-      return vendorPreflightContractFailure("nul_rejected");
-    }
-    const n = utf8ByteLength(entry);
-    if (n > MAX_PROBE_ARG_BYTES) {
-      return vendorPreflightContractFailure("bound_exceeded");
-    }
-    total += n;
-    if (total > MAX_PROBE_ARGV_TOTAL_BYTES) {
-      return vendorPreflightContractFailure("bound_exceeded");
-    }
     out.push(entry);
-  }
-  // First argv entry (executable name or path) must be non-blank.
-  if (out[0]!.trim().length === 0) {
-    return vendorPreflightContractFailure("blank_string");
   }
   return out;
 }
@@ -435,16 +420,63 @@ export function checkRecordConsistency(
     return vendorPreflightContractFailure("inconsistent_state");
   }
 
-  // not-authenticated requires a completed auth probe (positive signed-out
-  // signal is a classification obligation; the record does not carry raw
-  // probe output, so completed auth outcome is the structural gate).
-  if (auth === "not-authenticated") {
+  // Positive or signed-out auth facts require a completed auth probe.
+  // (Signed-out signal is a classification obligation; the record does not
+  // carry raw probe output, so completed auth outcome is the structural gate.)
+  if (auth === "authenticated" || auth === "not-authenticated") {
     const authProbe = rec.probes.find((p) => p.kind === "auth");
     if (authProbe === undefined || authProbe.outcome !== "completed") {
       return vendorPreflightContractFailure("inconsistent_state");
     }
   }
 
+  // current / outdated require a completed version probe and a non-null
+  // reported version. Unknown currency remains valid for typed probe failures.
+  if (curr === "current" || curr === "outdated") {
+    const versionProbe = rec.probes.find((p) => p.kind === "version");
+    if (versionProbe === undefined || versionProbe.outcome !== "completed") {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+    if (rec.reportedVersion === null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate a full probe argv vector (executable + tails) against the public
+ * entry-count and UTF-8 byte bounds. Returns null when valid.
+ */
+export function validateProbeArgv(
+  argv: readonly string[],
+): VendorPreflightContractFailure | null {
+  if (argv.length === 0 || argv.length > MAX_PROBE_ARGV_ENTRIES) {
+    return vendorPreflightContractFailure("bound_exceeded");
+  }
+  let total = 0;
+  for (let i = 0; i < argv.length; i++) {
+    const entry = argv[i]!;
+    if (typeof entry !== "string") {
+      return vendorPreflightContractFailure("invalid_schema");
+    }
+    if (hasNul(entry)) {
+      return vendorPreflightContractFailure("nul_rejected");
+    }
+    const n = utf8ByteLength(entry);
+    if (n > MAX_PROBE_ARG_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+    total += n;
+    if (total > MAX_PROBE_ARGV_TOTAL_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+  }
+  // First argv entry (executable name or path) must be non-blank.
+  if (argv[0]!.trim().length === 0) {
+    return vendorPreflightContractFailure("blank_string");
+  }
   return null;
 }
 

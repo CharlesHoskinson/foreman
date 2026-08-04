@@ -203,6 +203,7 @@ export {
   isVendorPreflightContractFailure,
   isStrictUtcRfc3339,
   checkRecordConsistency,
+  validateProbeArgv,
   decodeVendorPreflightRecordV1,
   recordIsFullyReady,
   type VendorId,

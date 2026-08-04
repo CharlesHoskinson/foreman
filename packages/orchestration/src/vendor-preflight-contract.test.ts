@@ -505,6 +505,274 @@ describe("decodeVendorPreflightRecordV1", () => {
     assert.ok(!isVendorPreflightContractFailure(decoded));
   });
 
+  it("rejects authenticated/not-authenticated without a completed auth probe", () => {
+    // Missing auth probe entirely.
+    const missingAuth = validDiscoverableRecord({
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "authenticated",
+          evidenceClass: "probed",
+          reason: "claimed without probe",
+        },
+        current: {
+          value: "current",
+          evidenceClass: "probed",
+          reason: "meets floor",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+      ],
+    });
+    const d1 = decodeVendorPreflightRecordV1(missingAuth);
+    assert.ok(isVendorPreflightContractFailure(d1));
+    assert.equal(d1.reason, "inconsistent_state");
+
+    // Timeout auth probe cannot pair with authenticated.
+    const timeoutAuth = validDiscoverableRecord({
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "authenticated",
+          evidenceClass: "probed",
+          reason: "claimed after timeout",
+        },
+        current: {
+          value: "current",
+          evidenceClass: "probed",
+          reason: "meets floor",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+      ],
+      remediation: { kind: "none", instruction: null },
+    });
+    const d2 = decodeVendorPreflightRecordV1(timeoutAuth);
+    assert.ok(isVendorPreflightContractFailure(d2));
+    assert.equal(d2.reason, "inconsistent_state");
+
+    // Timeout auth probe cannot pair with not-authenticated.
+    const timeoutNotAuth = validDiscoverableRecord({
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "not-authenticated",
+          evidenceClass: "probed",
+          reason: "claimed after timeout",
+        },
+        current: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "currency not evaluated",
+        },
+      },
+      reportedVersion: null,
+      probes: [
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+      ],
+      remediation: {
+        kind: "login",
+        instruction: "grok login --device-code",
+      },
+    });
+    const d3 = decodeVendorPreflightRecordV1(timeoutNotAuth);
+    assert.ok(isVendorPreflightContractFailure(d3));
+    assert.equal(d3.reason, "inconsistent_state");
+  });
+
+  it("rejects current/outdated without completed version probe or with null reportedVersion", () => {
+    // Missing version probe.
+    const missingVersion = validDiscoverableRecord({
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "authenticated",
+          evidenceClass: "probed",
+          reason: "logged in",
+        },
+        current: {
+          value: "current",
+          evidenceClass: "probed",
+          reason: "claimed without version probe",
+        },
+      },
+      probes: [
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+      ],
+    });
+    const d1 = decodeVendorPreflightRecordV1(missingVersion);
+    assert.ok(isVendorPreflightContractFailure(d1));
+    assert.equal(d1.reason, "inconsistent_state");
+
+    // Timeout version probe cannot pair with current.
+    const timeoutVersion = validDiscoverableRecord({
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "authenticated",
+          evidenceClass: "probed",
+          reason: "logged in",
+        },
+        current: {
+          value: "current",
+          evidenceClass: "probed",
+          reason: "claimed after timeout",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+      ],
+    });
+    const d2 = decodeVendorPreflightRecordV1(timeoutVersion);
+    assert.ok(isVendorPreflightContractFailure(d2));
+    assert.equal(d2.reason, "inconsistent_state");
+
+    // Outdated with null reportedVersion.
+    const nullReported = validDiscoverableRecord({
+      reportedVersion: null,
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "authenticated",
+          evidenceClass: "probed",
+          reason: "logged in",
+        },
+        current: {
+          value: "outdated",
+          evidenceClass: "probed",
+          reason: "below floor without reported version",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "completed",
+          exitCode: 0,
+        },
+      ],
+      remediation: {
+        kind: "update",
+        instruction: "npm install -g @xai-official/grok@latest",
+      },
+    });
+    const d3 = decodeVendorPreflightRecordV1(nullReported);
+    assert.ok(isVendorPreflightContractFailure(d3));
+    assert.equal(d3.reason, "inconsistent_state");
+  });
+
+  it("accepts unknown auth/currency for non-completed typed probe failures", () => {
+    const rec = validDiscoverableRecord({
+      reportedVersion: null,
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved on PATH",
+        },
+        authenticated: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "auth probe timed out",
+        },
+        current: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "version probe timed out",
+        },
+      },
+      probes: [
+        {
+          kind: "version",
+          argv: ["grok", "--version"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+        {
+          kind: "auth",
+          argv: ["grok", "models"],
+          outcome: "timeout",
+          exitCode: null,
+        },
+      ],
+      remediation: {
+        kind: "diagnose",
+        instruction: "Re-run bounded probes",
+      },
+    });
+    const decoded = decodeVendorPreflightRecordV1(rec);
+    assert.ok(!isVendorPreflightContractFailure(decoded));
+  });
+
   it("rejects invalid enum values", () => {
     const rec = validDiscoverableRecord();
     const bad = {

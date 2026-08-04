@@ -120,6 +120,21 @@
         validation of `vendor-preflight` and `v030-release-program` green;
         two builds of `dist/vendor-preflight.js` byte-identical
         (sha256 `bbc57443579139ec6b83b6b025b15fa423e2635ecd64f8941f4ba4304a66b92c`).
+        R4A final correction round 4 (candidate
+        `6bd57b722f7c8d9ff94468ce590612086017374a`): public-record consistency
+        requires completed auth probe for `authenticated`/`not-authenticated`
+        and completed version probe plus non-null `reportedVersion` for
+        `current`/`outdated`; full probe argv
+        `[resolvedExecutable, ...tail]` is bound-checked before any process
+        (capability tails reserve one entry; invalid vectors return
+        `capability_invalid` with zero spawns); `parseFirstSemVer` accepts
+        only valid build metadata (rejects `1.2.3+foo..bar`, trailing/leading
+        dots, bare `+`); live adapter preserves exact `PathLookup.which`
+        bytes (`trim` only for all-whitespace detection). Focused tests
+        65/65 pass; typecheck/build/verify/docs-check and strict OpenSpec
+        validation of `vendor-preflight` and `v030-release-program` green;
+        two builds of `dist/vendor-preflight.js` byte-identical
+        (sha256 `a3f05637c2e64062edf81ebdccbf3a6faf0ba94671fd2e7f0bf2f18c44328ab9`).
         Setup/`foreman-setup.sh` and lane callers are intentionally not
         wired in this slice.
       The remaining Sprint 3 work stays open (R4B+ shell migration,

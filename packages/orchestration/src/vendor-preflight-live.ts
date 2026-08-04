@@ -21,10 +21,11 @@ import {
   classifyCurrency,
   processFailureToProbeOutcome,
 } from "./vendor-preflight.js";
-import type {
-  ProbeOutcome,
-  ProbeRecordV1,
-  VendorPreflightRecordV1,
+import {
+  validateProbeArgv,
+  type ProbeOutcome,
+  type ProbeRecordV1,
+  type VendorPreflightRecordV1,
 } from "./vendor-preflight-contract.js";
 
 /** Wall-clock bound for every auth or version probe (milliseconds). */
@@ -220,11 +221,11 @@ export const inspectVendor = (
       });
     }
 
-    // Absolute-path contract before any probe: normalize a relative
-    // PathLookup.which result with the host path resolver, or fail closed
-    // with an existing boundary reason if the result is blank/unusable.
-    const resolvedTrimmed = resolved.trim();
-    if (resolvedTrimmed.length === 0 || resolvedTrimmed.includes("\0")) {
+    // Absolute-path contract before any probe.
+    // Use trim() only to detect an all-whitespace value; do not execute or
+    // record a trimmed path. Resolve the exact relative string (including
+    // legal leading/trailing whitespace) or fail closed before probing.
+    if (resolved.trim().length === 0 || resolved.includes("\0")) {
       return yield* Effect.fail(
         new VendorPreflightFailure(
           "internal",
@@ -232,9 +233,9 @@ export const inspectVendor = (
         ),
       );
     }
-    const absoluteResolved = isAbsolute(resolvedTrimmed)
-      ? resolvedTrimmed
-      : resolvePath(resolvedTrimmed);
+    const absoluteResolved = isAbsolute(resolved)
+      ? resolved
+      : resolvePath(resolved);
     if (!isAbsolute(absoluteResolved)) {
       return yield* Effect.fail(
         new VendorPreflightFailure(
@@ -244,6 +245,23 @@ export const inspectVendor = (
       );
     }
     const executable = absoluteResolved;
+
+    // Validate complete probe argv (resolved executable + capability tail)
+    // against public entry-count and UTF-8 byte bounds before any process.
+    // Invalid full vectors never construct a record the public decoder would
+    // reject and never start a child process.
+    const versionFull = [executable, ...capability.versionArgv];
+    const authFullResolved = [executable, ...capability.authArgv];
+    const versionArgvCheck = validateProbeArgv(versionFull);
+    const authArgvCheck = validateProbeArgv(authFullResolved);
+    if (versionArgvCheck !== null || authArgvCheck !== null) {
+      return yield* Effect.fail(
+        new VendorPreflightFailure(
+          "capability_invalid",
+          "full probe argv exceeds public entry or UTF-8 byte bounds",
+        ),
+      );
+    }
 
     // Version probe first (currency independent of auth).
     const versionCap = yield* runProbe(
