@@ -49,6 +49,7 @@ function normalizeRelativePath(p: string): string | null {
 const REQUIRED_V2 = new Set([
   "dist/architecture-policy.js",
   "dist/destruction-guard.js",
+  "dist/lane-queue.js",
 ]);
 
 function decodeArtifactObject(

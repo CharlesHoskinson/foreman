@@ -13,8 +13,11 @@
  * 2. `strict_set` — closed strict-mode set line
  * 3. `assign_root` — one `ROOT|REPO_ROOT|SCRIPT_DIR|HERE` dirname/`pwd` locator
  * 4. `assign_node` — one `NODE|NODE_BIN="$(command -v node)"`
- * 5. `assign_bundle` — one bundle assignment rooted at the declared root and
- *    ending in `/skills/foreman/runtime/dist/<safe-name>.js`
+ * 5. `assign_bundle` — one bundle assignment rooted at the declared root:
+ *    - repository-root form (default): ends in
+ *      `/skills/foreman/runtime/dist/<safe-name>.js`
+ *    - skill-script form (only `skills/foreman/scripts/*.sh`): ends in
+ *      `/runtime/dist/<safe-name>.js` with exactly one parent locator
  * 6. `exec_node` — final line only:
  *    `exec "$<nodeVar>" "$<bundleVar>" "$@"` using the exact declared names
  *
@@ -40,16 +43,25 @@ const ASSIGN_ROOT =
 const ASSIGN_NODE =
   /^(NODE|NODE_BIN)="\$\(command -v node\)"\s*$/;
 
-/** Bundle: "$ROOT/skills/foreman/runtime/dist/<safe>.js" only. */
-const ASSIGN_BUNDLE =
+/** Repository-root bundle: "$ROOT/skills/foreman/runtime/dist/<safe>.js". */
+const ASSIGN_BUNDLE_REPO =
   /^(BUNDLE|ENTRY|GUARD|POLICY)="\$([A-Z_][A-Z0-9_]*)\/skills\/foreman\/runtime\/dist\/([A-Za-z0-9][A-Za-z0-9._+-]*)\.js"\s*$/;
+
+/** Skill-root bundle: "$ROOT/runtime/dist/<safe>.js" (installed skill layout). */
+const ASSIGN_BUNDLE_SKILL =
+  /^(BUNDLE|ENTRY|GUARD|POLICY)="\$([A-Z_][A-Z0-9_]*)\/runtime\/dist\/([A-Za-z0-9][A-Za-z0-9._+-]*)\.js"\s*$/;
 
 const EXEC_VARS =
   /^exec\s+"\$([A-Z_][A-Z0-9_]*)"\s+"\$([A-Z_][A-Z0-9_]*)"\s+"\$@"\s*$/;
 
-/** Bare node or option-shaped second argument — always denied. */
-const EXEC_BARE_OR_OPTION =
-  /^exec\s+(node|nodejs|"\$\{?NODE\}?"|\$NODE)\s+/;
+/**
+ * Repository-relative skill script path: exactly one basename under
+ * skills/foreman/scripts/. Normalized to forward slashes.
+ */
+function isSkillScriptPath(path: string): boolean {
+  const n = path.replace(/\\/g, "/");
+  return /^skills\/foreman\/scripts\/[^/]+\.sh$/.test(n);
+}
 
 function isCommentOrBlank(line: string): boolean {
   const t = line.trim();
@@ -84,8 +96,12 @@ function hasSmuggledOperators(
 
 /**
  * Validate a POSIX shell adapter against the closed canonical state machine.
+ * `adapterPath` is the repository-relative path (forward or backslash).
  */
-function inspectPosixShellAdapter(sourceText: string): PolicyReason | null {
+function inspectPosixShellAdapter(
+  adapterPath: string,
+  sourceText: string,
+): PolicyReason | null {
   if (/[\u0000]/.test(sourceText)) return DENY;
   const rawLines = sourceText.split(/\r?\n/);
   while (rawLines.length > 0 && rawLines[rawLines.length - 1] === "") {
@@ -120,6 +136,7 @@ function inspectPosixShellAdapter(sourceText: string): PolicyReason | null {
   const rootM = l2.text.match(ASSIGN_ROOT);
   if (!rootM || hasSmuggledOperators(l2.text, "root")) return DENY;
   const rootName = rootM[1]!;
+  const parentCount = rootM[2] === "/.." ? 1 : 0;
 
   // 4. assign_node
   const l3 = codeLines[3]!;
@@ -127,17 +144,36 @@ function inspectPosixShellAdapter(sourceText: string): PolicyReason | null {
   if (!nodeM || hasSmuggledOperators(l3.text, "node")) return DENY;
   const nodeName = nodeM[1]!;
 
-  // 5. assign_bundle — rooted at declared root, dist/*.js only
+  // 5. assign_bundle — path-scoped form
   const l4 = codeLines[4]!;
   if (l4.text.includes("$(") || l4.text.includes("`")) return DENY;
   if (hasSmuggledOperators(l4.text, "other")) return DENY;
-  const bundleM = l4.text.match(ASSIGN_BUNDLE);
-  if (!bundleM) return DENY;
-  const bundleName = bundleM[1]!;
-  const bundleRootRef = bundleM[2]!;
-  const distBase = bundleM[3]!;
+
+  const skillScript = isSkillScriptPath(adapterPath);
+  const skillBundle = l4.text.match(ASSIGN_BUNDLE_SKILL);
+  const repoBundle = l4.text.match(ASSIGN_BUNDLE_REPO);
+
+  let bundleName: string;
+  let bundleRootRef: string;
+  let distBase: string;
+
+  if (skillScript) {
+    // Exactly one parent + skill-root runtime path; never the repo form.
+    if (parentCount !== 1) return DENY;
+    if (!skillBundle || repoBundle) return DENY;
+    bundleName = skillBundle[1]!;
+    bundleRootRef = skillBundle[2]!;
+    distBase = skillBundle[3]!;
+  } else {
+    // Repository-root form only; reject skill-root bundle paths elsewhere.
+    if (skillBundle) return DENY;
+    if (!repoBundle) return DENY;
+    bundleName = repoBundle[1]!;
+    bundleRootRef = repoBundle[2]!;
+    distBase = repoBundle[3]!;
+  }
+
   if (bundleRootRef !== rootName) return DENY;
-  // safe-name: no path separators already enforced by class; reject leading dash
   if (distBase.startsWith("-")) return DENY;
 
   // 6. exec using exact declared names only
@@ -145,12 +181,10 @@ function inspectPosixShellAdapter(sourceText: string): PolicyReason | null {
   if (l5.text.includes("$(") || l5.text.includes("`")) return DENY;
   if (hasSmuggledOperators(l5.text, "other")) return DENY;
 
-  // Reject option-shaped or bare-node exec forms explicitly
   if (/\s(-e|--eval|-r|--require|--print|-p|--input-type|--experimental)\b/.test(l5.text)) {
     return DENY;
   }
   if (/"-[^"]*"/.test(l5.text) || /'-[^']*'/.test(l5.text)) return DENY;
-  // Bare `exec node …` or mismatched vars
   if (/^exec\s+node(\s|$)/.test(l5.text)) return DENY;
 
   const execM = l5.text.match(EXEC_VARS);
@@ -171,7 +205,7 @@ export function inspectLegacyAdapter(
   const ext = pathExtension(path);
 
   if (ext === ".sh" || ext === ".bash" || ext === ".zsh" || ext === ".ksh") {
-    return inspectPosixShellAdapter(sourceText);
+    return inspectPosixShellAdapter(path, sourceText);
   }
 
   return DENY;

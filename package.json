@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.all.json --pretty false",
-    "test": "node --import tsx --test packages/core/src/**/*.test.ts packages/event-log/src/**/*.test.ts packages/policy/src/**/*.test.ts scripts/**/*.test.ts",
+    "test": "node --import tsx --test packages/core/src/**/*.test.ts packages/event-log/src/**/*.test.ts packages/policy/src/**/*.test.ts packages/orchestration/src/**/*.test.ts scripts/**/*.test.ts",
     "build": "tsx scripts/build-runtime.ts",
     "verify-runtime": "tsx scripts/verify-runtime.ts",
     "verify": "npm run typecheck && npm run test && npm run verify-runtime && npm run verify-register-doc && npm run smoke:dst-0060",

@@ -42,8 +42,11 @@ logic in compatibility scripts.
       `graph-project` is owned by this package. It consumes typed
       `@foreman/event-log` inputs. It does not become the event-log system of
       record.
-- [ ] `@foreman/orchestration`: round ownership, recovery transactions,
-      vendor preflight, WSL preflight, and environment persistence.
+- [ ] `@foreman/orchestration`: queue admission module and thin
+      `lane-queue.sh` adapter are complete (reliable ensure/add, fixed
+      topology, quoting, status/kill). Round ownership, recovery
+      transactions, vendor preflight, WSL preflight, and environment
+      persistence remain open.
 
 ## Python elimination checklist
 

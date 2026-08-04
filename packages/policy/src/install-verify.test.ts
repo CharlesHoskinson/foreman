@@ -44,6 +44,7 @@ const trackedRuntime = join(skillRoot, "runtime");
 const trackedManifest = join(trackedRuntime, "manifest.json");
 const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
+const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -71,6 +72,7 @@ function seedRuntimeOnly(): string {
   writeFileSync(join(rt, "manifest.json"), readFileSync(trackedManifest));
   cpSync(trackedGuard, join(rt, "dist/destruction-guard.js"));
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
+  cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   return rt;
 }
 
@@ -85,6 +87,30 @@ describe("verifyInstalledSkillRoot live controls", () => {
     try {
       const r = await runVerifySkill(copied);
       assert.equal(r._tag, "Pass", JSON.stringify(r));
+    } finally {
+      rmSync(dirname(copied), { recursive: true, force: true });
+    }
+  });
+
+  it("fails when lane-queue.js is removed from a copy and stripped from a otherwise-canonical manifest", async () => {
+    const copied = seedSkillCopy("no-queue");
+    try {
+      rmSync(join(copied, "runtime/dist/lane-queue.js"));
+      const mfPath = join(copied, "runtime/manifest.json");
+      const mf = JSON.parse(readFileSync(mfPath, "utf8")) as {
+        artifacts: Array<{ relativePath: string }>;
+        nodeRange: string;
+        schemaVersion: number;
+      };
+      mf.artifacts = mf.artifacts.filter(
+        (a) => a.relativePath !== "dist/lane-queue.js",
+      );
+      writeFileSync(mfPath, canonicalize(mf) + "\n");
+      const r = await runVerifySkill(copied);
+      assert.equal(r._tag, "Fail", JSON.stringify(r));
+      if (r._tag === "Fail") {
+        assert.equal(r.reason, "manifest_missing_required_artifact");
+      }
     } finally {
       rmSync(dirname(copied), { recursive: true, force: true });
     }
@@ -426,6 +452,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
   it("fails closed on identity change via injected filesystem seam", async () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const queueBytes = readFileSync(trackedQueue);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -435,6 +462,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const mfPath = "/skill/runtime/manifest.json";
     const polPath = "/skill/runtime/dist/architecture-policy.js";
     const guardPath = "/skill/runtime/dist/destruction-guard.js";
+    const queuePath = "/skill/runtime/dist/lane-queue.js";
 
     const nodes = new Map([
       [
@@ -458,7 +486,11 @@ describe("verifyInstalledSkillRoot live controls", () => {
         {
           kind: "dir" as const,
           identity: dirIdentity({ ino: "12" }),
-          names: ["architecture-policy.js", "destruction-guard.js"],
+          names: [
+            "architecture-policy.js",
+            "destruction-guard.js",
+            "lane-queue.js",
+          ],
         },
       ],
       [
@@ -495,6 +527,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: fileIdentity({
             ino: "22",
             size: guardBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        queuePath,
+        {
+          kind: "file" as const,
+          bytes: queueBytes,
+          identity: fileIdentity({
+            ino: "23",
+            size: queueBytes.byteLength,
           }),
         },
       ],
@@ -567,6 +610,7 @@ describe("runtime plugin-drift", () => {
   it("binds one verified snapshot and opens each manifest once (no re-read)", async () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const queueBytes = readFileSync(trackedQueue);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -604,7 +648,11 @@ describe("runtime plugin-drift", () => {
           {
             kind: "dir",
             identity: dirIdentity({ ino: prefix + "-dist" }),
-            names: ["architecture-policy.js", "destruction-guard.js"],
+            names: [
+              "architecture-policy.js",
+              "destruction-guard.js",
+              "lane-queue.js",
+            ],
           },
         ],
         [
@@ -639,6 +687,17 @@ describe("runtime plugin-drift", () => {
             identity: fileIdentity({
               ino: prefix + "-g",
               size: guardBytes.byteLength,
+            }),
+          },
+        ],
+        [
+          `${dist}/lane-queue.js`,
+          {
+            kind: "file",
+            bytes: queueBytes,
+            identity: fileIdentity({
+              ino: prefix + "-q",
+              size: queueBytes.byteLength,
             }),
           },
         ],
@@ -705,6 +764,7 @@ describe("skill-root and directory stability seams", () => {
   }): Map<string, MemoryNode> {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const queueBytes = readFileSync(trackedQueue);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -738,7 +798,11 @@ describe("skill-root and directory stability seams", () => {
     const distDir: MemoryNode = {
       kind: "dir",
       identity: dirIdentity({ ino: opts?.distIno ?? "12" }),
-      names: ["architecture-policy.js", "destruction-guard.js"],
+      names: [
+        "architecture-policy.js",
+        "destruction-guard.js",
+        "lane-queue.js",
+      ],
       lstatCount: { count: 0 },
       ...(opts?.distIdentityAfter !== undefined
         ? {
@@ -781,6 +845,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "22",
             size: guardBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/lane-queue.js`,
+        {
+          kind: "file",
+          bytes: queueBytes,
+          identity: fileIdentity({
+            ino: "23",
+            size: queueBytes.byteLength,
           }),
         },
       ],
@@ -941,6 +1016,7 @@ describe("memory InstallFs path separator seam", () => {
     // joinRuntime emits mixed separators that must still hit slash-seeded nodes.
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const queueBytes = readFileSync(trackedQueue);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -970,7 +1046,11 @@ describe("memory InstallFs path separator seam", () => {
         {
           kind: "dir",
           identity: dirIdentity({ ino: "12" }),
-          names: ["architecture-policy.js", "destruction-guard.js"],
+          names: [
+            "architecture-policy.js",
+            "destruction-guard.js",
+            "lane-queue.js",
+          ],
         },
       ],
       [
@@ -1003,6 +1083,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "22",
             size: guardBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/lane-queue.js`,
+        {
+          kind: "file",
+          bytes: queueBytes,
+          identity: fileIdentity({
+            ino: "23",
+            size: queueBytes.byteLength,
           }),
         },
       ],

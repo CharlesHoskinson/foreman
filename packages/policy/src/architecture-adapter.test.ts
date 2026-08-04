@@ -335,4 +335,118 @@ describe("inspectLegacyAdapter", () => {
       "legacy_adapter_domain_logic",
     );
   });
+
+  const SKILL_GOOD = [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+    'NODE="$(command -v node)"',
+    'BUNDLE="$ROOT/runtime/dist/lane-queue.js"',
+    'exec "$NODE" "$BUNDLE" "$@"',
+    "",
+  ].join("\n");
+
+  it("accepts skill-script adapter with one parent and $ROOT/runtime/dist", () => {
+    assert.equal(
+      inspectLegacyAdapter("skills/foreman/scripts/lane-queue.sh", SKILL_GOOD),
+      null,
+    );
+  });
+
+  it("rejects skill-script wrong parent depth (zero parents)", () => {
+    const body = [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'ROOT="$(cd "$(dirname "$0")" && pwd)"',
+      'NODE="$(command -v node)"',
+      'BUNDLE="$ROOT/runtime/dist/lane-queue.js"',
+      'exec "$NODE" "$BUNDLE" "$@"',
+      "",
+    ].join("\n");
+    assert.equal(
+      inspectLegacyAdapter("skills/foreman/scripts/lane-queue.sh", body),
+      "legacy_adapter_domain_logic",
+    );
+  });
+
+  it("rejects skill-script with repository-root bundle path", () => {
+    const body = [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+      'NODE="$(command -v node)"',
+      'BUNDLE="$ROOT/skills/foreman/runtime/dist/lane-queue.js"',
+      'exec "$NODE" "$BUNDLE" "$@"',
+      "",
+    ].join("\n");
+    assert.equal(
+      inspectLegacyAdapter("skills/foreman/scripts/lane-queue.sh", body),
+      "legacy_adapter_domain_logic",
+    );
+  });
+
+  it("rejects skill-root bundle form on non-skill paths", () => {
+    const body = [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+      'NODE="$(command -v node)"',
+      'BUNDLE="$ROOT/runtime/dist/lane-queue.js"',
+      'exec "$NODE" "$BUNDLE" "$@"',
+      "",
+    ].join("\n");
+    assert.equal(
+      inspectLegacyAdapter("scripts/run-policy.sh", body),
+      "legacy_adapter_domain_logic",
+    );
+  });
+
+  it("rejects skill-script escaping or nested bundle path", () => {
+    const body = [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+      'NODE="$(command -v node)"',
+      'BUNDLE="$ROOT/runtime/../secrets/x.js"',
+      'exec "$NODE" "$BUNDLE" "$@"',
+      "",
+    ].join("\n");
+    assert.equal(
+      inspectLegacyAdapter("skills/foreman/scripts/lane-queue.sh", body),
+      "legacy_adapter_domain_logic",
+    );
+  });
+
+  it("rejects skill-script reordered productions and extra commands", () => {
+    assert.equal(
+      inspectLegacyAdapter(
+        "skills/foreman/scripts/lane-queue.sh",
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          'NODE="$(command -v node)"',
+          'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+          'BUNDLE="$ROOT/runtime/dist/lane-queue.js"',
+          'exec "$NODE" "$BUNDLE" "$@"',
+          "",
+        ].join("\n"),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    assert.equal(
+      inspectLegacyAdapter(
+        "skills/foreman/scripts/lane-queue.sh",
+        [
+          "#!/usr/bin/env bash",
+          "set -euo pipefail",
+          'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+          'NODE="$(command -v node)"',
+          'BUNDLE="$ROOT/runtime/dist/lane-queue.js"',
+          'exec "$NODE" "$BUNDLE" "$@"; rm -rf /tmp/x',
+          "",
+        ].join("\n"),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+  });
 });

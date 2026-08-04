@@ -59,6 +59,7 @@ const trackedRuntime = join(root, "skills/foreman/runtime");
 const trackedManifestPath = join(trackedRuntime, "manifest.json");
 const trackedGuardPath = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicyPath = join(trackedRuntime, "dist/architecture-policy.js");
+const trackedQueuePath = join(trackedRuntime, "dist/lane-queue.js");
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -70,11 +71,16 @@ if (!trackedCheck.ok) {
 const trackedManifest = readFileSync(trackedManifestPath);
 const trackedGuard = readFileSync(trackedGuardPath);
 const trackedPolicy = readFileSync(trackedPolicyPath);
+const trackedQueue = readFileSync(trackedQueuePath);
 
 // No extra files under dist/
 {
   const distFiles = readdirSync(join(trackedRuntime, "dist")).sort();
-  const expected = ["architecture-policy.js", "destruction-guard.js"];
+  const expected = [
+    "architecture-policy.js",
+    "destruction-guard.js",
+    "lane-queue.js",
+  ];
   if (JSON.stringify(distFiles) !== JSON.stringify(expected)) {
     fail("unexpected dist files: " + distFiles.join(","));
   }
@@ -90,10 +96,14 @@ try {
   const bGuard = readFileSync(join(tmpB, "dist/destruction-guard.js"));
   const aPolicy = readFileSync(join(tmpA, "dist/architecture-policy.js"));
   const bPolicy = readFileSync(join(tmpB, "dist/architecture-policy.js"));
+  const aQueue = readFileSync(join(tmpA, "dist/lane-queue.js"));
+  const bQueue = readFileSync(join(tmpB, "dist/lane-queue.js"));
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
+  if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
+  if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
   }
@@ -118,11 +128,15 @@ try {
     }
     writeFileSync(join(rt, "dist/destruction-guard.js"), "TAMPER");
     writeFileSync(join(rt, "dist/architecture-policy.js"), trackedPolicy);
+    writeFileSync(join(rt, "dist/lane-queue.js"), trackedQueue);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered policy should fail");
     cpSync(trackedPolicyPath, join(rt, "dist/architecture-policy.js"));
+    writeFileSync(join(rt, "dist/lane-queue.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered lane-queue should fail");
+    cpSync(trackedQueuePath, join(rt, "dist/lane-queue.js"));
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {

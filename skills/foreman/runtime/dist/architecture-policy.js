@@ -30866,8 +30866,13 @@ var SHEBANG = /^#!(\/usr\/bin\/env\s+(bash|sh|dash)|\/bin\/(bash|sh|dash)|\/usr\
 var STRICT_SET = /^set\s+(-euo\s+pipefail|-eu\s+pipefail|-euo|-eu|-e|-o\s+pipefail)\s*$/;
 var ASSIGN_ROOT = /^(ROOT|REPO_ROOT|SCRIPT_DIR|HERE)="\$\(cd "\$\(dirname "\$0"\)(\/\.\.)?" && pwd\)"\s*$/;
 var ASSIGN_NODE = /^(NODE|NODE_BIN)="\$\(command -v node\)"\s*$/;
-var ASSIGN_BUNDLE = /^(BUNDLE|ENTRY|GUARD|POLICY)="\$([A-Z_][A-Z0-9_]*)\/skills\/foreman\/runtime\/dist\/([A-Za-z0-9][A-Za-z0-9._+-]*)\.js"\s*$/;
+var ASSIGN_BUNDLE_REPO = /^(BUNDLE|ENTRY|GUARD|POLICY)="\$([A-Z_][A-Z0-9_]*)\/skills\/foreman\/runtime\/dist\/([A-Za-z0-9][A-Za-z0-9._+-]*)\.js"\s*$/;
+var ASSIGN_BUNDLE_SKILL = /^(BUNDLE|ENTRY|GUARD|POLICY)="\$([A-Z_][A-Z0-9_]*)\/runtime\/dist\/([A-Za-z0-9][A-Za-z0-9._+-]*)\.js"\s*$/;
 var EXEC_VARS = /^exec\s+"\$([A-Z_][A-Z0-9_]*)"\s+"\$([A-Z_][A-Z0-9_]*)"\s+"\$@"\s*$/;
+function isSkillScriptPath(path) {
+  const n = path.replace(/\\/g, "/");
+  return /^skills\/foreman\/scripts\/[^/]+\.sh$/.test(n);
+}
 function isCommentOrBlank(line) {
   const t = line.trim();
   if (t.length === 0) return true;
@@ -30894,7 +30899,7 @@ function hasSmuggledOperators(line, kind) {
   }
   return false;
 }
-function inspectPosixShellAdapter(sourceText) {
+function inspectPosixShellAdapter(adapterPath, sourceText) {
   if (/[\u0000]/.test(sourceText)) return DENY;
   const rawLines = sourceText.split(/\r?\n/);
   while (rawLines.length > 0 && rawLines[rawLines.length - 1] === "") {
@@ -30920,6 +30925,7 @@ function inspectPosixShellAdapter(sourceText) {
   const rootM = l2.text.match(ASSIGN_ROOT);
   if (!rootM || hasSmuggledOperators(l2.text, "root")) return DENY;
   const rootName = rootM[1];
+  const parentCount = rootM[2] === "/.." ? 1 : 0;
   const l3 = codeLines[3];
   const nodeM = l3.text.match(ASSIGN_NODE);
   if (!nodeM || hasSmuggledOperators(l3.text, "node")) return DENY;
@@ -30927,11 +30933,25 @@ function inspectPosixShellAdapter(sourceText) {
   const l4 = codeLines[4];
   if (l4.text.includes("$(") || l4.text.includes("`")) return DENY;
   if (hasSmuggledOperators(l4.text, "other")) return DENY;
-  const bundleM = l4.text.match(ASSIGN_BUNDLE);
-  if (!bundleM) return DENY;
-  const bundleName = bundleM[1];
-  const bundleRootRef = bundleM[2];
-  const distBase = bundleM[3];
+  const skillScript = isSkillScriptPath(adapterPath);
+  const skillBundle = l4.text.match(ASSIGN_BUNDLE_SKILL);
+  const repoBundle = l4.text.match(ASSIGN_BUNDLE_REPO);
+  let bundleName;
+  let bundleRootRef;
+  let distBase;
+  if (skillScript) {
+    if (parentCount !== 1) return DENY;
+    if (!skillBundle || repoBundle) return DENY;
+    bundleName = skillBundle[1];
+    bundleRootRef = skillBundle[2];
+    distBase = skillBundle[3];
+  } else {
+    if (skillBundle) return DENY;
+    if (!repoBundle) return DENY;
+    bundleName = repoBundle[1];
+    bundleRootRef = repoBundle[2];
+    distBase = repoBundle[3];
+  }
   if (bundleRootRef !== rootName) return DENY;
   if (distBase.startsWith("-")) return DENY;
   const l5 = codeLines[5];
@@ -30950,7 +30970,7 @@ function inspectPosixShellAdapter(sourceText) {
 function inspectLegacyAdapter(path, sourceText) {
   const ext = pathExtension(path);
   if (ext === ".sh" || ext === ".bash" || ext === ".zsh" || ext === ".ksh") {
-    return inspectPosixShellAdapter(sourceText);
+    return inspectPosixShellAdapter(path, sourceText);
   }
   return DENY;
 }
@@ -32667,7 +32687,8 @@ function normalizeRelativePath2(p) {
 }
 var REQUIRED_V2 = /* @__PURE__ */ new Set([
   "dist/architecture-policy.js",
-  "dist/destruction-guard.js"
+  "dist/destruction-guard.js",
+  "dist/lane-queue.js"
 ]);
 function decodeArtifactObject(aobj) {
   const aUnk = rejectUnknownKeys(aobj, [

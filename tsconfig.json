@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/event-log" },
-    { "path": "packages/policy" }
+    { "path": "packages/policy" },
+    { "path": "packages/orchestration" }
   ]
 }
