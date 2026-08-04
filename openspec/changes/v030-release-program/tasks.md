@@ -3,11 +3,15 @@
 ## 0. Authority and program baseline
 
 - [ ] 0.1 Publish the canonical v0.2.8.2 and v0.2.9.0 accomplishment ledger.
+      The tracked candidate is complete. GitHub publication is pending.
 - [ ] 0.2 Correct README, ROADMAP, checklist, residuals, and release metadata.
+      Tracked authority is current. GitHub release metadata still needs the
+      merged notes.
 - [ ] 0.3 Reconcile implemented, partial, absent, parked, and stale OpenSpec tasks.
-- [ ] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest.
+- [ ] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix is
+      tracked. The immutable Council bundle is pending.
 - [ ] 0.5 Run a ledger-bound Council review with `SpecCorrectnessV1`.
-- [ ] 0.6 Record every cleanup candidate before any destructive action.
+- [x] 0.6 Record every cleanup candidate before any destructive action.
 
 ## 1. Program execution
 
