@@ -13,6 +13,7 @@ lane-round --state-root ROOT --worktree WORKTREE --run RUN --lane LANE --report 
 The parser SHALL preserve each command argument as one array entry. It SHALL
 reject a missing option value, a duplicate option, an unknown option, a
 missing `--`, an empty command vector, and trailing data outside this grammar.
+The six named options SHALL occur once each and in the displayed order.
 It SHALL decode `RUN` and `LANE` with `@foreman/event-log`. It SHALL construct
 the request from the decoded identifiers, preserved command vector, exact gate
 string, and report path. The existing `RoundRequestV1` decoder SHALL admit that
@@ -22,7 +23,9 @@ complete request before a live service starts.
 `ROOT` and `WORKTREE` SHALL exist as directories before the runtime starts.
 The runtime SHALL resolve both paths through the filesystem. It SHALL reject
 `ROOT` when its resolved path equals `WORKTREE` or is below `WORKTREE`. It
-SHALL perform this check before it creates or changes run state.
+SHALL use the current-host path library and a segment-aware relative-path test.
+It SHALL NOT use a string-prefix test. It SHALL perform this check before it
+creates or changes run state.
 
 The runtime SHALL use only `ROOT` for its durable attempt counter, journal,
 and internal journal lock files. It SHALL NOT create `.harness` or another
@@ -81,21 +84,33 @@ ownership protocol planned for R4.
 
 ### Requirement: attempt allocation is concurrent and monotonic
 
-`@foreman/event-log` SHALL expose a Node 24 TypeScript run-journal port for
-attempt allocation. Allocation SHALL acquire the lane attempt lock, read the
-strict decimal counter, call the existing `nextAttempt`, and durably replace
-the counter with the selected decimal attempt plus one LF.
+`@foreman/event-log` SHALL expose an Effect run-journal port. The port SHALL
+accept `RunId` separately from a generic event draft that contains `type`,
+`lane`, optional `commit`, and `payload`. `@foreman/event-log` SHALL NOT import
+`@foreman/orchestration`. The orchestration live layer SHALL adapt an R2
+`RoundEventDraft` to that generic draft.
+
+The attempt file SHALL store the next available attempt as strict positive
+decimal text followed by exactly one LF. Allocation SHALL acquire the lane
+attempt lock and read no more than 17 bytes. For a missing counter, it SHALL
+select `nextAttempt(undefined)`. For an existing counter, it SHALL require and
+strip exactly one trailing LF, pass the remaining text to
+`decodeAttemptIdText`, and use that decoded attempt as the selected attempt. It
+SHALL call `nextAttempt(selected)` to obtain the next available value and
+durably replace the file with that next value plus one LF before it returns the
+selected attempt identity.
 
 A missing counter SHALL allocate attempt `1`. An empty, malformed, linked,
 oversized, or unreadable counter SHALL fail closed. It SHALL NOT become
-attempt `1`. A counter at `Number.MAX_SAFE_INTEGER` SHALL return the existing
-typed overflow failure.
+attempt `1`. Missing LF, CRLF, more than one LF, and any other whitespace SHALL
+be malformed. A counter at `Number.MAX_SAFE_INTEGER` SHALL return the existing
+typed overflow failure before it returns an allocation.
 
 The durable replacement SHALL use a same-directory temporary regular file,
-file synchronization, rename, and directory synchronization. The runtime MAY
-continue without directory synchronization only when Node reports that the
-host does not support opening or synchronizing a directory. It SHALL NOT
-ignore another directory synchronization failure. A failure before replacement
+file synchronization, rename, and directory synchronization on POSIX. Native
+Windows MAY omit directory synchronization because Node does not expose a
+portable Windows directory-sync operation. It SHALL NOT ignore a file sync,
+rename, or supported directory-sync failure. A failure before replacement
 SHALL leave the prior counter authoritative.
 
 #### Scenario: two processes allocate one lane concurrently
@@ -118,6 +133,9 @@ The run journal SHALL accept an R2 `RoundEventDraft`. Append SHALL acquire the
 run event lock, validate the existing journal with `replayNdjson`, select one
 sequence greater than the last durable sequence, add one timestamp in exact
 `YYYY-MM-DDTHH:mm:ssZ` UTC form, and append one canonical JSON record plus LF.
+The first event in an empty or missing journal SHALL use sequence `1`. Every
+later event SHALL use the prior durable sequence plus one. Sequence overflow
+SHALL fail closed before write.
 
 Canonical JSON SHALL use the existing `@foreman/core` canonicalizer. The
 stored record SHALL decode with `decodeStoredEvent`. The complete journal SHALL
@@ -150,6 +168,13 @@ synchronize the file, and verify the identity again before success.
 `ImplementationCommand`, `CheckpointCapture`, and `GateCommand` for one
 preflighted live-round context.
 
+The live allocator SHALL map every attempt or journal failure, including
+`journal_busy`, to `RoundBoundaryFailure("allocation_failed")`. The live event
+sink SHALL map every journal failure to `RoundBoundaryFailure("append_failed")`.
+The implementation, checkpoint, and gate services SHALL map transport,
+cancellation, output-bound, and spawn failures to their existing R2 boundary
+reasons. Public results SHALL NOT include the lower-level error.
+
 The allocator and event sink SHALL use the external run journal. The report
 reader SHALL open `REPORT` as a regular file, detect identity changes, enforce
 the exact 8,388,608-byte bound before it retains excess content, and compute a
@@ -158,22 +183,34 @@ lowercase SHA-256 digest of the exact bytes. A missing report SHALL return
 and the SHA-256 digest of empty bytes. Linked, unreadable, or changed report
 identity SHALL return `report_read_failed`.
 
+An `ENOENT` from the initial report-path observation, including a missing
+parent directory, SHALL return `Absent`. If the path disappears after that
+observation, the reader SHALL return `report_read_failed`.
+
 The implementation service SHALL start `commandArgv[0]` with
 `commandArgv.slice(1)` and `cwd: WORKTREE`. It SHALL NOT join, split, quote, or
 shell-interpret the vector. It SHALL inherit standard streams and SHALL
-terminate the owned process on Effect interruption.
+terminate the owned process on Effect interruption. On POSIX it SHALL start a
+new process group, send `SIGKILL` to that owned group, and observe child close.
+On native Windows it SHALL call `ChildProcess.kill()` and observe child close.
+The cancellation finalizer SHALL wait no more than 5,000 milliseconds. R3 SHALL
+NOT add Windows Job Object behavior.
 
-The checkpoint service SHALL run `git rev-parse HEAD` with `cwd: WORKTREE`, a
-bounded output, and a sanitized Git environment. It SHALL accept exactly one
-lowercase 40-hex commit followed by at most one line terminator. It SHALL NOT
-read or modify the target worktree.
+The checkpoint service SHALL run `git rev-parse HEAD` with `cwd: WORKTREE` and
+a 4,096-byte combined stdout-and-stderr bound. It SHALL remove every inherited
+environment entry whose case-insensitive name starts with `GIT_`. It SHALL then
+set `GIT_TERMINAL_PROMPT=0` and `GIT_OPTIONAL_LOCKS=0`. It MAY preserve the
+remaining host environment. It SHALL accept exactly one lowercase 40-hex
+commit followed by at most one line terminator. It SHALL NOT read or modify the
+target worktree.
 
 The gate service SHALL run the exact gate string with `cwd: WORKTREE`. On
 Windows it SHALL invoke the absolute `ComSpec` value as
 `[ComSpec, "/d", "/s", "/c", gateCommand]`. A missing, non-absolute, or
 NUL-containing `ComSpec` SHALL fail closed before process start. On POSIX it
 SHALL invoke `["/bin/sh", "-c", gateCommand]`. It SHALL return only an exit
-code. It SHALL terminate the owned process on Effect interruption.
+code. It SHALL inherit standard streams. It SHALL use the same owned-process
+cancellation rules as the implementation service.
 
 #### Scenario: implementation exits nonzero
 
@@ -195,13 +232,16 @@ Bun or Deno dependency. It SHALL preflight CLI input and path separation, make
 the live service layer, decode one `RoundRequestV1`, and call the existing
 `runRoundTransaction` exactly once.
 
-On a completed outcome, the CLI SHALL write one canonical JSON outcome plus LF
-to stdout, write nothing to stderr, and exit `0`. On an incomplete outcome, it
-SHALL write one canonical JSON outcome plus LF to stdout, write nothing to
-stderr, and exit `1`. A usage or preflight failure SHALL write one fixed
-diagnostic to stderr and exit `2`. A typed runtime boundary failure SHALL write
-one fixed reason without paths or vendor text and exit `3`. An unexpected
-defect SHALL write `lane-round: internal failure` plus LF and exit `1`.
+The implementation and gate children MAY write inherited bytes to stdout and
+stderr. After those children close, the CLI SHALL append exactly one final
+canonical JSON outcome plus LF to stdout. The CLI itself SHALL write no other
+outcome-path bytes. A completed outcome SHALL exit `0`. An incomplete outcome
+SHALL exit `1`. A usage, request-decode, or path-preflight failure SHALL write
+exactly `lane-round: invalid arguments` plus LF to stderr and exit `2`. Any R2
+`RoundBoundaryFailure`, including mapped `journal_busy`, SHALL write exactly
+`lane-round: boundary failure` plus LF to stderr and exit `3`. An unexpected
+defect SHALL write exactly `lane-round: internal failure` plus LF to stderr and
+exit `1`.
 
 The tracked runtime builder SHALL add `dist/lane-round.js` and one matching
 manifest entry. Two clean builds SHALL produce byte-identical bundles and
