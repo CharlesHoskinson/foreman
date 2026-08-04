@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/core" },
+    { "path": "packages/event-log" },
     { "path": "packages/policy" }
   ]
 }

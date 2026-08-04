@@ -84,8 +84,16 @@ below contain detailed module tasks only. They do not define release order.
 
 ## M4A — migrate the event log
 
-- [ ] Implement closed event schemas, duplicate-key refusal, bounded NDJSON
+- [x] Implement closed event schemas, duplicate-key refusal, bounded NDJSON
       replay, cursors, and attempt identity in `@foreman/event-log`.
+      Package surface (schema v1): `StoredEvent` decoder
+      (`decodeStoredEvent` / `FromText` / `FromBytes`); bounded `replayNdjson`
+      over `Iterable<Uint8Array>` with valid-prefix + `CleanEof`/`Stopped`;
+      physical-line cursor decode/advance; `RunId` / allocation `LaneId` /
+      `AttemptId` / `AttemptIdentity` and `nextAttempt`. Numeric bounds:
+      nesting depth 64, JSON nodes 100_000, physical line 1_048_576 bytes,
+      total input 67_108_864 bytes, physical lines 100_000. No append,
+      locks, compaction, cursor files, or attempt filesystem allocation.
 - [ ] Make SessionDB, release metrics, and orchestration consume this one
       decoder instead of defining separate event interpretations.
 - [ ] Preserve event append, lock, and byte contracts through a thin adapter,

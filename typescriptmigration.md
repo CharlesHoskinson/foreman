@@ -28,9 +28,11 @@ logic in compatibility scripts.
       files-only backend, lineage queries, and CLI.
 - [ ] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
       cancellation, and platform containment capabilities.
-- [ ] `@foreman/event-log`: one closed event decoder, bounded NDJSON replay,
+- [x] `@foreman/event-log`: one closed event decoder, bounded NDJSON replay,
       cursors, and attempt identity. This package is the event-log system of
-      record.
+      record. (Typed foundation complete: decode + replay + cursor + attempt
+      primitives. Filesystem writers, consumer migration, and legacy shell
+      adapters remain open.)
 - [ ] `@foreman/session`: facts, measurements, obligations, recovery,
       freshness, supersession, retirement, sidecar, and current-authority view.
 - [ ] `@foreman/release`: metrics, sigma, controls, package matrix, package
