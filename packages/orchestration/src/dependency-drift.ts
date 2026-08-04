@@ -173,7 +173,8 @@ export function collectCheckerAuthority(): CheckerAuthority {
 /**
  * Strict `[[tools]]` parser. Binds each id to the required flag in the same
  * record. Ignores unrelated TOML sections. Rejects missing id, duplicate id,
- * missing required, and non-boolean required values.
+ * missing required, non-boolean required values, and a second required key
+ * inside one record (overwrite would suppress tier drift).
  */
 export function parseManifestTools(text: string): ParseToolsResult {
   const lines = text.split(/\r?\n/);
@@ -247,6 +248,12 @@ export function parseManifestTools(text: string): ParseToolsResult {
 
     const reqM = /^required\s*=\s*(.+?)\s*$/.exec(line);
     if (reqM) {
+      if (requiredSeen) {
+        return {
+          _tag: "Error",
+          reason: "duplicate required key in [[tools]] record",
+        };
+      }
       const rawVal = reqM[1]!.trim();
       if (rawVal === "true") {
         required = true;

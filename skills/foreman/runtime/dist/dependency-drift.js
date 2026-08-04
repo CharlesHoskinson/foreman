@@ -16961,6 +16961,12 @@ function parseManifestTools(text) {
     }
     const reqM = /^required\s*=\s*(.+?)\s*$/.exec(line);
     if (reqM) {
+      if (requiredSeen) {
+        return {
+          _tag: "Error",
+          reason: "duplicate required key in [[tools]] record"
+        };
+      }
       const rawVal = reqM[1].trim();
       if (rawVal === "true") {
         required = true;

@@ -231,6 +231,54 @@ required = yes
     assert.match(r.reason, /invalid|boolean|required/i);
   });
 
+  it("rejects duplicate required key true then false", () => {
+    const r = parseManifestTools(`
+[[tools]]
+id = "git"
+required = true
+required = false
+`);
+    assert.equal(r._tag, "Error");
+    if (r._tag !== "Error") return;
+    assert.match(r.reason, /duplicate required/i);
+  });
+
+  it("rejects duplicate required key false then true", () => {
+    const r = parseManifestTools(`
+[[tools]]
+id = "node"
+required = false
+required = true
+`);
+    assert.equal(r._tag, "Error");
+    if (r._tag !== "Error") return;
+    assert.match(r.reason, /duplicate required/i);
+  });
+
+  it("CLI returns exit 2 for duplicate required key", async () => {
+    const io = captureIo();
+    const code = await Effect.runPromise(
+      runDependencyDrift(["node", "dependency-drift.js"], io, {
+        repoRoot: "/repo",
+        layer: memFs(
+          new Map([
+            [
+              "/repo/env/reference-manifest.toml",
+              `[[tools]]\nid = "git"\nrequired = true\nrequired = false\n`,
+            ],
+            ["/repo/env/bootstrap-wsl.sh", "git\n"],
+          ]),
+        ),
+        authority: {
+          checkerIds: ["git"],
+          checkerMust: ["git"],
+        },
+      }),
+    );
+    assert.equal(code, EXIT_FAIL_CLOSED);
+    assert.match(io.stderr(), /malformed|duplicate required|ERROR/i);
+  });
+
   it("ignores id = lines outside [[tools]] records", () => {
     const r = parseManifestTools(`
 id = "not-a-tool"

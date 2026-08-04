@@ -193,23 +193,28 @@
       - Sprint 3 R4B3 dependency-drift TypeScript port (worktree, base
         `ee530cb0a2ee9567d3c077112bc1a416c0e85e5e`): readiness authority is
         `profileToolIds` (every profile x both WSL states); strict `[[tools]]`
-        parse of `env/reference-manifest.toml`; bounded bootstrap text rules
-        (pseudo IDs, flock→util-linux, timeout→coreutils, nats unprovisioned
-        INFO). Product logic in
+        parse of `env/reference-manifest.toml` (rejects missing/duplicate id,
+        missing required, invalid boolean, and a second `required` key in one
+        record so overwrite cannot suppress tier drift); bounded bootstrap
+        text rules (pseudo IDs, flock→util-linux, timeout→coreutils, nats
+        unprovisioned INFO). Product logic in
         `packages/orchestration/src/dependency-drift.ts`; generated
         `skills/foreman/runtime/dist/dependency-drift.js`
-        sha256 `c2bef37ce352f650564546d5d9d983c9697c0894e9daf14c6a6fcee9835abac4`
+        sha256 `c0fb3f43fd9f022aa8d1249784709a48718bfeb2bb2fec5e9fb96df2da7e2bb9`
         (two builds identical); thin six-production
         `dependencies/check-drift.sh` Node adapter (purpose-header comments
-        only; no domain logic). Focused dependency-drift 32/32; tool-check +
-        vendor-preflight 166/166; full verify 670 pass + 1 skip;
+        only; no domain logic). Focused dependency-drift 35/35 after Codex
+        cold-audit fix (duplicate `required` key → exit 2); tool-check +
+        vendor-preflight 166/166; full verify 673 pass + 1 skip;
         typecheck/build/verify-runtime green; shellcheck clean; docs-check
         pass; openspec validate --changes --strict 32/32; architecture
         `check --base e298d29835a9ac93f8ef0313143a0f6bff7e2324` → Pass with
         zero findings. Authored `bash dependencies/check-drift.sh` → exit 0
-        and `dependencies: no drift`. No duplicate `psscriptanalyzer`
-        `[[tools]]` record existed at base (single soft/full Windows optional
-        row retained). Host commit + Codex audit + hosted Windows residual.
+        and `dependencies: no drift`. Base `ee530cb` had two conflicting
+        `psscriptanalyzer` records; candidate retained soft/full
+        `powershell` check from `0001bc0c` and removed full-only `pwsh`
+        check from `c1d3f165` (Get-Module could succeed when the module was
+        absent). Host commit + re-audit + hosted Windows residual.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.
