@@ -76,6 +76,8 @@ Do not present unfinished v0.3.0 work as shipped work.
   `docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`
 - Active v0.3.0 release program: `openspec/changes/v030-release-program/`
 - TypeScript migration checklist: `typescriptmigration.md`
-- Destruction log: `docs/releases/v0.2.9.0-cleanup-log.md`
+- Current destruction log: `docs/releases/v0.3.0-destruction-log.md`
+- Shipped v0.2.9.0 cleanup record:
+  `docs/releases/v0.2.9.0-cleanup-log.md`
 - Current residuals: `docs/RESIDUALS.md`
 - Historical evidence rules: `docs/evidence/README.md`
