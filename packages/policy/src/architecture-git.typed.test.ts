@@ -245,7 +245,14 @@ describe("typed Git failures", () => {
       } catch {
         // ignore
       }
-      rmSync(tmp, { recursive: true, force: true });
+      // Windows may hold a short-lived handle after the owned child dies;
+      // Node retries EPERM/EBUSY on recursive rm when maxRetries is set.
+      rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
     }
   });
 });
