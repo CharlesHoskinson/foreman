@@ -70,32 +70,135 @@ const stubNoStrace = Layer.mergeAll(
   }),
 );
 
-describe("classifyHostClass override authority", () => {
-  it("FOREMAN_LOCK_HOST_CLASS override is authoritative when valid", () => {
-    assert.equal(
-      classifyHostClass(
-        { FOREMAN_LOCK_HOST_CLASS: "msys2-git-bash" },
-        "Linux",
-        true,
-      ),
-      "msys2-git-bash",
-    );
-  });
+describe("classifyHostClass pure osName seam", () => {
+  /**
+   * Exhaustive table: must not read ambient process.platform. On hosted
+   * Windows CI, injecting Linux/WSL osName must not become windows-native;
+   * on Linux, injecting Windows_NT/win32 must become windows-native.
+   */
+  const table: ReadonlyArray<{
+    readonly name: string;
+    readonly env: NodeJS.ProcessEnv;
+    readonly osName: string;
+    readonly isWsl: boolean;
+    readonly want: HostClass;
+  }> = [
+    {
+      name: "Windows_NT → windows-native",
+      env: {},
+      osName: "Windows_NT",
+      isWsl: false,
+      want: "windows-native",
+    },
+    {
+      name: "win32 → windows-native",
+      env: {},
+      osName: "win32",
+      isWsl: false,
+      want: "windows-native",
+    },
+    {
+      name: "Linux → linux-native",
+      env: {},
+      osName: "Linux",
+      isWsl: false,
+      want: "linux-native",
+    },
+    {
+      name: "Linux + WSL → wsl-linux",
+      env: {},
+      osName: "Linux",
+      isWsl: true,
+      want: "wsl-linux",
+    },
+    {
+      name: "MINGW64 → msys2-git-bash (precedes windows)",
+      env: {},
+      osName: "MINGW64_NT-10.0-19045",
+      isWsl: false,
+      want: "msys2-git-bash",
+    },
+    {
+      name: "MSYS → msys2-git-bash",
+      env: {},
+      osName: "MSYS_NT-10.0",
+      isWsl: false,
+      want: "msys2-git-bash",
+    },
+    {
+      name: "CYGWIN → msys2-git-bash",
+      env: {},
+      osName: "CYGWIN_NT-10.0",
+      isWsl: false,
+      want: "msys2-git-bash",
+    },
+    {
+      name: "valid override authoritative on every host",
+      env: { FOREMAN_LOCK_HOST_CLASS: "linux-native" },
+      osName: "Windows_NT",
+      isWsl: false,
+      want: "linux-native",
+    },
+    {
+      name: "valid override windows-native on Linux osName",
+      env: { FOREMAN_LOCK_HOST_CLASS: "windows-native" },
+      osName: "Linux",
+      isWsl: true,
+      want: "windows-native",
+    },
+    {
+      name: "valid override msys2 on Linux",
+      env: { FOREMAN_LOCK_HOST_CLASS: "msys2-git-bash" },
+      osName: "Linux",
+      isWsl: true,
+      want: "msys2-git-bash",
+    },
+    {
+      name: "valid override wsl-linux",
+      env: { FOREMAN_LOCK_HOST_CLASS: "wsl-linux" },
+      osName: "Windows_NT",
+      isWsl: false,
+      want: "wsl-linux",
+    },
+    {
+      name: "invalid override falls through to Windows_NT",
+      env: { FOREMAN_LOCK_HOST_CLASS: "not-a-class" },
+      osName: "Windows_NT",
+      isWsl: false,
+      want: "windows-native",
+    },
+    {
+      name: "invalid override falls through to Linux",
+      env: { FOREMAN_LOCK_HOST_CLASS: "not-a-class" },
+      osName: "Linux",
+      isWsl: false,
+      want: "linux-native",
+    },
+    {
+      name: "invalid override falls through to WSL",
+      env: { FOREMAN_LOCK_HOST_CLASS: "bogus" },
+      osName: "Linux",
+      isWsl: true,
+      want: "wsl-linux",
+    },
+    {
+      name: "MSYS precedence over WSL flag",
+      env: {},
+      osName: "MINGW64_NT-10.0",
+      isWsl: true,
+      want: "msys2-git-bash",
+    },
+  ];
 
-  it("invalid override falls through to derived class", () => {
-    assert.equal(
-      classifyHostClass(
-        { FOREMAN_LOCK_HOST_CLASS: "not-a-class" },
-        "Linux",
-        false,
-      ),
-      "linux-native",
-    );
-    assert.equal(
-      classifyHostClass({}, "Linux", true),
-      "wsl-linux",
-    );
-  });
+  for (const row of table) {
+    it(row.name, () => {
+      assert.equal(
+        classifyHostClass(row.env, row.osName, row.isWsl),
+        row.want,
+        row.name,
+      );
+    });
+  }
 });
 
 describe("parsePinnedRegisterToml", () => {
@@ -634,26 +737,73 @@ describe("probeFlockOnce holder/loser", () => {
 
 describe("pickProbeRoots distinct mount keys", () => {
   it("dedupes identical filesystem-class + mount-target keys", async () => {
-    const roots = await Effect.runPromise(
-      pickProbeRoots({
-        candidates: ["/tmp", "/tmp", "/var/tmp", "/nonexistent-xyz"],
-      }).pipe(Effect.provide(liveLayer)),
-    );
-    // /tmp listed twice must collapse; may keep /var/tmp if distinct mount.
-    const set = new Set(roots);
-    assert.equal(set.size, roots.length);
-    assert.ok(roots.length >= 1);
-    assert.ok(roots.every((r) => existsSync(r)));
+    const a = mkdtempSync(join(tmpdir(), "fm-probe-a-"));
+    const b = mkdtempSync(join(tmpdir(), "fm-probe-b-"));
+    try {
+      const roots = await Effect.runPromise(
+        pickProbeRoots({
+          candidates: [a, a, b, join(tmpdir(), "fm-probe-missing-xyz")],
+        }).pipe(Effect.provide(liveLayer)),
+      );
+      const set = new Set(roots);
+      assert.equal(set.size, roots.length);
+      assert.ok(roots.length >= 1);
+      assert.ok(roots.every((r) => existsSync(r)));
+      assert.ok(roots.includes(a));
+    } finally {
+      rmSync(a, { recursive: true, force: true });
+      rmSync(b, { recursive: true, force: true });
+    }
   });
 
-  it("falls back when no writable root exists", async () => {
+  it("falls back to existing writable portable dir when candidates missing", async () => {
+    const portable = mkdtempSync(join(tmpdir(), "fm-probe-fb-"));
+    try {
+      const roots = await Effect.runPromise(
+        pickProbeRoots({
+          candidates: [
+            join(tmpdir(), "fm-probe-no-a"),
+            join(tmpdir(), "fm-probe-no-b"),
+          ],
+          fallback: portable,
+        }).pipe(Effect.provide(liveLayer)),
+      );
+      assert.deepEqual(roots, [portable]);
+      assert.ok(existsSync(roots[0]!));
+    } finally {
+      rmSync(portable, { recursive: true, force: true });
+    }
+  });
+
+  it("never returns a nonexistent probe root for invalid fallback", async () => {
     const roots = await Effect.runPromise(
       pickProbeRoots({
-        candidates: ["/no/such/dir/a", "/no/such/dir/b"],
-        fallback: "/tmp",
+        candidates: [
+          join(tmpdir(), "fm-probe-no-c"),
+          join(tmpdir(), "fm-probe-no-d"),
+        ],
+        fallback: join(tmpdir(), "fm-probe-no-fallback-xyz"),
       }).pipe(Effect.provide(liveLayer)),
     );
-    assert.deepEqual(roots, ["/tmp"]);
+    // May use portable tmpdir() safe alternative, or empty — never a ghost path.
+    assert.ok(roots.every((r) => existsSync(r)));
+    if (roots.length > 0) {
+      assert.ok(roots.includes(tmpdir()) || roots.every((r) => existsSync(r)));
+    }
+  });
+
+  it("default fallback is portable tmpdir when no candidates writable", async () => {
+    const roots = await Effect.runPromise(
+      pickProbeRoots({
+        candidates: [
+          join(tmpdir(), "fm-probe-no-e"),
+          join(tmpdir(), "fm-probe-no-f"),
+        ],
+      }).pipe(Effect.provide(liveLayer)),
+    );
+    assert.ok(roots.length >= 1);
+    assert.ok(roots.every((r) => existsSync(r)));
+    assert.ok(roots.includes(tmpdir()));
   });
 });
 

@@ -52,6 +52,12 @@ export function detectWslFromEnv(
   return { isWsl: false, overrideNote: null };
 }
 
+/**
+ * Derive host class from captured OS name + WSL flag + optional override.
+ * Pure seam: never reads ambient process.platform. Windows is detected from
+ * the provided osName (Windows_NT from captureHostnameOs, or win32 when that
+ * is the captured platform string). MSYS/Cygwin uname forms take precedence.
+ */
 export function classifyHostClass(
   env: NodeJS.ProcessEnv,
   osName: string,
@@ -68,10 +74,13 @@ export function classifyHostClass(
       return v;
     }
   }
-  if (/^MINGW|^MSYS|^CYGWIN/i.test(osName)) {
+  const os = osName.trim();
+  // MSYS/Cygwin Git-Bash style uname -s values precede windows-native.
+  if (/^MINGW|^MSYS|^CYGWIN/i.test(os)) {
     return "msys2-git-bash";
   }
-  if (process.platform === "win32") {
+  // Windows from injected/captured osName only — not ambient process.platform.
+  if (/^win32$/i.test(os) || /^Windows(_NT)?$/i.test(os)) {
     return "windows-native";
   }
   if (isWsl) return "wsl-linux";

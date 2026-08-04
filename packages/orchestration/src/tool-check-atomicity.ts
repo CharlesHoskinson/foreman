@@ -639,35 +639,50 @@ function resolveMountTarget(
   });
 }
 
+function isExistingWritableDir(path: string): boolean {
+  if (!path) return false;
+  try {
+    if (!existsSync(path)) return false;
+    accessSync(path, fsConstants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Select probe roots by distinct (filesystem class, mount target) keys.
- * Falls back to a bounded default when no writable root exists.
+ * Falls back to a bounded portable default (os.tmpdir()) when no writable
+ * candidate exists. Never returns a nonexistent path: an invalid explicit
+ * fallback may be replaced by tmpdir() when that is writable, otherwise the
+ * result is empty.
  */
 export function pickProbeRoots(args?: {
   readonly candidates?: readonly string[];
   readonly fallback?: string;
 }): Effect.Effect<string[], never, ProcessExec | PathLookup> {
   return Effect.gen(function* () {
+    const portableDefault = tmpdir();
     const candidates =
       args?.candidates ??
       [
-        process.env.TMPDIR || tmpdir(),
+        process.env.TMPDIR ||
+          process.env.TEMP ||
+          process.env.TMP ||
+          portableDefault,
+        portableDefault,
+        process.env.HOME || process.env.USERPROFILE || "",
+        // POSIX-only extras; skipped automatically when absent (Windows).
         "/tmp",
-        process.env.HOME || "/root",
         "/var/tmp",
       ];
-    const fallback = args?.fallback ?? "/tmp";
+    const fallback = args?.fallback ?? portableDefault;
     const roots: string[] = [];
     const seenKeys = new Set<string>();
 
     for (const r of candidates) {
       if (!r) continue;
-      try {
-        if (!existsSync(r)) continue;
-        accessSync(r, fsConstants.W_OK);
-      } catch {
-        continue;
-      }
+      if (!isExistingWritableDir(r)) continue;
       const fsClass = yield* resolveFsClass(r);
       const mount = yield* resolveMountTarget(r);
       const key = `${fsClass}\0${mount}`;
@@ -676,7 +691,15 @@ export function pickProbeRoots(args?: {
       roots.push(r);
     }
     if (roots.length === 0) {
-      roots.push(fallback);
+      if (isExistingWritableDir(fallback)) {
+        roots.push(fallback);
+      } else if (
+        fallback !== portableDefault &&
+        isExistingWritableDir(portableDefault)
+      ) {
+        roots.push(portableDefault);
+      }
+      // else: empty — never invent a ghost probe root
     }
     return roots;
   });

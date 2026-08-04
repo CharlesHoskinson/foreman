@@ -17442,10 +17442,11 @@ function classifyHostClass(env, osName, isWsl) {
       return v;
     }
   }
-  if (/^MINGW|^MSYS|^CYGWIN/i.test(osName)) {
+  const os = osName.trim();
+  if (/^MINGW|^MSYS|^CYGWIN/i.test(os)) {
     return "msys2-git-bash";
   }
-  if (process.platform === "win32") {
+  if (/^win32$/i.test(os) || /^Windows(_NT)?$/i.test(os)) {
     return "windows-native";
   }
   if (isWsl) return "wsl-linux";
@@ -18087,25 +18088,33 @@ function resolveMountTarget(path) {
     return path;
   });
 }
+function isExistingWritableDir(path) {
+  if (!path) return false;
+  try {
+    if (!existsSync3(path)) return false;
+    accessSync2(path, fsConstants2.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 function pickProbeRoots(args2) {
   return Effect_exports.gen(function* () {
+    const portableDefault = tmpdir();
     const candidates = args2?.candidates ?? [
-      process.env.TMPDIR || tmpdir(),
+      process.env.TMPDIR || process.env.TEMP || process.env.TMP || portableDefault,
+      portableDefault,
+      process.env.HOME || process.env.USERPROFILE || "",
+      // POSIX-only extras; skipped automatically when absent (Windows).
       "/tmp",
-      process.env.HOME || "/root",
       "/var/tmp"
     ];
-    const fallback = args2?.fallback ?? "/tmp";
+    const fallback = args2?.fallback ?? portableDefault;
     const roots = [];
     const seenKeys = /* @__PURE__ */ new Set();
     for (const r of candidates) {
       if (!r) continue;
-      try {
-        if (!existsSync3(r)) continue;
-        accessSync2(r, fsConstants2.W_OK);
-      } catch {
-        continue;
-      }
+      if (!isExistingWritableDir(r)) continue;
       const fsClass = yield* resolveFsClass(r);
       const mount = yield* resolveMountTarget(r);
       const key = `${fsClass}\0${mount}`;
@@ -18114,7 +18123,11 @@ function pickProbeRoots(args2) {
       roots.push(r);
     }
     if (roots.length === 0) {
-      roots.push(fallback);
+      if (isExistingWritableDir(fallback)) {
+        roots.push(fallback);
+      } else if (fallback !== portableDefault && isExistingWritableDir(portableDefault)) {
+        roots.push(portableDefault);
+      }
     }
     return roots;
   });
