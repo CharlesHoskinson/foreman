@@ -66,7 +66,7 @@ EOF
   cat > "$SHIM/grok" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-  --version) echo "grok 0.2.103"; exit 0 ;;
+  --version) echo "grok 0.2.118"; exit 0 ;;
   models) echo "You are logged in with grok.com."; exit 0 ;;
   *) exit 1 ;;
 esac

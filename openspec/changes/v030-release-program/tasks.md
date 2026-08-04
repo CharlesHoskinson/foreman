@@ -201,25 +201,32 @@
         `packages/orchestration/src/dependency-drift.ts`; generated
         `skills/foreman/runtime/dist/dependency-drift.js`
         sha256 `c0fb3f43fd9f022aa8d1249784709a48718bfeb2bb2fec5e9fb96df2da7e2bb9`
-        (two builds identical; unchanged by Windows fixture pass); thin
+        (two builds identical; unchanged by fixture passes); thin
         six-production `dependencies/check-drift.sh` Node adapter
         (purpose-header comments only; no domain logic). Focused
         dependency-drift 36/36 after hosted Windows fixture fix (platform-
         native `FIXTURE_ROOT` + `path.join` for memFs keys; pure key-match
-        test); tool-check + vendor-preflight 166/166; full verify 674 pass
-        + 1 skip; typecheck/build/verify-runtime green; shellcheck clean;
-        docs-check pass; openspec validate --changes --strict 32/32;
-        architecture `check --base e298d29835a9ac93f8ef0313143a0f6bff7e2324`
-        → Pass with zero findings. Authored
-        `bash dependencies/check-drift.sh` → exit 0 and
-        `dependencies: no drift`. Base `ee530cb` had two conflicting
+        test); tool-check + vendor-preflight 166/166; full Node verify 674
+        pass + 1 skip; typecheck/build/verify-runtime green; shellcheck clean
+        on product scripts; docs-check pass; openspec validate --changes
+        --strict 32/32; architecture
+        `check --base e298d29835a9ac93f8ef0313143a0f6bff7e2324` → Pass with
+        zero findings. Authored `bash dependencies/check-drift.sh` → exit 0
+        and `dependencies: no drift`. Base `ee530cb` had two conflicting
         `psscriptanalyzer` records; candidate retained soft/full
         `powershell` check from `0001bc0c` and removed full-only `pwsh`
         check from `c1d3f165` (Get-Module could succeed when the module was
         absent). Hosted Windows run `30956029311` is the RED witness for
         POSIX-only in-memory fixture keys (production fail-closed exit 2
-        on Absent paths); production path construction unchanged. Host
-        commit + re-audit + hosted Windows residual.
+        on Absent paths); production path construction unchanged. Hosted
+        Linux run `30956524684` is the RED witness for legacy Bats fixtures:
+        ready/authed shims raised to Grok `0.2.118` / Codex `0.146.0`
+        (local RED: 11 version-floor failures; signed-out shims stay
+        `0.2.103`); `wsl-launcher-shipped.bats` tool-check PATH uses a
+        node-only shim dir (not wholesale Node install dir, so ambient Bun
+        cannot invalidate bun-absent); unused `NODE_BIN_DIR` removed.
+        Exact three Bats files 26/26 GREEN; full Bats residual to host.
+        Host commit + re-audit + hosted Linux/Windows residual.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

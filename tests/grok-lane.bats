@@ -102,7 +102,7 @@ write_authed_grok_shim() {
   cat > "$dir/grok" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-  --version) echo "grok 0.2.103"; exit 0 ;;
+  --version) echo "grok 0.2.118"; exit 0 ;;
   models) echo "You are logged in with grok.com."; exit 0 ;;
   *) exit 0 ;;
 esac
@@ -166,8 +166,17 @@ write_authed_codex_shim() {
   cat > "$dir/codex" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-  --version) echo "codex-cli 0.1.0"; exit 0 ;;
-  login) exit 0 ;;
+  --version) echo "codex-cli 0.146.0"; exit 0 ;;
+  login)
+    # Typed capability authority probes `codex login status`. Empty stdout
+    # is classified empty_output → unknown, not authenticated. Mirror the
+    # real CLI success line used by adapters.bats / live preflight.
+    if [[ "${2:-}" == "status" ]]; then
+      echo "Logged in using ChatGPT"
+      exit 0
+    fi
+    exit 0
+    ;;
   *) exit 0 ;;
 esac
 EOF

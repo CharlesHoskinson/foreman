@@ -8,6 +8,17 @@ setup() {
   REPO_ROOT="$BATS_TEST_DIRNAME/.."
   SHIM="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$SHIM"
+  # GitHub setup-node installs Node outside /usr/bin:/bin. Direct tool-check
+  # calls use a restricted PATH ($SHIM:$NODE_ONLY:/usr/bin:/bin). Put only a
+  # node-only directory on that PATH so the thin Node adapter can start.
+  # Do NOT add the real Node install directory wholesale: that directory can
+  # also expose an ambient Bun binary (e.g. peer tools under the same prefix),
+  # which would invalidate the bun-absent degraded case. Production lookup is
+  # unchanged.
+  NODE_BIN="$(command -v node)"
+  NODE_ONLY="$BATS_TEST_TMPDIR/node-only"
+  mkdir -p "$NODE_ONLY"
+  ln -sfn "$NODE_BIN" "$NODE_ONLY/node"
 }
 
 make_setup_fixture() {
@@ -103,7 +114,7 @@ make_git_noop() {
   printf 'MUTATED INPUT: wsl=1 profile=hard launcher=%s(absent) bun=present\n' "$missing"
 
   run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
-    BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" PATH="$SHIM:/usr/bin:/bin" \
+    BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" \
     bash "$REPO_ROOT/env/tool-check.sh" --profile hard
   [ "$status" -ne 0 ]
   [[ "$output" == *"foreman-launch"*"missing"*"bun run build:posix"* ]]
@@ -118,7 +129,7 @@ make_git_noop() {
   printf 'MUTATED INPUT: wsl=1 profile=hard launcher=%s(absent) bun=absent\n' "$missing"
 
   run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" \
     bash "$REPO_ROOT/env/tool-check.sh" --profile hard
   [[ "$output" == *"foreman-launch"*"degraded"*"bun"* ]]
   [[ "$output" == *"DEGRADED:"*"foreman-launch"* ]]
@@ -265,7 +276,7 @@ SHIM
   for profile in soft durable hard full; do
     run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
       BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" \
-      PATH="$SHIM:/usr/bin:/bin" \
+      PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" \
       bash "$REPO_ROOT/env/tool-check.sh" --profile "$profile"
     [[ "$output" == *"TEST OVERRIDE"*"FOREMAN_TEST_WSL_FORCE=1"*"wsl=1"* ]]
     [[ "$output" == *"foreman-launch"*"missing"* ]]
