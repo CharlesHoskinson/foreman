@@ -190,6 +190,26 @@
         LANE_READY=yes. Architecture Pass after host commits worktree
         (isolated sim empty findings); uncommitted HEAD still fails pre-
         migration findings. lane-run JSON consumption remains open.
+      - Sprint 3 R4B3 dependency-drift TypeScript port (worktree, base
+        `ee530cb0a2ee9567d3c077112bc1a416c0e85e5e`): readiness authority is
+        `profileToolIds` (every profile x both WSL states); strict `[[tools]]`
+        parse of `env/reference-manifest.toml`; bounded bootstrap text rules
+        (pseudo IDs, flock→util-linux, timeout→coreutils, nats unprovisioned
+        INFO). Product logic in
+        `packages/orchestration/src/dependency-drift.ts`; generated
+        `skills/foreman/runtime/dist/dependency-drift.js`
+        sha256 `c2bef37ce352f650564546d5d9d983c9697c0894e9daf14c6a6fcee9835abac4`
+        (two builds identical); thin six-production
+        `dependencies/check-drift.sh` Node adapter (purpose-header comments
+        only; no domain logic). Focused dependency-drift 32/32; tool-check +
+        vendor-preflight 166/166; full verify 670 pass + 1 skip;
+        typecheck/build/verify-runtime green; shellcheck clean; docs-check
+        pass; openspec validate --changes --strict 32/32; architecture
+        `check --base e298d29835a9ac93f8ef0313143a0f6bff7e2324` → Pass with
+        zero findings. Authored `bash dependencies/check-drift.sh` → exit 0
+        and `dependencies: no drift`. No duplicate `psscriptanalyzer`
+        `[[tools]]` record existed at base (single soft/full Windows optional
+        row retained). Host commit + Codex audit + hosted Windows residual.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

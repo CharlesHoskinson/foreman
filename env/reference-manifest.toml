@@ -166,15 +166,6 @@ required = false
 notes = "GNU parallel enables 'bats --jobs' suite-level parallelism (~3-4x after WATCH_VTICK removes wall-clock flake). DEFER-v0.2.5. Test suite verified isolation-clean (perf report E)."
 
 [[tools]]
-id = "psscriptanalyzer"
-profile = ["full"]
-where = ["windows"]
-check = "pwsh -NoProfile -Command \"Get-Module PSScriptAnalyzer -ListAvailable\""
-install_windows = "pwsh -NoProfile -Command \"Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -AcceptLicense\""
-required = false
-notes = "PowerShell static analysis for install.ps1 / env scripts. Installed 2026-07-17 (v1.25.0), CurrentUser scope (no admin)."
-
-[[tools]]
 id = "gh"
 profile = ["hard", "full"]
 where = ["windows", "wsl"]

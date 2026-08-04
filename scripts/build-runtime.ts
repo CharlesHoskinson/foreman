@@ -49,6 +49,12 @@ const ENTRIES = [
     relativePath: "dist/tool-check.js",
     injectCapabilities: true,
   },
+  {
+    id: "dependency-drift",
+    entry: join(root, "packages/orchestration/src/dependency-drift.ts"),
+    relativePath: "dist/dependency-drift.js",
+    injectCapabilities: false,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

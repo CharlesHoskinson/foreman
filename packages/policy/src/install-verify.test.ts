@@ -48,6 +48,10 @@ const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheck = join(trackedRuntime, "dist/tool-check.js");
+const trackedDependencyDrift = join(
+  trackedRuntime,
+  "dist/dependency-drift.js",
+);
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -79,6 +83,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
+  cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   return rt;
 }
 
@@ -462,6 +467,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -475,6 +481,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const roundPath = "/skill/runtime/dist/lane-round.js";
     const preflightPath = "/skill/runtime/dist/vendor-preflight.js";
     const toolCheckPath = "/skill/runtime/dist/tool-check.js";
+    const dependencyDriftPath = "/skill/runtime/dist/dependency-drift.js";
 
     const nodes = new Map([
       [
@@ -500,6 +507,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: dirIdentity({ ino: "12" }),
           names: [
               "architecture-policy.js",
+              "dependency-drift.js",
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
@@ -589,6 +597,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           }),
         },
       ],
+      [
+        dependencyDriftPath,
+        {
+          kind: "file" as const,
+          bytes: dependencyDriftBytes,
+          identity: fileIdentity({
+            ino: "27",
+            size: dependencyDriftBytes.byteLength,
+          }),
+        },
+      ],
     ]);
 
     const layer = makeMemoryInstallFs({
@@ -662,6 +681,7 @@ describe("runtime plugin-drift", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -701,6 +721,7 @@ describe("runtime plugin-drift", () => {
             identity: dirIdentity({ ino: prefix + "-dist" }),
             names: [
               "architecture-policy.js",
+              "dependency-drift.js",
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
@@ -788,6 +809,17 @@ describe("runtime plugin-drift", () => {
             }),
           },
         ],
+        [
+          `${dist}/dependency-drift.js`,
+          {
+            kind: "file",
+            bytes: dependencyDriftBytes,
+            identity: fileIdentity({
+              ino: prefix + "-dd",
+              size: dependencyDriftBytes.byteLength,
+            }),
+          },
+        ],
       ]);
     }
 
@@ -855,6 +887,7 @@ describe("skill-root and directory stability seams", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -890,6 +923,7 @@ describe("skill-root and directory stability seams", () => {
       identity: dirIdentity({ ino: opts?.distIno ?? "12" }),
       names: [
               "architecture-policy.js",
+              "dependency-drift.js",
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
@@ -982,6 +1016,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "26",
             size: toolCheckBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/dependency-drift.js`,
+        {
+          kind: "file",
+          bytes: dependencyDriftBytes,
+          identity: fileIdentity({
+            ino: "27",
+            size: dependencyDriftBytes.byteLength,
           }),
         },
       ],
@@ -1146,6 +1191,7 @@ describe("memory InstallFs path separator seam", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1177,6 +1223,7 @@ describe("memory InstallFs path separator seam", () => {
           identity: dirIdentity({ ino: "12" }),
           names: [
               "architecture-policy.js",
+              "dependency-drift.js",
               "destruction-guard.js",
               "lane-queue.js",
               "lane-round.js",
@@ -1259,6 +1306,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "26",
             size: toolCheckBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/dependency-drift.js`,
+        {
+          kind: "file",
+          bytes: dependencyDriftBytes,
+          identity: fileIdentity({
+            ino: "27",
+            size: dependencyDriftBytes.byteLength,
           }),
         },
       ],

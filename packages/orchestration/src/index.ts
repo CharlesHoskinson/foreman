@@ -376,3 +376,33 @@ export {
   type ToolCheckResult,
   type InventoryOutWriteResult,
 } from "./tool-check-run.js";
+
+// --- Sprint 3 R4B3: dependency-drift TypeScript runtime ---
+
+export {
+  EXIT_AGREE as DRIFT_EXIT_AGREE,
+  EXIT_DRIFT as DRIFT_EXIT_DRIFT,
+  EXIT_FAIL_CLOSED as DRIFT_EXIT_FAIL_CLOSED,
+  MAX_DRIFT_INPUT_BYTES,
+  PSEUDO_IDS,
+  UNPROVISIONED_IDS,
+  MSG_NO_DRIFT,
+  MSG_DRIFT_FOOTER,
+  REL_MANIFEST,
+  REL_BOOTSTRAP,
+  providedBy,
+  buildCheckerAuthority,
+  collectCheckerAuthority,
+  parseManifestTools,
+  reconcileDependencyDrift,
+  stripDriftNodeArgv,
+  runDependencyDrift,
+  resolveDriftRepoRoot,
+  type ManifestToolRecord,
+  type CheckerAuthority,
+  type ParseToolsResult,
+  type ReconcileInput,
+  type ReconcileResult,
+  type DriftIo,
+  type DriftRunOptions,
+} from "./dependency-drift.js";
