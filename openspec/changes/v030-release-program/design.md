@@ -140,7 +140,33 @@ Sprint 3 depends on the accepted Sprint 2 event-log commit.
 
 Focused packages keep their detailed acceptance tests. This release package
 owns cross-package order, scope coverage, exact-candidate convergence, and the
-final destruction record.
+final destruction record. `openspec/changes/node-typescript-runtime/` retains
+detailed module contracts and package-level acceptance tests.
+
+## Package inventory and ownership
+
+The TypeScript migration uses nine package families:
+
+1. `@foreman/core`
+2. `@foreman/policy`
+3. `@foreman/event-log`
+4. `@foreman/session`
+5. `@foreman/graph-store`
+6. `@foreman/launcher`
+7. `@foreman/release`
+8. `@foreman/knowledge`
+9. `@foreman/orchestration`
+
+`@foreman/policy` is its own package family. It is not a side module of
+`@foreman/core`.
+
+`graph-project` is owned by `@foreman/knowledge`. It consumes typed
+`@foreman/event-log` inputs. It does not become the event-log system of
+record. `@foreman/event-log` remains the system of record for run events.
+
+These ownership decisions supply the CW-023 and CW-024 mappings for Council
+review. Sprint 0 tasks 0.7 and 0.8 remain open until the reviewed candidate is
+published and verified.
 
 ## State and cleanup
 

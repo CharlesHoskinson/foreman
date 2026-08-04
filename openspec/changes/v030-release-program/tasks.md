@@ -14,6 +14,22 @@
 - [ ] 0.6 Record every cleanup candidate before any destructive action. The
       register exists. Owner and digest completion plus the `DST-0052`
       late-registration incident remain open.
+- [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
+      that include `@foreman/policy` as its own package family (CW-023).
+      Acceptance evidence: `typescriptmigration.md` states nine package
+      families, lists `@foreman/policy` as its own family, and uses the Sprint
+      0-through-17 order from `sprints.md` by exact reference without a
+      contradictory 0-through-9 table. The file states that this package owns
+      cross-package sprint order and that `node-typescript-runtime` retains
+      detailed module contracts. Do not mark this task complete before the
+      reviewed candidate is published and verified.
+- [ ] 0.8 Assign `graph-project` ownership to `@foreman/knowledge` with typed
+      `@foreman/event-log` input contracts (CW-024).
+      Acceptance evidence: `design.md`, `specs/release-program/spec.md`,
+      `sprints.md`, and `typescriptmigration.md` state that ownership. They
+      state that `graph-project` consumes typed `@foreman/event-log` inputs
+      and does not become the event-log system of record. Do not mark this
+      task complete before the reviewed candidate is published and verified.
 
 ## 1. Program execution
 

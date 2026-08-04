@@ -9,7 +9,7 @@ logic in compatibility scripts.
 
 ## Current baseline
 
-- Planned TypeScript package families: **8**.
+- Planned TypeScript package families: **9**.
 - Tracked Python files: **21**.
 - Product and release Python files: **11**.
 - Research and archive Python files: **4**.
@@ -21,18 +21,24 @@ logic in compatibility scripts.
 
 - [ ] `@foreman/core`: strict JSON, canonical JSON, digests, paths, locks,
       atomic files, Git, subprocess services, and tagged errors.
+- [ ] `@foreman/policy`: architecture language policy, merge-base debt
+      reporting, and fail-capable known-bad controls.
 - [ ] `@foreman/graph-store`: port, closed schemas, safe generations,
       files-only backend, lineage queries, and CLI.
 - [ ] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
       cancellation, and platform containment capabilities.
 - [ ] `@foreman/event-log`: one closed event decoder, bounded NDJSON replay,
-      cursors, and attempt identity.
+      cursors, and attempt identity. This package is the event-log system of
+      record.
 - [ ] `@foreman/session`: facts, measurements, obligations, recovery,
       freshness, supersession, retirement, sidecar, and current-authority view.
 - [ ] `@foreman/release`: metrics, sigma, controls, package matrix, package
       audits, and Tier 2 trigger/cost finality.
 - [ ] `@foreman/knowledge`: Graphify refresh, freshness, doctrine registry,
-      generations, and current-authority projection.
+      generations, current-authority projection, and `graph-project`.
+      `graph-project` is owned by this package. It consumes typed
+      `@foreman/event-log` inputs. It does not become the event-log system of
+      record.
 - [ ] `@foreman/orchestration`: round ownership, recovery transactions,
       vendor preflight, WSL preflight, and environment persistence.
 
@@ -68,18 +74,15 @@ logic in compatibility scripts.
 
 ## Sprint order
 
-| Sprint | Scope | Exit condition |
-|---|---|---|
-| 0 | Governance and immutable baseline | Iron Rule, OpenSpec, current inventory, stale-record purge, and Council plan review are complete. |
-| 1 | Workspace, `@foreman/core`, and policy | Clean npm install, strict type check, deterministic bundles, copied-install smoke test, and fail-capable language-policy controls pass. |
-| 2 | `@foreman/graph-store` | Node contract and hardening tests pass; Python GraphStore and all live references are deleted. |
-| 3 | `@foreman/launcher` | Node launcher passes Linux/WSL and Windows contracts; sustained child churn creates no zombie accumulation; Bun is not required. |
-| 4 | `@foreman/event-log` and `@foreman/session` | One event decoder serves SessionDB and recovery; the lossless sidecar round-trips; Python SessionDB is deleted. |
-| 5 | `@foreman/release` | Metrics, sigma, package audits, controls, and Tier 2 finality run under Node; release Python helpers are deleted. |
-| 6 | `@foreman/knowledge` | Graphify refresh and doctrine use immutable inputs, bounded processes, durable generations, and a current-authority view. |
-| 7 | `@foreman/orchestration` | Round recovery and preflight use typed Node modules; legacy callers are thin forwarding adapters. |
-| 8 | Zero-Python and stale-knowledge closure | `git ls-files '*.py'` is empty; no current Graphify edge or active document points to deleted code or doctrine. |
-| 9 | Release convergence | All Node, compatibility, OpenSpec, docs, cold-audit, Council, and merge gates pass at one unchanged commit. |
+`openspec/changes/v030-release-program/` owns the cross-package sprint order
+for v0.3.0. The current order is Sprints 0 through 17 in
+`openspec/changes/v030-release-program/sprints.md`.
+
+`openspec/changes/node-typescript-runtime/` retains the detailed module
+contracts, package boundaries, and package-level acceptance tests.
+
+Do not use a separate 0-through-9 migration-only sprint table. That numbering
+is withdrawn because it contradicts the release-program order.
 
 ## Per-sprint acceptance checklist
 
@@ -110,5 +113,6 @@ bash skills/foreman/scripts/docs-check.sh
 git diff --check
 ```
 
-The OpenSpec authority for this checklist is
-`openspec/changes/node-typescript-runtime/`.
+Module contracts for this checklist live in
+`openspec/changes/node-typescript-runtime/`. Cross-package sprint order lives
+in `openspec/changes/v030-release-program/`.

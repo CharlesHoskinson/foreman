@@ -117,6 +117,52 @@ strict TypeScript that targets Node.js 24.
 - THEN the architecture gate fails
 - AND the sprint cannot close.
 
+### Requirement: the migration package inventory includes policy
+
+WHEN the program records the TypeScript package inventory, Foreman SHALL list
+nine package families and SHALL include `@foreman/policy` as its own package
+family.
+
+The program SHALL use the Sprint 0-through-17 order in this package for
+cross-package work. `openspec/changes/node-typescript-runtime/` SHALL retain
+detailed module contracts. The program SHALL NOT keep a contradictory
+0-through-9 migration-only sprint table as current authority.
+
+#### Scenario: policy is not a separate package family
+
+- WHEN a candidate lists eight package families and omits `@foreman/policy`
+- THEN `SpecCorrectnessV1` reports a contradiction for CW-023
+- AND Council requests changes.
+
+#### Scenario: a stale migration sprint table remains current
+
+- WHEN a candidate keeps a 0-through-9 migration sprint table as current
+  authority
+- AND that table contradicts the Sprint 0-through-17 release-program order
+- THEN `SpecCorrectnessV1` reports a contradiction for CW-023
+- AND Council requests changes.
+
+### Requirement: graph-project belongs to knowledge
+
+WHEN the program maps work-DAG projection ownership, Foreman SHALL assign
+`graph-project` to `@foreman/knowledge`.
+
+`graph-project` SHALL consume typed `@foreman/event-log` inputs. It SHALL NOT
+become the event-log system of record. `@foreman/event-log` SHALL remain the
+event-log system of record.
+
+#### Scenario: graph-project has no package owner
+
+- WHEN a candidate omits package ownership for `graph-project`
+- THEN `SpecCorrectnessV1` reports an omitted item for CW-024
+- AND Council requests changes.
+
+#### Scenario: graph-project becomes the event-log system of record
+
+- WHEN a candidate assigns event-log system-of-record duty to `graph-project`
+- THEN `SpecCorrectnessV1` reports a contradiction for CW-024
+- AND Council requests changes.
+
 ### Requirement: Effect owns fallible runtime behavior
 
 WHEN a TypeScript module owns resources, cancellation, retries, timeouts, or
