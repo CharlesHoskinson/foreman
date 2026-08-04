@@ -1,4 +1,4 @@
-# bats test data (mode 100644; run via `bats`, not as a legacy executable)
+# bats test data (run via `bats`, not as a product executable)
 # @description Coverage for lifecycle-three-stage Task 5: the Use-path
 #   readiness gate in lane-run.sh. Spec R1/R2 require Use to REFUSE routing
 #   to a not-ready lane at the door -- not merely for Setup to report it

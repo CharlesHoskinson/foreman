@@ -31992,6 +31992,18 @@ function checkTypeScript(path, kind, blob) {
   if (reason === null) return null;
   return { path, kind, reason };
 }
+var BATS_TEST_DATA_HEADER = "# bats test data (run via `bats`, not as a product executable)";
+function isModifiedBatsTestData(path, blob) {
+  if (!path.startsWith("tests/")) return false;
+  if (!path.endsWith(".bats")) return false;
+  const rest = path.slice("tests/".length);
+  if (rest.length === 0 || rest.includes("\0")) return false;
+  const text = textFromBlob(blob);
+  if (text === null) return false;
+  const nl = text.indexOf("\n");
+  const firstLine = nl < 0 ? text : text.slice(0, nl);
+  return firstLine === BATS_TEST_DATA_HEADER;
+}
 var DEFAULT_IDENTITY = {
   present: true,
   mode: "100644",
@@ -32108,6 +32120,9 @@ function checkPath(args2) {
     if (reason !== null) {
       return { path: args2.path, kind: args2.kind, reason };
     }
+    return null;
+  }
+  if (isModifiedBatsTestData(args2.path, blob)) {
     return null;
   }
   const execReason = classifyExecutableSource({

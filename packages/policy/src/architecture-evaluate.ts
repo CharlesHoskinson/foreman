@@ -222,6 +222,27 @@ function checkTypeScript(
   return { path, kind, reason };
 }
 
+/** Exact first-line header that marks existing Bats files as runner test data. */
+const BATS_TEST_DATA_HEADER =
+  "# bats test data (run via `bats`, not as a product executable)";
+
+/**
+ * Closed exception: modified Bats under tests/ that declare the exact
+ * test-data header. Does not apply to added/renamed or non-tests paths.
+ */
+function isModifiedBatsTestData(path: string, blob: Uint8Array): boolean {
+  if (!path.startsWith("tests/")) return false;
+  if (!path.endsWith(".bats")) return false;
+  // Require a path segment after tests/ (rejects empty rest).
+  const rest = path.slice("tests/".length);
+  if (rest.length === 0 || rest.includes("\0")) return false;
+  const text = textFromBlob(blob);
+  if (text === null) return false;
+  const nl = text.indexOf("\n");
+  const firstLine = nl < 0 ? text : text.slice(0, nl);
+  return firstLine === BATS_TEST_DATA_HEADER;
+}
+
 const DEFAULT_IDENTITY: FileIdentity = {
   present: true,
   mode: "100644",
@@ -367,6 +388,14 @@ function checkPath(args: {
     if (reason !== null) {
       return { path: args.path, kind: args.kind, reason };
     }
+    return null;
+  }
+
+  // Closed exception: existing modified Bats under tests/ with the exact
+  // test-data header. Must run before general executable-source classification
+  // so mode 100755 does not trip prohibited_extensionless_executable.
+  // Added/renamed Bats never enter this branch (see added/renamed arm above).
+  if (isModifiedBatsTestData(args.path, blob)) {
     return null;
   }
 

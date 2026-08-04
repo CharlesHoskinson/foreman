@@ -509,3 +509,124 @@ describe("evaluateArchitecturePolicy known-bad branches", () => {
     assert.ok(r.findings.some((f) => f.path === mf));
   });
 });
+
+const BATS_TEST_DATA_HEADER =
+  "# bats test data (run via `bats`, not as a product executable)";
+
+const EXEC_IDENTITY = {
+  present: true as const,
+  mode: "100755",
+  isExecutable: true,
+  isSymlink: false,
+  isSpecial: false,
+};
+
+describe("modified Bats test-data exception", () => {
+  it("accepts modified tests/*.bats with exact header and mode 100755", () => {
+    const path = "tests/x.bats";
+    const body = `${BATS_TEST_DATA_HEADER}\n@test "ok" { true; }\n`;
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("does not exempt added Bats with the exact header", () => {
+    const path = "tests/new.bats";
+    const body = `${BATS_TEST_DATA_HEADER}\n@test "ok" { true; }\n`;
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_extensionless_executable");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("does not exempt renamed Bats with the exact header", () => {
+    const path = "tests/renamed.bats";
+    const body = `${BATS_TEST_DATA_HEADER}\n@test "ok" { true; }\n`;
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [
+        {
+          kind: "renamed",
+          path,
+          oldPath: "tests/old.bats",
+          status: "R",
+        },
+      ],
+      mergeBasePaths: ["tests/old.bats"],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_extensionless_executable");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("does not exempt modified Bats outside tests/", () => {
+    const path = "tools/x.bats";
+    const body = `${BATS_TEST_DATA_HEADER}\n@test "ok" { true; }\n`;
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_extensionless_executable");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("does not exempt modified tests/*.bats when first line differs by one byte", () => {
+    const path = "tests/x.bats";
+    // One-byte drift: trailing space on the header line
+    const body =
+      "# bats test data (run via `bats`, not as a product executable) \n" +
+      '@test "ok" { true; }\n';
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_extensionless_executable");
+    assert.equal(r.findings[0]!.path, path);
+  });
+});

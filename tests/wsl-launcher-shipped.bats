@@ -1,4 +1,4 @@
-# bats test data (mode 100644; run via `bats`, not as a legacy executable)
+# bats test data (run via `bats`, not as a product executable)
 # @description Regression coverage for the wsl-launcher-shipped package:
 #   Setup builds the POSIX launcher idempotently, tool-check distinguishes a
 #   buildable absence from a bun-blocked degradation, the frozen lane alert
