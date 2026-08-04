@@ -11,6 +11,12 @@ attempt identity before it records the prompt event.
 `mode: "round"`, `commandArgv`, `gateCommand`, `reportPath`, and
 `reportBaseline`.
 
+`RoundRequestV1` SHALL contain `runId`, `laneId`, `commandArgv`, `gateCommand`,
+and `reportPath`. It SHALL NOT contain `attemptId` or `reportBaseline`.
+
+The attempt allocator SHALL be the only source of `RoundPlanV1.attemptId`. The
+captured baseline SHALL be the only source of `RoundPlanV1.reportBaseline`.
+
 The prompt event SHALL store the complete plan under `payload.roundPlan`. The
 prompt event SHALL also store the numeric attempt ID under `payload.attempt`.
 
@@ -63,7 +69,9 @@ NOT join, split, quote, or escape the vector.
 ### Requirement: report freshness uses content identity only
 
 `ReportSnapshotV1` SHALL be `Absent` or `Present`. A present snapshot SHALL
-contain a lowercase 64-character SHA-256 digest and a positive `byteLength`.
+contain a lowercase 64-character SHA-256 digest and a nonnegative
+`byteLength`. A present snapshot with `byteLength: 0` SHALL represent an empty
+file.
 
 WHEN Foreman starts a round, it SHALL capture the report baseline before it
 records the prompt event. WHEN the gate completes, Foreman SHALL capture the
@@ -72,6 +80,10 @@ post-gate report snapshot.
 A report SHALL be fresh only when the post-gate snapshot is present, nonempty,
 within 8,388,608 bytes, and content-different from the baseline. An absent
 baseline followed by a valid present snapshot SHALL be fresh.
+
+`ReportSnapshotReader` SHALL enforce the 8,388,608-byte report-content bound.
+It SHALL return a typed `report_too_large` failure before it retains content
+above that bound.
 
 The implementation SHALL NOT use modification time, filename patterns, or
 report text patterns as freshness evidence.
@@ -88,14 +100,46 @@ report text patterns as freshness evidence.
 - THEN the round outcome is incomplete
 - AND the reason is `report_read_failed`.
 
+#### Scenario: the post-gate report is empty
+
+- WHEN the post-gate snapshot is present with `byteLength: 0`
+- THEN the round outcome is incomplete
+- AND the reason is `report_empty`.
+
 ### Requirement: the transaction records one closed event sequence
 
 `RoundOutcomeV1` SHALL be `completed` or `incomplete`. A completed outcome
 SHALL require gate exit code zero, `reportFresh: true`, and report evidence.
 
+A completed outcome SHALL contain `_tag: "completed"`, the exact attempt
+identity, `implementationExitCode`, `gateExitCode: 0`, `reportFresh: true`,
+`reportBaseline`, and the present post-gate snapshot under `report`.
+
+An incomplete outcome SHALL contain `_tag: "incomplete"`, the exact attempt
+identity, `implementationExitCode`, `gateExitCode`, `reportFresh: false`, one
+closed `reason`, `reportBaseline`, and `report`. The `report` field SHALL be a
+snapshot or `null`. It SHALL be `null` only when the post-gate reader returns
+`report_too_large` or `report_read_failed`.
+
 The closed incomplete-reason set SHALL be `gate_failed`, `report_missing`,
 `report_empty`, `report_unchanged`, `report_too_large`, and
 `report_read_failed`. Exit codes SHALL be integers from 0 through 255.
+
+The outcome decision SHALL use this first-match order:
+
+1. A nonzero gate exit selects `gate_failed`.
+2. A post-gate `report_too_large` reader failure selects `report_too_large`.
+3. Any other post-gate reader failure selects `report_read_failed`.
+4. An absent post-gate snapshot selects `report_missing`.
+5. A zero-byte present snapshot selects `report_empty`.
+6. A post-gate digest equal to the present baseline selects
+   `report_unchanged`.
+7. All remaining inputs select `completed`.
+
+`round_done.payload` SHALL contain `attempt` and the completed outcome under
+`outcome`. `waiting_child.payload` SHALL contain `attempt` and the incomplete
+outcome under `outcome`. The terminal alert payload SHALL contain `attempt`,
+`kind: "round_incomplete"`, and the same incomplete outcome under `outcome`.
 
 The successful event order SHALL be:
 
@@ -132,6 +176,12 @@ attempt identity and conflicting outcomes.
 - THEN Foreman records `waiting_child`
 - AND Foreman records `round_incomplete`
 - AND the incomplete reason is `gate_failed`.
+
+#### Scenario: the gate fails and the report is missing
+
+- WHEN the gate returns a nonzero exit code
+- AND the post-gate snapshot is absent
+- THEN the incomplete reason is `gate_failed`.
 
 ### Requirement: Effect owns transaction boundaries
 
@@ -174,8 +224,19 @@ SHALL NOT retry a transaction implicitly.
 `recoverRoundAttempt` SHALL return exactly one of `Recoverable`, `Completed`,
 `LegacyUnbound`, or `Invalid`.
 
-A recoverable result SHALL contain the exact stored round plan and checkpoint
-identity. A completed result SHALL contain the exact stored outcome.
+A recoverable result SHALL contain the exact stored round plan. It SHALL also
+contain a checkpoint identity with the exact attempt identity and nonempty
+checkpoint commit.
+
+A `Completed` recovery result SHALL mean that replay found a durable terminal
+event. It SHALL contain the exact attempt identity and the exact stored
+`RoundOutcomeV1`. Its outcome MAY have `_tag: "completed"` or
+`_tag: "incomplete"`.
+
+Recovery SHALL read a completed outcome only from `round_done.payload.outcome`.
+Recovery SHALL read an incomplete outcome only from a terminal
+`alert.payload.outcome` whose kind is `round_incomplete`. A `waiting_child`
+event alone SHALL remain recoverable and SHALL NOT become `Completed`.
 
 Recovery SHALL reject interleaved or conflicting events for the selected
 attempt. Recovery SHALL NOT read external process state. Recovery SHALL NOT
