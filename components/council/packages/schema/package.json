@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./spec-correctness": "./src/spec-correctness.ts"
   },
   "dependencies": {
     "@noble/hashes": "2.2.0",
