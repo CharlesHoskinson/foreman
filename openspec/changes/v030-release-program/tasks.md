@@ -8,11 +8,14 @@
       Tracked authority is current. GitHub release metadata still needs the
       merged notes.
 - [ ] 0.3 Reconcile implemented, partial, absent, parked, and stale OpenSpec tasks.
-- [ ] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix and
-      strict `SpecCorrectnessV1` schema/domain evaluator are tracked. The
-      Effect admission command and immutable Council bundle are pending.
+- [x] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix,
+      strict `SpecCorrectnessV1` evaluator, and Effect admission command are
+      tracked. The first exact live activation record is in
+      `docs/evidence/v0.3.0/spec-correctness-round-001/`.
 - [ ] 0.5 Ship the Effect admission command, then run a ledger-bound Council
       review with `SpecCorrectnessV1` on one exact candidate.
+      One live Grok verdict is admitted for exact head `71b6fbd`. The default
+      three-verdict, two-model-family Council quorum remains pending.
 - [ ] 0.6 Record every cleanup candidate before any destructive action. The
       register exists. The `DST-0052` historical-process incident mitigation
       and the `DST-0059` fail-closed pre-destruction guard remain unfinished.
