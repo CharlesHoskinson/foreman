@@ -141,6 +141,74 @@ contract hash, prompt hash, and response-schema variant hash.
 - THEN Foreman records an infrastructure failure
 - AND Foreman does not record an abstention for that provider.
 
+### Requirement: specification correctness has a separate admission command
+
+WHEN Foreman admits a `SpecCorrectnessV1` result, Foreman SHALL use the
+Node.js 24 TypeScript command `council-spec-correctness`.
+
+The command SHALL keep filesystem paths outside the application input. The
+application SHALL use Effect and typed ports to read artifacts and to compute
+SHA-256 and fatal UTF-8 results. The command SHALL NOT change the existing
+`council-preflight` command or its bundle.
+
+The admission identity SHALL contain these exact fields:
+`candidateCommitSha`, `candidateTreeSha`, `baseCommitSha`, `diffSha256`,
+`ledgerSha256`, `coverageMatrixSha256`, `specSetSha256`, `reviewerId`,
+`providerFamily`, `providerReceiptHash`, `readyTokenHash`, `contractHash`,
+`promptHash`, and `responseSchemaVariantHash`.
+
+The host SHALL compare the expected, observed, and provider-submitted identity
+records field for field. The host SHALL also bind the candidate commit, base
+commit, diff digest, reviewer, ready token, contract, and prompt to the
+existing review-attempt identity.
+
+The host SHALL read each artifact once with a 1,048,576-byte per-artifact
+limit, a 16,777,216-byte total limit, and a 128-artifact count limit. The host
+SHALL verify every descriptor digest and byte length. Artifact IDs and aliases
+SHALL be unique. The coverage-matrix, ledger, and specification-set roles SHALL
+name the complete descriptor set.
+
+The specification-set digest SHALL use descriptor records sorted by artifact
+alias in UTF-8 byte order. Each record SHALL contain `alias`, `artifactId`,
+`sha256`, and `byteLength`. The host SHALL hash recursively key-sorted compact
+UTF-8 JSON with exactly one trailing LF.
+
+The command SHALL emit recursively key-sorted compact JSON with exactly one
+trailing LF. It SHALL return exit code 0 only for a valid `accept` result that
+matches approved final advice. It SHALL return exit code 1 for changes,
+abstention, invalid output, identity mismatch, or typed infrastructure
+failure. It SHALL return exit code 64 for invalid command-line usage.
+
+#### Scenario: approved advice disagrees with the correctness result
+
+- WHEN `SpecCorrectnessV1` returns `changes_requested`
+- AND the final review advice says `approved`
+- THEN Foreman rejects the result from admission
+- AND the candidate receives `changes_requested`.
+
+#### Scenario: an artifact changes after identity observation
+
+- WHEN the recomputed artifact digest or byte length differs from its
+  descriptor
+- THEN Foreman records an infrastructure failure
+- AND the candidate receives `changes_requested`
+- AND the result is not an abstention.
+
+#### Scenario: a named abstention is valid
+
+- WHEN `SpecCorrectnessV1` returns a valid named abstention
+- AND the final review classification is a completed abstention
+- THEN Foreman preserves the abstention
+- AND the abstention does not count toward quorum
+- AND the command returns exit code 1.
+
+#### Scenario: output contains operational secrets
+
+- WHEN a result would contain a filesystem path, raw provider output, raw
+  process error, environment value, or secret text
+- THEN the result schema rejects that output
+- AND the command emits only a typed secret-safe failure.
+
 ### Requirement: actionable dissent cannot be overridden
 
 WHEN one admissible reviewer reports a contradiction, invention, omission, or

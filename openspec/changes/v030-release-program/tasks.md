@@ -8,9 +8,11 @@
       Tracked authority is current. GitHub release metadata still needs the
       merged notes.
 - [ ] 0.3 Reconcile implemented, partial, absent, parked, and stale OpenSpec tasks.
-- [ ] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix is
-      tracked. The immutable Council bundle is pending.
-- [ ] 0.5 Run a ledger-bound Council review with `SpecCorrectnessV1`.
+- [ ] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix and
+      strict `SpecCorrectnessV1` schema/domain evaluator are tracked. The
+      Effect admission command and immutable Council bundle are pending.
+- [ ] 0.5 Ship the Effect admission command, then run a ledger-bound Council
+      review with `SpecCorrectnessV1` on one exact candidate.
 - [ ] 0.6 Record every cleanup candidate before any destructive action. The
       register exists. The `DST-0052` historical-process incident mitigation
       and the `DST-0059` fail-closed pre-destruction guard remain unfinished.
