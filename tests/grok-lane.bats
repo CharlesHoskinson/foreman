@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+# bats test data (mode 100644; run via `bats`, not as a legacy executable)
 # @description grok-lane-activation (v0.2.7.5 package 2) coverage.
 #
 #   Task 1 -- the grok arm of lane-run.sh's vendor map (T5a's
