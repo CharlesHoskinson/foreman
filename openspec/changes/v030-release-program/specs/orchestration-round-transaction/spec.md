@@ -111,15 +111,21 @@ report text patterns as freshness evidence.
 `RoundOutcomeV1` SHALL be `completed` or `incomplete`. A completed outcome
 SHALL require gate exit code zero, `reportFresh: true`, and report evidence.
 
-A completed outcome SHALL contain `_tag: "completed"`, the exact attempt
-identity, `implementationExitCode`, `gateExitCode: 0`, `reportFresh: true`,
-`reportBaseline`, and the present post-gate snapshot under `report`.
+A completed outcome SHALL contain `_tag: "completed"`,
+`attemptIdentity: AttemptIdentity`, `implementationExitCode`,
+`gateExitCode: 0`, `reportFresh: true`, `reportBaseline`, and the present
+post-gate snapshot under `report`.
 
-An incomplete outcome SHALL contain `_tag: "incomplete"`, the exact attempt
-identity, `implementationExitCode`, `gateExitCode`, `reportFresh: false`, one
-closed `reason`, `reportBaseline`, and `report`. The `report` field SHALL be a
-snapshot or `null`. It SHALL be `null` only when the post-gate reader returns
-`report_too_large` or `report_read_failed`.
+An incomplete outcome SHALL contain `_tag: "incomplete"`,
+`attemptIdentity: AttemptIdentity`, `implementationExitCode`, `gateExitCode`,
+`reportFresh: false`, one closed `reason`, `reportBaseline`, and `report`. The
+`report` field SHALL be a snapshot or `null`. It SHALL be `null` only when the
+post-gate reader returns `report_too_large` or `report_read_failed`.
+
+`AttemptIdentity` SHALL be the exact `{ runId, laneId, attemptId }` type
+exported by `@foreman/event-log`. Every stored outcome and its enclosing event
+payload SHALL describe the same attempt identity. The numeric
+`payload.attempt` SHALL equal `outcome.attemptIdentity.attemptId`.
 
 The closed incomplete-reason set SHALL be `gate_failed`, `report_missing`,
 `report_empty`, `report_unchanged`, `report_too_large`, and
@@ -141,27 +147,61 @@ The outcome decision SHALL use this first-match order:
 outcome under `outcome`. The terminal alert payload SHALL contain `attempt`,
 `kind: "round_incomplete"`, and the same incomplete outcome under `outcome`.
 
+The transaction SHALL record exactly one `checkpoint` event after checkpoint
+capture and before the verifying-state event. Its top-level `commit` SHALL be
+nonempty. Its payload SHALL contain the numeric attempt under `attempt`. The
+top-level `commit` is the sole durable checkpoint-commit source for R2
+recovery.
+
+The recognized nonterminal round annotations SHALL be `ownership`,
+`heartbeat`, and `checkpoint`. An `ownership` or `heartbeat` event for the
+selected attempt leaves reducer state unchanged. The transaction core itself
+SHALL emit the required `checkpoint`; injected boundaries MAY durably append
+zero or more `ownership` or `heartbeat` annotations.
+
 The successful event order SHALL be:
 
 1. `prompt`
-2. zero or more annotation events
-3. `state` with `verifying`
-4. `round_done`
+2. zero or more `ownership` or `heartbeat` annotations
+3. exactly one `checkpoint` with a nonempty top-level `commit`
+4. zero or more `ownership` or `heartbeat` annotations
+5. `state` with `verifying`
+6. `round_done`
 
 The incomplete event order SHALL be:
 
 1. `prompt`
-2. zero or more annotation events
-3. `state` with `verifying`
-4. `waiting_child`
-5. `alert` with `round_incomplete`
+2. zero or more `ownership` or `heartbeat` annotations
+3. exactly one `checkpoint` with a nonempty top-level `commit`
+4. zero or more `ownership` or `heartbeat` annotations
+5. `state` with `verifying`
+6. `waiting_child`
+7. `alert` with `round_incomplete`
 
 The reducer states SHALL be `Unstarted`, `Implementing`, `Verifying`,
 `Completed`, and `Incomplete`.
 
-The reducer SHALL reject duplicate prompt, verifying, or terminal events. It
-SHALL reject a terminal event before verifying. It SHALL reject missing
-attempt identity and conflicting outcomes.
+The reducer SHALL use this closed transition table for structural events of
+the selected attempt:
+
+- `prompt` moves `Unstarted` to `Implementing`.
+- `checkpoint` requires `Implementing`, records the checkpoint identity, and
+  remains `Implementing`.
+- `state` with `verifying` requires the recorded checkpoint and moves
+  `Implementing` to `Verifying`.
+- `waiting_child` requires `Verifying`, stores the incomplete outcome as
+  pending, and remains `Verifying`.
+- `round_done` requires `Verifying` and a completed outcome, and moves to
+  `Completed`.
+- `alert` with `kind: "round_incomplete"` requires `Verifying` and the exact
+  pending outcome from `waiting_child`, and moves to `Incomplete`.
+
+Only `round_done` and `alert` with `kind: "round_incomplete"` are terminal
+round events. `waiting_child` is nonterminal. The reducer SHALL reject a
+duplicate prompt, checkpoint, verifying event, waiting-child event, or
+terminal event. It SHALL reject a terminal event before verifying, an unknown
+event type bound to the selected attempt, missing attempt identity, and
+conflicting outcomes.
 
 #### Scenario: implementation exits nonzero
 
@@ -196,11 +236,12 @@ The transaction SHALL run these operations in order:
 3. Durably record the prompt.
 4. Run the implementation command.
 5. Capture the checkpoint.
-6. Durably record the verifying state.
-7. Run the gate command.
-8. Capture the post-gate report snapshot.
-9. Decide the outcome.
-10. Durably record the terminal sequence.
+6. Durably record the checkpoint event with its top-level commit.
+7. Durably record the verifying state.
+8. Run the gate command.
+9. Capture the post-gate report snapshot.
+10. Decide the outcome.
+11. Durably record the terminal sequence.
 
 The implementation SHALL use injected services for every fallible boundary.
 It SHALL fail closed on allocation, durable append, command transport,
@@ -224,19 +265,39 @@ SHALL NOT retry a transaction implicitly.
 `recoverRoundAttempt` SHALL return exactly one of `Recoverable`, `Completed`,
 `LegacyUnbound`, or `Invalid`.
 
-A recoverable result SHALL contain the exact stored round plan. It SHALL also
-contain a checkpoint identity with the exact attempt identity and nonempty
-checkpoint commit.
+A `CheckpointIdentityV1` SHALL contain
+`attemptIdentity: AttemptIdentity` and `commit: string`. Its `commit` SHALL be
+nonempty and SHALL equal the selected attempt's `checkpoint` event top-level
+`commit`.
+
+A `Recoverable` result SHALL contain `_tag: "Recoverable"`, the exact stored
+round plan under `roundPlan`, and the checkpoint identity under
+`checkpointIdentity`. A prompt without a later valid checkpoint SHALL return
+`Invalid` with reason `checkpoint_missing`. A checkpoint before a prompt or a
+verifying event before a valid checkpoint SHALL return `Invalid` with reason
+`invalid_transition`.
 
 A `Completed` recovery result SHALL mean that replay found a durable terminal
-event. It SHALL contain the exact attempt identity and the exact stored
-`RoundOutcomeV1`. Its outcome MAY have `_tag: "completed"` or
-`_tag: "incomplete"`.
+event. It SHALL contain `_tag: "Completed"`,
+`attemptIdentity: AttemptIdentity`, and the exact stored `RoundOutcomeV1`
+under `outcome`. Its outcome MAY have `_tag: "completed"` or
+`_tag: "incomplete"`. The outer `attemptIdentity` SHALL equal
+`outcome.attemptIdentity`.
+
+A `LegacyUnbound` result SHALL contain `_tag: "LegacyUnbound"` and the exact
+requested `attemptIdentity`. An `Invalid` result SHALL contain
+`_tag: "Invalid"`, the exact requested `attemptIdentity`, and one reason from
+the closed set `invalid_transition`, `checkpoint_missing`,
+`conflicting_outcome`, and `invalid_payload`.
+
+`recoverRoundAttempt` SHALL accept the replayed `readonly StoredEvent[]` and
+the exact requested `AttemptIdentity`. It SHALL use only those inputs.
 
 Recovery SHALL read a completed outcome only from `round_done.payload.outcome`.
 Recovery SHALL read an incomplete outcome only from a terminal
 `alert.payload.outcome` whose kind is `round_incomplete`. A `waiting_child`
-event alone SHALL remain recoverable and SHALL NOT become `Completed`.
+event alone SHALL remain `Recoverable` and SHALL NOT become `Completed` or
+move the reducer to `Incomplete`.
 
 Recovery SHALL reject interleaved or conflicting events for the selected
 attempt. Recovery SHALL NOT read external process state. Recovery SHALL NOT
