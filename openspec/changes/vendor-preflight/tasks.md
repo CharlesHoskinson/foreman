@@ -83,6 +83,12 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
       line / nonzero exit all map to one `degraded` row. Focused package
       tests 20/20; bats tool-check-auth + foreman-setup 26/26; full verify
       554 pass + 1 skip. Live dogfood grok/codex `ok` at floors.
+- [x] **Partial (R4B detail-byte boundary):** Shell `fm_tc_vendor_preflight_row`
+      rejects detail whose UTF-8 byte length exceeds
+      `MAX_TOOL_CHECK_DETAIL_BYTES` (512); exactly 512 accepted; 513+ emits one
+      `degraded` row (no `ok`, `LANE_READY: grok=no`). RED observed before fix
+      (`LANE_READY: grok=yes` on 513-byte spoof). Bats tool-check-auth +
+      foreman-setup 27/27; focused package 20/20; full verify 554 pass + 1 skip.
 - [ ] `lane-run.sh`'s readiness gate reads the JSON record rather than
       re-probing, and reproduces the recorded reason verbatim in its refusal.
 - [x] **Partial (R4B):** A vendor whose auth fact is `unknown` projects to

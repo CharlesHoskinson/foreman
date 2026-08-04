@@ -403,6 +403,13 @@ if [[ " \$* " == *" tool-check-row "* ]]; then
       printf '%s\tok\tdetail\n' "\$vendor"
       exit 3
       ;;
+    detail-oversize)
+      # Otherwise-valid ready row whose detail is one byte over the
+      # MAX_TOOL_CHECK_DETAIL_BYTES (512) contract.
+      detail=\$(python3 -c 'print("x" * 513)')
+      printf '%s\tok\t%s\n' "\$vendor" "\$detail"
+      exit 0
+      ;;
     *)
       exec "\$REAL_NODE" "\$@"
       ;;
@@ -442,6 +449,17 @@ EOF
 
 @test "shell adapter degrades on valid-looking stdout with nonzero runtime exit" {
   install_spoof_node nonzero-exit
+  run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
+  [[ "$output" == *"grok"*"degraded"* ]]
+  ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"
+  [[ "$output" == *"LANE_READY: grok=no"* ]]
+  [[ "$output" != *"NOT_AUTHENTICATED:"*"grok"* ]]
+}
+
+@test "shell adapter degrades when detail exceeds 512 UTF-8 bytes" {
+  # Cold-audit residual: an otherwise-valid ready row with detail of 513
+  # bytes (MAX_TOOL_CHECK_DETAIL_BYTES + 1) must not be accepted as ok.
+  install_spoof_node detail-oversize
   run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
   [[ "$output" == *"grok"*"degraded"* ]]
   ! grep -Eq '^grok[[:space:]]+ok' <<<"$output"

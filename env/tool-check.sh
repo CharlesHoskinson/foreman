@@ -70,7 +70,7 @@ VENDOR_PREFLIGHT_JS="$ROOT/skills/foreman/runtime/dist/vendor-preflight.js"
 # @stdout one tab-separated tool, status, and detail row (no trailing fields)
 fm_tc_vendor_preflight_row() {
   local vendor="$1"
-  local out="" rc=0 status detail vid tabs
+  local out="" rc=0 status detail vid tabs detail_bytes
   if ! have node; then
     printf '%s\tdegraded\t%s\n' "$vendor" "node unavailable; cannot run vendor-preflight"
     return 0
@@ -119,9 +119,16 @@ fm_tc_vendor_preflight_row() {
       ;;
   esac
   # Bounded nonempty detail; residual separators are impossible with exactly
-  # two tabs but keep a closed non-blank cell contract.
+  # two tabs but keep a closed non-blank cell contract. Byte length must match
+  # the TypeScript MAX_TOOL_CHECK_DETAIL_BYTES = 512 contract (UTF-8 bytes,
+  # not locale character count). Exactly 512 is accepted; 513+ is degraded.
   if [[ -z "${detail:-}" ]]; then
     printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row detail empty"
+    return 0
+  fi
+  detail_bytes=$(printf '%s' "$detail" | wc -c | tr -d '[:space:]')
+  if [[ "${detail_bytes:-0}" -gt 512 ]]; then
+    printf '%s\tdegraded\t%s\n' "$vendor" "vendor-preflight row detail exceeds 512 bytes"
     return 0
   fi
   printf '%s\t%s\t%s\n' "$vendor" "$status" "$detail"

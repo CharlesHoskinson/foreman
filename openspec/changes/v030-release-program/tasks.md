@@ -161,10 +161,14 @@
         `decoded.vendor === parsed.vendor` before emit; shell requires exit
         0 + exactly one three-field TSV row bound to the requested vendor
         (wrong vendor, fourth field, second line, nonzero exit → degraded).
-        Focused package tests 20/20; bats tool-check-auth + foreman-setup
-        26/26; typecheck/build/verify-runtime/verify green (554 pass, 1
-        skip). Live dogfood: both lanes `ok` with floor versions on this
-        host. lane-run JSON consumption and full Sprint 3 close remain open.
+        Detail-byte boundary residual: shell rejects detail UTF-8 byte length
+        > 512 (`MAX_TOOL_CHECK_DETAIL_BYTES`); exactly 512 accepted; 513+ →
+        one `degraded` row. RED before fix: spoofed 513-byte ready row yielded
+        `LANE_READY: grok=yes`. Focused package tests 20/20; bats
+        tool-check-auth + foreman-setup 27/27; typecheck/build/verify-runtime/
+        verify green (554 pass, 1 skip). Live dogfood: both lanes `ok` with
+        floor versions on this host. lane-run JSON consumption and full
+        Sprint 3 close remain open.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.
