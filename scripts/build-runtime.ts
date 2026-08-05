@@ -94,6 +94,12 @@ const ENTRIES = [
     relativePath: "dist/credential-profile-lane.js",
     injectCapabilities: false,
   },
+  {
+    id: "graph-store",
+    entry: join(root, "packages/graph-store/src/main.ts"),
+    relativePath: "dist/graph-store.js",
+    injectCapabilities: false,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

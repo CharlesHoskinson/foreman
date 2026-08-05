@@ -4,6 +4,29 @@
 files-only implementation. TerminusDB adapter, full N2 schema freeze, ingest,
 concurrency, and operations runbooks are deferred.
 
+## TypeScript is the product surface (Sprint 4 / M2 package 1)
+
+The authoritative implementation is the private workspace package
+`@foreman/graph-store` and the compiled CLI:
+
+```bash
+node skills/foreman/runtime/dist/graph-store.js contract
+node skills/foreman/runtime/dist/graph-store.js capabilities
+node skills/foreman/runtime/dist/graph-store.js smoke
+node skills/foreman/runtime/dist/graph-store.js version-ref main
+```
+
+Python under this directory remains as **legacy behavior evidence** until
+compiled parity is accepted and `DST-0040` authorises deletion of the seven
+`.py` files. Do not treat Python as the release product. Python removal is the
+**next guarded package**, not this one.
+
+| Path | Role |
+|---|---|
+| `packages/graph-store/` | TypeScript port, schema, files-only backend, contract suite, CLI |
+| `skills/foreman/runtime/dist/graph-store.js` | Compiled Node.js CLI (bundled, no repo `node_modules` required) |
+| `*.py` (this directory) | Legacy evidence only — do not extend |
+
 ## Architectural rule
 
 TerminusDB is a regenerable materialisation behind this port with a files-only
@@ -11,7 +34,7 @@ fallback — **never the system of record**. GP-1 through GP-5 carry no store
 dependency. This package serves **persistent, cross-run, versioned query**
 consumers only (RECONCILE R7).
 
-## Layout
+## Legacy Python layout (evidence only)
 
 | Path | Role |
 |---|---|
@@ -51,25 +74,26 @@ Files-only reports all three **unavailable**.
 | Variable | Meaning |
 |---|---|
 | `FOREMAN_GRAPH_STORE` | `files_only` (default). `terminusdb` refused until the adapter package lands. |
-| `FOREMAN_GRAPH_STORE_ROOT` | Materialisation directory for files-only. Unset → in-memory. |
+| `FOREMAN_GRAPH_STORE_ROOT` | Materialisation directory for files-only. Unset → in-memory (tests). |
 
-## Verification
+## Verification (TypeScript)
 
 ```bash
-# Contract suite against files-only (must PASS)
+npm ci
+npm run build
+npm run typecheck
+node --import tsx --test packages/graph-store/src/**/*.test.ts
+npm run verify-runtime
+
+# Compiled CLI
+node skills/foreman/runtime/dist/graph-store.js contract files_only
+node skills/foreman/runtime/dist/graph-store.js contract stub --expect-fail
+node skills/foreman/runtime/dist/graph-store.js smoke
+```
+
+## Verification (legacy Python — evidence only)
+
+```bash
 PYTHONPATH=skills/foreman python3 -m graph_store.contract_suite files_only
-
-# Same suite against broken stub (must FAIL — soundness)
 PYTHONPATH=skills/foreman python3 -m graph_store.contract_suite stub --expect-fail
-
-# No store configured
-unset FOREMAN_GRAPH_STORE
-PYTHONPATH=skills/foreman python3 -m graph_store smoke
-
-# Full harness
-bash tests/graph_store/run_contract.sh
-bash tests/graph_store/run_known_bad.sh
-
-# bats (host-wide mutex required)
-flock /tmp/foreman-bats.lock bats tests/graph-store-contract.bats
 ```
