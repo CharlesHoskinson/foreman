@@ -121,44 +121,37 @@ const rejected = (
 /**
  * Completed invalid provider response. Distinct from infrastructure Rejected.
  * Never converts CompletedInvalidResponse back into ReviewInfrastructureFailure.
+ * Evaluation is always null — never publish a bound accept beside a rejected
+ * provider response. Construction is total: preserve the classifier-produced
+ * closed successful terminal; do not synthesize terminal facts.
  */
 const responseRejected = (
   classification: Extract<
     ReviewAttemptClassification,
     { readonly _tag: "CompletedInvalidResponse" }
   >,
-  evaluation: BoundSpecCorrectnessEvaluationV1 | null = null,
 ): SpecCorrectnessAdmissionResult => {
+  const payload = {
+    schemaVersion: 1 as const,
+    _tag: "ResponseRejected" as const,
+    evaluation: null,
+    classification: {
+      _tag: "CompletedInvalidResponse" as const,
+      reason: classification.reason,
+      terminal: classification.terminal,
+      quorumEligible: false as const,
+      deliberationEligible: false as const,
+    },
+    quorumEligible: false as const,
+    candidateDisposition: "changes_requested" as const,
+  };
   try {
-    return decodeStrictSync(SpecCorrectnessAdmissionResultSchema, {
-      schemaVersion: 1,
-      _tag: "ResponseRejected",
-      evaluation,
-      classification: {
-        _tag: "CompletedInvalidResponse",
-        reason: classification.reason,
-        terminal: classification.terminal,
-        quorumEligible: false,
-        deliberationEligible: false,
-      },
-      quorumEligible: false,
-      candidateDisposition: "changes_requested",
-    });
+    return decodeStrictSync(SpecCorrectnessAdmissionResultSchema, payload);
   } catch {
-    return decodeStrictSync(SpecCorrectnessAdmissionResultSchema, {
-      schemaVersion: 1,
-      _tag: "ResponseRejected",
-      evaluation: null,
-      classification: {
-        _tag: "CompletedInvalidResponse",
-        reason: classification.reason,
-        terminal: classification.terminal,
-        quorumEligible: false,
-        deliberationEligible: false,
-      },
-      quorumEligible: false,
-      candidateDisposition: "changes_requested",
-    });
+    // Total fallback: classifier terminal and closed reason already passed
+    // admission gates. Return the closed shape without re-decoding so a
+    // decode defect cannot degrade into infrastructure Rejected.
+    return payload;
   }
 };
 
@@ -769,18 +762,9 @@ export const evaluateSpecCorrectnessAdmission = (
 
     const bound = bindEvaluation(identity, evaluation);
 
-    if (evaluation._tag === "Invalid") {
-      return rejected(
-        infrastructureFailure(
-          "parse",
-          "spec-correctness evaluator returned invalid",
-          "new_contract",
-        ),
-        bound,
-      );
-    }
-
-    // 9. Classify the review attempt and require advice/outcome alignment.
+    // 9. Classify the review attempt before treating evaluator-invalid as
+    // infrastructure failure. A successful-terminal invalid provider response
+    // must remain CompletedInvalidResponse / public ResponseRejected.
     let classification: ReviewAttemptClassification;
     try {
       classification = classifyReviewAttempt(
@@ -797,6 +781,13 @@ export const evaluateSpecCorrectnessAdmission = (
       );
     }
 
+    // Completed invalid response is not infrastructure failure. Preserve the
+    // closed classification even when the SpecCorrectness evaluator is Invalid
+    // (e.g. approved/accept with nonempty findings → declared_accept_with_findings).
+    if (classification._tag === "CompletedInvalidResponse") {
+      return responseRejected(classification);
+    }
+
     if (
       classification._tag === "ProviderPreflightFailed" ||
       classification._tag === "ReviewAttemptFailed"
@@ -811,10 +802,15 @@ export const evaluateSpecCorrectnessAdmission = (
       );
     }
 
-    // Completed invalid response is not infrastructure failure. Preserve the
-    // closed classification and do not convert it into ReviewInfrastructureFailure.
-    if (classification._tag === "CompletedInvalidResponse") {
-      return responseRejected(classification, bound);
+    if (evaluation._tag === "Invalid") {
+      return rejected(
+        infrastructureFailure(
+          "parse",
+          "spec-correctness evaluator returned invalid",
+          "new_contract",
+        ),
+        bound,
+      );
     }
 
     const alignment = alignSpecCorrectnessWithClassification(

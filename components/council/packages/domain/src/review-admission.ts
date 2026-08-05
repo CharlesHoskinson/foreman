@@ -5,6 +5,7 @@ import type {
   FinalAbstentionResponseV1,
   FinalReviewResponseV1,
   FinalVerdictResponseV1,
+  InvalidReviewResponseReasonV1,
   ReviewAbstention,
   ReviewBundleIdentityV1,
   ReviewInfrastructureFailure,
@@ -43,12 +44,9 @@ export type ReviewAttemptInput = {
 /**
  * Closed reasons for a completed provider turn whose designated structured
  * output is schema-invalid, identity-invalid, or semantically inadmissible.
+ * Single source of truth: schema export InvalidReviewResponseReasonV1.
  */
-export type InvalidReviewResponseReason =
-  | "schema_invalid"
-  | "identity_mismatch"
-  | "findings_invalid"
-  | "abstention_invalid";
+export type InvalidReviewResponseReason = InvalidReviewResponseReasonV1;
 
 export type ReviewAttemptClassification =
   | {
@@ -163,7 +161,13 @@ const reviewStarted = (input: ReviewAttemptInput): boolean => {
   return input.verifiedArtifactIds.some((id) => expected.has(id));
 };
 
-const identitiesExact = (
+/**
+ * Provider-response binding only: ready token, contract, prompt, bundle,
+ * reviewer, candidate, and inspected artifact sequence vs expected IDs.
+ * Host-side expected/verified uniqueness and verified==expected are not
+ * response properties — see hostArtifactPreconditionsHold.
+ */
+const responseIdentitiesExact = (
   input: ReviewAttemptInput,
   response: FinalReviewResponseV1,
 ): boolean => {
@@ -188,24 +192,31 @@ const identitiesExact = (
   if (response.candidateId !== input.expectedCandidateId) {
     return false;
   }
+  if (!uniqueStrings(response.inspectedArtifactIds)) {
+    return false;
+  }
+  return sameArtifactSequence(
+    response.inspectedArtifactIds,
+    input.expectedArtifactIds,
+  );
+};
+
+/**
+ * Host contract preconditions over expected and verified artifact ID lists.
+ * Failures are infrastructure (ReviewAttemptFailed), not provider identity
+ * mismatch — the provider response is not blamed for a host defect.
+ */
+const hostArtifactPreconditionsHold = (
+  input: ReviewAttemptInput,
+): boolean => {
   if (!uniqueStrings(input.expectedArtifactIds)) {
     return false;
   }
   if (!uniqueStrings(input.verifiedArtifactIds)) {
     return false;
   }
-  if (!uniqueStrings(response.inspectedArtifactIds)) {
-    return false;
-  }
-  // Completed responses require the concrete verified sequence to equal the
-  // complete expected sequence, and inspected to match the same sequence.
-  if (
-    !sameArtifactSequence(input.verifiedArtifactIds, input.expectedArtifactIds)
-  ) {
-    return false;
-  }
   return sameArtifactSequence(
-    response.inspectedArtifactIds,
+    input.verifiedArtifactIds,
     input.expectedArtifactIds,
   );
 };
@@ -372,7 +383,19 @@ export const classifyReviewAttempt = (
     );
   }
 
-  if (!identitiesExact(input, input.response)) {
+  // Host contract defects (duplicate expected IDs, incomplete verification)
+  // are infrastructure failures with closed stage/retry guidance — not
+  // provider-response identity mismatch.
+  if (!hostArtifactPreconditionsHold(input)) {
+    return attemptFailure(
+      input,
+      "host artifact contract is invalid: expected and verified IDs must be unique and equal in sequence",
+      "dispatch",
+      "changed_preflight",
+    );
+  }
+
+  if (!responseIdentitiesExact(input, input.response)) {
     return completedInvalidResponse(input, "identity_mismatch");
   }
 

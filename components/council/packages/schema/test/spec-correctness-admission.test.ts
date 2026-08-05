@@ -624,11 +624,11 @@ describe("BoundSpecCorrectnessEvaluationV1 and result union", () => {
     ).toEqual(withEval);
   });
 
-  it("accepts ResponseRejected with CompletedInvalidResponse and never quorum", () => {
+  it("accepts ResponseRejected with CompletedInvalidResponse, null evaluation, and never quorum", () => {
     const responseRejected = {
       schemaVersion: 1 as const,
       _tag: "ResponseRejected" as const,
-      evaluation: bound(acceptEvaluation),
+      evaluation: null,
       classification: {
         _tag: "CompletedInvalidResponse" as const,
         reason: "schema_invalid" as const,
@@ -643,17 +643,24 @@ describe("BoundSpecCorrectnessEvaluationV1 and result union", () => {
       decodeStrictSync(SpecCorrectnessAdmissionResultV1, responseRejected),
     ).toEqual(responseRejected);
 
-    const nullEval = {
+    const findingsInvalid = {
       ...responseRejected,
-      evaluation: null,
       classification: {
         ...responseRejected.classification,
         reason: "findings_invalid" as const,
       },
     };
-    expect(decodeStrictSync(SpecCorrectnessAdmissionResultV1, nullEval)).toEqual(
-      nullEval,
-    );
+    expect(
+      decodeStrictSync(SpecCorrectnessAdmissionResultV1, findingsInvalid),
+    ).toEqual(findingsInvalid);
+
+    // Bound accept evaluation beside a rejected provider response is closed out.
+    expect(() =>
+      decodeStrictSync(SpecCorrectnessAdmissionResultV1, {
+        ...responseRejected,
+        evaluation: bound(acceptEvaluation),
+      }),
+    ).toThrow();
 
     expect(() =>
       decodeStrictSync(SpecCorrectnessAdmissionResultV1, {

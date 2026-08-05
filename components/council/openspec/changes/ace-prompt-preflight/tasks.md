@@ -92,18 +92,24 @@
       rejection and xAI `Cancelled` response that contained an interim
       `insufficient_evidence` body.
 - [x] 5.2 Implement a pure classifier that returns only
-      `ProviderPreflightFailed`, `ReviewAttemptFailed`, `CompletedVerdict`, or
-      `CompletedAbstention`.
+      `ProviderPreflightFailed`, `ReviewAttemptFailed`, `CompletedVerdict`,
+      `CompletedAbstention`, or `CompletedInvalidResponse`.
   - [x] 5.2.a `stopReason: "Cancelled"` (and every non-success stop reason) on an
         otherwise completed terminal yields `ReviewAttemptFailed`.
   - [x] 5.2.b Either preflight-failure signal (`preflightStageFailed` or
         `preflightFailure`) yields `ProviderPreflightFailed`, including
         contradictory values that bypass strict decoding.
+  - [x] 5.2.c Successful terminal with schema-invalid, identity-invalid, or
+        semantically inadmissible designated output yields
+        `CompletedInvalidResponse` (never infrastructure failure).
 - [x] 5.3 Require exact token, contract, prompt, bundle, reviewer, candidate,
-      and artifact-receipt identity for completed advice.
+      and inspected-artifact identity for completed advice (provider binding).
+      Host expected/verified uniqueness and verified==expected are host
+      preconditions (`ReviewAttemptFailed`), not provider identity mismatch.
 - [x] 5.4 Change quorum input so only completed `approved` and
-      `changes_requested` verdicts count. Completed abstentions remain recorded
-      but do not count. Infrastructure failures never enter quorum.
+      `changes_requested` verdicts count. Completed abstentions and completed
+      invalid responses remain recorded but do not count. Infrastructure
+      failures never enter quorum.
   - [x] 5.4.a Count only distinct identity-bound verdicts: unique `reviewerId`
         and unique `readyTokenHash`. Duplicate identities cannot add a verdict
         or domain diversity. Counters report distinct counted values.

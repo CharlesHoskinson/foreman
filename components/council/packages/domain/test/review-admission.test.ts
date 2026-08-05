@@ -293,11 +293,17 @@ describe("classifyReviewAttempt completion gates", () => {
     expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("returns CompletedInvalidResponse/identity_mismatch for missing artifact receipt", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for missing artifact receipt on the response", () => {
     const extra = `sha256:${"9".repeat(64)}` as ArtifactId;
     const result = classifyReviewAttempt({
       ...baseInput(),
+      // Host verified the full expected set; provider inspected only a subset.
       expectedArtifactIds: [artifactId, extra],
+      verifiedArtifactIds: [artifactId, extra],
+      response: {
+        ...baseResponse,
+        inspectedArtifactIds: [artifactId],
+      },
     });
     expect(result._tag).toBe("CompletedInvalidResponse");
     if (result._tag !== "CompletedInvalidResponse") return;
@@ -334,7 +340,7 @@ describe("classifyReviewAttempt completion gates", () => {
     expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("returns CompletedInvalidResponse/identity_mismatch for duplicate artifact receipts", () => {
+  it("returns ReviewAttemptFailed when host expected artifact IDs are duplicate", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedArtifactIds: [artifactId, artifactId],
@@ -344,9 +350,11 @@ describe("classifyReviewAttempt completion gates", () => {
         inspectedArtifactIds: [artifactId, artifactId],
       },
     });
-    expect(result._tag).toBe("CompletedInvalidResponse");
-    if (result._tag !== "CompletedInvalidResponse") return;
-    expect(result.reason).toBe("identity_mismatch");
+    expect(result._tag).toBe("ReviewAttemptFailed");
+    if (result._tag !== "ReviewAttemptFailed") return;
+    expect(result.failure.stage).toBe("dispatch");
+    expect(result.failure.retry).toBe("changed_preflight");
+    expect(result.failure.reason).toContain("host artifact contract");
   });
 
   it("returns CompletedInvalidResponse/abstention_invalid for undeclared evidence gap references", () => {
@@ -461,7 +469,7 @@ describe("classifyReviewAttempt completion gates", () => {
     expect(result.failure.reason).toContain("review did not start");
   });
 
-  it("returns CompletedInvalidResponse/identity_mismatch when verified artifacts are a proper subset of expected", () => {
+  it("returns ReviewAttemptFailed when verified artifacts are a proper subset of expected (host defect)", () => {
     const second = `sha256:${"9".repeat(64)}` as ArtifactId;
     const result = classifyReviewAttempt({
       ...baseInput(),
@@ -469,7 +477,27 @@ describe("classifyReviewAttempt completion gates", () => {
       verifiedArtifactIds: [artifactId],
       response: {
         ...baseResponse,
+        // Response binds the full expected sequence correctly — host verified
+        // only a subset, so blame host contract, not the provider response.
         inspectedArtifactIds: [artifactId, second],
+      },
+    });
+    expect(result._tag).toBe("ReviewAttemptFailed");
+    if (result._tag !== "ReviewAttemptFailed") return;
+    expect(result.failure.stage).toBe("dispatch");
+    expect(result.failure.retry).toBe("changed_preflight");
+    expect(result.failure.reason).toContain("host artifact contract");
+  });
+
+  it("returns CompletedInvalidResponse/identity_mismatch when response inspected sequence mismatches expected", () => {
+    const second = `sha256:${"9".repeat(64)}` as ArtifactId;
+    const result = classifyReviewAttempt({
+      ...baseInput(),
+      expectedArtifactIds: [artifactId, second],
+      verifiedArtifactIds: [artifactId, second],
+      response: {
+        ...baseResponse,
+        inspectedArtifactIds: [artifactId],
       },
     });
     expect(result._tag).toBe("CompletedInvalidResponse");

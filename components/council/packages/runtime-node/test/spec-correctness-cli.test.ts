@@ -405,27 +405,7 @@ const responseRejectedResult: SpecCorrectnessAdmissionResultV1 =
   decodeStrictSync(ResultSchema, {
     schemaVersion: 1,
     _tag: "ResponseRejected",
-    evaluation: {
-      schemaVersion: 1,
-      identity,
-      evaluation: {
-        schemaVersion: 1,
-        _tag: "Valid",
-        outcome: "accept",
-        metrics: {
-          schemaVersion: 1,
-          baselineItemCount: 44,
-          mappedItemCount: 44,
-          evidencedDeferCount: 0,
-          omittedItemCount: 0,
-          contradictionCount: 0,
-          unevidencedDeferCount: 0,
-          inventedCompletionCount: 0,
-          coverageRatio: { numerator: 44, denominator: 44 },
-        },
-        findings: [],
-      },
-    },
+    evaluation: null,
     classification: {
       _tag: "CompletedInvalidResponse",
       reason: "schema_invalid",
@@ -685,12 +665,172 @@ describe("runSpecCorrectnessCli", () => {
     const parsed = JSON.parse(text.slice(0, -1)) as {
       _tag: string;
       classification?: { _tag: string; reason: string };
+      evaluation?: unknown;
       failure?: unknown;
     };
     expect(parsed._tag).toBe("ResponseRejected");
     expect(parsed.classification?._tag).toBe("CompletedInvalidResponse");
     expect(parsed.classification?.reason).toBe("schema_invalid");
+    expect(parsed.evaluation).toBeNull();
     expect(parsed).not.toHaveProperty("failure");
+  });
+
+  it("integration: real program returns ResponseRejected for Fable approved-with-findings shape", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "council-sc-fable-"));
+    try {
+      const matrixPath = join(dir, "matrix.md");
+      const ledgerPath = join(dir, "ledger.md");
+      const specPath = join(dir, "spec.md");
+      await writeFile(matrixPath, matrixBytes);
+      await writeFile(ledgerPath, ledgerBytes);
+      await writeFile(specPath, specBytes);
+
+      const parsed = JSON.parse(
+        minimalRequestBody,
+      ) as SpecCorrectnessCliRequestV1;
+      const request: SpecCorrectnessCliRequestV1 = {
+        ...parsed,
+        input: {
+          ...parsed.input,
+          reviewAttempt: {
+            ...parsed.input.reviewAttempt,
+            designatedStructuredValid: false,
+            response: undefined,
+          },
+          submission: {
+            identity,
+            response: {
+              ...acceptProviderResponse,
+              findings: [
+                {
+                  location: "application/src/spec-correctness-admission.ts",
+                  summary: "approved with nonempty findings",
+                  nextAction: "classify as schema_invalid",
+                },
+              ],
+            },
+          },
+        },
+        artifactPaths: [
+          { artifactId: matrixId, path: matrixPath },
+          { artifactId: ledgerId, path: ledgerPath },
+          { artifactId: specId, path: specPath },
+        ],
+      };
+
+      const { executeSpecCorrectnessRequest } =
+        await import("../src/spec-correctness-program.js");
+      const { io, stdout } = makeIo(JSON.stringify(request), (req) =>
+        executeSpecCorrectnessRequest(req),
+      );
+      const code = await runSpecCorrectnessCli([], io);
+      expect(code).toBe(1);
+      const text = textDecoder.decode(stdout[0]);
+      expect(text).not.toContain(dir);
+      const result = JSON.parse(text.slice(0, -1)) as {
+        _tag: string;
+        evaluation: unknown;
+        classification?: { _tag: string; reason: string };
+        failure?: unknown;
+      };
+      expect(result._tag).toBe("ResponseRejected");
+      expect(result._tag).not.toBe("Rejected");
+      expect(result.classification?._tag).toBe("CompletedInvalidResponse");
+      expect(result.classification?.reason).toBe("schema_invalid");
+      expect(result.evaluation).toBeNull();
+      expect(result).not.toHaveProperty("failure");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("integration: real program returns ResponseRejected for Grok alias-evidence insufficient_evidence", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "council-sc-grok-"));
+    try {
+      const matrixPath = join(dir, "matrix.md");
+      const ledgerPath = join(dir, "ledger.md");
+      const specPath = join(dir, "spec.md");
+      await writeFile(matrixPath, matrixBytes);
+      await writeFile(ledgerPath, ledgerBytes);
+      await writeFile(specPath, specBytes);
+
+      const parsed = JSON.parse(
+        minimalRequestBody,
+      ) as SpecCorrectnessCliRequestV1;
+      const request: SpecCorrectnessCliRequestV1 = {
+        ...parsed,
+        input: {
+          ...parsed.input,
+          reviewAttempt: {
+            ...parsed.input.reviewAttempt,
+            response: {
+              ...approvedFinalResponse,
+              advice: {
+                kind: "abstention",
+                abstention: {
+                  kind: "insufficient_evidence",
+                  evidenceGaps: [
+                    {
+                      evidenceRef: "coverage-matrix",
+                      unmetCondition: "alias not in declared namespace",
+                    },
+                  ],
+                  nextAction: "use declared evidence refs",
+                },
+              },
+            },
+          },
+          submission: {
+            identity,
+            response: {
+              schemaVersion: 1,
+              outcome: "abstain",
+              itemResults: BASELINE_IDS.map((id) => makeMapped(id)),
+              inventedCompletions: [],
+              findings: [],
+              summary: "insufficient evidence",
+              evidenceGaps: [
+                {
+                  evidenceRef: "coverage-matrix",
+                  unmetCondition: "alias not in declared namespace",
+                },
+              ],
+              nextAction: "use declared evidence refs",
+            },
+          },
+        },
+        artifactPaths: [
+          { artifactId: matrixId, path: matrixPath },
+          { artifactId: ledgerId, path: ledgerPath },
+          { artifactId: specId, path: specPath },
+        ],
+      };
+
+      const { executeSpecCorrectnessRequest } =
+        await import("../src/spec-correctness-program.js");
+      const { io, stdout } = makeIo(JSON.stringify(request), (req) =>
+        executeSpecCorrectnessRequest(req),
+      );
+      const code = await runSpecCorrectnessCli([], io);
+      expect(code).toBe(1);
+      const text = textDecoder.decode(stdout[0]);
+      expect(text).not.toContain(dir);
+      const result = JSON.parse(text.slice(0, -1)) as {
+        _tag: string;
+        evaluation: unknown;
+        classification?: { _tag: string; reason: string };
+        failure?: unknown;
+      };
+      expect(result._tag).toBe("ResponseRejected");
+      expect(result._tag).not.toBe("Rejected");
+      expect(result._tag).not.toBe("CompletedAbstention");
+      expect(result.classification?._tag).toBe("CompletedInvalidResponse");
+      expect(result.classification?.reason).toBe("abstention_invalid");
+      expect(result.evaluation).toBeNull();
+      expect(result).not.toHaveProperty("failure");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("exits 1 for invalid fatal UTF-8 stdin with static Rejected JSON", async () => {

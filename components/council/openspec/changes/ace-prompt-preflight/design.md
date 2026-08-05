@@ -156,11 +156,21 @@ ProviderPreflightFailed
 ReviewAttemptFailed
 CompletedVerdict
 CompletedAbstention
+CompletedInvalidResponse
 ```
 
 `ProviderPreflightFailed` and `ReviewAttemptFailed` are infrastructure states.
 They never enter deliberation. They may trigger a bounded Foreman-owned retry.
 They do not consume an architect rework round.
+
+`CompletedInvalidResponse` is a successful terminal turn whose designated
+structured output is schema-invalid, identity-invalid, or semantically
+inadmissible. It is not infrastructure failure. It never enters deliberation
+or quorum. It carries only a closed reason
+(`schema_invalid` | `identity_mismatch` | `findings_invalid` |
+`abstention_invalid`) and successful terminal facts. Further review after a
+completed invalid response is bound by Foreman Endstop's one-Council /
+one-correction limit — it does not require an unbounded Council rerun.
 
 `CompletedVerdict` requires all of these facts:
 
@@ -168,8 +178,11 @@ They do not consume an architect rework round.
 - a provider terminal state of `completed`;
 - no cancellation, timeout, signal, or parser truncation;
 - a schema-valid final response;
-- exact contract, prompt, bundle, reviewer, and candidate identity;
-- an exact receipt for every required artifact; and
+- exact contract, prompt, bundle, reviewer, and candidate identity from the
+  provider response;
+- host-verified artifact sequence equal to the complete expected sequence
+  (host defects are `ReviewAttemptFailed`, not provider identity mismatch);
+- inspected artifact sequence equal to the expected sequence; and
 - either `approved` or `changes_requested`.
 
 `CompletedAbstention` has the same completion and identity requirements. It

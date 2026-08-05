@@ -428,11 +428,13 @@ export type SpecCorrectnessAdmissionRejectedV1 =
  * Completed provider turn whose designated structured output is schema-invalid,
  * identity-invalid, or semantically inadmissible. Not infrastructure failure.
  * Candidate disposition is always changes_requested. Never quorum eligible.
+ * Evaluation is always null — never publish a bound evaluation beside a
+ * rejected provider response.
  */
 export const SpecCorrectnessAdmissionResponseRejectedV1 = Schema.Struct({
   schemaVersion: VersionOne,
   _tag: Schema.Literal("ResponseRejected"),
-  evaluation: Schema.NullOr(BoundSpecCorrectnessEvaluationV1),
+  evaluation: Schema.Null,
   classification: CompletedInvalidResponseV1,
   quorumEligible: Schema.Literal(false),
   candidateDisposition: Schema.Literal("changes_requested"),

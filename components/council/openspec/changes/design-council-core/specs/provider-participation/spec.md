@@ -62,11 +62,15 @@ After every terminal transport and parser gate passes, Council MUST classify a s
 - **THEN** Council returns a completed invalid response with reason `schema_invalid` and does not record a verdict, abstention, or infrastructure failure
 
 #### Scenario: Successful terminal with identity-mismatched designated output
-- **WHEN** a provider completes a successful terminal turn and the designated structured output does not bind the expected ready token, contract, prompt, bundle, reviewer, candidate, or artifact sequence
+- **WHEN** a provider completes a successful terminal turn and the designated structured output does not bind the expected ready token, contract, prompt, bundle, reviewer, candidate, or inspected artifact sequence
 - **THEN** Council returns a completed invalid response with reason `identity_mismatch` and does not count the attempt toward quorum
 
+#### Scenario: Host artifact contract defect is not provider identity mismatch
+- **WHEN** the host contract has duplicate expected artifact IDs or the host verified only a proper subset of the expected sequence, while the provider response otherwise binds the expected identities
+- **THEN** Council returns a review-attempt infrastructure failure with closed stage and retry guidance and does not classify the attempt as `identity_mismatch`
+
 #### Scenario: Successful terminal with inadmissible findings or abstention
-- **WHEN** a provider completes a successful terminal turn with changes-requested findings that cite invalid artifacts or blank operational text, or with an abstention that names undeclared evidence, a blank unmet condition, or a blank next action
+- **WHEN** a provider completes a successful terminal turn with changes-requested findings that cite invalid artifacts or blank operational text, or with an abstention that names undeclared evidence (including artifact aliases outside the declared evidence namespace), a blank unmet condition, or a blank next action
 - **THEN** Council returns a completed invalid response with reason `findings_invalid` or `abstention_invalid` and does not admit the response as completed advice
 
 ### Requirement: Failure-domain metadata controls diversity

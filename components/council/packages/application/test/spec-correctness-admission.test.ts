@@ -582,6 +582,54 @@ describe("evaluateSpecCorrectnessAdmission", () => {
     expect(result?.evaluation).not.toBeNull();
   });
 
+  it("returns public ResponseRejected (never infrastructure Rejected) for Fable approved-with-findings completed shape", async () => {
+    // Exact completed Fable class: designated structured output is invalid
+    // because an approved/accept response contains nonempty findings
+    // (evaluator: declared_accept_with_findings). Classification must run
+    // before any evaluator-Invalid short-circuit can return Rejected.
+    const fableFindings = [
+      {
+        location:
+          "components/council/packages/application/src/spec-correctness-admission.ts",
+        summary:
+          "approved response carries findings that invalidate the designated shape",
+        nextAction: "reject as schema_invalid completed response",
+      },
+    ] as const;
+    const exit = await runAdmission(
+      baseInput({
+        reviewAttempt: {
+          ...baseInput().reviewAttempt,
+          designatedStructuredValid: false,
+          response: undefined,
+        },
+        submission: {
+          identity,
+          response: {
+            ...acceptProviderResponse,
+            findings: fableFindings,
+          },
+        },
+      }),
+    );
+    expect(Exit.isSuccess(exit)).toBe(true);
+    if (!Exit.isSuccess(exit)) return;
+    const result = decodeStrictSync(
+      SpecCorrectnessAdmissionResultV1,
+      exit.value,
+    );
+    expect(result._tag).toBe("ResponseRejected");
+    expect(result._tag).not.toBe("Rejected");
+    if (result._tag !== "ResponseRejected") return;
+    expect(result.classification._tag).toBe("CompletedInvalidResponse");
+    expect(result.classification.reason).toBe("schema_invalid");
+    expect(result.evaluation).toBeNull();
+    expect(result.quorumEligible).toBe(false);
+    expect(result.candidateDisposition).toBe("changes_requested");
+    expect(result).not.toHaveProperty("failure");
+    expect(JSON.stringify(result)).not.toMatch(/\/tmp|\/home|sk-/);
+  });
+
   it("returns ResponseRejected for completed schema-invalid designated output", async () => {
     const exit = await runAdmission(
       baseInput({
@@ -602,10 +650,77 @@ describe("evaluateSpecCorrectnessAdmission", () => {
     if (result._tag !== "ResponseRejected") return;
     expect(result.classification._tag).toBe("CompletedInvalidResponse");
     expect(result.classification.reason).toBe("schema_invalid");
+    expect(result.evaluation).toBeNull();
     expect(result.quorumEligible).toBe(false);
     expect(result.candidateDisposition).toBe("changes_requested");
     expect(result).not.toHaveProperty("failure");
     expect(JSON.stringify(result)).not.toMatch(/\/tmp|\/home|sk-/);
+  });
+
+  it("returns ResponseRejected for Grok insufficient_evidence with artifact-alias evidence refs", async () => {
+    // Live Grok class: insufficient_evidence whose evidence references use
+    // artifact aliases instead of bound namespace IDs → completed inadmissible
+    // response (abstention_invalid), never abstention, verdict, or infrastructure.
+    const exit = await runAdmission(
+      baseInput({
+        reviewAttempt: {
+          ...baseInput().reviewAttempt,
+          response: {
+            ...approvedFinalResponse,
+            advice: {
+              kind: "abstention" as const,
+              abstention: {
+                kind: "insufficient_evidence" as const,
+                evidenceGaps: [
+                  {
+                    evidenceRef: "coverage-matrix",
+                    unmetCondition: "alias used instead of bound evidence id",
+                  },
+                  {
+                    evidenceRef: "ledger",
+                    unmetCondition: "alias used instead of bound evidence id",
+                  },
+                ] as const,
+                nextAction: "rebind evidence gaps to declared namespace ids",
+              },
+            },
+          },
+        },
+        submission: {
+          identity,
+          response: {
+            schemaVersion: 1 as const,
+            outcome: "abstain" as const,
+            itemResults: BASELINE_IDS.map((id) => makeMapped(id)),
+            inventedCompletions: [] as const,
+            findings: [] as const,
+            summary: "insufficient evidence",
+            evidenceGaps: [
+              {
+                evidenceRef: "coverage-matrix",
+                unmetCondition: "alias used instead of bound evidence id",
+              },
+            ],
+            nextAction: "rebind evidence gaps to declared namespace ids",
+          },
+        },
+      }),
+    );
+    expect(Exit.isSuccess(exit)).toBe(true);
+    if (!Exit.isSuccess(exit)) return;
+    const result = decodeStrictSync(
+      SpecCorrectnessAdmissionResultV1,
+      exit.value,
+    );
+    expect(result._tag).toBe("ResponseRejected");
+    expect(result._tag).not.toBe("Rejected");
+    expect(result._tag).not.toBe("CompletedAbstention");
+    if (result._tag !== "ResponseRejected") return;
+    expect(result.classification._tag).toBe("CompletedInvalidResponse");
+    expect(result.classification.reason).toBe("abstention_invalid");
+    expect(result.evaluation).toBeNull();
+    expect(result.quorumEligible).toBe(false);
+    expect(result).not.toHaveProperty("failure");
   });
 
   it("returns ResponseRejected for findings that cite non-expected artifacts", async () => {
@@ -661,6 +776,7 @@ describe("evaluateSpecCorrectnessAdmission", () => {
     expect(result._tag).toBe("ResponseRejected");
     if (result._tag !== "ResponseRejected") return;
     expect(result.classification.reason).toBe("findings_invalid");
+    expect(result.evaluation).toBeNull();
     expect(result.quorumEligible).toBe(false);
     expect(result).not.toHaveProperty("failure");
   });
@@ -689,6 +805,7 @@ describe("evaluateSpecCorrectnessAdmission", () => {
     expect(result._tag).toBe("ResponseRejected");
     if (result._tag !== "ResponseRejected") return;
     expect(result.classification.reason).toBe("identity_mismatch");
+    expect(result.evaluation).toBeNull();
     expect(result.candidateDisposition).toBe("changes_requested");
   });
 

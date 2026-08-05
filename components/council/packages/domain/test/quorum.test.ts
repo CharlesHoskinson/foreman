@@ -380,6 +380,46 @@ describe("completed review quorum", () => {
     });
   });
 
+  it("meets quorum from three valid verdicts across two domains while ignoring completed invalid responses in other domains", () => {
+    const decision = evaluateCompletedReviewQuorum([
+      {
+        classification: completedVerdict("reviewer-a", tokenHash("a")),
+        failureDomain: "family-a" as FailureDomainId,
+      },
+      {
+        classification: completedInvalidResponse,
+        failureDomain: "family-x" as FailureDomainId,
+      },
+      {
+        classification: completedVerdict("reviewer-b", tokenHash("b")),
+        failureDomain: "family-a" as FailureDomainId,
+      },
+      {
+        classification: {
+          ...completedInvalidResponse,
+          reason: "findings_invalid",
+        },
+        failureDomain: "family-y" as FailureDomainId,
+      },
+      {
+        classification: completedVerdict("reviewer-c", tokenHash("c")),
+        failureDomain: "family-b" as FailureDomainId,
+      },
+      {
+        classification: {
+          ...completedInvalidResponse,
+          reason: "abstention_invalid",
+        },
+        failureDomain: "family-z" as FailureDomainId,
+      },
+    ]);
+    expect(decision).toEqual({
+      _tag: "QuorumMet",
+      completedVerdicts: 3,
+      independentDomains: 2,
+    });
+  });
+
   it("never trusts a forged quorumEligible boolean on non-verdicts", () => {
     // Even if a caller tampers with eligibility flags, only the tag matters.
     // Well-typed classifications fix quorumEligible by tag, so deliberate

@@ -110,8 +110,9 @@ export const evaluateAutomaticQuorum = (
  *
  * A duplicate of either identity does not add a verdict and does not add
  * domain diversity, even when the caller supplies conflicting domains.
- * Completed abstentions and both infrastructure failure tags count as zero.
- * Unknown domains collapse to one common domain.
+ * Completed abstentions, both infrastructure failure tags, and
+ * `CompletedInvalidResponse` count as zero — they never contribute a verdict
+ * or domain. Unknown domains collapse to one common domain.
  *
  * Counters report **distinct counted** verdicts and domains after
  * de-duplication, not raw array positions.
