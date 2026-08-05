@@ -1,3 +1,4 @@
+# bats test data (run via `bats`, not as a product executable)
 #!/usr/bin/env bats
 # @description T5a (v0.2.5 vendor config isolation plumbing) coverage:
 #   wt-new.sh's unconditional per-lane vendor-home provisioning, and

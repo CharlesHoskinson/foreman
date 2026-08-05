@@ -1,3 +1,4 @@
+# bats test data (run via `bats`, not as a product executable)
 #!/usr/bin/env bats
 # @description Tests for lane-run.sh durable-lanes wrapper.
 load helpers
