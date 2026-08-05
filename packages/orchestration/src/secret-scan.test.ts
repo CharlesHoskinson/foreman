@@ -59,11 +59,11 @@ import {
   setSecretScanDirectoryAnchorCapabilityForTests,
   setSecretScanRaceHook,
   sha256HexOfBytes,
+  writeFully,
   type SecretScanBounds,
   type SecretScanCliIo,
   type SecretScanResult,
 } from "./secret-scan.js";
-import { writeFully } from "./secret-scan-main.js";
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -1085,9 +1085,10 @@ describe("CLI output and exit codes", () => {
     assert.equal(obj.verdict, "refused");
   });
 
-  it("secret-scan-main sets exitCode and never calls process.exit", () => {
+  it("secret-scan-main starts unconditionally; no process.exit; no env disable", () => {
     // Source invariant: success and top-level failure paths must drain
     // writes via exitCode so piped stdout cannot truncate the JSON line.
+    // Production startup must never be gated on an environment variable.
     const mainSrc = readFileSync(
       resolve("packages/orchestration/src/secret-scan-main.ts"),
       "utf8",
@@ -1107,6 +1108,21 @@ describe("CLI output and exit codes", () => {
       exitCodeAssigns.length >= 2,
       "success and top-level failure paths must each set process.exitCode",
     );
+    assert.equal(
+      /\bprocess\.env\b/.test(mainSrc),
+      false,
+      "secret-scan-main must not read process.env (no env-gated startup)",
+    );
+    assert.equal(
+      /NODE_TEST_CONTEXT/.test(mainSrc),
+      false,
+      "secret-scan-main must not reference NODE_TEST_CONTEXT",
+    );
+    assert.match(
+      mainSrc,
+      /startSecretScanMain\s*\(\s*\)\s*;/,
+      "secret-scan-main must call startSecretScanMain unconditionally",
+    );
     const bundle = resolve("skills/foreman/runtime/dist/secret-scan.js");
     if (existsSync(bundle)) {
       const bundleSrc = readFileSync(bundle, "utf8");
@@ -1119,6 +1135,11 @@ describe("CLI output and exit codes", () => {
         bundleSrc.includes("process.exitCode") ||
           bundleSrc.includes("exitCode"),
         "tracked secret-scan bundle must set exitCode",
+      );
+      assert.equal(
+        /NODE_TEST_CONTEXT/.test(bundleSrc),
+        false,
+        "tracked secret-scan bundle must not gate startup on NODE_TEST_CONTEXT",
       );
     }
   });

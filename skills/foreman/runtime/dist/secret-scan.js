@@ -16379,8 +16379,6 @@ function runSecretScanCli(argv, io) {
     return EXIT_NOT_CLEAN;
   });
 }
-
-// packages/orchestration/src/secret-scan-main.ts
 function writeFully(stream, text) {
   return new Promise((resolvePromise, reject) => {
     let settled = false;
@@ -16407,6 +16405,8 @@ function writeFully(stream, text) {
     });
   });
 }
+
+// packages/orchestration/src/secret-scan-main.ts
 function startSecretScanMain() {
   const pending3 = [];
   const io = {
@@ -16446,9 +16446,4 @@ function startSecretScanMain() {
     }
   );
 }
-if (process.env.NODE_TEST_CONTEXT === void 0) {
-  startSecretScanMain();
-}
-export {
-  writeFully
-};
+startSecretScanMain();

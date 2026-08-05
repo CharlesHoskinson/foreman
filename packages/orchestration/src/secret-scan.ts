@@ -1182,3 +1182,55 @@ export function runSecretScanCli(
     return EXIT_NOT_CLEAN;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Stream write helper (used by secret-scan-main and unit-tested here)
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal stream surface for writeFully (Node WriteStream or test double).
+ */
+export type SecretScanWriteStream = {
+  write(chunk: string, cb?: (err?: Error | null) => void): boolean;
+  once(event: "error", listener: (err: Error) => void): unknown;
+  off(event: "error", listener: (err: Error) => void): unknown;
+};
+
+/**
+ * Write all of `text` to `stream`, settling once from the write callback.
+ *
+ * After a successful callback, remove the one-time `error` listener.
+ * After a callback error, keep the listener armed so a subsequent stream
+ * `error` event is consumed and cannot become an uncaught exception (Node
+ * may deliver the callback error before the matching `error` event).
+ */
+export function writeFully(
+  stream: SecretScanWriteStream,
+  text: string,
+): Promise<void> {
+  return new Promise((resolvePromise, reject) => {
+    let settled = false;
+    const settleReject = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    };
+    const onError = (err: Error) => {
+      stream.off("error", onError);
+      settleReject(err);
+    };
+    stream.once("error", onError);
+    stream.write(text, (err) => {
+      if (err) {
+        // Keep onError until the stream emits `error` (or the process ends).
+        settleReject(err instanceof Error ? err : new Error(String(err)));
+        return;
+      }
+      stream.off("error", onError);
+      if (!settled) {
+        settled = true;
+        resolvePromise();
+      }
+    });
+  });
+}

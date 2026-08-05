@@ -274,7 +274,7 @@
         on every platform; pure classifiers always run; live traversal cases
         skip only when secure anchors are unavailable; tracked deterministic
         `skills/foreman/runtime/dist/secret-scan.js` (sha256
-        `b66ee6e75927ed29fe6a4b79150519cca650755c446d95d8b881e5a69d959dbf`);
+        `ade6ce65fb1b84f2ab72cace2a247829bcb9080727f951956fec633a3c671245`);
         `lane_grok_secrets_scan` is a thin Node runtime call after vendor
         readiness and before any Grok spawn; Codex and unset-vendor paths
         remain unaffected. Host evidence in this worktree: focused secret-scan
