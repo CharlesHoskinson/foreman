@@ -9,7 +9,6 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import {
-  chmodSync,
   closeSync,
   constants as fsConstants,
   fchmodSync,
@@ -426,15 +425,13 @@ export type CredentialProfileFsShape = {
    * Used on POSIX to require directory 0700 and authority 0600.
    */
   readonly modeBits: (path: string) => number | null;
-  /** Create one directory (non-recursive). Mode 0o700 when supported. */
-  readonly mkdir: (path: string, mode: number) => void;
-  /** Create directories recursively. Mode 0o700 when supported. */
-  readonly mkdirp: (path: string, mode: number) => void;
   /**
-   * Set permission bits. On POSIX, callers must verify the resulting mode;
-   * failures must not be ignored for owner-only layout/authority paths.
+   * Create one directory non-recursively. Mode 0o700 when supported.
+   * Callers that lose a concurrent-create race (`EEXIST`) must reclassify
+   * the exact path and continue only for a non-linked directory with safe
+   * POSIX mode. No path-based chmod and no recursive mkdirp on this service.
    */
-  readonly chmod: (path: string, mode: number) => void;
+  readonly mkdir: (path: string, mode: number) => void;
   /**
    * Read up to maxBytes from a regular non-linked file. Opens without
    * following a final-component link; verifies the opened descriptor
@@ -454,7 +451,8 @@ export type CredentialProfileFsShape = {
    * Atomic exclusive publish of authority bytes: temp write + fsync +
    * exclusive hard-link publish + parent fsync. Never renames over a
    * final path (no check-then-rename race). Unsupported exclusive
-   * hard-link is WriteFailed (no rename fallback).
+   * hard-link is WriteFailed (no rename fallback). Mode 0600 is set on
+   * the open temp descriptor before publish — never path-chmod.
    */
   readonly writeAuthorityExclusive: (
     finalPath: string,
@@ -812,12 +810,6 @@ export const liveCredentialProfileFs: CredentialProfileFsShape = {
   mkdir: (path, mode) => {
     mkdirSync(path, { mode });
   },
-  mkdirp: (path, mode) => {
-    mkdirSync(path, { recursive: true, mode });
-  },
-  chmod: (path, mode) => {
-    chmodSync(path, mode);
-  },
   readFile: liveReadFile,
   writeAuthorityExclusive: liveWriteAuthorityExclusive,
 };
@@ -1122,12 +1114,33 @@ function verifyExistingDirMode(
 }
 
 /**
+ * After a layout mkdir loses a concurrent-create race (`EEXIST`), reclassify
+ * the exact path. Continue only for a non-linked directory with safe POSIX
+ * `0700`. Refuse a link, file, other kind, unsafe mode, or other mkdir error.
+ */
+function reclassifyAfterMkdirRace(
+  fs: CredentialProfileFsShape,
+  path: string,
+): CredentialProfileRefusalReason | null {
+  const raced = fs.classify(path);
+  if (raced === "symlink") return "linked_path";
+  if (raced === "file" || raced === "other") return "authority_invalid";
+  if (raced === "directory") {
+    return verifyExistingDirMode(fs, path);
+  }
+  // Missing after EEXIST is inconsistent with the race.
+  return "write_failed";
+}
+
+/**
  * Ensure one layout directory component.
  *
  * - Existing directory: verify `0700` on POSIX and refuse if unsafe. Never
  *   path-based chmod an existing layout directory.
  * - Missing: create non-recursively with mode `0700`, then lstat and verify.
  *   Never path-based chmod after create (umask-stripped modes are write_failed).
+ * - Concurrent create (`EEXIST`): reclassify the exact path and continue only
+ *   when it is a non-linked directory with safe `0700` POSIX mode.
  * Parents must already exist; callers walk the layout top-down.
  */
 function ensureOwnerDir(
@@ -1143,7 +1156,11 @@ function ensureOwnerDir(
   // Missing: non-recursive create with owner-only mode.
   try {
     fs.mkdir(path, 0o700);
-  } catch {
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "EEXIST") {
+      return reclassifyAfterMkdirRace(fs, path);
+    }
     return "write_failed";
   }
   const after = fs.classify(path);

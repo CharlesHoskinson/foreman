@@ -15619,7 +15619,6 @@ var ensureRequirementsType2 = () => (layer) => layer;
 // packages/orchestration/src/credential-profile.ts
 import { createHash, randomBytes } from "node:crypto";
 import {
-  chmodSync,
   closeSync as closeSync2,
   constants as fsConstants2,
   fchmodSync,
@@ -16670,12 +16669,6 @@ var liveCredentialProfileFs = {
   mkdir: (path, mode) => {
     mkdirSync(path, { mode });
   },
-  mkdirp: (path, mode) => {
-    mkdirSync(path, { recursive: true, mode });
-  },
-  chmod: (path, mode) => {
-    chmodSync(path, mode);
-  },
   readFile: liveReadFile,
   writeAuthorityExclusive: liveWriteAuthorityExclusive
 };
@@ -16837,6 +16830,15 @@ function verifyExistingDirMode(fs, path) {
   if (bits !== 448) return "authority_invalid";
   return null;
 }
+function reclassifyAfterMkdirRace(fs, path) {
+  const raced = fs.classify(path);
+  if (raced === "symlink") return "linked_path";
+  if (raced === "file" || raced === "other") return "authority_invalid";
+  if (raced === "directory") {
+    return verifyExistingDirMode(fs, path);
+  }
+  return "write_failed";
+}
 function ensureOwnerDir(fs, path) {
   const kind = fs.classify(path);
   if (kind === "symlink") return "linked_path";
@@ -16846,7 +16848,11 @@ function ensureOwnerDir(fs, path) {
   }
   try {
     fs.mkdir(path, 448);
-  } catch {
+  } catch (e) {
+    const code = e.code;
+    if (code === "EEXIST") {
+      return reclassifyAfterMkdirRace(fs, path);
+    }
     return "write_failed";
   }
   const after3 = fs.classify(path);

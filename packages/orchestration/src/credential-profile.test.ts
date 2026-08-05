@@ -1375,17 +1375,38 @@ describe("identity change, write failures, concurrency", () => {
     }
   });
 
-  it("init never path-chmods layout or authority through the FS service", () => {
+  it("production FS service has no path-chmod or recursive mkdirp capability", () => {
+    const keys = Object.keys(liveCredentialProfileFs).sort();
+    assert.ok(!keys.includes("chmod"), `chmod must not be on live FS: ${keys.join(",")}`);
+    assert.ok(
+      !keys.includes("mkdirp"),
+      `mkdirp must not be on live FS: ${keys.join(",")}`,
+    );
+    // Structural absence: path-chmod and recursive mkdir are not callable.
+    assert.equal(
+      (liveCredentialProfileFs as { chmod?: unknown }).chmod,
+      undefined,
+    );
+    assert.equal(
+      (liveCredentialProfileFs as { mkdirp?: unknown }).mkdirp,
+      undefined,
+    );
+    // Required non-chmod operations remain.
+    for (const k of [
+      "classify",
+      "identity",
+      "modeBits",
+      "mkdir",
+      "readFile",
+      "writeAuthorityExclusive",
+    ] as const) {
+      assert.equal(typeof liveCredentialProfileFs[k], "function", k);
+    }
+  });
+
+  it("init succeeds without path-chmod on layout or authority", () => {
     const { root, stateRoot, worktreeRoot } = tempPair("nochmod");
     try {
-      const chmodCalls: Array<{ path: string; mode: number }> = [];
-      const fs: CredentialProfileFsShape = {
-        ...liveCredentialProfileFs,
-        chmod: (path, mode) => {
-          chmodCalls.push({ path, mode });
-          liveCredentialProfileFs.chmod(path, mode);
-        },
-      };
       const r = runInit(
         {
           stateRoot,
@@ -1393,12 +1414,14 @@ describe("identity change, write failures, concurrency", () => {
           profileId: "p",
           vendor: "grok",
         },
-        fs,
+        liveCredentialProfileFs,
       );
       assert.equal(r._tag, "Initialized", JSON.stringify(r));
-      // Closure contract: no path-based chmod on existing dirs, after create,
-      // or on the published authority path.
-      assert.deepEqual(chmodCalls, []);
+      // Production shape cannot path-chmod; mode comes from mkdir mode + fchmod on temp fd.
+      assert.equal(
+        (liveCredentialProfileFs as { chmod?: unknown }).chmod,
+        undefined,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1577,12 +1600,93 @@ describe("POSIX safe modes before Ready", () => {
       chmodSync(profiles, 0o755);
       assert.equal(lstatSync(profiles).mode & 0o777, 0o755);
 
-      const chmodCalls: string[] = [];
+      // Production service has no path-chmod; unsafe existing dir stays 0755.
+      assert.equal(
+        (liveCredentialProfileFs as { chmod?: unknown }).chmod,
+        undefined,
+      );
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        liveCredentialProfileFs,
+      );
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+      // Must not "fix" the existing directory — mode remains unsafe.
+      assert.equal(lstatSync(profiles).mode & 0o777, 0o755);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Concurrent mkdir EEXIST reclassification
+// ---------------------------------------------------------------------------
+
+describe("mkdir EEXIST race reclassification", () => {
+  function eexistErr(): NodeJS.ErrnoException {
+    const err = new Error("EEXIST") as NodeJS.ErrnoException;
+    err.code = "EEXIST";
+    return err;
+  }
+
+  it("continues when EEXIST peer left a non-linked 0700 directory", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("eexist-ok");
+    try {
+      const profiles = join(stateRoot, "credential-profiles");
+      let profilesMkdir = 0;
       const fs: CredentialProfileFsShape = {
         ...liveCredentialProfileFs,
-        chmod: (path, mode) => {
-          chmodCalls.push(path);
-          liveCredentialProfileFs.chmod(path, mode);
+        mkdir: (path, mode) => {
+          if (path === profiles) {
+            profilesMkdir += 1;
+            // Peer created the directory first with safe mode.
+            mkdirSync(path, { mode: 0o700 });
+            if (!IS_WIN) {
+              assert.equal(lstatSync(path).mode & 0o777, 0o700);
+            }
+            throw eexistErr();
+          }
+          liveCredentialProfileFs.mkdir(path, mode);
+        },
+      };
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.equal(profilesMkdir, 1);
+      assert.equal(r._tag, "Initialized", JSON.stringify(r));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses EEXIST when peer left a non-0700 directory", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("eexist-mode");
+    try {
+      const profiles = join(stateRoot, "credential-profiles");
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        mkdir: (path, mode) => {
+          if (path === profiles) {
+            mkdirSync(path, { mode: 0o755 });
+            chmodSync(path, 0o755);
+            throw eexistErr();
+          }
+          liveCredentialProfileFs.mkdir(path, mode);
         },
       };
       const r = runInit(
@@ -1598,9 +1702,107 @@ describe("POSIX safe modes before Ready", () => {
         _tag: "Refused",
         reason: "authority_invalid",
       });
-      // Must not "fix" the existing directory with path-based chmod.
-      assert.deepEqual(chmodCalls, []);
       assert.equal(lstatSync(profiles).mode & 0o777, 0o755);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses EEXIST when peer left a regular file", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("eexist-file");
+    try {
+      const profiles = join(stateRoot, "credential-profiles");
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        mkdir: (path, mode) => {
+          if (path === profiles) {
+            writeFileSync(path, "not-a-dir");
+            throw eexistErr();
+          }
+          liveCredentialProfileFs.mkdir(path, mode);
+        },
+      };
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses EEXIST when peer left a symbolic link", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("eexist-link");
+    try {
+      const profiles = join(stateRoot, "credential-profiles");
+      const real = join(root, "elsewhere");
+      mkdirSync(real, { recursive: true });
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        mkdir: (path, mode) => {
+          if (path === profiles) {
+            symlinkSync(real, path);
+            throw eexistErr();
+          }
+          liveCredentialProfileFs.mkdir(path, mode);
+        },
+      };
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "linked_path",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses non-EEXIST mkdir errors as write_failed", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("mkdir-eio");
+    try {
+      const profiles = join(stateRoot, "credential-profiles");
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        mkdir: (path, mode) => {
+          if (path === profiles) {
+            const err = new Error("EIO") as NodeJS.ErrnoException;
+            err.code = "EIO";
+            throw err;
+          }
+          liveCredentialProfileFs.mkdir(path, mode);
+        },
+      };
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "write_failed",
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
