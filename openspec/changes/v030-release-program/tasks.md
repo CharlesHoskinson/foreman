@@ -311,6 +311,12 @@
         R7B2-D binds the full Node, runtime, policy, documentation, and strict
         OpenSpec gates to one published task-record candidate. R7C
         profile-use leasing remains pending.
+      - Sprint 3 R7C profile-use leasing: active bounded package. The selected
+        design is a tracked Node.js holder that composes R7B2 admission with a
+        scoped Effect lease. A thin live adapter keeps one anonymous pipe open
+        for the complete lane lifecycle. The external per-profile lease
+        serializes the same profile across worktrees and does not inspect
+        credentials. Acceptance is defined in `profile-use-leasing`.
       - Sprint 3 R6 bounded fixture-aware secret scan (worktree green after
         descriptor-anchor + cross-platform testability corrections, host
         commit pending): closed typed `SecretScan` Effect API and CLI in
