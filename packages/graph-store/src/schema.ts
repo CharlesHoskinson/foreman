@@ -93,6 +93,50 @@ export const LINK_FIELDS: ReadonlySet<string> = new Set([
   ...EVALUATES_TARGETS,
 ]);
 
+/**
+ * Relation fields closed by document kind. Misplaced relations are rejected.
+ * Values must be reference-shaped when present.
+ */
+export const TYPE_LINK_FIELDS: Readonly<
+  Record<string, ReadonlySet<string>>
+> = {
+  Task: new Set(["subtask_of", "depends_on", "derived_from", "revises", "supersedes"]),
+  Round: new Set(["has_attempt"]),
+  Attempt: new Set([
+    "derived_from",
+    "revises",
+    "supersedes",
+    "depends_on",
+    "produced",
+  ]),
+  AgentRun: new Set(["produced", "sourced_from"]),
+  Agent: new Set(),
+  Artifact: new Set(["derived_from", "sourced_from", "about"]),
+  Spec: new Set(["revises", "supersedes", "derived_from"]),
+  Commit: new Set(["sourced_from"]),
+  Source: new Set(["about"]),
+  Evaluation: new Set([...EVALUATES_TARGETS, "evaluates"]),
+  Claim: new Set([
+    "supports",
+    "contradicts",
+    "supersedes",
+    "revises",
+    "derived_from",
+    "about",
+    "sourced_from",
+    "resolved_to",
+  ]),
+  Entity: new Set(["broader_than", "resolved_to", "about"]),
+  Metric: new Set(),
+  Measurement: new Set(["about", "sourced_from"]),
+  Finding: new Set([
+    "about",
+    "sourced_from",
+    "supports",
+    "contradicts",
+  ]),
+};
+
 export const MUTUALLY_EXCLUSIVE_LINEAGE = [
   "derived_from",
   "revises",
@@ -113,7 +157,6 @@ const COMMON_OPTIONAL = [
   "resolved_to_reviewer",
   "resolved_to_provenance",
   "resolved_to_prov",
-  "evaluates",
 ] as const;
 
 /**
@@ -122,8 +165,13 @@ const COMMON_OPTIONAL = [
 export function allowedFieldsFor(docType: string): ReadonlySet<string> {
   const keys = BUSINESS_KEYS[docType] ?? [];
   const enumFields = Object.keys(ENUM_FIELDS[docType] ?? {});
-  const out = new Set<string>(["@type", ...keys, ...enumFields, ...COMMON_OPTIONAL]);
-  for (const lf of LINK_FIELDS) out.add(lf);
+  const out = new Set<string>([
+    "@type",
+    ...keys,
+    ...enumFields,
+    ...COMMON_OPTIONAL,
+  ]);
+  for (const lf of TYPE_LINK_FIELDS[docType] ?? []) out.add(lf);
   return out;
 }
 
@@ -172,6 +220,93 @@ export function computeId(doc: JsonObject): string {
   return documentId(docType, ...parts);
 }
 
+/**
+ * Deep-clone JSON-compatible values (objects/arrays/scalars).
+ * Rejects non-JSON types by coercing via structuredClone for plain data.
+ */
+export function deepCloneJson<T>(value: T): T {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  return structuredClone(value);
+}
+
+/** Deep-freeze a JSON-compatible value in place; returns the same reference. */
+export function deepFreezeJson<T>(value: T): T {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (Object.isFrozen(value)) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) deepFreezeJson(item);
+    return Object.freeze(value);
+  }
+  const obj = value as Record<string, unknown>;
+  for (const k of Object.keys(obj)) {
+    deepFreezeJson(obj[k]);
+  }
+  return Object.freeze(value);
+}
+
+/** Deep-clone then deep-freeze (safe to return to callers). */
+export function isolateJson<T>(value: T): T {
+  return deepFreezeJson(deepCloneJson(value));
+}
+
+/** Structural deep equality for JSON-compatible values. */
+export function deepEqualJson(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (a === null || b === null) return a === b;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== "object") return false;
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqualJson(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (Array.isArray(b)) return false;
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const ak = Object.keys(ao).sort();
+  const bk = Object.keys(bo).sort();
+  if (ak.length !== bk.length) return false;
+  for (let i = 0; i < ak.length; i++) {
+    if (ak[i] !== bk[i]) return false;
+    if (!deepEqualJson(ao[ak[i]!], bo[bk[i]!])) return false;
+  }
+  return true;
+}
+
+function isDocumentIdString(value: string): boolean {
+  const slash = value.indexOf("/");
+  if (slash <= 0 || slash === value.length - 1) return false;
+  const prefix = value.slice(0, slash);
+  return DOCUMENT_TYPES.has(prefix as DocumentType);
+}
+
+/**
+ * True when `value` is a single reference (id string or {@id} object).
+ */
+export function isSingleReference(value: unknown): boolean {
+  if (typeof value === "string") {
+    return isDocumentIdString(value) || value.startsWith("_pending:");
+  }
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    const m = value as JsonObject;
+    if (typeof m["@id"] === "string" && m["@id"]) {
+      return (
+        isDocumentIdString(m["@id"]) ||
+        String(m["@id"]).startsWith("_pending:")
+      );
+    }
+  }
+  return false;
+}
+
 function isSingleEvaluatesRef(value: unknown): boolean {
   if (typeof value === "string") {
     const prefix = value.split("/", 1)[0];
@@ -182,11 +317,64 @@ function isSingleEvaluatesRef(value: unknown): boolean {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
     const m = value as JsonObject;
     const t = m["@type"] ?? m["type"];
-    return t === "Attempt" || t === "Artifact" || t === "Claim";
+    if (!(t === "Attempt" || t === "Artifact" || t === "Claim")) return false;
+    if ("@id" in m && typeof m["@id"] === "string" && m["@id"]) return true;
+    // typed object without @id still names a class but is not a store ref
+    return false;
   }
   return false;
 }
 
+/**
+ * Extract id strings from a reference value. Throws if shape is invalid.
+ */
+export function asIdSetStrict(raw: unknown, field: string): Set<string> {
+  if (raw == null) return new Set();
+  if (typeof raw === "string") {
+    if (!isSingleReference(raw)) {
+      throw new SchemaValidationError(
+        `link ${field} must be a document id reference`,
+        { field, detail: "expected Type/key string" },
+      );
+    }
+    return new Set([raw]);
+  }
+  if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
+    const m = raw as JsonObject;
+    if (typeof m["@id"] === "string" && m["@id"]) {
+      if (!isSingleReference(m)) {
+        throw new SchemaValidationError(
+          `link ${field} object must carry a document @id`,
+          { field },
+        );
+      }
+      return new Set([String(m["@id"])]);
+    }
+    throw new SchemaValidationError(
+      `link ${field} object must carry a document @id`,
+      { field },
+    );
+  }
+  if (Array.isArray(raw)) {
+    if (raw.length === 0) {
+      throw new SchemaValidationError(
+        `link ${field} must not be an empty array`,
+        { field },
+      );
+    }
+    const out = new Set<string>();
+    for (const item of raw) {
+      for (const id of asIdSetStrict(item, field)) out.add(id);
+    }
+    return out;
+  }
+  throw new SchemaValidationError(
+    `link ${field} has non-reference value ${JSON.stringify(raw)}`,
+    { field, detail: "expected string id, {@id}, or array of those" },
+  );
+}
+
+/** Lenient id extraction for pure query traversal (does not throw). */
 export function asIdSet(raw: unknown): Set<string> {
   if (raw == null) return new Set();
   if (typeof raw === "string") return new Set([raw]);
@@ -202,7 +390,7 @@ export function asIdSet(raw: unknown): Set<string> {
     }
     return out;
   }
-  return new Set([String(raw)]);
+  return new Set();
 }
 
 /**
@@ -232,6 +420,10 @@ export function detectsCycle(
     }
   }
   return false;
+}
+
+function fieldIsPresent(body: JsonObject, field: string): boolean {
+  return Object.prototype.hasOwnProperty.call(body, field) && body[field] != null;
 }
 
 /**
@@ -271,7 +463,7 @@ export function validateDocument(
     );
   }
 
-  // Closed field set
+  // Closed field set by kind
   const allowed = allowedFieldsFor(docType);
   for (const key of Object.keys(body)) {
     if (!allowed.has(key)) {
@@ -313,39 +505,77 @@ export function validateDocument(
     }
   }
 
-  // Evaluation: exactly one EVALUATES target
+  // Evaluation: exactly one EVALUATES target with exactly one reference
   if (docType === "Evaluation") {
-    let present = EVALUATES_TARGETS.filter((f) => body[f]);
-    const legacy = body["evaluates"];
-    if (legacy && present.length === 0) {
+    const presentTagged = EVALUATES_TARGETS.filter((f) => fieldIsPresent(body, f));
+    const legacyPresent = fieldIsPresent(body, "evaluates");
+    let activeFields: string[] = [...presentTagged];
+    if (legacyPresent && presentTagged.length === 0) {
+      const legacy = body["evaluates"];
       if (!isSingleEvaluatesRef(legacy)) {
         throw new SchemaValidationError(
           "Evaluation.evaluates must name exactly one Attempt, Artifact, or Claim",
           { field: "evaluates" },
         );
       }
-      present = ["evaluates" as (typeof EVALUATES_TARGETS)[number]];
+      activeFields = ["evaluates"];
     }
-    if (present.length === 0) {
+    if (activeFields.length === 0) {
       throw new SchemaValidationError(
         `Evaluation must declare exactly one EVALUATES target (one of ${EVALUATES_TARGETS.join(", ")} or a single typed evaluates ref)`,
         { field: "evaluates" },
       );
     }
-    if (present.length > 1) {
+    if (activeFields.length > 1) {
       throw new SchemaValidationError(
-        `EVALUATES takes exactly one target; got fields ${present.join(", ")}`,
+        `EVALUATES takes exactly one target; got fields ${activeFields.join(", ")}`,
         { field: "evaluates", detail: "exactly one target required" },
       );
     }
+    // Cardinality: each active field must resolve to exactly one reference
+    for (const f of activeFields) {
+      const val = body[f];
+      if (Array.isArray(val)) {
+        if (val.length !== 1) {
+          throw new SchemaValidationError(
+            `EVALUATES field ${f} must name exactly one target`,
+            { field: f, detail: "exactly one target required" },
+          );
+        }
+      }
+      const ids = asIdSetStrict(val, f);
+      if (ids.size !== 1) {
+        throw new SchemaValidationError(
+          `EVALUATES field ${f} must name exactly one target`,
+          { field: f, detail: "exactly one target required" },
+        );
+      }
+    }
+  }
+
+  // Strict reference shapes for every declared link field on this kind
+  const kindLinks = TYPE_LINK_FIELDS[docType] ?? new Set<string>();
+  for (const lf of kindLinks) {
+    if (!fieldIsPresent(body, lf)) continue;
+    if (docType === "Evaluation" && (EVALUATES_TARGETS as readonly string[]).includes(lf)) {
+      // already validated above
+      continue;
+    }
+    if (docType === "Evaluation" && lf === "evaluates") {
+      continue;
+    }
+    if (lf === "resolved_to") {
+      // handled below with functional rules
+      continue;
+    }
+    asIdSetStrict(body[lf], lf);
   }
 
   // Mutual exclusion of DERIVED_FROM / REVISES / SUPERSEDES on the same target
   const targetsByEdge = new Map<string, Set<string>>();
   for (const edge of MUTUALLY_EXCLUSIVE_LINEAGE) {
-    const raw = body[edge];
-    if (raw == null) continue;
-    targetsByEdge.set(edge, asIdSet(raw));
+    if (!fieldIsPresent(body, edge)) continue;
+    targetsByEdge.set(edge, asIdSetStrict(body[edge], edge));
   }
   const edges = [...targetsByEdge.keys()];
   for (let i = 0; i < edges.length; i++) {
@@ -365,7 +595,7 @@ export function validateDocument(
   }
 
   // SUPERSEDES carries timestamp + reason when present
-  if (body["supersedes"] != null) {
+  if (fieldIsPresent(body, "supersedes")) {
     if (!body["supersedes_at"] && !body["supersedes_timestamp"]) {
       throw new SchemaValidationError(
         "SUPERSEDES requires supersedes_at (timestamp)",
@@ -379,12 +609,27 @@ export function validateDocument(
     }
   }
 
-  // RESOLVED_TO functional: at most one target; optional reviewer/provenance
-  if ("resolved_to" in body && body["resolved_to"] != null) {
+  // RESOLVED_TO functional: exactly one reference target; reviewer + provenance
+  if (fieldIsPresent(body, "resolved_to")) {
     const rt = body["resolved_to"];
-    if (Array.isArray(rt) && rt.length > 1) {
+    if (Array.isArray(rt)) {
+      if (rt.length === 0) {
+        throw new SchemaValidationError(
+          "RESOLVED_TO must name exactly one target",
+          { field: "resolved_to" },
+        );
+      }
+      if (rt.length > 1) {
+        throw new SchemaValidationError(
+          "RESOLVED_TO is functional: at most one target",
+          { field: "resolved_to" },
+        );
+      }
+    }
+    const ids = asIdSetStrict(rt, "resolved_to");
+    if (ids.size !== 1) {
       throw new SchemaValidationError(
-        "RESOLVED_TO is functional: at most one target",
+        "RESOLVED_TO must name exactly one target",
         { field: "resolved_to" },
       );
     }
@@ -402,12 +647,12 @@ export function validateDocument(
     }
   }
 
-  // Optional link-target existence check
+  // Optional link-target existence check against complete candidate id set
   const existingIds = opts?.existingIds;
   if (existingIds != null) {
-    for (const lf of LINK_FIELDS) {
-      if (!(lf in body) || body[lf] == null) continue;
-      for (const target of asIdSet(body[lf])) {
+    for (const lf of kindLinks) {
+      if (!fieldIsPresent(body, lf)) continue;
+      for (const target of asIdSetStrict(body[lf], lf)) {
         if (!existingIds.has(target) && !target.startsWith("_pending:")) {
           if (
             target.includes("/") &&
@@ -427,6 +672,77 @@ export function validateDocument(
   }
 
   return docId;
+}
+
+/**
+ * Validate a complete document map (snapshot / graph-wide).
+ * Ensures every document is schema-valid, map key equals @id, and
+ * functional/acyclic graph constraints hold.
+ */
+export function validateDocumentMap(
+  documents: Readonly<Record<string, JsonObject>>,
+  opts?: { readonly maxTraversalSteps?: number },
+): void {
+  const maxSteps = opts?.maxTraversalSteps ?? 10_000;
+  // Schema shape/cardinality per document. Link-target existence is optional
+  // here so two-pass ingest (Round before Attempt) remains valid; callers that
+  // need a closed candidate set pass existingIds to validateDocument directly.
+  for (const [key, doc] of Object.entries(documents)) {
+    if (doc === null || typeof doc !== "object" || Array.isArray(doc)) {
+      throw new SchemaValidationError(
+        `document map entry ${JSON.stringify(key)} is not an object`,
+      );
+    }
+    const docId = validateDocument(doc);
+    if (docId !== key) {
+      throw new SchemaValidationError(
+        `document map key ${JSON.stringify(key)} does not equal computed @id ${JSON.stringify(docId)}`,
+        { field: "@id" },
+      );
+    }
+    if (doc["@id"] != null && String(doc["@id"]) !== key) {
+      throw new SchemaValidationError(
+        `document @id ${JSON.stringify(doc["@id"])} does not equal map key ${JSON.stringify(key)}`,
+        { field: "@id" },
+      );
+    }
+  }
+
+  // Graph-wide functional RESOLVED_TO and cycles
+  for (const edgeField of [
+    "depends_on",
+    "subtask_of",
+    "broader_than",
+    "resolved_to",
+  ] as const) {
+    const edges = new Map<string, Set<string>>();
+    for (const [id, doc] of Object.entries(documents)) {
+      if (!fieldIsPresent(doc, edgeField)) continue;
+      const targets = asIdSetStrict(doc[edgeField], edgeField);
+      if (edgeField === "resolved_to" && targets.size > 1) {
+        throw new SchemaValidationError(
+          `RESOLVED_TO is functional: ${id} has multiple targets`,
+          { field: "resolved_to" },
+        );
+      }
+      edges.set(id, targets);
+      if (detectsCycle(edges, id, maxSteps)) {
+        throw new SchemaValidationError(
+          `${edgeField} cycle involving ${id}`,
+          { field: edgeField, detail: "graph-wide acyclicity" },
+        );
+      }
+    }
+    // full pass for cycles from every node
+    for (const id of edges.keys()) {
+      if (detectsCycle(edges, id, maxSteps)) {
+        throw new SchemaValidationError(
+          `${edgeField} cycle involving ${id}`,
+          { field: edgeField, detail: "graph-wide acyclicity" },
+        );
+      }
+    }
+  }
 }
 
 export function isDocumentType(v: string): v is DocumentType {

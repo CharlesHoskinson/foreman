@@ -7,16 +7,22 @@ import {
   writeFileSync,
   mkdtempSync,
   rmSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
+  GraphStoreError,
+  LimitExceededError,
+  PublishConflictError,
   UnexpectedEmptyError,
   UnexpectedNonEmptyError,
 } from "./failures.js";
 import { openFilesOnly, FilesOnlyGraphStore } from "./files-only.js";
+import { MAX_QUERY_RESULTS } from "./bounds.js";
 import { defaultSchemaPayload } from "./schema.js";
+import * as queries from "./queries.js";
 
 function tempRoot(label: string): string {
   return mkdtempSync(join(tmpdir(), `gs-${label}-`));
@@ -32,7 +38,6 @@ describe("files-only hostile inputs", () => {
         task_key: "t",
         title: "ok",
       });
-      // Tamper generation with duplicate keys
       const genId = store.currentGenerationId();
       const genPath = join(root, "generations", genId, "generation.json");
       writeFileSync(
@@ -195,7 +200,6 @@ describe("files-only hostile inputs", () => {
       const bytesB = readFileSync(
         join(rootB, "generations", genB, "generation.json"),
       );
-      // generation ids may match (both start from 1); document payloads equal
       assert.equal(bytesA.toString("utf8"), bytesB.toString("utf8"));
     } finally {
       rmSync(rootA, { recursive: true, force: true });
@@ -207,9 +211,6 @@ describe("files-only hostile inputs", () => {
     const root = tempRoot("conc");
     try {
       openFilesOnly({ root, autoSchema: true });
-      // Hold the process gate by opening under a nested call simulation:
-      // second open while first publish holds the gate should get store_busy
-      // when re-entered synchronously. Sequential opens succeed.
       const s1 = openFilesOnly({ root, autoSchema: false });
       const s2 = openFilesOnly({ root, autoSchema: false });
       assert.ok(s1 instanceof FilesOnlyGraphStore);
@@ -219,19 +220,10 @@ describe("files-only hostile inputs", () => {
     }
   });
 
-  it("handles concurrent publication via exclusive lock", async () => {
+  it("preserves distinct concurrent publications and rejects last-writer-wins", () => {
     const root = tempRoot("pub");
     try {
       openFilesOnly({ root, autoSchema: true });
-      const workerSrc = `
-        const { parentPort, workerData } = require('node:worker_threads');
-        const { register } = require('node:module');
-        const { pathToFileURL } = require('node:url');
-        // Use dynamic import of ts via path — worker runs compiled path.
-        parentPort.postMessage({ ok: true, skipped: true });
-      `;
-      // Lightweight concurrency: two sequential publications from two handles
-      // after acquiring/releasing lock must leave a consistent CURRENT.
       const a = openFilesOnly({ root, autoSchema: false });
       const b = openFilesOnly({ root, autoSchema: false });
       a.upsertDocument({
@@ -245,11 +237,221 @@ describe("files-only hostile inputs", () => {
         title: "b",
       });
       const final = openFilesOnly({ root, autoSchema: false });
-      // Last writer wins for the full snapshot from its handle; at least one
-      // document is present and CURRENT is valid.
       const docs = final.listDocuments("Task");
-      assert.ok(docs.length >= 1);
-      void workerSrc;
+      const keys = new Set(docs.map((d) => String(d["task_key"])));
+      assert.deepEqual([...keys].sort(), ["p1", "p2"]);
+      assert.equal(final.getDocumentById("Task/p1")?.["title"], "a");
+      assert.equal(final.getDocumentById("Task/p2")?.["title"], "b");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("fails with typed conflict on concurrent stale shared-document change", () => {
+    const root = tempRoot("conflict");
+    try {
+      openFilesOnly({ root, autoSchema: true });
+      const a = openFilesOnly({ root, autoSchema: false });
+      const b = openFilesOnly({ root, autoSchema: false });
+      a.upsertDocument({
+        "@type": "Task",
+        task_key: "shared",
+        title: "from-a",
+      });
+      assert.throws(
+        () =>
+          b.upsertDocument({
+            "@type": "Task",
+            task_key: "shared",
+            title: "from-b",
+          }),
+        (e: unknown) =>
+          e instanceof PublishConflictError ||
+          (e instanceof GraphStoreError &&
+            e.failure.reason === "publish_conflict"),
+      );
+      const final = openFilesOnly({ root, autoSchema: false });
+      assert.equal(final.getDocumentById("Task/shared")?.["title"], "from-a");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("isolates nested JSON: caller mutation does not poison store state", () => {
+    const store = openFilesOnly({ root: null, autoSchema: true });
+    const input: {
+      "@type": string;
+      task_key: string;
+      depends_on: string[];
+      title: string;
+    } = {
+      "@type": "Task",
+      task_key: "iso",
+      title: "t",
+      depends_on: ["Task/other"],
+    };
+    store.upsertDocument({
+      "@type": "Task",
+      task_key: "other",
+      title: "o",
+    });
+    store.upsertDocument(input);
+    input.depends_on.push("Task/iso");
+    input.title = "mutated";
+    const got = store.getDocumentById("Task/iso");
+    assert.ok(got);
+    assert.equal(got["title"], "t");
+    assert.deepEqual(got["depends_on"], ["Task/other"]);
+    // Returned values are isolated (deep-frozen clone): mutation fails closed
+    // and must not affect internal memory either way.
+    assert.throws(() => {
+      (got["depends_on"] as string[]).push("Task/poison");
+    }, TypeError);
+    const again = store.getDocumentById("Task/iso");
+    assert.deepEqual(again!["depends_on"], ["Task/other"]);
+    assert.equal(again!["title"], "t");
+  });
+
+  it("rejects contract-invalid persisted generation on open", () => {
+    const root = tempRoot("badgen");
+    try {
+      const store = openFilesOnly({ root, autoSchema: true });
+      store.upsertDocument({
+        "@type": "Task",
+        task_key: "t",
+        title: "ok",
+      });
+      const genId = store.currentGenerationId();
+      const genPath = join(root, "generations", genId, "generation.json");
+      // Unknown snapshot key + invalid document + map key != @id
+      writeFileSync(
+        genPath,
+        JSON.stringify({
+          schemaVersion: 1,
+          generationId: genId,
+          schemaRegistered: true,
+          schema: null,
+          schemaAuthor: "x",
+          schemaMessage: "y",
+          documents: {
+            "Task/wrong": {
+              "@type": "Task",
+              task_key: "t",
+              "@id": "Task/t",
+              freeform: true,
+            },
+          },
+          extraKey: true,
+        }) + "\n",
+      );
+      assert.throws(() => openFilesOnly({ root, autoSchema: false }), Error);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rolls back memory when publication fails", () => {
+    const root = tempRoot("rollback");
+    try {
+      openFilesOnly({ root, autoSchema: true });
+      const store = openFilesOnly({
+        root,
+        autoSchema: false,
+        inject: { failDuringPublish: true },
+      });
+      assert.throws(
+        () =>
+          store.upsertDocument({
+            "@type": "Task",
+            task_key: "should-not-stick",
+            title: "x",
+          }),
+        Error,
+      );
+      assert.equal(store.getDocumentById("Task/should-not-stick"), null);
+      const reopened = openFilesOnly({ root, autoSchema: false });
+      assert.equal(reopened.getDocumentById("Task/should-not-stick"), null);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("injected failure before CURRENT leaves generation unpublished as current", () => {
+    const root = tempRoot("inj-cur");
+    try {
+      openFilesOnly({ root, autoSchema: true });
+      const before = openFilesOnly({ root, autoSchema: false });
+      const beforeGen = before.currentGenerationId();
+      const store = openFilesOnly({
+        root,
+        autoSchema: false,
+        inject: { failBeforeCurrent: true },
+      });
+      assert.throws(
+        () =>
+          store.upsertDocument({
+            "@type": "Task",
+            task_key: "half",
+            title: "x",
+          }),
+        Error,
+      );
+      // Handle rolled back
+      assert.equal(store.getDocumentById("Task/half"), null);
+      // CURRENT still points at prior generation
+      const cur = readFileSync(join(root, "CURRENT"), "utf8").trim();
+      assert.equal(cur.padStart(16, "0"), beforeGen);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("handles short writes during durable publish", () => {
+    const root = tempRoot("short");
+    try {
+      const store = openFilesOnly({
+        root,
+        autoSchema: true,
+        inject: { shortWriteOnce: true },
+      });
+      store.upsertDocument({
+        "@type": "Task",
+        task_key: "sw",
+        title: "ok",
+      });
+      const reopened = openFilesOnly({ root, autoSchema: false });
+      assert.equal(reopened.getDocumentById("Task/sw")?.["title"], "ok");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses overwrite of existing immutable generation file", () => {
+    const root = tempRoot("excl");
+    try {
+      const store = openFilesOnly({ root, autoSchema: true });
+      store.upsertDocument({
+        "@type": "Task",
+        task_key: "e",
+        title: "v1",
+      });
+      // Plant a pre-existing file for the next generation id
+      const next = String(Number(store.currentGenerationId()) + 1).padStart(
+        16,
+        "0",
+      );
+      const genDir = join(root, "generations", next);
+      mkdirSync(genDir, { recursive: true });
+      writeFileSync(join(genDir, "generation.json"), "{}\n");
+      assert.throws(
+        () =>
+          store.upsertDocument({
+            "@type": "Task",
+            task_key: "e2",
+            title: "v2",
+          }),
+        Error,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -257,13 +459,11 @@ describe("files-only hostile inputs", () => {
 
   it("expected empty / non-empty / unexpected empty / unexpected non-empty", () => {
     const store = openFilesOnly({ root: null, autoSchema: true });
-    // expected empty + empty → success
     const empty = store.query("claims_contradicting", {
       expectEmpty: true,
       params: { claim_key: "none" },
     });
     assert.equal(empty.isEmpty, true);
-    // unexpected empty
     assert.throws(
       () => store.query("unevaluated_leaves", { expectEmpty: false }),
       UnexpectedEmptyError,
@@ -283,13 +483,11 @@ describe("files-only hostile inputs", () => {
       confidence: "low",
       contradicts: ["Claim/c1"],
     });
-    // expected non-empty + rows → success
     const rows = store.query("claims_contradicting", {
       expectEmpty: false,
       params: { claim_id: "Claim/c1" },
     });
     assert.equal(rows.rows.length, 1);
-    // unexpected non-empty
     assert.throws(
       () =>
         store.query("claims_contradicting", {
@@ -323,6 +521,37 @@ describe("files-only hostile inputs", () => {
         }),
       (e: unknown) =>
         e instanceof Error && e.message.toLowerCase().includes("cycle"),
+    );
+  });
+
+  it("throws LimitExceededError instead of silently truncating query results", () => {
+    // Build an index larger than MAX_QUERY_RESULTS for claims_contradicting
+    const index = new Map<string, Record<string, unknown>>();
+    index.set("Claim/root", {
+      "@type": "Claim",
+      "@id": "Claim/root",
+      claim_key: "root",
+      text: "r",
+      status: "live",
+      confidence: "low",
+    });
+    const n = MAX_QUERY_RESULTS + 5;
+    for (let i = 0; i < n; i++) {
+      const id = `Claim/c${i}`;
+      index.set(id, {
+        "@type": "Claim",
+        "@id": id,
+        claim_key: `c${i}`,
+        text: "t",
+        status: "live",
+        confidence: "low",
+        contradicts: ["Claim/root"],
+      });
+    }
+    assert.throws(
+      () =>
+        queries.queryClaimsContradicting(index, { claim_id: "Claim/root" }),
+      LimitExceededError,
     );
   });
 });

@@ -730,16 +730,55 @@ export function runContractMain(argv: readonly string[]): number {
       );
       return 1;
     }
-    if (report.failed < 3) {
+    const categories = failedCategories(report);
+    if (categories.size < MIN_INDEPENDENT_STUB_CATEGORIES) {
       process.stderr.write(
-        `SOUNDNESS FAILURE: stub produced only ${report.failed} failure(s); expected several independent contract failures\n`,
+        `SOUNDNESS FAILURE: stub produced only ${categories.size} independent failure categor${categories.size === 1 ? "y" : "ies"} (${[...categories].sort().join(", ") || "none"}); expected at least ${MIN_INDEPENDENT_STUB_CATEGORIES} distinct contract categories among ${report.failed} failure(s)\n`,
       );
       return 1;
     }
     process.stdout.write(
-      `SOUNDNESS OK: stub failed ${report.failed} cases as required\n`,
+      `SOUNDNESS OK: stub failed ${report.failed} cases across ${categories.size} categories (${[...categories].sort().join(", ")})\n`,
     );
     return 0;
   }
   return report.ok ? 0 : 1;
+}
+
+/** Minimum distinct contract categories the broken stub must trip. */
+export const MIN_INDEPENDENT_STUB_CATEGORIES = 3;
+
+/**
+ * Map case names to independent contract categories for stub soundness.
+ * Strengthens the control beyond a raw failure count.
+ */
+export const CASE_CATEGORY: Readonly<Record<string, string>> = {
+  schema_required_before_write: "schema_gate",
+  schema_accepts_conforming_document: "schema_accept",
+  reject_free_float_confidence: "schema_validation",
+  reject_mention_document: "schema_validation",
+  reject_evaluation_two_targets: "schema_validation",
+  upsert_idempotent_same_key: "upsert",
+  optional_capabilities_closed_set: "capabilities",
+  missing_capability_degrades_and_prefix_rejected: "capabilities",
+  lineage_attempts_from_round: "lineage_query",
+  lineage_unevaluated_leaves: "lineage_query",
+  lineage_claims_contradicting: "lineage_query",
+  unexpected_empty_raises: "expected_emptiness",
+  expected_empty_true_negative: "expected_emptiness",
+  unexpected_nonempty_raises: "expected_emptiness",
+  unknown_query_rejected: "query_names",
+  lineage_query_names_complete: "query_names",
+  depends_on_cycle_rejected: "graph_integrity",
+  resolved_to_requires_reviewer: "graph_integrity",
+};
+
+export function failedCategories(report: SuiteReport): Set<string> {
+  const cats = new Set<string>();
+  for (const r of report.results) {
+    if (r.passed) continue;
+    const cat = CASE_CATEGORY[r.name] ?? r.name;
+    cats.add(cat);
+  }
+  return cats;
 }

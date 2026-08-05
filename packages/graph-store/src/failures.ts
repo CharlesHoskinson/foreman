@@ -33,6 +33,7 @@ export type GraphStoreFailureReason =
   | "limit_exceeded"
   | "store_busy"
   | "identity_changed"
+  | "publish_conflict"
   | "backend_misconfiguration"
   | "ungrounded_write"
   | "invalid_argument";
@@ -252,6 +253,35 @@ export class DocumentNotFoundError extends GraphStoreError {
   }
 }
 
+export class LimitExceededError extends GraphStoreError {
+  readonly limit: string;
+  readonly count: number;
+  constructor(limit: string, count: number, message?: string) {
+    super(
+      graphStoreFailure(
+        "limit_exceeded",
+        message ??
+          `limit exceeded for ${limit}: observed ${count}`,
+        { detail: limit, count },
+      ),
+    );
+    this.name = "LimitExceededError";
+    this.limit = limit;
+    this.count = count;
+  }
+}
+
+export class PublishConflictError extends GraphStoreError {
+  constructor(message: string, opts?: { readonly field?: string }) {
+    super(
+      graphStoreFailure("publish_conflict", message, {
+        ...(opts?.field !== undefined ? { field: opts.field } : {}),
+      }),
+    );
+    this.name = "PublishConflictError";
+  }
+}
+
 export function throwFailure(failure: GraphStoreFailure): never {
   switch (failure.reason) {
     case "schema_not_registered":
@@ -274,6 +304,16 @@ export function throwFailure(failure: GraphStoreFailure): never {
       throw new VersionReferenceError(failure.ref ?? "", failure.message);
     case "document_not_found":
       throw new DocumentNotFoundError(failure.message);
+    case "limit_exceeded":
+      throw new LimitExceededError(
+        failure.detail ?? "bound",
+        failure.count ?? 0,
+        failure.message,
+      );
+    case "publish_conflict":
+      throw new PublishConflictError(failure.message, {
+        ...(failure.field !== undefined ? { field: failure.field } : {}),
+      });
     case "unknown_query":
     case "unknown_capability":
     case "invalid_argument":

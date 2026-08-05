@@ -19,21 +19,20 @@ import {
   decodeUtf8Fatal,
   isCoreFailure,
   parseJsonRejectDuplicateKeys,
+  readFdBounded,
 } from "@foreman/core";
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Either, Layer, Scope } from "effect";
 import {
   closeSync,
   constants as fsConstants,
+  fstatSync,
   fsyncSync,
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
   readdirSync,
-  readSync,
   renameSync,
   unlinkSync,
-  writeFileSync,
   writeSync,
   type Stats,
 } from "node:fs";
@@ -51,9 +50,12 @@ import {
   STORE_LOCK_SPIN_MS,
 } from "./bounds.js";
 import {
+  GraphStoreError,
+  PublishConflictError,
   SchemaNotRegisteredError,
   SchemaValidationError,
   graphStoreFailure,
+  isGraphStoreFailure,
   throwFailure,
   type GraphStoreFailure,
 } from "./failures.js";
@@ -71,9 +73,13 @@ import {
 import { indexFromDocuments, runNamedQuery, asIdSet } from "./queries.js";
 import {
   BUSINESS_KEYS,
+  deepCloneJson,
+  deepEqualJson,
   defaultSchemaPayload,
   detectsCycle,
+  isolateJson,
   validateDocument,
+  validateDocumentMap,
 } from "./schema.js";
 
 // ---------------------------------------------------------------------------
@@ -117,6 +123,16 @@ export type GenerationSnapshot = {
   readonly documents: Readonly<Record<string, JsonObject>>;
 };
 
+const SNAPSHOT_KEYS = new Set([
+  "schemaVersion",
+  "generationId",
+  "schemaRegistered",
+  "schema",
+  "schemaAuthor",
+  "schemaMessage",
+  "documents",
+]);
+
 function emptySnapshot(generationId: string): GenerationSnapshot {
   return {
     schemaVersion: GRAPH_STORE_SCHEMA_VERSION,
@@ -155,13 +171,17 @@ function countJsonNodes(value: unknown, depth: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Safe filesystem helpers
+// Safe filesystem helpers (descriptor-based, no-follow)
 // ---------------------------------------------------------------------------
 
 type FileIdentity = { readonly dev: number; readonly ino: number };
 
 function identityOf(st: Stats): FileIdentity {
   return { dev: st.dev, ino: st.ino };
+}
+
+function identitiesEqual(a: FileIdentity, b: FileIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
 }
 
 function isEnoent(e: unknown): boolean {
@@ -219,7 +239,6 @@ function resolveStoreRoot(root: string): string {
       graphStoreFailure("invalid_path", "store root must be a non-empty path"),
     );
   }
-  // Disallow null bytes and obvious traversal segments in the input form.
   if (root.includes("\0")) {
     throwFailure(graphStoreFailure("invalid_path", "store root contains NUL"));
   }
@@ -236,7 +255,6 @@ function resolveStoreRoot(root: string): string {
     );
   }
   if (kind === "missing") {
-    // Create parents carefully
     ensureDirectoryTree(abs);
   }
   const after = observePathKind(abs);
@@ -248,13 +266,10 @@ function resolveStoreRoot(root: string): string {
       ),
     );
   }
-  // Directories on Unix always have nlink >= 2; hard-link refusal applies to
-  // regular store files (CURRENT, generation.json), not the root directory.
   return abs;
 }
 
 function ensureDirectoryTree(abs: string): void {
-  // Create each component; refuse if any existing component is a symlink.
   const parts = abs.split(sep).filter(Boolean);
   let cur = abs.startsWith(sep) ? sep : "";
   for (const part of parts) {
@@ -266,7 +281,10 @@ function ensureDirectoryTree(abs: string): void {
       } catch (e) {
         if (!isEexist(e)) {
           throwFailure(
-            graphStoreFailure("invalid_path", "failed to create store directory"),
+            graphStoreFailure(
+              "invalid_path",
+              "failed to create store directory",
+            ),
           );
         }
       }
@@ -343,45 +361,123 @@ function countFilesUnder(root: string): number {
   return count;
 }
 
-function readRegularFileBounded(path: string): Buffer {
-  const kind = observePathKind(path);
-  if (kind === "symlink") {
+/**
+ * Open a regular file with O_NOFOLLOW, validate the opened descriptor via
+ * fstat, read a bounded payload, re-fstat the same descriptor, and reject
+ * identity changes. Never follows replacement targets unbounded.
+ */
+function readRegularFileBounded(path: string, label = "store file"): Buffer {
+  let fd: number;
+  try {
+    fd = openSync(
+      path,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
+  } catch (e) {
+    if (isEnoent(e)) {
+      throwFailure(
+        graphStoreFailure("corrupt_state", `${label} is missing`),
+      );
+    }
+    // ELOOP / EPERM etc. for symlinks depending on platform
+    const code =
+      typeof e === "object" && e !== null && "code" in e
+        ? String((e as { code: unknown }).code)
+        : "";
+    if (code === "ELOOP" || code === "EMLINK") {
+      throwFailure(
+        graphStoreFailure("symlink_rejected", `refusing to read symlink (${label})`),
+      );
+    }
     throwFailure(
-      graphStoreFailure("symlink_rejected", "refusing to read symlink"),
+      graphStoreFailure("corrupt_state", `failed to open ${label}`),
     );
   }
-  if (kind !== "regular") {
-    throwFailure(
-      graphStoreFailure("corrupt_state", "expected a regular file"),
-    );
+  try {
+    const st = fstatSync(fd);
+    if (st.isSymbolicLink()) {
+      throwFailure(
+        graphStoreFailure("symlink_rejected", `refusing to read symlink (${label})`),
+      );
+    }
+    if (!st.isFile()) {
+      throwFailure(
+        graphStoreFailure("corrupt_state", `${label} is not a regular file`),
+      );
+    }
+    rejectIfHardLink(st, label);
+    if (st.size > MAX_FILE_BYTES) {
+      throwFailure(
+        graphStoreFailure(
+          "oversize_input",
+          `file exceeds max ${MAX_FILE_BYTES} bytes`,
+        ),
+      );
+    }
+    const before = identityOf(st);
+    const data = readFdBounded(fd, MAX_FILE_BYTES);
+    if (isCoreFailure(data)) {
+      if (data._tag === "OversizeInput") {
+        throwFailure(
+          graphStoreFailure(
+            "oversize_input",
+            `file exceeds max ${MAX_FILE_BYTES} bytes`,
+          ),
+        );
+      }
+      throwFailure(
+        graphStoreFailure("corrupt_state", `failed to read ${label}`),
+      );
+    }
+    const st2 = fstatSync(fd);
+    if (!st2.isFile() || st2.nlink > 1) {
+      throwFailure(
+        graphStoreFailure(
+          "identity_changed",
+          `${label} identity changed during read`,
+        ),
+      );
+    }
+    if (!identitiesEqual(before, identityOf(st2))) {
+      throwFailure(
+        graphStoreFailure(
+          "identity_changed",
+          `${label} identity changed during read`,
+        ),
+      );
+    }
+    // Also re-lstat the path: reject if the path now points elsewhere.
+    try {
+      const stPath = lstatSync(path);
+      if (
+        !stPath.isFile() ||
+        stPath.dev !== before.dev ||
+        stPath.ino !== before.ino
+      ) {
+        throwFailure(
+          graphStoreFailure(
+            "identity_changed",
+            `${label} path identity changed during read`,
+          ),
+        );
+      }
+    } catch (e) {
+      if (isGraphStoreThrown(e)) throw e;
+      throwFailure(
+        graphStoreFailure(
+          "identity_changed",
+          `${label} path identity changed during read`,
+        ),
+      );
+    }
+    return Buffer.from(data);
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+      /* ignore */
+    }
   }
-  const st = lstatSync(path);
-  rejectIfHardLink(st, path);
-  if (st.size > MAX_FILE_BYTES) {
-    throwFailure(
-      graphStoreFailure(
-        "oversize_input",
-        `file exceeds max ${MAX_FILE_BYTES} bytes`,
-      ),
-    );
-  }
-  const buf = readFileSync(path);
-  if (buf.byteLength > MAX_FILE_BYTES) {
-    throwFailure(
-      graphStoreFailure(
-        "oversize_input",
-        `file exceeds max ${MAX_FILE_BYTES} bytes`,
-      ),
-    );
-  }
-  // Re-check identity after read
-  const st2 = lstatSync(path);
-  if (st2.dev !== st.dev || st2.ino !== st.ino || st2.nlink > 1) {
-    throwFailure(
-      graphStoreFailure("identity_changed", "file identity changed during read"),
-    );
-  }
-  return buf;
 }
 
 function parseCanonicalJsonBytes(buf: Buffer): unknown {
@@ -416,10 +512,147 @@ function parseCanonicalJsonBytes(buf: Buffer): unknown {
   return parsed;
 }
 
-function atomicWriteFile(path: string, bytes: Buffer | string): void {
+function fsyncPathDirectory(path: string): void {
+  const dir = dirname(path);
+  let fd: number;
+  try {
+    fd = openSync(dir, fsConstants.O_RDONLY | fsConstants.O_DIRECTORY);
+  } catch {
+    return;
+  }
+  try {
+    fsyncSync(fd);
+  } finally {
+    try {
+      closeSync(fd);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * Write all bytes via writeSync in a loop (handles short writes).
+ */
+function writeAllSync(fd: number, data: Buffer): void {
+  let offset = 0;
+  while (offset < data.byteLength) {
+    const n = writeSync(fd, data, offset, data.byteLength - offset);
+    if (n <= 0) {
+      throwFailure(
+        graphStoreFailure("corrupt_state", "short write made no progress"),
+      );
+    }
+    offset += n;
+  }
+}
+
+export type PublishInjectHooks = {
+  /** Simulate a single short write that returns partial byte count once. */
+  readonly shortWriteOnce?: boolean;
+  /** Fail after generation file is fully written/renamed, before CURRENT. */
+  readonly failBeforeCurrent?: boolean;
+  /** Fail after memory would have been mutated if callers mutate early. */
+  readonly failDuringPublish?: boolean;
+};
+
+let activeInject: PublishInjectHooks | null = null;
+
+/**
+ * Atomic durable write: full write loop (handles short writes), fsync file,
+ * then either O_EXCL create of the final path (immutable generations) or
+ * temp+rename for CURRENT selection, then fsync the containing directory.
+ */
+function atomicWriteFile(
+  path: string,
+  bytes: Buffer | string,
+  opts?: { readonly exclusiveFinal?: boolean },
+): void {
   const dir = dirname(path);
   ensureDirectoryTree(dir);
-  const tmp = join(dir, `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const data = typeof bytes === "string" ? Buffer.from(bytes, "utf8") : bytes;
+  if (data.byteLength > MAX_FILE_BYTES) {
+    throwFailure(
+      graphStoreFailure(
+        "oversize_input",
+        `write exceeds max ${MAX_FILE_BYTES} bytes`,
+      ),
+    );
+  }
+
+  const writePayload = (fd: number): void => {
+    if (activeInject?.shortWriteOnce) {
+      activeInject = { ...activeInject, shortWriteOnce: false };
+      if (data.byteLength > 1) {
+        const n = writeSync(fd, data, 0, 1);
+        if (n !== 1) {
+          throwFailure(
+            graphStoreFailure("corrupt_state", "injected short write failed"),
+          );
+        }
+        writeAllSync(fd, data.subarray(1));
+      } else {
+        writeAllSync(fd, data);
+      }
+    } else {
+      writeAllSync(fd, data);
+    }
+    fsyncSync(fd);
+  };
+
+  if (opts?.exclusiveFinal) {
+    // Immutable generation: must not overwrite an existing file.
+    let fd: number;
+    try {
+      fd = openSync(
+        path,
+        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+        0o644,
+      );
+    } catch (e) {
+      if (isEexist(e)) {
+        throwFailure(
+          graphStoreFailure(
+            "corrupt_state",
+            "immutable generation file already exists",
+          ),
+        );
+      }
+      throwFailure(
+        graphStoreFailure("corrupt_state", "failed to create generation file"),
+      );
+    }
+    try {
+      writePayload(fd);
+    } catch (e) {
+      try {
+        closeSync(fd);
+      } catch {
+        /* ignore */
+      }
+      try {
+        unlinkSync(path);
+      } catch {
+        /* ignore */
+      }
+      if (isGraphStoreThrown(e)) throw e;
+      throwFailure(
+        graphStoreFailure("corrupt_state", "atomic write failed"),
+      );
+    }
+    try {
+      closeSync(fd);
+    } catch {
+      /* ignore */
+    }
+    fsyncPathDirectory(path);
+    return;
+  }
+
+  const tmp = join(
+    dir,
+    `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  );
   try {
     const fd = openSync(
       tmp,
@@ -427,27 +660,21 @@ function atomicWriteFile(path: string, bytes: Buffer | string): void {
       0o644,
     );
     try {
-      const data = typeof bytes === "string" ? Buffer.from(bytes, "utf8") : bytes;
-      if (data.byteLength > MAX_FILE_BYTES) {
-        throwFailure(
-          graphStoreFailure(
-            "oversize_input",
-            `write exceeds max ${MAX_FILE_BYTES} bytes`,
-          ),
-        );
-      }
-      writeSync(fd, data);
-      fsyncSync(fd);
+      writePayload(fd);
     } finally {
       closeSync(fd);
     }
     const st = lstatSync(tmp);
     if (st.isSymbolicLink() || !st.isFile() || st.nlink > 1) {
       throwFailure(
-        graphStoreFailure("corrupt_state", "temp file is not a safe regular file"),
+        graphStoreFailure(
+          "corrupt_state",
+          "temp file is not a safe regular file",
+        ),
       );
     }
     renameSync(tmp, path);
+    fsyncPathDirectory(path);
   } catch (e) {
     try {
       unlinkSync(tmp);
@@ -455,24 +682,40 @@ function atomicWriteFile(path: string, bytes: Buffer | string): void {
       /* ignore */
     }
     if (isGraphStoreThrown(e)) throw e;
-    throwFailure(
-      graphStoreFailure("corrupt_state", "atomic write failed"),
-    );
+    throwFailure(graphStoreFailure("corrupt_state", "atomic write failed"));
   }
 }
 
 function isGraphStoreThrown(e: unknown): boolean {
-  return (
-    e instanceof Error &&
-    (e.name === "GraphStoreError" ||
-      e.name === "SchemaValidationError" ||
-      e.name === "SchemaNotRegisteredError" ||
-      e.name.endsWith("Error"))
-  );
+  if (e instanceof GraphStoreError) return true;
+  if (isGraphStoreFailure(e)) return true;
+  if (
+    e &&
+    typeof e === "object" &&
+    "failure" in e &&
+    isGraphStoreFailure((e as { failure: unknown }).failure)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function mapUnknownToFailure(e: unknown, fallback: string): GraphStoreFailure {
+  if (isGraphStoreFailure(e)) return e;
+  if (
+    e &&
+    typeof e === "object" &&
+    "failure" in e &&
+    isGraphStoreFailure((e as { failure: unknown }).failure)
+  ) {
+    return (e as { failure: GraphStoreFailure }).failure;
+  }
+  // Do not classify arbitrary Error values as domain failures by message.
+  return graphStoreFailure("backend_misconfiguration", fallback);
 }
 
 // ---------------------------------------------------------------------------
-// File lock
+// File lock (descriptor-validated)
 // ---------------------------------------------------------------------------
 
 type HeldLock = {
@@ -481,12 +724,12 @@ type HeldLock = {
   readonly identity: FileIdentity;
 };
 
-function acquireLockSync(lockPath: string): HeldLock {
+function acquireLockSync(lockFilePath: string): HeldLock {
   const deadline = Date.now() + STORE_LOCK_BOUND_MS;
   let attempts = 0;
   while (Date.now() < deadline && attempts < MAX_LOCK_RETRIES) {
     attempts += 1;
-    const kind = observePathKind(lockPath);
+    const kind = observePathKind(lockFilePath);
     if (kind === "symlink" || kind === "directory" || kind === "other") {
       throwFailure(
         graphStoreFailure(
@@ -497,45 +740,73 @@ function acquireLockSync(lockPath: string): HeldLock {
     }
     try {
       const fd = openSync(
-        lockPath,
+        lockFilePath,
         fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
         0o644,
       );
       try {
-        writeSync(fd, Buffer.from(`${process.pid}\n`, "utf8"));
+        writeAllSync(fd, Buffer.from(`${process.pid}\n`, "utf8"));
         fsyncSync(fd);
-      } catch {
+      } catch (e) {
         closeSync(fd);
         try {
-          unlinkSync(lockPath);
+          unlinkSync(lockFilePath);
         } catch {
           /* ignore */
         }
+        if (isGraphStoreThrown(e)) throw e;
         throwFailure(graphStoreFailure("store_busy", "failed to write lock"));
       }
-      const st = lstatSync(lockPath);
-      if (st.isSymbolicLink() || !st.isFile() || st.nlink > 1) {
+      // Validate the *acquired descriptor*, not only the pathname.
+      const stFd = fstatSync(fd);
+      if (!stFd.isFile() || stFd.nlink > 1) {
         closeSync(fd);
         try {
-          unlinkSync(lockPath);
+          unlinkSync(lockFilePath);
         } catch {
           /* ignore */
         }
         throwFailure(
-          graphStoreFailure("corrupt_state", "lock file is not a safe regular file"),
+          graphStoreFailure(
+            "corrupt_state",
+            "lock descriptor is not a safe regular file",
+          ),
         );
       }
-      return { fd, path: lockPath, identity: identityOf(st) };
+      const stPath = lstatSync(lockFilePath);
+      if (
+        stPath.isSymbolicLink() ||
+        !stPath.isFile() ||
+        stPath.nlink > 1 ||
+        stPath.dev !== stFd.dev ||
+        stPath.ino !== stFd.ino
+      ) {
+        closeSync(fd);
+        try {
+          unlinkSync(lockFilePath);
+        } catch {
+          /* ignore */
+        }
+        throwFailure(
+          graphStoreFailure(
+            "identity_changed",
+            "lock path identity does not match acquired descriptor",
+          ),
+        );
+      }
+      return { fd, path: lockFilePath, identity: identityOf(stFd) };
     } catch (e) {
+      if (isGraphStoreThrown(e)) throw e;
       if (isEexist(e)) {
-        // Busy spin
         const end = Date.now() + STORE_LOCK_SPIN_MS;
         while (Date.now() < end) {
           /* spin */
         }
         continue;
       }
-      throwFailure(graphStoreFailure("store_busy", "failed to acquire store lock"));
+      throwFailure(
+        graphStoreFailure("store_busy", "failed to acquire store lock"),
+      );
     }
   }
   throwFailure(
@@ -544,6 +815,18 @@ function acquireLockSync(lockPath: string): HeldLock {
 }
 
 function releaseLockSync(lock: HeldLock): void {
+  try {
+    const st = fstatSync(lock.fd);
+    if (
+      st.isFile() &&
+      st.dev === lock.identity.dev &&
+      st.ino === lock.identity.ino
+    ) {
+      // identity still holds
+    }
+  } catch {
+    /* ignore */
+  }
   try {
     closeSync(lock.fd);
   } catch {
@@ -560,6 +843,49 @@ function releaseLockSync(lock: HeldLock): void {
     }
   } catch {
     /* do not remove a changed lock path */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Root identity pin
+// ---------------------------------------------------------------------------
+
+type PinnedRoot = {
+  readonly path: string;
+  readonly identity: FileIdentity;
+};
+
+function pinRoot(root: string): PinnedRoot {
+  const st = lstatSync(root);
+  if (st.isSymbolicLink() || !st.isDirectory()) {
+    throwFailure(
+      graphStoreFailure(
+        st.isSymbolicLink() ? "symlink_rejected" : "invalid_path",
+        "store root must be a real directory",
+      ),
+    );
+  }
+  return { path: root, identity: identityOf(st) };
+}
+
+function recheckRoot(pin: PinnedRoot): void {
+  let st: Stats;
+  try {
+    st = lstatSync(pin.path);
+  } catch {
+    throwFailure(
+      graphStoreFailure("identity_changed", "store root identity changed"),
+    );
+  }
+  if (
+    st.isSymbolicLink() ||
+    !st.isDirectory() ||
+    st.dev !== pin.identity.dev ||
+    st.ino !== pin.identity.ino
+  ) {
+    throwFailure(
+      graphStoreFailure("identity_changed", "store root identity changed"),
+    );
   }
 }
 
@@ -590,6 +916,16 @@ function decodeSnapshot(raw: unknown): GenerationSnapshot {
     );
   }
   const o = raw as JsonObject;
+  for (const key of Object.keys(o)) {
+    if (!SNAPSHOT_KEYS.has(key)) {
+      throwFailure(
+        graphStoreFailure(
+          "corrupt_state",
+          `generation snapshot has unknown key ${JSON.stringify(key)}`,
+        ),
+      );
+    }
+  }
   if (o["schemaVersion"] !== GRAPH_STORE_SCHEMA_VERSION) {
     throwFailure(
       graphStoreFailure("corrupt_state", "unsupported generation schemaVersion"),
@@ -605,7 +941,10 @@ function decodeSnapshot(raw: unknown): GenerationSnapshot {
       graphStoreFailure("corrupt_state", "generation missing schemaRegistered"),
     );
   }
-  if (typeof o["schemaAuthor"] !== "string" || typeof o["schemaMessage"] !== "string") {
+  if (
+    typeof o["schemaAuthor"] !== "string" ||
+    typeof o["schemaMessage"] !== "string"
+  ) {
     throwFailure(
       graphStoreFailure("corrupt_state", "generation missing schema metadata"),
     );
@@ -619,26 +958,48 @@ function decodeSnapshot(raw: unknown): GenerationSnapshot {
       graphStoreFailure("corrupt_state", "generation missing documents map"),
     );
   }
-  const docs = o["documents"] as Record<string, JsonObject>;
-  for (const [id, doc] of Object.entries(docs)) {
+  const docsRaw = o["documents"] as Record<string, JsonObject>;
+  const docs: Record<string, JsonObject> = {};
+  for (const [id, doc] of Object.entries(docsRaw)) {
     if (doc === null || typeof doc !== "object" || Array.isArray(doc)) {
       throwFailure(
         graphStoreFailure("corrupt_state", `document ${id} is not an object`),
       );
     }
+    docs[id] = isolateJson(doc);
+  }
+  try {
+    validateDocumentMap(docs, { maxTraversalSteps: MAX_TRAVERSAL_STEPS });
+  } catch (e) {
+    if (e instanceof SchemaValidationError) {
+      throwFailure(
+        graphStoreFailure(
+          "corrupt_state",
+          `generation fails schema validation: ${e.message}`,
+        ),
+      );
+    }
+    if (isGraphStoreThrown(e)) throw e;
+    throwFailure(
+      graphStoreFailure("corrupt_state", "generation fails schema validation"),
+    );
   }
   return {
     schemaVersion: GRAPH_STORE_SCHEMA_VERSION,
     generationId: o["generationId"] as string,
     schemaRegistered: o["schemaRegistered"] as boolean,
-    schema: o["schema"] ?? null,
+    schema: o["schema"] == null ? null : isolateJson(o["schema"]),
     schemaAuthor: o["schemaAuthor"] as string,
     schemaMessage: o["schemaMessage"] as string,
     documents: docs,
   };
 }
 
-function loadCurrentGeneration(root: string): GenerationSnapshot {
+function loadCurrentGeneration(
+  root: string,
+  pin: PinnedRoot,
+): GenerationSnapshot {
+  recheckRoot(pin);
   countFilesUnder(root);
   const cur = currentPath(root);
   const kind = observePathKind(cur);
@@ -655,12 +1016,14 @@ function loadCurrentGeneration(root: string): GenerationSnapshot {
       graphStoreFailure("corrupt_state", "CURRENT is not a regular file"),
     );
   }
-  const buf = readRegularFileBounded(cur);
+  const buf = readRegularFileBounded(cur, "CURRENT");
   const textOrFail = decodeUtf8Fatal(new Uint8Array(buf));
   if (isCoreFailure(textOrFail)) {
     throwFailure(
       graphStoreFailure(
-        textOrFail._tag === "MalformedUtf8" ? "malformed_utf8" : "oversize_input",
+        textOrFail._tag === "MalformedUtf8"
+          ? "malformed_utf8"
+          : "oversize_input",
         "CURRENT is not valid UTF-8",
       ),
     );
@@ -698,7 +1061,10 @@ function loadCurrentGeneration(root: string): GenerationSnapshot {
       graphStoreFailure("corrupt_state", "generation.json is not a regular file"),
     );
   }
-  const raw = parseCanonicalJsonBytes(readRegularFileBounded(genPath));
+  recheckRoot(pin);
+  const raw = parseCanonicalJsonBytes(
+    readRegularFileBounded(genPath, "generation.json"),
+  );
   const snap = decodeSnapshot(raw);
   if (snap.generationId !== genId) {
     throwFailure(
@@ -708,17 +1074,27 @@ function loadCurrentGeneration(root: string): GenerationSnapshot {
       ),
     );
   }
+  recheckRoot(pin);
   return snap;
 }
 
-function publishSnapshot(root: string, snap: GenerationSnapshot): void {
+function publishSnapshot(
+  root: string,
+  pin: PinnedRoot,
+  snap: GenerationSnapshot,
+): void {
+  recheckRoot(pin);
   countFilesUnder(root);
   const genDir = assertUnderRoot(
     root,
     join(generationsDir(root), snap.generationId),
   );
   ensureDirectoryTree(genDir);
-  const genPath = assertUnderRoot(root, generationFile(root, snap.generationId));
+  fsyncPathDirectory(genDir);
+  const genPath = assertUnderRoot(
+    root,
+    generationFile(root, snap.generationId),
+  );
   const payload: GenerationSnapshot = {
     schemaVersion: GRAPH_STORE_SCHEMA_VERSION,
     generationId: snap.generationId,
@@ -733,11 +1109,23 @@ function publishSnapshot(root: string, snap: GenerationSnapshot): void {
     ),
   };
   const text = canonicalize(payload) + "\n";
-  atomicWriteFile(genPath, text);
+  atomicWriteFile(genPath, text, { exclusiveFinal: true });
+  fsyncPathDirectory(join(generationsDir(root), snap.generationId));
+  fsyncPathDirectory(generationsDir(root));
+  if (activeInject?.failBeforeCurrent) {
+    activeInject = { ...activeInject, failBeforeCurrent: false };
+    throwFailure(
+      graphStoreFailure(
+        "corrupt_state",
+        "injected failure before CURRENT selection",
+      ),
+    );
+  }
   // Select current generation only after the generation file is durable.
   const curText = `${snap.generationId}\n`;
   atomicWriteFile(currentPath(root), curText);
-  // Identity re-check
+  fsyncPathDirectory(root);
+  recheckRoot(pin);
   const st = lstatSync(currentPath(root));
   if (st.isSymbolicLink() || !st.isFile() || st.nlink > 1) {
     throwFailure(
@@ -750,6 +1138,149 @@ function publishSnapshot(root: string, snap: GenerationSnapshot): void {
 }
 
 // ---------------------------------------------------------------------------
+// Merge concurrent handle publications
+// ---------------------------------------------------------------------------
+
+function cloneDocMap(
+  docs: ReadonlyMap<string, JsonObject> | Readonly<Record<string, JsonObject>>,
+): Map<string, JsonObject> {
+  const out = new Map<string, JsonObject>();
+  if (docs instanceof Map) {
+    for (const [k, v] of docs) out.set(k, isolateJson(v));
+  } else {
+    for (const [k, v] of Object.entries(docs)) out.set(k, isolateJson(v));
+  }
+  return out;
+}
+
+/**
+ * Merge this handle's local changes (vs base) onto the live snapshot.
+ * Distinct document commits are preserved. Conflicting edits to the same
+ * document fail with PublishConflictError.
+ */
+function mergePublication(
+  base: ReadonlyMap<string, JsonObject>,
+  local: ReadonlyMap<string, JsonObject>,
+  live: ReadonlyMap<string, JsonObject>,
+): Map<string, JsonObject> {
+  const result = cloneDocMap(live);
+  const allKeys = new Set<string>([
+    ...base.keys(),
+    ...local.keys(),
+    ...live.keys(),
+  ]);
+  for (const key of allKeys) {
+    const baseDoc = base.get(key);
+    const localDoc = local.get(key);
+    const liveDoc = live.get(key);
+    const localChanged =
+      localDoc === undefined
+        ? baseDoc !== undefined
+        : baseDoc === undefined
+          ? true
+          : !deepEqualJson(baseDoc, localDoc);
+    if (!localChanged) continue;
+    const liveChanged =
+      liveDoc === undefined
+        ? baseDoc !== undefined
+        : baseDoc === undefined
+          ? true
+          : !deepEqualJson(baseDoc, liveDoc);
+    if (liveChanged) {
+      // Concurrent change to the same key.
+      if (
+        localDoc !== undefined &&
+        liveDoc !== undefined &&
+        deepEqualJson(localDoc, liveDoc)
+      ) {
+        // Same final value — keep.
+        continue;
+      }
+      throw new PublishConflictError(
+        `publish conflict on document ${JSON.stringify(key)}: concurrent modification`,
+        { field: key },
+      );
+    }
+    if (localDoc === undefined) {
+      result.delete(key);
+    } else {
+      result.set(key, isolateJson(localDoc));
+    }
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Effect-owned lock scope
+// ---------------------------------------------------------------------------
+
+function acquireLockEffect(
+  lockFilePath: string,
+): Effect.Effect<HeldLock, GraphStoreFailure, Scope.Scope> {
+  return Effect.acquireRelease(
+    Effect.try({
+      try: () => acquireLockSync(lockFilePath),
+      catch: (e) => mapUnknownToFailure(e, "failed to acquire store lock"),
+    }),
+    (lock) =>
+      Effect.sync(() => {
+        releaseLockSync(lock);
+      }),
+  );
+}
+
+function withLockedRootEffect<A>(
+  root: string,
+  pin: PinnedRoot,
+  body: () => A,
+): Effect.Effect<A, GraphStoreFailure> {
+  return Effect.scoped(
+    Effect.gen(function* () {
+      recheckRoot(pin);
+      yield* acquireLockEffect(lockPath(root));
+      recheckRoot(pin);
+      return yield* Effect.try({
+        try: () => body(),
+        catch: (e) => {
+          if (isGraphStoreThrown(e)) {
+            if (e instanceof GraphStoreError) return e.failure;
+            if (isGraphStoreFailure(e)) return e;
+            if (
+              e &&
+              typeof e === "object" &&
+              "failure" in e &&
+              isGraphStoreFailure((e as { failure: unknown }).failure)
+            ) {
+              return (e as { failure: GraphStoreFailure }).failure;
+            }
+          }
+          return mapUnknownToFailure(e, "store operation failed");
+        },
+      });
+    }),
+  );
+}
+
+/**
+ * Run a critical section under an Effect-scoped lock.
+ * Domain failures are rethrown as typed GraphStoreError subclasses outside
+ * Effect so callers never observe FiberFailure wrappers.
+ */
+function withEffectLockSync<A>(
+  root: string,
+  pin: PinnedRoot,
+  body: () => A,
+): A {
+  const result = Effect.runSync(
+    Effect.either(withLockedRootEffect(root, pin, body)),
+  );
+  if (Either.isLeft(result)) {
+    throwFailure(result.left);
+  }
+  return result.right;
+}
+
+// ---------------------------------------------------------------------------
 // FilesOnlyGraphStore
 // ---------------------------------------------------------------------------
 
@@ -759,35 +1290,42 @@ export type FilesOnlyOptions = {
   /** Test seam: override lock timing. */
   readonly lockBoundMs?: number;
   readonly lockSpinMs?: number;
+  /** Test seam: injected publish failures. */
+  readonly inject?: PublishInjectHooks;
 };
 
 export class FilesOnlyGraphStore implements GraphStore {
   private readonly root: string | null;
+  private readonly pin: PinnedRoot | null;
   private memory: Map<string, JsonObject> = new Map();
+  /** Snapshot of documents at last successful load/publish (for merge). */
+  private baseMemory: Map<string, JsonObject> = new Map();
   private schema: unknown = null;
   private schemaRegistered = false;
   private schemaAuthor = "";
   private schemaMessage = "";
   private generationId: string;
+  private baseGenerationId: string;
   private readonly rootKey: string;
+  private readonly inject: PublishInjectHooks | null;
 
-  private constructor(root: string | null, autoSchema: boolean) {
+  private constructor(
+    root: string | null,
+    pin: PinnedRoot | null,
+    autoSchema: boolean,
+    inject: PublishInjectHooks | null,
+  ) {
     this.root = root;
+    this.pin = pin;
     this.rootKey = root ?? `__memory__:${Math.random().toString(16)}`;
     this.generationId = nextGenerationId(null);
-    if (root !== null) {
-      const lock = acquireLockSync(lockPath(root));
-      try {
-        const snap = loadCurrentGeneration(root);
-        this.generationId = snap.generationId;
-        this.schemaRegistered = snap.schemaRegistered;
-        this.schema = snap.schema;
-        this.schemaAuthor = snap.schemaAuthor;
-        this.schemaMessage = snap.schemaMessage;
-        this.memory = new Map(Object.entries(snap.documents));
-      } finally {
-        releaseLockSync(lock);
-      }
+    this.baseGenerationId = this.generationId;
+    this.inject = inject;
+    if (root !== null && pin !== null) {
+      withEffectLockSync(root, pin, () => {
+        const snap = loadCurrentGeneration(root, pin);
+        this.applySnapshot(snap);
+      });
     }
     if (autoSchema) {
       this.registerSchema(defaultSchemaPayload(), {
@@ -797,13 +1335,29 @@ export class FilesOnlyGraphStore implements GraphStore {
     }
   }
 
+  private applySnapshot(snap: GenerationSnapshot): void {
+    this.generationId = snap.generationId;
+    this.baseGenerationId = snap.generationId;
+    this.schemaRegistered = snap.schemaRegistered;
+    this.schema = snap.schema == null ? null : isolateJson(snap.schema);
+    this.schemaAuthor = snap.schemaAuthor;
+    this.schemaMessage = snap.schemaMessage;
+    this.memory = cloneDocMap(snap.documents);
+    this.baseMemory = cloneDocMap(snap.documents);
+  }
+
   static open(opts: FilesOnlyOptions = {}): FilesOnlyGraphStore {
     const autoSchema = opts.autoSchema === true;
+    const inject = opts.inject ?? null;
     if (opts.root == null || opts.root === "") {
-      return new FilesOnlyGraphStore(null, autoSchema);
+      return new FilesOnlyGraphStore(null, null, autoSchema, inject);
     }
     const root = resolveStoreRoot(opts.root);
-    return withRootGateSync(root, () => new FilesOnlyGraphStore(root, autoSchema));
+    const pin = pinRoot(root);
+    return withRootGateSync(
+      root,
+      () => new FilesOnlyGraphStore(root, pin, autoSchema, inject),
+    );
   }
 
   capabilities(): ReadonlySet<string> {
@@ -825,29 +1379,43 @@ export class FilesOnlyGraphStore implements GraphStore {
     if (schema === null || schema === undefined) {
       throw new SchemaValidationError("schema payload must not be None");
     }
-    this.schema = schema;
+    const prevSchema = this.schema;
+    const prevRegistered = this.schemaRegistered;
+    const prevAuthor = this.schemaAuthor;
+    const prevMessage = this.schemaMessage;
+    this.schema = isolateJson(schema);
     this.schemaRegistered = true;
     this.schemaAuthor = opts?.author ?? "foreman";
     this.schemaMessage = opts?.message ?? "register schema";
-    this.publish();
+    try {
+      this.publish();
+    } catch (e) {
+      this.schema = prevSchema;
+      this.schemaRegistered = prevRegistered;
+      this.schemaAuthor = prevAuthor;
+      this.schemaMessage = prevMessage;
+      throw e;
+    }
   }
 
   upsertDocument(doc: JsonObject): string {
     if (!this.schemaRegistered) {
       throw new SchemaNotRegisteredError();
     }
-    const body: JsonObject = { ...doc };
+    // Clone first (mutable), validate, stamp @id, then freeze for storage.
+    const body = deepCloneJson(doc) as JsonObject;
     const docId = validateDocument(body);
     body["@id"] = docId;
+    const stored = isolateJson(body);
 
-    this.checkAcyclicEdges(body, docId);
+    this.checkAcyclicEdges(stored, docId);
 
-    if (body["resolved_to"] != null) {
+    if (stored["resolved_to"] != null) {
       const prior = this.memory.get(docId);
       if (
         prior &&
         prior["resolved_to"] != null &&
-        prior["resolved_to"] !== body["resolved_to"]
+        !deepEqualJson(prior["resolved_to"], stored["resolved_to"])
       ) {
         throw new SchemaValidationError(
           `RESOLVED_TO is functional: ${docId} already resolves to ${JSON.stringify(prior["resolved_to"])}`,
@@ -856,8 +1424,16 @@ export class FilesOnlyGraphStore implements GraphStore {
       }
     }
 
-    this.memory.set(docId, body);
-    this.publish();
+    const prevHad = this.memory.has(docId);
+    const prev = prevHad ? this.memory.get(docId)! : null;
+    this.memory.set(docId, stored);
+    try {
+      this.publish();
+    } catch (e) {
+      if (prevHad) this.memory.set(docId, prev!);
+      else this.memory.delete(docId);
+      throw e;
+    }
     return docId;
   }
 
@@ -885,7 +1461,7 @@ export class FilesOnlyGraphStore implements GraphStore {
   getDocumentById(docId: string): JsonObject | null {
     const doc = this.memory.get(docId);
     if (!doc) return null;
-    return { ...doc };
+    return isolateJson(doc);
   }
 
   listDocuments(docType?: string | null): JsonObject[] {
@@ -894,23 +1470,28 @@ export class FilesOnlyGraphStore implements GraphStore {
       const doc = this.memory.get(id);
       if (!doc) continue;
       if (docType != null && doc["@type"] !== docType) continue;
-      out.push({ ...doc });
+      out.push(isolateJson(doc));
     }
     return out;
   }
 
   query(
     name: string,
-    opts: { readonly expectEmpty: boolean; readonly params?: JsonObject | null },
+    opts: {
+      readonly expectEmpty: boolean;
+      readonly params?: JsonObject | null;
+    },
   ): QueryResult {
     return runPortQuery(this, name, opts);
   }
 
   runQuery(name: string, params: JsonObject): readonly unknown[] {
     const index = indexFromDocuments(
-      Object.fromEntries(this.memory.entries()),
+      Object.fromEntries(
+        [...this.memory.entries()].map(([k, v]) => [k, isolateJson(v)]),
+      ),
     );
-    return runNamedQuery(index, name, params);
+    return runNamedQuery(index, name, isolateJson(params));
   }
 
   asOf(versionRef: string): GraphStore {
@@ -942,39 +1523,83 @@ export class FilesOnlyGraphStore implements GraphStore {
   }
 
   private publish(): void {
-    if (this.root === null) {
-      // In-memory: bump generation id only.
+    if (this.inject?.failDuringPublish) {
+      throwFailure(
+        graphStoreFailure("corrupt_state", "injected failure during publish"),
+      );
+    }
+    if (this.root === null || this.pin === null) {
+      // In-memory: no concurrent merge needed; bump generation id only.
       this.generationId = nextGenerationId(this.generationId);
+      this.baseGenerationId = this.generationId;
+      this.baseMemory = cloneDocMap(this.memory);
       return;
     }
     const root = this.root;
-    withRootGateSync(root, () => {
-      const lock = acquireLockSync(lockPath(root));
-      try {
-        // Re-load current to detect concurrent external writers and base new gen.
-        const live = loadCurrentGeneration(root);
-        // Our memory is authoritative for this handle; publish as successor.
-        const genId = nextGenerationId(live.generationId);
-        this.generationId = genId;
-        const docs = Object.fromEntries(
-          [...this.memory.keys()]
-            .sort()
-            .map((k) => [k, this.memory.get(k)!]),
-        );
-        const snap: GenerationSnapshot = {
-          schemaVersion: GRAPH_STORE_SCHEMA_VERSION,
-          generationId: genId,
-          schemaRegistered: this.schemaRegistered,
-          schema: this.schema,
-          schemaAuthor: this.schemaAuthor,
-          schemaMessage: this.schemaMessage,
-          documents: docs,
-        };
-        publishSnapshot(root, snap);
-      } finally {
-        releaseLockSync(lock);
-      }
-    });
+    const pin = this.pin;
+    const prevInject = activeInject;
+    activeInject = this.inject;
+    try {
+      withRootGateSync(root, () => {
+        withEffectLockSync(root, pin, () => {
+          const live = loadCurrentGeneration(root, pin);
+          const liveMap = cloneDocMap(live.documents);
+          const merged = mergePublication(
+            this.baseMemory,
+            this.memory,
+            liveMap,
+          );
+          // Validate merged graph before durable publish
+          const mergedRecord = Object.fromEntries(merged.entries());
+          try {
+            validateDocumentMap(mergedRecord, {
+              maxTraversalSteps: MAX_TRAVERSAL_STEPS,
+            });
+          } catch (e) {
+            if (e instanceof SchemaValidationError) throw e;
+            throw e;
+          }
+          const genId = nextGenerationId(live.generationId);
+          // Schema: prefer local if registered, else live
+          const schemaRegistered =
+            this.schemaRegistered || live.schemaRegistered;
+          const schema = this.schemaRegistered
+            ? this.schema
+            : live.schema;
+          const schemaAuthor = this.schemaRegistered
+            ? this.schemaAuthor
+            : live.schemaAuthor;
+          const schemaMessage = this.schemaRegistered
+            ? this.schemaMessage
+            : live.schemaMessage;
+          const snap: GenerationSnapshot = {
+            schemaVersion: GRAPH_STORE_SCHEMA_VERSION,
+            generationId: genId,
+            schemaRegistered,
+            schema,
+            schemaAuthor,
+            schemaMessage,
+            documents: Object.fromEntries(
+              [...merged.keys()]
+                .sort()
+                .map((k) => [k, merged.get(k)!]),
+            ),
+          };
+          publishSnapshot(root, pin, snap);
+          // Commit handle state only after durable publish.
+          this.generationId = genId;
+          this.baseGenerationId = genId;
+          this.memory = cloneDocMap(merged);
+          this.baseMemory = cloneDocMap(merged);
+          this.schemaRegistered = schemaRegistered;
+          this.schema = schema == null ? null : isolateJson(schema);
+          this.schemaAuthor = schemaAuthor;
+          this.schemaMessage = schemaMessage;
+        });
+      });
+    } finally {
+      activeInject = prevInject;
+    }
   }
 
   private checkAcyclicEdges(body: JsonObject, docId: string): void {
@@ -1012,7 +1637,11 @@ export function openFilesOnly(opts: FilesOnlyOptions = {}): FilesOnlyGraphStore 
 export function openFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): FilesOnlyGraphStore {
-  const kind = (env["FOREMAN_GRAPH_STORE"] || "files_only").trim().toLowerCase();
+  const kind = (
+    env["FOREMAN_GRAPH_STORE"] || "files_only"
+  )
+    .trim()
+    .toLowerCase();
   const root = env["FOREMAN_GRAPH_STORE_ROOT"] || null;
   if (
     kind === "" ||
@@ -1044,51 +1673,31 @@ export class GraphStoreService extends Context.Tag("GraphStoreService")<
   {
     readonly open: (
       opts?: FilesOnlyOptions,
-    ) => Effect.Effect<FilesOnlyGraphStore, GraphStoreFailure>;
+    ) => Effect.Effect<FilesOnlyGraphStore, GraphStoreFailure, Scope.Scope>;
   }
 >() {}
 
 export const liveGraphStoreService = Layer.succeed(GraphStoreService, {
   open: (opts) =>
-    Effect.try({
-      try: () => openFilesOnly(opts),
-      catch: (e) => {
-        if (
-          e &&
-          typeof e === "object" &&
-          "failure" in e &&
-          (e as { failure: GraphStoreFailure }).failure
-        ) {
-          return (e as { failure: GraphStoreFailure }).failure;
-        }
-        return graphStoreFailure(
-          "backend_misconfiguration",
-          e instanceof Error ? e.message : "open failed",
-        );
-      },
-    }),
+    Effect.acquireRelease(
+      Effect.try({
+        try: () => openFilesOnly(opts),
+        catch: (e) => mapUnknownToFailure(e, "open failed"),
+      }),
+      (_store) => Effect.void,
+    ),
 });
 
 export function openFilesOnlyEffect(
   opts: FilesOnlyOptions = {},
-): Effect.Effect<FilesOnlyGraphStore, GraphStoreFailure> {
-  return Effect.try({
-    try: () => openFilesOnly(opts),
-    catch: (e) => {
-      if (
-        e &&
-        typeof e === "object" &&
-        "failure" in e &&
-        (e as { failure: GraphStoreFailure }).failure
-      ) {
-        return (e as { failure: GraphStoreFailure }).failure;
-      }
-      return graphStoreFailure(
-        "backend_misconfiguration",
-        e instanceof Error ? e.message : "open failed",
-      );
-    },
-  });
+): Effect.Effect<FilesOnlyGraphStore, GraphStoreFailure, Scope.Scope> {
+  return Effect.acquireRelease(
+    Effect.try({
+      try: () => openFilesOnly(opts),
+      catch: (e) => mapUnknownToFailure(e, "open failed"),
+    }),
+    (_store) => Effect.void,
+  );
 }
 
 // Re-export helpers used by tests
@@ -1100,4 +1709,12 @@ export {
   acquireLockSync,
   releaseLockSync,
   OPTIONAL_CAPABILITIES,
+  mergePublication,
+  readRegularFileBounded,
+  decodeSnapshot,
+  pinRoot,
+  recheckRoot,
+  atomicWriteFile,
+  isGraphStoreThrown,
+  mapUnknownToFailure,
 };

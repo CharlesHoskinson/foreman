@@ -5,8 +5,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { cmdVersionRef, runGraphStoreCli } from "./cli.js";
+import {
+  cmdSmoke,
+  cmdVersionRef,
+  runGraphStoreCli,
+  serializeCliFailure,
+} from "./cli.js";
 import { runContractMain } from "./contract-suite.js";
+import { graphStoreFailure } from "./failures.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..", "..");
@@ -67,9 +73,9 @@ describe("GraphStore CLI", () => {
     assert.ok(err.includes("unknown command"));
   });
 
-  it("smoke returns ok JSON", () => {
+  it("smoke returns deterministic ok JSON without absolute paths", () => {
     const out: string[] = [];
-    const code = runGraphStoreCli(["smoke"], {
+    const code = cmdSmoke([], {
       writeStdout: (t) => out.push(t),
       writeStderr: () => {},
     });
@@ -77,6 +83,10 @@ describe("GraphStore CLI", () => {
     const text = out.join("");
     assert.ok(text.includes('"ok":true') || text.includes('"ok": true'));
     assert.ok(text.includes("FilesOnlyGraphStore"));
+    assert.ok(text.includes("<ephemeral>"));
+    assert.ok(!text.includes(tmpdir()));
+    assert.ok(!/\/home\//.test(text));
+    assert.ok(!/\/tmp\//.test(text));
   });
 
   it("capabilities lists all optional unavailable for files-only", () => {
@@ -92,40 +102,95 @@ describe("GraphStore CLI", () => {
     assert.ok(text.includes("branch_merge"));
     assert.ok(text.includes("cross_run_query"));
   });
+
+  it("serializeCliFailure is closed and redacts absolute paths", () => {
+    const f = serializeCliFailure(
+      new Error("EACCES: permission denied, open '/home/secret/key'"),
+    );
+    assert.equal(f._tag, "Failed");
+    assert.equal(f.reason, "internal_failed");
+    assert.ok(!f.message.includes("/home/"));
+    const branded = serializeCliFailure(
+      graphStoreFailure(
+        "hard_link_rejected",
+        "CURRENT is hard-linked (nlink=2)",
+      ),
+    );
+    assert.equal(branded.reason, "hard_link_rejected");
+  });
 });
 
-describe("compiled CLI runtime (when built)", () => {
-  it("runs graph-store.js without repository node_modules when present", () => {
+describe("compiled CLI runtime", () => {
+  it("requires artifact and runs copied GraphStore bundle without repository node_modules", () => {
     const artifact = join(
       repoRoot,
       "skills/foreman/runtime/dist/graph-store.js",
     );
-    if (!existsSync(artifact)) {
-      // Build not yet run in this worktree; skip rather than false fail.
-      return;
-    }
+    assert.ok(
+      existsSync(artifact),
+      `required runtime artifact missing: ${artifact}`,
+    );
     const tmp = mkdtempSync(join(tmpdir(), "gs-rt-"));
     try {
       const dest = join(tmp, "graph-store.js");
       cpSync(artifact, dest);
-      const r = spawnSync(process.execPath, [dest, "version-ref", "main"], {
-        encoding: "utf8",
-        env: { ...process.env, NODE_PATH: "" },
-        cwd: tmp,
-      });
-      assert.equal(r.status, 0, r.stderr || r.stdout);
-      assert.ok((r.stdout || "").includes("Ok"));
-      const bad = spawnSync(
+      const cleanEnv = {
+        ...process.env,
+        NODE_PATH: "",
+        NODE_OPTIONS: "",
+      };
+      // Remove any inherited module path leakage
+      delete (cleanEnv as { NODE_PATH?: string }).NODE_PATH;
+
+      const versionOk = spawnSync(
+        process.execPath,
+        [dest, "version-ref", "main"],
+        {
+          encoding: "utf8",
+          env: cleanEnv,
+          cwd: tmp,
+        },
+      );
+      assert.equal(versionOk.status, 0, versionOk.stderr || versionOk.stdout);
+      assert.ok((versionOk.stdout || "").includes("Ok"));
+
+      const versionBad = spawnSync(
         process.execPath,
         [dest, "version-ref", "branch:main"],
         {
           encoding: "utf8",
-          env: { ...process.env, NODE_PATH: "" },
+          env: cleanEnv,
           cwd: tmp,
         },
       );
-      assert.equal(bad.status, 1);
-      assert.ok((bad.stdout || "").includes("Rejected"));
+      assert.equal(versionBad.status, 1);
+      assert.ok((versionBad.stdout || "").includes("Rejected"));
+
+      // Execute GraphStore contract suite from the copied bundle
+      const contract = spawnSync(
+        process.execPath,
+        [dest, "contract", "files_only"],
+        {
+          encoding: "utf8",
+          env: cleanEnv,
+          cwd: tmp,
+          timeout: 120_000,
+        },
+      );
+      assert.equal(contract.status, 0, contract.stderr || contract.stdout);
+      assert.ok((contract.stdout || "").includes("SUITE OK"));
+
+      const smoke = spawnSync(process.execPath, [dest, "smoke"], {
+        encoding: "utf8",
+        env: cleanEnv,
+        cwd: tmp,
+        timeout: 60_000,
+      });
+      assert.equal(smoke.status, 0, smoke.stderr || smoke.stdout);
+      const smokeOut = smoke.stdout || "";
+      assert.ok(smokeOut.includes('"ok":true') || smokeOut.includes('"ok": true'));
+      assert.ok(!smokeOut.includes(tmpdir()));
+      assert.ok(!/\/home\//.test(smokeOut));
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

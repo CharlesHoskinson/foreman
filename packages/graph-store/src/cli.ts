@@ -3,13 +3,14 @@
  * Closed JSON stdout for machine-readable commands; stable nonzero exits.
  */
 
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { canonicalize } from "@foreman/core";
 import { runContractMain } from "./contract-suite.js";
 import {
   CapabilityUnavailableError,
+  GraphStoreError,
   VersionReferenceError,
   isGraphStoreFailure,
 } from "./failures.js";
@@ -38,6 +39,54 @@ function printJson(io: CliIo, value: unknown): void {
   io.writeStdout(canonicalize(value) + "\n");
 }
 
+/** Closed failure serialization — never emit raw OS messages or absolute paths. */
+export function serializeCliFailure(e: unknown): {
+  readonly _tag: "Failed";
+  readonly reason: string;
+  readonly message: string;
+} {
+  if (isGraphStoreFailure(e)) {
+    return {
+      _tag: "Failed",
+      reason: e.reason,
+      message: redactPaths(e.message),
+    };
+  }
+  if (e instanceof GraphStoreError) {
+    return {
+      _tag: "Failed",
+      reason: e.failure.reason,
+      message: redactPaths(e.failure.message),
+    };
+  }
+  if (e instanceof VersionReferenceError) {
+    return {
+      _tag: "Failed",
+      reason: "version_reference",
+      message: redactPaths(e.message),
+    };
+  }
+  if (e instanceof Error && e.name === "AssertionError") {
+    return {
+      _tag: "Failed",
+      reason: "internal_failed",
+      message: "assertion failed",
+    };
+  }
+  return {
+    _tag: "Failed",
+    reason: "internal_failed",
+    message: "operation failed",
+  };
+}
+
+function redactPaths(message: string): string {
+  // Strip absolute POSIX/Windows paths from any accidental leakage.
+  return message
+    .replace(/\/(?:home|tmp|var|usr|etc|Users)\/[^\s"']+/g, "<path>")
+    .replace(/[A-Za-z]:\\[^\s"']+/g, "<path>");
+}
+
 export function cmdContract(argv: readonly string[]): number {
   return runContractMain(argv);
 }
@@ -61,10 +110,7 @@ export function cmdCapabilities(
     });
     return 0;
   } catch (e) {
-    printJson(io, {
-      _tag: "Failed",
-      reason: e instanceof Error ? e.message : "capabilities_failed",
-    });
+    printJson(io, serializeCliFailure(e));
     return 1;
   }
 }
@@ -74,8 +120,9 @@ export function cmdSmoke(
   io: CliIo = defaultIo,
 ): number {
   void argv;
+  // Deterministic relative label — never emit the absolute temp path.
+  const root = mkdtempSync(join(tmpdir(), "foreman-gs-smoke-"));
   try {
-    const root = mkdtempSync(join(tmpdir(), "foreman-gs-smoke-"));
     const store = openFilesOnly({ root, autoSchema: true });
     if (store.capabilities().size !== 0) {
       io.writeStderr("FAIL: files-only must report no optional capabilities\n");
@@ -125,18 +172,21 @@ export function cmdSmoke(
     printJson(io, {
       ok: true,
       backend: "FilesOnlyGraphStore",
-      root,
+      root: "<ephemeral>",
       store_configured: false,
       capabilities: [],
       attempts_from_round: [...result.rows],
     });
     return 0;
   } catch (e) {
-    printJson(io, {
-      _tag: "Failed",
-      reason: e instanceof Error ? e.message : "smoke_failed",
-    });
+    printJson(io, serializeCliFailure(e));
     return 1;
+  } finally {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {
+      /* best-effort cleanup */
+    }
   }
 }
 
@@ -155,13 +205,14 @@ export function cmdVersionRef(
     return 0;
   } catch (e) {
     if (e instanceof VersionReferenceError) {
-      printJson(io, { _tag: "Rejected", ref, reason: e.message });
+      printJson(io, {
+        _tag: "Rejected",
+        ref,
+        reason: redactPaths(e.message),
+      });
       return 1;
     }
-    printJson(io, {
-      _tag: "Failed",
-      reason: e instanceof Error ? e.message : "version_ref_failed",
-    });
+    printJson(io, serializeCliFailure(e));
     return 1;
   }
 }
@@ -171,14 +222,13 @@ export function runGraphStoreCli(
   io: CliIo = defaultIo,
 ): number {
   // argv[0] is node, argv[1] is script — callers pass process.argv
-  const args = argv[0]?.endsWith("node") || argv[0]?.includes("node")
-    ? argv.slice(2)
-    : argv[0]?.includes("graph-store")
-      ? argv.slice(1)
-      : [...argv];
+  const args =
+    argv[0]?.endsWith("node") || argv[0]?.includes("node")
+      ? argv.slice(2)
+      : argv[0]?.includes("graph-store")
+        ? argv.slice(1)
+        : [...argv];
 
-  // When invoked as `node dist/graph-store.js contract ...`, process.argv is
-  // [node, path, ...]. When tests pass ["contract", ...], use as-is.
   let cmdArgs = args;
   if (
     args.length > 0 &&
@@ -205,19 +255,7 @@ export function runGraphStoreCli(
     io.writeStderr(`unknown command: ${cmd}\n`);
     return 2;
   } catch (e) {
-    if (isGraphStoreFailure(e)) {
-      printJson(io, { _tag: "Failed", reason: e.reason, message: e.message });
-      return 1;
-    }
-    if (e && typeof e === "object" && "failure" in e) {
-      const f = (e as { failure: { reason: string; message: string } }).failure;
-      printJson(io, { _tag: "Failed", reason: f.reason, message: f.message });
-      return 1;
-    }
-    printJson(io, {
-      _tag: "Failed",
-      reason: e instanceof Error ? e.message : "internal_failed",
-    });
+    printJson(io, serializeCliFailure(e));
     return 1;
   }
 }

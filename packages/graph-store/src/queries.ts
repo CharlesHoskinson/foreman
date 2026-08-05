@@ -3,8 +3,9 @@
  */
 
 import { MAX_QUERY_RESULTS, MAX_TRAVERSAL_STEPS } from "./bounds.js";
+import { LimitExceededError } from "./failures.js";
 import type { JsonObject } from "./port.js";
-import { asIdSet } from "./schema.js";
+import { asIdSet, isolateJson } from "./schema.js";
 
 function asList(raw: unknown): unknown[] {
   if (raw == null) return [];
@@ -32,6 +33,17 @@ function listByType(index: DocumentIndex, docType?: string): JsonObject[] {
     out.push(doc);
   }
   return out;
+}
+
+function enforceQueryResultBound(sorted: string[], queryName: string): string[] {
+  if (sorted.length > MAX_QUERY_RESULTS) {
+    throw new LimitExceededError(
+      "MAX_QUERY_RESULTS",
+      sorted.length,
+      `query ${JSON.stringify(queryName)} exceeded MAX_QUERY_RESULTS (${MAX_QUERY_RESULTS}); observed ${sorted.length}`,
+    );
+  }
+  return sorted;
 }
 
 /**
@@ -88,7 +100,13 @@ export function queryAttemptsFromRound(
   while (stack.length > 0) {
     const cur = stack.pop()!;
     steps += 1;
-    if (steps > MAX_TRAVERSAL_STEPS) break;
+    if (steps > MAX_TRAVERSAL_STEPS) {
+      throw new LimitExceededError(
+        "MAX_TRAVERSAL_STEPS",
+        steps,
+        `query "attempts_from_round" exceeded MAX_TRAVERSAL_STEPS (${MAX_TRAVERSAL_STEPS})`,
+      );
+    }
     const doc = index.get(cur);
     if (doc && doc["@type"] === "Attempt") {
       found.add(cur);
@@ -102,11 +120,7 @@ export function queryAttemptsFromRound(
     if (doc && doc["@type"] === "Attempt") found.add(s);
   }
 
-  const sorted = [...found].sort();
-  if (sorted.length > MAX_QUERY_RESULTS) {
-    return sorted.slice(0, MAX_QUERY_RESULTS);
-  }
-  return sorted;
+  return enforceQueryResultBound([...found].sort(), "attempts_from_round");
 }
 
 /** Attempts with no derived_from-child and no Evaluation targeting them. */
@@ -142,11 +156,7 @@ export function queryUnevaluatedLeaves(
     if (evaluated.has(aid)) continue;
     leaves.push(aid);
   }
-  const sorted = leaves.sort();
-  if (sorted.length > MAX_QUERY_RESULTS) {
-    return sorted.slice(0, MAX_QUERY_RESULTS);
-  }
-  return sorted;
+  return enforceQueryResultBound(leaves.sort(), "unevaluated_leaves");
 }
 
 /** Claims that CONTRADICT the given claim, either direction. */
@@ -176,11 +186,7 @@ export function queryClaimsContradicting(
       if (idOf(other) === claimIdStr) out.add(cid);
     }
   }
-  const sorted = [...out].sort();
-  if (sorted.length > MAX_QUERY_RESULTS) {
-    return sorted.slice(0, MAX_QUERY_RESULTS);
-  }
-  return sorted;
+  return enforceQueryResultBound([...out].sort(), "claims_contradicting");
 }
 
 export function runNamedQuery(
@@ -200,11 +206,15 @@ export function runNamedQuery(
   throw new Error(`unhandled query ${JSON.stringify(name)}`);
 }
 
-/** Build an index map from a documents record. */
+/** Build an index map from a documents record (isolated clones). */
 export function indexFromDocuments(
   docs: Readonly<Record<string, JsonObject>>,
 ): DocumentIndex {
-  return new Map(Object.entries(docs));
+  const m = new Map<string, JsonObject>();
+  for (const [k, v] of Object.entries(docs)) {
+    m.set(k, isolateJson(v));
+  }
+  return m;
 }
 
 export { asIdSet, asList, idOf };

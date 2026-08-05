@@ -28,6 +28,8 @@ export {
   CapabilityUnavailableError,
   VersionReferenceError,
   DocumentNotFoundError,
+  LimitExceededError,
+  PublishConflictError,
   type GraphStoreFailure,
   type GraphStoreFailureReason,
 } from "./failures.js";
@@ -58,12 +60,19 @@ export {
   ENUM_FIELDS,
   EVALUATES_TARGETS,
   LINK_FIELDS,
+  TYPE_LINK_FIELDS,
   defaultSchemaPayload,
   computeId,
   validateDocument,
+  validateDocumentMap,
   detectsCycle,
   allowedFieldsFor,
   asIdSet,
+  asIdSetStrict,
+  deepCloneJson,
+  deepFreezeJson,
+  isolateJson,
+  deepEqualJson,
 } from "./schema.js";
 
 export {
@@ -94,9 +103,12 @@ export {
   seedLineageFixture,
   ALL_CASES,
   StubEmptyBackend,
+  CASE_CATEGORY,
+  failedCategories,
+  MIN_INDEPENDENT_STUB_CATEGORIES,
   type StoreFactory,
   type CaseResult,
   type SuiteReport,
 } from "./contract-suite.js";
 
-export { runGraphStoreCli, type CliIo } from "./cli.js";
+export { runGraphStoreCli, serializeCliFailure, type CliIo } from "./cli.js";
