@@ -40,8 +40,10 @@ import {
   EXIT_INVALID_ARGUMENTS,
   EXIT_NOT_READY,
   EXIT_READY,
+  MSG_CAPABILITY_TABLE_LOAD_FAILED,
   USAGE,
   authInstruction,
+  finalizeSetupExitCode,
   parseSetupArgv,
   parseDurableEnabledFromToml,
   resolveForemanHome,
@@ -50,7 +52,6 @@ import {
   stripSetupNodeArgv,
   type SetupIo,
 } from "./foreman-setup.js";
-
 const FIXED = "2026-08-04T15:00:00.000Z";
 
 const capabilityTable: VendorCapabilityTableV1 = {
@@ -462,6 +463,53 @@ describe("runForemanSetup persistence and readiness", () => {
     }
   });
 
+  it("unscoped run with only Grok capture validates whole profile first: exit 3, writes neither vendor", async () => {
+    // Cold-audit defect: must not write Grok then fail on missing Codex.
+    // All requested captures must be present before the first store write.
+    const home = tempHome();
+    const io = captureIo();
+    const grokOnlyTable: VendorCapabilityTableV1 = {
+      schemaVersion: 1,
+      capabilities: [capabilityTable.capabilities[0]!],
+    };
+    try {
+      const code = await Effect.runPromise(
+        runForemanSetup(["--profile", "soft"], io, {
+          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          capabilityTable: grokOnlyTable,
+          processEnv: {
+            HOME: home,
+            FOREMAN_HOME: home,
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are logged in with grok.com.\n",
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.equal(code, EXIT_BOUNDARY_FAILURE);
+      assert.doesNotMatch(io.stdout, /SETUP: READY/);
+      assert.doesNotMatch(io.stdout, /SETUP: NOT-READY/);
+      assert.match(io.stderr, /missing preflight record/i);
+      assert.equal(
+        existsSync(resolvePreflightRecordPath(home, "grok")),
+        false,
+        "must not write Grok when Codex capture is missing",
+      );
+      assert.equal(
+        existsSync(resolvePreflightRecordPath(home, "codex")),
+        false,
+        "must not write Codex when capture is missing",
+      );
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
   it("fail-closed exit 3 on store write failure; never SETUP: READY", async () => {
     const home = tempHome();
     const io = captureIo();
@@ -603,5 +651,109 @@ describe("USAGE constant", () => {
   it("documents profile and lane flags", () => {
     assert.match(USAGE, /--profile soft\|hard\|full/);
     assert.match(USAGE, /--lane grok\|codex/);
+  });
+});
+
+describe("boundary diagnostics and stream write settle", () => {
+  it("capability-load diagnostic is fixed and sanitized (no raw exception)", () => {
+    assert.equal(
+      MSG_CAPABILITY_TABLE_LOAD_FAILED,
+      "foreman-setup: capability table load failed",
+    );
+    // Fixed public string must not embed exception/path/stack markers.
+    assert.doesNotMatch(
+      MSG_CAPABILITY_TABLE_LOAD_FAILED,
+      /ENOENT|EACCES|stack|Error:|\/home\/|\\\\Users\\\\|reference-manifest/i,
+    );
+    assert.equal(MSG_CAPABILITY_TABLE_LOAD_FAILED.includes("/"), false);
+    assert.equal(MSG_CAPABILITY_TABLE_LOAD_FAILED.includes("\\"), false);
+    // Must not append a dynamic suffix after the fixed sentence.
+    assert.equal(
+      MSG_CAPABILITY_TABLE_LOAD_FAILED,
+      "foreman-setup: capability table load failed",
+    );
+  });
+  it("finalizeSetupExitCode returns domain code when all writes succeed", async () => {
+    const code = await finalizeSetupExitCode(EXIT_READY, [
+      Promise.resolve(),
+      Promise.resolve(),
+    ]);
+    assert.equal(code, EXIT_READY);
+    const code2 = await finalizeSetupExitCode(EXIT_INVALID_ARGUMENTS, [
+      Promise.resolve(),
+    ]);
+    assert.equal(code2, EXIT_INVALID_ARGUMENTS);
+  });
+
+  it("finalizeSetupExitCode returns exit 3 when any stdout/stderr write fails", async () => {
+    const code = await finalizeSetupExitCode(EXIT_READY, [
+      Promise.resolve(),
+      Promise.reject(new Error("EPIPE")),
+    ]);
+    assert.equal(code, EXIT_BOUNDARY_FAILURE);
+
+    const codeInvalid = await finalizeSetupExitCode(EXIT_INVALID_ARGUMENTS, [
+      Promise.reject(Object.assign(new Error("EBADF"), { code: "EBADF" })),
+    ]);
+    assert.equal(codeInvalid, EXIT_BOUNDARY_FAILURE);
+  });
+
+  it("spawned dist: broken stdout pipe on --help exits 3 (not domain 0)", async () => {
+    // Cold-audit witness class: failed stdout write must not keep domain exit 0.
+    // On Linux Node 24, `1>&-` is remapped to /dev/null (writes succeed); a
+    // destroyed pipe is the portable EPIPE regression for the same contract.
+    const script = join(
+      process.cwd(),
+      "skills/foreman/runtime/dist/foreman-setup.js",
+    );
+    if (!existsSync(script)) {
+      // Bundle absent in pure unit environments; unit settle tests still cover.
+      return;
+    }
+    const { spawn } = await import("node:child_process");
+    const code = await new Promise<number | null>((resolve) => {
+      const child = spawn(process.execPath, [script, "--help"], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stderr = "";
+      child.stderr.on("data", (c: Buffer) => {
+        stderr += c.toString();
+      });
+      // Close the read end immediately so the child's stdout write gets EPIPE.
+      child.stdout.destroy();
+      child.on("close", (c) => {
+        // Must not leak stream error internals on the surviving stream.
+        assert.doesNotMatch(stderr, /EPIPE|EBADF|Error: write|Unhandled/i);
+        resolve(c);
+      });
+    });
+    assert.equal(code, EXIT_BOUNDARY_FAILURE);
+  });
+
+  it("spawned dist: broken stderr pipe on invalid --lane exits 3 (not domain 2)", async () => {
+    // Cold-audit witness class: failed stderr write must not keep domain exit 2.
+    const script = join(
+      process.cwd(),
+      "skills/foreman/runtime/dist/foreman-setup.js",
+    );
+    if (!existsSync(script)) {
+      return;
+    }
+    const { spawn } = await import("node:child_process");
+    const code = await new Promise<number | null>((resolve) => {
+      const child = spawn(process.execPath, [script, "--lane", "bad"], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      child.stdout.on("data", (c: Buffer) => {
+        stdout += c.toString();
+      });
+      child.stderr.destroy();
+      child.on("close", (c) => {
+        assert.doesNotMatch(stdout, /EPIPE|EBADF|Error: write|Unhandled/i);
+        resolve(c);
+      });
+    });
+    assert.equal(code, EXIT_BOUNDARY_FAILURE);
   });
 });

@@ -20360,6 +20360,15 @@ var USAGE2 = "usage: foreman-setup [--profile soft|hard|full] [--lane grok|codex
 var MSG_BOUNDARY_FAILURE = "foreman-setup: boundary failure (persistence or runtime)";
 var MSG_MISSING_PREFLIGHT_RECORD = "foreman-setup: missing preflight record for requested vendor";
 var MSG_INTERNAL_FAILURE = "foreman-setup: internal failure";
+var MSG_CAPABILITY_TABLE_LOAD_FAILED = "foreman-setup: capability table load failed";
+async function finalizeSetupExitCode(domainExitCode, writes) {
+  try {
+    await Promise.all(writes);
+    return domainExitCode;
+  } catch {
+    return EXIT_BOUNDARY_FAILURE;
+  }
+}
 var MAX_DURABLE_CONFIG_BYTES = 1048576;
 function stripSetupNodeArgv(argv) {
   let args2 = [...argv];
@@ -20688,6 +20697,7 @@ function runForemanSetup(argv, io2, env) {
     const vendorsToPersist = parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
     const platform = env.platform ?? process.platform;
     const foremanHome = resolveForemanHome(processEnv, platform);
+    const pendingWrites = [];
     for (const vendor of vendorsToPersist) {
       const record = captured.get(vendor);
       if (record === void 0) {
@@ -20698,7 +20708,13 @@ function runForemanSetup(argv, io2, env) {
         io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
         return EXIT_BOUNDARY_FAILURE;
       }
-      const dest = resolvePreflightRecordPath(foremanHome, vendor);
+      pendingWrites.push({
+        vendor,
+        record,
+        dest: resolvePreflightRecordPath(foremanHome, vendor)
+      });
+    }
+    for (const { record, dest } of pendingWrites) {
       const writeEither = yield* Effect_exports.gen(function* () {
         const store = yield* PreflightRecordStore;
         yield* store.write(dest, record);
@@ -20739,29 +20755,54 @@ function runForemanSetup(argv, io2, env) {
 }
 
 // packages/orchestration/src/foreman-setup-main.ts
+var streamWriteFailed = false;
+function armStream(stream) {
+  stream.on("error", () => {
+    streamWriteFailed = true;
+  });
+}
+armStream(process.stdout);
+armStream(process.stderr);
 function writeFully(stream, text) {
   return new Promise((resolve2, reject) => {
-    const onError3 = (err) => {
-      stream.off("error", onError3);
-      reject(err);
+    let settled = false;
+    const settle = (err) => {
+      if (settled) return;
+      settled = true;
+      if (err) {
+        streamWriteFailed = true;
+        reject(err);
+      } else {
+        resolve2();
+      }
     };
-    stream.once("error", onError3);
-    stream.write(text, (err) => {
-      stream.off("error", onError3);
-      if (err) reject(err);
-      else resolve2();
-    });
+    try {
+      stream.write(text, (err) => settle(err));
+    } catch (err) {
+      settle(err instanceof Error ? err : new Error("write_failed"));
+    }
   });
 }
 var pending3 = [];
+function trackWrite(p) {
+  void p.catch(() => {
+    streamWriteFailed = true;
+  });
+  pending3.push(p);
+}
 var io = {
   writeStdout: (text) => {
-    pending3.push(writeFully(process.stdout, text));
+    trackWrite(writeFully(process.stdout, text));
   },
   writeStderr: (text) => {
-    pending3.push(writeFully(process.stderr, text));
+    trackWrite(writeFully(process.stderr, text));
   }
 };
+async function settleExit(domainExitCode) {
+  const fromWrites = await finalizeSetupExitCode(domainExitCode, pending3);
+  if (streamWriteFailed) return EXIT_BOUNDARY_FAILURE;
+  return fromWrites;
+}
 function loadCapabilityTable(repoRoot2) {
   const embedded = tryGetEmbeddedCapabilityTable();
   if (embedded !== null) return embedded;
@@ -20773,17 +20814,11 @@ var repoRoot = resolveRepoRoot(import.meta.url);
 var table;
 try {
   table = loadCapabilityTable(repoRoot);
-} catch (e) {
-  const msg = e instanceof Error ? e.message : String(e);
+} catch {
   pending3.push(
-    writeFully(
-      process.stderr,
-      `foreman-setup: capability table load failed: ${msg}
-`
-    )
+    writeFully(process.stderr, MSG_CAPABILITY_TABLE_LOAD_FAILED + "\n")
   );
-  await Promise.all(pending3).catch(() => void 0);
-  process.exitCode = 3;
+  process.exitCode = await settleExit(EXIT_BOUNDARY_FAILURE);
 }
 if (table !== void 0) {
   Effect_exports.runPromise(
@@ -20793,21 +20828,11 @@ if (table !== void 0) {
     })
   ).then(
     async (code) => {
-      try {
-        await Promise.all(pending3);
-      } catch {
-      }
-      process.exitCode = code;
+      process.exitCode = await settleExit(code);
     },
     async () => {
-      pending3.push(
-        writeFully(process.stderr, "foreman-setup: internal failure\n")
-      );
-      try {
-        await Promise.all(pending3);
-      } catch {
-      }
-      process.exitCode = 3;
+      pending3.push(writeFully(process.stderr, MSG_INTERNAL_FAILURE + "\n"));
+      process.exitCode = await settleExit(EXIT_BOUNDARY_FAILURE);
     }
   );
 }

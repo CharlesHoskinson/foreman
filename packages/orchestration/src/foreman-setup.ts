@@ -83,6 +83,29 @@ export const MSG_MISSING_PREFLIGHT_RECORD =
 
 export const MSG_INTERNAL_FAILURE = "foreman-setup: internal failure";
 
+/**
+ * Fixed sanitized diagnostic for capability-table load failures.
+ * Must never embed exception messages, paths, stacks, or credentials.
+ */
+export const MSG_CAPABILITY_TABLE_LOAD_FAILED =
+  "foreman-setup: capability table load failed";
+
+/**
+ * After domain work finishes, settle pending stdout/stderr writes.
+ * A failed write is a runtime boundary failure (exit 3), not the domain
+ * result. Does not expose stream error details.
+ */
+export async function finalizeSetupExitCode(
+  domainExitCode: number,
+  writes: readonly Promise<void>[],
+): Promise<number> {
+  try {
+    await Promise.all(writes);
+    return domainExitCode;
+  } catch {
+    return EXIT_BOUNDARY_FAILURE;
+  }
+}
 /** UTF-8 bound for repository durable config TOML. */
 export const MAX_DURABLE_CONFIG_BYTES = 1_048_576;
 
@@ -610,17 +633,26 @@ export function runForemanSetup(
     const tcResult = yield* runToolCheck(tcArgv, tcIo, tcEnv);
 
     // --- persist requested vendors ------------------------------------------
+    // Validate the whole requested profile before the first store write so a
+    // partial capture (e.g. Grok only on an unscoped run) never leaves a
+    // half-written preflight directory.
     const vendorsToPersist: readonly SetupLane[] =
       parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
     const platform = env.platform ?? process.platform;
     const foremanHome = resolveForemanHome(processEnv, platform);
 
+    type PendingWrite = {
+      readonly vendor: SetupLane;
+      readonly record: VendorPreflightRecordV1;
+      readonly dest: string;
+    };
+    const pendingWrites: PendingWrite[] = [];
     for (const vendor of vendorsToPersist) {
       const record = captured.get(vendor);
       if (record === undefined) {
         // Fail closed: a requested vendor without a captured inspect record
         // is a boundary failure, not ordinary NOT-READY. Never invent a
-        // record and never continue to readiness projection.
+        // record and never write siblings.
         io.writeStderr(MSG_MISSING_PREFLIGHT_RECORD + "\n");
         return EXIT_BOUNDARY_FAILURE;
       }
@@ -628,7 +660,14 @@ export function runForemanSetup(
         io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
         return EXIT_BOUNDARY_FAILURE;
       }
-      const dest = resolvePreflightRecordPath(foremanHome, vendor);
+      pendingWrites.push({
+        vendor,
+        record,
+        dest: resolvePreflightRecordPath(foremanHome, vendor),
+      });
+    }
+
+    for (const { record, dest } of pendingWrites) {
       const writeEither = yield* Effect.gen(function* () {
         const store = yield* PreflightRecordStore;
         yield* store.write(dest, record);
@@ -648,7 +687,6 @@ export function runForemanSetup(
         return EXIT_BOUNDARY_FAILURE;
       }
     }
-
     // --- login instructions: positive not-authenticated only ----------------
     const notAuth = notAuthenticatedVendors(tcResult.model);
     for (const v of notAuth) {

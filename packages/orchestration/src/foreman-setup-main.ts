@@ -3,6 +3,8 @@
  *
  * Sets process.exitCode and never terminates via process.exit on the outcome
  * path, so a backpressured stdout/stderr stream can finish before exit.
+ * A failed stdout/stderr write is a runtime boundary failure (exit 3).
+ * Stream error details are never written to the operator.
  */
 
 import { readFileSync } from "node:fs";
@@ -12,36 +14,84 @@ import {
   tryGetEmbeddedCapabilityTable,
   loadCapabilityTableFromTomlText,
 } from "./vendor-preflight-embedded.js";
-import { resolveRepoRoot, runForemanSetup } from "./foreman-setup.js";
+import {
+  EXIT_BOUNDARY_FAILURE,
+  MSG_CAPABILITY_TABLE_LOAD_FAILED,
+  MSG_INTERNAL_FAILURE,
+  finalizeSetupExitCode,
+  resolveRepoRoot,
+  runForemanSetup,
+} from "./foreman-setup.js";
 
+/** Sticky flag: any stdout/stderr failure becomes exit 3. */
+let streamWriteFailed = false;
+
+/**
+ * Durable listeners: a late EPIPE after a write callback must not become an
+ * unhandled 'error' crash (exit 1). Mark the stream broken instead.
+ */
+function armStream(stream: NodeJS.WriteStream): void {
+  stream.on("error", () => {
+    streamWriteFailed = true;
+  });
+}
+armStream(process.stdout);
+armStream(process.stderr);
+
+/**
+ * Write all of `text` to `stream`. Settles once from the write callback.
+ * Synchronous throw and callback errors reject the promise and set
+ * streamWriteFailed. Durable stream 'error' listeners above absorb late
+ * EPIPE so the process does not crash with an unhandled error.
+ */
 function writeFully(
   stream: NodeJS.WriteStream,
   text: string,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const onError = (err: Error) => {
-      stream.off("error", onError);
-      reject(err);
+    let settled = false;
+    const settle = (err: Error | null | undefined) => {
+      if (settled) return;
+      settled = true;
+      if (err) {
+        streamWriteFailed = true;
+        reject(err);
+      } else {
+        resolve();
+      }
     };
-    stream.once("error", onError);
-    stream.write(text, (err) => {
-      stream.off("error", onError);
-      if (err) reject(err);
-      else resolve();
-    });
+    try {
+      stream.write(text, (err) => settle(err));
+    } catch (err) {
+      settle(err instanceof Error ? err : new Error("write_failed"));
+    }
   });
 }
 
 const pending: Promise<void>[] = [];
 
+function trackWrite(p: Promise<void>): void {
+  // Mark handled early so a delayed settleExit cannot surface unhandledRejection;
+  // Promise.all in finalizeSetupExitCode still observes the rejection.
+  void p.catch(() => {
+    streamWriteFailed = true;
+  });
+  pending.push(p);
+}
+
 const io = {
   writeStdout: (text: string) => {
-    pending.push(writeFully(process.stdout, text));
+    trackWrite(writeFully(process.stdout, text));
   },
   writeStderr: (text: string) => {
-    pending.push(writeFully(process.stderr, text));
+    trackWrite(writeFully(process.stderr, text));
   },
 };
+async function settleExit(domainExitCode: number): Promise<number> {
+  const fromWrites = await finalizeSetupExitCode(domainExitCode, pending);
+  if (streamWriteFailed) return EXIT_BOUNDARY_FAILURE;
+  return fromWrites;
+}
 
 function loadCapabilityTable(repoRoot: string) {
   const embedded = tryGetEmbeddedCapabilityTable();
@@ -56,16 +106,12 @@ const repoRoot = resolveRepoRoot(import.meta.url);
 let table;
 try {
   table = loadCapabilityTable(repoRoot);
-} catch (e) {
-  const msg = e instanceof Error ? e.message : String(e);
+} catch {
+  // Fixed sanitized diagnostic only — never embed exception text.
   pending.push(
-    writeFully(
-      process.stderr,
-      `foreman-setup: capability table load failed: ${msg}\n`,
-    ),
+    writeFully(process.stderr, MSG_CAPABILITY_TABLE_LOAD_FAILED + "\n"),
   );
-  await Promise.all(pending).catch(() => undefined);
-  process.exitCode = 3;
+  process.exitCode = await settleExit(EXIT_BOUNDARY_FAILURE);
 }
 
 if (table !== undefined) {
@@ -76,23 +122,11 @@ if (table !== undefined) {
     }),
   ).then(
     async (code) => {
-      try {
-        await Promise.all(pending);
-      } catch {
-        /* stream errors still set a definite exit code */
-      }
-      process.exitCode = code;
+      process.exitCode = await settleExit(code);
     },
     async () => {
-      pending.push(
-        writeFully(process.stderr, "foreman-setup: internal failure\n"),
-      );
-      try {
-        await Promise.all(pending);
-      } catch {
-        /* ignore */
-      }
-      process.exitCode = 3;
+      pending.push(writeFully(process.stderr, MSG_INTERNAL_FAILURE + "\n"));
+      process.exitCode = await settleExit(EXIT_BOUNDARY_FAILURE);
     },
   );
 }
