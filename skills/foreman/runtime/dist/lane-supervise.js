@@ -20157,23 +20157,11 @@ function ensureBoundChildDir(parent, name) {
   }
   return openBoundChildDir(parent, name);
 }
-function ensureBoundRunsDir(stateRoot) {
-  if (!directoryIdentityAnchorSupported()) return { _tag: "bad" };
-  const runsPath = join6(stateRoot, "runs");
-  let kind = observeDirComponent2(runsPath);
-  if (kind === "symlink" || kind === "other") return { _tag: "bad" };
-  if (kind === "missing") {
-    try {
-      mkdirSync2(runsPath, { recursive: false });
-    } catch (e) {
-      if (!isEexist2(e)) return { _tag: "bad" };
-    }
-    kind = observeDirComponent2(runsPath);
-    if (kind !== "directory") return { _tag: "bad" };
-  }
-  return openBoundDirAtPath(runsPath);
-}
 var raceHook;
+function fireAfterBindStateRoot() {
+  const h = raceHook?.afterBindStateRoot;
+  if (h !== void 0) h();
+}
 function fireAfterBindRunsDir() {
   const h = raceHook?.afterBindRunsDir;
   if (h !== void 0) h();
@@ -20181,6 +20169,35 @@ function fireAfterBindRunsDir() {
 function fireAfterBindRunDir() {
   const h = raceHook?.afterBindRunDir;
   if (h !== void 0) h();
+}
+function openBoundStateRoot(stateRoot) {
+  if (!directoryIdentityAnchorSupported()) return { _tag: "bad" };
+  return openBoundDirAtPath(stateRoot);
+}
+function openBoundRunsDir(stateRoot) {
+  const rootOpen = openBoundStateRoot(stateRoot);
+  if (rootOpen._tag === "missing") return { _tag: "missing" };
+  if (rootOpen._tag !== "ok") return { _tag: "bad" };
+  const rootDir = rootOpen.dir;
+  try {
+    fireAfterBindStateRoot();
+    if (!recheckBoundDir(rootDir)) return { _tag: "bad" };
+    return openBoundChildDir(rootDir, "runs");
+  } finally {
+    closeQuiet(rootDir.fd);
+  }
+}
+function ensureBoundRunsDir(stateRoot) {
+  const rootOpen = openBoundStateRoot(stateRoot);
+  if (rootOpen._tag !== "ok") return { _tag: "bad" };
+  const rootDir = rootOpen.dir;
+  try {
+    fireAfterBindStateRoot();
+    if (!recheckBoundDir(rootDir)) return { _tag: "bad" };
+    return ensureBoundChildDir(rootDir, "runs");
+  } finally {
+    closeQuiet(rootDir.fd);
+  }
 }
 function childPathUnder(dir, name) {
   if (!isSafeSingleSegment(name)) return null;
@@ -20195,7 +20212,7 @@ function makeLiveTypedJournalReader(stateRoot) {
       if (!directoryIdentityAnchorSupported()) {
         return { _tag: "Corrupt" };
       }
-      const runsOpen = openBoundDirAtPath(join6(stateRoot, "runs"));
+      const runsOpen = openBoundRunsDir(stateRoot);
       if (runsOpen._tag === "missing") {
         return { _tag: "Missing" };
       }
@@ -20290,7 +20307,7 @@ function makeLiveRunDiscovery(stateRoot) {
       if (!directoryIdentityAnchorSupported()) {
         return [];
       }
-      const runsOpen = openBoundDirAtPath(join6(stateRoot, "runs"));
+      const runsOpen = openBoundRunsDir(stateRoot);
       if (runsOpen._tag !== "ok") {
         return [];
       }

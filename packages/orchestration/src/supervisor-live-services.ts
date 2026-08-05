@@ -2,9 +2,11 @@
  * Live Node.js bindings for the one-shot resume supervisor (R5D).
  *
  * Directory operations bind to stable identities via no-follow directory
- * descriptors and `/proc/self/fd/<fd>` anchors. Pathnames are never reused
- * after validation without an open identity. When the host cannot provide
- * that primitive, operations fail closed (no unbound pathname fallback).
+ * descriptors and `/proc/self/fd/<fd>` anchors. The canonical `stateRoot` is
+ * open-bound first; `runs/` and run directories are then opened only through
+ * that held descriptor chain. Pathnames are never reused after validation
+ * without an open identity. When the host cannot provide that primitive,
+ * operations fail closed (no unbound pathname fallback).
  */
 
 import {
@@ -315,27 +317,6 @@ function ensureBoundChildDir(parent: BoundDir, name: string): OpenDirResult {
   return openBoundChildDir(parent, name);
 }
 
-/**
- * Ensure `runs/` exists as a real directory and return a bound descriptor.
- * Creates the directory only when missing; refuses symlinks.
- */
-function ensureBoundRunsDir(stateRoot: string): OpenDirResult {
-  if (!directoryIdentityAnchorSupported()) return { _tag: "bad" };
-  const runsPath = join(stateRoot, "runs");
-  let kind = observeDirComponent(runsPath);
-  if (kind === "symlink" || kind === "other") return { _tag: "bad" };
-  if (kind === "missing") {
-    try {
-      mkdirSync(runsPath, { recursive: false });
-    } catch (e) {
-      if (!isEexist(e)) return { _tag: "bad" };
-    }
-    kind = observeDirComponent(runsPath);
-    if (kind !== "directory") return { _tag: "bad" };
-  }
-  return openBoundDirAtPath(runsPath);
-}
-
 // ---------------------------------------------------------------------------
 // Deterministic race seams (test-only)
 // ---------------------------------------------------------------------------
@@ -347,6 +328,11 @@ function ensureBoundRunsDir(stateRoot: string): OpenDirResult {
  * a parent alias replaced after validation.
  */
 export type DirectoryIdentityRaceHook = {
+  /**
+   * After the canonical `stateRoot` is open-bound; before opening or
+   * creating `runs/` through that descriptor.
+   */
+  readonly afterBindStateRoot?: () => void;
   /** After `runs/` is open-bound; before listing or opening a child. */
   readonly afterBindRunsDir?: () => void;
   /** After `runs/<runId>` is open-bound; before journal/lock use. */
@@ -364,6 +350,11 @@ export function setDirectoryIdentityRaceHook(
   raceHook = hook;
 }
 
+function fireAfterBindStateRoot(): void {
+  const h = raceHook?.afterBindStateRoot;
+  if (h !== undefined) h();
+}
+
 function fireAfterBindRunsDir(): void {
   const h = raceHook?.afterBindRunsDir;
   if (h !== undefined) h();
@@ -372,6 +363,57 @@ function fireAfterBindRunsDir(): void {
 function fireAfterBindRunDir(): void {
   const h = raceHook?.afterBindRunDir;
   if (h !== undefined) h();
+}
+
+// ---------------------------------------------------------------------------
+// State-root + runs/ binding (descriptor chain root)
+// ---------------------------------------------------------------------------
+
+/**
+ * Open and bind the canonical `stateRoot` directory. Never follows a
+ * symlink at that final path component. Fail closed when the secure
+ * anchor is unavailable.
+ */
+function openBoundStateRoot(stateRoot: string): OpenDirResult {
+  if (!directoryIdentityAnchorSupported()) return { _tag: "bad" };
+  return openBoundDirAtPath(stateRoot);
+}
+
+/**
+ * Open `runs/` only through a held state-root descriptor. The state-root
+ * pathname is never reused after the root is bound, so a rename+symlink
+ * of `stateRoot` cannot redirect discovery/read into an outside tree.
+ */
+function openBoundRunsDir(stateRoot: string): OpenDirResult {
+  const rootOpen = openBoundStateRoot(stateRoot);
+  if (rootOpen._tag === "missing") return { _tag: "missing" };
+  if (rootOpen._tag !== "ok") return { _tag: "bad" };
+  const rootDir = rootOpen.dir;
+  try {
+    fireAfterBindStateRoot();
+    if (!recheckBoundDir(rootDir)) return { _tag: "bad" };
+    return openBoundChildDir(rootDir, "runs");
+  } finally {
+    closeQuiet(rootDir.fd);
+  }
+}
+
+/**
+ * Ensure `runs/` exists as a real directory under the held state-root
+ * identity and return a bound descriptor. Creates only through the
+ * state-root fd anchor; never creates through a swapped state-root alias.
+ */
+function ensureBoundRunsDir(stateRoot: string): OpenDirResult {
+  const rootOpen = openBoundStateRoot(stateRoot);
+  if (rootOpen._tag !== "ok") return { _tag: "bad" };
+  const rootDir = rootOpen.dir;
+  try {
+    fireAfterBindStateRoot();
+    if (!recheckBoundDir(rootDir)) return { _tag: "bad" };
+    return ensureBoundChildDir(rootDir, "runs");
+  } finally {
+    closeQuiet(rootDir.fd);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -406,7 +448,7 @@ export function makeLiveTypedJournalReader(
           return { _tag: "Corrupt" as const };
         }
 
-        const runsOpen = openBoundDirAtPath(join(stateRoot, "runs"));
+        const runsOpen = openBoundRunsDir(stateRoot);
         if (runsOpen._tag === "missing") {
           return { _tag: "Missing" as const };
         }
@@ -528,7 +570,7 @@ export function makeLiveRunDiscovery(
           // Fail closed: expose no names from an unbound walk.
           return [];
         }
-        const runsOpen = openBoundDirAtPath(join(stateRoot, "runs"));
+        const runsOpen = openBoundRunsDir(stateRoot);
         if (runsOpen._tag !== "ok") {
           return [];
         }

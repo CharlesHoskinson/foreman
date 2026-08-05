@@ -1,7 +1,8 @@
 /**
  * Live Node supervisor services — discovery, typed journal read, leases.
- * Includes deterministic race seams that swap runs/ and runs/<runId>
- * between validation and use to prove descriptor-anchored identity binding.
+ * Includes deterministic race seams that swap stateRoot, runs/, and
+ * runs/<runId> between validation and use to prove descriptor-anchored
+ * identity binding.
  */
 
 import assert from "node:assert/strict";
@@ -207,6 +208,51 @@ describe("makeLiveRunDiscovery", () => {
       } finally {
         setDirectoryIdentityRaceHook(undefined);
         cleanup();
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "race seam: swapped stateRoot before runs open exposes no outside names",
+    { skip: !anchorOk },
+    async () => {
+      const { root, cleanup } = tempRoot();
+      const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-disc-"));
+      const parkedRoot = `${root}.parked-identity`;
+      try {
+        mkdirSync(join(root, "runs", "inside-run"), { recursive: true });
+        mkdirSync(join(outside, "runs", "escaped-run"), { recursive: true });
+        writeFileSync(join(outside, "runs", "escaped-run", "marker"), "out");
+
+        setDirectoryIdentityRaceHook({
+          afterBindStateRoot: () => {
+            swapPathForSymlink(root, outside);
+          },
+        });
+
+        const ids = await Effect.runPromise(
+          Effect.gen(function* () {
+            const d = yield* RunDiscovery;
+            return yield* d.listRuns();
+          }).pipe(Effect.provide(makeLiveRunDiscovery(root))),
+        );
+
+        assert.ok(ids.includes(decodeRunId("inside-run") as RunId));
+        assert.equal(
+          ids.includes(decodeRunId("escaped-run") as RunId),
+          false,
+        );
+        assert.ok(lstatSync(root).isSymbolicLink());
+        assert.equal(
+          readFileSync(join(outside, "runs", "escaped-run", "marker"), "utf8"),
+          "out",
+        );
+        assert.ok(existsSync(join(parkedRoot, "runs", "inside-run")));
+      } finally {
+        setDirectoryIdentityRaceHook(undefined);
+        cleanup();
+        rmSync(parkedRoot, { recursive: true, force: true });
         rmSync(outside, { recursive: true, force: true });
       }
     },
@@ -583,6 +629,61 @@ describe("makeLiveTypedJournalReader", () => {
   );
 
   it(
+    "race seam: swapped stateRoot before runs open returns no outside records",
+    { skip: !anchorOk },
+    async () => {
+      const { root, cleanup } = tempRoot();
+      const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-jr-"));
+      const parkedRoot = `${root}.parked-identity`;
+      try {
+        const run = decodeRunId("race-sr-jr") as RunId;
+        mkdirSync(join(root, "runs", run), { recursive: true });
+        writeFileSync(
+          join(root, "runs", run, "events.ndjson"),
+          eventLine(3),
+        );
+        mkdirSync(join(outside, "runs", String(run)), { recursive: true });
+        writeFileSync(
+          join(outside, "runs", String(run), "events.ndjson"),
+          eventLine(77) + eventLine(78),
+        );
+
+        setDirectoryIdentityRaceHook({
+          afterBindStateRoot: () => {
+            swapPathForSymlink(root, outside);
+          },
+        });
+
+        const result = await Effect.runPromise(
+          Effect.gen(function* () {
+            const r = yield* TypedJournalReader;
+            return yield* r.readRun(run);
+          }).pipe(Effect.provide(makeLiveTypedJournalReader(root))),
+        );
+
+        assert.equal(result._tag, "Ok");
+        if (result._tag === "Ok") {
+          assert.equal(result.records.length, 1);
+          assert.equal(result.records[0]!.event.seq, 3);
+        }
+        assert.ok(lstatSync(root).isSymbolicLink());
+        assert.equal(
+          readFileSync(
+            join(outside, "runs", String(run), "events.ndjson"),
+            "utf8",
+          ),
+          eventLine(77) + eventLine(78),
+        );
+      } finally {
+        setDirectoryIdentityRaceHook(undefined);
+        cleanup();
+        rmSync(parkedRoot, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
     "fail-closed Corrupt when directory anchor is unsupported",
     { skip: anchorOk },
     async () => {
@@ -856,6 +957,172 @@ describe("makeLiveRunLease", () => {
         assert.equal(existsSync(join(parked, ".supervise.lock")), false);
       } finally {
         cleanup();
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "race seam: swapped stateRoot before runs open creates no outside lock",
+    { skip: !anchorOk },
+    async () => {
+      const { root, cleanup } = tempRoot();
+      const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-lease-"));
+      const parkedRoot = `${root}.parked-identity`;
+      try {
+        const run = decodeRunId("race-sr-lease") as RunId;
+        mkdirSync(join(root, "runs", run), { recursive: true });
+        mkdirSync(join(outside, "runs", String(run)), { recursive: true });
+        writeFileSync(join(outside, "runs", String(run), "sentinel"), "keep");
+
+        setDirectoryIdentityRaceHook({
+          afterBindStateRoot: () => {
+            swapPathForSymlink(root, outside);
+          },
+        });
+
+        const result = await Effect.runPromise(
+          Effect.gen(function* () {
+            const l = yield* RunLease;
+            return yield* l.acquire(run);
+          }).pipe(Effect.provide(makeLiveRunLease(root))),
+        );
+
+        assert.equal(result._tag, "Held");
+        assert.equal(
+          existsSync(join(outside, "runs", String(run), ".supervise.lock")),
+          false,
+        );
+        assert.equal(
+          readFileSync(
+            join(outside, "runs", String(run), "sentinel"),
+            "utf8",
+          ),
+          "keep",
+        );
+        assert.ok(
+          existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
+        );
+
+        if (result._tag === "Held") {
+          await Effect.runPromise(result.release());
+        }
+        assert.equal(
+          existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
+          false,
+        );
+        assert.equal(
+          existsSync(join(outside, "runs", String(run), ".supervise.lock")),
+          false,
+        );
+      } finally {
+        setDirectoryIdentityRaceHook(undefined);
+        cleanup();
+        rmSync(parkedRoot, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "race seam: swapped stateRoot before runs create creates no outside runs/",
+    { skip: !anchorOk },
+    async () => {
+      const { root, cleanup } = tempRoot();
+      const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-mk-"));
+      const parkedRoot = `${root}.parked-identity`;
+      try {
+        // No runs/ under stateRoot yet. Outside stays empty of runs/.
+        writeFileSync(join(outside, "outside-marker"), "keep");
+        const run = decodeRunId("race-sr-mk") as RunId;
+
+        setDirectoryIdentityRaceHook({
+          afterBindStateRoot: () => {
+            swapPathForSymlink(root, outside);
+          },
+        });
+
+        const result = await Effect.runPromise(
+          Effect.gen(function* () {
+            const l = yield* RunLease;
+            return yield* l.acquire(run);
+          }).pipe(Effect.provide(makeLiveRunLease(root))),
+        );
+
+        assert.equal(result._tag, "Held");
+        // Outside must not gain runs/ or a lock.
+        assert.equal(existsSync(join(outside, "runs")), false);
+        assert.equal(existsSync(join(outside, "outside-marker")), true);
+        assert.deepEqual(readdirSync(outside).sort(), ["outside-marker"]);
+        // runs/ and lock created under the originally bound identity.
+        assert.ok(
+          existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
+        );
+
+        if (result._tag === "Held") {
+          await Effect.runPromise(result.release());
+        }
+        assert.equal(
+          existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
+          false,
+        );
+        assert.equal(existsSync(join(outside, "runs")), false);
+      } finally {
+        setDirectoryIdentityRaceHook(undefined);
+        cleanup();
+        rmSync(parkedRoot, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "race seam: release after stateRoot swap removes no outside directory",
+    { skip: !anchorOk },
+    async () => {
+      const { root, cleanup } = tempRoot();
+      const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-rel-"));
+      const parkedRoot = `${root}.parked-identity`;
+      try {
+        const run = decodeRunId("race-sr-rel") as RunId;
+        mkdirSync(join(root, "runs", run), { recursive: true });
+
+        const held = await Effect.runPromise(
+          Effect.gen(function* () {
+            const l = yield* RunLease;
+            return yield* l.acquire(run);
+          }).pipe(Effect.provide(makeLiveRunLease(root))),
+        );
+        assert.equal(held._tag, "Held");
+        assert.ok(
+          existsSync(join(root, "runs", run, ".supervise.lock")),
+        );
+
+        // Fake lock tree outside; swap entire stateRoot alias.
+        mkdirSync(join(outside, "runs", String(run), ".supervise.lock"), {
+          recursive: true,
+        });
+        writeFileSync(join(outside, "runs", String(run), "keep-me"), "x");
+        swapPathForSymlink(root, outside);
+
+        if (held._tag === "Held") {
+          await Effect.runPromise(held.release());
+        }
+
+        assert.ok(
+          existsSync(join(outside, "runs", String(run), ".supervise.lock")),
+        );
+        assert.equal(
+          readFileSync(join(outside, "runs", String(run), "keep-me"), "utf8"),
+          "x",
+        );
+        assert.equal(
+          existsSync(join(parkedRoot, "runs", String(run), ".supervise.lock")),
+          false,
+        );
+      } finally {
+        cleanup();
+        rmSync(parkedRoot, { recursive: true, force: true });
         rmSync(outside, { recursive: true, force: true });
       }
     },
