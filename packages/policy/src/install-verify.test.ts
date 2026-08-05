@@ -55,6 +55,10 @@ const trackedDependencyDrift = join(
   "dist/dependency-drift.js",
 );
 const trackedSecretScan = join(trackedRuntime, "dist/secret-scan.js");
+const trackedCredentialProfile = join(
+  trackedRuntime,
+  "dist/credential-profile.js",
+);
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -90,6 +94,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   cpSync(trackedSecretScan, join(rt, "dist/secret-scan.js"));
+  cpSync(trackedCredentialProfile, join(rt, "dist/credential-profile.js"));
   return rt;
 }
 
@@ -477,6 +482,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
+    const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -494,6 +500,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const setupPath = "/skill/runtime/dist/foreman-setup.js";
     const dependencyDriftPath = "/skill/runtime/dist/dependency-drift.js";
     const secretScanPath = "/skill/runtime/dist/secret-scan.js";
+    const credentialProfilePath = "/skill/runtime/dist/credential-profile.js";
 
     const nodes = new Map([
       [
@@ -519,6 +526,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: dirIdentity({ ino: "12" }),
           names: [
               "architecture-policy.js",
+              "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
               "foreman-setup.js",
@@ -656,6 +664,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           }),
         },
       ],
+      [
+        credentialProfilePath,
+        {
+          kind: "file" as const,
+          bytes: credentialProfileBytes,
+          identity: fileIdentity({
+            ino: "31",
+            size: credentialProfileBytes.byteLength,
+          }),
+        },
+      ],
     ]);
 
     const layer = makeMemoryInstallFs({
@@ -733,6 +752,7 @@ describe("runtime plugin-drift", () => {
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
+    const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -772,6 +792,7 @@ describe("runtime plugin-drift", () => {
             identity: dirIdentity({ ino: prefix + "-dist" }),
             names: [
               "architecture-policy.js",
+              "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
               "foreman-setup.js",
@@ -907,6 +928,17 @@ describe("runtime plugin-drift", () => {
             }),
           },
         ],
+        [
+          `${dist}/credential-profile.js`,
+          {
+            kind: "file",
+            bytes: credentialProfileBytes,
+            identity: fileIdentity({
+              ino: prefix + "-cp",
+              size: credentialProfileBytes.byteLength,
+            }),
+          },
+        ],
       ]);
     }
 
@@ -978,6 +1010,7 @@ describe("skill-root and directory stability seams", () => {
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
+    const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1013,6 +1046,7 @@ describe("skill-root and directory stability seams", () => {
       identity: dirIdentity({ ino: opts?.distIno ?? "12" }),
       names: [
               "architecture-policy.js",
+              "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
               "foreman-setup.js",
@@ -1153,6 +1187,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "30",
             size: secretScanBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/credential-profile.js`,
+        {
+          kind: "file",
+          bytes: credentialProfileBytes,
+          identity: fileIdentity({
+            ino: "31",
+            size: credentialProfileBytes.byteLength,
           }),
         },
       ],
@@ -1321,6 +1366,7 @@ describe("memory InstallFs path separator seam", () => {
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
+    const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1352,6 +1398,7 @@ describe("memory InstallFs path separator seam", () => {
           identity: dirIdentity({ ino: "12" }),
           names: [
               "architecture-policy.js",
+              "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
               "foreman-setup.js",
@@ -1482,6 +1529,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "30",
             size: secretScanBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/credential-profile.js`,
+        {
+          kind: "file",
+          bytes: credentialProfileBytes,
+          identity: fileIdentity({
+            ino: "31",
+            size: credentialProfileBytes.byteLength,
           }),
         },
       ],

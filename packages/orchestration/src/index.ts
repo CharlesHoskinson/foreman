@@ -1,9 +1,9 @@
 /**
  * @foreman/orchestration — queue admission (Sprint 3 R1), attempt-bound
  * round transaction core (Sprint 3 R2 / R3), typed vendor preflight
- * (Sprint 3 R4A), resume services (R5), and bounded fixture-aware secret
- * scan (Sprint 3 R6). Remaining orchestration ports and shell adapter seams
- * stay open.
+ * (Sprint 3 R4A), resume services (R5), bounded fixture-aware secret scan
+ * (Sprint 3 R6), and external credential-profile authority (Sprint 3 R7A).
+ * Remaining orchestration ports and shell adapter seams stay open.
  */
 
 export {
@@ -614,3 +614,59 @@ export {
   type ParsedSecretScanArgv,
   type SecretScanRaceHook,
 } from "./secret-scan.js";
+
+// --- Sprint 3 R7A: external credential-profile authority ---
+
+export {
+  CREDENTIAL_PROFILE_SCHEMA_VERSION,
+  MAX_CREDENTIAL_PROFILE_RECORD_BYTES,
+  PROFILE_ID_RE,
+  CREDENTIAL_VENDORS,
+  EXIT_OK as CREDENTIAL_PROFILE_EXIT_OK,
+  EXIT_REFUSED as CREDENTIAL_PROFILE_EXIT_REFUSED,
+  PROFILES_DIR_NAME,
+  HOMES_DIR_NAME,
+  PROFILE_JSON_NAME,
+  normalizeAbsolutePath,
+  isValidProfileId,
+  isCredentialVendor,
+  configRootRelForVendor,
+  profileAuthorityDir,
+  profileJsonPath,
+  profileHomesDir,
+  profileVendorHomeDir,
+  absoluteConfigRoot,
+  isEqualOrDescendant as isCredentialStateRootInWorktree,
+  makeCredentialProfileRecord,
+  renderCredentialProfileRecord,
+  renderCredentialProfileRecordFile,
+  profileIdentityOf,
+  recordsEqualExact,
+  decodeCredentialProfileRecordV1,
+  parseCredentialProfileRecordBytes,
+  isCredentialProfileResult,
+  renderCredentialProfileJson,
+  CredentialProfileFs,
+  liveCredentialProfileFs,
+  liveCredentialProfileFsLayer,
+  liveCredentialProfile,
+  setCredentialProfileRaceHook,
+  initProfile,
+  resolveProfile,
+  stripCredentialProfileNodeArgv,
+  parseCredentialProfileArgv,
+  runCredentialProfileCli,
+  writeFully as writeCredentialProfileFully,
+  type CredentialVendor,
+  type CredentialProfileRecordV1,
+  type CredentialProfileRefusalReason,
+  type CredentialProfileResult,
+  type CredentialProfileInput,
+  type CredentialProfileCliIo,
+  type ParsedCredentialProfileArgv,
+  type PathKind,
+  type PathIdentity,
+  type CredentialProfileFsShape,
+  type CredentialProfileRaceHook,
+  type CredentialProfileWriteStream,
+} from "./credential-profile.js";

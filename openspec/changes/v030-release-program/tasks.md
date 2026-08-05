@@ -149,8 +149,8 @@
         Setup/`foreman-setup.sh` and lane callers are intentionally not
         wired in this slice.
       The remaining Sprint 3 work stays open (R4B+ shell migration,
-        ownership, heartbeat, reaping, credential profiles, and other
-        open Sprint 3 ports).
+        ownership, heartbeat, reaping, R7B credential profile Setup/lane
+        integration, and other open Sprint 3 ports).
       - Sprint 3 R4B Setup vendor-preflight adapter (partial): pure
         `projectVendorPreflightToToolCheckRow` + `tool-check-row <grok|codex>`
         CLI command on the existing `vendor-preflight.js` artifact; shell
@@ -263,6 +263,17 @@
         827 with zero failures and one platform skip. Foreman pristine checks,
         the deterministic gate, and the different-family cold audit passed at
         pushed commit `f4d546be46dcf692a7062d799aba02bdb395b5a4`.
+      - Sprint 3 R7A external credential-profile authority (worktree): closed
+        typed `CredentialProfileRecordV1` / `CredentialProfileResult` and
+        Effect `initProfile` / `resolveProfile` in `@foreman/orchestration`;
+        external layout under
+        `<state-root>/credential-profiles/<id>/{profile.json,homes/<vendor>}`;
+        segment-aware state-root vs worktree refusal; linked-path and
+        regular-file collision refusal; exclusive idempotent provisioning;
+        no vendor credential file reads; tracked deterministic
+        `skills/foreman/runtime/dist/credential-profile.js` with fixed-order
+        `init`/`resolve` CLI. R7B Setup, preflight, lane integration,
+        authentication, and profile-use leasing remain open.
       - Sprint 3 R6 bounded fixture-aware secret scan (worktree green after
         descriptor-anchor + cross-platform testability corrections, host
         commit pending): closed typed `SecretScan` Effect API and CLI in

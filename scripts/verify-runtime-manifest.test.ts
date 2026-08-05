@@ -33,6 +33,10 @@ const trackedDependencyDrift = join(
 );
 const trackedForemanSetup = join(trackedRuntime, "dist/foreman-setup.js");
 const trackedSecretScan = join(trackedRuntime, "dist/secret-scan.js");
+const trackedCredentialProfile = join(
+  trackedRuntime,
+  "dist/credential-profile.js",
+);
 
 function seedCleanCopy(): string {
   const dir = mkdtempSync(join(tmpdir(), "foreman-vrm-"));
@@ -49,6 +53,7 @@ function seedCleanCopy(): string {
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   cpSync(trackedForemanSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedSecretScan, join(rt, "dist/secret-scan.js"));
+  cpSync(trackedCredentialProfile, join(rt, "dist/credential-profile.js"));
   return rt;
 }
 

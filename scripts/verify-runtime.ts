@@ -73,6 +73,10 @@ const trackedForemanSetupPath = join(
   "dist/foreman-setup.js",
 );
 const trackedSecretScanPath = join(trackedRuntime, "dist/secret-scan.js");
+const trackedCredentialProfilePath = join(
+  trackedRuntime,
+  "dist/credential-profile.js",
+);
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -92,12 +96,14 @@ const trackedToolCheck = readFileSync(trackedToolCheckPath);
 const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
 const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
 const trackedSecretScan = readFileSync(trackedSecretScanPath);
+const trackedCredentialProfile = readFileSync(trackedCredentialProfilePath);
 
 // No extra files under dist/
 {
   const distFiles = readdirSync(join(trackedRuntime, "dist")).sort();
   const expected = [
     "architecture-policy.js",
+    "credential-profile.js",
     "dependency-drift.js",
     "destruction-guard.js",
     "foreman-setup.js",
@@ -139,6 +145,12 @@ try {
   const bForemanSetup = readFileSync(join(tmpB, "dist/foreman-setup.js"));
   const aSecretScan = readFileSync(join(tmpA, "dist/secret-scan.js"));
   const bSecretScan = readFileSync(join(tmpB, "dist/secret-scan.js"));
+  const aCredentialProfile = readFileSync(
+    join(tmpA, "dist/credential-profile.js"),
+  );
+  const bCredentialProfile = readFileSync(
+    join(tmpB, "dist/credential-profile.js"),
+  );
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
@@ -159,6 +171,9 @@ try {
   if (!bytesEqual(aSecretScan, bSecretScan)) {
     fail("non-deterministic secret-scan");
   }
+  if (!bytesEqual(aCredentialProfile, bCredentialProfile)) {
+    fail("non-deterministic credential-profile");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
@@ -174,6 +189,9 @@ try {
   }
   if (!bytesEqual(aSecretScan, trackedSecretScan)) {
     fail("secret-scan drift");
+  }
+  if (!bytesEqual(aCredentialProfile, trackedCredentialProfile)) {
+    fail("credential-profile drift");
   }
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
@@ -207,6 +225,7 @@ try {
     writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
     writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
     writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
+    writeFileSync(join(rt, "dist/credential-profile.js"), trackedCredentialProfile);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
@@ -236,6 +255,9 @@ try {
     writeFileSync(join(rt, "dist/secret-scan.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered secret-scan should fail");
     cpSync(trackedSecretScanPath, join(rt, "dist/secret-scan.js"));
+    writeFileSync(join(rt, "dist/credential-profile.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered credential-profile should fail");
+    cpSync(trackedCredentialProfilePath, join(rt, "dist/credential-profile.js"));
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {
@@ -416,6 +438,29 @@ try {
       }
       writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
     }
+    // Linked credential-profile bundle must fail
+    {
+      const realCp = join(rt, "credential-profile.real.js");
+      writeFileSync(realCp, trackedCredentialProfile);
+      rmSync(join(rt, "dist/credential-profile.js"));
+      symlinkSync(realCp, join(rt, "dist/credential-profile.js"));
+      const linkedCp = verifyRuntimeManifest(rt);
+      if (linkedCp.ok) fail("linked credential-profile should fail");
+      rmSync(join(rt, "dist/credential-profile.js"));
+      writeFileSync(join(rt, "dist/credential-profile.js"), trackedCredentialProfile);
+    }
+    // Missing credential-profile must fail
+    {
+      rmSync(join(rt, "dist/credential-profile.js"));
+      const missCp = verifyRuntimeManifest(rt);
+      if (missCp.ok || missCp.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for credential-profile got " +
+            JSON.stringify(missCp),
+        );
+      }
+      writeFileSync(join(rt, "dist/credential-profile.js"), trackedCredentialProfile);
+    }
     // Tamper manifest digests
     writeFileSync(
       join(rt, "manifest.json"),
@@ -426,6 +471,12 @@ try {
             id: "architecture-policy",
             relativePath: "dist/architecture-policy.js",
             sha256: "a".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "credential-profile",
+            relativePath: "dist/credential-profile.js",
+            sha256: "k".repeat(64),
           },
           {
             byteLength: 1,

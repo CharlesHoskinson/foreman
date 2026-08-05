@@ -73,6 +73,12 @@ const ENTRIES = [
     relativePath: "dist/secret-scan.js",
     injectCapabilities: false,
   },
+  {
+    id: "credential-profile",
+    entry: join(root, "packages/orchestration/src/credential-profile-main.ts"),
+    relativePath: "dist/credential-profile.js",
+    injectCapabilities: false,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

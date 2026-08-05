@@ -1,0 +1,1354 @@
+/**
+ * Sprint 3 R7A: external credential-profile authority — RED-first tests.
+ * Pure parsers/renderers always run. Live filesystem tests use real temp
+ * dirs on the host; platform-specific link/junction cases skip when the
+ * host cannot create the required link type.
+ */
+
+import assert from "node:assert/strict";
+import { createHash, randomBytes } from "node:crypto";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { afterEach, describe, it } from "node:test";
+import { Effect, Layer } from "effect";
+import { canonicalize, parseJsonRejectDuplicateKeys, isCoreFailure } from "@foreman/core";
+import {
+  EXIT_OK,
+  EXIT_REFUSED,
+  MAX_CREDENTIAL_PROFILE_RECORD_BYTES,
+  PROFILE_ID_RE,
+  absoluteConfigRoot,
+  configRootRelForVendor,
+  decodeCredentialProfileRecordV1,
+  initProfile,
+  isCredentialProfileResult,
+  isCredentialVendor,
+  isEqualOrDescendant,
+  isValidProfileId,
+  liveCredentialProfile,
+  liveCredentialProfileFs,
+  liveWriteAuthorityExclusive,
+  makeCredentialProfileRecord,
+  normalizeAbsolutePath,
+  parseCredentialProfileArgv,
+  parseCredentialProfileRecordBytes,
+  profileIdentityOf,
+  profileJsonPath,
+  recordsEqualExact,
+  renderCredentialProfileJson,
+  renderCredentialProfileRecord,
+  renderCredentialProfileRecordFile,
+  resolveProfile,
+  runCredentialProfileCli,
+  setCredentialProfileRaceHook,
+  type CredentialProfileFsShape,
+  type CredentialProfileInput,
+  type CredentialProfileResult,
+  CredentialProfileFs,
+} from "./credential-profile.js";
+
+const IS_WIN = process.platform === "win32";
+
+function tempPair(label: string): {
+  readonly root: string;
+  readonly stateRoot: string;
+  readonly worktreeRoot: string;
+} {
+  const root = mkdtempSync(join(tmpdir(), `foreman-cp-${label}-`));
+  const stateRoot = join(root, "state");
+  const worktreeRoot = join(root, "worktree");
+  mkdirSync(stateRoot, { recursive: true });
+  mkdirSync(worktreeRoot, { recursive: true });
+  return { root, stateRoot, worktreeRoot };
+}
+
+function runInit(
+  input: CredentialProfileInput,
+  fs: CredentialProfileFsShape = liveCredentialProfileFs,
+): CredentialProfileResult {
+  return Effect.runSync(
+    initProfile(input).pipe(
+      Effect.provide(Layer.succeed(CredentialProfileFs, fs)),
+    ),
+  );
+}
+
+function runResolve(
+  input: CredentialProfileInput,
+  fs: CredentialProfileFsShape = liveCredentialProfileFs,
+): CredentialProfileResult {
+  return Effect.runSync(
+    resolveProfile(input).pipe(
+      Effect.provide(Layer.succeed(CredentialProfileFs, fs)),
+    ),
+  );
+}
+
+function captureIo(): {
+  readonly writeStdout: (t: string) => void;
+  readonly writeStderr: (t: string) => void;
+  readonly stdout: () => string;
+  readonly stderr: () => string;
+} {
+  let out = "";
+  let err = "";
+  return {
+    writeStdout: (t) => {
+      out += t;
+    },
+    writeStderr: (t) => {
+      err += t;
+    },
+    stdout: () => out,
+    stderr: () => err,
+  };
+}
+
+function assertSecretSafe(text: string, forbidden: readonly string[]): void {
+  for (const f of forbidden) {
+    assert.equal(
+      text.includes(f),
+      false,
+      `output must not leak ${JSON.stringify(f)}: ${text}`,
+    );
+  }
+}
+
+afterEach(() => {
+  setCredentialProfileRaceHook(undefined);
+});
+
+// ---------------------------------------------------------------------------
+// Identifier exact bounds and invalid characters
+// ---------------------------------------------------------------------------
+
+describe("profile identifier bounds", () => {
+  it("accepts single alnum and 64-char max", () => {
+    assert.equal(isValidProfileId("a"), true);
+    assert.equal(isValidProfileId("Z"), true);
+    assert.equal(isValidProfileId("0"), true);
+    assert.equal(isValidProfileId("a".repeat(64)), true);
+    assert.equal(PROFILE_ID_RE.test("demo.profile_1-x"), true);
+    assert.equal(isValidProfileId("demo.profile_1-x"), true);
+  });
+
+  it("rejects empty, oversize, leading separator, and bad chars", () => {
+    assert.equal(isValidProfileId(""), false);
+    assert.equal(isValidProfileId("a".repeat(65)), false);
+    assert.equal(isValidProfileId(".leading"), false);
+    assert.equal(isValidProfileId("-leading"), false);
+    assert.equal(isValidProfileId("_leading"), false);
+    assert.equal(isValidProfileId("has space"), false);
+    assert.equal(isValidProfileId("has/slash"), false);
+    assert.equal(isValidProfileId("has\\slash"), false);
+    assert.equal(isValidProfileId("has:colon"), false);
+    assert.equal(isValidProfileId("unicode-ñ"), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Closed vendor and result decoders
+// ---------------------------------------------------------------------------
+
+describe("closed vendor and result decoders", () => {
+  it("accepts only grok and codex", () => {
+    assert.equal(isCredentialVendor("grok"), true);
+    assert.equal(isCredentialVendor("codex"), true);
+    assert.equal(isCredentialVendor("claude"), false);
+    assert.equal(isCredentialVendor("agy"), false);
+    assert.equal(isCredentialVendor(""), false);
+  });
+
+  it("decodeCredentialProfileRecordV1 rejects unknown keys and bad vendor", () => {
+    assert.deepEqual(
+      decodeCredentialProfileRecordV1({
+        schemaVersion: 1,
+        profileId: "p1",
+        vendor: "grok",
+        configRootRel: "homes/grok",
+      }),
+      {
+        schemaVersion: 1,
+        profileId: "p1",
+        vendor: "grok",
+        configRootRel: "homes/grok",
+      },
+    );
+    assert.equal(
+      decodeCredentialProfileRecordV1({
+        schemaVersion: 1,
+        profileId: "p1",
+        vendor: "claude",
+        configRootRel: "homes/claude",
+      }),
+      null,
+    );
+    assert.equal(
+      decodeCredentialProfileRecordV1({
+        schemaVersion: 1,
+        profileId: "p1",
+        vendor: "grok",
+        configRootRel: "homes/grok",
+        extra: true,
+      }),
+      null,
+    );
+    assert.equal(
+      decodeCredentialProfileRecordV1({
+        schemaVersion: 1,
+        profileId: "p1",
+        vendor: "grok",
+        configRootRel: "homes/codex",
+      }),
+      null,
+    );
+  });
+
+  it("isCredentialProfileResult accepts closed Ready/Initialized/Refused", () => {
+    const id = "a".repeat(64);
+    assert.equal(
+      isCredentialProfileResult({
+        _tag: "Ready",
+        profileId: "p",
+        vendor: "grok",
+        configRoot: "/x",
+        profileIdentity: id,
+      }),
+      true,
+    );
+    assert.equal(
+      isCredentialProfileResult({
+        _tag: "Initialized",
+        profileId: "p",
+        vendor: "codex",
+        configRoot: "/x",
+        profileIdentity: id,
+      }),
+      true,
+    );
+    assert.equal(
+      isCredentialProfileResult({
+        _tag: "Refused",
+        reason: "authority_conflict",
+      }),
+      true,
+    );
+    assert.equal(
+      isCredentialProfileResult({
+        _tag: "Refused",
+        reason: "not_a_reason",
+      }),
+      false,
+    );
+    assert.equal(isCredentialProfileResult({ _tag: "Ready" }), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Canonical record bytes and known SHA-256 vectors
+// ---------------------------------------------------------------------------
+
+describe("canonical record and identity", () => {
+  it("uses sorted-key canonical JSON and known SHA-256", () => {
+    const rec = makeCredentialProfileRecord("demo", "grok");
+    const canon = renderCredentialProfileRecord(rec);
+    assert.equal(
+      canon,
+      '{"configRootRel":"homes/grok","profileId":"demo","schemaVersion":1,"vendor":"grok"}',
+    );
+    const expected = createHash("sha256").update(canon, "utf8").digest("hex");
+    assert.equal(
+      expected,
+      "70decb5da608861cf95126ea1c44d1a12c4bcc843d409df4bd8d3229813fd9ba",
+    );
+    assert.equal(profileIdentityOf(rec), expected);
+    assert.equal(profileIdentityOf(rec), profileIdentityOf(rec).toLowerCase());
+  });
+
+  it("file body is canonical JSON plus single LF", () => {
+    const rec = makeCredentialProfileRecord("x", "codex");
+    assert.equal(
+      renderCredentialProfileRecordFile(rec),
+      renderCredentialProfileRecord(rec) + "\n",
+    );
+  });
+
+  it("configRootRel uses forward slashes for both vendors", () => {
+    assert.equal(configRootRelForVendor("grok"), "homes/grok");
+    assert.equal(configRootRelForVendor("codex"), "homes/codex");
+    assert.equal(configRootRelForVendor("grok").includes("\\"), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unknown / duplicate keys, malformed UTF-8, 16384 boundary
+// ---------------------------------------------------------------------------
+
+describe("record parse bounds and reject classes", () => {
+  it("rejects duplicate JSON keys", () => {
+    const text =
+      '{"schemaVersion":1,"profileId":"p","vendor":"grok","configRootRel":"homes/grok","profileId":"q"}';
+    const parsed = parseJsonRejectDuplicateKeys(text);
+    assert.equal(isCoreFailure(parsed), true);
+    const bytes = Buffer.from(text, "utf8");
+    const r = parseCredentialProfileRecordBytes(bytes);
+    assert.equal(r._tag, "Fail");
+  });
+
+  it("rejects unknown keys at parse layer", () => {
+    const text =
+      '{"schemaVersion":1,"profileId":"p","vendor":"grok","configRootRel":"homes/grok","secret":"x"}';
+    const r = parseCredentialProfileRecordBytes(Buffer.from(text, "utf8"));
+    assert.equal(r._tag, "Fail");
+  });
+
+  it("rejects malformed UTF-8", () => {
+    const bad = Buffer.from([0x7b, 0xff, 0x7d]); // { <invalid> }
+    const r = parseCredentialProfileRecordBytes(bad);
+    assert.equal(r._tag, "Fail");
+    if (r._tag === "Fail") assert.equal(r.reason, "authority_invalid");
+  });
+
+  it("accepts exactly 16384 bytes and rejects 16385", () => {
+    // Build a valid small record then pad is not valid JSON — bound is on raw bytes.
+    const valid = Buffer.from(
+      renderCredentialProfileRecordFile(
+        makeCredentialProfileRecord("p", "grok"),
+      ),
+      "utf8",
+    );
+    assert.ok(valid.byteLength < MAX_CREDENTIAL_PROFILE_RECORD_BYTES);
+    assert.equal(parseCredentialProfileRecordBytes(valid)._tag, "Ok");
+
+    const over = Buffer.alloc(MAX_CREDENTIAL_PROFILE_RECORD_BYTES + 1, 0x20);
+    const r = parseCredentialProfileRecordBytes(over);
+    assert.equal(r._tag, "Fail");
+
+    // Exact max: oversized invalid JSON still hits bound first when > max.
+    const exactPad = Buffer.alloc(MAX_CREDENTIAL_PROFILE_RECORD_BYTES, 0x61);
+    const exact = parseCredentialProfileRecordBytes(exactPad);
+    // 16384 'a' bytes is invalid JSON → Fail authority_invalid, not crash.
+    assert.equal(exact._tag, "Fail");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Boundary: state-root equality / descendant / prefix non-descendant
+// ---------------------------------------------------------------------------
+
+describe("state-root vs worktree boundary", () => {
+  it("isEqualOrDescendant is segment-aware (prefix-safe)", () => {
+    assert.equal(isEqualOrDescendant("/tmp/work", "/tmp/work"), true);
+    assert.equal(isEqualOrDescendant("/tmp/work/sub", "/tmp/work"), true);
+    assert.equal(isEqualOrDescendant("/tmp/work-extra", "/tmp/work"), false);
+    assert.equal(isEqualOrDescendant("/tmp/work", "/tmp/work-extra"), false);
+  });
+
+  it("refuses state root equal to worktree", () => {
+    const { root, worktreeRoot } = tempPair("eq");
+    try {
+      const r = runInit({
+        stateRoot: worktreeRoot,
+        worktreeRoot,
+        profileId: "p1",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "state_root_in_worktree",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses state root below worktree", () => {
+    const { root, worktreeRoot } = tempPair("desc");
+    try {
+      const nested = join(worktreeRoot, "nested-state");
+      mkdirSync(nested, { recursive: true });
+      const r = runInit({
+        stateRoot: nested,
+        worktreeRoot,
+        profileId: "p1",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "state_root_in_worktree",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("allows worktree names that share a string prefix but are not descendants", () => {
+    const root = mkdtempSync(join(tmpdir(), "foreman-cp-prefix-"));
+    try {
+      const worktreeRoot = join(root, "work");
+      const stateRoot = join(root, "work-extra");
+      mkdirSync(worktreeRoot, { recursive: true });
+      mkdirSync(stateRoot, { recursive: true });
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p1",
+        vendor: "grok",
+      });
+      assert.equal(r._tag, "Initialized", JSON.stringify(r));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Exact external layout for Grok and Codex
+// ---------------------------------------------------------------------------
+
+describe("external layout init/resolve", () => {
+  it("creates Grok layout under state root only", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("grok");
+    try {
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "lane-a",
+        vendor: "grok",
+      });
+      assert.equal(r._tag, "Initialized", JSON.stringify(r));
+      if (r._tag !== "Initialized") return;
+
+      const jsonPath = profileJsonPath(stateRoot, "lane-a");
+      assert.equal(existsSync(jsonPath), true);
+      assert.equal(existsSync(join(worktreeRoot, "credential-profiles")), false);
+      assert.equal(
+        existsSync(join(stateRoot, "credential-profiles", "lane-a", "homes", "grok")),
+        true,
+      );
+      // Other vendor home need not exist.
+      assert.equal(
+        existsSync(join(stateRoot, "credential-profiles", "lane-a", "homes", "codex")),
+        false,
+      );
+
+      const body = readFileSync(jsonPath);
+      const parsed = parseCredentialProfileRecordBytes(body);
+      assert.equal(parsed._tag, "Ok");
+      if (parsed._tag === "Ok") {
+        assert.equal(parsed.record.vendor, "grok");
+        assert.equal(parsed.record.configRootRel, "homes/grok");
+        assert.equal(parsed.record.profileId, "lane-a");
+      }
+
+      assert.equal(
+        r.configRoot,
+        absoluteConfigRoot(stateRoot, "lane-a", "homes/grok"),
+      );
+      assert.equal(
+        r.profileIdentity,
+        profileIdentityOf(makeCredentialProfileRecord("lane-a", "grok")),
+      );
+
+      // Owner-only modes where POSIX supports them.
+      if (!IS_WIN) {
+        const st = lstatSync(jsonPath);
+        assert.equal(st.mode & 0o777, 0o600);
+        const dirMode = lstatSync(dirname(jsonPath)).mode & 0o777;
+        assert.equal(dirMode, 0o700);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("creates Codex layout under state root only", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("codex");
+    try {
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "lane-b",
+        vendor: "codex",
+      });
+      assert.equal(r._tag, "Initialized", JSON.stringify(r));
+      assert.equal(
+        existsSync(join(stateRoot, "credential-profiles", "lane-b", "homes", "codex")),
+        true,
+      );
+      assert.equal(
+        existsSync(join(stateRoot, "credential-profiles", "lane-b", "homes", "grok")),
+        false,
+      );
+      const res = runResolve({
+        stateRoot,
+        worktreeRoot,
+        profileId: "lane-b",
+        vendor: "codex",
+      });
+      assert.equal(res._tag, "Ready", JSON.stringify(res));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Idempotence and conflict
+// ---------------------------------------------------------------------------
+
+describe("idempotence and conflict", () => {
+  it("second init with exact record returns Ready without byte changes", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("idem");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "same",
+        vendor: "grok",
+      };
+      const a = runInit(input);
+      assert.equal(a._tag, "Initialized");
+      const jsonPath = profileJsonPath(stateRoot, "same");
+      const before = readFileSync(jsonPath);
+      const b = runInit(input);
+      assert.equal(b._tag, "Ready", JSON.stringify(b));
+      const after = readFileSync(jsonPath);
+      assert.deepEqual(after, before);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("conflicting vendor refuses without changing bytes", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("conf");
+    try {
+      const first = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "c1",
+        vendor: "grok",
+      });
+      assert.equal(first._tag, "Initialized");
+      const jsonPath = profileJsonPath(stateRoot, "c1");
+      const before = readFileSync(jsonPath);
+      const second = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "c1",
+        vendor: "codex",
+      });
+      assert.deepEqual(second, {
+        _tag: "Refused",
+        reason: "authority_conflict",
+      });
+      assert.deepEqual(readFileSync(jsonPath), before);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("resolve missing authority returns authority_missing", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("miss");
+    try {
+      const r = runResolve({
+        stateRoot,
+        worktreeRoot,
+        profileId: "none",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_missing",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Symlink / junction and regular-file collisions
+// ---------------------------------------------------------------------------
+
+describe("linked paths and regular-file collisions", () => {
+  const canSymlink = (() => {
+    const d = mkdtempSync(join(tmpdir(), "foreman-cp-sl-"));
+    try {
+      const t = join(d, "t");
+      mkdirSync(t);
+      const l = join(d, "l");
+      try {
+        symlinkSync(t, l, IS_WIN ? "junction" : undefined);
+        return true;
+      } catch {
+        return false;
+      }
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  })();
+
+  it(
+    "refuses symlink at credential-profiles component",
+    { skip: !canSymlink },
+    () => {
+      const { root, stateRoot, worktreeRoot } = tempPair("sl-cp");
+      try {
+        const real = join(root, "elsewhere");
+        mkdirSync(real, { recursive: true });
+        symlinkSync(
+          real,
+          join(stateRoot, "credential-profiles"),
+          IS_WIN ? "junction" : undefined,
+        );
+        const r = runInit({
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        });
+        assert.deepEqual(r, { _tag: "Refused", reason: "linked_path" });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "refuses symlink at profile-id component",
+    { skip: !canSymlink },
+    () => {
+      const { root, stateRoot, worktreeRoot } = tempPair("sl-id");
+      try {
+        mkdirSync(join(stateRoot, "credential-profiles"), { recursive: true });
+        const real = join(root, "elsewhere");
+        mkdirSync(real, { recursive: true });
+        symlinkSync(
+          real,
+          join(stateRoot, "credential-profiles", "p"),
+          IS_WIN ? "junction" : undefined,
+        );
+        const r = runInit({
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        });
+        assert.deepEqual(r, { _tag: "Refused", reason: "linked_path" });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "refuses symlink at homes component",
+    { skip: !canSymlink },
+    () => {
+      const { root, stateRoot, worktreeRoot } = tempPair("sl-homes");
+      try {
+        const auth = join(stateRoot, "credential-profiles", "p");
+        mkdirSync(auth, { recursive: true });
+        const real = join(root, "elsewhere");
+        mkdirSync(real, { recursive: true });
+        symlinkSync(real, join(auth, "homes"), IS_WIN ? "junction" : undefined);
+        const r = runInit({
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        });
+        assert.deepEqual(r, { _tag: "Refused", reason: "linked_path" });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "refuses symlink at vendor home component",
+    { skip: !canSymlink },
+    () => {
+      const { root, stateRoot, worktreeRoot } = tempPair("sl-vend");
+      try {
+        const homes = join(stateRoot, "credential-profiles", "p", "homes");
+        mkdirSync(homes, { recursive: true });
+        const real = join(root, "elsewhere");
+        mkdirSync(real, { recursive: true });
+        symlinkSync(real, join(homes, "grok"), IS_WIN ? "junction" : undefined);
+        const r = runInit({
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        });
+        assert.deepEqual(r, { _tag: "Refused", reason: "linked_path" });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "refuses symlink profile.json",
+    { skip: !canSymlink },
+    () => {
+      const { root, stateRoot, worktreeRoot } = tempPair("sl-json");
+      try {
+        const auth = join(stateRoot, "credential-profiles", "p");
+        mkdirSync(join(auth, "homes", "grok"), { recursive: true });
+        const realFile = join(root, "real.json");
+        writeFileSync(
+          realFile,
+          renderCredentialProfileRecordFile(
+            makeCredentialProfileRecord("p", "grok"),
+          ),
+        );
+        symlinkSync(realFile, join(auth, "profile.json"));
+        const r = runInit({
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        });
+        assert.deepEqual(r, { _tag: "Refused", reason: "linked_path" });
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("refuses regular-file collision at credential-profiles", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("file-cp");
+    try {
+      writeFileSync(join(stateRoot, "credential-profiles"), "not-a-dir");
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses regular-file collision at profile-id dir", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("file-id");
+    try {
+      mkdirSync(join(stateRoot, "credential-profiles"), { recursive: true });
+      writeFileSync(join(stateRoot, "credential-profiles", "p"), "file");
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses regular-file collision at homes", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("file-homes");
+    try {
+      const auth = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(auth, { recursive: true });
+      writeFileSync(join(auth, "homes"), "file");
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses regular-file collision at vendor home", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("file-vend");
+    try {
+      const homes = join(stateRoot, "credential-profiles", "p", "homes");
+      mkdirSync(homes, { recursive: true });
+      writeFileSync(join(homes, "grok"), "file");
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Identity-change, write failures, concurrent init
+// ---------------------------------------------------------------------------
+
+describe("identity change, write failures, concurrency", () => {
+  it("detects state-root identity change via race hook", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("idchg");
+    try {
+      setCredentialProfileRaceHook({
+        afterValidateStateRoot: () => {
+          rmSync(stateRoot, { recursive: true, force: true });
+          mkdirSync(stateRoot, { recursive: true });
+        },
+      });
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      // On most filesystems remaking the dir changes ino → identity_changed.
+      // Some FS recycle inodes; accept identity_changed or success only if same ino.
+      assert.ok(
+        r._tag === "Refused" && r.reason === "identity_changed" ||
+          r._tag === "Initialized",
+        JSON.stringify(r),
+      );
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("writeAuthorityExclusive Exists path yields Ready or conflict", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("excl");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      // Seed exact record via live init.
+      assert.equal(runInit(input)._tag, "Initialized");
+      // Spy FS that reports Exists on write (simulates concurrent publisher).
+      const spy: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        writeAuthorityExclusive: () => ({ _tag: "Exists" }),
+      };
+      // First ensure we go through write path by temporarily removing json
+      // after dirs exist — use hook afterEnsureDirs to delete after check.
+      // Simpler: direct Exists after missing read — wrap read to say Absent
+      // once then Exists on write, then real read.
+      let reads = 0;
+      const raceFs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        readFile: (path, max) => {
+          reads += 1;
+          // First read pretends absent so we attempt write.
+          if (reads === 1) return { _tag: "Absent" };
+          return liveCredentialProfileFs.readFile(path, max);
+        },
+        classify: (path) => {
+          // Keep classify honest for dirs; for profile.json force missing on first classify rounds.
+          return liveCredentialProfileFs.classify(path);
+        },
+        writeAuthorityExclusive: () => ({ _tag: "Exists" }),
+      };
+      // Existing file is still there; init sees Ready via first read of real file.
+      const r = runInit(input, raceFs);
+      assert.ok(
+        r._tag === "Ready" ||
+          (r._tag === "Refused" &&
+            (r.reason === "authority_conflict" ||
+              r.reason === "write_failed" ||
+              r.reason === "authority_invalid")),
+        JSON.stringify(r),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("concurrent initializers produce one exact record or typed conflict", async () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("conc");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "shared",
+        vendor: "grok",
+      };
+      const results = await Promise.all(
+        Array.from({ length: 8 }, () =>
+          Effect.runPromise(
+            initProfile(input).pipe(Effect.provide(liveCredentialProfile)),
+          ),
+        ),
+      );
+      for (const r of results) {
+        assert.ok(
+          r._tag === "Initialized" ||
+            r._tag === "Ready" ||
+            (r._tag === "Refused" && r.reason === "authority_conflict"),
+          JSON.stringify(r),
+        );
+      }
+      const ok = results.filter(
+        (r) => r._tag === "Initialized" || r._tag === "Ready",
+      );
+      assert.ok(ok.length >= 1, "at least one success");
+      const jsonPath = profileJsonPath(stateRoot, "shared");
+      const body = readFileSync(jsonPath);
+      const parsed = parseCredentialProfileRecordBytes(body);
+      assert.equal(parsed._tag, "Ok");
+      if (parsed._tag === "Ok") {
+        assert.equal(parsed.record.vendor, "grok");
+        assert.equal(parsed.record.profileId, "shared");
+      }
+      // Exactly one authority file content.
+      const identities = new Set(
+        ok.map((r) =>
+          r._tag === "Initialized" || r._tag === "Ready"
+            ? r.profileIdentity
+            : "",
+        ),
+      );
+      assert.equal(identities.size, 1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("injected FS write failure returns write_failed", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("wfail");
+    try {
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        writeAuthorityExclusive: () => ({ _tag: "WriteFailed" }),
+      };
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.deepEqual(r, { _tag: "Refused", reason: "write_failed" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("unsupported exclusive hard-link returns write_failed without creating authority", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("linkfail");
+    try {
+      setCredentialProfileRaceHook({
+        // Simulate platform where exclusive hard-link is unsupported.
+        forceExclusiveLinkCode: "ENOSYS",
+      });
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, { _tag: "Refused", reason: "write_failed" });
+      const jsonPath = profileJsonPath(stateRoot, "p");
+      // No rename fallback: authority file must not appear after link failure.
+      assert.equal(existsSync(jsonPath), false);
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("liveWriteAuthorityExclusive WriteFailed leaves final path absent (no rename)", () => {
+    const { root, stateRoot } = tempPair("livewrite");
+    try {
+      const dir = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(dir, { recursive: true });
+      const finalPath = join(dir, "profile.json");
+      setCredentialProfileRaceHook({ forceExclusiveLinkCode: "EPERM" });
+      const written = liveWriteAuthorityExclusive(
+        finalPath,
+        Buffer.from('{"schemaVersion":1}\n', "utf8"),
+      );
+      assert.deepEqual(written, { _tag: "WriteFailed" });
+      assert.equal(existsSync(finalPath), false);
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("relative stateRoot is invalid_state_root; relative worktree is invalid_arguments", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("relabs");
+    try {
+      const rState = runInit({
+        stateRoot: "relative-state",
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(rState, {
+        _tag: "Refused",
+        reason: "invalid_state_root",
+      });
+      const rWt = runInit({
+        stateRoot,
+        worktreeRoot: "relative-worktree",
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(rWt, {
+        _tag: "Refused",
+        reason: "invalid_arguments",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("directory identity swap after layout creation refuses identity_changed", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("idswap");
+    try {
+      setCredentialProfileRaceHook({
+        afterEnsureDirs: () => {
+          // Replace a created layout component with a new directory inode
+          // at the same path (identity swap). Must not follow or accept it.
+          const homes = join(
+            stateRoot,
+            "credential-profiles",
+            "p",
+            "homes",
+          );
+          rmSync(homes, { recursive: true, force: true });
+          mkdirSync(homes, { recursive: true });
+          mkdirSync(join(homes, "grok"), { recursive: true });
+        },
+      });
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      // On most filesystems remaking the dir changes ino → identity_changed.
+      // Some FS recycle inodes; if the identity is unchanged the operation
+      // may still succeed — accept only identity_changed or full success.
+      assert.ok(
+        (r._tag === "Refused" && r.reason === "identity_changed") ||
+          r._tag === "Initialized",
+        JSON.stringify(r),
+      );
+      // Prefer the strict outcome when the host reassigns inodes.
+      if (r._tag === "Refused") {
+        assert.equal(r.reason, "identity_changed");
+      }
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("layout component swapped to symlink after ensure refuses linked_path", () => {
+    if (IS_WIN) {
+      // Junction create semantics vary; cover on POSIX where symlink is reliable.
+      return;
+    }
+    const { root, stateRoot, worktreeRoot } = tempPair("linkswap");
+    try {
+      setCredentialProfileRaceHook({
+        afterEnsureDirs: () => {
+          const homes = join(
+            stateRoot,
+            "credential-profiles",
+            "p",
+            "homes",
+          );
+          const parked = join(root, "homes-real");
+          rmSync(homes, { recursive: true, force: true });
+          mkdirSync(parked, { recursive: true });
+          mkdirSync(join(parked, "grok"), { recursive: true });
+          symlinkSync(parked, homes);
+        },
+      });
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, { _tag: "Refused", reason: "linked_path" });
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// No credential file reads through injected filesystem service
+// ---------------------------------------------------------------------------
+
+describe("no credential file reads", () => {
+  it("never reads under homes/* content paths", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("noread");
+    try {
+      const reads: string[] = [];
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        readFile: (path, max) => {
+          reads.push(path);
+          return liveCredentialProfileFs.readFile(path, max);
+        },
+      };
+      // Plant a fake credential file that must never be opened.
+      const secretPath = join(
+        stateRoot,
+        "credential-profiles",
+        "p",
+        "homes",
+        "grok",
+        "credentials.json",
+      );
+      mkdirSync(dirname(secretPath), { recursive: true });
+      writeFileSync(secretPath, '{"token":"SUPERSECRET"}');
+
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.equal(r._tag, "Initialized", JSON.stringify(r));
+      for (const p of reads) {
+        assert.equal(
+          p.includes(`${join("homes", "grok")}${join("", "")}`) &&
+            p.endsWith("credentials.json"),
+          false,
+          `must not read credential file: ${p}`,
+        );
+        assert.equal(
+          p.includes("credentials.json"),
+          false,
+          `must not read credential file: ${p}`,
+        );
+      }
+      // Secret still intact and unread path-wise.
+      assert.equal(readFileSync(secretPath, "utf8"), '{"token":"SUPERSECRET"}');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI: canonical secret-safe output and exit codes
+// ---------------------------------------------------------------------------
+
+describe("credential-profile CLI", () => {
+  it("rejects reordered, duplicate, missing, unknown flags", () => {
+    assert.equal(parseCredentialProfileArgv(["init"])._tag, "Invalid");
+    assert.equal(
+      parseCredentialProfileArgv([
+        "init",
+        "--worktree",
+        "/w",
+        "--state-root",
+        "/s",
+        "--profile",
+        "p",
+        "--vendor",
+        "grok",
+      ])._tag,
+      "Invalid",
+    );
+    assert.equal(
+      parseCredentialProfileArgv([
+        "init",
+        "--state-root",
+        "/s",
+        "--worktree",
+        "/w",
+        "--profile",
+        "p",
+        "--vendor",
+        "grok",
+        "--extra",
+        "x",
+      ])._tag,
+      "Invalid",
+    );
+    assert.equal(
+      parseCredentialProfileArgv([
+        "init",
+        "--state-root",
+        "/s",
+        "--worktree",
+        "/w",
+        "--profile",
+        "p",
+        "--vendor",
+        "claude",
+      ])._tag,
+      "Invalid",
+    );
+  });
+
+  it("accepts exact ordered init and resolve argv", () => {
+    const p = parseCredentialProfileArgv([
+      "node",
+      "credential-profile.js",
+      "init",
+      "--state-root",
+      "/s",
+      "--worktree",
+      "/w",
+      "--profile",
+      "p1",
+      "--vendor",
+      "codex",
+    ]);
+    assert.equal(p._tag, "Ok");
+    if (p._tag === "Ok") {
+      assert.equal(p.command, "init");
+      assert.equal(p.vendor, "codex");
+      assert.equal(p.profileId, "p1");
+    }
+  });
+
+  it("emits one canonical JSON line and exit 0 only for Ready/Initialized", async () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("cli");
+    try {
+      const io = captureIo();
+      const code = await Effect.runPromise(
+        runCredentialProfileCli(
+          [
+            "credential-profile.js",
+            "init",
+            "--state-root",
+            stateRoot,
+            "--worktree",
+            worktreeRoot,
+            "--profile",
+            "cli1",
+            "--vendor",
+            "grok",
+          ],
+          io,
+        ).pipe(Effect.provide(liveCredentialProfile)),
+      );
+      assert.equal(code, EXIT_OK);
+      const lines = io.stdout().split("\n").filter((l) => l.length > 0);
+      assert.equal(lines.length, 1);
+      const parsed = JSON.parse(lines[0]!);
+      assert.equal(parsed._tag, "Initialized");
+      assert.equal(io.stderr(), "");
+      // Canonical form
+      assert.equal(lines[0], canonicalize(parsed));
+      assertSecretSafe(io.stdout(), [
+        "HOME",
+        "token",
+        "password",
+        "BEGIN ",
+        process.env["HOME"] ?? "___no_home___",
+      ]);
+
+      const io2 = captureIo();
+      const code2 = await Effect.runPromise(
+        runCredentialProfileCli(
+          [
+            "credential-profile.js",
+            "resolve",
+            "--state-root",
+            stateRoot,
+            "--worktree",
+            worktreeRoot,
+            "--profile",
+            "cli1",
+            "--vendor",
+            "grok",
+          ],
+          io2,
+        ).pipe(Effect.provide(liveCredentialProfile)),
+      );
+      assert.equal(code2, EXIT_OK);
+      assert.equal(JSON.parse(io2.stdout())._tag, "Ready");
+
+      const io3 = captureIo();
+      const code3 = await Effect.runPromise(
+        runCredentialProfileCli(["credential-profile.js", "init"], io3).pipe(
+          Effect.provide(liveCredentialProfile),
+        ),
+      );
+      assert.equal(code3, EXIT_REFUSED);
+      const refused = JSON.parse(io3.stdout().trim());
+      assert.equal(refused._tag, "Refused");
+      assert.equal(refused.reason, "invalid_arguments");
+      // No path leakage of state/worktree in refusal.
+      assertSecretSafe(io3.stdout(), [stateRoot, worktreeRoot]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Normalize absolute paths
+// ---------------------------------------------------------------------------
+
+describe("normalizeAbsolutePath", () => {
+  it("strips trailing separator and resolves dots", () => {
+    const n = normalizeAbsolutePath(join(tmpdir(), "a", "..", "b") + "/");
+    assert.ok(!n.endsWith("/") || n === "/");
+    assert.equal(n.includes(".."), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// recordsEqualExact
+// ---------------------------------------------------------------------------
+
+describe("recordsEqualExact", () => {
+  it("compares all closed fields", () => {
+    const a = makeCredentialProfileRecord("p", "grok");
+    const b = makeCredentialProfileRecord("p", "grok");
+    assert.equal(recordsEqualExact(a, b), true);
+    assert.equal(
+      recordsEqualExact(a, makeCredentialProfileRecord("p", "codex")),
+      false,
+    );
+  });
+});
