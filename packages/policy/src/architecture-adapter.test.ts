@@ -663,5 +663,78 @@ describe("inspectLegacyAdapter", () => {
         "legacy_adapter_domain_logic",
       );
     });
+
+    it("rejects relocating the exact forwarding block to the end of the file", () => {
+      // Pure move: concatenated remainder bytes are unchanged, so a single
+      // remainder digest cannot detect this. Position-pinning must reject.
+      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
+      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
+      assert.ok(idx >= 0);
+      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
+      const relocated =
+        body.slice(0, idx) + body.slice(end) + LANE_RUN_FORWARDING_BLOCK;
+      assert.notEqual(relocated, body);
+      assert.equal(
+        relocated.indexOf(LANE_RUN_FORWARDING_BLOCK),
+        relocated.length - LANE_RUN_FORWARDING_BLOCK.length,
+      );
+      assert.equal(
+        inspectLegacyAdapter(LANE_RUN_PATH, relocated),
+        "legacy_adapter_domain_logic",
+      );
+    });
+
+    it("rejects relocating the exact forwarding block to the start of the file", () => {
+      // Pure move: concatenated remainder bytes are unchanged, so a single
+      // remainder digest cannot detect this. Position-pinning must reject.
+      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
+      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
+      assert.ok(idx >= 0);
+      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
+      const relocated =
+        LANE_RUN_FORWARDING_BLOCK + body.slice(0, idx) + body.slice(end);
+      assert.notEqual(relocated, body);
+      assert.equal(relocated.indexOf(LANE_RUN_FORWARDING_BLOCK), 0);
+      assert.equal(
+        inspectLegacyAdapter(LANE_RUN_PATH, relocated),
+        "legacy_adapter_domain_logic",
+      );
+    });
+
+    it("rejects a duplicate exact forwarding block", () => {
+      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
+      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
+      assert.ok(idx >= 0);
+      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
+      const duplicated =
+        body.slice(0, end) +
+        "\n" +
+        LANE_RUN_FORWARDING_BLOCK +
+        body.slice(end);
+      assert.equal(
+        inspectLegacyAdapter(LANE_RUN_PATH, duplicated),
+        "legacy_adapter_domain_logic",
+      );
+    });
+
+    it("rejects a one-byte change in the suffix after the forwarding block", () => {
+      const body = readFileSync(join(REPO_ROOT, LANE_RUN_PATH), "utf8");
+      const idx = body.indexOf(LANE_RUN_FORWARDING_BLOCK);
+      assert.ok(idx >= 0);
+      const end = idx + LANE_RUN_FORWARDING_BLOCK.length;
+      const after = body.slice(end);
+      const flipAt = after.indexOf("Task");
+      assert.ok(flipAt >= 0);
+      const mutated =
+        body.slice(0, end) +
+        after.slice(0, flipAt) +
+        "task" +
+        after.slice(flipAt + 4);
+      assert.notEqual(mutated, body);
+      assert.equal(
+        inspectLegacyAdapter(LANE_RUN_PATH, mutated),
+        "legacy_adapter_domain_logic",
+      );
+    });
   });
 });

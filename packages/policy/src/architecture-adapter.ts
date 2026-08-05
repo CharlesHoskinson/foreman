@@ -69,17 +69,28 @@ const LANE_RUN_FORWARDING_BLOCK = [
 ].join("\n");
 
 /**
- * SHA-256 of every byte of lane-run.sh outside LANE_RUN_FORWARDING_BLOCK.
- * Recomputed only when an intentional remainder change is approved with the
- * R4C3 migration artifact. Caller-supplied digests are never accepted.
+ * SHA-256 of every byte of lane-run.sh strictly before LANE_RUN_FORWARDING_BLOCK.
+ * Position-pinned separately from the suffix so relocating an unchanged block
+ * fails. Recomputed only when an intentional prefix change is approved with
+ * the R4C3 migration artifact. Caller-supplied digests are never accepted.
  */
-const LANE_RUN_REMAINDER_SHA256 =
-  "96cbf3619b0837f1ccaf3a62c2800e1e135574894d4a2e2644854da97c90cea9";
+const LANE_RUN_PREFIX_SHA256 =
+  "44ebe0ddd07410f8f57453930b8be9a6483dc7cbd22c633ce43e5f519c06456c";
+
+/**
+ * SHA-256 of every byte of lane-run.sh strictly after LANE_RUN_FORWARDING_BLOCK.
+ * Position-pinned separately from the prefix so relocating an unchanged block
+ * fails. Recomputed only when an intentional suffix change is approved with
+ * the R4C3 migration artifact. Caller-supplied digests are never accepted.
+ */
+const LANE_RUN_SUFFIX_SHA256 =
+  "3b585e8f29c34eb62a16096a01f2d4909e677f4ab3536666f0650f677a762624";
 
 /**
  * Closed validator for the single approved lane-run.sh migration artifact.
- * Accepts only the exact forwarding block plus a pinned remainder digest.
- * Rejects every other change with legacy_adapter_domain_logic.
+ * Accepts only the exact forwarding block at the pinned position (separate
+ * prefix and suffix digests). Rejects every other change with
+ * legacy_adapter_domain_logic.
  */
 function inspectLaneRunMigrationAdapter(sourceText: string): PolicyReason | null {
   if (/[\u0000]/.test(sourceText)) return DENY;
@@ -92,13 +103,16 @@ function inspectLaneRunMigrationAdapter(sourceText: string): PolicyReason | null
   );
   if (second !== -1) return DENY;
 
-  const remainder =
-    sourceText.slice(0, first) +
-    sourceText.slice(first + LANE_RUN_FORWARDING_BLOCK.length);
-  const digest = createHash("sha256")
-    .update(remainder, "utf8")
+  const prefix = sourceText.slice(0, first);
+  const suffix = sourceText.slice(first + LANE_RUN_FORWARDING_BLOCK.length);
+  const prefixDigest = createHash("sha256")
+    .update(prefix, "utf8")
     .digest("hex");
-  if (digest !== LANE_RUN_REMAINDER_SHA256) return DENY;
+  if (prefixDigest !== LANE_RUN_PREFIX_SHA256) return DENY;
+  const suffixDigest = createHash("sha256")
+    .update(suffix, "utf8")
+    .digest("hex");
+  if (suffixDigest !== LANE_RUN_SUFFIX_SHA256) return DENY;
   return null;
 }
 
@@ -342,8 +356,9 @@ function inspectPosixShellAdapter(
  * otherwise returns legacy_adapter_domain_logic.
  *
  * The 1,482-line lane-run.sh migration artifact is admitted only by the
- * closed R4C3 validator (exact forwarding block + pinned remainder digest).
- * All other paths keep the six-production / eight-production grammar.
+ * closed R4C3 validator (exact forwarding block + pinned prefix and suffix
+ * digests that pin block position). All other paths keep the six-production
+ * / eight-production grammar.
  */
 export function inspectLegacyAdapter(
   path: string,

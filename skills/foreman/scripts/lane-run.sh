@@ -272,6 +272,53 @@ if (( ROUND_MODE == 1 )) && [[ ! "$GATE_CMD" =~ [^[:space:]] ]]; then
   exit 2
 fi
 
+# @description Map LANE_VENDOR to the vendor CLI's own HOME-style env var
+#   (T5a spec section 3: "map vendor->var; one var per vendor", frozen).
+# @arg $1 vendor grok | codex
+# @stdout the mapped env var name
+# @exitcode 0 known vendor; 1 anything else
+lane_vendor_env_var() {
+  case "$1" in
+    grok) echo GROK_HOME ;;
+    codex) echo CODEX_HOME ;;
+    *) return 1 ;;
+  esac
+}
+
+# --- Vendor admission (before any durable side effect) -------------------
+# Closed vendor-name validation and the TypeScript lane-gate run before
+# unowned_dispatch, harness mkdir, stale-lock sweeping, lock acquisition,
+# secret scanning, and command spawn. Unset LANE_VENDOR is the frozen path.
+if [[ -n "${LANE_VENDOR:-}" ]]; then
+  if ! LANE_VENDOR_ENV_VAR="$(lane_vendor_env_var "$LANE_VENDOR")"; then
+    if [[ "$LANE_VENDOR" == "claude" ]]; then
+      echo "lane-run: LANE_VENDOR 'claude' rejected by T7 decision: claude lane advertising removed because isolated HOME is unverified" >&2
+    else
+      echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex)" >&2
+    fi
+    exit "$EXIT_CONFIG"
+  fi
+
+  # --- Use-path readiness: persisted vendor-preflight lane-gate ------------
+  # Runs BEFORE the worktree lock and BEFORE any event is emitted. The Node
+  # command owns readiness decisions; the shell only forwards arguments and
+  # maps nonzero exits. No live vendor probe and no unverified continuation.
+  lane_gate_node="$(command -v node || true)"
+  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"
+  if [[ -z "$lane_gate_node" ]]; then
+    echo "lane-run: node is required for vendor admission" >&2
+    exit "$EXIT_MISSING_CLI"
+  fi
+  if [[ ! -f "$lane_gate_runtime" ]]; then
+    echo "lane-run: vendor admission runtime is missing" >&2
+    exit "$EXIT_MISSING_CLI"
+  fi
+  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \
+      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then
+    exit "$EXIT_CONFIG"
+  fi
+fi
+
 if (( UNOWNED_MODE == 1 )) && [[ "$durable_enabled" == "true" ]]; then
   unowned_payload="$(
     jq -cn --arg reason "$UNOWNED_REASON" \
@@ -300,19 +347,6 @@ wt_sweep_stale_locks "$WT"
 # it. Unconditional (not gated on LANE_VENDOR): every lane's git operations
 # are in scope, not just vendor-routed ones.
 export GIT_ASK_YESNO=false
-
-# @description Map LANE_VENDOR to the vendor CLI's own HOME-style env var
-#   (T5a spec section 3: "map vendor->var; one var per vendor", frozen).
-# @arg $1 vendor grok | codex
-# @stdout the mapped env var name
-# @exitcode 0 known vendor; 1 anything else
-lane_vendor_env_var() {
-  case "$1" in
-    grok) echo GROK_HOME ;;
-    codex) echo CODEX_HOME ;;
-    *) return 1 ;;
-  esac
-}
 
 # @description Normalize an effective vendor config dir to the
 #   platform-canonical form (T5a Rework Round 1 -- see header CONTRACT for
@@ -404,39 +438,13 @@ lane_grok_secrets_scan() {
 # See the header CONTRACT block for the full rationale. Strictly gated on
 # LANE_VENDOR being set/non-empty -- an unset LANE_VENDOR (today's default
 # for every existing caller) skips this whole block, so nothing here can
-# perturb the frozen, pre-T5a behavior.
+# perturb the frozen, pre-T5a behavior. Vendor name validation and the
+# persisted lane-gate admission already ran above, before any durable side
+# effect.
 if [[ -n "${LANE_VENDOR:-}" ]]; then
-  if ! LANE_VENDOR_ENV_VAR="$(lane_vendor_env_var "$LANE_VENDOR")"; then
-    if [[ "$LANE_VENDOR" == "claude" ]]; then
-      echo "lane-run: LANE_VENDOR 'claude' rejected by T7 decision: claude lane advertising removed because isolated HOME is unverified" >&2
-    else
-      echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex)" >&2
-    fi
-    exit "$EXIT_CONFIG"
-  fi
-
-  # --- Use-path readiness: persisted vendor-preflight lane-gate ------------
-  # Runs BEFORE the worktree lock and BEFORE any event is emitted. The Node
-  # command owns readiness decisions; the shell only forwards arguments and
-  # maps nonzero exits. No live vendor probe and no unverified continuation.
-  lane_gate_node="$(command -v node || true)"
-  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"
-  if [[ -z "$lane_gate_node" ]]; then
-    echo "lane-run: node is required for vendor admission" >&2
-    exit "$EXIT_MISSING_CLI"
-  fi
-  if [[ ! -f "$lane_gate_runtime" ]]; then
-    echo "lane-run: vendor admission runtime is missing" >&2
-    exit "$EXIT_MISSING_CLI"
-  fi
-  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \
-      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then
-    exit "$EXIT_CONFIG"
-  fi
-
   # --- Task 2 (package 2, grok-lane-activation): secrets-refusal preflight -
-  # An IN-LANE guard, DISTINCT from the Use-path readiness gate immediately
-  # above -- that gate is an ENVIRONMENT-readiness concern (is this vendor
+  # An IN-LANE guard, DISTINCT from the Use-path readiness gate above --
+  # that gate is an ENVIRONMENT-readiness concern (is this vendor
   # authenticated at all), this is a PER-WORKTREE safety concern (does this
   # specific worktree contain secret material), and both apply to a grok
   # lane. Runs strictly AFTER the readiness gate (spec order) and strictly

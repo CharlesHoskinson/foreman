@@ -30882,7 +30882,8 @@ var LANE_RUN_FORWARDING_BLOCK = [
   '    exit "$EXIT_CONFIG"',
   "  fi"
 ].join("\n");
-var LANE_RUN_REMAINDER_SHA256 = "96cbf3619b0837f1ccaf3a62c2800e1e135574894d4a2e2644854da97c90cea9";
+var LANE_RUN_PREFIX_SHA256 = "44ebe0ddd07410f8f57453930b8be9a6483dc7cbd22c633ce43e5f519c06456c";
+var LANE_RUN_SUFFIX_SHA256 = "3b585e8f29c34eb62a16096a01f2d4909e677f4ab3536666f0650f677a762624";
 function inspectLaneRunMigrationAdapter(sourceText) {
   if (/[\u0000]/.test(sourceText)) return DENY;
   const first2 = sourceText.indexOf(LANE_RUN_FORWARDING_BLOCK);
@@ -30892,9 +30893,12 @@ function inspectLaneRunMigrationAdapter(sourceText) {
     first2 + LANE_RUN_FORWARDING_BLOCK.length
   );
   if (second !== -1) return DENY;
-  const remainder = sourceText.slice(0, first2) + sourceText.slice(first2 + LANE_RUN_FORWARDING_BLOCK.length);
-  const digest = createHash2("sha256").update(remainder, "utf8").digest("hex");
-  if (digest !== LANE_RUN_REMAINDER_SHA256) return DENY;
+  const prefix = sourceText.slice(0, first2);
+  const suffix = sourceText.slice(first2 + LANE_RUN_FORWARDING_BLOCK.length);
+  const prefixDigest = createHash2("sha256").update(prefix, "utf8").digest("hex");
+  if (prefixDigest !== LANE_RUN_PREFIX_SHA256) return DENY;
+  const suffixDigest = createHash2("sha256").update(suffix, "utf8").digest("hex");
+  if (suffixDigest !== LANE_RUN_SUFFIX_SHA256) return DENY;
   return null;
 }
 var SHEBANG = /^#!(\/usr\/bin\/env\s+(bash|sh|dash)|\/bin\/(bash|sh|dash)|\/usr\/bin\/(bash|sh|dash))\s*$/;

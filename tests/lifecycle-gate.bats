@@ -127,3 +127,33 @@ EOF
   [ "$status" -eq 0 ]
   [ -f "$WT/ran" ]
 }
+
+@test "Use refuses --unowned with a missing record before unowned_dispatch event" {
+  # Durable unowned emits unowned_dispatch; admission must refuse first so a
+  # missing record never produces a durable side effect.
+  export DURABLE_ENABLED=true
+  install_live_probe_traps
+  run env PATH="$SHIM:$PATH" LANE_VENDOR=grok bash "$SCRIPTS/lane-run.sh" \
+    --unowned "stateful target fixture" gaterun-unowned-miss lane-a "$WT" -- \
+    bash -c 'echo RAN > "'"$WT"'/ran"'
+  [ "$status" -eq 2 ]
+  [ ! -f "$WT/ran" ]
+  [ ! -d "$WT/.harness/lane.lock" ]
+  [ ! -f "$(run_dir gaterun-unowned-miss)/events.jsonl" ]
+  [ ! -s "$PROBE_LOG" ]
+}
+
+@test "Use refuses --unowned with a not-ready record before unowned_dispatch event" {
+  export DURABLE_ENABLED=true
+  write_not_ready_grok_record
+  install_live_probe_traps
+  run env PATH="$SHIM:$PATH" LANE_VENDOR=grok bash "$SCRIPTS/lane-run.sh" \
+    --unowned "stateful target fixture" gaterun-unowned-nr lane-a "$WT" -- \
+    bash -c 'echo RAN > "'"$WT"'/ran"'
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"auth probe timed out"* ]]
+  [ ! -f "$WT/ran" ]
+  [ ! -d "$WT/.harness/lane.lock" ]
+  [ ! -f "$(run_dir gaterun-unowned-nr)/events.jsonl" ]
+  [ ! -s "$PROBE_LOG" ]
+}
