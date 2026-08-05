@@ -8,10 +8,14 @@
 # directories. Lane admission resolves a verified external profile root.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The following sources resolve from SCRIPT_DIR at runtime.
+# shellcheck disable=SC1091
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck disable=SC1091
 # shellcheck source=lib/worktree.sh
 source "$SCRIPT_DIR/lib/worktree.sh"
+# shellcheck disable=SC1091
 # shellcheck source=lib/lock.sh
 source "$SCRIPT_DIR/lib/lock.sh"
 
