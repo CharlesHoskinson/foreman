@@ -60,6 +60,29 @@ export type ArtifactRelocate = {
   readonly sha256: string;
 };
 
+/** Regular-file modes allowed in a tracked_delete target identity. */
+export type TrackedFileMode = "100644" | "100755";
+
+/**
+ * Exact tracked-file identity bound into the register for tracked_delete.
+ * Path is repository-relative POSIX; blob is Git SHA-1 of the blob object.
+ */
+export type TrackedDeleteTarget = {
+  readonly path: string;
+  readonly blobSha1: string;
+  readonly byteLength: number;
+  readonly mode: TrackedFileMode;
+};
+
+/** Closed tracked_delete payload: non-empty ordered exact target list. */
+export type TrackedDelete = {
+  readonly targets: readonly TrackedDeleteTarget[];
+};
+
+/** Bounds for tracked_delete register payloads and live preflight. */
+export const MAX_TRACKED_DELETE_TARGETS = 32;
+export const MAX_TRACKED_PATH_BYTES = 4096;
+
 /**
  * Closed approval facts bound into the register (never trusted from caller).
  * Required when state === "approved".
@@ -69,7 +92,7 @@ export type Approval = {
   readonly approvedAt: string;
   readonly expiresAt: string;
   readonly evidence: string;
-  readonly actionKind: "artifact_relocate";
+  readonly actionKind: "artifact_relocate" | "tracked_delete";
   readonly candidateCommitSha: string;
   readonly candidateTreeSha: string;
 };
@@ -85,6 +108,7 @@ export type CurrentEntry = {
   readonly recoveryStatus: RecoveryStatus;
   readonly actionKind: ActionKind;
   readonly artifactRelocate?: ArtifactRelocate;
+  readonly trackedDelete?: TrackedDelete;
   readonly approval?: Approval;
 };
 
@@ -165,14 +189,25 @@ export type DenialReason =
   | "platform_invariant_unproven"
   | "mutation_rejected"
   | "interrupted"
-  | "internal_failed";
+  | "internal_failed"
+  | "invalid_path"
+  | "duplicate_target"
+  | "register_self_target"
+  | "target_missing"
+  | "target_untracked"
+  | "target_is_submodule"
+  | "mode_mismatch"
+  | "working_tree_mismatch"
+  | "batch_limit_exceeded";
+
+export type ImplementedActionKind = "artifact_relocate" | "tracked_delete";
 
 export type CheckResult =
   | {
       readonly schemaVersion: 1;
       readonly _tag: "Authorized";
       readonly entryId: string;
-      readonly actionKind: "artifact_relocate";
+      readonly actionKind: ImplementedActionKind;
       readonly registerSha256: string;
     }
   | {
@@ -196,6 +231,29 @@ export type RelocateResult =
       readonly registerSha256: string;
       readonly sourceSha256: string;
       readonly recoverySha256: string;
+    }
+  | {
+      readonly schemaVersion: 1;
+      readonly _tag: "Denied";
+      readonly entryId: string | null;
+      readonly reason: DenialReason;
+    }
+  | {
+      readonly schemaVersion: 1;
+      readonly _tag: "Failed";
+      readonly reason: DenialReason;
+    };
+
+/** Closed receipt for successful tracked_delete; no absolute paths or contents. */
+export type TrackedDeleteResult =
+  | {
+      readonly schemaVersion: 1;
+      readonly _tag: "Completed";
+      readonly entryId: string;
+      readonly actionKind: "tracked_delete";
+      readonly registerSha256: string;
+      readonly recoveryCommitSha: string;
+      readonly targets: readonly TrackedDeleteTarget[];
     }
   | {
       readonly schemaVersion: 1;
@@ -342,6 +400,86 @@ function decodeArtifactRelocate(
   return { sourcePath, recoveryPath, byteLength, sha256 };
 }
 
+function decodeTrackedFileMode(value: unknown): TrackedFileMode | CoreFailure {
+  const s = expectString(value);
+  if (isCoreFailure(s)) return s;
+  if (s === "100644" || s === "100755") return s;
+  return schemaMismatch("tracked_mode");
+}
+
+function decodeTrackedDeleteTarget(
+  value: unknown,
+): TrackedDeleteTarget | CoreFailure {
+  const obj = expectObject(value);
+  if (isCoreFailure(obj)) return obj;
+  const unk = rejectUnknownKeys(obj, [
+    "path",
+    "blobSha1",
+    "byteLength",
+    "mode",
+  ]);
+  if (unk) return unk;
+  const path = expectString(obj["path"]);
+  if (isCoreFailure(path)) return path;
+  if (path.length === 0 || path.length > MAX_TRACKED_PATH_BYTES) {
+    return schemaMismatch("tracked_path");
+  }
+  const blobSha1 = expectString(obj["blobSha1"]);
+  if (isCoreFailure(blobSha1)) return blobSha1;
+  if (!isCommitSha40(blobSha1)) {
+    return schemaMismatch("blob_sha1");
+  }
+  const byteLength = expectNumber(obj["byteLength"]);
+  if (isCoreFailure(byteLength)) return byteLength;
+  if (!Number.isInteger(byteLength) || byteLength < 0) {
+    return schemaMismatch("byte_length");
+  }
+  const mode = decodeTrackedFileMode(obj["mode"]);
+  if (isCoreFailure(mode)) return mode;
+  return { path, blobSha1, byteLength, mode };
+}
+
+function decodeTrackedDelete(value: unknown): TrackedDelete | CoreFailure {
+  const obj = expectObject(value);
+  if (isCoreFailure(obj)) return obj;
+  const unk = rejectUnknownKeys(obj, ["targets"]);
+  if (unk) return unk;
+  const raw = expectArray(obj["targets"]);
+  if (isCoreFailure(raw)) return raw;
+  if (raw.length === 0) {
+    return schemaMismatch("empty_targets");
+  }
+  if (raw.length > MAX_TRACKED_DELETE_TARGETS) {
+    return schemaMismatch("too_many_targets");
+  }
+  const targets: TrackedDeleteTarget[] = [];
+  const seen = new Set<string>();
+  let totalBytes = 0;
+  for (const item of raw) {
+    const t = decodeTrackedDeleteTarget(item);
+    if (isCoreFailure(t)) return t;
+    if (seen.has(t.path)) {
+      return schemaMismatch("duplicate_target");
+    }
+    seen.add(t.path);
+    totalBytes += t.byteLength;
+    if (totalBytes > 1_048_576) {
+      return schemaMismatch("batch_bytes");
+    }
+    targets.push(t);
+  }
+  return { targets };
+}
+
+function decodeApprovalActionKind(
+  value: unknown,
+): "artifact_relocate" | "tracked_delete" | CoreFailure {
+  const s = expectString(value);
+  if (isCoreFailure(s)) return s;
+  if (s === "artifact_relocate" || s === "tracked_delete") return s;
+  return schemaMismatch("approval_action_kind");
+}
+
 function decodeApproval(value: unknown): Approval | CoreFailure {
   const obj = expectObject(value);
   if (isCoreFailure(obj)) return obj;
@@ -375,7 +513,7 @@ function decodeApproval(value: unknown): Approval | CoreFailure {
   if (!isNonEmptyClosedString(evidence)) {
     return schemaMismatch("approval_evidence");
   }
-  const actionKind = expectExactLiteral(obj["actionKind"], "artifact_relocate");
+  const actionKind = decodeApprovalActionKind(obj["actionKind"]);
   if (isCoreFailure(actionKind)) return actionKind;
   const candidateCommitSha = expectString(obj["candidateCommitSha"]);
   if (isCoreFailure(candidateCommitSha)) return candidateCommitSha;
@@ -392,7 +530,7 @@ function decodeApproval(value: unknown): Approval | CoreFailure {
     approvedAt,
     expiresAt,
     evidence,
-    actionKind: "artifact_relocate",
+    actionKind,
     candidateCommitSha,
     candidateTreeSha,
   };
@@ -418,6 +556,7 @@ export function decodeCurrentEntry(
 
   const allowed: string[] = [...CURRENT_ENTRY_BASE_KEYS];
   if ("artifactRelocate" in obj) allowed.push("artifactRelocate");
+  if ("trackedDelete" in obj) allowed.push("trackedDelete");
   if ("approval" in obj) allowed.push("approval");
   const unk = rejectUnknownKeys(obj, allowed);
   if (unk) return unk;
@@ -456,6 +595,18 @@ export function decodeCurrentEntry(
     return unknownField("artifactRelocate");
   }
 
+  let trackedDelete: TrackedDelete | undefined;
+  if (actionKind === "tracked_delete") {
+    if (!("trackedDelete" in obj)) {
+      return schemaMismatch("missing_tracked_delete");
+    }
+    const td = decodeTrackedDelete(obj["trackedDelete"]);
+    if (isCoreFailure(td)) return td;
+    trackedDelete = td;
+  } else if ("trackedDelete" in obj) {
+    return unknownField("trackedDelete");
+  }
+
   let approval: Approval | undefined;
   if (state === "approved") {
     if (!("approval" in obj)) {
@@ -479,6 +630,7 @@ export function decodeCurrentEntry(
     recoveryStatus,
     actionKind,
     ...(artifactRelocate !== undefined ? { artifactRelocate } : {}),
+    ...(trackedDelete !== undefined ? { trackedDelete } : {}),
     ...(approval !== undefined ? { approval } : {}),
   };
   return entry;
@@ -501,6 +653,9 @@ export function decodeHistoricalIncident(
   ];
   if ("artifactRelocate" in obj) {
     return unknownField("artifactRelocate");
+  }
+  if ("trackedDelete" in obj) {
+    return unknownField("trackedDelete");
   }
   if ("approval" in obj) {
     return unknownField("approval");

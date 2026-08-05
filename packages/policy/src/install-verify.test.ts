@@ -64,6 +64,7 @@ const trackedCredentialProfileLane = join(
   trackedRuntime,
   "dist/credential-profile-lane.js",
 );
+const trackedGraphStore = join(trackedRuntime, "dist/graph-store.js");
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -105,6 +106,7 @@ function seedRuntimeOnly(): string {
     trackedCredentialProfileLane,
     join(rt, "dist/credential-profile-lane.js"),
   );
+  cpSync(trackedGraphStore, join(rt, "dist/graph-store.js"));
   return rt;
 }
 
@@ -523,6 +525,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const credentialProfileLaneBytes = readFileSync(
       trackedCredentialProfileLane,
     );
+    const graphStoreBytes = readFileSync(trackedGraphStore);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -544,6 +547,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const credentialProfilePath = "/skill/runtime/dist/credential-profile.js";
     const credentialProfileLanePath =
       "/skill/runtime/dist/credential-profile-lane.js";
+    const graphStorePath = "/skill/runtime/dist/graph-store.js";
 
     const nodes = new Map([
       [
@@ -575,6 +579,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "destruction-guard.js",
               "execution-guard.js",
               "foreman-setup.js",
+              "graph-store.js",
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
@@ -742,6 +747,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           }),
         },
       ],
+      [
+        graphStorePath,
+        {
+          kind: "file" as const,
+          bytes: graphStoreBytes,
+          identity: fileIdentity({
+            ino: "34",
+            size: graphStoreBytes.byteLength,
+          }),
+        },
+      ],
     ]);
 
     const layer = makeMemoryInstallFs({
@@ -824,6 +840,7 @@ describe("runtime plugin-drift", () => {
     const credentialProfileLaneBytes = readFileSync(
       trackedCredentialProfileLane,
     );
+    const graphStoreBytes = readFileSync(trackedGraphStore);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -869,6 +886,7 @@ describe("runtime plugin-drift", () => {
               "destruction-guard.js",
               "execution-guard.js",
               "foreman-setup.js",
+              "graph-store.js",
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
@@ -1034,6 +1052,17 @@ describe("runtime plugin-drift", () => {
             }),
           },
         ],
+        [
+          `${dist}/graph-store.js`,
+          {
+            kind: "file",
+            bytes: graphStoreBytes,
+            identity: fileIdentity({
+              ino: prefix + "-gs",
+              size: graphStoreBytes.byteLength,
+            }),
+          },
+        ],
       ]);
     }
 
@@ -1110,6 +1139,7 @@ describe("skill-root and directory stability seams", () => {
     const credentialProfileLaneBytes = readFileSync(
       trackedCredentialProfileLane,
     );
+    const graphStoreBytes = readFileSync(trackedGraphStore);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1151,6 +1181,7 @@ describe("skill-root and directory stability seams", () => {
               "destruction-guard.js",
               "execution-guard.js",
               "foreman-setup.js",
+              "graph-store.js",
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
@@ -1324,6 +1355,17 @@ describe("skill-root and directory stability seams", () => {
           }),
         },
       ],
+      [
+        `${dist}/graph-store.js`,
+        {
+          kind: "file",
+          bytes: graphStoreBytes,
+          identity: fileIdentity({
+            ino: "34",
+            size: graphStoreBytes.byteLength,
+          }),
+        },
+      ],
     ]);
   }
 
@@ -1494,6 +1536,7 @@ describe("memory InstallFs path separator seam", () => {
     const credentialProfileLaneBytes = readFileSync(
       trackedCredentialProfileLane,
     );
+    const graphStoreBytes = readFileSync(trackedGraphStore);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1531,6 +1574,7 @@ describe("memory InstallFs path separator seam", () => {
               "destruction-guard.js",
               "execution-guard.js",
               "foreman-setup.js",
+              "graph-store.js",
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
@@ -1691,6 +1735,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "33",
             size: credentialProfileLaneBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/graph-store.js`,
+        {
+          kind: "file",
+          bytes: graphStoreBytes,
+          identity: fileIdentity({
+            ino: "34",
+            size: graphStoreBytes.byteLength,
           }),
         },
       ],

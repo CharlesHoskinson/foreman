@@ -15,6 +15,9 @@ function actionIdentityCanonical(entry: CurrentEntry): string {
     ...(entry.artifactRelocate !== undefined
       ? { artifactRelocate: entry.artifactRelocate }
       : {}),
+    ...(entry.trackedDelete !== undefined
+      ? { trackedDelete: entry.trackedDelete }
+      : {}),
     id: entry.id,
     requiredCondition: entry.requiredCondition,
     targetOrAction: entry.targetOrAction,
@@ -102,6 +105,9 @@ export function validateApprovalDelta(
     actionKind: parentEntry.actionKind,
     ...(parentEntry.artifactRelocate !== undefined
       ? { artifactRelocate: parentEntry.artifactRelocate }
+      : {}),
+    ...(parentEntry.trackedDelete !== undefined
+      ? { trackedDelete: parentEntry.trackedDelete }
       : {}),
     state: currentEntry.state,
     owner: currentEntry.owner,

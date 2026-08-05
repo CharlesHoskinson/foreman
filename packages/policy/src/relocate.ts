@@ -58,6 +58,9 @@ export function relocateArtifact(
     if (check._tag === "Failed") {
       return failed(check.reason);
     }
+    if (check.actionKind !== "artifact_relocate") {
+      return denied(check.entryId, "unsupported_action");
+    }
 
     // Authorized by pure policy, but live mutation is fail-closed in R2.
     yield* probe.record("live_relocate_refused");

@@ -53,6 +53,8 @@ describe("loadCommittedAuthority", () => {
           commitBlobBytes: bytes,
           worktreeBytes: bytes.slice(),
         }),
+      inspectTrackedAtHead: () =>
+        Effect.fail(new PolicyGitError("internal_failed")),
     });
     const auth = Effect.runSync(
       loadCommittedAuthority("/repo").pipe(Effect.provide(layer)),
@@ -65,6 +67,8 @@ describe("loadCommittedAuthority", () => {
     const layer = Layer.succeed(GitIdentity, {
       snapshotAuthority: () =>
         Effect.fail(new PolicyGitError("authority_dirty")),
+      inspectTrackedAtHead: () =>
+        Effect.fail(new PolicyGitError("internal_failed")),
     });
     const either = Effect.runSync(
       Effect.either(

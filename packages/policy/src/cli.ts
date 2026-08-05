@@ -9,8 +9,10 @@ import {
 import { admitCheck } from "./admit.js";
 import { loadCommittedAuthority, mapAuthorityError } from "./authority.js";
 import { relocateArtifact } from "./relocate.js";
+import { deleteTracked } from "./tracked-delete.js";
 import {
   Clock,
+  FileSystem,
   GitIdentity,
   type MutationProbe,
 } from "./services.js";
@@ -21,6 +23,7 @@ import {
   type CheckResult,
   type DenialReason,
   type RelocateResult,
+  type TrackedDeleteResult,
 } from "./schema.js";
 
 export type CliIo = {
@@ -36,9 +39,11 @@ function failedResult(reason: DenialReason): CheckResult {
   return { schemaVersion: 1, _tag: "Failed", reason };
 }
 
+type CliCommand = "check" | "relocate-artifact" | "delete-tracked";
+
 function parseArgv(argv: readonly string[]):
   | {
-      command: "check" | "relocate-artifact";
+      command: CliCommand;
       repoRoot: string;
     }
   | { error: true } {
@@ -60,7 +65,11 @@ function parseArgv(argv: readonly string[]):
 
   if (args.length === 0) return { error: true };
   const command = args[0];
-  if (command !== "check" && command !== "relocate-artifact") {
+  if (
+    command !== "check" &&
+    command !== "relocate-artifact" &&
+    command !== "delete-tracked"
+  ) {
     return { error: true };
   }
 
@@ -114,7 +123,11 @@ export function runCli(
   argv: readonly string[],
   stdinBytes: Uint8Array,
   io: CliIo,
-): Effect.Effect<number, never, GitIdentity | Clock | MutationProbe> {
+): Effect.Effect<
+  number,
+  never,
+  GitIdentity | Clock | MutationProbe | FileSystem
+> {
   return Effect.gen(function* () {
     const parsed = parseArgv(argv);
     if ("error" in parsed) {
@@ -150,6 +163,15 @@ export function runCli(
       );
       emitLine(io, result);
       return result._tag === "Authorized" ? 0 : 1;
+    }
+
+    if (parsed.command === "delete-tracked") {
+      const result: TrackedDeleteResult = yield* deleteTracked({
+        repoRoot: parsed.repoRoot,
+        request,
+      });
+      emitLine(io, result);
+      return result._tag === "Completed" ? 0 : 1;
     }
 
     const result: RelocateResult = yield* relocateArtifact({

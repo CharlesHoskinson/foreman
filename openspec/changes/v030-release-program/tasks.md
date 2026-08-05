@@ -36,8 +36,12 @@
       sentinel register (no projection table), pure evaluator with closed
       approval facts, committed-HEAD authority binding, DST-0060 denial
       (`state_blocked` when clean; `authority_dirty` when uncommitted), and
-      live relocate fail-closed (`platform_invariant_unproven`). Keep open
-      until DST-0059 register disposition and incident mitigation finish.
+      live relocate fail-closed (`platform_invariant_unproven`). Tracked-delete
+      executor (`delete-tracked`) ships as a separate fail-closed package:
+      exact path+blob+mode batch preflight, all-or-rollback mutation, closed
+      receipt, and hostile tests. Do not mark DST-0040 executed and do not
+      delete Python in that package. Keep open until DST-0059 register
+      disposition and incident mitigation finish.
 - [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
       that include `@foreman/policy` as its own package family (CW-023).
       Acceptance evidence: `typescriptmigration.md` states nine package

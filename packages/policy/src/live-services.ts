@@ -145,6 +145,23 @@ export const liveFileSystem = Layer.succeed(FileSystem, {
       },
       catch: () => new PolicyFsError("mutation_rejected"),
     }),
+  createFile: (path, data, mode) =>
+    Effect.try({
+      try: () => {
+        const fd = openSync(
+          path,
+          fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+          mode,
+        );
+        try {
+          writeSync(fd, data);
+          fsyncSync(fd);
+        } finally {
+          closeSync(fd);
+        }
+      },
+      catch: () => new PolicyFsError("mutation_rejected"),
+    }),
   lstat: (path) =>
     Effect.try({
       try: () => toStat(lstatSync(path)),
@@ -304,6 +321,66 @@ export const liveGitIdentity = Layer.succeed(GitIdentity, {
           parentBlobBytes,
         };
         return { snapshot, commitBlobBytes, worktreeBytes };
+      },
+      catch: (e) =>
+        e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed"),
+    }),
+  inspectTrackedAtHead: (repoRoot, relativePath) =>
+    Effect.tryPromise({
+      try: async () => {
+        if (
+          relativePath.includes("..") ||
+          relativePath.startsWith("/") ||
+          relativePath.includes("\\") ||
+          relativePath.length === 0
+        ) {
+          throw new PolicyGitError("invalid_path");
+        }
+        const out = await gitText(
+          repoRoot,
+          ["ls-tree", "-z", "HEAD", "--", relativePath],
+          65_536,
+        );
+        if (out.length === 0) {
+          throw new PolicyGitError("target_untracked");
+        }
+        // Format: <mode> <type> <sha>\t<path>\0
+        const rec = out.split("\0").find((p) => p.length > 0) ?? "";
+        const tab = rec.indexOf("\t");
+        if (tab < 0) throw new PolicyGitError("internal_failed");
+        const meta = rec.slice(0, tab);
+        const pathPart = rec.slice(tab + 1);
+        if (pathPart !== relativePath) {
+          throw new PolicyGitError("internal_failed");
+        }
+        const parts = meta.split(" ");
+        if (parts.length !== 3) throw new PolicyGitError("internal_failed");
+        const mode = parts[0]!;
+        const type = parts[1]!;
+        const blobSha1 = sha40(parts[2]!);
+        if (type === "commit") {
+          throw new PolicyGitError("target_is_submodule");
+        }
+        if (type !== "blob") {
+          throw new PolicyGitError("source_not_regular_file");
+        }
+        if (mode === "160000") {
+          throw new PolicyGitError("target_is_submodule");
+        }
+        if (mode === "120000") {
+          throw new PolicyGitError("source_is_symlink");
+        }
+        const sizeText = (
+          await gitText(repoRoot, ["cat-file", "-s", blobSha1], 4096)
+        ).trim();
+        const size = Number(sizeText);
+        if (!Number.isInteger(size) || size < 0) {
+          throw new PolicyGitError("internal_failed");
+        }
+        if (size > MAX_INPUT_BYTES) {
+          throw new PolicyGitError("oversize_input");
+        }
+        return { mode, blobSha1, size };
       },
       catch: (e) =>
         e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed"),

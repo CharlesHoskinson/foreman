@@ -1,11 +1,15 @@
 import {
   isNonEmptyClosedString,
   CANONICAL_REGISTER_ID,
+  CANONICAL_REGISTER_RELPATH,
+  MAX_TRACKED_DELETE_TARGETS,
+  MAX_TRACKED_PATH_BYTES,
   type AdmissionRequest,
   type CheckResult,
   type CurrentEntry,
   type DenialReason,
   type Register,
+  type TrackedDeleteTarget,
 } from "./schema.js";
 import {
   approvalChronologyValid,
@@ -26,6 +30,66 @@ function pathHasGlob(path: string): boolean {
 
 function pathIsGroup(path: string): boolean {
   return GROUP_SEP.test(path);
+}
+
+/**
+ * Pure path checks for a register-bound tracked_delete target path.
+ * Returns null when the path is an exact, canonical repository-relative path.
+ */
+export function validateTrackedRelPath(path: string): DenialReason | null {
+  if (path.length === 0) return "invalid_path";
+  if (new TextEncoder().encode(path).byteLength > MAX_TRACKED_PATH_BYTES) {
+    return "batch_limit_exceeded";
+  }
+  if (
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    path.includes("\0") ||
+    path.endsWith("/")
+  ) {
+    return "invalid_path";
+  }
+  const segments = path.split("/");
+  for (const seg of segments) {
+    if (seg.length === 0 || seg === "." || seg === "..") {
+      return "invalid_path";
+    }
+  }
+  if (path === ".git" || path.startsWith(".git/")) {
+    return "invalid_path";
+  }
+  if (path === CANONICAL_REGISTER_RELPATH) {
+    return "register_self_target";
+  }
+  if (pathHasGlob(path)) return "glob_target";
+  if (pathIsGroup(path)) return "group_target";
+  return null;
+}
+
+function validateTrackedDeleteTargets(
+  targets: readonly TrackedDeleteTarget[],
+): DenialReason | null {
+  if (targets.length === 0) return "schema_mismatch";
+  if (targets.length > MAX_TRACKED_DELETE_TARGETS) {
+    return "batch_limit_exceeded";
+  }
+  const seen = new Set<string>();
+  let totalBytes = 0;
+  for (const t of targets) {
+    const pathReason = validateTrackedRelPath(t.path);
+    if (pathReason !== null) return pathReason;
+    if (seen.has(t.path)) return "duplicate_target";
+    seen.add(t.path);
+    if (!Number.isInteger(t.byteLength) || t.byteLength < 0) {
+      return "schema_mismatch";
+    }
+    totalBytes += t.byteLength;
+    if (totalBytes > 1_048_576) return "batch_limit_exceeded";
+    if (t.mode !== "100644" && t.mode !== "100755") {
+      return "schema_mismatch";
+    }
+  }
+  return null;
 }
 
 function denied(entryId: string | null, reason: DenialReason): CheckResult {
@@ -154,11 +218,14 @@ function admitEntry(
     return denied(entryId, "expired_approval");
   }
 
-  if (ap.actionKind !== "artifact_relocate") {
+  if (
+    entry.actionKind !== "artifact_relocate" &&
+    entry.actionKind !== "tracked_delete"
+  ) {
     return denied(entryId, "unsupported_action");
   }
-  if (entry.actionKind !== "artifact_relocate") {
-    return denied(entryId, "unsupported_action");
+  if (ap.actionKind !== entry.actionKind) {
+    return denied(entryId, "approval_mismatch");
   }
 
   if (!git.approvalCommitEligible || git.parentP === null || git.treeP === null) {
@@ -188,22 +255,41 @@ function admitEntry(
     return denied(entryId, delta);
   }
 
-  const ar = entry.artifactRelocate;
-  if (!ar) {
+  if (entry.actionKind === "artifact_relocate") {
+    const ar = entry.artifactRelocate;
+    if (!ar) {
+      return denied(entryId, "schema_mismatch");
+    }
+    if (pathHasGlob(ar.sourcePath) || pathHasGlob(ar.recoveryPath)) {
+      return denied(entryId, "glob_target");
+    }
+    if (pathIsGroup(ar.sourcePath) || pathIsGroup(ar.recoveryPath)) {
+      return denied(entryId, "group_target");
+    }
+    return {
+      schemaVersion: 1,
+      _tag: "Authorized",
+      entryId,
+      actionKind: "artifact_relocate",
+      registerSha256,
+    };
+  }
+
+  // tracked_delete
+  const td = entry.trackedDelete;
+  if (!td) {
     return denied(entryId, "schema_mismatch");
   }
-  if (pathHasGlob(ar.sourcePath) || pathHasGlob(ar.recoveryPath)) {
-    return denied(entryId, "glob_target");
-  }
-  if (pathIsGroup(ar.sourcePath) || pathIsGroup(ar.recoveryPath)) {
-    return denied(entryId, "group_target");
+  const targetReason = validateTrackedDeleteTargets(td.targets);
+  if (targetReason !== null) {
+    return denied(entryId, targetReason);
   }
 
   return {
     schemaVersion: 1,
     _tag: "Authorized",
     entryId,
-    actionKind: "artifact_relocate",
+    actionKind: "tracked_delete",
     registerSha256,
   };
 }

@@ -16074,6 +16074,8 @@ function approvalChronologyValid(recordedAt, approvedAt, expiresAt, nowMs) {
 // packages/policy/src/schema.ts
 var CANONICAL_REGISTER_ID = "foreman-v0.3.0-destruction-register";
 var CANONICAL_REGISTER_RELPATH = "docs/releases/v0.3.0-destruction-log.md";
+var MAX_TRACKED_DELETE_TARGETS = 32;
+var MAX_TRACKED_PATH_BYTES = 4096;
 var ACTION_KINDS = [
   "artifact_relocate",
   "worktree_remove",
@@ -16191,6 +16193,78 @@ function decodeArtifactRelocate(value) {
   }
   return { sourcePath, recoveryPath, byteLength, sha256 };
 }
+function decodeTrackedFileMode(value) {
+  const s = expectString(value);
+  if (isCoreFailure(s)) return s;
+  if (s === "100644" || s === "100755") return s;
+  return schemaMismatch("tracked_mode");
+}
+function decodeTrackedDeleteTarget(value) {
+  const obj = expectObject(value);
+  if (isCoreFailure(obj)) return obj;
+  const unk = rejectUnknownKeys(obj, [
+    "path",
+    "blobSha1",
+    "byteLength",
+    "mode"
+  ]);
+  if (unk) return unk;
+  const path = expectString(obj["path"]);
+  if (isCoreFailure(path)) return path;
+  if (path.length === 0 || path.length > MAX_TRACKED_PATH_BYTES) {
+    return schemaMismatch("tracked_path");
+  }
+  const blobSha1 = expectString(obj["blobSha1"]);
+  if (isCoreFailure(blobSha1)) return blobSha1;
+  if (!isCommitSha40(blobSha1)) {
+    return schemaMismatch("blob_sha1");
+  }
+  const byteLength = expectNumber(obj["byteLength"]);
+  if (isCoreFailure(byteLength)) return byteLength;
+  if (!Number.isInteger(byteLength) || byteLength < 0) {
+    return schemaMismatch("byte_length");
+  }
+  const mode = decodeTrackedFileMode(obj["mode"]);
+  if (isCoreFailure(mode)) return mode;
+  return { path, blobSha1, byteLength, mode };
+}
+function decodeTrackedDelete(value) {
+  const obj = expectObject(value);
+  if (isCoreFailure(obj)) return obj;
+  const unk = rejectUnknownKeys(obj, ["targets"]);
+  if (unk) return unk;
+  const raw = expectArray(obj["targets"]);
+  if (isCoreFailure(raw)) return raw;
+  if (raw.length === 0) {
+    return schemaMismatch("empty_targets");
+  }
+  if (raw.length > MAX_TRACKED_DELETE_TARGETS) {
+    return schemaMismatch("too_many_targets");
+  }
+  const targets = [];
+  const seen = /* @__PURE__ */ new Set();
+  let totalBytes = 0;
+  for (const item of raw) {
+    const t = decodeTrackedDeleteTarget(item);
+    if (isCoreFailure(t)) return t;
+    if (seen.has(t.path)) {
+      return schemaMismatch("duplicate_target");
+    }
+    seen.add(t.path);
+    totalBytes += t.byteLength;
+    if (totalBytes > 1048576) {
+      return schemaMismatch("batch_bytes");
+    }
+    targets.push(t);
+  }
+  return { targets };
+}
+function decodeApprovalActionKind(value) {
+  const s = expectString(value);
+  if (isCoreFailure(s)) return s;
+  if (s === "artifact_relocate" || s === "tracked_delete") return s;
+  return schemaMismatch("approval_action_kind");
+}
 function decodeApproval(value) {
   const obj = expectObject(value);
   if (isCoreFailure(obj)) return obj;
@@ -16224,7 +16298,7 @@ function decodeApproval(value) {
   if (!isNonEmptyClosedString(evidence)) {
     return schemaMismatch("approval_evidence");
   }
-  const actionKind = expectExactLiteral(obj["actionKind"], "artifact_relocate");
+  const actionKind = decodeApprovalActionKind(obj["actionKind"]);
   if (isCoreFailure(actionKind)) return actionKind;
   const candidateCommitSha = expectString(obj["candidateCommitSha"]);
   if (isCoreFailure(candidateCommitSha)) return candidateCommitSha;
@@ -16241,7 +16315,7 @@ function decodeApproval(value) {
     approvedAt,
     expiresAt,
     evidence,
-    actionKind: "artifact_relocate",
+    actionKind,
     candidateCommitSha,
     candidateTreeSha
   };
@@ -16262,6 +16336,7 @@ function decodeCurrentEntry(value) {
   if (isCoreFailure(obj)) return obj;
   const allowed = [...CURRENT_ENTRY_BASE_KEYS];
   if ("artifactRelocate" in obj) allowed.push("artifactRelocate");
+  if ("trackedDelete" in obj) allowed.push("trackedDelete");
   if ("approval" in obj) allowed.push("approval");
   const unk = rejectUnknownKeys(obj, allowed);
   if (unk) return unk;
@@ -16297,6 +16372,17 @@ function decodeCurrentEntry(value) {
   } else if ("artifactRelocate" in obj) {
     return unknownField("artifactRelocate");
   }
+  let trackedDelete;
+  if (actionKind === "tracked_delete") {
+    if (!("trackedDelete" in obj)) {
+      return schemaMismatch("missing_tracked_delete");
+    }
+    const td = decodeTrackedDelete(obj["trackedDelete"]);
+    if (isCoreFailure(td)) return td;
+    trackedDelete = td;
+  } else if ("trackedDelete" in obj) {
+    return unknownField("trackedDelete");
+  }
   let approval;
   if (state === "approved") {
     if (!("approval" in obj)) {
@@ -16319,6 +16405,7 @@ function decodeCurrentEntry(value) {
     recoveryStatus,
     actionKind,
     ...artifactRelocate !== void 0 ? { artifactRelocate } : {},
+    ...trackedDelete !== void 0 ? { trackedDelete } : {},
     ...approval !== void 0 ? { approval } : {}
   };
   return entry;
@@ -16338,6 +16425,9 @@ function decodeHistoricalIncident(value) {
   ];
   if ("artifactRelocate" in obj) {
     return unknownField("artifactRelocate");
+  }
+  if ("trackedDelete" in obj) {
+    return unknownField("trackedDelete");
   }
   if ("approval" in obj) {
     return unknownField("approval");
@@ -16454,6 +16544,7 @@ function actionIdentityCanonical(entry) {
   return canonicalize({
     actionKind: entry.actionKind,
     ...entry.artifactRelocate !== void 0 ? { artifactRelocate: entry.artifactRelocate } : {},
+    ...entry.trackedDelete !== void 0 ? { trackedDelete: entry.trackedDelete } : {},
     id: entry.id,
     requiredCondition: entry.requiredCondition,
     targetOrAction: entry.targetOrAction
@@ -16511,6 +16602,7 @@ function validateApprovalDelta(parent, current, entryId) {
     requiredCondition: parentEntry.requiredCondition,
     actionKind: parentEntry.actionKind,
     ...parentEntry.artifactRelocate !== void 0 ? { artifactRelocate: parentEntry.artifactRelocate } : {},
+    ...parentEntry.trackedDelete !== void 0 ? { trackedDelete: parentEntry.trackedDelete } : {},
     state: currentEntry.state,
     owner: currentEntry.owner,
     evidence: currentEntry.evidence,
@@ -16640,6 +16732,53 @@ function pathHasGlob(path) {
 function pathIsGroup(path) {
   return GROUP_SEP.test(path);
 }
+function validateTrackedRelPath(path) {
+  if (path.length === 0) return "invalid_path";
+  if (new TextEncoder().encode(path).byteLength > MAX_TRACKED_PATH_BYTES) {
+    return "batch_limit_exceeded";
+  }
+  if (path.startsWith("/") || path.includes("\\") || path.includes("\0") || path.endsWith("/")) {
+    return "invalid_path";
+  }
+  const segments = path.split("/");
+  for (const seg of segments) {
+    if (seg.length === 0 || seg === "." || seg === "..") {
+      return "invalid_path";
+    }
+  }
+  if (path === ".git" || path.startsWith(".git/")) {
+    return "invalid_path";
+  }
+  if (path === CANONICAL_REGISTER_RELPATH) {
+    return "register_self_target";
+  }
+  if (pathHasGlob(path)) return "glob_target";
+  if (pathIsGroup(path)) return "group_target";
+  return null;
+}
+function validateTrackedDeleteTargets(targets) {
+  if (targets.length === 0) return "schema_mismatch";
+  if (targets.length > MAX_TRACKED_DELETE_TARGETS) {
+    return "batch_limit_exceeded";
+  }
+  const seen = /* @__PURE__ */ new Set();
+  let totalBytes = 0;
+  for (const t of targets) {
+    const pathReason = validateTrackedRelPath(t.path);
+    if (pathReason !== null) return pathReason;
+    if (seen.has(t.path)) return "duplicate_target";
+    seen.add(t.path);
+    if (!Number.isInteger(t.byteLength) || t.byteLength < 0) {
+      return "schema_mismatch";
+    }
+    totalBytes += t.byteLength;
+    if (totalBytes > 1048576) return "batch_limit_exceeded";
+    if (t.mode !== "100644" && t.mode !== "100755") {
+      return "schema_mismatch";
+    }
+  }
+  return null;
+}
 function denied(entryId, reason) {
   return { schemaVersion: 1, _tag: "Denied", entryId, reason };
 }
@@ -16731,11 +16870,11 @@ function admitEntry(entry, currentRegister, entryId, registerSha256, nowMs, git)
   if (chrono === "expired") {
     return denied(entryId, "expired_approval");
   }
-  if (ap2.actionKind !== "artifact_relocate") {
+  if (entry.actionKind !== "artifact_relocate" && entry.actionKind !== "tracked_delete") {
     return denied(entryId, "unsupported_action");
   }
-  if (entry.actionKind !== "artifact_relocate") {
-    return denied(entryId, "unsupported_action");
+  if (ap2.actionKind !== entry.actionKind) {
+    return denied(entryId, "approval_mismatch");
   }
   if (!git.approvalCommitEligible || git.parentP === null || git.treeP === null) {
     return denied(entryId, "approval_commit_ineligible");
@@ -16761,21 +16900,38 @@ function admitEntry(entry, currentRegister, entryId, registerSha256, nowMs, git)
   if (delta !== null) {
     return denied(entryId, delta);
   }
-  const ar = entry.artifactRelocate;
-  if (!ar) {
+  if (entry.actionKind === "artifact_relocate") {
+    const ar = entry.artifactRelocate;
+    if (!ar) {
+      return denied(entryId, "schema_mismatch");
+    }
+    if (pathHasGlob(ar.sourcePath) || pathHasGlob(ar.recoveryPath)) {
+      return denied(entryId, "glob_target");
+    }
+    if (pathIsGroup(ar.sourcePath) || pathIsGroup(ar.recoveryPath)) {
+      return denied(entryId, "group_target");
+    }
+    return {
+      schemaVersion: 1,
+      _tag: "Authorized",
+      entryId,
+      actionKind: "artifact_relocate",
+      registerSha256
+    };
+  }
+  const td = entry.trackedDelete;
+  if (!td) {
     return denied(entryId, "schema_mismatch");
   }
-  if (pathHasGlob(ar.sourcePath) || pathHasGlob(ar.recoveryPath)) {
-    return denied(entryId, "glob_target");
-  }
-  if (pathIsGroup(ar.sourcePath) || pathIsGroup(ar.recoveryPath)) {
-    return denied(entryId, "group_target");
+  const targetReason = validateTrackedDeleteTargets(td.targets);
+  if (targetReason !== null) {
+    return denied(entryId, targetReason);
   }
   return {
     schemaVersion: 1,
     _tag: "Authorized",
     entryId,
-    actionKind: "artifact_relocate",
+    actionKind: "tracked_delete",
     registerSha256
   };
 }
@@ -16866,11 +17022,230 @@ function relocateArtifact(args2) {
     if (check2._tag === "Failed") {
       return failed2(check2.reason);
     }
+    if (check2.actionKind !== "artifact_relocate") {
+      return denied2(check2.entryId, "unsupported_action");
+    }
     yield* probe.record("live_relocate_refused");
     return failed2("platform_invariant_unproven");
   }).pipe(
     Effect_exports.catchAllDefect(() => Effect_exports.succeed(failed2("internal_failed")))
   );
+}
+
+// packages/policy/src/tracked-delete.ts
+import { createHash as createHash2 } from "node:crypto";
+import { join as join3 } from "node:path";
+function denied3(entryId, reason) {
+  return { schemaVersion: 1, _tag: "Denied", entryId, reason };
+}
+function failed3(reason) {
+  return { schemaVersion: 1, _tag: "Failed", reason };
+}
+function gitBlobSha1(bytes) {
+  const header = new TextEncoder().encode(`blob ${bytes.byteLength}\0`);
+  const h = createHash2("sha1");
+  h.update(header);
+  h.update(bytes);
+  return h.digest("hex");
+}
+function modeToPosix(mode) {
+  return mode === "100755" ? 493 : 420;
+}
+function asTrackedMode(mode) {
+  if (mode === "100644" || mode === "100755") return mode;
+  return null;
+}
+function mapFsPreflight(stat) {
+  if (stat.isSymbolicLink) return "source_is_symlink";
+  if (stat.isDirectory) return "source_not_regular_file";
+  if (!stat.isFile) return "source_not_regular_file";
+  if (stat.nlink > 1) return "source_is_hardlink";
+  return null;
+}
+function deleteTracked(args2) {
+  return Effect_exports.gen(function* () {
+    const clock3 = yield* Clock2;
+    const probe = yield* MutationProbe;
+    const fs = yield* FileSystem;
+    const git = yield* GitIdentity;
+    const authE = yield* Effect_exports.either(loadCommittedAuthority(args2.repoRoot));
+    if (authE._tag === "Left") {
+      return failed3(mapAuthorityError(authE.left));
+    }
+    const auth = authE.right;
+    const nowMs = yield* clock3.nowMs();
+    const check2 = admitCheck(
+      auth.register,
+      auth.registerSha256,
+      args2.request,
+      nowMs,
+      auth.snapshot
+    );
+    if (check2._tag === "Denied") {
+      return denied3(check2.entryId, check2.reason);
+    }
+    if (check2._tag === "Failed") {
+      return failed3(check2.reason);
+    }
+    if (check2.actionKind !== "tracked_delete") {
+      return denied3(check2.entryId, "unsupported_action");
+    }
+    const entry = auth.register.currentEntries.find(
+      (e) => e.id === check2.entryId
+    );
+    if (!entry?.trackedDelete || !entry.approval) {
+      return failed3("schema_mismatch");
+    }
+    const recoveryCommitSha = entry.approval.candidateCommitSha;
+    const approvedTargets = entry.trackedDelete.targets;
+    const captured = [];
+    for (const target of approvedTargets) {
+      const headE = yield* Effect_exports.either(
+        git.inspectTrackedAtHead(args2.repoRoot, target.path)
+      );
+      if (headE._tag === "Left") {
+        const r = headE.left.reason;
+        if (r === "target_untracked") {
+          const absProbe = join3(args2.repoRoot, target.path);
+          const exists3 = yield* fs.exists(absProbe);
+          return denied3(
+            check2.entryId,
+            exists3 ? "target_untracked" : "target_missing"
+          );
+        }
+        if (r === "target_missing" || r === "target_is_submodule" || r === "source_is_symlink" || r === "source_not_regular_file" || r === "source_digest_mismatch" || r === "source_size_mismatch" || r === "mode_mismatch" || r === "invalid_path" || r === "oversize_input" || r === "working_tree_mismatch" || r === "source_is_hardlink" || r === "register_self_target" || r === "duplicate_target" || r === "batch_limit_exceeded" || r === "glob_target" || r === "group_target") {
+          return denied3(check2.entryId, r);
+        }
+        return failed3(r);
+      }
+      const head5 = headE.right;
+      const headMode = asTrackedMode(head5.mode);
+      if (headMode === null) {
+        if (head5.mode === "160000") {
+          return denied3(check2.entryId, "target_is_submodule");
+        }
+        if (head5.mode === "120000") {
+          return denied3(check2.entryId, "source_is_symlink");
+        }
+        return denied3(check2.entryId, "mode_mismatch");
+      }
+      if (headMode !== target.mode) {
+        return denied3(check2.entryId, "mode_mismatch");
+      }
+      if (head5.blobSha1 !== target.blobSha1) {
+        return denied3(check2.entryId, "source_digest_mismatch");
+      }
+      if (head5.size !== target.byteLength) {
+        return denied3(check2.entryId, "source_size_mismatch");
+      }
+      const absPath = join3(args2.repoRoot, target.path);
+      const lstE = yield* Effect_exports.either(fs.lstat(absPath));
+      if (lstE._tag === "Left") {
+        return denied3(check2.entryId, "target_missing");
+      }
+      const pre = mapFsPreflight(lstE.right);
+      if (pre !== null) {
+        return denied3(check2.entryId, pre);
+      }
+      if (lstE.right.size !== target.byteLength) {
+        return denied3(check2.entryId, "source_size_mismatch");
+      }
+      const readE = yield* Effect_exports.either(
+        fs.readFile(absPath, MAX_INPUT_BYTES)
+      );
+      if (readE._tag === "Left") {
+        if (readE.left.reason === "oversize_input") {
+          return denied3(check2.entryId, "oversize_input");
+        }
+        return denied3(check2.entryId, "target_missing");
+      }
+      const bytes = readE.right;
+      if (bytes.byteLength !== target.byteLength) {
+        return denied3(check2.entryId, "source_size_mismatch");
+      }
+      const liveSha = gitBlobSha1(bytes);
+      if (liveSha !== target.blobSha1) {
+        return denied3(check2.entryId, "working_tree_mismatch");
+      }
+      yield* probe.record("preflight_ok");
+      captured.push({
+        target,
+        absPath,
+        bytes,
+        posixMode: modeToPosix(target.mode)
+      });
+    }
+    const removed = [];
+    for (let i = 0; i < captured.length; i += 1) {
+      const item = captured[i];
+      yield* probe.record("unlink_attempt");
+      const failInject = yield* probe.count("inject_fail_after");
+      if (failInject > 0 && removed.length + 1 >= failInject) {
+        yield* probe.record("inject_fail_fired");
+        const restore = yield* restoreAll(fs, probe, removed);
+        if (restore !== null) return failed3(restore);
+        return failed3("mutation_rejected");
+      }
+      const unE = yield* Effect_exports.either(fs.unlink(item.absPath));
+      if (unE._tag === "Left") {
+        const restore = yield* restoreAll(fs, probe, removed);
+        if (restore !== null) return failed3(restore);
+        return failed3(unE.left.reason);
+      }
+      yield* probe.record("unlink");
+      removed.push(item);
+    }
+    for (const item of removed) {
+      const still = yield* fs.exists(item.absPath);
+      if (still) {
+        const restore = yield* restoreAll(fs, probe, removed);
+        if (restore !== null) return failed3(restore);
+        return failed3("mutation_rejected");
+      }
+      const parentOk = yield* fs.parentDirExists(item.absPath);
+      if (!parentOk) {
+        const restore = yield* restoreAll(fs, probe, removed);
+        if (restore !== null) return failed3(restore);
+        return failed3("internal_failed");
+      }
+    }
+    yield* probe.record("tracked_delete_completed");
+    return {
+      schemaVersion: 1,
+      _tag: "Completed",
+      entryId: check2.entryId,
+      actionKind: "tracked_delete",
+      registerSha256: auth.registerSha256,
+      recoveryCommitSha,
+      targets: approvedTargets.map((t) => ({
+        path: t.path,
+        blobSha1: t.blobSha1,
+        byteLength: t.byteLength,
+        mode: t.mode
+      }))
+    };
+  }).pipe(
+    Effect_exports.catchAllDefect(() => Effect_exports.succeed(failed3("internal_failed")))
+  );
+}
+function restoreAll(fs, probe, removed) {
+  return Effect_exports.gen(function* () {
+    for (let i = removed.length - 1; i >= 0; i -= 1) {
+      const item = removed[i];
+      const exists3 = yield* fs.exists(item.absPath);
+      if (!exists3) {
+        const w = yield* Effect_exports.either(
+          fs.createFile(item.absPath, item.bytes, item.posixMode)
+        );
+        if (w._tag === "Left") {
+          yield* probe.record("restore_failed");
+          return "interrupted";
+        }
+        yield* probe.record("restore");
+      }
+    }
+    return null;
+  });
 }
 
 // packages/policy/src/cli.ts
@@ -16890,7 +17265,7 @@ function parseArgv(argv) {
   }
   if (args2.length === 0) return { error: true };
   const command = args2[0];
-  if (command !== "check" && command !== "relocate-artifact") {
+  if (command !== "check" && command !== "relocate-artifact" && command !== "delete-tracked") {
     return { error: true };
   }
   let repoRoot = null;
@@ -16966,6 +17341,14 @@ function runCli(argv, stdinBytes, io) {
       emitLine(io, result2);
       return result2._tag === "Authorized" ? 0 : 1;
     }
+    if (parsed.command === "delete-tracked") {
+      const result2 = yield* deleteTracked({
+        repoRoot: parsed.repoRoot,
+        request: request2
+      });
+      emitLine(io, result2);
+      return result2._tag === "Completed" ? 0 : 1;
+    }
     const result = yield* relocateArtifact({
       repoRoot: parsed.repoRoot,
       request: request2
@@ -16991,7 +17374,7 @@ import {
   unlinkSync,
   writeSync
 } from "node:fs";
-import { dirname, join as join3 } from "node:path";
+import { dirname, join as join4 } from "node:path";
 import { promisify } from "node:util";
 
 // packages/policy/src/git-env.ts
@@ -17157,6 +17540,22 @@ var liveFileSystem = Layer_exports.succeed(FileSystem, {
     },
     catch: () => new PolicyFsError("mutation_rejected")
   }),
+  createFile: (path, data, mode) => Effect_exports.try({
+    try: () => {
+      const fd = openSync(
+        path,
+        fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+        mode
+      );
+      try {
+        writeSync(fd, data);
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    },
+    catch: () => new PolicyFsError("mutation_rejected")
+  }),
   lstat: (path) => Effect_exports.try({
     try: () => toStat(lstatSync(path)),
     catch: () => new PolicyFsError("internal_failed")
@@ -17256,7 +17655,7 @@ var liveGitIdentity = Layer_exports.succeed(GitIdentity, {
         "show",
         `${commitC}:${relativePath}`
       ]);
-      const abs = join3(repoRoot, relativePath);
+      const abs = join4(repoRoot, relativePath);
       let worktreeBytes;
       try {
         worktreeBytes = readFileBoundedSync(abs, MAX_INPUT_BYTES);
@@ -17282,6 +17681,56 @@ var liveGitIdentity = Layer_exports.succeed(GitIdentity, {
         parentBlobBytes
       };
       return { snapshot, commitBlobBytes, worktreeBytes };
+    },
+    catch: (e) => e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed")
+  }),
+  inspectTrackedAtHead: (repoRoot, relativePath) => Effect_exports.tryPromise({
+    try: async () => {
+      if (relativePath.includes("..") || relativePath.startsWith("/") || relativePath.includes("\\") || relativePath.length === 0) {
+        throw new PolicyGitError("invalid_path");
+      }
+      const out = await gitText(
+        repoRoot,
+        ["ls-tree", "-z", "HEAD", "--", relativePath],
+        65536
+      );
+      if (out.length === 0) {
+        throw new PolicyGitError("target_untracked");
+      }
+      const rec = out.split("\0").find((p) => p.length > 0) ?? "";
+      const tab = rec.indexOf("	");
+      if (tab < 0) throw new PolicyGitError("internal_failed");
+      const meta = rec.slice(0, tab);
+      const pathPart = rec.slice(tab + 1);
+      if (pathPart !== relativePath) {
+        throw new PolicyGitError("internal_failed");
+      }
+      const parts2 = meta.split(" ");
+      if (parts2.length !== 3) throw new PolicyGitError("internal_failed");
+      const mode = parts2[0];
+      const type = parts2[1];
+      const blobSha1 = sha40(parts2[2]);
+      if (type === "commit") {
+        throw new PolicyGitError("target_is_submodule");
+      }
+      if (type !== "blob") {
+        throw new PolicyGitError("source_not_regular_file");
+      }
+      if (mode === "160000") {
+        throw new PolicyGitError("target_is_submodule");
+      }
+      if (mode === "120000") {
+        throw new PolicyGitError("source_is_symlink");
+      }
+      const sizeText = (await gitText(repoRoot, ["cat-file", "-s", blobSha1], 4096)).trim();
+      const size10 = Number(sizeText);
+      if (!Number.isInteger(size10) || size10 < 0) {
+        throw new PolicyGitError("internal_failed");
+      }
+      if (size10 > MAX_INPUT_BYTES) {
+        throw new PolicyGitError("oversize_input");
+      }
+      return { mode, blobSha1, size: size10 };
     },
     catch: (e) => e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed")
   })

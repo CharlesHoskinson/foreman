@@ -40,6 +40,12 @@ export type GitCommitSnapshot = {
   readonly parentBlobBytes: Uint8Array | null;
 };
 
+export type HeadTrackedBlob = {
+  readonly mode: string;
+  readonly blobSha1: string;
+  readonly size: number;
+};
+
 export class FileSystem extends Context.Tag("FileSystem")<
   FileSystem,
   {
@@ -50,6 +56,12 @@ export class FileSystem extends Context.Tag("FileSystem")<
     readonly writeExclusive: (
       path: string,
       data: Uint8Array,
+    ) => Effect.Effect<void, PolicyFsError>;
+    /** Create a new file with an explicit POSIX mode (0o644 / 0o755). */
+    readonly createFile: (
+      path: string,
+      data: Uint8Array,
+      mode: number,
     ) => Effect.Effect<void, PolicyFsError>;
     readonly lstat: (path: string) => Effect.Effect<FileStat, PolicyFsError>;
     readonly stat: (path: string) => Effect.Effect<FileStat, PolicyFsError>;
@@ -86,6 +98,14 @@ export class GitIdentity extends Context.Tag("GitIdentity")<
       },
       PolicyGitError
     >;
+    /**
+     * Resolve one path at HEAD: mode, blob SHA-1, and blob size.
+     * Fails with target_untracked when the path is absent from HEAD.
+     */
+    readonly inspectTrackedAtHead: (
+      repoRoot: string,
+      relativePath: string,
+    ) => Effect.Effect<HeadTrackedBlob, PolicyGitError>;
   }
 >() {}
 

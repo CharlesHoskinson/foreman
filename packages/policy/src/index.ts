@@ -4,6 +4,9 @@ export type {
   HistoricalState,
   RecoveryStatus,
   ArtifactRelocate,
+  TrackedFileMode,
+  TrackedDeleteTarget,
+  TrackedDelete,
   Approval,
   CurrentEntry,
   HistoricalIncident,
@@ -12,10 +15,14 @@ export type {
   DenialReason,
   CheckResult,
   RelocateResult,
+  TrackedDeleteResult,
+  ImplementedActionKind,
 } from "./schema.js";
 export {
   CANONICAL_REGISTER_ID,
   CANONICAL_REGISTER_RELPATH,
+  MAX_TRACKED_DELETE_TARGETS,
+  MAX_TRACKED_PATH_BYTES,
   decodeCurrentEntry,
   decodeHistoricalIncident,
   decodeRegister,
@@ -34,7 +41,11 @@ export {
   type ExtractFailure,
   type ExtractResult,
 } from "./register.js";
-export { admitCheck, type GitIdentitySnapshot } from "./admit.js";
+export {
+  admitCheck,
+  validateTrackedRelPath,
+  type GitIdentitySnapshot,
+} from "./admit.js";
 export {
   FileSystem,
   GitIdentity,
@@ -47,6 +58,7 @@ export {
   makeMemoryMutationProbe,
   type FileStat,
   type GitCommitSnapshot,
+  type HeadTrackedBlob,
 } from "./services.js";
 export {
   parseRfc3339Ms,
@@ -57,6 +69,11 @@ export { validateApprovalDelta } from "./approval-delta.js";
 export { sanitizedGitEnv, gitArgv } from "./git-env.js";
 export { loadCommittedAuthority, mapAuthorityError } from "./authority.js";
 export { relocateArtifact, type RelocateArgs } from "./relocate.js";
+export {
+  deleteTracked,
+  gitBlobSha1,
+  type DeleteTrackedArgs,
+} from "./tracked-delete.js";
 export { runCli, type CliIo } from "./cli.js";
 export {
   parseArchitectureArgv,

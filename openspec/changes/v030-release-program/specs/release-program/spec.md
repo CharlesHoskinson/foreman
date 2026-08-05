@@ -346,10 +346,47 @@ current actions and SHALL NOT satisfy the pre-registration rule.
 #### Scenario: an executor does not exist for the requested action
 
 - WHEN a register entry requests worktree removal, branch deletion,
-  tracked-file deletion, or artifact deletion
+  or artifact deletion
 - AND no typed executor exists for that exact action kind
 - THEN the guard denies the action even if the entry says `approved`
 - AND no legacy shell command receives authority from the entry.
+
+### Requirement: tracked_delete executor is fail-closed and exact
+
+WHEN the compiled destruction guard executes `delete-tracked`, Foreman SHALL
+authorize only one committed register entry whose action kind is
+`tracked_delete`, bind a non-empty ordered list of exact repository-relative
+targets (path, Git blob SHA-1, byte length, mode `100644` or `100755`), and
+require the same single-row approval-delta, parent candidate commit/tree,
+chronology, recovery readiness, and clean HEAD rules as `artifact_relocate`.
+
+Before any mutation the executor SHALL verify every target as one complete
+batch and SHALL refuse duplicates, globs, groups, absolute paths, empty or
+dot segments, traversal, `.git` paths, the canonical destruction-register
+path, directories, symlinks, hard links, submodules, untracked or missing
+paths, wrong mode, wrong blob, wrong byte length, and changed working-tree
+content. Mutation SHALL be all-or-rollback: capture verified bytes and modes,
+delete only after the batch passes, restore every removed file with its mode
+after an injected or host failure, and leave parent directories in place.
+Success SHALL emit a closed receipt with register digest, recovery commit,
+and ordered target identities and SHALL NOT emit absolute paths, raw errors,
+environment values, or file contents. Stdin remains `{schemaVersion:1,entryId}`.
+
+#### Scenario: exact approved tracked files are deleted
+
+- WHEN one unexpired `approved` `tracked_delete` entry binds exact tracked
+  regular-file identities and the live batch preflight passes
+- THEN the Effect executor deletes only those files
+- AND parent directories remain
+- AND the command emits one canonical `Completed` receipt without absolute
+  paths or file contents.
+
+#### Scenario: mid-batch failure restores every removed file
+
+- WHEN an injected or host error occurs after at least one approved file is
+  removed and before the batch completes
+- THEN every removed file is restored with its captured mode and bytes
+- AND the command returns a closed failure result.
 
 ### Requirement: sprint order follows dependencies
 

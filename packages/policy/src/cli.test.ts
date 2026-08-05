@@ -6,7 +6,9 @@ import { runCli } from "./cli.js";
 import { BEGIN_SENTINEL, END_SENTINEL } from "./register.js";
 import {
   Clock,
+  FileSystem,
   GitIdentity,
+  PolicyFsError,
   PolicyGitError,
   makeMemoryMutationProbe,
 } from "./services.js";
@@ -50,6 +52,20 @@ function blockedMd(): Uint8Array {
   );
 }
 
+const stubFs = Layer.succeed(FileSystem, {
+  readFile: () => Effect.fail(new PolicyFsError("internal_failed")),
+  writeExclusive: () => Effect.fail(new PolicyFsError("mutation_rejected")),
+  createFile: () => Effect.fail(new PolicyFsError("mutation_rejected")),
+  lstat: () => Effect.fail(new PolicyFsError("internal_failed")),
+  stat: () => Effect.fail(new PolicyFsError("internal_failed")),
+  exists: () => Effect.succeed(false),
+  unlink: () => Effect.fail(new PolicyFsError("mutation_rejected")),
+  rename: () => Effect.fail(new PolicyFsError("mutation_rejected")),
+  copyFile: () => Effect.fail(new PolicyFsError("mutation_rejected")),
+  fsyncPath: () => Effect.fail(new PolicyFsError("internal_failed")),
+  parentDirExists: () => Effect.succeed(true),
+});
+
 function services(bytes: Uint8Array, dirty = false) {
   const probe = makeMemoryMutationProbe();
   const gitLayer = Layer.succeed(GitIdentity, {
@@ -68,12 +84,14 @@ function services(bytes: Uint8Array, dirty = false) {
             commitBlobBytes: bytes,
             worktreeBytes: bytes.slice(),
           }),
+    inspectTrackedAtHead: () =>
+      Effect.fail(new PolicyGitError("internal_failed")),
   });
   const clockLayer = Layer.succeed(Clock, {
     nowMs: () => Effect.succeed(Date.now()),
   });
   return {
-    layer: Layer.mergeAll(gitLayer, clockLayer, probe.layer),
+    layer: Layer.mergeAll(gitLayer, clockLayer, probe.layer, stubFs),
     probe,
   };
 }

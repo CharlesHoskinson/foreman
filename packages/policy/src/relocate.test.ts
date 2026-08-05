@@ -104,6 +104,8 @@ function gitLayer(
             commitBlobBytes: bytes,
             worktreeBytes: bytes.slice(),
           }),
+    inspectTrackedAtHead: () =>
+      Effect.fail(new PolicyGitError("internal_failed")),
   });
 }
 
@@ -152,6 +154,8 @@ describe("relocateArtifact R2 fail-closed", () => {
           commitBlobBytes: bytes,
           worktreeBytes: bytes.slice(),
         }),
+      inspectTrackedAtHead: () =>
+        Effect.fail(new PolicyGitError("internal_failed")),
     });
     const result = Effect.runSync(
       relocateArtifact({
