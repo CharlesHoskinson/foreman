@@ -6,13 +6,14 @@ import {
   closeSync,
   constants as fsConstants,
   fstatSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readdirSync,
   readSync,
   realpathSync,
   rmdirSync,
-  statSync,
+  type Stats,
 } from "node:fs";
 import { join } from "node:path";
 import { Effect, Layer } from "effect";
@@ -87,7 +88,81 @@ function leasePath(stateRoot: string, runId: RunId): string {
 }
 
 /**
+ * Observe a path with lstat (no follow). Used to refuse symlinked runs/
+ * and runs/<runId> components before any read or write.
+ */
+function observeDirComponent(
+  path: string,
+): "missing" | "directory" | "symlink" | "other" {
+  let st: Stats;
+  try {
+    st = lstatSync(path);
+  } catch (e) {
+    if (isEnoent(e)) return "missing";
+    return "other";
+  }
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isDirectory()) return "directory";
+  return "other";
+}
+
+/**
+ * Validate runs/ and runs/<runId> as real directories without following
+ * symlinks. Returns the kind of the first bad component, or "ok".
+ */
+function validateRunLayout(
+  stateRoot: string,
+  runId: RunId,
+): "ok" | "missing" | "symlink" | "other" {
+  const runs = join(stateRoot, "runs");
+  const runsKind = observeDirComponent(runs);
+  if (runsKind !== "directory") {
+    return runsKind === "missing" ? "missing" : runsKind;
+  }
+  const rd = runDir(stateRoot, runId);
+  const rdKind = observeDirComponent(rd);
+  if (rdKind !== "directory") {
+    return rdKind === "missing" ? "missing" : rdKind;
+  }
+  return "ok";
+}
+
+/**
+ * Ensure runs/ and runs/<runId> exist as real (non-symlink) directories.
+ * Creates missing components one at a time and revalidates with lstat.
+ * Never follows or creates through a symlink alias. Returns false on
+ * any linked/other component or create failure.
+ */
+function ensureRealRunDir(stateRoot: string, runId: RunId): boolean {
+  const runs = join(stateRoot, "runs");
+  let kind = observeDirComponent(runs);
+  if (kind === "symlink" || kind === "other") return false;
+  if (kind === "missing") {
+    try {
+      mkdirSync(runs, { recursive: false });
+    } catch (e) {
+      if (!isEexist(e)) return false;
+    }
+    if (observeDirComponent(runs) !== "directory") return false;
+  }
+
+  const rd = join(runs, String(runId));
+  kind = observeDirComponent(rd);
+  if (kind === "symlink" || kind === "other") return false;
+  if (kind === "missing") {
+    try {
+      mkdirSync(rd, { recursive: false });
+    } catch (e) {
+      if (!isEexist(e)) return false;
+    }
+    if (observeDirComponent(rd) !== "directory") return false;
+  }
+  return true;
+}
+
+/**
  * Live TypedJournalReader: bounded no-follow NDJSON read of events.ndjson.
+ * Any NDJSON replay terminal other than CleanEof is Corrupt.
  */
 export function makeLiveTypedJournalReader(
   stateRoot: string,
@@ -95,16 +170,28 @@ export function makeLiveTypedJournalReader(
   return Layer.succeed(TypedJournalReader, {
     readRun: (runId) =>
       Effect.sync(() => {
+        const layout = validateRunLayout(stateRoot, runId);
+        if (layout === "missing") {
+          // Missing runs/ or runs/<id>: no-op Missing without following.
+          return { _tag: "Missing" as const };
+        }
+        if (layout !== "ok") {
+          // Symlink or non-directory component — fail closed, no follow.
+          return { _tag: "Corrupt" as const };
+        }
+
         const path = eventsPath(stateRoot, runId);
         let fd: number | undefined;
         try {
-          let st;
+          let st: Stats;
           try {
-            st = statSync(path);
+            // lstat: do not follow a symlinked events.ndjson either.
+            st = lstatSync(path);
           } catch (e) {
             if (isEnoent(e)) return { _tag: "Missing" as const };
             return { _tag: "Corrupt" as const };
           }
+          if (st.isSymbolicLink()) return { _tag: "Corrupt" as const };
           if (!st.isFile()) return { _tag: "Corrupt" as const };
           if (st.size > MAX_REPLAY_INPUT_BYTES) {
             return { _tag: "Corrupt" as const };
@@ -137,12 +224,11 @@ export function makeLiveTypedJournalReader(
           const replay = replayNdjsonBytes(buf.subarray(0, offset), {
             fromLine: 0,
           });
+          // Fail closed: any terminal other than CleanEof is Corrupt.
+          // Do not accept a valid prefix from a torn tail, malformed
+          // JSON/event, invalid structure, or invalid sequence.
           if (replay.terminal._tag !== "CleanEof") {
-            // Tolerant: proceed with valid prefix only (matches shell).
-            return {
-              _tag: "Ok" as const,
-              records: replay.records,
-            };
+            return { _tag: "Corrupt" as const };
           }
           return {
             _tag: "Ok" as const,
@@ -165,6 +251,7 @@ export function makeLiveTypedJournalReader(
 
 /**
  * Live RunDiscovery: list child directories of runs/ as run ids.
+ * Never follows a symlinked runs/ directory or a symlinked child.
  */
 export function makeLiveRunDiscovery(
   stateRoot: string,
@@ -173,6 +260,11 @@ export function makeLiveRunDiscovery(
     listRuns: () =>
       Effect.sync(() => {
         const runsDir = join(stateRoot, "runs");
+        const runsKind = observeDirComponent(runsDir);
+        // Missing, symlink, or non-directory: empty — no follow, no mutate.
+        if (runsKind !== "directory") {
+          return [];
+        }
         let entries: string[];
         try {
           entries = readdirSync(runsDir);
@@ -182,11 +274,8 @@ export function makeLiveRunDiscovery(
         const out: RunId[] = [];
         for (const name of entries.sort()) {
           const full = join(runsDir, name);
-          try {
-            if (!statSync(full).isDirectory()) continue;
-          } catch {
-            continue;
-          }
+          // lstat only: skip symlinks and non-directories.
+          if (observeDirComponent(full) !== "directory") continue;
           const id = decodeRunId(name);
           if (typeof id === "string") out.push(id);
         }
@@ -198,22 +287,42 @@ export function makeLiveRunDiscovery(
 /**
  * Live per-run lease via exclusive mkdir of `.supervise.lock`.
  * No stale reclaim — busy fails closed.
+ * Never creates the lock through a symlinked runs/ or runs/<runId>.
  */
 export function makeLiveRunLease(stateRoot: string): Layer.Layer<RunLease> {
   return Layer.succeed(RunLease, {
     acquire: (runId) =>
       Effect.sync(() => {
-        const rd = runDir(stateRoot, runId);
-        try {
-          mkdirSync(rd, { recursive: true });
-        } catch {
+        // Establish real directory layout without following aliases.
+        if (!ensureRealRunDir(stateRoot, runId)) {
+          return { _tag: "Busy" as const };
+        }
+        // Revalidate identity immediately before lock create.
+        if (validateRunLayout(stateRoot, runId) !== "ok") {
           return { _tag: "Busy" as const };
         }
         const lock = leasePath(stateRoot, runId);
+        // Refuse if lock path already exists as a symlink or non-dir.
+        const lockKind = observeDirComponent(lock);
+        if (lockKind === "symlink" || lockKind === "other") {
+          return { _tag: "Busy" as const };
+        }
+        if (lockKind === "directory") {
+          return { _tag: "Busy" as const };
+        }
         try {
           mkdirSync(lock, { recursive: false });
         } catch (e) {
           if (isEexist(e)) return { _tag: "Busy" as const };
+          return { _tag: "Busy" as const };
+        }
+        // Confirm lock is a real directory we created (not retargeted).
+        if (observeDirComponent(lock) !== "directory") {
+          try {
+            rmdirSync(lock);
+          } catch {
+            /* ignore */
+          }
           return { _tag: "Busy" as const };
         }
         let owned = true;

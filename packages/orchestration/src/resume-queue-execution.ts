@@ -313,8 +313,10 @@ type QueueServices =
   | EnvVars;
 
 /**
- * Live queue submitter. When pueue is unavailable, returns Ready with the
- * exact command vector and never calls ProcessExec.runForeground.
+ * Live queue submitter. Ready only when the client is explicitly missing
+ * before admission. A resolved client with a nonzero ensure result is an
+ * unhealthy or indeterminate queue and fails closed. Never calls
+ * ProcessExec.runForeground.
  */
 export function makeLiveQueueSubmitter(
   options?: LiveQueueSubmitterOptions,
@@ -360,6 +362,8 @@ export function makeLiveQueueSubmitter(
                 commandArgv: [...commandArgv],
               });
 
+              // Ready only for an explicit missing-client observation before
+              // admission. A present client with a failed ensure is not Ready.
               const pueueBin = yield* resolvePueueClient;
               if (pueueBin === null) {
                 return readyVector();
@@ -367,7 +371,7 @@ export function makeLiveQueueSubmitter(
 
               const ensureCode = yield* cmdEnsure(io, { quiet: true });
               if (ensureCode !== EXIT_OK) {
-                return readyVector();
+                return yield* Effect.fail(queueSubmitFailure("queue_failed"));
               }
 
               // Re-resolve after ensure — race to absent → Ready, never spawn.

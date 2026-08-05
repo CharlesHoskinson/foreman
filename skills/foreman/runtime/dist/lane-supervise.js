@@ -15617,7 +15617,7 @@ var ensureErrorType2 = () => (layer) => layer;
 var ensureRequirementsType2 = () => (layer) => layer;
 
 // packages/orchestration/src/supervisor-cli.ts
-import { realpathSync as realpathSync3, statSync as statSync4 } from "node:fs";
+import { realpathSync as realpathSync3, statSync as statSync3 } from "node:fs";
 import { isAbsolute as isAbsolute3 } from "node:path";
 
 // packages/event-log/src/bounds.ts
@@ -19618,7 +19618,7 @@ function makeLiveQueueSubmitter(options) {
             }
             const ensureCode = yield* cmdEnsure(io2, { quiet: true });
             if (ensureCode !== EXIT_OK) {
-              return readyVector();
+              return yield* Effect_exports.fail(queueSubmitFailure("queue_failed"));
             }
             const pueueBin2 = yield* resolvePueueClient;
             if (pueueBin2 === null) {
@@ -19986,13 +19986,13 @@ import {
   closeSync as closeSync3,
   constants as fsConstants3,
   fstatSync as fstatSync3,
+  lstatSync as lstatSync3,
   mkdirSync as mkdirSync2,
   openSync as openSync3,
   readdirSync,
   readSync as readSync3,
   realpathSync as realpathSync2,
-  rmdirSync,
-  statSync as statSync3
+  rmdirSync
 } from "node:fs";
 import { join as join6 } from "node:path";
 function isEnoent2(e) {
@@ -20010,19 +20010,77 @@ function eventsPath2(stateRoot, runId) {
 function leasePath(stateRoot, runId) {
   return join6(runDir2(stateRoot, runId), ".supervise.lock");
 }
+function observeDirComponent2(path) {
+  let st;
+  try {
+    st = lstatSync3(path);
+  } catch (e) {
+    if (isEnoent2(e)) return "missing";
+    return "other";
+  }
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isDirectory()) return "directory";
+  return "other";
+}
+function validateRunLayout(stateRoot, runId) {
+  const runs = join6(stateRoot, "runs");
+  const runsKind = observeDirComponent2(runs);
+  if (runsKind !== "directory") {
+    return runsKind === "missing" ? "missing" : runsKind;
+  }
+  const rd = runDir2(stateRoot, runId);
+  const rdKind = observeDirComponent2(rd);
+  if (rdKind !== "directory") {
+    return rdKind === "missing" ? "missing" : rdKind;
+  }
+  return "ok";
+}
+function ensureRealRunDir(stateRoot, runId) {
+  const runs = join6(stateRoot, "runs");
+  let kind = observeDirComponent2(runs);
+  if (kind === "symlink" || kind === "other") return false;
+  if (kind === "missing") {
+    try {
+      mkdirSync2(runs, { recursive: false });
+    } catch (e) {
+      if (!isEexist2(e)) return false;
+    }
+    if (observeDirComponent2(runs) !== "directory") return false;
+  }
+  const rd = join6(runs, String(runId));
+  kind = observeDirComponent2(rd);
+  if (kind === "symlink" || kind === "other") return false;
+  if (kind === "missing") {
+    try {
+      mkdirSync2(rd, { recursive: false });
+    } catch (e) {
+      if (!isEexist2(e)) return false;
+    }
+    if (observeDirComponent2(rd) !== "directory") return false;
+  }
+  return true;
+}
 function makeLiveTypedJournalReader(stateRoot) {
   return Layer_exports.succeed(TypedJournalReader, {
     readRun: (runId) => Effect_exports.sync(() => {
+      const layout = validateRunLayout(stateRoot, runId);
+      if (layout === "missing") {
+        return { _tag: "Missing" };
+      }
+      if (layout !== "ok") {
+        return { _tag: "Corrupt" };
+      }
       const path = eventsPath2(stateRoot, runId);
       let fd;
       try {
         let st;
         try {
-          st = statSync3(path);
+          st = lstatSync3(path);
         } catch (e) {
           if (isEnoent2(e)) return { _tag: "Missing" };
           return { _tag: "Corrupt" };
         }
+        if (st.isSymbolicLink()) return { _tag: "Corrupt" };
         if (!st.isFile()) return { _tag: "Corrupt" };
         if (st.size > MAX_REPLAY_INPUT_BYTES) {
           return { _tag: "Corrupt" };
@@ -20047,10 +20105,7 @@ function makeLiveTypedJournalReader(stateRoot) {
           fromLine: 0
         });
         if (replay.terminal._tag !== "CleanEof") {
-          return {
-            _tag: "Ok",
-            records: replay.records
-          };
+          return { _tag: "Corrupt" };
         }
         return {
           _tag: "Ok",
@@ -20073,6 +20128,10 @@ function makeLiveRunDiscovery(stateRoot) {
   return Layer_exports.succeed(RunDiscovery, {
     listRuns: () => Effect_exports.sync(() => {
       const runsDir = join6(stateRoot, "runs");
+      const runsKind = observeDirComponent2(runsDir);
+      if (runsKind !== "directory") {
+        return [];
+      }
       let entries2;
       try {
         entries2 = readdirSync(runsDir);
@@ -20082,11 +20141,7 @@ function makeLiveRunDiscovery(stateRoot) {
       const out = [];
       for (const name of entries2.sort()) {
         const full = join6(runsDir, name);
-        try {
-          if (!statSync3(full).isDirectory()) continue;
-        } catch {
-          continue;
-        }
+        if (observeDirComponent2(full) !== "directory") continue;
         const id = decodeRunId(name);
         if (typeof id === "string") out.push(id);
       }
@@ -20097,17 +20152,31 @@ function makeLiveRunDiscovery(stateRoot) {
 function makeLiveRunLease(stateRoot) {
   return Layer_exports.succeed(RunLease, {
     acquire: (runId) => Effect_exports.sync(() => {
-      const rd = runDir2(stateRoot, runId);
-      try {
-        mkdirSync2(rd, { recursive: true });
-      } catch {
+      if (!ensureRealRunDir(stateRoot, runId)) {
+        return { _tag: "Busy" };
+      }
+      if (validateRunLayout(stateRoot, runId) !== "ok") {
         return { _tag: "Busy" };
       }
       const lock = leasePath(stateRoot, runId);
+      const lockKind = observeDirComponent2(lock);
+      if (lockKind === "symlink" || lockKind === "other") {
+        return { _tag: "Busy" };
+      }
+      if (lockKind === "directory") {
+        return { _tag: "Busy" };
+      }
       try {
         mkdirSync2(lock, { recursive: false });
       } catch (e) {
         if (isEexist2(e)) return { _tag: "Busy" };
+        return { _tag: "Busy" };
+      }
+      if (observeDirComponent2(lock) !== "directory") {
+        try {
+          rmdirSync(lock);
+        } catch {
+        }
         return { _tag: "Busy" };
       }
       let owned = true;
@@ -20236,7 +20305,7 @@ function resolveStateRoot(path) {
   if (typeof path !== "string" || path.length === 0) return null;
   if (!isAbsolute3(path) || path.includes("\0")) return null;
   try {
-    const st = statSync4(path);
+    const st = statSync3(path);
     if (!st.isDirectory()) return null;
     return realpathSync3(path);
   } catch {

@@ -642,6 +642,73 @@ describe("makeLiveQueueSubmitter — never direct-spawns", () => {
       callLog.filter((c) => c.kind === "foreground").length,
       0,
     );
+    // Missing client: no ensure/add admission attempt.
+    assert.equal(
+      callLog.filter((c) => c.args[0] === "status" || c.args[0] === "add")
+        .length,
+      0,
+    );
+  });
+
+  it("missing-client observation (pueuePresent false) returns Ready without ensure", async () => {
+    const callLog: Call[] = [];
+    const layer = makeLiveQueueSubmitter().pipe(
+      Layer.provide(
+        queueServiceLayer({
+          pueuePresent: false,
+          callLog,
+        }),
+      ),
+    );
+    const argv = ["bash", "lane-run.sh", "--round", "g", "r", "run", "lane", "/w", "--", "x"];
+    const result = await Effect.runPromise(
+      Effect.gen(function* () {
+        const q = yield* QueueSubmitter;
+        return yield* q.submit("misc", argv);
+      }).pipe(Effect.provide(layer)),
+    );
+    assert.equal(result._tag, "Ready");
+    if (result._tag === "Ready") {
+      assert.deepEqual(result.commandArgv, argv);
+    }
+    assert.equal(callLog.length, 0);
+  });
+
+  it("present client with unhealthy ensure fails as QueueSubmitFailure not Ready", async () => {
+    const callLog: Call[] = [];
+    const layer = makeLiveQueueSubmitter().pipe(
+      Layer.provide(
+        queueServiceLayer({
+          pueuePresent: true,
+          ensureStatusOk: false,
+          callLog,
+        }),
+      ),
+    );
+    const argv = ["bash", "lane-run.sh", "--round", "g", "r", "run", "lane", "/w", "--", "x"];
+    const either = await Effect.runPromise(
+      Effect.either(
+        Effect.gen(function* () {
+          const q = yield* QueueSubmitter;
+          return yield* q.submit("misc", argv);
+        }).pipe(Effect.provide(layer)),
+      ),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left._tag, "QueueSubmitFailure");
+      assert.equal(either.left.reason, "queue_failed");
+    }
+    // Ensure may probe status / start daemon, but must never admit add or
+    // fall back to a Ready direct-spawn path.
+    assert.equal(
+      callLog.filter((c) => c.args[0] === "add").length,
+      0,
+    );
+    assert.equal(
+      callLog.filter((c) => c.kind === "foreground").length,
+      0,
+    );
   });
 
   it("returns Ready and never runForeground when pueue vanishes between ensure and add", async () => {
