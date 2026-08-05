@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   mkdtempSync,
   readdirSync,
@@ -14,8 +14,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { Deferred, Effect, Layer } from "effect";
+import { Deferred, Effect, Fiber, Layer } from "effect";
 import {
+  DETACH_HANDOFF_BOUND_MS,
   HEARTBEAT_KEYS,
   formatHeartbeatLine,
   type HeartbeatLine,
@@ -25,9 +26,13 @@ import { processGroupKillTarget, planTaskkill } from "./platform.js";
 import {
   ByteSink,
   ChildSpawner,
+  DetachSpawner,
+  ExecveService,
   HeartbeatWriter,
   LauncherClock,
   ProcessGroupTerminator,
+  StderrLog,
+  UnshareProbeService,
   WindowsTreeTerminator,
   liveClock,
   type SpawnedChild,
@@ -35,7 +40,8 @@ import {
 } from "./services.js";
 import { supervise, type LaunchEvent } from "./supervise.js";
 import { LiveLauncherLayer } from "./services.js";
-import { EXIT_TIMEOUT, mapSuperviseExit } from "./cli.js";
+import { runMain } from "./main.js";
+import { EXIT_LAUNCHER_ERROR, EXIT_TIMEOUT, mapSuperviseExit } from "./cli.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const isWin = process.platform === "win32";
@@ -393,60 +399,194 @@ describe("live POSIX process-group degraded path", () => {
   });
 });
 
-describe("descendant churn control", () => {
-  it("launcher host does not accumulate zombie direct children across 1000+ short descendants", async () => {
+describe("async spawn error maps to typed launcher failure", () => {
+  it("child wait SpawnError becomes SuperviseError (exit 125 path), not exit 1", async () => {
+    const child: SpawnedChild = {
+      pid: 0,
+      wait: () =>
+        Effect.fail({
+          _tag: "SpawnError" as const,
+          message: "spawn ENOENT",
+        }),
+      stdout: null,
+      stderr: null,
+      killSelf: () => Effect.void,
+    };
+    const either = await Effect.runPromise(
+      Effect.either(
+        supervise({
+          cmd: ["missing-bin"],
+          graceSecs: 1,
+          heartbeatIntervalSecs: 60,
+          launcherPid: 1,
+          platform: "linux",
+        }).pipe(Effect.provide(baseLayer({ child }))),
+      ),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left._tag, "SuperviseError");
+      assert.match(either.left.message, /ENOENT|spawn/i);
+    }
+  });
+
+  it("live nonexistent binary yields launcher exit 125 via runMain", async () => {
     if (isWin) return;
+    const { runMain } = await import("./main.js");
+    const code = await runMain(
+      [
+        process.execPath,
+        "foreman-launch",
+        "--",
+        "/nonexistent/foreman-no-such-binary-xyz-9f3a",
+      ],
+      {
+        writeStdout: () => {},
+        writeStderr: () => {},
+        exit: () => {},
+      },
+    );
+    assert.equal(code, EXIT_LAUNCHER_ERROR);
+  });
+});
+
+describe("Effect interruption binds child tree termination", () => {
+  it("interrupting supervise after spawn performs exactly one tree kill and cleans timers", async () => {
+    const kills: number[] = [];
+    const hold = Effect.runSync(Deferred.make<void, never>());
+    const child = fakeChild({ pid: 777, exitCode: 0, hold });
+    const fiber = Effect.runFork(
+      supervise({
+        cmd: ["sleep"],
+        timeoutSecs: 30,
+        graceSecs: 5,
+        heartbeatIntervalSecs: 1000,
+        launcherPid: 1,
+        platform: "linux",
+      }).pipe(
+        Effect.provide(
+          baseLayer({
+            child,
+            killGroup: (pid) => {
+              kills.push(pid);
+            },
+          }),
+        ),
+      ),
+    );
+    // Allow spawn + fiber setup
+    await new Promise((r) => setTimeout(r, 30));
+    await Effect.runPromise(Fiber.interrupt(fiber));
+    // Release wait if still held so any residual path can finish
+    Effect.runSync(Deferred.succeed(hold, undefined));
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(kills.length, 1, `expected exactly one killGroup, got ${kills.length}`);
+    assert.equal(kills[0], 777);
+  });
+});
+
+describe("descendant churn control", () => {
+  it("while supervised worker stays live through 1000+ short descendants, launcher has no zombie direct children on /proc", async () => {
+    if (isWin) return;
+    const procObs = observeZombieDirectChildren(process.pid);
+    if (procObs._tag === "Unavailable") {
+      // Typed skip: do not claim a false zero without /proc.
+      return;
+    }
+
     const dir = mkdtempSync(join(tmpdir(), "fl-churn-"));
     try {
-      const ready = join(dir, "ready");
-      const result = await Effect.runPromise(
+      const go = join(dir, "go");
+      const done = join(dir, "done");
+      // Worker stays live: creates 1100 short descendants, signals go, waits for done.
+      const workerScript = [
+        "set -e",
+        "for i in $(seq 1 1100); do (exit 0); done",
+        `: > "${go}"`,
+        `while [ ! -f "${done}" ]; do sleep 0.05; done`,
+        "exit 0",
+      ].join("; ");
+
+      const fiber = Effect.runFork(
         supervise({
-          cmd: [
-            "sh",
-            "-c",
-            `for i in $(seq 1 1100); do (exit 0); done; : > "${ready}"; exit 0`,
-          ],
+          cmd: ["sh", "-c", workerScript],
           graceSecs: 1,
           heartbeatIntervalSecs: 60,
           launcherPid: process.pid,
           platform: process.platform,
         }).pipe(Effect.provide(LiveLauncherLayer)),
       );
+
+      const deadline = Date.now() + 30_000;
+      while (!existsSync(go) && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      assert.equal(existsSync(go), true, "worker never signaled ready after churn");
+
+      // Worker is still live; observe the launcher host (this process).
+      const during = observeZombieDirectChildren(process.pid);
+      assert.equal(during._tag, "Ok");
+      if (during._tag === "Ok") {
+        assert.equal(
+          during.count,
+          0,
+          `expected 0 zombie direct children of launcher pid ${process.pid} while worker live, got ${during.count}`,
+        );
+        // Process table sanity: launcher direct children should be small (worker + maybe shells).
+        assert.equal(
+          during.directChildCount < 64,
+          true,
+          `launcher direct-child count ${during.directChildCount} suggests process-table pressure`,
+        );
+      }
+
+      writeFileSync(done, "");
+      const result = await Effect.runPromise(Fiber.join(fiber));
       assert.equal(result.exitCode, 0);
-      assert.equal(existsSync(ready), true);
-      const zombies = countZombieChildren(process.pid);
-      assert.equal(
-        zombies,
-        0,
-        `expected 0 zombie direct children of test process, got ${zombies}`,
-      );
+
+      const after = observeZombieDirectChildren(process.pid);
+      if (after._tag === "Ok") {
+        assert.equal(after.count, 0);
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 });
 
-function countZombieChildren(parentPid: number): number {
-  let count = 0;
+/**
+ * Observe zombie direct children of parentPid via Linux /proc.
+ * Returns typed Unavailable when /proc is missing — never a false zero.
+ */
+function observeZombieDirectChildren(
+  parentPid: number,
+):
+  | { readonly _tag: "Ok"; readonly count: number; readonly directChildCount: number }
+  | { readonly _tag: "Unavailable"; readonly reason: string } {
   try {
-    for (const name of readdirSync("/proc")) {
-      if (!/^\d+$/.test(name)) continue;
-      try {
-        const stat = readFileSync(join("/proc", name, "stat"), "utf8");
-        const close = stat.indexOf(")");
-        if (close < 0) continue;
-        const rest = stat.slice(close + 2).split(" ");
-        const state = rest[0];
-        const ppid = Number(rest[1]);
-        if (ppid === parentPid && state === "Z") count++;
-      } catch {
-        /* race */
-      }
-    }
+    readdirSync("/proc");
   } catch {
-    return 0;
+    return { _tag: "Unavailable", reason: "/proc not available" };
   }
-  return count;
+  let zombies = 0;
+  let direct = 0;
+  for (const name of readdirSync("/proc")) {
+    if (!/^\d+$/.test(name)) continue;
+    try {
+      const stat = readFileSync(join("/proc", name, "stat"), "utf8");
+      const close = stat.indexOf(")");
+      if (close < 0) continue;
+      const rest = stat.slice(close + 2).split(" ");
+      const state = rest[0];
+      const ppid = Number(rest[1]);
+      if (ppid !== parentPid) continue;
+      direct++;
+      if (state === "Z") zombies++;
+    } catch {
+      /* race */
+    }
+  }
+  return { _tag: "Ok", count: zombies, directChildCount: direct };
 }
 
 describe("copied compiled bundle without repository node_modules", () => {
@@ -503,6 +643,246 @@ describe("stale detached handoff refusal", () => {
       const content = readFileSync(hb, "utf8");
       assert.equal(content, "");
       assert.equal(validateHeartbeatLineText(content)._tag, "Invalid");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+function handoffLayer(opts: {
+  readonly detachedPid: number;
+  readonly heartbeats: string[];
+  readonly clock?: Context.Tag.Service<typeof LauncherClock>;
+}): Layer.Layer<
+  | ChildSpawner
+  | ProcessGroupTerminator
+  | WindowsTreeTerminator
+  | HeartbeatWriter
+  | ByteSink
+  | LauncherClock
+  | ExecveService
+  | UnshareProbeService
+  | DetachSpawner
+  | StderrLog
+> {
+  let readGen = 0;
+  return Layer.mergeAll(
+    Layer.succeed(ChildSpawner, {
+      spawn: () =>
+        Effect.fail({ _tag: "SpawnError" as const, message: "unused" }),
+    }),
+    Layer.succeed(ProcessGroupTerminator, {
+      killGroup: () => Effect.void,
+    }),
+    Layer.succeed(WindowsTreeTerminator, {
+      terminateTree: () => Effect.void,
+    }),
+    Layer.succeed(HeartbeatWriter, {
+      reset: () => Effect.void,
+      appendLine: () => Effect.void,
+      readText: () => {
+        const idx = Math.min(readGen, opts.heartbeats.length - 1);
+        readGen++;
+        const text = opts.heartbeats[idx] ?? "";
+        return Effect.succeed(text);
+      },
+    }),
+    Layer.succeed(ByteSink, {
+      writeStdout: () => Effect.void,
+      writeStderr: () => Effect.void,
+    }),
+    Layer.succeed(LauncherClock, opts.clock ?? liveClock),
+    Layer.succeed(ExecveService, {
+      execve: () =>
+        Effect.fail({
+          _tag: "ExecveFailed" as const,
+          message: "unused",
+        }),
+    }),
+    Layer.succeed(UnshareProbeService, {
+      probe: () =>
+        Effect.succeed({
+          _tag: "Failed" as const,
+          unsharePath: null,
+          detail: "test",
+        }),
+    }),
+    Layer.succeed(DetachSpawner, {
+      spawnDetachedSelf: () => Effect.succeed({ pid: opts.detachedPid }),
+    }),
+    Layer.succeed(StderrLog, {
+      write: () => Effect.void,
+    }),
+  );
+}
+
+function hbLineForPid(launcherPid: number): string {
+  const line: HeartbeatLine = {
+    ts: new Date().toISOString(),
+    launcher_pid: launcherPid,
+    pid: 9,
+    job_id: "9",
+    alive: true,
+    stdout_bytes: 0,
+    stderr_bytes: 0,
+    elapsed_s: 0.1,
+  };
+  return formatHeartbeatLine(line);
+}
+
+describe("detach handoff launcher_pid binding", () => {
+  it("refuses a valid post-reset heartbeat from another launcher_pid", async () => {
+    const foreign = 111;
+    const ours = 4242;
+    let now = 1_000_000;
+    const clock: Context.Tag.Service<typeof LauncherClock> = {
+      nowMs: () => Effect.sync(() => now),
+      sleep: () =>
+        Effect.sync(() => {
+          now += 200;
+        }),
+    };
+    const code = await runMain(
+      [
+        process.execPath,
+        "foreman-launch",
+        "--detach",
+        "--heartbeat-file",
+        "/tmp/fake-hb",
+        "--",
+        "true",
+      ],
+      {
+        writeStdout: () => {},
+        writeStderr: () => {},
+        exit: () => {},
+      },
+      handoffLayer({
+        detachedPid: ours,
+        heartbeats: [hbLineForPid(foreign), hbLineForPid(foreign)],
+        clock,
+      }),
+    );
+    assert.equal(code, EXIT_LAUNCHER_ERROR);
+    assert.equal(now >= 1_000_000 + DETACH_HANDOFF_BOUND_MS, true);
+  });
+
+  it("accepts the first valid post-reset heartbeat whose launcher_pid matches spawnDetachedSelf", async () => {
+    const ours = 4242;
+    const foreign = 111;
+    let now = 1_000_000;
+    const clock: Context.Tag.Service<typeof LauncherClock> = {
+      nowMs: () => Effect.sync(() => now),
+      sleep: () =>
+        Effect.sync(() => {
+          now += 50;
+        }),
+    };
+    const code = await runMain(
+      [
+        process.execPath,
+        "foreman-launch",
+        "--detach",
+        "--heartbeat-file",
+        "/tmp/fake-hb",
+        "--",
+        "true",
+      ],
+      {
+        writeStdout: () => {},
+        writeStderr: () => {},
+        exit: () => {},
+      },
+      handoffLayer({
+        detachedPid: ours,
+        heartbeats: [hbLineForPid(foreign), hbLineForPid(ours)],
+        clock,
+      }),
+    );
+    assert.equal(code, 0);
+  });
+});
+
+describe("compiled bundle large stdout/stderr byte-exact pass-through", () => {
+  it("large piped stdout and stderr are byte-exact through foreman-launch.js", async () => {
+    if (isWin) return;
+    const bundlePath = join(
+      root,
+      "skills/foreman/runtime/dist/foreman-launch.js",
+    );
+    if (!existsSync(bundlePath)) {
+      assert.fail("compiled foreman-launch.js missing; run npm run build first");
+    }
+
+    const dir = mkdtempSync(join(tmpdir(), "fl-bytes-"));
+    try {
+      const outSize = 256 * 1024;
+      const errSize = 256 * 1024;
+      const script = join(dir, "emit.mjs");
+      writeFileSync(
+        script,
+        `
+import { writeSync } from "node:fs";
+const outN = ${outSize};
+const errN = ${errSize};
+const out = Buffer.alloc(outN);
+const err = Buffer.alloc(errN);
+for (let i = 0; i < outN; i++) out[i] = i % 251;
+for (let i = 0; i < errN; i++) err[i] = (i * 3) % 251;
+writeSync(1, out);
+writeSync(2, err);
+process.exit(0);
+`,
+      );
+
+      const expectedOut = Buffer.alloc(outSize);
+      const expectedErr = Buffer.alloc(errSize);
+      for (let i = 0; i < outSize; i++) expectedOut[i] = i % 251;
+      for (let i = 0; i < errSize; i++) expectedErr[i] = (i * 3) % 251;
+
+      const child = spawn(
+        process.execPath,
+        [bundlePath, "--", process.execPath, script],
+        {
+          stdio: ["ignore", "pipe", "pipe"],
+          env: process.env,
+        },
+      );
+
+      const outChunks: Buffer[] = [];
+      const errChunks: Buffer[] = [];
+      child.stdout.on("data", (c: Buffer) => outChunks.push(c));
+      child.stderr.on("data", (c: Buffer) => errChunks.push(c));
+
+      const status: number | null = await new Promise((resolve, reject) => {
+        child.on("error", reject);
+        child.on("close", (code) => resolve(code));
+      });
+
+      const gotOut = Buffer.concat(outChunks);
+      const gotErrAll = Buffer.concat(errChunks);
+
+      assert.equal(
+        status,
+        0,
+        `launcher exit ${status}; stderr=${gotErrAll.toString("utf8").slice(0, 400)}`,
+      );
+      assert.equal(
+        gotOut.equals(expectedOut),
+        true,
+        `stdout mismatch: len=${gotOut.length} expected=${outSize}`,
+      );
+      assert.equal(
+        gotErrAll.length >= errSize,
+        true,
+        `stderr too short: ${gotErrAll.length} < ${errSize}`,
+      );
+      const payload = gotErrAll.subarray(gotErrAll.length - errSize);
+      assert.equal(
+        payload.equals(expectedErr),
+        true,
+        "stderr payload (last errSize bytes) not byte-exact",
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

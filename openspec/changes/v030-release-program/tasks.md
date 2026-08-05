@@ -79,11 +79,13 @@
         frozen CLI/exit map, separate stdout/stderr, null stdin, heartbeats,
         graded stop, Effect supervise, POSIX process-group fallback with
         negative-PID termination, typed Windows degraded capability and
-        injectable taskkill, descendant churn >1000 without zombie
-        accumulation under the launcher host, copied-bundle smoke. Open:
-        live PID-namespace cascade on hosts where unshare succeeds, native
-        Windows Job Object parity, legacy caller conversion, Bun tree
-        retirement. Do not mark Sprint 5 complete.
+        injectable taskkill, bounded live descendant churn (>1000 short
+        descendants while worker live; launcher zombie direct children = 0
+        on `/proc`; typed skip without `/proc`), copied-bundle smoke. Open:
+        system-wide process-table exhaustion proof, live PID-namespace
+        cascade on hosts where unshare succeeds, native Windows Job Object
+        parity, legacy caller conversion, Bun tree retirement. Do not mark
+        Sprint 5 complete.
       - Architecture policy:
         `99accf3ba5d75c311aa9ede3460b4a4a49d9aa3e` (feat),
         `96d0f0750f415697985b4201f47b915734146d9b` (review record).

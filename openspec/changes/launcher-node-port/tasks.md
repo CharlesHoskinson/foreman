@@ -30,8 +30,12 @@
 
 ## 5. Churn and compiled artifact
 
-- [x] Add bounded >1000 short-descendant churn control without zombie
-      accumulation under the launcher host.
+- [x] Add bounded live fixture: supervised worker stays live while creating
+      more than 1,000 short descendants; on Linux `/proc` hosts the launcher
+      process has zero zombie direct children and a small direct-child count.
+      Hosts without `/proc` record a typed skip (no false zero). Broader
+      system-wide process-table exhaustion and escaped-descendant closure
+      remain open.
 - [x] Emit `skills/foreman/runtime/dist/foreman-launch.js` and bind the
       runtime manifest.
 - [x] Prove copied-bundle execution without repository `node_modules`.

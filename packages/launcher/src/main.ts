@@ -37,6 +37,30 @@ export type MainIo = {
   readonly exit: (code: number) => void;
 };
 
+/**
+ * Set exitCode and wait for stdout/stderr drain before forcing process.exit.
+ * Avoids truncating child bytes still queued in the Node write buffers.
+ */
+export function exitWhenStreamsFlushed(code: number): void {
+  process.exitCode = code;
+  const tryExit = (): void => {
+    const stdoutBlocked = process.stdout.writableNeedDrain === true;
+    const stderrBlocked = process.stderr.writableNeedDrain === true;
+    if (!stdoutBlocked && !stderrBlocked) {
+      process.exit(code);
+      return;
+    }
+    if (stdoutBlocked) {
+      process.stdout.once("drain", tryExit);
+    }
+    if (stderrBlocked) {
+      process.stderr.once("drain", tryExit);
+    }
+  };
+  // Defer one turn so any in-flight write callbacks can mark needDrain.
+  setImmediate(tryExit);
+}
+
 const defaultIo: MainIo = {
   writeStdout: (t) => {
     process.stdout.write(t);
@@ -44,9 +68,7 @@ const defaultIo: MainIo = {
   writeStderr: (t) => {
     process.stderr.write(t);
   },
-  exit: (code) => {
-    process.exit(code);
-  },
+  exit: exitWhenStreamsFlushed,
 };
 
 function runDetachHandoff(
@@ -81,6 +103,7 @@ function runDetachHandoff(
       return EXIT_LAUNCHER_ERROR;
     }
 
+    const expectedPid = spawned.right.pid;
     const start = yield* clock.nowMs();
     const deadline = start + DETACH_HANDOFF_BOUND_MS;
     for (;;) {
@@ -89,8 +112,12 @@ function runDetachHandoff(
       const textE = yield* Effect.either(hb.readText(heartbeatFile));
       if (textE._tag === "Right") {
         const valid = firstValidHeartbeatLine(textE.right);
-        if (valid._tag === "Ok") {
-          // Refuse stale: reset ensures first valid line is from new copy.
+        // Accept only a post-reset valid line whose launcher_pid is the PID
+        // returned by spawnDetachedSelf. Refuse heartbeats from other launchers.
+        if (
+          valid._tag === "Ok" &&
+          valid.line.launcher_pid === expectedPid
+        ) {
           return 0;
         }
       }
@@ -236,14 +263,12 @@ const isMain =
 if (isMain) {
   runMain()
     .then((code) => {
-      process.exit(code);
+      exitWhenStreamsFlushed(code);
     })
     .catch((err) => {
       process.stderr.write(
         `foreman-launch: unhandled launcher error: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`,
       );
-      process.exit(EXIT_LAUNCHER_ERROR);
+      exitWhenStreamsFlushed(EXIT_LAUNCHER_ERROR);
     });
 }
-
-

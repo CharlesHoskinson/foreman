@@ -8235,7 +8235,7 @@ var exitVoidAll = (exits) => {
   }
   return exitVoid2;
 };
-var setImmediate = "setImmediate" in globalThis ? globalThis.setImmediate : (f) => setTimeout(f, 0);
+var setImmediate2 = "setImmediate" in globalThis ? globalThis.setImmediate : (f) => setTimeout(f, 0);
 var MicroSchedulerDefault = class {
   tasks = [];
   running = false;
@@ -8246,7 +8246,7 @@ var MicroSchedulerDefault = class {
     this.tasks.push(task);
     if (!this.running) {
       this.running = true;
-      setImmediate(this.afterScheduled);
+      setImmediate2(this.afterScheduled);
     }
   }
   /**
@@ -16521,16 +16521,35 @@ function wrapChild(child) {
   return {
     pid,
     wait: () => Effect_exports.async((resume2) => {
-      child.once("error", () => {
-        resume2(Effect_exports.succeed(1));
-      });
-      child.once("exit", (code, signal) => {
+      let settled = false;
+      const onError3 = (err) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resume2(
+          Effect_exports.fail({
+            _tag: "SpawnError",
+            message: err.message || "spawn error"
+          })
+        );
+      };
+      const onExit4 = (code, signal) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
         if (signal) {
           resume2(Effect_exports.succeed(1));
         } else {
           resume2(Effect_exports.succeed(code ?? 0));
         }
-      });
+      };
+      const cleanup = () => {
+        child.off("error", onError3);
+        child.off("exit", onExit4);
+      };
+      child.once("error", onError3);
+      child.once("exit", onExit4);
+      return Effect_exports.sync(cleanup);
     }),
     stdout: nodeReadableToAsync(child.stdout),
     stderr: nodeReadableToAsync(child.stderr),
@@ -16659,13 +16678,30 @@ var liveHeartbeatWriter = {
     })
   })
 };
+function writeStream(stream, chunk2) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      stream.off("drain", finish);
+      resume2(Effect_exports.void);
+    };
+    let accepted = false;
+    accepted = stream.write(chunk2, () => {
+      if (accepted) finish();
+    });
+    if (!accepted) {
+      stream.once("drain", finish);
+    }
+    return Effect_exports.sync(() => {
+      stream.off("drain", finish);
+    });
+  });
+}
 var liveByteSink = {
-  writeStdout: (chunk2) => Effect_exports.sync(() => {
-    process.stdout.write(chunk2);
-  }),
-  writeStderr: (chunk2) => Effect_exports.sync(() => {
-    process.stderr.write(chunk2);
-  })
+  writeStdout: (chunk2) => writeStream(process.stdout, chunk2),
+  writeStderr: (chunk2) => writeStream(process.stderr, chunk2)
 };
 var liveStderrLog = {
   write: (line) => Effect_exports.sync(() => {
@@ -16716,179 +16752,230 @@ function emitEvent(opts, nowMs, e) {
   opts.onEvent?.({ ts: new Date(nowMs).toISOString(), ...e });
 }
 function supervise(opts) {
-  return Effect_exports.gen(function* () {
-    const spawner = yield* ChildSpawner;
-    const pgKill = yield* ProcessGroupTerminator;
-    const winKill = yield* WindowsTreeTerminator;
-    const hb = yield* HeartbeatWriter;
-    const sink = yield* ByteSink;
-    const clock3 = yield* LauncherClock;
-    const startedAt = yield* clock3.nowMs();
-    const stdoutBytesRef = yield* Ref_exports.make(0);
-    const stderrBytesRef = yield* Ref_exports.make(0);
-    const exitedRef = yield* Ref_exports.make(false);
-    const timedOutRef = yield* Ref_exports.make(false);
-    const terminationCountRef = yield* Ref_exports.make(0);
-    const completedRef = yield* Ref_exports.make(false);
-    const timersClearedRef = yield* Ref_exports.make(false);
-    if (opts.cmd.length === 0) {
-      return yield* Effect_exports.fail({
-        _tag: "SuperviseError",
-        message: "empty command"
+  return Effect_exports.scoped(
+    Effect_exports.gen(function* () {
+      const spawner = yield* ChildSpawner;
+      const pgKill = yield* ProcessGroupTerminator;
+      const winKill = yield* WindowsTreeTerminator;
+      const hb = yield* HeartbeatWriter;
+      const sink = yield* ByteSink;
+      const clock3 = yield* LauncherClock;
+      const startedAt = yield* clock3.nowMs();
+      const stdoutBytesRef = yield* Ref_exports.make(0);
+      const stderrBytesRef = yield* Ref_exports.make(0);
+      const exitedRef = yield* Ref_exports.make(false);
+      const timedOutRef = yield* Ref_exports.make(false);
+      const terminationCountRef = yield* Ref_exports.make(0);
+      const completedRef = yield* Ref_exports.make(false);
+      const timersClearedRef = yield* Ref_exports.make(false);
+      if (opts.cmd.length === 0) {
+        return yield* Effect_exports.fail({
+          _tag: "SuperviseError",
+          message: "empty command"
+        });
+      }
+      const file = opts.cmd[0];
+      const args2 = opts.cmd.slice(1);
+      const detachedProcessGroup = opts.platform !== "win32";
+      const child = yield* spawner.spawn({
+        file,
+        args: args2,
+        detachedProcessGroup,
+        windowsHide: opts.platform === "win32"
+      }).pipe(
+        Effect_exports.mapError((e) => ({
+          _tag: "SuperviseError",
+          message: e.message
+        }))
+      );
+      const jobId = String(child.pid);
+      emitEvent(opts, startedAt, { type: "spawned", pid: child.pid });
+      const terminateTree = Effect_exports.gen(function* () {
+        const already = yield* Ref_exports.get(exitedRef);
+        if (already) return;
+        if (!Number.isFinite(child.pid) || child.pid <= 0) {
+          yield* Ref_exports.set(exitedRef, true);
+          return;
+        }
+        const count = yield* Ref_exports.updateAndGet(terminationCountRef, (n) => n + 1);
+        if (count > 1) return;
+        const now2 = yield* clock3.nowMs();
+        emitEvent(opts, now2, { type: "killed", pid: child.pid });
+        if (opts.platform === "win32") {
+          yield* winKill.terminateTree(planTaskkill(child.pid));
+        } else {
+          void processGroupKillTarget(child.pid);
+          yield* pgKill.killGroup(child.pid, "SIGKILL");
+        }
       });
-    }
-    const file = opts.cmd[0];
-    const args2 = opts.cmd.slice(1);
-    const detachedProcessGroup = opts.platform !== "win32";
-    const child = yield* spawner.spawn({
-      file,
-      args: args2,
-      detachedProcessGroup,
-      windowsHide: opts.platform === "win32"
-    }).pipe(
-      Effect_exports.mapError((e) => ({
-        _tag: "SuperviseError",
-        message: e.message
-      }))
-    );
-    const jobId = String(child.pid);
-    emitEvent(opts, startedAt, { type: "spawned", pid: child.pid });
-    const writeHb = (alive) => Effect_exports.gen(function* () {
-      if (!opts.heartbeatFile) return;
-      const now2 = yield* clock3.nowMs();
-      const stdout_bytes = yield* Ref_exports.get(stdoutBytesRef);
-      const stderr_bytes = yield* Ref_exports.get(stderrBytesRef);
-      const line = buildHeartbeatLine({
-        nowMs: now2,
-        startedAtMs: startedAt,
-        launcherPid: opts.launcherPid,
-        childPid: child.pid,
-        jobId,
-        alive,
-        stdoutBytes: stdout_bytes,
-        stderrBytes: stderr_bytes
-      });
-      void formatHeartbeatLine(line);
-      const r = yield* Effect_exports.either(hb.appendLine(opts.heartbeatFile, line));
-      if (r._tag === "Left") {
-        opts.onHeartbeatWriteError?.(r.left.message);
-      } else {
-        emitEvent(opts, now2, {
-          type: "heartbeat",
-          pid: child.pid,
+      yield* Effect_exports.addFinalizer(
+        () => Effect_exports.gen(function* () {
+          const exited = yield* Ref_exports.get(exitedRef);
+          if (!exited) {
+            yield* terminateTree;
+          }
+        }).pipe(Effect_exports.ignore)
+      );
+      const writeHb = (alive) => Effect_exports.gen(function* () {
+        if (!opts.heartbeatFile) return;
+        const now2 = yield* clock3.nowMs();
+        const stdout_bytes = yield* Ref_exports.get(stdoutBytesRef);
+        const stderr_bytes = yield* Ref_exports.get(stderrBytesRef);
+        const line = buildHeartbeatLine({
+          nowMs: now2,
+          startedAtMs: startedAt,
+          launcherPid: opts.launcherPid,
+          childPid: child.pid,
+          jobId,
+          alive,
           stdoutBytes: stdout_bytes,
           stderrBytes: stderr_bytes
         });
-      }
-    });
-    yield* writeHb(true);
-    const pumpStdout = Effect_exports.tryPromise({
-      try: () => collectPump(child.stdout ?? emptyStream(), async (chunk2) => {
-        await Effect_exports.runPromise(
-          Effect_exports.gen(function* () {
-            yield* Ref_exports.update(stdoutBytesRef, (n) => n + chunk2.byteLength);
-            yield* sink.writeStdout(chunk2);
-          })
-        );
-      }),
-      catch: (e) => ({
-        _tag: "SuperviseError",
-        message: e instanceof Error ? e.message : String(e)
-      })
-    }).pipe(Effect_exports.ignore);
-    const pumpStderr = Effect_exports.tryPromise({
-      try: () => collectPump(child.stderr ?? emptyStream(), async (chunk2) => {
-        await Effect_exports.runPromise(
-          Effect_exports.gen(function* () {
-            yield* Ref_exports.update(stderrBytesRef, (n) => n + chunk2.byteLength);
-            yield* sink.writeStderr(chunk2);
-          })
-        );
-      }),
-      catch: (e) => ({
-        _tag: "SuperviseError",
-        message: e instanceof Error ? e.message : String(e)
-      })
-    }).pipe(Effect_exports.ignore);
-    const stdoutFiber = yield* Effect_exports.fork(pumpStdout);
-    const stderrFiber = yield* Effect_exports.fork(pumpStderr);
-    const intervalMs = Math.max(1, opts.heartbeatIntervalSecs) * 1e3;
-    const hbLoop = Effect_exports.gen(function* () {
-      for (; ; ) {
-        yield* clock3.sleep(intervalMs);
-        const exited = yield* Ref_exports.get(exitedRef);
-        if (exited) break;
-        yield* writeHb(true);
-      }
-    }).pipe(Effect_exports.interruptible);
-    const hbFiber = yield* Effect_exports.fork(hbLoop);
-    const terminateTree = Effect_exports.gen(function* () {
-      const already = yield* Ref_exports.get(exitedRef);
-      if (already) return;
-      const count = yield* Ref_exports.updateAndGet(terminationCountRef, (n) => n + 1);
-      if (count > 1) return;
-      const now2 = yield* clock3.nowMs();
-      emitEvent(opts, now2, { type: "killed", pid: child.pid });
-      if (opts.platform === "win32") {
-        yield* winKill.terminateTree(planTaskkill(child.pid));
-      } else {
-        void processGroupKillTarget(child.pid);
-        yield* pgKill.killGroup(child.pid, "SIGKILL");
-      }
-    });
-    let timeoutFiber;
-    if (opts.timeoutSecs !== void 0) {
-      const timeoutMs = opts.timeoutSecs * 1e3;
-      const graceMs = opts.graceSecs * 1e3;
-      timeoutFiber = yield* Effect_exports.fork(
-        Effect_exports.gen(function* () {
-          yield* clock3.sleep(timeoutMs);
-          const exited = yield* Ref_exports.get(exitedRef);
-          if (exited) return;
-          yield* Ref_exports.set(timedOutRef, true);
-          const now2 = yield* clock3.nowMs();
-          emitEvent(opts, now2, { type: "grace", pid: child.pid });
-          yield* clock3.sleep(graceMs);
-          const exited2 = yield* Ref_exports.get(exitedRef);
-          if (exited2) return;
-          yield* terminateTree;
-        }).pipe(Effect_exports.interruptible)
-      );
-    }
-    const exitCode = yield* child.wait();
-    const wasCompleted = yield* Ref_exports.get(completedRef);
-    if (wasCompleted) {
-      return yield* Effect_exports.fail({
-        _tag: "SuperviseError",
-        message: "double_completion"
+        void formatHeartbeatLine(line);
+        const r = yield* Effect_exports.either(hb.appendLine(opts.heartbeatFile, line));
+        if (r._tag === "Left") {
+          opts.onHeartbeatWriteError?.(r.left.message);
+        } else {
+          emitEvent(opts, now2, {
+            type: "heartbeat",
+            pid: child.pid,
+            stdoutBytes: stdout_bytes,
+            stderrBytes: stderr_bytes
+          });
+        }
       });
-    }
-    yield* Ref_exports.set(completedRef, true);
-    yield* Ref_exports.set(exitedRef, true);
-    yield* Fiber_exports.interrupt(hbFiber).pipe(Effect_exports.ignore);
-    if (timeoutFiber) {
-      yield* Fiber_exports.interrupt(timeoutFiber).pipe(Effect_exports.ignore);
-    }
-    yield* Fiber_exports.join(stdoutFiber).pipe(Effect_exports.ignore);
-    yield* Fiber_exports.join(stderrFiber).pipe(Effect_exports.ignore);
-    yield* Ref_exports.set(timersClearedRef, true);
-    yield* writeHb(false);
-    const now = yield* clock3.nowMs();
-    emitEvent(opts, now, { type: "exited", pid: child.pid });
-    const timedOut = yield* Ref_exports.get(timedOutRef);
-    const terminationCount = yield* Ref_exports.get(terminationCountRef);
-    const timersCleared = yield* Ref_exports.get(timersClearedRef);
-    return {
-      exitCode: exitCode ?? 0,
-      timedOut,
-      childPid: child.pid,
-      terminationCount,
-      timersCleared
-    };
-  });
+      yield* writeHb(true);
+      const pumpStdout = Effect_exports.tryPromise({
+        try: () => collectPump(child.stdout ?? emptyStream(), async (chunk2) => {
+          await Effect_exports.runPromise(
+            Effect_exports.gen(function* () {
+              yield* Ref_exports.update(stdoutBytesRef, (n) => n + chunk2.byteLength);
+              yield* sink.writeStdout(chunk2);
+            })
+          );
+        }),
+        catch: (e) => ({
+          _tag: "SuperviseError",
+          message: e instanceof Error ? e.message : String(e)
+        })
+      }).pipe(Effect_exports.ignore);
+      const pumpStderr = Effect_exports.tryPromise({
+        try: () => collectPump(child.stderr ?? emptyStream(), async (chunk2) => {
+          await Effect_exports.runPromise(
+            Effect_exports.gen(function* () {
+              yield* Ref_exports.update(stderrBytesRef, (n) => n + chunk2.byteLength);
+              yield* sink.writeStderr(chunk2);
+            })
+          );
+        }),
+        catch: (e) => ({
+          _tag: "SuperviseError",
+          message: e instanceof Error ? e.message : String(e)
+        })
+      }).pipe(Effect_exports.ignore);
+      const stdoutFiber = yield* Effect_exports.fork(pumpStdout);
+      const stderrFiber = yield* Effect_exports.fork(pumpStderr);
+      const intervalMs = Math.max(1, opts.heartbeatIntervalSecs) * 1e3;
+      const hbLoop = Effect_exports.gen(function* () {
+        for (; ; ) {
+          yield* clock3.sleep(intervalMs);
+          const exited = yield* Ref_exports.get(exitedRef);
+          if (exited) break;
+          yield* writeHb(true);
+        }
+      }).pipe(Effect_exports.interruptible);
+      const hbFiber = yield* Effect_exports.fork(hbLoop);
+      let timeoutFiber;
+      if (opts.timeoutSecs !== void 0) {
+        const timeoutMs = opts.timeoutSecs * 1e3;
+        const graceMs = opts.graceSecs * 1e3;
+        timeoutFiber = yield* Effect_exports.fork(
+          Effect_exports.gen(function* () {
+            yield* clock3.sleep(timeoutMs);
+            const exited = yield* Ref_exports.get(exitedRef);
+            if (exited) return;
+            yield* Ref_exports.set(timedOutRef, true);
+            const now2 = yield* clock3.nowMs();
+            emitEvent(opts, now2, { type: "grace", pid: child.pid });
+            yield* clock3.sleep(graceMs);
+            const exited2 = yield* Ref_exports.get(exitedRef);
+            if (exited2) return;
+            yield* terminateTree;
+          }).pipe(Effect_exports.interruptible)
+        );
+      }
+      yield* Effect_exports.addFinalizer(
+        () => Effect_exports.gen(function* () {
+          yield* Fiber_exports.interrupt(hbFiber).pipe(Effect_exports.ignore);
+          if (timeoutFiber) {
+            yield* Fiber_exports.interrupt(timeoutFiber).pipe(Effect_exports.ignore);
+          }
+          yield* Fiber_exports.interrupt(stdoutFiber).pipe(Effect_exports.ignore);
+          yield* Fiber_exports.interrupt(stderrFiber).pipe(Effect_exports.ignore);
+          yield* Ref_exports.set(timersClearedRef, true);
+        }).pipe(Effect_exports.ignore)
+      );
+      const exitCode = yield* child.wait().pipe(
+        Effect_exports.mapError((e) => ({
+          _tag: "SuperviseError",
+          message: e.message
+        })),
+        // On spawn/wait failure there is no live child to reap; mark exited so
+        // the scope finalizer does not attempt a host kill.
+        Effect_exports.tapError(() => Ref_exports.set(exitedRef, true))
+      );
+      const wasCompleted = yield* Ref_exports.get(completedRef);
+      if (wasCompleted) {
+        return yield* Effect_exports.fail({
+          _tag: "SuperviseError",
+          message: "double_completion"
+        });
+      }
+      yield* Ref_exports.set(completedRef, true);
+      yield* Ref_exports.set(exitedRef, true);
+      yield* Fiber_exports.interrupt(hbFiber).pipe(Effect_exports.ignore);
+      if (timeoutFiber) {
+        yield* Fiber_exports.interrupt(timeoutFiber).pipe(Effect_exports.ignore);
+      }
+      yield* Fiber_exports.join(stdoutFiber).pipe(Effect_exports.ignore);
+      yield* Fiber_exports.join(stderrFiber).pipe(Effect_exports.ignore);
+      yield* Ref_exports.set(timersClearedRef, true);
+      yield* writeHb(false);
+      const now = yield* clock3.nowMs();
+      emitEvent(opts, now, { type: "exited", pid: child.pid });
+      const timedOut = yield* Ref_exports.get(timedOutRef);
+      const terminationCount = yield* Ref_exports.get(terminationCountRef);
+      const timersCleared = yield* Ref_exports.get(timersClearedRef);
+      return {
+        exitCode: exitCode ?? 0,
+        timedOut,
+        childPid: child.pid,
+        terminationCount,
+        timersCleared
+      };
+    })
+  );
 }
 
 // packages/launcher/src/main.ts
+function exitWhenStreamsFlushed(code) {
+  process.exitCode = code;
+  const tryExit = () => {
+    const stdoutBlocked = process.stdout.writableNeedDrain === true;
+    const stderrBlocked = process.stderr.writableNeedDrain === true;
+    if (!stdoutBlocked && !stderrBlocked) {
+      process.exit(code);
+      return;
+    }
+    if (stdoutBlocked) {
+      process.stdout.once("drain", tryExit);
+    }
+    if (stderrBlocked) {
+      process.stderr.once("drain", tryExit);
+    }
+  };
+  setImmediate(tryExit);
+}
 var defaultIo = {
   writeStdout: (t) => {
     process.stdout.write(t);
@@ -16896,9 +16983,7 @@ var defaultIo = {
   writeStderr: (t) => {
     process.stderr.write(t);
   },
-  exit: (code) => {
-    process.exit(code);
-  }
+  exit: exitWhenStreamsFlushed
 };
 function runDetachHandoff(rawArgv, heartbeatFile, selfScriptArgv) {
   return Effect_exports.gen(function* () {
@@ -16921,6 +17006,7 @@ function runDetachHandoff(rawArgv, heartbeatFile, selfScriptArgv) {
       );
       return EXIT_LAUNCHER_ERROR;
     }
+    const expectedPid = spawned.right.pid;
     const start3 = yield* clock3.nowMs();
     const deadline = start3 + DETACH_HANDOFF_BOUND_MS;
     for (; ; ) {
@@ -16929,7 +17015,7 @@ function runDetachHandoff(rawArgv, heartbeatFile, selfScriptArgv) {
       const textE = yield* Effect_exports.either(hb.readText(heartbeatFile));
       if (textE._tag === "Right") {
         const valid = firstValidHeartbeatLine(textE.right);
-        if (valid._tag === "Ok") {
+        if (valid._tag === "Ok" && valid.line.launcher_pid === expectedPid) {
           return 0;
         }
       }
@@ -17025,16 +17111,17 @@ function runMain(argv = process.argv, io = defaultIo, layer = LiveLauncherLayer)
 var isMain = process.argv[1] !== void 0 && (process.argv[1].endsWith("foreman-launch.js") || process.argv[1].endsWith("main.ts") || process.argv[1].includes("foreman-launch"));
 if (isMain) {
   runMain().then((code) => {
-    process.exit(code);
+    exitWhenStreamsFlushed(code);
   }).catch((err) => {
     process.stderr.write(
       `foreman-launch: unhandled launcher error: ${err instanceof Error ? err.stack ?? err.message : String(err)}
 `
     );
-    process.exit(EXIT_LAUNCHER_ERROR);
+    exitWhenStreamsFlushed(EXIT_LAUNCHER_ERROR);
   });
 }
 export {
+  exitWhenStreamsFlushed,
   runMain,
   selfScriptArgvPrefix
 };

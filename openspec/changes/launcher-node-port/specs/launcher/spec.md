@@ -71,8 +71,11 @@ report degraded results without claiming unavailable parity.
 
 ### Requirement: Supervision safety
 
-The launcher SHALL prevent double completion and timer leaks and SHALL not
-accumulate unreaped direct children under sustained short-descendant churn.
+The launcher SHALL prevent double completion and timer leaks. On hosts that
+expose Linux `/proc`, a supervised worker that remains live while creating more
+than 1,000 short descendants SHALL leave the launcher process with zero zombie
+direct children under that observation. System-wide process-table exhaustion
+proof and escaped-descendant closure remain open follow-on.
 
 #### Scenario: Graded stop
 
@@ -80,12 +83,14 @@ accumulate unreaped direct children under sustained short-descendant churn.
 - **THEN** the launcher waits `--grace` seconds and performs exactly one hard
   tree termination, then clears timers
 
-#### Scenario: Descendant churn
+#### Scenario: Descendant churn (bounded live fixture)
 
-- **WHEN** a supervised worker creates more than 1,000 short-lived descendants
-  that exit while the worker remains live or completes
-- **THEN** the launcher host does not accumulate zombie direct children that
-  exhaust the process table
+- **WHEN** a supervised worker stays live while creating more than 1,000
+  short-lived descendants on a Linux host with `/proc`
+- **THEN** observation of the launcher process via `/proc` shows zero zombie
+  direct children and a small direct-child count
+- **WHEN** `/proc` is unavailable
+- **THEN** the control records a typed skip rather than claiming a false zero
 
 ### Requirement: Runtime artifact
 

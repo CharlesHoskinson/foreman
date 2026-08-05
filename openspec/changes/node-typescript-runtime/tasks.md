@@ -108,9 +108,10 @@ below contain detailed module tasks only. They do not define release order.
       retirement follow-on.
 - [x] Use Effect scopes and interruption for timers, streams, child processes,
       heartbeat files, cancellation, and graded shutdown.
-- [x] Add a zombie/churn control that creates more than 1,000 short descendants
-      while proving the launcher host does not accumulate unreaped direct
-      children or exhaust the process table.
+- [x] Add a bounded live zombie/churn control: supervised worker stays live
+      while creating more than 1,000 short descendants; on Linux `/proc` hosts
+      the launcher process has zero zombie direct children (typed skip without
+      `/proc`). Broader system-wide process-table exhaustion remains open.
 - [x] Preserve Linux/WSL process-group fallback and report a typed degraded
       capability before launch when strong containment is unavailable. Windows
       reports `windows_job_object_unavailable` with injectable taskkill; native

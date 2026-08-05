@@ -46,17 +46,25 @@ Capability diagnostics write to stderr only and never contaminate child stdout.
 ## Tests
 
 `node:test` suite covers CLI, streams, timeout/grace/cleanup, heartbeat schema
-and write isolation, POSIX plan/degrade, Windows taskkill boundary, >1000 short
-descendant churn without zombie accumulation under the launcher host, and
-copied-bundle `--version` without repository `node_modules`. Live strong-path
-execve is never run inside the test process.
+and write isolation, POSIX plan/degrade, Windows taskkill boundary, detach
+handoff `launcher_pid` binding, Effect interruption tree kill, async spawn
+error → exit 125, large-payload byte-exact pass-through, bounded live
+descendant-churn observation of the launcher PID via `/proc` (typed skip
+without `/proc`), and copied-bundle `--version` without repository
+`node_modules`. Live strong-path execve is never run inside the test process.
 
 ## Status of proof (honest)
 
 | Claim | Status |
 | --- | --- |
 | Node core CLI, streams, timeout, heartbeat, exit map | proved by package tests |
+| Live stdout/stderr drain + large piped byte-exact pass-through | proved via compiled bundle |
+| Async spawn `error` event → launcher exit 125 | proved (not child exit 1) |
+| Effect interruption after spawn → one tree kill | proved via injectable kill services |
+| Detach handoff requires matching `launcher_pid` | proved |
 | POSIX process-group fallback + negative-PID kill | proved on this host |
+| Bounded churn: worker live + 1000+ descendants; launcher zombie direct children = 0 on `/proc` | proved; typed skip without `/proc` |
+| System-wide process-table exhaustion / escaped descendants | open |
 | PID-namespace live cascade | designed; host probe Operation not permitted → degraded |
 | Windows degraded capability + taskkill shape | proved by pure/injectable tests |
 | Windows Job Object parity | open |

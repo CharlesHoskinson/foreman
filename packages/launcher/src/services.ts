@@ -30,7 +30,11 @@ export type StreamChunk = Uint8Array;
 
 export type SpawnedChild = {
   readonly pid: number;
-  readonly wait: () => Effect.Effect<number>;
+  /**
+   * Wait for child exit. Asynchronous Node spawn failures surface as
+   * SpawnError (not a fake child exit code).
+   */
+  readonly wait: () => Effect.Effect<number, SpawnError>;
   readonly stdout: AsyncIterable<StreamChunk> | null;
   readonly stderr: AsyncIterable<StreamChunk> | null;
   /** Best-effort direct kill of the root child only (not the tree). */
@@ -199,17 +203,36 @@ function wrapChild(child: ChildProcess): SpawnedChild {
   return {
     pid,
     wait: () =>
-      Effect.async<number>((resume) => {
-        child.once("error", () => {
-          resume(Effect.succeed(1));
-        });
-        child.once("exit", (code, signal) => {
+      Effect.async<number, SpawnError>((resume) => {
+        let settled = false;
+        const onError = (err: Error) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resume(
+            Effect.fail({
+              _tag: "SpawnError",
+              message: err.message || "spawn error",
+            }),
+          );
+        };
+        const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
           if (signal) {
             resume(Effect.succeed(1));
           } else {
             resume(Effect.succeed(code ?? 0));
           }
-        });
+        };
+        const cleanup = () => {
+          child.off("error", onError);
+          child.off("exit", onExit);
+        };
+        child.once("error", onError);
+        child.once("exit", onExit);
+        return Effect.sync(cleanup);
       }),
     stdout: nodeReadableToAsync(child.stdout),
     stderr: nodeReadableToAsync(child.stderr),
@@ -377,15 +400,41 @@ export const liveHeartbeatWriter: Context.Tag.Service<typeof HeartbeatWriter> = 
     }),
 };
 
+/**
+ * Await Node stream write completion. When write() returns false (buffer full),
+ * also wait for the drain event so the next sequential write is not issued under
+ * backpressure. Callers must not process.exit while these Effects may still run.
+ */
+function writeStream(
+  stream: NodeJS.WriteStream,
+  chunk: StreamChunk,
+): Effect.Effect<void> {
+  return Effect.async<void>((resume) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      stream.off("drain", finish);
+      resume(Effect.void);
+    };
+    let accepted = false;
+    accepted = stream.write(chunk, () => {
+      // Chunk fully handed to the kernel. If the buffer was full we still wait
+      // for drain so backpressure is observed before this Effect completes.
+      if (accepted) finish();
+    });
+    if (!accepted) {
+      stream.once("drain", finish);
+    }
+    return Effect.sync(() => {
+      stream.off("drain", finish);
+    });
+  });
+}
+
 export const liveByteSink: Context.Tag.Service<typeof ByteSink> = {
-  writeStdout: (chunk) =>
-    Effect.sync(() => {
-      process.stdout.write(chunk);
-    }),
-  writeStderr: (chunk) =>
-    Effect.sync(() => {
-      process.stderr.write(chunk);
-    }),
+  writeStdout: (chunk) => writeStream(process.stdout, chunk),
+  writeStderr: (chunk) => writeStream(process.stderr, chunk),
 };
 
 export const liveStderrLog: Context.Tag.Service<typeof StderrLog> = {
