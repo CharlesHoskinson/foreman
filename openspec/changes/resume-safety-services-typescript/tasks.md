@@ -14,7 +14,7 @@
 
 ## Later work packages
 
-- [ ] Add attempt-bound durable resume-count events.
+- [x] Add attempt-bound durable resume-count events.
 - [ ] Add bounded worktree restore and queue-admission services.
 - [ ] Add a Node supervisor CLI and tracked runtime artifact.
 - [ ] Replace `lane-supervise.sh` with a thin Node adapter.

@@ -255,6 +255,14 @@
         cold audit pass. The later exact pushed commit `f1a2b70` passed Linux
         run `30974765649`, Windows run `30974765741`, and formal run
         `30974765656`.
+      - Sprint 3 R5C atomic resume-count persistence: `RunJournal` now
+        reserves lane-wide, attempt-bound `resume_attempt` events under the
+        journal lock. Malformed, legacy, non-current, exhausted, and ambiguous
+        histories fail closed. A separate-process test proves observed lock
+        contention. Focused tests pass 64/64; full Node verification passes
+        827 with zero failures and one platform skip. Foreman pristine checks,
+        the deterministic gate, and the different-family cold audit passed at
+        pushed commit `f4d546be46dcf692a7062d799aba02bdb395b5a4`.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.
