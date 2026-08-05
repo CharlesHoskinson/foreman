@@ -32,8 +32,13 @@ logic in compatibility scripts.
       proved at `0ae1c56` and by the DST-0040 Python deletion. TerminusDB or
       SQLite adapter, full N2 schema freeze, ingest package work, and
       full-round operations remain open.
-- [ ] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
-      cancellation, and platform containment capabilities.
+- [x] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
+      cancellation, and platform containment capabilities. (Core CLI, Effect
+      supervise, POSIX process-group fallback, typed Windows degraded boundary,
+      and compiled `foreman-launch.js` proved under
+      `openspec/changes/launcher-node-port/`. Live PID-namespace cascade,
+      Job Object parity, legacy caller conversion, and Bun tree retirement
+      remain open. Sprint 5 is not marked complete.)
 - [x] `@foreman/event-log`: one closed event decoder, bounded NDJSON replay,
       cursors, and attempt identity. This package is the event-log system of
       record. (Typed foundation complete: decode + replay + cursor + attempt

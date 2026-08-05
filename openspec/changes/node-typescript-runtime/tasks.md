@@ -98,15 +98,24 @@ below contain detailed module tasks only. They do not define release order.
 
 ## M3 — migrate launcher supervision
 
-- [ ] Port the launcher CLI and supervision core to Node.js.
-- [ ] Remove Bun imports, Bun process APIs, and the Bun build requirement.
-- [ ] Use Effect scopes and interruption for timers, streams, child processes,
+- [x] Port the launcher CLI and supervision core to Node.js.
+      (`@foreman/launcher` under `packages/launcher/`; compiled
+      `skills/foreman/runtime/dist/foreman-launch.js`. Change:
+      `openspec/changes/launcher-node-port/`.)
+- [ ] Remove Bun imports, Bun process APIs, and the Bun build requirement from
+      product callers. The new package has no Bun/Deno imports. Legacy
+      `launcher/` remains byte-unchanged until the consumer-switch and guarded
+      retirement follow-on.
+- [x] Use Effect scopes and interruption for timers, streams, child processes,
       heartbeat files, cancellation, and graded shutdown.
-- [ ] Add a failing zombie control that keeps a worker alive while more than
-      1,000 short descendants exit. The launcher must reap or avoid adopting
-      them and must not exhaust the process table.
-- [ ] Preserve Linux/WSL process-group and Windows tree-termination contracts,
-      or report a typed degraded capability before launch.
+- [x] Add a zombie/churn control that creates more than 1,000 short descendants
+      while proving the launcher host does not accumulate unreaped direct
+      children or exhaust the process table.
+- [x] Preserve Linux/WSL process-group fallback and report a typed degraded
+      capability before launch when strong containment is unavailable. Windows
+      reports `windows_job_object_unavailable` with injectable taskkill; native
+      Job Object parity remains open. Live PID-namespace cascade remains
+      designed but host-unavailable where `unshare` probe fails.
 
 ## M4A — migrate the event log
 

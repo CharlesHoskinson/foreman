@@ -83,6 +83,7 @@ const trackedCredentialProfileLanePath = join(
   "dist/credential-profile-lane.js",
 );
 const trackedGraphStorePath = join(trackedRuntime, "dist/graph-store.js");
+const trackedForemanLaunchPath = join(trackedRuntime, "dist/foreman-launch.js");
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -108,6 +109,7 @@ const trackedCredentialProfileLane = readFileSync(
   trackedCredentialProfileLanePath,
 );
 const trackedGraphStore = readFileSync(trackedGraphStorePath);
+const trackedForemanLaunch = readFileSync(trackedForemanLaunchPath);
 
 // No extra files under dist/
 {
@@ -119,6 +121,7 @@ const trackedGraphStore = readFileSync(trackedGraphStorePath);
     "dependency-drift.js",
     "destruction-guard.js",
     "execution-guard.js",
+    "foreman-launch.js",
     "foreman-setup.js",
     "graph-store.js",
     "lane-queue.js",
@@ -175,6 +178,8 @@ try {
   );
   const aGraphStore = readFileSync(join(tmpA, "dist/graph-store.js"));
   const bGraphStore = readFileSync(join(tmpB, "dist/graph-store.js"));
+  const aForemanLaunch = readFileSync(join(tmpA, "dist/foreman-launch.js"));
+  const bForemanLaunch = readFileSync(join(tmpB, "dist/foreman-launch.js"));
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aEndstop, bEndstop)) fail("non-deterministic execution-guard");
@@ -205,6 +210,9 @@ try {
   if (!bytesEqual(aGraphStore, bGraphStore)) {
     fail("non-deterministic graph-store");
   }
+  if (!bytesEqual(aForemanLaunch, bForemanLaunch)) {
+    fail("non-deterministic foreman-launch");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aEndstop, trackedEndstop)) fail("execution-guard drift");
@@ -230,6 +238,9 @@ try {
   }
   if (!bytesEqual(aGraphStore, trackedGraphStore)) {
     fail("graph-store drift");
+  }
+  if (!bytesEqual(aForemanLaunch, trackedForemanLaunch)) {
+    fail("foreman-launch drift");
   }
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
@@ -270,6 +281,7 @@ try {
       trackedCredentialProfileLane,
     );
     writeFileSync(join(rt, "dist/graph-store.js"), trackedGraphStore);
+    writeFileSync(join(rt, "dist/foreman-launch.js"), trackedForemanLaunch);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
@@ -318,6 +330,11 @@ try {
       fail("tampered graph-store should fail");
     }
     cpSync(trackedGraphStorePath, join(rt, "dist/graph-store.js"));
+    writeFileSync(join(rt, "dist/foreman-launch.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) {
+      fail("tampered foreman-launch should fail");
+    }
+    cpSync(trackedForemanLaunchPath, join(rt, "dist/foreman-launch.js"));
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {
@@ -573,6 +590,29 @@ try {
       }
       writeFileSync(join(rt, "dist/graph-store.js"), trackedGraphStore);
     }
+    // Linked foreman-launch bundle must fail
+    {
+      const realFl = join(rt, "foreman-launch.real.js");
+      writeFileSync(realFl, trackedForemanLaunch);
+      rmSync(join(rt, "dist/foreman-launch.js"));
+      symlinkSync(realFl, join(rt, "dist/foreman-launch.js"));
+      const linkedFl = verifyRuntimeManifest(rt);
+      if (linkedFl.ok) fail("linked foreman-launch should fail");
+      rmSync(join(rt, "dist/foreman-launch.js"));
+      writeFileSync(join(rt, "dist/foreman-launch.js"), trackedForemanLaunch);
+    }
+    // Missing foreman-launch must fail
+    {
+      rmSync(join(rt, "dist/foreman-launch.js"));
+      const missFl = verifyRuntimeManifest(rt);
+      if (missFl.ok || missFl.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for foreman-launch got " +
+            JSON.stringify(missFl),
+        );
+      }
+      writeFileSync(join(rt, "dist/foreman-launch.js"), trackedForemanLaunch);
+    }
     // Tamper manifest digests
     writeFileSync(
       join(rt, "manifest.json"),
@@ -613,6 +653,12 @@ try {
             id: "execution-guard",
             relativePath: "dist/execution-guard.js",
             sha256: "m".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "foreman-launch",
+            relativePath: "dist/foreman-launch.js",
+            sha256: "o".repeat(64),
           },
           {
             byteLength: 1,
@@ -848,6 +894,30 @@ try {
   }
   if ((pd.stderr || "").length > 0) {
     fail("copied plugin-drift stderr not empty");
+  }
+
+  // Copied foreman-launch without repository node_modules
+  const launchBundle = join(copiedRuntime, "dist/foreman-launch.js");
+  const fl = spawnSync(
+    process.execPath,
+    [launchBundle, "--version"],
+    {
+      cwd: emptyCwd,
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+      },
+    },
+  );
+  if (fl.status !== 0) {
+    fail(`copied foreman-launch exit ${fl.status}: ${fl.stdout} ${fl.stderr}`);
+  }
+  if (!(fl.stdout || "").includes("foreman-launch") || !(fl.stdout || "").includes("node ")) {
+    fail("copied foreman-launch version: " + fl.stdout);
+  }
+  if ((fl.stdout || "").includes("bun")) {
+    fail("copied foreman-launch must not name bun");
   }
 } finally {
   rmSync(tmp, { recursive: true, force: true });

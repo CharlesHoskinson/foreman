@@ -73,6 +73,17 @@
 - [ ] 1.1 Execute Sprints 1 through 17 in `sprints.md` order.
       Landed partial evidence through
       `04a310acd824d8dc06fe2b81dd19b8fa543e649b` (do not mark complete):
+      - Sprint 5 `@foreman/launcher` Node core (partial, not complete):
+        OpenSpec `launcher-node-port`; package `packages/launcher/`;
+        runtime `skills/foreman/runtime/dist/foreman-launch.js`. Proved:
+        frozen CLI/exit map, separate stdout/stderr, null stdin, heartbeats,
+        graded stop, Effect supervise, POSIX process-group fallback with
+        negative-PID termination, typed Windows degraded capability and
+        injectable taskkill, descendant churn >1000 without zombie
+        accumulation under the launcher host, copied-bundle smoke. Open:
+        live PID-namespace cascade on hosts where unshare succeeds, native
+        Windows Job Object parity, legacy caller conversion, Bun tree
+        retirement. Do not mark Sprint 5 complete.
       - Architecture policy:
         `99accf3ba5d75c311aa9ede3460b4a4a49d9aa3e` (feat),
         `96d0f0750f415697985b4201f47b915734146d9b` (review record).

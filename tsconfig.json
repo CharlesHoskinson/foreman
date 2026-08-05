@@ -5,6 +5,7 @@
     { "path": "packages/event-log" },
     { "path": "packages/policy" },
     { "path": "packages/orchestration" },
-    { "path": "packages/graph-store" }
+    { "path": "packages/graph-store" },
+    { "path": "packages/launcher" }
   ]
 }

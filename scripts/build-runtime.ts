@@ -100,6 +100,12 @@ const ENTRIES = [
     relativePath: "dist/graph-store.js",
     injectCapabilities: false,
   },
+  {
+    id: "foreman-launch",
+    entry: join(root, "packages/launcher/src/main.ts"),
+    relativePath: "dist/foreman-launch.js",
+    injectCapabilities: false,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

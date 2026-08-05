@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -42,6 +43,8 @@ const trackedCredentialProfileLane = join(
   trackedRuntime,
   "dist/credential-profile-lane.js",
 );
+const trackedGraphStore = join(trackedRuntime, "dist/graph-store.js");
+const trackedForemanLaunch = join(trackedRuntime, "dist/foreman-launch.js");
 
 function seedCleanCopy(): string {
   const dir = mkdtempSync(join(tmpdir(), "foreman-vrm-"));
@@ -64,6 +67,12 @@ function seedCleanCopy(): string {
     trackedCredentialProfileLane,
     join(rt, "dist/credential-profile-lane.js"),
   );
+  if (existsSync(trackedGraphStore)) {
+    cpSync(trackedGraphStore, join(rt, "dist/graph-store.js"));
+  }
+  if (existsSync(trackedForemanLaunch)) {
+    cpSync(trackedForemanLaunch, join(rt, "dist/foreman-launch.js"));
+  }
   return rt;
 }
 
