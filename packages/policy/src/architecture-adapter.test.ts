@@ -449,4 +449,132 @@ describe("inspectLegacyAdapter", () => {
       "legacy_adapter_domain_logic",
     );
   });
+
+  const SETUP_FAIL_CLOSED = [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+    'NODE="$(command -v node || true)"',
+    'BUNDLE="$ROOT/runtime/dist/foreman-setup.js"',
+    'if [ -z "$NODE" ]; then echo "foreman-setup: node is required" >&2; exit 3; fi',
+    'if [ ! -f "$BUNDLE" ]; then echo "foreman-setup: runtime bundle missing" >&2; exit 3; fi',
+    'exec "$NODE" "$BUNDLE" "$@"',
+    "",
+  ].join("\n");
+
+  it("accepts skill-script with exact fail-closed node and bundle checks", () => {
+    assert.equal(
+      inspectLegacyAdapter(
+        "skills/foreman/scripts/foreman-setup.sh",
+        SETUP_FAIL_CLOSED,
+      ),
+      null,
+    );
+  });
+
+  it("rejects fail-closed checks with altered diagnostic, exit code, vars, or operators", () => {
+    const path = "skills/foreman/scripts/foreman-setup.sh";
+    const base = [
+      "#!/usr/bin/env bash",
+      "set -euo pipefail",
+      'ROOT="$(cd "$(dirname "$0")/.." && pwd)"',
+      'NODE="$(command -v node || true)"',
+      'BUNDLE="$ROOT/runtime/dist/foreman-setup.js"',
+    ];
+    const bad = (checks: string[], exec = 'exec "$NODE" "$BUNDLE" "$@"') =>
+      [...base, ...checks, exec, ""].join("\n");
+
+    // hard assign (no || true) with checks
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        [
+          ...base.slice(0, 3),
+          'NODE="$(command -v node)"',
+          'BUNDLE="$ROOT/runtime/dist/foreman-setup.js"',
+          'if [ -z "$NODE" ]; then echo "foreman-setup: node is required" >&2; exit 3; fi',
+          'if [ ! -f "$BUNDLE" ]; then echo "foreman-setup: runtime bundle missing" >&2; exit 3; fi',
+          'exec "$NODE" "$BUNDLE" "$@"',
+          "",
+        ].join("\n"),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    // wrong exit code
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        bad([
+          'if [ -z "$NODE" ]; then echo "foreman-setup: node is required" >&2; exit 1; fi',
+          'if [ ! -f "$BUNDLE" ]; then echo "foreman-setup: runtime bundle missing" >&2; exit 3; fi',
+        ]),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    // altered diagnostic
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        bad([
+          'if [ -z "$NODE" ]; then echo "foreman-setup: install node at /usr/bin" >&2; exit 3; fi',
+          'if [ ! -f "$BUNDLE" ]; then echo "foreman-setup: runtime bundle missing" >&2; exit 3; fi',
+        ]),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    // wrong variable in check
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        bad([
+          'if [ -z "$NODE_BIN" ]; then echo "foreman-setup: node is required" >&2; exit 3; fi',
+          'if [ ! -f "$BUNDLE" ]; then echo "foreman-setup: runtime bundle missing" >&2; exit 3; fi',
+        ]),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    // only node check (missing bundle check)
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        bad([
+          'if [ -z "$NODE" ]; then echo "foreman-setup: node is required" >&2; exit 3; fi',
+        ]),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    // reordered checks
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        bad([
+          'if [ ! -f "$BUNDLE" ]; then echo "foreman-setup: runtime bundle missing" >&2; exit 3; fi',
+          'if [ -z "$NODE" ]; then echo "foreman-setup: node is required" >&2; exit 3; fi',
+        ]),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    // smuggled operator on check line
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        bad([
+          'if [ -z "$NODE" ]; then echo "foreman-setup: node is required" >&2; exit 3; fi; rm -rf /tmp/x',
+          'if [ ! -f "$BUNDLE" ]; then echo "foreman-setup: runtime bundle missing" >&2; exit 3; fi',
+        ]),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+    // absolute path in diagnostic
+    assert.equal(
+      inspectLegacyAdapter(
+        path,
+        bad([
+          'if [ -z "$NODE" ]; then echo "foreman-setup: node is required" >&2; exit 3; fi',
+          'if [ ! -f "$BUNDLE" ]; then echo "missing /home/x/foreman-setup.js" >&2; exit 3; fi',
+        ]),
+      ),
+      "legacy_adapter_domain_logic",
+    );
+  });
 });

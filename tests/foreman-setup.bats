@@ -166,3 +166,43 @@ EOF
   after="$(sha256sum "$cfg" 2>/dev/null | awk '{print $1}')"
   [ "$after" = "$before" ]
 }
+
+@test "setup adapter exits 3 with sanitized diagnostic when node is missing" {
+  # Curated PATH with shell helpers only — no node binary. Do not use the
+  # node-only dir from setup(); absolute bash keeps the interpreter available.
+  CORE="$BATS_TEST_TMPDIR/core-bin"
+  mkdir -p "$CORE"
+  for name in dirname pwd; do
+    src="$(command -v "$name" || true)"
+    if [ -n "$src" ]; then
+      ln -sfn "$src" "$CORE/$name"
+    fi
+  done
+  run env PATH="$CORE" FOREMAN_HOME="$FOREMAN_HOME" \
+    /bin/bash "$SCRIPTS/foreman-setup.sh" --help
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"foreman-setup: node is required"* ]]
+  # Fixed diagnostic only — no absolute paths or stacks.
+  [[ "$output" != *"/usr/"* ]]
+  [[ "$output" != *"/home/"* ]]
+  [[ "$output" != *"stack"* ]]
+}
+
+@test "setup adapter exits 3 with sanitized diagnostic when runtime bundle is missing" {
+  BUNDLE="$BATS_TEST_DIRNAME/../skills/foreman/runtime/dist/foreman-setup.js"
+  [ -f "$BUNDLE" ]
+  BAK="$BATS_TEST_TMPDIR/foreman-setup.js.bak"
+  mv "$BUNDLE" "$BAK"
+  restore_bundle() { mv -f "$BAK" "$BUNDLE" 2>/dev/null || true; }
+  trap restore_bundle EXIT
+  run env PATH="$NODE_ONLY:/usr/bin:/bin" FOREMAN_HOME="$FOREMAN_HOME" \
+    bash "$SCRIPTS/foreman-setup.sh" --help
+  status_got="$status"
+  output_got="$output"
+  restore_bundle
+  trap - EXIT
+  [ "$status_got" -eq 3 ]
+  [[ "$output_got" == *"foreman-setup: runtime bundle missing"* ]]
+  [[ "$output_got" != *"/home/"* ]]
+  [[ "$output_got" != *"stack"* ]]
+}

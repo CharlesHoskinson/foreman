@@ -30865,7 +30865,8 @@ var DENY = "legacy_adapter_domain_logic";
 var SHEBANG = /^#!(\/usr\/bin\/env\s+(bash|sh|dash)|\/bin\/(bash|sh|dash)|\/usr\/bin\/(bash|sh|dash))\s*$/;
 var STRICT_SET = /^set\s+(-euo\s+pipefail|-eu\s+pipefail|-euo|-eu|-e|-o\s+pipefail)\s*$/;
 var ASSIGN_ROOT = /^(ROOT|REPO_ROOT|SCRIPT_DIR|HERE)="\$\(cd "\$\(dirname "\$0"\)(\/\.\.)?" && pwd\)"\s*$/;
-var ASSIGN_NODE = /^(NODE|NODE_BIN)="\$\(command -v node\)"\s*$/;
+var ASSIGN_NODE_HARD = /^(NODE|NODE_BIN)="\$\(command -v node\)"\s*$/;
+var ASSIGN_NODE_SOFT = /^(NODE|NODE_BIN)="\$\(command -v node \|\| true\)"\s*$/;
 var ASSIGN_BUNDLE_REPO = /^(BUNDLE|ENTRY|GUARD|POLICY)="\$([A-Z_][A-Z0-9_]*)\/skills\/foreman\/runtime\/dist\/([A-Za-z0-9][A-Za-z0-9._+-]*)\.js"\s*$/;
 var ASSIGN_BUNDLE_SKILL = /^(BUNDLE|ENTRY|GUARD|POLICY)="\$([A-Z_][A-Z0-9_]*)\/runtime\/dist\/([A-Za-z0-9][A-Za-z0-9._+-]*)\.js"\s*$/;
 var EXEC_VARS = /^exec\s+"\$([A-Z_][A-Z0-9_]*)"\s+"\$([A-Z_][A-Z0-9_]*)"\s+"\$@"\s*$/;
@@ -30882,22 +30883,44 @@ function isCommentOrBlank(line) {
 function hasSmuggledOperators(line, kind) {
   if (/;\s*\S/.test(line) || /;\s*$/.test(line)) return true;
   if (/\s&\s*$/.test(line) || /\s&$/.test(line)) return true;
-  if (line.includes("|")) return true;
+  if (line.includes("|") && kind !== "node-soft") return true;
   if (/(^|[^0-9])[0-9]?>{1,2}/.test(line) || /</.test(line)) return true;
   if (line.includes("`")) return true;
   if (/[\u0000\u000b\u000c]/.test(line)) return true;
   if (kind === "other") {
     if (line.includes("$(")) return true;
     if (line.includes("&&") || line.includes("||")) return true;
-  } else if (kind === "node") {
+  } else if (kind === "node-hard") {
     const subs = line.split("$(").length - 1;
     if (subs !== 1) return true;
     if (line.includes("&&") || line.includes("||")) return true;
+  } else if (kind === "node-soft") {
+    const subs = line.split("$(").length - 1;
+    if (subs !== 1) return true;
+    if (!/\$\(command -v node \|\| true\)/.test(line)) return true;
+    if (line.includes("&&")) return true;
+    const pipeCount = (line.match(/\|/g) ?? []).length;
+    if (pipeCount !== 2) return true;
   } else {
     const subs = line.split("$(").length - 1;
     if (subs !== 2) return true;
   }
   return false;
+}
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function isExactCheckNode(line, nodeName, distBase) {
+  const re = new RegExp(
+    `^if \\[ -z "\\$${escapeRegExp(nodeName)}" \\]; then echo "${escapeRegExp(distBase)}: node is required" >&2; exit 3; fi$`
+  );
+  return re.test(line);
+}
+function isExactCheckBundle(line, bundleName, distBase) {
+  const re = new RegExp(
+    `^if \\[ ! -f "\\$${escapeRegExp(bundleName)}" \\]; then echo "${escapeRegExp(distBase)}: runtime bundle missing" >&2; exit 3; fi$`
+  );
+  return re.test(line);
 }
 function inspectPosixShellAdapter(adapterPath, sourceText) {
   if (/[\u0000]/.test(sourceText)) return DENY;
@@ -30913,7 +30936,8 @@ function inspectPosixShellAdapter(adapterPath, sourceText) {
     if (/^\s/.test(line)) return DENY;
     codeLines.push({ text: line, index: i });
   }
-  if (codeLines.length !== 6) return DENY;
+  if (codeLines.length !== 6 && codeLines.length !== 8) return DENY;
+  const withChecks = codeLines.length === 8;
   const l0 = codeLines[0];
   if (l0.index !== 0 || !SHEBANG.test(l0.text)) return DENY;
   if (hasSmuggledOperators(l0.text, "other")) return DENY;
@@ -30927,9 +30951,16 @@ function inspectPosixShellAdapter(adapterPath, sourceText) {
   const rootName = rootM[1];
   const parentCount = rootM[2] === "/.." ? 1 : 0;
   const l3 = codeLines[3];
-  const nodeM = l3.text.match(ASSIGN_NODE);
-  if (!nodeM || hasSmuggledOperators(l3.text, "node")) return DENY;
-  const nodeName = nodeM[1];
+  let nodeName;
+  if (withChecks) {
+    const softM = l3.text.match(ASSIGN_NODE_SOFT);
+    if (!softM || hasSmuggledOperators(l3.text, "node-soft")) return DENY;
+    nodeName = softM[1];
+  } else {
+    const hardM = l3.text.match(ASSIGN_NODE_HARD);
+    if (!hardM || hasSmuggledOperators(l3.text, "node-hard")) return DENY;
+    nodeName = hardM[1];
+  }
   const l4 = codeLines[4];
   if (l4.text.includes("$(") || l4.text.includes("`")) return DENY;
   if (hasSmuggledOperators(l4.text, "other")) return DENY;
@@ -30954,15 +30985,24 @@ function inspectPosixShellAdapter(adapterPath, sourceText) {
   }
   if (bundleRootRef !== rootName) return DENY;
   if (distBase.startsWith("-")) return DENY;
-  const l5 = codeLines[5];
-  if (l5.text.includes("$(") || l5.text.includes("`")) return DENY;
-  if (hasSmuggledOperators(l5.text, "other")) return DENY;
-  if (/\s(-e|--eval|-r|--require|--print|-p|--input-type|--experimental)\b/.test(l5.text)) {
+  let execLine;
+  if (withChecks) {
+    const l5 = codeLines[5];
+    if (!isExactCheckNode(l5.text, nodeName, distBase)) return DENY;
+    const l6 = codeLines[6];
+    if (!isExactCheckBundle(l6.text, bundleName, distBase)) return DENY;
+    execLine = codeLines[7];
+  } else {
+    execLine = codeLines[5];
+  }
+  if (execLine.text.includes("$(") || execLine.text.includes("`")) return DENY;
+  if (hasSmuggledOperators(execLine.text, "other")) return DENY;
+  if (/\s(-e|--eval|-r|--require|--print|-p|--input-type|--experimental)\b/.test(execLine.text)) {
     return DENY;
   }
-  if (/"-[^"]*"/.test(l5.text) || /'-[^']*'/.test(l5.text)) return DENY;
-  if (/^exec\s+node(\s|$)/.test(l5.text)) return DENY;
-  const execM = l5.text.match(EXEC_VARS);
+  if (/"-[^"]*"/.test(execLine.text) || /'-[^']*'/.test(execLine.text)) return DENY;
+  if (/^exec\s+node(\s|$)/.test(execLine.text)) return DENY;
+  const execM = execLine.text.match(EXEC_VARS);
   if (!execM) return DENY;
   if (execM[1] !== nodeName || execM[2] !== bundleName) return DENY;
   return null;

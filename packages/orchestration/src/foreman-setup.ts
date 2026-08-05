@@ -78,6 +78,9 @@ export const USAGE =
 export const MSG_BOUNDARY_FAILURE =
   "foreman-setup: boundary failure (persistence or runtime)";
 
+export const MSG_MISSING_PREFLIGHT_RECORD =
+  "foreman-setup: missing preflight record for requested vendor";
+
 export const MSG_INTERNAL_FAILURE = "foreman-setup: internal failure";
 
 /** UTF-8 bound for repository durable config TOML. */
@@ -127,6 +130,12 @@ export type SetupRunEnv = {
    * "read from repo".
    */
   readonly durableEnabled?: boolean | null;
+  /**
+   * Process platform override for home resolution. Defaults to
+   * process.platform. Inject "win32" in tests to exercise USERPROFILE
+   * preference without a Windows host.
+   */
+  readonly platform?: NodeJS.Platform;
 };
 
 // ---------------------------------------------------------------------------
@@ -239,9 +248,23 @@ export function authInstruction(vendor: string): string {
   }
 }
 
-export function resolveForemanHome(env: NodeJS.ProcessEnv): string {
+/**
+ * Resolve the default Foreman home directory.
+ *
+ * On native Windows (`platform === "win32"`), prefer `USERPROFILE` over a
+ * Git-Bash-style `HOME` (e.g. `/c/Users/...`). On POSIX/WSL, prefer `HOME`.
+ * `FOREMAN_HOME` always wins when set and non-empty.
+ */
+export function resolveForemanHome(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): string {
   if (env.FOREMAN_HOME && env.FOREMAN_HOME.length > 0) {
     return env.FOREMAN_HOME;
+  }
+  if (platform === "win32") {
+    const home = env.USERPROFILE || env.HOME || "";
+    return join(home, ".foreman");
   }
   const home = env.HOME || env.USERPROFILE || "";
   return join(home, ".foreman");
@@ -589,15 +612,17 @@ export function runForemanSetup(
     // --- persist requested vendors ------------------------------------------
     const vendorsToPersist: readonly SetupLane[] =
       parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
-    const foremanHome = resolveForemanHome(processEnv);
+    const platform = env.platform ?? process.platform;
+    const foremanHome = resolveForemanHome(processEnv, platform);
 
     for (const vendor of vendorsToPersist) {
       const record = captured.get(vendor);
       if (record === undefined) {
-        // No live inspect record (capability missing / override path). Skip
-        // persist rather than inventing a record; readiness still projects
-        // from the tool-check report.
-        continue;
+        // Fail closed: a requested vendor without a captured inspect record
+        // is a boundary failure, not ordinary NOT-READY. Never invent a
+        // record and never continue to readiness projection.
+        io.writeStderr(MSG_MISSING_PREFLIGHT_RECORD + "\n");
+        return EXIT_BOUNDARY_FAILURE;
       }
       if (record.vendor !== vendor) {
         io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");

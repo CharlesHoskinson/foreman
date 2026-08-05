@@ -20358,6 +20358,7 @@ var EXIT_INVALID_ARGUMENTS2 = 2;
 var EXIT_BOUNDARY_FAILURE = 3;
 var USAGE2 = "usage: foreman-setup [--profile soft|hard|full] [--lane grok|codex]";
 var MSG_BOUNDARY_FAILURE = "foreman-setup: boundary failure (persistence or runtime)";
+var MSG_MISSING_PREFLIGHT_RECORD = "foreman-setup: missing preflight record for requested vendor";
 var MSG_INTERNAL_FAILURE = "foreman-setup: internal failure";
 var MAX_DURABLE_CONFIG_BYTES = 1048576;
 function stripSetupNodeArgv(argv) {
@@ -20435,9 +20436,13 @@ function authInstruction(vendor) {
       return `(no known auth instruction for ${vendor})`;
   }
 }
-function resolveForemanHome(env) {
+function resolveForemanHome(env, platform = process.platform) {
   if (env.FOREMAN_HOME && env.FOREMAN_HOME.length > 0) {
     return env.FOREMAN_HOME;
+  }
+  if (platform === "win32") {
+    const home2 = env.USERPROFILE || env.HOME || "";
+    return join8(home2, ".foreman");
   }
   const home = env.HOME || env.USERPROFILE || "";
   return join8(home, ".foreman");
@@ -20681,11 +20686,13 @@ function runForemanSetup(argv, io2, env) {
     };
     const tcResult = yield* runToolCheck(tcArgv, tcIo, tcEnv);
     const vendorsToPersist = parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
-    const foremanHome = resolveForemanHome(processEnv);
+    const platform = env.platform ?? process.platform;
+    const foremanHome = resolveForemanHome(processEnv, platform);
     for (const vendor of vendorsToPersist) {
       const record = captured.get(vendor);
       if (record === void 0) {
-        continue;
+        io2.writeStderr(MSG_MISSING_PREFLIGHT_RECORD + "\n");
+        return EXIT_BOUNDARY_FAILURE;
       }
       if (record.vendor !== vendor) {
         io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");

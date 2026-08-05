@@ -229,6 +229,28 @@ describe("authInstruction and paths", () => {
     );
   });
 
+  it("on native Windows prefers USERPROFILE over Git-Bash-style HOME", () => {
+    const home = resolveForemanHome(
+      {
+        HOME: "/c/Users/runneradmin",
+        USERPROFILE: "C:\\Users\\runneradmin",
+      },
+      "win32",
+    );
+    assert.equal(home, join("C:\\Users\\runneradmin", ".foreman"));
+  });
+
+  it("on POSIX prefers HOME over USERPROFILE", () => {
+    const home = resolveForemanHome(
+      {
+        HOME: "/home/runneradmin",
+        USERPROFILE: "C:\\Users\\runneradmin",
+      },
+      "linux",
+    );
+    assert.equal(home, join("/home/runneradmin", ".foreman"));
+  });
+
   it("parseDurableEnabledFromToml reads repository TOML only", () => {
     assert.equal(parseDurableEnabledFromToml(""), null);
     assert.equal(
@@ -394,6 +416,47 @@ describe("runForemanSetup persistence and readiness", () => {
       );
       assert.ok(existsSync(resolvePreflightRecordPath(home, "grok")));
       assert.ok(existsSync(resolvePreflightRecordPath(home, "codex")));
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("fail-closed exit 3 when requested vendor has no captured record (empty capability table)", async () => {
+    const home = tempHome();
+    const io = captureIo();
+    const emptyTable: VendorCapabilityTableV1 = {
+      schemaVersion: 1,
+      capabilities: [],
+    };
+    try {
+      const code = await Effect.runPromise(
+        runForemanSetup(["--lane", "grok"], io, {
+          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          capabilityTable: emptyTable,
+          processEnv: {
+            HOME: home,
+            FOREMAN_HOME: home,
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are logged in with grok.com.\n",
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.equal(code, EXIT_BOUNDARY_FAILURE);
+      assert.doesNotMatch(io.stdout, /SETUP: READY/);
+      assert.doesNotMatch(io.stdout, /SETUP: NOT-READY/);
+      assert.match(io.stderr, /boundary|missing|preflight|record/i);
+      assert.doesNotMatch(io.stderr, /\/home\/|\\\\Users\\\\|stack|Error:/i);
+      assert.equal(
+        existsSync(resolvePreflightRecordPath(home, "grok")),
+        false,
+      );
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
