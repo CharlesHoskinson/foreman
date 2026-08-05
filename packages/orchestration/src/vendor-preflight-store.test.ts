@@ -88,7 +88,7 @@ describe("MAX_PREFLIGHT_RECORD_BYTES", () => {
 });
 
 describe("PreflightRecordStore write", () => {
-  it("writes canonical JSON with one trailing LF, mode 0600, parent 0700", async () => {
+  it("writes canonical JSON with one trailing LF", async () => {
     const dir = tempDir();
     const parent = join(dir, "preflight");
     const path = join(parent, "grok.json");
@@ -102,11 +102,6 @@ describe("PreflightRecordStore write", () => {
     );
 
     assert.ok(existsSync(path));
-    const parentMode = statSync(parent).mode & 0o777;
-    const fileMode = statSync(path).mode & 0o777;
-    assert.equal(parentMode, 0o700);
-    assert.equal(fileMode, 0o600);
-
     const text = readFileSync(path, "utf8");
     assert.ok(text.endsWith("\n"));
     assert.equal(text.endsWith("\n\n"), false);
@@ -121,6 +116,26 @@ describe("PreflightRecordStore write", () => {
     const leftovers = readdirSync(parent).filter((n) => n.includes(".tmp"));
     assert.deepEqual(leftovers, []);
   });
+
+  it(
+    "uses owner-only POSIX modes for the parent and record",
+    { skip: process.platform === "win32" },
+    async () => {
+      const dir = tempDir();
+      const parent = join(dir, "preflight");
+      const path = join(parent, "grok.json");
+
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const store = yield* PreflightRecordStore;
+          yield* store.write(path, readyRecord());
+        }).pipe(Effect.provide(livePreflightRecordStore)),
+      );
+
+      assert.equal(statSync(parent).mode & 0o777, 0o700);
+      assert.equal(statSync(path).mode & 0o777, 0o600);
+    },
+  );
 
   it("replaces an existing complete record only after durable temp write", async () => {
     const dir = tempDir();
