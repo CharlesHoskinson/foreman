@@ -6,20 +6,26 @@
  * refuses secret filename classes and PEM private-key headers, and applies
  * explicit positive bounds. Fixture exemptions are exact path+SHA-256 identity
  * under `tests/fixtures/` only.
+ *
+ * Directory operations bind to stable identities via no-follow directory
+ * descriptors and `/proc/self/fd/<fd>` anchors (same pattern as R5D
+ * supervisor-live-services). Pathnames are never reused after validation
+ * without an open identity. When the host cannot provide that primitive,
+ * the live scanner fails closed with `unsupported_traversal`.
  */
 
 import { createHash } from "node:crypto";
 import {
   closeSync,
+  constants as fsConstants,
   fstatSync,
   lstatSync,
   openSync,
-  opendirSync,
+  readdirSync,
   readSync,
-  type Dirent,
   type Stats,
 } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { Context, Effect, Layer } from "effect";
 import { canonicalize } from "@foreman/core";
 import { utf8ByteLength } from "./round-contract.js";
@@ -137,6 +143,265 @@ type Counters = {
 };
 
 // ---------------------------------------------------------------------------
+// Directory-identity race seams (test-only; production never installs)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hooks invoked after a directory identity is bound and before the next
+ * use of that binding. Production never installs a hook. Tests swap
+ * pathnames here to prove descriptor-anchored operations do not follow
+ * a parent alias replaced after validation.
+ */
+export type SecretScanRaceHook = {
+  /** After the worktree root is open-bound; before fixture load or listing. */
+  readonly afterBindRoot?: () => void;
+  /**
+   * After a nested directory is open-bound through the parent descriptor;
+   * before listing that directory. `posixRel` is repository-relative.
+   */
+  readonly afterBindDirectory?: (posixRel: string) => void;
+};
+
+let secretScanRaceHook: SecretScanRaceHook | undefined;
+
+/**
+ * Install or clear the secret-scan directory-identity race seam. Tests only.
+ */
+export function setSecretScanRaceHook(
+  hook: SecretScanRaceHook | undefined,
+): void {
+  secretScanRaceHook = hook;
+}
+
+function fireAfterBindRoot(): void {
+  const h = secretScanRaceHook?.afterBindRoot;
+  if (h) h();
+}
+
+function fireAfterBindDirectory(posixRel: string): void {
+  const h = secretScanRaceHook?.afterBindDirectory;
+  if (h) h(posixRel);
+}
+
+// ---------------------------------------------------------------------------
+// Directory identity + descriptor anchors (R5D pattern)
+// ---------------------------------------------------------------------------
+
+type DirIdentity = {
+  readonly dev: number;
+  readonly ino: number;
+};
+
+type BoundDir = {
+  readonly fd: number;
+  readonly identity: DirIdentity;
+};
+
+function closeQuiet(fd: number | undefined): void {
+  if (fd === undefined) return;
+  try {
+    closeSync(fd);
+  } catch {
+    /* ignore */
+  }
+}
+
+function identityOf(st: Stats): DirIdentity {
+  return { dev: st.dev, ino: st.ino };
+}
+
+function identitiesEqual(a: DirIdentity, b: DirIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
+/**
+ * Open flags for a no-follow directory descriptor. Null when the host
+ * cannot express the required primitive.
+ */
+function dirOpenFlags(): number | null {
+  const c = fsConstants as Record<string, number | undefined>;
+  if (typeof c.O_DIRECTORY !== "number" || typeof c.O_NOFOLLOW !== "number") {
+    return null;
+  }
+  return fsConstants.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW;
+}
+
+function fileOpenFlags(): number | null {
+  const c = fsConstants as Record<string, number | undefined>;
+  if (typeof c.O_NOFOLLOW !== "number") return null;
+  return fsConstants.O_RDONLY | c.O_NOFOLLOW;
+}
+
+let anchorSupportCache: boolean | undefined;
+
+/**
+ * Test-only override for directory-anchor capability.
+ * `undefined` uses the real probe. Production never installs an override.
+ * When forced false, the live scanner must refuse with
+ * `unsupported_traversal` and must not fall back to pathname traversal.
+ */
+let anchorCapabilityOverride: boolean | undefined;
+
+/**
+ * Install or clear the test-only directory-anchor capability override.
+ * Pass `false` to exercise fail-closed `unsupported_traversal` on every
+ * host, including Linux. Pass `undefined` to restore the real probe.
+ * Never force `true` to emulate anchors on an unsupported platform.
+ */
+export function setSecretScanDirectoryAnchorCapabilityForTests(
+  supported: boolean | undefined,
+): void {
+  anchorCapabilityOverride = supported;
+}
+
+/**
+ * True when this process can open no-follow directory descriptors and
+ * address them through a verified `/proc/self/fd/<fd>` anchor.
+ * Respects the test-only override when installed; production callers
+ * always observe the real capability probe.
+ */
+export function secretScanDirectoryAnchorSupported(): boolean {
+  if (anchorCapabilityOverride !== undefined) {
+    return anchorCapabilityOverride;
+  }
+  if (anchorSupportCache !== undefined) return anchorSupportCache;
+  if (process.platform === "win32") {
+    anchorSupportCache = false;
+    return false;
+  }
+  if (dirOpenFlags() === null || fileOpenFlags() === null) {
+    anchorSupportCache = false;
+    return false;
+  }
+  try {
+    const st = lstatSync("/proc/self/fd");
+    anchorSupportCache = st.isDirectory();
+  } catch {
+    anchorSupportCache = false;
+  }
+  return anchorSupportCache;
+}
+
+/**
+ * Return a pathname that names the open directory descriptor without
+ * re-walking an untrusted parent. Null when the anchor is unavailable.
+ */
+function procFdPath(fd: number): string | null {
+  if (!secretScanDirectoryAnchorSupported()) return null;
+  if (!Number.isInteger(fd) || fd < 0) return null;
+  return `/proc/self/fd/${fd}`;
+}
+
+/**
+ * Observe a path with lstat (no follow).
+ */
+function observeComponent(
+  path: string,
+): "missing" | "directory" | "file" | "symlink" | "other" {
+  let st: Stats;
+  try {
+    st = lstatSync(path);
+  } catch (e) {
+    if (isNotFound(e)) return "missing";
+    return "other";
+  }
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isDirectory()) return "directory";
+  if (st.isFile()) return "file";
+  return "other";
+}
+
+function recheckBoundDir(dir: BoundDir): boolean {
+  try {
+    const st = fstatSync(dir.fd);
+    return st.isDirectory() && identitiesEqual(identityOf(st), dir.identity);
+  } catch {
+    return false;
+  }
+}
+
+type OpenDirResult =
+  | { readonly _tag: "ok"; readonly dir: BoundDir }
+  | { readonly _tag: "missing" }
+  | { readonly _tag: "bad" };
+
+/**
+ * Open a directory by pathname with O_DIRECTORY|O_NOFOLLOW. Does not
+ * follow a symlink at the final component. Captures dev/ino from the
+ * opened descriptor.
+ */
+function openBoundDirAtPath(path: string): OpenDirResult {
+  const flags = dirOpenFlags();
+  if (flags === null || !secretScanDirectoryAnchorSupported()) {
+    return { _tag: "bad" };
+  }
+  const kind = observeComponent(path);
+  if (kind === "missing") return { _tag: "missing" };
+  if (kind !== "directory") return { _tag: "bad" };
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, flags);
+    const st = fstatSync(fd);
+    if (!st.isDirectory()) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const anchor = procFdPath(fd);
+    if (anchor === null) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    try {
+      readdirSync(anchor);
+    } catch {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const dir: BoundDir = { fd, identity: identityOf(st) };
+    fd = undefined;
+    return { _tag: "ok", dir };
+  } catch {
+    closeQuiet(fd);
+    return { _tag: "bad" };
+  }
+}
+
+/**
+ * Open a single-segment child directory under an already-bound parent,
+ * addressed only through the parent's fd anchor.
+ */
+function openBoundChildDir(parent: BoundDir, name: string): OpenDirResult {
+  const flags = dirOpenFlags();
+  if (flags === null || !isSafeDirentName(name)) return { _tag: "bad" };
+  if (!recheckBoundDir(parent)) return { _tag: "bad" };
+  const parentAnchor = procFdPath(parent.fd);
+  if (parentAnchor === null) return { _tag: "bad" };
+  const childPath = join(parentAnchor, name);
+  const kind = observeComponent(childPath);
+  if (kind === "missing") return { _tag: "missing" };
+  if (kind !== "directory") return { _tag: "bad" };
+  let fd: number | undefined;
+  try {
+    fd = openSync(childPath, flags);
+    const st = fstatSync(fd);
+    if (!st.isDirectory()) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    if (!recheckBoundDir(parent)) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const dir: BoundDir = { fd, identity: identityOf(st) };
+    fd = undefined;
+    return { _tag: "ok", dir };
+  } catch {
+    closeQuiet(fd);
+    return { _tag: "bad" };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Effect service
 // ---------------------------------------------------------------------------
 
@@ -229,11 +494,6 @@ function normalizeRootInput(worktree: string): string {
   return n;
 }
 
-function toPosixRel(root: string, absPath: string): string {
-  const rel = relative(root, absPath);
-  return rel.split(sep).join("/");
-}
-
 function isSafeDirentName(name: string): boolean {
   if (name.length === 0) return false;
   if (name === "." || name === "..") return false;
@@ -263,104 +523,6 @@ function isSafeExemptionPath(path: string): boolean {
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// Fixture declaration
-// ---------------------------------------------------------------------------
-
-type FixtureLoad =
-  | { readonly _tag: "Ok"; readonly map: ExemptionMap }
-  | { readonly _tag: "Absent" }
-  | { readonly _tag: "Malformed" }
-  | { readonly _tag: "Unreadable" }
-  | { readonly _tag: "Bound" };
-
-function loadFixtureDeclaration(
-  root: string,
-  bounds: SecretScanBounds,
-): FixtureLoad {
-  const abs = join(root, ...FIXTURE_DECLARATION_RELPATH.split("/"));
-  let st: Stats;
-  try {
-    st = lstatSync(abs);
-  } catch (e) {
-    if (isNotFound(e)) return { _tag: "Absent" };
-    return { _tag: "Unreadable" };
-  }
-  if (st.isSymbolicLink()) return { _tag: "Malformed" };
-  if (!st.isFile()) return { _tag: "Malformed" };
-  if (st.size > bounds.maxFixtureDeclarationBytes) return { _tag: "Bound" };
-
-  const read = readRegularFileBytes(abs, st, bounds.maxFixtureDeclarationBytes);
-  if (read._tag !== "Ok") {
-    if (read._tag === "Oversized") return { _tag: "Bound" };
-    if (read._tag === "IdentityChanged") return { _tag: "Unreadable" };
-    return { _tag: "Unreadable" };
-  }
-
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
-  } catch {
-    return { _tag: "Malformed" };
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return { _tag: "Malformed" };
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return { _tag: "Malformed" };
-  }
-  const obj = parsed as Record<string, unknown>;
-  const keySet = new Set(Object.keys(obj));
-  if (
-    keySet.size !== 2 ||
-    !keySet.has("schemaVersion") ||
-    !keySet.has("exemptions")
-  ) {
-    return { _tag: "Malformed" };
-  }
-  if (obj["schemaVersion"] !== 1) return { _tag: "Malformed" };
-  const ex = obj["exemptions"];
-  if (!Array.isArray(ex)) return { _tag: "Malformed" };
-  if (ex.length > bounds.maxExemptions) return { _tag: "Bound" };
-
-  const map = new Map<string, string>();
-  for (const item of ex) {
-    if (typeof item !== "object" || item === null || Array.isArray(item)) {
-      return { _tag: "Malformed" };
-    }
-    const rec = item as Record<string, unknown>;
-    const rkeys = new Set(Object.keys(rec));
-    if (rkeys.size !== 2 || !rkeys.has("path") || !rkeys.has("sha256")) {
-      return { _tag: "Malformed" };
-    }
-    const path = rec["path"];
-    const sha = rec["sha256"];
-    if (typeof path !== "string" || typeof sha !== "string") {
-      return { _tag: "Malformed" };
-    }
-    if (!isSafeExemptionPath(path) || !isSha256HexLower(sha)) {
-      return { _tag: "Malformed" };
-    }
-    if (map.has(path)) return { _tag: "Malformed" };
-    map.set(path, sha);
-  }
-  return { _tag: "Ok", map };
-}
-
-// ---------------------------------------------------------------------------
-// Bounded regular-file read with identity recheck
-// ---------------------------------------------------------------------------
-
-type FileRead =
-  | { readonly _tag: "Ok"; readonly bytes: Buffer }
-  | { readonly _tag: "Oversized" }
-  | { readonly _tag: "Unreadable" }
-  | { readonly _tag: "IdentityChanged" };
-
 function isNotFound(e: unknown): boolean {
   return (
     typeof e === "object" &&
@@ -370,17 +532,48 @@ function isNotFound(e: unknown): boolean {
   );
 }
 
-function readRegularFileBytes(
-  absPath: string,
-  before: Stats,
+// ---------------------------------------------------------------------------
+// Bounded regular-file read through a held parent directory descriptor
+// ---------------------------------------------------------------------------
+
+type FileRead =
+  | { readonly _tag: "Ok"; readonly bytes: Buffer }
+  | { readonly _tag: "Oversized" }
+  | { readonly _tag: "Unreadable" }
+  | { readonly _tag: "IdentityChanged" }
+  | { readonly _tag: "Symlink" }
+  | { readonly _tag: "NotFile" };
+
+/**
+ * Read a single-segment regular file under a bound parent directory.
+ * Opens only through the parent's `/proc/self/fd` anchor with O_NOFOLLOW.
+ */
+function readRegularFileUnder(
+  parent: BoundDir,
+  name: string,
   maxBytes: number,
 ): FileRead {
+  if (!isSafeDirentName(name)) return { _tag: "Unreadable" };
+  const flags = fileOpenFlags();
+  if (flags === null) return { _tag: "Unreadable" };
+  if (!recheckBoundDir(parent)) return { _tag: "IdentityChanged" };
+  const parentAnchor = procFdPath(parent.fd);
+  if (parentAnchor === null) return { _tag: "Unreadable" };
+  const childPath = join(parentAnchor, name);
+
+  let before: Stats;
+  try {
+    before = lstatSync(childPath);
+  } catch {
+    return { _tag: "Unreadable" };
+  }
+  if (before.isSymbolicLink()) return { _tag: "Symlink" };
+  if (!before.isFile()) return { _tag: "NotFile" };
+  if (before.size > maxBytes) return { _tag: "Oversized" };
+
   let fd: number | undefined;
   try {
-    if (!before.isFile() || before.isSymbolicLink()) {
-      return { _tag: "Unreadable" };
-    }
-    fd = openSync(absPath, "r");
+    fd = openSync(childPath, flags);
     const opened = fstatSync(fd);
     if (
       opened.ino !== before.ino ||
@@ -388,6 +581,9 @@ function readRegularFileBytes(
       opened.size !== before.size ||
       !opened.isFile()
     ) {
+      return { _tag: "IdentityChanged" };
+    }
+    if (!recheckBoundDir(parent)) {
       return { _tag: "IdentityChanged" };
     }
     if (opened.size > maxBytes) {
@@ -419,16 +615,121 @@ function readRegularFileBytes(
       return { _tag: "IdentityChanged" };
     }
     return { _tag: "Ok", bytes: buf.subarray(0, offset) };
-  } catch (e) {
-    if (isNotFound(e)) return { _tag: "Unreadable" };
+  } catch {
     return { _tag: "Unreadable" };
   } finally {
-    if (fd !== undefined) {
-      try {
-        closeSync(fd);
-      } catch {
-        /* ignore */
+    closeQuiet(fd);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fixture declaration (through bound root descriptor chain)
+// ---------------------------------------------------------------------------
+
+type FixtureLoad =
+  | { readonly _tag: "Ok"; readonly map: ExemptionMap }
+  | { readonly _tag: "Absent" }
+  | { readonly _tag: "Malformed" }
+  | { readonly _tag: "Unreadable" }
+  | { readonly _tag: "Bound" }
+  | { readonly _tag: "IdentityChanged" };
+
+function loadFixtureDeclaration(
+  rootDir: BoundDir,
+  bounds: SecretScanBounds,
+): FixtureLoad {
+  const segments = FIXTURE_DECLARATION_RELPATH.split("/");
+  if (segments.length < 2) return { _tag: "Malformed" };
+
+  const opened: BoundDir[] = [];
+  try {
+    let current = rootDir;
+    for (let i = 0; i < segments.length - 1; i++) {
+      const seg = segments[i]!;
+      if (!recheckBoundDir(current)) return { _tag: "IdentityChanged" };
+      const child = openBoundChildDir(current, seg);
+      if (child._tag === "missing") return { _tag: "Absent" };
+      if (child._tag !== "ok") return { _tag: "Unreadable" };
+      opened.push(child.dir);
+      current = child.dir;
+    }
+
+    const fileName = segments[segments.length - 1]!;
+    if (!recheckBoundDir(current)) return { _tag: "IdentityChanged" };
+    const parentAnchor = procFdPath(current.fd);
+    if (parentAnchor === null) return { _tag: "Unreadable" };
+    const declKind = observeComponent(join(parentAnchor, fileName));
+    if (declKind === "missing") return { _tag: "Absent" };
+    if (declKind === "symlink" || declKind === "directory" || declKind === "other") {
+      return { _tag: "Malformed" };
+    }
+    const read = readRegularFileUnder(
+      current,
+      fileName,
+      bounds.maxFixtureDeclarationBytes,
+    );
+    if (read._tag === "Symlink" || read._tag === "NotFile") {
+      return { _tag: "Malformed" };
+    }
+    if (read._tag === "Oversized") return { _tag: "Bound" };
+    if (read._tag === "IdentityChanged") return { _tag: "IdentityChanged" };
+    if (read._tag === "Unreadable") return { _tag: "Unreadable" };
+
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
+    } catch {
+      return { _tag: "Malformed" };
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { _tag: "Malformed" };
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return { _tag: "Malformed" };
+    }
+    const obj = parsed as Record<string, unknown>;
+    const keySet = new Set(Object.keys(obj));
+    if (
+      keySet.size !== 2 ||
+      !keySet.has("schemaVersion") ||
+      !keySet.has("exemptions")
+    ) {
+      return { _tag: "Malformed" };
+    }
+    if (obj["schemaVersion"] !== 1) return { _tag: "Malformed" };
+    const ex = obj["exemptions"];
+    if (!Array.isArray(ex)) return { _tag: "Malformed" };
+    if (ex.length > bounds.maxExemptions) return { _tag: "Bound" };
+
+    const map = new Map<string, string>();
+    for (const item of ex) {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        return { _tag: "Malformed" };
       }
+      const rec = item as Record<string, unknown>;
+      const rkeys = new Set(Object.keys(rec));
+      if (rkeys.size !== 2 || !rkeys.has("path") || !rkeys.has("sha256")) {
+        return { _tag: "Malformed" };
+      }
+      const path = rec["path"];
+      const sha = rec["sha256"];
+      if (typeof path !== "string" || typeof sha !== "string") {
+        return { _tag: "Malformed" };
+      }
+      if (!isSafeExemptionPath(path) || !isSha256HexLower(sha)) {
+        return { _tag: "Malformed" };
+      }
+      if (map.has(path)) return { _tag: "Malformed" };
+      map.set(path, sha);
+    }
+    return { _tag: "Ok", map };
+  } finally {
+    for (let i = opened.length - 1; i >= 0; i--) {
+      closeQuiet(opened[i]!.fd);
     }
   }
 }
@@ -478,8 +779,14 @@ function tryExempt(
   return sha256HexOfBytes(bytes) === expected;
 }
 
+type Frame = {
+  readonly dir: BoundDir;
+  readonly posixRel: string;
+};
+
 /**
  * Core scanner. Fail-closed; never throws domain errors with path content.
+ * Traversal is descriptor-anchored; pathnames are not reopened after bind.
  */
 export function scanWorktreeSync(input: SecretScanInput): SecretScanResult {
   const bounds = input.bounds ?? DEFAULT_SECRET_SCAN_BOUNDS;
@@ -491,160 +798,219 @@ export function scanWorktreeSync(input: SecretScanInput): SecretScanResult {
     return refuse("invalid_worktree");
   }
 
-  let rootStat: Stats;
-  try {
-    rootStat = lstatSync(root);
-  } catch {
-    return refuse("invalid_worktree");
-  }
-  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
-    return refuse("invalid_worktree");
+  if (!secretScanDirectoryAnchorSupported()) {
+    return refuse("unsupported_traversal");
   }
 
-  const fixtures = loadFixtureDeclaration(root, bounds);
-  if (fixtures._tag === "Malformed") {
-    return refuse("malformed_fixture_declaration");
-  }
-  if (fixtures._tag === "Unreadable") {
-    return refuse("unreadable");
-  }
-  if (fixtures._tag === "Bound") {
-    return refuse("bound_exceeded");
-  }
-  const exemptions: ExemptionMap =
-    fixtures._tag === "Ok" ? fixtures.map : new Map();
+  const rootOpen = openBoundDirAtPath(root);
+  if (rootOpen._tag === "missing") return refuse("invalid_worktree");
+  if (rootOpen._tag !== "ok") return refuse("invalid_worktree");
 
-  // If declaration paths escape fixture rules they are already rejected.
-  // Paths under fixture subtree but pointing at non-secret files are fine.
+  // All opened directory descriptors; closed on every exit path.
+  const held: BoundDir[] = [rootOpen.dir];
+  const stack: Frame[] = [];
 
-  const counters: Counters = {
-    directoryEntries: 0,
-    files: 0,
-    totalInspectedBytes: 0,
-    lineInspections: 0,
+  const cleanup = (): void => {
+    while (stack.length > 0) {
+      const f = stack.pop()!;
+      closeQuiet(f.dir.fd);
+    }
+    for (let i = held.length - 1; i >= 0; i--) {
+      closeQuiet(held[i]!.fd);
+    }
+    held.length = 0;
   };
 
-  type Frame = { readonly absDir: string };
-  const stack: Frame[] = [{ absDir: root }];
-
-  while (stack.length > 0) {
-    const frame = stack.pop()!;
-    let dir;
-    try {
-      dir = opendirSync(frame.absDir);
-    } catch {
-      return refuse("unreadable");
+  try {
+    fireAfterBindRoot();
+    if (!recheckBoundDir(rootOpen.dir)) {
+      return refuse("identity_changed");
     }
 
-    try {
-      let ent: Dirent | null;
-      while ((ent = dir.readSync()) !== null) {
-        counters.directoryEntries += 1;
-        if (counters.directoryEntries > bounds.maxDirectoryEntries) {
-          return refuse("bound_exceeded");
-        }
+    const fixtures = loadFixtureDeclaration(rootOpen.dir, bounds);
+    if (fixtures._tag === "Malformed") {
+      return refuse("malformed_fixture_declaration");
+    }
+    if (fixtures._tag === "Unreadable") {
+      return refuse("unreadable");
+    }
+    if (fixtures._tag === "Bound") {
+      return refuse("bound_exceeded");
+    }
+    if (fixtures._tag === "IdentityChanged") {
+      return refuse("identity_changed");
+    }
+    const exemptions: ExemptionMap =
+      fixtures._tag === "Ok" ? fixtures.map : new Map();
 
-        const name = ent.name;
-        if (!isSafeDirentName(name)) {
+    const counters: Counters = {
+      directoryEntries: 0,
+      files: 0,
+      totalInspectedBytes: 0,
+      lineInspections: 0,
+    };
+
+    stack.push({ dir: rootOpen.dir, posixRel: "" });
+    // Root ownership transferred to stack; held still tracks for cleanup.
+    // Avoid double-close of root: remove from held when on stack, or close
+    // only via stack. Use a closed set via not double-closing: cleanup closes
+    // stack then held — mark root as stack-owned only.
+    held.length = 0;
+
+    while (stack.length > 0) {
+      const frame = stack.pop()!;
+      // Open children while parent is held, then transfer to the stack.
+      // On early return, untransferred child descriptors close here.
+      const childFrames: Frame[] = [];
+      try {
+        if (frame.posixRel !== "") {
+          fireAfterBindDirectory(frame.posixRel);
+        }
+        if (!recheckBoundDir(frame.dir)) {
+          return refuse("identity_changed");
+        }
+        const anchor = procFdPath(frame.dir.fd);
+        if (anchor === null) {
           return refuse("unsupported_traversal");
         }
 
-        // Top-level prune of .git and .harness only (shell parity).
-        if (frame.absDir === root && PRUNE_TOP_LEVEL.has(name)) {
-          continue;
-        }
-
-        const abs = join(frame.absDir, name);
-        let st: Stats;
+        let names: string[];
         try {
-          st = lstatSync(abs);
+          names = readdirSync(anchor);
         } catch {
           return refuse("unreadable");
         }
 
-        if (st.isSymbolicLink()) {
-          // Never follow. Skip without treating as secret.
-          continue;
-        }
+        for (const name of names) {
+            counters.directoryEntries += 1;
+            if (counters.directoryEntries > bounds.maxDirectoryEntries) {
+              return refuse("bound_exceeded");
+            }
 
-        if (st.isDirectory()) {
-          stack.push({ absDir: abs });
-          continue;
-        }
+            if (!isSafeDirentName(name)) {
+              return refuse("unsupported_traversal");
+            }
 
-        if (!st.isFile()) {
-          // sockets, devices, etc. — unsupported for safe traversal
-          return refuse("unsupported_traversal");
-        }
-
-        counters.files += 1;
-        if (counters.files > bounds.maxFiles) {
-          return refuse("bound_exceeded");
-        }
-
-        const posixRel = toPosixRel(root, abs);
-        if (posixRel.length === 0 || posixRel === ".") {
-          return refuse("unsupported_traversal");
-        }
-        if (
-          posixRel.startsWith("..") ||
-          posixRel.includes("/../") ||
-          posixRel.includes("\\")
-        ) {
-          return refuse("unsupported_traversal");
-        }
-        const pathBytes = utf8ByteLength(posixRel);
-        if (pathBytes > bounds.maxRelativePathBytes) {
-          return refuse("bound_exceeded");
-        }
-
-        const filenameRefused = isRefusedSecretFilename(name);
-
-        // Always inspect regular-file content for PEM (and for exemption digest).
-        // File-size bound applies to every inspected regular file.
-        if (st.size > bounds.maxFileBytes) {
-          return refuse("bound_exceeded");
-        }
-
-        const read = readRegularFileBytes(abs, st, bounds.maxFileBytes);
-        if (read._tag === "Oversized") return refuse("bound_exceeded");
-        if (read._tag === "IdentityChanged") return refuse("identity_changed");
-        if (read._tag === "Unreadable") return refuse("unreadable");
-
-        const bytes = read.bytes;
-        counters.totalInspectedBytes += bytes.byteLength;
-        if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
-          return refuse("bound_exceeded");
-        }
-
-        if (filenameRefused) {
-          if (tryExempt(posixRel, bytes, exemptions)) {
-            continue;
-          }
-          return { _tag: "SecretFound" };
-        }
-
-        const pemHit = scanPemLines(bytes, counters, bounds);
-        if (pemHit !== null) {
-          if (pemHit._tag === "SecretFound") {
-            if (tryExempt(posixRel, bytes, exemptions)) {
+            // Top-level prune of .git and .harness only (shell parity).
+            if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
               continue;
             }
-            return { _tag: "SecretFound" };
+
+            if (!recheckBoundDir(frame.dir)) {
+              return refuse("identity_changed");
+            }
+            const childPath = join(anchor, name);
+            const kind = observeComponent(childPath);
+            if (kind === "missing") {
+              return refuse("unreadable");
+            }
+            if (kind === "symlink") {
+              // Never follow. Skip without treating as secret.
+              continue;
+            }
+            if (kind === "other") {
+              return refuse("unsupported_traversal");
+            }
+
+            const childRel =
+              frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
+
+            if (kind === "directory") {
+              const childOpen = openBoundChildDir(frame.dir, name);
+              if (childOpen._tag === "missing") {
+                return refuse("unreadable");
+              }
+              if (childOpen._tag !== "ok") {
+                // Symlink/type race after observe → fail closed.
+                return refuse("identity_changed");
+              }
+              childFrames.push({ dir: childOpen.dir, posixRel: childRel });
+              continue;
+            }
+
+            // Regular file
+            counters.files += 1;
+            if (counters.files > bounds.maxFiles) {
+              return refuse("bound_exceeded");
+            }
+
+            if (childRel.length === 0 || childRel === ".") {
+              return refuse("unsupported_traversal");
+            }
+            if (
+              childRel.startsWith("..") ||
+              childRel.includes("/../") ||
+              childRel.includes("\\")
+            ) {
+              return refuse("unsupported_traversal");
+            }
+            const pathBytes = utf8ByteLength(childRel);
+            if (pathBytes > bounds.maxRelativePathBytes) {
+              return refuse("bound_exceeded");
+            }
+
+            const filenameRefused = isRefusedSecretFilename(name);
+
+            const read = readRegularFileUnder(
+              frame.dir,
+              name,
+              bounds.maxFileBytes,
+            );
+            if (read._tag === "Symlink") {
+              // Race: became symlink — do not follow.
+              continue;
+            }
+            if (read._tag === "NotFile") {
+              return refuse("unsupported_traversal");
+            }
+            if (read._tag === "Oversized") return refuse("bound_exceeded");
+            if (read._tag === "IdentityChanged") {
+              return refuse("identity_changed");
+            }
+            if (read._tag === "Unreadable") return refuse("unreadable");
+
+            const bytes = read.bytes;
+            counters.totalInspectedBytes += bytes.byteLength;
+            if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
+              return refuse("bound_exceeded");
+            }
+
+            if (filenameRefused) {
+              if (tryExempt(childRel, bytes, exemptions)) {
+                continue;
+              }
+              return { _tag: "SecretFound" };
+            }
+
+            const pemHit = scanPemLines(bytes, counters, bounds);
+            if (pemHit !== null) {
+              if (pemHit._tag === "SecretFound") {
+                if (tryExempt(childRel, bytes, exemptions)) {
+                  continue;
+                }
+                return { _tag: "SecretFound" };
+              }
+              return pemHit;
+            }
           }
-          return pemHit;
+
+        // Transfer ownership to the stack (LIFO preserves readdir order).
+        for (let i = childFrames.length - 1; i >= 0; i--) {
+          stack.push(childFrames[i]!);
         }
-      }
-    } finally {
-      try {
-        dir.closeSync();
-      } catch {
-        /* ignore */
+        childFrames.length = 0;
+      } finally {
+        for (let i = childFrames.length - 1; i >= 0; i--) {
+          closeQuiet(childFrames[i]!.dir.fd);
+        }
+        closeQuiet(frame.dir.fd);
       }
     }
-  }
 
-  return { _tag: "Clean" };
+    return { _tag: "Clean" };
+  } finally {
+    cleanup();
+  }
 }
 
 /**

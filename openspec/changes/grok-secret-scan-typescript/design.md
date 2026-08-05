@@ -18,6 +18,31 @@ Refusal classes stay the same:
 - filename: `.env`, `.env.*` except `.env.example`, and common private-key names
 - content: a PEM private-key header at the start of a line
 
+## Descriptor-anchor traversal
+
+The scanner binds the worktree root to a stable no-follow directory identity
+before reading the fixture declaration or traversing any entry.
+It binds each child directory before descent and traverses only through the
+held descriptor-anchor chain (`O_DIRECTORY|O_NOFOLLOW` and
+`/proc/self/fd/<fd>` where supported).
+
+It does not validate a directory and later reopen it by the original pathname.
+A root or nested-directory pathname swapped for a symlink after bind must not
+change the verdict or expose outside content.
+
+When the host cannot provide a secure directory anchor, the live scanner fails
+closed with `unsupported_traversal`. There is no pathname fallback.
+Every directory descriptor closes on Clean, SecretFound, Refused, and
+thrown-seam paths.
+Fixture declaration and regular-file reads use the same bound directory chain
+and keep the existing file identity recheck.
+
+Tests may inject a false capability only to prove fail-closed
+`unsupported_traversal` on every platform. Production callers always use the
+real probe. The suite does not emulate descriptor anchors on Windows; live
+traversal cases skip when anchors are unavailable, while pure classifiers and
+the injected fail-closed case always run.
+
 ## Bounds
 
 Every traversal applies positive bounds for directory entries, files,

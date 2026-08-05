@@ -30,6 +30,34 @@ guard did.
 - AND no secret exists outside pruned roots
 - THEN the scan result is `Clean`.
 
+### Requirement: traversal uses descriptor anchors
+
+The live scanner SHALL bind the worktree root to a stable no-follow directory
+identity before reading the fixture declaration or traversing any entry.
+It SHALL bind each child directory before descent and SHALL traverse only
+through the held descriptor-anchor chain.
+It SHALL NOT validate a directory and later reopen that directory by the
+original pathname.
+When a secure directory anchor is unavailable, the scanner SHALL fail closed
+with reason `unsupported_traversal` and SHALL NOT fall back to pathname
+reopen.
+
+#### Scenario: root pathname is swapped after bind
+
+- WHEN the worktree root is open-bound
+- AND the root pathname is then replaced with a symlink to an outside tree
+  that contains a refused secret
+- THEN the scan result is not driven by the outside secret
+- AND the outside path is not traversed as a scan target.
+
+#### Scenario: nested directory pathname is swapped after bind
+
+- WHEN a nested directory is open-bound through the parent descriptor
+- AND that nested pathname is then replaced with a symlink to an outside tree
+  that contains a refused secret
+- THEN the scan result is not driven by the outside secret
+- AND the outside path is not traversed as a scan target.
+
 ### Requirement: filename and PEM refusal classes are preserved
 
 The scanner SHALL refuse `.env` and `.env.*` except `.env.example`.

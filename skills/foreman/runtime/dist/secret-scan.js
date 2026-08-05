@@ -1151,7 +1151,7 @@ var dedupeWith = /* @__PURE__ */ dual(2, (self, isEquivalent) => {
   return [];
 });
 var dedupe = (self) => dedupeWith(self, equivalence());
-var join = /* @__PURE__ */ dual(2, (self, sep2) => fromIterable(self).join(sep2));
+var join = /* @__PURE__ */ dual(2, (self, sep) => fromIterable(self).join(sep));
 
 // node_modules/effect/dist/esm/Number.js
 var Order = number2;
@@ -15620,13 +15620,14 @@ var ensureRequirementsType2 = () => (layer) => layer;
 import { createHash } from "node:crypto";
 import {
   closeSync,
+  constants as fsConstants,
   fstatSync,
   lstatSync,
   openSync,
-  opendirSync,
+  readdirSync,
   readSync
 } from "node:fs";
-import { isAbsolute, join as join3, relative, resolve, sep } from "node:path";
+import { isAbsolute, join as join3, resolve } from "node:path";
 
 // packages/core/src/failures.ts
 var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
@@ -15719,6 +15720,154 @@ var PRIVATE_KEY_BASENAMES = /* @__PURE__ */ new Set([
   "id_ed25519"
 ]);
 var PRIVATE_KEY_EXTENSIONS = /* @__PURE__ */ new Set([".pem", ".key", ".p12", ".pfx"]);
+var secretScanRaceHook;
+function fireAfterBindRoot() {
+  const h = secretScanRaceHook?.afterBindRoot;
+  if (h) h();
+}
+function fireAfterBindDirectory(posixRel) {
+  const h = secretScanRaceHook?.afterBindDirectory;
+  if (h) h(posixRel);
+}
+function closeQuiet(fd) {
+  if (fd === void 0) return;
+  try {
+    closeSync(fd);
+  } catch {
+  }
+}
+function identityOf(st) {
+  return { dev: st.dev, ino: st.ino };
+}
+function identitiesEqual(a, b) {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+function dirOpenFlags() {
+  const c = fsConstants;
+  if (typeof c.O_DIRECTORY !== "number" || typeof c.O_NOFOLLOW !== "number") {
+    return null;
+  }
+  return fsConstants.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW;
+}
+function fileOpenFlags() {
+  const c = fsConstants;
+  if (typeof c.O_NOFOLLOW !== "number") return null;
+  return fsConstants.O_RDONLY | c.O_NOFOLLOW;
+}
+var anchorSupportCache;
+var anchorCapabilityOverride;
+function secretScanDirectoryAnchorSupported() {
+  if (anchorCapabilityOverride !== void 0) {
+    return anchorCapabilityOverride;
+  }
+  if (anchorSupportCache !== void 0) return anchorSupportCache;
+  if (process.platform === "win32") {
+    anchorSupportCache = false;
+    return false;
+  }
+  if (dirOpenFlags() === null || fileOpenFlags() === null) {
+    anchorSupportCache = false;
+    return false;
+  }
+  try {
+    const st = lstatSync("/proc/self/fd");
+    anchorSupportCache = st.isDirectory();
+  } catch {
+    anchorSupportCache = false;
+  }
+  return anchorSupportCache;
+}
+function procFdPath(fd) {
+  if (!secretScanDirectoryAnchorSupported()) return null;
+  if (!Number.isInteger(fd) || fd < 0) return null;
+  return `/proc/self/fd/${fd}`;
+}
+function observeComponent(path) {
+  let st;
+  try {
+    st = lstatSync(path);
+  } catch (e) {
+    if (isNotFound(e)) return "missing";
+    return "other";
+  }
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isDirectory()) return "directory";
+  if (st.isFile()) return "file";
+  return "other";
+}
+function recheckBoundDir(dir) {
+  try {
+    const st = fstatSync(dir.fd);
+    return st.isDirectory() && identitiesEqual(identityOf(st), dir.identity);
+  } catch {
+    return false;
+  }
+}
+function openBoundDirAtPath(path) {
+  const flags = dirOpenFlags();
+  if (flags === null || !secretScanDirectoryAnchorSupported()) {
+    return { _tag: "bad" };
+  }
+  const kind = observeComponent(path);
+  if (kind === "missing") return { _tag: "missing" };
+  if (kind !== "directory") return { _tag: "bad" };
+  let fd;
+  try {
+    fd = openSync(path, flags);
+    const st = fstatSync(fd);
+    if (!st.isDirectory()) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const anchor = procFdPath(fd);
+    if (anchor === null) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    try {
+      readdirSync(anchor);
+    } catch {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const dir = { fd, identity: identityOf(st) };
+    fd = void 0;
+    return { _tag: "ok", dir };
+  } catch {
+    closeQuiet(fd);
+    return { _tag: "bad" };
+  }
+}
+function openBoundChildDir(parent, name) {
+  const flags = dirOpenFlags();
+  if (flags === null || !isSafeDirentName(name)) return { _tag: "bad" };
+  if (!recheckBoundDir(parent)) return { _tag: "bad" };
+  const parentAnchor = procFdPath(parent.fd);
+  if (parentAnchor === null) return { _tag: "bad" };
+  const childPath = join3(parentAnchor, name);
+  const kind = observeComponent(childPath);
+  if (kind === "missing") return { _tag: "missing" };
+  if (kind !== "directory") return { _tag: "bad" };
+  let fd;
+  try {
+    fd = openSync(childPath, flags);
+    const st = fstatSync(fd);
+    if (!st.isDirectory()) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    if (!recheckBoundDir(parent)) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const dir = { fd, identity: identityOf(st) };
+    fd = void 0;
+    return { _tag: "ok", dir };
+  } catch {
+    closeQuiet(fd);
+    return { _tag: "bad" };
+  }
+}
 var SecretScan = class extends Context_exports.Tag("SecretScan")() {
 };
 function sha256HexOfBytes(bytes) {
@@ -15769,10 +15918,6 @@ function normalizeRootInput(worktree) {
   }
   return n;
 }
-function toPosixRel(root, absPath) {
-  const rel = relative(root, absPath);
-  return rel.split(sep).join("/");
-}
 function isSafeDirentName(name) {
   if (name.length === 0) return false;
   if (name === "." || name === "..") return false;
@@ -15795,83 +15940,34 @@ function isSafeExemptionPath(path) {
   if (path.endsWith("/")) return false;
   return true;
 }
-function loadFixtureDeclaration(root, bounds) {
-  const abs = join3(root, ...FIXTURE_DECLARATION_RELPATH.split("/"));
-  let st;
-  try {
-    st = lstatSync(abs);
-  } catch (e) {
-    if (isNotFound(e)) return { _tag: "Absent" };
-    return { _tag: "Unreadable" };
-  }
-  if (st.isSymbolicLink()) return { _tag: "Malformed" };
-  if (!st.isFile()) return { _tag: "Malformed" };
-  if (st.size > bounds.maxFixtureDeclarationBytes) return { _tag: "Bound" };
-  const read = readRegularFileBytes(abs, st, bounds.maxFixtureDeclarationBytes);
-  if (read._tag !== "Ok") {
-    if (read._tag === "Oversized") return { _tag: "Bound" };
-    if (read._tag === "IdentityChanged") return { _tag: "Unreadable" };
-    return { _tag: "Unreadable" };
-  }
-  let text;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
-  } catch {
-    return { _tag: "Malformed" };
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return { _tag: "Malformed" };
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    return { _tag: "Malformed" };
-  }
-  const obj = parsed;
-  const keySet = new Set(Object.keys(obj));
-  if (keySet.size !== 2 || !keySet.has("schemaVersion") || !keySet.has("exemptions")) {
-    return { _tag: "Malformed" };
-  }
-  if (obj["schemaVersion"] !== 1) return { _tag: "Malformed" };
-  const ex = obj["exemptions"];
-  if (!Array.isArray(ex)) return { _tag: "Malformed" };
-  if (ex.length > bounds.maxExemptions) return { _tag: "Bound" };
-  const map14 = /* @__PURE__ */ new Map();
-  for (const item of ex) {
-    if (typeof item !== "object" || item === null || Array.isArray(item)) {
-      return { _tag: "Malformed" };
-    }
-    const rec = item;
-    const rkeys = new Set(Object.keys(rec));
-    if (rkeys.size !== 2 || !rkeys.has("path") || !rkeys.has("sha256")) {
-      return { _tag: "Malformed" };
-    }
-    const path = rec["path"];
-    const sha = rec["sha256"];
-    if (typeof path !== "string" || typeof sha !== "string") {
-      return { _tag: "Malformed" };
-    }
-    if (!isSafeExemptionPath(path) || !isSha256HexLower(sha)) {
-      return { _tag: "Malformed" };
-    }
-    if (map14.has(path)) return { _tag: "Malformed" };
-    map14.set(path, sha);
-  }
-  return { _tag: "Ok", map: map14 };
-}
 function isNotFound(e) {
   return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
 }
-function readRegularFileBytes(absPath, before2, maxBytes) {
+function readRegularFileUnder(parent, name, maxBytes) {
+  if (!isSafeDirentName(name)) return { _tag: "Unreadable" };
+  const flags = fileOpenFlags();
+  if (flags === null) return { _tag: "Unreadable" };
+  if (!recheckBoundDir(parent)) return { _tag: "IdentityChanged" };
+  const parentAnchor = procFdPath(parent.fd);
+  if (parentAnchor === null) return { _tag: "Unreadable" };
+  const childPath = join3(parentAnchor, name);
+  let before2;
+  try {
+    before2 = lstatSync(childPath);
+  } catch {
+    return { _tag: "Unreadable" };
+  }
+  if (before2.isSymbolicLink()) return { _tag: "Symlink" };
+  if (!before2.isFile()) return { _tag: "NotFile" };
+  if (before2.size > maxBytes) return { _tag: "Oversized" };
   let fd;
   try {
-    if (!before2.isFile() || before2.isSymbolicLink()) {
-      return { _tag: "Unreadable" };
-    }
-    fd = openSync(absPath, "r");
+    fd = openSync(childPath, flags);
     const opened = fstatSync(fd);
     if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size || !opened.isFile()) {
+      return { _tag: "IdentityChanged" };
+    }
+    if (!recheckBoundDir(parent)) {
       return { _tag: "IdentityChanged" };
     }
     if (opened.size > maxBytes) {
@@ -15898,15 +15994,96 @@ function readRegularFileBytes(absPath, before2, maxBytes) {
       return { _tag: "IdentityChanged" };
     }
     return { _tag: "Ok", bytes: buf.subarray(0, offset) };
-  } catch (e) {
-    if (isNotFound(e)) return { _tag: "Unreadable" };
+  } catch {
     return { _tag: "Unreadable" };
   } finally {
-    if (fd !== void 0) {
-      try {
-        closeSync(fd);
-      } catch {
+    closeQuiet(fd);
+  }
+}
+function loadFixtureDeclaration(rootDir, bounds) {
+  const segments = FIXTURE_DECLARATION_RELPATH.split("/");
+  if (segments.length < 2) return { _tag: "Malformed" };
+  const opened = [];
+  try {
+    let current = rootDir;
+    for (let i = 0; i < segments.length - 1; i++) {
+      const seg = segments[i];
+      if (!recheckBoundDir(current)) return { _tag: "IdentityChanged" };
+      const child = openBoundChildDir(current, seg);
+      if (child._tag === "missing") return { _tag: "Absent" };
+      if (child._tag !== "ok") return { _tag: "Unreadable" };
+      opened.push(child.dir);
+      current = child.dir;
+    }
+    const fileName = segments[segments.length - 1];
+    if (!recheckBoundDir(current)) return { _tag: "IdentityChanged" };
+    const parentAnchor = procFdPath(current.fd);
+    if (parentAnchor === null) return { _tag: "Unreadable" };
+    const declKind = observeComponent(join3(parentAnchor, fileName));
+    if (declKind === "missing") return { _tag: "Absent" };
+    if (declKind === "symlink" || declKind === "directory" || declKind === "other") {
+      return { _tag: "Malformed" };
+    }
+    const read = readRegularFileUnder(
+      current,
+      fileName,
+      bounds.maxFixtureDeclarationBytes
+    );
+    if (read._tag === "Symlink" || read._tag === "NotFile") {
+      return { _tag: "Malformed" };
+    }
+    if (read._tag === "Oversized") return { _tag: "Bound" };
+    if (read._tag === "IdentityChanged") return { _tag: "IdentityChanged" };
+    if (read._tag === "Unreadable") return { _tag: "Unreadable" };
+    let text;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
+    } catch {
+      return { _tag: "Malformed" };
+    }
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { _tag: "Malformed" };
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return { _tag: "Malformed" };
+    }
+    const obj = parsed;
+    const keySet = new Set(Object.keys(obj));
+    if (keySet.size !== 2 || !keySet.has("schemaVersion") || !keySet.has("exemptions")) {
+      return { _tag: "Malformed" };
+    }
+    if (obj["schemaVersion"] !== 1) return { _tag: "Malformed" };
+    const ex = obj["exemptions"];
+    if (!Array.isArray(ex)) return { _tag: "Malformed" };
+    if (ex.length > bounds.maxExemptions) return { _tag: "Bound" };
+    const map14 = /* @__PURE__ */ new Map();
+    for (const item of ex) {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        return { _tag: "Malformed" };
       }
+      const rec = item;
+      const rkeys = new Set(Object.keys(rec));
+      if (rkeys.size !== 2 || !rkeys.has("path") || !rkeys.has("sha256")) {
+        return { _tag: "Malformed" };
+      }
+      const path = rec["path"];
+      const sha = rec["sha256"];
+      if (typeof path !== "string" || typeof sha !== "string") {
+        return { _tag: "Malformed" };
+      }
+      if (!isSafeExemptionPath(path) || !isSha256HexLower(sha)) {
+        return { _tag: "Malformed" };
+      }
+      if (map14.has(path)) return { _tag: "Malformed" };
+      map14.set(path, sha);
+    }
+    return { _tag: "Ok", map: map14 };
+  } finally {
+    for (let i = opened.length - 1; i >= 0; i--) {
+      closeQuiet(opened[i].fd);
     }
   }
 }
@@ -15948,125 +16125,176 @@ function scanWorktreeSync(input) {
   if (!isValidAbsoluteRoot(root)) {
     return refuse("invalid_worktree");
   }
-  let rootStat;
-  try {
-    rootStat = lstatSync(root);
-  } catch {
-    return refuse("invalid_worktree");
+  if (!secretScanDirectoryAnchorSupported()) {
+    return refuse("unsupported_traversal");
   }
-  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
-    return refuse("invalid_worktree");
-  }
-  const fixtures = loadFixtureDeclaration(root, bounds);
-  if (fixtures._tag === "Malformed") {
-    return refuse("malformed_fixture_declaration");
-  }
-  if (fixtures._tag === "Unreadable") {
-    return refuse("unreadable");
-  }
-  if (fixtures._tag === "Bound") {
-    return refuse("bound_exceeded");
-  }
-  const exemptions = fixtures._tag === "Ok" ? fixtures.map : /* @__PURE__ */ new Map();
-  const counters = {
-    directoryEntries: 0,
-    files: 0,
-    totalInspectedBytes: 0,
-    lineInspections: 0
+  const rootOpen = openBoundDirAtPath(root);
+  if (rootOpen._tag === "missing") return refuse("invalid_worktree");
+  if (rootOpen._tag !== "ok") return refuse("invalid_worktree");
+  const held = [rootOpen.dir];
+  const stack = [];
+  const cleanup = () => {
+    while (stack.length > 0) {
+      const f = stack.pop();
+      closeQuiet(f.dir.fd);
+    }
+    for (let i = held.length - 1; i >= 0; i--) {
+      closeQuiet(held[i].fd);
+    }
+    held.length = 0;
   };
-  const stack = [{ absDir: root }];
-  while (stack.length > 0) {
-    const frame = stack.pop();
-    let dir;
-    try {
-      dir = opendirSync(frame.absDir);
-    } catch {
+  try {
+    fireAfterBindRoot();
+    if (!recheckBoundDir(rootOpen.dir)) {
+      return refuse("identity_changed");
+    }
+    const fixtures = loadFixtureDeclaration(rootOpen.dir, bounds);
+    if (fixtures._tag === "Malformed") {
+      return refuse("malformed_fixture_declaration");
+    }
+    if (fixtures._tag === "Unreadable") {
       return refuse("unreadable");
     }
-    try {
-      let ent;
-      while ((ent = dir.readSync()) !== null) {
-        counters.directoryEntries += 1;
-        if (counters.directoryEntries > bounds.maxDirectoryEntries) {
-          return refuse("bound_exceeded");
+    if (fixtures._tag === "Bound") {
+      return refuse("bound_exceeded");
+    }
+    if (fixtures._tag === "IdentityChanged") {
+      return refuse("identity_changed");
+    }
+    const exemptions = fixtures._tag === "Ok" ? fixtures.map : /* @__PURE__ */ new Map();
+    const counters = {
+      directoryEntries: 0,
+      files: 0,
+      totalInspectedBytes: 0,
+      lineInspections: 0
+    };
+    stack.push({ dir: rootOpen.dir, posixRel: "" });
+    held.length = 0;
+    while (stack.length > 0) {
+      const frame = stack.pop();
+      const childFrames = [];
+      try {
+        if (frame.posixRel !== "") {
+          fireAfterBindDirectory(frame.posixRel);
         }
-        const name = ent.name;
-        if (!isSafeDirentName(name)) {
+        if (!recheckBoundDir(frame.dir)) {
+          return refuse("identity_changed");
+        }
+        const anchor = procFdPath(frame.dir.fd);
+        if (anchor === null) {
           return refuse("unsupported_traversal");
         }
-        if (frame.absDir === root && PRUNE_TOP_LEVEL.has(name)) {
-          continue;
-        }
-        const abs = join3(frame.absDir, name);
-        let st;
+        let names;
         try {
-          st = lstatSync(abs);
+          names = readdirSync(anchor);
         } catch {
           return refuse("unreadable");
         }
-        if (st.isSymbolicLink()) {
-          continue;
-        }
-        if (st.isDirectory()) {
-          stack.push({ absDir: abs });
-          continue;
-        }
-        if (!st.isFile()) {
-          return refuse("unsupported_traversal");
-        }
-        counters.files += 1;
-        if (counters.files > bounds.maxFiles) {
-          return refuse("bound_exceeded");
-        }
-        const posixRel = toPosixRel(root, abs);
-        if (posixRel.length === 0 || posixRel === ".") {
-          return refuse("unsupported_traversal");
-        }
-        if (posixRel.startsWith("..") || posixRel.includes("/../") || posixRel.includes("\\")) {
-          return refuse("unsupported_traversal");
-        }
-        const pathBytes = utf8ByteLength(posixRel);
-        if (pathBytes > bounds.maxRelativePathBytes) {
-          return refuse("bound_exceeded");
-        }
-        const filenameRefused = isRefusedSecretFilename(name);
-        if (st.size > bounds.maxFileBytes) {
-          return refuse("bound_exceeded");
-        }
-        const read = readRegularFileBytes(abs, st, bounds.maxFileBytes);
-        if (read._tag === "Oversized") return refuse("bound_exceeded");
-        if (read._tag === "IdentityChanged") return refuse("identity_changed");
-        if (read._tag === "Unreadable") return refuse("unreadable");
-        const bytes = read.bytes;
-        counters.totalInspectedBytes += bytes.byteLength;
-        if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
-          return refuse("bound_exceeded");
-        }
-        if (filenameRefused) {
-          if (tryExempt(posixRel, bytes, exemptions)) {
+        for (const name of names) {
+          counters.directoryEntries += 1;
+          if (counters.directoryEntries > bounds.maxDirectoryEntries) {
+            return refuse("bound_exceeded");
+          }
+          if (!isSafeDirentName(name)) {
+            return refuse("unsupported_traversal");
+          }
+          if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
             continue;
           }
-          return { _tag: "SecretFound" };
-        }
-        const pemHit = scanPemLines(bytes, counters, bounds);
-        if (pemHit !== null) {
-          if (pemHit._tag === "SecretFound") {
-            if (tryExempt(posixRel, bytes, exemptions)) {
+          if (!recheckBoundDir(frame.dir)) {
+            return refuse("identity_changed");
+          }
+          const childPath = join3(anchor, name);
+          const kind = observeComponent(childPath);
+          if (kind === "missing") {
+            return refuse("unreadable");
+          }
+          if (kind === "symlink") {
+            continue;
+          }
+          if (kind === "other") {
+            return refuse("unsupported_traversal");
+          }
+          const childRel = frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
+          if (kind === "directory") {
+            const childOpen = openBoundChildDir(frame.dir, name);
+            if (childOpen._tag === "missing") {
+              return refuse("unreadable");
+            }
+            if (childOpen._tag !== "ok") {
+              return refuse("identity_changed");
+            }
+            childFrames.push({ dir: childOpen.dir, posixRel: childRel });
+            continue;
+          }
+          counters.files += 1;
+          if (counters.files > bounds.maxFiles) {
+            return refuse("bound_exceeded");
+          }
+          if (childRel.length === 0 || childRel === ".") {
+            return refuse("unsupported_traversal");
+          }
+          if (childRel.startsWith("..") || childRel.includes("/../") || childRel.includes("\\")) {
+            return refuse("unsupported_traversal");
+          }
+          const pathBytes = utf8ByteLength(childRel);
+          if (pathBytes > bounds.maxRelativePathBytes) {
+            return refuse("bound_exceeded");
+          }
+          const filenameRefused = isRefusedSecretFilename(name);
+          const read = readRegularFileUnder(
+            frame.dir,
+            name,
+            bounds.maxFileBytes
+          );
+          if (read._tag === "Symlink") {
+            continue;
+          }
+          if (read._tag === "NotFile") {
+            return refuse("unsupported_traversal");
+          }
+          if (read._tag === "Oversized") return refuse("bound_exceeded");
+          if (read._tag === "IdentityChanged") {
+            return refuse("identity_changed");
+          }
+          if (read._tag === "Unreadable") return refuse("unreadable");
+          const bytes = read.bytes;
+          counters.totalInspectedBytes += bytes.byteLength;
+          if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
+            return refuse("bound_exceeded");
+          }
+          if (filenameRefused) {
+            if (tryExempt(childRel, bytes, exemptions)) {
               continue;
             }
             return { _tag: "SecretFound" };
           }
-          return pemHit;
+          const pemHit = scanPemLines(bytes, counters, bounds);
+          if (pemHit !== null) {
+            if (pemHit._tag === "SecretFound") {
+              if (tryExempt(childRel, bytes, exemptions)) {
+                continue;
+              }
+              return { _tag: "SecretFound" };
+            }
+            return pemHit;
+          }
         }
-      }
-    } finally {
-      try {
-        dir.closeSync();
-      } catch {
+        for (let i = childFrames.length - 1; i >= 0; i--) {
+          stack.push(childFrames[i]);
+        }
+        childFrames.length = 0;
+      } finally {
+        for (let i = childFrames.length - 1; i >= 0; i--) {
+          closeQuiet(childFrames[i].dir.fd);
+        }
+        closeQuiet(frame.dir.fd);
       }
     }
+    return { _tag: "Clean" };
+  } finally {
+    cleanup();
   }
-  return { _tag: "Clean" };
 }
 function scanWorktree(input) {
   return Effect_exports.gen(function* () {

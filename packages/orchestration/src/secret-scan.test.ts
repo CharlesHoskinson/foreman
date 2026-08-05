@@ -1,17 +1,25 @@
 /**
  * Sprint 3 R6: bounded fixture-aware secret scan — RED-first tests.
  * Fail-closed bounds, filename/PEM classes, fixture identity, CLI safety.
+ *
+ * Cross-platform: pure classifiers, decoders, renderers, argv, digest, and
+ * constants always run. Live filesystem traversal runs only when secure
+ * directory-descriptor anchors are available. Fail-closed
+ * `unsupported_traversal` is proven on every host via a test-only capability
+ * injection (no pathname fallback, no Windows anchor emulation).
  */
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -20,7 +28,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 import { Effect } from "effect";
 import {
   DEFAULT_SECRET_SCAN_BOUNDS,
@@ -36,12 +44,17 @@ import {
   MAX_RELATIVE_PATH_BYTES,
   MAX_TOTAL_INSPECTED_BYTES,
   SECRET_SCAN_SCHEMA_VERSION,
+  isPemPrivateKeyLine,
+  isRefusedSecretFilename,
   isSecretScanResult,
   liveSecretScan,
   parseSecretScanArgv,
   renderSecretScanJson,
   runSecretScanCli,
   scanWorktree,
+  secretScanDirectoryAnchorSupported,
+  setSecretScanDirectoryAnchorCapabilityForTests,
+  setSecretScanRaceHook,
   sha256HexOfBytes,
   type SecretScanBounds,
   type SecretScanCliIo,
@@ -52,6 +65,10 @@ const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../..",
 );
+
+/** Real host capability — never forced true. Live traversal skips when false. */
+const anchorOk = secretScanDirectoryAnchorSupported();
+const liveTraversal = { skip: !anchorOk };
 
 function sha256Hex(buf: Buffer | string): string {
   return createHash("sha256").update(buf).digest("hex");
@@ -122,10 +139,70 @@ function assertSecretSafe(text: string, forbidden: readonly string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// Filename refusal classes
+// Pure classifiers / decoders / renderers (always active on every platform)
 // ---------------------------------------------------------------------------
 
-describe("filename refusal classes", () => {
+describe("pure filename refusal classifier", () => {
+  it("refuses .env and .env.* except .env.example", () => {
+    assert.equal(isRefusedSecretFilename(".env"), true);
+    assert.equal(isRefusedSecretFilename(".env.local"), true);
+    assert.equal(isRefusedSecretFilename(".env.production"), true);
+    assert.equal(isRefusedSecretFilename(".env.example"), false);
+  });
+
+  for (const name of [
+    "id_rsa",
+    "id_dsa",
+    "id_ecdsa",
+    "id_ed25519",
+    "x.pem",
+    "x.key",
+    "x.p12",
+    "x.pfx",
+  ] as const) {
+    it(`refuses private-key filename class ${name}`, () => {
+      assert.equal(isRefusedSecretFilename(name), true);
+    });
+  }
+
+  it("accepts ordinary basenames", () => {
+    assert.equal(isRefusedSecretFilename("notes.txt"), false);
+    assert.equal(isRefusedSecretFilename("id_rsa.pub"), false);
+  });
+});
+
+describe("pure PEM private-key line classifier", () => {
+  it("matches PEM banners at line start with optional whitespace", () => {
+    assert.equal(
+      isPemPrivateKeyLine("-----BEGIN RSA PRIVATE KEY-----"),
+      true,
+    );
+    assert.equal(
+      isPemPrivateKeyLine("  -----BEGIN EC PRIVATE KEY-----"),
+      true,
+    );
+    assert.equal(
+      isPemPrivateKeyLine("-----BEGIN OPENSSH PRIVATE KEY-----\r"),
+      true,
+    );
+  });
+
+  it("rejects inline mention without a PEM line banner", () => {
+    assert.equal(
+      isPemPrivateKeyLine(
+        "The scanner rejects -----BEGIN RSA PRIVATE KEY----- when it starts a PEM line.",
+      ),
+      false,
+    );
+    assert.equal(isPemPrivateKeyLine("not a key"), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Filename refusal classes (live traversal)
+// ---------------------------------------------------------------------------
+
+describe("filename refusal classes", liveTraversal, () => {
   it("refuses .env at worktree root", () => {
     const wt = tempRoot("env");
     try {
@@ -183,10 +260,10 @@ describe("filename refusal classes", () => {
 });
 
 // ---------------------------------------------------------------------------
-// PEM content refusal
+// PEM content refusal (live traversal)
 // ---------------------------------------------------------------------------
 
-describe("PEM private-key header refusal", () => {
+describe("PEM private-key header refusal", liveTraversal, () => {
   it("refuses a PEM header at the start of a line", () => {
     const wt = tempRoot("pem");
     try {
@@ -230,10 +307,10 @@ describe("PEM private-key header refusal", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Prune .git / .harness
+// Prune .git / .harness (live traversal)
 // ---------------------------------------------------------------------------
 
-describe("prune .git and .harness", () => {
+describe("prune .git and .harness", liveTraversal, () => {
   it("accepts .env inside top-level .harness", () => {
     const wt = tempRoot("harness");
     try {
@@ -258,10 +335,10 @@ describe("prune .git and .harness", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fixture identity exemptions
+// Fixture identity exemptions (live traversal)
 // ---------------------------------------------------------------------------
 
-describe("fixture digest-bound exemptions", () => {
+describe("fixture digest-bound exemptions", liveTraversal, () => {
   it("accepts exact path+digest exemption under tests/fixtures/", () => {
     const wt = tempRoot("fix-ok");
     try {
@@ -339,26 +416,173 @@ describe("fixture digest-bound exemptions", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Directory-identity race seams (descriptor anchors)
+// ---------------------------------------------------------------------------
+
+afterEach(() => {
+  setSecretScanRaceHook(undefined);
+  setSecretScanDirectoryAnchorCapabilityForTests(undefined);
+});
+
+/**
+ * Swap a directory pathname for a symlink to `outside` while the scanner
+ * still holds a descriptor on the original identity.
+ */
+function swapPathForSymlink(path: string, outside: string): void {
+  const parked = `${path}.parked-identity`;
+  renameSync(path, parked);
+  symlinkSync(outside, path);
+}
+
+describe("directory-identity race seams", () => {
+  it(
+    "race seam: root swap after bind does not inspect outside secrets",
+    liveTraversal,
+    () => {
+      const wt = tempRoot("race-root");
+      const outside = tempRoot("race-root-out");
+      const parked = `${wt}.parked-identity`;
+      try {
+        writeFile(wt, "inside-ok.txt", "ok\n");
+        // Outside target holds a secret that would flip the verdict if followed.
+        writeFile(outside, ".env", "SECRET=outside-root-leak\n");
+        writeFile(outside, "outside-only.txt", "marker\n");
+
+        setSecretScanRaceHook({
+          afterBindRoot: () => {
+            swapPathForSymlink(wt, outside);
+          },
+        });
+
+        const r = runScan(wt);
+        assert.equal(
+          r._tag,
+          "Clean",
+          `outside secret must not affect verdict; got ${JSON.stringify(r)}`,
+        );
+        assert.ok(lstatSync(wt).isSymbolicLink());
+        assert.equal(
+          readFileSync(join(outside, ".env"), "utf8"),
+          "SECRET=outside-root-leak\n",
+        );
+        assert.ok(
+          readdirSync(outside).includes("outside-only.txt"),
+          "outside tree must remain untraversed as a scan target",
+        );
+        assert.ok(
+          readdirSync(parked).includes("inside-ok.txt"),
+          "original root identity must remain the scan target",
+        );
+      } finally {
+        setSecretScanRaceHook(undefined);
+        rmSync(wt, { recursive: true, force: true });
+        rmSync(parked, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "race seam: nested directory swap after bind does not inspect outside secrets",
+    liveTraversal,
+    () => {
+      const wt = tempRoot("race-nested");
+      const outside = tempRoot("race-nested-out");
+      const nestedPath = join(wt, "nested");
+      const parked = `${nestedPath}.parked-identity`;
+      try {
+        writeFile(wt, "nested/inside.txt", "ok\n");
+        writeFile(wt, "top-ok.txt", "ok\n");
+        writeFile(outside, ".env", "SECRET=outside-nested-leak\n");
+        writeFile(outside, "escaped.txt", "escape-marker\n");
+
+        setSecretScanRaceHook({
+          afterBindDirectory: (posixRel) => {
+            if (posixRel === "nested") {
+              swapPathForSymlink(nestedPath, outside);
+            }
+          },
+        });
+
+        const r = runScan(wt);
+        assert.equal(
+          r._tag,
+          "Clean",
+          `outside secret must not affect verdict; got ${JSON.stringify(r)}`,
+        );
+        assert.ok(lstatSync(nestedPath).isSymbolicLink());
+        assert.equal(
+          readFileSync(join(outside, ".env"), "utf8"),
+          "SECRET=outside-nested-leak\n",
+        );
+        assert.deepEqual(
+          readdirSync(outside).sort(),
+          [".env", "escaped.txt"].sort(),
+        );
+        assert.ok(readdirSync(parked).includes("inside.txt"));
+      } finally {
+        setSecretScanRaceHook(undefined);
+        rmSync(wt, { recursive: true, force: true });
+        rmSync(parked, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("injected unsupported anchor fails closed with no pathname fallback", () => {
+    // Runs on every platform (including Linux where anchors are available).
+    // A secret is present so pathname fallback would yield SecretFound.
+    const wt = tempRoot("inject-no-anchor");
+    try {
+      writeFile(wt, ".env", "SECRET=must-not-leak-via-pathname-fallback\n");
+      writeFile(wt, "ok.txt", "ok\n");
+      setSecretScanDirectoryAnchorCapabilityForTests(false);
+      const r = runScan(wt);
+      assert.equal(r._tag, "Refused");
+      if (r._tag === "Refused") {
+        assert.equal(r.reason, "unsupported_traversal");
+      }
+      // Pathname fallback would have found .env → SecretFound.
+      assert.notEqual(r._tag, "SecretFound");
+      assert.notEqual(r._tag, "Clean");
+    } finally {
+      setSecretScanDirectoryAnchorCapabilityForTests(undefined);
+      rmSync(wt, { recursive: true, force: true });
+    }
+  });
+
+  it("exports anchor support probe without override", () => {
+    setSecretScanDirectoryAnchorCapabilityForTests(undefined);
+    assert.equal(typeof secretScanDirectoryAnchorSupported(), "boolean");
+    assert.equal(secretScanDirectoryAnchorSupported(), anchorOk);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Symlinks, unreadable, identity change, escape
 // ---------------------------------------------------------------------------
 
 describe("boundary seams", () => {
-  it("does not follow a symlink file to outside secrets", () => {
-    const outer = tempRoot("outer");
-    const wt = tempRoot("sym-file");
-    try {
-      const secret = writeFile(outer, "leak.env", "SECRET=out\n");
-      symlinkSync(secret, join(wt, "link.env"));
-      const r = runScan(wt);
-      // symlink is not a regular file; skip without follow → Clean
-      assert.equal(r._tag, "Clean");
-    } finally {
-      rmSync(wt, { recursive: true, force: true });
-      rmSync(outer, { recursive: true, force: true });
-    }
-  });
+  it(
+    "does not follow a symlink file to outside secrets",
+    liveTraversal,
+    () => {
+      const outer = tempRoot("outer");
+      const wt = tempRoot("sym-file");
+      try {
+        const secret = writeFile(outer, "leak.env", "SECRET=out\n");
+        symlinkSync(secret, join(wt, "link.env"));
+        const r = runScan(wt);
+        // symlink is not a regular file; skip without follow → Clean
+        assert.equal(r._tag, "Clean");
+      } finally {
+        rmSync(wt, { recursive: true, force: true });
+        rmSync(outer, { recursive: true, force: true });
+      }
+    },
+  );
 
-  it("does not descend into a symlink directory", () => {
+  it("does not descend into a symlink directory", liveTraversal, () => {
     const outer = tempRoot("outer-dir");
     const wt = tempRoot("sym-dir");
     try {
@@ -372,7 +596,7 @@ describe("boundary seams", () => {
     }
   });
 
-  it("refuses a symlink worktree root", () => {
+  it("refuses a symlink worktree root", liveTraversal, () => {
     const real = tempRoot("real-root");
     const parent = tempRoot("sym-parent");
     try {
@@ -387,13 +611,14 @@ describe("boundary seams", () => {
     }
   });
 
+  // Pure path validation — no descriptor anchor required.
   it("refuses relative worktree input", () => {
     const r = runScan("relative/path");
     assert.equal(r._tag, "Refused");
     if (r._tag === "Refused") assert.equal(r.reason, "invalid_worktree");
   });
 
-  it("refuses unreadable regular file", (t) => {
+  it("refuses unreadable regular file", liveTraversal, (t) => {
     if (process.platform === "win32") {
       t.skip("chmod unreadable is not meaningful on win32");
       return;
@@ -426,7 +651,7 @@ describe("boundary seams", () => {
 // ---------------------------------------------------------------------------
 
 describe("explicit positive bounds", () => {
-  it("accepts exact MAX_FILES and refuses MAX_FILES+1", () => {
+  it("accepts exact MAX_FILES and refuses MAX_FILES+1", liveTraversal, () => {
     const wtOk = tempRoot("files-eq");
     const wtOver = tempRoot("files-over");
     try {
@@ -443,7 +668,7 @@ describe("explicit positive bounds", () => {
     }
   });
 
-  it("accepts exact MAX_DIRECTORY_ENTRIES and refuses +1", () => {
+  it("accepts exact MAX_DIRECTORY_ENTRIES and refuses +1", liveTraversal, () => {
     const wtOk = tempRoot("dir-eq");
     const wtOver = tempRoot("dir-over");
     try {
@@ -461,7 +686,7 @@ describe("explicit positive bounds", () => {
     }
   });
 
-  it("accepts exact MAX_RELATIVE_PATH_BYTES and refuses +1", () => {
+  it("accepts exact MAX_RELATIVE_PATH_BYTES and refuses +1", liveTraversal, () => {
     const wtOk = tempRoot("path-eq");
     const wtOver = tempRoot("path-over");
     try {
@@ -482,7 +707,7 @@ describe("explicit positive bounds", () => {
     }
   });
 
-  it("accepts exact MAX_FILE_BYTES and refuses +1", () => {
+  it("accepts exact MAX_FILE_BYTES and refuses +1", liveTraversal, () => {
     const wtOk = tempRoot("fbytes-eq");
     const wtOver = tempRoot("fbytes-over");
     try {
@@ -499,7 +724,7 @@ describe("explicit positive bounds", () => {
     }
   });
 
-  it("accepts exact MAX_TOTAL_INSPECTED_BYTES and refuses +1", () => {
+  it("accepts exact MAX_TOTAL_INSPECTED_BYTES and refuses +1", liveTraversal, () => {
     const wtOk = tempRoot("total-eq");
     const wtOver = tempRoot("total-over");
     try {
@@ -521,7 +746,7 @@ describe("explicit positive bounds", () => {
     }
   });
 
-  it("accepts exact MAX_LINE_INSPECTIONS and refuses +1", () => {
+  it("accepts exact MAX_LINE_INSPECTIONS and refuses +1", liveTraversal, () => {
     const wtOk = tempRoot("lines-eq");
     const wtOver = tempRoot("lines-over");
     try {
@@ -553,7 +778,7 @@ describe("explicit positive bounds", () => {
 // ---------------------------------------------------------------------------
 
 describe("CLI output and exit codes", () => {
-  it("emits one canonical clean JSON line and exit 0", async () => {
+  it("emits one canonical clean JSON line and exit 0", liveTraversal, async () => {
     const wt = tempRoot("cli-clean");
     try {
       writeFile(wt, "ok.txt", "hello\n");
@@ -581,7 +806,7 @@ describe("CLI output and exit codes", () => {
     }
   });
 
-  it("emits secret_found with nonzero exit and no path leak", async () => {
+  it("emits secret_found with nonzero exit and no path leak", liveTraversal, async () => {
     const wt = tempRoot("cli-secret");
     try {
       const secretPath = writeFile(wt, "deep/.env", "SECRET=xyzzy-unique\n");
@@ -676,29 +901,37 @@ describe("CLI output and exit codes", () => {
 // ---------------------------------------------------------------------------
 
 describe("Foreman worktree and known-bad fixture", () => {
-  it("scans the current Foreman worktree clean under default bounds", () => {
-    const r = runScan(REPO_ROOT);
-    assert.equal(
-      r._tag,
-      "Clean",
-      `Foreman worktree must scan clean; got ${JSON.stringify(r)}`,
-    );
-  });
-
-  it("still refuses a known-bad synthetic secret fixture without exemption", () => {
-    const wt = tempRoot("known-bad");
-    try {
-      writeFile(
-        wt,
-        `${FIXTURE_SUBTREE_PREFIX}secret-scan/synthetic.pem`,
-        "-----BEGIN RSA PRIVATE KEY-----\nSYNTHETIC\n-----END RSA PRIVATE KEY-----\n",
+  it(
+    "scans the current Foreman worktree clean under default bounds",
+    liveTraversal,
+    () => {
+      const r = runScan(REPO_ROOT);
+      assert.equal(
+        r._tag,
+        "Clean",
+        `Foreman worktree must scan clean; got ${JSON.stringify(r)}`,
       );
-      const r = runScan(wt);
-      assert.equal(r._tag, "SecretFound");
-    } finally {
-      rmSync(wt, { recursive: true, force: true });
-    }
-  });
+    },
+  );
+
+  it(
+    "still refuses a known-bad synthetic secret fixture without exemption",
+    liveTraversal,
+    () => {
+      const wt = tempRoot("known-bad");
+      try {
+        writeFile(
+          wt,
+          `${FIXTURE_SUBTREE_PREFIX}secret-scan/synthetic.pem`,
+          "-----BEGIN RSA PRIVATE KEY-----\nSYNTHETIC\n-----END RSA PRIVATE KEY-----\n",
+        );
+        const r = runScan(wt);
+        assert.equal(r._tag, "SecretFound");
+      } finally {
+        rmSync(wt, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

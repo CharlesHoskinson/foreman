@@ -596,6 +596,9 @@ export {
   renderSecretScanJson,
   isRefusedSecretFilename,
   isPemPrivateKeyLine,
+  secretScanDirectoryAnchorSupported,
+  setSecretScanDirectoryAnchorCapabilityForTests,
+  setSecretScanRaceHook,
   scanWorktreeSync,
   scanWorktree,
   liveSecretScan,
@@ -608,4 +611,5 @@ export {
   type SecretScanInput,
   type SecretScanCliIo,
   type ParsedSecretScanArgv,
+  type SecretScanRaceHook,
 } from "./secret-scan.js";
