@@ -4,6 +4,7 @@ import { decodeStrictSync } from "./decode.js";
 import { ArtifactId, ContentHash, ContractHash } from "./identifiers.js";
 import {
   CompletedAbstentionV1,
+  CompletedInvalidResponseV1,
   CompletedVerdictV1,
   GitCommitSha,
   ProviderFamilyV1,
@@ -424,6 +425,26 @@ export type SpecCorrectnessAdmissionRejectedV1 =
   typeof SpecCorrectnessAdmissionRejectedV1.Type;
 
 /**
+ * Completed provider turn whose designated structured output is schema-invalid,
+ * identity-invalid, or semantically inadmissible. Not infrastructure failure.
+ * Candidate disposition is always changes_requested. Never quorum eligible.
+ */
+export const SpecCorrectnessAdmissionResponseRejectedV1 = Schema.Struct({
+  schemaVersion: VersionOne,
+  _tag: Schema.Literal("ResponseRejected"),
+  evaluation: Schema.NullOr(BoundSpecCorrectnessEvaluationV1),
+  classification: CompletedInvalidResponseV1,
+  quorumEligible: Schema.Literal(false),
+  candidateDisposition: Schema.Literal("changes_requested"),
+}).pipe(
+  Schema.filter((result) => admissionResultFreeTextIsSecretSafe(result), {
+    message: () => "ResponseRejected result free text must be secret-safe",
+  }),
+);
+export type SpecCorrectnessAdmissionResponseRejectedV1 =
+  typeof SpecCorrectnessAdmissionResponseRejectedV1.Type;
+
+/**
  * Closed SpecCorrectness admission result union. Sufficient for automation.
  * Never carries paths, raw provider response, artifact bytes, environment
  * values, or secret text.
@@ -433,6 +454,7 @@ export const SpecCorrectnessAdmissionResultV1 = Schema.Union(
   SpecCorrectnessAdmissionChangesRequestedV1,
   SpecCorrectnessAdmissionAbstentionV1,
   SpecCorrectnessAdmissionRejectedV1,
+  SpecCorrectnessAdmissionResponseRejectedV1,
 );
 export type SpecCorrectnessAdmissionResultV1 =
   typeof SpecCorrectnessAdmissionResultV1.Type;

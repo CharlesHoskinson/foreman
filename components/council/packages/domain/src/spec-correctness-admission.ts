@@ -33,6 +33,15 @@ export const alignSpecCorrectnessWithClassification = (
     };
   }
 
+  // Completed invalid responses never align with any evaluation outcome.
+  if (classification._tag === "CompletedInvalidResponse") {
+    return {
+      _tag: "mismatch",
+      reason:
+        "completed invalid response is not admissible as verdict, abstention, or quorum participant",
+    };
+  }
+
   if (evaluation.outcome === "accept") {
     if (
       classification._tag === "CompletedVerdict" &&

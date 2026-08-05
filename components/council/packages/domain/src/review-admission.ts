@@ -40,6 +40,16 @@ export type ReviewAttemptInput = {
   readonly ordinaryText?: string;
 };
 
+/**
+ * Closed reasons for a completed provider turn whose designated structured
+ * output is schema-invalid, identity-invalid, or semantically inadmissible.
+ */
+export type InvalidReviewResponseReason =
+  | "schema_invalid"
+  | "identity_mismatch"
+  | "findings_invalid"
+  | "abstention_invalid";
+
 export type ReviewAttemptClassification =
   | {
       readonly _tag: "ProviderPreflightFailed";
@@ -68,6 +78,13 @@ export type ReviewAttemptClassification =
       readonly terminal: TerminalObservationV1;
       readonly quorumEligible: false;
       readonly deliberationEligible: true;
+    }
+  | {
+      readonly _tag: "CompletedInvalidResponse";
+      readonly reason: InvalidReviewResponseReason;
+      readonly terminal: TerminalObservationV1;
+      readonly quorumEligible: false;
+      readonly deliberationEligible: false;
     };
 
 const preflightFailure = (
@@ -91,6 +108,21 @@ const attemptFailure = (
 ): ReviewAttemptClassification => ({
   _tag: "ReviewAttemptFailed",
   failure: { stage, reason, retry },
+  terminal: input.terminal,
+  quorumEligible: false,
+  deliberationEligible: false,
+});
+
+/**
+ * Completed invalid response: successful terminal, inadmissible structured
+ * output. Never carries raw provider text — only the closed reason.
+ */
+const completedInvalidResponse = (
+  input: ReviewAttemptInput,
+  reason: InvalidReviewResponseReason,
+): ReviewAttemptClassification => ({
+  _tag: "CompletedInvalidResponse",
+  reason,
   terminal: input.terminal,
   quorumEligible: false,
   deliberationEligible: false,
@@ -325,12 +357,11 @@ export const classifyReviewAttempt = (
     return attemptFailure(input, input.terminal.errorMessage, "provider");
   }
 
+  // All terminal transport/parser gates passed. From here a present structured
+  // channel that fails schema, identity, or semantic admission is a completed
+  // invalid response — not infrastructure failure.
   if (!input.designatedStructuredValid || input.response === undefined) {
-    return attemptFailure(
-      input,
-      "structured output failed canonical schema or identity binding",
-      "parse",
-    );
+    return completedInvalidResponse(input, "schema_invalid");
   }
 
   if (!input.readyTokenCurrent) {
@@ -342,12 +373,7 @@ export const classifyReviewAttempt = (
   }
 
   if (!identitiesExact(input, input.response)) {
-    return attemptFailure(
-      input,
-      "response identity does not exactly bind ready token, contract, prompt, bundle, reviewer, candidate, and artifact receipts",
-      "parse",
-      "new_contract",
-    );
+    return completedInvalidResponse(input, "identity_mismatch");
   }
 
   const response = input.response;
@@ -365,11 +391,7 @@ export const classifyReviewAttempt = (
   if (response.advice.kind === "changes_requested") {
     const changes = response as FinalVerdictResponseV1;
     if (!findingsValid(input, changes)) {
-      return attemptFailure(
-        input,
-        "changes-requested findings must cite expected artifacts with nonblank operational text",
-        "parse",
-      );
+      return completedInvalidResponse(input, "findings_invalid");
     }
     return {
       _tag: "CompletedVerdict",
@@ -392,11 +414,7 @@ export const classifyReviewAttempt = (
     };
   }
 
-  return attemptFailure(
-    input,
-    "completed abstention did not name declared evidence gaps with a nonblank next action",
-    "parse",
-  );
+  return completedInvalidResponse(input, "abstention_invalid");
 };
 
 /**

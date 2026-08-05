@@ -582,6 +582,116 @@ describe("evaluateSpecCorrectnessAdmission", () => {
     expect(result?.evaluation).not.toBeNull();
   });
 
+  it("returns ResponseRejected for completed schema-invalid designated output", async () => {
+    const exit = await runAdmission(
+      baseInput({
+        reviewAttempt: {
+          ...baseInput().reviewAttempt,
+          designatedStructuredValid: false,
+          response: undefined,
+        },
+      }),
+    );
+    expect(Exit.isSuccess(exit)).toBe(true);
+    if (!Exit.isSuccess(exit)) return;
+    const result = decodeStrictSync(
+      SpecCorrectnessAdmissionResultV1,
+      exit.value,
+    );
+    expect(result._tag).toBe("ResponseRejected");
+    if (result._tag !== "ResponseRejected") return;
+    expect(result.classification._tag).toBe("CompletedInvalidResponse");
+    expect(result.classification.reason).toBe("schema_invalid");
+    expect(result.quorumEligible).toBe(false);
+    expect(result.candidateDisposition).toBe("changes_requested");
+    expect(result).not.toHaveProperty("failure");
+    expect(JSON.stringify(result)).not.toMatch(/\/tmp|\/home|sk-/);
+  });
+
+  it("returns ResponseRejected for findings that cite non-expected artifacts", async () => {
+    const unrelated =
+      `sha256:${"9".repeat(64)}` as SpecCorrectnessAdmissionInputV1["reviewAttempt"]["expectedArtifactIds"][number];
+    const items = BASELINE_IDS.map((id, index) =>
+      index === 0 ? makeDefect(id, "omitted") : makeMapped(id),
+    );
+    const exit = await runAdmission(
+      baseInput({
+        reviewAttempt: {
+          ...baseInput().reviewAttempt,
+          response: {
+            ...approvedFinalResponse,
+            advice: {
+              kind: "changes_requested",
+              findings: [
+                {
+                  artifactId: unrelated,
+                  location: "file.ts:1",
+                  summary: "defect",
+                  nextAction: "fix it",
+                },
+              ],
+            },
+          },
+        },
+        submission: {
+          identity,
+          response: {
+            schemaVersion: 1 as const,
+            outcome: "changes_requested" as const,
+            itemResults: items,
+            inventedCompletions: [] as const,
+            findings: [
+              {
+                location: "coverage",
+                summary: "omission",
+                nextAction: "map it",
+              },
+            ],
+            summary: "needs work",
+          },
+        },
+      }),
+    );
+    expect(Exit.isSuccess(exit)).toBe(true);
+    if (!Exit.isSuccess(exit)) return;
+    const result = decodeStrictSync(
+      SpecCorrectnessAdmissionResultV1,
+      exit.value,
+    );
+    expect(result._tag).toBe("ResponseRejected");
+    if (result._tag !== "ResponseRejected") return;
+    expect(result.classification.reason).toBe("findings_invalid");
+    expect(result.quorumEligible).toBe(false);
+    expect(result).not.toHaveProperty("failure");
+  });
+
+  it("returns ResponseRejected for identity-mismatched completed response", async () => {
+    // Drive identity_mismatch through final-review response binding only.
+    // Admission identity cross-checks still pass (expected identity equals
+    // review-attempt expected fields).
+    const exit = await runAdmission(
+      baseInput({
+        reviewAttempt: {
+          ...baseInput().reviewAttempt,
+          response: {
+            ...approvedFinalResponse,
+            readyTokenHash: `sha256:${"1".repeat(64)}` as typeof readyTokenHash,
+          },
+        },
+      }),
+    );
+    expect(Exit.isSuccess(exit)).toBe(true);
+    if (!Exit.isSuccess(exit)) return;
+    const result = decodeStrictSync(
+      SpecCorrectnessAdmissionResultV1,
+      exit.value,
+    );
+    expect(result._tag).toBe("ResponseRejected");
+    if (result._tag !== "ResponseRejected") return;
+    expect(result.classification.reason).toBe("identity_mismatch");
+    expect(result.candidateDisposition).toBe("changes_requested");
+  });
+
   it("returns CompletedChangesRequested for invented completion", async () => {
     const lineText = "invented completion line\n";
     const lineBytes = encodeUtf8Text(lineText);

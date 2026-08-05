@@ -401,6 +401,42 @@ const abstentionResult: SpecCorrectnessAdmissionResultV1 = decodeStrictSync(
   },
 );
 
+const responseRejectedResult: SpecCorrectnessAdmissionResultV1 =
+  decodeStrictSync(ResultSchema, {
+    schemaVersion: 1,
+    _tag: "ResponseRejected",
+    evaluation: {
+      schemaVersion: 1,
+      identity,
+      evaluation: {
+        schemaVersion: 1,
+        _tag: "Valid",
+        outcome: "accept",
+        metrics: {
+          schemaVersion: 1,
+          baselineItemCount: 44,
+          mappedItemCount: 44,
+          evidencedDeferCount: 0,
+          omittedItemCount: 0,
+          contradictionCount: 0,
+          unevidencedDeferCount: 0,
+          inventedCompletionCount: 0,
+          coverageRatio: { numerator: 44, denominator: 44 },
+        },
+        findings: [],
+      },
+    },
+    classification: {
+      _tag: "CompletedInvalidResponse",
+      reason: "schema_invalid",
+      terminal: completedTerminal,
+      quorumEligible: false,
+      deliberationEligible: false,
+    },
+    quorumEligible: false,
+    candidateDisposition: "changes_requested",
+  });
+
 const staticStdoutOverflowRejected: SpecCorrectnessAdmissionResultV1 =
   decodeStrictSync(ResultSchema, {
     schemaVersion: 1,
@@ -633,6 +669,28 @@ describe("runSpecCorrectnessCli", () => {
     expect(text).toBe(`${stringifyCanonicalJson(abstentionResult)}\n`);
     const parsedAbstention = JSON.parse(text.slice(0, -1)) as { _tag: string };
     expect(parsedAbstention._tag).toBe("CompletedAbstention");
+  });
+
+  it("exits 1 for ResponseRejected with CompletedInvalidResponse and no infrastructure failure", async () => {
+    const { io, stdout, stderr } = makeIo(minimalRequestBody, () =>
+      Promise.resolve(responseRejectedResult),
+    );
+    const code = await runSpecCorrectnessCli([], io);
+    expect(code).toBe(1);
+    expect(stderr).toHaveLength(0);
+    const text = textDecoder.decode(stdout[0]);
+    expect(text.endsWith("\n")).toBe(true);
+    expect(text.slice(0, -1).includes("\n")).toBe(false);
+    expect(text).toBe(`${stringifyCanonicalJson(responseRejectedResult)}\n`);
+    const parsed = JSON.parse(text.slice(0, -1)) as {
+      _tag: string;
+      classification?: { _tag: string; reason: string };
+      failure?: unknown;
+    };
+    expect(parsed._tag).toBe("ResponseRejected");
+    expect(parsed.classification?._tag).toBe("CompletedInvalidResponse");
+    expect(parsed.classification?.reason).toBe("schema_invalid");
+    expect(parsed).not.toHaveProperty("failure");
   });
 
   it("exits 1 for invalid fatal UTF-8 stdin with static Rejected JSON", async () => {

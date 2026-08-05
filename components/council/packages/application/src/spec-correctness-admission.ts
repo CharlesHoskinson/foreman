@@ -118,6 +118,50 @@ const rejected = (
   }
 };
 
+/**
+ * Completed invalid provider response. Distinct from infrastructure Rejected.
+ * Never converts CompletedInvalidResponse back into ReviewInfrastructureFailure.
+ */
+const responseRejected = (
+  classification: Extract<
+    ReviewAttemptClassification,
+    { readonly _tag: "CompletedInvalidResponse" }
+  >,
+  evaluation: BoundSpecCorrectnessEvaluationV1 | null = null,
+): SpecCorrectnessAdmissionResult => {
+  try {
+    return decodeStrictSync(SpecCorrectnessAdmissionResultSchema, {
+      schemaVersion: 1,
+      _tag: "ResponseRejected",
+      evaluation,
+      classification: {
+        _tag: "CompletedInvalidResponse",
+        reason: classification.reason,
+        terminal: classification.terminal,
+        quorumEligible: false,
+        deliberationEligible: false,
+      },
+      quorumEligible: false,
+      candidateDisposition: "changes_requested",
+    });
+  } catch {
+    return decodeStrictSync(SpecCorrectnessAdmissionResultSchema, {
+      schemaVersion: 1,
+      _tag: "ResponseRejected",
+      evaluation: null,
+      classification: {
+        _tag: "CompletedInvalidResponse",
+        reason: classification.reason,
+        terminal: classification.terminal,
+        quorumEligible: false,
+        deliberationEligible: false,
+      },
+      quorumEligible: false,
+      candidateDisposition: "changes_requested",
+    });
+  }
+};
+
 const bindEvaluation = (
   identity: SpecCorrectnessIdentityV1,
   evaluation: SpecCorrectnessEvaluationResultV1,
@@ -765,6 +809,12 @@ export const evaluateSpecCorrectnessAdmission = (
         ),
         bound,
       );
+    }
+
+    // Completed invalid response is not infrastructure failure. Preserve the
+    // closed classification and do not convert it into ReviewInfrastructureFailure.
+    if (classification._tag === "CompletedInvalidResponse") {
+      return responseRejected(classification, bound);
     }
 
     const alignment = alignSpecCorrectnessWithClassification(

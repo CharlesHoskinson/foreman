@@ -832,11 +832,42 @@ export const CompletedAbstentionV1 = Schema.Struct({
 });
 export type CompletedAbstentionV1 = typeof CompletedAbstentionV1.Type;
 
+/**
+ * Closed reasons for a completed provider turn whose designated structured
+ * output is schema-invalid, identity-invalid, or semantically inadmissible.
+ * Not a transport, parser, or host infrastructure failure.
+ */
+export const InvalidReviewResponseReasonV1 = Schema.Literal(
+  "schema_invalid",
+  "identity_mismatch",
+  "findings_invalid",
+  "abstention_invalid",
+);
+export type InvalidReviewResponseReasonV1 =
+  typeof InvalidReviewResponseReasonV1.Type;
+
+/**
+ * Completed invalid response classification. The provider finished a successful
+ * terminal turn but the designated structured output is not admissible as a
+ * verdict, abstention, dissent, or quorum participant. Carries only the closed
+ * reason and successful terminal facts — never raw provider text.
+ */
+export const CompletedInvalidResponseV1 = Schema.Struct({
+  _tag: Schema.Literal("CompletedInvalidResponse"),
+  reason: InvalidReviewResponseReasonV1,
+  terminal: SuccessfulTerminalObservationV1,
+  quorumEligible: Schema.Literal(false),
+  deliberationEligible: Schema.Literal(false),
+});
+export type CompletedInvalidResponseV1 =
+  typeof CompletedInvalidResponseV1.Type;
+
 export const ReviewAttemptClassificationV1 = Schema.Union(
   ProviderPreflightFailedV1,
   ReviewAttemptFailedV1,
   CompletedVerdictV1,
   CompletedAbstentionV1,
+  CompletedInvalidResponseV1,
 );
 export type ReviewAttemptClassificationV1 =
   typeof ReviewAttemptClassificationV1.Type;

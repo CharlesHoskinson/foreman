@@ -225,33 +225,42 @@ describe("classifyReviewAttempt completion gates", () => {
     expect(result._tag).toBe("ReviewAttemptFailed");
   });
 
-  it("rejects mismatched ready token hash", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for mismatched ready token hash", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedReadyTokenHash: `sha256:${"1".repeat(64)}` as ContentHash,
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
-    if (result._tag !== "ReviewAttemptFailed") return;
-    expect(result.failure.reason).toContain("identity");
+    expect(result).toEqual({
+      _tag: "CompletedInvalidResponse",
+      reason: "identity_mismatch",
+      terminal: completedTerminal,
+      quorumEligible: false,
+      deliberationEligible: false,
+    });
+    expect(isQuorumEligibleClassification(result)).toBe(false);
   });
 
-  it("rejects mismatched contract hash", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for mismatched contract hash", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedContractHash: `sha256:${"2".repeat(64)}` as ContractHash,
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects mismatched prompt hash", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for mismatched prompt hash", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedPromptHash: `sha256:${"3".repeat(64)}` as ContentHash,
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects mismatched bundle triple", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for mismatched bundle triple", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedBundle: {
@@ -259,35 +268,43 @@ describe("classifyReviewAttempt completion gates", () => {
         headSha: "2".repeat(40) as GitCommitSha,
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects mismatched reviewer id", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for mismatched reviewer id", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedReviewerId: "reviewer-b",
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects mismatched candidate id", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for mismatched candidate id", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedCandidateId: "cand_01ARZ3NDEKTSV4RRFFQ69G5FAW" as CandidateId,
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects missing artifact receipt", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for missing artifact receipt", () => {
     const extra = `sha256:${"9".repeat(64)}` as ArtifactId;
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedArtifactIds: [artifactId, extra],
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects extra artifact receipt", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for extra artifact receipt", () => {
     const extra = `sha256:${"9".repeat(64)}` as ArtifactId;
     const result = classifyReviewAttempt({
       ...baseInput(),
@@ -296,10 +313,12 @@ describe("classifyReviewAttempt completion gates", () => {
         inspectedArtifactIds: [artifactId, extra],
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects reordered artifact receipts", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for reordered artifact receipts", () => {
     const second = `sha256:${"9".repeat(64)}` as ArtifactId;
     const result = classifyReviewAttempt({
       ...baseInput(),
@@ -310,10 +329,12 @@ describe("classifyReviewAttempt completion gates", () => {
         inspectedArtifactIds: [second, artifactId],
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects duplicate artifact receipts", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch for duplicate artifact receipts", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       expectedArtifactIds: [artifactId, artifactId],
@@ -323,10 +344,12 @@ describe("classifyReviewAttempt completion gates", () => {
         inspectedArtifactIds: [artifactId, artifactId],
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects undeclared evidence gap references", () => {
+  it("returns CompletedInvalidResponse/abstention_invalid for undeclared evidence gap references", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       response: {
@@ -346,9 +369,14 @@ describe("classifyReviewAttempt completion gates", () => {
         },
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
-    if (result._tag !== "ReviewAttemptFailed") return;
-    expect(result.failure.reason).toContain("evidence");
+    expect(result).toEqual({
+      _tag: "CompletedInvalidResponse",
+      reason: "abstention_invalid",
+      terminal: completedTerminal,
+      quorumEligible: false,
+      deliberationEligible: false,
+    });
+    expect(isQuorumEligibleClassification(result)).toBe(false);
   });
 
   it("rejects exit-zero cancellation even when ordinary text looks valid", () => {
@@ -433,7 +461,7 @@ describe("classifyReviewAttempt completion gates", () => {
     expect(result.failure.reason).toContain("review did not start");
   });
 
-  it("rejects completed response when verified artifacts are a proper subset of expected", () => {
+  it("returns CompletedInvalidResponse/identity_mismatch when verified artifacts are a proper subset of expected", () => {
     const second = `sha256:${"9".repeat(64)}` as ArtifactId;
     const result = classifyReviewAttempt({
       ...baseInput(),
@@ -444,12 +472,12 @@ describe("classifyReviewAttempt completion gates", () => {
         inspectedArtifactIds: [artifactId, second],
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
-    if (result._tag !== "ReviewAttemptFailed") return;
-    expect(result.failure.reason).toContain("identity");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("identity_mismatch");
   });
 
-  it("rejects changes-requested findings that cite an artifact outside the expected set", () => {
+  it("returns CompletedInvalidResponse/findings_invalid for findings that cite an artifact outside the expected set", () => {
     const unrelated = `sha256:${"9".repeat(64)}` as ArtifactId;
     const result = classifyReviewAttempt({
       ...baseInput(),
@@ -468,12 +496,17 @@ describe("classifyReviewAttempt completion gates", () => {
         },
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
-    if (result._tag !== "ReviewAttemptFailed") return;
-    expect(result.failure.reason).toContain("findings");
+    expect(result).toEqual({
+      _tag: "CompletedInvalidResponse",
+      reason: "findings_invalid",
+      terminal: completedTerminal,
+      quorumEligible: false,
+      deliberationEligible: false,
+    });
+    expect(isQuorumEligibleClassification(result)).toBe(false);
   });
 
-  it("rejects changes-requested findings with whitespace-only operational text", () => {
+  it("returns CompletedInvalidResponse/findings_invalid for whitespace-only operational text", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),
       response: {
@@ -491,7 +524,72 @@ describe("classifyReviewAttempt completion gates", () => {
         },
       },
     });
-    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("findings_invalid");
+  });
+
+  it("returns CompletedInvalidResponse/schema_invalid when structured output is present but not designated-valid", () => {
+    const result = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      designatedStructuredValid: false,
+    });
+    expect(result).toEqual({
+      _tag: "CompletedInvalidResponse",
+      reason: "schema_invalid",
+      terminal: completedTerminal,
+      quorumEligible: false,
+      deliberationEligible: false,
+    });
+    expect(isQuorumEligibleClassification(result)).toBe(false);
+  });
+
+  it("returns CompletedInvalidResponse/schema_invalid when designated-valid but canonical response is absent", () => {
+    const result = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      designatedStructuredValid: true,
+    });
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("schema_invalid");
+  });
+
+  it("returns CompletedInvalidResponse/abstention_invalid for blank next action", () => {
+    const result = classifyReviewAttempt({
+      ...baseInput(),
+      response: {
+        ...baseResponse,
+        advice: {
+          kind: "abstention",
+          abstention: {
+            kind: "insufficient_evidence",
+            evidenceGaps: [
+              {
+                evidenceRef: "acceptance-criteria",
+                unmetCondition: "missing proof",
+              },
+            ],
+            nextAction: "   ",
+          },
+        },
+      },
+    });
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    if (result._tag !== "CompletedInvalidResponse") return;
+    expect(result.reason).toBe("abstention_invalid");
+  });
+
+  it("does not carry raw provider text or invalid response bytes on CompletedInvalidResponse", () => {
+    const result = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      designatedStructuredValid: false,
+      ordinaryText: '{"advice":{"kind":"approved"},"secret":"sk-leaked"}',
+    });
+    expect(result._tag).toBe("CompletedInvalidResponse");
+    expect(result).not.toHaveProperty("response");
+    expect(result).not.toHaveProperty("ordinaryText");
+    expect(result).not.toHaveProperty("failure");
+    expect(JSON.stringify(result)).not.toContain("sk-leaked");
   });
 
   it("finding 3: completed terminal with stopReason Cancelled is ReviewAttemptFailed", () => {
@@ -724,6 +822,67 @@ describe("alignSpecCorrectnessWithClassification", () => {
           nextAction: "act",
         },
         approved,
+      )._tag,
+    ).toBe("mismatch");
+  });
+
+  it("never aligns CompletedInvalidResponse with any evaluation outcome", () => {
+    const invalid = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      designatedStructuredValid: false,
+    });
+    expect(invalid._tag).toBe("CompletedInvalidResponse");
+    expect(
+      alignSpecCorrectnessWithClassification(
+        {
+          schemaVersion: 1,
+          _tag: "Valid",
+          outcome: "accept",
+          metrics: cleanMetrics,
+          findings: [],
+        },
+        invalid,
+      )._tag,
+    ).toBe("mismatch");
+    expect(
+      alignSpecCorrectnessWithClassification(
+        {
+          schemaVersion: 1,
+          _tag: "Valid",
+          outcome: "changes_requested",
+          metrics: {
+            ...cleanMetrics,
+            mappedItemCount: 43,
+            omittedItemCount: 1,
+            coverageRatio: { numerator: 43, denominator: 44 },
+          },
+          findings: [
+            {
+              location: "coverage",
+              summary: "omission",
+              nextAction: "map it",
+            },
+          ],
+        },
+        invalid,
+      )._tag,
+    ).toBe("mismatch");
+    expect(
+      alignSpecCorrectnessWithClassification(
+        {
+          schemaVersion: 1,
+          _tag: "Valid",
+          outcome: "abstain",
+          metrics: cleanMetrics,
+          evidenceGaps: [
+            {
+              evidenceRef: "acceptance-criteria",
+              unmetCondition: "missing",
+            },
+          ],
+          nextAction: "act",
+        },
+        invalid,
       )._tag,
     ).toBe("mismatch");
   });

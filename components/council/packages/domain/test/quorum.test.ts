@@ -136,6 +136,14 @@ const preflightFailed: ReviewAttemptClassification = {
   deliberationEligible: false,
 };
 
+const completedInvalidResponse: ReviewAttemptClassification = {
+  _tag: "CompletedInvalidResponse",
+  reason: "schema_invalid",
+  terminal,
+  quorumEligible: false,
+  deliberationEligible: false,
+};
+
 describe("automatic quorum", () => {
   it("rejects three aliases from one failure domain", () => {
     expect(
@@ -331,11 +339,44 @@ describe("completed review quorum", () => {
           classification: preflightFailed,
           failureDomain: "family-e" as FailureDomainId,
         },
+        {
+          classification: completedInvalidResponse,
+          failureDomain: "family-f" as FailureDomainId,
+        },
       ]),
     ).toEqual({
       _tag: "QuorumNotMet",
       completedVerdicts: 2,
       independentDomains: 2,
+    });
+  });
+
+  it("never counts CompletedInvalidResponse toward quorum", () => {
+    expect(
+      evaluateCompletedReviewQuorum([
+        {
+          classification: completedInvalidResponse,
+          failureDomain: "family-a" as FailureDomainId,
+        },
+        {
+          classification: {
+            ...completedInvalidResponse,
+            reason: "identity_mismatch",
+          },
+          failureDomain: "family-b" as FailureDomainId,
+        },
+        {
+          classification: {
+            ...completedInvalidResponse,
+            reason: "findings_invalid",
+          },
+          failureDomain: "family-c" as FailureDomainId,
+        },
+      ]),
+    ).toEqual({
+      _tag: "QuorumNotMet",
+      completedVerdicts: 0,
+      independentDomains: 0,
     });
   });
 
@@ -361,6 +402,10 @@ describe("completed review quorum", () => {
         forgeParticipant(completedAbstention, "family-a" as FailureDomainId),
         forgeParticipant(attemptFailed, "family-b" as FailureDomainId),
         forgeParticipant(preflightFailed, "family-c" as FailureDomainId),
+        forgeParticipant(
+          completedInvalidResponse,
+          "family-d" as FailureDomainId,
+        ),
       ]),
     ).toEqual({
       _tag: "QuorumNotMet",

@@ -624,6 +624,63 @@ describe("BoundSpecCorrectnessEvaluationV1 and result union", () => {
     ).toEqual(withEval);
   });
 
+  it("accepts ResponseRejected with CompletedInvalidResponse and never quorum", () => {
+    const responseRejected = {
+      schemaVersion: 1 as const,
+      _tag: "ResponseRejected" as const,
+      evaluation: bound(acceptEvaluation),
+      classification: {
+        _tag: "CompletedInvalidResponse" as const,
+        reason: "schema_invalid" as const,
+        terminal: completedTerminal,
+        quorumEligible: false as const,
+        deliberationEligible: false as const,
+      },
+      quorumEligible: false as const,
+      candidateDisposition: "changes_requested" as const,
+    };
+    expect(
+      decodeStrictSync(SpecCorrectnessAdmissionResultV1, responseRejected),
+    ).toEqual(responseRejected);
+
+    const nullEval = {
+      ...responseRejected,
+      evaluation: null,
+      classification: {
+        ...responseRejected.classification,
+        reason: "findings_invalid" as const,
+      },
+    };
+    expect(decodeStrictSync(SpecCorrectnessAdmissionResultV1, nullEval)).toEqual(
+      nullEval,
+    );
+
+    expect(() =>
+      decodeStrictSync(SpecCorrectnessAdmissionResultV1, {
+        ...responseRejected,
+        quorumEligible: true,
+      }),
+    ).toThrow();
+
+    expect(() =>
+      decodeStrictSync(SpecCorrectnessAdmissionResultV1, {
+        ...responseRejected,
+        classification: completedVerdict,
+      }),
+    ).toThrow();
+
+    expect(() =>
+      decodeStrictSync(SpecCorrectnessAdmissionResultV1, {
+        ...responseRejected,
+        failure: {
+          stage: "parse",
+          reason: "should not appear",
+          retry: "same_contract",
+        },
+      }),
+    ).toThrow();
+  });
+
   it("rejects result shapes that carry path or raw response fields", () => {
     expect(() =>
       decodeStrictSync(SpecCorrectnessAdmissionResultV1, {
