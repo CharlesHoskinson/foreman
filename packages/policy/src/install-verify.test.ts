@@ -46,6 +46,7 @@ const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
+const trackedSupervise = join(trackedRuntime, "dist/lane-supervise.js");
 const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheck = join(trackedRuntime, "dist/tool-check.js");
 const trackedSetup = join(trackedRuntime, "dist/foreman-setup.js");
@@ -82,6 +83,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
+  cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
   cpSync(trackedSetup, join(rt, "dist/foreman-setup.js"));
@@ -467,6 +469,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const superviseBytes = readFileSync(trackedSupervise);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
@@ -482,6 +485,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const guardPath = "/skill/runtime/dist/destruction-guard.js";
     const queuePath = "/skill/runtime/dist/lane-queue.js";
     const roundPath = "/skill/runtime/dist/lane-round.js";
+    const supervisePath = "/skill/runtime/dist/lane-supervise.js";
     const preflightPath = "/skill/runtime/dist/vendor-preflight.js";
     const toolCheckPath = "/skill/runtime/dist/tool-check.js";
     const setupPath = "/skill/runtime/dist/foreman-setup.js";
@@ -516,6 +520,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
+              "lane-supervise.js",
               "tool-check.js",
               "vendor-preflight.js",
             ],
@@ -577,6 +582,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: fileIdentity({
             ino: "24",
             size: roundBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        supervisePath,
+        {
+          kind: "file" as const,
+          bytes: superviseBytes,
+          identity: fileIdentity({
+            ino: "29",
+            size: superviseBytes.byteLength,
           }),
         },
       ],
@@ -695,6 +711,7 @@ describe("runtime plugin-drift", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const superviseBytes = readFileSync(trackedSupervise);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
@@ -743,6 +760,7 @@ describe("runtime plugin-drift", () => {
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
+              "lane-supervise.js",
               "tool-check.js",
               "vendor-preflight.js",
             ],
@@ -802,6 +820,17 @@ describe("runtime plugin-drift", () => {
             identity: fileIdentity({
               ino: prefix + "-r",
               size: roundBytes.byteLength,
+            }),
+          },
+        ],
+        [
+          `${dist}/lane-supervise.js`,
+          {
+            kind: "file",
+            bytes: superviseBytes,
+            identity: fileIdentity({
+              ino: prefix + "-s",
+              size: superviseBytes.byteLength,
             }),
           },
         ],
@@ -914,6 +943,7 @@ describe("skill-root and directory stability seams", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const superviseBytes = readFileSync(trackedSupervise);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
@@ -958,6 +988,7 @@ describe("skill-root and directory stability seams", () => {
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
+              "lane-supervise.js",
               "tool-check.js",
               "vendor-preflight.js",
             ],
@@ -1025,6 +1056,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "24",
             size: roundBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/lane-supervise.js`,
+        {
+          kind: "file",
+          bytes: superviseBytes,
+          identity: fileIdentity({
+            ino: "29",
+            size: superviseBytes.byteLength,
           }),
         },
       ],
@@ -1231,6 +1273,7 @@ describe("memory InstallFs path separator seam", () => {
     const guardBytes = readFileSync(trackedGuard);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
+    const superviseBytes = readFileSync(trackedSupervise);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
@@ -1271,6 +1314,7 @@ describe("memory InstallFs path separator seam", () => {
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
+              "lane-supervise.js",
               "tool-check.js",
               "vendor-preflight.js",
             ],
@@ -1328,6 +1372,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "24",
             size: roundBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/lane-supervise.js`,
+        {
+          kind: "file",
+          bytes: superviseBytes,
+          identity: fileIdentity({
+            ino: "29",
+            size: superviseBytes.byteLength,
           }),
         },
       ],

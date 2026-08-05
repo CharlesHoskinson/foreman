@@ -479,3 +479,90 @@ export {
   type LauncherEnsureResult,
   type SetupRunEnv,
 } from "./foreman-setup.js";
+
+// --- Sprint 3 R5D: bounded restore and Node resume supervisor ---
+
+export {
+  WORKTREE_RESTORE_FAILURE_BRAND,
+  worktreeRestoreFailure,
+  isWorktreeRestoreFailure,
+  buildOverlayCheckoutArgs,
+  buildStatusPorcelainArgs,
+  buildCommitExistsArgs,
+  isPorcelainClean,
+  rootIdentityKey,
+  WorktreeRestore,
+  RESTORE_GIT_OUTPUT_BOUND_BYTES,
+  RESTORE_GIT_TIMEOUT_MS,
+  makeLiveWorktreeRestore,
+  makeStubWorktreeRestore,
+  type WorktreeRestoreFailureReason,
+  type WorktreeRestoreFailure,
+  type WorktreeRestorePermitV1,
+  type WorktreeRestoreResultV1,
+  type WorktreeRestoreSeams,
+} from "./resume-worktree-restore.js";
+
+export {
+  QUEUE_SUBMIT_FAILURE_BRAND,
+  queueSubmitFailure,
+  isQueueSubmitFailure,
+  QueueSubmitter,
+  buildLaneRunRoundVector,
+  RESUME_QUEUE_EXECUTION_FAILURE_BRAND,
+  resumeQueueExecutionFailure,
+  isResumeQueueExecutionFailure,
+  runResumeQueueExecution,
+  makeLiveQueueSubmitter,
+  makeStubQueueSubmitter,
+  type QueueSubmissionV1,
+  type QueueSubmitFailureReason,
+  type QueueSubmitFailure,
+  type ResumeQueueExecutionResultV1,
+  type ResumeQueueExecutionFailureReason,
+  type ResumeQueueExecutionFailure,
+  type RunResumeQueueExecutionInput,
+  type LiveQueueSubmitterOptions,
+} from "./resume-queue-execution.js";
+
+export {
+  RunDiscovery,
+  TypedJournalReader,
+  RunLease,
+  deriveOwnershipWorktree,
+  sweepOneRun,
+  runSupervisor,
+  formatLaneActionLine,
+  formatRunResultLines,
+  type OwnershipWorktreeV1,
+  type SupervisorLaneActionV1,
+  type SupervisorRunResultV1,
+  type SupervisorConfig,
+  type SupervisorServices,
+} from "./supervisor.js";
+
+export {
+  makeLiveTypedJournalReader,
+  makeLiveRunDiscovery,
+  makeLiveRunLease,
+  makeLiveSupervisorServices,
+  defaultSupervisorPaths,
+  type LiveSupervisorContext,
+  type SupervisorLiveLayer,
+} from "./supervisor-live-services.js";
+
+export {
+  EXIT_OK as SUPERVISOR_EXIT_OK,
+  EXIT_FAIL as SUPERVISOR_EXIT_FAIL,
+  EXIT_CONFIG as SUPERVISOR_EXIT_CONFIG,
+  MSG_INVALID_ARGUMENTS as SUPERVISOR_MSG_INVALID_ARGUMENTS,
+  MSG_INTERNAL_FAILURE as SUPERVISOR_MSG_INTERNAL_FAILURE,
+  USAGE as SUPERVISOR_USAGE,
+  stripSupervisorNodeArgv,
+  parseSupervisorArgv,
+  runSupervisorCli,
+  type SupervisorModeArgv,
+  type ParsedSupervisorArgv,
+  type SupervisorCliIo,
+  type SupervisorCliEnv,
+} from "./supervisor-cli.js";

@@ -154,6 +154,17 @@ export type ResumeAttemptReservationV1 = {
   readonly resumeCount: number;
 };
 
+/**
+ * Read-only resume-budget inspection result. Includes an exhausted budget so
+ * callers can observe the current count without appending an event.
+ */
+export type ResumeAttemptBudgetV1 = {
+  readonly attemptIdentity: AttemptIdentity;
+  readonly resumeCount: number;
+  readonly resumeMaxAttempts: number;
+  readonly exhausted: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Effect service
 // ---------------------------------------------------------------------------
@@ -1208,21 +1219,17 @@ function parseResumeAttemptPayload(
 }
 
 /**
- * Validate lane resume history and latest prompt under the events lock.
- * Returns the next positive resume count or a closed typed failure.
+ * Read-only resume-budget inspection. Validates the same lane history as
+ * atomic reservation and returns the current valid count, including when the
+ * budget is already exhausted. Never appends an event.
  */
-function deriveNextResumeCount(
+export function inspectResumeAttemptBudget(
   records: readonly ReplayRecord[],
   attemptIdentity: AttemptIdentity,
   resumeMaxAttempts: number,
-):
-  | { readonly _tag: "ok"; readonly nextCount: number }
-  | { readonly _tag: "fail"; readonly error: ResumeAttemptFailure } {
+): ResumeAttemptBudgetV1 | ResumeAttemptFailure {
   if (!isValidResumeLimit(resumeMaxAttempts)) {
-    return {
-      _tag: "fail",
-      error: resumeAttemptFailure("invalid_limit"),
-    };
+    return resumeAttemptFailure("invalid_limit");
   }
 
   const lane = attemptIdentity.laneId;
@@ -1246,24 +1253,15 @@ function deriveNextResumeCount(
       continue;
     }
     if (event.type === "resume") {
-      return {
-        _tag: "fail",
-        error: resumeAttemptFailure("legacy_unbound"),
-      };
+      return resumeAttemptFailure("legacy_unbound");
     }
     if (event.type === "resume_attempt") {
       const parsed = parseResumeAttemptPayload(event.payload);
       if (parsed === "invalid") {
-        return {
-          _tag: "fail",
-          error: resumeAttemptFailure("invalid_resume_history"),
-        };
+        return resumeAttemptFailure("invalid_resume_history");
       }
       if (parsed.resumeCount !== expectedCount) {
-        return {
-          _tag: "fail",
-          error: resumeAttemptFailure("invalid_resume_history"),
-        };
+        return resumeAttemptFailure("invalid_resume_history");
       }
       expectedCount += 1;
       continue;
@@ -1276,29 +1274,52 @@ function deriveNextResumeCount(
     latestPromptAttempt === "malformed" ||
     latestPromptAttempt !== attemptIdentity.attemptId
   ) {
-    return {
-      _tag: "fail",
-      error: resumeAttemptFailure("attempt_not_current"),
-    };
+    return resumeAttemptFailure("attempt_not_current");
   }
 
-  // Current valid count is expectedCount - 1; next is expectedCount.
-  const nextCount = expectedCount;
+  const resumeCount = expectedCount - 1;
+  const exhausted =
+    resumeCount >= resumeMaxAttempts || expectedCount > RESUME_COUNT_MAX;
+  return {
+    attemptIdentity,
+    resumeCount,
+    resumeMaxAttempts,
+    exhausted,
+  };
+}
+
+/**
+ * Derive the next resume count under the events lock from the shared
+ * inspector. Exhausted or invalid budgets fail closed without append.
+ */
+function deriveNextResumeCount(
+  records: readonly ReplayRecord[],
+  attemptIdentity: AttemptIdentity,
+  resumeMaxAttempts: number,
+):
+  | { readonly _tag: "ok"; readonly nextCount: number }
+  | { readonly _tag: "fail"; readonly error: ResumeAttemptFailure } {
+  const budget = inspectResumeAttemptBudget(
+    records,
+    attemptIdentity,
+    resumeMaxAttempts,
+  );
+  if (isResumeAttemptFailure(budget)) {
+    return { _tag: "fail", error: budget };
+  }
+  if (budget.exhausted) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("resume_limit_reached"),
+    };
+  }
+  const nextCount = budget.resumeCount + 1;
   if (nextCount > resumeMaxAttempts || nextCount > RESUME_COUNT_MAX) {
     return {
       _tag: "fail",
       error: resumeAttemptFailure("resume_limit_reached"),
     };
   }
-  // Also refuse when the current count already meets the limit (same check).
-  const currentCount = expectedCount - 1;
-  if (currentCount >= resumeMaxAttempts) {
-    return {
-      _tag: "fail",
-      error: resumeAttemptFailure("resume_limit_reached"),
-    };
-  }
-
   return { _tag: "ok", nextCount };
 }
 

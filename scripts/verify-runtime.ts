@@ -61,6 +61,7 @@ const trackedGuardPath = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicyPath = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueuePath = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRoundPath = join(trackedRuntime, "dist/lane-round.js");
+const trackedSupervisePath = join(trackedRuntime, "dist/lane-supervise.js");
 const trackedPreflightPath = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheckPath = join(trackedRuntime, "dist/tool-check.js");
 const trackedDependencyDriftPath = join(
@@ -84,6 +85,7 @@ const trackedGuard = readFileSync(trackedGuardPath);
 const trackedPolicy = readFileSync(trackedPolicyPath);
 const trackedQueue = readFileSync(trackedQueuePath);
 const trackedRound = readFileSync(trackedRoundPath);
+const trackedSupervise = readFileSync(trackedSupervisePath);
 const trackedPreflight = readFileSync(trackedPreflightPath);
 const trackedToolCheck = readFileSync(trackedToolCheckPath);
 const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
@@ -99,6 +101,7 @@ const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
     "foreman-setup.js",
     "lane-queue.js",
     "lane-round.js",
+    "lane-supervise.js",
     "tool-check.js",
     "vendor-preflight.js",
   ];
@@ -121,6 +124,8 @@ try {
   const bQueue = readFileSync(join(tmpB, "dist/lane-queue.js"));
   const aRound = readFileSync(join(tmpA, "dist/lane-round.js"));
   const bRound = readFileSync(join(tmpB, "dist/lane-round.js"));
+  const aSupervise = readFileSync(join(tmpA, "dist/lane-supervise.js"));
+  const bSupervise = readFileSync(join(tmpB, "dist/lane-supervise.js"));
   const aPreflight = readFileSync(join(tmpA, "dist/vendor-preflight.js"));
   const bPreflight = readFileSync(join(tmpB, "dist/vendor-preflight.js"));
   const aToolCheck = readFileSync(join(tmpA, "dist/tool-check.js"));
@@ -133,6 +138,7 @@ try {
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
   if (!bytesEqual(aRound, bRound)) fail("non-deterministic lane-round");
+  if (!bytesEqual(aSupervise, bSupervise)) fail("non-deterministic lane-supervise");
   if (!bytesEqual(aPreflight, bPreflight)) {
     fail("non-deterministic vendor-preflight");
   }
@@ -149,6 +155,7 @@ try {
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
   if (!bytesEqual(aRound, trackedRound)) fail("lane-round drift");
+  if (!bytesEqual(aSupervise, trackedSupervise)) fail("lane-supervise drift");
   if (!bytesEqual(aPreflight, trackedPreflight)) fail("vendor-preflight drift");
   if (!bytesEqual(aToolCheck, trackedToolCheck)) fail("tool-check drift");
   if (!bytesEqual(aDependencyDrift, trackedDependencyDrift)) {
@@ -183,6 +190,7 @@ try {
     writeFileSync(join(rt, "dist/architecture-policy.js"), trackedPolicy);
     writeFileSync(join(rt, "dist/lane-queue.js"), trackedQueue);
     writeFileSync(join(rt, "dist/lane-round.js"), trackedRound);
+    writeFileSync(join(rt, "dist/lane-supervise.js"), trackedSupervise);
     writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
@@ -198,6 +206,9 @@ try {
     writeFileSync(join(rt, "dist/lane-round.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered lane-round should fail");
     cpSync(trackedRoundPath, join(rt, "dist/lane-round.js"));
+    writeFileSync(join(rt, "dist/lane-supervise.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered lane-supervise should fail");
+    cpSync(trackedSupervisePath, join(rt, "dist/lane-supervise.js"));
     writeFileSync(join(rt, "dist/vendor-preflight.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered vendor-preflight should fail");
     cpSync(trackedPreflightPath, join(rt, "dist/vendor-preflight.js"));
@@ -242,6 +253,29 @@ try {
       if (linkedRound.ok) fail("linked lane-round should fail");
       rmSync(join(rt, "dist/lane-round.js"));
       writeFileSync(join(rt, "dist/lane-round.js"), trackedRound);
+    }
+    // Linked lane-supervise bundle must fail
+    {
+      const realSupervise = join(rt, "lane-supervise.real.js");
+      writeFileSync(realSupervise, trackedSupervise);
+      rmSync(join(rt, "dist/lane-supervise.js"));
+      symlinkSync(realSupervise, join(rt, "dist/lane-supervise.js"));
+      const linkedSupervise = verifyRuntimeManifest(rt);
+      if (linkedSupervise.ok) fail("linked lane-supervise should fail");
+      rmSync(join(rt, "dist/lane-supervise.js"));
+      writeFileSync(join(rt, "dist/lane-supervise.js"), trackedSupervise);
+    }
+    // Missing lane-supervise must fail
+    {
+      rmSync(join(rt, "dist/lane-supervise.js"));
+      const missSupervise = verifyRuntimeManifest(rt);
+      if (missSupervise.ok || missSupervise.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for lane-supervise got " +
+            JSON.stringify(missSupervise),
+        );
+      }
+      writeFileSync(join(rt, "dist/lane-supervise.js"), trackedSupervise);
     }
     // Linked vendor-preflight bundle must fail
     {
@@ -384,6 +418,12 @@ try {
             id: "lane-round",
             relativePath: "dist/lane-round.js",
             sha256: "d".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "lane-supervise",
+            relativePath: "dist/lane-supervise.js",
+            sha256: "i".repeat(64),
           },
           {
             byteLength: 1,

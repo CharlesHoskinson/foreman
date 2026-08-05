@@ -1151,7 +1151,7 @@ var dedupeWith = /* @__PURE__ */ dual(2, (self, isEquivalent) => {
   return [];
 });
 var dedupe = (self) => dedupeWith(self, equivalence());
-var join = /* @__PURE__ */ dual(2, (self, sep2) => fromIterable(self).join(sep2));
+var join = /* @__PURE__ */ dual(2, (self, sep) => fromIterable(self).join(sep));
 
 // node_modules/effect/dist/esm/Number.js
 var Order = number2;
@@ -7248,18 +7248,18 @@ var parallelErrors = (self) => matchCauseEffect(self, {
   onSuccess: succeed
 });
 var patchFiberRefs = (patch9) => updateFiberRefs((fiberId3, fiberRefs3) => pipe(patch9, patch6(fiberId3, fiberRefs3)));
-var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve2, signal) => {
+var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve, signal) => {
   try {
-    evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
+    evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(die2(e)));
   } catch (e) {
-    resolve2(die2(e));
+    resolve(die2(e));
   }
-}) : async_((resolve2) => {
+}) : async_((resolve) => {
   try {
     ;
-    evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
+    evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(die2(e)));
   } catch (e) {
-    resolve2(die2(e));
+    resolve(die2(e));
   }
 });
 var provideService = /* @__PURE__ */ dual(3, (self, tag, service3) => contextWithEffect((env) => provideContext(self, add2(env, tag, service3))));
@@ -7385,19 +7385,19 @@ var tryPromise = (arg) => {
   }
   const fail8 = (e) => catcher ? failSync(() => catcher(e)) : fail2(new UnknownException(e, "An unknown error occurred in Effect.tryPromise"));
   if (evaluate2.length >= 1) {
-    return async_((resolve2, signal) => {
+    return async_((resolve, signal) => {
       try {
-        evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
+        evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(fail8(e)));
       } catch (e) {
-        resolve2(fail8(e));
+        resolve(fail8(e));
       }
     });
   }
-  return async_((resolve2) => {
+  return async_((resolve) => {
     try {
-      evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
+      evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(fail8(e)));
     } catch (e) {
-      resolve2(fail8(e));
+      resolve(fail8(e));
     }
   });
 };
@@ -13970,14 +13970,14 @@ var unsafeRunPromise = /* @__PURE__ */ makeDual((runtime4, effect2, options) => 
     }
   }
 }));
-var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve2) => {
+var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve) => {
   const op = fastPath(effect2);
   if (op) {
-    resolve2(op);
+    resolve(op);
   }
   const fiber = unsafeFork3(runtime4)(effect2);
   fiber.addObserver((exit4) => {
-    resolve2(exit4);
+    resolve(exit4);
   });
   if (options?.signal !== void 0) {
     if (options.signal.aborted) {
@@ -15616,9 +15616,41 @@ var ensureSuccessType2 = () => (layer) => layer;
 var ensureErrorType2 = () => (layer) => layer;
 var ensureRequirementsType2 = () => (layer) => layer;
 
-// packages/orchestration/src/round-cli.ts
-import { realpathSync, statSync as statSync2 } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+// packages/orchestration/src/supervisor-cli.ts
+import { realpathSync as realpathSync3, statSync as statSync4 } from "node:fs";
+import { isAbsolute as isAbsolute3 } from "node:path";
+
+// packages/event-log/src/bounds.ts
+var MAX_EVENT_NESTING_DEPTH = 64;
+var MAX_EVENT_JSON_NODES = 1e5;
+var MAX_PHYSICAL_LINE_BYTES = 1048576;
+var MAX_REPLAY_INPUT_BYTES = 67108864;
+var MAX_PHYSICAL_LINES = 1e5;
+var MAX_RUN_ID_LENGTH = 255;
+var EVENT_LOG_SCHEMA_VERSION = 1;
+
+// packages/event-log/src/failures.ts
+var EVENT_LOG_FAILURE_BRAND = Symbol("@foreman/event-log/Failure");
+function eventDecodeFailure(reason) {
+  return {
+    [EVENT_LOG_FAILURE_BRAND]: true,
+    _tag: "EventDecodeFailure",
+    reason
+  };
+}
+function attemptFailure(reason) {
+  return {
+    [EVENT_LOG_FAILURE_BRAND]: true,
+    _tag: "AttemptFailure",
+    reason
+  };
+}
+function isEventDecodeFailure(v) {
+  return typeof v === "object" && v !== null && v[EVENT_LOG_FAILURE_BRAND] === true && v._tag === "EventDecodeFailure";
+}
+function isAttemptFailure(v) {
+  return typeof v === "object" && v !== null && v[EVENT_LOG_FAILURE_BRAND] === true && v._tag === "AttemptFailure";
+}
 
 // packages/core/src/failures.ts
 var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
@@ -15907,38 +15939,6 @@ function isSha256Hex(value) {
 }
 function isCommitSha40(value) {
   return COMMIT_SHA40.test(value);
-}
-
-// packages/event-log/src/bounds.ts
-var MAX_EVENT_NESTING_DEPTH = 64;
-var MAX_EVENT_JSON_NODES = 1e5;
-var MAX_PHYSICAL_LINE_BYTES = 1048576;
-var MAX_REPLAY_INPUT_BYTES = 67108864;
-var MAX_PHYSICAL_LINES = 1e5;
-var MAX_RUN_ID_LENGTH = 255;
-var EVENT_LOG_SCHEMA_VERSION = 1;
-
-// packages/event-log/src/failures.ts
-var EVENT_LOG_FAILURE_BRAND = Symbol("@foreman/event-log/Failure");
-function eventDecodeFailure(reason) {
-  return {
-    [EVENT_LOG_FAILURE_BRAND]: true,
-    _tag: "EventDecodeFailure",
-    reason
-  };
-}
-function attemptFailure(reason) {
-  return {
-    [EVENT_LOG_FAILURE_BRAND]: true,
-    _tag: "AttemptFailure",
-    reason
-  };
-}
-function isEventDecodeFailure(v) {
-  return typeof v === "object" && v !== null && v[EVENT_LOG_FAILURE_BRAND] === true && v._tag === "EventDecodeFailure";
-}
-function isAttemptFailure(v) {
-  return typeof v === "object" && v !== null && v[EVENT_LOG_FAILURE_BRAND] === true && v._tag === "AttemptFailure";
 }
 
 // packages/event-log/src/structure.ts
@@ -17364,9 +17364,6 @@ function presentReportSnapshot(digest, byteLength) {
   }
   return { _tag: "Present", digest, byteLength };
 }
-function absentReportSnapshot() {
-  return { _tag: "Absent" };
-}
 function decodeReportSnapshotV1(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return roundContractFailure("invalid_schema");
@@ -17397,6 +17394,20 @@ function decodeReportSnapshotV1(value) {
   }
   return roundContractFailure("invalid_schema");
 }
+var INCOMPLETE_REASONS = [
+  "gate_failed",
+  "report_missing",
+  "report_empty",
+  "report_unchanged",
+  "report_too_large",
+  "report_read_failed"
+];
+function isIncompleteReason(v) {
+  return typeof v === "string" && INCOMPLETE_REASONS.includes(v);
+}
+function isExitCode(v) {
+  return typeof v === "number" && Number.isSafeInteger(v) && v >= 0 && v <= 255;
+}
 var ROUND_PLAN_KEYS = [
   "schemaVersion",
   "runId",
@@ -17407,13 +17418,6 @@ var ROUND_PLAN_KEYS = [
   "gateCommand",
   "reportPath",
   "reportBaseline"
-];
-var ROUND_REQUEST_KEYS = [
-  "runId",
-  "laneId",
-  "commandArgv",
-  "gateCommand",
-  "reportPath"
 ];
 var utf8Encoder = new TextEncoder();
 function utf8ByteLength(text) {
@@ -17481,51 +17485,6 @@ function decodeReportPath(value) {
   }
   return value;
 }
-function decodeRoundRequestV1(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return roundContractFailure("invalid_schema");
-  }
-  const obj = value;
-  const unknown = rejectUnknownKeys(obj, ROUND_REQUEST_KEYS);
-  if (unknown !== null) {
-    return roundContractFailure("unknown_field");
-  }
-  if ("attemptId" in obj || "reportBaseline" in obj) {
-    return roundContractFailure("unknown_field");
-  }
-  for (const key of ROUND_REQUEST_KEYS) {
-    if (!(key in obj)) {
-      return roundContractFailure("invalid_schema");
-    }
-  }
-  const run = decodeRunId(obj["runId"]);
-  if (isAttemptFailure(run)) {
-    return roundContractFailure("invalid_run_id");
-  }
-  const lane = decodeLaneId(obj["laneId"]);
-  if (isAttemptFailure(lane)) {
-    return roundContractFailure("invalid_lane_id");
-  }
-  const argv = decodeCommandArgv(obj["commandArgv"]);
-  if (isRoundContractFailure(argv)) {
-    return argv;
-  }
-  const gate = decodeGateCommand(obj["gateCommand"]);
-  if (isRoundContractFailure(gate)) {
-    return gate;
-  }
-  const reportPath = decodeReportPath(obj["reportPath"]);
-  if (isRoundContractFailure(reportPath)) {
-    return reportPath;
-  }
-  return {
-    runId: run,
-    laneId: lane,
-    commandArgv: argv,
-    gateCommand: gate,
-    reportPath
-  };
-}
 function decodeRoundPlanV1(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return roundContractFailure("invalid_schema");
@@ -17589,259 +17548,918 @@ function decodeRoundPlanV1(value) {
 function attemptIdentityFromPlan(plan) {
   return makeAttemptIdentity(plan.runId, plan.laneId, plan.attemptId);
 }
-
-// packages/orchestration/src/round-live-services.ts
-import { createHash } from "node:crypto";
-import {
-  closeSync as closeSync3,
-  constants as fsConstants3,
-  fstatSync as fstatSync3,
-  lstatSync as lstatSync2,
-  openSync as openSync3,
-  readSync as readSync3
-} from "node:fs";
-
-// packages/orchestration/src/report-freshness.ts
-function decideRoundOutcome(input) {
-  const {
-    attemptIdentity,
-    implementationExitCode,
-    gateExitCode,
-    reportBaseline,
-    postGate
-  } = input;
-  if (gateExitCode !== 0) {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "gate_failed",
-      reportBaseline,
-      snapshotOrNull(postGate)
-    );
+var OUTCOME_COMPLETED_KEYS = [
+  "_tag",
+  "attemptIdentity",
+  "implementationExitCode",
+  "gateExitCode",
+  "reportFresh",
+  "reportBaseline",
+  "report"
+];
+var OUTCOME_INCOMPLETE_KEYS = [
+  "_tag",
+  "attemptIdentity",
+  "implementationExitCode",
+  "gateExitCode",
+  "reportFresh",
+  "reason",
+  "reportBaseline",
+  "report"
+];
+var ATTEMPT_IDENTITY_KEYS = ["runId", "laneId", "attemptId"];
+function decodeAttemptIdentityValue(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return roundContractFailure("invalid_schema");
   }
-  if (postGate._tag === "Failure") {
-    if (postGate.reason === "report_too_large") {
-      return incomplete(
-        attemptIdentity,
-        implementationExitCode,
-        gateExitCode,
-        "report_too_large",
-        reportBaseline,
-        null
-      );
+  const obj = value;
+  const unknown = rejectUnknownKeys(obj, ATTEMPT_IDENTITY_KEYS);
+  if (unknown !== null) {
+    return roundContractFailure("unknown_field");
+  }
+  for (const key of ATTEMPT_IDENTITY_KEYS) {
+    if (!(key in obj)) {
+      return roundContractFailure("invalid_schema");
     }
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_read_failed",
-      reportBaseline,
-      null
-    );
   }
-  const snap = postGate.snapshot;
-  if (snap._tag === "Absent") {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_missing",
-      reportBaseline,
-      snap
-    );
+  const run = decodeRunId(obj["runId"]);
+  if (isAttemptFailure(run)) {
+    return roundContractFailure("invalid_run_id");
   }
-  if (snap.byteLength === 0) {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_empty",
-      reportBaseline,
-      snap
-    );
+  const lane = decodeLaneId(obj["laneId"]);
+  if (isAttemptFailure(lane)) {
+    return roundContractFailure("invalid_lane_id");
   }
-  if (reportBaseline._tag === "Present" && reportBaseline.digest === snap.digest) {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_unchanged",
-      reportBaseline,
-      snap
-    );
+  const attempt = decodeAttemptId(obj["attemptId"]);
+  if (isAttemptFailure(attempt)) {
+    return roundContractFailure("invalid_attempt_id");
   }
-  const completed = {
-    _tag: "completed",
-    attemptIdentity,
-    implementationExitCode,
-    gateExitCode: 0,
-    reportFresh: true,
-    reportBaseline,
-    report: snap
-  };
-  return completed;
+  return makeAttemptIdentity(run, lane, attempt);
 }
-function incomplete(attemptIdentity, implementationExitCode, gateExitCode, reason, reportBaseline, report) {
-  return {
-    _tag: "incomplete",
-    attemptIdentity,
-    implementationExitCode,
-    gateExitCode,
-    reportFresh: false,
-    reason,
-    reportBaseline,
-    report
-  };
-}
-function snapshotOrNull(postGate) {
-  if (postGate._tag === "Failure") {
-    return null;
+function decodeRoundOutcomeV1(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return roundContractFailure("invalid_schema");
   }
-  return postGate.snapshot;
-}
-
-// packages/orchestration/src/round-transaction.ts
-var RoundBoundaryFailure = class {
-  constructor(reason) {
-    this.reason = reason;
+  const obj = value;
+  if (!("_tag" in obj)) {
+    return roundContractFailure("invalid_schema");
   }
-  _tag = "RoundBoundaryFailure";
-};
-var AttemptAllocator = class extends Context_exports.Tag("AttemptAllocator")() {
-};
-var RoundEventSink = class extends Context_exports.Tag("RoundEventSink")() {
-};
-var ReportSnapshotReader = class extends Context_exports.Tag("ReportSnapshotReader")() {
-};
-var ImplementationCommand = class extends Context_exports.Tag("ImplementationCommand")() {
-};
-var CheckpointCapture = class extends Context_exports.Tag("CheckpointCapture")() {
-};
-var GateCommand = class extends Context_exports.Tag("GateCommand")() {
-};
-function requireExitCode(code) {
-  if (typeof code !== "number" || !Number.isSafeInteger(code) || code < 0 || code > 255) {
-    return Effect_exports.fail(new RoundBoundaryFailure("invalid_exit_code"));
-  }
-  return Effect_exports.succeed(code);
-}
-function runRoundTransaction(request2) {
-  return Effect_exports.gen(function* () {
-    const validated = decodeRoundRequestV1(request2);
-    if (isRoundContractFailure(validated)) {
-      return yield* Effect_exports.fail(new RoundBoundaryFailure("invalid_request"));
+  if (obj["_tag"] === "completed") {
+    const unknown = rejectUnknownKeys(obj, OUTCOME_COMPLETED_KEYS);
+    if (unknown !== null) {
+      return roundContractFailure("unknown_field");
     }
-    const allocator = yield* AttemptAllocator;
-    const sink = yield* RoundEventSink;
-    const reader = yield* ReportSnapshotReader;
-    const impl = yield* ImplementationCommand;
-    const checkpoint = yield* CheckpointCapture;
-    const gate = yield* GateCommand;
-    const attemptIdentity = yield* allocator.allocate(
-      validated.runId,
-      validated.laneId
-    );
-    const baselineResult = yield* reader.read(validated.reportPath);
-    const reportBaseline = yield* baselineToSnapshotOrFail(baselineResult);
-    const candidatePlan = {
-      schemaVersion: 1,
-      runId: validated.runId,
-      laneId: validated.laneId,
-      attemptId: attemptIdentity.attemptId,
-      mode: "round",
-      commandArgv: validated.commandArgv,
-      gateCommand: validated.gateCommand,
-      reportPath: validated.reportPath,
-      reportBaseline
+    for (const key of OUTCOME_COMPLETED_KEYS) {
+      if (!(key in obj)) {
+        return roundContractFailure("invalid_schema");
+      }
+    }
+    const identity2 = decodeAttemptIdentityValue(obj["attemptIdentity"]);
+    if (isRoundContractFailure(identity2)) {
+      return identity2;
+    }
+    if (!isExitCode(obj["implementationExitCode"])) {
+      return roundContractFailure("invalid_exit_code");
+    }
+    if (obj["gateExitCode"] !== 0) {
+      return roundContractFailure("invalid_outcome_shape");
+    }
+    if (obj["reportFresh"] !== true) {
+      return roundContractFailure("invalid_freshness");
+    }
+    const baseline = decodeReportSnapshotV1(obj["reportBaseline"]);
+    if (isRoundContractFailure(baseline)) {
+      return baseline;
+    }
+    const report = decodeReportSnapshotV1(obj["report"]);
+    if (isRoundContractFailure(report)) {
+      return report;
+    }
+    if (report._tag !== "Present" || report.byteLength === 0) {
+      return roundContractFailure("invalid_outcome_shape");
+    }
+    if (baseline._tag === "Present" && baseline.digest === report.digest) {
+      return roundContractFailure("invalid_outcome_shape");
+    }
+    return {
+      _tag: "completed",
+      attemptIdentity: identity2,
+      implementationExitCode: obj["implementationExitCode"],
+      gateExitCode: 0,
+      reportFresh: true,
+      reportBaseline: baseline,
+      report
     };
-    const roundPlan = decodeRoundPlanV1(candidatePlan);
-    if (isRoundContractFailure(roundPlan)) {
-      return yield* Effect_exports.fail(new RoundBoundaryFailure("invalid_request"));
+  }
+  if (obj["_tag"] === "incomplete") {
+    const unknown = rejectUnknownKeys(obj, OUTCOME_INCOMPLETE_KEYS);
+    if (unknown !== null) {
+      return roundContractFailure("unknown_field");
     }
-    const planIdentity = attemptIdentityFromPlan(roundPlan);
-    if (planIdentity.runId !== attemptIdentity.runId || planIdentity.laneId !== attemptIdentity.laneId || planIdentity.attemptId !== attemptIdentity.attemptId) {
-      return yield* Effect_exports.fail(new RoundBoundaryFailure("allocation_failed"));
-    }
-    yield* sink.append({
-      type: "prompt",
-      lane: validated.laneId,
-      payload: {
-        attempt: attemptIdentity.attemptId,
-        roundPlan
+    for (const key of OUTCOME_INCOMPLETE_KEYS) {
+      if (!(key in obj)) {
+        return roundContractFailure("invalid_schema");
       }
-    });
-    const implementationExitCode = yield* requireExitCode(
-      yield* impl.run(validated.commandArgv)
-    );
-    const commit = yield* checkpoint.capture();
-    if (typeof commit !== "string" || commit.length === 0) {
-      return yield* Effect_exports.fail(
-        new RoundBoundaryFailure("empty_checkpoint_commit")
-      );
     }
-    yield* sink.append({
-      type: "checkpoint",
-      lane: validated.laneId,
-      commit,
-      payload: { attempt: attemptIdentity.attemptId }
-    });
-    yield* sink.append({
-      type: "state",
-      lane: validated.laneId,
-      payload: {
-        attempt: attemptIdentity.attemptId,
-        state: "verifying"
-      }
-    });
-    const gateExitCode = yield* requireExitCode(
-      yield* gate.run(validated.gateCommand)
-    );
-    const postGate = yield* reader.read(validated.reportPath);
-    const outcome = decideRoundOutcome({
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      reportBaseline,
-      postGate
-    });
-    if (outcome._tag === "completed") {
-      yield* sink.append({
-        type: "round_done",
-        lane: validated.laneId,
-        payload: {
-          attempt: attemptIdentity.attemptId,
-          outcome
-        }
-      });
+    const identity2 = decodeAttemptIdentityValue(obj["attemptIdentity"]);
+    if (isRoundContractFailure(identity2)) {
+      return identity2;
+    }
+    if (!isExitCode(obj["implementationExitCode"])) {
+      return roundContractFailure("invalid_exit_code");
+    }
+    if (!isExitCode(obj["gateExitCode"])) {
+      return roundContractFailure("invalid_exit_code");
+    }
+    if (obj["reportFresh"] !== false) {
+      return roundContractFailure("invalid_freshness");
+    }
+    if (!isIncompleteReason(obj["reason"])) {
+      return roundContractFailure("invalid_reason");
+    }
+    const reason = obj["reason"];
+    const gateExitCode = obj["gateExitCode"];
+    const baseline = decodeReportSnapshotV1(obj["reportBaseline"]);
+    if (isRoundContractFailure(baseline)) {
+      return baseline;
+    }
+    let report;
+    if (obj["report"] === null) {
+      report = null;
     } else {
-      yield* sink.append({
-        type: "waiting_child",
-        lane: validated.laneId,
-        payload: {
-          attempt: attemptIdentity.attemptId,
-          outcome
-        }
-      });
-      yield* sink.append({
-        type: "alert",
-        lane: validated.laneId,
-        payload: {
-          attempt: attemptIdentity.attemptId,
-          kind: "round_incomplete",
-          outcome
-        }
-      });
+      const decoded = decodeReportSnapshotV1(obj["report"]);
+      if (isRoundContractFailure(decoded)) {
+        return decoded;
+      }
+      report = decoded;
     }
-    return outcome;
+    switch (reason) {
+      case "gate_failed":
+        if (gateExitCode === 0) {
+          return roundContractFailure("invalid_outcome_shape");
+        }
+        break;
+      case "report_too_large":
+      case "report_read_failed":
+        if (gateExitCode !== 0 || report !== null) {
+          return roundContractFailure("invalid_outcome_shape");
+        }
+        break;
+      case "report_missing":
+        if (gateExitCode !== 0 || report === null || report._tag !== "Absent") {
+          return roundContractFailure("invalid_outcome_shape");
+        }
+        break;
+      case "report_empty":
+        if (gateExitCode !== 0 || report === null || report._tag !== "Present" || report.byteLength !== 0) {
+          return roundContractFailure("invalid_outcome_shape");
+        }
+        break;
+      case "report_unchanged":
+        if (gateExitCode !== 0 || report === null || report._tag !== "Present" || report.byteLength === 0 || baseline._tag !== "Present" || baseline.byteLength === 0 || baseline.digest !== report.digest) {
+          return roundContractFailure("invalid_outcome_shape");
+        }
+        break;
+      default: {
+        const _exhaustive = reason;
+        return roundContractFailure("invalid_reason");
+      }
+    }
+    return {
+      _tag: "incomplete",
+      attemptIdentity: identity2,
+      implementationExitCode: obj["implementationExitCode"],
+      gateExitCode,
+      reportFresh: false,
+      reason,
+      reportBaseline: baseline,
+      report
+    };
+  }
+  return roundContractFailure("invalid_schema");
+}
+function makeCheckpointIdentity(attemptIdentity, commit) {
+  if (typeof commit !== "string" || commit.length === 0) {
+    return roundContractFailure("empty_commit");
+  }
+  return { attemptIdentity, commit };
+}
+function attemptIdentitiesEqual(a, b) {
+  return a.runId === b.runId && a.laneId === b.laneId && a.attemptId === b.attemptId;
+}
+function roundOutcomesEqual(a, b) {
+  if (a._tag !== b._tag) return false;
+  if (!attemptIdentitiesEqual(a.attemptIdentity, b.attemptIdentity)) {
+    return false;
+  }
+  if (a.implementationExitCode !== b.implementationExitCode) return false;
+  if (a.gateExitCode !== b.gateExitCode) return false;
+  if (a.reportFresh !== b.reportFresh) return false;
+  if (!snapshotsEqual(a.reportBaseline, b.reportBaseline)) return false;
+  if (a._tag === "completed" && b._tag === "completed") {
+    return snapshotsEqual(a.report, b.report);
+  }
+  if (a._tag === "incomplete" && b._tag === "incomplete") {
+    if (a.reason !== b.reason) return false;
+    if (a.report === null && b.report === null) return true;
+    if (a.report === null || b.report === null) return false;
+    return snapshotsEqual(a.report, b.report);
+  }
+  return false;
+}
+function snapshotsEqual(a, b) {
+  if (a._tag !== b._tag) return false;
+  if (a._tag === "Absent") return true;
+  if (b._tag !== "Present") return false;
+  return a.digest === b.digest && a.byteLength === b.byteLength;
+}
+
+// packages/orchestration/src/round-reducer.ts
+function initialRoundReducerState() {
+  return {
+    phase: "Unstarted",
+    roundPlan: null,
+    checkpointIdentity: null,
+    pendingIncomplete: null,
+    terminalOutcome: null,
+    legacyUnbound: false
+  };
+}
+var STRUCTURAL_TYPES = /* @__PURE__ */ new Set([
+  "prompt",
+  "checkpoint",
+  "state",
+  "waiting_child",
+  "round_done",
+  "alert",
+  "ownership",
+  "heartbeat"
+]);
+var ANNOTATION_TYPES = /* @__PURE__ */ new Set(["ownership", "heartbeat"]);
+function eventMatchesAttempt(event, attemptIdentity) {
+  if (event.lane !== attemptIdentity.laneId) {
+    return "other";
+  }
+  const extracted = extractPayloadAttempt(event.payload);
+  if (extracted === void 0) {
+    if (!STRUCTURAL_TYPES.has(event.type)) {
+      return "unbound";
+    }
+    return "missing";
+  }
+  if (isAttemptFailure(extracted)) {
+    return "invalid";
+  }
+  if (extracted !== attemptIdentity.attemptId) {
+    return "other";
+  }
+  return "match";
+}
+function reject(state, reason) {
+  return { _tag: "Rejected", reason, state };
+}
+function advanced(state) {
+  return { _tag: "Advanced", state };
+}
+function unchanged(state) {
+  return { _tag: "Unchanged", state };
+}
+function reduceRoundEvent(state, event, attemptIdentity) {
+  const match12 = eventMatchesAttempt(event, attemptIdentity);
+  if (match12 === "unbound") {
+    return { _tag: "Ignored", state };
+  }
+  if (match12 === "other") {
+    return reject(state, "invalid_transition");
+  }
+  if (match12 === "missing") {
+    return reject(state, "missing_attempt");
+  }
+  if (match12 === "invalid") {
+    return reject(state, "invalid_payload");
+  }
+  if (!STRUCTURAL_TYPES.has(event.type)) {
+    return reject(state, "unknown_event_type");
+  }
+  if (state.phase === "Completed" || state.phase === "Incomplete") {
+    return reject(state, "invalid_transition");
+  }
+  if (ANNOTATION_TYPES.has(event.type)) {
+    if (state.phase !== "Implementing") {
+      return reject(state, "invalid_transition");
+    }
+    return unchanged(state);
+  }
+  switch (event.type) {
+    case "prompt":
+      return reducePrompt(state, event, attemptIdentity);
+    case "checkpoint":
+      return reduceCheckpoint(state, event, attemptIdentity);
+    case "state":
+      return reduceStateVerifying(state, event);
+    case "waiting_child":
+      return reduceWaitingChild(state, event, attemptIdentity);
+    case "round_done":
+      return reduceRoundDone(state, event, attemptIdentity);
+    case "alert":
+      return reduceAlert(state, event, attemptIdentity);
+    default:
+      return reject(state, "unknown_event_type");
+  }
+}
+function isValidOtherLaneOrAttempt(event, attemptIdentity) {
+  if (event.lane !== attemptIdentity.laneId) {
+    return true;
+  }
+  const extracted = extractPayloadAttempt(event.payload);
+  if (extracted === void 0 || isAttemptFailure(extracted)) {
+    return false;
+  }
+  return extracted !== attemptIdentity.attemptId;
+}
+function reducePrompt(state, event, attemptIdentity) {
+  if (state.phase !== "Unstarted") {
+    return reject(state, "invalid_transition");
+  }
+  if (!("roundPlan" in event.payload)) {
+    return advanced({
+      ...state,
+      phase: "Implementing",
+      legacyUnbound: true,
+      roundPlan: null
+    });
+  }
+  const plan = decodeRoundPlanV1(event.payload["roundPlan"]);
+  if (isRoundContractFailure(plan)) {
+    return reject(state, "invalid_payload");
+  }
+  const planIdentity = {
+    runId: plan.runId,
+    laneId: plan.laneId,
+    attemptId: plan.attemptId
+  };
+  if (!attemptIdentitiesEqual(planIdentity, attemptIdentity)) {
+    return reject(state, "invalid_transition");
+  }
+  if (plan.attemptId !== event.payload["attempt"]) {
+    return reject(state, "invalid_payload");
+  }
+  return advanced({
+    ...state,
+    phase: "Implementing",
+    roundPlan: plan,
+    legacyUnbound: false
   });
 }
-function baselineToSnapshotOrFail(result) {
-  if (result._tag === "Failure") {
-    return Effect_exports.fail(new RoundBoundaryFailure("baseline_read_failed"));
+function reduceCheckpoint(state, event, attemptIdentity) {
+  if (state.phase !== "Implementing") {
+    return reject(state, "invalid_transition");
   }
-  return Effect_exports.succeed(result.snapshot);
+  if (state.checkpointIdentity !== null) {
+    return reject(state, "invalid_transition");
+  }
+  if (typeof event.commit !== "string" || event.commit.length === 0) {
+    return reject(state, "invalid_payload");
+  }
+  const ckpt = makeCheckpointIdentity(attemptIdentity, event.commit);
+  if (isRoundContractFailure(ckpt)) {
+    return reject(state, "invalid_payload");
+  }
+  return advanced({
+    ...state,
+    checkpointIdentity: ckpt
+  });
 }
+function reduceStateVerifying(state, event) {
+  if (state.phase !== "Implementing") {
+    return reject(state, "invalid_transition");
+  }
+  if (event.payload["state"] !== "verifying") {
+    return reject(state, "invalid_payload");
+  }
+  if (state.checkpointIdentity === null) {
+    return reject(state, "invalid_transition");
+  }
+  return advanced({
+    ...state,
+    phase: "Verifying"
+  });
+}
+function rejectIfBaselineConflictsPlan(state, outcome) {
+  if (state.roundPlan === null) {
+    return null;
+  }
+  if (!snapshotsEqual(outcome.reportBaseline, state.roundPlan.reportBaseline)) {
+    return reject(state, "conflicting_outcome");
+  }
+  return null;
+}
+function reduceWaitingChild(state, event, attemptIdentity) {
+  if (state.phase !== "Verifying") {
+    return reject(state, "invalid_transition");
+  }
+  if (state.pendingIncomplete !== null) {
+    return reject(state, "invalid_transition");
+  }
+  if (!("outcome" in event.payload)) {
+    return reject(state, "invalid_payload");
+  }
+  const outcome = decodeRoundOutcomeV1(event.payload["outcome"]);
+  if (isRoundContractFailure(outcome)) {
+    return reject(state, "invalid_payload");
+  }
+  if (outcome._tag !== "incomplete") {
+    return reject(state, "invalid_payload");
+  }
+  if (!attemptIdentitiesEqual(outcome.attemptIdentity, attemptIdentity)) {
+    return reject(state, "conflicting_outcome");
+  }
+  const baselineConflict = rejectIfBaselineConflictsPlan(state, outcome);
+  if (baselineConflict !== null) {
+    return baselineConflict;
+  }
+  return advanced({
+    ...state,
+    pendingIncomplete: outcome
+  });
+}
+function reduceRoundDone(state, event, attemptIdentity) {
+  if (state.phase !== "Verifying") {
+    return reject(state, "invalid_transition");
+  }
+  if (!("outcome" in event.payload)) {
+    return reject(state, "invalid_payload");
+  }
+  const outcome = decodeRoundOutcomeV1(event.payload["outcome"]);
+  if (isRoundContractFailure(outcome)) {
+    return reject(state, "invalid_payload");
+  }
+  if (outcome._tag !== "completed") {
+    return reject(state, "invalid_payload");
+  }
+  if (!attemptIdentitiesEqual(outcome.attemptIdentity, attemptIdentity)) {
+    return reject(state, "conflicting_outcome");
+  }
+  const baselineConflict = rejectIfBaselineConflictsPlan(state, outcome);
+  if (baselineConflict !== null) {
+    return baselineConflict;
+  }
+  if (state.pendingIncomplete !== null && !roundOutcomesEqual(state.pendingIncomplete, outcome)) {
+    return reject(state, "conflicting_outcome");
+  }
+  return advanced({
+    ...state,
+    phase: "Completed",
+    terminalOutcome: outcome
+  });
+}
+function reduceAlert(state, event, attemptIdentity) {
+  if (event.payload["kind"] !== "round_incomplete") {
+    return reject(state, "unknown_event_type");
+  }
+  if (state.phase !== "Verifying") {
+    return reject(state, "invalid_transition");
+  }
+  if (state.pendingIncomplete === null) {
+    return reject(state, "invalid_transition");
+  }
+  if (!("outcome" in event.payload)) {
+    return reject(state, "invalid_payload");
+  }
+  const outcome = decodeRoundOutcomeV1(event.payload["outcome"]);
+  if (isRoundContractFailure(outcome)) {
+    return reject(state, "invalid_payload");
+  }
+  if (outcome._tag !== "incomplete") {
+    return reject(state, "invalid_payload");
+  }
+  if (!attemptIdentitiesEqual(outcome.attemptIdentity, attemptIdentity)) {
+    return reject(state, "conflicting_outcome");
+  }
+  const baselineConflict = rejectIfBaselineConflictsPlan(state, outcome);
+  if (baselineConflict !== null) {
+    return baselineConflict;
+  }
+  if (!roundOutcomesEqual(outcome, state.pendingIncomplete)) {
+    return reject(state, "conflicting_outcome");
+  }
+  return advanced({
+    ...state,
+    phase: "Incomplete",
+    terminalOutcome: outcome
+  });
+}
+function recoverRoundAttempt(events, attemptIdentity) {
+  let state = initialRoundReducerState();
+  let sawMatchingPrompt = false;
+  for (const event of events) {
+    if (isValidOtherLaneOrAttempt(event, attemptIdentity)) {
+      continue;
+    }
+    const result = reduceRoundEvent(state, event, attemptIdentity);
+    if (result._tag === "Ignored") {
+      continue;
+    }
+    if (result._tag === "Rejected") {
+      return mapRejection(result.reason, attemptIdentity, state, event);
+    }
+    state = result.state;
+    if (event.type === "prompt" && eventMatchesAttempt(event, attemptIdentity) === "match") {
+      sawMatchingPrompt = true;
+    }
+  }
+  if (state.legacyUnbound) {
+    return { _tag: "LegacyUnbound", attemptIdentity };
+  }
+  if (state.phase === "Completed" || state.phase === "Incomplete") {
+    if (state.terminalOutcome === null) {
+      return {
+        _tag: "Invalid",
+        attemptIdentity,
+        reason: "invalid_payload"
+      };
+    }
+    return {
+      _tag: "Completed",
+      attemptIdentity,
+      outcome: state.terminalOutcome
+    };
+  }
+  if (!sawMatchingPrompt && state.roundPlan === null) {
+    return {
+      _tag: "Invalid",
+      attemptIdentity,
+      reason: "invalid_payload"
+    };
+  }
+  if (state.roundPlan !== null && state.checkpointIdentity === null) {
+    return {
+      _tag: "Invalid",
+      attemptIdentity,
+      reason: "checkpoint_missing"
+    };
+  }
+  if (state.roundPlan !== null && state.checkpointIdentity !== null) {
+    return {
+      _tag: "Recoverable",
+      roundPlan: state.roundPlan,
+      checkpointIdentity: state.checkpointIdentity
+    };
+  }
+  return {
+    _tag: "Invalid",
+    attemptIdentity,
+    reason: "invalid_transition"
+  };
+}
+function mapRejection(reason, attemptIdentity, state, event) {
+  if (reason === "conflicting_outcome") {
+    return { _tag: "Invalid", attemptIdentity, reason: "conflicting_outcome" };
+  }
+  if (reason === "invalid_payload" || reason === "missing_attempt") {
+    return { _tag: "Invalid", attemptIdentity, reason: "invalid_payload" };
+  }
+  if (event.type === "state" && state.phase === "Implementing" && state.checkpointIdentity === null) {
+    return { _tag: "Invalid", attemptIdentity, reason: "invalid_transition" };
+  }
+  if (event.type === "checkpoint" && state.phase === "Unstarted") {
+    return { _tag: "Invalid", attemptIdentity, reason: "invalid_transition" };
+  }
+  return { _tag: "Invalid", attemptIdentity, reason: "invalid_transition" };
+}
+
+// packages/orchestration/src/resume-decision.ts
+function sequencesStrictlyIncreasing(events) {
+  for (let i = 1; i < events.length; i++) {
+    if (events[i].seq <= events[i - 1].seq) {
+      return false;
+    }
+  }
+  return true;
+}
+function selectLatestRoundAttempt(events, runId, laneId) {
+  if (!sequencesStrictlyIncreasing(events)) {
+    return { _tag: "Invalid", laneId, promptSequence: 0 };
+  }
+  let latest = null;
+  for (const event of events) {
+    if (event.type !== "prompt") continue;
+    if (event.lane !== laneId) continue;
+    if (latest === null || event.seq > latest.seq) {
+      latest = event;
+    }
+  }
+  if (latest === null) {
+    return { _tag: "NoRound" };
+  }
+  const promptSequence = latest.seq;
+  const attemptRaw = latest.payload["attempt"];
+  if (typeof attemptRaw !== "number") {
+    return { _tag: "Invalid", laneId, promptSequence };
+  }
+  const attempt = decodeAttemptId(attemptRaw);
+  if (isAttemptFailure(attempt)) {
+    return { _tag: "Invalid", laneId, promptSequence };
+  }
+  const selectedIdentity = makeAttemptIdentity(runId, laneId, attempt);
+  if (!Object.prototype.hasOwnProperty.call(latest.payload, "roundPlan")) {
+    return {
+      _tag: "LegacyUnbound",
+      attemptIdentity: selectedIdentity,
+      promptSequence
+    };
+  }
+  const plan = decodeRoundPlanV1(latest.payload["roundPlan"]);
+  if (isRoundContractFailure(plan)) {
+    return {
+      _tag: "Invalid",
+      laneId,
+      promptSequence,
+      attemptIdentity: selectedIdentity
+    };
+  }
+  const planIdentity = attemptIdentityFromPlan(plan);
+  if (!attemptIdentitiesEqual(planIdentity, selectedIdentity)) {
+    return {
+      _tag: "Invalid",
+      laneId,
+      promptSequence,
+      attemptIdentity: selectedIdentity
+    };
+  }
+  if (plan.attemptId !== attempt) {
+    return {
+      _tag: "Invalid",
+      laneId,
+      promptSequence,
+      attemptIdentity: selectedIdentity
+    };
+  }
+  return { _tag: "Selected", attemptIdentity: selectedIdentity };
+}
+function isValidResumeCount(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 100;
+}
+function isValidResumeMaxAttempts(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= 100;
+}
+function isValidProcessState(value) {
+  return value === "inactive" || value === "active" || value === "unknown";
+}
+function isValidLockState(value) {
+  return value === "free" || value === "held" || value === "unknown";
+}
+function observationsValid(input) {
+  return isValidResumeCount(input.resumeCount) && isValidResumeMaxAttempts(input.resumeMaxAttempts) && isValidProcessState(input.processState) && isValidLockState(input.lockState);
+}
+function decideRoundResume(input) {
+  const selected = selectLatestRoundAttempt(
+    input.events,
+    input.runId,
+    input.laneId
+  );
+  if (selected._tag === "NoRound") {
+    return { _tag: "NoRound" };
+  }
+  if (selected._tag === "LegacyUnbound") {
+    return {
+      _tag: "Refused",
+      attemptIdentity: selected.attemptIdentity,
+      reason: "legacy_unbound"
+    };
+  }
+  if (selected._tag === "Invalid") {
+    if (selected.attemptIdentity !== void 0) {
+      return {
+        _tag: "Refused",
+        attemptIdentity: selected.attemptIdentity,
+        reason: "invalid_history"
+      };
+    }
+    return { _tag: "Refused", reason: "invalid_history" };
+  }
+  const attemptIdentity = selected.attemptIdentity;
+  const recovery = recoverRoundAttempt(input.events, attemptIdentity);
+  if (recovery._tag === "Completed") {
+    return {
+      _tag: "Completed",
+      attemptIdentity: recovery.attemptIdentity,
+      outcome: recovery.outcome
+    };
+  }
+  if (recovery._tag === "LegacyUnbound") {
+    return {
+      _tag: "Refused",
+      attemptIdentity: recovery.attemptIdentity,
+      reason: "legacy_unbound"
+    };
+  }
+  if (recovery._tag === "Invalid") {
+    if (recovery.reason === "checkpoint_missing") {
+      return {
+        _tag: "Refused",
+        attemptIdentity: recovery.attemptIdentity,
+        reason: "checkpoint_missing"
+      };
+    }
+    return {
+      _tag: "Refused",
+      attemptIdentity: recovery.attemptIdentity,
+      reason: "invalid_history"
+    };
+  }
+  if (!observationsValid(input)) {
+    return {
+      _tag: "Refused",
+      attemptIdentity,
+      reason: "invalid_observation"
+    };
+  }
+  if (input.resumeCount >= input.resumeMaxAttempts) {
+    return {
+      _tag: "Refused",
+      attemptIdentity,
+      reason: "resume_limit_reached"
+    };
+  }
+  if (input.processState === "active") {
+    return {
+      _tag: "Wait",
+      attemptIdentity,
+      reason: "prior_attempt_active"
+    };
+  }
+  if (input.processState === "unknown") {
+    return {
+      _tag: "Wait",
+      attemptIdentity,
+      reason: "process_state_unknown"
+    };
+  }
+  if (input.lockState === "held") {
+    return {
+      _tag: "Wait",
+      attemptIdentity,
+      reason: "lock_held"
+    };
+  }
+  if (input.lockState === "unknown") {
+    return {
+      _tag: "Wait",
+      attemptIdentity,
+      reason: "lock_state_unknown"
+    };
+  }
+  return {
+    _tag: "Resume",
+    roundPlan: recovery.roundPlan,
+    checkpointIdentity: recovery.checkpointIdentity,
+    nextResumeCount: input.resumeCount + 1
+  };
+}
+
+// packages/orchestration/src/resume-safety-services.ts
+import { lstatSync as lstatSync2 } from "node:fs";
+import { isAbsolute } from "node:path";
+var MAX_LOCK_PATH_BYTES = 32768;
+function isPositiveSafeInteger3(value) {
+  return Number.isSafeInteger(value) && value > 0;
+}
+function isValidAbsoluteLockPath(lockPath) {
+  if (typeof lockPath !== "string" || lockPath.length === 0) return false;
+  if (lockPath.includes("\0")) return false;
+  if (utf8ByteLength(lockPath) > MAX_LOCK_PATH_BYTES) return false;
+  return isAbsolute(lockPath);
+}
+function errorCode(error) {
+  if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+  return void 0;
+}
+function classifyResumeProcess(processId, outcome) {
+  if (processId === null) {
+    return "inactive";
+  }
+  if (typeof processId !== "number" || !isPositiveSafeInteger3(processId)) {
+    return "unknown";
+  }
+  switch (outcome) {
+    case "exists":
+      return "active";
+    case "missing":
+      return "inactive";
+    case "denied":
+      return "active";
+    case "failed":
+      return "unknown";
+    default: {
+      const _exhaustive = outcome;
+      void _exhaustive;
+      return "unknown";
+    }
+  }
+}
+function classifyResumeLock(lockPath, kind) {
+  if (!isValidAbsoluteLockPath(lockPath)) {
+    return "unknown";
+  }
+  switch (kind) {
+    case "missing":
+      return "free";
+    case "directory":
+      return "held";
+    case "symlink":
+    case "regular":
+    case "other":
+    case "failed":
+      return "unknown";
+    default: {
+      const _exhaustive = kind;
+      void _exhaustive;
+      return "unknown";
+    }
+  }
+}
+var ResumeProcessProbe = class extends Context_exports.Tag("ResumeProcessProbe")() {
+};
+var ResumeLockProbe = class extends Context_exports.Tag("ResumeLockProbe")() {
+};
+function observeResumeSafety(input) {
+  return Effect_exports.gen(function* () {
+    const processProbe = yield* ResumeProcessProbe;
+    const lockProbe = yield* ResumeLockProbe;
+    const [processState, lockState] = yield* Effect_exports.all([
+      processProbe.observe(input.processId).pipe(
+        Effect_exports.catchAllDefect(() => Effect_exports.succeed("unknown"))
+      ),
+      lockProbe.observe(input.lockPath).pipe(
+        Effect_exports.catchAllDefect(() => Effect_exports.succeed("unknown"))
+      )
+    ]);
+    return { processState, lockState };
+  });
+}
+function defaultSignalZero(processId) {
+  process.kill(processId, 0);
+}
+function defaultLstatKind(lockPath) {
+  const st = lstatSync2(lockPath);
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isDirectory()) return "directory";
+  if (st.isFile()) return "regular";
+  return "other";
+}
+function makeLiveResumeSafetyLayers(seams) {
+  const signalZero = seams?.signalZero ?? defaultSignalZero;
+  const lstatKind = seams?.lstatKind ?? defaultLstatKind;
+  const processLayer = Layer_exports.succeed(ResumeProcessProbe, {
+    observe: (processId) => Effect_exports.sync(() => {
+      if (processId === null) {
+        return classifyResumeProcess(null, "missing");
+      }
+      if (!isPositiveSafeInteger3(processId)) {
+        return classifyResumeProcess(processId, "failed");
+      }
+      try {
+        signalZero(processId);
+        return classifyResumeProcess(processId, "exists");
+      } catch (error) {
+        const code = errorCode(error);
+        if (code === "ESRCH") {
+          return classifyResumeProcess(processId, "missing");
+        }
+        if (code === "EPERM") {
+          return classifyResumeProcess(processId, "denied");
+        }
+        return classifyResumeProcess(processId, "failed");
+      }
+    })
+  });
+  const lockLayer = Layer_exports.succeed(ResumeLockProbe, {
+    observe: (lockPath) => Effect_exports.sync(() => {
+      if (!isValidAbsoluteLockPath(lockPath)) {
+        return classifyResumeLock(lockPath, "failed");
+      }
+      try {
+        const kind = lstatKind(lockPath);
+        return classifyResumeLock(lockPath, kind);
+      } catch (error) {
+        const code = errorCode(error);
+        if (code === "ENOENT") {
+          return classifyResumeLock(lockPath, "missing");
+        }
+        return classifyResumeLock(lockPath, "failed");
+      }
+    })
+  });
+  return Layer_exports.mergeAll(processLayer, lockLayer);
+}
+var liveResumeSafetyServices = makeLiveResumeSafetyLayers();
+
+// packages/orchestration/src/resume-worktree-restore.ts
+import { realpathSync, statSync as statSync2 } from "node:fs";
+import { isAbsolute as isAbsolute2 } from "node:path";
 
 // packages/orchestration/src/queue-services.ts
 import { spawn } from "node:child_process";
@@ -17857,6 +18475,9 @@ import {
 } from "node:fs";
 import { delimiter, join as join4 } from "node:path";
 var MAX_CAPTURE_BYTES = 1048576;
+var MAX_CONFIG_BYTES = 1048576;
+var TIMEOUT_STATUS_PROBE_MS = 1e3;
+var TIMEOUT_QUEUE_OP_MS = 1e4;
 var ProcessFailure = class {
   constructor(reason) {
     this.reason = reason;
@@ -18237,32 +18858,21 @@ var liveQueueServices = Layer_exports.mergeAll(
   liveEnvVars
 );
 
+// packages/orchestration/src/round-transaction.ts
+var AttemptAllocator = class extends Context_exports.Tag("AttemptAllocator")() {
+};
+var RoundEventSink = class extends Context_exports.Tag("RoundEventSink")() {
+};
+var ReportSnapshotReader = class extends Context_exports.Tag("ReportSnapshotReader")() {
+};
+var ImplementationCommand = class extends Context_exports.Tag("ImplementationCommand")() {
+};
+var CheckpointCapture = class extends Context_exports.Tag("CheckpointCapture")() {
+};
+var GateCommand = class extends Context_exports.Tag("GateCommand")() {
+};
+
 // packages/orchestration/src/round-live-services.ts
-var CHECKPOINT_OUTPUT_BOUND_BYTES = 4096;
-function buildGateProcessVector(gateCommand, options) {
-  if (options.platform === "win32") {
-    const comSpec = options.comSpec;
-    if (typeof comSpec !== "string" || comSpec.length === 0 || comSpec.includes("\0") || !isWindowsAbsolute(comSpec)) {
-      return { _tag: "Invalid" };
-    }
-    return {
-      _tag: "Ok",
-      command: comSpec,
-      args: ["/d", "/s", "/c", gateCommand]
-    };
-  }
-  return {
-    _tag: "Ok",
-    command: "/bin/sh",
-    args: ["-c", gateCommand]
-  };
-}
-function isEnoent2(e) {
-  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
-}
-function isWindowsAbsolute(path) {
-  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
-}
 function sanitizedCheckpointEnv(base) {
   const out = {};
   for (const [k, v] of Object.entries(base)) {
@@ -18276,460 +18886,1392 @@ function sanitizedCheckpointEnv(base) {
   out["GIT_OPTIONAL_LOCKS"] = "0";
   return out;
 }
-function parseCheckpointCommit(text) {
-  if (typeof text !== "string") return null;
-  let body = text;
-  if (body.endsWith("\r\n")) {
-    body = body.slice(0, -2);
-  } else if (body.endsWith("\n") || body.endsWith("\r")) {
-    body = body.slice(0, -1);
-  }
-  if (body.includes("\n") || body.includes("\r")) return null;
-  if (!isCommitSha40(body)) return null;
-  return body;
-}
-function draftToStored(event) {
-  if (event.type === "checkpoint") {
-    return {
-      type: event.type,
-      lane: event.lane,
-      commit: event.commit,
-      payload: event.payload
-    };
-  }
+
+// packages/orchestration/src/resume-worktree-restore.ts
+var WORKTREE_RESTORE_FAILURE_BRAND = Symbol(
+  "@foreman/orchestration/WorktreeRestoreFailure"
+);
+function worktreeRestoreFailure(reason) {
   return {
-    type: event.type,
-    lane: event.lane,
-    payload: event.payload
+    [WORKTREE_RESTORE_FAILURE_BRAND]: true,
+    _tag: "WorktreeRestoreFailure",
+    reason
   };
 }
-function mapProcessTo(reason, _err) {
-  return new RoundBoundaryFailure(reason);
+var RESTORE_GIT_OUTPUT_BOUND_BYTES = 65536;
+var RESTORE_GIT_TIMEOUT_MS = 3e4;
+var WorktreeRestore = class extends Context_exports.Tag("WorktreeRestore")() {
+};
+function isValidAbsoluteWorktreePath(path) {
+  if (typeof path !== "string" || path.length === 0) return false;
+  if (path.includes("\0")) return false;
+  return isAbsolute2(path);
 }
-function readReportSnapshotSync(reportPath, seams) {
-  let before2;
+function isValidCheckpointCommit(commit) {
+  return typeof commit === "string" && isCommitSha40(commit);
+}
+function buildOverlayCheckoutArgs(commit) {
+  return [
+    "-c",
+    "core.hooksPath=/dev/null",
+    "-c",
+    "advice.detachedHead=false",
+    "checkout",
+    commit,
+    "--",
+    "."
+  ];
+}
+function buildStatusPorcelainArgs() {
+  return [
+    "-c",
+    "core.hooksPath=/dev/null",
+    "status",
+    "--porcelain=v1",
+    "--untracked-files=normal"
+  ];
+}
+function buildCommitExistsArgs(commit) {
+  return [
+    "-c",
+    "core.hooksPath=/dev/null",
+    "cat-file",
+    "-e",
+    `${commit}^{commit}`
+  ];
+}
+function isPorcelainClean(stdout, stderr) {
+  const text = `${stdout}${stderr}`;
+  for (const line of text.split(/\r?\n/)) {
+    if (line.length > 0) return false;
+  }
+  return true;
+}
+function rootIdentityKey(realPath, dev, ino) {
+  return `${realPath}\0${String(dev)}\0${String(ino)}`;
+}
+function mapTransport(_err) {
+  return worktreeRestoreFailure("transport_failed");
+}
+function resolveWorktreeRoot(worktree) {
+  if (!isValidAbsoluteWorktreePath(worktree)) {
+    return { _tag: "Fail", reason: "invalid_worktree" };
+  }
   try {
-    before2 = lstatSync2(reportPath);
-  } catch (e) {
-    if (isEnoent2(e)) {
-      return { _tag: "Snapshot", snapshot: absentReportSnapshot() };
+    const st = statSync2(worktree);
+    if (!st.isDirectory()) {
+      return { _tag: "Fail", reason: "invalid_worktree" };
     }
-    return { _tag: "Failure", reason: "report_read_failed" };
-  }
-  if (before2.isSymbolicLink()) {
-    return { _tag: "Failure", reason: "report_read_failed" };
-  }
-  if (!before2.isFile()) {
-    return { _tag: "Failure", reason: "report_read_failed" };
-  }
-  if (before2.size > MAX_REPORT_CONTENT_BYTES) {
-    return { _tag: "Failure", reason: "report_too_large" };
-  }
-  let fd;
-  try {
-    const flags = fsConstants3.O_RDONLY | ("O_NOFOLLOW" in fsConstants3 ? fsConstants3.O_NOFOLLOW : 0);
-    fd = openSync3(reportPath, flags);
-    const opened = fstatSync3(fd);
-    if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
-      return { _tag: "Failure", reason: "report_read_failed" };
+    const realPath = realpathSync(worktree);
+    const realSt = statSync2(realPath);
+    if (!realSt.isDirectory()) {
+      return { _tag: "Fail", reason: "invalid_worktree" };
     }
-    if (!opened.isFile()) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (opened.size > MAX_REPORT_CONTENT_BYTES) {
-      return { _tag: "Failure", reason: "report_too_large" };
-    }
-    const buf = Buffer.allocUnsafe(opened.size);
-    let offset = 0;
-    while (offset < opened.size) {
-      const n = readSync3(fd, buf, offset, opened.size - offset, offset);
-      if (n === 0) break;
-      offset += n;
-    }
-    if (offset !== opened.size) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (seams?.afterReportRead !== void 0) {
-      seams.afterReportRead({ path: reportPath, fd });
-    }
-    let pathAfter;
-    try {
-      pathAfter = lstatSync2(reportPath);
-    } catch (e) {
-      if (isEnoent2(e)) {
-        return { _tag: "Failure", reason: "report_read_failed" };
-      }
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (pathAfter.isSymbolicLink() || !pathAfter.isFile()) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    let after3;
-    try {
-      after3 = fstatSync3(fd);
-    } catch {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (after3.ino !== opened.ino || after3.dev !== opened.dev || after3.size !== opened.size || pathAfter.ino !== after3.ino || pathAfter.dev !== after3.dev) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    const bytes = buf.subarray(0, offset);
-    const digest = createHash("sha256").update(bytes).digest("hex");
-    const snap = presentReportSnapshot(digest, bytes.byteLength);
-    if (isRoundContractFailure(snap)) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    return { _tag: "Snapshot", snapshot: snap };
-  } catch (e) {
-    if (isEnoent2(e)) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    return { _tag: "Failure", reason: "report_read_failed" };
-  } finally {
-    if (fd !== void 0) {
-      try {
-        closeSync3(fd);
-      } catch {
-      }
-    }
+    return {
+      _tag: "Ok",
+      realPath,
+      key: rootIdentityKey(realPath, realSt.dev, realSt.ino)
+    };
+  } catch {
+    return { _tag: "Fail", reason: "invalid_worktree" };
   }
 }
-function makeLiveRoundServices(ctx) {
-  const env = ctx.env ?? process.env;
-  const platform = ctx.platform ?? process.platform;
-  const journalLayer = makeLiveRunJournalLayer(ctx.stateRoot);
-  const allocatorLayer = Layer_exports.effect(
-    AttemptAllocator,
-    Effect_exports.gen(function* () {
-      const journal = yield* RunJournal;
-      return {
-        allocate: (runId, laneId) => journal.allocate(runId, laneId).pipe(
-          Effect_exports.mapError(
-            () => new RoundBoundaryFailure("allocation_failed")
-          )
-        )
-      };
-    })
-  );
-  const sinkLayer = Layer_exports.effect(
-    RoundEventSink,
-    Effect_exports.gen(function* () {
-      const journal = yield* RunJournal;
-      return {
-        append: (event) => journal.append(ctx.runId, draftToStored(event)).pipe(
-          Effect_exports.mapError(
-            () => new RoundBoundaryFailure("append_failed")
-          ),
-          Effect_exports.asVoid
-        )
-      };
-    })
-  );
-  const reportLayer = Layer_exports.succeed(ReportSnapshotReader, {
-    read: (reportPath) => Effect_exports.sync(
-      () => readReportSnapshotSync(reportPath, ctx.reportSeams)
-    )
-  });
-  const implLayer = Layer_exports.effect(
-    ImplementationCommand,
+function makeLiveWorktreeRestore(seams) {
+  const envBase = seams?.env ?? process.env;
+  const gitCommand = seams?.gitCommand ?? "git";
+  return Layer_exports.effect(
+    WorktreeRestore,
     Effect_exports.gen(function* () {
       const proc = yield* ProcessExec;
-      return {
-        run: (commandArgv) => Effect_exports.gen(function* () {
-          if (commandArgv.length === 0) {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("implementation_transport_failed")
-            );
-          }
-          return yield* proc.runForeground({
-            command: commandArgv[0],
-            args: commandArgv.slice(1),
-            cwd: ctx.worktree,
-            env
-          }).pipe(
-            Effect_exports.mapError(
-              (e) => mapProcessTo("implementation_transport_failed", e)
-            )
+      const env = sanitizedCheckpointEnv(envBase);
+      const runGit = (args2, cwd) => proc.runCaptured({
+        command: gitCommand,
+        args: [...args2],
+        cwd,
+        env,
+        maxOutputBytes: RESTORE_GIT_OUTPUT_BOUND_BYTES,
+        timeoutMs: RESTORE_GIT_TIMEOUT_MS
+      }).pipe(Effect_exports.mapError(mapTransport));
+      const inspectImpl = (input) => Effect_exports.gen(function* () {
+        const resolved = resolveWorktreeRoot(input.worktree);
+        if (resolved._tag === "Fail") {
+          return yield* Effect_exports.fail(worktreeRestoreFailure(resolved.reason));
+        }
+        const commit = input.checkpointIdentity.commit;
+        if (!isValidCheckpointCommit(commit)) {
+          return yield* Effect_exports.fail(
+            worktreeRestoreFailure("invalid_checkpoint")
           );
-        })
+        }
+        const exists3 = yield* runGit(
+          buildCommitExistsArgs(commit),
+          resolved.realPath
+        );
+        if (exists3.exitCode !== 0) {
+          return yield* Effect_exports.fail(
+            worktreeRestoreFailure("invalid_checkpoint")
+          );
+        }
+        const status = yield* runGit(
+          buildStatusPorcelainArgs(),
+          resolved.realPath
+        );
+        if (status.exitCode !== 0) {
+          return yield* Effect_exports.fail(
+            worktreeRestoreFailure("invalid_worktree")
+          );
+        }
+        if (!isPorcelainClean(status.stdout, status.stderr)) {
+          return yield* Effect_exports.fail(worktreeRestoreFailure("dirty_worktree"));
+        }
+        return {
+          worktreeRoot: resolved.realPath,
+          rootIdentityKey: resolved.key,
+          checkpointIdentity: input.checkpointIdentity
+        };
+      });
+      const restoreImpl = (input) => Effect_exports.gen(function* () {
+        const { permit, reservation } = input;
+        if (!attemptIdentitiesEqual(
+          permit.checkpointIdentity.attemptIdentity,
+          reservation.attemptIdentity
+        )) {
+          return yield* Effect_exports.fail(
+            worktreeRestoreFailure("identity_mismatch")
+          );
+        }
+        const commit = permit.checkpointIdentity.commit;
+        if (!isValidCheckpointCommit(commit)) {
+          return yield* Effect_exports.fail(
+            worktreeRestoreFailure("invalid_checkpoint")
+          );
+        }
+        const resolved = resolveWorktreeRoot(permit.worktreeRoot);
+        if (resolved._tag === "Fail") {
+          return yield* Effect_exports.fail(worktreeRestoreFailure(resolved.reason));
+        }
+        if (resolved.key !== permit.rootIdentityKey) {
+          return yield* Effect_exports.fail(worktreeRestoreFailure("worktree_changed"));
+        }
+        if (resolved.realPath !== permit.worktreeRoot) {
+          return yield* Effect_exports.fail(worktreeRestoreFailure("worktree_changed"));
+        }
+        const status = yield* runGit(
+          buildStatusPorcelainArgs(),
+          resolved.realPath
+        );
+        if (status.exitCode !== 0) {
+          return yield* Effect_exports.fail(
+            worktreeRestoreFailure("invalid_worktree")
+          );
+        }
+        if (!isPorcelainClean(status.stdout, status.stderr)) {
+          return yield* Effect_exports.fail(worktreeRestoreFailure("dirty_worktree"));
+        }
+        const exists3 = yield* runGit(
+          buildCommitExistsArgs(commit),
+          resolved.realPath
+        );
+        if (exists3.exitCode !== 0) {
+          return yield* Effect_exports.fail(
+            worktreeRestoreFailure("invalid_checkpoint")
+          );
+        }
+        const checkout = yield* runGit(
+          buildOverlayCheckoutArgs(commit),
+          resolved.realPath
+        );
+        if (checkout.exitCode !== 0) {
+          return yield* Effect_exports.fail(worktreeRestoreFailure("checkout_failed"));
+        }
+        return {
+          worktreeRoot: resolved.realPath,
+          checkpointIdentity: permit.checkpointIdentity
+        };
+      });
+      return {
+        inspect: inspectImpl,
+        restore: restoreImpl
       };
     })
-  );
-  const checkpointLayer = Layer_exports.effect(
-    CheckpointCapture,
-    Effect_exports.gen(function* () {
-      const proc = yield* ProcessExec;
-      return {
-        capture: () => Effect_exports.gen(function* () {
-          const result = yield* proc.runCaptured({
-            command: "git",
-            args: ["rev-parse", "HEAD"],
-            cwd: ctx.worktree,
-            env: sanitizedCheckpointEnv(env),
-            maxOutputBytes: CHECKPOINT_OUTPUT_BOUND_BYTES
-          }).pipe(
-            Effect_exports.mapError((e) => mapProcessTo("checkpoint_failed", e))
-          );
-          if (result.exitCode !== 0) {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("checkpoint_failed")
-            );
-          }
-          const commit = parseCheckpointCommit(
-            result.stdout + result.stderr
-          );
-          if (commit === null) {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("checkpoint_failed")
-            );
-          }
-          return commit;
-        })
-      };
-    })
-  );
-  const gateLayer = Layer_exports.effect(
-    GateCommand,
-    Effect_exports.gen(function* () {
-      const proc = yield* ProcessExec;
-      return {
-        run: (gateCommand) => Effect_exports.gen(function* () {
-          const comSpec = ctx.comSpec ?? env["ComSpec"] ?? env["COMSPEC"];
-          const vector = buildGateProcessVector(gateCommand, {
-            platform,
-            comSpec: typeof comSpec === "string" ? comSpec : void 0
-          });
-          if (vector._tag === "Invalid") {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("gate_transport_failed")
-            );
-          }
-          return yield* proc.runForeground({
-            command: vector.command,
-            args: vector.args,
-            cwd: ctx.worktree,
-            env
-          }).pipe(
-            Effect_exports.mapError(
-              (e) => mapProcessTo("gate_transport_failed", e)
-            )
-          );
-        })
-      };
-    })
-  );
-  return Layer_exports.provideMerge(
-    Layer_exports.mergeAll(
-      allocatorLayer,
-      sinkLayer,
-      reportLayer,
-      implLayer,
-      checkpointLayer,
-      gateLayer
-    ),
-    Layer_exports.mergeAll(journalLayer, liveProcessExec)
   );
 }
 
-// packages/orchestration/src/round-cli.ts
-var EXIT_COMPLETED = 0;
-var EXIT_INCOMPLETE_OR_DEFECT = 1;
-var EXIT_INVALID_ARGUMENTS = 2;
-var EXIT_BOUNDARY_FAILURE = 3;
-var MSG_INVALID_ARGUMENTS = "lane-round: invalid arguments";
-var MSG_BOUNDARY_FAILURE = "lane-round: boundary failure";
-var MSG_INTERNAL_FAILURE = "lane-round: internal failure";
-function stripRoundNodeArgv(argv) {
+// packages/orchestration/src/queue-admission.ts
+var EXIT_OK = 0;
+var EXIT_FAIL = 1;
+var EXIT_MISSING_CLI = 3;
+var FIXED_GROUPS = [
+  { name: "grok", parallel: 3 },
+  { name: "codex", parallel: 2 },
+  { name: "misc", parallel: 2 },
+  { name: "gate", parallel: 1 },
+  { name: "agy", parallel: 1 }
+];
+var GROUP_RE = /^[a-z][a-z0-9_-]*$/;
+var TASK_ID_RE = /^[0-9]+$/;
+function pwshQuote(token) {
+  return "'" + token.replace(/'/g, "''") + "'";
+}
+function posixQuote(token) {
+  return "'" + token.replace(/'/g, "'\\''") + "'";
+}
+function isWindowsPueuePath(pueueBin, fileExists) {
+  if (pueueBin.toLowerCase().endsWith(".exe")) return true;
+  return fileExists(pueueBin + ".exe");
+}
+function isEmptyOrNullYamlRest(rest) {
+  const t = rest.trim();
+  if (t.length === 0) return true;
+  if (t.startsWith("#")) return true;
+  if (t === "null" || t === "~") return true;
+  if (/^(null|~)(\s+#.*)?$/.test(t)) return true;
+  return false;
+}
+function isAmbiguousYamlScalar(val) {
+  if (val.length === 0) return false;
+  const c = val[0];
+  return c === "*" || c === "&" || c === "{" || c === "[" || c === "!" || c === "|" || c === ">" || c === "?";
+}
+function parseShellCommandOverride(configText) {
+  let section = null;
+  let daemonSections = 0;
+  let shellSeen = 0;
+  let shellValue = void 0;
+  const lines = configText.split(/\n/);
+  for (const raw of lines) {
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
+    const top = line.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+    if (top !== null && line === line.trimStart()) {
+      const key = top[1] ?? "";
+      const rest = top[2] ?? "";
+      if (key === "daemon") {
+        daemonSections += 1;
+        if (daemonSections > 1) return { _tag: "Uncertain" };
+        if (!isEmptyOrNullYamlRest(rest)) return { _tag: "Uncertain" };
+        section = "daemon";
+        continue;
+      }
+      section = key;
+      continue;
+    }
+    if (section !== "daemon") continue;
+    if (/^\s+<<\s*:/.test(line)) return { _tag: "Uncertain" };
+    const nested2 = line.match(/^\s+([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
+    if (nested2 === null) {
+      if (/^\s+\S/.test(line)) return { _tag: "Uncertain" };
+      continue;
+    }
+    if (nested2[1] !== "shell_command") continue;
+    shellSeen += 1;
+    if (shellSeen > 1) return { _tag: "Uncertain" };
+    let val = (nested2[2] ?? "").trim();
+    if (val.length === 0 || val === "null" || val === "~") {
+      shellValue = null;
+      continue;
+    }
+    if (/^(null|~)(\s+#.*)?$/.test(val)) {
+      shellValue = null;
+      continue;
+    }
+    if (isAmbiguousYamlScalar(val)) return { _tag: "Uncertain" };
+    const dq = val.match(/^"(.*)"$/);
+    const sq = val.match(/^'(.*)'$/);
+    if (dq) val = dq[1] ?? val;
+    else if (sq) val = sq[1] ?? val;
+    else {
+      const hash2 = val.indexOf(" #");
+      if (hash2 >= 0) val = val.slice(0, hash2).trimEnd();
+    }
+    if (isAmbiguousYamlScalar(val)) return { _tag: "Uncertain" };
+    shellValue = val;
+  }
+  if (shellSeen === 0 || shellValue === null || shellValue === void 0) {
+    return { _tag: "Default" };
+  }
+  if (shellValue.length === 0) return { _tag: "Default" };
+  return { _tag: "Override", value: shellValue };
+}
+function quoteForShell(pueueBin, tokens, shellOverride, fileExists) {
+  if (shellOverride !== null && shellOverride.length > 0) {
+    return { ok: false, reason: "unclassifiable_shell" };
+  }
+  if (isWindowsPueuePath(pueueBin, fileExists)) {
+    return {
+      ok: true,
+      dialect: "powershell",
+      argv: ["&", ...tokens.map(pwshQuote)]
+    };
+  }
+  return { ok: true, dialect: "posix", argv: tokens.map(posixQuote) };
+}
+function parseTaskId(stdout) {
+  let body = stdout;
+  if (body.endsWith("\r\n")) {
+    body = body.slice(0, -2);
+  } else if (body.endsWith("\n")) {
+    body = body.slice(0, -1);
+  }
+  if (body.length === 0) return null;
+  if (body.includes("\n") || body.includes("\r")) return null;
+  if (!TASK_ID_RE.test(body)) return null;
+  return body;
+}
+function joinHome(...parts2) {
+  return parts2.join("/").replace(/\/+/g, "/");
+}
+var resolvePueueClient = Effect_exports.gen(function* () {
+  const env = yield* EnvVars;
+  const paths = yield* PathLookup;
+  const force = yield* env.get("LANE_QUEUE_FORCE_MISSING");
+  if (force === "1") return null;
+  const onPath = yield* paths.which("pueue");
+  if (onPath !== null) return onPath;
+  const home = yield* env.home();
+  if (home === void 0 || home.length === 0) return null;
+  const base = joinHome(home, ".foreman", "tools", "pueue");
+  const stagedExe = joinHome(base, "pueue.exe");
+  if (yield* paths.isExecutable(stagedExe)) return stagedExe;
+  const staged = joinHome(base, "pueue");
+  if (yield* paths.isExecutable(staged)) return staged;
+  return null;
+});
+var resolvePueued = Effect_exports.gen(function* () {
+  const env = yield* EnvVars;
+  const paths = yield* PathLookup;
+  const force = yield* env.get("LANE_QUEUE_FORCE_MISSING");
+  if (force === "1") return null;
+  const onPath = yield* paths.which("pueued");
+  if (onPath !== null) return onPath;
+  const home = yield* env.home();
+  if (home === void 0 || home.length === 0) return null;
+  const base = joinHome(home, ".foreman", "tools", "pueue");
+  const stagedExe = joinHome(base, "pueued.exe");
+  if (yield* paths.isExecutable(stagedExe)) return stagedExe;
+  const staged = joinHome(base, "pueued");
+  if (yield* paths.isExecutable(staged)) return staged;
+  return null;
+});
+function mapReadToShell(read) {
+  switch (read._tag) {
+    case "Absent":
+      return { _tag: "Default" };
+    case "Ok": {
+      const parsed = parseShellCommandOverride(read.text);
+      if (parsed._tag === "Default") return { _tag: "Default" };
+      if (parsed._tag === "Override") {
+        return { _tag: "Override", value: parsed.value };
+      }
+      return { _tag: "ConfigError" };
+    }
+    case "Oversized":
+    case "Unreadable":
+    case "MalformedUtf8":
+    case "IdentityChanged":
+      return { _tag: "ConfigError" };
+    default: {
+      const _exhaustive = read;
+      void _exhaustive;
+      return { _tag: "ConfigError" };
+    }
+  }
+}
+var readShellCommandOverride = Effect_exports.gen(function* () {
+  const env = yield* EnvVars;
+  const fs = yield* BoundedFs;
+  const cfgPath = yield* env.get("PUEUE_CONFIG_PATH");
+  if (cfgPath !== void 0 && cfgPath.length > 0) {
+    const text = yield* fs.readFileBounded(cfgPath, MAX_CONFIG_BYTES);
+    return mapReadToShell(text);
+  }
+  const appdata = yield* env.get("APPDATA");
+  if (appdata !== void 0 && appdata.length > 0) {
+    const win = joinHome(appdata, "pueue", "pueue.yml");
+    const text = yield* fs.readFileBounded(win, MAX_CONFIG_BYTES);
+    if (text._tag !== "Absent") return mapReadToShell(text);
+  }
+  const xdg = yield* env.get("XDG_CONFIG_HOME");
+  const home = yield* env.home();
+  const posixBase = xdg !== void 0 && xdg.length > 0 ? xdg : home !== void 0 ? joinHome(home, ".config") : null;
+  if (posixBase !== null) {
+    const p = joinHome(posixBase, "pueue", "pueue.yml");
+    const text = yield* fs.readFileBounded(p, MAX_CONFIG_BYTES);
+    if (text._tag !== "Absent") return mapReadToShell(text);
+  }
+  return { _tag: "Default" };
+});
+var runPueue = (pueueBin, args2, timeoutMs) => Effect_exports.gen(function* () {
+  const proc = yield* ProcessExec;
+  return yield* proc.runCaptured({
+    command: pueueBin,
+    args: args2,
+    maxOutputBytes: MAX_CAPTURE_BYTES,
+    timeoutMs
+  });
+});
+var statusProbe = (pueueBin) => Effect_exports.gen(function* () {
+  const r = yield* runPueue(
+    pueueBin,
+    ["status", "--json", "last 1"],
+    TIMEOUT_STATUS_PROBE_MS
+  );
+  return r.exitCode === 0;
+}).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(false)));
+var ensureGroup = (pueueBin, name, parallel4) => Effect_exports.gen(function* () {
+  const add6 = yield* runPueue(
+    pueueBin,
+    ["group", "add", name],
+    TIMEOUT_QUEUE_OP_MS
+  ).pipe(
+    Effect_exports.catchAll(
+      () => Effect_exports.succeed({
+        exitCode: 1,
+        stdout: "",
+        stderr: "spawn_failed"
+      })
+    )
+  );
+  if (add6.exitCode !== 0) {
+    const err = (add6.stderr + add6.stdout).replace(/\r/g, "");
+    if (!err.includes("already exists")) {
+      return yield* Effect_exports.fail({ _tag: "GroupConfigFailed" });
+    }
+  }
+  const par2 = yield* runPueue(
+    pueueBin,
+    ["parallel", String(parallel4), "--group", name],
+    TIMEOUT_QUEUE_OP_MS
+  ).pipe(
+    Effect_exports.catchAll(
+      () => Effect_exports.succeed({
+        exitCode: 1,
+        stdout: "",
+        stderr: "spawn_failed"
+      })
+    )
+  );
+  if (par2.exitCode !== 0) {
+    return yield* Effect_exports.fail({ _tag: "GroupConfigFailed" });
+  }
+});
+var cmdEnsure = (io2, options) => Effect_exports.gen(function* () {
+  const quiet = options?.quiet === true;
+  const pueueBin = yield* resolvePueueClient;
+  if (pueueBin === null) {
+    if (!quiet) {
+      io2.writeStderr(
+        "lane-queue: pueue not found on PATH or $HOME/.foreman/tools/pueue -- fallback mode\n"
+      );
+    }
+    return EXIT_MISSING_CLI;
+  }
+  const reachable = yield* statusProbe(pueueBin);
+  if (!reachable) {
+    const pueuedBin = yield* resolvePueued;
+    if (pueuedBin === null) {
+      if (!quiet) {
+        io2.writeStderr(
+          "lane-queue: pueued daemon binary missing after unreachable status probe\n"
+        );
+      }
+      return EXIT_FAIL;
+    }
+    const proc = yield* ProcessExec;
+    yield* proc.runIgnoredStdio({
+      command: pueuedBin,
+      args: ["-d"],
+      timeoutMs: TIMEOUT_QUEUE_OP_MS
+    }).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(null)));
+    const sleeper = yield* Sleeper;
+    let ready = false;
+    let waited = 0;
+    while (waited < 5) {
+      if (yield* statusProbe(pueueBin)) {
+        ready = true;
+        break;
+      }
+      yield* sleeper.sleep(1e3);
+      waited += 1;
+    }
+    if (!ready) {
+      if (!quiet) {
+        io2.writeStderr(
+          `lane-queue: pueued daemon unreachable after spawn + ${waited}s retry
+`
+        );
+      }
+      return EXIT_FAIL;
+    }
+  }
+  for (const g of FIXED_GROUPS) {
+    const r = yield* ensureGroup(pueueBin, g.name, g.parallel).pipe(
+      Effect_exports.either
+    );
+    if (r._tag === "Left") {
+      if (!quiet) {
+        io2.writeStderr(
+          `lane-queue: group configuration failed for ${g.name}
+`
+        );
+      }
+      return EXIT_FAIL;
+    }
+  }
+  if (!quiet) {
+    io2.writeStderr(
+      "lane-queue: ready (groups: grok codex misc gate agy)\n"
+    );
+  }
+  return EXIT_OK;
+});
+
+// packages/orchestration/src/resume-queue-execution.ts
+var QUEUE_SUBMIT_FAILURE_BRAND = Symbol(
+  "@foreman/orchestration/QueueSubmitFailure"
+);
+function queueSubmitFailure(reason) {
+  return {
+    [QUEUE_SUBMIT_FAILURE_BRAND]: true,
+    _tag: "QueueSubmitFailure",
+    reason
+  };
+}
+var QueueSubmitter = class extends Context_exports.Tag("QueueSubmitter")() {
+};
+function buildLaneRunRoundVector(input) {
+  return [
+    input.shellBinary,
+    input.laneRunScript,
+    "--round",
+    input.plan.gateCommand,
+    input.plan.reportPath,
+    String(input.plan.runId),
+    String(input.plan.laneId),
+    input.worktree,
+    "--",
+    ...input.plan.commandArgv
+  ];
+}
+var RESUME_QUEUE_EXECUTION_FAILURE_BRAND = Symbol(
+  "@foreman/orchestration/ResumeQueueExecutionFailure"
+);
+function resumeQueueExecutionFailure(reason, cause3) {
+  return {
+    [RESUME_QUEUE_EXECUTION_FAILURE_BRAND]: true,
+    _tag: "ResumeQueueExecutionFailure",
+    reason,
+    ...cause3 !== void 0 ? { cause: cause3 } : {}
+  };
+}
+function runResumeQueueExecution(input) {
+  return Effect_exports.gen(function* () {
+    const planIdentity = attemptIdentityFromPlan(input.plan);
+    if (!attemptIdentitiesEqual(
+      planIdentity,
+      input.checkpointIdentity.attemptIdentity
+    )) {
+      return yield* Effect_exports.fail(
+        resumeQueueExecutionFailure("checkpoint_identity_mismatch")
+      );
+    }
+    const restoreSvc = yield* WorktreeRestore;
+    const permitEither = yield* Effect_exports.either(
+      restoreSvc.inspect({
+        worktree: input.worktree,
+        checkpointIdentity: input.checkpointIdentity
+      })
+    );
+    if (permitEither._tag === "Left") {
+      return yield* Effect_exports.fail(
+        resumeQueueExecutionFailure("inspect_failed", permitEither.left)
+      );
+    }
+    const permit = permitEither.right;
+    const journal = yield* RunJournal;
+    const reserveEither = yield* Effect_exports.either(
+      journal.reserveResumeAttempt(
+        input.checkpointIdentity.attemptIdentity,
+        input.resumeMaxAttempts
+      )
+    );
+    if (reserveEither._tag === "Left") {
+      return yield* Effect_exports.fail(
+        resumeQueueExecutionFailure("reserve_failed", reserveEither.left)
+      );
+    }
+    const reservation = reserveEither.right;
+    const restoreEither = yield* Effect_exports.either(
+      restoreSvc.restore({ permit, reservation })
+    );
+    if (restoreEither._tag === "Left") {
+      return yield* Effect_exports.fail(
+        resumeQueueExecutionFailure("restore_failed", restoreEither.left)
+      );
+    }
+    const restoreResult = restoreEither.right;
+    const commandArgv = buildLaneRunRoundVector({
+      shellBinary: input.shellBinary,
+      laneRunScript: input.laneRunScript,
+      plan: input.plan,
+      worktree: restoreResult.worktreeRoot
+    });
+    const submitter = yield* QueueSubmitter;
+    const group = input.group ?? "misc";
+    const submitEither = yield* Effect_exports.either(
+      submitter.submit(group, commandArgv)
+    );
+    if (submitEither._tag === "Left") {
+      return yield* Effect_exports.fail(
+        resumeQueueExecutionFailure("submit_failed", submitEither.left)
+      );
+    }
+    return {
+      reservation,
+      restore: restoreResult,
+      submission: submitEither.right,
+      commandArgv
+    };
+  });
+}
+var silentIo = {
+  writeStdout: () => void 0,
+  writeStderr: () => void 0
+};
+function makeLiveQueueSubmitter(options) {
+  const io2 = options?.io ?? silentIo;
+  return Layer_exports.effect(
+    QueueSubmitter,
+    Effect_exports.gen(function* () {
+      const proc = yield* ProcessExec;
+      const sleeper = yield* Sleeper;
+      const paths = yield* PathLookup;
+      const fs = yield* BoundedFs;
+      const env = yield* EnvVars;
+      const provideQueue = (effect2) => effect2.pipe(
+        Effect_exports.provideService(ProcessExec, proc),
+        Effect_exports.provideService(Sleeper, sleeper),
+        Effect_exports.provideService(PathLookup, paths),
+        Effect_exports.provideService(BoundedFs, fs),
+        Effect_exports.provideService(EnvVars, env)
+      );
+      return {
+        submit: (group, commandArgv) => provideQueue(
+          Effect_exports.gen(function* () {
+            if (!GROUP_RE.test(group)) {
+              return yield* Effect_exports.fail(queueSubmitFailure("invalid_group"));
+            }
+            if (commandArgv.length === 0) {
+              return yield* Effect_exports.fail(queueSubmitFailure("empty_command"));
+            }
+            const readyVector = () => ({
+              _tag: "Ready",
+              commandArgv: [...commandArgv]
+            });
+            const pueueBin = yield* resolvePueueClient;
+            if (pueueBin === null) {
+              return readyVector();
+            }
+            const ensureCode = yield* cmdEnsure(io2, { quiet: true });
+            if (ensureCode !== EXIT_OK) {
+              return readyVector();
+            }
+            const pueueBin2 = yield* resolvePueueClient;
+            if (pueueBin2 === null) {
+              return readyVector();
+            }
+            const exeSibling = pueueBin2 + ".exe";
+            const hasExeSibling = yield* paths.fileExists(exeSibling);
+            const fileExists = (p) => p === exeSibling ? hasExeSibling : false;
+            const shellRead = yield* readShellCommandOverride;
+            if (shellRead._tag === "ConfigError" || shellRead._tag === "Override") {
+              return yield* Effect_exports.fail(queueSubmitFailure("queue_config"));
+            }
+            const quoted = quoteForShell(
+              pueueBin2,
+              commandArgv,
+              null,
+              fileExists
+            );
+            if (!quoted.ok) {
+              return yield* Effect_exports.fail(queueSubmitFailure("queue_config"));
+            }
+            const result = yield* proc.runCaptured({
+              command: pueueBin2,
+              args: [
+                "add",
+                "--group",
+                group,
+                "--print-task-id",
+                "--",
+                ...quoted.argv
+              ],
+              timeoutMs: TIMEOUT_QUEUE_OP_MS
+            }).pipe(
+              Effect_exports.catchAll(
+                () => Effect_exports.succeed({
+                  exitCode: 1,
+                  stdout: "",
+                  stderr: ""
+                })
+              )
+            );
+            if (result.exitCode !== 0) {
+              return readyVector();
+            }
+            const taskId = parseTaskId(result.stdout);
+            if (taskId === null) {
+              return readyVector();
+            }
+            return { _tag: "Queued", taskId };
+          })
+        )
+      };
+    })
+  );
+}
+
+// packages/orchestration/src/supervisor.ts
+import { join as join5 } from "node:path";
+var RunDiscovery = class extends Context_exports.Tag("RunDiscovery")() {
+};
+var TypedJournalReader = class extends Context_exports.Tag("TypedJournalReader")() {
+};
+var RunLease = class extends Context_exports.Tag("RunLease")() {
+};
+function deriveOwnershipWorktree(events, laneId, fromPromptSeq) {
+  let latestAny = null;
+  let latestInRound = null;
+  for (const event of events) {
+    if (event.type !== "ownership") continue;
+    if (event.lane !== laneId) continue;
+    if (latestAny === null || event.seq > latestAny.seq) {
+      latestAny = event;
+    }
+    if (fromPromptSeq !== null && event.seq >= fromPromptSeq && (latestInRound === null || event.seq > latestInRound.seq)) {
+      latestInRound = event;
+    }
+  }
+  const chosen = latestInRound ?? latestAny;
+  if (chosen === null) {
+    return { _tag: "Missing" };
+  }
+  const wt = chosen.payload["worktree"];
+  if (typeof wt !== "string" || wt.length === 0 || wt.includes("\0")) {
+    return { _tag: "Missing" };
+  }
+  const lpid = chosen.payload["launcher_pid"];
+  const pid = chosen.payload["pid"];
+  let processId = null;
+  if (typeof lpid === "number" && Number.isSafeInteger(lpid) && lpid > 0) {
+    processId = lpid;
+  } else if (typeof pid === "number" && Number.isSafeInteger(pid) && pid > 0) {
+    processId = pid;
+  }
+  return { _tag: "Found", worktree: wt, processId };
+}
+function lockPathForWorktree(worktree) {
+  return join5(worktree, ".harness", "lane.lock");
+}
+function eventsFromRecords(records) {
+  return records.map((r) => r.event);
+}
+function eventsForRoundSelection(events) {
+  return events.filter((e) => e.type !== "resume_attempt");
+}
+function lanesFromEvents(events) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const e of events) {
+    if (seen.has(e.lane)) continue;
+    const decoded = decodeLaneId(e.lane);
+    if (typeof decoded === "string") {
+      seen.add(e.lane);
+      out.push(decoded);
+    }
+  }
+  return out;
+}
+function latestPromptSeq(events, laneId) {
+  let seq2 = null;
+  for (const e of events) {
+    if (e.type === "prompt" && e.lane === laneId) {
+      if (seq2 === null || e.seq > seq2) seq2 = e.seq;
+    }
+  }
+  return seq2;
+}
+function sweepOneRun(runId, config) {
+  return Effect_exports.gen(function* () {
+    const leaseSvc = yield* RunLease;
+    const lease = yield* leaseSvc.acquire(runId);
+    if (lease._tag === "Busy") {
+      return { _tag: "Busy", runId };
+    }
+    try {
+      const reader = yield* TypedJournalReader;
+      const read = yield* reader.readRun(runId);
+      if (read._tag === "Missing") {
+        return { _tag: "Missing", runId };
+      }
+      if (read._tag === "Corrupt") {
+        return { _tag: "Corrupt", runId };
+      }
+      const records = read.records;
+      const events = eventsFromRecords(records);
+      const lanes = lanesFromEvents(events);
+      const actions = [];
+      for (const laneId of lanes) {
+        const action = yield* decideAndMaybeExecuteLane(
+          runId,
+          laneId,
+          records,
+          events,
+          config
+        );
+        actions.push(action);
+      }
+      return { _tag: "Swept", runId, actions };
+    } finally {
+      yield* lease.release();
+    }
+  });
+}
+function decideAndMaybeExecuteLane(runId, laneId, records, events, config) {
+  return Effect_exports.gen(function* () {
+    const roundEvents = eventsForRoundSelection(events);
+    const selected = selectLatestRoundAttempt(roundEvents, runId, laneId);
+    const promptSeq = selected._tag === "Selected" || selected._tag === "LegacyUnbound" || selected._tag === "Invalid" ? latestPromptSeq(roundEvents, laneId) : null;
+    let ownership = deriveOwnershipWorktree(roundEvents, laneId, promptSeq);
+    let resumeCount = 0;
+    let attemptIdentity = null;
+    if (selected._tag === "Selected") {
+      attemptIdentity = selected.attemptIdentity;
+      const budget = inspectResumeAttemptBudget(
+        records,
+        selected.attemptIdentity,
+        config.resumeMaxAttempts
+      );
+      if (isResumeAttemptFailure(budget)) {
+        resumeCount = 0;
+      } else {
+        resumeCount = budget.resumeCount;
+      }
+    }
+    let safety = {
+      processState: "inactive",
+      lockState: "free"
+    };
+    if (ownership._tag === "Found") {
+      safety = yield* observeResumeSafety({
+        processId: ownership.processId,
+        lockPath: lockPathForWorktree(ownership.worktree)
+      });
+    } else if (selected._tag === "Selected") {
+      safety = { processState: "inactive", lockState: "free" };
+    }
+    const decision = decideRoundResume({
+      events: roundEvents,
+      runId,
+      laneId,
+      resumeCount,
+      resumeMaxAttempts: config.resumeMaxAttempts,
+      processState: safety.processState,
+      lockState: safety.lockState
+    });
+    if (decision._tag !== "Resume") {
+      return {
+        _tag: "NoMutation",
+        runId,
+        laneId,
+        decision,
+        dryRun: config.dryRun
+      };
+    }
+    if (ownership._tag === "Missing") {
+      return {
+        _tag: "NoMutation",
+        runId,
+        laneId,
+        decision: { _tag: "NoOwnership" },
+        dryRun: config.dryRun
+      };
+    }
+    if (config.dryRun) {
+      return {
+        _tag: "Planned",
+        runId,
+        laneId,
+        decision,
+        worktree: ownership.worktree,
+        dryRun: true
+      };
+    }
+    const execEither = yield* Effect_exports.either(
+      runResumeQueueExecution({
+        plan: decision.roundPlan,
+        checkpointIdentity: decision.checkpointIdentity,
+        worktree: ownership.worktree,
+        resumeMaxAttempts: config.resumeMaxAttempts,
+        shellBinary: config.shellBinary,
+        laneRunScript: config.laneRunScript,
+        ...config.queueGroup !== void 0 ? { group: config.queueGroup } : {}
+      })
+    );
+    if (execEither._tag === "Left") {
+      return {
+        _tag: "ExecutionFailed",
+        runId,
+        laneId,
+        reason: execEither.left.reason
+      };
+    }
+    return {
+      _tag: "Executed",
+      runId,
+      laneId,
+      result: execEither.right
+    };
+  });
+}
+function runSupervisor(input) {
+  return Effect_exports.gen(function* () {
+    if (input.mode._tag === "Once") {
+      const runId = decodeRunId(input.mode.runId);
+      if (typeof runId !== "string") {
+        return [
+          {
+            _tag: "Missing",
+            runId: input.mode.runId
+          }
+        ];
+      }
+      const one = yield* sweepOneRun(runId, input.config);
+      return [one];
+    }
+    const discovery = yield* RunDiscovery;
+    const runs = yield* discovery.listRuns();
+    const results = [];
+    for (const runId of runs) {
+      results.push(yield* sweepOneRun(runId, input.config));
+    }
+    return results;
+  });
+}
+function formatLaneActionLine(action) {
+  const base = `run ${String(action.runId)} lane ${String(action.laneId)}`;
+  switch (action._tag) {
+    case "NoMutation": {
+      const d = action.decision;
+      if (d._tag === "NoOwnership") {
+        return `${base}: SKIP no ownership worktree`;
+      }
+      if (d._tag === "Completed") {
+        return `${base}: COMPLETED`;
+      }
+      if (d._tag === "NoRound") {
+        return `${base}: no prompt event`;
+      }
+      if (d._tag === "Wait") {
+        return `${base}: WAIT ${d.reason}`;
+      }
+      if (d._tag === "Refused") {
+        return `${base}: REFUSED ${d.reason}`;
+      }
+      return `${base}: noop`;
+    }
+    case "Planned":
+      return `${base}: [dry-run] would resume worktree=${action.worktree} checkpoint=${action.decision.checkpointIdentity.commit}`;
+    case "Executed": {
+      const sub = action.result.submission;
+      if (sub._tag === "Queued") {
+        return `${base}: resumed queued task=${sub.taskId}`;
+      }
+      return `${base}: resumed ready-to-run`;
+    }
+    case "ExecutionFailed":
+      return `${base}: execution failed ${action.reason}`;
+    default: {
+      const _e = action;
+      void _e;
+      return `${base}: unknown`;
+    }
+  }
+}
+function formatRunResultLines(result) {
+  switch (result._tag) {
+    case "Busy":
+      return [
+        `run ${String(result.runId)}: .supervise.lock held by another sweep`
+      ];
+    case "Missing":
+      return [`run ${String(result.runId)}: no events; nothing to sweep`];
+    case "Corrupt":
+      return [`run ${String(result.runId)}: event log corrupt; skipped`];
+    case "Swept":
+      if (result.actions.length === 0) {
+        return [`run ${String(result.runId)}: no events; nothing to sweep`];
+      }
+      return result.actions.map(formatLaneActionLine);
+    default: {
+      const _e = result;
+      void _e;
+      return [];
+    }
+  }
+}
+
+// packages/orchestration/src/supervisor-live-services.ts
+import {
+  closeSync as closeSync3,
+  constants as fsConstants3,
+  fstatSync as fstatSync3,
+  mkdirSync as mkdirSync2,
+  openSync as openSync3,
+  readdirSync,
+  readSync as readSync3,
+  realpathSync as realpathSync2,
+  rmdirSync,
+  statSync as statSync3
+} from "node:fs";
+import { join as join6 } from "node:path";
+function isEnoent2(e) {
+  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
+}
+function isEexist2(e) {
+  return typeof e === "object" && e !== null && "code" in e && e.code === "EEXIST";
+}
+function runDir2(stateRoot, runId) {
+  return join6(stateRoot, "runs", runId);
+}
+function eventsPath2(stateRoot, runId) {
+  return join6(runDir2(stateRoot, runId), "events.ndjson");
+}
+function leasePath(stateRoot, runId) {
+  return join6(runDir2(stateRoot, runId), ".supervise.lock");
+}
+function makeLiveTypedJournalReader(stateRoot) {
+  return Layer_exports.succeed(TypedJournalReader, {
+    readRun: (runId) => Effect_exports.sync(() => {
+      const path = eventsPath2(stateRoot, runId);
+      let fd;
+      try {
+        let st;
+        try {
+          st = statSync3(path);
+        } catch (e) {
+          if (isEnoent2(e)) return { _tag: "Missing" };
+          return { _tag: "Corrupt" };
+        }
+        if (!st.isFile()) return { _tag: "Corrupt" };
+        if (st.size > MAX_REPLAY_INPUT_BYTES) {
+          return { _tag: "Corrupt" };
+        }
+        if (st.size === 0) {
+          return { _tag: "Ok", records: [] };
+        }
+        const flags = fsConstants3.O_RDONLY | ("O_NOFOLLOW" in fsConstants3 ? fsConstants3.O_NOFOLLOW : 0);
+        fd = openSync3(path, flags);
+        const opened = fstatSync3(fd);
+        if (opened.ino !== st.ino || opened.dev !== st.dev || opened.size !== st.size) {
+          return { _tag: "Corrupt" };
+        }
+        const buf = Buffer.allocUnsafe(st.size);
+        let offset = 0;
+        while (offset < st.size) {
+          const n = readSync3(fd, buf, offset, st.size - offset, offset);
+          if (n === 0) break;
+          offset += n;
+        }
+        const replay = replayNdjsonBytes(buf.subarray(0, offset), {
+          fromLine: 0
+        });
+        if (replay.terminal._tag !== "CleanEof") {
+          return {
+            _tag: "Ok",
+            records: replay.records
+          };
+        }
+        return {
+          _tag: "Ok",
+          records: replay.records
+        };
+      } catch {
+        return { _tag: "Corrupt" };
+      } finally {
+        if (fd !== void 0) {
+          try {
+            closeSync3(fd);
+          } catch {
+          }
+        }
+      }
+    })
+  });
+}
+function makeLiveRunDiscovery(stateRoot) {
+  return Layer_exports.succeed(RunDiscovery, {
+    listRuns: () => Effect_exports.sync(() => {
+      const runsDir = join6(stateRoot, "runs");
+      let entries2;
+      try {
+        entries2 = readdirSync(runsDir);
+      } catch {
+        return [];
+      }
+      const out = [];
+      for (const name of entries2.sort()) {
+        const full = join6(runsDir, name);
+        try {
+          if (!statSync3(full).isDirectory()) continue;
+        } catch {
+          continue;
+        }
+        const id = decodeRunId(name);
+        if (typeof id === "string") out.push(id);
+      }
+      return out;
+    })
+  });
+}
+function makeLiveRunLease(stateRoot) {
+  return Layer_exports.succeed(RunLease, {
+    acquire: (runId) => Effect_exports.sync(() => {
+      const rd = runDir2(stateRoot, runId);
+      try {
+        mkdirSync2(rd, { recursive: true });
+      } catch {
+        return { _tag: "Busy" };
+      }
+      const lock = leasePath(stateRoot, runId);
+      try {
+        mkdirSync2(lock, { recursive: false });
+      } catch (e) {
+        if (isEexist2(e)) return { _tag: "Busy" };
+        return { _tag: "Busy" };
+      }
+      let owned = true;
+      return {
+        _tag: "Held",
+        release: () => Effect_exports.sync(() => {
+          if (!owned) return;
+          owned = false;
+          try {
+            rmdirSync(lock);
+          } catch {
+          }
+        })
+      };
+    })
+  });
+}
+function makeLiveSupervisorServices(ctx) {
+  const stateRoot = (() => {
+    try {
+      return realpathSync2(ctx.stateRoot);
+    } catch {
+      return ctx.stateRoot;
+    }
+  })();
+  const discovery = makeLiveRunDiscovery(stateRoot);
+  const journalReader = makeLiveTypedJournalReader(stateRoot);
+  const lease = makeLiveRunLease(stateRoot);
+  const journal = makeLiveRunJournalLayer(stateRoot);
+  const safety = liveResumeSafetyServices;
+  const restore = makeLiveWorktreeRestore({
+    env: ctx.env ?? process.env
+  }).pipe(Layer_exports.provide(liveProcessExec));
+  const queue = makeLiveQueueSubmitter().pipe(
+    Layer_exports.provide(liveQueueServices)
+  );
+  return Layer_exports.mergeAll(
+    discovery,
+    journalReader,
+    lease,
+    journal,
+    safety,
+    restore,
+    queue
+  );
+}
+function defaultSupervisorPaths(skillRoot2) {
+  return {
+    shellBinary: process.platform === "win32" ? "bash" : "/bin/bash",
+    laneRunScript: join6(skillRoot2, "scripts", "lane-run.sh")
+  };
+}
+
+// packages/orchestration/src/supervisor-cli.ts
+var EXIT_OK2 = 0;
+var EXIT_FAIL2 = 1;
+var EXIT_CONFIG = 2;
+var MSG_INVALID_ARGUMENTS = "lane-supervise: invalid arguments";
+var MSG_INTERNAL_FAILURE = "lane-supervise: internal failure";
+var USAGE = "Usage: lane-supervise.js --state-root ROOT [--dry-run] (--once RUN | --all)";
+function stripSupervisorNodeArgv(argv) {
   let args2 = [...argv];
   if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].endsWith("node.exe") || args2[0].includes("/node") || args2[0].includes("\\node"))) {
     args2 = args2.slice(1);
   }
-  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("lane-round") || args2[0].includes("round-main") || args2[0].includes("round-cli"))) {
+  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("lane-supervise") || args2[0].includes("supervisor-main") || args2[0].includes("supervisor-cli"))) {
     args2 = args2.slice(1);
   }
   return args2;
 }
-var OPTIONS = [
-  "--state-root",
-  "--worktree",
-  "--run",
-  "--lane",
-  "--report",
-  "--gate"
-];
-function parseRoundArgv(argv) {
-  const args2 = stripRoundNodeArgv(argv);
+function parseSupervisorArgv(argv) {
+  const args2 = stripSupervisorNodeArgv(argv);
   let i = 0;
-  const values3 = [];
-  for (const opt of OPTIONS) {
-    if (i >= args2.length || args2[i] !== opt) {
-      return { _tag: "Invalid" };
+  let stateRoot = null;
+  let dryRun = false;
+  let mode = null;
+  while (i < args2.length) {
+    const tok = args2[i];
+    if (tok === "--dry-run") {
+      if (dryRun) return { _tag: "Invalid" };
+      dryRun = true;
+      i += 1;
+      continue;
     }
-    i += 1;
-    if (i >= args2.length) {
-      return { _tag: "Invalid" };
+    if (tok === "--state-root") {
+      if (stateRoot !== null) return { _tag: "Invalid" };
+      i += 1;
+      if (i >= args2.length) return { _tag: "Invalid" };
+      stateRoot = args2[i];
+      i += 1;
+      continue;
     }
-    const v = args2[i];
-    values3.push(v);
-    i += 1;
-  }
-  if (i >= args2.length || args2[i] !== "--") {
+    if (tok === "--once") {
+      if (mode !== null) return { _tag: "Invalid" };
+      i += 1;
+      if (i >= args2.length) return { _tag: "Invalid" };
+      const runId = args2[i];
+      if (runId.length === 0) return { _tag: "Invalid" };
+      mode = { _tag: "Once", runId };
+      i += 1;
+      continue;
+    }
+    if (tok === "--all") {
+      if (mode !== null) return { _tag: "Invalid" };
+      mode = { _tag: "All" };
+      i += 1;
+      continue;
+    }
     return { _tag: "Invalid" };
   }
-  i += 1;
-  const commandArgv = args2.slice(i);
-  if (commandArgv.length === 0) {
+  if (stateRoot === null || mode === null) {
     return { _tag: "Invalid" };
   }
-  return {
-    _tag: "Ok",
-    stateRoot: values3[0],
-    worktree: values3[1],
-    run: values3[2],
-    lane: values3[3],
-    report: values3[4],
-    gate: values3[5],
-    commandArgv
-  };
-}
-function isEqualOrDescendant(candidate, root) {
-  if (candidate === root) return true;
-  const rel = relative(root, candidate);
-  if (rel === "") return true;
-  if (rel === "..") return false;
-  if (rel.startsWith(".." + sep)) return false;
-  if (rel.startsWith("../")) return false;
-  if (isAbsolute(rel)) return false;
-  return true;
-}
-function resolveExistingDir(path) {
-  if (typeof path !== "string" || path.length === 0) return null;
-  if (!isAbsolute(path)) return null;
-  if (path.includes("\0")) return null;
-  try {
-    const st = statSync2(path);
-    if (!st.isDirectory()) return null;
-    return realpathSync(path);
-  } catch {
-    return null;
+  if (mode._tag === "Once") {
+    const decoded = decodeRunId(mode.runId);
+    if (typeof decoded !== "string") return { _tag: "Invalid" };
   }
-}
-function resolveAbsolutePath(path) {
-  if (typeof path !== "string" || path.length === 0) return null;
-  if (!isAbsolute(path)) return null;
-  if (path.includes("\0")) return null;
-  try {
-    return resolve(path);
-  } catch {
-    return null;
-  }
-}
-function preflightRoundParsed(parsed) {
-  const runId = decodeRunId(parsed.run);
-  if (isAttemptFailure(runId)) return { _tag: "Invalid" };
-  const laneId = decodeLaneId(parsed.lane);
-  if (isAttemptFailure(laneId)) return { _tag: "Invalid" };
-  const stateRoot = resolveExistingDir(parsed.stateRoot);
-  if (stateRoot === null) return { _tag: "Invalid" };
-  const worktree = resolveExistingDir(parsed.worktree);
-  if (worktree === null) return { _tag: "Invalid" };
-  if (isEqualOrDescendant(stateRoot, worktree)) {
-    return { _tag: "Invalid" };
-  }
-  const reportPath = resolveAbsolutePath(parsed.report);
-  if (reportPath === null) return { _tag: "Invalid" };
-  if (typeof parsed.gate !== "string") return { _tag: "Invalid" };
-  const requestCandidate = {
-    runId,
-    laneId,
-    commandArgv: parsed.commandArgv,
-    gateCommand: parsed.gate,
-    reportPath
-  };
-  const request2 = decodeRoundRequestV1(requestCandidate);
-  if (isRoundContractFailure(request2)) return { _tag: "Invalid" };
   return {
     _tag: "Ok",
     stateRoot,
-    worktree,
-    runId: request2.runId,
-    laneId: request2.laneId,
-    reportPath: request2.reportPath,
-    gateCommand: request2.gateCommand,
-    commandArgv: request2.commandArgv,
-    request: request2
+    dryRun,
+    mode
   };
 }
-function runRoundCli(argv, io2, cliEnv = {}) {
+function resolveStateRoot(path) {
+  if (typeof path !== "string" || path.length === 0) return null;
+  if (!isAbsolute3(path) || path.includes("\0")) return null;
+  try {
+    const st = statSync4(path);
+    if (!st.isDirectory()) return null;
+    return realpathSync3(path);
+  } catch {
+    return null;
+  }
+}
+function resumeMaxAttemptsFromEnv(env) {
+  const raw = env["RESUME_MAX_ATTEMPTS"];
+  if (raw === void 0 || raw === "") return 2;
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < 1 || n > 100) return 2;
+  return n;
+}
+function runSupervisorCli(argv, io2, cliEnv = {}) {
   return Effect_exports.gen(function* () {
-    const parsed = parseRoundArgv(argv);
+    const parsed = parseSupervisorArgv(argv);
     if (parsed._tag === "Invalid") {
-      io2.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
-      return EXIT_INVALID_ARGUMENTS;
+      io2.writeStderr(USAGE + "\n");
+      return EXIT_CONFIG;
     }
-    const pre = preflightRoundParsed(parsed);
-    if (pre._tag === "Invalid") {
+    const stateRoot = resolveStateRoot(parsed.stateRoot);
+    if (stateRoot === null) {
       io2.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
-      return EXIT_INVALID_ARGUMENTS;
+      return EXIT_CONFIG;
     }
-    const ctx = {
-      stateRoot: pre.stateRoot,
-      worktree: pre.worktree,
-      runId: pre.runId,
-      ...cliEnv.env !== void 0 ? { env: cliEnv.env } : {},
-      ...cliEnv.platform !== void 0 ? { platform: cliEnv.platform } : {},
-      ...cliEnv.comSpec !== void 0 ? { comSpec: cliEnv.comSpec } : {}
+    const env = cliEnv.env ?? process.env;
+    const skillRoot2 = cliEnv.skillRoot ?? stateRoot;
+    const defaults = defaultSupervisorPaths(skillRoot2);
+    const config = {
+      resumeMaxAttempts: resumeMaxAttemptsFromEnv(env),
+      shellBinary: cliEnv.shellBinary ?? defaults.shellBinary,
+      laneRunScript: cliEnv.laneRunScript ?? defaults.laneRunScript,
+      dryRun: parsed.dryRun
     };
-    const makeServices = cliEnv.makeServices ?? makeLiveRoundServices;
-    const layer = makeServices(ctx);
-    const outcome = yield* runRoundTransaction(pre.request).pipe(
-      Effect_exports.provide(layer),
-      Effect_exports.either
+    const baseProgram = runSupervisor({
+      mode: parsed.mode,
+      config
+    });
+    const program = cliEnv.provideServices !== void 0 ? cliEnv.provideServices(baseProgram) : baseProgram.pipe(
+      Effect_exports.provide(
+        makeLiveSupervisorServices({
+          stateRoot,
+          env,
+          shellBinary: config.shellBinary,
+          laneRunScript: config.laneRunScript
+        })
+      )
     );
-    if (outcome._tag === "Left") {
-      const err = outcome.left;
-      if (err instanceof RoundBoundaryFailure) {
-        io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
-        return EXIT_BOUNDARY_FAILURE;
+    const exitEither = yield* Effect_exports.either(program);
+    if (exitEither._tag === "Left") {
+      io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      return EXIT_FAIL2;
+    }
+    const results = exitEither.right;
+    let overall = EXIT_OK2;
+    for (const r of results) {
+      if (r._tag === "Busy" || r._tag === "Corrupt") {
+        overall = EXIT_FAIL2;
       }
-      io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
-      return EXIT_INCOMPLETE_OR_DEFECT;
+      for (const line of formatRunResultLines(r)) {
+        io2.writeStderr(line + "\n");
+      }
+      if (r._tag === "Swept") {
+        for (const a of r.actions) {
+          if (a._tag === "Executed" && a.result.submission._tag === "Ready") {
+            const argvReady = a.result.submission.commandArgv;
+            io2.writeStdout(JSON.stringify(argvReady) + "\n");
+          }
+        }
+      }
     }
-    const result = outcome.right;
-    let line;
-    try {
-      line = canonicalize(result);
-    } catch {
-      io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
-      return EXIT_INCOMPLETE_OR_DEFECT;
-    }
-    io2.writeStdout(line + "\n");
-    if (result._tag === "completed") {
-      return EXIT_COMPLETED;
-    }
-    return EXIT_INCOMPLETE_OR_DEFECT;
+    return overall;
   }).pipe(
-    Effect_exports.catchAllDefect(
-      () => Effect_exports.sync(() => {
-        io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
-        return EXIT_INCOMPLETE_OR_DEFECT;
-      })
-    )
+    Effect_exports.catchAllDefect(() => {
+      io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+      return Effect_exports.succeed(EXIT_FAIL2);
+    })
   );
 }
 
-// packages/orchestration/src/round-main.ts
+// packages/orchestration/src/supervisor-main.ts
+import { fileURLToPath } from "node:url";
+import { dirname as dirname2, join as join7 } from "node:path";
 function writeFully(stream, text) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve, reject2) => {
     const onError3 = (err) => {
       stream.off("error", onError3);
-      reject(err);
+      reject2(err);
     };
     stream.once("error", onError3);
     stream.write(text, (err) => {
       stream.off("error", onError3);
-      if (err) reject(err);
-      else resolve2();
+      if (err) reject2(err);
+      else resolve();
     });
   });
 }
@@ -18742,7 +20284,24 @@ var io = {
     pending3.push(writeFully(process.stderr, text));
   }
 };
-Effect_exports.runPromise(runRoundCli(process.argv, io)).then(
+function resolveSkillRoot() {
+  if (typeof process.env["FOREMAN_SKILL_ROOT"] === "string" && process.env["FOREMAN_SKILL_ROOT"].length > 0) {
+    return process.env["FOREMAN_SKILL_ROOT"];
+  }
+  try {
+    const here = dirname2(fileURLToPath(import.meta.url));
+    return join7(here, "..", "..");
+  } catch {
+    return process.cwd();
+  }
+}
+var skillRoot = resolveSkillRoot();
+Effect_exports.runPromise(
+  runSupervisorCli(process.argv, io, {
+    skillRoot,
+    env: process.env
+  })
+).then(
   async (code) => {
     try {
       await Promise.all(pending3);
@@ -18752,7 +20311,7 @@ Effect_exports.runPromise(runRoundCli(process.argv, io)).then(
   },
   async () => {
     pending3.push(
-      writeFully(process.stderr, "lane-round: internal failure\n")
+      writeFully(process.stderr, "lane-supervise: internal failure\n")
     );
     try {
       await Promise.all(pending3);

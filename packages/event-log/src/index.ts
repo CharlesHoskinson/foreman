@@ -94,6 +94,7 @@ export {
   resumeAttemptFailure,
   isResumeAttemptFailure,
   RESUME_ATTEMPT_FAILURE_BRAND,
+  inspectResumeAttemptBudget,
   JOURNAL_LOCK_BOUND_MS,
   MAX_ATTEMPT_COUNTER_BYTES,
   type StoredEventDraftV1,
@@ -102,5 +103,6 @@ export {
   type ResumeAttemptFailure,
   type ResumeAttemptFailureReason,
   type ResumeAttemptReservationV1,
+  type ResumeAttemptBudgetV1,
   type LiveRunJournalOptions,
 } from "./run-journal.js";

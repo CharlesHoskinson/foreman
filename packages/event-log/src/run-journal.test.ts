@@ -34,6 +34,7 @@ import {
 } from "./attempt.js";
 import { MAX_REPLAY_INPUT_BYTES } from "./bounds.js";
 import {
+  inspectResumeAttemptBudget,
   isResumeAttemptFailure,
   isRunJournalFailure,
   makeLiveRunJournalLayer,
@@ -42,7 +43,8 @@ import {
   type StoredEventDraftV1,
 } from "./run-journal.js";
 import { isAttemptFailure } from "./failures.js";
-import { replayNdjsonBytes } from "./replay.js";
+import { replayNdjsonBytes, type ReplayRecord } from "./replay.js";
+import type { StoredEvent } from "./stored-event.js";
 
 const runId = decodeRunId("r3-run-a") as RunId;
 const laneId = decodeLaneId("grok-r3") as LaneId;
@@ -2042,6 +2044,257 @@ describe("RunJournal reserveResumeAttempt", () => {
       }
       const journalPath = join(root, "runs", runId, "events.ndjson");
       assert.equal(existsSync(journalPath), false);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// inspectResumeAttemptBudget (R5D read-only inspector)
+// ---------------------------------------------------------------------------
+
+function record(
+  physicalLine: number,
+  event: Omit<StoredEvent, "seq" | "ts"> & {
+    readonly seq?: number;
+    readonly ts?: string;
+  },
+): ReplayRecord {
+  return {
+    physicalLine,
+    event: {
+      seq: event.seq ?? physicalLine,
+      ts: event.ts ?? "2026-08-05T12:00:00Z",
+      type: event.type,
+      lane: event.lane,
+      ...(event.commit !== undefined ? { commit: event.commit } : {}),
+      payload: event.payload,
+    },
+  };
+}
+
+function readRecords(root: string): readonly ReplayRecord[] {
+  const journalPath = join(root, "runs", runId, "events.ndjson");
+  if (!existsSync(journalPath)) return [];
+  const bytes = readFileSync(journalPath);
+  const replay = replayNdjsonBytes(bytes, { fromLine: 0 });
+  assert.equal(replay.terminal._tag, "CleanEof");
+  return replay.records;
+}
+
+describe("inspectResumeAttemptBudget", () => {
+  it("returns zero count for a current attempt with no prior reservations", () => {
+    const records = [
+      record(1, {
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: 1 },
+      }),
+    ];
+    const budget = inspectResumeAttemptBudget(records, identity(1), 2);
+    assert.equal(isResumeAttemptFailure(budget), false);
+    if (!isResumeAttemptFailure(budget)) {
+      assert.equal(budget.resumeCount, 0);
+      assert.equal(budget.resumeMaxAttempts, 2);
+      assert.equal(budget.exhausted, false);
+      assert.deepEqual(budget.attemptIdentity, identity(1));
+    }
+  });
+
+  it("returns the current valid count after consecutive reservations", () => {
+    const records = [
+      record(1, {
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: 1 },
+      }),
+      record(2, {
+        type: "resume_attempt",
+        lane: String(laneId),
+        payload: { attempt: 1, resumeCount: 1 },
+      }),
+      record(3, {
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: 2 },
+      }),
+      record(4, {
+        type: "resume_attempt",
+        lane: String(laneId),
+        payload: { attempt: 2, resumeCount: 2 },
+      }),
+    ];
+    const budget = inspectResumeAttemptBudget(records, identity(2), 5);
+    assert.equal(isResumeAttemptFailure(budget), false);
+    if (!isResumeAttemptFailure(budget)) {
+      assert.equal(budget.resumeCount, 2);
+      assert.equal(budget.exhausted, false);
+    }
+  });
+
+  it("reports exhausted=true when count meets the limit without appending", () => {
+    const records = [
+      record(1, {
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: 1 },
+      }),
+      record(2, {
+        type: "resume_attempt",
+        lane: String(laneId),
+        payload: { attempt: 1, resumeCount: 1 },
+      }),
+      record(3, {
+        type: "resume_attempt",
+        lane: String(laneId),
+        payload: { attempt: 1, resumeCount: 2 },
+      }),
+    ];
+    const budget = inspectResumeAttemptBudget(records, identity(1), 2);
+    assert.equal(isResumeAttemptFailure(budget), false);
+    if (!isResumeAttemptFailure(budget)) {
+      assert.equal(budget.resumeCount, 2);
+      assert.equal(budget.exhausted, true);
+    }
+  });
+
+  it("rejects the same invalid histories as reservation", () => {
+    const legacy = inspectResumeAttemptBudget(
+      [
+        record(1, {
+          type: "prompt",
+          lane: String(laneId),
+          payload: { attempt: 1 },
+        }),
+        record(2, {
+          type: "resume",
+          lane: String(laneId),
+          payload: { note: "legacy" },
+        }),
+      ],
+      identity(1),
+      3,
+    );
+    assertResumeFailure(legacy, "legacy_unbound");
+
+    const notCurrent = inspectResumeAttemptBudget(
+      [
+        record(1, {
+          type: "prompt",
+          lane: String(laneId),
+          payload: { attempt: 2 },
+        }),
+      ],
+      identity(1),
+      3,
+    );
+    assertResumeFailure(notCurrent, "attempt_not_current");
+
+    const invalidHistory = inspectResumeAttemptBudget(
+      [
+        record(1, {
+          type: "prompt",
+          lane: String(laneId),
+          payload: { attempt: 1 },
+        }),
+        record(2, {
+          type: "resume_attempt",
+          lane: String(laneId),
+          payload: { attempt: 1, resumeCount: 2 },
+        }),
+      ],
+      identity(1),
+      3,
+    );
+    assertResumeFailure(invalidHistory, "invalid_resume_history");
+
+    const badLimit = inspectResumeAttemptBudget(
+      [
+        record(1, {
+          type: "prompt",
+          lane: String(laneId),
+          payload: { attempt: 1 },
+        }),
+      ],
+      identity(1),
+      0,
+    );
+    assertResumeFailure(badLimit, "invalid_limit");
+  });
+
+  it("does not mutate journal bytes when only inspecting", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      const before = readFileSync(join(root, "runs", runId, "events.ndjson"));
+      const records = readRecords(root);
+      const budget = inspectResumeAttemptBudget(records, identity(1), 2);
+      assert.equal(isResumeAttemptFailure(budget), false);
+      if (!isResumeAttemptFailure(budget)) {
+        assert.equal(budget.resumeCount, 0);
+        assert.equal(budget.exhausted, false);
+      }
+      const after = readFileSync(join(root, "runs", runId, "events.ndjson"));
+      assert.ok(before.equals(after));
+    });
+  });
+
+  it("inspection can become stale: later reservation fails after concurrent consume", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      const first = await Effect.runPromise(
+        reserveEffect(root, identity(1), 1),
+      );
+      assert.equal(first.resumeCount, 1);
+
+      const records = readRecords(root);
+      // Stale inspector view if someone only counted before the reservation
+      // would report available; after consume, inspection is exhausted.
+      const budget = inspectResumeAttemptBudget(records, identity(1), 1);
+      assert.equal(isResumeAttemptFailure(budget), false);
+      if (!isResumeAttemptFailure(budget)) {
+        assert.equal(budget.resumeCount, 1);
+        assert.equal(budget.exhausted, true);
+      }
+
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 1)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "resume_limit_reached");
+      }
+      // Exactly one resume_attempt remains durable.
+      assert.equal(journalResumeAttemptCount(root), 1);
+    });
+  });
+
+  it("reserve reuses inspector: second concurrent-style reserve after inspect fails closed", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      // Snapshot inspection while budget is available.
+      const pre = inspectResumeAttemptBudget(
+        readRecords(root),
+        identity(1),
+        1,
+      );
+      assert.equal(isResumeAttemptFailure(pre), false);
+      if (!isResumeAttemptFailure(pre)) {
+        assert.equal(pre.exhausted, false);
+        assert.equal(pre.resumeCount, 0);
+      }
+
+      // Another process consumes the budget.
+      await Effect.runPromise(reserveEffect(root, identity(1), 1));
+
+      // Lost race: reservation fails closed; restore/queue must not run
+      // (asserted at orchestration layer; here the durable count stays 1).
+      const lost = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 1)),
+      );
+      assert.equal(lost._tag, "Left");
+      if (lost._tag === "Left") {
+        assertResumeFailure(lost.left, "resume_limit_reached");
+      }
+      assert.equal(journalResumeAttemptCount(root), 1);
     });
   });
 });

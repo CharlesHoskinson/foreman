@@ -24,6 +24,7 @@ const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
+const trackedSupervise = join(trackedRuntime, "dist/lane-supervise.js");
 const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheck = join(trackedRuntime, "dist/tool-check.js");
 const trackedDependencyDrift = join(
@@ -41,6 +42,7 @@ function seedCleanCopy(): string {
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
+  cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));

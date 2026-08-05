@@ -38,6 +38,12 @@ const ENTRIES = [
     injectCapabilities: false,
   },
   {
+    id: "lane-supervise",
+    entry: join(root, "packages/orchestration/src/supervisor-main.ts"),
+    relativePath: "dist/lane-supervise.js",
+    injectCapabilities: false,
+  },
+  {
     id: "vendor-preflight",
     entry: join(root, "packages/orchestration/src/vendor-preflight-main.ts"),
     relativePath: "dist/vendor-preflight.js",
