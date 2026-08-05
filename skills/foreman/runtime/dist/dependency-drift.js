@@ -16596,7 +16596,7 @@ var livePreflightClock = Layer_exports.succeed(PreflightClock, {
 });
 var VendorPreflight = class extends Context_exports.Tag("VendorPreflight")() {
 };
-function runProbe(executable, tailArgv, vendorBinding) {
+function runProbe(executable, tailArgv, vendorBinding, env) {
   return Effect_exports.gen(function* () {
     const fullArgv = [executable, ...tailArgv];
     if (argvContainsMutatingUpdate(fullArgv, vendorBinding)) {
@@ -16611,7 +16611,8 @@ function runProbe(executable, tailArgv, vendorBinding) {
       command: executable,
       args: [...tailArgv],
       timeoutMs: PREFLIGHT_PROBE_TIMEOUT_MS,
-      maxOutputBytes: PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES
+      maxOutputBytes: PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES,
+      ...env !== void 0 ? { env } : {}
     }).pipe(Effect_exports.either);
     if (either4._tag === "Left") {
       const fail8 = either4.left;
@@ -16661,7 +16662,7 @@ function probeRecord(kind, executable, tailArgv, capture2) {
     exitCode: capture2.result.exitCode
   };
 }
-var inspectVendor = (capability) => Effect_exports.gen(function* () {
+var inspectVendor = (capability, options) => Effect_exports.gen(function* () {
   const authFull = [capability.cliName, ...capability.authArgv];
   const verFull = [capability.cliName, ...capability.versionArgv];
   if (argvContainsMutatingUpdate(authFull, capability.vendor) || argvContainsMutatingUpdate(verFull, capability.vendor)) {
@@ -16672,6 +16673,7 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
       )
     );
   }
+  const probeEnv = options?.env;
   const clock3 = yield* PreflightClock;
   const timestamp = yield* clock3.nowUtcRfc3339();
   const paths = yield* PathLookup;
@@ -16724,7 +16726,8 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
   const versionCap = yield* runProbe(
     executable,
     capability.versionArgv,
-    capability.vendor
+    capability.vendor,
+    probeEnv
   );
   const versionProbe = probeRecord(
     "version",
@@ -16749,7 +16752,8 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
   const authCap = yield* runProbe(
     executable,
     capability.authArgv,
-    capability.vendor
+    capability.vendor,
+    probeEnv
   );
   const authProbe = probeRecord(
     "auth",
@@ -16807,7 +16811,7 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
   });
 });
 var liveVendorPreflight = Layer_exports.succeed(VendorPreflight, {
-  inspect: (capability) => inspectVendor(capability)
+  inspect: (capability, options) => inspectVendor(capability, options)
 });
 var liveVendorPreflightLayer = Layer_exports.mergeAll(
   liveVendorPreflight,

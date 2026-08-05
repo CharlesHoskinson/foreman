@@ -1,7 +1,7 @@
 /**
  * Foreman Setup CLI: argument parse, readiness projection, vendor preflight
  * persistence, login instructions only for positive not-authenticated evidence.
- * Sprint 3 R4C2 — TDD red-first.
+ * Sprint 3 R4C2 + R7B1 profile-bound preflight — TDD red-first.
  */
 
 import assert from "node:assert/strict";
@@ -22,6 +22,7 @@ import {
   PathLookup,
   ProcessExec,
   ProcessFailure,
+  type RunCapturedOptions,
 } from "./queue-services.js";
 import { PreflightClock } from "./vendor-preflight-live.js";
 import {
@@ -36,11 +37,17 @@ import {
   PreflightStoreFailure,
 } from "./vendor-preflight-store.js";
 import {
+  decodeCredentialProfilePreflightV1,
+  isProfilePreflightDecodeFailure,
+  profilePreflightRecordPath,
+} from "./credential-profile-preflight.js";
+import {
   EXIT_BOUNDARY_FAILURE,
   EXIT_INVALID_ARGUMENTS,
   EXIT_NOT_READY,
   EXIT_READY,
   MSG_CAPABILITY_TABLE_LOAD_FAILED,
+  MSG_EXPLICIT_PROFILE_UNSCOPED,
   USAGE,
   authInstruction,
   finalizeSetupExitCode,
@@ -48,6 +55,7 @@ import {
   parseDurableEnabledFromToml,
   resolveForemanHome,
   resolvePreflightRecordPath,
+  resolveSetupProfileId,
   runForemanSetup,
   stripSetupNodeArgv,
   type SetupIo,
@@ -110,13 +118,29 @@ function tempHome(): string {
   return mkdtempSync(join(tmpdir(), "foreman-setup-home-"));
 }
 
+function tempRepo(): string {
+  return mkdtempSync(join(tmpdir(), "foreman-setup-repo-"));
+}
+
+type CapturedEnvCall = {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env: NodeJS.ProcessEnv | undefined;
+};
+
 function vendorLayer(opts: {
   grokAuthStdout: string;
   codexAuthStdout?: string;
+  capturedEnvs?: CapturedEnvCall[];
 }): Layer.Layer<ProcessExec | PathLookup | PreflightClock> {
   return Layer.mergeAll(
     Layer.succeed(ProcessExec, {
-      runCaptured: (o) => {
+      runCaptured: (o: RunCapturedOptions) => {
+        opts.capturedEnvs?.push({
+          command: o.command,
+          args: o.args,
+          env: o.env,
+        });
         const name = o.command.includes("codex")
           ? "codex"
           : o.command.includes("grok")
@@ -175,12 +199,13 @@ function vendorLayer(opts: {
 }
 
 describe("parseSetupArgv", () => {
-  it("defaults to soft profile and no lane", () => {
+  it("defaults to soft profile, no lane, no explicit credential profile", () => {
     const p = parseSetupArgv([]);
     assert.equal(p._tag, "Run");
     if (p._tag === "Run") {
       assert.equal(p.profile, "soft");
       assert.equal(p.lane, null);
+      assert.equal(p.credentialProfile, null);
     }
   });
 
@@ -190,7 +215,58 @@ describe("parseSetupArgv", () => {
     if (p._tag === "Run") {
       assert.equal(p.profile, "full");
       assert.equal(p.lane, "codex");
+      assert.equal(p.credentialProfile, null);
     }
+  });
+
+  it("accepts explicit --credential-profile with --lane", () => {
+    const p = parseSetupArgv([
+      "--lane",
+      "grok",
+      "--credential-profile",
+      "lane-a",
+    ]);
+    assert.equal(p._tag, "Run");
+    if (p._tag === "Run") {
+      assert.equal(p.lane, "grok");
+      assert.equal(p.credentialProfile, "lane-a");
+    }
+  });
+
+  it("rejects duplicate --credential-profile", () => {
+    const p = parseSetupArgv([
+      "--lane",
+      "grok",
+      "--credential-profile",
+      "a",
+      "--credential-profile",
+      "b",
+    ]);
+    assert.equal(p._tag, "Invalid");
+  });
+
+  it("rejects invalid credential profile id", () => {
+    const p = parseSetupArgv([
+      "--lane",
+      "grok",
+      "--credential-profile",
+      "../evil",
+    ]);
+    assert.equal(p._tag, "Invalid");
+  });
+
+  it("rejects explicit credential profile on unscoped run", () => {
+    const p = parseSetupArgv(["--credential-profile", "lane-a"]);
+    assert.equal(p._tag, "Invalid");
+    if (p._tag === "Invalid") {
+      assert.equal(p.message, MSG_EXPLICIT_PROFILE_UNSCOPED);
+    }
+  });
+
+  it("resolveSetupProfileId uses defaults and explicit override", () => {
+    assert.equal(resolveSetupProfileId("grok", null), "grok-default");
+    assert.equal(resolveSetupProfileId("codex", null), "codex-default");
+    assert.equal(resolveSetupProfileId("grok", "lane-a"), "lane-a");
   });
 
   it("rejects --lane claude and unknown args with exit-2 shape", () => {
@@ -272,6 +348,7 @@ describe("authInstruction and paths", () => {
 describe("runForemanSetup persistence and readiness", () => {
   it("persists not-ready grok record under FOREMAN_HOME and exits 1 with login line", async () => {
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     try {
       const code = await Effect.runPromise(
@@ -279,7 +356,7 @@ describe("runForemanSetup persistence and readiness", () => {
           ["--profile", "soft", "--lane", "grok"],
           io,
           {
-            repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+            repoRoot: repo,
             capabilityTable,
             processEnv: {
               HOME: home,
@@ -312,16 +389,18 @@ describe("runForemanSetup persistence and readiness", () => {
       assert.equal(decoded.facts.authenticated.value, "not-authenticated");
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
   it("does not emit login instruction for degraded unknown auth", async () => {
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     try {
       const code = await Effect.runPromise(
         runForemanSetup(["--profile", "soft", "--lane", "grok"], io, {
-          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          repoRoot: repo,
           capabilityTable,
           processEnv: {
             HOME: home,
@@ -354,16 +433,18 @@ describe("runForemanSetup persistence and readiness", () => {
       assert.equal(decoded.facts.authenticated.value, "unknown");
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
   it("with --lane persists only that vendor", async () => {
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     try {
       await Effect.runPromise(
         runForemanSetup(["--lane", "grok"], io, {
-          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          repoRoot: repo,
           capabilityTable,
           processEnv: {
             HOME: home,
@@ -388,16 +469,18 @@ describe("runForemanSetup persistence and readiness", () => {
       );
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
   it("without --lane persists both grok and codex", async () => {
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     try {
       await Effect.runPromise(
         runForemanSetup(["--profile", "soft"], io, {
-          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          repoRoot: repo,
           capabilityTable,
           processEnv: {
             HOME: home,
@@ -419,11 +502,13 @@ describe("runForemanSetup persistence and readiness", () => {
       assert.ok(existsSync(resolvePreflightRecordPath(home, "codex")));
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
   it("fail-closed exit 3 when requested vendor has no captured record (empty capability table)", async () => {
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     const emptyTable: VendorCapabilityTableV1 = {
       schemaVersion: 1,
@@ -432,7 +517,7 @@ describe("runForemanSetup persistence and readiness", () => {
     try {
       const code = await Effect.runPromise(
         runForemanSetup(["--lane", "grok"], io, {
-          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          repoRoot: repo,
           capabilityTable: emptyTable,
           processEnv: {
             HOME: home,
@@ -460,6 +545,7 @@ describe("runForemanSetup persistence and readiness", () => {
       );
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
@@ -467,6 +553,7 @@ describe("runForemanSetup persistence and readiness", () => {
     // Cold-audit defect: must not write Grok then fail on missing Codex.
     // All requested captures must be present before the first store write.
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     const grokOnlyTable: VendorCapabilityTableV1 = {
       schemaVersion: 1,
@@ -475,7 +562,7 @@ describe("runForemanSetup persistence and readiness", () => {
     try {
       const code = await Effect.runPromise(
         runForemanSetup(["--profile", "soft"], io, {
-          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          repoRoot: repo,
           capabilityTable: grokOnlyTable,
           processEnv: {
             HOME: home,
@@ -508,10 +595,12 @@ describe("runForemanSetup persistence and readiness", () => {
       );
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
   it("fail-closed exit 3 on store write failure; never SETUP: READY", async () => {
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     const failStore = Layer.succeed(PreflightRecordStore, {
       read: () => Effect.fail(new PreflightStoreFailure("absent")),
@@ -520,7 +609,7 @@ describe("runForemanSetup persistence and readiness", () => {
     try {
       const code = await Effect.runPromise(
         runForemanSetup(["--lane", "grok"], io, {
-          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          repoRoot: repo,
           capabilityTable,
           processEnv: {
             HOME: home,
@@ -542,6 +631,7 @@ describe("runForemanSetup persistence and readiness", () => {
       assert.match(io.stderr, /preflight|persist|boundary/i);
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 
@@ -574,7 +664,7 @@ describe("runForemanSetup persistence and readiness", () => {
 
   it("prints durable.enabled=false warning without rewriting config", async () => {
     const home = tempHome();
-    const repo = mkdtempSync(join(tmpdir(), "foreman-setup-repo-"));
+    const repo = tempRepo();
     const io = captureIo();
     try {
       mkdirSync(join(repo, ".foreman"), { recursive: true });
@@ -610,11 +700,12 @@ describe("runForemanSetup persistence and readiness", () => {
 
   it("lane ready when grok ok reports SETUP: READY even if other must-tools fail", async () => {
     const home = tempHome();
+    const repo = tempRepo();
     const io = captureIo();
     try {
       const code = await Effect.runPromise(
         runForemanSetup(["--lane", "grok"], io, {
-          repoRoot: join(tmpdir(), "foreman-setup-repo-missing"),
+          repoRoot: repo,
           capabilityTable,
           processEnv: {
             HOME: home,
@@ -643,14 +734,297 @@ describe("runForemanSetup persistence and readiness", () => {
       assert.equal(decoded.facts.authenticated.value, "authenticated");
     } finally {
       rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 });
 
 describe("USAGE constant", () => {
-  it("documents profile and lane flags", () => {
+  it("documents profile, lane, and credential-profile flags", () => {
     assert.match(USAGE, /--profile soft\|hard\|full/);
     assert.match(USAGE, /--lane grok\|codex/);
+    assert.match(USAGE, /--credential-profile ID/);
+  });
+});
+
+describe("R7B1 profile-bound Setup preflight", () => {
+  it("probes with profile-bound GROK_HOME and leaves caller env unchanged", async () => {
+    const home = tempHome();
+    const repo = tempRepo();
+    const io = captureIo();
+    const capturedEnvs: CapturedEnvCall[] = [];
+    const callerEnv: NodeJS.ProcessEnv = {
+      HOME: home,
+      FOREMAN_HOME: home,
+      FOREMAN_TEST_WSL_FORCE: "0",
+      PATH: "/usr/bin",
+      GROK_HOME: "/ambient/grok",
+      CODEX_HOME: "/ambient/codex",
+    };
+    const frozen = { ...callerEnv };
+    try {
+      await Effect.runPromise(
+        runForemanSetup(["--lane", "grok"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: callerEnv,
+          layer: vendorLayer({
+            grokAuthStdout: "You are not authenticated.\n",
+            capturedEnvs,
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.deepEqual(callerEnv, frozen, "caller environment must not mutate");
+      const grokProbes = capturedEnvs.filter(
+        (c) =>
+          c.command.includes("grok") &&
+          (c.args[0] === "--version" || c.args[0] === "models"),
+      );
+      assert.ok(grokProbes.length >= 2, "expected version and auth probes");
+      for (const c of grokProbes) {
+        assert.ok(c.env, "probe must receive explicit child env");
+        assert.match(c.env!.GROK_HOME ?? "", /credential-profiles.*homes\/grok|credential-profiles.*homes\\grok/);
+        assert.equal(Object.hasOwn(c.env!, "CODEX_HOME"), false);
+        assert.equal(c.env!.GROK_HOME !== "/ambient/grok", true);
+      }
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("probes with profile-bound CODEX_HOME and leaves caller env unchanged", async () => {
+    const home = tempHome();
+    const repo = tempRepo();
+    const io = captureIo();
+    const capturedEnvs: CapturedEnvCall[] = [];
+    const callerEnv: NodeJS.ProcessEnv = {
+      HOME: home,
+      FOREMAN_HOME: home,
+      FOREMAN_TEST_WSL_FORCE: "0",
+      PATH: "/usr/bin",
+      GROK_HOME: "/ambient/grok",
+      CODEX_HOME: "/ambient/codex",
+    };
+    const frozen = { ...callerEnv };
+    try {
+      await Effect.runPromise(
+        runForemanSetup(["--lane", "codex"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: callerEnv,
+          layer: vendorLayer({
+            grokAuthStdout: "You are logged in with grok.com.\n",
+            codexAuthStdout: "Not logged in\n",
+            capturedEnvs,
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.deepEqual(callerEnv, frozen, "caller environment must not mutate");
+      const codexProbes = capturedEnvs.filter(
+        (c) =>
+          c.command.includes("codex") &&
+          (c.args[0] === "--version" || c.args[0] === "login"),
+      );
+      assert.ok(codexProbes.length >= 2, "expected version and auth probes");
+      for (const c of codexProbes) {
+        assert.ok(c.env, "probe must receive explicit child env");
+        assert.match(
+          c.env!.CODEX_HOME ?? "",
+          /credential-profiles.*homes\/codex|credential-profiles.*homes\\codex/,
+        );
+        assert.equal(Object.hasOwn(c.env!, "GROK_HOME"), false);
+        assert.equal(c.env!.CODEX_HOME !== "/ambient/codex", true);
+      }
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("persists default profile-scoped preflight at the exact path", async () => {
+    const home = tempHome();
+    const repo = tempRepo();
+    const io = captureIo();
+    try {
+      await Effect.runPromise(
+        runForemanSetup(["--lane", "grok"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: {
+            HOME: home,
+            FOREMAN_HOME: home,
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are not authenticated.\n",
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      const legacy = resolvePreflightRecordPath(home, "grok");
+      const scoped = profilePreflightRecordPath(home, "grok-default", "grok");
+      assert.ok(existsSync(legacy), "legacy path");
+      assert.ok(existsSync(scoped), "profile-scoped path");
+      const body = readFileSync(scoped, "utf8");
+      assert.ok(body.endsWith("\n"));
+      const decoded = decodeCredentialProfilePreflightV1(JSON.parse(body));
+      assert.ok(!isProfilePreflightDecodeFailure(decoded));
+      assert.equal(decoded.profileId, "grok-default");
+      assert.equal(decoded.vendor, "grok");
+      assert.equal(decoded.record.vendor, "grok");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("persists explicit profile-scoped preflight for lane-scoped run", async () => {
+    const home = tempHome();
+    const repo = tempRepo();
+    const io = captureIo();
+    try {
+      await Effect.runPromise(
+        runForemanSetup(
+          ["--lane", "codex", "--credential-profile", "lane-x"],
+          io,
+          {
+            repoRoot: repo,
+            capabilityTable,
+            processEnv: {
+              HOME: home,
+              FOREMAN_HOME: home,
+              FOREMAN_TEST_WSL_FORCE: "0",
+              PATH: "/usr/bin",
+            },
+            layer: vendorLayer({
+              grokAuthStdout: "You are logged in with grok.com.\n",
+              codexAuthStdout: "Not logged in\n",
+            }),
+            storeLayer: livePreflightRecordStore,
+            nowUtc: () => FIXED,
+            ensureLauncher: () => Effect.succeed({ ok: true as const }),
+            durableEnabled: null,
+          },
+        ),
+      );
+      const scoped = profilePreflightRecordPath(home, "lane-x", "codex");
+      assert.ok(existsSync(scoped));
+      const decoded = decodeCredentialProfilePreflightV1(
+        JSON.parse(readFileSync(scoped, "utf8")),
+      );
+      assert.ok(!isProfilePreflightDecodeFailure(decoded));
+      assert.equal(decoded.profileId, "lane-x");
+      assert.equal(decoded.vendor, "codex");
+      // Explicit profile path must not write under codex-default.
+      assert.equal(
+        existsSync(profilePreflightRecordPath(home, "codex-default", "codex")),
+        false,
+      );
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("unscoped run writes both default profile preflight records", async () => {
+    const home = tempHome();
+    const repo = tempRepo();
+    const io = captureIo();
+    try {
+      await Effect.runPromise(
+        runForemanSetup(["--profile", "soft"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: {
+            HOME: home,
+            FOREMAN_HOME: home,
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are not authenticated.\n",
+            codexAuthStdout: "Not logged in\n",
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.ok(
+        existsSync(profilePreflightRecordPath(home, "grok-default", "grok")),
+      );
+      assert.ok(
+        existsSync(profilePreflightRecordPath(home, "codex-default", "codex")),
+      );
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses when state root is inside the worktree before probes", async () => {
+    const repo = tempRepo();
+    const home = join(repo, "nested-foreman-home");
+    mkdirSync(home, { recursive: true });
+    const io = captureIo();
+    const capturedEnvs: CapturedEnvCall[] = [];
+    try {
+      const code = await Effect.runPromise(
+        runForemanSetup(["--lane", "grok"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: {
+            HOME: home,
+            FOREMAN_HOME: home,
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are logged in with grok.com.\n",
+            capturedEnvs,
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.equal(code, EXIT_BOUNDARY_FAILURE);
+      assert.match(io.stderr, /credential profile refused/);
+      assert.match(io.stderr, /state_root_in_worktree/);
+      assert.equal(capturedEnvs.length, 0, "must not probe before refuse");
+      assert.equal(existsSync(resolvePreflightRecordPath(home, "grok")), false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("explicit profile on unscoped run exits 2 without SETUP line", async () => {
+    const io = captureIo();
+    const code = await Effect.runPromise(
+      runForemanSetup(["--credential-profile", "lane-a"], io, {
+        repoRoot: "/tmp",
+        capabilityTable,
+        ensureLauncher: () => Effect.succeed({ ok: true as const }),
+      }),
+    );
+    assert.equal(code, EXIT_INVALID_ARGUMENTS);
+    assert.doesNotMatch(io.stdout, /SETUP:/);
+    assert.match(io.stderr, /credential-profile requires --lane/);
   });
 });
 

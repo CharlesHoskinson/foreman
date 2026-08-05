@@ -77,11 +77,23 @@ export const livePreflightClock = Layer.succeed(PreflightClock, {
 // Service
 // ---------------------------------------------------------------------------
 
+/** Optional inspect options. An explicit `env` is passed to both probes. */
+export type InspectVendorOptions = {
+  /**
+   * Complete child environment for version and auth probe processes.
+   * When omitted, the process executor inherits ambient environment
+   * (current behavior). Callers that isolate vendor homes must copy
+   * processEnv and set only the matching GROK_HOME or CODEX_HOME.
+   */
+  readonly env?: NodeJS.ProcessEnv;
+};
+
 export class VendorPreflight extends Context.Tag("VendorPreflight")<
   VendorPreflight,
   {
     readonly inspect: (
       capability: VendorCapabilityV1,
+      options?: InspectVendorOptions,
     ) => Effect.Effect<
       VendorPreflightRecordV1,
       VendorPreflightFailure,
@@ -106,6 +118,7 @@ function runProbe(
   executable: string,
   tailArgv: readonly string[],
   vendorBinding: VendorCapabilityV1["vendor"],
+  env?: NodeJS.ProcessEnv,
 ): Effect.Effect<ProbeCapture, never, ProcessExec> {
   return Effect.gen(function* () {
     const fullArgv = [executable, ...tailArgv];
@@ -124,6 +137,7 @@ function runProbe(
         args: [...tailArgv],
         timeoutMs: PREFLIGHT_PROBE_TIMEOUT_MS,
         maxOutputBytes: PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES,
+        ...(env !== undefined ? { env } : {}),
       })
       .pipe(Effect.either);
 
@@ -184,9 +198,12 @@ function probeRecord(
 
 /**
  * Core inspect implementation (also usable directly in tests with layers).
+ * Optional `options.env` is passed to both version and auth probe executions.
+ * Existing callers without an explicit environment preserve current behavior.
  */
 export const inspectVendor = (
   capability: VendorCapabilityV1,
+  options?: InspectVendorOptions,
 ): Effect.Effect<
   VendorPreflightRecordV1,
   VendorPreflightFailure,
@@ -208,6 +225,8 @@ export const inspectVendor = (
         ),
       );
     }
+
+    const probeEnv = options?.env;
 
     const clock = yield* PreflightClock;
     const timestamp = yield* clock.nowUtcRfc3339();
@@ -280,6 +299,7 @@ export const inspectVendor = (
       executable,
       capability.versionArgv,
       capability.vendor,
+      probeEnv,
     );
     const versionProbe = probeRecord(
       "version",
@@ -309,6 +329,7 @@ export const inspectVendor = (
       executable,
       capability.authArgv,
       capability.vendor,
+      probeEnv,
     );
     const authProbe = probeRecord(
       "auth",
@@ -390,7 +411,7 @@ export const inspectVendor = (
   });
 
 export const liveVendorPreflight = Layer.succeed(VendorPreflight, {
-  inspect: (capability) => inspectVendor(capability),
+  inspect: (capability, options) => inspectVendor(capability, options),
 });
 
 export const liveVendorPreflightLayer = Layer.mergeAll(

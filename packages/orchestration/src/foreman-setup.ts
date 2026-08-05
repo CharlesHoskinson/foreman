@@ -1,6 +1,7 @@
 /**
- * Foreman Setup stage (Sprint 3 R4C2): tool-check readiness projection plus
- * vendor-preflight record persistence. Never authenticates a vendor itself.
+ * Foreman Setup stage (Sprint 3 R4C2 + R7B1): tool-check readiness projection,
+ * profile-bound vendor preflight probes, and dual preflight persistence
+ * (profile-scoped + legacy). Never authenticates a vendor itself.
  *
  * Exit contract:
  *   0 READY
@@ -56,6 +57,22 @@ import {
   detectWslFromEnv,
   readProcVersion,
 } from "./tool-check-platform.js";
+import {
+  CredentialProfileFs,
+  initProfile,
+  isValidProfileId,
+  liveCredentialProfileFsLayer,
+  type CredentialVendor,
+} from "./credential-profile.js";
+import {
+  CredentialProfilePreflightStore,
+  ProfilePreflightStoreFailure,
+  buildVendorHomeChildEnv,
+  defaultCredentialProfileId,
+  liveCredentialProfilePreflightStore,
+  makeCredentialProfilePreflight,
+  profilePreflightRecordPath,
+} from "./credential-profile-preflight.js";
 
 // ---------------------------------------------------------------------------
 // Public constants
@@ -73,7 +90,7 @@ export const EXIT_INVALID_ARGUMENTS = 2;
 export const EXIT_BOUNDARY_FAILURE = 3;
 
 export const USAGE =
-  "usage: foreman-setup [--profile soft|hard|full] [--lane grok|codex]";
+  "usage: foreman-setup [--profile soft|hard|full] [--lane grok|codex] [--credential-profile ID]";
 
 export const MSG_BOUNDARY_FAILURE =
   "foreman-setup: boundary failure (persistence or runtime)";
@@ -82,6 +99,12 @@ export const MSG_MISSING_PREFLIGHT_RECORD =
   "foreman-setup: missing preflight record for requested vendor";
 
 export const MSG_INTERNAL_FAILURE = "foreman-setup: internal failure";
+
+export const MSG_CREDENTIAL_PROFILE_REFUSED =
+  "foreman-setup: credential profile refused";
+
+export const MSG_EXPLICIT_PROFILE_UNSCOPED =
+  "foreman-setup: --credential-profile requires --lane (one profile is bound to one vendor)";
 
 /**
  * Fixed sanitized diagnostic for capability-table load failures.
@@ -123,6 +146,8 @@ export type ParsedSetupArgv =
       readonly _tag: "Run";
       readonly profile: SetupProfile;
       readonly lane: SetupLane | null;
+      /** Explicit profile id, or null to use per-vendor defaults. */
+      readonly credentialProfile: string | null;
     }
   | { readonly _tag: "Help" }
   | { readonly _tag: "Invalid"; readonly message: string };
@@ -131,6 +156,13 @@ export type LauncherEnsureResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: string };
 
+export type ProfileBinding = {
+  readonly vendor: SetupLane;
+  readonly profileId: string;
+  readonly profileIdentity: string;
+  readonly configRoot: string;
+};
+
 export type SetupRunEnv = {
   readonly repoRoot: string;
   readonly capabilityTable: VendorCapabilityTableV1;
@@ -138,6 +170,10 @@ export type SetupRunEnv = {
   readonly nowUtc?: () => string;
   readonly layer?: Layer.Layer<ProcessExec | PathLookup | PreflightClock>;
   readonly storeLayer?: Layer.Layer<PreflightRecordStore>;
+  /** Injected credential-profile FS. Defaults to the live R7A layer. */
+  readonly credentialProfileLayer?: Layer.Layer<CredentialProfileFs>;
+  /** Injected profile-scoped preflight store. Defaults to live R7B1 store. */
+  readonly profilePreflightStoreLayer?: Layer.Layer<CredentialProfilePreflightStore>;
   /**
    * Injected launcher ensure (WSL). Default builds the POSIX launcher via
    * ProcessExec when needed. Tests inject a no-op.
@@ -202,11 +238,18 @@ function isLane(v: string): v is SetupLane {
 
 /**
  * Parse Setup argv. Unknown flags and bad values are Invalid (exit 2).
+ *
+ * Optional `--credential-profile ID` selects one external credential profile.
+ * An explicit profile requires `--lane` because one profile is bound to one
+ * vendor. Without an explicit profile, each requested vendor uses its default
+ * (`grok-default` / `codex-default`).
  */
 export function parseSetupArgv(argv: readonly string[]): ParsedSetupArgv {
   const args = stripSetupNodeArgv(argv);
   let profile: SetupProfile = "soft";
   let lane: SetupLane | null = null;
+  let credentialProfile: string | null = null;
+  let sawCredentialProfile = false;
 
   let i = 0;
   while (i < args.length) {
@@ -248,10 +291,50 @@ export function parseSetupArgv(argv: readonly string[]): ParsedSetupArgv {
       i += 2;
       continue;
     }
+    if (a === "--credential-profile") {
+      if (sawCredentialProfile) {
+        return {
+          _tag: "Invalid",
+          message: "duplicate --credential-profile",
+        };
+      }
+      const v = args[i + 1];
+      if (v === undefined) {
+        return { _tag: "Invalid", message: USAGE };
+      }
+      if (!isValidProfileId(v)) {
+        return {
+          _tag: "Invalid",
+          message: `bad credential profile id: ${v}`,
+        };
+      }
+      credentialProfile = v;
+      sawCredentialProfile = true;
+      i += 2;
+      continue;
+    }
     return { _tag: "Invalid", message: `unknown arg: ${a}` };
   }
 
-  return { _tag: "Run", profile, lane };
+  if (credentialProfile !== null && lane === null) {
+    return { _tag: "Invalid", message: MSG_EXPLICIT_PROFILE_UNSCOPED };
+  }
+
+  return { _tag: "Run", profile, lane, credentialProfile };
+}
+
+/**
+ * Resolve which credential-profile id applies to a vendor for this Setup run.
+ * Explicit profile (lane-scoped only) wins; otherwise the vendor default.
+ */
+export function resolveSetupProfileId(
+  vendor: SetupLane,
+  credentialProfile: string | null,
+): string {
+  if (credentialProfile !== null) {
+    return credentialProfile;
+  }
+  return defaultCredentialProfileId(vendor);
 }
 
 /**
@@ -552,10 +635,40 @@ function setupReady(
 // ---------------------------------------------------------------------------
 
 /**
+ * Ensure FOREMAN_HOME exists as a real directory before credential-profile
+ * authority work. Does not follow a final-component link.
+ */
+function ensureStateRootDirectory(stateRoot: string): boolean {
+  try {
+    if (existsSync(stateRoot)) {
+      const st = lstatSync(stateRoot);
+      if (st.isSymbolicLink()) return false;
+      if (!st.isDirectory()) return false;
+      return true;
+    }
+    mkdirSync(stateRoot, { recursive: true, mode: 0o700 });
+    try {
+      chmodSync(stateRoot, 0o700);
+    } catch {
+      /* best-effort */
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Run Setup once. Writes the tool-check report, optional durable warning,
  * login instructions for positive not-authenticated evidence only, and
- * SETUP: READY|NOT-READY. Persists each requested vendor preflight record
- * under FOREMAN_HOME/preflight/<vendor>.json before returning exit 1.
+ * SETUP: READY|NOT-READY.
+ *
+ * For each requested vendor: initializes or resolves the R7A credential
+ * profile under FOREMAN_HOME, runs vendor probes with a profile-bound child
+ * environment (GROK_HOME or CODEX_HOME only), persists
+ * CredentialProfilePreflightV1 under the profile authority, and keeps the
+ * legacy FOREMAN_HOME/preflight/<vendor>.json write for compatibility.
+ * Never authenticates. Never mutates the caller's environment.
  */
 export function runForemanSetup(
   argv: readonly string[],
@@ -578,6 +691,10 @@ export function runForemanSetup(
       env.layer ??
       Layer.mergeAll(liveProcessExec, livePathLookup, livePreflightClock);
     const storeLayer = env.storeLayer ?? livePreflightRecordStore;
+    const profileFsLayer =
+      env.credentialProfileLayer ?? liveCredentialProfileFsLayer;
+    const profilePreflightLayer =
+      env.profilePreflightStoreLayer ?? liveCredentialProfilePreflightStore;
 
     const log = (msg: string) => {
       io.writeStderr(`[foreman] ${msg}\n`);
@@ -607,6 +724,55 @@ export function runForemanSetup(
       );
     }
 
+    // --- credential-profile authority before any vendor probe ---------------
+    const vendorsToPersist: readonly SetupLane[] =
+      parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
+    const platform = env.platform ?? process.platform;
+    const foremanHome = resolveForemanHome(processEnv, platform);
+
+    if (!ensureStateRootDirectory(foremanHome)) {
+      io.writeStderr(MSG_CREDENTIAL_PROFILE_REFUSED + " (invalid_state_root)\n");
+      return EXIT_BOUNDARY_FAILURE;
+    }
+
+    const bindings: ProfileBinding[] = [];
+    for (const vendor of vendorsToPersist) {
+      const profileId = resolveSetupProfileId(
+        vendor,
+        parsed.credentialProfile,
+      );
+      const profileResult = yield* initProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId,
+        vendor: vendor as CredentialVendor,
+      }).pipe(Effect.provide(profileFsLayer));
+
+      if (profileResult._tag === "Refused") {
+        // Sanitized: closed reason only — no paths, bytes, or secrets.
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${profileResult.reason})\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      bindings.push({
+        vendor,
+        profileId: profileResult.profileId,
+        profileIdentity: profileResult.profileIdentity,
+        configRoot: profileResult.configRoot,
+      });
+    }
+
+    // Profile-bound child environments for requested vendors only.
+    // Do not mutate processEnv (caller's environment).
+    const childEnvByVendor = new Map<SetupLane, NodeJS.ProcessEnv>();
+    for (const b of bindings) {
+      childEnvByVendor.set(
+        b.vendor,
+        buildVendorHomeChildEnv(processEnv, b.vendor, b.configRoot),
+      );
+    }
+
     // --- tool-check with single-probe record capture ------------------------
     const captured = new Map<string, VendorPreflightRecordV1>();
     const tcIo: ToolCheckIo = {
@@ -624,6 +790,7 @@ export function runForemanSetup(
       processEnv,
       ...(env.nowUtc !== undefined ? { nowUtc: env.nowUtc } : {}),
       ...(env.layer !== undefined ? { layer: env.layer } : {}),
+      vendorChildEnv: (vendor) => childEnvByVendor.get(vendor),
       onVendorRecord: (record) =>
         Effect.sync(() => {
           captured.set(record.vendor, record);
@@ -632,23 +799,21 @@ export function runForemanSetup(
 
     const tcResult = yield* runToolCheck(tcArgv, tcIo, tcEnv);
 
-    // --- persist requested vendors ------------------------------------------
-    // Validate the whole requested profile before the first store write so a
+    // --- persist requested vendors (profile-scoped + legacy) ----------------
+    // Validate the whole requested set before the first store write so a
     // partial capture (e.g. Grok only on an unscoped run) never leaves a
     // half-written preflight directory.
-    const vendorsToPersist: readonly SetupLane[] =
-      parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
-    const platform = env.platform ?? process.platform;
-    const foremanHome = resolveForemanHome(processEnv, platform);
-
     type PendingWrite = {
       readonly vendor: SetupLane;
       readonly record: VendorPreflightRecordV1;
-      readonly dest: string;
+      readonly legacyDest: string;
+      readonly profileDest: string;
+      readonly profileId: string;
+      readonly profileIdentity: string;
     };
     const pendingWrites: PendingWrite[] = [];
-    for (const vendor of vendorsToPersist) {
-      const record = captured.get(vendor);
+    for (const b of bindings) {
+      const record = captured.get(b.vendor);
       if (record === undefined) {
         // Fail closed: a requested vendor without a captured inspect record
         // is a boundary failure, not ordinary NOT-READY. Never invent a
@@ -656,25 +821,56 @@ export function runForemanSetup(
         io.writeStderr(MSG_MISSING_PREFLIGHT_RECORD + "\n");
         return EXIT_BOUNDARY_FAILURE;
       }
-      if (record.vendor !== vendor) {
+      if (record.vendor !== b.vendor) {
         io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
         return EXIT_BOUNDARY_FAILURE;
       }
       pendingWrites.push({
-        vendor,
+        vendor: b.vendor,
         record,
-        dest: resolvePreflightRecordPath(foremanHome, vendor),
+        legacyDest: resolvePreflightRecordPath(foremanHome, b.vendor),
+        profileDest: profilePreflightRecordPath(
+          foremanHome,
+          b.profileId,
+          b.vendor,
+        ),
+        profileId: b.profileId,
+        profileIdentity: b.profileIdentity,
       });
     }
 
-    for (const { record, dest } of pendingWrites) {
-      const writeEither = yield* Effect.gen(function* () {
+    for (const pending of pendingWrites) {
+      const wrapper = makeCredentialProfilePreflight(
+        pending.profileId,
+        pending.profileIdentity,
+        pending.vendor,
+        pending.record,
+      );
+
+      const profileWrite = yield* Effect.gen(function* () {
+        const store = yield* CredentialProfilePreflightStore;
+        yield* store.write(pending.profileDest, wrapper);
+      }).pipe(Effect.provide(profilePreflightLayer), Effect.either);
+
+      if (profileWrite._tag === "Left") {
+        const err = profileWrite.left;
+        if (err instanceof ProfilePreflightStoreFailure) {
+          io.writeStderr(
+            `foreman-setup: profile preflight persist failed (${err.reason})\n`,
+          );
+        } else {
+          io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        }
+        return EXIT_BOUNDARY_FAILURE;
+      }
+
+      const legacyWrite = yield* Effect.gen(function* () {
         const store = yield* PreflightRecordStore;
-        yield* store.write(dest, record);
+        yield* store.write(pending.legacyDest, pending.record);
       }).pipe(Effect.provide(storeLayer), Effect.either);
 
-      if (writeEither._tag === "Left") {
-        const err = writeEither.left;
+      if (legacyWrite._tag === "Left") {
+        const err = legacyWrite.left;
         // Sanitized public diagnostic: no absolute paths, stacks, or bytes.
         if (err instanceof PreflightStoreFailure) {
           io.writeStderr(

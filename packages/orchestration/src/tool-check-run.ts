@@ -108,6 +108,15 @@ export type ToolCheckRunEnv = {
   readonly onVendorRecord?: (
     record: VendorPreflightRecordV1,
   ) => Effect.Effect<void, never, ProcessExec | PathLookup | PreflightClock>;
+  /**
+   * Optional complete child environment for a vendor's version and auth probes.
+   * When the function returns undefined for a vendor, probes inherit ambient
+   * environment (current behavior). Setup supplies a profile-bound env per
+   * requested vendor.
+   */
+  readonly vendorChildEnv?: (
+    vendor: "grok" | "codex",
+  ) => NodeJS.ProcessEnv | undefined;
 };
 
 function homeDir(env: NodeJS.ProcessEnv): string {
@@ -262,6 +271,7 @@ export function checkOne(
     readonly isWsl: boolean;
     readonly vendorRowOverride?: ToolCheckRunEnv["vendorRowOverride"];
     readonly onVendorRecord?: ToolCheckRunEnv["onVendorRecord"];
+    readonly vendorChildEnv?: ToolCheckRunEnv["vendorChildEnv"];
   },
 ): Effect.Effect<ToolRow, never, ProcessExec | PathLookup | PreflightClock> {
   return Effect.gen(function* () {
@@ -337,6 +347,7 @@ export function checkOne(
           capabilityTable: ctx.capabilityTable,
           vendorRowOverride: ctx.vendorRowOverride,
           onVendorRecord: ctx.onVendorRecord,
+          vendorChildEnv: ctx.vendorChildEnv,
         });
       case "node": {
         const p = yield* whichOrNull("node");
@@ -589,6 +600,7 @@ function checkVendorRow(
     readonly capabilityTable: VendorCapabilityTableV1;
     readonly vendorRowOverride?: ToolCheckRunEnv["vendorRowOverride"];
     readonly onVendorRecord?: ToolCheckRunEnv["onVendorRecord"];
+    readonly vendorChildEnv?: ToolCheckRunEnv["vendorChildEnv"];
   },
 ): Effect.Effect<ToolRow, never, ProcessExec | PathLookup | PreflightClock> {
   return Effect.gen(function* () {
@@ -607,7 +619,11 @@ function checkVendorRow(
         "vendor capability not configured in capability table",
       );
     }
-    const either = yield* inspectVendor(capability).pipe(Effect.either);
+    const childEnv = ctx.vendorChildEnv?.(vendor);
+    const either = yield* inspectVendor(
+      capability,
+      childEnv !== undefined ? { env: childEnv } : undefined,
+    ).pipe(Effect.either);
     if (either._tag === "Left") {
       const err = either.left;
       const detail =
@@ -876,6 +892,7 @@ export function runToolCheck(
             isWsl,
             vendorRowOverride: env.vendorRowOverride,
             onVendorRecord: env.onVendorRecord,
+            vendorChildEnv: env.vendorChildEnv,
           }),
         );
       }

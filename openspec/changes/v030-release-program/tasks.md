@@ -149,7 +149,7 @@
         Setup/`foreman-setup.sh` and lane callers are intentionally not
         wired in this slice.
       The remaining Sprint 3 work stays open (R4B+ shell migration,
-        ownership, heartbeat, reaping, R7B credential profile Setup/lane
+        ownership, heartbeat, reaping, R7B2 credential profile lane
         integration, and other open Sprint 3 ports).
       - Sprint 3 R4B Setup vendor-preflight adapter (partial): pure
         `projectVendorPreflightToToolCheckRow` + `tool-check-row <grok|codex>`
@@ -272,8 +272,18 @@
         regular-file collision refusal; exclusive idempotent provisioning;
         no vendor credential file reads; tracked deterministic
         `skills/foreman/runtime/dist/credential-profile.js` with fixed-order
-        `init`/`resolve` CLI. R7B Setup, preflight, lane integration,
-        authentication, and profile-use leasing remain open.
+        `init`/`resolve` CLI.
+      - Sprint 3 R7B1 profile-bound Setup preflight (worktree): closed
+        `CredentialProfilePreflightV1` wrapper and pure decode/render; Effect
+        profile-scoped preflight store at
+        `<state-root>/credential-profiles/<id>/preflight/<vendor>.json`;
+        Setup `--credential-profile ID` with defaults `grok-default` /
+        `codex-default`; child environments set only matching `GROK_HOME` or
+        `CODEX_HOME` and strip the other; legacy unscoped preflight write
+        preserved; `inspectVendor` and tool-check accept explicit child env;
+        no authentication and no vendor credential file reads. R7B2 lane
+        admission against profile identity and R7C profile-use leasing remain
+        open.
       - Sprint 3 R6 bounded fixture-aware secret scan (worktree green after
         descriptor-anchor + cross-platform testability corrections, host
         commit pending): closed typed `SecretScan` Effect API and CLI in

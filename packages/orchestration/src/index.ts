@@ -2,8 +2,9 @@
  * @foreman/orchestration — queue admission (Sprint 3 R1), attempt-bound
  * round transaction core (Sprint 3 R2 / R3), typed vendor preflight
  * (Sprint 3 R4A), resume services (R5), bounded fixture-aware secret scan
- * (Sprint 3 R6), and external credential-profile authority (Sprint 3 R7A).
- * Remaining orchestration ports and shell adapter seams stay open.
+ * (Sprint 3 R6), external credential-profile authority (Sprint 3 R7A), and
+ * profile-bound Setup preflight (Sprint 3 R7B1). Remaining orchestration
+ * ports, lane admission, profile leasing, and shell adapter seams stay open.
  */
 
 export {
@@ -298,6 +299,7 @@ export {
   liveVendorPreflight,
   liveVendorPreflightLayer,
   type VendorPreflightFailureReason,
+  type InspectVendorOptions,
 } from "./vendor-preflight-live.js";
 
 export {
@@ -463,9 +465,12 @@ export {
   MSG_BOUNDARY_FAILURE as SETUP_MSG_BOUNDARY_FAILURE,
   MSG_MISSING_PREFLIGHT_RECORD as SETUP_MSG_MISSING_PREFLIGHT_RECORD,
   MSG_INTERNAL_FAILURE as SETUP_MSG_INTERNAL_FAILURE,
+  MSG_CREDENTIAL_PROFILE_REFUSED as SETUP_MSG_CREDENTIAL_PROFILE_REFUSED,
+  MSG_EXPLICIT_PROFILE_UNSCOPED as SETUP_MSG_EXPLICIT_PROFILE_UNSCOPED,
   MAX_DURABLE_CONFIG_BYTES,
   stripSetupNodeArgv,
   parseSetupArgv,
+  resolveSetupProfileId,
   authInstruction,
   resolveForemanHome,
   resolvePreflightRecordPath,
@@ -479,6 +484,7 @@ export {
   type ParsedSetupArgv,
   type LauncherEnsureResult,
   type SetupRunEnv,
+  type ProfileBinding,
 } from "./foreman-setup.js";
 
 // --- Sprint 3 R5D: bounded restore and Node resume supervisor ---
@@ -674,3 +680,35 @@ export {
   type CredentialProfileRaceHook,
   type CredentialProfileWriteStream,
 } from "./credential-profile.js";
+
+// --- Sprint 3 R7B1: profile-bound Setup preflight ---
+
+export {
+  CREDENTIAL_PROFILE_PREFLIGHT_SCHEMA_VERSION,
+  MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES,
+  PROFILE_PREFLIGHT_DIR_NAME,
+  DEFAULT_GROK_CREDENTIAL_PROFILE_ID,
+  DEFAULT_CODEX_CREDENTIAL_PROFILE_ID,
+  DEFAULT_CREDENTIAL_PROFILE_ID_BY_VENDOR,
+  PROFILE_PREFLIGHT_DECODE_FAILURE_REASONS,
+  PROFILE_PREFLIGHT_STORE_FAILURE_REASONS,
+  ProfilePreflightStoreFailure,
+  CredentialProfilePreflightStore,
+  defaultCredentialProfileId,
+  profilePreflightRecordPath,
+  buildVendorHomeChildEnv,
+  isProfilePreflightDecodeFailure,
+  decodeCredentialProfilePreflightV1,
+  renderCredentialProfilePreflight,
+  renderCredentialProfilePreflightFile,
+  parseCredentialProfilePreflightBytes,
+  makeCredentialProfilePreflight,
+  readProfilePreflightRecord,
+  writeProfilePreflightRecord,
+  liveCredentialProfilePreflightStore,
+  type ProfilePreflightDecodeFailureReason,
+  type ProfilePreflightDecodeFailure,
+  type ProfilePreflightStoreFailureReason,
+  type CredentialProfilePreflightV1,
+  type CredentialProfilePreflightExpected,
+} from "./credential-profile-preflight.js";

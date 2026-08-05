@@ -78,6 +78,7 @@ const codexCap: VendorCapabilityV1 = {
 type Call = {
   readonly command: string;
   readonly args: readonly string[];
+  readonly env: NodeJS.ProcessEnv | undefined;
 };
 
 function makeLayers(opts: {
@@ -89,7 +90,7 @@ function makeLayers(opts: {
 }) {
   const processLayer = Layer.succeed(ProcessExec, {
     runCaptured: (o) => {
-      opts.calls.push({ command: o.command, args: o.args });
+      opts.calls.push({ command: o.command, args: o.args, env: o.env });
       return opts.run(o);
     },
     runIgnoredStdio: (_o: RunIgnoredStdioOptions) =>
@@ -121,6 +122,59 @@ async function runInspect(
 }
 
 describe("inspectVendor live adapter", () => {
+  it("passes explicit env to version and auth probes and omits env when absent", async () => {
+    const callsWith: Call[] = [];
+    const child: NodeJS.ProcessEnv = {
+      PATH: "/usr/bin",
+      GROK_HOME: "/profile/homes/grok",
+    };
+    const layerWith = makeLayers({
+      which: "/usr/bin/grok",
+      calls: callsWith,
+      run: (o) => {
+        if (o.args[0] === "models") {
+          return Effect.succeed({
+            exitCode: 0,
+            stdout: "You are logged in with grok.com.\n",
+            stderr: "",
+          });
+        }
+        return Effect.succeed({
+          exitCode: 0,
+          stdout: "0.2.118\n",
+          stderr: "",
+        });
+      },
+    });
+    await Effect.runPromise(
+      inspectVendor(grokCap, { env: child }).pipe(Effect.provide(layerWith)),
+    );
+    assert.ok(callsWith.length >= 2);
+    for (const c of callsWith) {
+      assert.equal(c.env, child);
+      assert.equal(c.env?.GROK_HOME, "/profile/homes/grok");
+    }
+
+    const callsWithout: Call[] = [];
+    const layerWithout = makeLayers({
+      which: "/usr/bin/grok",
+      calls: callsWithout,
+      run: () =>
+        Effect.succeed({
+          exitCode: 0,
+          stdout: "0.2.118\n",
+          stderr: "",
+        }),
+    });
+    await Effect.runPromise(
+      inspectVendor(grokCap).pipe(Effect.provide(layerWithout)),
+    );
+    assert.ok(callsWithout.length >= 1);
+    for (const c of callsWithout) {
+      assert.equal(c.env, undefined);
+    }
+  });
+
   it("Grok timeout -> auth unknown, timeout reason, no login instruction", async () => {
     const calls: Call[] = [];
     const layer = makeLayers({
