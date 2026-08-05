@@ -7,6 +7,11 @@
 `selectLatestRoundAttempt` SHALL accept decoded `StoredEvent` values, one `RunId`, and one `LaneId`.
 It SHALL select the prompt with the greatest sequence for that lane.
 
+The input history SHALL have strictly increasing sequence values.
+The function SHALL return `Invalid` before selection when a sequence decreases
+or equals the prior sequence.
+It SHALL NOT sort or otherwise repair invalid history.
+
 The selected prompt SHALL contain a valid positive `payload.attempt` value.
 It SHALL contain a valid `payload.roundPlan` value.
 The plan lane and attempt SHALL equal the selected lane and attempt.
@@ -14,12 +19,21 @@ The plan lane and attempt SHALL equal the selected lane and attempt.
 The function SHALL return `NoRound` when the lane has no prompt.
 It SHALL return `LegacyUnbound` when the selected prompt has no round plan.
 It SHALL return `Invalid` when the selected prompt has an invalid or mismatched plan.
+`LegacyUnbound` SHALL contain the decoded selected `AttemptIdentity`.
+`Invalid` SHALL contain the decoded selected `AttemptIdentity` when it is available.
 
 #### Scenario: an older prompt has a valid plan
 
 - WHEN the newest prompt is legacy and an older prompt has a valid plan
 - THEN selection returns `LegacyUnbound`
 - AND selection does not resume the older attempt.
+
+#### Scenario: history order is ambiguous
+
+- WHEN two events have equal sequence values
+- OR a later array entry has a smaller sequence value
+- THEN selection returns `Invalid`
+- AND no recovery reducer runs.
 
 ### Requirement: resume uses the existing recovery authority
 

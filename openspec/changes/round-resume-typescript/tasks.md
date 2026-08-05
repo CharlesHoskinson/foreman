@@ -4,6 +4,7 @@
 
 - [ ] Add RED tests for current-attempt selection.
 - [ ] Add RED tests for legacy and invalid prompt refusal.
+- [ ] Add RED tests for duplicate and decreasing event sequences.
 - [ ] Add RED tests for completed, wait, exhausted, and resume decisions.
 - [ ] Add `selectLatestRoundAttempt` to `@foreman/orchestration`.
 - [ ] Add `decideRoundResume` to `@foreman/orchestration`.

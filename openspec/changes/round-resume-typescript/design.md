@@ -12,8 +12,10 @@ It also prevents the live layer from reconstructing command text.
 ## Components
 
 `selectLatestRoundAttempt` selects the last prompt event for one lane by sequence.
+It rejects duplicate or decreasing sequences before it selects a prompt.
 It accepts only a prompt with a valid numeric attempt and a valid `RoundPlanV1`.
 It returns `LegacyUnbound` when the last prompt has no round plan.
+It carries the decoded attempt identity through legacy and eligible invalid results.
 
 `decideRoundResume` calls `recoverRoundAttempt` for the selected attempt.
 It combines that result with the supplied resume count, process state, and lock state.

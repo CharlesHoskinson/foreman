@@ -36,8 +36,8 @@ Use this public selection shape:
 export type LatestRoundAttemptV1 =
   | { readonly _tag: "NoRound" }
   | { readonly _tag: "Selected"; readonly attemptIdentity: AttemptIdentity }
-  | { readonly _tag: "LegacyUnbound"; readonly laneId: LaneId; readonly promptSequence: number }
-  | { readonly _tag: "Invalid"; readonly laneId: LaneId; readonly promptSequence: number };
+  | { readonly _tag: "LegacyUnbound"; readonly attemptIdentity: AttemptIdentity; readonly promptSequence: number }
+  | { readonly _tag: "Invalid"; readonly laneId: LaneId; readonly promptSequence: number; readonly attemptIdentity?: AttemptIdentity };
 
 export function selectLatestRoundAttempt(
   events: readonly StoredEvent[],
@@ -92,6 +92,8 @@ Expected: The test command fails because the module does not exist.
 
 - [ ] **Step 3: Implement current-attempt selection**
 
+Reject duplicate and decreasing event sequences before prompt selection.
+Do not sort or repair invalid history.
 Select the greatest prompt sequence for the requested lane.
 Decode the attempt and plan with existing decoders.
 Return only the closed result tags from the OpenSpec requirement.
@@ -100,6 +102,7 @@ Use `decodeAttemptId` for `payload.attempt`.
 Use `decodeRoundPlanV1` for `payload.roundPlan`.
 Use `attemptIdentityFromPlan` for the plan identity.
 Compare all three identity fields before returning `Selected`.
+Carry the decoded identity through `LegacyUnbound` and eligible `Invalid` results.
 
 - [ ] **Step 4: Run the selection tests**
 
