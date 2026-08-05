@@ -645,6 +645,7 @@ export {
   decodeCredentialProfileRecordV1,
   parseCredentialProfileRecordBytes,
   isCredentialProfileResult,
+  CREDENTIAL_PROFILE_REFUSAL_REASONS,
   renderCredentialProfileJson,
   CredentialProfileFs,
   liveCredentialProfileFs,

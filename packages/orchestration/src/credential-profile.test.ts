@@ -253,6 +253,40 @@ describe("closed vendor and result decoders", () => {
     );
     assert.equal(isCredentialProfileResult({ _tag: "Ready" }), false);
   });
+
+  it("isCredentialProfileResult rejects unknown keys on every variant", () => {
+    const id = "a".repeat(64);
+    assert.equal(
+      isCredentialProfileResult({
+        _tag: "Ready",
+        profileId: "p",
+        vendor: "grok",
+        configRoot: "/x",
+        profileIdentity: id,
+        extra: true,
+      }),
+      false,
+    );
+    assert.equal(
+      isCredentialProfileResult({
+        _tag: "Initialized",
+        profileId: "p",
+        vendor: "codex",
+        configRoot: "/x",
+        profileIdentity: id,
+        leaked: "secret",
+      }),
+      false,
+    );
+    assert.equal(
+      isCredentialProfileResult({
+        _tag: "Refused",
+        reason: "write_failed",
+        path: "/leaked",
+      }),
+      false,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -407,6 +441,59 @@ describe("state-root vs worktree boundary", () => {
         vendor: "grok",
       });
       assert.equal(r._tag, "Initialized", JSON.stringify(r));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses state that only resolves inside the worktree via a linked ancestor", () => {
+    if (IS_WIN) {
+      // Junction semantics for intermediate ancestors are host-specific.
+      return;
+    }
+    const root = mkdtempSync(join(tmpdir(), "foreman-cp-phys-"));
+    try {
+      const worktreeRoot = join(root, "worktree");
+      mkdirSync(worktreeRoot, { recursive: true });
+      // alias → worktree; state under alias is physically under worktree.
+      const alias = join(root, "alias");
+      symlinkSync(worktreeRoot, alias);
+      const stateRoot = join(alias, "nested-state");
+      mkdirSync(stateRoot, { recursive: true });
+      // Logical path is outside the worktree string; physical is inside.
+      assert.equal(
+        stateRoot.startsWith(worktreeRoot + "/"),
+        false,
+        "logical path must not be a string descendant",
+      );
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p1",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "state_root_in_worktree",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("missing worktree root is invalid_arguments (physical resolve required)", () => {
+    const { root, stateRoot } = tempPair("miss-wt");
+    try {
+      const r = runInit({
+        stateRoot,
+        worktreeRoot: join(root, "does-not-exist"),
+        profileId: "p1",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "invalid_arguments",
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1040,19 +1127,19 @@ describe("identity change, write failures, concurrency", () => {
   it("directory identity swap after layout creation refuses identity_changed", () => {
     const { root, stateRoot, worktreeRoot } = tempPair("idswap");
     try {
+      const homes = join(stateRoot, "credential-profiles", "p", "homes");
+      // Capture identity after ensure via hook replacement that forces a new
+      // inode: remove + recreate the homes directory (and vendor home).
       setCredentialProfileRaceHook({
         afterEnsureDirs: () => {
-          // Replace a created layout component with a new directory inode
-          // at the same path (identity swap). Must not follow or accept it.
-          const homes = join(
-            stateRoot,
-            "credential-profiles",
-            "p",
-            "homes",
-          );
           rmSync(homes, { recursive: true, force: true });
-          mkdirSync(homes, { recursive: true });
-          mkdirSync(join(homes, "grok"), { recursive: true });
+          // Park a dummy inode first so the recreated homes dir is unlikely
+          // to reuse the same ino on filesystems that recycle aggressively.
+          const burn = join(root, "burn-ino");
+          mkdirSync(burn, { recursive: true });
+          rmSync(burn, { recursive: true, force: true });
+          mkdirSync(homes, { recursive: true, mode: 0o700 });
+          mkdirSync(join(homes, "grok"), { recursive: true, mode: 0o700 });
         },
       });
       const r = runInit({
@@ -1061,18 +1148,13 @@ describe("identity change, write failures, concurrency", () => {
         profileId: "p",
         vendor: "grok",
       });
-      // On most filesystems remaking the dir changes ino → identity_changed.
-      // Some FS recycle inodes; if the identity is unchanged the operation
-      // may still succeed — accept only identity_changed or full success.
-      assert.ok(
-        (r._tag === "Refused" && r.reason === "identity_changed") ||
-          r._tag === "Initialized",
+      assert.deepEqual(
+        r,
+        { _tag: "Refused", reason: "identity_changed" },
         JSON.stringify(r),
       );
-      // Prefer the strict outcome when the host reassigns inodes.
-      if (r._tag === "Refused") {
-        assert.equal(r.reason, "identity_changed");
-      }
+      // Exclusive publish must not have succeeded after the swap.
+      assert.equal(existsSync(profileJsonPath(stateRoot, "p")), false);
     } finally {
       setCredentialProfileRaceHook(undefined);
       rmSync(root, { recursive: true, force: true });

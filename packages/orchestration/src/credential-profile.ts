@@ -12,12 +12,14 @@ import {
   chmodSync,
   closeSync,
   constants as fsConstants,
+  fstatSync,
   fsyncSync,
   linkSync,
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
+  readSync,
+  realpathSync,
   unlinkSync,
   writeSync,
   type Stats,
@@ -36,6 +38,9 @@ import {
   rejectUnknownKeys,
 } from "@foreman/core";
 import { isEqualOrDescendant } from "./round-cli.js";
+
+/** Windows keeps best-effort modes; POSIX requires and verifies them. */
+const IS_POSIX = process.platform !== "win32";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -56,6 +61,30 @@ export const PROFILES_DIR_NAME = "credential-profiles";
 export const HOMES_DIR_NAME = "homes";
 export const PROFILE_JSON_NAME = "profile.json";
 
+export const CREDENTIAL_PROFILE_REFUSAL_REASONS = [
+  "invalid_arguments",
+  "invalid_profile_id",
+  "invalid_state_root",
+  "state_root_in_worktree",
+  "authority_missing",
+  "authority_invalid",
+  "authority_conflict",
+  "linked_path",
+  "identity_changed",
+  "unreadable",
+  "write_failed",
+] as const;
+
+const READY_RESULT_KEYS = [
+  "_tag",
+  "profileId",
+  "vendor",
+  "configRoot",
+  "profileIdentity",
+] as const;
+
+const REFUSED_RESULT_KEYS = ["_tag", "reason"] as const;
+
 // ---------------------------------------------------------------------------
 // Closed types
 // ---------------------------------------------------------------------------
@@ -70,17 +99,7 @@ export type CredentialProfileRecordV1 = {
 };
 
 export type CredentialProfileRefusalReason =
-  | "invalid_arguments"
-  | "invalid_profile_id"
-  | "invalid_state_root"
-  | "state_root_in_worktree"
-  | "authority_missing"
-  | "authority_invalid"
-  | "authority_conflict"
-  | "linked_path"
-  | "identity_changed"
-  | "unreadable"
-  | "write_failed";
+  (typeof CREDENTIAL_PROFILE_REFUSAL_REASONS)[number];
 
 export type CredentialProfileResult =
   | {
@@ -338,45 +357,36 @@ export function parseCredentialProfileRecordBytes(
   return { _tag: "Ok", record };
 }
 
+/**
+ * Closed decoder for CLI/result shapes. Rejects unknown keys on every
+ * variant; does not accept open objects with extra fields.
+ */
 export function isCredentialProfileResult(
   v: unknown,
 ): v is CredentialProfileResult {
-  if (typeof v !== "object" || v === null) return false;
-  const tag = (v as { _tag?: unknown })._tag;
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+  const obj = v as Record<string, unknown>;
+  const tag = obj["_tag"];
   if (tag === "Ready" || tag === "Initialized") {
-    const r = v as {
-      profileId?: unknown;
-      vendor?: unknown;
-      configRoot?: unknown;
-      profileIdentity?: unknown;
-    };
+    if (rejectUnknownKeys(obj, READY_RESULT_KEYS) !== null) return false;
+    const profileId = obj["profileId"];
+    const vendor = obj["vendor"];
+    const configRoot = obj["configRoot"];
+    const profileIdentity = obj["profileIdentity"];
     return (
-      typeof r.profileId === "string" &&
-      isCredentialVendor(r.vendor) &&
-      typeof r.configRoot === "string" &&
-      typeof r.profileIdentity === "string" &&
-      /^[0-9a-f]{64}$/.test(r.profileIdentity)
+      typeof profileId === "string" &&
+      isCredentialVendor(vendor) &&
+      typeof configRoot === "string" &&
+      typeof profileIdentity === "string" &&
+      /^[0-9a-f]{64}$/.test(profileIdentity)
     );
   }
   if (tag === "Refused") {
-    const reason = (v as { reason?: unknown }).reason;
+    if (rejectUnknownKeys(obj, REFUSED_RESULT_KEYS) !== null) return false;
+    const reason = obj["reason"];
     return (
       typeof reason === "string" &&
-      (
-        [
-          "invalid_arguments",
-          "invalid_profile_id",
-          "invalid_state_root",
-          "state_root_in_worktree",
-          "authority_missing",
-          "authority_invalid",
-          "authority_conflict",
-          "linked_path",
-          "identity_changed",
-          "unreadable",
-          "write_failed",
-        ] as readonly string[]
-      ).includes(reason)
+      (CREDENTIAL_PROFILE_REFUSAL_REASONS as readonly string[]).includes(reason)
     );
   }
   return false;
@@ -410,15 +420,24 @@ export type CredentialProfileFsShape = {
   readonly classify: (path: string) => PathKind;
   /** Stable identity for a path (lstat). Missing → null. */
   readonly identity: (path: string) => PathIdentity | null;
+  /**
+   * Permission bits `mode & 0o777` from lstat (no follow). Missing → null.
+   * Used on POSIX to require directory 0700 and authority 0600.
+   */
+  readonly modeBits: (path: string) => number | null;
   /** Create one directory (non-recursive). Mode 0o700 when supported. */
   readonly mkdir: (path: string, mode: number) => void;
   /** Create directories recursively. Mode 0o700 when supported. */
   readonly mkdirp: (path: string, mode: number) => void;
-  /** Best-effort chmod. */
+  /**
+   * Set permission bits. On POSIX, callers must verify the resulting mode;
+   * failures must not be ignored for owner-only layout/authority paths.
+   */
   readonly chmod: (path: string, mode: number) => void;
   /**
-   * Read up to maxBytes from a regular non-linked file. Returns null on
-   * missing; throws typed errors via return tags.
+   * Read up to maxBytes from a regular non-linked file. Opens without
+   * following a final-component link; verifies the opened descriptor
+   * identity before a bounded read through that descriptor.
    */
   readonly readFile: (
     path: string,
@@ -433,7 +452,8 @@ export type CredentialProfileFsShape = {
   /**
    * Atomic exclusive publish of authority bytes: temp write + fsync +
    * exclusive hard-link publish + parent fsync. Never renames over a
-   * final path (no check-then-rename race).
+   * final path (no check-then-rename race). Unsupported exclusive
+   * hard-link is WriteFailed (no rename fallback).
    */
   readonly writeAuthorityExclusive: (
     finalPath: string,
@@ -508,33 +528,110 @@ function liveIdentity(path: string): PathIdentity | null {
   }
 }
 
+function liveModeBits(path: string): number | null {
+  try {
+    return lstatSync(path).mode & 0o777;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Open flags that refuse to follow a final-component symbolic link when the
+ * platform exposes O_NOFOLLOW. On platforms without it, callers still
+ * lstat-check before open and recheck identity after open.
+ */
+function authorityOpenFlags(): number {
+  const c = fsConstants as Record<string, number | undefined>;
+  if (typeof c.O_NOFOLLOW === "number") {
+    return fsConstants.O_RDONLY | c.O_NOFOLLOW;
+  }
+  return fsConstants.O_RDONLY;
+}
+
+function closeQuiet(fd: number | undefined): void {
+  if (fd === undefined) return;
+  try {
+    closeSync(fd);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Open the authority without following a link. Verify the opened descriptor
+ * and path identity before the bounded read, then read through that descriptor.
+ */
 function liveReadFile(
   path: string,
   maxBytes: number,
 ): ReturnType<CredentialProfileFsShape["readFile"]> {
+  let fd: number | undefined;
   try {
     const st = lstatSync(path);
     if (st.isSymbolicLink()) return { _tag: "Linked" };
     if (!st.isFile()) return { _tag: "NotFile" };
     if (st.size > maxBytes) return { _tag: "Oversized" };
-    const bytes = readFileSync(path);
-    if (bytes.byteLength > maxBytes) return { _tag: "Oversized" };
-    // Identity recheck
-    const after = lstatSync(path);
+
+    fd = openSync(path, authorityOpenFlags());
+    const opened = fstatSync(fd);
     if (
-      after.isSymbolicLink() ||
-      !after.isFile() ||
-      after.dev !== st.dev ||
-      after.ino !== st.ino ||
-      after.size !== st.size
+      !opened.isFile() ||
+      opened.isSymbolicLink() ||
+      opened.dev !== st.dev ||
+      opened.ino !== st.ino ||
+      opened.size !== st.size
     ) {
       return { _tag: "Unreadable" };
     }
-    return { _tag: "Ok", bytes };
+
+    // Path identity must still name the same non-linked regular file.
+    const pathAfter = lstatSync(path);
+    if (
+      pathAfter.isSymbolicLink() ||
+      !pathAfter.isFile() ||
+      pathAfter.dev !== st.dev ||
+      pathAfter.ino !== st.ino ||
+      pathAfter.size !== st.size
+    ) {
+      return { _tag: "Unreadable" };
+    }
+
+    const cap = maxBytes + 1;
+    const buf = Buffer.allocUnsafe(cap);
+    let offset = 0;
+    while (offset < cap) {
+      const n = readSync(fd, buf, offset, cap - offset, offset);
+      if (n === 0) break;
+      offset += n;
+    }
+    if (offset > maxBytes) return { _tag: "Oversized" };
+
+    const after = fstatSync(fd);
+    if (
+      !after.isFile() ||
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size
+    ) {
+      return { _tag: "Unreadable" };
+    }
+    return { _tag: "Ok", bytes: buf.subarray(0, offset) };
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
     if (err.code === "ENOENT") return { _tag: "Absent" };
+    // O_NOFOLLOW hit a symlink (ELOOP / EMLINK) or open failed closed.
+    if (err.code === "ELOOP" || err.code === "EINVAL") {
+      // Re-classify: a link at the path is Linked; anything else Unreadable.
+      try {
+        if (lstatSync(path).isSymbolicLink()) return { _tag: "Linked" };
+      } catch {
+        /* fall through */
+      }
+    }
     return { _tag: "Unreadable" };
+  } finally {
+    closeQuiet(fd);
   }
 }
 
@@ -544,6 +641,26 @@ function cleanupTemp(tmpPath: string): void {
   } catch {
     /* ignore */
   }
+}
+
+/**
+ * Apply owner-only mode. On POSIX, chmod failure or a resulting mode other
+ * than expected is WriteFailed-class (caller maps). Windows is best-effort.
+ */
+function applyAndVerifyMode(
+  path: string,
+  expected: number,
+): "ok" | "failed" {
+  try {
+    chmodSync(path, expected);
+  } catch {
+    if (IS_POSIX) return "failed";
+    return "ok";
+  }
+  if (!IS_POSIX) return "ok";
+  const bits = liveModeBits(path);
+  if (bits === null || bits !== expected) return "failed";
+  return "ok";
 }
 
 /**
@@ -580,16 +697,17 @@ export function liveWriteAuthorityExclusive(
     fsyncSync(fd);
     closeSync(fd);
     fd = undefined;
-    try {
-      chmodSync(tmpPath, 0o600);
-    } catch {
-      /* platform may ignore mode */
+    if (applyAndVerifyMode(tmpPath, 0o600) === "failed") {
+      cleanupTemp(tmpPath);
+      return { _tag: "WriteFailed" };
     }
 
     // Exclusive publish: hard-link then unlink temp. No rename fallback.
     try {
       if (raceHook?.forceExclusiveLinkCode !== undefined) {
-        const err = new Error("forced exclusive link failure") as NodeJS.ErrnoException;
+        const err = new Error(
+          "forced exclusive link failure",
+        ) as NodeJS.ErrnoException;
         err.code = raceHook.forceExclusiveLinkCode;
         throw err;
       }
@@ -603,10 +721,11 @@ export function liveWriteAuthorityExclusive(
       return { _tag: "WriteFailed" };
     }
     cleanupTemp(tmpPath);
-    try {
-      chmodSync(finalPath, 0o600);
-    } catch {
-      /* best-effort */
+    if (applyAndVerifyMode(finalPath, 0o600) === "failed") {
+      // Authority published but mode contract failed — refuse; do not leave
+      // a success path. Caller treats WriteFailed; concurrent readers may
+      // still see the file (conflict/Ready on re-read path). Prefer fail closed.
+      return { _tag: "WriteFailed" };
     }
     try {
       const dirFd = openSync(dir, fsConstants.O_RDONLY);
@@ -620,13 +739,7 @@ export function liveWriteAuthorityExclusive(
     }
     return { _tag: "Ok" };
   } catch {
-    if (fd !== undefined) {
-      try {
-        closeSync(fd);
-      } catch {
-        /* ignore */
-      }
-    }
+    closeQuiet(fd);
     cleanupTemp(tmpPath);
     return { _tag: "WriteFailed" };
   }
@@ -635,6 +748,7 @@ export function liveWriteAuthorityExclusive(
 export const liveCredentialProfileFs: CredentialProfileFsShape = {
   classify: liveClassify,
   identity: liveIdentity,
+  modeBits: liveModeBits,
   mkdir: (path, mode) => {
     mkdirSync(path, { mode });
   },
@@ -757,6 +871,20 @@ type ValidatedInput = {
   readonly stateRootIdentity: PathIdentity;
 };
 
+/**
+ * Resolve the physical directory path via realpath. Used only for
+ * containment admission so a linked ancestor cannot place state inside the
+ * worktree while logical path strings look external.
+ */
+function physicalDirPath(absolutePath: string): string | null {
+  try {
+    const real = realpathSync(absolutePath);
+    return normalizeAbsolutePath(real);
+  } catch {
+    return null;
+  }
+}
+
 function validateInputs(
   input: CredentialProfileInput,
   fs: CredentialProfileFsShape,
@@ -781,12 +909,8 @@ function validateInputs(
   const stateRoot = normalizeAbsolutePath(input.stateRoot);
   const worktreeRoot = normalizeAbsolutePath(input.worktreeRoot);
 
-  if (isEqualOrDescendant(stateRoot, worktreeRoot)) {
-    return { _tag: "Refused", result: refuse("state_root_in_worktree") };
-  }
-
-  // Single identity capture for state root (no separate classify-then-identity
-  // pair that re-states the same directory check).
+  // Single identity capture for state root (no duplicated absolute-input
+  // re-check). Final component must be a real directory, not a link.
   const stateId = fs.identity(stateRoot);
   if (stateId === null) {
     return { _tag: "Refused", result: refuse("invalid_state_root") };
@@ -796,6 +920,19 @@ function validateInputs(
   }
   if (stateId.kind !== "directory") {
     return { _tag: "Refused", result: refuse("invalid_state_root") };
+  }
+
+  // Physical containment: resolve through linked ancestors before admission.
+  const physicalState = physicalDirPath(stateRoot);
+  if (physicalState === null) {
+    return { _tag: "Refused", result: refuse("invalid_state_root") };
+  }
+  const physicalWorktree = physicalDirPath(worktreeRoot);
+  if (physicalWorktree === null) {
+    return { _tag: "Refused", result: refuse("invalid_arguments") };
+  }
+  if (isEqualOrDescendant(physicalState, physicalWorktree)) {
+    return { _tag: "Refused", result: refuse("state_root_in_worktree") };
   }
 
   raceHook?.afterValidateStateRoot?.();
@@ -847,6 +984,26 @@ function checkComponent(
   return null;
 }
 
+/**
+ * Ensure owner-only directory mode 0700 on POSIX. Windows remains best-effort
+ * (chmod may no-op). A POSIX permission failure is write_failed.
+ */
+function applyAndVerifyDirMode(
+  fs: CredentialProfileFsShape,
+  path: string,
+): CredentialProfileRefusalReason | null {
+  try {
+    fs.chmod(path, 0o700);
+  } catch {
+    if (IS_POSIX) return "write_failed";
+    return null;
+  }
+  if (!IS_POSIX) return null;
+  const bits = fs.modeBits(path);
+  if (bits === null || bits !== 0o700) return "write_failed";
+  return null;
+}
+
 function ensureOwnerDir(
   fs: CredentialProfileFsShape,
   path: string,
@@ -855,23 +1012,17 @@ function ensureOwnerDir(
   if (kind === "symlink") return "linked_path";
   if (kind === "file" || kind === "other") return "authority_invalid";
   if (kind === "directory") {
-    try {
-      fs.chmod(path, 0o700);
-    } catch {
-      /* best-effort */
-    }
-    return null;
+    return applyAndVerifyDirMode(fs, path);
   }
   try {
     fs.mkdirp(path, 0o700);
-    fs.chmod(path, 0o700);
   } catch {
     return "write_failed";
   }
   const after = fs.classify(path);
   if (after === "symlink") return "linked_path";
   if (after !== "directory") return "write_failed";
-  return null;
+  return applyAndVerifyDirMode(fs, path);
 }
 
 function successResult(

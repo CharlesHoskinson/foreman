@@ -15622,12 +15622,14 @@ import {
   chmodSync,
   closeSync as closeSync2,
   constants as fsConstants2,
+  fstatSync as fstatSync2,
   fsyncSync,
   linkSync,
   lstatSync,
   mkdirSync,
   openSync as openSync2,
-  readFileSync,
+  readSync as readSync2,
+  realpathSync,
   unlinkSync,
   writeSync
 } from "node:fs";
@@ -16342,6 +16344,7 @@ function isEqualOrDescendant(candidate, root) {
 }
 
 // packages/orchestration/src/credential-profile.ts
+var IS_POSIX = process.platform !== "win32";
 var CREDENTIAL_PROFILE_SCHEMA_VERSION = 1;
 var MAX_CREDENTIAL_PROFILE_RECORD_BYTES = 16384;
 var PROFILE_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -16493,23 +16496,69 @@ function liveIdentity(path) {
     return null;
   }
 }
+function liveModeBits(path) {
+  try {
+    return lstatSync(path).mode & 511;
+  } catch {
+    return null;
+  }
+}
+function authorityOpenFlags() {
+  const c = fsConstants2;
+  if (typeof c.O_NOFOLLOW === "number") {
+    return fsConstants2.O_RDONLY | c.O_NOFOLLOW;
+  }
+  return fsConstants2.O_RDONLY;
+}
+function closeQuiet(fd) {
+  if (fd === void 0) return;
+  try {
+    closeSync2(fd);
+  } catch {
+  }
+}
 function liveReadFile(path, maxBytes) {
+  let fd;
   try {
     const st = lstatSync(path);
     if (st.isSymbolicLink()) return { _tag: "Linked" };
     if (!st.isFile()) return { _tag: "NotFile" };
     if (st.size > maxBytes) return { _tag: "Oversized" };
-    const bytes = readFileSync(path);
-    if (bytes.byteLength > maxBytes) return { _tag: "Oversized" };
-    const after3 = lstatSync(path);
-    if (after3.isSymbolicLink() || !after3.isFile() || after3.dev !== st.dev || after3.ino !== st.ino || after3.size !== st.size) {
+    fd = openSync2(path, authorityOpenFlags());
+    const opened = fstatSync2(fd);
+    if (!opened.isFile() || opened.isSymbolicLink() || opened.dev !== st.dev || opened.ino !== st.ino || opened.size !== st.size) {
       return { _tag: "Unreadable" };
     }
-    return { _tag: "Ok", bytes };
+    const pathAfter = lstatSync(path);
+    if (pathAfter.isSymbolicLink() || !pathAfter.isFile() || pathAfter.dev !== st.dev || pathAfter.ino !== st.ino || pathAfter.size !== st.size) {
+      return { _tag: "Unreadable" };
+    }
+    const cap = maxBytes + 1;
+    const buf = Buffer.allocUnsafe(cap);
+    let offset = 0;
+    while (offset < cap) {
+      const n = readSync2(fd, buf, offset, cap - offset, offset);
+      if (n === 0) break;
+      offset += n;
+    }
+    if (offset > maxBytes) return { _tag: "Oversized" };
+    const after3 = fstatSync2(fd);
+    if (!after3.isFile() || after3.dev !== opened.dev || after3.ino !== opened.ino || after3.size !== opened.size) {
+      return { _tag: "Unreadable" };
+    }
+    return { _tag: "Ok", bytes: buf.subarray(0, offset) };
   } catch (e) {
     const err = e;
     if (err.code === "ENOENT") return { _tag: "Absent" };
+    if (err.code === "ELOOP" || err.code === "EINVAL") {
+      try {
+        if (lstatSync(path).isSymbolicLink()) return { _tag: "Linked" };
+      } catch {
+      }
+    }
     return { _tag: "Unreadable" };
+  } finally {
+    closeQuiet(fd);
   }
 }
 function cleanupTemp(tmpPath) {
@@ -16517,6 +16566,18 @@ function cleanupTemp(tmpPath) {
     unlinkSync(tmpPath);
   } catch {
   }
+}
+function applyAndVerifyMode(path, expected) {
+  try {
+    chmodSync(path, expected);
+  } catch {
+    if (IS_POSIX) return "failed";
+    return "ok";
+  }
+  if (!IS_POSIX) return "ok";
+  const bits = liveModeBits(path);
+  if (bits === null || bits !== expected) return "failed";
+  return "ok";
 }
 function liveWriteAuthorityExclusive(finalPath, body) {
   const dir = dirname(finalPath);
@@ -16542,13 +16603,15 @@ function liveWriteAuthorityExclusive(finalPath, body) {
     fsyncSync(fd);
     closeSync2(fd);
     fd = void 0;
-    try {
-      chmodSync(tmpPath, 384);
-    } catch {
+    if (applyAndVerifyMode(tmpPath, 384) === "failed") {
+      cleanupTemp(tmpPath);
+      return { _tag: "WriteFailed" };
     }
     try {
       if (raceHook?.forceExclusiveLinkCode !== void 0) {
-        const err = new Error("forced exclusive link failure");
+        const err = new Error(
+          "forced exclusive link failure"
+        );
         err.code = raceHook.forceExclusiveLinkCode;
         throw err;
       }
@@ -16562,9 +16625,8 @@ function liveWriteAuthorityExclusive(finalPath, body) {
       return { _tag: "WriteFailed" };
     }
     cleanupTemp(tmpPath);
-    try {
-      chmodSync(finalPath, 384);
-    } catch {
+    if (applyAndVerifyMode(finalPath, 384) === "failed") {
+      return { _tag: "WriteFailed" };
     }
     try {
       const dirFd = openSync2(dir, fsConstants2.O_RDONLY);
@@ -16577,12 +16639,7 @@ function liveWriteAuthorityExclusive(finalPath, body) {
     }
     return { _tag: "Ok" };
   } catch {
-    if (fd !== void 0) {
-      try {
-        closeSync2(fd);
-      } catch {
-      }
-    }
+    closeQuiet(fd);
     cleanupTemp(tmpPath);
     return { _tag: "WriteFailed" };
   }
@@ -16590,6 +16647,7 @@ function liveWriteAuthorityExclusive(finalPath, body) {
 var liveCredentialProfileFs = {
   classify: liveClassify,
   identity: liveIdentity,
+  modeBits: liveModeBits,
   mkdir: (path, mode) => {
     mkdirSync(path, { mode });
   },
@@ -16652,6 +16710,14 @@ function recheckLayoutIdentities(fs, paths, ids3) {
   }
   return null;
 }
+function physicalDirPath(absolutePath) {
+  try {
+    const real = realpathSync(absolutePath);
+    return normalizeAbsolutePath(real);
+  } catch {
+    return null;
+  }
+}
 function validateInputs(input, fs) {
   if (!isAbsolutePathInput(input.stateRoot)) {
     return { _tag: "Refused", result: refuse("invalid_state_root") };
@@ -16667,9 +16733,6 @@ function validateInputs(input, fs) {
   }
   const stateRoot = normalizeAbsolutePath(input.stateRoot);
   const worktreeRoot = normalizeAbsolutePath(input.worktreeRoot);
-  if (isEqualOrDescendant(stateRoot, worktreeRoot)) {
-    return { _tag: "Refused", result: refuse("state_root_in_worktree") };
-  }
   const stateId = fs.identity(stateRoot);
   if (stateId === null) {
     return { _tag: "Refused", result: refuse("invalid_state_root") };
@@ -16679,6 +16742,17 @@ function validateInputs(input, fs) {
   }
   if (stateId.kind !== "directory") {
     return { _tag: "Refused", result: refuse("invalid_state_root") };
+  }
+  const physicalState = physicalDirPath(stateRoot);
+  if (physicalState === null) {
+    return { _tag: "Refused", result: refuse("invalid_state_root") };
+  }
+  const physicalWorktree = physicalDirPath(worktreeRoot);
+  if (physicalWorktree === null) {
+    return { _tag: "Refused", result: refuse("invalid_arguments") };
+  }
+  if (isEqualOrDescendant(physicalState, physicalWorktree)) {
+    return { _tag: "Refused", result: refuse("state_root_in_worktree") };
   }
   raceHook?.afterValidateStateRoot?.();
   const stateId2 = fs.identity(stateRoot);
@@ -16710,27 +16784,34 @@ function checkComponent(fs, path, opts) {
   if (kind === "directory" || kind === "other") return "authority_invalid";
   return null;
 }
+function applyAndVerifyDirMode(fs, path) {
+  try {
+    fs.chmod(path, 448);
+  } catch {
+    if (IS_POSIX) return "write_failed";
+    return null;
+  }
+  if (!IS_POSIX) return null;
+  const bits = fs.modeBits(path);
+  if (bits === null || bits !== 448) return "write_failed";
+  return null;
+}
 function ensureOwnerDir(fs, path) {
   const kind = fs.classify(path);
   if (kind === "symlink") return "linked_path";
   if (kind === "file" || kind === "other") return "authority_invalid";
   if (kind === "directory") {
-    try {
-      fs.chmod(path, 448);
-    } catch {
-    }
-    return null;
+    return applyAndVerifyDirMode(fs, path);
   }
   try {
     fs.mkdirp(path, 448);
-    fs.chmod(path, 448);
   } catch {
     return "write_failed";
   }
   const after3 = fs.classify(path);
   if (after3 === "symlink") return "linked_path";
   if (after3 !== "directory") return "write_failed";
-  return null;
+  return applyAndVerifyDirMode(fs, path);
 }
 function successResult(tag, stateRoot, record) {
   const configRoot = absoluteConfigRoot(
