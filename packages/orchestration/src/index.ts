@@ -132,6 +132,18 @@ export {
   type RoundRecoveryResult,
 } from "./round-reducer.js";
 
+// --- Sprint 3 R5A: pure typed round resume decision ---
+
+export {
+  selectLatestRoundAttempt,
+  decideRoundResume,
+  type LatestRoundAttemptV1,
+  type ResumeProcessState,
+  type ResumeLockState,
+  type RoundResumeDecisionV1,
+  type DecideRoundResumeInput,
+} from "./resume-decision.js";
+
 export {
   RoundBoundaryFailure,
   AttemptAllocator,
