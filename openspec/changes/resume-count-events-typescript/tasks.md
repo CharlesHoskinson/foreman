@@ -6,7 +6,7 @@
       failure values.
 - [x] Add RED tests for legacy events, malformed payloads, count gaps,
       non-current attempts, invalid limits, and exhausted limits.
-- [ ] Add a RED separate-process reservation test with a start barrier that
+- [x] Add a RED separate-process reservation test with a start barrier that
       proves one unique count per successful caller and no append past the
       limit.
 - [x] Add `ResumeAttemptFailure`, `ResumeAttemptReservationV1`, and the

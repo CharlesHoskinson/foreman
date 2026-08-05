@@ -679,6 +679,24 @@ describe("RunJournal layout", () => {
 });
 
 describe("RunJournal multi-process", () => {
+  /** Child startup bound: both ready files must appear within this window. */
+  const CHILD_STARTUP_BOUND_MS = 15_000;
+  /** Child barrier wait bound after reporting ready. */
+  const BARRIER_WAIT_BOUND_MS = 15_000;
+  /** Parent wait for both children to exit after barrier release. */
+  const CHILD_COMPLETION_BOUND_MS = 20_000;
+
+  type ChildCapture = {
+    readonly code: number | null;
+    readonly out: string;
+    readonly err: string;
+    readonly pid: number | undefined;
+  };
+
+  type ReserveChildResult =
+    | { readonly status: "ok"; readonly resumeCount: number; readonly pid: number }
+    | { readonly status: "fail"; readonly reason: string; readonly pid: number };
+
   /**
    * Inline worker evaluated from the repo root so package imports resolve.
    * Each invocation is a separate OS process.
@@ -712,6 +730,160 @@ if (exit._tag === "Success") {
   process.exitCode = 1;
 }
 `;
+  }
+
+  /**
+   * Barrier-synced reserve worker.
+   * argv: root runId laneId attempt limit readyPath goPath barrierWaitMs
+   * Reports ready, waits for go, then reserveResumeAttempt.
+   */
+  function reserveBarrierWorkerEval(): string {
+    return `
+import { existsSync, writeFileSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
+import { Cause, Effect, Exit } from "effect";
+import {
+  isResumeAttemptFailure,
+  makeLiveRunJournalLayer,
+  RunJournal,
+} from "./packages/event-log/src/run-journal.ts";
+import {
+  decodeAttemptId,
+  decodeLaneId,
+  decodeRunId,
+  makeAttemptIdentity,
+} from "./packages/event-log/src/attempt.ts";
+
+const root = process.argv[1];
+const runIdRaw = decodeRunId(process.argv[2]);
+const laneIdRaw = decodeLaneId(process.argv[3]);
+const attemptRaw = decodeAttemptId(Number(process.argv[4]));
+const limit = Number(process.argv[5]);
+const readyPath = process.argv[6];
+const goPath = process.argv[7];
+const barrierWaitMs = Number(process.argv[8]);
+
+if (typeof runIdRaw !== "string" || typeof laneIdRaw !== "string" || typeof attemptRaw !== "number") {
+  process.stderr.write("worker_decode_failed\\n");
+  process.exit(3);
+}
+
+writeFileSync(
+  readyPath,
+  JSON.stringify({ pid: process.pid, at: Date.now() }) + "\\n",
+);
+
+const goDeadline = Date.now() + barrierWaitMs;
+while (!existsSync(goPath)) {
+  if (Date.now() > goDeadline) {
+    process.stderr.write("barrier_wait_timeout\\n");
+    process.exit(2);
+  }
+  await delay(5);
+}
+
+const identity = makeAttemptIdentity(runIdRaw, laneIdRaw, attemptRaw);
+const exit = await Effect.runPromiseExit(
+  Effect.gen(function* () {
+    const j = yield* RunJournal;
+    return yield* j.reserveResumeAttempt(identity, limit);
+  }).pipe(Effect.provide(makeLiveRunJournalLayer(root))),
+);
+
+if (Exit.isSuccess(exit)) {
+  process.stdout.write(
+    JSON.stringify({
+      status: "ok",
+      resumeCount: exit.value.resumeCount,
+      pid: process.pid,
+    }) + "\\n",
+  );
+  process.exitCode = 0;
+} else {
+  const fails = [...Cause.failures(exit.cause)];
+  const first = fails[0];
+  const reason =
+    first !== undefined && isResumeAttemptFailure(first)
+      ? first.reason
+      : "unknown";
+  process.stdout.write(
+    JSON.stringify({ status: "fail", reason, pid: process.pid }) + "\\n",
+  );
+  if (fails.length === 0) {
+    process.stderr.write("defect_or_empty_failure\\n");
+  }
+  process.exitCode = 1;
+}
+`;
+  }
+
+  function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function waitUntil(
+    predicate: () => boolean,
+    timeoutMs: number,
+    label: string,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (predicate()) return;
+      await sleep(10);
+    }
+    throw new Error(`timeout waiting for ${label} (${timeoutMs}ms)`);
+  }
+
+  function spawnCaptured(
+    spawn: typeof import("node:child_process").spawn,
+    args: readonly string[],
+  ): {
+    readonly child: import("node:child_process").ChildProcess;
+    readonly done: Promise<ChildCapture>;
+  } {
+    const child = spawn(process.execPath, [...args], {
+      cwd: process.cwd(),
+    });
+    let out = "";
+    let err = "";
+    child.stdout?.on("data", (c: Buffer) => {
+      out += c.toString("utf8");
+    });
+    child.stderr?.on("data", (c: Buffer) => {
+      err += c.toString("utf8");
+    });
+    const done = new Promise<ChildCapture>((resolveP) => {
+      child.on("close", (code) =>
+        resolveP({ code, out, err, pid: child.pid }),
+      );
+    });
+    return { child, done };
+  }
+
+  function killChild(child: import("node:child_process").ChildProcess): void {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      /* already reaped */
+    }
+  }
+
+  function parseReserveResult(capture: ChildCapture): ReserveChildResult {
+    const line = capture.out
+      .split("\n")
+      .map((s) => s.trim())
+      .find((s) => s.startsWith("{"));
+    assert.ok(
+      line !== undefined,
+      `child stdout missing JSON result; code=${String(capture.code)} err=${capture.err} out=${capture.out}`,
+    );
+    const parsed = JSON.parse(line) as ReserveChildResult;
+    assert.ok(
+      parsed.status === "ok" || parsed.status === "fail",
+      `unexpected status in ${line}`,
+    );
+    return parsed;
   }
 
   it("two separate OS processes allocate one lane concurrently", async () => {
@@ -803,6 +975,235 @@ if (exit._tag === "Success") {
         replay.records.map((r) => r.event.seq),
         [1, 2],
       );
+    });
+  });
+
+  /**
+   * RED witness: two multi-process reservations run strictly one after the
+   * other. Outcomes match limit-one exhaustion, but this is sequential and
+   * is not concurrency acceptance evidence (no shared start barrier).
+   */
+  it("serialized multi-process limit-one witness exhausts without concurrent start", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      const { spawn } = await import("node:child_process");
+      const barrierDir = mkdtempSync(join(tmpdir(), "rj-serial-"));
+      try {
+        const runSerialChild = async (index: number): Promise<ChildCapture> => {
+          const readyPath = join(barrierDir, `ready-${String(index)}`);
+          const goPath = join(barrierDir, `go-${String(index)}`);
+          const args = [
+            "--import",
+            "tsx",
+            "--input-type=module",
+            "-e",
+            reserveBarrierWorkerEval(),
+            root,
+            String(runId),
+            String(laneId),
+            "1",
+            "1",
+            readyPath,
+            goPath,
+            String(BARRIER_WAIT_BOUND_MS),
+          ];
+          const { child, done } = spawnCaptured(spawn, args);
+          try {
+            await waitUntil(
+              () => existsSync(readyPath),
+              CHILD_STARTUP_BOUND_MS,
+              `serial ready-${String(index)}`,
+            );
+            writeFileSync(goPath, "go\n");
+            const timed = await Promise.race([
+              done,
+              sleep(CHILD_COMPLETION_BOUND_MS).then(() => null),
+            ]);
+            if (timed === null) {
+              killChild(child);
+              const late = await done;
+              assert.fail(
+                `serial child ${String(index)} completion timeout; code=${String(late.code)} err=${late.err} out=${late.out}`,
+              );
+            }
+            return timed;
+          } catch (e) {
+            killChild(child);
+            throw e;
+          }
+        };
+
+        const first = await runSerialChild(0);
+        const second = await runSerialChild(1);
+        const results = [parseReserveResult(first), parseReserveResult(second)];
+        const oks = results.filter((r) => r.status === "ok");
+        const fails = results.filter((r) => r.status === "fail");
+        assert.equal(oks.length, 1, JSON.stringify({ first, second, results }));
+        assert.equal(fails.length, 1, JSON.stringify({ first, second, results }));
+        assert.equal(oks[0]!.resumeCount, 1);
+        assert.equal(fails[0]!.reason, "resume_limit_reached");
+        assert.equal(journalResumeAttemptCount(root), 1);
+        // Evidence that this witness was sequential: second ready file cannot
+        // exist before the first child has already exited.
+        assert.ok(first.code === 0 || first.code === 1, `first exit ${String(first.code)} err=${first.err}`);
+        assert.ok(second.code === 0 || second.code === 1, `second exit ${String(second.code)} err=${second.err}`);
+      } finally {
+        rmSync(barrierDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  /**
+   * GREEN concurrency acceptance: two OS processes report ready, parent
+   * releases one shared start barrier, then both call reserveResumeAttempt
+   * with limit 1. In-process runFork is not acceptance evidence.
+   */
+  it("two separate processes wait at one start barrier then race limit one", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      const { spawn } = await import("node:child_process");
+      const barrierDir = mkdtempSync(join(tmpdir(), "rj-race-"));
+      const ready0 = join(barrierDir, "ready-0");
+      const ready1 = join(barrierDir, "ready-1");
+      const goPath = join(barrierDir, "go");
+      const children: import("node:child_process").ChildProcess[] = [];
+      try {
+        const argsFor = (readyPath: string) => [
+          "--import",
+          "tsx",
+          "--input-type=module",
+          "-e",
+          reserveBarrierWorkerEval(),
+          root,
+          String(runId),
+          String(laneId),
+          "1",
+          "1",
+          readyPath,
+          goPath,
+          String(BARRIER_WAIT_BOUND_MS),
+        ];
+
+        const c0 = spawnCaptured(spawn, argsFor(ready0));
+        const c1 = spawnCaptured(spawn, argsFor(ready1));
+        children.push(c0.child, c1.child);
+
+        await waitUntil(
+          () => existsSync(ready0) && existsSync(ready1),
+          CHILD_STARTUP_BOUND_MS,
+          "both ready files",
+        );
+        // Both children reported ready before the single start barrier release.
+        assert.equal(existsSync(goPath), false, "go must not exist before release");
+        const readyAtRelease = {
+          ready0: readFileSync(ready0, "utf8").trim(),
+          ready1: readFileSync(ready1, "utf8").trim(),
+          releasedAt: Date.now(),
+        };
+        writeFileSync(goPath, JSON.stringify(readyAtRelease) + "\n");
+
+        const timed = await Promise.race([
+          Promise.all([c0.done, c1.done]),
+          sleep(CHILD_COMPLETION_BOUND_MS).then(() => null),
+        ]);
+        if (timed === null) {
+          for (const ch of children) killChild(ch);
+          const late = await Promise.all([c0.done, c1.done]);
+          assert.fail(
+            `barrier race completion timeout; captures=${JSON.stringify(late)}`,
+          );
+        }
+        const [r0, r1] = timed;
+
+        // Capture child stderr and exit codes in assertion evidence.
+        const evidence = {
+          readyAtRelease,
+          children: [
+            { code: r0.code, err: r0.err, out: r0.out, pid: r0.pid },
+            { code: r1.code, err: r1.err, out: r1.out, pid: r1.pid },
+          ],
+        };
+
+        const results = [parseReserveResult(r0), parseReserveResult(r1)];
+        const oks = results.filter((r) => r.status === "ok");
+        const fails = results.filter((r) => r.status === "fail");
+        assert.equal(
+          oks.length,
+          1,
+          `exactly one success expected: ${JSON.stringify(evidence)}`,
+        );
+        assert.equal(
+          fails.length,
+          1,
+          `exactly one failure expected: ${JSON.stringify(evidence)}`,
+        );
+        assert.equal(oks[0]!.resumeCount, 1, JSON.stringify(evidence));
+        assert.equal(
+          fails[0]!.reason,
+          "resume_limit_reached",
+          JSON.stringify(evidence),
+        );
+
+        // Exit codes: success child 0, limit child 1; stderr should not show
+        // barrier timeout or defects under a healthy lock.
+        const paired = [
+          { capture: r0, result: results[0]! },
+          { capture: r1, result: results[1]! },
+        ];
+        const successPair = paired.find((p) => p.result.status === "ok");
+        const failPair = paired.find((p) => p.result.status === "fail");
+        assert.ok(successPair !== undefined && failPair !== undefined);
+        assert.equal(
+          successPair.capture.code,
+          0,
+          `success child exit: ${JSON.stringify(evidence)}`,
+        );
+        assert.equal(
+          failPair.capture.code,
+          1,
+          `limit child exit: ${JSON.stringify(evidence)}`,
+        );
+        assert.equal(
+          successPair.capture.err.includes("barrier_wait_timeout"),
+          false,
+          successPair.capture.err,
+        );
+        assert.equal(
+          failPair.capture.err.includes("barrier_wait_timeout"),
+          false,
+          failPair.capture.err,
+        );
+        assert.equal(
+          successPair.capture.err.includes("defect_or_empty_failure"),
+          false,
+          successPair.capture.err,
+        );
+        assert.equal(
+          failPair.capture.err.includes("defect_or_empty_failure"),
+          false,
+          failPair.capture.err,
+        );
+
+        assert.equal(journalResumeAttemptCount(root), 1, JSON.stringify(evidence));
+        const journalPath = join(root, "runs", runId, "events.ndjson");
+        const bytes = readFileSync(journalPath);
+        const replay = replayNdjsonBytes(bytes, { fromLine: 0 });
+        assert.equal(replay.terminal._tag, "CleanEof");
+        const resumeEvents = replay.records.filter(
+          (r) => r.event.type === "resume_attempt",
+        );
+        assert.equal(resumeEvents.length, 1, JSON.stringify(evidence));
+        const payload = resumeEvents[0]!.event.payload;
+        assert.equal(payload["attempt"], 1);
+        assert.equal(payload["resumeCount"], 1);
+        assert.equal(
+          Object.keys(payload).sort().join(","),
+          "attempt,resumeCount",
+        );
+      } finally {
+        for (const ch of children) killChild(ch);
+        rmSync(barrierDir, { recursive: true, force: true });
+      }
     });
   });
 });
@@ -1115,42 +1516,8 @@ describe("RunJournal reserveResumeAttempt", () => {
     });
   });
 
-  it("two concurrent callers at limit one: one success, one resume_limit_reached, one event", async () => {
-    await withStateRoot(async (root) => {
-      await seedPrompt(root, 1);
-      const fibers = [0, 1].map(() =>
-        Effect.runFork(reserveEffect(root, identity(1), 1)),
-      );
-      const exits = await Promise.all(
-        fibers.map((f) => Effect.runPromiseExit(Fiber.join(f))),
-      );
-      const successes = exits.filter((e) => Exit.isSuccess(e));
-      const failures = exits.filter((e) => Exit.isFailure(e));
-      assert.equal(successes.length, 1);
-      assert.equal(failures.length, 1);
-      if (Exit.isSuccess(successes[0]!)) {
-        assert.equal(successes[0].value.resumeCount, 1);
-      }
-      if (Exit.isFailure(failures[0]!)) {
-        const fails = [...Cause.failures(failures[0].cause)];
-        assert.equal(fails.length, 1);
-        assertResumeFailure(fails[0], "resume_limit_reached");
-      }
-      assert.equal(journalResumeAttemptCount(root), 1);
-      const journalPath = join(root, "runs", runId, "events.ndjson");
-      const bytes = readFileSync(journalPath);
-      const replay = replayNdjsonBytes(bytes, { fromLine: 0 });
-      assert.equal(replay.terminal._tag, "CleanEof");
-      const resumeEvents = replay.records.filter(
-        (r) => r.event.type === "resume_attempt",
-      );
-      assert.equal(resumeEvents.length, 1);
-      const payload = resumeEvents[0]!.event.payload;
-      assert.equal(payload["attempt"], 1);
-      assert.equal(payload["resumeCount"], 1);
-      assert.equal(Object.keys(payload).sort().join(","), "attempt,resumeCount");
-    });
-  });
+  // Limit-one concurrency acceptance lives in "RunJournal multi-process":
+  // two OS processes share one start barrier. In-process runFork is not evidence.
 
   it("concurrent successful reservations get distinct consecutive counts", async () => {
     await withStateRoot(async (root) => {
