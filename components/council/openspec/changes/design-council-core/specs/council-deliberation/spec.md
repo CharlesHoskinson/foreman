@@ -117,3 +117,19 @@ Council SHALL represent a completed `insufficient_evidence` response as a review
 #### Scenario: Successful terminal with inadmissible insufficient-evidence body
 - **WHEN** a provider completes a successful terminal turn and returns `insufficient_evidence` that fails identity or evidence-gap admission
 - **THEN** Council returns a completed invalid response and does not count the attempt as a completed abstention or quorum participant
+
+### Requirement: Actionable dissent uses one correction without a second Council
+When at least one admissible response is `changes_requested`, Council and Foreman SHALL record the finding without majority override. The active Foreman Endstop contract SHALL permit exactly one correction action and deterministic re-verification of the corrected candidate. Council SHALL NOT require a second Council round inside the same one-Council contract. If correction or deterministic re-verification does not close the finding, Endstop SHALL escalate. Only explicit user authorization MAY create a successor contract that cites the terminal predecessor.
+
+#### Scenario: Correction closes the finding without a second Council
+- **WHEN** an admissible `changes_requested` verdict is recorded under a one-Council Endstop contract
+- **AND** the architect applies the single permitted correction
+- **AND** deterministic re-verification accepts the corrected candidate
+- **THEN** the finding is closed without a second Council round under that contract
+
+#### Scenario: Failed re-verification escalates instead of a second Council
+- **WHEN** an admissible `changes_requested` verdict is recorded under a one-Council Endstop contract
+- **AND** the architect applies the single permitted correction
+- **AND** deterministic re-verification does not close the finding
+- **THEN** Endstop escalates and does not start a second Council under the same contract
+- **AND** only explicit user authorization may create a successor contract

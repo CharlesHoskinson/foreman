@@ -657,6 +657,82 @@ describe("evaluateSpecCorrectnessAdmission", () => {
     expect(JSON.stringify(result)).not.toMatch(/\/tmp|\/home|sk-/);
   });
 
+  it("strips excess terminal secrets on ResponseRejected and passes strict public decode", async () => {
+    const secretMarker = "sk-LEAKED-TERMINAL-SECRET-99";
+    const exit = await runAdmission(
+      baseInput({
+        reviewAttempt: {
+          ...baseInput().reviewAttempt,
+          designatedStructuredValid: false,
+          response: undefined,
+          terminal: {
+            ...completedTerminal,
+            // Excess free-text property must never enter ResponseRejected.
+            providerFreeText: secretMarker,
+            leakedEnv: `/home/user/.secrets/${secretMarker}`,
+          } as typeof completedTerminal,
+        },
+      }),
+    );
+    expect(Exit.isSuccess(exit)).toBe(true);
+    if (!Exit.isSuccess(exit)) return;
+    const result = decodeStrictSync(
+      SpecCorrectnessAdmissionResultV1,
+      exit.value,
+    );
+    expect(result._tag).toBe("ResponseRejected");
+    if (result._tag !== "ResponseRejected") return;
+    expect(result.classification.reason).toBe("schema_invalid");
+    expect(result.evaluation).toBeNull();
+    expect(result.classification.terminal).toEqual(completedTerminal);
+    expect(result.classification.terminal).not.toHaveProperty(
+      "providerFreeText",
+    );
+    expect(result.classification.terminal).not.toHaveProperty("leakedEnv");
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(secretMarker);
+    expect(serialized).not.toContain("providerFreeText");
+    expect(serialized).not.toContain("/home/user/.secrets");
+  });
+
+  it("fails closed to secret-safe infrastructure Rejected when terminal values are not successful-terminal", async () => {
+    const secretMarker = "sk-INVALID-TERMINAL-LEAK-77";
+    const exit = await runAdmission(
+      baseInput({
+        reviewAttempt: {
+          ...baseInput().reviewAttempt,
+          designatedStructuredValid: false,
+          response: undefined,
+          terminal: {
+            ...completedTerminal,
+            // Passes classifier transport gates but fails SuccessfulTerminalObservationV1
+            // because digests are not valid SHA-256 hex.
+            stdoutDigest: `not-hex-${secretMarker}` as typeof completedTerminal.stdoutDigest,
+            stderrDigest: completedTerminal.stderrDigest,
+            providerLeak: secretMarker,
+          } as typeof completedTerminal,
+        },
+      }),
+    );
+    expect(Exit.isSuccess(exit)).toBe(true);
+    if (!Exit.isSuccess(exit)) return;
+    const result = decodeStrictSync(
+      SpecCorrectnessAdmissionResultV1,
+      exit.value,
+    );
+    expect(result._tag).toBe("Rejected");
+    expect(result._tag).not.toBe("ResponseRejected");
+    if (result._tag !== "Rejected") return;
+    expect(result.evaluation).toBeNull();
+    expect(result.quorumEligible).toBe(false);
+    expect(result.candidateDisposition).toBe("changes_requested");
+    expect(result.failure.stage).toBe("parse");
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(secretMarker);
+    expect(serialized).not.toContain("providerLeak");
+    expect(serialized).not.toContain("not-hex-");
+  });
+
   it("returns ResponseRejected for Grok insufficient_evidence with artifact-alias evidence refs", async () => {
     // Live Grok class: insufficient_evidence whose evidence references use
     // artifact aliases instead of bound namespace IDs → completed inadmissible

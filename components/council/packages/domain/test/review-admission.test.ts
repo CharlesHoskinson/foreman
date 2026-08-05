@@ -582,6 +582,65 @@ describe("classifyReviewAttempt completion gates", () => {
     expect(result.reason).toBe("schema_invalid");
   });
 
+  it("returns ReviewAttemptFailed (not CompletedInvalidResponse) for stale ready token with schema-invalid structured output", () => {
+    const result = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      readyTokenCurrent: false,
+      designatedStructuredValid: false,
+    });
+    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).not.toBe("CompletedInvalidResponse");
+    if (result._tag !== "ReviewAttemptFailed") return;
+    expect(result.failure.stage).toBe("dispatch");
+    expect(result.failure.reason).toContain("ready-review token");
+    expect(result.quorumEligible).toBe(false);
+    expect(result.deliberationEligible).toBe(false);
+  });
+
+  it("returns ReviewAttemptFailed (not CompletedInvalidResponse) for stale ready token with missing response", () => {
+    const result = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      readyTokenCurrent: false,
+      designatedStructuredValid: true,
+    });
+    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).not.toBe("CompletedInvalidResponse");
+    if (result._tag !== "ReviewAttemptFailed") return;
+    expect(result.failure.stage).toBe("dispatch");
+    expect(result.failure.reason).toContain("ready-review token");
+  });
+
+  it("returns ReviewAttemptFailed/changed_preflight for invalid host artifact verification with schema-invalid structured output", () => {
+    const second = `sha256:${"9".repeat(64)}` as ArtifactId;
+    const result = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      expectedArtifactIds: [artifactId, second],
+      verifiedArtifactIds: [artifactId],
+      designatedStructuredValid: false,
+    });
+    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).not.toBe("CompletedInvalidResponse");
+    if (result._tag !== "ReviewAttemptFailed") return;
+    expect(result.failure.stage).toBe("dispatch");
+    expect(result.failure.retry).toBe("changed_preflight");
+    expect(result.failure.reason).toContain("host artifact contract");
+  });
+
+  it("returns ReviewAttemptFailed/changed_preflight for invalid host artifact verification with missing response", () => {
+    const second = `sha256:${"9".repeat(64)}` as ArtifactId;
+    const result = classifyReviewAttempt({
+      ...baseInputWithoutResponse(),
+      expectedArtifactIds: [artifactId, second],
+      verifiedArtifactIds: [artifactId],
+      designatedStructuredValid: true,
+    });
+    expect(result._tag).toBe("ReviewAttemptFailed");
+    expect(result._tag).not.toBe("CompletedInvalidResponse");
+    if (result._tag !== "ReviewAttemptFailed") return;
+    expect(result.failure.stage).toBe("dispatch");
+    expect(result.failure.retry).toBe("changed_preflight");
+  });
+
   it("returns CompletedInvalidResponse/abstention_invalid for blank next action", () => {
     const result = classifyReviewAttempt({
       ...baseInput(),

@@ -368,13 +368,11 @@ export const classifyReviewAttempt = (
     return attemptFailure(input, input.terminal.errorMessage, "provider");
   }
 
-  // All terminal transport/parser gates passed. From here a present structured
-  // channel that fails schema, identity, or semantic admission is a completed
-  // invalid response — not infrastructure failure.
-  if (!input.designatedStructuredValid || input.response === undefined) {
-    return completedInvalidResponse(input, "schema_invalid");
-  }
-
+  // All terminal transport/parser gates passed. Host-controlled preconditions
+  // (ready token currency and verified artifact contract) take precedence over
+  // designated structured-output validity. A stale token or invalid host
+  // artifact sequence combined with missing/invalid structured output is
+  // ReviewAttemptFailed — not CompletedInvalidResponse.
   if (!input.readyTokenCurrent) {
     return attemptFailure(
       input,
@@ -385,7 +383,7 @@ export const classifyReviewAttempt = (
 
   // Host contract defects (duplicate expected IDs, incomplete verification)
   // are infrastructure failures with closed stage/retry guidance — not
-  // provider-response identity mismatch.
+  // provider-response identity mismatch or completed invalid response.
   if (!hostArtifactPreconditionsHold(input)) {
     return attemptFailure(
       input,
@@ -393,6 +391,13 @@ export const classifyReviewAttempt = (
       "dispatch",
       "changed_preflight",
     );
+  }
+
+  // After host preconditions pass: a present structured channel that fails
+  // schema, identity, or semantic admission is a completed invalid response —
+  // not infrastructure failure.
+  if (!input.designatedStructuredValid || input.response === undefined) {
+    return completedInvalidResponse(input, "schema_invalid");
   }
 
   if (!responseIdentitiesExact(input, input.response)) {

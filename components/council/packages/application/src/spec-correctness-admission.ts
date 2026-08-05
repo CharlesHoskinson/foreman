@@ -9,8 +9,12 @@ import type {
   ReviewArtifactDescriptorV1,
   ReviewInfrastructureFailure,
   Sha256Digest,
+  TerminalObservationV1,
 } from "@council/schema";
-import { decodeStrictSync } from "@council/schema";
+import {
+  decodeStrictSync,
+  SuccessfulTerminalObservationV1,
+} from "@council/schema";
 import type {
   BoundSpecCorrectnessEvaluationV1,
   SpecCorrectnessAdmissionInputV1,
@@ -119,11 +123,57 @@ const rejected = (
 };
 
 /**
+ * Exact SuccessfulTerminalObservationV1 field surface. Never copies excess
+ * terminal properties or provider free text into a public result.
+ */
+const closedSuccessfulTerminalCandidate = (
+  terminal: TerminalObservationV1,
+): {
+  readonly schemaVersion: TerminalObservationV1["schemaVersion"];
+  readonly modelTurnStarted: boolean;
+  readonly terminalRecordObserved: boolean;
+  readonly terminalState: TerminalObservationV1["terminalState"];
+  readonly exitCode: TerminalObservationV1["exitCode"];
+  readonly stopReason: TerminalObservationV1["stopReason"];
+  readonly pendingToolCalls: TerminalObservationV1["pendingToolCalls"];
+  readonly failedToolCalls: TerminalObservationV1["failedToolCalls"];
+  readonly parserComplete: boolean;
+  readonly structuredOutputPresent: boolean;
+  readonly structuredOutputError: TerminalObservationV1["structuredOutputError"];
+  readonly stdoutDigest: TerminalObservationV1["stdoutDigest"];
+  readonly stderrDigest: TerminalObservationV1["stderrDigest"];
+  readonly errorMessage: TerminalObservationV1["errorMessage"];
+} => ({
+  schemaVersion: terminal.schemaVersion,
+  modelTurnStarted: terminal.modelTurnStarted,
+  terminalRecordObserved: terminal.terminalRecordObserved,
+  terminalState: terminal.terminalState,
+  exitCode: terminal.exitCode,
+  stopReason: terminal.stopReason,
+  pendingToolCalls: terminal.pendingToolCalls,
+  failedToolCalls: terminal.failedToolCalls,
+  parserComplete: terminal.parserComplete,
+  structuredOutputPresent: terminal.structuredOutputPresent,
+  structuredOutputError: terminal.structuredOutputError,
+  stdoutDigest: terminal.stdoutDigest,
+  stderrDigest: terminal.stderrDigest,
+  errorMessage: terminal.errorMessage,
+});
+
+/**
  * Completed invalid provider response. Distinct from infrastructure Rejected.
- * Never converts CompletedInvalidResponse back into ReviewInfrastructureFailure.
  * Evaluation is always null — never publish a bound accept beside a rejected
- * provider response. Construction is total: preserve the classifier-produced
- * closed successful terminal; do not synthesize terminal facts.
+ * provider response.
+ *
+ * Construction is secret-safe and closed:
+ * 1. Build a fresh terminal object from only declared successful-terminal fields.
+ * 2. Strict-decode that object as SuccessfulTerminalObservationV1.
+ * 3. Strict-decode the complete ResponseRejected result.
+ * Never return an undecoded payload. Never copy excess terminal properties.
+ * If terminal values cannot satisfy the successful-terminal schema, fail closed
+ * as infrastructure Rejected with no unsafe evaluation or terminal payload.
+ * Do not synthesize terminal facts. Excess properties on a genuine successful
+ * terminal are stripped and the result remains ResponseRejected.
  */
 const responseRejected = (
   classification: Extract<
@@ -131,27 +181,34 @@ const responseRejected = (
     { readonly _tag: "CompletedInvalidResponse" }
   >,
 ): SpecCorrectnessAdmissionResult => {
-  const payload = {
-    schemaVersion: 1 as const,
-    _tag: "ResponseRejected" as const,
-    evaluation: null,
-    classification: {
-      _tag: "CompletedInvalidResponse" as const,
-      reason: classification.reason,
-      terminal: classification.terminal,
-      quorumEligible: false as const,
-      deliberationEligible: false as const,
-    },
-    quorumEligible: false as const,
-    candidateDisposition: "changes_requested" as const,
-  };
   try {
-    return decodeStrictSync(SpecCorrectnessAdmissionResultSchema, payload);
+    const terminal = decodeStrictSync(
+      SuccessfulTerminalObservationV1,
+      closedSuccessfulTerminalCandidate(classification.terminal),
+    );
+    return decodeStrictSync(SpecCorrectnessAdmissionResultSchema, {
+      schemaVersion: 1,
+      _tag: "ResponseRejected",
+      evaluation: null,
+      classification: {
+        _tag: "CompletedInvalidResponse",
+        reason: classification.reason,
+        terminal,
+        quorumEligible: false,
+        deliberationEligible: false,
+      },
+      quorumEligible: false,
+      candidateDisposition: "changes_requested",
+    });
   } catch {
-    // Total fallback: classifier terminal and closed reason already passed
-    // admission gates. Return the closed shape without re-decoding so a
-    // decode defect cannot degrade into infrastructure Rejected.
-    return payload;
+    return rejected(
+      infrastructureFailure(
+        "parse",
+        "completed invalid response could not be closed without unsafe terminal payload",
+        "same_contract",
+      ),
+      null,
+    );
   }
 };
 
