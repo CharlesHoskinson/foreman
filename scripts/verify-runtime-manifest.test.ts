@@ -38,6 +38,10 @@ const trackedCredentialProfile = join(
   trackedRuntime,
   "dist/credential-profile.js",
 );
+const trackedCredentialProfileLane = join(
+  trackedRuntime,
+  "dist/credential-profile-lane.js",
+);
 
 function seedCleanCopy(): string {
   const dir = mkdtempSync(join(tmpdir(), "foreman-vrm-"));
@@ -56,10 +60,27 @@ function seedCleanCopy(): string {
   cpSync(trackedForemanSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedSecretScan, join(rt, "dist/secret-scan.js"));
   cpSync(trackedCredentialProfile, join(rt, "dist/credential-profile.js"));
+  cpSync(
+    trackedCredentialProfileLane,
+    join(rt, "dist/credential-profile-lane.js"),
+  );
   return rt;
 }
 
 describe("verifyRuntimeManifest copied-tree negatives", () => {
+  it("tracks the profile-bound lane admission runtime", () => {
+    const manifest = JSON.parse(readFileSync(trackedManifest, "utf8")) as {
+      readonly artifacts: ReadonlyArray<{ readonly relativePath: string }>;
+    };
+    assert.equal(
+      manifest.artifacts.some(
+        (artifact) =>
+          artifact.relativePath === "dist/credential-profile-lane.js",
+      ),
+      true,
+    );
+  });
+
   it("accepts a clean exact copy", () => {
     const rt = seedCleanCopy();
     try {

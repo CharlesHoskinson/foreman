@@ -78,6 +78,10 @@ const trackedCredentialProfilePath = join(
   trackedRuntime,
   "dist/credential-profile.js",
 );
+const trackedCredentialProfileLanePath = join(
+  trackedRuntime,
+  "dist/credential-profile-lane.js",
+);
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -99,12 +103,16 @@ const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
 const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
 const trackedSecretScan = readFileSync(trackedSecretScanPath);
 const trackedCredentialProfile = readFileSync(trackedCredentialProfilePath);
+const trackedCredentialProfileLane = readFileSync(
+  trackedCredentialProfileLanePath,
+);
 
 // No extra files under dist/
 {
   const distFiles = readdirSync(join(trackedRuntime, "dist")).sort();
   const expected = [
     "architecture-policy.js",
+    "credential-profile-lane.js",
     "credential-profile.js",
     "dependency-drift.js",
     "destruction-guard.js",
@@ -156,6 +164,12 @@ try {
   const bCredentialProfile = readFileSync(
     join(tmpB, "dist/credential-profile.js"),
   );
+  const aCredentialProfileLane = readFileSync(
+    join(tmpA, "dist/credential-profile-lane.js"),
+  );
+  const bCredentialProfileLane = readFileSync(
+    join(tmpB, "dist/credential-profile-lane.js"),
+  );
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aEndstop, bEndstop)) fail("non-deterministic execution-guard");
@@ -180,6 +194,9 @@ try {
   if (!bytesEqual(aCredentialProfile, bCredentialProfile)) {
     fail("non-deterministic credential-profile");
   }
+  if (!bytesEqual(aCredentialProfileLane, bCredentialProfileLane)) {
+    fail("non-deterministic credential-profile-lane");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aEndstop, trackedEndstop)) fail("execution-guard drift");
@@ -199,6 +216,9 @@ try {
   }
   if (!bytesEqual(aCredentialProfile, trackedCredentialProfile)) {
     fail("credential-profile drift");
+  }
+  if (!bytesEqual(aCredentialProfileLane, trackedCredentialProfileLane)) {
+    fail("credential-profile-lane drift");
   }
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
@@ -234,6 +254,10 @@ try {
     writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
     writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
     writeFileSync(join(rt, "dist/credential-profile.js"), trackedCredentialProfile);
+    writeFileSync(
+      join(rt, "dist/credential-profile-lane.js"),
+      trackedCredentialProfileLane,
+    );
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
@@ -269,6 +293,14 @@ try {
     writeFileSync(join(rt, "dist/credential-profile.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered credential-profile should fail");
     cpSync(trackedCredentialProfilePath, join(rt, "dist/credential-profile.js"));
+    writeFileSync(join(rt, "dist/credential-profile-lane.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) {
+      fail("tampered credential-profile-lane should fail");
+    }
+    cpSync(
+      trackedCredentialProfileLanePath,
+      join(rt, "dist/credential-profile-lane.js"),
+    );
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {
@@ -471,6 +503,35 @@ try {
         );
       }
       writeFileSync(join(rt, "dist/credential-profile.js"), trackedCredentialProfile);
+    }
+    // Linked credential-profile-lane bundle must fail
+    {
+      const realLane = join(rt, "credential-profile-lane.real.js");
+      writeFileSync(realLane, trackedCredentialProfileLane);
+      rmSync(join(rt, "dist/credential-profile-lane.js"));
+      symlinkSync(realLane, join(rt, "dist/credential-profile-lane.js"));
+      const linkedLane = verifyRuntimeManifest(rt);
+      if (linkedLane.ok) fail("linked credential-profile-lane should fail");
+      rmSync(join(rt, "dist/credential-profile-lane.js"));
+      writeFileSync(
+        join(rt, "dist/credential-profile-lane.js"),
+        trackedCredentialProfileLane,
+      );
+    }
+    // Missing credential-profile-lane must fail
+    {
+      rmSync(join(rt, "dist/credential-profile-lane.js"));
+      const missLane = verifyRuntimeManifest(rt);
+      if (missLane.ok || missLane.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for credential-profile-lane got " +
+            JSON.stringify(missLane),
+        );
+      }
+      writeFileSync(
+        join(rt, "dist/credential-profile-lane.js"),
+        trackedCredentialProfileLane,
+      );
     }
     // Tamper manifest digests
     writeFileSync(

@@ -85,6 +85,15 @@ const ENTRIES = [
     relativePath: "dist/credential-profile.js",
     injectCapabilities: false,
   },
+  {
+    id: "credential-profile-lane",
+    entry: join(
+      root,
+      "packages/orchestration/src/credential-profile-lane-main.ts",
+    ),
+    relativePath: "dist/credential-profile-lane.js",
+    injectCapabilities: false,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

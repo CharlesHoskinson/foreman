@@ -769,3 +769,21 @@ export {
   type CredentialProfilePreflightExpected,
   type ProfilePreflightRaceHook,
 } from "./credential-profile-preflight.js";
+
+// --- Sprint 3 R7B2-A: profile-bound lane admission ---
+
+export {
+  CREDENTIAL_PROFILE_LANE_REFUSAL_REASONS,
+  admitCredentialProfileLane,
+  type CredentialProfileLaneRefusalReason,
+  type CredentialProfileLaneResult,
+} from "./credential-profile-lane.js";
+
+export {
+  CREDENTIAL_PROFILE_LANE_EXIT_OK,
+  CREDENTIAL_PROFILE_LANE_EXIT_REFUSED,
+  parseCredentialProfileLaneArgv,
+  runCredentialProfileLaneCli,
+  type CredentialProfileLaneCliIo,
+  type ParsedCredentialProfileLaneArgv,
+} from "./credential-profile-lane-cli.js";

@@ -48,6 +48,7 @@ function normalizeRelativePath(p: string): string | null {
 
 const REQUIRED_V2 = new Set([
   "dist/architecture-policy.js",
+  "dist/credential-profile-lane.js",
   "dist/destruction-guard.js",
   "dist/execution-guard.js",
   "dist/lane-queue.js",

@@ -60,6 +60,10 @@ const trackedCredentialProfile = join(
   trackedRuntime,
   "dist/credential-profile.js",
 );
+const trackedCredentialProfileLane = join(
+  trackedRuntime,
+  "dist/credential-profile-lane.js",
+);
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -97,6 +101,10 @@ function seedRuntimeOnly(): string {
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   cpSync(trackedSecretScan, join(rt, "dist/secret-scan.js"));
   cpSync(trackedCredentialProfile, join(rt, "dist/credential-profile.js"));
+  cpSync(
+    trackedCredentialProfileLane,
+    join(rt, "dist/credential-profile-lane.js"),
+  );
   return rt;
 }
 
@@ -128,6 +136,32 @@ describe("verifyInstalledSkillRoot live controls", () => {
       };
       mf.artifacts = mf.artifacts.filter(
         (a) => a.relativePath !== "dist/lane-queue.js",
+      );
+      writeFileSync(mfPath, canonicalize(mf) + "\n");
+      const r = await runVerifySkill(copied);
+      assert.equal(r._tag, "Fail", JSON.stringify(r));
+      if (r._tag === "Fail") {
+        assert.equal(r.reason, "manifest_missing_required_artifact");
+      }
+    } finally {
+      rmSync(dirname(copied), { recursive: true, force: true });
+    }
+  });
+
+  it("requires credential-profile-lane.js in an installed runtime", async () => {
+    const copied = seedSkillCopy("no-profile-lane");
+    try {
+      rmSync(join(copied, "runtime/dist/credential-profile-lane.js"), {
+        force: true,
+      });
+      const mfPath = join(copied, "runtime/manifest.json");
+      const mf = JSON.parse(readFileSync(mfPath, "utf8")) as {
+        artifacts: Array<{ relativePath: string }>;
+        nodeRange: string;
+        schemaVersion: number;
+      };
+      mf.artifacts = mf.artifacts.filter(
+        (a) => a.relativePath !== "dist/credential-profile-lane.js",
       );
       writeFileSync(mfPath, canonicalize(mf) + "\n");
       const r = await runVerifySkill(copied);
@@ -486,6 +520,9 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
+    const credentialProfileLaneBytes = readFileSync(
+      trackedCredentialProfileLane,
+    );
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
 
@@ -505,6 +542,8 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const dependencyDriftPath = "/skill/runtime/dist/dependency-drift.js";
     const secretScanPath = "/skill/runtime/dist/secret-scan.js";
     const credentialProfilePath = "/skill/runtime/dist/credential-profile.js";
+    const credentialProfileLanePath =
+      "/skill/runtime/dist/credential-profile-lane.js";
 
     const nodes = new Map([
       [
@@ -530,6 +569,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: dirIdentity({ ino: "12" }),
           names: [
               "architecture-policy.js",
+              "credential-profile-lane.js",
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
@@ -691,6 +731,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           }),
         },
       ],
+      [
+        credentialProfileLanePath,
+        {
+          kind: "file" as const,
+          bytes: credentialProfileLaneBytes,
+          identity: fileIdentity({
+            ino: "33",
+            size: credentialProfileLaneBytes.byteLength,
+          }),
+        },
+      ],
     ]);
 
     const layer = makeMemoryInstallFs({
@@ -770,6 +821,9 @@ describe("runtime plugin-drift", () => {
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
+    const credentialProfileLaneBytes = readFileSync(
+      trackedCredentialProfileLane,
+    );
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -809,6 +863,7 @@ describe("runtime plugin-drift", () => {
             identity: dirIdentity({ ino: prefix + "-dist" }),
             names: [
               "architecture-policy.js",
+              "credential-profile-lane.js",
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
@@ -968,6 +1023,17 @@ describe("runtime plugin-drift", () => {
             }),
           },
         ],
+        [
+          `${dist}/credential-profile-lane.js`,
+          {
+            kind: "file",
+            bytes: credentialProfileLaneBytes,
+            identity: fileIdentity({
+              ino: prefix + "-cpl",
+              size: credentialProfileLaneBytes.byteLength,
+            }),
+          },
+        ],
       ]);
     }
 
@@ -1041,6 +1107,9 @@ describe("skill-root and directory stability seams", () => {
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
+    const credentialProfileLaneBytes = readFileSync(
+      trackedCredentialProfileLane,
+    );
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1076,6 +1145,7 @@ describe("skill-root and directory stability seams", () => {
       identity: dirIdentity({ ino: opts?.distIno ?? "12" }),
       names: [
               "architecture-policy.js",
+              "credential-profile-lane.js",
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
@@ -1240,6 +1310,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "31",
             size: credentialProfileBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/credential-profile-lane.js`,
+        {
+          kind: "file",
+          bytes: credentialProfileLaneBytes,
+          identity: fileIdentity({
+            ino: "33",
+            size: credentialProfileLaneBytes.byteLength,
           }),
         },
       ],
@@ -1410,6 +1491,9 @@ describe("memory InstallFs path separator seam", () => {
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
+    const credentialProfileLaneBytes = readFileSync(
+      trackedCredentialProfileLane,
+    );
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
     );
@@ -1441,6 +1525,7 @@ describe("memory InstallFs path separator seam", () => {
           identity: dirIdentity({ ino: "12" }),
           names: [
               "architecture-policy.js",
+              "credential-profile-lane.js",
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
@@ -1595,6 +1680,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "31",
             size: credentialProfileBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/credential-profile-lane.js`,
+        {
+          kind: "file",
+          bytes: credentialProfileLaneBytes,
+          identity: fileIdentity({
+            ino: "33",
+            size: credentialProfileLaneBytes.byteLength,
           }),
         },
       ],
