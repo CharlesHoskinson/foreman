@@ -48,6 +48,7 @@ const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheck = join(trackedRuntime, "dist/tool-check.js");
+const trackedSetup = join(trackedRuntime, "dist/foreman-setup.js");
 const trackedDependencyDrift = join(
   trackedRuntime,
   "dist/dependency-drift.js",
@@ -83,6 +84,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
+  cpSync(trackedSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   return rt;
 }
@@ -467,6 +469,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
@@ -481,6 +484,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const roundPath = "/skill/runtime/dist/lane-round.js";
     const preflightPath = "/skill/runtime/dist/vendor-preflight.js";
     const toolCheckPath = "/skill/runtime/dist/tool-check.js";
+    const setupPath = "/skill/runtime/dist/foreman-setup.js";
     const dependencyDriftPath = "/skill/runtime/dist/dependency-drift.js";
 
     const nodes = new Map([
@@ -509,6 +513,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "architecture-policy.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
               "tool-check.js",
@@ -598,6 +603,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
         },
       ],
       [
+        setupPath,
+        {
+          kind: "file" as const,
+          bytes: setupBytes,
+          identity: fileIdentity({
+            ino: "28",
+            size: setupBytes.byteLength,
+          }),
+        },
+      ],
+      [
         dependencyDriftPath,
         {
           kind: "file" as const,
@@ -681,6 +697,7 @@ describe("runtime plugin-drift", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -723,6 +740,7 @@ describe("runtime plugin-drift", () => {
               "architecture-policy.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
               "tool-check.js",
@@ -810,6 +828,17 @@ describe("runtime plugin-drift", () => {
           },
         ],
         [
+          `${dist}/foreman-setup.js`,
+          {
+            kind: "file",
+            bytes: setupBytes,
+            identity: fileIdentity({
+              ino: prefix + "-fs",
+              size: setupBytes.byteLength,
+            }),
+          },
+        ],
+        [
           `${dist}/dependency-drift.js`,
           {
             kind: "file",
@@ -887,6 +916,7 @@ describe("skill-root and directory stability seams", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -925,6 +955,7 @@ describe("skill-root and directory stability seams", () => {
               "architecture-policy.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
               "tool-check.js",
@@ -1016,6 +1047,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "26",
             size: toolCheckBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/foreman-setup.js`,
+        {
+          kind: "file",
+          bytes: setupBytes,
+          identity: fileIdentity({
+            ino: "28",
+            size: setupBytes.byteLength,
           }),
         },
       ],
@@ -1191,6 +1233,7 @@ describe("memory InstallFs path separator seam", () => {
     const roundBytes = readFileSync(trackedRound);
     const preflightBytes = readFileSync(trackedPreflight);
     const toolCheckBytes = readFileSync(trackedToolCheck);
+    const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -1225,6 +1268,7 @@ describe("memory InstallFs path separator seam", () => {
               "architecture-policy.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
               "tool-check.js",
@@ -1306,6 +1350,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "26",
             size: toolCheckBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/foreman-setup.js`,
+        {
+          kind: "file",
+          bytes: setupBytes,
+          identity: fileIdentity({
+            ino: "28",
+            size: setupBytes.byteLength,
           }),
         },
       ],
