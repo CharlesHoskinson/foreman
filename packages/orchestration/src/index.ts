@@ -38,6 +38,25 @@ export {
 } from "./execution-terminal-policy.js";
 
 export {
+  EndstopLedger,
+  isEndstopLedgerFailure,
+  makeLiveEndstopLedgerLayer,
+  type EndstopExecutionResult,
+  type EndstopLedgerFailure,
+  type EndstopLedgerFailureReason,
+} from "./execution-ledger.js";
+
+export {
+  ENDSTOP_EXIT_CONFIG,
+  ENDSTOP_EXIT_FAIL,
+  ENDSTOP_EXIT_OK,
+  parseEndstopArgv,
+  runEndstopCli,
+  type EndstopCliIo,
+  type ParsedEndstopArgv,
+} from "./execution-guard-cli.js";
+
+export {
   EXIT_OK,
   EXIT_FAIL,
   EXIT_CONFIG,
