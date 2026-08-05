@@ -160,6 +160,55 @@ describe("buildVendorHomeChildEnv", () => {
     assert.equal(Object.hasOwn(child, "GROK_HOME"), false);
     assert.deepEqual(caller, frozen);
   });
+
+  it("on Windows removes all case variants of vendor home keys", () => {
+    const caller: NodeJS.ProcessEnv = {
+      GROK_HOME: "/ambient/grok",
+      grok_home: "/mixed/grok",
+      Grok_Home: "/title/grok",
+      CODEX_HOME: "/ambient/codex",
+      codex_home: "/mixed/codex",
+      Codex_Home: "/title/codex",
+      PATH: "C:\\Windows",
+    };
+    const frozen = { ...caller };
+    const child = buildVendorHomeChildEnv(
+      caller,
+      "grok",
+      "C:\\profiles\\homes\\grok",
+      "win32",
+    );
+    assert.equal(child.GROK_HOME, "C:\\profiles\\homes\\grok");
+    // No residual case variants of either vendor home key.
+    for (const key of Object.keys(child)) {
+      const upper = key.toUpperCase();
+      if (upper === "GROK_HOME") {
+        assert.equal(key, "GROK_HOME");
+      }
+      assert.notEqual(upper, "CODEX_HOME");
+    }
+    assert.deepEqual(caller, frozen);
+  });
+
+  it("on POSIX keeps mixed-case non-canonical keys (case-sensitive)", () => {
+    const caller: NodeJS.ProcessEnv = {
+      GROK_HOME: "/old/grok",
+      grok_home: "/mixed/still-present",
+      CODEX_HOME: "/old/codex",
+      codex_home: "/mixed/codex-present",
+    };
+    const child = buildVendorHomeChildEnv(
+      caller,
+      "grok",
+      "/profile/homes/grok",
+      "linux",
+    );
+    assert.equal(child.GROK_HOME, "/profile/homes/grok");
+    assert.equal(Object.hasOwn(child, "CODEX_HOME"), false);
+    // Exact non-canonical keys are not stripped on POSIX.
+    assert.equal(child.grok_home, "/mixed/still-present");
+    assert.equal(child.codex_home, "/mixed/codex-present");
+  });
 });
 
 describe("decodeCredentialProfilePreflightV1", () => {
@@ -384,6 +433,95 @@ describe("CredentialProfilePreflightStore", () => {
         Object.prototype.hasOwnProperty.call(either.left, "detail"),
         false,
       );
+    }
+  });
+
+  it("refuses linked preflight directory on read", async () => {
+    const root = tempDir();
+    const profileDir = join(root, "credential-profiles", "p");
+    const realPreflight = join(root, "outside-preflight");
+    mkdirSync(profileDir, { recursive: true });
+    mkdirSync(realPreflight, { recursive: true });
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    writeFileSync(
+      join(realPreflight, "grok.json"),
+      renderCredentialProfilePreflightFile(fixed),
+    );
+    const linkPreflight = join(profileDir, "preflight");
+    try {
+      symlinkSync(realPreflight, linkPreflight);
+    } catch {
+      return;
+    }
+    const path = join(linkPreflight, "grok.json");
+    const either = await Effect.runPromise(
+      readProfilePreflightRecord(path).pipe(Effect.either),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "linked_path");
+    }
+  });
+
+  it("refuses linked credential-profiles ancestor on write", async () => {
+    const root = tempDir();
+    const outside = join(root, "outside-profiles");
+    mkdirSync(outside, { recursive: true });
+    const profilesLink = join(root, "credential-profiles");
+    try {
+      symlinkSync(outside, profilesLink);
+    } catch {
+      return;
+    }
+    const path = profilePreflightRecordPath(root, "p", "grok");
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    const either = await Effect.runPromise(
+      writeProfilePreflightRecord(path, fixed).pipe(Effect.either),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "linked_path");
+    }
+  });
+
+  it("refuses linked profile directory on write", async () => {
+    const root = tempDir();
+    const profilesRoot = join(root, "credential-profiles");
+    mkdirSync(profilesRoot, { recursive: true });
+    const outside = join(root, "outside-profile");
+    mkdirSync(outside, { recursive: true });
+    const profileLink = join(profilesRoot, "p");
+    try {
+      symlinkSync(outside, profileLink);
+    } catch {
+      return;
+    }
+    const path = profilePreflightRecordPath(root, "p", "grok");
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    const either = await Effect.runPromise(
+      writeProfilePreflightRecord(path, fixed).pipe(Effect.either),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "linked_path");
     }
   });
 

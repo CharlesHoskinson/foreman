@@ -22,7 +22,7 @@ import {
   unlinkSync,
   accessSync,
 } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { Effect, Layer } from "effect";
 import {
   PathLookup,
@@ -60,8 +60,11 @@ import {
 import {
   CredentialProfileFs,
   initProfile,
+  isEqualOrDescendant,
   isValidProfileId,
   liveCredentialProfileFsLayer,
+  normalizeAbsolutePath,
+  resolveProfile,
   type CredentialVendor,
 } from "./credential-profile.js";
 import {
@@ -635,23 +638,57 @@ function setupReady(
 // ---------------------------------------------------------------------------
 
 /**
- * Ensure FOREMAN_HOME exists as a real directory before credential-profile
- * authority work. Does not follow a final-component link.
+ * Pure lexical preflight for the credential-profile state root.
+ * Refuses a relative or empty root and a root equal to or under `repoRoot`
+ * without any filesystem mutation. Physical validation is R7A's job.
  */
-function ensureStateRootDirectory(stateRoot: string): boolean {
+export function lexicalStateRootPreflight(
+  stateRoot: string,
+  repoRoot: string,
+):
+  | { readonly _tag: "Ok"; readonly stateRoot: string }
+  | {
+      readonly _tag: "Refuse";
+      readonly reason: "invalid_state_root" | "state_root_in_worktree";
+    } {
+  if (typeof stateRoot !== "string" || stateRoot.length === 0) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (stateRoot.includes("\0")) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (!isAbsolute(stateRoot)) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (typeof repoRoot !== "string" || repoRoot.length === 0 || !isAbsolute(repoRoot)) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  const normalizedState = normalizeAbsolutePath(stateRoot);
+  const normalizedRepo = normalizeAbsolutePath(repoRoot);
+  if (isEqualOrDescendant(normalizedState, normalizedRepo)) {
+    return { _tag: "Refuse", reason: "state_root_in_worktree" };
+  }
+  return { _tag: "Ok", stateRoot: normalizedState };
+}
+
+/**
+ * Create a missing external state root after lexical preflight succeeds.
+ * Does not chmod an existing directory. Does not follow a final-component link.
+ * Must not be called for a root that fails lexical preflight.
+ */
+function ensureExternalStateRoot(stateRoot: string): boolean {
   try {
-    if (existsSync(stateRoot)) {
-      const st = lstatSync(stateRoot);
-      if (st.isSymbolicLink()) return false;
-      if (!st.isDirectory()) return false;
-      return true;
-    }
+    const st = lstatSync(stateRoot);
+    if (st.isSymbolicLink()) return false;
+    if (!st.isDirectory()) return false;
+    // Existing real directory: do not chmod; R7A owns authority modes.
+    return true;
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") return false;
+  }
+  try {
     mkdirSync(stateRoot, { recursive: true, mode: 0o700 });
-    try {
-      chmodSync(stateRoot, 0o700);
-    } catch {
-      /* best-effort */
-    }
     return true;
   } catch {
     return false;
@@ -728,9 +765,19 @@ export function runForemanSetup(
     const vendorsToPersist: readonly SetupLane[] =
       parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
     const platform = env.platform ?? process.platform;
-    const foremanHome = resolveForemanHome(processEnv, platform);
+    const foremanHomeRaw = resolveForemanHome(processEnv, platform);
 
-    if (!ensureStateRootDirectory(foremanHome)) {
+    // Pure lexical gate before any create/chmod of FOREMAN_HOME.
+    const lexical = lexicalStateRootPreflight(foremanHomeRaw, env.repoRoot);
+    if (lexical._tag === "Refuse") {
+      io.writeStderr(
+        `${MSG_CREDENTIAL_PROFILE_REFUSED} (${lexical.reason})\n`,
+      );
+      return EXIT_BOUNDARY_FAILURE;
+    }
+    const foremanHome = lexical.stateRoot;
+
+    if (!ensureExternalStateRoot(foremanHome)) {
       io.writeStderr(MSG_CREDENTIAL_PROFILE_REFUSED + " (invalid_state_root)\n");
       return EXIT_BOUNDARY_FAILURE;
     }
@@ -769,7 +816,12 @@ export function runForemanSetup(
     for (const b of bindings) {
       childEnvByVendor.set(
         b.vendor,
-        buildVendorHomeChildEnv(processEnv, b.vendor, b.configRoot),
+        buildVendorHomeChildEnv(
+          processEnv,
+          b.vendor,
+          b.configRoot,
+          platform,
+        ),
       );
     }
 
@@ -810,6 +862,7 @@ export function runForemanSetup(
       readonly profileDest: string;
       readonly profileId: string;
       readonly profileIdentity: string;
+      readonly configRoot: string;
     };
     const pendingWrites: PendingWrite[] = [];
     for (const b of bindings) {
@@ -825,6 +878,36 @@ export function runForemanSetup(
         io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
         return EXIT_BOUNDARY_FAILURE;
       }
+
+      // Re-resolve R7A profile after probes and before any profile-scoped or
+      // legacy write. Require the same id, vendor, identity, and config root
+      // as the probed binding. A changed, missing, conflicting, or linked
+      // authority refuses with no write for that vendor (and no siblings).
+      const resolved = yield* resolveProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId: b.profileId,
+        vendor: b.vendor as CredentialVendor,
+      }).pipe(Effect.provide(profileFsLayer));
+
+      if (resolved._tag === "Refused") {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${resolved.reason})\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (
+        resolved.profileId !== b.profileId ||
+        resolved.vendor !== b.vendor ||
+        resolved.profileIdentity !== b.profileIdentity ||
+        resolved.configRoot !== b.configRoot
+      ) {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (identity_changed)\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+
       pendingWrites.push({
         vendor: b.vendor,
         record,
@@ -836,10 +919,37 @@ export function runForemanSetup(
         ),
         profileId: b.profileId,
         profileIdentity: b.profileIdentity,
+        configRoot: b.configRoot,
       });
     }
 
     for (const pending of pendingWrites) {
+      // Final re-resolve immediately before this vendor's profile-scoped write.
+      const preWrite = yield* resolveProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId: pending.profileId,
+        vendor: pending.vendor as CredentialVendor,
+      }).pipe(Effect.provide(profileFsLayer));
+
+      if (preWrite._tag === "Refused") {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${preWrite.reason})\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (
+        preWrite.profileId !== pending.profileId ||
+        preWrite.vendor !== pending.vendor ||
+        preWrite.profileIdentity !== pending.profileIdentity ||
+        preWrite.configRoot !== pending.configRoot
+      ) {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (identity_changed)\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+
       const wrapper = makeCredentialProfilePreflight(
         pending.profileId,
         pending.profileIdentity,

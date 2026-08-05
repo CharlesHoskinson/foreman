@@ -16775,7 +16775,7 @@ import {
   unlinkSync as unlinkSync6,
   accessSync as accessSync3
 } from "node:fs";
-import { join as join10 } from "node:path";
+import { isAbsolute as isAbsolute10, join as join10 } from "node:path";
 
 // packages/orchestration/src/queue-services.ts
 import { spawn } from "node:child_process";
@@ -21177,10 +21177,100 @@ function initProfileSync(input, fs) {
   }
   return successResult("Initialized", stateRoot, after3.record);
 }
+function resolveProfileSync(input, fs) {
+  const v = validateInputs(input, fs);
+  if (v._tag === "Refused") return v.result;
+  const {
+    stateRoot,
+    worktreeRoot,
+    profileId,
+    vendor,
+    expected,
+    stateRootIdentity
+  } = v.value;
+  const profilesRoot = join8(stateRoot, PROFILES_DIR_NAME);
+  const authorityDir = profileAuthorityDir(stateRoot, profileId);
+  const homesDir = profileHomesDir(stateRoot, profileId);
+  const vendorHome = profileVendorHomeDir(stateRoot, profileId, vendor);
+  const jsonPath = profileJsonPath(stateRoot, profileId);
+  const layoutPaths = {
+    stateRoot,
+    profilesRoot,
+    authorityDir,
+    homesDir,
+    vendorHome
+  };
+  const layoutDirList = [profilesRoot, authorityDir, homesDir, vendorHome];
+  for (const p of [profilesRoot, authorityDir]) {
+    const err = checkComponent(fs, p, { expect: "dir", allowMissing: false });
+    if (err !== null) {
+      return refuse(err === "authority_missing" ? "authority_missing" : err);
+    }
+  }
+  {
+    const err = checkComponent(fs, jsonPath, {
+      expect: "file",
+      allowMissing: false
+    });
+    if (err !== null) return refuse(err);
+  }
+  for (const p of [homesDir, vendorHome]) {
+    const err = checkComponent(fs, p, { expect: "dir", allowMissing: false });
+    if (err !== null) return refuse(err);
+  }
+  const captured = {
+    stateRoot: stateRootIdentity
+  };
+  for (const key of [
+    "profilesRoot",
+    "authorityDir",
+    "homesDir",
+    "vendorHome"
+  ]) {
+    const cap = captureDirIdentity(fs, layoutPaths[key]);
+    if (cap._tag === "Refused") return refuse(cap.reason);
+    captured[key] = cap.identity;
+  }
+  const layoutIds = captured;
+  {
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot
+    );
+    if (err !== null) return refuse(err);
+  }
+  const existing = readAuthority(fs, jsonPath);
+  if (existing._tag === "Refused") return refuse(existing.reason);
+  if (existing._tag === "Absent") return refuse("authority_missing");
+  if (!recordsEqualExact(existing.record, expected)) {
+    return refuse("authority_conflict");
+  }
+  {
+    const err = finalSuccessFilesystemGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+      layoutDirList,
+      jsonPath,
+      existing.identity
+    );
+    if (err !== null) return refuse(err);
+  }
+  return successResult("Ready", stateRoot, existing.record);
+}
 function initProfile(input) {
   return Effect_exports.gen(function* () {
     const fs = yield* CredentialProfileFs;
     return initProfileSync(input, fs);
+  });
+}
+function resolveProfile(input) {
+  return Effect_exports.gen(function* () {
+    const fs = yield* CredentialProfileFs;
+    return resolveProfileSync(input, fs);
   });
 }
 
@@ -21247,8 +21337,22 @@ function profilePreflightRecordPath(stateRoot, profileId, vendor) {
     `${vendor}.json`
   );
 }
-function buildVendorHomeChildEnv(processEnv, vendor, configRoot) {
+function buildVendorHomeChildEnv(processEnv, vendor, configRoot, platform = process.platform) {
   const child = { ...processEnv };
+  if (platform === "win32") {
+    for (const key of Object.keys(child)) {
+      const upper = key.toUpperCase();
+      if (upper === "GROK_HOME" || upper === "CODEX_HOME") {
+        delete child[key];
+      }
+    }
+    if (vendor === "grok") {
+      child.GROK_HOME = configRoot;
+    } else {
+      child.CODEX_HOME = configRoot;
+    }
+    return child;
+  }
   if (vendor === "grok") {
     child.GROK_HOME = configRoot;
     delete child.CODEX_HOME;
@@ -21395,11 +21499,120 @@ function authorityOpenFlags2() {
 function identitiesEqual2(a, b) {
   return a.dev === b.dev && a.ino === b.ino;
 }
+function observeNoFollow(path) {
+  let st;
+  try {
+    st = lstatSync4(path);
+  } catch (e) {
+    const code = e.code;
+    if (code === "ENOENT") return "missing";
+    return "other";
+  }
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isDirectory()) return "directory";
+  if (st.isFile()) return "file";
+  return "other";
+}
+function authorityDirChain(filePath) {
+  const preflightDir = dirname5(filePath);
+  const profileDir = dirname5(preflightDir);
+  const profilesRoot = dirname5(profileDir);
+  return [profilesRoot, profileDir, preflightDir];
+}
+function captureDirIdentity2(path) {
+  try {
+    const st = lstatSync4(path);
+    if (st.isSymbolicLink() || !st.isDirectory()) return null;
+    return { dev: st.dev, ino: st.ino };
+  } catch {
+    return null;
+  }
+}
+function captureAuthorityDirsForRead(filePath) {
+  const chain = authorityDirChain(filePath);
+  const components = [];
+  for (const path of chain) {
+    const kind = observeNoFollow(path);
+    if (kind === "missing") {
+      throw new ProfilePreflightStoreFailure("absent");
+    }
+    if (kind === "symlink") {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (kind !== "directory") {
+      throw new ProfilePreflightStoreFailure("unreadable");
+    }
+    const id = captureDirIdentity2(path);
+    if (id === null) {
+      throw new ProfilePreflightStoreFailure("unreadable");
+    }
+    components.push({ path, identity: id });
+  }
+  return { components };
+}
+function ensureAuthorityDirsForWrite(filePath) {
+  const chain = authorityDirChain(filePath);
+  const components = [];
+  for (const path of chain) {
+    let kind = observeNoFollow(path);
+    if (kind === "symlink") {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (kind === "file" || kind === "other") {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (kind === "missing") {
+      try {
+        mkdirSync5(path, { recursive: false, mode: 448 });
+      } catch (e) {
+        const code = e.code;
+        if (code !== "EEXIST") {
+          throw new ProfilePreflightStoreFailure("write_failed");
+        }
+      }
+      kind = observeNoFollow(path);
+      if (kind === "symlink") {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      if (kind !== "directory") {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+      if (IS_POSIX2) {
+        try {
+          chmodSync2(path, 448);
+        } catch {
+        }
+      }
+    }
+    const id = captureDirIdentity2(path);
+    if (id === null) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    components.push({ path, identity: id });
+  }
+  return { components };
+}
+function recheckAuthorityDirs(captured) {
+  for (const c of captured.components) {
+    const kind = observeNoFollow(c.path);
+    if (kind === "symlink") {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (kind !== "directory") {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    const id = captureDirIdentity2(c.path);
+    if (id === null || !identitiesEqual2(id, c.identity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+  }
+}
 function readProfilePreflightRecord(absolutePath, expected) {
   return Effect_exports.try({
     try: () => {
       const pathErr = validateAbsolutePath2(absolutePath);
       if (pathErr !== null) throw pathErr;
+      const authorityDirs = captureAuthorityDirsForRead(absolutePath);
       let fd;
       try {
         let st;
@@ -21421,6 +21634,7 @@ function readProfilePreflightRecord(absolutePath, expected) {
         if (st.size > MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES) {
           throw new ProfilePreflightStoreFailure("oversized");
         }
+        recheckAuthorityDirs(authorityDirs);
         try {
           fd = openSync5(absolutePath, authorityOpenFlags2());
         } catch (e) {
@@ -21441,6 +21655,7 @@ function readProfilePreflightRecord(absolutePath, expected) {
         if (pathAfter.isSymbolicLink() || !pathAfter.isFile() || !identitiesEqual2(pathAfter, st) || pathAfter.size !== st.size) {
           throw new ProfilePreflightStoreFailure("identity_changed");
         }
+        recheckAuthorityDirs(authorityDirs);
         const cap = MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES + 1;
         const buf = Buffer.allocUnsafe(cap);
         let offset = 0;
@@ -21456,6 +21671,7 @@ function readProfilePreflightRecord(absolutePath, expected) {
         if (!after3.isFile() || !identitiesEqual2(after3, opened) || after3.size !== opened.size) {
           throw new ProfilePreflightStoreFailure("identity_changed");
         }
+        recheckAuthorityDirs(authorityDirs);
         closeQuiet2(fd);
         fd = void 0;
         const parsed = parseCredentialProfilePreflightBytes(
@@ -21503,18 +21719,8 @@ function writeProfilePreflightRecord(absolutePath, wrapper) {
       if (Buffer.byteLength(body, "utf8") > MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES) {
         throw new ProfilePreflightStoreFailure("oversized");
       }
+      const authorityDirs = ensureAuthorityDirsForWrite(absolutePath);
       const dir = dirname5(absolutePath);
-      try {
-        mkdirSync5(dir, { recursive: true, mode: 448 });
-        if (IS_POSIX2) {
-          try {
-            chmodSync2(dir, 448);
-          } catch {
-          }
-        }
-      } catch {
-        throw new ProfilePreflightStoreFailure("write_failed");
-      }
       try {
         const existing = lstatSync4(absolutePath);
         if (existing.isSymbolicLink()) {
@@ -21527,6 +21733,7 @@ function writeProfilePreflightRecord(absolutePath, wrapper) {
           throw new ProfilePreflightStoreFailure("write_failed");
         }
       }
+      recheckAuthorityDirs(authorityDirs);
       const tmpName = `.preflight.${randomBytes4(16).toString("hex")}.tmp`;
       const tmpPath = join9(dir, tmpName);
       let fd;
@@ -21564,7 +21771,9 @@ function writeProfilePreflightRecord(absolutePath, wrapper) {
         fsyncSync4(fd);
         closeSync5(fd);
         fd = void 0;
+        recheckAuthorityDirs(authorityDirs);
         renameSync3(tmpPath, absolutePath);
+        recheckAuthorityDirs(authorityDirs);
         try {
           const dirFd = openSync5(dir, fsConstants6.O_RDONLY);
           try {
@@ -21923,19 +22132,38 @@ function setupReady(model, toolCheckExit, lane) {
   }
   return model.ready;
 }
-function ensureStateRootDirectory(stateRoot) {
+function lexicalStateRootPreflight(stateRoot, repoRoot2) {
+  if (typeof stateRoot !== "string" || stateRoot.length === 0) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (stateRoot.includes("\0")) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (!isAbsolute10(stateRoot)) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (typeof repoRoot2 !== "string" || repoRoot2.length === 0 || !isAbsolute10(repoRoot2)) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  const normalizedState = normalizeAbsolutePath(stateRoot);
+  const normalizedRepo = normalizeAbsolutePath(repoRoot2);
+  if (isEqualOrDescendant(normalizedState, normalizedRepo)) {
+    return { _tag: "Refuse", reason: "state_root_in_worktree" };
+  }
+  return { _tag: "Ok", stateRoot: normalizedState };
+}
+function ensureExternalStateRoot(stateRoot) {
   try {
-    if (existsSync5(stateRoot)) {
-      const st = lstatSync5(stateRoot);
-      if (st.isSymbolicLink()) return false;
-      if (!st.isDirectory()) return false;
-      return true;
-    }
+    const st = lstatSync5(stateRoot);
+    if (st.isSymbolicLink()) return false;
+    if (!st.isDirectory()) return false;
+    return true;
+  } catch (e) {
+    const code = e.code;
+    if (code !== "ENOENT") return false;
+  }
+  try {
     mkdirSync6(stateRoot, { recursive: true, mode: 448 });
-    try {
-      chmodSync3(stateRoot, 448);
-    } catch {
-    }
     return true;
   } catch {
     return false;
@@ -21977,8 +22205,17 @@ function runForemanSetup(argv, io2, env) {
     }
     const vendorsToPersist = parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
     const platform = env.platform ?? process.platform;
-    const foremanHome = resolveForemanHome(processEnv, platform);
-    if (!ensureStateRootDirectory(foremanHome)) {
+    const foremanHomeRaw = resolveForemanHome(processEnv, platform);
+    const lexical = lexicalStateRootPreflight(foremanHomeRaw, env.repoRoot);
+    if (lexical._tag === "Refuse") {
+      io2.writeStderr(
+        `${MSG_CREDENTIAL_PROFILE_REFUSED} (${lexical.reason})
+`
+      );
+      return EXIT_BOUNDARY_FAILURE;
+    }
+    const foremanHome = lexical.stateRoot;
+    if (!ensureExternalStateRoot(foremanHome)) {
       io2.writeStderr(MSG_CREDENTIAL_PROFILE_REFUSED + " (invalid_state_root)\n");
       return EXIT_BOUNDARY_FAILURE;
     }
@@ -22012,7 +22249,12 @@ function runForemanSetup(argv, io2, env) {
     for (const b of bindings) {
       childEnvByVendor.set(
         b.vendor,
-        buildVendorHomeChildEnv(processEnv, b.vendor, b.configRoot)
+        buildVendorHomeChildEnv(
+          processEnv,
+          b.vendor,
+          b.configRoot,
+          platform
+        )
       );
     }
     const captured = /* @__PURE__ */ new Map();
@@ -22048,6 +22290,26 @@ function runForemanSetup(argv, io2, env) {
         io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
         return EXIT_BOUNDARY_FAILURE;
       }
+      const resolved = yield* resolveProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId: b.profileId,
+        vendor: b.vendor
+      }).pipe(Effect_exports.provide(profileFsLayer));
+      if (resolved._tag === "Refused") {
+        io2.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${resolved.reason})
+`
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (resolved.profileId !== b.profileId || resolved.vendor !== b.vendor || resolved.profileIdentity !== b.profileIdentity || resolved.configRoot !== b.configRoot) {
+        io2.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (identity_changed)
+`
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
       pendingWrites.push({
         vendor: b.vendor,
         record,
@@ -22058,10 +22320,31 @@ function runForemanSetup(argv, io2, env) {
           b.vendor
         ),
         profileId: b.profileId,
-        profileIdentity: b.profileIdentity
+        profileIdentity: b.profileIdentity,
+        configRoot: b.configRoot
       });
     }
     for (const pending4 of pendingWrites) {
+      const preWrite = yield* resolveProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId: pending4.profileId,
+        vendor: pending4.vendor
+      }).pipe(Effect_exports.provide(profileFsLayer));
+      if (preWrite._tag === "Refused") {
+        io2.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${preWrite.reason})
+`
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (preWrite.profileId !== pending4.profileId || preWrite.vendor !== pending4.vendor || preWrite.profileIdentity !== pending4.profileIdentity || preWrite.configRoot !== pending4.configRoot) {
+        io2.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (identity_changed)
+`
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
       const wrapper = makeCredentialProfilePreflight(
         pending4.profileId,
         pending4.profileIdentity,

@@ -167,13 +167,34 @@ export function profilePreflightRecordPath(
  * Copy `processEnv` into a fresh object, set the matching vendor home to
  * `configRoot`, and remove the other vendor-home variable. Does not mutate
  * the caller's environment object.
+ *
+ * On Windows, every case variant of `GROK_HOME` and `CODEX_HOME` is removed
+ * before the canonical matching key is set (Windows env keys are
+ * case-insensitive). POSIX stays case-sensitive: only the exact keys are
+ * stripped and set.
  */
 export function buildVendorHomeChildEnv(
   processEnv: NodeJS.ProcessEnv,
   vendor: CredentialVendor,
   configRoot: string,
+  platform: NodeJS.Platform = process.platform,
 ): NodeJS.ProcessEnv {
   const child: NodeJS.ProcessEnv = { ...processEnv };
+  if (platform === "win32") {
+    for (const key of Object.keys(child)) {
+      const upper = key.toUpperCase();
+      if (upper === "GROK_HOME" || upper === "CODEX_HOME") {
+        delete child[key];
+      }
+    }
+    if (vendor === "grok") {
+      child.GROK_HOME = configRoot;
+    } else {
+      child.CODEX_HOME = configRoot;
+    }
+    return child;
+  }
+  // POSIX: case-sensitive — only exact keys.
   if (vendor === "grok") {
     child.GROK_HOME = configRoot;
     delete child.CODEX_HOME;
@@ -415,6 +436,15 @@ function authorityOpenFlags(): number {
   return fsConstants.O_RDONLY;
 }
 
+type DirIdentity = { readonly dev: number; readonly ino: number };
+
+type CapturedAuthorityDirs = {
+  readonly components: readonly {
+    readonly path: string;
+    readonly identity: DirIdentity;
+  }[];
+};
+
 function identitiesEqual(
   a: { dev: number; ino: number },
   b: { dev: number; ino: number },
@@ -423,7 +453,157 @@ function identitiesEqual(
 }
 
 /**
- * Bounded no-follow descriptor read. Never follows a final-component link.
+ * Observe a path component without following links.
+ */
+function observeNoFollow(
+  path: string,
+): "missing" | "directory" | "symlink" | "file" | "other" {
+  let st: Stats;
+  try {
+    st = lstatSync(path);
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return "missing";
+    return "other";
+  }
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isDirectory()) return "directory";
+  if (st.isFile()) return "file";
+  return "other";
+}
+
+/**
+ * Authority directory chain for a preflight record file path:
+ *   <state>/credential-profiles/<profile-id>/preflight/<vendor>.json
+ * Returns [credential-profiles, profile-id, preflight] outermost → innermost.
+ */
+function authorityDirChain(
+  filePath: string,
+): readonly [string, string, string] {
+  const preflightDir = dirname(filePath);
+  const profileDir = dirname(preflightDir);
+  const profilesRoot = dirname(profileDir);
+  return [profilesRoot, profileDir, preflightDir];
+}
+
+function captureDirIdentity(path: string): DirIdentity | null {
+  try {
+    const st = lstatSync(path);
+    if (st.isSymbolicLink() || !st.isDirectory()) return null;
+    return { dev: st.dev, ino: st.ino };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate every authority directory component without following links.
+ * All three (`credential-profiles`, profile id, `preflight`) must exist as
+ * real directories. Captures identities for a later recheck.
+ */
+function captureAuthorityDirsForRead(
+  filePath: string,
+): CapturedAuthorityDirs {
+  const chain = authorityDirChain(filePath);
+  const components: { path: string; identity: DirIdentity }[] = [];
+  for (const path of chain) {
+    const kind = observeNoFollow(path);
+    if (kind === "missing") {
+      throw new ProfilePreflightStoreFailure("absent");
+    }
+    if (kind === "symlink") {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (kind !== "directory") {
+      throw new ProfilePreflightStoreFailure("unreadable");
+    }
+    const id = captureDirIdentity(path);
+    if (id === null) {
+      throw new ProfilePreflightStoreFailure("unreadable");
+    }
+    components.push({ path, identity: id });
+  }
+  return { components };
+}
+
+/**
+ * Ensure the authority directory chain for write: refuse linked components,
+ * create missing directories one level at a time (never through a link),
+ * capture identities for recheck. Does not chmod existing parents.
+ */
+function ensureAuthorityDirsForWrite(
+  filePath: string,
+): CapturedAuthorityDirs {
+  const chain = authorityDirChain(filePath);
+  const components: { path: string; identity: DirIdentity }[] = [];
+  for (const path of chain) {
+    let kind = observeNoFollow(path);
+    if (kind === "symlink") {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (kind === "file" || kind === "other") {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (kind === "missing") {
+      try {
+        mkdirSync(path, { recursive: false, mode: 0o700 });
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code !== "EEXIST") {
+          throw new ProfilePreflightStoreFailure("write_failed");
+        }
+      }
+      kind = observeNoFollow(path);
+      if (kind === "symlink") {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      if (kind !== "directory") {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+      if (IS_POSIX) {
+        try {
+          chmodSync(path, 0o700);
+        } catch {
+          /* best-effort owner-only on newly created dirs */
+        }
+      }
+    }
+    const id = captureDirIdentity(path);
+    if (id === null) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    components.push({ path, identity: id });
+  }
+  return { components };
+}
+
+/**
+ * Recheck every captured authority directory still names the same non-linked
+ * directory. A component that became a link is `linked_path`; any other
+ * change is `identity_changed`.
+ */
+function recheckAuthorityDirs(
+  captured: CapturedAuthorityDirs,
+): void {
+  for (const c of captured.components) {
+    const kind = observeNoFollow(c.path);
+    if (kind === "symlink") {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (kind !== "directory") {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    const id = captureDirIdentity(c.path);
+    if (id === null || !identitiesEqual(id, c.identity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+  }
+}
+
+/**
+ * Bounded no-follow descriptor read. Refuses a linked final path and any
+ * linked authority ancestor (`credential-profiles`, profile, or `preflight`).
+ * Retains and rechecks directory identities before success.
  * Returns closed failure reasons only (no paths, bytes, or exception text).
  */
 export function readProfilePreflightRecord(
@@ -434,6 +614,9 @@ export function readProfilePreflightRecord(
     try: () => {
       const pathErr = validateAbsolutePath(absolutePath);
       if (pathErr !== null) throw pathErr;
+
+      // Full authority path: refuse linked ancestors before opening the file.
+      const authorityDirs = captureAuthorityDirsForRead(absolutePath);
 
       let fd: number | undefined;
       try {
@@ -456,6 +639,8 @@ export function readProfilePreflightRecord(
         if (st.size > MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES) {
           throw new ProfilePreflightStoreFailure("oversized");
         }
+
+        recheckAuthorityDirs(authorityDirs);
 
         try {
           fd = openSync(absolutePath, authorityOpenFlags());
@@ -491,6 +676,8 @@ export function readProfilePreflightRecord(
           throw new ProfilePreflightStoreFailure("identity_changed");
         }
 
+        recheckAuthorityDirs(authorityDirs);
+
         const cap = MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES + 1;
         const buf = Buffer.allocUnsafe(cap);
         let offset = 0;
@@ -511,6 +698,8 @@ export function readProfilePreflightRecord(
         ) {
           throw new ProfilePreflightStoreFailure("identity_changed");
         }
+
+        recheckAuthorityDirs(authorityDirs);
 
         closeQuiet(fd);
         fd = undefined;
@@ -555,8 +744,9 @@ function cleanupTemp(tmpPath: string): void {
 
 /**
  * Atomic owner-only write: same-directory temp, fsync, rename, parent fsync
- * where supported under the closed Windows allowlist. Cleans up the temp file
- * on any failure.
+ * where supported under the closed Windows allowlist. Refuses linked
+ * authority ancestors and rechecks directory identities before success.
+ * Cleans up the temp file on any failure.
  */
 export function writeProfilePreflightRecord(
   absolutePath: string,
@@ -583,20 +773,9 @@ export function writeProfilePreflightRecord(
         throw new ProfilePreflightStoreFailure("oversized");
       }
 
+      // Ensure credential-profiles / profile / preflight without following links.
+      const authorityDirs = ensureAuthorityDirsForWrite(absolutePath);
       const dir = dirname(absolutePath);
-      try {
-        mkdirSync(dir, { recursive: true, mode: 0o700 });
-        if (IS_POSIX) {
-          // Best-effort owner-only parent; authority layout is gated by R7A.
-          try {
-            chmodSync(dir, 0o700);
-          } catch {
-            /* ignore */
-          }
-        }
-      } catch {
-        throw new ProfilePreflightStoreFailure("write_failed");
-      }
 
       // Refuse a symlink at the final path (no follow, no overwrite of a link).
       try {
@@ -611,6 +790,8 @@ export function writeProfilePreflightRecord(
           throw new ProfilePreflightStoreFailure("write_failed");
         }
       }
+
+      recheckAuthorityDirs(authorityDirs);
 
       const tmpName = `.preflight.${randomBytes(16).toString("hex")}.tmp`;
       const tmpPath = join(dir, tmpName);
@@ -652,7 +833,11 @@ export function writeProfilePreflightRecord(
         closeSync(fd);
         fd = undefined;
 
+        recheckAuthorityDirs(authorityDirs);
+
         renameSync(tmpPath, absolutePath);
+
+        recheckAuthorityDirs(authorityDirs);
 
         // Parent-directory open + fsync after publish.
         try {

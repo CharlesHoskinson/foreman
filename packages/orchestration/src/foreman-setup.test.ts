@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
   mkdirSync,
 } from "node:fs";
@@ -42,6 +43,9 @@ import {
   profilePreflightRecordPath,
 } from "./credential-profile-preflight.js";
 import {
+  setCredentialProfileRaceHook,
+} from "./credential-profile.js";
+import {
   EXIT_BOUNDARY_FAILURE,
   EXIT_INVALID_ARGUMENTS,
   EXIT_NOT_READY,
@@ -51,6 +55,7 @@ import {
   USAGE,
   authInstruction,
   finalizeSetupExitCode,
+  lexicalStateRootPreflight,
   parseSetupArgv,
   parseDurableEnabledFromToml,
   resolveForemanHome,
@@ -1009,6 +1014,152 @@ describe("R7B1 profile-bound Setup preflight", () => {
       assert.equal(capturedEnvs.length, 0, "must not probe before refuse");
       assert.equal(existsSync(resolvePreflightRecordPath(home, "grok")), false);
     } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("lexical preflight refuses relative state root without filesystem mutation", () => {
+    const repo = tempRepo();
+    try {
+      const r = lexicalStateRootPreflight("relative-home", repo);
+      assert.equal(r._tag, "Refuse");
+      if (r._tag === "Refuse") {
+        assert.equal(r.reason, "invalid_state_root");
+      }
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses missing state root under worktree without creating it", async () => {
+    const repo = tempRepo();
+    const home = join(repo, "missing-nested-home");
+    assert.equal(existsSync(home), false);
+    const io = captureIo();
+    const capturedEnvs: CapturedEnvCall[] = [];
+    try {
+      const code = await Effect.runPromise(
+        runForemanSetup(["--lane", "grok"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: {
+            HOME: "/tmp",
+            FOREMAN_HOME: home,
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are logged in with grok.com.\n",
+            capturedEnvs,
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.equal(code, EXIT_BOUNDARY_FAILURE);
+      assert.match(io.stderr, /state_root_in_worktree/);
+      assert.equal(existsSync(home), false, "must not create under worktree");
+      assert.equal(capturedEnvs.length, 0, "must not probe");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses relative FOREMAN_HOME without mutation or probes", async () => {
+    const repo = tempRepo();
+    const io = captureIo();
+    const capturedEnvs: CapturedEnvCall[] = [];
+    try {
+      const code = await Effect.runPromise(
+        runForemanSetup(["--lane", "grok"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: {
+            HOME: "/tmp",
+            FOREMAN_HOME: "not-absolute-home",
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are logged in with grok.com.\n",
+            capturedEnvs,
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.equal(code, EXIT_BOUNDARY_FAILURE);
+      assert.match(io.stderr, /invalid_state_root/);
+      assert.equal(capturedEnvs.length, 0);
+      assert.equal(existsSync(join(repo, "not-absolute-home")), false);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("re-resolve after probes refuses changed authority and writes nothing", async () => {
+    const home = tempHome();
+    const repo = tempRepo();
+    const io = captureIo();
+    const capturedEnvs: CapturedEnvCall[] = [];
+    const authPath = join(
+      home,
+      "credential-profiles",
+      "grok-default",
+      "profile.json",
+    );
+    // Fresh init reads authority once post-write. The next authority read is
+    // post-probe resolveProfile — swap the inode so re-resolve fails closed.
+    let authorityReads = 0;
+    setCredentialProfileRaceHook({
+      afterReadAuthority: () => {
+        authorityReads += 1;
+        if (authorityReads >= 2 && existsSync(authPath)) {
+          const body = readFileSync(authPath);
+          unlinkSync(authPath);
+          writeFileSync(authPath, body);
+        }
+      },
+    });
+    try {
+      const code = await Effect.runPromise(
+        runForemanSetup(["--lane", "grok"], io, {
+          repoRoot: repo,
+          capabilityTable,
+          processEnv: {
+            HOME: home,
+            FOREMAN_HOME: home,
+            FOREMAN_TEST_WSL_FORCE: "0",
+            PATH: "/usr/bin",
+          },
+          layer: vendorLayer({
+            grokAuthStdout: "You are not authenticated.\n",
+            capturedEnvs,
+          }),
+          storeLayer: livePreflightRecordStore,
+          nowUtc: () => FIXED,
+          ensureLauncher: () => Effect.succeed({ ok: true as const }),
+          durableEnabled: null,
+        }),
+      );
+      assert.equal(code, EXIT_BOUNDARY_FAILURE);
+      assert.match(io.stderr, /credential profile refused/);
+      assert.ok(
+        capturedEnvs.length > 0,
+        "probes must run before post-probe re-resolve refuse",
+      );
+      assert.equal(
+        existsSync(profilePreflightRecordPath(home, "grok-default", "grok")),
+        false,
+      );
+      assert.equal(existsSync(resolvePreflightRecordPath(home, "grok")), false);
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(home, { recursive: true, force: true });
       rmSync(repo, { recursive: true, force: true });
     }
   });
