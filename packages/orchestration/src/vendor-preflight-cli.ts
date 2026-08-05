@@ -1,7 +1,12 @@
 /**
- * vendor-preflight CLI: inspect <vendor> | tool-check-row <grok|codex>
+ * vendor-preflight CLI:
+ *   inspect <vendor>
+ *   tool-check-row <grok|codex>
+ *   write-record <vendor> <absolute-path>
+ *   lane-gate <vendor> <absolute-path>
  */
 
+import { isAbsolute } from "node:path";
 import { Effect, Layer } from "effect";
 import { canonicalize } from "@foreman/core";
 import {
@@ -34,6 +39,11 @@ import {
   isToolCheckRowVendorId,
   projectVendorPreflightToToolCheckRow,
 } from "./vendor-preflight-tool-check.js";
+import {
+  PreflightRecordStore,
+  PreflightStoreFailure,
+  livePreflightRecordStore,
+} from "./vendor-preflight-store.js";
 
 export const EXIT_READY = 0;
 export const EXIT_NOT_READY = 1;
@@ -54,6 +64,16 @@ export type PreflightCliIo = {
 export type ParsedPreflightArgv =
   | { readonly _tag: "Inspect"; readonly vendor: string }
   | { readonly _tag: "ToolCheckRow"; readonly vendor: string }
+  | {
+      readonly _tag: "WriteRecord";
+      readonly vendor: string;
+      readonly path: string;
+    }
+  | {
+      readonly _tag: "LaneGate";
+      readonly vendor: string;
+      readonly path: string;
+    }
   | { readonly _tag: "Invalid" };
 
 /**
@@ -85,31 +105,69 @@ export function stripPreflightNodeArgv(
   return args;
 }
 
+function isNonEmptyArg(v: string | undefined): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+function isAbsoluteRecordPath(path: string): boolean {
+  return isAbsolute(path) && !path.includes("\0");
+}
+
 export function parsePreflightArgv(
   argv: readonly string[],
 ): ParsedPreflightArgv {
   const args = stripPreflightNodeArgv(argv);
-  if (args.length !== 2) return { _tag: "Invalid" };
+  if (args.length < 2) return { _tag: "Invalid" };
   const command = args[0];
   const vendor = args[1];
-  if (vendor === undefined || vendor.trim().length === 0) {
+  if (!isNonEmptyArg(vendor)) {
     return { _tag: "Invalid" };
   }
+
   if (command === "inspect") {
+    if (args.length !== 2) return { _tag: "Invalid" };
     return { _tag: "Inspect", vendor };
   }
   if (command === "tool-check-row") {
+    if (args.length !== 2) return { _tag: "Invalid" };
     // Adapter command accepts only the advertised Setup lanes.
     if (!isToolCheckRowVendorId(vendor)) {
       return { _tag: "Invalid" };
     }
     return { _tag: "ToolCheckRow", vendor };
   }
+  if (command === "write-record" || command === "lane-gate") {
+    if (args.length !== 3) return { _tag: "Invalid" };
+    const path = args[2];
+    if (!isNonEmptyArg(path) || !isAbsoluteRecordPath(path)) {
+      return { _tag: "Invalid" };
+    }
+    if (command === "write-record") {
+      return { _tag: "WriteRecord", vendor, path };
+    }
+    return { _tag: "LaneGate", vendor, path };
+  }
   return { _tag: "Invalid" };
 }
 
 function isVendorId(v: string): v is VendorId {
   return (VENDOR_IDS as readonly string[]).includes(v);
+}
+
+/**
+ * Select the refusal reason for a valid not-ready record.
+ * Order: discoverable → authenticated → current (first fact that is not ready).
+ */
+export function selectRecordedRefusalReason(
+  rec: VendorPreflightRecordV1,
+): string {
+  if (rec.facts.discoverable.value !== "discoverable") {
+    return rec.facts.discoverable.reason;
+  }
+  if (rec.facts.authenticated.value !== "authenticated") {
+    return rec.facts.authenticated.reason;
+  }
+  return rec.facts.current.reason;
 }
 
 /**
@@ -134,6 +192,11 @@ export type PreflightCliEnv = {
     PreflightCliRuntime
   >;
   readonly layer?: Layer.Layer<PreflightCliRuntime>;
+  /**
+   * Optional injectable record store. Defaults to the live atomic store.
+   * `lane-gate` uses only this service (never PathLookup or ProcessExec).
+   */
+  readonly storeLayer?: Layer.Layer<PreflightRecordStore>;
 };
 
 /**
@@ -156,6 +219,33 @@ export function runVendorPreflightCli(
       return EXIT_INVALID_ARGUMENTS;
     }
 
+    const storeLayer = env.storeLayer ?? livePreflightRecordStore;
+
+    // --- lane-gate: store only, no live vendor probe -------------------------
+    if (parsed._tag === "LaneGate") {
+      const either = yield* Effect.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        return yield* store.read(parsed.path);
+      }).pipe(Effect.provide(storeLayer), Effect.either);
+
+      if (either._tag === "Left") {
+        io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      const record = either.right;
+      if (record.vendor !== parsed.vendor) {
+        io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (recordIsFullyReady(record)) {
+        return EXIT_READY;
+      }
+      // Emit the selected recorded reason unchanged (no rewrite).
+      io.writeStderr(selectRecordedRefusalReason(record) + "\n");
+      return EXIT_NOT_READY;
+    }
+
+    // --- inspect / tool-check-row / write-record need a capability row ------
     const capability = findCapability(env.capabilityTable, parsed.vendor);
     if (capability === null) {
       // agy is a valid contract id but has no live capability in this slice.
@@ -184,18 +274,39 @@ export function runVendorPreflightCli(
     }
 
     const record = either.right;
-    // Validate before emit
+    // Validate before emit / persist
     const decoded = decodeVendorPreflightRecordV1(record);
     if (isVendorPreflightContractFailure(decoded)) {
       io.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return EXIT_BOUNDARY_FAILURE;
     }
     // Bind every successful inspect result to the requested vendor before
-    // JSON or TSV emission. An injected or corrupted record for a different
-    // vendor is a typed internal/boundary failure with no stdout.
+    // JSON, TSV, or store emission. An injected or corrupted record for a
+    // different vendor is a typed internal/boundary failure with no stdout.
     if (decoded.vendor !== parsed.vendor) {
       io.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return EXIT_BOUNDARY_FAILURE;
+    }
+
+    if (parsed._tag === "WriteRecord") {
+      const writeEither = yield* Effect.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        yield* store.write(parsed.path, decoded);
+      }).pipe(Effect.provide(storeLayer), Effect.either);
+
+      if (writeEither._tag === "Left") {
+        const err = writeEither.left;
+        if (err instanceof PreflightStoreFailure) {
+          io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+          return EXIT_BOUNDARY_FAILURE;
+        }
+        io.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (recordIsFullyReady(decoded)) {
+        return EXIT_READY;
+      }
+      return EXIT_NOT_READY;
     }
 
     if (parsed._tag === "ToolCheckRow") {
@@ -207,6 +318,7 @@ export function runVendorPreflightCli(
       return EXIT_READY;
     }
 
+    // inspect
     let line: string;
     try {
       line = canonicalize(decoded as unknown);

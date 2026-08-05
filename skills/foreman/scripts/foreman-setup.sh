@@ -186,6 +186,64 @@ fs_auth_instruction() {
   esac
 }
 
+# @description Resolve the Node.js vendor-preflight runtime path.
+#   FOREMAN_VENDOR_PREFLIGHT_RUNTIME is a test-only override.
+# @stdout absolute or configured runtime path
+fs_vendor_preflight_runtime() {
+  if [[ -n "${FOREMAN_VENDOR_PREFLIGHT_RUNTIME:-}" ]]; then
+    printf '%s\n' "$FOREMAN_VENDOR_PREFLIGHT_RUNTIME"
+    return 0
+  fi
+  printf '%s\n' "$REPO_ROOT/skills/foreman/runtime/dist/vendor-preflight.js"
+}
+
+# @description Persist one typed vendor-preflight record for a lane.
+#   write-record inspects once and stores the validated record under
+#   $FOREMAN_HOME/preflight/<vendor>.json (default FOREMAN_HOME=$HOME/.foreman).
+#   Exit 0 (ready) and 1 (valid not-ready) both mean a durable write succeeded.
+#   Missing Node.js or runtime is a soft skip so fixture-only Setup tests still
+#   report tool-check readiness; production hosts always have the runtime.
+# @arg $1 vendor id (grok|codex|claude)
+# @exitcode 0 always (warnings only; Setup readiness still comes from tool-check)
+fs_write_preflight_record() {
+  local vendor="$1"
+  local node_bin runtime record_path home_dir wr_rc=0
+  node_bin="$(command -v node 2>/dev/null || true)"
+  if [[ -z "$node_bin" ]]; then
+    log "WARN: node unavailable; skipping preflight record for $vendor"
+    return 0
+  fi
+  runtime="$(fs_vendor_preflight_runtime)"
+  if [[ ! -f "$runtime" ]]; then
+    log "WARN: vendor-preflight runtime absent ($runtime); skipping preflight record for $vendor"
+    return 0
+  fi
+  home_dir="${FOREMAN_HOME:-$HOME/.foreman}"
+  record_path="$home_dir/preflight/${vendor}.json"
+  # Capture and discard write-record streams; exit codes 0/1 are success paths.
+  wr_rc=0
+  "$node_bin" "$runtime" write-record "$vendor" "$record_path" >/dev/null 2>&1 || wr_rc=$?
+  if (( wr_rc == 0 || wr_rc == 1 )); then
+    log "preflight record written: $record_path"
+    return 0
+  fi
+  log "WARN: write-record failed for $vendor (exit $wr_rc)"
+  return 0
+}
+
+# @description Write preflight records for the Setup scope: the requested
+#   --lane only, or both grok and codex for a whole-profile Setup.
+fs_persist_setup_preflight_records() {
+  if [[ -n "$LANE" ]]; then
+    case "$LANE" in
+      grok|codex|claude) fs_write_preflight_record "$LANE" ;;
+    esac
+    return 0
+  fi
+  fs_write_preflight_record "grok"
+  fs_write_preflight_record "codex"
+}
+
 tc_args=(--profile "$PROFILE")
 [[ -n "$LANE" ]] && tc_args+=(--lane "$LANE")
 
@@ -197,6 +255,11 @@ tc_args=(--profile "$PROFILE")
 tc_rc=0
 report="$(bash "$TOOL_CHECK" "${tc_args[@]}" 2>&1)" || tc_rc=$?
 echo "$report"
+
+# Persist typed vendor-preflight records for lane admission (R4C). Runs after
+# tool-check so Setup still reports the inventory first; write-record re-inspects
+# once and stores the validated canonical record.
+fs_persist_setup_preflight_records
 
 rc=0
 

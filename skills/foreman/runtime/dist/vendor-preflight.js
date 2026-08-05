@@ -15616,6 +15616,9 @@ var ensureSuccessType2 = () => (layer) => layer;
 var ensureErrorType2 = () => (layer) => layer;
 var ensureRequirementsType2 = () => (layer) => layer;
 
+// packages/orchestration/src/vendor-preflight-cli.ts
+import { isAbsolute as isAbsolute5 } from "node:path";
+
 // packages/core/src/failures.ts
 var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
 function unknownField(field) {
@@ -17392,6 +17395,194 @@ function isToolCheckRowVendorId(v) {
   return TOOL_CHECK_ROW_VENDORS.includes(v);
 }
 
+// packages/orchestration/src/vendor-preflight-store.ts
+import {
+  chmodSync,
+  closeSync as closeSync2,
+  constants as fsConstants2,
+  fsyncSync,
+  mkdirSync,
+  openSync as openSync2,
+  renameSync,
+  unlinkSync,
+  writeSync
+} from "node:fs";
+import { dirname, isAbsolute as isAbsolute4, join as join4 } from "node:path";
+import { randomBytes } from "node:crypto";
+var MAX_PREFLIGHT_RECORD_BYTES = 1048576;
+var PreflightStoreFailure = class {
+  constructor(reason, detail) {
+    this.reason = reason;
+    this.detail = detail;
+  }
+  _tag = "PreflightStoreFailure";
+};
+var PreflightRecordStore = class extends Context_exports.Tag("PreflightRecordStore")() {
+};
+function pathInvalid(detail) {
+  return new PreflightStoreFailure("path_invalid", detail);
+}
+function validateAbsolutePath(absolutePath) {
+  if (typeof absolutePath !== "string" || absolutePath.length === 0) {
+    return pathInvalid("path is empty");
+  }
+  if (absolutePath.includes("\0")) {
+    return pathInvalid("path contains NUL");
+  }
+  if (!isAbsolute4(absolutePath)) {
+    return pathInvalid("path is not absolute");
+  }
+  return null;
+}
+function readPreflightRecord(absolutePath) {
+  return Effect_exports.try({
+    try: () => {
+      const pathErr = validateAbsolutePath(absolutePath);
+      if (pathErr !== null) {
+        throw pathErr;
+      }
+      const bounded = readFileBoundedSync(
+        absolutePath,
+        MAX_PREFLIGHT_RECORD_BYTES
+      );
+      switch (bounded._tag) {
+        case "Absent":
+          throw new PreflightStoreFailure("absent");
+        case "Oversized":
+          throw new PreflightStoreFailure("oversized");
+        case "Unreadable":
+        case "IdentityChanged":
+        case "MalformedUtf8":
+          throw new PreflightStoreFailure(
+            "unreadable",
+            bounded._tag.toLowerCase()
+          );
+        case "Ok":
+          break;
+        default: {
+          const _exhaustive = bounded;
+          throw new PreflightStoreFailure(
+            "unreadable",
+            `unexpected bound result: ${JSON.stringify(_exhaustive)}`
+          );
+        }
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(bounded.text);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new PreflightStoreFailure("malformed_json", msg);
+      }
+      const decoded = decodeVendorPreflightRecordV1(parsed);
+      if (isVendorPreflightContractFailure(decoded)) {
+        throw new PreflightStoreFailure("decode_failed", decoded.reason);
+      }
+      return decoded;
+    },
+    catch: (e) => e instanceof PreflightStoreFailure ? e : new PreflightStoreFailure(
+      "unreadable",
+      e instanceof Error ? e.message : String(e)
+    )
+  });
+}
+function writePreflightRecord(absolutePath, record) {
+  return Effect_exports.try({
+    try: () => {
+      const pathErr = validateAbsolutePath(absolutePath);
+      if (pathErr !== null) {
+        throw pathErr;
+      }
+      const rechecked = decodeVendorPreflightRecordV1(record);
+      if (isVendorPreflightContractFailure(rechecked)) {
+        throw new PreflightStoreFailure("decode_failed", rechecked.reason);
+      }
+      let body;
+      try {
+        body = canonicalize(rechecked) + "\n";
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new PreflightStoreFailure("write_failed", msg);
+      }
+      if (Buffer.byteLength(body, "utf8") > MAX_PREFLIGHT_RECORD_BYTES) {
+        throw new PreflightStoreFailure(
+          "oversized",
+          `canonical record exceeds ${MAX_PREFLIGHT_RECORD_BYTES} bytes`
+        );
+      }
+      const dir = dirname(absolutePath);
+      try {
+        mkdirSync(dir, { recursive: true, mode: 448 });
+        chmodSync(dir, 448);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new PreflightStoreFailure(
+          "write_failed",
+          `cannot create parent directory: ${msg}`
+        );
+      }
+      const tmpName = `.preflight.${randomBytes(16).toString("hex")}.tmp`;
+      const tmpPath = join4(dir, tmpName);
+      let fd;
+      try {
+        fd = openSync2(
+          tmpPath,
+          fsConstants2.O_CREAT | fsConstants2.O_EXCL | fsConstants2.O_WRONLY,
+          384
+        );
+        const buf = Buffer.from(body, "utf8");
+        let offset = 0;
+        while (offset < buf.byteLength) {
+          const n = writeSync(fd, buf, offset, buf.byteLength - offset);
+          offset += n;
+        }
+        fsyncSync(fd);
+        closeSync2(fd);
+        fd = void 0;
+        chmodSync(tmpPath, 384);
+        renameSync(tmpPath, absolutePath);
+        try {
+          chmodSync(absolutePath, 384);
+        } catch {
+        }
+        try {
+          const dirFd = openSync2(dir, fsConstants2.O_RDONLY);
+          try {
+            fsyncSync(dirFd);
+          } finally {
+            closeSync2(dirFd);
+          }
+        } catch {
+        }
+      } catch (e) {
+        if (fd !== void 0) {
+          try {
+            closeSync2(fd);
+          } catch {
+          }
+        }
+        try {
+          unlinkSync(tmpPath);
+        } catch {
+        }
+        if (e instanceof PreflightStoreFailure) {
+          throw e;
+        }
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new PreflightStoreFailure("write_failed", msg);
+      }
+    },
+    catch: (e) => e instanceof PreflightStoreFailure ? e : new PreflightStoreFailure(
+      "write_failed",
+      e instanceof Error ? e.message : String(e)
+    )
+  });
+}
+var livePreflightRecordStore = Layer_exports.succeed(PreflightRecordStore, {
+  read: (absolutePath) => readPreflightRecord(absolutePath),
+  write: (absolutePath, record) => writePreflightRecord(absolutePath, record)
+});
+
 // packages/orchestration/src/vendor-preflight-cli.ts
 var EXIT_READY = 0;
 var EXIT_NOT_READY = 1;
@@ -17411,27 +17602,55 @@ function stripPreflightNodeArgv(argv) {
   }
   return args2;
 }
+function isNonEmptyArg(v) {
+  return typeof v === "string" && v.trim().length > 0;
+}
+function isAbsoluteRecordPath(path) {
+  return isAbsolute5(path) && !path.includes("\0");
+}
 function parsePreflightArgv(argv) {
   const args2 = stripPreflightNodeArgv(argv);
-  if (args2.length !== 2) return { _tag: "Invalid" };
+  if (args2.length < 2) return { _tag: "Invalid" };
   const command = args2[0];
   const vendor = args2[1];
-  if (vendor === void 0 || vendor.trim().length === 0) {
+  if (!isNonEmptyArg(vendor)) {
     return { _tag: "Invalid" };
   }
   if (command === "inspect") {
+    if (args2.length !== 2) return { _tag: "Invalid" };
     return { _tag: "Inspect", vendor };
   }
   if (command === "tool-check-row") {
+    if (args2.length !== 2) return { _tag: "Invalid" };
     if (!isToolCheckRowVendorId(vendor)) {
       return { _tag: "Invalid" };
     }
     return { _tag: "ToolCheckRow", vendor };
   }
+  if (command === "write-record" || command === "lane-gate") {
+    if (args2.length !== 3) return { _tag: "Invalid" };
+    const path = args2[2];
+    if (!isNonEmptyArg(path) || !isAbsoluteRecordPath(path)) {
+      return { _tag: "Invalid" };
+    }
+    if (command === "write-record") {
+      return { _tag: "WriteRecord", vendor, path };
+    }
+    return { _tag: "LaneGate", vendor, path };
+  }
   return { _tag: "Invalid" };
 }
 function isVendorId(v) {
   return VENDOR_IDS.includes(v);
+}
+function selectRecordedRefusalReason(rec) {
+  if (rec.facts.discoverable.value !== "discoverable") {
+    return rec.facts.discoverable.reason;
+  }
+  if (rec.facts.authenticated.value !== "authenticated") {
+    return rec.facts.authenticated.reason;
+  }
+  return rec.facts.current.reason;
 }
 function runVendorPreflightCli(argv, io2, env) {
   return Effect_exports.gen(function* () {
@@ -17443,6 +17662,27 @@ function runVendorPreflightCli(argv, io2, env) {
     if (!isVendorId(parsed.vendor)) {
       io2.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
       return EXIT_INVALID_ARGUMENTS;
+    }
+    const storeLayer = env.storeLayer ?? livePreflightRecordStore;
+    if (parsed._tag === "LaneGate") {
+      const either5 = yield* Effect_exports.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        return yield* store.read(parsed.path);
+      }).pipe(Effect_exports.provide(storeLayer), Effect_exports.either);
+      if (either5._tag === "Left") {
+        io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      const record2 = either5.right;
+      if (record2.vendor !== parsed.vendor) {
+        io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (recordIsFullyReady(record2)) {
+        return EXIT_READY;
+      }
+      io2.writeStderr(selectRecordedRefusalReason(record2) + "\n");
+      return EXIT_NOT_READY;
     }
     const capability = findCapability(env.capabilityTable, parsed.vendor);
     if (capability === null) {
@@ -17473,6 +17713,25 @@ function runVendorPreflightCli(argv, io2, env) {
     if (decoded.vendor !== parsed.vendor) {
       io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
       return EXIT_BOUNDARY_FAILURE;
+    }
+    if (parsed._tag === "WriteRecord") {
+      const writeEither = yield* Effect_exports.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        yield* store.write(parsed.path, decoded);
+      }).pipe(Effect_exports.provide(storeLayer), Effect_exports.either);
+      if (writeEither._tag === "Left") {
+        const err = writeEither.left;
+        if (err instanceof PreflightStoreFailure) {
+          io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+          return EXIT_BOUNDARY_FAILURE;
+        }
+        io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (recordIsFullyReady(decoded)) {
+        return EXIT_READY;
+      }
+      return EXIT_NOT_READY;
     }
     if (parsed._tag === "ToolCheckRow") {
       const row = projectVendorPreflightToToolCheckRow(decoded);

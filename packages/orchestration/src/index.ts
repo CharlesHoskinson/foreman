@@ -281,12 +281,25 @@ export {
   MSG_INTERNAL_FAILURE as PREFLIGHT_MSG_INTERNAL_FAILURE,
   stripPreflightNodeArgv,
   parsePreflightArgv,
+  selectRecordedRefusalReason,
   runVendorPreflightCli,
   type PreflightCliIo,
   type ParsedPreflightArgv,
   type PreflightCliRuntime,
   type PreflightCliEnv,
 } from "./vendor-preflight-cli.js";
+
+// --- Sprint 3 R4C: persisted preflight record store ---
+
+export {
+  MAX_PREFLIGHT_RECORD_BYTES,
+  PreflightStoreFailure,
+  PreflightRecordStore,
+  readPreflightRecord,
+  writePreflightRecord,
+  livePreflightRecordStore,
+  type PreflightStoreFailureReason,
+} from "./vendor-preflight-store.js";
 
 export {
   TOOL_CHECK_ROW_STATUSES,

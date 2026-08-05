@@ -3,6 +3,14 @@
  */
 
 import assert from "node:assert/strict";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { Effect, Layer } from "effect";
 import { canonicalize, isCanonicalJsonText } from "@foreman/core";
@@ -23,17 +31,23 @@ import {
   MSG_UNCONFIGURED_VENDOR,
   parsePreflightArgv,
   runVendorPreflightCli,
+  selectRecordedRefusalReason,
   stripPreflightNodeArgv,
 } from "./vendor-preflight-cli.js";
 import {
   decodeVendorPreflightRecordV1,
   isVendorPreflightContractFailure,
+  type VendorPreflightRecordV1,
 } from "./vendor-preflight-contract.js";
 import type { VendorCapabilityTableV1 } from "./vendor-preflight-manifest.js";
 import {
   PreflightClock,
   VendorPreflightFailure,
 } from "./vendor-preflight-live.js";
+import {
+  PreflightRecordStore,
+  livePreflightRecordStore,
+} from "./vendor-preflight-store.js";
 
 const FIXED_TS = "2026-08-04T15:00:00.000Z";
 
@@ -203,6 +217,49 @@ describe("parsePreflightArgv", () => {
       "Invalid",
     );
     assert.equal(parsePreflightArgv(["tool-check-row"])._tag, "Invalid");
+  });
+
+  it("parses write-record and lane-gate with absolute paths only", () => {
+    assert.deepEqual(
+      parsePreflightArgv(["write-record", "grok", "/tmp/preflight/grok.json"]),
+      {
+        _tag: "WriteRecord",
+        vendor: "grok",
+        path: "/tmp/preflight/grok.json",
+      },
+    );
+    assert.deepEqual(
+      parsePreflightArgv(["lane-gate", "codex", "/abs/codex.json"]),
+      {
+        _tag: "LaneGate",
+        vendor: "codex",
+        path: "/abs/codex.json",
+      },
+    );
+    assert.equal(
+      parsePreflightArgv(["write-record", "grok", "relative.json"])._tag,
+      "Invalid",
+    );
+    assert.equal(
+      parsePreflightArgv(["lane-gate", "grok", "relative.json"])._tag,
+      "Invalid",
+    );
+    assert.equal(parsePreflightArgv(["write-record", "grok"])._tag, "Invalid");
+    assert.equal(parsePreflightArgv(["lane-gate", "grok"])._tag, "Invalid");
+    assert.deepEqual(
+      parsePreflightArgv([
+        "node",
+        "skills/foreman/runtime/dist/vendor-preflight.js",
+        "lane-gate",
+        "grok",
+        "/tmp/x.json",
+      ]),
+      {
+        _tag: "LaneGate",
+        vendor: "grok",
+        path: "/tmp/x.json",
+      },
+    );
   });
 });
 
@@ -418,5 +475,340 @@ describe("runVendorPreflightCli", () => {
     const decoded = decodeVendorPreflightRecordV1(JSON.parse(line));
     assert.ok(!isVendorPreflightContractFailure(decoded));
     assert.equal(decoded.vendor, "grok");
+  });
+});
+
+function fixtureReadyRecord(
+  vendor: "grok" | "codex" = "grok",
+): VendorPreflightRecordV1 {
+  return {
+    schemaVersion: 1,
+    vendor,
+    timestamp: FIXED_TS,
+    resolvedPath: `/usr/bin/${vendor}`,
+    reportedVersion: vendor === "codex" ? "0.146.0" : "0.2.118",
+    versionFloor: vendor === "codex" ? "0.146.0" : "0.2.118",
+    facts: {
+      discoverable: {
+        value: "discoverable",
+        evidenceClass: "declared",
+        reason: "CLI resolved",
+      },
+      authenticated: {
+        value: "authenticated",
+        evidenceClass: "declared",
+        reason: "signed in",
+      },
+      current: {
+        value: "current",
+        evidenceClass: "declared",
+        reason: "meets floor",
+      },
+    },
+    probes: [
+      {
+        kind: "version",
+        argv: [vendor, "--version"],
+        outcome: "completed",
+        exitCode: 0,
+      },
+      {
+        kind: "auth",
+        argv:
+          vendor === "codex"
+            ? [vendor, "login", "status"]
+            : [vendor, "models"],
+        outcome: "completed",
+        exitCode: 0,
+      },
+    ],
+    remediation: { kind: "none", instruction: null },
+  };
+}
+
+function fixtureNotReadyAuthUnknown(): VendorPreflightRecordV1 {
+  return {
+    schemaVersion: 1,
+    vendor: "grok",
+    timestamp: FIXED_TS,
+    resolvedPath: "/usr/bin/grok",
+    reportedVersion: "0.2.118",
+    versionFloor: "0.2.118",
+    facts: {
+      discoverable: {
+        value: "discoverable",
+        evidenceClass: "probed",
+        reason: "CLI resolved on PATH",
+      },
+      authenticated: {
+        value: "unknown",
+        evidenceClass: "probed",
+        reason: "auth probe timed out",
+      },
+      current: {
+        value: "current",
+        evidenceClass: "probed",
+        reason: "reported version meets floor",
+      },
+    },
+    probes: [
+      {
+        kind: "version",
+        argv: ["grok", "--version"],
+        outcome: "completed",
+        exitCode: 0,
+      },
+      {
+        kind: "auth",
+        argv: ["grok", "models"],
+        outcome: "timeout",
+        exitCode: null,
+      },
+    ],
+    remediation: {
+      kind: "diagnose",
+      instruction: "Re-run bounded grok models",
+    },
+  };
+}
+
+describe("selectRecordedRefusalReason", () => {
+  it("selects the first not-ready fact reason in discoverable → auth → current order", () => {
+    const missing: VendorPreflightRecordV1 = {
+      schemaVersion: 1,
+      vendor: "grok",
+      timestamp: FIXED_TS,
+      resolvedPath: null,
+      reportedVersion: null,
+      versionFloor: "0.2.118",
+      facts: {
+        discoverable: {
+          value: "missing",
+          evidenceClass: "probed",
+          reason: "CLI not on PATH",
+        },
+        authenticated: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "auth not evaluated",
+        },
+        current: {
+          value: "unknown",
+          evidenceClass: "probed",
+          reason: "currency not evaluated",
+        },
+      },
+      probes: [],
+      remediation: {
+        kind: "install",
+        instruction: "npm install -g @xai-official/grok@latest",
+      },
+    };
+    assert.equal(selectRecordedRefusalReason(missing), "CLI not on PATH");
+    assert.equal(
+      selectRecordedRefusalReason(fixtureNotReadyAuthUnknown()),
+      "auth probe timed out",
+    );
+
+    const outdated: VendorPreflightRecordV1 = {
+      ...fixtureReadyRecord("grok"),
+      reportedVersion: "0.1.0",
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "CLI resolved",
+        },
+        authenticated: {
+          value: "authenticated",
+          evidenceClass: "probed",
+          reason: "signed in",
+        },
+        current: {
+          value: "outdated",
+          evidenceClass: "probed",
+          reason: "version below floor",
+        },
+      },
+    };
+    assert.equal(selectRecordedRefusalReason(outdated), "version below floor");
+  });
+});
+
+describe("write-record and lane-gate", () => {
+  it("write-record inspects once, persists the validated record, exit 0 when ready", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-wr-"));
+    const path = join(dir, "grok.json");
+    let inspectCalls = 0;
+    const rec = fixtureReadyRecord("grok");
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["write-record", "grok", path], cap.io, {
+        capabilityTable: table,
+        inspect: () => {
+          inspectCalls += 1;
+          return Effect.succeed(rec);
+        },
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_READY);
+    assert.equal(inspectCalls, 1);
+    assert.equal(cap.stdout(), "");
+    assert.ok(existsSync(path));
+    const line = readFileSync(path, "utf8").replace(/\n$/, "");
+    assert.ok(isCanonicalJsonText(line));
+    const decoded = decodeVendorPreflightRecordV1(JSON.parse(line));
+    assert.ok(!isVendorPreflightContractFailure(decoded));
+    assert.equal(decoded.vendor, "grok");
+  });
+
+  it("write-record persists a valid not-ready record and exits 1", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-wrnr-"));
+    const path = join(dir, "grok.json");
+    const rec = fixtureNotReadyAuthUnknown();
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["write-record", "grok", path], cap.io, {
+        capabilityTable: table,
+        inspect: () => Effect.succeed(rec),
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_NOT_READY);
+    assert.ok(existsSync(path));
+    const decoded = decodeVendorPreflightRecordV1(
+      JSON.parse(readFileSync(path, "utf8")),
+    );
+    assert.ok(!isVendorPreflightContractFailure(decoded));
+    assert.equal(decoded.facts.authenticated.value, "unknown");
+  });
+
+  it("write-record rejects relative paths with exit 2", async () => {
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["write-record", "grok", "rel.json"], cap.io, {
+        capabilityTable: table,
+      }),
+    );
+    assert.equal(code, EXIT_INVALID_ARGUMENTS);
+    assert.equal(cap.stdout(), "");
+  });
+
+  it("write-record binds inspect result to the requested vendor", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-bind-"));
+    const path = join(dir, "grok.json");
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["write-record", "grok", path], cap.io, {
+        capabilityTable: table,
+        inspect: () => Effect.succeed(fixtureReadyRecord("codex")),
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_BOUNDARY_FAILURE);
+    assert.equal(existsSync(path), false);
+  });
+
+  it("lane-gate passes only when all three facts are ready", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-lg-"));
+    const path = join(dir, "grok.json");
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        yield* store.write(path, fixtureReadyRecord("grok"));
+      }).pipe(Effect.provide(livePreflightRecordStore)),
+    );
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["lane-gate", "grok", path], cap.io, {
+        capabilityTable: table,
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_READY);
+    assert.equal(cap.stdout(), "");
+    assert.equal(cap.stderr(), "");
+  });
+
+  it("lane-gate emits the selected recorded reason unchanged for exit 1", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-lg1-"));
+    const path = join(dir, "grok.json");
+    const rec = fixtureNotReadyAuthUnknown();
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        yield* store.write(path, rec);
+      }).pipe(Effect.provide(livePreflightRecordStore)),
+    );
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["lane-gate", "grok", path], cap.io, {
+        capabilityTable: table,
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_NOT_READY);
+    assert.equal(cap.stdout(), "");
+    assert.equal(cap.stderr(), "auth probe timed out\n");
+  });
+
+  it("lane-gate rejects vendor mismatch with exit 3", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-mis-"));
+    const path = join(dir, "x.json");
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        yield* store.write(path, fixtureReadyRecord("codex"));
+      }).pipe(Effect.provide(livePreflightRecordStore)),
+    );
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["lane-gate", "grok", path], cap.io, {
+        capabilityTable: table,
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_BOUNDARY_FAILURE);
+    assert.equal(cap.stdout(), "");
+  });
+
+  it("lane-gate fails closed on missing record with exit 3", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-miss-"));
+    const path = join(dir, "absent.json");
+    const cap = ioCapture();
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["lane-gate", "grok", path], cap.io, {
+        capabilityTable: table,
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_BOUNDARY_FAILURE);
+  });
+
+  it("lane-gate does not use PathLookup or ProcessExec", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "preflight-cli-noio-"));
+    const path = join(dir, "grok.json");
+    // Seed via raw filesystem + public decoder shape (store write uses fs only).
+    writeFileSync(
+      path,
+      canonicalize(fixtureReadyRecord("grok") as unknown) + "\n",
+      "utf8",
+    );
+
+    const cap = ioCapture();
+    // Provide ONLY PreflightRecordStore — no ProcessExec, PathLookup, or clock.
+    // lane-gate must succeed without those services. A regression that
+    // reintroduces inspectVendor-style probes would fail at runtime because
+    // ProcessExec/PathLookup tags are absent from storeLayer.
+    const code = await Effect.runPromise(
+      runVendorPreflightCli(["lane-gate", "grok", path], cap.io, {
+        capabilityTable: table,
+        storeLayer: livePreflightRecordStore,
+      }),
+    );
+    assert.equal(code, EXIT_READY);
+    assert.equal(cap.stdout(), "");
+    assert.equal(cap.stderr(), "");
   });
 });
