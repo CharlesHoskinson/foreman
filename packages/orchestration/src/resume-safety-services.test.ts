@@ -4,14 +4,16 @@
  */
 
 import assert from "node:assert/strict";
+import { isAbsolute } from "node:path";
 import { describe, it } from "node:test";
-import { Context, Effect, Layer } from "effect";
+import { Cause, Context, Effect, Exit, Layer } from "effect";
 import type { ResumeLockState, ResumeProcessState } from "./resume-decision.js";
 import {
   classifyResumeLock,
   classifyResumeProcess,
   liveResumeSafetyServices,
   makeLiveResumeSafetyLayers,
+  MAX_LOCK_PATH_BYTES,
   observeResumeSafety,
   ResumeLockProbe,
   ResumeProcessProbe,
@@ -19,6 +21,45 @@ import {
   type ProcessProbeOutcome,
   type ResumeSafetyObservationV1,
 } from "./resume-safety-services.js";
+
+// ---------------------------------------------------------------------------
+// Current-platform path witnesses
+// ---------------------------------------------------------------------------
+
+/** Absolute lock path spelling valid on the current Node platform. */
+const absLock: string =
+  process.platform === "win32"
+    ? "C:\\foreman\\lane.lock"
+    : "/tmp/foreman/lane.lock";
+
+/**
+ * Foreign-platform absolute spellings that node:path.isAbsolute rejects here.
+ * On Windows, drive and UNC forms are native; POSIX hosts treat them as foreign.
+ */
+const foreignPlatformLockPaths: readonly string[] =
+  process.platform === "win32"
+    ? []
+    : ["C:\\foreman\\lane.lock", "\\\\server\\share\\lane.lock"];
+
+/** Current-platform absolute path with exactly MAX_LOCK_PATH_BYTES UTF-8 bytes. */
+function exactBoundAbsolutePath(): string {
+  if (process.platform === "win32") {
+    const prefix = "C:\\";
+    return prefix + "a".repeat(MAX_LOCK_PATH_BYTES - Buffer.byteLength(prefix));
+  }
+  return `/${"a".repeat(MAX_LOCK_PATH_BYTES - 1)}`;
+}
+
+/** Current-platform absolute path one UTF-8 byte over the bound. */
+function oversizeAbsolutePath(): string {
+  if (process.platform === "win32") {
+    const prefix = "C:\\";
+    return (
+      prefix + "a".repeat(MAX_LOCK_PATH_BYTES - Buffer.byteLength(prefix) + 1)
+    );
+  }
+  return `/${"a".repeat(MAX_LOCK_PATH_BYTES)}`;
+}
 
 // ---------------------------------------------------------------------------
 // Pure classifiers
@@ -96,11 +137,8 @@ describe("classifyResumeProcess", () => {
 });
 
 describe("classifyResumeLock", () => {
-  const absPosix = "/tmp/foreman/lane.lock";
-  const absWinDrive = "C:\\foreman\\lane.lock";
-  const absUnc = "\\\\server\\share\\lane.lock";
-
-  it("maps closed kinds for a valid absolute path", () => {
+  it("maps closed kinds for a current-platform absolute path", () => {
+    assert.equal(isAbsolute(absLock), true, "witness must be platform-absolute");
     const cases: ReadonlyArray<{
       readonly kind: LockPathKind;
       readonly expected: ResumeLockState;
@@ -112,29 +150,27 @@ describe("classifyResumeLock", () => {
       { kind: "other", expected: "unknown" },
       { kind: "failed", expected: "unknown" },
     ];
-    for (const path of [absPosix, absWinDrive, absUnc]) {
-      for (const { kind, expected } of cases) {
-        assert.equal(
-          classifyResumeLock(path, kind),
-          expected,
-          `${path} kind=${kind}`,
-        );
-      }
+    for (const { kind, expected } of cases) {
+      assert.equal(
+        classifyResumeLock(absLock, kind),
+        expected,
+        `${absLock} kind=${kind}`,
+      );
     }
   });
 
   it("returns free only for missing on a valid absolute path", () => {
-    assert.equal(classifyResumeLock(absPosix, "missing"), "free");
-    assert.notEqual(classifyResumeLock(absPosix, "directory"), "free");
-    assert.notEqual(classifyResumeLock(absPosix, "symlink"), "free");
+    assert.equal(classifyResumeLock(absLock, "missing"), "free");
+    assert.notEqual(classifyResumeLock(absLock, "directory"), "free");
+    assert.notEqual(classifyResumeLock(absLock, "symlink"), "free");
     assert.notEqual(classifyResumeLock("relative/lock", "missing"), "free");
   });
 
   it("returns held only for a directory on a valid absolute path", () => {
-    assert.equal(classifyResumeLock(absPosix, "directory"), "held");
-    assert.notEqual(classifyResumeLock(absPosix, "symlink"), "held");
-    assert.notEqual(classifyResumeLock(absPosix, "regular"), "held");
-    assert.notEqual(classifyResumeLock(absPosix, "missing"), "held");
+    assert.equal(classifyResumeLock(absLock, "directory"), "held");
+    assert.notEqual(classifyResumeLock(absLock, "symlink"), "held");
+    assert.notEqual(classifyResumeLock(absLock, "regular"), "held");
+    assert.notEqual(classifyResumeLock(absLock, "missing"), "held");
   });
 
   it("returns unknown for empty, relative, NUL, and oversize paths", () => {
@@ -143,8 +179,8 @@ describe("classifyResumeLock", () => {
       "relative/lock",
       "./lock",
       "foo",
-      "/tmp/lock\0evil",
-      `/${"a".repeat(32_768)}`, // 1 + 32768 = 32769 UTF-8 bytes
+      `${absLock}\0evil`,
+      oversizeAbsolutePath(),
     ];
     const kinds: readonly LockPathKind[] = [
       "missing",
@@ -165,10 +201,45 @@ describe("classifyResumeLock", () => {
     }
   });
 
-  it("accepts exactly 32,768 UTF-8 bytes for an absolute path", () => {
-    // "/" + 32767 of "a" = 32768 bytes
-    const exact = `/${"a".repeat(32_767)}`;
-    assert.equal(Buffer.byteLength(exact, "utf8"), 32_768);
+  it("returns unknown for foreign-platform path spellings", () => {
+    if (foreignPlatformLockPaths.length === 0) {
+      // Current platform accepts drive/UNC; no foreign absolute spelling here.
+      return;
+    }
+    const kinds: readonly LockPathKind[] = [
+      "missing",
+      "directory",
+      "symlink",
+      "regular",
+      "other",
+      "failed",
+    ];
+    for (const lockPath of foreignPlatformLockPaths) {
+      assert.equal(
+        isAbsolute(lockPath),
+        false,
+        `foreign spelling must fail node:path.isAbsolute: ${lockPath}`,
+      );
+      for (const kind of kinds) {
+        assert.equal(
+          classifyResumeLock(lockPath, kind),
+          "unknown",
+          `foreign path=${JSON.stringify(lockPath)} kind=${kind}`,
+        );
+        // Never free: ENOENT-style "missing" must not fail open for foreign forms.
+        assert.notEqual(
+          classifyResumeLock(lockPath, kind),
+          "free",
+          `foreign path must not be free: ${lockPath}`,
+        );
+      }
+    }
+  });
+
+  it("accepts exactly 32,768 UTF-8 bytes for a current-platform absolute path", () => {
+    const exact = exactBoundAbsolutePath();
+    assert.equal(Buffer.byteLength(exact, "utf8"), MAX_LOCK_PATH_BYTES);
+    assert.equal(isAbsolute(exact), true);
     assert.equal(classifyResumeLock(exact, "missing"), "free");
     assert.equal(classifyResumeLock(exact, "directory"), "held");
   });
@@ -206,7 +277,7 @@ describe("observeResumeSafety", () => {
     const processCalls: Array<number | null> = [];
     const lockCalls: string[] = [];
     const observation = await runObservation(
-      { processId: 99, lockPath: "/tmp/lane.lock" },
+      { processId: 99, lockPath: absLock },
       (processId) =>
         Effect.sync(() => {
           processCalls.push(processId);
@@ -223,12 +294,12 @@ describe("observeResumeSafety", () => {
       lockState: "free",
     });
     assert.deepEqual(processCalls, [99]);
-    assert.deepEqual(lockCalls, ["/tmp/lane.lock"]);
+    assert.deepEqual(lockCalls, [absLock]);
   });
 
   it("preserves unknown process state through composition", async () => {
     const observation = await runObservation(
-      { processId: 1, lockPath: "/tmp/lane.lock" },
+      { processId: 1, lockPath: absLock },
       () => Effect.succeed("unknown"),
       () => Effect.succeed("free"),
     );
@@ -238,12 +309,55 @@ describe("observeResumeSafety", () => {
 
   it("preserves unknown lock state through composition", async () => {
     const observation = await runObservation(
-      { processId: 1, lockPath: "/tmp/lane.lock" },
+      { processId: 1, lockPath: absLock },
       () => Effect.succeed("inactive"),
       () => Effect.succeed("unknown"),
     );
     assert.equal(observation.processState, "inactive");
     assert.equal(observation.lockState, "unknown");
+  });
+
+  it("maps an injected process service defect to process unknown only", async () => {
+    const observation = await runObservation(
+      { processId: 1, lockPath: absLock },
+      () => Effect.die(new Error("process probe defect")),
+      () => Effect.succeed("free"),
+    );
+    assert.equal(observation.processState, "unknown");
+    assert.equal(observation.lockState, "free");
+  });
+
+  it("maps an injected lock service defect to lock unknown only", async () => {
+    const observation = await runObservation(
+      { processId: 1, lockPath: absLock },
+      () => Effect.succeed("inactive"),
+      () => Effect.die(new Error("lock probe defect")),
+    );
+    assert.equal(observation.processState, "inactive");
+    assert.equal(observation.lockState, "unknown");
+  });
+
+  it("does not catch Fiber interruption from a probe", async () => {
+    const layer = Layer.mergeAll(
+      processLayer(() => Effect.interrupt),
+      lockLayer(() => Effect.succeed("free")),
+    );
+    const exit = await Effect.runPromise(
+      Effect.exit(
+        observeResumeSafety({ processId: 1, lockPath: absLock }).pipe(
+          Effect.provide(layer),
+        ),
+      ),
+    );
+    assert.equal(Exit.isFailure(exit), true, "interrupt must fail the fiber");
+    assert.equal(
+      Exit.isInterrupted(exit),
+      true,
+      "interrupt must remain interruption, not defect→unknown success",
+    );
+    if (exit._tag === "Failure") {
+      assert.equal(Cause.isInterruptedOnly(exit.cause), true);
+    }
   });
 
   it("requires ResumeProcessProbe and ResumeLockProbe in the environment", () => {
@@ -280,7 +394,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const observation = await Effect.runPromise(
       observeResumeSafety({
         processId: 777,
-        lockPath: "/tmp/lane.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(observation.processState, "active");
@@ -300,7 +414,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const missing = await Effect.runPromise(
       observeResumeSafety({
         processId: 12,
-        lockPath: "/tmp/gone.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layerMissing)),
     );
     assert.equal(missing.processState, "inactive");
@@ -315,7 +429,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const denied = await Effect.runPromise(
       observeResumeSafety({
         processId: 13,
-        lockPath: "/tmp/held.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layerDenied)),
     );
     assert.equal(denied.processState, "active");
@@ -338,7 +452,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const observation = await Effect.runPromise(
       observeResumeSafety({
         processId: 42,
-        lockPath: "/tmp/lane.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(observation.processState, "unknown");
@@ -362,7 +476,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const observation = await Effect.runPromise(
       observeResumeSafety({
         processId: 1,
-        lockPath: "/tmp/link-to-lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(observation.lockState, "unknown");
@@ -382,7 +496,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const observation = await Effect.runPromise(
       observeResumeSafety({
         processId: null,
-        lockPath: "/tmp/missing.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(observation.processState, "inactive");
@@ -401,7 +515,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const observation = await Effect.runPromise(
       observeResumeSafety({
         processId: 0,
-        lockPath: "/tmp/lane.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(observation.processState, "unknown");
@@ -429,6 +543,46 @@ describe("makeLiveResumeSafetyLayers", () => {
     assert.equal(lstatCalls, 0);
   });
 
+  it("classifies foreign-platform lock path as unknown without calling lstatKind", async () => {
+    if (foreignPlatformLockPaths.length === 0) {
+      // No foreign absolute spelling on this platform.
+      return;
+    }
+    for (const foreignPath of foreignPlatformLockPaths) {
+      let lstatCalls = 0;
+      const layer = makeLiveResumeSafetyLayers({
+        signalZero: () => {
+          /* exists */
+        },
+        lstatKind: () => {
+          lstatCalls += 1;
+          return "directory";
+        },
+      });
+      const observation = await Effect.runPromise(
+        observeResumeSafety({
+          processId: 1,
+          lockPath: foreignPath,
+        }).pipe(Effect.provide(layer)),
+      );
+      assert.equal(
+        observation.lockState,
+        "unknown",
+        `foreign path must be unknown: ${foreignPath}`,
+      );
+      assert.notEqual(
+        observation.lockState,
+        "free",
+        `foreign path must not fail open as free: ${foreignPath}`,
+      );
+      assert.equal(
+        lstatCalls,
+        0,
+        `filesystem seam must not run for foreign path: ${foreignPath}`,
+      );
+    }
+  });
+
   it("classifies thrown non-errno defects at the process boundary as unknown", async () => {
     const layer = makeLiveResumeSafetyLayers({
       signalZero: () => {
@@ -439,7 +593,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const observation = await Effect.runPromise(
       observeResumeSafety({
         processId: 9,
-        lockPath: "/tmp/lane.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(observation.processState, "unknown");
@@ -458,7 +612,7 @@ describe("makeLiveResumeSafetyLayers", () => {
     const observation = await Effect.runPromise(
       observeResumeSafety({
         processId: 9,
-        lockPath: "/tmp/lane.lock",
+        lockPath: absLock,
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(observation.processState, "active");

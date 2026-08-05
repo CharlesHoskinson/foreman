@@ -6,6 +6,7 @@
  */
 
 import { lstatSync } from "node:fs";
+import { isAbsolute } from "node:path";
 import { Context, Effect, Layer } from "effect";
 import type {
   ResumeLockState,
@@ -39,21 +40,15 @@ function isPositiveSafeInteger(value: number): boolean {
 }
 
 /**
- * True for POSIX absolute paths, Windows drive paths, and UNC paths.
- * Rejects empty and relative forms; NUL and size are checked separately.
+ * True only when the path is absolute on the current Node platform.
+ * Foreign-platform spellings fail closed before any filesystem call.
+ * NUL and size are checked separately.
  */
-function isAbsoluteLockPath(path: string): boolean {
-  if (path.startsWith("/")) return true;
-  if (/^[A-Za-z]:[\\/]/.test(path)) return true;
-  if (path.startsWith("\\\\")) return true;
-  return false;
-}
-
 function isValidAbsoluteLockPath(lockPath: string): boolean {
   if (typeof lockPath !== "string" || lockPath.length === 0) return false;
   if (lockPath.includes("\0")) return false;
   if (utf8ByteLength(lockPath) > MAX_LOCK_PATH_BYTES) return false;
-  return isAbsoluteLockPath(lockPath);
+  return isAbsolute(lockPath);
 }
 
 function errorCode(error: unknown): string | undefined {
@@ -160,7 +155,8 @@ export type ResumeSafetyObservationV1 = {
 
 /**
  * Collect process and lock observations for R5A. Preserves `unknown`.
- * Does not throw untyped exceptions when services succeed or fail closed.
+ * Defects from each probe map to that probe's `unknown` only.
+ * Fiber interruption is not caught.
  */
 export function observeResumeSafety(input: {
   readonly processId: number | null;
@@ -174,8 +170,12 @@ export function observeResumeSafety(input: {
     const processProbe = yield* ResumeProcessProbe;
     const lockProbe = yield* ResumeLockProbe;
     const [processState, lockState] = yield* Effect.all([
-      processProbe.observe(input.processId),
-      lockProbe.observe(input.lockPath),
+      processProbe.observe(input.processId).pipe(
+        Effect.catchAllDefect(() => Effect.succeed("unknown" as const)),
+      ),
+      lockProbe.observe(input.lockPath).pipe(
+        Effect.catchAllDefect(() => Effect.succeed("unknown" as const)),
+      ),
     ]);
     return { processState, lockState };
   });
