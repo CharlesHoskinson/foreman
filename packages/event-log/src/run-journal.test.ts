@@ -691,12 +691,20 @@ describe("RunJournal multi-process", () => {
   const CONTENDER_LOCK_BOUND_MS = 15_000;
   /** Parent wait for both children to exit after holder release. */
   const CHILD_COMPLETION_BOUND_MS = 20_000;
+  /** Bound on waiting for child close after SIGKILL (never unbounded). */
+  const POST_KILL_REAP_BOUND_MS = 5_000;
 
   type ChildCapture = {
     readonly code: number | null;
     readonly out: string;
     readonly err: string;
     readonly pid: number | undefined;
+  };
+
+  type SpawnHandle = {
+    readonly child: import("node:child_process").ChildProcess;
+    readonly done: Promise<ChildCapture>;
+    readonly snapshot: () => ChildCapture;
   };
 
   type ReserveChildResult =
@@ -745,7 +753,7 @@ if (exit._tag === "Success") {
    */
   function reserveBarrierWorkerEval(): string {
     return `
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, writeFileSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import { Cause, Effect, Exit } from "effect";
 import {
@@ -774,7 +782,13 @@ if (typeof runIdRaw !== "string" || typeof laneIdRaw !== "string" || typeof atte
   process.exit(3);
 }
 
-writeFileSync(
+function publishMarker(finalPath, body) {
+  const tmpPath = finalPath + ".tmp." + String(process.pid);
+  writeFileSync(tmpPath, body);
+  renameSync(tmpPath, finalPath);
+}
+
+publishMarker(
   readyPath,
   JSON.stringify({ pid: process.pid, at: Date.now() }) + "\\n",
 );
@@ -830,7 +844,7 @@ if (Exit.isSuccess(exit)) {
    */
   function reserveHolderWorkerEval(): string {
     return `
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, writeFileSync } from "node:fs";
 import { Cause, Effect, Exit } from "effect";
 import {
   isResumeAttemptFailure,
@@ -858,6 +872,12 @@ if (typeof runIdRaw !== "string" || typeof laneIdRaw !== "string" || typeof atte
   process.exit(3);
 }
 
+function publishMarker(finalPath, body) {
+  const tmpPath = finalPath + ".tmp." + String(process.pid);
+  writeFileSync(tmpPath, body);
+  renameSync(tmpPath, finalPath);
+}
+
 const identity = makeAttemptIdentity(runIdRaw, laneIdRaw, attemptRaw);
 const exit = await Effect.runPromiseExit(
   Effect.gen(function* () {
@@ -867,7 +887,7 @@ const exit = await Effect.runPromiseExit(
     Effect.provide(
       makeLiveRunJournalLayer(root, {
         afterJournalWriteSync: () => {
-          writeFileSync(
+          publishMarker(
             holdMarkerPath,
             JSON.stringify({
               role: "holder",
@@ -922,7 +942,7 @@ if (Exit.isSuccess(exit)) {
    */
   function reserveContenderWorkerEval(): string {
     return `
-import { writeFileSync } from "node:fs";
+import { renameSync, writeFileSync } from "node:fs";
 import { Cause, Effect, Exit } from "effect";
 import {
   isResumeAttemptFailure,
@@ -950,6 +970,12 @@ if (typeof runIdRaw !== "string" || typeof laneIdRaw !== "string" || typeof atte
   process.exit(3);
 }
 
+function publishMarker(finalPath, body) {
+  const tmpPath = finalPath + ".tmp." + String(process.pid);
+  writeFileSync(tmpPath, body);
+  renameSync(tmpPath, finalPath);
+}
+
 let contentionWritten = false;
 const identity = makeAttemptIdentity(runIdRaw, laneIdRaw, attemptRaw);
 const exit = await Effect.runPromiseExit(
@@ -965,7 +991,7 @@ const exit = await Effect.runPromiseExit(
           // waitMs runs only on the held-lock EEXIST retry path.
           if (!contentionWritten) {
             contentionWritten = true;
-            writeFileSync(
+            publishMarker(
               contentionMarkerPath,
               JSON.stringify({
                 role: "contender",
@@ -1018,6 +1044,33 @@ if (Exit.isSuccess(exit)) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Race a promise against a cancelable wall-clock deadline.
+   * Clears the timer on settle so a successful path leaves no long timer
+   * that would delay Node process exit.
+   */
+  function withDeadline<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    label: string,
+  ): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`timeout waiting for ${label} (${timeoutMs}ms)`));
+      }, timeoutMs);
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (err: unknown) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  }
+
   async function waitUntil(
     predicate: () => boolean,
     timeoutMs: number,
@@ -1034,10 +1087,7 @@ if (Exit.isSuccess(exit)) {
   function spawnCaptured(
     spawn: typeof import("node:child_process").spawn,
     args: readonly string[],
-  ): {
-    readonly child: import("node:child_process").ChildProcess;
-    readonly done: Promise<ChildCapture>;
-  } {
+  ): SpawnHandle {
     const child = spawn(process.execPath, [...args], {
       cwd: process.cwd(),
     });
@@ -1049,12 +1099,18 @@ if (Exit.isSuccess(exit)) {
     child.stderr?.on("data", (c: Buffer) => {
       err += c.toString("utf8");
     });
+    const snapshot = (): ChildCapture => ({
+      code: child.exitCode,
+      out,
+      err,
+      pid: child.pid,
+    });
     const done = new Promise<ChildCapture>((resolveP) => {
       child.on("close", (code) =>
         resolveP({ code, out, err, pid: child.pid }),
       );
     });
-    return { child, done };
+    return { child, done, snapshot };
   }
 
   function killChild(child: import("node:child_process").ChildProcess): void {
@@ -1063,6 +1119,54 @@ if (Exit.isSuccess(exit)) {
       child.kill("SIGKILL");
     } catch {
       /* already reaped */
+    }
+  }
+
+  /** Best-effort release of stdio/handles so a hung child cannot pin Node open. */
+  function releaseChildHandles(
+    child: import("node:child_process").ChildProcess,
+  ): void {
+    try {
+      child.stdout?.destroy();
+    } catch {
+      /* ignore */
+    }
+    try {
+      child.stderr?.destroy();
+    } catch {
+      /* ignore */
+    }
+    try {
+      child.stdin?.destroy();
+    } catch {
+      /* ignore */
+    }
+    try {
+      child.unref();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * SIGKILL children, then wait for close under a second bound.
+   * On a second deadline, destroy/unref remaining handles and return
+   * snapshots available at that point (never hang indefinitely).
+   */
+  async function killAndReap(
+    handles: readonly SpawnHandle[],
+    reapBoundMs: number = POST_KILL_REAP_BOUND_MS,
+  ): Promise<ChildCapture[]> {
+    for (const h of handles) killChild(h.child);
+    try {
+      return await withDeadline(
+        Promise.all(handles.map((h) => h.done)),
+        reapBoundMs,
+        "post-kill child reaping",
+      );
+    } catch {
+      for (const h of handles) releaseChildHandles(h.child);
+      return handles.map((h) => h.snapshot());
     }
   }
 
@@ -1204,7 +1308,7 @@ if (Exit.isSuccess(exit)) {
             goPath,
             String(BARRIER_WAIT_BOUND_MS),
           ];
-          const { child, done } = spawnCaptured(spawn, args);
+          const handle = spawnCaptured(spawn, args);
           try {
             await waitUntil(
               () => existsSync(readyPath),
@@ -1212,20 +1316,20 @@ if (Exit.isSuccess(exit)) {
               `serial ready-${String(index)}`,
             );
             writeFileSync(goPath, "go\n");
-            const timed = await Promise.race([
-              done,
-              sleep(CHILD_COMPLETION_BOUND_MS).then(() => null),
-            ]);
-            if (timed === null) {
-              killChild(child);
-              const late = await done;
+            try {
+              return await withDeadline(
+                handle.done,
+                CHILD_COMPLETION_BOUND_MS,
+                `serial child ${String(index)} completion`,
+              );
+            } catch (completionErr) {
+              const late = await killAndReap([handle]);
               assert.fail(
-                `serial child ${String(index)} completion timeout; code=${String(late.code)} err=${late.err} out=${late.out}`,
+                `serial child ${String(index)} completion timeout: ${String(completionErr)}; code=${String(late[0]!.code)} err=${late[0]!.err} out=${late[0]!.out}`,
               );
             }
-            return timed;
           } catch (e) {
-            killChild(child);
+            await killAndReap([handle]);
             throw e;
           }
         };
@@ -1264,7 +1368,7 @@ if (Exit.isSuccess(exit)) {
       const holdMarkerPath = join(markerDir, "holder-hold");
       const releasePath = join(markerDir, "holder-release");
       const contentionMarkerPath = join(markerDir, "contender-contention");
-      const children: import("node:child_process").ChildProcess[] = [];
+      const handles: SpawnHandle[] = [];
       try {
         const holderArgs = [
           "--import",
@@ -1297,7 +1401,7 @@ if (Exit.isSuccess(exit)) {
         ];
 
         const holder = spawnCaptured(spawn, holderArgs);
-        children.push(holder.child);
+        handles.push(holder);
 
         try {
           await waitUntil(
@@ -1306,10 +1410,9 @@ if (Exit.isSuccess(exit)) {
             "holder afterJournalWriteSync hold marker",
           );
         } catch (e) {
-          killChild(holder.child);
-          const late = await holder.done;
+          const late = await killAndReap([holder]);
           assert.fail(
-            `holder hold marker timeout: ${String(e)}; code=${String(late.code)} err=${late.err} out=${late.out}`,
+            `holder hold marker timeout: ${String(e)}; code=${String(late[0]!.code)} err=${late[0]!.err} out=${late[0]!.out}`,
           );
         }
 
@@ -1325,7 +1428,7 @@ if (Exit.isSuccess(exit)) {
         );
 
         const contender = spawnCaptured(spawn, contenderArgs);
-        children.push(contender.child);
+        handles.push(contender);
 
         try {
           await waitUntil(
@@ -1334,8 +1437,7 @@ if (Exit.isSuccess(exit)) {
             "contender waitMs lock-retry contention marker",
           );
         } catch (e) {
-          for (const ch of children) killChild(ch);
-          const late = await Promise.all([holder.done, contender.done]);
+          const late = await killAndReap([holder, contender]);
           assert.fail(
             `contender contention marker timeout: ${String(e)}; captures=${JSON.stringify(late)}`,
           );
@@ -1343,6 +1445,8 @@ if (Exit.isSuccess(exit)) {
 
         // Contender observed the held exclusive lock while the holder still
         // paused inside afterJournalWriteSync (journal lock not released).
+        // Markers are published via temp+rename, so path existence implies
+        // complete content is visible.
         const holdMarker = readFileSync(holdMarkerPath, "utf8").trim();
         const contentionMarker = readFileSync(
           contentionMarkerPath,
@@ -1359,18 +1463,22 @@ if (Exit.isSuccess(exit)) {
           }) + "\n",
         );
 
-        const timed = await Promise.race([
-          Promise.all([holder.done, contender.done]),
-          sleep(CHILD_COMPLETION_BOUND_MS).then(() => null),
-        ]);
-        if (timed === null) {
-          for (const ch of children) killChild(ch);
-          const late = await Promise.all([holder.done, contender.done]);
+        let holderCapture: ChildCapture;
+        let contenderCapture: ChildCapture;
+        try {
+          const timed = await withDeadline(
+            Promise.all([holder.done, contender.done]),
+            CHILD_COMPLETION_BOUND_MS,
+            "holder/contender completion",
+          );
+          holderCapture = timed[0]!;
+          contenderCapture = timed[1]!;
+        } catch (completionErr) {
+          const late = await killAndReap([holder, contender]);
           assert.fail(
-            `holder/contender completion timeout; captures=${JSON.stringify(late)}`,
+            `holder/contender completion timeout: ${String(completionErr)}; captures=${JSON.stringify(late)}`,
           );
         }
-        const [holderCapture, contenderCapture] = timed;
 
         const evidence = {
           holdMarker,
@@ -1507,7 +1615,9 @@ if (Exit.isSuccess(exit)) {
           "attempt,resumeCount",
         );
       } finally {
-        for (const ch of children) killChild(ch);
+        if (handles.length > 0) {
+          await killAndReap(handles);
+        }
         rmSync(markerDir, { recursive: true, force: true });
       }
     });

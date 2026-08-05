@@ -19,6 +19,8 @@
       entry.
 - [x] Run focused tests, typecheck, build, runtime verification, full Node
       verification, strict OpenSpec validation, and architecture policy.
+- [x] Correct multi-process test harness: cancelable deadlines, atomic marker
+      publication (temp file + rename), and bounded post-kill reaping.
 - [ ] Run a different-family cold audit on the committed candidate.
 
 ## Later work packages
