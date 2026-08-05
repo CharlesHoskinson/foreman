@@ -74,9 +74,15 @@ checks.
 Concurrent successful reservations SHALL return distinct consecutive counts.
 No successful reservation SHALL exceed `resumeMaxAttempts`.
 
+The concurrency acceptance test SHALL use two separate Node.js processes.
+Both processes SHALL report ready before one start barrier releases them. An
+in-process fiber test SHALL NOT be the concurrency acceptance evidence.
+
 #### Scenario: two callers race for the only available count
 
-- WHEN two callers concurrently reserve the same current attempt with limit 1
+- WHEN two separate Node.js processes wait at one start barrier
+- AND the barrier releases both callers to reserve the same current attempt
+  with limit 1
 - THEN exactly one call succeeds with count 1
 - AND exactly one canonical `resume_attempt` event exists
 - AND the other call fails with `resume_limit_reached`.
@@ -105,6 +111,11 @@ shell, PowerShell, Bun, or Deno product logic.
 R5C SHALL NOT restore a worktree, inspect process or lock state, enqueue or
 launch a command, add a supervisor CLI, or modify `lane-supervise.sh`,
 `lane-run.sh`, or `resume.sh`.
+
+R5C MAY regenerate `skills/foreman/runtime/dist/lane-round.js` and the matching
+`skills/foreman/runtime/manifest.json` entry because the tracked runtime bundle
+contains `@foreman/event-log`. It SHALL NOT modify another generated runtime
+artifact.
 
 #### Scenario: the next step needs worktree mutation
 

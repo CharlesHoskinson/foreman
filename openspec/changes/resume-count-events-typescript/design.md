@@ -80,8 +80,11 @@ Filesystem and journal integrity failures continue to use
 ## Concurrency and durability
 
 The count derivation and append occur under the same exclusive events lock.
-Two concurrent reservations cannot return the same count. With limit one,
-exactly one concurrent caller can append count one and the other receives
+Two concurrent reservations cannot return the same count. The concurrency
+proof uses two separate Node.js processes that wait at one start barrier before
+they call the service. An in-process fiber test is not sufficient because a
+synchronous Effect can finish during the first `runFork` call. With limit one,
+exactly one released process can append count one and the other receives
 `resume_limit_reached`.
 
 The append retains the current file identity, no-follow, complete-candidate
@@ -93,3 +96,7 @@ not append a partial event.
 R5C does not change `decideRoundResume`. It does not claim the later executor,
 worktree restore, queue admission, Node supervisor CLI, thin shell adapter, or
 round-preserving Bats proof.
+
+`npm run build` compiles the event-log change into the tracked `lane-round`
+runtime bundle. R5C therefore updates only that deterministic bundle and its
+manifest entry. It does not change another generated runtime artifact.
