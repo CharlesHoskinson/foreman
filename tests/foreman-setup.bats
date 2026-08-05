@@ -1,9 +1,9 @@
-# bats test data (run via `bats`, not as a product executable)
-# @description Coverage for lifecycle-three-stage Task 3 + Sprint 3 R4B/R4C:
+# bats test data (mode 100644; run via `bats`, not as a legacy executable)
+# @description Coverage for lifecycle-three-stage Task 3 + Sprint 3 R4B:
 #   foreman-setup.sh Setup stage. Login instructions print only for positive
 #   signed-out (not_authenticated). Unknown/degraded must not instruct login.
 #   Setup never runs login or update. Capability-floor versions for ready
-#   fixtures: Grok 0.2.118. R4C: Setup persists typed preflight records.
+#   fixtures: Grok 0.2.118.
 load helpers
 
 setup() {
@@ -12,7 +12,6 @@ setup() {
   # readiness/auth/config behavior. Keep their real-checkout calls read-only;
   # wsl-launcher-shipped.bats owns the forced-WSL build fixtures.
   export FOREMAN_TEST_WSL_FORCE=0
-  unset FOREMAN_VENDOR_PREFLIGHT_RUNTIME 2>/dev/null || true
   SHIM="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$SHIM"
   GROK_FLOOR="0.2.118"
@@ -150,27 +149,4 @@ EOF
   [[ "$output" == *"differs from the shipped"* ]]
   after="$(sha256sum "$REPO/.foreman/config.toml" | awk '{print $1}')"
   [ "$after" = "$before" ]
-}
-
-@test "setup --lane grok persists a preflight record under FOREMAN_HOME" {
-  cat > "$SHIM/grok" <<EOF
-#!/usr/bin/env bash
-case "\$1" in
-  --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are logged in with grok.com."; exit 0 ;;
-  *) echo "unrecognized" >&2; exit 1 ;;
-esac
-EOF
-  chmod +x "$SHIM/grok"
-  # Require a real runtime for this assertion (built by npm run build).
-  runtime="$BATS_TEST_DIRNAME/../skills/foreman/runtime/dist/vendor-preflight.js"
-  [ -f "$runtime" ]
-  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"SETUP: READY"* ]]
-  record="$FOREMAN_HOME/preflight/grok.json"
-  [ -f "$record" ]
-  # lane-gate must admit the persisted record without a live probe.
-  run env PATH="/usr/bin:/bin" node "$runtime" lane-gate grok "$record"
-  [ "$status" -eq 0 ]
 }
