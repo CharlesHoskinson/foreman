@@ -58,9 +58,11 @@
 
 - [ ] Update the Foreman skill to require contract-bound dispatch.
 - [ ] Update the Council skill to prohibit automatic review reruns.
+- [ ] Make future workstream creation fail closed without Endstop.
+- [ ] Add Endstop to installed-runtime verification.
+- [ ] Add Endstop as a v0.3.0 release prerequisite.
 - [ ] Build and verify the runtime bundle and manifest.
 - [ ] Run focused tests, type checking, runtime verification, and strict
       OpenSpec validation.
 - [ ] Run the full repository test command and report the baseline secret-scan
       failure separately if it remains.
-

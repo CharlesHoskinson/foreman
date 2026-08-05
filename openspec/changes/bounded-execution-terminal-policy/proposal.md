@@ -1,5 +1,7 @@
 # Change: bounded-execution-terminal-policy
 
+Product name: **Foreman Endstop**.
+
 ## Why
 
 Foreman bounds some individual commands. It does not bound the complete
@@ -47,7 +49,9 @@ complete feedback path. Its terminal states must be absorbing.
 - Extend the durable event journal with one atomic transaction primitive.
 - Add the `execution-guard` Node.js runtime artifact.
 - Guard `lane-queue add` before any queue process or direct process starts.
+- Install Endstop as a required Foreman runtime control.
+- Require an Endstop contract for every future Foreman workstream.
+- Make Endstop a v0.3.0 release prerequisite.
 - Update Foreman and Council operator contracts.
 - Add an OpenSpec terminal-policy capability.
 - Do not resume the isolated R7B2 candidate during this change.
-

@@ -1,8 +1,8 @@
-# Bounded Execution Terminal Policy Implementation Plan
+# Foreman Endstop Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Stop one Foreman package after a fixed feedback budget and reject all later work under the same contract.
+**Goal:** Install Foreman Endstop as the persistent feedback limit for every current and future Foreman workstream.
 
 **Architecture:** Add an event-sourced execution contract to `@foreman/orchestration`. Use the existing external `RunJournal` lock for atomic decisions. Guard queue admission before any process starts.
 
@@ -17,6 +17,9 @@
 - Permit at most 12 action reservations per default contract.
 - Keep all terminal states absorbing.
 - Require new user authorization for a replacement contract.
+- Store Endstop state outside worktrees and branches.
+- Refuse every future workstream that has no valid Endstop contract.
+- Make Endstop a v0.3.0 release prerequisite.
 - Do not integrate or modify the isolated R7B2 candidate.
 
 ---
@@ -33,6 +36,7 @@
 - `packages/orchestration/src/queue-admission.ts`: reserve before process execution.
 - `scripts/build-runtime.ts`: `execution-guard` bundle registration.
 - `scripts/verify-runtime.ts`: deterministic artifact verification.
+- `openspec/changes/v030-release-program/`: Endstop release prerequisite.
 
 ### Task 1: Pure contract and terminal reducer
 
@@ -300,6 +304,8 @@ Run: `git add packages/orchestration/src && git commit -m "test: falsify executi
 - Modify: `scripts/verify-runtime.ts`
 - Modify: `skills/foreman/SKILL.md`
 - Modify: `skills/council/SKILL.md`
+- Modify: `openspec/changes/v030-release-program/tasks.md`
+- Modify: `openspec/changes/v030-release-program/sprints.md`
 - Modify: `skills/foreman/runtime/manifest.json`
 - Create: `skills/foreman/runtime/dist/execution-guard.js` through the build.
 
@@ -323,6 +329,9 @@ Expected: the build prints an `execution-guard.js` SHA-256 value.
 
 Require one contract-bound dispatch. Prohibit automatic Council reruns. State
 that a terminal contract needs explicit user replacement authority.
+
+Add Endstop to the v0.3.0 execution prerequisites. Do not permit later
+workstream execution until the Endstop hostile loop test passes.
 
 - [ ] **Step 4: Run focused and structural verification**
 
@@ -349,4 +358,3 @@ Expected: the new tests pass. Report the pre-existing secret-scan
 - [ ] **Step 6: Commit runtime and documentation**
 
 Run: `git add scripts skills packages openspec docs && git commit -m "feat: enforce terminal execution contracts"`
-

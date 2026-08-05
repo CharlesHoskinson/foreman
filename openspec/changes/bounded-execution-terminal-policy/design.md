@@ -1,5 +1,12 @@
 # Design: bounded-execution-terminal-policy
 
+## Product name
+
+The user-facing product name is **Foreman Endstop**.
+
+An industrial endstop prevents travel beyond a safe limit. Foreman Endstop
+prevents a workstream from moving beyond its authorized execution limits.
+
 ## Decision
 
 Use one durable contract and one deterministic terminal arbiter.
@@ -178,6 +185,13 @@ Concurrent callers cannot reserve the same last budget unit.
 The transaction callback is pure. It cannot perform external work while it
 holds the journal lock.
 
+Endstop stores its events under the external Foreman state root. Worktree
+cleanup, branch deletion, process restart, and session restart do not remove
+the contract.
+
+The installed runtime verifies the Endstop bundle and manifest entry. A
+missing or changed Endstop artifact makes Foreman runtime verification fail.
+
 ## Dispatch boundary
 
 `lane-queue add` is the shared dispatch boundary for Foreman work. It must
@@ -198,6 +212,23 @@ work.
 
 Direct vendor commands are outside Foreman. Foreman must not report their
 results as Foreman evidence.
+
+## Default use in future workstreams
+
+Every new Foreman workstream requires an Endstop contract before its first
+actionful dispatch.
+
+The workstream creation path creates the contract from the accepted package
+specification. It stores the contract before it creates worker attempts.
+
+Read-only status, diagnosis, and cancellation commands do not require an
+action reservation. Every command that can start work requires one.
+
+The installed Foreman skill treats missing Endstop support as `NOT_READY`.
+It does not fall back to unbounded execution.
+
+v0.3.0 cannot reach release readiness until the installed Endstop runtime and
+the hostile loop-closure test both pass.
 
 ## Package dependencies
 
@@ -258,4 +289,3 @@ This change does not complete the v0.3.0 release program. It does not integrate
 the isolated R7B2 candidate.
 
 This change creates the safety boundary that future release work must use.
-

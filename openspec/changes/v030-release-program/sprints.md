@@ -1,5 +1,12 @@
 # Sprint order for Foreman v0.3.0
 
+## Execution safety prerequisite
+
+Ship **Foreman Endstop** before more sprint package execution. Endstop must
+persist one shared feedback budget outside each worktree. Every later
+workstream must use it. The hostile loop-closure test must pass before Sprint
+3 resumes.
+
 Each sprint starts from the accepted commit of its predecessor. Each sprint
 uses TypeScript tests first, Grok implementation, architect verification, a
 Codex cold audit, and a ledger-bound Council review.

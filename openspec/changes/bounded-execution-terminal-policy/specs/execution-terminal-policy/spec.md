@@ -2,6 +2,38 @@
 
 ## ADDED Requirements
 
+### Requirement: Foreman Endstop is a persistent required control
+
+Foreman SHALL identify this control as **Foreman Endstop** in user-facing
+output and documentation.
+
+Foreman SHALL store Endstop state under the external Foreman state root.
+
+Worktree cleanup, branch deletion, process restart, and session restart SHALL
+NOT remove an Endstop contract.
+
+Every future Foreman workstream SHALL create an Endstop contract before its
+first actionful dispatch.
+
+Foreman SHALL report `NOT_READY` when the installed Endstop runtime is missing
+or invalid.
+
+Foreman SHALL NOT fall back to unbounded execution.
+
+#### Scenario: a new workstream cannot bypass Endstop
+
+- WHEN a new workstream requests its first actionful dispatch
+- AND no valid Endstop contract exists
+- THEN Foreman refuses the dispatch
+- AND Foreman starts no external process.
+
+#### Scenario: cleanup does not reset Endstop
+
+- WHEN a terminal workstream deletes its worktree and branch
+- AND a new session requests work under the same contract
+- THEN Foreman returns the existing terminal state
+- AND Foreman starts no external process.
+
 ### Requirement: one contract bounds the complete feedback path
 
 Foreman SHALL use one immutable execution contract for one release package.
@@ -140,4 +172,3 @@ replacement authority.
 - AND a new agent session starts
 - THEN the terminal contract stays terminal
 - AND Foreman refuses work without a user-authorized replacement contract.
-
