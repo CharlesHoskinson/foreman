@@ -12,16 +12,20 @@
 
 import {
   chmodSync,
+  closeSync,
   constants as fsConstants,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   realpathSync,
   renameSync,
   rmSync,
   unlinkSync,
   accessSync,
+  type Stats,
 } from "node:fs";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { Effect, Layer } from "effect";
@@ -718,15 +722,107 @@ function physicalAbsoluteDir(path: string): string | null {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Descriptor-anchored state-root creation (R7B1 filesystem authority)
+// ---------------------------------------------------------------------------
+
+type DirIdentity = { readonly dev: number; readonly ino: number };
+
+function closeQuiet(fd: number | undefined): void {
+  if (fd === undefined) return;
+  try {
+    closeSync(fd);
+  } catch {
+    /* ignore */
+  }
+}
+
+function identitiesEqual(a: DirIdentity, b: DirIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
+function identityOf(st: Stats): DirIdentity {
+  return { dev: st.dev, ino: st.ino };
+}
+
+/**
+ * Open flags for a no-follow directory descriptor. Null when the host
+ * cannot express the required primitive.
+ */
+function stateRootDirOpenFlags(): number | null {
+  const c = fsConstants as Record<string, number | undefined>;
+  if (typeof c.O_DIRECTORY !== "number" || typeof c.O_NOFOLLOW !== "number") {
+    return null;
+  }
+  return fsConstants.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW;
+}
+
+let stateRootAnchorSupportCache: boolean | undefined;
+
+/**
+ * True when this process can open no-follow directory descriptors and
+ * address children through a verified `/proc/self/fd/<fd>` anchor.
+ * Windows and hosts without those primitives cannot prove creation
+ * boundaries — callers must fail closed before mutation.
+ */
+export function stateRootDirectoryAnchorSupported(): boolean {
+  if (stateRootAnchorSupportCache !== undefined) {
+    return stateRootAnchorSupportCache;
+  }
+  if (process.platform === "win32") {
+    stateRootAnchorSupportCache = false;
+    return false;
+  }
+  if (stateRootDirOpenFlags() === null) {
+    stateRootAnchorSupportCache = false;
+    return false;
+  }
+  try {
+    const st = lstatSync("/proc/self/fd");
+    stateRootAnchorSupportCache = st.isDirectory();
+  } catch {
+    stateRootAnchorSupportCache = false;
+  }
+  return stateRootAnchorSupportCache;
+}
+
+function stateRootProcFdPath(fd: number): string | null {
+  if (!stateRootDirectoryAnchorSupported()) return null;
+  if (!Number.isInteger(fd) || fd < 0) return null;
+  return `/proc/self/fd/${fd}`;
+}
+
+/**
+ * Deterministic race seams for state-root creation (tests only).
+ * Production never installs a hook.
+ */
+export type StateRootCreateRaceHook = {
+  /** After a parent directory fd is bound; before child create/open. */
+  readonly afterBindParent?: () => void;
+};
+
+let stateRootCreateRaceHook: StateRootCreateRaceHook | undefined;
+
+/** Install or clear the state-root create race seam. Tests only. */
+export function setStateRootCreateRaceHook(
+  hook: StateRootCreateRaceHook | undefined,
+): void {
+  stateRootCreateRaceHook = hook;
+}
+
 /**
  * Create a missing external state root after lexical preflight succeeds.
  *
  * Before creating anything: resolve the nearest existing ancestor physically
  * and refuse when that physical ancestor plus the missing suffix would place
  * the state root equal to or under `repoRoot`. Create missing components one
- * level at a time with retained identity checks — never recursive mkdir
- * through an unvalidated ancestor. Does not chmod an existing directory.
- * Does not follow a final-component link at the state root itself.
+ * level at a time through descriptor-anchored paths — never recursive mkdir
+ * through an unvalidated ancestor, and never path-based mkdir after a
+ * pathname-only recheck. Does not chmod an existing directory. Does not
+ * follow a final-component link at the state root itself.
+ *
+ * When the runtime cannot prove descriptor-anchored creation, fail closed
+ * before mutation (does not silently reduce the Windows boundary).
  *
  * Must not be called for a root that fails lexical preflight.
  */
@@ -759,10 +855,10 @@ export function ensureExternalStateRoot(
     return ensureExternalStateRoot(stateRoot, repoRoot);
   }
 
-  // Nearest must be observable; refuse if it is not a directory-or-link-to-dir.
+  // Nearest must be a real (non-linked) directory so O_NOFOLLOW can bind it.
   try {
     const st = lstatSync(nearest);
-    if (!st.isSymbolicLink() && !st.isDirectory()) return false;
+    if (st.isSymbolicLink() || !st.isDirectory()) return false;
   } catch {
     return false;
   }
@@ -788,84 +884,136 @@ export function ensureExternalStateRoot(
     return false;
   }
 
-  // Create one level at a time from the nearest ancestor, retaining identity.
-  // Never mkdir recursive through an unvalidated ancestor.
-  let parentPath = nearest;
-  let parentPhysical = physicalNearest;
-  for (const segment of missingSegments) {
-    if (
-      segment.length === 0 ||
-      segment === "." ||
-      segment === ".." ||
-      segment.includes("\0")
-    ) {
-      return false;
-    }
-    // Parent must still be the same physical directory (no silent retarget).
-    const parentNow = physicalAbsoluteDir(parentPath);
-    if (parentNow === null || parentNow !== parentPhysical) {
-      return false;
-    }
-    // Parent final component must not have become a dangling/other type.
-    try {
-      const pst = lstatSync(parentPath);
-      if (!pst.isDirectory() && !pst.isSymbolicLink()) return false;
-    } catch {
-      return false;
-    }
-
-    const childPath = join(parentPath, segment);
-    try {
-      const existing = lstatSync(childPath);
-      if (existing.isSymbolicLink()) return false;
-      if (!existing.isDirectory()) return false;
-      // Already exists as a real directory — continue with its identity.
-      const childPhysical = physicalAbsoluteDir(childPath);
-      if (childPhysical === null) return false;
-      if (isEqualOrDescendant(childPhysical, physicalRepo)) return false;
-      parentPath = childPath;
-      parentPhysical = childPhysical;
-      continue;
-    } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") return false;
-    }
-
-    try {
-      mkdirSync(childPath, { recursive: false, mode: 0o700 });
-    } catch {
-      return false;
-    }
-
-    // Post-create: must be a real non-linked directory outside the repo.
-    try {
-      const created = lstatSync(childPath);
-      if (created.isSymbolicLink() || !created.isDirectory()) return false;
-    } catch {
-      return false;
-    }
-    const childPhysical = physicalAbsoluteDir(childPath);
-    if (childPhysical === null) return false;
-    if (isEqualOrDescendant(childPhysical, physicalRepo)) return false;
-    // Parent identity retained after create.
-    const parentAfter = physicalAbsoluteDir(parentPath);
-    if (parentAfter === null || parentAfter !== parentPhysical) return false;
-
-    parentPath = childPath;
-    parentPhysical = childPhysical;
-  }
-
-  // Final state root must be a real directory at the requested path.
-  try {
-    const st = lstatSync(stateRoot);
-    if (st.isSymbolicLink() || !st.isDirectory()) return false;
-  } catch {
+  // Fail closed before mutation when descriptor-anchored creation is unavailable.
+  const parentFlags = stateRootDirOpenFlags();
+  if (parentFlags === null || !stateRootDirectoryAnchorSupported()) {
     return false;
   }
-  const finalPhysical = physicalAbsoluteDir(stateRoot);
-  if (finalPhysical === null) return false;
-  if (isEqualOrDescendant(finalPhysical, physicalRepo)) return false;
-  return true;
+
+  // Bind the nearest valid parent with O_DIRECTORY|O_NOFOLLOW; retain identity.
+  let parentFd: number | undefined;
+  try {
+    parentFd = openSync(nearest, parentFlags);
+    const parentOpened = fstatSync(parentFd);
+    if (!parentOpened.isDirectory()) {
+      return false;
+    }
+    let parentIdentity = identityOf(parentOpened);
+    // Path must still name the same non-linked directory we opened.
+    try {
+      const pathRecheck = lstatSync(nearest);
+      if (
+        pathRecheck.isSymbolicLink() ||
+        !pathRecheck.isDirectory() ||
+        !identitiesEqual(identityOf(pathRecheck), parentIdentity)
+      ) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+
+    // Create each missing child through the held descriptor only.
+    for (const segment of missingSegments) {
+      if (
+        segment.length === 0 ||
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("/") ||
+        segment.includes("\\") ||
+        segment.includes("\0")
+      ) {
+        return false;
+      }
+
+      // Parent fd identity retained.
+      const parentNow = fstatSync(parentFd);
+      if (
+        !parentNow.isDirectory() ||
+        !identitiesEqual(identityOf(parentNow), parentIdentity)
+      ) {
+        return false;
+      }
+
+      stateRootCreateRaceHook?.afterBindParent?.();
+
+      // Re-prove parent fd after the race seam (pathname swap must not retarget).
+      const parentAfterHook = fstatSync(parentFd);
+      if (
+        !parentAfterHook.isDirectory() ||
+        !identitiesEqual(identityOf(parentAfterHook), parentIdentity)
+      ) {
+        return false;
+      }
+
+      const anchor = stateRootProcFdPath(parentFd);
+      if (anchor === null) return false;
+      const childAnchored = join(anchor, segment);
+
+      // Observe child through the held parent only (no path-based walk).
+      let childExists = false;
+      try {
+        const existing = lstatSync(childAnchored);
+        if (existing.isSymbolicLink()) return false;
+        if (!existing.isDirectory()) return false;
+        childExists = true;
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT") return false;
+      }
+
+      if (!childExists) {
+        try {
+          mkdirSync(childAnchored, { recursive: false, mode: 0o700 });
+        } catch (e) {
+          const code = (e as NodeJS.ErrnoException).code;
+          if (code !== "EEXIST") return false;
+        }
+      }
+
+      // Open the new child without following links; verify via descriptor.
+      let childFd: number | undefined;
+      try {
+        childFd = openSync(childAnchored, parentFlags);
+        const childOpened = fstatSync(childFd);
+        if (!childOpened.isDirectory()) {
+          return false;
+        }
+        // Parent still the same identity after create/open.
+        const parentStill = fstatSync(parentFd);
+        if (
+          !parentStill.isDirectory() ||
+          !identitiesEqual(identityOf(parentStill), parentIdentity)
+        ) {
+          return false;
+        }
+        // Advance: child descriptor becomes the next parent.
+        closeQuiet(parentFd);
+        parentFd = childFd;
+        childFd = undefined;
+        parentIdentity = identityOf(childOpened);
+      } finally {
+        closeQuiet(childFd);
+      }
+    }
+
+    // Recheck the requested logical path before success.
+    try {
+      const st = lstatSync(stateRoot);
+      if (st.isSymbolicLink() || !st.isDirectory()) return false;
+      if (!identitiesEqual(identityOf(st), parentIdentity)) return false;
+    } catch {
+      return false;
+    }
+    const finalPhysical = physicalAbsoluteDir(stateRoot);
+    if (finalPhysical === null) return false;
+    if (isEqualOrDescendant(finalPhysical, physicalRepo)) return false;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    closeQuiet(parentFd);
+  }
 }
 
 /**

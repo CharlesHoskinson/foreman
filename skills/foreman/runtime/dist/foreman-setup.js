@@ -16764,12 +16764,15 @@ function loadCapabilityTableFromTomlText(text) {
 
 // packages/orchestration/src/foreman-setup.ts
 import {
-  chmodSync as chmodSync3,
+  chmodSync as chmodSync2,
+  closeSync as closeSync6,
   constants as fsConstants7,
   existsSync as existsSync5,
+  fstatSync as fstatSync4,
   lstatSync as lstatSync5,
   mkdirSync as mkdirSync6,
   mkdtempSync as mkdtempSync2,
+  openSync as openSync6,
   realpathSync as realpathSync5,
   renameSync as renameSync4,
   rmSync as rmSync2,
@@ -21278,7 +21281,6 @@ function resolveProfile(input) {
 // packages/orchestration/src/credential-profile-preflight.ts
 import { randomBytes as randomBytes4 } from "node:crypto";
 import {
-  chmodSync as chmodSync2,
   closeSync as closeSync5,
   constants as fsConstants6,
   fchmodSync as fchmodSync2,
@@ -21606,6 +21608,82 @@ function requireProfileJson(profileDir, failReason) {
   }
   return { path, identity: id };
 }
+function requireProfileBinding(profileJsonPath2, expectedIdentity, wrapper) {
+  let fd;
+  try {
+    let st;
+    try {
+      st = lstatSync4(profileJsonPath2);
+    } catch (e) {
+      const code = e.code;
+      if (code === "ENOENT") {
+        throw new ProfilePreflightStoreFailure("absent");
+      }
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (st.isSymbolicLink()) {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (!st.isFile()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (!identitiesEqual2(st, expectedIdentity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    if (st.size > MAX_CREDENTIAL_PROFILE_RECORD_BYTES) {
+      throw new ProfilePreflightStoreFailure("oversized");
+    }
+    try {
+      fd = openSync5(profileJsonPath2, authorityOpenFlags2());
+    } catch (e) {
+      const code = e.code;
+      if (code === "ENOENT") {
+        throw new ProfilePreflightStoreFailure("absent");
+      }
+      if (code === "ELOOP" || code === "EMLINK") {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const opened = fstatSync3(fd);
+    if (!opened.isFile() || opened.isSymbolicLink() || !identitiesEqual2(opened, expectedIdentity) || opened.size !== st.size) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    const cap = MAX_CREDENTIAL_PROFILE_RECORD_BYTES + 1;
+    const buf = Buffer.allocUnsafe(cap);
+    let offset = 0;
+    while (offset < cap) {
+      const n = readSync3(fd, buf, offset, cap - offset, offset);
+      if (n === 0) break;
+      offset += n;
+    }
+    if (offset > MAX_CREDENTIAL_PROFILE_RECORD_BYTES) {
+      throw new ProfilePreflightStoreFailure("oversized");
+    }
+    const after3 = fstatSync3(fd);
+    if (!after3.isFile() || !identitiesEqual2(after3, expectedIdentity) || after3.size !== opened.size) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    closeQuiet2(fd);
+    fd = void 0;
+    const parsed = parseCredentialProfileRecordBytes(buf.subarray(0, offset));
+    if (parsed._tag === "Fail") {
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+    const record = parsed.record;
+    if (record.profileId !== wrapper.profileId) {
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+    if (record.vendor !== wrapper.vendor) {
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+    if (profileIdentityOf(record) !== wrapper.profileIdentity) {
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+  } finally {
+    closeQuiet2(fd);
+  }
+}
 function captureAuthorityDirsForRead(filePath) {
   const chain = authorityDirChain(filePath);
   const components = [];
@@ -21621,7 +21699,7 @@ function captureAuthorityDirsForRead(filePath) {
     profileJsonIdentity: profileJson.identity
   };
 }
-function ensureAuthorityDirsForWrite(filePath) {
+function ensureAuthorityDirsForWrite(filePath, wrapper) {
   const chain = authorityDirChain(filePath);
   const [stateRoot, profilesRoot, profileDir, preflightDir] = chain;
   const components = [];
@@ -21630,50 +21708,128 @@ function ensureAuthorityDirsForWrite(filePath) {
     components.push({ path, identity: id });
   }
   const profileJson = requireProfileJson(profileDir, "write_failed");
-  let preflightKind = observeNoFollow(preflightDir);
-  if (preflightKind === "symlink") {
-    throw new ProfilePreflightStoreFailure("linked_path");
-  }
-  if (preflightKind === "file" || preflightKind === "other") {
+  requireProfileBinding(profileJson.path, profileJson.identity, wrapper);
+  const parentFlags = dirOpenFlags();
+  if (parentFlags === null || !profilePreflightDirectoryAnchorSupported()) {
     throw new ProfilePreflightStoreFailure("write_failed");
   }
-  if (preflightKind === "missing") {
-    const parentNow = captureDirIdentity2(profileDir);
-    if (parentNow === null || !identitiesEqual2(parentNow, components[2].identity)) {
+  let profileFd;
+  let preflightFd;
+  try {
+    const profileLstat = lstatSync4(profileDir);
+    if (profileLstat.isSymbolicLink()) {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (!profileLstat.isDirectory()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (!identitiesEqual2(profileLstat, components[2].identity)) {
       throw new ProfilePreflightStoreFailure("identity_changed");
     }
+    profileFd = openSync5(profileDir, parentFlags);
+    const profileOpened = fstatSync3(profileFd);
+    if (!profileOpened.isDirectory() || !identitiesEqual2(profileOpened, components[2].identity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    raceHook2?.beforeCreatePreflightDir?.();
+    const profileAfterHook = fstatSync3(profileFd);
+    if (!profileAfterHook.isDirectory() || !identitiesEqual2(profileAfterHook, components[2].identity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    requireProfileBinding(profileJson.path, profileJson.identity, wrapper);
+    const anchor = procFdPath(profileFd);
+    if (anchor === null) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const preflightAnchored = join9(anchor, PROFILE_PREFLIGHT_DIR_NAME);
+    let preflightKind;
     try {
-      mkdirSync5(preflightDir, { recursive: false, mode: 448 });
+      const st = lstatSync4(preflightAnchored);
+      if (st.isSymbolicLink()) {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      if (!st.isDirectory()) {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+      preflightKind = "directory";
     } catch (e) {
+      if (e instanceof ProfilePreflightStoreFailure) throw e;
       const code = e.code;
-      if (code !== "EEXIST") {
+      if (code === "ENOENT") {
+        preflightKind = "missing";
+      } else {
         throw new ProfilePreflightStoreFailure("write_failed");
       }
     }
-    preflightKind = observeNoFollow(preflightDir);
-    if (preflightKind === "symlink") {
-      throw new ProfilePreflightStoreFailure("linked_path");
-    }
-    if (preflightKind !== "directory") {
-      throw new ProfilePreflightStoreFailure("write_failed");
-    }
-    if (IS_POSIX2) {
+    let createdPreflight = false;
+    if (preflightKind === "missing") {
       try {
-        chmodSync2(preflightDir, 448);
-      } catch {
+        mkdirSync5(preflightAnchored, { recursive: false, mode: 448 });
+        createdPreflight = true;
+      } catch (e) {
+        const code = e.code;
+        if (code !== "EEXIST") {
+          throw new ProfilePreflightStoreFailure("write_failed");
+        }
       }
     }
+    try {
+      preflightFd = openSync5(preflightAnchored, parentFlags);
+    } catch (e) {
+      const code = e.code;
+      if (code === "ELOOP" || code === "EMLINK") {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const preflightOpened = fstatSync3(preflightFd);
+    if (!preflightOpened.isDirectory()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const profileStill = fstatSync3(profileFd);
+    if (!profileStill.isDirectory() || !identitiesEqual2(profileStill, components[2].identity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    if (createdPreflight && IS_POSIX2) {
+      try {
+        fchmodSync2(preflightFd, 448);
+      } catch {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+      const mode = fstatSync3(preflightFd).mode & 511;
+      if (mode !== 448) {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+    }
+    const preflightId = {
+      dev: preflightOpened.dev,
+      ino: preflightOpened.ino
+    };
+    const preflightFinal = fstatSync3(preflightFd);
+    if (!preflightFinal.isDirectory()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const preflightIdentity = {
+      dev: preflightFinal.dev,
+      ino: preflightFinal.ino
+    };
+    if (!identitiesEqual2(preflightIdentity, preflightId)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    const pathRecheck = captureDirIdentity2(preflightDir);
+    if (pathRecheck === null || !identitiesEqual2(pathRecheck, preflightIdentity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    components.push({ path: preflightDir, identity: preflightIdentity });
+    return {
+      components,
+      profileJsonPath: profileJson.path,
+      profileJsonIdentity: profileJson.identity
+    };
+  } finally {
+    closeQuiet2(preflightFd);
+    closeQuiet2(profileFd);
   }
-  const preflightId = captureDirIdentity2(preflightDir);
-  if (preflightId === null) {
-    throw new ProfilePreflightStoreFailure("write_failed");
-  }
-  components.push({ path: preflightDir, identity: preflightId });
-  return {
-    components,
-    profileJsonPath: profileJson.path,
-    profileJsonIdentity: profileJson.identity
-  };
 }
 function recheckAuthorityDirs(captured) {
   for (const c of captured.components) {
@@ -21817,7 +21973,7 @@ function writeProfilePreflightRecord(absolutePath, wrapper) {
       if (parentFlags === null || !profilePreflightDirectoryAnchorSupported()) {
         throw new ProfilePreflightStoreFailure("write_failed");
       }
-      const authorityDirs = ensureAuthorityDirsForWrite(absolutePath);
+      const authorityDirs = ensureAuthorityDirsForWrite(absolutePath, rechecked);
       const preflightDir = dirname5(absolutePath);
       const finalName = basename(absolutePath);
       if (finalName.length === 0 || finalName === "." || finalName === ".." || finalName.includes("/") || finalName.includes("\\") || finalName.includes("\0")) {
@@ -21921,6 +22077,11 @@ function writeProfilePreflightRecord(absolutePath, wrapper) {
           throw new ProfilePreflightStoreFailure("identity_changed");
         }
         recheckAuthorityDirs(authorityDirs);
+        requireProfileBinding(
+          authorityDirs.profileJsonPath,
+          authorityDirs.profileJsonIdentity,
+          rechecked
+        );
         renameSync3(tmpAnchored, finalAnchored);
         tmpName = void 0;
         const parentAfterRename = fstatSync3(parentFd);
@@ -22237,7 +22398,7 @@ function ensurePosixLauncher(repoRoot2, processEnv, log3) {
     try {
       renameSync4(buildLauncher, launcher);
       try {
-        chmodSync3(launcher, 493);
+        chmodSync2(launcher, 493);
       } catch {
       }
     } catch {
@@ -22341,6 +22502,53 @@ function physicalAbsoluteDir(path) {
     return null;
   }
 }
+function closeQuiet3(fd) {
+  if (fd === void 0) return;
+  try {
+    closeSync6(fd);
+  } catch {
+  }
+}
+function identitiesEqual3(a, b) {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+function identityOf(st) {
+  return { dev: st.dev, ino: st.ino };
+}
+function stateRootDirOpenFlags() {
+  const c = fsConstants7;
+  if (typeof c.O_DIRECTORY !== "number" || typeof c.O_NOFOLLOW !== "number") {
+    return null;
+  }
+  return fsConstants7.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW;
+}
+var stateRootAnchorSupportCache;
+function stateRootDirectoryAnchorSupported() {
+  if (stateRootAnchorSupportCache !== void 0) {
+    return stateRootAnchorSupportCache;
+  }
+  if (process.platform === "win32") {
+    stateRootAnchorSupportCache = false;
+    return false;
+  }
+  if (stateRootDirOpenFlags() === null) {
+    stateRootAnchorSupportCache = false;
+    return false;
+  }
+  try {
+    const st = lstatSync5("/proc/self/fd");
+    stateRootAnchorSupportCache = st.isDirectory();
+  } catch {
+    stateRootAnchorSupportCache = false;
+  }
+  return stateRootAnchorSupportCache;
+}
+function stateRootProcFdPath(fd) {
+  if (!stateRootDirectoryAnchorSupported()) return null;
+  if (!Number.isInteger(fd) || fd < 0) return null;
+  return `/proc/self/fd/${fd}`;
+}
+var stateRootCreateRaceHook;
 function ensureExternalStateRoot(stateRoot, repoRoot2) {
   try {
     const st = lstatSync5(stateRoot);
@@ -22364,7 +22572,7 @@ function ensureExternalStateRoot(stateRoot, repoRoot2) {
   }
   try {
     const st = lstatSync5(nearest);
-    if (!st.isSymbolicLink() && !st.isDirectory()) return false;
+    if (st.isSymbolicLink() || !st.isDirectory()) return false;
   } catch {
     return false;
   }
@@ -22384,66 +22592,95 @@ function ensureExternalStateRoot(stateRoot, repoRoot2) {
   if (isEqualOrDescendant(physicalNearest, physicalRepo)) {
     return false;
   }
-  let parentPath = nearest;
-  let parentPhysical = physicalNearest;
-  for (const segment of missingSegments) {
-    if (segment.length === 0 || segment === "." || segment === ".." || segment.includes("\0")) {
-      return false;
-    }
-    const parentNow = physicalAbsoluteDir(parentPath);
-    if (parentNow === null || parentNow !== parentPhysical) {
-      return false;
-    }
-    try {
-      const pst = lstatSync5(parentPath);
-      if (!pst.isDirectory() && !pst.isSymbolicLink()) return false;
-    } catch {
-      return false;
-    }
-    const childPath = join10(parentPath, segment);
-    try {
-      const existing = lstatSync5(childPath);
-      if (existing.isSymbolicLink()) return false;
-      if (!existing.isDirectory()) return false;
-      const childPhysical2 = physicalAbsoluteDir(childPath);
-      if (childPhysical2 === null) return false;
-      if (isEqualOrDescendant(childPhysical2, physicalRepo)) return false;
-      parentPath = childPath;
-      parentPhysical = childPhysical2;
-      continue;
-    } catch (e) {
-      const code = e.code;
-      if (code !== "ENOENT") return false;
-    }
-    try {
-      mkdirSync6(childPath, { recursive: false, mode: 448 });
-    } catch {
-      return false;
-    }
-    try {
-      const created = lstatSync5(childPath);
-      if (created.isSymbolicLink() || !created.isDirectory()) return false;
-    } catch {
-      return false;
-    }
-    const childPhysical = physicalAbsoluteDir(childPath);
-    if (childPhysical === null) return false;
-    if (isEqualOrDescendant(childPhysical, physicalRepo)) return false;
-    const parentAfter = physicalAbsoluteDir(parentPath);
-    if (parentAfter === null || parentAfter !== parentPhysical) return false;
-    parentPath = childPath;
-    parentPhysical = childPhysical;
-  }
-  try {
-    const st = lstatSync5(stateRoot);
-    if (st.isSymbolicLink() || !st.isDirectory()) return false;
-  } catch {
+  const parentFlags = stateRootDirOpenFlags();
+  if (parentFlags === null || !stateRootDirectoryAnchorSupported()) {
     return false;
   }
-  const finalPhysical = physicalAbsoluteDir(stateRoot);
-  if (finalPhysical === null) return false;
-  if (isEqualOrDescendant(finalPhysical, physicalRepo)) return false;
-  return true;
+  let parentFd;
+  try {
+    parentFd = openSync6(nearest, parentFlags);
+    const parentOpened = fstatSync4(parentFd);
+    if (!parentOpened.isDirectory()) {
+      return false;
+    }
+    let parentIdentity = identityOf(parentOpened);
+    try {
+      const pathRecheck = lstatSync5(nearest);
+      if (pathRecheck.isSymbolicLink() || !pathRecheck.isDirectory() || !identitiesEqual3(identityOf(pathRecheck), parentIdentity)) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+    for (const segment of missingSegments) {
+      if (segment.length === 0 || segment === "." || segment === ".." || segment.includes("/") || segment.includes("\\") || segment.includes("\0")) {
+        return false;
+      }
+      const parentNow = fstatSync4(parentFd);
+      if (!parentNow.isDirectory() || !identitiesEqual3(identityOf(parentNow), parentIdentity)) {
+        return false;
+      }
+      stateRootCreateRaceHook?.afterBindParent?.();
+      const parentAfterHook = fstatSync4(parentFd);
+      if (!parentAfterHook.isDirectory() || !identitiesEqual3(identityOf(parentAfterHook), parentIdentity)) {
+        return false;
+      }
+      const anchor = stateRootProcFdPath(parentFd);
+      if (anchor === null) return false;
+      const childAnchored = join10(anchor, segment);
+      let childExists = false;
+      try {
+        const existing = lstatSync5(childAnchored);
+        if (existing.isSymbolicLink()) return false;
+        if (!existing.isDirectory()) return false;
+        childExists = true;
+      } catch (e) {
+        const code = e.code;
+        if (code !== "ENOENT") return false;
+      }
+      if (!childExists) {
+        try {
+          mkdirSync6(childAnchored, { recursive: false, mode: 448 });
+        } catch (e) {
+          const code = e.code;
+          if (code !== "EEXIST") return false;
+        }
+      }
+      let childFd;
+      try {
+        childFd = openSync6(childAnchored, parentFlags);
+        const childOpened = fstatSync4(childFd);
+        if (!childOpened.isDirectory()) {
+          return false;
+        }
+        const parentStill = fstatSync4(parentFd);
+        if (!parentStill.isDirectory() || !identitiesEqual3(identityOf(parentStill), parentIdentity)) {
+          return false;
+        }
+        closeQuiet3(parentFd);
+        parentFd = childFd;
+        childFd = void 0;
+        parentIdentity = identityOf(childOpened);
+      } finally {
+        closeQuiet3(childFd);
+      }
+    }
+    try {
+      const st = lstatSync5(stateRoot);
+      if (st.isSymbolicLink() || !st.isDirectory()) return false;
+      if (!identitiesEqual3(identityOf(st), parentIdentity)) return false;
+    } catch {
+      return false;
+    }
+    const finalPhysical = physicalAbsoluteDir(stateRoot);
+    if (finalPhysical === null) return false;
+    if (isEqualOrDescendant(finalPhysical, physicalRepo)) return false;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    closeQuiet3(parentFd);
+  }
 }
 function runForemanSetup(argv, io2, env) {
   return Effect_exports.gen(function* () {

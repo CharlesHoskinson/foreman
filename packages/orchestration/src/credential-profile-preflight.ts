@@ -10,7 +10,6 @@
 
 import { randomBytes } from "node:crypto";
 import {
-  chmodSync,
   closeSync,
   constants as fsConstants,
   fchmodSync,
@@ -36,7 +35,10 @@ import {
 import {
   isIgnorableParentDirSyncError,
   isValidProfileId,
+  MAX_CREDENTIAL_PROFILE_RECORD_BYTES,
+  parseCredentialProfileRecordBytes,
   profileAuthorityDir,
+  profileIdentityOf,
   PROFILE_JSON_NAME,
   type CredentialVendor,
 } from "./credential-profile.js";
@@ -494,6 +496,11 @@ type CapturedAuthorityDirs = {
  * Deterministic race seams (tests only). Production never installs a hook.
  */
 export type ProfilePreflightRaceHook = {
+  /**
+   * After the profile authority directory is validated / bound; before
+   * descriptor-anchored creation of the `preflight` child.
+   */
+  readonly beforeCreatePreflightDir?: () => void;
   /** After authority components are captured; before parent-dir bind / open. */
   readonly afterCaptureAuthority?: () => void;
   /** After the preflight parent directory fd is bound; before temp create. */
@@ -627,6 +634,112 @@ function requireProfileJson(
 }
 
 /**
+ * Read `profile.json` with bounded no-follow descriptor I/O and require that
+ * the authority record still binds the wrapper:
+ *   record.profileId === wrapper.profileId
+ *   record.vendor === wrapper.vendor
+ *   profileIdentityOf(record) === wrapper.profileIdentity
+ *
+ * Returns only closed store failure reasons (no paths, bytes, or exception text).
+ */
+function requireProfileBinding(
+  profileJsonPath: string,
+  expectedIdentity: DirIdentity,
+  wrapper: CredentialProfilePreflightV1,
+): void {
+  let fd: number | undefined;
+  try {
+    let st: Stats;
+    try {
+      st = lstatSync(profileJsonPath);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        throw new ProfilePreflightStoreFailure("absent");
+      }
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (st.isSymbolicLink()) {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (!st.isFile()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (!identitiesEqual(st, expectedIdentity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    if (st.size > MAX_CREDENTIAL_PROFILE_RECORD_BYTES) {
+      throw new ProfilePreflightStoreFailure("oversized");
+    }
+
+    try {
+      fd = openSync(profileJsonPath, authorityOpenFlags());
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        throw new ProfilePreflightStoreFailure("absent");
+      }
+      if (code === "ELOOP" || code === "EMLINK") {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+
+    const opened = fstatSync(fd);
+    if (
+      !opened.isFile() ||
+      opened.isSymbolicLink() ||
+      !identitiesEqual(opened, expectedIdentity) ||
+      opened.size !== st.size
+    ) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+
+    const cap = MAX_CREDENTIAL_PROFILE_RECORD_BYTES + 1;
+    const buf = Buffer.allocUnsafe(cap);
+    let offset = 0;
+    while (offset < cap) {
+      const n = readSync(fd, buf, offset, cap - offset, offset);
+      if (n === 0) break;
+      offset += n;
+    }
+    if (offset > MAX_CREDENTIAL_PROFILE_RECORD_BYTES) {
+      throw new ProfilePreflightStoreFailure("oversized");
+    }
+
+    const after = fstatSync(fd);
+    if (
+      !after.isFile() ||
+      !identitiesEqual(after, expectedIdentity) ||
+      after.size !== opened.size
+    ) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+
+    closeQuiet(fd);
+    fd = undefined;
+
+    const parsed = parseCredentialProfileRecordBytes(buf.subarray(0, offset));
+    if (parsed._tag === "Fail") {
+      // Authority record is not a closed credential-profile document.
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+    const record = parsed.record;
+    if (record.profileId !== wrapper.profileId) {
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+    if (record.vendor !== wrapper.vendor) {
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+    if (profileIdentityOf(record) !== wrapper.profileIdentity) {
+      throw new ProfilePreflightStoreFailure("decode_failed");
+    }
+  } finally {
+    closeQuiet(fd);
+  }
+}
+
+/**
  * Validate every authority directory component without following links.
  * All four (state root, credential-profiles, profile id, preflight) must
  * exist as real directories. R7A profile.json must exist as a real file.
@@ -654,10 +767,13 @@ function captureAuthorityDirsForRead(
  * Capture the authority chain for write. Never creates `credential-profiles`
  * or the profile authority directory — those and `profile.json` are owned by
  * R7A and must already exist. Only the `preflight` child may be created when
- * its R7A parent authority remains a real non-linked directory.
+ * its R7A parent authority remains a real non-linked directory, and only
+ * through a held profile-directory descriptor (never path-based mkdir/chmod
+ * after a pathname-only recheck).
  */
 function ensureAuthorityDirsForWrite(
   filePath: string,
+  wrapper: CredentialProfilePreflightV1,
 ): CapturedAuthorityDirs {
   const chain = authorityDirChain(filePath);
   const [stateRoot, profilesRoot, profileDir, preflightDir] = chain;
@@ -670,58 +786,167 @@ function ensureAuthorityDirsForWrite(
   }
 
   const profileJson = requireProfileJson(profileDir, "write_failed");
+  // Binding must hold before any preflight mutation.
+  requireProfileBinding(profileJson.path, profileJson.identity, wrapper);
 
-  // Only the preflight child may be created under a valid R7A parent.
-  let preflightKind = observeNoFollow(preflightDir);
-  if (preflightKind === "symlink") {
-    throw new ProfilePreflightStoreFailure("linked_path");
-  }
-  if (preflightKind === "file" || preflightKind === "other") {
+  // Fail closed before mutation when descriptor anchoring is unavailable.
+  const parentFlags = dirOpenFlags();
+  if (parentFlags === null || !profilePreflightDirectoryAnchorSupported()) {
     throw new ProfilePreflightStoreFailure("write_failed");
   }
-  if (preflightKind === "missing") {
-    // Parent profile authority must still be the captured real directory.
-    const parentNow = captureDirIdentity(profileDir);
+
+  // Open the validated profile directory; verify against captured identity.
+  let profileFd: number | undefined;
+  let preflightFd: number | undefined;
+  try {
+    const profileLstat = lstatSync(profileDir);
+    if (profileLstat.isSymbolicLink()) {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (!profileLstat.isDirectory()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (!identitiesEqual(profileLstat, components[2]!.identity)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+
+    profileFd = openSync(profileDir, parentFlags);
+    const profileOpened = fstatSync(profileFd);
     if (
-      parentNow === null ||
-      !identitiesEqual(parentNow, components[2]!.identity)
+      !profileOpened.isDirectory() ||
+      !identitiesEqual(profileOpened, components[2]!.identity)
     ) {
       throw new ProfilePreflightStoreFailure("identity_changed");
     }
+
+    raceHook?.beforeCreatePreflightDir?.();
+
+    // Parent fd must still be the captured profile identity after the seam.
+    const profileAfterHook = fstatSync(profileFd);
+    if (
+      !profileAfterHook.isDirectory() ||
+      !identitiesEqual(profileAfterHook, components[2]!.identity)
+    ) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    // Revalidate binding after the race seam (in-place rewrite).
+    requireProfileBinding(profileJson.path, profileJson.identity, wrapper);
+
+    const anchor = procFdPath(profileFd);
+    if (anchor === null) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const preflightAnchored = join(anchor, PROFILE_PREFLIGHT_DIR_NAME);
+
+    // Observe preflight only through the held profile descriptor.
+    let preflightKind: ReturnType<typeof observeNoFollow>;
     try {
-      mkdirSync(preflightDir, { recursive: false, mode: 0o700 });
+      const st = lstatSync(preflightAnchored);
+      if (st.isSymbolicLink()) {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      if (!st.isDirectory()) {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+      preflightKind = "directory";
     } catch (e) {
+      if (e instanceof ProfilePreflightStoreFailure) throw e;
       const code = (e as NodeJS.ErrnoException).code;
-      if (code !== "EEXIST") {
+      if (code === "ENOENT") {
+        preflightKind = "missing";
+      } else {
         throw new ProfilePreflightStoreFailure("write_failed");
       }
     }
-    preflightKind = observeNoFollow(preflightDir);
-    if (preflightKind === "symlink") {
-      throw new ProfilePreflightStoreFailure("linked_path");
-    }
-    if (preflightKind !== "directory") {
-      throw new ProfilePreflightStoreFailure("write_failed");
-    }
-    if (IS_POSIX) {
+
+    let createdPreflight = false;
+    if (preflightKind === "missing") {
       try {
-        chmodSync(preflightDir, 0o700);
-      } catch {
-        /* best-effort owner-only on newly created preflight dir */
+        mkdirSync(preflightAnchored, { recursive: false, mode: 0o700 });
+        createdPreflight = true;
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code !== "EEXIST") {
+          throw new ProfilePreflightStoreFailure("write_failed");
+        }
       }
     }
-  }
-  const preflightId = captureDirIdentity(preflightDir);
-  if (preflightId === null) {
-    throw new ProfilePreflightStoreFailure("write_failed");
-  }
-  components.push({ path: preflightDir, identity: preflightId });
 
-  return {
-    components,
-    profileJsonPath: profileJson.path,
-    profileJsonIdentity: profileJson.identity,
-  };
+    // Open the created/existing preflight through the same held profile fd.
+    try {
+      preflightFd = openSync(preflightAnchored, parentFlags);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ELOOP" || code === "EMLINK") {
+        throw new ProfilePreflightStoreFailure("linked_path");
+      }
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const preflightOpened = fstatSync(preflightFd);
+    if (!preflightOpened.isDirectory()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+
+    // Profile parent must still be the bound identity.
+    const profileStill = fstatSync(profileFd);
+    if (
+      !profileStill.isDirectory() ||
+      !identitiesEqual(profileStill, components[2]!.identity)
+    ) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+
+    // Set and verify POSIX mode through the open child descriptor only.
+    if (createdPreflight && IS_POSIX) {
+      try {
+        fchmodSync(preflightFd, 0o700);
+      } catch {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+      const mode = fstatSync(preflightFd).mode & 0o777;
+      if (mode !== 0o700) {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+    }
+
+    const preflightId: DirIdentity = {
+      dev: preflightOpened.dev,
+      ino: preflightOpened.ino,
+    };
+    // Prefer identity after mode set (inode unchanged; re-fstat for safety).
+    const preflightFinal = fstatSync(preflightFd);
+    if (!preflightFinal.isDirectory()) {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    const preflightIdentity: DirIdentity = {
+      dev: preflightFinal.dev,
+      ino: preflightFinal.ino,
+    };
+    if (!identitiesEqual(preflightIdentity, preflightId)) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+
+    // Logical path must still name a real directory with this identity
+    // (recheck before success; does not drive mutation).
+    const pathRecheck = captureDirIdentity(preflightDir);
+    if (
+      pathRecheck === null ||
+      !identitiesEqual(pathRecheck, preflightIdentity)
+    ) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+
+    components.push({ path: preflightDir, identity: preflightIdentity });
+
+    return {
+      components,
+      profileJsonPath: profileJson.path,
+      profileJsonIdentity: profileJson.identity,
+    };
+  } finally {
+    closeQuiet(preflightFd);
+    closeQuiet(profileFd);
+  }
 }
 
 /**
@@ -951,7 +1176,7 @@ export function writeProfilePreflightRecord(
       }
 
       // R7A parents required; only preflight child may be created.
-      const authorityDirs = ensureAuthorityDirsForWrite(absolutePath);
+      const authorityDirs = ensureAuthorityDirsForWrite(absolutePath, rechecked);
       const preflightDir = dirname(absolutePath);
       const finalName = basename(absolutePath);
       if (
@@ -1100,6 +1325,12 @@ export function writeProfilePreflightRecord(
           throw new ProfilePreflightStoreFailure("identity_changed");
         }
         recheckAuthorityDirs(authorityDirs);
+        // Authority record must still bind the wrapper immediately before publish.
+        requireProfileBinding(
+          authorityDirs.profileJsonPath,
+          authorityDirs.profileJsonIdentity,
+          rechecked,
+        );
 
         // Anchored rename: publishes into the held parent inode only.
         renameSync(tmpAnchored, finalAnchored);

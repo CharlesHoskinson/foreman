@@ -9,6 +9,7 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -64,6 +65,8 @@ import {
   resolvePreflightRecordPath,
   resolveSetupProfileId,
   runForemanSetup,
+  setStateRootCreateRaceHook,
+  stateRootDirectoryAnchorSupported,
   stripSetupNodeArgv,
   type SetupIo,
 } from "./foreman-setup.js";
@@ -1064,7 +1067,10 @@ describe("R7B1 profile-bound Setup preflight", () => {
     }
   });
 
-  it("ensureExternalStateRoot creates one level at a time outside the repo", () => {
+  it("ensureExternalStateRoot creates one level at a time outside the repo", {
+    skip:
+      process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
+  }, () => {
     const outer = tempDirOuter();
     const repo = join(outer, "repo");
     const parent = join(outer, "ext-parent");
@@ -1079,6 +1085,51 @@ describe("R7B1 profile-bound Setup preflight", () => {
       rmSync(outer, { recursive: true, force: true });
     }
   });
+
+  it(
+    "ensureExternalStateRoot parent swap cannot redirect creation",
+    {
+      skip:
+        process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
+    },
+    () => {
+      const outer = tempDirOuter();
+      const repo = join(outer, "repo");
+      const realParent = join(outer, "real-parent");
+      const attacker = join(outer, "attacker");
+      const parked = join(outer, "parked-parent");
+      mkdirSync(repo, { recursive: true });
+      mkdirSync(realParent, { recursive: true });
+      mkdirSync(attacker, { recursive: true });
+      const state = join(realParent, "nested", "state");
+      setStateRootCreateRaceHook({
+        afterBindParent: () => {
+          // Swap the bound parent path to a symlink at the attacker tree.
+          renameSync(realParent, parked);
+          try {
+            symlinkSync(attacker, realParent);
+          } catch {
+            renameSync(parked, realParent);
+          }
+        },
+      });
+      try {
+        const ok = ensureExternalStateRoot(state, repo);
+        assert.equal(ok, false, "must fail closed after parent swap");
+        // Descriptor-anchored create must not land children under attacker.
+        assert.equal(
+          existsSync(join(attacker, "nested")),
+          false,
+          "must not create under swapped attacker parent",
+        );
+        // Logical path through the symlink must also remain empty of state.
+        assert.equal(existsSync(state), false);
+      } finally {
+        setStateRootCreateRaceHook(undefined);
+        rmSync(outer, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("refuses missing state root under worktree without creating it", async () => {
     const repo = tempRepo();
