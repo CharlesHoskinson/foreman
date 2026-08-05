@@ -152,7 +152,7 @@ EOF
 @test "LANE_VENDOR=grok (launcher-absent branch, FOREMAN_LAUNCH absent): normalized GROK_HOME reaches CMD" {
   write_authed_grok_shim "$SHIM"
   export PATH="$SHIM:$PATH"
-  mkdir -p "$WT/.harness/vendor-home/grok"   # mirrors wt-new.sh's own provisioning
+  mkdir -p "$WT/.harness/vendor-home/grok"   # Explicit legacy lane-run fixture. R7B2-B removes this default.
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'

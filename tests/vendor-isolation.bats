@@ -1,7 +1,7 @@
 # bats test data (run via `bats`, not as a product executable)
 #!/usr/bin/env bats
 # @description T5a (v0.2.5 vendor config isolation plumbing) coverage:
-#   wt-new.sh's unconditional per-lane vendor-home provisioning, and
+#   wt-new.sh's refusal to provision obsolete worktree-local vendor homes, and
 #   lane-run.sh's LANE_VENDOR/LANE_CONFIG_DIR env contract (default dir
 #   resolution, explicit-override precedence, the ownership event's
 #   config_dir key, and the Bun #12970 / msys->native boundary hazard).
@@ -154,25 +154,20 @@ SHIM
 }
 
 # ---------------------------------------------------------------------
-# wt-new.sh: unconditional per-lane vendor-home provisioning
+# wt-new.sh: obsolete per-lane vendor-home provisioning stays retired
 # ---------------------------------------------------------------------
 
-@test "wt-new provisions empty vendor-home dirs for grok/codex (not claude) and prints their paths" {
+@test "wt-new creates and advertises no worktree-local vendor-home directories" {
   setup_tmp_repo
   cd "$REPO"
   run bash "$SCRIPTS/wt-new.sh" run1 implement slug1
   [ "$status" -eq 0 ]
   wt="${lines[-1]}"
-  [ -d "$wt/.harness/vendor-home/grok" ]
-  [ -d "$wt/.harness/vendor-home/codex" ]
-  # T7: claude vendor-home is not provisioned (isolated $HOME unverified).
-  [ ! -d "$wt/.harness/vendor-home/claude" ]
-  # Empty on purpose (T5b, deferred, is what seeds real vendor config content).
-  [ -z "$(ls -A "$wt/.harness/vendor-home/grok")" ]
-  [ -z "$(ls -A "$wt/.harness/vendor-home/codex")" ]
-  # Paths printed via log() (stderr; bats' `run` captures it into $output).
-  [[ "$output" == *"vendor-home (grok): $wt/.harness/vendor-home/grok"* ]]
-  [[ "$output" == *"vendor-home (codex): $wt/.harness/vendor-home/codex"* ]]
+  [ ! -e "$wt/.harness/vendor-home/grok" ]
+  [ ! -e "$wt/.harness/vendor-home/codex" ]
+  [ ! -e "$wt/.harness/vendor-home/claude" ]
+  [[ "$output" != *"vendor-home (grok):"* ]]
+  [[ "$output" != *"vendor-home (codex):"* ]]
   [[ "$output" != *"vendor-home (claude):"* ]]
 }
 
@@ -218,12 +213,12 @@ SHIM
 # normalizes unconditionally, regardless of which spawn branch runs.
 # ---------------------------------------------------------------------
 
-@test "lane-run (LANE_VENDOR=grok, LANE_CONFIG_DIR unset, fake launcher shim): GROK_HOME defaults to the normalized wt-new-provisioned dir; ownership.config_dir matches" {
+@test "lane-run (LANE_VENDOR=grok, LANE_CONFIG_DIR unset, fake launcher shim): GROK_HOME uses the normalized legacy default; ownership.config_dir matches" {
   stub_dir="$BATS_TEST_TMPDIR/stub"
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
-  mkdir -p "$WT/.harness/vendor-home/grok"   # mirrors wt-new.sh's own provisioning
+  mkdir -p "$WT/.harness/vendor-home/grok"   # Explicit legacy lane-run fixture. R7B2-B removes this default.
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
