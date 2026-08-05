@@ -6,9 +6,9 @@
       failure values.
 - [x] Add RED tests for legacy events, malformed payloads, count gaps,
       non-current attempts, invalid limits, and exhausted limits.
-- [x] Add a RED separate-process reservation test with a start barrier that
-      proves one unique count per successful caller and no append past the
-      limit.
+- [ ] Add a RED separate-process reservation test that pauses one holder inside
+      the journal lock, observes the contender's lock-retry seam, and proves
+      one unique count with no append past the limit.
 - [x] Add `ResumeAttemptFailure`, `ResumeAttemptReservationV1`, and the
       `RunJournal.reserveResumeAttempt` Effect interface.
 - [x] Implement one locked read-validate-append transaction by reusing the

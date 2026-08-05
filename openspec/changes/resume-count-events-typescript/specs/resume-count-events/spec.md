@@ -74,15 +74,20 @@ checks.
 Concurrent successful reservations SHALL return distinct consecutive counts.
 No successful reservation SHALL exceed `resumeMaxAttempts`.
 
-The concurrency acceptance test SHALL use two separate Node.js processes.
-Both processes SHALL report ready before one start barrier releases them. An
-in-process fiber test SHALL NOT be the concurrency acceptance evidence.
+The concurrency acceptance test SHALL use two separate Node.js processes. One
+process SHALL pause at an injected test seam while it owns the journal lock.
+The other process SHALL record through an injected lock-wait seam that it
+observed the held lock. The parent SHALL release the holder only after that
+contention evidence exists. An in-process fiber test or a shared start barrier
+without observed lock contention SHALL NOT be the concurrency acceptance
+evidence.
 
-#### Scenario: two callers race for the only available count
+#### Scenario: a contender observes the held reservation lock
 
-- WHEN two separate Node.js processes wait at one start barrier
-- AND the barrier releases both callers to reserve the same current attempt
-  with limit 1
+- WHEN one Node.js process pauses while it owns the journal lock
+- AND a second process records that its exclusive lock create observed the
+  held lock
+- AND the parent then releases the holder
 - THEN exactly one call succeeds with count 1
 - AND exactly one canonical `resume_attempt` event exists
 - AND the other call fails with `resume_limit_reached`.

@@ -81,11 +81,13 @@ Filesystem and journal integrity failures continue to use
 
 The count derivation and append occur under the same exclusive events lock.
 Two concurrent reservations cannot return the same count. The concurrency
-proof uses two separate Node.js processes that wait at one start barrier before
-they call the service. An in-process fiber test is not sufficient because a
-synchronous Effect can finish during the first `runFork` call. With limit one,
-exactly one released process can append count one and the other receives
-`resume_limit_reached`.
+proof uses two separate Node.js processes. The holder stops at an injected test
+seam while it owns the journal lock. The contender's injected lock-wait seam
+records that exclusive create observed the held lock. The parent releases the
+holder only after that contention marker exists. An in-process fiber test or a
+shared start file without observed lock contention is not sufficient. With
+limit one, the holder appends count one and the contender receives
+`resume_limit_reached` after it acquires the released lock.
 
 The append retains the current file identity, no-follow, complete-candidate
 replay, fsync, size, and path-reobservation checks. A failed reservation does
