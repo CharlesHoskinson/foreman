@@ -15624,7 +15624,7 @@ import {
   fstatSync,
   lstatSync,
   openSync,
-  readdirSync,
+  opendirSync,
   readSync
 } from "node:fs";
 import { isAbsolute, join as join3, resolve } from "node:path";
@@ -15711,7 +15711,6 @@ var DEFAULT_SECRET_SCAN_BOUNDS = {
 var EXIT_CLEAN = 0;
 var EXIT_NOT_CLEAN = 1;
 var EXIT_INVALID_ARGUMENTS = 2;
-var MSG_INVALID_ARGUMENTS = "secret-scan: invalid arguments";
 var PEM_LINE_RE = /^[ \t\f\v\r]*-----BEGIN[ \t\f\v\r].*PRIVATE KEY-----[ \t\f\v\r]*$/;
 var PRIVATE_KEY_BASENAMES = /* @__PURE__ */ new Set([
   "id_rsa",
@@ -15824,11 +15823,18 @@ function openBoundDirAtPath(path) {
       closeQuiet(fd);
       return { _tag: "bad" };
     }
+    let probe;
     try {
-      readdirSync(anchor);
+      probe = opendirSync(anchor);
+      probe.readSync();
     } catch {
       closeQuiet(fd);
       return { _tag: "bad" };
+    } finally {
+      try {
+        probe?.closeSync();
+      } catch {
+      }
     }
     const dir = { fd, identity: identityOf(st) };
     fd = void 0;
@@ -15942,6 +15948,19 @@ function isSafeExemptionPath(path) {
 }
 function isNotFound(e) {
   return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
+}
+function isPositiveSafeIntegerBound(n) {
+  return typeof n === "number" && Number.isSafeInteger(n) && n > 0;
+}
+function validateSecretScanBounds(bounds) {
+  return isPositiveSafeIntegerBound(bounds.maxDirectoryEntries) && isPositiveSafeIntegerBound(bounds.maxFiles) && isPositiveSafeIntegerBound(bounds.maxRelativePathBytes) && isPositiveSafeIntegerBound(bounds.maxFileBytes) && isPositiveSafeIntegerBound(bounds.maxTotalInspectedBytes) && isPositiveSafeIntegerBound(bounds.maxLineInspections) && isPositiveSafeIntegerBound(bounds.maxExemptions) && isPositiveSafeIntegerBound(bounds.maxFixtureDeclarationBytes);
+}
+function closeDirQuiet(dir) {
+  if (dir === void 0) return;
+  try {
+    dir.closeSync();
+  } catch {
+  }
 }
 function readRegularFileUnder(parent, name, maxBytes) {
   if (!isSafeDirentName(name)) return { _tag: "Unreadable" };
@@ -16116,8 +16135,145 @@ function tryExempt(posixRel, bytes, exemptions) {
   if (expected === void 0) return false;
   return sha256HexOfBytes(bytes) === expected;
 }
+function processDirectory(frame, exemptions, counters, bounds) {
+  if (frame.posixRel !== "") {
+    fireAfterBindDirectory(frame.posixRel);
+  }
+  if (!recheckBoundDir(frame.dir)) {
+    return refuse("identity_changed");
+  }
+  const anchor = procFdPath(frame.dir.fd);
+  if (anchor === null) {
+    return refuse("unsupported_traversal");
+  }
+  let listing;
+  try {
+    listing = opendirSync(anchor);
+  } catch {
+    return refuse("unreadable");
+  }
+  try {
+    for (; ; ) {
+      let ent;
+      try {
+        ent = listing.readSync();
+      } catch {
+        return refuse("unreadable");
+      }
+      if (ent === null) break;
+      const name = ent.name;
+      if (name === "." || name === "..") continue;
+      counters.directoryEntries += 1;
+      if (counters.directoryEntries > bounds.maxDirectoryEntries) {
+        return refuse("bound_exceeded");
+      }
+      if (!isSafeDirentName(name)) {
+        return refuse("unsupported_traversal");
+      }
+      if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
+        continue;
+      }
+      const childRel = frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
+      if (childRel.length === 0 || childRel === ".") {
+        return refuse("unsupported_traversal");
+      }
+      if (childRel.startsWith("..") || childRel.includes("/../") || childRel.includes("\\")) {
+        return refuse("unsupported_traversal");
+      }
+      const pathBytes = utf8ByteLength(childRel);
+      if (pathBytes > bounds.maxRelativePathBytes) {
+        return refuse("bound_exceeded");
+      }
+      if (!recheckBoundDir(frame.dir)) {
+        return refuse("identity_changed");
+      }
+      const childPath = join3(anchor, name);
+      const kind = observeComponent(childPath);
+      if (kind === "missing") {
+        return refuse("unreadable");
+      }
+      if (kind === "symlink") {
+        continue;
+      }
+      if (kind === "other") {
+        return refuse("unsupported_traversal");
+      }
+      if (kind === "directory") {
+        const childOpen = openBoundChildDir(frame.dir, name);
+        if (childOpen._tag === "missing") {
+          return refuse("unreadable");
+        }
+        if (childOpen._tag !== "ok") {
+          return refuse("identity_changed");
+        }
+        try {
+          const childResult = processDirectory(
+            { dir: childOpen.dir, posixRel: childRel },
+            exemptions,
+            counters,
+            bounds
+          );
+          if (childResult._tag !== "Clean") {
+            return childResult;
+          }
+        } finally {
+          closeQuiet(childOpen.dir.fd);
+        }
+        continue;
+      }
+      counters.files += 1;
+      if (counters.files > bounds.maxFiles) {
+        return refuse("bound_exceeded");
+      }
+      const filenameRefused = isRefusedSecretFilename(name);
+      const read = readRegularFileUnder(
+        frame.dir,
+        name,
+        bounds.maxFileBytes
+      );
+      if (read._tag === "Symlink") {
+        continue;
+      }
+      if (read._tag === "NotFile") {
+        return refuse("unsupported_traversal");
+      }
+      if (read._tag === "Oversized") return refuse("bound_exceeded");
+      if (read._tag === "IdentityChanged") {
+        return refuse("identity_changed");
+      }
+      if (read._tag === "Unreadable") return refuse("unreadable");
+      const bytes = read.bytes;
+      counters.totalInspectedBytes += bytes.byteLength;
+      if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
+        return refuse("bound_exceeded");
+      }
+      if (filenameRefused) {
+        if (tryExempt(childRel, bytes, exemptions)) {
+          continue;
+        }
+        return { _tag: "SecretFound" };
+      }
+      const pemHit = scanPemLines(bytes, counters, bounds);
+      if (pemHit !== null) {
+        if (pemHit._tag === "SecretFound") {
+          if (tryExempt(childRel, bytes, exemptions)) {
+            continue;
+          }
+          return { _tag: "SecretFound" };
+        }
+        return pemHit;
+      }
+    }
+    return { _tag: "Clean" };
+  } finally {
+    closeDirQuiet(listing);
+  }
+}
 function scanWorktreeSync(input) {
   const bounds = input.bounds ?? DEFAULT_SECRET_SCAN_BOUNDS;
+  if (!validateSecretScanBounds(bounds)) {
+    return refuse("bound_exceeded");
+  }
   if (!isValidAbsoluteRoot(input.worktreeRoot)) {
     return refuse("invalid_worktree");
   }
@@ -16131,18 +16287,6 @@ function scanWorktreeSync(input) {
   const rootOpen = openBoundDirAtPath(root);
   if (rootOpen._tag === "missing") return refuse("invalid_worktree");
   if (rootOpen._tag !== "ok") return refuse("invalid_worktree");
-  const held = [rootOpen.dir];
-  const stack = [];
-  const cleanup = () => {
-    while (stack.length > 0) {
-      const f = stack.pop();
-      closeQuiet(f.dir.fd);
-    }
-    for (let i = held.length - 1; i >= 0; i--) {
-      closeQuiet(held[i].fd);
-    }
-    held.length = 0;
-  };
   try {
     fireAfterBindRoot();
     if (!recheckBoundDir(rootOpen.dir)) {
@@ -16168,132 +16312,14 @@ function scanWorktreeSync(input) {
       totalInspectedBytes: 0,
       lineInspections: 0
     };
-    stack.push({ dir: rootOpen.dir, posixRel: "" });
-    held.length = 0;
-    while (stack.length > 0) {
-      const frame = stack.pop();
-      const childFrames = [];
-      try {
-        if (frame.posixRel !== "") {
-          fireAfterBindDirectory(frame.posixRel);
-        }
-        if (!recheckBoundDir(frame.dir)) {
-          return refuse("identity_changed");
-        }
-        const anchor = procFdPath(frame.dir.fd);
-        if (anchor === null) {
-          return refuse("unsupported_traversal");
-        }
-        let names;
-        try {
-          names = readdirSync(anchor);
-        } catch {
-          return refuse("unreadable");
-        }
-        for (const name of names) {
-          counters.directoryEntries += 1;
-          if (counters.directoryEntries > bounds.maxDirectoryEntries) {
-            return refuse("bound_exceeded");
-          }
-          if (!isSafeDirentName(name)) {
-            return refuse("unsupported_traversal");
-          }
-          if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
-            continue;
-          }
-          if (!recheckBoundDir(frame.dir)) {
-            return refuse("identity_changed");
-          }
-          const childPath = join3(anchor, name);
-          const kind = observeComponent(childPath);
-          if (kind === "missing") {
-            return refuse("unreadable");
-          }
-          if (kind === "symlink") {
-            continue;
-          }
-          if (kind === "other") {
-            return refuse("unsupported_traversal");
-          }
-          const childRel = frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
-          if (kind === "directory") {
-            const childOpen = openBoundChildDir(frame.dir, name);
-            if (childOpen._tag === "missing") {
-              return refuse("unreadable");
-            }
-            if (childOpen._tag !== "ok") {
-              return refuse("identity_changed");
-            }
-            childFrames.push({ dir: childOpen.dir, posixRel: childRel });
-            continue;
-          }
-          counters.files += 1;
-          if (counters.files > bounds.maxFiles) {
-            return refuse("bound_exceeded");
-          }
-          if (childRel.length === 0 || childRel === ".") {
-            return refuse("unsupported_traversal");
-          }
-          if (childRel.startsWith("..") || childRel.includes("/../") || childRel.includes("\\")) {
-            return refuse("unsupported_traversal");
-          }
-          const pathBytes = utf8ByteLength(childRel);
-          if (pathBytes > bounds.maxRelativePathBytes) {
-            return refuse("bound_exceeded");
-          }
-          const filenameRefused = isRefusedSecretFilename(name);
-          const read = readRegularFileUnder(
-            frame.dir,
-            name,
-            bounds.maxFileBytes
-          );
-          if (read._tag === "Symlink") {
-            continue;
-          }
-          if (read._tag === "NotFile") {
-            return refuse("unsupported_traversal");
-          }
-          if (read._tag === "Oversized") return refuse("bound_exceeded");
-          if (read._tag === "IdentityChanged") {
-            return refuse("identity_changed");
-          }
-          if (read._tag === "Unreadable") return refuse("unreadable");
-          const bytes = read.bytes;
-          counters.totalInspectedBytes += bytes.byteLength;
-          if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
-            return refuse("bound_exceeded");
-          }
-          if (filenameRefused) {
-            if (tryExempt(childRel, bytes, exemptions)) {
-              continue;
-            }
-            return { _tag: "SecretFound" };
-          }
-          const pemHit = scanPemLines(bytes, counters, bounds);
-          if (pemHit !== null) {
-            if (pemHit._tag === "SecretFound") {
-              if (tryExempt(childRel, bytes, exemptions)) {
-                continue;
-              }
-              return { _tag: "SecretFound" };
-            }
-            return pemHit;
-          }
-        }
-        for (let i = childFrames.length - 1; i >= 0; i--) {
-          stack.push(childFrames[i]);
-        }
-        childFrames.length = 0;
-      } finally {
-        for (let i = childFrames.length - 1; i >= 0; i--) {
-          closeQuiet(childFrames[i].dir.fd);
-        }
-        closeQuiet(frame.dir.fd);
-      }
-    }
-    return { _tag: "Clean" };
+    return processDirectory(
+      { dir: rootOpen.dir, posixRel: "" },
+      exemptions,
+      counters,
+      bounds
+    );
   } finally {
-    cleanup();
+    closeQuiet(rootOpen.dir.fd);
   }
 }
 function scanWorktree(input) {
@@ -16332,7 +16358,12 @@ function runSecretScanCli(argv, io2) {
   return Effect_exports.gen(function* () {
     const parsed = parseSecretScanArgv(argv);
     if (parsed._tag === "Invalid") {
-      io2.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
+      io2.writeStdout(
+        renderSecretScanJson({
+          _tag: "Refused",
+          reason: "invalid_worktree"
+        }) + "\n"
+      );
       return EXIT_INVALID_ARGUMENTS;
     }
     const result = yield* scanWorktree({
@@ -16361,7 +16392,12 @@ Effect_exports.runPromise(program).then(
     process.exit(code);
   },
   () => {
-    process.stderr.write("secret-scan: internal failure\n");
-    process.exit(1);
+    process.stdout.write(
+      renderSecretScanJson({
+        _tag: "Refused",
+        reason: "unsupported_traversal"
+      }) + "\n"
+    );
+    process.exit(EXIT_NOT_CLEAN);
   }
 );

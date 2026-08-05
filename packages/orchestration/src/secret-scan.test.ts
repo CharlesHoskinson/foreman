@@ -771,6 +771,94 @@ describe("explicit positive bounds", () => {
     assert.ok(MAX_LINE_INSPECTIONS > 0);
     assert.equal(DEFAULT_SECRET_SCAN_BOUNDS.maxFiles, MAX_FILES);
   });
+
+  // Cold-audit attempt 1: invalid bounds refuse before any filesystem access.
+  it("refuses non-positive, non-integer, non-finite, or non-safe bounds", () => {
+    const cases: readonly Partial<SecretScanBounds>[] = [
+      { maxFiles: 0 },
+      { maxFiles: -1 },
+      { maxDirectoryEntries: Number.NaN },
+      { maxRelativePathBytes: Number.POSITIVE_INFINITY },
+      { maxFileBytes: 1.5 },
+      { maxTotalInspectedBytes: Number.MAX_SAFE_INTEGER + 1 },
+      { maxLineInspections: -3 },
+      { maxExemptions: 0 },
+      { maxFixtureDeclarationBytes: Number.NEGATIVE_INFINITY },
+    ];
+    for (const partial of cases) {
+      const r = runScan("/tmp", partial);
+      assert.equal(
+        r._tag,
+        "Refused",
+        `expected refusal for bounds ${JSON.stringify(partial)}; got ${JSON.stringify(r)}`,
+      );
+      if (r._tag === "Refused") {
+        assert.equal(r.reason, "bound_exceeded");
+      }
+    }
+  });
+
+  // Cold-audit attempt 1: path-byte bound applies to directories before type dispatch.
+  it(
+    "refuses directory relative path one byte over maxRelativePathBytes",
+    liveTraversal,
+    () => {
+      const wt = tempRoot("dirpath-over");
+      try {
+        const over = "d".repeat(17);
+        mkdirSync(join(wt, over));
+        writeFile(wt, "ok.txt", "ok\n");
+        const r = runScan(wt, { maxRelativePathBytes: 16 });
+        assert.equal(r._tag, "Refused");
+        if (r._tag === "Refused") assert.equal(r.reason, "bound_exceeded");
+      } finally {
+        rmSync(wt, { recursive: true, force: true });
+      }
+    },
+  );
+
+  // Cold-audit attempt 1: path-byte bound applies to symlinks before skip/dispatch.
+  it(
+    "refuses symlink relative path one byte over maxRelativePathBytes",
+    liveTraversal,
+    () => {
+      const wt = tempRoot("sympath-over");
+      try {
+        const over = "s".repeat(17);
+        symlinkSync("nowhere-target", join(wt, over));
+        writeFile(wt, "ok.txt", "ok\n");
+        const r = runScan(wt, { maxRelativePathBytes: 16 });
+        assert.equal(r._tag, "Refused");
+        if (r._tag === "Refused") assert.equal(r.reason, "bound_exceeded");
+      } finally {
+        rmSync(wt, { recursive: true, force: true });
+      }
+    },
+  );
+
+  // Cold-audit attempt 1: wide sibling directories stay below descriptor exhaustion
+  // when only the active depth chain is held (depth-first, one child at a time).
+  it(
+    "scans a wide shallow tree of sibling directories under a low descriptor budget",
+    liveTraversal,
+    () => {
+      const wt = tempRoot("wide-sibs");
+      try {
+        const n = 64;
+        for (let i = 0; i < n; i++) {
+          writeFile(wt, `d${String(i).padStart(3, "0")}/ok.txt`, "ok\n");
+        }
+        const r = runScan(wt);
+        assert.equal(
+          r._tag,
+          "Clean",
+          `wide tree must not false-refuse; got ${JSON.stringify(r)}`,
+        );
+      } finally {
+        rmSync(wt, { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -862,7 +950,7 @@ describe("CLI output and exit codes", () => {
     }
   });
 
-  it("rejects missing argv with invalid-arguments exit", async () => {
+  it("rejects missing argv with one canonical JSON refusal line and nonzero exit", async () => {
     const io = captureIo();
     const code = await Effect.runPromise(
       runSecretScanCli(["node", "secret-scan.js"], io).pipe(
@@ -870,6 +958,46 @@ describe("CLI output and exit codes", () => {
       ),
     );
     assert.equal(code, EXIT_INVALID_ARGUMENTS);
+    const lines = io.stdout().split("\n").filter((l) => l.length > 0);
+    assert.equal(lines.length, 1, `expected exactly one JSON line; got ${JSON.stringify(io.stdout())}`);
+    const obj = JSON.parse(lines[0]!) as {
+      schemaVersion: number;
+      verdict: string;
+      reason?: string;
+    };
+    assert.equal(obj.schemaVersion, SECRET_SCAN_SCHEMA_VERSION);
+    assert.equal(obj.verdict, "refused");
+    assert.equal(typeof obj.reason, "string");
+    assert.ok(obj.reason && obj.reason.length > 0);
+    assert.equal(
+      lines[0],
+      renderSecretScanJson({
+        _tag: "Refused",
+        reason: obj.reason as "invalid_worktree",
+      }),
+    );
+    assertSecretSafe(io.stdout() + io.stderr(), [
+      "Error",
+      "stack",
+      "ENOENT",
+      "at ",
+      "Error:",
+    ]);
+  });
+
+  it("rejects multi-arg argv with one canonical JSON refusal line", async () => {
+    const io = captureIo();
+    const code = await Effect.runPromise(
+      runSecretScanCli(
+        ["node", "secret-scan.js", "/tmp/a", "/tmp/b"],
+        io,
+      ).pipe(Effect.provide(liveSecretScan)),
+    );
+    assert.notEqual(code, EXIT_CLEAN);
+    const lines = io.stdout().split("\n").filter((l) => l.length > 0);
+    assert.equal(lines.length, 1);
+    const obj = JSON.parse(lines[0]!) as { verdict: string };
+    assert.equal(obj.verdict, "refused");
   });
 
   it("parseSecretScanArgv accepts one absolute root", () => {

@@ -78,6 +78,22 @@ line inspections.
 Exact-bound inputs SHALL pass.
 Bound plus one SHALL fail closed as `Refused` with reason `bound_exceeded`.
 
+The scanner SHALL validate every caller-supplied bound before filesystem
+access.
+Each bound SHALL be a positive finite safe integer.
+Invalid bounds SHALL fail closed as `Refused` with reason `bound_exceeded`.
+
+Directory iteration SHALL be incremental and SHALL stop at
+`maxDirectoryEntries + 1` without materializing an unbounded listing.
+The root capability probe SHALL NOT materialize an unbounded directory listing.
+
+The scanner SHALL traverse one child directory at a time and SHALL keep only
+the descriptor-anchor chain for the active depth.
+A wide directory SHALL NOT hold one open descriptor per child.
+
+The scanner SHALL apply `maxRelativePathBytes` to every encountered entry
+before file-type dispatch, including directories and symbolic links.
+
 Unreadable entries, identity changes, unsupported safe traversal, and malformed
 fixture declarations SHALL fail closed without leaking paths, content,
 environment values, stacks, or exception text.
@@ -87,6 +103,19 @@ environment values, stacks, or exception text.
 - WHEN the worktree has maxFiles plus one regular files
 - THEN the scan result is `Refused`
 - AND the reason is `bound_exceeded`.
+
+#### Scenario: a directory relative path exceeds the path-byte bound
+
+- WHEN a directory entry has a relative path one byte over maxRelativePathBytes
+- THEN the scan result is `Refused`
+- AND the reason is `bound_exceeded`.
+
+#### Scenario: a caller supplies a non-positive bound
+
+- WHEN any bound is not a positive finite safe integer
+- THEN the scan result is `Refused`
+- AND the reason is `bound_exceeded`
+- AND no filesystem traversal is performed.
 
 ### Requirement: fixture exemptions use exact identity
 
@@ -112,7 +141,8 @@ subtree.
 
 ### Requirement: the CLI is secret-safe and fail-closed
 
-The CLI SHALL emit one canonical JSON line.
+The CLI SHALL emit exactly one canonical JSON line for every outcome, including
+invalid argv and top-level internal failure.
 It SHALL use exit 0 only for a clean scan.
 It SHALL use a nonzero exit for secret found or any indeterminate or fail-closed
 result.
@@ -125,6 +155,13 @@ stacks, or exception text for those outcomes.
 - THEN exit status is nonzero
 - AND the JSON verdict is `secret_found`
 - AND output does not include the path or file content.
+
+#### Scenario: argv is missing the worktree root
+
+- WHEN the CLI is invoked without exactly one worktree argument
+- THEN exit status is nonzero
+- AND stdout is exactly one canonical JSON refusal line
+- AND output does not include stacks or exception text.
 
 ### Requirement: lane-run uses a thin Node adapter
 

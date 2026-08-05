@@ -51,6 +51,20 @@ and line inspections.
 Exact-bound inputs pass.
 Bound plus one fails closed as `refused` with reason `bound_exceeded`.
 
+Each caller-supplied bound is validated before any filesystem access.
+A bound must be a positive finite safe integer.
+Invalid bounds fail closed as `bound_exceeded` with a secret-safe refusal.
+
+Directory listing is incremental. The scanner stops at
+`maxDirectoryEntries + 1` and never materializes an unbounded name list.
+The root capability probe also reads at most one directory entry.
+
+Traversal is depth-first. Only the active depth chain holds open directory
+descriptors. A wide parent does not keep one descriptor per child.
+
+`maxRelativePathBytes` applies to every encountered entry before file-type
+dispatch, including directories and symbolic links.
+
 Unreadable entries, identity changes, unsupported traversal, and malformed
 fixture declarations also fail closed.
 Public output never leaks paths, file content, environment values, stacks, or
@@ -67,9 +81,12 @@ A one-byte change invalidates the exemption and the normal scanner applies.
 
 ## CLI and shell seam
 
-The CLI emits one canonical JSON line.
+The CLI emits exactly one canonical JSON line for every outcome, including
+invalid argv and top-level internal failure.
 Exit 0 means clean only.
 Any secret or fail-closed result is nonzero.
+Stdout and stderr never include paths, stacks, exception text, or environment
+content for those outcomes.
 `lane_grok_secrets_scan` calls `runtime/dist/secret-scan.js` with the absolute
 worktree root.
 There is no direct-spawn fallback and no new runtime dependency.

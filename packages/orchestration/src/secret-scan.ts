@@ -21,8 +21,9 @@ import {
   fstatSync,
   lstatSync,
   openSync,
-  readdirSync,
+  opendirSync,
   readSync,
+  type Dir,
   type Stats,
 } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -351,11 +352,21 @@ function openBoundDirAtPath(path: string): OpenDirResult {
       closeQuiet(fd);
       return { _tag: "bad" };
     }
+    // Capability probe: open a directory stream and read at most one entry.
+    // Do not materialize an unbounded listing of the root.
+    let probe: Dir | undefined;
     try {
-      readdirSync(anchor);
+      probe = opendirSync(anchor);
+      probe.readSync();
     } catch {
       closeQuiet(fd);
       return { _tag: "bad" };
+    } finally {
+      try {
+        probe?.closeSync();
+      } catch {
+        /* ignore */
+      }
     }
     const dir: BoundDir = { fd, identity: identityOf(st) };
     fd = undefined;
@@ -530,6 +541,39 @@ function isNotFound(e: unknown): boolean {
     "code" in e &&
     (e as { code: unknown }).code === "ENOENT"
   );
+}
+
+/**
+ * True when `n` is a positive finite safe integer suitable as a bound.
+ */
+function isPositiveSafeIntegerBound(n: unknown): n is number {
+  return typeof n === "number" && Number.isSafeInteger(n) && n > 0;
+}
+
+/**
+ * Validate every caller-supplied bound before any filesystem access.
+ * Invalid bounds refuse closed as `bound_exceeded`.
+ */
+export function validateSecretScanBounds(bounds: SecretScanBounds): boolean {
+  return (
+    isPositiveSafeIntegerBound(bounds.maxDirectoryEntries) &&
+    isPositiveSafeIntegerBound(bounds.maxFiles) &&
+    isPositiveSafeIntegerBound(bounds.maxRelativePathBytes) &&
+    isPositiveSafeIntegerBound(bounds.maxFileBytes) &&
+    isPositiveSafeIntegerBound(bounds.maxTotalInspectedBytes) &&
+    isPositiveSafeIntegerBound(bounds.maxLineInspections) &&
+    isPositiveSafeIntegerBound(bounds.maxExemptions) &&
+    isPositiveSafeIntegerBound(bounds.maxFixtureDeclarationBytes)
+  );
+}
+
+function closeDirQuiet(dir: Dir | undefined): void {
+  if (dir === undefined) return;
+  try {
+    dir.closeSync();
+  } catch {
+    /* ignore */
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -785,11 +829,195 @@ type Frame = {
 };
 
 /**
+ * Scan one bound directory. Directory listing is incremental and stops at
+ * maxDirectoryEntries + 1. Child directories are opened one at a time and
+ * fully processed before the next sibling is opened, so only the active
+ * depth chain holds descriptors.
+ *
+ * The caller owns `frame.dir` and must close it. This function closes every
+ * child descriptor it opens, including on early return.
+ */
+function processDirectory(
+  frame: Frame,
+  exemptions: ExemptionMap,
+  counters: Counters,
+  bounds: SecretScanBounds,
+): SecretScanResult {
+  if (frame.posixRel !== "") {
+    fireAfterBindDirectory(frame.posixRel);
+  }
+  if (!recheckBoundDir(frame.dir)) {
+    return refuse("identity_changed");
+  }
+  const anchor = procFdPath(frame.dir.fd);
+  if (anchor === null) {
+    return refuse("unsupported_traversal");
+  }
+
+  let listing: Dir | undefined;
+  try {
+    listing = opendirSync(anchor);
+  } catch {
+    return refuse("unreadable");
+  }
+
+  try {
+    for (;;) {
+      let ent: { name: string } | null;
+      try {
+        ent = listing.readSync();
+      } catch {
+        return refuse("unreadable");
+      }
+      if (ent === null) break;
+
+      const name = ent.name;
+      if (name === "." || name === "..") continue;
+
+      counters.directoryEntries += 1;
+      if (counters.directoryEntries > bounds.maxDirectoryEntries) {
+        return refuse("bound_exceeded");
+      }
+
+      if (!isSafeDirentName(name)) {
+        return refuse("unsupported_traversal");
+      }
+
+      // Top-level prune of .git and .harness only (shell parity).
+      if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
+        continue;
+      }
+
+      const childRel =
+        frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
+
+      // Path bounds apply to every encountered entry before type dispatch,
+      // including directories and symbolic links.
+      if (childRel.length === 0 || childRel === ".") {
+        return refuse("unsupported_traversal");
+      }
+      if (
+        childRel.startsWith("..") ||
+        childRel.includes("/../") ||
+        childRel.includes("\\")
+      ) {
+        return refuse("unsupported_traversal");
+      }
+      const pathBytes = utf8ByteLength(childRel);
+      if (pathBytes > bounds.maxRelativePathBytes) {
+        return refuse("bound_exceeded");
+      }
+
+      if (!recheckBoundDir(frame.dir)) {
+        return refuse("identity_changed");
+      }
+      const childPath = join(anchor, name);
+      const kind = observeComponent(childPath);
+      if (kind === "missing") {
+        return refuse("unreadable");
+      }
+      if (kind === "symlink") {
+        // Never follow. Path bound already applied. Skip without secret.
+        continue;
+      }
+      if (kind === "other") {
+        return refuse("unsupported_traversal");
+      }
+
+      if (kind === "directory") {
+        const childOpen = openBoundChildDir(frame.dir, name);
+        if (childOpen._tag === "missing") {
+          return refuse("unreadable");
+        }
+        if (childOpen._tag !== "ok") {
+          // Symlink/type race after observe → fail closed.
+          return refuse("identity_changed");
+        }
+        // One child at a time: process fully, then close before next sibling.
+        try {
+          const childResult = processDirectory(
+            { dir: childOpen.dir, posixRel: childRel },
+            exemptions,
+            counters,
+            bounds,
+          );
+          if (childResult._tag !== "Clean") {
+            return childResult;
+          }
+        } finally {
+          closeQuiet(childOpen.dir.fd);
+        }
+        continue;
+      }
+
+      // Regular file
+      counters.files += 1;
+      if (counters.files > bounds.maxFiles) {
+        return refuse("bound_exceeded");
+      }
+
+      const filenameRefused = isRefusedSecretFilename(name);
+
+      const read = readRegularFileUnder(
+        frame.dir,
+        name,
+        bounds.maxFileBytes,
+      );
+      if (read._tag === "Symlink") {
+        // Race: became symlink — do not follow.
+        continue;
+      }
+      if (read._tag === "NotFile") {
+        return refuse("unsupported_traversal");
+      }
+      if (read._tag === "Oversized") return refuse("bound_exceeded");
+      if (read._tag === "IdentityChanged") {
+        return refuse("identity_changed");
+      }
+      if (read._tag === "Unreadable") return refuse("unreadable");
+
+      const bytes = read.bytes;
+      counters.totalInspectedBytes += bytes.byteLength;
+      if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
+        return refuse("bound_exceeded");
+      }
+
+      if (filenameRefused) {
+        if (tryExempt(childRel, bytes, exemptions)) {
+          continue;
+        }
+        return { _tag: "SecretFound" };
+      }
+
+      const pemHit = scanPemLines(bytes, counters, bounds);
+      if (pemHit !== null) {
+        if (pemHit._tag === "SecretFound") {
+          if (tryExempt(childRel, bytes, exemptions)) {
+            continue;
+          }
+          return { _tag: "SecretFound" };
+        }
+        return pemHit;
+      }
+    }
+
+    return { _tag: "Clean" };
+  } finally {
+    closeDirQuiet(listing);
+  }
+}
+
+/**
  * Core scanner. Fail-closed; never throws domain errors with path content.
  * Traversal is descriptor-anchored; pathnames are not reopened after bind.
+ * Directory listings are incremental; only the active depth chain is held.
  */
 export function scanWorktreeSync(input: SecretScanInput): SecretScanResult {
   const bounds = input.bounds ?? DEFAULT_SECRET_SCAN_BOUNDS;
+  // Validate every bound before any filesystem access.
+  if (!validateSecretScanBounds(bounds)) {
+    return refuse("bound_exceeded");
+  }
   if (!isValidAbsoluteRoot(input.worktreeRoot)) {
     return refuse("invalid_worktree");
   }
@@ -805,21 +1033,6 @@ export function scanWorktreeSync(input: SecretScanInput): SecretScanResult {
   const rootOpen = openBoundDirAtPath(root);
   if (rootOpen._tag === "missing") return refuse("invalid_worktree");
   if (rootOpen._tag !== "ok") return refuse("invalid_worktree");
-
-  // All opened directory descriptors; closed on every exit path.
-  const held: BoundDir[] = [rootOpen.dir];
-  const stack: Frame[] = [];
-
-  const cleanup = (): void => {
-    while (stack.length > 0) {
-      const f = stack.pop()!;
-      closeQuiet(f.dir.fd);
-    }
-    for (let i = held.length - 1; i >= 0; i--) {
-      closeQuiet(held[i]!.fd);
-    }
-    held.length = 0;
-  };
 
   try {
     fireAfterBindRoot();
@@ -850,166 +1063,14 @@ export function scanWorktreeSync(input: SecretScanInput): SecretScanResult {
       lineInspections: 0,
     };
 
-    stack.push({ dir: rootOpen.dir, posixRel: "" });
-    // Root ownership transferred to stack; held still tracks for cleanup.
-    // Avoid double-close of root: remove from held when on stack, or close
-    // only via stack. Use a closed set via not double-closing: cleanup closes
-    // stack then held — mark root as stack-owned only.
-    held.length = 0;
-
-    while (stack.length > 0) {
-      const frame = stack.pop()!;
-      // Open children while parent is held, then transfer to the stack.
-      // On early return, untransferred child descriptors close here.
-      const childFrames: Frame[] = [];
-      try {
-        if (frame.posixRel !== "") {
-          fireAfterBindDirectory(frame.posixRel);
-        }
-        if (!recheckBoundDir(frame.dir)) {
-          return refuse("identity_changed");
-        }
-        const anchor = procFdPath(frame.dir.fd);
-        if (anchor === null) {
-          return refuse("unsupported_traversal");
-        }
-
-        let names: string[];
-        try {
-          names = readdirSync(anchor);
-        } catch {
-          return refuse("unreadable");
-        }
-
-        for (const name of names) {
-            counters.directoryEntries += 1;
-            if (counters.directoryEntries > bounds.maxDirectoryEntries) {
-              return refuse("bound_exceeded");
-            }
-
-            if (!isSafeDirentName(name)) {
-              return refuse("unsupported_traversal");
-            }
-
-            // Top-level prune of .git and .harness only (shell parity).
-            if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
-              continue;
-            }
-
-            if (!recheckBoundDir(frame.dir)) {
-              return refuse("identity_changed");
-            }
-            const childPath = join(anchor, name);
-            const kind = observeComponent(childPath);
-            if (kind === "missing") {
-              return refuse("unreadable");
-            }
-            if (kind === "symlink") {
-              // Never follow. Skip without treating as secret.
-              continue;
-            }
-            if (kind === "other") {
-              return refuse("unsupported_traversal");
-            }
-
-            const childRel =
-              frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
-
-            if (kind === "directory") {
-              const childOpen = openBoundChildDir(frame.dir, name);
-              if (childOpen._tag === "missing") {
-                return refuse("unreadable");
-              }
-              if (childOpen._tag !== "ok") {
-                // Symlink/type race after observe → fail closed.
-                return refuse("identity_changed");
-              }
-              childFrames.push({ dir: childOpen.dir, posixRel: childRel });
-              continue;
-            }
-
-            // Regular file
-            counters.files += 1;
-            if (counters.files > bounds.maxFiles) {
-              return refuse("bound_exceeded");
-            }
-
-            if (childRel.length === 0 || childRel === ".") {
-              return refuse("unsupported_traversal");
-            }
-            if (
-              childRel.startsWith("..") ||
-              childRel.includes("/../") ||
-              childRel.includes("\\")
-            ) {
-              return refuse("unsupported_traversal");
-            }
-            const pathBytes = utf8ByteLength(childRel);
-            if (pathBytes > bounds.maxRelativePathBytes) {
-              return refuse("bound_exceeded");
-            }
-
-            const filenameRefused = isRefusedSecretFilename(name);
-
-            const read = readRegularFileUnder(
-              frame.dir,
-              name,
-              bounds.maxFileBytes,
-            );
-            if (read._tag === "Symlink") {
-              // Race: became symlink — do not follow.
-              continue;
-            }
-            if (read._tag === "NotFile") {
-              return refuse("unsupported_traversal");
-            }
-            if (read._tag === "Oversized") return refuse("bound_exceeded");
-            if (read._tag === "IdentityChanged") {
-              return refuse("identity_changed");
-            }
-            if (read._tag === "Unreadable") return refuse("unreadable");
-
-            const bytes = read.bytes;
-            counters.totalInspectedBytes += bytes.byteLength;
-            if (counters.totalInspectedBytes > bounds.maxTotalInspectedBytes) {
-              return refuse("bound_exceeded");
-            }
-
-            if (filenameRefused) {
-              if (tryExempt(childRel, bytes, exemptions)) {
-                continue;
-              }
-              return { _tag: "SecretFound" };
-            }
-
-            const pemHit = scanPemLines(bytes, counters, bounds);
-            if (pemHit !== null) {
-              if (pemHit._tag === "SecretFound") {
-                if (tryExempt(childRel, bytes, exemptions)) {
-                  continue;
-                }
-                return { _tag: "SecretFound" };
-              }
-              return pemHit;
-            }
-          }
-
-        // Transfer ownership to the stack (LIFO preserves readdir order).
-        for (let i = childFrames.length - 1; i >= 0; i--) {
-          stack.push(childFrames[i]!);
-        }
-        childFrames.length = 0;
-      } finally {
-        for (let i = childFrames.length - 1; i >= 0; i--) {
-          closeQuiet(childFrames[i]!.dir.fd);
-        }
-        closeQuiet(frame.dir.fd);
-      }
-    }
-
-    return { _tag: "Clean" };
+    return processDirectory(
+      { dir: rootOpen.dir, posixRel: "" },
+      exemptions,
+      counters,
+      bounds,
+    );
   } finally {
-    cleanup();
+    closeQuiet(rootOpen.dir.fd);
   }
 }
 
@@ -1074,8 +1135,10 @@ export function parseSecretScanArgv(
 }
 
 /**
- * Run the secret-scan CLI. Emits one canonical JSON line on stdout.
+ * Run the secret-scan CLI. Emits exactly one canonical JSON line on stdout
+ * for every outcome, including invalid argv and fail-closed results.
  * Exit 0 only for Clean; nonzero for SecretFound, Refused, or bad argv.
+ * Never emits paths, stacks, exception text, or environment content.
  */
 export function runSecretScanCli(
   argv: readonly string[],
@@ -1084,7 +1147,12 @@ export function runSecretScanCli(
   return Effect.gen(function* () {
     const parsed = parseSecretScanArgv(argv);
     if (parsed._tag === "Invalid") {
-      io.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
+      io.writeStdout(
+        renderSecretScanJson({
+          _tag: "Refused",
+          reason: "invalid_worktree",
+        }) + "\n",
+      );
       return EXIT_INVALID_ARGUMENTS;
     }
     const result = yield* scanWorktree({

@@ -601,6 +601,7 @@ export {
   setSecretScanRaceHook,
   scanWorktreeSync,
   scanWorktree,
+  validateSecretScanBounds,
   liveSecretScan,
   stripSecretScanNodeArgv,
   parseSecretScanArgv,

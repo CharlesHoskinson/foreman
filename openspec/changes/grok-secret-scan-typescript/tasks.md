@@ -1,5 +1,13 @@
 # Tasks: grok-secret-scan-typescript
 
+## Cold-audit attempt 1 repairs
+
+- [x] Incremental directory iteration; stop at maxDirectoryEntries + 1.
+- [x] One child directory descriptor at a time (active depth chain only).
+- [x] Validate caller-supplied bounds before filesystem access.
+- [x] Apply maxRelativePathBytes before type dispatch (dirs and symlinks).
+- [x] Invalid argv and top-level CLI failure emit one canonical JSON refusal.
+
 ## R6: bounded fixture-aware secret scan
 
 - [x] Add RED tests for every filename and PEM refusal class.
