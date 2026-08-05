@@ -39,9 +39,12 @@
       live relocate fail-closed (`platform_invariant_unproven`). Tracked-delete
       executor (`delete-tracked`) ships as a separate fail-closed package:
       exact path+blob+mode batch preflight, all-or-rollback mutation, closed
-      receipt, and hostile tests. Do not mark DST-0040 executed and do not
-      delete Python in that package. Keep open until DST-0059 register
-      disposition and incident mitigation finish.
+      receipt, and hostile tests. Historical boundary: that guard package did
+      not mark DST-0040 executed and did not delete Python. Follow-on package
+      `v030-graph-store-python-retirement-20260805-1` authorized DST-0040,
+      ran the published `tracked_delete` guard, and removed the seven
+      GraphStore Python modules. Keep this inventory task open until DST-0059
+      register disposition and incident mitigation finish.
 - [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
       that include `@foreman/policy` as its own package family (CW-023).
       Acceptance evidence: `typescriptmigration.md` states nine package

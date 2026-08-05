@@ -10,12 +10,15 @@ logic in compatibility scripts.
 ## Current baseline
 
 - Planned TypeScript package families: **9**.
-- Tracked Python files: **21**.
-- Product and release Python files: **11**.
+- Tracked Python files: **14**.
+- Product and release Python files: **4**.
 - Research and archive Python files: **4**.
 - Vendored Python files: **6**.
 - New executable source allowed: TypeScript only.
 - Generated bundled JavaScript is verified build output, not source.
+- Note: the earlier v0.3.0 inventory listed 21 tracked Python files and 11
+  product or release Python files before DST-0040 removed the seven GraphStore
+  modules.
 
 ## Module checklist
 
@@ -24,8 +27,11 @@ logic in compatibility scripts.
 - [x] `@foreman/policy`: architecture language policy, merge-base debt
       reporting, and fail-capable known-bad controls. (Compiled
       `architecture-policy.js` + destruction guard; hosted CI still open.)
-- [ ] `@foreman/graph-store`: port, closed schemas, safe generations,
-      files-only backend, lineage queries, and CLI.
+- [x] `@foreman/graph-store`: port, closed schemas, safe generations,
+      files-only backend, lineage queries, and CLI for the files-only surface
+      proved at `0ae1c56` and by the DST-0040 Python deletion. TerminusDB or
+      SQLite adapter, full N2 schema freeze, ingest package work, and
+      full-round operations remain open.
 - [ ] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
       cancellation, and platform containment capabilities.
 - [x] `@foreman/event-log`: one closed event decoder, bounded NDJSON replay,
@@ -50,10 +56,11 @@ logic in compatibility scripts.
 
 ## Python elimination checklist
 
-### Production and release paths: 11 files
+### Production and release paths: 4 files remaining
 
-- [ ] Replace and delete the seven files under
-      `skills/foreman/graph_store/*.py`.
+- [x] Replace and delete the seven files under
+      `skills/foreman/graph_store/*.py` (DST-0040 tracked_delete; recovery is
+      Git history at recovery commit `4b20d55efb98ae2386cdc47ae24c38081cf49afc`).
 - [ ] Replace and delete `skills/foreman/scripts/fm-session.py`.
 - [ ] Replace `skills/foreman/ontology/test_ontology.py` with a TypeScript
       test.

@@ -60,15 +60,23 @@ below contain detailed module tasks only. They do not define release order.
 
 ## M2 — migrate GraphStore
 
-- [ ] Write the GraphStore contract tests in TypeScript before implementation.
-- [ ] Implement the port, closed document schemas, expected-emptiness contract,
+- [x] Write the GraphStore contract tests in TypeScript before implementation.
+      (`packages/graph-store/src/**/*.test.ts`, including contract and hostile
+      suites, wired into root `npm test`.)
+- [x] Implement the port, closed document schemas, expected-emptiness contract,
       and files-only backend in `@foreman/graph-store`.
-- [ ] Use Effect for filesystem scope, atomic publication, typed failures, and
+      (Accepted TypeScript package and compiled CLI at `0ae1c56`.)
+- [x] Use Effect for filesystem scope, atomic publication, typed failures, and
       bounded concurrent access. Keep graph traversal algorithms pure.
-- [ ] Prove exact schemas, safe path handling, corruption refusal, hard-link
+- [x] Prove exact schemas, safe path handling, corruption refusal, hard-link
       refusal, deterministic generations, and concurrent-open serialization.
-- [ ] Convert current callers to the TypeScript entry point, run parity tests,
+      (Hostile and schema tests under `packages/graph-store/src/`.)
+- [x] Convert current callers to the TypeScript entry point, run parity tests,
       then delete `skills/foreman/graph_store/*.py`.
+      (Seven modules removed by DST-0040 `tracked_delete`; product pointer is
+      the TypeScript package and `skills/foreman/runtime/dist/graph-store.js`.
+      Deferred adapter, full N2 schema freeze, ingest, and full-round work
+      remain outside this claim.)
 
 ## M3 — migrate launcher supervision
 

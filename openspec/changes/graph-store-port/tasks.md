@@ -56,7 +56,9 @@ JK-1..5. Neither is built here.
       with no database, no container, no network.
 - [x] Make it the default implementation; the adapter is opt-in per host.
 - [x] Report the three optional capabilities as unavailable, by name.
-- [ ] Full conformance suite green, and wired into CI on every commit.
+- [x] Full conformance suite green, and wired into root tests on every local
+      verify path (`packages/graph-store/src/**/*.test.ts` in root `npm test`
+      and the package gate). Hosted CI wiring is not claimed here.
 - [ ] Prove a full round runs end to end with no store: gate evaluates,
       context block builds and hashes, run record complete.
 
@@ -151,6 +153,6 @@ JK-1..5. Neither is built here.
       elements or recorded as a known gap.
 - [ ] `shellcheck` clean on every new script; docs gate green
       (`markdownlint-cli2`, `codespell`, `lychee`).
-- [ ] `openspec validate graph-store-port --strict` passes.
+- [x] `openspec validate graph-store-port --strict` passes.
 - [ ] `bugeventlog.md` appended with any workflow failure or friction event
       encountered while implementing this package.
