@@ -225,8 +225,34 @@
         `0.2.103`); `wsl-launcher-shipped.bats` tool-check PATH uses a
         node-only shim dir (not wholesale Node install dir, so ambient Bun
         cannot invalidate bun-absent); unused `NODE_BIN_DIR` removed.
-        Exact three Bats files 26/26 GREEN; full Bats residual to host.
-        Host commit + re-audit + hosted Linux/Windows residual.
+        Exact three Bats files 26/26 GREEN. The later canonical exact commit
+        `84befb7d24d5ccf00df882459a56176ee6ea93a1` passed Linux run
+        `30973470341`, Windows run `30973470325`, and formal run
+        `30973470307`.
+      - Sprint 3 R4C persisted vendor lane admission: Effect
+        `PreflightRecordStore`, strict `write-record` and `lane-gate` commands,
+        Setup persistence, and the `lane-run.sh` admission adapter are
+        integrated. The correction at `56291e4` binds admission block position
+        and rejects vendors before durable lane side effects. The Windows
+        cancellation correction at `8e2b2f4` waits for child close with a
+        five-second bound. Different-family cold audits approved both exact
+        candidates. Exact commit `84befb7` passed all three hosted workflows.
+      - Sprint 3 R5A typed round-resume authority: `selectLatestRoundAttempt`
+        and `decideRoundResume` preserve the exact attempt, plan, checkpoint,
+        command vector, gate command, and report path. The correction at
+        `84befb7` rejects non-monotonic history before recovery and preserves
+        available attempt identity in fail-closed refusals. Focused tests,
+        full Node verification, architecture policy, cold audit, and exact
+        hosted Linux, Windows, and formal workflows passed.
+      - Sprint 3 R5B Effect resume-safety observations: process signal-zero
+        and no-follow lock probes, live layers, pure classifiers, and combined
+        observation are integrated at `d75b635`. The cold-audit correction
+        rejects foreign-platform path spellings before filesystem access and
+        maps each probe defect to its own `unknown` state without suppressing
+        Fiber interruption. Focused tests 28/28; full Node verification 796
+        pass, zero fail, one platform skip; typecheck, runtime verification,
+        strict OpenSpec validation, architecture policy, and the corrected
+        cold audit pass. Exact `d75b635` hosted workflows are pending.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

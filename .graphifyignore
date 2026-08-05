@@ -35,6 +35,14 @@ openspec/changes/**
 !openspec/changes/node-typescript-runtime/**
 !openspec/changes/council-review-plane/
 !openspec/changes/council-review-plane/**
+!openspec/changes/vendor-preflight/
+!openspec/changes/vendor-preflight/**
+!openspec/changes/round-resume-typescript/
+!openspec/changes/round-resume-typescript/**
+!openspec/changes/resume-safety-services-typescript/
+!openspec/changes/resume-safety-services-typescript/**
+!openspec/changes/knowledge-plane-refresh/
+!openspec/changes/knowledge-plane-refresh/**
 
 # These skills are vendored snapshots, not Foreman implementation authority.
 skills/graphify/**
