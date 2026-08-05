@@ -20001,14 +20001,57 @@ function isEnoent2(e) {
 function isEexist2(e) {
   return typeof e === "object" && e !== null && "code" in e && e.code === "EEXIST";
 }
-function runDir2(stateRoot, runId) {
-  return join6(stateRoot, "runs", runId);
+function isSafeSingleSegment(name) {
+  return typeof name === "string" && name.length > 0 && name !== "." && name !== ".." && !name.includes("/") && !name.includes("\\") && !name.includes("\0");
 }
-function eventsPath2(stateRoot, runId) {
-  return join6(runDir2(stateRoot, runId), "events.ndjson");
+function closeQuiet(fd) {
+  if (fd === void 0) return;
+  try {
+    closeSync3(fd);
+  } catch {
+  }
 }
-function leasePath(stateRoot, runId) {
-  return join6(runDir2(stateRoot, runId), ".supervise.lock");
+function identityOf2(st) {
+  return { dev: st.dev, ino: st.ino };
+}
+function identitiesEqual2(a, b) {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+function dirOpenFlags() {
+  const c = fsConstants3;
+  if (typeof c.O_DIRECTORY !== "number" || typeof c.O_NOFOLLOW !== "number") {
+    return null;
+  }
+  return fsConstants3.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW;
+}
+function fileOpenFlags() {
+  const c = fsConstants3;
+  if (typeof c.O_NOFOLLOW !== "number") return null;
+  return fsConstants3.O_RDONLY | c.O_NOFOLLOW;
+}
+var anchorSupportCache;
+function directoryIdentityAnchorSupported() {
+  if (anchorSupportCache !== void 0) return anchorSupportCache;
+  if (process.platform === "win32") {
+    anchorSupportCache = false;
+    return false;
+  }
+  if (dirOpenFlags() === null || fileOpenFlags() === null) {
+    anchorSupportCache = false;
+    return false;
+  }
+  try {
+    const st = lstatSync3("/proc/self/fd");
+    anchorSupportCache = st.isDirectory();
+  } catch {
+    anchorSupportCache = false;
+  }
+  return anchorSupportCache;
+}
+function procFdPath(fd) {
+  if (!directoryIdentityAnchorSupported()) return null;
+  if (!Number.isInteger(fd) || fd < 0) return null;
+  return `/proc/self/fd/${fd}`;
 }
 function observeDirComponent2(path) {
   let st;
@@ -20022,104 +20065,221 @@ function observeDirComponent2(path) {
   if (st.isDirectory()) return "directory";
   return "other";
 }
-function validateRunLayout(stateRoot, runId) {
-  const runs = join6(stateRoot, "runs");
-  const runsKind = observeDirComponent2(runs);
-  if (runsKind !== "directory") {
-    return runsKind === "missing" ? "missing" : runsKind;
+function recheckBoundDir(dir) {
+  try {
+    const st = fstatSync3(dir.fd);
+    return st.isDirectory() && identitiesEqual2(identityOf2(st), dir.identity);
+  } catch {
+    return false;
   }
-  const rd = runDir2(stateRoot, runId);
-  const rdKind = observeDirComponent2(rd);
-  if (rdKind !== "directory") {
-    return rdKind === "missing" ? "missing" : rdKind;
-  }
-  return "ok";
 }
-function ensureRealRunDir(stateRoot, runId) {
-  const runs = join6(stateRoot, "runs");
-  let kind = observeDirComponent2(runs);
-  if (kind === "symlink" || kind === "other") return false;
+function openBoundDirAtPath(path) {
+  const flags = dirOpenFlags();
+  if (flags === null || !directoryIdentityAnchorSupported()) {
+    return { _tag: "bad" };
+  }
+  const kind = observeDirComponent2(path);
+  if (kind === "missing") return { _tag: "missing" };
+  if (kind !== "directory") return { _tag: "bad" };
+  let fd;
+  try {
+    fd = openSync3(path, flags);
+    const st = fstatSync3(fd);
+    if (!st.isDirectory()) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const anchor = procFdPath(fd);
+    if (anchor === null) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    try {
+      readdirSync(anchor);
+    } catch {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const dir = { fd, identity: identityOf2(st) };
+    fd = void 0;
+    return { _tag: "ok", dir };
+  } catch {
+    closeQuiet(fd);
+    return { _tag: "bad" };
+  }
+}
+function openBoundChildDir(parent, name) {
+  const flags = dirOpenFlags();
+  if (flags === null || !isSafeSingleSegment(name)) return { _tag: "bad" };
+  if (!recheckBoundDir(parent)) return { _tag: "bad" };
+  const parentAnchor = procFdPath(parent.fd);
+  if (parentAnchor === null) return { _tag: "bad" };
+  const childPath = join6(parentAnchor, name);
+  const kind = observeDirComponent2(childPath);
+  if (kind === "missing") return { _tag: "missing" };
+  if (kind !== "directory") return { _tag: "bad" };
+  let fd;
+  try {
+    fd = openSync3(childPath, flags);
+    const st = fstatSync3(fd);
+    if (!st.isDirectory()) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    if (!recheckBoundDir(parent)) {
+      closeQuiet(fd);
+      return { _tag: "bad" };
+    }
+    const dir = { fd, identity: identityOf2(st) };
+    fd = void 0;
+    return { _tag: "ok", dir };
+  } catch {
+    closeQuiet(fd);
+    return { _tag: "bad" };
+  }
+}
+function ensureBoundChildDir(parent, name) {
+  if (!isSafeSingleSegment(name)) return { _tag: "bad" };
+  if (!recheckBoundDir(parent)) return { _tag: "bad" };
+  const parentAnchor = procFdPath(parent.fd);
+  if (parentAnchor === null) return { _tag: "bad" };
+  const childPath = join6(parentAnchor, name);
+  let kind = observeDirComponent2(childPath);
+  if (kind === "symlink" || kind === "other") return { _tag: "bad" };
   if (kind === "missing") {
     try {
-      mkdirSync2(runs, { recursive: false });
+      mkdirSync2(childPath, { recursive: false });
     } catch (e) {
-      if (!isEexist2(e)) return false;
+      if (!isEexist2(e)) return { _tag: "bad" };
     }
-    if (observeDirComponent2(runs) !== "directory") return false;
+    kind = observeDirComponent2(childPath);
+    if (kind !== "directory") return { _tag: "bad" };
   }
-  const rd = join6(runs, String(runId));
-  kind = observeDirComponent2(rd);
-  if (kind === "symlink" || kind === "other") return false;
+  return openBoundChildDir(parent, name);
+}
+function ensureBoundRunsDir(stateRoot) {
+  if (!directoryIdentityAnchorSupported()) return { _tag: "bad" };
+  const runsPath = join6(stateRoot, "runs");
+  let kind = observeDirComponent2(runsPath);
+  if (kind === "symlink" || kind === "other") return { _tag: "bad" };
   if (kind === "missing") {
     try {
-      mkdirSync2(rd, { recursive: false });
+      mkdirSync2(runsPath, { recursive: false });
     } catch (e) {
-      if (!isEexist2(e)) return false;
+      if (!isEexist2(e)) return { _tag: "bad" };
     }
-    if (observeDirComponent2(rd) !== "directory") return false;
+    kind = observeDirComponent2(runsPath);
+    if (kind !== "directory") return { _tag: "bad" };
   }
-  return true;
+  return openBoundDirAtPath(runsPath);
+}
+var raceHook;
+function fireAfterBindRunsDir() {
+  const h = raceHook?.afterBindRunsDir;
+  if (h !== void 0) h();
+}
+function fireAfterBindRunDir() {
+  const h = raceHook?.afterBindRunDir;
+  if (h !== void 0) h();
+}
+function childPathUnder(dir, name) {
+  if (!isSafeSingleSegment(name)) return null;
+  if (!recheckBoundDir(dir)) return null;
+  const anchor = procFdPath(dir.fd);
+  if (anchor === null) return null;
+  return join6(anchor, name);
 }
 function makeLiveTypedJournalReader(stateRoot) {
   return Layer_exports.succeed(TypedJournalReader, {
     readRun: (runId) => Effect_exports.sync(() => {
-      const layout = validateRunLayout(stateRoot, runId);
-      if (layout === "missing") {
+      if (!directoryIdentityAnchorSupported()) {
+        return { _tag: "Corrupt" };
+      }
+      const runsOpen = openBoundDirAtPath(join6(stateRoot, "runs"));
+      if (runsOpen._tag === "missing") {
         return { _tag: "Missing" };
       }
-      if (layout !== "ok") {
+      if (runsOpen._tag !== "ok") {
         return { _tag: "Corrupt" };
       }
-      const path = eventsPath2(stateRoot, runId);
-      let fd;
+      const runsDir = runsOpen.dir;
       try {
-        let st;
+        fireAfterBindRunsDir();
+        if (!recheckBoundDir(runsDir)) {
+          return { _tag: "Corrupt" };
+        }
+        const runOpen = openBoundChildDir(runsDir, String(runId));
+        if (runOpen._tag === "missing") {
+          return { _tag: "Missing" };
+        }
+        if (runOpen._tag !== "ok") {
+          return { _tag: "Corrupt" };
+        }
+        const runDir2 = runOpen.dir;
         try {
-          st = lstatSync3(path);
-        } catch (e) {
-          if (isEnoent2(e)) return { _tag: "Missing" };
-          return { _tag: "Corrupt" };
-        }
-        if (st.isSymbolicLink()) return { _tag: "Corrupt" };
-        if (!st.isFile()) return { _tag: "Corrupt" };
-        if (st.size > MAX_REPLAY_INPUT_BYTES) {
-          return { _tag: "Corrupt" };
-        }
-        if (st.size === 0) {
-          return { _tag: "Ok", records: [] };
-        }
-        const flags = fsConstants3.O_RDONLY | ("O_NOFOLLOW" in fsConstants3 ? fsConstants3.O_NOFOLLOW : 0);
-        fd = openSync3(path, flags);
-        const opened = fstatSync3(fd);
-        if (opened.ino !== st.ino || opened.dev !== st.dev || opened.size !== st.size) {
-          return { _tag: "Corrupt" };
-        }
-        const buf = Buffer.allocUnsafe(st.size);
-        let offset = 0;
-        while (offset < st.size) {
-          const n = readSync3(fd, buf, offset, st.size - offset, offset);
-          if (n === 0) break;
-          offset += n;
-        }
-        const replay = replayNdjsonBytes(buf.subarray(0, offset), {
-          fromLine: 0
-        });
-        if (replay.terminal._tag !== "CleanEof") {
-          return { _tag: "Corrupt" };
-        }
-        return {
-          _tag: "Ok",
-          records: replay.records
-        };
-      } catch {
-        return { _tag: "Corrupt" };
-      } finally {
-        if (fd !== void 0) {
-          try {
-            closeSync3(fd);
-          } catch {
+          fireAfterBindRunDir();
+          if (!recheckBoundDir(runDir2)) {
+            return { _tag: "Corrupt" };
           }
+          const eventsName = "events.ndjson";
+          const eventsPath2 = childPathUnder(runDir2, eventsName);
+          if (eventsPath2 === null) {
+            return { _tag: "Corrupt" };
+          }
+          let st;
+          try {
+            st = lstatSync3(eventsPath2);
+          } catch (e) {
+            if (isEnoent2(e)) return { _tag: "Missing" };
+            return { _tag: "Corrupt" };
+          }
+          if (st.isSymbolicLink()) return { _tag: "Corrupt" };
+          if (!st.isFile()) return { _tag: "Corrupt" };
+          if (st.size > MAX_REPLAY_INPUT_BYTES) {
+            return { _tag: "Corrupt" };
+          }
+          if (st.size === 0) {
+            return { _tag: "Ok", records: [] };
+          }
+          const flags = fileOpenFlags();
+          if (flags === null) return { _tag: "Corrupt" };
+          let fd;
+          try {
+            fd = openSync3(eventsPath2, flags);
+            const opened = fstatSync3(fd);
+            if (opened.ino !== st.ino || opened.dev !== st.dev || opened.size !== st.size || !opened.isFile()) {
+              return { _tag: "Corrupt" };
+            }
+            if (!recheckBoundDir(runDir2)) {
+              return { _tag: "Corrupt" };
+            }
+            const buf = Buffer.allocUnsafe(st.size);
+            let offset = 0;
+            while (offset < st.size) {
+              const n = readSync3(fd, buf, offset, st.size - offset, offset);
+              if (n === 0) break;
+              offset += n;
+            }
+            const replay = replayNdjsonBytes(buf.subarray(0, offset), {
+              fromLine: 0
+            });
+            if (replay.terminal._tag !== "CleanEof") {
+              return { _tag: "Corrupt" };
+            }
+            return {
+              _tag: "Ok",
+              records: replay.records
+            };
+          } catch {
+            return { _tag: "Corrupt" };
+          } finally {
+            closeQuiet(fd);
+          }
+        } finally {
+          closeQuiet(runDir2.fd);
         }
+      } finally {
+        closeQuiet(runsDir.fd);
       }
     })
   });
@@ -20127,70 +20287,130 @@ function makeLiveTypedJournalReader(stateRoot) {
 function makeLiveRunDiscovery(stateRoot) {
   return Layer_exports.succeed(RunDiscovery, {
     listRuns: () => Effect_exports.sync(() => {
-      const runsDir = join6(stateRoot, "runs");
-      const runsKind = observeDirComponent2(runsDir);
-      if (runsKind !== "directory") {
+      if (!directoryIdentityAnchorSupported()) {
         return [];
       }
-      let entries2;
+      const runsOpen = openBoundDirAtPath(join6(stateRoot, "runs"));
+      if (runsOpen._tag !== "ok") {
+        return [];
+      }
+      const runsDir = runsOpen.dir;
       try {
-        entries2 = readdirSync(runsDir);
-      } catch {
-        return [];
+        fireAfterBindRunsDir();
+        if (!recheckBoundDir(runsDir)) {
+          return [];
+        }
+        const anchor = procFdPath(runsDir.fd);
+        if (anchor === null) return [];
+        let entries2;
+        try {
+          entries2 = readdirSync(anchor);
+        } catch {
+          return [];
+        }
+        const out = [];
+        for (const name of entries2.sort()) {
+          if (!isSafeSingleSegment(name)) continue;
+          const child = openBoundChildDir(runsDir, name);
+          if (child._tag !== "ok") continue;
+          closeQuiet(child.dir.fd);
+          const id = decodeRunId(name);
+          if (typeof id === "string") out.push(id);
+        }
+        return out;
+      } finally {
+        closeQuiet(runsDir.fd);
       }
-      const out = [];
-      for (const name of entries2.sort()) {
-        const full = join6(runsDir, name);
-        if (observeDirComponent2(full) !== "directory") continue;
-        const id = decodeRunId(name);
-        if (typeof id === "string") out.push(id);
-      }
-      return out;
     })
   });
 }
 function makeLiveRunLease(stateRoot) {
   return Layer_exports.succeed(RunLease, {
     acquire: (runId) => Effect_exports.sync(() => {
-      if (!ensureRealRunDir(stateRoot, runId)) {
+      if (!directoryIdentityAnchorSupported()) {
         return { _tag: "Busy" };
       }
-      if (validateRunLayout(stateRoot, runId) !== "ok") {
+      const runsOpen = ensureBoundRunsDir(stateRoot);
+      if (runsOpen._tag !== "ok") {
         return { _tag: "Busy" };
       }
-      const lock = leasePath(stateRoot, runId);
-      const lockKind = observeDirComponent2(lock);
-      if (lockKind === "symlink" || lockKind === "other") {
-        return { _tag: "Busy" };
-      }
-      if (lockKind === "directory") {
-        return { _tag: "Busy" };
-      }
+      const runsDir = runsOpen.dir;
+      let runDir2;
       try {
-        mkdirSync2(lock, { recursive: false });
-      } catch (e) {
-        if (isEexist2(e)) return { _tag: "Busy" };
-        return { _tag: "Busy" };
-      }
-      if (observeDirComponent2(lock) !== "directory") {
-        try {
-          rmdirSync(lock);
-        } catch {
+        fireAfterBindRunsDir();
+        if (!recheckBoundDir(runsDir)) {
+          return { _tag: "Busy" };
         }
-        return { _tag: "Busy" };
-      }
-      let owned = true;
-      return {
-        _tag: "Held",
-        release: () => Effect_exports.sync(() => {
-          if (!owned) return;
-          owned = false;
+        const childOpen = ensureBoundChildDir(runsDir, String(runId));
+        if (childOpen._tag !== "ok") {
+          return { _tag: "Busy" };
+        }
+        runDir2 = childOpen.dir;
+        fireAfterBindRunDir();
+        if (!recheckBoundDir(runDir2)) {
+          return { _tag: "Busy" };
+        }
+        const lockName = ".supervise.lock";
+        const lockPath = childPathUnder(runDir2, lockName);
+        if (lockPath === null) {
+          return { _tag: "Busy" };
+        }
+        const lockKind = observeDirComponent2(lockPath);
+        if (lockKind === "symlink" || lockKind === "other") {
+          return { _tag: "Busy" };
+        }
+        if (lockKind === "directory") {
+          return { _tag: "Busy" };
+        }
+        try {
+          mkdirSync2(lockPath, { recursive: false });
+        } catch {
+          return { _tag: "Busy" };
+        }
+        if (observeDirComponent2(lockPath) !== "directory") {
           try {
-            rmdirSync(lock);
+            rmdirSync(lockPath);
           } catch {
           }
-        })
-      };
+          return { _tag: "Busy" };
+        }
+        if (!recheckBoundDir(runDir2)) {
+          try {
+            rmdirSync(lockPath);
+          } catch {
+          }
+          return { _tag: "Busy" };
+        }
+        const heldRun = runDir2;
+        runDir2 = void 0;
+        let owned = true;
+        return {
+          _tag: "Held",
+          release: () => Effect_exports.sync(() => {
+            if (!owned) return;
+            owned = false;
+            try {
+              if (recheckBoundDir(heldRun)) {
+                const releasePath = childPathUnder(
+                  heldRun,
+                  ".supervise.lock"
+                );
+                if (releasePath !== null) {
+                  if (observeDirComponent2(releasePath) === "directory") {
+                    rmdirSync(releasePath);
+                  }
+                }
+              }
+            } catch {
+            } finally {
+              closeQuiet(heldRun.fd);
+            }
+          })
+        };
+      } finally {
+        closeQuiet(runDir2?.fd);
+        closeQuiet(runsDir.fd);
+      }
     })
   });
 }
