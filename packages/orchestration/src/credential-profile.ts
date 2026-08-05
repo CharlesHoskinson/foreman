@@ -487,6 +487,12 @@ export type CredentialProfileRaceHook = {
    * calling linkSync. Tests only — proves WriteFailed without rename fallback.
    */
   readonly forceExclusiveLinkCode?: string;
+  /**
+   * When set, parent-directory open/fsync after publish fails. On POSIX this
+   * must surface as WriteFailed (not Initialized). Windows ignores unsupported
+   * directory sync only.
+   */
+  readonly forceParentDirSyncFailure?: boolean;
 };
 
 let raceHook: CredentialProfileRaceHook | undefined;
@@ -727,7 +733,16 @@ export function liveWriteAuthorityExclusive(
       // still see the file (conflict/Ready on re-read path). Prefer fail closed.
       return { _tag: "WriteFailed" };
     }
+    // Parent-directory open + fsync after publish. On POSIX a real failure is
+    // WriteFailed. Ignore only the Windows unsupported-directory-sync case.
     try {
+      if (raceHook?.forceParentDirSyncFailure === true) {
+        const err = new Error(
+          "forced parent directory sync failure",
+        ) as NodeJS.ErrnoException;
+        err.code = "EIO";
+        throw err;
+      }
       const dirFd = openSync(dir, fsConstants.O_RDONLY);
       try {
         fsyncSync(dirFd);
@@ -735,7 +750,10 @@ export function liveWriteAuthorityExclusive(
         closeSync(dirFd);
       }
     } catch {
-      /* parent fsync best-effort */
+      if (IS_POSIX) {
+        return { _tag: "WriteFailed" };
+      }
+      // Windows: directory open/fsync is often unsupported — ignore only here.
     }
     return { _tag: "Ok" };
   } catch {
@@ -862,6 +880,68 @@ function recheckLayoutIdentities(
   return null;
 }
 
+/**
+ * Recompute physical state-root and worktree containment. A linked ancestor
+ * that moves the same state-root inode into the worktree after admission must
+ * be refused with `state_root_in_worktree`.
+ */
+function recheckPhysicalContainment(
+  stateRoot: string,
+  worktreeRoot: string,
+): CredentialProfileRefusalReason | null {
+  const physicalState = physicalDirPath(stateRoot);
+  if (physicalState === null) return "invalid_state_root";
+  const physicalWorktree = physicalDirPath(worktreeRoot);
+  if (physicalWorktree === null) return "invalid_arguments";
+  if (isEqualOrDescendant(physicalState, physicalWorktree)) {
+    return "state_root_in_worktree";
+  }
+  return null;
+}
+
+/**
+ * Gate used before every authority read, before publication, and before
+ * success: physical containment first, then layout directory identities.
+ */
+function recheckBeforeAuthorityGate(
+  fs: CredentialProfileFsShape,
+  paths: {
+    readonly stateRoot: string;
+    readonly profilesRoot: string;
+    readonly authorityDir: string;
+    readonly homesDir: string;
+    readonly vendorHome: string;
+  },
+  ids: LayoutIdentities,
+  worktreeRoot: string,
+): CredentialProfileRefusalReason | null {
+  const contain = recheckPhysicalContainment(paths.stateRoot, worktreeRoot);
+  if (contain !== null) return contain;
+  return recheckLayoutIdentities(fs, paths, ids);
+}
+
+/**
+ * On POSIX, require layout directories `0700` and authority file `0600` before
+ * returning Ready (or Initialized). Refuse an unsafe existing profile; do not
+ * silently accept group/other bits. Windows is best-effort (no refusal).
+ */
+function verifySafeProfileModes(
+  fs: CredentialProfileFsShape,
+  layoutDirs: readonly string[],
+  authorityFile: string,
+): CredentialProfileRefusalReason | null {
+  if (!IS_POSIX) return null;
+  for (const dir of layoutDirs) {
+    const bits = fs.modeBits(dir);
+    if (bits === null) return "unreadable";
+    if (bits !== 0o700) return "authority_invalid";
+  }
+  const fileBits = fs.modeBits(authorityFile);
+  if (fileBits === null) return "unreadable";
+  if (fileBits !== 0o600) return "authority_invalid";
+  return null;
+}
+
 type ValidatedInput = {
   readonly stateRoot: string;
   readonly worktreeRoot: string;
@@ -985,8 +1065,9 @@ function checkComponent(
 }
 
 /**
- * Ensure owner-only directory mode 0700 on POSIX. Windows remains best-effort
- * (chmod may no-op). A POSIX permission failure is write_failed.
+ * Apply owner-only directory mode 0700 after creation. On POSIX, chmod
+ * failure or a resulting mode other than 0700 is write_failed. Windows is
+ * best-effort.
  */
 function applyAndVerifyDirMode(
   fs: CredentialProfileFsShape,
@@ -1004,6 +1085,21 @@ function applyAndVerifyDirMode(
   return null;
 }
 
+/**
+ * Verify an existing layout directory is 0700 on POSIX. Does not chmod to
+ * "fix" an unsafe profile — refuse with authority_invalid.
+ */
+function verifyExistingDirMode(
+  fs: CredentialProfileFsShape,
+  path: string,
+): CredentialProfileRefusalReason | null {
+  if (!IS_POSIX) return null;
+  const bits = fs.modeBits(path);
+  if (bits === null) return "unreadable";
+  if (bits !== 0o700) return "authority_invalid";
+  return null;
+}
+
 function ensureOwnerDir(
   fs: CredentialProfileFsShape,
   path: string,
@@ -1012,7 +1108,8 @@ function ensureOwnerDir(
   if (kind === "symlink") return "linked_path";
   if (kind === "file" || kind === "other") return "authority_invalid";
   if (kind === "directory") {
-    return applyAndVerifyDirMode(fs, path);
+    // Existing layout: verify owner-only mode; do not rewrite permissions.
+    return verifyExistingDirMode(fs, path);
   }
   try {
     fs.mkdirp(path, 0o700);
@@ -1022,6 +1119,7 @@ function ensureOwnerDir(
   const after = fs.classify(path);
   if (after === "symlink") return "linked_path";
   if (after !== "directory") return "write_failed";
+  // Fresh create: chmod through umask and verify 0700.
   return applyAndVerifyDirMode(fs, path);
 }
 
@@ -1110,7 +1208,14 @@ function initProfileSync(
 ): CredentialProfileResult {
   const v = validateInputs(input, fs);
   if (v._tag === "Refused") return v.result;
-  const { stateRoot, profileId, vendor, expected, stateRootIdentity } = v.value;
+  const {
+    stateRoot,
+    worktreeRoot,
+    profileId,
+    vendor,
+    expected,
+    stateRootIdentity,
+  } = v.value;
 
   const profilesRoot = join(stateRoot, PROFILES_DIR_NAME);
   const authorityDir = profileAuthorityDir(stateRoot, profileId);
@@ -1124,6 +1229,7 @@ function initProfileSync(
     homesDir,
     vendorHome,
   };
+  const layoutDirList = [profilesRoot, authorityDir, homesDir, vendorHome] as const;
 
   // Intermediate layout components: refuse links / non-dirs.
   for (const p of [profilesRoot, authorityDir, homesDir]) {
@@ -1140,7 +1246,7 @@ function initProfileSync(
 
   // Ensure directories (owner-only where supported). Create only the
   // selected vendor home; the other vendor home need not exist.
-  for (const p of [profilesRoot, authorityDir, homesDir, vendorHome]) {
+  for (const p of layoutDirList) {
     const err = ensureOwnerDir(fs, p);
     if (err !== null) return refuse(err);
   }
@@ -1163,16 +1269,26 @@ function initProfileSync(
 
   raceHook?.afterEnsureDirs?.();
 
-  // Recheck every tracked identity after the ensure hook (refuse link swap).
+  // Recheck physical containment + every tracked identity after ensure hook.
   {
-    const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+    );
     if (err !== null) return refuse(err);
   }
 
   // Existing authority: exact match → Ready; conflict → refuse (no write).
-  // Recheck identities immediately before the authority read.
+  // Recheck containment + identities immediately before the authority read.
   {
-    const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+    );
     if (err !== null) return refuse(err);
   }
   const existing = readAuthority(fs, jsonPath);
@@ -1183,17 +1299,31 @@ function initProfileSync(
     if (!recordsEqualExact(existing.record, expected)) {
       return refuse("authority_conflict");
     }
-    // Recheck identities before success.
+    // Recheck containment + identities + safe modes before Ready success.
     {
-      const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+      const err = recheckBeforeAuthorityGate(
+        fs,
+        layoutPaths,
+        layoutIds,
+        worktreeRoot,
+      );
+      if (err !== null) return refuse(err);
+    }
+    {
+      const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
       if (err !== null) return refuse(err);
     }
     return successResult("Ready", stateRoot, existing.record);
   }
 
-  // Absent: exclusive write. Recheck identities before publish.
+  // Absent: exclusive write. Recheck containment + identities before publish.
   {
-    const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+    );
     if (err !== null) return refuse(err);
   }
   const body = Buffer.from(renderCredentialProfileRecordFile(expected), "utf8");
@@ -1208,9 +1338,14 @@ function initProfileSync(
 
   raceHook?.afterWrite?.();
 
-  // Recheck identities before post-write authority read.
+  // Recheck containment + identities before post-write authority read.
   {
-    const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+    );
     if (err !== null) return refuse(err);
   }
 
@@ -1221,9 +1356,18 @@ function initProfileSync(
   if (!recordsEqualExact(after.record, expected)) {
     return refuse("authority_conflict");
   }
-  // Recheck identities before success.
+  // Recheck containment + identities + safe modes before success.
   {
-    const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+    );
+    if (err !== null) return refuse(err);
+  }
+  {
+    const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
     if (err !== null) return refuse(err);
   }
   if (written._tag === "Exists") {
@@ -1239,7 +1383,14 @@ function resolveProfileSync(
 ): CredentialProfileResult {
   const v = validateInputs(input, fs);
   if (v._tag === "Refused") return v.result;
-  const { stateRoot, profileId, vendor, expected, stateRootIdentity } = v.value;
+  const {
+    stateRoot,
+    worktreeRoot,
+    profileId,
+    vendor,
+    expected,
+    stateRootIdentity,
+  } = v.value;
 
   const profilesRoot = join(stateRoot, PROFILES_DIR_NAME);
   const authorityDir = profileAuthorityDir(stateRoot, profileId);
@@ -1253,6 +1404,7 @@ function resolveProfileSync(
     homesDir,
     vendorHome,
   };
+  const layoutDirList = [profilesRoot, authorityDir, homesDir, vendorHome] as const;
 
   for (const p of [profilesRoot, authorityDir]) {
     const err = checkComponent(fs, p, { expect: "dir", allowMissing: false });
@@ -1273,7 +1425,7 @@ function resolveProfileSync(
     if (err !== null) return refuse(err);
   }
 
-  // Capture and recheck layout identities before authority read.
+  // Capture and recheck layout identities + physical containment before read.
   const captured: Partial<Record<keyof LayoutIdentities, PathIdentity>> = {
     stateRoot: stateRootIdentity,
   };
@@ -1289,7 +1441,12 @@ function resolveProfileSync(
   }
   const layoutIds = captured as LayoutIdentities;
   {
-    const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+    );
     if (err !== null) return refuse(err);
   }
 
@@ -1301,7 +1458,16 @@ function resolveProfileSync(
     return refuse("authority_conflict");
   }
   {
-    const err = recheckLayoutIdentities(fs, layoutPaths, layoutIds);
+    const err = recheckBeforeAuthorityGate(
+      fs,
+      layoutPaths,
+      layoutIds,
+      worktreeRoot,
+    );
+    if (err !== null) return refuse(err);
+  }
+  {
+    const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
     if (err !== null) return refuse(err);
   }
   return successResult("Ready", stateRoot, existing.record);

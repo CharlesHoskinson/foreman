@@ -14,7 +14,9 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
+  rmdirSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -770,8 +772,17 @@ describe("linked paths and regular-file collisions", () => {
     () => {
       const { root, stateRoot, worktreeRoot } = tempPair("sl-vend");
       try {
-        const homes = join(stateRoot, "credential-profiles", "p", "homes");
+        const profiles = join(stateRoot, "credential-profiles");
+        const auth = join(profiles, "p");
+        const homes = join(auth, "homes");
         mkdirSync(homes, { recursive: true });
+        // Parent layout dirs must be owner-only so mode checks do not mask the
+        // linked_path classification of the vendor-home component.
+        if (!IS_WIN) {
+          chmodSync(profiles, 0o700);
+          chmodSync(auth, 0o700);
+          chmodSync(homes, 0o700);
+        }
         const real = join(root, "elsewhere");
         mkdirSync(real, { recursive: true });
         symlinkSync(real, join(homes, "grok"), IS_WIN ? "junction" : undefined);
@@ -1195,6 +1206,144 @@ describe("identity change, write failures, concurrency", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("recomputes physical containment after admission when ancestor is retargeted into worktree", () => {
+    if (IS_WIN) {
+      // Ancestor retarget via symlink is POSIX-stable; skip on Windows.
+      return;
+    }
+    const root = mkdtempSync(join(tmpdir(), "foreman-cp-contain-"));
+    try {
+      const worktreeRoot = join(root, "worktree");
+      const outer = join(root, "outer");
+      const stateRoot = join(outer, "state");
+      mkdirSync(worktreeRoot, { recursive: true });
+      mkdirSync(stateRoot, { recursive: true });
+
+      setCredentialProfileRaceHook({
+        afterEnsureDirs: () => {
+          // Move the same state-root directory inode under the worktree and
+          // retarget the logical ancestor so physical containment flips while
+          // path strings and directory inodes can still look coherent.
+          const captured = join(worktreeRoot, "captured");
+          mkdirSync(captured, { recursive: true });
+          const movedState = join(captured, "state");
+          renameSync(stateRoot, movedState);
+          rmdirSync(outer);
+          symlinkSync(captured, outer);
+        },
+      });
+
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(
+        r,
+        { _tag: "Refused", reason: "state_root_in_worktree" },
+        JSON.stringify(r),
+      );
+      // Must not publish authority after containment flips.
+      assert.equal(existsSync(profileJsonPath(stateRoot, "p")), false);
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("POSIX parent-directory sync failure after publish is write_failed not Initialized", () => {
+    if (IS_WIN) {
+      // Windows ignores unsupported directory sync; this contract is POSIX.
+      return;
+    }
+    const { root, stateRoot, worktreeRoot } = tempPair("parentsync");
+    try {
+      setCredentialProfileRaceHook({
+        forceParentDirSyncFailure: true,
+      });
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, { _tag: "Refused", reason: "write_failed" });
+      assert.notEqual(r._tag, "Initialized");
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POSIX mode contracts before Ready (0700 dirs / 0600 authority)
+// ---------------------------------------------------------------------------
+
+describe("POSIX safe modes before Ready", () => {
+  it("refuses Ready when an existing layout directory is not 0700", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("dirmode");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      assert.equal(runInit(input)._tag, "Initialized");
+      const homes = join(stateRoot, "credential-profiles", "p", "homes");
+      chmodSync(homes, 0o755);
+      assert.equal(lstatSync(homes).mode & 0o777, 0o755);
+
+      const initAgain = runInit(input);
+      assert.deepEqual(initAgain, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+
+      const resolved = runResolve(input);
+      assert.deepEqual(resolved, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses Ready when existing profile.json is not 0600", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("filemode");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      assert.equal(runInit(input)._tag, "Initialized");
+      const jsonPath = profileJsonPath(stateRoot, "p");
+      chmodSync(jsonPath, 0o644);
+      assert.equal(lstatSync(jsonPath).mode & 0o777, 0o644);
+
+      const initAgain = runInit(input);
+      assert.deepEqual(initAgain, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+
+      const resolved = runResolve(input);
+      assert.deepEqual(resolved, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1223,6 +1372,17 @@ describe("no credential file reads", () => {
         "credentials.json",
       );
       mkdirSync(dirname(secretPath), { recursive: true });
+      // Owner-only layout so POSIX mode verification admits the pre-created tree.
+      if (!IS_WIN) {
+        const profiles = join(stateRoot, "credential-profiles");
+        const auth = join(profiles, "p");
+        const homes = join(auth, "homes");
+        const vendorHome = join(homes, "grok");
+        chmodSync(profiles, 0o700);
+        chmodSync(auth, 0o700);
+        chmodSync(homes, 0o700);
+        chmodSync(vendorHome, 0o700);
+      }
       writeFileSync(secretPath, '{"token":"SUPERSECRET"}');
 
       const r = runInit(
