@@ -10,6 +10,8 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
+  rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
@@ -23,6 +25,8 @@ import { Effect } from "effect";
 import { canonicalize, isCanonicalJsonText } from "@foreman/core";
 import {
   makeCredentialProfileRecord,
+  PROFILE_JSON_NAME,
+  PROFILES_DIR_NAME,
   profileIdentityOf,
 } from "./credential-profile.js";
 import {
@@ -30,6 +34,7 @@ import {
   DEFAULT_CODEX_CREDENTIAL_PROFILE_ID,
   DEFAULT_GROK_CREDENTIAL_PROFILE_ID,
   MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES,
+  PROFILE_PREFLIGHT_DIR_NAME,
   ProfilePreflightStoreFailure,
   buildVendorHomeChildEnv,
   decodeCredentialProfilePreflightV1,
@@ -38,10 +43,12 @@ import {
   liveCredentialProfilePreflightStore,
   makeCredentialProfilePreflight,
   parseCredentialProfilePreflightBytes,
+  profilePreflightDirectoryAnchorSupported,
   profilePreflightRecordPath,
   readProfilePreflightRecord,
   renderCredentialProfilePreflight,
   renderCredentialProfilePreflightFile,
+  setProfilePreflightRaceHook,
   writeProfilePreflightRecord,
   type CredentialProfilePreflightV1,
 } from "./credential-profile-preflight.js";
@@ -114,6 +121,18 @@ function sampleWrapper(
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "profile-preflight-"));
+}
+
+/**
+ * Seed R7A-owned authority only: state root, credential-profiles, profile
+ * directory, and profile.json. The store must never create those; tests seed
+ * them so write can only create the preflight child.
+ */
+function seedR7aAuthority(stateRoot: string, profileId: string): string {
+  const auth = join(stateRoot, PROFILES_DIR_NAME, profileId);
+  mkdirSync(auth, { recursive: true, mode: 0o700 });
+  writeFileSync(join(auth, PROFILE_JSON_NAME), "{}\n", { mode: 0o600 });
+  return auth;
 }
 
 describe("default profile ids and paths", () => {
@@ -347,6 +366,7 @@ describe("parseCredentialProfilePreflightBytes", () => {
 describe("CredentialProfilePreflightStore", () => {
   it("writes canonical JSON with one trailing LF at the exact path", async () => {
     const root = tempDir();
+    seedR7aAuthority(root, "grok-default");
     const path = profilePreflightRecordPath(root, "grok-default", "grok");
     const wrapper = sampleWrapper();
 
@@ -377,8 +397,16 @@ describe("CredentialProfilePreflightStore", () => {
     { skip: process.platform === "win32" },
     async () => {
       const root = tempDir();
+      seedR7aAuthority(root, "p");
       const path = profilePreflightRecordPath(root, "p", "grok");
-      await Effect.runPromise(writeProfilePreflightRecord(path, sampleWrapper()));
+      const rec = makeCredentialProfileRecord("p", "grok");
+      const fixed = makeCredentialProfilePreflight(
+        "p",
+        profileIdentityOf(rec),
+        "grok",
+        readyRecord(),
+      );
+      await Effect.runPromise(writeProfilePreflightRecord(path, fixed));
       assert.equal(statSync(dirnameSafe(path)).mode & 0o777, 0o700);
       assert.equal(statSync(path).mode & 0o777, 0o600);
     },
@@ -386,9 +414,8 @@ describe("CredentialProfilePreflightStore", () => {
 
   it("reads back a published record with no-follow bounded I/O", async () => {
     const root = tempDir();
+    seedR7aAuthority(root, "p");
     const path = profilePreflightRecordPath(root, "p", "grok");
-    const wrapper = sampleWrapper({ profileId: "p" });
-    // Fix identity to match profileId p
     const rec = makeCredentialProfileRecord("p", "grok");
     const fixed = makeCredentialProfilePreflight(
       "p",
@@ -408,12 +435,68 @@ describe("CredentialProfilePreflightStore", () => {
     assert.equal(read.vendor, "grok");
   });
 
+  it("refuses to create missing credential-profiles or profile authority", async () => {
+    const root = tempDir();
+    // State root only — no R7A credential-profiles.
+    const path = profilePreflightRecordPath(root, "p", "grok");
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    const either = await Effect.runPromise(
+      writeProfilePreflightRecord(path, fixed).pipe(Effect.either),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "absent");
+    }
+    assert.equal(existsSync(join(root, PROFILES_DIR_NAME)), false);
+  });
+
+  it("refuses write when profile.json is missing under authority", async () => {
+    const root = tempDir();
+    const auth = join(root, PROFILES_DIR_NAME, "p");
+    mkdirSync(auth, { recursive: true, mode: 0o700 });
+    // No profile.json
+    const path = profilePreflightRecordPath(root, "p", "grok");
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    const either = await Effect.runPromise(
+      writeProfilePreflightRecord(path, fixed).pipe(Effect.either),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "absent");
+    }
+    assert.equal(
+      existsSync(join(auth, PROFILE_PREFLIGHT_DIR_NAME)),
+      false,
+      "must not create preflight without profile.json",
+    );
+  });
+
   it("refuses symlink at the final path on read", async () => {
     const root = tempDir();
-    const dir = join(root, "credential-profiles", "p", "preflight");
+    seedR7aAuthority(root, "p");
+    const dir = join(root, PROFILES_DIR_NAME, "p", PROFILE_PREFLIGHT_DIR_NAME);
     mkdirSync(dir, { recursive: true });
     const target = join(dir, "real.json");
-    writeFileSync(target, renderCredentialProfilePreflightFile(sampleWrapper()));
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    writeFileSync(target, renderCredentialProfilePreflightFile(fixed));
     const linkPath = join(dir, "grok.json");
     try {
       symlinkSync(target, linkPath);
@@ -438,9 +521,9 @@ describe("CredentialProfilePreflightStore", () => {
 
   it("refuses linked preflight directory on read", async () => {
     const root = tempDir();
-    const profileDir = join(root, "credential-profiles", "p");
+    seedR7aAuthority(root, "p");
+    const profileDir = join(root, PROFILES_DIR_NAME, "p");
     const realPreflight = join(root, "outside-preflight");
-    mkdirSync(profileDir, { recursive: true });
     mkdirSync(realPreflight, { recursive: true });
     const rec = makeCredentialProfileRecord("p", "grok");
     const fixed = makeCredentialProfilePreflight(
@@ -453,7 +536,7 @@ describe("CredentialProfilePreflightStore", () => {
       join(realPreflight, "grok.json"),
       renderCredentialProfilePreflightFile(fixed),
     );
-    const linkPreflight = join(profileDir, "preflight");
+    const linkPreflight = join(profileDir, PROFILE_PREFLIGHT_DIR_NAME);
     try {
       symlinkSync(realPreflight, linkPreflight);
     } catch {
@@ -473,7 +556,12 @@ describe("CredentialProfilePreflightStore", () => {
     const root = tempDir();
     const outside = join(root, "outside-profiles");
     mkdirSync(outside, { recursive: true });
-    const profilesLink = join(root, "credential-profiles");
+    // Seed R7A under the outside target, then link credential-profiles.
+    mkdirSync(join(outside, "p"), { recursive: true, mode: 0o700 });
+    writeFileSync(join(outside, "p", PROFILE_JSON_NAME), "{}\n", {
+      mode: 0o600,
+    });
+    const profilesLink = join(root, PROFILES_DIR_NAME);
     try {
       symlinkSync(outside, profilesLink);
     } catch {
@@ -498,10 +586,11 @@ describe("CredentialProfilePreflightStore", () => {
 
   it("refuses linked profile directory on write", async () => {
     const root = tempDir();
-    const profilesRoot = join(root, "credential-profiles");
+    const profilesRoot = join(root, PROFILES_DIR_NAME);
     mkdirSync(profilesRoot, { recursive: true });
     const outside = join(root, "outside-profile");
     mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, PROFILE_JSON_NAME), "{}\n", { mode: 0o600 });
     const profileLink = join(profilesRoot, "p");
     try {
       symlinkSync(outside, profileLink);
@@ -550,6 +639,7 @@ describe("CredentialProfilePreflightStore", () => {
 
   it("atomic publish replaces previous content", async () => {
     const root = tempDir();
+    seedR7aAuthority(root, "p");
     const path = profilePreflightRecordPath(root, "p", "grok");
     const rec = makeCredentialProfileRecord("p", "grok");
     const id = profileIdentityOf(rec);
@@ -620,6 +710,7 @@ describe("CredentialProfilePreflightStore", () => {
 
   it("cleans up temp files after a failed write of an invalid wrapper", async () => {
     const root = tempDir();
+    seedR7aAuthority(root, "p");
     const path = profilePreflightRecordPath(root, "p", "grok");
     const bad = sampleWrapper({
       profileId: "not valid!!",
@@ -653,6 +744,161 @@ describe("CredentialProfilePreflightStore", () => {
       assert.equal(either.left.reason, "absent");
     }
   });
+});
+
+describe("profile preflight authority race seams", () => {
+  it("vanished profile authority after capture fails closed before publish", async () => {
+    const root = tempDir();
+    seedR7aAuthority(root, "p");
+    const path = profilePreflightRecordPath(root, "p", "grok");
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    const authDir = join(root, PROFILES_DIR_NAME, "p");
+    setProfilePreflightRaceHook({
+      afterCaptureAuthority: () => {
+        // Remove the whole profile authority after capture.
+        rmSync(authDir, { recursive: true, force: true });
+      },
+    });
+    try {
+      const either = await Effect.runPromise(
+        writeProfilePreflightRecord(path, fixed).pipe(Effect.either),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assert.ok(
+          either.left.reason === "identity_changed" ||
+            either.left.reason === "absent" ||
+            either.left.reason === "write_failed",
+        );
+      }
+      assert.equal(existsSync(path), false);
+    } finally {
+      setProfilePreflightRaceHook(undefined);
+    }
+  });
+
+  it("state-root link swap after capture fails closed", async () => {
+    const outer = tempDir();
+    const realState = join(outer, "real-state");
+    mkdirSync(realState, { recursive: true });
+    seedR7aAuthority(realState, "p");
+    // Use realState as the state root path for the write.
+    const path = profilePreflightRecordPath(realState, "p", "grok");
+    const rec = makeCredentialProfileRecord("p", "grok");
+    const fixed = makeCredentialProfilePreflight(
+      "p",
+      profileIdentityOf(rec),
+      "grok",
+      readyRecord(),
+    );
+    const parked = join(outer, "parked-state");
+    const attacker = join(outer, "attacker-state");
+    mkdirSync(attacker, { recursive: true });
+    seedR7aAuthority(attacker, "p");
+
+    setProfilePreflightRaceHook({
+      afterCaptureAuthority: () => {
+        // Swap state root path to a symlink pointing at the attacker tree.
+        renameSync(realState, parked);
+        try {
+          symlinkSync(attacker, realState);
+        } catch {
+          // Restore if symlink unsupported.
+          renameSync(parked, realState);
+        }
+      },
+    });
+    try {
+      const either = await Effect.runPromise(
+        writeProfilePreflightRecord(path, fixed).pipe(Effect.either),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assert.ok(
+          either.left.reason === "linked_path" ||
+            either.left.reason === "identity_changed" ||
+            either.left.reason === "absent" ||
+            either.left.reason === "write_failed",
+        );
+      }
+      // Must not publish into the attacker tree via the swapped path.
+      assert.equal(
+        existsSync(profilePreflightRecordPath(attacker, "p", "grok")),
+        false,
+      );
+    } finally {
+      setProfilePreflightRaceHook(undefined);
+    }
+  });
+
+  it(
+    "parent swap at publication boundary does not publish into attacker dir",
+    {
+      skip:
+        process.platform === "win32" ||
+        !profilePreflightDirectoryAnchorSupported(),
+    },
+    async () => {
+      const root = tempDir();
+      seedR7aAuthority(root, "p");
+      const path = profilePreflightRecordPath(root, "p", "grok");
+      const rec = makeCredentialProfileRecord("p", "grok");
+      const fixed = makeCredentialProfilePreflight(
+        "p",
+        profileIdentityOf(rec),
+        "grok",
+        readyRecord(),
+      );
+      // Create preflight first so bind succeeds, then swap it.
+      const preflightDir = join(
+        root,
+        PROFILES_DIR_NAME,
+        "p",
+        PROFILE_PREFLIGHT_DIR_NAME,
+      );
+      mkdirSync(preflightDir, { recursive: true, mode: 0o700 });
+      const outside = join(root, "outside-preflight");
+      mkdirSync(outside, { recursive: true });
+      const parked = join(root, "parked-preflight");
+
+      setProfilePreflightRaceHook({
+        afterBindParentDir: () => {
+          // Replace preflight path with a symlink to outside after bind.
+          renameSync(preflightDir, parked);
+          try {
+            symlinkSync(outside, preflightDir);
+          } catch {
+            renameSync(parked, preflightDir);
+          }
+        },
+      });
+      try {
+        const either = await Effect.runPromise(
+          writeProfilePreflightRecord(path, fixed).pipe(Effect.either),
+        );
+        assert.equal(either._tag, "Left");
+        if (either._tag === "Left") {
+          assert.ok(
+            either.left.reason === "linked_path" ||
+              either.left.reason === "identity_changed" ||
+              either.left.reason === "write_failed",
+          );
+        }
+        // Anchored publish must not land the record under the attacker path.
+        assert.equal(existsSync(join(outside, "grok.json")), false);
+        // Path-visible publish must not succeed after the swap.
+        assert.equal(existsSync(path), false);
+      } finally {
+        setProfilePreflightRaceHook(undefined);
+      }
+    },
+  );
 });
 
 function dirnameSafe(p: string): string {

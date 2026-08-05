@@ -17,12 +17,13 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   renameSync,
   rmSync,
   unlinkSync,
   accessSync,
 } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { Effect, Layer } from "effect";
 import {
   PathLookup,
@@ -672,27 +673,199 @@ export function lexicalStateRootPreflight(
 }
 
 /**
+ * Resolve the nearest existing ancestor of `path` without creating anything.
+ * Returns the path of the nearest existing component (may be a symlink) and
+ * the missing suffix segments from that ancestor down to `path` (exclusive of
+ * the ancestor, inclusive of the final component).
+ */
+function nearestExistingAncestor(path: string): {
+  readonly nearest: string;
+  readonly missingSegments: readonly string[];
+} {
+  const missing: string[] = [];
+  let probe = path;
+  for (;;) {
+    try {
+      lstatSync(probe);
+      return { nearest: probe, missingSegments: missing };
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") {
+        // Unreadable intermediate — treat as no usable ancestor.
+        return { nearest: probe, missingSegments: missing };
+      }
+    }
+    const parent = dirname(probe);
+    if (parent === probe) {
+      return { nearest: probe, missingSegments: missing };
+    }
+    missing.unshift(basename(probe));
+    probe = parent;
+  }
+}
+
+function physicalAbsoluteDir(path: string): string | null {
+  try {
+    const st = lstatSync(path);
+    if (st.isSymbolicLink()) {
+      // Resolve through the link for physical containment only.
+      return normalizeAbsolutePath(realpathSync(path));
+    }
+    if (!st.isDirectory()) return null;
+    return normalizeAbsolutePath(realpathSync(path));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Create a missing external state root after lexical preflight succeeds.
- * Does not chmod an existing directory. Does not follow a final-component link.
+ *
+ * Before creating anything: resolve the nearest existing ancestor physically
+ * and refuse when that physical ancestor plus the missing suffix would place
+ * the state root equal to or under `repoRoot`. Create missing components one
+ * level at a time with retained identity checks — never recursive mkdir
+ * through an unvalidated ancestor. Does not chmod an existing directory.
+ * Does not follow a final-component link at the state root itself.
+ *
  * Must not be called for a root that fails lexical preflight.
  */
-function ensureExternalStateRoot(stateRoot: string): boolean {
+export function ensureExternalStateRoot(
+  stateRoot: string,
+  repoRoot: string,
+): boolean {
   try {
     const st = lstatSync(stateRoot);
     if (st.isSymbolicLink()) return false;
     if (!st.isDirectory()) return false;
     // Existing real directory: do not chmod; R7A owns authority modes.
+    // Physical containment is still enforced (linked ancestor → inside repo).
+    const physicalState = physicalAbsoluteDir(stateRoot);
+    const physicalRepo = physicalAbsoluteDir(repoRoot);
+    if (physicalState === null || physicalRepo === null) return false;
+    if (isEqualOrDescendant(physicalState, physicalRepo)) return false;
+    if (isEqualOrDescendant(stateRoot, normalizeAbsolutePath(repoRoot))) {
+      return false;
+    }
     return true;
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") return false;
   }
+
+  const { nearest, missingSegments } = nearestExistingAncestor(stateRoot);
+  if (missingSegments.length === 0) {
+    // Path exists now (race) — re-enter through the exists branch logic.
+    return ensureExternalStateRoot(stateRoot, repoRoot);
+  }
+
+  // Nearest must be observable; refuse if it is not a directory-or-link-to-dir.
   try {
-    mkdirSync(stateRoot, { recursive: true, mode: 0o700 });
-    return true;
+    const st = lstatSync(nearest);
+    if (!st.isSymbolicLink() && !st.isDirectory()) return false;
   } catch {
     return false;
   }
+
+  const physicalNearest = physicalAbsoluteDir(nearest);
+  if (physicalNearest === null) return false;
+
+  // Physical would-be state root = physical nearest + missing suffix.
+  const physicalWouldBe = normalizeAbsolutePath(
+    join(physicalNearest, ...missingSegments),
+  );
+  const physicalRepo = physicalAbsoluteDir(repoRoot);
+  if (physicalRepo === null) return false;
+  if (isEqualOrDescendant(physicalWouldBe, physicalRepo)) {
+    return false;
+  }
+  // Logical would-be path under logical repo (covers pure logical cases).
+  if (isEqualOrDescendant(stateRoot, normalizeAbsolutePath(repoRoot))) {
+    return false;
+  }
+  // Physical nearest already inside repo implies any created child is inside.
+  if (isEqualOrDescendant(physicalNearest, physicalRepo)) {
+    return false;
+  }
+
+  // Create one level at a time from the nearest ancestor, retaining identity.
+  // Never mkdir recursive through an unvalidated ancestor.
+  let parentPath = nearest;
+  let parentPhysical = physicalNearest;
+  for (const segment of missingSegments) {
+    if (
+      segment.length === 0 ||
+      segment === "." ||
+      segment === ".." ||
+      segment.includes("\0")
+    ) {
+      return false;
+    }
+    // Parent must still be the same physical directory (no silent retarget).
+    const parentNow = physicalAbsoluteDir(parentPath);
+    if (parentNow === null || parentNow !== parentPhysical) {
+      return false;
+    }
+    // Parent final component must not have become a dangling/other type.
+    try {
+      const pst = lstatSync(parentPath);
+      if (!pst.isDirectory() && !pst.isSymbolicLink()) return false;
+    } catch {
+      return false;
+    }
+
+    const childPath = join(parentPath, segment);
+    try {
+      const existing = lstatSync(childPath);
+      if (existing.isSymbolicLink()) return false;
+      if (!existing.isDirectory()) return false;
+      // Already exists as a real directory — continue with its identity.
+      const childPhysical = physicalAbsoluteDir(childPath);
+      if (childPhysical === null) return false;
+      if (isEqualOrDescendant(childPhysical, physicalRepo)) return false;
+      parentPath = childPath;
+      parentPhysical = childPhysical;
+      continue;
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") return false;
+    }
+
+    try {
+      mkdirSync(childPath, { recursive: false, mode: 0o700 });
+    } catch {
+      return false;
+    }
+
+    // Post-create: must be a real non-linked directory outside the repo.
+    try {
+      const created = lstatSync(childPath);
+      if (created.isSymbolicLink() || !created.isDirectory()) return false;
+    } catch {
+      return false;
+    }
+    const childPhysical = physicalAbsoluteDir(childPath);
+    if (childPhysical === null) return false;
+    if (isEqualOrDescendant(childPhysical, physicalRepo)) return false;
+    // Parent identity retained after create.
+    const parentAfter = physicalAbsoluteDir(parentPath);
+    if (parentAfter === null || parentAfter !== parentPhysical) return false;
+
+    parentPath = childPath;
+    parentPhysical = childPhysical;
+  }
+
+  // Final state root must be a real directory at the requested path.
+  try {
+    const st = lstatSync(stateRoot);
+    if (st.isSymbolicLink() || !st.isDirectory()) return false;
+  } catch {
+    return false;
+  }
+  const finalPhysical = physicalAbsoluteDir(stateRoot);
+  if (finalPhysical === null) return false;
+  if (isEqualOrDescendant(finalPhysical, physicalRepo)) return false;
+  return true;
 }
 
 /**
@@ -777,7 +950,7 @@ export function runForemanSetup(
     }
     const foremanHome = lexical.stateRoot;
 
-    if (!ensureExternalStateRoot(foremanHome)) {
+    if (!ensureExternalStateRoot(foremanHome, env.repoRoot)) {
       io.writeStderr(MSG_CREDENTIAL_PROFILE_REFUSED + " (invalid_state_root)\n");
       return EXIT_BOUNDARY_FAILURE;
     }

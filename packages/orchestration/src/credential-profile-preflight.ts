@@ -25,7 +25,7 @@ import {
   writeSync,
   type Stats,
 } from "node:fs";
-import { dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { Context, Effect, Layer } from "effect";
 import {
   canonicalize,
@@ -37,6 +37,7 @@ import {
   isIgnorableParentDirSyncError,
   isValidProfileId,
   profileAuthorityDir,
+  PROFILE_JSON_NAME,
   type CredentialVendor,
 } from "./credential-profile.js";
 import {
@@ -436,6 +437,47 @@ function authorityOpenFlags(): number {
   return fsConstants.O_RDONLY;
 }
 
+function dirOpenFlags(): number | null {
+  const c = fsConstants as Record<string, number | undefined>;
+  if (typeof c.O_DIRECTORY !== "number" || typeof c.O_NOFOLLOW !== "number") {
+    return null;
+  }
+  return fsConstants.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW;
+}
+
+let anchorSupportCache: boolean | undefined;
+
+/**
+ * True when this process can open no-follow directory descriptors and
+ * address children through a verified `/proc/self/fd/<fd>` anchor.
+ * Windows and hosts without those primitives cannot prove publication
+ * boundaries — callers must fail closed before mutation.
+ */
+export function profilePreflightDirectoryAnchorSupported(): boolean {
+  if (anchorSupportCache !== undefined) return anchorSupportCache;
+  if (process.platform === "win32") {
+    anchorSupportCache = false;
+    return false;
+  }
+  if (dirOpenFlags() === null) {
+    anchorSupportCache = false;
+    return false;
+  }
+  try {
+    const st = lstatSync("/proc/self/fd");
+    anchorSupportCache = st.isDirectory();
+  } catch {
+    anchorSupportCache = false;
+  }
+  return anchorSupportCache;
+}
+
+function procFdPath(fd: number): string | null {
+  if (!profilePreflightDirectoryAnchorSupported()) return null;
+  if (!Number.isInteger(fd) || fd < 0) return null;
+  return `/proc/self/fd/${fd}`;
+}
+
 type DirIdentity = { readonly dev: number; readonly ino: number };
 
 type CapturedAuthorityDirs = {
@@ -443,7 +485,31 @@ type CapturedAuthorityDirs = {
     readonly path: string;
     readonly identity: DirIdentity;
   }[];
+  /** Absolute path of the R7A profile.json under the profile authority. */
+  readonly profileJsonPath: string;
+  readonly profileJsonIdentity: DirIdentity;
 };
+
+/**
+ * Deterministic race seams (tests only). Production never installs a hook.
+ */
+export type ProfilePreflightRaceHook = {
+  /** After authority components are captured; before parent-dir bind / open. */
+  readonly afterCaptureAuthority?: () => void;
+  /** After the preflight parent directory fd is bound; before temp create. */
+  readonly afterBindParentDir?: () => void;
+  /** After temp is fsynced and closed; before anchored rename publish. */
+  readonly beforePublishRename?: () => void;
+};
+
+let raceHook: ProfilePreflightRaceHook | undefined;
+
+/** Install or clear the profile-preflight race seam. Tests only. */
+export function setProfilePreflightRaceHook(
+  hook: ProfilePreflightRaceHook | undefined,
+): void {
+  raceHook = hook;
+}
 
 function identitiesEqual(
   a: { dev: number; ino: number },
@@ -474,16 +540,19 @@ function observeNoFollow(
 
 /**
  * Authority directory chain for a preflight record file path:
- *   <state>/credential-profiles/<profile-id>/preflight/<vendor>.json
- * Returns [credential-profiles, profile-id, preflight] outermost → innermost.
+ *   <state-root>/credential-profiles/<profile-id>/preflight/<vendor>.json
+ * Returns [state-root, credential-profiles, profile-id, preflight]
+ * outermost → innermost. State root is included so a root symlink or
+ * identity swap fails closed before read, write, or success.
  */
 function authorityDirChain(
   filePath: string,
-): readonly [string, string, string] {
+): readonly [string, string, string, string] {
   const preflightDir = dirname(filePath);
   const profileDir = dirname(preflightDir);
   const profilesRoot = dirname(profileDir);
-  return [profilesRoot, profileDir, preflightDir];
+  const stateRoot = dirname(profilesRoot);
+  return [stateRoot, profilesRoot, profileDir, preflightDir];
 }
 
 function captureDirIdentity(path: string): DirIdentity | null {
@@ -496,10 +565,72 @@ function captureDirIdentity(path: string): DirIdentity | null {
   }
 }
 
+function captureFileIdentity(path: string): DirIdentity | null {
+  try {
+    const st = lstatSync(path);
+    if (st.isSymbolicLink() || !st.isFile()) return null;
+    return { dev: st.dev, ino: st.ino };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Require a real non-linked directory at `path` and capture its identity.
+ * Missing → `absent`; symlink → `linked_path`; other → `failReason`.
+ */
+function requireRealDir(
+  path: string,
+  failReason: ProfilePreflightStoreFailureReason,
+): DirIdentity {
+  const kind = observeNoFollow(path);
+  if (kind === "missing") {
+    throw new ProfilePreflightStoreFailure("absent");
+  }
+  if (kind === "symlink") {
+    throw new ProfilePreflightStoreFailure("linked_path");
+  }
+  if (kind !== "directory") {
+    throw new ProfilePreflightStoreFailure(failReason);
+  }
+  const id = captureDirIdentity(path);
+  if (id === null) {
+    throw new ProfilePreflightStoreFailure(failReason);
+  }
+  return id;
+}
+
+/**
+ * Require R7A `profile.json` under the profile authority as a non-linked
+ * regular file. The store never creates or rewrites this file.
+ */
+function requireProfileJson(
+  profileDir: string,
+  failReason: ProfilePreflightStoreFailureReason,
+): { readonly path: string; readonly identity: DirIdentity } {
+  const path = join(profileDir, PROFILE_JSON_NAME);
+  const kind = observeNoFollow(path);
+  if (kind === "missing") {
+    throw new ProfilePreflightStoreFailure("absent");
+  }
+  if (kind === "symlink") {
+    throw new ProfilePreflightStoreFailure("linked_path");
+  }
+  if (kind !== "file") {
+    throw new ProfilePreflightStoreFailure(failReason);
+  }
+  const id = captureFileIdentity(path);
+  if (id === null) {
+    throw new ProfilePreflightStoreFailure(failReason);
+  }
+  return { path, identity: id };
+}
+
 /**
  * Validate every authority directory component without following links.
- * All three (`credential-profiles`, profile id, `preflight`) must exist as
- * real directories. Captures identities for a later recheck.
+ * All four (state root, credential-profiles, profile id, preflight) must
+ * exist as real directories. R7A profile.json must exist as a real file.
+ * Captures identities for a later recheck.
  */
 function captureAuthorityDirsForRead(
   filePath: string,
@@ -507,80 +638,96 @@ function captureAuthorityDirsForRead(
   const chain = authorityDirChain(filePath);
   const components: { path: string; identity: DirIdentity }[] = [];
   for (const path of chain) {
-    const kind = observeNoFollow(path);
-    if (kind === "missing") {
-      throw new ProfilePreflightStoreFailure("absent");
-    }
-    if (kind === "symlink") {
-      throw new ProfilePreflightStoreFailure("linked_path");
-    }
-    if (kind !== "directory") {
-      throw new ProfilePreflightStoreFailure("unreadable");
-    }
-    const id = captureDirIdentity(path);
-    if (id === null) {
-      throw new ProfilePreflightStoreFailure("unreadable");
-    }
+    const id = requireRealDir(path, "unreadable");
     components.push({ path, identity: id });
   }
-  return { components };
+  const profileDir = chain[2];
+  const profileJson = requireProfileJson(profileDir, "unreadable");
+  return {
+    components,
+    profileJsonPath: profileJson.path,
+    profileJsonIdentity: profileJson.identity,
+  };
 }
 
 /**
- * Ensure the authority directory chain for write: refuse linked components,
- * create missing directories one level at a time (never through a link),
- * capture identities for recheck. Does not chmod existing parents.
+ * Capture the authority chain for write. Never creates `credential-profiles`
+ * or the profile authority directory — those and `profile.json` are owned by
+ * R7A and must already exist. Only the `preflight` child may be created when
+ * its R7A parent authority remains a real non-linked directory.
  */
 function ensureAuthorityDirsForWrite(
   filePath: string,
 ): CapturedAuthorityDirs {
   const chain = authorityDirChain(filePath);
+  const [stateRoot, profilesRoot, profileDir, preflightDir] = chain;
   const components: { path: string; identity: DirIdentity }[] = [];
-  for (const path of chain) {
-    let kind = observeNoFollow(path);
-    if (kind === "symlink") {
-      throw new ProfilePreflightStoreFailure("linked_path");
-    }
-    if (kind === "file" || kind === "other") {
-      throw new ProfilePreflightStoreFailure("write_failed");
-    }
-    if (kind === "missing") {
-      try {
-        mkdirSync(path, { recursive: false, mode: 0o700 });
-      } catch (e) {
-        const code = (e as NodeJS.ErrnoException).code;
-        if (code !== "EEXIST") {
-          throw new ProfilePreflightStoreFailure("write_failed");
-        }
-      }
-      kind = observeNoFollow(path);
-      if (kind === "symlink") {
-        throw new ProfilePreflightStoreFailure("linked_path");
-      }
-      if (kind !== "directory") {
-        throw new ProfilePreflightStoreFailure("write_failed");
-      }
-      if (IS_POSIX) {
-        try {
-          chmodSync(path, 0o700);
-        } catch {
-          /* best-effort owner-only on newly created dirs */
-        }
-      }
-    }
-    const id = captureDirIdentity(path);
-    if (id === null) {
-      throw new ProfilePreflightStoreFailure("write_failed");
-    }
+
+  // R7A-owned: state root, credential-profiles, profile authority — no create.
+  for (const path of [stateRoot, profilesRoot, profileDir] as const) {
+    const id = requireRealDir(path, "write_failed");
     components.push({ path, identity: id });
   }
-  return { components };
+
+  const profileJson = requireProfileJson(profileDir, "write_failed");
+
+  // Only the preflight child may be created under a valid R7A parent.
+  let preflightKind = observeNoFollow(preflightDir);
+  if (preflightKind === "symlink") {
+    throw new ProfilePreflightStoreFailure("linked_path");
+  }
+  if (preflightKind === "file" || preflightKind === "other") {
+    throw new ProfilePreflightStoreFailure("write_failed");
+  }
+  if (preflightKind === "missing") {
+    // Parent profile authority must still be the captured real directory.
+    const parentNow = captureDirIdentity(profileDir);
+    if (
+      parentNow === null ||
+      !identitiesEqual(parentNow, components[2]!.identity)
+    ) {
+      throw new ProfilePreflightStoreFailure("identity_changed");
+    }
+    try {
+      mkdirSync(preflightDir, { recursive: false, mode: 0o700 });
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST") {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+    }
+    preflightKind = observeNoFollow(preflightDir);
+    if (preflightKind === "symlink") {
+      throw new ProfilePreflightStoreFailure("linked_path");
+    }
+    if (preflightKind !== "directory") {
+      throw new ProfilePreflightStoreFailure("write_failed");
+    }
+    if (IS_POSIX) {
+      try {
+        chmodSync(preflightDir, 0o700);
+      } catch {
+        /* best-effort owner-only on newly created preflight dir */
+      }
+    }
+  }
+  const preflightId = captureDirIdentity(preflightDir);
+  if (preflightId === null) {
+    throw new ProfilePreflightStoreFailure("write_failed");
+  }
+  components.push({ path: preflightDir, identity: preflightId });
+
+  return {
+    components,
+    profileJsonPath: profileJson.path,
+    profileJsonIdentity: profileJson.identity,
+  };
 }
 
 /**
- * Recheck every captured authority directory still names the same non-linked
- * directory. A component that became a link is `linked_path`; any other
- * change is `identity_changed`.
+ * Recheck every captured authority directory and R7A profile.json still name
+ * the same non-linked objects. A component that became a link is
+ * `linked_path`; any other change is `identity_changed`.
  */
 function recheckAuthorityDirs(
   captured: CapturedAuthorityDirs,
@@ -597,6 +744,20 @@ function recheckAuthorityDirs(
     if (id === null || !identitiesEqual(id, c.identity)) {
       throw new ProfilePreflightStoreFailure("identity_changed");
     }
+  }
+  const jsonKind = observeNoFollow(captured.profileJsonPath);
+  if (jsonKind === "symlink") {
+    throw new ProfilePreflightStoreFailure("linked_path");
+  }
+  if (jsonKind !== "file") {
+    throw new ProfilePreflightStoreFailure("identity_changed");
+  }
+  const jsonId = captureFileIdentity(captured.profileJsonPath);
+  if (
+    jsonId === null ||
+    !identitiesEqual(jsonId, captured.profileJsonIdentity)
+  ) {
+    throw new ProfilePreflightStoreFailure("identity_changed");
   }
 }
 
@@ -743,10 +904,17 @@ function cleanupTemp(tmpPath: string): void {
 }
 
 /**
- * Atomic owner-only write: same-directory temp, fsync, rename, parent fsync
- * where supported under the closed Windows allowlist. Refuses linked
- * authority ancestors and rechecks directory identities before success.
- * Cleans up the temp file on any failure.
+ * Atomic owner-only write via a held no-follow parent-directory descriptor.
+ *
+ * Publication is anchored to `/proc/self/fd/<parentFd>/…` so a path swap of
+ * the preflight directory after bind cannot redirect the rename. When the
+ * runtime cannot prove that boundary (no O_DIRECTORY|O_NOFOLLOW or no
+ * `/proc/self/fd`), fail closed before any mutation — never path-based
+ * rename followed by a post-hoc recheck.
+ *
+ * Never recreates R7A `credential-profiles` or the profile authority; only
+ * the `preflight` child may be created. State root is in the authority
+ * chain. Cleans up the temp file on any failure.
  */
 export function writeProfilePreflightRecord(
   absolutePath: string,
@@ -773,9 +941,29 @@ export function writeProfilePreflightRecord(
         throw new ProfilePreflightStoreFailure("oversized");
       }
 
-      // Ensure credential-profiles / profile / preflight without following links.
+      // Fail closed before mutation when anchored publication is unavailable.
+      const parentFlags = dirOpenFlags();
+      if (
+        parentFlags === null ||
+        !profilePreflightDirectoryAnchorSupported()
+      ) {
+        throw new ProfilePreflightStoreFailure("write_failed");
+      }
+
+      // R7A parents required; only preflight child may be created.
       const authorityDirs = ensureAuthorityDirsForWrite(absolutePath);
-      const dir = dirname(absolutePath);
+      const preflightDir = dirname(absolutePath);
+      const finalName = basename(absolutePath);
+      if (
+        finalName.length === 0 ||
+        finalName === "." ||
+        finalName === ".." ||
+        finalName.includes("/") ||
+        finalName.includes("\\") ||
+        finalName.includes("\0")
+      ) {
+        throw new ProfilePreflightStoreFailure("path_invalid");
+      }
 
       // Refuse a symlink at the final path (no follow, no overwrite of a link).
       try {
@@ -792,61 +980,144 @@ export function writeProfilePreflightRecord(
       }
 
       recheckAuthorityDirs(authorityDirs);
+      raceHook?.afterCaptureAuthority?.();
+      recheckAuthorityDirs(authorityDirs);
 
-      const tmpName = `.preflight.${randomBytes(16).toString("hex")}.tmp`;
-      const tmpPath = join(dir, tmpName);
-      let fd: number | undefined;
+      // Bind the preflight parent through O_DIRECTORY|O_NOFOLLOW and hold it.
+      let parentFd: number | undefined;
+      let tmpName: string | undefined;
+      let fileFd: number | undefined;
       try {
-        fd = openSync(
-          tmpPath,
+        const parentLstat = lstatSync(preflightDir);
+        if (parentLstat.isSymbolicLink()) {
+          throw new ProfilePreflightStoreFailure("linked_path");
+        }
+        if (!parentLstat.isDirectory()) {
+          throw new ProfilePreflightStoreFailure("write_failed");
+        }
+        parentFd = openSync(preflightDir, parentFlags);
+        const parentOpened = fstatSync(parentFd);
+        if (
+          !parentOpened.isDirectory() ||
+          !identitiesEqual(parentOpened, parentLstat)
+        ) {
+          throw new ProfilePreflightStoreFailure("identity_changed");
+        }
+        // Path must still name the same non-linked directory we opened.
+        const pathRecheck = captureDirIdentity(preflightDir);
+        if (
+          pathRecheck === null ||
+          !identitiesEqual(pathRecheck, parentOpened)
+        ) {
+          throw new ProfilePreflightStoreFailure("identity_changed");
+        }
+        const capturedPreflight = authorityDirs.components[3];
+        if (
+          capturedPreflight === undefined ||
+          !identitiesEqual(parentOpened, capturedPreflight.identity)
+        ) {
+          throw new ProfilePreflightStoreFailure("identity_changed");
+        }
+
+        const anchor = procFdPath(parentFd);
+        if (anchor === null) {
+          throw new ProfilePreflightStoreFailure("write_failed");
+        }
+
+        raceHook?.afterBindParentDir?.();
+
+        // Parent fd must still be the same directory after the race seam.
+        const parentAfterHook = fstatSync(parentFd);
+        if (
+          !parentAfterHook.isDirectory() ||
+          !identitiesEqual(parentAfterHook, parentOpened)
+        ) {
+          throw new ProfilePreflightStoreFailure("identity_changed");
+        }
+        recheckAuthorityDirs(authorityDirs);
+
+        tmpName = `.preflight.${randomBytes(16).toString("hex")}.tmp`;
+        const tmpAnchored = join(anchor, tmpName);
+        const finalAnchored = join(anchor, finalName);
+
+        fileFd = openSync(
+          tmpAnchored,
           fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
           0o600,
         );
         const buf = Buffer.from(body, "utf8");
         let offset = 0;
         while (offset < buf.byteLength) {
-          const n = writeSync(fd, buf, offset, buf.byteLength - offset);
+          const n = writeSync(fileFd, buf, offset, buf.byteLength - offset);
           offset += n;
         }
 
         try {
-          fchmodSync(fd, 0o600);
+          fchmodSync(fileFd, 0o600);
         } catch {
           if (IS_POSIX) {
-            closeQuiet(fd);
-            fd = undefined;
-            cleanupTemp(tmpPath);
+            closeQuiet(fileFd);
+            fileFd = undefined;
+            cleanupTemp(tmpAnchored);
             throw new ProfilePreflightStoreFailure("write_failed");
           }
         }
         if (IS_POSIX) {
-          const mode = fstatSync(fd).mode & 0o777;
+          const mode = fstatSync(fileFd).mode & 0o777;
           if (mode !== 0o600) {
-            closeQuiet(fd);
-            fd = undefined;
-            cleanupTemp(tmpPath);
+            closeQuiet(fileFd);
+            fileFd = undefined;
+            cleanupTemp(tmpAnchored);
             throw new ProfilePreflightStoreFailure("write_failed");
           }
         }
 
-        fsyncSync(fd);
-        closeSync(fd);
-        fd = undefined;
+        fsyncSync(fileFd);
+        closeSync(fileFd);
+        fileFd = undefined;
 
+        // Parent still bound and path authority unchanged before publish.
+        const parentBeforeRename = fstatSync(parentFd);
+        if (
+          !parentBeforeRename.isDirectory() ||
+          !identitiesEqual(parentBeforeRename, parentOpened)
+        ) {
+          cleanupTemp(tmpAnchored);
+          throw new ProfilePreflightStoreFailure("identity_changed");
+        }
         recheckAuthorityDirs(authorityDirs);
 
-        renameSync(tmpPath, absolutePath);
+        raceHook?.beforePublishRename?.();
 
+        // Re-prove parent fd and path authority after the race seam; never
+        // publish when the path no longer names the bound parent.
+        const parentPreRename = fstatSync(parentFd);
+        if (
+          !parentPreRename.isDirectory() ||
+          !identitiesEqual(parentPreRename, parentOpened)
+        ) {
+          cleanupTemp(tmpAnchored);
+          throw new ProfilePreflightStoreFailure("identity_changed");
+        }
         recheckAuthorityDirs(authorityDirs);
 
-        // Parent-directory open + fsync after publish.
+        // Anchored rename: publishes into the held parent inode only.
+        renameSync(tmpAnchored, finalAnchored);
+        tmpName = undefined; // published; no temp cleanup of final
+
+        // Success only when the bound parent and full authority chain hold.
+        const parentAfterRename = fstatSync(parentFd);
+        if (
+          !parentAfterRename.isDirectory() ||
+          !identitiesEqual(parentAfterRename, parentOpened)
+        ) {
+          throw new ProfilePreflightStoreFailure("identity_changed");
+        }
+        recheckAuthorityDirs(authorityDirs);
+
+        // Parent-directory fsync through the held descriptor.
         try {
-          const dirFd = openSync(dir, fsConstants.O_RDONLY);
-          try {
-            fsyncSync(dirFd);
-          } finally {
-            closeSync(dirFd);
-          }
+          fsyncSync(parentFd);
         } catch (syncErr) {
           const code = (syncErr as NodeJS.ErrnoException).code;
           if (!isIgnorableParentDirSyncError(code)) {
@@ -854,11 +1125,18 @@ export function writeProfilePreflightRecord(
           }
         }
       } catch (e) {
-        closeQuiet(fd);
-        cleanupTemp(tmpPath);
+        closeQuiet(fileFd);
+        if (tmpName !== undefined && parentFd !== undefined) {
+          const anchor = procFdPath(parentFd);
+          if (anchor !== null) {
+            cleanupTemp(join(anchor, tmpName));
+          }
+        }
+        closeQuiet(parentFd);
         if (e instanceof ProfilePreflightStoreFailure) throw e;
         throw new ProfilePreflightStoreFailure("write_failed");
       }
+      closeQuiet(parentFd);
     },
     catch: (e) =>
       e instanceof ProfilePreflightStoreFailure

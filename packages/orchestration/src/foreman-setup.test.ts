@@ -10,6 +10,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
   mkdirSync,
@@ -54,6 +55,7 @@ import {
   MSG_EXPLICIT_PROFILE_UNSCOPED,
   USAGE,
   authInstruction,
+  ensureExternalStateRoot,
   finalizeSetupExitCode,
   lexicalStateRootPreflight,
   parseSetupArgv,
@@ -125,6 +127,10 @@ function tempHome(): string {
 
 function tempRepo(): string {
   return mkdtempSync(join(tmpdir(), "foreman-setup-repo-"));
+}
+
+function tempDirOuter(): string {
+  return mkdtempSync(join(tmpdir(), "foreman-setup-outer-"));
 }
 
 type CapturedEnvCall = {
@@ -1028,6 +1034,49 @@ describe("R7B1 profile-bound Setup preflight", () => {
       }
     } finally {
       rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("ensureExternalStateRoot refuses symlinked nearest-existing ancestor into repo", () => {
+    const outer = tempDirOuter();
+    const repo = join(outer, "repo");
+    const outside = join(outer, "outside");
+    mkdirSync(repo, { recursive: true });
+    mkdirSync(outside, { recursive: true });
+    const link = join(outer, "link-into-repo");
+    try {
+      symlinkSync(repo, link);
+    } catch {
+      rmSync(outer, { recursive: true, force: true });
+      return;
+    }
+    const wouldBeState = join(link, "nested", "state");
+    try {
+      assert.equal(ensureExternalStateRoot(wouldBeState, repo), false);
+      assert.equal(
+        existsSync(wouldBeState),
+        false,
+        "must not create through symlinked ancestor into repo",
+      );
+      assert.equal(existsSync(join(repo, "nested")), false);
+    } finally {
+      rmSync(outer, { recursive: true, force: true });
+    }
+  });
+
+  it("ensureExternalStateRoot creates one level at a time outside the repo", () => {
+    const outer = tempDirOuter();
+    const repo = join(outer, "repo");
+    const parent = join(outer, "ext-parent");
+    mkdirSync(repo, { recursive: true });
+    mkdirSync(parent, { recursive: true });
+    const state = join(parent, "a", "b", "state");
+    try {
+      assert.equal(ensureExternalStateRoot(state, repo), true);
+      assert.ok(existsSync(state));
+      assert.equal(existsSync(join(parent, "a", "b", "state")), true);
+    } finally {
+      rmSync(outer, { recursive: true, force: true });
     }
   });
 
