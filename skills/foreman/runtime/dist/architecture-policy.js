@@ -32318,6 +32318,7 @@ function evaluateArchitecturePolicy(input) {
 
 // packages/policy/src/architecture-git.ts
 var GIT_TIMEOUT_MS = 15e3;
+var OWNED_CHILD_CANCEL_WAIT_MS = 5e3;
 var MAX_BLOB_BYTES = 32 * 1024 * 1024;
 var ArchitectureGitError = class {
   constructor(reason) {
@@ -32339,23 +32340,45 @@ var PRODUCTION_GIT_BINDING = {
   prefixArgs: []
 };
 var gitCommandBinding = PRODUCTION_GIT_BINDING;
-function runGit(repoRoot, args2, maxBytes) {
-  return Effect_exports.async((resume2, signal) => {
-    const controller = new AbortController();
-    let settled = false;
-    let child = null;
-    const binding = gitCommandBinding;
-    const argv = [...binding.prefixArgs, ...gitArgv(args2)];
-    const onParentAbort = () => {
-      controller.abort();
-      if (child && !child.killed) {
+function cancelOwnedGitChild(child, controller, alreadyClosed, onClosed) {
+  return Effect_exports.async((resume2) => {
+    let done7 = false;
+    const finish = () => {
+      if (done7) return;
+      done7 = true;
+      resume2(Effect_exports.void);
+    };
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
+    onClosed(() => {
+      clearTimeout(timer);
+      finish();
+    });
+    if (alreadyClosed()) {
+      clearTimeout(timer);
+      finish();
+    } else {
+      try {
+        controller.abort();
+      } catch {
+      }
+      if (child.pid !== void 0 && !child.killed) {
         try {
           child.kill("SIGTERM");
         } catch {
         }
       }
-    };
-    signal.addEventListener("abort", onParentAbort, { once: true });
+    }
+  });
+}
+function runGit(repoRoot, args2, maxBytes) {
+  return Effect_exports.async((resume2) => {
+    const controller = new AbortController();
+    let settled = false;
+    let child;
+    let childClosed = false;
+    let closeNotify;
+    const binding = gitCommandBinding;
+    const argv = [...binding.prefixArgs, ...gitArgv(args2)];
     const timer = setTimeout(() => {
       controller.abort();
     }, GIT_TIMEOUT_MS);
@@ -32363,7 +32386,6 @@ function runGit(repoRoot, args2, maxBytes) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      signal.removeEventListener("abort", onParentAbort);
       resume2(effect2);
     };
     try {
@@ -32381,7 +32403,7 @@ function runGit(repoRoot, args2, maxBytes) {
         (err, stdout, stderr) => {
           const outBuf = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout ?? "");
           const errBuf = Buffer.isBuffer(stderr) ? stderr : Buffer.from(stderr ?? "");
-          if (controller.signal.aborted || signal.aborted) {
+          if (controller.signal.aborted) {
             finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
             return;
           }
@@ -32419,7 +32441,26 @@ function runGit(repoRoot, args2, maxBytes) {
       );
     } catch {
       finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
+      return;
     }
+    const owned = child;
+    owned.once("close", () => {
+      childClosed = true;
+      closeNotify?.();
+    });
+    return Effect_exports.suspend(() => {
+      if (settled) return Effect_exports.void;
+      settled = true;
+      clearTimeout(timer);
+      return cancelOwnedGitChild(
+        owned,
+        controller,
+        () => childClosed,
+        (cb) => {
+          closeNotify = cb;
+        }
+      );
+    });
   });
 }
 function gitTextEffect(repoRoot, args2, maxBuffer = 4096) {
