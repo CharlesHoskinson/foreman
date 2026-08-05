@@ -21761,17 +21761,18 @@ function ensureAuthorityDirsForWrite(filePath, wrapper) {
         throw new ProfilePreflightStoreFailure("write_failed");
       }
     }
-    let createdPreflight = false;
+    let enforceOwnerOnlyMode = false;
     if (preflightKind === "missing") {
+      raceHook2?.beforeMkdirPreflightDir?.();
       try {
         mkdirSync5(preflightAnchored, { recursive: false, mode: 448 });
-        createdPreflight = true;
       } catch (e) {
         const code = e.code;
         if (code !== "EEXIST") {
           throw new ProfilePreflightStoreFailure("write_failed");
         }
       }
+      enforceOwnerOnlyMode = true;
     }
     try {
       preflightFd = openSync5(preflightAnchored, parentFlags);
@@ -21790,7 +21791,7 @@ function ensureAuthorityDirsForWrite(filePath, wrapper) {
     if (!profileStill.isDirectory() || !identitiesEqual2(profileStill, components[2].identity)) {
       throw new ProfilePreflightStoreFailure("identity_changed");
     }
-    if (createdPreflight && IS_POSIX2) {
+    if (enforceOwnerOnlyMode && IS_POSIX2) {
       try {
         fchmodSync2(preflightFd, 448);
       } catch {
@@ -22570,9 +22571,28 @@ function ensureExternalStateRoot(stateRoot, repoRoot2) {
   if (missingSegments.length === 0) {
     return ensureExternalStateRoot(stateRoot, repoRoot2);
   }
+  let bindPath;
+  let expectedBindIdentity;
   try {
     const st = lstatSync5(nearest);
-    if (st.isSymbolicLink() || !st.isDirectory()) return false;
+    if (st.isSymbolicLink()) {
+      const resolved = physicalAbsoluteDir(nearest);
+      if (resolved === null) return false;
+      let physSt;
+      try {
+        physSt = lstatSync5(resolved);
+      } catch {
+        return false;
+      }
+      if (physSt.isSymbolicLink() || !physSt.isDirectory()) return false;
+      bindPath = resolved;
+      expectedBindIdentity = identityOf(physSt);
+    } else if (st.isDirectory()) {
+      bindPath = nearest;
+      expectedBindIdentity = identityOf(st);
+    } else {
+      return false;
+    }
   } catch {
     return false;
   }
@@ -22598,14 +22618,17 @@ function ensureExternalStateRoot(stateRoot, repoRoot2) {
   }
   let parentFd;
   try {
-    parentFd = openSync6(nearest, parentFlags);
+    parentFd = openSync6(bindPath, parentFlags);
     const parentOpened = fstatSync4(parentFd);
     if (!parentOpened.isDirectory()) {
       return false;
     }
+    if (!identitiesEqual3(identityOf(parentOpened), expectedBindIdentity)) {
+      return false;
+    }
     let parentIdentity = identityOf(parentOpened);
     try {
-      const pathRecheck = lstatSync5(nearest);
+      const pathRecheck = lstatSync5(bindPath);
       if (pathRecheck.isSymbolicLink() || !pathRecheck.isDirectory() || !identitiesEqual3(identityOf(pathRecheck), parentIdentity)) {
         return false;
       }

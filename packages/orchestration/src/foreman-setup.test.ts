@@ -1087,6 +1087,109 @@ describe("R7B1 profile-bound Setup preflight", () => {
   });
 
   it(
+    "ensureExternalStateRoot creates missing root below safe external symlink ancestor",
+    {
+      skip:
+        process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
+    },
+    () => {
+      const outer = tempDirOuter();
+      const repo = join(outer, "repo");
+      const physical = join(outer, "physical-external");
+      const link = join(outer, "safe-link");
+      mkdirSync(repo, { recursive: true });
+      mkdirSync(physical, { recursive: true });
+      try {
+        symlinkSync(physical, link);
+      } catch {
+        rmSync(outer, { recursive: true, force: true });
+        return;
+      }
+      const state = join(link, "nested", "state");
+      try {
+        assert.equal(
+          ensureExternalStateRoot(state, repo),
+          true,
+          "safe external symlink ancestor must allow missing state-root create",
+        );
+        assert.ok(existsSync(state), "logical state path must exist");
+        assert.ok(
+          existsSync(join(physical, "nested", "state")),
+          "physical descendants must be created under resolved symlink target",
+        );
+      } finally {
+        rmSync(outer, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    "ensureExternalStateRoot symlink retarget after bind does not enter new target",
+    {
+      skip:
+        process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
+    },
+    () => {
+      const outer = tempDirOuter();
+      const repo = join(outer, "repo");
+      const physical = join(outer, "physical-external");
+      const attacker = join(outer, "attacker");
+      const link = join(outer, "safe-link");
+      mkdirSync(repo, { recursive: true });
+      mkdirSync(physical, { recursive: true });
+      mkdirSync(attacker, { recursive: true });
+      try {
+        symlinkSync(physical, link);
+      } catch {
+        rmSync(outer, { recursive: true, force: true });
+        return;
+      }
+      const state = join(link, "nested", "state");
+      setStateRootCreateRaceHook({
+        afterBindParent: () => {
+          // After physical bind, retarget the logical symlink to attacker.
+          unlinkSync(link);
+          try {
+            symlinkSync(attacker, link);
+          } catch {
+            symlinkSync(physical, link);
+          }
+        },
+      });
+      try {
+        const ok = ensureExternalStateRoot(state, repo);
+        // Descriptor-anchored create must use the originally bound physical
+        // directory, not the retargeted logical symlink.
+        assert.equal(
+          existsSync(join(attacker, "nested")),
+          false,
+          "must not create under retargeted symlink attacker",
+        );
+        assert.equal(
+          existsSync(join(attacker, "nested", "state")),
+          false,
+          "must not create state under retargeted attacker",
+        );
+        // Prove we bound the original physical target (not fail-before-bind).
+        assert.ok(
+          existsSync(join(physical, "nested")),
+          "must create descendants through the originally bound physical parent",
+        );
+        // Logical path recheck after retarget should fail closed (path now
+        // resolves through attacker and does not match the held identity).
+        assert.equal(
+          ok,
+          false,
+          "logical-path recheck after symlink retarget must fail closed",
+        );
+      } finally {
+        setStateRootCreateRaceHook(undefined);
+        rmSync(outer, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
     "ensureExternalStateRoot parent swap cannot redirect creation",
     {
       skip:

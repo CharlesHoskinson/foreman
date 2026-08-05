@@ -972,6 +972,55 @@ describe("profile preflight authority race seams", () => {
     },
   );
 
+  it(
+    "concurrent EEXIST preflight create enforces owner-only mode through descriptor",
+    {
+      skip:
+        process.platform === "win32" ||
+        !profilePreflightDirectoryAnchorSupported(),
+    },
+    async () => {
+      const root = tempDir();
+      seedR7aAuthority(root, "p");
+      const path = profilePreflightRecordPath(root, "p", "grok");
+      const rec = makeCredentialProfileRecord("p", "grok");
+      const fixed = makeCredentialProfilePreflight(
+        "p",
+        profileIdentityOf(rec),
+        "grok",
+        readyRecord(),
+      );
+      const preflightDir = join(
+        root,
+        PROFILES_DIR_NAME,
+        "p",
+        PROFILE_PREFLIGHT_DIR_NAME,
+      );
+      // Concurrent supply: after observe-missing, before mkdir → EEXIST.
+      // World-writable so a skipped mode fix is observable.
+      setProfilePreflightRaceHook({
+        beforeMkdirPreflightDir: () => {
+          mkdirSync(preflightDir, { recursive: false, mode: 0o777 });
+          // Ensure the concurrent directory is not owner-only.
+          chmodSync(preflightDir, 0o777);
+        },
+      });
+      try {
+        await Effect.runPromise(writeProfilePreflightRecord(path, fixed));
+        assert.equal(existsSync(path), true, "write must publish after EEXIST");
+        // Must not accept the concurrent directory without 0700 enforcement.
+        const mode = statSync(preflightDir).mode & 0o777;
+        assert.equal(
+          mode,
+          0o700,
+          "concurrent EEXIST preflight dir must be owner-only 0700 via descriptor",
+        );
+      } finally {
+        setProfilePreflightRaceHook(undefined);
+      }
+    },
+  );
+
   it("in-place profile.json rewrite before preflight create fails closed", async () => {
     const root = tempDir();
     seedR7aAuthority(root, "p", "grok");

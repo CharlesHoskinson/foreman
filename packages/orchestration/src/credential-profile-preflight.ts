@@ -501,6 +501,12 @@ export type ProfilePreflightRaceHook = {
    * descriptor-anchored creation of the `preflight` child.
    */
   readonly beforeCreatePreflightDir?: () => void;
+  /**
+   * After preflight is observed missing through the held profile descriptor;
+   * before the anchored mkdir. Tests use this to supply a concurrent
+   * directory so mkdir returns EEXIST.
+   */
+  readonly beforeMkdirPreflightDir?: () => void;
   /** After authority components are captured; before parent-dir bind / open. */
   readonly afterCaptureAuthority?: () => void;
   /** After the preflight parent directory fd is bound; before temp create. */
@@ -859,17 +865,21 @@ function ensureAuthorityDirsForWrite(
       }
     }
 
-    let createdPreflight = false;
+    // True when we observed missing and then created or raced with EEXIST.
+    // Concurrent EEXIST must still receive owner-only mode enforcement.
+    let enforceOwnerOnlyMode = false;
     if (preflightKind === "missing") {
+      // Deterministic race seam: concurrent supply before anchored mkdir.
+      raceHook?.beforeMkdirPreflightDir?.();
       try {
         mkdirSync(preflightAnchored, { recursive: false, mode: 0o700 });
-        createdPreflight = true;
       } catch (e) {
         const code = (e as NodeJS.ErrnoException).code;
         if (code !== "EEXIST") {
           throw new ProfilePreflightStoreFailure("write_failed");
         }
       }
+      enforceOwnerOnlyMode = true;
     }
 
     // Open the created/existing preflight through the same held profile fd.
@@ -897,7 +907,8 @@ function ensureAuthorityDirsForWrite(
     }
 
     // Set and verify POSIX mode through the open child descriptor only.
-    if (createdPreflight && IS_POSIX) {
+    // Applies to both our create and a concurrent EEXIST supply; never path-based.
+    if (enforceOwnerOnlyMode && IS_POSIX) {
       try {
         fchmodSync(preflightFd, 0o700);
       } catch {

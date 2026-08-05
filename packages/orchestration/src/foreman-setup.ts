@@ -855,10 +855,32 @@ export function ensureExternalStateRoot(
     return ensureExternalStateRoot(stateRoot, repoRoot);
   }
 
-  // Nearest must be a real (non-linked) directory so O_NOFOLLOW can bind it.
+  // Nearest may be a real directory or a safe external symlink to a directory.
+  // Resolve a symlink ancestor to its physical directory, capture that
+  // identity, and open the physical path with O_DIRECTORY|O_NOFOLLOW so a
+  // later logical retarget cannot redirect creation.
+  let bindPath: string;
+  let expectedBindIdentity: DirIdentity;
   try {
     const st = lstatSync(nearest);
-    if (st.isSymbolicLink() || !st.isDirectory()) return false;
+    if (st.isSymbolicLink()) {
+      const resolved = physicalAbsoluteDir(nearest);
+      if (resolved === null) return false;
+      let physSt: Stats;
+      try {
+        physSt = lstatSync(resolved);
+      } catch {
+        return false;
+      }
+      if (physSt.isSymbolicLink() || !physSt.isDirectory()) return false;
+      bindPath = resolved;
+      expectedBindIdentity = identityOf(physSt);
+    } else if (st.isDirectory()) {
+      bindPath = nearest;
+      expectedBindIdentity = identityOf(st);
+    } else {
+      return false;
+    }
   } catch {
     return false;
   }
@@ -890,18 +912,21 @@ export function ensureExternalStateRoot(
     return false;
   }
 
-  // Bind the nearest valid parent with O_DIRECTORY|O_NOFOLLOW; retain identity.
+  // Bind the physical (or real nearest) parent with O_DIRECTORY|O_NOFOLLOW.
   let parentFd: number | undefined;
   try {
-    parentFd = openSync(nearest, parentFlags);
+    parentFd = openSync(bindPath, parentFlags);
     const parentOpened = fstatSync(parentFd);
     if (!parentOpened.isDirectory()) {
       return false;
     }
+    if (!identitiesEqual(identityOf(parentOpened), expectedBindIdentity)) {
+      return false;
+    }
     let parentIdentity = identityOf(parentOpened);
-    // Path must still name the same non-linked directory we opened.
+    // Open descriptor must still match the captured physical/real identity.
     try {
-      const pathRecheck = lstatSync(nearest);
+      const pathRecheck = lstatSync(bindPath);
       if (
         pathRecheck.isSymbolicLink() ||
         !pathRecheck.isDirectory() ||
