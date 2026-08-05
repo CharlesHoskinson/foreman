@@ -42,6 +42,8 @@ export type EndstopLedgerFailureReason =
   | "invalid_contract_id"
   | "missing_contract"
   | "contract_mismatch"
+  | "dependency_incomplete"
+  | "replacement_unauthorized"
   | "corrupt_history"
   | "journal_failure";
 
@@ -276,6 +278,41 @@ export function makeLiveEndstopLedgerLayer(
   stateRoot: string,
 ): Layer.Layer<EndstopLedger> {
   const journalLayer = makeLiveRunJournalLayer(stateRoot);
+  const readState = (
+    contractId: string,
+  ): Effect.Effect<ExecutionState, EndstopLedgerFailure> => {
+    const runId = decodeRunId(contractId);
+    if (typeof runId !== "string") {
+      return Effect.fail(ledgerFailure("invalid_contract_id"));
+    }
+    const transaction = Effect.gen(function* () {
+      const journal = yield* RunJournal;
+      return yield* journal.transact<TransactionResult<ExecutionState>>(
+        runId as RunId,
+        (events) => {
+          const history = replayHistory(events);
+          if (history._tag === "Ok") {
+            return {
+              _tag: "Return",
+              value: { _tag: "Ok", value: history.state } as const,
+            };
+          }
+          return {
+            _tag: "Return",
+            value: {
+              _tag: "Failure",
+              failure:
+                history._tag === "Missing"
+                  ? ledgerFailure("missing_contract")
+                  : history.failure,
+            } as const,
+          };
+        },
+      );
+    }).pipe(Effect.provide(journalLayer));
+    return withJournalFailure(transaction);
+  };
+
   return Layer.succeed(EndstopLedger, {
     create: (contract) => {
       const decoded = decodeExecutionContractV1(contract);
@@ -317,37 +354,26 @@ export function makeLiveEndstopLedgerLayer(
           },
         );
       }).pipe(Effect.provide(journalLayer));
-      return withJournalFailure(transaction);
-    },
-    status: (contractId) => {
-      const runId = decodeRunId(contractId);
-      if (typeof runId !== "string") {
-        return Effect.fail(ledgerFailure("invalid_contract_id"));
-      }
-      const transaction = Effect.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact<TransactionResult<ExecutionState>>(
-          runId as RunId,
-          (events) => {
-          const history = replayHistory(events);
-          if (history._tag === "Ok") {
-            return { _tag: "Return", value: { _tag: "Ok", value: history.state } as const };
-          }
-          return {
-            _tag: "Return",
-            value: {
-              _tag: "Failure",
-              failure:
-                history._tag === "Missing"
-                  ? ledgerFailure("missing_contract")
-                  : history.failure,
-            } as const,
-          };
-          },
+      const createContract = withJournalFailure(transaction);
+      if (decoded.supersedesContractId === undefined) return createContract;
+
+      return Effect.gen(function* () {
+        const predecessor = yield* readState(decoded.supersedesContractId!).pipe(
+          Effect.catchAll(() =>
+            Effect.fail(ledgerFailure("replacement_unauthorized")),
+          ),
         );
-      }).pipe(Effect.provide(journalLayer));
-      return withJournalFailure(transaction);
+        if (
+          !isExecutionTerminal(predecessor) ||
+          predecessor.contract.packageId !== decoded.packageId ||
+          predecessor.contract.authorizationSha256 === decoded.authorizationSha256
+        ) {
+          return yield* Effect.fail(ledgerFailure("replacement_unauthorized"));
+        }
+        return yield* createContract;
+      });
     },
+    status: readState,
     execute: (contractId, expectedContractSha256, command) => {
       const runId = decodeRunId(contractId);
       if (typeof runId !== "string") {
@@ -413,7 +439,23 @@ export function makeLiveEndstopLedgerLayer(
           },
         );
       }).pipe(Effect.provide(journalLayer));
-      return withJournalFailure(transaction);
+      return Effect.gen(function* () {
+        const current = yield* readState(contractId);
+        if (current.contractSha256 !== expectedContractSha256) {
+          return yield* Effect.fail(ledgerFailure("contract_mismatch"));
+        }
+        for (const dependencyId of current.contract.dependencyContractIds) {
+          const dependency = yield* readState(dependencyId).pipe(
+            Effect.catchAll(() =>
+              Effect.fail(ledgerFailure("dependency_incomplete")),
+            ),
+          );
+          if (dependency._tag !== "Completed") {
+            return yield* Effect.fail(ledgerFailure("dependency_incomplete"));
+          }
+        }
+        return yield* withJournalFailure(transaction);
+      });
     },
   });
 }

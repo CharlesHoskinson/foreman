@@ -14,6 +14,7 @@ import {
   strictEndstopLimits,
   type ExecutionContractV1,
 } from "./execution-contract.js";
+import type { ExecutionCommand } from "./execution-terminal-policy.js";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -77,6 +78,21 @@ function execute(
         reservationId: `reservation-${String(index)}`,
         at: `2026-08-05T12:${String(index + 1).padStart(2, "0")}:00Z`,
       },
+    );
+  }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root)));
+}
+
+function executeCommand(
+  root: string,
+  value: ExecutionContractV1,
+  command: ExecutionCommand,
+) {
+  return Effect.gen(function* () {
+    const ledger = yield* EndstopLedger;
+    return yield* ledger.execute(
+      value.contractId,
+      executionContractSha256(value),
+      command,
     );
   }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root)));
 }
@@ -156,5 +172,96 @@ describe("EndstopLedger", () => {
 
   it("publishes closed non-leaking ledger failures", () => {
     assert.equal(isEndstopLedgerFailure({ _tag: "EndstopLedgerFailure", reason: "missing_contract" }), false);
+  });
+
+  it("blocks only dependents until every dependency is Completed", async () => {
+    await withRoot(async (root) => {
+      const prerequisite = contract({
+        contractId: "endstop-prerequisite-1",
+        packageId: "package-prerequisite",
+      });
+      const dependent = contract({
+        contractId: "endstop-dependent-1",
+        packageId: "package-dependent",
+        dependencyContractIds: [prerequisite.contractId],
+      });
+      const independent = contract({
+        contractId: "endstop-independent-1",
+        packageId: "package-independent",
+      });
+      await Effect.runPromise(create(root, prerequisite));
+      await Effect.runPromise(create(root, dependent));
+      await Effect.runPromise(create(root, independent));
+
+      const blocked = await Effect.runPromise(
+        execute(root, dependent, "implement", 0).pipe(Effect.either),
+      );
+      assert.equal(blocked._tag, "Left");
+      if (blocked._tag === "Left") assert.equal(blocked.left.reason, "dependency_incomplete");
+
+      const allowed = await Effect.runPromise(execute(root, independent, "implement", 0));
+      assert.equal(allowed.decision._tag, "Accepted");
+
+      const completed = await Effect.runPromise(
+        executeCommand(root, prerequisite, {
+          _tag: "RecordMilestone",
+          milestone: "checks",
+          candidateSha256: B,
+          evidenceSha256: C,
+          at: "2026-08-05T12:01:00Z",
+        }),
+      );
+      assert.equal(completed.state._tag, "Completed");
+
+      const admitted = await Effect.runPromise(execute(root, dependent, "implement", 1));
+      assert.equal(admitted.decision._tag, "Accepted");
+    });
+  });
+
+  it("allows replacement only for a terminal predecessor and new authorization", async () => {
+    await withRoot(async (root) => {
+      const predecessor = contract({
+        contractId: "endstop-predecessor-1",
+        packageId: "package-replacement",
+      });
+      await Effect.runPromise(create(root, predecessor));
+
+      const sameAuthorization = contract({
+        contractId: "endstop-replacement-same-auth",
+        packageId: predecessor.packageId,
+        supersedesContractId: predecessor.contractId,
+      });
+      const beforeTerminal = await Effect.runPromise(
+        create(root, sameAuthorization).pipe(Effect.either),
+      );
+      assert.equal(beforeTerminal._tag, "Left");
+      if (beforeTerminal._tag === "Left") {
+        assert.equal(beforeTerminal.left.reason, "replacement_unauthorized");
+      }
+
+      await Effect.runPromise(
+        executeCommand(root, predecessor, {
+          _tag: "Cancel",
+          authorizationSha256: predecessor.authorizationSha256,
+          at: "2026-08-05T12:01:00Z",
+        }),
+      );
+      const stillSame = await Effect.runPromise(
+        create(root, sameAuthorization).pipe(Effect.either),
+      );
+      assert.equal(stillSame._tag, "Left");
+      if (stillSame._tag === "Left") {
+        assert.equal(stillSame.left.reason, "replacement_unauthorized");
+      }
+
+      const authorized = contract({
+        contractId: "endstop-replacement-new-auth",
+        packageId: predecessor.packageId,
+        authorizationSha256: C,
+        supersedesContractId: predecessor.contractId,
+      });
+      const replacement = await Effect.runPromise(create(root, authorized));
+      assert.equal(replacement._tag, "Running");
+    });
   });
 });
