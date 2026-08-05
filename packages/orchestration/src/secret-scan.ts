@@ -883,16 +883,12 @@ function processDirectory(
         return refuse("unsupported_traversal");
       }
 
-      // Top-level prune of .git and .harness only (shell parity).
-      if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
-        continue;
-      }
-
       const childRel =
         frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
 
-      // Path bounds apply to every encountered entry before type dispatch,
-      // including directories and symbolic links.
+      // Path bounds apply to every encountered entry before prune and before
+      // type dispatch, including directories, symbolic links, and top-level
+      // prune names (.git / .harness).
       if (childRel.length === 0 || childRel === ".") {
         return refuse("unsupported_traversal");
       }
@@ -906,6 +902,12 @@ function processDirectory(
       const pathBytes = utf8ByteLength(childRel);
       if (pathBytes > bounds.maxRelativePathBytes) {
         return refuse("bound_exceeded");
+      }
+
+      // Top-level prune of .git and .harness only (shell parity). After path
+      // bound so prune names cannot bypass maxRelativePathBytes.
+      if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
+        continue;
       }
 
       if (!recheckBoundDir(frame.dir)) {

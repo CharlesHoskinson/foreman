@@ -6,6 +6,7 @@
 - [x] One child directory descriptor at a time (active depth chain only).
 - [x] Validate caller-supplied bounds before filesystem access.
 - [x] Apply maxRelativePathBytes before type dispatch (dirs and symlinks).
+- [x] Apply maxRelativePathBytes before top-level .git/.harness prune (host fa70182).
 - [x] Invalid argv and top-level CLI failure emit one canonical JSON refusal.
 
 ## R6: bounded fixture-aware secret scan

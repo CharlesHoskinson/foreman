@@ -16170,9 +16170,6 @@ function processDirectory(frame, exemptions, counters, bounds) {
       if (!isSafeDirentName(name)) {
         return refuse("unsupported_traversal");
       }
-      if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
-        continue;
-      }
       const childRel = frame.posixRel === "" ? name : `${frame.posixRel}/${name}`;
       if (childRel.length === 0 || childRel === ".") {
         return refuse("unsupported_traversal");
@@ -16183,6 +16180,9 @@ function processDirectory(frame, exemptions, counters, bounds) {
       const pathBytes = utf8ByteLength(childRel);
       if (pathBytes > bounds.maxRelativePathBytes) {
         return refuse("bound_exceeded");
+      }
+      if (frame.posixRel === "" && PRUNE_TOP_LEVEL.has(name)) {
+        continue;
       }
       if (!recheckBoundDir(frame.dir)) {
         return refuse("identity_changed");

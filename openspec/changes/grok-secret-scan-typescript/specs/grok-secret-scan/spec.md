@@ -92,7 +92,8 @@ the descriptor-anchor chain for the active depth.
 A wide directory SHALL NOT hold one open descriptor per child.
 
 The scanner SHALL apply `maxRelativePathBytes` to every encountered entry
-before file-type dispatch, including directories and symbolic links.
+before prune and before file-type dispatch, including directories, symbolic
+links, and top-level `.git` / `.harness` prune names.
 
 Unreadable entries, identity changes, unsupported safe traversal, and malformed
 fixture declarations SHALL fail closed without leaking paths, content,
@@ -109,6 +110,14 @@ environment values, stacks, or exception text.
 - WHEN a directory entry has a relative path one byte over maxRelativePathBytes
 - THEN the scan result is `Refused`
 - AND the reason is `bound_exceeded`.
+
+#### Scenario: a top-level prune name exceeds the path-byte bound
+
+- WHEN a top-level `.git` or `.harness` entry has a relative path over
+  maxRelativePathBytes
+- THEN the scan result is `Refused`
+- AND the reason is `bound_exceeded`
+- AND the entry is not skipped by prune before the bound check.
 
 #### Scenario: a caller supplies a non-positive bound
 

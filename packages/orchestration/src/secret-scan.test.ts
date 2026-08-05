@@ -332,6 +332,40 @@ describe("prune .git and .harness", liveTraversal, () => {
       rmSync(wt, { recursive: true, force: true });
     }
   });
+
+  // Host verification after fa70182: prune names are still encountered entries;
+  // maxRelativePathBytes must apply before prune, not only before type dispatch.
+  it("refuses top-level prune entry when relative path exceeds maxRelativePathBytes", () => {
+    const wt = tempRoot("prune-path-bound");
+    try {
+      // Only a top-level prune name plus a short sibling so the bound of 3
+      // can only be tripped by ".git" (4 UTF-8 bytes), not by other paths.
+      writeFile(wt, ".git/id_rsa", "not a key\n");
+      writeFile(wt, "a", "ok\n");
+      const r = runScan(wt, { maxRelativePathBytes: 3 });
+      assert.equal(
+        r._tag,
+        "Refused",
+        `prune entry must not bypass path bound; got ${JSON.stringify(r)}`,
+      );
+      if (r._tag === "Refused") assert.equal(r.reason, "bound_exceeded");
+    } finally {
+      rmSync(wt, { recursive: true, force: true });
+    }
+  });
+
+  it("still prunes .git at valid maxRelativePathBytes", () => {
+    const wt = tempRoot("prune-path-ok");
+    try {
+      writeFile(wt, ".git/id_rsa", "not a key\n");
+      writeFile(wt, "a", "ok\n");
+      // ".git" is 4 bytes — exact bound passes and prune still applies.
+      const r = runScan(wt, { maxRelativePathBytes: 4 });
+      assert.equal(r._tag, "Clean");
+    } finally {
+      rmSync(wt, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

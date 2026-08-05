@@ -62,8 +62,9 @@ The root capability probe also reads at most one directory entry.
 Traversal is depth-first. Only the active depth chain holds open directory
 descriptors. A wide parent does not keep one descriptor per child.
 
-`maxRelativePathBytes` applies to every encountered entry before file-type
-dispatch, including directories and symbolic links.
+`maxRelativePathBytes` applies to every encountered entry before prune and
+before file-type dispatch, including directories, symbolic links, and top-level
+`.git` / `.harness` prune names.
 
 Unreadable entries, identity changes, unsupported traversal, and malformed
 fixture declarations also fail closed.
