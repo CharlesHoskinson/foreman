@@ -8,6 +8,36 @@
  */
 
 export {
+  decodeExecutionContractV1,
+  executionContractSha256,
+  executionMilestones,
+  isExecutionContractFailure,
+  strictEndstopLimits,
+  type ExecutionContractFailure,
+  type ExecutionContractFailureReason,
+  type ExecutionContractV1,
+  type ExecutionLimitsV1,
+  type ExecutionMilestone,
+} from "./execution-contract.js";
+
+export {
+  decideExecutionCommand,
+  evolveExecution,
+  executionActionKinds,
+  initialExecutionState,
+  isExecutionTerminal,
+  type ExecutionActionKind,
+  type ExecutionCommand,
+  type ExecutionCounts,
+  type ExecutionDecision,
+  type ExecutionEvent,
+  type ExecutionState,
+  type ExecutionTerminalTag,
+  type RunningExecutionState,
+  type TerminalExecutionState,
+} from "./execution-terminal-policy.js";
+
+export {
   EXIT_OK,
   EXIT_FAIL,
   EXIT_CONFIG,
