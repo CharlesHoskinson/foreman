@@ -679,11 +679,17 @@ describe("RunJournal layout", () => {
 });
 
 describe("RunJournal multi-process", () => {
-  /** Child startup bound: both ready files must appear within this window. */
+  /** Child startup bound: ready / hold markers must appear within this window. */
   const CHILD_STARTUP_BOUND_MS = 15_000;
-  /** Child barrier wait bound after reporting ready. */
+  /** Child barrier wait bound after reporting ready (serial witness only). */
   const BARRIER_WAIT_BOUND_MS = 15_000;
-  /** Parent wait for both children to exit after barrier release. */
+  /** Holder internal wait for parent release while journal lock remains held. */
+  const HOLDER_HOLD_WAIT_MS = 20_000;
+  /** Parent wait for contender lock-retry seam marker before releasing holder. */
+  const CONTENTION_OBSERVE_BOUND_MS = 15_000;
+  /** Contender exclusive-lock acquire bound while holder holds the journal lock. */
+  const CONTENDER_LOCK_BOUND_MS = 15_000;
+  /** Parent wait for both children to exit after holder release. */
   const CHILD_COMPLETION_BOUND_MS = 20_000;
 
   type ChildCapture = {
@@ -733,7 +739,7 @@ if (exit._tag === "Success") {
   }
 
   /**
-   * Barrier-synced reserve worker.
+   * Barrier-synced reserve worker (serial witness only).
    * argv: root runId laneId attempt limit readyPath goPath barrierWaitMs
    * Reports ready, waits for go, then reserveResumeAttempt.
    */
@@ -806,6 +812,197 @@ if (Exit.isSuccess(exit)) {
     first !== undefined && isResumeAttemptFailure(first)
       ? first.reason
       : "unknown";
+  process.stdout.write(
+    JSON.stringify({ status: "fail", reason, pid: process.pid }) + "\\n",
+  );
+  if (fails.length === 0) {
+    process.stderr.write("defect_or_empty_failure\\n");
+  }
+  process.exitCode = 1;
+}
+`;
+  }
+
+  /**
+   * Holder process: reserveResumeAttempt with afterJournalWriteSync that marks
+   * and waits while the exclusive events lock remains held.
+   * argv: root runId laneId attempt limit holdMarkerPath releasePath holdWaitMs
+   */
+  function reserveHolderWorkerEval(): string {
+    return `
+import { existsSync, writeFileSync } from "node:fs";
+import { Cause, Effect, Exit } from "effect";
+import {
+  isResumeAttemptFailure,
+  makeLiveRunJournalLayer,
+  RunJournal,
+} from "./packages/event-log/src/run-journal.ts";
+import {
+  decodeAttemptId,
+  decodeLaneId,
+  decodeRunId,
+  makeAttemptIdentity,
+} from "./packages/event-log/src/attempt.ts";
+
+const root = process.argv[1];
+const runIdRaw = decodeRunId(process.argv[2]);
+const laneIdRaw = decodeLaneId(process.argv[3]);
+const attemptRaw = decodeAttemptId(Number(process.argv[4]));
+const limit = Number(process.argv[5]);
+const holdMarkerPath = process.argv[6];
+const releasePath = process.argv[7];
+const holdWaitMs = Number(process.argv[8]);
+
+if (typeof runIdRaw !== "string" || typeof laneIdRaw !== "string" || typeof attemptRaw !== "number") {
+  process.stderr.write("worker_decode_failed\\n");
+  process.exit(3);
+}
+
+const identity = makeAttemptIdentity(runIdRaw, laneIdRaw, attemptRaw);
+const exit = await Effect.runPromiseExit(
+  Effect.gen(function* () {
+    const j = yield* RunJournal;
+    return yield* j.reserveResumeAttempt(identity, limit);
+  }).pipe(
+    Effect.provide(
+      makeLiveRunJournalLayer(root, {
+        afterJournalWriteSync: () => {
+          writeFileSync(
+            holdMarkerPath,
+            JSON.stringify({
+              role: "holder",
+              pid: process.pid,
+              at: Date.now(),
+            }) + "\\n",
+          );
+          const deadline = Date.now() + holdWaitMs;
+          while (!existsSync(releasePath)) {
+            if (Date.now() > deadline) {
+              process.stderr.write("holder_release_timeout\\n");
+              process.exit(2);
+            }
+          }
+        },
+      }),
+    ),
+  ),
+);
+
+if (Exit.isSuccess(exit)) {
+  process.stdout.write(
+    JSON.stringify({
+      status: "ok",
+      resumeCount: exit.value.resumeCount,
+      pid: process.pid,
+    }) + "\\n",
+  );
+  process.exitCode = 0;
+} else {
+  const fails = [...Cause.failures(exit.cause)];
+  const first = fails[0];
+  const reason =
+    first !== undefined && isResumeAttemptFailure(first)
+      ? first.reason
+      : "unknown";
+  process.stdout.write(
+    JSON.stringify({ status: "fail", reason, pid: process.pid }) + "\\n",
+  );
+  if (fails.length === 0) {
+    process.stderr.write("defect_or_empty_failure\\n");
+  }
+  process.exitCode = 1;
+}
+`;
+  }
+
+  /**
+   * Contender process: reserveResumeAttempt with waitMs lock-retry seam that
+   * marks when exclusive lock create observes the held lock (EEXIST path).
+   * argv: root runId laneId attempt limit contentionMarkerPath lockBoundMs
+   */
+  function reserveContenderWorkerEval(): string {
+    return `
+import { writeFileSync } from "node:fs";
+import { Cause, Effect, Exit } from "effect";
+import {
+  isResumeAttemptFailure,
+  isRunJournalFailure,
+  makeLiveRunJournalLayer,
+  RunJournal,
+} from "./packages/event-log/src/run-journal.ts";
+import {
+  decodeAttemptId,
+  decodeLaneId,
+  decodeRunId,
+  makeAttemptIdentity,
+} from "./packages/event-log/src/attempt.ts";
+
+const root = process.argv[1];
+const runIdRaw = decodeRunId(process.argv[2]);
+const laneIdRaw = decodeLaneId(process.argv[3]);
+const attemptRaw = decodeAttemptId(Number(process.argv[4]));
+const limit = Number(process.argv[5]);
+const contentionMarkerPath = process.argv[6];
+const lockBoundMs = Number(process.argv[7]);
+
+if (typeof runIdRaw !== "string" || typeof laneIdRaw !== "string" || typeof attemptRaw !== "number") {
+  process.stderr.write("worker_decode_failed\\n");
+  process.exit(3);
+}
+
+let contentionWritten = false;
+const identity = makeAttemptIdentity(runIdRaw, laneIdRaw, attemptRaw);
+const exit = await Effect.runPromiseExit(
+  Effect.gen(function* () {
+    const j = yield* RunJournal;
+    return yield* j.reserveResumeAttempt(identity, limit);
+  }).pipe(
+    Effect.provide(
+      makeLiveRunJournalLayer(root, {
+        lockBoundMs,
+        lockSpinMs: 20,
+        waitMs: (ms) => {
+          // waitMs runs only on the held-lock EEXIST retry path.
+          if (!contentionWritten) {
+            contentionWritten = true;
+            writeFileSync(
+              contentionMarkerPath,
+              JSON.stringify({
+                role: "contender",
+                pid: process.pid,
+                at: Date.now(),
+                spinMs: ms,
+              }) + "\\n",
+            );
+          }
+          const end = Date.now() + Math.max(ms, 1);
+          while (Date.now() < end) {
+            /* short spin between lock retries */
+          }
+        },
+      }),
+    ),
+  ),
+);
+
+if (Exit.isSuccess(exit)) {
+  process.stdout.write(
+    JSON.stringify({
+      status: "ok",
+      resumeCount: exit.value.resumeCount,
+      pid: process.pid,
+    }) + "\\n",
+  );
+  process.exitCode = 0;
+} else {
+  const fails = [...Cause.failures(exit.cause)];
+  const first = fails[0];
+  let reason = "unknown";
+  if (first !== undefined && isResumeAttemptFailure(first)) {
+    reason = first.reason;
+  } else if (first !== undefined && isRunJournalFailure(first)) {
+    reason = first.reason;
+  }
   process.stdout.write(
     JSON.stringify({ status: "fail", reason, pid: process.pid }) + "\\n",
   );
@@ -1054,77 +1251,148 @@ if (Exit.isSuccess(exit)) {
   });
 
   /**
-   * GREEN concurrency acceptance: two OS processes report ready, parent
-   * releases one shared start barrier, then both call reserveResumeAttempt
-   * with limit 1. In-process runFork is not acceptance evidence.
+   * GREEN concurrency acceptance: holder pauses inside afterJournalWriteSync
+   * while the events lock remains held; contender waitMs lock-retry seam
+   * records that exclusive lock create observed the held path. Parent
+   * releases the holder only after that contention marker exists.
    */
-  it("two separate processes wait at one start barrier then race limit one", async () => {
+  it("cross-process contender observes holder journal lock before limit one exhaustion", async () => {
     await withStateRoot(async (root) => {
       await seedPrompt(root, 1);
       const { spawn } = await import("node:child_process");
-      const barrierDir = mkdtempSync(join(tmpdir(), "rj-race-"));
-      const ready0 = join(barrierDir, "ready-0");
-      const ready1 = join(barrierDir, "ready-1");
-      const goPath = join(barrierDir, "go");
+      const markerDir = mkdtempSync(join(tmpdir(), "rj-contention-"));
+      const holdMarkerPath = join(markerDir, "holder-hold");
+      const releasePath = join(markerDir, "holder-release");
+      const contentionMarkerPath = join(markerDir, "contender-contention");
       const children: import("node:child_process").ChildProcess[] = [];
       try {
-        const argsFor = (readyPath: string) => [
+        const holderArgs = [
           "--import",
           "tsx",
           "--input-type=module",
           "-e",
-          reserveBarrierWorkerEval(),
+          reserveHolderWorkerEval(),
           root,
           String(runId),
           String(laneId),
           "1",
           "1",
-          readyPath,
-          goPath,
-          String(BARRIER_WAIT_BOUND_MS),
+          holdMarkerPath,
+          releasePath,
+          String(HOLDER_HOLD_WAIT_MS),
+        ];
+        const contenderArgs = [
+          "--import",
+          "tsx",
+          "--input-type=module",
+          "-e",
+          reserveContenderWorkerEval(),
+          root,
+          String(runId),
+          String(laneId),
+          "1",
+          "1",
+          contentionMarkerPath,
+          String(CONTENDER_LOCK_BOUND_MS),
         ];
 
-        const c0 = spawnCaptured(spawn, argsFor(ready0));
-        const c1 = spawnCaptured(spawn, argsFor(ready1));
-        children.push(c0.child, c1.child);
+        const holder = spawnCaptured(spawn, holderArgs);
+        children.push(holder.child);
 
-        await waitUntil(
-          () => existsSync(ready0) && existsSync(ready1),
-          CHILD_STARTUP_BOUND_MS,
-          "both ready files",
+        try {
+          await waitUntil(
+            () => existsSync(holdMarkerPath),
+            CHILD_STARTUP_BOUND_MS,
+            "holder afterJournalWriteSync hold marker",
+          );
+        } catch (e) {
+          killChild(holder.child);
+          const late = await holder.done;
+          assert.fail(
+            `holder hold marker timeout: ${String(e)}; code=${String(late.code)} err=${late.err} out=${late.out}`,
+          );
+        }
+
+        assert.equal(
+          existsSync(contentionMarkerPath),
+          false,
+          "contention marker must not exist before contender starts",
         );
-        // Both children reported ready before the single start barrier release.
-        assert.equal(existsSync(goPath), false, "go must not exist before release");
-        const readyAtRelease = {
-          ready0: readFileSync(ready0, "utf8").trim(),
-          ready1: readFileSync(ready1, "utf8").trim(),
-          releasedAt: Date.now(),
-        };
-        writeFileSync(goPath, JSON.stringify(readyAtRelease) + "\n");
+        assert.equal(
+          existsSync(releasePath),
+          false,
+          "holder must still hold the journal lock before release",
+        );
+
+        const contender = spawnCaptured(spawn, contenderArgs);
+        children.push(contender.child);
+
+        try {
+          await waitUntil(
+            () => existsSync(contentionMarkerPath),
+            CONTENTION_OBSERVE_BOUND_MS,
+            "contender waitMs lock-retry contention marker",
+          );
+        } catch (e) {
+          for (const ch of children) killChild(ch);
+          const late = await Promise.all([holder.done, contender.done]);
+          assert.fail(
+            `contender contention marker timeout: ${String(e)}; captures=${JSON.stringify(late)}`,
+          );
+        }
+
+        // Contender observed the held exclusive lock while the holder still
+        // paused inside afterJournalWriteSync (journal lock not released).
+        const holdMarker = readFileSync(holdMarkerPath, "utf8").trim();
+        const contentionMarker = readFileSync(
+          contentionMarkerPath,
+          "utf8",
+        ).trim();
+        const observedAt = Date.now();
+        assert.equal(existsSync(releasePath), false, "must release only after contention");
+        writeFileSync(
+          releasePath,
+          JSON.stringify({
+            holdMarker,
+            contentionMarker,
+            releasedAt: observedAt,
+          }) + "\n",
+        );
 
         const timed = await Promise.race([
-          Promise.all([c0.done, c1.done]),
+          Promise.all([holder.done, contender.done]),
           sleep(CHILD_COMPLETION_BOUND_MS).then(() => null),
         ]);
         if (timed === null) {
           for (const ch of children) killChild(ch);
-          const late = await Promise.all([c0.done, c1.done]);
+          const late = await Promise.all([holder.done, contender.done]);
           assert.fail(
-            `barrier race completion timeout; captures=${JSON.stringify(late)}`,
+            `holder/contender completion timeout; captures=${JSON.stringify(late)}`,
           );
         }
-        const [r0, r1] = timed;
+        const [holderCapture, contenderCapture] = timed;
 
-        // Capture child stderr and exit codes in assertion evidence.
         const evidence = {
-          readyAtRelease,
-          children: [
-            { code: r0.code, err: r0.err, out: r0.out, pid: r0.pid },
-            { code: r1.code, err: r1.err, out: r1.out, pid: r1.pid },
-          ],
+          holdMarker,
+          contentionMarker,
+          releasedAt: observedAt,
+          holder: {
+            code: holderCapture.code,
+            err: holderCapture.err,
+            out: holderCapture.out,
+            pid: holderCapture.pid,
+          },
+          contender: {
+            code: contenderCapture.code,
+            err: contenderCapture.err,
+            out: contenderCapture.out,
+            pid: contenderCapture.pid,
+          },
         };
 
-        const results = [parseReserveResult(r0), parseReserveResult(r1)];
+        const holderResult = parseReserveResult(holderCapture);
+        const contenderResult = parseReserveResult(contenderCapture);
+        const results = [holderResult, contenderResult];
         const oks = results.filter((r) => r.status === "ok");
         const fails = results.filter((r) => r.status === "fail");
         assert.equal(
@@ -1144,47 +1412,85 @@ if (Exit.isSuccess(exit)) {
           JSON.stringify(evidence),
         );
 
-        // Exit codes: success child 0, limit child 1; stderr should not show
-        // barrier timeout or defects under a healthy lock.
-        const paired = [
-          { capture: r0, result: results[0]! },
-          { capture: r1, result: results[1]! },
-        ];
-        const successPair = paired.find((p) => p.result.status === "ok");
-        const failPair = paired.find((p) => p.result.status === "fail");
-        assert.ok(successPair !== undefined && failPair !== undefined);
+        // Holder must be the success (count 1) and contender the limit failure.
         assert.equal(
-          successPair.capture.code,
-          0,
-          `success child exit: ${JSON.stringify(evidence)}`,
+          holderResult.status,
+          "ok",
+          `holder must succeed under lock: ${JSON.stringify(evidence)}`,
         );
         assert.equal(
-          failPair.capture.code,
+          holderResult.status === "ok" ? holderResult.resumeCount : -1,
           1,
-          `limit child exit: ${JSON.stringify(evidence)}`,
+          JSON.stringify(evidence),
         );
         assert.equal(
-          successPair.capture.err.includes("barrier_wait_timeout"),
-          false,
-          successPair.capture.err,
+          contenderResult.status,
+          "fail",
+          `contender must hit limit after observing lock: ${JSON.stringify(evidence)}`,
         );
         assert.equal(
-          failPair.capture.err.includes("barrier_wait_timeout"),
-          false,
-          failPair.capture.err,
+          contenderResult.status === "fail" ? contenderResult.reason : "",
+          "resume_limit_reached",
+          JSON.stringify(evidence),
         );
         assert.equal(
-          successPair.capture.err.includes("defect_or_empty_failure"),
-          false,
-          successPair.capture.err,
+          holderCapture.code,
+          0,
+          `holder exit: ${JSON.stringify(evidence)}`,
         );
         assert.equal(
-          failPair.capture.err.includes("defect_or_empty_failure"),
+          contenderCapture.code,
+          1,
+          `contender exit: ${JSON.stringify(evidence)}`,
+        );
+        assert.equal(
+          holderCapture.err.includes("holder_release_timeout"),
           false,
-          failPair.capture.err,
+          holderCapture.err,
+        );
+        assert.equal(
+          holderCapture.err.includes("defect_or_empty_failure"),
+          false,
+          holderCapture.err,
+        );
+        assert.equal(
+          contenderCapture.err.includes("defect_or_empty_failure"),
+          false,
+          contenderCapture.err,
         );
 
-        assert.equal(journalResumeAttemptCount(root), 1, JSON.stringify(evidence));
+        // Lock-contention evidence: contender marker was written before release.
+        const holdParsed = JSON.parse(holdMarker) as {
+          role: string;
+          pid: number;
+          at: number;
+        };
+        const contentionParsed = JSON.parse(contentionMarker) as {
+          role: string;
+          pid: number;
+          at: number;
+          spinMs: number;
+        };
+        assert.equal(holdParsed.role, "holder", JSON.stringify(evidence));
+        assert.equal(
+          contentionParsed.role,
+          "contender",
+          JSON.stringify(evidence),
+        );
+        assert.ok(
+          contentionParsed.at >= holdParsed.at,
+          `contention must follow hold: ${JSON.stringify(evidence)}`,
+        );
+        assert.ok(
+          observedAt >= contentionParsed.at,
+          `release must follow contention: ${JSON.stringify(evidence)}`,
+        );
+
+        assert.equal(
+          journalResumeAttemptCount(root),
+          1,
+          JSON.stringify(evidence),
+        );
         const journalPath = join(root, "runs", runId, "events.ndjson");
         const bytes = readFileSync(journalPath);
         const replay = replayNdjsonBytes(bytes, { fromLine: 0 });
@@ -1202,7 +1508,7 @@ if (Exit.isSuccess(exit)) {
         );
       } finally {
         for (const ch of children) killChild(ch);
-        rmSync(barrierDir, { recursive: true, force: true });
+        rmSync(markerDir, { recursive: true, force: true });
       }
     });
   });
