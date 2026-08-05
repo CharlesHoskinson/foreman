@@ -14,6 +14,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   rmdirSync,
@@ -21,7 +22,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { Effect, Layer } from "effect";
 import { canonicalize, parseJsonRejectDuplicateKeys, isCoreFailure } from "@foreman/core";
@@ -481,6 +482,114 @@ describe("state-root vs worktree boundary", () => {
         reason: "state_root_in_worktree",
       });
     } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses logical-inside/physical-outside state root at initial validation", () => {
+    if (IS_WIN) {
+      // Intermediate symlink under worktree is POSIX-stable for this case.
+      return;
+    }
+    const root = mkdtempSync(join(tmpdir(), "foreman-cp-log-in-"));
+    try {
+      const worktreeRoot = join(root, "worktree");
+      const external = join(root, "external-state-parent");
+      mkdirSync(worktreeRoot, { recursive: true });
+      mkdirSync(external, { recursive: true });
+      // worktree/link → external; state lives at worktree/link/state.
+      const link = join(worktreeRoot, "link");
+      symlinkSync(external, link);
+      const stateRoot = join(link, "state");
+      mkdirSync(stateRoot, { recursive: true });
+
+      // Logical path is a descendant of worktree; physical realpath is outside.
+      assert.equal(
+        isEqualOrDescendant(
+          normalizeAbsolutePath(stateRoot),
+          normalizeAbsolutePath(worktreeRoot),
+        ),
+        true,
+        "logical state must be under worktree",
+      );
+      assert.equal(
+        isEqualOrDescendant(
+          normalizeAbsolutePath(realpathSync(stateRoot)),
+          normalizeAbsolutePath(realpathSync(worktreeRoot)),
+        ),
+        false,
+        "physical state must be outside worktree",
+      );
+
+      const r = runInit({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p1",
+        vendor: "grok",
+      });
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "state_root_in_worktree",
+      });
+
+      // Same dual check on resolve entry (validateInputs).
+      const res = runResolve({
+        stateRoot,
+        worktreeRoot,
+        profileId: "p1",
+        vendor: "grok",
+      });
+      assert.deepEqual(res, {
+        _tag: "Refused",
+        reason: "state_root_in_worktree",
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("final success gate rechecks dual containment after safe-mode", () => {
+    if (IS_WIN) {
+      // Ancestor retarget via symlink is POSIX-stable; skip on Windows.
+      return;
+    }
+    const root = mkdtempSync(join(tmpdir(), "foreman-cp-final-contain-"));
+    try {
+      const worktreeRoot = join(root, "worktree");
+      const outer = join(root, "outer");
+      const stateRoot = join(outer, "state");
+      mkdirSync(worktreeRoot, { recursive: true });
+      mkdirSync(stateRoot, { recursive: true });
+
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      assert.equal(runInit(input)._tag, "Initialized");
+
+      // After mode verification, retarget the logical ancestor so physical
+      // containment flips while path strings stay the same. Final gate must
+      // re-run dual containment (logical still external; physical inside).
+      setCredentialProfileRaceHook({
+        afterSafeModeVerify: () => {
+          const captured = join(worktreeRoot, "captured");
+          mkdirSync(captured, { recursive: true });
+          const movedState = join(captured, "state");
+          renameSync(stateRoot, movedState);
+          rmdirSync(outer);
+          symlinkSync(captured, outer);
+        },
+      });
+      const r = runResolve(input);
+      assert.deepEqual(
+        r,
+        { _tag: "Refused", reason: "state_root_in_worktree" },
+        JSON.stringify(r),
+      );
+    } finally {
+      setCredentialProfileRaceHook(undefined);
       rmSync(root, { recursive: true, force: true });
     }
   });
@@ -1456,6 +1565,97 @@ describe("identity change, write failures, concurrency", () => {
         { _tag: "Refused", reason: "identity_changed" },
         JSON.stringify(r),
       );
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * Replace profile.json with a new regular file that has the same bytes and
+   * 0600 mode but a different inode. Final gate must refuse identity_changed
+   * and must not return Ready from the stale pre-replacement read.
+   */
+  function replaceAuthoritySameMode(jsonPath: string): void {
+    const body = readFileSync(jsonPath);
+    const beforeIno = lstatSync(jsonPath).ino;
+    rmSync(jsonPath);
+    writeFileSync(jsonPath, body, { mode: 0o600 });
+    if (!IS_WIN) {
+      chmodSync(jsonPath, 0o600);
+      assert.equal(lstatSync(jsonPath).mode & 0o777, 0o600);
+    }
+    assert.notEqual(
+      lstatSync(jsonPath).ino,
+      beforeIno,
+      "replacement must use a distinct inode",
+    );
+  }
+
+  it("resolve refuses identity_changed when authority is replaced after read", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("auth-id-resolve");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      assert.equal(runInit(input)._tag, "Initialized");
+      const jsonPath = profileJsonPath(stateRoot, "p");
+
+      setCredentialProfileRaceHook({
+        afterSafeModeVerify: () => {
+          replaceAuthoritySameMode(jsonPath);
+        },
+      });
+      const r = runResolve(input);
+      assert.deepEqual(
+        r,
+        { _tag: "Refused", reason: "identity_changed" },
+        JSON.stringify(r),
+      );
+      // Must not surface Ready derived from the pre-replacement bytes.
+      assert.notEqual(r._tag, "Ready");
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("init refuses identity_changed when authority is replaced after read", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("auth-id-init");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      assert.equal(runInit(input)._tag, "Initialized");
+      const jsonPath = profileJsonPath(stateRoot, "p");
+      const beforeBytes = readFileSync(jsonPath);
+
+      setCredentialProfileRaceHook({
+        afterSafeModeVerify: () => {
+          replaceAuthoritySameMode(jsonPath);
+        },
+      });
+      // Second init takes the existing-authority Ready path; replacement after
+      // read must refuse rather than return Ready from stale bytes.
+      const r = runInit(input);
+      assert.deepEqual(
+        r,
+        { _tag: "Refused", reason: "identity_changed" },
+        JSON.stringify(r),
+      );
+      assert.notEqual(r._tag, "Ready");
+      assert.notEqual(r._tag, "Initialized");
+      // Replacement left a valid-looking file; refusal is about identity, not
+      // content mutation by init.
+      assert.deepEqual(readFileSync(jsonPath), beforeBytes);
     } finally {
       setCredentialProfileRaceHook(undefined);
       rmSync(root, { recursive: true, force: true });

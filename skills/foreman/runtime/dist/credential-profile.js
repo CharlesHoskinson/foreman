@@ -16722,7 +16722,10 @@ function recheckLayoutIdentities(fs, paths, ids3) {
   }
   return null;
 }
-function recheckPhysicalContainment(stateRoot, worktreeRoot) {
+function recheckContainment(stateRoot, worktreeRoot) {
+  if (isEqualOrDescendant(stateRoot, worktreeRoot)) {
+    return "state_root_in_worktree";
+  }
   const physicalState = physicalDirPath(stateRoot);
   if (physicalState === null) return "invalid_state_root";
   const physicalWorktree = physicalDirPath(worktreeRoot);
@@ -16733,7 +16736,7 @@ function recheckPhysicalContainment(stateRoot, worktreeRoot) {
   return null;
 }
 function recheckBeforeAuthorityGate(fs, paths, ids3, worktreeRoot) {
-  const contain = recheckPhysicalContainment(paths.stateRoot, worktreeRoot);
+  const contain = recheckContainment(paths.stateRoot, worktreeRoot);
   if (contain !== null) return contain;
   return recheckLayoutIdentities(fs, paths, ids3);
 }
@@ -16782,16 +16785,11 @@ function validateInputs(input, fs) {
   if (stateId.kind !== "directory") {
     return { _tag: "Refused", result: refuse("invalid_state_root") };
   }
-  const physicalState = physicalDirPath(stateRoot);
-  if (physicalState === null) {
-    return { _tag: "Refused", result: refuse("invalid_state_root") };
-  }
-  const physicalWorktree = physicalDirPath(worktreeRoot);
-  if (physicalWorktree === null) {
-    return { _tag: "Refused", result: refuse("invalid_arguments") };
-  }
-  if (isEqualOrDescendant(physicalState, physicalWorktree)) {
-    return { _tag: "Refused", result: refuse("state_root_in_worktree") };
+  {
+    const contain = recheckContainment(stateRoot, worktreeRoot);
+    if (contain !== null) {
+      return { _tag: "Refused", result: refuse(contain) };
+    }
   }
   raceHook?.afterValidateStateRoot?.();
   const stateId2 = fs.identity(stateRoot);
@@ -16864,11 +16862,23 @@ function ensureOwnerDir(fs, path) {
   if (bits !== 448) return "write_failed";
   return null;
 }
-function finalSuccessFilesystemGate(fs, paths, ids3, worktreeRoot, layoutDirs, authorityFile) {
+function recheckAuthorityFileIdentity(fs, authorityFile, expected) {
+  const kind = fs.classify(authorityFile);
+  if (kind === "symlink") return "linked_path";
+  if (kind === "missing") return "identity_changed";
+  if (kind !== "file") return "identity_changed";
+  const id = fs.identity(authorityFile);
+  if (id === null || id.kind !== "file") return "identity_changed";
+  if (!identitiesEqual(id, expected)) return "identity_changed";
+  return null;
+}
+function finalSuccessFilesystemGate(fs, paths, ids3, worktreeRoot, layoutDirs, authorityFile, authorityIdentity) {
   const modeErr = verifySafeProfileModes(fs, layoutDirs, authorityFile);
   if (modeErr !== null) return modeErr;
   raceHook?.afterSafeModeVerify?.();
-  return recheckBeforeAuthorityGate(fs, paths, ids3, worktreeRoot);
+  const gate = recheckBeforeAuthorityGate(fs, paths, ids3, worktreeRoot);
+  if (gate !== null) return gate;
+  return recheckAuthorityFileIdentity(fs, authorityFile, authorityIdentity);
 }
 function successResult(tag, stateRoot, record) {
   const configRoot = absoluteConfigRoot(
@@ -16921,7 +16931,11 @@ function readAuthority(fs, jsonPath) {
   if (parsed._tag === "Fail") {
     return { _tag: "Refused", reason: parsed.reason };
   }
-  return { _tag: "Ok", record: parsed.record };
+  const supplied = fs.identity(jsonPath);
+  if (supplied === null || supplied.kind !== "file" || fs.classify(jsonPath) === "symlink" || !identitiesEqual(supplied, after3)) {
+    return { _tag: "Refused", reason: "identity_changed" };
+  }
+  return { _tag: "Ok", record: parsed.record, identity: supplied };
 }
 function initProfileSync(input, fs) {
   const v = validateInputs(input, fs);
@@ -17010,7 +17024,8 @@ function initProfileSync(input, fs) {
         layoutIds,
         worktreeRoot,
         layoutDirList,
-        jsonPath
+        jsonPath,
+        existing.identity
       );
       if (err !== null) return refuse(err);
     }
@@ -17056,7 +17071,8 @@ function initProfileSync(input, fs) {
       layoutIds,
       worktreeRoot,
       layoutDirList,
-      jsonPath
+      jsonPath,
+      after3.identity
     );
     if (err !== null) return refuse(err);
   }
@@ -17142,7 +17158,8 @@ function resolveProfileSync(input, fs) {
       layoutIds,
       worktreeRoot,
       layoutDirList,
-      jsonPath
+      jsonPath,
+      existing.identity
     );
     if (err !== null) return refuse(err);
   }

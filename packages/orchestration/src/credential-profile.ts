@@ -499,8 +499,8 @@ export type CredentialProfileRaceHook = {
    */
   readonly forceParentDirSyncCode?: string;
   /**
-   * After safe-mode verification and before the final physical
-   * containment / layout-identity gate (tests only).
+   * After safe-mode verification and before the final dual containment /
+   * layout-identity / authority-file-identity gate (tests only).
    */
   readonly afterSafeModeVerify?: () => void;
 };
@@ -915,14 +915,23 @@ function recheckLayoutIdentities(
 }
 
 /**
- * Recompute physical state-root and worktree containment. A linked ancestor
- * that moves the same state-root inode into the worktree after admission must
- * be refused with `state_root_in_worktree`.
+ * Dual containment gate: normalized logical paths and realpath-resolved
+ * physical paths. Both must keep `stateRoot` outside `worktreeRoot`.
+ *
+ * - Logical: a path such as `<worktree>/link/state` is refused even when
+ *   `link` targets an external directory.
+ * - Physical: a linked ancestor that places the same state-root inode inside
+ *   the worktree is refused even when logical path strings look external.
  */
-function recheckPhysicalContainment(
+function recheckContainment(
   stateRoot: string,
   worktreeRoot: string,
 ): CredentialProfileRefusalReason | null {
+  // 1. Normalized logical containment (no symlink follow).
+  if (isEqualOrDescendant(stateRoot, worktreeRoot)) {
+    return "state_root_in_worktree";
+  }
+  // 2. Physical containment via realpath (linked-ancestor test).
   const physicalState = physicalDirPath(stateRoot);
   if (physicalState === null) return "invalid_state_root";
   const physicalWorktree = physicalDirPath(worktreeRoot);
@@ -935,7 +944,8 @@ function recheckPhysicalContainment(
 
 /**
  * Gate used before every authority read, before publication, and before
- * success: physical containment first, then layout directory identities.
+ * success: logical + physical containment first, then layout directory
+ * identities.
  */
 function recheckBeforeAuthorityGate(
   fs: CredentialProfileFsShape,
@@ -949,7 +959,7 @@ function recheckBeforeAuthorityGate(
   ids: LayoutIdentities,
   worktreeRoot: string,
 ): CredentialProfileRefusalReason | null {
-  const contain = recheckPhysicalContainment(paths.stateRoot, worktreeRoot);
+  const contain = recheckContainment(paths.stateRoot, worktreeRoot);
   if (contain !== null) return contain;
   return recheckLayoutIdentities(fs, paths, ids);
 }
@@ -1036,17 +1046,12 @@ function validateInputs(
     return { _tag: "Refused", result: refuse("invalid_state_root") };
   }
 
-  // Physical containment: resolve through linked ancestors before admission.
-  const physicalState = physicalDirPath(stateRoot);
-  if (physicalState === null) {
-    return { _tag: "Refused", result: refuse("invalid_state_root") };
-  }
-  const physicalWorktree = physicalDirPath(worktreeRoot);
-  if (physicalWorktree === null) {
-    return { _tag: "Refused", result: refuse("invalid_arguments") };
-  }
-  if (isEqualOrDescendant(physicalState, physicalWorktree)) {
-    return { _tag: "Refused", result: refuse("state_root_in_worktree") };
+  // Logical + physical containment before admission.
+  {
+    const contain = recheckContainment(stateRoot, worktreeRoot);
+    if (contain !== null) {
+      return { _tag: "Refused", result: refuse(contain) };
+    }
   }
 
   raceHook?.afterValidateStateRoot?.();
@@ -1175,9 +1180,31 @@ function ensureOwnerDir(
 }
 
 /**
+ * Recheck that `authorityFile` still names the same non-linked regular file
+ * that supplied the decoded authority bytes. A same-mode replacement after
+ * read must refuse `identity_changed` rather than return stale bytes.
+ */
+function recheckAuthorityFileIdentity(
+  fs: CredentialProfileFsShape,
+  authorityFile: string,
+  expected: PathIdentity,
+): CredentialProfileRefusalReason | null {
+  const kind = fs.classify(authorityFile);
+  if (kind === "symlink") return "linked_path";
+  if (kind === "missing") return "identity_changed";
+  if (kind !== "file") return "identity_changed";
+  const id = fs.identity(authorityFile);
+  if (id === null || id.kind !== "file") return "identity_changed";
+  if (!identitiesEqual(id, expected)) return "identity_changed";
+  return null;
+}
+
+/**
  * Last filesystem gates before Ready/Initialized: verify safe modes, then
- * recheck physical containment and layout identities. A race that retargets
- * a linked ancestor after mode verification must still be refused.
+ * recheck logical + physical containment and layout identities, then recheck
+ * that profile.json still names the authority inode that supplied the bytes.
+ * A race that retargets a linked ancestor or replaces the authority file
+ * after mode verification must still be refused.
  */
 function finalSuccessFilesystemGate(
   fs: CredentialProfileFsShape,
@@ -1192,11 +1219,14 @@ function finalSuccessFilesystemGate(
   worktreeRoot: string,
   layoutDirs: readonly string[],
   authorityFile: string,
+  authorityIdentity: PathIdentity,
 ): CredentialProfileRefusalReason | null {
   const modeErr = verifySafeProfileModes(fs, layoutDirs, authorityFile);
   if (modeErr !== null) return modeErr;
   raceHook?.afterSafeModeVerify?.();
-  return recheckBeforeAuthorityGate(fs, paths, ids, worktreeRoot);
+  const gate = recheckBeforeAuthorityGate(fs, paths, ids, worktreeRoot);
+  if (gate !== null) return gate;
+  return recheckAuthorityFileIdentity(fs, authorityFile, authorityIdentity);
 }
 
 function successResult(
@@ -1222,7 +1252,12 @@ function readAuthority(
   fs: CredentialProfileFsShape,
   jsonPath: string,
 ):
-  | { readonly _tag: "Ok"; readonly record: CredentialProfileRecordV1 }
+  | {
+      readonly _tag: "Ok";
+      readonly record: CredentialProfileRecordV1;
+      /** Non-linked regular-file identity that supplied the decoded bytes. */
+      readonly identity: PathIdentity;
+    }
   | { readonly _tag: "Absent" }
   | { readonly _tag: "Refused"; readonly reason: CredentialProfileRefusalReason } {
   const kind = fs.classify(jsonPath);
@@ -1271,7 +1306,19 @@ function readAuthority(
   if (parsed._tag === "Fail") {
     return { _tag: "Refused", reason: parsed.reason };
   }
-  return { _tag: "Ok", record: parsed.record };
+
+  // The identity that supplied the decoded bytes must still name the same
+  // non-linked regular file at the authority path after the read.
+  const supplied = fs.identity(jsonPath);
+  if (
+    supplied === null ||
+    supplied.kind !== "file" ||
+    fs.classify(jsonPath) === "symlink" ||
+    !identitiesEqual(supplied, after)
+  ) {
+    return { _tag: "Refused", reason: "identity_changed" };
+  }
+  return { _tag: "Ok", record: parsed.record, identity: supplied };
 }
 
 // ---------------------------------------------------------------------------
@@ -1375,7 +1422,7 @@ function initProfileSync(
     if (!recordsEqualExact(existing.record, expected)) {
       return refuse("authority_conflict");
     }
-    // Safe modes, then final physical containment + layout identity gate.
+    // Safe modes, containment, layout, then authority-file identity gate.
     {
       const err = finalSuccessFilesystemGate(
         fs,
@@ -1384,6 +1431,7 @@ function initProfileSync(
         worktreeRoot,
         layoutDirList,
         jsonPath,
+        existing.identity,
       );
       if (err !== null) return refuse(err);
     }
@@ -1430,7 +1478,7 @@ function initProfileSync(
   if (!recordsEqualExact(after.record, expected)) {
     return refuse("authority_conflict");
   }
-  // Safe modes, then final physical containment + layout identity gate.
+  // Safe modes, containment, layout, then authority-file identity gate.
   {
     const err = finalSuccessFilesystemGate(
       fs,
@@ -1439,6 +1487,7 @@ function initProfileSync(
       worktreeRoot,
       layoutDirList,
       jsonPath,
+      after.identity,
     );
     if (err !== null) return refuse(err);
   }
@@ -1529,7 +1578,7 @@ function resolveProfileSync(
     // Wrong vendor or relative root → conflict; wrong decode already invalid.
     return refuse("authority_conflict");
   }
-  // Safe modes, then final physical containment + layout identity gate.
+  // Safe modes, containment, layout, then authority-file identity gate.
   {
     const err = finalSuccessFilesystemGate(
       fs,
@@ -1538,6 +1587,7 @@ function resolveProfileSync(
       worktreeRoot,
       layoutDirList,
       jsonPath,
+      existing.identity,
     );
     if (err !== null) return refuse(err);
   }
