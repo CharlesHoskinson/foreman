@@ -55,6 +55,12 @@ const ENTRIES = [
     relativePath: "dist/dependency-drift.js",
     injectCapabilities: false,
   },
+  {
+    id: "foreman-setup",
+    entry: join(root, "packages/orchestration/src/foreman-setup-main.ts"),
+    relativePath: "dist/foreman-setup.js",
+    injectCapabilities: true,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

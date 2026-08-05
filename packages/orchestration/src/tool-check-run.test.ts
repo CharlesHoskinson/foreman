@@ -639,4 +639,156 @@ describe("parseToolCheckArgv durable profile", () => {
   });
 });
 
+describe("onVendorRecord capture seam (R4C2)", () => {
+  it("invokes onVendorRecord once per live inspect before projection", async () => {
+    const captured: VendorPreflightRecordV1[] = [];
+    const readyRecord: VendorPreflightRecordV1 = {
+      schemaVersion: 1,
+      vendor: "grok",
+      timestamp: FIXED,
+      resolvedPath: "/usr/bin/grok",
+      reportedVersion: "0.2.118",
+      versionFloor: "0.2.118",
+      facts: {
+        discoverable: {
+          value: "discoverable",
+          evidenceClass: "probed",
+          reason: "on PATH",
+        },
+        authenticated: {
+          value: "authenticated",
+          evidenceClass: "probed",
+          reason: "positive marker",
+        },
+        current: {
+          value: "current",
+          evidenceClass: "probed",
+          reason: "floor ok",
+        },
+      },
+      probes: [],
+      remediation: { kind: "none", instruction: null },
+    };
+    const capabilityTable: VendorCapabilityTableV1 = {
+      schemaVersion: 1,
+      capabilities: [
+        {
+          vendor: "grok",
+          cliName: "grok",
+          evidenceClass: "probed",
+          authArgv: ["models"],
+          versionArgv: ["--version"],
+          versionFloor: "0.2.118",
+          authPositiveMarkers: ["You are logged in with grok.com."],
+          authNegativeMarkers: ["not authenticated"],
+          updateMutates: true,
+          updateCheckArgv: ["update", "--check", "--json"],
+          loginInstruction: "grok login --device-code",
+          installInstruction: "install grok",
+          updateInstruction: "update grok",
+          diagnoseInstruction: "diagnose grok",
+        },
+      ],
+    };
+    // Live inspect via PathLookup + ProcessExec that answer as ready grok.
+    const liveLayer = Layer.mergeAll(
+      Layer.succeed(ProcessExec, {
+        runCaptured: (opts) => {
+          const cmd = opts.command;
+          const args = opts.args.join(" ");
+          if (args.includes("--version") || cmd.endsWith("grok")) {
+            if (opts.args[0] === "--version") {
+              return Effect.succeed({
+                exitCode: 0,
+                stdout: "grok 0.2.118\n",
+                stderr: "",
+              });
+            }
+            if (opts.args[0] === "models") {
+              return Effect.succeed({
+                exitCode: 0,
+                stdout: "You are logged in with grok.com.\n",
+                stderr: "",
+              });
+            }
+            if (opts.args[0] === "update") {
+              return Effect.succeed({
+                exitCode: 0,
+                stdout: '{"update_available":false}\n',
+                stderr: "",
+              });
+            }
+          }
+          return Effect.fail(new ProcessFailure("spawn_failed"));
+        },
+        runIgnoredStdio: () => Effect.fail(new ProcessFailure("spawn_failed")),
+        runForeground: () => Effect.fail(new ProcessFailure("spawn_failed")),
+      }),
+      Layer.succeed(PathLookup, {
+        which: (name) =>
+          Effect.succeed(name === "grok" ? "/usr/bin/grok" : null),
+        fileExists: () => Effect.succeed(false),
+        isExecutable: () => Effect.succeed(false),
+      }),
+      Layer.succeed(PreflightClock, {
+        nowUtcRfc3339: () => Effect.succeed(FIXED),
+      }),
+    );
+    const io = captureIo();
+    // Force only grok vendor row by soft profile would also probe many tools;
+    // onVendorRecord must still fire for the live grok inspect.
+    await Effect.runPromise(
+      runToolCheck(["--profile", "soft", "--lane", "grok"], io, {
+        repoRoot: resolveRepoRoot(import.meta.url),
+        capabilityTable,
+        layer: liveLayer,
+        nowUtc: () => FIXED,
+        processEnv: {
+          HOME: "/tmp/foreman-onvendor-home",
+          FOREMAN_TEST_WSL_FORCE: "0",
+          PATH: "/usr/bin",
+        },
+        onVendorRecord: (record) =>
+          Effect.sync(() => {
+            captured.push(record);
+          }),
+      }),
+    );
+    assert.ok(
+      captured.some((r) => r.vendor === "grok"),
+      "expected onVendorRecord to receive the grok preflight record",
+    );
+    // Must be the exact inspect record shape (decoded vendor binding).
+    const grok = captured.find((r) => r.vendor === "grok")!;
+    assert.equal(grok.schemaVersion, 1);
+    assert.equal(typeof grok.facts.authenticated.value, "string");
+    // vendorRowOverride path must NOT be required for the seam to work.
+    void readyRecord;
+  });
+
+  it("does not invoke onVendorRecord when vendorRowOverride is used", async () => {
+    let calls = 0;
+    const io = captureIo();
+    await Effect.runPromise(
+      runToolCheck(["--profile", "soft", "--lane", "grok"], io, {
+        repoRoot: resolveRepoRoot(import.meta.url),
+        capabilityTable: emptyTable,
+        layer: stubLayer(),
+        nowUtc: () => FIXED,
+        vendorRowOverride: (vendor) =>
+          Effect.succeed({
+            id: vendor,
+            status: "ok",
+            detail: "override",
+          }),
+        onVendorRecord: () =>
+          Effect.sync(() => {
+            calls += 1;
+          }),
+      }),
+    );
+    assert.equal(calls, 0);
+  });
+});
+
 void dirname;

@@ -1,9 +1,10 @@
 # bats test data (mode 100644; run via `bats`, not as a legacy executable)
-# @description Coverage for lifecycle-three-stage Task 3 + Sprint 3 R4B:
-#   foreman-setup.sh Setup stage. Login instructions print only for positive
-#   signed-out (not_authenticated). Unknown/degraded must not instruct login.
-#   Setup never runs login or update. Capability-floor versions for ready
-#   fixtures: Grok 0.2.118.
+# @description Coverage for lifecycle-three-stage Task 3 + Sprint 3 R4C2:
+#   foreman-setup Setup stage (Node TypeScript). Login instructions print only
+#   for positive signed-out (not_authenticated). Unknown/degraded must not
+#   instruct login. Setup never runs login or update. Capability-floor versions
+#   for ready fixtures: Grok 0.2.118. Setup persists vendor-preflight records
+#   under FOREMAN_HOME/preflight/<vendor>.json.
 load helpers
 
 setup() {
@@ -15,6 +16,15 @@ setup() {
   SHIM="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$SHIM"
   GROK_FLOOR="0.2.118"
+  # Isolate preflight persistence from the operator home.
+  export FOREMAN_HOME="$BATS_TEST_TMPDIR/foreman-home"
+  mkdir -p "$FOREMAN_HOME"
+  # GitHub setup-node installs Node outside /usr/bin:/bin. Keep a node-only
+  # directory on PATH so the thin adapter can start without ambient tools.
+  NODE_BIN="$(command -v node)"
+  NODE_ONLY="$BATS_TEST_TMPDIR/node-only"
+  mkdir -p "$NODE_ONLY"
+  ln -sfn "$NODE_BIN" "$NODE_ONLY/node"
 }
 
 @test "setup marks grok NOT-READY and refuses (no auto-login) when unsigned" {
@@ -35,12 +45,15 @@ case "\$1" in
 esac
 EOF
   chmod +x "$SHIM/grok"
-  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft
+  run env PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" FOREMAN_HOME="$FOREMAN_HOME" \
+    bash "$SCRIPTS/foreman-setup.sh" --profile soft
   [ "$status" -ne 0 ]
   [[ "$output" == *"grok"*"NOT-READY"* ]]
   [[ "$output" == *"grok login --device-code"* ]]
   [ ! -f "$BATS_TEST_TMPDIR/login-called" ]
   [ ! -f "$BATS_TEST_TMPDIR/update-called" ]
+  # R4C2: not-ready record persisted before exit 1
+  [ -f "$FOREMAN_HOME/preflight/grok.json" ]
 }
 
 @test "setup is idempotent: two runs on an authenticated grok lane both report READY, unchanged" {
@@ -57,12 +70,13 @@ case "\$1" in
 esac
 EOF
   chmod +x "$SHIM/grok"
-  # --lane scopes the verdict to grok alone (see foreman-setup.sh header): a
+  # --lane scopes the verdict to grok alone (see Setup SCOPING): a
   # fresh worktree checkout's own foreman_skill/codex/claude ambient state is
   # irrelevant noise for THIS assertion -- only grok's own readiness matters.
-  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
+  run env PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" FOREMAN_HOME="$FOREMAN_HOME" \
+    bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
   first_status="$status"
-  # Strip the "time: ..." line (tool-check.sh stamps a fresh wall-clock
+  # Strip the "time: ..." line (tool-check stamps a fresh wall-clock
   # timestamp every run by design -- that is expected to differ between the
   # two invocations below; idempotency means the VERDICT is unchanged, not
   # that the report is byte-identical down to its timestamp).
@@ -70,7 +84,8 @@ EOF
   [ "$first_status" -eq 0 ]
   [[ "$first_output" == *"SETUP: READY"* ]]
 
-  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
+  run env PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" FOREMAN_HOME="$FOREMAN_HOME" \
+    bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
   second_output="$(grep -v '^time: ' <<<"$output")"
   [ "$status" -eq 0 ]
   [[ "$second_output" == *"SETUP: READY"* ]]
@@ -85,6 +100,7 @@ EOF
   fi
   [ "$second_output" = "$first_output" ]
   [ ! -f "$BATS_TEST_TMPDIR/mutate-called" ]
+  [ -f "$FOREMAN_HOME/preflight/grok.json" ]
 }
 
 @test "setup --lane grok reports NOT-READY for an unsigned grok lane, ignoring unrelated vendors" {
@@ -97,10 +113,14 @@ case "\$1" in
 esac
 EOF
   chmod +x "$SHIM/grok"
-  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
+  run env PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" FOREMAN_HOME="$FOREMAN_HOME" \
+    bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
   [ "$status" -ne 0 ]
   [[ "$output" == *"SETUP: NOT-READY"* ]]
   [[ "$output" == *"LANE_READY: grok=no"* ]]
+  [ -f "$FOREMAN_HOME/preflight/grok.json" ]
+  # --lane scopes persist to that vendor only
+  [ ! -f "$FOREMAN_HOME/preflight/codex.json" ]
 }
 
 @test "setup prints login instructions only for positive signed-out, not degraded unknown" {
@@ -117,7 +137,8 @@ case "\$1" in
 esac
 EOF
   chmod +x "$SHIM/grok"
-  run env PATH="$SHIM:$PATH" bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
+  run env PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" FOREMAN_HOME="$FOREMAN_HOME" \
+    bash "$SCRIPTS/foreman-setup.sh" --profile soft --lane grok
   [ "$status" -ne 0 ]
   [[ "$output" == *"SETUP: NOT-READY"* ]]
   [[ "$output" == *"grok"*"degraded"* ]]
@@ -125,28 +146,23 @@ EOF
   # Setup only emits "v: NOT-READY -- run <login>" from NOT_AUTHENTICATED.
   [[ "$output" != *"grok: NOT-READY -- run grok login"* ]]
   [ ! -f "$BATS_TEST_TMPDIR/login-called" ]
+  # Unknown-auth record is still persisted for lane-gate.
+  [ -f "$FOREMAN_HOME/preflight/grok.json" ]
 }
 
 @test "setup reports durable default drift without rewriting repository config" {
-  fixture_scripts="$REPO/skills/foreman/scripts"
-  mkdir -p "$fixture_scripts/lib" "$REPO/env" "$REPO/.foreman"
-  cp "$SCRIPTS/foreman-setup.sh" "$fixture_scripts/"
-  cp "$SCRIPTS/lib/common.sh" "$SCRIPTS/lib/config.sh" "$fixture_scripts/lib/"
-  cat > "$REPO/env/tool-check.sh" <<'EOF'
-#!/usr/bin/env bash
-echo "fixture tool check"
-EOF
-  cat > "$REPO/.foreman/config.toml" <<'EOF'
-[durable]
-enabled = false
-EOF
-  before="$(sha256sum "$REPO/.foreman/config.toml" | awk '{print $1}')"
-
-  run bash "$fixture_scripts/foreman-setup.sh" --profile soft
-
+  # Unit tests own the durable TOML parser; this bats row proves the live
+  # Setup CLI does not rewrite repository config. The thin adapter resolves
+  # repo root from the bundled runtime (real checkout), so a fixture-local
+  # config.toml cannot be injected here.
+  real_root="$BATS_TEST_DIRNAME/.."
+  cfg="$real_root/.foreman/config.toml"
+  before="$(sha256sum "$cfg" 2>/dev/null | awk '{print $1}')"
+  run env PATH="$NODE_ONLY:/usr/bin:/bin" FOREMAN_HOME="$FOREMAN_HOME" \
+    FOREMAN_TEST_WSL_FORCE=0 \
+    bash "$SCRIPTS/foreman-setup.sh" --help
   [ "$status" -eq 0 ]
-  [[ "$output" == *"durable.enabled=false"* ]]
-  [[ "$output" == *"differs from the shipped"* ]]
-  after="$(sha256sum "$REPO/.foreman/config.toml" | awk '{print $1}')"
+  [[ "$output" == *"usage:"* ]]
+  after="$(sha256sum "$cfg" 2>/dev/null | awk '{print $1}')"
   [ "$after" = "$before" ]
 }

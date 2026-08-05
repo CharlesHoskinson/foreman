@@ -419,3 +419,33 @@ export {
   type DriftIo,
   type DriftRunOptions,
 } from "./dependency-drift.js";
+
+// --- Sprint 3 R4C2: Setup persistence TypeScript runtime ---
+
+export {
+  SETUP_PROFILES,
+  SETUP_LANES,
+  EXIT_READY as SETUP_EXIT_READY,
+  EXIT_NOT_READY as SETUP_EXIT_NOT_READY,
+  EXIT_INVALID_ARGUMENTS as SETUP_EXIT_INVALID_ARGUMENTS,
+  EXIT_BOUNDARY_FAILURE as SETUP_EXIT_BOUNDARY_FAILURE,
+  USAGE as SETUP_USAGE,
+  MSG_BOUNDARY_FAILURE as SETUP_MSG_BOUNDARY_FAILURE,
+  MSG_INTERNAL_FAILURE as SETUP_MSG_INTERNAL_FAILURE,
+  MAX_DURABLE_CONFIG_BYTES,
+  stripSetupNodeArgv,
+  parseSetupArgv,
+  authInstruction,
+  resolveForemanHome,
+  resolvePreflightRecordPath,
+  parseDurableEnabledFromToml,
+  launcherRunnable,
+  ensurePosixLauncher,
+  runForemanSetup,
+  type SetupProfile,
+  type SetupLane,
+  type SetupIo,
+  type ParsedSetupArgv,
+  type LauncherEnsureResult,
+  type SetupRunEnv,
+} from "./foreman-setup.js";

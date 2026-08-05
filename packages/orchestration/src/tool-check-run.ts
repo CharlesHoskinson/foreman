@@ -42,7 +42,10 @@ import {
   projectVendorPreflightToToolCheckRow,
   type ToolCheckRowStatus,
 } from "./vendor-preflight-tool-check.js";
-import { MAX_PATH_BYTES } from "./vendor-preflight-contract.js";
+import {
+  MAX_PATH_BYTES,
+  type VendorPreflightRecordV1,
+} from "./vendor-preflight-contract.js";
 import {
   EXIT_INVALID_ARGUMENTS,
   EXIT_NOT_READY,
@@ -96,6 +99,15 @@ export type ToolCheckRunEnv = {
   readonly vendorRowOverride?: (
     vendor: "grok" | "codex",
   ) => Effect.Effect<ToolRow, never, ProcessExec | PathLookup | PreflightClock>;
+  /**
+   * Optional Effect callback that receives each decoded VendorPreflightRecordV1
+   * from a live inspect, before tool-check projection. Default is a no-op so
+   * direct tool-check CLI behavior is unchanged. Used by Setup to persist the
+   * exact inspected record without a second probe.
+   */
+  readonly onVendorRecord?: (
+    record: VendorPreflightRecordV1,
+  ) => Effect.Effect<void, never, ProcessExec | PathLookup | PreflightClock>;
 };
 
 function homeDir(env: NodeJS.ProcessEnv): string {
@@ -249,6 +261,7 @@ export function checkOne(
     readonly processEnv: NodeJS.ProcessEnv;
     readonly isWsl: boolean;
     readonly vendorRowOverride?: ToolCheckRunEnv["vendorRowOverride"];
+    readonly onVendorRecord?: ToolCheckRunEnv["onVendorRecord"];
   },
 ): Effect.Effect<ToolRow, never, ProcessExec | PathLookup | PreflightClock> {
   return Effect.gen(function* () {
@@ -320,7 +333,11 @@ export function checkOne(
       }
       case "grok":
       case "codex":
-        return yield* checkVendorRow(id, ctx);
+        return yield* checkVendorRow(id, {
+          capabilityTable: ctx.capabilityTable,
+          vendorRowOverride: ctx.vendorRowOverride,
+          onVendorRecord: ctx.onVendorRecord,
+        });
       case "node": {
         const p = yield* whichOrNull("node");
         if (!p) return row("node", "missing", "");
@@ -571,6 +588,7 @@ function checkVendorRow(
   ctx: {
     readonly capabilityTable: VendorCapabilityTableV1;
     readonly vendorRowOverride?: ToolCheckRunEnv["vendorRowOverride"];
+    readonly onVendorRecord?: ToolCheckRunEnv["onVendorRecord"];
   },
 ): Effect.Effect<ToolRow, never, ProcessExec | PathLookup | PreflightClock> {
   return Effect.gen(function* () {
@@ -602,6 +620,10 @@ function checkVendorRow(
     // Vendor binding: refuse a record that does not match the requested vendor.
     if (record.vendor !== vendor) {
       return row(vendor, "degraded", "vendor-preflight row vendor mismatch");
+    }
+    // Capture seam for Setup persistence: exact validated record, once.
+    if (ctx.onVendorRecord) {
+      yield* ctx.onVendorRecord(record);
     }
     const projected = projectVendorPreflightToToolCheckRow(record);
     if (projected.vendor !== vendor) {
@@ -853,6 +875,7 @@ export function runToolCheck(
             processEnv,
             isWsl,
             vendorRowOverride: env.vendorRowOverride,
+            onVendorRecord: env.onVendorRecord,
           }),
         );
       }

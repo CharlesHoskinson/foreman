@@ -67,6 +67,10 @@ const trackedDependencyDriftPath = join(
   trackedRuntime,
   "dist/dependency-drift.js",
 );
+const trackedForemanSetupPath = join(
+  trackedRuntime,
+  "dist/foreman-setup.js",
+);
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -83,6 +87,7 @@ const trackedRound = readFileSync(trackedRoundPath);
 const trackedPreflight = readFileSync(trackedPreflightPath);
 const trackedToolCheck = readFileSync(trackedToolCheckPath);
 const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
+const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
 
 // No extra files under dist/
 {
@@ -91,6 +96,7 @@ const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
     "architecture-policy.js",
     "dependency-drift.js",
     "destruction-guard.js",
+    "foreman-setup.js",
     "lane-queue.js",
     "lane-round.js",
     "tool-check.js",
@@ -121,6 +127,8 @@ try {
   const bToolCheck = readFileSync(join(tmpB, "dist/tool-check.js"));
   const aDependencyDrift = readFileSync(join(tmpA, "dist/dependency-drift.js"));
   const bDependencyDrift = readFileSync(join(tmpB, "dist/dependency-drift.js"));
+  const aForemanSetup = readFileSync(join(tmpA, "dist/foreman-setup.js"));
+  const bForemanSetup = readFileSync(join(tmpB, "dist/foreman-setup.js"));
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
@@ -134,6 +142,9 @@ try {
   if (!bytesEqual(aDependencyDrift, bDependencyDrift)) {
     fail("non-deterministic dependency-drift");
   }
+  if (!bytesEqual(aForemanSetup, bForemanSetup)) {
+    fail("non-deterministic foreman-setup");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
@@ -142,6 +153,9 @@ try {
   if (!bytesEqual(aToolCheck, trackedToolCheck)) fail("tool-check drift");
   if (!bytesEqual(aDependencyDrift, trackedDependencyDrift)) {
     fail("dependency-drift drift");
+  }
+  if (!bytesEqual(aForemanSetup, trackedForemanSetup)) {
+    fail("foreman-setup drift");
   }
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
@@ -172,6 +186,7 @@ try {
     writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
+    writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
@@ -192,6 +207,9 @@ try {
     writeFileSync(join(rt, "dist/dependency-drift.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered dependency-drift should fail");
     cpSync(trackedDependencyDriftPath, join(rt, "dist/dependency-drift.js"));
+    writeFileSync(join(rt, "dist/foreman-setup.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered foreman-setup should fail");
+    cpSync(trackedForemanSetupPath, join(rt, "dist/foreman-setup.js"));
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {
@@ -303,6 +321,29 @@ try {
       rmSync(join(rt, "dist/dependency-drift.js"));
       writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
     }
+    // Missing foreman-setup must fail
+    {
+      rmSync(join(rt, "dist/foreman-setup.js"));
+      const missSetup = verifyRuntimeManifest(rt);
+      if (missSetup.ok || missSetup.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for foreman-setup got " +
+            JSON.stringify(missSetup),
+        );
+      }
+      writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
+    }
+    // Linked foreman-setup bundle must fail
+    {
+      const realSetup = join(rt, "foreman-setup.real.js");
+      writeFileSync(realSetup, trackedForemanSetup);
+      rmSync(join(rt, "dist/foreman-setup.js"));
+      symlinkSync(realSetup, join(rt, "dist/foreman-setup.js"));
+      const linkedSetup = verifyRuntimeManifest(rt);
+      if (linkedSetup.ok) fail("linked foreman-setup should fail");
+      rmSync(join(rt, "dist/foreman-setup.js"));
+      writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
+    }
     // Tamper manifest digests
     writeFileSync(
       join(rt, "manifest.json"),
@@ -325,6 +366,12 @@ try {
             id: "destruction-guard",
             relativePath: "dist/destruction-guard.js",
             sha256: "b".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "foreman-setup",
+            relativePath: "dist/foreman-setup.js",
+            sha256: "h".repeat(64),
           },
           {
             byteLength: 1,

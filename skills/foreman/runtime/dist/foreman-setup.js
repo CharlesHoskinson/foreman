@@ -4,9 +4,9 @@ var __export = (target, all4) => {
     __defProp(target, name, { get: all4[name], enumerable: true });
 };
 
-// packages/orchestration/src/tool-check-main.ts
+// packages/orchestration/src/foreman-setup-main.ts
 import { readFileSync as readFileSync3 } from "node:fs";
-import { join as join7 } from "node:path";
+import { join as join9 } from "node:path";
 
 // node_modules/effect/dist/esm/Function.js
 var isFunction = (input) => typeof input === "function";
@@ -15621,16 +15621,257 @@ var ensureErrorType2 = () => (layer) => layer;
 var ensureRequirementsType2 = () => (layer) => layer;
 
 // packages/orchestration/src/vendor-preflight-manifest.ts
-import { isAbsolute } from "node:path";
+import { isAbsolute as isAbsolute2 } from "node:path";
 
 // packages/core/src/failures.ts
 var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
+function duplicateJsonKey() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "DuplicateJsonKey" };
+}
+function invalidJson() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "InvalidJson" };
+}
 function unknownField(field) {
   return { [CORE_FAILURE_BRAND]: true, _tag: "UnknownField", field };
+}
+function isCoreFailure(v) {
+  return typeof v === "object" && v !== null && v[CORE_FAILURE_BRAND] === true;
 }
 
 // packages/core/src/canonical-json.ts
 var PARSE_FAIL = Symbol("@foreman/core/parseFail");
+function parseFail(failure) {
+  return { [PARSE_FAIL]: true, failure };
+}
+function isParseFail(v) {
+  return typeof v === "object" && v !== null && v[PARSE_FAIL] === true;
+}
+function parseJsonRejectDuplicateKeys(text) {
+  let i = 0;
+  const s = text;
+  function skipWs() {
+    while (i < s.length) {
+      const c = s.charCodeAt(i);
+      if (c === 32 || c === 9 || c === 10 || c === 13) {
+        i += 1;
+      } else {
+        break;
+      }
+    }
+  }
+  function peek() {
+    return i < s.length ? s[i] : "";
+  }
+  function fail8() {
+    return parseFail(invalidJson());
+  }
+  function parseString() {
+    if (peek() !== '"') return fail8();
+    i += 1;
+    let out = "";
+    while (i < s.length) {
+      const c = s[i];
+      if (c === '"') {
+        i += 1;
+        return out;
+      }
+      if (c === "\\") {
+        i += 1;
+        if (i >= s.length) return fail8();
+        const e = s[i];
+        i += 1;
+        switch (e) {
+          case '"':
+          case "\\":
+          case "/":
+            out += e;
+            break;
+          case "b":
+            out += "\b";
+            break;
+          case "f":
+            out += "\f";
+            break;
+          case "n":
+            out += "\n";
+            break;
+          case "r":
+            out += "\r";
+            break;
+          case "t":
+            out += "	";
+            break;
+          case "u": {
+            if (i + 4 > s.length) return fail8();
+            const hex = s.slice(i, i + 4);
+            if (!/^[0-9a-fA-F]{4}$/.test(hex)) return fail8();
+            out += String.fromCharCode(parseInt(hex, 16));
+            i += 4;
+            break;
+          }
+          default:
+            return fail8();
+        }
+      } else if (c.charCodeAt(0) < 32) {
+        return fail8();
+      } else {
+        out += c;
+        i += 1;
+      }
+    }
+    return fail8();
+  }
+  function parseNumber() {
+    const start3 = i;
+    if (peek() === "-") i += 1;
+    if (peek() < "0" || peek() > "9") return fail8();
+    if (peek() === "0") {
+      i += 1;
+      if (peek() >= "0" && peek() <= "9") return fail8();
+    } else {
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === ".") {
+      i += 1;
+      if (peek() < "0" || peek() > "9") return fail8();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === "e" || peek() === "E") {
+      i += 1;
+      if (peek() === "+" || peek() === "-") i += 1;
+      if (peek() < "0" || peek() > "9") return fail8();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    const num = Number(s.slice(start3, i));
+    if (!Number.isFinite(num)) return fail8();
+    return num;
+  }
+  function parseValue() {
+    skipWs();
+    const c = peek();
+    if (c === '"') return parseString();
+    if (c === "{") return parseObject();
+    if (c === "[") return parseArray();
+    if (c === "t") {
+      if (s.slice(i, i + 4) !== "true") return fail8();
+      i += 4;
+      return true;
+    }
+    if (c === "f") {
+      if (s.slice(i, i + 5) !== "false") return fail8();
+      i += 5;
+      return false;
+    }
+    if (c === "n") {
+      if (s.slice(i, i + 4) !== "null") return fail8();
+      i += 4;
+      return null;
+    }
+    if (c === "-" || c >= "0" && c <= "9") return parseNumber();
+    return fail8();
+  }
+  function parseObject() {
+    if (peek() !== "{") return fail8();
+    i += 1;
+    skipWs();
+    const obj = /* @__PURE__ */ Object.create(null);
+    const seen = /* @__PURE__ */ new Set();
+    if (peek() === "}") {
+      i += 1;
+      return obj;
+    }
+    while (true) {
+      skipWs();
+      const key = parseString();
+      if (isParseFail(key)) return key;
+      if (seen.has(key)) return parseFail(duplicateJsonKey());
+      seen.add(key);
+      skipWs();
+      if (peek() !== ":") return fail8();
+      i += 1;
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      Object.defineProperty(obj, key, {
+        value: val,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "}") {
+        i += 1;
+        return obj;
+      }
+      return fail8();
+    }
+  }
+  function parseArray() {
+    if (peek() !== "[") return fail8();
+    i += 1;
+    skipWs();
+    const arr = [];
+    if (peek() === "]") {
+      i += 1;
+      return arr;
+    }
+    while (true) {
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      arr.push(val);
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "]") {
+        i += 1;
+        return arr;
+      }
+      return fail8();
+    }
+  }
+  const value = parseValue();
+  if (isParseFail(value)) {
+    return value.failure;
+  }
+  skipWs();
+  if (i !== s.length) {
+    return invalidJson();
+  }
+  return value;
+}
+function canonicalize(value) {
+  if (value === null) return "null";
+  if (value === true) return "true";
+  if (value === false) return "false";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("non_finite_number");
+    }
+    if (Object.is(value, -0)) return "0";
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map((v) => canonicalize(v)).join(",") + "]";
+  }
+  if (typeof value === "object") {
+    const obj = value;
+    const keys5 = Object.keys(obj).sort();
+    const parts2 = [];
+    for (const k of keys5) {
+      parts2.push(JSON.stringify(k) + ":" + canonicalize(obj[k]));
+    }
+    return "{" + parts2.join(",") + "}";
+  }
+  throw new Error("unsupported_json_value");
+}
 
 // packages/core/src/decode.ts
 function rejectUnknownKeys(obj, allowed) {
@@ -15644,12 +15885,46 @@ function rejectUnknownKeys(obj, allowed) {
 }
 
 // packages/orchestration/src/vendor-preflight-contract.ts
+import { isAbsolute } from "node:path";
 var VENDOR_IDS = ["claude", "codex", "grok", "agy"];
 var VENDOR_EVIDENCE_CLASSES = ["declared", "probed"];
+var DISCOVERABLE_VALUES = [
+  "discoverable",
+  "missing",
+  "unknown"
+];
+var AUTH_VALUES = [
+  "authenticated",
+  "not-authenticated",
+  "unknown"
+];
+var CURRENCY_VALUES = ["current", "outdated", "unknown"];
+var PROBE_KINDS = ["version", "auth"];
+var PROBE_OUTCOMES = [
+  "completed",
+  "timeout",
+  "output_bound",
+  "spawn_failed",
+  "cancelled",
+  "empty_output",
+  "malformed_output",
+  "unmatched_output"
+];
+var REMEDIATION_KINDS = [
+  "none",
+  "install",
+  "login",
+  "update",
+  "diagnose"
+];
+var MAX_REASON_BYTES = 4096;
+var MAX_INSTRUCTION_BYTES = 4096;
+var MAX_VERSION_BYTES = 256;
 var MAX_PATH_BYTES = 32768;
 var MAX_PROBE_ARGV_ENTRIES = 64;
 var MAX_PROBE_ARG_BYTES = 65536;
 var MAX_PROBE_ARGV_TOTAL_BYTES = 262144;
+var MAX_PROBES = 8;
 var VENDOR_PREFLIGHT_CONTRACT_FAILURE_BRAND = Symbol(
   "@foreman/orchestration/VendorPreflightContractFailure"
 );
@@ -15666,8 +15941,221 @@ function isVendorPreflightContractFailure(v) {
 function utf8ByteLength(s) {
   return Buffer.byteLength(s, "utf8");
 }
+function isNonBlankString(v) {
+  return typeof v === "string" && v.trim().length > 0;
+}
 function hasNul(s) {
   return s.includes("\0");
+}
+function isStrictUtcRfc3339(s) {
+  if (typeof s !== "string" || s.length < 20 || s.length > 40) return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d{1,9})?Z$/.exec(s);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (month < 1 || month > 12) return false;
+  if (day < 1 || day > 31) return false;
+  if (hour > 23 || minute > 59 || second > 60) return false;
+  const ms = Date.parse(s);
+  if (!Number.isFinite(ms)) return false;
+  const d = new Date(ms);
+  if (d.getUTCFullYear() !== year || d.getUTCMonth() + 1 !== month || d.getUTCDate() !== day) {
+    return false;
+  }
+  return true;
+}
+function isInSet(v, set6) {
+  return typeof v === "string" && set6.includes(v);
+}
+function decodeNonBlankBounded(v, maxBytes) {
+  if (typeof v !== "string") {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  if (hasNul(v)) {
+    return vendorPreflightContractFailure("nul_rejected");
+  }
+  if (v.trim().length === 0) {
+    return vendorPreflightContractFailure("blank_string");
+  }
+  if (utf8ByteLength(v) > maxBytes) {
+    return vendorPreflightContractFailure("bound_exceeded");
+  }
+  return v;
+}
+function decodeOptionalBoundedString(v, maxBytes) {
+  if (v === null) return null;
+  return decodeNonBlankBounded(v, maxBytes);
+}
+var FACT_KEYS = ["value", "evidenceClass", "reason"];
+var PROBE_KEYS = ["kind", "argv", "outcome", "exitCode"];
+var REMEDIATION_KEYS = ["kind", "instruction"];
+var FACTS_KEYS = ["discoverable", "authenticated", "current"];
+var RECORD_KEYS = [
+  "schemaVersion",
+  "vendor",
+  "timestamp",
+  "resolvedPath",
+  "reportedVersion",
+  "versionFloor",
+  "facts",
+  "probes",
+  "remediation"
+];
+function decodeFact(value, valueDomain) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  const obj = value;
+  if (rejectUnknownKeys(obj, FACT_KEYS) !== null) {
+    return vendorPreflightContractFailure("unknown_field");
+  }
+  if (!isInSet(obj["value"], valueDomain)) {
+    return vendorPreflightContractFailure("invalid_enum");
+  }
+  if (!isInSet(obj["evidenceClass"], VENDOR_EVIDENCE_CLASSES)) {
+    return vendorPreflightContractFailure("invalid_enum");
+  }
+  const reason = decodeNonBlankBounded(obj["reason"], MAX_REASON_BYTES);
+  if (isVendorPreflightContractFailure(reason)) return reason;
+  return {
+    value: obj["value"],
+    evidenceClass: obj["evidenceClass"],
+    reason
+  };
+}
+function decodeArgv(value) {
+  if (!Array.isArray(value)) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  const checked = validateProbeArgv(value);
+  if (checked !== null) return checked;
+  const out = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") {
+      return vendorPreflightContractFailure("invalid_schema");
+    }
+    out.push(entry);
+  }
+  return out;
+}
+function decodeProbe(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  const obj = value;
+  if (rejectUnknownKeys(obj, PROBE_KEYS) !== null) {
+    return vendorPreflightContractFailure("unknown_field");
+  }
+  if (!isInSet(obj["kind"], PROBE_KINDS)) {
+    return vendorPreflightContractFailure("invalid_enum");
+  }
+  if (!isInSet(obj["outcome"], PROBE_OUTCOMES)) {
+    return vendorPreflightContractFailure("invalid_enum");
+  }
+  const argv = decodeArgv(obj["argv"]);
+  if (isVendorPreflightContractFailure(argv)) return argv;
+  const exitCode = obj["exitCode"];
+  if (exitCode !== null) {
+    if (typeof exitCode !== "number" || !Number.isSafeInteger(exitCode) || exitCode < 0 || exitCode > 255) {
+      return vendorPreflightContractFailure("invalid_exit_code");
+    }
+  }
+  return {
+    kind: obj["kind"],
+    argv,
+    outcome: obj["outcome"],
+    exitCode
+  };
+}
+function decodeRemediation(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  const obj = value;
+  if (rejectUnknownKeys(obj, REMEDIATION_KEYS) !== null) {
+    return vendorPreflightContractFailure("unknown_field");
+  }
+  if (!isInSet(obj["kind"], REMEDIATION_KINDS)) {
+    return vendorPreflightContractFailure("invalid_enum");
+  }
+  const kind = obj["kind"];
+  const instruction = obj["instruction"];
+  if (instruction === null) {
+    return { kind, instruction: null };
+  }
+  const instr = decodeNonBlankBounded(instruction, MAX_INSTRUCTION_BYTES);
+  if (isVendorPreflightContractFailure(instr)) return instr;
+  return { kind, instruction: instr };
+}
+function checkRecordConsistency(rec) {
+  const disc = rec.facts.discoverable.value;
+  const auth = rec.facts.authenticated.value;
+  const curr = rec.facts.current.value;
+  const rem = rec.remediation;
+  if (disc === "missing") {
+    if (rec.resolvedPath !== null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+    if (rec.probes.length !== 0) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+    if (auth !== "unknown" || curr !== "unknown") {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+    if (rec.reportedVersion !== null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  }
+  if (disc === "discoverable") {
+    if (rec.resolvedPath === null || !isAbsolute(rec.resolvedPath)) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  }
+  if (rec.resolvedPath !== null && !isAbsolute(rec.resolvedPath)) {
+    return vendorPreflightContractFailure("relative_path");
+  }
+  if (rem.kind === "none") {
+    if (rem.instruction !== null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  } else if (rem.instruction === null) {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+  if (rem.kind === "login" && auth !== "not-authenticated") {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+  if (auth === "not-authenticated" && rem.kind !== "login") {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+  let authProbeCount = 0;
+  let versionProbeCount = 0;
+  for (const p of rec.probes) {
+    if (p.kind === "auth") authProbeCount++;
+    else if (p.kind === "version") versionProbeCount++;
+  }
+  if (authProbeCount > 1 || versionProbeCount > 1) {
+    return vendorPreflightContractFailure("inconsistent_state");
+  }
+  if (auth === "authenticated" || auth === "not-authenticated") {
+    const authProbe = rec.probes.find((p) => p.kind === "auth");
+    if (authProbe === void 0 || authProbe.outcome !== "completed") {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  }
+  if (curr === "current" || curr === "outdated") {
+    const versionProbe = rec.probes.find((p) => p.kind === "version");
+    if (versionProbe === void 0 || versionProbe.outcome !== "completed") {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+    if (rec.reportedVersion === null) {
+      return vendorPreflightContractFailure("inconsistent_state");
+    }
+  }
+  return null;
 }
 function validateProbeArgv(argv) {
   if (argv.length === 0 || argv.length > MAX_PROBE_ARGV_ENTRIES) {
@@ -15696,6 +16184,95 @@ function validateProbeArgv(argv) {
   }
   return null;
 }
+function decodeVendorPreflightRecordV1(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  const obj = value;
+  if (rejectUnknownKeys(obj, RECORD_KEYS) !== null) {
+    return vendorPreflightContractFailure("unknown_field");
+  }
+  if (obj["schemaVersion"] !== 1) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  if (!isInSet(obj["vendor"], VENDOR_IDS)) {
+    return vendorPreflightContractFailure("invalid_enum");
+  }
+  if (typeof obj["timestamp"] !== "string" || !isStrictUtcRfc3339(obj["timestamp"])) {
+    return vendorPreflightContractFailure("invalid_timestamp");
+  }
+  let resolvedPath;
+  if (obj["resolvedPath"] === null) {
+    resolvedPath = null;
+  } else if (typeof obj["resolvedPath"] === "string") {
+    if (!isNonBlankString(obj["resolvedPath"])) {
+      return vendorPreflightContractFailure("blank_string");
+    }
+    if (hasNul(obj["resolvedPath"])) {
+      return vendorPreflightContractFailure("nul_rejected");
+    }
+    if (utf8ByteLength(obj["resolvedPath"]) > MAX_PATH_BYTES) {
+      return vendorPreflightContractFailure("bound_exceeded");
+    }
+    if (!isAbsolute(obj["resolvedPath"])) {
+      return vendorPreflightContractFailure("relative_path");
+    }
+    resolvedPath = obj["resolvedPath"];
+  } else {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  const reportedVersion = decodeOptionalBoundedString(
+    obj["reportedVersion"],
+    MAX_VERSION_BYTES
+  );
+  if (isVendorPreflightContractFailure(reportedVersion)) return reportedVersion;
+  const versionFloor = decodeNonBlankBounded(
+    obj["versionFloor"],
+    MAX_VERSION_BYTES
+  );
+  if (isVendorPreflightContractFailure(versionFloor)) return versionFloor;
+  if (typeof obj["facts"] !== "object" || obj["facts"] === null || Array.isArray(obj["facts"])) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  const factsObj = obj["facts"];
+  if (rejectUnknownKeys(factsObj, FACTS_KEYS) !== null) {
+    return vendorPreflightContractFailure("unknown_field");
+  }
+  const discoverable = decodeFact(factsObj["discoverable"], DISCOVERABLE_VALUES);
+  if (isVendorPreflightContractFailure(discoverable)) return discoverable;
+  const authenticated = decodeFact(factsObj["authenticated"], AUTH_VALUES);
+  if (isVendorPreflightContractFailure(authenticated)) return authenticated;
+  const current = decodeFact(factsObj["current"], CURRENCY_VALUES);
+  if (isVendorPreflightContractFailure(current)) return current;
+  if (!Array.isArray(obj["probes"])) {
+    return vendorPreflightContractFailure("invalid_schema");
+  }
+  if (obj["probes"].length > MAX_PROBES) {
+    return vendorPreflightContractFailure("bound_exceeded");
+  }
+  const probes = [];
+  for (const p of obj["probes"]) {
+    const decoded = decodeProbe(p);
+    if (isVendorPreflightContractFailure(decoded)) return decoded;
+    probes.push(decoded);
+  }
+  const remediation = decodeRemediation(obj["remediation"]);
+  if (isVendorPreflightContractFailure(remediation)) return remediation;
+  const record = {
+    schemaVersion: 1,
+    vendor: obj["vendor"],
+    timestamp: obj["timestamp"],
+    resolvedPath,
+    reportedVersion,
+    versionFloor,
+    facts: { discoverable, authenticated, current },
+    probes,
+    remediation
+  };
+  const consistency = checkRecordConsistency(record);
+  if (consistency !== null) return consistency;
+  return record;
+}
 
 // packages/orchestration/src/vendor-preflight-manifest.ts
 var CAPABILITY_JSON_KEYS = [
@@ -15721,7 +16298,7 @@ function utf8ByteLength2(s) {
 function hasNul2(s) {
   return s.includes("\0");
 }
-function isInSet(v, set6) {
+function isInSet2(v, set6) {
   return typeof v === "string" && set6.includes(v);
 }
 function decodeNonBlank(v, maxBytes = 4096) {
@@ -15806,15 +16383,15 @@ function decodeVendorCapabilityV1(value) {
   if (rejectUnknownKeys(obj, CAPABILITY_JSON_KEYS) !== null) {
     return vendorPreflightContractFailure("unknown_field");
   }
-  if (!isInSet(obj["vendor"], VENDOR_IDS)) {
+  if (!isInSet2(obj["vendor"], VENDOR_IDS)) {
     return vendorPreflightContractFailure("invalid_enum");
   }
-  if (!isInSet(obj["evidenceClass"], VENDOR_EVIDENCE_CLASSES)) {
+  if (!isInSet2(obj["evidenceClass"], VENDOR_EVIDENCE_CLASSES)) {
     return vendorPreflightContractFailure("invalid_enum");
   }
   const cliName = decodeNonBlank(obj["cliName"], 256);
   if (isVendorPreflightContractFailure(cliName)) return cliName;
-  if (isAbsolute(cliName) || cliName.includes("/") || cliName.includes("\\")) {
+  if (isAbsolute2(cliName) || cliName.includes("/") || cliName.includes("\\")) {
     return vendorPreflightContractFailure("invalid_schema");
   }
   const authArgv = decodeCapabilityArgv(obj["authArgv"]);
@@ -16185,26 +16762,20 @@ function loadCapabilityTableFromTomlText(text) {
   return table2;
 }
 
-// packages/orchestration/src/tool-check-run.ts
-import { randomBytes } from "node:crypto";
+// packages/orchestration/src/foreman-setup.ts
 import {
-  closeSync as closeSync2,
-  constants as fsConstants3,
-  existsSync as existsSync4,
-  fsyncSync,
-  lstatSync as lstatSync2,
-  mkdirSync as mkdirSync2,
-  openSync as openSync2,
-  readdirSync,
-  readlinkSync,
-  realpathSync as realpathSync3,
-  renameSync,
-  statSync as statSync3,
-  unlinkSync as unlinkSync2,
-  writeSync
+  chmodSync as chmodSync2,
+  constants as fsConstants5,
+  existsSync as existsSync5,
+  lstatSync as lstatSync3,
+  mkdirSync as mkdirSync4,
+  mkdtempSync as mkdtempSync2,
+  renameSync as renameSync3,
+  rmSync as rmSync2,
+  unlinkSync as unlinkSync4,
+  accessSync as accessSync3
 } from "node:fs";
-import { dirname as dirname2, isAbsolute as isAbsolute4, join as join6 } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join as join8 } from "node:path";
 
 // packages/orchestration/src/queue-services.ts
 import { spawn } from "node:child_process";
@@ -16601,7 +17172,7 @@ var liveQueueServices = Layer_exports.mergeAll(
 );
 
 // packages/orchestration/src/vendor-preflight-live.ts
-import { isAbsolute as isAbsolute2, resolve as resolvePath } from "node:path";
+import { isAbsolute as isAbsolute3, resolve as resolvePath } from "node:path";
 
 // packages/orchestration/src/vendor-preflight.ts
 var SEMVER_TOKEN = /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?(?![\w.+-])/;
@@ -17099,8 +17670,8 @@ var inspectVendor = (capability) => Effect_exports.gen(function* () {
       )
     );
   }
-  const absoluteResolved = isAbsolute2(resolved) ? resolved : resolvePath(resolved);
-  if (!isAbsolute2(absoluteResolved)) {
+  const absoluteResolved = isAbsolute3(resolved) ? resolved : resolvePath(resolved);
+  if (!isAbsolute3(absoluteResolved)) {
     return yield* Effect_exports.fail(
       new VendorPreflightFailure(
         "internal",
@@ -17221,6 +17792,462 @@ var liveVendorPreflightLayer = Layer_exports.mergeAll(
   liveVendorPreflight,
   livePreflightClock
 );
+
+// packages/orchestration/src/vendor-preflight-store.ts
+import {
+  chmodSync,
+  closeSync as closeSync2,
+  constants as fsConstants2,
+  fsyncSync,
+  mkdirSync,
+  openSync as openSync2,
+  renameSync,
+  unlinkSync,
+  writeSync
+} from "node:fs";
+import { dirname, isAbsolute as isAbsolute4, join as join4 } from "node:path";
+import { randomBytes } from "node:crypto";
+var MAX_PREFLIGHT_RECORD_BYTES = 1048576;
+var PreflightStoreFailure = class {
+  constructor(reason, detail) {
+    this.reason = reason;
+    this.detail = detail;
+  }
+  _tag = "PreflightStoreFailure";
+};
+var PreflightRecordStore = class extends Context_exports.Tag("PreflightRecordStore")() {
+};
+function pathInvalid(detail) {
+  return new PreflightStoreFailure("path_invalid", detail);
+}
+function validateAbsolutePath(absolutePath) {
+  if (typeof absolutePath !== "string" || absolutePath.length === 0) {
+    return pathInvalid("path is empty");
+  }
+  if (absolutePath.includes("\0")) {
+    return pathInvalid("path contains NUL");
+  }
+  if (!isAbsolute4(absolutePath)) {
+    return pathInvalid("path is not absolute");
+  }
+  return null;
+}
+function readPreflightRecord(absolutePath) {
+  return Effect_exports.try({
+    try: () => {
+      const pathErr = validateAbsolutePath(absolutePath);
+      if (pathErr !== null) {
+        throw pathErr;
+      }
+      const bounded = readFileBoundedSync(
+        absolutePath,
+        MAX_PREFLIGHT_RECORD_BYTES
+      );
+      switch (bounded._tag) {
+        case "Absent":
+          throw new PreflightStoreFailure("absent");
+        case "Oversized":
+          throw new PreflightStoreFailure("oversized");
+        case "Unreadable":
+        case "IdentityChanged":
+        case "MalformedUtf8":
+          throw new PreflightStoreFailure(
+            "unreadable",
+            bounded._tag.toLowerCase()
+          );
+        case "Ok":
+          break;
+        default: {
+          const _exhaustive = bounded;
+          throw new PreflightStoreFailure(
+            "unreadable",
+            `unexpected bound result: ${JSON.stringify(_exhaustive)}`
+          );
+        }
+      }
+      const parsed = parseJsonRejectDuplicateKeys(bounded.text);
+      if (isCoreFailure(parsed)) {
+        throw new PreflightStoreFailure("malformed_json", parsed._tag);
+      }
+      const decoded = decodeVendorPreflightRecordV1(parsed);
+      if (isVendorPreflightContractFailure(decoded)) {
+        throw new PreflightStoreFailure("decode_failed", decoded.reason);
+      }
+      return decoded;
+    },
+    catch: (e) => e instanceof PreflightStoreFailure ? e : new PreflightStoreFailure(
+      "unreadable",
+      e instanceof Error ? e.message : String(e)
+    )
+  });
+}
+function writePreflightRecord(absolutePath, record) {
+  return Effect_exports.try({
+    try: () => {
+      const pathErr = validateAbsolutePath(absolutePath);
+      if (pathErr !== null) {
+        throw pathErr;
+      }
+      const rechecked = decodeVendorPreflightRecordV1(record);
+      if (isVendorPreflightContractFailure(rechecked)) {
+        throw new PreflightStoreFailure("decode_failed", rechecked.reason);
+      }
+      let body;
+      try {
+        body = canonicalize(rechecked) + "\n";
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new PreflightStoreFailure("write_failed", msg);
+      }
+      if (Buffer.byteLength(body, "utf8") > MAX_PREFLIGHT_RECORD_BYTES) {
+        throw new PreflightStoreFailure(
+          "oversized",
+          `canonical record exceeds ${MAX_PREFLIGHT_RECORD_BYTES} bytes`
+        );
+      }
+      const dir = dirname(absolutePath);
+      try {
+        mkdirSync(dir, { recursive: true, mode: 448 });
+        chmodSync(dir, 448);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new PreflightStoreFailure(
+          "write_failed",
+          `cannot create parent directory: ${msg}`
+        );
+      }
+      const tmpName = `.preflight.${randomBytes(16).toString("hex")}.tmp`;
+      const tmpPath = join4(dir, tmpName);
+      let fd;
+      try {
+        fd = openSync2(
+          tmpPath,
+          fsConstants2.O_CREAT | fsConstants2.O_EXCL | fsConstants2.O_WRONLY,
+          384
+        );
+        const buf = Buffer.from(body, "utf8");
+        let offset = 0;
+        while (offset < buf.byteLength) {
+          const n = writeSync(fd, buf, offset, buf.byteLength - offset);
+          offset += n;
+        }
+        fsyncSync(fd);
+        closeSync2(fd);
+        fd = void 0;
+        chmodSync(tmpPath, 384);
+        renameSync(tmpPath, absolutePath);
+        try {
+          chmodSync(absolutePath, 384);
+        } catch {
+        }
+        try {
+          const dirFd = openSync2(dir, fsConstants2.O_RDONLY);
+          try {
+            fsyncSync(dirFd);
+          } finally {
+            closeSync2(dirFd);
+          }
+        } catch {
+        }
+      } catch (e) {
+        if (fd !== void 0) {
+          try {
+            closeSync2(fd);
+          } catch {
+          }
+        }
+        try {
+          unlinkSync(tmpPath);
+        } catch {
+        }
+        if (e instanceof PreflightStoreFailure) {
+          throw e;
+        }
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new PreflightStoreFailure("write_failed", msg);
+      }
+    },
+    catch: (e) => e instanceof PreflightStoreFailure ? e : new PreflightStoreFailure(
+      "write_failed",
+      e instanceof Error ? e.message : String(e)
+    )
+  });
+}
+var livePreflightRecordStore = Layer_exports.succeed(PreflightRecordStore, {
+  read: (absolutePath) => readPreflightRecord(absolutePath),
+  write: (absolutePath, record) => writePreflightRecord(absolutePath, record)
+});
+
+// packages/orchestration/src/tool-check-report.ts
+function statusLists(tools) {
+  const missing = [];
+  const outdated = [];
+  const degraded = [];
+  const not_authenticated = [];
+  for (const t of tools) {
+    switch (t.status) {
+      case "missing":
+        missing.push(t.id);
+        break;
+      case "outdated":
+        outdated.push(t.id);
+        break;
+      case "degraded":
+        degraded.push(t.id);
+        break;
+      case "not_authenticated":
+        not_authenticated.push(t.id);
+        break;
+      default:
+        break;
+    }
+  }
+  return { missing, outdated, degraded, not_authenticated };
+}
+function laneReadyFromTools(tools, lane) {
+  if (lane === null) return null;
+  const row2 = tools.find((t) => t.id === lane);
+  return row2 !== void 0 && row2.status === "ok";
+}
+function buildInventoryJson(model) {
+  const lists = statusLists(model.tools);
+  const inv = {
+    schema: "foreman.tool-check.v1",
+    profile: model.profile,
+    ready: model.ready,
+    host: model.host,
+    os: model.os,
+    wsl: model.wsl,
+    time: model.time,
+    repo: model.repo,
+    tools: model.tools.map((t) => ({
+      id: t.id,
+      status: t.status,
+      detail: t.detail
+    })),
+    skills: model.skills.map((t) => ({
+      id: t.id,
+      status: t.status,
+      detail: t.detail
+    })),
+    lock_atomicity: model.lockAtomicity.map((r) => ({ ...r })),
+    missing: lists.missing,
+    outdated: lists.outdated,
+    degraded: lists.degraded,
+    not_authenticated: lists.not_authenticated
+  };
+  if (model.lane !== null) {
+    return {
+      ...inv,
+      lane: model.lane,
+      lane_ready: laneReadyFromTools(model.tools, model.lane) === true
+    };
+  }
+  return inv;
+}
+function renderInventoryJson(model) {
+  return JSON.stringify(buildInventoryJson(model), null, 2);
+}
+function pad(s, n) {
+  if (s.length >= n) return s;
+  return s + " ".repeat(n - s.length);
+}
+function renderReportText(model) {
+  const lines = [];
+  lines.push("FOREMAN TOOL CHECK");
+  lines.push(`profile: ${model.profile}`);
+  lines.push(
+    `host: ${model.host}  os: ${model.os}  wsl: ${model.wsl ? 1 : 0}`
+  );
+  lines.push(`time: ${model.time}`);
+  lines.push(`repo: ${model.repo}`);
+  lines.push("---");
+  lines.push(`${pad("TOOL", 16)} ${pad("STATUS", 10)} DETAIL`);
+  for (const t of model.tools) {
+    lines.push(`${pad(t.id, 16)} ${pad(t.status, 10)} ${t.detail}`);
+  }
+  const docsGroup = [];
+  for (const did of ["markdownlint-cli2", "codespell", "lychee"]) {
+    const row2 = model.tools.find((t) => t.id === did);
+    if (row2) docsGroup.push(`${did}:${row2.status}`);
+  }
+  if (docsGroup.length > 0) {
+    lines.push(`DOCS_GROUP: ${docsGroup.join(" ")}`);
+  }
+  lines.push("---");
+  lines.push("LOCK_ATOMICITY");
+  lines.push(
+    `${pad("MECH", 8)} ${pad("VERDICT", 10)} ${pad("EVIDENCE", 16)} ${pad("FS_CLASSES", 12)} PATH`
+  );
+  for (const r of model.lockAtomicity) {
+    lines.push(
+      `${pad(r.mechanism, 8)} ${pad(r.verdict, 10)} ${pad(r.evidence_class, 16)} ${pad(r.filesystem_classes.join(","), 12)} ${r.path}`
+    );
+    if (r.sha256.length > 0) {
+      lines.push(`  sha256=${r.sha256}`);
+    }
+    if (r.version.length > 0) {
+      lines.push(`  version=${r.version}`);
+    }
+  }
+  for (const info of model.lockAtomicityInfo) {
+    lines.push(info);
+  }
+  lines.push("---");
+  lines.push("SKILLS");
+  lines.push(`${pad("SKILL", 16)} ${pad("STATUS", 10)} DETAIL`);
+  for (const s of model.skills) {
+    lines.push(`${pad(s.id, 16)} ${pad(s.status, 10)} ${s.detail}`);
+  }
+  lines.push("---");
+  if (model.ready) {
+    lines.push(
+      `READY: yes \u2014 profile '${model.profile}' must-tools are OK`
+    );
+  } else {
+    lines.push("READY: no \u2014 fix must-tools before implementation work");
+    lines.push(`MUST_FAIL: ${model.mustFail.join(" ")}`);
+  }
+  const lists = statusLists(model.tools);
+  if (lists.missing.length > 0) {
+    lines.push(`MISSING: ${lists.missing.join(" ")}`);
+  }
+  if (lists.outdated.length > 0) {
+    lines.push(`OUTDATED: ${lists.outdated.join(" ")}`);
+  }
+  if (lists.degraded.length > 0) {
+    lines.push(`DEGRADED: ${lists.degraded.join(" ")}`);
+  }
+  if (lists.not_authenticated.length > 0) {
+    lines.push(`NOT_AUTHENTICATED: ${lists.not_authenticated.join(" ")}`);
+  }
+  if (model.lane !== null) {
+    const lr = laneReadyFromTools(model.tools, model.lane);
+    lines.push(
+      `LANE_READY: ${model.lane}=${lr === true ? "yes" : "no"}`
+    );
+  }
+  lines.push("---");
+  lines.push("NEXT:");
+  if (!model.ready) {
+    lines.push(`  bash env/bootstrap-wsl.sh --profile ${model.profile}`);
+    lines.push(
+      `  # then re-run: bash env/tool-check.sh --profile ${model.profile}`
+    );
+  } else {
+    lines.push("  proceed with /foreman soft or hard implementation");
+  }
+  return lines.join("\n");
+}
+function profileToolIds(profile, isWsl) {
+  const mustSoft = [
+    "git",
+    "python3",
+    "jq",
+    "grok",
+    "codex",
+    "strace",
+    "foreman_skill"
+  ];
+  const mustHard = [
+    "git",
+    "python3",
+    "jq",
+    "docker",
+    "flock",
+    "strace",
+    "foreman_skill"
+  ];
+  const mustFull = [
+    "git",
+    "python3",
+    "jq",
+    "grok",
+    "codex",
+    "docker",
+    "flock",
+    "strace",
+    "bats",
+    "markdownlint-cli2",
+    "codespell",
+    "lychee",
+    "foreman_skill"
+  ];
+  const mustDurable = ["git", "jq", "coreutils", "bash", "flock", "strace"];
+  const shouldSoft = ["node", "npm", "foreman_home_fs"];
+  const shouldHard = [
+    "shellcheck",
+    "bats",
+    "gh",
+    "timeout",
+    "grok",
+    "codex",
+    "foreman_home_fs"
+  ];
+  const shouldFull = [
+    "node",
+    "npm",
+    "shellcheck",
+    "gh",
+    "timeout",
+    "bun",
+    "pueue",
+    "foreman_home_fs"
+  ];
+  const shouldDurable = ["nats-server", "nats-cli", "foreman_home_fs"];
+  let must;
+  let should;
+  switch (profile) {
+    case "soft":
+      must = [...mustSoft];
+      should = [...shouldSoft];
+      break;
+    case "hard":
+      must = [...mustHard];
+      should = [...shouldHard];
+      break;
+    case "full":
+      must = [...mustFull];
+      should = [...shouldFull];
+      break;
+    case "durable":
+      must = [...mustDurable];
+      should = [...shouldDurable];
+      break;
+  }
+  if (isWsl) {
+    should.push("foreman-launch");
+  }
+  return { must, should };
+}
+var SKILL_IDS = [
+  "foreman",
+  "scrapling",
+  "graphify",
+  "superpowers",
+  "council"
+];
+
+// packages/orchestration/src/tool-check-run.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
+import {
+  closeSync as closeSync3,
+  constants as fsConstants4,
+  existsSync as existsSync4,
+  fsyncSync as fsyncSync2,
+  lstatSync as lstatSync2,
+  mkdirSync as mkdirSync3,
+  openSync as openSync3,
+  readdirSync,
+  readlinkSync,
+  realpathSync as realpathSync3,
+  renameSync as renameSync2,
+  statSync as statSync3,
+  unlinkSync as unlinkSync3,
+  writeSync as writeSync2
+} from "node:fs";
+import { dirname as dirname3, isAbsolute as isAbsolute6, join as join7 } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // packages/orchestration/src/vendor-preflight-tool-check.ts
 var MAX_TOOL_CHECK_DETAIL_BYTES = 512;
@@ -17391,25 +18418,25 @@ function parseToolCheckArgv(argv) {
 import { spawn as spawn2 } from "node:child_process";
 import {
   accessSync as accessSync2,
-  constants as fsConstants2,
+  constants as fsConstants3,
   existsSync as existsSync3,
   lstatSync,
-  mkdirSync,
+  mkdirSync as mkdirSync2,
   mkdtempSync,
   readFileSync as readFileSync2,
   realpathSync as realpathSync2,
   rmSync,
   rmdirSync,
-  unlinkSync,
+  unlinkSync as unlinkSync2,
   writeFileSync
 } from "node:fs";
-import { isAbsolute as isAbsolute3, join as join5, relative, resolve, sep } from "node:path";
+import { isAbsolute as isAbsolute5, join as join6, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 
 // packages/orchestration/src/tool-check-platform.ts
 import { createHash } from "node:crypto";
 import { existsSync as existsSync2, readFileSync, realpathSync, statSync as statSync2 } from "node:fs";
-import { dirname, join as join4 } from "node:path";
+import { dirname as dirname2, join as join5 } from "node:path";
 function captureText(r) {
   return `${r.stdout}${r.stderr}`.replace(/\r/g, "");
 }
@@ -17472,7 +18499,7 @@ function classifyFsClassFromProbe(path, fstype, mountTarget) {
 function nearestExistingPath(path) {
   let probe = path;
   while (probe !== "/" && probe !== "." && probe !== "" && !existsSync2(probe)) {
-    const parent = dirname(probe);
+    const parent = dirname2(probe);
     if (parent === probe) break;
     probe = parent;
   }
@@ -17578,7 +18605,7 @@ function resolveCommonSkillsRoot(repoRoot2) {
     if (r._tag === "Left") return null;
     const commonDir = captureText(r.right).trim().split("\n")[0] ?? "";
     if (!commonDir) return null;
-    const skills = join4(dirname(commonDir), "skills");
+    const skills = join5(dirname2(commonDir), "skills");
     if (existsSync2(skills)) {
       try {
         return realpathSync(skills);
@@ -17866,13 +18893,13 @@ function pathIsInsideRoot(candidate, root) {
     const realRoot = realpathSync2(root);
     if (realCand === realRoot) return true;
     const rel = relative(realRoot, realCand);
-    return rel !== "" && !rel.startsWith("..") && !isAbsolute3(rel);
+    return rel !== "" && !rel.startsWith("..") && !isAbsolute5(rel);
   } catch {
     return false;
   }
 }
 function resolveTracePath(artifact, repoRoot2) {
-  const candidates = isAbsolute3(artifact) ? [artifact] : [join5(repoRoot2, artifact), artifact];
+  const candidates = isAbsolute5(artifact) ? [artifact] : [join6(repoRoot2, artifact), artifact];
   for (const c of candidates) {
     try {
       if (!existsSync3(c)) continue;
@@ -17890,7 +18917,7 @@ function resolveTracePath(artifact, repoRoot2) {
 function lookupPinnedVerdict(args2) {
   const sha = args2.sha256.trim();
   if (!sha) return null;
-  const manifest = args2.manifestPath ?? join5(args2.repoRoot, "env", "reference-manifest.toml");
+  const manifest = args2.manifestPath ?? join6(args2.repoRoot, "env", "reference-manifest.toml");
   let text;
   try {
     if (!existsSync3(manifest)) return null;
@@ -18000,12 +19027,12 @@ async function reapChild(child, timeoutMs) {
 async function runMkdirContentionSample(mkdirBin, workParent) {
   let base;
   try {
-    base = mkdtempSync(join5(workParent, "fm-mkdir-ct."));
+    base = mkdtempSync(join6(workParent, "fm-mkdir-ct."));
   } catch {
-    base = mkdtempSync(join5(tmpdir(), "fm-mkdir-ct."));
+    base = mkdtempSync(join6(tmpdir(), "fm-mkdir-ct."));
   }
-  const lock = join5(base, "lock");
-  const trace = join5(base, "t");
+  const lock = join6(base, "lock");
+  const trace = join6(base, "t");
   writeFileSync(trace, "");
   const children = [];
   try {
@@ -18092,7 +19119,7 @@ function isExistingWritableDir(path) {
   if (!path) return false;
   try {
     if (!existsSync3(path)) return false;
-    accessSync2(path, fsConstants2.W_OK);
+    accessSync2(path, fsConstants3.W_OK);
     return true;
   } catch {
     return false;
@@ -18145,10 +19172,10 @@ function probeMkdirOnce(mkdirBin, workParent) {
     }
     let work;
     try {
-      work = mkdtempSync(join5(workParent, "fm-mkdir-probe."));
+      work = mkdtempSync(join6(workParent, "fm-mkdir-probe."));
     } catch {
       try {
-        work = mkdtempSync(join5(tmpdir(), "fm-mkdir-probe."));
+        work = mkdtempSync(join6(tmpdir(), "fm-mkdir-probe."));
       } catch {
         return {
           verdict: "unknown",
@@ -18158,16 +19185,16 @@ function probeMkdirOnce(mkdirBin, workParent) {
         };
       }
     }
-    const lock = join5(work, "x");
+    const lock = join6(work, "x");
     try {
-      mkdirSync(lock);
+      mkdirSync2(lock);
     } catch {
     }
     const paths = yield* PathLookup;
     const strace = yield* paths.which("strace");
     const exec = yield* ProcessExec;
     if (strace) {
-      const traceFile = join5(work, "strace.trace");
+      const traceFile = join6(work, "strace.trace");
       const r = yield* exec.runCaptured({
         command: strace,
         args: [
@@ -18271,12 +19298,12 @@ function probeFlockOnce(flockBin, workParent) {
     }
     let work;
     try {
-      work = mkdtempSync(join5(workParent, "fm-flock-probe."));
+      work = mkdtempSync(join6(workParent, "fm-flock-probe."));
     } catch {
-      work = mkdtempSync(join5(tmpdir(), "fm-flock-probe."));
+      work = mkdtempSync(join6(tmpdir(), "fm-flock-probe."));
     }
-    const lockf = join5(work, "lockfile");
-    const marker = join5(work, "holder_ready");
+    const lockf = join6(work, "lockfile");
+    const marker = join6(work, "holder_ready");
     writeFileSync(lockf, "");
     const strace = yield* paths.which("strace");
     if (!strace) {
@@ -18600,256 +19627,6 @@ function runAtomicityProbes(args2) {
   });
 }
 
-// packages/orchestration/src/tool-check-report.ts
-function statusLists(tools) {
-  const missing = [];
-  const outdated = [];
-  const degraded = [];
-  const not_authenticated = [];
-  for (const t of tools) {
-    switch (t.status) {
-      case "missing":
-        missing.push(t.id);
-        break;
-      case "outdated":
-        outdated.push(t.id);
-        break;
-      case "degraded":
-        degraded.push(t.id);
-        break;
-      case "not_authenticated":
-        not_authenticated.push(t.id);
-        break;
-      default:
-        break;
-    }
-  }
-  return { missing, outdated, degraded, not_authenticated };
-}
-function laneReadyFromTools(tools, lane) {
-  if (lane === null) return null;
-  const row2 = tools.find((t) => t.id === lane);
-  return row2 !== void 0 && row2.status === "ok";
-}
-function buildInventoryJson(model) {
-  const lists = statusLists(model.tools);
-  const inv = {
-    schema: "foreman.tool-check.v1",
-    profile: model.profile,
-    ready: model.ready,
-    host: model.host,
-    os: model.os,
-    wsl: model.wsl,
-    time: model.time,
-    repo: model.repo,
-    tools: model.tools.map((t) => ({
-      id: t.id,
-      status: t.status,
-      detail: t.detail
-    })),
-    skills: model.skills.map((t) => ({
-      id: t.id,
-      status: t.status,
-      detail: t.detail
-    })),
-    lock_atomicity: model.lockAtomicity.map((r) => ({ ...r })),
-    missing: lists.missing,
-    outdated: lists.outdated,
-    degraded: lists.degraded,
-    not_authenticated: lists.not_authenticated
-  };
-  if (model.lane !== null) {
-    return {
-      ...inv,
-      lane: model.lane,
-      lane_ready: laneReadyFromTools(model.tools, model.lane) === true
-    };
-  }
-  return inv;
-}
-function renderInventoryJson(model) {
-  return JSON.stringify(buildInventoryJson(model), null, 2);
-}
-function pad(s, n) {
-  if (s.length >= n) return s;
-  return s + " ".repeat(n - s.length);
-}
-function renderReportText(model) {
-  const lines = [];
-  lines.push("FOREMAN TOOL CHECK");
-  lines.push(`profile: ${model.profile}`);
-  lines.push(
-    `host: ${model.host}  os: ${model.os}  wsl: ${model.wsl ? 1 : 0}`
-  );
-  lines.push(`time: ${model.time}`);
-  lines.push(`repo: ${model.repo}`);
-  lines.push("---");
-  lines.push(`${pad("TOOL", 16)} ${pad("STATUS", 10)} DETAIL`);
-  for (const t of model.tools) {
-    lines.push(`${pad(t.id, 16)} ${pad(t.status, 10)} ${t.detail}`);
-  }
-  const docsGroup = [];
-  for (const did of ["markdownlint-cli2", "codespell", "lychee"]) {
-    const row2 = model.tools.find((t) => t.id === did);
-    if (row2) docsGroup.push(`${did}:${row2.status}`);
-  }
-  if (docsGroup.length > 0) {
-    lines.push(`DOCS_GROUP: ${docsGroup.join(" ")}`);
-  }
-  lines.push("---");
-  lines.push("LOCK_ATOMICITY");
-  lines.push(
-    `${pad("MECH", 8)} ${pad("VERDICT", 10)} ${pad("EVIDENCE", 16)} ${pad("FS_CLASSES", 12)} PATH`
-  );
-  for (const r of model.lockAtomicity) {
-    lines.push(
-      `${pad(r.mechanism, 8)} ${pad(r.verdict, 10)} ${pad(r.evidence_class, 16)} ${pad(r.filesystem_classes.join(","), 12)} ${r.path}`
-    );
-    if (r.sha256.length > 0) {
-      lines.push(`  sha256=${r.sha256}`);
-    }
-    if (r.version.length > 0) {
-      lines.push(`  version=${r.version}`);
-    }
-  }
-  for (const info of model.lockAtomicityInfo) {
-    lines.push(info);
-  }
-  lines.push("---");
-  lines.push("SKILLS");
-  lines.push(`${pad("SKILL", 16)} ${pad("STATUS", 10)} DETAIL`);
-  for (const s of model.skills) {
-    lines.push(`${pad(s.id, 16)} ${pad(s.status, 10)} ${s.detail}`);
-  }
-  lines.push("---");
-  if (model.ready) {
-    lines.push(
-      `READY: yes \u2014 profile '${model.profile}' must-tools are OK`
-    );
-  } else {
-    lines.push("READY: no \u2014 fix must-tools before implementation work");
-    lines.push(`MUST_FAIL: ${model.mustFail.join(" ")}`);
-  }
-  const lists = statusLists(model.tools);
-  if (lists.missing.length > 0) {
-    lines.push(`MISSING: ${lists.missing.join(" ")}`);
-  }
-  if (lists.outdated.length > 0) {
-    lines.push(`OUTDATED: ${lists.outdated.join(" ")}`);
-  }
-  if (lists.degraded.length > 0) {
-    lines.push(`DEGRADED: ${lists.degraded.join(" ")}`);
-  }
-  if (lists.not_authenticated.length > 0) {
-    lines.push(`NOT_AUTHENTICATED: ${lists.not_authenticated.join(" ")}`);
-  }
-  if (model.lane !== null) {
-    const lr = laneReadyFromTools(model.tools, model.lane);
-    lines.push(
-      `LANE_READY: ${model.lane}=${lr === true ? "yes" : "no"}`
-    );
-  }
-  lines.push("---");
-  lines.push("NEXT:");
-  if (!model.ready) {
-    lines.push(`  bash env/bootstrap-wsl.sh --profile ${model.profile}`);
-    lines.push(
-      `  # then re-run: bash env/tool-check.sh --profile ${model.profile}`
-    );
-  } else {
-    lines.push("  proceed with /foreman soft or hard implementation");
-  }
-  return lines.join("\n");
-}
-function profileToolIds(profile, isWsl) {
-  const mustSoft = [
-    "git",
-    "python3",
-    "jq",
-    "grok",
-    "codex",
-    "strace",
-    "foreman_skill"
-  ];
-  const mustHard = [
-    "git",
-    "python3",
-    "jq",
-    "docker",
-    "flock",
-    "strace",
-    "foreman_skill"
-  ];
-  const mustFull = [
-    "git",
-    "python3",
-    "jq",
-    "grok",
-    "codex",
-    "docker",
-    "flock",
-    "strace",
-    "bats",
-    "markdownlint-cli2",
-    "codespell",
-    "lychee",
-    "foreman_skill"
-  ];
-  const mustDurable = ["git", "jq", "coreutils", "bash", "flock", "strace"];
-  const shouldSoft = ["node", "npm", "foreman_home_fs"];
-  const shouldHard = [
-    "shellcheck",
-    "bats",
-    "gh",
-    "timeout",
-    "grok",
-    "codex",
-    "foreman_home_fs"
-  ];
-  const shouldFull = [
-    "node",
-    "npm",
-    "shellcheck",
-    "gh",
-    "timeout",
-    "bun",
-    "pueue",
-    "foreman_home_fs"
-  ];
-  const shouldDurable = ["nats-server", "nats-cli", "foreman_home_fs"];
-  let must;
-  let should;
-  switch (profile) {
-    case "soft":
-      must = [...mustSoft];
-      should = [...shouldSoft];
-      break;
-    case "hard":
-      must = [...mustHard];
-      should = [...shouldHard];
-      break;
-    case "full":
-      must = [...mustFull];
-      should = [...shouldFull];
-      break;
-    case "durable":
-      must = [...mustDurable];
-      should = [...shouldDurable];
-      break;
-  }
-  if (isWsl) {
-    should.push("foreman-launch");
-  }
-  return { must, should };
-}
-var SKILL_IDS = [
-  "foreman",
-  "scrapling",
-  "graphify",
-  "superpowers",
-  "council"
-];
-
 // packages/orchestration/src/tool-check-run.ts
 function captureText3(r) {
   return `${r.stdout}${r.stderr}`.replace(/\r/g, "");
@@ -18893,7 +19670,7 @@ function sortLex(a, b) {
 }
 function resolveLycheeWinGetPackageExe(localAppData, fs = liveLycheeWinGetFs) {
   if (!localAppData || localAppData.includes("\0")) return null;
-  const packagesRoot = join6(
+  const packagesRoot = join7(
     localAppData,
     "Microsoft",
     "WinGet",
@@ -18905,12 +19682,12 @@ function resolveLycheeWinGetPackageExe(localAppData, fs = liveLycheeWinGetFs) {
     (n) => isSafeDirName(n) && n.startsWith(WINGET_LYCHEE_PACKAGE_PREFIX)
   ).sort(sortLex).slice(0, MAX_WINGET_LYCHEE_PACKAGE_DIRS);
   for (const pkg of packageDirs) {
-    const pkgPath = join6(packagesRoot, pkg);
+    const pkgPath = join7(packagesRoot, pkg);
     const versionNames = fs.listNames(pkgPath);
     if (versionNames === null) continue;
     const versionDirs = versionNames.filter((n) => isSafeDirName(n)).sort(sortLex).slice(0, MAX_WINGET_LYCHEE_VERSION_DIRS);
     for (const ver of versionDirs) {
-      const exe = join6(pkgPath, ver, "lychee.exe");
+      const exe = join7(pkgPath, ver, "lychee.exe");
       if (fs.isFile(exe)) return exe;
     }
   }
@@ -19057,7 +19834,7 @@ function checkOne(id, ctx) {
           const r = yield* runCmd(p, ["--version"]);
           return row("bats", "ok", r ? firstLine2(captureText3(r)) : "");
         }
-        const staged = join6(home, ".foreman/tools/bats-core/bin/bats");
+        const staged = join7(home, ".foreman/tools/bats-core/bin/bats");
         const paths = yield* PathLookup;
         if (yield* paths.isExecutable(staged)) {
           const r = yield* runCmd(staged, ["--version"]);
@@ -19129,8 +19906,8 @@ function checkOne(id, ctx) {
         }
         const paths = yield* PathLookup;
         for (const candidate of [
-          join6(home, ".foreman/tools/pueue/pueue"),
-          join6(home, ".foreman/tools/pueue/pueue.exe")
+          join7(home, ".foreman/tools/pueue/pueue"),
+          join7(home, ".foreman/tools/pueue/pueue.exe")
         ]) {
           if (yield* paths.isExecutable(candidate)) {
             const r = yield* runCmd(candidate, ["--version"]);
@@ -19142,7 +19919,7 @@ function checkOne(id, ctx) {
       case "lychee": {
         let lychee = env.LYCHEE || (yield* whichOrNull("lychee")) || "";
         if (!lychee && env.LOCALAPPDATA) {
-          const wingetLinks = join6(
+          const wingetLinks = join7(
             env.LOCALAPPDATA,
             "Microsoft/WinGet/Links/lychee.exe"
           );
@@ -19176,9 +19953,9 @@ function checkOne(id, ctx) {
       }
       case "foreman_skill": {
         const candidates = [
-          join6(home, ".claude/skills/foreman/SKILL.md"),
-          join6(home, ".agents/skills/foreman/SKILL.md"),
-          join6(home, ".grok/skills/foreman/SKILL.md")
+          join7(home, ".claude/skills/foreman/SKILL.md"),
+          join7(home, ".agents/skills/foreman/SKILL.md"),
+          join7(home, ".grok/skills/foreman/SKILL.md")
         ];
         if (candidates.some((c) => existsSync4(c))) {
           return row(
@@ -19187,7 +19964,7 @@ function checkOne(id, ctx) {
             "skill linked under ~/.claude|agents|grok/skills/foreman"
           );
         }
-        if (existsSync4(join6(ctx.repoRoot, "skills/foreman/SKILL.md"))) {
+        if (existsSync4(join7(ctx.repoRoot, "skills/foreman/SKILL.md"))) {
           return row(
             "foreman_skill",
             "degraded",
@@ -19199,7 +19976,7 @@ function checkOne(id, ctx) {
       case "foreman-launch": {
         const flRoot = ctx.repoRoot;
         const suffix = process.platform === "win32" || /^MINGW|^MSYS|^CYGWIN/i.test(process.platform) ? ".exe" : "";
-        const flBin = env.FOREMAN_LAUNCH || join6(flRoot, `launcher/dist/foreman-launch${suffix}`);
+        const flBin = env.FOREMAN_LAUNCH || join7(flRoot, `launcher/dist/foreman-launch${suffix}`);
         const paths = yield* PathLookup;
         if (yield* paths.isExecutable(flBin)) {
           return row("foreman-launch", "ok", flBin);
@@ -19219,7 +19996,7 @@ function checkOne(id, ctx) {
         );
       }
       case "foreman_home_fs": {
-        const fhPath = env.FOREMAN_HOME || join6(home, ".foreman");
+        const fhPath = env.FOREMAN_HOME || join7(home, ".foreman");
         const fsClass = yield* resolveFsClass(fhPath);
         if (fsClass === "mnt-drvfs" || fsClass === "network") {
           return row(
@@ -19280,8 +20057,8 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
   const home = homeDir(processEnv);
   const out = [];
   for (const id of SKILL_IDS) {
-    const skillPath = join6(home, ".claude/skills", id);
-    const repoSkillDir = join6(repoRoot2, "skills", id);
+    const skillPath = join7(home, ".claude/skills", id);
+    const repoSkillDir = join7(repoRoot2, "skills", id);
     if (!existsSync4(repoSkillDir)) {
       out.push(
         row(
@@ -19302,8 +20079,8 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
       const st = lstatSync2(skillPath);
       if (st.isSymbolicLink()) {
         let linkTarget = readlinkSync(skillPath);
-        if (!isAbsolute4(linkTarget)) {
-          linkTarget = join6(dirname2(skillPath), linkTarget);
+        if (!isAbsolute6(linkTarget)) {
+          linkTarget = join7(dirname3(skillPath), linkTarget);
         }
         if (existsSync4(linkTarget)) {
           try {
@@ -19311,7 +20088,7 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
           } catch {
           }
         }
-        const commonMatch = commonSkillsRoot !== null && linkTarget === join6(commonSkillsRoot, id);
+        const commonMatch = commonSkillsRoot !== null && linkTarget === join7(commonSkillsRoot, id);
         if (linkTarget === repoSkillPath || commonMatch) {
           out.push(
             row(id, "ok", `linked at ~/.claude/skills/${id}`)
@@ -19350,8 +20127,8 @@ function writeInventoryOutAtomic(outPath, body) {
   }
   let dir;
   try {
-    dir = dirname2(outPath);
-    mkdirSync2(dir, { recursive: true });
+    dir = dirname3(outPath);
+    mkdirSync3(dir, { recursive: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { _tag: "Failed", reason: `cannot create parent directory: ${msg}` };
@@ -19370,31 +20147,31 @@ function writeInventoryOutAtomic(outPath, body) {
     const msg = e instanceof Error ? e.message : String(e);
     return { _tag: "Failed", reason: `cannot stat output path: ${msg}` };
   }
-  const tmpName = `.tool-check-out.${randomBytes(16).toString("hex")}.tmp`;
-  const tmpPath = join6(dir, tmpName);
+  const tmpName = `.tool-check-out.${randomBytes2(16).toString("hex")}.tmp`;
+  const tmpPath = join7(dir, tmpName);
   let fd;
   try {
-    fd = openSync2(
+    fd = openSync3(
       tmpPath,
-      fsConstants3.O_CREAT | fsConstants3.O_EXCL | fsConstants3.O_WRONLY,
+      fsConstants4.O_CREAT | fsConstants4.O_EXCL | fsConstants4.O_WRONLY,
       384
     );
     const buf = Buffer.from(body, "utf8");
     let offset = 0;
     while (offset < buf.byteLength) {
-      const n = writeSync(fd, buf, offset, buf.byteLength - offset);
+      const n = writeSync2(fd, buf, offset, buf.byteLength - offset);
       offset += n;
     }
-    fsyncSync(fd);
-    closeSync2(fd);
+    fsyncSync2(fd);
+    closeSync3(fd);
     fd = void 0;
-    renameSync(tmpPath, outPath);
+    renameSync2(tmpPath, outPath);
     try {
-      const dirFd = openSync2(dir, fsConstants3.O_RDONLY);
+      const dirFd = openSync3(dir, fsConstants4.O_RDONLY);
       try {
-        fsyncSync(dirFd);
+        fsyncSync2(dirFd);
       } finally {
-        closeSync2(dirFd);
+        closeSync3(dirFd);
       }
     } catch {
     }
@@ -19402,12 +20179,12 @@ function writeInventoryOutAtomic(outPath, body) {
   } catch (e) {
     if (fd !== void 0) {
       try {
-        closeSync2(fd);
+        closeSync3(fd);
       } catch {
       }
     }
     try {
-      unlinkSync2(tmpPath);
+      unlinkSync3(tmpPath);
     } catch {
     }
     const msg = e instanceof Error ? e.message : String(e);
@@ -19555,24 +20332,406 @@ function resolveRepoRoot(url = import.meta.url) {
   const file = fileURLToPath(url);
   const normalized = file.replace(/\\/g, "/");
   if (normalized.includes("/skills/foreman/runtime/dist/")) {
-    return resolveRealPath(join6(dirname2(file), "../../../.."));
+    return resolveRealPath(join7(dirname3(file), "../../../.."));
   }
   if (normalized.includes("/packages/orchestration/src/")) {
-    return resolveRealPath(join6(dirname2(file), "../../.."));
+    return resolveRealPath(join7(dirname3(file), "../../.."));
   }
-  let dir = dirname2(file);
+  let dir = dirname3(file);
   for (let i = 0; i < 8; i += 1) {
-    if (existsSync4(join6(dir, "env/reference-manifest.toml"))) {
+    if (existsSync4(join7(dir, "env/reference-manifest.toml"))) {
       return resolveRealPath(dir);
     }
-    const parent = dirname2(dir);
+    const parent = dirname3(dir);
     if (parent === dir) break;
     dir = parent;
   }
   return resolveRealPath(process.cwd());
 }
 
-// packages/orchestration/src/tool-check-main.ts
+// packages/orchestration/src/foreman-setup.ts
+var SETUP_PROFILES = ["soft", "hard", "full"];
+var SETUP_LANES = ["grok", "codex"];
+var EXIT_READY2 = 0;
+var EXIT_NOT_READY2 = 1;
+var EXIT_INVALID_ARGUMENTS2 = 2;
+var EXIT_BOUNDARY_FAILURE = 3;
+var USAGE2 = "usage: foreman-setup [--profile soft|hard|full] [--lane grok|codex]";
+var MSG_BOUNDARY_FAILURE = "foreman-setup: boundary failure (persistence or runtime)";
+var MSG_INTERNAL_FAILURE = "foreman-setup: internal failure";
+var MAX_DURABLE_CONFIG_BYTES = 1048576;
+function stripSetupNodeArgv(argv) {
+  let args2 = [...argv];
+  if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].endsWith("node.exe") || args2[0].includes("/node") || args2[0].includes("\\node"))) {
+    args2 = args2.slice(1);
+  }
+  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("foreman-setup"))) {
+    args2 = args2.slice(1);
+  }
+  return args2;
+}
+function isProfile2(v) {
+  return SETUP_PROFILES.includes(v);
+}
+function isLane2(v) {
+  return SETUP_LANES.includes(v);
+}
+function parseSetupArgv(argv) {
+  const args2 = stripSetupNodeArgv(argv);
+  let profile = "soft";
+  let lane = null;
+  let i = 0;
+  while (i < args2.length) {
+    const a = args2[i];
+    if (a === "-h" || a === "--help") {
+      return { _tag: "Help" };
+    }
+    if (a === "--profile") {
+      const v = args2[i + 1];
+      if (v === void 0) {
+        return { _tag: "Invalid", message: USAGE2 };
+      }
+      if (!isProfile2(v)) {
+        return {
+          _tag: "Invalid",
+          message: `bad profile: ${v} (soft|hard|full)`
+        };
+      }
+      profile = v;
+      i += 2;
+      continue;
+    }
+    if (a === "--lane") {
+      const v = args2[i + 1];
+      if (v === void 0) {
+        return { _tag: "Invalid", message: USAGE2 };
+      }
+      if (v === "claude") {
+        return {
+          _tag: "Invalid",
+          message: "unsupported --lane claude: T7 removed claude lane advertising because isolated HOME is unverified"
+        };
+      }
+      if (!isLane2(v)) {
+        return { _tag: "Invalid", message: `bad lane: ${v} (grok|codex)` };
+      }
+      lane = v;
+      i += 2;
+      continue;
+    }
+    return { _tag: "Invalid", message: `unknown arg: ${a}` };
+  }
+  return { _tag: "Run", profile, lane };
+}
+function authInstruction(vendor) {
+  switch (vendor) {
+    case "grok":
+      return "grok login --device-code";
+    case "codex":
+      return "codex login  (interactive/localhost \u2014 run in a persistent shell via: ! codex login) OR headless: printenv OPENAI_API_KEY | codex login --with-api-key";
+    case "claude":
+      return "claude auth login";
+    default:
+      return `(no known auth instruction for ${vendor})`;
+  }
+}
+function resolveForemanHome(env) {
+  if (env.FOREMAN_HOME && env.FOREMAN_HOME.length > 0) {
+    return env.FOREMAN_HOME;
+  }
+  const home = env.HOME || env.USERPROFILE || "";
+  return join8(home, ".foreman");
+}
+function resolvePreflightRecordPath(foremanHome, vendor) {
+  return join8(foremanHome, "preflight", `${vendor}.json`);
+}
+function parseDurableEnabledFromToml(text) {
+  const lines = text.split(/\r?\n/);
+  let inDurable = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.length === 0 || line.startsWith("#")) continue;
+    const section = line.match(/^\[([^\]]+)\]$/);
+    if (section) {
+      inDurable = section[1] === "durable";
+      continue;
+    }
+    if (!inDurable) continue;
+    const m = line.match(/^enabled\s*=\s*(true|false)\s*(?:#.*)?$/i);
+    if (m) {
+      return m[1].toLowerCase() === "true";
+    }
+  }
+  return null;
+}
+function readDurableEnabledFromRepo(repoRoot2) {
+  const path = join8(repoRoot2, ".foreman", "config.toml");
+  const bounded = readFileBoundedSync(path, MAX_DURABLE_CONFIG_BYTES);
+  if (bounded._tag !== "Ok") return null;
+  return parseDurableEnabledFromToml(bounded.text);
+}
+function launcherPresent(repoRoot2) {
+  const posix = join8(repoRoot2, "launcher", "dist", "foreman-launch");
+  const win = join8(repoRoot2, "launcher", "dist", "foreman-launch.exe");
+  return isExecutablePath(posix) || isExecutablePath(win);
+}
+function isExecutablePath(p) {
+  try {
+    accessSync3(p, fsConstants5.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function captureText4(r) {
+  return `${r.stdout}${r.stderr}`.replace(/\r/g, "");
+}
+function launcherRunnable(launcherPath, run) {
+  return Effect_exports.gen(function* () {
+    if (!isExecutablePath(launcherPath)) return false;
+    const r = yield* run(["--version"]);
+    if (r === null) return false;
+    const line = captureText4(r).split("\n")[0]?.trim() ?? "";
+    return line.startsWith("foreman-launch ");
+  });
+}
+function ensurePosixLauncher(repoRoot2, processEnv, log3) {
+  return Effect_exports.gen(function* () {
+    const wsl = detectWslFromEnv(processEnv, readProcVersion());
+    if (wsl.overrideNote) {
+      log3(wsl.overrideNote.replace(/^\[foreman\]\s*/, ""));
+    }
+    if (!wsl.isWsl) {
+      return { ok: true };
+    }
+    const launcherRel = "launcher/dist/foreman-launch";
+    const launcher = join8(repoRoot2, launcherRel);
+    const launcherDir = join8(repoRoot2, "launcher", "dist");
+    const exec = yield* ProcessExec;
+    const paths = yield* PathLookup;
+    const runVersion = (bin) => exec.runCaptured({
+      command: bin,
+      args: ["--version"],
+      timeoutMs: 8e3,
+      maxOutputBytes: 4096
+    }).pipe(
+      Effect_exports.map((r) => r),
+      Effect_exports.catchAll(() => Effect_exports.succeed(null))
+    );
+    if (yield* launcherRunnable(launcher, () => runVersion(launcher))) {
+      log3(`launcher already built: ${launcherRel}`);
+      return { ok: true };
+    }
+    try {
+      if (existsSync5(launcher) || lstatSyncSoft(launcher)) {
+        log3(`WARN: removing non-runnable launcher before rebuild: ${launcherRel}`);
+        try {
+          unlinkSync4(launcher);
+        } catch {
+          log3("ERROR: could not remove non-runnable launcher");
+          return { ok: false, reason: "launcher_remove_failed" };
+        }
+      }
+    } catch {
+    }
+    const bunPath = yield* paths.which("bun");
+    if (bunPath === null) {
+      log3(
+        "WARN: bun is unavailable; POSIX launcher remains absent. Install bun, then run: (cd launcher && bun run build:posix)"
+      );
+      return { ok: true };
+    }
+    try {
+      mkdirSync4(launcherDir, { recursive: true });
+    } catch {
+      log3("ERROR: could not create launcher output directory");
+      return { ok: false, reason: "launcher_dir_failed" };
+    }
+    let buildDir;
+    try {
+      buildDir = mkdtempSync2(join8(launcherDir, ".foreman-launch.build."));
+    } catch {
+      log3("ERROR: could not create temporary launcher build directory");
+      return { ok: false, reason: "launcher_tmpdir_failed" };
+    }
+    const buildLauncher = join8(buildDir, "foreman-launch");
+    log3("building POSIX launcher: (cd launcher && bun run build:posix)");
+    const buildResult = yield* exec.runCaptured({
+      command: bunPath,
+      args: ["run", "build:posix", "--outfile", buildLauncher],
+      timeoutMs: 12e4,
+      maxOutputBytes: 256e3,
+      cwd: join8(repoRoot2, "launcher")
+    }).pipe(Effect_exports.either);
+    if (buildResult._tag === "Left" || buildResult.right.exitCode !== 0) {
+      cleanupBuild(buildDir, buildLauncher, launcher);
+      log3("ERROR: POSIX launcher build failed");
+      return { ok: false, reason: "launcher_build_failed" };
+    }
+    if (!(yield* launcherRunnable(buildLauncher, () => runVersion(buildLauncher)))) {
+      cleanupBuild(buildDir, buildLauncher, launcher);
+      log3("ERROR: POSIX launcher build completed without runnable executable output");
+      return { ok: false, reason: "launcher_not_runnable" };
+    }
+    try {
+      renameSync3(buildLauncher, launcher);
+      try {
+        chmodSync2(launcher, 493);
+      } catch {
+      }
+    } catch {
+      cleanupBuild(buildDir, buildLauncher, launcher);
+      log3("ERROR: could not publish POSIX launcher atomically");
+      return { ok: false, reason: "launcher_publish_failed" };
+    }
+    try {
+      rmSync2(buildDir, { recursive: true, force: true });
+    } catch {
+    }
+    log3(`built launcher: ${launcherRel}`);
+    return { ok: true };
+  });
+}
+function lstatSyncSoft(p) {
+  try {
+    lstatSync3(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function cleanupBuild(buildDir, buildLauncher, launcher) {
+  try {
+    unlinkSync4(buildLauncher);
+  } catch {
+  }
+  try {
+    if (existsSync5(launcher) && !isExecutablePath(launcher)) {
+      unlinkSync4(launcher);
+    }
+  } catch {
+  }
+  try {
+    rmSync2(buildDir, { recursive: true, force: true });
+  } catch {
+  }
+}
+function notAuthenticatedVendors(model) {
+  if (model === null) return [];
+  return model.tools.filter((t) => t.status === "not_authenticated").map((t) => t.id);
+}
+function setupReady(model, toolCheckExit, lane) {
+  if (model === null) return toolCheckExit === 0;
+  if (lane !== null) {
+    return laneReadyFromTools(model.tools, lane) === true;
+  }
+  return model.ready;
+}
+function runForemanSetup(argv, io2, env) {
+  return Effect_exports.gen(function* () {
+    const parsed = parseSetupArgv(argv);
+    if (parsed._tag === "Help") {
+      io2.writeStdout(USAGE2 + "\n");
+      return EXIT_READY2;
+    }
+    if (parsed._tag === "Invalid") {
+      io2.writeStderr(parsed.message + "\n");
+      return EXIT_INVALID_ARGUMENTS2;
+    }
+    const processEnv = env.processEnv ?? process.env;
+    const baseLayer = env.layer ?? Layer_exports.mergeAll(liveProcessExec, livePathLookup, livePreflightClock);
+    const storeLayer = env.storeLayer ?? livePreflightRecordStore;
+    const log3 = (msg) => {
+      io2.writeStderr(`[foreman] ${msg}
+`);
+    };
+    const ensure2 = env.ensureLauncher ?? (() => ensurePosixLauncher(env.repoRoot, processEnv, log3));
+    const launcherResult = yield* ensure2().pipe(Effect_exports.provide(baseLayer));
+    if (!launcherResult.ok) {
+      io2.writeStdout("SETUP: NOT-READY\n");
+      return EXIT_NOT_READY2;
+    }
+    const durable = env.durableEnabled !== void 0 ? env.durableEnabled : readDurableEnabledFromRepo(env.repoRoot);
+    if (durable === false) {
+      const launcherStatus = launcherPresent(env.repoRoot) ? "present" : "absent";
+      io2.writeStdout(
+        `SETUP CONFIG: durable.enabled=false differs from the shipped true default that prevents a subagent backgrounding a long command and ending its turn; launcher=${launcherStatus}
+`
+      );
+    }
+    const captured = /* @__PURE__ */ new Map();
+    const tcIo = {
+      writeStdout: (t) => io2.writeStdout(t),
+      writeStderr: (t) => io2.writeStderr(t)
+    };
+    const tcArgv = [
+      "--profile",
+      parsed.profile,
+      ...parsed.lane !== null ? ["--lane", parsed.lane] : []
+    ];
+    const tcEnv = {
+      repoRoot: env.repoRoot,
+      capabilityTable: env.capabilityTable,
+      processEnv,
+      ...env.nowUtc !== void 0 ? { nowUtc: env.nowUtc } : {},
+      ...env.layer !== void 0 ? { layer: env.layer } : {},
+      onVendorRecord: (record) => Effect_exports.sync(() => {
+        captured.set(record.vendor, record);
+      })
+    };
+    const tcResult = yield* runToolCheck(tcArgv, tcIo, tcEnv);
+    const vendorsToPersist = parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
+    const foremanHome = resolveForemanHome(processEnv);
+    for (const vendor of vendorsToPersist) {
+      const record = captured.get(vendor);
+      if (record === void 0) {
+        continue;
+      }
+      if (record.vendor !== vendor) {
+        io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      const dest = resolvePreflightRecordPath(foremanHome, vendor);
+      const writeEither = yield* Effect_exports.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        yield* store.write(dest, record);
+      }).pipe(Effect_exports.provide(storeLayer), Effect_exports.either);
+      if (writeEither._tag === "Left") {
+        const err = writeEither.left;
+        if (err instanceof PreflightStoreFailure) {
+          io2.writeStderr(
+            `foreman-setup: preflight persist failed (${err.reason})
+`
+          );
+        } else {
+          io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        }
+        return EXIT_BOUNDARY_FAILURE;
+      }
+    }
+    const notAuth = notAuthenticatedVendors(tcResult.model);
+    for (const v of notAuth) {
+      io2.writeStdout(`${v}: NOT-READY -- run ${authInstruction(v)}
+`);
+    }
+    const ready = setupReady(tcResult.model, tcResult.exitCode, parsed.lane);
+    if (ready) {
+      io2.writeStdout("SETUP: READY\n");
+      return EXIT_READY2;
+    }
+    io2.writeStdout("SETUP: NOT-READY\n");
+    return EXIT_NOT_READY2;
+  }).pipe(
+    Effect_exports.catchAllDefect(
+      () => Effect_exports.sync(() => {
+        io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      })
+    )
+  );
+}
+
+// packages/orchestration/src/foreman-setup-main.ts
 function writeFully(stream, text) {
   return new Promise((resolve2, reject) => {
     const onError3 = (err) => {
@@ -19599,7 +20758,7 @@ var io = {
 function loadCapabilityTable(repoRoot2) {
   const embedded = tryGetEmbeddedCapabilityTable();
   if (embedded !== null) return embedded;
-  const tomlPath = join7(repoRoot2, "env/reference-manifest.toml");
+  const tomlPath = join9(repoRoot2, "env/reference-manifest.toml");
   const text = readFileSync3(tomlPath, "utf8");
   return loadCapabilityTableFromTomlText(text);
 }
@@ -19610,33 +20769,38 @@ try {
 } catch (e) {
   const msg = e instanceof Error ? e.message : String(e);
   pending3.push(
-    writeFully(process.stderr, `tool-check: capability table load failed: ${msg}
-`)
+    writeFully(
+      process.stderr,
+      `foreman-setup: capability table load failed: ${msg}
+`
+    )
   );
   await Promise.all(pending3).catch(() => void 0);
-  process.exitCode = 2;
+  process.exitCode = 3;
 }
 if (table !== void 0) {
   Effect_exports.runPromise(
-    runToolCheck(process.argv, io, {
+    runForemanSetup(process.argv, io, {
       repoRoot,
       capabilityTable: table
     })
   ).then(
-    async (result) => {
+    async (code) => {
       try {
         await Promise.all(pending3);
       } catch {
       }
-      process.exitCode = result.exitCode;
+      process.exitCode = code;
     },
     async () => {
-      pending3.push(writeFully(process.stderr, "tool-check: internal failure\n"));
+      pending3.push(
+        writeFully(process.stderr, "foreman-setup: internal failure\n")
+      );
       try {
         await Promise.all(pending3);
       } catch {
       }
-      process.exitCode = 2;
+      process.exitCode = 3;
     }
   );
 }
