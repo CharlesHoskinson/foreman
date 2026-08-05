@@ -1,8 +1,9 @@
 /**
  * @foreman/orchestration — queue admission (Sprint 3 R1), attempt-bound
- * round transaction core (Sprint 3 R2 / R3), and typed vendor preflight
- * (Sprint 3 R4A). Remaining orchestration ports and shell adapter seams stay
- * open.
+ * round transaction core (Sprint 3 R2 / R3), typed vendor preflight
+ * (Sprint 3 R4A), resume services (R5), and bounded fixture-aware secret
+ * scan (Sprint 3 R6). Remaining orchestration ports and shell adapter seams
+ * stay open.
  */
 
 export {
@@ -567,3 +568,44 @@ export {
   type SupervisorCliIo,
   type SupervisorCliEnv,
 } from "./supervisor-cli.js";
+
+// --- Sprint 3 R6: bounded fixture-aware secret scan ---
+
+export {
+  SECRET_SCAN_SCHEMA_VERSION,
+  PRUNE_TOP_LEVEL,
+  FIXTURE_SUBTREE_PREFIX,
+  FIXTURE_DECLARATION_RELPATH,
+  MAX_DIRECTORY_ENTRIES,
+  MAX_FILES,
+  MAX_RELATIVE_PATH_BYTES,
+  MAX_FILE_BYTES,
+  MAX_TOTAL_INSPECTED_BYTES,
+  MAX_LINE_INSPECTIONS,
+  MAX_EXEMPTIONS,
+  MAX_FIXTURE_DECLARATION_BYTES,
+  DEFAULT_SECRET_SCAN_BOUNDS,
+  EXIT_CLEAN as SECRET_SCAN_EXIT_CLEAN,
+  EXIT_NOT_CLEAN as SECRET_SCAN_EXIT_NOT_CLEAN,
+  EXIT_INVALID_ARGUMENTS as SECRET_SCAN_EXIT_INVALID_ARGUMENTS,
+  MSG_INVALID_ARGUMENTS as SECRET_SCAN_MSG_INVALID_ARGUMENTS,
+  MSG_INTERNAL_FAILURE as SECRET_SCAN_MSG_INTERNAL_FAILURE,
+  SecretScan,
+  isSecretScanResult,
+  sha256HexOfBytes,
+  renderSecretScanJson,
+  isRefusedSecretFilename,
+  isPemPrivateKeyLine,
+  scanWorktreeSync,
+  scanWorktree,
+  liveSecretScan,
+  stripSecretScanNodeArgv,
+  parseSecretScanArgv,
+  runSecretScanCli,
+  type SecretScanBounds,
+  type SecretScanRefusalReason,
+  type SecretScanResult,
+  type SecretScanInput,
+  type SecretScanCliIo,
+  type ParsedSecretScanArgv,
+} from "./secret-scan.js";

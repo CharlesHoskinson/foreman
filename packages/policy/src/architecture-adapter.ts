@@ -93,7 +93,7 @@ const LANE_RUN_PREFIX_SHA256 =
  * the R4C3 migration artifact. Caller-supplied digests are never accepted.
  */
 const LANE_RUN_SUFFIX_SHA256 =
-  "3b585e8f29c34eb62a16096a01f2d4909e677f4ab3536666f0650f677a762624";
+  "246364c7b516f9b5e587605f12a2dcebe3c25ba1c59e2d15f91c604414406e39";
 
 /**
  * SHA-256 of every byte of the approved R5D lane-supervise.sh thin adapter.

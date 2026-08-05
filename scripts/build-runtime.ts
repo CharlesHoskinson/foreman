@@ -67,6 +67,12 @@ const ENTRIES = [
     relativePath: "dist/foreman-setup.js",
     injectCapabilities: true,
   },
+  {
+    id: "secret-scan",
+    entry: join(root, "packages/orchestration/src/secret-scan-main.ts"),
+    relativePath: "dist/secret-scan.js",
+    injectCapabilities: false,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

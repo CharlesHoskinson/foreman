@@ -263,6 +263,21 @@
         827 with zero failures and one platform skip. Foreman pristine checks,
         the deterministic gate, and the different-family cold audit passed at
         pushed commit `f4d546be46dcf692a7062d799aba02bdb395b5a4`.
+      - Sprint 3 R6 bounded fixture-aware secret scan (worktree green, host
+        commit pending): closed typed `SecretScan` Effect API and CLI in
+        `@foreman/orchestration`; tracked deterministic
+        `skills/foreman/runtime/dist/secret-scan.js`
+        (sha256 `0c81091abcdd8a3a58bae2a0c86c0726ab9ebc768f42f927603bfe62f4a4a8c4`);
+        `lane_grok_secrets_scan` is a thin Node runtime call after vendor
+        readiness and before any Grok spawn; Codex and unset-vendor paths
+        remain unaffected. Host evidence in this worktree: focused secret-scan
+        tests 43/43; `flock /tmp/foreman-bats.lock bats tests/grok-lane.bats`
+        12/12; `npm run typecheck` pass; two `npm run build` runs byte-identical
+        for the secret-scan bundle; `npm run verify-runtime` ok; full
+        `npm run verify` 970 pass / 0 fail / 4 skip; strict OpenSpec validation
+        of `grok-secret-scan-typescript` and `v030-release-program`;
+        `docs-check.sh` pass. Keep open until host commit, cold audit, and
+        CW-027 coverage-row evidence land.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

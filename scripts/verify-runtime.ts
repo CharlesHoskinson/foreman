@@ -72,6 +72,7 @@ const trackedForemanSetupPath = join(
   trackedRuntime,
   "dist/foreman-setup.js",
 );
+const trackedSecretScanPath = join(trackedRuntime, "dist/secret-scan.js");
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -90,6 +91,7 @@ const trackedPreflight = readFileSync(trackedPreflightPath);
 const trackedToolCheck = readFileSync(trackedToolCheckPath);
 const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
 const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
+const trackedSecretScan = readFileSync(trackedSecretScanPath);
 
 // No extra files under dist/
 {
@@ -102,6 +104,7 @@ const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
     "lane-queue.js",
     "lane-round.js",
     "lane-supervise.js",
+    "secret-scan.js",
     "tool-check.js",
     "vendor-preflight.js",
   ];
@@ -134,6 +137,8 @@ try {
   const bDependencyDrift = readFileSync(join(tmpB, "dist/dependency-drift.js"));
   const aForemanSetup = readFileSync(join(tmpA, "dist/foreman-setup.js"));
   const bForemanSetup = readFileSync(join(tmpB, "dist/foreman-setup.js"));
+  const aSecretScan = readFileSync(join(tmpA, "dist/secret-scan.js"));
+  const bSecretScan = readFileSync(join(tmpB, "dist/secret-scan.js"));
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aQueue, bQueue)) fail("non-deterministic lane-queue");
@@ -151,6 +156,9 @@ try {
   if (!bytesEqual(aForemanSetup, bForemanSetup)) {
     fail("non-deterministic foreman-setup");
   }
+  if (!bytesEqual(aSecretScan, bSecretScan)) {
+    fail("non-deterministic secret-scan");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aQueue, trackedQueue)) fail("lane-queue drift");
@@ -163,6 +171,9 @@ try {
   }
   if (!bytesEqual(aForemanSetup, trackedForemanSetup)) {
     fail("foreman-setup drift");
+  }
+  if (!bytesEqual(aSecretScan, trackedSecretScan)) {
+    fail("secret-scan drift");
   }
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
@@ -195,6 +206,7 @@ try {
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
     writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
+    writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
@@ -221,6 +233,9 @@ try {
     writeFileSync(join(rt, "dist/foreman-setup.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered foreman-setup should fail");
     cpSync(trackedForemanSetupPath, join(rt, "dist/foreman-setup.js"));
+    writeFileSync(join(rt, "dist/secret-scan.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered secret-scan should fail");
+    cpSync(trackedSecretScanPath, join(rt, "dist/secret-scan.js"));
     // Extra undeclared file under dist must fail
     writeFileSync(join(rt, "dist/extra.js"), "export {}\n");
     {
@@ -378,6 +393,29 @@ try {
       rmSync(join(rt, "dist/foreman-setup.js"));
       writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
     }
+    // Linked secret-scan bundle must fail
+    {
+      const realSecret = join(rt, "secret-scan.real.js");
+      writeFileSync(realSecret, trackedSecretScan);
+      rmSync(join(rt, "dist/secret-scan.js"));
+      symlinkSync(realSecret, join(rt, "dist/secret-scan.js"));
+      const linkedSecret = verifyRuntimeManifest(rt);
+      if (linkedSecret.ok) fail("linked secret-scan should fail");
+      rmSync(join(rt, "dist/secret-scan.js"));
+      writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
+    }
+    // Missing secret-scan must fail
+    {
+      rmSync(join(rt, "dist/secret-scan.js"));
+      const missSecret = verifyRuntimeManifest(rt);
+      if (missSecret.ok || missSecret.reason !== "bundle_missing") {
+        fail(
+          "expected bundle_missing for secret-scan got " +
+            JSON.stringify(missSecret),
+        );
+      }
+      writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
+    }
     // Tamper manifest digests
     writeFileSync(
       join(rt, "manifest.json"),
@@ -424,6 +462,12 @@ try {
             id: "lane-supervise",
             relativePath: "dist/lane-supervise.js",
             sha256: "i".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "secret-scan",
+            relativePath: "dist/secret-scan.js",
+            sha256: "j".repeat(64),
           },
           {
             byteLength: 1,

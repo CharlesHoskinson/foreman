@@ -181,11 +181,13 @@ EOF
 }
 
 # ---------------------------------------------------------------------
-# Task 2: secrets-refusal preflight. An IN-LANE guard, DISTINCT from and
-# running AFTER the package-1 Use-path readiness gate -- both apply to a
-# grok lane. Scoped to the worktree SOURCE: .harness/ scaffolding (vendor-
-# home, lane.lock, heartbeat/stream files) is excluded, so provisioning
-# that scaffolding never trips a false positive.
+# Task 2 / R6: secrets-refusal preflight. An IN-LANE guard, DISTINCT from
+# and running AFTER the package-1 Use-path readiness gate -- both apply to
+# a grok lane. Domain logic is the TypeScript secret-scan runtime; the
+# shell only forwards the absolute worktree root. Scoped to the worktree
+# SOURCE: .harness/ scaffolding (vendor-home, lane.lock, heartbeat/stream
+# files) is excluded, so provisioning that scaffolding never trips a false
+# positive. Codex and unset-vendor paths remain byte-unaffected.
 # ---------------------------------------------------------------------
 
 # @description A deterministic, always-authenticated codex shim (mirrors

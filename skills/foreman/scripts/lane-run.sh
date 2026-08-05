@@ -417,21 +417,25 @@ lane_normalize_config_dir() {
 #   reads stdin and could hang the script with no bound.
 # @arg $1 wt worktree root to scan
 # @exitcode 0 clean (no secret material found); 1 secret material found
+#           or any fail-closed / indeterminate scanner result
+# Domain logic lives in packages/orchestration/src/secret-scan.ts (R6).
+# This function is a thin Node runtime call only — no find/grep scan body.
 lane_grok_secrets_scan() {
-  local wt="$1" hits
-  hits="$(find "$wt" \( -path "$wt/.harness" -o -path "$wt/.git" \) -prune -o \
-       -type f \( \
-         -name '.env' \
-         -o \( -name '.env.*' ! -name '.env.example' \) \
-         -o -name 'id_rsa' -o -name 'id_dsa' -o -name 'id_ecdsa' -o -name 'id_ed25519' \
-         -o -name '*.pem' -o -name '*.key' -o -name '*.p12' -o -name '*.pfx' \
-       \) -print 2>/dev/null)" || true
-  [[ -n "$hits" ]] && return 1
-  hits="$(find "$wt" \( -path "$wt/.harness" -o -path "$wt/.git" \) -prune -o \
-       -type f -exec grep -lIE -- '^[[:space:]]*-----BEGIN[[:space:]].*PRIVATE KEY-----[[:space:]]*$' {} + \
-       2>/dev/null)" || true
-  [[ -n "$hits" ]] && return 1
-  return 0
+  local wt="$1"
+  local scan_node scan_runtime
+  scan_node="$(command -v node || true)"
+  scan_runtime="$SCRIPT_DIR/../runtime/dist/secret-scan.js"
+  if [[ -z "$scan_node" ]]; then
+    echo "lane-run: node is required for secret scan" >&2
+    return 1
+  fi
+  if [[ ! -f "$scan_runtime" ]]; then
+    echo "lane-run: secret scan runtime is missing" >&2
+    return 1
+  fi
+  # Absolute worktree root is preflighted by lane-run.sh before this call.
+  # Exit 0 only for clean; any secret or refuse is nonzero (fail closed).
+  "$scan_node" "$scan_runtime" "$wt"
 }
 
 # --- T5a: per-lane vendor config isolation plumbing ----------------------
