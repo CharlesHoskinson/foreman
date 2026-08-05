@@ -252,7 +252,9 @@
         Fiber interruption. Focused tests 28/28; full Node verification 796
         pass, zero fail, one platform skip; typecheck, runtime verification,
         strict OpenSpec validation, architecture policy, and the corrected
-        cold audit pass. Exact `d75b635` hosted workflows are pending.
+        cold audit pass. The later exact pushed commit `f1a2b70` passed Linux
+        run `30974765649`, Windows run `30974765741`, and formal run
+        `30974765656`.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.
