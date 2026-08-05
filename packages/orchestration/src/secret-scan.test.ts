@@ -11,6 +11,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import {
   chmodSync,
   existsSync,
@@ -62,6 +63,7 @@ import {
   type SecretScanCliIo,
   type SecretScanResult,
 } from "./secret-scan.js";
+import { writeFully } from "./secret-scan-main.js";
 
 const REPO_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -1119,6 +1121,69 @@ describe("CLI output and exit codes", () => {
         "tracked secret-scan bundle must set exitCode",
       );
     }
+  });
+
+  it("writeFully keeps error listener after callback error so subsequent error is not unhandled", async () => {
+    // Simulate Node ordering: write callback error first, then stream
+    // 'error' event. Removing the listener on the callback path would make
+    // EventEmitter throw an uncaught "error" event (no listeners).
+    type WriteCb = (err?: Error | null) => void;
+    const stream = new EventEmitter() as EventEmitter & {
+      write: (text: string, cb?: WriteCb) => boolean;
+    };
+    let writeCb: WriteCb | undefined;
+    stream.write = (_text: string, cb?: WriteCb) => {
+      writeCb = cb;
+      return true;
+    };
+
+    const pending = writeFully(stream, "line\n");
+    assert.equal(typeof writeCb, "function");
+    assert.equal(stream.listenerCount("error"), 1);
+
+    const cbErr = new Error("EPIPE-callback");
+    writeCb!(cbErr);
+    await assert.rejects(pending, (e: unknown) => e === cbErr);
+
+    // Listener must still be armed so the later event is consumed.
+    assert.equal(stream.listenerCount("error"), 1);
+    assert.doesNotThrow(() => {
+      stream.emit("error", new Error("EPIPE-event"));
+    });
+    assert.equal(
+      stream.listenerCount("error"),
+      0,
+      "error listener must consume and remove itself on the subsequent event",
+    );
+  });
+
+  it("writeFully removes error listener after successful callback", async () => {
+    type WriteCb = (err?: Error | null) => void;
+    const stream = new EventEmitter() as EventEmitter & {
+      write: (text: string, cb?: WriteCb) => boolean;
+    };
+    let writeCb: WriteCb | undefined;
+    stream.write = (_text: string, cb?: WriteCb) => {
+      writeCb = cb;
+      return true;
+    };
+
+    const pending = writeFully(stream, "ok\n");
+    assert.equal(stream.listenerCount("error"), 1);
+    writeCb!(null);
+    await pending;
+    assert.equal(
+      stream.listenerCount("error"),
+      0,
+      "successful write must remove the one-time error listener",
+    );
+    // No listener remains: a late error would be unhandled if emitted.
+    assert.throws(
+      () => {
+        stream.emit("error", new Error("late-should-throw"));
+      },
+      /Uncaught|late-should-throw|error/,
+    );
   });
 
   it("parseSecretScanArgv accepts one absolute root", () => {

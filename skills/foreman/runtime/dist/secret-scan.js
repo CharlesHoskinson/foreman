@@ -16359,11 +16359,11 @@ function parseSecretScanArgv(argv) {
   if (worktreeRoot.includes("\0")) return { _tag: "Invalid" };
   return { _tag: "Ok", worktreeRoot };
 }
-function runSecretScanCli(argv, io2) {
+function runSecretScanCli(argv, io) {
   return Effect_exports.gen(function* () {
     const parsed = parseSecretScanArgv(argv);
     if (parsed._tag === "Invalid") {
-      io2.writeStdout(
+      io.writeStdout(
         renderSecretScanJson({
           _tag: "Refused",
           reason: "invalid_worktree"
@@ -16374,7 +16374,7 @@ function runSecretScanCli(argv, io2) {
     const result = yield* scanWorktree({
       worktreeRoot: parsed.worktreeRoot
     });
-    io2.writeStdout(renderSecretScanJson(result) + "\n");
+    io.writeStdout(renderSecretScanJson(result) + "\n");
     if (result._tag === "Clean") return EXIT_CLEAN;
     return EXIT_NOT_CLEAN;
   });
@@ -16382,53 +16382,73 @@ function runSecretScanCli(argv, io2) {
 
 // packages/orchestration/src/secret-scan-main.ts
 function writeFully(stream, text) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolvePromise, reject) => {
+    let settled = false;
+    const settleReject = (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    };
     const onError3 = (err) => {
       stream.off("error", onError3);
-      reject(err);
+      settleReject(err);
     };
     stream.once("error", onError3);
     stream.write(text, (err) => {
+      if (err) {
+        settleReject(err instanceof Error ? err : new Error(String(err)));
+        return;
+      }
       stream.off("error", onError3);
-      if (err) reject(err);
-      else resolve2();
+      if (!settled) {
+        settled = true;
+        resolvePromise();
+      }
     });
   });
 }
-var pending3 = [];
-var io = {
-  writeStdout: (text) => {
-    pending3.push(writeFully(process.stdout, text));
-  },
-  writeStderr: (text) => {
-    pending3.push(writeFully(process.stderr, text));
-  }
+function startSecretScanMain() {
+  const pending3 = [];
+  const io = {
+    writeStdout: (text) => {
+      pending3.push(writeFully(process.stdout, text));
+    },
+    writeStderr: (text) => {
+      pending3.push(writeFully(process.stderr, text));
+    }
+  };
+  const program = runSecretScanCli(process.argv, io).pipe(
+    Effect_exports.provide(liveSecretScan)
+  );
+  Effect_exports.runPromise(program).then(
+    async (code) => {
+      try {
+        await Promise.all(pending3);
+      } catch {
+      }
+      process.exitCode = code;
+    },
+    async () => {
+      pending3.push(
+        writeFully(
+          process.stdout,
+          renderSecretScanJson({
+            _tag: "Refused",
+            reason: "unsupported_traversal"
+          }) + "\n"
+        )
+      );
+      try {
+        await Promise.all(pending3);
+      } catch {
+      }
+      process.exitCode = EXIT_NOT_CLEAN;
+    }
+  );
+}
+if (process.env.NODE_TEST_CONTEXT === void 0) {
+  startSecretScanMain();
+}
+export {
+  writeFully
 };
-var program = runSecretScanCli(process.argv, io).pipe(
-  Effect_exports.provide(liveSecretScan)
-);
-Effect_exports.runPromise(program).then(
-  async (code) => {
-    try {
-      await Promise.all(pending3);
-    } catch {
-    }
-    process.exitCode = code;
-  },
-  async () => {
-    pending3.push(
-      writeFully(
-        process.stdout,
-        renderSecretScanJson({
-          _tag: "Refused",
-          reason: "unsupported_traversal"
-        }) + "\n"
-      )
-    );
-    try {
-      await Promise.all(pending3);
-    } catch {
-    }
-    process.exitCode = EXIT_NOT_CLEAN;
-  }
-);
