@@ -15728,6 +15728,10 @@ function fireAfterBindDirectory(posixRel) {
   const h = secretScanRaceHook?.afterBindDirectory;
   if (h) h(posixRel);
 }
+function fireAfterObserveRegularFile(posixRel) {
+  const h = secretScanRaceHook?.afterObserveRegularFile;
+  if (h) h(posixRel);
+}
 function closeQuiet(fd) {
   if (fd === void 0) return;
   try {
@@ -16226,13 +16230,14 @@ function processDirectory(frame, exemptions, counters, bounds) {
         return refuse("bound_exceeded");
       }
       const filenameRefused = isRefusedSecretFilename(name);
+      fireAfterObserveRegularFile(childRel);
       const read = readRegularFileUnder(
         frame.dir,
         name,
         bounds.maxFileBytes
       );
       if (read._tag === "Symlink") {
-        continue;
+        return refuse("identity_changed");
       }
       if (read._tag === "NotFile") {
         return refuse("unsupported_traversal");
@@ -16376,28 +16381,54 @@ function runSecretScanCli(argv, io2) {
 }
 
 // packages/orchestration/src/secret-scan-main.ts
+function writeFully(stream, text) {
+  return new Promise((resolve2, reject) => {
+    const onError3 = (err) => {
+      stream.off("error", onError3);
+      reject(err);
+    };
+    stream.once("error", onError3);
+    stream.write(text, (err) => {
+      stream.off("error", onError3);
+      if (err) reject(err);
+      else resolve2();
+    });
+  });
+}
+var pending3 = [];
 var io = {
   writeStdout: (text) => {
-    process.stdout.write(text);
+    pending3.push(writeFully(process.stdout, text));
   },
   writeStderr: (text) => {
-    process.stderr.write(text);
+    pending3.push(writeFully(process.stderr, text));
   }
 };
 var program = runSecretScanCli(process.argv, io).pipe(
   Effect_exports.provide(liveSecretScan)
 );
 Effect_exports.runPromise(program).then(
-  (code) => {
-    process.exit(code);
+  async (code) => {
+    try {
+      await Promise.all(pending3);
+    } catch {
+    }
+    process.exitCode = code;
   },
-  () => {
-    process.stdout.write(
-      renderSecretScanJson({
-        _tag: "Refused",
-        reason: "unsupported_traversal"
-      }) + "\n"
+  async () => {
+    pending3.push(
+      writeFully(
+        process.stdout,
+        renderSecretScanJson({
+          _tag: "Refused",
+          reason: "unsupported_traversal"
+        }) + "\n"
+      )
     );
-    process.exit(EXIT_NOT_CLEAN);
+    try {
+      await Promise.all(pending3);
+    } catch {
+    }
+    process.exitCode = EXIT_NOT_CLEAN;
   }
 );

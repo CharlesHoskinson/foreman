@@ -161,6 +161,12 @@ export type SecretScanRaceHook = {
    * before listing that directory. `posixRel` is repository-relative.
    */
   readonly afterBindDirectory?: (posixRel: string) => void;
+  /**
+   * After an entry is observed as a regular file and before it is opened
+   * for content read. `posixRel` is repository-relative. Tests may replace
+   * the path with a symlink to prove identity-changed refusal.
+   */
+  readonly afterObserveRegularFile?: (posixRel: string) => void;
 };
 
 let secretScanRaceHook: SecretScanRaceHook | undefined;
@@ -181,6 +187,11 @@ function fireAfterBindRoot(): void {
 
 function fireAfterBindDirectory(posixRel: string): void {
   const h = secretScanRaceHook?.afterBindDirectory;
+  if (h) h(posixRel);
+}
+
+function fireAfterObserveRegularFile(posixRel: string): void {
+  const h = secretScanRaceHook?.afterObserveRegularFile;
   if (h) h(posixRel);
 }
 
@@ -960,14 +971,20 @@ function processDirectory(
 
       const filenameRefused = isRefusedSecretFilename(name);
 
+      // Race seam: entry was observed as regular; a concurrent rename may
+      // replace it with a symlink before the no-follow open.
+      fireAfterObserveRegularFile(childRel);
+
       const read = readRegularFileUnder(
         frame.dir,
         name,
         bounds.maxFileBytes,
       );
       if (read._tag === "Symlink") {
-        // Race: became symlink — do not follow.
-        continue;
+        // Observed regular, then became symlink: identity changed. Do not
+        // follow. (An entry that is a symlink at initial observation is
+        // skipped above and never reaches this branch.)
+        return refuse("identity_changed");
       }
       if (read._tag === "NotFile") {
         return refuse("unsupported_traversal");

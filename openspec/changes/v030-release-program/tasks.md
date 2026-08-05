@@ -274,19 +274,20 @@
         on every platform; pure classifiers always run; live traversal cases
         skip only when secure anchors are unavailable; tracked deterministic
         `skills/foreman/runtime/dist/secret-scan.js` (sha256
-        `7eb55383d1575b3d9095da26c555f259ca258c5d52c0ef8c2171ddb53f679418`);
+        `b66ee6e75927ed29fe6a4b79150519cca650755c446d95d8b881e5a69d959dbf`);
         `lane_grok_secrets_scan` is a thin Node runtime call after vendor
         readiness and before any Grok spawn; Codex and unset-vendor paths
         remain unaffected. Host evidence in this worktree: focused secret-scan
-        tests 59 pass / 0 fail / 0 skip on Linux (includes pure classifiers,
-        injected fail-closed, and live traversal with root/nested race
-        seams); `flock /tmp/foreman-bats.lock bats tests/grok-lane.bats`
-        12/12; `npm run typecheck` pass; two `npm run build` runs
-        byte-identical for the secret-scan bundle; `npm run verify-runtime`
-        ok; full `npm run verify` 986 pass / 0 fail / 4 skip; strict OpenSpec
-        validation of `grok-secret-scan-typescript` and
-        `v030-release-program`; `docs-check.sh` pass. Keep open until host
-        commit, cold audit, and CW-027 coverage-row evidence land.
+        tests 68 pass / 0 fail / 0 skip on Linux (includes pure classifiers,
+        injected fail-closed, live traversal with root/nested race seams,
+        regular-file→symlink identity_changed, and secret-scan-main
+        exitCode/no-process.exit invariant); `flock /tmp/foreman-bats.lock
+        bats tests/grok-lane.bats` 12/12; `npm run typecheck` pass; two
+        `npm run build` runs byte-identical for the secret-scan bundle;
+        `npm run verify-runtime` ok; full `npm run verify` 995 pass / 0 fail
+        / 4 skip; strict OpenSpec validation of `grok-secret-scan-typescript`
+        and `v030-release-program`; `docs-check.sh` pass. Keep open until
+        host commit, cold audit, and CW-027 coverage-row evidence land.
 - [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
 - [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
       every complete sprint diff.

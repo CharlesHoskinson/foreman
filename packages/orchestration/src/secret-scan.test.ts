@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -22,6 +23,7 @@ import {
   renameSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
   closeSync,
 } from "node:fs";
@@ -563,6 +565,53 @@ describe("directory-identity race seams", () => {
     },
   );
 
+  it(
+    "race seam: regular file swapped for symlink after observe returns identity_changed",
+    liveTraversal,
+    () => {
+      const wt = tempRoot("race-file-sym");
+      const outside = tempRoot("race-file-sym-out");
+      const filePath = join(wt, "was-regular.txt");
+      try {
+        writeFile(wt, "was-regular.txt", "inside-ok\n");
+        writeFile(wt, "other-ok.txt", "ok\n");
+        // Outside target holds a secret that would flip the verdict if followed.
+        const secretOutside = writeFile(
+          outside,
+          "leak.env",
+          "SECRET=file-to-symlink-outside-leak\n",
+        );
+
+        setSecretScanRaceHook({
+          afterObserveRegularFile: (posixRel) => {
+            if (posixRel === "was-regular.txt") {
+              unlinkSync(filePath);
+              symlinkSync(secretOutside, filePath);
+            }
+          },
+        });
+
+        const r = runScan(wt);
+        assert.equal(r._tag, "Refused");
+        if (r._tag === "Refused") {
+          assert.equal(r.reason, "identity_changed");
+        }
+        // Must not report SecretFound from following the outside symlink target.
+        assert.notEqual(r._tag, "SecretFound");
+        assert.notEqual(r._tag, "Clean");
+        assert.ok(lstatSync(filePath).isSymbolicLink());
+        assert.equal(
+          readFileSync(secretOutside, "utf8"),
+          "SECRET=file-to-symlink-outside-leak\n",
+        );
+      } finally {
+        setSecretScanRaceHook(undefined);
+        rmSync(wt, { recursive: true, force: true });
+        rmSync(outside, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("injected unsupported anchor fails closed with no pathname fallback", () => {
     // Runs on every platform (including Linux where anchors are available).
     // A secret is present so pathname fallback would yield SecretFound.
@@ -1032,6 +1081,44 @@ describe("CLI output and exit codes", () => {
     assert.equal(lines.length, 1);
     const obj = JSON.parse(lines[0]!) as { verdict: string };
     assert.equal(obj.verdict, "refused");
+  });
+
+  it("secret-scan-main sets exitCode and never calls process.exit", () => {
+    // Source invariant: success and top-level failure paths must drain
+    // writes via exitCode so piped stdout cannot truncate the JSON line.
+    const mainSrc = readFileSync(
+      resolve("packages/orchestration/src/secret-scan-main.ts"),
+      "utf8",
+    );
+    assert.equal(
+      /\bprocess\.exit\s*\(/.test(mainSrc),
+      false,
+      "secret-scan-main must not call process.exit()",
+    );
+    assert.ok(
+      mainSrc.includes("process.exitCode"),
+      "secret-scan-main must set process.exitCode",
+    );
+    // Both Outcome and rejection handlers assign exitCode.
+    const exitCodeAssigns = mainSrc.match(/process\.exitCode\s*=/g) ?? [];
+    assert.ok(
+      exitCodeAssigns.length >= 2,
+      "success and top-level failure paths must each set process.exitCode",
+    );
+    const bundle = resolve("skills/foreman/runtime/dist/secret-scan.js");
+    if (existsSync(bundle)) {
+      const bundleSrc = readFileSync(bundle, "utf8");
+      assert.equal(
+        /\bprocess\.exit\s*\(/.test(bundleSrc),
+        false,
+        "tracked secret-scan bundle must not call process.exit()",
+      );
+      assert.ok(
+        bundleSrc.includes("process.exitCode") ||
+          bundleSrc.includes("exitCode"),
+        "tracked secret-scan bundle must set exitCode",
+      );
+    }
   });
 
   it("parseSecretScanArgv accepts one absolute root", () => {

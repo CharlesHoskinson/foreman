@@ -1,6 +1,10 @@
 /**
  * Bundled entry for secret-scan.js — thin CLI adapter target.
  * Always emits exactly one canonical JSON line; never plain-text leaks.
+ *
+ * Sets process.exitCode and never terminates via process.exit on the outcome
+ * or diagnostic path, so a backpressured stdout stream can finish the
+ * required final JSON line before the process ends.
  */
 
 import { Effect } from "effect";
@@ -11,12 +15,32 @@ import {
   runSecretScanCli,
 } from "./secret-scan.js";
 
+function writeFully(
+  stream: NodeJS.WriteStream,
+  text: string,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onError = (err: Error) => {
+      stream.off("error", onError);
+      reject(err);
+    };
+    stream.once("error", onError);
+    stream.write(text, (err) => {
+      stream.off("error", onError);
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+const pending: Promise<void>[] = [];
+
 const io = {
   writeStdout: (text: string) => {
-    process.stdout.write(text);
+    pending.push(writeFully(process.stdout, text));
   },
   writeStderr: (text: string) => {
-    process.stderr.write(text);
+    pending.push(writeFully(process.stderr, text));
   },
 };
 
@@ -25,18 +49,31 @@ const program = runSecretScanCli(process.argv, io).pipe(
 );
 
 Effect.runPromise(program).then(
-  (code) => {
-    process.exit(code);
+  async (code) => {
+    try {
+      await Promise.all(pending);
+    } catch {
+      /* stream errors still set a definite exit code */
+    }
+    process.exitCode = code;
   },
-  () => {
+  async () => {
     // Fail closed with the same canonical JSON shape as every other refusal.
     // Do not emit stacks, paths, exception text, or environment content.
-    process.stdout.write(
-      renderSecretScanJson({
-        _tag: "Refused",
-        reason: "unsupported_traversal",
-      }) + "\n",
+    pending.push(
+      writeFully(
+        process.stdout,
+        renderSecretScanJson({
+          _tag: "Refused",
+          reason: "unsupported_traversal",
+        }) + "\n",
+      ),
     );
-    process.exit(EXIT_NOT_CLEAN);
+    try {
+      await Promise.all(pending);
+    } catch {
+      /* ignore */
+    }
+    process.exitCode = EXIT_NOT_CLEAN;
   },
 );
