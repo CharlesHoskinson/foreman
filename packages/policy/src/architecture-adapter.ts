@@ -35,10 +35,72 @@
  * handling only — not domain logic.
  */
 
+import { createHash } from "node:crypto";
 import { pathExtension } from "./architecture-extensions.js";
 import type { PolicyReason } from "./architecture-schema.js";
 
 const DENY = "legacy_adapter_domain_logic" as const;
+
+/**
+ * Closed migration path for the R4C3 lane-run strangler only.
+ * Repository-relative, forward-slash form; not a general path exception.
+ */
+const LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
+
+/**
+ * Exact vendor-admission forwarding block admitted by R4C3. Every byte is
+ * pinned; a one-byte change inside the block fails the closed match.
+ */
+const LANE_RUN_FORWARDING_BLOCK = [
+  '  lane_gate_node="$(command -v node || true)"',
+  '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"',
+  '  if [[ -z "$lane_gate_node" ]]; then',
+  '    echo "lane-run: node is required for vendor admission" >&2',
+  '    exit "$EXIT_MISSING_CLI"',
+  "  fi",
+  '  if [[ ! -f "$lane_gate_runtime" ]]; then',
+  '    echo "lane-run: vendor admission runtime is missing" >&2',
+  '    exit "$EXIT_MISSING_CLI"',
+  "  fi",
+  '  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \\',
+  '      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then',
+  '    exit "$EXIT_CONFIG"',
+  "  fi",
+].join("\n");
+
+/**
+ * SHA-256 of every byte of lane-run.sh outside LANE_RUN_FORWARDING_BLOCK.
+ * Recomputed only when an intentional remainder change is approved with the
+ * R4C3 migration artifact. Caller-supplied digests are never accepted.
+ */
+const LANE_RUN_REMAINDER_SHA256 =
+  "96cbf3619b0837f1ccaf3a62c2800e1e135574894d4a2e2644854da97c90cea9";
+
+/**
+ * Closed validator for the single approved lane-run.sh migration artifact.
+ * Accepts only the exact forwarding block plus a pinned remainder digest.
+ * Rejects every other change with legacy_adapter_domain_logic.
+ */
+function inspectLaneRunMigrationAdapter(sourceText: string): PolicyReason | null {
+  if (/[\u0000]/.test(sourceText)) return DENY;
+
+  const first = sourceText.indexOf(LANE_RUN_FORWARDING_BLOCK);
+  if (first < 0) return DENY;
+  const second = sourceText.indexOf(
+    LANE_RUN_FORWARDING_BLOCK,
+    first + LANE_RUN_FORWARDING_BLOCK.length,
+  );
+  if (second !== -1) return DENY;
+
+  const remainder =
+    sourceText.slice(0, first) +
+    sourceText.slice(first + LANE_RUN_FORWARDING_BLOCK.length);
+  const digest = createHash("sha256")
+    .update(remainder, "utf8")
+    .digest("hex");
+  if (digest !== LANE_RUN_REMAINDER_SHA256) return DENY;
+  return null;
+}
 
 const SHEBANG =
   /^#!(\/usr\/bin\/env\s+(bash|sh|dash)|\/bin\/(bash|sh|dash)|\/usr\/bin\/(bash|sh|dash))\s*$/;
@@ -278,11 +340,20 @@ function inspectPosixShellAdapter(
 /**
  * Returns null when the adapter body is within the thin-adapter grammar;
  * otherwise returns legacy_adapter_domain_logic.
+ *
+ * The 1,482-line lane-run.sh migration artifact is admitted only by the
+ * closed R4C3 validator (exact forwarding block + pinned remainder digest).
+ * All other paths keep the six-production / eight-production grammar.
  */
 export function inspectLegacyAdapter(
   path: string,
   sourceText: string,
 ): PolicyReason | null {
+  const normalizedPath = path.replace(/\\/g, "/");
+  if (normalizedPath === LANE_RUN_MIGRATION_PATH) {
+    return inspectLaneRunMigrationAdapter(sourceText);
+  }
+
   const ext = pathExtension(path);
 
   if (ext === ".sh" || ext === ".bash" || ext === ".zsh" || ext === ".ksh") {

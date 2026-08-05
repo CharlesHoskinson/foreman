@@ -144,10 +144,11 @@ SHIM
   [ ! -e "$WT/.foreman/session.db" ]
 }
 
-@test "lane-run resolves readiness, launcher, and WSL preflight from FOREMAN_TOOL_ROOT" {
+@test "lane-run resolves launcher and WSL preflight from FOREMAN_TOOL_ROOT; admission uses persisted preflight" {
   tool_root="$BATS_TEST_TMPDIR/tool-root"
   mkdir -p "$tool_root/env" "$tool_root/launcher/dist"
   write_fake_launcher "$tool_root/launcher/dist"
+  # Live tool-check under FOREMAN_TOOL_ROOT must not be consulted for admission.
   cat > "$tool_root/env/tool-check.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'ready\n' > "$TOOL_MARKER"
@@ -165,11 +166,16 @@ EOF
   export WSL_DISTRO_NAME=ForemanTest
   export FOREMAN_WSL_CLOCK_PREFLIGHT=1
   unset FOREMAN_LAUNCH
+  # R4C3: vendor admission reads the persisted record only.
+  mkdir -p "$FOREMAN_HOME/preflight"
+  cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
+JSON
 
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'true'
 
   [ "$status" -eq 0 ]
-  [ -f "$TOOL_MARKER" ]
+  [ ! -f "$TOOL_MARKER" ]
   [ -f "$CLOCK_MARKER" ]
   grep -q -- '--threshold 5' "$CLOCK_MARKER"
   run jq -rc 'select(.type=="ownership") | .payload.launcher' "$(run_dir run1)/events.jsonl"

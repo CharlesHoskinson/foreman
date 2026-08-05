@@ -105,9 +105,9 @@
 #   live authenticated destructive concurrency test is available to verify a
 #   distinct-HOME implementation. The adapter's explicit unsupported refusal
 #   remains the honest contract. See docs/research/vendor-concurrency-results.md.
-# @env FOREMAN_TOOL_CHECK Optional executable readiness-probe override. When
-#   non-empty, it runs instead of env/tool-check.sh and must emit the unchanged
-#   `LANE_READY: <vendor>=yes` contract. Unset/empty uses the real repo probe.
+# Vendor-lane admission uses the persisted TypeScript preflight record only
+#   ($FOREMAN_HOME/preflight/<vendor>.json via vendor-preflight lane-gate).
+#   There is no live tool-check probe and no unverified continuation.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -415,45 +415,23 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
     exit "$EXIT_CONFIG"
   fi
 
-  # --- lifecycle Task 5 (spec R1/R2): Use-path readiness gate --------------
-  # A real, CODED refusal -- not merely Setup-side reporting (Opus plan-audit
-  # finding). Runs BEFORE the worktree lock is touched and BEFORE any event
-  # is emitted, so a refused lane leaves zero trace (mirrors the "bad
-  # LANE_VENDOR" rejection immediately above). Probes ONLY -- env/tool-check.sh
-  # never authenticates anything; the fix this script cites is an OPERATOR
-  # action (Setup), never something lane-run.sh attempts itself. `--profile
-  # soft` is deliberate and fixed here (not the run's own hard/full profile):
-  # `--lane` scopes the verdict to this one vendor's own row regardless of
-  # profile, and grok/codex are checked under every profile that
-  # matters for auth (must_soft/should_hard/should_full all include them) --
-  # see env/tool-check.sh's profile membership arrays.
-  lane_tool_check="${FOREMAN_TOOL_CHECK:-}"
-  if [[ -n "$lane_tool_check" ]]; then
-    lane_ready_report=""
-    lane_ready_report="$("$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
-  elif [[ -f "$FOREMAN_TOOL_ROOT/env/tool-check.sh" ]]; then
-    lane_tool_check="$FOREMAN_TOOL_ROOT/env/tool-check.sh"
-    lane_ready_report=""
-    lane_ready_report="$(bash "$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
+  # --- Use-path readiness: persisted vendor-preflight lane-gate ------------
+  # Runs BEFORE the worktree lock and BEFORE any event is emitted. The Node
+  # command owns readiness decisions; the shell only forwards arguments and
+  # maps nonzero exits. No live vendor probe and no unverified continuation.
+  lane_gate_node="$(command -v node || true)"
+  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"
+  if [[ -z "$lane_gate_node" ]]; then
+    echo "lane-run: node is required for vendor admission" >&2
+    exit "$EXIT_MISSING_CLI"
   fi
-  if [[ -n "$lane_tool_check" ]]; then
-    if [[ "$lane_ready_report" != *"LANE_READY: ${LANE_VENDOR}=yes"* ]]; then
-      echo "lane-run: $LANE_VENDOR lane NOT-READY -- run Setup (foreman-setup) before Use" >&2
-      exit "$EXIT_CONFIG"
-    fi
-  else
-    # No probe could be found: FOREMAN_TOOL_CHECK is unset and env/tool-check.sh
-    # is absent (e.g. a detached skill install, see bugeventlog.md "Skill
-    # installed as a detached copy"). The lane still runs -- Setup cannot have
-    # run in such a deployment either, so an unauthenticated vendor fails loudly
-    # at the vendor call anyway -- but the gap is announced and recorded, because
-    # a gate that silently does not run is indistinguishable from one that
-    # passed, and that is the failure class this release keeps finding.
-    echo "lane-run: $LANE_VENDOR readiness NOT-VERIFIED -- no probe found (FOREMAN_TOOL_CHECK unset and env/tool-check.sh absent); continuing UNVERIFIED" >&2
-    if ! el_emit "$RUN" alert "$LANE" \
-        "$(jq -cn --arg vendor "$LANE_VENDOR" '{kind:"lane_ready_unverified", vendor:$vendor}')" >/dev/null; then
-      echo "lane-run: el_emit alert (lane_ready_unverified) failed" >&2
-    fi
+  if [[ ! -f "$lane_gate_runtime" ]]; then
+    echo "lane-run: vendor admission runtime is missing" >&2
+    exit "$EXIT_MISSING_CLI"
+  fi
+  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \
+      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then
+    exit "$EXIT_CONFIG"
   fi
 
   # --- Task 2 (package 2, grok-lane-activation): secrets-refusal preflight -

@@ -36,6 +36,41 @@ setup() {
   git -C "$WT" commit -qm base
   SHIM="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$SHIM"
+  # R4C3: default ready persisted records so tests not exercising refusal
+  # do not depend on a live tool-check probe or host vendor sign-in.
+  write_ready_preflight_record grok
+  write_ready_preflight_record codex
+}
+
+# @description Write a canonical ready preflight record for vendor admission.
+# @arg $1 vendor id (grok|codex)
+write_ready_preflight_record() {
+  local vendor="$1"
+  mkdir -p "$FOREMAN_HOME/preflight"
+  case "$vendor" in
+    grok)
+      cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
+JSON
+      ;;
+    codex)
+      cat > "$FOREMAN_HOME/preflight/codex.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["codex","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["codex","login","status"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.146.0","resolvedPath":"/usr/bin/codex","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"codex","versionFloor":"0.146.0"}
+JSON
+      ;;
+    *)
+      echo "write_ready_preflight_record: bad vendor $vendor" >&2
+      return 1
+      ;;
+  esac
+}
+
+# @description Write a canonical not-ready grok preflight record (auth unknown).
+write_not_ready_grok_record() {
+  mkdir -p "$FOREMAN_HOME/preflight"
+  cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"probed","reason":"auth probe timed out","value":"unknown"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":null,"kind":"auth","outcome":"timeout"}],"remediation":{"instruction":"Re-run bounded grok models","kind":"diagnose"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
+JSON
 }
 
 # @description Mirrors lane-run.sh's own lane_normalize_config_dir exactly
@@ -90,12 +125,9 @@ SHIM
   chmod +x "$dir/foreman-launch"
 }
 
-# @description A deterministic, always-authenticated grok shim: answers
-#   --version and the readiness gate's own `grok models` auth probe (see
-#   env/tool-check.sh's vendor_authed) the same way a real signed-in grok
-#   CLI does, so tests that are not themselves exercising the readiness gate
-#   get past it without depending on this host's real grok sign-in state or
-#   network access.
+# @description Historical live-probe grok shim. R4C3 admission no longer
+#   invokes the vendor CLI; kept only so PATH-dependent tests can install a
+#   trap that proves live probes do not run. Prefer write_ready_preflight_record.
 # @arg $1 dir directory to write the shim into (caller prepends it to PATH)
 write_authed_grok_shim() {
   local dir="$1"
@@ -307,16 +339,13 @@ EOF
 }
 
 # ---------------------------------------------------------------------
-# Task 3: manifest + Setup-stage auth. tool-check's grok auth probe and
-# lane-run.sh's Use-path readiness gate are package-1 (lifecycle-three-stage)
-# responsibilities, already shipped and already covered by
-# tests/lifecycle-gate.bats and tests/foreman-setup.bats. This is package
-# 2's own acceptance proof that a grok Use route is refused citing Setup,
-# with no mid-lane auth attempt, matching the manifest's now-corrected auth
-# doctrine (grok login --device-code, gated to Setup, never attempted here).
+# Task 3 / R4C3: persisted not-ready refusal. lane-run.sh admits only via
+# the stored preflight record. A valid not-ready record preserves its
+# recorded reason unchanged; no live vendor probe and no mid-lane login.
 # ---------------------------------------------------------------------
 
-@test "grok Use route is refused citing Setup when unauthenticated -- no mid-lane auth attempt" {
+@test "grok Use route is refused from a not-ready persisted record -- no mid-lane auth attempt" {
+  write_not_ready_grok_record
   cat > "$SHIM/grok" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
@@ -336,8 +365,10 @@ EOF
   export PATH="$SHIM:$PATH"
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'echo RAN > "'"$WT"'/ran"'
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"Setup"* ]]
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"auth probe timed out"* ]]
   [ ! -f "$WT/ran" ]
   [ ! -f "$BATS_TEST_TMPDIR/login-called" ]
+  [ ! -f "$BATS_TEST_TMPDIR/ran" ]
+  [ ! -d "$WT/.harness/lane.lock" ]
 }

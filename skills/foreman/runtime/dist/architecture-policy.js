@@ -30801,6 +30801,9 @@ function parseNulPathList(bytes) {
   return { ok: true, paths: parts2 };
 }
 
+// packages/policy/src/architecture-adapter.ts
+import { createHash as createHash2 } from "node:crypto";
+
 // packages/policy/src/architecture-extensions.ts
 var RUNTIME_MANIFEST_PATH = "skills/foreman/runtime/manifest.json";
 var RUNTIME_DIST_PREFIX = "skills/foreman/runtime/dist/";
@@ -30862,6 +30865,38 @@ function isRuntimeManifestPath(path) {
 
 // packages/policy/src/architecture-adapter.ts
 var DENY = "legacy_adapter_domain_logic";
+var LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
+var LANE_RUN_FORWARDING_BLOCK = [
+  '  lane_gate_node="$(command -v node || true)"',
+  '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"',
+  '  if [[ -z "$lane_gate_node" ]]; then',
+  '    echo "lane-run: node is required for vendor admission" >&2',
+  '    exit "$EXIT_MISSING_CLI"',
+  "  fi",
+  '  if [[ ! -f "$lane_gate_runtime" ]]; then',
+  '    echo "lane-run: vendor admission runtime is missing" >&2',
+  '    exit "$EXIT_MISSING_CLI"',
+  "  fi",
+  '  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \\',
+  '      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then',
+  '    exit "$EXIT_CONFIG"',
+  "  fi"
+].join("\n");
+var LANE_RUN_REMAINDER_SHA256 = "96cbf3619b0837f1ccaf3a62c2800e1e135574894d4a2e2644854da97c90cea9";
+function inspectLaneRunMigrationAdapter(sourceText) {
+  if (/[\u0000]/.test(sourceText)) return DENY;
+  const first2 = sourceText.indexOf(LANE_RUN_FORWARDING_BLOCK);
+  if (first2 < 0) return DENY;
+  const second = sourceText.indexOf(
+    LANE_RUN_FORWARDING_BLOCK,
+    first2 + LANE_RUN_FORWARDING_BLOCK.length
+  );
+  if (second !== -1) return DENY;
+  const remainder = sourceText.slice(0, first2) + sourceText.slice(first2 + LANE_RUN_FORWARDING_BLOCK.length);
+  const digest = createHash2("sha256").update(remainder, "utf8").digest("hex");
+  if (digest !== LANE_RUN_REMAINDER_SHA256) return DENY;
+  return null;
+}
 var SHEBANG = /^#!(\/usr\/bin\/env\s+(bash|sh|dash)|\/bin\/(bash|sh|dash)|\/usr\/bin\/(bash|sh|dash))\s*$/;
 var STRICT_SET = /^set\s+(-euo\s+pipefail|-eu\s+pipefail|-euo|-eu|-e|-o\s+pipefail)\s*$/;
 var ASSIGN_ROOT = /^(ROOT|REPO_ROOT|SCRIPT_DIR|HERE)="\$\(cd "\$\(dirname "\$0"\)(\/\.\.)?" && pwd\)"\s*$/;
@@ -31008,6 +31043,10 @@ function inspectPosixShellAdapter(adapterPath, sourceText) {
   return null;
 }
 function inspectLegacyAdapter(path, sourceText) {
+  const normalizedPath = path.replace(/\\/g, "/");
+  if (normalizedPath === LANE_RUN_MIGRATION_PATH) {
+    return inspectLaneRunMigrationAdapter(sourceText);
+  }
   const ext = pathExtension(path);
   if (ext === ".sh" || ext === ".bash" || ext === ".zsh" || ext === ".ksh") {
     return inspectPosixShellAdapter(path, sourceText);

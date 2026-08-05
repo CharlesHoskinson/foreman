@@ -44,10 +44,6 @@ setup() {
   export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
-  export FAKE_TOOL_CHECK="$BATS_TEST_TMPDIR/fake-tool-check"
-  write_fake_tool_check "$FAKE_TOOL_CHECK"
-  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
-  unset FAKE_TOOL_CHECK_READY
   unset LANE_VENDOR LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
@@ -60,31 +56,32 @@ setup() {
   echo x > "$WT/f"
   git -C "$WT" add -A
   git -C "$WT" commit -qm base
+  # R4C3: vendor admission reads the persisted preflight record only.
+  write_ready_preflight_record grok
+  write_ready_preflight_record codex
 }
 
-# @description Deterministic readiness probe. Reports the requested lane ready
-#   unless FAKE_TOOL_CHECK_READY=no is exported by the negative-control run.
-# @arg $1 path to write the probe to
-write_fake_tool_check() {
-  local path="$1"
-  cat > "$path" <<'SHIM'
-#!/usr/bin/env bash
-set -uo pipefail
-lane=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --lane) lane="$2"; shift 2 ;;
-    *) shift ;;
+# @description Write a canonical ready preflight record for vendor admission.
+# @arg $1 vendor id (grok|codex)
+write_ready_preflight_record() {
+  local vendor="$1"
+  mkdir -p "$FOREMAN_HOME/preflight"
+  case "$vendor" in
+    grok)
+      cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
+JSON
+      ;;
+    codex)
+      cat > "$FOREMAN_HOME/preflight/codex.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["codex","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["codex","login","status"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.146.0","resolvedPath":"/usr/bin/codex","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"codex","versionFloor":"0.146.0"}
+JSON
+      ;;
+    *)
+      echo "write_ready_preflight_record: bad vendor $vendor" >&2
+      return 1
+      ;;
   esac
-done
-if [[ "${FAKE_TOOL_CHECK_READY:-yes}" == "yes" ]]; then
-  printf 'LANE_READY: %s=yes\n' "$lane"
-  exit 0
-fi
-printf 'LANE_READY: %s=no\n' "$lane"
-exit 1
-SHIM
-  chmod +x "$path"
 }
 
 # @description Mirrors lane-run.sh's own lane_normalize_config_dir exactly
@@ -225,7 +222,6 @@ SHIM
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
-  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
   mkdir -p "$WT/.harness/vendor-home/grok"   # mirrors wt-new.sh's own provisioning
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
@@ -243,7 +239,6 @@ SHIM
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
-  export FOREMAN_TOOL_CHECK="$FAKE_TOOL_CHECK"
   export LANE_VENDOR=codex
   export LANE_CONFIG_DIR="$BATS_TEST_TMPDIR/custom-codex-home"
   mkdir -p "$LANE_CONFIG_DIR"
