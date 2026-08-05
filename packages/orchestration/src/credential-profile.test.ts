@@ -1573,16 +1573,27 @@ describe("identity change, write failures, concurrency", () => {
 
   /**
    * Replace profile.json with a new regular file that has the same bytes and
-   * 0600 mode but a different inode. Final gate must refuse identity_changed
-   * and must not return Ready from the stale pre-replacement read.
+   * 0600 mode but a different inode.
+   *
+   * Portable: create the replacement while the original inode is still
+   * allocated, set mode 0600, then atomically rename over profile.json.
+   * Do not unlink the original first (inode reuse is not portable).
    */
   function replaceAuthoritySameMode(jsonPath: string): void {
     const body = readFileSync(jsonPath);
     const beforeIno = lstatSync(jsonPath).ino;
-    rmSync(jsonPath);
-    writeFileSync(jsonPath, body, { mode: 0o600 });
+    const tmpPath = join(
+      dirname(jsonPath),
+      `.profile.replace.${randomBytes(8).toString("hex")}.tmp`,
+    );
+    // Original still allocated → new file gets a distinct inode on all POSIX FS.
+    writeFileSync(tmpPath, body, { mode: 0o600 });
     if (!IS_WIN) {
-      chmodSync(jsonPath, 0o600);
+      chmodSync(tmpPath, 0o600);
+      assert.equal(lstatSync(tmpPath).mode & 0o777, 0o600);
+    }
+    renameSync(tmpPath, jsonPath);
+    if (!IS_WIN) {
       assert.equal(lstatSync(jsonPath).mode & 0o777, 0o600);
     }
     assert.notEqual(
@@ -1591,6 +1602,80 @@ describe("identity change, write failures, concurrency", () => {
       "replacement must use a distinct inode",
     );
   }
+
+  it("live readFile Ok binds identity to fstat of the open descriptor", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot } = tempPair("fd-id-read");
+    try {
+      const authDir = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(authDir, { recursive: true, mode: 0o700 });
+      const jsonPath = join(authDir, "profile.json");
+      const body = Buffer.from(
+        renderCredentialProfileRecordFile(
+          makeCredentialProfileRecord("p", "grok"),
+        ),
+        "utf8",
+      );
+      writeFileSync(jsonPath, body, { mode: 0o600 });
+      chmodSync(jsonPath, 0o600);
+      const st = lstatSync(jsonPath);
+      const r = liveCredentialProfileFs.readFile(
+        jsonPath,
+        MAX_CREDENTIAL_PROFILE_RECORD_BYTES,
+      );
+      assert.equal(r._tag, "Ok", JSON.stringify(r));
+      if (r._tag !== "Ok") return;
+      assert.equal(r.identity.kind, "file");
+      assert.equal(r.identity.dev, st.dev);
+      assert.equal(r.identity.ino, st.ino);
+      assert.deepEqual(r.bytes, body);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("carries descriptor identity: same-mode replace before readFile returns refuses", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("fd-id-gate");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      assert.equal(runInit(input)._tag, "Initialized");
+      const jsonPath = profileJsonPath(stateRoot, "p");
+      const beforeIno = lstatSync(jsonPath).ino;
+
+      // After the live open/read/fstat identity is captured, replace the path
+      // with another 0600 regular file before readFile returns. Carrying the
+      // descriptor identity must refuse; a post-close path lstat as the
+      // carried identity would match the replacement and wrongly return Ready
+      // from the pre-replacement bytes.
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        readFile: (path, max) => {
+          const r = liveCredentialProfileFs.readFile(path, max);
+          if (r._tag !== "Ok") return r;
+          if (path === jsonPath) {
+            replaceAuthoritySameMode(path);
+          }
+          return r;
+        },
+      };
+      const r = runResolve(input, fs);
+      assert.deepEqual(
+        r,
+        { _tag: "Refused", reason: "identity_changed" },
+        JSON.stringify(r),
+      );
+      assert.notEqual(r._tag, "Ready");
+      assert.notEqual(lstatSync(jsonPath).ino, beforeIno);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 
   it("resolve refuses identity_changed when authority is replaced after read", () => {
     if (IS_WIN) return;

@@ -16523,6 +16523,13 @@ function closeQuiet(fd) {
   } catch {
   }
 }
+function identityFromFdStats(st) {
+  return {
+    dev: st.dev,
+    ino: st.ino,
+    kind: classifyFromStats(st)
+  };
+}
 function liveReadFile(path, maxBytes) {
   let fd;
   try {
@@ -16552,7 +16559,11 @@ function liveReadFile(path, maxBytes) {
     if (!after3.isFile() || after3.dev !== opened.dev || after3.ino !== opened.ino || after3.size !== opened.size) {
       return { _tag: "Unreadable" };
     }
-    return { _tag: "Ok", bytes: buf.subarray(0, offset) };
+    const identity2 = identityFromFdStats(after3);
+    if (identity2.kind !== "file") {
+      return { _tag: "Unreadable" };
+    }
+    return { _tag: "Ok", bytes: buf.subarray(0, offset), identity: identity2 };
   } catch (e) {
     const err = e;
     if (err.code === "ENOENT") return { _tag: "Absent" };
@@ -16931,11 +16942,13 @@ function readAuthority(fs, jsonPath) {
   if (parsed._tag === "Fail") {
     return { _tag: "Refused", reason: parsed.reason };
   }
-  const supplied = fs.identity(jsonPath);
-  if (supplied === null || supplied.kind !== "file" || fs.classify(jsonPath) === "symlink" || !identitiesEqual(supplied, after3)) {
+  if (read.identity.kind !== "file") {
     return { _tag: "Refused", reason: "identity_changed" };
   }
-  return { _tag: "Ok", record: parsed.record, identity: supplied };
+  if (!identitiesEqual(read.identity, after3)) {
+    return { _tag: "Refused", reason: "identity_changed" };
+  }
+  return { _tag: "Ok", record: parsed.record, identity: read.identity };
 }
 function initProfileSync(input, fs) {
   const v = validateInputs(input, fs);

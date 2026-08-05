@@ -436,12 +436,21 @@ export type CredentialProfileFsShape = {
    * Read up to maxBytes from a regular non-linked file. Opens without
    * following a final-component link; verifies the opened descriptor
    * identity before a bounded read through that descriptor.
+   *
+   * The `Ok` variant MUST carry the `fstat` identity of the same open
+   * descriptor that supplied `bytes`. Callers must not replace that with a
+   * pathname identity lookup after the descriptor closes.
    */
   readonly readFile: (
     path: string,
     maxBytes: number,
   ) =>
-    | { readonly _tag: "Ok"; readonly bytes: Buffer }
+    | {
+        readonly _tag: "Ok";
+        readonly bytes: Buffer;
+        /** fstat identity of the open descriptor that supplied `bytes`. */
+        readonly identity: PathIdentity;
+      }
     | { readonly _tag: "Absent" }
     | { readonly _tag: "Oversized" }
     | { readonly _tag: "Linked" }
@@ -600,8 +609,21 @@ function closeQuiet(fd: number | undefined): void {
 }
 
 /**
+ * Identity from an open-descriptor `fstat` result. Kind is derived from the
+ * same stats object that names `dev`/`ino` — never from a later path lstat.
+ */
+function identityFromFdStats(st: Stats): PathIdentity {
+  return {
+    dev: st.dev,
+    ino: st.ino,
+    kind: classifyFromStats(st),
+  };
+}
+
+/**
  * Open the authority without following a link. Verify the opened descriptor
  * and path identity before the bounded read, then read through that descriptor.
+ * On success, bind `identity` to the post-read `fstat` of the same FD.
  */
 function liveReadFile(
   path: string,
@@ -648,6 +670,8 @@ function liveReadFile(
     }
     if (offset > maxBytes) return { _tag: "Oversized" };
 
+    // fstat the still-open descriptor that supplied the bytes — this identity
+    // is authoritative for the decoded authority, not a post-close path lstat.
     const after = fstatSync(fd);
     if (
       !after.isFile() ||
@@ -657,7 +681,11 @@ function liveReadFile(
     ) {
       return { _tag: "Unreadable" };
     }
-    return { _tag: "Ok", bytes: buf.subarray(0, offset) };
+    const identity = identityFromFdStats(after);
+    if (identity.kind !== "file") {
+      return { _tag: "Unreadable" };
+    }
+    return { _tag: "Ok", bytes: buf.subarray(0, offset), identity };
   } catch (e) {
     const err = e as NodeJS.ErrnoException;
     if (err.code === "ENOENT") return { _tag: "Absent" };
@@ -1307,18 +1335,16 @@ function readAuthority(
     return { _tag: "Refused", reason: parsed.reason };
   }
 
-  // The identity that supplied the decoded bytes must still name the same
-  // non-linked regular file at the authority path after the read.
-  const supplied = fs.identity(jsonPath);
-  if (
-    supplied === null ||
-    supplied.kind !== "file" ||
-    fs.classify(jsonPath) === "symlink" ||
-    !identitiesEqual(supplied, after)
-  ) {
+  // Carry the fstat identity from the same open descriptor that supplied the
+  // decoded bytes. Do not replace it with a pathname identity after close.
+  if (read.identity.kind !== "file") {
     return { _tag: "Refused", reason: "identity_changed" };
   }
-  return { _tag: "Ok", record: parsed.record, identity: supplied };
+  // Pre-read path identity must agree with the descriptor that was opened.
+  if (!identitiesEqual(read.identity, after)) {
+    return { _tag: "Refused", reason: "identity_changed" };
+  }
+  return { _tag: "Ok", record: parsed.record, identity: read.identity };
 }
 
 // ---------------------------------------------------------------------------
