@@ -48,6 +48,15 @@ const DENY = "legacy_adapter_domain_logic" as const;
 const LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
 
 /**
+ * Closed migration path for the R5D lane-supervise thin adapter only.
+ * Repository-relative, forward-slash form; not a general path exception.
+ * Injects `--state-root` from FOREMAN_HOME before the Node supervisor CLI;
+ * that is outside the six/eight-production pure-exec grammar.
+ */
+const LANE_SUPERVISE_MIGRATION_PATH =
+  "skills/foreman/scripts/lane-supervise.sh";
+
+/**
  * Exact vendor-admission forwarding block admitted by R4C3. Every byte is
  * pinned; a one-byte change inside the block fails the closed match.
  */
@@ -87,6 +96,16 @@ const LANE_RUN_SUFFIX_SHA256 =
   "3b585e8f29c34eb62a16096a01f2d4909e677f4ab3536666f0650f677a762624";
 
 /**
+ * SHA-256 of every byte of the approved R5D lane-supervise.sh thin adapter.
+ * Full-body pin: the short adapter is the entire migration artifact. A
+ * one-byte change or domain-logic edit fails. Recomputed only when an
+ * intentional adapter change is approved with the R5D migration artifact.
+ * Caller-supplied digests are never accepted.
+ */
+const LANE_SUPERVISE_BODY_SHA256 =
+  "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
+
+/**
  * Closed validator for the single approved lane-run.sh migration artifact.
  * Accepts only the exact forwarding block at the pinned position (separate
  * prefix and suffix digests). Rejects every other change with
@@ -113,6 +132,22 @@ function inspectLaneRunMigrationAdapter(sourceText: string): PolicyReason | null
     .update(suffix, "utf8")
     .digest("hex");
   if (suffixDigest !== LANE_RUN_SUFFIX_SHA256) return DENY;
+  return null;
+}
+
+/**
+ * Closed validator for the single approved lane-supervise.sh migration
+ * artifact. Accepts only the exact thin adapter body (full SHA-256 pin).
+ * Rejects every other change with legacy_adapter_domain_logic.
+ */
+function inspectLaneSuperviseMigrationAdapter(
+  sourceText: string,
+): PolicyReason | null {
+  if (/[\u0000]/.test(sourceText)) return DENY;
+  const digest = createHash("sha256")
+    .update(sourceText, "utf8")
+    .digest("hex");
+  if (digest !== LANE_SUPERVISE_BODY_SHA256) return DENY;
   return null;
 }
 
@@ -357,8 +392,9 @@ function inspectPosixShellAdapter(
  *
  * The 1,482-line lane-run.sh migration artifact is admitted only by the
  * closed R4C3 validator (exact forwarding block + pinned prefix and suffix
- * digests that pin block position). All other paths keep the six-production
- * / eight-production grammar.
+ * digests that pin block position). The R5D lane-supervise.sh thin adapter
+ * is admitted only by the closed full-body SHA-256 pin for its exact path.
+ * All other paths keep the six-production / eight-production grammar.
  */
 export function inspectLegacyAdapter(
   path: string,
@@ -367,6 +403,9 @@ export function inspectLegacyAdapter(
   const normalizedPath = path.replace(/\\/g, "/");
   if (normalizedPath === LANE_RUN_MIGRATION_PATH) {
     return inspectLaneRunMigrationAdapter(sourceText);
+  }
+  if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
+    return inspectLaneSuperviseMigrationAdapter(sourceText);
   }
 
   const ext = pathExtension(path);

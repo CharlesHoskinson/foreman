@@ -1,3 +1,4 @@
+# bats test data (run via `bats`, not as a product executable)
 #!/usr/bin/env bats
 # @description Adapter + one-shot Node supervisor parity for lane-supervise.sh
 #   (R5D). Seeds typed events.ndjson under FOREMAN_HOME/runs/<id>/ and invokes

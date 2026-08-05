@@ -30866,6 +30866,7 @@ function isRuntimeManifestPath(path) {
 // packages/policy/src/architecture-adapter.ts
 var DENY = "legacy_adapter_domain_logic";
 var LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
+var LANE_SUPERVISE_MIGRATION_PATH = "skills/foreman/scripts/lane-supervise.sh";
 var LANE_RUN_FORWARDING_BLOCK = [
   '  lane_gate_node="$(command -v node || true)"',
   '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"',
@@ -30884,6 +30885,7 @@ var LANE_RUN_FORWARDING_BLOCK = [
 ].join("\n");
 var LANE_RUN_PREFIX_SHA256 = "44ebe0ddd07410f8f57453930b8be9a6483dc7cbd22c633ce43e5f519c06456c";
 var LANE_RUN_SUFFIX_SHA256 = "3b585e8f29c34eb62a16096a01f2d4909e677f4ab3536666f0650f677a762624";
+var LANE_SUPERVISE_BODY_SHA256 = "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
 function inspectLaneRunMigrationAdapter(sourceText) {
   if (/[\u0000]/.test(sourceText)) return DENY;
   const first2 = sourceText.indexOf(LANE_RUN_FORWARDING_BLOCK);
@@ -30899,6 +30901,12 @@ function inspectLaneRunMigrationAdapter(sourceText) {
   if (prefixDigest !== LANE_RUN_PREFIX_SHA256) return DENY;
   const suffixDigest = createHash2("sha256").update(suffix, "utf8").digest("hex");
   if (suffixDigest !== LANE_RUN_SUFFIX_SHA256) return DENY;
+  return null;
+}
+function inspectLaneSuperviseMigrationAdapter(sourceText) {
+  if (/[\u0000]/.test(sourceText)) return DENY;
+  const digest = createHash2("sha256").update(sourceText, "utf8").digest("hex");
+  if (digest !== LANE_SUPERVISE_BODY_SHA256) return DENY;
   return null;
 }
 var SHEBANG = /^#!(\/usr\/bin\/env\s+(bash|sh|dash)|\/bin\/(bash|sh|dash)|\/usr\/bin\/(bash|sh|dash))\s*$/;
@@ -31050,6 +31058,9 @@ function inspectLegacyAdapter(path, sourceText) {
   const normalizedPath = path.replace(/\\/g, "/");
   if (normalizedPath === LANE_RUN_MIGRATION_PATH) {
     return inspectLaneRunMigrationAdapter(sourceText);
+  }
+  if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
+    return inspectLaneSuperviseMigrationAdapter(sourceText);
   }
   const ext = pathExtension(path);
   if (ext === ".sh" || ext === ".bash" || ext === ".zsh" || ext === ".ksh") {

@@ -7,6 +7,7 @@ import { inspectLegacyAdapter } from "./architecture-adapter.js";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const LANE_RUN_PATH = "skills/foreman/scripts/lane-run.sh";
+const LANE_SUPERVISE_PATH = "skills/foreman/scripts/lane-supervise.sh";
 const LANE_RUN_FORWARDING_BLOCK = [
   '  lane_gate_node="$(command -v node || true)"',
   '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"',
@@ -733,6 +734,63 @@ describe("inspectLegacyAdapter", () => {
       assert.notEqual(mutated, body);
       assert.equal(
         inspectLegacyAdapter(LANE_RUN_PATH, mutated),
+        "legacy_adapter_domain_logic",
+      );
+    });
+  });
+
+  describe("R5D lane-supervise migration artifact", () => {
+    it("accepts the tracked skills/foreman/scripts/lane-supervise.sh migration artifact", () => {
+      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
+      assert.equal(inspectLegacyAdapter(LANE_SUPERVISE_PATH, body), null);
+    });
+
+    it("rejects a one-byte change in the thin adapter body", () => {
+      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
+      const flipAt = body.indexOf("lane-supervise: node is required");
+      assert.ok(flipAt >= 0);
+      const mutated =
+        body.slice(0, flipAt) + "Lane-supervise: node is required" + body.slice(flipAt + "lane-supervise: node is required".length);
+      assert.notEqual(mutated, body);
+      assert.equal(
+        inspectLegacyAdapter(LANE_SUPERVISE_PATH, mutated),
+        "legacy_adapter_domain_logic",
+      );
+    });
+
+    it("rejects domain-logic smuggled into the thin adapter", () => {
+      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
+      const smuggled = body.replace(
+        'exec "$NODE" "$BUNDLE" --state-root "$FOREMAN_HOME" "$@"',
+        'READY="$(jq -r .status < readiness.json)"\n' +
+          'if [ "$READY" = "not_ready" ]; then remediate; exit 1; fi\n' +
+          'exec "$NODE" "$BUNDLE" --state-root "$FOREMAN_HOME" "$@"',
+      );
+      assert.notEqual(smuggled, body);
+      assert.equal(
+        inspectLegacyAdapter(LANE_SUPERVISE_PATH, smuggled),
+        "legacy_adapter_domain_logic",
+      );
+    });
+
+    it("does not admit the migration body under a different repository path", () => {
+      const body = readFileSync(join(REPO_ROOT, LANE_SUPERVISE_PATH), "utf8");
+      assert.equal(
+        inspectLegacyAdapter(
+          "skills/foreman/scripts/other-lane-supervise.sh",
+          body,
+        ),
+        "legacy_adapter_domain_logic",
+      );
+    });
+
+    it("rejects an empty or null-containing body on the migration path", () => {
+      assert.equal(
+        inspectLegacyAdapter(LANE_SUPERVISE_PATH, ""),
+        "legacy_adapter_domain_logic",
+      );
+      assert.equal(
+        inspectLegacyAdapter(LANE_SUPERVISE_PATH, "x\u0000y"),
         "legacy_adapter_domain_logic",
       );
     });
