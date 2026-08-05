@@ -15621,12 +15621,225 @@ import { isAbsolute as isAbsolute5 } from "node:path";
 
 // packages/core/src/failures.ts
 var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
+function duplicateJsonKey() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "DuplicateJsonKey" };
+}
+function invalidJson() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "InvalidJson" };
+}
 function unknownField(field) {
   return { [CORE_FAILURE_BRAND]: true, _tag: "UnknownField", field };
+}
+function isCoreFailure(v) {
+  return typeof v === "object" && v !== null && v[CORE_FAILURE_BRAND] === true;
 }
 
 // packages/core/src/canonical-json.ts
 var PARSE_FAIL = Symbol("@foreman/core/parseFail");
+function parseFail(failure) {
+  return { [PARSE_FAIL]: true, failure };
+}
+function isParseFail(v) {
+  return typeof v === "object" && v !== null && v[PARSE_FAIL] === true;
+}
+function parseJsonRejectDuplicateKeys(text) {
+  let i = 0;
+  const s = text;
+  function skipWs() {
+    while (i < s.length) {
+      const c = s.charCodeAt(i);
+      if (c === 32 || c === 9 || c === 10 || c === 13) {
+        i += 1;
+      } else {
+        break;
+      }
+    }
+  }
+  function peek() {
+    return i < s.length ? s[i] : "";
+  }
+  function fail8() {
+    return parseFail(invalidJson());
+  }
+  function parseString() {
+    if (peek() !== '"') return fail8();
+    i += 1;
+    let out = "";
+    while (i < s.length) {
+      const c = s[i];
+      if (c === '"') {
+        i += 1;
+        return out;
+      }
+      if (c === "\\") {
+        i += 1;
+        if (i >= s.length) return fail8();
+        const e = s[i];
+        i += 1;
+        switch (e) {
+          case '"':
+          case "\\":
+          case "/":
+            out += e;
+            break;
+          case "b":
+            out += "\b";
+            break;
+          case "f":
+            out += "\f";
+            break;
+          case "n":
+            out += "\n";
+            break;
+          case "r":
+            out += "\r";
+            break;
+          case "t":
+            out += "	";
+            break;
+          case "u": {
+            if (i + 4 > s.length) return fail8();
+            const hex = s.slice(i, i + 4);
+            if (!/^[0-9a-fA-F]{4}$/.test(hex)) return fail8();
+            out += String.fromCharCode(parseInt(hex, 16));
+            i += 4;
+            break;
+          }
+          default:
+            return fail8();
+        }
+      } else if (c.charCodeAt(0) < 32) {
+        return fail8();
+      } else {
+        out += c;
+        i += 1;
+      }
+    }
+    return fail8();
+  }
+  function parseNumber() {
+    const start3 = i;
+    if (peek() === "-") i += 1;
+    if (peek() < "0" || peek() > "9") return fail8();
+    if (peek() === "0") {
+      i += 1;
+      if (peek() >= "0" && peek() <= "9") return fail8();
+    } else {
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === ".") {
+      i += 1;
+      if (peek() < "0" || peek() > "9") return fail8();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === "e" || peek() === "E") {
+      i += 1;
+      if (peek() === "+" || peek() === "-") i += 1;
+      if (peek() < "0" || peek() > "9") return fail8();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    const num = Number(s.slice(start3, i));
+    if (!Number.isFinite(num)) return fail8();
+    return num;
+  }
+  function parseValue() {
+    skipWs();
+    const c = peek();
+    if (c === '"') return parseString();
+    if (c === "{") return parseObject();
+    if (c === "[") return parseArray();
+    if (c === "t") {
+      if (s.slice(i, i + 4) !== "true") return fail8();
+      i += 4;
+      return true;
+    }
+    if (c === "f") {
+      if (s.slice(i, i + 5) !== "false") return fail8();
+      i += 5;
+      return false;
+    }
+    if (c === "n") {
+      if (s.slice(i, i + 4) !== "null") return fail8();
+      i += 4;
+      return null;
+    }
+    if (c === "-" || c >= "0" && c <= "9") return parseNumber();
+    return fail8();
+  }
+  function parseObject() {
+    if (peek() !== "{") return fail8();
+    i += 1;
+    skipWs();
+    const obj = /* @__PURE__ */ Object.create(null);
+    const seen = /* @__PURE__ */ new Set();
+    if (peek() === "}") {
+      i += 1;
+      return obj;
+    }
+    while (true) {
+      skipWs();
+      const key = parseString();
+      if (isParseFail(key)) return key;
+      if (seen.has(key)) return parseFail(duplicateJsonKey());
+      seen.add(key);
+      skipWs();
+      if (peek() !== ":") return fail8();
+      i += 1;
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      Object.defineProperty(obj, key, {
+        value: val,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "}") {
+        i += 1;
+        return obj;
+      }
+      return fail8();
+    }
+  }
+  function parseArray() {
+    if (peek() !== "[") return fail8();
+    i += 1;
+    skipWs();
+    const arr = [];
+    if (peek() === "]") {
+      i += 1;
+      return arr;
+    }
+    while (true) {
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      arr.push(val);
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "]") {
+        i += 1;
+        return arr;
+      }
+      return fail8();
+    }
+  }
+  const value = parseValue();
+  if (isParseFail(value)) {
+    return value.failure;
+  }
+  skipWs();
+  if (i !== s.length) {
+    return invalidJson();
+  }
+  return value;
+}
 function canonicalize(value) {
   if (value === null) return "null";
   if (value === true) return "true";
@@ -17467,12 +17680,9 @@ function readPreflightRecord(absolutePath) {
           );
         }
       }
-      let parsed;
-      try {
-        parsed = JSON.parse(bounded.text);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        throw new PreflightStoreFailure("malformed_json", msg);
+      const parsed = parseJsonRejectDuplicateKeys(bounded.text);
+      if (isCoreFailure(parsed)) {
+        throw new PreflightStoreFailure("malformed_json", parsed._tag);
       }
       const decoded = decodeVendorPreflightRecordV1(parsed);
       if (isVendorPreflightContractFailure(decoded)) {

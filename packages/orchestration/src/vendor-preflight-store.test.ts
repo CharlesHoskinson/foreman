@@ -278,6 +278,30 @@ describe("PreflightRecordStore read", () => {
     }
   });
 
+  it("rejects duplicate JSON keys before contract decoding", async () => {
+    const dir = tempDir();
+    const path = join(dir, "duplicate.json");
+    const canonical = canonicalize(readyRecord() as unknown);
+    const ambiguous = canonical.replace(
+      '"vendor":"grok"',
+      '"vendor":"codex","vendor":"grok"',
+    );
+    assert.notEqual(ambiguous, canonical);
+    writeFileSync(path, ambiguous + "\n", "utf8");
+
+    const either = await Effect.runPromise(
+      Effect.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        return yield* store.read(path).pipe(Effect.either);
+      }).pipe(Effect.provide(livePreflightRecordStore)),
+    );
+
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "malformed_json");
+    }
+  });
+
   it("rejects a relative path", async () => {
     const either = await Effect.runPromise(
       Effect.gen(function* () {

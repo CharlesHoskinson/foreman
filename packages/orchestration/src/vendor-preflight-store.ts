@@ -19,7 +19,11 @@ import {
 import { dirname, isAbsolute, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Context, Effect, Layer } from "effect";
-import { canonicalize } from "@foreman/core";
+import {
+  canonicalize,
+  isCoreFailure,
+  parseJsonRejectDuplicateKeys,
+} from "@foreman/core";
 import { readFileBoundedSync } from "./queue-services.js";
 import {
   decodeVendorPreflightRecordV1,
@@ -122,12 +126,9 @@ export function readPreflightRecord(
         }
       }
 
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(bounded.text);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        throw new PreflightStoreFailure("malformed_json", msg);
+      const parsed = parseJsonRejectDuplicateKeys(bounded.text);
+      if (isCoreFailure(parsed)) {
+        throw new PreflightStoreFailure("malformed_json", parsed._tag);
       }
 
       const decoded = decodeVendorPreflightRecordV1(parsed);
