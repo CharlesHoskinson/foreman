@@ -1170,6 +1170,19 @@ if (Exit.isSuccess(exit)) {
     }
   }
 
+  /**
+   * Format a multi-process timeout failure so the original error and any
+   * post-kill child capture (exit code, stdout, stderr) remain in the message.
+   * Startup-timeout paths must not discard killAndReap results.
+   */
+  function formatChildTimeoutDiagnostic(
+    label: string,
+    err: unknown,
+    capture: ChildCapture,
+  ): string {
+    return `${label}: ${String(err)}; code=${String(capture.code)} err=${capture.err} out=${capture.out}`;
+  }
+
   function parseReserveResult(capture: ChildCapture): ReserveChildResult {
     const line = capture.out
       .split("\n")
@@ -1287,6 +1300,33 @@ if (Exit.isSuccess(exit)) {
   it("serialized multi-process limit-one witness exhausts without concurrent start", async () => {
     await withStateRoot(async (root) => {
       await seedPrompt(root, 1);
+      // Diagnostic contract for startup-timeout paths: post-kill capture fields
+      // must appear in the failure message (no discarded killAndReap result).
+      const sampleStartupDiag = formatChildTimeoutDiagnostic(
+        "serial child 0 startup timeout",
+        new Error("waitUntil timed out: serial ready-0"),
+        {
+          code: 137,
+          out: "stdout-sample",
+          err: "stderr-sample",
+          pid: 4242,
+        },
+      );
+      assert.match(
+        sampleStartupDiag,
+        /code=137/,
+        `startup diagnostic must include exit code; got: ${sampleStartupDiag}`,
+      );
+      assert.match(
+        sampleStartupDiag,
+        /err=stderr-sample/,
+        `startup diagnostic must include stderr; got: ${sampleStartupDiag}`,
+      );
+      assert.match(
+        sampleStartupDiag,
+        /out=stdout-sample/,
+        `startup diagnostic must include stdout; got: ${sampleStartupDiag}`,
+      );
       const { spawn } = await import("node:child_process");
       const barrierDir = mkdtempSync(join(tmpdir(), "rj-serial-"));
       try {
@@ -1325,12 +1365,24 @@ if (Exit.isSuccess(exit)) {
             } catch (completionErr) {
               const late = await killAndReap([handle]);
               assert.fail(
-                `serial child ${String(index)} completion timeout: ${String(completionErr)}; code=${String(late[0]!.code)} err=${late[0]!.err} out=${late[0]!.out}`,
+                formatChildTimeoutDiagnostic(
+                  `serial child ${String(index)} completion timeout`,
+                  completionErr,
+                  late[0]!,
+                ),
               );
             }
           } catch (e) {
-            await killAndReap([handle]);
-            throw e;
+            // Inner completion-timeout already reaped and produced a diagnostic.
+            if (e instanceof assert.AssertionError) throw e;
+            const late = await killAndReap([handle]);
+            assert.fail(
+              formatChildTimeoutDiagnostic(
+                `serial child ${String(index)} startup timeout`,
+                e,
+                late[0]!,
+              ),
+            );
           }
         };
 
