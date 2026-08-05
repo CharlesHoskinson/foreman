@@ -2,19 +2,19 @@
 
 ## R5C: attempt-bound durable resume counts
 
-- [ ] Add RED tests for count derivation, exact attempt binding, and closed
+- [x] Add RED tests for count derivation, exact attempt binding, and closed
       failure values.
-- [ ] Add RED tests for legacy events, malformed payloads, count gaps,
+- [x] Add RED tests for legacy events, malformed payloads, count gaps,
       non-current attempts, invalid limits, and exhausted limits.
-- [ ] Add a RED concurrent reservation test that proves one unique count per
+- [x] Add a RED concurrent reservation test that proves one unique count per
       successful caller and no append past the limit.
-- [ ] Add `ResumeAttemptFailure`, `ResumeAttemptReservationV1`, and the
+- [x] Add `ResumeAttemptFailure`, `ResumeAttemptReservationV1`, and the
       `RunJournal.reserveResumeAttempt` Effect interface.
-- [ ] Implement one locked read-validate-append transaction by reusing the
+- [x] Implement one locked read-validate-append transaction by reusing the
       existing run-journal integrity and durability rules.
-- [ ] Export the public types, failure guard, and service operation from
+- [x] Export the public types, failure guard, and service operation from
       `@foreman/event-log`.
-- [ ] Run focused tests, typecheck, build, runtime verification, full Node
+- [x] Run focused tests, typecheck, build, runtime verification, full Node
       verification, strict OpenSpec validation, and architecture policy.
 - [ ] Run a different-family cold audit on the committed candidate.
 

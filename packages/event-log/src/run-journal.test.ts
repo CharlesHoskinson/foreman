@@ -26,11 +26,15 @@ import { Cause, Effect, Exit, Fiber } from "effect";
 import {
   decodeLaneId,
   decodeRunId,
+  makeAttemptIdentity,
+  type AttemptIdentity,
+  type AttemptId,
   type LaneId,
   type RunId,
 } from "./attempt.js";
 import { MAX_REPLAY_INPUT_BYTES } from "./bounds.js";
 import {
+  isResumeAttemptFailure,
   isRunJournalFailure,
   makeLiveRunJournalLayer,
   RunJournal,
@@ -42,6 +46,11 @@ import { replayNdjsonBytes } from "./replay.js";
 
 const runId = decodeRunId("r3-run-a") as RunId;
 const laneId = decodeLaneId("grok-r3") as LaneId;
+const otherLaneId = decodeLaneId("codex-r3") as LaneId;
+
+function identity(attempt: number): AttemptIdentity {
+  return makeAttemptIdentity(runId, laneId, attempt as AttemptId);
+}
 
 function draft(
   partial: Partial<StoredEventDraftV1> & { readonly type: string },
@@ -79,6 +88,18 @@ function appendEffect(
   }).pipe(Effect.provide(makeLiveRunJournalLayer(root, options)));
 }
 
+function reserveEffect(
+  root: string,
+  attemptIdentity: AttemptIdentity,
+  resumeMaxAttempts: number,
+  options?: LiveRunJournalOptions,
+) {
+  return Effect.gen(function* () {
+    const j = yield* RunJournal;
+    return yield* j.reserveResumeAttempt(attemptIdentity, resumeMaxAttempts);
+  }).pipe(Effect.provide(makeLiveRunJournalLayer(root, options)));
+}
+
 function assertClosedFailure(
   left: unknown,
   reason: string,
@@ -88,6 +109,39 @@ function assertClosedFailure(
   assert.equal(Object.keys(left).sort().join(","), "_tag,reason");
   const text = JSON.stringify(left);
   assert.equal(text.includes("/"), false, "failure must not leak path");
+}
+
+function assertResumeFailure(
+  left: unknown,
+  reason: string,
+): void {
+  assert.ok(isResumeAttemptFailure(left));
+  assert.equal(left.reason, reason);
+  assert.equal(Object.keys(left).sort().join(","), "_tag,reason");
+  const text = JSON.stringify(left);
+  assert.equal(text.includes("/"), false, "failure must not leak path");
+  assert.equal(/Error|errno|EACCES|ENOENT/.test(text), false);
+}
+
+async function seedPrompt(
+  root: string,
+  attempt: number,
+  lane: string = String(laneId),
+): Promise<void> {
+  await Effect.runPromise(
+    appendEffect(root, draft({ type: "prompt", lane, payload: { attempt } })),
+  );
+}
+
+function journalResumeAttemptCount(root: string, lane: string = String(laneId)): number {
+  const journalPath = join(root, "runs", runId, "events.ndjson");
+  if (!existsSync(journalPath)) return 0;
+  const bytes = readFileSync(journalPath);
+  const replay = replayNdjsonBytes(bytes, { fromLine: 0 });
+  assert.equal(replay.terminal._tag, "CleanEof");
+  return replay.records.filter(
+    (r) => r.event.type === "resume_attempt" && r.event.lane === lane,
+  ).length;
 }
 
 function dirnameSafe(p: string): string {
@@ -749,6 +803,410 @@ if (exit._tag === "Success") {
         replay.records.map((r) => r.event.seq),
         [1, 2],
       );
+    });
+  });
+});
+
+describe("RunJournal reserveResumeAttempt", () => {
+  it("first reservation binds attempt and returns count 1 with exact payload", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 3);
+      const id = identity(3);
+      const exit = await Effect.runPromiseExit(reserveEffect(root, id, 3));
+      assert.equal(Exit.isSuccess(exit), true);
+      if (Exit.isSuccess(exit)) {
+        const r = exit.value;
+        assert.deepEqual(r.attemptIdentity, id);
+        assert.equal(r.resumeCount, 1);
+        assert.equal(r.event.type, "resume_attempt");
+        assert.equal(r.event.lane, String(laneId));
+        assert.equal(r.event.payload["attempt"], 3);
+        assert.equal(r.event.payload["resumeCount"], 1);
+        assert.equal(Object.keys(r.event.payload).sort().join(","), "attempt,resumeCount");
+      }
+      assert.equal(journalResumeAttemptCount(root), 1);
+    });
+  });
+
+  it("lane-wide consecutive counts continue across attempts", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      const a = await Effect.runPromise(reserveEffect(root, identity(1), 5));
+      assert.equal(a.resumeCount, 1);
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({ type: "prompt", payload: { attempt: 2 } }),
+        ),
+      );
+      const b = await Effect.runPromise(reserveEffect(root, identity(2), 5));
+      assert.equal(b.resumeCount, 2);
+      assert.equal(b.event.payload["attempt"], 2);
+      assert.equal(b.event.payload["resumeCount"], 2);
+      assert.equal(Object.keys(b.event.payload).sort().join(","), "attempt,resumeCount");
+      assert.equal(journalResumeAttemptCount(root), 2);
+    });
+  });
+
+  it("opaque unknown event types do not affect the count", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({ type: "checkpoint", commit: "a".repeat(40), payload: {} }),
+        ),
+      );
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({ type: "alert", payload: { kind: "stall" } }),
+        ),
+      );
+      const r = await Effect.runPromise(reserveEffect(root, identity(1), 3));
+      assert.equal(r.resumeCount, 1);
+    });
+  });
+
+  it("other-lane resume_attempt and resume do not affect this lane", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1, String(otherLaneId));
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({
+            type: "resume_attempt",
+            lane: String(otherLaneId),
+            payload: { attempt: 1, resumeCount: 1 },
+          }),
+        ),
+      );
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({
+            type: "resume",
+            lane: String(otherLaneId),
+            payload: { note: "legacy" },
+          }),
+        ),
+      );
+      await seedPrompt(root, 2);
+      const r = await Effect.runPromise(reserveEffect(root, identity(2), 3));
+      assert.equal(r.resumeCount, 1);
+      assert.equal(journalResumeAttemptCount(root, String(laneId)), 1);
+    });
+  });
+
+  it("non-current attempt fails with attempt_not_current and no append", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 4);
+      const before = readFileSync(join(root, "runs", runId, "events.ndjson"));
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(3), 3)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "attempt_not_current");
+      }
+      assert.ok(before.equals(readFileSync(join(root, "runs", runId, "events.ndjson"))));
+      assert.equal(journalResumeAttemptCount(root), 0);
+    });
+  });
+
+  it("absent latest prompt fails with attempt_not_current", async () => {
+    await withStateRoot(async (root) => {
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({ type: "checkpoint", commit: "b".repeat(40), payload: {} }),
+        ),
+      );
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 3)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "attempt_not_current");
+      }
+      assert.equal(journalResumeAttemptCount(root), 0);
+    });
+  });
+
+  it("malformed latest prompt attempt fails with attempt_not_current", async () => {
+    await withStateRoot(async (root) => {
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({ type: "prompt", payload: { attempt: 0 } }),
+        ),
+      );
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 3)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "attempt_not_current");
+      }
+    });
+  });
+
+  it("legacy lane resume fails with legacy_unbound and no append", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({ type: "resume", payload: { reason: "legacy" } }),
+        ),
+      );
+      const before = readFileSync(join(root, "runs", runId, "events.ndjson"));
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 3)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "legacy_unbound");
+      }
+      assert.ok(before.equals(readFileSync(join(root, "runs", runId, "events.ndjson"))));
+    });
+  });
+
+  it("count gap fails with invalid_resume_history and does not repair", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({
+            type: "resume_attempt",
+            payload: { attempt: 1, resumeCount: 1 },
+          }),
+        ),
+      );
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({
+            type: "resume_attempt",
+            payload: { attempt: 1, resumeCount: 3 },
+          }),
+        ),
+      );
+      const before = readFileSync(join(root, "runs", runId, "events.ndjson"));
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 10)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "invalid_resume_history");
+      }
+      assert.ok(before.equals(readFileSync(join(root, "runs", runId, "events.ndjson"))));
+      assert.equal(journalResumeAttemptCount(root), 2);
+    });
+  });
+
+  const malformedPayloads: readonly {
+    name: string;
+    payload: Readonly<Record<string, unknown>>;
+  }[] = [
+    { name: "extra key", payload: { attempt: 1, resumeCount: 1, x: true } },
+    { name: "missing resumeCount", payload: { attempt: 1 } },
+    { name: "missing attempt", payload: { resumeCount: 1 } },
+    { name: "zero resumeCount", payload: { attempt: 1, resumeCount: 0 } },
+    { name: "negative resumeCount", payload: { attempt: 1, resumeCount: -1 } },
+    { name: "string resumeCount", payload: { attempt: 1, resumeCount: "1" } },
+    { name: "zero attempt", payload: { attempt: 0, resumeCount: 1 } },
+    { name: "float resumeCount", payload: { attempt: 1, resumeCount: 1.5 } },
+    { name: "count above 100", payload: { attempt: 1, resumeCount: 101 } },
+  ];
+
+  for (const c of malformedPayloads) {
+    it(`malformed resume_attempt (${c.name}) is invalid_resume_history`, async () => {
+      await withStateRoot(async (root) => {
+        await seedPrompt(root, 1);
+        await Effect.runPromise(
+          appendEffect(
+            root,
+            draft({ type: "resume_attempt", payload: c.payload }),
+          ),
+        );
+        const either = await Effect.runPromise(
+          Effect.either(reserveEffect(root, identity(1), 10)),
+        );
+        assert.equal(either._tag, "Left");
+        if (either._tag === "Left") {
+          assertResumeFailure(either.left, "invalid_resume_history");
+        }
+        assert.equal(journalResumeAttemptCount(root), 1);
+      });
+    });
+  }
+
+  it("duplicate count fails with invalid_resume_history", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({
+            type: "resume_attempt",
+            payload: { attempt: 1, resumeCount: 1 },
+          }),
+        ),
+      );
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({
+            type: "resume_attempt",
+            payload: { attempt: 1, resumeCount: 1 },
+          }),
+        ),
+      );
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 10)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "invalid_resume_history");
+      }
+    });
+  });
+
+  const invalidLimits: readonly number[] = [
+    0,
+    -1,
+    1.5,
+    101,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ];
+
+  for (const limit of invalidLimits) {
+    it(`invalid limit ${String(limit)} fails with invalid_limit`, async () => {
+      await withStateRoot(async (root) => {
+        await seedPrompt(root, 1);
+        const either = await Effect.runPromise(
+          Effect.either(reserveEffect(root, identity(1), limit)),
+        );
+        assert.equal(either._tag, "Left");
+        if (either._tag === "Left") {
+          assertResumeFailure(either.left, "invalid_limit");
+        }
+        assert.equal(journalResumeAttemptCount(root), 0);
+      });
+    });
+  }
+
+  it("exhausted limit fails with resume_limit_reached and no second event", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      const first = await Effect.runPromise(reserveEffect(root, identity(1), 1));
+      assert.equal(first.resumeCount, 1);
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 1)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "resume_limit_reached");
+      }
+      assert.equal(journalResumeAttemptCount(root), 1);
+    });
+  });
+
+  it("two concurrent callers at limit one: one success, one resume_limit_reached, one event", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      const fibers = [0, 1].map(() =>
+        Effect.runFork(reserveEffect(root, identity(1), 1)),
+      );
+      const exits = await Promise.all(
+        fibers.map((f) => Effect.runPromiseExit(Fiber.join(f))),
+      );
+      const successes = exits.filter((e) => Exit.isSuccess(e));
+      const failures = exits.filter((e) => Exit.isFailure(e));
+      assert.equal(successes.length, 1);
+      assert.equal(failures.length, 1);
+      if (Exit.isSuccess(successes[0]!)) {
+        assert.equal(successes[0].value.resumeCount, 1);
+      }
+      if (Exit.isFailure(failures[0]!)) {
+        const fails = [...Cause.failures(failures[0].cause)];
+        assert.equal(fails.length, 1);
+        assertResumeFailure(fails[0], "resume_limit_reached");
+      }
+      assert.equal(journalResumeAttemptCount(root), 1);
+      const journalPath = join(root, "runs", runId, "events.ndjson");
+      const bytes = readFileSync(journalPath);
+      const replay = replayNdjsonBytes(bytes, { fromLine: 0 });
+      assert.equal(replay.terminal._tag, "CleanEof");
+      const resumeEvents = replay.records.filter(
+        (r) => r.event.type === "resume_attempt",
+      );
+      assert.equal(resumeEvents.length, 1);
+      const payload = resumeEvents[0]!.event.payload;
+      assert.equal(payload["attempt"], 1);
+      assert.equal(payload["resumeCount"], 1);
+      assert.equal(Object.keys(payload).sort().join(","), "attempt,resumeCount");
+    });
+  });
+
+  it("concurrent successful reservations get distinct consecutive counts", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 2);
+      const fibers = [0, 1, 2].map(() =>
+        Effect.runFork(reserveEffect(root, identity(2), 5)),
+      );
+      const results = await Promise.all(
+        fibers.map((f) => Effect.runPromise(Fiber.join(f))),
+      );
+      const counts = results.map((r) => r.resumeCount).sort((a, b) => a - b);
+      assert.deepEqual(counts, [1, 2, 3]);
+      assert.equal(journalResumeAttemptCount(root), 3);
+    });
+  });
+
+  it("filesystem seam throw maps to closed typed failure without path leak", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      // Linked journal after seed is not possible via normal append; swap path.
+      const journalPath = join(root, "runs", runId, "events.ndjson");
+      const real = join(root, "outside-events.ndjson");
+      const body = readFileSync(journalPath);
+      writeFileSync(real, body);
+      unlinkSync(journalPath);
+      symlinkSync(real, journalPath);
+      const exit = await Effect.runPromiseExit(
+        reserveEffect(root, identity(1), 3),
+      );
+      assert.equal(Exit.isFailure(exit), true);
+      if (Exit.isFailure(exit)) {
+        assert.equal(Cause.isDie(exit.cause), false);
+        const fails = [...Cause.failures(exit.cause)];
+        assert.equal(fails.length, 1);
+        assertClosedFailure(fails[0], "invalid_path");
+        const pretty = Cause.pretty(exit.cause);
+        assert.equal(pretty.includes(root), false);
+        assert.equal(/ENOENT|EACCES|errno|ELOOP|symlink/.test(pretty), false);
+        assert.equal(Cause.defects(exit.cause).length, 0);
+        const text = JSON.stringify(fails[0]);
+        assert.equal(/Error|ENOENT|EACCES|errno|ELOOP/.test(text), false);
+      }
+    });
+  });
+
+  it("empty journal fails attempt_not_current without creating resume event", async () => {
+    await withStateRoot(async (root) => {
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 3)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "attempt_not_current");
+      }
+      const journalPath = join(root, "runs", runId, "events.ndjson");
+      assert.equal(existsSync(journalPath), false);
     });
   });
 });

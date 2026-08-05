@@ -24,16 +24,19 @@ import {
 import { dirname, join } from "node:path";
 import { randomBytes } from "node:crypto";
 import {
+  decodeAttemptId,
   decodeAttemptIdText,
+  extractPayloadAttempt,
   makeAttemptIdentity,
   nextAttempt,
+  type AttemptId,
   type AttemptIdentity,
   type LaneId,
   type RunId,
 } from "./attempt.js";
 import { MAX_REPLAY_INPUT_BYTES } from "./bounds.js";
 import { type AttemptFailure } from "./failures.js";
-import { replayNdjsonBytes } from "./replay.js";
+import { replayNdjsonBytes, type ReplayRecord } from "./replay.js";
 import {
   decodeStoredEvent,
   type StoredEvent,
@@ -98,6 +101,60 @@ export function isRunJournalFailure(v: unknown): v is RunJournalFailure {
 }
 
 // ---------------------------------------------------------------------------
+// Resume-attempt reservation surface
+// ---------------------------------------------------------------------------
+
+export const RESUME_ATTEMPT_FAILURE_BRAND = Symbol(
+  "@foreman/event-log/ResumeAttemptFailure",
+);
+
+type ResumeBranded = { readonly [RESUME_ATTEMPT_FAILURE_BRAND]: true };
+
+/** Closed non-leaking resume reservation failure reasons. */
+export type ResumeAttemptFailureReason =
+  | "invalid_limit"
+  | "attempt_not_current"
+  | "legacy_unbound"
+  | "invalid_resume_history"
+  | "resume_limit_reached";
+
+export type ResumeAttemptFailure = ResumeBranded & {
+  readonly _tag: "ResumeAttemptFailure";
+  readonly reason: ResumeAttemptFailureReason;
+};
+
+export function resumeAttemptFailure(
+  reason: ResumeAttemptFailureReason,
+): ResumeAttemptFailure {
+  return {
+    [RESUME_ATTEMPT_FAILURE_BRAND]: true,
+    _tag: "ResumeAttemptFailure",
+    reason,
+  };
+}
+
+export function isResumeAttemptFailure(v: unknown): v is ResumeAttemptFailure {
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    (v as { [RESUME_ATTEMPT_FAILURE_BRAND]?: unknown })[
+      RESUME_ATTEMPT_FAILURE_BRAND
+    ] === true &&
+    (v as { _tag?: unknown })._tag === "ResumeAttemptFailure"
+  );
+}
+
+/**
+ * Successful atomic reservation of one lane-wide resume count bound to the
+ * exact current source attempt.
+ */
+export type ResumeAttemptReservationV1 = {
+  readonly attemptIdentity: AttemptIdentity;
+  readonly event: StoredEvent;
+  readonly resumeCount: number;
+};
+
+// ---------------------------------------------------------------------------
 // Effect service
 // ---------------------------------------------------------------------------
 
@@ -113,6 +170,14 @@ export class RunJournal extends Context.Tag("RunJournal")<
       runId: RunId,
       event: StoredEventDraftV1,
     ) => Effect.Effect<StoredEvent, RunJournalFailure>;
+
+    readonly reserveResumeAttempt: (
+      attemptIdentity: AttemptIdentity,
+      resumeMaxAttempts: number,
+    ) => Effect.Effect<
+      ResumeAttemptReservationV1,
+      ResumeAttemptFailure | RunJournalFailure
+    >;
   }
 >() {}
 
@@ -443,8 +508,8 @@ function releaseLockSync(lock: HeldLock): void {
 function withLockSync<A>(
   lockPath: string,
   timing: LockTiming,
-  body: () => A | RunJournalFailure | AttemptFailure,
-): A | RunJournalFailure | AttemptFailure {
+  body: () => A | RunJournalFailure | AttemptFailure | ResumeAttemptFailure,
+): A | RunJournalFailure | AttemptFailure | ResumeAttemptFailure {
   const lock = acquireLockSync(lockPath, timing);
   if (isRunJournalFailure(lock)) {
     return lock;
@@ -726,12 +791,9 @@ function validateR3SequenceChain(
   return null;
 }
 
-function appendSync(
-  stateRoot: string,
-  runId: RunId,
+function validateDraftShape(
   draft: StoredEventDraftV1,
-  options: LiveRunJournalOptions,
-): StoredEvent | RunJournalFailure {
+): RunJournalFailure | null {
   if (
     typeof draft.type !== "string" ||
     draft.type.length === 0 ||
@@ -748,7 +810,305 @@ function appendSync(
       return runJournalFailure("invalid_event");
     }
   }
+  return null;
+}
 
+type JournalReadView = {
+  readonly existing: Uint8Array;
+  readonly beforeIdentity: FileIdentity | null;
+  readonly records: readonly ReplayRecord[];
+};
+
+/**
+ * Read the events journal under an already-held exclusive lock. No-follow,
+ * size-bound, identity, complete replay, and consecutive sequence checks.
+ */
+function readJournalLocked(
+  journalPath: string,
+): JournalReadView | RunJournalFailure {
+  const kind = observePathKind(journalPath);
+  if (kind === "symlink" || kind === "directory" || kind === "other") {
+    return runJournalFailure("invalid_path");
+  }
+
+  let existing = new Uint8Array(0);
+  let beforeIdentity: FileIdentity | null = null;
+  if (kind === "regular") {
+    let fd: number | undefined;
+    try {
+      fd = openSync(journalPath, noFollowReadFlags());
+      const st = fstatSync(fd);
+      if (!st.isFile()) {
+        return runJournalFailure("invalid_path");
+      }
+      // Reject oversized journal before allocating a buffer of that size.
+      if (st.size > MAX_REPLAY_INPUT_BYTES) {
+        return runJournalFailure("limit_exceeded");
+      }
+      beforeIdentity = identityOf(st);
+      if (st.size > 0) {
+        const buf = Buffer.allocUnsafe(st.size);
+        let offset = 0;
+        while (offset < st.size) {
+          const n = readSync(fd, buf, offset, st.size - offset, offset);
+          if (n === 0) break;
+          offset += n;
+        }
+        existing = buf.subarray(0, offset);
+      }
+      const match = pathMatchesOpenedFd(journalPath, fd);
+      if (match === "identity_changed") {
+        return runJournalFailure("identity_changed");
+      }
+      if (match !== "ok") {
+        return runJournalFailure("invalid_path");
+      }
+      let after: Stats;
+      try {
+        after = fstatSync(fd);
+      } catch {
+        return runJournalFailure("identity_changed");
+      }
+      if (
+        after.ino !== st.ino ||
+        after.dev !== st.dev ||
+        after.size !== st.size
+      ) {
+        return runJournalFailure("identity_changed");
+      }
+    } catch (e) {
+      if (isEnoent(e)) {
+        return runJournalFailure("identity_changed");
+      }
+      return runJournalFailure("read_failed");
+    } finally {
+      if (fd !== undefined) {
+        try {
+          closeSync(fd);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
+  // Validate existing journal completely before write.
+  const replay = replayNdjsonBytes(existing, { fromLine: 0 });
+  if (replay.terminal._tag !== "CleanEof") {
+    return runJournalFailure("corrupt_state");
+  }
+
+  const seqErr = validateR3SequenceChain(replay.records);
+  if (seqErr !== null) return seqErr;
+
+  return {
+    existing,
+    beforeIdentity,
+    records: replay.records,
+  };
+}
+
+/**
+ * Encode and durable-append one draft against a journal already read under
+ * the exclusive events lock.
+ */
+function writeAppendLocked(
+  journalPath: string,
+  view: JournalReadView,
+  draft: StoredEventDraftV1,
+  options: LiveRunJournalOptions,
+): StoredEvent | RunJournalFailure {
+  const shapeErr = validateDraftShape(draft);
+  if (shapeErr !== null) return shapeErr;
+
+  let lastSeq = 0;
+  if (view.records.length === 0) {
+    lastSeq = 0;
+  } else {
+    lastSeq = view.records[view.records.length - 1]!.event.seq;
+  }
+
+  if (lastSeq >= Number.MAX_SAFE_INTEGER) {
+    return runJournalFailure("limit_exceeded");
+  }
+  const nextSeq = lastSeq === 0 ? 1 : lastSeq + 1;
+  if (!Number.isSafeInteger(nextSeq) || nextSeq < 1) {
+    return runJournalFailure("limit_exceeded");
+  }
+
+  const ts = formatUtcSecondTimestamp(new Date());
+  const candidate: Record<string, unknown> = {
+    seq: nextSeq,
+    ts,
+    type: draft.type,
+    lane: draft.lane,
+    payload: { ...draft.payload },
+  };
+  if (draft.commit !== undefined) {
+    candidate["commit"] = draft.commit;
+  }
+
+  const decoded = decodeStoredEvent(candidate);
+  if (typeof decoded === "object" && "_tag" in decoded) {
+    return runJournalFailure("invalid_event");
+  }
+  const stored = decoded as StoredEvent;
+
+  let lineText: string;
+  try {
+    lineText = canonicalize({
+      seq: stored.seq,
+      ts: stored.ts,
+      type: stored.type,
+      lane: stored.lane,
+      ...(stored.commit !== undefined ? { commit: stored.commit } : {}),
+      payload: stored.payload,
+    });
+  } catch {
+    return runJournalFailure("invalid_event");
+  }
+  const lineBytes = Buffer.from(lineText + "\n", "utf8");
+
+  // Candidate complete size bound before building the buffer for replay.
+  if (view.existing.byteLength + lineBytes.byteLength > MAX_REPLAY_INPUT_BYTES) {
+    return runJournalFailure("limit_exceeded");
+  }
+
+  const candidateBytes = Buffer.concat([
+    Buffer.from(view.existing),
+    lineBytes,
+  ]);
+  const candidateReplay = replayNdjsonBytes(candidateBytes, { fromLine: 0 });
+  if (candidateReplay.terminal._tag !== "CleanEof") {
+    const reason = candidateReplay.terminal.reason;
+    if (
+      reason === "line_too_large" ||
+      reason === "input_too_large" ||
+      reason === "too_many_lines"
+    ) {
+      return runJournalFailure("limit_exceeded");
+    }
+    return runJournalFailure("invalid_event");
+  }
+  const candSeqErr = validateR3SequenceChain(candidateReplay.records);
+  if (candSeqErr !== null) return candSeqErr;
+
+  // Open journal for append. Missing path uses exclusive create so a
+  // competing create is not silently accepted.
+  let wfd: number | undefined;
+  try {
+    if (view.beforeIdentity === null) {
+      if (options.beforeJournalCreate !== undefined) {
+        options.beforeJournalCreate(journalPath);
+      }
+      try {
+        wfd = openSync(
+          journalPath,
+          fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+          0o600,
+        );
+      } catch (e) {
+        if (isEexist(e)) {
+          return runJournalFailure("identity_changed");
+        }
+        return runJournalFailure("write_failed");
+      }
+    } else {
+      wfd = openSync(
+        journalPath,
+        noFollowWriteFlags(fsConstants.O_WRONLY | fsConstants.O_APPEND),
+        0o600,
+      );
+    }
+
+    const opened = fstatSync(wfd);
+    if (!opened.isFile()) {
+      return runJournalFailure("invalid_path");
+    }
+    if (view.beforeIdentity !== null) {
+      if (!identitiesEqual(identityOf(opened), view.beforeIdentity)) {
+        return runJournalFailure("identity_changed");
+      }
+      if (opened.size !== view.existing.byteLength) {
+        return runJournalFailure("identity_changed");
+      }
+    } else if (opened.size !== 0) {
+      return runJournalFailure("identity_changed");
+    }
+
+    // Pathname must identify the write descriptor before write.
+    {
+      const match = pathMatchesOpenedFd(journalPath, wfd);
+      if (match === "identity_changed") {
+        return runJournalFailure("identity_changed");
+      }
+      if (match !== "ok") {
+        return runJournalFailure("invalid_path");
+      }
+    }
+
+    let offset = 0;
+    while (offset < lineBytes.byteLength) {
+      const n = writeSync(
+        wfd,
+        lineBytes,
+        offset,
+        lineBytes.byteLength - offset,
+      );
+      offset += n;
+    }
+    fsyncSync(wfd);
+
+    if (options.afterJournalWriteSync !== undefined) {
+      options.afterJournalWriteSync({ path: journalPath, fd: wfd });
+    }
+
+    // Re-observe events.ndjson and compare with the write descriptor.
+    {
+      const match = pathMatchesOpenedFd(journalPath, wfd);
+      if (match === "identity_changed") {
+        return runJournalFailure("identity_changed");
+      }
+      if (match !== "ok") {
+        return runJournalFailure("invalid_path");
+      }
+    }
+
+    const after = fstatSync(wfd);
+    if (after.ino !== opened.ino || after.dev !== opened.dev) {
+      return runJournalFailure("identity_changed");
+    }
+    return stored;
+  } catch (e) {
+    if (isEnoent(e)) {
+      return runJournalFailure("identity_changed");
+    }
+    return runJournalFailure("write_failed");
+  } finally {
+    if (wfd !== undefined) {
+      try {
+        closeSync(wfd);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+}
+
+/**
+ * One exclusive events-lock transaction: read, decide, optional append.
+ * Ordinary append and resume reservation share this path.
+ */
+function lockedJournalTransaction<E>(
+  stateRoot: string,
+  runId: RunId,
+  options: LiveRunJournalOptions,
+  decide: (
+    records: readonly ReplayRecord[],
+  ) =>
+    | { readonly _tag: "append"; readonly draft: StoredEventDraftV1 }
+    | { readonly _tag: "fail"; readonly error: E | RunJournalFailure },
+): StoredEvent | E | RunJournalFailure {
   const layoutErr = ensureLayoutDirs(stateRoot, ["runs", runId, "locks"]);
   if (layoutErr !== null) return layoutErr;
 
@@ -762,258 +1122,239 @@ function appendSync(
   };
 
   return withLockSync(lockPath, timing, () => {
-    const kind = observePathKind(journalPath);
-    if (kind === "symlink" || kind === "directory" || kind === "other") {
-      return runJournalFailure("invalid_path");
+    const view = readJournalLocked(journalPath);
+    if (isRunJournalFailure(view)) {
+      return view;
     }
 
-    let existing = new Uint8Array(0);
-    let beforeIdentity: FileIdentity | null = null;
-    if (kind === "regular") {
-      let fd: number | undefined;
-      try {
-        fd = openSync(journalPath, noFollowReadFlags());
-        const st = fstatSync(fd);
-        if (!st.isFile()) {
-          return runJournalFailure("invalid_path");
-        }
-        // Reject oversized journal before allocating a buffer of that size.
-        if (st.size > MAX_REPLAY_INPUT_BYTES) {
-          return runJournalFailure("limit_exceeded");
-        }
-        beforeIdentity = identityOf(st);
-        if (st.size > 0) {
-          const buf = Buffer.allocUnsafe(st.size);
-          let offset = 0;
-          while (offset < st.size) {
-            const n = readSync(fd, buf, offset, st.size - offset, offset);
-            if (n === 0) break;
-            offset += n;
-          }
-          existing = buf.subarray(0, offset);
-        }
-        const match = pathMatchesOpenedFd(journalPath, fd);
-        if (match === "identity_changed") {
-          return runJournalFailure("identity_changed");
-        }
-        if (match !== "ok") {
-          return runJournalFailure("invalid_path");
-        }
-        let after: Stats;
-        try {
-          after = fstatSync(fd);
-        } catch {
-          return runJournalFailure("identity_changed");
-        }
-        if (
-          after.ino !== st.ino ||
-          after.dev !== st.dev ||
-          after.size !== st.size
-        ) {
-          return runJournalFailure("identity_changed");
-        }
-      } catch (e) {
-        if (isEnoent(e)) {
-          return runJournalFailure("identity_changed");
-        }
-        return runJournalFailure("read_failed");
-      } finally {
-        if (fd !== undefined) {
-          try {
-            closeSync(fd);
-          } catch {
-            /* ignore */
-          }
-        }
-      }
+    const decision = decide(view.records);
+    if (decision._tag === "fail") {
+      return decision.error;
     }
 
-    // Validate existing journal completely before write.
-    const replay = replayNdjsonBytes(existing, { fromLine: 0 });
-    if (replay.terminal._tag !== "CleanEof") {
-      return runJournalFailure("corrupt_state");
-    }
+    return writeAppendLocked(journalPath, view, decision.draft, options);
+  }) as StoredEvent | E | RunJournalFailure;
+}
 
-    const seqErr = validateR3SequenceChain(replay.records);
-    if (seqErr !== null) return seqErr;
+function appendSync(
+  stateRoot: string,
+  runId: RunId,
+  draft: StoredEventDraftV1,
+  options: LiveRunJournalOptions,
+): StoredEvent | RunJournalFailure {
+  const shapeErr = validateDraftShape(draft);
+  if (shapeErr !== null) return shapeErr;
 
-    let lastSeq = 0;
-    if (replay.records.length === 0) {
-      lastSeq = 0;
-    } else {
-      lastSeq = replay.records[replay.records.length - 1]!.event.seq;
-    }
+  return lockedJournalTransaction(stateRoot, runId, options, () => ({
+    _tag: "append" as const,
+    draft,
+  }));
+}
 
-    if (lastSeq >= Number.MAX_SAFE_INTEGER) {
-      return runJournalFailure("limit_exceeded");
-    }
-    const nextSeq = lastSeq === 0 ? 1 : lastSeq + 1;
-    if (!Number.isSafeInteger(nextSeq) || nextSeq < 1) {
-      return runJournalFailure("limit_exceeded");
-    }
+// ---------------------------------------------------------------------------
+// Resume-attempt reservation (atomic under the events lock)
+// ---------------------------------------------------------------------------
 
-    const ts = formatUtcSecondTimestamp(new Date());
-    const candidate: Record<string, unknown> = {
-      seq: nextSeq,
-      ts,
-      type: draft.type,
-      lane: draft.lane,
-      payload: { ...draft.payload },
+const RESUME_COUNT_MAX = 100;
+
+function isPositiveSafeInteger(n: number): boolean {
+  return Number.isSafeInteger(n) && n >= 1;
+}
+
+function isValidResumeLimit(limit: number): boolean {
+  return Number.isSafeInteger(limit) && limit >= 1 && limit <= RESUME_COUNT_MAX;
+}
+
+/**
+ * Parse one resume_attempt payload: exactly { attempt, resumeCount }, both
+ * positive safe integers with resumeCount in 1..100.
+ */
+function parseResumeAttemptPayload(
+  payload: Readonly<Record<string, unknown>>,
+):
+  | { readonly attempt: AttemptId; readonly resumeCount: number }
+  | "invalid" {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    return "invalid";
+  }
+  const keys = Object.keys(payload);
+  if (keys.length !== 2) {
+    return "invalid";
+  }
+  if (!Object.prototype.hasOwnProperty.call(payload, "attempt")) {
+    return "invalid";
+  }
+  if (!Object.prototype.hasOwnProperty.call(payload, "resumeCount")) {
+    return "invalid";
+  }
+  const attemptRaw = payload["attempt"];
+  const countRaw = payload["resumeCount"];
+  if (typeof attemptRaw !== "number" || !isPositiveSafeInteger(attemptRaw)) {
+    return "invalid";
+  }
+  if (
+    typeof countRaw !== "number" ||
+    !Number.isSafeInteger(countRaw) ||
+    countRaw < 1 ||
+    countRaw > RESUME_COUNT_MAX
+  ) {
+    return "invalid";
+  }
+  const attempt = decodeAttemptId(attemptRaw);
+  if (typeof attempt !== "number") {
+    return "invalid";
+  }
+  return { attempt, resumeCount: countRaw };
+}
+
+/**
+ * Validate lane resume history and latest prompt under the events lock.
+ * Returns the next positive resume count or a closed typed failure.
+ */
+function deriveNextResumeCount(
+  records: readonly ReplayRecord[],
+  attemptIdentity: AttemptIdentity,
+  resumeMaxAttempts: number,
+):
+  | { readonly _tag: "ok"; readonly nextCount: number }
+  | { readonly _tag: "fail"; readonly error: ResumeAttemptFailure } {
+  if (!isValidResumeLimit(resumeMaxAttempts)) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("invalid_limit"),
     };
-    if (draft.commit !== undefined) {
-      candidate["commit"] = draft.commit;
-    }
+  }
 
-    const decoded = decodeStoredEvent(candidate);
-    if (typeof decoded === "object" && "_tag" in decoded) {
-      return runJournalFailure("invalid_event");
-    }
-    const stored = decoded as StoredEvent;
+  const lane = attemptIdentity.laneId;
+  let latestPromptAttempt: AttemptId | null | "malformed" = null;
+  let expectedCount = 1;
 
-    let lineText: string;
-    try {
-      lineText = canonicalize({
-        seq: stored.seq,
-        ts: stored.ts,
-        type: stored.type,
-        lane: stored.lane,
-        ...(stored.commit !== undefined ? { commit: stored.commit } : {}),
-        payload: stored.payload,
-      });
-    } catch {
-      return runJournalFailure("invalid_event");
+  for (const rec of records) {
+    const event = rec.event;
+    if (event.lane !== lane) {
+      continue;
     }
-    const lineBytes = Buffer.from(lineText + "\n", "utf8");
-
-    // Candidate complete size bound before building the buffer for replay.
-    if (existing.byteLength + lineBytes.byteLength > MAX_REPLAY_INPUT_BYTES) {
-      return runJournalFailure("limit_exceeded");
-    }
-
-    const candidateBytes = Buffer.concat([
-      Buffer.from(existing),
-      lineBytes,
-    ]);
-    const candidateReplay = replayNdjsonBytes(candidateBytes, { fromLine: 0 });
-    if (candidateReplay.terminal._tag !== "CleanEof") {
-      const reason = candidateReplay.terminal.reason;
-      if (
-        reason === "line_too_large" ||
-        reason === "input_too_large" ||
-        reason === "too_many_lines"
-      ) {
-        return runJournalFailure("limit_exceeded");
-      }
-      return runJournalFailure("invalid_event");
-    }
-    const candSeqErr = validateR3SequenceChain(candidateReplay.records);
-    if (candSeqErr !== null) return candSeqErr;
-
-    // Open journal for append. Missing path uses exclusive create so a
-    // competing create is not silently accepted.
-    let wfd: number | undefined;
-    try {
-      if (beforeIdentity === null) {
-        if (options.beforeJournalCreate !== undefined) {
-          options.beforeJournalCreate(journalPath);
-        }
-        try {
-          wfd = openSync(
-            journalPath,
-            fsConstants.O_CREAT |
-              fsConstants.O_EXCL |
-              fsConstants.O_WRONLY,
-            0o600,
-          );
-        } catch (e) {
-          if (isEexist(e)) {
-            return runJournalFailure("identity_changed");
-          }
-          return runJournalFailure("write_failed");
-        }
+    if (event.type === "prompt") {
+      const extracted = extractPayloadAttempt(event.payload);
+      if (extracted === undefined) {
+        latestPromptAttempt = "malformed";
+      } else if (typeof extracted !== "number") {
+        latestPromptAttempt = "malformed";
       } else {
-        wfd = openSync(
-          journalPath,
-          noFollowWriteFlags(
-            fsConstants.O_WRONLY | fsConstants.O_APPEND,
-          ),
-          0o600,
-        );
+        latestPromptAttempt = extracted;
       }
-
-      const opened = fstatSync(wfd);
-      if (!opened.isFile()) {
-        return runJournalFailure("invalid_path");
-      }
-      if (beforeIdentity !== null) {
-        if (!identitiesEqual(identityOf(opened), beforeIdentity)) {
-          return runJournalFailure("identity_changed");
-        }
-        if (opened.size !== existing.byteLength) {
-          return runJournalFailure("identity_changed");
-        }
-      } else if (opened.size !== 0) {
-        return runJournalFailure("identity_changed");
-      }
-
-      // Pathname must identify the write descriptor before write.
-      {
-        const match = pathMatchesOpenedFd(journalPath, wfd);
-        if (match === "identity_changed") {
-          return runJournalFailure("identity_changed");
-        }
-        if (match !== "ok") {
-          return runJournalFailure("invalid_path");
-        }
-      }
-
-      let offset = 0;
-      while (offset < lineBytes.byteLength) {
-        const n = writeSync(
-          wfd,
-          lineBytes,
-          offset,
-          lineBytes.byteLength - offset,
-        );
-        offset += n;
-      }
-      fsyncSync(wfd);
-
-      if (options.afterJournalWriteSync !== undefined) {
-        options.afterJournalWriteSync({ path: journalPath, fd: wfd });
-      }
-
-      // Re-observe events.ndjson and compare with the write descriptor.
-      {
-        const match = pathMatchesOpenedFd(journalPath, wfd);
-        if (match === "identity_changed") {
-          return runJournalFailure("identity_changed");
-        }
-        if (match !== "ok") {
-          return runJournalFailure("invalid_path");
-        }
-      }
-
-      const after = fstatSync(wfd);
-      if (after.ino !== opened.ino || after.dev !== opened.dev) {
-        return runJournalFailure("identity_changed");
-      }
-      return stored;
-    } catch (e) {
-      if (isEnoent(e)) {
-        return runJournalFailure("identity_changed");
-      }
-      return runJournalFailure("write_failed");
-    } finally {
-      if (wfd !== undefined) {
-        try {
-          closeSync(wfd);
-        } catch {
-          /* ignore */
-        }
-      }
+      continue;
     }
-  }) as StoredEvent | RunJournalFailure;
+    if (event.type === "resume") {
+      return {
+        _tag: "fail",
+        error: resumeAttemptFailure("legacy_unbound"),
+      };
+    }
+    if (event.type === "resume_attempt") {
+      const parsed = parseResumeAttemptPayload(event.payload);
+      if (parsed === "invalid") {
+        return {
+          _tag: "fail",
+          error: resumeAttemptFailure("invalid_resume_history"),
+        };
+      }
+      if (parsed.resumeCount !== expectedCount) {
+        return {
+          _tag: "fail",
+          error: resumeAttemptFailure("invalid_resume_history"),
+        };
+      }
+      expectedCount += 1;
+      continue;
+    }
+    // Unknown types remain opaque.
+  }
+
+  if (
+    latestPromptAttempt === null ||
+    latestPromptAttempt === "malformed" ||
+    latestPromptAttempt !== attemptIdentity.attemptId
+  ) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("attempt_not_current"),
+    };
+  }
+
+  // Current valid count is expectedCount - 1; next is expectedCount.
+  const nextCount = expectedCount;
+  if (nextCount > resumeMaxAttempts || nextCount > RESUME_COUNT_MAX) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("resume_limit_reached"),
+    };
+  }
+  // Also refuse when the current count already meets the limit (same check).
+  const currentCount = expectedCount - 1;
+  if (currentCount >= resumeMaxAttempts) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("resume_limit_reached"),
+    };
+  }
+
+  return { _tag: "ok", nextCount };
+}
+
+function reserveResumeAttemptSync(
+  stateRoot: string,
+  attemptIdentity: AttemptIdentity,
+  resumeMaxAttempts: number,
+  options: LiveRunJournalOptions,
+):
+  | ResumeAttemptReservationV1
+  | ResumeAttemptFailure
+  | RunJournalFailure {
+  // Validate limit before touching the journal so invalid_limit is cheap.
+  if (!isValidResumeLimit(resumeMaxAttempts)) {
+    return resumeAttemptFailure("invalid_limit");
+  }
+
+  let reservedCount = 0;
+  const result = lockedJournalTransaction(
+    stateRoot,
+    attemptIdentity.runId,
+    options,
+    (records) => {
+      const derived = deriveNextResumeCount(
+        records,
+        attemptIdentity,
+        resumeMaxAttempts,
+      );
+      if (derived._tag === "fail") {
+        return { _tag: "fail" as const, error: derived.error };
+      }
+      reservedCount = derived.nextCount;
+      return {
+        _tag: "append" as const,
+        draft: {
+          type: "resume_attempt",
+          lane: attemptIdentity.laneId,
+          payload: {
+            attempt: attemptIdentity.attemptId,
+            resumeCount: derived.nextCount,
+          },
+        },
+      };
+    },
+  );
+
+  if (isRunJournalFailure(result) || isResumeAttemptFailure(result)) {
+    return result;
+  }
+
+  const stored = result as StoredEvent;
+  return {
+    attemptIdentity,
+    event: stored,
+    resumeCount: reservedCount,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1064,6 +1405,31 @@ export function makeLiveRunJournalLayer(
       try {
         const r = appendSync(stateRoot, runId, event, options);
         if (isRunJournalFailure(r)) {
+          return Effect.fail(r);
+        }
+        return Effect.succeed(r);
+      } catch {
+        return Effect.fail(runJournalFailure("write_failed"));
+      }
+    },
+    reserveResumeAttempt: (
+      attemptIdentity,
+      resumeMaxAttempts,
+    ): Effect.Effect<
+      ResumeAttemptReservationV1,
+      ResumeAttemptFailure | RunJournalFailure
+    > => {
+      try {
+        const r = reserveResumeAttemptSync(
+          stateRoot,
+          attemptIdentity,
+          resumeMaxAttempts,
+          options,
+        );
+        if (isRunJournalFailure(r)) {
+          return Effect.fail(r);
+        }
+        if (isResumeAttemptFailure(r)) {
           return Effect.fail(r);
         }
         return Effect.succeed(r);

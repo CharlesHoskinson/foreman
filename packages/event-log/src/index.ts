@@ -8,7 +8,8 @@
  * - consumer migration (SessionDB, release, knowledge)
  * - thin-adapter migration of skills/foreman/scripts/lib/eventlog.sh
  * - closed per-type payload schemas / all-event payload typing
- * - durable ownership, compaction, resume protocol
+ * - durable ownership, compaction, resume protocol executor
+ *   (R5C owns attempt-bound resume_attempt reservation only)
  */
 
 export {
@@ -90,10 +91,16 @@ export {
   runJournalFailure,
   isRunJournalFailure,
   RUN_JOURNAL_FAILURE_BRAND,
+  resumeAttemptFailure,
+  isResumeAttemptFailure,
+  RESUME_ATTEMPT_FAILURE_BRAND,
   JOURNAL_LOCK_BOUND_MS,
   MAX_ATTEMPT_COUNTER_BYTES,
   type StoredEventDraftV1,
   type RunJournalFailure,
   type RunJournalFailureReason,
+  type ResumeAttemptFailure,
+  type ResumeAttemptFailureReason,
+  type ResumeAttemptReservationV1,
   type LiveRunJournalOptions,
 } from "./run-journal.js";
