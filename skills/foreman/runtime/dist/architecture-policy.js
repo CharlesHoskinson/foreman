@@ -30867,41 +30867,12 @@ function isRuntimeManifestPath(path) {
 var DENY = "legacy_adapter_domain_logic";
 var LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
 var LANE_SUPERVISE_MIGRATION_PATH = "skills/foreman/scripts/lane-supervise.sh";
-var LANE_RUN_FORWARDING_BLOCK = [
-  '  lane_gate_node="$(command -v node || true)"',
-  '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"',
-  '  if [[ -z "$lane_gate_node" ]]; then',
-  '    echo "lane-run: node is required for vendor admission" >&2',
-  '    exit "$EXIT_MISSING_CLI"',
-  "  fi",
-  '  if [[ ! -f "$lane_gate_runtime" ]]; then',
-  '    echo "lane-run: vendor admission runtime is missing" >&2',
-  '    exit "$EXIT_MISSING_CLI"',
-  "  fi",
-  '  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \\',
-  '      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then',
-  '    exit "$EXIT_CONFIG"',
-  "  fi"
-].join("\n");
-var LANE_RUN_PREFIX_SHA256 = "44ebe0ddd07410f8f57453930b8be9a6483dc7cbd22c633ce43e5f519c06456c";
-var LANE_RUN_SUFFIX_SHA256 = "246364c7b516f9b5e587605f12a2dcebe3c25ba1c59e2d15f91c604414406e39";
+var LANE_RUN_BODY_SHA256 = "07d1f57953eb1c3cb4b7a8090743ef05c723ff900e0d3881fb8b1efc0be93f31";
 var LANE_SUPERVISE_BODY_SHA256 = "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
 function inspectLaneRunMigrationAdapter(sourceText) {
   if (/[\u0000]/.test(sourceText)) return DENY;
-  const first2 = sourceText.indexOf(LANE_RUN_FORWARDING_BLOCK);
-  if (first2 < 0) return DENY;
-  const second = sourceText.indexOf(
-    LANE_RUN_FORWARDING_BLOCK,
-    first2 + LANE_RUN_FORWARDING_BLOCK.length
-  );
-  if (second !== -1) return DENY;
-  const prefix = sourceText.slice(0, first2);
-  const suffix = sourceText.slice(first2 + LANE_RUN_FORWARDING_BLOCK.length);
-  const prefixDigest = createHash2("sha256").update(prefix, "utf8").digest("hex");
-  if (prefixDigest !== LANE_RUN_PREFIX_SHA256) return DENY;
-  const suffixDigest = createHash2("sha256").update(suffix, "utf8").digest("hex");
-  if (suffixDigest !== LANE_RUN_SUFFIX_SHA256) return DENY;
-  return null;
+  const digest = createHash2("sha256").update(sourceText, "utf8").digest("hex");
+  return digest === LANE_RUN_BODY_SHA256 ? null : DENY;
 }
 function inspectLaneSuperviseMigrationAdapter(sourceText) {
   if (/[\u0000]/.test(sourceText)) return DENY;
