@@ -141,9 +141,13 @@ function typedPromptWithPlanAttempt(
   });
 }
 
-function checkpointEvent(attempt: AttemptId, commit: string): StoredEvent {
+function checkpointEvent(
+  attempt: AttemptId,
+  commit: string,
+  sequence: number = 1000 + attempt,
+): StoredEvent {
   return {
-    seq: 1000 + attempt,
+    seq: sequence,
     ts: "2026-08-05T12:00:01Z",
     type: "checkpoint",
     lane: laneId,
@@ -255,7 +259,7 @@ describe("selectLatestRoundAttempt", () => {
 
   it("selects the newest valid attempt for the requested lane", () => {
     const result = selectLatestRoundAttempt(
-      [typedPrompt(1), typedPrompt(3), typedPrompt(2, otherLaneId)],
+      [typedPrompt(1), typedPrompt(2, otherLaneId), typedPrompt(3)],
       runId,
       laneId,
     );
@@ -288,6 +292,53 @@ describe("selectLatestRoundAttempt", () => {
       laneId,
     );
     assert.equal(result._tag, "Invalid");
+  });
+
+  it("rejects decreasing event sequences before selection", () => {
+    const att = decodeAttemptId(20) as AttemptId;
+    const events: StoredEvent[] = [
+      typedPrompt(20, laneId, 20),
+      checkpointEvent(att, "ckpt-out-of-order", 10),
+    ];
+    const result = selectLatestRoundAttempt(events, runId, laneId);
+    assert.equal(result._tag, "Invalid");
+  });
+
+  it("rejects equal event sequences as Invalid in both array orders", () => {
+    const typed = typedPrompt(5);
+    const legacy = legacyPrompt(5);
+    const forward = selectLatestRoundAttempt([typed, legacy], runId, laneId);
+    const reverse = selectLatestRoundAttempt([legacy, typed], runId, laneId);
+    assert.equal(forward._tag, "Invalid");
+    assert.equal(reverse._tag, "Invalid");
+    assert.deepEqual(forward, reverse);
+  });
+
+  it("carries attempt 7 identity on legacy and invalid-plan prompts", () => {
+    const att7 = decodeAttemptId(7) as AttemptId;
+    const expected = makeAttemptIdentity(runId, laneId, att7);
+
+    const legacy = selectLatestRoundAttempt([legacyPrompt(7)], runId, laneId);
+    assert.equal(legacy._tag, "LegacyUnbound");
+    if (legacy._tag === "LegacyUnbound") {
+      assert.equal(legacy.attemptIdentity.runId, runId);
+      assert.equal(legacy.attemptIdentity.laneId, laneId);
+      assert.equal(legacy.attemptIdentity.attemptId, 7);
+      assert.deepEqual(legacy.attemptIdentity, expected);
+    }
+
+    const invalid = selectLatestRoundAttempt(
+      [invalidPlanPrompt(7)],
+      runId,
+      laneId,
+    );
+    assert.equal(invalid._tag, "Invalid");
+    if (invalid._tag === "Invalid") {
+      assert.equal(invalid.attemptIdentity?.runId, runId);
+      assert.equal(invalid.attemptIdentity?.laneId, laneId);
+      assert.equal(invalid.attemptIdentity?.attemptId, 7);
+      assert.deepEqual(invalid.attemptIdentity, expected);
+    }
   });
 });
 
@@ -392,5 +443,88 @@ describe("decideRoundResume", () => {
       }),
     );
     assert.equal(result._tag, "Completed");
+  });
+
+  it("refuses decreasing history [prompt seq=20, checkpoint seq=10] as invalid_history", () => {
+    const att = decodeAttemptId(20) as AttemptId;
+    const result = decideRoundResume(
+      baseInput({
+        events: [
+          typedPrompt(20, laneId, 20),
+          checkpointEvent(att, "ckpt-matching", 10),
+        ],
+      }),
+    );
+    assert.equal(result._tag, "Refused");
+    if (result._tag === "Refused") {
+      assert.equal(result.reason, "invalid_history");
+    }
+  });
+
+  it("refuses [checkpoint seq=10, prompt seq=20] through recovery as invalid_history", () => {
+    const att = decodeAttemptId(20) as AttemptId;
+    const result = decideRoundResume(
+      baseInput({
+        events: [
+          checkpointEvent(att, "ckpt-matching", 10),
+          typedPrompt(20, laneId, 20),
+        ],
+      }),
+    );
+    assert.equal(result._tag, "Refused");
+    if (result._tag === "Refused") {
+      assert.equal(result.reason, "invalid_history");
+      assert.deepEqual(
+        result.attemptIdentity,
+        makeAttemptIdentity(runId, laneId, att),
+      );
+    }
+  });
+
+  it("refuses equal-sequence typed and legacy prompts as the same Invalid path", () => {
+    const typed = typedPrompt(5);
+    const legacy = legacyPrompt(5);
+    const forward = decideRoundResume(
+      baseInput({ events: [typed, legacy] }),
+    );
+    const reverse = decideRoundResume(
+      baseInput({ events: [legacy, typed] }),
+    );
+    assert.equal(forward._tag, "Refused");
+    assert.equal(reverse._tag, "Refused");
+    if (forward._tag === "Refused" && reverse._tag === "Refused") {
+      assert.equal(forward.reason, "invalid_history");
+      assert.equal(reverse.reason, "invalid_history");
+      assert.deepEqual(forward, reverse);
+    }
+  });
+
+  it("copies attempt 7 identity into Refused for legacy and invalid-plan prompts", () => {
+    const att7 = decodeAttemptId(7) as AttemptId;
+    const expected = makeAttemptIdentity(runId, laneId, att7);
+
+    const legacy = decideRoundResume(
+      baseInput({ events: [legacyPrompt(7)] }),
+    );
+    assert.equal(legacy._tag, "Refused");
+    if (legacy._tag === "Refused") {
+      assert.equal(legacy.reason, "legacy_unbound");
+      assert.equal(legacy.attemptIdentity?.runId, runId);
+      assert.equal(legacy.attemptIdentity?.laneId, laneId);
+      assert.equal(legacy.attemptIdentity?.attemptId, 7);
+      assert.deepEqual(legacy.attemptIdentity, expected);
+    }
+
+    const invalid = decideRoundResume(
+      baseInput({ events: [invalidPlanPrompt(7)] }),
+    );
+    assert.equal(invalid._tag, "Refused");
+    if (invalid._tag === "Refused") {
+      assert.equal(invalid.reason, "invalid_history");
+      assert.equal(invalid.attemptIdentity?.runId, runId);
+      assert.equal(invalid.attemptIdentity?.laneId, laneId);
+      assert.equal(invalid.attemptIdentity?.attemptId, 7);
+      assert.deepEqual(invalid.attemptIdentity, expected);
+    }
   });
 });

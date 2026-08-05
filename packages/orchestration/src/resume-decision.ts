@@ -35,24 +35,44 @@ export type LatestRoundAttemptV1 =
   | { readonly _tag: "Selected"; readonly attemptIdentity: AttemptIdentity }
   | {
       readonly _tag: "LegacyUnbound";
-      readonly laneId: LaneId;
+      readonly attemptIdentity: AttemptIdentity;
       readonly promptSequence: number;
     }
   | {
       readonly _tag: "Invalid";
       readonly laneId: LaneId;
       readonly promptSequence: number;
+      readonly attemptIdentity?: AttemptIdentity;
     };
 
 /**
+ * True when every consecutive pair of event sequences is strictly increasing.
+ * Does not sort or repair the input.
+ */
+function sequencesStrictlyIncreasing(events: readonly StoredEvent[]): boolean {
+  for (let i = 1; i < events.length; i++) {
+    if (events[i]!.seq <= events[i - 1]!.seq) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Select the prompt with the greatest sequence for the requested lane.
- * Validates run, lane, and attempt identity before returning Selected.
+ * Validates full history sequences, then run, lane, and attempt identity
+ * before returning Selected.
  */
 export function selectLatestRoundAttempt(
   events: readonly StoredEvent[],
   runId: RunId,
   laneId: LaneId,
 ): LatestRoundAttemptV1 {
+  // Fail closed on ambiguous history before any prompt selection or recovery.
+  if (!sequencesStrictlyIncreasing(events)) {
+    return { _tag: "Invalid", laneId, promptSequence: 0 };
+  }
+
   let latest: StoredEvent | null = null;
   for (const event of events) {
     if (event.type !== "prompt") continue;
@@ -76,24 +96,44 @@ export function selectLatestRoundAttempt(
     return { _tag: "Invalid", laneId, promptSequence };
   }
 
+  const selectedIdentity = makeAttemptIdentity(runId, laneId, attempt);
+
   if (!Object.prototype.hasOwnProperty.call(latest.payload, "roundPlan")) {
-    return { _tag: "LegacyUnbound", laneId, promptSequence };
+    return {
+      _tag: "LegacyUnbound",
+      attemptIdentity: selectedIdentity,
+      promptSequence,
+    };
   }
 
   const plan = decodeRoundPlanV1(latest.payload["roundPlan"]);
   if (isRoundContractFailure(plan)) {
-    return { _tag: "Invalid", laneId, promptSequence };
+    return {
+      _tag: "Invalid",
+      laneId,
+      promptSequence,
+      attemptIdentity: selectedIdentity,
+    };
   }
 
   const planIdentity = attemptIdentityFromPlan(plan);
-  const selectedIdentity = makeAttemptIdentity(runId, laneId, attempt);
   if (!attemptIdentitiesEqual(planIdentity, selectedIdentity)) {
-    return { _tag: "Invalid", laneId, promptSequence };
+    return {
+      _tag: "Invalid",
+      laneId,
+      promptSequence,
+      attemptIdentity: selectedIdentity,
+    };
   }
   // Enclosing prompt attempt must equal plan attempt (already covered by
   // selectedIdentity, but keep explicit equality with payload attempt).
   if (plan.attemptId !== attempt) {
-    return { _tag: "Invalid", laneId, promptSequence };
+    return {
+      _tag: "Invalid",
+      laneId,
+      promptSequence,
+      attemptIdentity: selectedIdentity,
+    };
   }
 
   return { _tag: "Selected", attemptIdentity: selectedIdentity };
@@ -202,10 +242,21 @@ export function decideRoundResume(
   }
 
   if (selected._tag === "LegacyUnbound") {
-    return { _tag: "Refused", reason: "legacy_unbound" };
+    return {
+      _tag: "Refused",
+      attemptIdentity: selected.attemptIdentity,
+      reason: "legacy_unbound",
+    };
   }
 
   if (selected._tag === "Invalid") {
+    if (selected.attemptIdentity !== undefined) {
+      return {
+        _tag: "Refused",
+        attemptIdentity: selected.attemptIdentity,
+        reason: "invalid_history",
+      };
+    }
     return { _tag: "Refused", reason: "invalid_history" };
   }
 
