@@ -315,11 +315,16 @@
         / 4 skip; strict OpenSpec validation of `grok-secret-scan-typescript`
         and `v030-release-program`; `docs-check.sh` pass. Keep open until
         host commit, cold audit, and CW-027 coverage-row evidence land.
-- [ ] 1.2 Use Grok workers in isolated Foreman worktrees for implementation.
-- [ ] 1.3 Run deterministic checks and a different-family Codex cold audit for
-      every complete sprint diff.
-- [ ] 1.4 Run Council at each immutable commitment boundary.
-- [ ] 1.5 Rework every actionable finding before the next sprint starts.
+- [ ] 1.2 Create one Endstop contract before each implementation package.
+      Use an isolated worktree for each package.
+- [ ] 1.3 Run deterministic checks and one different-family Codex cold audit
+      for each complete package diff. Consume the package audit allowance.
+- [ ] 1.4 Run at most one Council action for each immutable package candidate.
+      Preserve dissent as correction input. Do not rerun Council under the
+      same contract.
+- [ ] 1.5 Use at most one correction action for an actionable finding. If the
+      correction does not pass, record the Endstop terminal state. Do not
+      start another review loop.
 
 ## 2. Release convergence
 

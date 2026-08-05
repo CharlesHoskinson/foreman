@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Thin adapter for the Foreman Endstop Node.js runtime.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

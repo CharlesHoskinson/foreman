@@ -7,9 +7,19 @@ persist one shared feedback budget outside each worktree. Every later
 workstream must use it. The hostile loop-closure test must pass before Sprint
 3 resumes.
 
-Each sprint starts from the accepted commit of its predecessor. Each sprint
-uses TypeScript tests first, Grok implementation, architect verification, a
-Codex cold audit, and a ledger-bound Council review.
+Each package starts from its accepted dependency commit. Each package uses
+TypeScript tests first, implementation, architect verification, one Codex cold
+audit, and at most one Endstop-bound Council review.
+
+Do not use a sprint as an execution-budget boundary. Split a sprint into
+packages when two tasks can receive independent acceptance verdicts. Give each
+package one Endstop contract. A new lane, round, session, or attempt does not
+create a new budget.
+
+For Sprint 3 R7B2, use four packages: admission core, lane adapter,
+obsolete-home removal, and release verification. The release-verification
+package depends on the other three packages. The obsolete-home package is
+independent of the admission-core package.
 
 Sprint 3 depends on the accepted Sprint 2 event-log commit.
 

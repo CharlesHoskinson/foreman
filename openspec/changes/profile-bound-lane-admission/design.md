@@ -10,6 +10,20 @@ Do not extend the legacy unscoped `vendor-preflight lane-gate` command. That
 command does not own profile identity. Do not derive profile authority only
 in shell. The Node runtime must verify every forwarded value.
 
+## Endstop execution packages
+
+Use four execution packages. The admission core owns the TypeScript runtime.
+The lane adapter owns the shell boundary. The obsolete-home package owns
+worktree cleanup. The release-verification package owns final evidence.
+
+Give each package one persistent Endstop contract. Use the strict default
+limits. Permit one audit action, one Council action, and one correction action.
+Do not reset limits for a new lane, round, session, or attempt.
+
+Freeze a non-completed terminal package. Continue an independent package when
+its dependency path does not include the frozen package. Do not start release
+verification until the other three packages reach `Completed`.
+
 ## Admission input
 
 The runtime command is:
