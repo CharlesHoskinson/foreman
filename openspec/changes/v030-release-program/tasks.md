@@ -287,9 +287,30 @@
         `codex-default`; child environments set only matching `GROK_HOME` or
         `CODEX_HOME` and strip the other; legacy unscoped preflight write
         preserved; `inspectVendor` and tool-check accept explicit child env;
-        no authentication and no vendor credential file reads. R7B2 lane
-        admission against profile identity and R7C profile-use leasing remain
-        open.
+        no authentication and no vendor credential file reads. R7C
+        profile-use leasing remains open.
+      - Sprint 3 R7B2 profile-bound lane admission: completed under five
+        bounded Endstop contracts. The admission core verifies profile id,
+        identity, vendor, config root, and nested readiness before a lane
+        process starts. The live adapter selects the default or explicit
+        profile. It exports only the matching `GROK_HOME` or `CODEX_HOME`.
+        It rejects a conflicting `LANE_CONFIG_DIR` before durable side
+        effects. Worktree-local vendor homes no longer hold credential
+        authority. The compiled architecture policy and runtime manifest
+        match the accepted TypeScript source. The accepted commits are:
+        - admission core:
+          `13923ecd304ecdf85db2155a3d81f8202517d844`
+        - obsolete worktree homes:
+          `6b75611a3d1dcc807bafaf0ac74ad4ae9c1f78ae`
+        - deterministic worktree correction:
+          `552a4a04eebc0736e908d93489ee5ec0bcd7ebc9`
+        - live lane adapter:
+          `56536eca60d731378ffb2c6f323c6d2e18dad1ed`
+        - runtime artifact synchronization:
+          `37795e0ffb1627862ad598a453fb06cade273dec`
+        R7B2-D binds the full Node, runtime, policy, documentation, and strict
+        OpenSpec gates to one published task-record candidate. R7C
+        profile-use leasing remains pending.
       - Sprint 3 R6 bounded fixture-aware secret scan (worktree green after
         descriptor-anchor + cross-platform testability corrections, host
         commit pending): closed typed `SecretScan` Effect API and CLI in
