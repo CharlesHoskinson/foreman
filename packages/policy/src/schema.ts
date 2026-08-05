@@ -82,6 +82,8 @@ export type TrackedDelete = {
 /** Bounds for tracked_delete register payloads and live preflight. */
 export const MAX_TRACKED_DELETE_TARGETS = 32;
 export const MAX_TRACKED_PATH_BYTES = 4096;
+/** Total approved target byte-length cap for one tracked_delete batch. */
+export const MAX_TRACKED_BATCH_BYTES = 1_048_576;
 
 /**
  * Closed approval facts bound into the register (never trusted from caller).
@@ -421,7 +423,10 @@ function decodeTrackedDeleteTarget(
   if (unk) return unk;
   const path = expectString(obj["path"]);
   if (isCoreFailure(path)) return path;
-  if (path.length === 0 || path.length > MAX_TRACKED_PATH_BYTES) {
+  if (
+    path.length === 0 ||
+    new TextEncoder().encode(path).byteLength > MAX_TRACKED_PATH_BYTES
+  ) {
     return schemaMismatch("tracked_path");
   }
   const blobSha1 = expectString(obj["blobSha1"]);
@@ -463,7 +468,7 @@ function decodeTrackedDelete(value: unknown): TrackedDelete | CoreFailure {
     }
     seen.add(t.path);
     totalBytes += t.byteLength;
-    if (totalBytes > 1_048_576) {
+    if (totalBytes > MAX_TRACKED_BATCH_BYTES) {
       return schemaMismatch("batch_bytes");
     }
     targets.push(t);

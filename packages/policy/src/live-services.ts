@@ -5,6 +5,8 @@ import {
   constants as fsConstants,
   copyFileSync,
   existsSync,
+  fchmodSync,
+  fstatSync,
   fsyncSync,
   lstatSync,
   openSync,
@@ -13,6 +15,7 @@ import {
   statSync,
   unlinkSync,
   writeSync,
+  type Stats,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -33,39 +36,155 @@ const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 5_000;
 const GIT_MAX_BUFFER = MAX_INPUT_BYTES + 1;
 
-function toStat(s: {
-  isFile: () => boolean;
-  isDirectory: () => boolean;
-  isSymbolicLink: () => boolean;
-  size: number;
-  nlink: number;
-}): FileStat {
+function idStr(v: number | bigint): string {
+  return typeof v === "bigint" ? v.toString() : String(v);
+}
+
+function toStat(s: Stats): FileStat {
   return {
     isFile: s.isFile(),
     isDirectory: s.isDirectory(),
     isSymbolicLink: s.isSymbolicLink(),
     size: s.size,
     nlink: s.nlink,
+    mode: s.mode,
+    dev: idStr(s.dev),
+    ino: idStr(s.ino),
   };
+}
+
+function readFdBounded(fd: number, maxBytes: number): Uint8Array {
+  const cap = maxBytes + 1;
+  const buf = Buffer.allocUnsafe(cap);
+  let offset = 0;
+  while (offset < cap) {
+    const n = readSync(fd, buf, offset, cap - offset, offset);
+    if (n === 0) break;
+    offset += n;
+  }
+  if (offset > maxBytes) {
+    throw new PolicyFsError("oversize_input");
+  }
+  return new Uint8Array(buf.buffer, buf.byteOffset, offset);
+}
+
+function writeFdFull(fd: number, data: Uint8Array): void {
+  let offset = 0;
+  while (offset < data.byteLength) {
+    const n = writeSync(
+      fd,
+      data,
+      offset,
+      data.byteLength - offset,
+      offset,
+    );
+    if (n <= 0) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+    offset += n;
+  }
 }
 
 function readFileBoundedSync(path: string, maxBytes: number): Uint8Array {
   const fd = openSync(path, fsConstants.O_RDONLY);
   try {
-    const cap = maxBytes + 1;
-    const buf = Buffer.allocUnsafe(cap);
-    let offset = 0;
-    while (offset < cap) {
-      const n = readSync(fd, buf, offset, cap - offset, offset);
-      if (n === 0) break;
-      offset += n;
-    }
-    if (offset > maxBytes) {
-      throw new PolicyFsError("oversize_input");
-    }
-    return new Uint8Array(buf.buffer, buf.byteOffset, offset);
+    return readFdBounded(fd, maxBytes);
   } finally {
     closeSync(fd);
+  }
+}
+
+function readFileNoFollowSync(
+  path: string,
+  maxBytes: number,
+): { bytes: Uint8Array; stat: FileStat } {
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
+  let fd: number;
+  try {
+    fd = openSync(path, flags);
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    if (err.code === "ELOOP" || err.code === "EINVAL") {
+      throw new PolicyFsError("source_is_symlink");
+    }
+    if (err.code === "ENOENT") {
+      throw new PolicyFsError("target_missing");
+    }
+    throw new PolicyFsError("internal_failed");
+  }
+  try {
+    const st = toStat(fstatSync(fd));
+    if (st.isSymbolicLink) {
+      throw new PolicyFsError("source_is_symlink");
+    }
+    if (!st.isFile || st.isDirectory) {
+      throw new PolicyFsError("source_not_regular_file");
+    }
+    const bytes = readFdBounded(fd, maxBytes);
+    return { bytes, stat: { ...st, size: bytes.byteLength } };
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function createFileExclusiveSync(
+  path: string,
+  data: Uint8Array,
+  mode: number,
+): void {
+  let fd: number;
+  try {
+    fd = openSync(
+      path,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+      mode,
+    );
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    if (err.code === "EEXIST") {
+      throw new PolicyFsError("mutation_rejected");
+    }
+    throw new PolicyFsError("mutation_rejected");
+  }
+  try {
+    writeFdFull(fd, data);
+    // Override umask-applied bits with the exact approved mode.
+    fchmodSync(fd, mode);
+    fsyncSync(fd);
+    const st = fstatSync(fd);
+    if (st.size !== data.byteLength) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+    if ((st.mode & 0o777) !== (mode & 0o777)) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+  } catch (e) {
+    try {
+      closeSync(fd);
+    } catch {
+      /* ignore */
+    }
+    try {
+      unlinkSync(path);
+    } catch {
+      /* ignore */
+    }
+    if (e instanceof PolicyFsError) throw e;
+    throw new PolicyFsError("mutation_rejected");
+  }
+  closeSync(fd);
+  // Post-close no-follow verify of restored identity and bytes.
+  const verify = readFileNoFollowSync(path, data.byteLength);
+  if (verify.bytes.byteLength !== data.byteLength) {
+    throw new PolicyFsError("mutation_rejected");
+  }
+  for (let i = 0; i < data.byteLength; i += 1) {
+    if (verify.bytes[i] !== data[i]) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+  }
+  if ((verify.stat.mode & 0o777) !== (mode & 0o777)) {
+    throw new PolicyFsError("mutation_rejected");
   }
 }
 
@@ -121,10 +240,27 @@ function sha40(s: string): string {
   return t;
 }
 
+function rejectBadRelPath(relativePath: string): void {
+  if (
+    relativePath.includes("..") ||
+    relativePath.startsWith("/") ||
+    relativePath.includes("\\") ||
+    relativePath.length === 0
+  ) {
+    throw new PolicyGitError("invalid_path");
+  }
+}
+
 export const liveFileSystem = Layer.succeed(FileSystem, {
   readFile: (path, maxBytes) =>
     Effect.try({
       try: () => readFileBoundedSync(path, maxBytes),
+      catch: (e) =>
+        e instanceof PolicyFsError ? e : new PolicyFsError("internal_failed"),
+    }),
+  readFileNoFollow: (path, maxBytes) =>
+    Effect.try({
+      try: () => readFileNoFollowSync(path, maxBytes),
       catch: (e) =>
         e instanceof PolicyFsError ? e : new PolicyFsError("internal_failed"),
     }),
@@ -137,7 +273,7 @@ export const liveFileSystem = Layer.succeed(FileSystem, {
           0o600,
         );
         try {
-          writeSync(fd, data);
+          writeFdFull(fd, data);
           fsyncSync(fd);
         } finally {
           closeSync(fd);
@@ -147,25 +283,18 @@ export const liveFileSystem = Layer.succeed(FileSystem, {
     }),
   createFile: (path, data, mode) =>
     Effect.try({
-      try: () => {
-        const fd = openSync(
-          path,
-          fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
-          mode,
-        );
-        try {
-          writeSync(fd, data);
-          fsyncSync(fd);
-        } finally {
-          closeSync(fd);
-        }
-      },
-      catch: () => new PolicyFsError("mutation_rejected"),
+      try: () => createFileExclusiveSync(path, data, mode),
+      catch: (e) =>
+        e instanceof PolicyFsError ? e : new PolicyFsError("mutation_rejected"),
     }),
   lstat: (path) =>
     Effect.try({
       try: () => toStat(lstatSync(path)),
-      catch: () => new PolicyFsError("internal_failed"),
+      catch: (e) => {
+        const err = e as NodeJS.ErrnoException;
+        if (err.code === "ENOENT") return new PolicyFsError("target_missing");
+        return new PolicyFsError("internal_failed");
+      },
     }),
   stat: (path) =>
     Effect.try({
@@ -260,8 +389,6 @@ export const liveGitIdentity = Layer.succeed(GitIdentity, {
           approvalCommitEligible =
             paths.length === 1 && paths[0] === relativePath;
 
-          // Parent register blob for approval-delta (bounded); missing is ok
-          // for non-approval denials — mark null.
           try {
             parentBlobBytes = await gitBytes(repoRoot, [
               "show",
@@ -269,7 +396,6 @@ export const liveGitIdentity = Layer.succeed(GitIdentity, {
             ]);
           } catch {
             parentBlobBytes = null;
-            // If path-only change claimed but parent blob missing, ineligible
             if (approvalCommitEligible) {
               approvalCommitEligible = false;
             }
@@ -325,26 +451,19 @@ export const liveGitIdentity = Layer.succeed(GitIdentity, {
       catch: (e) =>
         e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed"),
     }),
-  inspectTrackedAtHead: (repoRoot, relativePath) =>
+  inspectTrackedAtCommit: (repoRoot, commitSha, relativePath) =>
     Effect.tryPromise({
       try: async () => {
-        if (
-          relativePath.includes("..") ||
-          relativePath.startsWith("/") ||
-          relativePath.includes("\\") ||
-          relativePath.length === 0
-        ) {
-          throw new PolicyGitError("invalid_path");
-        }
+        rejectBadRelPath(relativePath);
+        const commit = sha40(commitSha);
         const out = await gitText(
           repoRoot,
-          ["ls-tree", "-z", "HEAD", "--", relativePath],
+          ["ls-tree", "-z", commit, "--", relativePath],
           65_536,
         );
         if (out.length === 0) {
           throw new PolicyGitError("target_untracked");
         }
-        // Format: <mode> <type> <sha>\t<path>\0
         const rec = out.split("\0").find((p) => p.length > 0) ?? "";
         const tab = rec.indexOf("\t");
         if (tab < 0) throw new PolicyGitError("internal_failed");
@@ -381,6 +500,72 @@ export const liveGitIdentity = Layer.succeed(GitIdentity, {
           throw new PolicyGitError("oversize_input");
         }
         return { mode, blobSha1, size };
+      },
+      catch: (e) =>
+        e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed"),
+    }),
+  assertHeadCommit: (repoRoot, commitSha) =>
+    Effect.tryPromise({
+      try: async () => {
+        const expected = sha40(commitSha);
+        const head = sha40(await gitText(repoRoot, ["rev-parse", "HEAD"]));
+        if (head !== expected) {
+          throw new PolicyGitError("authority_dirty");
+        }
+      },
+      catch: (e) =>
+        e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed"),
+    }),
+  assertTrackedIndexClean: (repoRoot, commitSha, relativePath, expected) =>
+    Effect.tryPromise({
+      try: async () => {
+        rejectBadRelPath(relativePath);
+        const commit = sha40(commitSha);
+        const head = sha40(await gitText(repoRoot, ["rev-parse", "HEAD"]));
+        if (head !== commit) {
+          throw new PolicyGitError("authority_dirty");
+        }
+        const porcelain = await gitText(
+          repoRoot,
+          ["status", "--porcelain", "--", relativePath],
+          65_536,
+        );
+        if (porcelain.trim().length > 0) {
+          throw new PolicyGitError("working_tree_mismatch");
+        }
+        // Index stage-0 entry must match approved mode + blob.
+        const ls = (
+          await gitText(
+            repoRoot,
+            ["ls-files", "-s", "-z", "--", relativePath],
+            65_536,
+          )
+        ).replace(/\0$/, "");
+        if (ls.length === 0) {
+          throw new PolicyGitError("target_untracked");
+        }
+        // Format: <mode> <sha> <stage>\t<path>
+        const tab = ls.indexOf("\t");
+        if (tab < 0) throw new PolicyGitError("internal_failed");
+        const meta = ls.slice(0, tab);
+        const pathPart = ls.slice(tab + 1);
+        if (pathPart !== relativePath) {
+          throw new PolicyGitError("internal_failed");
+        }
+        const m = meta.match(/^([0-7]{6}) ([0-9a-f]{40}) ([0-3])$/i);
+        if (!m) throw new PolicyGitError("internal_failed");
+        const indexMode = m[1]!;
+        const indexBlob = m[2]!.toLowerCase();
+        const stage = m[3]!;
+        if (stage !== "0") {
+          throw new PolicyGitError("working_tree_mismatch");
+        }
+        if (indexMode !== expected.mode) {
+          throw new PolicyGitError("mode_mismatch");
+        }
+        if (indexBlob !== expected.blobSha1.toLowerCase()) {
+          throw new PolicyGitError("source_digest_mismatch");
+        }
       },
       catch: (e) =>
         e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed"),

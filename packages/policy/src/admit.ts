@@ -2,6 +2,7 @@ import {
   isNonEmptyClosedString,
   CANONICAL_REGISTER_ID,
   CANONICAL_REGISTER_RELPATH,
+  MAX_TRACKED_BATCH_BYTES,
   MAX_TRACKED_DELETE_TARGETS,
   MAX_TRACKED_PATH_BYTES,
   type AdmissionRequest,
@@ -39,7 +40,7 @@ function pathIsGroup(path: string): boolean {
 export function validateTrackedRelPath(path: string): DenialReason | null {
   if (path.length === 0) return "invalid_path";
   if (new TextEncoder().encode(path).byteLength > MAX_TRACKED_PATH_BYTES) {
-    return "batch_limit_exceeded";
+    return "invalid_path";
   }
   if (
     path.startsWith("/") ||
@@ -84,7 +85,7 @@ function validateTrackedDeleteTargets(
       return "schema_mismatch";
     }
     totalBytes += t.byteLength;
-    if (totalBytes > 1_048_576) return "batch_limit_exceeded";
+    if (totalBytes > MAX_TRACKED_BATCH_BYTES) return "batch_limit_exceeded";
     if (t.mode !== "100644" && t.mode !== "100755") {
       return "schema_mismatch";
     }

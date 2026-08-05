@@ -16076,6 +16076,7 @@ var CANONICAL_REGISTER_ID = "foreman-v0.3.0-destruction-register";
 var CANONICAL_REGISTER_RELPATH = "docs/releases/v0.3.0-destruction-log.md";
 var MAX_TRACKED_DELETE_TARGETS = 32;
 var MAX_TRACKED_PATH_BYTES = 4096;
+var MAX_TRACKED_BATCH_BYTES = 1048576;
 var ACTION_KINDS = [
   "artifact_relocate",
   "worktree_remove",
@@ -16211,7 +16212,7 @@ function decodeTrackedDeleteTarget(value) {
   if (unk) return unk;
   const path = expectString(obj["path"]);
   if (isCoreFailure(path)) return path;
-  if (path.length === 0 || path.length > MAX_TRACKED_PATH_BYTES) {
+  if (path.length === 0 || new TextEncoder().encode(path).byteLength > MAX_TRACKED_PATH_BYTES) {
     return schemaMismatch("tracked_path");
   }
   const blobSha1 = expectString(obj["blobSha1"]);
@@ -16252,7 +16253,7 @@ function decodeTrackedDelete(value) {
     }
     seen.add(t.path);
     totalBytes += t.byteLength;
-    if (totalBytes > 1048576) {
+    if (totalBytes > MAX_TRACKED_BATCH_BYTES) {
       return schemaMismatch("batch_bytes");
     }
     targets.push(t);
@@ -16735,7 +16736,7 @@ function pathIsGroup(path) {
 function validateTrackedRelPath(path) {
   if (path.length === 0) return "invalid_path";
   if (new TextEncoder().encode(path).byteLength > MAX_TRACKED_PATH_BYTES) {
-    return "batch_limit_exceeded";
+    return "invalid_path";
   }
   if (path.startsWith("/") || path.includes("\\") || path.includes("\0") || path.endsWith("/")) {
     return "invalid_path";
@@ -16772,7 +16773,7 @@ function validateTrackedDeleteTargets(targets) {
       return "schema_mismatch";
     }
     totalBytes += t.byteLength;
-    if (totalBytes > 1048576) return "batch_limit_exceeded";
+    if (totalBytes > MAX_TRACKED_BATCH_BYTES) return "batch_limit_exceeded";
     if (t.mode !== "100644" && t.mode !== "100755") {
       return "schema_mismatch";
     }
@@ -16964,6 +16965,13 @@ var noopMutationProbe = Layer_exports.succeed(MutationProbe, {
   record: () => Effect_exports.void,
   count: () => Effect_exports.succeed(0)
 });
+function sameFileIdentity(a, b) {
+  if (a.isSymbolicLink || b.isSymbolicLink) return false;
+  if (a.isDirectory && b.isDirectory) {
+    return a.dev === b.dev && a.ino === b.ino;
+  }
+  return a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.nlink === b.nlink && (a.mode & 511) === (b.mode & 511) && a.isFile === b.isFile && a.isDirectory === b.isDirectory;
+}
 
 // packages/policy/src/authority.ts
 function loadCommittedAuthority(repoRoot) {
@@ -17033,8 +17041,8 @@ function relocateArtifact(args2) {
 }
 
 // packages/policy/src/tracked-delete.ts
-import { createHash as createHash2 } from "node:crypto";
-import { join as join3 } from "node:path";
+import { createHash as createHash2, randomBytes } from "node:crypto";
+import { dirname, join as join3 } from "node:path";
 function denied3(entryId, reason) {
   return { schemaVersion: 1, _tag: "Denied", entryId, reason };
 }
@@ -17055,12 +17063,80 @@ function asTrackedMode(mode) {
   if (mode === "100644" || mode === "100755") return mode;
   return null;
 }
+function liveMatchesApprovedMode(stat, approved) {
+  if (!stat.isFile || stat.isDirectory || stat.isSymbolicLink) return false;
+  const exec = (stat.mode & 73) !== 0;
+  return approved === "100755" ? exec : !exec;
+}
 function mapFsPreflight(stat) {
   if (stat.isSymbolicLink) return "source_is_symlink";
   if (stat.isDirectory) return "source_not_regular_file";
   if (!stat.isFile) return "source_not_regular_file";
   if (stat.nlink > 1) return "source_is_hardlink";
   return null;
+}
+function mapGitDenial(r) {
+  if (r === "target_missing" || r === "target_untracked" || r === "target_is_submodule" || r === "source_is_symlink" || r === "source_not_regular_file" || r === "source_digest_mismatch" || r === "source_size_mismatch" || r === "mode_mismatch" || r === "invalid_path" || r === "oversize_input" || r === "working_tree_mismatch" || r === "source_is_hardlink" || r === "register_self_target" || r === "duplicate_target" || r === "batch_limit_exceeded" || r === "glob_target" || r === "group_target" || r === "authority_dirty") {
+    return "denied";
+  }
+  return "failed";
+}
+function bindPathChain(fs, repoRoot, relativePath) {
+  return Effect_exports.gen(function* () {
+    const chain = [];
+    const rootE = yield* Effect_exports.either(fs.lstat(repoRoot));
+    if (rootE._tag === "Left") {
+      return { ok: false, reason: "invalid_path" };
+    }
+    const rootStat = rootE.right;
+    if (rootStat.isSymbolicLink) {
+      return { ok: false, reason: "source_is_symlink" };
+    }
+    if (!rootStat.isDirectory) {
+      return { ok: false, reason: "invalid_path" };
+    }
+    chain.push({ path: repoRoot, stat: rootStat });
+    const segments = relativePath.split("/");
+    let cur = repoRoot;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      cur = join3(cur, segments[i]);
+      const stE = yield* Effect_exports.either(fs.lstat(cur));
+      if (stE._tag === "Left") {
+        return { ok: false, reason: "target_missing" };
+      }
+      const st = stE.right;
+      if (st.isSymbolicLink) {
+        return {
+          ok: false,
+          reason: "source_is_symlink"
+        };
+      }
+      if (!st.isDirectory) {
+        return {
+          ok: false,
+          reason: "source_not_regular_file"
+        };
+      }
+      chain.push({ path: cur, stat: st });
+    }
+    return {
+      ok: true,
+      absPath: join3(repoRoot, relativePath),
+      chain
+    };
+  });
+}
+function recheckPathChain(fs, chain) {
+  return Effect_exports.gen(function* () {
+    for (const entry of chain) {
+      const stE = yield* Effect_exports.either(fs.lstat(entry.path));
+      if (stE._tag === "Left") return "working_tree_mismatch";
+      const st = stE.right;
+      if (st.isSymbolicLink) return "source_is_symlink";
+      if (!sameFileIdentity(entry.stat, st)) return "working_tree_mismatch";
+    }
+    return null;
+  });
 }
 function deleteTracked(args2) {
   return Effect_exports.gen(function* () {
@@ -17098,10 +17174,17 @@ function deleteTracked(args2) {
     }
     const recoveryCommitSha = entry.approval.candidateCommitSha;
     const approvedTargets = entry.trackedDelete.targets;
+    const pinCommit = auth.snapshot.commitC;
+    const headPin = yield* Effect_exports.either(
+      git.assertHeadCommit(args2.repoRoot, pinCommit)
+    );
+    if (headPin._tag === "Left") {
+      return denied3(check2.entryId, headPin.left.reason);
+    }
     const captured = [];
     for (const target of approvedTargets) {
       const headE = yield* Effect_exports.either(
-        git.inspectTrackedAtHead(args2.repoRoot, target.path)
+        git.inspectTrackedAtCommit(args2.repoRoot, pinCommit, target.path)
       );
       if (headE._tag === "Left") {
         const r = headE.left.reason;
@@ -17113,7 +17196,7 @@ function deleteTracked(args2) {
             exists3 ? "target_untracked" : "target_missing"
           );
         }
-        if (r === "target_missing" || r === "target_is_submodule" || r === "source_is_symlink" || r === "source_not_regular_file" || r === "source_digest_mismatch" || r === "source_size_mismatch" || r === "mode_mismatch" || r === "invalid_path" || r === "oversize_input" || r === "working_tree_mismatch" || r === "source_is_hardlink" || r === "register_self_target" || r === "duplicate_target" || r === "batch_limit_exceeded" || r === "glob_target" || r === "group_target") {
+        if (mapGitDenial(r) === "denied") {
           return denied3(check2.entryId, r);
         }
         return failed3(r);
@@ -17138,29 +17221,43 @@ function deleteTracked(args2) {
       if (head5.size !== target.byteLength) {
         return denied3(check2.entryId, "source_size_mismatch");
       }
-      const absPath = join3(args2.repoRoot, target.path);
-      const lstE = yield* Effect_exports.either(fs.lstat(absPath));
-      if (lstE._tag === "Left") {
-        return denied3(check2.entryId, "target_missing");
+      const bound = yield* bindPathChain(fs, args2.repoRoot, target.path);
+      if (!bound.ok) {
+        return denied3(check2.entryId, bound.reason);
       }
-      const pre = mapFsPreflight(lstE.right);
-      if (pre !== null) {
-        return denied3(check2.entryId, pre);
-      }
-      if (lstE.right.size !== target.byteLength) {
-        return denied3(check2.entryId, "source_size_mismatch");
-      }
-      const readE = yield* Effect_exports.either(
-        fs.readFile(absPath, MAX_INPUT_BYTES)
+      const { absPath, chain } = bound;
+      const idxE = yield* Effect_exports.either(
+        git.assertTrackedIndexClean(args2.repoRoot, pinCommit, target.path, {
+          blobSha1: target.blobSha1,
+          mode: target.mode
+        })
       );
-      if (readE._tag === "Left") {
-        if (readE.left.reason === "oversize_input") {
-          return denied3(check2.entryId, "oversize_input");
+      if (idxE._tag === "Left") {
+        const r = idxE.left.reason;
+        if (mapGitDenial(r) === "denied") {
+          return denied3(check2.entryId, r);
+        }
+        return failed3(r);
+      }
+      const capE = yield* Effect_exports.either(
+        fs.readFileNoFollow(absPath, MAX_INPUT_BYTES)
+      );
+      if (capE._tag === "Left") {
+        const r = capE.left.reason;
+        if (r === "source_is_symlink" || r === "source_not_regular_file" || r === "oversize_input" || r === "target_missing") {
+          return denied3(check2.entryId, r);
         }
         return denied3(check2.entryId, "target_missing");
       }
-      const bytes = readE.right;
-      if (bytes.byteLength !== target.byteLength) {
+      const { bytes, stat } = capE.right;
+      const pre = mapFsPreflight(stat);
+      if (pre !== null) {
+        return denied3(check2.entryId, pre);
+      }
+      if (!liveMatchesApprovedMode(stat, target.mode)) {
+        return denied3(check2.entryId, "mode_mismatch");
+      }
+      if (bytes.byteLength !== target.byteLength || stat.size !== target.byteLength) {
         return denied3(check2.entryId, "source_size_mismatch");
       }
       const liveSha = gitBlobSha1(bytes);
@@ -17172,79 +17269,297 @@ function deleteTracked(args2) {
         target,
         absPath,
         bytes,
-        posixMode: modeToPosix(target.mode)
+        posixMode: modeToPosix(target.mode),
+        identity: stat,
+        chain
       });
     }
-    const removed = [];
-    for (let i = 0; i < captured.length; i += 1) {
-      const item = captured[i];
-      yield* probe.record("unlink_attempt");
-      const failInject = yield* probe.count("inject_fail_after");
-      if (failInject > 0 && removed.length + 1 >= failInject) {
-        yield* probe.record("inject_fail_fired");
-        const restore = yield* restoreAll(fs, probe, removed);
-        if (restore !== null) return failed3(restore);
-        return failed3("mutation_rejected");
-      }
-      const unE = yield* Effect_exports.either(fs.unlink(item.absPath));
-      if (unE._tag === "Left") {
-        const restore = yield* restoreAll(fs, probe, removed);
-        if (restore !== null) return failed3(restore);
-        return failed3(unE.left.reason);
-      }
-      yield* probe.record("unlink");
-      removed.push(item);
+    const headPin2 = yield* Effect_exports.either(
+      git.assertHeadCommit(args2.repoRoot, pinCommit)
+    );
+    if (headPin2._tag === "Left") {
+      return denied3(check2.entryId, headPin2.left.reason);
     }
-    for (const item of removed) {
-      const still = yield* fs.exists(item.absPath);
-      if (still) {
-        const restore = yield* restoreAll(fs, probe, removed);
-        if (restore !== null) return failed3(restore);
+    for (const item of captured) {
+      const chainBad = yield* recheckPathChain(fs, item.chain);
+      if (chainBad !== null) {
+        return denied3(check2.entryId, chainBad);
+      }
+      const idxE = yield* Effect_exports.either(
+        git.assertTrackedIndexClean(
+          args2.repoRoot,
+          pinCommit,
+          item.target.path,
+          {
+            blobSha1: item.target.blobSha1,
+            mode: item.target.mode
+          }
+        )
+      );
+      if (idxE._tag === "Left") {
+        const r = idxE.left.reason;
+        if (mapGitDenial(r) === "denied") {
+          return denied3(check2.entryId, r);
+        }
+        return failed3(r);
+      }
+      const recapE = yield* Effect_exports.either(
+        fs.readFileNoFollow(item.absPath, MAX_INPUT_BYTES)
+      );
+      if (recapE._tag === "Left") {
+        return denied3(check2.entryId, "working_tree_mismatch");
+      }
+      const recap = recapE.right;
+      if (!sameFileIdentity(item.identity, recap.stat)) {
+        return denied3(check2.entryId, "working_tree_mismatch");
+      }
+      if (gitBlobSha1(recap.bytes) !== item.target.blobSha1) {
+        return denied3(check2.entryId, "working_tree_mismatch");
+      }
+      if (!liveMatchesApprovedMode(recap.stat, item.target.mode)) {
+        return denied3(check2.entryId, "mode_mismatch");
+      }
+    }
+    const mutResult = yield* runMutationUninterruptible({
+      fs,
+      probe,
+      captured,
+      entryId: check2.entryId,
+      registerSha256: auth.registerSha256,
+      recoveryCommitSha,
+      approvedTargets
+    });
+    return mutResult;
+  }).pipe(
+    Effect_exports.catchAllDefect(() => Effect_exports.succeed(failed3("internal_failed")))
+  );
+}
+function runMutationUninterruptible(args2) {
+  const state = {
+    quarantined: [],
+    completed: false,
+    retainedRecovery: false
+  };
+  const body = Effect_exports.gen(function* () {
+    for (let i = 0; i < args2.captured.length; i += 1) {
+      const item = args2.captured[i];
+      yield* args2.probe.record("unlink_attempt");
+      const chainBad = yield* recheckPathChain(args2.fs, item.chain);
+      if (chainBad !== null) {
+        const restore = yield* restoreQuarantines(
+          args2.fs,
+          args2.probe,
+          state.quarantined
+        );
+        if (restore === "retained") state.retainedRecovery = true;
+        if (restore === "failed" || restore === "retained") {
+          return failed3("interrupted");
+        }
+        return failed3(chainBad === "source_is_symlink" ? chainBad : "mutation_rejected");
+      }
+      const liveE = yield* Effect_exports.either(
+        args2.fs.readFileNoFollow(item.absPath, MAX_INPUT_BYTES)
+      );
+      if (liveE._tag === "Left" || !sameFileIdentity(item.identity, liveE.right.stat)) {
+        const restore = yield* restoreQuarantines(
+          args2.fs,
+          args2.probe,
+          state.quarantined
+        );
+        if (restore === "retained") state.retainedRecovery = true;
+        if (restore === "failed" || restore === "retained") {
+          return failed3("interrupted");
+        }
         return failed3("mutation_rejected");
       }
-      const parentOk = yield* fs.parentDirExists(item.absPath);
+      const qName = `.foreman-td-q-${args2.entryId}-${i}-${randomBytes(8).toString("hex")}`;
+      const quarantinePath = join3(dirname(item.absPath), qName);
+      const renE = yield* Effect_exports.either(
+        args2.fs.rename(item.absPath, quarantinePath)
+      );
+      if (renE._tag === "Left") {
+        const restore = yield* restoreQuarantines(
+          args2.fs,
+          args2.probe,
+          state.quarantined
+        );
+        if (restore === "retained") state.retainedRecovery = true;
+        if (restore === "failed" || restore === "retained") {
+          return failed3("interrupted");
+        }
+        return failed3(renE.left.reason);
+      }
+      const qE = yield* Effect_exports.either(
+        args2.fs.readFileNoFollow(quarantinePath, MAX_INPUT_BYTES)
+      );
+      if (qE._tag === "Left" || !sameFileIdentity(item.identity, qE.right.stat) || gitBlobSha1(qE.right.bytes) !== item.target.blobSha1) {
+        const back = yield* Effect_exports.either(
+          args2.fs.rename(quarantinePath, item.absPath)
+        );
+        if (back._tag === "Left") {
+          state.retainedRecovery = true;
+          const restore2 = yield* restoreQuarantines(
+            args2.fs,
+            args2.probe,
+            state.quarantined
+          );
+          if (restore2 === "retained") state.retainedRecovery = true;
+          return failed3("interrupted");
+        }
+        const restore = yield* restoreQuarantines(
+          args2.fs,
+          args2.probe,
+          state.quarantined
+        );
+        if (restore === "retained") state.retainedRecovery = true;
+        if (restore === "failed" || restore === "retained") {
+          return failed3("interrupted");
+        }
+        return failed3("mutation_rejected");
+      }
+      const chainAfter = yield* recheckPathChain(args2.fs, item.chain);
+      if (chainAfter !== null) {
+        const back = yield* Effect_exports.either(
+          args2.fs.rename(quarantinePath, item.absPath)
+        );
+        if (back._tag === "Left") state.retainedRecovery = true;
+        const restore = yield* restoreQuarantines(
+          args2.fs,
+          args2.probe,
+          state.quarantined
+        );
+        if (restore === "retained") state.retainedRecovery = true;
+        if (restore === "failed" || restore === "retained" || back._tag === "Left") {
+          return failed3("interrupted");
+        }
+        return failed3("mutation_rejected");
+      }
+      yield* args2.probe.record("unlink");
+      state.quarantined.push({ ...item, quarantinePath });
+    }
+    for (const item of state.quarantined) {
+      const unE = yield* Effect_exports.either(args2.fs.unlink(item.quarantinePath));
+      if (unE._tag === "Left") {
+        state.retainedRecovery = true;
+        return failed3("interrupted");
+      }
+      const still = yield* args2.fs.exists(item.absPath);
+      if (still) {
+        state.retainedRecovery = true;
+        return failed3("mutation_rejected");
+      }
+      const parentOk = yield* args2.fs.parentDirExists(item.absPath);
       if (!parentOk) {
-        const restore = yield* restoreAll(fs, probe, removed);
-        if (restore !== null) return failed3(restore);
+        state.retainedRecovery = true;
         return failed3("internal_failed");
       }
     }
-    yield* probe.record("tracked_delete_completed");
+    state.completed = true;
+    yield* args2.probe.record("tracked_delete_completed");
     return {
       schemaVersion: 1,
       _tag: "Completed",
-      entryId: check2.entryId,
+      entryId: args2.entryId,
       actionKind: "tracked_delete",
-      registerSha256: auth.registerSha256,
-      recoveryCommitSha,
-      targets: approvedTargets.map((t) => ({
+      registerSha256: args2.registerSha256,
+      recoveryCommitSha: args2.recoveryCommitSha,
+      targets: args2.approvedTargets.map((t) => ({
         path: t.path,
         blobSha1: t.blobSha1,
         byteLength: t.byteLength,
         mode: t.mode
       }))
     };
-  }).pipe(
-    Effect_exports.catchAllDefect(() => Effect_exports.succeed(failed3("internal_failed")))
+  });
+  return Effect_exports.uninterruptible(
+    body.pipe(
+      Effect_exports.onExit(
+        (exit4) => Effect_exports.gen(function* () {
+          if (state.completed || state.quarantined.length === 0) {
+            return;
+          }
+          if (exit4._tag === "Failure") {
+            const restore = yield* restoreQuarantines(
+              args2.fs,
+              args2.probe,
+              state.quarantined
+            );
+            if (restore === "retained" || restore === "failed") {
+              state.retainedRecovery = true;
+            }
+            state.quarantined = [];
+          }
+        })
+      ),
+      Effect_exports.catchAllDefect(() => {
+        return Effect_exports.gen(function* () {
+          if (state.quarantined.length > 0 && !state.completed) {
+            const restore = yield* restoreQuarantines(
+              args2.fs,
+              args2.probe,
+              state.quarantined
+            );
+            if (restore === "retained" || restore === "failed") {
+              return failed3("interrupted");
+            }
+            state.quarantined = [];
+          }
+          return failed3("internal_failed");
+        });
+      })
+    )
   );
 }
-function restoreAll(fs, probe, removed) {
+function restoreQuarantines(fs, probe, quarantined) {
   return Effect_exports.gen(function* () {
-    for (let i = removed.length - 1; i >= 0; i -= 1) {
-      const item = removed[i];
-      const exists3 = yield* fs.exists(item.absPath);
-      if (!exists3) {
-        const w = yield* Effect_exports.either(
+    let retained = false;
+    for (let i = quarantined.length - 1; i >= 0; i -= 1) {
+      const item = quarantined[i];
+      const origExists = yield* fs.exists(item.absPath);
+      if (origExists) {
+        yield* probe.record("restore_retained");
+        retained = true;
+        continue;
+      }
+      const qExists = yield* fs.exists(item.quarantinePath);
+      if (qExists) {
+        const ren = yield* Effect_exports.either(
+          fs.rename(item.quarantinePath, item.absPath)
+        );
+        if (ren._tag === "Left") {
+          const cr = yield* Effect_exports.either(
+            fs.createFile(item.absPath, item.bytes, item.posixMode)
+          );
+          if (cr._tag === "Left") {
+            yield* probe.record("restore_failed");
+            return "failed";
+          }
+          yield* Effect_exports.either(fs.unlink(item.quarantinePath));
+        }
+      } else {
+        const cr = yield* Effect_exports.either(
           fs.createFile(item.absPath, item.bytes, item.posixMode)
         );
-        if (w._tag === "Left") {
+        if (cr._tag === "Left") {
           yield* probe.record("restore_failed");
-          return "interrupted";
+          return "failed";
         }
-        yield* probe.record("restore");
       }
+      const verE = yield* Effect_exports.either(
+        fs.readFileNoFollow(item.absPath, MAX_INPUT_BYTES)
+      );
+      if (verE._tag === "Left") {
+        yield* probe.record("restore_failed");
+        return "failed";
+      }
+      const ver = verE.right;
+      if (ver.bytes.byteLength !== item.bytes.byteLength || gitBlobSha1(ver.bytes) !== item.target.blobSha1 || (ver.stat.mode & 511) !== (item.posixMode & 511)) {
+        yield* probe.record("restore_failed");
+        return "failed";
+      }
+      yield* probe.record("restore");
     }
-    return null;
+    return retained ? "retained" : "ok";
   });
 }
 
@@ -17365,6 +17680,8 @@ import {
   constants as fsConstants,
   copyFileSync,
   existsSync,
+  fchmodSync,
+  fstatSync,
   fsyncSync,
   lstatSync,
   openSync,
@@ -17374,7 +17691,7 @@ import {
   unlinkSync,
   writeSync
 } from "node:fs";
-import { dirname, join as join4 } from "node:path";
+import { dirname as dirname2, join as join4 } from "node:path";
 import { promisify } from "node:util";
 
 // packages/policy/src/git-env.ts
@@ -17449,32 +17766,138 @@ function gitArgv(args2) {
 var execFileAsync = promisify(execFile);
 var GIT_TIMEOUT_MS = 5e3;
 var GIT_MAX_BUFFER = MAX_INPUT_BYTES + 1;
+function idStr(v) {
+  return typeof v === "bigint" ? v.toString() : String(v);
+}
 function toStat(s) {
   return {
     isFile: s.isFile(),
     isDirectory: s.isDirectory(),
     isSymbolicLink: s.isSymbolicLink(),
     size: s.size,
-    nlink: s.nlink
+    nlink: s.nlink,
+    mode: s.mode,
+    dev: idStr(s.dev),
+    ino: idStr(s.ino)
   };
+}
+function readFdBounded2(fd, maxBytes) {
+  const cap = maxBytes + 1;
+  const buf = Buffer.allocUnsafe(cap);
+  let offset = 0;
+  while (offset < cap) {
+    const n = readSync2(fd, buf, offset, cap - offset, offset);
+    if (n === 0) break;
+    offset += n;
+  }
+  if (offset > maxBytes) {
+    throw new PolicyFsError("oversize_input");
+  }
+  return new Uint8Array(buf.buffer, buf.byteOffset, offset);
+}
+function writeFdFull(fd, data) {
+  let offset = 0;
+  while (offset < data.byteLength) {
+    const n = writeSync(
+      fd,
+      data,
+      offset,
+      data.byteLength - offset,
+      offset
+    );
+    if (n <= 0) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+    offset += n;
+  }
 }
 function readFileBoundedSync(path, maxBytes) {
   const fd = openSync(path, fsConstants.O_RDONLY);
   try {
-    const cap = maxBytes + 1;
-    const buf = Buffer.allocUnsafe(cap);
-    let offset = 0;
-    while (offset < cap) {
-      const n = readSync2(fd, buf, offset, cap - offset, offset);
-      if (n === 0) break;
-      offset += n;
-    }
-    if (offset > maxBytes) {
-      throw new PolicyFsError("oversize_input");
-    }
-    return new Uint8Array(buf.buffer, buf.byteOffset, offset);
+    return readFdBounded2(fd, maxBytes);
   } finally {
     closeSync(fd);
+  }
+}
+function readFileNoFollowSync(path, maxBytes) {
+  const flags = fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW;
+  let fd;
+  try {
+    fd = openSync(path, flags);
+  } catch (e) {
+    const err = e;
+    if (err.code === "ELOOP" || err.code === "EINVAL") {
+      throw new PolicyFsError("source_is_symlink");
+    }
+    if (err.code === "ENOENT") {
+      throw new PolicyFsError("target_missing");
+    }
+    throw new PolicyFsError("internal_failed");
+  }
+  try {
+    const st = toStat(fstatSync(fd));
+    if (st.isSymbolicLink) {
+      throw new PolicyFsError("source_is_symlink");
+    }
+    if (!st.isFile || st.isDirectory) {
+      throw new PolicyFsError("source_not_regular_file");
+    }
+    const bytes = readFdBounded2(fd, maxBytes);
+    return { bytes, stat: { ...st, size: bytes.byteLength } };
+  } finally {
+    closeSync(fd);
+  }
+}
+function createFileExclusiveSync(path, data, mode) {
+  let fd;
+  try {
+    fd = openSync(
+      path,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+      mode
+    );
+  } catch (e) {
+    const err = e;
+    if (err.code === "EEXIST") {
+      throw new PolicyFsError("mutation_rejected");
+    }
+    throw new PolicyFsError("mutation_rejected");
+  }
+  try {
+    writeFdFull(fd, data);
+    fchmodSync(fd, mode);
+    fsyncSync(fd);
+    const st = fstatSync(fd);
+    if (st.size !== data.byteLength) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+    if ((st.mode & 511) !== (mode & 511)) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+  } catch (e) {
+    try {
+      closeSync(fd);
+    } catch {
+    }
+    try {
+      unlinkSync(path);
+    } catch {
+    }
+    if (e instanceof PolicyFsError) throw e;
+    throw new PolicyFsError("mutation_rejected");
+  }
+  closeSync(fd);
+  const verify = readFileNoFollowSync(path, data.byteLength);
+  if (verify.bytes.byteLength !== data.byteLength) {
+    throw new PolicyFsError("mutation_rejected");
+  }
+  for (let i = 0; i < data.byteLength; i += 1) {
+    if (verify.bytes[i] !== data[i]) {
+      throw new PolicyFsError("mutation_rejected");
+    }
+  }
+  if ((verify.stat.mode & 511) !== (mode & 511)) {
+    throw new PolicyFsError("mutation_rejected");
   }
 }
 async function gitText(repoRoot, args2, maxBuffer = 4096) {
@@ -17519,9 +17942,18 @@ function sha40(s) {
   }
   return t;
 }
+function rejectBadRelPath(relativePath) {
+  if (relativePath.includes("..") || relativePath.startsWith("/") || relativePath.includes("\\") || relativePath.length === 0) {
+    throw new PolicyGitError("invalid_path");
+  }
+}
 var liveFileSystem = Layer_exports.succeed(FileSystem, {
   readFile: (path, maxBytes) => Effect_exports.try({
     try: () => readFileBoundedSync(path, maxBytes),
+    catch: (e) => e instanceof PolicyFsError ? e : new PolicyFsError("internal_failed")
+  }),
+  readFileNoFollow: (path, maxBytes) => Effect_exports.try({
+    try: () => readFileNoFollowSync(path, maxBytes),
     catch: (e) => e instanceof PolicyFsError ? e : new PolicyFsError("internal_failed")
   }),
   writeExclusive: (path, data) => Effect_exports.try({
@@ -17532,7 +17964,7 @@ var liveFileSystem = Layer_exports.succeed(FileSystem, {
         384
       );
       try {
-        writeSync(fd, data);
+        writeFdFull(fd, data);
         fsyncSync(fd);
       } finally {
         closeSync(fd);
@@ -17541,24 +17973,16 @@ var liveFileSystem = Layer_exports.succeed(FileSystem, {
     catch: () => new PolicyFsError("mutation_rejected")
   }),
   createFile: (path, data, mode) => Effect_exports.try({
-    try: () => {
-      const fd = openSync(
-        path,
-        fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
-        mode
-      );
-      try {
-        writeSync(fd, data);
-        fsyncSync(fd);
-      } finally {
-        closeSync(fd);
-      }
-    },
-    catch: () => new PolicyFsError("mutation_rejected")
+    try: () => createFileExclusiveSync(path, data, mode),
+    catch: (e) => e instanceof PolicyFsError ? e : new PolicyFsError("mutation_rejected")
   }),
   lstat: (path) => Effect_exports.try({
     try: () => toStat(lstatSync(path)),
-    catch: () => new PolicyFsError("internal_failed")
+    catch: (e) => {
+      const err = e;
+      if (err.code === "ENOENT") return new PolicyFsError("target_missing");
+      return new PolicyFsError("internal_failed");
+    }
   }),
   stat: (path) => Effect_exports.try({
     try: () => toStat(statSync(path)),
@@ -17595,7 +18019,7 @@ var liveFileSystem = Layer_exports.succeed(FileSystem, {
     catch: () => new PolicyFsError("internal_failed")
   }),
   parentDirExists: (path) => Effect_exports.sync(() => {
-    const parent = dirname(path);
+    const parent = dirname2(path);
     try {
       return statSync(parent).isDirectory();
     } catch {
@@ -17684,14 +18108,13 @@ var liveGitIdentity = Layer_exports.succeed(GitIdentity, {
     },
     catch: (e) => e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed")
   }),
-  inspectTrackedAtHead: (repoRoot, relativePath) => Effect_exports.tryPromise({
+  inspectTrackedAtCommit: (repoRoot, commitSha, relativePath) => Effect_exports.tryPromise({
     try: async () => {
-      if (relativePath.includes("..") || relativePath.startsWith("/") || relativePath.includes("\\") || relativePath.length === 0) {
-        throw new PolicyGitError("invalid_path");
-      }
+      rejectBadRelPath(relativePath);
+      const commit = sha40(commitSha);
       const out = await gitText(
         repoRoot,
-        ["ls-tree", "-z", "HEAD", "--", relativePath],
+        ["ls-tree", "-z", commit, "--", relativePath],
         65536
       );
       if (out.length === 0) {
@@ -17731,6 +18154,64 @@ var liveGitIdentity = Layer_exports.succeed(GitIdentity, {
         throw new PolicyGitError("oversize_input");
       }
       return { mode, blobSha1, size: size10 };
+    },
+    catch: (e) => e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed")
+  }),
+  assertHeadCommit: (repoRoot, commitSha) => Effect_exports.tryPromise({
+    try: async () => {
+      const expected = sha40(commitSha);
+      const head5 = sha40(await gitText(repoRoot, ["rev-parse", "HEAD"]));
+      if (head5 !== expected) {
+        throw new PolicyGitError("authority_dirty");
+      }
+    },
+    catch: (e) => e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed")
+  }),
+  assertTrackedIndexClean: (repoRoot, commitSha, relativePath, expected) => Effect_exports.tryPromise({
+    try: async () => {
+      rejectBadRelPath(relativePath);
+      const commit = sha40(commitSha);
+      const head5 = sha40(await gitText(repoRoot, ["rev-parse", "HEAD"]));
+      if (head5 !== commit) {
+        throw new PolicyGitError("authority_dirty");
+      }
+      const porcelain = await gitText(
+        repoRoot,
+        ["status", "--porcelain", "--", relativePath],
+        65536
+      );
+      if (porcelain.trim().length > 0) {
+        throw new PolicyGitError("working_tree_mismatch");
+      }
+      const ls = (await gitText(
+        repoRoot,
+        ["ls-files", "-s", "-z", "--", relativePath],
+        65536
+      )).replace(/\0$/, "");
+      if (ls.length === 0) {
+        throw new PolicyGitError("target_untracked");
+      }
+      const tab = ls.indexOf("	");
+      if (tab < 0) throw new PolicyGitError("internal_failed");
+      const meta = ls.slice(0, tab);
+      const pathPart = ls.slice(tab + 1);
+      if (pathPart !== relativePath) {
+        throw new PolicyGitError("internal_failed");
+      }
+      const m = meta.match(/^([0-7]{6}) ([0-9a-f]{40}) ([0-3])$/i);
+      if (!m) throw new PolicyGitError("internal_failed");
+      const indexMode = m[1];
+      const indexBlob = m[2].toLowerCase();
+      const stage = m[3];
+      if (stage !== "0") {
+        throw new PolicyGitError("working_tree_mismatch");
+      }
+      if (indexMode !== expected.mode) {
+        throw new PolicyGitError("mode_mismatch");
+      }
+      if (indexBlob !== expected.blobSha1.toLowerCase()) {
+        throw new PolicyGitError("source_digest_mismatch");
+      }
     },
     catch: (e) => e instanceof PolicyGitError ? e : new PolicyGitError("internal_failed")
   })

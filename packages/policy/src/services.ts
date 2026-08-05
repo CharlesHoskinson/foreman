@@ -1,12 +1,25 @@
 import { Context, Effect, Layer } from "effect";
 import type { DenialReason } from "./schema.js";
 
+/**
+ * No-follow file metadata. `mode` is the full st_mode value from fstat/lstat.
+ * `dev`/`ino` are stringified so bigint device ids survive JSON-free equality.
+ */
 export type FileStat = {
   readonly isFile: boolean;
   readonly isDirectory: boolean;
   readonly isSymbolicLink: boolean;
   readonly size: number;
   readonly nlink: number;
+  readonly mode: number;
+  readonly dev: string;
+  readonly ino: string;
+};
+
+/** Bytes plus identity captured through a no-follow open. */
+export type CapturedFile = {
+  readonly bytes: Uint8Array;
+  readonly stat: FileStat;
 };
 
 export class PolicyFsError {
@@ -53,11 +66,23 @@ export class FileSystem extends Context.Tag("FileSystem")<
       path: string,
       maxBytes: number,
     ) => Effect.Effect<Uint8Array, PolicyFsError>;
+    /**
+     * Open path with O_NOFOLLOW, fstat, and read exact bytes via the descriptor.
+     * Rejects symlinks at the final component.
+     */
+    readonly readFileNoFollow: (
+      path: string,
+      maxBytes: number,
+    ) => Effect.Effect<CapturedFile, PolicyFsError>;
     readonly writeExclusive: (
       path: string,
       data: Uint8Array,
     ) => Effect.Effect<void, PolicyFsError>;
-    /** Create a new file with an explicit POSIX mode (0o644 / 0o755). */
+    /**
+     * Create a new file exclusively with explicit mode (fchmod after write so
+     * umask cannot strip bits), full write loop, fsync, and identity verify.
+     * Fails if the path already exists — never overwrites.
+     */
     readonly createFile: (
       path: string,
       data: Uint8Array,
@@ -99,13 +124,31 @@ export class GitIdentity extends Context.Tag("GitIdentity")<
       PolicyGitError
     >;
     /**
-     * Resolve one path at HEAD: mode, blob SHA-1, and blob size.
-     * Fails with target_untracked when the path is absent from HEAD.
+     * Resolve one path at a pinned commit (not symbolic HEAD): mode, blob
+     * SHA-1, and blob size. Fails with target_untracked when absent.
      */
-    readonly inspectTrackedAtHead: (
+    readonly inspectTrackedAtCommit: (
       repoRoot: string,
+      commitSha: string,
       relativePath: string,
     ) => Effect.Effect<HeadTrackedBlob, PolicyGitError>;
+    /**
+     * Require that symbolic HEAD still equals the captured approval commit.
+     */
+    readonly assertHeadCommit: (
+      repoRoot: string,
+      commitSha: string,
+    ) => Effect.Effect<void, PolicyGitError>;
+    /**
+     * Require index and porcelain cleanliness for one path against the pinned
+     * commit identity (rejects staged changes and dirty worktree entries).
+     */
+    readonly assertTrackedIndexClean: (
+      repoRoot: string,
+      commitSha: string,
+      relativePath: string,
+      expected: { readonly blobSha1: string; readonly mode: string },
+    ) => Effect.Effect<void, PolicyGitError>;
   }
 >() {}
 
@@ -148,4 +191,25 @@ export function makeMemoryMutationProbe(): {
       count: (op) => Effect.sync(() => counts.get(op) ?? 0),
     }),
   };
+}
+
+/**
+ * True when two FileStat values name the same directory entry identity.
+ * Directory parents compare only device+inode (size changes as children move).
+ * Regular files also compare size, nlink, and permission bits.
+ */
+export function sameFileIdentity(a: FileStat, b: FileStat): boolean {
+  if (a.isSymbolicLink || b.isSymbolicLink) return false;
+  if (a.isDirectory && b.isDirectory) {
+    return a.dev === b.dev && a.ino === b.ino;
+  }
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.size === b.size &&
+    a.nlink === b.nlink &&
+    (a.mode & 0o777) === (b.mode & 0o777) &&
+    a.isFile === b.isFile &&
+    a.isDirectory === b.isDirectory
+  );
 }

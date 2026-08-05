@@ -126,9 +126,9 @@ and a typed executor implements it.
 - An `approved` state SHALL be necessary but SHALL NOT be sufficient. The
   executor, exact action identity, current repository identity, and recovery
   contract SHALL also match.
-- The first typed executor SHALL support only `artifact_relocate`. Worktree
-  removal, branch deletion, tracked-file deletion, artifact deletion, and
-  unknown action kinds SHALL remain unsupported and denied.
+- The typed executors SHALL support `artifact_relocate` and `tracked_delete`.
+  Worktree removal, branch deletion, artifact deletion, and unknown action
+  kinds SHALL remain unsupported and denied.
 
 #### Scenario: current DST-0060 is checked before approval
 
@@ -150,6 +150,21 @@ and a typed executor implements it.
 - AND the command emits one canonical result line without raw paths,
   exceptions, environment values, or input text.
 
+#### Scenario: an exact approved tracked-file batch is deleted
+
+- WHEN one unexpired `approved` `tracked_delete` entry binds exact
+  repository-relative paths, Git blob SHA-1, byte length, and `100644`/`100755`
+  mode for every target, and the live tree still matches the pinned approval
+  commit
+- THEN the Effect executor preflights the entire batch, quarantines each target
+  by same-directory rename with no-follow identity checks, and only then drops
+  quarantine files
+- AND typed failure, defect, or interruption after the first mutation restores
+  every removed target with exact bytes and mode, or retains a verified
+  recovery artifact without overwriting a concurrent replacement
+- AND the command emits one canonical `Completed` result line without absolute
+  paths, exceptions, environment values, or input text.
+
 #### Scenario: an approved worktree removal has no executor
 
 - WHEN an entry says `approved` for worktree removal
@@ -159,11 +174,11 @@ and a typed executor implements it.
 ### Requirement: destruction guard command has a closed interface
 
 WHEN Node.js invokes the compiled `foreman-destruction-guard` bundle, the
-command SHALL accept only `check` or `relocate-artifact`, read bounded JSON
-from stdin, and emit exactly one canonical JSON line.
+command SHALL accept only `check`, `relocate-artifact`, or `delete-tracked`,
+read bounded JSON from stdin, and emit exactly one canonical JSON line.
 
 - Exit 0 SHALL mean `Authorized` for `check` or `Completed` for
-  `relocate-artifact`.
+  `relocate-artifact` or `delete-tracked`.
 - Exit 1 SHALL mean `Denied` or a typed runtime failure.
 - Exit 64 SHALL mean invalid invocation.
 - Results SHALL contain stable identifiers and closed reason codes. They SHALL
