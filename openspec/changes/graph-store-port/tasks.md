@@ -59,6 +59,7 @@ JK-1..5. Neither is built here.
 - [x] Full conformance suite green, and wired into root tests on every local
       verify path (`packages/graph-store/src/**/*.test.ts` in root `npm test`
       and the package gate). Hosted CI wiring is not claimed here.
+- [ ] Wire the GraphStore conformance suite into hosted CI on every commit.
 - [ ] Prove a full round runs end to end with no store: gate evaluates,
       context block builds and hashes, run record complete.
 

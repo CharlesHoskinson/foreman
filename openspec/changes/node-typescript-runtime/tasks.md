@@ -68,15 +68,33 @@ below contain detailed module tasks only. They do not define release order.
       (Accepted TypeScript package and compiled CLI at `0ae1c56`.)
 - [x] Use Effect for filesystem scope, atomic publication, typed failures, and
       bounded concurrent access. Keep graph traversal algorithms pure.
+      (Effect modules: `packages/graph-store/src/files-only.ts` —
+      `Effect.acquireRelease` / `Effect.scoped` / `Context.Tag` /
+      `Layer.succeed` for scoped open and lock lifetime; `atomicWriteFile` and
+      `publishSnapshot` for atomic generation publication; `failures.ts` typed
+      `GraphStoreFailure` vocabulary; `bounds.ts` lock and concurrency bounds.
+      Pure traversal remains in `queries.ts` / `schema.ts`. Hostile proof:
+      `files-only-hostile.test.ts` — concurrent-open serialization, concurrent
+      publications without last-writer-wins, typed `publish_conflict`, inject-
+      before-CURRENT unpublished generation, short-write durable publish, and
+      immutable generation overwrite refusal.)
 - [x] Prove exact schemas, safe path handling, corruption refusal, hard-link
       refusal, deterministic generations, and concurrent-open serialization.
       (Hostile and schema tests under `packages/graph-store/src/`.)
 - [x] Convert current callers to the TypeScript entry point, run parity tests,
       then delete `skills/foreman/graph_store/*.py`.
-      (Seven modules removed by DST-0040 `tracked_delete`; product pointer is
-      the TypeScript package and `skills/foreman/runtime/dist/graph-store.js`.
-      Deferred adapter, full N2 schema freeze, ingest, and full-round work
-      remain outside this claim.)
+      (Seven modules removed by DST-0040 `tracked_delete`. Product pointer is
+      `@foreman/graph-store` and `skills/foreman/runtime/dist/graph-store.js`.
+      Root TypeScript test wiring: `packages/graph-store/src/**/*.test.ts` in
+      root `npm test`. Compiled contract commands:
+      `node skills/foreman/runtime/dist/graph-store.js contract files_only` and
+      `node skills/foreman/runtime/dist/graph-store.js contract stub
+      --expect-fail`. Residual-reference scan: no current tracked product file
+      invokes `python3 -m graph_store`, imports `graph_store`, or references a
+      live `skills/foreman/scripts/lib/graph-store.sh` (that path is absent;
+      superseded historical copies under `docs/evidence/` only). Hosted CI is
+      not claimed. Deferred adapter, full N2 schema freeze, ingest, and
+      full-round work remain outside this claim.)
 
 ## M3 — migrate launcher supervision
 
