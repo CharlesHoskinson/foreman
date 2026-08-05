@@ -255,6 +255,118 @@ describe("typed Git failures", () => {
       });
     }
   });
+
+  /**
+   * RED witness for missing cancel finalizer: Fiber.interrupt must not
+   * complete until the owned child has emitted close (cwd handle released).
+   * Fixture delays exit after SIGTERM so a fire-and-forget kill returns early
+   * while the child is still live — base without close-wait fails immediately.
+   */
+  it("Fiber interruption does not complete before owned-child close cleanup", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "foreman-git-cancel-close-"));
+    const marker = join(tmp, "started.pid");
+    const fixture = join(tmp, "block-close.mjs");
+    const exitDelayMs = 250;
+    writeFileSync(
+      fixture,
+      [
+        `import { writeFileSync } from "node:fs";`,
+        `writeFileSync(${JSON.stringify(marker)}, String(process.pid) + "\\n");`,
+        `const stop = () => {`,
+        `  setTimeout(() => process.exit(1), ${exitDelayMs});`,
+        `};`,
+        `process.on("SIGTERM", stop);`,
+        `process.on("SIGINT", stop);`,
+        `setInterval(() => {}, 1 << 30);`,
+        ``,
+      ].join("\n"),
+      "utf8",
+    );
+    bindGitCommandForTest({
+      executable: process.execPath,
+      prefixArgs: [fixture],
+    });
+    try {
+      const program = Effect.gen(function* () {
+        const g = yield* ArchitectureGit;
+        return yield* g.listPaths(tmp, "HEAD");
+      }).pipe(Effect.provide(liveArchitectureGit));
+
+      const fiber = Effect.runFork(program);
+
+      let pid: number | null = null;
+      const startDeadline = Date.now() + 5_000;
+      while (Date.now() < startDeadline) {
+        if (existsSync(marker)) {
+          const text = readFileSync(marker, "utf8").trim();
+          const n = Number(text);
+          if (Number.isInteger(n) && n > 1) {
+            pid = n;
+            break;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      assert.ok(pid !== null && pid > 1, "child never wrote start marker");
+      assert.doesNotThrow(() => process.kill(pid!, 0));
+
+      const t0 = Date.now();
+      await Effect.runPromise(Fiber.interrupt(fiber));
+      const interruptMs = Date.now() - t0;
+      const exit = await Effect.runPromise(Fiber.await(fiber));
+      assert.equal(exit._tag, "Failure", "expected fiber Failure on interrupt");
+
+      // Immediate: finalizer must have observed close (child fully gone).
+      // Without wait-for-close, SIGTERM + delayed exit leaves the child live.
+      let stillAlive = true;
+      try {
+        process.kill(pid!, 0);
+      } catch {
+        stillAlive = false;
+      }
+      assert.equal(
+        stillAlive,
+        false,
+        "interrupt completed before owned child close (child still live)",
+      );
+      // Interrupt path must have waited at least the fixture delay (POSIX).
+      // Windows may terminate without delivering SIGTERM; still require close.
+      if (process.platform !== "win32") {
+        assert.ok(
+          interruptMs >= exitDelayMs - 50,
+          `interrupt returned too early (${interruptMs}ms < ~${exitDelayMs}ms close delay)`,
+        );
+      }
+      assert.ok(
+        interruptMs < 5_000,
+        `interrupt blocked too long (${interruptMs}ms)`,
+      );
+    } finally {
+      bindGitCommandForTest(null);
+      try {
+        if (existsSync(marker)) {
+          const n = Number(readFileSync(marker, "utf8").trim());
+          if (Number.isInteger(n) && n > 1) {
+            try {
+              process.kill(n, "SIGKILL");
+            } catch {
+              // already dead
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+      // Windows cleanup assertion: cwd handle must be released by close wait
+      // so recursive rm succeeds (same failure mode as hosted run 30972467450).
+      rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+      });
+    }
+  });
 });
 
 describe("extensionless executable CLI", () => {

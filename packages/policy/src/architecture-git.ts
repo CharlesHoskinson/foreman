@@ -44,6 +44,11 @@ import {
 
 const GIT_TIMEOUT_MS = 15_000;
 /**
+ * Upper bound for observing owned-child `close` after cancel. A broken child
+ * must not block Fiber interruption forever. Short relative to GIT_TIMEOUT_MS.
+ */
+const OWNED_CHILD_CANCEL_WAIT_MS = 5_000;
+/**
  * Blob bound for runtime bundles (may exceed source-text MAX_INPUT_BYTES).
  * Source and adapter classification still use MAX_INPUT_BYTES after load.
  */
@@ -170,33 +175,72 @@ export function currentGitCommandBinding(): GitCommandBinding {
 }
 
 /**
+ * Abort/terminate only the owned child, then observe `close` (or the wait
+ * bound). Register close observation before kill so a fast exit cannot race
+ * the listener. Does not resume the outer Effect — interrupt ownership stays
+ * with Effect.
+ */
+function cancelOwnedGitChild(
+  child: ChildProcess,
+  controller: AbortController,
+  alreadyClosed: () => boolean,
+  onClosed: (cb: () => void) => void,
+): Effect.Effect<void> {
+  return Effect.async<void>((resume) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resume(Effect.void);
+    };
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
+    // Register waiter first, then re-check: close may have fired between
+    // spawn and this finalizer (kill-before-listener / late-listener race).
+    onClosed(() => {
+      clearTimeout(timer);
+      finish();
+    });
+    if (alreadyClosed()) {
+      clearTimeout(timer);
+      finish();
+    } else {
+      try {
+        controller.abort();
+      } catch {
+        // ignore
+      }
+      if (child.pid !== undefined && !child.killed) {
+        try {
+          child.kill("SIGTERM");
+        } catch {
+          // ignore — already reaped or never started
+        }
+      }
+    }
+  });
+}
+
+/**
  * Run one Git child with AbortSignal, bounded stdout/stderr, and timeout.
- * Cleanup on Effect interruption aborts the child. Never returns raw stderr
- * to callers — only closed ArchitectureGitError reasons.
+ * On Effect interruption, a finalizer aborts/terminates only the owned child
+ * and observes its `close` event (bounded) before completing — so Windows
+ * working-directory handles are released before callers rm the cwd.
+ * Never returns raw stderr to callers — only closed ArchitectureGitError
+ * reasons.
  */
 function runGit(
   repoRoot: string,
   args: string[],
   maxBytes: number,
 ): Effect.Effect<GitRunOk, ArchitectureGitError> {
-  return Effect.async<GitRunOk, ArchitectureGitError>((resume, signal) => {
+  return Effect.async<GitRunOk, ArchitectureGitError>((resume) => {
     const controller = new AbortController();
     let settled = false;
-    let child: ChildProcess | null = null;
+    let child: ChildProcess | undefined;
+    let childClosed = false;
+    let closeNotify: (() => void) | undefined;
     const binding = gitCommandBinding;
     const argv = [...binding.prefixArgs, ...gitArgv(args)];
-
-    const onParentAbort = () => {
-      controller.abort();
-      if (child && !child.killed) {
-        try {
-          child.kill("SIGTERM");
-        } catch {
-          // ignore
-        }
-      }
-    };
-    signal.addEventListener("abort", onParentAbort, { once: true });
 
     const timer = setTimeout(() => {
       controller.abort();
@@ -206,7 +250,6 @@ function runGit(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      signal.removeEventListener("abort", onParentAbort);
       resume(effect);
     };
 
@@ -229,7 +272,7 @@ function runGit(
           const errBuf = Buffer.isBuffer(stderr)
             ? stderr
             : Buffer.from(stderr ?? "");
-          if (controller.signal.aborted || signal.aborted) {
+          if (controller.signal.aborted) {
             finish(Effect.fail(new ArchitectureGitError("git_failure")));
             return;
           }
@@ -272,7 +315,30 @@ function runGit(
       );
     } catch {
       finish(Effect.fail(new ArchitectureGitError("git_failure")));
+      return;
     }
+
+    const owned = child;
+    // Close listener registered at spawn — before any cancel kill path.
+    owned.once("close", () => {
+      childClosed = true;
+      closeNotify?.();
+    });
+
+    return Effect.suspend(() => {
+      if (settled) return Effect.void;
+      // Claim settlement so the exec callback cannot resume after interrupt.
+      settled = true;
+      clearTimeout(timer);
+      return cancelOwnedGitChild(
+        owned,
+        controller,
+        () => childClosed,
+        (cb) => {
+          closeNotify = cb;
+        },
+      );
+    });
   });
 }
 
