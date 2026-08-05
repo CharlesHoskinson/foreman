@@ -15622,6 +15622,7 @@ import {
   chmodSync,
   closeSync as closeSync2,
   constants as fsConstants2,
+  fchmodSync,
   fstatSync as fstatSync2,
   fsyncSync,
   linkSync,
@@ -16468,6 +16469,12 @@ function renderCredentialProfileJson(result) {
 }
 var CredentialProfileFs = class extends Context_exports.Tag("CredentialProfileFs")() {
 };
+var WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES = /* @__PURE__ */ new Set(["ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL", "EISDIR"]);
+function isIgnorableParentDirSyncError(code, platform = process.platform) {
+  if (platform !== "win32") return false;
+  if (code === void 0) return false;
+  return WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES.has(code);
+}
 var raceHook;
 function classifyFromStats(st) {
   if (st.isSymbolicLink()) return "symlink";
@@ -16567,18 +16574,6 @@ function cleanupTemp(tmpPath) {
   } catch {
   }
 }
-function applyAndVerifyMode(path, expected) {
-  try {
-    chmodSync(path, expected);
-  } catch {
-    if (IS_POSIX) return "failed";
-    return "ok";
-  }
-  if (!IS_POSIX) return "ok";
-  const bits = liveModeBits(path);
-  if (bits === null || bits !== expected) return "failed";
-  return "ok";
-}
 function liveWriteAuthorityExclusive(finalPath, body) {
   const dir = dirname(finalPath);
   const tmpName = `.profile.${randomBytes(16).toString("hex")}.tmp`;
@@ -16600,13 +16595,28 @@ function liveWriteAuthorityExclusive(finalPath, body) {
       const n = writeSync(fd, buf, offset, buf.byteLength - offset);
       offset += n;
     }
+    try {
+      fchmodSync(fd, 384);
+    } catch {
+      if (IS_POSIX) {
+        closeQuiet(fd);
+        fd = void 0;
+        cleanupTemp(tmpPath);
+        return { _tag: "WriteFailed" };
+      }
+    }
+    if (IS_POSIX) {
+      const openedMode = fstatSync2(fd).mode & 511;
+      if (openedMode !== 384) {
+        closeQuiet(fd);
+        fd = void 0;
+        cleanupTemp(tmpPath);
+        return { _tag: "WriteFailed" };
+      }
+    }
     fsyncSync(fd);
     closeSync2(fd);
     fd = void 0;
-    if (applyAndVerifyMode(tmpPath, 384) === "failed") {
-      cleanupTemp(tmpPath);
-      return { _tag: "WriteFailed" };
-    }
     try {
       if (raceHook?.forceExclusiveLinkCode !== void 0) {
         const err = new Error(
@@ -16625,15 +16635,13 @@ function liveWriteAuthorityExclusive(finalPath, body) {
       return { _tag: "WriteFailed" };
     }
     cleanupTemp(tmpPath);
-    if (applyAndVerifyMode(finalPath, 384) === "failed") {
-      return { _tag: "WriteFailed" };
-    }
     try {
-      if (raceHook?.forceParentDirSyncFailure === true) {
+      const forcedCode = raceHook?.forceParentDirSyncCode ?? (raceHook?.forceParentDirSyncFailure === true ? "EIO" : void 0);
+      if (forcedCode !== void 0) {
         const err = new Error(
           "forced parent directory sync failure"
         );
-        err.code = "EIO";
+        err.code = forcedCode;
         throw err;
       }
       const dirFd = openSync2(dir, fsConstants2.O_RDONLY);
@@ -16642,8 +16650,9 @@ function liveWriteAuthorityExclusive(finalPath, body) {
       } finally {
         closeSync2(dirFd);
       }
-    } catch {
-      if (IS_POSIX) {
+    } catch (syncErr) {
+      const code = syncErr.code;
+      if (!isIgnorableParentDirSyncError(code)) {
         return { _tag: "WriteFailed" };
       }
     }
@@ -16821,18 +16830,6 @@ function checkComponent(fs, path, opts) {
   if (kind === "directory" || kind === "other") return "authority_invalid";
   return null;
 }
-function applyAndVerifyDirMode(fs, path) {
-  try {
-    fs.chmod(path, 448);
-  } catch {
-    if (IS_POSIX) return "write_failed";
-    return null;
-  }
-  if (!IS_POSIX) return null;
-  const bits = fs.modeBits(path);
-  if (bits === null || bits !== 448) return "write_failed";
-  return null;
-}
 function verifyExistingDirMode(fs, path) {
   if (!IS_POSIX) return null;
   const bits = fs.modeBits(path);
@@ -16848,14 +16845,24 @@ function ensureOwnerDir(fs, path) {
     return verifyExistingDirMode(fs, path);
   }
   try {
-    fs.mkdirp(path, 448);
+    fs.mkdir(path, 448);
   } catch {
     return "write_failed";
   }
   const after3 = fs.classify(path);
   if (after3 === "symlink") return "linked_path";
   if (after3 !== "directory") return "write_failed";
-  return applyAndVerifyDirMode(fs, path);
+  if (!IS_POSIX) return null;
+  const bits = fs.modeBits(path);
+  if (bits === null) return "unreadable";
+  if (bits !== 448) return "write_failed";
+  return null;
+}
+function finalSuccessFilesystemGate(fs, paths, ids3, worktreeRoot, layoutDirs, authorityFile) {
+  const modeErr = verifySafeProfileModes(fs, layoutDirs, authorityFile);
+  if (modeErr !== null) return modeErr;
+  raceHook?.afterSafeModeVerify?.();
+  return recheckBeforeAuthorityGate(fs, paths, ids3, worktreeRoot);
 }
 function successResult(tag, stateRoot, record) {
   const configRoot = absoluteConfigRoot(
@@ -16991,16 +16998,14 @@ function initProfileSync(input, fs) {
       return refuse("authority_conflict");
     }
     {
-      const err = recheckBeforeAuthorityGate(
+      const err = finalSuccessFilesystemGate(
         fs,
         layoutPaths,
         layoutIds,
-        worktreeRoot
+        worktreeRoot,
+        layoutDirList,
+        jsonPath
       );
-      if (err !== null) return refuse(err);
-    }
-    {
-      const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
       if (err !== null) return refuse(err);
     }
     return successResult("Ready", stateRoot, existing.record);
@@ -17039,16 +17044,14 @@ function initProfileSync(input, fs) {
     return refuse("authority_conflict");
   }
   {
-    const err = recheckBeforeAuthorityGate(
+    const err = finalSuccessFilesystemGate(
       fs,
       layoutPaths,
       layoutIds,
-      worktreeRoot
+      worktreeRoot,
+      layoutDirList,
+      jsonPath
     );
-    if (err !== null) return refuse(err);
-  }
-  {
-    const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
     if (err !== null) return refuse(err);
   }
   if (written._tag === "Exists") {
@@ -17127,16 +17130,14 @@ function resolveProfileSync(input, fs) {
     return refuse("authority_conflict");
   }
   {
-    const err = recheckBeforeAuthorityGate(
+    const err = finalSuccessFilesystemGate(
       fs,
       layoutPaths,
       layoutIds,
-      worktreeRoot
+      worktreeRoot,
+      layoutDirList,
+      jsonPath
     );
-    if (err !== null) return refuse(err);
-  }
-  {
-    const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
     if (err !== null) return refuse(err);
   }
   return successResult("Ready", stateRoot, existing.record);

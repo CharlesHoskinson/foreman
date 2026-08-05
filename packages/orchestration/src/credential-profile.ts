@@ -12,6 +12,7 @@ import {
   chmodSync,
   closeSync,
   constants as fsConstants,
+  fchmodSync,
   fstatSync,
   fsyncSync,
   linkSync,
@@ -488,12 +489,48 @@ export type CredentialProfileRaceHook = {
    */
   readonly forceExclusiveLinkCode?: string;
   /**
-   * When set, parent-directory open/fsync after publish fails. On POSIX this
-   * must surface as WriteFailed (not Initialized). Windows ignores unsupported
-   * directory sync only.
+   * When set, parent-directory open/fsync after publish fails with code EIO
+   * (or `forceParentDirSyncCode` when provided). Classification uses
+   * `isIgnorableParentDirSyncError`.
    */
   readonly forceParentDirSyncFailure?: boolean;
+  /**
+   * Errno code for a forced parent-directory sync failure. When set alone,
+   * forces the failure. When set with `forceParentDirSyncFailure`, overrides
+   * the default EIO code.
+   */
+  readonly forceParentDirSyncCode?: string;
+  /**
+   * After safe-mode verification and before the final physical
+   * containment / layout-identity gate (tests only).
+   */
+  readonly afterSafeModeVerify?: () => void;
 };
+
+/**
+ * Closed set of Windows errno codes that mean parent-directory open/fsync is
+ * unsupported on the host. Only these may be ignored after authority publish.
+ * `EIO`, `EACCES`, `EPERM`, and every unknown code MUST surface as WriteFailed.
+ */
+export const WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES: ReadonlySet<string> =
+  new Set(["ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL", "EISDIR"]);
+
+/**
+ * Whether a parent-directory open/fsync error may be ignored after exclusive
+ * authority publication.
+ *
+ * - POSIX: never ignore (any failure is WriteFailed).
+ * - Windows: ignore only the closed unsupported-code set. `EIO`, `EACCES`,
+ *   `EPERM`, `undefined`, and unknown codes are never ignored.
+ */
+export function isIgnorableParentDirSyncError(
+  code: string | undefined,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform !== "win32") return false;
+  if (code === undefined) return false;
+  return WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES.has(code);
+}
 
 let raceHook: CredentialProfileRaceHook | undefined;
 
@@ -650,29 +687,13 @@ function cleanupTemp(tmpPath: string): void {
 }
 
 /**
- * Apply owner-only mode. On POSIX, chmod failure or a resulting mode other
- * than expected is WriteFailed-class (caller maps). Windows is best-effort.
- */
-function applyAndVerifyMode(
-  path: string,
-  expected: number,
-): "ok" | "failed" {
-  try {
-    chmodSync(path, expected);
-  } catch {
-    if (IS_POSIX) return "failed";
-    return "ok";
-  }
-  if (!IS_POSIX) return "ok";
-  const bits = liveModeBits(path);
-  if (bits === null || bits !== expected) return "failed";
-  return "ok";
-}
-
-/**
  * Live exclusive authority publish. Hard-link only: an unsupported or failed
  * exclusive hard-link returns WriteFailed. Never falls back to rename (a
  * check-then-rename race can overwrite a conflicting authority file).
+ *
+ * Mode `0600` is set and verified on the still-open temporary-file descriptor
+ * before fsync and hard-link publication. The hard link keeps that inode mode.
+ * Path-based chmod is never applied to the final authority path after publish.
  */
 export function liveWriteAuthorityExclusive(
   finalPath: string,
@@ -700,15 +721,36 @@ export function liveWriteAuthorityExclusive(
       const n = writeSync(fd, buf, offset, buf.byteLength - offset);
       offset += n;
     }
+
+    // Owner-only mode through the open temp descriptor (not path-based chmod
+    // on the published final path). Hard link preserves this inode mode.
+    try {
+      fchmodSync(fd, 0o600);
+    } catch {
+      if (IS_POSIX) {
+        closeQuiet(fd);
+        fd = undefined;
+        cleanupTemp(tmpPath);
+        return { _tag: "WriteFailed" };
+      }
+      // Windows: best-effort mode bits.
+    }
+    if (IS_POSIX) {
+      const openedMode = fstatSync(fd).mode & 0o777;
+      if (openedMode !== 0o600) {
+        closeQuiet(fd);
+        fd = undefined;
+        cleanupTemp(tmpPath);
+        return { _tag: "WriteFailed" };
+      }
+    }
+
     fsyncSync(fd);
     closeSync(fd);
     fd = undefined;
-    if (applyAndVerifyMode(tmpPath, 0o600) === "failed") {
-      cleanupTemp(tmpPath);
-      return { _tag: "WriteFailed" };
-    }
 
     // Exclusive publish: hard-link then unlink temp. No rename fallback.
+    // Do not chmod the final path — the hard-linked inode already carries 0600.
     try {
       if (raceHook?.forceExclusiveLinkCode !== undefined) {
         const err = new Error(
@@ -727,20 +769,20 @@ export function liveWriteAuthorityExclusive(
       return { _tag: "WriteFailed" };
     }
     cleanupTemp(tmpPath);
-    if (applyAndVerifyMode(finalPath, 0o600) === "failed") {
-      // Authority published but mode contract failed — refuse; do not leave
-      // a success path. Caller treats WriteFailed; concurrent readers may
-      // still see the file (conflict/Ready on re-read path). Prefer fail closed.
-      return { _tag: "WriteFailed" };
-    }
-    // Parent-directory open + fsync after publish. On POSIX a real failure is
-    // WriteFailed. Ignore only the Windows unsupported-directory-sync case.
+
+    // Parent-directory open + fsync after publish.
+    // POSIX: any failure is WriteFailed.
+    // Windows: ignore only the closed unsupported-code set; EIO/EACCES/EPERM
+    // and unknown codes are WriteFailed.
     try {
-      if (raceHook?.forceParentDirSyncFailure === true) {
+      const forcedCode =
+        raceHook?.forceParentDirSyncCode ??
+        (raceHook?.forceParentDirSyncFailure === true ? "EIO" : undefined);
+      if (forcedCode !== undefined) {
         const err = new Error(
           "forced parent directory sync failure",
         ) as NodeJS.ErrnoException;
-        err.code = "EIO";
+        err.code = forcedCode;
         throw err;
       }
       const dirFd = openSync(dir, fsConstants.O_RDONLY);
@@ -749,11 +791,11 @@ export function liveWriteAuthorityExclusive(
       } finally {
         closeSync(dirFd);
       }
-    } catch {
-      if (IS_POSIX) {
+    } catch (syncErr) {
+      const code = (syncErr as NodeJS.ErrnoException).code;
+      if (!isIgnorableParentDirSyncError(code)) {
         return { _tag: "WriteFailed" };
       }
-      // Windows: directory open/fsync is often unsupported — ignore only here.
     }
     return { _tag: "Ok" };
   } catch {
@@ -1065,27 +1107,6 @@ function checkComponent(
 }
 
 /**
- * Apply owner-only directory mode 0700 after creation. On POSIX, chmod
- * failure or a resulting mode other than 0700 is write_failed. Windows is
- * best-effort.
- */
-function applyAndVerifyDirMode(
-  fs: CredentialProfileFsShape,
-  path: string,
-): CredentialProfileRefusalReason | null {
-  try {
-    fs.chmod(path, 0o700);
-  } catch {
-    if (IS_POSIX) return "write_failed";
-    return null;
-  }
-  if (!IS_POSIX) return null;
-  const bits = fs.modeBits(path);
-  if (bits === null || bits !== 0o700) return "write_failed";
-  return null;
-}
-
-/**
  * Verify an existing layout directory is 0700 on POSIX. Does not chmod to
  * "fix" an unsafe profile — refuse with authority_invalid.
  */
@@ -1100,6 +1121,15 @@ function verifyExistingDirMode(
   return null;
 }
 
+/**
+ * Ensure one layout directory component.
+ *
+ * - Existing directory: verify `0700` on POSIX and refuse if unsafe. Never
+ *   path-based chmod an existing layout directory.
+ * - Missing: create non-recursively with mode `0700`, then lstat and verify.
+ *   Never path-based chmod after create (umask-stripped modes are write_failed).
+ * Parents must already exist; callers walk the layout top-down.
+ */
 function ensureOwnerDir(
   fs: CredentialProfileFsShape,
   path: string,
@@ -1108,19 +1138,48 @@ function ensureOwnerDir(
   if (kind === "symlink") return "linked_path";
   if (kind === "file" || kind === "other") return "authority_invalid";
   if (kind === "directory") {
-    // Existing layout: verify owner-only mode; do not rewrite permissions.
     return verifyExistingDirMode(fs, path);
   }
+  // Missing: non-recursive create with owner-only mode.
   try {
-    fs.mkdirp(path, 0o700);
+    fs.mkdir(path, 0o700);
   } catch {
     return "write_failed";
   }
   const after = fs.classify(path);
   if (after === "symlink") return "linked_path";
   if (after !== "directory") return "write_failed";
-  // Fresh create: chmod through umask and verify 0700.
-  return applyAndVerifyDirMode(fs, path);
+  // Verify mode without path-based chmod. Windows is best-effort.
+  if (!IS_POSIX) return null;
+  const bits = fs.modeBits(path);
+  if (bits === null) return "unreadable";
+  if (bits !== 0o700) return "write_failed";
+  return null;
+}
+
+/**
+ * Last filesystem gates before Ready/Initialized: verify safe modes, then
+ * recheck physical containment and layout identities. A race that retargets
+ * a linked ancestor after mode verification must still be refused.
+ */
+function finalSuccessFilesystemGate(
+  fs: CredentialProfileFsShape,
+  paths: {
+    readonly stateRoot: string;
+    readonly profilesRoot: string;
+    readonly authorityDir: string;
+    readonly homesDir: string;
+    readonly vendorHome: string;
+  },
+  ids: LayoutIdentities,
+  worktreeRoot: string,
+  layoutDirs: readonly string[],
+  authorityFile: string,
+): CredentialProfileRefusalReason | null {
+  const modeErr = verifySafeProfileModes(fs, layoutDirs, authorityFile);
+  if (modeErr !== null) return modeErr;
+  raceHook?.afterSafeModeVerify?.();
+  return recheckBeforeAuthorityGate(fs, paths, ids, worktreeRoot);
 }
 
 function successResult(
@@ -1299,18 +1358,16 @@ function initProfileSync(
     if (!recordsEqualExact(existing.record, expected)) {
       return refuse("authority_conflict");
     }
-    // Recheck containment + identities + safe modes before Ready success.
+    // Safe modes, then final physical containment + layout identity gate.
     {
-      const err = recheckBeforeAuthorityGate(
+      const err = finalSuccessFilesystemGate(
         fs,
         layoutPaths,
         layoutIds,
         worktreeRoot,
+        layoutDirList,
+        jsonPath,
       );
-      if (err !== null) return refuse(err);
-    }
-    {
-      const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
       if (err !== null) return refuse(err);
     }
     return successResult("Ready", stateRoot, existing.record);
@@ -1356,18 +1413,16 @@ function initProfileSync(
   if (!recordsEqualExact(after.record, expected)) {
     return refuse("authority_conflict");
   }
-  // Recheck containment + identities + safe modes before success.
+  // Safe modes, then final physical containment + layout identity gate.
   {
-    const err = recheckBeforeAuthorityGate(
+    const err = finalSuccessFilesystemGate(
       fs,
       layoutPaths,
       layoutIds,
       worktreeRoot,
+      layoutDirList,
+      jsonPath,
     );
-    if (err !== null) return refuse(err);
-  }
-  {
-    const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
     if (err !== null) return refuse(err);
   }
   if (written._tag === "Exists") {
@@ -1457,17 +1512,16 @@ function resolveProfileSync(
     // Wrong vendor or relative root → conflict; wrong decode already invalid.
     return refuse("authority_conflict");
   }
+  // Safe modes, then final physical containment + layout identity gate.
   {
-    const err = recheckBeforeAuthorityGate(
+    const err = finalSuccessFilesystemGate(
       fs,
       layoutPaths,
       layoutIds,
       worktreeRoot,
+      layoutDirList,
+      jsonPath,
     );
-    if (err !== null) return refuse(err);
-  }
-  {
-    const err = verifySafeProfileModes(fs, layoutDirList, jsonPath);
     if (err !== null) return refuse(err);
   }
   return successResult("Ready", stateRoot, existing.record);

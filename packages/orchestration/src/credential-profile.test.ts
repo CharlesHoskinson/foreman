@@ -37,6 +37,7 @@ import {
   isCredentialProfileResult,
   isCredentialVendor,
   isEqualOrDescendant,
+  isIgnorableParentDirSyncError,
   isValidProfileId,
   liveCredentialProfile,
   liveCredentialProfileFs,
@@ -54,6 +55,7 @@ import {
   resolveProfile,
   runCredentialProfileCli,
   setCredentialProfileRaceHook,
+  WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES,
   type CredentialProfileFsShape,
   type CredentialProfileInput,
   type CredentialProfileResult,
@@ -1255,7 +1257,8 @@ describe("identity change, write failures, concurrency", () => {
 
   it("POSIX parent-directory sync failure after publish is write_failed not Initialized", () => {
     if (IS_WIN) {
-      // Windows ignores unsupported directory sync; this contract is POSIX.
+      // Windows ignores only unsupported directory sync codes; EIO is fatal.
+      // This live seam is exercised on POSIX where every failure is fatal.
       return;
     }
     const { root, stateRoot, worktreeRoot } = tempPair("parentsync");
@@ -1274,6 +1277,226 @@ describe("identity change, write failures, concurrency", () => {
     } finally {
       setCredentialProfileRaceHook(undefined);
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("live-seam: forced EIO parent sync is WriteFailed via exclusive writer", () => {
+    const { root, stateRoot } = tempPair("parentsync-eio");
+    try {
+      const dir = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const finalPath = join(dir, "profile.json");
+      setCredentialProfileRaceHook({ forceParentDirSyncCode: "EIO" });
+      const written = liveWriteAuthorityExclusive(
+        finalPath,
+        Buffer.from('{"schemaVersion":1}\n', "utf8"),
+      );
+      // EIO is never ignorable on any platform.
+      assert.deepEqual(written, { _tag: "WriteFailed" });
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("live-seam: forced EACCES parent sync is WriteFailed via exclusive writer", () => {
+    const { root, stateRoot } = tempPair("parentsync-eacces");
+    try {
+      const dir = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const finalPath = join(dir, "profile.json");
+      setCredentialProfileRaceHook({ forceParentDirSyncCode: "EACCES" });
+      const written = liveWriteAuthorityExclusive(
+        finalPath,
+        Buffer.from('{"schemaVersion":1}\n', "utf8"),
+      );
+      assert.deepEqual(written, { _tag: "WriteFailed" });
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("live-seam: forced EPERM parent sync is WriteFailed via exclusive writer", () => {
+    const { root, stateRoot } = tempPair("parentsync-eperm");
+    try {
+      const dir = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const finalPath = join(dir, "profile.json");
+      setCredentialProfileRaceHook({ forceParentDirSyncCode: "EPERM" });
+      const written = liveWriteAuthorityExclusive(
+        finalPath,
+        Buffer.from('{"schemaVersion":1}\n', "utf8"),
+      );
+      assert.deepEqual(written, { _tag: "WriteFailed" });
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("live-seam: forced unknown parent sync code is WriteFailed via exclusive writer", () => {
+    const { root, stateRoot } = tempPair("parentsync-unk");
+    try {
+      const dir = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const finalPath = join(dir, "profile.json");
+      setCredentialProfileRaceHook({ forceParentDirSyncCode: "EFOO" });
+      const written = liveWriteAuthorityExclusive(
+        finalPath,
+        Buffer.from('{"schemaVersion":1}\n', "utf8"),
+      );
+      assert.deepEqual(written, { _tag: "WriteFailed" });
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("authority publish sets 0600 via open temp descriptor (no final-path chmod)", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot } = tempPair("fchmod");
+    try {
+      const dir = join(stateRoot, "credential-profiles", "p");
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const finalPath = join(dir, "profile.json");
+      const body = Buffer.from(
+        renderCredentialProfileRecordFile(
+          makeCredentialProfileRecord("p", "grok"),
+        ),
+        "utf8",
+      );
+      const written = liveWriteAuthorityExclusive(finalPath, body);
+      assert.deepEqual(written, { _tag: "Ok" });
+      // Hard-linked inode keeps the fchmod'd mode from the open temp fd.
+      assert.equal(lstatSync(finalPath).mode & 0o777, 0o600);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("init never path-chmods layout or authority through the FS service", () => {
+    const { root, stateRoot, worktreeRoot } = tempPair("nochmod");
+    try {
+      const chmodCalls: Array<{ path: string; mode: number }> = [];
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        chmod: (path, mode) => {
+          chmodCalls.push({ path, mode });
+          liveCredentialProfileFs.chmod(path, mode);
+        },
+      };
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.equal(r._tag, "Initialized", JSON.stringify(r));
+      // Closure contract: no path-based chmod on existing dirs, after create,
+      // or on the published authority path.
+      assert.deepEqual(chmodCalls, []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("final gate after safe-mode refuses identity_changed before Ready", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("finalgate");
+    try {
+      const input: CredentialProfileInput = {
+        stateRoot,
+        worktreeRoot,
+        profileId: "p",
+        vendor: "grok",
+      };
+      assert.equal(runInit(input)._tag, "Initialized");
+
+      const homes = join(stateRoot, "credential-profiles", "p", "homes");
+      setCredentialProfileRaceHook({
+        afterSafeModeVerify: () => {
+          rmSync(homes, { recursive: true, force: true });
+          const burn = join(root, "burn-final");
+          mkdirSync(burn, { recursive: true });
+          rmSync(burn, { recursive: true, force: true });
+          mkdirSync(homes, { recursive: true, mode: 0o700 });
+          mkdirSync(join(homes, "grok"), { recursive: true, mode: 0o700 });
+        },
+      });
+      const r = runResolve(input);
+      assert.deepEqual(
+        r,
+        { _tag: "Refused", reason: "identity_changed" },
+        JSON.stringify(r),
+      );
+    } finally {
+      setCredentialProfileRaceHook(undefined);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Parent-directory sync error classifier (pure)
+// ---------------------------------------------------------------------------
+
+describe("isIgnorableParentDirSyncError", () => {
+  it("POSIX never ignores any code including unsupported-looking codes", () => {
+    for (const code of [
+      undefined,
+      "EIO",
+      "EACCES",
+      "EPERM",
+      "ENOTSUP",
+      "EOPNOTSUPP",
+      "ENOSYS",
+      "EINVAL",
+      "EISDIR",
+      "EFOO",
+      "",
+    ] as const) {
+      assert.equal(
+        isIgnorableParentDirSyncError(code, "linux"),
+        false,
+        `linux ${String(code)}`,
+      );
+      assert.equal(
+        isIgnorableParentDirSyncError(code, "darwin"),
+        false,
+        `darwin ${String(code)}`,
+      );
+    }
+  });
+
+  it("Windows ignores only the closed unsupported set", () => {
+    for (const code of WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES) {
+      assert.equal(
+        isIgnorableParentDirSyncError(code, "win32"),
+        true,
+        `win32 ignore ${code}`,
+      );
+    }
+  });
+
+  it("Windows WriteFailed for EIO, EACCES, EPERM, unknown, and undefined", () => {
+    for (const code of [
+      undefined,
+      "EIO",
+      "EACCES",
+      "EPERM",
+      "EFOO",
+      "ENOENT",
+      "",
+    ] as const) {
+      assert.equal(
+        isIgnorableParentDirSyncError(code, "win32"),
+        false,
+        `win32 refuse ${String(code)}`,
+      );
     }
   });
 });
@@ -1340,6 +1563,44 @@ describe("POSIX safe modes before Ready", () => {
         _tag: "Refused",
         reason: "authority_invalid",
       });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses existing unsafe directory without rewriting mode via chmod", () => {
+    if (IS_WIN) return;
+    const { root, stateRoot, worktreeRoot } = tempPair("nochmod-exist");
+    try {
+      const profiles = join(stateRoot, "credential-profiles");
+      mkdirSync(profiles, { recursive: true, mode: 0o700 });
+      chmodSync(profiles, 0o755);
+      assert.equal(lstatSync(profiles).mode & 0o777, 0o755);
+
+      const chmodCalls: string[] = [];
+      const fs: CredentialProfileFsShape = {
+        ...liveCredentialProfileFs,
+        chmod: (path, mode) => {
+          chmodCalls.push(path);
+          liveCredentialProfileFs.chmod(path, mode);
+        },
+      };
+      const r = runInit(
+        {
+          stateRoot,
+          worktreeRoot,
+          profileId: "p",
+          vendor: "grok",
+        },
+        fs,
+      );
+      assert.deepEqual(r, {
+        _tag: "Refused",
+        reason: "authority_invalid",
+      });
+      // Must not "fix" the existing directory with path-based chmod.
+      assert.deepEqual(chmodCalls, []);
+      assert.equal(lstatSync(profiles).mode & 0o777, 0o755);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
