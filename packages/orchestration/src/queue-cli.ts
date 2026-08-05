@@ -2,6 +2,9 @@
  * CLI argv parse and dispatch for lane-queue.
  */
 
+import { canonicalize, isSha256Hex, sha256Hex } from "@foreman/core";
+import { randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 import { Effect } from "effect";
 import {
   cmdAdd,
@@ -19,13 +22,34 @@ import type {
   QueueIo,
   Sleeper,
 } from "./queue-services.js";
+import {
+  EndstopLedger,
+  makeLiveEndstopLedgerLayer,
+} from "./execution-ledger.js";
+import {
+  executionActionKinds,
+  type ExecutionActionKind,
+} from "./execution-terminal-policy.js";
 
 const USAGE =
-  "usage: lane-queue.sh ensure|add GROUP -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+  "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+
+export type QueueEndstopAdmission = {
+  readonly stateRoot: string;
+  readonly contractId: string;
+  readonly contractSha256: string;
+  readonly action: ExecutionActionKind;
+  readonly candidateSha256: string;
+};
 
 export type ParsedCommand =
   | { readonly kind: "ensure" }
-  | { readonly kind: "add"; readonly group: string; readonly cmd: readonly string[] }
+  | {
+      readonly kind: "add";
+      readonly group: string;
+      readonly endstop: QueueEndstopAdmission;
+      readonly cmd: readonly string[];
+    }
   | { readonly kind: "status"; readonly taskId: string | undefined }
   | { readonly kind: "kill"; readonly taskId: string }
   | { readonly kind: "usage"; readonly message: string };
@@ -66,21 +90,45 @@ export function parseQueueArgv(argv: readonly string[]): ParsedCommand {
       return { kind: "ensure" };
     case "add": {
       const group = args[1];
-      const dash = args[2];
-      if (group === undefined || dash !== "--") {
-        return {
-          kind: "usage",
-          message: "usage: lane-queue.sh add GROUP -- CMD [ARGS...]",
-        };
+      const stateRoot = args[3];
+      const contractId = args[5];
+      const contractSha256 = args[7];
+      const action = args[9];
+      const candidateSha256 = args[11];
+      const valid =
+        group !== undefined &&
+        args[2] === "--endstop-state-root" &&
+        typeof stateRoot === "string" &&
+        isAbsolute(stateRoot) &&
+        args[4] === "--endstop-contract-id" &&
+        typeof contractId === "string" &&
+        contractId.length > 0 &&
+        args[6] === "--endstop-contract-sha" &&
+        typeof contractSha256 === "string" &&
+        isSha256Hex(contractSha256) &&
+        args[8] === "--endstop-action" &&
+        typeof action === "string" &&
+        executionActionKinds.includes(action as ExecutionActionKind) &&
+        args[10] === "--endstop-candidate-sha" &&
+        typeof candidateSha256 === "string" &&
+        isSha256Hex(candidateSha256) &&
+        args[12] === "--";
+      const cmd = args.slice(13);
+      if (!valid || cmd.length === 0) {
+        return { kind: "usage", message: USAGE };
       }
-      const cmd = args.slice(3);
-      if (cmd.length === 0) {
-        return {
-          kind: "usage",
-          message: "usage: lane-queue.sh add GROUP -- CMD [ARGS...]",
-        };
-      }
-      return { kind: "add", group, cmd };
+      return {
+        kind: "add",
+        group,
+        endstop: {
+          stateRoot,
+          contractId,
+          contractSha256,
+          action: action as ExecutionActionKind,
+          candidateSha256,
+        },
+        cmd,
+      };
     }
     case "status":
       return { kind: "status", taskId: args[1] };
@@ -98,12 +146,66 @@ export function parseQueueArgv(argv: readonly string[]): ParsedCommand {
 
 export type QueueServices = ProcessExec | Sleeper | PathLookup | BoundedFs | EnvVars;
 
+export type QueueEndstopOptions = {
+  readonly now?: () => Date;
+  readonly reservationId?: () => string;
+};
+
+function utcSecond(date: Date): string {
+  return date.toISOString().replace(/\.\d{3}Z$/u, "Z");
+}
+
+const cmdAddGuarded = (
+  io: QueueIo,
+  parsed: Extract<ParsedCommand, { readonly kind: "add" }>,
+  options: QueueEndstopOptions,
+): Effect.Effect<number, never, QueueServices> => {
+  const layer = makeLiveEndstopLedgerLayer(parsed.endstop.stateRoot);
+  const reserve = Effect.gen(function* () {
+    const ledger = yield* EndstopLedger;
+    return yield* ledger.execute(
+      parsed.endstop.contractId,
+      parsed.endstop.contractSha256,
+      {
+        _tag: "ReserveAction",
+        action: parsed.endstop.action,
+        candidateSha256: parsed.endstop.candidateSha256,
+        commandSha256: sha256Hex(canonicalize(parsed.cmd)),
+        reservationId: (options.reservationId ?? randomUUID)(),
+        at: utcSecond((options.now ?? (() => new Date()))()),
+      },
+    );
+  }).pipe(Effect.provide(layer));
+
+  return reserve.pipe(
+    Effect.matchEffect({
+      onFailure: () =>
+        Effect.sync(() => {
+          io.writeStderr("Foreman Endstop refused queue admission (ledger failure)\n");
+          return EXIT_CONFIG;
+        }),
+      onSuccess: (result) => {
+        if (result.decision._tag !== "Accepted") {
+          return Effect.sync(() => {
+            io.writeStderr(
+              `Foreman Endstop refused queue admission (${result.state._tag})\n`,
+            );
+            return EXIT_CONFIG;
+          });
+        }
+        return cmdAdd(io, parsed.group, parsed.cmd);
+      },
+    }),
+  );
+};
+
 /**
  * Run the queue CLI. Returns process exit code.
  */
 export const runQueueCli = (
   argv: readonly string[],
   io: QueueIo,
+  endstopOptions: QueueEndstopOptions = {},
 ): Effect.Effect<number, never, QueueServices> =>
   Effect.gen(function* () {
     const parsed = parseQueueArgv(argv);
@@ -114,7 +216,7 @@ export const runQueueCli = (
       case "ensure":
         return yield* cmdEnsure(io);
       case "add":
-        return yield* cmdAdd(io, parsed.group, parsed.cmd);
+        return yield* cmdAddGuarded(io, parsed, endstopOptions);
       case "status":
         return yield* cmdStatus(io, parsed.taskId);
       case "kill":
