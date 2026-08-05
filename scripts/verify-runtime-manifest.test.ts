@@ -22,6 +22,7 @@ const trackedRuntime = join(root, "skills/foreman/runtime");
 const trackedManifest = join(trackedRuntime, "manifest.json");
 const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
+const trackedEndstop = join(trackedRuntime, "dist/execution-guard.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 const trackedSupervise = join(trackedRuntime, "dist/lane-supervise.js");
@@ -45,6 +46,7 @@ function seedCleanCopy(): string {
   writeFileSync(join(rt, "manifest.json"), readFileSync(trackedManifest));
   cpSync(trackedGuard, join(rt, "dist/destruction-guard.js"));
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
+  cpSync(trackedEndstop, join(rt, "dist/execution-guard.js"));
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
   cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));

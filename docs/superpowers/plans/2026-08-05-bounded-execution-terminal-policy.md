@@ -88,7 +88,7 @@ export const executionActionKinds = [
 
 export type ExecutionCommand =
   | { readonly _tag: "ReserveAction"; readonly action: ExecutionActionKind; readonly candidateSha256: Sha256Hex; readonly commandSha256?: Sha256Hex; readonly at: string; readonly reservationId: string }
-  | { readonly _tag: "RecordProductChange"; readonly candidateSha256: Sha256Hex; readonly at: string }
+  | { readonly _tag: "RecordProductChange"; readonly candidateSha256: Sha256Hex; readonly allowedPathsSha256: Sha256Hex; readonly at: string }
   | { readonly _tag: "RecordMilestone"; readonly milestone: RequiredMilestone; readonly candidateSha256: Sha256Hex; readonly evidenceSha256: Sha256Hex; readonly at: string }
   | { readonly _tag: "Cancel"; readonly authorizationSha256: Sha256Hex; readonly at: string };
 ```

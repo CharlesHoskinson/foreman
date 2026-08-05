@@ -147,11 +147,18 @@ function executionEventFromUnknown(value: unknown): ExecutionEvent | null {
     }
     case "ProductChanged":
       if (
-        !exactKeys(value, ["_tag", "candidateSha256", "at"]) ||
+        !exactKeys(value, ["_tag", "candidateSha256", "allowedPathsSha256", "at"]) ||
         typeof value.candidateSha256 !== "string" ||
-        !isSha256Hex(value.candidateSha256)
+        !isSha256Hex(value.candidateSha256) ||
+        typeof value.allowedPathsSha256 !== "string" ||
+        !isSha256Hex(value.allowedPathsSha256)
       ) return null;
-      return { _tag: "ProductChanged", candidateSha256: value.candidateSha256, at };
+      return {
+        _tag: "ProductChanged",
+        candidateSha256: value.candidateSha256,
+        allowedPathsSha256: value.allowedPathsSha256,
+        at,
+      };
     case "MilestoneRecorded": {
       const milestones = ["checks", "audit", "integrated", "published"] as const;
       if (
@@ -248,7 +255,12 @@ function replayHistory(events: readonly StoredEvent[]): HistoryResult {
     }
     for (const raw of stored.payload.events) {
       const event = executionEventFromUnknown(raw);
-      if (event === null || Date.parse(event.at) < Date.parse(state.lastEventAt)) {
+      if (
+        event === null ||
+        Date.parse(event.at) < Date.parse(state.lastEventAt) ||
+        (event._tag === "ProductChanged" &&
+          event.allowedPathsSha256 !== state.contract.allowedPathsSha256)
+      ) {
         return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
       }
       state = evolveExecution(state, event);

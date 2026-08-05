@@ -3803,7 +3803,7 @@ var keepDefects = (self) => match4(self, {
 });
 var keepDefectsAndElectFailures = (self) => match4(self, {
   onEmpty: none2(),
-  onFail: (failure) => some2(die(failure)),
+  onFail: (failure2) => some2(die(failure2)),
   onDie: (defect) => some2(die(defect)),
   onInterrupt: () => none2(),
   onSequential: mergeWith(sequential),
@@ -15616,6 +15616,311 @@ var ensureSuccessType2 = () => (layer) => layer;
 var ensureErrorType2 = () => (layer) => layer;
 var ensureRequirementsType2 = () => (layer) => layer;
 
+// packages/core/src/failures.ts
+var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
+function malformedUtf8() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "MalformedUtf8" };
+}
+function oversizeInput(maxBytes) {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "OversizeInput", maxBytes };
+}
+function duplicateJsonKey() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "DuplicateJsonKey" };
+}
+function invalidJson() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "InvalidJson" };
+}
+function unknownField(field) {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "UnknownField", field };
+}
+function isCoreFailure(v) {
+  return typeof v === "object" && v !== null && v[CORE_FAILURE_BRAND] === true;
+}
+
+// packages/core/src/utf8.ts
+var MAX_INPUT_BYTES = 1048576;
+function decodeUtf8Fatal(bytes) {
+  if (bytes.byteLength > MAX_INPUT_BYTES) {
+    return oversizeInput(MAX_INPUT_BYTES);
+  }
+  try {
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    return decoder.decode(bytes);
+  } catch {
+    return malformedUtf8();
+  }
+}
+
+// packages/core/src/sha256.ts
+import { createHash } from "node:crypto";
+function sha256Hex(data) {
+  const hash2 = createHash("sha256");
+  if (typeof data === "string") {
+    hash2.update(data, "utf8");
+  } else {
+    hash2.update(data);
+  }
+  return hash2.digest("hex");
+}
+
+// packages/core/src/canonical-json.ts
+var PARSE_FAIL = Symbol("@foreman/core/parseFail");
+function parseFail(failure2) {
+  return { [PARSE_FAIL]: true, failure: failure2 };
+}
+function isParseFail(v) {
+  return typeof v === "object" && v !== null && v[PARSE_FAIL] === true;
+}
+function parseJsonRejectDuplicateKeys(text) {
+  let i = 0;
+  const s = text;
+  function skipWs() {
+    while (i < s.length) {
+      const c = s.charCodeAt(i);
+      if (c === 32 || c === 9 || c === 10 || c === 13) {
+        i += 1;
+      } else {
+        break;
+      }
+    }
+  }
+  function peek() {
+    return i < s.length ? s[i] : "";
+  }
+  function fail8() {
+    return parseFail(invalidJson());
+  }
+  function parseString() {
+    if (peek() !== '"') return fail8();
+    i += 1;
+    let out = "";
+    while (i < s.length) {
+      const c = s[i];
+      if (c === '"') {
+        i += 1;
+        return out;
+      }
+      if (c === "\\") {
+        i += 1;
+        if (i >= s.length) return fail8();
+        const e = s[i];
+        i += 1;
+        switch (e) {
+          case '"':
+          case "\\":
+          case "/":
+            out += e;
+            break;
+          case "b":
+            out += "\b";
+            break;
+          case "f":
+            out += "\f";
+            break;
+          case "n":
+            out += "\n";
+            break;
+          case "r":
+            out += "\r";
+            break;
+          case "t":
+            out += "	";
+            break;
+          case "u": {
+            if (i + 4 > s.length) return fail8();
+            const hex = s.slice(i, i + 4);
+            if (!/^[0-9a-fA-F]{4}$/.test(hex)) return fail8();
+            out += String.fromCharCode(parseInt(hex, 16));
+            i += 4;
+            break;
+          }
+          default:
+            return fail8();
+        }
+      } else if (c.charCodeAt(0) < 32) {
+        return fail8();
+      } else {
+        out += c;
+        i += 1;
+      }
+    }
+    return fail8();
+  }
+  function parseNumber() {
+    const start3 = i;
+    if (peek() === "-") i += 1;
+    if (peek() < "0" || peek() > "9") return fail8();
+    if (peek() === "0") {
+      i += 1;
+      if (peek() >= "0" && peek() <= "9") return fail8();
+    } else {
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === ".") {
+      i += 1;
+      if (peek() < "0" || peek() > "9") return fail8();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === "e" || peek() === "E") {
+      i += 1;
+      if (peek() === "+" || peek() === "-") i += 1;
+      if (peek() < "0" || peek() > "9") return fail8();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    const num = Number(s.slice(start3, i));
+    if (!Number.isFinite(num)) return fail8();
+    return num;
+  }
+  function parseValue() {
+    skipWs();
+    const c = peek();
+    if (c === '"') return parseString();
+    if (c === "{") return parseObject();
+    if (c === "[") return parseArray();
+    if (c === "t") {
+      if (s.slice(i, i + 4) !== "true") return fail8();
+      i += 4;
+      return true;
+    }
+    if (c === "f") {
+      if (s.slice(i, i + 5) !== "false") return fail8();
+      i += 5;
+      return false;
+    }
+    if (c === "n") {
+      if (s.slice(i, i + 4) !== "null") return fail8();
+      i += 4;
+      return null;
+    }
+    if (c === "-" || c >= "0" && c <= "9") return parseNumber();
+    return fail8();
+  }
+  function parseObject() {
+    if (peek() !== "{") return fail8();
+    i += 1;
+    skipWs();
+    const obj = /* @__PURE__ */ Object.create(null);
+    const seen = /* @__PURE__ */ new Set();
+    if (peek() === "}") {
+      i += 1;
+      return obj;
+    }
+    while (true) {
+      skipWs();
+      const key = parseString();
+      if (isParseFail(key)) return key;
+      if (seen.has(key)) return parseFail(duplicateJsonKey());
+      seen.add(key);
+      skipWs();
+      if (peek() !== ":") return fail8();
+      i += 1;
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      Object.defineProperty(obj, key, {
+        value: val,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "}") {
+        i += 1;
+        return obj;
+      }
+      return fail8();
+    }
+  }
+  function parseArray() {
+    if (peek() !== "[") return fail8();
+    i += 1;
+    skipWs();
+    const arr = [];
+    if (peek() === "]") {
+      i += 1;
+      return arr;
+    }
+    while (true) {
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      arr.push(val);
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "]") {
+        i += 1;
+        return arr;
+      }
+      return fail8();
+    }
+  }
+  const value = parseValue();
+  if (isParseFail(value)) {
+    return value.failure;
+  }
+  skipWs();
+  if (i !== s.length) {
+    return invalidJson();
+  }
+  return value;
+}
+function canonicalize(value) {
+  if (value === null) return "null";
+  if (value === true) return "true";
+  if (value === false) return "false";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("non_finite_number");
+    }
+    if (Object.is(value, -0)) return "0";
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map((v) => canonicalize(v)).join(",") + "]";
+  }
+  if (typeof value === "object") {
+    const obj = value;
+    const keys5 = Object.keys(obj).sort();
+    const parts2 = [];
+    for (const k of keys5) {
+      parts2.push(JSON.stringify(k) + ":" + canonicalize(obj[k]));
+    }
+    return "{" + parts2.join(",") + "}";
+  }
+  throw new Error("unsupported_json_value");
+}
+
+// packages/core/src/decode.ts
+function rejectUnknownKeys(obj, allowed) {
+  const allowedSet = new Set(allowed);
+  for (const key of Object.keys(obj)) {
+    if (!allowedSet.has(key)) {
+      return unknownField(key);
+    }
+  }
+  return null;
+}
+var SHA256_HEX = /^[0-9a-f]{64}$/;
+var COMMIT_SHA40 = /^[0-9a-f]{40}$/;
+function isSha256Hex(value) {
+  return SHA256_HEX.test(value);
+}
+function isCommitSha40(value) {
+  return COMMIT_SHA40.test(value);
+}
+
+// packages/orchestration/src/queue-cli.ts
+import { randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
+
 // packages/orchestration/src/queue-services.ts
 import { spawn } from "node:child_process";
 import {
@@ -16539,8 +16844,2187 @@ var cmdKill = (io2, taskId) => Effect_exports.gen(function* () {
   return EXIT_OK;
 });
 
+// packages/event-log/src/bounds.ts
+var MAX_EVENT_NESTING_DEPTH = 64;
+var MAX_EVENT_JSON_NODES = 1e5;
+var MAX_PHYSICAL_LINE_BYTES = 1048576;
+var MAX_REPLAY_INPUT_BYTES = 67108864;
+var MAX_PHYSICAL_LINES = 1e5;
+var MAX_RUN_ID_LENGTH = 255;
+var EVENT_LOG_SCHEMA_VERSION = 1;
+
+// packages/event-log/src/failures.ts
+var EVENT_LOG_FAILURE_BRAND = Symbol("@foreman/event-log/Failure");
+function eventDecodeFailure(reason) {
+  return {
+    [EVENT_LOG_FAILURE_BRAND]: true,
+    _tag: "EventDecodeFailure",
+    reason
+  };
+}
+function attemptFailure(reason) {
+  return {
+    [EVENT_LOG_FAILURE_BRAND]: true,
+    _tag: "AttemptFailure",
+    reason
+  };
+}
+function isEventDecodeFailure(v) {
+  return typeof v === "object" && v !== null && v[EVENT_LOG_FAILURE_BRAND] === true && v._tag === "EventDecodeFailure";
+}
+
+// packages/event-log/src/structure.ts
+function checkJsonNestingText(text) {
+  let depth = 0;
+  let inString = false;
+  let escape2 = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i);
+    if (inString) {
+      if (escape2) {
+        escape2 = false;
+        continue;
+      }
+      if (c === 92) {
+        escape2 = true;
+        continue;
+      }
+      if (c === 34) {
+        inString = false;
+      }
+      continue;
+    }
+    if (c === 34) {
+      inString = true;
+      continue;
+    }
+    if (c === 123 || c === 91) {
+      depth += 1;
+      if (depth > MAX_EVENT_NESTING_DEPTH) {
+        return "event_structure_limit";
+      }
+      continue;
+    }
+    if (c === 125 || c === 93) {
+      if (depth > 0) {
+        depth -= 1;
+      }
+    }
+  }
+  return "ok";
+}
+function checkEventStructure(root) {
+  const stack = [{ value: root, depth: 1 }];
+  let nodes = 0;
+  while (stack.length > 0) {
+    const frame = stack.pop();
+    if (frame.depth > MAX_EVENT_NESTING_DEPTH) {
+      return "event_structure_limit";
+    }
+    const v = frame.value;
+    if (v === null || typeof v !== "object") {
+      continue;
+    }
+    if (Array.isArray(v)) {
+      for (let i = v.length - 1; i >= 0; i -= 1) {
+        nodes += 1;
+        if (nodes > MAX_EVENT_JSON_NODES) {
+          return "event_structure_limit";
+        }
+        stack.push({ value: v[i], depth: frame.depth + 1 });
+      }
+      continue;
+    }
+    const obj = v;
+    const keys5 = Object.keys(obj);
+    for (let i = keys5.length - 1; i >= 0; i -= 1) {
+      nodes += 1;
+      if (nodes > MAX_EVENT_JSON_NODES) {
+        return "event_structure_limit";
+      }
+      const key = keys5[i];
+      stack.push({ value: obj[key], depth: frame.depth + 1 });
+    }
+  }
+  return "ok";
+}
+
+// packages/event-log/src/timestamp.ts
+var UTC_SECOND = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/;
+function isLeapYear(y) {
+  return y % 4 === 0 && y % 100 !== 0 || y % 400 === 0;
+}
+function daysInMonth(y, m) {
+  switch (m) {
+    case 1:
+    case 3:
+    case 5:
+    case 7:
+    case 8:
+    case 10:
+    case 12:
+      return 31;
+    case 4:
+    case 6:
+    case 9:
+    case 11:
+      return 30;
+    case 2:
+      return isLeapYear(y) ? 29 : 28;
+    default:
+      return 0;
+  }
+}
+function isUtcSecondTimestamp(s) {
+  if (typeof s !== "string" || s.length === 0) return false;
+  const m = UTC_SECOND.exec(s);
+  if (!m) return false;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const second = Number(m[6]);
+  if (month < 1 || month > 12) return false;
+  const dim = daysInMonth(year, month);
+  if (day < 1 || day > dim) return false;
+  if (hour > 23 || minute > 59 || second > 59) return false;
+  const utc = Date.UTC(year, month - 1, day, hour, minute, second);
+  if (!Number.isFinite(utc)) return false;
+  const check2 = new Date(utc);
+  return check2.getUTCFullYear() === year && check2.getUTCMonth() + 1 === month && check2.getUTCDate() === day && check2.getUTCHours() === hour && check2.getUTCMinutes() === minute && check2.getUTCSeconds() === second;
+}
+
+// packages/event-log/src/stored-event.ts
+var TOP_LEVEL_KEYS = ["seq", "ts", "type", "lane", "commit", "payload"];
+function mapCoreToDecodeReason(tag) {
+  switch (tag) {
+    case "MalformedUtf8":
+      return "malformed_utf8";
+    case "DuplicateJsonKey":
+      return "duplicate_key";
+    case "InvalidJson":
+    case "OversizeInput":
+      return "invalid_json";
+    default:
+      return "event_schema";
+  }
+}
+function isNonNegativeSafeInteger(n) {
+  return Number.isSafeInteger(n) && n >= 0;
+}
+function isNonEmptyString(v) {
+  return typeof v === "string" && v.length > 0;
+}
+function decodeStoredEvent(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return eventDecodeFailure("event_schema");
+  }
+  const obj = value;
+  const structure2 = checkEventStructure(obj);
+  if (structure2 !== "ok") {
+    return eventDecodeFailure("event_structure_limit");
+  }
+  const unknown = rejectUnknownKeys(obj, TOP_LEVEL_KEYS);
+  if (unknown !== null) {
+    return eventDecodeFailure("event_schema");
+  }
+  if (!("seq" in obj) || !("ts" in obj) || !("type" in obj) || !("lane" in obj) || !("payload" in obj)) {
+    return eventDecodeFailure("event_schema");
+  }
+  const seq2 = obj["seq"];
+  if (typeof seq2 !== "number" || !isNonNegativeSafeInteger(seq2)) {
+    return eventDecodeFailure("event_schema");
+  }
+  const ts = obj["ts"];
+  if (typeof ts !== "string" || !isUtcSecondTimestamp(ts)) {
+    return eventDecodeFailure("event_schema");
+  }
+  const type = obj["type"];
+  if (!isNonEmptyString(type)) {
+    return eventDecodeFailure("event_schema");
+  }
+  const lane = obj["lane"];
+  if (!isNonEmptyString(lane)) {
+    return eventDecodeFailure("event_schema");
+  }
+  const payload = obj["payload"];
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return eventDecodeFailure("event_schema");
+  }
+  let commit;
+  if ("commit" in obj) {
+    const c = obj["commit"];
+    if (c === null || c === void 0) {
+      return eventDecodeFailure("event_schema");
+    }
+    if (typeof c !== "string" || c.length === 0) {
+      return eventDecodeFailure("event_schema");
+    }
+    commit = c;
+  }
+  const payloadObj = payload;
+  if (commit !== void 0) {
+    return {
+      seq: seq2,
+      ts,
+      type,
+      lane,
+      commit,
+      payload: payloadObj
+    };
+  }
+  return {
+    seq: seq2,
+    ts,
+    type,
+    lane,
+    payload: payloadObj
+  };
+}
+function decodeStoredEventFromBytes(bytes) {
+  const text = decodeUtf8Fatal(bytes);
+  if (isCoreFailure(text)) {
+    return eventDecodeFailure(mapCoreToDecodeReason(text._tag));
+  }
+  return decodeStoredEventFromText(text);
+}
+function decodeStoredEventFromText(text) {
+  if (checkJsonNestingText(text) !== "ok") {
+    return eventDecodeFailure("event_structure_limit");
+  }
+  const parsed = parseJsonRejectDuplicateKeys(text);
+  if (isCoreFailure(parsed)) {
+    return eventDecodeFailure(mapCoreToDecodeReason(parsed._tag));
+  }
+  return decodeStoredEvent(parsed);
+}
+
+// packages/event-log/src/replay.ts
+function cleanResult(records, validPhysicalLines) {
+  return {
+    schemaVersion: EVENT_LOG_SCHEMA_VERSION,
+    records,
+    validPhysicalLines,
+    terminal: { _tag: "CleanEof" }
+  };
+}
+function stoppedResult(records, validPhysicalLines, line, reason) {
+  return {
+    schemaVersion: EVENT_LOG_SCHEMA_VERSION,
+    records,
+    validPhysicalLines,
+    terminal: { _tag: "Stopped", line, reason }
+  };
+}
+function isNonNegativeSafeInteger2(n) {
+  return Number.isSafeInteger(n) && n >= 0;
+}
+function replayNdjson(chunks, options) {
+  const fromLine = options.fromLine;
+  if (typeof fromLine !== "number" || !isNonNegativeSafeInteger2(fromLine)) {
+    return stoppedResult([], 0, 1, "event_schema");
+  }
+  const records = [];
+  let validPhysicalLines = 0;
+  let lastSeq = null;
+  let totalBytes = 0;
+  let lineBuf = [];
+  let sawCrPending = false;
+  const finishClean = () => {
+    if (fromLine > validPhysicalLines) {
+      return stoppedResult(
+        records,
+        validPhysicalLines,
+        validPhysicalLines === 0 ? 1 : validPhysicalLines,
+        "cursor_beyond_eof"
+      );
+    }
+    return cleanResult(records, validPhysicalLines);
+  };
+  const processCompleteLine = (content) => {
+    const nextLine = validPhysicalLines + 1;
+    if (validPhysicalLines >= MAX_PHYSICAL_LINES) {
+      return stoppedResult(records, validPhysicalLines, nextLine, "too_many_lines");
+    }
+    if (content.byteLength > MAX_PHYSICAL_LINE_BYTES) {
+      return stoppedResult(records, validPhysicalLines, nextLine, "line_too_large");
+    }
+    const decoded = decodeStoredEventFromBytes(content);
+    if (isEventDecodeFailure(decoded)) {
+      return stoppedResult(
+        records,
+        validPhysicalLines,
+        nextLine,
+        decoded.reason
+      );
+    }
+    if (lastSeq !== null) {
+      if (decoded.seq === lastSeq) {
+        return stoppedResult(
+          records,
+          validPhysicalLines,
+          nextLine,
+          "sequence_duplicate"
+        );
+      }
+      if (decoded.seq < lastSeq) {
+        return stoppedResult(
+          records,
+          validPhysicalLines,
+          nextLine,
+          "sequence_not_monotonic"
+        );
+      }
+    }
+    lastSeq = decoded.seq;
+    validPhysicalLines = nextLine;
+    if (nextLine > fromLine) {
+      records.push({ physicalLine: nextLine, event: decoded });
+    }
+    return null;
+  };
+  for (const chunk2 of chunks) {
+    if (!(chunk2 instanceof Uint8Array)) {
+      return stoppedResult(records, validPhysicalLines, validPhysicalLines + 1, "event_schema");
+    }
+    for (let i = 0; i < chunk2.byteLength; i += 1) {
+      totalBytes += 1;
+      if (totalBytes > MAX_REPLAY_INPUT_BYTES) {
+        const line = validPhysicalLines + 1;
+        return stoppedResult(records, validPhysicalLines, line, "input_too_large");
+      }
+      const b = chunk2[i];
+      if (b === 10) {
+        if (sawCrPending) {
+          sawCrPending = false;
+        }
+        const content = Uint8Array.from(lineBuf);
+        lineBuf = [];
+        const stop = processCompleteLine(content);
+        if (stop !== null) return stop;
+        continue;
+      }
+      if (sawCrPending) {
+        if (lineBuf.length >= MAX_PHYSICAL_LINE_BYTES) {
+          return stoppedResult(
+            records,
+            validPhysicalLines,
+            validPhysicalLines + 1,
+            "line_too_large"
+          );
+        }
+        lineBuf.push(13);
+        sawCrPending = false;
+      }
+      if (b === 13) {
+        sawCrPending = true;
+        continue;
+      }
+      if (lineBuf.length >= MAX_PHYSICAL_LINE_BYTES) {
+        return stoppedResult(
+          records,
+          validPhysicalLines,
+          validPhysicalLines + 1,
+          "line_too_large"
+        );
+      }
+      lineBuf.push(b);
+    }
+  }
+  if (sawCrPending) {
+    if (lineBuf.length >= MAX_PHYSICAL_LINE_BYTES) {
+      return stoppedResult(
+        records,
+        validPhysicalLines,
+        validPhysicalLines + 1,
+        "line_too_large"
+      );
+    }
+    lineBuf.push(13);
+    sawCrPending = false;
+  }
+  if (lineBuf.length > 0) {
+    return stoppedResult(
+      records,
+      validPhysicalLines,
+      validPhysicalLines + 1,
+      "torn_tail"
+    );
+  }
+  return finishClean();
+}
+function replayNdjsonBytes(bytes, options) {
+  return replayNdjson([bytes], options);
+}
+
+// packages/event-log/src/attempt.ts
+var DIGITS_ONLY = /^[0-9]+$/;
+function isPositiveSafeInteger(n) {
+  return Number.isSafeInteger(n) && n >= 1;
+}
+function decodeRunId(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return attemptFailure("invalid_run_id");
+  }
+  if (value.length > MAX_RUN_ID_LENGTH) {
+    return attemptFailure("invalid_run_id");
+  }
+  if (value.includes("/") || value.includes("\\") || value.includes("\0")) {
+    return attemptFailure("invalid_run_id");
+  }
+  return value;
+}
+function decodeAttemptId(value) {
+  if (typeof value !== "number" || !isPositiveSafeInteger(value)) {
+    return attemptFailure("invalid_attempt_id");
+  }
+  return value;
+}
+function makeAttemptIdentity(runId, laneId, attemptId) {
+  return { runId, laneId, attemptId };
+}
+function decodeAttemptIdText(text) {
+  if (typeof text !== "string" || text.length === 0) {
+    return attemptFailure("invalid_attempt_text");
+  }
+  if (!DIGITS_ONLY.test(text)) {
+    return attemptFailure("invalid_attempt_text");
+  }
+  if (text.length > 1 && text[0] === "0") {
+    return attemptFailure("invalid_attempt_text");
+  }
+  if (text.length > 16) {
+    return attemptFailure("invalid_attempt_text");
+  }
+  const n = Number(text);
+  if (!isPositiveSafeInteger(n)) {
+    return attemptFailure("invalid_attempt_text");
+  }
+  if (String(n) !== text) {
+    return attemptFailure("invalid_attempt_text");
+  }
+  return n;
+}
+function nextAttempt(current) {
+  if (current === null || current === void 0) {
+    return 1;
+  }
+  if (typeof current !== "number" || !isPositiveSafeInteger(current)) {
+    return attemptFailure("invalid_attempt_id");
+  }
+  if (current >= Number.MAX_SAFE_INTEGER) {
+    return attemptFailure("attempt_overflow");
+  }
+  return current + 1;
+}
+function extractPayloadAttempt(payload) {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    return attemptFailure("invalid_payload_attempt");
+  }
+  if (!Object.prototype.hasOwnProperty.call(payload, "attempt")) {
+    return void 0;
+  }
+  const v = payload["attempt"];
+  if (typeof v !== "number" || !isPositiveSafeInteger(v)) {
+    return attemptFailure("invalid_payload_attempt");
+  }
+  return v;
+}
+
+// packages/event-log/src/run-journal.ts
+import {
+  closeSync as closeSync2,
+  constants as fsConstants2,
+  fstatSync as fstatSync2,
+  fsyncSync,
+  lstatSync,
+  mkdirSync,
+  openSync as openSync2,
+  readSync as readSync2,
+  renameSync,
+  unlinkSync,
+  writeSync
+} from "node:fs";
+import { dirname, join as join4 } from "node:path";
+import { randomBytes } from "node:crypto";
+var RUN_JOURNAL_FAILURE_BRAND = Symbol(
+  "@foreman/event-log/RunJournalFailure"
+);
+function runJournalFailure(reason) {
+  return {
+    [RUN_JOURNAL_FAILURE_BRAND]: true,
+    _tag: "RunJournalFailure",
+    reason
+  };
+}
+function isRunJournalFailure(v) {
+  return typeof v === "object" && v !== null && v[RUN_JOURNAL_FAILURE_BRAND] === true && v._tag === "RunJournalFailure";
+}
+var RESUME_ATTEMPT_FAILURE_BRAND = Symbol(
+  "@foreman/event-log/ResumeAttemptFailure"
+);
+function resumeAttemptFailure(reason) {
+  return {
+    [RESUME_ATTEMPT_FAILURE_BRAND]: true,
+    _tag: "ResumeAttemptFailure",
+    reason
+  };
+}
+function isResumeAttemptFailure(v) {
+  return typeof v === "object" && v !== null && v[RESUME_ATTEMPT_FAILURE_BRAND] === true && v._tag === "ResumeAttemptFailure";
+}
+var RunJournal = class extends Context_exports.Tag("RunJournal")() {
+};
+var JOURNAL_LOCK_BOUND_MS = 1e4;
+var MAX_ATTEMPT_COUNTER_BYTES = 17;
+function runDir(stateRoot, runId) {
+  return join4(stateRoot, "runs", runId);
+}
+function eventsPath(stateRoot, runId) {
+  return join4(runDir(stateRoot, runId), "events.ndjson");
+}
+function attemptPath(stateRoot, runId, laneId) {
+  return join4(runDir(stateRoot, runId), "attempts", `${laneId}.txt`);
+}
+function attemptLockPath(stateRoot, runId, laneId) {
+  return join4(runDir(stateRoot, runId), "locks", `attempt-${laneId}.lock`);
+}
+function eventsLockPath(stateRoot, runId) {
+  return join4(runDir(stateRoot, runId), "locks", "events.lock");
+}
+function identityOf(st) {
+  return { dev: st.dev, ino: st.ino };
+}
+function identitiesEqual(a, b) {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+function isEnoent(e) {
+  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
+}
+function isEexist(e) {
+  return typeof e === "object" && e !== null && "code" in e && e.code === "EEXIST";
+}
+function observePathKind(path) {
+  let st;
+  try {
+    st = lstatSync(path);
+  } catch (e) {
+    if (isEnoent(e)) return "missing";
+    return "other";
+  }
+  if (st.isSymbolicLink()) return "symlink";
+  if (st.isFile()) return "regular";
+  if (st.isDirectory()) return "directory";
+  return "other";
+}
+function observeDirComponent(path) {
+  const kind = observePathKind(path);
+  if (kind === "missing") return "missing";
+  if (kind === "directory") return "directory";
+  if (kind === "symlink") return "symlink";
+  return "other";
+}
+function ensureLayoutDirs(stateRoot, segments) {
+  let current = stateRoot;
+  for (const seg of segments) {
+    if (typeof seg !== "string" || seg.length === 0 || seg === "." || seg === ".." || seg.includes("/") || seg.includes("\\") || seg.includes("\0")) {
+      return runJournalFailure("invalid_path");
+    }
+    current = join4(current, seg);
+    const kind = observeDirComponent(current);
+    if (kind === "symlink" || kind === "other") {
+      return runJournalFailure("invalid_path");
+    }
+    if (kind === "missing") {
+      try {
+        mkdirSync(current, { recursive: false });
+      } catch (e) {
+        if (isEexist(e)) {
+        } else if (isEnoent(e)) {
+          return runJournalFailure("write_failed");
+        } else {
+          return runJournalFailure("invalid_path");
+        }
+      }
+      const after3 = observeDirComponent(current);
+      if (after3 !== "directory") {
+        return runJournalFailure("invalid_path");
+      }
+    }
+  }
+  return null;
+}
+function pathMatchesOpenedFd(path, fd) {
+  let pathSt;
+  try {
+    pathSt = lstatSync(path);
+  } catch (e) {
+    if (isEnoent(e)) return "identity_changed";
+    return "read_failed";
+  }
+  if (pathSt.isSymbolicLink()) return "invalid_path";
+  if (!pathSt.isFile()) return "invalid_path";
+  let fdSt;
+  try {
+    fdSt = fstatSync2(fd);
+  } catch {
+    return "identity_changed";
+  }
+  if (!fdSt.isFile()) return "invalid_path";
+  if (!identitiesEqual(identityOf(pathSt), identityOf(fdSt))) {
+    return "identity_changed";
+  }
+  return "ok";
+}
+function defaultWaitMs(ms) {
+  if (ms <= 0) return;
+  const end3 = Date.now() + ms;
+  while (Date.now() < end3) {
+  }
+}
+function acquireLockSync(lockPath, timing) {
+  const kind = observePathKind(lockPath);
+  if (kind === "symlink" || kind === "directory" || kind === "other") {
+    return runJournalFailure("invalid_path");
+  }
+  const start3 = timing.nowMs();
+  const deadline = start3 + timing.boundMs;
+  while (true) {
+    try {
+      const fd = openSync2(
+        lockPath,
+        fsConstants2.O_CREAT | fsConstants2.O_EXCL | fsConstants2.O_WRONLY,
+        384
+      );
+      let st;
+      try {
+        st = fstatSync2(fd);
+      } catch {
+        try {
+          closeSync2(fd);
+        } catch {
+        }
+        try {
+          unlinkSync(lockPath);
+        } catch {
+        }
+        return runJournalFailure("write_failed");
+      }
+      if (!st.isFile()) {
+        try {
+          closeSync2(fd);
+        } catch {
+        }
+        try {
+          unlinkSync(lockPath);
+        } catch {
+        }
+        return runJournalFailure("invalid_path");
+      }
+      const match12 = pathMatchesOpenedFd(lockPath, fd);
+      if (match12 !== "ok") {
+        try {
+          closeSync2(fd);
+        } catch {
+        }
+        try {
+          unlinkSync(lockPath);
+        } catch {
+        }
+        return runJournalFailure(
+          match12 === "identity_changed" ? "identity_changed" : "invalid_path"
+        );
+      }
+      return { fd, path: lockPath, identity: identityOf(st) };
+    } catch (e) {
+      if (isEexist(e)) {
+        if (timing.nowMs() >= deadline) {
+          return runJournalFailure("journal_busy");
+        }
+        timing.waitMs(timing.spinMs);
+        continue;
+      }
+      return runJournalFailure("write_failed");
+    }
+  }
+}
+function releaseLockSync(lock) {
+  try {
+    closeSync2(lock.fd);
+  } catch {
+  }
+  try {
+    const st = lstatSync(lock.path);
+    if (st.isFile() && identitiesEqual(identityOf(st), lock.identity)) {
+      unlinkSync(lock.path);
+    }
+  } catch {
+  }
+}
+function withLockSync(lockPath, timing, body) {
+  const lock = acquireLockSync(lockPath, timing);
+  if (isRunJournalFailure(lock)) {
+    return lock;
+  }
+  try {
+    return body();
+  } finally {
+    releaseLockSync(lock);
+  }
+}
+function posixDirSync(dirPath) {
+  if (process.platform === "win32") {
+    return;
+  }
+  let fd;
+  try {
+    fd = openSync2(dirPath, fsConstants2.O_RDONLY);
+    fsyncSync(fd);
+  } catch {
+    throw new Error("dir_sync_failed");
+  } finally {
+    if (fd !== void 0) {
+      try {
+        closeSync2(fd);
+      } catch {
+      }
+    }
+  }
+}
+function durableReplaceFile(targetPath, content) {
+  const dir = dirname(targetPath);
+  let tmpName;
+  try {
+    tmpName = `.tmp-${randomBytes(16).toString("hex")}`;
+  } catch {
+    return runJournalFailure("write_failed");
+  }
+  const tmpPath = join4(dir, tmpName);
+  let fd;
+  try {
+    fd = openSync2(
+      tmpPath,
+      fsConstants2.O_CREAT | fsConstants2.O_EXCL | fsConstants2.O_WRONLY,
+      384
+    );
+    let offset = 0;
+    while (offset < content.byteLength) {
+      const n = writeSync(fd, content, offset, content.byteLength - offset);
+      offset += n;
+    }
+    fsyncSync(fd);
+    closeSync2(fd);
+    fd = void 0;
+    renameSync(tmpPath, targetPath);
+    try {
+      posixDirSync(dir);
+    } catch {
+      return runJournalFailure("write_failed");
+    }
+    return null;
+  } catch {
+    if (fd !== void 0) {
+      try {
+        closeSync2(fd);
+      } catch {
+      }
+    }
+    try {
+      unlinkSync(tmpPath);
+    } catch {
+    }
+    return runJournalFailure("write_failed");
+  }
+}
+function noFollowReadFlags() {
+  return fsConstants2.O_RDONLY | ("O_NOFOLLOW" in fsConstants2 ? fsConstants2.O_NOFOLLOW : 0);
+}
+function noFollowWriteFlags(extra) {
+  return extra | ("O_NOFOLLOW" in fsConstants2 ? fsConstants2.O_NOFOLLOW : 0);
+}
+function allocateSync(stateRoot, runId, laneId, options) {
+  const locksErr = ensureLayoutDirs(stateRoot, ["runs", runId, "locks"]);
+  if (locksErr !== null) return locksErr;
+  const attemptsErr = ensureLayoutDirs(stateRoot, ["runs", runId, "attempts"]);
+  if (attemptsErr !== null) return attemptsErr;
+  const lockPath = attemptLockPath(stateRoot, runId, laneId);
+  const counterPath = attemptPath(stateRoot, runId, laneId);
+  const timing = {
+    boundMs: options.lockBoundMs ?? JOURNAL_LOCK_BOUND_MS,
+    spinMs: options.lockSpinMs ?? 5,
+    nowMs: options.nowMs ?? (() => Date.now()),
+    waitMs: options.waitMs ?? defaultWaitMs
+  };
+  return withLockSync(lockPath, timing, () => {
+    const kind = observePathKind(counterPath);
+    if (kind === "symlink" || kind === "directory" || kind === "other") {
+      return runJournalFailure("invalid_path");
+    }
+    let selectedId;
+    if (kind === "missing") {
+      selectedId = nextAttempt(void 0);
+    } else {
+      let fd;
+      try {
+        fd = openSync2(counterPath, noFollowReadFlags());
+        const st = fstatSync2(fd);
+        if (!st.isFile()) {
+          return runJournalFailure("invalid_path");
+        }
+        if (st.size > MAX_ATTEMPT_COUNTER_BYTES) {
+          return runJournalFailure("corrupt_state");
+        }
+        const buf = Buffer.allocUnsafe(MAX_ATTEMPT_COUNTER_BYTES);
+        const n = readSync2(fd, buf, 0, MAX_ATTEMPT_COUNTER_BYTES, 0);
+        if (n > MAX_ATTEMPT_COUNTER_BYTES) {
+          return runJournalFailure("corrupt_state");
+        }
+        if (options.afterCounterRead !== void 0) {
+          options.afterCounterRead({ path: counterPath, fd });
+        }
+        const match12 = pathMatchesOpenedFd(counterPath, fd);
+        if (match12 === "identity_changed") {
+          return runJournalFailure("identity_changed");
+        }
+        if (match12 !== "ok") {
+          return runJournalFailure("invalid_path");
+        }
+        let after3;
+        try {
+          after3 = fstatSync2(fd);
+        } catch {
+          return runJournalFailure("identity_changed");
+        }
+        if (after3.ino !== st.ino || after3.dev !== st.dev) {
+          return runJournalFailure("identity_changed");
+        }
+        if (after3.size > MAX_ATTEMPT_COUNTER_BYTES) {
+          return runJournalFailure("corrupt_state");
+        }
+        if (after3.size !== n) {
+          return runJournalFailure("identity_changed");
+        }
+        const bytes = buf.subarray(0, n);
+        if (n === 0) {
+          return runJournalFailure("corrupt_state");
+        }
+        if (bytes[n - 1] !== 10) {
+          return runJournalFailure("corrupt_state");
+        }
+        const body = bytes.subarray(0, n - 1);
+        for (let i = 0; i < body.byteLength; i += 1) {
+          const b = body[i];
+          if (b === 10 || b === 13 || b === 32 || b === 9) {
+            return runJournalFailure("corrupt_state");
+          }
+        }
+        let text;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(body);
+        } catch {
+          return runJournalFailure("corrupt_state");
+        }
+        const decoded = decodeAttemptIdText(text);
+        if (typeof decoded !== "number") {
+          return runJournalFailure("corrupt_state");
+        }
+        selectedId = decoded;
+      } catch (e) {
+        if (isEnoent(e)) {
+          return runJournalFailure("identity_changed");
+        }
+        return runJournalFailure("read_failed");
+      } finally {
+        if (fd !== void 0) {
+          try {
+            closeSync2(fd);
+          } catch {
+          }
+        }
+      }
+    }
+    if (typeof selectedId !== "number") {
+      return selectedId;
+    }
+    const next = nextAttempt(selectedId);
+    if (typeof next !== "number") {
+      return next;
+    }
+    const content = Buffer.from(`${String(next)}
+`, "utf8");
+    const writeErr = durableReplaceFile(counterPath, content);
+    if (writeErr !== null) {
+      return writeErr;
+    }
+    return makeAttemptIdentity(runId, laneId, selectedId);
+  });
+}
+function formatUtcSecondTimestamp(d) {
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const da = String(d.getUTCDate()).padStart(2, "0");
+  const h = String(d.getUTCHours()).padStart(2, "0");
+  const mi = String(d.getUTCMinutes()).padStart(2, "0");
+  const s = String(d.getUTCSeconds()).padStart(2, "0");
+  return `${y}-${mo}-${da}T${h}:${mi}:${s}Z`;
+}
+function validateR3SequenceChain(records) {
+  if (records.length === 0) return null;
+  if (records[0].event.seq !== 1) {
+    return runJournalFailure("corrupt_state");
+  }
+  for (let i = 1; i < records.length; i += 1) {
+    const prev = records[i - 1].event.seq;
+    const cur = records[i].event.seq;
+    if (cur !== prev + 1) {
+      return runJournalFailure("corrupt_state");
+    }
+  }
+  return null;
+}
+function validateDraftShape(draft) {
+  if (typeof draft.type !== "string" || draft.type.length === 0 || typeof draft.lane !== "string" || draft.lane.length === 0 || draft.payload === null || typeof draft.payload !== "object" || Array.isArray(draft.payload)) {
+    return runJournalFailure("invalid_event");
+  }
+  if (draft.commit !== void 0) {
+    if (typeof draft.commit !== "string" || draft.commit.length === 0) {
+      return runJournalFailure("invalid_event");
+    }
+  }
+  return null;
+}
+function readJournalLocked(journalPath) {
+  const kind = observePathKind(journalPath);
+  if (kind === "symlink" || kind === "directory" || kind === "other") {
+    return runJournalFailure("invalid_path");
+  }
+  let existing = new Uint8Array(0);
+  let beforeIdentity = null;
+  if (kind === "regular") {
+    let fd;
+    try {
+      fd = openSync2(journalPath, noFollowReadFlags());
+      const st = fstatSync2(fd);
+      if (!st.isFile()) {
+        return runJournalFailure("invalid_path");
+      }
+      if (st.size > MAX_REPLAY_INPUT_BYTES) {
+        return runJournalFailure("limit_exceeded");
+      }
+      beforeIdentity = identityOf(st);
+      if (st.size > 0) {
+        const buf = Buffer.allocUnsafe(st.size);
+        let offset = 0;
+        while (offset < st.size) {
+          const n = readSync2(fd, buf, offset, st.size - offset, offset);
+          if (n === 0) break;
+          offset += n;
+        }
+        existing = buf.subarray(0, offset);
+      }
+      const match12 = pathMatchesOpenedFd(journalPath, fd);
+      if (match12 === "identity_changed") {
+        return runJournalFailure("identity_changed");
+      }
+      if (match12 !== "ok") {
+        return runJournalFailure("invalid_path");
+      }
+      let after3;
+      try {
+        after3 = fstatSync2(fd);
+      } catch {
+        return runJournalFailure("identity_changed");
+      }
+      if (after3.ino !== st.ino || after3.dev !== st.dev || after3.size !== st.size) {
+        return runJournalFailure("identity_changed");
+      }
+    } catch (e) {
+      if (isEnoent(e)) {
+        return runJournalFailure("identity_changed");
+      }
+      return runJournalFailure("read_failed");
+    } finally {
+      if (fd !== void 0) {
+        try {
+          closeSync2(fd);
+        } catch {
+        }
+      }
+    }
+  }
+  const replay = replayNdjsonBytes(existing, { fromLine: 0 });
+  if (replay.terminal._tag !== "CleanEof") {
+    return runJournalFailure("corrupt_state");
+  }
+  const seqErr = validateR3SequenceChain(replay.records);
+  if (seqErr !== null) return seqErr;
+  return {
+    existing,
+    beforeIdentity,
+    records: replay.records
+  };
+}
+function writeAppendLocked(journalPath, view, draft, options) {
+  const shapeErr = validateDraftShape(draft);
+  if (shapeErr !== null) return shapeErr;
+  let lastSeq = 0;
+  if (view.records.length === 0) {
+    lastSeq = 0;
+  } else {
+    lastSeq = view.records[view.records.length - 1].event.seq;
+  }
+  if (lastSeq >= Number.MAX_SAFE_INTEGER) {
+    return runJournalFailure("limit_exceeded");
+  }
+  const nextSeq = lastSeq === 0 ? 1 : lastSeq + 1;
+  if (!Number.isSafeInteger(nextSeq) || nextSeq < 1) {
+    return runJournalFailure("limit_exceeded");
+  }
+  const ts = formatUtcSecondTimestamp(/* @__PURE__ */ new Date());
+  const candidate = {
+    seq: nextSeq,
+    ts,
+    type: draft.type,
+    lane: draft.lane,
+    payload: { ...draft.payload }
+  };
+  if (draft.commit !== void 0) {
+    candidate["commit"] = draft.commit;
+  }
+  const decoded = decodeStoredEvent(candidate);
+  if (typeof decoded === "object" && "_tag" in decoded) {
+    return runJournalFailure("invalid_event");
+  }
+  const stored = decoded;
+  let lineText;
+  try {
+    lineText = canonicalize({
+      seq: stored.seq,
+      ts: stored.ts,
+      type: stored.type,
+      lane: stored.lane,
+      ...stored.commit !== void 0 ? { commit: stored.commit } : {},
+      payload: stored.payload
+    });
+  } catch {
+    return runJournalFailure("invalid_event");
+  }
+  const lineBytes = Buffer.from(lineText + "\n", "utf8");
+  if (view.existing.byteLength + lineBytes.byteLength > MAX_REPLAY_INPUT_BYTES) {
+    return runJournalFailure("limit_exceeded");
+  }
+  const candidateBytes = Buffer.concat([
+    Buffer.from(view.existing),
+    lineBytes
+  ]);
+  const candidateReplay = replayNdjsonBytes(candidateBytes, { fromLine: 0 });
+  if (candidateReplay.terminal._tag !== "CleanEof") {
+    const reason = candidateReplay.terminal.reason;
+    if (reason === "line_too_large" || reason === "input_too_large" || reason === "too_many_lines") {
+      return runJournalFailure("limit_exceeded");
+    }
+    return runJournalFailure("invalid_event");
+  }
+  const candSeqErr = validateR3SequenceChain(candidateReplay.records);
+  if (candSeqErr !== null) return candSeqErr;
+  let wfd;
+  try {
+    if (view.beforeIdentity === null) {
+      if (options.beforeJournalCreate !== void 0) {
+        options.beforeJournalCreate(journalPath);
+      }
+      try {
+        wfd = openSync2(
+          journalPath,
+          fsConstants2.O_CREAT | fsConstants2.O_EXCL | fsConstants2.O_WRONLY,
+          384
+        );
+      } catch (e) {
+        if (isEexist(e)) {
+          return runJournalFailure("identity_changed");
+        }
+        return runJournalFailure("write_failed");
+      }
+    } else {
+      wfd = openSync2(
+        journalPath,
+        noFollowWriteFlags(fsConstants2.O_WRONLY | fsConstants2.O_APPEND),
+        384
+      );
+    }
+    const opened = fstatSync2(wfd);
+    if (!opened.isFile()) {
+      return runJournalFailure("invalid_path");
+    }
+    if (view.beforeIdentity !== null) {
+      if (!identitiesEqual(identityOf(opened), view.beforeIdentity)) {
+        return runJournalFailure("identity_changed");
+      }
+      if (opened.size !== view.existing.byteLength) {
+        return runJournalFailure("identity_changed");
+      }
+    } else if (opened.size !== 0) {
+      return runJournalFailure("identity_changed");
+    }
+    {
+      const match12 = pathMatchesOpenedFd(journalPath, wfd);
+      if (match12 === "identity_changed") {
+        return runJournalFailure("identity_changed");
+      }
+      if (match12 !== "ok") {
+        return runJournalFailure("invalid_path");
+      }
+    }
+    let offset = 0;
+    while (offset < lineBytes.byteLength) {
+      const n = writeSync(
+        wfd,
+        lineBytes,
+        offset,
+        lineBytes.byteLength - offset
+      );
+      offset += n;
+    }
+    fsyncSync(wfd);
+    if (options.afterJournalWriteSync !== void 0) {
+      options.afterJournalWriteSync({ path: journalPath, fd: wfd });
+    }
+    {
+      const match12 = pathMatchesOpenedFd(journalPath, wfd);
+      if (match12 === "identity_changed") {
+        return runJournalFailure("identity_changed");
+      }
+      if (match12 !== "ok") {
+        return runJournalFailure("invalid_path");
+      }
+    }
+    const after3 = fstatSync2(wfd);
+    if (after3.ino !== opened.ino || after3.dev !== opened.dev) {
+      return runJournalFailure("identity_changed");
+    }
+    return stored;
+  } catch (e) {
+    if (isEnoent(e)) {
+      return runJournalFailure("identity_changed");
+    }
+    return runJournalFailure("write_failed");
+  } finally {
+    if (wfd !== void 0) {
+      try {
+        closeSync2(wfd);
+      } catch {
+      }
+    }
+  }
+}
+function lockedJournalTransaction(stateRoot, runId, options, decide) {
+  const layoutErr = ensureLayoutDirs(stateRoot, ["runs", runId, "locks"]);
+  if (layoutErr !== null) return layoutErr;
+  const lockPath = eventsLockPath(stateRoot, runId);
+  const journalPath = eventsPath(stateRoot, runId);
+  const timing = {
+    boundMs: options.lockBoundMs ?? JOURNAL_LOCK_BOUND_MS,
+    spinMs: options.lockSpinMs ?? 5,
+    nowMs: options.nowMs ?? (() => Date.now()),
+    waitMs: options.waitMs ?? defaultWaitMs
+  };
+  return withLockSync(lockPath, timing, () => {
+    const view = readJournalLocked(journalPath);
+    if (isRunJournalFailure(view)) {
+      return view;
+    }
+    const decision = decide(view.records);
+    if (decision._tag === "fail") {
+      return decision.error;
+    }
+    return writeAppendLocked(journalPath, view, decision.draft, options);
+  });
+}
+function appendSync(stateRoot, runId, draft, options) {
+  const shapeErr = validateDraftShape(draft);
+  if (shapeErr !== null) return shapeErr;
+  return lockedJournalTransaction(stateRoot, runId, options, () => ({
+    _tag: "append",
+    draft
+  }));
+}
+function transactSync(stateRoot, runId, decide, options) {
+  const layoutErr = ensureLayoutDirs(stateRoot, ["runs", runId, "locks"]);
+  if (layoutErr !== null) return layoutErr;
+  const lockPath = eventsLockPath(stateRoot, runId);
+  const journalPath = eventsPath(stateRoot, runId);
+  const timing = {
+    boundMs: options.lockBoundMs ?? JOURNAL_LOCK_BOUND_MS,
+    spinMs: options.lockSpinMs ?? 5,
+    nowMs: options.nowMs ?? (() => Date.now()),
+    waitMs: options.waitMs ?? defaultWaitMs
+  };
+  return withLockSync(lockPath, timing, () => {
+    const view = readJournalLocked(journalPath);
+    if (isRunJournalFailure(view)) return view;
+    let decision;
+    try {
+      decision = decide(view.records.map((record) => record.event));
+    } catch {
+      return runJournalFailure("read_failed");
+    }
+    if (decision._tag === "Return") return decision.value;
+    const stored = writeAppendLocked(journalPath, view, decision.draft, options);
+    if (isRunJournalFailure(stored)) return stored;
+    try {
+      return decision.result(stored);
+    } catch {
+      return runJournalFailure("write_failed");
+    }
+  });
+}
+var RESUME_COUNT_MAX = 100;
+function isPositiveSafeInteger2(n) {
+  return Number.isSafeInteger(n) && n >= 1;
+}
+function isValidResumeLimit(limit) {
+  return Number.isSafeInteger(limit) && limit >= 1 && limit <= RESUME_COUNT_MAX;
+}
+function parseResumeAttemptPayload(payload) {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    return "invalid";
+  }
+  const keys5 = Object.keys(payload);
+  if (keys5.length !== 2) {
+    return "invalid";
+  }
+  if (!Object.prototype.hasOwnProperty.call(payload, "attempt")) {
+    return "invalid";
+  }
+  if (!Object.prototype.hasOwnProperty.call(payload, "resumeCount")) {
+    return "invalid";
+  }
+  const attemptRaw = payload["attempt"];
+  const countRaw = payload["resumeCount"];
+  if (typeof attemptRaw !== "number" || !isPositiveSafeInteger2(attemptRaw)) {
+    return "invalid";
+  }
+  if (typeof countRaw !== "number" || !Number.isSafeInteger(countRaw) || countRaw < 1 || countRaw > RESUME_COUNT_MAX) {
+    return "invalid";
+  }
+  const attempt = decodeAttemptId(attemptRaw);
+  if (typeof attempt !== "number") {
+    return "invalid";
+  }
+  return { attempt, resumeCount: countRaw };
+}
+function inspectResumeAttemptBudget(records, attemptIdentity, resumeMaxAttempts) {
+  if (!isValidResumeLimit(resumeMaxAttempts)) {
+    return resumeAttemptFailure("invalid_limit");
+  }
+  const lane = attemptIdentity.laneId;
+  let latestPromptAttempt = null;
+  let expectedCount = 1;
+  for (const rec of records) {
+    const event = rec.event;
+    if (event.lane !== lane) {
+      continue;
+    }
+    if (event.type === "prompt") {
+      const extracted = extractPayloadAttempt(event.payload);
+      if (extracted === void 0) {
+        latestPromptAttempt = "malformed";
+      } else if (typeof extracted !== "number") {
+        latestPromptAttempt = "malformed";
+      } else {
+        latestPromptAttempt = extracted;
+      }
+      continue;
+    }
+    if (event.type === "resume") {
+      return resumeAttemptFailure("legacy_unbound");
+    }
+    if (event.type === "resume_attempt") {
+      const parsed = parseResumeAttemptPayload(event.payload);
+      if (parsed === "invalid") {
+        return resumeAttemptFailure("invalid_resume_history");
+      }
+      if (parsed.resumeCount !== expectedCount) {
+        return resumeAttemptFailure("invalid_resume_history");
+      }
+      expectedCount += 1;
+      continue;
+    }
+  }
+  if (latestPromptAttempt === null || latestPromptAttempt === "malformed" || latestPromptAttempt !== attemptIdentity.attemptId) {
+    return resumeAttemptFailure("attempt_not_current");
+  }
+  const resumeCount = expectedCount - 1;
+  const exhausted = resumeCount >= resumeMaxAttempts || expectedCount > RESUME_COUNT_MAX;
+  return {
+    attemptIdentity,
+    resumeCount,
+    resumeMaxAttempts,
+    exhausted
+  };
+}
+function attemptHasDurableTerminal(records, attemptIdentity) {
+  const lane = attemptIdentity.laneId;
+  const attempt = attemptIdentity.attemptId;
+  for (const rec of records) {
+    const event = rec.event;
+    if (event.lane !== lane) continue;
+    if (event.type === "round_done") {
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+      continue;
+    }
+    if (event.type === "alert") {
+      if (event.payload["kind"] !== "round_incomplete") continue;
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function deriveNextResumeCount(records, attemptIdentity, resumeMaxAttempts) {
+  const budget = inspectResumeAttemptBudget(
+    records,
+    attemptIdentity,
+    resumeMaxAttempts
+  );
+  if (isResumeAttemptFailure(budget)) {
+    return { _tag: "fail", error: budget };
+  }
+  if (attemptHasDurableTerminal(records, attemptIdentity)) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("attempt_not_current")
+    };
+  }
+  if (budget.exhausted) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("resume_limit_reached")
+    };
+  }
+  const nextCount = budget.resumeCount + 1;
+  if (nextCount > resumeMaxAttempts || nextCount > RESUME_COUNT_MAX) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("resume_limit_reached")
+    };
+  }
+  return { _tag: "ok", nextCount };
+}
+function reserveResumeAttemptSync(stateRoot, attemptIdentity, resumeMaxAttempts, options) {
+  if (!isValidResumeLimit(resumeMaxAttempts)) {
+    return resumeAttemptFailure("invalid_limit");
+  }
+  let reservedCount = 0;
+  const result = lockedJournalTransaction(
+    stateRoot,
+    attemptIdentity.runId,
+    options,
+    (records) => {
+      const derived = deriveNextResumeCount(
+        records,
+        attemptIdentity,
+        resumeMaxAttempts
+      );
+      if (derived._tag === "fail") {
+        return { _tag: "fail", error: derived.error };
+      }
+      reservedCount = derived.nextCount;
+      return {
+        _tag: "append",
+        draft: {
+          type: "resume_attempt",
+          lane: attemptIdentity.laneId,
+          payload: {
+            attempt: attemptIdentity.attemptId,
+            resumeCount: derived.nextCount
+          }
+        }
+      };
+    }
+  );
+  if (isRunJournalFailure(result) || isResumeAttemptFailure(result)) {
+    return result;
+  }
+  const stored = result;
+  return {
+    attemptIdentity,
+    event: stored,
+    resumeCount: reservedCount
+  };
+}
+function isAttemptFailureValue(v) {
+  return typeof v === "object" && v !== null && v._tag === "AttemptFailure";
+}
+function makeLiveRunJournalLayer(stateRoot, options = {}) {
+  return Layer_exports.succeed(RunJournal, {
+    allocate: (runId, laneId) => {
+      try {
+        const r = allocateSync(stateRoot, runId, laneId, options);
+        if (isRunJournalFailure(r)) {
+          return Effect_exports.fail(r);
+        }
+        if (isAttemptFailureValue(r)) {
+          return Effect_exports.fail(r);
+        }
+        return Effect_exports.succeed(r);
+      } catch {
+        return Effect_exports.fail(runJournalFailure("write_failed"));
+      }
+    },
+    append: (runId, event) => {
+      try {
+        const r = appendSync(stateRoot, runId, event, options);
+        if (isRunJournalFailure(r)) {
+          return Effect_exports.fail(r);
+        }
+        return Effect_exports.succeed(r);
+      } catch {
+        return Effect_exports.fail(runJournalFailure("write_failed"));
+      }
+    },
+    transact: (runId, decide) => {
+      try {
+        const result = transactSync(stateRoot, runId, decide, options);
+        if (isRunJournalFailure(result)) return Effect_exports.fail(result);
+        return Effect_exports.succeed(result);
+      } catch {
+        return Effect_exports.fail(runJournalFailure("write_failed"));
+      }
+    },
+    reserveResumeAttempt: (attemptIdentity, resumeMaxAttempts) => {
+      try {
+        const r = reserveResumeAttemptSync(
+          stateRoot,
+          attemptIdentity,
+          resumeMaxAttempts,
+          options
+        );
+        if (isRunJournalFailure(r)) {
+          return Effect_exports.fail(r);
+        }
+        if (isResumeAttemptFailure(r)) {
+          return Effect_exports.fail(r);
+        }
+        return Effect_exports.succeed(r);
+      } catch {
+        return Effect_exports.fail(runJournalFailure("write_failed"));
+      }
+    }
+  });
+}
+
+// packages/orchestration/src/execution-contract.ts
+var executionMilestones = [
+  "checks",
+  "audit",
+  "integrated",
+  "published"
+];
+function failure(reason) {
+  return { _tag: "ExecutionContractFailure", reason };
+}
+function isExecutionContractFailure(value) {
+  return typeof value === "object" && value !== null && value._tag === "ExecutionContractFailure";
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var contractKeys = /* @__PURE__ */ new Set([
+  "schemaVersion",
+  "contractId",
+  "packageId",
+  "objectiveSha256",
+  "acceptanceSha256",
+  "baseCommit",
+  "allowedPathsSha256",
+  "dependencyContractIds",
+  "authorizationSha256",
+  "createdAt",
+  "deadlineAt",
+  "limits",
+  "requiredMilestones",
+  "supersedesContractId"
+]);
+var limitKeys = /* @__PURE__ */ new Set([
+  "implementationRounds",
+  "correctionRounds",
+  "auditRounds",
+  "councilRounds",
+  "providerRetries",
+  "resumeAttempts",
+  "verificationRunsPerCandidate",
+  "totalActions",
+  "wallTimeMs",
+  "noProductChangeMs"
+]);
+function hasOnlyKeys(value, keys5) {
+  return Object.keys(value).every((key) => keys5.has(key));
+}
+function safeBoundedInteger(value, min3, max5) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= min3 && value <= max5;
+}
+function decodeLimits(value) {
+  if (!isRecord(value) || !hasOnlyKeys(value, limitKeys)) {
+    return failure("invalid_limits");
+  }
+  const countNames = [
+    "implementationRounds",
+    "correctionRounds",
+    "auditRounds",
+    "councilRounds",
+    "providerRetries",
+    "resumeAttempts",
+    "verificationRunsPerCandidate",
+    "totalActions"
+  ];
+  for (const name of countNames) {
+    if (!safeBoundedInteger(value[name], 1, 100)) {
+      return failure("invalid_limits");
+    }
+  }
+  if (!safeBoundedInteger(value.wallTimeMs, 1e3, 6048e5) || !safeBoundedInteger(value.noProductChangeMs, 1e3, value.wallTimeMs)) {
+    return failure("invalid_limits");
+  }
+  const limits = value;
+  if (limits.implementationRounds > limits.totalActions || limits.correctionRounds > limits.implementationRounds || limits.auditRounds > limits.totalActions || limits.councilRounds > limits.totalActions || limits.providerRetries > limits.totalActions || limits.resumeAttempts > limits.totalActions || limits.verificationRunsPerCandidate > limits.totalActions) {
+    return failure("invalid_limits");
+  }
+  return { ...limits };
+}
+function decodeIdentifier(value) {
+  if (typeof value !== "string") return null;
+  return typeof decodeRunId(value) === "string" ? value : null;
+}
+function decodeExecutionContractV1(value) {
+  if (!isRecord(value)) return failure("not_object");
+  if (!hasOnlyKeys(value, contractKeys)) return failure("unknown_field");
+  if (value.schemaVersion !== 1) return failure("invalid_schema_version");
+  const contractId = decodeIdentifier(value.contractId);
+  const packageId = decodeIdentifier(value.packageId);
+  if (contractId === null || packageId === null) {
+    return failure("invalid_identifier");
+  }
+  const objectiveSha256 = value.objectiveSha256;
+  const acceptanceSha256 = value.acceptanceSha256;
+  const allowedPathsSha256 = value.allowedPathsSha256;
+  if (typeof objectiveSha256 !== "string" || typeof acceptanceSha256 !== "string" || typeof allowedPathsSha256 !== "string" || !isSha256Hex(objectiveSha256) || !isSha256Hex(acceptanceSha256) || !isSha256Hex(allowedPathsSha256)) {
+    return failure("invalid_digest");
+  }
+  const baseCommit = value.baseCommit;
+  if (typeof baseCommit !== "string" || !isCommitSha40(baseCommit)) {
+    return failure("invalid_base_commit");
+  }
+  const authorizationSha256 = value.authorizationSha256;
+  if (typeof authorizationSha256 !== "string" || !isSha256Hex(authorizationSha256)) {
+    return failure("invalid_authorization");
+  }
+  if (!Array.isArray(value.dependencyContractIds)) {
+    return failure("invalid_dependencies");
+  }
+  const dependencyContractIds = [];
+  const dependencies = /* @__PURE__ */ new Set();
+  for (const raw of value.dependencyContractIds) {
+    const dependency = decodeIdentifier(raw);
+    if (dependency === null || dependency === contractId || dependencies.has(dependency)) {
+      return failure("invalid_dependencies");
+    }
+    dependencies.add(dependency);
+    dependencyContractIds.push(dependency);
+  }
+  if (typeof value.createdAt !== "string" || typeof value.deadlineAt !== "string" || !isUtcSecondTimestamp(value.createdAt) || !isUtcSecondTimestamp(value.deadlineAt)) {
+    return failure("invalid_timestamp");
+  }
+  const limits = decodeLimits(value.limits);
+  if (isExecutionContractFailure(limits)) return limits;
+  const createdMs = Date.parse(value.createdAt);
+  const deadlineMs = Date.parse(value.deadlineAt);
+  if (deadlineMs <= createdMs || deadlineMs - createdMs !== limits.wallTimeMs) {
+    return failure("invalid_deadline");
+  }
+  if (!Array.isArray(value.requiredMilestones) || value.requiredMilestones.length === 0) {
+    return failure("invalid_milestones");
+  }
+  const milestones = /* @__PURE__ */ new Set();
+  const requiredMilestones = [];
+  for (const raw of value.requiredMilestones) {
+    if (typeof raw !== "string" || !executionMilestones.includes(raw) || milestones.has(raw)) {
+      return failure("invalid_milestones");
+    }
+    const milestone = raw;
+    milestones.add(milestone);
+    requiredMilestones.push(milestone);
+  }
+  let supersedesContractId;
+  if (value.supersedesContractId !== void 0) {
+    supersedesContractId = decodeIdentifier(value.supersedesContractId) ?? void 0;
+    if (supersedesContractId === void 0 || supersedesContractId === contractId) {
+      return failure("invalid_supersession");
+    }
+  }
+  return {
+    schemaVersion: 1,
+    contractId,
+    packageId,
+    objectiveSha256,
+    acceptanceSha256,
+    baseCommit,
+    allowedPathsSha256,
+    dependencyContractIds,
+    authorizationSha256,
+    createdAt: value.createdAt,
+    deadlineAt: value.deadlineAt,
+    limits,
+    requiredMilestones,
+    ...supersedesContractId === void 0 ? {} : { supersedesContractId }
+  };
+}
+function executionContractSha256(contract) {
+  return sha256Hex(canonicalize(contract));
+}
+
+// packages/orchestration/src/execution-terminal-policy.ts
+var executionActionKinds = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "provider_retry",
+  "resume",
+  "integrate",
+  "publish"
+];
+var zeroCounts = {
+  totalActions: 0,
+  implement: 0,
+  verify: 0,
+  audit: 0,
+  correct: 0,
+  council: 0,
+  provider_retry: 0,
+  resume: 0,
+  integrate: 0,
+  publish: 0
+};
+function initialExecutionState(contract) {
+  return {
+    _tag: "Running",
+    contract,
+    contractSha256: executionContractSha256(contract),
+    counts: zeroCounts,
+    lastEventAt: contract.createdAt,
+    lastProductChangeAt: contract.createdAt,
+    currentCandidateSha256: null,
+    milestoneCandidateSha256: null,
+    milestones: {},
+    verificationReservations: {}
+  };
+}
+function isExecutionTerminal(state) {
+  return state._tag !== "Running";
+}
+function terminalEvent(terminal, reason, at) {
+  return {
+    _tag: "Terminated",
+    events: [{ _tag: "TerminalDecided", terminal, reason, at }]
+  };
+}
+function validAt(state, at) {
+  return isUtcSecondTimestamp(at) && Date.parse(at) >= Date.parse(state.lastEventAt);
+}
+function actionLimit(state, action) {
+  switch (action) {
+    case "implement":
+      return state.contract.limits.implementationRounds;
+    case "verify":
+      return state.contract.limits.totalActions;
+    case "audit":
+      return state.contract.limits.auditRounds;
+    case "correct":
+      return state.contract.limits.correctionRounds;
+    case "council":
+      return state.contract.limits.councilRounds;
+    case "provider_retry":
+      return state.contract.limits.providerRetries;
+    case "resume":
+      return state.contract.limits.resumeAttempts;
+    case "integrate":
+    case "publish":
+      return 1;
+  }
+}
+function reserveDecision(state, command) {
+  if (!executionActionKinds.includes(command.action) || !isSha256Hex(command.candidateSha256) || command.reservationId.length === 0 || command.reservationId.length > 128 || command.action === "verify" && (typeof command.commandSha256 !== "string" || !isSha256Hex(command.commandSha256)) || command.commandSha256 !== void 0 && !isSha256Hex(command.commandSha256)) {
+    return { _tag: "Refused", reason: "invalid_command" };
+  }
+  const atMs = Date.parse(command.at);
+  if (atMs >= Date.parse(state.contract.deadlineAt)) {
+    return terminalEvent("BudgetExhausted", "wall_time_limit", command.at);
+  }
+  if (atMs - Date.parse(state.lastProductChangeAt) >= state.contract.limits.noProductChangeMs) {
+    return terminalEvent("Stalled", "no_product_change_limit", command.at);
+  }
+  if (state.counts.totalActions >= state.contract.limits.totalActions) {
+    return terminalEvent("BudgetExhausted", "total_action_limit", command.at);
+  }
+  const used = state.counts[command.action];
+  if (used >= actionLimit(state, command.action)) {
+    return terminalEvent(
+      command.action === "provider_retry" ? "BlockedExternal" : "BudgetExhausted",
+      `${command.action}_limit`,
+      command.at
+    );
+  }
+  if (command.action === "verify") {
+    const key = `${command.candidateSha256}:${command.commandSha256}`;
+    const existing = state.verificationReservations[key];
+    if (existing !== void 0) {
+      return { _tag: "ReusedVerification", reservationId: existing };
+    }
+  }
+  return {
+    _tag: "Accepted",
+    events: [
+      {
+        _tag: "ActionReserved",
+        action: command.action,
+        candidateSha256: command.candidateSha256,
+        ...command.commandSha256 === void 0 ? {} : { commandSha256: command.commandSha256 },
+        reservationId: command.reservationId,
+        at: command.at
+      }
+    ]
+  };
+}
+function decideExecutionCommand(state, command) {
+  if (isExecutionTerminal(state)) {
+    return { _tag: "Refused", reason: "terminal", terminal: state._tag };
+  }
+  if (!validAt(state, command.at)) {
+    return { _tag: "Refused", reason: "time_regression" };
+  }
+  switch (command._tag) {
+    case "ReserveAction":
+      return reserveDecision(state, command);
+    case "RecordProductChange":
+      if (!isSha256Hex(command.candidateSha256) || command.allowedPathsSha256 !== state.contract.allowedPathsSha256) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      return {
+        _tag: "Accepted",
+        events: [
+          {
+            _tag: "ProductChanged",
+            candidateSha256: command.candidateSha256,
+            allowedPathsSha256: command.allowedPathsSha256,
+            at: command.at
+          }
+        ]
+      };
+    case "RecordMilestone": {
+      if (!state.contract.requiredMilestones.includes(command.milestone) || !isSha256Hex(command.candidateSha256) || !isSha256Hex(command.evidenceSha256)) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      if (state.milestoneCandidateSha256 !== null && state.milestoneCandidateSha256 !== command.candidateSha256) {
+        return terminalEvent("Invalidated", "milestone_candidate_mismatch", command.at);
+      }
+      const milestoneEvent = {
+        _tag: "MilestoneRecorded",
+        milestone: command.milestone,
+        candidateSha256: command.candidateSha256,
+        evidenceSha256: command.evidenceSha256,
+        at: command.at
+      };
+      const complete3 = state.contract.requiredMilestones.every(
+        (milestone) => milestone === command.milestone || state.milestones[milestone] !== void 0
+      );
+      if (complete3) {
+        return {
+          _tag: "Terminated",
+          events: [
+            milestoneEvent,
+            {
+              _tag: "TerminalDecided",
+              terminal: "Completed",
+              reason: "required_milestones_complete",
+              at: command.at
+            }
+          ]
+        };
+      }
+      return { _tag: "Accepted", events: [milestoneEvent] };
+    }
+    case "Cancel":
+      if (command.authorizationSha256 !== state.contract.authorizationSha256) {
+        return { _tag: "Refused", reason: "authorization_mismatch" };
+      }
+      return terminalEvent("Cancelled", "user_cancelled", command.at);
+    case "Invalidate":
+      if (!isSha256Hex(command.observedContractSha256)) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      return command.observedContractSha256 === state.contractSha256 ? { _tag: "Accepted", events: [] } : terminalEvent("Invalidated", "contract_identity_changed", command.at);
+    case "RecordBlockingOutcome":
+      return state.counts.correct >= state.contract.limits.correctionRounds ? terminalEvent("Escalated", `${command.source}_blocking_after_correction`, command.at) : { _tag: "Accepted", events: [] };
+    case "RecordExternalFailure":
+      return state.counts.provider_retry >= state.contract.limits.providerRetries ? terminalEvent("BlockedExternal", "external_retry_limit", command.at) : { _tag: "Accepted", events: [] };
+  }
+}
+function evolveExecution(state, event) {
+  if (isExecutionTerminal(state)) return state;
+  switch (event._tag) {
+    case "ActionReserved": {
+      const verificationReservations = { ...state.verificationReservations };
+      if (event.action === "verify" && event.commandSha256 !== void 0) {
+        verificationReservations[`${event.candidateSha256}:${event.commandSha256}`] = event.reservationId;
+      }
+      return {
+        ...state,
+        counts: {
+          ...state.counts,
+          totalActions: state.counts.totalActions + 1,
+          [event.action]: state.counts[event.action] + 1
+        },
+        currentCandidateSha256: event.candidateSha256,
+        verificationReservations,
+        lastEventAt: event.at
+      };
+    }
+    case "ProductChanged":
+      return {
+        ...state,
+        currentCandidateSha256: event.candidateSha256,
+        lastProductChangeAt: event.candidateSha256 === state.currentCandidateSha256 ? state.lastProductChangeAt : event.at,
+        lastEventAt: event.at
+      };
+    case "MilestoneRecorded":
+      return {
+        ...state,
+        milestoneCandidateSha256: state.milestoneCandidateSha256 ?? event.candidateSha256,
+        milestones: {
+          ...state.milestones,
+          [event.milestone]: event.evidenceSha256
+        },
+        lastEventAt: event.at
+      };
+    case "TerminalDecided":
+      return {
+        ...state,
+        _tag: event.terminal,
+        terminalAt: event.at,
+        terminalReason: event.reason,
+        lastEventAt: event.at
+      };
+  }
+}
+
+// packages/orchestration/src/execution-ledger.ts
+var ENDSTOP_LANE = "endstop";
+var CONTRACT_EVENT = "endstop_contract";
+var DECISION_EVENT = "endstop_decision";
+var ENDSTOP_LEDGER_FAILURE_BRAND = Symbol(
+  "@foreman/orchestration/EndstopLedgerFailure"
+);
+function ledgerFailure(reason) {
+  return {
+    [ENDSTOP_LEDGER_FAILURE_BRAND]: true,
+    _tag: "EndstopLedgerFailure",
+    reason
+  };
+}
+var EndstopLedger = class extends Context_exports.Tag("EndstopLedger")() {
+};
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function exactKeys(value, keys5) {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys5].sort();
+  return actual.length === expected.length && actual.every((key, i) => key === expected[i]);
+}
+function executionEventFromUnknown(value) {
+  if (!isRecord2(value) || typeof value._tag !== "string") return null;
+  const at = value.at;
+  if (typeof at !== "string" || !isUtcSecondTimestamp(at)) return null;
+  switch (value._tag) {
+    case "ActionReserved": {
+      const allowed = value.commandSha256 === void 0 ? ["_tag", "action", "candidateSha256", "reservationId", "at"] : ["_tag", "action", "candidateSha256", "commandSha256", "reservationId", "at"];
+      if (!exactKeys(value, allowed) || typeof value.action !== "string" || !executionActionKinds.includes(value.action) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.reservationId !== "string" || value.reservationId.length === 0 || value.commandSha256 !== void 0 && (typeof value.commandSha256 !== "string" || !isSha256Hex(value.commandSha256))) {
+        return null;
+      }
+      return {
+        _tag: "ActionReserved",
+        action: value.action,
+        candidateSha256: value.candidateSha256,
+        ...value.commandSha256 === void 0 ? {} : { commandSha256: value.commandSha256 },
+        reservationId: value.reservationId,
+        at
+      };
+    }
+    case "ProductChanged":
+      if (!exactKeys(value, ["_tag", "candidateSha256", "allowedPathsSha256", "at"]) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.allowedPathsSha256 !== "string" || !isSha256Hex(value.allowedPathsSha256)) return null;
+      return {
+        _tag: "ProductChanged",
+        candidateSha256: value.candidateSha256,
+        allowedPathsSha256: value.allowedPathsSha256,
+        at
+      };
+    case "MilestoneRecorded": {
+      const milestones = ["checks", "audit", "integrated", "published"];
+      if (!exactKeys(value, ["_tag", "milestone", "candidateSha256", "evidenceSha256", "at"]) || typeof value.milestone !== "string" || !milestones.includes(value.milestone) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.evidenceSha256 !== "string" || !isSha256Hex(value.evidenceSha256)) return null;
+      return {
+        _tag: "MilestoneRecorded",
+        milestone: value.milestone,
+        candidateSha256: value.candidateSha256,
+        evidenceSha256: value.evidenceSha256,
+        at
+      };
+    }
+    case "TerminalDecided": {
+      const terminals = [
+        "Completed",
+        "Escalated",
+        "Stalled",
+        "BudgetExhausted",
+        "Cancelled",
+        "Invalidated",
+        "BlockedExternal"
+      ];
+      if (!exactKeys(value, ["_tag", "terminal", "reason", "at"]) || typeof value.terminal !== "string" || !terminals.includes(value.terminal) || typeof value.reason !== "string" || value.reason.length === 0) return null;
+      return {
+        _tag: "TerminalDecided",
+        terminal: value.terminal,
+        reason: value.reason,
+        at
+      };
+    }
+    default:
+      return null;
+  }
+}
+function replayHistory(events) {
+  const relevant = events.filter(
+    (event) => event.type === CONTRACT_EVENT || event.type === DECISION_EVENT
+  );
+  const contracts = relevant.filter((event) => event.type === CONTRACT_EVENT);
+  if (contracts.length === 0) {
+    return relevant.length === 0 ? { _tag: "Missing" } : { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  if (contracts.length !== 1 || relevant[0]?.type !== CONTRACT_EVENT) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  const contractStored = contracts[0];
+  if (contractStored.lane !== ENDSTOP_LANE || !exactKeys(contractStored.payload, [
+    "contract",
+    "contractSha256"
+  ])) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  const decoded = decodeExecutionContractV1(contractStored.payload.contract);
+  const hash2 = contractStored.payload.contractSha256;
+  if (isExecutionContractFailure(decoded) || typeof hash2 !== "string" || !isSha256Hex(hash2) || executionContractSha256(decoded) !== hash2) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  let state = initialExecutionState(decoded);
+  for (const stored of relevant.slice(1)) {
+    if (stored.type !== DECISION_EVENT || stored.lane !== ENDSTOP_LANE || !exactKeys(stored.payload, [
+      "contractSha256",
+      "events"
+    ]) || stored.payload.contractSha256 !== hash2 || !Array.isArray(stored.payload.events) || stored.payload.events.length === 0 || isExecutionTerminal(state)) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    for (const raw of stored.payload.events) {
+      const event = executionEventFromUnknown(raw);
+      if (event === null || Date.parse(event.at) < Date.parse(state.lastEventAt) || event._tag === "ProductChanged" && event.allowedPathsSha256 !== state.contract.allowedPathsSha256) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      state = evolveExecution(state, event);
+    }
+  }
+  return { _tag: "Ok", state };
+}
+function unwrap(result) {
+  return result._tag === "Ok" ? Effect_exports.succeed(result.value) : Effect_exports.fail(result.failure);
+}
+function withJournalFailure(effect2) {
+  return effect2.pipe(
+    Effect_exports.catchAll(() => Effect_exports.fail(ledgerFailure("journal_failure"))),
+    Effect_exports.flatMap(unwrap)
+  );
+}
+function makeLiveEndstopLedgerLayer(stateRoot) {
+  const journalLayer = makeLiveRunJournalLayer(stateRoot);
+  const readState = (contractId) => {
+    const runId = decodeRunId(contractId);
+    if (typeof runId !== "string") {
+      return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+    }
+    const transaction = Effect_exports.gen(function* () {
+      const journal = yield* RunJournal;
+      return yield* journal.transact(
+        runId,
+        (events) => {
+          const history = replayHistory(events);
+          if (history._tag === "Ok") {
+            return {
+              _tag: "Return",
+              value: { _tag: "Ok", value: history.state }
+            };
+          }
+          return {
+            _tag: "Return",
+            value: {
+              _tag: "Failure",
+              failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+            }
+          };
+        }
+      );
+    }).pipe(Effect_exports.provide(journalLayer));
+    return withJournalFailure(transaction);
+  };
+  return Layer_exports.succeed(EndstopLedger, {
+    create: (contract) => {
+      const decoded = decodeExecutionContractV1(contract);
+      if (isExecutionContractFailure(decoded)) {
+        return Effect_exports.fail(ledgerFailure("invalid_contract"));
+      }
+      const runId = decodeRunId(decoded.contractId);
+      if (typeof runId !== "string") {
+        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+      }
+      const contractSha256 = executionContractSha256(decoded);
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(
+          runId,
+          (events) => {
+            const history = replayHistory(events);
+            if (history._tag === "Failure") {
+              return { _tag: "Return", value: history };
+            }
+            if (history._tag === "Ok") {
+              return history.state.contractSha256 === contractSha256 ? { _tag: "Return", value: { _tag: "Ok", value: history.state } } : {
+                _tag: "Return",
+                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
+              };
+            }
+            const state = initialExecutionState(decoded);
+            return {
+              _tag: "Append",
+              draft: {
+                type: CONTRACT_EVENT,
+                lane: ENDSTOP_LANE,
+                payload: { contract: decoded, contractSha256 }
+              },
+              result: () => ({ _tag: "Ok", value: state })
+            };
+          }
+        );
+      }).pipe(Effect_exports.provide(journalLayer));
+      const createContract = withJournalFailure(transaction);
+      if (decoded.supersedesContractId === void 0) return createContract;
+      return Effect_exports.gen(function* () {
+        const predecessor = yield* readState(decoded.supersedesContractId).pipe(
+          Effect_exports.catchAll(
+            () => Effect_exports.fail(ledgerFailure("replacement_unauthorized"))
+          )
+        );
+        if (!isExecutionTerminal(predecessor) || predecessor.contract.packageId !== decoded.packageId || predecessor.contract.authorizationSha256 === decoded.authorizationSha256) {
+          return yield* Effect_exports.fail(ledgerFailure("replacement_unauthorized"));
+        }
+        return yield* createContract;
+      });
+    },
+    status: readState,
+    execute: (contractId, expectedContractSha256, command) => {
+      const runId = decodeRunId(contractId);
+      if (typeof runId !== "string") {
+        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+      }
+      if (!isSha256Hex(expectedContractSha256)) {
+        return Effect_exports.fail(ledgerFailure("contract_mismatch"));
+      }
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(
+          runId,
+          (events) => {
+            const history = replayHistory(events);
+            if (history._tag !== "Ok") {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+                }
+              };
+            }
+            if (history.state.contractSha256 !== expectedContractSha256) {
+              return {
+                _tag: "Return",
+                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
+              };
+            }
+            const decision = decideExecutionCommand(history.state, command);
+            if (decision._tag === "Refused" || decision._tag === "ReusedVerification" || decision.events.length === 0) {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Ok",
+                  value: { decision, state: history.state }
+                }
+              };
+            }
+            const nextState = decision.events.reduce(evolveExecution, history.state);
+            return {
+              _tag: "Append",
+              draft: {
+                type: DECISION_EVENT,
+                lane: ENDSTOP_LANE,
+                payload: {
+                  contractSha256: expectedContractSha256,
+                  events: decision.events
+                }
+              },
+              result: () => ({
+                _tag: "Ok",
+                value: { decision, state: nextState }
+              })
+            };
+          }
+        );
+      }).pipe(Effect_exports.provide(journalLayer));
+      return Effect_exports.gen(function* () {
+        const current = yield* readState(contractId);
+        if (current.contractSha256 !== expectedContractSha256) {
+          return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
+        }
+        for (const dependencyId of current.contract.dependencyContractIds) {
+          const dependency = yield* readState(dependencyId).pipe(
+            Effect_exports.catchAll(
+              () => Effect_exports.fail(ledgerFailure("dependency_incomplete"))
+            )
+          );
+          if (dependency._tag !== "Completed") {
+            return yield* Effect_exports.fail(ledgerFailure("dependency_incomplete"));
+          }
+        }
+        return yield* withJournalFailure(transaction);
+      });
+    }
+  });
+}
+
 // packages/orchestration/src/queue-cli.ts
-var USAGE = "usage: lane-queue.sh ensure|add GROUP -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+var USAGE = "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
 function stripNodeArgv(argv) {
   let args2 = [...argv];
   if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].endsWith("node.exe") || args2[0].includes("/node") || args2[0].includes("\\node"))) {
@@ -16562,21 +19046,28 @@ function parseQueueArgv(argv) {
       return { kind: "ensure" };
     case "add": {
       const group = args2[1];
-      const dash = args2[2];
-      if (group === void 0 || dash !== "--") {
-        return {
-          kind: "usage",
-          message: "usage: lane-queue.sh add GROUP -- CMD [ARGS...]"
-        };
+      const stateRoot = args2[3];
+      const contractId = args2[5];
+      const contractSha256 = args2[7];
+      const action = args2[9];
+      const candidateSha256 = args2[11];
+      const valid = group !== void 0 && args2[2] === "--endstop-state-root" && typeof stateRoot === "string" && isAbsolute(stateRoot) && args2[4] === "--endstop-contract-id" && typeof contractId === "string" && contractId.length > 0 && args2[6] === "--endstop-contract-sha" && typeof contractSha256 === "string" && isSha256Hex(contractSha256) && args2[8] === "--endstop-action" && typeof action === "string" && executionActionKinds.includes(action) && args2[10] === "--endstop-candidate-sha" && typeof candidateSha256 === "string" && isSha256Hex(candidateSha256) && args2[12] === "--";
+      const cmd = args2.slice(13);
+      if (!valid || cmd.length === 0) {
+        return { kind: "usage", message: USAGE };
       }
-      const cmd = args2.slice(3);
-      if (cmd.length === 0) {
-        return {
-          kind: "usage",
-          message: "usage: lane-queue.sh add GROUP -- CMD [ARGS...]"
-        };
-      }
-      return { kind: "add", group, cmd };
+      return {
+        kind: "add",
+        group,
+        endstop: {
+          stateRoot,
+          contractId,
+          contractSha256,
+          action,
+          candidateSha256
+        },
+        cmd
+      };
     }
     case "status":
       return { kind: "status", taskId: args2[1] };
@@ -16591,7 +19082,48 @@ function parseQueueArgv(argv) {
       return { kind: "usage", message: USAGE };
   }
 }
-var runQueueCli = (argv, io2) => Effect_exports.gen(function* () {
+function utcSecond(date) {
+  return date.toISOString().replace(/\.\d{3}Z$/u, "Z");
+}
+var cmdAddGuarded = (io2, parsed, options) => {
+  const layer = makeLiveEndstopLedgerLayer(parsed.endstop.stateRoot);
+  const reserve = Effect_exports.gen(function* () {
+    const ledger = yield* EndstopLedger;
+    return yield* ledger.execute(
+      parsed.endstop.contractId,
+      parsed.endstop.contractSha256,
+      {
+        _tag: "ReserveAction",
+        action: parsed.endstop.action,
+        candidateSha256: parsed.endstop.candidateSha256,
+        commandSha256: sha256Hex(canonicalize(parsed.cmd)),
+        reservationId: (options.reservationId ?? randomUUID)(),
+        at: utcSecond((options.now ?? (() => /* @__PURE__ */ new Date()))())
+      }
+    );
+  }).pipe(Effect_exports.provide(layer));
+  return reserve.pipe(
+    Effect_exports.matchEffect({
+      onFailure: () => Effect_exports.sync(() => {
+        io2.writeStderr("Foreman Endstop refused queue admission (ledger failure)\n");
+        return EXIT_CONFIG;
+      }),
+      onSuccess: (result) => {
+        if (result.decision._tag !== "Accepted") {
+          return Effect_exports.sync(() => {
+            io2.writeStderr(
+              `Foreman Endstop refused queue admission (${result.state._tag})
+`
+            );
+            return EXIT_CONFIG;
+          });
+        }
+        return cmdAdd(io2, parsed.group, parsed.cmd);
+      }
+    })
+  );
+};
+var runQueueCli = (argv, io2, endstopOptions = {}) => Effect_exports.gen(function* () {
   const parsed = parseQueueArgv(argv);
   switch (parsed.kind) {
     case "usage":
@@ -16600,7 +19132,7 @@ var runQueueCli = (argv, io2) => Effect_exports.gen(function* () {
     case "ensure":
       return yield* cmdEnsure(io2);
     case "add":
-      return yield* cmdAdd(io2, parsed.group, parsed.cmd);
+      return yield* cmdAddGuarded(io2, parsed, endstopOptions);
     case "status":
       return yield* cmdStatus(io2, parsed.taskId);
     case "kill":

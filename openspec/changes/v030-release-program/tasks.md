@@ -57,7 +57,7 @@
 
 ## 1. Program execution
 
-- [ ] **1.0 Ship Foreman Endstop before more package execution.** Implement
+- [x] **1.0 Ship Foreman Endstop before more package execution.** Implement
       `bounded-execution-terminal-policy`. Install its runtime artifact. Pass
       its hostile loop-closure test. Require one persistent Endstop contract
       for every later workstream. Do not resume the release execution loop

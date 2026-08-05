@@ -205,6 +205,37 @@ describe("Endstop terminal policy", () => {
     }
   });
 
+  it("counts product progress only under the contract allowed-path identity", () => {
+    const value = contract();
+    let state: ExecutionState = initialExecutionState(value);
+    state = apply(state, {
+      _tag: "ReserveAction",
+      action: "implement",
+      candidateSha256: H2,
+      reservationId: "implement-1",
+      at: "2026-08-05T12:01:00Z",
+    });
+
+    const wrong = decideExecutionCommand(state, {
+      _tag: "RecordProductChange",
+      candidateSha256: H3,
+      allowedPathsSha256: H,
+      at: "2026-08-05T12:02:00Z",
+    });
+    assert.deepEqual(wrong, { _tag: "Refused", reason: "invalid_command" });
+
+    const valid: ExecutionCommand = {
+      _tag: "RecordProductChange",
+      candidateSha256: H3,
+      allowedPathsSha256: value.allowedPathsSha256,
+      at: "2026-08-05T12:02:00Z",
+    };
+    assert.equal(decideExecutionCommand(state, valid)._tag, "Accepted");
+    state = apply(state, valid);
+    assert.equal(state.lastProductChangeAt, "2026-08-05T12:02:00Z");
+    assert.equal(state.currentCandidateSha256, H3);
+  });
+
   it("invalidates identity changes and keeps cancellation ahead of late success", () => {
     let state: ExecutionState = initialExecutionState(contract());
     state = apply(state, {

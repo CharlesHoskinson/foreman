@@ -222,6 +222,36 @@ Keep long-running commands in the foreground as defence in depth. No design in
 this package depends on that instruction holding: `lane-run.sh` enforces round
 ownership at the dispatch boundary.
 
+### Foreman Endstop (v0.3 prerequisite)
+
+Foreman Endstop is the mandatory terminal-condition control for every new
+workstream. It stores one immutable execution contract under an external
+Foreman state root. A worktree deletion, branch deletion, process restart, or
+session restart does not reset its counters or terminal state.
+
+Before the first actionful dispatch:
+
+1. Verify the installed runtime. Treat a missing or invalid
+   `runtime/dist/execution-guard.js` artifact as `NOT_READY`.
+2. Create one contract with
+   `execution-guard.sh create --state-root ABS --contract-file ABS`.
+3. Keep the returned contract identifier and SHA-256 digest for the complete
+   implementation, verification, audit, correction, Council, retry, resume,
+   integration, and publication path.
+4. Submit actionful work only through a contract-bound `lane-queue.sh add`.
+
+The queue syntax is:
+
+`lane-queue.sh add GROUP --endstop-state-root ABS --endstop-contract-id ID
+--endstop-contract-sha SHA256 --endstop-action ACTION
+--endstop-candidate-sha SHA256 -- CMD [ARGS...]`
+
+An uncontracted queue request is invalid. A refused, exhausted, stalled, or
+terminal request starts no queue or vendor process. Do not create a new
+contract to continue terminal work. Only an explicit user authorization can
+create a new contract identifier that cites the terminal predecessor and uses
+a new authorization hash.
+
 `[durable]`/`[nats]` config keys resolve through the shared loader
 (`skills/foreman/scripts/lib/config.sh`), precedence env var > TOML > default.
 Full architecture, config key reference, Windows/WSL notes, and honest limits:
@@ -240,12 +270,14 @@ Use `checks-run.sh TASK_ID` for a hard-mode task, or
 gate command. It is operator-supplied; `lane-run.sh` never invents or defaults
 a gate.
 
-1. **Enqueue** the round via `lane-queue.sh add <vendor-group> -- ...`
+1. **Enqueue** the round via the contract-bound `lane-queue.sh add` form in
+   the Foreman Endstop section.
    (`grok` capped at 3, `codex` at 2 — T5b GREEN 2026-07-18; `claude` at 3) —
    pueue owns the round for its
    full lifetime.
 2. **Gate** any bats invocation — lane, auditor, or investigation — through
-   `lane-queue.sh add gate -- ...` (`gate` group, `parallel=1`): this is a
+   the contract-bound `lane-queue.sh add gate ... -- ...` form (`gate` group,
+   `parallel=1`): this is a
    host-wide structural mutex, not discipline. Auditor/investigator agents
    never run bats directly; they reason from code.
 3. **Watch** with `watch.sh RUN LANE WORKTREE`, armed with

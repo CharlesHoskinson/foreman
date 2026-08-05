@@ -57,6 +57,10 @@ preserves honest `quorum_not_met`.
   <https://github.com/CharlesHoskinson/foreman/releases/tag/v0.2.9.0>
 - Active v0.3.0 program:
   [`openspec/changes/v030-release-program/`](openspec/changes/v030-release-program/)
+- v0.3.0 execution safety prerequisite: **Foreman Endstop**, a persistent
+  cross-session action budget that refuses uncontracted or terminal work
+  before queue or process launch. See
+  [`bounded-execution-terminal-policy`](openspec/changes/bounded-execution-terminal-policy/).
 
 ## 1. What Foreman is and the problem it solves
 

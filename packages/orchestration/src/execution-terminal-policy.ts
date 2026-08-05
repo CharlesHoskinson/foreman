@@ -69,6 +69,7 @@ export type ExecutionCommand =
   | {
       readonly _tag: "RecordProductChange";
       readonly candidateSha256: string;
+      readonly allowedPathsSha256: string;
       readonly at: string;
     }
   | {
@@ -110,6 +111,7 @@ export type ExecutionEvent =
   | {
       readonly _tag: "ProductChanged";
       readonly candidateSha256: string;
+      readonly allowedPathsSha256: string;
       readonly at: string;
     }
   | {
@@ -296,7 +298,10 @@ export function decideExecutionCommand(
     case "ReserveAction":
       return reserveDecision(state, command);
     case "RecordProductChange":
-      if (!isSha256Hex(command.candidateSha256)) {
+      if (
+        !isSha256Hex(command.candidateSha256) ||
+        command.allowedPathsSha256 !== state.contract.allowedPathsSha256
+      ) {
         return { _tag: "Refused", reason: "invalid_command" };
       }
       return {
@@ -305,6 +310,7 @@ export function decideExecutionCommand(
           {
             _tag: "ProductChanged",
             candidateSha256: command.candidateSha256,
+            allowedPathsSha256: command.allowedPathsSha256,
             at: command.at,
           },
         ],

@@ -17127,6 +17127,36 @@ function appendSync(stateRoot, runId, draft, options) {
     draft
   }));
 }
+function transactSync(stateRoot, runId, decide, options) {
+  const layoutErr = ensureLayoutDirs(stateRoot, ["runs", runId, "locks"]);
+  if (layoutErr !== null) return layoutErr;
+  const lockPath = eventsLockPath(stateRoot, runId);
+  const journalPath = eventsPath(stateRoot, runId);
+  const timing = {
+    boundMs: options.lockBoundMs ?? JOURNAL_LOCK_BOUND_MS,
+    spinMs: options.lockSpinMs ?? 5,
+    nowMs: options.nowMs ?? (() => Date.now()),
+    waitMs: options.waitMs ?? defaultWaitMs
+  };
+  return withLockSync(lockPath, timing, () => {
+    const view = readJournalLocked(journalPath);
+    if (isRunJournalFailure(view)) return view;
+    let decision;
+    try {
+      decision = decide(view.records.map((record) => record.event));
+    } catch {
+      return runJournalFailure("read_failed");
+    }
+    if (decision._tag === "Return") return decision.value;
+    const stored = writeAppendLocked(journalPath, view, decision.draft, options);
+    if (isRunJournalFailure(stored)) return stored;
+    try {
+      return decision.result(stored);
+    } catch {
+      return runJournalFailure("write_failed");
+    }
+  });
+}
 var RESUME_COUNT_MAX = 100;
 function isPositiveSafeInteger2(n) {
   return Number.isSafeInteger(n) && n >= 1;
@@ -17333,6 +17363,15 @@ function makeLiveRunJournalLayer(stateRoot, options = {}) {
           return Effect_exports.fail(r);
         }
         return Effect_exports.succeed(r);
+      } catch {
+        return Effect_exports.fail(runJournalFailure("write_failed"));
+      }
+    },
+    transact: (runId, decide) => {
+      try {
+        const result = transactSync(stateRoot, runId, decide, options);
+        if (isRunJournalFailure(result)) return Effect_exports.fail(result);
+        return Effect_exports.succeed(result);
       } catch {
         return Effect_exports.fail(runJournalFailure("write_failed"));
       }

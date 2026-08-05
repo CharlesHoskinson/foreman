@@ -26,6 +26,12 @@ const ENTRIES = [
     injectCapabilities: false,
   },
   {
+    id: "execution-guard",
+    entry: join(root, "packages/orchestration/src/execution-guard-main.ts"),
+    relativePath: "dist/execution-guard.js",
+    injectCapabilities: false,
+  },
+  {
     id: "lane-queue",
     entry: join(root, "packages/orchestration/src/queue-main.ts"),
     relativePath: "dist/lane-queue.js",

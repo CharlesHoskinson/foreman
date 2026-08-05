@@ -197,10 +197,12 @@ value is quoted.
 
 ## 3. pueue admission control (`lane-queue.sh`)
 
-`lane-queue.sh ensure|add GROUP -- CMD [ARGS...]|status [TASK_ID]|kill
-TASK_ID` wraps pueue (v4.0.4, staged at `~/.foreman/tools/pueue/` — no
-Windows package-manager route). Fixed group topology, created idempotently
-by `ensure`:
+`lane-queue.sh ensure|status [TASK_ID]|kill TASK_ID` manages pueue. The
+actionful `add` command requires the Foreman Endstop arguments that the main
+skill defines. The queue refuses the old uncontracted `add GROUP -- CMD`
+form before it calls any queue or process service. Pueue v4.0.4 is staged at
+`~/.foreman/tools/pueue/`; there is no Windows package-manager route. Fixed
+group topology is created idempotently by `ensure`:
 
 | Group | Parallelism | Purpose |
 |---|---|---|
@@ -236,8 +238,10 @@ choosing the dialect once per `add` call (`lq_quote_for_shell`) and **fail-
 ing fast** (not guessing) when the daemon's own config overrides
 `shell_command` to something neither dialect recognizes.
 
-**Fallback (pueue absent, or `LANE_QUEUE_FORCE_MISSING=1`):** `add` degrades
-to a direct foreground spawn with a stderr "degraded" marker; `ensure`/
+**Fallback (pueue absent, or `LANE_QUEUE_FORCE_MISSING=1`):** a
+contract-admitted `add` degrades to a direct foreground spawn with a stderr
+"degraded" marker. Endstop reserves the action before this fallback;
+`ensure`/
 `status`/`kill` fail loudly rather than silently no-op. The fallback keys
 strictly on binary absence — a daemon that dies *after* a successful
 `ensure` fails the next call loudly, never a silent fall-through.

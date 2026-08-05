@@ -44,6 +44,7 @@ const trackedRuntime = join(skillRoot, "runtime");
 const trackedManifest = join(trackedRuntime, "manifest.json");
 const trackedGuard = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
+const trackedEndstop = join(trackedRuntime, "dist/execution-guard.js");
 const trackedQueue = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 const trackedSupervise = join(trackedRuntime, "dist/lane-supervise.js");
@@ -86,6 +87,7 @@ function seedRuntimeOnly(): string {
   writeFileSync(join(rt, "manifest.json"), readFileSync(trackedManifest));
   cpSync(trackedGuard, join(rt, "dist/destruction-guard.js"));
   cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
+  cpSync(trackedEndstop, join(rt, "dist/execution-guard.js"));
   cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
   cpSync(trackedRound, join(rt, "dist/lane-round.js"));
   cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));
@@ -474,6 +476,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
   it("fails closed on identity change via injected filesystem seam", async () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const endstopBytes = readFileSync(trackedEndstop);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const superviseBytes = readFileSync(trackedSupervise);
@@ -492,6 +495,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const mfPath = "/skill/runtime/manifest.json";
     const polPath = "/skill/runtime/dist/architecture-policy.js";
     const guardPath = "/skill/runtime/dist/destruction-guard.js";
+    const endstopPath = "/skill/runtime/dist/execution-guard.js";
     const queuePath = "/skill/runtime/dist/lane-queue.js";
     const roundPath = "/skill/runtime/dist/lane-round.js";
     const supervisePath = "/skill/runtime/dist/lane-supervise.js";
@@ -529,6 +533,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "execution-guard.js",
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
@@ -573,6 +578,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
           identity: fileIdentity({
             ino: "22",
             size: guardBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        endstopPath,
+        {
+          kind: "file" as const,
+          bytes: endstopBytes,
+          identity: fileIdentity({
+            ino: "32",
+            size: endstopBytes.byteLength,
           }),
         },
       ],
@@ -744,6 +760,7 @@ describe("runtime plugin-drift", () => {
   it("binds one verified snapshot and opens each manifest once (no re-read)", async () => {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const endstopBytes = readFileSync(trackedEndstop);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const superviseBytes = readFileSync(trackedSupervise);
@@ -795,6 +812,7 @@ describe("runtime plugin-drift", () => {
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "execution-guard.js",
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
@@ -837,6 +855,17 @@ describe("runtime plugin-drift", () => {
             identity: fileIdentity({
               ino: prefix + "-g",
               size: guardBytes.byteLength,
+            }),
+          },
+        ],
+        [
+          `${dist}/execution-guard.js`,
+          {
+            kind: "file",
+            bytes: endstopBytes,
+            identity: fileIdentity({
+              ino: prefix + "-eg",
+              size: endstopBytes.byteLength,
             }),
           },
         ],
@@ -1002,6 +1031,7 @@ describe("skill-root and directory stability seams", () => {
   }): Map<string, MemoryNode> {
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const endstopBytes = readFileSync(trackedEndstop);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const superviseBytes = readFileSync(trackedSupervise);
@@ -1049,6 +1079,7 @@ describe("skill-root and directory stability seams", () => {
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "execution-guard.js",
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
@@ -1099,6 +1130,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "22",
             size: guardBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/execution-guard.js`,
+        {
+          kind: "file",
+          bytes: endstopBytes,
+          identity: fileIdentity({
+            ino: "32",
+            size: endstopBytes.byteLength,
           }),
         },
       ],
@@ -1358,6 +1400,7 @@ describe("memory InstallFs path separator seam", () => {
     // joinRuntime emits mixed separators that must still hit slash-seeded nodes.
     const policyBytes = readFileSync(trackedPolicy);
     const guardBytes = readFileSync(trackedGuard);
+    const endstopBytes = readFileSync(trackedEndstop);
     const queueBytes = readFileSync(trackedQueue);
     const roundBytes = readFileSync(trackedRound);
     const superviseBytes = readFileSync(trackedSupervise);
@@ -1401,6 +1444,7 @@ describe("memory InstallFs path separator seam", () => {
               "credential-profile.js",
               "dependency-drift.js",
               "destruction-guard.js",
+              "execution-guard.js",
               "foreman-setup.js",
               "lane-queue.js",
               "lane-round.js",
@@ -1441,6 +1485,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "22",
             size: guardBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/execution-guard.js`,
+        {
+          kind: "file",
+          bytes: endstopBytes,
+          identity: fileIdentity({
+            ino: "32",
+            size: endstopBytes.byteLength,
           }),
         },
       ],

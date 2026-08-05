@@ -1151,7 +1151,7 @@ var dedupeWith = /* @__PURE__ */ dual(2, (self, isEquivalent) => {
   return [];
 });
 var dedupe = (self) => dedupeWith(self, equivalence());
-var join = /* @__PURE__ */ dual(2, (self, sep2) => fromIterable(self).join(sep2));
+var join = /* @__PURE__ */ dual(2, (self, sep) => fromIterable(self).join(sep));
 
 // node_modules/effect/dist/esm/Number.js
 var Order = number2;
@@ -3803,7 +3803,7 @@ var keepDefects = (self) => match4(self, {
 });
 var keepDefectsAndElectFailures = (self) => match4(self, {
   onEmpty: none2(),
-  onFail: (failure) => some2(die(failure)),
+  onFail: (failure2) => some2(die(failure2)),
   onDie: (defect) => some2(die(defect)),
   onInterrupt: () => none2(),
   onSequential: mergeWith(sequential),
@@ -6180,14 +6180,14 @@ var splitPathString = (text, delim) => {
   const split = text.split(new RegExp(`\\s*${escape(delim)}\\s*`));
   return split;
 };
-var parsePrimitive = (text, path, primitive, delimiter2, split) => {
+var parsePrimitive = (text, path, primitive, delimiter, split) => {
   if (!split) {
     return pipe(primitive.parse(text), mapBoth({
       onFailure: prefixed(path),
       onSuccess: of
     }));
   }
-  return pipe(splitPathString(text, delimiter2), forEachSequential((char) => primitive.parse(char.trim())), mapError(prefixed(path)));
+  return pipe(splitPathString(text, delimiter), forEachSequential((char) => primitive.parse(char.trim())), mapError(prefixed(path)));
 };
 var transpose = (array3) => {
   return Object.keys(array3[0]).map((column) => array3.map((row) => row[column]));
@@ -7248,18 +7248,18 @@ var parallelErrors = (self) => matchCauseEffect(self, {
   onSuccess: succeed
 });
 var patchFiberRefs = (patch9) => updateFiberRefs((fiberId3, fiberRefs3) => pipe(patch9, patch6(fiberId3, fiberRefs3)));
-var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve2, signal) => {
+var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve, signal) => {
   try {
-    evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
+    evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(die2(e)));
   } catch (e) {
-    resolve2(die2(e));
+    resolve(die2(e));
   }
-}) : async_((resolve2) => {
+}) : async_((resolve) => {
   try {
     ;
-    evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
+    evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(die2(e)));
   } catch (e) {
-    resolve2(die2(e));
+    resolve(die2(e));
   }
 });
 var provideService = /* @__PURE__ */ dual(3, (self, tag, service3) => contextWithEffect((env) => provideContext(self, add2(env, tag, service3))));
@@ -7385,19 +7385,19 @@ var tryPromise = (arg) => {
   }
   const fail8 = (e) => catcher ? failSync(() => catcher(e)) : fail2(new UnknownException(e, "An unknown error occurred in Effect.tryPromise"));
   if (evaluate2.length >= 1) {
-    return async_((resolve2, signal) => {
+    return async_((resolve, signal) => {
       try {
-        evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
+        evaluate2(signal).then((a) => resolve(succeed(a)), (e) => resolve(fail8(e)));
       } catch (e) {
-        resolve2(fail8(e));
+        resolve(fail8(e));
       }
     });
   }
-  return async_((resolve2) => {
+  return async_((resolve) => {
     try {
-      evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
+      evaluate2().then((a) => resolve(succeed(a)), (e) => resolve(fail8(e)));
     } catch (e) {
-      resolve2(fail8(e));
+      resolve(fail8(e));
     }
   });
 };
@@ -13970,14 +13970,14 @@ var unsafeRunPromise = /* @__PURE__ */ makeDual((runtime4, effect2, options) => 
     }
   }
 }));
-var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve2) => {
+var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve) => {
   const op = fastPath(effect2);
   if (op) {
-    resolve2(op);
+    resolve(op);
   }
   const fiber = unsafeFork3(runtime4)(effect2);
   fiber.addObserver((exit4) => {
-    resolve2(exit4);
+    resolve(exit4);
   });
   if (options?.signal !== void 0) {
     if (options.signal.aborted) {
@@ -15616,10 +15616,6 @@ var ensureSuccessType2 = () => (layer) => layer;
 var ensureErrorType2 = () => (layer) => layer;
 var ensureRequirementsType2 = () => (layer) => layer;
 
-// packages/orchestration/src/round-cli.ts
-import { realpathSync, statSync as statSync2 } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
-
 // packages/core/src/failures.ts
 var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
 function malformedUtf8() {
@@ -15655,10 +15651,22 @@ function decodeUtf8Fatal(bytes) {
   }
 }
 
+// packages/core/src/sha256.ts
+import { createHash } from "node:crypto";
+function sha256Hex(data) {
+  const hash2 = createHash("sha256");
+  if (typeof data === "string") {
+    hash2.update(data, "utf8");
+  } else {
+    hash2.update(data);
+  }
+  return hash2.digest("hex");
+}
+
 // packages/core/src/canonical-json.ts
 var PARSE_FAIL = Symbol("@foreman/core/parseFail");
-function parseFail(failure) {
-  return { [PARSE_FAIL]: true, failure };
+function parseFail(failure2) {
+  return { [PARSE_FAIL]: true, failure: failure2 };
 }
 function isParseFail(v) {
   return typeof v === "object" && v !== null && v[PARSE_FAIL] === true;
@@ -15909,6 +15917,10 @@ function isCommitSha40(value) {
   return COMMIT_SHA40.test(value);
 }
 
+// packages/orchestration/src/execution-guard-cli.ts
+import { readFileSync } from "node:fs";
+import { isAbsolute } from "node:path";
+
 // packages/event-log/src/bounds.ts
 var MAX_EVENT_NESTING_DEPTH = 64;
 var MAX_EVENT_JSON_NODES = 1e5;
@@ -15936,9 +15948,6 @@ function attemptFailure(reason) {
 }
 function isEventDecodeFailure(v) {
   return typeof v === "object" && v !== null && v[EVENT_LOG_FAILURE_BRAND] === true && v._tag === "EventDecodeFailure";
-}
-function isAttemptFailure(v) {
-  return typeof v === "object" && v !== null && v[EVENT_LOG_FAILURE_BRAND] === true && v._tag === "AttemptFailure";
 }
 
 // packages/event-log/src/structure.ts
@@ -16327,7 +16336,6 @@ function replayNdjsonBytes(bytes, options) {
 }
 
 // packages/event-log/src/attempt.ts
-var LANE_GRAMMAR = /^[A-Za-z0-9._-]+$/;
 var DIGITS_ONLY = /^[0-9]+$/;
 function isPositiveSafeInteger(n) {
   return Number.isSafeInteger(n) && n >= 1;
@@ -16341,15 +16349,6 @@ function decodeRunId(value) {
   }
   if (value.includes("/") || value.includes("\\") || value.includes("\0")) {
     return attemptFailure("invalid_run_id");
-  }
-  return value;
-}
-function decodeLaneId(value) {
-  if (typeof value !== "string" || value.length === 0) {
-    return attemptFailure("invalid_lane_id");
-  }
-  if (!LANE_GRAMMAR.test(value)) {
-    return attemptFailure("invalid_lane_id");
   }
   return value;
 }
@@ -17398,1434 +17397,796 @@ function makeLiveRunJournalLayer(stateRoot, options = {}) {
   });
 }
 
-// packages/orchestration/src/round-contract.ts
-var MAX_COMMAND_ARGV_ENTRIES = 256;
-var MAX_COMMAND_ARG_BYTES = 65536;
-var MAX_COMMAND_ARGV_TOTAL_BYTES = 1048576;
-var MAX_GATE_COMMAND_BYTES = 1048576;
-var MAX_REPORT_PATH_BYTES = 32768;
-var MAX_REPORT_CONTENT_BYTES = 8388608;
-var ROUND_CONTRACT_FAILURE_BRAND = Symbol(
-  "@foreman/orchestration/RoundContractFailure"
-);
-function roundContractFailure(reason) {
-  return {
-    [ROUND_CONTRACT_FAILURE_BRAND]: true,
-    _tag: "RoundContractFailure",
-    reason
-  };
+// packages/orchestration/src/execution-contract.ts
+var executionMilestones = [
+  "checks",
+  "audit",
+  "integrated",
+  "published"
+];
+function failure(reason) {
+  return { _tag: "ExecutionContractFailure", reason };
 }
-function isRoundContractFailure(v) {
-  return typeof v === "object" && v !== null && v[ROUND_CONTRACT_FAILURE_BRAND] === true && v._tag === "RoundContractFailure";
+function isExecutionContractFailure(value) {
+  return typeof value === "object" && value !== null && value._tag === "ExecutionContractFailure";
 }
-var SNAPSHOT_PRESENT_KEYS = ["_tag", "digest", "byteLength"];
-var SNAPSHOT_ABSENT_KEYS = ["_tag"];
-function presentReportSnapshot(digest, byteLength) {
-  if (typeof digest !== "string" || !isSha256Hex(digest)) {
-    return roundContractFailure("invalid_digest");
-  }
-  if (typeof byteLength !== "number" || !Number.isSafeInteger(byteLength) || byteLength < 0) {
-    return roundContractFailure("invalid_byte_length");
-  }
-  if (byteLength > MAX_REPORT_CONTENT_BYTES) {
-    return roundContractFailure("bound_exceeded");
-  }
-  return { _tag: "Present", digest, byteLength };
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function absentReportSnapshot() {
-  return { _tag: "Absent" };
-}
-function decodeReportSnapshotV1(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return roundContractFailure("invalid_schema");
-  }
-  const obj = value;
-  if (!("_tag" in obj)) {
-    return roundContractFailure("invalid_schema");
-  }
-  if (obj["_tag"] === "Absent") {
-    const unknown = rejectUnknownKeys(obj, SNAPSHOT_ABSENT_KEYS);
-    if (unknown !== null) {
-      return roundContractFailure("unknown_field");
-    }
-    return { _tag: "Absent" };
-  }
-  if (obj["_tag"] === "Present") {
-    const unknown = rejectUnknownKeys(obj, SNAPSHOT_PRESENT_KEYS);
-    if (unknown !== null) {
-      return roundContractFailure("unknown_field");
-    }
-    if (!("digest" in obj) || !("byteLength" in obj)) {
-      return roundContractFailure("invalid_schema");
-    }
-    return presentReportSnapshot(
-      obj["digest"],
-      obj["byteLength"]
-    );
-  }
-  return roundContractFailure("invalid_schema");
-}
-var ROUND_PLAN_KEYS = [
+var contractKeys = /* @__PURE__ */ new Set([
   "schemaVersion",
-  "runId",
-  "laneId",
-  "attemptId",
-  "mode",
-  "commandArgv",
-  "gateCommand",
-  "reportPath",
-  "reportBaseline"
-];
-var ROUND_REQUEST_KEYS = [
-  "runId",
-  "laneId",
-  "commandArgv",
-  "gateCommand",
-  "reportPath"
-];
-var utf8Encoder = new TextEncoder();
-function utf8ByteLength(text) {
-  return utf8Encoder.encode(text).byteLength;
+  "contractId",
+  "packageId",
+  "objectiveSha256",
+  "acceptanceSha256",
+  "baseCommit",
+  "allowedPathsSha256",
+  "dependencyContractIds",
+  "authorizationSha256",
+  "createdAt",
+  "deadlineAt",
+  "limits",
+  "requiredMilestones",
+  "supersedesContractId"
+]);
+var limitKeys = /* @__PURE__ */ new Set([
+  "implementationRounds",
+  "correctionRounds",
+  "auditRounds",
+  "councilRounds",
+  "providerRetries",
+  "resumeAttempts",
+  "verificationRunsPerCandidate",
+  "totalActions",
+  "wallTimeMs",
+  "noProductChangeMs"
+]);
+function hasOnlyKeys(value, keys5) {
+  return Object.keys(value).every((key) => keys5.has(key));
 }
-function containsNul(text) {
-  return text.includes("\0");
+function safeBoundedInteger(value, min3, max5) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= min3 && value <= max5;
 }
-function decodeCommandArgv(value) {
-  if (!Array.isArray(value)) {
-    return roundContractFailure("invalid_schema");
+function decodeLimits(value) {
+  if (!isRecord(value) || !hasOnlyKeys(value, limitKeys)) {
+    return failure("invalid_limits");
   }
-  if (value.length === 0) {
-    return roundContractFailure("empty_command_argv");
+  const countNames = [
+    "implementationRounds",
+    "correctionRounds",
+    "auditRounds",
+    "councilRounds",
+    "providerRetries",
+    "resumeAttempts",
+    "verificationRunsPerCandidate",
+    "totalActions"
+  ];
+  for (const name of countNames) {
+    if (!safeBoundedInteger(value[name], 1, 100)) {
+      return failure("invalid_limits");
+    }
   }
-  if (value.length > MAX_COMMAND_ARGV_ENTRIES) {
-    return roundContractFailure("bound_exceeded");
+  if (!safeBoundedInteger(value.wallTimeMs, 1e3, 6048e5) || !safeBoundedInteger(value.noProductChangeMs, 1e3, value.wallTimeMs)) {
+    return failure("invalid_limits");
   }
-  const args2 = [];
-  let total = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    const entry = value[i];
-    if (typeof entry !== "string") {
-      return roundContractFailure("invalid_schema");
-    }
-    if (containsNul(entry)) {
-      return roundContractFailure("nul_rejected");
-    }
-    const bytes = utf8ByteLength(entry);
-    if (bytes > MAX_COMMAND_ARG_BYTES) {
-      return roundContractFailure("bound_exceeded");
-    }
-    total += bytes;
-    if (total > MAX_COMMAND_ARGV_TOTAL_BYTES) {
-      return roundContractFailure("bound_exceeded");
-    }
-    if (i === 0 && entry.length === 0) {
-      return roundContractFailure("empty_first_command_arg");
-    }
-    args2.push(entry);
+  const limits = value;
+  if (limits.implementationRounds > limits.totalActions || limits.correctionRounds > limits.implementationRounds || limits.auditRounds > limits.totalActions || limits.councilRounds > limits.totalActions || limits.providerRetries > limits.totalActions || limits.resumeAttempts > limits.totalActions || limits.verificationRunsPerCandidate > limits.totalActions) {
+    return failure("invalid_limits");
   }
-  return args2;
+  return { ...limits };
 }
-function decodeGateCommand(value) {
-  if (typeof value !== "string") {
-    return roundContractFailure("invalid_schema");
-  }
-  if (containsNul(value)) {
-    return roundContractFailure("nul_rejected");
-  }
-  if (utf8ByteLength(value) > MAX_GATE_COMMAND_BYTES) {
-    return roundContractFailure("bound_exceeded");
-  }
-  return value;
+function decodeIdentifier(value) {
+  if (typeof value !== "string") return null;
+  return typeof decodeRunId(value) === "string" ? value : null;
 }
-function decodeReportPath(value) {
-  if (typeof value !== "string") {
-    return roundContractFailure("invalid_schema");
+function decodeExecutionContractV1(value) {
+  if (!isRecord(value)) return failure("not_object");
+  if (!hasOnlyKeys(value, contractKeys)) return failure("unknown_field");
+  if (value.schemaVersion !== 1) return failure("invalid_schema_version");
+  const contractId = decodeIdentifier(value.contractId);
+  const packageId = decodeIdentifier(value.packageId);
+  if (contractId === null || packageId === null) {
+    return failure("invalid_identifier");
   }
-  if (containsNul(value)) {
-    return roundContractFailure("nul_rejected");
+  const objectiveSha256 = value.objectiveSha256;
+  const acceptanceSha256 = value.acceptanceSha256;
+  const allowedPathsSha256 = value.allowedPathsSha256;
+  if (typeof objectiveSha256 !== "string" || typeof acceptanceSha256 !== "string" || typeof allowedPathsSha256 !== "string" || !isSha256Hex(objectiveSha256) || !isSha256Hex(acceptanceSha256) || !isSha256Hex(allowedPathsSha256)) {
+    return failure("invalid_digest");
   }
-  if (utf8ByteLength(value) > MAX_REPORT_PATH_BYTES) {
-    return roundContractFailure("bound_exceeded");
+  const baseCommit = value.baseCommit;
+  if (typeof baseCommit !== "string" || !isCommitSha40(baseCommit)) {
+    return failure("invalid_base_commit");
   }
-  return value;
-}
-function decodeRoundRequestV1(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return roundContractFailure("invalid_schema");
+  const authorizationSha256 = value.authorizationSha256;
+  if (typeof authorizationSha256 !== "string" || !isSha256Hex(authorizationSha256)) {
+    return failure("invalid_authorization");
   }
-  const obj = value;
-  const unknown = rejectUnknownKeys(obj, ROUND_REQUEST_KEYS);
-  if (unknown !== null) {
-    return roundContractFailure("unknown_field");
+  if (!Array.isArray(value.dependencyContractIds)) {
+    return failure("invalid_dependencies");
   }
-  if ("attemptId" in obj || "reportBaseline" in obj) {
-    return roundContractFailure("unknown_field");
-  }
-  for (const key of ROUND_REQUEST_KEYS) {
-    if (!(key in obj)) {
-      return roundContractFailure("invalid_schema");
+  const dependencyContractIds = [];
+  const dependencies = /* @__PURE__ */ new Set();
+  for (const raw of value.dependencyContractIds) {
+    const dependency = decodeIdentifier(raw);
+    if (dependency === null || dependency === contractId || dependencies.has(dependency)) {
+      return failure("invalid_dependencies");
     }
+    dependencies.add(dependency);
+    dependencyContractIds.push(dependency);
   }
-  const run = decodeRunId(obj["runId"]);
-  if (isAttemptFailure(run)) {
-    return roundContractFailure("invalid_run_id");
+  if (typeof value.createdAt !== "string" || typeof value.deadlineAt !== "string" || !isUtcSecondTimestamp(value.createdAt) || !isUtcSecondTimestamp(value.deadlineAt)) {
+    return failure("invalid_timestamp");
   }
-  const lane = decodeLaneId(obj["laneId"]);
-  if (isAttemptFailure(lane)) {
-    return roundContractFailure("invalid_lane_id");
+  const limits = decodeLimits(value.limits);
+  if (isExecutionContractFailure(limits)) return limits;
+  const createdMs = Date.parse(value.createdAt);
+  const deadlineMs = Date.parse(value.deadlineAt);
+  if (deadlineMs <= createdMs || deadlineMs - createdMs !== limits.wallTimeMs) {
+    return failure("invalid_deadline");
   }
-  const argv = decodeCommandArgv(obj["commandArgv"]);
-  if (isRoundContractFailure(argv)) {
-    return argv;
+  if (!Array.isArray(value.requiredMilestones) || value.requiredMilestones.length === 0) {
+    return failure("invalid_milestones");
   }
-  const gate = decodeGateCommand(obj["gateCommand"]);
-  if (isRoundContractFailure(gate)) {
-    return gate;
-  }
-  const reportPath = decodeReportPath(obj["reportPath"]);
-  if (isRoundContractFailure(reportPath)) {
-    return reportPath;
-  }
-  return {
-    runId: run,
-    laneId: lane,
-    commandArgv: argv,
-    gateCommand: gate,
-    reportPath
-  };
-}
-function decodeRoundPlanV1(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return roundContractFailure("invalid_schema");
-  }
-  const obj = value;
-  const unknown = rejectUnknownKeys(obj, ROUND_PLAN_KEYS);
-  if (unknown !== null) {
-    return roundContractFailure("unknown_field");
-  }
-  for (const key of ROUND_PLAN_KEYS) {
-    if (!(key in obj)) {
-      return roundContractFailure("invalid_schema");
+  const milestones = /* @__PURE__ */ new Set();
+  const requiredMilestones = [];
+  for (const raw of value.requiredMilestones) {
+    if (typeof raw !== "string" || !executionMilestones.includes(raw) || milestones.has(raw)) {
+      return failure("invalid_milestones");
     }
+    const milestone = raw;
+    milestones.add(milestone);
+    requiredMilestones.push(milestone);
   }
-  if (obj["schemaVersion"] !== 1) {
-    return roundContractFailure("invalid_schema");
-  }
-  if (obj["mode"] !== "round") {
-    return roundContractFailure("invalid_schema");
-  }
-  const run = decodeRunId(obj["runId"]);
-  if (isAttemptFailure(run)) {
-    return roundContractFailure("invalid_run_id");
-  }
-  const lane = decodeLaneId(obj["laneId"]);
-  if (isAttemptFailure(lane)) {
-    return roundContractFailure("invalid_lane_id");
-  }
-  const attempt = decodeAttemptId(obj["attemptId"]);
-  if (isAttemptFailure(attempt)) {
-    return roundContractFailure("invalid_attempt_id");
-  }
-  const argv = decodeCommandArgv(obj["commandArgv"]);
-  if (isRoundContractFailure(argv)) {
-    return argv;
-  }
-  const gate = decodeGateCommand(obj["gateCommand"]);
-  if (isRoundContractFailure(gate)) {
-    return gate;
-  }
-  const reportPath = decodeReportPath(obj["reportPath"]);
-  if (isRoundContractFailure(reportPath)) {
-    return reportPath;
-  }
-  const baseline = decodeReportSnapshotV1(obj["reportBaseline"]);
-  if (isRoundContractFailure(baseline)) {
-    return baseline;
+  let supersedesContractId;
+  if (value.supersedesContractId !== void 0) {
+    supersedesContractId = decodeIdentifier(value.supersedesContractId) ?? void 0;
+    if (supersedesContractId === void 0 || supersedesContractId === contractId) {
+      return failure("invalid_supersession");
+    }
   }
   return {
     schemaVersion: 1,
-    runId: run,
-    laneId: lane,
-    attemptId: attempt,
-    mode: "round",
-    commandArgv: argv,
-    gateCommand: gate,
-    reportPath,
-    reportBaseline: baseline
+    contractId,
+    packageId,
+    objectiveSha256,
+    acceptanceSha256,
+    baseCommit,
+    allowedPathsSha256,
+    dependencyContractIds,
+    authorizationSha256,
+    createdAt: value.createdAt,
+    deadlineAt: value.deadlineAt,
+    limits,
+    requiredMilestones,
+    ...supersedesContractId === void 0 ? {} : { supersedesContractId }
   };
 }
-function attemptIdentityFromPlan(plan) {
-  return makeAttemptIdentity(plan.runId, plan.laneId, plan.attemptId);
+function executionContractSha256(contract) {
+  return sha256Hex(canonicalize(contract));
 }
 
-// packages/orchestration/src/round-live-services.ts
-import { createHash } from "node:crypto";
-import {
-  closeSync as closeSync3,
-  constants as fsConstants3,
-  fstatSync as fstatSync3,
-  lstatSync as lstatSync2,
-  openSync as openSync3,
-  readSync as readSync3
-} from "node:fs";
-
-// packages/orchestration/src/report-freshness.ts
-function decideRoundOutcome(input) {
-  const {
-    attemptIdentity,
-    implementationExitCode,
-    gateExitCode,
-    reportBaseline,
-    postGate
-  } = input;
-  if (gateExitCode !== 0) {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "gate_failed",
-      reportBaseline,
-      snapshotOrNull(postGate)
-    );
-  }
-  if (postGate._tag === "Failure") {
-    if (postGate.reason === "report_too_large") {
-      return incomplete(
-        attemptIdentity,
-        implementationExitCode,
-        gateExitCode,
-        "report_too_large",
-        reportBaseline,
-        null
-      );
-    }
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_read_failed",
-      reportBaseline,
-      null
-    );
-  }
-  const snap = postGate.snapshot;
-  if (snap._tag === "Absent") {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_missing",
-      reportBaseline,
-      snap
-    );
-  }
-  if (snap.byteLength === 0) {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_empty",
-      reportBaseline,
-      snap
-    );
-  }
-  if (reportBaseline._tag === "Present" && reportBaseline.digest === snap.digest) {
-    return incomplete(
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      "report_unchanged",
-      reportBaseline,
-      snap
-    );
-  }
-  const completed = {
-    _tag: "completed",
-    attemptIdentity,
-    implementationExitCode,
-    gateExitCode: 0,
-    reportFresh: true,
-    reportBaseline,
-    report: snap
-  };
-  return completed;
-}
-function incomplete(attemptIdentity, implementationExitCode, gateExitCode, reason, reportBaseline, report) {
+// packages/orchestration/src/execution-terminal-policy.ts
+var executionActionKinds = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "provider_retry",
+  "resume",
+  "integrate",
+  "publish"
+];
+var zeroCounts = {
+  totalActions: 0,
+  implement: 0,
+  verify: 0,
+  audit: 0,
+  correct: 0,
+  council: 0,
+  provider_retry: 0,
+  resume: 0,
+  integrate: 0,
+  publish: 0
+};
+function initialExecutionState(contract) {
   return {
-    _tag: "incomplete",
-    attemptIdentity,
-    implementationExitCode,
-    gateExitCode,
-    reportFresh: false,
-    reason,
-    reportBaseline,
-    report
+    _tag: "Running",
+    contract,
+    contractSha256: executionContractSha256(contract),
+    counts: zeroCounts,
+    lastEventAt: contract.createdAt,
+    lastProductChangeAt: contract.createdAt,
+    currentCandidateSha256: null,
+    milestoneCandidateSha256: null,
+    milestones: {},
+    verificationReservations: {}
   };
 }
-function snapshotOrNull(postGate) {
-  if (postGate._tag === "Failure") {
-    return null;
-  }
-  return postGate.snapshot;
+function isExecutionTerminal(state) {
+  return state._tag !== "Running";
 }
-
-// packages/orchestration/src/round-transaction.ts
-var RoundBoundaryFailure = class {
-  constructor(reason) {
-    this.reason = reason;
-  }
-  _tag = "RoundBoundaryFailure";
-};
-var AttemptAllocator = class extends Context_exports.Tag("AttemptAllocator")() {
-};
-var RoundEventSink = class extends Context_exports.Tag("RoundEventSink")() {
-};
-var ReportSnapshotReader = class extends Context_exports.Tag("ReportSnapshotReader")() {
-};
-var ImplementationCommand = class extends Context_exports.Tag("ImplementationCommand")() {
-};
-var CheckpointCapture = class extends Context_exports.Tag("CheckpointCapture")() {
-};
-var GateCommand = class extends Context_exports.Tag("GateCommand")() {
-};
-function requireExitCode(code) {
-  if (typeof code !== "number" || !Number.isSafeInteger(code) || code < 0 || code > 255) {
-    return Effect_exports.fail(new RoundBoundaryFailure("invalid_exit_code"));
-  }
-  return Effect_exports.succeed(code);
-}
-function runRoundTransaction(request2) {
-  return Effect_exports.gen(function* () {
-    const validated = decodeRoundRequestV1(request2);
-    if (isRoundContractFailure(validated)) {
-      return yield* Effect_exports.fail(new RoundBoundaryFailure("invalid_request"));
-    }
-    const allocator = yield* AttemptAllocator;
-    const sink = yield* RoundEventSink;
-    const reader = yield* ReportSnapshotReader;
-    const impl = yield* ImplementationCommand;
-    const checkpoint = yield* CheckpointCapture;
-    const gate = yield* GateCommand;
-    const attemptIdentity = yield* allocator.allocate(
-      validated.runId,
-      validated.laneId
-    );
-    const baselineResult = yield* reader.read(validated.reportPath);
-    const reportBaseline = yield* baselineToSnapshotOrFail(baselineResult);
-    const candidatePlan = {
-      schemaVersion: 1,
-      runId: validated.runId,
-      laneId: validated.laneId,
-      attemptId: attemptIdentity.attemptId,
-      mode: "round",
-      commandArgv: validated.commandArgv,
-      gateCommand: validated.gateCommand,
-      reportPath: validated.reportPath,
-      reportBaseline
-    };
-    const roundPlan = decodeRoundPlanV1(candidatePlan);
-    if (isRoundContractFailure(roundPlan)) {
-      return yield* Effect_exports.fail(new RoundBoundaryFailure("invalid_request"));
-    }
-    const planIdentity = attemptIdentityFromPlan(roundPlan);
-    if (planIdentity.runId !== attemptIdentity.runId || planIdentity.laneId !== attemptIdentity.laneId || planIdentity.attemptId !== attemptIdentity.attemptId) {
-      return yield* Effect_exports.fail(new RoundBoundaryFailure("allocation_failed"));
-    }
-    yield* sink.append({
-      type: "prompt",
-      lane: validated.laneId,
-      payload: {
-        attempt: attemptIdentity.attemptId,
-        roundPlan
-      }
-    });
-    const implementationExitCode = yield* requireExitCode(
-      yield* impl.run(validated.commandArgv)
-    );
-    const commit = yield* checkpoint.capture();
-    if (typeof commit !== "string" || commit.length === 0) {
-      return yield* Effect_exports.fail(
-        new RoundBoundaryFailure("empty_checkpoint_commit")
-      );
-    }
-    yield* sink.append({
-      type: "checkpoint",
-      lane: validated.laneId,
-      commit,
-      payload: { attempt: attemptIdentity.attemptId }
-    });
-    yield* sink.append({
-      type: "state",
-      lane: validated.laneId,
-      payload: {
-        attempt: attemptIdentity.attemptId,
-        state: "verifying"
-      }
-    });
-    const gateExitCode = yield* requireExitCode(
-      yield* gate.run(validated.gateCommand)
-    );
-    const postGate = yield* reader.read(validated.reportPath);
-    const outcome = decideRoundOutcome({
-      attemptIdentity,
-      implementationExitCode,
-      gateExitCode,
-      reportBaseline,
-      postGate
-    });
-    if (outcome._tag === "completed") {
-      yield* sink.append({
-        type: "round_done",
-        lane: validated.laneId,
-        payload: {
-          attempt: attemptIdentity.attemptId,
-          outcome
-        }
-      });
-    } else {
-      yield* sink.append({
-        type: "waiting_child",
-        lane: validated.laneId,
-        payload: {
-          attempt: attemptIdentity.attemptId,
-          outcome
-        }
-      });
-      yield* sink.append({
-        type: "alert",
-        lane: validated.laneId,
-        payload: {
-          attempt: attemptIdentity.attemptId,
-          kind: "round_incomplete",
-          outcome
-        }
-      });
-    }
-    return outcome;
-  });
-}
-function baselineToSnapshotOrFail(result) {
-  if (result._tag === "Failure") {
-    return Effect_exports.fail(new RoundBoundaryFailure("baseline_read_failed"));
-  }
-  return Effect_exports.succeed(result.snapshot);
-}
-
-// packages/orchestration/src/queue-services.ts
-import { spawn } from "node:child_process";
-import {
-  accessSync,
-  closeSync as closeSync2,
-  constants as fsConstants2,
-  existsSync,
-  fstatSync as fstatSync2,
-  openSync as openSync2,
-  readSync as readSync2,
-  statSync
-} from "node:fs";
-import { delimiter, join as join4 } from "node:path";
-var MAX_CAPTURE_BYTES = 1048576;
-var ProcessFailure = class {
-  constructor(reason) {
-    this.reason = reason;
-  }
-  _tag = "ProcessFailure";
-};
-var OWNED_CHILD_CANCEL_WAIT_MS = 5e3;
-var ProcessExec = class extends Context_exports.Tag("ProcessExec")() {
-};
-var Sleeper = class extends Context_exports.Tag("Sleeper")() {
-};
-var PathLookup = class extends Context_exports.Tag("PathLookup")() {
-};
-var BoundedFs = class extends Context_exports.Tag("BoundedFs")() {
-};
-var EnvVars = class extends Context_exports.Tag("EnvVars")() {
-};
-var liveSleeper = Layer_exports.succeed(Sleeper, {
-  sleep: (ms) => Effect_exports.async((resume2) => {
-    const t = setTimeout(() => resume2(Effect_exports.void), ms);
-    return Effect_exports.sync(() => {
-      clearTimeout(t);
-    });
-  })
-});
-var liveEnvVars = Layer_exports.succeed(EnvVars, {
-  get: (name) => Effect_exports.sync(() => process.env[name]),
-  home: () => Effect_exports.sync(() => process.env.HOME ?? process.env.USERPROFILE)
-});
-function pathIsExecutable(path) {
-  try {
-    accessSync(path, fsConstants2.X_OK);
-    return true;
-  } catch {
-    try {
-      accessSync(path, fsConstants2.F_OK);
-      return existsSync(path);
-    } catch {
-      return false;
-    }
-  }
-}
-var livePathLookup = Layer_exports.succeed(PathLookup, {
-  which: (name) => Effect_exports.sync(() => {
-    const pathEnv = process.env.PATH ?? "";
-    const exts = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter((e) => e.length > 0) : [""];
-    for (const dir of pathEnv.split(delimiter)) {
-      if (!dir) continue;
-      for (const ext of exts) {
-        const candidate = join4(dir, name + ext);
-        if (pathIsExecutable(candidate)) {
-          return candidate;
-        }
-      }
-      const bare = join4(dir, name);
-      if (pathIsExecutable(bare)) {
-        return bare;
-      }
-    }
-    return null;
-  }),
-  fileExists: (path) => Effect_exports.sync(() => existsSync(path)),
-  isExecutable: (path) => Effect_exports.sync(() => pathIsExecutable(path))
-});
-function isNotFoundError(e) {
-  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
-}
-function readFileBoundedSync(path, maxBytes) {
-  let fd;
-  try {
-    let before2;
-    try {
-      before2 = statSync(path);
-    } catch (e) {
-      if (isNotFoundError(e)) return { _tag: "Absent" };
-      return { _tag: "Unreadable" };
-    }
-    if (!before2.isFile()) {
-      return { _tag: "Unreadable" };
-    }
-    fd = openSync2(path, fsConstants2.O_RDONLY);
-    const opened = fstatSync2(fd);
-    if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
-      return { _tag: "IdentityChanged" };
-    }
-    const cap = maxBytes + 1;
-    const buf = Buffer.allocUnsafe(cap);
-    let offset = 0;
-    while (offset < cap) {
-      const n = readSync2(fd, buf, offset, cap - offset, offset);
-      if (n === 0) break;
-      offset += n;
-    }
-    if (offset > maxBytes) {
-      return { _tag: "Oversized" };
-    }
-    let afterOpen;
-    try {
-      afterOpen = fstatSync2(fd);
-    } catch {
-      return { _tag: "IdentityChanged" };
-    }
-    if (afterOpen.ino !== opened.ino || afterOpen.dev !== opened.dev || afterOpen.size !== opened.size || afterOpen.mtimeMs !== opened.mtimeMs) {
-      return { _tag: "IdentityChanged" };
-    }
-    try {
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(
-        buf.subarray(0, offset)
-      );
-      return { _tag: "Ok", text };
-    } catch {
-      return { _tag: "MalformedUtf8" };
-    }
-  } catch (e) {
-    if (isNotFoundError(e)) return { _tag: "Absent" };
-    return { _tag: "Unreadable" };
-  } finally {
-    if (fd !== void 0) {
-      try {
-        closeSync2(fd);
-      } catch {
-      }
-    }
-  }
-}
-var liveBoundedFs = Layer_exports.succeed(BoundedFs, {
-  readFileBounded: (path, maxBytes) => Effect_exports.sync(() => readFileBoundedSync(path, maxBytes))
-});
-function terminateOwnedChild(child) {
-  const pid = child.pid;
-  if (pid === void 0) return;
-  try {
-    if (process.platform === "win32") {
-      child.kill();
-    } else {
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        try {
-          child.kill("SIGKILL");
-        } catch {
-        }
-      }
-    }
-  } catch {
-  }
-}
-function spawnOptsBase(opts) {
-  const base = {
-    env: opts.env ?? process.env,
-    stdio: opts.stdio,
-    windowsHide: true,
-    detached: opts.detached
+function terminalEvent(terminal, reason, at) {
+  return {
+    _tag: "Terminated",
+    events: [{ _tag: "TerminalDecided", terminal, reason, at }]
   };
-  if (opts.cwd !== void 0) {
-    base.cwd = opts.cwd;
+}
+function validAt(state, at) {
+  return isUtcSecondTimestamp(at) && Date.parse(at) >= Date.parse(state.lastEventAt);
+}
+function actionLimit(state, action) {
+  switch (action) {
+    case "implement":
+      return state.contract.limits.implementationRounds;
+    case "verify":
+      return state.contract.limits.totalActions;
+    case "audit":
+      return state.contract.limits.auditRounds;
+    case "correct":
+      return state.contract.limits.correctionRounds;
+    case "council":
+      return state.contract.limits.councilRounds;
+    case "provider_retry":
+      return state.contract.limits.providerRetries;
+    case "resume":
+      return state.contract.limits.resumeAttempts;
+    case "integrate":
+    case "publish":
+      return 1;
   }
-  return base;
 }
-function cancelOwnedFinalizer(child) {
-  return Effect_exports.async((resume2) => {
-    let done7 = false;
-    const finish = () => {
-      if (done7) return;
-      done7 = true;
-      resume2(Effect_exports.void);
-    };
-    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
-    child.once("close", () => {
-      clearTimeout(timer);
-      finish();
-    });
-    if (child.pid === void 0) {
-      clearTimeout(timer);
-      finish();
-      return;
+function reserveDecision(state, command) {
+  if (!executionActionKinds.includes(command.action) || !isSha256Hex(command.candidateSha256) || command.reservationId.length === 0 || command.reservationId.length > 128 || command.action === "verify" && (typeof command.commandSha256 !== "string" || !isSha256Hex(command.commandSha256)) || command.commandSha256 !== void 0 && !isSha256Hex(command.commandSha256)) {
+    return { _tag: "Refused", reason: "invalid_command" };
+  }
+  const atMs = Date.parse(command.at);
+  if (atMs >= Date.parse(state.contract.deadlineAt)) {
+    return terminalEvent("BudgetExhausted", "wall_time_limit", command.at);
+  }
+  if (atMs - Date.parse(state.lastProductChangeAt) >= state.contract.limits.noProductChangeMs) {
+    return terminalEvent("Stalled", "no_product_change_limit", command.at);
+  }
+  if (state.counts.totalActions >= state.contract.limits.totalActions) {
+    return terminalEvent("BudgetExhausted", "total_action_limit", command.at);
+  }
+  const used = state.counts[command.action];
+  if (used >= actionLimit(state, command.action)) {
+    return terminalEvent(
+      command.action === "provider_retry" ? "BlockedExternal" : "BudgetExhausted",
+      `${command.action}_limit`,
+      command.at
+    );
+  }
+  if (command.action === "verify") {
+    const key = `${command.candidateSha256}:${command.commandSha256}`;
+    const existing = state.verificationReservations[key];
+    if (existing !== void 0) {
+      return { _tag: "ReusedVerification", reservationId: existing };
     }
-    terminateOwnedChild(child);
-  });
-}
-function runCapturedOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let timer;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      resume2(outcome);
-    };
-    const maxBytes = opts.maxOutputBytes ?? MAX_CAPTURE_BYTES;
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: ["ignore", "pipe", "pipe"],
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    const stdoutChunks = [];
-    const stderrChunks = [];
-    let total = 0;
-    let timedOut = false;
-    let outputBound = false;
-    const onData = (target, chunk2) => {
-      if (settled) return;
-      total += chunk2.byteLength;
-      if (total > maxBytes) {
-        outputBound = true;
-        terminateOwnedChild(owned);
-        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
-        return;
+  }
+  return {
+    _tag: "Accepted",
+    events: [
+      {
+        _tag: "ActionReserved",
+        action: command.action,
+        candidateSha256: command.candidateSha256,
+        ...command.commandSha256 === void 0 ? {} : { commandSha256: command.commandSha256 },
+        reservationId: command.reservationId,
+        at: command.at
       }
-      target.push(chunk2);
-    };
-    owned.stdout?.on("data", (c) => onData(stdoutChunks, c));
-    owned.stderr?.on("data", (c) => onData(stderrChunks, c));
-    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
-      timer = setTimeout(() => {
-        timedOut = true;
-        terminateOwnedChild(owned);
-      }, opts.timeoutMs);
-    }
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      if (settled) return;
-      if (outputBound) {
-        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
-        return;
-      }
-      if (timedOut) {
-        settle(Effect_exports.fail(new ProcessFailure("timeout")));
-        return;
-      }
-      settle(
-        Effect_exports.succeed({
-          exitCode: code ?? 1,
-          stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-          stderr: Buffer.concat(stderrChunks).toString("utf8")
-        })
-      );
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      return cancelOwnedFinalizer(owned);
-    });
-  });
+    ]
+  };
 }
-function runForegroundOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      resume2(outcome);
-    };
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: "inherit",
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      settle(Effect_exports.succeed(code ?? 1));
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      return cancelOwnedFinalizer(owned);
-    });
-  });
-}
-function runIgnoredStdioOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let timer;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      resume2(outcome);
-    };
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: ["ignore", "ignore", "ignore"],
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    let timedOut = false;
-    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
-      timer = setTimeout(() => {
-        timedOut = true;
-        terminateOwnedChild(owned);
-      }, opts.timeoutMs);
-    }
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      if (settled) return;
-      if (timedOut) {
-        settle(Effect_exports.fail(new ProcessFailure("timeout")));
-        return;
+function decideExecutionCommand(state, command) {
+  if (isExecutionTerminal(state)) {
+    return { _tag: "Refused", reason: "terminal", terminal: state._tag };
+  }
+  if (!validAt(state, command.at)) {
+    return { _tag: "Refused", reason: "time_regression" };
+  }
+  switch (command._tag) {
+    case "ReserveAction":
+      return reserveDecision(state, command);
+    case "RecordProductChange":
+      if (!isSha256Hex(command.candidateSha256) || command.allowedPathsSha256 !== state.contract.allowedPathsSha256) {
+        return { _tag: "Refused", reason: "invalid_command" };
       }
-      settle(
-        Effect_exports.succeed({
-          exitCode: code ?? 1,
-          stdout: "",
-          stderr: ""
-        })
+      return {
+        _tag: "Accepted",
+        events: [
+          {
+            _tag: "ProductChanged",
+            candidateSha256: command.candidateSha256,
+            allowedPathsSha256: command.allowedPathsSha256,
+            at: command.at
+          }
+        ]
+      };
+    case "RecordMilestone": {
+      if (!state.contract.requiredMilestones.includes(command.milestone) || !isSha256Hex(command.candidateSha256) || !isSha256Hex(command.evidenceSha256)) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      if (state.milestoneCandidateSha256 !== null && state.milestoneCandidateSha256 !== command.candidateSha256) {
+        return terminalEvent("Invalidated", "milestone_candidate_mismatch", command.at);
+      }
+      const milestoneEvent = {
+        _tag: "MilestoneRecorded",
+        milestone: command.milestone,
+        candidateSha256: command.candidateSha256,
+        evidenceSha256: command.evidenceSha256,
+        at: command.at
+      };
+      const complete3 = state.contract.requiredMilestones.every(
+        (milestone) => milestone === command.milestone || state.milestones[milestone] !== void 0
       );
-    });
-    return Effect_exports.sync(() => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      terminateOwnedChild(owned);
-    });
-  });
+      if (complete3) {
+        return {
+          _tag: "Terminated",
+          events: [
+            milestoneEvent,
+            {
+              _tag: "TerminalDecided",
+              terminal: "Completed",
+              reason: "required_milestones_complete",
+              at: command.at
+            }
+          ]
+        };
+      }
+      return { _tag: "Accepted", events: [milestoneEvent] };
+    }
+    case "Cancel":
+      if (command.authorizationSha256 !== state.contract.authorizationSha256) {
+        return { _tag: "Refused", reason: "authorization_mismatch" };
+      }
+      return terminalEvent("Cancelled", "user_cancelled", command.at);
+    case "Invalidate":
+      if (!isSha256Hex(command.observedContractSha256)) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      return command.observedContractSha256 === state.contractSha256 ? { _tag: "Accepted", events: [] } : terminalEvent("Invalidated", "contract_identity_changed", command.at);
+    case "RecordBlockingOutcome":
+      return state.counts.correct >= state.contract.limits.correctionRounds ? terminalEvent("Escalated", `${command.source}_blocking_after_correction`, command.at) : { _tag: "Accepted", events: [] };
+    case "RecordExternalFailure":
+      return state.counts.provider_retry >= state.contract.limits.providerRetries ? terminalEvent("BlockedExternal", "external_retry_limit", command.at) : { _tag: "Accepted", events: [] };
+  }
 }
-var liveProcessExec = Layer_exports.succeed(ProcessExec, {
-  runCaptured: (opts) => runCapturedOwned(opts),
-  runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
-  runForeground: (opts) => runForegroundOwned(opts)
-});
-var liveQueueServices = Layer_exports.mergeAll(
-  liveProcessExec,
-  liveSleeper,
-  livePathLookup,
-  liveBoundedFs,
-  liveEnvVars
+function evolveExecution(state, event) {
+  if (isExecutionTerminal(state)) return state;
+  switch (event._tag) {
+    case "ActionReserved": {
+      const verificationReservations = { ...state.verificationReservations };
+      if (event.action === "verify" && event.commandSha256 !== void 0) {
+        verificationReservations[`${event.candidateSha256}:${event.commandSha256}`] = event.reservationId;
+      }
+      return {
+        ...state,
+        counts: {
+          ...state.counts,
+          totalActions: state.counts.totalActions + 1,
+          [event.action]: state.counts[event.action] + 1
+        },
+        currentCandidateSha256: event.candidateSha256,
+        verificationReservations,
+        lastEventAt: event.at
+      };
+    }
+    case "ProductChanged":
+      return {
+        ...state,
+        currentCandidateSha256: event.candidateSha256,
+        lastProductChangeAt: event.candidateSha256 === state.currentCandidateSha256 ? state.lastProductChangeAt : event.at,
+        lastEventAt: event.at
+      };
+    case "MilestoneRecorded":
+      return {
+        ...state,
+        milestoneCandidateSha256: state.milestoneCandidateSha256 ?? event.candidateSha256,
+        milestones: {
+          ...state.milestones,
+          [event.milestone]: event.evidenceSha256
+        },
+        lastEventAt: event.at
+      };
+    case "TerminalDecided":
+      return {
+        ...state,
+        _tag: event.terminal,
+        terminalAt: event.at,
+        terminalReason: event.reason,
+        lastEventAt: event.at
+      };
+  }
+}
+
+// packages/orchestration/src/execution-ledger.ts
+var ENDSTOP_LANE = "endstop";
+var CONTRACT_EVENT = "endstop_contract";
+var DECISION_EVENT = "endstop_decision";
+var ENDSTOP_LEDGER_FAILURE_BRAND = Symbol(
+  "@foreman/orchestration/EndstopLedgerFailure"
 );
-
-// packages/orchestration/src/round-live-services.ts
-var CHECKPOINT_OUTPUT_BOUND_BYTES = 4096;
-function buildGateProcessVector(gateCommand, options) {
-  if (options.platform === "win32") {
-    const comSpec = options.comSpec;
-    if (typeof comSpec !== "string" || comSpec.length === 0 || comSpec.includes("\0") || !isWindowsAbsolute(comSpec)) {
-      return { _tag: "Invalid" };
-    }
-    return {
-      _tag: "Ok",
-      command: comSpec,
-      args: ["/d", "/s", "/c", gateCommand]
-    };
-  }
+function ledgerFailure(reason) {
   return {
-    _tag: "Ok",
-    command: "/bin/sh",
-    args: ["-c", gateCommand]
+    [ENDSTOP_LEDGER_FAILURE_BRAND]: true,
+    _tag: "EndstopLedgerFailure",
+    reason
   };
 }
-function isEnoent2(e) {
-  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
+function isEndstopLedgerFailure(value) {
+  return typeof value === "object" && value !== null && value[ENDSTOP_LEDGER_FAILURE_BRAND] === true;
 }
-function isWindowsAbsolute(path) {
-  return /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
+var EndstopLedger = class extends Context_exports.Tag("EndstopLedger")() {
+};
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function sanitizedCheckpointEnv(base) {
-  const out = {};
-  for (const [k, v] of Object.entries(base)) {
-    if (v === void 0) continue;
-    if (k.length >= 4 && k.slice(0, 4).toLowerCase() === "git_") {
-      continue;
-    }
-    out[k] = v;
-  }
-  out["GIT_TERMINAL_PROMPT"] = "0";
-  out["GIT_OPTIONAL_LOCKS"] = "0";
-  return out;
+function exactKeys(value, keys5) {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys5].sort();
+  return actual.length === expected.length && actual.every((key, i) => key === expected[i]);
 }
-function parseCheckpointCommit(text) {
-  if (typeof text !== "string") return null;
-  let body = text;
-  if (body.endsWith("\r\n")) {
-    body = body.slice(0, -2);
-  } else if (body.endsWith("\n") || body.endsWith("\r")) {
-    body = body.slice(0, -1);
-  }
-  if (body.includes("\n") || body.includes("\r")) return null;
-  if (!isCommitSha40(body)) return null;
-  return body;
-}
-function draftToStored(event) {
-  if (event.type === "checkpoint") {
-    return {
-      type: event.type,
-      lane: event.lane,
-      commit: event.commit,
-      payload: event.payload
-    };
-  }
-  return {
-    type: event.type,
-    lane: event.lane,
-    payload: event.payload
-  };
-}
-function mapProcessTo(reason, _err) {
-  return new RoundBoundaryFailure(reason);
-}
-function readReportSnapshotSync(reportPath, seams) {
-  let before2;
-  try {
-    before2 = lstatSync2(reportPath);
-  } catch (e) {
-    if (isEnoent2(e)) {
-      return { _tag: "Snapshot", snapshot: absentReportSnapshot() };
-    }
-    return { _tag: "Failure", reason: "report_read_failed" };
-  }
-  if (before2.isSymbolicLink()) {
-    return { _tag: "Failure", reason: "report_read_failed" };
-  }
-  if (!before2.isFile()) {
-    return { _tag: "Failure", reason: "report_read_failed" };
-  }
-  if (before2.size > MAX_REPORT_CONTENT_BYTES) {
-    return { _tag: "Failure", reason: "report_too_large" };
-  }
-  let fd;
-  try {
-    const flags = fsConstants3.O_RDONLY | ("O_NOFOLLOW" in fsConstants3 ? fsConstants3.O_NOFOLLOW : 0);
-    fd = openSync3(reportPath, flags);
-    const opened = fstatSync3(fd);
-    if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (!opened.isFile()) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (opened.size > MAX_REPORT_CONTENT_BYTES) {
-      return { _tag: "Failure", reason: "report_too_large" };
-    }
-    const buf = Buffer.allocUnsafe(opened.size);
-    let offset = 0;
-    while (offset < opened.size) {
-      const n = readSync3(fd, buf, offset, opened.size - offset, offset);
-      if (n === 0) break;
-      offset += n;
-    }
-    if (offset !== opened.size) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (seams?.afterReportRead !== void 0) {
-      seams.afterReportRead({ path: reportPath, fd });
-    }
-    let pathAfter;
-    try {
-      pathAfter = lstatSync2(reportPath);
-    } catch (e) {
-      if (isEnoent2(e)) {
-        return { _tag: "Failure", reason: "report_read_failed" };
+function executionEventFromUnknown(value) {
+  if (!isRecord2(value) || typeof value._tag !== "string") return null;
+  const at = value.at;
+  if (typeof at !== "string" || !isUtcSecondTimestamp(at)) return null;
+  switch (value._tag) {
+    case "ActionReserved": {
+      const allowed = value.commandSha256 === void 0 ? ["_tag", "action", "candidateSha256", "reservationId", "at"] : ["_tag", "action", "candidateSha256", "commandSha256", "reservationId", "at"];
+      if (!exactKeys(value, allowed) || typeof value.action !== "string" || !executionActionKinds.includes(value.action) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.reservationId !== "string" || value.reservationId.length === 0 || value.commandSha256 !== void 0 && (typeof value.commandSha256 !== "string" || !isSha256Hex(value.commandSha256))) {
+        return null;
       }
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (pathAfter.isSymbolicLink() || !pathAfter.isFile()) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    let after3;
-    try {
-      after3 = fstatSync3(fd);
-    } catch {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    if (after3.ino !== opened.ino || after3.dev !== opened.dev || after3.size !== opened.size || pathAfter.ino !== after3.ino || pathAfter.dev !== after3.dev) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    const bytes = buf.subarray(0, offset);
-    const digest = createHash("sha256").update(bytes).digest("hex");
-    const snap = presentReportSnapshot(digest, bytes.byteLength);
-    if (isRoundContractFailure(snap)) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    return { _tag: "Snapshot", snapshot: snap };
-  } catch (e) {
-    if (isEnoent2(e)) {
-      return { _tag: "Failure", reason: "report_read_failed" };
-    }
-    return { _tag: "Failure", reason: "report_read_failed" };
-  } finally {
-    if (fd !== void 0) {
-      try {
-        closeSync3(fd);
-      } catch {
-      }
-    }
-  }
-}
-function makeLiveRoundServices(ctx) {
-  const env = ctx.env ?? process.env;
-  const platform = ctx.platform ?? process.platform;
-  const journalLayer = makeLiveRunJournalLayer(ctx.stateRoot);
-  const allocatorLayer = Layer_exports.effect(
-    AttemptAllocator,
-    Effect_exports.gen(function* () {
-      const journal = yield* RunJournal;
       return {
-        allocate: (runId, laneId) => journal.allocate(runId, laneId).pipe(
-          Effect_exports.mapError(
-            () => new RoundBoundaryFailure("allocation_failed")
+        _tag: "ActionReserved",
+        action: value.action,
+        candidateSha256: value.candidateSha256,
+        ...value.commandSha256 === void 0 ? {} : { commandSha256: value.commandSha256 },
+        reservationId: value.reservationId,
+        at
+      };
+    }
+    case "ProductChanged":
+      if (!exactKeys(value, ["_tag", "candidateSha256", "allowedPathsSha256", "at"]) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.allowedPathsSha256 !== "string" || !isSha256Hex(value.allowedPathsSha256)) return null;
+      return {
+        _tag: "ProductChanged",
+        candidateSha256: value.candidateSha256,
+        allowedPathsSha256: value.allowedPathsSha256,
+        at
+      };
+    case "MilestoneRecorded": {
+      const milestones = ["checks", "audit", "integrated", "published"];
+      if (!exactKeys(value, ["_tag", "milestone", "candidateSha256", "evidenceSha256", "at"]) || typeof value.milestone !== "string" || !milestones.includes(value.milestone) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.evidenceSha256 !== "string" || !isSha256Hex(value.evidenceSha256)) return null;
+      return {
+        _tag: "MilestoneRecorded",
+        milestone: value.milestone,
+        candidateSha256: value.candidateSha256,
+        evidenceSha256: value.evidenceSha256,
+        at
+      };
+    }
+    case "TerminalDecided": {
+      const terminals = [
+        "Completed",
+        "Escalated",
+        "Stalled",
+        "BudgetExhausted",
+        "Cancelled",
+        "Invalidated",
+        "BlockedExternal"
+      ];
+      if (!exactKeys(value, ["_tag", "terminal", "reason", "at"]) || typeof value.terminal !== "string" || !terminals.includes(value.terminal) || typeof value.reason !== "string" || value.reason.length === 0) return null;
+      return {
+        _tag: "TerminalDecided",
+        terminal: value.terminal,
+        reason: value.reason,
+        at
+      };
+    }
+    default:
+      return null;
+  }
+}
+function replayHistory(events) {
+  const relevant = events.filter(
+    (event) => event.type === CONTRACT_EVENT || event.type === DECISION_EVENT
+  );
+  const contracts = relevant.filter((event) => event.type === CONTRACT_EVENT);
+  if (contracts.length === 0) {
+    return relevant.length === 0 ? { _tag: "Missing" } : { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  if (contracts.length !== 1 || relevant[0]?.type !== CONTRACT_EVENT) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  const contractStored = contracts[0];
+  if (contractStored.lane !== ENDSTOP_LANE || !exactKeys(contractStored.payload, [
+    "contract",
+    "contractSha256"
+  ])) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  const decoded = decodeExecutionContractV1(contractStored.payload.contract);
+  const hash2 = contractStored.payload.contractSha256;
+  if (isExecutionContractFailure(decoded) || typeof hash2 !== "string" || !isSha256Hex(hash2) || executionContractSha256(decoded) !== hash2) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  let state = initialExecutionState(decoded);
+  for (const stored of relevant.slice(1)) {
+    if (stored.type !== DECISION_EVENT || stored.lane !== ENDSTOP_LANE || !exactKeys(stored.payload, [
+      "contractSha256",
+      "events"
+    ]) || stored.payload.contractSha256 !== hash2 || !Array.isArray(stored.payload.events) || stored.payload.events.length === 0 || isExecutionTerminal(state)) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    for (const raw of stored.payload.events) {
+      const event = executionEventFromUnknown(raw);
+      if (event === null || Date.parse(event.at) < Date.parse(state.lastEventAt) || event._tag === "ProductChanged" && event.allowedPathsSha256 !== state.contract.allowedPathsSha256) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      state = evolveExecution(state, event);
+    }
+  }
+  return { _tag: "Ok", state };
+}
+function unwrap(result) {
+  return result._tag === "Ok" ? Effect_exports.succeed(result.value) : Effect_exports.fail(result.failure);
+}
+function withJournalFailure(effect2) {
+  return effect2.pipe(
+    Effect_exports.catchAll(() => Effect_exports.fail(ledgerFailure("journal_failure"))),
+    Effect_exports.flatMap(unwrap)
+  );
+}
+function makeLiveEndstopLedgerLayer(stateRoot) {
+  const journalLayer = makeLiveRunJournalLayer(stateRoot);
+  const readState = (contractId) => {
+    const runId = decodeRunId(contractId);
+    if (typeof runId !== "string") {
+      return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+    }
+    const transaction = Effect_exports.gen(function* () {
+      const journal = yield* RunJournal;
+      return yield* journal.transact(
+        runId,
+        (events) => {
+          const history = replayHistory(events);
+          if (history._tag === "Ok") {
+            return {
+              _tag: "Return",
+              value: { _tag: "Ok", value: history.state }
+            };
+          }
+          return {
+            _tag: "Return",
+            value: {
+              _tag: "Failure",
+              failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+            }
+          };
+        }
+      );
+    }).pipe(Effect_exports.provide(journalLayer));
+    return withJournalFailure(transaction);
+  };
+  return Layer_exports.succeed(EndstopLedger, {
+    create: (contract) => {
+      const decoded = decodeExecutionContractV1(contract);
+      if (isExecutionContractFailure(decoded)) {
+        return Effect_exports.fail(ledgerFailure("invalid_contract"));
+      }
+      const runId = decodeRunId(decoded.contractId);
+      if (typeof runId !== "string") {
+        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+      }
+      const contractSha256 = executionContractSha256(decoded);
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(
+          runId,
+          (events) => {
+            const history = replayHistory(events);
+            if (history._tag === "Failure") {
+              return { _tag: "Return", value: history };
+            }
+            if (history._tag === "Ok") {
+              return history.state.contractSha256 === contractSha256 ? { _tag: "Return", value: { _tag: "Ok", value: history.state } } : {
+                _tag: "Return",
+                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
+              };
+            }
+            const state = initialExecutionState(decoded);
+            return {
+              _tag: "Append",
+              draft: {
+                type: CONTRACT_EVENT,
+                lane: ENDSTOP_LANE,
+                payload: { contract: decoded, contractSha256 }
+              },
+              result: () => ({ _tag: "Ok", value: state })
+            };
+          }
+        );
+      }).pipe(Effect_exports.provide(journalLayer));
+      const createContract = withJournalFailure(transaction);
+      if (decoded.supersedesContractId === void 0) return createContract;
+      return Effect_exports.gen(function* () {
+        const predecessor = yield* readState(decoded.supersedesContractId).pipe(
+          Effect_exports.catchAll(
+            () => Effect_exports.fail(ledgerFailure("replacement_unauthorized"))
           )
-        )
-      };
-    })
-  );
-  const sinkLayer = Layer_exports.effect(
-    RoundEventSink,
-    Effect_exports.gen(function* () {
-      const journal = yield* RunJournal;
-      return {
-        append: (event) => journal.append(ctx.runId, draftToStored(event)).pipe(
-          Effect_exports.mapError(
-            () => new RoundBoundaryFailure("append_failed")
-          ),
-          Effect_exports.asVoid
-        )
-      };
-    })
-  );
-  const reportLayer = Layer_exports.succeed(ReportSnapshotReader, {
-    read: (reportPath) => Effect_exports.sync(
-      () => readReportSnapshotSync(reportPath, ctx.reportSeams)
-    )
+        );
+        if (!isExecutionTerminal(predecessor) || predecessor.contract.packageId !== decoded.packageId || predecessor.contract.authorizationSha256 === decoded.authorizationSha256) {
+          return yield* Effect_exports.fail(ledgerFailure("replacement_unauthorized"));
+        }
+        return yield* createContract;
+      });
+    },
+    status: readState,
+    execute: (contractId, expectedContractSha256, command) => {
+      const runId = decodeRunId(contractId);
+      if (typeof runId !== "string") {
+        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+      }
+      if (!isSha256Hex(expectedContractSha256)) {
+        return Effect_exports.fail(ledgerFailure("contract_mismatch"));
+      }
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(
+          runId,
+          (events) => {
+            const history = replayHistory(events);
+            if (history._tag !== "Ok") {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+                }
+              };
+            }
+            if (history.state.contractSha256 !== expectedContractSha256) {
+              return {
+                _tag: "Return",
+                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
+              };
+            }
+            const decision = decideExecutionCommand(history.state, command);
+            if (decision._tag === "Refused" || decision._tag === "ReusedVerification" || decision.events.length === 0) {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Ok",
+                  value: { decision, state: history.state }
+                }
+              };
+            }
+            const nextState = decision.events.reduce(evolveExecution, history.state);
+            return {
+              _tag: "Append",
+              draft: {
+                type: DECISION_EVENT,
+                lane: ENDSTOP_LANE,
+                payload: {
+                  contractSha256: expectedContractSha256,
+                  events: decision.events
+                }
+              },
+              result: () => ({
+                _tag: "Ok",
+                value: { decision, state: nextState }
+              })
+            };
+          }
+        );
+      }).pipe(Effect_exports.provide(journalLayer));
+      return Effect_exports.gen(function* () {
+        const current = yield* readState(contractId);
+        if (current.contractSha256 !== expectedContractSha256) {
+          return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
+        }
+        for (const dependencyId of current.contract.dependencyContractIds) {
+          const dependency = yield* readState(dependencyId).pipe(
+            Effect_exports.catchAll(
+              () => Effect_exports.fail(ledgerFailure("dependency_incomplete"))
+            )
+          );
+          if (dependency._tag !== "Completed") {
+            return yield* Effect_exports.fail(ledgerFailure("dependency_incomplete"));
+          }
+        }
+        return yield* withJournalFailure(transaction);
+      });
+    }
   });
-  const implLayer = Layer_exports.effect(
-    ImplementationCommand,
-    Effect_exports.gen(function* () {
-      const proc = yield* ProcessExec;
-      return {
-        run: (commandArgv) => Effect_exports.gen(function* () {
-          if (commandArgv.length === 0) {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("implementation_transport_failed")
-            );
-          }
-          return yield* proc.runForeground({
-            command: commandArgv[0],
-            args: commandArgv.slice(1),
-            cwd: ctx.worktree,
-            env
-          }).pipe(
-            Effect_exports.mapError(
-              (e) => mapProcessTo("implementation_transport_failed", e)
-            )
-          );
-        })
-      };
-    })
-  );
-  const checkpointLayer = Layer_exports.effect(
-    CheckpointCapture,
-    Effect_exports.gen(function* () {
-      const proc = yield* ProcessExec;
-      return {
-        capture: () => Effect_exports.gen(function* () {
-          const result = yield* proc.runCaptured({
-            command: "git",
-            args: ["rev-parse", "HEAD"],
-            cwd: ctx.worktree,
-            env: sanitizedCheckpointEnv(env),
-            maxOutputBytes: CHECKPOINT_OUTPUT_BOUND_BYTES
-          }).pipe(
-            Effect_exports.mapError((e) => mapProcessTo("checkpoint_failed", e))
-          );
-          if (result.exitCode !== 0) {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("checkpoint_failed")
-            );
-          }
-          const commit = parseCheckpointCommit(
-            result.stdout + result.stderr
-          );
-          if (commit === null) {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("checkpoint_failed")
-            );
-          }
-          return commit;
-        })
-      };
-    })
-  );
-  const gateLayer = Layer_exports.effect(
-    GateCommand,
-    Effect_exports.gen(function* () {
-      const proc = yield* ProcessExec;
-      return {
-        run: (gateCommand) => Effect_exports.gen(function* () {
-          const comSpec = ctx.comSpec ?? env["ComSpec"] ?? env["COMSPEC"];
-          const vector = buildGateProcessVector(gateCommand, {
-            platform,
-            comSpec: typeof comSpec === "string" ? comSpec : void 0
-          });
-          if (vector._tag === "Invalid") {
-            return yield* Effect_exports.fail(
-              new RoundBoundaryFailure("gate_transport_failed")
-            );
-          }
-          return yield* proc.runForeground({
-            command: vector.command,
-            args: vector.args,
-            cwd: ctx.worktree,
-            env
-          }).pipe(
-            Effect_exports.mapError(
-              (e) => mapProcessTo("gate_transport_failed", e)
-            )
-          );
-        })
-      };
-    })
-  );
-  return Layer_exports.provideMerge(
-    Layer_exports.mergeAll(
-      allocatorLayer,
-      sinkLayer,
-      reportLayer,
-      implLayer,
-      checkpointLayer,
-      gateLayer
-    ),
-    Layer_exports.mergeAll(journalLayer, liveProcessExec)
-  );
 }
 
-// packages/orchestration/src/round-cli.ts
-var EXIT_COMPLETED = 0;
-var EXIT_INCOMPLETE_OR_DEFECT = 1;
-var EXIT_INVALID_ARGUMENTS = 2;
-var EXIT_BOUNDARY_FAILURE = 3;
-var MSG_INVALID_ARGUMENTS = "lane-round: invalid arguments";
-var MSG_BOUNDARY_FAILURE = "lane-round: boundary failure";
-var MSG_INTERNAL_FAILURE = "lane-round: internal failure";
-function stripRoundNodeArgv(argv) {
+// packages/orchestration/src/execution-guard-cli.ts
+var ENDSTOP_EXIT_OK = 0;
+var ENDSTOP_EXIT_FAIL = 1;
+var ENDSTOP_EXIT_CONFIG = 2;
+function stripNodeArgv(argv) {
   let args2 = [...argv];
-  if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].endsWith("node.exe") || args2[0].includes("/node") || args2[0].includes("\\node"))) {
-    args2 = args2.slice(1);
-  }
-  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("lane-round") || args2[0].includes("round-main") || args2[0].includes("round-cli"))) {
-    args2 = args2.slice(1);
-  }
+  if (args2[0]?.match(/(?:^|[\\/])node(?:\.exe)?$/u)) args2 = args2.slice(1);
+  if (args2[0]?.includes("execution-guard")) args2 = args2.slice(1);
   return args2;
 }
-var OPTIONS = [
-  "--state-root",
-  "--worktree",
-  "--run",
-  "--lane",
-  "--report",
-  "--gate"
-];
-function parseRoundArgv(argv) {
-  const args2 = stripRoundNodeArgv(argv);
-  let i = 0;
-  const values3 = [];
-  for (const opt of OPTIONS) {
-    if (i >= args2.length || args2[i] !== opt) {
-      return { _tag: "Invalid" };
-    }
-    i += 1;
-    if (i >= args2.length) {
-      return { _tag: "Invalid" };
-    }
-    const v = args2[i];
-    values3.push(v);
-    i += 1;
+function parseEndstopArgv(argv) {
+  const args2 = stripNodeArgv(argv);
+  if (args2.length === 5 && args2[0] === "create" && args2[1] === "--state-root" && args2[3] === "--contract-file" && typeof args2[2] === "string" && isAbsolute(args2[2]) && typeof args2[4] === "string" && isAbsolute(args2[4])) {
+    return { _tag: "Create", stateRoot: args2[2], contractFile: args2[4] };
   }
-  if (i >= args2.length || args2[i] !== "--") {
-    return { _tag: "Invalid" };
+  if (args2.length === 5 && args2[0] === "status" && args2[1] === "--state-root" && args2[3] === "--contract-id" && typeof args2[2] === "string" && isAbsolute(args2[2]) && typeof args2[4] === "string" && args2[4].length > 0) {
+    return { _tag: "Status", stateRoot: args2[2], contractId: args2[4] };
   }
-  i += 1;
-  const commandArgv = args2.slice(i);
-  if (commandArgv.length === 0) {
-    return { _tag: "Invalid" };
-  }
+  return { _tag: "Invalid" };
+}
+function publicSnapshot(state) {
   return {
-    _tag: "Ok",
-    stateRoot: values3[0],
-    worktree: values3[1],
-    run: values3[2],
-    lane: values3[3],
-    report: values3[4],
-    gate: values3[5],
-    commandArgv
+    contractId: state.contract.contractId,
+    contractSha256: state.contractSha256,
+    counts: state.counts,
+    state: state._tag,
+    ...state._tag === "Running" ? {} : { terminalAt: state.terminalAt, terminalReason: state.terminalReason }
   };
 }
-function isEqualOrDescendant(candidate, root) {
-  if (candidate === root) return true;
-  const rel = relative(root, candidate);
-  if (rel === "") return true;
-  if (rel === "..") return false;
-  if (rel.startsWith(".." + sep)) return false;
-  if (rel.startsWith("../")) return false;
-  if (isAbsolute(rel)) return false;
-  return true;
+function emitFailure(io, reason) {
+  io.writeStderr(`Foreman Endstop: ${reason}
+`);
+  return ENDSTOP_EXIT_FAIL;
 }
-function resolveExistingDir(path) {
-  if (typeof path !== "string" || path.length === 0) return null;
-  if (!isAbsolute(path)) return null;
-  if (path.includes("\0")) return null;
-  try {
-    const st = statSync2(path);
-    if (!st.isDirectory()) return null;
-    return realpathSync(path);
-  } catch {
-    return null;
+function runEndstopCli(argv, io) {
+  const parsed = parseEndstopArgv(argv);
+  if (parsed._tag === "Invalid") {
+    io.writeStderr("Foreman Endstop: invalid arguments\n");
+    return Effect_exports.succeed(ENDSTOP_EXIT_CONFIG);
   }
-}
-function resolveAbsolutePath(path) {
-  if (typeof path !== "string" || path.length === 0) return null;
-  if (!isAbsolute(path)) return null;
-  if (path.includes("\0")) return null;
-  try {
-    return resolve(path);
-  } catch {
-    return null;
-  }
-}
-function preflightRoundParsed(parsed) {
-  const runId = decodeRunId(parsed.run);
-  if (isAttemptFailure(runId)) return { _tag: "Invalid" };
-  const laneId = decodeLaneId(parsed.lane);
-  if (isAttemptFailure(laneId)) return { _tag: "Invalid" };
-  const stateRoot = resolveExistingDir(parsed.stateRoot);
-  if (stateRoot === null) return { _tag: "Invalid" };
-  const worktree = resolveExistingDir(parsed.worktree);
-  if (worktree === null) return { _tag: "Invalid" };
-  if (isEqualOrDescendant(stateRoot, worktree)) {
-    return { _tag: "Invalid" };
-  }
-  const reportPath = resolveAbsolutePath(parsed.report);
-  if (reportPath === null) return { _tag: "Invalid" };
-  if (typeof parsed.gate !== "string") return { _tag: "Invalid" };
-  const requestCandidate = {
-    runId,
-    laneId,
-    commandArgv: parsed.commandArgv,
-    gateCommand: parsed.gate,
-    reportPath
-  };
-  const request2 = decodeRoundRequestV1(requestCandidate);
-  if (isRoundContractFailure(request2)) return { _tag: "Invalid" };
-  return {
-    _tag: "Ok",
-    stateRoot,
-    worktree,
-    runId: request2.runId,
-    laneId: request2.laneId,
-    reportPath: request2.reportPath,
-    gateCommand: request2.gateCommand,
-    commandArgv: request2.commandArgv,
-    request: request2
-  };
-}
-function runRoundCli(argv, io2, cliEnv = {}) {
-  return Effect_exports.gen(function* () {
-    const parsed = parseRoundArgv(argv);
-    if (parsed._tag === "Invalid") {
-      io2.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
-      return EXIT_INVALID_ARGUMENTS;
+  const layer = makeLiveEndstopLedgerLayer(parsed.stateRoot);
+  const program2 = Effect_exports.gen(function* () {
+    const ledger = yield* EndstopLedger;
+    if (parsed._tag === "Status") {
+      return yield* ledger.status(parsed.contractId);
     }
-    const pre = preflightRoundParsed(parsed);
-    if (pre._tag === "Invalid") {
-      io2.writeStderr(MSG_INVALID_ARGUMENTS + "\n");
-      return EXIT_INVALID_ARGUMENTS;
+    const text = yield* Effect_exports.try({
+      try: () => readFileSync(parsed.contractFile, "utf8"),
+      catch: () => new Error("contract_read_failed")
+    });
+    const raw = parseJsonRejectDuplicateKeys(text);
+    if (isCoreFailure(raw)) {
+      return yield* Effect_exports.fail(new Error("invalid_contract"));
     }
-    const ctx = {
-      stateRoot: pre.stateRoot,
-      worktree: pre.worktree,
-      runId: pre.runId,
-      ...cliEnv.env !== void 0 ? { env: cliEnv.env } : {},
-      ...cliEnv.platform !== void 0 ? { platform: cliEnv.platform } : {},
-      ...cliEnv.comSpec !== void 0 ? { comSpec: cliEnv.comSpec } : {}
-    };
-    const makeServices = cliEnv.makeServices ?? makeLiveRoundServices;
-    const layer = makeServices(ctx);
-    const outcome = yield* runRoundTransaction(pre.request).pipe(
-      Effect_exports.provide(layer),
-      Effect_exports.either
-    );
-    if (outcome._tag === "Left") {
-      const err = outcome.left;
-      if (err instanceof RoundBoundaryFailure) {
-        io2.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
-        return EXIT_BOUNDARY_FAILURE;
+    const contract = decodeExecutionContractV1(raw);
+    if (isExecutionContractFailure(contract)) {
+      return yield* Effect_exports.fail(new Error("invalid_contract"));
+    }
+    return yield* ledger.create(contract);
+  }).pipe(Effect_exports.provide(layer));
+  return program2.pipe(
+    Effect_exports.match({
+      onFailure: (error) => {
+        if (isEndstopLedgerFailure(error)) return emitFailure(io, error.reason);
+        const reason = error instanceof Error && error.message === "invalid_contract" ? "invalid_contract" : "contract_read_failed";
+        return emitFailure(io, reason);
+      },
+      onSuccess: (state) => {
+        io.writeStdout(canonicalize(publicSnapshot(state)) + "\n");
+        return ENDSTOP_EXIT_OK;
       }
-      io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
-      return EXIT_INCOMPLETE_OR_DEFECT;
-    }
-    const result = outcome.right;
-    let line;
-    try {
-      line = canonicalize(result);
-    } catch {
-      io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
-      return EXIT_INCOMPLETE_OR_DEFECT;
-    }
-    io2.writeStdout(line + "\n");
-    if (result._tag === "completed") {
-      return EXIT_COMPLETED;
-    }
-    return EXIT_INCOMPLETE_OR_DEFECT;
-  }).pipe(
-    Effect_exports.catchAllDefect(
-      () => Effect_exports.sync(() => {
-        io2.writeStderr(MSG_INTERNAL_FAILURE + "\n");
-        return EXIT_INCOMPLETE_OR_DEFECT;
-      })
-    )
+    })
   );
 }
 
-// packages/orchestration/src/round-main.ts
-function writeFully(stream, text) {
-  return new Promise((resolve2, reject) => {
-    const onError3 = (err) => {
-      stream.off("error", onError3);
-      reject(err);
-    };
-    stream.once("error", onError3);
-    stream.write(text, (err) => {
-      stream.off("error", onError3);
-      if (err) reject(err);
-      else resolve2();
-    });
-  });
-}
-var pending3 = [];
-var io = {
-  writeStdout: (text) => {
-    pending3.push(writeFully(process.stdout, text));
-  },
-  writeStderr: (text) => {
-    pending3.push(writeFully(process.stderr, text));
-  }
-};
-Effect_exports.runPromise(runRoundCli(process.argv, io)).then(
-  async (code) => {
-    try {
-      await Promise.all(pending3);
-    } catch {
-    }
-    process.exitCode = code;
-  },
-  async () => {
-    pending3.push(
-      writeFully(process.stderr, "lane-round: internal failure\n")
-    );
-    try {
-      await Promise.all(pending3);
-    } catch {
-    }
-    process.exitCode = 1;
+// packages/orchestration/src/execution-guard-main.ts
+var program = runEndstopCli(process.argv, {
+  writeStdout: (text) => process.stdout.write(text),
+  writeStderr: (text) => process.stderr.write(text)
+});
+Effect_exports.runPromise(program).then(
+  (code) => process.exit(code),
+  () => {
+    process.stderr.write("Foreman Endstop: internal failure\n");
+    process.exit(1);
   }
 );
