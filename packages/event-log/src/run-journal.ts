@@ -57,6 +57,14 @@ export type StoredEventDraftV1 = {
   readonly payload: Readonly<Record<string, unknown>>;
 };
 
+export type RunJournalTransactionDecision<A> =
+  | {
+      readonly _tag: "Append";
+      readonly draft: StoredEventDraftV1;
+      readonly result: (stored: StoredEvent) => A;
+    }
+  | { readonly _tag: "Return"; readonly value: A };
+
 export const RUN_JOURNAL_FAILURE_BRAND = Symbol(
   "@foreman/event-log/RunJournalFailure",
 );
@@ -181,6 +189,13 @@ export class RunJournal extends Context.Tag("RunJournal")<
       runId: RunId,
       event: StoredEventDraftV1,
     ) => Effect.Effect<StoredEvent, RunJournalFailure>;
+
+    readonly transact: <A>(
+      runId: RunId,
+      decide: (
+        events: readonly StoredEvent[],
+      ) => RunJournalTransactionDecision<A>,
+    ) => Effect.Effect<A, RunJournalFailure>;
 
     readonly reserveResumeAttempt: (
       attemptIdentity: AttemptIdentity,
@@ -1162,6 +1177,48 @@ function appendSync(
   }));
 }
 
+function transactSync<A>(
+  stateRoot: string,
+  runId: RunId,
+  decide: (
+    events: readonly StoredEvent[],
+  ) => RunJournalTransactionDecision<A>,
+  options: LiveRunJournalOptions,
+): A | RunJournalFailure {
+  const layoutErr = ensureLayoutDirs(stateRoot, ["runs", runId, "locks"]);
+  if (layoutErr !== null) return layoutErr;
+
+  const lockPath = eventsLockPath(stateRoot, runId);
+  const journalPath = eventsPath(stateRoot, runId);
+  const timing: LockTiming = {
+    boundMs: options.lockBoundMs ?? JOURNAL_LOCK_BOUND_MS,
+    spinMs: options.lockSpinMs ?? 5,
+    nowMs: options.nowMs ?? (() => Date.now()),
+    waitMs: options.waitMs ?? defaultWaitMs,
+  };
+
+  return withLockSync(lockPath, timing, () => {
+    const view = readJournalLocked(journalPath);
+    if (isRunJournalFailure(view)) return view;
+
+    let decision: RunJournalTransactionDecision<A>;
+    try {
+      decision = decide(view.records.map((record) => record.event));
+    } catch {
+      return runJournalFailure("read_failed");
+    }
+    if (decision._tag === "Return") return decision.value;
+
+    const stored = writeAppendLocked(journalPath, view, decision.draft, options);
+    if (isRunJournalFailure(stored)) return stored;
+    try {
+      return decision.result(stored);
+    } catch {
+      return runJournalFailure("write_failed");
+    }
+  }) as A | RunJournalFailure;
+}
+
 // ---------------------------------------------------------------------------
 // Resume-attempt reservation (atomic under the events lock)
 // ---------------------------------------------------------------------------
@@ -1472,6 +1529,20 @@ export function makeLiveRunJournalLayer(
           return Effect.fail(r);
         }
         return Effect.succeed(r);
+      } catch {
+        return Effect.fail(runJournalFailure("write_failed"));
+      }
+    },
+    transact: <A>(
+      runId: RunId,
+      decide: (
+        events: readonly StoredEvent[],
+      ) => RunJournalTransactionDecision<A>,
+    ): Effect.Effect<A, RunJournalFailure> => {
+      try {
+        const result = transactSync(stateRoot, runId, decide, options);
+        if (isRunJournalFailure(result)) return Effect.fail(result);
+        return Effect.succeed(result);
       } catch {
         return Effect.fail(runJournalFailure("write_failed"));
       }

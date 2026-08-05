@@ -151,6 +151,7 @@ describe("runResumeQueueExecution ordering", () => {
     const journalLayer = Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => {
         order.push("reserve");
         return Effect.succeed(reservation(1));
@@ -209,6 +210,7 @@ describe("runResumeQueueExecution ordering", () => {
     const journalLayer = Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => {
         order.push("reserve");
         return Effect.succeed(reservation());
@@ -262,6 +264,7 @@ describe("runResumeQueueExecution ordering", () => {
     const journalLayer = Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => {
         order.push("reserve");
         // Concurrent round_done observed under the journal lock.
@@ -319,6 +322,7 @@ describe("runResumeQueueExecution ordering", () => {
     const journalLayer = Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => {
         order.push("reserve");
         return Effect.fail(resumeAttemptFailure("resume_limit_reached"));
@@ -379,6 +383,7 @@ describe("runResumeQueueExecution ordering", () => {
     const journalLayer = Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => {
         order.push("reserve");
         reserved = true;
@@ -438,6 +443,7 @@ describe("runResumeQueueExecution ordering", () => {
     const journalLayer = Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => Effect.succeed(reservation()),
     });
     const p = plan();
@@ -484,6 +490,7 @@ describe("runResumeQueueExecution ordering", () => {
     const journalLayer = Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => Effect.succeed(reservation(2)),
     });
     const either = await Effect.runPromise(

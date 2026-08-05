@@ -40,6 +40,7 @@ import {
   makeLiveRunJournalLayer,
   RunJournal,
   type LiveRunJournalOptions,
+  type RunJournalTransactionDecision,
   type StoredEventDraftV1,
 } from "./run-journal.js";
 import { isAttemptFailure } from "./failures.js";
@@ -99,6 +100,19 @@ function reserveEffect(
   return Effect.gen(function* () {
     const j = yield* RunJournal;
     return yield* j.reserveResumeAttempt(attemptIdentity, resumeMaxAttempts);
+  }).pipe(Effect.provide(makeLiveRunJournalLayer(root, options)));
+}
+
+function transactEffect<A>(
+  root: string,
+  decide: (
+    events: readonly StoredEvent[],
+  ) => RunJournalTransactionDecision<A>,
+  options?: LiveRunJournalOptions,
+) {
+  return Effect.gen(function* () {
+    const journal = yield* RunJournal;
+    return yield* journal.transact(runId, decide);
   }).pipe(Effect.provide(makeLiveRunJournalLayer(root, options)));
 }
 
@@ -461,6 +475,48 @@ describe("RunJournal allocate", () => {
 });
 
 describe("RunJournal append", () => {
+  it("runs one pure append-or-return decision under the journal lock", async () => {
+    await withStateRoot(async (root) => {
+      const first = await Effect.runPromise(
+        transactEffect(root, (events) => ({
+          _tag: "Append",
+          draft: draft({ type: "endstop", payload: { n: events.length + 1 } }),
+          result: (stored) => stored.seq,
+        })),
+      );
+      assert.equal(first, 1);
+
+      const second = await Effect.runPromise(
+        transactEffect(root, (events) => ({
+          _tag: "Return",
+          value: events.length,
+        })),
+      );
+      assert.equal(second, 1);
+    });
+  });
+
+  it("admits only one concurrent caller for the last logical unit", async () => {
+    await withStateRoot(async (root) => {
+      const reserveLast = () =>
+        transactEffect(root, (events) => {
+          const used = events.filter((event) => event.type === "endstop_reserved").length;
+          return used >= 1
+            ? { _tag: "Return" as const, value: "exhausted" as const }
+            : {
+                _tag: "Append" as const,
+                draft: draft({ type: "endstop_reserved", payload: { used: 1 } }),
+                result: () => "reserved" as const,
+              };
+        });
+      const fibers = [Effect.runFork(reserveLast()), Effect.runFork(reserveLast())];
+      const results = await Promise.all(
+        fibers.map((fiber) => Effect.runPromise(Fiber.join(fiber))),
+      );
+      assert.deepEqual(results.sort(), ["exhausted", "reserved"]);
+    });
+  });
+
   it("first event uses sequence 1; concurrent appends get 1,2,3 and replay", async () => {
     await withStateRoot(async (root) => {
       const fibers = [0, 1, 2].map((i) =>

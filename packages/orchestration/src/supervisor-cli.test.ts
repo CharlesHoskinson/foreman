@@ -183,6 +183,7 @@ function stubServices(opts: {
     Layer.succeed(RunJournal, {
       allocate: () => Effect.die("unused"),
       append: () => Effect.die("unused"),
+      transact: () => Effect.die("unused"),
       reserveResumeAttempt: () => {
         opts.reserveCalls?.push("reserve");
         if (opts.failReserve === true) {

@@ -251,6 +251,7 @@ function makeHarness(opts: {
   const journal = Layer.succeed(RunJournal, {
     allocate: () => Effect.die("unused"),
     append: () => Effect.die("unused"),
+    transact: () => Effect.die("unused"),
     reserveResumeAttempt: () => {
       order.push("reserve");
       opts.reserveCalls?.push("reserve");

@@ -98,6 +98,7 @@ export {
   JOURNAL_LOCK_BOUND_MS,
   MAX_ATTEMPT_COUNTER_BYTES,
   type StoredEventDraftV1,
+  type RunJournalTransactionDecision,
   type RunJournalFailure,
   type RunJournalFailureReason,
   type ResumeAttemptFailure,
