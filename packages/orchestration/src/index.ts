@@ -144,6 +144,23 @@ export {
   type DecideRoundResumeInput,
 } from "./resume-decision.js";
 
+// --- Sprint 3 R5B: Effect resume-safety observation services ---
+
+export {
+  MAX_LOCK_PATH_BYTES,
+  classifyResumeProcess,
+  classifyResumeLock,
+  ResumeProcessProbe,
+  ResumeLockProbe,
+  observeResumeSafety,
+  makeLiveResumeSafetyLayers,
+  liveResumeSafetyServices,
+  type ProcessProbeOutcome,
+  type LockPathKind,
+  type ResumeSafetyObservationV1,
+  type ResumeSafetyBoundarySeams,
+} from "./resume-safety-services.js";
+
 export {
   RoundBoundaryFailure,
   AttemptAllocator,
