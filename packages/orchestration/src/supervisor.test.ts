@@ -11,6 +11,8 @@ import {
   decodeLaneId,
   decodeRunId,
   makeAttemptIdentity,
+  resumeAttemptFailure,
+  RunJournal,
   type AttemptId,
   type LaneId,
   type ReplayRecord,
@@ -27,7 +29,6 @@ import {
   type WorktreeRestorePermitV1,
 } from "./resume-worktree-restore.js";
 import { makeStubQueueSubmitter } from "./resume-queue-execution.js";
-import { RunJournal } from "@foreman/event-log";
 import {
   ResumeLockProbe,
   ResumeProcessProbe,
@@ -291,6 +292,7 @@ function makeHarness(opts: {
 
 describe("deriveOwnershipWorktree", () => {
   it("prefers ownership in the latest round and never uses report paths", () => {
+    const attempt2 = decodeAttemptId(2) as AttemptId;
     const events: StoredEvent[] = [
       {
         seq: 1,
@@ -304,7 +306,7 @@ describe("deriveOwnershipWorktree", () => {
         ts: "2026-08-05T12:00:01Z",
         type: "ownership",
         lane: String(laneId),
-        payload: { worktree: "/old", launcher_pid: 1 },
+        payload: { attempt: 1, worktree: "/old", launcher_pid: 1 },
       },
       {
         seq: 5,
@@ -318,15 +320,54 @@ describe("deriveOwnershipWorktree", () => {
         ts: "2026-08-05T12:00:03Z",
         type: "ownership",
         lane: String(laneId),
-        payload: { worktree: "/new-round", launcher_pid: 99 },
+        payload: { attempt: 2, worktree: "/new-round", launcher_pid: 99 },
       },
     ];
-    const found = deriveOwnershipWorktree(events, laneId, 5);
+    const found = deriveOwnershipWorktree(events, laneId, 5, attempt2);
     assert.equal(found._tag, "Found");
     if (found._tag === "Found") {
       assert.equal(found.worktree, "/new-round");
       assert.equal(found.processId, 99);
     }
+  });
+
+  it("never falls back to prior-attempt ownership", () => {
+    const attempt2 = decodeAttemptId(2) as AttemptId;
+    const events: StoredEvent[] = [
+      {
+        seq: 1,
+        ts: "2026-08-05T12:00:00Z",
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: 1 },
+      },
+      {
+        seq: 2,
+        ts: "2026-08-05T12:00:01Z",
+        type: "ownership",
+        lane: String(laneId),
+        payload: { attempt: 1, worktree: "/prior-only", launcher_pid: 7 },
+      },
+      {
+        seq: 5,
+        ts: "2026-08-05T12:00:02Z",
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: 2 },
+      },
+      // ownership after new prompt but still bound to prior attempt
+      {
+        seq: 6,
+        ts: "2026-08-05T12:00:03Z",
+        type: "ownership",
+        lane: String(laneId),
+        payload: { attempt: 1, worktree: "/stale-attempt", launcher_pid: 8 },
+      },
+    ];
+    assert.equal(
+      deriveOwnershipWorktree(events, laneId, 5, attempt2)._tag,
+      "Missing",
+    );
   });
 
   it("returns Missing when no ownership exists", () => {
@@ -339,7 +380,11 @@ describe("deriveOwnershipWorktree", () => {
         payload: { attempt: 1, reportPath: "/r" },
       },
     ];
-    assert.equal(deriveOwnershipWorktree(events, laneId, 1)._tag, "Missing");
+    assert.equal(
+      deriveOwnershipWorktree(events, laneId, 1, decodeAttemptId(1) as AttemptId)
+        ._tag,
+      "Missing",
+    );
   });
 });
 
@@ -558,6 +603,130 @@ describe("sweepOneRun", () => {
     }
     assert.deepEqual(inspectCalls, []);
     assert.deepEqual(reserveCalls, []);
+    assert.deepEqual(restoreCalls, []);
+    assert.deepEqual(submitCalls, []);
+  });
+
+  it("prior-attempt ownership alone yields NoOwnership without mutation", async () => {
+    const p = plan();
+    const prior = decodeAttemptId(1) as AttemptId;
+    const records = [
+      rec({
+        seq: 1,
+        ts: "2026-08-05T12:00:00Z",
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: prior },
+      }),
+      rec({
+        seq: 2,
+        ts: "2026-08-05T12:00:01Z",
+        type: "ownership",
+        lane: String(laneId),
+        payload: {
+          attempt: prior,
+          worktree: "/prior-wt",
+          launcher_pid: null,
+        },
+      }),
+      rec({
+        seq: 3,
+        ts: "2026-08-05T12:00:02Z",
+        type: "prompt",
+        lane: String(laneId),
+        payload: { attempt: attemptId, roundPlan: p },
+      }),
+      rec({
+        seq: 4,
+        ts: "2026-08-05T12:00:03Z",
+        type: "checkpoint",
+        lane: String(laneId),
+        commit,
+        payload: { attempt: attemptId },
+      }),
+    ];
+    const reserveCalls: string[] = [];
+    const { layer } = makeHarness({ records, reserveCalls });
+    const result = await Effect.runPromise(
+      sweepOneRun(runId, baseConfig()).pipe(Effect.provide(layer)),
+    );
+    assert.equal(result._tag, "Swept");
+    if (result._tag === "Swept") {
+      assert.equal(result.actions[0]?._tag, "NoMutation");
+      assert.match(formatLaneActionLine(result.actions[0]!), /no ownership/);
+    }
+    assert.deepEqual(reserveCalls, []);
+  });
+
+  it("invalid resume budget history refuses with invalid_history and no mutation", async () => {
+    const base = promptAndCheckpoint("/abs/wt");
+    // Gap in resume counts → inspectResumeAttemptBudget fails closed.
+    const records: readonly ReplayRecord[] = [
+      ...base,
+      rec({
+        seq: 4,
+        ts: "2026-08-05T12:00:03Z",
+        type: "resume_attempt",
+        lane: String(laneId),
+        payload: { attempt: attemptId, resumeCount: 2 },
+      }),
+    ];
+    const inspectCalls: string[] = [];
+    const reserveCalls: string[] = [];
+    const restoreCalls: string[] = [];
+    const submitCalls: string[] = [];
+    const { layer } = makeHarness({
+      records,
+      inspectCalls,
+      reserveCalls,
+      restoreCalls,
+      submitCalls,
+    });
+    const result = await Effect.runPromise(
+      sweepOneRun(runId, baseConfig()).pipe(Effect.provide(layer)),
+    );
+    assert.equal(result._tag, "Swept");
+    if (result._tag === "Swept") {
+      assert.equal(result.actions[0]?._tag, "NoMutation");
+      assert.match(
+        formatLaneActionLine(result.actions[0]!),
+        /REFUSED invalid_history/,
+      );
+    }
+    assert.deepEqual(inspectCalls, []);
+    assert.deepEqual(reserveCalls, []);
+    assert.deepEqual(restoreCalls, []);
+    assert.deepEqual(submitCalls, []);
+  });
+
+  it("round_done between decision and reserve fails before restore and submit", async () => {
+    const inspectCalls: string[] = [];
+    const reserveCalls: string[] = [];
+    const restoreCalls: string[] = [];
+    const submitCalls: string[] = [];
+    // Initial read has no terminal (decision → Resume). Reservation under
+    // the lock simulates concurrent round_done by failing closed.
+    const { layer } = makeHarness({
+      records: promptAndCheckpoint("/abs/wt"),
+      inspectCalls,
+      reserveCalls,
+      restoreCalls,
+      submitCalls,
+      journalReserve: () =>
+        Effect.fail(resumeAttemptFailure("attempt_not_current")),
+    });
+    const result = await Effect.runPromise(
+      sweepOneRun(runId, baseConfig()).pipe(Effect.provide(layer)),
+    );
+    assert.equal(result._tag, "Swept");
+    if (result._tag === "Swept") {
+      assert.equal(result.actions[0]?._tag, "ExecutionFailed");
+      if (result.actions[0]?._tag === "ExecutionFailed") {
+        assert.equal(result.actions[0].reason, "reserve_failed");
+      }
+    }
+    assert.deepEqual(inspectCalls, ["inspect"]);
+    assert.deepEqual(reserveCalls, ["reserve"]);
     assert.deepEqual(restoreCalls, []);
     assert.deepEqual(submitCalls, []);
   });

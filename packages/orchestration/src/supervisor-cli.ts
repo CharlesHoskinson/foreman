@@ -248,8 +248,12 @@ export function runSupervisorCli(
         io.writeStderr(line + "\n");
       }
       // Ready command vectors go to stdout (machine-readable).
+      // Any ExecutionFailed lane action forces public exit class EXIT_FAIL.
       if (r._tag === "Swept") {
         for (const a of r.actions) {
+          if (a._tag === "ExecutionFailed") {
+            overall = EXIT_FAIL;
+          }
           if (a._tag === "Executed" && a.result.submission._tag === "Ready") {
             const argvReady = a.result.submission.commandArgv;
             // Print as a single JSON array line for exact argv fidelity.

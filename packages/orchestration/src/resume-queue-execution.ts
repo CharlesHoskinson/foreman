@@ -400,8 +400,11 @@ export function makeLiveQueueSubmitter(
               }
 
               // Direct pueue add via runCaptured only — never runForeground.
-              const result = yield* proc
-                .runCaptured({
+              // Once add is attempted, any transport error, nonzero exit, or
+              // malformed task id is indeterminate: fail closed. Never return
+              // Ready after admission (could duplicate a daemon-accepted task).
+              const addEither = yield* Effect.either(
+                proc.runCaptured({
                   command: pueueBin2,
                   args: [
                     "add",
@@ -412,23 +415,18 @@ export function makeLiveQueueSubmitter(
                     ...quoted.argv,
                   ],
                   timeoutMs: TIMEOUT_QUEUE_OP_MS,
-                })
-                .pipe(
-                  Effect.catchAll(() =>
-                    Effect.succeed({
-                      exitCode: 1,
-                      stdout: "",
-                      stderr: "",
-                    }),
-                  ),
-                );
-
+                }),
+              );
+              if (addEither._tag === "Left") {
+                return yield* Effect.fail(queueSubmitFailure("queue_failed"));
+              }
+              const result = addEither.right;
               if (result.exitCode !== 0) {
-                return readyVector();
+                return yield* Effect.fail(queueSubmitFailure("queue_failed"));
               }
               const taskId = parseTaskId(result.stdout);
               if (taskId === null) {
-                return readyVector();
+                return yield* Effect.fail(queueSubmitFailure("queue_failed"));
               }
               return { _tag: "Queued" as const, taskId };
             }),

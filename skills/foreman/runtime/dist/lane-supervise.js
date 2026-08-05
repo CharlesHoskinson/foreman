@@ -17212,6 +17212,29 @@ function inspectResumeAttemptBudget(records, attemptIdentity, resumeMaxAttempts)
     exhausted
   };
 }
+function attemptHasDurableTerminal(records, attemptIdentity) {
+  const lane = attemptIdentity.laneId;
+  const attempt = attemptIdentity.attemptId;
+  for (const rec of records) {
+    const event = rec.event;
+    if (event.lane !== lane) continue;
+    if (event.type === "round_done") {
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+      continue;
+    }
+    if (event.type === "alert") {
+      if (event.payload["kind"] !== "round_incomplete") continue;
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 function deriveNextResumeCount(records, attemptIdentity, resumeMaxAttempts) {
   const budget = inspectResumeAttemptBudget(
     records,
@@ -17220,6 +17243,12 @@ function deriveNextResumeCount(records, attemptIdentity, resumeMaxAttempts) {
   );
   if (isResumeAttemptFailure(budget)) {
     return { _tag: "fail", error: budget };
+  }
+  if (attemptHasDurableTerminal(records, attemptIdentity)) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("attempt_not_current")
+    };
   }
   if (budget.exhausted) {
     return {
@@ -18459,7 +18488,7 @@ var liveResumeSafetyServices = makeLiveResumeSafetyLayers();
 
 // packages/orchestration/src/resume-worktree-restore.ts
 import { realpathSync, statSync as statSync2 } from "node:fs";
-import { isAbsolute as isAbsolute2 } from "node:path";
+import { isAbsolute as isAbsolute2, resolve as pathResolve } from "node:path";
 
 // packages/orchestration/src/queue-services.ts
 import { spawn } from "node:child_process";
@@ -18953,6 +18982,15 @@ function rootIdentityKey(realPath, dev, ino) {
 function mapTransport(_err) {
   return worktreeRestoreFailure("transport_failed");
 }
+function normalizeAbsoluteWorktreeInput(worktree) {
+  let n = pathResolve(worktree);
+  if (n.length > 1) {
+    if (n.endsWith("/") || n.endsWith("\\")) {
+      n = n.slice(0, -1);
+    }
+  }
+  return n;
+}
 function resolveWorktreeRoot(worktree) {
   if (!isValidAbsoluteWorktreePath(worktree)) {
     return { _tag: "Fail", reason: "invalid_worktree" };
@@ -18967,10 +19005,15 @@ function resolveWorktreeRoot(worktree) {
     if (!realSt.isDirectory()) {
       return { _tag: "Fail", reason: "invalid_worktree" };
     }
+    const inputNorm = normalizeAbsoluteWorktreeInput(worktree);
+    const realNorm = normalizeAbsoluteWorktreeInput(realPath);
+    if (inputNorm !== realNorm) {
+      return { _tag: "Fail", reason: "invalid_worktree" };
+    }
     return {
       _tag: "Ok",
-      realPath,
-      key: rootIdentityKey(realPath, realSt.dev, realSt.ino)
+      realPath: realNorm,
+      key: rootIdentityKey(realNorm, realSt.dev, realSt.ino)
     };
   } catch {
     return { _tag: "Fail", reason: "invalid_worktree" };
@@ -19597,32 +19640,30 @@ function makeLiveQueueSubmitter(options) {
             if (!quoted.ok) {
               return yield* Effect_exports.fail(queueSubmitFailure("queue_config"));
             }
-            const result = yield* proc.runCaptured({
-              command: pueueBin2,
-              args: [
-                "add",
-                "--group",
-                group,
-                "--print-task-id",
-                "--",
-                ...quoted.argv
-              ],
-              timeoutMs: TIMEOUT_QUEUE_OP_MS
-            }).pipe(
-              Effect_exports.catchAll(
-                () => Effect_exports.succeed({
-                  exitCode: 1,
-                  stdout: "",
-                  stderr: ""
-                })
-              )
+            const addEither = yield* Effect_exports.either(
+              proc.runCaptured({
+                command: pueueBin2,
+                args: [
+                  "add",
+                  "--group",
+                  group,
+                  "--print-task-id",
+                  "--",
+                  ...quoted.argv
+                ],
+                timeoutMs: TIMEOUT_QUEUE_OP_MS
+              })
             );
+            if (addEither._tag === "Left") {
+              return yield* Effect_exports.fail(queueSubmitFailure("queue_failed"));
+            }
+            const result = addEither.right;
             if (result.exitCode !== 0) {
-              return readyVector();
+              return yield* Effect_exports.fail(queueSubmitFailure("queue_failed"));
             }
             const taskId = parseTaskId(result.stdout);
             if (taskId === null) {
-              return readyVector();
+              return yield* Effect_exports.fail(queueSubmitFailure("queue_failed"));
             }
             return { _tag: "Queued", taskId };
           })
@@ -19640,29 +19681,34 @@ var TypedJournalReader = class extends Context_exports.Tag("TypedJournalReader")
 };
 var RunLease = class extends Context_exports.Tag("RunLease")() {
 };
-function deriveOwnershipWorktree(events, laneId, fromPromptSeq) {
-  let latestAny = null;
+function deriveOwnershipWorktree(events, laneId, fromPromptSeq, selectedAttemptId = null) {
+  if (fromPromptSeq === null) {
+    return { _tag: "Missing" };
+  }
   let latestInRound = null;
   for (const event of events) {
     if (event.type !== "ownership") continue;
     if (event.lane !== laneId) continue;
-    if (latestAny === null || event.seq > latestAny.seq) {
-      latestAny = event;
+    if (event.seq < fromPromptSeq) continue;
+    if (selectedAttemptId !== null) {
+      const attemptRaw = event.payload["attempt"];
+      if (typeof attemptRaw !== "number" || attemptRaw !== selectedAttemptId) {
+        continue;
+      }
     }
-    if (fromPromptSeq !== null && event.seq >= fromPromptSeq && (latestInRound === null || event.seq > latestInRound.seq)) {
+    if (latestInRound === null || event.seq > latestInRound.seq) {
       latestInRound = event;
     }
   }
-  const chosen = latestInRound ?? latestAny;
-  if (chosen === null) {
+  if (latestInRound === null) {
     return { _tag: "Missing" };
   }
-  const wt = chosen.payload["worktree"];
+  const wt = latestInRound.payload["worktree"];
   if (typeof wt !== "string" || wt.length === 0 || wt.includes("\0")) {
     return { _tag: "Missing" };
   }
-  const lpid = chosen.payload["launcher_pid"];
-  const pid = chosen.payload["pid"];
+  const lpid = latestInRound.payload["launcher_pid"];
+  const pid = latestInRound.payload["pid"];
   let processId = null;
   if (typeof lpid === "number" && Number.isSafeInteger(lpid) && lpid > 0) {
     processId = lpid;
@@ -19743,21 +19789,34 @@ function decideAndMaybeExecuteLane(runId, laneId, records, events, config) {
     const roundEvents = eventsForRoundSelection(events);
     const selected = selectLatestRoundAttempt(roundEvents, runId, laneId);
     const promptSeq = selected._tag === "Selected" || selected._tag === "LegacyUnbound" || selected._tag === "Invalid" ? latestPromptSeq(roundEvents, laneId) : null;
-    let ownership = deriveOwnershipWorktree(roundEvents, laneId, promptSeq);
+    const selectedAttemptId = selected._tag === "Selected" ? selected.attemptIdentity.attemptId : null;
+    const ownership = deriveOwnershipWorktree(
+      roundEvents,
+      laneId,
+      promptSeq,
+      selectedAttemptId
+    );
     let resumeCount = 0;
-    let attemptIdentity = null;
     if (selected._tag === "Selected") {
-      attemptIdentity = selected.attemptIdentity;
       const budget = inspectResumeAttemptBudget(
         records,
         selected.attemptIdentity,
         config.resumeMaxAttempts
       );
       if (isResumeAttemptFailure(budget)) {
-        resumeCount = 0;
-      } else {
-        resumeCount = budget.resumeCount;
+        return {
+          _tag: "NoMutation",
+          runId,
+          laneId,
+          decision: {
+            _tag: "Refused",
+            attemptIdentity: selected.attemptIdentity,
+            reason: "invalid_history"
+          },
+          dryRun: config.dryRun
+        };
       }
+      resumeCount = budget.resumeCount;
     }
     let safety = {
       processState: "inactive",
@@ -20242,6 +20301,9 @@ function runSupervisorCli(argv, io2, cliEnv = {}) {
       }
       if (r._tag === "Swept") {
         for (const a of r.actions) {
+          if (a._tag === "ExecutionFailed") {
+            overall = EXIT_FAIL2;
+          }
           if (a._tag === "Executed" && a.result.submission._tag === "Ready") {
             const argvReady = a.result.submission.commandArgv;
             io2.writeStdout(JSON.stringify(argvReady) + "\n");

@@ -12,6 +12,7 @@ import {
   decodeRunId,
   inspectResumeAttemptBudget,
   isResumeAttemptFailure,
+  type AttemptId,
   type AttemptIdentity,
   type LaneId,
   type ReplayRecord,
@@ -94,45 +95,51 @@ export type OwnershipWorktreeV1 =
 
 /**
  * Derive worktree and process id only from ownership events for the lane.
- * Prefer the latest ownership in the latest round (from last prompt onward);
- * fall back to the latest ownership for the lane anywhere. Never infers from
- * report paths.
+ * For a selected typed attempt, accept only ownership after the current prompt
+ * whose payload attempt equals that attempt. Never falls back to a prior
+ * attempt's ownership. Never infers from report paths.
  */
 export function deriveOwnershipWorktree(
   events: readonly StoredEvent[],
   laneId: LaneId,
   fromPromptSeq: number | null,
+  selectedAttemptId: AttemptId | null = null,
 ): OwnershipWorktreeV1 {
-  let latestAny: StoredEvent | null = null;
+  if (fromPromptSeq === null) {
+    return { _tag: "Missing" };
+  }
+
   let latestInRound: StoredEvent | null = null;
 
   for (const event of events) {
     if (event.type !== "ownership") continue;
     if (event.lane !== laneId) continue;
-    if (latestAny === null || event.seq > latestAny.seq) {
-      latestAny = event;
+    if (event.seq < fromPromptSeq) continue;
+    if (selectedAttemptId !== null) {
+      const attemptRaw = event.payload["attempt"];
+      if (
+        typeof attemptRaw !== "number" ||
+        attemptRaw !== selectedAttemptId
+      ) {
+        continue;
+      }
     }
-    if (
-      fromPromptSeq !== null &&
-      event.seq >= fromPromptSeq &&
-      (latestInRound === null || event.seq > latestInRound.seq)
-    ) {
+    if (latestInRound === null || event.seq > latestInRound.seq) {
       latestInRound = event;
     }
   }
 
-  const chosen = latestInRound ?? latestAny;
-  if (chosen === null) {
+  if (latestInRound === null) {
     return { _tag: "Missing" };
   }
 
-  const wt = chosen.payload["worktree"];
+  const wt = latestInRound.payload["worktree"];
   if (typeof wt !== "string" || wt.length === 0 || wt.includes("\0")) {
     return { _tag: "Missing" };
   }
 
-  const lpid = chosen.payload["launcher_pid"];
-  const pid = chosen.payload["pid"];
+  const lpid = latestInRound.payload["launcher_pid"];
+  const pid = latestInRound.payload["pid"];
   let processId: number | null = null;
   if (typeof lpid === "number" && Number.isSafeInteger(lpid) && lpid > 0) {
     processId = lpid;
@@ -321,26 +328,40 @@ function decideAndMaybeExecuteLane(
         : null;
 
     // Ownership is required for Resume path worktree; Wait decisions still
-    // need process/lock observation when Selected.
-    let ownership = deriveOwnershipWorktree(roundEvents, laneId, promptSeq);
+    // need process/lock observation when Selected. Never fall back to a prior
+    // attempt's ownership record.
+    const selectedAttemptId =
+      selected._tag === "Selected" ? selected.attemptIdentity.attemptId : null;
+    const ownership = deriveOwnershipWorktree(
+      roundEvents,
+      laneId,
+      promptSeq,
+      selectedAttemptId,
+    );
 
-    // Budget inspection for current attempt when Selected.
+    // Budget inspection for current attempt when Selected. Invalid history
+    // fails closed as Refused — never coerce the count to zero and continue.
     let resumeCount = 0;
-    let attemptIdentity: AttemptIdentity | null = null;
     if (selected._tag === "Selected") {
-      attemptIdentity = selected.attemptIdentity;
       const budget = inspectResumeAttemptBudget(
         records,
         selected.attemptIdentity,
         config.resumeMaxAttempts,
       );
       if (isResumeAttemptFailure(budget)) {
-        // Invalid budget history → decideRoundResume still sees count 0 and
-        // may refuse on recovery; pass 0 with valid max.
-        resumeCount = 0;
-      } else {
-        resumeCount = budget.resumeCount;
+        return {
+          _tag: "NoMutation" as const,
+          runId,
+          laneId,
+          decision: {
+            _tag: "Refused" as const,
+            attemptIdentity: selected.attemptIdentity,
+            reason: "invalid_history" as const,
+          },
+          dryRun: config.dryRun,
+        };
       }
+      resumeCount = budget.resumeCount;
     }
 
     let safety: ResumeSafetyObservationV1 = {

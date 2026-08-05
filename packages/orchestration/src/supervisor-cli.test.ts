@@ -18,12 +18,13 @@ import {
   decodeLaneId,
   decodeRunId,
   makeAttemptIdentity,
+  resumeAttemptFailure,
+  RunJournal,
   type AttemptId,
   type LaneId,
   type ReplayRecord,
   type RunId,
   type StoredEvent,
-  RunJournal,
 } from "@foreman/event-log";
 import { absentReportSnapshot, type RoundPlanV1 } from "./round-contract.js";
 import { makeStubWorktreeRestore } from "./resume-worktree-restore.js";
@@ -129,6 +130,7 @@ function stubServices(opts: {
   readonly records?: readonly ReplayRecord[];
   readonly busy?: boolean;
   readonly reserveCalls?: string[];
+  readonly failReserve?: boolean;
 }) {
   const records = opts.records ?? [];
   return Layer.mergeAll(
@@ -183,6 +185,9 @@ function stubServices(opts: {
       append: () => Effect.die("unused"),
       reserveResumeAttempt: () => {
         opts.reserveCalls?.push("reserve");
+        if (opts.failReserve === true) {
+          return Effect.fail(resumeAttemptFailure("attempt_not_current"));
+        }
         return Effect.succeed({
           attemptIdentity: identity,
           event: {
@@ -427,6 +432,38 @@ describe("runSupervisorCli", () => {
         ),
       );
       assert.equal(code, EXIT_OK);
+    } finally {
+      rmSync(stateRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("ExecutionFailed lane action exits EXIT_FAIL with diagnostics", async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), "cli-execfail-"));
+    try {
+      const reserveCalls: string[] = [];
+      const layer = stubServices({
+        records: recoverableRecords("/abs/wt"),
+        reserveCalls,
+        failReserve: true,
+      });
+      const cap = captureIo();
+      const code = await Effect.runPromise(
+        runSupervisorCli(
+          ["--state-root", stateRoot, "--once", String(runId)],
+          cap.io,
+          {
+            shellBinary: "bash",
+            laneRunScript: "/s/lane-run.sh",
+            provideServices: (e) =>
+              e.pipe(Effect.provide(layer)) as Effect.Effect<
+                readonly import("./supervisor.js").SupervisorRunResultV1[]
+              >,
+          },
+        ),
+      );
+      assert.equal(code, EXIT_FAIL);
+      assert.match(cap.stderr, /execution failed/);
+      assert.deepEqual(reserveCalls, ["reserve"]);
     } finally {
       rmSync(stateRoot, { recursive: true, force: true });
     }

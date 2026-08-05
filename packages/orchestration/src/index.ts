@@ -491,6 +491,7 @@ export {
   buildCommitExistsArgs,
   isPorcelainClean,
   rootIdentityKey,
+  normalizeAbsoluteWorktreeInput,
   WorktreeRestore,
   RESTORE_GIT_OUTPUT_BOUND_BYTES,
   RESTORE_GIT_TIMEOUT_MS,

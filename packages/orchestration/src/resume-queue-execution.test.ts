@@ -44,6 +44,7 @@ import {
   EnvVars,
   PathLookup,
   ProcessExec,
+  ProcessFailure,
   Sleeper,
 } from "./queue-services.js";
 
@@ -240,6 +241,63 @@ describe("runResumeQueueExecution ordering", () => {
       assert.equal(either.left.reason, "inspect_failed");
     }
     assert.deepEqual(order, ["inspect"]);
+  });
+
+  it("terminal race at reserve fails before restore and submit", async () => {
+    const order: string[] = [];
+    const restoreLayer = makeStubWorktreeRestore({
+      inspect: () => {
+        order.push("inspect");
+        return Effect.succeed({
+          worktreeRoot: "/abs/wt",
+          rootIdentityKey: "k",
+          checkpointIdentity: checkpoint(),
+        });
+      },
+      restore: () => {
+        order.push("restore");
+        return Effect.die("no restore after terminal reserve");
+      },
+    });
+    const journalLayer = Layer.succeed(RunJournal, {
+      allocate: () => Effect.die("unused"),
+      append: () => Effect.die("unused"),
+      reserveResumeAttempt: () => {
+        order.push("reserve");
+        // Concurrent round_done observed under the journal lock.
+        return Effect.fail(resumeAttemptFailure("attempt_not_current"));
+      },
+    });
+    const either = await Effect.runPromise(
+      Effect.either(
+        runResumeQueueExecution({
+          plan: plan(),
+          checkpointIdentity: checkpoint(),
+          worktree: "/abs/wt",
+          resumeMaxAttempts: 2,
+          shellBinary: "bash",
+          laneRunScript: "/s/lane-run.sh",
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              restoreLayer,
+              journalLayer,
+              makeStubQueueSubmitter({
+                submit: () => {
+                  order.push("submit");
+                  return Effect.die("no submit after terminal reserve");
+                },
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "reserve_failed");
+    }
+    assert.deepEqual(order, ["inspect", "reserve"]);
   });
 
   it("lost reserve race fails before restore and submit; inspect already ran", async () => {
@@ -696,5 +754,146 @@ describe("makeLiveQueueSubmitter — never direct-spawns", () => {
       0,
     );
     assert.ok(callLog.some((c) => c.args[0] === "add"));
+  });
+
+  it("after add is attempted, nonzero exit fails closed as QueueSubmitFailure not Ready", async () => {
+    const callLog: Call[] = [];
+    const layer = makeLiveQueueSubmitter().pipe(
+      Layer.provide(
+        queueServiceLayer({
+          pueuePresent: true,
+          ensureStatusOk: true,
+          addExit: 1,
+          addStdout: "",
+          callLog,
+        }),
+      ),
+    );
+    const argv = ["bash", "lane-run.sh", "--round", "g", "r", "run", "lane", "/w", "--", "x"];
+    const either = await Effect.runPromise(
+      Effect.either(
+        Effect.gen(function* () {
+          const q = yield* QueueSubmitter;
+          return yield* q.submit("misc", argv);
+        }).pipe(Effect.provide(layer)),
+      ),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "queue_failed");
+    }
+    assert.ok(callLog.some((c) => c.args[0] === "add"));
+    assert.equal(
+      callLog.filter((c) => c.kind === "foreground").length,
+      0,
+    );
+  });
+
+  it("after add is attempted, malformed task id fails closed not Ready", async () => {
+    const callLog: Call[] = [];
+    const layer = makeLiveQueueSubmitter().pipe(
+      Layer.provide(
+        queueServiceLayer({
+          pueuePresent: true,
+          ensureStatusOk: true,
+          addExit: 0,
+          addStdout: "not-a-task-id\n",
+          callLog,
+        }),
+      ),
+    );
+    const argv = ["bash", "lane-run.sh", "--round", "g", "r", "run", "lane", "/w", "--", "x"];
+    const either = await Effect.runPromise(
+      Effect.either(
+        Effect.gen(function* () {
+          const q = yield* QueueSubmitter;
+          return yield* q.submit("misc", argv);
+        }).pipe(Effect.provide(layer)),
+      ),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "queue_failed");
+    }
+    assert.equal(
+      callLog.filter((c) => c.kind === "foreground").length,
+      0,
+    );
+  });
+
+  it("transport error during add fails closed as QueueSubmitFailure", async () => {
+    const callLog: Call[] = [];
+    const services = Layer.mergeAll(
+      Layer.succeed(ProcessExec, {
+        runCaptured: (o) =>
+          Effect.gen(function* () {
+            callLog.push({ kind: "captured", cmd: o.command, args: o.args });
+            if (o.args[0] === "status") {
+              return { exitCode: 0, stdout: "{}", stderr: "" };
+            }
+            if (o.args[0] === "group") {
+              return { exitCode: 0, stdout: "", stderr: "" };
+            }
+            if (o.args[0] === "add") {
+              return yield* Effect.fail(new ProcessFailure("spawn_failed"));
+            }
+            return { exitCode: 0, stdout: "", stderr: "" };
+          }),
+        runIgnoredStdio: (o) =>
+          Effect.sync(() => {
+            callLog.push({ kind: "ignored", cmd: o.command, args: o.args });
+            return { exitCode: 0, stdout: "", stderr: "" };
+          }),
+        runForeground: (o) =>
+          Effect.sync(() => {
+            callLog.push({
+              kind: "foreground",
+              cmd: o.command,
+              args: o.args,
+            });
+            return 0;
+          }),
+      }),
+      Layer.succeed(Sleeper, { sleep: () => Effect.void }),
+      Layer.succeed(PathLookup, {
+        which: (name) =>
+          Effect.succeed(
+            name === "pueue"
+              ? "/bin/pueue"
+              : name === "pueued"
+                ? "/bin/pueued"
+                : null,
+          ),
+        fileExists: () => Effect.succeed(false),
+        isExecutable: () => Effect.succeed(false),
+      }),
+      Layer.succeed(BoundedFs, {
+        readFileBounded: () => Effect.succeed({ _tag: "Absent" as const }),
+      }),
+      Layer.succeed(EnvVars, {
+        get: (name) =>
+          Effect.succeed(
+            name === "PUEUE_CONFIG_PATH" ? "/tmp/no-pueue-config.yml" : undefined,
+          ),
+        home: () => Effect.succeed("/home/test"),
+      }),
+    );
+    const layer = makeLiveQueueSubmitter().pipe(Layer.provide(services));
+    const either = await Effect.runPromise(
+      Effect.either(
+        Effect.gen(function* () {
+          const q = yield* QueueSubmitter;
+          return yield* q.submit("misc", ["bash", "x"]);
+        }).pipe(Effect.provide(layer)),
+      ),
+    );
+    assert.equal(either._tag, "Left");
+    if (either._tag === "Left") {
+      assert.equal(either.left.reason, "queue_failed");
+    }
+    assert.equal(
+      callLog.filter((c) => c.kind === "foreground").length,
+      0,
+    );
   });
 });

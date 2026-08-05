@@ -17212,6 +17212,29 @@ function inspectResumeAttemptBudget(records, attemptIdentity, resumeMaxAttempts)
     exhausted
   };
 }
+function attemptHasDurableTerminal(records, attemptIdentity) {
+  const lane = attemptIdentity.laneId;
+  const attempt = attemptIdentity.attemptId;
+  for (const rec of records) {
+    const event = rec.event;
+    if (event.lane !== lane) continue;
+    if (event.type === "round_done") {
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+      continue;
+    }
+    if (event.type === "alert") {
+      if (event.payload["kind"] !== "round_incomplete") continue;
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 function deriveNextResumeCount(records, attemptIdentity, resumeMaxAttempts) {
   const budget = inspectResumeAttemptBudget(
     records,
@@ -17220,6 +17243,12 @@ function deriveNextResumeCount(records, attemptIdentity, resumeMaxAttempts) {
   );
   if (isResumeAttemptFailure(budget)) {
     return { _tag: "fail", error: budget };
+  }
+  if (attemptHasDurableTerminal(records, attemptIdentity)) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("attempt_not_current")
+    };
   }
   if (budget.exhausted) {
     return {

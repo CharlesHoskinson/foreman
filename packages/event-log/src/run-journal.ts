@@ -1289,8 +1289,43 @@ export function inspectResumeAttemptBudget(
 }
 
 /**
+ * True when the journal already holds a durable terminal for the selected
+ * attempt (`round_done` or incomplete alert). Used only under the events lock
+ * so a concurrent terminal between decision and reservation fails closed
+ * before append, restore, or queue.
+ */
+function attemptHasDurableTerminal(
+  records: readonly ReplayRecord[],
+  attemptIdentity: AttemptIdentity,
+): boolean {
+  const lane = attemptIdentity.laneId;
+  const attempt = attemptIdentity.attemptId;
+  for (const rec of records) {
+    const event = rec.event;
+    if (event.lane !== lane) continue;
+    if (event.type === "round_done") {
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+      continue;
+    }
+    if (event.type === "alert") {
+      if (event.payload["kind"] !== "round_incomplete") continue;
+      const extracted = extractPayloadAttempt(event.payload);
+      if (typeof extracted === "number" && extracted === attempt) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Derive the next resume count under the events lock from the shared
- * inspector. Exhausted or invalid budgets fail closed without append.
+ * inspector. Exhausted, terminal, or invalid budgets fail closed without
+ * append. Reuses inspectResumeAttemptBudget rather than a second unlocked
+ * decision path.
  */
 function deriveNextResumeCount(
   records: readonly ReplayRecord[],
@@ -1306,6 +1341,14 @@ function deriveNextResumeCount(
   );
   if (isResumeAttemptFailure(budget)) {
     return { _tag: "fail", error: budget };
+  }
+  // Terminal for the selected attempt under the lock → not currently
+  // resumable. Fail closed with attempt_not_current (closed reason set).
+  if (attemptHasDurableTerminal(records, attemptIdentity)) {
+    return {
+      _tag: "fail",
+      error: resumeAttemptFailure("attempt_not_current"),
+    };
   }
   if (budget.exhausted) {
     return {

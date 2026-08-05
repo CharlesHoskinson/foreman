@@ -7,7 +7,7 @@
  */
 
 import { realpathSync, statSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { isAbsolute, resolve as pathResolve } from "node:path";
 import { Context, Effect, Layer } from "effect";
 import { isCommitSha40 } from "@foreman/core";
 import {
@@ -207,6 +207,20 @@ function mapTransport(_err: ProcessFailure): WorktreeRestoreFailure {
   return worktreeRestoreFailure("transport_failed");
 }
 
+/**
+ * Normalize an absolute path for identity comparison: resolve `.`/`..` and
+ * strip a single trailing separator (except root). Does not follow symlinks.
+ */
+export function normalizeAbsoluteWorktreeInput(worktree: string): string {
+  let n = pathResolve(worktree);
+  if (n.length > 1) {
+    if (n.endsWith("/") || n.endsWith("\\")) {
+      n = n.slice(0, -1);
+    }
+  }
+  return n;
+}
+
 function resolveWorktreeRoot(
   worktree: string,
 ):
@@ -225,10 +239,17 @@ function resolveWorktreeRoot(
     if (!realSt.isDirectory()) {
       return { _tag: "Fail", reason: "invalid_worktree" };
     }
+    // Reject symlink/alias inputs: normalized absolute input must equal the
+    // canonical real path before any checkout.
+    const inputNorm = normalizeAbsoluteWorktreeInput(worktree);
+    const realNorm = normalizeAbsoluteWorktreeInput(realPath);
+    if (inputNorm !== realNorm) {
+      return { _tag: "Fail", reason: "invalid_worktree" };
+    }
     return {
       _tag: "Ok",
-      realPath,
-      key: rootIdentityKey(realPath, realSt.dev, realSt.ino),
+      realPath: realNorm,
+      key: rootIdentityKey(realNorm, realSt.dev, realSt.ino),
     };
   } catch {
     return { _tag: "Fail", reason: "invalid_worktree" };

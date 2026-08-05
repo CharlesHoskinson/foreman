@@ -1785,6 +1785,36 @@ describe("RunJournal reserveResumeAttempt", () => {
     });
   });
 
+  it("durable round_done for selected attempt fails reserve before append", async () => {
+    await withStateRoot(async (root) => {
+      await seedPrompt(root, 1);
+      await Effect.runPromise(
+        appendEffect(
+          root,
+          draft({
+            type: "round_done",
+            payload: {
+              attempt: 1,
+              outcome: { _tag: "completed" },
+            },
+          }),
+        ),
+      );
+      const before = readFileSync(join(root, "runs", runId, "events.ndjson"));
+      const either = await Effect.runPromise(
+        Effect.either(reserveEffect(root, identity(1), 3)),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assertResumeFailure(either.left, "attempt_not_current");
+      }
+      assert.ok(
+        before.equals(readFileSync(join(root, "runs", runId, "events.ndjson"))),
+      );
+      assert.equal(journalResumeAttemptCount(root), 0);
+    });
+  });
+
   it("absent latest prompt fails with attempt_not_current", async () => {
     await withStateRoot(async (root) => {
       await Effect.runPromise(

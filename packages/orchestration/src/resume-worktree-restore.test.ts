@@ -9,6 +9,7 @@ import {
   mkdirSync,
   mkdtempSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -524,6 +525,51 @@ describe("WorktreeRestore live with injected ProcessExec", () => {
     assert.equal(either._tag, "Left");
     if (either._tag === "Left") {
       assert.equal(either.left.reason, "invalid_worktree");
+    }
+  });
+
+  it("rejects symlink/alias worktree input before checkout", async () => {
+    // Cross-platform: skip when the platform cannot create directory symlinks.
+    const base = mkdtempSync(join(tmpdir(), "wr-alias-"));
+    const real = join(base, "real-wt");
+    const alias = join(base, "alias-wt");
+    try {
+      mkdirSync(real);
+      try {
+        symlinkSync(real, alias);
+      } catch {
+        // Windows without symlink privilege, or unsupported — not a product fail.
+        return;
+      }
+      const calls: GitCall[] = [];
+      const layer = makeLiveWorktreeRestore().pipe(
+        Layer.provide(
+          processLayerFromScript(calls, () => ({
+            exitCode: 0,
+            stdout: "",
+            stderr: "",
+          })),
+        ),
+      );
+      const either = await Effect.runPromise(
+        Effect.either(
+          Effect.gen(function* () {
+            const wr = yield* WorktreeRestore;
+            return yield* wr.inspect({
+              worktree: alias,
+              checkpointIdentity: checkpoint(),
+            });
+          }).pipe(Effect.provide(layer)),
+        ),
+      );
+      assert.equal(either._tag, "Left");
+      if (either._tag === "Left") {
+        assert.equal(either.left.reason, "invalid_worktree");
+      }
+      // No Git mutation/observation after alias rejection.
+      assert.equal(calls.length, 0);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
     }
   });
 });
