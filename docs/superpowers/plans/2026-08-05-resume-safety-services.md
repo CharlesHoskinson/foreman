@@ -47,7 +47,7 @@ export function classifyResumeLock(
 Add tables for every closed outcome.
 Assert that `denied` is `active`.
 Assert that invalid process IDs are `unknown`.
-Assert that only a missing valid path is `free`.
+Assert that only a missing current-platform absolute path is `free`.
 Assert that only a directory is `held`.
 
 - [ ] **Step 2: Run the RED tests**
@@ -59,8 +59,10 @@ Expected: The module does not exist and the test command fails.
 - [ ] **Step 3: Implement the pure classifiers**
 
 Bound the lock path at 32,768 UTF-8 bytes.
-Accept POSIX absolute paths, Windows drive paths, and UNC paths.
-Reject empty, relative, and NUL-containing paths as `unknown`.
+Use `node:path.isAbsolute` so the path spelling and filesystem boundary use the
+same current-platform semantics.
+Reject foreign-platform, empty, relative, and NUL-containing paths as
+`unknown`.
 
 - [ ] **Step 4: Run the classifier tests**
 
@@ -121,11 +123,16 @@ Use injected service layers.
 Prove both services are called once.
 Prove `unknown` is preserved.
 Prove a service defect becomes `unknown` at its own live boundary.
+Prove a defect from either injected Effect service becomes that service's
+`unknown` state.
+Prove Fiber interruption is not caught.
 
 - [ ] **Step 2: Implement service composition**
 
 Use `Effect.all` to collect the two independent observations.
 Return only `ResumeSafetyObservationV1`.
+Use `Effect.catchAllDefect` on each individual probe observation.
+Do not use `Effect.catchAllCause`; interruption must remain interruption.
 
 - [ ] **Step 3: Implement live layers**
 

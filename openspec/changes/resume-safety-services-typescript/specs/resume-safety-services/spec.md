@@ -21,11 +21,14 @@ It SHALL NOT send a terminating signal.
 
 ### Requirement: lock observation does not follow links
 
-`ResumeLockProbe` SHALL accept one absolute lock path.
+`ResumeLockProbe` SHALL accept one lock path that is absolute on the current
+Node platform.
 The path SHALL contain no NUL and no more than 32,768 UTF-8 bytes.
 The service SHALL return one `ResumeLockState` value.
 
 The live service SHALL use a no-follow path observation.
+It SHALL return `unknown` for a foreign-platform path spelling before it calls
+the filesystem boundary.
 It SHALL return `free` when the path is missing.
 It SHALL return `held` when the path is a directory.
 It SHALL return `unknown` for a symbolic link, regular file, special node,
@@ -47,6 +50,9 @@ It SHALL return one `ResumeSafetyObservationV1` with `processState` and
 The program SHALL preserve `unknown` results.
 It SHALL NOT convert an unknown result to a safe result.
 The program and live layers SHALL NOT throw an untyped exception.
+The program SHALL convert a defect from either probe to that probe's `unknown`
+state.
+The program SHALL NOT catch or suppress Fiber interruption.
 The live-layer factory SHALL accept injected low-level boundary seams for tests.
 The default seams SHALL use the real Node process and no-follow path APIs.
 Each live service SHALL catch and classify failures from its own seam.

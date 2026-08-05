@@ -9,9 +9,11 @@ Add the Effect live-observation boundary for the R5A resume decision.
 Create one process probe, one lock probe, and one composition program.
 The live process probe uses Node signal-zero and fails closed.
 The live lock probe uses no-follow path metadata and fails closed.
+It accepts only paths that are absolute on the current Node platform.
 The composition program returns the two exact states required by R5A.
 One live-layer factory accepts optional low-level seams so tests can force each
 Node error class. Default seams use the real Node APIs.
+The composition maps probe defects to `unknown` but preserves interruption.
 
 ## Safety boundary
 

@@ -4,7 +4,8 @@
 
 Add two small Effect services and one composition program.
 The process service observes one owned process ID.
-The lock service observes one absolute lane-lock path without following links.
+The lock service observes one lane-lock path that is absolute on the current
+Node platform without following links.
 The composition program returns the two R5A input states.
 
 ## Process observation
@@ -22,9 +23,12 @@ It does not replace the legacy stall classifier.
 ## Lock observation
 
 The live service uses a no-follow path observation.
-A missing path is `free`.
+A native absolute missing path is `free`.
 A directory is `held`.
 A symbolic link, regular file, special node, invalid path, or read failure is `unknown`.
+
+The classifier uses Node's current-platform absolute-path rule.
+It does not treat a foreign-platform path spelling as a missing local lock.
 
 The result is a snapshot, not mutation authorization.
 A later executor must revalidate or acquire the lock before it changes state.
@@ -34,6 +38,8 @@ A later executor must revalidate or acquire the lock before it changes state.
 `observeResumeSafety` requires `ResumeProcessProbe` and `ResumeLockProbe`.
 It runs both observations and returns one `ResumeSafetyObservationV1` value.
 The live services do not throw untyped exceptions.
+The composition catches defects from each probe as that probe's `unknown`
+state. It does not catch or suppress Fiber interruption.
 
 ## Testable live boundary
 
