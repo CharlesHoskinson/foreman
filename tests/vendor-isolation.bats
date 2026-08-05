@@ -45,7 +45,7 @@ setup() {
   export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
-  unset LANE_VENDOR LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
+  unset LANE_VENDOR LANE_CREDENTIAL_PROFILE LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   setup_lock_trust_fixture
@@ -57,7 +57,7 @@ setup() {
   echo x > "$WT/f"
   git -C "$WT" add -A
   git -C "$WT" commit -qm base
-  # R4C3: vendor admission reads the persisted preflight record only.
+  # R7B2: vendor admission reads the profile-bound preflight record only.
   write_ready_preflight_record grok
   write_ready_preflight_record codex
 }
@@ -83,6 +83,25 @@ JSON
       return 1
       ;;
   esac
+  write_profile_preflight_wrapper "$vendor"
+}
+
+# @description Bind the legacy record fixture to the default external profile.
+# @arg $1 vendor id (grok|codex)
+# @arg $2 optional profile id
+write_profile_preflight_wrapper() {
+  local vendor="$1" profile_id="${2:-${1}-default}" result identity wrapper_dir
+  result="$(node "$SCRIPTS/../runtime/dist/credential-profile.js" init \
+    --state-root "$FOREMAN_HOME" --worktree "$WT" \
+    --profile "$profile_id" --vendor "$vendor")"
+  identity="$(jq -er '.profileIdentity' <<<"$result")"
+  wrapper_dir="$FOREMAN_HOME/credential-profiles/$profile_id/preflight"
+  mkdir -p "$wrapper_dir"
+  jq -cn --arg profileId "$profile_id" --arg profileIdentity "$identity" \
+    --arg vendor "$vendor" --argjson record "$(cat "$FOREMAN_HOME/preflight/$vendor.json")" \
+    '{schemaVersion:1,profileId:$profileId,profileIdentity:$profileIdentity,vendor:$vendor,record:$record}' \
+    > "$wrapper_dir/$vendor.json"
+  chmod 600 "$wrapper_dir/$vendor.json"
 }
 
 # @description Mirrors lane-run.sh's own lane_normalize_config_dir exactly
@@ -213,35 +232,30 @@ SHIM
 # normalizes unconditionally, regardless of which spawn branch runs.
 # ---------------------------------------------------------------------
 
-@test "lane-run (LANE_VENDOR=grok, LANE_CONFIG_DIR unset, fake launcher shim): GROK_HOME uses the normalized legacy default; ownership.config_dir matches" {
+@test "lane-run selects grok-default and exports only its verified config root" {
   stub_dir="$BATS_TEST_TMPDIR/stub"
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
-  mkdir -p "$WT/.harness/vendor-home/grok"   # Explicit legacy lane-run fixture. R7B2-B removes this default.
+  export CODEX_HOME="$BATS_TEST_TMPDIR/ambient-codex-home"
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
-    bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
+    bash -c 'printf "%s|%s" "$GROK_HOME" "${CODEX_HOME-unset}" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
-  expected="$(norm "$WT/.harness/vendor-home/grok")"
-  [ "$(cat "$WT/env-dump")" = "$expected" ]
+  expected="$(norm "$FOREMAN_HOME/credential-profiles/grok-default/homes/grok")"
+  [ "$(cat "$WT/env-dump")" = "$expected|unset" ]
   events="$(run_dir run1)/events.jsonl"
   run jq -rc 'select(.type=="ownership") | .payload.config_dir' "$events"
   [ "$output" = "$expected" ]
 }
 
-@test "lane-run (LANE_VENDOR=codex, explicit LANE_CONFIG_DIR, fake launcher shim): CODEX_HOME + ownership.config_dir use the normalized override, not the default" {
+@test "lane-run accepts an explicit config root only when it matches the verified codex profile" {
   stub_dir="$BATS_TEST_TMPDIR/stub"
   mkdir -p "$stub_dir"
   write_fake_launcher "$stub_dir"
   export FOREMAN_LAUNCH="$stub_dir/foreman-launch"
   export LANE_VENDOR=codex
-  export LANE_CONFIG_DIR="$BATS_TEST_TMPDIR/custom-codex-home"
-  mkdir -p "$LANE_CONFIG_DIR"
-  # The test's OWN LANE_CONFIG_DIR (pre-normalization) is still, by
-  # construction, a different path than the default dir -- this holds
-  # regardless of normalization form.
-  [ "$LANE_CONFIG_DIR" != "$WT/.harness/vendor-home/codex" ]
+  export LANE_CONFIG_DIR="$FOREMAN_HOME/credential-profiles/codex-default/homes/codex"
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'printf "%s" "$CODEX_HOME" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
@@ -277,7 +291,29 @@ SHIM
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
-  expected="$(norm "$WT/.harness/vendor-home/grok")"
+  expected="$(norm "$FOREMAN_HOME/credential-profiles/grok-default/homes/grok")"
+  [ "$(cat "$WT/env-dump")" = "$expected" ]
+}
+
+@test "lane-run refuses an explicit config root that differs from profile authority" {
+  export LANE_VENDOR=grok
+  export LANE_CONFIG_DIR="$BATS_TEST_TMPDIR/unverified-home"
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
+    bash -c 'echo should-not-run > "'"$WT"'/should-not-exist"'
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"LANE_CONFIG_DIR does not match the verified profile"* ]]
+  [ ! -f "$WT/should-not-exist" ]
+  [ ! -d "$WT/.harness/lane.lock" ]
+}
+
+@test "lane-run honors an explicit credential profile without using the default profile" {
+  write_profile_preflight_wrapper grok team-alpha
+  export LANE_VENDOR=grok
+  export LANE_CREDENTIAL_PROFILE=team-alpha
+  run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
+    bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
+  [ "$status" -eq 0 ]
+  expected="$(norm "$FOREMAN_HOME/credential-profiles/team-alpha/homes/grok")"
   [ "$(cat "$WT/env-dump")" = "$expected" ]
 }
 

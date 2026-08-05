@@ -56,44 +56,9 @@ const LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
 const LANE_SUPERVISE_MIGRATION_PATH =
   "skills/foreman/scripts/lane-supervise.sh";
 
-/**
- * Exact vendor-admission forwarding block admitted by R4C3. Every byte is
- * pinned; a one-byte change inside the block fails the closed match.
- */
-const LANE_RUN_FORWARDING_BLOCK = [
-  '  lane_gate_node="$(command -v node || true)"',
-  '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"',
-  '  if [[ -z "$lane_gate_node" ]]; then',
-  '    echo "lane-run: node is required for vendor admission" >&2',
-  '    exit "$EXIT_MISSING_CLI"',
-  "  fi",
-  '  if [[ ! -f "$lane_gate_runtime" ]]; then',
-  '    echo "lane-run: vendor admission runtime is missing" >&2',
-  '    exit "$EXIT_MISSING_CLI"',
-  "  fi",
-  '  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \\',
-  '      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then',
-  '    exit "$EXIT_CONFIG"',
-  "  fi",
-].join("\n");
-
-/**
- * SHA-256 of every byte of lane-run.sh strictly before LANE_RUN_FORWARDING_BLOCK.
- * Position-pinned separately from the suffix so relocating an unchanged block
- * fails. Recomputed only when an intentional prefix change is approved with
- * the R4C3 migration artifact. Caller-supplied digests are never accepted.
- */
-const LANE_RUN_PREFIX_SHA256 =
-  "44ebe0ddd07410f8f57453930b8be9a6483dc7cbd22c633ce43e5f519c06456c";
-
-/**
- * SHA-256 of every byte of lane-run.sh strictly after LANE_RUN_FORWARDING_BLOCK.
- * Position-pinned separately from the prefix so relocating an unchanged block
- * fails. Recomputed only when an intentional suffix change is approved with
- * the R4C3 migration artifact. Caller-supplied digests are never accepted.
- */
-const LANE_RUN_SUFFIX_SHA256 =
-  "246364c7b516f9b5e587605f12a2dcebe3c25ba1c59e2d15f91c604414406e39";
+/** Exact R7B2-B profile-bound lane adapter body. */
+const LANE_RUN_BODY_SHA256 =
+  "07d1f57953eb1c3cb4b7a8090743ef05c723ff900e0d3881fb8b1efc0be93f31";
 
 /**
  * SHA-256 of every byte of the approved R5D lane-supervise.sh thin adapter.
@@ -107,32 +72,14 @@ const LANE_SUPERVISE_BODY_SHA256 =
 
 /**
  * Closed validator for the single approved lane-run.sh migration artifact.
- * Accepts only the exact forwarding block at the pinned position (separate
- * prefix and suffix digests). Rejects every other change with
- * legacy_adapter_domain_logic.
+ * Accepts only the exact profile-bound adapter body. Rejects every other
+ * change with legacy_adapter_domain_logic.
  */
 function inspectLaneRunMigrationAdapter(sourceText: string): PolicyReason | null {
   if (/[\u0000]/.test(sourceText)) return DENY;
 
-  const first = sourceText.indexOf(LANE_RUN_FORWARDING_BLOCK);
-  if (first < 0) return DENY;
-  const second = sourceText.indexOf(
-    LANE_RUN_FORWARDING_BLOCK,
-    first + LANE_RUN_FORWARDING_BLOCK.length,
-  );
-  if (second !== -1) return DENY;
-
-  const prefix = sourceText.slice(0, first);
-  const suffix = sourceText.slice(first + LANE_RUN_FORWARDING_BLOCK.length);
-  const prefixDigest = createHash("sha256")
-    .update(prefix, "utf8")
-    .digest("hex");
-  if (prefixDigest !== LANE_RUN_PREFIX_SHA256) return DENY;
-  const suffixDigest = createHash("sha256")
-    .update(suffix, "utf8")
-    .digest("hex");
-  if (suffixDigest !== LANE_RUN_SUFFIX_SHA256) return DENY;
-  return null;
+  const digest = createHash("sha256").update(sourceText, "utf8").digest("hex");
+  return digest === LANE_RUN_BODY_SHA256 ? null : DENY;
 }
 
 /**

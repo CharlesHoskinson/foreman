@@ -9,8 +9,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const LANE_RUN_PATH = "skills/foreman/scripts/lane-run.sh";
 const LANE_SUPERVISE_PATH = "skills/foreman/scripts/lane-supervise.sh";
 const LANE_RUN_FORWARDING_BLOCK = [
-  '  lane_gate_node="$(command -v node || true)"',
-  '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/vendor-preflight.js"',
+  '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/credential-profile-lane.js"',
   '  if [[ -z "$lane_gate_node" ]]; then',
   '    echo "lane-run: node is required for vendor admission" >&2',
   '    exit "$EXIT_MISSING_CLI"',
@@ -19,12 +18,7 @@ const LANE_RUN_FORWARDING_BLOCK = [
   '    echo "lane-run: vendor admission runtime is missing" >&2',
   '    exit "$EXIT_MISSING_CLI"',
   "  fi",
-  '  if ! "$lane_gate_node" "$lane_gate_runtime" lane-gate \\',
-  '      "$LANE_VENDOR" "$FOREMAN_HOME/preflight/$LANE_VENDOR.json"; then',
-  '    exit "$EXIT_CONFIG"',
-  "  fi",
 ].join("\n");
-
 const GOOD = [
   "#!/usr/bin/env bash",
   "set -euo pipefail",

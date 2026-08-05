@@ -23,7 +23,7 @@ setup() {
   export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
-  unset LANE_VENDOR LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
+  unset LANE_VENDOR LANE_CREDENTIAL_PROFILE LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   WT="$BATS_TEST_TMPDIR/wt"
@@ -63,6 +63,24 @@ JSON
       return 1
       ;;
   esac
+  write_profile_preflight_wrapper "$vendor"
+}
+
+# @description Bind the legacy record fixture to the default external profile.
+# @arg $1 vendor id (grok|codex)
+write_profile_preflight_wrapper() {
+  local vendor="$1" profile_id="${1}-default" result identity wrapper_dir
+  result="$(node "$SCRIPTS/../runtime/dist/credential-profile.js" init \
+    --state-root "$FOREMAN_HOME" --worktree "$WT" \
+    --profile "$profile_id" --vendor "$vendor")"
+  identity="$(jq -er '.profileIdentity' <<<"$result")"
+  wrapper_dir="$FOREMAN_HOME/credential-profiles/$profile_id/preflight"
+  mkdir -p "$wrapper_dir"
+  jq -cn --arg profileId "$profile_id" --arg profileIdentity "$identity" \
+    --arg vendor "$vendor" --argjson record "$(cat "$FOREMAN_HOME/preflight/$vendor.json")" \
+    '{schemaVersion:1,profileId:$profileId,profileIdentity:$profileIdentity,vendor:$vendor,record:$record}' \
+    > "$wrapper_dir/$vendor.json"
+  chmod 600 "$wrapper_dir/$vendor.json"
 }
 
 # @description Write a canonical not-ready grok preflight record (auth unknown).
@@ -71,6 +89,7 @@ write_not_ready_grok_record() {
   cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
 {"facts":{"authenticated":{"evidenceClass":"probed","reason":"auth probe timed out","value":"unknown"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":null,"kind":"auth","outcome":"timeout"}],"remediation":{"instruction":"Re-run bounded grok models","kind":"diagnose"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
 JSON
+  write_profile_preflight_wrapper grok
 }
 
 # @description Mirrors lane-run.sh's own lane_normalize_config_dir exactly
@@ -157,7 +176,7 @@ EOF
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
-  expected="$(norm "$WT/.harness/vendor-home/grok")"
+  expected="$(norm "$FOREMAN_HOME/credential-profiles/grok-default/homes/grok")"
   [ "$(cat "$WT/env-dump")" = "$expected" ]
 }
 
@@ -173,7 +192,7 @@ EOF
   run bash "$SCRIPTS/lane-run.sh" run2 lane-a "$WT" -- \
     bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
-  expected="$(norm "$WT/.harness/vendor-home/grok")"
+  expected="$(norm "$FOREMAN_HOME/credential-profiles/grok-default/homes/grok")"
   [ "$(cat "$WT/env-dump")" = "$expected" ]
   events="$(run_dir run2)/events.jsonl"
   run jq -rc 'select(.type=="ownership") | .payload.config_dir' "$events"
@@ -368,7 +387,7 @@ EOF
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'echo RAN > "'"$WT"'/ran"'
   [ "$status" -eq 2 ]
-  [[ "$output" == *"auth probe timed out"* ]]
+  [[ "$output" == *"preflight_not_ready"* ]]
   [ ! -f "$WT/ran" ]
   [ ! -f "$BATS_TEST_TMPDIR/login-called" ]
   [ ! -f "$BATS_TEST_TMPDIR/ran" ]

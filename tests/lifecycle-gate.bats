@@ -2,9 +2,8 @@
 # @description Coverage for lifecycle-three-stage Task 5 / R4C3: the Use-path
 #   readiness gate in lane-run.sh. Spec R1/R2 require Use to REFUSE routing
 #   to a not-ready lane at the door -- not merely for Setup to report it.
-#   R4C3 replaces the live tool-check probe with the persisted TypeScript
-#   preflight record at $FOREMAN_HOME/preflight/<vendor>.json via the
-#   tracked vendor-preflight lane-gate command. When LANE_VENDOR is set,
+#   R7B2 uses the profile-bound TypeScript preflight record under the external
+#   credential profile authority. When LANE_VENDOR is set,
 #   lane-run.sh MUST refuse to spawn CMD for a not-ready (or missing /
 #   invalid) record BEFORE touching the worktree lock or emitting any event,
 #   and MUST never start a live vendor probe or continue as unverified.
@@ -21,7 +20,7 @@ setup() {
   export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
-  unset LANE_VENDOR LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
+  unset LANE_VENDOR LANE_CREDENTIAL_PROFILE LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   WT="$BATS_TEST_TMPDIR/wt"
@@ -44,6 +43,7 @@ write_ready_grok_record() {
   cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
 {"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
 JSON
+  write_profile_grok_wrapper
 }
 
 # @description Write one canonical not-ready grok preflight record (auth unknown).
@@ -52,6 +52,23 @@ write_not_ready_grok_record() {
   cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
 {"facts":{"authenticated":{"evidenceClass":"probed","reason":"auth probe timed out","value":"unknown"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":null,"kind":"auth","outcome":"timeout"}],"remediation":{"instruction":"Re-run bounded grok models","kind":"diagnose"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
 JSON
+  write_profile_grok_wrapper
+}
+
+# @description Bind the grok record fixture to the default external profile.
+write_profile_grok_wrapper() {
+  local result identity wrapper_dir
+  result="$(node "$SCRIPTS/../runtime/dist/credential-profile.js" init \
+    --state-root "$FOREMAN_HOME" --worktree "$WT" \
+    --profile grok-default --vendor grok)"
+  identity="$(jq -er '.profileIdentity' <<<"$result")"
+  wrapper_dir="$FOREMAN_HOME/credential-profiles/grok-default/preflight"
+  mkdir -p "$wrapper_dir"
+  jq -cn --arg profileIdentity "$identity" \
+    --argjson record "$(cat "$FOREMAN_HOME/preflight/grok.json")" \
+    '{schemaVersion:1,profileId:"grok-default",profileIdentity:$profileIdentity,vendor:"grok",record:$record}' \
+    > "$wrapper_dir/grok.json"
+  chmod 600 "$wrapper_dir/grok.json"
 }
 
 # @description Trap executables that record any live vendor / tool-check probe.
@@ -81,7 +98,7 @@ EOF
   run env PATH="$SHIM:$PATH" LANE_VENDOR=grok bash "$SCRIPTS/lane-run.sh" gaterun lane-a "$WT" -- \
     bash -c 'echo RAN > "'"$WT"'/ran"'
   [ "$status" -eq 2 ]
-  [[ "$output" == *"auth probe timed out"* ]]
+  [[ "$output" == *"preflight_not_ready"* ]]
   [ ! -f "$WT/ran" ]
   [ ! -d "$WT/.harness/lane.lock" ]
   [ ! -f "$(run_dir gaterun)/events.jsonl" ]
@@ -151,7 +168,7 @@ EOF
     --unowned "stateful target fixture" gaterun-unowned-nr lane-a "$WT" -- \
     bash -c 'echo RAN > "'"$WT"'/ran"'
   [ "$status" -eq 2 ]
-  [[ "$output" == *"auth probe timed out"* ]]
+  [[ "$output" == *"preflight_not_ready"* ]]
   [ ! -f "$WT/ran" ]
   [ ! -d "$WT/.harness/lane.lock" ]
   [ ! -f "$(run_dir gaterun-unowned-nr)/events.jsonl" ]
