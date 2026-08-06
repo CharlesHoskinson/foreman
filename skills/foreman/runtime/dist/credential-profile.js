@@ -16468,7 +16468,7 @@ function renderCredentialProfileJson(result) {
 }
 var CredentialProfileFs = class extends Context_exports.Tag("CredentialProfileFs")() {
 };
-var WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES = /* @__PURE__ */ new Set(["ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL", "EISDIR"]);
+var WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES = /* @__PURE__ */ new Set(["ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL", "EISDIR", "EPERM"]);
 function isIgnorableParentDirSyncError(code, platform = process.platform) {
   if (platform !== "win32") return false;
   if (code === void 0) return false;

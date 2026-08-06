@@ -517,18 +517,35 @@ export type CredentialProfileRaceHook = {
 /**
  * Closed set of Windows errno codes that mean parent-directory open/fsync is
  * unsupported on the host. Only these may be ignored after authority publish.
- * `EIO`, `EACCES`, `EPERM`, and every unknown code MUST surface as WriteFailed.
+ * `EIO`, `EACCES`, and every unknown code MUST surface as WriteFailed.
+ *
+ * `EPERM` is in the set because it is the code Windows actually produces for
+ * this call, not a permission problem to be papered over. There is no
+ * directory-fsync equivalent on Windows: `FlushFileBuffers` on a directory
+ * handle returns ERROR_ACCESS_DENIED, which Node surfaces as EPERM. Excluding
+ * it made the Windows branch unreachable -- every authority publish refused
+ * with `write_failed`, so credential profiles, profile-bound Setup and lane
+ * admission could not function on the platform at all. Measured on
+ * Windows 11 / Node 24.18.0: the exclusion accounted for roughly 32 of the
+ * 49 remaining gates-windows failures.
+ *
+ * The narrowing this loses is real and is stated plainly: a genuine
+ * access-denied on the parent directory is no longer distinguishable here from
+ * the platform gap. The publish itself is unaffected -- the authority file is
+ * already written and hard-linked before this barrier runs, and every other
+ * failure mode (link, write, mode, identity) still refuses.
  */
 export const WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES: ReadonlySet<string> =
-  new Set(["ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL", "EISDIR"]);
+  new Set(["ENOTSUP", "EOPNOTSUPP", "ENOSYS", "EINVAL", "EISDIR", "EPERM"]);
 
 /**
  * Whether a parent-directory open/fsync error may be ignored after exclusive
  * authority publication.
  *
- * - POSIX: never ignore (any failure is WriteFailed).
+ * - POSIX: never ignore (any failure is WriteFailed). EPERM included -- the
+ *   barrier exists there and a failure is a real durability failure.
  * - Windows: ignore only the closed unsupported-code set. `EIO`, `EACCES`,
- *   `EPERM`, `undefined`, and unknown codes are never ignored.
+ *   `undefined`, and unknown codes are never ignored.
  */
 export function isIgnorableParentDirSyncError(
   code: string | undefined,

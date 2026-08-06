@@ -70,6 +70,22 @@ import {
   stripSetupNodeArgv,
   type SetupIo,
 } from "./foreman-setup.js";
+import { profilePreflightDirectoryAnchorSupported } from "./credential-profile-preflight.js";
+/**
+ * Setup persists a profile-scoped preflight record, which requires a no-follow
+ * directory anchor (`O_DIRECTORY | O_NOFOLLOW` plus `/proc/self/fd`). Windows
+ * defines neither constant, so `profilePreflightDirectoryAnchorSupported()` is
+ * false there and the store fails closed by design -- Setup then exits 3
+ * ("credential profile refused") instead of reaching the readiness verdict
+ * these tests assert.
+ *
+ * That is the documented boundary, not a defect: "Windows and hosts without
+ * those primitives cannot prove publication boundaries -- callers must fail
+ * closed before mutation." Tests that require a successful persist are
+ * therefore POSIX-only. Same shape as `liveTraversal` in secret-scan.test.ts.
+ */
+const livePersist = { skip: !profilePreflightDirectoryAnchorSupported() };
+
 const FIXED = "2026-08-04T15:00:00.000Z";
 
 const capabilityTable: VendorCapabilityTableV1 = {
@@ -360,7 +376,7 @@ describe("authInstruction and paths", () => {
 });
 
 describe("runForemanSetup persistence and readiness", () => {
-  it("persists not-ready grok record under FOREMAN_HOME and exits 1 with login line", async () => {
+  it("persists not-ready grok record under FOREMAN_HOME and exits 1 with login line", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();
@@ -407,7 +423,7 @@ describe("runForemanSetup persistence and readiness", () => {
     }
   });
 
-  it("does not emit login instruction for degraded unknown auth", async () => {
+  it("does not emit login instruction for degraded unknown auth", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();
@@ -451,7 +467,7 @@ describe("runForemanSetup persistence and readiness", () => {
     }
   });
 
-  it("with --lane persists only that vendor", async () => {
+  it("with --lane persists only that vendor", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();
@@ -487,7 +503,7 @@ describe("runForemanSetup persistence and readiness", () => {
     }
   });
 
-  it("without --lane persists both grok and codex", async () => {
+  it("without --lane persists both grok and codex", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();
@@ -712,7 +728,7 @@ describe("runForemanSetup persistence and readiness", () => {
     }
   });
 
-  it("lane ready when grok ok reports SETUP: READY even if other must-tools fail", async () => {
+  it("lane ready when grok ok reports SETUP: READY even if other must-tools fail", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();
@@ -864,7 +880,7 @@ describe("R7B1 profile-bound Setup preflight", () => {
     }
   });
 
-  it("persists default profile-scoped preflight at the exact path", async () => {
+  it("persists default profile-scoped preflight at the exact path", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();
@@ -905,7 +921,7 @@ describe("R7B1 profile-bound Setup preflight", () => {
     }
   });
 
-  it("persists explicit profile-scoped preflight for lane-scoped run", async () => {
+  it("persists explicit profile-scoped preflight for lane-scoped run", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();
@@ -953,7 +969,7 @@ describe("R7B1 profile-bound Setup preflight", () => {
     }
   });
 
-  it("unscoped run writes both default profile preflight records", async () => {
+  it("unscoped run writes both default profile preflight records", livePersist, async () => {
     const home = tempHome();
     const repo = tempRepo();
     const io = captureIo();

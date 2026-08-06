@@ -1458,7 +1458,7 @@ describe("identity change, write failures, concurrency", () => {
     }
   });
 
-  it("live-seam: forced EPERM parent sync is WriteFailed via exclusive writer", () => {
+  it("live-seam: forced EPERM parent sync follows the platform rule", () => {
     const { root, stateRoot } = tempPair("parentsync-eperm");
     try {
       const dir = join(stateRoot, "credential-profiles", "p");
@@ -1469,7 +1469,14 @@ describe("identity change, write failures, concurrency", () => {
         finalPath,
         Buffer.from('{"schemaVersion":1}\n', "utf8"),
       );
-      assert.deepEqual(written, { _tag: "WriteFailed" });
+      // Windows has no directory-fsync barrier to fail: FlushFileBuffers on a
+      // directory handle returns ERROR_ACCESS_DENIED (EPERM), so the barrier is
+      // unavailable and publication -- already complete via hard link -- stands.
+      // On POSIX the barrier exists and EPERM is a real durability failure.
+      assert.deepEqual(
+        written,
+        IS_WIN ? { _tag: "Ok" } : { _tag: "WriteFailed" },
+      );
     } finally {
       setCredentialProfileRaceHook(undefined);
       rmSync(root, { recursive: true, force: true });
@@ -1817,12 +1824,14 @@ describe("isIgnorableParentDirSyncError", () => {
     }
   });
 
-  it("Windows WriteFailed for EIO, EACCES, EPERM, unknown, and undefined", () => {
+  it("Windows WriteFailed for EIO, EACCES, unknown, and undefined", () => {
+    // EPERM is deliberately absent: it is the code Windows produces for a
+    // directory fsync, which the platform does not support. See
+    // WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES.
     for (const code of [
       undefined,
       "EIO",
       "EACCES",
-      "EPERM",
       "EFOO",
       "ENOENT",
       "",
