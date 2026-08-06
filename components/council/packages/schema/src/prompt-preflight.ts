@@ -859,8 +859,7 @@ export const CompletedInvalidResponseV1 = Schema.Struct({
   quorumEligible: Schema.Literal(false),
   deliberationEligible: Schema.Literal(false),
 });
-export type CompletedInvalidResponseV1 =
-  typeof CompletedInvalidResponseV1.Type;
+export type CompletedInvalidResponseV1 = typeof CompletedInvalidResponseV1.Type;
 
 export const ReviewAttemptClassificationV1 = Schema.Union(
   ProviderPreflightFailedV1,

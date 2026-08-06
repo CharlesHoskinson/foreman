@@ -1249,9 +1249,9 @@ describe("Completed classification without duplicated advice", () => {
       expect(decoded.quorumEligible).toBe(false);
       expect(decoded.deliberationEligible).toBe(false);
     }
-    expect(Schema.decodeUnknownSync(InvalidReviewResponseReasonV1)(
-      "schema_invalid",
-    )).toBe("schema_invalid");
+    expect(
+      Schema.decodeUnknownSync(InvalidReviewResponseReasonV1)("schema_invalid"),
+    ).toBe("schema_invalid");
     expect(() =>
       Schema.decodeUnknownSync(InvalidReviewResponseReasonV1)("parse_error"),
     ).toThrow();
