@@ -512,6 +512,33 @@ function parseCanonicalJsonBytes(buf: Buffer): unknown {
   return parsed;
 }
 
+/**
+ * Windows has no directory-fsync equivalent. Opening a directory handle can
+ * succeed, but flushing it fails: `FlushFileBuffers` on a directory returns
+ * ERROR_ACCESS_DENIED, which Node surfaces as EPERM. Some layered filesystems
+ * report EINVAL or ENOTSUP for the same gap.
+ *
+ * Only that platform gap is tolerated, and only on win32. An fsync failure on
+ * POSIX is a real durability failure and still propagates -- silently
+ * swallowing it everywhere would turn the barrier below into decoration.
+ */
+function isUnsupportedDirectoryFsync(e: unknown): boolean {
+  if (process.platform !== "win32") return false;
+  if (!e || typeof e !== "object" || !("code" in e)) return false;
+  const code = (e as { code: unknown }).code;
+  return code === "EPERM" || code === "EINVAL" || code === "ENOTSUP";
+}
+
+/**
+ * Durability barrier: fsync the directory so a preceding rename/create is
+ * persisted, not just the file contents. This is a POSIX guarantee.
+ *
+ * On Windows the barrier is unavailable (see above). NTFS journals the metadata
+ * operations this orders, so the ordering the caller depends on still holds for
+ * the rename itself, but this code cannot claim the POSIX-strength guarantee
+ * there. Failing to open the directory has always been tolerated; failing to
+ * flush it is tolerated on the same terms, and only for the platform gap.
+ */
 function fsyncPathDirectory(path: string): void {
   const dir = dirname(path);
   let fd: number;
@@ -522,6 +549,8 @@ function fsyncPathDirectory(path: string): void {
   }
   try {
     fsyncSync(fd);
+  } catch (e) {
+    if (!isUnsupportedDirectoryFsync(e)) throw e;
   } finally {
     try {
       closeSync(fd);

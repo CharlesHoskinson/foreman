@@ -17584,6 +17584,12 @@ function parseCanonicalJsonBytes(buf) {
   }
   return parsed;
 }
+function isUnsupportedDirectoryFsync(e) {
+  if (process.platform !== "win32") return false;
+  if (!e || typeof e !== "object" || !("code" in e)) return false;
+  const code2 = e.code;
+  return code2 === "EPERM" || code2 === "EINVAL" || code2 === "ENOTSUP";
+}
 function fsyncPathDirectory(path) {
   const dir = dirname(path);
   let fd;
@@ -17594,6 +17600,8 @@ function fsyncPathDirectory(path) {
   }
   try {
     fsyncSync(fd);
+  } catch (e) {
+    if (!isUnsupportedDirectoryFsync(e)) throw e;
   } finally {
     try {
       closeSync(fd);
