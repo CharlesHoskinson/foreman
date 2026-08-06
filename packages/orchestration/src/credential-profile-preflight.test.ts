@@ -576,7 +576,7 @@ describe("CredentialProfilePreflightStore", () => {
     }
   });
 
-  it("refuses linked credential-profiles ancestor on write", async () => {
+  it("refuses linked credential-profiles ancestor on write", livePublish, async () => {
     const root = tempDir();
     const outside = join(root, "outside-profiles");
     mkdirSync(outside, { recursive: true });
@@ -608,7 +608,7 @@ describe("CredentialProfilePreflightStore", () => {
     }
   });
 
-  it("refuses linked profile directory on write", async () => {
+  it("refuses linked profile directory on write", livePublish, async () => {
     const root = tempDir();
     const profilesRoot = join(root, PROFILES_DIR_NAME);
     mkdirSync(profilesRoot, { recursive: true });

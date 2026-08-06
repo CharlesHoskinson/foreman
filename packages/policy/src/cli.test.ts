@@ -20,6 +20,21 @@ import {
   type Register,
   type TrackedDeleteTarget,
 } from "./schema.js";
+import { join, resolve } from "node:path";
+
+// Platform-native fixture root. The code under test builds absolute paths with
+// path.join(), which yields backslashes on Windows; keying the in-memory
+// filesystem with POSIX literals made every lookup miss there, so delete-tracked
+// denied instead of completing and the CLI exited 1. Same correction as
+// packages/policy/src/tracked-delete.test.ts.
+const REPO_ROOT = resolve("/repo");
+const PKG_DIR = join(REPO_ROOT, "pkg");
+const A_TXT = join(PKG_DIR, "a.txt");
+
+/** The way `value` appears inside JSON output, without the quotes. */
+function jsonEscaped(value: string): string {
+  return JSON.stringify(value).slice(1, -1);
+}
 
 const C = "a".repeat(40);
 const CT = "b".repeat(40);
@@ -129,7 +144,7 @@ describe("runCli", () => {
     );
     const code = Effect.runSync(
       runCli(
-        ["node", "destruction-guard.js", "check", "--repo-root", "/repo"],
+        ["node", "destruction-guard.js", "check", "--repo-root", REPO_ROOT],
         stdin,
         {
           writeStdout: (l) => lines.push(l),
@@ -155,7 +170,7 @@ describe("runCli", () => {
     const lines: string[] = [];
     const code = Effect.runSync(
       runCli(
-        ["check", "--register", "/tmp/forged.md", "--repo-root", "/repo"],
+        ["check", "--register", "/tmp/forged.md", "--repo-root", REPO_ROOT],
         new TextEncoder().encode('{"entryId":"DST-0060","schemaVersion":1}'),
         {
           writeStdout: (l) => lines.push(l),
@@ -235,9 +250,9 @@ describe("runCli", () => {
     );
     const probe = makeMemoryMutationProbe();
     const store = new Map<string, { bytes: Uint8Array; mode: number; ino: string }>([
-      ["/repo/pkg/a.txt", { bytes: content, mode: 0o100644, ino: "1" }],
+      [A_TXT, { bytes: content, mode: 0o100644, ino: "1" }],
     ]);
-    const dirs = new Set(["/repo", "/repo/pkg"]);
+    const dirs = new Set([REPO_ROOT, PKG_DIR]);
     const gitLayer = Layer.succeed(GitIdentity, {
       snapshotAuthority: () =>
         Effect.succeed({
@@ -343,7 +358,7 @@ describe("runCli", () => {
           "destruction-guard.js",
           "delete-tracked",
           "--repo-root",
-          "/repo",
+          REPO_ROOT,
         ],
         new TextEncoder().encode(
           canonicalize({ schemaVersion: 1, entryId: "DST-9998" }),
@@ -368,8 +383,8 @@ describe("runCli", () => {
     assert.equal(parsed._tag, "Completed");
     assert.equal(parsed.actionKind, "tracked_delete");
     assert.equal(parsed.recoveryCommitSha, P);
-    assert.ok(!body.includes("/repo"));
-    assert.equal(store.has("/repo/pkg/a.txt"), false);
+    assert.ok(!body.includes(jsonEscaped(REPO_ROOT)));
+    assert.equal(store.has(A_TXT), false);
   });
 
   it("delete-tracked Denied with exit 1 for blocked entry", () => {
@@ -412,7 +427,7 @@ describe("runCli", () => {
     const lines: string[] = [];
     const code = Effect.runSync(
       runCli(
-        ["delete-tracked", "--repo-root", "/repo"],
+        ["delete-tracked", "--repo-root", REPO_ROOT],
         new TextEncoder().encode(
           canonicalize({ schemaVersion: 1, entryId: "DST-9998" }),
         ),
@@ -437,7 +452,7 @@ describe("runCli", () => {
     const lines: string[] = [];
     const code = Effect.runSync(
       runCli(
-        ["delete-tracked", "--repo-root", "/repo"],
+        ["delete-tracked", "--repo-root", REPO_ROOT],
         new TextEncoder().encode("{not-json"),
         {
           writeStdout: (l) => lines.push(l),
