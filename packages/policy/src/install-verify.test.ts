@@ -55,6 +55,7 @@ const trackedDependencyDrift = join(
   trackedRuntime,
   "dist/dependency-drift.js",
 );
+const trackedRepoHygiene = join(trackedRuntime, "dist/repo-hygiene.js");
 const trackedSecretScan = join(trackedRuntime, "dist/secret-scan.js");
 const trackedCredentialProfile = join(
   trackedRuntime,
@@ -101,6 +102,7 @@ function seedRuntimeOnly(): string {
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
   cpSync(trackedSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
+  cpSync(trackedRepoHygiene, join(rt, "dist/repo-hygiene.js"));
   cpSync(trackedSecretScan, join(rt, "dist/secret-scan.js"));
   cpSync(trackedCredentialProfile, join(rt, "dist/credential-profile.js"));
   cpSync(
@@ -522,6 +524,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
+    const repoHygieneBytes = readFileSync(trackedRepoHygiene);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const credentialProfileLaneBytes = readFileSync(
@@ -588,6 +591,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
+              "repo-hygiene.js",
               "secret-scan.js",
               "tool-check.js",
               "vendor-preflight.js",
@@ -851,6 +855,7 @@ describe("runtime plugin-drift", () => {
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
+    const repoHygieneBytes = readFileSync(trackedRepoHygiene);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const credentialProfileLaneBytes = readFileSync(
@@ -908,6 +913,7 @@ describe("runtime plugin-drift", () => {
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
+              "repo-hygiene.js",
               "secret-scan.js",
               "tool-check.js",
               "vendor-preflight.js",
@@ -1038,6 +1044,17 @@ describe("runtime plugin-drift", () => {
           },
         ],
         [
+          `${dist}/repo-hygiene.js`,
+          {
+            kind: "file",
+            bytes: repoHygieneBytes,
+            identity: fileIdentity({
+              ino: prefix + "-rh",
+              size: repoHygieneBytes.byteLength,
+            }),
+          },
+        ],
+        [
           `${dist}/secret-scan.js`,
           {
             kind: "file",
@@ -1163,6 +1180,7 @@ describe("skill-root and directory stability seams", () => {
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
+    const repoHygieneBytes = readFileSync(trackedRepoHygiene);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const credentialProfileLaneBytes = readFileSync(
@@ -1216,6 +1234,7 @@ describe("skill-root and directory stability seams", () => {
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
+              "repo-hygiene.js",
               "secret-scan.js",
               "tool-check.js",
               "vendor-preflight.js",
@@ -1350,6 +1369,17 @@ describe("skill-root and directory stability seams", () => {
           identity: fileIdentity({
             ino: "27",
             size: dependencyDriftBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/repo-hygiene.js`,
+        {
+          kind: "file",
+          bytes: repoHygieneBytes,
+          identity: fileIdentity({
+            ino: "30-rh",
+            size: repoHygieneBytes.byteLength,
           }),
         },
       ],
@@ -1573,6 +1603,7 @@ describe("memory InstallFs path separator seam", () => {
     const toolCheckBytes = readFileSync(trackedToolCheck);
     const setupBytes = readFileSync(trackedSetup);
     const dependencyDriftBytes = readFileSync(trackedDependencyDrift);
+    const repoHygieneBytes = readFileSync(trackedRepoHygiene);
     const secretScanBytes = readFileSync(trackedSecretScan);
     const credentialProfileBytes = readFileSync(trackedCredentialProfile);
     const credentialProfileLaneBytes = readFileSync(
@@ -1622,6 +1653,7 @@ describe("memory InstallFs path separator seam", () => {
             "lane-queue.js",
             "lane-round.js",
             "lane-supervise.js",
+            "repo-hygiene.js",
             "secret-scan.js",
             "tool-check.js",
             "vendor-preflight.js",
@@ -1746,6 +1778,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "27",
             size: dependencyDriftBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/repo-hygiene.js`,
+        {
+          kind: "file",
+          bytes: repoHygieneBytes,
+          identity: fileIdentity({
+            ino: "30-rh",
+            size: repoHygieneBytes.byteLength,
           }),
         },
       ],
