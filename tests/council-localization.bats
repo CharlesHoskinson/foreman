@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+# bats test data (run via `bats`, not as a product executable)
 # @description Fail-capable localization checks for the canonical Council skill,
 #   its Codex interface, the Antigravity workspace plugin wrapper, installer
 #   link targets, destination preservation, and tool-check skill inventory.
@@ -147,7 +147,10 @@ PY
   [[ "$required" == *"Majority, deadline pressure"* ]]
 
   [[ "$dissent" == *"changes_requested"* ]]
-  [[ "$dissent" == *"new immutable review bundle"* ]]
+  # protocol.md reworded this to "candidate" in the Endstop rework; the
+  # binding requirement is that dissent forces a NEW immutable artifact,
+  # not the noun used for it.
+  [[ "$dissent" == *"new immutable candidate"* ]]
 
   [[ "$authority" == *"gate-eval.sh"* ]]
   # Literal-safe: single quotes keep backticks as characters, not command

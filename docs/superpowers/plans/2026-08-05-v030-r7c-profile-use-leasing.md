@@ -23,11 +23,13 @@
 ### Task 1: Scoped profile-use lease
 
 **Files:**
+
 - Create: `packages/orchestration/src/credential-profile-use-lease.test.ts`
 - Create: `packages/orchestration/src/credential-profile-use-lease.ts`
 - Modify: `packages/orchestration/src/index.ts`
 
 **Interfaces:**
+
 - Consumes: `CredentialProfileInput`, `CredentialProfileFs`, and `resolveProfile`.
 - Produces: `CredentialProfileUseLease`, `CredentialProfileUseLeaseFailure`, and `makeLiveCredentialProfileUseLeaseLayer`.
 
@@ -89,6 +91,7 @@ git commit -m "feat: add scoped credential profile lease"
 ### Task 2: Long-lived Node holder
 
 **Files:**
+
 - Create: `packages/orchestration/src/credential-profile-use-lease-cli.test.ts`
 - Create: `packages/orchestration/src/credential-profile-use-lease-cli.ts`
 - Create: `packages/orchestration/src/credential-profile-use-lease-main.ts`
@@ -97,6 +100,7 @@ git commit -m "feat: add scoped credential profile lease"
 - Generate: `skills/foreman/runtime/dist/credential-profile-use-lease.js`
 
 **Interfaces:**
+
 - Consumes: `admitCredentialProfileLane` and `CredentialProfileUseLease.acquire`.
 - Produces: `hold --state-root ABS --worktree ABS --profile ID --vendor grok|codex`.
 
@@ -159,6 +163,7 @@ git commit -m "feat: add credential profile lease holder"
 ### Task 3: Live lane lifecycle
 
 **Files:**
+
 - Modify: `skills/foreman/scripts/lane-run.sh`
 - Modify: `tests/lane-run.bats`
 - Create: `tests/profile-use-lease.bats`
@@ -167,6 +172,7 @@ git commit -m "feat: add credential profile lease holder"
 - Modify: `skills/foreman/runtime/manifest.json`
 
 **Interfaces:**
+
 - Consumes: the holder stdout line, coprocess input descriptor, and holder PID.
 - Produces: one lease that spans every existing lane exit path.
 
@@ -218,11 +224,13 @@ git commit -m "feat: hold credential profile lease through lane lifecycle"
 ### Task 4: Exact-candidate acceptance
 
 **Files:**
+
 - Modify: `openspec/changes/profile-use-leasing/tasks.md`
 - Modify: `openspec/changes/v030-release-program/sprints.md`
 - Modify: `openspec/changes/v030-release-program/tasks.md`
 
 **Interfaces:**
+
 - Consumes: the exact implementation candidate and Endstop ledger.
 - Produces: published R7C completion evidence.
 
