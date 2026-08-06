@@ -22,7 +22,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { Effect, Layer } from "effect";
 import { canonicalize, parseJsonRejectDuplicateKeys, isCoreFailure } from "@foreman/core";
@@ -76,6 +76,45 @@ function tempPair(label: string): {
   mkdirSync(stateRoot, { recursive: true });
   mkdirSync(worktreeRoot, { recursive: true });
   return { root, stateRoot, worktreeRoot };
+}
+
+/**
+ * Replace `dir` (and the named `children` under it) with fresh directories
+ * that are guaranteed to have different inodes, so an identity gate observes
+ * a real `identity_changed`.
+ *
+ * Portable technique: allocate the replacement while the original inodes are
+ * STILL allocated, then rename it into place.
+ *
+ * Removing `dir` first and recreating it is NOT portable. ext4 reuses the
+ * just-freed inode, so the "replacement" can land on the same (dev, ino) and
+ * the gate correctly reports no identity change — the simulated attack simply
+ * did not happen. tmpfs allocates inode numbers from a monotonic counter and
+ * never reuses them, which is why the delete-then-recreate shape passes on a
+ * tmpfs /tmp and fails on a hosted Linux runner, whose /tmp is ext4. Burning
+ * one throwaway directory does not help: the freed inode stays in the pool.
+ *
+ * This mirrors the technique this file already uses to swap `profile.json`:
+ * create the replacement first, then rename over the target. Never unlink the
+ * original first.
+ */
+function swapDirIdentity(
+  scratch: string,
+  dir: string,
+  children: readonly string[] = [],
+): void {
+  const label = basename(dir);
+  const replacement = join(scratch, `swap-new-${label}`);
+  mkdirSync(replacement, { recursive: true, mode: 0o700 });
+  for (const child of children) {
+    mkdirSync(join(replacement, child), { recursive: true, mode: 0o700 });
+  }
+  // Move the original aside instead of deleting it, so its inodes stay
+  // allocated and cannot be handed back to the replacement.
+  const retired = join(scratch, `swap-old-${label}`);
+  renameSync(dir, retired);
+  renameSync(replacement, dir);
+  rmSync(retired, { recursive: true, force: true });
 }
 
 function runInit(
@@ -1250,18 +1289,11 @@ describe("identity change, write failures, concurrency", () => {
     const { root, stateRoot, worktreeRoot } = tempPair("idswap");
     try {
       const homes = join(stateRoot, "credential-profiles", "p", "homes");
-      // Capture identity after ensure via hook replacement that forces a new
-      // inode: remove + recreate the homes directory (and vendor home).
+      // Force a genuinely new inode for the homes directory (and vendor home)
+      // after ensure, so the identity gate has a real change to detect.
       setCredentialProfileRaceHook({
         afterEnsureDirs: () => {
-          rmSync(homes, { recursive: true, force: true });
-          // Park a dummy inode first so the recreated homes dir is unlikely
-          // to reuse the same ino on filesystems that recycle aggressively.
-          const burn = join(root, "burn-ino");
-          mkdirSync(burn, { recursive: true });
-          rmSync(burn, { recursive: true, force: true });
-          mkdirSync(homes, { recursive: true, mode: 0o700 });
-          mkdirSync(join(homes, "grok"), { recursive: true, mode: 0o700 });
+          swapDirIdentity(root, homes, ["grok"]);
         },
       });
       const r = runInit({
@@ -1551,12 +1583,7 @@ describe("identity change, write failures, concurrency", () => {
       const homes = join(stateRoot, "credential-profiles", "p", "homes");
       setCredentialProfileRaceHook({
         afterSafeModeVerify: () => {
-          rmSync(homes, { recursive: true, force: true });
-          const burn = join(root, "burn-final");
-          mkdirSync(burn, { recursive: true });
-          rmSync(burn, { recursive: true, force: true });
-          mkdirSync(homes, { recursive: true, mode: 0o700 });
-          mkdirSync(join(homes, "grok"), { recursive: true, mode: 0o700 });
+          swapDirIdentity(root, homes, ["grok"]);
         },
       });
       const r = runResolve(input);
