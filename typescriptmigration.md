@@ -9,39 +9,63 @@ logic in compatibility scripts.
 
 ## Current baseline
 
-- Planned TypeScript package families: **8**.
-- Tracked Python files: **21**.
-- Product and release Python files: **11**.
+- Planned TypeScript package families: **9**.
+- Tracked Python files: **14**.
+- Product and release Python files: **4**.
 - Research and archive Python files: **4**.
 - Vendored Python files: **6**.
 - New executable source allowed: TypeScript only.
 - Generated bundled JavaScript is verified build output, not source.
+- Note: the earlier v0.3.0 inventory listed 21 tracked Python files and 11
+  product or release Python files before DST-0040 removed the seven GraphStore
+  modules.
 
 ## Module checklist
 
 - [ ] `@foreman/core`: strict JSON, canonical JSON, digests, paths, locks,
       atomic files, Git, subprocess services, and tagged errors.
-- [ ] `@foreman/graph-store`: port, closed schemas, safe generations,
-      files-only backend, lineage queries, and CLI.
-- [ ] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
-      cancellation, and platform containment capabilities.
-- [ ] `@foreman/event-log`: one closed event decoder, bounded NDJSON replay,
-      cursors, and attempt identity.
+- [x] `@foreman/policy`: architecture language policy, merge-base debt
+      reporting, and fail-capable known-bad controls. (Compiled
+      `architecture-policy.js` + destruction guard; hosted CI still open.)
+- [x] `@foreman/graph-store`: port, closed schemas, safe generations,
+      files-only backend, lineage queries, and CLI for the files-only surface
+      proved at `0ae1c56` and by the DST-0040 Python deletion. TerminusDB or
+      SQLite adapter, full N2 schema freeze, ingest package work, and
+      full-round operations remain open.
+- [x] `@foreman/launcher`: Node.js process supervision, heartbeats, streams,
+      cancellation, and platform containment capabilities. (Core CLI, Effect
+      supervise, POSIX process-group fallback, typed Windows degraded boundary,
+      and compiled `foreman-launch.js` proved under
+      `openspec/changes/launcher-node-port/`. Live PID-namespace cascade,
+      Job Object parity, legacy caller conversion, and Bun tree retirement
+      remain open. Sprint 5 is not marked complete.)
+- [x] `@foreman/event-log`: one closed event decoder, bounded NDJSON replay,
+      cursors, and attempt identity. This package is the event-log system of
+      record. (Typed foundation complete: decode + replay + cursor + attempt
+      primitives. Filesystem writers, consumer migration, and legacy shell
+      adapters remain open.)
 - [ ] `@foreman/session`: facts, measurements, obligations, recovery,
       freshness, supersession, retirement, sidecar, and current-authority view.
 - [ ] `@foreman/release`: metrics, sigma, controls, package matrix, package
       audits, and Tier 2 trigger/cost finality.
 - [ ] `@foreman/knowledge`: Graphify refresh, freshness, doctrine registry,
-      generations, and current-authority projection.
-- [ ] `@foreman/orchestration`: round ownership, recovery transactions,
-      vendor preflight, WSL preflight, and environment persistence.
+      generations, current-authority projection, and `graph-project`.
+      `graph-project` is owned by this package. It consumes typed
+      `@foreman/event-log` inputs. It does not become the event-log system of
+      record.
+- [ ] `@foreman/orchestration`: queue admission module and thin
+      `lane-queue.sh` adapter are complete (reliable ensure/add, fixed
+      topology, quoting, status/kill). Round ownership, recovery
+      transactions, vendor preflight, WSL preflight, and environment
+      persistence remain open.
 
 ## Python elimination checklist
 
-### Production and release paths: 11 files
+### Production and release paths: 4 files remaining
 
-- [ ] Replace and delete the seven files under
-      `skills/foreman/graph_store/*.py`.
+- [x] Replace and delete the seven files under
+      `skills/foreman/graph_store/*.py` (DST-0040 tracked_delete; recovery is
+      Git history at recovery commit `4b20d55efb98ae2386cdc47ae24c38081cf49afc`).
 - [ ] Replace and delete `skills/foreman/scripts/fm-session.py`.
 - [ ] Replace `skills/foreman/ontology/test_ontology.py` with a TypeScript
       test.
@@ -68,18 +92,15 @@ logic in compatibility scripts.
 
 ## Sprint order
 
-| Sprint | Scope | Exit condition |
-|---|---|---|
-| 0 | Governance and immutable baseline | Iron Rule, OpenSpec, current inventory, stale-record purge, and Council plan review are complete. |
-| 1 | Workspace, `@foreman/core`, and policy | Clean npm install, strict type check, deterministic bundles, copied-install smoke test, and fail-capable language-policy controls pass. |
-| 2 | `@foreman/graph-store` | Node contract and hardening tests pass; Python GraphStore and all live references are deleted. |
-| 3 | `@foreman/launcher` | Node launcher passes Linux/WSL and Windows contracts; sustained child churn creates no zombie accumulation; Bun is not required. |
-| 4 | `@foreman/event-log` and `@foreman/session` | One event decoder serves SessionDB and recovery; the lossless sidecar round-trips; Python SessionDB is deleted. |
-| 5 | `@foreman/release` | Metrics, sigma, package audits, controls, and Tier 2 finality run under Node; release Python helpers are deleted. |
-| 6 | `@foreman/knowledge` | Graphify refresh and doctrine use immutable inputs, bounded processes, durable generations, and a current-authority view. |
-| 7 | `@foreman/orchestration` | Round recovery and preflight use typed Node modules; legacy callers are thin forwarding adapters. |
-| 8 | Zero-Python and stale-knowledge closure | `git ls-files '*.py'` is empty; no current Graphify edge or active document points to deleted code or doctrine. |
-| 9 | Release convergence | All Node, compatibility, OpenSpec, docs, cold-audit, Council, and merge gates pass at one unchanged commit. |
+`openspec/changes/v030-release-program/` owns the cross-package sprint order
+for v0.3.0. The current order is Sprints 0 through 17 in
+`openspec/changes/v030-release-program/sprints.md`.
+
+`openspec/changes/node-typescript-runtime/` retains the detailed module
+contracts, package boundaries, and package-level acceptance tests.
+
+Do not use a separate 0-through-9 migration-only sprint table. That numbering
+is withdrawn because it contradicts the release-program order.
 
 ## Per-sprint acceptance checklist
 
@@ -91,7 +112,8 @@ logic in compatibility scripts.
 - [ ] Build twice and compare bundle bytes.
 - [ ] Verify the installed-skill runtime manifest and copied-install smoke test.
 - [ ] Run existing CLI compatibility tests.
-- [ ] Run the architecture policy against the merge base.
+- [x] Run the architecture policy against the merge base.
+      (`npm run policy-check -- --base <ref>`; PR workflows wired.)
 - [ ] Obtain a cross-family cold audit of the complete diff.
 - [ ] Fix every actionable finding in a new bounded round.
 - [ ] Commit, checkpoint, Graphify, and push only after acceptance.
@@ -110,5 +132,6 @@ bash skills/foreman/scripts/docs-check.sh
 git diff --check
 ```
 
-The OpenSpec authority for this checklist is
-`openspec/changes/node-typescript-runtime/`.
+Module contracts for this checklist live in
+`openspec/changes/node-typescript-runtime/`. Cross-package sprint order lives
+in `openspec/changes/v030-release-program/`.

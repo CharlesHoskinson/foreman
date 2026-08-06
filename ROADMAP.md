@@ -3,52 +3,48 @@
 This file is the current release roadmap. Dated plans, research reports, and
 evidence files are historical records. They do not override this file.
 
-## Latest release: v0.2.8.2
+## Latest release: Total Georgecall (v0.2.9.0)
 
-The v0.2.8.2 release reduces the abandoned v0.2.9 scope to one external pilot,
-the portability changes that the pilot required, current release records, and
-three release gates.
+Annotated tag `v0.2.9.0` targets exact commit
+`fbe23257fc389036d6feaa8f38e7b377f3106406`.
+
+The product boundary is the bounded Node.js 24 TypeScript Council preflight
+executable named `council-preflight`. The executable compiles ACE before any
+provider process starts. Google fails closed because Gemini is absent.
+
+Live-canary evidence uses exact canary candidate
+`2ec886c3454b49420405aec87afaa6594ccbfdf8`. xAI Grok 4.5, Anthropic Claude
+Sonnet 5, and OpenAI GPT-5.4 returned nonce-bound `ready` receipts with
+completed terminal state, exit code 0, zero pending or failed tool calls, and
+empty standard error. GitHub evidence is
+<https://github.com/CharlesHoskinson/foreman/pull/22#issuecomment-5171848075>.
+The Council package tree is byte-identical at candidate `2ec886c` and release
+commit `fbe23257fc389036d6feaa8f38e7b377f3106406`. Both resolve
+`components/council/packages` to tree
+`fe0af13811a6bbed482af60a57eb869fbebde075`. The only Council path changed
+after the canary candidate is `components/council/vitest.config.ts`. These
+receipts are not exact-merge receipts. The canaries did not run on the
+release commit.
 
 | Work item | Status | Evidence |
 |---|---|---|
-| Preserve the withdrawn v0.2.9 work | Complete | Annotated tag `v0.2.9-preserve` targets `04f3695` |
-| Run one external Foreman pilot | Complete | Gobox PR [#1](https://github.com/CharlesHoskinson/gobox/pull/1), worker commit `b0519b2`, merge `24bd736` |
-| Pass the target repository gate | Complete | `make check` passed in Gobox and in the pristine-archive Foreman gate |
-| Fix the external soft-mode defects | Complete | Foreman PR [#7](https://github.com/CharlesHoskinson/foreman/pull/7), merge `525cfb0` |
-| Restore Linux NATS coverage | Complete | Foreman PR [#10](https://github.com/CharlesHoskinson/foreman/pull/10), merge `09e0715`, 12 of 12 NATS tests passed |
-| Replace stale active release guidance | Complete | Foreman PR [#12](https://github.com/CharlesHoskinson/foreman/pull/12), merge `d9eafbb` |
-| Remove Quint's rate-limited first-run fetch | Complete | Foreman PR [#14](https://github.com/CharlesHoskinson/foreman/pull/14), merge `074f3c4`; exact-main formal, Linux, and Windows workflows passed |
-| Rebuild the knowledge graph from the merged tree | Complete | The authority-filtered graph records exact release commit `076c014`; it has 1,434 nodes, 2,618 links, and no duplicate or dangling records |
-| Run the three release gates and tag | Complete | Annotated tag `v0.2.8.2` targets `076c014`; exact-commit local, Linux, and Windows gates passed |
+| Build the Node.js 24 TypeScript preflight executable | Complete | Release commit `fbe23257fc389036d6feaa8f38e7b377f3106406` |
+| Compile ACE before provider startup | Complete | Compile-before-provider marker tests and release notes |
+| Pass the local Council gate | Complete | 39 test files and 1,126 tests |
+| Pass the local Foreman gate | Complete | 708 passed, 0 failed, and 19 skipped Bats cases |
+| Pass hosted Linux and Windows gates | Complete | Linux run `30860945352` and Windows run `30860945387` |
+| Pass live Grok, Claude, and Codex canaries | Complete | Candidate `2ec886c` receipts. Council packages tree `fe0af138`. PR comment `5171848075` |
+| Complete one external Foreman workflow | Complete | Grok commit `31e26eac`, 122 target tests, independent Codex audit |
+| Preserve the Council shadow outcome | Complete | Exact external bundle records honest `quorum_not_met` |
+| Rebuild the exact release graph | Complete | 2,781 nodes, 5,104 edges, and 20 hyperedges on the tag commit |
 
-### Release purpose
+The release excludes Gemini, npm publication, formal scope, Tier 2 scope, and
+complete Python removal. The release does not claim a complete Council
+runtime.
 
-The release proves one concrete result: a cold Grok worker wrote a Gobox fix,
-a different model family reviewed the diff, and Gobox passed its own gate. The
-pilot also produced the first Foreman defect list that came from another
-repository.
-
-The release does not claim that every repository, operating system, queue
-configuration, or provider version is supported. The tested boundary is one
-Gobox workload and the Foreman paths that were required to run it.
-
-### Shipped portability changes
-
-- `checks-run.sh` can select an exact soft-mode worktree without hard-mode
-  `meta.json` and still verifies a pristine commit archive.
-- External targets can use their own Make or Go gate instead of Foreman
-  documentation checks.
-- `lane-run.sh` separates the Foreman tool root, the target repository root,
-  the target worktree, and the run-scoped session database.
-- Workers and gates run from the selected target worktree. Foreman readiness
-  and launcher resources continue to resolve from the Foreman checkout.
-- The Linux mkdir trace parser accepts target paths that contain the letter
-  `n`; the prior regular expression could change one probe from `atomic` to
-  `unknown`.
-- The Linux workflow installs checksum-pinned NATS Server and NATS CLI
-  binaries, verifies their versions, and runs the NATS integration slice.
-
-The remaining limitations are in `docs/RESIDUALS.md`.
+The remaining limitations are in `docs/RESIDUALS.md`. The full inventory is
+the canonical ledger at
+`docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`.
 
 ## Released line
 
@@ -61,35 +57,47 @@ The remaining limitations are in `docs/RESIDUALS.md`.
 | `v0.2.8` | 2026-07-19 | Vendor concurrency and hard mode |
 | `v0.2.8.1` | 2026-07-19 | Field-failure fixes |
 | `v0.2.8.2` | 2026-08-03 | External soft-mode pilot and portability fixes |
+| `v0.2.9.0` | 2026-08-03 | Total Georgecall Council preflight |
 
 Git tags and release notes preserve the complete history. Use Git history when
-an old release decision matters; do not add old plans back to this live file.
+an old release decision matters. Do not add old plans back to this live file.
 
-## Active release candidate: v0.2.9.0
+## Active release program: v0.3.0
 
-The v0.2.9.0 candidate has one product boundary. It ships the bounded
-`council-preflight` executable for Grok, Claude, and Codex.
+The active program lives at `openspec/changes/v030-release-program/`.
+v0.3.0 is not released.
 
-| Work item | Status | Evidence |
+All new executable code uses Node.js 24 and TypeScript under the repository
+Iron Rule. Effect owns typed failures, scoped resources, cancellation,
+retries, timeouts, and concurrency.
+
+Status through Sprint 3 R1 commit
+`a1e0dcf142eb02f5f198c0da730a51c11396a196`:
+
+| Band | Status | Notes |
 |---|---|---|
-| Build the Node.js 24 TypeScript preflight executable | Complete | Implementation stack through `04e42be`, PR #22 |
-| Compile ACE before provider startup | Complete | Compiled-process marker test and independent review |
-| Pass the local Council gate | Complete | 39 files and 1,123 tests passed |
-| Pass hosted Linux and Windows gates | Provisional pass | PR #22 passed both workflows at `04e42be`; final candidate rerun remains required |
-| Pass live Grok, Claude, and Codex canaries | Provisional pass | Three secret-safe provider-neutral receipts at `04e42be`; final candidate rerun remains required |
-| Complete one external Foreman workflow | Complete | Grok commit `31e26ea`; 122 target tests passed; independent Codex audit approved the exact diff |
-| Preserve the Council shadow outcome | Complete | Exact external bundle records `quorum_not_met`; the ordinary cold audit is not promoted to a Council verdict |
-| Replace stale release knowledge | In progress | New OpenSpec package and cleanup register |
-| Rebuild the exact-candidate graph | Pending | Graph source commit must match the release candidate |
+| Authority baseline, destruction inventory, and ledger reconciliation | Landed | Ledger, coverage matrix freeze, destruction register, and program package |
+| Node workspace, `@foreman/core`, and `@foreman/policy` | Landed | Architecture policy, destruction admission, installed-runtime integrity, Windows path-seam fixes |
+| Typed `@foreman/event-log` foundation | Landed | Closed StoredEvent decoder, bounded NDJSON replay, cursors, attempt identity |
+| Queue, resume, credentials, and fixture-aware secret scans (Sprint 3) | Partial | TypeScript queue admission and the thin adapter are landed. Attempt-bound rounds, resume, external state, credentials, and scans remain open |
+| GraphStore, launcher, SessionDB, and project registry | Open | Not in this base |
+| Current-main session transport | Open | Not in this base |
+| Council advisory plane, durable runtime, Gemini, MCP, and host plugins | Partial / open | Spec-correctness admission and live records exist. Full advisory plane remains open |
+| Council supervised research, evidence provenance, and Council evaluation | Open | Not in this base |
+| Release evidence, formal-model reconciliation, knowledge and Graphify | Open | Not in this base |
+| Zero-Python cleanup, Superpowers, external dogfood, Windows boundary, exact-candidate convergence | Open | Not in this base |
 
-The release excludes Gemini, npm publication, formal scope, Tier 2 scope, and
-complete Python removal. The release does not claim a complete Council runtime.
+Do not present unfinished v0.3.0 work as shipped work. Sprint 3 is partial and
+remains open.
 
 ## Current authority
 
-- Release criteria: `checklist.md`
-- Known limitations: `docs/RESIDUALS.md`
-- Release changes: `docs/releases/v0.2.9.0-notes.md`
-- Cleanup decisions: `docs/releases/v0.2.9.0-cleanup-log.md`
-- Release OpenSpec: `openspec/changes/council-v029-preflight-release/`
+- Canonical accomplishment ledger:
+  `docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`
+- Active v0.3.0 release program: `openspec/changes/v030-release-program/`
+- TypeScript migration checklist: `typescriptmigration.md`
+- Current destruction log: `docs/releases/v0.3.0-destruction-log.md`
+- Shipped v0.2.9.0 release notes: `docs/releases/v0.2.9.0-notes.md`
+- Shipped v0.2.9.0 release record: `checklist.md`
+- Current residuals: `docs/RESIDUALS.md`
 - Historical evidence rules: `docs/evidence/README.md`

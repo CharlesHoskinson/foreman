@@ -1,0 +1,386 @@
+# Tasks: v0.3.0 release program
+
+## 0. Authority and program baseline
+
+- [ ] 0.1 Publish the canonical v0.2.8.2 and v0.2.9.0 accomplishment ledger.
+      The tracked candidate is complete. GitHub publication is pending.
+- [ ] 0.2 Correct README, ROADMAP, checklist, residuals, and release metadata.
+      Tracked authority is current. GitHub release metadata still needs the
+      merged notes.
+- [x] 0.3 Reconcile implemented, partial, absent, parked, and stale OpenSpec
+      tasks. The bounded 2026-08-04 reconciliation corrected four stale task
+      boxes and one completed 10-of-10 Tier 1 evidence statement. It kept
+      gate-dependent and parked tasks open. The shipped v0.2.9 preflight
+      package remains a protected `released_reference`; `DST-0061` registers
+      its later archive relocation. All 32 tracked non-archive packages pass
+      strict OpenSpec validation.
+- [x] 0.4 Freeze `coverage-matrix.md` and its SHA-256 digest. The matrix,
+      strict `SpecCorrectnessV1` evaluator, and Effect admission command are
+      tracked. The first exact live activation record is in
+      `docs/evidence/v0.3.0/spec-correctness-round-001/`.
+- [ ] 0.5 Ship the Effect admission command, then run a ledger-bound Council
+      review with `SpecCorrectnessV1` on one exact candidate.
+      Landed evidence: specification-correctness core and admission at
+      `a45b0a2c5fb4c95bdc67caef678c51c278c7f314` and
+      `71b6fbdee5887f123891433266064db3d50b5def`. Live activation record at
+      `b193ffdd97fbeb428fce0d410fe1405612843a6b` for head `71b6fbd`. One live
+      Grok verdict is admitted. The default three-verdict, two-model-family
+      Council quorum remains pending. Keep this task open.
+- [ ] 0.6 Record every cleanup candidate before any destructive action. The
+      register exists. The `DST-0052` historical-process incident mitigation
+      remains unfinished. Destruction-admission code landed at
+      `d360fbec540a3c99d1eba50ac5712c50e838b5b0` with review record
+      `e8f9686cf8ae77145d7812a65f8fc573a521bca9`
+      (`docs/evidence/v0.3.0/destruction-guard-spec-correctness-round-001/`).
+      R2 slice: `@foreman/core` plus `@foreman/policy` with one canonical
+      sentinel register (no projection table), pure evaluator with closed
+      approval facts, committed-HEAD authority binding, DST-0060 denial
+      (`state_blocked` when clean; `authority_dirty` when uncommitted), and
+      live relocate fail-closed (`platform_invariant_unproven`). Tracked-delete
+      executor (`delete-tracked`) ships as a separate fail-closed package:
+      exact path+blob+mode batch preflight, all-or-rollback mutation, closed
+      receipt, and hostile tests. Historical boundary: that guard package did
+      not mark DST-0040 executed and did not delete Python. Follow-on package
+      `v030-graph-store-python-retirement-20260805-1` authorized DST-0040,
+      ran the published `tracked_delete` guard, and removed the seven
+      GraphStore Python modules. Keep this inventory task open until DST-0059
+      register disposition and incident mitigation finish.
+- [ ] 0.7 Reconcile the TypeScript migration package inventory to nine families
+      that include `@foreman/policy` as its own package family (CW-023).
+      Acceptance evidence: `typescriptmigration.md` states nine package
+      families, lists `@foreman/policy` as its own family, and uses the Sprint
+      0-through-17 order from `sprints.md` by exact reference without a
+      contradictory 0-through-9 table. The file states that this package owns
+      cross-package sprint order and that `node-typescript-runtime` retains
+      detailed module contracts. Do not mark this task complete before the
+      reviewed candidate is published and verified.
+- [ ] 0.8 Assign `graph-project` ownership to `@foreman/knowledge` with typed
+      `@foreman/event-log` input contracts (CW-024).
+      Acceptance evidence: `design.md`, `specs/release-program/spec.md`,
+      `sprints.md`, and `typescriptmigration.md` state that ownership. They
+      state that `graph-project` consumes typed `@foreman/event-log` inputs
+      and does not become the event-log system of record. Do not mark this
+      task complete before the reviewed candidate is published and verified.
+
+## 1. Program execution
+
+- [x] **1.0 Ship Foreman Endstop before more package execution.** Implement
+      `bounded-execution-terminal-policy`. Install its runtime artifact. Pass
+      its hostile loop-closure test. Require one persistent Endstop contract
+      for every later workstream. Do not resume the release execution loop
+      before this prerequisite passes.
+
+- [ ] 1.1 Execute Sprints 1 through 17 in `sprints.md` order.
+      Landed partial evidence through
+      `04a310acd824d8dc06fe2b81dd19b8fa543e649b` (do not mark complete):
+      - Sprint 5 `@foreman/launcher` Node core (partial, not complete):
+        OpenSpec `launcher-node-port`; package `packages/launcher/`;
+        runtime `skills/foreman/runtime/dist/foreman-launch.js`. Proved:
+        frozen CLI/exit map, separate stdout/stderr, null stdin, heartbeats,
+        graded stop, Effect supervise, POSIX process-group fallback with
+        negative-PID termination, typed Windows degraded capability and
+        injectable taskkill, bounded live descendant churn (>1000 short
+        descendants while worker live; launcher zombie direct children = 0
+        on `/proc`; typed skip without `/proc`), copied-bundle smoke. Open:
+        system-wide process-table exhaustion proof, live PID-namespace
+        cascade on hosts where unshare succeeds, native Windows Job Object
+        parity, legacy caller conversion, Bun tree retirement. Do not mark
+        Sprint 5 complete.
+      - Architecture policy:
+        `99accf3ba5d75c311aa9ede3460b4a4a49d9aa3e` (feat),
+        `96d0f0750f415697985b4201f47b915734146d9b` (review record).
+      - Installed-runtime integrity:
+        `6a0bc5fdcfc6e06b9b56f52d7a3e9787ea99ae72` (feat),
+        `524290f5f0a59c1f4ae05bcb4ceb8acf4fd15c88` (review record).
+      - Windows path-seam:
+        `aba8124d54ba35d34c1ffe973ea2031b6073ab8e` (memory install paths),
+        `3164cfa5779b8aac8eebeea710c16f3f9688d56f` (delayed handle release).
+      - Event-log foundation:
+        `cbe27e831b3dcc95db8de248168374fe08e20350`.
+      - Sprint 3 R1 queue admission:
+        `a1e0dcf142eb02f5f198c0da730a51c11396a196`, corrected at
+        `67ad311d831a150d3f91c327ba0b620232e3e9cb`.
+      - Sprint 3 R2 attempt-bound round core:
+        OpenSpec at `784b4a9`, `4f3287b`, and `238225c`; Node 24
+        TypeScript and Effect implementation at
+        `04a310acd824d8dc06fe2b81dd19b8fa543e649b`.
+      - Sprint 3 R3 live round runtime: landed as the live Effect adapters,
+        `lane-round` CLI/main, and tracked `dist/lane-round.js` runtime
+        artifact under the same Node 24 TypeScript program; Setup and
+        shell ownership seams remain open. Converged hosted evidence at
+        exact commit `88cb164e462243e62c524b818e9bf7d00c7e8385` (Grok
+        implementation + Windows correction; independent cold audit
+        approved; Linux/Windows/formal workflows green).
+      - Sprint 3 R4A typed vendor preflight (partial): closed contract,
+        capability table from `env/reference-manifest.toml` only, pure
+        classifier, Effect `VendorPreflight` + `ProcessExec`/`PathLookup`
+        live adapter, `vendor-preflight` CLI, and embedded capability
+        injection into `skills/foreman/runtime/dist/vendor-preflight.js`.
+        First-pass host evidence: focused package tests 45/45 pass;
+        typecheck fixed by aligning `PreflightCliEnv.layer` to
+        `ProcessExec | PathLookup | PreflightClock` (CLI calls
+        `inspectVendor` directly and must not require the unused
+        `VendorPreflight` tag). R4A audit correction round 2: strict
+        public-record decoder rejects non-`none` remediation with null
+        instruction, `none` with non-null instruction,
+        `not-authenticated` without `login` remediation, and `login`
+        remediation without `not-authenticated`; vendor-bound mutating
+        update guard allows exact `update --check --json` only when
+        capability vendor is `grok` (CLI name/path alone never
+        authorizes); live adapter refuses Claude/Codex poisoned vectors
+        without spawn. Focused tests 53/53 pass after correction;
+        `npm run typecheck`, `npm run build`, `npm run verify`,
+        docs-check, and strict OpenSpec validation of `vendor-preflight`
+        and `v030-release-program` all green. R4A gate correction round 3
+        (candidate `f7185af39bd58ee0fe3789d790b177df34c8b3ce`): capability
+        argv tails enforce public-probe UTF-8 bounds (per-entry 65_536,
+        total 262_144) on `authArgv`/`versionArgv`/`updateCheckArgv`;
+        capability-slice TOML array parser rejects missing/doubled/leading
+        separators, trailing non-array content, and unterminated strings
+        while accepting spaced and trailing commas; `parseFirstSemVer`
+        accepts only one standalone SemVer token (rejects `1.2.3.4`,
+        `1.2.3-01`, unsafe numeric prerelease); live adapter normalizes a
+        relative `PathLookup.which` result to an absolute path before any
+        probe and records/spawns that same absolute path. Focused tests
+        58/58 pass; typecheck/build/verify/docs-check and strict OpenSpec
+        validation of `vendor-preflight` and `v030-release-program` green;
+        two builds of `dist/vendor-preflight.js` byte-identical
+        (sha256 `bbc57443579139ec6b83b6b025b15fa423e2635ecd64f8941f4ba4304a66b92c`).
+        R4A final correction round 4 (candidate
+        `6bd57b722f7c8d9ff94468ce590612086017374a`): public-record consistency
+        requires completed auth probe for `authenticated`/`not-authenticated`
+        and completed version probe plus non-null `reportedVersion` for
+        `current`/`outdated`; full probe argv
+        `[resolvedExecutable, ...tail]` is bound-checked before any process
+        (capability tails reserve one entry; invalid vectors return
+        `capability_invalid` with zero spawns); `parseFirstSemVer` accepts
+        only valid build metadata (rejects `1.2.3+foo..bar`, trailing/leading
+        dots, bare `+`); live adapter preserves exact `PathLookup.which`
+        bytes (`trim` only for all-whitespace detection). Focused tests
+        65/65 pass; typecheck/build/verify/docs-check and strict OpenSpec
+        validation of `vendor-preflight` and `v030-release-program` green;
+        two builds of `dist/vendor-preflight.js` byte-identical
+        (sha256 `a3f05637c2e64062edf81ebdccbf3a6faf0ba94671fd2e7f0bf2f18c44328ab9`).
+        R4A closure correction round 5 (candidate
+        `dd1578dd5aeacae7505eb9d608f21eb70ebf11eb`): public-record decoder
+        rejects more than one probe of the same `kind` (completed-then-timeout
+        and timeout-then-completed for auth and version); live adapter enforces
+        `MAX_PATH_BYTES` (32_768 UTF-8) on the exact absolute resolved
+        executable before full-argv validation or any process (oversize path
+        returns `capability_invalid` with zero spawns; exact 32_768 accepted).
+        Focused tests 67/67 pass; typecheck/build/verify/docs-check and strict
+        OpenSpec validation of `vendor-preflight` and `v030-release-program`
+        green; two builds of `dist/vendor-preflight.js` byte-identical
+        (sha256 `7f102935a52b8d6152ff4e42ef32dfd06036012c47c03cfdd38a2ac38d204051`).
+        Setup/`foreman-setup.sh` and lane callers are intentionally not
+        wired in this slice.
+      The remaining Sprint 3 work stays open (R4B+ shell migration,
+        ownership, heartbeat, reaping, R7B2 credential profile lane
+        integration, and other open Sprint 3 ports).
+      - Sprint 3 R4B Setup vendor-preflight adapter (partial): pure
+        `projectVendorPreflightToToolCheckRow` + `tool-check-row <grok|codex>`
+        CLI command on the existing `vendor-preflight.js` artifact; shell
+        `env/tool-check.sh` is a thin Node adapter (deleted `vendor_authed`
+        and direct grok/codex auth/version probes). Unknown auth/currency
+        maps to `degraded` with diagnose detail — never `not_authenticated`
+        / login. Cold-audit boundary correction: CLI requires
+        `decoded.vendor === parsed.vendor` before emit; shell requires exit
+        0 + exactly one three-field TSV row bound to the requested vendor
+        (wrong vendor, fourth field, second line, nonzero exit → degraded).
+        Detail-byte boundary residual: shell rejects detail UTF-8 byte length
+        > 512 (`MAX_TOOL_CHECK_DETAIL_BYTES`); exactly 512 accepted; 513+ →
+        one `degraded` row. RED before fix: spoofed 513-byte ready row yielded
+        `LANE_READY: grok=yes`. Acceptance correction: Bats spoof fixtures use
+        shell-native byte generation (`head -c N /dev/zero | tr`), not
+        Python; explicit 512-byte lower-bound case → `ok` /
+        `LANE_READY: grok=yes`. LF framing residual: shell no longer uses bare
+        `out="$(node ...)"` (strips trailing LFs); preserves exact framing via
+        temp-file + sentinel and accepts only exactly one LF-terminated row.
+        Missing final LF and extra trailing blank both → `degraded` / no lane
+        ready (RED before fix). Raw-byte NUL residual: shell rejects any NUL
+        in the capture file before Bash variable load (Bash strips NULs, so
+        `gr<NUL>ok` → `grok` was accepted as ready before fix); one `degraded`
+        row and no lane readiness; temp-file cleanup retained. Focused package
+        tests 20/20; bats tool-check-auth + foreman-setup 31/31; shell adapter
+        9/9; shellcheck clean; typecheck/build/verify-runtime/verify green
+        (554 pass, 1 skip). Live dogfood: both lanes `ok` with floor versions
+        on this host (prior residual). lane-run JSON consumption and full
+        Sprint 3 close remain open.
+      - Sprint 3 R4B2 tool-check TypeScript migration (partial, worktree):
+        product logic in `packages/orchestration/src/tool-check*.ts`; generated
+        `skills/foreman/runtime/dist/tool-check.js`; thin six-line
+        `env/tool-check.sh` adapter; vendor authority is TypeScript
+        inspect+project (no shell TSV/NUL parser). Focused tool-check 34/34;
+        vendor-preflight 82/82; bats tool-check-auth + foreman-setup 24/24
+        (mode 100644); full verify 588 pass + 1 skip. Live soft grok/codex
+        LANE_READY=yes. Architecture Pass after host commits worktree
+        (isolated sim empty findings); uncommitted HEAD still fails pre-
+        migration findings. lane-run JSON consumption remains open.
+      - Sprint 3 R4B3 dependency-drift TypeScript port (worktree, base
+        `ee530cb0a2ee9567d3c077112bc1a416c0e85e5e`): readiness authority is
+        `profileToolIds` (every profile x both WSL states); strict `[[tools]]`
+        parse of `env/reference-manifest.toml` (rejects missing/duplicate id,
+        missing required, invalid boolean, and a second `required` key in one
+        record so overwrite cannot suppress tier drift); bounded bootstrap
+        text rules (pseudo IDs, flock→util-linux, timeout→coreutils, nats
+        unprovisioned INFO). Product logic in
+        `packages/orchestration/src/dependency-drift.ts`; generated
+        `skills/foreman/runtime/dist/dependency-drift.js`
+        sha256 `c0fb3f43fd9f022aa8d1249784709a48718bfeb2bb2fec5e9fb96df2da7e2bb9`
+        (two builds identical; unchanged by fixture passes); thin
+        six-production `dependencies/check-drift.sh` Node adapter
+        (purpose-header comments only; no domain logic). Focused
+        dependency-drift 36/36 after hosted Windows fixture fix (platform-
+        native `FIXTURE_ROOT` + `path.join` for memFs keys; pure key-match
+        test); tool-check + vendor-preflight 166/166; full Node verify 674
+        pass + 1 skip; typecheck/build/verify-runtime green; shellcheck clean
+        on product scripts; docs-check pass; openspec validate --changes
+        --strict 32/32; architecture
+        `check --base e298d29835a9ac93f8ef0313143a0f6bff7e2324` → Pass with
+        zero findings. Authored `bash dependencies/check-drift.sh` → exit 0
+        and `dependencies: no drift`. Base `ee530cb` had two conflicting
+        `psscriptanalyzer` records; candidate retained soft/full
+        `powershell` check from `0001bc0c` and removed full-only `pwsh`
+        check from `c1d3f165` (Get-Module could succeed when the module was
+        absent). Hosted Windows run `30956029311` is the RED witness for
+        POSIX-only in-memory fixture keys (production fail-closed exit 2
+        on Absent paths); production path construction unchanged. Hosted
+        Linux run `30956524684` is the RED witness for legacy Bats fixtures:
+        ready/authed shims raised to Grok `0.2.118` / Codex `0.146.0`
+        (local RED: 11 version-floor failures; signed-out shims stay
+        `0.2.103`); `wsl-launcher-shipped.bats` tool-check PATH uses a
+        node-only shim dir (not wholesale Node install dir, so ambient Bun
+        cannot invalidate bun-absent); unused `NODE_BIN_DIR` removed.
+        Exact three Bats files 26/26 GREEN. The later canonical exact commit
+        `84befb7d24d5ccf00df882459a56176ee6ea93a1` passed Linux run
+        `30973470341`, Windows run `30973470325`, and formal run
+        `30973470307`.
+      - Sprint 3 R4C persisted vendor lane admission: Effect
+        `PreflightRecordStore`, strict `write-record` and `lane-gate` commands,
+        Setup persistence, and the `lane-run.sh` admission adapter are
+        integrated. The correction at `56291e4` binds admission block position
+        and rejects vendors before durable lane side effects. The Windows
+        cancellation correction at `8e2b2f4` waits for child close with a
+        five-second bound. Different-family cold audits approved both exact
+        candidates. Exact commit `84befb7` passed all three hosted workflows.
+      - Sprint 3 R5A typed round-resume authority: `selectLatestRoundAttempt`
+        and `decideRoundResume` preserve the exact attempt, plan, checkpoint,
+        command vector, gate command, and report path. The correction at
+        `84befb7` rejects non-monotonic history before recovery and preserves
+        available attempt identity in fail-closed refusals. Focused tests,
+        full Node verification, architecture policy, cold audit, and exact
+        hosted Linux, Windows, and formal workflows passed.
+      - Sprint 3 R5B Effect resume-safety observations: process signal-zero
+        and no-follow lock probes, live layers, pure classifiers, and combined
+        observation are integrated at `d75b635`. The cold-audit correction
+        rejects foreign-platform path spellings before filesystem access and
+        maps each probe defect to its own `unknown` state without suppressing
+        Fiber interruption. Focused tests 28/28; full Node verification 796
+        pass, zero fail, one platform skip; typecheck, runtime verification,
+        strict OpenSpec validation, architecture policy, and the corrected
+        cold audit pass. The later exact pushed commit `f1a2b70` passed Linux
+        run `30974765649`, Windows run `30974765741`, and formal run
+        `30974765656`.
+      - Sprint 3 R5C atomic resume-count persistence: `RunJournal` now
+        reserves lane-wide, attempt-bound `resume_attempt` events under the
+        journal lock. Malformed, legacy, non-current, exhausted, and ambiguous
+        histories fail closed. A separate-process test proves observed lock
+        contention. Focused tests pass 64/64; full Node verification passes
+        827 with zero failures and one platform skip. Foreman pristine checks,
+        the deterministic gate, and the different-family cold audit passed at
+        pushed commit `f4d546be46dcf692a7062d799aba02bdb395b5a4`.
+      - Sprint 3 R7A external credential-profile authority (worktree): closed
+        typed `CredentialProfileRecordV1` / `CredentialProfileResult` and
+        Effect `initProfile` / `resolveProfile` in `@foreman/orchestration`;
+        external layout under
+        `<state-root>/credential-profiles/<id>/{profile.json,homes/<vendor>}`;
+        segment-aware state-root vs worktree refusal; linked-path and
+        regular-file collision refusal; exclusive idempotent provisioning;
+        no vendor credential file reads; tracked deterministic
+        `skills/foreman/runtime/dist/credential-profile.js` with fixed-order
+        `init`/`resolve` CLI.
+      - Sprint 3 R7B1 profile-bound Setup preflight (worktree): closed
+        `CredentialProfilePreflightV1` wrapper and pure decode/render; Effect
+        profile-scoped preflight store at
+        `<state-root>/credential-profiles/<id>/preflight/<vendor>.json`;
+        Setup `--credential-profile ID` with defaults `grok-default` /
+        `codex-default`; child environments set only matching `GROK_HOME` or
+        `CODEX_HOME` and strip the other; legacy unscoped preflight write
+        preserved; `inspectVendor` and tool-check accept explicit child env;
+        no authentication and no vendor credential file reads. R7C
+        profile-use leasing remains open.
+      - Sprint 3 R7B2 profile-bound lane admission: completed under five
+        bounded Endstop contracts. The admission core verifies profile id,
+        identity, vendor, config root, and nested readiness before a lane
+        process starts. The live adapter selects the default or explicit
+        profile. It exports only the matching `GROK_HOME` or `CODEX_HOME`.
+        It rejects a conflicting `LANE_CONFIG_DIR` before durable side
+        effects. Worktree-local vendor homes no longer hold credential
+        authority. The compiled architecture policy and runtime manifest
+        match the accepted TypeScript source. The accepted commits are:
+        - admission core:
+          `13923ecd304ecdf85db2155a3d81f8202517d844`
+        - obsolete worktree homes:
+          `6b75611a3d1dcc807bafaf0ac74ad4ae9c1f78ae`
+        - deterministic worktree correction:
+          `552a4a04eebc0736e908d93489ee5ec0bcd7ebc9`
+        - live lane adapter:
+          `56536eca60d731378ffb2c6f323c6d2e18dad1ed`
+        - runtime artifact synchronization:
+          `37795e0ffb1627862ad598a453fb06cade273dec`
+        R7B2-D binds the full Node, runtime, policy, documentation, and strict
+        OpenSpec gates to one published task-record candidate. R7C
+        profile-use leasing remains pending.
+      - Sprint 3 R7C profile-use leasing: active bounded package. The selected
+        design is a tracked Node.js holder that composes R7B2 admission with a
+        scoped Effect lease. A thin live adapter keeps one anonymous pipe open
+        for the complete lane lifecycle. The external per-profile lease
+        serializes the same profile across worktrees and does not inspect
+        credentials. Acceptance is defined in `profile-use-leasing`.
+      - Sprint 3 R6 bounded fixture-aware secret scan (worktree green after
+        descriptor-anchor + cross-platform testability corrections, host
+        commit pending): closed typed `SecretScan` Effect API and CLI in
+        `@foreman/orchestration`; live traversal binds the worktree root and
+        each child directory through no-follow descriptors and
+        `/proc/self/fd/<fd>` (R5D pattern); fail closed with
+        `unsupported_traversal` when the anchor is unavailable (no pathname
+        fallback); test-only anchor-capability injection proves fail-closed
+        on every platform; pure classifiers always run; live traversal cases
+        skip only when secure anchors are unavailable; tracked deterministic
+        `skills/foreman/runtime/dist/secret-scan.js` (sha256
+        `ade6ce65fb1b84f2ab72cace2a247829bcb9080727f951956fec633a3c671245`);
+        `lane_grok_secrets_scan` is a thin Node runtime call after vendor
+        readiness and before any Grok spawn; Codex and unset-vendor paths
+        remain unaffected. Host evidence in this worktree: focused secret-scan
+        tests 68 pass / 0 fail / 0 skip on Linux (includes pure classifiers,
+        injected fail-closed, live traversal with root/nested race seams,
+        regular-file→symlink identity_changed, and secret-scan-main
+        exitCode/no-process.exit invariant); `flock /tmp/foreman-bats.lock
+        bats tests/grok-lane.bats` 12/12; `npm run typecheck` pass; two
+        `npm run build` runs byte-identical for the secret-scan bundle;
+        `npm run verify-runtime` ok; full `npm run verify` 995 pass / 0 fail
+        / 4 skip; strict OpenSpec validation of `grok-secret-scan-typescript`
+        and `v030-release-program`; `docs-check.sh` pass. Keep open until
+        host commit, cold audit, and CW-027 coverage-row evidence land.
+- [ ] 1.2 Create one Endstop contract before each implementation package.
+      Use an isolated worktree for each package.
+- [ ] 1.3 Run deterministic checks and one different-family Codex cold audit
+      for each complete package diff. Consume the package audit allowance.
+- [ ] 1.4 Run at most one Council action for each immutable package candidate.
+      Preserve dissent as correction input. Do not rerun Council under the
+      same contract.
+- [ ] 1.5 Use at most one correction action for an actionable finding. If the
+      correction does not pass, record the Endstop terminal state. Do not
+      start another review loop.
+
+## 2. Release convergence
+
+- [ ] 2.1 Verify all coverage rows have shipped evidence or an
+      `evidenced_defer` that names reason, owner, target release, blocking
+      dependency, and acceptance evidence.
+- [ ] 2.2 Verify the destruction log has no unknown recovery owner.
+- [ ] 2.3 Verify zero in-scope Python and no new non-TypeScript product logic.
+- [ ] 2.4 Rebuild Graphify as one current knowledge unit.
+- [ ] 2.5 Pass all local and hosted gates on one unchanged pushed commit.
+- [ ] 2.6 Complete cold audit, Council review, release record, tag, and
+      publication verification.
