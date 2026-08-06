@@ -14,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Effect, Layer } from "effect";
 import { canonicalize, sha256Hex } from "@foreman/core";
@@ -42,6 +42,23 @@ import {
   type Register,
   type TrackedDeleteTarget,
 } from "./schema.js";
+
+// Platform-native fixture roots. The code under test builds absolute paths
+// with path.join(), which yields backslashes on Windows; keying the in-memory
+// filesystem with POSIX literals made every lookup miss there and denied every
+// deletion. Same fix already applied to the dependency-drift fixtures.
+const REPO_ROOT = resolve("/repo");
+const PKG_DIR = join(REPO_ROOT, "pkg");
+const A_TXT = join(PKG_DIR, "a.txt");
+const B_TXT = join(PKG_DIR, "b.txt");
+const SECRET_ROOT = resolve("/secret/repo");
+
+const IS_WIN = process.platform === "win32";
+
+/** The way `value` appears inside JSON.stringify output, without quotes. */
+function jsonEscaped(value: string): string {
+  return JSON.stringify(value).slice(1, -1);
+}
 
 const P = "a".repeat(40);
 const PT = "b".repeat(40);
@@ -416,7 +433,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     const store = new Map<string, { bytes: Uint8Array; mode: number; ino: string }>();
     let inoSeq = 10;
     for (const t of targets) {
-      store.set(`/repo/${t.path}`, {
+      store.set(join(REPO_ROOT, t.path), {
         bytes: content,
         mode: 0o100644,
         ino: String(inoSeq++),
@@ -424,8 +441,8 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     }
     // Directory chain identities
     const dirs = new Map<string, FileStat>([
-      ["/repo", fileStat({ size: 0, isFile: false, isDirectory: true, ino: "d1", mode: 0o040755 })],
-      ["/repo/pkg", fileStat({ size: 0, isFile: false, isDirectory: true, ino: "d2", mode: 0o040755 })],
+      [REPO_ROOT, fileStat({ size: 0, isFile: false, isDirectory: true, ino: "d1", mode: 0o040755 })],
+      [PKG_DIR, fileStat({ size: 0, isFile: false, isDirectory: true, ino: "d2", mode: 0o040755 })],
     ]);
 
     let renameCount = 0;
@@ -582,7 +599,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     const { layer, probe, store } = authLayers({});
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
@@ -592,10 +609,10 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
       assert.equal(result.recoveryCommitSha, P);
       assert.equal(result.targets.length, 2);
       assert.equal(result.targets[0]?.path, "pkg/a.txt");
-      assert.ok(!JSON.stringify(result).includes("/repo"));
+      assert.ok(!JSON.stringify(result).includes(jsonEscaped(REPO_ROOT)));
     }
-    assert.equal(store.has("/repo/pkg/a.txt"), false);
-    assert.equal(store.has("/repo/pkg/b.txt"), false);
+    assert.equal(store.has(A_TXT), false);
+    assert.equal(store.has(B_TXT), false);
     assert.equal(probe.counts.get("unlink"), 2);
     assert.ok((probe.counts.get("preflight_ok") ?? 0) >= 2);
   });
@@ -613,7 +630,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
@@ -621,7 +638,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     if (result._tag === "Denied") {
       assert.equal(result.reason, "source_digest_mismatch");
     }
-    assert.equal(store.has("/repo/pkg/a.txt"), true);
+    assert.equal(store.has(A_TXT), true);
     assert.equal(probe.counts.get("unlink") ?? 0, 0);
   });
 
@@ -631,7 +648,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
@@ -640,9 +657,9 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
       assert.equal(result.reason, "mutation_rejected");
     }
     // First target restored with exact bytes
-    assert.equal(store.has("/repo/pkg/a.txt"), true);
-    assert.equal(store.has("/repo/pkg/b.txt"), true);
-    const a = store.get("/repo/pkg/a.txt")!;
+    assert.equal(store.has(A_TXT), true);
+    assert.equal(store.has(B_TXT), true);
+    const a = store.get(A_TXT)!;
     assert.equal(gitBlobSha1(a.bytes), blob);
     assert.ok((probe.counts.get("restore") ?? 0) >= 1);
   });
@@ -653,13 +670,13 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(result._tag, "Failed");
-    assert.equal(store.has("/repo/pkg/a.txt"), true);
-    assert.equal(store.has("/repo/pkg/b.txt"), true);
+    assert.equal(store.has(A_TXT), true);
+    assert.equal(store.has(B_TXT), true);
   });
 
   it("never treats concurrent replacement as successful restore", () => {
@@ -691,13 +708,13 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
     assert.equal(result._tag, "Failed");
     // Evil replacement must remain; original must not be overwritten
-    const a = store.get("/repo/pkg/a.txt");
+    const a = store.get(A_TXT);
     assert.ok(a);
     assert.equal(new TextDecoder().decode(a!.bytes), "EVIL");
     assert.ok((probe.counts.get("restore_retained") ?? 0) >= 1);
@@ -773,7 +790,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
       const { layer, probe } = authLayers(opts);
       const result = Effect.runSync(
         deleteTracked({
-          repoRoot: "/repo",
+          repoRoot: REPO_ROOT,
           request: { schemaVersion: 1, entryId: "DST-9998" },
         }).pipe(Effect.provide(layer)),
       );
@@ -798,7 +815,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
@@ -816,7 +833,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
@@ -840,7 +857,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
@@ -855,7 +872,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     const { layer, probe } = authLayers({
       fs: {
         lstat: (p) => {
-          if (p === "/repo/pkg") {
+          if (p === PKG_DIR) {
             return Effect.succeed(
               fileStat({
                 size: 0,
@@ -867,7 +884,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
               }),
             );
           }
-          if (p === "/repo") {
+          if (p === REPO_ROOT) {
             return Effect.succeed(
               fileStat({
                 size: 0,
@@ -884,7 +901,7 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
@@ -901,12 +918,12 @@ describe("deleteTracked preflight and mutation (mocked)", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/secret/repo",
+        repoRoot: SECRET_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(Effect.provide(layer)),
     );
     const text = JSON.stringify(result);
-    assert.ok(!text.includes("/secret"));
+    assert.ok(!text.includes(jsonEscaped(SECRET_ROOT)));
     assert.ok(!text.includes("Error"));
   });
 });
@@ -1000,7 +1017,7 @@ describe("mutation-boundary unsupported_action", () => {
     });
     const result = Effect.runSync(
       deleteTracked({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-8888" },
       }).pipe(
         Effect.provide(
@@ -1054,7 +1071,7 @@ describe("mutation-boundary unsupported_action", () => {
     });
     const result = Effect.runSync(
       relocateArtifact({
-        repoRoot: "/repo",
+        repoRoot: REPO_ROOT,
         request: { schemaVersion: 1, entryId: "DST-9998" },
       }).pipe(
         Effect.provide(Layer.mergeAll(gitLayer, clockLayer, probe.layer)),
@@ -1254,6 +1271,11 @@ describe("deleteTracked live git integration", () => {
   });
 
   it("live: second-target quarantine failure restores first with exact bytes and mode", async () => {
+    // POSIX-only: this asserts exec-bit / mode semantics that Windows does not
+    // have. Node's process.umask is inert there and chmod cannot set an
+    // executable bit, so the scenario cannot be constructed, not merely
+    // observed differently.
+    if (IS_WIN) return;
     const { tmp, bodyA } = seedTwoFileRepo();
     try {
       const { liveGitIdentity } = await import("./live-services.js");
@@ -1454,6 +1476,11 @@ describe("deleteTracked live git integration", () => {
   });
 
   it("live: restrictive umask still restores exact mode 100755", async () => {
+    // POSIX-only: this asserts exec-bit / mode semantics that Windows does not
+    // have. Node's process.umask is inert there and chmod cannot set an
+    // executable bit, so the scenario cannot be constructed, not merely
+    // observed differently.
+    if (IS_WIN) return;
     const { tmp, bodyA } = seedTwoFileRepo({ modeA: "100755" });
     const prev = process.umask(0o077);
     try {
@@ -1693,6 +1720,11 @@ describe("deleteTracked live git integration", () => {
   });
 
   it("live: denies chmod-only change without mutation", async () => {
+    // POSIX-only: this asserts exec-bit / mode semantics that Windows does not
+    // have. Node's process.umask is inert there and chmod cannot set an
+    // executable bit, so the scenario cannot be constructed, not merely
+    // observed differently.
+    if (IS_WIN) return;
     const { tmp } = seedTwoFileRepo();
     try {
       chmodSync(join(tmp, "pkg", "a.txt"), 0o755);
