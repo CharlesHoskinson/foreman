@@ -59,6 +59,19 @@ import {
   isVendorPreflightContractFailure,
 } from "./vendor-preflight-contract.js";
 
+/**
+ * Publishing a preflight record requires a no-follow directory anchor
+ * (`O_DIRECTORY | O_NOFOLLOW` plus `/proc/self/fd`). Windows has neither
+ * constant, so `profilePreflightDirectoryAnchorSupported()` is false there and
+ * the store fails closed with `write_failed` by design -- see the doc comment
+ * on that function: "Windows and hosts without those primitives cannot prove
+ * publication boundaries -- callers must fail closed before mutation."
+ *
+ * Tests that require a successful publish therefore assert a POSIX-only
+ * capability. Same shape as `liveTraversal` in secret-scan.test.ts.
+ */
+const livePublish = { skip: !profilePreflightDirectoryAnchorSupported() };
+
 const FIXED_TS = "2026-08-04T15:00:00.000Z";
 
 function readyRecord(
@@ -375,7 +388,7 @@ describe("parseCredentialProfilePreflightBytes", () => {
 });
 
 describe("CredentialProfilePreflightStore", () => {
-  it("writes canonical JSON with one trailing LF at the exact path", async () => {
+  it("writes canonical JSON with one trailing LF at the exact path", livePublish, async () => {
     const root = tempDir();
     seedR7aAuthority(root, "grok-default");
     const path = profilePreflightRecordPath(root, "grok-default", "grok");
@@ -423,7 +436,7 @@ describe("CredentialProfilePreflightStore", () => {
     },
   );
 
-  it("reads back a published record with no-follow bounded I/O", async () => {
+  it("reads back a published record with no-follow bounded I/O", livePublish, async () => {
     const root = tempDir();
     seedR7aAuthority(root, "p");
     const path = profilePreflightRecordPath(root, "p", "grok");
@@ -446,7 +459,7 @@ describe("CredentialProfilePreflightStore", () => {
     assert.equal(read.vendor, "grok");
   });
 
-  it("refuses to create missing credential-profiles or profile authority", async () => {
+  it("refuses to create missing credential-profiles or profile authority", livePublish, async () => {
     const root = tempDir();
     // State root only — no R7A credential-profiles.
     const path = profilePreflightRecordPath(root, "p", "grok");
@@ -467,7 +480,7 @@ describe("CredentialProfilePreflightStore", () => {
     assert.equal(existsSync(join(root, PROFILES_DIR_NAME)), false);
   });
 
-  it("refuses write when profile.json is missing under authority", async () => {
+  it("refuses write when profile.json is missing under authority", livePublish, async () => {
     const root = tempDir();
     const auth = join(root, PROFILES_DIR_NAME, "p");
     mkdirSync(auth, { recursive: true, mode: 0o700 });
@@ -563,7 +576,7 @@ describe("CredentialProfilePreflightStore", () => {
     }
   });
 
-  it("refuses linked credential-profiles ancestor on write", async () => {
+  it("refuses linked credential-profiles ancestor on write", livePublish, async () => {
     const root = tempDir();
     const outside = join(root, "outside-profiles");
     mkdirSync(outside, { recursive: true });
@@ -595,7 +608,7 @@ describe("CredentialProfilePreflightStore", () => {
     }
   });
 
-  it("refuses linked profile directory on write", async () => {
+  it("refuses linked profile directory on write", livePublish, async () => {
     const root = tempDir();
     const profilesRoot = join(root, PROFILES_DIR_NAME);
     mkdirSync(profilesRoot, { recursive: true });
@@ -648,7 +661,7 @@ describe("CredentialProfilePreflightStore", () => {
     }
   });
 
-  it("atomic publish replaces previous content", async () => {
+  it("atomic publish replaces previous content", livePublish, async () => {
     const root = tempDir();
     seedR7aAuthority(root, "p");
     const path = profilePreflightRecordPath(root, "p", "grok");

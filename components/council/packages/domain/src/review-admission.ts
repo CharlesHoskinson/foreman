@@ -206,9 +206,7 @@ const responseIdentitiesExact = (
  * Failures are infrastructure (ReviewAttemptFailed), not provider identity
  * mismatch — the provider response is not blamed for a host defect.
  */
-const hostArtifactPreconditionsHold = (
-  input: ReviewAttemptInput,
-): boolean => {
+const hostArtifactPreconditionsHold = (input: ReviewAttemptInput): boolean => {
   if (!uniqueStrings(input.expectedArtifactIds)) {
     return false;
   }

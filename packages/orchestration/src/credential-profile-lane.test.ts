@@ -31,6 +31,11 @@ import {
   admitCredentialProfileLane,
 } from "./credential-profile-lane.js";
 import type { VendorPreflightRecordV1 } from "./vendor-preflight-contract.js";
+import { profilePreflightDirectoryAnchorSupported } from "./credential-profile-preflight.js";
+
+const livePersistLane = {
+  skip: !profilePreflightDirectoryAnchorSupported(),
+};
 
 const FIXED_TS = "2026-08-05T15:00:00Z";
 
@@ -151,7 +156,9 @@ function storeReturning(wrapper: CredentialProfilePreflightV1) {
 }
 
 describe("admitCredentialProfileLane", () => {
-  it("admits one ready wrapper and returns the verified config root", () => {
+  // Requires a published preflight record, so it needs the same POSIX-only
+  // directory anchor the preflight store requires. See foreman-setup.test.ts.
+  it("admits one ready wrapper and returns the verified config root", livePersistLane, () => {
     const f = fixture();
     Effect.runSync(
       writeProfilePreflightRecord(

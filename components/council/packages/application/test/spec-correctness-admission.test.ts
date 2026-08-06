@@ -707,7 +707,8 @@ describe("evaluateSpecCorrectnessAdmission", () => {
             ...completedTerminal,
             // Passes classifier transport gates but fails SuccessfulTerminalObservationV1
             // because digests are not valid SHA-256 hex.
-            stdoutDigest: `not-hex-${secretMarker}` as typeof completedTerminal.stdoutDigest,
+            stdoutDigest:
+              `not-hex-${secretMarker}` as typeof completedTerminal.stdoutDigest,
             stderrDigest: completedTerminal.stderrDigest,
             providerLeak: secretMarker,
           } as typeof completedTerminal,
