@@ -1,13 +1,17 @@
-# v0.2.9.0 release candidate residuals
+# Residual work after v0.2.9.0
 
-This file states current limitations. It does not record completed release evidence.
+Total Georgecall v0.2.9.0 is released. This file lists residual limits that
+feed the active v0.3.0 program. These items are not release blockers for
+`v0.2.9.0`.
 
 ## Product limits
 
 - The executable supports Grok, Claude, and Codex canaries.
 - Gemini is not implemented. Google requests fail before provider dispatch.
-- The release does not include a complete Council review coordinator or MCP runtime.
-- The bundle is private workspace output. This release does not publish an npm package.
+- The release does not include a complete Council review coordinator or MCP
+  runtime.
+- The bundle is private workspace output. This release does not publish an npm
+  package.
 
 ## Runtime limits
 
@@ -21,7 +25,8 @@ This file states current limitations. It does not record completed release evide
 ## Foreman limits
 
 - Pueue can mark a green worker round failed when `FOREMAN_REPORT.md` is stale.
-- Grok can return an empty burst when a task needs repository exploration before one edit.
+- Grok can return an empty burst when a task needs repository exploration
+  before one edit.
 - The default isolated Grok home does not inherit the authenticated WSL Grok
   identity. The successful external run selected the authenticated WSL Grok
   home explicitly. Automatic credential copying is not implemented.
@@ -38,17 +43,25 @@ This file states current limitations. It does not record completed release evide
 
 - New executable code uses Node.js and TypeScript.
 - The repository still contains shell and Python modules.
-- Complete Python removal remains in `typescriptmigration.md` and its OpenSpec package.
+- Complete Python removal remains in `typescriptmigration.md` and its OpenSpec
+  package.
 
 ## Knowledge limits
 
-- The live graph predates the active candidate.
-- The release requires one exact-candidate graph replacement.
-- Historical SessionDB facts remain immutable and can contain withdrawn release names.
-- The installed Graphify package and vendored Graphify skill still have different versions.
+- The v0.2.9.0 graph is exact for commit
+  `fbe23257fc389036d6feaa8f38e7b377f3106406`.
+- Graphify package version and CLI drift remains v0.3.0 work.
+- Historical SessionDB facts remain immutable and can contain withdrawn
+  release names.
+- The installed Graphify package and vendored Graphify skill still have
+  different versions.
 
 ## Release limits
 
-- Candidate evidence is not release evidence until every checklist criterion passes.
-- Do not create tag `v0.2.9.0` before exact-main local, Linux, and Windows gates pass.
-- Do not claim live provider support without current provider-neutral receipts.
+- Read the canonical ledger at
+  `docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md` before you claim work
+  that this release already shipped.
+- Plan unfinished work under
+  `openspec/changes/v030-release-program/`.
+- Do not claim live provider support without current provider-neutral
+  receipts.
