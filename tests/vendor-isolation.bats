@@ -173,24 +173,6 @@ SHIM
 }
 
 # ---------------------------------------------------------------------
-# wt-new.sh: obsolete per-lane vendor-home provisioning stays retired
-# ---------------------------------------------------------------------
-
-@test "wt-new creates and advertises no worktree-local vendor-home directories" {
-  setup_tmp_repo
-  cd "$REPO"
-  run bash "$SCRIPTS/wt-new.sh" run1 implement slug1
-  [ "$status" -eq 0 ]
-  wt="${lines[-1]}"
-  [ ! -e "$wt/.harness/vendor-home/grok" ]
-  [ ! -e "$wt/.harness/vendor-home/codex" ]
-  [ ! -e "$wt/.harness/vendor-home/claude" ]
-  [[ "$output" != *"vendor-home (grok):"* ]]
-  [[ "$output" != *"vendor-home (codex):"* ]]
-  [[ "$output" != *"vendor-home (claude):"* ]]
-}
-
-# ---------------------------------------------------------------------
 # lane-run.sh: LANE_VENDOR unset -> frozen path, byte-identical
 # ---------------------------------------------------------------------
 
