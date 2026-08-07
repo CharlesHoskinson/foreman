@@ -1,0 +1,1 @@
+eventlog_concurrency	main=toctou	mutual_exclusion	VIOLATED	simulation	2000x20	commit	yes	architect-VERIFY	positive-control fixture: expected value matches the real model's observed behaviour
