@@ -128,6 +128,15 @@ required = true
 notes = "Test harness for skills/foreman/scripts (tests/run.sh). Probe-verified 2026-07-18: Ubuntu 26.04 ships bats 1.13.0-1 directly via apt (env/bootstrap-wsl.sh tries this first now); the git-clone route stays as a fallback for older distros without an apt package."
 
 [[tools]]
+id = "sqlite3"
+profile = ["full"]
+where = ["wsl"]
+check = "sqlite3 --version"
+install_wsl = "sudo apt-get install -y sqlite3"
+required = true
+notes = "NOT used by product code -- python3's stdlib sqlite3 module is what reads .foreman/session.db, and that is unaffected by this entry. Required because tests/session.bats shells out to the sqlite3 CLI directly in three tests (import-sidecar row/column fidelity dump, and two freshness tests that seed rows via `sqlite3 ... UPDATE`), not because the runtime needs it. Probe-verified 2026-08-07 on WSL, before and after this fix, same host: without the CLI, tests/session.bats scores pass=31 fail=3 of 34 (three status-127 failures); with it, pass=34 fail=0. Before this entry existed, `env/bootstrap-wsl.sh --profile full --yes` completed exit 0 WITHOUT installing sqlite3 -- the prior 'not required' manifest claim was not just inaccurate prose, it left a freshly bootstrapped full-profile host missing a tool its own test suite needs. The same three failures reproduce on the Windows CI runner (docs/evidence/w0/2026-08-07-windows-suite-measurement.md). tests/baseline.tsv wsl floor intentionally stays at 31 pending a follow-up that re-verifies a clean bootstrap now installs sqlite3 before raising it to 34."
+
+[[tools]]
 id = "flock"
 profile = ["hard", "full", "durable"]
 where = ["wsl"]
