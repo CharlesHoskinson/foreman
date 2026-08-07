@@ -117,30 +117,17 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          # GitHub runs `shell: bash` as `bash --noprofile --norc -eo pipefail`,
-          # so a non-zero bats exit aborts this step BEFORE the line that reports
-          # it, and continue-on-error then hides the abort as non-fatal. Three
-          # runs logged the "=====" banner and no result at all. The whole point
-          # of this step is to survive failure and report it, so -e is off here.
           set +e
           export PATH="/usr/local/bin:$PATH"
           echo "bats: $(bats --version 2>&1 || echo UNAVAILABLE)"
           echo "timeout: $(command -v timeout || echo ABSENT)"
-          for f in tests/line-endings.bats tests/plugin-drift.bats; do
-            echo "===== $f ====="
-            # Never let a hung file hold the runner: same bound tests/run.sh uses.
-            # Capture bats' OWN status, not tail's: piping would make $? report
-            # the last stage, so a failing suite behind a successful tail would
-            # be recorded as exit 0 and this probe would answer its own question
-            # wrongly.
-            if command -v timeout >/dev/null 2>&1; then
-              out="$(timeout --kill-after=30 600 bats "$f" 2>&1)"; rc=$?
-            else
-              out="$(bats "$f" 2>&1)"; rc=$?
-            fi
-            printf '%s\n' "$out" | tail -40
-            echo "  bats rc=$rc ok=$(printf '%s\n' "$out" | grep -c '^ok ') not_ok=$(printf '%s\n' "$out" | grep -c '^not ok ')"
-          done
+          # Shadow mode records every slice's observed counts and returns 0 on
+          # policy failure, so this measures without gaining power to fail the
+          # workflow. TEST_SLICE_REPORT is already set at job level to the path
+          # the upload step publishes.
+          TEST_GATE_MODE=shadow bash tests/run.sh
+          echo "run.sh rc=$?"
+          echo "slice report: $(wc -l < "$TEST_SLICE_REPORT" 2>/dev/null || echo ABSENT) lines"
 
       - name: Upload gate reports
         if: always()
