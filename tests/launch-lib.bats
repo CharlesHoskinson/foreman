@@ -5,6 +5,7 @@
 #   lane_resolve_launcher, hence FOUR levels up to repo root, not three).
 
 setup() {
+  load "$BATS_TEST_DIRNAME/lib/preconditions.bash"
   source "$BATS_TEST_DIRNAME/../skills/foreman/scripts/lib/launch.sh"
 }
 
@@ -21,6 +22,14 @@ setup() {
 }
 
 @test "no override resolves an available launcher/dist binary (fallback)" {
+  # launcher/dist is gitignored, so this artefact exists only after a build.
+  # Without this precondition the test fails on a fresh clone and passes on any
+  # machine that has ever built it -- an order and history dependence, not a
+  # property of fl_resolve_launcher. CI builds it before the suite runs
+  # (gates-linux.yml, "Build POSIX launcher"), so the property stays covered
+  # where it matters.
+  require_built "$BATS_TEST_DIRNAME/../launcher/dist/foreman-launch" \
+    "(cd launcher && bun run build:posix)"
   unset FOREMAN_LAUNCH
   run fl_resolve_launcher
   [ "$status" -eq 0 ]

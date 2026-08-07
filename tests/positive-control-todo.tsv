@@ -1,0 +1,32 @@
+check_id	kind	reason
+.github/workflows/formal.yml::Classifier self-test (no models)	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/formal.yml::Install Apalache 0.56.1 (schedule tier)	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/formal.yml::Install pinned Quint 0.32.0	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/formal.yml::Run formal suite	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-linux.yml::Build POSIX launcher	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-linux.yml::Install NATS test dependencies	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-linux.yml::Install gate dependencies	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-linux.yml::Run Council Node 24 gate	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-linux.yml::Run the shared gate definition	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-windows.yml::Install gate dependencies	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-windows.yml::Probe the bats suite on Windows (non-gating)	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-windows.yml::Run Council Node 24 gate	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/gates-windows.yml::Run the shared gate definition with Git Bash	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/maintenance.yml::Open issue with findings	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/maintenance.yml::report	gate	no positive control yet; inventoried 2026-08-06
+.github/workflows/windows-smoke.yml::Run install.ps1 and assert junctions resolve	gate	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::check_one	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_fs_class	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_host_class	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_pinned_lookup	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_probe_flock_once	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_probe_mkdir_once	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_run_atomicity_probes	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_sha256	probe	no positive control yet; inventoried 2026-08-06
+env/tool-check.sh::fm_tc_version_line	probe	no positive control yet; inventoried 2026-08-06
+skills/foreman/scripts/gate-eval.sh::gate-eval	gate	no positive control yet; inventoried 2026-08-06
+tests/lib/check-registry-compare.sh::check-registry-compare	gate	no positive control yet; inventoried 2026-08-06
+tests/lib/positive-control.bash::assert_positive_control_token	gate	no positive control yet; inventoried 2026-08-06
+tests/run.sh::lookup_skip_budget	gate	no positive control yet; inventoried 2026-08-06
+tests/run.sh::validate_baseline_file	gate	no positive control yet; inventoried 2026-08-06
+tests/run.sh::validate_skip_budget_file	gate	no positive control yet; inventoried 2026-08-06

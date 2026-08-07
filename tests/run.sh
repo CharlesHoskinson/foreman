@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @description Run the Foreman Bats suite per file, enforce slice policy when
 #   requested, and emit both human-readable verdicts and a machine-readable
-#   TSV report. TEST_GATE_MODE defaults to shadow; set it to enforce to make
+#   TSV report. TEST_GATE_MODE defaults to enforce; set it to shadow to record
 #   skip-budget, pass-baseline, and bare-skip failures affect the exit status.
 set -uo pipefail
 
@@ -12,7 +12,7 @@ SCRIPT_PATH="$TESTS_DIR/run.sh"
 BASELINE_FILE="${TEST_BASELINE_FILE:-$TESTS_DIR/baseline.tsv}"
 SKIP_BUDGET_FILE="${TEST_SKIP_BUDGET_FILE:-$TESTS_DIR/skip-budget.tsv}"
 SLICE_REPORT="${TEST_SLICE_REPORT:-${TMPDIR:-/tmp}/foreman-test-slices.tsv}"
-GATE_MODE="${TEST_GATE_MODE:-shadow}"
+GATE_MODE="${TEST_GATE_MODE:-enforce}"
 BATS="${BATS:-$(command -v bats || true)}"
 MUTEX_DIR=""
 RUN_TMP=""
@@ -99,8 +99,8 @@ validate_baseline_file() {
   }
   IFS= read -r header <"$BASELINE_FILE"
   header="${header%$'\r'}"
-  [[ "$header" == $'file\texpected_passes' ]] || {
-    printf 'ERROR baseline header must be: file<TAB>expected_passes\n' >&2
+  [[ "$header" == $'file\tplatform\texpected_passes' ]] || {
+    printf 'ERROR baseline header must be: file<TAB>platform<TAB>expected_passes\n' >&2
     return 2
   }
 }
@@ -123,33 +123,34 @@ validate_skip_budget_file() {
 POLICY_VALUE=""
 POLICY_ERROR=""
 
-# @description Look up one exact per-file pass baseline.
+# @description Look up one exact file-and-platform pass baseline.
 # @arg $1 repository-relative slice key
+# @arg $2 platform id
 # @set POLICY_VALUE expected pass count on success
 # @set POLICY_ERROR actionable error on failure
 lookup_baseline() {
-  local key="$1"
+  local key="$1" platform="$2"
   local -a matches=()
   POLICY_VALUE=""
   POLICY_ERROR=""
   mapfile -t matches < <(
-    awk -F '\t' -v key="$key" '
+    awk -F '\t' -v key="$key" -v platform="$platform" '
       NR > 1 {
         sub(/\r$/, "", $NF)
-        if ($1 == key) print $2
+        if ($1 == key && $2 == platform) print $3
       }
     ' "$BASELINE_FILE"
   )
   if (( ${#matches[@]} == 0 )); then
-    POLICY_ERROR="missing pass baseline for $key"
+    POLICY_ERROR="missing pass baseline for $key on $platform"
     return 1
   fi
   if (( ${#matches[@]} != 1 )); then
-    POLICY_ERROR="duplicate pass baseline for $key"
+    POLICY_ERROR="duplicate pass baseline for $key on $platform"
     return 1
   fi
   if [[ ! "${matches[0]}" =~ ^[0-9]+$ ]]; then
-    POLICY_ERROR="invalid pass baseline for $key: ${matches[0]}"
+    POLICY_ERROR="invalid pass baseline for $key on $platform: ${matches[0]}"
     return 1
   fi
   POLICY_VALUE="${matches[0]}"
@@ -385,7 +386,7 @@ for file in "${selected_files[@]}"; do
   baseline="MISSING"
   pass_delta="UNCOMPUTABLE"
   baseline_verdict=ERROR
-  if lookup_baseline "$key"; then
+  if lookup_baseline "$key" "$platform"; then
     baseline="$POLICY_VALUE"
     pass_delta=$((pass_count - baseline))
     if (( pass_count < baseline )); then

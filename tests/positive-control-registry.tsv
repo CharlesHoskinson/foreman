@@ -1,0 +1,4 @@
+check_id	kind	known_bad_input	known_good_input	control_record	demonstrated_at
+tests/lib/positive-control.bash::assert_positive_control	gate	tests/fixtures/positive-control/unanchored-bad.txt	tests/fixtures/positive-control/unanchored-good.txt	docs/evidence/positive-control/2026-08-06-control-record.md	5fa45124b33fb287336094db154cda1357e852f4
+tests/lib/check-inventory.sh::check-inventory	gate	tests/fixtures/positive-control/empty-tree	tests/fixtures/positive-control/minimal-tree	docs/evidence/positive-control/2026-08-06-control-record.md	5fa45124b33fb287336094db154cda1357e852f4
+tests/run.sh::lookup_baseline	gate	tests/fixtures/policy/trivial.bats	tests/fixtures/policy/trivial.bats	docs/evidence/positive-control/2026-08-07-baseline-platform.md	be2077034da006a083c3defb46339a93fa0c0fd1

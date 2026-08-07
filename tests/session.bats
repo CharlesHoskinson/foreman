@@ -6,7 +6,11 @@
 
 setup() {
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
-  SESS="python3 $SCRIPTS/fm-session.py"
+  # The implementation under test is overridable, so this file is a
+  # cross-implementation conformance suite rather than a Python-only one.
+  # 27 of these 34 tests already assert on printed output, so a port that
+  # emits different stdout fails here rather than passing quietly.
+  SESS="${FM_SESSION_CMD:-python3 $SCRIPTS/fm-session.py}"
   REPO="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$REPO"
   git -C "$REPO" init -q -b main
@@ -135,7 +139,7 @@ setup() {
   [[ "$output" == *"SKIPPED"* ]]
   [[ "$output" == *"no projectable scalar"* ]]
   # and it must not have been smuggled into a Measurement document
-  run bash -c "python3 $SCRIPTS/fm-session.py project 2>/dev/null | grep Measurement"
+  run bash -c "$SESS project 2>/dev/null | grep Measurement"
   [[ "$output" != *"green everywhere"* ]]
 }
 
@@ -240,7 +244,7 @@ setup() {
   $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
   $SESS measure "suite pass count" "11" --command "bats t.bats" --scope src/a.sh
   $SESS retire 1 --by 2 --reason "host state poisoned the first reading"
-  run bash -c "python3 $SCRIPTS/fm-session.py project 2>/dev/null"
+  run bash -c "$SESS project 2>/dev/null"
   [ "$status" -eq 0 ]
   # the live set agrees with recover: 11 projects, 26 does not
   [[ "$output" == *'"value": 11.0'* ]]
@@ -280,6 +284,9 @@ PY
 }
 
 @test "sidecar reads every table from one SQLite snapshot" {
+  # White-box: this test imports fm-session.py as a Python module and
+  # calls its internals, so it cannot run against another implementation.
+  [ -z "${FM_SESSION_CMD:-}" ] || skip "white-box Python test; FM_SESSION_CMD names another implementation"
   cd "$REPO"
   run python3 - "$SCRIPTS/fm-session.py" "$FOREMAN_SESSION_DB" <<'PY'
 import importlib.util
@@ -435,6 +442,9 @@ PY
 }
 
 @test "import-sidecar checks for rows after acquiring the write lock" {
+  # White-box: this test imports fm-session.py as a Python module and
+  # calls its internals, so it cannot run against another implementation.
+  [ -z "${FM_SESSION_CMD:-}" ] || skip "white-box Python test; FM_SESSION_CMD names another implementation"
   cd "$REPO"
   $SESS fact "source fact"
   $SESS sidecar --out "$BATS_TEST_TMPDIR/source.ndjson"

@@ -1,57 +1,175 @@
-file	expected_passes
-tests/adapters.bats	19
-tests/audit-routing.bats	16
-tests/audit-verdict.bats	26
-tests/checkpoint.bats	6
-tests/checks-run.bats	5
-tests/config.bats	16
-tests/council-localization.bats	11
-tests/decision-events.bats	8
-tests/docs-check.bats	16
-tests/durable-preflight.bats	8
-tests/eventlog.bats	34
-tests/evidence.bats	2
-tests/fit-report.bats	18
-tests/foreman-cleanup.bats	5
-tests/foreman-setup.bats	3
-tests/gate-eval.bats	1
-tests/gate-ground.bats	29
-tests/git-guards.bats	5
-tests/graph-project.bats	10
-tests/grok-lane.bats	11
-tests/lane-queue.bats	21
-tests/lane-review-bundle.bats	12
-tests/lane-run.bats	30
-tests/lane-supervise.bats	17
-tests/launch-lib.bats	3
-tests/launcher.bats	3
-tests/lifecycle-gate.bats	3
-tests/line-endings.bats	6
-tests/lock.bats	13
-tests/maintenance.bats	8
-tests/merge-gate.bats	11
-tests/nats-bridge.bats	12
-tests/plugin-drift.bats	3
-tests/pr-open.bats	6
-tests/readme-structure.bats	12
-tests/release-metrics.bats	13
-tests/resume.bats	10
-tests/review-quorum.bats	5
-tests/round-ownership.bats	8
-tests/session.bats	34
-tests/soft-mode-target.bats	3
-tests/telemetry.bats	9
-tests/tier1-replay.bats	11
-tests/tier2-compare.bats	27
-tests/tool-check-auth.bats	12
-tests/vendor-concurrency-test.bats	16
-tests/vendor-isolation.bats	8
-tests/vendor-multiround.bats	5
-tests/watch.bats	59
-tests/worker-cmd.bats	3
-tests/worker-run.bats	5
-tests/wsl-clock-preflight.bats	7
-tests/wsl-launcher-shipped.bats	11
-tests/wt-cleanup.bats	6
-tests/wt-merge.bats	11
-tests/wt-new.bats	14
+file	platform	expected_passes
+tests/adapters.bats	linux	27
+tests/adapters.bats	windows	26
+tests/adapters.bats	wsl	27
+tests/audit-routing.bats	linux	22
+tests/audit-routing.bats	windows	14
+tests/audit-routing.bats	wsl	22
+tests/audit-verdict.bats	linux	26
+tests/audit-verdict.bats	windows	0
+tests/audit-verdict.bats	wsl	26
+tests/checkpoint.bats	linux	6
+tests/checkpoint.bats	windows	6
+tests/checkpoint.bats	wsl	6
+tests/checks-run.bats	linux	5
+tests/checks-run.bats	windows	5
+tests/checks-run.bats	wsl	5
+tests/config.bats	linux	16
+tests/config.bats	windows	16
+tests/config.bats	wsl	16
+tests/council-localization.bats	linux	11
+tests/council-localization.bats	windows	9
+tests/council-localization.bats	wsl	11
+tests/decision-events.bats	linux	10
+tests/decision-events.bats	windows	3
+tests/decision-events.bats	wsl	10
+tests/docs-check.bats	linux	17
+tests/docs-check.bats	windows	12
+tests/docs-check.bats	wsl	17
+tests/durable-preflight.bats	linux	8
+tests/durable-preflight.bats	windows	8
+tests/durable-preflight.bats	wsl	8
+tests/eventlog.bats	linux	35
+tests/eventlog.bats	windows	0
+tests/eventlog.bats	wsl	34
+tests/evidence.bats	linux	2
+tests/evidence.bats	windows	1
+tests/evidence.bats	wsl	2
+tests/fit-report.bats	linux	18
+tests/fit-report.bats	windows	17
+tests/fit-report.bats	wsl	18
+tests/foreman-cleanup.bats	linux	5
+tests/foreman-cleanup.bats	windows	1
+tests/foreman-cleanup.bats	wsl	5
+tests/foreman-setup.bats	linux	4
+tests/foreman-setup.bats	windows	4
+tests/foreman-setup.bats	wsl	4
+tests/gate-eval.bats	linux	1
+tests/gate-eval.bats	windows	1
+tests/gate-eval.bats	wsl	1
+tests/gate-ground.bats	linux	29
+tests/gate-ground.bats	windows	26
+tests/gate-ground.bats	wsl	29
+tests/git-guards.bats	linux	5
+tests/git-guards.bats	windows	5
+tests/git-guards.bats	wsl	5
+tests/graph-project.bats	linux	10
+tests/graph-project.bats	windows	10
+tests/graph-project.bats	wsl	10
+tests/grok-lane.bats	linux	12
+tests/grok-lane.bats	windows	7
+tests/grok-lane.bats	wsl	12
+tests/lane-queue.bats	linux	21
+tests/lane-queue.bats	windows	22
+tests/lane-queue.bats	wsl	21
+tests/lane-review-bundle.bats	linux	12
+tests/lane-review-bundle.bats	windows	11
+tests/lane-review-bundle.bats	wsl	12
+tests/lane-run.bats	linux	32
+tests/lane-run.bats	windows	0
+tests/lane-run.bats	wsl	32
+tests/lane-supervise.bats	linux	17
+tests/lane-supervise.bats	windows	3
+tests/lane-supervise.bats	wsl	17
+tests/launch-lib.bats	linux	3
+tests/launch-lib.bats	windows	2
+tests/launch-lib.bats	wsl	2
+tests/launcher.bats	linux	3
+tests/launcher.bats	windows	0
+tests/launcher.bats	wsl	4
+tests/lifecycle-gate.bats	linux	3
+tests/lifecycle-gate.bats	windows	3
+tests/lifecycle-gate.bats	wsl	3
+tests/line-endings.bats	linux	6
+tests/line-endings.bats	windows	5
+tests/line-endings.bats	wsl	6
+tests/lock.bats	linux	13
+tests/lock.bats	windows	6
+tests/lock.bats	wsl	13
+tests/maintenance.bats	linux	9
+tests/maintenance.bats	windows	8
+tests/maintenance.bats	wsl	9
+tests/merge-gate.bats	linux	11
+tests/merge-gate.bats	windows	2
+tests/merge-gate.bats	wsl	11
+tests/nats-bridge.bats	linux	12
+tests/nats-bridge.bats	windows	0
+tests/nats-bridge.bats	wsl	12
+tests/plugin-drift.bats	linux	3
+tests/plugin-drift.bats	windows	3
+tests/plugin-drift.bats	wsl	3
+tests/positive-control.bats	linux	15
+tests/positive-control.bats	windows	15
+tests/positive-control.bats	wsl	15
+tests/pr-open.bats	linux	6
+tests/pr-open.bats	windows	6
+tests/pr-open.bats	wsl	6
+tests/readme-structure.bats	linux	12
+tests/readme-structure.bats	windows	12
+tests/readme-structure.bats	wsl	12
+tests/release-metrics.bats	linux	13
+tests/release-metrics.bats	windows	13
+tests/release-metrics.bats	wsl	13
+tests/resume.bats	linux	10
+tests/resume.bats	windows	3
+tests/resume.bats	wsl	10
+tests/review-quorum.bats	linux	5
+tests/review-quorum.bats	windows	5
+tests/review-quorum.bats	wsl	5
+tests/round-ownership.bats	linux	8
+tests/round-ownership.bats	windows	0
+tests/round-ownership.bats	wsl	8
+tests/session.bats	linux	34
+tests/session.bats	windows	30
+tests/session.bats	wsl	31
+tests/soft-mode-target.bats	linux	3
+tests/soft-mode-target.bats	windows	3
+tests/soft-mode-target.bats	wsl	3
+tests/telemetry.bats	linux	9
+tests/telemetry.bats	windows	6
+tests/telemetry.bats	wsl	9
+tests/test-policy.bats	linux	3
+tests/test-policy.bats	windows	3
+tests/test-policy.bats	wsl	3
+tests/tier1-replay.bats	linux	11
+tests/tier1-replay.bats	windows	8
+tests/tier1-replay.bats	wsl	11
+tests/tier2-compare.bats	linux	27
+tests/tier2-compare.bats	windows	26
+tests/tier2-compare.bats	wsl	27
+tests/tool-check-auth.bats	linux	12
+tests/tool-check-auth.bats	windows	12
+tests/tool-check-auth.bats	wsl	12
+tests/vendor-concurrency-test.bats	linux	16
+tests/vendor-concurrency-test.bats	windows	16
+tests/vendor-concurrency-test.bats	wsl	16
+tests/vendor-isolation.bats	linux	8
+tests/vendor-isolation.bats	windows	0
+tests/vendor-isolation.bats	wsl	8
+tests/vendor-multiround.bats	linux	5
+tests/vendor-multiround.bats	windows	5
+tests/vendor-multiround.bats	wsl	5
+tests/watch.bats	linux	59
+tests/watch.bats	windows	24
+tests/watch.bats	wsl	59
+tests/worker-cmd.bats	linux	3
+tests/worker-cmd.bats	windows	3
+tests/worker-cmd.bats	wsl	3
+tests/worker-run.bats	linux	5
+tests/worker-run.bats	windows	2
+tests/worker-run.bats	wsl	5
+tests/wsl-clock-preflight.bats	linux	7
+tests/wsl-clock-preflight.bats	windows	7
+tests/wsl-clock-preflight.bats	wsl	7
+tests/wsl-launcher-shipped.bats	linux	11
+tests/wsl-launcher-shipped.bats	windows	11
+tests/wsl-launcher-shipped.bats	wsl	11
+tests/wt-cleanup.bats	linux	6
+tests/wt-cleanup.bats	windows	0
+tests/wt-cleanup.bats	wsl	6
+tests/wt-merge.bats	linux	11
+tests/wt-merge.bats	windows	1
+tests/wt-merge.bats	wsl	11
+tests/wt-new.bats	linux	14
+tests/wt-new.bats	windows	0
+tests/wt-new.bats	wsl	14
