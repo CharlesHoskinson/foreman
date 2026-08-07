@@ -633,8 +633,11 @@ describe("countMkdirContentionViolations", () => {
 });
 
 describe("no-strace mkdir path uses contention evidence", () => {
-  it("labels clean sample unknown/contention not flavour", async () => {
-    if (process.platform === "win32") return;
+  it("labels clean sample unknown/contention not flavour", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("live mkdir strace probing requires a POSIX process-trace toolchain; unavailable on win32");
+      return;
+    }
     const parent = mkdtempSync(join(tmpdir(), "fm-mkdir-ct-"));
     try {
       // Force no-strace path by injecting PathLookup without strace and using
@@ -642,7 +645,10 @@ describe("no-strace mkdir path uses contention evidence", () => {
       // PATH that hides strace is hard. Call the contention helper contract
       // via probe with stub that reports no strace.
       const whichMkdir = "/bin/mkdir";
-      if (!existsSync(whichMkdir)) return;
+      if (!existsSync(whichMkdir)) {
+        t.skip("/bin/mkdir is not present on this host");
+        return;
+      }
       const once = await Effect.runPromise(
         probeMkdirOnce(whichMkdir, parent).pipe(
           Effect.provide(
@@ -672,8 +678,11 @@ describe("no-strace mkdir path uses contention evidence", () => {
 });
 
 describe("probeFlockOnce holder/loser", () => {
-  it("does not license atomic from a single unheld flock strace", async () => {
-    if (process.platform === "win32") return;
+  it("does not license atomic from a single unheld flock strace", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("live flock+strace probing requires a POSIX process-trace toolchain; unavailable on win32");
+      return;
+    }
     const parent = mkdtempSync(join(tmpdir(), "fm-flock-bad-"));
     try {
       // Live flock+strace: real concurrent proof may yield atomic. The
@@ -707,8 +716,11 @@ describe("probeFlockOnce holder/loser", () => {
     }
   });
 
-  it("live flock+strace can prove atomic with holder+loser when tools exist", async () => {
-    if (process.platform === "win32") return;
+  it("live flock+strace can prove atomic with holder+loser when tools exist", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("live flock+strace probing requires a POSIX process-trace toolchain; unavailable on win32");
+      return;
+    }
     const parent = mkdtempSync(join(tmpdir(), "fm-flock-live-"));
     try {
       const flockPath = await Effect.runPromise(
@@ -717,7 +729,10 @@ describe("probeFlockOnce holder/loser", () => {
           return yield* paths.which("flock");
         }).pipe(Effect.provide(liveLayer)),
       );
-      if (!flockPath) return;
+      if (!flockPath) {
+        t.skip("flock binary was not found on PATH for this host");
+        return;
+      }
       const once = await Effect.runPromise(
         probeFlockOnce(flockPath, parent).pipe(Effect.provide(liveLayer)),
       );
@@ -808,8 +823,11 @@ describe("pickProbeRoots distinct mount keys", () => {
 });
 
 describe("runAtomicityProbes wires hostClass into pin path", () => {
-  it("passes hostClass through (pin never fires on empty register)", async () => {
-    if (process.platform === "win32") return;
+  it("passes hostClass through (pin never fires on empty register)", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("hostClass pin-path wiring exercises POSIX-only atomicity probes; unavailable on win32");
+      return;
+    }
     const hostClass: HostClass = "linux-native";
     const result = await Effect.runPromise(
       runAtomicityProbes({

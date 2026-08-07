@@ -84,7 +84,11 @@ import { profilePreflightDirectoryAnchorSupported } from "./credential-profile-p
  * closed before mutation." Tests that require a successful persist are
  * therefore POSIX-only. Same shape as `liveTraversal` in secret-scan.test.ts.
  */
-const livePersist = { skip: !profilePreflightDirectoryAnchorSupported() };
+const livePersist = {
+  skip: !profilePreflightDirectoryAnchorSupported()
+    ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+    : false,
+};
 
 const FIXED = "2026-08-04T15:00:00.000Z";
 
@@ -1083,10 +1087,15 @@ describe("R7B1 profile-bound Setup preflight", () => {
     }
   });
 
-  it("ensureExternalStateRoot creates one level at a time outside the repo", {
-    skip:
-      process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
-  }, () => {
+  it(
+    "ensureExternalStateRoot creates one level at a time outside the repo",
+    {
+      skip:
+        process.platform === "win32" || !stateRootDirectoryAnchorSupported()
+          ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+          : false,
+    },
+    () => {
     const outer = tempDirOuter();
     const repo = join(outer, "repo");
     const parent = join(outer, "ext-parent");
@@ -1106,7 +1115,9 @@ describe("R7B1 profile-bound Setup preflight", () => {
     "ensureExternalStateRoot creates missing root below safe external symlink ancestor",
     {
       skip:
-        process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
+        process.platform === "win32" || !stateRootDirectoryAnchorSupported()
+          ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+          : false,
     },
     () => {
       const outer = tempDirOuter();
@@ -1143,7 +1154,9 @@ describe("R7B1 profile-bound Setup preflight", () => {
     "ensureExternalStateRoot symlink retarget after bind does not enter new target",
     {
       skip:
-        process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
+        process.platform === "win32" || !stateRootDirectoryAnchorSupported()
+          ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+          : false,
     },
     () => {
       const outer = tempDirOuter();
@@ -1209,7 +1222,9 @@ describe("R7B1 profile-bound Setup preflight", () => {
     "ensureExternalStateRoot parent swap cannot redirect creation",
     {
       skip:
-        process.platform === "win32" || !stateRootDirectoryAnchorSupported(),
+        process.platform === "win32" || !stateRootDirectoryAnchorSupported()
+          ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+          : false,
     },
     () => {
       const outer = tempDirOuter();

@@ -34,7 +34,9 @@ import type { VendorPreflightRecordV1 } from "./vendor-preflight-contract.js";
 import { profilePreflightDirectoryAnchorSupported } from "./credential-profile-preflight.js";
 
 const livePersistLane = {
-  skip: !profilePreflightDirectoryAnchorSupported(),
+  skip: !profilePreflightDirectoryAnchorSupported()
+    ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+    : false,
 };
 
 const FIXED_TS = "2026-08-05T15:00:00Z";

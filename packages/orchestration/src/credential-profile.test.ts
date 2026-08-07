@@ -841,7 +841,7 @@ describe("linked paths and regular-file collisions", () => {
 
   it(
     "refuses symlink at credential-profiles component",
-    { skip: !canSymlink },
+    { skip: !canSymlink ? "requires filesystem symlink/junction creation privilege; unavailable in this sandbox/user context" : false },
     () => {
       const { root, stateRoot, worktreeRoot } = tempPair("sl-cp");
       try {
@@ -867,7 +867,7 @@ describe("linked paths and regular-file collisions", () => {
 
   it(
     "refuses symlink at profile-id component",
-    { skip: !canSymlink },
+    { skip: !canSymlink ? "requires filesystem symlink/junction creation privilege; unavailable in this sandbox/user context" : false },
     () => {
       const { root, stateRoot, worktreeRoot } = tempPair("sl-id");
       try {
@@ -894,7 +894,7 @@ describe("linked paths and regular-file collisions", () => {
 
   it(
     "refuses symlink at homes component",
-    { skip: !canSymlink },
+    { skip: !canSymlink ? "requires filesystem symlink/junction creation privilege; unavailable in this sandbox/user context" : false },
     () => {
       const { root, stateRoot, worktreeRoot } = tempPair("sl-homes");
       try {
@@ -918,7 +918,7 @@ describe("linked paths and regular-file collisions", () => {
 
   it(
     "refuses symlink at vendor home component",
-    { skip: !canSymlink },
+    { skip: !canSymlink ? "requires filesystem symlink/junction creation privilege; unavailable in this sandbox/user context" : false },
     () => {
       const { root, stateRoot, worktreeRoot } = tempPair("sl-vend");
       try {
@@ -951,7 +951,7 @@ describe("linked paths and regular-file collisions", () => {
 
   it(
     "refuses symlink profile.json",
-    { skip: !canSymlink },
+    { skip: !canSymlink ? "requires filesystem symlink/junction creation privilege; unavailable in this sandbox/user context" : false },
     () => {
       const { root, stateRoot, worktreeRoot } = tempPair("sl-json");
       try {
@@ -1501,8 +1501,11 @@ describe("identity change, write failures, concurrency", () => {
     }
   });
 
-  it("authority publish sets 0600 via open temp descriptor (no final-path chmod)", () => {
-    if (IS_WIN) return;
+  it("authority publish sets 0600 via open temp descriptor (no final-path chmod)", (t) => {
+    if (IS_WIN) {
+      t.skip("POSIX file-mode bits (0600 via chmod) are not meaningful on win32");
+      return;
+    }
     const { root, stateRoot } = tempPair("fchmod");
     try {
       const dir = join(stateRoot, "credential-profiles", "p");
@@ -1575,8 +1578,11 @@ describe("identity change, write failures, concurrency", () => {
     }
   });
 
-  it("final gate after safe-mode refuses identity_changed before Ready", () => {
-    if (IS_WIN) return;
+  it("final gate after safe-mode refuses identity_changed before Ready", (t) => {
+    if (IS_WIN) {
+      t.skip("safe-mode POSIX permission-bit gating is not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("finalgate");
     try {
       const input: CredentialProfileInput = {
@@ -1637,8 +1643,11 @@ describe("identity change, write failures, concurrency", () => {
     );
   }
 
-  it("live readFile Ok binds identity to fstat of the open descriptor", () => {
-    if (IS_WIN) return;
+  it("live readFile Ok binds identity to fstat of the open descriptor", (t) => {
+    if (IS_WIN) {
+      t.skip("fstat-based descriptor identity binding relies on POSIX inode semantics; not meaningful on win32");
+      return;
+    }
     const { root, stateRoot } = tempPair("fd-id-read");
     try {
       const authDir = join(stateRoot, "credential-profiles", "p");
@@ -1668,8 +1677,11 @@ describe("identity change, write failures, concurrency", () => {
     }
   });
 
-  it("carries descriptor identity: same-mode replace before readFile returns refuses", () => {
-    if (IS_WIN) return;
+  it("carries descriptor identity: same-mode replace before readFile returns refuses", (t) => {
+    if (IS_WIN) {
+      t.skip("descriptor-identity-vs-mode-replace check relies on POSIX file-mode bits; not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("fd-id-gate");
     try {
       const input: CredentialProfileInput = {
@@ -1711,8 +1723,11 @@ describe("identity change, write failures, concurrency", () => {
     }
   });
 
-  it("resolve refuses identity_changed when authority is replaced after read", () => {
-    if (IS_WIN) return;
+  it("resolve refuses identity_changed when authority is replaced after read", (t) => {
+    if (IS_WIN) {
+      t.skip("authority-replace identity check relies on POSIX inode/mode semantics; not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("auth-id-resolve");
     try {
       const input: CredentialProfileInput = {
@@ -1743,8 +1758,11 @@ describe("identity change, write failures, concurrency", () => {
     }
   });
 
-  it("init refuses identity_changed when authority is replaced after read", () => {
-    if (IS_WIN) return;
+  it("init refuses identity_changed when authority is replaced after read", (t) => {
+    if (IS_WIN) {
+      t.skip("authority-replace identity check relies on POSIX inode/mode semantics; not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("auth-id-init");
     try {
       const input: CredentialProfileInput = {
@@ -1850,8 +1868,11 @@ describe("isIgnorableParentDirSyncError", () => {
 // ---------------------------------------------------------------------------
 
 describe("POSIX safe modes before Ready", () => {
-  it("refuses Ready when an existing layout directory is not 0700", () => {
-    if (IS_WIN) return;
+  it("refuses Ready when an existing layout directory is not 0700", (t) => {
+    if (IS_WIN) {
+      t.skip("POSIX directory-mode bits (0700) are not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("dirmode");
     try {
       const input: CredentialProfileInput = {
@@ -1881,8 +1902,11 @@ describe("POSIX safe modes before Ready", () => {
     }
   });
 
-  it("refuses Ready when existing profile.json is not 0600", () => {
-    if (IS_WIN) return;
+  it("refuses Ready when existing profile.json is not 0600", (t) => {
+    if (IS_WIN) {
+      t.skip("POSIX file-mode bits (0600) are not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("filemode");
     try {
       const input: CredentialProfileInput = {
@@ -1912,8 +1936,11 @@ describe("POSIX safe modes before Ready", () => {
     }
   });
 
-  it("refuses existing unsafe directory without rewriting mode via chmod", () => {
-    if (IS_WIN) return;
+  it("refuses existing unsafe directory without rewriting mode via chmod", (t) => {
+    if (IS_WIN) {
+      t.skip("POSIX directory-mode bits and chmod are not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("nochmod-exist");
     try {
       const profiles = join(stateRoot, "credential-profiles");
@@ -1994,8 +2021,11 @@ describe("mkdir EEXIST race reclassification", () => {
     }
   });
 
-  it("refuses EEXIST when peer left a non-0700 directory", () => {
-    if (IS_WIN) return;
+  it("refuses EEXIST when peer left a non-0700 directory", (t) => {
+    if (IS_WIN) {
+      t.skip("POSIX directory-mode bits (0700) are not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("eexist-mode");
     try {
       const profiles = join(stateRoot, "credential-profiles");
@@ -2061,8 +2091,11 @@ describe("mkdir EEXIST race reclassification", () => {
     }
   });
 
-  it("refuses EEXIST when peer left a symbolic link", () => {
-    if (IS_WIN) return;
+  it("refuses EEXIST when peer left a symbolic link", (t) => {
+    if (IS_WIN) {
+      t.skip("POSIX symlink/mode-bit collision check is not meaningful on win32");
+      return;
+    }
     const { root, stateRoot, worktreeRoot } = tempPair("eexist-link");
     try {
       const profiles = join(stateRoot, "credential-profiles");

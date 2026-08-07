@@ -77,7 +77,7 @@ function swapPathForSymlink(path: string, outside: string): void {
 describe("makeLiveRunDiscovery", () => {
   it(
     "lists only directory run ids under runs/",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -119,7 +119,7 @@ describe("makeLiveRunDiscovery", () => {
 
   it(
     "does not follow a symlinked runs/ directory",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-runs-out-"));
@@ -144,7 +144,7 @@ describe("makeLiveRunDiscovery", () => {
 
   it(
     "skips a symlinked runs/<runId> child without following",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-run-out-"));
@@ -170,7 +170,7 @@ describe("makeLiveRunDiscovery", () => {
 
   it(
     "race seam: swapped runs/ after bind exposes no outside names",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-runs-"));
@@ -215,7 +215,7 @@ describe("makeLiveRunDiscovery", () => {
 
   it(
     "race seam: swapped stateRoot before runs open exposes no outside names",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-disc-"));
@@ -260,7 +260,7 @@ describe("makeLiveRunDiscovery", () => {
 
   it(
     "fail-closed when directory anchor is unsupported",
-    { skip: anchorOk },
+    { skip: anchorOk ? "exercises the fail-closed path taken when the directory-descriptor anchor is unsupported; skipped because this host has anchor support" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -282,7 +282,7 @@ describe("makeLiveRunDiscovery", () => {
 describe("makeLiveTypedJournalReader", () => {
   it(
     "returns Missing, Ok, and Corrupt correctly",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -339,7 +339,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "accepts a valid clean NDJSON log as Ok",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -369,7 +369,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "returns Corrupt for torn tail (valid prefix not accepted)",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -402,7 +402,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "returns Corrupt for malformed JSON mid-log",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -427,7 +427,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "returns Corrupt for invalid sequence (duplicate seq)",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -452,7 +452,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "returns Corrupt for invalid event structure",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -477,7 +477,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "does not follow a symlinked runs/<runId> for journal reads",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-jr-out-"));
@@ -507,7 +507,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "returns Missing for a missing run without creating paths",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -529,7 +529,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "race seam: swapped runs/<runId> after bind returns no outside records",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-jr-"));
@@ -581,7 +581,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "race seam: swapped runs/ after bind returns no outside records",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-jr-runs-"));
@@ -630,7 +630,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "race seam: swapped stateRoot before runs open returns no outside records",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-jr-"));
@@ -685,7 +685,7 @@ describe("makeLiveTypedJournalReader", () => {
 
   it(
     "fail-closed Corrupt when directory anchor is unsupported",
-    { skip: anchorOk },
+    { skip: anchorOk ? "exercises the fail-closed path taken when the directory-descriptor anchor is unsupported; skipped because this host has anchor support" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -712,7 +712,7 @@ describe("makeLiveTypedJournalReader", () => {
 describe("makeLiveRunLease", () => {
   it(
     "acquires exclusive mkdir lease and Busy on second hold",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {
@@ -763,7 +763,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "does not create .supervise.lock through a symlinked runs/",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-lease-runs-"));
@@ -791,7 +791,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "does not create .supervise.lock through a symlinked runs/<runId>",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-lease-run-"));
@@ -819,7 +819,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "race seam: swapped runs/<runId> after bind creates no outside lock",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-lease-"));
@@ -867,7 +867,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "race seam: swapped runs/ after bind creates no outside lock",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-lease-runs-"));
@@ -920,7 +920,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "race seam: release after run-dir swap removes no outside directory",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-rel-"));
@@ -964,7 +964,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "race seam: swapped stateRoot before runs open creates no outside lock",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-lease-"));
@@ -1026,7 +1026,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "race seam: swapped stateRoot before runs create creates no outside runs/",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-mk-"));
@@ -1078,7 +1078,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "race seam: release after stateRoot swap removes no outside directory",
-    { skip: !anchorOk },
+    { skip: !anchorOk ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       const outside = mkdtempSync(join(tmpdir(), "sup-race-sr-rel-"));
@@ -1130,7 +1130,7 @@ describe("makeLiveRunLease", () => {
 
   it(
     "fail-closed Busy when directory anchor is unsupported",
-    { skip: anchorOk },
+    { skip: anchorOk ? "exercises the fail-closed path taken when the directory-descriptor anchor is unsupported; skipped because this host has anchor support" : false },
     async () => {
       const { root, cleanup } = tempRoot();
       try {

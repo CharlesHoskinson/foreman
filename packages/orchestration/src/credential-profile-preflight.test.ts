@@ -70,7 +70,11 @@ import {
  * Tests that require a successful publish therefore assert a POSIX-only
  * capability. Same shape as `liveTraversal` in secret-scan.test.ts.
  */
-const livePublish = { skip: !profilePreflightDirectoryAnchorSupported() };
+const livePublish = {
+  skip: !profilePreflightDirectoryAnchorSupported()
+    ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+    : false,
+};
 
 const FIXED_TS = "2026-08-04T15:00:00.000Z";
 
@@ -418,7 +422,12 @@ describe("CredentialProfilePreflightStore", () => {
 
   it(
     "uses owner-only POSIX modes for the parent and record",
-    { skip: process.platform === "win32" },
+    {
+      skip:
+        process.platform === "win32"
+          ? "POSIX owner-only mode bits are not meaningful on win32"
+          : false,
+    },
     async () => {
       const root = tempDir();
       seedR7aAuthority(root, "p");
@@ -866,7 +875,9 @@ describe("profile preflight authority race seams", () => {
     {
       skip:
         process.platform === "win32" ||
-        !profilePreflightDirectoryAnchorSupported(),
+        !profilePreflightDirectoryAnchorSupported()
+          ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+          : false,
     },
     async () => {
       const root = tempDir();
@@ -929,7 +940,9 @@ describe("profile preflight authority race seams", () => {
     {
       skip:
         process.platform === "win32" ||
-        !profilePreflightDirectoryAnchorSupported(),
+        !profilePreflightDirectoryAnchorSupported()
+          ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+          : false,
     },
     async () => {
       const root = tempDir();
@@ -990,7 +1003,9 @@ describe("profile preflight authority race seams", () => {
     {
       skip:
         process.platform === "win32" ||
-        !profilePreflightDirectoryAnchorSupported(),
+        !profilePreflightDirectoryAnchorSupported()
+          ? "requires a no-follow directory-descriptor anchor (O_DIRECTORY|O_NOFOLLOW + /proc/self/fd); unavailable on win32 or hosts without procfs"
+          : false,
     },
     async () => {
       const root = tempDir();

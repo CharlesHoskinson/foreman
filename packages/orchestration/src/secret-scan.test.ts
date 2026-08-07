@@ -72,7 +72,11 @@ const REPO_ROOT = resolve(
 
 /** Real host capability — never forced true. Live traversal skips when false. */
 const anchorOk = secretScanDirectoryAnchorSupported();
-const liveTraversal = { skip: !anchorOk };
+const liveTraversal = {
+  skip: !anchorOk
+    ? "requires a no-follow directory-descriptor anchor (/proc/self/fd); unavailable on win32 or hosts without procfs"
+    : false,
+};
 
 function sha256Hex(buf: Buffer | string): string {
   return createHash("sha256").update(buf).digest("hex");

@@ -119,7 +119,12 @@ describe("PreflightRecordStore write", () => {
 
   it(
     "uses owner-only POSIX modes for the parent and record",
-    { skip: process.platform === "win32" },
+    {
+      skip:
+        process.platform === "win32"
+          ? "POSIX owner-only mode bits are not meaningful on win32"
+          : false,
+    },
     async () => {
       const dir = tempDir();
       const parent = join(dir, "preflight");
