@@ -86,6 +86,7 @@ Needed to run the gate (`tools/ci-local.sh`) and therefore to commit safely.
 | `gh` | hard, full | `pr-open.sh`, CI run inspection | Cannot open PRs or read CI | `apt install gh` | 2.97.0 |
 | `node` + `npm` | soft, full | Install route for `codex` and `grok`; `markdownlint-cli2` | No vendor CLI install path | fnm-managed (bootstrap) | 24.18.1 / 11.16.0 |
 | `bun` (pinned 1.3.14) | full | Builds `launcher/dist/foreman-launch` | Launcher binary absent | pinned install script | 1.3.14 |
+| `sqlite3` CLI | full | `tests/session.bats` shells out to the CLI directly to dump and cross-check database rows/columns (import-sidecar fidelity) and to seed fields for the freshness tests — the **product code** itself only uses python3's stdlib `sqlite3` module | Those tests fail with status 127 instead of skipping: measured pass=31 fail=3 of 34 without the CLI, pass=34 fail=0 with it, same host; before this entry existed, a full-profile bootstrap completed exit 0 without installing it | `apt install sqlite3` | 3.46.1 |
 
 ## Docs gate
 
@@ -101,7 +102,6 @@ Needed to run the gate (`tools/ci-local.sh`) and therefore to commit safely.
 |---|---|---|---|
 | `pueue` | full | Detached lane queue | 4.0.4 |
 | `nats-server`, `nats` | durable | Durable-lane transport | not installed here |
-| `sqlite3` CLI | none | **Not required** — convenience only for inspecting `.foreman/session.db` by hand; the Python stdlib module is what the code uses | 3.46.1 |
 | `gnu-coreutils` | none | Provides `gnumkdir`; see [Locking](#locking--read-this-before-changing-coreutils) | 9.7 |
 
 ## Locking — read this before changing coreutils

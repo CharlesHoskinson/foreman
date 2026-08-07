@@ -16048,6 +16048,7 @@ function profileToolIds(profile, isWsl) {
     "flock",
     "strace",
     "bats",
+    "sqlite3",
     "markdownlint-cli2",
     "codespell",
     "lychee",
@@ -16058,6 +16059,7 @@ function profileToolIds(profile, isWsl) {
   const shouldHard = [
     "shellcheck",
     "bats",
+    "sqlite3",
     "gh",
     "timeout",
     "grok",

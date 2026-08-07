@@ -91,6 +91,11 @@ Short rules; full text and examples in
    `.gitattributes` sets `text=auto eol=lf` plus explicit `eol=lf` for
    `*.sh`/`*.bash`/`*.bats`; CRLF carve-outs only for `*.bat`/`*.cmd`/`*.ps1`.
    Read the header of `tests/line-endings.bats` for what it asserts.
+6. **GitHub Actions:** `$GITHUB_PATH` writes only take effect on the
+   *next* step; `export PATH=...` explicitly in the same step for
+   anything that step itself needs. A "missing" tool on a hosted runner
+   can be a `PATH` gap rather than an absent package. Full detail:
+   [Shell conventions](references/shell-conventions.md).
 
 ## Verify what is staged
 

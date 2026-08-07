@@ -3618,6 +3618,7 @@ re-run a third time on openai once the user reported the quota had reset — thr
 dispatches for two verdicts.
 
 **Enhancement:**
+
 1. Treat an **empty output artifact as an infrastructure failure by default**,
    never as a completed verdict. Any lane wrapper should assert non-empty,
    parseable output before recording a terminal.
@@ -3629,6 +3630,7 @@ dispatches for two verdicts.
    running it would have caught this in seconds instead of ~20 minutes.
 4. Consider `codex exec --output-schema` plus an explicit output file rather
    than shell redirection, so the artifact path is owned by the tool.
+
 ## 2026-08-06 — gates-linux red for 11 straight runs on a filesystem-dependent test, not a code defect
 
 **Phase:** v0.3.0 program CI (branch `agent/v029-release-artwork`, PR #27)
@@ -3815,3 +3817,79 @@ cannot be, and stands as recorded history.
    constant shared with the CLI, not written twice.
 4. **Prefer a second reader for any published root cause.** This was caught by an independent
    review lens that measured the tree, not by the author re-reading their own reasoning.
+
+## 2026-08-07 — GitHub's branch-rename endpoint closed PR #27, twice
+
+**Phase:** v0.3.0 W0 unblock, Task 3 (merge main down, rename the release branch)
+
+**Evidence:** the GitHub timeline for issue 27, via
+`gh api repos/CharlesHoskinson/foreman/issues/27/timeline`:
+
+```text
+closed            2026-08-07T19:17:22Z  CharlesHoskinson
+head_ref_deleted  2026-08-07T19:17:23Z  CharlesHoskinson
+```
+
+PR #27 carries all 166 commits of the v0.3.0 TypeScript port and its whole
+review history.
+
+**Root cause:** the documented rename endpoint,
+`gh api -X POST repos/{owner}/{repo}/branches/{branch}/rename`, **closes an
+open pull request whose head is the renamed branch.** It emits
+`head_ref_deleted` as a side effect and the pull request closes one second
+later. It does not retarget the PR to the new name.
+
+This was established twice, independently:
+
+1. The implementer ran the rename endpoint exactly as its brief specified, and
+   ran no delete command of any kind. Its verbatim sequence was the endpoint
+   followed by local-only `git fetch --prune`, `git branch -m`, and
+   `--set-upstream-to`. The PR closed.
+2. After restoring the branch and reopening the PR, the architect ran the same
+   endpoint, expecting the first closure to have been a delete-and-push. The PR
+   closed again, the same way.
+
+Two actors, same endpoint, same outcome. That is corroboration by a different
+actor, not a repeat of one observation.
+
+**A correction to this entry's own first draft:** it originally recorded the
+first closure as the implementer running `git push origin --delete`. That was
+wrong. The implementer used the correct endpoint and said so when asked; the
+architect had assumed the destructive path because the plan had contained it
+until shortly before dispatch. The assumption was checked against the agent's
+verbatim command list and withdrawn before this entry was committed. Recording
+the wrong cause here would have blamed an implementer that did exactly what it
+was told.
+
+**Impact:** zero content lost. The merge commit `a60f8ab` survived on the
+renamed ref throughout. Recovery both times: push the commit back to the
+original ref name, then `gh pr reopen 27`. Final verified state:
+`state=open`, `head.ref=agent/v029-release-artwork`, `head.sha=a60f8ab`,
+`draft=true`, `mergeable_state=unstable` (CI red on the known
+architecture-policy defect). Roughly fifteen minutes of recovery across two
+incidents.
+
+The merge itself was clean: parents `4af8690` and `14371be`, no conflicts, so
+the platform-keyed `tests/baseline.tsv` came across untouched.
+
+**Decision:** the rename is abandoned. The branch keeps the name
+`agent/v029-release-artwork`, which describes neither v0.3.0 nor its contents,
+because a cosmetic name is not worth risking the release record. If it is ever
+renamed, do it when no open PR points at the branch, and treat closing and
+reopening the PR as a deliberate, announced step rather than a side effect.
+
+**Enhancement:**
+
+1. **Renaming a branch that is a live PR head is destructive.** There is no
+   non-destructive path — not delete-and-push, and not the rename endpoint.
+   Treat it like a force-push.
+2. The plan's first version specified delete-and-push and asserted GitHub would
+   retarget. The correction replaced it with the rename endpoint and asserted
+   the same thing. **Both were wrong, and the second was wrong in a way that
+   looked authoritative** because it cited an official endpoint. A corrected
+   instruction is still an unverified claim until something executes it.
+3. A brief that forbids an action should carry the recovery too. This one said
+   "stop and report BLOCKED" — correct, but the repair lived only in the
+   architect's head, so the implementer could not have fixed what it broke.
+4. Ask the implementer for its verbatim commands before writing a root cause.
+   Doing so here overturned the architect's assumption and changed the finding.
