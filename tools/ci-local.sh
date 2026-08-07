@@ -235,7 +235,7 @@ gate_bats() {
     fi
   fi
 
-  export TEST_GATE_MODE="${TEST_GATE_MODE:-shadow}"
+  export TEST_GATE_MODE="${TEST_GATE_MODE:-enforce}"
 
   local out rc result total
   # Detached from the controlling terminal so a backgrounded harness cannot

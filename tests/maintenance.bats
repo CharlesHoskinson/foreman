@@ -158,3 +158,29 @@ EOF
   grep -q 'applyskill.*ok' <<< "$output"
   ! grep -q 'applyskill.*drift' <<< "$output"
 }
+
+@test "upstream apply refuses a source that resolves to the target instead of wiping it" {
+  export HOME="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$HOME/.claude/skills" skills/selfref
+  printf 'the only copy of this content\n' > skills/selfref/keep.txt
+
+  # install.sh symlinks every skills/*/ into ~/.claude/skills, so on any host
+  # that ran the installer the re-vendor source IS the target. Reproduce that.
+  ln -s "$PWD/skills/selfref" "$HOME/.claude/skills/selfref"
+
+  local hash
+  hash="$(find skills/selfref -type f -print0 | sort -z | while IFS= read -r -d '' f; do printf '%s\0' "$f"; tr -d '\r' < "$f"; done | sha256sum | cut -d' ' -f1)"
+  cat > skills/VENDORED.md <<EOF
+| Skill | Upstream | Vendored | License | Content hash |
+|---|---|---|---|---|
+| selfref | local fixture | 2026-07-15 | test | $hash |
+EOF
+
+  run bash "$SCRIPTS/maintenance.sh" --stage upstream --apply
+
+  # The load-bearing assertion: the content still exists. Without the guard the
+  # rm -rf lands first and nothing restores it.
+  [ -f skills/selfref/keep.txt ]
+  grep -q 'the only copy of this content' skills/selfref/keep.txt
+  grep -q 'refusing self-referential re-vendor' <<< "$output"
+}
