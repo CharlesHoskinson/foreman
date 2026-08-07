@@ -129,6 +129,9 @@ if [[ "$PROFILE" == "hard" || "$PROFILE" == "full" ]]; then
   install_apt shellcheck bats 2>/dev/null || install_apt shellcheck || true
   # bats package name varies
   have bats || sudo apt-get install -y bats || log "WARN: bats not available via apt"
+  # sqlite3 CLI: not used by product code, but tests/session.bats shells out
+  # to it directly (dependencies/README.md); required for a green full suite.
+  have sqlite3 || sudo apt-get install -y sqlite3 || log "WARN: sqlite3 CLI not available via apt"
 fi
 
 if ! have bats && [[ ! -x "$HOME/.foreman/tools/bats-core/bin/bats" ]]; then

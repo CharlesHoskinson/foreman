@@ -1,0 +1,2 @@
+file	platform	expected_passes
+tests/fixtures/policy/trivial.bats	nosuchplatform	1

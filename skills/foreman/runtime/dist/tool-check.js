@@ -18794,6 +18794,7 @@ function profileToolIds(profile, isWsl) {
     "flock",
     "strace",
     "bats",
+    "sqlite3",
     "markdownlint-cli2",
     "codespell",
     "lychee",
@@ -18804,6 +18805,7 @@ function profileToolIds(profile, isWsl) {
   const shouldHard = [
     "shellcheck",
     "bats",
+    "sqlite3",
     "gh",
     "timeout",
     "grok",
@@ -19069,6 +19071,12 @@ function checkOne(id, ctx) {
           return row("bats", "ok", r ? firstLine2(captureText3(r)) : "");
         }
         return row("bats", "missing", "");
+      }
+      case "sqlite3": {
+        const p = yield* whichOrNull("sqlite3");
+        if (!p) return row("sqlite3", "missing", "");
+        const r = yield* runCmd(p, ["--version"]);
+        return row("sqlite3", "ok", r ? firstLine2(captureText3(r)) : "");
       }
       case "markdownlint-cli2": {
         const p = yield* whichOrNull("markdownlint-cli2");

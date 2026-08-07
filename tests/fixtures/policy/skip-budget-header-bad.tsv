@@ -1,0 +1,2 @@
+file	permitted_skips
+tests/fixtures/policy/trivial.bats	wsl	0

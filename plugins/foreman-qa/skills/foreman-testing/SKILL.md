@@ -19,6 +19,12 @@ flock /root/.foreman/gate.lock bats --formatter tap tests/some.bats
 tests/run.sh
 ```
 
+- **A raw `flock ... bats ...` wrapper can deadlock** on files that shell
+  out to `tests/run.sh` themselves (`tests/test-policy.bats` does):
+  `tests/run.sh`'s own mutex is reentrant via an exported
+  `FOREMAN_BATS_MUTEX_HELD`, but a bare outer `flock` never sets it, so
+  the nested call blocks on a lock its own parent holds. Prefer
+  `bash tests/run.sh <files>`. Full mechanism: `references/bats-traps.md`.
 - **Exactly one bats runner at a time, host-wide.** `tests/run.sh` takes
   `$HOME/.foreman/gate.lock` via `flock` before running anything (falls
   back to an atomic `mkdir` lock when `flock` is unavailable). Concurrent

@@ -285,6 +285,7 @@ export function profileToolIds(
     "flock",
     "strace",
     "bats",
+    "sqlite3",
     "markdownlint-cli2",
     "codespell",
     "lychee",
@@ -295,6 +296,7 @@ export function profileToolIds(
   const shouldHard = [
     "shellcheck",
     "bats",
+    "sqlite3",
     "gh",
     "timeout",
     "grok",

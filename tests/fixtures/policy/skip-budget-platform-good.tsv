@@ -1,0 +1,4 @@
+file	platform	permitted_skips
+tests/fixtures/policy/trivial.bats	linux	0
+tests/fixtures/policy/trivial.bats	wsl	0
+tests/fixtures/policy/trivial.bats	windows	0

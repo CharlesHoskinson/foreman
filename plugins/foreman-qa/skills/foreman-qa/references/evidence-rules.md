@@ -55,6 +55,8 @@ The `rod` near-miss has the same root. A lane left `[[ "$durable_enabled" == "__
 
 Negative and positive controls establish only the tested cases. They raise the floor; they do not prove the predicate sound for every input.
 
+The two arms must also differ in the property the check actually reads, not merely in name or path. A registry row for `tests/run.sh::lookup_baseline` once named the identical fixture, `tests/fixtures/policy/trivial.bats`, as both `known_bad_input` and `known_good_input` -- the exact defect this mechanism exists to catch, committed into the mechanism itself. `lookup_baseline` reads the pass-baseline *table*, not the `.bats` file path, so naming the same file twice could never demonstrate discrimination no matter which file was named. The fix replaced both arms with baseline tables that differ in the one property the function reads: one omits a row for the running platform, one carries it (`docs/evidence/positive-control/2026-08-07-baseline-platform.md`). A different file name is not sufficient; the difference has to reach the code path the check exercises.
+
 ### Require independent corroboration
 
 Two runs of one predicate repeat its blind spot. Corroboration requires a different predicate, mechanism, or actor capable of failing independently. Examples include execution plus an artifact-content check, a behavioral test plus a state invariant, or an independently framed reviewer checking the raw artifact.
@@ -88,6 +90,12 @@ Never act directly on a claim merely because it appears in a report, prior sessi
 
 The entry “a root cause inferred from test names, published, and wrong” records seven `tests/lane-queue.bats` failures. A plausible narrative inferred missing TypeScript behavior from the test names and published that cause in a commit and PR description. Reading the calls and code showed the behavior existed; the tests were correctly rejecting the stale pre-Endstop invocation form (`bugeventlog.md`, 2026-08-06 entry around lines 3728–3769).
 
+### An authority citation is not verified behavior
+
+Citing a documented endpoint or official API describes what it is claimed to do, not what it does. `gh api -X POST repos/{owner}/{repo}/branches/{branch}/rename` is documented as a rename; it also deletes the old ref and closes any open pull request whose head pointed at it, emitting `head_ref_deleted` a second before the closure. Two different actors ran that documented endpoint expecting a retarget and got a closed PR both times -- the second time from a *corrected* instruction that had replaced an assumed delete-and-push specifically because it cited this "safer," documented call instead (`bugeventlog.md`, "GitHub's branch-rename endpoint closed PR #27, twice," 2026-08-07).
+
+A plan or brief may state a symptom. It must not hand an implementer a root cause -- or a fix -- that has not been executed and observed, even one that names an official API. "Documented" and "verified" are different claims; only the second licenses an instruction. Verify the call against a disposable target before it runs against the record that matters, or mark the instruction unverified and require the actor to report the verbatim outcome before a second actor repeats it.
+
 ## CI is not proof of coverage
 
 A CI pass proves only the paths taken in that environment. Before using it to support a behavior claim, establish that the runner reached that path: required syscall permitted, capability present, feature enabled, branch selected, and skip or early-return absent.
@@ -95,6 +103,18 @@ A CI pass proves only the paths taken in that environment. Before using it to su
 `packages/launcher/src/supervise.test.ts` exercises a PID-namespace cascade requiring `unshare`. The hosted runner denies `unshare`, so it never exercises that primary safety path. On a host where `unshare` succeeded, the child lost its `tsx` loader during re-exec and could not resolve `heartbeat.js` because the source is `heartbeat.ts`. The path was green in CI and broken on every host capable of taking it (`bugeventlog.md`, “Two host-property findings”; `docs/research/2026-08-06-testing-council/suite-health.md`, Section 2.6; `node-runner.md`, Section 4.4).
 
 If CI cannot reach a path, report CI evidence as **not applicable to that path**. Add or identify a capable environment; do not extrapolate green.
+
+### A not-found result is not proof of absence
+
+A tool or dependency reported missing may be present and merely unreachable. 134 Windows CI failures reported `flock` "not found"; `flock` was installed on the runner the whole time, and the package manager confirmed it (`util-linux is up to date -- skipping`). Git for Windows' bash simply does not put it on `PATH`. The failure signature was indistinguishable from genuine absence and was not.
+
+This is the reachability rule seen from the failing side: CI green proves only the paths CI took; a "not found" here proves only that the *lookup* failed, not that the *thing* is absent. Before recording a dependency as missing, check whether it exists off `PATH` -- a known install location, the package manager's own report, a direct search -- before writing an install step or an absence-based skip reason that fixes the wrong problem.
+
+## A local gate is not CI
+
+A local gate that scans the live working tree, not the git index, can fail for reasons a clean checkout at the same commit never will. `tools/ci-local.sh`'s `codespell` and `comments` sub-gates run over the working directory; untracked scratch files in the checkout turned both `fail` while a clean worktree at the identical commit reported both `pass`.
+
+A local red that a clean checkout cannot reproduce is worse than a silent pass -- it teaches the team that red is normal and trains reviewers to stop reading it. Before recording a local-gate failure as a real defect, reconcile `git status --porcelain` or reproduce it in a clean worktree at the same commit.
 
 ## Artifact-bound predicates
 
