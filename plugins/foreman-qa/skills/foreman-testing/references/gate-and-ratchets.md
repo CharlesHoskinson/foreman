@@ -97,6 +97,21 @@ Usage contract:
 assert_positive_control "$check_id" "$known_bad" "$known_good" -- "$check_command"
 ```
 
+Both arms must differ in the property the check actually reads, not
+merely in name or path. A registry row for
+`tests/run.sh::lookup_baseline` once named the same fixture,
+`tests/fixtures/policy/trivial.bats`, as both `known_bad_input` and
+`known_good_input` -- the exact defect this mechanism exists to catch,
+committed into the mechanism itself. `lookup_baseline` reads the
+pass-baseline *table*, not the `.bats` file path, so naming the same file
+twice could not have demonstrated discrimination no matter which file
+was named. The fix replaced both arms with baseline tables that differ
+in the one property the function reads -- one omits a row for the
+running platform, one carries it
+(`docs/evidence/positive-control/2026-08-07-baseline-platform.md`).
+Naming two different files is not sufficient; the difference has to
+reach the code path the check exercises.
+
 ### The inventory and the registry
 
 `tests/lib/check-inventory.sh` sweeps the whole repository tree at the

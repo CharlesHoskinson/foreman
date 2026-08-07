@@ -110,6 +110,41 @@ comment before assuming a mode or line-ending issue is fine. It asserts:
 - Windows carve-out
 - PNG binary carve-out
 
+## GitHub Actions: GITHUB_PATH and runner PATH gotchas
+
+### GITHUB_PATH takes effect on the next step, not the current one
+
+Writing to `$GITHUB_PATH` (`printf '%s
+' "$dir" >> "$GITHUB_PATH"`) only
+extends `PATH` for **steps that run after** the one that wrote it. A
+verification line placed later in the *same* step cannot see the new
+entry and fails with a plain `command not found` -- indistinguishable
+from a genuinely broken install unless the timing rule is already known.
+
+Export `PATH` explicitly in the same step for anything that step itself
+needs to run. `.github/workflows/gates-linux.yml` does this correctly
+right where it matters:
+
+```bash
+printf '%s
+' "$HOME/.local/bin" >> "$GITHUB_PATH"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The `$GITHUB_PATH` write hands the entry to later steps; the `export`
+makes it usable in this one. Writing only the first line and calling the
+newly installed tool later in the same step is the trap.
+
+### A missing tool on a hosted runner may be a PATH gap, not an absent package
+
+`flock` ships in `util-linux`. On Windows runners, the package manager
+can report it already installed (`util-linux is up to date -- skipping`)
+while Git for Windows' bash still does not expose it on `PATH` -- so any
+test or `require_tool flock` guard reads it as absent. Before writing an
+install step for a "missing" tool on a hosted runner, check whether it
+is present off `PATH` first. General rule and evidence:
+[evidence-rules.md](../../foreman-qa/references/evidence-rules.md#a-not-found-result-is-not-proof-of-absence).
+
 ## Docs-check comment coverage (detail)
 
 Gate: `skills/foreman/scripts/docs-check.sh`.
