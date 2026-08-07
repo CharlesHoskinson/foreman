@@ -1,5 +1,4 @@
 file	platform	permitted_skips
-		0
 tests/adapters.bats	linux	0
 tests/adapters.bats	windows	0
 tests/adapters.bats	wsl	0
@@ -171,3 +170,6 @@ tests/wt-merge.bats	wsl	0
 tests/wt-new.bats	linux	0
 tests/wt-new.bats	windows	0
 tests/wt-new.bats	wsl	0
+tests/test-policy.bats	linux	0
+tests/test-policy.bats	wsl	0
+tests/test-policy.bats	windows	0
