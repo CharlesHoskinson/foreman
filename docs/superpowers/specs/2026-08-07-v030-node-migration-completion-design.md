@@ -120,9 +120,28 @@ Blocks everything else.
     at once, so a baseline recorded on a host where `unshare` works is
     unreachable on a GitHub runner. `tests/launcher.bats` expects 4 and the
     runner reaches 3. Give `baseline.tsv` a platform column.
-  - Release branch: the launcher test fails on
-    `unshare: Operation not permitted` — the same pidns root cause.
-  - Release branch: `gates-windows` is red and the cause is not yet diagnosed.
+  - Release branch: both `gates-linux` and `gates-windows` die at the
+    **Architecture policy against pull request base** step — diagnosed
+    2026-08-07 by two independent lanes reaching the same step from different
+    platforms, at the same timestamp. Nothing is Windows-specific, and the Bats
+    suite never runs on that branch at all.
+
+    An earlier revision of this document blamed `unshare: Operation not
+    permitted` in the launcher tests. **That was wrong.** Those lines came from
+    *passing* tests: the `ENOENT` is a deliberate assertion of
+    `EXIT_LAUNCHER_ERROR`, the Node workspace gates passed 1365/0, and
+    `tests/launcher.bats` never executed. The cause had been inferred from log
+    proximity — the same mistake `bugeventlog.md` already records for this
+    week, made twice.
+  - Release branch: `architecture-policy.js` is **unpassable by construction**
+    in three cases. It recognizes no `bats` shebang interpreter, so any edit to
+    any `.bats` file trips `prohibited_extensionless_executable`. It offers no
+    path to add a new compliant thin-adapter `.sh` file, because new files are
+    extension-banned before the thin-adapter grammar is reachable. And it
+    blanket-denies any edit to `wt-new.sh`. Repairing it requires editing
+    `.bats` files and adding `.sh` adapters — precisely what it refuses — so it
+    blocks its own repair. This is a policy-tool defect, not shipped-runtime
+    code, and it is the real blocker on PR #27.
 - Re-measure the session store. `recover` reports the 2026-07-31 session with
   12 of 13 measurements stale; the program must not start from numbers nobody
   may quote.
@@ -286,5 +305,23 @@ closed: mutation testing resolved to positive controls, property testing
 scoped to the primitives, `site-patterns.md` kept at `8706c04`, and Sections 2
 and 3 of the design written above.
 
-`gates-windows` on the release branch is red with an undiagnosed cause. That
-is W0 work, not an open design question.
+Two items surfaced during W0 execution on 2026-08-07 and need an owner
+decision. Both are the same shape: a gate that cannot run is being read as a
+gate that passed.
+
+1. **`flock` is absent on the Windows runner**, so `tests/wt-new.bats` and the
+   other lock-safety suites fail in `setup`. The concurrency-safety tests have
+   therefore never executed on Windows. Provisioning `flock` will likely turn
+   most of them green — 134 of the 270 Windows failures trace to it alone —
+   but until it runs, "Windows is green" would be a claim about tests that
+   never ran.
+2. **`dependencies/README.md:104` declares the `sqlite3` CLI "Not required —
+   convenience only"**, because the code uses the python3 stdlib module. But
+   `tests/session.bats:360` and `:518` shell out to the CLI, and it is absent
+   on the WSL host, so those three tests fail rather than skip with a reason.
+   Either the manifest is wrong or the suite is. Installing `sqlite3` would
+   hide the contradiction rather than resolve it, so it has deliberately not
+   been installed.
+
+Neither blocks W0's remaining tasks. Both block the claim that a green gate
+means a passing suite.
