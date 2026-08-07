@@ -48,19 +48,36 @@ The instruction "NEVER end a turn with a summary" was already written into the
 operating prompt, by me, and violated repeatedly. Writing a rule is not
 following it.
 
+### It happened again
+
+On 2026-08-07 the very session that had just read this file armed a
+`ScheduleWakeup` backstop and let it become the schedule a second time:
+two consecutive iterations did nothing but wait on a CI run while four
+other worktrees sat idle. The owner corrected it twice. A principle
+already written down, and already violated once before, was violated
+again by the session that had just read it. Writing the rule down was
+not enough, because arming a backstop cost nothing to justify even when
+work was available -- the rule had no check attached to it. Rule 1 below
+is that check.
+
 ## Rules
 
-1. **A backstop is not a schedule.** Arm it for session death only, and set it
+1. **State the in-flight lane list before arming any backstop.** Name
+   every worktree and what it is doing right now. An empty list is not
+   silence -- it is the condition that means start work, not wait. Do not
+   arm a backstop while any lane could be started, advanced, or
+   diagnosed instead.
+2. **A backstop is not a schedule.** Arm it for session death only, and set it
    far longer than any work unit. Never let a firing be the reason work resumes.
-2. **Never end a turn on a completed unit.** If the next action is known, take
+3. **Never end a turn on a completed unit.** If the next action is known, take
    it. "Next: X" in a report means X should already have started.
-3. **A running gate blocks one tree, not the session.** Switch to another
+4. **A running gate blocks one tree, not the session.** Switch to another
    worktree immediately. Prepare the next change, diagnose the next failure,
    write the next test. Only heavy CPU is forbidden, not all work.
-4. **Report at boundaries the owner cares about, not at every step.** Progress
+5. **Report at boundaries the owner cares about, not at every step.** Progress
    reports are for decisions and blockers. A report that ends in "next I will
    do X" and then stops has substituted narration for work.
-5. **Measure idle before claiming a night's output.** Commit timestamps do not
+6. **Measure idle before claiming a night's output.** Commit timestamps do not
    lie. Gaps longer than the work unit are the number that matters, and it
    should be stated without being asked.
 

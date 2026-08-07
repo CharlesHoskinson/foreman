@@ -116,3 +116,27 @@ The comment at that call site is the canonical statement of the trap:
 "Built with printf, deliberately. A heredoc would put a literal `@test`
 at column 0 inside this file, and bats parses .bats line-wise -- it reads
 that as a NEW test declaration and silently breaks the enclosing test."
+
+## Wrapping bats in flock can deadlock against itself
+
+`tests/run.sh` is reentrant: `acquire_bats_mutex` checks
+`FOREMAN_BATS_MUTEX_HELD` first and skips re-locking when it is already
+`1`, because the exported variable survives the `exec` it uses to take
+the lock. A bare `flock $LOCK bats ...` invocation never sets that
+variable.
+
+Some `.bats` files invoke `tests/run.sh` themselves from inside a test
+body -- `tests/test-policy.bats` does, to exercise the runner's own
+policy handling. Wrap that file's `bats` run in an outer `flock` on
+`$HOME/.foreman/gate.lock` and the nested `tests/run.sh` call tries to
+take the same lock, which the outer `flock` is still holding while it
+waits for that very test to finish. The child waits on a lock its own
+parent holds; nothing recovers on its own.
+
+Prefer `bash tests/run.sh <files>` over a bare `flock ... bats ...` for
+this reason alone: `tests/run.sh` takes the mutex once and exports
+`FOREMAN_BATS_MUTEX_HELD=1`, so any `tests/run.sh` invocation nested
+inside its own run inherits that and skips re-locking. If you must
+invoke `bats` directly on a file that shells out to `tests/run.sh`,
+export `FOREMAN_BATS_MUTEX_HELD=1` yourself first rather than wrapping
+the `bats` call in `flock`.
