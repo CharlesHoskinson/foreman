@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @description Run the Foreman Bats suite per file, enforce slice policy when
 #   requested, and emit both human-readable verdicts and a machine-readable
-#   TSV report. TEST_GATE_MODE defaults to shadow; set it to enforce to make
+#   TSV report. TEST_GATE_MODE defaults to enforce; set it to shadow to record
 #   skip-budget, pass-baseline, and bare-skip failures affect the exit status.
 set -uo pipefail
 
