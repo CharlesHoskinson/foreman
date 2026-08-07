@@ -1,0 +1,11 @@
+# Fixture manifest for the fm_tc_pinned_lookup positive control (known-good arm).
+# Differs from manifest-bad.toml in exactly one field: host_class.
+[[lock_atomicity.pinned]]
+mechanism = "flock"
+sha256 = "59bc254984eefd83939a22a590d746942a4583a702b8fd2753bbb92d956e7d4c"
+host_class = "wsl-linux"
+trace_artifact = "tests/fixtures/tool-check/pinned-lookup/trace-good.txt"
+filesystem_classes = ["local"]
+date = "2026-08-08"
+verdict = "atomic"
+notes = "fixture only -- sha256 is the real digest of /usr/bin/flock on the host that authored this control"

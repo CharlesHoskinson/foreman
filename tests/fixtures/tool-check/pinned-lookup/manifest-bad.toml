@@ -1,0 +1,11 @@
+# Fixture manifest for the fm_tc_pinned_lookup positive control (known-bad arm).
+# Differs from manifest-good.toml in exactly one field: host_class.
+[[lock_atomicity.pinned]]
+mechanism = "flock"
+sha256 = "59bc254984eefd83939a22a590d746942a4583a702b8fd2753bbb92d956e7d4c"
+host_class = "msys2-git-bash"
+trace_artifact = "tests/fixtures/tool-check/pinned-lookup/trace-good.txt"
+filesystem_classes = ["local"]
+date = "2026-08-08"
+verdict = "atomic"
+notes = "fixture only -- host_class deliberately does not match this real WSL host"
