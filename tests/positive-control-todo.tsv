@@ -27,7 +27,6 @@ env/tool-check.sh::fm_tc_version_line	probe	no positive control yet; inventoried
 skills/foreman/scripts/gate-eval.sh::gate-eval	gate	no positive control yet; inventoried 2026-08-06
 tests/lib/check-registry-compare.sh::check-registry-compare	gate	no positive control yet; inventoried 2026-08-06
 tests/lib/positive-control.bash::assert_positive_control_token	gate	no positive control yet; inventoried 2026-08-06
-tests/run.sh::lookup_baseline	gate	no positive control yet; inventoried 2026-08-06
 tests/run.sh::lookup_skip_budget	gate	no positive control yet; inventoried 2026-08-06
 tests/run.sh::validate_baseline_file	gate	no positive control yet; inventoried 2026-08-06
 tests/run.sh::validate_skip_budget_file	gate	no positive control yet; inventoried 2026-08-06
