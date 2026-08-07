@@ -1,0 +1,6 @@
+# Fixture syscall trace for the fm_tc_pinned_lookup positive control.
+# Synthetic text satisfying the LOSER and HOLDER regex fm_tc_pinned_lookup
+# requires for mechanism=flock -- not a captured strace run.
+flock(8, LOCK_EX|LOCK_NB) = 0
+holder_acquired=1
+flock(9, LOCK_EX|LOCK_NB) = -1 EAGAIN (Resource temporarily unavailable)
