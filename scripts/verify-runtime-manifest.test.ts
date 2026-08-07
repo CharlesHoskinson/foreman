@@ -34,6 +34,7 @@ const trackedDependencyDrift = join(
   "dist/dependency-drift.js",
 );
 const trackedForemanSetup = join(trackedRuntime, "dist/foreman-setup.js");
+const trackedRepoHygiene = join(trackedRuntime, "dist/repo-hygiene.js");
 const trackedSecretScan = join(trackedRuntime, "dist/secret-scan.js");
 const trackedCredentialProfile = join(
   trackedRuntime,
@@ -61,6 +62,7 @@ function seedCleanCopy(): string {
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   cpSync(trackedForemanSetup, join(rt, "dist/foreman-setup.js"));
+  cpSync(trackedRepoHygiene, join(rt, "dist/repo-hygiene.js"));
   cpSync(trackedSecretScan, join(rt, "dist/secret-scan.js"));
   cpSync(trackedCredentialProfile, join(rt, "dist/credential-profile.js"));
   cpSync(

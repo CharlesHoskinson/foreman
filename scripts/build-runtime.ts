@@ -62,6 +62,12 @@ const ENTRIES = [
     injectCapabilities: true,
   },
   {
+    id: "repo-hygiene",
+    entry: join(root, "packages/policy/src/repo-hygiene.ts"),
+    relativePath: "dist/repo-hygiene.js",
+    injectCapabilities: false,
+  },
+  {
     id: "dependency-drift",
     entry: join(root, "packages/orchestration/src/dependency-drift.ts"),
     relativePath: "dist/dependency-drift.js",

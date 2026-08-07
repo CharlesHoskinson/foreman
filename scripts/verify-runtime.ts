@@ -73,6 +73,7 @@ const trackedForemanSetupPath = join(
   trackedRuntime,
   "dist/foreman-setup.js",
 );
+const trackedRepoHygienePath = join(trackedRuntime, "dist/repo-hygiene.js");
 const trackedSecretScanPath = join(trackedRuntime, "dist/secret-scan.js");
 const trackedCredentialProfilePath = join(
   trackedRuntime,
@@ -103,6 +104,7 @@ const trackedPreflight = readFileSync(trackedPreflightPath);
 const trackedToolCheck = readFileSync(trackedToolCheckPath);
 const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
 const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
+const trackedRepoHygiene = readFileSync(trackedRepoHygienePath);
 const trackedSecretScan = readFileSync(trackedSecretScanPath);
 const trackedCredentialProfile = readFileSync(trackedCredentialProfilePath);
 const trackedCredentialProfileLane = readFileSync(
@@ -127,6 +129,7 @@ const trackedForemanLaunch = readFileSync(trackedForemanLaunchPath);
     "lane-queue.js",
     "lane-round.js",
     "lane-supervise.js",
+    "repo-hygiene.js",
     "secret-scan.js",
     "tool-check.js",
     "vendor-preflight.js",
@@ -274,6 +277,7 @@ try {
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
     writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
+    writeFileSync(join(rt, "dist/repo-hygiene.js"), trackedRepoHygiene);
     writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
     writeFileSync(join(rt, "dist/credential-profile.js"), trackedCredentialProfile);
     writeFileSync(
@@ -311,6 +315,9 @@ try {
     writeFileSync(join(rt, "dist/foreman-setup.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered foreman-setup should fail");
     cpSync(trackedForemanSetupPath, join(rt, "dist/foreman-setup.js"));
+    writeFileSync(join(rt, "dist/repo-hygiene.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered repo-hygiene should fail");
+    cpSync(trackedRepoHygienePath, join(rt, "dist/repo-hygiene.js"));
     writeFileSync(join(rt, "dist/secret-scan.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered secret-scan should fail");
     cpSync(trackedSecretScanPath, join(rt, "dist/secret-scan.js"));
@@ -501,7 +508,8 @@ try {
       const linkedSecret = verifyRuntimeManifest(rt);
       if (linkedSecret.ok) fail("linked secret-scan should fail");
       rmSync(join(rt, "dist/secret-scan.js"));
-      writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
+      writeFileSync(join(rt, "dist/repo-hygiene.js"), trackedRepoHygiene);
+    writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
     }
     // Missing secret-scan must fail
     {
@@ -513,7 +521,8 @@ try {
             JSON.stringify(missSecret),
         );
       }
-      writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
+      writeFileSync(join(rt, "dist/repo-hygiene.js"), trackedRepoHygiene);
+    writeFileSync(join(rt, "dist/secret-scan.js"), trackedSecretScan);
     }
     // Linked credential-profile bundle must fail
     {
