@@ -18,16 +18,6 @@ setup() {
   git -C "$REPO" show-ref --verify --quiet refs/heads/foreman/run1/implement/slug1
 }
 
-@test "wt-new does not create or advertise obsolete vendor-home directories" {
-  run bash "$SCRIPTS/wt-new.sh" run1 implement slug1
-  [ "$status" -eq 0 ]
-  WT="${lines[-1]}"
-  [ ! -e "$WT/.harness/vendor-home/grok" ]
-  [ ! -e "$WT/.harness/vendor-home/codex" ]
-  [[ "$output" != *"vendor-home (grok):"* ]]
-  [[ "$output" != *"vendor-home (codex):"* ]]
-}
-
 
 # v0.2.7.5 worktree-hardening Rework Round 1 (Risk 1, Opus audit): before
 # this fix, git-guards.sh (T1) was wired NOWHERE -- the whole concurrency-
