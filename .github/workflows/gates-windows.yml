@@ -121,12 +121,7 @@ jobs:
           # (actions/runner-images Windows2022-Readme.md, MSYS2 section --
           # fetched directly rather than assumed). MSYS2's util-linux
           # package is a genuine flock(1) port, not a look-alike substitute,
-          # so it is pulled from there. Only flock.exe and its own matching
-          # msys-2.0.dll are harvested into /usr/local/bin -- never the rest
-          # of MSYS2's coreutils onto PATH, which would shadow Git Bash's
-          # own and risk repeating the uutils-mkdir class of bug this repo
-          # already hit once (dependencies/README.md, "Locking -- read this
-          # before changing coreutils").
+          # so it is pulled from there.
           #
           # sqlite3 CLI: dependencies/README.md:104 calls this "Not required
           # -- convenience only" because the code uses the python3 stdlib
@@ -134,31 +129,32 @@ jobs:
           # CLI anyway (3 of the 270 Windows failures). That contradiction
           # was left open in this repo's own W0 design doc and is not
           # resolved here either -- installing the CLI only removes the
-          # symptom. (A later commit not yet on this branch,
-          # docs/superpowers/specs/2026-08-07-...-design.md ac82f1c per the
-          # coordinator, has since declared sqlite3 a required full-profile
-          # dependency, which supersedes treating this as a live
-          # contradiction -- but this branch still records it as found.)
+          # symptom.
           #
-          # A first attempt used `winget install SQLite.SQLite` + a same-step
-          # `sqlite3 --version` check and failed with rc=127. Root cause:
-          # GITHUB_PATH additions (the winget Links dir) only take effect
-          # starting the NEXT step, not later in the step that wrote them --
-          # the winget install itself succeeded but nothing in this step
-          # could see it yet. MSYS2's own `sqlite` package (provides
-          # /usr/bin/sqlite3.exe, msys repo) sidesteps that: it is verified
-          # here by absolute path, which needs no PATH propagation at all.
-          # Unlike flock.exe, sqlite3.exe carries real extra runtime deps
-          # (libreadline, tcl, zlib per packages.msys2.org) that pacman
-          # installs alongside it in the same C:\msys64\usr\bin directory,
-          # so it is invoked from there directly (Windows resolves a DLL
-          # from the launching exe's own directory before PATH) rather than
-          # harvested piecemeal into /usr/local/bin the way flock.exe was.
+          # Both binaries are run from their NATIVE C:\msys64\usr\bin
+          # location, never copied elsewhere. Two things forced that:
+          # (1) sqlite3.exe carries real extra runtime deps (libreadline,
+          # tcl, zlib per packages.msys2.org) that pacman resolves alongside
+          # it in that directory -- Windows finds a DLL in the launching
+          # exe's own directory before PATH, so leaving it there needs no
+          # extra harvesting. (2) An earlier attempt DID harvest flock.exe
+          # plus a bare copy of msys-2.0.dll into /usr/local/bin. Printing
+          # `flock --version` from that copy worked (run 31213637912), but
+          # actually locking a file did not: `flock: cannot open lock file
+          # /c/Users/runneradmin/.foreman/gate.lock: No such file or
+          # directory`, even though tests/run.sh had already `mkdir -p`'d
+          # that exact directory moments earlier via Git Bash's own mkdir.
+          # The working theory is that the detached copy, isolated from its
+          # real MSYS2 tree (no sibling /etc/fstab, no mount context), does
+          # its own POSIX-path resolution differently than an in-place
+          # instance would. Running both tools from their real location
+          # removes that variable rather than chasing it further. Every
+          # later step that needs either tool appends (never prepends)
+          # /c/msys64/usr/bin to PATH -- see that step's own comment for why
+          # prepend would be unsafe.
           /c/msys64/usr/bin/pacman.exe -Sy --noconfirm
           /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed util-linux sqlite
           test -f /c/msys64/usr/bin/flock.exe
-          cp /c/msys64/usr/bin/flock.exe /usr/local/bin/flock.exe
-          cp /c/msys64/usr/bin/msys-2.0.dll /usr/local/bin/msys-2.0.dll
           test -f /c/msys64/usr/bin/sqlite3.exe
 
           /usr/local/bin/openspec --version
@@ -167,7 +163,7 @@ jobs:
           jq --version
           python3 --version
           node --version
-          PATH="/usr/local/bin:$PATH" flock --version
+          /c/msys64/usr/bin/flock.exe --version
           /c/msys64/usr/bin/sqlite3.exe --version
 
       # launcher/dist is gitignored (10 of 270 Windows failures trace to it
@@ -216,12 +212,20 @@ jobs:
         run: |
           # Install step placed openspec/quint here and verified by absolute path;
           # without this on PATH the gates SKIP rather than run.
-          # /c/msys64/usr/bin is appended (not prepended): sqlite3.exe has
-          # to resolve by bare name for tests/session.bats, but appending
-          # keeps it lowest-priority so it never shadows Git Bash's own
-          # coreutils for any name they share (see the sqlite3/flock
-          # install-step comment for why that shadowing risk is real here).
-          export PATH="/usr/local/bin:$PATH:/c/msys64/usr/bin"
+          #
+          # /c/msys64/usr/bin (flock/sqlite3) is deliberately NOT added here.
+          # A first attempt appended it to this step's PATH too and the
+          # formal gate went from PASS to FAIL 19/19 matched=0 (run
+          # 31213637912) -- something the formal suite shells out to that
+          # was previously simply ABSENT on PATH started resolving to an
+          # MSYS2 build instead, with different behavior. Appending (rather
+          # than prepending) only protects names Git Bash ALREADY provides;
+          # for a name Git Bash doesn't provide at all, appending still
+          # changes NOT FOUND into FOUND (MSYS2 build), which is exactly the
+          # regression. This step has FOREMAN_CI_BATS=0, so it never runs
+          # bats and needs neither flock nor sqlite3 -- only the probe step
+          # below does, so the PATH addition is scoped there alone.
+          export PATH="/usr/local/bin:$PATH"
           bash tools/ci-local.sh
 
       # Evidence, not enforcement (obligation 60). bats has never run on Windows;
@@ -243,14 +247,31 @@ jobs:
           TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
         run: |
           set +e
-          # /c/msys64/usr/bin appended, not prepended -- see the gating
-          # step's PATH comment above for why.
+          # /c/msys64/usr/bin appended, not prepended, and ONLY on this step
+          # (never the gating step above -- see its PATH comment for why
+          # that regressed the formal gate in run 31213637912). This is the
+          # only step that actually runs bats, so it is the only one that
+          # needs flock or sqlite3 resolvable by bare name.
           export PATH="/usr/local/bin:$PATH:/c/msys64/usr/bin"
           echo "bats: $(bats --version 2>&1 || echo UNAVAILABLE)"
           echo "timeout: $(command -v timeout || echo ABSENT)"
           echo "flock: $(command -v flock || echo ABSENT) -- $(flock --version 2>&1 || echo UNAVAILABLE)"
           echo "sqlite3: $(command -v sqlite3 || echo ABSENT) -- $(sqlite3 --version 2>&1 || echo UNAVAILABLE)"
           echo "launcher/dist: $(ls launcher/dist 2>&1 || echo ABSENT)"
+          # tests/run.sh's acquire_bats_mutex() already does `mkdir -p --
+          # "$HOME/.foreman"` right before `exec flock "$HOME/.foreman/gate.lock" ...`
+          # (tests/run.sh:43-45), and run 31213637912 showed no mkdir error --
+          # yet flock still reported the directory absent. Creating it here
+          # too, before run.sh gets a chance to race it, is cheap insurance
+          # per the coordinator's instruction; it does not touch run.sh
+          # itself, which is test infrastructure out of this task's scope.
+          mkdir -p -- "$HOME/.foreman"
+          ls -la "$HOME/.foreman" 2>&1
+          # Direct sanity check, isolated from run.sh's own exec chain: if
+          # this still reports the directory absent, the earlier harvested-
+          # copy theory was wrong and the cause is something flock.exe hits
+          # regardless of where it runs from.
+          /c/msys64/usr/bin/flock.exe "$HOME/.foreman/gate.lock" -c "echo LOCK_TEST_OK" 2>&1
           # Shadow mode records every slice's observed counts and returns 0 on
           # policy failure, so this measures without gaining power to fail the
           # workflow.
