@@ -160,8 +160,11 @@ describe("supervise streams and null stdin", () => {
     assert.equal(Buffer.concat(err).toString(), "ERR");
   });
 
-  it("live spawn uses ignore stdin (null device)", async () => {
-    if (isWin) return;
+  it("live spawn uses ignore stdin (null device)", async (t) => {
+    if (isWin) {
+      t.skip("live stdin passthrough via the ignore device requires POSIX process spawning; unavailable on win32");
+      return;
+    }
     const r2 = await Effect.runPromise(
       supervise({
         cmd: ["sh", "-c", "read x || true; echo ok"],
@@ -176,8 +179,11 @@ describe("supervise streams and null stdin", () => {
 });
 
 describe("timeout, grace, termination, timer cleanup", () => {
-  it("timeout then grace then one termination; timers cleared (live short)", async () => {
-    if (isWin) return;
+  it("timeout then grace then one termination; timers cleared (live short)", async (t) => {
+    if (isWin) {
+      t.skip("live termination/grace-timeout sequencing requires POSIX signals; unavailable on win32");
+      return;
+    }
     const events: LaunchEvent[] = [];
     const started = Date.now();
     const result = await Effect.runPromise(
@@ -364,8 +370,11 @@ describe("Windows injectable taskkill boundary", () => {
 });
 
 describe("live POSIX process-group degraded path", () => {
-  it("child exit code passthrough and heartbeat final dead", async () => {
-    if (isWin) return;
+  it("child exit code passthrough and heartbeat final dead", async (t) => {
+    if (isWin) {
+      t.skip("live POSIX process-group degraded path is unavailable on win32");
+      return;
+    }
     const dir = mkdtempSync(join(tmpdir(), "fl-live-"));
     try {
       const hb = join(dir, "hb.jsonl");
@@ -430,8 +439,11 @@ describe("async spawn error maps to typed launcher failure", () => {
     }
   });
 
-  it("live nonexistent binary yields launcher exit 125 via runMain", async () => {
-    if (isWin) return;
+  it("live nonexistent binary yields launcher exit 125 via runMain", async (t) => {
+    if (isWin) {
+      t.skip("live spawn-error exit-code mapping (125) requires POSIX exec semantics; unavailable on win32");
+      return;
+    }
     const { runMain } = await import("./main.js");
     const code = await runMain(
       [
@@ -486,8 +498,11 @@ describe("Effect interruption binds child tree termination", () => {
 });
 
 describe("descendant churn control", () => {
-  it("while supervised worker stays live through 1000+ short descendants, launcher has no zombie direct children on /proc", async () => {
-    if (isWin) return;
+  it("while supervised worker stays live through 1000+ short descendants, launcher has no zombie direct children on /proc", async (t) => {
+    if (isWin) {
+      t.skip("descendant-reaping verification reads /proc, which is unavailable on win32");
+      return;
+    }
     const procObs = observeZombieDirectChildren(process.pid);
     if (procObs._tag === "Unavailable") {
       // Typed skip: do not claim a false zero without /proc.
@@ -804,8 +819,11 @@ describe("detach handoff launcher_pid binding", () => {
 });
 
 describe("compiled bundle large stdout/stderr byte-exact pass-through", () => {
-  it("large piped stdout and stderr are byte-exact through foreman-launch.js", async () => {
-    if (isWin) return;
+  it("large piped stdout and stderr are byte-exact through foreman-launch.js", async (t) => {
+    if (isWin) {
+      t.skip("byte-exact stdio piping through the compiled bundle requires POSIX process spawning; unavailable on win32");
+      return;
+    }
     const bundlePath = join(
       root,
       "skills/foreman/runtime/dist/foreman-launch.js",
