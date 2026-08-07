@@ -1,0 +1,13 @@
+{
+  "name": "foreman",
+  "owner": {
+    "name": "Foreman"
+  },
+  "plugins": [
+    {
+      "name": "foreman-qa",
+      "source": "./plugins/foreman-qa",
+      "description": "QA, code-quality, and testing guidance for Claude Code sessions working on the Foreman repo"
+    }
+  ]
+}
