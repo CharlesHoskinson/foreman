@@ -8,7 +8,7 @@ are deferred in the todo file with specific reasons -- see that file's
 `reason` column, not this record.
 
 For each gate below, the workflow step's `run:` block delegates to a real,
-independently invokable script or binary. Every arm runs that real script or
+independently invocable script or binary. Every arm runs that real script or
 binary, unmodified, against two committed inputs differing in exactly one
 property. No gate logic is reimplemented anywhere in this record. Current
 platform: `wsl` (WSL2, Ubuntu).
