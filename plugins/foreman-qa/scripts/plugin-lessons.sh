@@ -236,8 +236,53 @@ PY
     fi
   fi
 
+  # Disk truth, not manifest truth. The manifest carries no skills key -- Claude
+  # Code discovers skills by directory -- so the pass above iterates an empty
+  # list and can only ever report clean. Deleting a skill was measured to leave
+  # `check` green, which is the empty-selection failure this plugin's own
+  # doctrine forbids.
+  local skills_dir="$PLUGIN_ROOT/skills" skill_dir="" skill_count=0 skill_name=""
+  if [[ ! -d "$skills_dir" ]]; then
+    record_finding "skills directory not found: $skills_dir"
+  else
+    for skill_dir in "$skills_dir"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      skill_count=$((skill_count + 1))
+      skill_name="$(basename "$skill_dir")"
+      if [[ ! -f "$skill_dir/SKILL.md" ]]; then
+        record_finding "skill has no SKILL.md: $skill_name"
+        continue
+      fi
+      if [[ "$(head -n 1 "$skill_dir/SKILL.md")" != "---" ]]; then
+        record_finding "skill SKILL.md has no frontmatter: $skill_name"
+        continue
+      fi
+      if ! grep -qE "^name: ${skill_name}\$" "$skill_dir/SKILL.md"; then
+        record_finding "skill frontmatter name does not match its directory: $skill_name"
+      fi
+    done
+    # Fail closed on an empty selection. A check that ran over zero skills
+    # carries no coverage information and must not report success.
+    if (( skill_count == 0 )); then
+      record_finding "no skills found under $skills_dir (empty selection is not a pass)"
+    fi
+  fi
+
+  # Every skill the repository's own session instructions promise must exist.
+  local claude_md="$REPO_ROOT/CLAUDE.md" promised=""
+  if [[ -f "$claude_md" ]]; then
+    while IFS= read -r promised; do
+      [[ -z "$promised" ]] && continue
+      if [[ ! -f "$PLUGIN_ROOT/skills/$promised/SKILL.md" ]]; then
+        record_finding "CLAUDE.md names a skill that does not exist: $promised"
+      fi
+    done < <(grep -oE 'foreman-(testing|code-quality|qa-maintenance|qa)' "$claude_md" |
+      sort -u)
+  fi
+
   if (( FINDING_COUNT == 0 )); then
-    printf 'plugin-lessons: check clean (release=%s)\n' "$current_release"
+    printf 'plugin-lessons: check clean (release=%s, skills=%d)\n' \
+      "$current_release" "$skill_count"
     return 0
   fi
   printf 'plugin-lessons: check found %d issue(s) (release=%s)\n' \
