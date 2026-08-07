@@ -78,3 +78,15 @@ export function isRuntimeBundlePath(path: string): boolean {
 export function isRuntimeManifestPath(path: string): boolean {
   return path === RUNTIME_MANIFEST_PATH;
 }
+
+/**
+ * True when path is a Bats test file under tests/. Scopes the bats
+ * interpreter exception (see shebangReason) to genuine test data only —
+ * never path-agnostic.
+ */
+export function isTestsBatsPath(path: string): boolean {
+  if (!path.startsWith("tests/")) return false;
+  if (!path.endsWith(".bats")) return false;
+  const rest = path.slice("tests/".length);
+  return rest.length > 0 && !rest.includes("\0");
+}

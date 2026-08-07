@@ -5,6 +5,7 @@
 
 import type { PolicyReason } from "./architecture-schema.js";
 import {
+  isTestsBatsPath,
   isTypeScriptPath,
   pathExtension,
   prohibitedExtensionReason,
@@ -184,6 +185,14 @@ export function shebangReason(
     // Node shebang is allowed only on TypeScript product paths
     if (isTypeScriptPath(path)) return null;
     return "prohibited_javascript";
+  }
+
+  // Bats test-runner interpreter is allowed only for genuine Bats test
+  // data under tests/ (see isTestsBatsPath) -- never path-agnostic. bats
+  // is a real test-fixture interpreter, not general shell.
+  if (base === "bats") {
+    if (isTestsBatsPath(path)) return null;
+    return "prohibited_extensionless_executable";
   }
 
   return "prohibited_extensionless_executable";

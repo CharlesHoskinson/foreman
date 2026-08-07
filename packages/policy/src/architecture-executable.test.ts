@@ -154,9 +154,66 @@ describe("classifyExecutableSource", () => {
     );
   });
 
+  it("accepts bats shebang under tests/*.bats, mode 100755 and 100644", () => {
+    assert.equal(
+      classifyExecutableSource({
+        path: "tests/x.bats",
+        identity: executable,
+        bytes: enc('#!/usr/bin/env bats\n@test "ok" { true; }\n'),
+      }),
+      null,
+    );
+    assert.equal(
+      classifyExecutableSource({
+        path: "tests/x.bats",
+        identity: regular,
+        bytes: enc('#!/usr/bin/env bats\n@test "ok" { true; }\n'),
+      }),
+      null,
+    );
+  });
+
+  it("rejects bats shebang outside tests/ (path-scoped, not interpreter-agnostic)", () => {
+    assert.equal(
+      classifyExecutableSource({
+        path: "tools/x.bats",
+        identity: regular,
+        bytes: enc("#!/usr/bin/env bats\n"),
+      }),
+      "prohibited_extensionless_executable",
+    );
+  });
+
+  it("negative control: still rejects real POSIX shell shebang at a tests/*.bats-shaped path", () => {
+    assert.equal(
+      classifyExecutableSource({
+        path: "tests/x.bats",
+        identity: regular,
+        bytes: enc("#!/usr/bin/env bash\n"),
+      }),
+      "prohibited_posix_shell",
+    );
+  });
+
+  it("negative control: still rejects extensionless executable mode with no shebang", () => {
+    assert.equal(
+      classifyExecutableSource({
+        path: "bin/tool",
+        identity: executable,
+        bytes: enc("no shebang here\n"),
+      }),
+      "prohibited_extensionless_executable",
+    );
+  });
+
   it("shebangReason and readShebangInterpreter helpers", () => {
     assert.equal(readShebangInterpreter(enc("nope")), null);
     assert.equal(shebangReason("/usr/bin/env python3", "x"), "prohibited_python");
     assert.equal(shebangReason("/usr/bin/env node", "a.ts"), null);
+    assert.equal(shebangReason("/usr/bin/env bats", "tests/x.bats"), null);
+    assert.equal(
+      shebangReason("/usr/bin/env bats", "tools/x.bats"),
+      "prohibited_extensionless_executable",
+    );
   });
 });

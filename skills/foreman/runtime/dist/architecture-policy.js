@@ -30862,6 +30862,12 @@ function isRuntimeBundlePath(path) {
 function isRuntimeManifestPath(path) {
   return path === RUNTIME_MANIFEST_PATH;
 }
+function isTestsBatsPath(path) {
+  if (!path.startsWith("tests/")) return false;
+  if (!path.endsWith(".bats")) return false;
+  const rest = path.slice("tests/".length);
+  return rest.length > 0 && !rest.includes("\0");
+}
 
 // packages/policy/src/architecture-adapter.ts
 var DENY = "legacy_adapter_domain_logic";
@@ -31158,6 +31164,10 @@ function shebangReason(interpreter, path) {
   if (base === "node" || base === "nodejs" || base === "node.exe" || base === "nodejs.exe") {
     if (isTypeScriptPath(path)) return null;
     return "prohibited_javascript";
+  }
+  if (base === "bats") {
+    if (isTestsBatsPath(path)) return null;
+    return "prohibited_extensionless_executable";
   }
   return "prohibited_extensionless_executable";
 }

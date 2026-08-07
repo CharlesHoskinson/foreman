@@ -1,4 +1,4 @@
-# bats test data (run via `bats`, not as a product executable)
+#!/usr/bin/env bats
 load helpers
 
 setup() {

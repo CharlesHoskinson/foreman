@@ -630,3 +630,127 @@ describe("modified Bats test-data exception", () => {
     assert.equal(r.findings[0]!.path, path);
   });
 });
+
+describe("bats interpreter recognition (tests/*.bats, added and modified)", () => {
+  const REGULAR_IDENTITY = {
+    present: true as const,
+    mode: "100644",
+    isExecutable: false,
+    isSymlink: false,
+    isSpecial: false,
+  };
+
+  it("accepts added tests/*.bats with standard shebang, mode 100755", () => {
+    const path = "tests/new.bats";
+    const body = '#!/usr/bin/env bats\n@test "ok" { true; }\n';
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("accepts added tests/*.bats with standard shebang, mode 100644", () => {
+    const path = "tests/new.bats";
+    const body = '#!/usr/bin/env bats\n@test "ok" { true; }\n';
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("accepts modified tests/*.bats with standard shebang (no header needed)", () => {
+    const path = "tests/x.bats";
+    const body = '#!/usr/bin/env bats\n@test "ok" { true; }\n';
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("does not exempt an added bats shebang outside tests/ (path-scoped, not interpreter-agnostic)", () => {
+    const path = "tools/new.bats";
+    const body = '#!/usr/bin/env bats\n@test "ok" { true; }\n';
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_extensionless_executable");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("negative control: added tests/x.sh (real POSIX shell) is still rejected after the bats fix", () => {
+    const path = "tests/x.sh";
+    const body = "#!/usr/bin/env bash\necho hi\n";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_posix_shell");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("negative control: added tests/x.bats with a real bash shebang (not bats) is still rejected", () => {
+    const path = "tests/x.bats";
+    const body = "#!/usr/bin/env bash\necho hi\n";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_posix_shell");
+    assert.equal(r.findings[0]!.path, path);
+  });
+});
