@@ -55,9 +55,32 @@ Inspection-derived counts, all found wrong:
 
 | Claim | Measurement |
 |---|---|
-| `lane-queue.bats` is "14 pass / 2 skip / 7 fail" | Measured twice: `21 pass / 0 fail / 2 skip`, matching its baseline of 21 with delta 0. |
+| `lane-queue.bats` is "14 pass / 2 skip / 7 fail" | **This refutation was itself wrong.** Both figures are correct, for different trees: on `main`, where the implementation is shell, `21 pass / 0 fail / 2 skip`; on the migration branch, where a TypeScript port replaces it, `14 pass / 7 fail / 2 skip`. I measured `main` and refuted a claim that was about the branch. See "A figure carries a tree" below. |
 | `session.bats` has "zero output-content assertions" | 61, across 27 of 34 tests. See above. |
 | A vendored skill gained "nine unrelated lines, an arXiv pattern" | 17 lines, a Microsoft Learn pattern plus a GitHub issue-comments note, added in a commit whose own message declares them. |
 
 The point is not the ratio. It is that each execution-derived claim carried a
 command anyone could re-run, and each inspection-derived one did not.
+
+## A figure carries a tree, not just a command
+
+The rule above -- record the command beside the number -- is not sufficient. The
+same command produces different, equally correct numbers on different refs, and
+a refutation run on the wrong ref refutes nothing.
+
+Worked case. A review recorded `lane-queue.bats` as `14 pass / 2 skip / 7 fail`.
+Running the suite on `main` gave `21 pass / 0 fail / 2 skip`, so the claim was
+recorded as false and that "correction" was propagated into this plugin, into an
+operating prompt, and into two commit messages. Then the migration branch was
+merged and the same file measured `14 pass / 7 fail / 2 skip` -- the original
+figure, exactly. The failing test names matched the original diagnosis too:
+POSIX quoting dialect, `shell_command` override classification, and the
+`FORCE_MISSING` fallback.
+
+The claim was about the branch. The refutation was about `main`. Nothing was
+wrong with either measurement.
+
+So: state the ref beside the number, and before refuting an inherited claim, ask
+which tree it was made on. A claim about code that has not merged cannot be
+tested on the branch that lacks it. This is the same failure as citing CI for a
+path CI never reaches, one level up: right command, wrong world.
