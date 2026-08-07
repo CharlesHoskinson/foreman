@@ -182,7 +182,12 @@ describe("verifyInstalledSkillRoot live controls", () => {
 
   it(
     "accepts a POSIX root symlink to the skill",
-    { skip: process.platform === "win32" },
+    {
+      skip:
+        process.platform === "win32"
+          ? "POSIX symlink skill-root resolution is not exercised on win32"
+          : false,
+    },
     async () => {
       const base = mkdtempSync(join(tmpdir(), "foreman-iv-sl-"));
       try {
@@ -198,7 +203,12 @@ describe("verifyInstalledSkillRoot live controls", () => {
 
   it(
     "accepts a real Windows directory junction skill root",
-    { skip: process.platform !== "win32" },
+    {
+      skip:
+        process.platform !== "win32"
+          ? "Windows directory junctions can only be created and verified on win32"
+          : false,
+    },
     async () => {
       const base = mkdtempSync(join(tmpdir(), "foreman-iv-junc-"));
       try {

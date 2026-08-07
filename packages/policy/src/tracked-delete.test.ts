@@ -1270,12 +1270,15 @@ describe("deleteTracked live git integration", () => {
     }
   });
 
-  it("live: second-target quarantine failure restores first with exact bytes and mode", async () => {
+  it("live: second-target quarantine failure restores first with exact bytes and mode", async (t) => {
     // POSIX-only: this asserts exec-bit / mode semantics that Windows does not
     // have. Node's process.umask is inert there and chmod cannot set an
     // executable bit, so the scenario cannot be constructed, not merely
     // observed differently.
-    if (IS_WIN) return;
+    if (IS_WIN) {
+      t.skip("POSIX exec-bit/mode semantics are unavailable on win32 (umask is inert, chmod cannot set an executable bit)");
+      return;
+    }
     const { tmp, bodyA } = seedTwoFileRepo();
     try {
       const { liveGitIdentity } = await import("./live-services.js");
@@ -1475,12 +1478,15 @@ describe("deleteTracked live git integration", () => {
     }
   });
 
-  it("live: restrictive umask still restores exact mode 100755", async () => {
+  it("live: restrictive umask still restores exact mode 100755", async (t) => {
     // POSIX-only: this asserts exec-bit / mode semantics that Windows does not
     // have. Node's process.umask is inert there and chmod cannot set an
     // executable bit, so the scenario cannot be constructed, not merely
     // observed differently.
-    if (IS_WIN) return;
+    if (IS_WIN) {
+      t.skip("POSIX exec-bit/mode semantics are unavailable on win32 (umask is inert, chmod cannot set an executable bit)");
+      return;
+    }
     const { tmp, bodyA } = seedTwoFileRepo({ modeA: "100755" });
     const prev = process.umask(0o077);
     try {
@@ -1719,12 +1725,15 @@ describe("deleteTracked live git integration", () => {
     }
   });
 
-  it("live: denies chmod-only change without mutation", async () => {
+  it("live: denies chmod-only change without mutation", async (t) => {
     // POSIX-only: this asserts exec-bit / mode semantics that Windows does not
     // have. Node's process.umask is inert there and chmod cannot set an
     // executable bit, so the scenario cannot be constructed, not merely
     // observed differently.
-    if (IS_WIN) return;
+    if (IS_WIN) {
+      t.skip("POSIX exec-bit/mode semantics are unavailable on win32 (umask is inert, chmod cannot set an executable bit)");
+      return;
+    }
     const { tmp } = seedTwoFileRepo();
     try {
       chmodSync(join(tmp, "pkg", "a.txt"), 0o755);
