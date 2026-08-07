@@ -124,22 +124,32 @@ git diff --exit-code -- skills/foreman/runtime/dist/
 
 ## Package layout
 
-Product packages for this migration live under
-`components/council/packages/`. Currently:
+There are two workspaces. Check which one you are in before adding a file.
 
-- `schema`
-- `domain`
-- `application`
-- `platform-node`
-- `runtime-node`
-- `adapter-codex`
-- `adapter-grok`
-- `adapter-claude`
+`components/council/packages/` is the Council deliberation plane, managed with
+pnpm. See `components/council/package.json` and
+`components/council/pnpm-workspace.yaml`:
 
-See `components/council/package.json` and
-`components/council/pnpm-workspace.yaml`.
+- `schema`, `domain`, `application`
+- `platform-node`, `runtime-node`
+- `adapter-codex`, `adapter-grok`, `adapter-claude`
 
-New TypeScript work under this migration goes in the appropriate package
-`src/` directory, not loose at the repo root.
+`packages/` at the repository root is the Foreman runtime workspace, managed
+with npm, declared by the root `package.json` `workspaces` field:
+
+- `core`, `event-log`, `policy`
+- `orchestration`, `graph-store`, `launcher`
+
+The root workspace arrives with the Node migration. If `ls packages/` is empty
+in your checkout, that change has not landed there yet and only the Council
+workspace exists — verify with `ls`, do not assume from this document.
+
+Bundles under `skills/foreman/runtime/dist/` are built from the ROOT workspace
+by `scripts/build-runtime.ts`. A change to `packages/launcher/src/` therefore
+requires a rebuild and a committed bundle plus manifest; a change under
+`components/council/packages/` does not.
+
+New TypeScript work goes in the appropriate package `src/` directory of the
+correct workspace, never loose at the repo root.
 
 The controlling change is `openspec/changes/node-typescript-runtime/`.
