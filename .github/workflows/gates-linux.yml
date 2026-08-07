@@ -138,8 +138,9 @@ jobs:
           test -x dist/foreman-launch
           ls -la dist/foreman-launch
 
-      # Keep TEST_GATE_MODE unset: ci-local.sh defaults the bats gate to shadow.
-      # Enforcing it is tag criterion 2 and requires three consecutive green runs.
+      # The bats gate is ENFORCING: ci-local.sh defaults TEST_GATE_MODE to
+      # enforce, so a skip-budget, pass-baseline or bare-skip failure fails
+      # this job. Tag criterion 2 was met by three consecutive green runs.
       - name: Run the shared gate definition
         shell: bash
         env:
