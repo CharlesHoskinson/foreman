@@ -1,0 +1,4 @@
+file	platform	expected_passes
+tests/fixtures/policy/trivial.bats	linux	1
+tests/fixtures/policy/trivial.bats	wsl	1
+tests/fixtures/policy/trivial.bats	windows	1
