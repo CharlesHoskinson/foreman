@@ -51,13 +51,24 @@ The seven that must go:
 Four predicates, on one unchanged pushed commit:
 
 1. `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived files.
-2. `gates-linux` and `gates-windows` are both green.
+2. `gates-linux` and `gates-windows` are both green, **and the Windows gate
+   actually runs the Bats suite**.
 3. `session.bats` passes with `FM_SESSION_CMD` pointed at the TypeScript
    implementation and `fm-session.py` deleted.
 4. `tests/positive-control-todo.tsv` is empty for in-scope gates, or every
    remaining row carries a declared reason.
 
 PR #27 leaves draft only when all four hold.
+
+Predicate 2's second clause was added on 2026-08-07, during W0 execution, on
+evidence. `.github/workflows/gates-windows.yml:102` sets
+`FOREMAN_CI_BATS: "0"`, so the Windows gate runs 2 of 57 Bats files in a
+`continue-on-error` probe and none of them can fail the workflow. A green
+`gates-windows` therefore did not mean the suite passed on Windows, and no
+GitHub Actions run on any branch has ever produced full-suite per-slice Windows
+pass counts. The workflow's own comment states the intended remedy — "This flag
+flips only once that evidence exists, in its own commit" — and this release now
+requires that flip rather than inheriting the gap.
 
 ## 2. Settled decisions
 
