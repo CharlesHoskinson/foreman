@@ -100,7 +100,10 @@ setup() {
   [ "$status" -eq 0 ]
   # This list is a test OF the scanner. It is not the inventory, and nothing
   # may be registered on the strength of appearing here.
-  grep -q 'fm_tc_probe_mkdir_once' "$WORK/repo-inv.tsv"
+  # Either identity of the mkdir atomicity probe: fm_tc_probe_mkdir_once while
+  # it lives in shell, probeMkdirOnce once it is ported. The fixture asks
+  # whether the scanner finds the PROBE, not how it is currently spelled.
+  grep -qE 'fm_tc_probe_mkdir_once|probeMkdirOnce' "$WORK/repo-inv.tsv"
   grep -q 'validate_skip_budget_file' "$WORK/repo-inv.tsv"
   grep -q 'lookup_baseline' "$WORK/repo-inv.tsv"
   grep -q 'docs-check' "$WORK/repo-inv.tsv"

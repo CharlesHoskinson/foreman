@@ -143,6 +143,24 @@ scan_probes() {
   done
 }
 
+# @description (b) probe, TypeScript arm -- exported probe/check functions in the
+#   ported tool-check sources. The shell arm above reads env/tool-check.sh; when
+#   that file became a thin Node adapter its probes moved here, and a shell-only
+#   grammar inventoried zero of them without complaint.
+scan_probes_ts() {
+  local f rel
+  for f in "$REPO_ROOT"/packages/orchestration/src/tool-check*.ts \
+    "$REPO_ROOT"/components/council/packages/*/src/tool-check*.ts; do
+    [[ -f "$f" ]] || continue
+    case "$f" in *.test.ts) continue ;; esac
+    rel="${f#"$REPO_ROOT"/}"
+    while IFS= read -r name; do
+      emit_row "$rel" probe "$name"
+    done < <(grep -oE '^export (async )?function (probe|check|fmTc)[A-Za-z0-9_]*' "$f" |
+      sed -E 's/^export (async )?function //')
+  done
+}
+
 # @description (c) assertion -- every bats @test that asserts.
 #
 #   The spec phrases this as "calls an assertion helper", but that is
@@ -226,6 +244,7 @@ main() {
       scan_gate_runner
       scan_gate_scripts
       scan_probes
+      scan_probes_ts
       scan_assertions
       scan_verdict_predicates
     } | LC_ALL=C sort -u
