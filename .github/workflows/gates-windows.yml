@@ -82,6 +82,16 @@ jobs:
           winget.exe install --id koalaman.shellcheck --exact \
             --accept-package-agreements --accept-source-agreements \
             --disable-interactivity
+          # sqlite3 CLI: dependencies/README.md:104 calls this "Not required
+          # -- convenience only" because the code uses the python3 stdlib
+          # sqlite3 module. tests/session.bats:360 and :518 shell out to the
+          # CLI anyway (3 of the 270 Windows failures). That contradiction is
+          # NOT resolved here -- installing it only makes the symptom stop;
+          # it is recorded as an unresolved finding for the owner in the
+          # W0 windows-provision evidence doc.
+          winget.exe install --id SQLite.SQLite --exact \
+            --accept-package-agreements --accept-source-agreements \
+            --disable-interactivity
           printf '%s\n' "${LOCALAPPDATA}\\Microsoft\\WinGet\\Links" >> "${GITHUB_PATH}"
 
           mkdir -p /usr/local/bin
@@ -110,12 +120,58 @@ jobs:
           printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
             > /usr/local/bin/python3
           chmod +x /usr/local/bin/python3
+
+          # flock (util-linux): the single largest cause of Windows failures
+          # (134 of 270 in run 31199790530) -- tests/helpers.bash:162
+          # setup_lock_trust_fixture requires a real `command -v flock`.
+          # Git for Windows' own bash does NOT ship flock; that absence is
+          # exactly what was measured, not assumed. windows-latest
+          # pre-installs a full, working MSYS2 tree at C:\msys64 (pacman
+          # present) but does not add it to PATH
+          # (actions/runner-images Windows2022-Readme.md, MSYS2 section --
+          # fetched directly rather than assumed). MSYS2's util-linux
+          # package is a genuine flock(1) port, not a look-alike substitute,
+          # so it is pulled from there. Only flock.exe and its own matching
+          # msys-2.0.dll are harvested into /usr/local/bin -- never the rest
+          # of MSYS2's coreutils onto PATH, which would shadow Git Bash's
+          # own and risk repeating the uutils-mkdir class of bug this repo
+          # already hit once (dependencies/README.md, "Locking -- read this
+          # before changing coreutils").
+          /c/msys64/usr/bin/pacman.exe -Sy --noconfirm
+          /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed util-linux
+          test -f /c/msys64/usr/bin/flock.exe
+          cp /c/msys64/usr/bin/flock.exe /usr/local/bin/flock.exe
+          cp /c/msys64/usr/bin/msys-2.0.dll /usr/local/bin/msys-2.0.dll
+
           /usr/local/bin/openspec --version
           /usr/local/bin/quint --version
           /usr/local/bin/bats --version
           jq --version
           python3 --version
           node --version
+          PATH="/usr/local/bin:$PATH" flock --version
+          sqlite3 --version
+
+      # launcher/dist is gitignored (10 of 270 Windows failures trace to it
+      # being absent -- never built on this runner). The repo has two build
+      # scripts: launcher/build.ps1 (bun-windows-x64 target, outputs
+      # dist/foreman-launch.exe) and `bun run build:posix` (bun-linux-x64,
+      # used by gates-linux.yml for the WSL/Linux binary). build:posix does
+      # not apply here; build.ps1 is the Windows path and is what
+      # tests/launcher.bats:57 actually looks for.
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Build Windows launcher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          pwsh -File launcher/build.ps1
+          if (-not (Test-Path launcher/dist/foreman-launch.exe)) {
+            throw "launcher/build.ps1 did not produce launcher/dist/foreman-launch.exe"
+          }
 
       # ci-local.sh reports host-only gates as unavailable with their reason.
       # The install.ps1-only smoke remains owned by windows-smoke.yml.
@@ -167,6 +223,9 @@ jobs:
           export PATH="/usr/local/bin:$PATH"
           echo "bats: $(bats --version 2>&1 || echo UNAVAILABLE)"
           echo "timeout: $(command -v timeout || echo ABSENT)"
+          echo "flock: $(flock --version 2>&1 || echo UNAVAILABLE)"
+          echo "sqlite3: $(sqlite3 --version 2>&1 || echo UNAVAILABLE)"
+          echo "launcher/dist: $(ls launcher/dist 2>&1 || echo ABSENT)"
           # Shadow mode records every slice's observed counts and returns 0 on
           # policy failure, so this measures without gaining power to fail the
           # workflow.
