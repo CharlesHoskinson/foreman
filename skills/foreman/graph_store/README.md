@@ -1,8 +1,27 @@
-# GraphStore port
+# GraphStore product surface
 
-**Round 1** of `openspec/changes/graph-store-port`: the port contract and the
-files-only implementation. TerminusDB adapter, full N2 schema freeze, ingest,
-concurrency, and operations runbooks are deferred.
+The product implementation is the private workspace package
+`@foreman/graph-store` and the compiled Node.js CLI:
+
+```bash
+node skills/foreman/runtime/dist/graph-store.js contract
+node skills/foreman/runtime/dist/graph-store.js capabilities
+node skills/foreman/runtime/dist/graph-store.js smoke
+node skills/foreman/runtime/dist/graph-store.js version-ref main
+```
+
+Do not add Python under this directory. The seven legacy Python modules that
+once lived here were removed under destruction entry `DST-0040` after the
+TypeScript files-only surface and compiled CLI were accepted. Recovery is Git
+history.
+
+## Layout
+
+| Path | Role |
+|---|---|
+| `packages/graph-store/` | TypeScript port, schema, files-only backend, contract suite, CLI |
+| `skills/foreman/runtime/dist/graph-store.js` | Compiled Node.js CLI (bundled, no repo `node_modules` required) |
+| `README.md` (this file) | Directory pointer only |
 
 ## Architectural rule
 
@@ -11,17 +30,9 @@ fallback — **never the system of record**. GP-1 through GP-5 carry no store
 dependency. This package serves **persistent, cross-run, versioned query**
 consumers only (RECONCILE R7).
 
-## Layout
-
-| Path | Role |
-|---|---|
-| `port.py` | `GraphStore` ABC, operation set, capability names, expected-emptiness wrapper |
-| `errors.py` | Named error vocabulary |
-| `schema.py` | Round-1 write-time schema (types, keys, enums, structural rules) |
-| `files_only.py` | Default backend — no DB, no container, no network |
-| `contract_suite.py` | Backend-agnostic conformance suite + broken stub |
-| `__main__.py` | CLI: `contract`, `capabilities`, `smoke`, `version-ref` |
-| `../scripts/lib/graph-store.sh` | Bash entry points (`gs_contract_files_only`, …) |
+Round 1 of `openspec/changes/graph-store-port` owns the port contract and the
+files-only implementation. TerminusDB or SQLite adapter work, full N2 schema
+freeze, ingest, concurrency controls, and operations runbooks remain deferred.
 
 ## Operations (required of every backend)
 
@@ -51,25 +62,19 @@ Files-only reports all three **unavailable**.
 | Variable | Meaning |
 |---|---|
 | `FOREMAN_GRAPH_STORE` | `files_only` (default). `terminusdb` refused until the adapter package lands. |
-| `FOREMAN_GRAPH_STORE_ROOT` | Materialisation directory for files-only. Unset → in-memory. |
+| `FOREMAN_GRAPH_STORE_ROOT` | Materialisation directory for files-only. Unset → in-memory (tests). |
 
 ## Verification
 
 ```bash
-# Contract suite against files-only (must PASS)
-PYTHONPATH=skills/foreman python3 -m graph_store.contract_suite files_only
+npm ci
+npm run build
+npm run typecheck
+node --import tsx --test packages/graph-store/src/**/*.test.ts
+npm run verify-runtime
 
-# Same suite against broken stub (must FAIL — soundness)
-PYTHONPATH=skills/foreman python3 -m graph_store.contract_suite stub --expect-fail
-
-# No store configured
-unset FOREMAN_GRAPH_STORE
-PYTHONPATH=skills/foreman python3 -m graph_store smoke
-
-# Full harness
-bash tests/graph_store/run_contract.sh
-bash tests/graph_store/run_known_bad.sh
-
-# bats (host-wide mutex required)
-flock /tmp/foreman-bats.lock bats tests/graph-store-contract.bats
+# Compiled CLI
+node skills/foreman/runtime/dist/graph-store.js contract files_only
+node skills/foreman/runtime/dist/graph-store.js contract stub --expect-fail
+node skills/foreman/runtime/dist/graph-store.js smoke
 ```

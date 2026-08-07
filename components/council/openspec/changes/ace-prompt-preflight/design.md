@@ -156,11 +156,42 @@ ProviderPreflightFailed
 ReviewAttemptFailed
 CompletedVerdict
 CompletedAbstention
+CompletedInvalidResponse
 ```
 
 `ProviderPreflightFailed` and `ReviewAttemptFailed` are infrastructure states.
 They never enter deliberation. They may trigger a bounded Foreman-owned retry.
 They do not consume an architect rework round.
+
+`CompletedInvalidResponse` is a successful terminal turn whose designated
+structured output is schema-invalid, identity-invalid, or semantically
+inadmissible. It is not infrastructure failure. It never enters deliberation
+or quorum. It carries only a closed reason
+(`schema_invalid` | `identity_mismatch` | `findings_invalid` |
+`abstention_invalid`) and successful terminal facts. A completed invalid
+response does not require a second Council inside the same one-Council
+Endstop contract.
+
+Host-controlled preconditions (`readyTokenCurrent` and verified artifact
+contract equality) are checked after successful terminal transport and parser
+gates and before designated structured-output validity. A stale ready token or
+invalid host artifact sequence combined with missing or schema-invalid
+structured output is `ReviewAttemptFailed`, not `CompletedInvalidResponse`.
+
+Public `ResponseRejected` construction is secret-safe and closed: only declared
+successful-terminal fields are copied, the terminal is strict-decoded, and the
+complete result is strict-decoded. Undecoded payloads are never returned.
+Terminal values that cannot satisfy the successful-terminal schema fail closed
+as infrastructure `Rejected` with no terminal payload.
+
+### Endstop dissent and correction (binding)
+
+One admissible `changes_requested` verdict requires the single permitted
+correction and deterministic re-verification under the active Endstop
+contract. It does not require a second Council inside the same one-Council
+contract. If correction or verification does not close the finding, Endstop
+escalates. Only explicit user authorization may create a successor contract
+that cites the terminal predecessor.
 
 `CompletedVerdict` requires all of these facts:
 
@@ -168,8 +199,11 @@ They do not consume an architect rework round.
 - a provider terminal state of `completed`;
 - no cancellation, timeout, signal, or parser truncation;
 - a schema-valid final response;
-- exact contract, prompt, bundle, reviewer, and candidate identity;
-- an exact receipt for every required artifact; and
+- exact contract, prompt, bundle, reviewer, and candidate identity from the
+  provider response;
+- host-verified artifact sequence equal to the complete expected sequence
+  (host defects are `ReviewAttemptFailed`, not provider identity mismatch);
+- inspected artifact sequence equal to the expected sequence; and
 - either `approved` or `changes_requested`.
 
 `CompletedAbstention` has the same completion and identity requirements. It

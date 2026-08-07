@@ -756,3 +756,30 @@ abstractions. A clean `[ok]` above means "no violation within 12 steps", not a p
 executions. The temporal property `eventually_terminal` remains stuttering-falsifiable and must
 not be cited as evidence of a liveness defect; `inv_no_silent_limbo` is the operative liveness
 surrogate.
+
+---
+
+## Thin adapter port record (Sprint 3 R1 queue admission)
+
+Queue admission product logic moved to the TypeScript package
+`@foreman/orchestration` (`packages/orchestration/src/queue-admission.ts` and
+`queue-services.ts`). The shell entry point
+`skills/foreman/scripts/lane-queue.sh` is a thin adapter: it resolves `node`
+and `exec`s the bundled runtime at
+`skills/foreman/runtime/dist/lane-queue.js`. It does not implement topology,
+daemon start, admission, status, or kill.
+
+**Did the `lane_lifecycle` abstraction change?** No. The Quint model still
+abstracts queue admission and re-enqueue as the same Boolean/enum markers on
+the single-lane record. The port preserves fixed groups and capacities, the
+one safe pre-accept retry, and the ensure-before-add ownership boundary that
+the model treats as successful queue admission. Coverage still lists
+`skills/foreman/scripts/lane-queue.sh` because that path remains the operator
+and supervisor entry surface; the model does not need a new source-file row
+for the TypeScript package while the admission contract is unchanged.
+
+Live correction (2026-08-04): readiness probes use
+`pueue status --json "last 1"` (reachability only; not a public status API
+change), and `pueued -d` starts through an ignored-stdio process boundary so
+the daemon cannot retain capture pipes. Neither change alters the
+`lane_lifecycle` state machine.

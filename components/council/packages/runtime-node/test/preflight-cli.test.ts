@@ -1,4 +1,6 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { access, chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -561,5 +563,41 @@ process.stdout.write("1.0.0\\n");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * Exact identity of the clean preflight bundle at 8032c59, the most recent
+ * commit to touch `components/council/packages`. A size cap alone is
+ * insufficient: admission-only symbols must not appear in the preflight entry,
+ * which is what PREFLIGHT_FORBIDDEN below actually guarantees.
+ *
+ * Re-pinned from the 7aabc73 anchor (845_594 bytes, sha256 35fea54f...). That
+ * anchor went stale when three reviewed fixes landed on the Council packages
+ * after it was frozen and the constants were not updated with them:
+ *   d60ebdc classify completed invalid responses
+ *   787cb91 preserve completed invalid responses
+ *   8032c59 close ResponseRejected secrets and host precondition order
+ * The bundle grew 420 bytes as a result. Verified before re-pinning: two
+ * consecutive `pnpm build` runs are byte-identical, and the forbidden
+ * admission-only symbol set still has zero matches, so the isolation property
+ * this test exists to protect is intact — only the identity anchor had drifted.
+ */
+const CLEAN_PREFLIGHT_BYTE_COUNT = 846_014;
+const CLEAN_PREFLIGHT_SHA256 =
+  "d782ad5bd88fb8c4d397b815e14f22c3c60564c93cc93d754efceca2c9c08465";
+const PREFLIGHT_FORBIDDEN =
+  /SpecCorrectnessPrimitives|NodeSpecCorrectnessPrimitives|spec-correctness-admission|markdown-it/;
+
+describe("compiled council-preflight isolation", () => {
+  it("matches the clean preflight byte count, SHA-256, and forbidden-string set", () => {
+    const bundlePath = "packages/runtime-node/dist/preflight-cli.js";
+    const bytes = readFileSync(bundlePath);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const text = bytes.toString("utf8");
+
+    expect(bytes.byteLength).toBe(CLEAN_PREFLIGHT_BYTE_COUNT);
+    expect(digest).toBe(CLEAN_PREFLIGHT_SHA256);
+    expect(PREFLIGHT_FORBIDDEN.test(text)).toBe(false);
   });
 });

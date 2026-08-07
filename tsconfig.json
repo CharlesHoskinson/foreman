@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/event-log" },
+    { "path": "packages/policy" },
+    { "path": "packages/orchestration" },
+    { "path": "packages/graph-store" },
+    { "path": "packages/launcher" }
+  ]
+}

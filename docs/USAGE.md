@@ -268,8 +268,11 @@ unauthenticated auxiliary evidence in that file.
 
 ### 4.2 The pueue/`gate` mutex doctrine
 
-`lane-queue.sh ensure|add GROUP -- CMD [ARGS...]|status [TASK_ID]|kill
-TASK_ID` wraps pueue (staged at `~/.foreman/tools/pueue/`, v4.0.4 — no
+`lane-queue.sh ensure|add GROUP --endstop-state-root ABS
+--endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action
+ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status
+[TASK_ID]|kill TASK_ID` wraps pueue (staged at
+`~/.foreman/tools/pueue/`, v4.0.4 — no
 Windows package-manager route) with a fixed group topology, created
 idempotently by `ensure`:
 
@@ -292,9 +295,20 @@ at all — they reason from code, never from a live test invocation.
 Enqueue an implement round through the queue rather than dispatching the
 vendor CLI directly:
 
+`add` is contract-bound (v0.3 prerequisite -- see "Foreman Endstop" in
+`skills/foreman/SKILL.md`): every enqueue carries the five `--endstop-*`
+flags from an already-created execution contract, or the CLI refuses
+admission before touching pueue.
+
 ```bash
-bash skills/foreman/scripts/lane-queue.sh add grok -- <grok invocation>
-bash skills/foreman/scripts/lane-queue.sh add gate -- bash tests/run.sh
+bash skills/foreman/scripts/lane-queue.sh add grok \
+  --endstop-state-root "$STATE_ROOT" --endstop-contract-id "$CID" \
+  --endstop-contract-sha "$CSHA" --endstop-action implement \
+  --endstop-candidate-sha "$CANDIDATE_SHA" -- <grok invocation>
+bash skills/foreman/scripts/lane-queue.sh add gate \
+  --endstop-state-root "$STATE_ROOT" --endstop-contract-id "$CID" \
+  --endstop-contract-sha "$CSHA" --endstop-action verify \
+  --endstop-candidate-sha "$CANDIDATE_SHA" -- bash tests/run.sh
 bash skills/foreman/scripts/lane-queue.sh status <TASK_ID>
 ```
 

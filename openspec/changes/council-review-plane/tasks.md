@@ -9,7 +9,7 @@ index — the lane cannot run git, so it reports the need under
 
 ## Phase 1 — usable without any Council code
 
-- [ ] **1. `lane-review-bundle.sh` (TDD)** — write the failing bats first:
+- [x] **1. `lane-review-bundle.sh` (TDD)** — write the failing bats first:
   a bundle built over a worktree holding uncommitted carry-over records the
   round diff and `worktree_dirty=true`; a base ref that is not an ancestor of
   the lane HEAD exits non-zero naming both SHAs and writes no bundle; a base ref
@@ -20,7 +20,7 @@ index — the lane cannot run git, so it reports the need under
   to build the JSON; do not concatenate strings. Add the baseline row.
   shellcheck-clean at `-S warning`.
 
-- [ ] **2. `lib/review-quorum.sh` (TDD)** — port `evaluateAutomaticQuorum` from
+- [x] **2. `lib/review-quorum.sh` (TDD)** — port `evaluateAutomaticQuorum` from
   `components/council/packages/domain/src/quorum.ts`, defaults
   `minimumProposals = 3`, `minimumDomains = 2`. Failing tests first: three
   admissible verdicts all from `anthropic` yield `QUORUM_NOT_MET domains=1`;

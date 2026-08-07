@@ -10,7 +10,8 @@ model_codex = "gpt-5.6-sol"
 # timeout_min = 30    # wall-clock audit bound; defaults from limits.round_timeout_min
 
 [checks]
-command = "bash -lc 'test -f site/index.html && test -f site/styles.css && test -f site/app.js'"
+command = "bash -lc 'git init -q && git add -A && git -c user.name=Foreman -c user.email=foreman@localhost commit -qm snapshot && npm ci --ignore-scripts && npm run verify'"
+docs_command = "bash skills/foreman/scripts/docs-check.sh"
 
 [limits]
 max_rework_rounds = 3

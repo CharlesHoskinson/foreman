@@ -8,9 +8,11 @@ description: Use when a decision benefits from independent cross-provider propos
 Council is the **operator contract** for every Foreman Council review loop.
 It is advisory only. It does not own release or merge authority.
 
-**Core principle:** Actionable dissent forces a new implementation round.
+**Core principle:** Actionable dissent creates a correction requirement.
 Majority, deadline pressure, and an overall approval never override an
-admissible `changes_requested` result.
+admissible `changes_requested` result. One Council review consumes the
+workstream's Council allowance in Foreman Endstop. Dissent does not authorize
+an automatic Council rerun.
 
 ## When to use
 
@@ -59,8 +61,10 @@ admissible `changes_requested` result.
    failure domains. Completed `insufficient_evidence` abstentions remain
    recorded and non-quorum. Infrastructure failures never enter deliberation.
    Infrastructure retries do not consume architect rework rounds.
-9. On any admissible `changes_requested`, the architect fixes the finding,
-   builds a new bundle, and runs Council again.
+9. On any admissible `changes_requested`, the architect records the finding in
+   the correction backlog. The architect uses the remaining Endstop correction
+   action and deterministic verification. The architect does not run Council
+   again under the same contract.
 10. Keep Council advisory: never write gate, audit, checkpoint, event, or
     graph artifacts from this skill.
 
@@ -81,6 +85,7 @@ Ownership split: `references/ownership.md`.
 | "Council launches providers itself" | Foreman owns provider dispatch, canaries, credentials, and retries. |
 | "Leave model names on candidates" | Foreman seals identity mapping; reviewers see random candidate identifiers only. |
 | "Preflight failure burns a rework round" | Infrastructure retries do not consume an architect rework round. |
+| "Run Council again after a fix" | The Endstop Council allowance is consumed. Use deterministic verification or request explicit user authority for replacement work. |
 
 ## Interfaces
 

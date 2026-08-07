@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./spec-correctness": "./src/spec-correctness.ts",
+    "./spec-correctness-admission": "./src/spec-correctness-admission.ts"
   },
   "dependencies": {
-    "@council/schema": "workspace:*"
+    "@council/schema": "workspace:*",
+    "markdown-it": "15.0.0"
   }
 }

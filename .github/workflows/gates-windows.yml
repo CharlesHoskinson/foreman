@@ -31,11 +31,34 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+
+      - name: Root Node workspace gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run verify
+
+      - name: Architecture policy against pull request base
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+            if [ -z "${base}" ] || [ "${base}" = "0000000000000000000000000000000000000000" ]; then
+              base="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
+            fi
+          fi
+          node skills/foreman/runtime/dist/architecture-policy.js check --base "${base}"
 
       - name: Run Council Node 24 gate
         working-directory: components/council

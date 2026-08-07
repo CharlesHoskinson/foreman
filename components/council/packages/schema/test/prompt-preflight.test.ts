@@ -7,7 +7,9 @@ import {
   CanaryReceiptV1,
   CanaryResponseV1,
   CompletedAbstentionV1,
+  CompletedInvalidResponseV1,
   CompletedVerdictV1,
+  InvalidReviewResponseReasonV1,
   COUNCIL_ACE_PROHIBITED_REFERENTIAL_FORMS_V1,
   CouncilPromptContractV1,
   decodeStrictSync,
@@ -1152,7 +1154,7 @@ describe("Completed classification without duplicated advice", () => {
     ).toThrow();
   });
 
-  it("decodes the four closed classification tags", () => {
+  it("decodes the five closed classification tags", () => {
     const preflight = {
       _tag: "ProviderPreflightFailed" as const,
       failure: {
@@ -1199,6 +1201,13 @@ describe("Completed classification without duplicated advice", () => {
       quorumEligible: false as const,
       deliberationEligible: true as const,
     };
+    const completedInvalid = {
+      _tag: "CompletedInvalidResponse" as const,
+      reason: "schema_invalid" as const,
+      terminal: terminalCompleted,
+      quorumEligible: false as const,
+      deliberationEligible: false as const,
+    };
 
     expect(
       Schema.decodeUnknownSync(ReviewAttemptClassificationV1)(preflight)._tag,
@@ -1216,6 +1225,58 @@ describe("Completed classification without duplicated advice", () => {
         completedAbstention,
       )._tag,
     ).toBe("CompletedAbstention");
+    expect(
+      Schema.decodeUnknownSync(ReviewAttemptClassificationV1)(completedInvalid)
+        ._tag,
+    ).toBe("CompletedInvalidResponse");
+  });
+
+  it("decodes CompletedInvalidResponse with closed reasons and no response payload", () => {
+    for (const reason of [
+      "schema_invalid",
+      "identity_mismatch",
+      "findings_invalid",
+      "abstention_invalid",
+    ] as const) {
+      const decoded = Schema.decodeUnknownSync(CompletedInvalidResponseV1)({
+        _tag: "CompletedInvalidResponse",
+        reason,
+        terminal: terminalCompleted,
+        quorumEligible: false,
+        deliberationEligible: false,
+      });
+      expect(decoded.reason).toBe(reason);
+      expect(decoded.quorumEligible).toBe(false);
+      expect(decoded.deliberationEligible).toBe(false);
+    }
+    expect(
+      Schema.decodeUnknownSync(InvalidReviewResponseReasonV1)("schema_invalid"),
+    ).toBe("schema_invalid");
+    expect(() =>
+      Schema.decodeUnknownSync(InvalidReviewResponseReasonV1)("parse_error"),
+    ).toThrow();
+    expect(() =>
+      decodeStrictSync(CompletedInvalidResponseV1, {
+        _tag: "CompletedInvalidResponse",
+        reason: "schema_invalid",
+        terminal: terminalCompleted,
+        quorumEligible: false,
+        deliberationEligible: false,
+        response: approvedResponse,
+      }),
+    ).toThrow();
+    expect(() =>
+      Schema.decodeUnknownSync(CompletedInvalidResponseV1)({
+        _tag: "CompletedInvalidResponse",
+        reason: "schema_invalid",
+        terminal: {
+          ...terminalCompleted,
+          terminalState: "cancelled",
+        },
+        quorumEligible: false,
+        deliberationEligible: false,
+      }),
+    ).toThrow();
   });
 });
 

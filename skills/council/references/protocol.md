@@ -77,8 +77,12 @@ Council remains advisory. It does not replace Foreman gates.
    cancellation, tool-call state, and the designated structured-output channel
    before any deliberation parse. Process launch, token usage, narration, exit
    code `0`, or JSON-looking ordinary text does not prove that a review started
-   or completed. Classify a response that fails the closed response schema as
-   `schema_invalid`; it cannot enter deliberation.
+   or completed. After every successful terminal transport and parser gate,
+   classify designated structured output that is schema-invalid,
+   identity-invalid, or semantically inadmissible as a **completed invalid
+   response** (closed reason: `schema_invalid`, `identity_mismatch`,
+   `findings_invalid`, or `abstention_invalid`). That state is not
+   infrastructure failure and cannot enter deliberation or quorum.
 
 9. **Count completed substantive verdicts only.**
    A counted verdict must be schema-valid, identity-bound, admissible, and
@@ -88,20 +92,27 @@ Council remains advisory. It does not replace Foreman gates.
    independent model-family failure domains. Distinctness requires a unique
    `reviewerId` and a unique
    `readyTokenHash` among counted verdicts; repeating either identity cannot
-   manufacture quorum or domain diversity. Completed abstentions remain
-   recorded and do not count. Infrastructure failures never enter deliberation
-   or quorum. Infrastructure retries do not consume an architect rework round.
+   manufacture quorum or domain diversity. Completed abstentions and completed
+   invalid responses remain recorded and do not count. Infrastructure failures
+   never enter deliberation or quorum. Infrastructure retries do not consume an
+   architect rework round.
 
 10. **Fail closed on non-verdicts.**
-    Missing, empty, malformed, infrastructure failure, `quorum_not_met`, and
-    completed `insufficient_evidence` abstention results SHALL NOT become
-    approval.
+    Missing, empty, malformed, infrastructure failure, completed invalid
+    response, `quorum_not_met`, and completed `insufficient_evidence`
+    abstention results SHALL NOT become approval.
 
-11. **Actionable dissent forces a new round.**
+11. **Actionable dissent forces one correction and deterministic re-verification.**
     ANY admissible `changes_requested` verdict SHALL require the architect to
-    fix the finding, build a new bundle, and run Council again.
+    fix the finding and build a new immutable candidate under the single
+    permitted correction action of the active Foreman Endstop contract.
+    Deterministic re-verification then decides whether the finding is closed.
     Majority, deadline pressure, and an overall approval SHALL NOT override
-    such dissent.
+    such dissent. The same one-Council contract MUST NOT require a second
+    Council round. If correction or verification does not close the finding,
+    Endstop escalates. Only explicit user authorization may create a successor
+    contract that cites the terminal predecessor. Completed invalid responses
+    do not themselves force another Council round.
 
 12. **Stay advisory.**
     Council remains advisory. It SHALL NOT write `audit-verdict.json`,
@@ -169,12 +180,15 @@ Completed abstention advice lives only under `response.advice.abstention`.
 |---|---|---|
 | Completed `approved` / `changes_requested` | Substantive verdict | Counts |
 | Completed `insufficient_evidence` abstention | Completed advice naming evidence gaps and a next action | Does not count |
-| Infrastructure failure (`prompt`, `dispatch`, `provider`, `transport`, `parse`) | Preflight or attempt failure | Never enters deliberation |
+| Completed invalid response (`schema_invalid`, `identity_mismatch`, `findings_invalid`, `abstention_invalid`) | Successful terminal; designated structured output inadmissible | Never enters deliberation or quorum |
+| Infrastructure failure (`prompt`, `dispatch`, `provider`, `transport`, `parse`) | Preflight or attempt failure (including host contract defects such as incomplete artifact verification) | Never enters deliberation |
 | Closure outcome (`quorum_not_met`, `judge_unstable`, `policy_blocked`, `budget_exhausted`, `unsupported_claims`, `outcome_unknown`) | Round closure | Not a provider verdict |
 
-Pre-review failure is retryable infrastructure state. It is not dissent,
-rejection, abstention, or approval. Infrastructure retries do not consume an
-architect rework round.
+Completed invalid response is distinct from infrastructure failure. Pre-review
+failure is retryable infrastructure state. It is not dissent, rejection,
+abstention, approval, or completed invalid response. Infrastructure retries do
+not consume an architect rework round. A completed invalid response does not
+require a second Council inside the same one-Council Endstop contract.
 
 ## Non-approval classes
 
@@ -183,9 +197,10 @@ Treat every item below as non-approval. Never promote them to ship signal:
 - missing response
 - empty response
 - malformed response
-- `schema_invalid`
+- completed invalid response (`schema_invalid`, `identity_mismatch`,
+  `findings_invalid`, `abstention_invalid`)
 - provider preflight failure
-- review attempt failure (cancel, timeout, signal, parse, identity)
+- review attempt failure (cancel, timeout, signal, parse, host contract)
 - `quorum_not_met`
 - completed `insufficient_evidence` abstention
 - stale response (bundle identity mismatch)
@@ -195,11 +210,18 @@ Treat every item below as non-approval. Never promote them to ship signal:
 If at least one admissible response is `changes_requested`:
 
 1. Record the finding without majority override.
-2. Architect fixes the finding.
-3. Foreman builds a new immutable review bundle.
-4. Run Council again on the new bundle.
+2. Architect applies the single permitted correction for the active Endstop
+   contract.
+3. Foreman builds a new immutable candidate and runs deterministic
+   re-verification.
+4. If re-verification closes the finding, the correction path completes without
+   a second Council. If correction or verification does not close the finding,
+   Endstop escalates. Only explicit user authorization may create a successor
+   contract.
 
-Do not close the loop while any such finding remains unresolved.
+Do not close the loop while any such finding remains unresolved. Do not require
+a second Council inside the same one-Council contract. Do not treat a completed
+invalid response as license to re-run Council under the same contract.
 
 ## Authority boundary
 

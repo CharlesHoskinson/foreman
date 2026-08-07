@@ -63,51 +63,14 @@
 #   exit code still reads 0. See the CMD-launch site's own comment for the
 #   full repro and the `env -u LD_PRELOAD` defense-in-depth.
 #
-# CONTRACT (T5a, v0.2.5 vendor config isolation plumbing): env contract
-#   `LANE_VENDOR=grok|codex` + optional `LANE_CONFIG_DIR=<abs path>`
-#   (default: wt-new.sh's provisioned `<WT>/.harness/vendor-home/<vendor>/`).
-#   When LANE_VENDOR is set, lane-run.sh exports the mapped vendor env var
-#   (grok->GROK_HOME, codex->CODEX_HOME -- one var per vendor) into its OWN
-#   process environment, ONCE, before CMD is ever
-#   spawned -- NOT into a per-branch argv. Both CMD-spawn sites (launcher-
-#   present and launcher-absent, further down this file) therefore inherit
-#   it identically with no branch-specific code: the launcher-absent branch
-#   because a backgrounded `"$@"` inherits bash's own exported environment
-#   like any child process; the launcher-present branch because
-#   foreman-launch forwards its own environment to CMD verbatim (T1
-#   contract) and is itself invoked via `env -u LD_PRELOAD ...`, which drops
-#   only the two/three STDBUF droppings and passes everything else
-#   (including this export) through unchanged. This is also what populates
-#   the ownership event's config_dir key (lane_emit_ownership already reads
-#   LANE_CONFIG_DIR unconditionally -- see its own doc comment; it was wired
-#   but always empty before this task set a default). CAUTION (Bun #12970 /
-#   Rework Round 1): compiled Bun exes on Windows have stripped `\` from env
-#   var values in the past, AND (empirically diagnosed against the REAL
-#   compiled launcher on main, Rework Round 1) bash's own msys->native
-#   exec-boundary conversion silently rewrites a POSIX-style value into
-#   native Windows form the instant a native (non-MSYS) launcher exe is
-#   actually in the loop -- uncontrolled, and dependent on disk state
-#   (whether launcher/dist/foreman-launch.exe exists), not a stable
-#   contract. Fix: lane_normalize_config_dir performs ONE deterministic
-#   normalization (Windows/MSYS: `cygpath -m`, mixed form e.g. `C:/x/y` --
-#   valid to native CLIs and MSYS bash alike, and immune to MSYS's own
-#   POSIX-path conversion heuristic since it already carries a drive
-#   letter; POSIX: unchanged) BEFORE export, so the value is already in its
-#   final, boundary-immune form before either hazard gets a chance to touch
-#   it. See tests/vendor-isolation.bats for both the fake-launcher-shim
-#   regression test and the skip-guarded real-binary case (built in-worktree,
-#   asserting the normalized value survives the REAL foreman-launch.exe end
-#   to end). UNSET LANE_VENDOR is the frozen path: the entire block below is
-#   skipped, nothing is exported, and the ownership payload's config_dir
-#   stays null -- byte-identical to pre-T5a behavior (all existing lane-run
-#   tests pass unmodified). T7 deliberately removed the former claude lane:
-#   CLAUDE_CONFIG_DIR does not isolate Claude's HOME-relative state, and no
-#   live authenticated destructive concurrency test is available to verify a
-#   distinct-HOME implementation. The adapter's explicit unsupported refusal
-#   remains the honest contract. See docs/research/vendor-concurrency-results.md.
-# @env FOREMAN_TOOL_CHECK Optional executable readiness-probe override. When
-#   non-empty, it runs instead of env/tool-check.sh and must emit the unchanged
-#   `LANE_READY: <vendor>=yes` contract. Unset/empty uses the real repo probe.
+# CONTRACT (R7B2-B, v0.3.0): `LANE_VENDOR=grok|codex` selects one external
+# credential profile. `LANE_CREDENTIAL_PROFILE` can select a nondefault
+# profile. The profile-bound Node runtime verifies the profile and preflight
+# record before a durable side effect. An explicit `LANE_CONFIG_DIR` must match
+# the verified root. The lane exports only `GROK_HOME` or `CODEX_HOME` for the
+# selected vendor and removes the other variable. Windows paths use one
+# `cygpath -m` normalization before comparison and export. An unset
+# `LANE_VENDOR` keeps the original no-profile path. Claude remains unsupported.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -272,6 +235,117 @@ if (( ROUND_MODE == 1 )) && [[ ! "$GATE_CMD" =~ [^[:space:]] ]]; then
   exit 2
 fi
 
+# @description Map LANE_VENDOR to the vendor CLI's own HOME-style env var
+#   (T5a spec section 3: "map vendor->var; one var per vendor", frozen).
+# @arg $1 vendor grok | codex
+# @stdout the mapped env var name
+# @exitcode 0 known vendor; 1 anything else
+lane_vendor_env_var() {
+  case "$1" in
+    grok) echo GROK_HOME ;;
+    codex) echo CODEX_HOME ;;
+    *) return 1 ;;
+  esac
+}
+
+# @description Select the default external credential profile for one vendor.
+# @arg $1 vendor grok | codex
+# @stdout the default profile id
+lane_default_credential_profile() {
+  case "$1" in
+    grok) echo grok-default ;;
+    codex) echo codex-default ;;
+    *) return 1 ;;
+  esac
+}
+
+# @description Normalize a verified vendor config root for the host boundary.
+# @arg $1 path verified config root
+# @stdout the normalized path
+lane_normalize_config_dir() {
+  local path="$1"
+  if [[ "$LANE_PLATFORM" == "windows" ]] && command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$path" 2>/dev/null || printf '%s\n' "$path"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+# --- Vendor admission (before any durable side effect) -------------------
+# Closed vendor-name validation and profile-bound TypeScript admission before
+# unowned_dispatch, harness mkdir, stale-lock sweeping, lock acquisition,
+# secret scanning, and command spawn. Unset LANE_VENDOR is the frozen path.
+if [[ -n "${LANE_VENDOR:-}" ]]; then
+  if ! lane_vendor_env_var "$LANE_VENDOR" >/dev/null; then
+    if [[ "$LANE_VENDOR" == "claude" ]]; then
+      echo "lane-run: LANE_VENDOR 'claude' rejected by T7 decision: claude lane advertising removed because isolated HOME is unverified" >&2
+    else
+      echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex)" >&2
+    fi
+    exit "$EXIT_CONFIG"
+  fi
+
+  LANE_CREDENTIAL_PROFILE="${LANE_CREDENTIAL_PROFILE:-$(lane_default_credential_profile "$LANE_VENDOR")}"
+  export LANE_CREDENTIAL_PROFILE
+
+  # The Node runtime owns profile resolution and readiness. Shell validates
+  # the narrow stdout transport before it exports any credential authority.
+  lane_gate_node="$(command -v node || true)"
+  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/credential-profile-lane.js"
+  if [[ -z "$lane_gate_node" ]]; then
+    echo "lane-run: node is required for vendor admission" >&2
+    exit "$EXIT_MISSING_CLI"
+  fi
+  if [[ ! -f "$lane_gate_runtime" ]]; then
+    echo "lane-run: vendor admission runtime is missing" >&2
+    exit "$EXIT_MISSING_CLI"
+  fi
+  lane_profile_output="$(mktemp "${TMPDIR:-/tmp}/foreman-profile-lane.XXXXXX")"
+  lane_profile_cleanup() { rm -f -- "$lane_profile_output"; }
+  trap lane_profile_cleanup EXIT
+  trap 'lane_profile_cleanup; exit 130' INT
+  trap 'lane_profile_cleanup; exit 143' TERM
+  if ! "$lane_gate_node" "$lane_gate_runtime" admit \
+      --state-root "$FOREMAN_HOME" --worktree "$WT" \
+      --profile "$LANE_CREDENTIAL_PROFILE" --vendor "$LANE_VENDOR" \
+      > "$lane_profile_output"; then
+    lane_profile_cleanup
+    trap - EXIT INT TERM
+    exit "$EXIT_CONFIG"
+  fi
+  lane_profile_lines="$(wc -l < "$lane_profile_output" | tr -d '[:space:]')"
+  lane_profile_last="$(tail -c 1 "$lane_profile_output" | od -An -t x1 | tr -d '[:space:]')"
+  if [[ "$lane_profile_lines" != "1" || "$lane_profile_last" != "0a" ]] || \
+      grep -q $'\r' "$lane_profile_output"; then
+    echo "lane-run: credential profile runtime returned invalid output" >&2
+    lane_profile_cleanup
+    trap - EXIT INT TERM
+    exit "$EXIT_CONFIG"
+  fi
+  lane_verified_config_root="$(sed -n '1p' "$lane_profile_output")"
+  lane_profile_cleanup
+  trap - EXIT INT TERM
+  if [[ -z "$lane_verified_config_root" ]]; then
+    echo "lane-run: credential profile runtime returned invalid output" >&2
+    exit "$EXIT_CONFIG"
+  fi
+  lane_verified_config_root="$(lane_normalize_config_dir "$lane_verified_config_root")"
+  if [[ -n "${LANE_CONFIG_DIR:-}" ]] && \
+      [[ "$(lane_normalize_config_dir "$LANE_CONFIG_DIR")" != "$lane_verified_config_root" ]]; then
+    echo "lane-run: LANE_CONFIG_DIR does not match the verified profile" >&2
+    exit "$EXIT_CONFIG"
+  fi
+  LANE_CONFIG_DIR="$lane_verified_config_root"
+  export LANE_CONFIG_DIR
+  if [[ "$LANE_VENDOR" == "grok" ]]; then
+    unset CODEX_HOME
+    export GROK_HOME="$LANE_CONFIG_DIR"
+  else
+    unset GROK_HOME
+    export CODEX_HOME="$LANE_CONFIG_DIR"
+  fi
+fi
+
 if (( UNOWNED_MODE == 1 )) && [[ "$durable_enabled" == "true" ]]; then
   unowned_payload="$(
     jq -cn --arg reason "$UNOWNED_REASON" \
@@ -300,45 +374,6 @@ wt_sweep_stale_locks "$WT"
 # it. Unconditional (not gated on LANE_VENDOR): every lane's git operations
 # are in scope, not just vendor-routed ones.
 export GIT_ASK_YESNO=false
-
-# @description Map LANE_VENDOR to the vendor CLI's own HOME-style env var
-#   (T5a spec section 3: "map vendor->var; one var per vendor", frozen).
-# @arg $1 vendor grok | codex
-# @stdout the mapped env var name
-# @exitcode 0 known vendor; 1 anything else
-lane_vendor_env_var() {
-  case "$1" in
-    grok) echo GROK_HOME ;;
-    codex) echo CODEX_HOME ;;
-    *) return 1 ;;
-  esac
-}
-
-# @description Normalize an effective vendor config dir to the
-#   platform-canonical form (T5a Rework Round 1 -- see header CONTRACT for
-#   the full incident writeup). Deterministic and applied ONCE, here, to
-#   whatever LANE_CONFIG_DIR ends up being (default-resolved or an explicit
-#   override) -- replacing reliance on bash/MSYS's own IMPLICIT, disk-state-
-#   dependent msys->native exec-boundary conversion, which only fires once
-#   a real native launcher exe is actually resolved. `cygpath -m` (Windows/
-#   MSYS only) produces the mixed form (forward slashes, drive letter, e.g.
-#   `C:/Users/x`): valid input to native Win32 CLIs AND any MSYS bash that
-#   reads it back, and immune to MSYS's own POSIX-path conversion heuristic
-#   (which matches leading-"/"-style absolute paths only -- a string that
-#   already carries a drive letter never matches it, regardless of which
-#   slash direction it started with). Degrades to the input unchanged if
-#   cygpath is unavailable (should not happen on this host class) or on
-#   POSIX (no msys->native boundary exists there at all).
-# @arg $1 path effective LANE_CONFIG_DIR value
-# @stdout the normalized value
-lane_normalize_config_dir() {
-  local path="$1"
-  if [[ "$LANE_PLATFORM" == "windows" ]] && command -v cygpath >/dev/null 2>&1; then
-    cygpath -m "$path" 2>/dev/null || printf '%s\n' "$path"
-  else
-    printf '%s\n' "$path"
-  fi
-}
 
 # @description Scan a grok lane's worktree SOURCE for secret material before
 #   CMD is ever spawned (package 2, grok-lane-activation Task 2; hardened in
@@ -383,82 +418,38 @@ lane_normalize_config_dir() {
 #   reads stdin and could hang the script with no bound.
 # @arg $1 wt worktree root to scan
 # @exitcode 0 clean (no secret material found); 1 secret material found
+#           or any fail-closed / indeterminate scanner result
+# Domain logic lives in packages/orchestration/src/secret-scan.ts (R6).
+# This function is a thin Node runtime call only — no find/grep scan body.
 lane_grok_secrets_scan() {
-  local wt="$1" hits
-  hits="$(find "$wt" \( -path "$wt/.harness" -o -path "$wt/.git" \) -prune -o \
-       -type f \( \
-         -name '.env' \
-         -o \( -name '.env.*' ! -name '.env.example' \) \
-         -o -name 'id_rsa' -o -name 'id_dsa' -o -name 'id_ecdsa' -o -name 'id_ed25519' \
-         -o -name '*.pem' -o -name '*.key' -o -name '*.p12' -o -name '*.pfx' \
-       \) -print 2>/dev/null)" || true
-  [[ -n "$hits" ]] && return 1
-  hits="$(find "$wt" \( -path "$wt/.harness" -o -path "$wt/.git" \) -prune -o \
-       -type f -exec grep -lIE -- '^[[:space:]]*-----BEGIN[[:space:]].*PRIVATE KEY-----[[:space:]]*$' {} + \
-       2>/dev/null)" || true
-  [[ -n "$hits" ]] && return 1
-  return 0
+  local wt="$1"
+  local scan_node scan_runtime
+  scan_node="$(command -v node || true)"
+  scan_runtime="$SCRIPT_DIR/../runtime/dist/secret-scan.js"
+  if [[ -z "$scan_node" ]]; then
+    echo "lane-run: node is required for secret scan" >&2
+    return 1
+  fi
+  if [[ ! -f "$scan_runtime" ]]; then
+    echo "lane-run: secret scan runtime is missing" >&2
+    return 1
+  fi
+  # Absolute worktree root is preflighted by lane-run.sh before this call.
+  # Exit 0 only for clean; any secret or refuse is nonzero (fail closed).
+  "$scan_node" "$scan_runtime" "$wt"
 }
 
 # --- T5a: per-lane vendor config isolation plumbing ----------------------
 # See the header CONTRACT block for the full rationale. Strictly gated on
 # LANE_VENDOR being set/non-empty -- an unset LANE_VENDOR (today's default
 # for every existing caller) skips this whole block, so nothing here can
-# perturb the frozen, pre-T5a behavior.
+# perturb the frozen, pre-T5a behavior. Vendor name validation and the
+# persisted lane-gate admission already ran above, before any durable side
+# effect.
 if [[ -n "${LANE_VENDOR:-}" ]]; then
-  if ! LANE_VENDOR_ENV_VAR="$(lane_vendor_env_var "$LANE_VENDOR")"; then
-    if [[ "$LANE_VENDOR" == "claude" ]]; then
-      echo "lane-run: LANE_VENDOR 'claude' rejected by T7 decision: claude lane advertising removed because isolated HOME is unverified" >&2
-    else
-      echo "lane-run: bad LANE_VENDOR '$LANE_VENDOR' (grok|codex)" >&2
-    fi
-    exit "$EXIT_CONFIG"
-  fi
-
-  # --- lifecycle Task 5 (spec R1/R2): Use-path readiness gate --------------
-  # A real, CODED refusal -- not merely Setup-side reporting (Opus plan-audit
-  # finding). Runs BEFORE the worktree lock is touched and BEFORE any event
-  # is emitted, so a refused lane leaves zero trace (mirrors the "bad
-  # LANE_VENDOR" rejection immediately above). Probes ONLY -- env/tool-check.sh
-  # never authenticates anything; the fix this script cites is an OPERATOR
-  # action (Setup), never something lane-run.sh attempts itself. `--profile
-  # soft` is deliberate and fixed here (not the run's own hard/full profile):
-  # `--lane` scopes the verdict to this one vendor's own row regardless of
-  # profile, and grok/codex are checked under every profile that
-  # matters for auth (must_soft/should_hard/should_full all include them) --
-  # see env/tool-check.sh's profile membership arrays.
-  lane_tool_check="${FOREMAN_TOOL_CHECK:-}"
-  if [[ -n "$lane_tool_check" ]]; then
-    lane_ready_report=""
-    lane_ready_report="$("$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
-  elif [[ -f "$FOREMAN_TOOL_ROOT/env/tool-check.sh" ]]; then
-    lane_tool_check="$FOREMAN_TOOL_ROOT/env/tool-check.sh"
-    lane_ready_report=""
-    lane_ready_report="$(bash "$lane_tool_check" --profile soft --lane "$LANE_VENDOR" 2>&1)" || true
-  fi
-  if [[ -n "$lane_tool_check" ]]; then
-    if [[ "$lane_ready_report" != *"LANE_READY: ${LANE_VENDOR}=yes"* ]]; then
-      echo "lane-run: $LANE_VENDOR lane NOT-READY -- run Setup (foreman-setup) before Use" >&2
-      exit "$EXIT_CONFIG"
-    fi
-  else
-    # No probe could be found: FOREMAN_TOOL_CHECK is unset and env/tool-check.sh
-    # is absent (e.g. a detached skill install, see bugeventlog.md "Skill
-    # installed as a detached copy"). The lane still runs -- Setup cannot have
-    # run in such a deployment either, so an unauthenticated vendor fails loudly
-    # at the vendor call anyway -- but the gap is announced and recorded, because
-    # a gate that silently does not run is indistinguishable from one that
-    # passed, and that is the failure class this release keeps finding.
-    echo "lane-run: $LANE_VENDOR readiness NOT-VERIFIED -- no probe found (FOREMAN_TOOL_CHECK unset and env/tool-check.sh absent); continuing UNVERIFIED" >&2
-    if ! el_emit "$RUN" alert "$LANE" \
-        "$(jq -cn --arg vendor "$LANE_VENDOR" '{kind:"lane_ready_unverified", vendor:$vendor}')" >/dev/null; then
-      echo "lane-run: el_emit alert (lane_ready_unverified) failed" >&2
-    fi
-  fi
-
   # --- Task 2 (package 2, grok-lane-activation): secrets-refusal preflight -
-  # An IN-LANE guard, DISTINCT from the Use-path readiness gate immediately
-  # above -- that gate is an ENVIRONMENT-readiness concern (is this vendor
+  # An IN-LANE guard, DISTINCT from the Use-path readiness gate above --
+  # that gate is an ENVIRONMENT-readiness concern (is this vendor
   # authenticated at all), this is a PER-WORKTREE safety concern (does this
   # specific worktree contain secret material), and both apply to a grok
   # lane. Runs strictly AFTER the readiness gate (spec order) and strictly
@@ -477,20 +468,7 @@ if [[ -n "${LANE_VENDOR:-}" ]]; then
     fi
   fi
 
-  # Default (only when unset/empty -- an explicit caller-supplied
-  # LANE_CONFIG_DIR, e.g. pointing at a pre-seeded config dir for T5b, is
-  # never overridden): the per-lane dir wt-new.sh already provisions.
-  : "${LANE_CONFIG_DIR:="$WT/.harness/vendor-home/$LANE_VENDOR"}"
-  # Rework Round 1: normalize BEFORE export -- see lane_normalize_config_dir
-  # doc comment. Applied uniformly whether LANE_CONFIG_DIR came from the
-  # default above or an explicit caller override.
-  LANE_CONFIG_DIR="$(lane_normalize_config_dir "$LANE_CONFIG_DIR")"
-  export LANE_CONFIG_DIR
-  # Exported ONCE, here, into lane-run.sh's own process environment -- both
-  # CMD-spawn sites below inherit it identically with no branch-specific
-  # code (see header CONTRACT). Already in its final, boundary-immune form
-  # by this point, so no further quoting/escaping is needed here either.
-  export "${LANE_VENDOR_ENV_VAR}=${LANE_CONFIG_DIR}"
+  # Profile admission already exported the one verified vendor-home variable.
 fi
 
 # @description Emit a machine-visible alert marking a bounded-kill escalation

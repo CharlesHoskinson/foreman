@@ -6,3 +6,7 @@ export * from "./ready-token.js";
 export * from "./schema-lowering.js";
 export * from "./prompt-preflight.js";
 export * from "./run-preflight.js";
+// SpecCorrectness admission and its primitives port are separate entries so
+// council-preflight does not pull them into its bundle. Import from
+// @council/application/spec-correctness-admission and
+// @council/application/spec-correctness-primitives only.

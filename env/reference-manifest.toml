@@ -175,15 +175,6 @@ required = false
 notes = "GNU parallel enables 'bats --jobs' suite-level parallelism (~3-4x after WATCH_VTICK removes wall-clock flake). DEFER-v0.2.5. Test suite verified isolation-clean (perf report E)."
 
 [[tools]]
-id = "psscriptanalyzer"
-profile = ["full"]
-where = ["windows"]
-check = "pwsh -NoProfile -Command \"Get-Module PSScriptAnalyzer -ListAvailable\""
-install_windows = "pwsh -NoProfile -Command \"Install-Module PSScriptAnalyzer -Scope CurrentUser -Force -AcceptLicense\""
-required = false
-notes = "PowerShell static analysis for install.ps1 / env scripts. Installed 2026-07-17 (v1.25.0), CurrentUser scope (no admin)."
-
-[[tools]]
 id = "gh"
 profile = ["hard", "full"]
 where = ["windows", "wsl"]
@@ -254,10 +245,10 @@ notes = "docs group -- PowerShell lint"
 id = "graphify"
 profile = ["soft", "full"]
 where = ["windows", "wsl"]
-check = "python -c \"import graphify\" || python3 -c \"import graphify\""
+check = "graphify --version"
 install_hint = "pip install graphifyy  (module name: graphify)"
 required = false
-notes = "Knowledge-graph repo understanding; graph committed at graphify-out/graph.json"
+notes = "Knowledge-graph repo understanding. graphify-out/ is a derived local index, not a committed graph."
 
 [[tools]]
 id = "openspec"
@@ -422,3 +413,60 @@ measured_violations_flock_drvfs = 0
 # no Foreman-controlled MSYS2/Git-Bash host was available to capture a real
 # syscall trace. Do not invent a digest. Git-Bash durable locks remain
 # unreachable until a real pin is committed from a traced host.
+
+# =============================================================================
+# Vendor preflight capabilities (Sprint 3 R4A / vendor-preflight)
+# =============================================================================
+# Authored capability table for the typed vendor-preflight runtime. The
+# compiled runtime embeds a canonical JSON digest of this table at build time
+# and never reads this file at runtime. agy remains a valid VendorId but has
+# no live default capability until its bounded probe and version floor are
+# specified — do not invent them here.
+# Measured floors for this candidate: Claude Code 2.1.220, Codex CLI 0.146.0,
+# Grok CLI 0.2.118.
+
+[[vendor_capabilities]]
+vendor = "claude"
+cli_name = "claude"
+evidence_class = "declared"
+auth_argv = ["auth", "status"]
+version_argv = ["--version"]
+version_floor = "2.1.220"
+auth_positive_markers = []
+auth_negative_markers = []
+update_mutates = true
+login_instruction = "claude auth login"
+install_instruction = "Install Claude Code (https://code.claude.com) and authenticate"
+update_instruction = "claude update"
+diagnose_instruction = "Re-run: claude auth status; inspect network and CLI health"
+
+[[vendor_capabilities]]
+vendor = "codex"
+cli_name = "codex"
+evidence_class = "declared"
+auth_argv = ["login", "status"]
+version_argv = ["--version"]
+version_floor = "0.146.0"
+auth_positive_markers = []
+auth_negative_markers = ["Not logged in"]
+update_mutates = true
+login_instruction = "codex login"
+install_instruction = "npm install -g @openai/codex@latest"
+update_instruction = "npm install -g @openai/codex@latest"
+diagnose_instruction = "Re-run: codex login status; inspect network and CLI health"
+
+[[vendor_capabilities]]
+vendor = "grok"
+cli_name = "grok"
+evidence_class = "probed"
+auth_argv = ["models"]
+version_argv = ["--version"]
+version_floor = "0.2.118"
+auth_positive_markers = ["You are logged in with grok.com."]
+auth_negative_markers = ["not authenticated", "sign in", "log in"]
+update_mutates = true
+update_check_argv = ["update", "--check", "--json"]
+login_instruction = "grok login --device-code"
+install_instruction = "npm install -g @xai-official/grok@latest"
+update_instruction = "npm install -g @xai-official/grok@latest"
+diagnose_instruction = "Re-run bounded grok models; inspect network, leader socket, and CLI health"

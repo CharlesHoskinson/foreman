@@ -1,0 +1,1366 @@
+/**
+ * Foreman Setup stage (Sprint 3 R4C2 + R7B1): tool-check readiness projection,
+ * profile-bound vendor preflight probes, and dual preflight persistence
+ * (profile-scoped + legacy). Never authenticates a vendor itself.
+ *
+ * Exit contract:
+ *   0 READY
+ *   1 NOT-READY
+ *   2 invalid arguments
+ *   3 runtime / persistence / decode / filesystem boundary failure
+ */
+
+import {
+  chmodSync,
+  closeSync,
+  constants as fsConstants,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  openSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+  accessSync,
+  type Stats,
+} from "node:fs";
+import { basename, dirname, isAbsolute, join } from "node:path";
+import { Effect, Layer } from "effect";
+import {
+  PathLookup,
+  ProcessExec,
+  livePathLookup,
+  liveProcessExec,
+  readFileBoundedSync,
+  type CapturedProcessResult,
+} from "./queue-services.js";
+import {
+  PreflightClock,
+  livePreflightClock,
+} from "./vendor-preflight-live.js";
+import {
+  PreflightRecordStore,
+  PreflightStoreFailure,
+  livePreflightRecordStore,
+} from "./vendor-preflight-store.js";
+import type { VendorPreflightRecordV1 } from "./vendor-preflight-contract.js";
+import type { VendorCapabilityTableV1 } from "./vendor-preflight-manifest.js";
+import {
+  laneReadyFromTools,
+  type ReportModel,
+} from "./tool-check-report.js";
+import {
+  runToolCheck,
+  resolveRepoRoot,
+  type ToolCheckIo,
+  type ToolCheckRunEnv,
+} from "./tool-check-run.js";
+import {
+  detectWslFromEnv,
+  readProcVersion,
+} from "./tool-check-platform.js";
+import {
+  CredentialProfileFs,
+  initProfile,
+  isEqualOrDescendant,
+  isValidProfileId,
+  liveCredentialProfileFsLayer,
+  normalizeAbsolutePath,
+  resolveProfile,
+  type CredentialVendor,
+} from "./credential-profile.js";
+import {
+  CredentialProfilePreflightStore,
+  ProfilePreflightStoreFailure,
+  buildVendorHomeChildEnv,
+  defaultCredentialProfileId,
+  liveCredentialProfilePreflightStore,
+  makeCredentialProfilePreflight,
+  profilePreflightRecordPath,
+} from "./credential-profile-preflight.js";
+
+// ---------------------------------------------------------------------------
+// Public constants
+// ---------------------------------------------------------------------------
+
+export const SETUP_PROFILES = ["soft", "hard", "full"] as const;
+export type SetupProfile = (typeof SETUP_PROFILES)[number];
+
+export const SETUP_LANES = ["grok", "codex"] as const;
+export type SetupLane = (typeof SETUP_LANES)[number];
+
+export const EXIT_READY = 0;
+export const EXIT_NOT_READY = 1;
+export const EXIT_INVALID_ARGUMENTS = 2;
+export const EXIT_BOUNDARY_FAILURE = 3;
+
+export const USAGE =
+  "usage: foreman-setup [--profile soft|hard|full] [--lane grok|codex] [--credential-profile ID]";
+
+export const MSG_BOUNDARY_FAILURE =
+  "foreman-setup: boundary failure (persistence or runtime)";
+
+export const MSG_MISSING_PREFLIGHT_RECORD =
+  "foreman-setup: missing preflight record for requested vendor";
+
+export const MSG_INTERNAL_FAILURE = "foreman-setup: internal failure";
+
+export const MSG_CREDENTIAL_PROFILE_REFUSED =
+  "foreman-setup: credential profile refused";
+
+export const MSG_EXPLICIT_PROFILE_UNSCOPED =
+  "foreman-setup: --credential-profile requires --lane (one profile is bound to one vendor)";
+
+/**
+ * Fixed sanitized diagnostic for capability-table load failures.
+ * Must never embed exception messages, paths, stacks, or credentials.
+ */
+export const MSG_CAPABILITY_TABLE_LOAD_FAILED =
+  "foreman-setup: capability table load failed";
+
+/**
+ * After domain work finishes, settle pending stdout/stderr writes.
+ * A failed write is a runtime boundary failure (exit 3), not the domain
+ * result. Does not expose stream error details.
+ */
+export async function finalizeSetupExitCode(
+  domainExitCode: number,
+  writes: readonly Promise<void>[],
+): Promise<number> {
+  try {
+    await Promise.all(writes);
+    return domainExitCode;
+  } catch {
+    return EXIT_BOUNDARY_FAILURE;
+  }
+}
+/** UTF-8 bound for repository durable config TOML. */
+export const MAX_DURABLE_CONFIG_BYTES = 1_048_576;
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type SetupIo = {
+  readonly writeStdout: (text: string) => void;
+  readonly writeStderr: (text: string) => void;
+};
+
+export type ParsedSetupArgv =
+  | {
+      readonly _tag: "Run";
+      readonly profile: SetupProfile;
+      readonly lane: SetupLane | null;
+      /** Explicit profile id, or null to use per-vendor defaults. */
+      readonly credentialProfile: string | null;
+    }
+  | { readonly _tag: "Help" }
+  | { readonly _tag: "Invalid"; readonly message: string };
+
+export type LauncherEnsureResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: string };
+
+export type ProfileBinding = {
+  readonly vendor: SetupLane;
+  readonly profileId: string;
+  readonly profileIdentity: string;
+  readonly configRoot: string;
+};
+
+export type SetupRunEnv = {
+  readonly repoRoot: string;
+  readonly capabilityTable: VendorCapabilityTableV1;
+  readonly processEnv?: NodeJS.ProcessEnv;
+  readonly nowUtc?: () => string;
+  readonly layer?: Layer.Layer<ProcessExec | PathLookup | PreflightClock>;
+  readonly storeLayer?: Layer.Layer<PreflightRecordStore>;
+  /** Injected credential-profile FS. Defaults to the live R7A layer. */
+  readonly credentialProfileLayer?: Layer.Layer<CredentialProfileFs>;
+  /** Injected profile-scoped preflight store. Defaults to live R7B1 store. */
+  readonly profilePreflightStoreLayer?: Layer.Layer<CredentialProfilePreflightStore>;
+  /**
+   * Injected launcher ensure (WSL). Default builds the POSIX launcher via
+   * ProcessExec when needed. Tests inject a no-op.
+   */
+  readonly ensureLauncher?: () => Effect.Effect<
+    LauncherEnsureResult,
+    never,
+    ProcessExec | PathLookup
+  >;
+  /**
+   * When set, skip reading repository config.toml for durable.enabled.
+   * `null` means "absent / default true — no warning". `undefined` means
+   * "read from repo".
+   */
+  readonly durableEnabled?: boolean | null;
+  /**
+   * Process platform override for home resolution. Defaults to
+   * process.platform. Inject "win32" in tests to exercise USERPROFILE
+   * preference without a Windows host.
+   */
+  readonly platform?: NodeJS.Platform;
+};
+
+// ---------------------------------------------------------------------------
+// Pure helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Strip node binary and script path from process.argv-style input.
+ */
+export function stripSetupNodeArgv(
+  argv: readonly string[],
+): readonly string[] {
+  let args = [...argv];
+  if (
+    args.length > 0 &&
+    (args[0]!.endsWith("node") ||
+      args[0]!.endsWith("node.exe") ||
+      args[0]!.includes("/node") ||
+      args[0]!.includes("\\node"))
+  ) {
+    args = args.slice(1);
+  }
+  if (
+    args.length > 0 &&
+    (args[0]!.endsWith(".js") ||
+      args[0]!.endsWith(".ts") ||
+      args[0]!.includes("foreman-setup"))
+  ) {
+    args = args.slice(1);
+  }
+  return args;
+}
+
+function isProfile(v: string): v is SetupProfile {
+  return (SETUP_PROFILES as readonly string[]).includes(v);
+}
+
+function isLane(v: string): v is SetupLane {
+  return (SETUP_LANES as readonly string[]).includes(v);
+}
+
+/**
+ * Parse Setup argv. Unknown flags and bad values are Invalid (exit 2).
+ *
+ * Optional `--credential-profile ID` selects one external credential profile.
+ * An explicit profile requires `--lane` because one profile is bound to one
+ * vendor. Without an explicit profile, each requested vendor uses its default
+ * (`grok-default` / `codex-default`).
+ */
+export function parseSetupArgv(argv: readonly string[]): ParsedSetupArgv {
+  const args = stripSetupNodeArgv(argv);
+  let profile: SetupProfile = "soft";
+  let lane: SetupLane | null = null;
+  let credentialProfile: string | null = null;
+  let sawCredentialProfile = false;
+
+  let i = 0;
+  while (i < args.length) {
+    const a = args[i]!;
+    if (a === "-h" || a === "--help") {
+      return { _tag: "Help" };
+    }
+    if (a === "--profile") {
+      const v = args[i + 1];
+      if (v === undefined) {
+        return { _tag: "Invalid", message: USAGE };
+      }
+      if (!isProfile(v)) {
+        return {
+          _tag: "Invalid",
+          message: `bad profile: ${v} (soft|hard|full)`,
+        };
+      }
+      profile = v;
+      i += 2;
+      continue;
+    }
+    if (a === "--lane") {
+      const v = args[i + 1];
+      if (v === undefined) {
+        return { _tag: "Invalid", message: USAGE };
+      }
+      if (v === "claude") {
+        return {
+          _tag: "Invalid",
+          message:
+            "unsupported --lane claude: T7 removed claude lane advertising because isolated HOME is unverified",
+        };
+      }
+      if (!isLane(v)) {
+        return { _tag: "Invalid", message: `bad lane: ${v} (grok|codex)` };
+      }
+      lane = v;
+      i += 2;
+      continue;
+    }
+    if (a === "--credential-profile") {
+      if (sawCredentialProfile) {
+        return {
+          _tag: "Invalid",
+          message: "duplicate --credential-profile",
+        };
+      }
+      const v = args[i + 1];
+      if (v === undefined) {
+        return { _tag: "Invalid", message: USAGE };
+      }
+      if (!isValidProfileId(v)) {
+        return {
+          _tag: "Invalid",
+          message: `bad credential profile id: ${v}`,
+        };
+      }
+      credentialProfile = v;
+      sawCredentialProfile = true;
+      i += 2;
+      continue;
+    }
+    return { _tag: "Invalid", message: `unknown arg: ${a}` };
+  }
+
+  if (credentialProfile !== null && lane === null) {
+    return { _tag: "Invalid", message: MSG_EXPLICIT_PROFILE_UNSCOPED };
+  }
+
+  return { _tag: "Run", profile, lane, credentialProfile };
+}
+
+/**
+ * Resolve which credential-profile id applies to a vendor for this Setup run.
+ * Explicit profile (lane-scoped only) wins; otherwise the vendor default.
+ */
+export function resolveSetupProfileId(
+  vendor: SetupLane,
+  credentialProfile: string | null,
+): string {
+  if (credentialProfile !== null) {
+    return credentialProfile;
+  }
+  return defaultCredentialProfileId(vendor);
+}
+
+/**
+ * Operator-facing login instruction. Matches the legacy Setup shell strings
+ * for grok/codex. Never returns absolute paths.
+ */
+export function authInstruction(vendor: string): string {
+  switch (vendor) {
+    case "grok":
+      return "grok login --device-code";
+    case "codex":
+      return "codex login  (interactive/localhost — run in a persistent shell via: ! codex login) OR headless: printenv OPENAI_API_KEY | codex login --with-api-key";
+    case "claude":
+      return "claude auth login";
+    default:
+      return `(no known auth instruction for ${vendor})`;
+  }
+}
+
+/**
+ * Resolve the default Foreman home directory.
+ *
+ * On native Windows (`platform === "win32"`), prefer `USERPROFILE` over a
+ * Git-Bash-style `HOME` (e.g. `/c/Users/...`). On POSIX/WSL, prefer `HOME`.
+ * `FOREMAN_HOME` always wins when set and non-empty.
+ */
+export function resolveForemanHome(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (env.FOREMAN_HOME && env.FOREMAN_HOME.length > 0) {
+    return env.FOREMAN_HOME;
+  }
+  if (platform === "win32") {
+    const home = env.USERPROFILE || env.HOME || "";
+    return join(home, ".foreman");
+  }
+  const home = env.HOME || env.USERPROFILE || "";
+  return join(home, ".foreman");
+}
+
+export function resolvePreflightRecordPath(
+  foremanHome: string,
+  vendor: string,
+): string {
+  return join(foremanHome, "preflight", `${vendor}.json`);
+}
+
+/**
+ * Read `durable.enabled` from repository TOML text. Returns null when the
+ * key is absent. Does not apply environment overrides — Setup reports the
+ * committed TOML value only.
+ */
+export function parseDurableEnabledFromToml(text: string): boolean | null {
+  // Minimal section parse: look for [durable] then enabled = true|false.
+  const lines = text.split(/\r?\n/);
+  let inDurable = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.length === 0 || line.startsWith("#")) continue;
+    const section = line.match(/^\[([^\]]+)\]$/);
+    if (section) {
+      inDurable = section[1] === "durable";
+      continue;
+    }
+    if (!inDurable) continue;
+    const m = line.match(/^enabled\s*=\s*(true|false)\s*(?:#.*)?$/i);
+    if (m) {
+      return m[1]!.toLowerCase() === "true";
+    }
+  }
+  return null;
+}
+
+function readDurableEnabledFromRepo(repoRoot: string): boolean | null {
+  const path = join(repoRoot, ".foreman", "config.toml");
+  const bounded = readFileBoundedSync(path, MAX_DURABLE_CONFIG_BYTES);
+  if (bounded._tag !== "Ok") return null;
+  return parseDurableEnabledFromToml(bounded.text);
+}
+
+function launcherPresent(repoRoot: string): boolean {
+  const posix = join(repoRoot, "launcher", "dist", "foreman-launch");
+  const win = join(repoRoot, "launcher", "dist", "foreman-launch.exe");
+  return isExecutablePath(posix) || isExecutablePath(win);
+}
+
+function isExecutablePath(p: string): boolean {
+  try {
+    accessSync(p, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function captureText(r: CapturedProcessResult): string {
+  return `${r.stdout}${r.stderr}`.replace(/\r/g, "");
+}
+
+/**
+ * Verify a launcher executable self-identifies as foreman-launch.
+ */
+export function launcherRunnable(
+  launcherPath: string,
+  run: (args: readonly string[]) => Effect.Effect<CapturedProcessResult | null>,
+): Effect.Effect<boolean> {
+  return Effect.gen(function* () {
+    if (!isExecutablePath(launcherPath)) return false;
+    const r = yield* run(["--version"]);
+    if (r === null) return false;
+    const line = captureText(r).split("\n")[0]?.trim() ?? "";
+    return line.startsWith("foreman-launch ");
+  });
+}
+
+/**
+ * WSL-only POSIX launcher ensure. Injected ProcessExec runs the external
+ * `bun run build:posix` command. Absent bun is a warning, not NOT-READY.
+ * Build failure is NOT-READY.
+ */
+export function ensurePosixLauncher(
+  repoRoot: string,
+  processEnv: NodeJS.ProcessEnv,
+  log: (msg: string) => void,
+): Effect.Effect<LauncherEnsureResult, never, ProcessExec | PathLookup> {
+  return Effect.gen(function* () {
+    const wsl = detectWslFromEnv(processEnv, readProcVersion());
+    if (wsl.overrideNote) {
+      log(wsl.overrideNote.replace(/^\[foreman\]\s*/, ""));
+    }
+    if (!wsl.isWsl) {
+      return { ok: true as const };
+    }
+
+    const launcherRel = "launcher/dist/foreman-launch";
+    const launcher = join(repoRoot, launcherRel);
+    const launcherDir = join(repoRoot, "launcher", "dist");
+    const exec = yield* ProcessExec;
+    const paths = yield* PathLookup;
+
+    const runVersion = (bin: string) =>
+      exec
+        .runCaptured({
+          command: bin,
+          args: ["--version"],
+          timeoutMs: 8_000,
+          maxOutputBytes: 4_096,
+        })
+        .pipe(
+          Effect.map((r) => r as CapturedProcessResult),
+          Effect.catchAll(() => Effect.succeed(null as CapturedProcessResult | null)),
+        );
+
+    if (yield* launcherRunnable(launcher, () => runVersion(launcher))) {
+      log(`launcher already built: ${launcherRel}`);
+      return { ok: true as const };
+    }
+
+    // Remove non-runnable leftover.
+    try {
+      if (existsSync(launcher) || lstatSyncSoft(launcher)) {
+        log(`WARN: removing non-runnable launcher before rebuild: ${launcherRel}`);
+        try {
+          unlinkSync(launcher);
+        } catch {
+          log("ERROR: could not remove non-runnable launcher");
+          return { ok: false as const, reason: "launcher_remove_failed" };
+        }
+      }
+    } catch {
+      /* absent is fine */
+    }
+
+    const bunPath = yield* paths.which("bun");
+    if (bunPath === null) {
+      log(
+        "WARN: bun is unavailable; POSIX launcher remains absent. Install bun, then run: (cd launcher && bun run build:posix)",
+      );
+      return { ok: true as const };
+    }
+
+    try {
+      mkdirSync(launcherDir, { recursive: true });
+    } catch {
+      log("ERROR: could not create launcher output directory");
+      return { ok: false as const, reason: "launcher_dir_failed" };
+    }
+
+    let buildDir: string;
+    try {
+      buildDir = mkdtempSync(join(launcherDir, ".foreman-launch.build."));
+    } catch {
+      log("ERROR: could not create temporary launcher build directory");
+      return { ok: false as const, reason: "launcher_tmpdir_failed" };
+    }
+    const buildLauncher = join(buildDir, "foreman-launch");
+
+    log("building POSIX launcher: (cd launcher && bun run build:posix)");
+    const buildResult = yield* exec
+      .runCaptured({
+        command: bunPath,
+        args: ["run", "build:posix", "--outfile", buildLauncher],
+        timeoutMs: 120_000,
+        maxOutputBytes: 256_000,
+        cwd: join(repoRoot, "launcher"),
+      })
+      .pipe(Effect.either);
+
+    if (buildResult._tag === "Left" || buildResult.right.exitCode !== 0) {
+      cleanupBuild(buildDir, buildLauncher, launcher);
+      log("ERROR: POSIX launcher build failed");
+      return { ok: false as const, reason: "launcher_build_failed" };
+    }
+
+    if (!(yield* launcherRunnable(buildLauncher, () => runVersion(buildLauncher)))) {
+      cleanupBuild(buildDir, buildLauncher, launcher);
+      log("ERROR: POSIX launcher build completed without runnable executable output");
+      return { ok: false as const, reason: "launcher_not_runnable" };
+    }
+
+    try {
+      renameSync(buildLauncher, launcher);
+      try {
+        chmodSync(launcher, 0o755);
+      } catch {
+        /* best-effort */
+      }
+    } catch {
+      cleanupBuild(buildDir, buildLauncher, launcher);
+      log("ERROR: could not publish POSIX launcher atomically");
+      return { ok: false as const, reason: "launcher_publish_failed" };
+    }
+    try {
+      rmSync(buildDir, { recursive: true, force: true });
+    } catch {
+      /* best-effort */
+    }
+    log(`built launcher: ${launcherRel}`);
+    return { ok: true as const };
+  });
+}
+
+function lstatSyncSoft(p: string): boolean {
+  try {
+    lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function cleanupBuild(
+  buildDir: string,
+  buildLauncher: string,
+  launcher: string,
+): void {
+  try {
+    unlinkSync(buildLauncher);
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (existsSync(launcher) && !isExecutablePath(launcher)) {
+      unlinkSync(launcher);
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    rmSync(buildDir, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
+}
+
+function notAuthenticatedVendors(model: ReportModel | null): readonly string[] {
+  if (model === null) return [];
+  return model.tools
+    .filter((t) => t.status === "not_authenticated")
+    .map((t) => t.id);
+}
+
+function setupReady(
+  model: ReportModel | null,
+  toolCheckExit: number,
+  lane: SetupLane | null,
+): boolean {
+  if (model === null) return toolCheckExit === 0;
+  if (lane !== null) {
+    return laneReadyFromTools(model.tools, lane) === true;
+  }
+  return model.ready;
+}
+
+// ---------------------------------------------------------------------------
+// Main run
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure lexical preflight for the credential-profile state root.
+ * Refuses a relative or empty root and a root equal to or under `repoRoot`
+ * without any filesystem mutation. Physical validation is R7A's job.
+ */
+export function lexicalStateRootPreflight(
+  stateRoot: string,
+  repoRoot: string,
+):
+  | { readonly _tag: "Ok"; readonly stateRoot: string }
+  | {
+      readonly _tag: "Refuse";
+      readonly reason: "invalid_state_root" | "state_root_in_worktree";
+    } {
+  if (typeof stateRoot !== "string" || stateRoot.length === 0) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (stateRoot.includes("\0")) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (!isAbsolute(stateRoot)) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  if (typeof repoRoot !== "string" || repoRoot.length === 0 || !isAbsolute(repoRoot)) {
+    return { _tag: "Refuse", reason: "invalid_state_root" };
+  }
+  const normalizedState = normalizeAbsolutePath(stateRoot);
+  const normalizedRepo = normalizeAbsolutePath(repoRoot);
+  if (isEqualOrDescendant(normalizedState, normalizedRepo)) {
+    return { _tag: "Refuse", reason: "state_root_in_worktree" };
+  }
+  return { _tag: "Ok", stateRoot: normalizedState };
+}
+
+/**
+ * Resolve the nearest existing ancestor of `path` without creating anything.
+ * Returns the path of the nearest existing component (may be a symlink) and
+ * the missing suffix segments from that ancestor down to `path` (exclusive of
+ * the ancestor, inclusive of the final component).
+ */
+function nearestExistingAncestor(path: string): {
+  readonly nearest: string;
+  readonly missingSegments: readonly string[];
+} {
+  const missing: string[] = [];
+  let probe = path;
+  for (;;) {
+    try {
+      lstatSync(probe);
+      return { nearest: probe, missingSegments: missing };
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") {
+        // Unreadable intermediate — treat as no usable ancestor.
+        return { nearest: probe, missingSegments: missing };
+      }
+    }
+    const parent = dirname(probe);
+    if (parent === probe) {
+      return { nearest: probe, missingSegments: missing };
+    }
+    missing.unshift(basename(probe));
+    probe = parent;
+  }
+}
+
+function physicalAbsoluteDir(path: string): string | null {
+  try {
+    const st = lstatSync(path);
+    if (st.isSymbolicLink()) {
+      // Resolve through the link for physical containment only.
+      return normalizeAbsolutePath(realpathSync(path));
+    }
+    if (!st.isDirectory()) return null;
+    return normalizeAbsolutePath(realpathSync(path));
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Descriptor-anchored state-root creation (R7B1 filesystem authority)
+// ---------------------------------------------------------------------------
+
+type DirIdentity = { readonly dev: number; readonly ino: number };
+
+function closeQuiet(fd: number | undefined): void {
+  if (fd === undefined) return;
+  try {
+    closeSync(fd);
+  } catch {
+    /* ignore */
+  }
+}
+
+function identitiesEqual(a: DirIdentity, b: DirIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
+function identityOf(st: Stats): DirIdentity {
+  return { dev: st.dev, ino: st.ino };
+}
+
+/**
+ * Open flags for a no-follow directory descriptor. Null when the host
+ * cannot express the required primitive.
+ */
+function stateRootDirOpenFlags(): number | null {
+  const c = fsConstants as Record<string, number | undefined>;
+  if (typeof c.O_DIRECTORY !== "number" || typeof c.O_NOFOLLOW !== "number") {
+    return null;
+  }
+  return fsConstants.O_RDONLY | c.O_DIRECTORY | c.O_NOFOLLOW;
+}
+
+let stateRootAnchorSupportCache: boolean | undefined;
+
+/**
+ * True when this process can open no-follow directory descriptors and
+ * address children through a verified `/proc/self/fd/<fd>` anchor.
+ * Windows and hosts without those primitives cannot prove creation
+ * boundaries — callers must fail closed before mutation.
+ */
+export function stateRootDirectoryAnchorSupported(): boolean {
+  if (stateRootAnchorSupportCache !== undefined) {
+    return stateRootAnchorSupportCache;
+  }
+  if (process.platform === "win32") {
+    stateRootAnchorSupportCache = false;
+    return false;
+  }
+  if (stateRootDirOpenFlags() === null) {
+    stateRootAnchorSupportCache = false;
+    return false;
+  }
+  try {
+    const st = lstatSync("/proc/self/fd");
+    stateRootAnchorSupportCache = st.isDirectory();
+  } catch {
+    stateRootAnchorSupportCache = false;
+  }
+  return stateRootAnchorSupportCache;
+}
+
+function stateRootProcFdPath(fd: number): string | null {
+  if (!stateRootDirectoryAnchorSupported()) return null;
+  if (!Number.isInteger(fd) || fd < 0) return null;
+  return `/proc/self/fd/${fd}`;
+}
+
+/**
+ * Deterministic race seams for state-root creation (tests only).
+ * Production never installs a hook.
+ */
+export type StateRootCreateRaceHook = {
+  /** After a parent directory fd is bound; before child create/open. */
+  readonly afterBindParent?: () => void;
+};
+
+let stateRootCreateRaceHook: StateRootCreateRaceHook | undefined;
+
+/** Install or clear the state-root create race seam. Tests only. */
+export function setStateRootCreateRaceHook(
+  hook: StateRootCreateRaceHook | undefined,
+): void {
+  stateRootCreateRaceHook = hook;
+}
+
+/**
+ * Create a missing external state root after lexical preflight succeeds.
+ *
+ * Before creating anything: resolve the nearest existing ancestor physically
+ * and refuse when that physical ancestor plus the missing suffix would place
+ * the state root equal to or under `repoRoot`. Create missing components one
+ * level at a time through descriptor-anchored paths — never recursive mkdir
+ * through an unvalidated ancestor, and never path-based mkdir after a
+ * pathname-only recheck. Does not chmod an existing directory. Does not
+ * follow a final-component link at the state root itself.
+ *
+ * When the runtime cannot prove descriptor-anchored creation, fail closed
+ * before mutation (does not silently reduce the Windows boundary).
+ *
+ * Must not be called for a root that fails lexical preflight.
+ */
+export function ensureExternalStateRoot(
+  stateRoot: string,
+  repoRoot: string,
+): boolean {
+  try {
+    const st = lstatSync(stateRoot);
+    if (st.isSymbolicLink()) return false;
+    if (!st.isDirectory()) return false;
+    // Existing real directory: do not chmod; R7A owns authority modes.
+    // Physical containment is still enforced (linked ancestor → inside repo).
+    const physicalState = physicalAbsoluteDir(stateRoot);
+    const physicalRepo = physicalAbsoluteDir(repoRoot);
+    if (physicalState === null || physicalRepo === null) return false;
+    if (isEqualOrDescendant(physicalState, physicalRepo)) return false;
+    if (isEqualOrDescendant(stateRoot, normalizeAbsolutePath(repoRoot))) {
+      return false;
+    }
+    return true;
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") return false;
+  }
+
+  const { nearest, missingSegments } = nearestExistingAncestor(stateRoot);
+  if (missingSegments.length === 0) {
+    // Path exists now (race) — re-enter through the exists branch logic.
+    return ensureExternalStateRoot(stateRoot, repoRoot);
+  }
+
+  // Nearest may be a real directory or a safe external symlink to a directory.
+  // Resolve a symlink ancestor to its physical directory, capture that
+  // identity, and open the physical path with O_DIRECTORY|O_NOFOLLOW so a
+  // later logical retarget cannot redirect creation.
+  let bindPath: string;
+  let expectedBindIdentity: DirIdentity;
+  try {
+    const st = lstatSync(nearest);
+    if (st.isSymbolicLink()) {
+      const resolved = physicalAbsoluteDir(nearest);
+      if (resolved === null) return false;
+      let physSt: Stats;
+      try {
+        physSt = lstatSync(resolved);
+      } catch {
+        return false;
+      }
+      if (physSt.isSymbolicLink() || !physSt.isDirectory()) return false;
+      bindPath = resolved;
+      expectedBindIdentity = identityOf(physSt);
+    } else if (st.isDirectory()) {
+      bindPath = nearest;
+      expectedBindIdentity = identityOf(st);
+    } else {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  const physicalNearest = physicalAbsoluteDir(nearest);
+  if (physicalNearest === null) return false;
+
+  // Physical would-be state root = physical nearest + missing suffix.
+  const physicalWouldBe = normalizeAbsolutePath(
+    join(physicalNearest, ...missingSegments),
+  );
+  const physicalRepo = physicalAbsoluteDir(repoRoot);
+  if (physicalRepo === null) return false;
+  if (isEqualOrDescendant(physicalWouldBe, physicalRepo)) {
+    return false;
+  }
+  // Logical would-be path under logical repo (covers pure logical cases).
+  if (isEqualOrDescendant(stateRoot, normalizeAbsolutePath(repoRoot))) {
+    return false;
+  }
+  // Physical nearest already inside repo implies any created child is inside.
+  if (isEqualOrDescendant(physicalNearest, physicalRepo)) {
+    return false;
+  }
+
+  // Fail closed before mutation when descriptor-anchored creation is unavailable.
+  const parentFlags = stateRootDirOpenFlags();
+  if (parentFlags === null || !stateRootDirectoryAnchorSupported()) {
+    return false;
+  }
+
+  // Bind the physical (or real nearest) parent with O_DIRECTORY|O_NOFOLLOW.
+  let parentFd: number | undefined;
+  try {
+    parentFd = openSync(bindPath, parentFlags);
+    const parentOpened = fstatSync(parentFd);
+    if (!parentOpened.isDirectory()) {
+      return false;
+    }
+    if (!identitiesEqual(identityOf(parentOpened), expectedBindIdentity)) {
+      return false;
+    }
+    let parentIdentity = identityOf(parentOpened);
+    // Open descriptor must still match the captured physical/real identity.
+    try {
+      const pathRecheck = lstatSync(bindPath);
+      if (
+        pathRecheck.isSymbolicLink() ||
+        !pathRecheck.isDirectory() ||
+        !identitiesEqual(identityOf(pathRecheck), parentIdentity)
+      ) {
+        return false;
+      }
+    } catch {
+      return false;
+    }
+
+    // Create each missing child through the held descriptor only.
+    for (const segment of missingSegments) {
+      if (
+        segment.length === 0 ||
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("/") ||
+        segment.includes("\\") ||
+        segment.includes("\0")
+      ) {
+        return false;
+      }
+
+      // Parent fd identity retained.
+      const parentNow = fstatSync(parentFd);
+      if (
+        !parentNow.isDirectory() ||
+        !identitiesEqual(identityOf(parentNow), parentIdentity)
+      ) {
+        return false;
+      }
+
+      stateRootCreateRaceHook?.afterBindParent?.();
+
+      // Re-prove parent fd after the race seam (pathname swap must not retarget).
+      const parentAfterHook = fstatSync(parentFd);
+      if (
+        !parentAfterHook.isDirectory() ||
+        !identitiesEqual(identityOf(parentAfterHook), parentIdentity)
+      ) {
+        return false;
+      }
+
+      const anchor = stateRootProcFdPath(parentFd);
+      if (anchor === null) return false;
+      const childAnchored = join(anchor, segment);
+
+      // Observe child through the held parent only (no path-based walk).
+      let childExists = false;
+      try {
+        const existing = lstatSync(childAnchored);
+        if (existing.isSymbolicLink()) return false;
+        if (!existing.isDirectory()) return false;
+        childExists = true;
+      } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT") return false;
+      }
+
+      if (!childExists) {
+        try {
+          mkdirSync(childAnchored, { recursive: false, mode: 0o700 });
+        } catch (e) {
+          const code = (e as NodeJS.ErrnoException).code;
+          if (code !== "EEXIST") return false;
+        }
+      }
+
+      // Open the new child without following links; verify via descriptor.
+      let childFd: number | undefined;
+      try {
+        childFd = openSync(childAnchored, parentFlags);
+        const childOpened = fstatSync(childFd);
+        if (!childOpened.isDirectory()) {
+          return false;
+        }
+        // Parent still the same identity after create/open.
+        const parentStill = fstatSync(parentFd);
+        if (
+          !parentStill.isDirectory() ||
+          !identitiesEqual(identityOf(parentStill), parentIdentity)
+        ) {
+          return false;
+        }
+        // Advance: child descriptor becomes the next parent.
+        closeQuiet(parentFd);
+        parentFd = childFd;
+        childFd = undefined;
+        parentIdentity = identityOf(childOpened);
+      } finally {
+        closeQuiet(childFd);
+      }
+    }
+
+    // Recheck the requested logical path before success.
+    try {
+      const st = lstatSync(stateRoot);
+      if (st.isSymbolicLink() || !st.isDirectory()) return false;
+      if (!identitiesEqual(identityOf(st), parentIdentity)) return false;
+    } catch {
+      return false;
+    }
+    const finalPhysical = physicalAbsoluteDir(stateRoot);
+    if (finalPhysical === null) return false;
+    if (isEqualOrDescendant(finalPhysical, physicalRepo)) return false;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    closeQuiet(parentFd);
+  }
+}
+
+/**
+ * Run Setup once. Writes the tool-check report, optional durable warning,
+ * login instructions for positive not-authenticated evidence only, and
+ * SETUP: READY|NOT-READY.
+ *
+ * For each requested vendor: initializes or resolves the R7A credential
+ * profile under FOREMAN_HOME, runs vendor probes with a profile-bound child
+ * environment (GROK_HOME or CODEX_HOME only), persists
+ * CredentialProfilePreflightV1 under the profile authority, and keeps the
+ * legacy FOREMAN_HOME/preflight/<vendor>.json write for compatibility.
+ * Never authenticates. Never mutates the caller's environment.
+ */
+export function runForemanSetup(
+  argv: readonly string[],
+  io: SetupIo,
+  env: SetupRunEnv,
+): Effect.Effect<number> {
+  return Effect.gen(function* () {
+    const parsed = parseSetupArgv(argv);
+    if (parsed._tag === "Help") {
+      io.writeStdout(USAGE + "\n");
+      return EXIT_READY;
+    }
+    if (parsed._tag === "Invalid") {
+      io.writeStderr(parsed.message + "\n");
+      return EXIT_INVALID_ARGUMENTS;
+    }
+
+    const processEnv = env.processEnv ?? process.env;
+    const baseLayer =
+      env.layer ??
+      Layer.mergeAll(liveProcessExec, livePathLookup, livePreflightClock);
+    const storeLayer = env.storeLayer ?? livePreflightRecordStore;
+    const profileFsLayer =
+      env.credentialProfileLayer ?? liveCredentialProfileFsLayer;
+    const profilePreflightLayer =
+      env.profilePreflightStoreLayer ?? liveCredentialProfilePreflightStore;
+
+    const log = (msg: string) => {
+      io.writeStderr(`[foreman] ${msg}\n`);
+    };
+
+    // --- WSL launcher ensure ------------------------------------------------
+    const ensure =
+      env.ensureLauncher ??
+      (() => ensurePosixLauncher(env.repoRoot, processEnv, log));
+    const launcherResult = yield* ensure().pipe(Effect.provide(baseLayer));
+    if (!launcherResult.ok) {
+      io.writeStdout("SETUP: NOT-READY\n");
+      return EXIT_NOT_READY;
+    }
+
+    // --- durable.enabled reporting (repo TOML only) -------------------------
+    const durable =
+      env.durableEnabled !== undefined
+        ? env.durableEnabled
+        : readDurableEnabledFromRepo(env.repoRoot);
+    if (durable === false) {
+      const launcherStatus = launcherPresent(env.repoRoot)
+        ? "present"
+        : "absent";
+      io.writeStdout(
+        `SETUP CONFIG: durable.enabled=false differs from the shipped true default that prevents a subagent backgrounding a long command and ending its turn; launcher=${launcherStatus}\n`,
+      );
+    }
+
+    // --- credential-profile authority before any vendor probe ---------------
+    const vendorsToPersist: readonly SetupLane[] =
+      parsed.lane !== null ? [parsed.lane] : ["grok", "codex"];
+    const platform = env.platform ?? process.platform;
+    const foremanHomeRaw = resolveForemanHome(processEnv, platform);
+
+    // Pure lexical gate before any create/chmod of FOREMAN_HOME.
+    const lexical = lexicalStateRootPreflight(foremanHomeRaw, env.repoRoot);
+    if (lexical._tag === "Refuse") {
+      io.writeStderr(
+        `${MSG_CREDENTIAL_PROFILE_REFUSED} (${lexical.reason})\n`,
+      );
+      return EXIT_BOUNDARY_FAILURE;
+    }
+    const foremanHome = lexical.stateRoot;
+
+    if (!ensureExternalStateRoot(foremanHome, env.repoRoot)) {
+      io.writeStderr(MSG_CREDENTIAL_PROFILE_REFUSED + " (invalid_state_root)\n");
+      return EXIT_BOUNDARY_FAILURE;
+    }
+
+    const bindings: ProfileBinding[] = [];
+    for (const vendor of vendorsToPersist) {
+      const profileId = resolveSetupProfileId(
+        vendor,
+        parsed.credentialProfile,
+      );
+      const profileResult = yield* initProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId,
+        vendor: vendor as CredentialVendor,
+      }).pipe(Effect.provide(profileFsLayer));
+
+      if (profileResult._tag === "Refused") {
+        // Sanitized: closed reason only — no paths, bytes, or secrets.
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${profileResult.reason})\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      bindings.push({
+        vendor,
+        profileId: profileResult.profileId,
+        profileIdentity: profileResult.profileIdentity,
+        configRoot: profileResult.configRoot,
+      });
+    }
+
+    // Profile-bound child environments for requested vendors only.
+    // Do not mutate processEnv (caller's environment).
+    const childEnvByVendor = new Map<SetupLane, NodeJS.ProcessEnv>();
+    for (const b of bindings) {
+      childEnvByVendor.set(
+        b.vendor,
+        buildVendorHomeChildEnv(
+          processEnv,
+          b.vendor,
+          b.configRoot,
+          platform,
+        ),
+      );
+    }
+
+    // --- tool-check with single-probe record capture ------------------------
+    const captured = new Map<string, VendorPreflightRecordV1>();
+    const tcIo: ToolCheckIo = {
+      writeStdout: (t) => io.writeStdout(t),
+      writeStderr: (t) => io.writeStderr(t),
+    };
+    const tcArgv = [
+      "--profile",
+      parsed.profile,
+      ...(parsed.lane !== null ? (["--lane", parsed.lane] as const) : []),
+    ];
+    const tcEnv: ToolCheckRunEnv = {
+      repoRoot: env.repoRoot,
+      capabilityTable: env.capabilityTable,
+      processEnv,
+      ...(env.nowUtc !== undefined ? { nowUtc: env.nowUtc } : {}),
+      ...(env.layer !== undefined ? { layer: env.layer } : {}),
+      vendorChildEnv: (vendor) => childEnvByVendor.get(vendor),
+      onVendorRecord: (record) =>
+        Effect.sync(() => {
+          captured.set(record.vendor, record);
+        }),
+    };
+
+    const tcResult = yield* runToolCheck(tcArgv, tcIo, tcEnv);
+
+    // --- persist requested vendors (profile-scoped + legacy) ----------------
+    // Validate the whole requested set before the first store write so a
+    // partial capture (e.g. Grok only on an unscoped run) never leaves a
+    // half-written preflight directory.
+    type PendingWrite = {
+      readonly vendor: SetupLane;
+      readonly record: VendorPreflightRecordV1;
+      readonly legacyDest: string;
+      readonly profileDest: string;
+      readonly profileId: string;
+      readonly profileIdentity: string;
+      readonly configRoot: string;
+    };
+    const pendingWrites: PendingWrite[] = [];
+    for (const b of bindings) {
+      const record = captured.get(b.vendor);
+      if (record === undefined) {
+        // Fail closed: a requested vendor without a captured inspect record
+        // is a boundary failure, not ordinary NOT-READY. Never invent a
+        // record and never write siblings.
+        io.writeStderr(MSG_MISSING_PREFLIGHT_RECORD + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (record.vendor !== b.vendor) {
+        io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }
+
+      // Re-resolve R7A profile after probes and before any profile-scoped or
+      // legacy write. Require the same id, vendor, identity, and config root
+      // as the probed binding. A changed, missing, conflicting, or linked
+      // authority refuses with no write for that vendor (and no siblings).
+      const resolved = yield* resolveProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId: b.profileId,
+        vendor: b.vendor as CredentialVendor,
+      }).pipe(Effect.provide(profileFsLayer));
+
+      if (resolved._tag === "Refused") {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${resolved.reason})\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (
+        resolved.profileId !== b.profileId ||
+        resolved.vendor !== b.vendor ||
+        resolved.profileIdentity !== b.profileIdentity ||
+        resolved.configRoot !== b.configRoot
+      ) {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (identity_changed)\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+
+      pendingWrites.push({
+        vendor: b.vendor,
+        record,
+        legacyDest: resolvePreflightRecordPath(foremanHome, b.vendor),
+        profileDest: profilePreflightRecordPath(
+          foremanHome,
+          b.profileId,
+          b.vendor,
+        ),
+        profileId: b.profileId,
+        profileIdentity: b.profileIdentity,
+        configRoot: b.configRoot,
+      });
+    }
+
+    for (const pending of pendingWrites) {
+      // Final re-resolve immediately before this vendor's profile-scoped write.
+      const preWrite = yield* resolveProfile({
+        stateRoot: foremanHome,
+        worktreeRoot: env.repoRoot,
+        profileId: pending.profileId,
+        vendor: pending.vendor as CredentialVendor,
+      }).pipe(Effect.provide(profileFsLayer));
+
+      if (preWrite._tag === "Refused") {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (${preWrite.reason})\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+      if (
+        preWrite.profileId !== pending.profileId ||
+        preWrite.vendor !== pending.vendor ||
+        preWrite.profileIdentity !== pending.profileIdentity ||
+        preWrite.configRoot !== pending.configRoot
+      ) {
+        io.writeStderr(
+          `${MSG_CREDENTIAL_PROFILE_REFUSED} (identity_changed)\n`,
+        );
+        return EXIT_BOUNDARY_FAILURE;
+      }
+
+      const wrapper = makeCredentialProfilePreflight(
+        pending.profileId,
+        pending.profileIdentity,
+        pending.vendor,
+        pending.record,
+      );
+
+      const profileWrite = yield* Effect.gen(function* () {
+        const store = yield* CredentialProfilePreflightStore;
+        yield* store.write(pending.profileDest, wrapper);
+      }).pipe(Effect.provide(profilePreflightLayer), Effect.either);
+
+      if (profileWrite._tag === "Left") {
+        const err = profileWrite.left;
+        if (err instanceof ProfilePreflightStoreFailure) {
+          io.writeStderr(
+            `foreman-setup: profile preflight persist failed (${err.reason})\n`,
+          );
+        } else {
+          io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        }
+        return EXIT_BOUNDARY_FAILURE;
+      }
+
+      const legacyWrite = yield* Effect.gen(function* () {
+        const store = yield* PreflightRecordStore;
+        yield* store.write(pending.legacyDest, pending.record);
+      }).pipe(Effect.provide(storeLayer), Effect.either);
+
+      if (legacyWrite._tag === "Left") {
+        const err = legacyWrite.left;
+        // Sanitized public diagnostic: no absolute paths, stacks, or bytes.
+        if (err instanceof PreflightStoreFailure) {
+          io.writeStderr(
+            `foreman-setup: preflight persist failed (${err.reason})\n`,
+          );
+        } else {
+          io.writeStderr(MSG_BOUNDARY_FAILURE + "\n");
+        }
+        // Never report READY after a persistence failure.
+        return EXIT_BOUNDARY_FAILURE;
+      }
+    }
+    // --- login instructions: positive not-authenticated only ----------------
+    const notAuth = notAuthenticatedVendors(tcResult.model);
+    for (const v of notAuth) {
+      io.writeStdout(`${v}: NOT-READY -- run ${authInstruction(v)}\n`);
+    }
+
+    // --- readiness projection -----------------------------------------------
+    const ready = setupReady(tcResult.model, tcResult.exitCode, parsed.lane);
+    if (ready) {
+      io.writeStdout("SETUP: READY\n");
+      return EXIT_READY;
+    }
+    io.writeStdout("SETUP: NOT-READY\n");
+    return EXIT_NOT_READY;
+  }).pipe(
+    Effect.catchAllDefect(() =>
+      Effect.sync(() => {
+        io.writeStderr(MSG_INTERNAL_FAILURE + "\n");
+        return EXIT_BOUNDARY_FAILURE;
+      }),
+    ),
+  );
+}
+
+export { resolveRepoRoot };

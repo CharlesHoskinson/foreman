@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+# bats test data (run via `bats`, not as a product executable)
 # @description grok-lane-activation (v0.2.7.5 package 2) coverage.
 #
 #   Task 1 -- the grok arm of lane-run.sh's vendor map (T5a's
@@ -23,7 +23,7 @@ setup() {
   export DURABLE_ENABLED=false
   export DURABLE_CHECKPOINT_INTERVAL=0 DURABLE_HEARTBEAT_INTERVAL=0
   export FOREMAN_LAUNCH="$BATS_TEST_TMPDIR/no-such-foreman-launch-binary"
-  unset LANE_VENDOR LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
+  unset LANE_VENDOR LANE_CREDENTIAL_PROFILE LANE_CONFIG_DIR GROK_HOME CODEX_HOME CLAUDE_CONFIG_DIR 2>/dev/null || true
   SCRIPTS="$BATS_TEST_DIRNAME/../skills/foreman/scripts"
   source "$SCRIPTS/lib/common.sh"
   WT="$BATS_TEST_TMPDIR/wt"
@@ -36,6 +36,60 @@ setup() {
   git -C "$WT" commit -qm base
   SHIM="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$SHIM"
+  # R4C3: default ready persisted records so tests not exercising refusal
+  # do not depend on a live tool-check probe or host vendor sign-in.
+  write_ready_preflight_record grok
+  write_ready_preflight_record codex
+}
+
+# @description Write a canonical ready preflight record for vendor admission.
+# @arg $1 vendor id (grok|codex)
+write_ready_preflight_record() {
+  local vendor="$1"
+  mkdir -p "$FOREMAN_HOME/preflight"
+  case "$vendor" in
+    grok)
+      cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
+JSON
+      ;;
+    codex)
+      cat > "$FOREMAN_HOME/preflight/codex.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"declared","reason":"signed in","value":"authenticated"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["codex","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["codex","login","status"],"exitCode":0,"kind":"auth","outcome":"completed"}],"remediation":{"instruction":null,"kind":"none"},"reportedVersion":"0.146.0","resolvedPath":"/usr/bin/codex","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"codex","versionFloor":"0.146.0"}
+JSON
+      ;;
+    *)
+      echo "write_ready_preflight_record: bad vendor $vendor" >&2
+      return 1
+      ;;
+  esac
+  write_profile_preflight_wrapper "$vendor"
+}
+
+# @description Bind the legacy record fixture to the default external profile.
+# @arg $1 vendor id (grok|codex)
+write_profile_preflight_wrapper() {
+  local vendor="$1" profile_id="${1}-default" result identity wrapper_dir
+  result="$(node "$SCRIPTS/../runtime/dist/credential-profile.js" init \
+    --state-root "$FOREMAN_HOME" --worktree "$WT" \
+    --profile "$profile_id" --vendor "$vendor")"
+  identity="$(jq -er '.profileIdentity' <<<"$result")"
+  wrapper_dir="$FOREMAN_HOME/credential-profiles/$profile_id/preflight"
+  mkdir -p "$wrapper_dir"
+  jq -cn --arg profileId "$profile_id" --arg profileIdentity "$identity" \
+    --arg vendor "$vendor" --argjson record "$(cat "$FOREMAN_HOME/preflight/$vendor.json")" \
+    '{schemaVersion:1,profileId:$profileId,profileIdentity:$profileIdentity,vendor:$vendor,record:$record}' \
+    > "$wrapper_dir/$vendor.json"
+  chmod 600 "$wrapper_dir/$vendor.json"
+}
+
+# @description Write a canonical not-ready grok preflight record (auth unknown).
+write_not_ready_grok_record() {
+  mkdir -p "$FOREMAN_HOME/preflight"
+  cat > "$FOREMAN_HOME/preflight/grok.json" <<'JSON'
+{"facts":{"authenticated":{"evidenceClass":"probed","reason":"auth probe timed out","value":"unknown"},"current":{"evidenceClass":"declared","reason":"meets floor","value":"current"},"discoverable":{"evidenceClass":"declared","reason":"CLI resolved","value":"discoverable"}},"probes":[{"argv":["grok","--version"],"exitCode":0,"kind":"version","outcome":"completed"},{"argv":["grok","models"],"exitCode":null,"kind":"auth","outcome":"timeout"}],"remediation":{"instruction":"Re-run bounded grok models","kind":"diagnose"},"reportedVersion":"0.2.118","resolvedPath":"/usr/bin/grok","schemaVersion":1,"timestamp":"2026-08-04T15:00:00.000Z","vendor":"grok","versionFloor":"0.2.118"}
+JSON
+  write_profile_preflight_wrapper grok
 }
 
 # @description Mirrors lane-run.sh's own lane_normalize_config_dir exactly
@@ -90,19 +144,16 @@ SHIM
   chmod +x "$dir/foreman-launch"
 }
 
-# @description A deterministic, always-authenticated grok shim: answers
-#   --version and the readiness gate's own `grok models` auth probe (see
-#   env/tool-check.sh's vendor_authed) the same way a real signed-in grok
-#   CLI does, so tests that are not themselves exercising the readiness gate
-#   get past it without depending on this host's real grok sign-in state or
-#   network access.
+# @description Historical live-probe grok shim. R4C3 admission no longer
+#   invokes the vendor CLI; kept only so PATH-dependent tests can install a
+#   trap that proves live probes do not run. Prefer write_ready_preflight_record.
 # @arg $1 dir directory to write the shim into (caller prepends it to PATH)
 write_authed_grok_shim() {
   local dir="$1"
   cat > "$dir/grok" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-  --version) echo "grok 0.2.103"; exit 0 ;;
+  --version) echo "grok 0.2.118"; exit 0 ;;
   models) echo "You are logged in with grok.com."; exit 0 ;;
   *) exit 0 ;;
 esac
@@ -120,12 +171,12 @@ EOF
 @test "LANE_VENDOR=grok (launcher-absent branch, FOREMAN_LAUNCH absent): normalized GROK_HOME reaches CMD" {
   write_authed_grok_shim "$SHIM"
   export PATH="$SHIM:$PATH"
-  mkdir -p "$WT/.harness/vendor-home/grok"   # mirrors wt-new.sh's own provisioning
+  mkdir -p "$WT/.harness/vendor-home/grok"   # Explicit legacy lane-run fixture. R7B2-B removes this default.
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- \
     bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
-  expected="$(norm "$WT/.harness/vendor-home/grok")"
+  expected="$(norm "$FOREMAN_HOME/credential-profiles/grok-default/homes/grok")"
   [ "$(cat "$WT/env-dump")" = "$expected" ]
 }
 
@@ -141,7 +192,7 @@ EOF
   run bash "$SCRIPTS/lane-run.sh" run2 lane-a "$WT" -- \
     bash -c 'printf "%s" "$GROK_HOME" > "'"$WT"'/env-dump"'
   [ "$status" -eq 0 ]
-  expected="$(norm "$WT/.harness/vendor-home/grok")"
+  expected="$(norm "$FOREMAN_HOME/credential-profiles/grok-default/homes/grok")"
   [ "$(cat "$WT/env-dump")" = "$expected" ]
   events="$(run_dir run2)/events.jsonl"
   run jq -rc 'select(.type=="ownership") | .payload.config_dir' "$events"
@@ -149,11 +200,13 @@ EOF
 }
 
 # ---------------------------------------------------------------------
-# Task 2: secrets-refusal preflight. An IN-LANE guard, DISTINCT from and
-# running AFTER the package-1 Use-path readiness gate -- both apply to a
-# grok lane. Scoped to the worktree SOURCE: .harness/ scaffolding (vendor-
-# home, lane.lock, heartbeat/stream files) is excluded, so provisioning
-# that scaffolding never trips a false positive.
+# Task 2 / R6: secrets-refusal preflight. An IN-LANE guard, DISTINCT from
+# and running AFTER the package-1 Use-path readiness gate -- both apply to
+# a grok lane. Domain logic is the TypeScript secret-scan runtime; the
+# shell only forwards the absolute worktree root. Scoped to the worktree
+# SOURCE: .harness/ scaffolding (vendor-home, lane.lock, heartbeat/stream
+# files) is excluded, so provisioning that scaffolding never trips a false
+# positive. Codex and unset-vendor paths remain byte-unaffected.
 # ---------------------------------------------------------------------
 
 # @description A deterministic, always-authenticated codex shim (mirrors
@@ -166,8 +219,17 @@ write_authed_codex_shim() {
   cat > "$dir/codex" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
-  --version) echo "codex-cli 0.1.0"; exit 0 ;;
-  login) exit 0 ;;
+  --version) echo "codex-cli 0.146.0"; exit 0 ;;
+  login)
+    # Typed capability authority probes `codex login status`. Empty stdout
+    # is classified empty_output → unknown, not authenticated. Mirror the
+    # real CLI success line used by adapters.bats / live preflight.
+    if [[ "${2:-}" == "status" ]]; then
+      echo "Logged in using ChatGPT"
+      exit 0
+    fi
+    exit 0
+    ;;
   *) exit 0 ;;
 esac
 EOF
@@ -298,16 +360,13 @@ EOF
 }
 
 # ---------------------------------------------------------------------
-# Task 3: manifest + Setup-stage auth. tool-check's grok auth probe and
-# lane-run.sh's Use-path readiness gate are package-1 (lifecycle-three-stage)
-# responsibilities, already shipped and already covered by
-# tests/lifecycle-gate.bats and tests/foreman-setup.bats. This is package
-# 2's own acceptance proof that a grok Use route is refused citing Setup,
-# with no mid-lane auth attempt, matching the manifest's now-corrected auth
-# doctrine (grok login --device-code, gated to Setup, never attempted here).
+# Task 3 / R4C3: persisted not-ready refusal. lane-run.sh admits only via
+# the stored preflight record. A valid not-ready record preserves its
+# recorded reason unchanged; no live vendor probe and no mid-lane login.
 # ---------------------------------------------------------------------
 
-@test "grok Use route is refused citing Setup when unauthenticated -- no mid-lane auth attempt" {
+@test "grok Use route is refused from a not-ready persisted record -- no mid-lane auth attempt" {
+  write_not_ready_grok_record
   cat > "$SHIM/grok" <<'EOF'
 #!/usr/bin/env bash
 case "$1" in
@@ -327,8 +386,10 @@ EOF
   export PATH="$SHIM:$PATH"
   export LANE_VENDOR=grok
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c 'echo RAN > "'"$WT"'/ran"'
-  [ "$status" -ne 0 ]
-  [[ "$output" == *"Setup"* ]]
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"preflight_not_ready"* ]]
   [ ! -f "$WT/ran" ]
   [ ! -f "$BATS_TEST_TMPDIR/login-called" ]
+  [ ! -f "$BATS_TEST_TMPDIR/ran" ]
+  [ ! -d "$WT/.harness/lane.lock" ]
 }

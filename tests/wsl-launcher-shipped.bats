@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+# bats test data (run via `bats`, not as a product executable)
 # @description Regression coverage for the wsl-launcher-shipped package:
 #   Setup builds the POSIX launcher idempotently, tool-check distinguishes a
 #   buildable absence from a bun-blocked degradation, the frozen lane alert
@@ -8,14 +8,65 @@ setup() {
   REPO_ROOT="$BATS_TEST_DIRNAME/.."
   SHIM="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$SHIM"
+  # Isolate Setup preflight persistence and skill lookup from the operator home.
+  export FOREMAN_HOME="$BATS_TEST_TMPDIR/foreman-home"
+  mkdir -p "$FOREMAN_HOME"
+  export HOME="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$HOME/.grok/skills/foreman"
+  # foreman_skill is soft-must; install a minimal linked skill under test HOME.
+  printf '%s\n' '# fixture skill' > "$HOME/.grok/skills/foreman/SKILL.md"
+  # GitHub setup-node installs Node outside /usr/bin:/bin. Direct tool-check
+  # calls use a restricted PATH ($SHIM:$NODE_ONLY:/usr/bin:/bin). Put only a
+  # node-only directory on that PATH so the thin Node adapter can start.
+  # Do NOT add the real Node install directory wholesale: that directory can
+  # also expose an ambient Bun binary (e.g. peer tools under the same prefix),
+  # which would invalidate the bun-absent degraded case. Production lookup is
+  # unchanged.
+  NODE_BIN="$(command -v node)"
+  NODE_ONLY="$BATS_TEST_TMPDIR/node-only"
+  mkdir -p "$NODE_ONLY"
+  ln -sfn "$NODE_BIN" "$NODE_ONLY/node"
+  # Soft-profile must tools that are not ambient on restricted PATH: ready
+  # vendor CLIs. Keep them out of $SHIM so bun-present vs bun-absent stays
+  # distinct (bun lives only in $SHIM).
+  READY_SHIM="$BATS_TEST_TMPDIR/ready-shim"
+  mkdir -p "$READY_SHIM"
+  cat > "$READY_SHIM/grok" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  --version) echo "grok 0.2.118"; exit 0 ;;
+  models) echo "You are logged in with grok.com."; exit 0 ;;
+  *) exit 0 ;;
+esac
+EOF
+  cat > "$READY_SHIM/codex" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  --version) echo "codex-cli 0.146.0"; exit 0 ;;
+  login)
+    if [[ "${2:-}" == "status" ]]; then echo "Logged in"; exit 0; fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+EOF
+  chmod +x "$READY_SHIM/grok" "$READY_SHIM/codex"
+  # Base PATH for fixture Setup: ready vendors + node + system tools. Bun is
+  # optional via $SHIM prefix in bun-present cases only.
+  FIXTURE_SETUP_PATH="$READY_SHIM:$NODE_ONLY:/usr/bin:/bin"
 }
 
 make_setup_fixture() {
   FIXTURE="$BATS_TEST_TMPDIR/fixture"
-  mkdir -p "$FIXTURE/skills/foreman/scripts/lib" "$FIXTURE/env" \
+  mkdir -p "$FIXTURE/skills/foreman/scripts/lib" \
+    "$FIXTURE/skills/foreman/runtime/dist" \
+    "$FIXTURE/env" \
     "$FIXTURE/.foreman" "$FIXTURE/launcher"
   cp "$REPO_ROOT/skills/foreman/scripts/foreman-setup.sh" \
     "$FIXTURE/skills/foreman/scripts/"
+  # Thin adapter requires the tracked runtime bundle next to scripts/../runtime.
+  cp "$REPO_ROOT/skills/foreman/runtime/dist/foreman-setup.js" \
+    "$FIXTURE/skills/foreman/runtime/dist/"
   cp "$REPO_ROOT/skills/foreman/scripts/lib/common.sh" \
     "$REPO_ROOT/skills/foreman/scripts/lib/config.sh" \
     "$FIXTURE/skills/foreman/scripts/lib/"
@@ -66,7 +117,7 @@ make_git_noop() {
   printf 'MUTATED INPUT: wsl=1 launcher=absent bun=present\n'
 
   run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
   [ -x "$FIXTURE/launcher/dist/foreman-launch" ]
@@ -76,7 +127,7 @@ make_git_noop() {
 
   printf 'MUTATED INPUT: wsl=1 launcher=executable bun=present\n'
   run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
   [ "$(wc -l < "$BUN_BUILD_LOG")" -eq 1 ]
@@ -88,7 +139,8 @@ make_git_noop() {
   make_setup_fixture
   printf 'MUTATED INPUT: wsl=1 launcher=absent bun=absent\n'
 
-  run env FOREMAN_TEST_WSL_FORCE=1 PATH="/usr/bin:/bin" \
+  # No $SHIM: node and ready vendors are available; bun is not.
+  run env FOREMAN_TEST_WSL_FORCE=1 PATH="$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
   [ ! -e "$FIXTURE/launcher/dist/foreman-launch" ]
@@ -103,7 +155,7 @@ make_git_noop() {
   printf 'MUTATED INPUT: wsl=1 profile=hard launcher=%s(absent) bun=present\n' "$missing"
 
   run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
-    BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" PATH="$SHIM:/usr/bin:/bin" \
+    BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" \
     bash "$REPO_ROOT/env/tool-check.sh" --profile hard
   [ "$status" -ne 0 ]
   [[ "$output" == *"foreman-launch"*"missing"*"bun run build:posix"* ]]
@@ -118,7 +170,7 @@ make_git_noop() {
   printf 'MUTATED INPUT: wsl=1 profile=hard launcher=%s(absent) bun=absent\n' "$missing"
 
   run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" \
     bash "$REPO_ROOT/env/tool-check.sh" --profile hard
   [[ "$output" == *"foreman-launch"*"degraded"*"bun"* ]]
   [[ "$output" == *"DEGRADED:"*"foreman-launch"* ]]
@@ -165,6 +217,9 @@ make_git_noop() {
 @test "failed build partial is removed and the next WSL Setup run rebuilds" {
   make_setup_fixture
   export BUN_BUILD_LOG="$BATS_TEST_TMPDIR/bun-build.log"
+  # TypeScript Setup captures bun stdout/stderr, so CONTROL is recorded on the
+  # side-channel log. Write only to --outfile (temp build path); do not smuggle
+  # a final-path partial outside Setup's cleanup scope.
   cat > "$SHIM/bun" <<'SHIM'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "run" && "${2:-}" == "build:posix" ]]; then
@@ -176,15 +231,15 @@ if [[ "${1:-}" == "run" && "${2:-}" == "build:posix" ]]; then
       *) shift ;;
     esac
   done
-  mkdir -p dist "$(dirname "$out")"
-  printf '%s\n' '#!/usr/bin/env bash' 'exit 125' > dist/foreman-launch
-  chmod +x dist/foreman-launch
+  mkdir -p "$(dirname "$out")"
   printf '%s\n' '#!/usr/bin/env bash' 'exit 125' > "$out"
   chmod +x "$out"
-  if [[ -x dist/foreman-launch ]]; then
-    echo "CONTROL: partial artifact present=yes path=$PWD/dist/foreman-launch"
+  if [[ -x "$out" ]]; then
+    printf 'CONTROL: partial artifact present=yes path=%s\n' "$out" \
+      >> "${BUN_BUILD_LOG:?}"
   else
-    echo "CONTROL: partial artifact present=no path=$PWD/dist/foreman-launch"
+    printf 'CONTROL: partial artifact present=no path=%s\n' "$out" \
+      >> "${BUN_BUILD_LOG:?}"
   fi
   exit 23
 fi
@@ -193,20 +248,24 @@ SHIM
   chmod +x "$SHIM/bun"
 
   run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -ne 0 ]
-  [[ "$output" == *"CONTROL: partial artifact present=yes"* ]]
+  grep -Fq 'CONTROL: partial artifact present=yes' "$BUN_BUILD_LOG"
   [[ "$output" == *"POSIX launcher build failed"* ]]
   [[ "$output" == *"SETUP: NOT-READY"* ]]
   [ ! -e "$FIXTURE/launcher/dist/foreman-launch" ]
   [ -z "$(find "$FIXTURE/launcher/dist" -maxdepth 1 -name '.foreman-launch.build.*' -print -quit)" ]
   printf 'OBSERVED FAILED CONTROL:\n%s\n' \
-    "$(grep -E '^(CONTROL:|SETUP:)|POSIX launcher build failed' <<<"$output")"
+    "$(grep -E '^(CONTROL:|SETUP:)|POSIX launcher build failed' \
+      <(cat "$BUN_BUILD_LOG"; printf '%s\n' "$output"))"
 
   make_bun_builder
+  # Clear the failed-build CONTROL lines so the recovery assert counts one
+  # successful build:posix log line from make_bun_builder.
+  : > "$BUN_BUILD_LOG"
   run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
   [ -x "$FIXTURE/launcher/dist/foreman-launch" ]
@@ -222,7 +281,7 @@ SHIM
   export BUN_BUILD_LOG="$BATS_TEST_TMPDIR/bun-build.log"
 
   run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_WSL_FORCE=0 \
-    BUN_BUILD_LOG="$BUN_BUILD_LOG" PATH="$SHIM:/usr/bin:/bin" \
+    BUN_BUILD_LOG="$BUN_BUILD_LOG" PATH="$SHIM:$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --profile soft
   [ "$status" -eq 0 ]
   [ -x "$FIXTURE/launcher/dist/foreman-launch" ]
@@ -237,7 +296,7 @@ SHIM
   export BUN_BUILD_LOG="$BATS_TEST_TMPDIR/bun-build.log"
 
   run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --help
   [ "$status" -eq 0 ]
   [[ "$output" == usage:* ]]
@@ -247,7 +306,7 @@ SHIM
   printf 'OBSERVED HELP: %s\n' "$output"
 
   run env FOREMAN_TEST_WSL_FORCE=1 BUN_BUILD_LOG="$BUN_BUILD_LOG" \
-    PATH="$SHIM:/usr/bin:/bin" \
+    PATH="$SHIM:$FIXTURE_SETUP_PATH" \
     bash "$FIXTURE/skills/foreman/scripts/foreman-setup.sh" --unknown
   [ "$status" -eq 2 ]
   [[ "$output" == *"unknown arg: --unknown"* ]]
@@ -265,7 +324,7 @@ SHIM
   for profile in soft durable hard full; do
     run env FOREMAN_TEST_WSL_FORCE=1 FOREMAN_LAUNCH="$missing" \
       BUN_BUILD_LOG="$BATS_TEST_TMPDIR/unused.log" \
-      PATH="$SHIM:/usr/bin:/bin" \
+      PATH="$SHIM:$NODE_ONLY:/usr/bin:/bin" \
       bash "$REPO_ROOT/env/tool-check.sh" --profile "$profile"
     [[ "$output" == *"TEST OVERRIDE"*"FOREMAN_TEST_WSL_FORCE=1"*"wsl=1"* ]]
     [[ "$output" == *"foreman-launch"*"missing"* ]]

@@ -18,17 +18,18 @@ are not authoritative source and must never be hand-edited.
 
 ## Package boundaries
 
-The migration uses these product packages:
+The migration uses these nine product package families:
 
 | Package | Responsibility | First legacy source replaced |
 |---|---|---|
 | `@foreman/core` | closed schemas, typed errors, canonical JSON, safe filesystem and process interfaces | duplicated helpers across scripts |
+| `@foreman/policy` | fail-capable architecture policy and known-bad fixtures for new non-TypeScript product logic | ad hoc policy checks across scripts |
 | `@foreman/event-log` | closed event schemas, bounded NDJSON replay, cursor and attempt identity | `lib/eventlog.sh` and duplicate event decoders |
 | `@foreman/session` | SessionDB facts, measurements, supersession, recovery, sidecar, and current-authority export | `fm-session.py` and freshness sweep logic |
 | `@foreman/graph-store` | GraphStore port and files-only materialization | `skills/foreman/graph_store/` |
 | `@foreman/launcher` | process supervision, heartbeats, cancellation, and platform adapters | `launcher/` Bun runtime |
 | `@foreman/release` | metrics rollup, sigma, package manifest, and immutable audits | metrics scripts and planned `package-audit.py` |
-| `@foreman/knowledge` | Graphify refresh, freshness, doctrine registry, and current-authority projection | graph/doctrine shell scripts |
+| `@foreman/knowledge` | Graphify refresh, freshness, doctrine registry, current-authority projection, and `graph-project` | graph/doctrine shell scripts |
 | `@foreman/orchestration` | round ownership, vendor preflight, WSL preflight, and caller integration | orchestration shell cores |
 
 Packages can land one module at a time. A package does not need to wait for
@@ -72,37 +73,65 @@ every runtime entry point and its production dependencies must be present in
 repository path or a root `node_modules` directory.
 
 Setup builds deterministic self-contained bundles from the workspace and writes
-one digest manifest at `skills/foreman/runtime/manifest.json`. Plugin-drift and
-Setup verify the manifest and every bundle. A copied install must copy the
-built skill tree and pass the same check. Source maps can remain local build
-artifacts, but a runtime bundle cannot be omitted from an install that
-advertises its command.
+one digest manifest at `skills/foreman/runtime/manifest.json`. The canonical
+installed-runtime verifier is the TypeScript `verify-install` command on the
+compiled architecture-policy CLI. It accepts a skill root (repository copy,
+symlink, junction, or plain directory), resolves the root once, and proves
+`runtime/manifest.json` plus every declared `runtime/dist` artifact with
+descriptor-bound reads. Links inside the resolved runtime tree are not valid
+manifest or bundle authority. Runtime plugin-drift (`plugin-drift` on the same
+CLI) runs that verifier on a source skill root and an installed skill root,
+then compares exact canonical manifest bytes and artifact descriptors. It is
+not whole-skill parity with legacy `tools/plugin-drift.sh`.
 
-## Sprint order
+**Completed for this boundary:** canonical TypeScript verification for
+repository and copy skill roots; real POSIX symlink and Windows junction
+controls in tests (each skipped on the other platform via `node:test`); one
+verified snapshot per pass (`manifestDigest` + descriptors) used by runtime
+plugin-drift without a second resolve/read; root/runtime/dist identity
+recheck and skill-root re-resolve; copied-skill smoke without repository
+siblings or root `node_modules`.
 
-0. Freeze governance, the baseline, and Council-reviewed sprint plan.
-1. Land the root workspace, policy gate, and shared core primitives.
-2. Replace GraphStore Python with `@foreman/graph-store` and delete the Python
-   package after parity.
-3. Make launcher behavior Node-compatible. Remove Bun-specific APIs and the
-   subreaper mode that adopts children without continuously reaping them.
-4. Replace duplicate event decoders with `@foreman/event-log`, then replace
-   SessionDB Python with `@foreman/session`, including typed retraction,
-   existing-successor supersession, lossless sidecar, and a separate derived
-   current-authority export.
-5. Implement release metrics and package audits in `@foreman/release`.
-6. Implement graph refresh and doctrine checks in `@foreman/knowledge`.
-7. Implement round ownership and preflight in `@foreman/orchestration`.
-8. Convert remaining callers to adapters, delete dead implementations, and
-   remove all residual Python and stale current-authority references.
-9. Run release convergence for a separately approved migration release.
+**Still open:** hosted Windows CI green for the junction control; legacy Setup
+shell, installers, and full whole-skill plugin-drift ports in the ordered
+orchestration sprint. Do not mark those workflows migrated until ports land.
 
-The detailed sprint outcomes, work, and exit predicates are in `sprints.md`.
+## Module dependency map
 
-GraphStore starts first because it is an isolated port, is currently Python,
-and supplies reusable filesystem/schema patterns. Launcher supervision follows
-because current long-running Foreman workers have demonstrated adopted zombie
-accumulation when the Bun subreaper path is active.
+Release order is owned by `openspec/changes/v030-release-program/`. This
+package records module dependencies and detailed module contracts only. It does
+not define release order.
+
+Module dependency map:
+
+- workspace, `@foreman/core`, and `@foreman/policy` land before product ports
+- `@foreman/event-log` lands before SessionDB, release metrics, knowledge
+  consumers, and other event consumers
+- `@foreman/graph-store` can land as an isolated port after core primitives
+- `@foreman/launcher` follows core because long-running workers need Node and
+  Effect supervision without Bun-only APIs
+- `@foreman/session` follows the event-log foundation
+- `@foreman/release` follows the event-log foundation for metrics inputs
+- `@foreman/knowledge` follows core and owns `graph-project`. It consumes
+  typed `@foreman/event-log` inputs for current-authority projection and
+  `graph-project`. `@foreman/event-log` remains the system of record for run
+  events. `graph-project` does not become the event-log system of record.
+- `@foreman/orchestration` follows core and launcher contracts for round
+  ownership and preflight
+- residual Python, Bun, and stale current-authority cleanup follows the ports
+  that replace those implementations
+
+`graph-project` is owned by `@foreman/knowledge`. It consumes typed
+`@foreman/event-log` inputs. It is distinct from the SessionDB
+current-authority export. `@foreman/event-log` remains the system of record.
+
+GraphStore is a preferred early port because it is isolated, is currently
+Python, and supplies reusable filesystem and schema patterns. Launcher
+supervision is required because current long-running Foreman workers have
+demonstrated adopted zombie accumulation when the Bun subreaper path is active.
+
+The detailed module outcomes, work, and exit predicates are in `sprints.md` as
+migration groups `M0` through `M9`. Those groups do not define release order.
 
 ## Policy enforcement
 
@@ -113,6 +142,20 @@ adapter grammar plus named known-bad controls.
 
 The gate reports legacy files separately. Existing debt does not make the gate
 fail merely because it exists, but a change cannot increase that debt.
+
+The first `@foreman/policy` slice also owns destruction admission. One exact
+sentinel-delimited canonical JSON block inside the destruction log is the
+register source of truth; no parallel JSON register is permitted. The pure
+evaluator decides whether an exact action is admissible. Effect services own
+bounded file reads, fatal UTF-8 decoding, Git identity, clock access, hashing,
+exclusive temporary files, flush, atomic rename, verification, interruption,
+and cleanup.
+
+The initial executor implements only `artifact_relocate`. It never follows a
+symbolic link, never expands a glob, never accepts a group target, and never
+unlinks the source before the recovery copy is atomically published and
+verified. Other destructive actions remain denied until their own typed
+executors land. Existing shell cleanup is not an admitted executor.
 
 ## Testing
 

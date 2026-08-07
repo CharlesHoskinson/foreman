@@ -1,75 +1,154 @@
 # Tasks — Node.js and TypeScript runtime migration
 
-## Sprint 0 — establish the rule
+Release order is owned by `openspec/changes/v030-release-program/`. The groups
+below contain detailed module tasks only. They do not define release order.
+
+## M0 — establish the rule
 
 - [x] Add repository agent doctrine for Node.js 24 and TypeScript.
 - [x] Define the runtime, package, Effect, adapter, and deletion boundaries.
 - [x] Record the migration as post-v0.2.8.2 work in `ROADMAP.md`.
-- [ ] Complete a Council review of the immutable sprint plan with no unresolved
-      admissible dissent.
+- [ ] Complete a Council review of the immutable migration groups with no
+      unresolved admissible dissent.
 
-## Sprint 1 — workspace and architecture gate
+## M1 — workspace and architecture gate
 
-- [ ] Add the root npm workspace, lockfile, strict shared TypeScript config,
+- [x] Add the root npm workspace, lockfile, strict shared TypeScript config,
       Node.js 24 engine constraint, and exact dependency pins.
-- [ ] Put authoritative source under `packages/` and emit deterministic
+- [x] Put authoritative source under `packages/` and emit deterministic
       self-contained Node.js bundles under `skills/foreman/runtime/dist/` plus
       `skills/foreman/runtime/manifest.json`.
-- [ ] Add `@foreman/core` with closed error and schema primitives.
-- [ ] Add a TypeScript policy checker with fail-capable fixtures for new
+- [x] Add `@foreman/core` with closed error and schema primitives.
+- [x] Add a TypeScript policy checker with fail-capable fixtures for new
       Python, shell, PowerShell, CMD, JavaScript, MJS, CJS, Bun-only imports,
-      and a legacy adapter that contains domain logic.
-- [ ] Run the policy gate in Linux and Windows CI.
-- [ ] Make Setup, symlink installs, junction installs, copied installs, and
-      plugin-drift verify the same bundle manifest without resolving repository
-      siblings or root `node_modules` at runtime.
+      and a legacy adapter that contains domain logic. Compiled entry:
+      `skills/foreman/runtime/dist/architecture-policy.js`. CLI:
+      `check --base <ref> [--repo-root <path>]`. Hosted CI job pass on the
+      exact candidate remains open (workflow wiring is present).
+- [x] Add the fail-closed destruction register, pure admission evaluator, and
+      compiled `foreman-destruction-guard` command in `@foreman/policy`.
+      Support `check` bound to committed HEAD authority. Live
+      `artifact_relocate` remains fail-closed (`platform_invariant_unproven`)
+      until portable no-replace and bound-source primitives are proved.
+      Keep every other destructive action unsupported and denied.
+- [x] Convert the current destruction register to one sentinel-delimited
+      canonical JSON block inside the existing Markdown log. There is no
+      parallel human projection table. Reject a second structured
+      register/projection, missing or duplicate sentinels, duplicate IDs,
+      unknown fields, pending approvals, historical incidents, and identity
+      mismatches.
+- [x] Prove the compiled guard denies the current exact `DST-0060` request.
+      Do not mark `DST-0059` complete or relocate `DST-0060` in this task.
+- [ ] Run the policy gate in Linux and Windows CI. Workflow wiring is tracked;
+      keep this open until both hosted jobs pass the exact candidate.
+- [x] Add the canonical TypeScript installed-runtime verifier and runtime
+      plugin-drift command on the architecture-policy CLI
+      (`verify-install --skill-root`, `plugin-drift --source-root
+      --installed-root`). Prove repository, copied, path-with-spaces skill
+      roots without resolving repository siblings or root `node_modules`.
+      One verified snapshot binds `manifestDigest` and artifact descriptors
+      per pass; plugin-drift compares snapshots without a second resolve or
+      manifest open. Root/runtime/dist directory identities are rechecked;
+      skill-root is re-resolved at end. POSIX symlink and Windows junction
+      live controls use real link creation (`symlinkSync`; junction type on
+      Windows) with native `node:test` skip on the non-applicable platform.
+      Hosted Windows CI pass for the junction control is still not claimed.
+- [ ] Port legacy Setup (`foreman-setup.sh`), installers (`install.sh` /
+      `install.ps1`), and whole-skill `tools/plugin-drift.sh` to thin adapters
+      or TypeScript in the ordered orchestration sprint. Do not claim full
+      Sprint 1 installation migration while those legacy paths remain.
 
-## Sprint 2 — migrate GraphStore
+## M2 — migrate GraphStore
 
-- [ ] Write the GraphStore contract tests in TypeScript before implementation.
-- [ ] Implement the port, closed document schemas, expected-emptiness contract,
+- [x] Write the GraphStore contract tests in TypeScript before implementation.
+      (`packages/graph-store/src/**/*.test.ts`, including contract and hostile
+      suites, wired into root `npm test`.)
+- [x] Implement the port, closed document schemas, expected-emptiness contract,
       and files-only backend in `@foreman/graph-store`.
-- [ ] Use Effect for filesystem scope, atomic publication, typed failures, and
+      (Accepted TypeScript package and compiled CLI at `0ae1c56`.)
+- [x] Use Effect for filesystem scope, atomic publication, typed failures, and
       bounded concurrent access. Keep graph traversal algorithms pure.
-- [ ] Prove exact schemas, safe path handling, corruption refusal, hard-link
+      (Effect modules: `packages/graph-store/src/files-only.ts` —
+      `Effect.acquireRelease` / `Effect.scoped` / `Context.Tag` /
+      `Layer.succeed` for scoped open and lock lifetime; `atomicWriteFile` and
+      `publishSnapshot` for atomic generation publication; `failures.ts` typed
+      `GraphStoreFailure` vocabulary; `bounds.ts` lock and concurrency bounds.
+      Pure traversal remains in `queries.ts` / `schema.ts`. Hostile proof:
+      `files-only-hostile.test.ts` — concurrent-open serialization, concurrent
+      publications without last-writer-wins, typed `publish_conflict`, inject-
+      before-CURRENT unpublished generation, short-write durable publish, and
+      immutable generation overwrite refusal.)
+- [x] Prove exact schemas, safe path handling, corruption refusal, hard-link
       refusal, deterministic generations, and concurrent-open serialization.
-- [ ] Convert current callers to the TypeScript entry point, run parity tests,
+      (Hostile and schema tests under `packages/graph-store/src/`.)
+- [x] Convert current callers to the TypeScript entry point, run parity tests,
       then delete `skills/foreman/graph_store/*.py`.
+      (Seven modules removed by DST-0040 `tracked_delete`. Product pointer is
+      `@foreman/graph-store` and `skills/foreman/runtime/dist/graph-store.js`.
+      Root TypeScript test wiring: `packages/graph-store/src/**/*.test.ts` in
+      root `npm test`. Compiled contract commands:
+      `node skills/foreman/runtime/dist/graph-store.js contract files_only` and
+      `node skills/foreman/runtime/dist/graph-store.js contract stub
+      --expect-fail`. Residual-reference scan: no current tracked product file
+      invokes `python3 -m graph_store`, imports `graph_store`, or references a
+      live `skills/foreman/scripts/lib/graph-store.sh` (that path is absent;
+      superseded historical copies under `docs/evidence/` only). Hosted CI is
+      not claimed. Deferred adapter, full N2 schema freeze, ingest, and
+      full-round work remain outside this claim.)
 
-## Sprint 3 — migrate launcher supervision
+## M3 — migrate launcher supervision
 
-- [ ] Port the launcher CLI and supervision core to Node.js.
-- [ ] Remove Bun imports, Bun process APIs, and the Bun build requirement.
-- [ ] Use Effect scopes and interruption for timers, streams, child processes,
+- [x] Port the launcher CLI and supervision core to Node.js.
+      (`@foreman/launcher` under `packages/launcher/`; compiled
+      `skills/foreman/runtime/dist/foreman-launch.js`. Change:
+      `openspec/changes/launcher-node-port/`.)
+- [ ] Remove Bun imports, Bun process APIs, and the Bun build requirement from
+      product callers. The new package has no Bun/Deno imports. Legacy
+      `launcher/` remains byte-unchanged until the consumer-switch and guarded
+      retirement follow-on.
+- [x] Use Effect scopes and interruption for timers, streams, child processes,
       heartbeat files, cancellation, and graded shutdown.
-- [ ] Add a failing zombie control that keeps a worker alive while more than
-      1,000 short descendants exit. The launcher must reap or avoid adopting
-      them and must not exhaust the process table.
-- [ ] Preserve Linux/WSL process-group and Windows tree-termination contracts,
-      or report a typed degraded capability before launch.
+- [x] Add a bounded live zombie/churn control: supervised worker stays live
+      while creating more than 1,000 short descendants; on Linux `/proc` hosts
+      the launcher process has zero zombie direct children (typed skip without
+      `/proc`). Broader system-wide process-table exhaustion remains open.
+- [x] Preserve Linux/WSL process-group fallback and report a typed degraded
+      capability before launch when strong containment is unavailable. Windows
+      reports `windows_job_object_unavailable` with injectable taskkill; native
+      Job Object parity remains open. Live PID-namespace cascade remains
+      designed but host-unavailable where `unshare` probe fails.
 
-## Sprint 4A — migrate the event log
+## M4A — migrate the event log
 
-- [ ] Implement closed event schemas, duplicate-key refusal, bounded NDJSON
+- [x] Implement closed event schemas, duplicate-key refusal, bounded NDJSON
       replay, cursors, and attempt identity in `@foreman/event-log`.
+      Package surface (schema v1): `StoredEvent` decoder
+      (`decodeStoredEvent` / `FromText` / `FromBytes`); bounded `replayNdjson`
+      over `Iterable<Uint8Array>` with valid-prefix + `CleanEof`/`Stopped`;
+      physical-line cursor decode/advance; `RunId` / allocation `LaneId` /
+      `AttemptId` / `AttemptIdentity` and `nextAttempt`. Numeric bounds:
+      nesting depth 64, JSON nodes 100_000, physical line 1_048_576 bytes,
+      total input 67_108_864 bytes, physical lines 100_000. No append,
+      locks, compaction, cursor files, or attempt filesystem allocation.
 - [ ] Make SessionDB, release metrics, and orchestration consume this one
       decoder instead of defining separate event interpretations.
 - [ ] Preserve event append, lock, and byte contracts through a thin adapter,
       then remove domain decoding from `lib/eventlog.sh`.
 
-## Sprint 4B — migrate SessionDB
+## M4B — migrate SessionDB
 
 - [ ] Implement facts, measurements, obligations, recovery, freshness,
-      supersession, retirement, sidecar hydrate/export, and graph projection in
+      supersession, retirement, and sidecar hydrate/export in
       `@foreman/session`.
 - [ ] Add typed fact retraction and `supersede --by <existing-id>` so stale
       facts can leave current authority without duplicate replacement claims.
 - [ ] Keep the canonical NDJSON sidecar lossless. Add a separate derived,
-      non-hydratable current-authority export.
+      non-hydratable current-authority export that is distinct from
+      `graph-project`.
 - [ ] Preserve the existing command contract through a thin adapter, migrate
       hourly checkpoints and release gates, then delete `fm-session.py`.
 
-## Sprint 5 — migrate release evidence modules
+## M5 — migrate release evidence modules
 
 - [ ] Implement metrics rollup and release sigma in `@foreman/release` with
       closed event schemas, duplicate-key refusal, source digests, and
@@ -79,17 +158,20 @@
 - [ ] Replace planned Python commands and migrate Tier 2 collection/compare
       helpers before adding new behavior to them.
 
-## Sprint 6 — migrate knowledge modules
+## M6 — migrate knowledge modules
 
-- [ ] Implement Graphify refresh, freshness, and current-authority projection
-      in `@foreman/knowledge`.
+- [ ] Implement Graphify refresh, freshness, current-authority projection, and
+      `graph-project` in `@foreman/knowledge`.
+- [ ] Make `graph-project` consume typed `@foreman/event-log` inputs.
+      `@foreman/event-log` remains the system of record. `graph-project` does
+      not become the event-log system of record.
 - [ ] Bind executable identity, version bytes, Git state, source manifest, and
       publication generations. Fail closed on races, links, Git errors,
       warnings, timeouts, output overflow, and detached descendants.
 - [ ] Implement doctrine registry validation in the same package.
 - [ ] Keep existing shell paths only as thin adapters until callers migrate.
 
-## Sprint 7 — migrate orchestration modules
+## M7 — migrate orchestration modules
 
 - [ ] Implement round ownership and recovery in `@foreman/orchestration` with
       unique recovery identities, closed provenance, durable transactions,
@@ -98,7 +180,7 @@
       typed readiness facts, bounded output, and scoped cleanup.
 - [ ] Convert Setup, lane, and tool-check callers to adapters.
 
-## Sprint 8 — delete legacy implementations and all residual Python
+## M8 — delete legacy implementations and all residual Python
 
 - [ ] Delete a legacy implementation only after every caller uses the
       TypeScript module and compatibility gates pass.
@@ -108,16 +190,19 @@
       superseded status snapshots from live repository paths.
 - [ ] Rebuild Graphify from the accepted candidate and verify that no current
       node points to a deleted or retired authority.
-- [ ] Port or retire the two research calculators, archived schema checker,
+- [ ] Port or retire the three research Python files
+      `docs/research/vnext/contention-derive.py`,
+      `docs/research/vnext/parallel-schedule.py`, and
+      `docs/research/fetch_frontier_docs.py`, the archived schema checker,
       ontology test, five vendored Scrapling files, and Superpowers Python test
       utility.
 - [ ] Require `git ls-files '*.py'` to return no paths.
 
-## Sprint 9 — release acceptance
+## M9 — release acceptance package
 
 - [ ] Run npm clean install, strict type check, Node.js tests, policy checks,
       existing compatibility gates, strict OpenSpec validation, and docs gates.
 - [ ] Obtain independent cold audits for each module package.
 - [ ] Run Council on one immutable final candidate and preserve dissent.
 - [ ] Commit and push every accepted package. Do not tag until all release
-      criteria pass at one unchanged commit.
+      criteria pass at one unchanged commit under the v0.3.0 release program.

@@ -22,8 +22,14 @@ python3 skills/foreman/scripts/fm-session.py recover
 ```
 
 `recover` is the checkpoint. It prints the durable facts, the measurements with
-their freshness, and the open obligations. The store travels with the
-repository under `.foreman/`, deliberately not gitignored.
+their freshness, and the open obligations.
+
+Session store roles:
+
+- `.foreman/session.db` is the host canonical store for live recover.
+- `.foreman/session.ndjson` is the tracked recovery sidecar.
+
+Neither file is always current. Reconcile before you treat either as truth.
 
 Full dependency inventory, with what breaks without each entry:
 `dependencies/README.md`.
@@ -68,7 +74,7 @@ this branch is what the freeze exists to prevent.
 | What is true, and what is owed? | `fm-session.py recover` |
 | Which numbers may I still quote? | `fm-session.py freshness --stale-only --format tsv` |
 | What am I about to break? | `AGENT_TRAPS.md` — standing rules, read before dispatching |
-| What does this release still need? | `checklist.md` |
+| What does the active release still need? | `openspec/changes/v030-release-program/tasks.md` and `openspec/changes/v030-release-program/sprints.md` |
 | What did we decide not to fix? | `docs/RESIDUALS.md` |
 
 A measurement is **stale** when any commit has touched its declared scope since
@@ -105,3 +111,4 @@ python3 skills/foreman/scripts/fm-session.py recover | grep -A3 "OWNER DECISION"
 - `devlog/` — the only artefact that accumulates; every session ends with one
 - `dependencies/README.md` — what this software needs to run
 - `docs/RESIDUALS.md` — what this release does not do
+- `openspec/changes/v030-release-program/` — active v0.3.0 program

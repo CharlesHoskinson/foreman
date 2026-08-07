@@ -178,6 +178,73 @@ _ref_posix_quote() {
   printf "'%s'" "${1//$q/$esc}"
 }
 
+# @description Create a fresh Foreman Endstop contract under
+#   $BATS_TEST_TMPDIR/endstop-state and set ENDSTOP_ARGS, an array of the
+#   five mandatory --endstop-* flags the `add` verb now requires before it
+#   will delegate to the pueue-facing add logic under test
+#   (skills/foreman/SKILL.md:245-247; queue-cli.ts USAGE; verified against
+#   this worktree 2026-08-07 -- the CLI rejects an unguarded `add` with exit
+#   2 and this exact usage string). One contract per test: BATS_TEST_TMPDIR
+#   is unique per test, so the ledger's Running state and its budget are
+#   always fresh -- well inside every strictEndstopLimits ceiling for the
+#   single reservation each add test below makes. createdAt is pinned to the
+#   real wall clock (cmdAddGuarded's default reservation clock is
+#   `new Date()`, not test-injected) so the ledger's own
+#   no-product-change/wall-time checks never trip; deadlineAt is
+#   createdAt + limits.wallTimeMs exactly, as decodeExecutionContractV1
+#   requires (execution-contract.ts, invalid_deadline).
+# @stdout nothing; sets $ENDSTOP_ARGS (array) as a side effect
+_endstop_setup() {
+  local root="$BATS_TEST_TMPDIR/endstop-state"
+  local file="$BATS_TEST_TMPDIR/endstop-contract.json"
+  mkdir -p "$root"
+  local now_epoch deadline_epoch created deadline a b commit40
+  now_epoch="$(date -u +%s)"
+  deadline_epoch=$((now_epoch + 7200))
+  created="$(date -u -d "@$now_epoch" +%Y-%m-%dT%H:%M:%SZ)"
+  deadline="$(date -u -d "@$deadline_epoch" +%Y-%m-%dT%H:%M:%SZ)"
+  a="$(printf 'a%.0s' $(seq 1 64))"
+  b="$(printf 'b%.0s' $(seq 1 64))"
+  commit40="$(printf '1%.0s' $(seq 1 40))"
+  cat > "$file" <<EOF
+{
+  "schemaVersion": 1,
+  "contractId": "lane-queue-bats",
+  "packageId": "lane-queue-bats-pkg",
+  "objectiveSha256": "$a",
+  "acceptanceSha256": "$b",
+  "baseCommit": "$commit40",
+  "allowedPathsSha256": "$a",
+  "dependencyContractIds": [],
+  "authorizationSha256": "$a",
+  "createdAt": "$created",
+  "deadlineAt": "$deadline",
+  "limits": {
+    "implementationRounds": 2,
+    "correctionRounds": 1,
+    "auditRounds": 1,
+    "councilRounds": 1,
+    "providerRetries": 2,
+    "resumeAttempts": 2,
+    "verificationRunsPerCandidate": 1,
+    "totalActions": 12,
+    "wallTimeMs": 7200000,
+    "noProductChangeMs": 1800000
+  },
+  "requiredMilestones": ["checks"]
+}
+EOF
+  local contract_sha
+  contract_sha="$(node "$SCRIPTS/../runtime/dist/execution-guard.js" create --state-root "$root" --contract-file "$file" | jq -r .contractSha256)"
+  ENDSTOP_ARGS=(
+    --endstop-state-root "$root"
+    --endstop-contract-id "lane-queue-bats"
+    --endstop-contract-sha "$contract_sha"
+    --endstop-action implement
+    --endstop-candidate-sha "$b"
+  )
+}
+
 # @description Write a fully isolated pueue config (Rework Round 2, F3): own
 #   port (derived from this test process's PID to reduce collisions with
 #   any other concurrent lane's own isolated test instance) and own state
@@ -332,7 +399,8 @@ teardown() {
 
 @test "add: POSIX dialect (default -- plain, non-.exe pueue binary), no leading &, prints CR-free task id" {
   : > "$SHIM_STATE/daemon_up"
-  run env PATH="$PATH_WITH_SHIM" bash "$SCRIPTS/lane-queue.sh" add grok -- echo 'hello world; rm -rf /' '$HOME' '&&x'
+  _endstop_setup
+  run env PATH="$PATH_WITH_SHIM" bash "$SCRIPTS/lane-queue.sh" add grok "${ENDSTOP_ARGS[@]}" -- echo 'hello world; rm -rf /' '$HOME' '&&x'
   [ "$status" -eq 0 ]
   [ "$output" = "0" ]
   # Rework Round 3: the shim resolves via PATH with no ".exe" suffix (and no
@@ -353,7 +421,8 @@ teardown() {
 
 @test "add: POSIX dialect -- embedded single quotes use close/escape/reopen, NOT PowerShell doubling" {
   : > "$SHIM_STATE/daemon_up"
-  run env PATH="$PATH_WITH_SHIM" bash "$SCRIPTS/lane-queue.sh" add misc -- echo "it's a test"
+  _endstop_setup
+  run env PATH="$PATH_WITH_SHIM" bash "$SCRIPTS/lane-queue.sh" add misc "${ENDSTOP_ARGS[@]}" -- echo "it's a test"
   [ "$status" -eq 0 ]
   local expect
   expect="$(_ref_posix_quote echo)"$'\x1f'"$(_ref_posix_quote "it's a test")"
@@ -367,7 +436,8 @@ teardown() {
 
 @test "add: POSIX-quoted command actually round-trips through a real sh -c (not just visual inspection)" {
   : > "$SHIM_STATE/daemon_up"
-  run env PATH="$PATH_WITH_SHIM" bash "$SCRIPTS/lane-queue.sh" add misc -- echo "spaced arg" "quote's here"
+  _endstop_setup
+  run env PATH="$PATH_WITH_SHIM" bash "$SCRIPTS/lane-queue.sh" add misc "${ENDSTOP_ARGS[@]}" -- echo "spaced arg" "quote's here"
   [ "$status" -eq 0 ]
   # Reconstruct exactly what pueue's own space-join hands to `sh -c` (pueue
   # only ever joins with plain spaces -- see the script header) and prove it
@@ -395,7 +465,8 @@ teardown() {
   PATH="$_pathext_probe:$PATH" command -v fmprobe >/dev/null 2>&1 \
     || skip "host does not resolve <name> to <name>.exe on PATH (POSIX); the .exe shim cannot shadow a real pueue"
   : > "$SHIM_STATE/daemon_up"
-  run env PATH="$PATH_WITH_EXE_SHIM" bash "$SCRIPTS/lane-queue.sh" add grok -- echo "it's a test"
+  _endstop_setup
+  run env PATH="$PATH_WITH_EXE_SHIM" bash "$SCRIPTS/lane-queue.sh" add grok "${ENDSTOP_ARGS[@]}" -- echo "it's a test"
   [ "$status" -eq 0 ]
   [ "$output" = "0" ]
   # Windows daemon (pueue.exe on PATH): PowerShell 5.1 default -- lq_pwsh_quote
@@ -414,7 +485,8 @@ teardown() {
 daemon:
   shell_command: "fish -c"
 EOF
-  run --separate-stderr env PATH="$PATH_WITH_SHIM" PUEUE_CONFIG_PATH="$cfg" bash "$SCRIPTS/lane-queue.sh" add misc -- echo hi
+  _endstop_setup
+  run --separate-stderr env PATH="$PATH_WITH_SHIM" PUEUE_CONFIG_PATH="$cfg" bash "$SCRIPTS/lane-queue.sh" add misc "${ENDSTOP_ARGS[@]}" -- echo hi
   [ "$status" -eq 2 ]
   [[ "$stderr" == *"shell_command"* ]]
   # refused to guess -- pueue itself must never have been invoked
@@ -428,7 +500,8 @@ EOF
 daemon:
   shell_command: null
 EOF
-  run env PATH="$PATH_WITH_SHIM" PUEUE_CONFIG_PATH="$cfg" bash "$SCRIPTS/lane-queue.sh" add misc -- echo hi
+  _endstop_setup
+  run env PATH="$PATH_WITH_SHIM" PUEUE_CONFIG_PATH="$cfg" bash "$SCRIPTS/lane-queue.sh" add misc "${ENDSTOP_ARGS[@]}" -- echo hi
   [ "$status" -eq 0 ]
   [ "$output" = "0" ]
 }
@@ -504,8 +577,9 @@ EOF
 }
 
 @test "FORCE_MISSING: add runs CMD directly, prints direct, exits with CMD's code" {
+  _endstop_setup
   run --separate-stderr env PATH="$PATH_WITH_SHIM" LANE_QUEUE_FORCE_MISSING=1 bash "$SCRIPTS/lane-queue.sh" \
-    add misc -- bash -c 'echo ran > "'"$BATS_TEST_TMPDIR"'/marker"; exit 9'
+    add misc "${ENDSTOP_ARGS[@]}" -- bash -c 'echo ran > "'"$BATS_TEST_TMPDIR"'/marker"; exit 9'
   [ "$status" -eq 9 ]
   [ -f "$BATS_TEST_TMPDIR/marker" ]
   [[ "$output" == *"direct"* ]]
@@ -514,8 +588,9 @@ EOF
 }
 
 @test "FORCE_MISSING: add emits the degraded marker exactly once" {
+  _endstop_setup
   run --separate-stderr env PATH="$PATH_WITH_SHIM" LANE_QUEUE_FORCE_MISSING=1 bash "$SCRIPTS/lane-queue.sh" \
-    add misc -- true
+    add misc "${ENDSTOP_ARGS[@]}" -- true
   [ "$status" -eq 0 ]
   local n
   n="$(grep -c 'degraded direct-spawn (pueue absent)' <<< "$stderr")"

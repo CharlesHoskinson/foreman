@@ -33,11 +33,15 @@ Automatic proposal closure SHALL require at least three admissible independent p
 - **THEN** Council denies automatic quorum and reports one independent domain
 
 ### Requirement: Completed review quorum counts substantive verdicts only
-Automatic review closure SHALL require at least three completed substantive verdicts from at least two approved failure domains by default. Provider infrastructure failures and completed abstentions MUST NOT count as substantive verdicts.
+Automatic review closure SHALL require at least three completed substantive verdicts from at least two approved failure domains by default. Provider infrastructure failures, completed abstentions, and completed invalid responses MUST NOT count as substantive verdicts.
 
 #### Scenario: Three completed reviewers abstain
 - **WHEN** three identity-bound reviewers return completed typed abstentions
 - **THEN** Council preserves the abstentions and reports zero substantive verdicts for review quorum
+
+#### Scenario: Completed invalid responses do not manufacture quorum
+- **WHEN** reviewers return only completed invalid responses or a mix of completed invalid responses and infrastructure failures
+- **THEN** Council reports zero substantive verdicts for review quorum
 
 ### Requirement: Round-zero metrics are immutable
 Council SHALL persist the unweighted vote, calibrated weighted vote, disagreement, admissible count, independent-domain count, evidence conflicts, and stop eligibility before critique.
@@ -95,8 +99,8 @@ Council SHALL rank only admissible candidates before synthesis and SHALL provide
 - **WHEN** a material conflict remains unresolved
 - **THEN** synthesis preserves the disagreement and does not manufacture consensus
 
-### Requirement: Abstention, infrastructure failure, and closure are separate outcomes
-Council SHALL represent a completed `insufficient_evidence` response as a review abstention with the unmet condition, declared evidence reference, and available next action. Council SHALL represent prompt, dispatch, provider, transport, and parser failures as review infrastructure failures. Council SHALL represent `quorum_not_met`, `judge_unstable`, `policy_blocked`, `budget_exhausted`, `unsupported_claims`, and `outcome_unknown` as closure outcomes. These types MUST remain disjoint.
+### Requirement: Completed advice, completed invalid response, infrastructure failure, and closure are separate outcomes
+Council SHALL represent a completed `insufficient_evidence` response as a review abstention with the unmet condition, declared evidence reference, and available next action. Council SHALL represent a successful terminal turn whose designated structured output is schema-invalid, identity-invalid, or semantically inadmissible as a completed invalid response with a closed reason. Council SHALL represent prompt, dispatch, provider, transport, and parser failures as review infrastructure failures. Council SHALL represent `quorum_not_met`, `judge_unstable`, `policy_blocked`, `budget_exhausted`, `unsupported_claims`, and `outcome_unknown` as closure outcomes. Completed advice, completed invalid response, infrastructure failure, and closure MUST remain disjoint.
 
 #### Scenario: Budget expires before quorum
 - **WHEN** the hard budget expires before independent quorum exists
@@ -105,3 +109,27 @@ Council SHALL represent a completed `insufficient_evidence` response as a review
 #### Scenario: Schema negotiation fails before a model turn
 - **WHEN** a provider rejects its schema dialect before the model starts
 - **THEN** Council returns a review infrastructure failure and records no abstention, verdict, or dissent
+
+#### Scenario: Successful terminal with schema-invalid approved shape
+- **WHEN** a provider completes a successful terminal turn and returns designated structured output that fails the closed review-response schema
+- **THEN** Council returns a completed invalid response and records no abstention, verdict, dissent, or infrastructure failure
+
+#### Scenario: Successful terminal with inadmissible insufficient-evidence body
+- **WHEN** a provider completes a successful terminal turn and returns `insufficient_evidence` that fails identity or evidence-gap admission
+- **THEN** Council returns a completed invalid response and does not count the attempt as a completed abstention or quorum participant
+
+### Requirement: Actionable dissent uses one correction without a second Council
+When at least one admissible response is `changes_requested`, Council and Foreman SHALL record the finding without majority override. The active Foreman Endstop contract SHALL permit exactly one correction action and deterministic re-verification of the corrected candidate. Council SHALL NOT require a second Council round inside the same one-Council contract. If correction or deterministic re-verification does not close the finding, Endstop SHALL escalate. Only explicit user authorization MAY create a successor contract that cites the terminal predecessor.
+
+#### Scenario: Correction closes the finding without a second Council
+- **WHEN** an admissible `changes_requested` verdict is recorded under a one-Council Endstop contract
+- **AND** the architect applies the single permitted correction
+- **AND** deterministic re-verification accepts the corrected candidate
+- **THEN** the finding is closed without a second Council round under that contract
+
+#### Scenario: Failed re-verification escalates instead of a second Council
+- **WHEN** an admissible `changes_requested` verdict is recorded under a one-Council Endstop contract
+- **AND** the architect applies the single permitted correction
+- **AND** deterministic re-verification does not close the finding
+- **THEN** Endstop escalates and does not start a second Council under the same contract
+- **AND** only explicit user authorization may create a successor contract

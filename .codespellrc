@@ -1,5 +1,9 @@
 [codespell]
-skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/research,./sandbox,./FOREMAN_REPORT.md,./FOREMAN_REPORT.json,./node_modules,./launcher/node_modules,./launcher/dist,./site/style.css,./graphify-out,./.foreman,./.harness,./components/council/pnpm-lock.yaml,./components/council/packages/*/dist
+skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/research,./sandbox,./FOREMAN_REPORT.md,./FOREMAN_REPORT.json,./node_modules,./launcher/node_modules,./launcher/dist,./site/style.css,./graphify-out,./.foreman,./.harness,./components/council/pnpm-lock.yaml,./components/council/packages/*/dist,./package-lock.json,./packages/*/dist,./skills/foreman/runtime/dist
 # disjointness: correct ontology term (node_kind plane property); not "disjointedness".
 # sessio: intentional corruption quoted in bugeventlog/evidence (bad sed stripped the 'n'); not a typo.
-ignore-words-list = grok,codex,worktree,worktrees,shdoc,bats,toml,fable,jsonc,ans,disjointness,sessio,pre-empt
+# heade: `headE` is an Effect Either binding in packages/policy/src/tracked-delete.ts
+#   (head + E for Either), not a misspelling of "header".
+# categor: deliberate interpolation split in packages/graph-store/src/contract-suite.ts
+#   -- `categor${n === 1 ? "y" : "ies"}` builds category/categories.
+ignore-words-list = grok,codex,worktree,worktrees,shdoc,bats,toml,fable,jsonc,ans,disjointness,sessio,pre-empt,heade,categor

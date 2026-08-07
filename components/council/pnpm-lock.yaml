@@ -103,6 +103,9 @@ importers:
       "@council/schema":
         specifier: workspace:*
         version: link:../schema
+      markdown-it:
+        specifier: 15.0.0
+        version: 15.0.0
 
   packages/platform-node:
     dependencies:
@@ -1363,6 +1366,12 @@ packages:
       }
     engines: { node: ">=8" }
 
+  argparse@3.0.0:
+    resolution:
+      {
+        integrity: sha512-BOp5NMrHqKxmq/OLr+clzzrRxgOKSLkcjmkWuChp7Irqwn4s74WjOBPIgWfA/HMcBnVkZ5XEuf9uUqzlpfCQ6A==,
+      }
+
   assertion-error@2.0.1:
     resolution:
       {
@@ -1507,6 +1516,13 @@ packages:
       {
         integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==,
       }
+
+  entities@8.0.0:
+    resolution:
+      {
+        integrity: sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA==,
+      }
+    engines: { node: ">=20.19.0" }
 
   es-module-lexer@2.3.1:
     resolution:
@@ -1995,6 +2011,12 @@ packages:
       }
     engines: { node: ">= 12.0.0" }
 
+  linkify-it@6.1.0:
+    resolution:
+      {
+        integrity: sha512-wJ/TwpSDTLepCrQoYWYIExIKg5Zchex2Nn5yk2mFnB+6PtdkHtyLx742md9csRjjOnGkKIS/RrbY7l8D6gT9Vw==,
+      }
+
   locate-path@6.0.0:
     resolution:
       {
@@ -2027,6 +2049,19 @@ packages:
         integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==,
       }
     engines: { node: ">=10" }
+
+  markdown-it@15.0.0:
+    resolution:
+      {
+        integrity: sha512-Lf8ajvVNdRpzSNB4VegxNy7gjs8gU35l4b4+ET49LrQC5PKYwLZ72u60LeJ9gv3qiaesuYjJWCyVeQmv/QWKQw==,
+      }
+    hasBin: true
+
+  mdurl@2.1.0:
+    resolution:
+      {
+        integrity: sha512-1+HBaOx0zi/dQWht8rNv9MYf9qqpqL/kxI0hXImU6Y547zM6Sni8BQibt7ifgMcYtQg41ao3Ivd6cnSM86inpg==,
+      }
 
   merge2@1.4.1:
     resolution:
@@ -2186,6 +2221,13 @@ packages:
       }
     engines: { node: ">=14" }
     hasBin: true
+
+  punycode.js@2.3.1:
+    resolution:
+      {
+        integrity: sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA==,
+      }
+    engines: { node: ">=6" }
 
   punycode@2.3.1:
     resolution:
@@ -2423,6 +2465,12 @@ packages:
       }
     engines: { node: ">=16.20.0" }
     hasBin: true
+
+  uc.micro@3.0.0:
+    resolution:
+      {
+        integrity: sha512-U3PppEkleoTnIfi8BozMx3yju3qc/L6SwqWo2Sw+54PX+PX0q9I+r1Um5HCmqD7n9VDX5/v3vQH/AjA6deDdtw==,
+      }
 
   undici-types@8.3.0:
     resolution:
@@ -3228,6 +3276,8 @@ snapshots:
     dependencies:
       color-convert: 2.0.1
 
+  argparse@3.0.0: {}
+
   assertion-error@2.0.1: {}
 
   ast-v8-to-istanbul@1.0.5:
@@ -3292,6 +3342,8 @@ snapshots:
       fast-check: 3.23.2
 
   emoji-regex@8.0.0: {}
+
+  entities@8.0.0: {}
 
   es-module-lexer@2.3.1: {}
 
@@ -3570,6 +3622,10 @@ snapshots:
       lightningcss-win32-arm64-msvc: 1.33.0
       lightningcss-win32-x64-msvc: 1.33.0
 
+  linkify-it@6.1.0:
+    dependencies:
+      uc.micro: 3.0.0
+
   locate-path@6.0.0:
     dependencies:
       p-locate: 5.0.0
@@ -3592,6 +3648,17 @@ snapshots:
   make-dir@4.0.0:
     dependencies:
       semver: 7.8.5
+
+  markdown-it@15.0.0:
+    dependencies:
+      argparse: 3.0.0
+      entities: 8.0.0
+      linkify-it: 6.1.0
+      mdurl: 2.1.0
+      punycode.js: 2.3.1
+      uc.micro: 3.0.0
+
+  mdurl@2.1.0: {}
 
   merge2@1.4.1: {}
 
@@ -3669,6 +3736,8 @@ snapshots:
   prelude-ls@1.2.1: {}
 
   prettier@3.9.6: {}
+
+  punycode.js@2.3.1: {}
 
   punycode@2.3.1: {}
 
@@ -3816,6 +3885,8 @@ snapshots:
       "@typescript/typescript-sunos-x64": 7.0.2
       "@typescript/typescript-win32-arm64": 7.0.2
       "@typescript/typescript-win32-x64": 7.0.2
+
+  uc.micro@3.0.0: {}
 
   undici-types@8.3.0: {}
 

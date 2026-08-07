@@ -1,0 +1,31 @@
+{
+  "name": "foreman",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.16.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -b --pretty false && tsc -p tsconfig.all.json --pretty false",
+    "test": "tsx scripts/run-tests.ts 'packages/core/src/**/*.test.ts' 'packages/event-log/src/**/*.test.ts' 'packages/policy/src/**/*.test.ts' 'packages/orchestration/src/**/*.test.ts' 'packages/graph-store/src/**/*.test.ts' 'packages/launcher/src/**/*.test.ts' 'scripts/**/*.test.ts'",
+    "build": "tsx scripts/build-runtime.ts",
+    "verify-runtime": "tsx scripts/verify-runtime.ts",
+    "verify": "npm run typecheck && npm run test && npm run verify-runtime && npm run verify-register-doc && npm run smoke:dst-0060",
+    "verify-register-doc": "tsx scripts/verify-register-doc.ts",
+    "smoke:dst-0060": "tsx scripts/smoke-dst-0060.ts",
+    "policy-check": "node skills/foreman/runtime/dist/architecture-policy.js check",
+    "policy:check": "node skills/foreman/runtime/dist/architecture-policy.js check",
+    "verify-install": "node skills/foreman/runtime/dist/architecture-policy.js verify-install",
+    "plugin-drift": "node skills/foreman/runtime/dist/architecture-policy.js plugin-drift"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "esbuild": "0.27.0",
+    "tsx": "4.20.5",
+    "typescript": "npm:@typescript/typescript6@6.0.2"
+  }
+}

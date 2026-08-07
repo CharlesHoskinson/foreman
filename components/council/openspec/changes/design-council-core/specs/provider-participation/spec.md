@@ -54,6 +54,25 @@ Council MUST classify an attempt from exit status, signal, terminal provider eve
 - **WHEN** a provider emits `insufficient_evidence` in ordinary text and then terminates as cancelled
 - **THEN** Council returns a review-attempt infrastructure failure and records no abstention or verdict
 
+### Requirement: Completed invalid response is not infrastructure failure
+After every terminal transport and parser gate passes, Council MUST classify a successful provider turn whose designated structured output is schema-invalid, identity-invalid, or semantically inadmissible as a completed invalid response. Council MUST NOT classify that state as a provider, transport, or parser infrastructure failure. Council MUST NOT admit that state as a verdict, abstention, dissent, or quorum participant. The closed public classification SHALL carry only a closed reason (`schema_invalid`, `identity_mismatch`, `findings_invalid`, or `abstention_invalid`) and the successful terminal observation facts. It MUST NOT carry raw provider text or invalid response bytes.
+
+#### Scenario: Successful terminal with schema-invalid designated output
+- **WHEN** a provider completes a successful terminal turn and the designated structured output fails canonical schema validation or the canonical response is absent
+- **THEN** Council returns a completed invalid response with reason `schema_invalid` and does not record a verdict, abstention, or infrastructure failure
+
+#### Scenario: Successful terminal with identity-mismatched designated output
+- **WHEN** a provider completes a successful terminal turn and the designated structured output does not bind the expected ready token, contract, prompt, bundle, reviewer, candidate, or inspected artifact sequence
+- **THEN** Council returns a completed invalid response with reason `identity_mismatch` and does not count the attempt toward quorum
+
+#### Scenario: Host artifact contract defect is not provider identity mismatch
+- **WHEN** the host contract has duplicate expected artifact IDs or the host verified only a proper subset of the expected sequence, while the provider response otherwise binds the expected identities
+- **THEN** Council returns a review-attempt infrastructure failure with closed stage and retry guidance and does not classify the attempt as `identity_mismatch`
+
+#### Scenario: Successful terminal with inadmissible findings or abstention
+- **WHEN** a provider completes a successful terminal turn with changes-requested findings that cite invalid artifacts or blank operational text, or with an abstention that names undeclared evidence (including artifact aliases outside the declared evidence namespace), a blank unmet condition, or a blank next action
+- **THEN** Council returns a completed invalid response with reason `findings_invalid` or `abstention_invalid` and does not admit the response as completed advice
+
 ### Requirement: Failure-domain metadata controls diversity
 Council SHALL record provider, model family, model version, serving stack when known, and shared-lineage classification for every participant; unknown classifications MUST count as one common domain.
 

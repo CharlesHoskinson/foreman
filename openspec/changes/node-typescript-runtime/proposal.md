@@ -37,9 +37,9 @@ existing product incrementally without breaking current command contracts.
   through thin adapters during migration.
 - **Installation:** Compiled Node.js entry points ship inside the Foreman skill
   tree so symlink, junction, and copied installs resolve the same bytes.
-- **Release:** This change does not alter the current release scope. Select a
-  release number only after separate scope approval.
-- **Affected packages:** `@foreman/core`, `@foreman/graph-store`,
-  `@foreman/launcher`, `@foreman/event-log`, `@foreman/session`,
-  `@foreman/release`, `@foreman/knowledge`, and
+- **Release:** The v0.3.0 release program at
+  `openspec/changes/v030-release-program/` owns release scope and admission.
+- **Affected packages:** `@foreman/core`, `@foreman/policy`,
+  `@foreman/event-log`, `@foreman/session`, `@foreman/graph-store`,
+  `@foreman/launcher`, `@foreman/release`, `@foreman/knowledge`, and
   `@foreman/orchestration`.

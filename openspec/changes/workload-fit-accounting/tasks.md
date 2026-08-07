@@ -12,7 +12,7 @@ Implementer: Sonnet 5 · Audit: Opus 4.8.
   `{"phase":"estimate","discovery_fraction":"high"}` — so the ledger exists
   from run start (the ledger is architect-kept because agent lanes emit no
   events; see Task 2).
-- [ ] **2. `foreman-fit-report.sh` (TDD) — reads the fit ledger, NOT the
+- [x] **2. `foreman-fit-report.sh` (TDD) — reads the fit ledger, NOT the
   event log (audit correction)** — write the failing bats fixtures first
   against a `$RD/fit.jsonl` fixture (`phase` ∈ `estimate|discover|implement`,
   `discover`/`implement` records carry `lane` + optional `weight`, using the
@@ -34,7 +34,7 @@ Implementer: Sonnet 5 · Audit: Opus 4.8.
   (see dependencies/README.md)` and non-zero exit when absent — no
   regex/grep/awk/sed fallback);
   shellcheck-clean.
-- [ ] **3. Wire into Cleanup (resolved wiring point)** — `foreman-cleanup.sh
+- [x] **3. Wire into Cleanup (resolved wiring point)** — `foreman-cleanup.sh
   RUN_ID` (the confirmed run-close script, `SKILL.md:60`): after the
   existing cleanup, IF `$RD/fit.jsonl` exists, run `foreman-fit-report.sh
   "$RUN_ID"` and append its line to the run summary; skip silently when no

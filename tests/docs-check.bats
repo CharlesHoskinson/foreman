@@ -320,8 +320,8 @@ EOF
 }
 
 @test "docs-check ignores Foreman runtime documentation under .harness" {
-  mkdir -p .harness/vendor-home/grok
-  cat > .harness/vendor-home/grok/README.md <<'EOF'
+  mkdir -p .harness/runtime-docs/grok
+  cat > .harness/runtime-docs/grok/README.md <<'EOF'
 # Vendor-owned runtime file
 
 ```
