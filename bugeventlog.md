@@ -3632,6 +3632,7 @@ fails 3/3 on ext4 before, passes 3/3 on ext4 and 2/2 on tmpfs after;
 `packages/orchestration` on ext4 `807 tests, 803 pass, 0 fail, 4 skipped`.
 
 **Enhancement:**
+
 1. **Never assert on inode change produced by delete-then-recreate.** Allocate
    the replacement first and rename over the target. The technique is already
    documented in `credential-profile.test.ts`; it needs to be a standing rule,
@@ -3648,6 +3649,7 @@ fails 3/3 on ext4 before, passes 3/3 on ext4 and 2/2 on tmpfs after;
    reader does not read it as hosted-green.
 
 **Two host-property findings recorded while diagnosing, neither a CI failure:**
+
 - `packages/launcher/src/supervise.test.ts` fails on any host where `unshare`
   succeeds: the PID-namespace cascade re-execs a child that loses the `tsx`
   loader and cannot resolve `heartbeat.js`, because the source is
@@ -3706,6 +3708,7 @@ unsatisfiable in policy without either reverting a correct fix or porting the sc
 TypeScript (Sprint 14 scope).
 
 **Enhancement:**
+
 1. **Report every sub-gate, then fail.** `ci-local.sh` already does this — it runs all ten and
    prints `gates_failed=N`. The workflow steps around it do not. Making steps 4-12 collect and
    report before exiting would have surfaced all five defects in one run instead of five.
@@ -3761,6 +3764,7 @@ description has been corrected in place with a dated correction note; the commit
 cannot be, and stands as recorded history.
 
 **Enhancement:**
+
 1. **A failing test's name is a hypothesis, not a diagnosis.** Read the invocation and the code
    under test before recording a cause. Here the fix was one command:
    `sed -n '336p' tests/lane-queue.bats` shows the old-form call.
