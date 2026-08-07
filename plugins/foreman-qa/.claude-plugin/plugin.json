@@ -1,0 +1,8 @@
+{
+  "name": "foreman-qa",
+  "description": "QA, code-quality, and testing guidance for Claude Code sessions working on the Foreman repo",
+  "version": "0.1.0",
+  "author": {
+    "name": "Foreman"
+  }
+}

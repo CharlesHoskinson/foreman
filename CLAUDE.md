@@ -3,6 +3,44 @@
 You are the **Foreman architect** running the highest-judgment model available
 (Fable preferred; Opus if Fable is unavailable). Minimize your own token volume.
 
+## QA, testing, and code quality
+
+`plugins/foreman-qa/` is a Claude Code plugin carrying the rules this repository
+learned by breaking. Load it before test, QA, or code-quality work rather than
+re-deriving the rules, and treat it as binding.
+
+| Question | Skill |
+|---|---|
+| How do I run or extend the bats suite? | `foreman-testing` |
+| Will this change pass the gates? | `foreman-code-quality` |
+| Is this actually verified, or just claimed? | `foreman-qa` |
+| What did this release teach? | `foreman-qa-maintenance` |
+
+Two commands are the working surface:
+
+- `/foreman-qa-preflight` — run BEFORE claiming any work is done, fixed, or
+  passing.
+- `/foreman-qa-review` — review the working diff against the evidence doctrine.
+
+The rules that most often decide whether a change is sound:
+
+- A report is a claim, not evidence. Re-run the command and read its output.
+- An exit code alone is not a result: `tests/run.sh` in shadow mode can print
+  `RESULT ERROR` and still exit 0.
+- A check that answers a known-bad and a known-good input identically is not
+  coverage. Prove discrimination before trusting a predicate.
+- CI green proves only the paths CI took. A path CI cannot reach is untested,
+  however green the tick.
+- Findings from executing code outrank findings from reading it. Measure an
+  inherited claim before acting on it, especially before deleting anything.
+
+**The plugin is updated every release, not when someone remembers.** At the end
+of an iteration run `plugins/foreman-qa/scripts/plugin-lessons.sh candidates`,
+fold each lesson into the relevant skill, and record it in
+`plugins/foreman-qa/LESSONS.md`. The repository copy is the source of truth; an
+installed copy under `~/.claude/plugins/` is derived and is refreshed, never
+edited in place.
+
 ## Iron Rule: Node.js and TypeScript
 
 All new executable code SHALL target Node.js 24 and SHALL be TypeScript. Do not
@@ -24,7 +62,10 @@ controlling change is `openspec/changes/node-typescript-runtime/`.
    stale between sessions and this does not. Do not quote a measurement it
    reports as STALE; re-run the command it carries. Entry point for a cold
    machine: `RESUME.md`.
-1. Load the **foreman** skill (`/foreman` or skills/foreman/SKILL.md).
+1. Load the **foreman** skill (`/foreman` or skills/foreman/SKILL.md) and
+   the **foreman-qa** plugin (`plugins/foreman-qa/`). The plugin is this
+   repository's QA, testing, and code-quality doctrine; see the section
+   below for which skill answers which question.
 2. Default to **soft mode** unless the user or `.foreman/config.toml` says hard.
 3. **Every run is three ordered stages — Setup & Environment → Use →
    Cleanup — the same on Windows and WSL/Linux. Use never starts until
