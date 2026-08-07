@@ -3,19 +3,24 @@
 # Usage: wt-new.sh RUN_ID ROLE [SLUG] [BASE_REF]
 # Roles: search | plan | audit | implement | advisor | misc
 #
-# CONTRACT (R7B2-C, v0.3.0): gains no new arguments. A worktree contains no
-# credential authority. This script does not create or advertise provider-home
-# directories. Lane admission resolves a verified external profile root.
+# CONTRACT (T5a, v0.2.5 vendor config isolation plumbing): gains no new args.
+#   Every worktree unconditionally provisions EMPTY per-lane vendor config
+#   dirs, `<WT>/.harness/vendor-home/{grok,codex}/`, and prints their paths
+#   (log lines, stderr) alongside the existing worktree/branch/report lines
+#   -- regardless of which vendor (if any) the lane actually runs, since
+#   provisioning is unconditional and cheap. Claude was retired by T7: its
+#   isolated $HOME path is unverified, so we state the absence rather than
+#   provision a dir nothing can use. This is what lane-run.sh's
+#   LANE_CONFIG_DIR default resolves to (see its own header CONTRACT note)
+#   when LANE_VENDOR is set and no explicit LANE_CONFIG_DIR override is
+#   given. The dirs stay empty here -- seeding/exercising real vendor
+#   config content is T5b (deferred; destructive, real-CLI-only).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The following sources resolve from SCRIPT_DIR at runtime.
-# shellcheck disable=SC1091
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
-# shellcheck disable=SC1091
 # shellcheck source=lib/worktree.sh
 source "$SCRIPT_DIR/lib/worktree.sh"
-# shellcheck disable=SC1091
 # shellcheck source=lib/lock.sh
 source "$SCRIPT_DIR/lib/lock.sh"
 
@@ -94,8 +99,8 @@ BASE_SHA="$(GIT_OPTIONAL_LOCKS=0 git_nohooks -C "$ROOT" rev-parse "${BASE}^{comm
 # Append to index (and all irreversible worktree setup) under the shared
 # index lock. v0.2.7.5 worktree-hardening T6: concurrent wt-new.sh for the
 # SAME run_id must serialize the index.json RMW. lock-primitive-hardening:
-# acquire BEFORE any irreversible operation (git worktree add, reports, and
-# metadata) so a refused acquisition leaves nothing half-created
+# acquire BEFORE any irreversible operation (git worktree add, vendor dirs,
+# reports, metadata) so a refused acquisition leaves nothing half-created
 # and a retry of the same invocation can succeed. Doctrine: "mkdir is atomic
 # on Git Bash/MSYS" is FALSE on Ubuntu 26.04 hybrid coreutils. Mechanism is
 # flock when trusted, mkdir fallback under the same trust rule — never a
@@ -162,6 +167,11 @@ wt_with_lock "$ROOT" \
 
 git_nohooks -C "$ROOT" config extensions.worktreeConfig true 2>/dev/null || true
 git_nohooks -C "$WT" config --worktree core.hooksPath '' 2>/dev/null || true
+
+# T5a: per-lane vendor config isolation -- unconditional, empty dirs (see
+# header CONTRACT note above).
+VENDOR_HOME="$WT/.harness/vendor-home"
+mkdir -p "$VENDOR_HOME/grok" "$VENDOR_HOME/codex"
 
 # Scaffold report files so agents always have a target
 cat > "$WT/FOREMAN_REPORT.md" <<EOF
@@ -254,4 +264,6 @@ trap - EXIT
 log "worktree ready: $WT"
 log "branch: $BRANCH"
 log "report: $WT/FOREMAN_REPORT.md"
+log "vendor-home (grok): $VENDOR_HOME/grok"
+log "vendor-home (codex): $VENDOR_HOME/codex"
 echo "$WT"
