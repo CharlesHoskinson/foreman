@@ -13,6 +13,7 @@ import {
   cmdStatus,
   EXIT_CONFIG,
   EXIT_OK,
+  ADD_USAGE,
 } from "./queue-admission.js";
 import type {
   BoundedFs,
@@ -31,8 +32,9 @@ import {
   type ExecutionActionKind,
 } from "./execution-terminal-policy.js";
 
-const USAGE =
-  "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+// Single source of truth for the `add` usage string lives in
+// queue-admission.ts (ADD_USAGE) so this copy cannot go stale again.
+const USAGE = ADD_USAGE;
 
 export type QueueEndstopAdmission = {
   readonly stateRoot: string;

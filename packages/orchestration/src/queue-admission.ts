@@ -28,6 +28,16 @@ export const EXIT_FAIL = 1;
 export const EXIT_CONFIG = 2;
 export const EXIT_MISSING_CLI = 3;
 
+/**
+ * Canonical `add` usage string, shared with queue-cli.ts so a stale
+ * duplicate cannot drift from the real, Endstop-guarded contract
+ * (bugeventlog.md, 2026-08-06, "a root cause inferred from test names,
+ * published, and wrong" -- this string used to be written twice and one
+ * copy went stale).
+ */
+export const ADD_USAGE =
+  "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+
 /** Fixed topology: proven caps only. No claude group. */
 export const FIXED_GROUPS: readonly { name: string; parallel: number }[] = [
   { name: "grok", parallel: 3 },
@@ -636,7 +646,7 @@ export const cmdAdd = (
       return EXIT_CONFIG;
     }
     if (cmd.length === 0) {
-      io.writeStderr("usage: lane-queue.sh add GROUP -- CMD [ARGS...]\n");
+      io.writeStderr(ADD_USAGE + "\n");
       return EXIT_CONFIG;
     }
 

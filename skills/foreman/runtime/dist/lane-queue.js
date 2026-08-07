@@ -16323,6 +16323,7 @@ var EXIT_OK = 0;
 var EXIT_FAIL = 1;
 var EXIT_CONFIG = 2;
 var EXIT_MISSING_CLI = 3;
+var ADD_USAGE = "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
 var FIXED_GROUPS = [
   { name: "grok", parallel: 3 },
   { name: "codex", parallel: 2 },
@@ -16671,7 +16672,7 @@ var cmdAdd = (io2, group, cmd) => Effect_exports.gen(function* () {
     return EXIT_CONFIG;
   }
   if (cmd.length === 0) {
-    io2.writeStderr("usage: lane-queue.sh add GROUP -- CMD [ARGS...]\n");
+    io2.writeStderr(ADD_USAGE + "\n");
     return EXIT_CONFIG;
   }
   const pueueBin = yield* resolvePueueClient;
@@ -19024,7 +19025,7 @@ function makeLiveEndstopLedgerLayer(stateRoot) {
 }
 
 // packages/orchestration/src/queue-cli.ts
-var USAGE = "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+var USAGE = ADD_USAGE;
 function stripNodeArgv(argv) {
   let args2 = [...argv];
   if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].endsWith("node.exe") || args2[0].includes("/node") || args2[0].includes("\\node"))) {
