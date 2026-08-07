@@ -82,16 +82,6 @@ jobs:
           winget.exe install --id koalaman.shellcheck --exact \
             --accept-package-agreements --accept-source-agreements \
             --disable-interactivity
-          # sqlite3 CLI: dependencies/README.md:104 calls this "Not required
-          # -- convenience only" because the code uses the python3 stdlib
-          # sqlite3 module. tests/session.bats:360 and :518 shell out to the
-          # CLI anyway (3 of the 270 Windows failures). That contradiction is
-          # NOT resolved here -- installing it only makes the symptom stop;
-          # it is recorded as an unresolved finding for the owner in the
-          # W0 windows-provision evidence doc.
-          winget.exe install --id SQLite.SQLite --exact \
-            --accept-package-agreements --accept-source-agreements \
-            --disable-interactivity
           printf '%s\n' "${LOCALAPPDATA}\\Microsoft\\WinGet\\Links" >> "${GITHUB_PATH}"
 
           mkdir -p /usr/local/bin
@@ -137,11 +127,39 @@ jobs:
           # own and risk repeating the uutils-mkdir class of bug this repo
           # already hit once (dependencies/README.md, "Locking -- read this
           # before changing coreutils").
+          #
+          # sqlite3 CLI: dependencies/README.md:104 calls this "Not required
+          # -- convenience only" because the code uses the python3 stdlib
+          # sqlite3 module. tests/session.bats:360 and :518 shell out to the
+          # CLI anyway (3 of the 270 Windows failures). That contradiction
+          # was left open in this repo's own W0 design doc and is not
+          # resolved here either -- installing the CLI only removes the
+          # symptom. (A later commit not yet on this branch,
+          # docs/superpowers/specs/2026-08-07-...-design.md ac82f1c per the
+          # coordinator, has since declared sqlite3 a required full-profile
+          # dependency, which supersedes treating this as a live
+          # contradiction -- but this branch still records it as found.)
+          #
+          # A first attempt used `winget install SQLite.SQLite` + a same-step
+          # `sqlite3 --version` check and failed with rc=127. Root cause:
+          # GITHUB_PATH additions (the winget Links dir) only take effect
+          # starting the NEXT step, not later in the step that wrote them --
+          # the winget install itself succeeded but nothing in this step
+          # could see it yet. MSYS2's own `sqlite` package (provides
+          # /usr/bin/sqlite3.exe, msys repo) sidesteps that: it is verified
+          # here by absolute path, which needs no PATH propagation at all.
+          # Unlike flock.exe, sqlite3.exe carries real extra runtime deps
+          # (libreadline, tcl, zlib per packages.msys2.org) that pacman
+          # installs alongside it in the same C:\msys64\usr\bin directory,
+          # so it is invoked from there directly (Windows resolves a DLL
+          # from the launching exe's own directory before PATH) rather than
+          # harvested piecemeal into /usr/local/bin the way flock.exe was.
           /c/msys64/usr/bin/pacman.exe -Sy --noconfirm
-          /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed util-linux
+          /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed util-linux sqlite
           test -f /c/msys64/usr/bin/flock.exe
           cp /c/msys64/usr/bin/flock.exe /usr/local/bin/flock.exe
           cp /c/msys64/usr/bin/msys-2.0.dll /usr/local/bin/msys-2.0.dll
+          test -f /c/msys64/usr/bin/sqlite3.exe
 
           /usr/local/bin/openspec --version
           /usr/local/bin/quint --version
@@ -150,7 +168,7 @@ jobs:
           python3 --version
           node --version
           PATH="/usr/local/bin:$PATH" flock --version
-          sqlite3 --version
+          /c/msys64/usr/bin/sqlite3.exe --version
 
       # launcher/dist is gitignored (10 of 270 Windows failures trace to it
       # being absent -- never built on this runner). The repo has two build
@@ -198,7 +216,12 @@ jobs:
         run: |
           # Install step placed openspec/quint here and verified by absolute path;
           # without this on PATH the gates SKIP rather than run.
-          export PATH="/usr/local/bin:$PATH"
+          # /c/msys64/usr/bin is appended (not prepended): sqlite3.exe has
+          # to resolve by bare name for tests/session.bats, but appending
+          # keeps it lowest-priority so it never shadows Git Bash's own
+          # coreutils for any name they share (see the sqlite3/flock
+          # install-step comment for why that shadowing risk is real here).
+          export PATH="/usr/local/bin:$PATH:/c/msys64/usr/bin"
           bash tools/ci-local.sh
 
       # Evidence, not enforcement (obligation 60). bats has never run on Windows;
@@ -220,11 +243,13 @@ jobs:
           TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
         run: |
           set +e
-          export PATH="/usr/local/bin:$PATH"
+          # /c/msys64/usr/bin appended, not prepended -- see the gating
+          # step's PATH comment above for why.
+          export PATH="/usr/local/bin:$PATH:/c/msys64/usr/bin"
           echo "bats: $(bats --version 2>&1 || echo UNAVAILABLE)"
           echo "timeout: $(command -v timeout || echo ABSENT)"
-          echo "flock: $(flock --version 2>&1 || echo UNAVAILABLE)"
-          echo "sqlite3: $(sqlite3 --version 2>&1 || echo UNAVAILABLE)"
+          echo "flock: $(command -v flock || echo ABSENT) -- $(flock --version 2>&1 || echo UNAVAILABLE)"
+          echo "sqlite3: $(command -v sqlite3 || echo ABSENT) -- $(sqlite3 --version 2>&1 || echo UNAVAILABLE)"
           echo "launcher/dist: $(ls launcher/dist 2>&1 || echo ABSENT)"
           # Shadow mode records every slice's observed counts and returns 0 on
           # policy failure, so this measures without gaining power to fail the
