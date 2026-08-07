@@ -3590,6 +3590,45 @@ checked handoff open are recorded at commit
 `6c6e1bc1bdadc821adb6937a24a949398872ea92`. Host gate results and later
 commit identity are external facts.
 
+## 2026-08-04 — Council lanes lost to unannounced Codex quota exhaustion
+
+**Phase:** council review (DefiElements unified table v0.1)
+
+**Evidence:** two `codex exec` lanes (L1 protocol-engineer, L2 security-auditor)
+returned exit 0 at the wrapper level with **zero bytes on stdout**. The failure
+was only visible in stderr:
+`ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage
+or try again at Aug 7th, 2026 9:33 PM.` The `timeout 1200 codex exec ... > out.json
+2> out.err` pattern sent the banner, the echoed prompt and the error all to
+stderr, so `out.json` was empty and a naive reader would have recorded the lane
+as "completed, no findings".
+
+**Root cause:** (1) Codex writes its entire session transcript — including the
+final answer and any fatal error — to stderr, not stdout, so redirecting stdout
+alone produces an empty artifact on both success and failure paths, and an empty
+file is indistinguishable between the two. (2) `env/tool-check.sh` reports
+`codex ok` on version+auth alone; it does not probe remaining quota, so a
+pre-flight green light does not predict lane viability.
+
+**Impact:** the openai failure domain dropped out of the council mid-run. Quorum
+survived only because three anthropic lanes and one xai lane were already in
+flight; had the review been dispatched openai-heavy it would have silently
+returned a no-findings council. Both lenses had to be re-routed to xai, and then
+re-run a third time on openai once the user reported the quota had reset — three
+dispatches for two verdicts.
+
+**Enhancement:**
+1. Treat an **empty output artifact as an infrastructure failure by default**,
+   never as a completed verdict. Any lane wrapper should assert non-empty,
+   parseable output before recording a terminal.
+2. Grep lane stderr for `usage limit|quota|rate limit|401|403` and classify as
+   transport failure explicitly, per the council contract's rule that terminal
+   transport is classified before advice is parsed.
+3. Add a cheap quota canary to the vendor lanes — the council protocol already
+   mandates a bounded tool-free canary before review; it was not run here, and
+   running it would have caught this in seconds instead of ~20 minutes.
+4. Consider `codex exec --output-schema` plus an explicit output file rather
+   than shell redirection, so the artifact path is owned by the tool.
 ## 2026-08-06 — gates-linux red for 11 straight runs on a filesystem-dependent test, not a code defect
 
 **Phase:** v0.3.0 program CI (branch `agent/v029-release-artwork`, PR #27)
