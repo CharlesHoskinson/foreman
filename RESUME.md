@@ -43,6 +43,24 @@ caused real losses:
 Verify the plugin actually resolves before trusting it:
 `bash tools/plugin-drift.sh ~/.claude/skills/foreman skills/foreman`.
 
+## Release freeze — where to commit
+
+`main` is frozen for the duration of v0.3.0. The trunk is `release/v0.3.0`
+(PR #27). Send all v0.3.0 work there.
+
+A hotfix is the only exception. It branches from `main`, merges to `main`, and
+is cherry-picked onto `release/v0.3.0` the same day:
+
+```bash
+git checkout -b hotfix/<name> origin/main
+# fix, test, PR, merge
+git checkout release/v0.3.0
+git cherry-pick <sha>
+```
+
+A hotfix that has not been cherry-picked by end of day is drift, and drift on
+this branch is what the freeze exists to prevent.
+
 ## What the store will tell you
 
 | Question | Command |
