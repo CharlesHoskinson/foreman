@@ -109,8 +109,16 @@ compare() {
     : >"$todo_ids"
   fi
 
-  local kind
+  local kind kind_rows
   for kind in $ENFORCED_KINDS; do
+    kind_rows="$(awk -F'\t' -v k="$kind" 'NR > 1 && $2 == k' "$INVENTORY" | wc -l)"
+    # An enforced kind with zero members carries no coverage, and reporting it
+    # as clean is how a whole class of checks disappears unnoticed. Measured:
+    # the probe recognizer reads shell only, so when env/tool-check.sh became a
+    # thin Node adapter its 9 probes went to 0 and nothing objected.
+    if [[ "$kind_rows" -eq 0 ]]; then
+      fail "enforced kind '$kind' inventories zero checks -- extend the recognizer grammar to wherever those checks moved, or retire the kind from ENFORCED_KINDS deliberately"
+    fi
     awk -F'\t' -v k="$kind" 'NR > 1 && $2 == k {print $1}' "$INVENTORY"
   done | LC_ALL=C sort -u >"$enforced_inventory"
 
