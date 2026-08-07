@@ -116,6 +116,15 @@ jobs:
         if: always()
         continue-on-error: true
         shell: bash
+        env:
+          # TEST_SLICE_REPORT/TEST_TAP_LOG are set on the gating step above, not
+          # at job level, so this step does not inherit them. Without these,
+          # tests/run.sh falls back to its own default path, the upload step's
+          # glob on ${{ runner.temp }}/foreman-test-slices.tsv matches nothing,
+          # and the artifact publishes empty. Duplicated here rather than moved,
+          # so the gating step's env block is untouched.
+          TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
+          TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
         run: |
           set +e
           export PATH="/usr/local/bin:$PATH"
@@ -123,8 +132,7 @@ jobs:
           echo "timeout: $(command -v timeout || echo ABSENT)"
           # Shadow mode records every slice's observed counts and returns 0 on
           # policy failure, so this measures without gaining power to fail the
-          # workflow. TEST_SLICE_REPORT is already set at job level to the path
-          # the upload step publishes.
+          # workflow.
           TEST_GATE_MODE=shadow bash tests/run.sh
           echo "run.sh rc=$?"
           echo "slice report: $(wc -l < "$TEST_SLICE_REPORT" 2>/dev/null || echo ABSENT) lines"
