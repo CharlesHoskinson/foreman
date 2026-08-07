@@ -28,7 +28,7 @@ tests/launcher.bats	4
 tests/lifecycle-gate.bats	3
 tests/line-endings.bats	6
 tests/lock.bats	13
-tests/maintenance.bats	8
+tests/maintenance.bats	9
 tests/merge-gate.bats	11
 tests/nats-bridge.bats	12
 tests/plugin-drift.bats	3

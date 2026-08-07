@@ -199,6 +199,24 @@ run_upstream() {
           append_item "$UPSTREAM_ITEMS" "$name apply" drift "refusing unsafe target path: $resolved_target"
           continue
         fi
+        # Refuse when the source resolves into the target. install.sh symlinks
+        # every skills/*/ into ~/.claude/skills, so on any host that ran the
+        # installer the re-vendor source IS this tree. Without this check the
+        # rm -rf below deletes the skill, the source is left dangling, and the
+        # copy restores nothing -- then the emptied tree's hash is recorded as
+        # the new truth.
+        resolved_source=""
+        if ! resolved_source="$(cd "$source" && pwd -P)"; then
+          drift=1
+          append_item "$UPSTREAM_ITEMS" "$name apply" drift "cannot resolve source: $source"
+          continue
+        fi
+        if [[ "$resolved_source" == "$resolved_target" ]]; then
+          drift=1
+          append_item "$UPSTREAM_ITEMS" "$name apply" drift \
+            "refusing self-referential re-vendor: source resolves to the target ($resolved_source)"
+          continue
+        fi
         if rm -rf -- "$target" && mkdir -p -- "$target" && cp -R "$source/." "$target/"; then
           find "$target" -depth -type d -name .git -exec rm -rf -- {} +
           find "$target" -type f -name '*.local.md' -delete
