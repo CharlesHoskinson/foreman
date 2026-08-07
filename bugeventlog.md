@@ -3589,3 +3589,190 @@ Remediation lineage: round-5 helper changes for nonstandard constants and
 checked handoff open are recorded at commit
 `6c6e1bc1bdadc821adb6937a24a949398872ea92`. Host gate results and later
 commit identity are external facts.
+
+## 2026-08-06 — gates-linux red for 11 straight runs on a filesystem-dependent test, not a code defect
+
+**Phase:** v0.3.0 program CI (branch `agent/v029-release-artwork`, PR #27)
+
+**Evidence:** `gates-linux` failed on every run of the branch from 2026-08-05
+15:27Z through 22:05Z — eleven consecutive runs, always at the root Node
+workspace gate, always the same two failures and only these two:
+`directory identity swap after layout creation refuses identity_changed` and
+`final gate after safe-mode refuses identity_changed before Ready`
+(run `31051406419`: `1343 tests, 1337 pass, 2 fail, 4 skipped`). `gates-linux`
+was simultaneously green on `main` for its last eight runs, and PR #27's own
+body recorded "`corepack pnpm check` and `corepack pnpm verify` pass" — a local
+result that did not predict the hosted one.
+
+**Root cause:** both tests simulate an attacker swapping the profile `homes`
+directory by `rmSync` + `mkdirSync` at the same path, then assert the gate
+refuses `identity_changed`. Profile identity is `(dev, ino, kind)`, so the
+simulation only lands if the recreated directory receives a *different inode*.
+ext4 reuses the just-freed inode, so the replacement gets the same `(dev, ino)`,
+the gate correctly reports no change, and returns `Ready`. **The production code
+was right both times; the simulated attack never happened.** tmpfs allocates
+inode numbers from a monotonic counter and never reuses them — so the tests pass
+on a developer box whose `/tmp` is tmpfs and fail on `ubuntu-latest`, whose
+`/tmp` is ext4. Both tests already tried to defend against this by creating and
+deleting one throwaway directory first (`burn-ino`, `burn-final`); that does not
+work, because the freed inode goes back into the allocation pool alongside it.
+The correct portable technique was already written down **in the same file**, for
+swapping `profile.json`: "create the replacement while the original inode is
+still allocated ... do not unlink the original first (inode reuse is not
+portable)." It was never applied to the directory swaps.
+
+**Impact:** the v0.3.0 branch could not go green on Linux for at least a day, and
+the failure signature pointed at the credential-profile identity gate — live
+security-relevant code — when nothing was wrong with it. Reproduction cost was
+low only because the split was clean; diagnosing it as a real gate defect would
+have consumed a Sprint 3 review cycle. Fixed in PR #29 (test-only): allocate the
+replacement while the originals are still allocated, rename into place, share one
+`swapDirIdentity` helper across both call sites. Verified by flipping `TMPDIR`:
+fails 3/3 on ext4 before, passes 3/3 on ext4 and 2/2 on tmpfs after;
+`packages/orchestration` on ext4 `807 tests, 803 pass, 0 fail, 4 skipped`.
+
+**Enhancement:**
+
+1. **Never assert on inode change produced by delete-then-recreate.** Allocate
+   the replacement first and rename over the target. The technique is already
+   documented in `credential-profile.test.ts`; it needs to be a standing rule,
+   not a per-test comment.
+2. **Run at least one gate slice on ext4 locally.** Every developer box here has
+   a tmpfs `/tmp`, which silently masks this entire failure class. A
+   `TMPDIR=$(mktemp -d -p /var/tmp)` variant of the Node test slice would have
+   caught it before push, in seconds.
+3. **Treat "passes locally, fails hosted" as a host-property difference until
+   proven otherwise** — filesystem, `unshare` availability, `/proc` visibility —
+   rather than re-reading the diff. Eleven reruns produced eleven identical
+   failures; none of them was going to be flaky-transient.
+4. A PR body that cites only local verification should say so explicitly, so a
+   reader does not read it as hosted-green.
+
+**Two host-property findings recorded while diagnosing, neither a CI failure:**
+
+- `packages/launcher/src/supervise.test.ts` fails on any host where `unshare`
+  succeeds: the PID-namespace cascade re-execs a child that loses the `tsx`
+  loader and cannot resolve `heartbeat.js`, because the source is
+  `heartbeat.ts`. The hosted runner denies `unshare` and skips the path, so CI
+  never exercises it. The pidns cascade is therefore currently unrunnable on the
+  hosts that *can* run it, and green on the host that cannot.
+- `assertSecretSafe` rejects the literal string `/root` in CLI output, so any
+  run with `TMPDIR` under `/root` fails
+  `emits one canonical JSON line and exit 0 only for Ready/Initialized` for
+  harness reasons alone. Choose an ext4 scratch path outside `/root`.
+
+**Separate infrastructure event, same day:** `gates-linux` on PR #28 failed twice
+with zero steps recorded, no log uploaded, and annotation
+`The job was not acquired by Runner of type hosted even after multiple attempts`
+(job cancelled after ~15 min, `runner=` empty), while `gates-windows` passed on
+the identical commit. This is GitHub runner-capacity, not a repository defect —
+but note the surface: `gh pr checks` buckets it as `cancel` while the run
+conclusion reads `failure` and the job reads `cancelled`. Three different words
+for one infrastructure event, none of which says "no runner was available".
+Reading only the check bucket, or only the run conclusion, invites diagnosing a
+capacity problem as a code problem.
+
+## 2026-08-06 — one red gate step hid four more; and a gate whose own advice its policy forbids
+
+**Phase:** v0.3.0 program CI (branch `agent/v029-release-artwork`, PR #27; fixes in PR #29)
+
+**Evidence:** `gates-linux` fails fast. On PR #27 run `31051406419`, step 4 `Root Node workspace
+gates` failed and steps 5 through 12 were all `skipped`. Eleven consecutive runs reported the
+same two test failures, so the branch read as "one small test problem". After fixing step 4, the
+gate advanced and revealed a stack: step 6 `Council Node 24 gate` failed on `prettier --check`
+(4 files); behind that, the frozen preflight bundle anchor (`expected 846014 to be 845594`);
+behind that, step 12 `CI-LOCAL RESULT FAIL gates_failed=3` (docs, hygiene, bats 8). Final state
+on run `31127565699`: `gates_failed=2`, 8 of 10 sub-gates green, bats 7 and hygiene 1 remaining.
+**Five distinct pre-existing defects, serialized behind one another, none visible until the one
+in front of it was cleared.**
+
+**Root cause:** (1) `set -e` step ordering means the first failing step masks every later one, so
+the observable failure count is an artifact of ordering, not of how much is broken. (2) The
+frozen-bundle anchor and the `prettier` state both drifted because the gate that would have
+caught them had not run since before the drift landed — a gate that never executes cannot hold a
+line. (3) `tools/repo-hygiene.sh` flags `openspec/changes/graph-store-port/tasks.md
+100755 -> 100644` as a mode regression. That change is correct: `8a5900f` deliberately cleared a
+spurious executable bit. The rule compares against `origin/main`, so **any** correct mode fix on
+a branch reads as a violation until it merges. Its failure text says "if deliberate, say so" —
+but the script implements no way to say it.
+
+**Impact:** the branch could not go green on Linux for over a day, and the visible signature
+pointed at the credential-profile identity gate — live security-relevant code — when nothing was
+wrong with it. Each fix cost a full CI round-trip (~15-20 min) purely to discover the next
+blocker. Separately, an attempt to close the hygiene gap **failed the branch's own architecture
+policy**: adding an `ALLOWED_MODE_CHANGES` declaration to `repo-hygiene.sh` was rejected as
+`legacy_adapter_domain_logic`, because that file is legacy POSIX shell and may not receive new
+logic. The policy was right and the change was reverted — but the net position is that the
+hygiene gate's own printed advice cannot be followed without violating a different gate. It is
+unsatisfiable in policy without either reverting a correct fix or porting the script to
+TypeScript (Sprint 14 scope).
+
+**Enhancement:**
+
+1. **Report every sub-gate, then fail.** `ci-local.sh` already does this — it runs all ten and
+   prints `gates_failed=N`. The workflow steps around it do not. Making steps 4-12 collect and
+   report before exiting would have surfaced all five defects in one run instead of five.
+2. **A gate that has not run is not a green gate.** Both the prettier drift and the bundle-anchor
+   drift accumulated while step 6 was unreachable. Any step skipped because an earlier step
+   failed should be reported as `UNKNOWN`, never read as absence of a problem.
+3. **Give `repo-hygiene.sh`'s mode rule the declaration its message promises**, as part of the
+   TypeScript port rather than as shell. Until then the rule cannot distinguish a regression from
+   a correction that is simply ahead of `main`.
+4. **A frozen-artifact anchor needs its drift lineage in the file.** The re-pin recorded which
+   three commits moved the bundle and confirmed determinism plus the forbidden-symbol set before
+   changing the constant; without that, a re-pin is indistinguishable from silencing a regression.
+5. PR #27's description claims the bundle "remains exactly 845,594 bytes with SHA-256
+   `35fea54f...`". That has not held since `d60ebdc`. A release-evidence claim that cites a
+   digest should be re-verified at the candidate, not carried forward from when it was written.
+
+## 2026-08-06 — a root cause inferred from test names, published, and wrong
+
+**Phase:** v0.3.0 gate remediation (PR #29), then design review
+
+**Evidence:** seven tests in `tests/lane-queue.bats` fail (lines 336, 357, 371, 419, 432, 509,
+519). Their names read `add: POSIX dialect ...`, `add: fails fast (exit 2) when the daemon's
+shell_command override can't be classified`, `FORCE_MISSING: add runs CMD directly ...`. From
+those names, and from the observation that this branch reduced
+`skills/foreman/scripts/lane-queue.sh` from 592 lines to a 13-line adapter, the conclusion
+recorded in commit `f30a39e` and in PR #29's description was: "the Node implementation does not
+yet reproduce the POSIX quoting dialect, the `shell_command` override classification, or the
+`FORCE_MISSING` direct-execution fallback."
+
+That conclusion was never verified against the implementation. It is wrong.
+
+**Root cause:** the `add` verb gained five mandatory Endstop flags
+(`--endstop-state-root`, `--endstop-contract-id`, `--endstop-contract-sha`, `--endstop-action`,
+`--endstop-candidate-sha`) as part of contract-bound execution — the
+`bounded-execution-terminal-policy` package, 41 of 41 complete. The queue behaviour was ported
+*and extended*. The tests invoke the pre-Endstop form and are correctly rejected. Five artifacts
+encode two different contracts:
+
+| Artifact | Contract |
+|---|---|
+| `skills/foreman/SKILL.md:245-247` | new |
+| `skills/foreman/runtime/dist/lane-queue.js` CLI | new, enforcing |
+| `packages/orchestration/src/queue-admission.ts:639` | **old** — the error message prints the wrong syntax |
+| `docs/USAGE.md:296-297` | old |
+| `tests/lane-queue.bats` | old |
+
+**Impact:** the wrong cause was published twice — in a commit message that is now merged
+history, and in a pull-request description. It also mis-sized the remaining work by a wide
+margin: "implement three missing behaviours in the queue port" is a Sprint 3 package, whereas
+"reconcile five artifacts to one contract and fix a stale usage string" is an afternoon. Anyone
+picking up the work from that description would have started in the wrong place. The PR
+description has been corrected in place with a dated correction note; the commit message
+cannot be, and stands as recorded history.
+
+**Enhancement:**
+
+1. **A failing test's name is a hypothesis, not a diagnosis.** Read the invocation and the code
+   under test before recording a cause. Here the fix was one command:
+   `sed -n '336p' tests/lane-queue.bats` shows the old-form call.
+2. **When a suite fails wholesale after a port, suspect the contract before suspecting the
+   implementation.** Seven failures clustered in one verb is a signature of an interface change,
+   not of three unrelated missing behaviours.
+3. **A stale usage string is a load-bearing defect.** `queue-admission.ts:639` tells the operator
+   the wrong syntax at the exact moment they are already wrong. It should be derived from one
+   constant shared with the CLI, not written twice.
+4. **Prefer a second reader for any published root cause.** This was caught by an independent
+   review lens that measured the tree, not by the author re-reading their own reasoning.
