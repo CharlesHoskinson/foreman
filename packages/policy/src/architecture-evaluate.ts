@@ -14,6 +14,7 @@ import {
   isLegacyExecutablePath,
   isRuntimeBundlePath,
   isRuntimeManifestPath,
+  isTestsFixturesPath,
   isTypeScriptPath,
   prohibitedExtensionReason,
   RUNTIME_MANIFEST_PATH,
@@ -310,6 +311,17 @@ function checkPath(args: {
       kind: args.kind,
       reason: "prohibited_special_mode",
     };
+  }
+
+  // Closed exception: test data under tests/fixtures/. A fixture that
+  // exercises shell-script handling must itself be a shell script; a
+  // fixture that exercises schema rejection must itself be schema-invalid.
+  // Applies uniformly to added/modified/renamed (see isTestsFixturesPath) --
+  // must run before extension/legacy-adapter/TypeScript/shebang
+  // classification, all of which are product-code prohibitions that do not
+  // apply to test data.
+  if (isTestsFixturesPath(args.path)) {
+    return null;
   }
 
   // Generated runtime bundles: mode-bound digest match only

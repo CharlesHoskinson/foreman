@@ -30868,6 +30868,12 @@ function isTestsBatsPath(path) {
   const rest = path.slice("tests/".length);
   return rest.length > 0 && !rest.includes("\0");
 }
+function isTestsFixturesPath(path) {
+  const PREFIX = "tests/fixtures/";
+  if (!path.startsWith(PREFIX)) return false;
+  const rest = path.slice(PREFIX.length);
+  return rest.length > 0 && !rest.includes("\0");
+}
 
 // packages/policy/src/architecture-adapter.ts
 var DENY = "legacy_adapter_domain_logic";
@@ -32128,6 +32134,9 @@ function checkPath(args2) {
       kind: args2.kind,
       reason: "prohibited_special_mode"
     };
+  }
+  if (isTestsFixturesPath(args2.path)) {
+    return null;
   }
   if (isRuntimeBundlePath(args2.path)) {
     if (blob === null) {

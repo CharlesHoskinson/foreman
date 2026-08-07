@@ -90,3 +90,18 @@ export function isTestsBatsPath(path: string): boolean {
   const rest = path.slice("tests/".length);
   return rest.length > 0 && !rest.includes("\0");
 }
+
+/**
+ * True when path is test data under the literal tests/fixtures/ directory.
+ * A fixture that exercises shell-script handling must itself be a shell
+ * script; a fixture that exercises schema rejection must itself be
+ * schema-invalid -- the product-code prohibitions do not apply to them.
+ * Scoped to the literal tests/fixtures/ prefix only: not tests/ generally,
+ * and not any path that merely contains "fixture".
+ */
+export function isTestsFixturesPath(path: string): boolean {
+  const PREFIX = "tests/fixtures/";
+  if (!path.startsWith(PREFIX)) return false;
+  const rest = path.slice(PREFIX.length);
+  return rest.length > 0 && !rest.includes("\0");
+}

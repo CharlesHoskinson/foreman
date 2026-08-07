@@ -754,3 +754,209 @@ describe("bats interpreter recognition (tests/*.bats, added and modified)", () =
     assert.equal(r.findings[0]!.path, path);
   });
 });
+
+describe("tests/fixtures/ test-data exception", () => {
+  const REGULAR_IDENTITY = {
+    present: true as const,
+    mode: "100644",
+    isExecutable: false,
+    isSymlink: false,
+    isSpecial: false,
+  };
+
+  const SHELL_FIXTURE_BODY =
+    '#!/bin/sh\n# @description Fixture tool: prints a version line so\n' +
+    "#   fm_tc_version_line's executable-bit discrimination can be checked.\n" +
+    'printf "fixture-tool 9.9.9\\r\\n"\n';
+
+  const BROKEN_TS_FIXTURE_BODY =
+    "// deliberately unparsable TypeScript, positive-control fixture\n" +
+    "export function broken( {\n" +
+    "  return 1\n";
+
+  it("accepts a modified .sh fixture under tests/fixtures/ (mode 100644)", () => {
+    const path = "tests/fixtures/tool-check/version-line-bad.sh";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(SHELL_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("accepts a modified .sh fixture under tests/fixtures/ (mode 100755)", () => {
+    const path = "tests/fixtures/tool-check/version-line-good.sh";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(SHELL_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), EXEC_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("accepts an added .sh fixture under tests/fixtures/", () => {
+    const path = "tests/fixtures/tool-check/new-fixture.sh";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(SHELL_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("accepts a renamed .sh fixture under tests/fixtures/", () => {
+    const path = "tests/fixtures/tool-check/renamed-fixture.sh";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [
+        {
+          kind: "renamed",
+          path,
+          oldPath: "tests/fixtures/tool-check/old-fixture.sh",
+          status: "R",
+        },
+      ],
+      mergeBasePaths: ["tests/fixtures/tool-check/old-fixture.sh"],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(SHELL_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("accepts an added schema-invalid .ts fixture under tests/fixtures/", () => {
+    const path = "tests/fixtures/workflows/launcher-build-bad.ts";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(BROKEN_TS_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("accepts a modified schema-invalid .ts fixture under tests/fixtures/", () => {
+    const path = "tests/fixtures/workflows/launcher-build-bad.ts";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(BROKEN_TS_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Pass", JSON.stringify(r));
+    assert.equal(r.findings.length, 0);
+  });
+
+  it("negative control: a real .sh under skills/foreman/scripts/ is still rejected", () => {
+    const path = "skills/foreman/scripts/x.sh";
+    const body = "#!/usr/bin/env bash\necho hi\n";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(body)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_posix_shell");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("negative control: a real .sh inside tests/ but outside tests/fixtures/ is still rejected", () => {
+    const path = "tests/x.sh";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "modified", path, status: "M" }],
+      mergeBasePaths: [path],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(SHELL_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "legacy_adapter_domain_logic");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("negative control: a .ts with a schema mismatch outside tests/fixtures/ is still rejected", () => {
+    const path = "tests/workflows/launcher-build-bad.ts";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(BROKEN_TS_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "schema_mismatch");
+    assert.equal(r.findings[0]!.path, path);
+  });
+
+  it("does not exempt a path that merely contains the word fixture outside tests/fixtures/", () => {
+    const path = "tests/fixture-helpers/x.sh";
+    const r = evaluateArchitecturePolicy({
+      base: BASE,
+      mergeBase: MB,
+      head: HEAD,
+      records: [{ kind: "added", path, status: "A" }],
+      mergeBasePaths: [],
+      headPaths: [path],
+      blobs: new Map([[key(HEAD, path), enc(SHELL_FIXTURE_BODY)]]),
+      identities: new Map([[key(HEAD, path), REGULAR_IDENTITY]]),
+      linkPaths: new Set(),
+    });
+    assert.equal(r._tag, "Fail");
+    if (r._tag !== "Fail") return;
+    assert.equal(r.findings[0]!.reason, "prohibited_posix_shell");
+    assert.equal(r.findings[0]!.path, path);
+  });
+});
