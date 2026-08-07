@@ -200,6 +200,13 @@ check_one() {
         status=missing
       fi
       ;;
+    sqlite3)
+      # Not used by product code (python3's stdlib sqlite3 module reads
+      # .foreman/session.db) but tests/session.bats shells out to this CLI
+      # directly in three tests; absent, those fail with status 127 instead
+      # of skipping. See dependencies/README.md.
+      if have sqlite3; then status=ok; detail="$(sqlite3 --version 2>&1 | head -1)"; else status=missing; fi
+      ;;
     markdownlint-cli2)
       if have markdownlint-cli2; then status=ok; detail="$(markdownlint-cli2 --version 2>&1 | head -1)"; else status=missing; fi
       ;;
@@ -933,10 +940,10 @@ must_hard=(git python3 jq docker flock strace foreman_skill)
 # run the suite or the docs gate, which is a NOT-READY condition, not a note.
 # They are deliberately absent from soft: a host that only drives lanes has no
 # use for a docs linter.
-must_full=(git python3 jq grok codex docker flock strace bats markdownlint-cli2 codespell lychee foreman_skill)
+must_full=(git python3 jq grok codex docker flock strace bats sqlite3 markdownlint-cli2 codespell lychee foreman_skill)
 must_durable=(git jq coreutils bash flock strace)
 should_soft=(node npm foreman_home_fs)
-should_hard=(shellcheck bats gh timeout grok codex foreman_home_fs)
+should_hard=(shellcheck bats sqlite3 gh timeout grok codex foreman_home_fs)
 should_full=(node npm shellcheck gh timeout bun pueue foreman_home_fs)
 should_durable=(nats-server nats-cli foreman_home_fs)
 if (( IS_WSL )); then
