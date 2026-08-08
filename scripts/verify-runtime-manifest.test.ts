@@ -48,6 +48,7 @@ const trackedCredentialProfileLane = join(
 );
 const trackedGraphStore = join(trackedRuntime, "dist/graph-store.js");
 const trackedForemanLaunch = join(trackedRuntime, "dist/foreman-launch.js");
+const trackedFmSession = join(trackedRuntime, "dist/fm-session.js");
 
 function seedCleanCopy(): string {
   const dir = mkdtempSync(join(tmpdir(), "foreman-vrm-"));
@@ -78,6 +79,9 @@ function seedCleanCopy(): string {
   }
   if (existsSync(trackedForemanLaunch)) {
     cpSync(trackedForemanLaunch, join(rt, "dist/foreman-launch.js"));
+  }
+  if (existsSync(trackedFmSession)) {
+    cpSync(trackedFmSession, join(rt, "dist/fm-session.js"));
   }
   return rt;
 }

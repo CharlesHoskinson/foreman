@@ -125,6 +125,12 @@ const ENTRIES = [
     relativePath: "dist/foreman-launch.js",
     injectCapabilities: false,
   },
+  {
+    id: "fm-session",
+    entry: join(root, "packages/orchestration/src/fm-session-main.ts"),
+    relativePath: "dist/fm-session.js",
+    injectCapabilities: false,
+  },
 ] as const;
 
 function canonicalize(value: unknown): string {

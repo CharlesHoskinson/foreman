@@ -64,6 +64,7 @@ const trackedQueuePath = join(trackedRuntime, "dist/lane-queue.js");
 const trackedRoundPath = join(trackedRuntime, "dist/lane-round.js");
 const trackedSupervisePath = join(trackedRuntime, "dist/lane-supervise.js");
 const trackedPreflightPath = join(trackedRuntime, "dist/vendor-preflight.js");
+const trackedFmSessionPath = join(trackedRuntime, "dist/fm-session.js");
 const trackedToolCheckPath = join(trackedRuntime, "dist/tool-check.js");
 const trackedTier2CollectPath = join(trackedRuntime, "dist/tier2-collect.js");
 const trackedTier2ComparePath = join(trackedRuntime, "dist/tier2-compare.js");
@@ -103,6 +104,7 @@ const trackedQueue = readFileSync(trackedQueuePath);
 const trackedRound = readFileSync(trackedRoundPath);
 const trackedSupervise = readFileSync(trackedSupervisePath);
 const trackedPreflight = readFileSync(trackedPreflightPath);
+const trackedFmSession = readFileSync(trackedFmSessionPath);
 const trackedToolCheck = readFileSync(trackedToolCheckPath);
 const trackedTier2Collect = readFileSync(trackedTier2CollectPath);
 const trackedTier2Compare = readFileSync(trackedTier2ComparePath);
@@ -127,6 +129,7 @@ const trackedForemanLaunch = readFileSync(trackedForemanLaunchPath);
     "dependency-drift.js",
     "destruction-guard.js",
     "execution-guard.js",
+    "fm-session.js",
     "foreman-launch.js",
     "foreman-setup.js",
     "graph-store.js",
@@ -165,6 +168,8 @@ try {
   const bSupervise = readFileSync(join(tmpB, "dist/lane-supervise.js"));
   const aPreflight = readFileSync(join(tmpA, "dist/vendor-preflight.js"));
   const bPreflight = readFileSync(join(tmpB, "dist/vendor-preflight.js"));
+  const aFmSession = readFileSync(join(tmpA, "dist/fm-session.js"));
+  const bFmSession = readFileSync(join(tmpB, "dist/fm-session.js"));
   const aToolCheck = readFileSync(join(tmpA, "dist/tool-check.js"));
   const aTier2Collect = readFileSync(join(tmpA, "dist/tier2-collect.js"));
   const aTier2Compare = readFileSync(join(tmpA, "dist/tier2-compare.js"));
@@ -204,6 +209,8 @@ try {
   }
   if (!bytesEqual(aTier2Collect, bTier2Collect)) fail("non-deterministic tier2-collect");
   if (!bytesEqual(aTier2Compare, bTier2Compare)) fail("non-deterministic tier2-compare");
+||||||| 75a0490
+  if (!bytesEqual(aFmSession, bFmSession)) fail("non-deterministic fm-session");
   if (!bytesEqual(aToolCheck, bToolCheck)) {
     fail("non-deterministic tool-check");
   }
@@ -235,6 +242,7 @@ try {
   if (!bytesEqual(aRound, trackedRound)) fail("lane-round drift");
   if (!bytesEqual(aSupervise, trackedSupervise)) fail("lane-supervise drift");
   if (!bytesEqual(aPreflight, trackedPreflight)) fail("vendor-preflight drift");
+  if (!bytesEqual(aFmSession, trackedFmSession)) fail("fm-session drift");
   if (!bytesEqual(aToolCheck, trackedToolCheck)) fail("tool-check drift");
   if (!bytesEqual(aTier2Collect, trackedTier2Collect)) fail("tier2-collect drift");
   if (!bytesEqual(aTier2Compare, trackedTier2Compare)) fail("tier2-compare drift");
@@ -288,6 +296,7 @@ try {
     writeFileSync(join(rt, "dist/lane-round.js"), trackedRound);
     writeFileSync(join(rt, "dist/lane-supervise.js"), trackedSupervise);
     writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
+    writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
     writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
@@ -324,6 +333,9 @@ try {
     cpSync(trackedPreflightPath, join(rt, "dist/vendor-preflight.js"));
     writeFileSync(join(rt, "dist/tool-check.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered tool-check should fail");
+    writeFileSync(join(rt, "dist/fm-session.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered fm-session should fail");
+    cpSync(trackedFmSessionPath, join(rt, "dist/fm-session.js"));
     cpSync(trackedToolCheckPath, join(rt, "dist/tool-check.js"));
     writeFileSync(join(rt, "dist/tier2-collect.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered tier2-collect should fail");
@@ -431,6 +443,17 @@ try {
       rmSync(join(rt, "dist/vendor-preflight.js"));
       writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     }
+    // Linked fm-session bundle must fail
+    {
+      const realFm = join(rt, "fm-session.real.js");
+      writeFileSync(realFm, trackedFmSession);
+      rmSync(join(rt, "dist/fm-session.js"));
+      symlinkSync(realFm, join(rt, "dist/fm-session.js"));
+      const linkedFm = verifyRuntimeManifest(rt);
+      if (linkedFm.ok) fail("linked fm-session should fail");
+      rmSync(join(rt, "dist/fm-session.js"));
+      writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+    }
     // Linked tool-check bundle must fail
     {
       const realToolCheck = join(rt, "tool-check.real.js");
@@ -440,7 +463,8 @@ try {
       const linkedToolCheck = verifyRuntimeManifest(rt);
       if (linkedToolCheck.ok) fail("linked tool-check should fail");
       rmSync(join(rt, "dist/tool-check.js"));
-      writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
+      writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+    writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     }
     // Missing lane-round must fail
     {
@@ -463,6 +487,15 @@ try {
       }
       writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     }
+    // Missing fm-session must fail
+    {
+      rmSync(join(rt, "dist/fm-session.js"));
+      const missFm = verifyRuntimeManifest(rt);
+      if (missFm.ok || missFm.reason !== "bundle_missing") {
+        fail("expected bundle_missing for fm-session got " + JSON.stringify(missFm));
+      }
+      writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+    }
     // Missing tool-check must fail
     {
       rmSync(join(rt, "dist/tool-check.js"));
@@ -473,7 +506,8 @@ try {
             JSON.stringify(missToolCheck),
         );
       }
-      writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
+      writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+    writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     }
     // Missing tier2-collect must fail
     {
@@ -698,6 +732,12 @@ try {
             id: "execution-guard",
             relativePath: "dist/execution-guard.js",
             sha256: "m".repeat(64),
+          },
+          {
+            byteLength: 1,
+            id: "fm-session",
+            relativePath: "dist/fm-session.js",
+            sha256: "x".repeat(64),
           },
           {
             byteLength: 1,

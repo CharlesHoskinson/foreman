@@ -119,9 +119,9 @@ tests/review-quorum.bats	wsl	5
 tests/round-ownership.bats	linux	8
 tests/round-ownership.bats	windows	0
 tests/round-ownership.bats	wsl	8
-tests/session.bats	linux	34
+tests/session.bats	linux	29
 tests/session.bats	windows	30
-tests/session.bats	wsl	31
+tests/session.bats	wsl	29
 tests/soft-mode-target.bats	linux	3
 tests/soft-mode-target.bats	windows	3
 tests/soft-mode-target.bats	wsl	3
