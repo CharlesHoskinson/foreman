@@ -118,4 +118,18 @@ describe("cli parse and exit mapping", () => {
       ["--heartbeat-file", "f", "--", "sleep", "1"],
     );
   });
+
+  it("argvWithoutDetach preserves --detach when it is a value", () => {
+    assert.deepEqual(
+      argvWithoutDetach([
+        "--detach",
+        "--heartbeat-file",
+        "--detach",
+        "--",
+        "echo",
+        "--detach"
+      ]),
+      ["--heartbeat-file", "--detach", "--", "echo", "--detach"]
+    );
+  });
 });

@@ -652,16 +652,10 @@ export const cmdAdd = (
 
     const pueueBin = yield* resolvePueueClient;
     if (pueueBin === null) {
-      io.writeStderr("lane-queue: degraded direct-spawn (pueue absent)\n");
-      const proc = yield* ProcessExec;
-      const code = yield* proc
-        .runForeground({
-          command: cmd[0]!,
-          args: cmd.slice(1),
-        })
-        .pipe(Effect.catchAll(() => Effect.succeed(EXIT_FAIL)));
-      io.writeStdout("direct\n");
-      return code;
+      const g = FIXED_GROUPS.find((g) => g.name === group);
+      const cap = g ? g.parallel : "unknown";
+      io.writeStderr(`lane-queue: degraded direct-spawn (pueue absent) - missing cap for ${group}: ${cap}\n`);
+      return EXIT_FAIL;
     }
 
     // Shell classification BEFORE any pueue invocation.
