@@ -54,7 +54,7 @@ separator runs and removes a trailing separator for the platform's own path
 flavour, and preserves roots. So the strip's only live effects were both bugs.
 Measured:
 
-```
+```text
 posix.resolve("/tmp/x/")    -> "/tmp/x"      trailing separator already gone
 posix.resolve("/tmp/x\")    -> "/tmp/x\"     backslash survives, correctly
 win32.resolve("C:\")        -> "C:\"         length 3, ends in a separator
@@ -75,7 +75,7 @@ have kept. A 2–1 vote settled the scope; the dissent settled the code.
 
 Six tests, three sites, both polarities on one tree:
 
-```
+```text
 # revert only the three source files, keep the tests
 npx tsx --test --test-reporter=tap --test-name-pattern='backslash' \
   packages/orchestration/src/{credential-profile,resume-worktree-restore,secret-scan}.test.ts
