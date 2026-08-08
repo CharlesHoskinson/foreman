@@ -38,6 +38,7 @@ export function parseJsonRejectDuplicateKeys(
 ): unknown | CoreFailure {
   let i = 0;
   const s = text;
+  let depth = 0;
 
   function skipWs(): void {
     while (i < s.length) {
@@ -167,6 +168,8 @@ export function parseJsonRejectDuplicateKeys(
   }
 
   function parseObject(): Record<string, unknown> | ParseFail {
+    if (depth >= 64) return fail();
+    depth += 1;
     if (peek() !== "{") return fail();
     i += 1;
     skipWs();
@@ -174,6 +177,7 @@ export function parseJsonRejectDuplicateKeys(
     const seen = new Set<string>();
     if (peek() === "}") {
       i += 1;
+      depth -= 1;
       return obj;
     }
     while (true) {
@@ -200,6 +204,7 @@ export function parseJsonRejectDuplicateKeys(
       }
       if (peek() === "}") {
         i += 1;
+        depth -= 1;
         return obj;
       }
       return fail();
@@ -207,12 +212,15 @@ export function parseJsonRejectDuplicateKeys(
   }
 
   function parseArray(): unknown[] | ParseFail {
+    if (depth >= 64) return fail();
+    depth += 1;
     if (peek() !== "[") return fail();
     i += 1;
     skipWs();
     const arr: unknown[] = [];
     if (peek() === "]") {
       i += 1;
+      depth -= 1;
       return arr;
     }
     while (true) {
@@ -226,6 +234,7 @@ export function parseJsonRejectDuplicateKeys(
       }
       if (peek() === "]") {
         i += 1;
+        depth -= 1;
         return arr;
       }
       return fail();

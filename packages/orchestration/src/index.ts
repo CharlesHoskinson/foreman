@@ -530,8 +530,6 @@ export {
   lexicalStateRootPreflight,
   ensureExternalStateRoot,
   stateRootDirectoryAnchorSupported,
-  setStateRootCreateRaceHook,
-  type StateRootCreateRaceHook,
   type SetupProfile,
   type SetupLane,
   type SetupIo,
@@ -658,7 +656,6 @@ export {
   isPemPrivateKeyLine,
   secretScanDirectoryAnchorSupported,
   setSecretScanDirectoryAnchorCapabilityForTests,
-  setSecretScanRaceHook,
   scanWorktreeSync,
   scanWorktree,
   validateSecretScanBounds,
@@ -672,7 +669,6 @@ export {
   type SecretScanInput,
   type SecretScanCliIo,
   type ParsedSecretScanArgv,
-  type SecretScanRaceHook,
 } from "./secret-scan.js";
 
 // --- Sprint 3 R7A: external credential-profile authority ---
@@ -711,7 +707,6 @@ export {
   liveCredentialProfileFs,
   liveCredentialProfileFsLayer,
   liveCredentialProfile,
-  setCredentialProfileRaceHook,
   isIgnorableParentDirSyncError,
   WINDOWS_UNSUPPORTED_PARENT_DIR_SYNC_CODES,
   liveWriteAuthorityExclusive,
@@ -731,7 +726,6 @@ export {
   type PathKind,
   type PathIdentity,
   type CredentialProfileFsShape,
-  type CredentialProfileRaceHook,
   type CredentialProfileWriteStream,
 } from "./credential-profile.js";
 
@@ -761,13 +755,11 @@ export {
   writeProfilePreflightRecord,
   liveCredentialProfilePreflightStore,
   profilePreflightDirectoryAnchorSupported,
-  setProfilePreflightRaceHook,
   type ProfilePreflightDecodeFailureReason,
   type ProfilePreflightDecodeFailure,
   type ProfilePreflightStoreFailureReason,
   type CredentialProfilePreflightV1,
   type CredentialProfilePreflightExpected,
-  type ProfilePreflightRaceHook,
 } from "./credential-profile-preflight.js";
 
 // --- Sprint 3 R7B2-A: profile-bound lane admission ---

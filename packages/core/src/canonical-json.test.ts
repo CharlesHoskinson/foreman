@@ -35,6 +35,13 @@ describe("parseJsonRejectDuplicateKeys", () => {
     assert.equal(obj["b"], 2);
     assert.equal(Object.getPrototypeOf(obj), null);
   });
+
+  it("rejects deep nesting to prevent range error", () => {
+    const text = "[".repeat(60000) + "]".repeat(60000);
+    const result = parseJsonRejectDuplicateKeys(text);
+    assert.ok(isCoreFailure(result));
+    assert.equal(result._tag, "InvalidJson");
+  });
 });
 describe("canonicalize", () => {
   it("sorts object keys", () => {

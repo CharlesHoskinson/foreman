@@ -33,4 +33,10 @@ describe("decodeUtf8Fatal", () => {
     assert.equal(typeof result, "string");
     assert.equal((result as string).length, MAX_INPUT_BYTES);
   });
+
+  it("preserves BOM instead of silently stripping it", () => {
+    const bytes = new Uint8Array([0xef, 0xbb, 0xbf, 0x61, 0x62]); // BOM + "ab"
+    const result = decodeUtf8Fatal(bytes);
+    assert.equal(result, "\uFEFFab");
+  });
 });
