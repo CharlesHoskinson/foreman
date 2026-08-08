@@ -193,6 +193,123 @@ remembered to extend.
 git -C . diff origin/main -- tests/lib/check-inventory.sh
 ```
 
+### BW-014 — the Tier 2 port is blocked on statistical equivalence
+
+`blocked` · reproduced 2026-08-08
+
+`tests/tier2_collect.py` and `tests/tier2_compare.py` are two of the four
+Foreman Python files predicate 1 still counts. Two porting attempts were made
+and both were rejected on measured evidence, not on review taste.
+
+The first passed all 27 tests in `tests/tier2-compare.bats` and was still not
+equivalent. The oracle drives the CLI from outside and never asserts a
+statistical value, so it cannot see the part a port most endangers. Running
+both implementations over the same fixtures showed two divergences:
+
+- every whole-valued float lost its decimal — Python `12.0`, TypeScript `12` —
+  across machine-readable records that are hashed and schema-checked downstream
+- `seeded-06` reported `uncertainty_half_width` of `0.09999999999999992` in
+  Python and `0.0837499999999996` in TypeScript, about 16% apart on identical
+  input, because Python's MT19937 had been replaced with mulberry32 and the
+  bootstrap resamples no longer matched
+
+The second attempt tried to preserve float-ness with a `__FLOAT__` sentinel and
+made it worse. After a clean rebuild the TypeScript emits
+`"confidence_level": "__FLOAT__[object Object]__FLOAT__"`,
+`"absolute_difference": null`, `"percent": "__FLOAT__NaN__FLOAT__"`, and
+reports `decision: "evaluated"` where Python reports `"not_evaluated"`.
+
+The port is backed out. The Python drives Tier 2 again and the 27-test oracle
+is green. Predicate 1 therefore stands at 11 tracked `.py` rather than 7, and
+that is the honest number: a statistical evaluator that reports different
+confidence intervals for the same data has changed behaviour, and shipping it
+to satisfy a file count would trade a correctness property for an inventory
+one.
+
+What the next attempt needs, which neither had: a fixture-level equivalence
+test inside the oracle, so `tier2-compare.bats` can fail on a numeric
+divergence instead of passing over it.
+
+```bash
+python3 tests/tier2_compare.py compare tests/fixtures/tier2/comparison.json --output /tmp/py.json
+# then the same via the TypeScript bundle, and: cmp /tmp/py.json /tmp/ts.json
+```
+
+### BW-015 — `argvWithoutDetach` keeps a hardcoded list of value-taking flags
+
+`open` · carried from the W2 council, 2026-08-08
+
+The D3 fix stopped `argvWithoutDetach` from stripping a `--detach` that is a
+flag's *value*, and it works. But it does so by special-casing four flag names
+— `--timeout`, `--grace`, `--heartbeat-file`, `--heartbeat-interval` — and
+advancing past their values. A fifth value-taking flag added later is not in
+that list, so `--new-flag --detach` loses its value again and the defect
+returns silently.
+
+This is the same shape as [[BW-013]]: a rule expressed as an allowlist someone
+must remember to extend. The principled form drives the value/flag distinction
+from the same metadata the real CLI parser uses, rather than a second copy that
+can drift from it.
+
+Only `--heartbeat-file` is covered by a test, so the other three are not
+protected either.
+
+```bash
+grep -n -A12 'export function argvWithoutDetach' packages/launcher/src/cli.ts
+```
+
+### BW-016 — removing an export from `index.ts` does not fence the subpath
+
+`open` · carried from the W2 council, 2026-08-08
+
+The D6 fix removed four `set*RaceHook` setters and their types from
+`packages/orchestration/src/index.ts`, and a test now asserts they are absent
+from the package namespace. That closes the barrel.
+
+It does not close the package. The setters still exist in their implementation
+modules, and whether a consumer can reach them by deep import
+(`.../secret-scan.js`, `.../credential-profile.js`) depends on the `exports`
+field in `package.json`, which the change did not touch and no test covers. A
+race hook installed into a credential-authority write path is the hazard; index
+hygiene alone does not prove it is unreachable.
+
+`setSecretScanDirectoryAnchorCapabilityForTests` is still exported from the
+barrel next to where the race hook was removed, which suggests the boundary is
+drawn by habit rather than by rule.
+
+```bash
+python3 -c "import json;print(json.load(open('packages/orchestration/package.json')).get('exports'))"
+```
+
+### BW-017 — a worktree with symlinked `node_modules` builds a different artifact
+
+`open` · reproduced 2026-08-08
+
+Two workstreams sharing one checkout kept colliding, so a second git worktree
+was created and its `node_modules` symlinked to the main checkout's to avoid a
+slow reinstall. The bundles built there passed `verify-runtime: ok` locally and
+failed CI with `destruction-guard drift`.
+
+The symlink is the defect. `esbuild` inlines whatever dependency tree it is
+pointed at, and the main checkout's `node_modules` is not what
+`package-lock.json` describes. Building through the symlink moved **all
+fifteen** bundles, each about 2 KB larger, with `repo-hygiene.js` the only one
+untouched — a blast radius far wider than the two packages the change actually
+edited. After `npm ci` in the worktree, the same source produced a credible
+result: 12 of 16 bundles, +117 to +304 bytes each.
+
+The trap is not the drift, which CI caught. It is that `verify-runtime: ok`
+was true the whole time — of a tree nobody ships. A local green from a
+non-reproducible dependency tree is not evidence about the build the lockfile
+describes, and it is the only build that matters.
+
+Use `npm ci` in a new worktree. The minutes it costs are cheaper than a CI
+cycle plus the diagnosis.
+
+```bash
+git worktree add /path/wt <branch> && cd /path/wt && npm ci   # not: ln -s ../node_modules
+```
+
 ## Notes on scope
 
 Six verified product defects from the v0.3.0 design doc §W2 are deliberately

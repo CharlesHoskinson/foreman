@@ -11,7 +11,7 @@ export function decodeUtf8Fatal(bytes: Uint8Array): string | CoreFailure {
     return oversizeInput(MAX_INPUT_BYTES);
   }
   try {
-    const decoder = new TextDecoder("utf-8", { fatal: true });
+    const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
     return decoder.decode(bytes);
   } catch {
     return malformedUtf8();

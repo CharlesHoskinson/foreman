@@ -576,24 +576,28 @@ EOF
   [ ! -s "$SHIM_LOG" ]
 }
 
-@test "FORCE_MISSING: add runs CMD directly, prints direct, exits with CMD's code" {
+@test "FORCE_MISSING: add refuses to spawn because it cannot enforce the cap" {
   _endstop_setup
   run --separate-stderr env PATH="$PATH_WITH_SHIM" LANE_QUEUE_FORCE_MISSING=1 bash "$SCRIPTS/lane-queue.sh" \
     add misc "${ENDSTOP_ARGS[@]}" -- bash -c 'echo ran > "'"$BATS_TEST_TMPDIR"'/marker"; exit 9'
-  [ "$status" -eq 9 ]
-  [ -f "$BATS_TEST_TMPDIR/marker" ]
-  [[ "$output" == *"direct"* ]]
-  [[ "$stderr" == *"degraded direct-spawn (pueue absent)"* ]]
+  # The old contract ran CMD directly and returned its exit code. That silently
+  # discarded the vendor concurrency caps exactly when the queue enforcing them
+  # was absent, so the fallback now fails closed: the command must NOT run.
+  [ "$status" -ne 0 ]
+  [ ! -f "$BATS_TEST_TMPDIR/marker" ]
+  [[ "$stderr" == *"missing cap for misc"* ]]
   [ ! -s "$SHIM_LOG" ]
 }
 
-@test "FORCE_MISSING: add emits the degraded marker exactly once" {
+@test "FORCE_MISSING: add names the missing cap exactly once" {
   _endstop_setup
   run --separate-stderr env PATH="$PATH_WITH_SHIM" LANE_QUEUE_FORCE_MISSING=1 bash "$SCRIPTS/lane-queue.sh" \
     add misc "${ENDSTOP_ARGS[@]}" -- true
-  [ "$status" -eq 0 ]
+  # Refusal, not admission: a caller that cannot see WHICH cap is unenforceable
+  # cannot act on the refusal, so the group and its cap are named once.
+  [ "$status" -ne 0 ]
   local n
-  n="$(grep -c 'degraded direct-spawn (pueue absent)' <<< "$stderr")"
+  n="$(grep -c 'missing cap for misc' <<< "$stderr")"
   [ "$n" -eq 1 ]
 }
 

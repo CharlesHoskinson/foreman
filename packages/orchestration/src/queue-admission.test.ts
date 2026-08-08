@@ -747,9 +747,8 @@ describe("cmdAdd reliable admission", () => {
     assert.equal(calls, 0);
   });
 
-  it("force-missing: one marker, direct, child exit code, exact argv", async () => {
+  it("force-missing: fails closed because it cannot enforce cap", async () => {
     const io = makeIo();
-    let fg: { cmd: string; args: readonly string[] } | null = null;
     const code = await run(
       cmdAdd(io, "misc", ["bash", "-c", "exit 9"]),
       testLayer({
@@ -757,20 +756,10 @@ describe("cmdAdd reliable admission", () => {
         handler: () => {
           throw new Error("no captured");
         },
-        foreground: (cmd, args) => {
-          fg = { cmd, args };
-          return 9;
-        },
       }),
     );
-    assert.equal(code, 9);
-    assert.equal(io.stdout.trim(), "direct");
-    assert.match(io.stderr, /degraded direct-spawn \(pueue absent\)/);
-    assert.equal(
-      io.stderr.split("degraded direct-spawn (pueue absent)").length - 1,
-      1,
-    );
-    assert.deepEqual(fg, { cmd: "bash", args: ["-c", "exit 9"] });
+    assert.equal(code, EXIT_FAIL);
+    assert.match(io.stderr, /missing cap for misc: 2/);
   });
 
   it("establishes readiness then one admission; stdout is only task id", async () => {

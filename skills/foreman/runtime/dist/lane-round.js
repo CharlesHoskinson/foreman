@@ -15648,7 +15648,7 @@ function decodeUtf8Fatal(bytes) {
     return oversizeInput(MAX_INPUT_BYTES);
   }
   try {
-    const decoder = new TextDecoder("utf-8", { fatal: true });
+    const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
     return decoder.decode(bytes);
   } catch {
     return malformedUtf8();
@@ -15666,6 +15666,7 @@ function isParseFail(v) {
 function parseJsonRejectDuplicateKeys(text) {
   let i = 0;
   const s = text;
+  let depth = 0;
   function skipWs() {
     while (i < s.length) {
       const c = s.charCodeAt(i);
@@ -15788,6 +15789,8 @@ function parseJsonRejectDuplicateKeys(text) {
     return fail8();
   }
   function parseObject() {
+    if (depth >= 64) return fail8();
+    depth += 1;
     if (peek() !== "{") return fail8();
     i += 1;
     skipWs();
@@ -15795,6 +15798,7 @@ function parseJsonRejectDuplicateKeys(text) {
     const seen = /* @__PURE__ */ new Set();
     if (peek() === "}") {
       i += 1;
+      depth -= 1;
       return obj;
     }
     while (true) {
@@ -15821,18 +15825,22 @@ function parseJsonRejectDuplicateKeys(text) {
       }
       if (peek() === "}") {
         i += 1;
+        depth -= 1;
         return obj;
       }
       return fail8();
     }
   }
   function parseArray() {
+    if (depth >= 64) return fail8();
+    depth += 1;
     if (peek() !== "[") return fail8();
     i += 1;
     skipWs();
     const arr = [];
     if (peek() === "]") {
       i += 1;
+      depth -= 1;
       return arr;
     }
     while (true) {
@@ -15846,6 +15854,7 @@ function parseJsonRejectDuplicateKeys(text) {
       }
       if (peek() === "]") {
         i += 1;
+        depth -= 1;
         return arr;
       }
       return fail8();

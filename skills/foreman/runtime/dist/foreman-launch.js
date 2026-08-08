@@ -16151,10 +16151,20 @@ function mapSuperviseExit(result) {
 }
 function argvWithoutDetach(rawArgv) {
   const sepIdx = rawArgv.indexOf("--");
-  if (sepIdx === -1) return rawArgv.filter((a) => a !== "--detach");
-  const flagsPart = rawArgv.slice(0, sepIdx).filter((a) => a !== "--detach");
-  const cmdPart = rawArgv.slice(sepIdx);
-  return [...flagsPart, ...cmdPart];
+  const flagsPart = sepIdx === -1 ? rawArgv : rawArgv.slice(0, sepIdx);
+  const cmdPart = sepIdx === -1 ? [] : rawArgv.slice(sepIdx);
+  const outFlags = [];
+  for (let i = 0; i < flagsPart.length; i++) {
+    const a = flagsPart[i];
+    if (a === "--detach") continue;
+    outFlags.push(a);
+    if (a === "--timeout" || a === "--grace" || a === "--heartbeat-file" || a === "--heartbeat-interval") {
+      if (i + 1 < flagsPart.length) {
+        outFlags.push(flagsPart[++i]);
+      }
+    }
+  }
+  return [...outFlags, ...cmdPart];
 }
 
 // packages/launcher/src/heartbeat.ts
