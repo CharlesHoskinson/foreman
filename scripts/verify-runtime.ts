@@ -296,6 +296,8 @@ try {
     writeFileSync(join(rt, "dist/lane-supervise.js"), trackedSupervise);
     writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+    writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
+    writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
     writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
@@ -333,6 +335,8 @@ try {
     writeFileSync(join(rt, "dist/fm-session.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered fm-session should fail");
     cpSync(trackedFmSessionPath, join(rt, "dist/fm-session.js"));
+    cpSync(trackedTier2CollectPath, join(rt, "dist/tier2-collect.js"));
+    cpSync(trackedTier2ComparePath, join(rt, "dist/tier2-compare.js"));
     cpSync(trackedToolCheckPath, join(rt, "dist/tool-check.js"));
     writeFileSync(join(rt, "dist/dependency-drift.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered dependency-drift should fail");
@@ -444,6 +448,8 @@ try {
       if (linkedFm.ok) fail("linked fm-session should fail");
       rmSync(join(rt, "dist/fm-session.js"));
       writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+      writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
+      writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
     }
     // Linked tool-check bundle must fail
     {
@@ -455,6 +461,8 @@ try {
       if (linkedToolCheck.ok) fail("linked tool-check should fail");
       rmSync(join(rt, "dist/tool-check.js"));
       writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+      writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
+      writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     }
     // Missing lane-round must fail
@@ -486,6 +494,8 @@ try {
         fail("expected bundle_missing for fm-session got " + JSON.stringify(missFm));
       }
       writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+      writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
+      writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
     }
     // Missing tool-check must fail
     {
@@ -498,6 +508,8 @@ try {
         );
       }
       writeFileSync(join(rt, "dist/fm-session.js"), trackedFmSession);
+      writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
+      writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
     }
     // Missing dependency-drift must fail
