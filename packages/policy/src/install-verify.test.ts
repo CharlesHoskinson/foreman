@@ -50,6 +50,8 @@ const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 const trackedSupervise = join(trackedRuntime, "dist/lane-supervise.js");
 const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheck = join(trackedRuntime, "dist/tool-check.js");
+const trackedTier2Collect = join(trackedRuntime, "dist/tier2-collect.js");
+const trackedTier2Compare = join(trackedRuntime, "dist/tier2-compare.js");
 const trackedSetup = join(trackedRuntime, "dist/foreman-setup.js");
 const trackedDependencyDrift = join(
   trackedRuntime,
@@ -100,6 +102,8 @@ function seedRuntimeOnly(): string {
   cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
+  cpSync(trackedTier2Collect, join(rt, "dist/tier2-collect.js"));
+  cpSync(trackedTier2Compare, join(rt, "dist/tier2-compare.js"));
   cpSync(trackedSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   cpSync(trackedRepoHygiene, join(rt, "dist/repo-hygiene.js"));
@@ -604,6 +608,8 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "repo-hygiene.js",
               "secret-scan.js",
               "tool-check.js",
+              "tier2-collect.js",
+              "tier2-compare.js",
               "vendor-preflight.js",
             ],
         },
@@ -926,6 +932,8 @@ describe("runtime plugin-drift", () => {
               "repo-hygiene.js",
               "secret-scan.js",
               "tool-check.js",
+              "tier2-collect.js",
+              "tier2-compare.js",
               "vendor-preflight.js",
             ],
           },
@@ -1247,6 +1255,8 @@ describe("skill-root and directory stability seams", () => {
               "repo-hygiene.js",
               "secret-scan.js",
               "tool-check.js",
+              "tier2-collect.js",
+              "tier2-compare.js",
               "vendor-preflight.js",
             ],
       lstatCount: { count: 0 },
@@ -1666,6 +1676,8 @@ describe("memory InstallFs path separator seam", () => {
             "repo-hygiene.js",
             "secret-scan.js",
             "tool-check.js",
+              "tier2-collect.js",
+              "tier2-compare.js",
             "vendor-preflight.js",
           ],
         },

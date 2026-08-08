@@ -65,6 +65,8 @@ const trackedRoundPath = join(trackedRuntime, "dist/lane-round.js");
 const trackedSupervisePath = join(trackedRuntime, "dist/lane-supervise.js");
 const trackedPreflightPath = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheckPath = join(trackedRuntime, "dist/tool-check.js");
+const trackedTier2CollectPath = join(trackedRuntime, "dist/tier2-collect.js");
+const trackedTier2ComparePath = join(trackedRuntime, "dist/tier2-compare.js");
 const trackedDependencyDriftPath = join(
   trackedRuntime,
   "dist/dependency-drift.js",
@@ -102,6 +104,8 @@ const trackedRound = readFileSync(trackedRoundPath);
 const trackedSupervise = readFileSync(trackedSupervisePath);
 const trackedPreflight = readFileSync(trackedPreflightPath);
 const trackedToolCheck = readFileSync(trackedToolCheckPath);
+const trackedTier2Collect = readFileSync(trackedTier2CollectPath);
+const trackedTier2Compare = readFileSync(trackedTier2ComparePath);
 const trackedDependencyDrift = readFileSync(trackedDependencyDriftPath);
 const trackedForemanSetup = readFileSync(trackedForemanSetupPath);
 const trackedRepoHygiene = readFileSync(trackedRepoHygienePath);
@@ -131,6 +135,8 @@ const trackedForemanLaunch = readFileSync(trackedForemanLaunchPath);
     "lane-supervise.js",
     "repo-hygiene.js",
     "secret-scan.js",
+    "tier2-collect.js",
+    "tier2-compare.js",
     "tool-check.js",
     "vendor-preflight.js",
   ];
@@ -160,7 +166,11 @@ try {
   const aPreflight = readFileSync(join(tmpA, "dist/vendor-preflight.js"));
   const bPreflight = readFileSync(join(tmpB, "dist/vendor-preflight.js"));
   const aToolCheck = readFileSync(join(tmpA, "dist/tool-check.js"));
+  const aTier2Collect = readFileSync(join(tmpA, "dist/tier2-collect.js"));
+  const aTier2Compare = readFileSync(join(tmpA, "dist/tier2-compare.js"));
   const bToolCheck = readFileSync(join(tmpB, "dist/tool-check.js"));
+  const bTier2Collect = readFileSync(join(tmpB, "dist/tier2-collect.js"));
+  const bTier2Compare = readFileSync(join(tmpB, "dist/tier2-compare.js"));
   const aDependencyDrift = readFileSync(join(tmpA, "dist/dependency-drift.js"));
   const bDependencyDrift = readFileSync(join(tmpB, "dist/dependency-drift.js"));
   const aForemanSetup = readFileSync(join(tmpA, "dist/foreman-setup.js"));
@@ -192,6 +202,8 @@ try {
   if (!bytesEqual(aPreflight, bPreflight)) {
     fail("non-deterministic vendor-preflight");
   }
+  if (!bytesEqual(aTier2Collect, bTier2Collect)) fail("non-deterministic tier2-collect");
+  if (!bytesEqual(aTier2Compare, bTier2Compare)) fail("non-deterministic tier2-compare");
   if (!bytesEqual(aToolCheck, bToolCheck)) {
     fail("non-deterministic tool-check");
   }
@@ -224,6 +236,8 @@ try {
   if (!bytesEqual(aSupervise, trackedSupervise)) fail("lane-supervise drift");
   if (!bytesEqual(aPreflight, trackedPreflight)) fail("vendor-preflight drift");
   if (!bytesEqual(aToolCheck, trackedToolCheck)) fail("tool-check drift");
+  if (!bytesEqual(aTier2Collect, trackedTier2Collect)) fail("tier2-collect drift");
+  if (!bytesEqual(aTier2Compare, trackedTier2Compare)) fail("tier2-compare drift");
   if (!bytesEqual(aDependencyDrift, trackedDependencyDrift)) {
     fail("dependency-drift drift");
   }
@@ -275,6 +289,8 @@ try {
     writeFileSync(join(rt, "dist/lane-supervise.js"), trackedSupervise);
     writeFileSync(join(rt, "dist/vendor-preflight.js"), trackedPreflight);
     writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
+    writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
+    writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
     writeFileSync(join(rt, "dist/dependency-drift.js"), trackedDependencyDrift);
     writeFileSync(join(rt, "dist/foreman-setup.js"), trackedForemanSetup);
     writeFileSync(join(rt, "dist/repo-hygiene.js"), trackedRepoHygiene);
@@ -309,6 +325,12 @@ try {
     writeFileSync(join(rt, "dist/tool-check.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered tool-check should fail");
     cpSync(trackedToolCheckPath, join(rt, "dist/tool-check.js"));
+    writeFileSync(join(rt, "dist/tier2-collect.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered tier2-collect should fail");
+    cpSync(trackedTier2CollectPath, join(rt, "dist/tier2-collect.js"));
+    writeFileSync(join(rt, "dist/tier2-compare.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) fail("tampered tier2-compare should fail");
+    cpSync(trackedTier2ComparePath, join(rt, "dist/tier2-compare.js"));
     writeFileSync(join(rt, "dist/dependency-drift.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered dependency-drift should fail");
     cpSync(trackedDependencyDriftPath, join(rt, "dist/dependency-drift.js"));
@@ -452,6 +474,20 @@ try {
         );
       }
       writeFileSync(join(rt, "dist/tool-check.js"), trackedToolCheck);
+    }
+    // Missing tier2-collect must fail
+    {
+      rmSync(join(rt, "dist/tier2-collect.js"));
+      const missCollect = verifyRuntimeManifest(rt);
+      if (missCollect.ok || missCollect.reason !== "bundle_missing") fail("expected bundle_missing");
+      writeFileSync(join(rt, "dist/tier2-collect.js"), trackedTier2Collect);
+    }
+    // Missing tier2-compare must fail
+    {
+      rmSync(join(rt, "dist/tier2-compare.js"));
+      const missCompare = verifyRuntimeManifest(rt);
+      if (missCompare.ok || missCompare.reason !== "bundle_missing") fail("expected bundle_missing");
+      writeFileSync(join(rt, "dist/tier2-compare.js"), trackedTier2Compare);
     }
     // Missing dependency-drift must fail
     {

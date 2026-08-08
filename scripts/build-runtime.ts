@@ -62,6 +62,19 @@ const ENTRIES = [
     injectCapabilities: true,
   },
   {
+    id: "tier2-collect",
+    entry: join(root, "packages/orchestration/src/tier2-collect-main.ts"),
+    relativePath: "dist/tier2-collect.js",
+    injectCapabilities: false,
+  },
+  {
+    id: "tier2-compare",
+    entry: join(root, "packages/orchestration/src/tier2-compare-main.ts"),
+    relativePath: "dist/tier2-compare.js",
+    injectCapabilities: false,
+  },
+
+  {
     id: "repo-hygiene",
     entry: join(root, "packages/policy/src/repo-hygiene.ts"),
     relativePath: "dist/repo-hygiene.js",
