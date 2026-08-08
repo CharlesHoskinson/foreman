@@ -81,13 +81,13 @@ current definition is
 `docs/superpowers/specs/2026-08-07-v030-node-migration-completion-design.md`.
 
 Exit is four predicates on one unchanged pushed commit. Measured against
-`origin/main` at `14e0102` on 2026-08-08:
+`origin/main` at `2ab7528` on 2026-08-08:
 
 | # | Predicate | Verdict | Evidence |
 |---|---|---|---|
-| 1 | `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived | **FAIL** | 14 tracked; 7 required |
-| 2 | `gates-linux` green on `main` | **PASS** | run on `14e0102` completed/success |
-| 3 | `session.bats` passes with `FM_SESSION_CMD` on the TypeScript and `fm-session.py` deleted | **FAIL** | `fm-session.py` still tracked |
+| 1 | `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived | **PASS** | 7 tracked, none of them Foreman's |
+| 2 | `gates-linux` green on `main` | **PASS** | run on `2ab7528` success |
+| 3 | `session.bats` passes with `FM_SESSION_CMD` on the TypeScript and `fm-session.py` deleted | **PASS** | `fm-session.py` tracked: 0; suite 29/29 on the bundle, 0/29 on a broken command |
 | 4 | `tests/positive-control-todo.tsv` empty for in-scope gates, or every row carries a reason | **PASS** | 17 rows, 0 without a reason |
 
 Predicate 2 was amended on 2026-08-08. It previously also required a green
