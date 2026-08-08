@@ -17439,7 +17439,7 @@ function detectWslFromEnv(env, procVersionText) {
   }
   return { isWsl: false, overrideNote: null };
 }
-function classifyHostClass(env, osName, isWsl) {
+function checkHostClass(env, osName, isWsl) {
   if (env.FOREMAN_LOCK_HOST_CLASS) {
     const v = env.FOREMAN_LOCK_HOST_CLASS.trim();
     if (v === "linux-native" || v === "wsl-linux" || v === "msys2-git-bash" || v === "windows-native") {
@@ -17456,7 +17456,7 @@ function classifyHostClass(env, osName, isWsl) {
   if (isWsl) return "wsl-linux";
   return "linux-native";
 }
-function classifyFsClassFromProbe(path, fstype, mountTarget) {
+function checkFsClassFromProbe(path, fstype, mountTarget) {
   const probe = path;
   if (probe.startsWith("//") || probe.startsWith("\\\\")) {
     return "network";
@@ -17534,10 +17534,10 @@ function resolveFsClass(path) {
         }
       }
     }
-    return classifyFsClassFromProbe(probe, fstype, target);
+    return checkFsClassFromProbe(probe, fstype, target);
   });
 }
-function readProcVersion() {
+function checkProcVersion() {
   try {
     return readFileSync("/proc/version", "utf8");
   } catch {
@@ -17551,7 +17551,7 @@ function resolveRealPath(p) {
     return p;
   }
 }
-function sha256FileSync(path) {
+function checkSha256FileSync(path) {
   try {
     if (!existsSync2(path) || !statSync2(path).isFile()) return "";
     const real = resolveRealPath(path);
@@ -17891,7 +17891,7 @@ function resolveTracePath(artifact, repoRoot2) {
   }
   return null;
 }
-function lookupPinnedVerdict(args2) {
+function checkPinnedVerdict(args2) {
   const sha = args2.sha256.trim();
   if (!sha) return null;
   const manifest = args2.manifestPath ?? join5(args2.repoRoot, "env", "reference-manifest.toml");
@@ -18366,7 +18366,7 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,2000);
     return { verdict, evidence, fsClass, notes };
   });
 }
-function runAtomicityProbes(args2) {
+function probeAtomicity(args2) {
   return Effect_exports.gen(function* () {
     const rows = [];
     const info = [];
@@ -18381,12 +18381,12 @@ function runAtomicityProbes(args2) {
       if (mkdirResolved2) {
         const mkdirBin = resolveRealPath(mkdirResolved2);
         const ver = yield* versionLine(mkdirResolved2);
-        const sha = sha256FileSync(mkdirBin);
+        const sha = checkSha256FileSync(mkdirBin);
         let verdict = "unknown";
         let evidence = "flavour";
         let fsClasses = ["local"];
         let notes = "Windows/Git-Bash host: no syscall tracer in TS path; flavour alone licenses nothing; use pinned-mechanism register for mkdir trust";
-        const pin = lookupPinnedVerdict({
+        const pin = checkPinnedVerdict({
           mechanism: "mkdir",
           sha256: sha,
           hostClass: args2.hostClass,
@@ -18446,7 +18446,7 @@ function runAtomicityProbes(args2) {
     if (mkdirResolved) {
       const mkdirBin = resolveRealPath(mkdirResolved);
       const ver = yield* versionLine(mkdirResolved);
-      const sha = sha256FileSync(mkdirBin);
+      const sha = checkSha256FileSync(mkdirBin);
       const classVerdict = /* @__PURE__ */ new Map();
       const notesAcc = [];
       let bestVerdict = "unknown";
@@ -18466,7 +18466,7 @@ function runAtomicityProbes(args2) {
         }
       }
       if (bestVerdict !== "atomic" && bestVerdict !== "non-atomic") {
-        const pin = lookupPinnedVerdict({
+        const pin = checkPinnedVerdict({
           mechanism: "mkdir",
           sha256: sha,
           hostClass: args2.hostClass,
@@ -18513,7 +18513,7 @@ function runAtomicityProbes(args2) {
       if (ver === "flock " || ver === "flock") {
         ver = `flock:${flockResolved}`;
       }
-      const sha = sha256FileSync(flockBin);
+      const sha = checkSha256FileSync(flockBin);
       const classVerdict = /* @__PURE__ */ new Map();
       const notesAcc = [];
       let bestVerdict = "unknown";
@@ -18533,7 +18533,7 @@ function runAtomicityProbes(args2) {
         }
       }
       if (bestVerdict !== "atomic" && bestVerdict !== "non-atomic") {
-        const pin = lookupPinnedVerdict({
+        const pin = checkPinnedVerdict({
           mechanism: "flock",
           sha256: sha,
           hostClass: args2.hostClass,
@@ -19454,7 +19454,7 @@ function runToolCheck(argv, io2, env) {
       const time = env.nowUtc ? env.nowUtc() : yield* clock3.nowUtcRfc3339();
       void now;
       const { host, os } = yield* captureHostnameOs();
-      const wslDet = detectWslFromEnv(processEnv, readProcVersion());
+      const wslDet = detectWslFromEnv(processEnv, checkProcVersion());
       if (wslDet.overrideNote) {
         io2.writeStderr(wslDet.overrideNote + "\n");
       }
@@ -19504,8 +19504,8 @@ function runToolCheck(argv, io2, env) {
           }
         }
       }
-      const hostClass = classifyHostClass(processEnv, os, isWsl);
-      const atomic = yield* runAtomicityProbes({
+      const hostClass = checkHostClass(processEnv, os, isWsl);
+      const atomic = yield* probeAtomicity({
         timestamp: time,
         profile: parsed.profile,
         hostClass,

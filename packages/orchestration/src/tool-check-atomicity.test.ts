@@ -25,17 +25,17 @@ import {
   liveProcessExec,
 } from "./queue-services.js";
 import {
-  classifyHostClass,
+  checkHostClass,
   type HostClass,
 } from "./tool-check-platform.js";
 import {
   countMkdirContentionViolations,
-  lookupPinnedVerdict,
+  checkPinnedVerdict,
   parsePinnedRegisterToml,
   pickProbeRoots,
   probeFlockOnce,
   probeMkdirOnce,
-  runAtomicityProbes,
+  probeAtomicity,
   validatePinnedTraceContent,
   type PinnedRegisterEntry,
 } from "./tool-check-atomicity.js";
@@ -70,7 +70,7 @@ const stubNoStrace = Layer.mergeAll(
   }),
 );
 
-describe("classifyHostClass pure osName seam", () => {
+describe("checkHostClass pure osName seam", () => {
   /**
    * Exhaustive table: must not read ambient process.platform. On hosted
    * Windows CI, injecting Linux/WSL osName must not become windows-native;
@@ -193,7 +193,7 @@ describe("classifyHostClass pure osName seam", () => {
   for (const row of table) {
     it(row.name, () => {
       assert.equal(
-        classifyHostClass(row.env, row.osName, row.isWsl),
+        checkHostClass(row.env, row.osName, row.isWsl),
         row.want,
         row.name,
       );
@@ -347,13 +347,13 @@ describe("validatePinnedTraceContent", () => {
   });
 });
 
-describe("lookupPinnedVerdict", () => {
+describe("checkPinnedVerdict", () => {
   it("never invents a pin when register is empty", () => {
     const dir = mkdtempSync(join(tmpdir(), "fm-pin-empty-"));
     try {
       const manifest = join(dir, "manifest.toml");
       writeFileSync(manifest, "# no pins\n", "utf8");
-      const hit = lookupPinnedVerdict({
+      const hit = checkPinnedVerdict({
         mechanism: "mkdir",
         sha256: "deadbeef",
         hostClass: "linux-native",
@@ -390,7 +390,7 @@ verdict = "atomic"
 `,
         "utf8",
       );
-      const hit = lookupPinnedVerdict({
+      const hit = checkPinnedVerdict({
         mechanism: "mkdir",
         sha256: "aa",
         hostClass: "linux-native",
@@ -427,7 +427,7 @@ verdict = "atomic"
 `,
         "utf8",
       );
-      const hit = lookupPinnedVerdict({
+      const hit = checkPinnedVerdict({
         mechanism: "mkdir",
         sha256: "bb",
         hostClass: "linux-native",
@@ -466,7 +466,7 @@ verdict = "atomic"
 `,
         "utf8",
       );
-      const hit = lookupPinnedVerdict({
+      const hit = checkPinnedVerdict({
         mechanism: "mkdir",
         sha256: "aa",
         hostClass: "linux-native",
@@ -502,7 +502,7 @@ verdict = "atomic"
 `,
         "utf8",
       );
-      const hit = lookupPinnedVerdict({
+      const hit = checkPinnedVerdict({
         mechanism: "mkdir",
         sha256: "aa",
         hostClass: "linux-native",
@@ -539,7 +539,7 @@ verdict = "atomic"
 `,
         "utf8",
       );
-      const hit = lookupPinnedVerdict({
+      const hit = checkPinnedVerdict({
         mechanism: "mkdir",
         sha256: "aa",
         hostClass: "linux-native",
@@ -582,7 +582,7 @@ verdict = "atomic"
         "utf8",
       );
       assert.equal(
-        lookupPinnedVerdict({
+        checkPinnedVerdict({
           mechanism: "mkdir",
           sha256: "aa",
           hostClass: "linux-native",
@@ -606,7 +606,7 @@ verdict = "atomic"
         "utf8",
       );
       assert.equal(
-        lookupPinnedVerdict({
+        checkPinnedVerdict({
           mechanism: "mkdir",
           sha256: "aa",
           hostClass: "linux-native",
@@ -822,7 +822,7 @@ describe("pickProbeRoots distinct mount keys", () => {
   });
 });
 
-describe("runAtomicityProbes wires hostClass into pin path", () => {
+describe("probeAtomicity wires hostClass into pin path", () => {
   it("passes hostClass through (pin never fires on empty register)", async (t) => {
     if (process.platform === "win32") {
       t.skip("hostClass pin-path wiring exercises POSIX-only atomicity probes; unavailable on win32");
@@ -830,7 +830,7 @@ describe("runAtomicityProbes wires hostClass into pin path", () => {
     }
     const hostClass: HostClass = "linux-native";
     const result = await Effect.runPromise(
-      runAtomicityProbes({
+      probeAtomicity({
         timestamp: "2026-08-04T00:00:00Z",
         profile: "soft",
         hostClass,

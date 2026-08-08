@@ -22,7 +22,6 @@ on:
 
 permissions:
   contents: read
-  contents: read
 
 jobs:
   gates-windows:

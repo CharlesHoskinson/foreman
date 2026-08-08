@@ -51,8 +51,8 @@ The seven that must go:
 Four predicates, on one unchanged pushed commit:
 
 1. `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived files.
-2. `gates-linux` and `gates-windows` are both green, **and the Windows gate
-   actually runs the Bats suite**.
+2. `gates-linux` is green. Windows is **not** a gating platform for this
+   release and is excluded by decision, not by omission.
 3. `session.bats` passes with `FM_SESSION_CMD` pointed at the TypeScript
    implementation and `fm-session.py` deleted.
 4. `tests/positive-control-todo.tsv` is empty for in-scope gates, or every
@@ -60,15 +60,37 @@ Four predicates, on one unchanged pushed commit:
 
 PR #27 leaves draft only when all four hold.
 
-Predicate 2's second clause was added on 2026-08-07, during W0 execution, on
-evidence. `.github/workflows/gates-windows.yml:102` sets
-`FOREMAN_CI_BATS: "0"`, so the Windows gate runs 2 of 57 Bats files in a
-`continue-on-error` probe and none of them can fail the workflow. A green
-`gates-windows` therefore did not mean the suite passed on Windows, and no
-GitHub Actions run on any branch has ever produced full-suite per-slice Windows
-pass counts. The workflow's own comment states the intended remedy — "This flag
-flips only once that evidence exists, in its own commit" — and this release now
-requires that flip rather than inheriting the gap.
+Predicate 2 was rewritten on 2026-08-08. It previously required
+`gates-windows` green **and** the Windows gate actually running the Bats
+suite, a clause added on 2026-08-07 because
+`.github/workflows/gates-windows.yml` set `FOREMAN_CI_BATS: "0"` and so ran 2
+of 57 Bats files in a `continue-on-error` probe that could not fail. That
+reasoning was right about the defect and wrong about the remedy.
+
+The suite was then measured on Windows for the first time: pass=444 fail=270
+skip=26 (run `31199790530`), and a follow-up provisioning run was cancelled at
+the 60-minute job cap. 147 of the 270 failures were missing runner tooling
+rather than product defects, so the figure measures the runner more than the
+code — but the suite does not fit the cap, and nothing on Windows is proven.
+`19d5dc0` therefore removed the `push` and `pull_request` triggers, so a red
+Windows result cannot block a merge and a green one cannot be mistaken for
+Windows support. Evidence:
+`docs/evidence/w0/2026-08-07-windows-suite-measurement.md`.
+
+Keeping the old clause would have made the release wait on a platform this
+release had already decided not to support, and the two statements were in
+open contradiction: the architecture test
+`components/council/tests/architecture/hosted-node24-ci.test.ts` still
+required every gate workflow to declare a real `pull_request` trigger, which
+`19d5dc0` had just removed, so `gates-linux` was red on the disagreement
+rather than on any defect in shipped code.
+
+That test now carries the decision per-platform: Linux must declare
+`pull_request`; Windows must declare `workflow_dispatch` and must **not**
+declare `push` or `pull_request`. Re-adding a gating trigger to Windows fails
+the test, so the exclusion cannot quietly erode — both polarities were
+demonstrated before the change landed. Windows remains open work, recorded in
+`brokenwindows.md` (BW-004, the absent `flock`), not silently dropped.
 
 ## 2. Settled decisions
 

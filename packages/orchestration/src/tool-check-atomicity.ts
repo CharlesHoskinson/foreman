@@ -34,7 +34,7 @@ import {
 import {
   resolveFsClass,
   resolveRealPath,
-  sha256FileSync,
+  checkSha256FileSync,
   type FsClass,
   type HostClass,
 } from "./tool-check-platform.js";
@@ -384,7 +384,7 @@ function resolveTracePath(
  * verdict/classes, mkdir without probe_target, and traces that do not prove
  * the mechanism predicate.
  */
-export function lookupPinnedVerdict(args: {
+export function checkPinnedVerdict(args: {
   readonly mechanism: "mkdir" | "flock" | string;
   readonly sha256: string;
   readonly hostClass: HostClass | string;
@@ -1011,7 +1011,7 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,2000);
 /**
  * Run mkdir + flock atomicity probes and assemble inventory rows.
  */
-export function runAtomicityProbes(args: {
+export function probeAtomicity(args: {
   readonly timestamp: string;
   readonly profile: string;
   readonly hostClass: HostClass;
@@ -1035,13 +1035,13 @@ export function runAtomicityProbes(args: {
       if (mkdirResolved) {
         const mkdirBin = resolveRealPath(mkdirResolved);
         const ver = yield* versionLine(mkdirResolved);
-        const sha = sha256FileSync(mkdirBin);
+        const sha = checkSha256FileSync(mkdirBin);
         let verdict: ProbeOnce["verdict"] = "unknown";
         let evidence = "flavour";
         let fsClasses: string[] = ["local"];
         let notes =
           "Windows/Git-Bash host: no syscall tracer in TS path; flavour alone licenses nothing; use pinned-mechanism register for mkdir trust";
-        const pin = lookupPinnedVerdict({
+        const pin = checkPinnedVerdict({
           mechanism: "mkdir",
           sha256: sha,
           hostClass: args.hostClass,
@@ -1108,7 +1108,7 @@ export function runAtomicityProbes(args: {
     if (mkdirResolved) {
       const mkdirBin = resolveRealPath(mkdirResolved);
       const ver = yield* versionLine(mkdirResolved);
-      const sha = sha256FileSync(mkdirBin);
+      const sha = checkSha256FileSync(mkdirBin);
       const classVerdict = new Map<string, string>();
       const notesAcc: string[] = [];
       let bestVerdict: ProbeOnce["verdict"] = "unknown";
@@ -1130,7 +1130,7 @@ export function runAtomicityProbes(args: {
       }
 
       if (bestVerdict !== "atomic" && bestVerdict !== "non-atomic") {
-        const pin = lookupPinnedVerdict({
+        const pin = checkPinnedVerdict({
           mechanism: "mkdir",
           sha256: sha,
           hostClass: args.hostClass,
@@ -1186,7 +1186,7 @@ export function runAtomicityProbes(args: {
       if (ver === "flock " || ver === "flock") {
         ver = `flock:${flockResolved}`;
       }
-      const sha = sha256FileSync(flockBin);
+      const sha = checkSha256FileSync(flockBin);
       const classVerdict = new Map<string, string>();
       const notesAcc: string[] = [];
       let bestVerdict: ProbeOnce["verdict"] = "unknown";
@@ -1208,7 +1208,7 @@ export function runAtomicityProbes(args: {
       }
 
       if (bestVerdict !== "atomic" && bestVerdict !== "non-atomic") {
-        const pin = lookupPinnedVerdict({
+        const pin = checkPinnedVerdict({
           mechanism: "flock",
           sha256: sha,
           hostClass: args.hostClass,

@@ -52,12 +52,45 @@ const LIVE_PROVIDER_CALL_PATTERNS = [
 
 type WorkflowId = keyof typeof workflowPaths;
 
+/**
+ * Per-workflow trigger contract.
+ *
+ * Linux gates: it must run on every pull request, so `pull_request` is
+ * required and its absence is a defect.
+ *
+ * Windows does not gate. The Bats suite has never passed there (pass=444
+ * fail=270 skip=26, run 31199790530) and does not fit the 60-minute job cap;
+ * see docs/evidence/w0/2026-08-07-windows-suite-measurement.md. `19d5dc0`
+ * therefore removed its `push` and `pull_request` triggers so a red Windows
+ * result cannot block a merge and a green one cannot be mistaken for Windows
+ * support.
+ *
+ * `forbiddenTriggers` makes that decision enforceable rather than merely
+ * true today: re-adding a gating trigger to Windows must fail this test and
+ * force the evidence to be revisited, exactly as removing `pull_request`
+ * from Linux must.
+ */
 const EXPECTED_JOB: Record<
   WorkflowId,
-  { readonly jobId: string; readonly runsOn: string }
+  {
+    readonly jobId: string;
+    readonly runsOn: string;
+    readonly requiredTrigger: string;
+    readonly forbiddenTriggers: readonly string[];
+  }
 > = {
-  linux: { jobId: "gates-linux", runsOn: "ubuntu-latest" },
-  windows: { jobId: "gates-windows", runsOn: "windows-latest" },
+  linux: {
+    jobId: "gates-linux",
+    runsOn: "ubuntu-latest",
+    requiredTrigger: "pull_request",
+    forbiddenTriggers: [],
+  },
+  windows: {
+    jobId: "gates-windows",
+    runsOn: "windows-latest",
+    requiredTrigger: "workflow_dispatch",
+    forbiddenTriggers: ["push", "pull_request"],
+  },
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -204,12 +237,21 @@ const checkParsedCouncilGateContract = (
   try {
     const document = parseWorkflowDocument(source);
 
-    const onValue = document["on"];
-    if (!isRecord(onValue) || !Object.hasOwn(onValue, "pull_request")) {
-      return fail("workflow must declare a real pull_request trigger");
-    }
+    const { jobId, runsOn, requiredTrigger, forbiddenTriggers } =
+      EXPECTED_JOB[workflowId];
 
-    const { jobId, runsOn } = EXPECTED_JOB[workflowId];
+    const onValue = document["on"];
+    if (!isRecord(onValue) || !Object.hasOwn(onValue, requiredTrigger)) {
+      return fail(`workflow must declare a real ${requiredTrigger} trigger`);
+    }
+    for (const trigger of forbiddenTriggers) {
+      if (Object.hasOwn(onValue, trigger)) {
+        return fail(
+          `workflow must not declare a ${trigger} trigger: this platform is ` +
+            `non-gating (see docs/evidence/w0/2026-08-07-windows-suite-measurement.md)`,
+        );
+      }
+    }
     const jobs = document.jobs;
     if (!isRecord(jobs) || !Object.hasOwn(jobs, jobId)) {
       return fail(`workflow must define job ${jobId}`);

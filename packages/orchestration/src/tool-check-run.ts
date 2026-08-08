@@ -56,12 +56,12 @@ import {
   type ToolCheckLane,
   type ToolCheckProfile,
 } from "./tool-check-cli.js";
-import { runAtomicityProbes } from "./tool-check-atomicity.js";
+import { probeAtomicity } from "./tool-check-atomicity.js";
 import {
   captureHostnameOs,
-  classifyHostClass,
+  checkHostClass,
   detectWslFromEnv,
-  readProcVersion,
+  checkProcVersion,
   resolveCommonSkillsRoot,
   resolveFsClass,
   resolveRealPath,
@@ -878,7 +878,7 @@ export function runToolCheck(
       void now;
 
       const { host, os } = yield* captureHostnameOs();
-      const wslDet = detectWslFromEnv(processEnv, readProcVersion());
+      const wslDet = detectWslFromEnv(processEnv, checkProcVersion());
       if (wslDet.overrideNote) {
         io.writeStderr(wslDet.overrideNote + "\n");
       }
@@ -935,8 +935,8 @@ export function runToolCheck(
         }
       }
 
-      const hostClass = classifyHostClass(processEnv, os, isWsl);
-      const atomic = yield* runAtomicityProbes({
+      const hostClass = checkHostClass(processEnv, os, isWsl);
+      const atomic = yield* probeAtomicity({
         timestamp: time,
         profile: parsed.profile,
         hostClass,
