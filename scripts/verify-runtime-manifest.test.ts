@@ -29,6 +29,8 @@ const trackedRound = join(trackedRuntime, "dist/lane-round.js");
 const trackedSupervise = join(trackedRuntime, "dist/lane-supervise.js");
 const trackedPreflight = join(trackedRuntime, "dist/vendor-preflight.js");
 const trackedToolCheck = join(trackedRuntime, "dist/tool-check.js");
+const trackedTier2Collect = join(trackedRuntime, "dist/tier2-collect.js");
+const trackedTier2Compare = join(trackedRuntime, "dist/tier2-compare.js");
 const trackedDependencyDrift = join(
   trackedRuntime,
   "dist/dependency-drift.js",
@@ -78,6 +80,12 @@ function seedCleanCopy(): string {
   }
   if (existsSync(trackedFmSession)) {
     cpSync(trackedFmSession, join(rt, "dist/fm-session.js"));
+  }
+  if (existsSync(trackedTier2Collect)) {
+    cpSync(trackedTier2Collect, join(rt, "dist/tier2-collect.js"));
+  }
+  if (existsSync(trackedTier2Compare)) {
+    cpSync(trackedTier2Compare, join(rt, "dist/tier2-compare.js"));
   }
   return rt;
 }
