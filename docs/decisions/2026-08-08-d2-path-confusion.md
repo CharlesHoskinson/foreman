@@ -85,12 +85,20 @@ npx tsx --test --test-reporter=tap --test-name-pattern='backslash' \
   -> # pass 6   # fail 0
 ```
 
-The `secret-scan` test is black-box and shows the consequence rather than the
-mechanism: a real directory named `x\` was **refused** as
-`{"_tag":"Refused","reason":"invalid_worktree"}`, because the normalizer
-resolved it onto a sibling that did not exist. The `resume` test showed the
-confusion directly — two distinct real directories normalizing to the identical
-string.
+The `secret-scan` test is black-box and binds to **which tree was walked**, not
+merely to whether the scan refused. A secret is planted in the sibling `x` that
+the old normalizer collapsed onto, while the directory actually named `x\` is
+left clean, and a positive control proves the planted secret is detectable. With
+the defect present, scanning `x\` returns `{"_tag":"SecretFound"}` — it walked
+the wrong tree. The `resume` test showed the confusion directly: two distinct
+real directories normalizing to the identical string.
+
+That test began weaker. It asserted only "did not refuse", and all six tests
+used a bare `return` on win32, which node:test reports as a PASS with zero
+assertions — the "check that cannot fail" the QA plugin explicitly forbids. A
+three-lens grok council caught both. One lens completed with findings and two
+were cancelled mid-stream, so the council was partially degraded and one
+complete lens did the work; the rework landed in the same pull request.
 
 Bundle digests were rebuilt (5 bundles + `manifest.json`) and the drift gate was
 proven live: restoring one pre-fix bundle gives

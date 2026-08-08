@@ -1259,19 +1259,38 @@ describe("Foreman worktree and known-bad fixture", () => {
   it(
     "scans a directory whose name ends in a backslash on POSIX",
     liveTraversal,
-    () => {
-      if (process.platform === "win32") return;
+    (t) => {
+      if (process.platform === "win32") {
+        t.skip("POSIX-only: on win32 a backslash IS a separator");
+        return;
+      }
       const base = mkdtempSync(join(tmpdir(), "fm-d2-scan-"));
       try {
         const withBs = join(base, "x\\");
+        const sibling = join(base, "x");
         mkdirSync(withBs);
-        // `base/x` deliberately does not exist: a normalizer that strips the
-        // trailing backslash resolves to a directory that is not there.
+        mkdirSync(sibling);
+        // The sibling that the old normalizer collapsed onto carries a secret;
+        // the directory actually named `x\` is clean. So "Clean" can only mean
+        // the scan walked the tree it was handed, and the assertion binds to
+        // WHICH root was bound -- not merely to "it did not refuse".
+        writeFileSync(
+          join(sibling, "leaked.pem"),
+          "-----BEGIN RSA PRIVATE KEY-----\nSYNTHETIC\n-----END RSA PRIVATE KEY-----\n",
+        );
         const r = runScan(withBs);
         assert.equal(
           r._tag,
           "Clean",
-          `a real directory named "x\\" must scan, not be refused; got ${JSON.stringify(r)}`,
+          `must bind to the directory named "x\\", not the sibling "x"; got ${JSON.stringify(r)}`,
+        );
+        // Positive control: the planted secret is genuinely detectable, so the
+        // assertion above cannot pass merely because this scanner finds nothing.
+        const rSibling = runScan(sibling);
+        assert.equal(
+          rSibling._tag,
+          "SecretFound",
+          `the planted secret must be detectable; got ${JSON.stringify(rSibling)}`,
         );
       } finally {
         rmSync(base, { recursive: true, force: true });

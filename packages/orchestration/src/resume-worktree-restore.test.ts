@@ -657,13 +657,19 @@ describe("WorktreeRestore live git integration (overlay)", () => {
 // ---------------------------------------------------------------------------
 
 describe("normalizeAbsoluteWorktreeInput", () => {
-  it("keeps a trailing backslash in worktree identity on POSIX", () => {
-    if (process.platform === "win32") return;
+  it("keeps a trailing backslash in worktree identity on POSIX", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
     assert.equal(normalizeAbsoluteWorktreeInput("/tmp/x\\"), "/tmp/x\\");
   });
 
-  it("does not conflate worktrees differing only by a trailing backslash", () => {
-    if (process.platform === "win32") return;
+  it("does not conflate worktrees differing only by a trailing backslash", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
     const base = mkdtempSync(join(tmpdir(), "fm-d2-wt-"));
     try {
       const plain = join(base, "wt");

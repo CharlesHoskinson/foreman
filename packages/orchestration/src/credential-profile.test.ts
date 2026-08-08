@@ -2389,7 +2389,7 @@ describe("credential-profile CLI", () => {
 // ---------------------------------------------------------------------------
 
 describe("normalizeAbsolutePath", () => {
-  it("strips trailing separator and resolves dots", () => {
+  it("resolves dots and leaves no trailing separator (resolve strips it)", () => {
     const n = normalizeAbsolutePath(join(tmpdir(), "a", "..", "b") + "/");
     assert.ok(!n.endsWith("/") || n === "/");
     assert.equal(n.includes(".."), false);
@@ -2400,21 +2400,30 @@ describe("normalizeAbsolutePath", () => {
   // caller presents a path that compares equal to one directory and denotes
   // another. `resolve()` already strips the separators this path flavour
   // recognises, so the normalizer must not strip anything itself.
-  it("keeps a trailing backslash on POSIX, a legal filename character", () => {
-    if (process.platform === "win32") return;
+  it("keeps a trailing backslash on POSIX, a legal filename character", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
     assert.equal(normalizeAbsolutePath("/tmp/x\\"), "/tmp/x\\");
   });
 
-  it("does not conflate paths differing only by a trailing backslash", () => {
-    if (process.platform === "win32") return;
+  it("does not conflate paths differing only by a trailing backslash", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
     assert.notEqual(
       normalizeAbsolutePath("/tmp/x\\"),
       normalizeAbsolutePath("/tmp/x"),
     );
   });
 
-  it("distinguishes two real directories differing only by a backslash", () => {
-    if (process.platform === "win32") return;
+  it("distinguishes two real directories differing only by a backslash", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
     const base = mkdtempSync(join(tmpdir(), "fm-d2-cp-"));
     try {
       const plain = join(base, "x");
