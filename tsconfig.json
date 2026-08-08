@@ -6,6 +6,7 @@
     { "path": "packages/policy" },
     { "path": "packages/orchestration" },
     { "path": "packages/graph-store" },
+    { "path": "packages/session-store" },
     { "path": "packages/launcher" }
   ]
 }
