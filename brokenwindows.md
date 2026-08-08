@@ -235,6 +235,52 @@ python3 tests/tier2_compare.py compare tests/fixtures/tier2/comparison.json --ou
 # then the same via the TypeScript bundle, and: cmp /tmp/py.json /tmp/ts.json
 ```
 
+### BW-015 — `argvWithoutDetach` keeps a hardcoded list of value-taking flags
+
+`open` · carried from the W2 council, 2026-08-08
+
+The D3 fix stopped `argvWithoutDetach` from stripping a `--detach` that is a
+flag's *value*, and it works. But it does so by special-casing four flag names
+— `--timeout`, `--grace`, `--heartbeat-file`, `--heartbeat-interval` — and
+advancing past their values. A fifth value-taking flag added later is not in
+that list, so `--new-flag --detach` loses its value again and the defect
+returns silently.
+
+This is the same shape as [[BW-013]]: a rule expressed as an allowlist someone
+must remember to extend. The principled form drives the value/flag distinction
+from the same metadata the real CLI parser uses, rather than a second copy that
+can drift from it.
+
+Only `--heartbeat-file` is covered by a test, so the other three are not
+protected either.
+
+```bash
+grep -n -A12 'export function argvWithoutDetach' packages/launcher/src/cli.ts
+```
+
+### BW-016 — removing an export from `index.ts` does not fence the subpath
+
+`open` · carried from the W2 council, 2026-08-08
+
+The D6 fix removed four `set*RaceHook` setters and their types from
+`packages/orchestration/src/index.ts`, and a test now asserts they are absent
+from the package namespace. That closes the barrel.
+
+It does not close the package. The setters still exist in their implementation
+modules, and whether a consumer can reach them by deep import
+(`.../secret-scan.js`, `.../credential-profile.js`) depends on the `exports`
+field in `package.json`, which the change did not touch and no test covers. A
+race hook installed into a credential-authority write path is the hazard; index
+hygiene alone does not prove it is unreachable.
+
+`setSecretScanDirectoryAnchorCapabilityForTests` is still exported from the
+barrel next to where the race hook was removed, which suggests the boundary is
+drawn by habit rather than by rule.
+
+```bash
+python3 -c "import json;print(json.load(open('packages/orchestration/package.json')).get('exports'))"
+```
+
 ## Notes on scope
 
 Six verified product defects from the v0.3.0 design doc §W2 are deliberately
