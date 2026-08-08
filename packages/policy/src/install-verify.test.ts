@@ -103,8 +103,6 @@ function seedRuntimeOnly(): string {
   cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
-  cpSync(trackedTier2Collect, join(rt, "dist/tier2-collect.js"));
-  cpSync(trackedTier2Compare, join(rt, "dist/tier2-compare.js"));
   cpSync(trackedSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   cpSync(trackedRepoHygiene, join(rt, "dist/repo-hygiene.js"));
@@ -116,6 +114,8 @@ function seedRuntimeOnly(): string {
   );
   cpSync(trackedGraphStore, join(rt, "dist/graph-store.js"));
   cpSync(trackedFmSession, join(rt, "dist/fm-session.js"));
+  cpSync(trackedTier2Collect, join(rt, "dist/tier2-collect.js"));
+  cpSync(trackedTier2Compare, join(rt, "dist/tier2-compare.js"));
   cpSync(trackedForemanLaunch, join(rt, "dist/foreman-launch.js"));
   return rt;
 }
@@ -548,6 +548,8 @@ describe("verifyInstalledSkillRoot live controls", () => {
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
     const fmSessionBytes = readFileSync(trackedFmSession);
+    const tier2CollectBytes = readFileSync(trackedTier2Collect);
+    const tier2CompareBytes = readFileSync(trackedTier2Compare);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
@@ -572,6 +574,8 @@ describe("verifyInstalledSkillRoot live controls", () => {
       "/skill/runtime/dist/credential-profile-lane.js";
     const graphStorePath = "/skill/runtime/dist/graph-store.js";
     const fmSessionPath = "/skill/runtime/dist/fm-session.js";
+    const tier2CollectPath = "/skill/runtime/dist/tier2-collect.js";
+    const tier2ComparePath = "/skill/runtime/dist/tier2-compare.js";
     const foremanLaunchPath = "/skill/runtime/dist/foreman-launch.js";
 
     const nodes = new Map([
@@ -612,9 +616,9 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "lane-supervise.js",
               "repo-hygiene.js",
               "secret-scan.js",
-              "tool-check.js",
               "tier2-collect.js",
               "tier2-compare.js",
+              "tool-check.js",
               "vendor-preflight.js",
             ],
         },
@@ -800,6 +804,28 @@ describe("verifyInstalledSkillRoot live controls", () => {
         },
       ],
       [
+        tier2CollectPath,
+        {
+          kind: "file" as const,
+          bytes: tier2CollectBytes,
+          identity: fileIdentity({
+            ino: "37",
+            size: tier2CollectBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        tier2ComparePath,
+        {
+          kind: "file" as const,
+          bytes: tier2CompareBytes,
+          identity: fileIdentity({
+            ino: "38",
+            size: tier2CompareBytes.byteLength,
+          }),
+        },
+      ],
+      [
         foremanLaunchPath,
         {
           kind: "file" as const,
@@ -895,6 +921,8 @@ describe("runtime plugin-drift", () => {
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
     const fmSessionBytes = readFileSync(trackedFmSession);
+    const tier2CollectBytes = readFileSync(trackedTier2Collect);
+    const tier2CompareBytes = readFileSync(trackedTier2Compare);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -949,9 +977,9 @@ describe("runtime plugin-drift", () => {
               "lane-supervise.js",
               "repo-hygiene.js",
               "secret-scan.js",
-              "tool-check.js",
               "tier2-collect.js",
               "tier2-compare.js",
+              "tool-check.js",
               "vendor-preflight.js",
             ],
           },
@@ -1146,6 +1174,28 @@ describe("runtime plugin-drift", () => {
           },
         ],
         [
+          `${dist}/tier2-collect.js`,
+          {
+            kind: "file",
+            bytes: tier2CollectBytes,
+            identity: fileIdentity({
+              ino: prefix + "-t2c",
+              size: tier2CollectBytes.byteLength,
+            }),
+          },
+        ],
+        [
+          `${dist}/tier2-compare.js`,
+          {
+            kind: "file",
+            bytes: tier2CompareBytes,
+            identity: fileIdentity({
+              ino: prefix + "-t2cp",
+              size: tier2CompareBytes.byteLength,
+            }),
+          },
+        ],
+        [
           `${dist}/foreman-launch.js`,
           {
             kind: "file",
@@ -1235,6 +1285,8 @@ describe("skill-root and directory stability seams", () => {
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
     const fmSessionBytes = readFileSync(trackedFmSession);
+    const tier2CollectBytes = readFileSync(trackedTier2Collect);
+    const tier2CompareBytes = readFileSync(trackedTier2Compare);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -1285,9 +1337,9 @@ describe("skill-root and directory stability seams", () => {
               "lane-supervise.js",
               "repo-hygiene.js",
               "secret-scan.js",
-              "tool-check.js",
               "tier2-collect.js",
               "tier2-compare.js",
+              "tool-check.js",
               "vendor-preflight.js",
             ],
       lstatCount: { count: 0 },
@@ -1490,6 +1542,28 @@ describe("skill-root and directory stability seams", () => {
         },
       ],
       [
+        `${dist}/tier2-collect.js`,
+        {
+          kind: "file",
+          bytes: tier2CollectBytes,
+          identity: fileIdentity({
+            ino: "37",
+            size: tier2CollectBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/tier2-compare.js`,
+        {
+          kind: "file",
+          bytes: tier2CompareBytes,
+          identity: fileIdentity({
+            ino: "38",
+            size: tier2CompareBytes.byteLength,
+          }),
+        },
+      ],
+      [
         `${dist}/foreman-launch.js`,
         {
           kind: "file",
@@ -1673,6 +1747,8 @@ describe("memory InstallFs path separator seam", () => {
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
     const fmSessionBytes = readFileSync(trackedFmSession);
+    const tier2CollectBytes = readFileSync(trackedTier2Collect);
+    const tier2CompareBytes = readFileSync(trackedTier2Compare);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -1719,9 +1795,9 @@ describe("memory InstallFs path separator seam", () => {
             "lane-supervise.js",
             "repo-hygiene.js",
             "secret-scan.js",
-            "tool-check.js",
               "tier2-collect.js",
               "tier2-compare.js",
+            "tool-check.js",
             "vendor-preflight.js",
           ],
         },
@@ -1910,6 +1986,28 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "36",
             size: fmSessionBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/tier2-collect.js`,
+        {
+          kind: "file",
+          bytes: tier2CollectBytes,
+          identity: fileIdentity({
+            ino: "37",
+            size: tier2CollectBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/tier2-compare.js`,
+        {
+          kind: "file",
+          bytes: tier2CompareBytes,
+          identity: fileIdentity({
+            ino: "38",
+            size: tier2CompareBytes.byteLength,
           }),
         },
       ],

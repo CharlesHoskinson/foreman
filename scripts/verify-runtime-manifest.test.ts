@@ -63,8 +63,6 @@ function seedCleanCopy(): string {
   cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));
   cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
   cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
-  cpSync(trackedTier2Collect, join(rt, "dist/tier2-collect.js"));
-  cpSync(trackedTier2Compare, join(rt, "dist/tier2-compare.js"));
   cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
   cpSync(trackedForemanSetup, join(rt, "dist/foreman-setup.js"));
   cpSync(trackedRepoHygiene, join(rt, "dist/repo-hygiene.js"));
@@ -82,6 +80,12 @@ function seedCleanCopy(): string {
   }
   if (existsSync(trackedFmSession)) {
     cpSync(trackedFmSession, join(rt, "dist/fm-session.js"));
+  }
+  if (existsSync(trackedTier2Collect)) {
+    cpSync(trackedTier2Collect, join(rt, "dist/tier2-collect.js"));
+  }
+  if (existsSync(trackedTier2Compare)) {
+    cpSync(trackedTier2Compare, join(rt, "dist/tier2-compare.js"));
   }
   return rt;
 }
