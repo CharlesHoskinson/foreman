@@ -193,6 +193,48 @@ remembered to extend.
 git -C . diff origin/main -- tests/lib/check-inventory.sh
 ```
 
+### BW-014 — the Tier 2 port is blocked on statistical equivalence
+
+`blocked` · reproduced 2026-08-08
+
+`tests/tier2_collect.py` and `tests/tier2_compare.py` are two of the four
+Foreman Python files predicate 1 still counts. Two porting attempts were made
+and both were rejected on measured evidence, not on review taste.
+
+The first passed all 27 tests in `tests/tier2-compare.bats` and was still not
+equivalent. The oracle drives the CLI from outside and never asserts a
+statistical value, so it cannot see the part a port most endangers. Running
+both implementations over the same fixtures showed two divergences:
+
+- every whole-valued float lost its decimal — Python `12.0`, TypeScript `12` —
+  across machine-readable records that are hashed and schema-checked downstream
+- `seeded-06` reported `uncertainty_half_width` of `0.09999999999999992` in
+  Python and `0.0837499999999996` in TypeScript, about 16% apart on identical
+  input, because Python's MT19937 had been replaced with mulberry32 and the
+  bootstrap resamples no longer matched
+
+The second attempt tried to preserve float-ness with a `__FLOAT__` sentinel and
+made it worse. After a clean rebuild the TypeScript emits
+`"confidence_level": "__FLOAT__[object Object]__FLOAT__"`,
+`"absolute_difference": null`, `"percent": "__FLOAT__NaN__FLOAT__"`, and
+reports `decision: "evaluated"` where Python reports `"not_evaluated"`.
+
+The port is backed out. The Python drives Tier 2 again and the 27-test oracle
+is green. Predicate 1 therefore stands at 11 tracked `.py` rather than 7, and
+that is the honest number: a statistical evaluator that reports different
+confidence intervals for the same data has changed behaviour, and shipping it
+to satisfy a file count would trade a correctness property for an inventory
+one.
+
+What the next attempt needs, which neither had: a fixture-level equivalence
+test inside the oracle, so `tier2-compare.bats` can fail on a numeric
+divergence instead of passing over it.
+
+```bash
+python3 tests/tier2_compare.py compare tests/fixtures/tier2/comparison.json --output /tmp/py.json
+# then the same via the TypeScript bundle, and: cmp /tmp/py.json /tmp/ts.json
+```
+
 ## Notes on scope
 
 Six verified product defects from the v0.3.0 design doc §W2 are deliberately
