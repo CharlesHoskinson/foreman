@@ -4,13 +4,13 @@ Date: 2026-08-08
 
 This record documents the demonstration of positive controls for the newly migrated TypeScript `tool-check` functions, proving they successfully discriminate between known-bad and known-good inputs when executed on a real Linux host.
 
-## 1. sha256FileSync
+## 1. checkSha256FileSync
 **Command:**
 ```bash
 npx tsx -e '
-import { sha256FileSync } from "./packages/orchestration/src/tool-check-platform.ts";
-console.log("BAD:", sha256FileSync("tests/fixtures/tool-check/__does_not_exist__"));
-console.log("GOOD:", sha256FileSync("tests/fixtures/tool-check/sha256-good.pointer"));
+import { checkSha256FileSync } from "./packages/orchestration/src/tool-check-platform.ts";
+console.log("BAD:", checkSha256FileSync("tests/fixtures/tool-check/__does_not_exist__"));
+console.log("GOOD:", checkSha256FileSync("tests/fixtures/tool-check/sha256-good.pointer"));
 '
 ```
 
@@ -25,16 +25,16 @@ REGISTERED. The function outputs an empty string for the missing bad fixture, an
 
 ---
 
-## 2. classifyHostClass
+## 2. checkHostClass
 **Command:**
 ```bash
 npx tsx -e '
 import { readFileSync } from "fs";
-import { classifyHostClass } from "./packages/orchestration/src/tool-check-platform.ts";
+import { checkHostClass } from "./packages/orchestration/src/tool-check-platform.ts";
 const hostBad = readFileSync("tests/fixtures/tool-check/host-class-bad.pointer", "utf8").trim();
 const hostGood = readFileSync("tests/fixtures/tool-check/host-class-good.pointer", "utf8").trim();
-console.log("BAD:", classifyHostClass({}, hostBad, false));
-console.log("GOOD:", classifyHostClass({}, hostGood || "Linux", false));
+console.log("BAD:", checkHostClass({}, hostBad, false));
+console.log("GOOD:", checkHostClass({}, hostGood || "Linux", false));
 '
 ```
 
@@ -49,16 +49,16 @@ REGISTERED. The function successfully discriminates, outputting `msys2-git-bash`
 
 ---
 
-## 3. classifyFsClassFromProbe
+## 3. checkFsClassFromProbe
 **Command:**
 ```bash
 npx tsx -e '
 import { readFileSync } from "fs";
-import { classifyFsClassFromProbe } from "./packages/orchestration/src/tool-check-platform.ts";
+import { checkFsClassFromProbe } from "./packages/orchestration/src/tool-check-platform.ts";
 const fsBad = readFileSync("tests/fixtures/tool-check/fs-class-bad.pointer", "utf8").trim();
 const fsGood = readFileSync("tests/fixtures/tool-check/fs-class-good.pointer", "utf8").trim();
-console.log("BAD:", classifyFsClassFromProbe(fsBad, "", ""));
-console.log("GOOD:", classifyFsClassFromProbe(fsGood, "", ""));
+console.log("BAD:", checkFsClassFromProbe(fsBad, "", ""));
+console.log("GOOD:", checkFsClassFromProbe(fsGood, "", ""));
 '
 ```
 
@@ -73,19 +73,19 @@ REGISTERED. The function successfully discriminates between the two filesystem s
 
 ---
 
-## 4. lookupPinnedVerdict
+## 4. checkPinnedVerdict
 **Command:**
 ```bash
 npx tsx -e '
-import { lookupPinnedVerdict } from "./packages/orchestration/src/tool-check-atomicity.ts";
-console.log("BAD:", lookupPinnedVerdict({
+import { checkPinnedVerdict } from "./packages/orchestration/src/tool-check-atomicity.ts";
+console.log("BAD:", checkPinnedVerdict({
   mechanism: "flock",
   sha256: "59bc254984eefd83939a22a590d746942a4583a702b8fd2753bbb92d956e7d4c",
   hostClass: "wsl-linux",
   repoRoot: process.cwd(),
   manifestPath: "tests/fixtures/tool-check/pinned-lookup/manifest-bad.toml"
 }));
-console.log("GOOD:", lookupPinnedVerdict({
+console.log("GOOD:", checkPinnedVerdict({
   mechanism: "flock",
   sha256: "59bc254984eefd83939a22a590d746942a4583a702b8fd2753bbb92d956e7d4c",
   hostClass: "wsl-linux",
@@ -110,10 +110,10 @@ REGISTERED. The function successfully discriminates by failing to load the bad m
 
 ---
 
-## 5. readProcVersion
+## 5. checkProcVersion
 **Disposition:**
 DEFERRED. The TypeScript function takes no arguments and hardcodes reading `/proc/version`. It provides no seam to inject a missing or decoy fixture to drive a negative outcome.
 
-## 6. runAtomicityProbes
+## 6. probeAtomicity
 **Disposition:**
 DEFERRED. The TypeScript function orchestrates real OS probes (strace, mkdir, flock) that succeed on a healthy Linux host. It overrides any fallback manifest fixture provided via environment variables, making it impossible to force a negative outcome without mutating the host's actual OS capabilities or PATH.

@@ -58,7 +58,7 @@ export function detectWslFromEnv(
  * the provided osName (Windows_NT from captureHostnameOs, or win32 when that
  * is the captured platform string). MSYS/Cygwin uname forms take precedence.
  */
-export function classifyHostClass(
+export function checkHostClass(
   env: NodeJS.ProcessEnv,
   osName: string,
   isWsl: boolean,
@@ -90,7 +90,7 @@ export function classifyHostClass(
 /**
  * Classify filesystem for lock coverage. Best-effort; defaults to local.
  */
-export function classifyFsClassFromProbe(
+export function checkFsClassFromProbe(
   path: string,
   fstype: string,
   mountTarget: string,
@@ -198,11 +198,11 @@ export function resolveFsClass(
         }
       }
     }
-    return classifyFsClassFromProbe(probe, fstype, target);
+    return checkFsClassFromProbe(probe, fstype, target);
   });
 }
 
-export function readProcVersion(): string | null {
+export function checkProcVersion(): string | null {
   try {
     return readFileSync("/proc/version", "utf8");
   } catch {
@@ -218,7 +218,7 @@ export function resolveRealPath(p: string): string {
   }
 }
 
-export function sha256FileSync(path: string): string {
+export function checkSha256FileSync(path: string): string {
   try {
     if (!existsSync(path) || !statSync(path).isFile()) return "";
     const real = resolveRealPath(path);

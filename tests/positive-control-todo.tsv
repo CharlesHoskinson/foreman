@@ -15,4 +15,4 @@ check_id	kind	reason
 .github/workflows/maintenance.yml::Open issue with findings	gate	no positive control yet; inventoried 2026-08-06
 .github/workflows/maintenance.yml::report	gate	no positive control yet; inventoried 2026-08-06
 .github/workflows/windows-smoke.yml::Run install.ps1 and assert junctions resolve	gate	requires an actual Windows runner and PowerShell junction semantics (Test-Path/Get-Item/.LinkType); install.ps1 also writes into this real machine's own $env:USERPROFILE\\.claude\\skills, a live shared location rather than a disposable fixture, so it is both environment-unreachable from WSL and unsafe to execute here even if it were reachable
-packages/orchestration/src/tool-check-platform.ts::readProcVersion	probe	the function takes no arguments and hardcodes reading /proc/version; it provides no seam to inject a missing or decoy fixture to drive a negative outcome
+packages/orchestration/src/tool-check-platform.ts::checkProcVersion	probe	the function takes no arguments and hardcodes reading /proc/version; it provides no seam to inject a missing or decoy fixture to drive a negative outcome

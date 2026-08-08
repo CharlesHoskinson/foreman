@@ -60,7 +60,7 @@ import {
 } from "./tool-check-run.js";
 import {
   detectWslFromEnv,
-  readProcVersion,
+  checkProcVersion,
 } from "./tool-check-platform.js";
 import {
   CredentialProfileFs,
@@ -470,7 +470,7 @@ export function ensurePosixLauncher(
   log: (msg: string) => void,
 ): Effect.Effect<LauncherEnsureResult, never, ProcessExec | PathLookup> {
   return Effect.gen(function* () {
-    const wsl = detectWslFromEnv(processEnv, readProcVersion());
+    const wsl = detectWslFromEnv(processEnv, checkProcVersion());
     if (wsl.overrideNote) {
       log(wsl.overrideNote.replace(/^\[foreman\]\s*/, ""));
     }

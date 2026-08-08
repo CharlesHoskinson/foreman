@@ -28,21 +28,21 @@ Per the Foreman QA evidence rules ("a coverage claim that omits its own exclusio
 
 ## Uncontrolled now (6 TypeScript check successors deferred in `tests/positive-control-todo.tsv`)
 
-1. `packages/orchestration/src/tool-check-platform.ts::sha256FileSync`
+1. `packages/orchestration/src/tool-check-platform.ts::checkSha256FileSync`
    - **Status:** Defer (`tests/positive-control-todo.tsv`)
-   - **Reason:** The sha256 checksum predicate still ships in TypeScript (`sha256FileSync`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
-2. `packages/orchestration/src/tool-check-platform.ts::readProcVersion`
+   - **Reason:** The sha256 checksum predicate still ships in TypeScript (`checkSha256FileSync`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
+2. `packages/orchestration/src/tool-check-platform.ts::checkProcVersion`
    - **Status:** Defer (`tests/positive-control-todo.tsv`)
-   - **Reason:** The version-line parsing predicate still ships in TypeScript (`readProcVersion`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
-3. `packages/orchestration/src/tool-check-platform.ts::classifyFsClassFromProbe`
+   - **Reason:** The version-line parsing predicate still ships in TypeScript (`checkProcVersion`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
+3. `packages/orchestration/src/tool-check-platform.ts::checkFsClassFromProbe`
    - **Status:** Defer (`tests/positive-control-todo.tsv`)
-   - **Reason:** The filesystem class probe predicate still ships in TypeScript (`classifyFsClassFromProbe`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
-4. `packages/orchestration/src/tool-check-platform.ts::classifyHostClass`
+   - **Reason:** The filesystem class probe predicate still ships in TypeScript (`checkFsClassFromProbe`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
+4. `packages/orchestration/src/tool-check-platform.ts::checkHostClass`
    - **Status:** Defer (`tests/positive-control-todo.tsv`)
-   - **Reason:** The host platform classification predicate still ships in TypeScript (`classifyHostClass`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
-5. `packages/orchestration/src/tool-check-atomicity.ts::lookupPinnedVerdict`
+   - **Reason:** The host platform classification predicate still ships in TypeScript (`checkHostClass`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
+5. `packages/orchestration/src/tool-check-atomicity.ts::checkPinnedVerdict`
    - **Status:** Defer (`tests/positive-control-todo.tsv`)
-   - **Reason:** The pinned trace/verdict lookup predicate still ships in TypeScript (`lookupPinnedVerdict`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
-6. `packages/orchestration/src/tool-check-atomicity.ts::runAtomicityProbes`
+   - **Reason:** The pinned trace/verdict lookup predicate still ships in TypeScript (`checkPinnedVerdict`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
+6. `packages/orchestration/src/tool-check-atomicity.ts::probeAtomicity`
    - **Status:** Defer (`tests/positive-control-todo.tsv`)
-   - **Reason:** The top-level atomicity probe orchestrator predicate still ships in TypeScript (`runAtomicityProbes`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.
+   - **Reason:** The top-level atomicity probe orchestrator predicate still ships in TypeScript (`probeAtomicity`), but the inventory scanner does not inventory it as a separable check in the registry and it lacks a two-polarity control fixture; therefore it is uncontrolled.

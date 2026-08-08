@@ -435,8 +435,8 @@ export {
 
 export {
   detectWslFromEnv,
-  classifyHostClass,
-  classifyFsClassFromProbe,
+  checkHostClass,
+  checkFsClassFromProbe,
   nearestExistingPath,
   resolveFsClass,
   type FsClass,
@@ -446,9 +446,9 @@ export {
 export {
   probeMkdirOnce,
   probeFlockOnce,
-  runAtomicityProbes,
+  probeAtomicity,
   pickProbeRoots,
-  lookupPinnedVerdict,
+  checkPinnedVerdict,
   parsePinnedRegisterToml,
   validatePinnedTraceContent,
   countMkdirContentionViolations,

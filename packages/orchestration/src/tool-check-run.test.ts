@@ -36,8 +36,8 @@ import {
 import type { ToolRow } from "./tool-check-report.js";
 import {
   detectWslFromEnv,
-  classifyFsClassFromProbe,
-  classifyHostClass,
+  checkFsClassFromProbe,
+  checkHostClass,
 } from "./tool-check-platform.js";
 import { projectVendorPreflightToToolCheckRow } from "./vendor-preflight-tool-check.js";
 import type { VendorPreflightRecordV1 } from "./vendor-preflight-contract.js";
@@ -102,15 +102,15 @@ describe("platform pure helpers", () => {
 
   it("classifies host and fs classes", () => {
     assert.equal(
-      classifyHostClass({}, "Linux", true),
+      checkHostClass({}, "Linux", true),
       "wsl-linux",
     );
     assert.equal(
-      classifyFsClassFromProbe("/mnt/c/Users", "drvfs", "/mnt/c"),
+      checkFsClassFromProbe("/mnt/c/Users", "drvfs", "/mnt/c"),
       "mnt-drvfs",
     );
     assert.equal(
-      classifyFsClassFromProbe("/home", "ext4", "/"),
+      checkFsClassFromProbe("/home", "ext4", "/"),
       "local",
     );
   });
