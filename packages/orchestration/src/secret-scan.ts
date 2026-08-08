@@ -508,12 +508,15 @@ function isValidAbsoluteRoot(path: string): boolean {
   return isAbsolute(path);
 }
 
+/**
+ * Resolve a scan root. Strips no separator of its own: `resolve` already
+ * removes a trailing one for this platform's path flavour and preserves roots.
+ * Stripping one more character collapsed a directory whose name legally ends
+ * in `\` on POSIX onto a different directory, so the scan bound to the wrong
+ * tree or refused a real one.
+ */
 function normalizeRootInput(worktree: string): string {
-  let n = resolve(worktree);
-  if (n.length > 1 && (n.endsWith("/") || n.endsWith("\\"))) {
-    n = n.slice(0, -1);
-  }
-  return n;
+  return resolve(worktree);
 }
 
 function isSafeDirentName(name: string): boolean {

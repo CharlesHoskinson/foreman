@@ -1253,6 +1253,32 @@ describe("Foreman worktree and known-bad fixture", () => {
     },
   );
 
+  // D2: the scan root normalizer stripped a trailing backslash, so a real
+  // directory whose name ends in one resolved to a sibling that need not
+  // exist -- the scan then refused, or worse, scanned the wrong tree.
+  it(
+    "scans a directory whose name ends in a backslash on POSIX",
+    liveTraversal,
+    () => {
+      if (process.platform === "win32") return;
+      const base = mkdtempSync(join(tmpdir(), "fm-d2-scan-"));
+      try {
+        const withBs = join(base, "x\\");
+        mkdirSync(withBs);
+        // `base/x` deliberately does not exist: a normalizer that strips the
+        // trailing backslash resolves to a directory that is not there.
+        const r = runScan(withBs);
+        assert.equal(
+          r._tag,
+          "Clean",
+          `a real directory named "x\\" must scan, not be refused; got ${JSON.stringify(r)}`,
+        );
+      } finally {
+        rmSync(base, { recursive: true, force: true });
+      }
+    },
+  );
+
   it(
     "still refuses a known-bad synthetic secret fixture without exemption",
     liveTraversal,

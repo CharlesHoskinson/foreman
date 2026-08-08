@@ -139,17 +139,26 @@ it — which is how it was nearly missed.
 npx tsx scripts/run-tests.ts 'packages/orchestration/src/secret-scan.test.ts'; echo "exit: $?"
 ```
 
-### BW-011 — a third copy of the POSIX backslash path-confusion
+### BW-011 — three separate path normalizers must be kept in agreement
 
 `open` · reproduced 2026-08-08
 
-`normalizeAbsoluteWorktreeInput` in
-`packages/orchestration/src/resume-worktree-restore.ts:214` strips a trailing
-`\` unconditionally, the same defect fixed in `credential-profile.ts` and
-`secret-scan.ts`. Unlike `normalizeRootInput` it is genuinely exported. It was
-out of scope by instruction when the other two were fixed, and is recorded
-here rather than fixed silently alongside them. Three copies of one normalizer
-is the underlying problem; a shared helper would retire the class.
+The POSIX backslash path-confusion this row used to track is **fixed** at all
+three sites — `normalizeAbsolutePath`, `normalizeRootInput`, and
+`normalizeAbsoluteWorktreeInput` — failing-test-first, six tests, `# fail 6`
+before and `# pass 6` after. What remains is the shape that produced it: three
+independent normalizers over one concept. Each is now a single `resolve()`
+call, so they agree today by being trivial rather than by construction, and
+nothing fails if one of them grows a special case again.
+
+An earlier version of this row said the defect was "the same defect fixed in
+`credential-profile.ts` and `secret-scan.ts`". That was carried, not
+reproduced, and it was false — measurement found all three sites unfixed. Rule
+2 exists for exactly this.
+
+Retiring the class means one shared helper. That is a refactor rather than a
+defect fix and it re-cuts bundle digests, so it was deliberately kept out of
+the v0.3.0 tag commit and belongs to v0.4.0.
 
 ```bash
 sed -n '214,222p' packages/orchestration/src/resume-worktree-restore.ts
@@ -314,5 +323,21 @@ git worktree add /path/wt <branch> && cd /path/wt && npm ci   # not: ln -s ../no
 
 Six verified product defects from the v0.3.0 design doc §W2 are deliberately
 **not** listed here. They are tracked release work with an owner and a
-workstream, not unclaimed breakage. Their current state, spot-checked
-2026-08-08, is that all six are still present in the tree.
+workstream, not unclaimed breakage.
+
+Their state, measured on 2026-08-08 rather than carried:
+
+| Defect | State | Landed by |
+|---|---|---|
+| Unguarded recursion in `canonical-json.ts` | fixed | `a744e9f` |
+| POSIX backslash path-confusion, three sites | fixed | this commit |
+| `argvWithoutDetach` argv corruption | fixed | `a744e9f` |
+| `decodeUtf8Fatal` BOM / digest disagreement | fixed | `a744e9f` |
+| Unthrottled spawn fallback discards vendor caps | fixed | `a744e9f` |
+| `set*RaceHook` reaching the published surface | fixed | `d74600e` |
+
+An earlier version of this section said "all six are still present in the
+tree", spot-checked the same day. It was wrong in both directions: five had
+already landed in `a744e9f` and `d74600e`, and the sixth was still present
+after a report claimed it fixed. Both errors came from carrying a claim
+instead of running the command that would have settled it.

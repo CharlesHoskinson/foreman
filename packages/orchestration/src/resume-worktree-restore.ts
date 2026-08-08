@@ -208,17 +208,16 @@ function mapTransport(_err: ProcessFailure): WorktreeRestoreFailure {
 }
 
 /**
- * Normalize an absolute path for identity comparison: resolve `.`/`..` and
- * strip a single trailing separator (except root). Does not follow symlinks.
+ * Normalize an absolute path for identity comparison: resolve `.`/`..`. Does
+ * not follow symlinks.
+ *
+ * Strips no separator of its own. `resolveWorktreeRoot` compares this value
+ * against the same function applied to the realpath and then returns it, so
+ * collapsing a legal trailing `\` on POSIX let one directory pass the identity
+ * check while another was returned to the caller.
  */
 export function normalizeAbsoluteWorktreeInput(worktree: string): string {
-  let n = pathResolve(worktree);
-  if (n.length > 1) {
-    if (n.endsWith("/") || n.endsWith("\\")) {
-      n = n.slice(0, -1);
-    }
-  }
-  return n;
+  return pathResolve(worktree);
 }
 
 function resolveWorktreeRoot(

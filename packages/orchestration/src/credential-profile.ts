@@ -149,15 +149,22 @@ export type ParsedCredentialProfileArgv =
 // ---------------------------------------------------------------------------
 
 /**
- * Normalize an absolute path for comparison: resolve `.`/`..` and strip one
- * trailing separator (except root). Does not follow symbolic links.
+ * Normalize an absolute path for comparison: resolve `.`/`..`. Does not follow
+ * symbolic links.
+ *
+ * Strips no separator of its own. `pathResolve` already collapses separator
+ * runs and removes a trailing separator for this platform's path flavour, and
+ * it preserves roots (`/`, `C:\`, `\\server\share\`). Stripping one more
+ * character was wrong twice over: on POSIX `\` is a legal filename character,
+ * so `/tmp/x\` collapsed onto `/tmp/x` -- a path-confusion primitive in
+ * credential-authority comparison, where a caller could present a path that
+ * compares equal to one directory and denotes another; and on Windows it
+ * turned the root `C:\` into `C:`, which `isAbsolute` rejects as
+ * drive-relative, so containment would be decided against the per-drive
+ * working directory.
  */
 export function normalizeAbsolutePath(input: string): string {
-  let n = pathResolve(input);
-  if (n.length > 1 && (n.endsWith("/") || n.endsWith("\\"))) {
-    n = n.slice(0, -1);
-  }
-  return n;
+  return pathResolve(input);
 }
 
 export function isValidProfileId(id: string): boolean {

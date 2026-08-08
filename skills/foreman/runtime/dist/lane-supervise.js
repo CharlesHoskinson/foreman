@@ -19031,13 +19031,7 @@ function mapTransport(_err) {
   return worktreeRestoreFailure("transport_failed");
 }
 function normalizeAbsoluteWorktreeInput(worktree) {
-  let n = pathResolve(worktree);
-  if (n.length > 1) {
-    if (n.endsWith("/") || n.endsWith("\\")) {
-      n = n.slice(0, -1);
-    }
-  }
-  return n;
+  return pathResolve(worktree);
 }
 function resolveWorktreeRoot(worktree) {
   if (!isValidAbsoluteWorktreePath(worktree)) {

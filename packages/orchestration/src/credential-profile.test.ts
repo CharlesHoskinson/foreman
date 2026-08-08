@@ -2394,6 +2394,42 @@ describe("normalizeAbsolutePath", () => {
     assert.ok(!n.endsWith("/") || n === "/");
     assert.equal(n.includes(".."), false);
   });
+
+  // D2. On POSIX `\` is a legal filename character, so a trailing one must
+  // survive normalization. Collapsing it is a path-confusion primitive: a
+  // caller presents a path that compares equal to one directory and denotes
+  // another. `resolve()` already strips the separators this path flavour
+  // recognises, so the normalizer must not strip anything itself.
+  it("keeps a trailing backslash on POSIX, a legal filename character", () => {
+    if (process.platform === "win32") return;
+    assert.equal(normalizeAbsolutePath("/tmp/x\\"), "/tmp/x\\");
+  });
+
+  it("does not conflate paths differing only by a trailing backslash", () => {
+    if (process.platform === "win32") return;
+    assert.notEqual(
+      normalizeAbsolutePath("/tmp/x\\"),
+      normalizeAbsolutePath("/tmp/x"),
+    );
+  });
+
+  it("distinguishes two real directories differing only by a backslash", () => {
+    if (process.platform === "win32") return;
+    const base = mkdtempSync(join(tmpdir(), "fm-d2-cp-"));
+    try {
+      const plain = join(base, "x");
+      const withBs = join(base, "x\\");
+      mkdirSync(plain);
+      mkdirSync(withBs);
+      assert.notEqual(
+        normalizeAbsolutePath(withBs),
+        normalizeAbsolutePath(plain),
+      );
+      assert.equal(normalizeAbsolutePath(withBs), withBs);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
