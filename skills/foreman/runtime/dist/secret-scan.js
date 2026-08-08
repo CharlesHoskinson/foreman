@@ -15922,11 +15922,7 @@ function isValidAbsoluteRoot(path) {
   return isAbsolute(path);
 }
 function normalizeRootInput(worktree) {
-  let n = resolve(worktree);
-  if (n.length > 1 && (n.endsWith("/") || n.endsWith("\\"))) {
-    n = n.slice(0, -1);
-  }
-  return n;
+  return resolve(worktree);
 }
 function isSafeDirentName(name) {
   if (name.length === 0) return false;

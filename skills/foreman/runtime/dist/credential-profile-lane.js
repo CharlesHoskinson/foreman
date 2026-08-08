@@ -16361,11 +16361,7 @@ var PROFILES_DIR_NAME = "credential-profiles";
 var HOMES_DIR_NAME = "homes";
 var PROFILE_JSON_NAME = "profile.json";
 function normalizeAbsolutePath(input) {
-  let n = pathResolve(input);
-  if (n.length > 1 && (n.endsWith("/") || n.endsWith("\\"))) {
-    n = n.slice(0, -1);
-  }
-  return n;
+  return pathResolve(input);
 }
 function isValidProfileId(id) {
   return typeof id === "string" && PROFILE_ID_RE.test(id);

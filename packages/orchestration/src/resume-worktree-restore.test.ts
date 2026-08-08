@@ -42,6 +42,7 @@ import {
   isWorktreeRestoreFailure,
   makeLiveWorktreeRestore,
   makeStubWorktreeRestore,
+  normalizeAbsoluteWorktreeInput,
   rootIdentityKey,
   WorktreeRestore,
   worktreeRestoreFailure,
@@ -642,6 +643,43 @@ describe("WorktreeRestore live git integration (overlay)", () => {
       assert.equal((head.stdout || "").trim(), sha);
       void content;
       void commitB;
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D2: worktree identity must not collapse a trailing backslash on POSIX.
+// `resolveWorktreeRoot` compares the normalized input against the normalized
+// realpath and then returns the normalized value, so a normalizer that strips
+// a legal filename character can validate one directory and return another.
+// ---------------------------------------------------------------------------
+
+describe("normalizeAbsoluteWorktreeInput", () => {
+  it("keeps a trailing backslash in worktree identity on POSIX", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
+    assert.equal(normalizeAbsoluteWorktreeInput("/tmp/x\\"), "/tmp/x\\");
+  });
+
+  it("does not conflate worktrees differing only by a trailing backslash", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
+    const base = mkdtempSync(join(tmpdir(), "fm-d2-wt-"));
+    try {
+      const plain = join(base, "wt");
+      const withBs = join(base, "wt\\");
+      mkdirSync(plain);
+      mkdirSync(withBs);
+      assert.notEqual(
+        normalizeAbsoluteWorktreeInput(withBs),
+        normalizeAbsoluteWorktreeInput(plain),
+      );
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

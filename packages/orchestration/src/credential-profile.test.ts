@@ -2389,10 +2389,55 @@ describe("credential-profile CLI", () => {
 // ---------------------------------------------------------------------------
 
 describe("normalizeAbsolutePath", () => {
-  it("strips trailing separator and resolves dots", () => {
+  it("resolves dots and leaves no trailing separator (resolve strips it)", () => {
     const n = normalizeAbsolutePath(join(tmpdir(), "a", "..", "b") + "/");
     assert.ok(!n.endsWith("/") || n === "/");
     assert.equal(n.includes(".."), false);
+  });
+
+  // D2. On POSIX `\` is a legal filename character, so a trailing one must
+  // survive normalization. Collapsing it is a path-confusion primitive: a
+  // caller presents a path that compares equal to one directory and denotes
+  // another. `resolve()` already strips the separators this path flavour
+  // recognises, so the normalizer must not strip anything itself.
+  it("keeps a trailing backslash on POSIX, a legal filename character", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
+    assert.equal(normalizeAbsolutePath("/tmp/x\\"), "/tmp/x\\");
+  });
+
+  it("does not conflate paths differing only by a trailing backslash", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
+    assert.notEqual(
+      normalizeAbsolutePath("/tmp/x\\"),
+      normalizeAbsolutePath("/tmp/x"),
+    );
+  });
+
+  it("distinguishes two real directories differing only by a backslash", (t) => {
+    if (process.platform === "win32") {
+      t.skip("POSIX-only: on win32 a backslash IS a separator");
+      return;
+    }
+    const base = mkdtempSync(join(tmpdir(), "fm-d2-cp-"));
+    try {
+      const plain = join(base, "x");
+      const withBs = join(base, "x\\");
+      mkdirSync(plain);
+      mkdirSync(withBs);
+      assert.notEqual(
+        normalizeAbsolutePath(withBs),
+        normalizeAbsolutePath(plain),
+      );
+      assert.equal(normalizeAbsolutePath(withBs), withBs);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 });
 
