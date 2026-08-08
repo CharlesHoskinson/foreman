@@ -74,10 +74,10 @@ logic in compatibility scripts.
 
 ### Research and archive paths: 4 files
 
-- [ ] Port or retire `docs/research/fetch_frontier_docs.py` and remove its
+- [x] Retired `docs/research/fetch_frontier_docs.py` and removed its
       host-specific output path.
-- [ ] Port or retire `docs/research/vnext/contention-derive.py`.
-- [ ] Port or retire `docs/research/vnext/parallel-schedule.py`.
+- [x] Retired `docs/research/vnext/contention-derive.py`.
+- [x] Retired `docs/research/vnext/parallel-schedule.py`.
 - [ ] Preserve the result and delete the archived executable
       `openspec/changes/archive/2026-07-30-terminusdb-withdrawn-schema/scripts/check-schema-structure.py`.
 
