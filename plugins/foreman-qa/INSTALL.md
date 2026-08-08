@@ -16,11 +16,13 @@ manifest. From a Claude Code session:
 /plugin install foreman-qa@<marketplace-name>
 ```
 
-Point `marketplace add` at the Foreman repo checkout, or at a directory
-that declares `foreman-qa` in its `marketplace.json`. The marketplace name
-to use in the second command is printed by the first. This repo does not
-yet ship a root-level `marketplace.json`; adding one is a prerequisite for
-this path until that lands.
+Point `marketplace add` at the Foreman repo checkout. This repo ships the
+root-level manifest at `.claude-plugin/marketplace.json`, which declares
+`foreman-qa` under the marketplace name `foreman`, so the second command is:
+
+```text
+/plugin install foreman-qa@foreman
+```
 
 ## Symlink or copy into ~/.claude/plugins/
 
