@@ -1,0 +1,12 @@
+{
+  "rate": {
+    "decision": "not_evaluated",
+    "denominator": {
+      "name": "trials",
+      "value": 0.0
+    },
+    "status": "uncomputable"
+  },
+  "rate_id": "recorded-zero-trial-control",
+  "schema_version": "tier-rate-result/v1"
+}

@@ -1,0 +1,290 @@
+{
+  "material_margin_percent": 20,
+  "runs": [
+    {
+      "budget_breach": true,
+      "budget_review": false,
+      "cadence_check": {
+        "allowed_sources": [
+          "commit"
+        ],
+        "decision": "evaluated",
+        "declared_cadence": "per_commit",
+        "explicit_override": false,
+        "source": "commit",
+        "status": "permitted"
+      },
+      "cadence_permitted": true,
+      "cost_usd": 0.0,
+      "declared_budget": {
+        "allowed_invocation_sources": [
+          "commit"
+        ],
+        "automatic_triggers": [
+          "commit"
+        ],
+        "cadence": "per_commit",
+        "max_cost_usd": 0,
+        "max_duration_s": 120
+      },
+      "duration_s": 140.0,
+      "fields": {
+        "cost_usd": {
+          "actual": 0.0,
+          "budget_breach": false,
+          "budget_review": false,
+          "declared": 0.0,
+          "delta": 0.0,
+          "margin_percent": {
+            "decision": "not_evaluated",
+            "denominator": {
+              "name": "declared cost_usd budget",
+              "value": 0
+            },
+            "status": "uncomputable"
+          }
+        },
+        "duration_s": {
+          "actual": 140.0,
+          "budget_breach": true,
+          "budget_review": false,
+          "declared": 120.0,
+          "delta": 20.0,
+          "margin_percent": {
+            "decision": "evaluated",
+            "denominator": {
+              "name": "declared duration_s budget",
+              "value": 120.0
+            },
+            "status": "computed",
+            "value": 16.66666667
+          }
+        }
+      },
+      "invocation": {
+        "explicit_override": false,
+        "source": "commit"
+      },
+      "material_margin_percent": 20.0,
+      "run_id": "tier0-within-material-margin",
+      "started_at": "2026-07-31T17:00:00Z",
+      "tier": "tier0"
+    },
+    {
+      "budget_breach": true,
+      "budget_review": true,
+      "cadence_check": {
+        "allowed_sources": [
+          "commit"
+        ],
+        "decision": "evaluated",
+        "declared_cadence": "per_commit",
+        "explicit_override": false,
+        "source": "commit",
+        "status": "permitted"
+      },
+      "cadence_permitted": true,
+      "cost_usd": 0.0,
+      "declared_budget": {
+        "allowed_invocation_sources": [
+          "commit"
+        ],
+        "automatic_triggers": [
+          "commit"
+        ],
+        "cadence": "per_commit",
+        "max_cost_usd": 0,
+        "max_duration_s": 120
+      },
+      "duration_s": 145.0,
+      "fields": {
+        "cost_usd": {
+          "actual": 0.0,
+          "budget_breach": false,
+          "budget_review": false,
+          "declared": 0.0,
+          "delta": 0.0,
+          "margin_percent": {
+            "decision": "not_evaluated",
+            "denominator": {
+              "name": "declared cost_usd budget",
+              "value": 0
+            },
+            "status": "uncomputable"
+          }
+        },
+        "duration_s": {
+          "actual": 145.0,
+          "budget_breach": true,
+          "budget_review": true,
+          "declared": 120.0,
+          "delta": 25.0,
+          "margin_percent": {
+            "decision": "evaluated",
+            "denominator": {
+              "name": "declared duration_s budget",
+              "value": 120.0
+            },
+            "status": "computed",
+            "value": 20.83333333
+          }
+        }
+      },
+      "invocation": {
+        "explicit_override": false,
+        "source": "commit"
+      },
+      "material_margin_percent": 20.0,
+      "run_id": "tier0-over-material-margin",
+      "started_at": "2026-07-31T17:05:00Z",
+      "tier": "tier0"
+    },
+    {
+      "budget_breach": true,
+      "budget_review": true,
+      "cadence_check": {
+        "allowed_sources": [
+          "commit",
+          "pull_request"
+        ],
+        "decision": "evaluated",
+        "declared_cadence": "per_commit_or_pull_request",
+        "explicit_override": false,
+        "source": "pull_request",
+        "status": "permitted"
+      },
+      "cadence_permitted": true,
+      "cost_usd": 0.01,
+      "declared_budget": {
+        "allowed_invocation_sources": [
+          "commit",
+          "pull_request"
+        ],
+        "automatic_triggers": [
+          "commit",
+          "pull_request"
+        ],
+        "cadence": "per_commit_or_pull_request",
+        "max_cost_usd": 0,
+        "max_duration_s": 30
+      },
+      "duration_s": 12.0,
+      "fields": {
+        "cost_usd": {
+          "actual": 0.01,
+          "budget_breach": true,
+          "budget_review": true,
+          "declared": 0.0,
+          "delta": 0.01,
+          "margin_percent": {
+            "decision": "not_evaluated",
+            "denominator": {
+              "name": "declared cost_usd budget",
+              "value": 0
+            },
+            "status": "uncomputable"
+          }
+        },
+        "duration_s": {
+          "actual": 12.0,
+          "budget_breach": false,
+          "budget_review": false,
+          "declared": 30.0,
+          "delta": -18.0,
+          "margin_percent": {
+            "decision": "evaluated",
+            "denominator": {
+              "name": "declared duration_s budget",
+              "value": 30.0
+            },
+            "status": "computed",
+            "value": -60.0
+          }
+        }
+      },
+      "invocation": {
+        "explicit_override": false,
+        "source": "pull_request"
+      },
+      "material_margin_percent": 20.0,
+      "run_id": "tier1-unexpected-spend",
+      "started_at": "2026-07-31T17:10:00Z",
+      "tier": "tier1"
+    },
+    {
+      "budget_breach": false,
+      "budget_review": false,
+      "cadence_check": {
+        "allowed_sources": [
+          "manual"
+        ],
+        "decision": "evaluated",
+        "declared_cadence": "on_demand_manual_only",
+        "explicit_override": false,
+        "source": "manual",
+        "status": "permitted"
+      },
+      "cadence_permitted": true,
+      "cost_usd": 9.0,
+      "declared_budget": {
+        "allowed_invocation_sources": [
+          "manual"
+        ],
+        "automatic_triggers": [],
+        "cadence": "on_demand_manual_only",
+        "comparison_conditions": 2,
+        "expected_n": 3,
+        "max_cost_per_vendor_call_usd": 0.25,
+        "max_cost_usd": 18,
+        "max_duration_s": 7200,
+        "max_specs": 12,
+        "max_vendor_calls": 72,
+        "min_specs": 8
+      },
+      "duration_s": 84.25,
+      "fields": {
+        "cost_usd": {
+          "actual": 9.0,
+          "budget_breach": false,
+          "budget_review": false,
+          "declared": 18.0,
+          "delta": -9.0,
+          "margin_percent": {
+            "decision": "evaluated",
+            "denominator": {
+              "name": "declared cost_usd budget",
+              "value": 18.0
+            },
+            "status": "computed",
+            "value": -50.0
+          }
+        },
+        "duration_s": {
+          "actual": 84.25,
+          "budget_breach": false,
+          "budget_review": false,
+          "declared": 7200.0,
+          "delta": -7115.75,
+          "margin_percent": {
+            "decision": "evaluated",
+            "denominator": {
+              "name": "declared duration_s budget",
+              "value": 7200.0
+            },
+            "status": "computed",
+            "value": -98.82986111
+          }
+        }
+      },
+      "invocation": {
+        "explicit_override": false,
+        "source": "manual"
+      },
+      "material_margin_percent": 20.0,
+      "run_id": "tier2-within-budget",
+      "started_at": "2026-07-31T18:00:00Z",
+      "tier": "tier2"
+    }
+  ],
+  "schema_version": "tier-budget-result/v1"
+}
