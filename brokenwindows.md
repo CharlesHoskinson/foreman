@@ -319,6 +319,56 @@ cycle plus the diagnosis.
 git worktree add /path/wt <branch> && cd /path/wt && npm ci   # not: ln -s ../node_modules
 ```
 
+### BW-018 — the launcher suite cannot complete on a pidns-capable host
+
+`open` · reproduced 2026-08-08
+
+`packages/launcher/src/supervise.test.ts` aborts mid-file on this WSL2 host
+(Node v24.18.0, running as root, `unshare` available). Four describes report
+`✔` — seven named tests pass — then a spawned child prints `hi` and
+`foreman-launch: capability=posix_pidns_strong unshare=/usr/bin/unshare`, and
+the process dies:
+
+```text
+ERR_MODULE_NOT_FOUND: Cannot find module
+  '/root/foreman/packages/launcher/src/heartbeat.js'
+  imported from /root/foreman/packages/launcher/src/supervise.test.ts
+```
+
+That sibling cannot exist. The package sets `outDir: "dist"`, and
+`npx tsc -b --force` emits zero `.js` files into `src/`. So some spawned
+process is running the test file as a plain `node` entry, without the loader
+that maps `./heartbeat.js` onto `heartbeat.ts`.
+
+The crash takes the rest of the file with it. Tests that CI runs and passes
+never report here at all — the exit-125 SpawnError path, "exactly one tree kill"
+on interrupt, "no zombie direct children on /proc" under 1000+ short
+descendants, and the byte-exact compiled-bundle piping test.
+
+**CI is green on the same commit and reaches more of this file than this host
+does**: `tests 1398 / pass 1394 / fail 0 / skipped 4`, including
+`✔ large piped stdout and stderr are byte-exact through foreman-launch.js`. So
+this is not a CI blind spot. It is a host-specific abort, and the visible
+difference is that this host reports `capability=posix_pidns_strong` with
+`unshare` permitted, a path a GitHub runner does not take.
+
+Cause **not** identified. One hypothesis was tested and refuted: that the
+test's `spawn(..., { env: process.env })` leaks node's `NODE_TEST_CONTEXT` and
+`NODE_TEST_WORKER_ID` markers into the child — which `scripts/run-tests.ts`
+strips for exactly that reason. Running the compiled bundle by hand with and
+without those variables exits 0 both ways, with no module error.
+
+```bash
+npx tsx scripts/run-tests.ts 'packages/launcher/src/supervise.test.ts'; echo "exit=$?"
+ls packages/launcher/src/*.js 2>/dev/null | wc -l   # 0 — the import cannot resolve
+```
+
+Why it matters: §4.1 of the v0.3.0 design doc makes local truth one command.
+On a host with strong pidns capability that command cannot go green, so the
+regime's own local gate is unavailable exactly where the pidns kill-cascade is
+live. Pre-existing and not from the branch that found it — identical on
+`ca2e5f6`.
+
 ## Notes on scope
 
 Six verified product defects from the v0.3.0 design doc §W2 are deliberately
