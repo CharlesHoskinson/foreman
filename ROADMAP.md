@@ -71,21 +71,42 @@ All new executable code uses Node.js 24 and TypeScript under the repository
 Iron Rule. Effect owns typed failures, scoped resources, cancellation,
 retries, timeouts, and concurrency.
 
-Status through Sprint 3 R1 commit
-`a1e0dcf142eb02f5f198c0da730a51c11396a196`:
+**Redefined 2026-08-07.** v0.3.0 is "the Node migration is finished — one
+runtime, one language." The eighteen-sprint program that the band table below
+described was measured at 43 packages and roughly 819 open tasks, over half of
+it the tool observing itself. Sprints 8-13 and 16, Sprint 6's project registry,
+and the knowledge and graph plane move to v0.4.0; their change packages under
+`openspec/changes/` are unmodified, only their release assignment moves. The
+current definition is
+`docs/superpowers/specs/2026-08-07-v030-node-migration-completion-design.md`.
 
-| Band | Status | Notes |
-|---|---|---|
-| Authority baseline, destruction inventory, and ledger reconciliation | Landed | Ledger, coverage matrix freeze, destruction register, and program package |
-| Node workspace, `@foreman/core`, and `@foreman/policy` | Landed | Architecture policy, destruction admission, installed-runtime integrity, Windows path-seam fixes |
-| Typed `@foreman/event-log` foundation | Landed | Closed StoredEvent decoder, bounded NDJSON replay, cursors, attempt identity |
-| Queue, resume, credentials, and fixture-aware secret scans (Sprint 3) | Partial | TypeScript queue admission and the thin adapter are landed. Attempt-bound rounds, resume, external state, credentials, and scans remain open |
-| GraphStore, launcher, SessionDB, and project registry | Open | Not in this base |
-| Current-main session transport | Open | Not in this base |
-| Council advisory plane, durable runtime, Gemini, MCP, and host plugins | Partial / open | Spec-correctness admission and live records exist. Full advisory plane remains open |
-| Council supervised research, evidence provenance, and Council evaluation | Open | Not in this base |
-| Release evidence, formal-model reconciliation, knowledge and Graphify | Open | Not in this base |
-| Zero-Python cleanup, Superpowers, external dogfood, Windows boundary, exact-candidate convergence | Open | Not in this base |
+Exit is four predicates on one unchanged pushed commit. Measured against
+`origin/main` at `14e0102` on 2026-08-08:
+
+| # | Predicate | Verdict | Evidence |
+|---|---|---|---|
+| 1 | `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived | **FAIL** | 14 tracked; 7 required |
+| 2 | `gates-linux` green on `main` | **PASS** | run on `14e0102` completed/success |
+| 3 | `session.bats` passes with `FM_SESSION_CMD` on the TypeScript and `fm-session.py` deleted | **FAIL** | `fm-session.py` still tracked |
+| 4 | `tests/positive-control-todo.tsv` empty for in-scope gates, or every row carries a reason | **PASS** | 17 rows, 0 without a reason |
+
+Predicate 2 was amended on 2026-08-08. It previously also required a green
+`gates-windows` that actually ran the Bats suite. The suite was then measured
+there for the first time at pass=444 fail=270 skip=26 and does not fit the
+60-minute job cap, so Windows is excluded by decision rather than by omission
+and the exclusion is enforced by a test. Windows remains open work in
+`brokenwindows.md` (BW-004).
+
+Predicate 1's remaining four files, and why each is still there:
+
+| File | State |
+|---|---|
+| `skills/foreman/scripts/fm-session.py` | ported on `sprint/w4-session-port`; not landed. The port passes `session.bats` 31/31 through the seam, but three white-box Python tests retire with it and their properties — worktree store sharing, single-snapshot sidecar reads, row-check-after-write-lock — have no replacement yet |
+| `skills/foreman/ontology/test_ontology.py` | retires with the `project` verb, same branch |
+| `tests/tier2_collect.py` | port **backed out**. See `brokenwindows.md` BW-014 |
+| `tests/tier2_compare.py` | port **backed out**. Two attempts produced a statistically divergent evaluator: whole-valued floats lost their decimals, and one bootstrap confidence interval was 16% from the Python's on identical input |
+
+The three `docs/research/` utilities are retired on `sprint/w2-w5a`.
 
 Do not present unfinished v0.3.0 work as shipped work. Sprint 3 is partial and
 remains open.
