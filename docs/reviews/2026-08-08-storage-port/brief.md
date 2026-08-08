@@ -60,6 +60,7 @@ system) for storage. Its actual v3 TypeScript SDK surface is:
 - L3 `readCore` / `writeCore`
 
 Verified properties:
+
 - HTTP only, `Promise`-returning only. No synchronous path.
 - Requires `endpoint`, `apiKey`, and strict isolation ids (`teamId`/`agentId`/`userId`).
 - Deployment requires two sets of LLM credentials (`MEMORY_LLM_BASE_URL`,

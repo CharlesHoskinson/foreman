@@ -22,6 +22,10 @@ here.
 | Live sessions in the base checkout | Interactive sessions can append to `bugeventlog.md` or SessionDB while a worker runs. Never `git add -A` in the base checkout. Work in your assigned worktree only. |
 | The 33/41 filemode changes in `git status` | Deliberate, not dirt. They belong to `crlf-extensionless-hardening` and must not ride along in an unrelated commit. |
 | `foreman-setup.sh` / `tool-check.sh` vendor auth | Known false negative: reports `grok: not_authenticated` while `grok -p` answers fine. Verify a vendor directly before believing the checker. |
+| A prompt or payload passed as one CLI argument | Linux caps a single argv entry at 128 KB; the call fails with `Argument list too long` **before** the tool runs. Pipe via stdin or a file. |
+| `bash script.sh` for a script that calls a vendor CLI | A non-login shell does not source the profile, so `~/.local/bin` and `~/.npm-global/bin` are off `PATH` and every lane exits `127`. Use `bash -lc "bash script.sh"`, or `export PATH` inside the script. |
+| A headless vendor CLI started inside a repo | It reads local `AGENTS.md`, skills and files, and can answer a different question than the one asked — confidently and in the requested format. One lane returned a document on an unrelated topic. Run it in an empty directory, tell it to answer from the supplied text without reading files, and verify the response is on-topic before using it. |
+| Shell variables inside `wsl.exe … bash -lc '…'` driven from PowerShell | The variable is consumed crossing the boundary in single **and** double quotes, so loops silently operate on empty strings (`cp …/.ts`). Build full paths in PowerShell and pass them as arguments. |
 
 ## 2. Checker soundness — the core failure class of this release
 
