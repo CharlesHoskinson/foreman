@@ -28,28 +28,6 @@ Status: `open` · `fixed-unlanded` (fixed locally, not on `main`) · `blocked`
 
 ## Open
 
-### BW-001 — the Windows workflow contract contradicts itself
-
-`open` · reproduced 2026-08-08
-
-`19d5dc0` took Windows out of the gating set by deleting the `push` and
-`pull_request` triggers, on measured evidence that the Bats suite has never
-passed there. `components/council/tests/architecture/hosted-node24-ci.test.ts`
-still requires every Council-gate workflow to declare a real `pull_request`
-trigger. Both cannot hold. `gates-linux` fails on the contradiction, so `main`
-is red for a reason that is a disagreement between two files rather than a
-defect in shipped code.
-
-```bash
-cd components/council && npx vitest run tests/architecture/hosted-node24-ci.test.ts
-# AssertionError: expected 'workflow must declare a real pull_request trigger'
-```
-
-This also contradicts exit predicate 2 in
-`docs/superpowers/specs/2026-08-07-v030-node-migration-completion-design.md`,
-which still reads "`gates-linux` and `gates-windows` are both green, and the
-Windows gate actually runs the Bats suite." One of the three has to move.
-
 ### BW-002 — `dependencies/check-drift.sh` cannot detect a missing port
 
 `open` · carried from `docs/evidence/w1/2026-08-08-regime-coverage.md` §5
@@ -146,30 +124,36 @@ remembering to edit it" is not currently true here.
 python3 skills/foreman/scripts/fm-session.py recover | head -5
 ```
 
-## Fixed but not landed
+### BW-010 — secret-scan cannot scan its own worktree clean
 
-### BW-009 — duplicate `permissions` key broke `gates-windows.yml`
+`open` · reproduced 2026-08-08
 
-`fixed-unlanded` · reproduced 2026-08-08 · branch
-`hotfix/gates-windows-duplicate-permissions`
-
-`19d5dc0` added a second `contents: read` under `permissions:` while rewriting
-the trigger block. YAML forbids duplicate map keys, so the workflow stopped
-parsing: GitHub reported it by filename rather than by name, and the Council
-architecture test failed on the parse error instead of on the contract it
-exists to check — masking BW-001 underneath it.
+`secret-scan.test.ts` case "scans the current Foreman worktree clean under
+default bounds" returns `{"_tag":"Refused","reason":"bound_exceeded"}`, so the
+file exits 1 on a clean checkout. Reproduced at `f2142ce` and at its parent,
+so it is pre-existing and not caused by any current work. It means a whole-file
+pass summary for this package cannot be used as evidence for anything else in
+it — which is how it was nearly missed.
 
 ```bash
-cd components/council && node -e "
-const YAML=require('yaml'),fs=require('fs');
-YAML.parse(fs.readFileSync('../../.github/workflows/gates-windows.yml','utf8'));"
-# YAMLParseError: Map keys must be unique at line 25, column 3
+npx tsx scripts/run-tests.ts 'packages/orchestration/src/secret-scan.test.ts'; echo "exit: $?"
 ```
 
-Use that parser and not PyYAML. `python3 -c "import yaml;
-yaml.safe_load(...)"` accepts the duplicate silently and prints nothing —
-checking the file that way is a verification that cannot fail, which is the
-same class of mistake as the gates in BW-002 and BW-005.
+### BW-011 — a third copy of the POSIX backslash path-confusion
+
+`open` · reproduced 2026-08-08
+
+`normalizeAbsoluteWorktreeInput` in
+`packages/orchestration/src/resume-worktree-restore.ts:214` strips a trailing
+`\` unconditionally, the same defect fixed in `credential-profile.ts` and
+`secret-scan.ts`. Unlike `normalizeRootInput` it is genuinely exported. It was
+out of scope by instruction when the other two were fixed, and is recorded
+here rather than fixed silently alongside them. Three copies of one normalizer
+is the underlying problem; a shared helper would retire the class.
+
+```bash
+sed -n '214,222p' packages/orchestration/src/resume-worktree-restore.ts
+```
 
 ## Notes on scope
 
