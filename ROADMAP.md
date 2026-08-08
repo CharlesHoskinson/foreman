@@ -3,48 +3,47 @@
 This file is the current release roadmap. Dated plans, research reports, and
 evidence files are historical records. They do not override this file.
 
-## Latest release: Total Georgecall (v0.2.9.0)
+## Latest release: One Runtime (v0.3.0)
 
-Annotated tag `v0.2.9.0` targets exact commit
-`fbe23257fc389036d6feaa8f38e7b377f3106406`.
+Annotated tag `v0.3.0` targets exact commit
+`d4040316f3dfe5406773d8a483ddd8662b035554`, tagged 2026-08-08.
 
-The product boundary is the bounded Node.js 24 TypeScript Council preflight
-executable named `council-preflight`. The executable compiles ACE before any
-provider process starts. Google fails closed because Gemini is absent.
+v0.3.0 is one sentence: **the Node migration is finished — one runtime, one
+language.**
 
-Live-canary evidence uses exact canary candidate
-`2ec886c3454b49420405aec87afaa6594ccbfdf8`. xAI Grok 4.5, Anthropic Claude
-Sonnet 5, and OpenAI GPT-5.4 returned nonce-bound `ready` receipts with
-completed terminal state, exit code 0, zero pending or failed tool calls, and
-empty standard error. GitHub evidence is
-<https://github.com/CharlesHoskinson/foreman/pull/22#issuecomment-5171848075>.
-The Council package tree is byte-identical at candidate `2ec886c` and release
-commit `fbe23257fc389036d6feaa8f38e7b377f3106406`. Both resolve
-`components/council/packages` to tree
-`fe0af13811a6bbed482af60a57eb869fbebde075`. The only Council path changed
-after the canary candidate is `components/council/vitest.config.ts`. These
-receipts are not exact-merge receipts. The canaries did not run on the
-release commit.
+Foreman's own Python is gone. `git ls-files '*.py'` returns seven files: four
+vendored `scrapling` templates, one vendored `scrapling` test, one vendored
+`superpowers` token-usage utility, and one archived schema checker under
+`openspec/changes/archive/`. None of them is Foreman's.
 
-| Work item | Status | Evidence |
+Three subsystems moved to Node.js 24 and TypeScript. The session store became
+`packages/orchestration/src/fm-session-main.ts`, driven by `tests/session.bats`
+through `FM_SESSION_CMD`. The Tier 2 evaluator reproduces Python's output byte
+for byte, which required porting MT19937 including its SHA-512 string seeding
+and Python 3.12's compensated float summation. Three `docs/research/` utilities
+retired rather than ported.
+
+The four exit predicates, measured on the release commit:
+
+| # | Predicate | Verdict |
 |---|---|---|
-| Build the Node.js 24 TypeScript preflight executable | Complete | Release commit `fbe23257fc389036d6feaa8f38e7b377f3106406` |
-| Compile ACE before provider startup | Complete | Compile-before-provider marker tests and release notes |
-| Pass the local Council gate | Complete | 39 test files and 1,126 tests |
-| Pass the local Foreman gate | Complete | 708 passed, 0 failed, and 19 skipped Bats cases |
-| Pass hosted Linux and Windows gates | Complete | Linux run `30860945352` and Windows run `30860945387` |
-| Pass live Grok, Claude, and Codex canaries | Complete | Candidate `2ec886c` receipts. Council packages tree `fe0af138`. PR comment `5171848075` |
-| Complete one external Foreman workflow | Complete | Grok commit `31e26eac`, 122 target tests, independent Codex audit |
-| Preserve the Council shadow outcome | Complete | Exact external bundle records honest `quorum_not_met` |
-| Rebuild the exact release graph | Complete | 2,781 nodes, 5,104 edges, and 20 hyperedges on the tag commit |
+| 1 | `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived | **PASS** |
+| 2 | `gates-linux` green on `main` | **PASS** |
+| 3 | `session.bats` passes with `FM_SESSION_CMD` on the TypeScript, `fm-session.py` deleted | **PASS** |
+| 4 | `tests/positive-control-todo.tsv` empty for in-scope gates, or every row carries a reason | **PASS** |
 
-The release excludes Gemini, npm publication, formal scope, Tier 2 scope, and
-complete Python removal. The release does not claim a complete Council
-runtime.
+Predicate 2 covers Linux only. The Bats suite was measured on Windows for the
+first time at pass=444 fail=270 skip=26 and does not fit the 60-minute job cap,
+so Windows is excluded by decision rather than by omission and the exclusion is
+enforced by a test. Windows remains open work in `brokenwindows.md` (BW-004).
 
-The remaining limitations are in `docs/RESIDUALS.md`. The full inventory is
-the canonical ledger at
-`docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`.
+The release excludes Gemini, npm publication, and a complete Council runtime.
+The remaining limitations are in `docs/RESIDUALS.md`. Full detail is in
+`docs/releases/v0.3.0-notes.md`.
+
+The recurring lesson of the release run: the oracle is usually the defect. Five
+separate "it passed" reports were false, and every one was caught by a check
+that could discriminate — never by a more careful reading of the report.
 
 ## Released line
 
@@ -58,67 +57,71 @@ the canonical ledger at
 | `v0.2.8.1` | 2026-07-19 | Field-failure fixes |
 | `v0.2.8.2` | 2026-08-03 | External soft-mode pilot and portability fixes |
 | `v0.2.9.0` | 2026-08-03 | Total Georgecall Council preflight |
+| `v0.3.0` | 2026-08-08 | One Runtime — the Node migration finished |
 
 Git tags and release notes preserve the complete history. Use Git history when
 an old release decision matters. Do not add old plans back to this live file.
 
-## Active release program: v0.3.0
+## Active release program: v0.3.1 "George's Odyssey"
 
-The active program lives at `openspec/changes/v030-release-program/`.
-v0.3.0 is not released.
+**Being defined.** There is no `openspec/changes/v031-release-program/` yet.
+The scope below is what has landed on `main` since the `v0.3.0` tag, not an
+agreed exit definition. Do not present it as one.
 
-All new executable code uses Node.js 24 and TypeScript under the repository
-Iron Rule. Effect owns typed failures, scoped resources, cancellation,
-retries, timeouts, and concurrency.
+Landed since `v0.3.0` (PR #42, merged 2026-08-08):
 
-**Redefined 2026-08-07.** v0.3.0 is "the Node migration is finished — one
-runtime, one language." The eighteen-sprint program that the band table below
-described was measured at 43 packages and roughly 819 open tasks, over half of
-it the tool observing itself. Sprints 8-13 and 16, Sprint 6's project registry,
-and the knowledge and graph plane move to v0.4.0; their change packages under
-`openspec/changes/` are unmodified, only their release assignment moves. The
-current definition is
-`docs/superpowers/specs/2026-08-07-v030-node-migration-completion-design.md`.
+**The storage port.** Session state now has two ports with disjoint
+responsibilities rather than one port with two implementations. `SessionStore`
+is the system of record — synchronous, transactional, exact, with SQLite as the
+reference and only complete implementation. `MemoryIndex` is a derived semantic
+projection — asynchronous, optional, `NullMemoryIndex` by default, returning
+entity references rather than content so a superseded row cannot be acted on.
 
-Exit is four predicates on one unchanged pushed commit. Measured against
-`origin/main` at `2ab7528` on 2026-08-08:
+TencentDB-Agent-Memory was evaluated as a second `SessionStore` implementation
+and rejected on measurement, not preference: its v3 SDK is HTTP and
+`Promise`-only with no synchronous path, no transactions, no integer identity,
+and memory formation is LLM-mediated and therefore non-deterministic.
+Substitutability would have put network availability on the critical path of
+local correctness.
 
-| # | Predicate | Verdict | Evidence |
-|---|---|---|---|
-| 1 | `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived | **PASS** | 7 tracked, none of them Foreman's |
-| 2 | `gates-linux` green on `main` | **PASS** | run on `2ab7528` success |
-| 3 | `session.bats` passes with `FM_SESSION_CMD` on the TypeScript and `fm-session.py` deleted | **PASS** | `fm-session.py` tracked: 0; suite 29/29 on the bundle, 0/29 on a broken command |
-| 4 | `tests/positive-control-todo.tsv` empty for in-scope gates, or every row carries a reason | **PASS** | 17 rows, 0 without a reason |
+The defect this fixed: the sidecar round-trip contract was defined by SQLite
+introspection, so the portable contract was whatever `sqlite_schema` reported at
+runtime and changed silently on every migration. The model is now declared in
+`packages/session-store/src/entities.ts` and SQLite is validated against it,
+with drift an error at open. Identity is minted by the port from persisted
+counters rather than by backend `AUTOINCREMENT`.
 
-Predicate 2 was amended on 2026-08-08. It previously also required a green
-`gates-windows` that actually ran the Bats suite. The suite was then measured
-there for the first time at pass=444 fail=270 skip=26 and does not fit the
-60-minute job cap, so Windows is excluded by decision rather than by omission
-and the exclusion is enforced by a test. Windows remains open work in
-`brokenwindows.md` (BW-004).
+The contract is in `docs/architecture/storage-port.md`. The design review that
+shaped it is in `docs/reviews/2026-08-08-storage-port/`.
 
-Predicate 1's remaining four files, and why each is still there:
+Open work carried by this line:
 
-| File | State |
+| Item | State |
 |---|---|
-| `skills/foreman/scripts/fm-session.py` | ported on `sprint/w4-session-port`; not landed. The port passes `session.bats` 31/31 through the seam, but three white-box Python tests retire with it and their properties — worktree store sharing, single-snapshot sidecar reads, row-check-after-write-lock — have no replacement yet |
-| `skills/foreman/ontology/test_ontology.py` | retires with the `project` verb, same branch |
-| `tests/tier2_collect.py` | port **backed out**. See `brokenwindows.md` BW-014 |
-| `tests/tier2_compare.py` | port **backed out**. Two attempts produced a statistically divergent evaluator: whole-valued floats lost their decimals, and one bootstrap confidence interval was 16% from the Python's on identical input |
+| Migrate `fm-session-main.ts` onto the port | Not started. It still uses `node:sqlite` directly and is `// @ts-nocheck` |
+| `fm-session sync` — drain `memory_outbox` | Not started. The outbox table exists and is written; nothing drains it |
+| TencentDB `MemoryIndex` adapter and projection epochs | Not started, deliberately deferred until the port was proven |
+| `importSnapshot` `remap` id-collision policy | Throws as unimplemented |
+| Conformance suite negative control | Absent. Hostile cases prove the validation layer discriminates; the store-level cases are unproven against a subtly wrong backend |
+| Council runtime | Not built. `components/council/packages/*/dist` is absent; requires `pnpm install && pnpm build` |
+| Windows Bats suite | BW-004, unchanged from v0.3.0 |
 
-The three `docs/research/` utilities are retired on `sprint/w2-w5a`.
-
-Do not present unfinished v0.3.0 work as shipped work. Sprint 3 is partial and
-remains open.
+The eighteen-sprint program described in earlier revisions of this file was
+measured at 43 packages and roughly 819 open tasks, over half of it the tool
+observing itself. Sprints 8-13 and 16, Sprint 6's project registry, and the
+knowledge and graph plane are assigned to v0.4.0. Their change packages under
+`openspec/changes/` are unmodified; only their release assignment moved.
 
 ## Current authority
 
+- Shipped v0.3.0 release notes: `docs/releases/v0.3.0-notes.md`
+- Storage port contract: `docs/architecture/storage-port.md`
 - Canonical accomplishment ledger:
   `docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`
-- Active v0.3.0 release program: `openspec/changes/v030-release-program/`
+- Superseded v0.3.0 release program: `openspec/changes/v030-release-program/`
 - TypeScript migration checklist: `typescriptmigration.md`
-- Current destruction log: `docs/releases/v0.3.0-destruction-log.md`
-- Shipped v0.2.9.0 release notes: `docs/releases/v0.2.9.0-notes.md`
+- v0.3.0 destruction log: `docs/releases/v0.3.0-destruction-log.md`
 - Shipped v0.2.9.0 release record: `checklist.md`
 - Current residuals: `docs/RESIDUALS.md`
+- Environment and vendor traps: `AGENT_TRAPS.md`
 - Historical evidence rules: `docs/evidence/README.md`
