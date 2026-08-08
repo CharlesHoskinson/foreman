@@ -281,6 +281,35 @@ drawn by habit rather than by rule.
 python3 -c "import json;print(json.load(open('packages/orchestration/package.json')).get('exports'))"
 ```
 
+### BW-017 — a worktree with symlinked `node_modules` builds a different artifact
+
+`open` · reproduced 2026-08-08
+
+Two workstreams sharing one checkout kept colliding, so a second git worktree
+was created and its `node_modules` symlinked to the main checkout's to avoid a
+slow reinstall. The bundles built there passed `verify-runtime: ok` locally and
+failed CI with `destruction-guard drift`.
+
+The symlink is the defect. `esbuild` inlines whatever dependency tree it is
+pointed at, and the main checkout's `node_modules` is not what
+`package-lock.json` describes. Building through the symlink moved **all
+fifteen** bundles, each about 2 KB larger, with `repo-hygiene.js` the only one
+untouched — a blast radius far wider than the two packages the change actually
+edited. After `npm ci` in the worktree, the same source produced a credible
+result: 12 of 16 bundles, +117 to +304 bytes each.
+
+The trap is not the drift, which CI caught. It is that `verify-runtime: ok`
+was true the whole time — of a tree nobody ships. A local green from a
+non-reproducible dependency tree is not evidence about the build the lockfile
+describes, and it is the only build that matters.
+
+Use `npm ci` in a new worktree. The minutes it costs are cheaper than a CI
+cycle plus the diagnosis.
+
+```bash
+git worktree add /path/wt <branch> && cd /path/wt && npm ci   # not: ln -s ../node_modules
+```
+
 ## Notes on scope
 
 Six verified product defects from the v0.3.0 design doc §W2 are deliberately
