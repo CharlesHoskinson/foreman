@@ -156,7 +156,23 @@ scan_probes_ts() {
     rel="${f#"$REPO_ROOT"/}"
     while IFS= read -r name; do
       emit_row "$rel" probe "$name"
-    done < <(grep -oE '^export (async )?function (probe|check|fmTc)[A-Za-z0-9_]*' "$f" |
+    # BW-013 debt — DO NOT EXTEND THIS LIST.
+    #
+    # The first three alternatives are the rule: a check is a function named
+    # probe*, check* or fmTc*. The six literal names after them are not a rule,
+    # they are the six TypeScript successors the Node port renamed out of that
+    # convention, hardcoded so the regime could see them again.
+    #
+    # A seventh differently-named check is still invisible. That blind spot is
+    # not new — it is the same convention-matching rule that went blind under
+    # the port — but adding a name here is how it stays. The fix is principled
+    # discovery (an annotation at the definition site, or inventory driven by
+    # the enforcement dispatcher's call sites), not a longer list.
+    #
+    # Ruled mergeable-as-debt by fable council 2026-08-08, on the grounds that
+    # the change is monotonic: it only ever enlarges the matched set, so it
+    # closes six holes and opens none. See brokenwindows.md BW-013.
+    done < <(grep -oE '^export (async )?function (probe|check|fmTc|sha256FileSync|readProcVersion|classifyFsClassFromProbe|classifyHostClass|lookupPinnedVerdict|runAtomicityProbes)[A-Za-z0-9_]*' "$f" |
       sed -E 's/^export (async )?function //')
   done
 }
