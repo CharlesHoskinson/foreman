@@ -155,6 +155,44 @@ is the underlying problem; a shared helper would retire the class.
 sed -n '214,222p' packages/orchestration/src/resume-worktree-restore.ts
 ```
 
+### BW-012 — the positive-control registry does not survive a language port
+
+`open` · reproduced 2026-08-08
+
+The Node/TypeScript port turned `env/tool-check.sh` into a 9-line Node adapter
+and left nine registry rows naming shell functions that no longer exist. The
+comparator went red, and because `tests/positive-control.bats:186` asserts the
+committed registry is itself green, **no branch in the repository could pass
+CI** until it was fixed. The failure set is byte-identical on `origin/main` and
+on any branch cut from it.
+
+The deeper defect is that `tests/lib/check-inventory.sh` recognises a check by
+a name pattern (`probe*`, `check*`, `fmTc*`). A port that renames functions
+makes them invisible, and invisible checks silently leave the coverage
+universe. The regime cannot currently detect its own erosion by rename.
+
+```bash
+bash tests/lib/check-registry-compare.sh; echo "exit: $?"
+```
+
+### BW-013 — the scanner recognises checks by hardcoded name, not by property
+
+`open` · reproduced 2026-08-08
+
+The round-2 repair for BW-012 added six literal function names to the
+`check-inventory.sh` grep pattern. It works — `enforced` went 32 to 38 and the
+six newly visible checks are the genuine TypeScript successors, with nothing
+dropped — but it converts a rule into a hand-maintained allowlist. The seventh
+differently-named check is invisible again and BW-012 recurs.
+
+A check should be recognised by a property it carries (an explicit marker, or
+a convention the code actually follows), not by appearing on a list someone
+remembered to extend.
+
+```bash
+git -C . diff origin/main -- tests/lib/check-inventory.sh
+```
+
 ## Notes on scope
 
 Six verified product defects from the v0.3.0 design doc §W2 are deliberately
