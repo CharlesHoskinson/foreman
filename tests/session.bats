@@ -10,7 +10,7 @@ setup() {
   # cross-implementation conformance suite rather than a Python-only one.
   # 27 of these 34 tests already assert on printed output, so a port that
   # emits different stdout fails here rather than passing quietly.
-  SESS="${FM_SESSION_CMD:-bash $SCRIPTS/fm-session.sh}"
+  SESS="${FM_SESSION_CMD:-node $SCRIPTS/../runtime/dist/fm-session.js}"
   REPO="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$REPO"
   git -C "$REPO" init -q -b main

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @description Fail when the installed foreman skill is missing files the repo
-#   ships. The installed plugin once lacked fm-session.py while nothing
-#   reported a problem.
+#   ships. The installed plugin once lacked fm-session.py and the whole ontology
+#   directory while nothing reported a problem.
 # @arg $1 installed skill directory
 # @arg $2 repo skill directory (skills/foreman)
 # @exitcode 0 no drift; 1 drift found; 2 usage error
