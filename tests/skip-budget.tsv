@@ -128,12 +128,18 @@ tests/soft-mode-target.bats	wsl	0
 tests/telemetry.bats	linux	0
 tests/telemetry.bats	windows	0
 tests/telemetry.bats	wsl	0
+tests/test-policy.bats	linux	0
+tests/test-policy.bats	windows	0
+tests/test-policy.bats	wsl	0
 tests/tier1-replay.bats	linux	0
 tests/tier1-replay.bats	windows	0
 tests/tier1-replay.bats	wsl	0
 tests/tier2-compare.bats	linux	0
 tests/tier2-compare.bats	windows	0
 tests/tier2-compare.bats	wsl	0
+tests/tier2-golden.bats	linux	0
+tests/tier2-golden.bats	windows	0
+tests/tier2-golden.bats	wsl	0
 tests/tool-check-auth.bats	linux	0
 tests/tool-check-auth.bats	windows	0
 tests/tool-check-auth.bats	wsl	0
@@ -170,6 +176,3 @@ tests/wt-merge.bats	wsl	0
 tests/wt-new.bats	linux	0
 tests/wt-new.bats	windows	0
 tests/wt-new.bats	wsl	0
-tests/test-policy.bats	linux	0
-tests/test-policy.bats	wsl	0
-tests/test-policy.bats	windows	0

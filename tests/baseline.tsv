@@ -137,6 +137,9 @@ tests/tier1-replay.bats	wsl	11
 tests/tier2-compare.bats	linux	27
 tests/tier2-compare.bats	windows	26
 tests/tier2-compare.bats	wsl	27
+tests/tier2-golden.bats	linux	4
+tests/tier2-golden.bats	windows	4
+tests/tier2-golden.bats	wsl	4
 tests/tool-check-auth.bats	linux	12
 tests/tool-check-auth.bats	windows	12
 tests/tool-check-auth.bats	wsl	12
