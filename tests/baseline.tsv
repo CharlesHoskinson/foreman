@@ -68,9 +68,9 @@ tests/lane-review-bundle.bats	wsl	12
 tests/lane-run.bats	linux	32
 tests/lane-run.bats	windows	0
 tests/lane-run.bats	wsl	32
-tests/lane-supervise.bats	linux	17
+tests/lane-supervise.bats	linux	13
 tests/lane-supervise.bats	windows	3
-tests/lane-supervise.bats	wsl	17
+tests/lane-supervise.bats	wsl	13
 tests/launch-lib.bats	linux	3
 tests/launch-lib.bats	windows	2
 tests/launch-lib.bats	wsl	2

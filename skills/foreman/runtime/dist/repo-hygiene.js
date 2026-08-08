@@ -12,6 +12,11 @@ var ALLOWED_ROOT_MD = [
   "RESUME.md",
   "AGENT_TRAPS.md",
   "bugeventlog.md",
+  // The incident ledger's forward-looking sibling: bugeventlog.md records what
+  // already went wrong, brokenwindows.md records what is known-broken and
+  // unclaimed. It sits at the root for the same reason bugeventlog.md and
+  // AGENT_TRAPS.md do — a cold reader must find it without knowing to look.
+  "brokenwindows.md",
   "checklist.md",
   "typescriptmigration.md"
 ];
