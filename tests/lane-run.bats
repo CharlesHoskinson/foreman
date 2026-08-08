@@ -132,7 +132,7 @@ SHIM
   run bash "$SCRIPTS/lane-run.sh" run1 lane-a "$WT" -- bash -c '
     printf "%s\n%s\n%s\n%s\n" \
       "$PWD" "$FOREMAN_TOOL_ROOT" "$TARGET_REPO_ROOT" "$FOREMAN_SESSION_DB" > "$result"
-    python3 "$FOREMAN_TOOL_ROOT/skills/foreman/scripts/fm-session.py" \
+    node "$FOREMAN_TOOL_ROOT/skills/foreman/runtime/dist/fm-session.js" \
       fact "external lane state" --evidence "run1" >/dev/null
   '
 

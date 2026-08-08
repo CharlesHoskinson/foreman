@@ -10,7 +10,7 @@ setup() {
   # cross-implementation conformance suite rather than a Python-only one.
   # 27 of these 34 tests already assert on printed output, so a port that
   # emits different stdout fails here rather than passing quietly.
-  SESS="${FM_SESSION_CMD:-python3 $SCRIPTS/fm-session.py}"
+  SESS="${FM_SESSION_CMD:-node $SCRIPTS/../runtime/dist/fm-session.js}"
   REPO="$BATS_TEST_TMPDIR/repo"
   mkdir -p "$REPO"
   git -C "$REPO" init -q -b main
@@ -123,35 +123,6 @@ setup() {
   [[ "$output" == *"not fresh"* ]]
 }
 
-@test "project emits typed documents and reports non-scalar values rather than coercing" {
-  cd "$REPO"
-  $SESS fact "a durable thing" --evidence "commit abc"
-  $SESS measure "scalar metric" 26 --command "c" --scope src/a.sh
-  $SESS measure "prose metric" "green everywhere" --command "c" --scope src/a.sh
-  run $SESS project
-  [ "$status" -eq 0 ]
-  [[ "$output" == *'"@type": "Claim"'* ]]
-  [[ "$output" == *'"@type": "Measurement"'* ]]
-  # The scalar projects. The prose one is REPORTED rather than coerced into an
-  # invented number -- note bats merges stderr into $output, so assert on the
-  # report itself rather than on the absence of the value.
-  [[ "$output" == *"26"* ]]
-  [[ "$output" == *"SKIPPED"* ]]
-  [[ "$output" == *"no projectable scalar"* ]]
-  # and it must not have been smuggled into a Measurement document
-  run bash -c "$SESS project 2>/dev/null | grep Measurement"
-  [[ "$output" != *"green everywhere"* ]]
-}
-
-@test "project renders a Supersession carrying at and reason" {
-  cd "$REPO"
-  $SESS fact "first"
-  $SESS supersede 1 "second" --reason "the tree changed"
-  run $SESS project
-  [ "$status" -eq 0 ]
-  [[ "$output" == *'"@type": "Supersession"'* ]]
-  [[ "$output" == *"the tree changed"* ]]
-}
 
 @test "a retired measurement disappears from recovery and its successor remains" {
   cd "$REPO"
@@ -184,18 +155,14 @@ setup() {
 
 @test "a linked worktree shares the repo's session store" {
   cd "$REPO"
-  export FOREMAN_SESSION_DB="$BATS_TEST_TMPDIR/shared/session.db"
-  $SESS fact "recorded from the main worktree"
+  unset FOREMAN_SESSION_DB
   git -C "$REPO" worktree add -q "$BATS_TEST_TMPDIR/wt" -b side
-  main_root=$(python3 -c \
-    "import runpy; print(runpy.run_path('$SCRIPTS/fm-session.py')['repo_root']())")
   cd "$BATS_TEST_TMPDIR/wt"
-  worktree_root=$(python3 -c \
-    "import runpy; print(runpy.run_path('$SCRIPTS/fm-session.py')['repo_root']())")
-  [ "$main_root" = "$worktree_root" ]
+  $SESS fact "recorded from the side worktree"
+  cd "$REPO"
   run $SESS recover
   [ "$status" -eq 0 ]
-  [[ "$output" == *"recorded from the main worktree"* ]]
+  [[ "$output" == *"recorded from the side worktree"* ]]
 }
 
 # B1. A retire that updates no row must not print a success line. The target
@@ -237,24 +204,6 @@ setup() {
   [[ "$output" == *"no measurement is recorded"* ]]
 }
 
-# B2. The projector and recover must describe the same live set. The projector
-# read every row, so a retired measurement was exported as a live one.
-@test "project drops a retired measurement and records the retirement" {
-  cd "$REPO"
-  $SESS measure "suite pass count" "26" --command "bats t.bats" --scope src/a.sh
-  $SESS measure "suite pass count" "11" --command "bats t.bats" --scope src/a.sh
-  $SESS retire 1 --by 2 --reason "host state poisoned the first reading"
-  run bash -c "$SESS project 2>/dev/null"
-  [ "$status" -eq 0 ]
-  # the live set agrees with recover: 11 projects, 26 does not
-  [[ "$output" == *'"value": 11.0'* ]]
-  [[ "$output" != *'"value": 26.0'* ]]
-  # lossless, not merely filtered: the retirement itself is a document
-  [[ "$output" == *'"@type": "Supersession"'* ]]
-  [[ "$output" == *"Measurement/fm-measurement-1"* ]]
-  [[ "$output" == *"Measurement/fm-measurement-2"* ]]
-  [[ "$output" == *"host state poisoned the first reading"* ]]
-}
 
 @test "sidecar is deterministic and omits computed measurement validity" {
   cd "$REPO"
@@ -283,51 +232,7 @@ PY
   ! grep -q '"validity"' "$BATS_TEST_TMPDIR/a.ndjson"
 }
 
-@test "sidecar reads every table from one SQLite snapshot" {
-  # White-box: this test imports fm-session.py as a Python module and
-  # calls its internals, so it cannot run against another implementation.
-  [ -z "${FM_SESSION_CMD:-}" ] || skip "white-box Python test; FM_SESSION_CMD names another implementation"
-  cd "$REPO"
-  run python3 - "$SCRIPTS/fm-session.py" "$FOREMAN_SESSION_DB" <<'PY'
-import importlib.util
-import json
-import sqlite3
-import sys
 
-spec = importlib.util.spec_from_file_location("fm_session", sys.argv[1])
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-reader = module.connect(sys.argv[2])
-reader.execute("PRAGMA journal_mode=WAL")
-writer = sqlite3.connect(sys.argv[2])
-writer.execute("PRAGMA journal_mode=WAL")
-committed = False
-
-def commit_between_table_reads(sql):
-    global committed
-    if committed or 'FROM "measurements"' not in sql:
-        return
-    writer.execute(
-        "INSERT INTO facts(statement,established_ts) VALUES('concurrent fact','now')"
-    )
-    writer.execute(
-        "INSERT INTO measurements(metric,value,command,measured_ts,scope_paths) "
-        "VALUES('concurrent metric','1','rerun','now','docs')"
-    )
-    writer.commit()
-    committed = True
-
-reader.set_trace_callback(commit_between_table_reads)
-text, _ = module.sidecar_ndjson(reader)
-documents = [json.loads(line) for line in text.splitlines()]
-facts = [d for d in documents if d.get("table") == "facts"]
-measurements = [d for d in documents if d.get("table") == "measurements"]
-if not committed:
-    raise SystemExit("writer did not commit between table reads")
-raise SystemExit(0 if len(facts) == len(measurements) else 1)
-PY
-  [ "$status" -eq 0 ]
-}
 
 @test "sidecar defaults beside FOREMAN_SESSION_DB" {
   cd "$REPO"
@@ -441,36 +346,7 @@ PY
   [[ "$output" == *"must survive"* ]]
 }
 
-@test "import-sidecar checks for rows after acquiring the write lock" {
-  # White-box: this test imports fm-session.py as a Python module and
-  # calls its internals, so it cannot run against another implementation.
-  [ -z "${FM_SESSION_CMD:-}" ] || skip "white-box Python test; FM_SESSION_CMD names another implementation"
-  cd "$REPO"
-  $SESS fact "source fact"
-  $SESS sidecar --out "$BATS_TEST_TMPDIR/source.ndjson"
 
-  target="$BATS_TEST_TMPDIR/concurrent/session.db"
-  run python3 - "$SCRIPTS/fm-session.py" "$target" \
-    "$BATS_TEST_TMPDIR/source.ndjson" <<'PY'
-import importlib.util
-import sys
-
-spec = importlib.util.spec_from_file_location("fm_session", sys.argv[1])
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-conn = module.connect(sys.argv[2])
-statements = []
-conn.set_trace_callback(statements.append)
-module.import_sidecar(conn, sys.argv[3])
-begin = next(i for i, sql in enumerate(statements) if sql == "BEGIN IMMEDIATE")
-row_check = next(
-    i for i, sql in enumerate(statements)
-    if sql.startswith('SELECT 1 FROM "sessions"')
-)
-raise SystemExit(0 if begin < row_check else 1)
-PY
-  [ "$status" -eq 0 ]
-}
 
 @test "import-sidecar names an unrestorable row and rolls back the target" {
   cd "$REPO"

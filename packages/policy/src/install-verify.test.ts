@@ -67,6 +67,7 @@ const trackedCredentialProfileLane = join(
 );
 const trackedGraphStore = join(trackedRuntime, "dist/graph-store.js");
 const trackedForemanLaunch = join(trackedRuntime, "dist/foreman-launch.js");
+const trackedFmSession = join(trackedRuntime, "dist/fm-session.js");
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -110,6 +111,7 @@ function seedRuntimeOnly(): string {
     join(rt, "dist/credential-profile-lane.js"),
   );
   cpSync(trackedGraphStore, join(rt, "dist/graph-store.js"));
+  cpSync(trackedFmSession, join(rt, "dist/fm-session.js"));
   cpSync(trackedForemanLaunch, join(rt, "dist/foreman-launch.js"));
   return rt;
 }
@@ -541,6 +543,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
       trackedCredentialProfileLane,
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
+    const fmSessionBytes = readFileSync(trackedFmSession);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const manifestText = readFileSync(trackedManifest, "utf8");
     const mfBytes = new TextEncoder().encode(manifestText);
@@ -564,6 +567,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
     const credentialProfileLanePath =
       "/skill/runtime/dist/credential-profile-lane.js";
     const graphStorePath = "/skill/runtime/dist/graph-store.js";
+    const fmSessionPath = "/skill/runtime/dist/fm-session.js";
     const foremanLaunchPath = "/skill/runtime/dist/foreman-launch.js";
 
     const nodes = new Map([
@@ -595,6 +599,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "dependency-drift.js",
               "destruction-guard.js",
               "execution-guard.js",
+              "fm-session.js",
               "foreman-launch.js",
               "foreman-setup.js",
               "graph-store.js",
@@ -778,6 +783,17 @@ describe("verifyInstalledSkillRoot live controls", () => {
         },
       ],
       [
+        fmSessionPath,
+        {
+          kind: "file" as const,
+          bytes: fmSessionBytes,
+          identity: fileIdentity({
+            ino: "36",
+            size: fmSessionBytes.byteLength,
+          }),
+        },
+      ],
+      [
         foremanLaunchPath,
         {
           kind: "file" as const,
@@ -872,6 +888,7 @@ describe("runtime plugin-drift", () => {
       trackedCredentialProfileLane,
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
+    const fmSessionBytes = readFileSync(trackedFmSession);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -917,6 +934,7 @@ describe("runtime plugin-drift", () => {
               "dependency-drift.js",
               "destruction-guard.js",
               "execution-guard.js",
+              "fm-session.js",
               "foreman-launch.js",
               "foreman-setup.js",
               "graph-store.js",
@@ -1109,6 +1127,17 @@ describe("runtime plugin-drift", () => {
           },
         ],
         [
+          `${dist}/fm-session.js`,
+          {
+            kind: "file",
+            bytes: fmSessionBytes,
+            identity: fileIdentity({
+              ino: prefix + "-fs",
+              size: fmSessionBytes.byteLength,
+            }),
+          },
+        ],
+        [
           `${dist}/foreman-launch.js`,
           {
             kind: "file",
@@ -1197,6 +1226,7 @@ describe("skill-root and directory stability seams", () => {
       trackedCredentialProfileLane,
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
+    const fmSessionBytes = readFileSync(trackedFmSession);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -1238,6 +1268,7 @@ describe("skill-root and directory stability seams", () => {
               "dependency-drift.js",
               "destruction-guard.js",
               "execution-guard.js",
+              "fm-session.js",
               "foreman-launch.js",
               "foreman-setup.js",
               "graph-store.js",
@@ -1438,6 +1469,17 @@ describe("skill-root and directory stability seams", () => {
         },
       ],
       [
+        `${dist}/fm-session.js`,
+        {
+          kind: "file",
+          bytes: fmSessionBytes,
+          identity: fileIdentity({
+            ino: "36",
+            size: fmSessionBytes.byteLength,
+          }),
+        },
+      ],
+      [
         `${dist}/foreman-launch.js`,
         {
           kind: "file",
@@ -1620,6 +1662,7 @@ describe("memory InstallFs path separator seam", () => {
       trackedCredentialProfileLane,
     );
     const graphStoreBytes = readFileSync(trackedGraphStore);
+    const fmSessionBytes = readFileSync(trackedFmSession);
     const foremanLaunchBytes = readFileSync(trackedForemanLaunch);
     const mfBytes = new TextEncoder().encode(
       readFileSync(trackedManifest, "utf8"),
@@ -1657,6 +1700,7 @@ describe("memory InstallFs path separator seam", () => {
             "dependency-drift.js",
             "destruction-guard.js",
             "execution-guard.js",
+            "fm-session.js",
             "foreman-launch.js",
             "foreman-setup.js",
             "graph-store.js",
@@ -1843,6 +1887,17 @@ describe("memory InstallFs path separator seam", () => {
           identity: fileIdentity({
             ino: "34",
             size: graphStoreBytes.byteLength,
+          }),
+        },
+      ],
+      [
+        `${dist}/fm-session.js`,
+        {
+          kind: "file",
+          bytes: fmSessionBytes,
+          identity: fileIdentity({
+            ino: "36",
+            size: fmSessionBytes.byteLength,
           }),
         },
       ],
