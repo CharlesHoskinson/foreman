@@ -26,7 +26,7 @@ here.
 | `bash script.sh` for a script that calls a vendor CLI | A non-login shell does not source the profile, so `~/.local/bin` and `~/.npm-global/bin` are off `PATH` and every lane exits `127`. Use `bash -lc "bash script.sh"`, or `export PATH` inside the script. |
 | A headless vendor CLI started inside a repo | It reads local `AGENTS.md`, skills and files, and can answer a different question than the one asked — confidently and in the requested format. One lane returned a document on an unrelated topic. Run it in an empty directory, tell it to answer from the supplied text without reading files, and verify the response is on-topic before using it. |
 | Shell variables inside `wsl.exe … bash -lc '…'` driven from PowerShell | The variable is consumed crossing the boundary in single **and** double quotes, so loops silently operate on empty strings (`cp …/.ts`). Build full paths in PowerShell and pass them as arguments. |
-| Any file copied into the repo from `/mnt/c` | It lands mode **755**. Source and Markdown then trip the architecture policy as `prohibited_extensionless_executable`, and CI fails after the commit looks clean locally. Run `git ls-files -s <paths> | grep -v '^100644'` before committing and clear with `git update-index --chmod=-x`. |
+| Any file copied into the repo from `/mnt/c` | It lands mode **755**. Source and Markdown then trip the architecture policy as `prohibited_extensionless_executable`, and CI fails after the commit looks clean locally. Run `git ls-files -s <paths> \| grep -v '^100644'` before committing and clear with `git update-index --chmod=-x`. |
 
 ## 2. Checker soundness — the core failure class of this release
 
