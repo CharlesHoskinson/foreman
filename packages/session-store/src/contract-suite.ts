@@ -12,7 +12,7 @@ import {
   type SessionSnapshot,
 } from "./entities.js";
 import { decodeSnapshot, encodeSnapshot } from "./sidecar.js";
-import { findViolations } from "./integrity.js";
+import { findViolations, type Violation } from "./integrity.js";
 import { reasonOf, type SessionStoreFailureReason } from "./failures.js";
 import type { SessionStore } from "./port.js";
 
@@ -53,6 +53,26 @@ function assertRejects(fn: () => unknown, reason: SessionStoreFailureReason): vo
     );
   }
   assert(threw, `expected failure ${reason}, but the call succeeded`);
+}
+
+/**
+ * Assert that `snap` produces a violation whose `detail` contains `match`.
+ * Deliberately not `findViolations(snap).length > 0`: a snapshot can trip an
+ * unrelated rule (most commonly the id-watermark check, since these hostile
+ * fixtures default to `nextIds.fact = 1`) and satisfy a bare length check
+ * without the rule under test ever having fired. Checking for the specific
+ * detail text means the assertion only passes if the intended check produced
+ * it — deleting that check makes the assertion fail, not just weaker.
+ */
+function assertViolation(snap: SessionSnapshot, match: string, msg: string): void {
+  const vs = findViolations(snap);
+  const found = vs.some((v: Violation) => v.detail.includes(match));
+  assert(
+    found,
+    `${msg} (expected a violation detail containing ${JSON.stringify(match)}; got: ${
+      vs.length === 0 ? "no violations" : vs.map((v) => v.detail).join("; ")
+    })`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -316,19 +336,29 @@ export const CASES: readonly Case[] = [
     name: "supersession/fan-in-does-not-disable-other-checks",
     run: () => {
       // The fan-in relaxation above must not have silently weakened the
-      // neighbouring checks it sits beside in integrity.ts.
-      const dangling = withFacts(baseWithSession(), [
-        fact({ superseded_by: 99, superseded_at: "2026-08-08T10:00:00Z" }),
-      ]);
-      assert(findViolations(dangling).length > 0, "dangling pointer was accepted");
+      // neighbouring checks it sits beside in integrity.ts. Every fixture
+      // below gives `nextIds` a margin above the ids it uses, so the
+      // id-watermark rule cannot also fire and let a passing assertion hide
+      // a check that no longer does anything (see the mutation proof in the
+      // task-2 report: without the override, deleting the checks below from
+      // integrity.ts left this case passing anyway). Each assertion also
+      // checks for the specific violation the check under test produces,
+      // not merely that *some* violation exists.
+      const dangling = {
+        ...withFacts(baseWithSession(), [
+          fact({ superseded_by: 99, superseded_at: "2026-08-08T10:00:00Z" }),
+        ]),
+        nextIds: { fact: 2, measurement: 1, obligation: 1 },
+      };
+      assertViolation(dangling, "dangling superseded_by", "dangling pointer was accepted");
 
-      const selfSupersede = withFacts(baseWithSession(), [
-        fact({ id: 1, superseded_by: 1, superseded_at: "2026-08-08T10:00:00Z" }),
-      ]);
-      assert(
-        findViolations(selfSupersede).length > 0,
-        "self-supersession was accepted",
-      );
+      const selfSupersede = {
+        ...withFacts(baseWithSession(), [
+          fact({ id: 1, superseded_by: 1, superseded_at: "2026-08-08T10:00:00Z" }),
+        ]),
+        nextIds: { fact: 2, measurement: 1, obligation: 1 },
+      };
+      assertViolation(selfSupersede, "supersedes itself", "self-supersession was accepted");
 
       const cycle = {
         ...withFacts(baseWithSession(), [
@@ -337,7 +367,7 @@ export const CASES: readonly Case[] = [
         ]),
         nextIds: { fact: 3, measurement: 1, obligation: 1 },
       };
-      assert(findViolations(cycle).length > 0, "supersession cycle was accepted");
+      assertViolation(cycle, "supersession cycle", "supersession cycle was accepted");
     },
   },
   {
@@ -427,19 +457,25 @@ export const HOSTILE_CASES: readonly Case[] = [
   {
     name: "hostile/dangling-superseded-by",
     run: () => {
-      const snap = withFacts(baseWithSession(), [
-        fact({ superseded_by: 99, superseded_at: "2026-08-08T10:00:00Z" }),
-      ]);
-      assert(findViolations(snap).length > 0, "dangling pointer was accepted");
+      const snap = {
+        ...withFacts(baseWithSession(), [
+          fact({ superseded_by: 99, superseded_at: "2026-08-08T10:00:00Z" }),
+        ]),
+        nextIds: { fact: 2, measurement: 1, obligation: 1 },
+      };
+      assertViolation(snap, "dangling superseded_by", "dangling pointer was accepted");
     },
   },
   {
     name: "hostile/self-supersession",
     run: () => {
-      const snap = withFacts(baseWithSession(), [
-        fact({ id: 1, superseded_by: 1, superseded_at: "2026-08-08T10:00:00Z" }),
-      ]);
-      assert(findViolations(snap).length > 0, "self-supersession was accepted");
+      const snap = {
+        ...withFacts(baseWithSession(), [
+          fact({ id: 1, superseded_by: 1, superseded_at: "2026-08-08T10:00:00Z" }),
+        ]),
+        nextIds: { fact: 2, measurement: 1, obligation: 1 },
+      };
+      assertViolation(snap, "supersedes itself", "self-supersession was accepted");
     },
   },
   {
@@ -452,17 +488,21 @@ export const HOSTILE_CASES: readonly Case[] = [
         ]),
         nextIds: { fact: 3, measurement: 1, obligation: 1 },
       };
-      assert(findViolations(snap).length > 0, "supersession cycle was accepted");
+      assertViolation(snap, "supersession cycle", "supersession cycle was accepted");
     },
   },
   {
     name: "hostile/partial-supersession-metadata",
     run: () => {
-      const snap = withFacts(baseWithSession(), [
-        fact({ id: 1, superseded_by: null, superseded_at: "2026-08-08T10:00:00Z" }),
-      ]);
-      assert(
-        findViolations(snap).length > 0,
+      const snap = {
+        ...withFacts(baseWithSession(), [
+          fact({ id: 1, superseded_by: null, superseded_at: "2026-08-08T10:00:00Z" }),
+        ]),
+        nextIds: { fact: 2, measurement: 1, obligation: 1 },
+      };
+      assertViolation(
+        snap,
+        "must both be set or both be null",
         "superseded_at without superseded_by was accepted",
       );
     },

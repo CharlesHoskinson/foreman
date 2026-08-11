@@ -16,6 +16,11 @@
  * over OBLIGATION_STATUSES. A blocked row fails validation on the way in, so a
  * post-decode migration could never read the live sidecar at all.
  *
+ * The header is validated here too, mirroring readHeader in sidecar.ts: the
+ * `format` string must match and no unknown header field is tolerated. Unlike
+ * v2, v1 legitimately carries neither `session_model_version` nor `next_ids`,
+ * so only `format` and `format_version` are known fields on this path.
+ *
  * This file is the only place that knows v1 exists. Delete it whole if the
  * format is ever dropped.
  */
@@ -29,6 +34,8 @@ import {
 } from "./entities.js";
 import { raise } from "./failures.js";
 
+/** Shared with sidecar.ts, which re-exports this as its own SIDECAR_FORMAT. */
+export const SIDECAR_FORMAT = "foreman-session-sidecar";
 export const V1_FORMAT_VERSION = 1;
 
 /** v1 table names, including the one that is not an entity. */
@@ -41,6 +48,10 @@ const TABLE_TO_KIND: Readonly<Record<string, EntityKind>> = {
 
 /** Carried schema bookkeeping, not entity data. Dropped on read. */
 const NON_ENTITY_TABLES: ReadonlySet<string> = new Set(["schema_meta"]);
+
+/** Header fields v1 actually declares. session_model_version and next_ids
+ *  are v2-only and must stay optional here — v1 legitimately lacks both. */
+const KNOWN_HEADER_FIELDS: ReadonlySet<string> = new Set(["format", "format_version"]);
 
 function parseLine(line: string, lineNo: number): Record<string, unknown> {
   let doc: unknown;
@@ -55,7 +66,37 @@ function parseLine(line: string, lineNo: number): Record<string, unknown> {
   return doc as Record<string, unknown>;
 }
 
+/**
+ * Validate the v1 header. Unlike readHeader in sidecar.ts this does not (and
+ * must not) require session_model_version or next_ids: v1 never had them.
+ * It still enforces the format string and rejects unknown fields, so an
+ * NDJSON stream that merely happens to start with `format_version: 1` is not
+ * silently accepted as a foreman sidecar.
+ */
+function readHeaderV1(doc: Record<string, unknown>): void {
+  if (doc["format"] !== SIDECAR_FORMAT) {
+    raise(
+      "sidecar_format",
+      `unsupported sidecar format ${JSON.stringify(String(doc["format"]))}`,
+    );
+  }
+  const fv = doc["format_version"];
+  if (fv !== V1_FORMAT_VERSION) {
+    raise("sidecar_format", `unsupported sidecar format version ${String(fv)}`);
+  }
+  for (const k of Object.keys(doc)) {
+    if (!KNOWN_HEADER_FIELDS.has(k)) {
+      raise("sidecar_format", `unknown header field ${JSON.stringify(k)}`);
+    }
+  }
+}
+
 export function decodeSnapshotV1(lines: readonly string[]): SessionSnapshot {
+  if (lines.length === 0) {
+    raise("sidecar_format", "sidecar is empty; a header record is required");
+  }
+  readHeaderV1(parseLine(lines[0] as string, 1));
+
   const buckets: Record<EntityKind, Record<string, unknown>[]> = {
     session: [],
     fact: [],

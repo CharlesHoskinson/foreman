@@ -39,11 +39,15 @@ import {
   type NextIds,
   type SessionSnapshot,
 } from "./entities.js";
-import { decodeSnapshotV1, V1_FORMAT_VERSION } from "./sidecar-v1.js";
+import { decodeSnapshotV1, SIDECAR_FORMAT, V1_FORMAT_VERSION } from "./sidecar-v1.js";
 import { assertIntegrity } from "./integrity.js";
 import { raise } from "./failures.js";
 
-export const SIDECAR_FORMAT = "foreman-session-sidecar";
+// SIDECAR_FORMAT is declared in sidecar-v1.ts (the v1 header check needs it
+// too) and re-exported here so the rest of the codebase can keep importing it
+// from ./sidecar.js without a circular import between this file and
+// sidecar-v1.ts.
+export { SIDECAR_FORMAT };
 export const SIDECAR_FORMAT_VERSION = 2;
 
 type Header = {

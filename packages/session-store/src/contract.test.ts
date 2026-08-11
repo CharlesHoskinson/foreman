@@ -67,7 +67,13 @@ describe("invariant I2 — correctness independence", () => {
   });
 
   it("keeps the system of record free of MemoryIndex imports", () => {
-    for (const file of ["sqlite-store.ts", "entities.ts", "integrity.ts", "sidecar.ts"]) {
+    for (const file of [
+      "sqlite-store.ts",
+      "entities.ts",
+      "integrity.ts",
+      "sidecar.ts",
+      "sidecar-v1.ts",
+    ]) {
       const src = readFileSync(join(here, file), "utf8");
       assert.ok(
         !src.includes("memory-index.js"),
