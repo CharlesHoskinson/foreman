@@ -116,6 +116,39 @@ migration it becomes a display-time derivation.
 Enabling foreign keys is safe on today's data: both supersession-pointer
 integrity queries return zero dangling rows.
 
+### 2a. Supersession is one-to-many
+
+The port declared supersession one-to-one. `integrity.ts` rejected any snapshot
+where two rows named the same successor, with
+`row N supersedes X rows; at most one is allowed`. The live record breaks that
+rule, and breaks it deliberately.
+
+Measurement 17, a full-suite run at `c0b8bd1` taken 2026-08-07, is named by four
+predecessors — 1, 8, 14 and 15 — each carrying the same recorded reason:
+
+> Superseded by fresh full-suite measurement 17 (wsl, pass=720/fail=3/skip=20 of
+> 743 at c0b8bd1, taken 2026-08-07). This figure was stale by 127-138 commits and
+> W1-W6 must not quote it.
+
+Measurement 10 has the same shape with two predecessors. Facts are one-to-one
+throughout.
+
+The invariant is therefore wrong rather than the data, and the cardinality rule
+is removed. Nothing becomes ambiguous: "what superseded row X" still has exactly
+one answer, because each row carries a single `superseded_by`. Only the inverse
+question, "what did row Y supersede", becomes one-to-many — which is precisely
+what retiring four stale measurements with one fresh reading means.
+
+Every neighbouring check is kept: dangling `superseded_by`, self-supersession,
+the cycle walk, and the both-set-or-both-null pairing. Fan-in pointing into a
+cycle is still rejected.
+
+This gap was invisible to the survey that produced this document. The four
+breaks listed above are all in the wire format, and the format is what was
+measured. The model disagreed with reality too, and only decoding real rows
+surfaced it. Treat the list of four as the breaks that were found, not as a
+proof that no others exist.
+
 ### 3. Durability
 
 The port does not inherit these fixes. Verified: it sets no `journal_mode`, no
