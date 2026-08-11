@@ -1,5 +1,6 @@
-FOREMAN RECOVERY  head=  at=<TS>
-last session: (none — this is the first)
+FOREMAN RECOVERY  head=<HEAD>  at=<TS>
+last session: 20260730T222519Z-da94ed  started=2026-07-30T22:25:19Z  start_sha=f6d577dbee5d  ENDED 2026-07-30T22:55:10Z
+  note: Resume from the session DB: re-establish open obligations and in-flight state on integrate/v029-w1, then continue the stop-point checklist.
 
 FACTS (11) — durable, true by construction
   [11] main is merged and pushed at f6d577d (~90 commits); integrate/v029-w1 and main are level
@@ -25,8 +26,29 @@ FACTS (11) — durable, true by construction
   [1] The 41-file bats suite completed for the first time and passes on the merged tree
        evidence: commit d44461e; log /root/fm-logs/merged-0730.log
 
-MEASUREMENTS — fresh=0 STALE=0 unknown=0
+MEASUREMENTS — fresh=2 STALE=1 unknown=2
+  OK    [7] shellcheck warning baseline = 13 warnings across 48 files, 0 errors
+       no commit has touched its scope since measurement  (measured 2026-07-30T22:37:23Z @ 2765ecaebc07)
+  STALE [6] openspec strict validation = 30 packages valid, 0 invalid (3 terminusdb packages archived, not regressed)
+       1 commit(s) touched its scope since measurement  (measured 2026-07-30T22:37:16Z @ d5fb7a026364)
+       re-run: for d in openspec/changes/*/; do openspec validate $(basename $d) --strict; done
+  ?     [5] ci-local gates green (bats off) = 5
+       no scope_paths recorded; cannot bound what invalidates it  (measured 2026-07-30T22:22:41Z @ d5fb7a026364)
+       re-run: bash tools/ci-local.sh
+  ?     [4] shellcheck warning baseline = 12 warnings across 48 files
+       no measured_sha recorded  (measured 2026-07-30T20:50:25Z @ )
+       re-run: bash tools/ci-local.sh --quick
+  OK    [3] openspec strict validation = 33 packages valid, 0 invalid
+       no commit has touched its scope since measurement  (measured 2026-07-30T20:50:25Z @ d5fb7a026364)
 
-OBLIGATIONS — open=0 blocked=0
+OBLIGATIONS — open=4 blocked=2
+  [6] (open) baseline.tsv has no platform column, so one number must hold on every platform; baseline is currently the WSL floor
+  [5] (open) skills/superpowers/tests/** suppresses 30 bash-shebang files from the crlf exec-bit inventory on a per-file reason never individually verified
+  [4] (open) regression-harness-tiers (41 tasks) unimplemented
+  [3] (blocked) terminusdb-adapter, terminusdb-operations, graph-* cluster, knowledge-plane-refresh unimplemented
+       blocked by: large greenfield; task lists do not dispatch, needs architect diagnosis per lane
+  [2] (blocked) wt-merge.sh gate-to-merge TOCTOU (T11) needs its own package with its own audit
+       blocked by: highest architectural risk item; re-orders commit-then-merge
+  [1] (open) three-outcome-verdicts dispatches 3-5 owed: wt-consolidate.sh (T6), T7 doctrine pass
 
-LAUNCH POINT: no measurement is recorded, so nothing here is measured. Measure before you quote a number. Then work the open obligations above.
+LAUNCH POINT: 3 measurement(s) are not fresh — re-run them before quoting any of their numbers. Then work the open obligations above.

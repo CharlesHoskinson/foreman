@@ -1,7 +1,13 @@
 {
   "recovered_at": "<TS>",
-  "head_sha": "",
-  "last_session": null,
+  "head_sha": "<HEAD>",
+  "last_session": {
+    "session_id": "20260730T222519Z-da94ed",
+    "started_ts": "2026-07-30T22:25:19Z",
+    "start_sha": "f6d577dbee5de0fc33b6f3eb6072789643e196ff",
+    "ended_ts": "2026-07-30T22:55:10Z",
+    "note": "Resume from the session DB: re-establish open obligations and in-flight state on integrate/v029-w1, then continue the stop-point checklist."
+  },
   "facts": [
     {
       "kind": "fact",
@@ -81,14 +87,136 @@
       "established_ts": "2026-07-30T20:50:24Z"
     }
   ],
-  "measurements": [],
-  "obligations": [],
+  "measurements": [
+    {
+      "kind": "measurement",
+      "id": 7,
+      "metric": "shellcheck warning baseline",
+      "value": "13 warnings across 48 files, 0 errors",
+      "command": "bash tools/ci-local.sh --quick",
+      "measured_ts": "2026-07-30T22:37:23Z",
+      "measured_sha": "2765ecaebc07",
+      "scope_paths": [
+        "skills/foreman/scripts",
+        "tools",
+        "env"
+      ],
+      "validity": "fresh",
+      "validity_reason": "no commit has touched its scope since measurement"
+    },
+    {
+      "kind": "measurement",
+      "id": 6,
+      "metric": "openspec strict validation",
+      "value": "30 packages valid, 0 invalid (3 terminusdb packages archived, not regressed)",
+      "command": "for d in openspec/changes/*/; do openspec validate $(basename $d) --strict; done",
+      "measured_ts": "2026-07-30T22:37:16Z",
+      "measured_sha": "d5fb7a026364",
+      "scope_paths": [
+        "src/measured-scope.txt"
+      ],
+      "validity": "stale",
+      "validity_reason": "1 commit(s) touched its scope since measurement"
+    },
+    {
+      "kind": "measurement",
+      "id": 5,
+      "metric": "ci-local gates green (bats off)",
+      "value": "5",
+      "command": "bash tools/ci-local.sh",
+      "measured_ts": "2026-07-30T22:22:41Z",
+      "measured_sha": "d5fb7a026364",
+      "scope_paths": [],
+      "validity": "unknown",
+      "validity_reason": "no scope_paths recorded; cannot bound what invalidates it"
+    },
+    {
+      "kind": "measurement",
+      "id": 4,
+      "metric": "shellcheck warning baseline",
+      "value": "12 warnings across 48 files",
+      "command": "bash tools/ci-local.sh --quick",
+      "measured_ts": "2026-07-30T20:50:25Z",
+      "measured_sha": "",
+      "scope_paths": [
+        "skills/foreman/scripts",
+        "tools",
+        "env"
+      ],
+      "validity": "unknown",
+      "validity_reason": "no measured_sha recorded"
+    },
+    {
+      "kind": "measurement",
+      "id": 3,
+      "metric": "openspec strict validation",
+      "value": "33 packages valid, 0 invalid",
+      "command": "for d in openspec/changes/*/; do /usr/local/bin/openspec validate $(basename $d) --strict; done",
+      "measured_ts": "2026-07-30T20:50:25Z",
+      "measured_sha": "d5fb7a026364",
+      "scope_paths": [
+        "openspec/changes"
+      ],
+      "validity": "fresh",
+      "validity_reason": "no commit has touched its scope since measurement"
+    }
+  ],
+  "obligations": [
+    {
+      "kind": "obligation",
+      "id": 6,
+      "statement": "baseline.tsv has no platform column, so one number must hold on every platform; baseline is currently the WSL floor",
+      "status": "open",
+      "blocker": null,
+      "opened_ts": "2026-07-30T20:50:26Z"
+    },
+    {
+      "kind": "obligation",
+      "id": 5,
+      "statement": "skills/superpowers/tests/** suppresses 30 bash-shebang files from the crlf exec-bit inventory on a per-file reason never individually verified",
+      "status": "open",
+      "blocker": null,
+      "opened_ts": "2026-07-30T20:50:26Z"
+    },
+    {
+      "kind": "obligation",
+      "id": 4,
+      "statement": "regression-harness-tiers (41 tasks) unimplemented",
+      "status": "open",
+      "blocker": null,
+      "opened_ts": "2026-07-30T20:50:26Z"
+    },
+    {
+      "kind": "obligation",
+      "id": 3,
+      "statement": "terminusdb-adapter, terminusdb-operations, graph-* cluster, knowledge-plane-refresh unimplemented",
+      "status": "blocked",
+      "blocker": "large greenfield; task lists do not dispatch, needs architect diagnosis per lane",
+      "opened_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "obligation",
+      "id": 2,
+      "statement": "wt-merge.sh gate-to-merge TOCTOU (T11) needs its own package with its own audit",
+      "status": "blocked",
+      "blocker": "highest architectural risk item; re-orders commit-then-merge",
+      "opened_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "obligation",
+      "id": 1,
+      "statement": "three-outcome-verdicts dispatches 3-5 owed: wt-consolidate.sh (T6), T7 doctrine pass",
+      "status": "open",
+      "blocker": null,
+      "opened_ts": "2026-07-30T20:50:25Z"
+    }
+  ],
   "counts": {
     "facts": 11,
-    "measurements_fresh": 0,
-    "measurements_stale": 0,
-    "measurements_unknown": 0,
-    "obligations_open": 0,
-    "obligations_blocked": 0
+    "measurements_fresh": 2,
+    "measurements_stale": 1,
+    "measurements_unknown": 2,
+    "obligations_open": 4,
+    "obligations_blocked": 2
   }
 }

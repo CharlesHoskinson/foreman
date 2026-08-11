@@ -1,2 +1,2 @@
-rehydrated 11 row(s) from <WORKSPACE>/.foreman/session.ndjson (the .db is a derived cache; the sidecar is what git tracks)
-sidecar refreshed: 12 row(s) -> <WORKSPACE>/.foreman/session.ndjson
+rehydrated 24 row(s) from <WORKSPACE>/.foreman/session.ndjson (the .db is a derived cache; the sidecar is what git tracks)
+sidecar refreshed: 25 row(s) -> <WORKSPACE>/.foreman/session.ndjson
