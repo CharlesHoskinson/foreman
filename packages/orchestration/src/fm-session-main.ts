@@ -244,6 +244,25 @@ function buildRecovery(conn: DatabaseSync) {
   const obligations = (conn.prepare("SELECT * FROM obligations WHERE status != 'done' ORDER BY id DESC").all() as any[]).map(r => ({
     kind: "obligation", id: r.id, statement: r.statement, status: r.status, blocker: r.blocker, opened_ts: r.opened_ts
   }));
+  // Actionability ordering: what survives truncation should be the part
+  // worth keeping. An open obligation with no blocker is the most
+  // actionable; one that is blocked (or, if this path ever sees it, open
+  // with a blocker attached) ranks below that; anything else -- a status
+  // this query should never surface, since 'done' is already excluded
+  // above -- sorts last. Explicit, total comparator: it never relies on the
+  // SQL/array order being merely stable, so re-recording the goldens stays
+  // reproducible. Recency (id DESC) is the tiebreaker within a rank.
+  const obligationRank = (o: { status: string; blocker: string | null }): number => {
+    if (o.status === "open" && !o.blocker) return 0;
+    if (o.status === "open" || o.status === "blocked") return 1;
+    return 2;
+  };
+  obligations.sort((a, b) => {
+    const ra = obligationRank(a);
+    const rb = obligationRank(b);
+    if (ra !== rb) return ra - rb;
+    return b.id - a.id;
+  });
   
   return {
     recovered_at: nowIso(),
@@ -317,14 +336,22 @@ function render(rec: any) {
   const c = rec.counts;
   A("");
   A(`FACTS (${c.facts}) \u2014 durable, true by construction`);
-  for (const f of rec.facts.slice(0, 20)) {
+  const FACT_LIMIT = 20;
+  const factsShown = rec.facts.slice(0, FACT_LIMIT);
+  for (const f of factsShown) {
     A(`  [${f.id}] ${f.statement}`);
     if (f.evidence) A(`       evidence: ${f.evidence}`);
+  }
+  const factsHidden = rec.facts.length - factsShown.length;
+  if (factsHidden > 0) {
+    A(`  ... ${factsHidden} more fact(s) not shown. Run: fm-session recover --json`);
   }
   
   A("");
   A(`MEASUREMENTS \u2014 fresh=${c.measurements_fresh} STALE=${c.measurements_stale} unknown=${c.measurements_unknown}`);
-  for (const m of rec.measurements.slice(0, 20)) {
+  const MEASUREMENT_LIMIT = 20;
+  const measurementsShown = rec.measurements.slice(0, MEASUREMENT_LIMIT);
+  for (const m of measurementsShown) {
     const mark = { "fresh": "OK   ", "stale": "STALE", "unknown": "?    " }[m.validity as string];
     A(`  ${mark} [${m.id}] ${m.metric} = ${m.value}`);
     A(`       ${m.validity_reason}  (measured ${m.measured_ts} @ ${m.measured_sha})`);
@@ -332,12 +359,22 @@ function render(rec: any) {
       A(`       re-run: ${m.command}`);
     }
   }
+  const measurementsHidden = rec.measurements.length - measurementsShown.length;
+  if (measurementsHidden > 0) {
+    A(`  ... ${measurementsHidden} more measurement(s) not shown. Run: fm-session recover --json`);
+  }
   
   A("");
   A(`OBLIGATIONS \u2014 open=${c.obligations_open} blocked=${c.obligations_blocked}`);
-  for (const o of rec.obligations.slice(0, 20)) {
+  const OBLIGATION_LIMIT = 20;
+  const obligationsShown = rec.obligations.slice(0, OBLIGATION_LIMIT);
+  for (const o of obligationsShown) {
     A(`  [${o.id}] (${o.status}) ${o.statement}`);
     if (o.blocker) A(`       blocked by: ${o.blocker}`);
+  }
+  const obligationsHidden = rec.obligations.length - obligationsShown.length;
+  if (obligationsHidden > 0) {
+    A(`  ... ${obligationsHidden} more obligation(s) not shown. Run: fm-session recover --json`);
   }
   
   A("");
