@@ -9,6 +9,7 @@
   "exclude": ["src/**/*.test.ts"],
   "references": [
     { "path": "../core" },
-    { "path": "../event-log" }
+    { "path": "../event-log" },
+    { "path": "../session-store" }
   ]
 }
