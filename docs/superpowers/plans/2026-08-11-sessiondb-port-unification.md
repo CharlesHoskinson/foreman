@@ -31,12 +31,46 @@ Bats, `tsx`, esbuild via `scripts/build-runtime.ts`.
 - Never add `Co-Authored-By` or any AI attribution to a commit.
 - `NullMemoryIndex` stays the default. No task may make Foreman require network
   access or credentials.
-- Before claiming any task done, run `/foreman-qa-preflight` and report evidence.
 - Consult `AGENT_TRAPS.md` § 1 before dispatching any vendor lane.
 - Work in the worktree `/root/fm-wt/sdb-design` on branch
   `design/sessiondb-port-unification`. Never `git add -A` in the base checkout —
   a live session can append to SessionDB while you work (`AGENT_TRAPS.md:22`).
 - `npm install` has not been run in this worktree. Task 1 installs dependencies.
+
+### The QA plugin is binding, on every task
+
+`plugins/foreman-qa/` carries the rules this repository learned by breaking. Use
+it rather than improvising an equivalent. Its preflight runs on **every task**,
+not only the last one, and its six steps are the definition of "done":
+
+1. Confirm every command you are relying on actually executed. An exit code
+   belongs to the wrapper, not the work — a run mangled by quoting, path
+   conversion or a missing `PATH` reports success and produces nothing. Bind
+   each claim to a non-empty, on-topic artefact you have read.
+2. Read the working diff with `git diff` and `git diff --stat`. Review what
+   changed, not what you intended to change.
+3. Run `git ls-files -s` for the files in scope and check the modes.
+4. **Before committing**, run `bash skills/foreman/scripts/docs-check.sh`. Read
+   and report its output; do not rely on the exit code alone. Exit 0 is pass,
+   1 is findings, 2 means a required tool was missing and the gate failed
+   closed. It currently reports
+   `markdownlint=pass codespell=pass lychee=pass agent-invocations=pass comments=pass`
+   on this branch — keep it there.
+5. **After committing**, run `git status --porcelain` and confirm it is empty.
+6. State explicitly which checks you did not run and why. Silence about a
+   skipped check is not acceptable.
+
+Two rules that cost this repository real time:
+
+- After any late edit — including one prompted by lint or `docs-check.sh` —
+  run `git add` again on every changed file. A commit captures the index, not
+  the working tree, so an edit made after the last `git add` is silently
+  excluded.
+- A report is a claim, not evidence. Re-run the command and read its output.
+  Findings from executing code outrank findings from reading it.
+
+When a trap fires that is not already listed, add it to `AGENT_TRAPS.md` with
+the observed symptom first — the symptom is what the next session searches for.
 
 ## File Structure
 
@@ -49,8 +83,8 @@ Bats, `tsx`, esbuild via `scripts/build-runtime.ts`.
 | `packages/orchestration/src/session-rebuild.ts` | **Create.** Rebuilds the DB from the canonical sidecar. |
 | `packages/orchestration/src/session-rebuild.test.ts` | **Create.** Tests for the rebuild. |
 | `packages/orchestration/src/fm-session-main.ts` | **Modify, then shrink.** CLI moves onto the port; embedded store deleted in Task 7. |
-| `tests/session-golden.bats` | **Create.** Golden oracle over the CLI's exact output. |
-| `tests/fixtures/session-golden/` | **Create.** Frozen expected stdout/stderr/exit codes. |
+| `packages/orchestration/src/fm-session-golden.test.ts` | **Create.** Golden oracle over the CLI's exact output. |
+| `packages/orchestration/src/__golden__/` | **Create.** Frozen expected stdout/stderr/exit codes. |
 
 The v1 reader is a separate file on purpose. It is the only place that knows a
 dead format exists, so it can be deleted whole if the format is ever dropped.
@@ -63,17 +97,23 @@ Freeze exactly what the CLI prints today, before anything changes. `session.bats
 asserts shapes; this asserts values. A port that changes a printed number passes
 `session.bats` and fails here.
 
+The oracle is TypeScript, not Bats. `CLAUDE.md`'s Iron Rule requires tests for
+new behaviour in TypeScript, and a file under `packages/orchestration/src/` is
+picked up by the existing `npm test` glob with no config change. It spawns the
+CLI **from source through tsx** rather than from
+`skills/foreman/runtime/dist/fm-session.js`, so it can never pass against a
+stale bundle.
+
 **Files:**
 
-- Create: `tests/session-golden.bats`
-- Create: `tests/fixtures/session-golden/.gitkeep`
-- Modify: none
+- Create: `packages/orchestration/src/fm-session-golden.test.ts`
+- Create: `packages/orchestration/src/__golden__/seed.ndjson`
 
 **Interfaces:**
 
 - Consumes: nothing.
-- Produces: `tests/fixtures/session-golden/<case>.{out,err,exit}` — frozen bytes
-  every later task diffs against.
+- Produces: `packages/orchestration/src/__golden__/<case>.{out,err,exit}` —
+  frozen bytes every later task diffs against.
 
 - [ ] **Step 1: Install dependencies**
 
@@ -82,10 +122,10 @@ cd /root/fm-wt/sdb-design
 npm ci
 ```
 
-Expected: completes without error. If `npm ci` fails for a missing lockfile
+Expected: completes without error. If `npm ci` fails on a missing lockfile
 entry, use `npm install` and do not commit lockfile churn unrelated to this work.
 
-- [ ] **Step 2: Confirm the suite runs green before you touch anything**
+- [ ] **Step 2: Confirm the suite is green before you touch anything**
 
 ```bash
 cd /root/fm-wt/sdb-design
@@ -95,80 +135,130 @@ npm run typecheck && npm test 2>&1 | tail -20
 Expected: PASS. If it does not pass on a clean checkout, stop and report — you
 cannot build a golden oracle on a broken baseline.
 
-- [ ] **Step 3: Write the golden capture script as a Bats file**
+- [ ] **Step 3: Create the seed fixture from the real sidecar**
 
-Create `tests/session-golden.bats`:
-
-```bash
-#!/usr/bin/env bats
-# @description Golden oracle for fm-session. Freezes exact stdout, stderr, exit
-#   code and sidecar bytes for a fixed command corpus. session.bats asserts
-#   shapes; this asserts values.
-
-setup() {
-  FIXTURES="${BATS_TEST_DIRNAME}/fixtures/session-golden"
-  RUNTIME="${BATS_TEST_DIRNAME}/../skills/foreman/runtime/dist/fm-session.js"
-  WORK="$(mktemp -d)"
-  cd "$WORK"
-  git init -q .
-  mkdir -p .foreman
-  cp "${BATS_TEST_DIRNAME}/fixtures/session-golden/seed.ndjson" .foreman/session.ndjson
-  node "$RUNTIME" import-sidecar >/dev/null 2>&1 || true
-}
-
-teardown() {
-  rm -rf "$WORK"
-}
-
-# Each case runs one command and compares all three streams byte for byte.
-golden() {
-  local name="$1"; shift
-  set +e
-  node "$RUNTIME" "$@" >"$WORK/out" 2>"$WORK/err"
-  local code=$?
-  set -e
-  if [ -n "${GOLDEN_UPDATE:-}" ]; then
-    cp "$WORK/out" "$FIXTURES/$name.out"
-    cp "$WORK/err" "$FIXTURES/$name.err"
-    printf '%s\n' "$code" > "$FIXTURES/$name.exit"
-    return 0
-  fi
-  diff -u "$FIXTURES/$name.out" "$WORK/out"
-  diff -u "$FIXTURES/$name.err" "$WORK/err"
-  [ "$code" = "$(cat "$FIXTURES/$name.exit")" ]
-}
-
-@test "golden: recover" { golden recover recover; }
-@test "golden: recover --json" { golden recover-json recover --json; }
-@test "golden: freshness" { golden freshness freshness; }
-@test "golden: supersede a missing fact" { golden supersede-missing supersede 9999 replacement --reason r; }
-@test "golden: close with an unknown status" { golden close-unknown close 1 --status nonsense; }
-```
-
-- [ ] **Step 4: Create the seed fixture from the real sidecar**
-
-The seed must be real v1 data, not invented. Copy the live sidecar and strip it
-to a stable subset so the golden does not churn as sessions run:
+The seed must be real v1 data, not invented, and fixed so the golden does not
+churn as live sessions run:
 
 ```bash
 cd /root/fm-wt/sdb-design
-mkdir -p tests/fixtures/session-golden
-head -12 /root/foreman/.foreman/session.ndjson > tests/fixtures/session-golden/seed.ndjson
-chmod 644 tests/fixtures/session-golden/seed.ndjson
-head -1 tests/fixtures/session-golden/seed.ndjson
+mkdir -p packages/orchestration/src/__golden__
+head -12 /root/foreman/.foreman/session.ndjson > packages/orchestration/src/__golden__/seed.ndjson
+chmod 644 packages/orchestration/src/__golden__/seed.ndjson
+head -1 packages/orchestration/src/__golden__/seed.ndjson
 ```
 
 Expected first line: `{"format": "foreman-session-sidecar", "format_version": 1}`
+
+- [ ] **Step 4: Write the golden test**
+
+Create `packages/orchestration/src/fm-session-golden.test.ts`:
+
+```ts
+/**
+ * Golden oracle for the fm-session CLI.
+ *
+ * Freezes exact stdout, stderr and exit code for a fixed command corpus.
+ * session.bats asserts shapes; this asserts values, so a change to a printed
+ * number fails here and nowhere else.
+ *
+ * Record or re-record with GOLDEN_UPDATE=1. Re-recording is a deliberate act:
+ * review the fixture diff before committing it.
+ */
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync, execFileSync } from "node:child_process";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const GOLDEN = join(HERE, "__golden__");
+const ENTRY = join(HERE, "fm-session-main.ts");
+const UPDATE = process.env["GOLDEN_UPDATE"] === "1";
+
+/** A scratch repo seeded from the frozen v1 sidecar. */
+function workspace(): string {
+  const dir = mkdtempSync(join(tmpdir(), "fm-golden-"));
+  execFileSync("git", ["init", "-q", "."], { cwd: dir });
+  mkdirSync(join(dir, ".foreman"), { recursive: true });
+  copyFileSync(join(GOLDEN, "seed.ndjson"), join(dir, ".foreman", "session.ndjson"));
+  run(dir, ["import-sidecar"]);
+  return dir;
+}
+
+/** Run the CLI from source. tsx keeps this honest against an unbuilt bundle. */
+function run(cwd: string, args: readonly string[]) {
+  return spawnSync(process.execPath, ["--import", "tsx", ENTRY, ...args], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, GOLDEN_UPDATE: "" },
+  });
+}
+
+function golden(name: string, args: readonly string[]): void {
+  const dir = workspace();
+  const res = run(dir, args);
+  const code = String(res.status ?? -1);
+
+  if (UPDATE) {
+    writeFileSync(join(GOLDEN, `${name}.out`), res.stdout, "utf8");
+    writeFileSync(join(GOLDEN, `${name}.err`), res.stderr, "utf8");
+    writeFileSync(join(GOLDEN, `${name}.exit`), `${code}\n`, "utf8");
+    return;
+  }
+
+  const outPath = join(GOLDEN, `${name}.out`);
+  assert.ok(
+    existsSync(outPath),
+    `no golden recorded for ${name}; run with GOLDEN_UPDATE=1`,
+  );
+  assert.equal(res.stdout, readFileSync(outPath, "utf8"), `${name}: stdout drifted`);
+  assert.equal(
+    res.stderr,
+    readFileSync(join(GOLDEN, `${name}.err`), "utf8"),
+    `${name}: stderr drifted`,
+  );
+  assert.equal(
+    `${code}\n`,
+    readFileSync(join(GOLDEN, `${name}.exit`), "utf8"),
+    `${name}: exit code drifted`,
+  );
+}
+
+test("golden: recover", () => golden("recover", ["recover"]));
+test("golden: recover --json", () => golden("recover-json", ["recover", "--json"]));
+test("golden: freshness", () => golden("freshness", ["freshness"]));
+
+// KNOWN DEFECT, frozen deliberately. Today this exits 0 and reports success for
+// a fact that does not exist, inserting an orphan row. Task 6 changes it to a
+// non-zero exit; re-record this golden in the same commit that changes the
+// behaviour, never before and never on its own.
+test("golden: supersede a missing fact", () =>
+  golden("supersede-missing", ["supersede", "9999", "replacement", "--reason", "r"]));
+
+test("golden: close with an unknown status", () =>
+  golden("close-unknown", ["close", "1", "--status", "nonsense"]));
+```
 
 - [ ] **Step 5: Record the goldens**
 
 ```bash
 cd /root/fm-wt/sdb-design
-GOLDEN_UPDATE=1 bats tests/session-golden.bats
-ls tests/fixtures/session-golden/
+GOLDEN_UPDATE=1 npx tsx --test packages/orchestration/src/fm-session-golden.test.ts
+ls packages/orchestration/src/__golden__/
 ```
 
-Expected: `.out`, `.err` and `.exit` files for all five cases.
+Expected: `.out`, `.err` and `.exit` files for all five cases, plus `seed.ndjson`.
 
 - [ ] **Step 6: Verify the oracle actually discriminates**
 
@@ -176,37 +266,38 @@ A golden that passes against a changed program is not an oracle. Prove it fails:
 
 ```bash
 cd /root/fm-wt/sdb-design
-printf 'DELIBERATE DRIFT\n' >> tests/fixtures/session-golden/recover.out
-bats tests/session-golden.bats 2>&1 | tail -5
-git checkout tests/fixtures/session-golden/recover.out
+printf 'DELIBERATE DRIFT\n' >> packages/orchestration/src/__golden__/recover.out
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts 2>&1 | tail -8
+git checkout packages/orchestration/src/__golden__/recover.out 2>/dev/null || true
 ```
 
-Expected: the `golden: recover` case FAILS on the injected line, then passes
-again after the checkout. Do not skip this step — an oracle that cannot fail is
-the single most common way this kind of task produces false confidence.
+Expected: `golden: recover` FAILS with "stdout drifted", then passes again after
+the file is restored. Do not skip this — an oracle that cannot fail is the most
+common way this kind of task produces false confidence. If the file was not yet
+committed, restore it by re-running Step 5.
 
-- [ ] **Step 7: Record the known defect**
-
-`supersede-missing` freezes a bug as expected behaviour: it currently exits 0 and
-reports success. Add this comment directly above that test in
-`tests/session-golden.bats` so nobody later "fixes" the fixture silently:
+- [ ] **Step 7: Confirm it runs under the normal test command**
 
 ```bash
-# KNOWN DEFECT, frozen deliberately. Today this exits 0 and prints success for a
-# fact that does not exist. Task 6 changes it to a non-zero exit; when it does,
-# update this golden in the same commit that changes the behaviour, never before.
+cd /root/fm-wt/sdb-design
+npm test 2>&1 | grep -i golden | head -5
 ```
+
+Expected: the golden cases appear. If they do not, the file is not matched by
+the `npm test` glob — fix the location rather than adding a bespoke command.
 
 - [ ] **Step 8: Commit**
 
 ```bash
 cd /root/fm-wt/sdb-design
-git add tests/session-golden.bats tests/fixtures/session-golden
-git ls-files -s tests/session-golden.bats tests/fixtures/session-golden | grep -v '^100644' || echo "modes ok"
-git commit -m "test(session): freeze the fm-session CLI output as a golden oracle"
-```
+git add packages/orchestration/src/fm-session-golden.test.ts packages/orchestration/src/__golden__
+git ls-files -s packages/orchestration/src/fm-session-golden.test.ts packages/orchestration/src/__golden__ | grep -v '^100644' || echo "modes ok"
+git commit -m "test(session): freeze the fm-session CLI output as a golden oracle
 
----
+Spawns the CLI from source through tsx rather than the built bundle, so
+it cannot pass against a stale artefact. One case freezes a known defect
+deliberately: superseding a missing fact currently exits 0."
+```
 
 ### Task 2: v1 sidecar reader
 
@@ -981,7 +1072,7 @@ canonical record, so it was the one artefact that could tear."
 **Files:**
 
 - Modify: `packages/orchestration/src/fm-session-main.ts:316-345`
-- Modify: `tests/session-golden.bats` (goldens change deliberately here)
+- Modify: `packages/orchestration/src/__golden__/` (goldens change deliberately here)
 
 **Interfaces:**
 
@@ -1066,9 +1157,9 @@ Expected: the text reports `... 16 more fact(s) not shown` and the JSON reports
 
 ```bash
 cd /root/fm-wt/sdb-design
-GOLDEN_UPDATE=1 bats tests/session-golden.bats
-git diff --stat tests/fixtures/session-golden
-bats tests/session-golden.bats
+GOLDEN_UPDATE=1 npx tsx --test packages/orchestration/src/fm-session-golden.test.ts
+git diff --stat packages/orchestration/src/__golden__
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts
 ```
 
 Expected: `recover.out` changes, the others do not. Review the diff before
@@ -1079,7 +1170,7 @@ not intend to.
 
 ```bash
 cd /root/fm-wt/sdb-design
-git add packages/orchestration/src/fm-session-main.ts tests/fixtures/session-golden
+git add packages/orchestration/src/fm-session-main.ts packages/orchestration/src/__golden__
 git commit -m "fix(session): disclose the rows recover withholds
 
 recover truncated to 20 rows per kind with no indicator, hiding 16 of 36
@@ -1098,7 +1189,7 @@ changes behaviour.
 **Files:**
 
 - Modify: `packages/orchestration/src/fm-session-main.ts`
-- Modify: `tests/session-golden.bats` (one deliberate change, Step 5)
+- Modify: `packages/orchestration/src/__golden__/` (one deliberate change, Step 5)
 
 **Interfaces:**
 
@@ -1129,7 +1220,7 @@ After each one:
 
 ```bash
 cd /root/fm-wt/sdb-design
-FM_SESSION_CMD=port bats tests/session-golden.bats
+FM_SESSION_CMD=port npx tsx --test packages/orchestration/src/fm-session-golden.test.ts
 ```
 
 Expected: PASS with no golden changes. Reads must be byte-identical.
@@ -1203,14 +1294,14 @@ fail. Update the golden in the same commit that changes the behaviour:
 
 ```bash
 cd /root/fm-wt/sdb-design
-FM_SESSION_CMD=port bats tests/session-golden.bats 2>&1 | tail -20
-GOLDEN_UPDATE=1 FM_SESSION_CMD=port bats tests/session-golden.bats
-cat tests/fixtures/session-golden/supersede-missing.exit
+FM_SESSION_CMD=port npx tsx --test packages/orchestration/src/fm-session-golden.test.ts 2>&1 | tail -20
+GOLDEN_UPDATE=1 FM_SESSION_CMD=port npx tsx --test packages/orchestration/src/fm-session-golden.test.ts
+cat packages/orchestration/src/__golden__/supersede-missing.exit
 ```
 
 Expected: the exit fixture now contains a non-zero code, and the `.err` fixture
-carries a message naming the missing id. Remove the KNOWN DEFECT comment added
-in Task 1 Step 7 in this same commit.
+carries a message naming the missing id. Remove the KNOWN DEFECT comment from
+`fm-session-golden.test.ts` in this same commit.
 
 - [ ] **Step 6: Prove the defect is actually closed**
 
@@ -1246,8 +1337,8 @@ const BACKEND = process.env["FM_SESSION_CMD"] === "legacy" ? "legacy" : "port";
 ```bash
 cd /root/fm-wt/sdb-design
 npm run typecheck && npm test 2>&1 | tail -10
-bats tests/session-golden.bats tests/session.bats
-git add packages/orchestration/src/fm-session-main.ts tests/session-golden.bats tests/fixtures/session-golden
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts && bats tests/session.bats
+git add packages/orchestration/src/fm-session-main.ts packages/orchestration/src/fm-session-golden.test.ts packages/orchestration/src/__golden__
 git commit -m "feat(session): run fm-session on the session-store port
 
 Migrated command by command behind FM_SESSION_CMD, diffing against the
@@ -1318,7 +1409,7 @@ appears, the deletion is incomplete.
 
 ```bash
 cd /root/fm-wt/sdb-design
-bats tests/session-golden.bats tests/session.bats
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts && bats tests/session.bats
 ```
 
 Expected: PASS. The only fixture that differs from Task 1 is
@@ -1361,16 +1452,25 @@ type-checks for the first time.
 There is now one SessionDB."
 ```
 
-- [ ] **Step 9: Run the QA preflight before claiming completion**
+- [ ] **Step 9: Final QA review of the whole branch**
+
+The per-task preflight has already run six times. This step is the review, not
+another preflight. Gather the context the reviewer needs:
 
 ```bash
 cd /root/fm-wt/sdb-design
-/foreman-qa-preflight
+git diff main...HEAD --stat
+git ls-files -s packages/session-store/src packages/orchestration/src | grep -v '^100644' || echo "modes ok"
+bash skills/foreman/scripts/docs-check.sh
 ```
 
-Follow `plugins/foreman-qa/commands/foreman-qa-preflight.md`, all six steps.
-Report the evidence. Do not claim this plan is complete on an exit code alone —
-`tests/run.sh` in shadow mode can print `RESULT ERROR` and still exit 0.
+Then follow `plugins/foreman-qa/commands/foreman-qa-review.md`: hand the
+complete diff, the mode listing and the exact `docs-check.sh` output to the
+`foreman-qa-reviewer` doctrine in `plugins/foreman-qa/agents/foreman-qa-reviewer.md`.
+Relay its findings verbatim — do not soften, summarize or omit a verdict.
+
+Do not claim this plan is complete on an exit code alone. `tests/run.sh` in
+shadow mode can print `RESULT ERROR` and still exit 0.
 
 ---
 
