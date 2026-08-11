@@ -39,6 +39,7 @@ import {
   type NextIds,
   type SessionSnapshot,
 } from "./entities.js";
+import { decodeSnapshotV1, V1_FORMAT_VERSION } from "./sidecar-v1.js";
 import { assertIntegrity } from "./integrity.js";
 import { raise } from "./failures.js";
 
@@ -224,7 +225,13 @@ export function decodeSnapshot(text: string): SessionSnapshot {
     raise("sidecar_format", "sidecar is empty; a header record is required");
   }
 
-  const header = readHeader(parseLine(lines[0] as string, 1));
+  const head = parseLine(lines[0] as string, 1);
+  if (head["format_version"] === V1_FORMAT_VERSION) {
+    const v1 = decodeSnapshotV1(lines);
+    assertIntegrity(v1);
+    return v1;
+  }
+  const header = readHeader(head);
 
   const buckets: Record<EntityKind, Record<string, unknown>[]> = {
     session: [],

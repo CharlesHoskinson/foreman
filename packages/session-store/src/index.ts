@@ -84,6 +84,8 @@ export {
   type Upgrade,
 } from "./sidecar.js";
 
+export { decodeSnapshotV1, V1_FORMAT_VERSION } from "./sidecar-v1.js";
+
 export {
   HangingMemoryIndex,
   NullMemoryIndex,

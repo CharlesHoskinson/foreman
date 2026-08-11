@@ -182,7 +182,6 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
     const ids = idsByKind.get(kind) ?? new Set<number>();
     const rows = rowsOfKind(snapshot, kind);
     const successorOf = new Map<number, number>();
-    const targetCount = new Map<number, number>();
 
     for (const row of rows) {
       const id = row["id"];
@@ -219,19 +218,17 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
         });
         continue;
       }
-      targetCount.set(by, (targetCount.get(by) ?? 0) + 1);
       if (typeof id === "number") successorOf.set(id, by);
     }
 
-    for (const [target, n] of targetCount) {
-      if (n > 1) {
-        out.push({
-          kind,
-          field: "superseded_by",
-          detail: `row ${target} supersedes ${n} rows; at most one is allowed`,
-        });
-      }
-    }
+    // Fan-in is allowed: one successor may legitimately supersede several
+    // predecessors at once, e.g. measurement 17 supersedes four stale
+    // full-suite runs (measurements 1, 8, 14, and 15) recorded when a fresh
+    // run replaced them all in the same pass. The query "what superseded row
+    // X" still has exactly one answer per row (superseded_by is single-
+    // valued), so nothing becomes ambiguous -- only "what did row Y
+    // supersede" becomes one-to-many, and that is exactly the real shape of
+    // this data. Do not reinstate a targetCount cardinality check here.
 
     // cycles: follow each chain, bounded by the number of rows
     for (const start of successorOf.keys()) {

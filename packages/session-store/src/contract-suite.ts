@@ -290,6 +290,57 @@ export const CASES: readonly Case[] = [
     },
   },
   {
+    name: "supersession/fan-in-is-accepted",
+    run: () => {
+      // Real shape from the live store: measurement 17 supersedes four
+      // stale predecessors (measurements 1, 8, 14, 15) recorded when one
+      // fresh full-suite run retired them all at once. Fan-in is
+      // legitimate: "what superseded row X" still has exactly one answer
+      // per row (superseded_by is single-valued); only "what did row Y
+      // supersede" becomes one-to-many.
+      const snap = {
+        ...withFacts(baseWithSession(), [
+          fact({ id: 1, superseded_by: 3, superseded_at: "2026-08-08T10:00:00Z" }),
+          fact({ id: 2, superseded_by: 3, superseded_at: "2026-08-08T10:00:00Z" }),
+          fact({ id: 3 }),
+        ]),
+        nextIds: { fact: 4, measurement: 1, obligation: 1 },
+      };
+      assert(
+        findViolations(snap).length === 0,
+        "legitimate fan-in supersession was rejected",
+      );
+    },
+  },
+  {
+    name: "supersession/fan-in-does-not-disable-other-checks",
+    run: () => {
+      // The fan-in relaxation above must not have silently weakened the
+      // neighbouring checks it sits beside in integrity.ts.
+      const dangling = withFacts(baseWithSession(), [
+        fact({ superseded_by: 99, superseded_at: "2026-08-08T10:00:00Z" }),
+      ]);
+      assert(findViolations(dangling).length > 0, "dangling pointer was accepted");
+
+      const selfSupersede = withFacts(baseWithSession(), [
+        fact({ id: 1, superseded_by: 1, superseded_at: "2026-08-08T10:00:00Z" }),
+      ]);
+      assert(
+        findViolations(selfSupersede).length > 0,
+        "self-supersession was accepted",
+      );
+
+      const cycle = {
+        ...withFacts(baseWithSession(), [
+          fact({ id: 1, superseded_by: 2, superseded_at: "2026-08-08T10:00:00Z" }),
+          fact({ id: 2, superseded_by: 1, superseded_at: "2026-08-08T10:00:00Z" }),
+        ]),
+        nextIds: { fact: 3, measurement: 1, obligation: 1 },
+      };
+      assert(findViolations(cycle).length > 0, "supersession cycle was accepted");
+    },
+  },
+  {
     name: "obligation/close-is-once-only",
     run: (f) => {
       const s = f();
@@ -402,20 +453,6 @@ export const HOSTILE_CASES: readonly Case[] = [
         nextIds: { fact: 3, measurement: 1, obligation: 1 },
       };
       assert(findViolations(snap).length > 0, "supersession cycle was accepted");
-    },
-  },
-  {
-    name: "hostile/two-rows-supersede-the-same-target",
-    run: () => {
-      const snap = {
-        ...withFacts(baseWithSession(), [
-          fact({ id: 1, superseded_by: 3, superseded_at: "2026-08-08T10:00:00Z" }),
-          fact({ id: 2, superseded_by: 3, superseded_at: "2026-08-08T10:00:00Z" }),
-          fact({ id: 3 }),
-        ]),
-        nextIds: { fact: 4, measurement: 1, obligation: 1 },
-      };
-      assert(findViolations(snap).length > 0, "forked supersession was accepted");
     },
   },
   {
