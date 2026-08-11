@@ -1180,6 +1180,152 @@ limit stays; the silence does not."
 
 ---
 
+### Task 6a: Move the bootstrap and sidecar ownership to the port
+
+Task 6 cannot begin until this lands. Pointing `SqliteSessionStore.open` at the
+CLI's existing database is not a cutover, it is a corruption. Measured against a
+copy of the live store:
+
+```console
+tables BEFORE:  facts measurements obligations schema_meta sessions
+tables AFTER:   + store_meta + memory_outbox
+store_meta:     next_id.fact|1  next_id.measurement|1  next_id.obligation|1
+actual max ids: facts|36        measurements|19        obligations|34
+```
+
+`open()` returns cleanly while adding tables and seeding every watermark to 1
+against live ids up to 36, so the next write collides. Worse, the CLI's sidecar
+writer walks `sqlite_schema`, so those two new tables are then written into the
+tracked NDJSON, after which `decodeSnapshot` refuses the canonical record with
+`unknown v1 table "store_meta"`. Every golden stays green throughout.
+
+**Files:**
+
+- Modify: `packages/orchestration/src/fm-session-main.ts`
+- Modify: `packages/orchestration/src/__golden__/seed.ndjson`
+- Modify: `packages/orchestration/src/__golden__/` (re-record, deliberate)
+
+**Interfaces:**
+
+- Consumes: `rebuildFromSidecar` from `./session-rebuild.js`; `encodeSnapshot`,
+  `decodeSnapshot`, `SqliteSessionStore` from `@foreman/session-store`.
+- Produces: a CLI whose database is always port-shaped, and whose sidecar is
+  written by the port rather than by a `sqlite_schema` walk.
+
+- [ ] **Step 1: Repair the golden seed**
+
+The seed is not self-consistent. `rebuildFromSidecar` rejects it with 15
+integrity violations: facts and obligations reference a `session_id` that the
+subsetting dropped, and `superseded_by` 32 and 34 point at rows outside the
+subset. It only loads today because the legacy path enforces nothing.
+
+Include every session referenced by a retained row, and resolve every retained
+`superseded_by` either by including its target or by clearing the supersession
+triple on that row. Keep the selection deterministic and keep the Task 1
+coverage properties: all four kinds present, at least one obligation carrying a
+blocker, and the pinned measurement shas still resolving.
+
+Prove it loads:
+
+```bash
+cd /root/fm-wt/sdb-design
+rm -rf /tmp/seedcheck && mkdir -p /tmp/seedcheck
+cp packages/orchestration/src/__golden__/seed.ndjson /tmp/seedcheck/
+cat > /tmp/seedcheck.ts <<'TS'
+import { rebuildFromSidecar } from "/root/fm-wt/sdb-design/packages/orchestration/src/session-rebuild.js";
+const r = rebuildFromSidecar({
+  sidecarPath: "/tmp/seedcheck/seed.ndjson",
+  dbPath: "/tmp/seedcheck/out.db",
+});
+console.log(JSON.stringify(r));
+TS
+npx tsx /tmp/seedcheck.ts
+```
+
+Expected: a row count and `nextIds`, with no integrity failure. Zero violations
+is the gate — do not proceed while any remain.
+
+- [ ] **Step 2: Bootstrap through the port, never onto the legacy file**
+
+Replace the CLI's "open the database at `.foreman/session.db`" with: if the file
+is absent or legacy-shaped, rebuild it from the canonical sidecar into a
+port-shaped database, then open that. Detect legacy shape structurally — the
+presence of `schema_meta` together with the absence of `store_meta` — not by a
+version number, because the number is what is untrustworthy here.
+
+Never open the port against a file that failed that test. Prove the guard:
+
+```bash
+cd /root/fm-wt/sdb-design
+rm -rf /tmp/bootprobe && mkdir -p /tmp/bootprobe/.foreman && cd /tmp/bootprobe
+git init -q .
+cp /root/foreman/.foreman/session.db .foreman/
+sqlite3 .foreman/session.db ".tables"
+node /root/fm-wt/sdb-design/skills/foreman/runtime/dist/fm-session.js recover >/dev/null
+sqlite3 .foreman/session.db "select key,value from store_meta;"
+sqlite3 .foreman/session.db "select max(id) from facts;"
+```
+
+Expected: every watermark strictly exceeds the corresponding `max(id)`. A
+watermark of 1 means the rebuild was skipped and the legacy file was opened
+directly.
+
+- [ ] **Step 3: The port writes the sidecar**
+
+Replace the `sqlite_schema`-driven dump with `encodeSnapshot(store.snapshot())`.
+The port emits only declared entity kinds, so `store_meta` and `memory_outbox`
+can no longer leak into the tracked record. Keep the fsync-before-rename added
+in Task 4 — verify the call site survives:
+
+```bash
+grep -rn "fsyncSync" packages/*/src | grep -v "\.test\.ts"
+```
+
+Expected: at least one call site on the path that renames the sidecar.
+
+- [ ] **Step 4: Render `blocked` as derived state**
+
+The port's model has no `blocked` status — it is `open` plus a non-null
+`blocker`, and the v1 reader normalizes it on the way in. The CLI must therefore
+derive it at render time, or `recover` will report five obligations that vanished.
+
+Render an obligation as blocked when its status is `open` and its `blocker` is
+non-null. Apply the same rule to the Task 5 actionability sort, so genuinely open
+obligations still rank ahead of blocked ones.
+
+Prove against a copy of the live store that `recover` still reports
+`open=19 blocked=5`. If those counts move, the derivation is wrong.
+
+- [ ] **Step 5: Re-record the goldens, deliberately**
+
+Two changes are expected: the rehydrate banner count shifts as `schema_meta`
+stops being a row, and any fixture reflecting the repaired seed moves. Review
+every changed fixture and account for each in the report. `freshness.out` must
+still land in multiple distinct states — if it collapses to one bucket the seed
+repair destroyed Task 1's measurement coverage.
+
+```bash
+cd /root/fm-wt/sdb-design
+GOLDEN_UPDATE=1 npx tsx --test packages/orchestration/src/fm-session-golden.test.ts
+git diff --stat packages/orchestration/src/__golden__
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts
+```
+
+- [ ] **Step 6: Rebuild, verify and commit**
+
+```bash
+cd /root/fm-wt/sdb-design
+npm run build && npm run verify-runtime
+npm run typecheck && npm test 2>&1 | tail -5
+bash skills/foreman/scripts/docs-check.sh
+git add packages/orchestration/src packages/session-store/src skills/foreman/runtime
+git ls-files -s packages/orchestration/src | grep -v '^100644' || echo "modes ok"
+git commit -F <your message file>
+git status --porcelain
+```
+
+---
+
 ### Task 6: Move the CLI onto the port
 
 Do this one command at a time. After each command, run the goldens. A command is
@@ -1229,6 +1375,13 @@ Expected: PASS with no golden changes. Reads must be byte-identical.
 
 Route `begin`, `end`, `fact`, `measure`, `obligation` and `close` through the
 port, one at a time, running the goldens after each.
+
+`close` changes behaviour deliberately. The port refuses to close an obligation
+that is not open, never writes `blocker`, and always stamps `closed_ts`. The
+shipping CLI accepts any `--status` value and wipes `blocker`; both were recorded
+as defects in the design. The port's semantics win, so the `close-unknown` golden
+is re-recorded in the same commit that changes the behaviour, exactly as
+`supersede-missing` is.
 
 Worked example for `fact`, which every other write command follows. Replace the
 legacy body:
