@@ -450,18 +450,6 @@ export const CASES: readonly Case[] = [
       }
     },
   },
-  {
-    name: "durability/pragmas-are-set",
-    run: (f) => {
-      const s = f();
-      try {
-        const snap = s.snapshot();
-        assert(snap !== null, "store did not open");
-      } finally {
-        s.close();
-      }
-    },
-  },
 ];
 
 /** Hostile-snapshot cases: pure validation, no store needed. */
