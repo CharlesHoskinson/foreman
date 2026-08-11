@@ -407,8 +407,18 @@ function pathsAlias(left: string, right: string) {
 }
 
 function writeAtomic(path: string, text: string) {
-  writeFileSync(path + ".tmp", text, { encoding: "utf8" });
-  renameSync(path + ".tmp", path);
+  const tmp = path + ".tmp";
+  writeFileSync(tmp, text, { encoding: "utf8" });
+  // The sidecar is the tracked, canonical record. Without this flush the
+  // rename can land before the bytes do, and the record of truth is the one
+  // artefact that must not be able to tear.
+  const fd = openSync(tmp, "r+");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(tmp, path);
 }
 
 function readSidecar(path: string) {

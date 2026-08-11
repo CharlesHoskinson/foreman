@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { describe, it } from "node:test";
+import { tmpdir } from "node:os";
+import { describe, it, test } from "node:test";
 
 import {
   ALL_CASES,
@@ -11,7 +12,7 @@ import {
   seedFixture,
 } from "./contract-suite.js";
 import { encodeSnapshot } from "./sidecar.js";
-import { openMemoryStore } from "./sqlite-store.js";
+import { openMemoryStore, SqliteSessionStore } from "./sqlite-store.js";
 import { buildProjection, faultInjectionIndexes } from "./memory-index.js";
 import { PROJECTABLE_FIELDS } from "./port.js";
 
@@ -163,4 +164,26 @@ describe("schema drift", () => {
       store.close();
     }
   });
+});
+
+test("sqlite store opens in WAL with a busy timeout", () => {
+  const dir = mkdtempSync(join(tmpdir(), "pragma-"));
+  const path = join(dir, "s.db");
+  const store = SqliteSessionStore.open(path);
+  // busy_timeout and synchronous are per-connection SQLite settings: unlike
+  // journal_mode they are never persisted into the database file, so a fresh
+  // DatabaseSync opened after store.close() would always read back the
+  // connection defaults (timeout 0, synchronous FULL) no matter what the
+  // store set. Read back through the store's own connection instead — that
+  // is the only place the pragmas actually took effect.
+  const db = (
+    store as unknown as { db: { prepare(sql: string): { get(): unknown } } }
+  ).db;
+  const journal = db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
+  const busy = db.prepare("PRAGMA busy_timeout").get() as { timeout: number };
+  const sync = db.prepare("PRAGMA synchronous").get() as { synchronous: number };
+  store.close();
+  assert.equal(journal.journal_mode, "wal");
+  assert.ok(busy.timeout >= 5000, `busy_timeout was ${busy.timeout}`);
+  assert.equal(sync.synchronous, 1); // NORMAL
 });

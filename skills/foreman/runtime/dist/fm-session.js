@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { join, dirname, resolve } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync } from "node:fs";
 var SCHEMA_VERSION = 3;
 var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
 var SIDECAR_FORMAT = "foreman-session-sidecar";
@@ -387,8 +387,15 @@ function pathsAlias(left, right) {
   }
 }
 function writeAtomic(path, text) {
-  writeFileSync(path + ".tmp", text, { encoding: "utf8" });
-  renameSync(path + ".tmp", path);
+  const tmp = path + ".tmp";
+  writeFileSync(tmp, text, { encoding: "utf8" });
+  const fd = openSync(tmp, "r+");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(tmp, path);
 }
 function readSidecar(path) {
   const documents = [];

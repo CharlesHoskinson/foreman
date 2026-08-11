@@ -149,6 +149,15 @@ export class SqliteSessionStore implements SessionStore {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     const db = new DatabaseSync(path);
     db.exec("PRAGMA foreign_keys=ON");
+    // WAL lets readers run while a writer holds the write lock. AGENT_TRAPS.md:22
+    // documents concurrent writers as normal operation, so the rollback-journal
+    // default is a live hazard, not a theoretical one.
+    db.exec("PRAGMA journal_mode=WAL");
+    // NORMAL is durable across process crashes, which is the failure mode that
+    // actually happens here. It trades only the last transaction on power loss.
+    db.exec("PRAGMA synchronous=NORMAL");
+    // Without this a second writer fails instantly with SQLITE_BUSY.
+    db.exec("PRAGMA busy_timeout=5000");
     db.exec(SCHEMA);
     return new SqliteSessionStore(db, opts);
   }
