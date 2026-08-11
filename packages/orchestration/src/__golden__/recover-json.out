@@ -2,13 +2,27 @@
   "recovered_at": "<TS>",
   "head_sha": "<HEAD>",
   "last_session": {
-    "session_id": "20260730T222519Z-da94ed",
-    "started_ts": "2026-07-30T22:25:19Z",
-    "start_sha": "f6d577dbee5de0fc33b6f3eb6072789643e196ff",
-    "ended_ts": "2026-07-30T22:55:10Z",
-    "note": "Resume from the session DB: re-establish open obligations and in-flight state on integrate/v029-w1, then continue the stop-point checklist."
+    "session_id": "20260731T143323Z-41ab8f",
+    "started_ts": "2026-07-31T14:33:23Z",
+    "start_sha": "ce522b7a891e748802737222730fced778b6945e",
+    "ended_ts": "2026-07-31T20:22:38Z",
+    "note": "Sprint close-out planning for v0.2.9: audit remaining scope, fix CI/CD, QA all features, tag the release"
   },
   "facts": [
+    {
+      "kind": "fact",
+      "id": 34,
+      "statement": "audit-run.sh leaked its timeout watchdog because the EXIT/INT/TERM trap killed only the wrapping subshell, not the sleep blocked inside it. Killing a subshell does not signal its children. Fixed at fd0ebef: the watchdog sleeps in one-second slices, checks kill -0 on the parent each slice, and stays in the scripts own process group so group sweeps reach it",
+      "evidence": "commit fd0ebef; tests/decision-events.bats now completes in 65s, was 1800s",
+      "established_ts": "2026-07-31T19:53:00Z"
+    },
+    {
+      "kind": "fact",
+      "id": 32,
+      "statement": "The session store keyed on --git-common-dir and is shared by every worktree. Fragmentation was realised, not latent: two session.db files existed before the fix",
+      "evidence": "fm-session.py repo_root uses --path-format=absolute --git-common-dir; tests/session.bats \"a linked worktree shares the repo session store\"",
+      "established_ts": "2026-07-31T15:58:34Z"
+    },
     {
       "kind": "fact",
       "id": 29,
@@ -475,7 +489,7 @@
     }
   ],
   "counts": {
-    "facts": 28,
+    "facts": 30,
     "measurements_fresh": 2,
     "measurements_stale": 1,
     "measurements_unknown": 2,

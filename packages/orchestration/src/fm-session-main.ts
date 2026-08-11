@@ -5,67 +5,33 @@ import { parseArgs } from "node:util";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { join, dirname, resolve } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, openSync, closeSync, fsyncSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, openSync, closeSync, fsyncSync } from "node:fs";
+import {
+  ENTITY_ORDER,
+  SIDECAR_FORMAT,
+  SqliteSessionStore,
+  countRows,
+  decodeSnapshot,
+  encodeSnapshot,
+  specFor,
+} from "@foreman/session-store";
+import { rebuildFromSidecar } from "./session-rebuild.js";
 
-const SCHEMA_VERSION = 3;
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
-const SIDECAR_FORMAT = "foreman-session-sidecar";
-const SIDECAR_FORMAT_VERSION = 1;
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS schema_meta (
-  key   TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS sessions (
-  session_id  TEXT PRIMARY KEY,
-  started_ts  TEXT NOT NULL,
-  start_sha   TEXT,
-  ended_ts    TEXT,
-  note        TEXT
-);
-
-CREATE TABLE IF NOT EXISTS facts (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  statement      TEXT NOT NULL,
-  evidence       TEXT,
-  established_ts TEXT NOT NULL,
-  session_id     TEXT,
-  superseded_by  INTEGER REFERENCES facts(id),
-  superseded_at   TEXT,
-  supersede_reason TEXT
-);
-
-CREATE TABLE IF NOT EXISTS measurements (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  metric       TEXT NOT NULL,
-  value        TEXT NOT NULL,
-  command      TEXT,
-  measured_ts  TEXT NOT NULL,
-  measured_sha TEXT,
-  scope_paths  TEXT,
-  session_id   TEXT,
-  value_num    REAL,
-  superseded_by    INTEGER REFERENCES measurements(id),
-  superseded_at    TEXT,
-  supersede_reason TEXT
-);
-
-CREATE TABLE IF NOT EXISTS obligations (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  statement  TEXT NOT NULL,
-  status     TEXT NOT NULL DEFAULT 'open',
-  blocker    TEXT,
-  opened_ts  TEXT NOT NULL,
-  closed_ts  TEXT,
-  session_id TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_meas_metric ON measurements(metric);
-CREATE INDEX IF NOT EXISTS idx_oblig_status ON obligations(status);
-CREATE INDEX IF NOT EXISTS idx_facts_superseded ON facts(superseded_by);
-`;
+/**
+ * v1 sidecar table names by entity kind.
+ *
+ * Nothing writes v1 any more. This map exists only so a legacy-shaped
+ * database can be dumped in the one format the v1 reader understands, on the
+ * way to being rebuilt as a port-shaped file.
+ */
+const V1_TABLE: Record<string, string> = {
+  session: "sessions",
+  fact: "facts",
+  measurement: "measurements",
+  obligation: "obligations",
+};
 
 function jsonDumps(obj: any, sortKeys = false): string {
   if (obj === null) return "null";
@@ -122,66 +88,138 @@ function dbPath(): string {
   return chosen;
 }
 
-function connectReadonly(path?: string): DatabaseSync {
-  const p = path ?? dbPath();
-  if (!existsSync(p)) return connect(p);
+/**
+ * How the file at `p` is shaped, decided STRUCTURALLY.
+ *
+ * Deliberately not decided from a version number: the number is exactly what
+ * is untrustworthy here -- a legacy file can carry any value in schema_meta
+ * and still be the wrong shape for the port. A legacy file has schema_meta
+ * and no store_meta. A port-shaped file has store_meta. A file that exists
+ * but declares neither table has nothing to migrate, so it is treated as
+ * absent and the port creates its schema in place.
+ */
+function classifyStore(p: string): "absent" | "legacy" | "port" {
+  if (!existsSync(p)) return "absent";
+  const db = new DatabaseSync(p);
   try {
-    const db = new DatabaseSync(p);
+    const names = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as any[]).map(r => r.name));
+    if (names.has("store_meta")) return "port";
+    if (names.has("schema_meta")) return "legacy";
+    return "absent";
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Dump a legacy-shaped database as v1 sidecar text.
+ *
+ * Reads the file it is about to replace; never writes to it. A column the old
+ * schema never grew is selected as NULL rather than added with ALTER TABLE,
+ * so a migration that is refused downstream leaves the legacy file
+ * byte-identical to what it found.
+ */
+function legacyDumpV1(p: string): string {
+  const db = new DatabaseSync(p);
+  try {
     db.exec("PRAGMA foreign_keys=OFF");
-    const have = new Set((db.prepare("PRAGMA table_info(measurements)").all() as any[]).map(r => r.name));
-    if (!have.has("value_num") || !have.has("superseded_by")) {
-      db.close();
-      return connect(p);
+    const present = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as any[]).map(r => r.name));
+    const documents = [jsonDumps({ format: SIDECAR_FORMAT, format_version: 1 }, true)];
+    for (const kind of ENTITY_ORDER) {
+      const table = V1_TABLE[kind] as string;
+      if (!present.has(table)) continue;
+      const spec = specFor(kind as any);
+      const have = new Set((db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all() as any[]).map(r => r.name));
+      const columns = spec.fields.map((f: any) => f.name as string);
+      const selected = columns.map(c => have.has(c) ? quoteIdentifier(c) : `NULL AS ${quoteIdentifier(c)}`).join(", ");
+      const ordering = spec.ordering.map((c: any) => quoteIdentifier(c)).join(", ");
+      const query = `SELECT ${selected} FROM ${quoteIdentifier(table)} ORDER BY ${ordering}`;
+      for (const record of db.prepare(query).all() as any[]) {
+        const row: any = {};
+        for (const c of columns) row[c] = record[c] ?? null;
+        documents.push(jsonDumps({ row, table }, true));
+      }
     }
-    return db;
+    return documents.join("\n") + "\n";
+  } finally {
+    db.close();
+  }
+}
+
+function sidecarPathFor(p: string): string {
+  return p.replace(/\.db$/, ".ndjson");
+}
+
+function storeIsEmpty(p: string): boolean {
+  const db = new DatabaseSync(p);
+  try {
+    const row = db.prepare("SELECT (SELECT COUNT(*) FROM facts) + (SELECT COUNT(*) FROM measurements) + (SELECT COUNT(*) FROM obligations) + (SELECT COUNT(*) FROM sessions) AS n").get() as any;
+    return !!row && row.n === 0;
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Guarantee the file at `p` is port-shaped BEFORE anything opens it.
+ *
+ * The port creates its tables with CREATE TABLE IF NOT EXISTS, so opening it
+ * straight onto a legacy file returns cleanly while leaving the old schema in
+ * place and seeding every id watermark to 1 against live ids in the thirties.
+ * The next write then collides on the primary key. The only safe migration is
+ * a rebuild into a FRESH file, which is what rebuildFromSidecar does.
+ *
+ * A legacy file is migrated from ITS OWN contents rather than from the tracked
+ * sidecar. It is the artefact being replaced, so nothing it holds may be lost
+ * to a sidecar that is stale, or missing entirely.
+ */
+function bootstrapStore(p: string) {
+  const shape = classifyStore(p);
+  if (shape === "legacy") {
+    const carrier = `${p}.legacy.ndjson`;
+    try {
+      writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
+      const res = rebuildFromSidecar({ sidecarPath: carrier, dbPath: p, force: true });
+      process.stderr.write(`migrated ${res.rowsWritten} row(s) out of the legacy session schema into ${p}\n`);
+    } catch (e: any) {
+      process.stderr.write(`refusing: the legacy session store at ${p} could not be migrated to the port schema: ${e.message}\n`);
+      throw e;
+    } finally {
+      rmSync(carrier, { force: true });
+    }
+  } else if (shape === "absent") {
+    SqliteSessionStore.open(p).close();
+  }
+  rehydrateFromSidecarIfEmpty(p);
+}
+
+function rehydrateFromSidecarIfEmpty(p: string) {
+  const sidecar = sidecarPathFor(p);
+  if (pathsAlias(sidecar, p) || !existsSync(sidecar)) return;
+  try {
+    if (!storeIsEmpty(p)) return;
   } catch (e) {
-    return connect(p);
+    return;
+  }
+  try {
+    const res = rebuildFromSidecar({ sidecarPath: sidecar, dbPath: p, force: true });
+    process.stderr.write(`rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)\n`);
+  } catch (e: any) {
+    process.stderr.write(`WARNING: session store is empty and the sidecar at ${sidecar} could not be imported: ${e.message}\n`);
   }
 }
 
 export function connect(path?: string): DatabaseSync {
   const p = path ?? dbPath();
   mkdirSync(dirname(p), { recursive: true });
+  bootstrapStore(p);
   const db = new DatabaseSync(p);
+  // Foreign keys stay OFF on this connection, matching what the commands
+  // still served by raw SQL here have always seen. The port's own connection
+  // turns them ON, and Task 6 moves those commands onto it.
   db.exec("PRAGMA foreign_keys=OFF");
-  db.exec(SCHEMA);
-  
-  const cols = (table: string) => new Set((db.prepare(`PRAGMA table_info(${table})`).all() as any[]).map(r => r.name));
-  const migrations = [
-    ["facts", "superseded_at", "TEXT"],
-    ["facts", "supersede_reason", "TEXT"],
-    ["measurements", "value_num", "REAL"],
-    ["measurements", "superseded_by", "INTEGER"],
-    ["measurements", "superseded_at", "TEXT"],
-    ["measurements", "supersede_reason", "TEXT"],
-  ];
-  for (const [table, col, decl] of migrations) {
-    if (!cols(table).has(col)) {
-      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${decl}`);
-    }
-  }
-  db.prepare("INSERT OR REPLACE INTO schema_meta(key,value) VALUES('version',?)").run(String(SCHEMA_VERSION));
-  rebuildFromSidecarIfEmpty(db, p);
+  db.exec("PRAGMA busy_timeout=5000");
   return db;
-}
-
-function rebuildFromSidecarIfEmpty(conn: DatabaseSync, p: string) {
-  try {
-    const row = conn.prepare("SELECT (SELECT COUNT(*) FROM facts) + (SELECT COUNT(*) FROM measurements) + (SELECT COUNT(*) FROM obligations) + (SELECT COUNT(*) FROM sessions) AS n").get() as any;
-    if (!row || row.n > 0) return;
-  } catch (e) {
-    return;
-  }
-  
-  const sidecar = p.replace(/\.db$/, ".ndjson");
-  if (!existsSync(sidecar)) return;
-  
-  try {
-    const n = importSidecar(conn, sidecar);
-    process.stderr.write(`rehydrated ${n} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)\n`);
-  } catch (e: any) {
-    process.stderr.write(`WARNING: session store is empty and the sidecar at ${sidecar} could not be imported: ${e.message}\n`);
-  }
 }
 
 function scalarOf(text: string): number | null {
@@ -222,6 +260,19 @@ function measurementValidity(measuredSha: string | null, scopePaths: string | nu
   }
 }
 
+/**
+ * `blocked` is DERIVED state, never stored.
+ *
+ * The entity model declares status as open|done|dropped and carries the
+ * blocker in its own column, so a blocked obligation IS an open one with a
+ * non-null blocker. The v1 reader rewrites the old stored "blocked" to that
+ * pair on the way in, so without this derivation the five blocked obligations
+ * would silently read as open and the count would move.
+ */
+function displayStatus(o: { status: string; blocker: string | null }): string {
+  return o.status === "open" && o.blocker ? "blocked" : o.status;
+}
+
 function buildRecovery(conn: DatabaseSync) {
   const head = gitSha();
   const sess = conn.prepare("SELECT * FROM sessions ORDER BY session_id DESC LIMIT 1").get() as any;
@@ -242,7 +293,7 @@ function buildRecovery(conn: DatabaseSync) {
   }
   
   const obligations = (conn.prepare("SELECT * FROM obligations WHERE status != 'done' ORDER BY id DESC").all() as any[]).map(r => ({
-    kind: "obligation", id: r.id, statement: r.statement, status: r.status, blocker: r.blocker, opened_ts: r.opened_ts
+    kind: "obligation", id: r.id, statement: r.statement, status: displayStatus(r), blocker: r.blocker, opened_ts: r.opened_ts
   }));
   // Actionability ordering: what survives truncation should be the part
   // worth keeping. An open obligation with no blocker is the most
@@ -395,43 +446,26 @@ function quoteIdentifier(name: string) {
   return '"' + name.replace(/"/g, '""') + '"';
 }
 
-function storeSchema(conn: DatabaseSync): Record<string, any> {
-  const tables = (conn.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as any[]).map(r => r.name);
-  const schema: Record<string, any> = {};
-  for (const table of tables) {
-    const info = conn.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all() as any[];
-    const columns = info.map(r => r.name);
-    const primaryKey = info.filter(r => r.pk).sort((x, y) => x.pk - y.pk).map(r => r.name);
-    if (primaryKey.length === 0) throw new Error(`cannot serialize table ${table}: table has no primary key`);
-    schema[table] = { columns, primary_key: primaryKey };
-  }
-  return schema;
-}
-
-export function sidecarNdjson(conn: DatabaseSync): [string, number] {
-  conn.exec("BEGIN");
+/**
+ * The tracked record, encoded by the port from a declared snapshot.
+ *
+ * This used to walk `sqlite_schema` and dump whatever tables it found, which
+ * made the backend's table list the contract. Against a port-shaped store that
+ * walk writes `store_meta` and `memory_outbox` into the tracked NDJSON, and
+ * `decodeSnapshot` then refuses the file the CLI itself just wrote with
+ * `unknown v1 table "store_meta"`. encodeSnapshot emits declared entity kinds
+ * only, so an undeclared table cannot reach the record at all.
+ *
+ * Takes a PATH, not a connection: the snapshot must come from the port, and
+ * the port owns its own connection.
+ */
+export function sidecarNdjson(dbFile: string): [string, number] {
+  const store = SqliteSessionStore.open(dbFile);
   try {
-    const documents: any[] = [{ format: SIDECAR_FORMAT, format_version: SIDECAR_FORMAT_VERSION }];
-    let rowCount = 0;
-    const schema = storeSchema(conn);
-    for (const table of Object.keys(schema)) {
-      const columns = schema[table].columns as string[];
-      const selected = columns.map(quoteIdentifier).join(", ");
-      const ordering = (schema[table].primary_key as string[]).map(quoteIdentifier).join(", ");
-      const query = `SELECT ${selected} FROM ${quoteIdentifier(table)} ORDER BY ${ordering}`;
-      for (const record of conn.prepare(query).all() as any[]) {
-        const row: any = {};
-        for (const col of columns) row[col] = record[col];
-        documents.push({ table, row });
-        rowCount++;
-      }
-    }
-    const lines = documents.map(d => jsonDumps(d, true)).join("\n");
-    conn.exec("COMMIT");
-    return [lines + "\n", rowCount];
-  } catch (e) {
-    conn.exec("ROLLBACK");
-    throw e;
+    const snapshot = store.snapshot();
+    return [encodeSnapshot(snapshot), countRows(snapshot)];
+  } finally {
+    store.close();
   }
 }
 
@@ -458,96 +492,38 @@ function writeAtomic(path: string, text: string) {
   renameSync(tmp, path);
 }
 
-function readSidecar(path: string) {
-  const documents: any[] = [];
-  const text = readFileSync(path, "utf8");
-  const lines = text.split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] as string;
-    if (!line.trim()) continue;
-    try {
-      const doc = JSON.parse(line as string);
-      if (typeof doc !== "object" || doc === null) throw new Error("expected object");
-      documents.push(doc);
-    } catch (e: any) {
-      throw new Error(`invalid NDJSON at line ${i + 1}: ${e.message}`);
-    }
-  }
-  return documents;
-}
-
-function describeRow(row: any) {
-  return jsonDumps(row, true);
-}
-
-function validateSidecar(conn: DatabaseSync, path: string): [Record<string, any>, [string, any][]] {
-  const documents = readSidecar(path);
-  if (documents.length === 0) throw new Error("missing sidecar format record");
-  
-  const header = documents[0];
-  if (header.format !== SIDECAR_FORMAT) throw new Error(`unsupported sidecar format: '${header.format}'`);
-  if (header.format_version !== SIDECAR_FORMAT_VERSION) throw new Error(`unsupported sidecar format version: ${header.format_version}`);
-  if (Object.keys(header).sort().join(",") !== "format,format_version") throw new Error("invalid sidecar format record");
-  
-  const schema = storeSchema(conn);
-  const rows: [string, any][] = [];
-  for (let i = 1; i < documents.length; i++) {
-    const doc = documents[i];
-    if ("format" in doc || "format_version" in doc) throw new Error("sidecar must contain exactly one format record");
-    const table = doc.table;
-    const row = doc.row;
-    if (typeof table !== "string" || typeof row !== "object" || row === null) throw new Error(`invalid sidecar row record: ${jsonDumps(doc)}`);
-    if (Object.keys(doc).sort().join(",") !== "row,table") throw new Error(`cannot restore table ${table}, row ${describeRow(row)}: record must contain only table and row`);
-    if (!(table in schema)) throw new Error(`cannot restore table ${table}, row ${describeRow(row)}: table is not present in the target schema`);
-    
-    const expected = new Set(schema[table].columns as string[]);
-    const actual = new Set(Object.keys(row));
-    let missing = [...expected].filter(x => !actual.has(x)).sort();
-    let extra = [...actual].filter(x => !expected.has(x)).sort();
-    if (missing.length > 0 || extra.length > 0) {
-      throw new Error(`cannot restore table ${table}, row ${describeRow(row)}: columns differ (missing=[${missing.map(x=>`'${x}'`).join(", ")}], extra=[${extra.map(x=>`'${x}'`).join(", ")}])`);
-    }
-    rows.push([table, row]);
-  }
-  return [schema, rows];
-}
-
-export function importSidecar(conn: DatabaseSync, path: string, force = false): number {
-  const [schema, rows] = validateSidecar(conn, path);
-  const dataTables = Object.keys(schema).filter(t => t !== "schema_meta");
-  conn.exec("BEGIN IMMEDIATE");
+/**
+ * Restore a sidecar into the store at `dbFile`.
+ *
+ * decodeSnapshot accepts both sidecar formats -- v1 by its header version,
+ * v2 otherwise -- and validates the whole snapshot against the declared model
+ * before importSnapshot opens a transaction, so a bad file cannot half-apply.
+ */
+export function importSidecar(dbFile: string, path: string, force = false): number {
+  const snapshot = decodeSnapshot(readFileSync(path, "utf8"));
+  const store = SqliteSessionStore.open(dbFile);
   try {
-    let hasRows = false;
-    for (const table of dataTables) {
-      if (conn.prepare(`SELECT 1 FROM ${quoteIdentifier(table)} LIMIT 1`).get()) {
-        hasRows = true; break;
-      }
-    }
-    if (hasRows && !force) throw new Error("target store already has rows; use --force to replace it");
-    
-    for (const table of Object.keys(schema).reverse()) {
-      conn.exec(`DELETE FROM ${quoteIdentifier(table)}`);
-    }
-    if (conn.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='sqlite_sequence'").get()) {
-      const qms = Object.keys(schema).map(()=>"?").join(",");
-      conn.prepare(`DELETE FROM sqlite_sequence WHERE name IN (${qms})`).run(...Object.keys(schema));
-    }
-    for (const [table, row] of rows) {
-      const columns = schema[table].columns as string[];
-      const names = columns.map(quoteIdentifier).join(", ");
-      const placeholders = columns.map(()=>"?").join(", ");
-      try {
-        conn.prepare(`INSERT INTO ${quoteIdentifier(table)} (${names}) VALUES (${placeholders})`).run(...columns.map(c => row[c]));
-      } catch (e: any) {
-        throw new Error(`cannot restore table ${table}, row ${describeRow(row)}: ${e.message}`);
-      }
-    }
-    conn.exec("COMMIT");
-    return rows.length;
-  } catch (e) {
-    conn.exec("ROLLBACK");
-    throw e;
+    return store.importSnapshot(snapshot, { force });
+  } finally {
+    store.close();
   }
+}
+
+/**
+ * Mint the next id for `kind` from the port's persisted watermark.
+ *
+ * The port mints identity from store_meta; its tables are plain INTEGER
+ * PRIMARY KEY with no AUTOINCREMENT. A raw INSERT that let SQLite choose would
+ * take max(id)+1 and leave the watermark sitting behind it, so the next
+ * port-minted id would collide -- and a snapshot whose row id sits at or above
+ * its watermark fails integrity, which makes the tracked record unreadable.
+ * Bump first: a crash between the two leaves a gap, never a clash.
+ */
+function mintId(conn: DatabaseSync, kind: string): number {
+  const row = conn.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`) as any;
+  const id = row ? Number(row.value) : 1;
+  conn.prepare("INSERT OR REPLACE INTO store_meta(key,value) VALUES(?,?)").run(`next_id.${kind}`, String(id + 1));
+  return id;
 }
 
 function currentSession(cur: DatabaseSync): string | null {
@@ -589,20 +565,20 @@ export function main() {
   }
   
   let conn: DatabaseSync;
+  let importTarget: string;
   if (cmd === "import-sidecar") {
+    importTarget = (parsed.options.into as string) || dbPath();
     try {
-      conn = connect(parsed.options.into as string);
+      conn = connect(importTarget);
     } catch(e: any) {
       const msg = e.message.includes("unable to open database file") ? "sqlite3.OperationalError" : e.message;
       process.stderr.write(`refusing: cannot open target store: ${msg}\n`);
       process.exit(2);
     }
-  } else if (READ_ONLY_CMDS.has(cmd)) {
-    try { conn = connectReadonly(); } catch (e: any) { process.stderr.write(`sqlite3.OperationalError\n`); process.exit(1); }
   } else {
     try { conn = connect(); } catch (e: any) { process.stderr.write(`sqlite3.OperationalError\n`); process.exit(1); }
   }
-  
+
   if (cmd === "begin") {
     const rec = buildRecovery(conn);
     const sid = mintSessionId();
@@ -642,8 +618,9 @@ export function main() {
   if (cmd === "fact") {
     const statement = parsed.args[0];
     const evidence = parsed.options.evidence || null;
-    const res = conn.prepare("INSERT INTO facts(statement,evidence,established_ts,session_id) VALUES(?,?,?,?)").run(statement, evidence, nowIso(), currentSession(conn));
-    process.stdout.write(`fact ${res.lastInsertRowid}\n`);
+    const id = mintId(conn, "fact");
+    conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id, statement, evidence, nowIso(), currentSession(conn));
+    process.stdout.write(`fact ${id}\n`);
     return 0;
   }
   
@@ -659,20 +636,25 @@ export function main() {
     if (parsed.options.num !== undefined) vnum = parseFloat(parsed.options.num);
     else vnum = scalarOf(value);
     
-    const res = conn.prepare("INSERT INTO measurements(metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?)").run(
-      metric, value, command, nowIso(), gitSha(), parsed.options.scope.join("\n"), currentSession(conn), vnum
+    const id = mintId(conn, "measurement");
+    conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
+      id, metric, value, command, nowIso(), gitSha(), parsed.options.scope.join("\n"), currentSession(conn), vnum
     );
-    process.stdout.write(`measurement ${res.lastInsertRowid}\n`);
+    process.stdout.write(`measurement ${id}\n`);
     return 0;
   }
   
   if (cmd === "obligation") {
     const statement = parsed.args[0];
     const blocker = parsed.options.blocker || null;
-    const res = conn.prepare("INSERT INTO obligations(statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?)").run(
-      statement, blocker ? "blocked" : "open", blocker, nowIso(), currentSession(conn)
+    // Status stays "open": blocked is derived from the blocker column, and the
+    // declared enum has no "blocked" member. Storing it would put a value
+    // outside the model into the tracked record, which the next read refuses.
+    const id = mintId(conn, "obligation");
+    conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
+      id, statement, "open", blocker, nowIso(), currentSession(conn)
     );
-    process.stdout.write(`obligation ${res.lastInsertRowid}\n`);
+    process.stdout.write(`obligation ${id}\n`);
     return 0;
   }
   
@@ -699,7 +681,7 @@ export function main() {
       process.exit(2);
     }
     try {
-      const [lines, rowCount] = sidecarNdjson(conn);
+      const [lines, rowCount] = sidecarNdjson(store);
       writeAtomic(outPath, lines);
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}\n`);
       return 0;
@@ -712,16 +694,11 @@ export function main() {
   if (cmd === "import-sidecar") {
     const path = parsed.args[0];
     try {
-      const count = importSidecar(conn, path, !!parsed.options.force);
-      const target = parsed.options.into || dbPath();
-      process.stdout.write(`imported ${count} document(s) -> ${target}\n`);
+      const count = importSidecar(importTarget, path, !!parsed.options.force);
+      process.stdout.write(`imported ${count} document(s) -> ${importTarget}\n`);
       return 0;
     } catch (e: any) {
-      let msg = String(e.message);
-      if (e.message.includes("NOT NULL constraint failed")) {
-         msg = e.message;
-      }
-      process.stderr.write(`refusing: ${msg}\n`);
+      process.stderr.write(`refusing: ${e.message}\n`);
       process.exit(2);
     }
   }
@@ -734,8 +711,8 @@ export function main() {
     if (!reason) {
        process.stderr.write("error: option --reason requires an argument\n"); process.exit(2);
     }
-    const res = conn.prepare("INSERT INTO facts(statement,evidence,established_ts,session_id) VALUES(?,?,?,?)").run(statement, evidence, nowIso(), currentSession(conn));
-    const newId = res.lastInsertRowid;
+    const newId = mintId(conn, "fact");
+    conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId, statement, evidence, nowIso(), currentSession(conn));
     conn.prepare("UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(newId, nowIso(), reason, factId);
     process.stdout.write(`fact ${factId} superseded by ${newId}\n`);
     return 0;
@@ -795,14 +772,12 @@ function mainWithSidecar() {
   
   try {
     const store = dbPath();
-    const out = store.replace(/\.db$/, ".ndjson");
+    const out = sidecarPathFor(store);
     if (pathsAlias(out, store)) {
       process.exit(rc);
     }
-    const conn = connectReadonly();
-    const [lines, rowCount] = sidecarNdjson(conn);
+    const [lines, rowCount] = sidecarNdjson(store);
     writeAtomic(out, lines);
-    conn.close();
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
   } catch (e: any) {
     process.stderr.write(`WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.\n`);

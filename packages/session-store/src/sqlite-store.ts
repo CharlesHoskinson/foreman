@@ -278,7 +278,33 @@ export class SqliteSessionStore implements SessionStore {
     });
   }
 
+  /**
+   * A whole-store picture, read inside ONE deferred read transaction.
+   *
+   * The transaction is load-bearing, not decoration. Without it each table's
+   * SELECT is its own read transaction, so a writer committing between two of
+   * them yields a torn picture -- facts from before the write and measurements
+   * from after. The canonical sidecar is encoded from this value, so a torn
+   * snapshot is a torn record of truth. BEGIN (deferred), not BEGIN IMMEDIATE:
+   * this takes no write lock and does not block a concurrent writer.
+   */
   snapshot(): SessionSnapshot {
+    this.db.exec("BEGIN");
+    try {
+      const out = this.readSnapshot();
+      this.db.exec("COMMIT");
+      return out;
+    } catch (e) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // rollback of an already-aborted transaction is not itself an error
+      }
+      throw e;
+    }
+  }
+
+  private readSnapshot(): SessionSnapshot {
     const nextIds: Record<string, number> = {};
     for (const kind of COUNTED_KINDS) nextIds[kind] = this.peekNextId(kind);
     return {

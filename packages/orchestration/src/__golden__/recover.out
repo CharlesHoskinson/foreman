@@ -1,8 +1,12 @@
 FOREMAN RECOVERY  head=<HEAD>  at=<TS>
-last session: 20260730T222519Z-da94ed  started=2026-07-30T22:25:19Z  start_sha=f6d577dbee5d  ENDED 2026-07-30T22:55:10Z
-  note: Resume from the session DB: re-establish open obligations and in-flight state on integrate/v029-w1, then continue the stop-point checklist.
+last session: 20260731T143323Z-41ab8f  started=2026-07-31T14:33:23Z  start_sha=ce522b7a891e  ENDED 2026-07-31T20:22:38Z
+  note: Sprint close-out planning for v0.2.9: audit remaining scope, fix CI/CD, QA all features, tag the release
 
-FACTS (28) — durable, true by construction
+FACTS (30) — durable, true by construction
+  [34] audit-run.sh leaked its timeout watchdog because the EXIT/INT/TERM trap killed only the wrapping subshell, not the sleep blocked inside it. Killing a subshell does not signal its children. Fixed at fd0ebef: the watchdog sleeps in one-second slices, checks kill -0 on the parent each slice, and stays in the scripts own process group so group sweeps reach it
+       evidence: commit fd0ebef; tests/decision-events.bats now completes in 65s, was 1800s
+  [32] The session store keyed on --git-common-dir and is shared by every worktree. Fragmentation was realised, not latent: two session.db files existed before the fix
+       evidence: fm-session.py repo_root uses --path-format=absolute --git-common-dir; tests/session.bats "a linked worktree shares the repo session store"
   [29] ROADMAP.md contradicts itself inside the v0.2.9 section: line 177 says TerminusDB is OUT, line 468 says TerminusDB ships. Four openspec packages still specify the withdrawn store and would have lanes implement it
        evidence: grep -n TerminusDB ROADMAP.md; grep -rln TerminusDB openspec/changes/ | grep -v archive
   [28] session.db fragmentation is REALISED, not latent as fact 16 states: two DBs exist, integrate (24 facts/9 measurements/21 obligations) and integrate-wt-xps (empty). fm-session.py:126 still uses --show-toplevel despite fact 23 deciding --git-common-dir
@@ -39,11 +43,7 @@ FACTS (28) — durable, true by construction
        evidence: tools/ci-local.sh; docs/design/test-cleanup-roadmap.md
   [11] main is merged and pushed at f6d577d (~90 commits); integrate/v029-w1 and main are level
        evidence: origin/main=f6d577d
-  [10] Session store and ontology overlap on Claim/Measurement/Finding/Supersession; boundary settled as SQLite=write path, TerminusDB=read-optimised projection, one direction only
-       evidence: docs/design/session-store-ontology-links.md
-  [9] agy (Antigravity) is a worker vendor: --print must be LAST or it eats the next flag as the prompt
-       evidence: commit 7ba9316; lib/worker-cmd.sh
-  ... 8 more fact(s) not shown. Run: fm-session recover --json
+  ... 10 more fact(s) not shown. Run: fm-session recover --json
 
 MEASUREMENTS — fresh=2 STALE=1 unknown=2
   OK    [7] shellcheck warning baseline = 13 warnings across 48 files, 0 errors

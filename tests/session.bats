@@ -220,16 +220,37 @@ setup() {
 import json
 import sys
 
+FACT_FIELDS = [
+    "id", "statement", "evidence", "established_ts", "session_id",
+    "superseded_by", "superseded_at", "supersede_reason",
+]
+
 with open(sys.argv[1], encoding="utf-8") as stream:
-    for line in stream:
-        document = json.loads(line)
-        if line.rstrip("\n") != json.dumps(document, sort_keys=True):
-            raise SystemExit(1)
+    lines = stream.read().split("\n")
+
+# exactly one terminating newline, nothing after it
+if lines[-1] != "":
+    raise SystemExit(1)
+seen = set()
+for line in lines[1:-1]:
+    document = json.loads(line)
+    # rows carry only kind and row, and emit every declared field in the
+    # declared order -- not sorted, not omitted when null
+    if list(document.keys()) != ["kind", "row"]:
+        raise SystemExit(1)
+    seen.add(document["kind"])
+    if document["kind"] == "fact" and list(document["row"].keys()) != FACT_FIELDS:
+        raise SystemExit(1)
+if seen != {"fact", "measurement", "obligation"}:
+    raise SystemExit(1)
 PY
   [ "$status" -eq 0 ]
   [ "$(head -n 1 "$BATS_TEST_TMPDIR/a.ndjson")" = \
-    '{"format": "foreman-session-sidecar", "format_version": 1}' ]
+    '{"format":"foreman-session-sidecar","format_version":2,"session_model_version":1,"next_ids":{"fact":2,"measurement":2,"obligation":2}}' ]
   ! grep -q '"validity"' "$BATS_TEST_TMPDIR/a.ndjson"
+  # undeclared tables cannot reach the tracked record: the store carries
+  # store_meta and memory_outbox, and the encoder emits neither
+  ! grep -q 'store_meta\|memory_outbox\|schema_meta' "$BATS_TEST_TMPDIR/a.ndjson"
 }
 
 
@@ -359,9 +380,9 @@ PY
 
   run $SESS import-sidecar "$sidecar" --force
   [ "$status" -eq 2 ]
-  [[ "$output" == *"table facts"* ]]
-  [[ "$output" == *'"id": 7'* ]]
-  [[ "$output" == *"NOT NULL constraint failed"* ]]
+  [[ "$output" == *"fact.statement"* ]]
+  [[ "$output" == *"id=7"* ]]
+  [[ "$output" == *"null in a non-null field"* ]]
   run $SESS recover
   [[ "$output" == *"target fact"* ]]
 }
@@ -374,7 +395,7 @@ PY
 
   run $SESS import-sidecar "$sidecar"
   [ "$status" -eq 2 ]
-  [[ "$output" == *"unsupported sidecar format version: 99"* ]]
+  [[ "$output" == *"unsupported sidecar format version 99"* ]]
 }
 
 @test "legacy commands retain database-open failure behavior" {

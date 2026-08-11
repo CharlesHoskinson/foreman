@@ -49,6 +49,20 @@ function describe(v: unknown): string {
 }
 
 /**
+ * Which row a shape violation is about, in its declared identity fields.
+ *
+ * A report that says only "fact.statement: null in a non-null field" cannot be
+ * acted on against a sidecar carrying thirty facts. The rejected row has to be
+ * nameable, which is what the pre-port importer did by echoing the whole row.
+ * Identity fields only: the row's content may be long, and a violation report
+ * is not the place to reprint it.
+ */
+function at(kind: EntityKind, row: Record<string, unknown>): string {
+  const parts = specFor(kind).identity.map((f) => `${f}=${describe(row[f])}`);
+  return parts.length === 0 ? "" : ` (${parts.join(", ")})`;
+}
+
+/**
  * Check a snapshot against the declared model and all domain rules.
  * Returns every violation found rather than stopping at the first, so a bad
  * sidecar produces one actionable report.
@@ -65,7 +79,11 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
     for (const row of rows) {
       for (const key of Object.keys(row)) {
         if (!declared.has(key)) {
-          out.push({ kind, field: key, detail: "field is not in the model" });
+          out.push({
+            kind,
+            field: key,
+            detail: `field is not in the model${at(kind, row)}`,
+          });
         }
       }
       for (const f of spec.fields) {
@@ -73,14 +91,18 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
           out.push({
             kind,
             field: f.name,
-            detail: "field absent; the model requires an explicit null",
+            detail: `field absent; the model requires an explicit null${at(kind, row)}`,
           });
           continue;
         }
         const v = row[f.name];
         if (v === null) {
           if (!f.nullable) {
-            out.push({ kind, field: f.name, detail: "null in a non-null field" });
+            out.push({
+              kind,
+              field: f.name,
+              detail: `null in a non-null field${at(kind, row)}`,
+            });
           }
           continue;
         }
@@ -88,7 +110,7 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
           out.push({
             kind,
             field: f.name,
-            detail: "undefined is not a value; use null",
+            detail: `undefined is not a value; use null${at(kind, row)}`,
           });
           continue;
         }
@@ -96,7 +118,7 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
           out.push({
             kind,
             field: f.name,
-            detail: `expected ${f.type}, got ${describe(v)}`,
+            detail: `expected ${f.type}, got ${describe(v)}${at(kind, row)}`,
           });
         }
       }
