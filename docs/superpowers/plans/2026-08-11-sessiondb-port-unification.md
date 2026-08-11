@@ -610,6 +610,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { rebuildFromSidecar } from "./session-rebuild.js";
 
 const V1 = [
@@ -642,7 +643,6 @@ test("watermarks exceed the highest live id", () => {
 test("normalizes blocked to open through the rebuild", () => {
   const paths = fixture();
   rebuildFromSidecar(paths);
-  const { DatabaseSync } = require("node:sqlite") as typeof import("node:sqlite");
   const db = new DatabaseSync(paths.dbPath);
   const row = db.prepare("SELECT status, blocker FROM obligations WHERE id = 4").get() as
     | { status: string; blocker: string | null }
@@ -1274,9 +1274,20 @@ inserting an orphan and reporting success."
 - [ ] **Step 1: Delete the legacy branch and the seam**
 
 Remove the `BACKEND` constant, every `if (BACKEND === "legacy")` branch, the
-embedded schema constants, the `DatabaseSync` import on line 3, the duplicate
-unreachable `import-sidecar` dispatch at line 665, and the `writeAtomic` helper
-if the port now owns sidecar writing.
+embedded schema constants, the `DatabaseSync` import on line 3, and the
+duplicate unreachable `import-sidecar` dispatch at line 665.
+
+If sidecar writing moves out of this file, the fsync-before-rename added in
+Task 4 must move with it. The requirement is a property of writing the
+canonical record, not of the helper's location. Verify after the move:
+
+```bash
+cd /root/fm-wt/sdb-design
+grep -rn "fsyncSync" packages/*/src | grep -v "\.test\.ts"
+```
+
+Expected: at least one call site, in whichever module now renames the sidecar.
+Zero call sites means the durability fix was deleted along with the helper.
 
 - [ ] **Step 2: Remove the type suppression**
 
