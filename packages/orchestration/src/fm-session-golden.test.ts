@@ -19,16 +19,34 @@
  * never randomly, and the live file itself is read only to build this
  * checked-in snapshot -- it is never copied wholesale and never modified.
  *
- * Five of the seed's measurement fields are deliberately NOT verbatim copies
- * of the live row: `measured_sha` (and, for one row, `scope_paths`) are
- * overridden to point at two commits `workspace()` creates below, so that
- * `measurementValidity()`'s git-diffing path runs against revisions that
- * actually exist in the scratch repo instead of throwing. A live sha copied
- * as-is would not resolve in a freshly `git init`'d repo, and the resulting
- * `git rev-list` failure embeds git's own "fatal: ..." text into stdout --
- * exactly the kind of git-version-and-locale-sensitive third-party text this
- * file exists to keep out of a golden (see the HEAD-commit note below for
- * the same problem in miniature). See GOLDEN_BASE_SHA / GOLDEN_TOUCH_SHA.
+ * Five of the seed's measurement rows carry fields that are NOT verbatim
+ * copies of the live row, and the divergence is not all the same kind:
+ *   - ids 3, 5, 6 and 7: `measured_sha` is overridden to point at one of the
+ *     two commits `workspace()` creates below (GOLDEN_BASE_SHA /
+ *     GOLDEN_TOUCH_SHA), so that `measurementValidity()`'s git-diffing path
+ *     runs against revisions that actually exist in the scratch repo instead
+ *     of throwing. A live sha copied as-is would not resolve in a freshly
+ *     `git init`'d repo, and the resulting `git rev-list` failure embeds
+ *     git's own "fatal: ..." text into stdout -- exactly the kind of
+ *     git-version-and-locale-sensitive third-party text this file exists to
+ *     keep out of a golden (see the HEAD-commit note below for the same
+ *     problem in miniature).
+ *   - id 6: `scope_paths` is additionally changed from its live value to
+ *     `src/measured-scope.txt`, the one file the BASE -> TOUCH commit pair
+ *     actually modifies, so this row has real scratch-repo history to diff.
+ *   - id 4: `measured_sha` is NOT remapped -- it is nulled outright. The
+ *     live row's value
+ *     (`4b549197bc390890414372ca072c0239d166fa64`) is simply discarded, not
+ *     pointed at a scratch-repo commit.
+ *   - id 5: `scope_paths` is likewise nulled outright, discarding the live
+ *     value (`tools/ci-local.sh\nskills/foreman/scripts\nenv`) rather than
+ *     remapping it to a scratch-repo path.
+ * The id-4 and id-5 nullings are a different kind of change than the shape
+ * remaps above: a null field never reaches git, so nothing about making
+ * `measurementValidity()` resolve required them. They exist because they are
+ * what produce this corpus's two `unknown` freshness verdicts -- so those
+ * verdicts are synthesized, not observed in the live v1 sidecar. See
+ * GOLDEN_BASE_SHA / GOLDEN_TOUCH_SHA.
  *
  * Three substitutions are applied to captured output before it is written or
  * compared, all narrowly targeted at values that are non-deterministic by
@@ -74,6 +92,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { sanitizedCheckpointEnv } from "./round-live-services.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const GOLDEN = join(HERE, "__golden__");
@@ -107,26 +126,51 @@ const GOLDEN_TOUCH_SHA = "2765ecaebc071a25f6ae1ad20d9e371aa6769a63";
 /** One pinned-identity, pinned-date commit; returns its (deterministic) sha. */
 function commitPinned(dir: string, message: string, epochSeconds: number): string {
   const when = `${epochSeconds} +0000`;
-  execFileSync("git", ["-c", "core.autocrlf=false", "add", "-A"], { cwd: dir });
-  execFileSync("git", ["-c", "core.autocrlf=false", "commit", "-q", "-m", message], {
-    cwd: dir,
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: PROVENANCE_NAME,
-      GIT_AUTHOR_EMAIL: PROVENANCE_EMAIL,
-      GIT_AUTHOR_DATE: when,
-      GIT_COMMITTER_NAME: PROVENANCE_NAME,
-      GIT_COMMITTER_EMAIL: PROVENANCE_EMAIL,
-      GIT_COMMITTER_DATE: when,
+  // Every git invocation below runs on `sanitizedCheckpointEnv(process.env)`,
+  // never bare `process.env`. Without that scrub, an ambient GIT_DIR (e.g.
+  // exported by skills/foreman/scripts/lib/checkpoint.sh for a real foreman
+  // session) redirects `add`/`commit`/`rev-parse` at whatever repo GIT_DIR
+  // names instead of this scratch `dir` -- silently writing real commits
+  // onto a real branch. Demonstrated, not theorised; see the file-level
+  // comment's sibling note in `run()` below.
+  const env = sanitizedCheckpointEnv(process.env);
+  execFileSync(
+    "git",
+    ["-c", "core.autocrlf=false", "add", "-A"],
+    { cwd: dir, env },
+  );
+  execFileSync(
+    "git",
+    ["-c", "core.autocrlf=false", "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", "commit", "-q", "-m", message],
+    {
+      cwd: dir,
+      env: {
+        ...env,
+        GIT_AUTHOR_NAME: PROVENANCE_NAME,
+        GIT_AUTHOR_EMAIL: PROVENANCE_EMAIL,
+        GIT_AUTHOR_DATE: when,
+        GIT_COMMITTER_NAME: PROVENANCE_NAME,
+        GIT_COMMITTER_EMAIL: PROVENANCE_EMAIL,
+        GIT_COMMITTER_DATE: when,
+      },
     },
-  });
-  return execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+  );
+  return execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: dir,
+    encoding: "utf8",
+    env,
+  }).trim();
 }
 
 /** A scratch repo seeded from the frozen v1 sidecar. */
 function workspace(): string {
   const dir = mkdtempSync(join(tmpdir(), "fm-golden-"));
-  execFileSync("git", ["init", "-q", "."], { cwd: dir });
+  // Scrubbed for the same reason as commitPinned()'s git calls: an
+  // ambient GIT_DIR/GIT_WORK_TREE would make `git init` "initialize" a repo
+  // that already exists elsewhere instead of this fresh `dir`, and every
+  // later git call in this function would then operate on that repo too.
+  const env = sanitizedCheckpointEnv(process.env);
+  execFileSync("git", ["init", "-q", "."], { cwd: dir, env });
 
   // Two deterministic commits give the seed's measurement rows (see
   // seed.ndjson and GOLDEN_BASE_SHA/GOLDEN_TOUCH_SHA above) a real, git-
@@ -164,13 +208,17 @@ function workspace(): string {
       `user.email=${PROVENANCE_EMAIL}`,
       "-c",
       `user.name=${PROVENANCE_NAME}`,
+      "-c",
+      "commit.gpgsign=false",
+      "-c",
+      "tag.gpgsign=false",
       "commit",
       "-q",
       "--allow-empty",
       "-m",
       "golden seed: workspace head",
     ],
-    { cwd: dir },
+    { cwd: dir, env },
   );
 
   mkdirSync(join(dir, ".foreman"), { recursive: true });
@@ -191,7 +239,14 @@ function run(cwd: string, args: readonly string[]) {
     cwd,
     encoding: "utf8",
     env: {
-      ...process.env,
+      // Scrubbed, not raw `process.env`: the CLI itself shells out to git
+      // (gitSha(), measurement-validity's diffing) as a grandchild of this
+      // process, and it inherits whatever env this spawnSync call gives it.
+      // An ambient GIT_DIR/GIT_WORK_TREE (skills/foreman/scripts/lib/
+      // checkpoint.sh exports exactly this for a real foreman session)
+      // would redirect those grandchild git calls at a real repo, same as
+      // commitPinned()/workspace() above.
+      ...sanitizedCheckpointEnv(process.env),
       GOLDEN_UPDATE: "",
       // dbPath() (fm-session-main.ts) short-circuits on FOREMAN_SESSION_DB
       // before it ever looks at the scratch repo, and lane-run.sh exports
