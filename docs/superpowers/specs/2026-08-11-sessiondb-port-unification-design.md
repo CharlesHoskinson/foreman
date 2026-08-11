@@ -63,6 +63,23 @@ header's `format_version` before `parseHeader` asserts its equality check.
 - compute `next_ids[kind]` as `max(id) + 1` over decoded rows, defaulting to 1 for
   an empty kind
 
+The reader also normalizes obligation status: a v1 row carrying
+`status='blocked'` is emitted as `status='open'` with its `blocker` retained.
+This belongs here rather than in a later migration, and that is forced rather
+than chosen. `decodeSnapshot` ends by calling `assertIntegrity`, and `status` is
+declared `type: "enum"` over `OBLIGATION_STATUSES` (`entities.ts:143-148`), so a
+`blocked` row fails validation on the way in. Measured against the real
+`findViolations`:
+
+```console
+status=blocked  violations=1 [{"kind":"obligation","field":"status",
+                              "detail":"expected enum, got \"blocked\""}]
+status=open     violations=0 []
+```
+
+Any design that defers the rewrite to a post-decode migration cannot read the
+live sidecar at all.
+
 Encoding remains v2-only: read both, write one. `UPGRADES` stays empty and
 untouched; it serves model evolution, and this change does not evolve the model.
 
@@ -74,11 +91,14 @@ for those; a one-shot conversion script would not.
 ### 2. Model reconciliation
 
 A separate migration with its own before-and-after evidence, because unlike the
-reader it mutates rows.
+reader it mutates the database rather than transforming a stream.
 
-- rewrite the five `blocked` obligations to `status='open'`, retaining `blocker`
 - create `store_meta` with watermarks derived from `max(id)` per counted kind
 - enable `foreign_keys=ON`
+
+The obligation-status rewrite is deliberately **not** in this list. It is a read
+path concern and lives in the v1 decoder for the reason given above. What
+remains here is the part that only makes sense against a database.
 
 The status rewrite is lossless. In the live data `blocked` holds if and only if
 the row is open and carries a blocker, with no overlap:
