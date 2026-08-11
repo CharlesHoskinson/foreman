@@ -1,0 +1,4 @@
+rehydrated 11 row(s) from <WORKSPACE>/.foreman/session.ndjson (the .db is a derived cache; the sidecar is what git tracks)
+fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.
+Use '--' to separate paths from revisions, like this:
+'git <command> [<revision>...] -- [<file>...]'

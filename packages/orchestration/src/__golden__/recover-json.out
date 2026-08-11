@@ -1,0 +1,94 @@
+{
+  "recovered_at": "<TS>",
+  "head_sha": "",
+  "last_session": null,
+  "facts": [
+    {
+      "kind": "fact",
+      "id": 11,
+      "statement": "main is merged and pushed at f6d577d (~90 commits); integrate/v029-w1 and main are level",
+      "evidence": "origin/main=f6d577d",
+      "established_ts": "2026-07-30T22:22:41Z"
+    },
+    {
+      "kind": "fact",
+      "id": 10,
+      "statement": "Session store and ontology overlap on Claim/Measurement/Finding/Supersession; boundary settled as SQLite=write path, TerminusDB=read-optimised projection, one direction only",
+      "evidence": "docs/design/session-store-ontology-links.md",
+      "established_ts": "2026-07-30T20:55:28Z"
+    },
+    {
+      "kind": "fact",
+      "id": 9,
+      "statement": "agy (Antigravity) is a worker vendor: --print must be LAST or it eats the next flag as the prompt",
+      "evidence": "commit 7ba9316; lib/worker-cmd.sh",
+      "established_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "fact",
+      "id": 8,
+      "statement": "grok lanes succeed only with literal current code pasted into the spec; task descriptions empty-burst (6 failures vs 6 successes)",
+      "evidence": "AGENT_TRAPS.md section 7",
+      "established_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "fact",
+      "id": 7,
+      "statement": "The formal flake was an unseeded search at a zero-margin bound, not model weakening; fixed by raising 2000x40 to 20000x40",
+      "evidence": "formal/expectations.tsv row 23; hit rate 118/130 at old bound",
+      "established_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "fact",
+      "id": 6,
+      "statement": "three-outcome-verdicts landed dispatches 1-2 of 5 (UNVERIFIED outcome); lane was terminated at 6h",
+      "evidence": "commit 61bc95b",
+      "established_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "fact",
+      "id": 5,
+      "statement": "round-ownership-default enforces owned dispatch; it refused an architect unowned lane in production",
+      "evidence": "commit b080687",
+      "established_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "fact",
+      "id": 4,
+      "statement": "wsl-preflight: clock preflight now runs before the first timestamped event; it was wired into nothing for three releases",
+      "evidence": "commit f138bf2",
+      "established_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "fact",
+      "id": 3,
+      "statement": "vendor-preflight: vendor_authed binds to probe content, not exit status; base reported not_authenticated, fixed reports ok",
+      "evidence": "commit ad2366f",
+      "established_ts": "2026-07-30T20:50:25Z"
+    },
+    {
+      "kind": "fact",
+      "id": 2,
+      "statement": "Remote CI is unavailable (out of GitHub Actions credits); tools/ci-local.sh is the sole verification authority",
+      "evidence": "tools/ci-local.sh, 6 gates",
+      "established_ts": "2026-07-30T20:50:24Z"
+    },
+    {
+      "kind": "fact",
+      "id": 1,
+      "statement": "The 41-file bats suite completed for the first time and passes on the merged tree",
+      "evidence": "commit d44461e; log /root/fm-logs/merged-0730.log",
+      "established_ts": "2026-07-30T20:50:24Z"
+    }
+  ],
+  "measurements": [],
+  "obligations": [],
+  "counts": {
+    "facts": 11,
+    "measurements_fresh": 0,
+    "measurements_stale": 0,
+    "measurements_unknown": 0,
+    "obligations_open": 0,
+    "obligations_blocked": 0
+  }
+}
