@@ -130,6 +130,14 @@ function quoteIdent(name: string): string {
 export type SqliteStoreOptions = {
   /** Skip the open-time schema drift check. Tests only. */
   readonly skipSchemaCheck?: boolean;
+  /**
+   * Open the underlying connection read-only. The caller is asserting the
+   * store already exists and is already schema-correct: the WAL/synchronous
+   * pragmas and the CREATE-TABLE-IF-NOT-EXISTS schema exec, which write when
+   * a plain connection is merely opened and closed against a store with
+   * un-checkpointed WAL frames, are skipped rather than attempted and failed.
+   */
+  readonly readOnly?: boolean;
 };
 
 export class SqliteSessionStore implements SessionStore {
@@ -147,6 +155,15 @@ export class SqliteSessionStore implements SessionStore {
 
   static open(path: string, opts: SqliteStoreOptions = {}): SqliteSessionStore {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+    if (opts.readOnly) {
+      // No pragma or DDL that could write: a plain connection here would
+      // checkpoint an outstanding WAL as a side effect of merely being
+      // opened and closed, which is exactly the write a read-only caller
+      // must not cause.
+      const db = new DatabaseSync(path, { readOnly: true });
+      db.exec("PRAGMA busy_timeout=5000");
+      return new SqliteSessionStore(db, opts);
+    }
     const db = new DatabaseSync(path);
     db.exec("PRAGMA foreign_keys=ON");
     // WAL lets readers run while a writer holds the write lock. AGENT_TRAPS.md:22

@@ -831,6 +831,11 @@ var SqliteSessionStore = class _SqliteSessionStore {
   // -- construction --------------------------------------------------------
   static open(path, opts = {}) {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+    if (opts.readOnly) {
+      const db2 = new DatabaseSync(path, { readOnly: true });
+      db2.exec("PRAGMA busy_timeout=5000");
+      return new _SqliteSessionStore(db2, opts);
+    }
     const db = new DatabaseSync(path);
     db.exec("PRAGMA foreign_keys=ON");
     db.exec("PRAGMA journal_mode=WAL");
@@ -1856,7 +1861,7 @@ function dbPath() {
 }
 function classifyStore(p) {
   if (!existsSync2(p)) return "absent";
-  const db = new DatabaseSync2(p);
+  const db = new DatabaseSync2(p, { readOnly: true });
   try {
     const names = new Set(db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name));
     const hasPort = names.has("store_meta");
@@ -1947,10 +1952,17 @@ function bootstrapStore(p, opts) {
     } finally {
       rmSync2(carrier, { force: true });
     }
-  } else if (shape === "absent") {
-    SqliteSessionStore.open(p).close();
+    rehydrateFromSidecarIfEmpty(p);
+    return;
   }
-  rehydrateFromSidecarIfEmpty(p);
+  if (shape === "absent") {
+    SqliteSessionStore.open(p).close();
+    rehydrateFromSidecarIfEmpty(p);
+    return;
+  }
+  if (!opts.readOnly) {
+    rehydrateFromSidecarIfEmpty(p);
+  }
 }
 function rehydrateFromSidecarIfEmpty(p) {
   const sidecar = sidecarPathFor(p);
@@ -1973,8 +1985,9 @@ function rehydrateFromSidecarIfEmpty(p) {
 function connect(path, cmd) {
   const p = path ?? dbPath();
   mkdirSync2(dirname2(p), { recursive: true });
-  bootstrapStore(p, { allowMigration: !READ_ONLY_CMDS.has(cmd ?? "") });
-  const db = new DatabaseSync2(p);
+  const readOnlyCmd = READ_ONLY_CMDS.has(cmd ?? "");
+  bootstrapStore(p, { allowMigration: !readOnlyCmd, readOnly: readOnlyCmd });
+  const db = readOnlyCmd ? new DatabaseSync2(p, { readOnly: true }) : new DatabaseSync2(p);
   db.exec("PRAGMA foreign_keys=OFF");
   db.exec("PRAGMA busy_timeout=5000");
   return db;
@@ -2180,8 +2193,8 @@ function render(rec) {
 function quoteIdentifier(name) {
   return '"' + name.replace(/"/g, '""') + '"';
 }
-function sidecarNdjson(dbFile) {
-  const store = SqliteSessionStore.open(dbFile);
+function sidecarNdjson(dbFile, opts = {}) {
+  const store = SqliteSessionStore.open(dbFile, { readOnly: opts.readOnly });
   try {
     const snapshot = store.snapshot();
     return [encodeSnapshot(snapshot), countRows(snapshot)];
@@ -2415,7 +2428,7 @@ function main() {
       process.exit(2);
     }
     try {
-      const [lines, rowCount] = sidecarNdjson(store);
+      const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
       writeAtomic(outPath, lines);
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}
 `);
@@ -2527,6 +2540,7 @@ function mainWithSidecar() {
   } catch (e) {
     process.stderr.write(`WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.
 `);
+    rc = 1;
   }
   process.exit(rc);
 }

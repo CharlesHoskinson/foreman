@@ -1,14 +1,14 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { writeFileSync, rmSync, mkdtempSync, statSync } from "node:fs";
+import { writeFileSync, readFileSync, rmSync, mkdtempSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { SqliteSessionStore } from "@foreman/session-store";
-import { connect, sidecarNdjson, importSidecar, classifyStore } from "./fm-session-main.js";
+import { connect, sidecarNdjson, importSidecar, classifyStore, main } from "./fm-session-main.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENTRY = join(HERE, "fm-session-main.ts");
@@ -259,26 +259,90 @@ test("a read-only command refuses to migrate a legacy store", () => {
   }
 });
 
+test("read-only commands do not write to a healthy, existing port store", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-rohealthy-"));
+  try {
+    const p = join(dir, "session.db");
+    const spawn = (cmd: string, args: readonly string[] = []) =>
+      spawnSync(process.execPath, ["--import", TSX_LOADER, ENTRY, cmd, ...args], {
+        cwd: dir, encoding: "utf8",
+        env: { ...process.env, FOREMAN_SESSION_DB: p },
+      });
+
+    // A real write command, exactly as the CLI runs it: connect()'s own
+    // conn is never explicitly closed (a separate, deferred finding), so
+    // this leaves the WAL un-checkpointed on disk when the process exits --
+    // the exact precondition finding A's own reproduction needs. Without it,
+    // a subsequent plain (non-readonly) open+close would find nothing left
+    // to checkpoint and the defect would pass unnoticed.
+    const w = spawn("fact", ["seed fact"]);
+    assert.equal(w.status, 0, w.stderr);
+
+    const beforeBytes = readFileSync(p);
+    const beforeMtime = statSync(p).mtimeMs;
+
+    const r1 = spawn("recover");
+    assert.equal(r1.status, 0, r1.stderr);
+    const r2 = spawn("freshness");
+    assert.equal(r2.status, 0, r2.stderr);
+    // "sidecar" is the third READ_ONLY_CMDS member, and reaches the store
+    // through a completely separate path (sidecarNdjson -> SqliteSessionStore
+    // .open) that connect()'s own read-only guard does not cover by itself.
+    const r3 = spawn("sidecar", ["--out", join(dir, "out.ndjson")]);
+    assert.equal(r3.status, 0, r3.stderr);
+
+    const afterBytes = readFileSync(p);
+    const afterMtime = statSync(p).mtimeMs;
+    assert.ok(Buffer.compare(beforeBytes, afterBytes) === 0, "a read-only command rewrote the store's bytes");
+    assert.equal(afterMtime, beforeMtime, "a read-only command changed the store's mtime");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("mintId and the row insert commit as one transaction", () => {
   const dir = mkdtempSync(join(tmpdir(), "fm-mint-"));
   try {
     const p = join(dir, "session.db");
-    const store = SqliteSessionStore.open(p);
-    store.close();
-    const a = new DatabaseSync(p);
-    const b = new DatabaseSync(p);
+    connect(p).close();
+
+    const statements: string[] = [];
+    const savedArgv = process.argv;
+    const savedEnv = process.env.FOREMAN_SESSION_DB;
+    let rc: number | undefined;
     try {
-      a.exec("PRAGMA busy_timeout=0");
-      b.exec("PRAGMA busy_timeout=0");
-      a.exec("BEGIN IMMEDIATE");
-      // With the write lock held by A, B must not be able to take it. Before
-      // the fix both minters proceeded and took the same id.
-      assert.throws(() => b.exec("BEGIN IMMEDIATE"), /database is locked|SQLITE_BUSY/i);
-      a.exec("COMMIT");
+      // Drive the real command dispatch, not a hand-rolled simulation of it:
+      // main() is exported precisely so a test can do this. A test that
+      // issues BEGIN IMMEDIATE itself on two raw connections (the previous
+      // version of this test) proves the SQLite mechanism inWriteTx depends
+      // on, but never calls mintId or inWriteTx, so it cannot discriminate
+      // whether fm-session-main.ts's own command handlers are wired through
+      // either one.
+      process.argv = [process.argv[0]!, process.argv[1]!, "fact", "concurrent fact"];
+      process.env.FOREMAN_SESSION_DB = p;
+      recordAndRestore(
+        (sql) => statements.push(sql),
+        () => { rc = main(); },
+      );
     } finally {
-      a.close();
-      b.close();
+      process.argv = savedArgv;
+      if (savedEnv === undefined) delete process.env.FOREMAN_SESSION_DB;
+      else process.env.FOREMAN_SESSION_DB = savedEnv;
     }
+    assert.equal(rc, 0, "main() did not report success for a plain fact command");
+
+    // classifyStore's own read-only cross-check issues an identically-worded
+    // "SELECT value FROM store_meta WHERE key = ?" before the mint even
+    // starts, so each search below is scoped to start after the previous
+    // match rather than taking the first occurrence in the whole trace.
+    const beginIdx = statements.indexOf("BEGIN IMMEDIATE");
+    assert.ok(beginIdx !== -1, "mint must open BEGIN IMMEDIATE before reading the watermark");
+    const selectIdx = statements.findIndex((s, i) => i > beginIdx && s.includes("SELECT value FROM store_meta"));
+    assert.ok(selectIdx !== -1, "mint must read the watermark inside the transaction");
+    const insertIdx = statements.findIndex((s, i) => i > selectIdx && s.includes("INSERT INTO facts"));
+    assert.ok(insertIdx !== -1, "the row insert must happen inside the same transaction");
+    const commitIdx = statements.findIndex((s, i) => i > insertIdx && s === "COMMIT");
+    assert.ok(commitIdx !== -1, "the transaction must commit after the insert");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

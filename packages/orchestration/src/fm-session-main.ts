@@ -100,7 +100,12 @@ function dbPath(): string {
  */
 export function classifyStore(p: string): "absent" | "legacy" | "port" | "corrupt" {
   if (!existsSync(p)) return "absent";
-  const db = new DatabaseSync(p);
+  // read-only: this is a pure inspection, called from every connect() --
+  // including read-only commands against a healthy store -- and a plain
+  // connection's close() checkpoints an outstanding WAL as a side effect of
+  // becoming the last connection, which writes to the very file a read-only
+  // command must not touch.
+  const db = new DatabaseSync(p, { readOnly: true });
   try {
     const names = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as any[]).map(r => r.name));
     const hasPort = names.has("store_meta");
@@ -188,7 +193,7 @@ function storeIsEmpty(p: string): boolean {
  * sidecar. It is the artefact being replaced, so nothing it holds may be lost
  * to a sidecar that is stale, or missing entirely.
  */
-function bootstrapStore(p: string, opts: { readonly allowMigration: boolean }) {
+function bootstrapStore(p: string, opts: { readonly allowMigration: boolean; readonly readOnly: boolean }) {
   const shape = classifyStore(p);
   if (shape === "corrupt") {
     process.stderr.write(
@@ -217,10 +222,27 @@ function bootstrapStore(p: string, opts: { readonly allowMigration: boolean }) {
     } finally {
       rmSync(carrier, { force: true });
     }
-  } else if (shape === "absent") {
-    SqliteSessionStore.open(p).close();
+    rehydrateFromSidecarIfEmpty(p);
+    return;
   }
-  rehydrateFromSidecarIfEmpty(p);
+  if (shape === "absent") {
+    // Nothing exists yet to mutate: creating the schema and, below,
+    // rehydrating from the tracked sidecar is CREATING a missing derived
+    // cache, not writing to a store that already exists. Legitimate
+    // regardless of whether the command itself is read-only -- the goldens
+    // depend on exactly this path.
+    SqliteSessionStore.open(p).close();
+    rehydrateFromSidecarIfEmpty(p);
+    return;
+  }
+  // shape === "port": the file already exists and is already the derived
+  // cache. A read-only command must not write to a store that already
+  // exists, so it may not rehydrate one here even if the store happens to be
+  // empty right now -- that would still be a write to something present on
+  // disk, not the creation of something missing.
+  if (!opts.readOnly) {
+    rehydrateFromSidecarIfEmpty(p);
+  }
 }
 
 function rehydrateFromSidecarIfEmpty(p: string) {
@@ -246,8 +268,16 @@ function rehydrateFromSidecarIfEmpty(p: string) {
 export function connect(path?: string, cmd?: string): DatabaseSync {
   const p = path ?? dbPath();
   mkdirSync(dirname(p), { recursive: true });
-  bootstrapStore(p, { allowMigration: !READ_ONLY_CMDS.has(cmd ?? "") });
-  const db = new DatabaseSync(p);
+  const readOnlyCmd = READ_ONLY_CMDS.has(cmd ?? "");
+  bootstrapStore(p, { allowMigration: !readOnlyCmd, readOnly: readOnlyCmd });
+  // Open the connection itself read-only for a read-only command. Without
+  // this, even a command that issues nothing but SELECTs still opens a
+  // normal read-write handle, and closing that handle -- or classifyStore's
+  // own throwaway inspection above -- checkpoints whatever WAL frames a prior
+  // write command left un-checkpointed (this CLI never closes its own
+  // connection; see finding 5), rewriting the store's bytes and mtime as a
+  // side effect of a "read".
+  const db = readOnlyCmd ? new DatabaseSync(p, { readOnly: true }) : new DatabaseSync(p);
   // Foreign keys stay OFF on this connection, matching what the commands
   // still served by raw SQL here have always seen. The port's own connection
   // turns them ON, and Task 6 moves those commands onto it.
@@ -493,8 +523,8 @@ function quoteIdentifier(name: string) {
  * Takes a PATH, not a connection: the snapshot must come from the port, and
  * the port owns its own connection.
  */
-export function sidecarNdjson(dbFile: string): [string, number] {
-  const store = SqliteSessionStore.open(dbFile);
+export function sidecarNdjson(dbFile: string, opts: { readonly readOnly?: boolean } = {}): [string, number] {
+  const store = SqliteSessionStore.open(dbFile, { readOnly: opts.readOnly });
   try {
     const snapshot = store.snapshot();
     return [encodeSnapshot(snapshot), countRows(snapshot)];
@@ -745,7 +775,9 @@ export function main() {
       process.exit(2);
     }
     try {
-      const [lines, rowCount] = sidecarNdjson(store);
+      // "sidecar" is a read-only command (READ_ONLY_CMDS): it may write the
+      // NDJSON it dumps to, never the .db it dumps from.
+      const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
       writeAtomic(outPath, lines);
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}\n`);
       return 0;
@@ -847,7 +879,12 @@ function mainWithSidecar() {
     writeAtomic(out, lines);
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
   } catch (e: any) {
+    // A run that writes the store and then leaves its tracked sidecar behind
+    // it is not a success: the next reader sees a record of truth that no
+    // longer matches what was just written. rc=0 here previously reported
+    // success anyway.
     process.stderr.write(`WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.\n`);
+    rc = 1;
   }
   process.exit(rc);
 }
