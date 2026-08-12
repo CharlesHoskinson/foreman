@@ -22,7 +22,7 @@ implicitly include this section.
 - Never add `Co-Authored-By` or any AI attribution to a commit.
 - Consult `AGENT_TRAPS.md` § 1 before dispatching any vendor lane.
 - Work in the worktree `/home/charl/fm-wt/sdb-task6` on branch `design/sessiondb-port-unification`. Never `git add -A` in the base checkout at `/home/charl/foreman` — a live session can append to SessionDB while you work.
-- **`dbPath()` resolves through `--git-common-dir`, which from a worktree is the base checkout.** Every manual `fm-session` run pins `FOREMAN_SESSION_DB` to a scratch path. Nothing rehearses against `/home/charl/foreman/.foreman/session.db`.
+- **`dbPath()` resolves through `--git-common-dir`, which from a worktree is the base checkout.** Every manual `fm-session` run pins `FOREMAN_SESSION_DB` to a scratch path. Nothing rehearses against `/home/charl/foreman/.foreman/session.db` — with one deliberate exception: Task 10 Step 2 records three obligations in it, as the single intentional write to the live record.
 - **`npm test` currently fails one case for a local reason.** `secret-scan.test.ts` refuses the worktree with `bound_exceeded` when any file exceeds 16 MB; `launcher/dist/foreman-launch` is a gitignored 94 MB artifact. Move it aside for a full-suite run. Never report that failure as a branch defect.
 
 ### The QA plugin is binding, on every task
@@ -152,6 +152,457 @@ git ls-files -s docs/reviews | grep -v '^100644' || echo "modes ok"
 git commit -m "docs(session-store): record the Task 6a review that did not complete"
 git status --porcelain
 ```
+
+---
+
+### Task 1b: Repair the Task 6a baseline
+
+Inserted after the Task 1 review returned BLOCKED. The full review is
+`docs/reviews/2026-08-12-task-6a-review.md`; read findings 1-4 there for the
+reproduction of each defect. Two of them sit inside `bootstrapStore`, which
+Task 5 wraps in `openStore()` and calls from every command, so leaving them
+would propagate the defects through the rest of the cutover rather than
+inherit them once.
+
+Fix the two blocking and two major findings **only**. The eight minor findings
+are recorded in the SDD ledger and triaged at the final whole-branch review;
+do not fix them here.
+
+**Files:**
+
+- Modify: `packages/session-store/src/sidecar.ts`
+- Modify: `packages/orchestration/src/fm-session-main.ts`
+- Test: `packages/session-store/src/sidecar-v1.test.ts` or a new `sidecar-encode.test.ts`
+- Test: `packages/orchestration/src/fm-session-main.test.ts`
+
+**Interfaces:**
+
+- Consumes: `assertIntegrity` and `findViolations` from `./integrity.js`; `SessionSnapshot` from `./entities.js`.
+- Produces: `classifyStore` gains a fourth return value, `"corrupt"`. `encodeSnapshot` becomes throwing. Tasks 4-9 depend on both.
+
+- [ ] **Step 1: Write the failing test for the unvalidated write path**
+
+The reader asserts integrity and the writer does not, so the CLI can write a
+tracked record its own reader refuses and report success. Add to
+`packages/session-store/src/sidecar-v1.test.ts`:
+
+```ts
+test("encodeSnapshot refuses a snapshot the reader would reject", () => {
+  // A row id at or above its watermark is the exact violation the live
+  // corruption produced: fact 36 present, next_ids.fact still 1.
+  const snap: SessionSnapshot = {
+    ...emptySnapshot(),
+    sessions: [],
+    facts: [
+      {
+        id: 36,
+        statement: "live fact",
+        evidence: null,
+        established_ts: "2026-08-08T10:00:00Z",
+        session_id: null,
+        superseded_by: null,
+        superseded_at: null,
+        supersede_reason: null,
+      },
+    ] as never,
+  };
+  assert.ok(
+    findViolations(snap).some((v) => v.detail.includes("at or above nextIds.fact")),
+    "fixture does not reproduce the violation under test",
+  );
+  assert.throws(() => encodeSnapshot(snap), /at or above nextIds\.fact/);
+});
+```
+
+Import `emptySnapshot`, `findViolations`, `encodeSnapshot` and the
+`SessionSnapshot` type if the file does not already have them.
+
+- [ ] **Step 2: Run it to confirm it fails**
+
+```bash
+cd /home/charl/fm-wt/sdb-task6
+npx tsx --test packages/session-store/src/sidecar-v1.test.ts 2>&1 | tail -15
+```
+
+Expected: FAIL — `encodeSnapshot` returns a string instead of throwing. The
+first assertion must PASS; if it does not, the fixture is wrong and the test
+would be vacuous.
+
+- [ ] **Step 3: Make the writer validate what it emits**
+
+In `packages/session-store/src/sidecar.ts`, call `assertIntegrity(snapshot)` at
+the top of `encodeSnapshot`, before any serialization.
+
+```ts
+export function encodeSnapshot(snapshot: SessionSnapshot): string {
+  // Symmetric with decodeSnapshot, which ends in assertIntegrity. Without this
+  // the writer emits records the reader refuses and the caller reports success:
+  // the tracked record becomes unreadable at the moment it is written, and
+  // rehydrate downgrades the failure to a warning, so a cold clone comes up
+  // silently empty rather than loudly broken.
+  assertIntegrity(snapshot);
+  // ... existing body unchanged
+}
+```
+
+- [ ] **Step 4: Stop rehydrate from downgrading an unreadable record**
+
+In `packages/orchestration/src/fm-session-main.ts`, `rehydrateFromSidecarIfEmpty`
+currently swallows a decode failure into a `WARNING` and continues. An
+unreadable tracked record is not a warning — it is the record of truth being
+gone. Make it refuse:
+
+```ts
+  try {
+    const res = rebuildFromSidecar({ sidecarPath: sidecar, dbPath: p, force: true });
+    process.stderr.write(`rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)\n`);
+  } catch (e: any) {
+    // The sidecar is the tracked record of truth. If it cannot be read, coming
+    // up empty is worse than failing: the next write would produce a "correct"
+    // store with none of the history in it.
+    process.stderr.write(`refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${e.message}\n`);
+    throw e;
+  }
+```
+
+- [ ] **Step 5: Run the full session-store and orchestration suites**
+
+```bash
+cd /home/charl/fm-wt/sdb-task6
+npx tsx --test packages/session-store/src/*.test.ts 2>&1 | tail -15
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts 2>&1 | tail -10
+```
+
+Expected: the new test PASSES. **Any conformance or golden case that now fails
+is a real finding, not a nuisance** — it means that case was encoding a snapshot
+the reader would refuse. Report each one; do not weaken the assertion to make
+them pass.
+
+- [ ] **Step 6: Write the failing test for the corrupt-shape classifier**
+
+`classifyStore` returns `"port"` on sight of `store_meta`, but the corruption it
+exists to prevent *creates* `store_meta` while leaving `schema_meta` in place and
+every watermark at 1. Add to `packages/orchestration/src/fm-session-main.test.ts`:
+
+```ts
+test("classifyStore rejects a legacy+port hybrid instead of calling it port-shaped", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-hybrid-"));
+  try {
+    const p = join(dir, "session.db");
+    const db = new DatabaseSync(p);
+    try {
+      // The shape the pre-fix code produced: legacy schema still present, the
+      // port's tables created beside it, watermarks at 1 against live ids.
+      db.exec("CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT)");
+      db.exec("INSERT INTO schema_meta VALUES('version','3')");
+      db.exec("CREATE TABLE facts(id INTEGER PRIMARY KEY, statement TEXT)");
+      db.exec("INSERT INTO facts VALUES(36,'live fact')");
+      db.exec("CREATE TABLE store_meta(key TEXT PRIMARY KEY, value TEXT)");
+      db.exec("INSERT INTO store_meta VALUES('next_id.fact','1')");
+    } finally {
+      db.close();
+    }
+    assert.equal(classifyStore(p), "corrupt");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("classifyStore rejects a port file whose watermark sits behind its rows", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-behind-"));
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    store.addFact({
+      statement: "one", evidence: null,
+      established_ts: "2026-08-08T10:00:00Z", session_id: null,
+    });
+    store.close();
+    const db = new DatabaseSync(p);
+    try {
+      // Drive the watermark back behind the row it already minted.
+      db.exec("UPDATE store_meta SET value='1' WHERE key='next_id.fact'");
+    } finally {
+      db.close();
+    }
+    assert.equal(classifyStore(p), "corrupt");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+```
+
+`classifyStore` must be exported for these to run. Add `export` to it.
+
+- [ ] **Step 7: Run them to confirm they fail**
+
+```bash
+cd /home/charl/fm-wt/sdb-task6
+npx tsx --test packages/orchestration/src/fm-session-main.test.ts 2>&1 | tail -20
+```
+
+Expected: both FAIL, reporting `"port"` where `"corrupt"` is required.
+
+- [ ] **Step 8: Make the classifier reject rather than assume**
+
+```ts
+/**
+ * How the file at `p` is shaped, decided STRUCTURALLY.
+ *
+ * Four shapes, not three. "corrupt" is the one this classifier previously
+ * could not say: the port opened straight onto a legacy file CREATES
+ * store_meta while leaving schema_meta in place and every watermark at 1, so
+ * "has store_meta" classified that exact wreckage as healthy and the next
+ * write minted id 1 beside live id 36. The presence of store_meta is
+ * untrustworthy in the same way a version number is.
+ */
+export function classifyStore(p: string): "absent" | "legacy" | "port" | "corrupt" {
+  if (!existsSync(p)) return "absent";
+  const db = new DatabaseSync(p);
+  try {
+    const names = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as any[]).map(r => r.name));
+    const hasPort = names.has("store_meta");
+    const hasLegacy = names.has("schema_meta");
+    if (hasPort && hasLegacy) return "corrupt";
+    if (hasPort) {
+      // A watermark at or below its table's max(id) means the next mint
+      // collides. Cross-check before declaring the file healthy.
+      for (const [kind, table] of [["fact", "facts"], ["measurement", "measurements"], ["obligation", "obligations"]] as const) {
+        if (!names.has(table)) continue;
+        const row = db.prepare(`SELECT MAX(id) AS m FROM ${quoteIdentifier(table)}`).get() as any;
+        const max = row && row.m !== null ? Number(row.m) : 0;
+        const wm = db.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`) as any;
+        const next = wm ? Number(wm.value) : 0;
+        if (next <= max) return "corrupt";
+      }
+      return "port";
+    }
+    if (hasLegacy) return "legacy";
+    return "absent";
+  } finally {
+    db.close();
+  }
+}
+```
+
+- [ ] **Step 9: Refuse a corrupt store in `bootstrapStore`**
+
+A corrupt file must be named and refused, never silently repaired — the rebuild
+path takes its content from the file itself, and this file's content is exactly
+what cannot be trusted.
+
+```ts
+  } else if (shape === "corrupt") {
+    process.stderr.write(
+      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. ` +
+      `It is the half-migrated state a pre-fix open produced. Move it aside and let the tracked sidecar rebuild it: ` +
+      `mv ${p} ${p}.corrupt && fm-session recover\n`,
+    );
+    process.exit(2);
+  }
+```
+
+- [ ] **Step 10: Run the classifier tests and the goldens**
+
+```bash
+cd /home/charl/fm-wt/sdb-task6
+npx tsx --test packages/orchestration/src/fm-session-main.test.ts 2>&1 | tail -10
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts 2>&1 | tail -10
+git diff --stat packages/orchestration/src/__golden__
+```
+
+Expected: classifier tests PASS, goldens PASS, and **no golden fixture changed**.
+The golden workspace starts with no `.db` at all, so it takes the `"absent"`
+path and is unaffected.
+
+- [ ] **Step 11: Hold the write lock across mint and insert**
+
+`mintId` is a `SELECT` in one autocommit transaction, an `INSERT OR REPLACE` in
+a second, and the caller's row `INSERT` in a third. Two processes that read the
+watermark before either bumps it mint the same id; `busy_timeout` cannot help
+because neither is ever blocked. The port's own `importSnapshot` uses
+`BEGIN IMMEDIATE` for this reason.
+
+Add a helper and route every `mintId` caller through it, so the mint and the row
+insert commit as one unit:
+
+```ts
+/**
+ * Run `body` with the write lock held from the first read to the last write.
+ *
+ * mintId reads a watermark and the caller then inserts a row against it. Split
+ * across autocommit transactions those are two independent reads of the same
+ * counter, and busy_timeout never fires because neither writer is ever blocked.
+ * BEGIN IMMEDIATE takes the write lock up front, which is what makes the
+ * read-modify-write atomic.
+ */
+function inWriteTx<T>(conn: DatabaseSync, body: () => T): T {
+  conn.exec("BEGIN IMMEDIATE");
+  try {
+    const out = body();
+    conn.exec("COMMIT");
+    return out;
+  } catch (e) {
+    try { conn.exec("ROLLBACK"); } catch (_) {}
+    throw e;
+  }
+}
+```
+
+Wrap each of the four `mintId` call sites — `fact`, `measure`, `obligation` and
+`supersede` — so the mint and the insert(s) are inside one `inWriteTx`. For
+`supersede`, both the new row's insert and the `UPDATE` of the superseded row go
+inside the same transaction.
+
+- [ ] **Step 12: Prove the mint is atomic**
+
+The failure is a race, so a passing single-threaded test proves nothing. Prove
+the lock is actually held:
+
+```ts
+test("mintId and the row insert commit as one transaction", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-mint-"));
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    store.close();
+    const a = new DatabaseSync(p);
+    const b = new DatabaseSync(p);
+    try {
+      a.exec("PRAGMA busy_timeout=0");
+      b.exec("PRAGMA busy_timeout=0");
+      a.exec("BEGIN IMMEDIATE");
+      // With the write lock held by A, B must not be able to take it. Before
+      // the fix both minters proceeded and took the same id.
+      assert.throws(() => b.exec("BEGIN IMMEDIATE"), /database is locked|SQLITE_BUSY/i);
+      a.exec("COMMIT");
+    } finally {
+      a.close();
+      b.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+```
+
+Then confirm the CLI still mints correctly under real concurrency:
+
+```bash
+cd /home/charl/fm-wt/sdb-task6
+npm run build
+rm -rf /tmp/mintrace && mkdir -p /tmp/mintrace/.foreman && cd /tmp/mintrace && git init -q .
+export FOREMAN_SESSION_DB=/tmp/mintrace/.foreman/session.db
+for i in 1 2 3 4 5 6 7 8; do
+  node /home/charl/fm-wt/sdb-task6/skills/foreman/runtime/dist/fm-session.js fact "concurrent $i" &
+done
+wait
+sqlite3 "$FOREMAN_SESSION_DB" "select group_concat(id) from facts; select value from store_meta where key='next_id.fact';"
+```
+
+Expected: eight distinct ids, no gaps beyond crash-safety, and the watermark
+strictly above the maximum id. Record the actual output.
+
+- [ ] **Step 13: Stop read commands from migrating the store**
+
+`connectReadonly` is gone, so `recover`, `freshness` and `sidecar` route through
+`bootstrapStore()`, which may rebuild the database. `.gitignore` states the read
+path was made read-only on purpose; this reverted it without saying so.
+
+The distinction to restore is **rebuilding a missing derived cache is not
+migrating an existing store**. Rehydrating an absent `.db` from the tracked
+sidecar is legitimate and the goldens depend on it. Migrating a legacy file, or
+touching a corrupt one, is authority a read command must not have.
+
+In `bootstrapStore`, take a flag:
+
+```ts
+function bootstrapStore(p: string, opts: { readonly allowMigration: boolean }) {
+  const shape = classifyStore(p);
+  if (shape === "corrupt") {
+    // ... refuse, as in Step 9
+  }
+  if (shape === "legacy") {
+    if (!opts.allowMigration) {
+      process.stderr.write(
+        `refusing: the session store at ${p} is in the pre-port schema and this is a read-only command. ` +
+        `Run a write command, or \`fm-session import-sidecar\`, to migrate it.\n`,
+      );
+      process.exit(2);
+    }
+    // ... existing migration, unchanged
+  } else if (shape === "absent") {
+    SqliteSessionStore.open(p).close();
+  }
+  rehydrateFromSidecarIfEmpty(p);
+}
+```
+
+Pass `allowMigration: !READ_ONLY_CMDS.has(cmd)` from `connect()`. `READ_ONLY_CMDS`
+already exists at `:20` and already lists `recover`, `freshness` and `sidecar`;
+it is currently only consulted for the sidecar refresh.
+
+- [ ] **Step 14: Prove a read command no longer migrates**
+
+```ts
+test("a read-only command refuses to migrate a legacy store", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-roguard-"));
+  try {
+    const p = join(dir, "session.db");
+    const db = new DatabaseSync(p);
+    try {
+      db.exec("CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT)");
+      db.exec("INSERT INTO schema_meta VALUES('version','3')");
+      db.exec("CREATE TABLE facts(id INTEGER PRIMARY KEY, statement TEXT)");
+    } finally {
+      db.close();
+    }
+    const before = statSync(p).mtimeMs;
+    const res = spawnSync(process.execPath, ["--import", "tsx", ENTRY, "recover"], {
+      cwd: dir, encoding: "utf8",
+      env: { ...process.env, FOREMAN_SESSION_DB: p },
+    });
+    assert.notEqual(res.status, 0, "recover migrated a legacy store instead of refusing");
+    assert.match(res.stderr, /read-only command/);
+    assert.equal(statSync(p).mtimeMs, before, "a read-only command modified the store");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+```
+
+Adapt `ENTRY` and the tsx loader to match how `fm-session-main.test.ts` already
+spawns the CLI, if it does; otherwise mirror `fm-session-golden.test.ts:237`.
+
+- [ ] **Step 15: Prove each of the four fixes fails without its fix**
+
+Per `AGENT_TRAPS.md` §3 Rule 2. For each fix, remove it, confirm the matching
+test fails, restore it. Record the four results.
+
+```bash
+cd /home/charl/fm-wt/sdb-task6
+git diff --stat   # must show only the intended changes when finished
+```
+
+- [ ] **Step 16: Full gate and commit**
+
+```bash
+cd /home/charl/fm-wt/sdb-task6
+npm run typecheck 2>&1 | tail -10
+npm run build && npm run verify-runtime 2>&1 | tail -5
+npm test 2>&1 | tail -10
+npx tsx --test packages/orchestration/src/fm-session-golden.test.ts 2>&1 | tail -5
+bats tests/session.bats 2>&1 | tail -5
+bash skills/foreman/scripts/docs-check.sh
+git add packages/session-store/src packages/orchestration/src skills/foreman/runtime
+git ls-files -s packages/session-store/src packages/orchestration/src | grep -v '^100644' || echo "modes ok"
+git commit -F <your message file>
+git status --porcelain
+```
+
+The commit message must state, for each of the four findings, what changed and
+what proves it. Do not claim a fix on a passing test alone — name the mutation
+that made it fail.
 
 ---
 
