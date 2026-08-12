@@ -17,6 +17,22 @@ import {
 } from "@foreman/session-store";
 import { rebuildFromSidecar } from "./session-rebuild.js";
 
+/**
+ * Which store backs the CLI.
+ *
+ * Deliberately NOT FM_SESSION_CMD. That variable holds the INVOCATION command
+ * (`tests/session.bats:13`: SESS="${FM_SESSION_CMD:-node .../fm-session.js}")
+ * and is named in v0.3.0 exit predicate 3. A seam keyed on it would read false
+ * under the entire Bats suite -- so the suite would measure the legacy path
+ * while appearing to exercise the port -- and after the default flips it would
+ * silently switch that suite to the port instead.
+ *
+ * Defaults to legacy until every command is migrated, so a half-finished
+ * migration cannot ship silently. Task 8 flips the default.
+ */
+const BACKEND: "legacy" | "port" =
+  process.env["FM_SESSION_BACKEND"] === "port" ? "port" : "legacy";
+
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
 
 /**
