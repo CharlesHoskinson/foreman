@@ -95,6 +95,12 @@ function encodeObject(
 }
 
 export function encodeSnapshot(snapshot: SessionSnapshot): string {
+  // Symmetric with decodeSnapshot, which ends in assertIntegrity. Without this
+  // the writer emits records the reader refuses and the caller reports success:
+  // the tracked record becomes unreadable at the moment it is written, and
+  // rehydrate downgrades the failure to a warning, so a cold clone comes up
+  // silently empty rather than loudly broken.
+  assertIntegrity(snapshot);
   const lines: string[] = [];
   const nextIdParts = COUNTED_KINDS.map(
     (k) => `${JSON.stringify(k)}:${encodeNumber(snapshot.nextIds[k])}`,

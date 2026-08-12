@@ -1,10 +1,21 @@
-import { describe, it } from "node:test";
+import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { writeFileSync, rmSync, mkdtempSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { connect, sidecarNdjson, importSidecar } from "./fm-session-main.js";
+import { fileURLToPath } from "node:url";
+import { SqliteSessionStore } from "@foreman/session-store";
+import { connect, sidecarNdjson, importSidecar, classifyStore } from "./fm-session-main.js";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ENTRY = join(HERE, "fm-session-main.ts");
+// `--import tsx` resolves the bare specifier "tsx" against the child's cwd;
+// resolve it from this file's own location instead, same as
+// fm-session-golden.test.ts's TSX_LOADER.
+const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
 
 /**
  * Both cases below now arm their probe on DatabaseSync.prototype rather than on
@@ -198,4 +209,100 @@ describe("fm-session-main atomicity and locks", () => {
       scrub(dbPath);
     }
   });
+});
+
+test("classifyStore rejects a legacy+port hybrid instead of calling it port-shaped", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-hybrid-"));
+  try {
+    const p = join(dir, "session.db");
+    const db = new DatabaseSync(p);
+    try {
+      // The shape the pre-fix code produced: legacy schema still present, the
+      // port's tables created beside it, watermarks at 1 against live ids.
+      db.exec("CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT)");
+      db.exec("INSERT INTO schema_meta VALUES('version','3')");
+      db.exec("CREATE TABLE facts(id INTEGER PRIMARY KEY, statement TEXT)");
+      db.exec("INSERT INTO facts VALUES(36,'live fact')");
+      db.exec("CREATE TABLE store_meta(key TEXT PRIMARY KEY, value TEXT)");
+      db.exec("INSERT INTO store_meta VALUES('next_id.fact','1')");
+    } finally {
+      db.close();
+    }
+    assert.equal(classifyStore(p), "corrupt");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a read-only command refuses to migrate a legacy store", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-roguard-"));
+  try {
+    const p = join(dir, "session.db");
+    const db = new DatabaseSync(p);
+    try {
+      db.exec("CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT)");
+      db.exec("INSERT INTO schema_meta VALUES('version','3')");
+      db.exec("CREATE TABLE facts(id INTEGER PRIMARY KEY, statement TEXT)");
+    } finally {
+      db.close();
+    }
+    const before = statSync(p).mtimeMs;
+    const res = spawnSync(process.execPath, ["--import", TSX_LOADER, ENTRY, "recover"], {
+      cwd: dir, encoding: "utf8",
+      env: { ...process.env, FOREMAN_SESSION_DB: p },
+    });
+    assert.notEqual(res.status, 0, "recover migrated a legacy store instead of refusing");
+    assert.match(res.stderr, /read-only command/);
+    assert.equal(statSync(p).mtimeMs, before, "a read-only command modified the store");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("mintId and the row insert commit as one transaction", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-mint-"));
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    store.close();
+    const a = new DatabaseSync(p);
+    const b = new DatabaseSync(p);
+    try {
+      a.exec("PRAGMA busy_timeout=0");
+      b.exec("PRAGMA busy_timeout=0");
+      a.exec("BEGIN IMMEDIATE");
+      // With the write lock held by A, B must not be able to take it. Before
+      // the fix both minters proceeded and took the same id.
+      assert.throws(() => b.exec("BEGIN IMMEDIATE"), /database is locked|SQLITE_BUSY/i);
+      a.exec("COMMIT");
+    } finally {
+      a.close();
+      b.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("classifyStore rejects a port file whose watermark sits behind its rows", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-behind-"));
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    store.addFact({
+      statement: "one", evidence: null,
+      established_ts: "2026-08-08T10:00:00Z", session_id: null,
+    });
+    store.close();
+    const db = new DatabaseSync(p);
+    try {
+      // Drive the watermark back behind the row it already minted.
+      db.exec("UPDATE store_meta SET value='1' WHERE key='next_id.fact'");
+    } finally {
+      db.close();
+    }
+    assert.equal(classifyStore(p), "corrupt");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

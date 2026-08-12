@@ -553,6 +553,7 @@ function encodeObject(row, keys) {
   return `{${parts.join(",")}}`;
 }
 function encodeSnapshot(snapshot) {
+  assertIntegrity(snapshot);
   const lines = [];
   const nextIdParts = COUNTED_KINDS.map(
     (k) => `${JSON.stringify(k)}:${encodeNumber(snapshot.nextIds[k])}`
@@ -1858,8 +1859,21 @@ function classifyStore(p) {
   const db = new DatabaseSync2(p);
   try {
     const names = new Set(db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name));
-    if (names.has("store_meta")) return "port";
-    if (names.has("schema_meta")) return "legacy";
+    const hasPort = names.has("store_meta");
+    const hasLegacy = names.has("schema_meta");
+    if (hasPort && hasLegacy) return "corrupt";
+    if (hasPort) {
+      for (const [kind, table] of [["fact", "facts"], ["measurement", "measurements"], ["obligation", "obligations"]]) {
+        if (!names.has(table)) continue;
+        const row = db.prepare(`SELECT MAX(id) AS m FROM ${quoteIdentifier(table)}`).get();
+        const max = row && row.m !== null ? Number(row.m) : 0;
+        const wm = db.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`);
+        const next = wm ? Number(wm.value) : 0;
+        if (next <= max) return "corrupt";
+      }
+      return "port";
+    }
+    if (hasLegacy) return "legacy";
     return "absent";
   } finally {
     db.close();
@@ -1903,9 +1917,23 @@ function storeIsEmpty(p) {
     db.close();
   }
 }
-function bootstrapStore(p) {
+function bootstrapStore(p, opts) {
   const shape = classifyStore(p);
+  if (shape === "corrupt") {
+    process.stderr.write(
+      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. It is the half-migrated state a pre-fix open produced. Move it aside and let the tracked sidecar rebuild it: mv ${p} ${p}.corrupt && fm-session recover
+`
+    );
+    process.exit(2);
+  }
   if (shape === "legacy") {
+    if (!opts.allowMigration) {
+      process.stderr.write(
+        `refusing: the session store at ${p} is in the pre-port schema and this is a read-only command. Run a write command, or \`fm-session import-sidecar\`, to migrate it.
+`
+      );
+      process.exit(2);
+    }
     const carrier = `${p}.legacy.ndjson`;
     try {
       writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
@@ -1937,14 +1965,15 @@ function rehydrateFromSidecarIfEmpty(p) {
     process.stderr.write(`rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)
 `);
   } catch (e) {
-    process.stderr.write(`WARNING: session store is empty and the sidecar at ${sidecar} could not be imported: ${e.message}
+    process.stderr.write(`refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${e.message}
 `);
+    throw e;
   }
 }
-function connect(path) {
+function connect(path, cmd) {
   const p = path ?? dbPath();
   mkdirSync2(dirname2(p), { recursive: true });
-  bootstrapStore(p);
+  bootstrapStore(p, { allowMigration: !READ_ONLY_CMDS.has(cmd ?? "") });
   const db = new DatabaseSync2(p);
   db.exec("PRAGMA foreign_keys=OFF");
   db.exec("PRAGMA busy_timeout=5000");
@@ -2193,6 +2222,20 @@ function mintId(conn, kind) {
   conn.prepare("INSERT OR REPLACE INTO store_meta(key,value) VALUES(?,?)").run(`next_id.${kind}`, String(id + 1));
   return id;
 }
+function inWriteTx(conn, body) {
+  conn.exec("BEGIN IMMEDIATE");
+  try {
+    const out = body();
+    conn.exec("COMMIT");
+    return out;
+  } catch (e) {
+    try {
+      conn.exec("ROLLBACK");
+    } catch (_) {
+    }
+    throw e;
+  }
+}
 function currentSession(cur) {
   const r = cur.prepare("SELECT session_id FROM sessions WHERE ended_ts IS NULL ORDER BY session_id DESC LIMIT 1").get();
   return r ? r.session_id : null;
@@ -2234,7 +2277,7 @@ function main() {
   if (cmd === "import-sidecar") {
     importTarget = parsed.options.into || dbPath();
     try {
-      conn = connect(importTarget);
+      conn = connect(importTarget, cmd);
     } catch (e) {
       const msg = e.message.includes("unable to open database file") ? "sqlite3.OperationalError" : e.message;
       process.stderr.write(`refusing: cannot open target store: ${msg}
@@ -2243,7 +2286,7 @@ function main() {
     }
   } else {
     try {
-      conn = connect();
+      conn = connect(void 0, cmd);
     } catch (e) {
       process.stderr.write(`sqlite3.OperationalError
 `);
@@ -2287,8 +2330,11 @@ function main() {
   if (cmd === "fact") {
     const statement = parsed.args[0];
     const evidence = parsed.options.evidence || null;
-    const id = mintId(conn, "fact");
-    conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id, statement, evidence, nowIso(), currentSession(conn));
+    const id = inWriteTx(conn, () => {
+      const id2 = mintId(conn, "fact");
+      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id2, statement, evidence, nowIso(), currentSession(conn));
+      return id2;
+    });
     process.stdout.write(`fact ${id}
 `);
     return 0;
@@ -2304,18 +2350,21 @@ function main() {
     let vnum = null;
     if (parsed.options.num !== void 0) vnum = parseFloat(parsed.options.num);
     else vnum = scalarOf(value);
-    const id = mintId(conn, "measurement");
-    conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
-      id,
-      metric,
-      value,
-      command,
-      nowIso(),
-      gitSha(),
-      parsed.options.scope.join("\n"),
-      currentSession(conn),
-      vnum
-    );
+    const id = inWriteTx(conn, () => {
+      const id2 = mintId(conn, "measurement");
+      conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
+        id2,
+        metric,
+        value,
+        command,
+        nowIso(),
+        gitSha(),
+        parsed.options.scope.join("\n"),
+        currentSession(conn),
+        vnum
+      );
+      return id2;
+    });
     process.stdout.write(`measurement ${id}
 `);
     return 0;
@@ -2323,15 +2372,18 @@ function main() {
   if (cmd === "obligation") {
     const statement = parsed.args[0];
     const blocker = parsed.options.blocker || null;
-    const id = mintId(conn, "obligation");
-    conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
-      id,
-      statement,
-      "open",
-      blocker,
-      nowIso(),
-      currentSession(conn)
-    );
+    const id = inWriteTx(conn, () => {
+      const id2 = mintId(conn, "obligation");
+      conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
+        id2,
+        statement,
+        "open",
+        blocker,
+        nowIso(),
+        currentSession(conn)
+      );
+      return id2;
+    });
     process.stdout.write(`obligation ${id}
 `);
     return 0;
@@ -2396,9 +2448,12 @@ function main() {
       process.stderr.write("error: option --reason requires an argument\n");
       process.exit(2);
     }
-    const newId = mintId(conn, "fact");
-    conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId, statement, evidence, nowIso(), currentSession(conn));
-    conn.prepare("UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(newId, nowIso(), reason, factId);
+    const newId = inWriteTx(conn, () => {
+      const newId2 = mintId(conn, "fact");
+      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId2, statement, evidence, nowIso(), currentSession(conn));
+      conn.prepare("UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(newId2, nowIso(), reason, factId);
+      return newId2;
+    });
     process.stdout.write(`fact ${factId} superseded by ${newId}
 `);
     return 0;
@@ -2480,6 +2535,7 @@ if (invokedDirectly) {
   mainWithSidecar();
 }
 export {
+  classifyStore,
   connect,
   importSidecar,
   main,

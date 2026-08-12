@@ -2,6 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decodeSnapshotV1 } from "./sidecar-v1.js";
 import { reasonOf } from "./failures.js";
+import { emptySnapshot, type SessionSnapshot } from "./entities.js";
+import { findViolations } from "./integrity.js";
+import { encodeSnapshot } from "./sidecar.js";
 
 const HEADER = `{"format": "foreman-session-sidecar", "format_version": 1}`;
 
@@ -83,4 +86,30 @@ test("rejects a record that is not exactly table and row", () => {
     reason = reasonOf(e);
   }
   assert.equal(reason, "sidecar_malformed");
+});
+
+test("encodeSnapshot refuses a snapshot the reader would reject", () => {
+  // A row id at or above its watermark is the exact violation the live
+  // corruption produced: fact 36 present, next_ids.fact still 1.
+  const snap: SessionSnapshot = {
+    ...emptySnapshot(),
+    sessions: [],
+    facts: [
+      {
+        id: 36,
+        statement: "live fact",
+        evidence: null,
+        established_ts: "2026-08-08T10:00:00Z",
+        session_id: null,
+        superseded_by: null,
+        superseded_at: null,
+        supersede_reason: null,
+      },
+    ] as never,
+  };
+  assert.ok(
+    findViolations(snap).some((v) => v.detail.includes("at or above nextIds.fact")),
+    "fixture does not reproduce the violation under test",
+  );
+  assert.throws(() => encodeSnapshot(snap), /at or above nextIds\.fact/);
 });

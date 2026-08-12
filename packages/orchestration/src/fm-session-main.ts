@@ -91,20 +91,35 @@ function dbPath(): string {
 /**
  * How the file at `p` is shaped, decided STRUCTURALLY.
  *
- * Deliberately not decided from a version number: the number is exactly what
- * is untrustworthy here -- a legacy file can carry any value in schema_meta
- * and still be the wrong shape for the port. A legacy file has schema_meta
- * and no store_meta. A port-shaped file has store_meta. A file that exists
- * but declares neither table has nothing to migrate, so it is treated as
- * absent and the port creates its schema in place.
+ * Four shapes, not three. "corrupt" is the one this classifier previously
+ * could not say: the port opened straight onto a legacy file CREATES
+ * store_meta while leaving schema_meta in place and every watermark at 1, so
+ * "has store_meta" classified that exact wreckage as healthy and the next
+ * write minted id 1 beside live id 36. The presence of store_meta is
+ * untrustworthy in the same way a version number is.
  */
-function classifyStore(p: string): "absent" | "legacy" | "port" {
+export function classifyStore(p: string): "absent" | "legacy" | "port" | "corrupt" {
   if (!existsSync(p)) return "absent";
   const db = new DatabaseSync(p);
   try {
     const names = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as any[]).map(r => r.name));
-    if (names.has("store_meta")) return "port";
-    if (names.has("schema_meta")) return "legacy";
+    const hasPort = names.has("store_meta");
+    const hasLegacy = names.has("schema_meta");
+    if (hasPort && hasLegacy) return "corrupt";
+    if (hasPort) {
+      // A watermark at or below its table's max(id) means the next mint
+      // collides. Cross-check before declaring the file healthy.
+      for (const [kind, table] of [["fact", "facts"], ["measurement", "measurements"], ["obligation", "obligations"]] as const) {
+        if (!names.has(table)) continue;
+        const row = db.prepare(`SELECT MAX(id) AS m FROM ${quoteIdentifier(table)}`).get() as any;
+        const max = row && row.m !== null ? Number(row.m) : 0;
+        const wm = db.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`) as any;
+        const next = wm ? Number(wm.value) : 0;
+        if (next <= max) return "corrupt";
+      }
+      return "port";
+    }
+    if (hasLegacy) return "legacy";
     return "absent";
   } finally {
     db.close();
@@ -173,9 +188,24 @@ function storeIsEmpty(p: string): boolean {
  * sidecar. It is the artefact being replaced, so nothing it holds may be lost
  * to a sidecar that is stale, or missing entirely.
  */
-function bootstrapStore(p: string) {
+function bootstrapStore(p: string, opts: { readonly allowMigration: boolean }) {
   const shape = classifyStore(p);
+  if (shape === "corrupt") {
+    process.stderr.write(
+      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. ` +
+      `It is the half-migrated state a pre-fix open produced. Move it aside and let the tracked sidecar rebuild it: ` +
+      `mv ${p} ${p}.corrupt && fm-session recover\n`,
+    );
+    process.exit(2);
+  }
   if (shape === "legacy") {
+    if (!opts.allowMigration) {
+      process.stderr.write(
+        `refusing: the session store at ${p} is in the pre-port schema and this is a read-only command. ` +
+        `Run a write command, or \`fm-session import-sidecar\`, to migrate it.\n`,
+      );
+      process.exit(2);
+    }
     const carrier = `${p}.legacy.ndjson`;
     try {
       writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
@@ -205,14 +235,18 @@ function rehydrateFromSidecarIfEmpty(p: string) {
     const res = rebuildFromSidecar({ sidecarPath: sidecar, dbPath: p, force: true });
     process.stderr.write(`rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)\n`);
   } catch (e: any) {
-    process.stderr.write(`WARNING: session store is empty and the sidecar at ${sidecar} could not be imported: ${e.message}\n`);
+    // The sidecar is the tracked record of truth. If it cannot be read, coming
+    // up empty is worse than failing: the next write would produce a "correct"
+    // store with none of the history in it.
+    process.stderr.write(`refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${e.message}\n`);
+    throw e;
   }
 }
 
-export function connect(path?: string): DatabaseSync {
+export function connect(path?: string, cmd?: string): DatabaseSync {
   const p = path ?? dbPath();
   mkdirSync(dirname(p), { recursive: true });
-  bootstrapStore(p);
+  bootstrapStore(p, { allowMigration: !READ_ONLY_CMDS.has(cmd ?? "") });
   const db = new DatabaseSync(p);
   // Foreign keys stay OFF on this connection, matching what the commands
   // still served by raw SQL here have always seen. The port's own connection
@@ -526,6 +560,27 @@ function mintId(conn: DatabaseSync, kind: string): number {
   return id;
 }
 
+/**
+ * Run `body` with the write lock held from the first read to the last write.
+ *
+ * mintId reads a watermark and the caller then inserts a row against it. Split
+ * across autocommit transactions those are two independent reads of the same
+ * counter, and busy_timeout never fires because neither writer is ever blocked.
+ * BEGIN IMMEDIATE takes the write lock up front, which is what makes the
+ * read-modify-write atomic.
+ */
+function inWriteTx<T>(conn: DatabaseSync, body: () => T): T {
+  conn.exec("BEGIN IMMEDIATE");
+  try {
+    const out = body();
+    conn.exec("COMMIT");
+    return out;
+  } catch (e) {
+    try { conn.exec("ROLLBACK"); } catch (_) {}
+    throw e;
+  }
+}
+
 function currentSession(cur: DatabaseSync): string | null {
   const r = cur.prepare("SELECT session_id FROM sessions WHERE ended_ts IS NULL ORDER BY session_id DESC LIMIT 1").get() as any;
   return r ? r.session_id : null;
@@ -569,14 +624,14 @@ export function main() {
   if (cmd === "import-sidecar") {
     importTarget = (parsed.options.into as string) || dbPath();
     try {
-      conn = connect(importTarget);
+      conn = connect(importTarget, cmd);
     } catch(e: any) {
       const msg = e.message.includes("unable to open database file") ? "sqlite3.OperationalError" : e.message;
       process.stderr.write(`refusing: cannot open target store: ${msg}\n`);
       process.exit(2);
     }
   } else {
-    try { conn = connect(); } catch (e: any) { process.stderr.write(`sqlite3.OperationalError\n`); process.exit(1); }
+    try { conn = connect(undefined, cmd); } catch (e: any) { process.stderr.write(`sqlite3.OperationalError\n`); process.exit(1); }
   }
 
   if (cmd === "begin") {
@@ -618,8 +673,11 @@ export function main() {
   if (cmd === "fact") {
     const statement = parsed.args[0];
     const evidence = parsed.options.evidence || null;
-    const id = mintId(conn, "fact");
-    conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id, statement, evidence, nowIso(), currentSession(conn));
+    const id = inWriteTx(conn, () => {
+      const id = mintId(conn, "fact");
+      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id, statement, evidence, nowIso(), currentSession(conn));
+      return id;
+    });
     process.stdout.write(`fact ${id}\n`);
     return 0;
   }
@@ -636,10 +694,13 @@ export function main() {
     if (parsed.options.num !== undefined) vnum = parseFloat(parsed.options.num);
     else vnum = scalarOf(value);
     
-    const id = mintId(conn, "measurement");
-    conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
-      id, metric, value, command, nowIso(), gitSha(), parsed.options.scope.join("\n"), currentSession(conn), vnum
-    );
+    const id = inWriteTx(conn, () => {
+      const id = mintId(conn, "measurement");
+      conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
+        id, metric, value, command, nowIso(), gitSha(), parsed.options.scope.join("\n"), currentSession(conn), vnum
+      );
+      return id;
+    });
     process.stdout.write(`measurement ${id}\n`);
     return 0;
   }
@@ -650,10 +711,13 @@ export function main() {
     // Status stays "open": blocked is derived from the blocker column, and the
     // declared enum has no "blocked" member. Storing it would put a value
     // outside the model into the tracked record, which the next read refuses.
-    const id = mintId(conn, "obligation");
-    conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
-      id, statement, "open", blocker, nowIso(), currentSession(conn)
-    );
+    const id = inWriteTx(conn, () => {
+      const id = mintId(conn, "obligation");
+      conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
+        id, statement, "open", blocker, nowIso(), currentSession(conn)
+      );
+      return id;
+    });
     process.stdout.write(`obligation ${id}\n`);
     return 0;
   }
@@ -711,9 +775,12 @@ export function main() {
     if (!reason) {
        process.stderr.write("error: option --reason requires an argument\n"); process.exit(2);
     }
-    const newId = mintId(conn, "fact");
-    conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId, statement, evidence, nowIso(), currentSession(conn));
-    conn.prepare("UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(newId, nowIso(), reason, factId);
+    const newId = inWriteTx(conn, () => {
+      const newId = mintId(conn, "fact");
+      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId, statement, evidence, nowIso(), currentSession(conn));
+      conn.prepare("UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(newId, nowIso(), reason, factId);
+      return newId;
+    });
     process.stdout.write(`fact ${factId} superseded by ${newId}\n`);
     return 0;
   }
