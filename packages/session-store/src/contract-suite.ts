@@ -450,6 +450,193 @@ export const CASES: readonly Case[] = [
       }
     },
   },
+  {
+    name: "retire/points-one-existing-measurement-at-another",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const a = s.addMeasurement({
+          metric: "suite.pass",
+          value: "700",
+          value_num: 700,
+          command: "bats tests/",
+          measured_ts: "2026-08-08T11:00:00Z",
+          measured_sha: "aaa111",
+          scope_paths: "tests",
+          session_id: "S1",
+        });
+        const b = s.addMeasurement({
+          metric: "suite.pass",
+          value: "720",
+          value_num: 720,
+          command: "bats tests/",
+          measured_ts: "2026-08-08T12:00:00Z",
+          measured_sha: "bbb222",
+          scope_paths: "tests",
+          session_id: "S1",
+        });
+        const before = s.listMeasurements().length;
+        const retired = s.retireMeasurement(a.id, b.id, "stale", "2026-08-08T12:00:01Z");
+        assert(retired.superseded_by === b.id, "superseded_by was not set to byId");
+        assert(retired.superseded_at === "2026-08-08T12:00:01Z", "superseded_at was not set");
+        assert(retired.supersede_reason === "stale", "supersede_reason was not set");
+        assert(
+          s.listMeasurements().length === before,
+          "retire inserted a row; it must only link existing rows",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "retire/fan-in-many-predecessors-onto-one-successor",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const mk = (v: string, ts: string) =>
+          s.addMeasurement({
+            metric: "suite.pass",
+            value: v,
+            value_num: Number(v),
+            command: "bats tests/",
+            measured_ts: ts,
+            measured_sha: "ccc333",
+            scope_paths: "tests",
+            session_id: "S1",
+          });
+        const p1 = mk("1", "2026-08-08T11:00:00Z");
+        const p2 = mk("2", "2026-08-08T11:01:00Z");
+        const p3 = mk("3", "2026-08-08T11:02:00Z");
+        const fresh = mk("4", "2026-08-08T12:00:00Z");
+        for (const p of [p1, p2, p3]) {
+          s.retireMeasurement(p.id, fresh.id, "retired by a fresh reading", "2026-08-08T12:00:01Z");
+        }
+        const rows = s.listMeasurements();
+        const naming = rows.filter((r) => r.superseded_by === fresh.id);
+        assert(naming.length === 3, `expected 3 rows naming ${fresh.id}, got ${naming.length}`);
+        // The snapshot must survive integrity validation and round-trip: this
+        // is the shape the live record is actually in.
+        const back = decodeSnapshot(encodeSnapshot(s.snapshot()));
+        assert(snapshotsEqual(s.snapshot(), back), "fan-in snapshot did not round-trip");
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "retire/refuses-missing-target",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        assertRejects(
+          () => s.retireMeasurement(9999, 1, "r", "2026-08-08T12:00:00Z"),
+          "invalid_argument",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "retire/refuses-missing-successor",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const only = s.listMeasurements()[0];
+        assert(only !== undefined, "fixture has no measurement");
+        assertRejects(
+          () => s.retireMeasurement(only.id, 9999, "r", "2026-08-08T12:00:00Z"),
+          "invalid_argument",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "retire/refuses-self-retire",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const only = s.listMeasurements()[0];
+        assert(only !== undefined, "fixture has no measurement");
+        assertRejects(
+          () => s.retireMeasurement(only.id, only.id, "r", "2026-08-08T12:00:00Z"),
+          "invalid_argument",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "retire/refuses-already-retired-target",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const mk = (v: string, ts: string) =>
+          s.addMeasurement({
+            metric: "m",
+            value: v,
+            value_num: Number(v),
+            command: null,
+            measured_ts: ts,
+            measured_sha: null,
+            scope_paths: "x",
+            session_id: "S1",
+          });
+        const a = mk("1", "2026-08-08T11:00:00Z");
+        const b = mk("2", "2026-08-08T11:01:00Z");
+        const c = mk("3", "2026-08-08T11:02:00Z");
+        s.retireMeasurement(a.id, b.id, "first", "2026-08-08T11:03:00Z");
+        // Supersession columns are set-once. The legacy CLI silently overwrote
+        // this pointer; that is the defect this case pins.
+        assertRejects(
+          () => s.retireMeasurement(a.id, c.id, "second", "2026-08-08T11:04:00Z"),
+          "supersession_incomplete",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "retire/refuses-a-retired-successor",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const mk = (v: string, ts: string) =>
+          s.addMeasurement({
+            metric: "m",
+            value: v,
+            value_num: Number(v),
+            command: null,
+            measured_ts: ts,
+            measured_sha: null,
+            scope_paths: "x",
+            session_id: "S1",
+          });
+        const a = mk("1", "2026-08-08T11:00:00Z");
+        const b = mk("2", "2026-08-08T11:01:00Z");
+        const c = mk("3", "2026-08-08T11:02:00Z");
+        s.retireMeasurement(b.id, c.id, "b is retired", "2026-08-08T11:03:00Z");
+        assertRejects(
+          () => s.retireMeasurement(a.id, b.id, "r", "2026-08-08T11:04:00Z"),
+          "invalid_argument",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
 ];
 
 /** Hostile-snapshot cases: pure validation, no store needed. */

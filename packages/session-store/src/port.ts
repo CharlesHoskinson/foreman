@@ -132,6 +132,26 @@ export interface SessionStore {
     at: string,
   ): SupersedeResult<MeasurementRow>;
 
+  /**
+   * Mark `id` superseded by the ALREADY EXISTING measurement `byId`.
+   *
+   * Distinct from supersedeMeasurement, which inserts a replacement. One fresh
+   * full-suite reading retires several stale ones, so fan-in onto `byId` is
+   * legal: N rows may name the same successor. Only the inverse question
+   * ("what did Y supersede") is one-to-many; each row still carries a single
+   * superseded_by.
+   *
+   * Returns the retired row, not a SupersedeResult: no replacement is created,
+   * and a `replacement` field holding an untouched pre-existing row would be
+   * false.
+   */
+  retireMeasurement(
+    id: number,
+    byId: number,
+    reason: string | null,
+    at: string,
+  ): MeasurementRow;
+
   // -- snapshot transfer ---------------------------------------------------
   /**
    * Replace store contents with `snapshot`. All-or-nothing: on any validation

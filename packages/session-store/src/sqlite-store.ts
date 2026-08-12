@@ -615,6 +615,50 @@ export class SqliteSessionStore implements SessionStore {
     });
   }
 
+  retireMeasurement(
+    id: number,
+    byId: number,
+    reason: string | null,
+    at: string,
+  ): MeasurementRow {
+    return this.tx(() => {
+      if (byId === id) {
+        raise("invalid_argument", `measurement ${id} cannot supersede itself`);
+      }
+      const cur = this.db
+        .prepare("SELECT superseded_by FROM measurements WHERE id = ?")
+        .get(id) as { superseded_by: number | null } | undefined;
+      if (!cur) raise("invalid_argument", `no such measurement ${id}`);
+      if (cur.superseded_by !== null) {
+        raise(
+          "supersession_incomplete",
+          `measurement ${id} is already superseded; supersession columns are set-once`,
+        );
+      }
+      const by = this.db
+        .prepare("SELECT superseded_by FROM measurements WHERE id = ?")
+        .get(byId) as { superseded_by: number | null } | undefined;
+      if (!by) raise("invalid_argument", `no such measurement ${byId}`);
+      if (by.superseded_by !== null) {
+        raise(
+          "invalid_argument",
+          `measurement ${byId} is itself superseded by ${by.superseded_by}; a retired measurement cannot supersede another`,
+        );
+      }
+      this.db
+        .prepare(
+          "UPDATE measurements SET superseded_by = ?, superseded_at = ?, supersede_reason = ? WHERE id = ?",
+        )
+        .run(byId, at, reason, id);
+      this.queueProjection("measurement", id, "retract", at);
+      return this.db
+        .prepare(
+          "SELECT id, metric, value, value_num, command, measured_ts, measured_sha, scope_paths, session_id, superseded_by, superseded_at, supersede_reason FROM measurements WHERE id = ?",
+        )
+        .get(id) as unknown as MeasurementRow;
+    });
+  }
+
   // -- snapshot transfer ---------------------------------------------------
 
   importSnapshot(snapshot: SessionSnapshot, opts: ImportOptions = {}): number {
