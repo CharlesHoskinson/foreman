@@ -339,3 +339,31 @@ test("golden: supersede a missing fact", () =>
 // case's target id was necessarily nonexistent too.
 test("golden: close with an unknown status", () =>
   golden("close-unknown", ["close", "1", "--status", "nonsense"]));
+
+// Seed measurements are 3,4,5,6,7 and none is superseded (see seed.ndjson).
+// retire has no recorded defect, so these four must stay byte-identical
+// through the cutover.
+test("golden: retire a measurement", () =>
+  golden("retire", ["retire", "3", "--by", "7", "--reason", "superseded by a fresh reading"]));
+
+test("golden: retire refuses self-supersession", () =>
+  golden("retire-self", ["retire", "3", "--by", "3", "--reason", "r"]));
+
+test("golden: retire refuses a missing target", () =>
+  golden("retire-missing-target", ["retire", "9999", "--by", "7", "--reason", "r"]));
+
+test("golden: retire refuses a missing superseder", () =>
+  golden("retire-missing-by", ["retire", "3", "--by", "9999", "--reason", "r"]));
+
+// KNOWN DEFECT, frozen deliberately. Fact 16 is already superseded by 32 in the
+// seed. Today the legacy path overwrites that pointer; supersession is meant to
+// be set-once. Task 7 changes this to a refusal and re-records this golden in
+// the same commit.
+test("golden: supersede an already-superseded fact", () =>
+  golden("supersede-superseded", ["supersede", "16", "replacement", "--reason", "r"]));
+
+// KNOWN DEFECT, frozen deliberately. Obligation 7 is already done in the seed.
+// Today the legacy path closes it again and wipes its blocker. Task 6 changes
+// this to a refusal and re-records this golden in the same commit.
+test("golden: close an already-done obligation", () =>
+  golden("close-done", ["close", "7", "--status", "done"]));
