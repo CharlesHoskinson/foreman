@@ -309,7 +309,30 @@ function normalize(dir: string, text: string): string {
   return out;
 }
 
-function golden(name: string, args: readonly string[], backend: GoldenBackend): void {
+type GoldenCaseOpts = {
+  /**
+   * When true, each backend compares against its own fixture:
+   * `<name>.<backend>.{out,err,exit}`.
+   *
+   * Use this only while a command is allowed to differ across the
+   * migration window. Shared fixtures remain the byte-identity
+   * invariant for every other case. GOLDEN_UPDATE records both arms
+   * for a diverging case, and still records the oracle arm only for
+   * a shared case.
+   */
+  readonly diverges?: boolean;
+};
+
+function fixtureStem(name: string, backend: GoldenBackend, diverges: boolean): string {
+  return diverges ? `${name}.${backend}` : name;
+}
+
+function golden(
+  name: string,
+  args: readonly string[],
+  backend: GoldenBackend,
+  opts: GoldenCaseOpts = {},
+): void {
   const dir = workspace();
   let passed = false;
   try {
@@ -318,21 +341,23 @@ function golden(name: string, args: readonly string[], backend: GoldenBackend): 
     const stdout = normalize(dir, res.stdout);
     const stderr = normalize(dir, res.stderr);
     const label = `${name} [${backend}]`;
+    const diverges = opts.diverges === true;
+    const stem = fixtureStem(name, backend, diverges);
 
     if (UPDATE) {
-      // Record from the oracle arm only. The port arm must never overwrite
-      // a fixture: the identity of the two arms against one file is the
-      // invariant under test.
-      if (backend === GOLDEN_ORACLE_BACKEND) {
-        writeFileSync(join(GOLDEN, `${name}.out`), stdout, "utf8");
-        writeFileSync(join(GOLDEN, `${name}.err`), stderr, "utf8");
-        writeFileSync(join(GOLDEN, `${name}.exit`), `${code}\n`, "utf8");
+      // Shared fixtures: record from the oracle arm only. The port arm
+      // must never overwrite them — that identity is the invariant.
+      // Diverging fixtures: record both arms, each to its own file.
+      if (diverges || backend === GOLDEN_ORACLE_BACKEND) {
+        writeFileSync(join(GOLDEN, `${stem}.out`), stdout, "utf8");
+        writeFileSync(join(GOLDEN, `${stem}.err`), stderr, "utf8");
+        writeFileSync(join(GOLDEN, `${stem}.exit`), `${code}\n`, "utf8");
       }
       passed = true;
       return;
     }
 
-    const outPath = join(GOLDEN, `${name}.out`);
+    const outPath = join(GOLDEN, `${stem}.out`);
     assert.ok(
       existsSync(outPath),
       `no golden recorded for ${label}; run with GOLDEN_UPDATE=1`,
@@ -340,12 +365,12 @@ function golden(name: string, args: readonly string[], backend: GoldenBackend): 
     assert.equal(stdout, readFileSync(outPath, "utf8"), `${label}: stdout drifted`);
     assert.equal(
       stderr,
-      readFileSync(join(GOLDEN, `${name}.err`), "utf8"),
+      readFileSync(join(GOLDEN, `${stem}.err`), "utf8"),
       `${label}: stderr drifted`,
     );
     assert.equal(
       `${code}\n`,
-      readFileSync(join(GOLDEN, `${name}.exit`), "utf8"),
+      readFileSync(join(GOLDEN, `${stem}.exit`), "utf8"),
       `${label}: exit code drifted`,
     );
     passed = true;
@@ -357,9 +382,14 @@ function golden(name: string, args: readonly string[], backend: GoldenBackend): 
   }
 }
 
-function goldenCase(title: string, name: string, args: readonly string[]): void {
+function goldenCase(
+  title: string,
+  name: string,
+  args: readonly string[],
+  opts: GoldenCaseOpts = {},
+): void {
   for (const backend of GOLDEN_BACKENDS) {
-    test(`golden: ${title} [${backend}]`, () => golden(name, args, backend));
+    test(`golden: ${title} [${backend}]`, () => golden(name, args, backend, opts));
   }
 }
 
@@ -380,16 +410,15 @@ goldenCase("supersede a missing fact", "supersede-missing", [
   "r",
 ]);
 
-// Obligation 1 exists in the seed (see seed.ndjson), so this isolates the
-// "unknown status accepted" defect from "nonexistent obligation accepted" --
-// the two were conflated when the seed had no obligations at all and this
-// case's target id was necessarily nonexistent too.
+// Obligation 1 exists in the seed (see seed.ndjson). The two arms diverge
+// during the cutover: legacy still accepts an unknown --status, the port
+// refuses it. Per-arm fixtures: close-unknown.{legacy,port}.{out,err,exit}.
 goldenCase("close with an unknown status", "close-unknown", [
   "close",
   "1",
   "--status",
   "nonsense",
-]);
+], { diverges: true });
 
 // Seed measurements are 3,4,5,6,7 and none is superseded (see seed.ndjson).
 // retire has no recorded defect, so these four must stay byte-identical
@@ -442,12 +471,12 @@ goldenCase("supersede an already-superseded fact", "supersede-superseded", [
   "r",
 ]);
 
-// KNOWN DEFECT, frozen deliberately. Obligation 7 is already done in the seed.
-// Today the legacy path closes it again and wipes its blocker. Task 6 changes
-// this to a refusal and re-records this golden in the same commit.
+// Obligation 7 is already done in the seed. The two arms diverge during the
+// cutover: legacy closes it again, the port refuses a non-open obligation.
+// Per-arm fixtures: close-done.{legacy,port}.{out,err,exit}.
 goldenCase("close an already-done obligation", "close-done", [
   "close",
   "7",
   "--status",
   "done",
-]);
+], { diverges: true });

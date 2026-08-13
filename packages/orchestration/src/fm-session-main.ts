@@ -13,6 +13,8 @@ import {
   countRows,
   decodeSnapshot,
   encodeSnapshot,
+  isSessionStoreFailure,
+  reasonOf,
   specFor,
 } from "@foreman/session-store";
 import { rebuildFromSidecar } from "./session-rebuild.js";
@@ -325,6 +327,21 @@ function openStore(path?: string, opts: { readonly readOnly?: boolean } = {}): S
 /** The port equivalent of the legacy currentSession(conn). */
 function currentSessionId(store: SqliteSessionStore): string | null {
   return store.currentSession()?.session_id ?? null;
+}
+
+/**
+ * Translate a port failure into the CLI's own refusal.
+ *
+ * The goldens compare bytes, so a command whose behaviour is unchanged must
+ * keep its exact legacy stderr text. Only supersede and close change their
+ * output deliberately, and they pass their new text here explicitly.
+ */
+function refuseFromPort(e: unknown, legacyMessage: string): never {
+  if (isSessionStoreFailure(e) || reasonOf(e) !== null) {
+    process.stderr.write(legacyMessage);
+    process.exit(2);
+  }
+  throw e;
 }
 
 function scalarOf(text: string): number | null {
@@ -790,6 +807,19 @@ export function main() {
   }
 
   if (cmd === "begin") {
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const rec = buildRecoveryFromStore(store);
+        const sid = mintSessionId();
+        store.beginSession({ session_id: sid, started_ts: nowIso(), start_sha: gitSha(), note: parsed.options.note || null });
+        process.stdout.write(render(rec) + "\n\n");
+        process.stdout.write(`SESSION BEGUN: ${sid}\n`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const rec = buildRecovery(conn);
     const sid = mintSessionId();
     conn.prepare("INSERT INTO sessions(session_id,started_ts,start_sha,note) VALUES(?,?,?,?)").run(sid, nowIso(), gitSha(), parsed.options.note || null);
@@ -820,6 +850,25 @@ export function main() {
   }
   
   if (cmd === "end") {
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const sid = parsed.args[0] || currentSessionId(store);
+        if (!sid) {
+          process.stderr.write("no open session\n");
+          process.exit(2);
+        }
+        try {
+          store.endSession(sid, nowIso());
+        } catch (e) {
+          refuseFromPort(e, "no open session\n");
+        }
+        process.stdout.write(`session ended: ${sid}\n`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const sid = parsed.args[0] || currentSession(conn);
     if (!sid) {
       process.stderr.write("no open session\n");
@@ -833,6 +882,19 @@ export function main() {
   if (cmd === "fact") {
     const statement = parsed.args[0];
     const evidence = parsed.options.evidence || null;
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const row = store.addFact({
+          statement, evidence, established_ts: nowIso(),
+          session_id: currentSessionId(store),
+        });
+        process.stdout.write(`fact ${row.id}\n`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const id = inWriteTx(conn, () => {
       const id = mintId(conn, "fact");
       conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id, statement, evidence, nowIso(), currentSession(conn));
@@ -853,7 +915,21 @@ export function main() {
     let vnum = null;
     if (parsed.options.num !== undefined) vnum = parseFloat(parsed.options.num);
     else vnum = scalarOf(value);
-    
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const row = store.addMeasurement({
+          metric, value, value_num: vnum, command,
+          measured_ts: nowIso(), measured_sha: gitSha(),
+          scope_paths: parsed.options.scope.join("\n"),
+          session_id: currentSessionId(store),
+        });
+        process.stdout.write(`measurement ${row.id}\n`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const id = inWriteTx(conn, () => {
       const id = mintId(conn, "measurement");
       conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
@@ -868,6 +944,19 @@ export function main() {
   if (cmd === "obligation") {
     const statement = parsed.args[0];
     const blocker = parsed.options.blocker || null;
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const row = store.addObligation({
+          statement, blocker, opened_ts: nowIso(),
+          session_id: currentSessionId(store),
+        });
+        process.stdout.write(`obligation ${row.id}\n`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     // Status stays "open": blocked is derived from the blocker column, and the
     // declared enum has no "blocked" member. Storing it would put a value
     // outside the model into the tracked record, which the next read refuses.
@@ -886,6 +975,24 @@ export function main() {
     const obligationId = parseInt(parsed.args[0], 10);
     const status = parsed.options.status;
     const blocker = parsed.options.blocker || null;
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        if (status !== "done" && status !== "dropped") {
+          process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}\n`);
+          process.exit(2);
+        }
+        try {
+          store.closeObligation(obligationId, status, nowIso());
+        } catch (e) {
+          refuseFromPort(e, `refusing: obligation ${obligationId} is not open; only an open obligation may be closed\n`);
+        }
+        process.stdout.write(`obligation ${obligationId} -> ${status}\n`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     conn.prepare("UPDATE obligations SET status=?, blocker=?, closed_ts=? WHERE id=?").run(
       status, blocker, status === "done" ? nowIso() : null, obligationId
     );
