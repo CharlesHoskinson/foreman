@@ -25,6 +25,32 @@ implicitly include this section.
 - **`dbPath()` resolves through `--git-common-dir`, which from a worktree is the base checkout.** Every manual `fm-session` run pins `FOREMAN_SESSION_DB` to a scratch path. Nothing rehearses against `/home/charl/foreman/.foreman/session.db` — with one deliberate exception: Task 10 Step 2 records three obligations in it, as the single intentional write to the live record.
 - **`npm test` currently fails one case for a local reason.** `secret-scan.test.ts` refuses the worktree with `bound_exceeded` when any file exceeds 16 MB; `launcher/dist/foreman-launch` is a gitignored 94 MB artifact. Move it aside for a full-suite run. Never report that failure as a branch defect.
 
+### Rebuild the runtime bundle, on every task that changes orchestration source
+
+`tests/session.bats` runs the **compiled** bundle at
+`skills/foreman/runtime/dist/fm-session.js`, not the TypeScript. A task that
+changes `packages/orchestration/src` without rebuilding leaves that suite
+testing the previous code, and its green result is hollow.
+
+This was not theoretical. Tasks 5 and 6 both shipped without a rebuild, so the
+committed bundle carried **zero** occurrences of `buildRecoveryFromStore`,
+`refuseFromPort`, `openStore`, `currentSessionId` or `FM_SESSION_BACKEND` while
+source carried 3/3/9/5/1. Every `bats` 29/29 they reported exercised the old
+bundle, and `npm run verify-runtime` was failing with `fm-session drift` for two
+commits before anyone measured it.
+
+So, on every task that touches `packages/orchestration/src`:
+
+```bash
+npm run build
+npm run verify-runtime     # must print "verify-runtime: ok"
+bats tests/session.bats    # now against the rebuilt bundle
+```
+
+and stage `skills/foreman/runtime/dist/` and `skills/foreman/runtime/manifest.json`
+with the source change. `npm run verify` chains `verify-runtime`, so a stale
+bundle means the branch cannot pass its own aggregate gate.
+
 ### The QA plugin is binding, on every task
 
 `plugins/foreman-qa/` is the definition of "done". Its preflight runs on **every**
