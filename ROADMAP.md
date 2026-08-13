@@ -99,7 +99,7 @@ Open work carried by this line:
 
 | Item | State |
 |---|---|
-| Migrate `fm-session-main.ts` onto the port | Not started. It still uses `node:sqlite` directly and is `// @ts-nocheck` |
+| Migrate `fm-session-main.ts` onto the port | Landed. The CLI runs on `@foreman/session-store`. `packages/orchestration/src/session-legacy-shape.ts` retains the only non-test `node:sqlite` import outside `packages/session-store/`, because recognizing and migrating a pre-port file requires raw SQLite |
 | `fm-session sync` — drain `memory_outbox` | Not started. The outbox table exists and is written; nothing drains it |
 | `importSnapshot` `remap` id-collision policy | Throws as unimplemented |
 | Conformance suite negative control | Absent. Hostile cases prove the validation layer discriminates; the store-level cases are unproven against a subtly wrong backend |

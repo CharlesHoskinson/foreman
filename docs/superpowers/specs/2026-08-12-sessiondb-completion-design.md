@@ -155,8 +155,15 @@ It returns a bare `MeasurementRow` rather than `SupersedeResult<MeasurementRow>`
 because no replacement is created. A `replacement` field holding a row that
 already existed and was never touched would be false in the type.
 
-New conformance cases are **added** to `contract-suite.ts`. The existing 28 stay
-unedited; that they need no editing is still the point of the exercise.
+New conformance cases are **added** to `contract-suite.ts`.
+
+**Predicate 3.** The conformance suite was not weakened to accommodate the CLI
+cutover. Checkable as: (a) `git log main..HEAD -- packages/session-store/src/contract-suite.ts`
+contains no commit from the CLI-migration tasks; (b) every case removed or
+inverted is justified by a recorded model correction, not by a CLI failure —
+currently exactly one, `hostile/two-rows-supersede-the-same-target`, superseded
+by the fan-in case because live measurement 17 has four predecessors; (c) no
+surviving case had an assertion loosened.
 
 ### W2 — Task 6, the cutover
 

@@ -76,7 +76,7 @@ answered a known-bad and a known-good identically.
 | --- | --- |
 | `packages/session-store/src/port.ts` | **Modify.** Add `retireMeasurement` to the `SessionStore` interface. |
 | `packages/session-store/src/sqlite-store.ts` | **Modify.** Implement `retireMeasurement`. |
-| `packages/session-store/src/contract-suite.ts` | **Modify.** Add retire cases to `CASES`. The existing 28 stay unedited. |
+| `packages/session-store/src/contract-suite.ts` | **Modify.** Add retire cases to `CASES`. Predicate 3: do not weaken the suite to accommodate the CLI cutover. |
 | `packages/orchestration/src/fm-session-main.ts` | **Modify, then shrink.** Commands move onto the port; legacy path deleted in Task 9. |
 | `packages/orchestration/src/fm-session-golden.test.ts` | **Modify.** Add the six new golden cases. |
 | `packages/orchestration/src/__golden__/` | **Modify.** Six fixtures added; three re-recorded deliberately. |
@@ -2136,17 +2136,22 @@ bats tests/session.bats 2>&1 | tail -8
 Expected: goldens PASS and 29/29. The only fixtures differing from Task 3 are
 the four changed deliberately in Tasks 6 and 7.
 
-- [ ] **Step 7: Prove predicate 3 — the contract is portable**
+- [ ] **Step 7: Prove predicate 3 — the suite was not weakened**
 
 ```bash
 cd /home/charl/fm-wt/sdb-task6
 npx tsx --test packages/session-store/src/contract.test.ts 2>&1 | tail -8
+git log main..HEAD --oneline -- packages/session-store/src/contract-suite.ts
 git diff main...HEAD --stat -- packages/session-store/src/contract-suite.ts
 ```
 
-Expected: all cases PASS. The suite gained the Task 2 retire cases and **no
-existing case was edited** — verify by reading the diff, not by trusting the
-count.
+**Predicate 3.** The conformance suite was not weakened to accommodate the CLI
+cutover. Checkable as: (a) `git log main..HEAD -- packages/session-store/src/contract-suite.ts`
+contains no commit from the CLI-migration tasks; (b) every case removed or
+inverted is justified by a recorded model correction, not by a CLI failure —
+currently exactly one, `hostile/two-rows-supersede-the-same-target`, superseded
+by the fan-in case because live measurement 17 has four predecessors; (c) no
+surviving case had an assertion loosened.
 
 - [ ] **Step 8: Prove predicate 4 — correctness independent of projection**
 

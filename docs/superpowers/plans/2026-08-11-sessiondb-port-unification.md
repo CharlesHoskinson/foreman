@@ -1575,8 +1575,13 @@ cd /root/fm-wt/sdb-design
 npx tsx --test packages/session-store/src/contract.test.ts 2>&1 | tail -10
 ```
 
-Expected: all 28 cases PASS, with the suite file unedited. That it needed no
-editing is the point.
+**Predicate 3.** The conformance suite was not weakened to accommodate the CLI
+cutover. Checkable as: (a) `git log main..HEAD -- packages/session-store/src/contract-suite.ts`
+contains no commit from the CLI-migration tasks; (b) every case removed or
+inverted is justified by a recorded model correction, not by a CLI failure —
+currently exactly one, `hostile/two-rows-supersede-the-same-target`, superseded
+by the fan-in case because live measurement 17 has four predecessors; (c) no
+surviving case had an assertion loosened.
 
 - [ ] **Step 7: Prove exit predicate 4 — correctness is independent of projection**
 

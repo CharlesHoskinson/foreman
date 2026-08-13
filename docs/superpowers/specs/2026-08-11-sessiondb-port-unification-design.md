@@ -223,8 +223,13 @@ data.
   fixture, and re-encoding to v2
 - the reconciliation asserts row-level before and after states, including that no
   `open` row acquires a blocker and no `done` row is touched
-- the existing 28-case conformance suite runs unchanged against the store; that
-  it must not need editing is the point of the exercise
+- **Predicate 3.** The conformance suite was not weakened to accommodate the CLI
+  cutover. Checkable as: (a) `git log main..HEAD -- packages/session-store/src/contract-suite.ts`
+  contains no commit from the CLI-migration tasks; (b) every case removed or
+  inverted is justified by a recorded model correction, not by a CLI failure —
+  currently exactly one, `hostile/two-rows-supersede-the-same-target`, superseded
+  by the fan-in case because live measurement 17 has four predecessors; (c) no
+  surviving case had an assertion loosened
 - a conformance case pins supersession of a missing target to a non-zero exit
 - a case asserts `recover` discloses withheld rows and that `--json` agrees with
   the text output
