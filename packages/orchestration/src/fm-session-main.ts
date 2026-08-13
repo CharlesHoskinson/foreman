@@ -28,6 +28,20 @@ import {
 } from "./session-legacy-shape.js";
 
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
+const STORE_CMDS = new Set([
+  "begin",
+  "recover",
+  "freshness",
+  "end",
+  "fact",
+  "measure",
+  "obligation",
+  "close",
+  "sidecar",
+  "import-sidecar",
+  "supersede",
+  "retire",
+]);
 
 type StringOption =
   | "note"
@@ -522,6 +536,44 @@ function writeAtomic(path: string, text: string): void {
 }
 
 /**
+ * Never replace an existing sidecar with fewer rows unless the caller
+ * authorises the shrink. Row count is a crude proxy. It is the one that
+ * catches a successful dump of an empty rebuild over a one-fact record.
+ */
+function writeSidecar(
+  path: string,
+  text: string,
+  newCount: number,
+  opts: { readonly allowShrink?: boolean } = {},
+): void {
+  if (opts.allowShrink !== true && existsSync(path)) {
+    let oldCount: number | undefined;
+    try {
+      oldCount = countRows(decodeSnapshot(readFileSync(path, "utf8")));
+    } catch {
+      oldCount = undefined;
+    }
+    if (oldCount !== undefined && newCount < oldCount) {
+      process.stderr.write(
+        `refusing: existing sidecar ${path} has ${oldCount} row(s); ` +
+          `refusing to replace it with ${newCount} row(s). ` +
+          `Pass --force to allow a shrink.\n`,
+      );
+      process.exit(2);
+    }
+  }
+  writeAtomic(path, text);
+}
+
+function persistSidecarAfterMigration(storePath: string): void {
+  const out = sidecarPathFor(storePath);
+  if (pathsAlias(out, storePath)) return;
+  const [lines, rowCount] = sidecarNdjson(storePath);
+  writeSidecar(out, lines, rowCount);
+  process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
+}
+
+/**
  * Restore a sidecar into the store at `dbFile`.
  *
  * decodeSnapshot accepts both sidecar formats -- v1 by its header version,
@@ -621,13 +673,15 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
     if (cmd === "import-sidecar") {
       const target = importTarget ?? dbPath();
       mkdirSync(dirname(target), { recursive: true });
-      bootstrapStore(target, { allowMigration: true, readOnly: false });
+      const migrated = bootstrapStore(target, { allowMigration: true, readOnly: false });
+      if (migrated) persistSidecarAfterMigration(target);
       return;
     }
     const p = dbPath();
     mkdirSync(dirname(p), { recursive: true });
     const readOnly = READ_ONLY_CMDS.has(cmd);
-    bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+    const migrated = bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+    if (migrated) persistSidecarAfterMigration(p);
   } catch (e) {
     if (cmd === "import-sidecar") {
       const message = errorMessage(e);
@@ -643,7 +697,7 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
 export function main(): number {
   const args = process.argv.slice(2);
   const cmd = args[0];
-  if (cmd === undefined) process.exit(2);
+  if (cmd === undefined || !STORE_CMDS.has(cmd)) process.exit(2);
 
   const parsed = parseCli(args.slice(1));
 
@@ -841,7 +895,7 @@ export function main(): number {
       // "sidecar" is a read-only command (READ_ONLY_CMDS): it may write the
       // NDJSON it dumps to, never the .db it dumps from.
       const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
-      writeAtomic(outPath, lines);
+      writeSidecar(outPath, lines, rowCount, { allowShrink: parsed.options.force });
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}\n`);
       return 0;
     } catch (e) {
@@ -968,7 +1022,10 @@ function mainWithSidecar(): void {
       process.exit(rc);
     }
     const [lines, rowCount] = sidecarNdjson(store);
-    writeAtomic(out, lines);
+    const allowShrink =
+      process.argv.includes("--force") &&
+      (invoked === "import-sidecar" || invoked === "sidecar");
+    writeSidecar(out, lines, rowCount, { allowShrink });
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
   } catch (e) {
     // A run that writes the store and then leaves its tracked sidecar behind

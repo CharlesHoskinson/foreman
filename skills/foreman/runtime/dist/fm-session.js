@@ -2003,6 +2003,10 @@ import { resolve } from "node:path";
 
 // packages/orchestration/src/session-rebuild.ts
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
+function removeJournalSidecars(dbPath2) {
+  rmSync(`${dbPath2}-wal`, { force: true });
+  rmSync(`${dbPath2}-shm`, { force: true });
+}
 function rebuildFromSidecar(opts) {
   if (existsSync(opts.dbPath) && opts.force !== true) {
     throw new Error(
@@ -2012,6 +2016,7 @@ function rebuildFromSidecar(opts) {
   const snapshot = decodeSnapshot(readFileSync(opts.sidecarPath, "utf8"));
   const tmpPath = `${opts.dbPath}.rebuild`;
   rmSync(tmpPath, { force: true });
+  removeJournalSidecars(tmpPath);
   const store = SqliteSessionStore.open(tmpPath);
   let rowsWritten;
   try {
@@ -2019,7 +2024,11 @@ function rebuildFromSidecar(opts) {
   } finally {
     store.close();
   }
+  removeJournalSidecars(tmpPath);
+  removeJournalSidecars(opts.dbPath);
   renameSync(tmpPath, opts.dbPath);
+  removeJournalSidecars(tmpPath);
+  removeJournalSidecars(opts.dbPath);
   return { rowsWritten, nextIds: snapshot.nextIds };
 }
 
@@ -2105,7 +2114,11 @@ function legacyDumpV1(p) {
     const documents = [jsonDumps({ format: SIDECAR_FORMAT, format_version: 1 }, true)];
     for (const kind of ENTITY_ORDER) {
       const table = V1_TABLE[kind];
-      if (!present.has(table)) continue;
+      if (!present.has(table)) {
+        throw new Error(
+          `legacy store is missing declared table ${table}; refusing a lossy dump that would recreate it empty`
+        );
+      }
       const spec = specFor(kind);
       const have = new Set(
         db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all().map((r) => r.name)
@@ -2201,20 +2214,35 @@ function bootstrapStore(p, opts) {
       rmSync2(carrier, { force: true });
     }
     rehydrateFromSidecarIfEmpty(p);
-    return;
+    return true;
   }
   if (shape === "absent") {
     SqliteSessionStore.open(p).close();
     rehydrateFromSidecarIfEmpty(p);
-    return;
+    return false;
   }
   if (!opts.readOnly) {
     rehydrateFromSidecarIfEmpty(p);
   }
+  return false;
 }
 
 // packages/orchestration/src/fm-session-main.ts
 var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
+var STORE_CMDS = /* @__PURE__ */ new Set([
+  "begin",
+  "recover",
+  "freshness",
+  "end",
+  "fact",
+  "measure",
+  "obligation",
+  "close",
+  "sidecar",
+  "import-sidecar",
+  "supersede",
+  "retire"
+]);
 function nowIso() {
   return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
@@ -2513,6 +2541,32 @@ function writeAtomic(path, text) {
   }
   renameSync2(tmp, path);
 }
+function writeSidecar(path, text, newCount, opts = {}) {
+  if (opts.allowShrink !== true && existsSync3(path)) {
+    let oldCount;
+    try {
+      oldCount = countRows(decodeSnapshot(readFileSync2(path, "utf8")));
+    } catch {
+      oldCount = void 0;
+    }
+    if (oldCount !== void 0 && newCount < oldCount) {
+      process.stderr.write(
+        `refusing: existing sidecar ${path} has ${oldCount} row(s); refusing to replace it with ${newCount} row(s). Pass --force to allow a shrink.
+`
+      );
+      process.exit(2);
+    }
+  }
+  writeAtomic(path, text);
+}
+function persistSidecarAfterMigration(storePath) {
+  const out = sidecarPathFor(storePath);
+  if (pathsAlias(out, storePath)) return;
+  const [lines, rowCount] = sidecarNdjson(storePath);
+  writeSidecar(out, lines, rowCount);
+  process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
+`);
+}
 function importSidecar(dbFile, path, force = false) {
   const snapshot = decodeSnapshot(readFileSync2(path, "utf8"));
   const store = SqliteSessionStore.open(dbFile);
@@ -2604,13 +2658,15 @@ function prepareInvocation(cmd, importTarget) {
     if (cmd === "import-sidecar") {
       const target = importTarget ?? dbPath();
       mkdirSync2(dirname2(target), { recursive: true });
-      bootstrapStore(target, { allowMigration: true, readOnly: false });
+      const migrated2 = bootstrapStore(target, { allowMigration: true, readOnly: false });
+      if (migrated2) persistSidecarAfterMigration(target);
       return;
     }
     const p = dbPath();
     mkdirSync2(dirname2(p), { recursive: true });
     const readOnly = READ_ONLY_CMDS.has(cmd);
-    bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+    const migrated = bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+    if (migrated) persistSidecarAfterMigration(p);
   } catch (e) {
     if (cmd === "import-sidecar") {
       const message = errorMessage2(e);
@@ -2627,7 +2683,7 @@ function prepareInvocation(cmd, importTarget) {
 function main() {
   const args = process.argv.slice(2);
   const cmd = args[0];
-  if (cmd === void 0) process.exit(2);
+  if (cmd === void 0 || !STORE_CMDS.has(cmd)) process.exit(2);
   const parsed = parseCli(args.slice(1));
   let importTarget = "";
   if (cmd === "import-sidecar") {
@@ -2821,7 +2877,7 @@ function main() {
     }
     try {
       const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
-      writeAtomic(outPath, lines);
+      writeSidecar(outPath, lines, rowCount, { allowShrink: parsed.options.force });
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}
 `);
       return 0;
@@ -2954,7 +3010,8 @@ function mainWithSidecar() {
       process.exit(rc);
     }
     const [lines, rowCount] = sidecarNdjson(store);
-    writeAtomic(out, lines);
+    const allowShrink = process.argv.includes("--force") && (invoked === "import-sidecar" || invoked === "sidecar");
+    writeSidecar(out, lines, rowCount, { allowShrink });
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
 `);
   } catch (e) {

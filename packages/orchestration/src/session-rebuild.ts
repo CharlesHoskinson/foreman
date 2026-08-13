@@ -15,6 +15,11 @@ import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { decodeSnapshot, SqliteSessionStore } from "@foreman/session-store";
 import type { NextIds } from "@foreman/session-store";
 
+function removeJournalSidecars(dbPath: string): void {
+  rmSync(`${dbPath}-wal`, { force: true });
+  rmSync(`${dbPath}-shm`, { force: true });
+}
+
 export type RebuildResult = {
   readonly rowsWritten: number;
   readonly nextIds: NextIds;
@@ -39,6 +44,7 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
 
   const tmpPath = `${opts.dbPath}.rebuild`;
   rmSync(tmpPath, { force: true });
+  removeJournalSidecars(tmpPath);
 
   const store = SqliteSessionStore.open(tmpPath);
   let rowsWritten: number;
@@ -48,6 +54,13 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
     store.close();
   }
 
+  // close() of the last connection checkpoints the temp file. Remove both
+  // journal pairs so the rename cannot leave dest.db pointing at dest.db-wal
+  // from the file it just replaced.
+  removeJournalSidecars(tmpPath);
+  removeJournalSidecars(opts.dbPath);
   renameSync(tmpPath, opts.dbPath);
+  removeJournalSidecars(tmpPath);
+  removeJournalSidecars(opts.dbPath);
   return { rowsWritten, nextIds: snapshot.nextIds };
 }

@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { SqliteSessionStore } from "@foreman/session-store";
 import { rebuildFromSidecar } from "./session-rebuild.js";
 
 const V1 = [
@@ -49,4 +50,59 @@ test("refuses to overwrite an existing database without force", () => {
   const paths = fixture();
   rebuildFromSidecar(paths);
   assert.throws(() => rebuildFromSidecar(paths));
+});
+
+test("CRITICAL 4: leftover destination WAL must not resurrect discarded rows", () => {
+  const dir = mkdtempSync(join(tmpdir(), "rebuild-wal-"));
+  try {
+    const dbPath = join(dir, "session.db");
+    const sidecarPath = join(dir, "session.ndjson");
+    const holder = SqliteSessionStore.open(dbPath);
+    holder.addFact({
+      statement: "POISON-SHOULD-NOT-SURVIVE",
+      evidence: null,
+      established_ts: "2026-08-01T00:00:00Z",
+      session_id: null,
+    });
+    holder.addFact({
+      statement: "WAL-LEFTOVER",
+      evidence: null,
+      established_ts: "2026-08-01T00:00:01Z",
+      session_id: null,
+    });
+    assert.ok(
+      existsSync(`${dbPath}-wal`) || existsSync(`${dbPath}-shm`),
+      "precondition: the holder must leave a journal file",
+    );
+
+    writeFileSync(
+      sidecarPath,
+      [
+        `{"format": "foreman-session-sidecar", "format_version": 1}`,
+        `{"table": "facts", "row": {"id": 1, "statement": "original-fact", "evidence": null, "established_ts": "2026-01-01T00:00:00Z", "session_id": null, "superseded_by": null, "superseded_at": null, "supersede_reason": null}}`,
+        "",
+      ].join("\n"),
+    );
+
+    const res = rebuildFromSidecar({ sidecarPath, dbPath, force: true });
+    assert.equal(res.rowsWritten, 1);
+    holder.close();
+
+    assert.equal(existsSync(`${dbPath}-wal`), false, "destination -wal survived the rename");
+    assert.equal(existsSync(`${dbPath}-shm`), false, "destination -shm survived the rename");
+    assert.equal(existsSync(`${dbPath}.rebuild-wal`), false, "temp -wal was left behind");
+    assert.equal(existsSync(`${dbPath}.rebuild-shm`), false, "temp -shm was left behind");
+
+    const after = SqliteSessionStore.open(dbPath);
+    try {
+      const statements = after.listFacts().map((f) => f.statement);
+      assert.deepEqual(statements, ["original-fact"]);
+      assert.ok(!statements.includes("POISON-SHOULD-NOT-SURVIVE"));
+      assert.ok(!statements.includes("WAL-LEFTOVER"));
+    } finally {
+      after.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

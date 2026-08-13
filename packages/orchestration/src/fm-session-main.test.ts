@@ -1,15 +1,22 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { writeFileSync, readFileSync, rmSync, mkdtempSync, statSync } from "node:fs";
+import {
+  writeFileSync,
+  readFileSync,
+  rmSync,
+  mkdtempSync,
+  statSync,
+  existsSync,
+} from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { SqliteSessionStore } from "@foreman/session-store";
+import { SqliteSessionStore, encodeSnapshot, countRows, decodeSnapshot } from "@foreman/session-store";
 import { sidecarNdjson, importSidecar, main } from "./fm-session-main.js";
-import { bootstrapStore, classifyStore } from "./session-legacy-shape.js";
+import { bootstrapStore, classifyStore, sidecarPathFor } from "./session-legacy-shape.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENTRY = join(HERE, "fm-session-main.ts");
@@ -387,6 +394,219 @@ test("retire refuses an already-retired measurement", () => {
       assert.equal(after?.superseded_by, b.id, "the original pointer was overwritten");
     } finally {
       store.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function writeLegacyStore(
+  dbPath: string,
+  opts: { readonly omitTables?: readonly string[] } = {},
+): void {
+  const omit = new Set(opts.omitTables ?? []);
+  const db = new DatabaseSync(dbPath);
+  try {
+    db.exec(
+      "CREATE TABLE schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+    );
+    db.exec("INSERT INTO schema_meta(key,value) VALUES('version','3')");
+    if (!omit.has("sessions")) {
+      db.exec(
+        "CREATE TABLE sessions (session_id TEXT PRIMARY KEY, started_ts TEXT NOT NULL, start_sha TEXT, ended_ts TEXT, note TEXT);",
+      );
+    }
+    if (!omit.has("facts")) {
+      db.exec(
+        "CREATE TABLE facts (id INTEGER PRIMARY KEY AUTOINCREMENT, statement TEXT NOT NULL, evidence TEXT, established_ts TEXT NOT NULL, session_id TEXT, superseded_by INTEGER, superseded_at TEXT, supersede_reason TEXT);",
+      );
+      db.exec(
+        "INSERT INTO facts(id,statement,established_ts) VALUES(36,'live fact','2026-08-01T00:00:00Z')",
+      );
+    }
+    if (!omit.has("measurements")) {
+      db.exec(
+        "CREATE TABLE measurements (id INTEGER PRIMARY KEY AUTOINCREMENT, metric TEXT NOT NULL, value TEXT NOT NULL, command TEXT, measured_ts TEXT NOT NULL, measured_sha TEXT, scope_paths TEXT, session_id TEXT, value_num REAL, superseded_by INTEGER, superseded_at TEXT, supersede_reason TEXT);",
+      );
+      db.exec(
+        "INSERT INTO measurements(id,metric,value,measured_ts) VALUES(19,'m','1','2026-08-01T00:00:00Z')",
+      );
+    }
+    if (!omit.has("obligations")) {
+      db.exec(
+        "CREATE TABLE obligations (id INTEGER PRIMARY KEY AUTOINCREMENT, statement TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', blocker TEXT, opened_ts TEXT NOT NULL, closed_ts TEXT, session_id TEXT);",
+      );
+      db.exec(
+        "INSERT INTO obligations(id,statement,status,blocker,opened_ts) VALUES(34,'live obligation','blocked','a blocker','2026-08-01T00:00:00Z')",
+      );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+function spawnSession(dir: string, dbPath: string, args: readonly string[]) {
+  return spawnSync(process.execPath, ["--import", TSX_LOADER, ENTRY, ...args], {
+    cwd: dir,
+    encoding: "utf8",
+    env: { ...process.env, FOREMAN_SESSION_DB: dbPath },
+  });
+}
+
+test("CRITICAL 1a: a legacy store missing a declared table is refused, not dumped empty", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-c1a-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    writeLegacyStore(p, { omitTables: ["facts"] });
+    writeFileSync(
+      sidecar,
+      [
+        `{"format":"foreman-session-sidecar","format_version":1}`,
+        `{"table":"facts","row":{"id":1,"statement":"canonical fact","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+        "",
+      ].join("\n"),
+    );
+    const before = readFileSync(sidecar, "utf8");
+    assert.throws(
+      () => bootstrapStore(p, { allowMigration: true, readOnly: false }),
+      /facts/,
+    );
+    assert.equal(classifyStore(p), "legacy", "a lossy dump must not rebuild the store");
+    assert.equal(readFileSync(sidecar, "utf8"), before, "the canonical sidecar must stay untouched");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CRITICAL 1b: a successful write refuses to replace a sidecar with fewer rows", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-c1b-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    const rich = SqliteSessionStore.open(join(dir, "rich.db"));
+    try {
+      for (const statement of ["fact-a", "fact-b", "fact-c"]) {
+        rich.addFact({
+          statement,
+          evidence: null,
+          established_ts: "2026-08-01T00:00:00Z",
+          session_id: null,
+        });
+      }
+      writeFileSync(sidecar, encodeSnapshot(rich.snapshot()));
+    } finally {
+      rich.close();
+    }
+    const existingRows = countRows(decodeSnapshot(readFileSync(sidecar, "utf8")));
+    assert.equal(existingRows, 3);
+
+    const thin = SqliteSessionStore.open(p);
+    try {
+      thin.addFact({
+        statement: "only-one",
+        evidence: null,
+        established_ts: "2026-08-01T00:00:00Z",
+        session_id: null,
+      });
+    } finally {
+      thin.close();
+    }
+
+    const res = spawnSession(dir, p, ["begin", "--note", "shrink-probe"]);
+    assert.notEqual(res.status, 0, "a shrink of the tracked sidecar must not report success");
+    assert.match(res.stderr, /3 row/);
+    assert.match(res.stderr, /2 row|1 row/);
+    const after = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.equal(countRows(after), 3, "the richer sidecar must not be replaced");
+    assert.ok(
+      after.facts.some((f) => f.statement === "fact-a"),
+      "canonical facts must survive a thinner store dump",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CRITICAL 1b: import-sidecar --force is the explicit shrink opt-in", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-c1b-force-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    const incoming = join(dir, "incoming.ndjson");
+    const rich = SqliteSessionStore.open(p);
+    try {
+      for (const statement of ["keep-a", "keep-b", "keep-c"]) {
+        rich.addFact({
+          statement,
+          evidence: null,
+          established_ts: "2026-08-01T00:00:00Z",
+          session_id: null,
+        });
+      }
+      writeFileSync(sidecar, encodeSnapshot(rich.snapshot()));
+    } finally {
+      rich.close();
+    }
+    const small = SqliteSessionStore.open(join(dir, "small.db"));
+    try {
+      small.addFact({
+        statement: "forced-one",
+        evidence: null,
+        established_ts: "2026-08-01T00:00:00Z",
+        session_id: null,
+      });
+      writeFileSync(incoming, encodeSnapshot(small.snapshot()));
+    } finally {
+      small.close();
+    }
+    const res = spawnSession(dir, p, ["import-sidecar", incoming, "--force"]);
+    assert.equal(res.status, 0, res.stderr);
+    const after = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.equal(countRows(after), 1);
+    assert.equal(after.facts[0]?.statement, "forced-one");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CRITICAL 2: a refused write after migration still leaves a tracked sidecar", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-c2-"));
+  try {
+    const p = join(dir, "session.db");
+    writeLegacyStore(p);
+    assert.equal(existsSync(sidecarPathFor(p)), false);
+    const res = spawnSession(dir, p, ["supersede", "999", "nope", "--reason", "r"]);
+    assert.notEqual(res.status, 0, "supersede 999 must still refuse");
+    assert.match(res.stderr, /migrated 3 row/);
+    const sidecar = sidecarPathFor(p);
+    assert.equal(existsSync(sidecar), true, "migration must not leave the tracked record missing");
+    const snap = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.equal(countRows(snap), 3);
+    assert.ok(snap.facts.some((f) => f.statement === "live fact"));
+    assert.equal(classifyStore(p), "port");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CRITICAL 3: --help and unknown commands must not migrate a legacy store", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-c3-"));
+  try {
+    const p = join(dir, "session.db");
+    writeLegacyStore(p);
+    const before = readFileSync(p);
+    for (const args of [["--help"], ["nosuchcmd"]] as const) {
+      const res = spawnSession(dir, p, args);
+      assert.notEqual(res.status, 0, `${args.join(" ")} must stay a refusal`);
+      assert.doesNotMatch(
+        res.stderr,
+        /migrated /,
+        `${args.join(" ")} migrated a store it does not need`,
+      );
+      assert.equal(classifyStore(p), "legacy", `${args.join(" ")} rewrote the schema`);
+      assert.ok(Buffer.compare(before, readFileSync(p)) === 0, `${args.join(" ")} changed the store bytes`);
+      assert.equal(existsSync(sidecarPathFor(p)), false, `${args.join(" ")} wrote a sidecar`);
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });

@@ -149,7 +149,9 @@ export function classifyStore(p: string): StoreShape {
  * Reads the file it is about to replace; never writes to it. A column the old
  * schema never grew is selected as NULL rather than added with ALTER TABLE,
  * so a migration that is refused downstream leaves the legacy file
- * byte-identical to what it found.
+ * byte-identical to what it found. A declared entity table that is absent is
+ * not skipped: that dump would rebuild the table empty and later overwrite
+ * the tracked sidecar with zero facts.
  */
 function legacyDumpV1(p: string): string {
   const db = new DatabaseSync(p);
@@ -163,7 +165,12 @@ function legacyDumpV1(p: string): string {
     const documents = [jsonDumps({ format: SIDECAR_FORMAT, format_version: 1 }, true)];
     for (const kind of ENTITY_ORDER) {
       const table = V1_TABLE[kind];
-      if (!present.has(table)) continue;
+      if (!present.has(table)) {
+        throw new Error(
+          `legacy store is missing declared table ${table}; ` +
+            `refusing a lossy dump that would recreate it empty`,
+        );
+      }
       const spec = specFor(kind);
       const have = new Set(
         (db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all() as {
@@ -250,8 +257,12 @@ function rehydrateFromSidecarIfEmpty(p: string): void {
  * A legacy file is migrated from ITS OWN contents rather than from the tracked
  * sidecar. It is the artefact being replaced, so nothing it holds may be lost
  * to a sidecar that is stale, or missing entirely.
+ *
+ * Returns true only when this call migrated a legacy-shaped file. Callers that
+ * have already rewritten the store must persist a tracked sidecar even if the
+ * command later refuses.
  */
-export function bootstrapStore(p: string, opts: BootstrapOpts): void {
+export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
   const shape = classifyStore(p);
   if (shape === "corrupt") {
     process.stderr.write(
@@ -283,7 +294,7 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): void {
       rmSync(carrier, { force: true });
     }
     rehydrateFromSidecarIfEmpty(p);
-    return;
+    return true;
   }
   if (shape === "absent") {
     // Nothing exists yet to mutate: creating the schema and, below,
@@ -293,7 +304,7 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): void {
     // depend on exactly this path.
     SqliteSessionStore.open(p).close();
     rehydrateFromSidecarIfEmpty(p);
-    return;
+    return false;
   }
   // shape === "port": the file already exists and is already the derived
   // cache. A read-only command must not write to a store that already
@@ -303,4 +314,5 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): void {
   if (!opts.readOnly) {
     rehydrateFromSidecarIfEmpty(p);
   }
+  return false;
 }
