@@ -302,6 +302,31 @@ export function connect(path?: string, cmd?: string): DatabaseSync {
   return db;
 }
 
+/**
+ * One port instance per invocation.
+ *
+ * Not opened per command: bootstrapStore() runs on every open, and the
+ * end-of-run sidecar refresh opens its own store, so a per-command open would
+ * bootstrap repeatedly and hold three connections to one file in a single run.
+ *
+ * `readOnly` must reach BOTH bootstrapStore and SqliteSessionStore.open, the
+ * same way connect() threads it for the legacy DatabaseSync path: a read-only
+ * command that opens a read-write handle checkpoints any outstanding WAL and
+ * rewrites the store's bytes and mtime as a side effect of a "read".
+ */
+function openStore(path?: string, opts: { readonly readOnly?: boolean } = {}): SqliteSessionStore {
+  const p = path ?? dbPath();
+  mkdirSync(dirname(p), { recursive: true });
+  const readOnly = !!opts.readOnly;
+  bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+  return SqliteSessionStore.open(p, { readOnly });
+}
+
+/** The port equivalent of the legacy currentSession(conn). */
+function currentSessionId(store: SqliteSessionStore): string | null {
+  return store.currentSession()?.session_id ?? null;
+}
+
 function scalarOf(text: string): number | null {
   const match = text.match(/^\s*(-?\d+(?:\.\d+)?)/);
   return match ? parseFloat(match[1]) : null;
@@ -432,6 +457,90 @@ function buildFreshness(conn: DatabaseSync, staleOnly: boolean) {
     });
   }
   return measurements;
+}
+
+function buildRecoveryFromStore(store: SqliteSessionStore) {
+  const head = gitSha();
+  const sessions = [...store.listSessions()].sort((a, b) =>
+    a.session_id < b.session_id ? 1 : a.session_id > b.session_id ? -1 : 0,
+  );
+  const sess = sessions[0] ?? null;
+
+  const facts = [...store.listFacts()]
+    .filter((r) => r.superseded_by === null)
+    .sort((a, b) => b.id - a.id)
+    .map((r) => ({
+      kind: "fact", id: r.id, statement: r.statement, evidence: r.evidence,
+      established_ts: r.established_ts,
+    }));
+
+  const measurements = [...store.listMeasurements()]
+    .filter((r) => r.superseded_by === null)
+    .sort((a, b) => b.id - a.id)
+    .map((r) => {
+      const [validity, why] = measurementValidity(r.measured_sha, r.scope_paths);
+      return {
+        kind: "measurement", id: r.id, metric: r.metric, value: r.value,
+        command: r.command, measured_ts: r.measured_ts,
+        measured_sha: (r.measured_sha || "").substring(0, 12),
+        scope_paths: (r.scope_paths || "").split("\n").filter(Boolean),
+        validity, validity_reason: why,
+      };
+    });
+
+  const obligations = [...store.listObligations()]
+    .filter((r) => r.status !== "done")
+    .map((r) => ({
+      kind: "obligation", id: r.id, statement: r.statement,
+      status: displayStatus(r), blocker: r.blocker, opened_ts: r.opened_ts,
+    }));
+  const obligationRank = (o: { status: string; blocker: string | null }): number => {
+    if (o.status === "open" && !o.blocker) return 0;
+    if (o.status === "open" || o.status === "blocked") return 1;
+    return 2;
+  };
+  obligations.sort((a, b) => {
+    const ra = obligationRank(a);
+    const rb = obligationRank(b);
+    if (ra !== rb) return ra - rb;
+    return b.id - a.id;
+  });
+
+  return {
+    recovered_at: nowIso(),
+    head_sha: ((head as string) || "").substring(0, 12),
+    last_session: sess,
+    facts,
+    measurements,
+    obligations,
+    counts: {
+      facts: facts.length,
+      measurements_fresh: measurements.filter((m) => m.validity === "fresh").length,
+      measurements_stale: measurements.filter((m) => m.validity === "stale").length,
+      measurements_unknown: measurements.filter((m) => m.validity === "unknown").length,
+      obligations_open: obligations.filter((o) => o.status === "open").length,
+      obligations_blocked: obligations.filter((o) => o.status === "blocked").length,
+    },
+  };
+}
+
+function buildFreshnessFromStore(store: SqliteSessionStore, staleOnly: boolean) {
+  const out: any[] = [];
+  const rows = [...store.listMeasurements()]
+    .filter((r) => r.superseded_by === null)
+    .sort((a, b) => b.id - a.id);
+  for (const row of rows) {
+    const [validity, why] = measurementValidity(row.measured_sha, row.scope_paths);
+    if (staleOnly && validity === "fresh") continue;
+    out.push({
+      id: row.id, metric: row.metric, value: row.value,
+      verdict: validity === "stale" ? "STALE" : validity,
+      reason: why, command: row.command || "(no command recorded)",
+      scope: (row.scope_paths || "").split("\n").filter(Boolean).join(","),
+      sha: row.measured_sha || "", timestamp: row.measured_ts,
+    });
+  }
+  return out;
 }
 
 function renderFreshness(measurements: any[], outputFormat: string) {
@@ -690,7 +799,9 @@ export function main() {
   }
   
   if (cmd === "recover") {
-    const rec = buildRecovery(conn);
+    const rec = BACKEND === "port"
+      ? (() => { const s = openStore(undefined, { readOnly: true }); try { return buildRecoveryFromStore(s); } finally { s.close(); } })()
+      : buildRecovery(conn);
     if (parsed.options.json) {
       process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
     } else {
@@ -698,9 +809,12 @@ export function main() {
     }
     return 0;
   }
-  
+
   if (cmd === "freshness") {
-    const measurements = buildFreshness(conn, !!parsed.options["stale-only"]);
+    const staleOnly = !!parsed.options["stale-only"];
+    const measurements = BACKEND === "port"
+      ? (() => { const s = openStore(undefined, { readOnly: true }); try { return buildFreshnessFromStore(s, staleOnly); } finally { s.close(); } })()
+      : buildFreshness(conn, staleOnly);
     process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
     return 0;
   }
