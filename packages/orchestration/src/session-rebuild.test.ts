@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, existsSync, rmSync, mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -102,6 +102,34 @@ test("CRITICAL 4: leftover destination WAL must not resurrect discarded rows", (
     } finally {
       after.close();
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("FIX 6: a failed rename must leave the destination WAL in place", () => {
+  const dir = mkdtempSync(join(tmpdir(), "rebuild-rename-fail-"));
+  try {
+    const dbPath = join(dir, "session.db");
+    const sidecarPath = join(dir, "session.ndjson");
+    mkdirSync(dbPath);
+    writeFileSync(`${dbPath}-wal`, "pre-existing-wal-bytes");
+    writeFileSync(
+      sidecarPath,
+      [
+        `{"format": "foreman-session-sidecar", "format_version": 1}`,
+        `{"table": "facts", "row": {"id": 1, "statement": "original-fact", "evidence": null, "established_ts": "2026-01-01T00:00:00Z", "session_id": null, "superseded_by": null, "superseded_at": null, "supersede_reason": null}}`,
+        "",
+      ].join("\n"),
+    );
+
+    assert.throws(() => rebuildFromSidecar({ sidecarPath, dbPath, force: true }));
+    assert.equal(
+      existsSync(`${dbPath}-wal`),
+      true,
+      "destination -wal was removed before a rename that then failed",
+    );
+    assert.equal(readFileSync(`${dbPath}-wal`, "utf8"), "pre-existing-wal-bytes");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

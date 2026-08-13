@@ -8,6 +8,7 @@ import {
   mkdtempSync,
   statSync,
   existsSync,
+  renameSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -15,7 +16,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { SqliteSessionStore, encodeSnapshot, countRows, decodeSnapshot } from "@foreman/session-store";
-import { sidecarNdjson, importSidecar, main } from "./fm-session-main.js";
+import { sidecarNdjson, importSidecar, main, assessSidecarReplace } from "./fm-session-main.js";
 import { bootstrapStore, classifyStore, sidecarPathFor } from "./session-legacy-shape.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -514,7 +515,8 @@ test("CRITICAL 1b: a successful write refuses to replace a sidecar with fewer ro
     }
 
     const res = spawnSession(dir, p, ["begin", "--note", "shrink-probe"]);
-    assert.notEqual(res.status, 0, "a shrink of the tracked sidecar must not report success");
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stderr, /BEHIND the database/);
     assert.match(res.stderr, /3 row/);
     assert.match(res.stderr, /2 row|1 row/);
     const after = decodeSnapshot(readFileSync(sidecar, "utf8"));
@@ -608,6 +610,275 @@ test("CRITICAL 3: --help and unknown commands must not migrate a legacy store", 
       assert.ok(Buffer.compare(before, readFileSync(p)) === 0, `${args.join(" ")} changed the store bytes`);
       assert.equal(existsSync(sidecarPathFor(p)), false, `${args.join(" ")} wrote a sidecar`);
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function seedFacts(dbPath: string, statements: readonly string[]): void {
+  const store = SqliteSessionStore.open(dbPath);
+  try {
+    for (const statement of statements) {
+      store.addFact({
+        statement,
+        evidence: null,
+        established_ts: "2026-08-01T00:00:00Z",
+        session_id: null,
+      });
+    }
+  } finally {
+    store.close();
+  }
+}
+
+function factStatements(dbPath: string): string[] {
+  const store = SqliteSessionStore.open(dbPath);
+  try {
+    return store.listFacts().map((f) => f.statement);
+  } finally {
+    store.close();
+  }
+}
+
+function writeSidecarFrom(dbPath: string, sidecar: string): void {
+  const store = SqliteSessionStore.open(dbPath);
+  try {
+    writeFileSync(sidecar, encodeSnapshot(store.snapshot()));
+  } finally {
+    store.close();
+  }
+}
+
+function seedFactsWithIds(
+  dbPath: string,
+  rows: readonly { readonly id: number; readonly statement: string }[],
+): void {
+  const tmp = `${dbPath}.seed.ndjson`;
+  writeFileSync(
+    tmp,
+    [
+      `{"format":"foreman-session-sidecar","format_version":1}`,
+      ...rows.map((r) =>
+        JSON.stringify({
+          table: "facts",
+          row: {
+            id: r.id,
+            statement: r.statement,
+            evidence: null,
+            established_ts: "2026-08-01T00:00:00Z",
+            session_id: null,
+            superseded_by: null,
+            superseded_at: null,
+            supersede_reason: null,
+          },
+        }),
+      ),
+      "",
+    ].join("\n"),
+  );
+  importSidecar(dbPath, tmp, true);
+  rmSync(tmp, { force: true });
+}
+
+test("FIX 1: a committed write must not exit 2 when sidecar refresh is refused", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-fix1-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(p, ["existing"]);
+    seedFactsWithIds(join(dir, "rich.db"), [
+      { id: 1, statement: "existing" },
+      { id: 10, statement: "CANONICAL-1" },
+      { id: 11, statement: "CANONICAL-2" },
+      { id: 12, statement: "CANONICAL-3" },
+    ]);
+    writeSidecarFrom(join(dir, "rich.db"), sidecar);
+
+    const first = spawnSession(dir, p, ["fact", "retry-attempt-1"]);
+    assert.notEqual(first.status, 2, "exit 2 after a committed write invites a duplicating retry");
+    assert.match(first.stderr, /BEHIND the database/);
+    assert.deepEqual(factStatements(p), ["existing", "retry-attempt-1"]);
+    const afterFirst = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.equal(countRows(afterFirst), 4);
+    assert.ok(afterFirst.facts.some((f) => f.statement === "CANONICAL-1"));
+
+    const second = spawnSession(dir, p, ["fact", "retry-attempt-2"]);
+    assert.notEqual(second.status, 2, "a second attempt must not be classified as a refusal of the first write");
+    assert.match(second.stderr, /BEHIND the database/);
+    const statements = factStatements(p);
+    assert.equal(
+      statements.filter((s) => s === "retry-attempt-1").length,
+      1,
+      "retry-attempt-1 must appear once; exit 2 made the operator retry duplicate it",
+    );
+    assert.ok(statements.includes("retry-attempt-2"));
+    const afterSecond = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.equal(countRows(afterSecond), 4, "the richer sidecar must still not be replaced");
+    assert.ok(afterSecond.facts.some((f) => f.statement === "CANONICAL-3"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("FIX 2: same-count different identities must not replace the sidecar", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-fix2-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFactsWithIds(join(dir, "canonical.db"), [
+      { id: 1, statement: "CANONICAL-1" },
+      { id: 2, statement: "CANONICAL-2" },
+      { id: 3, statement: "CANONICAL-3" },
+    ]);
+    writeSidecarFrom(join(dir, "canonical.db"), sidecar);
+    assert.equal(countRows(decodeSnapshot(readFileSync(sidecar, "utf8"))), 3);
+
+    seedFactsWithIds(p, [
+      { id: 10, statement: "JUNK-1" },
+      { id: 11, statement: "JUNK-2" },
+      { id: 12, statement: "JUNK-3" },
+    ]);
+    const dump = spawnSession(dir, p, ["sidecar"]);
+    assert.notEqual(dump.status, 0, "replacing three canonical fact ids with three other ids must be refused");
+    const afterDump = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.deepEqual(
+      afterDump.facts.map((f) => f.statement),
+      ["CANONICAL-1", "CANONICAL-2", "CANONICAL-3"],
+    );
+
+    rmSync(p, { force: true });
+    seedFacts(p, ["JUNK-1", "JUNK-2"]);
+    const begin = spawnSession(dir, p, ["begin", "--note", "same-count-probe"]);
+    assert.match(begin.stderr, /BEHIND the database|refusing/);
+    const afterBegin = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.deepEqual(
+      afterBegin.facts.map((f) => f.statement),
+      ["CANONICAL-1", "CANONICAL-2", "CANONICAL-3"],
+      "canonical facts must survive a same-count dump of junk facts plus a new session",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("FIX 3: the shrink refuse must name a command that honours --force", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-fix3-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(join(dir, "rich.db"), ["keep-a", "keep-b", "keep-c"]);
+    writeSidecarFrom(join(dir, "rich.db"), sidecar);
+    seedFacts(p, ["only-one"]);
+
+    const res = spawnSession(dir, p, ["fact", "ignored-force", "--force"]);
+    assert.match(res.stderr, /import-sidecar/);
+    assert.doesNotMatch(
+      res.stderr,
+      /Pass --force to allow a shrink/,
+      "the message must not advise --force on a command that ignores it",
+    );
+    const forced = spawnSession(dir, p, ["import-sidecar", sidecar, "--force"]);
+    assert.equal(forced.status, 0, forced.stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("FIX 4 and 5: C1a refusal is exit 2 and the stated remedy restores the store", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-fix45-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    writeLegacyStore(p, { omitTables: ["facts"] });
+    writeFileSync(
+      sidecar,
+      [
+        `{"format":"foreman-session-sidecar","format_version":1}`,
+        `{"table":"facts","row":{"id":1,"statement":"canonical fact","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+        "",
+      ].join("\n"),
+    );
+
+    const refused = spawnSession(dir, p, ["fact", "must-not-land"]);
+    assert.equal(refused.status, 2, `C1a must use the exit-2 refusal class, got ${refused.status}`);
+    assert.doesNotMatch(refused.stderr, /OperationalError/);
+    assert.match(refused.stderr, /refusing/);
+    const mv = refused.stderr.match(/mv (\S+) (\S+)/);
+    assert.ok(mv, `C1a refuse must name an mv remedy, stderr was: ${refused.stderr}`);
+    const src = mv[1]!;
+    const dest = mv[2]!;
+    assert.equal(src, p);
+    renameSync(src, dest);
+    assert.equal(existsSync(p), false);
+
+    const recovered = spawnSession(dir, p, ["recover"]);
+    assert.equal(recovered.status, 0, recovered.stderr);
+    assert.equal(classifyStore(p), "port");
+    assert.ok(
+      factStatements(p).includes("canonical fact"),
+      "recover after mv must rehydrate the tracked sidecar",
+    );
+
+    const write = spawnSession(dir, p, ["fact", "after-remedy"]);
+    assert.equal(write.status, 0, write.stderr);
+    assert.ok(factStatements(p).includes("after-remedy"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("FIX 2 bound: same-count identity loss is refused; payload mutation is not", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-fix2-bound-"));
+  try {
+    const canonicalPath = join(dir, "canonical.db");
+    const junkPath = join(dir, "junk.db");
+    const grownPath = join(dir, "grown.db");
+    seedFactsWithIds(canonicalPath, [
+      { id: 1, statement: "CANONICAL-1" },
+      { id: 2, statement: "CANONICAL-2" },
+      { id: 3, statement: "CANONICAL-3" },
+    ]);
+    seedFactsWithIds(junkPath, [
+      { id: 10, statement: "JUNK-1" },
+      { id: 11, statement: "JUNK-2" },
+      { id: 12, statement: "JUNK-3" },
+    ]);
+    seedFactsWithIds(grownPath, [
+      { id: 1, statement: "CANONICAL-1" },
+      { id: 2, statement: "CANONICAL-2" },
+      { id: 3, statement: "CANONICAL-3" },
+      { id: 4, statement: "NEW" },
+    ]);
+    const snap = (p: string) => {
+      const store = SqliteSessionStore.open(p);
+      try {
+        return store.snapshot();
+      } finally {
+        store.close();
+      }
+    };
+    const canonical = snap(canonicalPath);
+    const lost = assessSidecarReplace(canonical, snap(junkPath));
+    assert.equal(lost.ok, false, "three different fact ids at the same count must be a replace");
+    if (!lost.ok) {
+      assert.equal(lost.oldCount, lost.newCount);
+      assert.ok(lost.lostIdentities.length > 0);
+    }
+    const grown = assessSidecarReplace(canonical, snap(grownPath));
+    assert.equal(grown.ok, true, "a strict identity superset must be allowed");
+
+    const db = new DatabaseSync(canonicalPath);
+    try {
+      db.exec("UPDATE facts SET statement='MUTATED' WHERE id=1");
+    } finally {
+      db.close();
+    }
+    const mutated = assessSidecarReplace(canonical, snap(canonicalPath));
+    assert.equal(
+      mutated.ok,
+      true,
+      "same identities with a mutated statement are outside this bound",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

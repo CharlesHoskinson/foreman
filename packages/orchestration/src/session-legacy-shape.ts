@@ -22,6 +22,14 @@ import { rebuildFromSidecar } from "./session-rebuild.js";
 
 export type StoreShape = "absent" | "legacy" | "port" | "corrupt";
 
+/** Refused legacy dump. Callers map this to the exit-2 refusal class. */
+export class LegacyMigrationRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LegacyMigrationRefusal";
+  }
+}
+
 export type BootstrapOpts = {
   readonly allowMigration: boolean;
   readonly readOnly: boolean;
@@ -166,9 +174,11 @@ function legacyDumpV1(p: string): string {
     for (const kind of ENTITY_ORDER) {
       const table = V1_TABLE[kind];
       if (!present.has(table)) {
-        throw new Error(
+        throw new LegacyMigrationRefusal(
           `legacy store is missing declared table ${table}; ` +
-            `refusing a lossy dump that would recreate it empty`,
+            `refusing a lossy dump that would recreate it empty. ` +
+            `Move it aside and rebuild from the tracked sidecar: ` +
+            `mv ${p} ${p}.unmigratable && fm-session recover`,
         );
       }
       const spec = specFor(kind);

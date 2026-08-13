@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { join, dirname, resolve } from "node:path";
 import {
   existsSync,
@@ -14,14 +14,19 @@ import {
 } from "node:fs";
 import {
   SqliteSessionStore,
+  ENTITY_ORDER,
   countRows,
   decodeSnapshot,
   encodeSnapshot,
   isSessionStoreFailure,
   reasonOf,
+  rowsOfKind,
+  specFor,
   type SessionRow,
+  type SessionSnapshot,
 } from "@foreman/session-store";
 import {
+  LegacyMigrationRefusal,
   bootstrapStore,
   pathsAlias,
   sidecarPathFor,
@@ -535,31 +540,122 @@ function writeAtomic(path: string, text: string): void {
   renameSync(tmp, path);
 }
 
+export class SidecarReplaceRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SidecarReplaceRefused";
+  }
+}
+
+export type SidecarReplaceAssessment =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly oldCount: number;
+      readonly newCount: number;
+      readonly oldDigest: string;
+      readonly newDigest: string;
+      readonly kindShrinks: readonly string[];
+      readonly lostIdentities: readonly string[];
+    };
+
+function identityToken(kind: string, row: Record<string, unknown>, fields: readonly string[]): string {
+  return `${kind}\t${fields.map((f) => String(row[f] ?? "")).join("\t")}`;
+}
+
+function identityTokens(snapshot: SessionSnapshot): string[] {
+  const tokens: string[] = [];
+  for (const kind of ENTITY_ORDER) {
+    const fields = specFor(kind).identity;
+    for (const row of rowsOfKind(snapshot, kind)) {
+      tokens.push(identityToken(kind, row, fields));
+    }
+  }
+  tokens.sort();
+  return tokens;
+}
+
+function identityDigest(tokens: readonly string[]): string {
+  return createHash("sha256").update(tokens.join("\n"), "utf8").digest("hex");
+}
+
 /**
- * Never replace an existing sidecar with fewer rows unless the caller
- * authorises the shrink. Row count is a crude proxy. It is the one that
- * catches a successful dump of an empty rebuild over a one-fact record.
+ * Bound a sidecar replace by per-kind counts and by identity, not by total
+ * cardinality. A same-count dump of different rows is a replace.
+ *
+ * Detects: any kind count dropping, and any declared identity present in
+ * the existing sidecar but absent from the new dump.
+ *
+ * Does not detect: the same identities with mutated payloads (statement,
+ * evidence, status, timestamps). nextIds watermark drift is also ignored.
+ */
+export function assessSidecarReplace(
+  oldSnap: SessionSnapshot,
+  newSnap: SessionSnapshot,
+): SidecarReplaceAssessment {
+  const oldTokens = identityTokens(oldSnap);
+  const newTokens = identityTokens(newSnap);
+  const newSet = new Set(newTokens);
+  const lostIdentities = oldTokens.filter((t) => !newSet.has(t));
+  const kindShrinks: string[] = [];
+  for (const kind of ENTITY_ORDER) {
+    const oldN = rowsOfKind(oldSnap, kind).length;
+    const newN = rowsOfKind(newSnap, kind).length;
+    if (newN < oldN) kindShrinks.push(`${kind}:${oldN}->${newN}`);
+  }
+  if (kindShrinks.length === 0 && lostIdentities.length === 0) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    oldCount: countRows(oldSnap),
+    newCount: countRows(newSnap),
+    oldDigest: identityDigest(oldTokens),
+    newDigest: identityDigest(newTokens),
+    kindShrinks,
+    lostIdentities,
+  };
+}
+
+function sidecarReplaceMessage(path: string, verdict: Extract<SidecarReplaceAssessment, { ok: false }>): string {
+  const kinds = verdict.kindShrinks.length > 0 ? ` kinds ${verdict.kindShrinks.join(",")}` : "";
+  const lost =
+    verdict.lostIdentities.length > 0
+      ? ` missing ${verdict.lostIdentities.length} identit${verdict.lostIdentities.length === 1 ? "y" : "ies"}`
+      : "";
+  return (
+    `refusing: existing sidecar ${path} has ${verdict.oldCount} row(s); ` +
+    `refusing to replace it with ${verdict.newCount} row(s)` +
+    `${kinds}${lost} ` +
+    `(identity ${verdict.oldDigest.slice(0, 12)} -> ${verdict.newDigest.slice(0, 12)}). ` +
+    `Run \`fm-session sidecar --force\` to dump the store over this file, ` +
+    `or \`fm-session import-sidecar ${path} --force\` to restore this file into the store.\n`
+  );
+}
+
+/**
+ * Never replace an existing sidecar that would drop a declared identity
+ * unless the caller authorises the shrink. Per-kind counts plus the
+ * identity digest catch same-total replacements that a row-count guard
+ * cannot see.
  */
 function writeSidecar(
   path: string,
   text: string,
-  newCount: number,
   opts: { readonly allowShrink?: boolean } = {},
 ): void {
   if (opts.allowShrink !== true && existsSync(path)) {
-    let oldCount: number | undefined;
+    let oldSnap: SessionSnapshot | undefined;
     try {
-      oldCount = countRows(decodeSnapshot(readFileSync(path, "utf8")));
+      oldSnap = decodeSnapshot(readFileSync(path, "utf8"));
     } catch {
-      oldCount = undefined;
+      oldSnap = undefined;
     }
-    if (oldCount !== undefined && newCount < oldCount) {
-      process.stderr.write(
-        `refusing: existing sidecar ${path} has ${oldCount} row(s); ` +
-          `refusing to replace it with ${newCount} row(s). ` +
-          `Pass --force to allow a shrink.\n`,
-      );
-      process.exit(2);
+    if (oldSnap !== undefined) {
+      const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
+      if (!verdict.ok) {
+        throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
+      }
     }
   }
   writeAtomic(path, text);
@@ -569,8 +665,16 @@ function persistSidecarAfterMigration(storePath: string): void {
   const out = sidecarPathFor(storePath);
   if (pathsAlias(out, storePath)) return;
   const [lines, rowCount] = sidecarNdjson(storePath);
-  writeSidecar(out, lines, rowCount);
-  process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
+  try {
+    writeSidecar(out, lines);
+    process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
+  } catch (e) {
+    if (e instanceof SidecarReplaceRefused) {
+      process.stderr.write(e.message);
+      return;
+    }
+    throw e;
+  }
 }
 
 /**
@@ -687,6 +791,9 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
       const message = errorMessage(e);
       const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
       process.stderr.write(`refusing: cannot open target store: ${msg}\n`);
+      process.exit(2);
+    }
+    if (e instanceof LegacyMigrationRefusal) {
       process.exit(2);
     }
     process.stderr.write(`sqlite3.OperationalError\n`);
@@ -895,10 +1002,14 @@ export function main(): number {
       // "sidecar" is a read-only command (READ_ONLY_CMDS): it may write the
       // NDJSON it dumps to, never the .db it dumps from.
       const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
-      writeSidecar(outPath, lines, rowCount, { allowShrink: parsed.options.force });
+      writeSidecar(outPath, lines, { allowShrink: parsed.options.force });
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}\n`);
       return 0;
     } catch (e) {
+      if (e instanceof SidecarReplaceRefused) {
+        process.stderr.write(e.message);
+        process.exit(2);
+      }
       process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage(e)}\n`);
       process.exit(2);
     }
@@ -1015,9 +1126,9 @@ function mainWithSidecar(): void {
     process.exit(rc);
   }
 
+  const store = dbPath();
+  const out = sidecarPathFor(store);
   try {
-    const store = dbPath();
-    const out = sidecarPathFor(store);
     if (pathsAlias(out, store)) {
       process.exit(rc);
     }
@@ -1025,17 +1136,19 @@ function mainWithSidecar(): void {
     const allowShrink =
       process.argv.includes("--force") &&
       (invoked === "import-sidecar" || invoked === "sidecar");
-    writeSidecar(out, lines, rowCount, { allowShrink });
+    writeSidecar(out, lines, { allowShrink });
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
   } catch (e) {
-    // A run that writes the store and then leaves its tracked sidecar behind
-    // it is not a success: the next reader sees a record of truth that no
-    // longer matches what was just written. rc=0 here previously reported
-    // success anyway.
+    // The store write already committed. Exit 2 here invited an operator
+    // retry that duplicated the row, and process.exit inside writeSidecar
+    // suppressed this message. Keep rc=0 so a retry is not the obvious next
+    // step. Name commands that honour --force.
     process.stderr.write(
-      `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.\n`,
+      `WARNING: the store was written but its sidecar could not be refreshed (${e}). ` +
+        `The tracked record is now BEHIND the database. ` +
+        `Run \`fm-session sidecar --force\` to dump the store over the tracked record, ` +
+        `or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.\n`,
     );
-    rc = 1;
   }
   process.exit(rc);
 }

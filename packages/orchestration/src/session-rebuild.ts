@@ -54,11 +54,10 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
     store.close();
   }
 
-  // close() of the last connection checkpoints the temp file. Remove both
-  // journal pairs so the rename cannot leave dest.db pointing at dest.db-wal
-  // from the file it just replaced.
+  // close() of the last connection checkpoints the temp file. Remove the
+  // destination journal only AFTER the rename. Deleting dest-wal first would
+  // drop uncheckpointed committed rows if renameSync then fails.
   removeJournalSidecars(tmpPath);
-  removeJournalSidecars(opts.dbPath);
   renameSync(tmpPath, opts.dbPath);
   removeJournalSidecars(tmpPath);
   removeJournalSidecars(opts.dbPath);

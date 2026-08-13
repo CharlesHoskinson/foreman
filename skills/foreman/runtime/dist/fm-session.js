@@ -1,7 +1,7 @@
 // packages/orchestration/src/fm-session-main.ts
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { join, dirname as dirname2, resolve as resolve2 } from "node:path";
 import {
   existsSync as existsSync3,
@@ -2025,7 +2025,6 @@ function rebuildFromSidecar(opts) {
     store.close();
   }
   removeJournalSidecars(tmpPath);
-  removeJournalSidecars(opts.dbPath);
   renameSync(tmpPath, opts.dbPath);
   removeJournalSidecars(tmpPath);
   removeJournalSidecars(opts.dbPath);
@@ -2033,6 +2032,12 @@ function rebuildFromSidecar(opts) {
 }
 
 // packages/orchestration/src/session-legacy-shape.ts
+var LegacyMigrationRefusal = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "LegacyMigrationRefusal";
+  }
+};
 var V1_TABLE = {
   session: "sessions",
   fact: "facts",
@@ -2115,8 +2120,8 @@ function legacyDumpV1(p) {
     for (const kind of ENTITY_ORDER) {
       const table = V1_TABLE[kind];
       if (!present.has(table)) {
-        throw new Error(
-          `legacy store is missing declared table ${table}; refusing a lossy dump that would recreate it empty`
+        throw new LegacyMigrationRefusal(
+          `legacy store is missing declared table ${table}; refusing a lossy dump that would recreate it empty. Move it aside and rebuild from the tracked sidecar: mv ${p} ${p}.unmigratable && fm-session recover`
         );
       }
       const spec = specFor(kind);
@@ -2541,20 +2546,72 @@ function writeAtomic(path, text) {
   }
   renameSync2(tmp, path);
 }
-function writeSidecar(path, text, newCount, opts = {}) {
-  if (opts.allowShrink !== true && existsSync3(path)) {
-    let oldCount;
-    try {
-      oldCount = countRows(decodeSnapshot(readFileSync2(path, "utf8")));
-    } catch {
-      oldCount = void 0;
+var SidecarReplaceRefused = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "SidecarReplaceRefused";
+  }
+};
+function identityToken(kind, row, fields) {
+  return `${kind}	${fields.map((f) => String(row[f] ?? "")).join("	")}`;
+}
+function identityTokens(snapshot) {
+  const tokens = [];
+  for (const kind of ENTITY_ORDER) {
+    const fields = specFor(kind).identity;
+    for (const row of rowsOfKind(snapshot, kind)) {
+      tokens.push(identityToken(kind, row, fields));
     }
-    if (oldCount !== void 0 && newCount < oldCount) {
-      process.stderr.write(
-        `refusing: existing sidecar ${path} has ${oldCount} row(s); refusing to replace it with ${newCount} row(s). Pass --force to allow a shrink.
-`
-      );
-      process.exit(2);
+  }
+  tokens.sort();
+  return tokens;
+}
+function identityDigest(tokens) {
+  return createHash("sha256").update(tokens.join("\n"), "utf8").digest("hex");
+}
+function assessSidecarReplace(oldSnap, newSnap) {
+  const oldTokens = identityTokens(oldSnap);
+  const newTokens = identityTokens(newSnap);
+  const newSet = new Set(newTokens);
+  const lostIdentities = oldTokens.filter((t) => !newSet.has(t));
+  const kindShrinks = [];
+  for (const kind of ENTITY_ORDER) {
+    const oldN = rowsOfKind(oldSnap, kind).length;
+    const newN = rowsOfKind(newSnap, kind).length;
+    if (newN < oldN) kindShrinks.push(`${kind}:${oldN}->${newN}`);
+  }
+  if (kindShrinks.length === 0 && lostIdentities.length === 0) {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    oldCount: countRows(oldSnap),
+    newCount: countRows(newSnap),
+    oldDigest: identityDigest(oldTokens),
+    newDigest: identityDigest(newTokens),
+    kindShrinks,
+    lostIdentities
+  };
+}
+function sidecarReplaceMessage(path, verdict) {
+  const kinds = verdict.kindShrinks.length > 0 ? ` kinds ${verdict.kindShrinks.join(",")}` : "";
+  const lost = verdict.lostIdentities.length > 0 ? ` missing ${verdict.lostIdentities.length} identit${verdict.lostIdentities.length === 1 ? "y" : "ies"}` : "";
+  return `refusing: existing sidecar ${path} has ${verdict.oldCount} row(s); refusing to replace it with ${verdict.newCount} row(s)${kinds}${lost} (identity ${verdict.oldDigest.slice(0, 12)} -> ${verdict.newDigest.slice(0, 12)}). Run \`fm-session sidecar --force\` to dump the store over this file, or \`fm-session import-sidecar ${path} --force\` to restore this file into the store.
+`;
+}
+function writeSidecar(path, text, opts = {}) {
+  if (opts.allowShrink !== true && existsSync3(path)) {
+    let oldSnap;
+    try {
+      oldSnap = decodeSnapshot(readFileSync2(path, "utf8"));
+    } catch {
+      oldSnap = void 0;
+    }
+    if (oldSnap !== void 0) {
+      const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
+      if (!verdict.ok) {
+        throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
+      }
     }
   }
   writeAtomic(path, text);
@@ -2563,9 +2620,17 @@ function persistSidecarAfterMigration(storePath) {
   const out = sidecarPathFor(storePath);
   if (pathsAlias(out, storePath)) return;
   const [lines, rowCount] = sidecarNdjson(storePath);
-  writeSidecar(out, lines, rowCount);
-  process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
+  try {
+    writeSidecar(out, lines);
+    process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
 `);
+  } catch (e) {
+    if (e instanceof SidecarReplaceRefused) {
+      process.stderr.write(e.message);
+      return;
+    }
+    throw e;
+  }
 }
 function importSidecar(dbFile, path, force = false) {
   const snapshot = decodeSnapshot(readFileSync2(path, "utf8"));
@@ -2673,6 +2738,9 @@ function prepareInvocation(cmd, importTarget) {
       const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
       process.stderr.write(`refusing: cannot open target store: ${msg}
 `);
+      process.exit(2);
+    }
+    if (e instanceof LegacyMigrationRefusal) {
       process.exit(2);
     }
     process.stderr.write(`sqlite3.OperationalError
@@ -2877,11 +2945,15 @@ function main() {
     }
     try {
       const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
-      writeSidecar(outPath, lines, rowCount, { allowShrink: parsed.options.force });
+      writeSidecar(outPath, lines, { allowShrink: parsed.options.force });
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}
 `);
       return 0;
     } catch (e) {
+      if (e instanceof SidecarReplaceRefused) {
+        process.stderr.write(e.message);
+        process.exit(2);
+      }
       process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage2(e)}
 `);
       process.exit(2);
@@ -3003,23 +3075,22 @@ function mainWithSidecar() {
   if (rc !== 0 || process.argv.length < 3 || invoked !== void 0 && READ_ONLY_CMDS.has(invoked)) {
     process.exit(rc);
   }
+  const store = dbPath();
+  const out = sidecarPathFor(store);
   try {
-    const store = dbPath();
-    const out = sidecarPathFor(store);
     if (pathsAlias(out, store)) {
       process.exit(rc);
     }
     const [lines, rowCount] = sidecarNdjson(store);
     const allowShrink = process.argv.includes("--force") && (invoked === "import-sidecar" || invoked === "sidecar");
-    writeSidecar(out, lines, rowCount, { allowShrink });
+    writeSidecar(out, lines, { allowShrink });
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
 `);
   } catch (e) {
     process.stderr.write(
-      `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.
+      `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database. Run \`fm-session sidecar --force\` to dump the store over the tracked record, or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.
 `
     );
-    rc = 1;
   }
   process.exit(rc);
 }
@@ -3028,6 +3099,8 @@ if (invokedDirectly) {
   mainWithSidecar();
 }
 export {
+  SidecarReplaceRefused,
+  assessSidecarReplace,
   importSidecar,
   main,
   sidecarNdjson
