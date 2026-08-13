@@ -99,6 +99,14 @@ const GOLDEN = join(HERE, "__golden__");
 const ENTRY = join(HERE, "fm-session-main.ts");
 const UPDATE = process.env["GOLDEN_UPDATE"] === "1";
 
+// Every case runs once per arm against the same fixture. Collapse this list
+// to `["port"]` (and retarget GOLDEN_ORACLE_BACKEND) when the legacy path
+// is deleted. The suite never reads FM_SESSION_BACKEND from the ambient
+// environment to decide what to cover.
+const GOLDEN_BACKENDS = ["legacy", "port"] as const;
+type GoldenBackend = (typeof GOLDEN_BACKENDS)[number];
+const GOLDEN_ORACLE_BACKEND: GoldenBackend = "legacy";
+
 // `--import tsx` resolves the bare specifier "tsx" against the child's cwd,
 // which is a freshly mkdtemp'd workspace with no node_modules of its own.
 // Resolve tsx's loader entrypoint once, from this file's own location (part
@@ -233,31 +241,52 @@ function workspace(): string {
   return dir;
 }
 
+/**
+ * Child env for one backend arm. Backend is always set here; an ambient
+ * FM_SESSION_BACKEND must not change which arms the suite covers.
+ */
+function childEnv(cwd: string, backend: GoldenBackend): NodeJS.ProcessEnv {
+  const env = sanitizedCheckpointEnv(process.env);
+  // Ambient NO_COLOR+FORCE_COLOR makes Node print
+  // "Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR'
+  // env being set." on every child's stderr. Goldens compare stderr
+  // exactly, so that warning turns the whole corpus red. Drop the
+  // colour variables rather than inherit the operator's shell.
+  delete env["NO_COLOR"];
+  delete env["FORCE_COLOR"];
+  delete env["CLICOLOR_FORCE"];
+  delete env["CLICOLOR"];
+  env["GOLDEN_UPDATE"] = "";
+  // dbPath() (fm-session-main.ts) short-circuits on FOREMAN_SESSION_DB
+  // before it ever looks at the scratch repo, and lane-run.sh exports
+  // that variable for every foreman lane. Forwarding the parent
+  // environment unpinned lets an ambient FOREMAN_SESSION_DB redirect
+  // every case -- including the mutating `supersede` case -- at an
+  // external path outside the workspace. Pin it here, the same way
+  // tests/session.bats does, so the CLI can never see or touch
+  // anything outside this disposable directory.
+  env["FOREMAN_SESSION_DB"] = join(cwd, ".foreman", "session.db");
+  if (backend === "port") {
+    env["FM_SESSION_BACKEND"] = "port";
+  } else {
+    delete env["FM_SESSION_BACKEND"];
+  }
+  return env;
+}
+
 /** Run the CLI from source. tsx keeps this honest against an unbuilt bundle. */
-function run(cwd: string, args: readonly string[]) {
+function run(cwd: string, args: readonly string[], backend: GoldenBackend) {
   return spawnSync(process.execPath, ["--import", TSX_LOADER, ENTRY, ...args], {
     cwd,
     encoding: "utf8",
-    env: {
-      // Scrubbed, not raw `process.env`: the CLI itself shells out to git
-      // (gitSha(), measurement-validity's diffing) as a grandchild of this
-      // process, and it inherits whatever env this spawnSync call gives it.
-      // An ambient GIT_DIR/GIT_WORK_TREE (skills/foreman/scripts/lib/
-      // checkpoint.sh exports exactly this for a real foreman session)
-      // would redirect those grandchild git calls at a real repo, same as
-      // commitPinned()/workspace() above.
-      ...sanitizedCheckpointEnv(process.env),
-      GOLDEN_UPDATE: "",
-      // dbPath() (fm-session-main.ts) short-circuits on FOREMAN_SESSION_DB
-      // before it ever looks at the scratch repo, and lane-run.sh exports
-      // that variable for every foreman lane. Forwarding the parent
-      // environment unpinned lets an ambient FOREMAN_SESSION_DB redirect
-      // every case -- including the mutating `supersede` case -- at an
-      // external path outside the workspace. Pin it here, the same way
-      // tests/session.bats does, so the CLI can never see or touch
-      // anything outside this disposable directory.
-      FOREMAN_SESSION_DB: join(cwd, ".foreman", "session.db"),
-    },
+    // Scrubbed, not raw `process.env`: the CLI itself shells out to git
+    // (gitSha(), measurement-validity's diffing) as a grandchild of this
+    // process, and it inherits whatever env this spawnSync call gives it.
+    // An ambient GIT_DIR/GIT_WORK_TREE (skills/foreman/scripts/lib/
+    // checkpoint.sh exports exactly this for a real foreman session)
+    // would redirect those grandchild git calls at a real repo, same as
+    // commitPinned()/workspace() above.
+    env: childEnv(cwd, backend),
   });
 }
 
@@ -280,19 +309,25 @@ function normalize(dir: string, text: string): string {
   return out;
 }
 
-function golden(name: string, args: readonly string[]): void {
+function golden(name: string, args: readonly string[], backend: GoldenBackend): void {
   const dir = workspace();
   let passed = false;
   try {
-    const res = run(dir, args);
+    const res = run(dir, args, backend);
     const code = String(res.status ?? -1);
     const stdout = normalize(dir, res.stdout);
     const stderr = normalize(dir, res.stderr);
+    const label = `${name} [${backend}]`;
 
     if (UPDATE) {
-      writeFileSync(join(GOLDEN, `${name}.out`), stdout, "utf8");
-      writeFileSync(join(GOLDEN, `${name}.err`), stderr, "utf8");
-      writeFileSync(join(GOLDEN, `${name}.exit`), `${code}\n`, "utf8");
+      // Record from the oracle arm only. The port arm must never overwrite
+      // a fixture: the identity of the two arms against one file is the
+      // invariant under test.
+      if (backend === GOLDEN_ORACLE_BACKEND) {
+        writeFileSync(join(GOLDEN, `${name}.out`), stdout, "utf8");
+        writeFileSync(join(GOLDEN, `${name}.err`), stderr, "utf8");
+        writeFileSync(join(GOLDEN, `${name}.exit`), `${code}\n`, "utf8");
+      }
       passed = true;
       return;
     }
@@ -300,18 +335,18 @@ function golden(name: string, args: readonly string[]): void {
     const outPath = join(GOLDEN, `${name}.out`);
     assert.ok(
       existsSync(outPath),
-      `no golden recorded for ${name}; run with GOLDEN_UPDATE=1`,
+      `no golden recorded for ${label}; run with GOLDEN_UPDATE=1`,
     );
-    assert.equal(stdout, readFileSync(outPath, "utf8"), `${name}: stdout drifted`);
+    assert.equal(stdout, readFileSync(outPath, "utf8"), `${label}: stdout drifted`);
     assert.equal(
       stderr,
       readFileSync(join(GOLDEN, `${name}.err`), "utf8"),
-      `${name}: stderr drifted`,
+      `${label}: stderr drifted`,
     );
     assert.equal(
       `${code}\n`,
       readFileSync(join(GOLDEN, `${name}.exit`), "utf8"),
-      `${name}: exit code drifted`,
+      `${label}: exit code drifted`,
     );
     passed = true;
   } finally {
@@ -322,48 +357,97 @@ function golden(name: string, args: readonly string[]): void {
   }
 }
 
-test("golden: recover", () => golden("recover", ["recover"]));
-test("golden: recover --json", () => golden("recover-json", ["recover", "--json"]));
-test("golden: freshness", () => golden("freshness", ["freshness"]));
+function goldenCase(title: string, name: string, args: readonly string[]): void {
+  for (const backend of GOLDEN_BACKENDS) {
+    test(`golden: ${title} [${backend}]`, () => golden(name, args, backend));
+  }
+}
+
+goldenCase("recover", "recover", ["recover"]);
+goldenCase("recover --json", "recover-json", ["recover", "--json"]);
+goldenCase("freshness", "freshness", ["freshness"]);
+goldenCase("freshness --stale-only", "freshness-stale-only", ["freshness", "--stale-only"]);
 
 // KNOWN DEFECT, frozen deliberately. Today this exits 0 and reports success for
 // a fact that does not exist, inserting an orphan row. Task 6 changes it to a
 // non-zero exit; re-record this golden in the same commit that changes the
 // behaviour, never before and never on its own.
-test("golden: supersede a missing fact", () =>
-  golden("supersede-missing", ["supersede", "9999", "replacement", "--reason", "r"]));
+goldenCase("supersede a missing fact", "supersede-missing", [
+  "supersede",
+  "9999",
+  "replacement",
+  "--reason",
+  "r",
+]);
 
 // Obligation 1 exists in the seed (see seed.ndjson), so this isolates the
 // "unknown status accepted" defect from "nonexistent obligation accepted" --
 // the two were conflated when the seed had no obligations at all and this
 // case's target id was necessarily nonexistent too.
-test("golden: close with an unknown status", () =>
-  golden("close-unknown", ["close", "1", "--status", "nonsense"]));
+goldenCase("close with an unknown status", "close-unknown", [
+  "close",
+  "1",
+  "--status",
+  "nonsense",
+]);
 
 // Seed measurements are 3,4,5,6,7 and none is superseded (see seed.ndjson).
 // retire has no recorded defect, so these four must stay byte-identical
 // through the cutover.
-test("golden: retire a measurement", () =>
-  golden("retire", ["retire", "3", "--by", "7", "--reason", "superseded by a fresh reading"]));
+goldenCase("retire a measurement", "retire", [
+  "retire",
+  "3",
+  "--by",
+  "7",
+  "--reason",
+  "superseded by a fresh reading",
+]);
 
-test("golden: retire refuses self-supersession", () =>
-  golden("retire-self", ["retire", "3", "--by", "3", "--reason", "r"]));
+goldenCase("retire refuses self-supersession", "retire-self", [
+  "retire",
+  "3",
+  "--by",
+  "3",
+  "--reason",
+  "r",
+]);
 
-test("golden: retire refuses a missing target", () =>
-  golden("retire-missing-target", ["retire", "9999", "--by", "7", "--reason", "r"]));
+goldenCase("retire refuses a missing target", "retire-missing-target", [
+  "retire",
+  "9999",
+  "--by",
+  "7",
+  "--reason",
+  "r",
+]);
 
-test("golden: retire refuses a missing superseder", () =>
-  golden("retire-missing-by", ["retire", "3", "--by", "9999", "--reason", "r"]));
+goldenCase("retire refuses a missing superseder", "retire-missing-by", [
+  "retire",
+  "3",
+  "--by",
+  "9999",
+  "--reason",
+  "r",
+]);
 
 // KNOWN DEFECT, frozen deliberately. Fact 16 is already superseded by 32 in the
 // seed. Today the legacy path overwrites that pointer; supersession is meant to
 // be set-once. Task 7 changes this to a refusal and re-records this golden in
 // the same commit.
-test("golden: supersede an already-superseded fact", () =>
-  golden("supersede-superseded", ["supersede", "16", "replacement", "--reason", "r"]));
+goldenCase("supersede an already-superseded fact", "supersede-superseded", [
+  "supersede",
+  "16",
+  "replacement",
+  "--reason",
+  "r",
+]);
 
 // KNOWN DEFECT, frozen deliberately. Obligation 7 is already done in the seed.
 // Today the legacy path closes it again and wipes its blocker. Task 6 changes
 // this to a refusal and re-records this golden in the same commit.
-test("golden: close an already-done obligation", () =>
-  golden("close-done", ["close", "7", "--status", "done"]));
+goldenCase("close an already-done obligation", "close-done", [
+  "close",
+  "7",
+  "--status",
+  "done",
+]);
