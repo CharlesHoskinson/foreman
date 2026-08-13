@@ -11,7 +11,7 @@ Adopt-with-changes. The two-port split correctly refuses a false substitutabilit
 5. **Nullability-as-always-present does not fix semantic nulls.** Fields like `value_num`, `blocker`, `closed_ts`, `superseded_at` mix “never set,” “not applicable,” and “cleared.” Encoding all as `null` collapses those meanings and can make two different histories snapshot-equal.
 6. **Sync CLI + optional async MemoryIndex creates an unowned write path.** Who projects after `fact`/`measure`/`supersede`? If nothing does, the index is stale by design; if fire-and-forget does, process exit drops updates and “rebuild from sidecar” becomes the only honest path—yet no rebuild trigger is specified.
 7. **Byte-stable `encode()` with per-entity ordering still depends on unstable keys.** Scope path lists, floating `value_num`, and timestamps without a stated canonicalization (sort, decimal, timezone) make “byte-stable” false under equal logical snapshots.
-8. **Rejected single-port rationale is sound; the dual-port still smuggles TencentDB constraints upward.** Isolation triple (`teamId`/`agentId`/`userId`) and non-determinism force projection keys and rebuild semantics that the brief never places in either port contract.
+8. **Rejected single-port rationale is sound; the dual-port still smuggles external-service constraints upward.** Isolation triple (`teamId`/`agentId`/`userId`) and non-determinism force projection keys and rebuild semantics that the brief never places in either port contract.
 
 ## Enhancements
 
@@ -19,7 +19,7 @@ Adopt-with-changes. The two-port split correctly refuses a false substitutabilit
 2. **Version the wire contract explicitly:** `SESSION_MODEL_VERSION` on every export; import policy: equal → apply; older → upgrade via pure migration functions in-repo; newer → hard refuse with a clear error (never partial import). Pin migrations to version pairs, not “best effort.”
 3. **Define supersession invariants in the port, not SQLite:** append-only; at most one active superseder per entity; `superseded_by` must exist, same kind, and not create cycles; supersede of already-superseded is either rejected or a no-op with audit; obligations: only `open` may be superseded or closed.
 4. **Make the invariant testable:** (a) conformance suite runs with MemoryIndex = null and must pass all correctness tests; (b) a fault-injected MemoryIndex that always throws must not change CLI exit codes for begin/end/fact/measure/obligation/close/supersede/recover; (c) lint/arch rule: no imports from MemoryIndex into SessionStore or pure CLI command modules.
-5. **Specify projection lifecycle:** default null index; explicit `fm-session reindex` (or post-import hook) rebuilds only from sidecar/SoR snapshot; never from live TencentDB state as source.
+5. **Specify projection lifecycle:** default null index; explicit `fm-session reindex` (or post-import hook) rebuilds only from sidecar/SoR snapshot; never from live external-service state as source.
 6. **Canonicalization rules in `entities.ts`:** ordered field lists, sorted `scope_paths`, normalized timestamps (UTC ISO or integer ms), and a defined float encoding for `value_num` (or store fixed-point text for equality).
 7. **Sidecar schema is the model, not table_info:** export includes model version + entity schemas; `validateSidecar` checks against TS declarations; SQLite startup validates DDL against the same declarations (fail closed on drift).
 8. **Conformance as a package interface:** any `SessionStore` impl must pass the suite without SQLite-specific APIs; forbid tests that open `.foreman/session.db` directly when claiming portability.
@@ -38,7 +38,7 @@ Adopt-with-changes. The two-port split correctly refuses a false substitutabilit
 - Hostile sidecar: unknown entity, extra columns, wrong types, NaN/Inf in `value_num`, duplicate PKs, self-`superseded_by`, FK-looking strings for integer ids—all rejected with no partial apply.
 - Isolation: two sessions’ facts do not leak under query-by-session; delete/end session policy defined and tested.
 - Recover/freshness: behave identically with null MemoryIndex and with throwing MemoryIndex.
-- Offline: all SoR commands succeed with no network and no Tencent credentials.
+- Offline: all SoR commands succeed with no network and no external credentials.
 - Rebuild: destroy MemoryIndex, rebuild from export only, no SoR mutation.
 - SQLite drift: DDL missing a model column or extra non-declared table fails validation at open (or export), not silently accepted.
 - Idempotent import: importing the same sidecar twice does not duplicate rows or fork supersession chains.
@@ -49,4 +49,4 @@ Adopt-with-changes. The two-port split correctly refuses a false substitutabilit
 - **“The governing invariant is strong enough because MemoryIndex is optional.”** Optional defaults do not prevent dependency creep. Without null/fault injection gates and import-graph enforcement, the next feature will “just check memory first” for recover/freshness.
 - **“Append-only forward `superseded_by` needs no extra shape.”** With FKs off and no unique “at most one live supersession” constraint, the graph can fork; reviewers who trust SQLite history here are trusting a pragma that is already disabled.
 - **“Hard-refuse newer sidecars is user-hostile; best-effort import is better.”** Best-effort partial import is how silent corruption enters a system of record. Refuse is correct until upgrade code exists for that version pair.
-- **“Two ports is over-engineered; just keep SQLite and a sidecar.”** Under-engineered for the stated Tencent evaluation: without a named projection port, someone will bolt HTTP calls into `fm-session` and re-create the rejected single-port mess. The split is right; the missing contracts around identity, versioning, and integrity are the real risk.
+- **“Two ports is over-engineered; just keep SQLite and a sidecar.”** Under-engineered for the stated external-store evaluation: without a named projection port, someone will bolt HTTP calls into `fm-session` and re-create the rejected single-port mess. The split is right; the missing contracts around identity, versioning, and integrity are the real risk.

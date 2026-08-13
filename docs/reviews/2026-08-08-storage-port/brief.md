@@ -49,10 +49,10 @@ reflected schema. So the portable contract is literally "whatever SQLite's
 schema happens to be at runtime." No non-SQLite backend can express or satisfy
 this, and the contract silently changes whenever a migration runs.
 
-## The second system: TencentDB-Agent-Memory
+## The second system: an external agent-memory service
 
-We evaluated adopting TencentDB-Agent-Memory (Tencent's open-source agent memory
-system) for storage. Its actual v3 TypeScript SDK surface is:
+We evaluated adopting an external open-source agent-memory system for
+storage. Its actual v3 TypeScript SDK surface is:
 
 - L0 `addConversation` / `queryConversation` / `searchConversation` / `deleteConversation` / `countConversation`
 - L1 `updateAtomic` / `queryAtomic` / `searchAtomic` / `deleteAtomic` / `countAtomic`
@@ -71,9 +71,9 @@ Verified properties:
 
 ## The design under review
 
-**Rejected:** one `SessionStore` port with SQLite and TencentDB as two
-substitutable implementations. Rationale: it would force the port async
-(rewriting the sync CLI), force TencentDB to fake transactions/integer
+**Rejected:** one `SessionStore` port with SQLite and an external service as
+two substitutable implementations. Rationale: it would force the port async
+(rewriting the sync CLI), force that service to fake transactions/integer
 identity/FK supersession, break byte-exact round-trip because writes are
 LLM-mediated, and make Foreman non-functional offline.
 
@@ -96,8 +96,8 @@ LLM-mediated, and make Foreman non-functional offline.
 
 - Non-authoritative. Asynchronous. Eventually consistent. Semantic. Optional.
 - Owns: recall by meaning, across sessions and repos.
-- Implementation: TencentDB-Agent-Memory (optional); a null implementation is
-  the default.
+- Implementation: an external agent-memory service (optional); a null
+  implementation is the default.
 
 ### The governing invariant
 
@@ -106,7 +106,7 @@ LLM-mediated, and make Foreman non-functional offline.
 > property may depend on the MemoryIndex being present, reachable, or fresh.
 
 Consequences: offline or credential-less operation is fully functional;
-TencentDB being unreachable degrades recall only, never correctness.
+the external service being unreachable degrades recall only, never correctness.
 
 ## What to review
 

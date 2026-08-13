@@ -2,9 +2,9 @@
  * MemoryIndex implementations, including the fault-injection set the
  * conformance suite uses to enforce invariant I2.
  *
- * No TencentDB adapter lives here yet, by design: the contract lands first and
- * an adapter is written against it. `NullMemoryIndex` is the default, so
- * Foreman is fully functional offline and without credentials.
+ * No external adapter lives here. `NullMemoryIndex` is the default and the
+ * only implementation, so Foreman is fully functional offline and without
+ * credentials.
  */
 
 import {

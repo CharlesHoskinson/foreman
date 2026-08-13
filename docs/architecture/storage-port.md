@@ -6,10 +6,10 @@ responsibilities, not two implementations of one port.
 
 ## Why not one port
 
-TencentDB-Agent-Memory was evaluated as a second implementation of a single
-`SessionStore`. Its v3 SDK cannot satisfy that contract:
+An external agent-memory service was evaluated as a second implementation of
+a single `SessionStore`. Its SDK cannot satisfy that contract:
 
-| Session state requires | TencentDB-Agent-Memory provides |
+| Session state requires | The external service provides |
 |---|---|
 | Synchronous access (`fm-session` is sync top to bottom and exits) | HTTP, `Promise`-only; no sync path |
 | Transactions | None |
@@ -17,7 +17,7 @@ TencentDB-Agent-Memory was evaluated as a second implementation of a single
 | Deterministic, byte-exact round-trip | Memory formation is LLM-mediated (`MEMORY_LLM_*` required), so writes are non-deterministic |
 | Works offline, no credentials | Endpoint, API key, and team/agent/user isolation ids required |
 
-Forcing substitutability would make the CLI async, oblige TencentDB to fake
+Forcing substitutability would make the CLI async, oblige that service to fake
 transactions and identity, and put network availability on the critical path of
 local correctness. The split below avoids all of that.
 
@@ -149,8 +149,8 @@ timeout cannot double-write. It is deliberately **not** part of
 `SessionSnapshot`: it is derived bookkeeping, it is rebuildable, and nothing
 outside the projector may read it.
 
-The drain (`fm-session sync`), the TencentDB adapter, and projection epochs are
-not in this change. The contract lands first; adapters are written against it.
+The drain (`fm-session sync`) and projection epochs are not in this change.
+The contract lands first; any adapter is written against it.
 
 ## Conformance
 

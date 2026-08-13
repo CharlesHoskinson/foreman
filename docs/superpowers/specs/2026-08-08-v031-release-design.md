@@ -40,11 +40,11 @@ of its only implementation.
 
 ## What does not ship
 
-The TencentDB `MemoryIndex` adapter and projection epochs move to v0.4.0. They
+The the external memory service `MemoryIndex` adapter and projection epochs move to v0.4.0. They
 are built against a live instance when one exists, not against a mock. The
 adapter needs `memory-core`, `memory-hub` and `proxy` running plus two sets of
 LLM credentials; standing that up is not a prerequisite for proving that the
-`SessionStore` contract is portable, because TencentDB implements `MemoryIndex`
+`SessionStore` contract is portable, because such a service would implement `MemoryIndex`
 and is not a second implementation of `SessionStore` at all.
 
 `NullMemoryIndex` remains the default. Foreman stays fully functional offline
@@ -153,7 +153,7 @@ all migration work.
 
 ## Open questions
 
-None blocking. The TencentDB deployment decision is deferred with the adapter.
+None blocking.
 
 ## Provenance
 

@@ -1,12 +1,12 @@
 ## Verdict
 
-Adopt with changes. The authority split is correct, and TencentDB must not implement `SessionStore`. However, the proposal lacks a workable projection-delivery model, an executable canonical schema, complete version rules, and portable identity semantics.
+Adopt with changes. The authority split is correct, and the external service must not implement `SessionStore`. However, the proposal lacks a workable projection-delivery model, an executable canonical schema, complete version rules, and portable identity semantics.
 
 ## Material defects
 
-1. **The asynchronous projection has no delivery mechanism.** A synchronous CLI cannot safely start background promises before exit. Awaiting TencentDB changes command latency and availability. Fire-and-forget calls lose updates during normal process exit or crashes.
+1. **The asynchronous projection has no delivery mechanism.** A synchronous CLI cannot safely start background promises before exit. Awaiting the external service changes command latency and availability. Fire-and-forget calls lose updates during normal process exit or crashes.
 
-2. **“Fully rebuilt” is not true for TencentDB as stated.** TencentDB cannot enumerate or transactionally replace an exact set. Old records can survive a rebuild. LLM-mediated writes also make the rebuilt index observably different.
+2. **“Fully rebuilt” is not true for the external service as stated.** The external service cannot enumerate or transactionally replace an exact set. Old records can survive a rebuild. LLM-mediated writes also make the rebuilt index observably different.
 
 3. **TypeScript declarations alone are not a runtime contract.** Type erasure leaves import validation, SQL validation, and encoding dependent on separate implementations. These implementations can drift while still compiling.
 
@@ -31,7 +31,7 @@ Adopt with changes. The authority split is correct, and TencentDB must not imple
 
    Keep all memory packages dependent on the snapshot interface, never the reverse.
 
-2. Make projection pull-based. Add an explicit `fm-memory sync` command or managed worker. Use stable projection keys, idempotent writes, bounded retries, and a resettable derived checkpoint. Core CLI commands must never contact TencentDB.
+2. Make projection pull-based. Add an explicit `fm-memory sync` command or managed worker. Use stable projection keys, idempotent writes, bounded retries, and a resettable derived checkpoint. Core CLI commands must never contact the external service.
 
 3. Add projection epochs. Rebuild into a new isolation namespace, then activate that epoch after completion. Queries must exclude abandoned epochs. Document that rebuild restores query availability, not identical semantic output.
 

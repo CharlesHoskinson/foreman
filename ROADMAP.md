@@ -77,12 +77,13 @@ reference and only complete implementation. `MemoryIndex` is a derived semantic
 projection — asynchronous, optional, `NullMemoryIndex` by default, returning
 entity references rather than content so a superseded row cannot be acted on.
 
-TencentDB-Agent-Memory was evaluated as a second `SessionStore` implementation
-and rejected on measurement, not preference: its v3 SDK is HTTP and
+An external agent-memory service was evaluated as a second `SessionStore`
+implementation and rejected on measurement, not preference: its SDK is HTTP and
 `Promise`-only with no synchronous path, no transactions, no integer identity,
 and memory formation is LLM-mediated and therefore non-deterministic.
 Substitutability would have put network availability on the critical path of
-local correctness.
+local correctness. That workstream is closed: `NullMemoryIndex` is the only
+`MemoryIndex` implementation and no external adapter is planned.
 
 The defect this fixed: the sidecar round-trip contract was defined by SQLite
 introspection, so the portable contract was whatever `sqlite_schema` reported at
@@ -100,7 +101,6 @@ Open work carried by this line:
 |---|---|
 | Migrate `fm-session-main.ts` onto the port | Not started. It still uses `node:sqlite` directly and is `// @ts-nocheck` |
 | `fm-session sync` — drain `memory_outbox` | Not started. The outbox table exists and is written; nothing drains it |
-| TencentDB `MemoryIndex` adapter and projection epochs | Not started, deliberately deferred until the port was proven |
 | `importSnapshot` `remap` id-collision policy | Throws as unimplemented |
 | Conformance suite negative control | Absent. Hostile cases prove the validation layer discriminates; the store-level cases are unproven against a subtly wrong backend |
 | Council runtime | Not built. `components/council/packages/*/dist` is absent; requires `pnpm install && pnpm build` |

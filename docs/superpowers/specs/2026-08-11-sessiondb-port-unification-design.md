@@ -270,7 +270,7 @@ SessionDB's existing model is sound and the work is internal.
   an LLM in the write path. Its bi-temporal schema is worth studying; its
   invalidation has no end-to-end test, and Zep's own README states production
   runs a separate proprietary engine.
-- **TencentDB-Agent-Memory** is a team-memory hub rather than a session store,
+- **An external agent-memory service** was examined. It is a team-memory hub rather than a session store,
   with no test files in the repository and CI that never runs the type checker.
 - **LangGraph, Letta, Temporal and the vendor SDKs** converge on append-only logs
   with resumption only at declared boundaries, and on WAL with
