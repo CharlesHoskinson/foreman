@@ -333,8 +333,9 @@ function currentSessionId(store: SqliteSessionStore): string | null {
  * Translate a port failure into the CLI's own refusal.
  *
  * The goldens compare bytes, so a command whose behaviour is unchanged must
- * keep its exact legacy stderr text. Only supersede and close change their
- * output deliberately, and they pass their new text here explicitly.
+ * keep its exact legacy stderr text. close and end change their output
+ * deliberately, and they pass their new text here explicitly. measure also
+ * refuses a non-finite --num the legacy path stored.
  */
 function refuseFromPort(e: unknown, legacyMessage: string): never {
   if (isSessionStoreFailure(e) || reasonOf(e) !== null) {
@@ -812,7 +813,11 @@ export function main() {
       try {
         const rec = buildRecoveryFromStore(store);
         const sid = mintSessionId();
-        store.beginSession({ session_id: sid, started_ts: nowIso(), start_sha: gitSha(), note: parsed.options.note || null });
+        try {
+          store.beginSession({ session_id: sid, started_ts: nowIso(), start_sha: gitSha(), note: parsed.options.note || null });
+        } catch (e) {
+          refuseFromPort(e, "refusing: cannot begin session\n");
+        }
         process.stdout.write(render(rec) + "\n\n");
         process.stdout.write(`SESSION BEGUN: ${sid}\n`);
       } finally {
@@ -885,10 +890,15 @@ export function main() {
     if (BACKEND === "port") {
       const store = openStore();
       try {
-        const row = store.addFact({
-          statement, evidence, established_ts: nowIso(),
-          session_id: currentSessionId(store),
-        });
+        let row;
+        try {
+          row = store.addFact({
+            statement, evidence, established_ts: nowIso(),
+            session_id: currentSessionId(store),
+          });
+        } catch (e) {
+          refuseFromPort(e, "refusing: cannot add fact\n");
+        }
         process.stdout.write(`fact ${row.id}\n`);
       } finally {
         store.close();
@@ -918,12 +928,17 @@ export function main() {
     if (BACKEND === "port") {
       const store = openStore();
       try {
-        const row = store.addMeasurement({
-          metric, value, value_num: vnum, command,
-          measured_ts: nowIso(), measured_sha: gitSha(),
-          scope_paths: parsed.options.scope.join("\n"),
-          session_id: currentSessionId(store),
-        });
+        let row;
+        try {
+          row = store.addMeasurement({
+            metric, value, value_num: vnum, command,
+            measured_ts: nowIso(), measured_sha: gitSha(),
+            scope_paths: parsed.options.scope.join("\n"),
+            session_id: currentSessionId(store),
+          });
+        } catch (e) {
+          refuseFromPort(e, "refusing: --num must be a finite number\n");
+        }
         process.stdout.write(`measurement ${row.id}\n`);
       } finally {
         store.close();
@@ -947,10 +962,15 @@ export function main() {
     if (BACKEND === "port") {
       const store = openStore();
       try {
-        const row = store.addObligation({
-          statement, blocker, opened_ts: nowIso(),
-          session_id: currentSessionId(store),
-        });
+        let row;
+        try {
+          row = store.addObligation({
+            statement, blocker, opened_ts: nowIso(),
+            session_id: currentSessionId(store),
+          });
+        } catch (e) {
+          refuseFromPort(e, "refusing: cannot add obligation\n");
+        }
         process.stdout.write(`obligation ${row.id}\n`);
       } finally {
         store.close();

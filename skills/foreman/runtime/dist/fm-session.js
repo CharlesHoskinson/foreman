@@ -1167,6 +1167,36 @@ var SqliteSessionStore = class _SqliteSessionStore {
       return { superseded: old, replacement: next };
     });
   }
+  retireMeasurement(id, byId, reason, at2) {
+    return this.tx(() => {
+      if (byId === id) {
+        raise("invalid_argument", `measurement ${id} cannot supersede itself`);
+      }
+      const cur = this.db.prepare("SELECT superseded_by FROM measurements WHERE id = ?").get(id);
+      if (!cur) raise("invalid_argument", `no such measurement ${id}`);
+      if (cur.superseded_by !== null) {
+        raise(
+          "supersession_incomplete",
+          `measurement ${id} is already superseded; supersession columns are set-once`
+        );
+      }
+      const by = this.db.prepare("SELECT superseded_by FROM measurements WHERE id = ?").get(byId);
+      if (!by) raise("invalid_argument", `no such measurement ${byId}`);
+      if (by.superseded_by !== null) {
+        raise(
+          "invalid_argument",
+          `measurement ${byId} is itself superseded by ${by.superseded_by}; a retired measurement cannot supersede another`
+        );
+      }
+      this.db.prepare(
+        "UPDATE measurements SET superseded_by = ?, superseded_at = ?, supersede_reason = ? WHERE id = ?"
+      ).run(byId, at2, reason, id);
+      this.queueProjection("measurement", id, "retract", at2);
+      return this.db.prepare(
+        "SELECT id, metric, value, value_num, command, measured_ts, measured_sha, scope_paths, session_id, superseded_by, superseded_at, supersede_reason FROM measurements WHERE id = ?"
+      ).get(id);
+    });
+  }
   // -- snapshot transfer ---------------------------------------------------
   importSnapshot(snapshot, opts = {}) {
     assertIntegrity(snapshot);
@@ -1592,6 +1622,186 @@ var CASES = [
         s.close();
       }
     }
+  },
+  {
+    name: "retire/points-one-existing-measurement-at-another",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const a = s.addMeasurement({
+          metric: "suite.pass",
+          value: "700",
+          value_num: 700,
+          command: "bats tests/",
+          measured_ts: "2026-08-08T11:00:00Z",
+          measured_sha: "aaa111",
+          scope_paths: "tests",
+          session_id: "S1"
+        });
+        const b = s.addMeasurement({
+          metric: "suite.pass",
+          value: "720",
+          value_num: 720,
+          command: "bats tests/",
+          measured_ts: "2026-08-08T12:00:00Z",
+          measured_sha: "bbb222",
+          scope_paths: "tests",
+          session_id: "S1"
+        });
+        const before = s.listMeasurements().length;
+        const retired = s.retireMeasurement(a.id, b.id, "stale", "2026-08-08T12:00:01Z");
+        assert(retired.superseded_by === b.id, "superseded_by was not set to byId");
+        assert(retired.superseded_at === "2026-08-08T12:00:01Z", "superseded_at was not set");
+        assert(retired.supersede_reason === "stale", "supersede_reason was not set");
+        assert(
+          s.listMeasurements().length === before,
+          "retire inserted a row; it must only link existing rows"
+        );
+      } finally {
+        s.close();
+      }
+    }
+  },
+  {
+    name: "retire/fan-in-many-predecessors-onto-one-successor",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const mk = (v, ts) => s.addMeasurement({
+          metric: "suite.pass",
+          value: v,
+          value_num: Number(v),
+          command: "bats tests/",
+          measured_ts: ts,
+          measured_sha: "ccc333",
+          scope_paths: "tests",
+          session_id: "S1"
+        });
+        const p1 = mk("1", "2026-08-08T11:00:00Z");
+        const p2 = mk("2", "2026-08-08T11:01:00Z");
+        const p3 = mk("3", "2026-08-08T11:02:00Z");
+        const fresh = mk("4", "2026-08-08T12:00:00Z");
+        for (const p of [p1, p2, p3]) {
+          s.retireMeasurement(p.id, fresh.id, "retired by a fresh reading", "2026-08-08T12:00:01Z");
+        }
+        const rows = s.listMeasurements();
+        const naming = rows.filter((r) => r.superseded_by === fresh.id);
+        assert(naming.length === 3, `expected 3 rows naming ${fresh.id}, got ${naming.length}`);
+        const back = decodeSnapshot(encodeSnapshot(s.snapshot()));
+        assert(snapshotsEqual(s.snapshot(), back), "fan-in snapshot did not round-trip");
+      } finally {
+        s.close();
+      }
+    }
+  },
+  {
+    name: "retire/refuses-missing-target",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        assertRejects(
+          () => s.retireMeasurement(9999, 1, "r", "2026-08-08T12:00:00Z"),
+          "invalid_argument"
+        );
+      } finally {
+        s.close();
+      }
+    }
+  },
+  {
+    name: "retire/refuses-missing-successor",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const only = s.listMeasurements()[0];
+        assert(only !== void 0, "fixture has no measurement");
+        assertRejects(
+          () => s.retireMeasurement(only.id, 9999, "r", "2026-08-08T12:00:00Z"),
+          "invalid_argument"
+        );
+      } finally {
+        s.close();
+      }
+    }
+  },
+  {
+    name: "retire/refuses-self-retire",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const only = s.listMeasurements()[0];
+        assert(only !== void 0, "fixture has no measurement");
+        assertRejects(
+          () => s.retireMeasurement(only.id, only.id, "r", "2026-08-08T12:00:00Z"),
+          "invalid_argument"
+        );
+      } finally {
+        s.close();
+      }
+    }
+  },
+  {
+    name: "retire/refuses-already-retired-target",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const mk = (v, ts) => s.addMeasurement({
+          metric: "m",
+          value: v,
+          value_num: Number(v),
+          command: null,
+          measured_ts: ts,
+          measured_sha: null,
+          scope_paths: "x",
+          session_id: "S1"
+        });
+        const a = mk("1", "2026-08-08T11:00:00Z");
+        const b = mk("2", "2026-08-08T11:01:00Z");
+        const c = mk("3", "2026-08-08T11:02:00Z");
+        s.retireMeasurement(a.id, b.id, "first", "2026-08-08T11:03:00Z");
+        assertRejects(
+          () => s.retireMeasurement(a.id, c.id, "second", "2026-08-08T11:04:00Z"),
+          "supersession_incomplete"
+        );
+      } finally {
+        s.close();
+      }
+    }
+  },
+  {
+    name: "retire/refuses-a-retired-successor",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const mk = (v, ts) => s.addMeasurement({
+          metric: "m",
+          value: v,
+          value_num: Number(v),
+          command: null,
+          measured_ts: ts,
+          measured_sha: null,
+          scope_paths: "x",
+          session_id: "S1"
+        });
+        const a = mk("1", "2026-08-08T11:00:00Z");
+        const b = mk("2", "2026-08-08T11:01:00Z");
+        const c = mk("3", "2026-08-08T11:02:00Z");
+        s.retireMeasurement(b.id, c.id, "b is retired", "2026-08-08T11:03:00Z");
+        assertRejects(
+          () => s.retireMeasurement(a.id, b.id, "r", "2026-08-08T11:04:00Z"),
+          "invalid_argument"
+        );
+      } finally {
+        s.close();
+      }
+    }
   }
 ];
 var HOSTILE_CASES = [
@@ -1801,6 +2011,7 @@ function rebuildFromSidecar(opts) {
 }
 
 // packages/orchestration/src/fm-session-main.ts
+var BACKEND = process.env["FM_SESSION_BACKEND"] === "port" ? "port" : "legacy";
 var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
 var V1_TABLE = {
   session: "sessions",
@@ -1992,6 +2203,23 @@ function connect(path, cmd) {
   db.exec("PRAGMA busy_timeout=5000");
   return db;
 }
+function openStore(path, opts = {}) {
+  const p = path ?? dbPath();
+  mkdirSync2(dirname2(p), { recursive: true });
+  const readOnly = !!opts.readOnly;
+  bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+  return SqliteSessionStore.open(p, { readOnly });
+}
+function currentSessionId(store) {
+  return store.currentSession()?.session_id ?? null;
+}
+function refuseFromPort(e, legacyMessage) {
+  if (isSessionStoreFailure(e) || reasonOf(e) !== null) {
+    process.stderr.write(legacyMessage);
+    process.exit(2);
+  }
+  throw e;
+}
 function scalarOf(text) {
   const match = text.match(/^\s*(-?\d+(?:\.\d+)?)/);
   return match ? parseFloat(match[1]) : null;
@@ -2110,6 +2338,90 @@ function buildFreshness(conn, staleOnly) {
     });
   }
   return measurements;
+}
+function buildRecoveryFromStore(store) {
+  const head = gitSha();
+  const sessions = [...store.listSessions()].sort(
+    (a, b) => a.session_id < b.session_id ? 1 : a.session_id > b.session_id ? -1 : 0
+  );
+  const sess = sessions[0] ?? null;
+  const facts = [...store.listFacts()].filter((r) => r.superseded_by === null).sort((a, b) => b.id - a.id).map((r) => ({
+    kind: "fact",
+    id: r.id,
+    statement: r.statement,
+    evidence: r.evidence,
+    established_ts: r.established_ts
+  }));
+  const measurements = [...store.listMeasurements()].filter((r) => r.superseded_by === null).sort((a, b) => b.id - a.id).map((r) => {
+    const [validity, why] = measurementValidity(r.measured_sha, r.scope_paths);
+    return {
+      kind: "measurement",
+      id: r.id,
+      metric: r.metric,
+      value: r.value,
+      command: r.command,
+      measured_ts: r.measured_ts,
+      measured_sha: (r.measured_sha || "").substring(0, 12),
+      scope_paths: (r.scope_paths || "").split("\n").filter(Boolean),
+      validity,
+      validity_reason: why
+    };
+  });
+  const obligations = [...store.listObligations()].filter((r) => r.status !== "done").map((r) => ({
+    kind: "obligation",
+    id: r.id,
+    statement: r.statement,
+    status: displayStatus(r),
+    blocker: r.blocker,
+    opened_ts: r.opened_ts
+  }));
+  const obligationRank = (o) => {
+    if (o.status === "open" && !o.blocker) return 0;
+    if (o.status === "open" || o.status === "blocked") return 1;
+    return 2;
+  };
+  obligations.sort((a, b) => {
+    const ra = obligationRank(a);
+    const rb = obligationRank(b);
+    if (ra !== rb) return ra - rb;
+    return b.id - a.id;
+  });
+  return {
+    recovered_at: nowIso(),
+    head_sha: (head || "").substring(0, 12),
+    last_session: sess,
+    facts,
+    measurements,
+    obligations,
+    counts: {
+      facts: facts.length,
+      measurements_fresh: measurements.filter((m) => m.validity === "fresh").length,
+      measurements_stale: measurements.filter((m) => m.validity === "stale").length,
+      measurements_unknown: measurements.filter((m) => m.validity === "unknown").length,
+      obligations_open: obligations.filter((o) => o.status === "open").length,
+      obligations_blocked: obligations.filter((o) => o.status === "blocked").length
+    }
+  };
+}
+function buildFreshnessFromStore(store, staleOnly) {
+  const out = [];
+  const rows = [...store.listMeasurements()].filter((r) => r.superseded_by === null).sort((a, b) => b.id - a.id);
+  for (const row of rows) {
+    const [validity, why] = measurementValidity(row.measured_sha, row.scope_paths);
+    if (staleOnly && validity === "fresh") continue;
+    out.push({
+      id: row.id,
+      metric: row.metric,
+      value: row.value,
+      verdict: validity === "stale" ? "STALE" : validity,
+      reason: why,
+      command: row.command || "(no command recorded)",
+      scope: (row.scope_paths || "").split("\n").filter(Boolean).join(","),
+      sha: row.measured_sha || "",
+      timestamp: row.measured_ts
+    });
+  }
+  return out;
 }
 function renderFreshness(measurements, outputFormat) {
   const columns = ["id", "metric", "value", "verdict", "reason", "command", "scope", "sha", "timestamp"];
@@ -2307,6 +2619,24 @@ function main() {
     }
   }
   if (cmd === "begin") {
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const rec2 = buildRecoveryFromStore(store);
+        const sid2 = mintSessionId();
+        try {
+          store.beginSession({ session_id: sid2, started_ts: nowIso(), start_sha: gitSha(), note: parsed.options.note || null });
+        } catch (e) {
+          refuseFromPort(e, "refusing: cannot begin session\n");
+        }
+        process.stdout.write(render(rec2) + "\n\n");
+        process.stdout.write(`SESSION BEGUN: ${sid2}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const rec = buildRecovery(conn);
     const sid = mintSessionId();
     conn.prepare("INSERT INTO sessions(session_id,started_ts,start_sha,note) VALUES(?,?,?,?)").run(sid, nowIso(), gitSha(), parsed.options.note || null);
@@ -2316,7 +2646,14 @@ function main() {
     return 0;
   }
   if (cmd === "recover") {
-    const rec = buildRecovery(conn);
+    const rec = BACKEND === "port" ? (() => {
+      const s = openStore(void 0, { readOnly: true });
+      try {
+        return buildRecoveryFromStore(s);
+      } finally {
+        s.close();
+      }
+    })() : buildRecovery(conn);
     if (parsed.options.json) {
       process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
     } else {
@@ -2325,11 +2662,39 @@ function main() {
     return 0;
   }
   if (cmd === "freshness") {
-    const measurements = buildFreshness(conn, !!parsed.options["stale-only"]);
+    const staleOnly = !!parsed.options["stale-only"];
+    const measurements = BACKEND === "port" ? (() => {
+      const s = openStore(void 0, { readOnly: true });
+      try {
+        return buildFreshnessFromStore(s, staleOnly);
+      } finally {
+        s.close();
+      }
+    })() : buildFreshness(conn, staleOnly);
     process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
     return 0;
   }
   if (cmd === "end") {
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const sid2 = parsed.args[0] || currentSessionId(store);
+        if (!sid2) {
+          process.stderr.write("no open session\n");
+          process.exit(2);
+        }
+        try {
+          store.endSession(sid2, nowIso());
+        } catch (e) {
+          refuseFromPort(e, "no open session\n");
+        }
+        process.stdout.write(`session ended: ${sid2}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const sid = parsed.args[0] || currentSession(conn);
     if (!sid) {
       process.stderr.write("no open session\n");
@@ -2343,6 +2708,27 @@ function main() {
   if (cmd === "fact") {
     const statement = parsed.args[0];
     const evidence = parsed.options.evidence || null;
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        let row;
+        try {
+          row = store.addFact({
+            statement,
+            evidence,
+            established_ts: nowIso(),
+            session_id: currentSessionId(store)
+          });
+        } catch (e) {
+          refuseFromPort(e, "refusing: cannot add fact\n");
+        }
+        process.stdout.write(`fact ${row.id}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const id = inWriteTx(conn, () => {
       const id2 = mintId(conn, "fact");
       conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id2, statement, evidence, nowIso(), currentSession(conn));
@@ -2363,6 +2749,31 @@ function main() {
     let vnum = null;
     if (parsed.options.num !== void 0) vnum = parseFloat(parsed.options.num);
     else vnum = scalarOf(value);
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        let row;
+        try {
+          row = store.addMeasurement({
+            metric,
+            value,
+            value_num: vnum,
+            command,
+            measured_ts: nowIso(),
+            measured_sha: gitSha(),
+            scope_paths: parsed.options.scope.join("\n"),
+            session_id: currentSessionId(store)
+          });
+        } catch (e) {
+          refuseFromPort(e, "refusing: --num must be a finite number\n");
+        }
+        process.stdout.write(`measurement ${row.id}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const id = inWriteTx(conn, () => {
       const id2 = mintId(conn, "measurement");
       conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
@@ -2385,6 +2796,27 @@ function main() {
   if (cmd === "obligation") {
     const statement = parsed.args[0];
     const blocker = parsed.options.blocker || null;
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        let row;
+        try {
+          row = store.addObligation({
+            statement,
+            blocker,
+            opened_ts: nowIso(),
+            session_id: currentSessionId(store)
+          });
+        } catch (e) {
+          refuseFromPort(e, "refusing: cannot add obligation\n");
+        }
+        process.stdout.write(`obligation ${row.id}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const id = inWriteTx(conn, () => {
       const id2 = mintId(conn, "obligation");
       conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
@@ -2405,6 +2837,27 @@ function main() {
     const obligationId = parseInt(parsed.args[0], 10);
     const status = parsed.options.status;
     const blocker = parsed.options.blocker || null;
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        if (status !== "done" && status !== "dropped") {
+          process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}
+`);
+          process.exit(2);
+        }
+        try {
+          store.closeObligation(obligationId, status, nowIso());
+        } catch (e) {
+          refuseFromPort(e, `refusing: obligation ${obligationId} is not open; only an open obligation may be closed
+`);
+        }
+        process.stdout.write(`obligation ${obligationId} -> ${status}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     conn.prepare("UPDATE obligations SET status=?, blocker=?, closed_ts=? WHERE id=?").run(
       status,
       blocker,

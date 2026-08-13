@@ -420,6 +420,23 @@ goldenCase("close with an unknown status", "close-unknown", [
   "nonsense",
 ], { diverges: true });
 
+// Ordinary end of a session that exists in the seed. Both seed sessions are
+// already ended; endSession still stamps ended_ts and both arms print the
+// same success line. Shared fixture: end.{out,err,exit}.
+goldenCase("end an existing session", "end", [
+  "end",
+  "20260730T222519Z-da94ed",
+]);
+
+// No such session. Legacy UPDATE matches zero rows and still prints success.
+// The port raises invalid_argument and refuseFromPort turns that into the
+// existing "no open session" refusal. Per-arm fixtures:
+// end-unknown.{legacy,port}.{out,err,exit}.
+goldenCase("end an unknown session", "end-unknown", [
+  "end",
+  "no-such-session-id",
+], { diverges: true });
+
 // Seed measurements are 3,4,5,6,7 and none is superseded (see seed.ndjson).
 // retire has no recorded defect, so these four must stay byte-identical
 // through the cutover.

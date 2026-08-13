@@ -282,8 +282,13 @@ PY
   run $SESS import-sidecar "$BATS_TEST_TMPDIR/fidelity.ndjson"
   [ "$status" -eq 0 ]
 
+  # Compare declared entity tables only. encodeSnapshot emits those kinds,
+  # and decodeSnapshot once refused the file the CLI had just written when
+  # undeclared tables reached the tracked record. store_meta, memory_outbox
+  # and schema_meta are derived; the encoder emits none of them (same
+  # rationale as the assertion above).
   tables=$(sqlite3 "$source_db" \
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('sessions','facts','measurements','obligations') ORDER BY name")
   for table in $tables; do
     run sqlite3 "$source_db" "SELECT * FROM \"$table\" ORDER BY 1"
     [ "$status" -eq 0 ]
