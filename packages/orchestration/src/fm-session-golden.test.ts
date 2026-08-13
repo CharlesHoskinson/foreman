@@ -266,11 +266,9 @@ function childEnv(cwd: string, backend: GoldenBackend): NodeJS.ProcessEnv {
   // tests/session.bats does, so the CLI can never see or touch
   // anything outside this disposable directory.
   env["FOREMAN_SESSION_DB"] = join(cwd, ".foreman", "session.db");
-  if (backend === "port") {
-    env["FM_SESSION_BACKEND"] = "port";
-  } else {
-    delete env["FM_SESSION_BACKEND"];
-  }
+  // Set the backend explicitly. After the default flip, deleting the
+  // variable selects the port, so a delete would make both arms the port.
+  env["FM_SESSION_BACKEND"] = backend === "port" ? "port" : "legacy";
   return env;
 }
 

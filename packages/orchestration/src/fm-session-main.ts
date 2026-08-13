@@ -29,11 +29,11 @@ import { rebuildFromSidecar } from "./session-rebuild.js";
  * while appearing to exercise the port -- and after the default flips it would
  * silently switch that suite to the port instead.
  *
- * Defaults to legacy until every command is migrated, so a half-finished
- * migration cannot ship silently. Task 8 flips the default.
+ * Defaults to the port. Set FM_SESSION_BACKEND=legacy to opt out. That
+ * opt-out is temporary: the next task deletes the legacy path.
  */
 const BACKEND: "legacy" | "port" =
-  process.env["FM_SESSION_BACKEND"] === "port" ? "port" : "legacy";
+  process.env["FM_SESSION_BACKEND"] === "legacy" ? "legacy" : "port";
 
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
 

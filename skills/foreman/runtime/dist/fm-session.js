@@ -2011,7 +2011,7 @@ function rebuildFromSidecar(opts) {
 }
 
 // packages/orchestration/src/fm-session-main.ts
-var BACKEND = process.env["FM_SESSION_BACKEND"] === "port" ? "port" : "legacy";
+var BACKEND = process.env["FM_SESSION_BACKEND"] === "legacy" ? "legacy" : "port";
 var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
 var V1_TABLE = {
   session: "sessions",
