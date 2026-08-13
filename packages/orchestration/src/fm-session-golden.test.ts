@@ -398,17 +398,15 @@ goldenCase("recover --json", "recover-json", ["recover", "--json"]);
 goldenCase("freshness", "freshness", ["freshness"]);
 goldenCase("freshness --stale-only", "freshness-stale-only", ["freshness", "--stale-only"]);
 
-// KNOWN DEFECT, frozen deliberately. Today this exits 0 and reports success for
-// a fact that does not exist, inserting an orphan row. Task 6 changes it to a
-// non-zero exit; re-record this golden in the same commit that changes the
-// behaviour, never before and never on its own.
+// Missing fact. Legacy inserts an orphan, prints success, exits 0. The port
+// refuses. Per-arm fixtures: supersede-missing.{legacy,port}.{out,err,exit}.
 goldenCase("supersede a missing fact", "supersede-missing", [
   "supersede",
   "9999",
   "replacement",
   "--reason",
   "r",
-]);
+], { diverges: true });
 
 // Obligation 1 exists in the seed (see seed.ndjson). The two arms diverge
 // during the cutover: legacy still accepts an unknown --status, the port
@@ -489,17 +487,16 @@ goldenCase("retire refuses a missing superseder", "retire-missing-by", [
   "r",
 ]);
 
-// KNOWN DEFECT, frozen deliberately. Fact 16 is already superseded by 32 in the
-// seed. Today the legacy path overwrites that pointer; supersession is meant to
-// be set-once. Task 7 changes this to a refusal and re-records this golden in
-// the same commit.
+// Fact 16 is already superseded by 32 in the seed. Legacy overwrites that
+// set-once pointer; the port refuses. Per-arm fixtures:
+// supersede-superseded.{legacy,port}.{out,err,exit}.
 goldenCase("supersede an already-superseded fact", "supersede-superseded", [
   "supersede",
   "16",
   "replacement",
   "--reason",
   "r",
-]);
+], { diverges: true });
 
 // Obligation 7 is already done in the seed. The two arms diverge during the
 // cutover: legacy closes it again, the port refuses a non-open obligation.

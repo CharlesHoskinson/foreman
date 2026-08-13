@@ -2914,6 +2914,28 @@ function main() {
       process.stderr.write("error: option --reason requires an argument\n");
       process.exit(2);
     }
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        let res;
+        try {
+          res = store.supersedeFact(
+            factId,
+            { statement, evidence, established_ts: nowIso(), session_id: currentSessionId(store) },
+            reason,
+            nowIso()
+          );
+        } catch (e) {
+          refuseFromPort(e, `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded
+`);
+        }
+        process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
+    }
     const newId = inWriteTx(conn, () => {
       const newId2 = mintId(conn, "fact");
       conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId2, statement, evidence, nowIso(), currentSession(conn));
@@ -2939,6 +2961,39 @@ function main() {
     if (byId === measurementId) {
       process.stderr.write("refusing: a measurement cannot supersede itself\n");
       process.exit(2);
+    }
+    if (BACKEND === "port") {
+      const store = openStore();
+      try {
+        const rows = store.listMeasurements();
+        if (!rows.some((r) => r.id === measurementId)) {
+          process.stderr.write(`refusing: no measurement ${measurementId} to retire
+`);
+          process.exit(2);
+        }
+        const by = rows.find((r) => r.id === byId);
+        if (!by) {
+          process.stderr.write(`refusing: no measurement ${byId} to supersede it
+`);
+          process.exit(2);
+        }
+        if (by.superseded_by !== null) {
+          process.stderr.write(`refusing: measurement ${byId} is itself superseded by ${by.superseded_by}. A retired measurement cannot supersede another one.
+`);
+          process.exit(2);
+        }
+        try {
+          store.retireMeasurement(measurementId, byId, reason, nowIso());
+        } catch (e) {
+          refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded
+`);
+        }
+        process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}
+`);
+      } finally {
+        store.close();
+      }
+      return 0;
     }
     const target = conn.prepare("SELECT id FROM measurements WHERE id=?").get(measurementId);
     if (!target) {

@@ -370,3 +370,33 @@ test("classifyStore rejects a port file whose watermark sits behind its rows", (
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("retire refuses an already-retired measurement", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-retire-"));
+  try {
+    const db = join(dir, "session.db");
+    const store = SqliteSessionStore.open(db);
+    try {
+      const mk = (v: string, ts: string) =>
+        store.addMeasurement({
+          metric: "m", value: v, value_num: Number(v), command: null,
+          measured_ts: ts, measured_sha: null, scope_paths: "x", session_id: null,
+        });
+      const a = mk("1", "2026-08-08T11:00:00Z");
+      const b = mk("2", "2026-08-08T11:01:00Z");
+      const c = mk("3", "2026-08-08T11:02:00Z");
+      store.retireMeasurement(a.id, b.id, "first", "2026-08-08T11:03:00Z");
+      assert.throws(
+        () => store.retireMeasurement(a.id, c.id, "second", "2026-08-08T11:04:00Z"),
+        /already superseded/,
+      );
+      // The legacy path overwrote the pointer instead of refusing.
+      const after = store.listMeasurements().find((r) => r.id === a.id);
+      assert.equal(after?.superseded_by, b.id, "the original pointer was overwritten");
+    } finally {
+      store.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
