@@ -437,6 +437,19 @@ goldenCase("end an unknown session", "end-unknown", [
   "no-such-session-id",
 ], { diverges: true });
 
+// Non-finite --num. Legacy parseFloat("abc") is NaN and still inserts;
+// the port refuses a non-finite value_num. Per-arm fixtures:
+// measure-nonfinite.{legacy,port}.{out,err,exit}.
+goldenCase("measure with a non-finite --num", "measure-nonfinite", [
+  "measure",
+  "other_metric",
+  "hello",
+  "--scope",
+  "docs",
+  "--num",
+  "abc",
+], { diverges: true });
+
 // Seed measurements are 3,4,5,6,7 and none is superseded (see seed.ndjson).
 // retire has no recorded defect, so these four must stay byte-identical
 // through the cutover.
