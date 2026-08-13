@@ -99,13 +99,7 @@ const GOLDEN = join(HERE, "__golden__");
 const ENTRY = join(HERE, "fm-session-main.ts");
 const UPDATE = process.env["GOLDEN_UPDATE"] === "1";
 
-// Every case runs once per arm against the same fixture. Collapse this list
-// to `["port"]` (and retarget GOLDEN_ORACLE_BACKEND) when the legacy path
-// is deleted. The suite never reads FM_SESSION_BACKEND from the ambient
-// environment to decide what to cover.
-const GOLDEN_BACKENDS = ["legacy", "port"] as const;
-type GoldenBackend = (typeof GOLDEN_BACKENDS)[number];
-const GOLDEN_ORACLE_BACKEND: GoldenBackend = "legacy";
+// One backend remains. The suite never reads FM_SESSION_BACKEND.
 
 // `--import tsx` resolves the bare specifier "tsx" against the child's cwd,
 // which is a freshly mkdtemp'd workspace with no node_modules of its own.
@@ -231,21 +225,21 @@ function workspace(): string {
 
   mkdirSync(join(dir, ".foreman"), { recursive: true });
   copyFileSync(join(GOLDEN, "seed.ndjson"), join(dir, ".foreman", "session.ndjson"));
-  // No explicit `import-sidecar` here: fm-session-main.ts's `connect()` path
-  // (rebuildFromSidecarIfEmpty) auto-imports .foreman/session.ndjson the
-  // first time any command connects to an empty store. An explicit call
-  // here would need a positional sidecar path (the bare `import-sidecar`
-  // form throws, not this workspace's fault) and, once given one, would
-  // race the auto-rehydrate and refuse with "target store already has
-  // rows" on the second import into the now-nonempty store.
+  // No explicit `import-sidecar` here: bootstrapStore auto-imports
+  // .foreman/session.ndjson the first time any command opens an empty
+  // store. An explicit call here would need a positional sidecar path
+  // (the bare `import-sidecar` form throws, not this workspace's fault)
+  // and, once given one, would race the auto-rehydrate and refuse with
+  // "target store already has rows" on the second import into the
+  // now-nonempty store.
   return dir;
 }
 
 /**
- * Child env for one backend arm. Backend is always set here; an ambient
- * FM_SESSION_BACKEND must not change which arms the suite covers.
+ * Child env for one golden run. The legacy seam is gone. An ambient
+ * FM_SESSION_BACKEND is deleted so it cannot appear to select a path.
  */
-function childEnv(cwd: string, backend: GoldenBackend): NodeJS.ProcessEnv {
+function childEnv(cwd: string): NodeJS.ProcessEnv {
   const env = sanitizedCheckpointEnv(process.env);
   // Ambient NO_COLOR+FORCE_COLOR makes Node print
   // "Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR'
@@ -256,6 +250,7 @@ function childEnv(cwd: string, backend: GoldenBackend): NodeJS.ProcessEnv {
   delete env["FORCE_COLOR"];
   delete env["CLICOLOR_FORCE"];
   delete env["CLICOLOR"];
+  delete env["FM_SESSION_BACKEND"];
   env["GOLDEN_UPDATE"] = "";
   // dbPath() (fm-session-main.ts) short-circuits on FOREMAN_SESSION_DB
   // before it ever looks at the scratch repo, and lane-run.sh exports
@@ -266,14 +261,11 @@ function childEnv(cwd: string, backend: GoldenBackend): NodeJS.ProcessEnv {
   // tests/session.bats does, so the CLI can never see or touch
   // anything outside this disposable directory.
   env["FOREMAN_SESSION_DB"] = join(cwd, ".foreman", "session.db");
-  // Set the backend explicitly. After the default flip, deleting the
-  // variable selects the port, so a delete would make both arms the port.
-  env["FM_SESSION_BACKEND"] = backend === "port" ? "port" : "legacy";
   return env;
 }
 
 /** Run the CLI from source. tsx keeps this honest against an unbuilt bundle. */
-function run(cwd: string, args: readonly string[], backend: GoldenBackend) {
+function run(cwd: string, args: readonly string[]) {
   return spawnSync(process.execPath, ["--import", TSX_LOADER, ENTRY, ...args], {
     cwd,
     encoding: "utf8",
@@ -284,7 +276,7 @@ function run(cwd: string, args: readonly string[], backend: GoldenBackend) {
     // checkpoint.sh exports exactly this for a real foreman session)
     // would redirect those grandchild git calls at a real repo, same as
     // commitPinned()/workspace() above.
-    env: childEnv(cwd, backend),
+    env: childEnv(cwd),
   });
 }
 
@@ -307,69 +299,38 @@ function normalize(dir: string, text: string): string {
   return out;
 }
 
-type GoldenCaseOpts = {
-  /**
-   * When true, each backend compares against its own fixture:
-   * `<name>.<backend>.{out,err,exit}`.
-   *
-   * Use this only while a command is allowed to differ across the
-   * migration window. Shared fixtures remain the byte-identity
-   * invariant for every other case. GOLDEN_UPDATE records both arms
-   * for a diverging case, and still records the oracle arm only for
-   * a shared case.
-   */
-  readonly diverges?: boolean;
-};
-
-function fixtureStem(name: string, backend: GoldenBackend, diverges: boolean): string {
-  return diverges ? `${name}.${backend}` : name;
-}
-
-function golden(
-  name: string,
-  args: readonly string[],
-  backend: GoldenBackend,
-  opts: GoldenCaseOpts = {},
-): void {
+function golden(name: string, args: readonly string[]): void {
   const dir = workspace();
   let passed = false;
   try {
-    const res = run(dir, args, backend);
+    const res = run(dir, args);
     const code = String(res.status ?? -1);
     const stdout = normalize(dir, res.stdout);
     const stderr = normalize(dir, res.stderr);
-    const label = `${name} [${backend}]`;
-    const diverges = opts.diverges === true;
-    const stem = fixtureStem(name, backend, diverges);
 
     if (UPDATE) {
-      // Shared fixtures: record from the oracle arm only. The port arm
-      // must never overwrite them — that identity is the invariant.
-      // Diverging fixtures: record both arms, each to its own file.
-      if (diverges || backend === GOLDEN_ORACLE_BACKEND) {
-        writeFileSync(join(GOLDEN, `${stem}.out`), stdout, "utf8");
-        writeFileSync(join(GOLDEN, `${stem}.err`), stderr, "utf8");
-        writeFileSync(join(GOLDEN, `${stem}.exit`), `${code}\n`, "utf8");
-      }
+      writeFileSync(join(GOLDEN, `${name}.out`), stdout, "utf8");
+      writeFileSync(join(GOLDEN, `${name}.err`), stderr, "utf8");
+      writeFileSync(join(GOLDEN, `${name}.exit`), `${code}\n`, "utf8");
       passed = true;
       return;
     }
 
-    const outPath = join(GOLDEN, `${stem}.out`);
+    const outPath = join(GOLDEN, `${name}.out`);
     assert.ok(
       existsSync(outPath),
-      `no golden recorded for ${label}; run with GOLDEN_UPDATE=1`,
+      `no golden recorded for ${name}; run with GOLDEN_UPDATE=1`,
     );
-    assert.equal(stdout, readFileSync(outPath, "utf8"), `${label}: stdout drifted`);
+    assert.equal(stdout, readFileSync(outPath, "utf8"), `${name}: stdout drifted`);
     assert.equal(
       stderr,
-      readFileSync(join(GOLDEN, `${stem}.err`), "utf8"),
-      `${label}: stderr drifted`,
+      readFileSync(join(GOLDEN, `${name}.err`), "utf8"),
+      `${name}: stderr drifted`,
     );
     assert.equal(
       `${code}\n`,
-      readFileSync(join(GOLDEN, `${stem}.exit`), "utf8"),
-      `${label}: exit code drifted`,
+      readFileSync(join(GOLDEN, `${name}.exit`), "utf8"),
+      `${name}: exit code drifted`,
     );
     passed = true;
   } finally {
@@ -380,15 +341,8 @@ function golden(
   }
 }
 
-function goldenCase(
-  title: string,
-  name: string,
-  args: readonly string[],
-  opts: GoldenCaseOpts = {},
-): void {
-  for (const backend of GOLDEN_BACKENDS) {
-    test(`golden: ${title} [${backend}]`, () => golden(name, args, backend, opts));
-  }
+function goldenCase(title: string, name: string, args: readonly string[]): void {
+  test(`golden: ${title}`, () => golden(name, args));
 }
 
 goldenCase("recover", "recover", ["recover"]);
@@ -396,46 +350,40 @@ goldenCase("recover --json", "recover-json", ["recover", "--json"]);
 goldenCase("freshness", "freshness", ["freshness"]);
 goldenCase("freshness --stale-only", "freshness-stale-only", ["freshness", "--stale-only"]);
 
-// Missing fact. Legacy inserts an orphan, prints success, exits 0. The port
-// refuses. Per-arm fixtures: supersede-missing.{legacy,port}.{out,err,exit}.
+// Missing fact. The port refuses.
 goldenCase("supersede a missing fact", "supersede-missing", [
   "supersede",
   "9999",
   "replacement",
   "--reason",
   "r",
-], { diverges: true });
+]);
 
-// Obligation 1 exists in the seed (see seed.ndjson). The two arms diverge
-// during the cutover: legacy still accepts an unknown --status, the port
-// refuses it. Per-arm fixtures: close-unknown.{legacy,port}.{out,err,exit}.
+// Obligation 1 exists in the seed (see seed.ndjson). The port refuses an
+// unknown --status.
 goldenCase("close with an unknown status", "close-unknown", [
   "close",
   "1",
   "--status",
   "nonsense",
-], { diverges: true });
+]);
 
 // Ordinary end of a session that exists in the seed. Both seed sessions are
-// already ended; endSession still stamps ended_ts and both arms print the
-// same success line. Shared fixture: end.{out,err,exit}.
+// already ended; endSession still stamps ended_ts and prints the success
+// line. Shared fixture: end.{out,err,exit}.
 goldenCase("end an existing session", "end", [
   "end",
   "20260730T222519Z-da94ed",
 ]);
 
-// No such session. Legacy UPDATE matches zero rows and still prints success.
-// The port raises invalid_argument and refuseFromPort turns that into the
-// existing "no open session" refusal. Per-arm fixtures:
-// end-unknown.{legacy,port}.{out,err,exit}.
+// No such session. The port raises invalid_argument and refuseFromPort
+// turns that into the existing "no open session" refusal.
 goldenCase("end an unknown session", "end-unknown", [
   "end",
   "no-such-session-id",
-], { diverges: true });
+]);
 
-// Non-finite --num. Legacy parseFloat("abc") is NaN and still inserts;
-// the port refuses a non-finite value_num. Per-arm fixtures:
-// measure-nonfinite.{legacy,port}.{out,err,exit}.
+// Non-finite --num. The port refuses a non-finite value_num.
 goldenCase("measure with a non-finite --num", "measure-nonfinite", [
   "measure",
   "other_metric",
@@ -444,7 +392,7 @@ goldenCase("measure with a non-finite --num", "measure-nonfinite", [
   "docs",
   "--num",
   "abc",
-], { diverges: true });
+]);
 
 // Seed measurements are 3,4,5,6,7 and none is superseded (see seed.ndjson).
 // retire has no recorded defect, so these four must stay byte-identical
@@ -485,23 +433,20 @@ goldenCase("retire refuses a missing superseder", "retire-missing-by", [
   "r",
 ]);
 
-// Fact 16 is already superseded by 32 in the seed. Legacy overwrites that
-// set-once pointer; the port refuses. Per-arm fixtures:
-// supersede-superseded.{legacy,port}.{out,err,exit}.
+// Fact 16 is already superseded by 32 in the seed. The port refuses.
 goldenCase("supersede an already-superseded fact", "supersede-superseded", [
   "supersede",
   "16",
   "replacement",
   "--reason",
   "r",
-], { diverges: true });
+]);
 
-// Obligation 7 is already done in the seed. The two arms diverge during the
-// cutover: legacy closes it again, the port refuses a non-open obligation.
-// Per-arm fixtures: close-done.{legacy,port}.{out,err,exit}.
+// Obligation 7 is already done in the seed. The port refuses a non-open
+// obligation.
 goldenCase("close an already-done obligation", "close-done", [
   "close",
   "7",
   "--status",
   "done",
-], { diverges: true });
+]);

@@ -1,3 +1,0 @@
-rehydrated 73 row(s) from <WORKSPACE>/.foreman/session.ndjson (the .db is a derived cache; the sidecar is what git tracks)
-WARNING: the store was written but its sidecar could not be refreshed (SessionStoreError: snapshot violates 1 integrity rule(s):
-  obligation.status: expected enum, got "nonsense" (id=1)). The tracked record is now BEHIND the database; run `fm-session.py sidecar` before committing.

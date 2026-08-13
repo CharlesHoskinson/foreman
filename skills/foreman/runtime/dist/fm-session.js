@@ -1,10 +1,18 @@
 // packages/orchestration/src/fm-session-main.ts
 import { pathToFileURL } from "node:url";
-import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { join, dirname as dirname2, resolve } from "node:path";
-import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync, renameSync as renameSync2, rmSync as rmSync2, openSync, closeSync, fsyncSync } from "node:fs";
+import { join, dirname as dirname2, resolve as resolve2 } from "node:path";
+import {
+  existsSync as existsSync3,
+  mkdirSync as mkdirSync2,
+  readFileSync as readFileSync2,
+  writeFileSync as writeFileSync2,
+  renameSync as renameSync2,
+  openSync,
+  closeSync,
+  fsyncSync
+} from "node:fs";
 
 // packages/session-store/src/entities.ts
 var SESSION_MODEL_VERSION = 1;
@@ -1988,6 +1996,11 @@ var HOSTILE_CASES = [
 ];
 var ALL_CASES = [...CASES, ...HOSTILE_CASES];
 
+// packages/orchestration/src/session-legacy-shape.ts
+import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
+import { existsSync as existsSync2, rmSync as rmSync2, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 // packages/orchestration/src/session-rebuild.ts
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
 function rebuildFromSidecar(opts) {
@@ -2010,15 +2023,30 @@ function rebuildFromSidecar(opts) {
   return { rowsWritten, nextIds: snapshot.nextIds };
 }
 
-// packages/orchestration/src/fm-session-main.ts
-var BACKEND = process.env["FM_SESSION_BACKEND"] === "legacy" ? "legacy" : "port";
-var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
+// packages/orchestration/src/session-legacy-shape.ts
 var V1_TABLE = {
   session: "sessions",
   fact: "facts",
   measurement: "measurements",
   obligation: "obligations"
 };
+function quoteIdentifier(name) {
+  return '"' + name.replace(/"/g, '""') + '"';
+}
+function asJsonValue(value) {
+  if (value === null || value === void 0) return null;
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "bigint") return Number(value);
+  if (Array.isArray(value)) return value.map(asJsonValue);
+  if (typeof value === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = asJsonValue(v);
+    return out;
+  }
+  return String(value);
+}
 function jsonDumps(obj, sortKeys = false) {
   if (obj === null) return "null";
   if (typeof obj === "boolean") return obj ? "true" : "false";
@@ -2027,59 +2055,31 @@ function jsonDumps(obj, sortKeys = false) {
   if (Array.isArray(obj)) {
     return "[" + obj.map((v) => jsonDumps(v, sortKeys)).join(", ") + "]";
   }
-  if (typeof obj === "object") {
-    const keys = sortKeys ? Object.keys(obj).sort() : Object.keys(obj);
-    return "{" + keys.map((k) => JSON.stringify(k) + ": " + jsonDumps(obj[k], sortKeys)).join(", ") + "}";
-  }
-  return "null";
+  const keys = sortKeys ? Object.keys(obj).sort() : Object.keys(obj);
+  return "{" + keys.map((k) => {
+    const value = obj[k];
+    return JSON.stringify(k) + ": " + jsonDumps(value === void 0 ? null : value, sortKeys);
+  }).join(", ") + "}";
 }
-function nowIso() {
-  return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-function repoRoot() {
-  try {
-    const out = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" }).trim();
-    return dirname2(resolve(out));
-  } catch (e) {
-    return process.cwd();
-  }
-}
-function gitSha() {
-  try {
-    return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  } catch (e) {
-    return null;
-  }
-}
-function warnOrphanStore(chosen) {
-  try {
-    const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-    if (!top) return;
-    const orphan = resolve(top, ".foreman", "session.db");
-    if (orphan === resolve(chosen) || !existsSync2(orphan)) return;
-    process.stderr.write(`WARNING: an orphaned session store sits at ${orphan}. Nothing reads it. The store in use is ${chosen}.
-`);
-  } catch (e) {
-  }
-}
-function dbPath() {
-  if (process.env.FOREMAN_SESSION_DB) return process.env.FOREMAN_SESSION_DB;
-  const d = join(repoRoot(), ".foreman");
-  mkdirSync2(d, { recursive: true });
-  const chosen = join(d, "session.db");
-  warnOrphanStore(chosen);
-  return chosen;
+function errorMessage(e) {
+  return e instanceof Error ? e.message : String(e);
 }
 function classifyStore(p) {
   if (!existsSync2(p)) return "absent";
   const db = new DatabaseSync2(p, { readOnly: true });
   try {
-    const names = new Set(db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name));
+    const names = new Set(
+      db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name)
+    );
     const hasPort = names.has("store_meta");
     const hasLegacy = names.has("schema_meta");
     if (hasPort && hasLegacy) return "corrupt";
     if (hasPort) {
-      for (const [kind, table] of [["fact", "facts"], ["measurement", "measurements"], ["obligation", "obligations"]]) {
+      for (const [kind, table] of [
+        ["fact", "facts"],
+        ["measurement", "measurements"],
+        ["obligation", "obligations"]
+      ]) {
         if (!names.has(table)) continue;
         const row = db.prepare(`SELECT MAX(id) AS m FROM ${quoteIdentifier(table)}`).get();
         const max = row && row.m !== null ? Number(row.m) : 0;
@@ -2099,20 +2099,24 @@ function legacyDumpV1(p) {
   const db = new DatabaseSync2(p);
   try {
     db.exec("PRAGMA foreign_keys=OFF");
-    const present = new Set(db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name));
+    const present = new Set(
+      db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name)
+    );
     const documents = [jsonDumps({ format: SIDECAR_FORMAT, format_version: 1 }, true)];
     for (const kind of ENTITY_ORDER) {
       const table = V1_TABLE[kind];
       if (!present.has(table)) continue;
       const spec = specFor(kind);
-      const have = new Set(db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all().map((r) => r.name));
+      const have = new Set(
+        db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all().map((r) => r.name)
+      );
       const columns = spec.fields.map((f) => f.name);
       const selected = columns.map((c) => have.has(c) ? quoteIdentifier(c) : `NULL AS ${quoteIdentifier(c)}`).join(", ");
       const ordering = spec.ordering.map((c) => quoteIdentifier(c)).join(", ");
       const query = `SELECT ${selected} FROM ${quoteIdentifier(table)} ORDER BY ${ordering}`;
       for (const record of db.prepare(query).all()) {
         const row = {};
-        for (const c of columns) row[c] = record[c] ?? null;
+        for (const c of columns) row[c] = asJsonValue(record[c] ?? null);
         documents.push(jsonDumps({ row, table }, true));
       }
     }
@@ -2124,13 +2128,44 @@ function legacyDumpV1(p) {
 function sidecarPathFor(p) {
   return p.replace(/\.db$/, ".ndjson");
 }
+function pathsAlias(left, right) {
+  try {
+    return resolve(left) === resolve(right);
+  } catch {
+    return false;
+  }
+}
 function storeIsEmpty(p) {
   const db = new DatabaseSync2(p);
   try {
-    const row = db.prepare("SELECT (SELECT COUNT(*) FROM facts) + (SELECT COUNT(*) FROM measurements) + (SELECT COUNT(*) FROM obligations) + (SELECT COUNT(*) FROM sessions) AS n").get();
-    return !!row && row.n === 0;
+    const row = db.prepare(
+      "SELECT (SELECT COUNT(*) FROM facts) + (SELECT COUNT(*) FROM measurements) + (SELECT COUNT(*) FROM obligations) + (SELECT COUNT(*) FROM sessions) AS n"
+    ).get();
+    return row !== void 0 && row.n === 0;
   } finally {
     db.close();
+  }
+}
+function rehydrateFromSidecarIfEmpty(p) {
+  const sidecar = sidecarPathFor(p);
+  if (pathsAlias(sidecar, p) || !existsSync2(sidecar)) return;
+  try {
+    if (!storeIsEmpty(p)) return;
+  } catch {
+    return;
+  }
+  try {
+    const res = rebuildFromSidecar({ sidecarPath: sidecar, dbPath: p, force: true });
+    process.stderr.write(
+      `rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)
+`
+    );
+  } catch (e) {
+    process.stderr.write(
+      `refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${errorMessage(e)}
+`
+    );
+    throw e;
   }
 }
 function bootstrapStore(p, opts) {
@@ -2157,8 +2192,10 @@ function bootstrapStore(p, opts) {
       process.stderr.write(`migrated ${res.rowsWritten} row(s) out of the legacy session schema into ${p}
 `);
     } catch (e) {
-      process.stderr.write(`refusing: the legacy session store at ${p} could not be migrated to the port schema: ${e.message}
-`);
+      process.stderr.write(
+        `refusing: the legacy session store at ${p} could not be migrated to the port schema: ${errorMessage(e)}
+`
+      );
       throw e;
     } finally {
       rmSync2(carrier, { force: true });
@@ -2175,38 +2212,57 @@ function bootstrapStore(p, opts) {
     rehydrateFromSidecarIfEmpty(p);
   }
 }
-function rehydrateFromSidecarIfEmpty(p) {
-  const sidecar = sidecarPathFor(p);
-  if (pathsAlias(sidecar, p) || !existsSync2(sidecar)) return;
+
+// packages/orchestration/src/fm-session-main.ts
+var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
+function nowIso() {
+  return (/* @__PURE__ */ new Date()).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+function repoRoot() {
   try {
-    if (!storeIsEmpty(p)) return;
-  } catch (e) {
-    return;
-  }
-  try {
-    const res = rebuildFromSidecar({ sidecarPath: sidecar, dbPath: p, force: true });
-    process.stderr.write(`rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)
-`);
-  } catch (e) {
-    process.stderr.write(`refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${e.message}
-`);
-    throw e;
+    const out = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+      encoding: "utf8"
+    }).trim();
+    return dirname2(resolve2(out));
+  } catch {
+    return process.cwd();
   }
 }
-function connect(path, cmd) {
-  const p = path ?? dbPath();
-  mkdirSync2(dirname2(p), { recursive: true });
-  const readOnlyCmd = READ_ONLY_CMDS.has(cmd ?? "");
-  bootstrapStore(p, { allowMigration: !readOnlyCmd, readOnly: readOnlyCmd });
-  const db = readOnlyCmd ? new DatabaseSync2(p, { readOnly: true }) : new DatabaseSync2(p);
-  db.exec("PRAGMA foreign_keys=OFF");
-  db.exec("PRAGMA busy_timeout=5000");
-  return db;
+function gitSha() {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+function warnOrphanStore(chosen) {
+  try {
+    const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+    if (!top) return;
+    const orphan = resolve2(top, ".foreman", "session.db");
+    if (orphan === resolve2(chosen) || !existsSync3(orphan)) return;
+    process.stderr.write(
+      `WARNING: an orphaned session store sits at ${orphan}. Nothing reads it. The store in use is ${chosen}.
+`
+    );
+  } catch {
+  }
+}
+function dbPath() {
+  if (process.env["FOREMAN_SESSION_DB"]) return process.env["FOREMAN_SESSION_DB"];
+  const d = join(repoRoot(), ".foreman");
+  mkdirSync2(d, { recursive: true });
+  const chosen = join(d, "session.db");
+  warnOrphanStore(chosen);
+  return chosen;
+}
+function errorMessage2(e) {
+  return e instanceof Error ? e.message : String(e);
 }
 function openStore(path, opts = {}) {
   const p = path ?? dbPath();
   mkdirSync2(dirname2(p), { recursive: true });
-  const readOnly = !!opts.readOnly;
+  const readOnly = opts.readOnly === true;
   bootstrapStore(p, { allowMigration: !readOnly, readOnly });
   return SqliteSessionStore.open(p, { readOnly });
 }
@@ -2222,7 +2278,8 @@ function refuseFromPort(e, legacyMessage) {
 }
 function scalarOf(text) {
   const match = text.match(/^\s*(-?\d+(?:\.\d+)?)/);
-  return match ? parseFloat(match[1]) : null;
+  const captured = match?.[1];
+  return captured === void 0 ? null : parseFloat(captured);
 }
 function mintSessionId() {
   const d = /* @__PURE__ */ new Date();
@@ -2240,104 +2297,29 @@ function measurementValidity(measuredSha, scopePaths) {
   const paths = (scopePaths || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (paths.length === 0) return ["unknown", "no scope_paths recorded; cannot bound what invalidates it"];
   try {
-    const out = execFileSync("git", ["rev-list", `${measuredSha}..HEAD`, "--", ...paths], { encoding: "utf8" });
+    const out = execFileSync("git", ["rev-list", `${measuredSha}..HEAD`, "--", ...paths], {
+      encoding: "utf8"
+    });
     const commits = out.split("\n").map((s) => s.trim()).filter(Boolean);
     if (commits.length > 0) {
       return ["stale", `${commits.length} commit(s) touched its scope since measurement`];
     }
     return ["fresh", "no commit has touched its scope since measurement"];
   } catch (e) {
-    const errStr = String(e.stderr || e.message).trim().substring(0, 80);
-    if (e.stderr) {
+    const err = e;
+    const stderrRaw = err.stderr;
+    const stderr = typeof stderrRaw === "string" ? stderrRaw : stderrRaw instanceof Uint8Array ? Buffer.from(stderrRaw).toString("utf8") : "";
+    const message = typeof err.message === "string" ? err.message : String(e);
+    const name = typeof err.name === "string" ? err.name : "Error";
+    const errStr = (stderr || message).trim().substring(0, 80);
+    if (stderr) {
       return ["unknown", `git rev-list failed: ${errStr}`];
     }
-    return ["unknown", `${e.name || "Error"}: ${e.message}`];
+    return ["unknown", `${name}: ${message}`];
   }
 }
 function displayStatus(o) {
   return o.status === "open" && o.blocker ? "blocked" : o.status;
-}
-function buildRecovery(conn) {
-  const head = gitSha();
-  const sess = conn.prepare("SELECT * FROM sessions ORDER BY session_id DESC LIMIT 1").get();
-  const facts = conn.prepare("SELECT * FROM facts WHERE superseded_by IS NULL ORDER BY id DESC").all().map((r) => ({
-    kind: "fact",
-    id: r.id,
-    statement: r.statement,
-    evidence: r.evidence,
-    established_ts: r.established_ts
-  }));
-  const measurements = [];
-  for (const r of conn.prepare("SELECT * FROM measurements WHERE superseded_by IS NULL ORDER BY id DESC").all()) {
-    const [validity, why] = measurementValidity(r.measured_sha, r.scope_paths);
-    measurements.push({
-      kind: "measurement",
-      id: r.id,
-      metric: r.metric,
-      value: r.value,
-      command: r.command,
-      measured_ts: r.measured_ts,
-      measured_sha: (r.measured_sha || "").substring(0, 12),
-      scope_paths: (r.scope_paths || "").split("\n").filter(Boolean),
-      validity,
-      validity_reason: why
-    });
-  }
-  const obligations = conn.prepare("SELECT * FROM obligations WHERE status != 'done' ORDER BY id DESC").all().map((r) => ({
-    kind: "obligation",
-    id: r.id,
-    statement: r.statement,
-    status: displayStatus(r),
-    blocker: r.blocker,
-    opened_ts: r.opened_ts
-  }));
-  const obligationRank = (o) => {
-    if (o.status === "open" && !o.blocker) return 0;
-    if (o.status === "open" || o.status === "blocked") return 1;
-    return 2;
-  };
-  obligations.sort((a, b) => {
-    const ra = obligationRank(a);
-    const rb = obligationRank(b);
-    if (ra !== rb) return ra - rb;
-    return b.id - a.id;
-  });
-  return {
-    recovered_at: nowIso(),
-    head_sha: (head || "").substring(0, 12),
-    last_session: sess || null,
-    facts,
-    measurements,
-    obligations,
-    counts: {
-      facts: facts.length,
-      measurements_fresh: measurements.filter((m) => m.validity === "fresh").length,
-      measurements_stale: measurements.filter((m) => m.validity === "stale").length,
-      measurements_unknown: measurements.filter((m) => m.validity === "unknown").length,
-      obligations_open: obligations.filter((o) => o.status === "open").length,
-      obligations_blocked: obligations.filter((o) => o.status === "blocked").length
-    }
-  };
-}
-function buildFreshness(conn, staleOnly) {
-  const measurements = [];
-  const rows = conn.prepare("SELECT * FROM measurements WHERE superseded_by IS NULL ORDER BY id DESC").all();
-  for (const row of rows) {
-    const [validity, why] = measurementValidity(row.measured_sha, row.scope_paths);
-    if (staleOnly && validity === "fresh") continue;
-    measurements.push({
-      id: row.id,
-      metric: row.metric,
-      value: row.value,
-      verdict: validity === "stale" ? "STALE" : validity,
-      reason: why,
-      command: row.command || "(no command recorded)",
-      scope: (row.scope_paths || "").split("\n").filter(Boolean).join(","),
-      sha: row.measured_sha || "",
-      timestamp: row.measured_ts
-    });
-  }
-  return measurements;
 }
 function buildRecoveryFromStore(store) {
   const head = gitSha();
@@ -2437,12 +2419,14 @@ function renderFreshness(measurements, outputFormat) {
   ).join("\n");
 }
 function render(rec) {
-  const A = (s) => lines.push(s);
   const lines = [];
+  const A = (s) => lines.push(s);
   A(`FOREMAN RECOVERY  head=${rec.head_sha}  at=${rec.recovered_at}`);
   const ls = rec.last_session;
   if (ls) {
-    A(`last session: ${ls.session_id}  started=${ls.started_ts}  start_sha=${(ls.start_sha || "").substring(0, 12)}  ${ls.ended_ts ? "ENDED " + ls.ended_ts : "NOT ENDED"}`);
+    A(
+      `last session: ${ls.session_id}  started=${ls.started_ts}  start_sha=${(ls.start_sha || "").substring(0, 12)}  ${ls.ended_ts ? "ENDED " + ls.ended_ts : "NOT ENDED"}`
+    );
     if (ls.note) {
       A(`  note: ${ls.note}`);
     }
@@ -2466,9 +2450,9 @@ function render(rec) {
   A(`MEASUREMENTS \u2014 fresh=${c.measurements_fresh} STALE=${c.measurements_stale} unknown=${c.measurements_unknown}`);
   const MEASUREMENT_LIMIT = 20;
   const measurementsShown = rec.measurements.slice(0, MEASUREMENT_LIMIT);
+  const markFor = { fresh: "OK   ", stale: "STALE", unknown: "?    " };
   for (const m of measurementsShown) {
-    const mark = { "fresh": "OK   ", "stale": "STALE", "unknown": "?    " }[m.validity];
-    A(`  ${mark} [${m.id}] ${m.metric} = ${m.value}`);
+    A(`  ${markFor[m.validity]} [${m.id}] ${m.metric} = ${m.value}`);
     A(`       ${m.validity_reason}  (measured ${m.measured_ts} @ ${m.measured_sha})`);
     if (m.validity !== "fresh" && m.command) {
       A(`       re-run: ${m.command}`);
@@ -2494,19 +2478,23 @@ function render(rec) {
   const stale = c.measurements_stale + c.measurements_unknown;
   const live = rec.measurements.length;
   if (stale > 0) {
-    A(`LAUNCH POINT: ${stale} measurement(s) are not fresh \u2014 re-run them before quoting any of their numbers. Then work the open obligations above.`);
+    A(
+      `LAUNCH POINT: ${stale} measurement(s) are not fresh \u2014 re-run them before quoting any of their numbers. Then work the open obligations above.`
+    );
   } else if (live === 0) {
-    A("LAUNCH POINT: no measurement is recorded, so nothing here is measured. Measure before you quote a number. Then work the open obligations above.");
+    A(
+      "LAUNCH POINT: no measurement is recorded, so nothing here is measured. Measure before you quote a number. Then work the open obligations above."
+    );
   } else {
     A("LAUNCH POINT: every measurement is fresh. Work the open obligations above.");
   }
   return lines.join("\n");
 }
-function quoteIdentifier(name) {
-  return '"' + name.replace(/"/g, '""') + '"';
-}
 function sidecarNdjson(dbFile, opts = {}) {
-  const store = SqliteSessionStore.open(dbFile, { readOnly: opts.readOnly });
+  const store = SqliteSessionStore.open(
+    dbFile,
+    opts.readOnly === true ? { readOnly: true } : {}
+  );
   try {
     const snapshot = store.snapshot();
     return [encodeSnapshot(snapshot), countRows(snapshot)];
@@ -2514,16 +2502,9 @@ function sidecarNdjson(dbFile, opts = {}) {
     store.close();
   }
 }
-function pathsAlias(left, right) {
-  try {
-    return resolve(left) === resolve(right);
-  } catch (e) {
-    return false;
-  }
-}
 function writeAtomic(path, text) {
   const tmp = path + ".tmp";
-  writeFileSync(tmp, text, { encoding: "utf8" });
+  writeFileSync2(tmp, text, { encoding: "utf8" });
   const fd = openSync(tmp, "r+");
   try {
     fsyncSync(fd);
@@ -2541,52 +2522,71 @@ function importSidecar(dbFile, path, force = false) {
     store.close();
   }
 }
-function mintId(conn, kind) {
-  const row = conn.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`);
-  const id = row ? Number(row.value) : 1;
-  conn.prepare("INSERT OR REPLACE INTO store_meta(key,value) VALUES(?,?)").run(`next_id.${kind}`, String(id + 1));
-  return id;
+function emptyOptions() {
+  return {
+    json: false,
+    "stale-only": false,
+    force: false,
+    note: void 0,
+    format: "text",
+    evidence: void 0,
+    command: void 0,
+    scope: [],
+    num: void 0,
+    blocker: void 0,
+    status: "done",
+    out: void 0,
+    into: void 0,
+    by: void 0,
+    reason: void 0
+  };
 }
-function inWriteTx(conn, body) {
-  conn.exec("BEGIN IMMEDIATE");
-  try {
-    const out = body();
-    conn.exec("COMMIT");
-    return out;
-  } catch (e) {
-    try {
-      conn.exec("ROLLBACK");
-    } catch (_) {
-    }
-    throw e;
-  }
+var BOOLEAN_ARGS = /* @__PURE__ */ new Set(["--json", "--stale-only", "--force"]);
+var STRING_ARGS = /* @__PURE__ */ new Set([
+  "--note",
+  "--format",
+  "--evidence",
+  "--command",
+  "--scope",
+  "--num",
+  "--blocker",
+  "--status",
+  "--out",
+  "--into",
+  "--by",
+  "--reason"
+]);
+function isStringOption(key) {
+  return STRING_ARGS.has(`--${key}`);
 }
-function currentSession(cur) {
-  const r = cur.prepare("SELECT session_id FROM sessions WHERE ended_ts IS NULL ORDER BY session_id DESC LIMIT 1").get();
-  return r ? r.session_id : null;
-}
-function main() {
-  const args = process.argv.slice(2);
-  if (args.length === 0) process.exit(2);
-  const cmd = args[0];
-  const booleanArgs = /* @__PURE__ */ new Set(["--json", "--stale-only", "--force"]);
-  const stringArgs = /* @__PURE__ */ new Set(["--note", "--format", "--evidence", "--command", "--scope", "--num", "--blocker", "--status", "--out", "--into", "--by", "--reason"]);
-  const parsed = { args: [], options: { scope: [], format: "text", status: "done" } };
-  for (let i = 1; i < args.length; i++) {
-    const arg = args[i];
+function parseCli(argv) {
+  const parsed = { args: [], options: emptyOptions() };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === void 0) continue;
     if (arg.startsWith("--")) {
-      if (booleanArgs.has(arg)) {
-        parsed.options[arg.slice(2)] = true;
-      } else if (stringArgs.has(arg)) {
-        if (i + 1 >= args.length) {
+      if (BOOLEAN_ARGS.has(arg)) {
+        const key = arg.slice(2);
+        if (key === "json" || key === "stale-only" || key === "force") {
+          parsed.options[key] = true;
+        }
+      } else if (STRING_ARGS.has(arg)) {
+        if (i + 1 >= argv.length) {
+          process.stderr.write(`error: option ${arg} requires an argument
+`);
+          process.exit(2);
+        }
+        const value = argv[++i];
+        if (value === void 0) {
           process.stderr.write(`error: option ${arg} requires an argument
 `);
           process.exit(2);
         }
         if (arg === "--scope") {
-          parsed.options.scope.push(args[++i]);
+          parsed.options.scope.push(value);
         } else {
-          parsed.options[arg.slice(2)] = args[++i];
+          const key = arg.slice(2);
+          if (isStringOption(key)) parsed.options[key] = value;
         }
       } else {
         process.stderr.write(`error: unrecognized option: ${arg}
@@ -2597,150 +2597,139 @@ function main() {
       parsed.args.push(arg);
     }
   }
-  let conn;
-  let importTarget;
-  if (cmd === "import-sidecar") {
-    importTarget = parsed.options.into || dbPath();
-    try {
-      conn = connect(importTarget, cmd);
-    } catch (e) {
-      const msg = e.message.includes("unable to open database file") ? "sqlite3.OperationalError" : e.message;
+  return parsed;
+}
+function prepareInvocation(cmd, importTarget) {
+  try {
+    if (cmd === "import-sidecar") {
+      const target = importTarget ?? dbPath();
+      mkdirSync2(dirname2(target), { recursive: true });
+      bootstrapStore(target, { allowMigration: true, readOnly: false });
+      return;
+    }
+    const p = dbPath();
+    mkdirSync2(dirname2(p), { recursive: true });
+    const readOnly = READ_ONLY_CMDS.has(cmd);
+    bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+  } catch (e) {
+    if (cmd === "import-sidecar") {
+      const message = errorMessage2(e);
+      const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
       process.stderr.write(`refusing: cannot open target store: ${msg}
 `);
       process.exit(2);
     }
-  } else {
-    try {
-      conn = connect(void 0, cmd);
-    } catch (e) {
-      process.stderr.write(`sqlite3.OperationalError
+    process.stderr.write(`sqlite3.OperationalError
 `);
-      process.exit(1);
-    }
+    process.exit(1);
   }
+}
+function main() {
+  const args = process.argv.slice(2);
+  const cmd = args[0];
+  if (cmd === void 0) process.exit(2);
+  const parsed = parseCli(args.slice(1));
+  let importTarget = "";
+  if (cmd === "import-sidecar") {
+    importTarget = parsed.options.into ?? dbPath();
+  }
+  prepareInvocation(cmd, cmd === "import-sidecar" ? importTarget : void 0);
   if (cmd === "begin") {
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      const rec = buildRecoveryFromStore(store);
+      const sid = mintSessionId();
       try {
-        const rec2 = buildRecoveryFromStore(store);
-        const sid2 = mintSessionId();
-        try {
-          store.beginSession({ session_id: sid2, started_ts: nowIso(), start_sha: gitSha(), note: parsed.options.note || null });
-        } catch (e) {
-          refuseFromPort(e, "refusing: cannot begin session\n");
-        }
-        process.stdout.write(render(rec2) + "\n\n");
-        process.stdout.write(`SESSION BEGUN: ${sid2}
-`);
-      } finally {
-        store.close();
+        store.beginSession({
+          session_id: sid,
+          started_ts: nowIso(),
+          start_sha: gitSha(),
+          note: parsed.options.note || null
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: cannot begin session\n");
       }
-      return 0;
-    }
-    const rec = buildRecovery(conn);
-    const sid = mintSessionId();
-    conn.prepare("INSERT INTO sessions(session_id,started_ts,start_sha,note) VALUES(?,?,?,?)").run(sid, nowIso(), gitSha(), parsed.options.note || null);
-    process.stdout.write(render(rec) + "\n\n");
-    process.stdout.write(`SESSION BEGUN: ${sid}
+      process.stdout.write(render(rec) + "\n\n");
+      process.stdout.write(`SESSION BEGUN: ${sid}
 `);
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "recover") {
-    const rec = BACKEND === "port" ? (() => {
-      const s = openStore(void 0, { readOnly: true });
-      try {
-        return buildRecoveryFromStore(s);
-      } finally {
-        s.close();
+    const store = openStore(void 0, { readOnly: true });
+    try {
+      const rec = buildRecoveryFromStore(store);
+      if (parsed.options.json) {
+        process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
+      } else {
+        process.stdout.write(render(rec) + "\n");
       }
-    })() : buildRecovery(conn);
-    if (parsed.options.json) {
-      process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
-    } else {
-      process.stdout.write(render(rec) + "\n");
+    } finally {
+      store.close();
     }
     return 0;
   }
   if (cmd === "freshness") {
-    const staleOnly = !!parsed.options["stale-only"];
-    const measurements = BACKEND === "port" ? (() => {
-      const s = openStore(void 0, { readOnly: true });
-      try {
-        return buildFreshnessFromStore(s, staleOnly);
-      } finally {
-        s.close();
-      }
-    })() : buildFreshness(conn, staleOnly);
-    process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
+    const staleOnly = parsed.options["stale-only"];
+    const store = openStore(void 0, { readOnly: true });
+    try {
+      const measurements = buildFreshnessFromStore(store, staleOnly);
+      process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "end") {
-    if (BACKEND === "port") {
-      const store = openStore();
-      try {
-        const sid2 = parsed.args[0] || currentSessionId(store);
-        if (!sid2) {
-          process.stderr.write("no open session\n");
-          process.exit(2);
-        }
-        try {
-          store.endSession(sid2, nowIso());
-        } catch (e) {
-          refuseFromPort(e, "no open session\n");
-        }
-        process.stdout.write(`session ended: ${sid2}
-`);
-      } finally {
-        store.close();
+    const store = openStore();
+    try {
+      const sid = parsed.args[0] || currentSessionId(store);
+      if (!sid) {
+        process.stderr.write("no open session\n");
+        process.exit(2);
       }
-      return 0;
-    }
-    const sid = parsed.args[0] || currentSession(conn);
-    if (!sid) {
-      process.stderr.write("no open session\n");
-      process.exit(2);
-    }
-    conn.prepare("UPDATE sessions SET ended_ts=? WHERE session_id=?").run(nowIso(), sid);
-    process.stdout.write(`session ended: ${sid}
+      try {
+        store.endSession(sid, nowIso());
+      } catch (e) {
+        refuseFromPort(e, "no open session\n");
+      }
+      process.stdout.write(`session ended: ${sid}
 `);
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "fact") {
     const statement = parsed.args[0];
     const evidence = parsed.options.evidence || null;
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let row;
       try {
-        let row;
-        try {
-          row = store.addFact({
-            statement,
-            evidence,
-            established_ts: nowIso(),
-            session_id: currentSessionId(store)
-          });
-        } catch (e) {
-          refuseFromPort(e, "refusing: cannot add fact\n");
-        }
-        process.stdout.write(`fact ${row.id}
-`);
-      } finally {
-        store.close();
+        row = store.addFact({
+          statement,
+          evidence,
+          established_ts: nowIso(),
+          session_id: currentSessionId(store)
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: cannot add fact\n");
       }
-      return 0;
-    }
-    const id = inWriteTx(conn, () => {
-      const id2 = mintId(conn, "fact");
-      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id2, statement, evidence, nowIso(), currentSession(conn));
-      return id2;
-    });
-    process.stdout.write(`fact ${id}
+      process.stdout.write(`fact ${row.id}
 `);
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "measure") {
     if (parsed.options.scope.length === 0) {
-      process.stderr.write("refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n");
+      process.stderr.write(
+        "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n"
+      );
       process.exit(2);
     }
     const metric = parsed.args[0];
@@ -2749,132 +2738,82 @@ function main() {
     let vnum = null;
     if (parsed.options.num !== void 0) vnum = parseFloat(parsed.options.num);
     else vnum = scalarOf(value);
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let row;
       try {
-        let row;
-        try {
-          row = store.addMeasurement({
-            metric,
-            value,
-            value_num: vnum,
-            command,
-            measured_ts: nowIso(),
-            measured_sha: gitSha(),
-            scope_paths: parsed.options.scope.join("\n"),
-            session_id: currentSessionId(store)
-          });
-        } catch (e) {
-          refuseFromPort(e, "refusing: --num must be a finite number\n");
-        }
-        process.stdout.write(`measurement ${row.id}
-`);
-      } finally {
-        store.close();
+        row = store.addMeasurement({
+          metric,
+          value,
+          value_num: vnum,
+          command,
+          measured_ts: nowIso(),
+          measured_sha: gitSha(),
+          scope_paths: parsed.options.scope.join("\n"),
+          session_id: currentSessionId(store)
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: --num must be a finite number\n");
       }
-      return 0;
-    }
-    const id = inWriteTx(conn, () => {
-      const id2 = mintId(conn, "measurement");
-      conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
-        id2,
-        metric,
-        value,
-        command,
-        nowIso(),
-        gitSha(),
-        parsed.options.scope.join("\n"),
-        currentSession(conn),
-        vnum
-      );
-      return id2;
-    });
-    process.stdout.write(`measurement ${id}
+      process.stdout.write(`measurement ${row.id}
 `);
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "obligation") {
     const statement = parsed.args[0];
     const blocker = parsed.options.blocker || null;
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let row;
       try {
-        let row;
-        try {
-          row = store.addObligation({
-            statement,
-            blocker,
-            opened_ts: nowIso(),
-            session_id: currentSessionId(store)
-          });
-        } catch (e) {
-          refuseFromPort(e, "refusing: cannot add obligation\n");
-        }
-        process.stdout.write(`obligation ${row.id}
-`);
-      } finally {
-        store.close();
+        row = store.addObligation({
+          statement,
+          blocker,
+          opened_ts: nowIso(),
+          session_id: currentSessionId(store)
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: cannot add obligation\n");
       }
-      return 0;
-    }
-    const id = inWriteTx(conn, () => {
-      const id2 = mintId(conn, "obligation");
-      conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
-        id2,
-        statement,
-        "open",
-        blocker,
-        nowIso(),
-        currentSession(conn)
-      );
-      return id2;
-    });
-    process.stdout.write(`obligation ${id}
+      process.stdout.write(`obligation ${row.id}
 `);
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "close") {
-    const obligationId = parseInt(parsed.args[0], 10);
+    const obligationId = parseInt(parsed.args[0] ?? "", 10);
     const status = parsed.options.status;
-    const blocker = parsed.options.blocker || null;
-    if (BACKEND === "port") {
-      const store = openStore();
-      try {
-        if (status !== "done" && status !== "dropped") {
-          process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}
+    const store = openStore();
+    try {
+      if (status !== "done" && status !== "dropped") {
+        process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}
 `);
-          process.exit(2);
-        }
-        try {
-          store.closeObligation(obligationId, status, nowIso());
-        } catch (e) {
-          refuseFromPort(e, `refusing: obligation ${obligationId} is not open; only an open obligation may be closed
-`);
-        }
-        process.stdout.write(`obligation ${obligationId} -> ${status}
-`);
-      } finally {
-        store.close();
+        process.exit(2);
       }
-      return 0;
-    }
-    conn.prepare("UPDATE obligations SET status=?, blocker=?, closed_ts=? WHERE id=?").run(
-      status,
-      blocker,
-      status === "done" ? nowIso() : null,
-      obligationId
-    );
-    process.stdout.write(`obligation ${obligationId} -> ${status}
+      try {
+        store.closeObligation(obligationId, status, nowIso());
+      } catch (e) {
+        refuseFromPort(
+          e,
+          `refusing: obligation ${obligationId} is not open; only an open obligation may be closed
+`
+        );
+      }
+      process.stdout.write(`obligation ${obligationId} -> ${status}
 `);
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "sidecar") {
-    const outPath = parsed.options.out || join(dirname2(dbPath()), "session.ndjson");
-    let storeName = null;
-    for (const r of conn.prepare("PRAGMA database_list").all()) {
-      if (r.name === "main") storeName = r.file;
-    }
-    const store = storeName || dbPath();
+    const store = dbPath();
+    const outPath = parsed.options.out || join(dirname2(store), "session.ndjson");
     if (pathsAlias(outPath, store)) {
       process.stderr.write(`refusing: sidecar output ${outPath} aliases the session store ${store}
 `);
@@ -2887,7 +2826,7 @@ function main() {
 `);
       return 0;
     } catch (e) {
-      process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${e.message}
+      process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage2(e)}
 `);
       process.exit(2);
     }
@@ -2895,18 +2834,18 @@ function main() {
   if (cmd === "import-sidecar") {
     const path = parsed.args[0];
     try {
-      const count = importSidecar(importTarget, path, !!parsed.options.force);
+      const count = importSidecar(importTarget, path, parsed.options.force);
       process.stdout.write(`imported ${count} document(s) -> ${importTarget}
 `);
       return 0;
     } catch (e) {
-      process.stderr.write(`refusing: ${e.message}
+      process.stderr.write(`refusing: ${errorMessage2(e)}
 `);
       process.exit(2);
     }
   }
   if (cmd === "supersede") {
-    const factId = parseInt(parsed.args[0], 10);
+    const factId = parseInt(parsed.args[0] ?? "", 10);
     const statement = parsed.args[1];
     const evidence = parsed.options.evidence || null;
     const reason = parsed.options.reason;
@@ -2914,43 +2853,35 @@ function main() {
       process.stderr.write("error: option --reason requires an argument\n");
       process.exit(2);
     }
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let res;
       try {
-        let res;
-        try {
-          res = store.supersedeFact(
-            factId,
-            { statement, evidence, established_ts: nowIso(), session_id: currentSessionId(store) },
-            reason,
-            nowIso()
-          );
-        } catch (e) {
-          refuseFromPort(e, `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded
-`);
-        }
-        process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}
-`);
-      } finally {
-        store.close();
+        res = store.supersedeFact(
+          factId,
+          { statement, evidence, established_ts: nowIso(), session_id: currentSessionId(store) },
+          reason,
+          nowIso()
+        );
+      } catch (e) {
+        refuseFromPort(
+          e,
+          `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded
+`
+        );
       }
-      return 0;
-    }
-    const newId = inWriteTx(conn, () => {
-      const newId2 = mintId(conn, "fact");
-      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId2, statement, evidence, nowIso(), currentSession(conn));
-      conn.prepare("UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(newId2, nowIso(), reason, factId);
-      return newId2;
-    });
-    process.stdout.write(`fact ${factId} superseded by ${newId}
+      process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}
 `);
+    } finally {
+      store.close();
+    }
     return 0;
   }
   if (cmd === "retire") {
-    const measurementId = parseInt(parsed.args[0], 10);
-    const byId = parseInt(parsed.options.by, 10);
+    const measurementId = parseInt(parsed.args[0] ?? "", 10);
+    const byId = parseInt(parsed.options.by ?? "", 10);
     const reason = parsed.options.reason;
-    if (isNaN(byId)) {
+    if (Number.isNaN(byId)) {
       process.stderr.write("error: option --by requires an argument\n");
       process.exit(2);
     }
@@ -2962,59 +2893,38 @@ function main() {
       process.stderr.write("refusing: a measurement cannot supersede itself\n");
       process.exit(2);
     }
-    if (BACKEND === "port") {
-      const store = openStore();
-      try {
-        const rows = store.listMeasurements();
-        if (!rows.some((r) => r.id === measurementId)) {
-          process.stderr.write(`refusing: no measurement ${measurementId} to retire
+    const store = openStore();
+    try {
+      const rows = store.listMeasurements();
+      if (!rows.some((r) => r.id === measurementId)) {
+        process.stderr.write(`refusing: no measurement ${measurementId} to retire
 `);
-          process.exit(2);
-        }
-        const by = rows.find((r) => r.id === byId);
-        if (!by) {
-          process.stderr.write(`refusing: no measurement ${byId} to supersede it
-`);
-          process.exit(2);
-        }
-        if (by.superseded_by !== null) {
-          process.stderr.write(`refusing: measurement ${byId} is itself superseded by ${by.superseded_by}. A retired measurement cannot supersede another one.
-`);
-          process.exit(2);
-        }
-        try {
-          store.retireMeasurement(measurementId, byId, reason, nowIso());
-        } catch (e) {
-          refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded
-`);
-        }
-        process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}
-`);
-      } finally {
-        store.close();
+        process.exit(2);
       }
-      return 0;
-    }
-    const target = conn.prepare("SELECT id FROM measurements WHERE id=?").get(measurementId);
-    if (!target) {
-      process.stderr.write(`refusing: no measurement ${measurementId} to retire
+      const by = rows.find((r) => r.id === byId);
+      if (!by) {
+        process.stderr.write(`refusing: no measurement ${byId} to supersede it
 `);
-      process.exit(2);
-    }
-    const row = conn.prepare("SELECT id, superseded_by FROM measurements WHERE id=?").get(byId);
-    if (!row) {
-      process.stderr.write(`refusing: no measurement ${byId} to supersede it
+        process.exit(2);
+      }
+      if (by.superseded_by !== null) {
+        process.stderr.write(
+          `refusing: measurement ${byId} is itself superseded by ${by.superseded_by}. A retired measurement cannot supersede another one.
+`
+        );
+        process.exit(2);
+      }
+      try {
+        store.retireMeasurement(measurementId, byId, reason, nowIso());
+      } catch (e) {
+        refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded
 `);
-      process.exit(2);
-    }
-    if (row.superseded_by !== null) {
-      process.stderr.write(`refusing: measurement ${byId} is itself superseded by ${row.superseded_by}. A retired measurement cannot supersede another one.
+      }
+      process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}
 `);
-      process.exit(2);
+    } finally {
+      store.close();
     }
-    conn.prepare("UPDATE measurements SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(byId, nowIso(), reason, measurementId);
-    process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}
-`);
     return 0;
   }
   process.exit(2);
@@ -3024,15 +2934,17 @@ function mainWithSidecar() {
   try {
     rc = main() || 0;
   } catch (e) {
-    if (e.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" || e.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
-      process.stderr.write(`error: ${e.message}
+    const code = e instanceof Error && "code" in e ? String(e.code) : "";
+    if (code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" || code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
+      process.stderr.write(`error: ${errorMessage2(e)}
 `);
       rc = 2;
     } else {
       throw e;
     }
   }
-  if (rc !== 0 || process.argv.length < 3 || READ_ONLY_CMDS.has(process.argv[2])) {
+  const invoked = process.argv[2];
+  if (rc !== 0 || process.argv.length < 3 || invoked !== void 0 && READ_ONLY_CMDS.has(invoked)) {
     process.exit(rc);
   }
   try {
@@ -3046,8 +2958,10 @@ function mainWithSidecar() {
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
 `);
   } catch (e) {
-    process.stderr.write(`WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.
-`);
+    process.stderr.write(
+      `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.
+`
+    );
     rc = 1;
   }
   process.exit(rc);
@@ -3057,8 +2971,6 @@ if (invokedDirectly) {
   mainWithSidecar();
 }
 export {
-  classifyStore,
-  connect,
   importSidecar,
   main,
   sidecarNdjson

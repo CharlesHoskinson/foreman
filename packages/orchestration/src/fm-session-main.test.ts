@@ -8,7 +8,8 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { SqliteSessionStore } from "@foreman/session-store";
-import { connect, sidecarNdjson, importSidecar, classifyStore, main } from "./fm-session-main.js";
+import { sidecarNdjson, importSidecar, main } from "./fm-session-main.js";
+import { bootstrapStore, classifyStore } from "./session-legacy-shape.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENTRY = join(HERE, "fm-session-main.ts");
@@ -61,7 +62,7 @@ describe("fm-session-main atomicity and locks", () => {
   it("(b) sidecar reads every table from one SQLite snapshot", () => {
     const dbPath = join(tmpdir(), `test-b-${Date.now()}.db`);
     try {
-      connect(dbPath).close();
+      SqliteSessionStore.open(dbPath).close();
 
       // Fires once, between the facts read and the measurements read of the
       // same snapshot. If those two reads are not inside one transaction the
@@ -105,16 +106,13 @@ describe("fm-session-main atomicity and locks", () => {
     const targetDbPath = join(tmpdir(), `test-c-target-${stamp}.db`);
     const sidecarPath = join(tmpdir(), `test-c-${stamp}.ndjson`);
     try {
-      const setupDb = connect(dbPath);
-      setupDb.exec(
-        "INSERT INTO facts(id,statement,established_ts) VALUES(1,'source fact','now')",
-      );
-      // The id watermark travels in the snapshot and must stay ahead of every
-      // live id, exactly as mintId keeps it in the CLI. Writing the row without
-      // it produces a sidecar the reader refuses.
-      setupDb.exec(
-        "INSERT OR REPLACE INTO store_meta(key,value) VALUES('next_id.fact','2')",
-      );
+      const setupDb = SqliteSessionStore.open(dbPath);
+      setupDb.addFact({
+        statement: "source fact",
+        evidence: null,
+        established_ts: "now",
+        session_id: null,
+      });
       setupDb.close();
       const [ndjson] = sidecarNdjson(dbPath);
       writeFileSync(sidecarPath, ndjson);
@@ -174,7 +172,8 @@ describe("fm-session-main atomicity and locks", () => {
       );
       legacy.close();
 
-      const db = connect(dbPath);
+      bootstrapStore(dbPath, { allowMigration: true, readOnly: false });
+      const db = new DatabaseSync(dbPath);
       const tables = new Set(
         (db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as {
           name: string;
@@ -269,10 +268,9 @@ test("read-only commands do not write to a healthy, existing port store", () => 
         env: { ...process.env, FOREMAN_SESSION_DB: p },
       });
 
-    // A real write command, exactly as the CLI runs it: connect()'s own
-    // conn is never explicitly closed (a separate, deferred finding), so
-    // this leaves the WAL un-checkpointed on disk when the process exits --
-    // the exact precondition finding A's own reproduction needs. Without it,
+    // A real write command, exactly as the CLI runs it. The process may
+    // leave the WAL un-checkpointed on disk when it exits -- the exact
+    // precondition a later read-only open must not rewrite. Without it,
     // a subsequent plain (non-readonly) open+close would find nothing left
     // to checkpoint and the defect would pass unnoticed.
     const w = spawn("fact", ["seed fact"]);
@@ -287,7 +285,7 @@ test("read-only commands do not write to a healthy, existing port store", () => 
     assert.equal(r2.status, 0, r2.stderr);
     // "sidecar" is the third READ_ONLY_CMDS member, and reaches the store
     // through a completely separate path (sidecarNdjson -> SqliteSessionStore
-    // .open) that connect()'s own read-only guard does not cover by itself.
+    // .open) that bootstrapStore's own read-only guard does not cover by itself.
     const r3 = spawn("sidecar", ["--out", join(dir, "out.ndjson")]);
     assert.equal(r3.status, 0, r3.stderr);
 
@@ -300,41 +298,35 @@ test("read-only commands do not write to a healthy, existing port store", () => 
   }
 });
 
-test("mintId and the row insert commit as one transaction", () => {
+test("addFact mints and inserts in one transaction", () => {
   const dir = mkdtempSync(join(tmpdir(), "fm-mint-"));
   try {
     const p = join(dir, "session.db");
-    connect(p).close();
+    SqliteSessionStore.open(p).close();
 
     const statements: string[] = [];
     const savedArgv = process.argv;
-    const savedEnv = process.env.FOREMAN_SESSION_DB;
+    const savedEnv = process.env["FOREMAN_SESSION_DB"];
     let rc: number | undefined;
     try {
       // Drive the real command dispatch, not a hand-rolled simulation of it:
-      // main() is exported precisely so a test can do this. A test that
-      // issues BEGIN IMMEDIATE itself on two raw connections (the previous
-      // version of this test) proves the SQLite mechanism inWriteTx depends
-      // on, but never calls mintId or inWriteTx, so it cannot discriminate
-      // whether fm-session-main.ts's own command handlers are wired through
-      // either one.
+      // main() is exported precisely so a test can do this. The port's tx()
+      // must hold BEGIN IMMEDIATE across the watermark read and the row
+      // insert. The search is scoped after BEGIN so classifyStore's earlier
+      // store_meta SELECT cannot satisfy the assertion.
       process.argv = [process.argv[0]!, process.argv[1]!, "fact", "concurrent fact"];
-      process.env.FOREMAN_SESSION_DB = p;
+      process.env["FOREMAN_SESSION_DB"] = p;
       recordAndRestore(
         (sql) => statements.push(sql),
         () => { rc = main(); },
       );
     } finally {
       process.argv = savedArgv;
-      if (savedEnv === undefined) delete process.env.FOREMAN_SESSION_DB;
-      else process.env.FOREMAN_SESSION_DB = savedEnv;
+      if (savedEnv === undefined) delete process.env["FOREMAN_SESSION_DB"];
+      else process.env["FOREMAN_SESSION_DB"] = savedEnv;
     }
     assert.equal(rc, 0, "main() did not report success for a plain fact command");
 
-    // classifyStore's own read-only cross-check issues an identically-worded
-    // "SELECT value FROM store_meta WHERE key = ?" before the mint even
-    // starts, so each search below is scoped to start after the previous
-    // match rather than taking the first occurrence in the whole trace.
     const beginIdx = statements.indexOf("BEGIN IMMEDIATE");
     assert.ok(beginIdx !== -1, "mint must open BEGIN IMMEDIATE before reading the watermark");
     const selectIdx = statements.findIndex((s, i) => i > beginIdx && s.includes("SELECT value FROM store_meta"));

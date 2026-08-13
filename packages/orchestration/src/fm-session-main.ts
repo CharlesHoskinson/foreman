@@ -1,104 +1,170 @@
-// @ts-nocheck
 import { pathToFileURL } from "node:url";
-import { DatabaseSync } from "node:sqlite";
-import { parseArgs } from "node:util";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { join, dirname, resolve } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, openSync, closeSync, fsyncSync } from "node:fs";
 import {
-  ENTITY_ORDER,
-  SIDECAR_FORMAT,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  openSync,
+  closeSync,
+  fsyncSync,
+} from "node:fs";
+import {
   SqliteSessionStore,
   countRows,
   decodeSnapshot,
   encodeSnapshot,
   isSessionStoreFailure,
   reasonOf,
-  specFor,
+  type SessionRow,
 } from "@foreman/session-store";
-import { rebuildFromSidecar } from "./session-rebuild.js";
-
-/**
- * Which store backs the CLI.
- *
- * Deliberately NOT FM_SESSION_CMD. That variable holds the INVOCATION command
- * (`tests/session.bats:13`: SESS="${FM_SESSION_CMD:-node .../fm-session.js}")
- * and is named in v0.3.0 exit predicate 3. A seam keyed on it would read false
- * under the entire Bats suite -- so the suite would measure the legacy path
- * while appearing to exercise the port -- and after the default flips it would
- * silently switch that suite to the port instead.
- *
- * Defaults to the port. Set FM_SESSION_BACKEND=legacy to opt out. That
- * opt-out is temporary: the next task deletes the legacy path.
- */
-const BACKEND: "legacy" | "port" =
-  process.env["FM_SESSION_BACKEND"] === "legacy" ? "legacy" : "port";
+import {
+  bootstrapStore,
+  pathsAlias,
+  sidecarPathFor,
+} from "./session-legacy-shape.js";
 
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
 
-/**
- * v1 sidecar table names by entity kind.
- *
- * Nothing writes v1 any more. This map exists only so a legacy-shaped
- * database can be dumped in the one format the v1 reader understands, on the
- * way to being rebuilt as a port-shaped file.
- */
-const V1_TABLE: Record<string, string> = {
-  session: "sessions",
-  fact: "facts",
-  measurement: "measurements",
-  obligation: "obligations",
+type StringOption =
+  | "note"
+  | "format"
+  | "evidence"
+  | "command"
+  | "num"
+  | "blocker"
+  | "status"
+  | "out"
+  | "into"
+  | "by"
+  | "reason";
+
+type ParsedOptions = {
+  json: boolean;
+  "stale-only": boolean;
+  force: boolean;
+  note: string | undefined;
+  format: string;
+  evidence: string | undefined;
+  command: string | undefined;
+  scope: string[];
+  num: string | undefined;
+  blocker: string | undefined;
+  status: string;
+  out: string | undefined;
+  into: string | undefined;
+  by: string | undefined;
+  reason: string | undefined;
 };
 
-function jsonDumps(obj: any, sortKeys = false): string {
-  if (obj === null) return "null";
-  if (typeof obj === "boolean") return obj ? "true" : "false";
-  if (typeof obj === "number") return JSON.stringify(obj);
-  if (typeof obj === "string") return JSON.stringify(obj);
-  if (Array.isArray(obj)) {
-    return "[" + obj.map(v => jsonDumps(v, sortKeys)).join(", ") + "]";
-  }
-  if (typeof obj === "object") {
-    const keys = sortKeys ? Object.keys(obj).sort() : Object.keys(obj);
-    return "{" + keys.map(k => JSON.stringify(k) + ": " + jsonDumps(obj[k], sortKeys)).join(", ") + "}";
-  }
-  return "null";
-}
+type ParsedCli = {
+  readonly args: string[];
+  readonly options: ParsedOptions;
+};
 
-function nowIso() {
+type Validity = "fresh" | "stale" | "unknown";
+
+type RecoveryFact = {
+  readonly kind: "fact";
+  readonly id: number;
+  readonly statement: string;
+  readonly evidence: string | null;
+  readonly established_ts: string;
+};
+
+type RecoveryMeasurement = {
+  readonly kind: "measurement";
+  readonly id: number;
+  readonly metric: string;
+  readonly value: string;
+  readonly command: string | null;
+  readonly measured_ts: string;
+  readonly measured_sha: string;
+  readonly scope_paths: readonly string[];
+  readonly validity: Validity;
+  readonly validity_reason: string;
+};
+
+type RecoveryObligation = {
+  readonly kind: "obligation";
+  readonly id: number;
+  readonly statement: string;
+  readonly status: string;
+  readonly blocker: string | null;
+  readonly opened_ts: string;
+};
+
+type RecoveryRecord = {
+  readonly recovered_at: string;
+  readonly head_sha: string;
+  readonly last_session: SessionRow | null;
+  readonly facts: readonly RecoveryFact[];
+  readonly measurements: readonly RecoveryMeasurement[];
+  readonly obligations: readonly RecoveryObligation[];
+  readonly counts: {
+    readonly facts: number;
+    readonly measurements_fresh: number;
+    readonly measurements_stale: number;
+    readonly measurements_unknown: number;
+    readonly obligations_open: number;
+    readonly obligations_blocked: number;
+  };
+};
+
+type FreshnessRow = {
+  readonly id: number;
+  readonly metric: string;
+  readonly value: string;
+  readonly verdict: string;
+  readonly reason: string;
+  readonly command: string;
+  readonly scope: string;
+  readonly sha: string;
+  readonly timestamp: string;
+};
+
+function nowIso(): string {
   return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
-function repoRoot() {
+function repoRoot(): string {
   try {
-    const out = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf8" }).trim();
+    const out = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+      encoding: "utf8",
+    }).trim();
     return dirname(resolve(out));
-  } catch (e) {
+  } catch {
     return process.cwd();
   }
 }
 
-function gitSha() {
+function gitSha(): string | null {
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
-function warnOrphanStore(chosen: string) {
+function warnOrphanStore(chosen: string): void {
   try {
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
     if (!top) return;
     const orphan = resolve(top, ".foreman", "session.db");
     if (orphan === resolve(chosen) || !existsSync(orphan)) return;
-    process.stderr.write(`WARNING: an orphaned session store sits at ${orphan}. Nothing reads it. The store in use is ${chosen}.\n`);
-  } catch (e) {}
+    process.stderr.write(
+      `WARNING: an orphaned session store sits at ${orphan}. Nothing reads it. The store in use is ${chosen}.\n`,
+    );
+  } catch {
+    // git is unavailable; skip the orphan warning
+  }
 }
 
 function dbPath(): string {
-  if (process.env.FOREMAN_SESSION_DB) return process.env.FOREMAN_SESSION_DB;
+  if (process.env["FOREMAN_SESSION_DB"]) return process.env["FOREMAN_SESSION_DB"];
   const d = join(repoRoot(), ".foreman");
   mkdirSync(d, { recursive: true });
   const chosen = join(d, "session.db");
@@ -106,202 +172,8 @@ function dbPath(): string {
   return chosen;
 }
 
-/**
- * How the file at `p` is shaped, decided STRUCTURALLY.
- *
- * Four shapes, not three. "corrupt" is the one this classifier previously
- * could not say: the port opened straight onto a legacy file CREATES
- * store_meta while leaving schema_meta in place and every watermark at 1, so
- * "has store_meta" classified that exact wreckage as healthy and the next
- * write minted id 1 beside live id 36. The presence of store_meta is
- * untrustworthy in the same way a version number is.
- */
-export function classifyStore(p: string): "absent" | "legacy" | "port" | "corrupt" {
-  if (!existsSync(p)) return "absent";
-  // read-only: this is a pure inspection, called from every connect() --
-  // including read-only commands against a healthy store -- and a plain
-  // connection's close() checkpoints an outstanding WAL as a side effect of
-  // becoming the last connection, which writes to the very file a read-only
-  // command must not touch.
-  const db = new DatabaseSync(p, { readOnly: true });
-  try {
-    const names = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as any[]).map(r => r.name));
-    const hasPort = names.has("store_meta");
-    const hasLegacy = names.has("schema_meta");
-    if (hasPort && hasLegacy) return "corrupt";
-    if (hasPort) {
-      // A watermark at or below its table's max(id) means the next mint
-      // collides. Cross-check before declaring the file healthy.
-      for (const [kind, table] of [["fact", "facts"], ["measurement", "measurements"], ["obligation", "obligations"]] as const) {
-        if (!names.has(table)) continue;
-        const row = db.prepare(`SELECT MAX(id) AS m FROM ${quoteIdentifier(table)}`).get() as any;
-        const max = row && row.m !== null ? Number(row.m) : 0;
-        const wm = db.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`) as any;
-        const next = wm ? Number(wm.value) : 0;
-        if (next <= max) return "corrupt";
-      }
-      return "port";
-    }
-    if (hasLegacy) return "legacy";
-    return "absent";
-  } finally {
-    db.close();
-  }
-}
-
-/**
- * Dump a legacy-shaped database as v1 sidecar text.
- *
- * Reads the file it is about to replace; never writes to it. A column the old
- * schema never grew is selected as NULL rather than added with ALTER TABLE,
- * so a migration that is refused downstream leaves the legacy file
- * byte-identical to what it found.
- */
-function legacyDumpV1(p: string): string {
-  const db = new DatabaseSync(p);
-  try {
-    db.exec("PRAGMA foreign_keys=OFF");
-    const present = new Set((db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as any[]).map(r => r.name));
-    const documents = [jsonDumps({ format: SIDECAR_FORMAT, format_version: 1 }, true)];
-    for (const kind of ENTITY_ORDER) {
-      const table = V1_TABLE[kind] as string;
-      if (!present.has(table)) continue;
-      const spec = specFor(kind as any);
-      const have = new Set((db.prepare(`PRAGMA table_info(${quoteIdentifier(table)})`).all() as any[]).map(r => r.name));
-      const columns = spec.fields.map((f: any) => f.name as string);
-      const selected = columns.map(c => have.has(c) ? quoteIdentifier(c) : `NULL AS ${quoteIdentifier(c)}`).join(", ");
-      const ordering = spec.ordering.map((c: any) => quoteIdentifier(c)).join(", ");
-      const query = `SELECT ${selected} FROM ${quoteIdentifier(table)} ORDER BY ${ordering}`;
-      for (const record of db.prepare(query).all() as any[]) {
-        const row: any = {};
-        for (const c of columns) row[c] = record[c] ?? null;
-        documents.push(jsonDumps({ row, table }, true));
-      }
-    }
-    return documents.join("\n") + "\n";
-  } finally {
-    db.close();
-  }
-}
-
-function sidecarPathFor(p: string): string {
-  return p.replace(/\.db$/, ".ndjson");
-}
-
-function storeIsEmpty(p: string): boolean {
-  const db = new DatabaseSync(p);
-  try {
-    const row = db.prepare("SELECT (SELECT COUNT(*) FROM facts) + (SELECT COUNT(*) FROM measurements) + (SELECT COUNT(*) FROM obligations) + (SELECT COUNT(*) FROM sessions) AS n").get() as any;
-    return !!row && row.n === 0;
-  } finally {
-    db.close();
-  }
-}
-
-/**
- * Guarantee the file at `p` is port-shaped BEFORE anything opens it.
- *
- * The port creates its tables with CREATE TABLE IF NOT EXISTS, so opening it
- * straight onto a legacy file returns cleanly while leaving the old schema in
- * place and seeding every id watermark to 1 against live ids in the thirties.
- * The next write then collides on the primary key. The only safe migration is
- * a rebuild into a FRESH file, which is what rebuildFromSidecar does.
- *
- * A legacy file is migrated from ITS OWN contents rather than from the tracked
- * sidecar. It is the artefact being replaced, so nothing it holds may be lost
- * to a sidecar that is stale, or missing entirely.
- */
-function bootstrapStore(p: string, opts: { readonly allowMigration: boolean; readonly readOnly: boolean }) {
-  const shape = classifyStore(p);
-  if (shape === "corrupt") {
-    process.stderr.write(
-      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. ` +
-      `It is the half-migrated state a pre-fix open produced. Move it aside and let the tracked sidecar rebuild it: ` +
-      `mv ${p} ${p}.corrupt && fm-session recover\n`,
-    );
-    process.exit(2);
-  }
-  if (shape === "legacy") {
-    if (!opts.allowMigration) {
-      process.stderr.write(
-        `refusing: the session store at ${p} is in the pre-port schema and this is a read-only command. ` +
-        `Run a write command, or \`fm-session import-sidecar\`, to migrate it.\n`,
-      );
-      process.exit(2);
-    }
-    const carrier = `${p}.legacy.ndjson`;
-    try {
-      writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
-      const res = rebuildFromSidecar({ sidecarPath: carrier, dbPath: p, force: true });
-      process.stderr.write(`migrated ${res.rowsWritten} row(s) out of the legacy session schema into ${p}\n`);
-    } catch (e: any) {
-      process.stderr.write(`refusing: the legacy session store at ${p} could not be migrated to the port schema: ${e.message}\n`);
-      throw e;
-    } finally {
-      rmSync(carrier, { force: true });
-    }
-    rehydrateFromSidecarIfEmpty(p);
-    return;
-  }
-  if (shape === "absent") {
-    // Nothing exists yet to mutate: creating the schema and, below,
-    // rehydrating from the tracked sidecar is CREATING a missing derived
-    // cache, not writing to a store that already exists. Legitimate
-    // regardless of whether the command itself is read-only -- the goldens
-    // depend on exactly this path.
-    SqliteSessionStore.open(p).close();
-    rehydrateFromSidecarIfEmpty(p);
-    return;
-  }
-  // shape === "port": the file already exists and is already the derived
-  // cache. A read-only command must not write to a store that already
-  // exists, so it may not rehydrate one here even if the store happens to be
-  // empty right now -- that would still be a write to something present on
-  // disk, not the creation of something missing.
-  if (!opts.readOnly) {
-    rehydrateFromSidecarIfEmpty(p);
-  }
-}
-
-function rehydrateFromSidecarIfEmpty(p: string) {
-  const sidecar = sidecarPathFor(p);
-  if (pathsAlias(sidecar, p) || !existsSync(sidecar)) return;
-  try {
-    if (!storeIsEmpty(p)) return;
-  } catch (e) {
-    return;
-  }
-  try {
-    const res = rebuildFromSidecar({ sidecarPath: sidecar, dbPath: p, force: true });
-    process.stderr.write(`rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)\n`);
-  } catch (e: any) {
-    // The sidecar is the tracked record of truth. If it cannot be read, coming
-    // up empty is worse than failing: the next write would produce a "correct"
-    // store with none of the history in it.
-    process.stderr.write(`refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${e.message}\n`);
-    throw e;
-  }
-}
-
-export function connect(path?: string, cmd?: string): DatabaseSync {
-  const p = path ?? dbPath();
-  mkdirSync(dirname(p), { recursive: true });
-  const readOnlyCmd = READ_ONLY_CMDS.has(cmd ?? "");
-  bootstrapStore(p, { allowMigration: !readOnlyCmd, readOnly: readOnlyCmd });
-  // Open the connection itself read-only for a read-only command. Without
-  // this, even a command that issues nothing but SELECTs still opens a
-  // normal read-write handle, and closing that handle -- or classifyStore's
-  // own throwaway inspection above -- checkpoints whatever WAL frames a prior
-  // write command left un-checkpointed (this CLI never closes its own
-  // connection; see finding 5), rewriting the store's bytes and mtime as a
-  // side effect of a "read".
-  const db = readOnlyCmd ? new DatabaseSync(p, { readOnly: true }) : new DatabaseSync(p);
-  // Foreign keys stay OFF on this connection, matching what the commands
-  // still served by raw SQL here have always seen. The port's own connection
-  // turns them ON, and Task 6 moves those commands onto it.
-  db.exec("PRAGMA foreign_keys=OFF");
-  db.exec("PRAGMA busy_timeout=5000");
-  return db;
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 /**
@@ -311,20 +183,19 @@ export function connect(path?: string, cmd?: string): DatabaseSync {
  * end-of-run sidecar refresh opens its own store, so a per-command open would
  * bootstrap repeatedly and hold three connections to one file in a single run.
  *
- * `readOnly` must reach BOTH bootstrapStore and SqliteSessionStore.open, the
- * same way connect() threads it for the legacy DatabaseSync path: a read-only
- * command that opens a read-write handle checkpoints any outstanding WAL and
- * rewrites the store's bytes and mtime as a side effect of a "read".
+ * `readOnly` must reach BOTH bootstrapStore and SqliteSessionStore.open:
+ * a read-only command that opens a read-write handle checkpoints any
+ * outstanding WAL and rewrites the store's bytes and mtime as a side effect
+ * of a "read".
  */
 function openStore(path?: string, opts: { readonly readOnly?: boolean } = {}): SqliteSessionStore {
   const p = path ?? dbPath();
   mkdirSync(dirname(p), { recursive: true });
-  const readOnly = !!opts.readOnly;
+  const readOnly = opts.readOnly === true;
   bootstrapStore(p, { allowMigration: !readOnly, readOnly });
   return SqliteSessionStore.open(p, { readOnly });
 }
 
-/** The port equivalent of the legacy currentSession(conn). */
 function currentSessionId(store: SqliteSessionStore): string | null {
   return store.currentSession()?.session_id ?? null;
 }
@@ -347,39 +218,55 @@ function refuseFromPort(e: unknown, legacyMessage: string): never {
 
 function scalarOf(text: string): number | null {
   const match = text.match(/^\s*(-?\d+(?:\.\d+)?)/);
-  return match ? parseFloat(match[1]) : null;
+  const captured = match?.[1];
+  return captured === undefined ? null : parseFloat(captured);
 }
 
 function mintSessionId(): string {
   const d = new Date();
   const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const min = String(d.getUTCMinutes()).padStart(2, '0');
-  const ss = String(d.getUTCSeconds()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const min = String(d.getUTCMinutes()).padStart(2, "0");
+  const ss = String(d.getUTCSeconds()).padStart(2, "0");
   const hex = randomBytes(3).toString("hex");
   return `${yyyy}${mm}${dd}T${hh}${min}${ss}Z-${hex}`;
 }
 
-function measurementValidity(measuredSha: string | null, scopePaths: string | null): [string, string] {
+function measurementValidity(
+  measuredSha: string | null,
+  scopePaths: string | null,
+): readonly [Validity, string] {
   if (!measuredSha) return ["unknown", "no measured_sha recorded"];
-  const paths = (scopePaths || "").split("\n").map(s => s.trim()).filter(Boolean);
+  const paths = (scopePaths || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (paths.length === 0) return ["unknown", "no scope_paths recorded; cannot bound what invalidates it"];
-  
+
   try {
-    const out = execFileSync("git", ["rev-list", `${measuredSha}..HEAD`, "--", ...paths], { encoding: "utf8" });
-    const commits = out.split("\n").map(s => s.trim()).filter(Boolean);
+    const out = execFileSync("git", ["rev-list", `${measuredSha}..HEAD`, "--", ...paths], {
+      encoding: "utf8",
+    });
+    const commits = out.split("\n").map((s) => s.trim()).filter(Boolean);
     if (commits.length > 0) {
       return ["stale", `${commits.length} commit(s) touched its scope since measurement`];
     }
     return ["fresh", "no commit has touched its scope since measurement"];
-  } catch (e: any) {
-    const errStr = String(e.stderr || e.message).trim().substring(0, 80);
-    if (e.stderr) {
-       return ["unknown", `git rev-list failed: ${errStr}`];
+  } catch (e) {
+    const err = e as { stderr?: unknown; message?: unknown; name?: unknown };
+    const stderrRaw = err.stderr;
+    const stderr =
+      typeof stderrRaw === "string"
+        ? stderrRaw
+        : stderrRaw instanceof Uint8Array
+          ? Buffer.from(stderrRaw).toString("utf8")
+          : "";
+    const message = typeof err.message === "string" ? err.message : String(e);
+    const name = typeof err.name === "string" ? err.name : "Error";
+    const errStr = (stderr || message).trim().substring(0, 80);
+    if (stderr) {
+      return ["unknown", `git rev-list failed: ${errStr}`];
     }
-    return ["unknown", `${e.name || "Error"}: ${e.message}`];
+    return ["unknown", `${name}: ${message}`];
   }
 }
 
@@ -396,88 +283,7 @@ function displayStatus(o: { status: string; blocker: string | null }): string {
   return o.status === "open" && o.blocker ? "blocked" : o.status;
 }
 
-function buildRecovery(conn: DatabaseSync) {
-  const head = gitSha();
-  const sess = conn.prepare("SELECT * FROM sessions ORDER BY session_id DESC LIMIT 1").get() as any;
-  
-  const facts = (conn.prepare("SELECT * FROM facts WHERE superseded_by IS NULL ORDER BY id DESC").all() as any[]).map(r => ({
-    kind: "fact", id: r.id, statement: r.statement, evidence: r.evidence, established_ts: r.established_ts
-  }));
-  
-  const measurements: any[] = [];
-  for (const r of conn.prepare("SELECT * FROM measurements WHERE superseded_by IS NULL ORDER BY id DESC").all() as any[]) {
-    const [validity, why] = measurementValidity(r.measured_sha, r.scope_paths);
-    measurements.push({
-      kind: "measurement", id: r.id, metric: r.metric, value: r.value, command: r.command,
-      measured_ts: r.measured_ts, measured_sha: (r.measured_sha || "").substring(0, 12),
-      scope_paths: (r.scope_paths || "").split("\n").filter(Boolean),
-      validity, validity_reason: why
-    });
-  }
-  
-  const obligations = (conn.prepare("SELECT * FROM obligations WHERE status != 'done' ORDER BY id DESC").all() as any[]).map(r => ({
-    kind: "obligation", id: r.id, statement: r.statement, status: displayStatus(r), blocker: r.blocker, opened_ts: r.opened_ts
-  }));
-  // Actionability ordering: what survives truncation should be the part
-  // worth keeping. An open obligation with no blocker is the most
-  // actionable; one that is blocked (or, if this path ever sees it, open
-  // with a blocker attached) ranks below that; anything else -- a status
-  // this query should never surface, since 'done' is already excluded
-  // above -- sorts last. Explicit, total comparator: it never relies on the
-  // SQL/array order being merely stable, so re-recording the goldens stays
-  // reproducible. Recency (id DESC) is the tiebreaker within a rank.
-  const obligationRank = (o: { status: string; blocker: string | null }): number => {
-    if (o.status === "open" && !o.blocker) return 0;
-    if (o.status === "open" || o.status === "blocked") return 1;
-    return 2;
-  };
-  obligations.sort((a, b) => {
-    const ra = obligationRank(a);
-    const rb = obligationRank(b);
-    if (ra !== rb) return ra - rb;
-    return b.id - a.id;
-  });
-  
-  return {
-    recovered_at: nowIso(),
-    head_sha: ((head as string) || "").substring(0, 12),
-    last_session: sess || null,
-    facts,
-    measurements,
-    obligations,
-    counts: {
-      facts: facts.length,
-      measurements_fresh: measurements.filter(m => m.validity === "fresh").length,
-      measurements_stale: measurements.filter(m => m.validity === "stale").length,
-      measurements_unknown: measurements.filter(m => m.validity === "unknown").length,
-      obligations_open: obligations.filter(o => o.status === "open").length,
-      obligations_blocked: obligations.filter(o => o.status === "blocked").length,
-    }
-  };
-}
-
-function buildFreshness(conn: DatabaseSync, staleOnly: boolean) {
-  const measurements: any[] = [];
-  const rows = conn.prepare("SELECT * FROM measurements WHERE superseded_by IS NULL ORDER BY id DESC").all() as any[];
-  for (const row of rows) {
-    const [validity, why] = measurementValidity(row.measured_sha, row.scope_paths);
-    if (staleOnly && validity === "fresh") continue;
-    measurements.push({
-      id: row.id,
-      metric: row.metric,
-      value: row.value,
-      verdict: validity === "stale" ? "STALE" : validity,
-      reason: why,
-      command: row.command || "(no command recorded)",
-      scope: (row.scope_paths || "").split("\n").filter(Boolean).join(","),
-      sha: row.measured_sha || "",
-      timestamp: row.measured_ts,
-    });
-  }
-  return measurements;
-}
-
-function buildRecoveryFromStore(store: SqliteSessionStore) {
+function buildRecoveryFromStore(store: SqliteSessionStore): RecoveryRecord {
   const head = gitSha();
   const sessions = [...store.listSessions()].sort((a, b) =>
     a.session_id < b.session_id ? 1 : a.session_id > b.session_id ? -1 : 0,
@@ -488,7 +294,10 @@ function buildRecoveryFromStore(store: SqliteSessionStore) {
     .filter((r) => r.superseded_by === null)
     .sort((a, b) => b.id - a.id)
     .map((r) => ({
-      kind: "fact", id: r.id, statement: r.statement, evidence: r.evidence,
+      kind: "fact" as const,
+      id: r.id,
+      statement: r.statement,
+      evidence: r.evidence,
       established_ts: r.established_ts,
     }));
 
@@ -498,19 +307,28 @@ function buildRecoveryFromStore(store: SqliteSessionStore) {
     .map((r) => {
       const [validity, why] = measurementValidity(r.measured_sha, r.scope_paths);
       return {
-        kind: "measurement", id: r.id, metric: r.metric, value: r.value,
-        command: r.command, measured_ts: r.measured_ts,
+        kind: "measurement" as const,
+        id: r.id,
+        metric: r.metric,
+        value: r.value,
+        command: r.command,
+        measured_ts: r.measured_ts,
         measured_sha: (r.measured_sha || "").substring(0, 12),
         scope_paths: (r.scope_paths || "").split("\n").filter(Boolean),
-        validity, validity_reason: why,
+        validity,
+        validity_reason: why,
       };
     });
 
   const obligations = [...store.listObligations()]
     .filter((r) => r.status !== "done")
     .map((r) => ({
-      kind: "obligation", id: r.id, statement: r.statement,
-      status: displayStatus(r), blocker: r.blocker, opened_ts: r.opened_ts,
+      kind: "obligation" as const,
+      id: r.id,
+      statement: r.statement,
+      status: displayStatus(r),
+      blocker: r.blocker,
+      opened_ts: r.opened_ts,
     }));
   const obligationRank = (o: { status: string; blocker: string | null }): number => {
     if (o.status === "open" && !o.blocker) return 0;
@@ -526,7 +344,7 @@ function buildRecoveryFromStore(store: SqliteSessionStore) {
 
   return {
     recovered_at: nowIso(),
-    head_sha: ((head as string) || "").substring(0, 12),
+    head_sha: (head || "").substring(0, 12),
     last_session: sess,
     facts,
     measurements,
@@ -542,8 +360,8 @@ function buildRecoveryFromStore(store: SqliteSessionStore) {
   };
 }
 
-function buildFreshnessFromStore(store: SqliteSessionStore, staleOnly: boolean) {
-  const out: any[] = [];
+function buildFreshnessFromStore(store: SqliteSessionStore, staleOnly: boolean): FreshnessRow[] {
+  const out: FreshnessRow[] = [];
   const rows = [...store.listMeasurements()]
     .filter((r) => r.superseded_by === null)
     .sort((a, b) => b.id - a.id);
@@ -551,46 +369,55 @@ function buildFreshnessFromStore(store: SqliteSessionStore, staleOnly: boolean) 
     const [validity, why] = measurementValidity(row.measured_sha, row.scope_paths);
     if (staleOnly && validity === "fresh") continue;
     out.push({
-      id: row.id, metric: row.metric, value: row.value,
+      id: row.id,
+      metric: row.metric,
+      value: row.value,
       verdict: validity === "stale" ? "STALE" : validity,
-      reason: why, command: row.command || "(no command recorded)",
+      reason: why,
+      command: row.command || "(no command recorded)",
       scope: (row.scope_paths || "").split("\n").filter(Boolean).join(","),
-      sha: row.measured_sha || "", timestamp: row.measured_ts,
+      sha: row.measured_sha || "",
+      timestamp: row.measured_ts,
     });
   }
   return out;
 }
 
-function renderFreshness(measurements: any[], outputFormat: string) {
-  const columns = ["id", "metric", "value", "verdict", "reason", "command", "scope", "sha", "timestamp"];
+function renderFreshness(measurements: readonly FreshnessRow[], outputFormat: string): string {
+  const columns = ["id", "metric", "value", "verdict", "reason", "command", "scope", "sha", "timestamp"] as const;
   if (outputFormat === "tsv") {
     const lines = [columns.join("\t")];
     for (const m of measurements) {
-      lines.push(columns.map(c => String(m[c])).join("\t"));
+      lines.push(columns.map((c) => String(m[c])).join("\t"));
     }
     return lines.join("\n");
   }
-  
-  return measurements.map(m => 
-    `[${m.id}] ${m.metric} = ${m.value}  verdict=${m.verdict}  reason=${m.reason}  command=${m.command}  scope=${m.scope}  sha=${m.sha}  timestamp=${m.timestamp}`
-  ).join("\n");
+
+  return measurements
+    .map(
+      (m) =>
+        `[${m.id}] ${m.metric} = ${m.value}  verdict=${m.verdict}  reason=${m.reason}  command=${m.command}  scope=${m.scope}  sha=${m.sha}  timestamp=${m.timestamp}`,
+    )
+    .join("\n");
 }
 
-function render(rec: any) {
-  const A = (s: string) => lines.push(s);
+function render(rec: RecoveryRecord): string {
   const lines: string[] = [];
-  
+  const A = (s: string) => lines.push(s);
+
   A(`FOREMAN RECOVERY  head=${rec.head_sha}  at=${rec.recovered_at}`);
   const ls = rec.last_session;
   if (ls) {
-    A(`last session: ${ls.session_id}  started=${ls.started_ts}  start_sha=${(ls.start_sha || "").substring(0, 12)}  ${ls.ended_ts ? 'ENDED ' + ls.ended_ts : 'NOT ENDED'}`);
+    A(
+      `last session: ${ls.session_id}  started=${ls.started_ts}  start_sha=${(ls.start_sha || "").substring(0, 12)}  ${ls.ended_ts ? "ENDED " + ls.ended_ts : "NOT ENDED"}`,
+    );
     if (ls.note) {
       A(`  note: ${ls.note}`);
     }
   } else {
     A("last session: (none \u2014 this is the first)");
   }
-  
+
   const c = rec.counts;
   A("");
   A(`FACTS (${c.facts}) \u2014 durable, true by construction`);
@@ -604,14 +431,14 @@ function render(rec: any) {
   if (factsHidden > 0) {
     A(`  ... ${factsHidden} more fact(s) not shown. Run: fm-session recover --json`);
   }
-  
+
   A("");
   A(`MEASUREMENTS \u2014 fresh=${c.measurements_fresh} STALE=${c.measurements_stale} unknown=${c.measurements_unknown}`);
   const MEASUREMENT_LIMIT = 20;
   const measurementsShown = rec.measurements.slice(0, MEASUREMENT_LIMIT);
+  const markFor: Record<Validity, string> = { fresh: "OK   ", stale: "STALE", unknown: "?    " };
   for (const m of measurementsShown) {
-    const mark = { "fresh": "OK   ", "stale": "STALE", "unknown": "?    " }[m.validity as string];
-    A(`  ${mark} [${m.id}] ${m.metric} = ${m.value}`);
+    A(`  ${markFor[m.validity]} [${m.id}] ${m.metric} = ${m.value}`);
     A(`       ${m.validity_reason}  (measured ${m.measured_ts} @ ${m.measured_sha})`);
     if (m.validity !== "fresh" && m.command) {
       A(`       re-run: ${m.command}`);
@@ -621,7 +448,7 @@ function render(rec: any) {
   if (measurementsHidden > 0) {
     A(`  ... ${measurementsHidden} more measurement(s) not shown. Run: fm-session recover --json`);
   }
-  
+
   A("");
   A(`OBLIGATIONS \u2014 open=${c.obligations_open} blocked=${c.obligations_blocked}`);
   const OBLIGATION_LIMIT = 20;
@@ -634,23 +461,23 @@ function render(rec: any) {
   if (obligationsHidden > 0) {
     A(`  ... ${obligationsHidden} more obligation(s) not shown. Run: fm-session recover --json`);
   }
-  
+
   A("");
   const stale = c.measurements_stale + c.measurements_unknown;
   const live = rec.measurements.length;
   if (stale > 0) {
-    A(`LAUNCH POINT: ${stale} measurement(s) are not fresh \u2014 re-run them before quoting any of their numbers. Then work the open obligations above.`);
+    A(
+      `LAUNCH POINT: ${stale} measurement(s) are not fresh \u2014 re-run them before quoting any of their numbers. Then work the open obligations above.`,
+    );
   } else if (live === 0) {
-    A("LAUNCH POINT: no measurement is recorded, so nothing here is measured. Measure before you quote a number. Then work the open obligations above.");
+    A(
+      "LAUNCH POINT: no measurement is recorded, so nothing here is measured. Measure before you quote a number. Then work the open obligations above.",
+    );
   } else {
     A("LAUNCH POINT: every measurement is fresh. Work the open obligations above.");
   }
-  
-  return lines.join("\n");
-}
 
-function quoteIdentifier(name: string) {
-  return '"' + name.replace(/"/g, '""') + '"';
+  return lines.join("\n");
 }
 
 /**
@@ -667,7 +494,10 @@ function quoteIdentifier(name: string) {
  * the port owns its own connection.
  */
 export function sidecarNdjson(dbFile: string, opts: { readonly readOnly?: boolean } = {}): [string, number] {
-  const store = SqliteSessionStore.open(dbFile, { readOnly: opts.readOnly });
+  const store = SqliteSessionStore.open(
+    dbFile,
+    opts.readOnly === true ? { readOnly: true } : {},
+  );
   try {
     const snapshot = store.snapshot();
     return [encodeSnapshot(snapshot), countRows(snapshot)];
@@ -676,15 +506,7 @@ export function sidecarNdjson(dbFile: string, opts: { readonly readOnly?: boolea
   }
 }
 
-function pathsAlias(left: string, right: string) {
-  try {
-    return resolve(left) === resolve(right);
-  } catch(e) {
-    return false;
-  }
-}
-
-function writeAtomic(path: string, text: string) {
+function writeAtomic(path: string, text: string): void {
   const tmp = path + ".tmp";
   writeFileSync(tmp, text, { encoding: "utf8" });
   // The sidecar is the tracked, canonical record. Without this flush the
@@ -716,72 +538,72 @@ export function importSidecar(dbFile: string, path: string, force = false): numb
   }
 }
 
-/**
- * Mint the next id for `kind` from the port's persisted watermark.
- *
- * The port mints identity from store_meta; its tables are plain INTEGER
- * PRIMARY KEY with no AUTOINCREMENT. A raw INSERT that let SQLite choose would
- * take max(id)+1 and leave the watermark sitting behind it, so the next
- * port-minted id would collide -- and a snapshot whose row id sits at or above
- * its watermark fails integrity, which makes the tracked record unreadable.
- * Bump first: a crash between the two leaves a gap, never a clash.
- */
-function mintId(conn: DatabaseSync, kind: string): number {
-  const row = conn.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`) as any;
-  const id = row ? Number(row.value) : 1;
-  conn.prepare("INSERT OR REPLACE INTO store_meta(key,value) VALUES(?,?)").run(`next_id.${kind}`, String(id + 1));
-  return id;
+function emptyOptions(): ParsedOptions {
+  return {
+    json: false,
+    "stale-only": false,
+    force: false,
+    note: undefined,
+    format: "text",
+    evidence: undefined,
+    command: undefined,
+    scope: [],
+    num: undefined,
+    blocker: undefined,
+    status: "done",
+    out: undefined,
+    into: undefined,
+    by: undefined,
+    reason: undefined,
+  };
 }
 
-/**
- * Run `body` with the write lock held from the first read to the last write.
- *
- * mintId reads a watermark and the caller then inserts a row against it. Split
- * across autocommit transactions those are two independent reads of the same
- * counter, and busy_timeout never fires because neither writer is ever blocked.
- * BEGIN IMMEDIATE takes the write lock up front, which is what makes the
- * read-modify-write atomic.
- */
-function inWriteTx<T>(conn: DatabaseSync, body: () => T): T {
-  conn.exec("BEGIN IMMEDIATE");
-  try {
-    const out = body();
-    conn.exec("COMMIT");
-    return out;
-  } catch (e) {
-    try { conn.exec("ROLLBACK"); } catch (_) {}
-    throw e;
-  }
+const BOOLEAN_ARGS = new Set(["--json", "--stale-only", "--force"]);
+const STRING_ARGS = new Set([
+  "--note",
+  "--format",
+  "--evidence",
+  "--command",
+  "--scope",
+  "--num",
+  "--blocker",
+  "--status",
+  "--out",
+  "--into",
+  "--by",
+  "--reason",
+]);
+
+function isStringOption(key: string): key is StringOption {
+  return STRING_ARGS.has(`--${key}`);
 }
 
-function currentSession(cur: DatabaseSync): string | null {
-  const r = cur.prepare("SELECT session_id FROM sessions WHERE ended_ts IS NULL ORDER BY session_id DESC LIMIT 1").get() as any;
-  return r ? r.session_id : null;
-}
-
-export function main() {
-  const args = process.argv.slice(2);
-  if (args.length === 0) process.exit(2);
-  const cmd = args[0];
-  
-  const booleanArgs = new Set(["--json", "--stale-only", "--force"]);
-  const stringArgs = new Set(["--note", "--format", "--evidence", "--command", "--scope", "--num", "--blocker", "--status", "--out", "--into", "--by", "--reason"]);
-  
-  const parsed: any = { args: [], options: { scope: [], format: "text", status: "done" } };
-  for (let i = 1; i < args.length; i++) {
-    const arg = args[i] as string;
+function parseCli(argv: readonly string[]): ParsedCli {
+  const parsed: ParsedCli = { args: [], options: emptyOptions() };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === undefined) continue;
     if (arg.startsWith("--")) {
-      if (booleanArgs.has(arg)) {
-        parsed.options[arg.slice(2)] = true;
-      } else if (stringArgs.has(arg)) {
-        if (i + 1 >= args.length) {
+      if (BOOLEAN_ARGS.has(arg)) {
+        const key = arg.slice(2);
+        if (key === "json" || key === "stale-only" || key === "force") {
+          parsed.options[key] = true;
+        }
+      } else if (STRING_ARGS.has(arg)) {
+        if (i + 1 >= argv.length) {
+          process.stderr.write(`error: option ${arg} requires an argument\n`);
+          process.exit(2);
+        }
+        const value = argv[++i];
+        if (value === undefined) {
           process.stderr.write(`error: option ${arg} requires an argument\n`);
           process.exit(2);
         }
         if (arg === "--scope") {
-          parsed.options.scope.push(args[++i]);
+          parsed.options.scope.push(value);
         } else {
-          parsed.options[arg.slice(2)] = args[++i];
+          const key = arg.slice(2);
+          if (isStringOption(key)) parsed.options[key] = value;
         }
       } else {
         process.stderr.write(`error: unrecognized option: ${arg}\n`);
@@ -791,242 +613,226 @@ export function main() {
       parsed.args.push(arg);
     }
   }
-  
-  let conn: DatabaseSync;
-  let importTarget: string;
-  if (cmd === "import-sidecar") {
-    importTarget = (parsed.options.into as string) || dbPath();
-    try {
-      conn = connect(importTarget, cmd);
-    } catch(e: any) {
-      const msg = e.message.includes("unable to open database file") ? "sqlite3.OperationalError" : e.message;
+  return parsed;
+}
+
+function prepareInvocation(cmd: string, importTarget: string | undefined): void {
+  try {
+    if (cmd === "import-sidecar") {
+      const target = importTarget ?? dbPath();
+      mkdirSync(dirname(target), { recursive: true });
+      bootstrapStore(target, { allowMigration: true, readOnly: false });
+      return;
+    }
+    const p = dbPath();
+    mkdirSync(dirname(p), { recursive: true });
+    const readOnly = READ_ONLY_CMDS.has(cmd);
+    bootstrapStore(p, { allowMigration: !readOnly, readOnly });
+  } catch (e) {
+    if (cmd === "import-sidecar") {
+      const message = errorMessage(e);
+      const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
       process.stderr.write(`refusing: cannot open target store: ${msg}\n`);
       process.exit(2);
     }
-  } else {
-    try { conn = connect(undefined, cmd); } catch (e: any) { process.stderr.write(`sqlite3.OperationalError\n`); process.exit(1); }
+    process.stderr.write(`sqlite3.OperationalError\n`);
+    process.exit(1);
   }
+}
+
+export function main(): number {
+  const args = process.argv.slice(2);
+  const cmd = args[0];
+  if (cmd === undefined) process.exit(2);
+
+  const parsed = parseCli(args.slice(1));
+
+  let importTarget = "";
+  if (cmd === "import-sidecar") {
+    importTarget = parsed.options.into ?? dbPath();
+  }
+  prepareInvocation(cmd, cmd === "import-sidecar" ? importTarget : undefined);
 
   if (cmd === "begin") {
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      const rec = buildRecoveryFromStore(store);
+      const sid = mintSessionId();
       try {
-        const rec = buildRecoveryFromStore(store);
-        const sid = mintSessionId();
-        try {
-          store.beginSession({ session_id: sid, started_ts: nowIso(), start_sha: gitSha(), note: parsed.options.note || null });
-        } catch (e) {
-          refuseFromPort(e, "refusing: cannot begin session\n");
-        }
-        process.stdout.write(render(rec) + "\n\n");
-        process.stdout.write(`SESSION BEGUN: ${sid}\n`);
-      } finally {
-        store.close();
+        store.beginSession({
+          session_id: sid,
+          started_ts: nowIso(),
+          start_sha: gitSha(),
+          note: parsed.options.note || null,
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: cannot begin session\n");
       }
-      return 0;
+      process.stdout.write(render(rec) + "\n\n");
+      process.stdout.write(`SESSION BEGUN: ${sid}\n`);
+    } finally {
+      store.close();
     }
-    const rec = buildRecovery(conn);
-    const sid = mintSessionId();
-    conn.prepare("INSERT INTO sessions(session_id,started_ts,start_sha,note) VALUES(?,?,?,?)").run(sid, nowIso(), gitSha(), parsed.options.note || null);
-    process.stdout.write(render(rec) + "\n\n");
-    process.stdout.write(`SESSION BEGUN: ${sid}\n`);
     return 0;
   }
-  
+
   if (cmd === "recover") {
-    const rec = BACKEND === "port"
-      ? (() => { const s = openStore(undefined, { readOnly: true }); try { return buildRecoveryFromStore(s); } finally { s.close(); } })()
-      : buildRecovery(conn);
-    if (parsed.options.json) {
-      process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
-    } else {
-      process.stdout.write(render(rec) + "\n");
+    const store = openStore(undefined, { readOnly: true });
+    try {
+      const rec = buildRecoveryFromStore(store);
+      if (parsed.options.json) {
+        process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
+      } else {
+        process.stdout.write(render(rec) + "\n");
+      }
+    } finally {
+      store.close();
     }
     return 0;
   }
 
   if (cmd === "freshness") {
-    const staleOnly = !!parsed.options["stale-only"];
-    const measurements = BACKEND === "port"
-      ? (() => { const s = openStore(undefined, { readOnly: true }); try { return buildFreshnessFromStore(s, staleOnly); } finally { s.close(); } })()
-      : buildFreshness(conn, staleOnly);
-    process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
+    const staleOnly = parsed.options["stale-only"];
+    const store = openStore(undefined, { readOnly: true });
+    try {
+      const measurements = buildFreshnessFromStore(store, staleOnly);
+      process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
+    } finally {
+      store.close();
+    }
     return 0;
   }
-  
+
   if (cmd === "end") {
-    if (BACKEND === "port") {
-      const store = openStore();
-      try {
-        const sid = parsed.args[0] || currentSessionId(store);
-        if (!sid) {
-          process.stderr.write("no open session\n");
-          process.exit(2);
-        }
-        try {
-          store.endSession(sid, nowIso());
-        } catch (e) {
-          refuseFromPort(e, "no open session\n");
-        }
-        process.stdout.write(`session ended: ${sid}\n`);
-      } finally {
-        store.close();
+    const store = openStore();
+    try {
+      const sid = parsed.args[0] || currentSessionId(store);
+      if (!sid) {
+        process.stderr.write("no open session\n");
+        process.exit(2);
       }
-      return 0;
+      try {
+        store.endSession(sid, nowIso());
+      } catch (e) {
+        refuseFromPort(e, "no open session\n");
+      }
+      process.stdout.write(`session ended: ${sid}\n`);
+    } finally {
+      store.close();
     }
-    const sid = parsed.args[0] || currentSession(conn);
-    if (!sid) {
-      process.stderr.write("no open session\n");
-      process.exit(2);
-    }
-    conn.prepare("UPDATE sessions SET ended_ts=? WHERE session_id=?").run(nowIso(), sid);
-    process.stdout.write(`session ended: ${sid}\n`);
     return 0;
   }
-  
+
   if (cmd === "fact") {
-    const statement = parsed.args[0];
+    const statement = parsed.args[0]!;
     const evidence = parsed.options.evidence || null;
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let row;
       try {
-        let row;
-        try {
-          row = store.addFact({
-            statement, evidence, established_ts: nowIso(),
-            session_id: currentSessionId(store),
-          });
-        } catch (e) {
-          refuseFromPort(e, "refusing: cannot add fact\n");
-        }
-        process.stdout.write(`fact ${row.id}\n`);
-      } finally {
-        store.close();
+        row = store.addFact({
+          statement,
+          evidence,
+          established_ts: nowIso(),
+          session_id: currentSessionId(store),
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: cannot add fact\n");
       }
-      return 0;
+      process.stdout.write(`fact ${row.id}\n`);
+    } finally {
+      store.close();
     }
-    const id = inWriteTx(conn, () => {
-      const id = mintId(conn, "fact");
-      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(id, statement, evidence, nowIso(), currentSession(conn));
-      return id;
-    });
-    process.stdout.write(`fact ${id}\n`);
     return 0;
   }
-  
+
   if (cmd === "measure") {
     if (parsed.options.scope.length === 0) {
-      process.stderr.write("refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n");
+      process.stderr.write(
+        "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n",
+      );
       process.exit(2);
     }
-    const metric = parsed.args[0];
-    const value = parsed.args[1];
+    const metric = parsed.args[0]!;
+    const value = parsed.args[1]!;
     const command = parsed.options.command || null;
-    let vnum = null;
+    let vnum: number | null = null;
     if (parsed.options.num !== undefined) vnum = parseFloat(parsed.options.num);
     else vnum = scalarOf(value);
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let row;
       try {
-        let row;
-        try {
-          row = store.addMeasurement({
-            metric, value, value_num: vnum, command,
-            measured_ts: nowIso(), measured_sha: gitSha(),
-            scope_paths: parsed.options.scope.join("\n"),
-            session_id: currentSessionId(store),
-          });
-        } catch (e) {
-          refuseFromPort(e, "refusing: --num must be a finite number\n");
-        }
-        process.stdout.write(`measurement ${row.id}\n`);
-      } finally {
-        store.close();
+        row = store.addMeasurement({
+          metric,
+          value,
+          value_num: vnum,
+          command,
+          measured_ts: nowIso(),
+          measured_sha: gitSha(),
+          scope_paths: parsed.options.scope.join("\n"),
+          session_id: currentSessionId(store),
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: --num must be a finite number\n");
       }
-      return 0;
+      process.stdout.write(`measurement ${row.id}\n`);
+    } finally {
+      store.close();
     }
-    const id = inWriteTx(conn, () => {
-      const id = mintId(conn, "measurement");
-      conn.prepare("INSERT INTO measurements(id,metric,value,command,measured_ts,measured_sha,scope_paths,session_id,value_num) VALUES(?,?,?,?,?,?,?,?,?)").run(
-        id, metric, value, command, nowIso(), gitSha(), parsed.options.scope.join("\n"), currentSession(conn), vnum
-      );
-      return id;
-    });
-    process.stdout.write(`measurement ${id}\n`);
     return 0;
   }
-  
+
   if (cmd === "obligation") {
-    const statement = parsed.args[0];
+    const statement = parsed.args[0]!;
     const blocker = parsed.options.blocker || null;
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let row;
       try {
-        let row;
-        try {
-          row = store.addObligation({
-            statement, blocker, opened_ts: nowIso(),
-            session_id: currentSessionId(store),
-          });
-        } catch (e) {
-          refuseFromPort(e, "refusing: cannot add obligation\n");
-        }
-        process.stdout.write(`obligation ${row.id}\n`);
-      } finally {
-        store.close();
+        row = store.addObligation({
+          statement,
+          blocker,
+          opened_ts: nowIso(),
+          session_id: currentSessionId(store),
+        });
+      } catch (e) {
+        refuseFromPort(e, "refusing: cannot add obligation\n");
       }
-      return 0;
+      process.stdout.write(`obligation ${row.id}\n`);
+    } finally {
+      store.close();
     }
-    // Status stays "open": blocked is derived from the blocker column, and the
-    // declared enum has no "blocked" member. Storing it would put a value
-    // outside the model into the tracked record, which the next read refuses.
-    const id = inWriteTx(conn, () => {
-      const id = mintId(conn, "obligation");
-      conn.prepare("INSERT INTO obligations(id,statement,status,blocker,opened_ts,session_id) VALUES(?,?,?,?,?,?)").run(
-        id, statement, "open", blocker, nowIso(), currentSession(conn)
-      );
-      return id;
-    });
-    process.stdout.write(`obligation ${id}\n`);
     return 0;
   }
-  
+
   if (cmd === "close") {
-    const obligationId = parseInt(parsed.args[0], 10);
+    const obligationId = parseInt(parsed.args[0] ?? "", 10);
     const status = parsed.options.status;
-    const blocker = parsed.options.blocker || null;
-    if (BACKEND === "port") {
-      const store = openStore();
-      try {
-        if (status !== "done" && status !== "dropped") {
-          process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}\n`);
-          process.exit(2);
-        }
-        try {
-          store.closeObligation(obligationId, status, nowIso());
-        } catch (e) {
-          refuseFromPort(e, `refusing: obligation ${obligationId} is not open; only an open obligation may be closed\n`);
-        }
-        process.stdout.write(`obligation ${obligationId} -> ${status}\n`);
-      } finally {
-        store.close();
+    const store = openStore();
+    try {
+      if (status !== "done" && status !== "dropped") {
+        process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}\n`);
+        process.exit(2);
       }
-      return 0;
+      try {
+        store.closeObligation(obligationId, status, nowIso());
+      } catch (e) {
+        refuseFromPort(
+          e,
+          `refusing: obligation ${obligationId} is not open; only an open obligation may be closed\n`,
+        );
+      }
+      process.stdout.write(`obligation ${obligationId} -> ${status}\n`);
+    } finally {
+      store.close();
     }
-    conn.prepare("UPDATE obligations SET status=?, blocker=?, closed_ts=? WHERE id=?").run(
-      status, blocker, status === "done" ? nowIso() : null, obligationId
-    );
-    process.stdout.write(`obligation ${obligationId} -> ${status}\n`);
     return 0;
   }
-  
+
   if (cmd === "sidecar") {
-    const outPath = parsed.options.out || join(dirname(dbPath()), "session.ndjson");
-    let storeName = null;
-    for (const r of conn.prepare("PRAGMA database_list").all() as any[]) {
-      if (r.name === "main") storeName = r.file;
-    }
-    const store = storeName || dbPath();
+    const store = dbPath();
+    const outPath = parsed.options.out || join(dirname(store), "session.ndjson");
     if (pathsAlias(outPath, store)) {
       process.stderr.write(`refusing: sidecar output ${outPath} aliases the session store ${store}\n`);
       process.exit(2);
@@ -1038,142 +844,123 @@ export function main() {
       writeAtomic(outPath, lines);
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}\n`);
       return 0;
-    } catch (e: any) {
-      process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${e.message}\n`);
+    } catch (e) {
+      process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage(e)}\n`);
       process.exit(2);
     }
   }
-  
+
   if (cmd === "import-sidecar") {
-    const path = parsed.args[0];
+    const path = parsed.args[0]!;
     try {
-      const count = importSidecar(importTarget, path, !!parsed.options.force);
+      const count = importSidecar(importTarget, path, parsed.options.force);
       process.stdout.write(`imported ${count} document(s) -> ${importTarget}\n`);
       return 0;
-    } catch (e: any) {
-      process.stderr.write(`refusing: ${e.message}\n`);
+    } catch (e) {
+      process.stderr.write(`refusing: ${errorMessage(e)}\n`);
       process.exit(2);
     }
   }
-  
+
   if (cmd === "supersede") {
-    const factId = parseInt(parsed.args[0], 10);
-    const statement = parsed.args[1];
+    const factId = parseInt(parsed.args[0] ?? "", 10);
+    const statement = parsed.args[1]!;
     const evidence = parsed.options.evidence || null;
     const reason = parsed.options.reason;
     if (!reason) {
-       process.stderr.write("error: option --reason requires an argument\n"); process.exit(2);
+      process.stderr.write("error: option --reason requires an argument\n");
+      process.exit(2);
     }
-    if (BACKEND === "port") {
-      const store = openStore();
+    const store = openStore();
+    try {
+      let res;
       try {
-        let res;
-        try {
-          res = store.supersedeFact(
-            factId,
-            { statement, evidence, established_ts: nowIso(), session_id: currentSessionId(store) },
-            reason,
-            nowIso(),
-          );
-        } catch (e) {
-          refuseFromPort(e, `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded\n`);
-        }
-        process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}\n`);
-      } finally {
-        store.close();
+        res = store.supersedeFact(
+          factId,
+          { statement, evidence, established_ts: nowIso(), session_id: currentSessionId(store) },
+          reason,
+          nowIso(),
+        );
+      } catch (e) {
+        refuseFromPort(
+          e,
+          `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded\n`,
+        );
       }
-      return 0;
+      process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}\n`);
+    } finally {
+      store.close();
     }
-    const newId = inWriteTx(conn, () => {
-      const newId = mintId(conn, "fact");
-      conn.prepare("INSERT INTO facts(id,statement,evidence,established_ts,session_id) VALUES(?,?,?,?,?)").run(newId, statement, evidence, nowIso(), currentSession(conn));
-      conn.prepare("UPDATE facts SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(newId, nowIso(), reason, factId);
-      return newId;
-    });
-    process.stdout.write(`fact ${factId} superseded by ${newId}\n`);
     return 0;
   }
-  
+
   if (cmd === "retire") {
-    const measurementId = parseInt(parsed.args[0], 10);
-    const byId = parseInt(parsed.options.by, 10);
+    const measurementId = parseInt(parsed.args[0] ?? "", 10);
+    const byId = parseInt(parsed.options.by ?? "", 10);
     const reason = parsed.options.reason;
-    if (isNaN(byId)) {
-       process.stderr.write("error: option --by requires an argument\n"); process.exit(2);
+    if (Number.isNaN(byId)) {
+      process.stderr.write("error: option --by requires an argument\n");
+      process.exit(2);
     }
     if (!reason) {
-       process.stderr.write("error: option --reason requires an argument\n"); process.exit(2);
+      process.stderr.write("error: option --reason requires an argument\n");
+      process.exit(2);
     }
     if (byId === measurementId) {
       process.stderr.write("refusing: a measurement cannot supersede itself\n");
       process.exit(2);
     }
-    if (BACKEND === "port") {
-      const store = openStore();
-      try {
-        const rows = store.listMeasurements();
-        if (!rows.some((r) => r.id === measurementId)) {
-          process.stderr.write(`refusing: no measurement ${measurementId} to retire\n`);
-          process.exit(2);
-        }
-        const by = rows.find((r) => r.id === byId);
-        if (!by) {
-          process.stderr.write(`refusing: no measurement ${byId} to supersede it\n`);
-          process.exit(2);
-        }
-        if (by.superseded_by !== null) {
-          process.stderr.write(`refusing: measurement ${byId} is itself superseded by ${by.superseded_by}. A retired measurement cannot supersede another one.\n`);
-          process.exit(2);
-        }
-        try {
-          store.retireMeasurement(measurementId, byId, reason as string, nowIso());
-        } catch (e) {
-          refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded\n`);
-        }
-        process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}\n`);
-      } finally {
-        store.close();
+    const store = openStore();
+    try {
+      const rows = store.listMeasurements();
+      if (!rows.some((r) => r.id === measurementId)) {
+        process.stderr.write(`refusing: no measurement ${measurementId} to retire\n`);
+        process.exit(2);
       }
-      return 0;
+      const by = rows.find((r) => r.id === byId);
+      if (!by) {
+        process.stderr.write(`refusing: no measurement ${byId} to supersede it\n`);
+        process.exit(2);
+      }
+      if (by.superseded_by !== null) {
+        process.stderr.write(
+          `refusing: measurement ${byId} is itself superseded by ${by.superseded_by}. A retired measurement cannot supersede another one.\n`,
+        );
+        process.exit(2);
+      }
+      try {
+        store.retireMeasurement(measurementId, byId, reason, nowIso());
+      } catch (e) {
+        refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded\n`);
+      }
+      process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}\n`);
+    } finally {
+      store.close();
     }
-    const target = conn.prepare("SELECT id FROM measurements WHERE id=?").get(measurementId);
-    if (!target) {
-      process.stderr.write(`refusing: no measurement ${measurementId} to retire\n`);
-      process.exit(2);
-    }
-    const row: any = conn.prepare("SELECT id, superseded_by FROM measurements WHERE id=?").get(byId);
-    if (!row) {
-      process.stderr.write(`refusing: no measurement ${byId} to supersede it\n`);
-      process.exit(2);
-    }
-    if (row.superseded_by !== null) {
-      process.stderr.write(`refusing: measurement ${byId} is itself superseded by ${row.superseded_by}. A retired measurement cannot supersede another one.\n`);
-      process.exit(2);
-    }
-    conn.prepare("UPDATE measurements SET superseded_by=?, superseded_at=?, supersede_reason=? WHERE id=?").run(byId, nowIso(), reason as string, measurementId);
-    process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}\n`);
     return 0;
   }
-  
+
   process.exit(2);
 }
 
-function mainWithSidecar() {
+function mainWithSidecar(): void {
   let rc = 0;
   try {
     rc = main() || 0;
-  } catch (e: any) {
-    if (e.code === 'ERR_PARSE_ARGS_UNKNOWN_OPTION' || e.code === 'ERR_PARSE_ARGS_INVALID_OPTION_VALUE') {
-      process.stderr.write(`error: ${e.message}\n`);
+  } catch (e) {
+    const code = e instanceof Error && "code" in e ? String((e as { code?: unknown }).code) : "";
+    if (code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" || code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
+      process.stderr.write(`error: ${errorMessage(e)}\n`);
       rc = 2;
     } else {
       throw e;
     }
   }
-  if (rc !== 0 || process.argv.length < 3 || READ_ONLY_CMDS.has(process.argv[2])) {
+  const invoked = process.argv[2];
+  if (rc !== 0 || process.argv.length < 3 || (invoked !== undefined && READ_ONLY_CMDS.has(invoked))) {
     process.exit(rc);
   }
-  
+
   try {
     const store = dbPath();
     const out = sidecarPathFor(store);
@@ -1183,12 +970,14 @@ function mainWithSidecar() {
     const [lines, rowCount] = sidecarNdjson(store);
     writeAtomic(out, lines);
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
-  } catch (e: any) {
+  } catch (e) {
     // A run that writes the store and then leaves its tracked sidecar behind
     // it is not a success: the next reader sees a record of truth that no
     // longer matches what was just written. rc=0 here previously reported
     // success anyway.
-    process.stderr.write(`WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.\n`);
+    process.stderr.write(
+      `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database; run \`fm-session.py sidecar\` before committing.\n`,
+    );
     rc = 1;
   }
   process.exit(rc);
@@ -1199,8 +988,7 @@ function mainWithSidecar() {
 // test executed. It also made production behaviour depend on an environment
 // variable: anything setting NODE_ENV=test would silently get a no-op CLI.
 const invokedDirectly =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
   mainWithSidecar();
 }
