@@ -104,6 +104,7 @@ export interface SessionStore {
     readonly start_sha: string | null;
     readonly note: string | null;
   }): SessionRow;
+  /** Rejects if the session is already ended (`ended_ts` is set-once). */
   endSession(sessionId: string, endedTs: string): SessionRow;
 
   addFact(fact: NewFact): FactRow;

@@ -388,6 +388,28 @@ export const CASES: readonly Case[] = [
     },
   },
   {
+    name: "session/end-is-once-only",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const first = s.endSession("S1", "2026-08-08T12:00:00Z");
+        assert(first.ended_ts === "2026-08-08T12:00:00Z", "first end must stamp ended_ts");
+        assertRejects(
+          () => s.endSession("S1", "2026-08-08T12:01:00Z"),
+          "supersession_incomplete",
+        );
+        const after = s.listSessions().find((row) => row.session_id === "S1");
+        assert(
+          after?.ended_ts === "2026-08-08T12:00:00Z",
+          "a second end must not rewrite ended_ts",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
     name: "write/rejects-non-finite-value-num",
     run: (f) => {
       const s = f();

@@ -25,6 +25,7 @@ import {
   specFor,
   type SessionRow,
   type SessionSnapshot,
+  type SessionStoreFailureReason,
 } from "@foreman/session-store";
 import {
   LegacyMigrationRefusal,
@@ -237,6 +238,10 @@ function exitCli(code: number): never {
   throw new CliRefusal(code);
 }
 
+function isSqliteOperationalError(e: unknown): boolean {
+  return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "ERR_SQLITE_ERROR";
+}
+
 /**
  * Translate a port failure into the CLI's own refusal.
  *
@@ -244,10 +249,22 @@ function exitCli(code: number): never {
  * keep its exact legacy stderr text. close and end change their output
  * deliberately, and they pass their new text here explicitly. measure also
  * refuses a non-finite --num the legacy path stored.
+ *
+ * `expectedReasons` keeps that legacy text for the reasons the site actually
+ * established. Any other store failure is printed as itself.
  */
-function refuseFromPort(e: unknown, legacyMessage: string): never {
-  if (isSessionStoreFailure(e) || reasonOf(e) !== null) {
-    process.stderr.write(legacyMessage);
+function refuseFromPort(
+  e: unknown,
+  legacyMessage: string,
+  expectedReasons?: readonly SessionStoreFailureReason[],
+): never {
+  const reason = reasonOf(e);
+  if (isSessionStoreFailure(e) || reason !== null) {
+    if (expectedReasons === undefined || (reason !== null && expectedReasons.includes(reason))) {
+      process.stderr.write(legacyMessage);
+    } else {
+      process.stderr.write(`refusing: ${errorMessage(e)}\n`);
+    }
     exitCli(2);
   }
   throw e;
@@ -847,7 +864,11 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
     if (e instanceof LegacyMigrationRefusal) {
       exitCli(2);
     }
-    process.stderr.write(`sqlite3.OperationalError\n`);
+    if (isSqliteOperationalError(e)) {
+      process.stderr.write(`sqlite3.OperationalError\n`);
+      exitCli(1);
+    }
+    process.stderr.write(`${errorMessage(e)}\n`);
     exitCli(1);
   }
 }
@@ -926,7 +947,11 @@ export function main(): number {
       try {
         store.endSession(sid, nowIso());
       } catch (e) {
-        refuseFromPort(e, "no open session\n");
+        if (reasonOf(e) === "supersession_incomplete") {
+          process.stderr.write(`refusing: session ${sid} is already ended; ended_ts is set-once\n`);
+          exitCli(2);
+        }
+        refuseFromPort(e, "no open session\n", ["invalid_argument"]);
       }
       process.stdout.write(`session ended: ${sid}\n`);
     } finally {
@@ -1021,6 +1046,10 @@ export function main(): number {
   if (cmd === "close") {
     const obligationId = parseInt(parsed.args[0] ?? "", 10);
     const status = parsed.options.status;
+    if (parsed.options.blocker !== undefined) {
+      process.stderr.write("refusing: --blocker is not valid with close\n");
+      exitCli(2);
+    }
     const store = openStore();
     try {
       if (status !== "done" && status !== "dropped") {
@@ -1101,6 +1130,7 @@ export function main(): number {
         refuseFromPort(
           e,
           `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded\n`,
+          ["invalid_argument", "supersession_incomplete"],
         );
       }
       process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}\n`);
@@ -1147,7 +1177,9 @@ export function main(): number {
       try {
         store.retireMeasurement(measurementId, byId, reason, nowIso());
       } catch (e) {
-        refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded\n`);
+        refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded\n`, [
+          "supersession_incomplete",
+        ]);
       }
       process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}\n`);
     } finally {

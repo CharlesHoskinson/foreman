@@ -17,13 +17,21 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { SqliteSessionStore, encodeSnapshot, countRows, decodeSnapshot } from "@foreman/session-store";
+import {
+  SqliteSessionStore,
+  encodeSnapshot,
+  countRows,
+  decodeSnapshot,
+  SessionStoreError,
+  sessionStoreFailure,
+} from "@foreman/session-store";
 import {
   sidecarNdjson,
   importSidecar,
   main,
   assessSidecarReplace,
   writeAtomic,
+  CliRefusal,
 } from "./fm-session-main.js";
 import { bootstrapStore, classifyStore, sidecarPathFor } from "./session-legacy-shape.js";
 
@@ -1196,6 +1204,223 @@ test("W2.6: a refuseFromPort refusal leaves no -wal or -shm", () => {
     assert.equal(existsSync(`${p}-wal`), false, "refusal left a -wal file");
     assert.equal(existsSync(`${p}-shm`), false, "refusal left a -shm file");
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.1/W3.5: an integrity-refused legacy migration is exit 2, not sqlite3.OperationalError", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w35-integrity-"));
+  try {
+    const p = join(dir, "session.db");
+    writeLegacyStore(p, { omitTables: ["facts"] });
+    const db = new DatabaseSync(p);
+    try {
+      db.exec(
+        "CREATE TABLE facts (id INTEGER PRIMARY KEY AUTOINCREMENT, statement TEXT, evidence TEXT, established_ts TEXT NOT NULL, session_id TEXT, superseded_by INTEGER, superseded_at TEXT, supersede_reason TEXT);",
+      );
+      db.exec("INSERT INTO facts(id,statement,established_ts) VALUES(7, NULL, '2026-08-01T00:00:00Z')");
+    } finally {
+      db.close();
+    }
+    const res = spawnSession(dir, p, ["fact", "must-not-land"]);
+    assert.equal(res.status, 2, `integrity-refused migration exited ${res.status}; expected 2`);
+    assert.match(res.stderr, /could not be migrated/);
+    assert.match(res.stderr, /null in a non-null field/);
+    assert.match(res.stderr, /id=7/);
+    assert.doesNotMatch(res.stderr, /OperationalError/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.1/W3.5: a directory-as-db open still prints sqlite3.OperationalError", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w35-dir-"));
+  try {
+    const p = join(dir, "session.db");
+    mkdirSync(p);
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.equal(res.status, 1, `directory-as-db exited ${res.status}; expected 1`);
+    assert.match(res.stderr, /sqlite3\.OperationalError/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.1/W3.5: a parent-path ENOTDIR is not reported as sqlite3.OperationalError", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w35-enotdir-"));
+  try {
+    const blocker = join(dir, "notadir");
+    writeFileSync(blocker, "x");
+    const p = join(blocker, "session.db");
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.equal(res.status, 1, `unrelated parent-path failure exited ${res.status}; expected 1`);
+    assert.doesNotMatch(res.stderr, /OperationalError/);
+    assert.match(res.stderr, /EEXIST|ENOTDIR|not a directory|file already exists/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.2: close refuses --blocker", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w32-"));
+  try {
+    const p = join(dir, "session.db");
+    spawnSession(dir, p, ["begin", "--note", "w32"]);
+    spawnSession(dir, p, ["obligation", "close-me"]);
+    const res = spawnSession(dir, p, ["close", "1", "--status", "done", "--blocker", "ignored"]);
+    assert.equal(res.status, 2, `close --blocker exited ${res.status}; expected 2`);
+    assert.match(res.stderr, /--blocker is not valid with close/);
+    assert.doesNotMatch(res.stdout, /obligation 1 -> done/);
+    const store = SqliteSessionStore.open(p, { readOnly: true });
+    try {
+      const row = store.listObligations().find((o) => o.id === 1);
+      assert.equal(row?.status, "open", "refused close must leave the obligation open");
+      assert.equal(row?.blocker, null);
+    } finally {
+      store.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.3: a second end refuses and leaves ended_ts unchanged", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w33-"));
+  try {
+    const p = join(dir, "session.db");
+    const begun = spawnSession(dir, p, ["begin", "--note", "w33"]);
+    const sidMatch = begun.stdout.match(/SESSION BEGUN: (\S+)/);
+    assert.ok(sidMatch, `begin must print a session id, stdout was: ${begun.stdout}`);
+    const sid = sidMatch[1]!;
+    const first = spawnSession(dir, p, ["end", sid]);
+    assert.equal(first.status, 0, first.stderr);
+    const store = SqliteSessionStore.open(p, { readOnly: true });
+    let firstEnded: string | null;
+    try {
+      firstEnded = store.listSessions().find((s) => s.session_id === sid)?.ended_ts ?? null;
+    } finally {
+      store.close();
+    }
+    assert.ok(firstEnded, "first end must stamp ended_ts");
+    const second = spawnSession(dir, p, ["end", sid]);
+    assert.equal(second.status, 2, `second end exited ${second.status}; expected 2`);
+    assert.match(second.stderr, /already ended/);
+    assert.match(second.stderr, /set-once/);
+    assert.doesNotMatch(second.stdout, /session ended:/);
+    const after = SqliteSessionStore.open(p, { readOnly: true });
+    try {
+      const row = after.listSessions().find((s) => s.session_id === sid);
+      assert.equal(row?.ended_ts, firstEnded, "second end must not rewrite ended_ts");
+    } finally {
+      after.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.6: an unrelated port failure on retire is not reported as supersession", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w36-retire-"));
+  const orig = SqliteSessionStore.prototype.retireMeasurement;
+  const savedArgv = process.argv;
+  const savedEnv = process.env["FOREMAN_SESSION_DB"];
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    try {
+      store.addMeasurement({
+        metric: "m",
+        value: "1",
+        value_num: 1,
+        command: null,
+        measured_ts: "2026-08-08T11:00:00Z",
+        measured_sha: null,
+        scope_paths: "x",
+        session_id: null,
+      });
+      store.addMeasurement({
+        metric: "m",
+        value: "2",
+        value_num: 2,
+        command: null,
+        measured_ts: "2026-08-08T11:01:00Z",
+        measured_sha: null,
+        scope_paths: "x",
+        session_id: null,
+      });
+    } finally {
+      store.close();
+    }
+    SqliteSessionStore.prototype.retireMeasurement = function () {
+      throw new SessionStoreError(
+        sessionStoreFailure("field_type", "value_num must be finite, got NaN"),
+      );
+    };
+    process.argv = [process.argv[0]!, process.argv[1]!, "retire", "1", "--by", "2", "--reason", "r"];
+    process.env["FOREMAN_SESSION_DB"] = p;
+    const text = captureStderr(() => {
+      assert.throws(
+        () => main(),
+        (e: unknown) => e instanceof CliRefusal && e.exitCode === 2,
+      );
+    });
+    assert.match(text, /value_num must be finite/);
+    assert.doesNotMatch(text, /already superseded/);
+  } finally {
+    SqliteSessionStore.prototype.retireMeasurement = orig;
+    process.argv = savedArgv;
+    if (savedEnv === undefined) delete process.env["FOREMAN_SESSION_DB"];
+    else process.env["FOREMAN_SESSION_DB"] = savedEnv;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.6: an unrelated port failure on supersede is not reported as a missing-or-superseded fact", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w36-super-"));
+  const orig = SqliteSessionStore.prototype.supersedeFact;
+  const savedArgv = process.argv;
+  const savedEnv = process.env["FOREMAN_SESSION_DB"];
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    try {
+      store.addFact({
+        statement: "live",
+        evidence: null,
+        established_ts: "2026-08-08T11:00:00Z",
+        session_id: null,
+      });
+    } finally {
+      store.close();
+    }
+    SqliteSessionStore.prototype.supersedeFact = function () {
+      throw new SessionStoreError(
+        sessionStoreFailure("field_type", "value_num must be finite, got NaN"),
+      );
+    };
+    process.argv = [
+      process.argv[0]!,
+      process.argv[1]!,
+      "supersede",
+      "1",
+      "replacement",
+      "--reason",
+      "r",
+    ];
+    process.env["FOREMAN_SESSION_DB"] = p;
+    const text = captureStderr(() => {
+      assert.throws(
+        () => main(),
+        (e: unknown) => e instanceof CliRefusal && e.exitCode === 2,
+      );
+    });
+    assert.match(text, /value_num must be finite/);
+    assert.doesNotMatch(text, /does not exist or is already superseded/);
+  } finally {
+    SqliteSessionStore.prototype.supersedeFact = orig;
+    process.argv = savedArgv;
+    if (savedEnv === undefined) delete process.env["FOREMAN_SESSION_DB"];
+    else process.env["FOREMAN_SESSION_DB"] = savedEnv;
     rmSync(dir, { recursive: true, force: true });
   }
 });

@@ -898,7 +898,7 @@ var SqliteSessionStore = class _SqliteSessionStore {
       const key = `next_id.${kind}`;
       const row = this.db.prepare("SELECT value FROM store_meta WHERE key = ?").get(key);
       if (row === void 0) {
-        this.db.prepare("INSERT INTO store_meta (key, value) VALUES (?, ?)").run(key, String(init[kind]));
+        this.db.prepare("INSERT OR IGNORE INTO store_meta (key, value) VALUES (?, ?)").run(key, String(init[kind]));
       }
     }
   }
@@ -1033,9 +1033,15 @@ var SqliteSessionStore = class _SqliteSessionStore {
   }
   endSession(sessionId, endedTs) {
     return this.tx(() => {
-      const existing = this.db.prepare("SELECT session_id FROM sessions WHERE session_id = ?").get(sessionId);
+      const existing = this.db.prepare("SELECT session_id, ended_ts FROM sessions WHERE session_id = ?").get(sessionId);
       if (!existing) {
         raise("invalid_argument", `no such session ${JSON.stringify(sessionId)}`);
+      }
+      if (existing.ended_ts !== null) {
+        raise(
+          "supersession_incomplete",
+          `session ${JSON.stringify(sessionId)} is already ended; ended_ts is set-once`
+        );
       }
       this.db.prepare("UPDATE sessions SET ended_ts = ? WHERE session_id = ?").run(endedTs, sessionId);
       const r = this.db.prepare(
@@ -1581,6 +1587,28 @@ var CASES = [
         assertRejects(
           () => s.closeObligation(done.id, "dropped", "2026-08-08T12:00:00Z"),
           "invalid_argument"
+        );
+      } finally {
+        s.close();
+      }
+    }
+  },
+  {
+    name: "session/end-is-once-only",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const first = s.endSession("S1", "2026-08-08T12:00:00Z");
+        assert(first.ended_ts === "2026-08-08T12:00:00Z", "first end must stamp ended_ts");
+        assertRejects(
+          () => s.endSession("S1", "2026-08-08T12:01:00Z"),
+          "supersession_incomplete"
+        );
+        const after = s.listSessions().find((row) => row.session_id === "S1");
+        assert(
+          after?.ended_ts === "2026-08-08T12:00:00Z",
+          "a second end must not rewrite ended_ts"
         );
       } finally {
         s.close();
@@ -2225,7 +2253,7 @@ function rehydrateFromSidecarIfEmpty(p) {
       `refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${errorMessage(e)}
 `
     );
-    throw e;
+    throw new LegacyMigrationRefusal(errorMessage(e));
   }
 }
 function bootstrapStore(p, opts) {
@@ -2256,7 +2284,7 @@ function bootstrapStore(p, opts) {
         `refusing: the legacy session store at ${p} could not be migrated to the port schema: ${errorMessage(e)}
 `
       );
-      throw e;
+      throw new LegacyMigrationRefusal(errorMessage(e));
     } finally {
       rmSync2(carrier, { force: true });
     }
@@ -2355,9 +2383,18 @@ var CliRefusal = class extends Error {
 function exitCli(code) {
   throw new CliRefusal(code);
 }
-function refuseFromPort(e, legacyMessage) {
-  if (isSessionStoreFailure(e) || reasonOf(e) !== null) {
-    process.stderr.write(legacyMessage);
+function isSqliteOperationalError(e) {
+  return typeof e === "object" && e !== null && e.code === "ERR_SQLITE_ERROR";
+}
+function refuseFromPort(e, legacyMessage, expectedReasons) {
+  const reason = reasonOf(e);
+  if (isSessionStoreFailure(e) || reason !== null) {
+    if (expectedReasons === void 0 || reason !== null && expectedReasons.includes(reason)) {
+      process.stderr.write(legacyMessage);
+    } else {
+      process.stderr.write(`refusing: ${errorMessage2(e)}
+`);
+    }
     exitCli(2);
   }
   throw e;
@@ -2818,7 +2855,12 @@ function prepareInvocation(cmd, importTarget) {
     if (e instanceof LegacyMigrationRefusal) {
       exitCli(2);
     }
-    process.stderr.write(`sqlite3.OperationalError
+    if (isSqliteOperationalError(e)) {
+      process.stderr.write(`sqlite3.OperationalError
+`);
+      exitCli(1);
+    }
+    process.stderr.write(`${errorMessage2(e)}
 `);
     exitCli(1);
   }
@@ -2892,7 +2934,12 @@ function main() {
       try {
         store.endSession(sid, nowIso());
       } catch (e) {
-        refuseFromPort(e, "no open session\n");
+        if (reasonOf(e) === "supersession_incomplete") {
+          process.stderr.write(`refusing: session ${sid} is already ended; ended_ts is set-once
+`);
+          exitCli(2);
+        }
+        refuseFromPort(e, "no open session\n", ["invalid_argument"]);
       }
       process.stdout.write(`session ended: ${sid}
 `);
@@ -2987,6 +3034,10 @@ function main() {
   if (cmd === "close") {
     const obligationId = parseInt(parsed.args[0] ?? "", 10);
     const status = parsed.options.status;
+    if (parsed.options.blocker !== void 0) {
+      process.stderr.write("refusing: --blocker is not valid with close\n");
+      exitCli(2);
+    }
     const store = openStore();
     try {
       if (status !== "done" && status !== "dropped") {
@@ -3070,7 +3121,8 @@ function main() {
         refuseFromPort(
           e,
           `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded
-`
+`,
+          ["invalid_argument", "supersession_incomplete"]
         );
       }
       process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}
@@ -3121,7 +3173,9 @@ function main() {
         store.retireMeasurement(measurementId, byId, reason, nowIso());
       } catch (e) {
         refuseFromPort(e, `refusing: measurement ${measurementId} is already superseded
-`);
+`, [
+          "supersession_incomplete"
+        ]);
       }
       process.stdout.write(`measurement ${measurementId} retired, superseded by ${byId}
 `);

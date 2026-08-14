@@ -216,7 +216,7 @@ export class SqliteSessionStore implements SessionStore {
         .get(key) as { value: string } | undefined;
       if (row === undefined) {
         this.db
-          .prepare("INSERT INTO store_meta (key, value) VALUES (?, ?)")
+          .prepare("INSERT OR IGNORE INTO store_meta (key, value) VALUES (?, ?)")
           .run(key, String(init[kind]));
       }
     }
@@ -401,10 +401,16 @@ export class SqliteSessionStore implements SessionStore {
   endSession(sessionId: string, endedTs: string): SessionRow {
     return this.tx(() => {
       const existing = this.db
-        .prepare("SELECT session_id FROM sessions WHERE session_id = ?")
-        .get(sessionId);
+        .prepare("SELECT session_id, ended_ts FROM sessions WHERE session_id = ?")
+        .get(sessionId) as { session_id: string; ended_ts: string | null } | undefined;
       if (!existing) {
         raise("invalid_argument", `no such session ${JSON.stringify(sessionId)}`);
+      }
+      if (existing.ended_ts !== null) {
+        raise(
+          "supersession_incomplete",
+          `session ${JSON.stringify(sessionId)} is already ended; ended_ts is set-once`,
+        );
       }
       this.db
         .prepare("UPDATE sessions SET ended_ts = ? WHERE session_id = ?")

@@ -255,7 +255,7 @@ function rehydrateFromSidecarIfEmpty(p: string): void {
     process.stderr.write(
       `refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${errorMessage(e)}\n`,
     );
-    throw e;
+    throw new LegacyMigrationRefusal(errorMessage(e));
   }
 }
 
@@ -303,7 +303,7 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
       process.stderr.write(
         `refusing: the legacy session store at ${p} could not be migrated to the port schema: ${errorMessage(e)}\n`,
       );
-      throw e;
+      throw new LegacyMigrationRefusal(errorMessage(e));
     } finally {
       rmSync(carrier, { force: true });
     }

@@ -368,10 +368,10 @@ goldenCase("close with an unknown status", "close-unknown", [
   "nonsense",
 ]);
 
-// Ordinary end of a session that exists in the seed. Both seed sessions are
-// already ended; endSession still stamps ended_ts and prints the success
-// line. Shared fixture: end.{out,err,exit}.
-goldenCase("end an existing session", "end", [
+// Both seed sessions are already ended. A second end is a set-once refusal.
+// Shared fixture: end.{out,err,exit}. Callers that matched exit 0 and
+// "session ended:" on this path now see exit 2.
+goldenCase("end an already-ended session", "end", [
   "end",
   "20260730T222519Z-da94ed",
 ]);
