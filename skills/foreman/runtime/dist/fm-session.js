@@ -4,16 +4,16 @@ import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { join, dirname as dirname2, resolve as resolve2 } from "node:path";
 import {
-  existsSync as existsSync3,
+  existsSync as existsSync2,
   mkdirSync as mkdirSync2,
   readFileSync as readFileSync2,
-  writeFileSync as writeFileSync2,
+  writeFileSync,
   renameSync as renameSync2,
-  rmSync as rmSync3,
+  rmSync as rmSync2,
   openSync,
   closeSync,
   fsyncSync,
-  lstatSync as lstatSync2,
+  lstatSync,
   realpathSync,
   accessSync,
   constants
@@ -2048,7 +2048,7 @@ var ALL_CASES = [...CASES, ...HOSTILE_CASES];
 
 // packages/orchestration/src/session-legacy-shape.ts
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
-import { existsSync as existsSync2, lstatSync, rmSync as rmSync2, statSync, writeFileSync } from "node:fs";
+import fs from "node:fs";
 import { resolve } from "node:path";
 
 // packages/orchestration/src/session-rebuild.ts
@@ -2104,6 +2104,11 @@ function rebuildFromSidecar(opts) {
 }
 
 // packages/orchestration/src/session-legacy-shape.ts
+var SQLITE_BUSY = 5;
+var SQLITE_READONLY = 8;
+var SQLITE_CORRUPT = 11;
+var SQLITE_CANTOPEN = 14;
+var SQLITE_READONLY_DIRECTORY = 1544;
 var LegacyMigrationRefusal = class extends Error {
   constructor(message) {
     super(message);
@@ -2150,10 +2155,32 @@ function jsonDumps(obj, sortKeys = false) {
 function errorMessage(e) {
   return e instanceof Error ? e.message : String(e);
 }
+function sqliteErrcode(e) {
+  if (typeof e !== "object" || e === null) return void 0;
+  const code = e.errcode;
+  return typeof code === "number" ? code : void 0;
+}
+function trackedSidecarCanRebuild(dbPath2) {
+  const sidecar = sidecarPathFor(dbPath2);
+  try {
+    if (!fs.existsSync(sidecar)) return true;
+    decodeSnapshot(fs.readFileSync(sidecar, "utf8"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function sidecarRebuildRemedy(dbPath2, asideSuffix) {
+  const move = `mv ${dbPath2} ${dbPath2}.${asideSuffix} && fm-session recover`;
+  if (trackedSidecarCanRebuild(dbPath2)) {
+    return `Move it aside and rebuild from the tracked sidecar: ${move}`;
+  }
+  return `The tracked sidecar cannot be used to rebuild this store. Clear the sidecar fault, then: ${move}`;
+}
 function classifyStore(p) {
   let st;
   try {
-    st = lstatSync(p);
+    st = fs.lstatSync(p);
   } catch (e) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
     if (code === "ENOENT") return "absent";
@@ -2161,7 +2188,7 @@ function classifyStore(p) {
   }
   if (st.isSymbolicLink()) {
     try {
-      st = statSync(p);
+      st = fs.statSync(p);
     } catch {
       return "unrecognised";
     }
@@ -2176,7 +2203,12 @@ function classifyStore(p) {
       names = new Set(
         db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name)
       );
-    } catch {
+    } catch (e) {
+      const errcode = sqliteErrcode(e);
+      if (errcode === SQLITE_CORRUPT) return "corrupt";
+      if (errcode === SQLITE_BUSY || errcode === SQLITE_READONLY || errcode === SQLITE_READONLY_DIRECTORY || errcode === SQLITE_CANTOPEN) {
+        throw e;
+      }
       return "unrecognised";
     }
     const hasPort = names.has("store_meta");
@@ -2262,7 +2294,7 @@ function storeIsEmpty(p) {
 }
 function rehydrateFromSidecarIfEmpty(p) {
   const sidecar = sidecarPathFor(p);
-  if (pathsAlias(sidecar, p) || !existsSync2(sidecar)) return;
+  if (pathsAlias(sidecar, p) || !fs.existsSync(sidecar)) return;
   try {
     if (!storeIsEmpty(p)) return;
   } catch {
@@ -2286,14 +2318,14 @@ function bootstrapStore(p, opts) {
   const shape = classifyStore(p);
   if (shape === "corrupt") {
     process.stderr.write(
-      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. It is the half-migrated state a pre-fix open produced. Move it aside and let the tracked sidecar rebuild it: mv ${p} ${p}.corrupt && fm-session recover
+      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. It is the half-migrated state a pre-fix open produced. ${sidecarRebuildRemedy(p, "corrupt")}
 `
     );
     process.exit(2);
   }
   if (shape === "unrecognised") {
     process.stderr.write(
-      `refusing: the session store at ${p} exists but is not a Foreman session database. This tool will not write into a file it does not recognise. Move it aside and rebuild from the tracked sidecar: mv ${p} ${p}.unrecognised && fm-session recover
+      `refusing: the session store at ${p} exists but is not a Foreman session database. This tool will not write into a file it does not recognise. ${sidecarRebuildRemedy(p, "unrecognised")}
 `
     );
     throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
@@ -2308,7 +2340,7 @@ function bootstrapStore(p, opts) {
     }
     const carrier = `${p}.legacy.ndjson`;
     try {
-      writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
+      fs.writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
       const res = rebuildFromSidecar({ sidecarPath: carrier, dbPath: p, force: true });
       process.stderr.write(`migrated ${res.rowsWritten} row(s) out of the legacy session schema into ${p}
 `);
@@ -2319,15 +2351,15 @@ function bootstrapStore(p, opts) {
       );
       throw new LegacyMigrationRefusal(errorMessage(e));
     } finally {
-      rmSync2(carrier, { force: true });
+      fs.rmSync(carrier, { force: true });
     }
     rehydrateFromSidecarIfEmpty(p);
     return true;
   }
   if (shape === "absent") {
-    if (existsSync2(p)) {
+    if (fs.existsSync(p)) {
       process.stderr.write(
-        `refusing: the session store at ${p} exists but is not a Foreman session database. This tool will not write into a file it does not recognise. Move it aside and rebuild from the tracked sidecar: mv ${p} ${p}.unrecognised && fm-session recover
+        `refusing: the session store at ${p} exists but is not a Foreman session database. This tool will not write into a file it does not recognise. ${sidecarRebuildRemedy(p, "unrecognised")}
 `
       );
       throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
@@ -2338,7 +2370,7 @@ function bootstrapStore(p, opts) {
     } catch (e) {
       try {
         for (const suffix of ["", "-wal", "-shm"]) {
-          rmSync2(p + suffix, { force: true });
+          fs.rmSync(p + suffix, { force: true });
         }
       } catch {
       }
@@ -2393,7 +2425,7 @@ function warnOrphanStore(chosen) {
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
     if (!top) return;
     const orphan = resolve2(top, ".foreman", "session.db");
-    if (orphan === resolve2(chosen) || !existsSync3(orphan)) return;
+    if (orphan === resolve2(chosen) || !existsSync2(orphan)) return;
     process.stderr.write(
       `WARNING: an orphaned session store sits at ${orphan}. Nothing reads it. The store in use is ${chosen}.
 `
@@ -2705,7 +2737,7 @@ function sidecarNdjson(dbFile, opts = {}) {
 function writeAtomic(path, text) {
   const tmp = `${path}.tmp.${process.pid}.${randomBytes(8).toString("hex")}`;
   try {
-    writeFileSync2(tmp, text, { encoding: "utf8", flag: "wx" });
+    writeFileSync(tmp, text, { encoding: "utf8", flag: "wx" });
     const fd = openSync(tmp, "r+");
     try {
       fsyncSync(fd);
@@ -2715,7 +2747,7 @@ function writeAtomic(path, text) {
     renameSync2(tmp, path);
   } catch (e) {
     try {
-      rmSync3(tmp, { force: true });
+      rmSync2(tmp, { force: true });
     } catch {
     }
     throw e;
@@ -2804,7 +2836,7 @@ function unparsedSidecarMessage(path, detail) {
 function inspectSidecarPath(path) {
   let st;
   try {
-    st = lstatSync2(path);
+    st = lstatSync(path);
   } catch (e) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
     if (code === "ENOENT") return { dest: path, kind: "missing" };

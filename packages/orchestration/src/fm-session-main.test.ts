@@ -1,6 +1,7 @@
 import { describe, it, test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
 import {
   writeFileSync,
   readFileSync,
@@ -35,7 +36,12 @@ import {
   writeAtomic,
   CliRefusal,
 } from "./fm-session-main.js";
-import { bootstrapStore, classifyStore, sidecarPathFor } from "./session-legacy-shape.js";
+import {
+  bootstrapStore,
+  classifyStore,
+  sidecarPathFor,
+  LegacyMigrationRefusal,
+} from "./session-legacy-shape.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENTRY = join(HERE, "fm-session-main.ts");
@@ -1867,6 +1873,288 @@ test("W3.r3 FIX 8: a read-only command must not rehydrate an existing empty port
     }
     assert.equal(readFileSync(sidecar, "utf8"), threeLineSidecarText());
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function sqliteError(errcode: number, message: string): Error {
+  const e = new Error(message) as Error & { code: string; errcode: number; errstr: string };
+  e.code = "ERR_SQLITE_ERROR";
+  e.errcode = errcode;
+  e.errstr = message;
+  return e;
+}
+
+function sqliteErrcodeOf(e: unknown): number | undefined {
+  if (typeof e !== "object" || e === null) return undefined;
+  const code = (e as { errcode?: unknown }).errcode;
+  return typeof code === "number" ? code : undefined;
+}
+
+function unlinkWalSidecars(p: string): void {
+  for (const suffix of ["-wal", "-shm"] as const) {
+    try {
+      rmSync(p + suffix);
+    } catch {
+      // absent is the usual case after a checkpointing close
+    }
+  }
+}
+
+test("W3.r4 FIX A: classifyStore switches on sqlite_schema errcode", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-a-switch-"));
+  const origPrepare = DatabaseSync.prototype.prepare;
+  try {
+    const p = join(dir, "session.db");
+    SqliteSessionStore.open(p).close();
+
+    const cases: ReadonlyArray<{
+      errcode: number;
+      expect: "throw" | StoreShapeExpect;
+    }> = [
+      { errcode: 5, expect: "throw" },
+      { errcode: 8, expect: "throw" },
+      { errcode: 1544, expect: "throw" },
+      { errcode: 14, expect: "throw" },
+      { errcode: 11, expect: "corrupt" },
+      { errcode: 26, expect: "unrecognised" },
+    ];
+    for (const c of cases) {
+      DatabaseSync.prototype.prepare = function (sql: string) {
+        if (String(sql).includes("sqlite_schema")) {
+          throw sqliteError(c.errcode, `injected ${c.errcode}`);
+        }
+        return origPrepare.call(this, sql);
+      };
+      if (c.expect === "throw") {
+        assert.throws(
+          () => classifyStore(p),
+          (e: unknown) => sqliteErrcodeOf(e) === c.errcode,
+          `errcode ${c.errcode} must be rethrown, not classified`,
+        );
+      } else {
+        assert.equal(
+          classifyStore(p),
+          c.expect,
+          `errcode ${c.errcode} must classify ${c.expect}`,
+        );
+      }
+    }
+  } finally {
+    DatabaseSync.prototype.prepare = origPrepare;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+type StoreShapeExpect = "corrupt" | "unrecognised";
+
+test("W3.r4 FIX A: a healthy port store under a chmod 500 parent is EACCES, not unrecognised", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 500 does not block the owner on root or win32");
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-a-500-"));
+  const parent = join(dir, "locked");
+  mkdirSync(parent);
+  try {
+    const p = join(parent, "session.db");
+    seedFacts(p, ["keep-readonly-dir"]);
+    unlinkWalSidecars(p);
+    chmodSync(parent, 0o500);
+    assert.throws(
+      () => classifyStore(p),
+      (e: unknown) => sqliteErrcodeOf(e) === 1544,
+      "SQLITE_READONLY_DIRECTORY must not collapse to unrecognised",
+    );
+    const rec = spawnSession(dir, p, ["recover"]);
+    const fresh = spawnSession(dir, p, ["freshness"]);
+    chmodSync(parent, 0o755);
+    assert.equal(rec.status, 1, `recover exited ${rec.status}; expected 1. stderr=${rec.stderr}`);
+    assert.match(rec.stderr, /EACCES|permission denied/);
+    assert.doesNotMatch(rec.stderr, /not a Foreman session database/);
+    assert.doesNotMatch(rec.stderr, /\.unrecognised/);
+    assert.equal(fresh.status, 1, `freshness exited ${fresh.status}; expected 1`);
+    assert.doesNotMatch(fresh.stderr, /not a Foreman session database/);
+    const restored = spawnSession(dir, p, ["recover"]);
+    assert.equal(restored.status, 0, `after chmod 755 recover exited ${restored.status}: ${restored.stderr}`);
+    assert.deepEqual(factStatements(p), ["keep-readonly-dir"]);
+  } finally {
+    try {
+      chmodSync(parent, 0o700);
+    } catch {
+      // restore so cleanup can rmdir
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r4 FIX A: SQLITE_BUSY is transient, not unrecognised", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-a-busy-"));
+  const locker = { db: undefined as DatabaseSync | undefined };
+  try {
+    const p = join(dir, "session.db");
+    seedFacts(p, ["busy-fact"]);
+    locker.db = new DatabaseSync(p);
+    locker.db.exec("PRAGMA journal_mode=DELETE");
+    locker.db.exec("BEGIN EXCLUSIVE");
+    assert.throws(
+      () => classifyStore(p),
+      (e: unknown) => sqliteErrcodeOf(e) === 5,
+      "SQLITE_BUSY must be rethrown, not classified unrecognised",
+    );
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.notEqual(res.status, 0, "a locked store must not look healthy");
+    assert.doesNotMatch(res.stderr, /not a Foreman session database/);
+    assert.doesNotMatch(res.stderr, /\.unrecognised/);
+  } finally {
+    try {
+      locker.db?.exec("ROLLBACK");
+    } catch {
+      // lock already dropped
+    }
+    try {
+      locker.db?.close();
+    } catch {
+      // already closed
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r4 FIX A: SQLITE_CORRUPT classifies corrupt, not unrecognised", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-a-corrupt-"));
+  try {
+    const p = join(dir, "session.db");
+    seedFacts(p, ["will-corrupt"]);
+    const buf = readFileSync(p);
+    for (let i = 100; i < Math.min(buf.length, 800); i++) buf[i] = 0xff;
+    writeFileSync(p, buf);
+    assert.equal(classifyStore(p), "corrupt");
+    const before = readFileSync(p);
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.equal(res.status, 2, `corrupt recover exited ${res.status}`);
+    assert.match(res.stderr, /corrupt/i);
+    assert.doesNotMatch(res.stderr, /not a Foreman session database/);
+    assert.ok(Buffer.compare(before, readFileSync(p)) === 0, "damaged store must be left in place");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r4 FIX A: SQLITE_NOTADB stays unrecognised", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-a-notadb-"));
+  try {
+    const p = join(dir, "session.db");
+    writeFileSync(p, "this is not sqlite\n");
+    assert.equal(classifyStore(p), "unrecognised");
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.equal(res.status, 2);
+    assert.match(res.stderr, /not a Foreman session database/);
+    assert.equal(readFileSync(p, "utf8"), "this is not sqlite\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r4 FIX B: unrecognised refusal names recover only when that recover works", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-b-ok-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    writeForeignNotesDb(p, ["keep-1", "keep-2"]);
+    writeFileSync(sidecar, threeLineSidecarText());
+    const refused = spawnSession(dir, p, ["recover"]);
+    assert.equal(refused.status, 2, refused.stderr);
+    assert.match(refused.stderr, /not a Foreman session database/);
+    assert.match(refused.stderr, /mv \S+ \S+\.unrecognised && fm-session recover/);
+    assert.doesNotMatch(refused.stderr, /Clear the sidecar fault/);
+    renameSync(p, `${p}.unrecognised`);
+    const recovered = spawnSession(dir, p, ["recover"]);
+    assert.equal(recovered.status, 0, `named recover exited ${recovered.status}: ${recovered.stderr}`);
+    assert.deepEqual(factStatements(p), ["keep-a", "keep-b"]);
+    assert.equal(countNotes(`${p}.unrecognised`), 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r4 FIX B: an unreadable sidecar must not name a recover that exits 2", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 000 does not block the owner on root or win32");
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-b-eacces-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    writeForeignNotesDb(p, ["keep-1", "keep-2"]);
+    writeFileSync(sidecar, threeLineSidecarText());
+    chmodSync(sidecar, 0o000);
+    const refused = spawnSession(dir, p, ["recover"]);
+    assert.equal(refused.status, 2, refused.stderr);
+    assert.match(refused.stderr, /Clear the sidecar fault/);
+    const again = spawnSession(dir, p, ["recover"]);
+    assert.equal(again.status, 2, `recover in the printed state exited ${again.status}`);
+    renameSync(p, `${p}.unrecognised`);
+    const stillBroken = spawnSession(dir, p, ["recover"]);
+    assert.equal(stillBroken.status, 2, `mv && recover with chmod 000 sidecar exited ${stillBroken.status}`);
+    assert.match(stillBroken.stderr, /could not be read/);
+    chmodSync(sidecar, 0o644);
+    const recovered = spawnSession(dir, p, ["recover"]);
+    assert.equal(recovered.status, 0, `after clearing the fault recover exited ${recovered.status}: ${recovered.stderr}`);
+    assert.deepEqual(factStatements(p), ["keep-a", "keep-b"]);
+  } finally {
+    try {
+      chmodSync(join(dir, "session.ndjson"), 0o644);
+    } catch {
+      // restore so cleanup can unlink
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r4 FIX B: a corrupt sidecar must not name a recover that exits 2", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-b-parse-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    writeForeignNotesDb(p, ["keep-1", "keep-2"]);
+    writeFileSync(sidecar, "this is not a sidecar\njunk\n");
+    const refused = spawnSession(dir, p, ["recover"]);
+    assert.equal(refused.status, 2, refused.stderr);
+    assert.match(refused.stderr, /Clear the sidecar fault/);
+    renameSync(p, `${p}.unrecognised`);
+    const named = spawnSession(dir, p, ["recover"]);
+    assert.equal(named.status, 2, `mv && recover with a corrupt sidecar exited ${named.status}`);
+    assert.equal(countNotes(`${p}.unrecognised`), 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r4 FIX C: the absent-path TOCTOU re-check refuses a file classifyStore missed", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-c-toctou-"));
+  const origLstat = fs.lstatSync;
+  try {
+    const p = join(dir, "session.db");
+    writeForeignNotesDb(p, ["keep-1", "keep-2"]);
+    const before = readFileSync(p);
+    fs.lstatSync = ((path: Parameters<typeof origLstat>[0], opts?: Parameters<typeof origLstat>[1]) => {
+      if (String(path) === p) {
+        throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" });
+      }
+      return origLstat.call(fs, path, opts as never);
+    }) as typeof origLstat;
+    assert.equal(classifyStore(p), "absent", "lstat patch must hide the file from classifyStore");
+    assert.equal(existsSync(p), true, "existsSync must still see the file the re-check reads");
+    assert.throws(
+      () => bootstrapStore(p, { allowMigration: true, readOnly: false }),
+      (e: unknown) => e instanceof LegacyMigrationRefusal,
+    );
+    assert.equal(countNotes(p), 2, "TOCTOU refuse must not adopt the foreign file");
+    assert.ok(Buffer.compare(before, readFileSync(p)) === 0, "TOCTOU refuse must not mutate the file");
+  } finally {
+    fs.lstatSync = origLstat;
     rmSync(dir, { recursive: true, force: true });
   }
 });

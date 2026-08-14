@@ -9,16 +9,23 @@
  */
 
 import { DatabaseSync } from "node:sqlite";
-import { existsSync, lstatSync, rmSync, statSync, writeFileSync } from "node:fs";
+import fs from "node:fs";
 import { resolve } from "node:path";
 import {
   ENTITY_ORDER,
   SIDECAR_FORMAT,
   SqliteSessionStore,
   specFor,
+  decodeSnapshot,
   type EntityKind,
 } from "@foreman/session-store";
 import { rebuildFromSidecar } from "./session-rebuild.js";
+
+const SQLITE_BUSY = 5;
+const SQLITE_READONLY = 8;
+const SQLITE_CORRUPT = 11;
+const SQLITE_CANTOPEN = 14;
+const SQLITE_READONLY_DIRECTORY = 1544;
 
 export type StoreShape = "absent" | "legacy" | "port" | "corrupt" | "unrecognised";
 
@@ -96,6 +103,38 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+function sqliteErrcode(e: unknown): number | undefined {
+  if (typeof e !== "object" || e === null) return undefined;
+  const code = (e as { errcode?: unknown }).errcode;
+  return typeof code === "number" ? code : undefined;
+}
+
+/**
+ * Whether `fm-session recover` can rebuild from the tracked sidecar after
+ * the store file is moved aside. A missing sidecar still lets recover
+ * create an empty port store. An unreadable sidecar, or one that cannot
+ * be parsed, makes
+ * recover exit 2, so it must not be named as the immediate next step.
+ */
+function trackedSidecarCanRebuild(dbPath: string): boolean {
+  const sidecar = sidecarPathFor(dbPath);
+  try {
+    if (!fs.existsSync(sidecar)) return true;
+    decodeSnapshot(fs.readFileSync(sidecar, "utf8"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sidecarRebuildRemedy(dbPath: string, asideSuffix: string): string {
+  const move = `mv ${dbPath} ${dbPath}.${asideSuffix} && fm-session recover`;
+  if (trackedSidecarCanRebuild(dbPath)) {
+    return `Move it aside and rebuild from the tracked sidecar: ${move}`;
+  }
+  return `The tracked sidecar cannot be used to rebuild this store. Clear the sidecar fault, then: ${move}`;
+}
+
 /**
  * How the file at `p` is shaped, decided STRUCTURALLY.
  *
@@ -113,7 +152,7 @@ function errorMessage(e: unknown): string {
 export function classifyStore(p: string): StoreShape {
   let st;
   try {
-    st = lstatSync(p);
+    st = fs.lstatSync(p);
   } catch (e) {
     const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
     if (code === "ENOENT") return "absent";
@@ -121,7 +160,7 @@ export function classifyStore(p: string): StoreShape {
   }
   if (st.isSymbolicLink()) {
     try {
-      st = statSync(p);
+      st = fs.statSync(p);
     } catch {
       // Dangling symlink: a path entry exists. It is not a missing file.
       return "unrecognised";
@@ -145,8 +184,21 @@ export function classifyStore(p: string): StoreShape {
           name: string;
         }[]).map((r) => r.name),
       );
-    } catch {
-      // File exists. A schema we cannot read is not "absent".
+    } catch (e) {
+      // File exists. Collapse only the cases this shape was created for:
+      // SQLITE_NOTADB and any other schema we cannot interpret. A healthy
+      // store that SQLite cannot open because the parent is not writable,
+      // a lock, or a damaged image is not "unrecognised".
+      const errcode = sqliteErrcode(e);
+      if (errcode === SQLITE_CORRUPT) return "corrupt";
+      if (
+        errcode === SQLITE_BUSY ||
+        errcode === SQLITE_READONLY ||
+        errcode === SQLITE_READONLY_DIRECTORY ||
+        errcode === SQLITE_CANTOPEN
+      ) {
+        throw e;
+      }
       return "unrecognised";
     }
     const hasPort = names.has("store_meta");
@@ -266,7 +318,7 @@ function storeIsEmpty(p: string): boolean {
 
 function rehydrateFromSidecarIfEmpty(p: string): void {
   const sidecar = sidecarPathFor(p);
-  if (pathsAlias(sidecar, p) || !existsSync(sidecar)) return;
+  if (pathsAlias(sidecar, p) || !fs.existsSync(sidecar)) return;
   try {
     if (!storeIsEmpty(p)) return;
   } catch {
@@ -310,8 +362,8 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
   if (shape === "corrupt") {
     process.stderr.write(
       `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. ` +
-        `It is the half-migrated state a pre-fix open produced. Move it aside and let the tracked sidecar rebuild it: ` +
-        `mv ${p} ${p}.corrupt && fm-session recover\n`,
+        `It is the half-migrated state a pre-fix open produced. ` +
+        `${sidecarRebuildRemedy(p, "corrupt")}\n`,
     );
     process.exit(2);
   }
@@ -319,8 +371,7 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     process.stderr.write(
       `refusing: the session store at ${p} exists but is not a Foreman session database. ` +
         `This tool will not write into a file it does not recognise. ` +
-        `Move it aside and rebuild from the tracked sidecar: ` +
-        `mv ${p} ${p}.unrecognised && fm-session recover\n`,
+        `${sidecarRebuildRemedy(p, "unrecognised")}\n`,
     );
     throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
   }
@@ -334,7 +385,7 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     }
     const carrier = `${p}.legacy.ndjson`;
     try {
-      writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
+      fs.writeFileSync(carrier, legacyDumpV1(p), { encoding: "utf8" });
       const res = rebuildFromSidecar({ sidecarPath: carrier, dbPath: p, force: true });
       process.stderr.write(`migrated ${res.rowsWritten} row(s) out of the legacy session schema into ${p}\n`);
     } catch (e) {
@@ -343,7 +394,7 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
       );
       throw new LegacyMigrationRefusal(errorMessage(e));
     } finally {
-      rmSync(carrier, { force: true });
+      fs.rmSync(carrier, { force: true });
     }
     rehydrateFromSidecarIfEmpty(p);
     return true;
@@ -357,12 +408,11 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     //
     // "absent" now means the path has no file. If a file appeared between
     // classify and here, refuse rather than write into it.
-    if (existsSync(p)) {
+    if (fs.existsSync(p)) {
       process.stderr.write(
         `refusing: the session store at ${p} exists but is not a Foreman session database. ` +
           `This tool will not write into a file it does not recognise. ` +
-          `Move it aside and rebuild from the tracked sidecar: ` +
-          `mv ${p} ${p}.unrecognised && fm-session recover\n`,
+          `${sidecarRebuildRemedy(p, "unrecognised")}\n`,
       );
       throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
     }
@@ -374,7 +424,7 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
       // throw must not replace the refusal it was cleaning up after.
       try {
         for (const suffix of ["", "-wal", "-shm"] as const) {
-          rmSync(p + suffix, { force: true });
+          fs.rmSync(p + suffix, { force: true });
         }
       } catch {
         // keep `e`
