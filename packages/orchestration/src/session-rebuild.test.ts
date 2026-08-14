@@ -147,9 +147,10 @@ test("R3 FIX 2: dest journal must be gone even if work after rename throws", () 
       established_ts: "2026-08-01T00:00:00Z",
       session_id: null,
     });
-    assert.ok(
-      existsSync(`${dbPath}-wal`) || existsSync(`${dbPath}-shm`),
-      "precondition: the holder must leave a journal file",
+    assert.equal(
+      existsSync(`${dbPath}-wal`),
+      true,
+      "precondition: the holder must leave dest-wal so the aside construction has a file to move",
     );
     writeFileSync(
       sidecarPath,
@@ -161,6 +162,7 @@ test("R3 FIX 2: dest journal must be gone even if work after rename throws", () 
     );
 
     let destJournalAfterRename = true;
+    let asideWalAfterRename = false;
     assert.throws(
       () =>
         rebuildFromSidecar({
@@ -170,6 +172,7 @@ test("R3 FIX 2: dest journal must be gone even if work after rename throws", () 
           afterRename: () => {
             destJournalAfterRename =
               existsSync(`${dbPath}-wal`) || existsSync(`${dbPath}-shm`);
+            asideWalAfterRename = existsSync(`${dbPath}-wal.rebuild-aside`);
             throw new Error("stop-after-rename");
           },
         }),
@@ -180,6 +183,11 @@ test("R3 FIX 2: dest journal must be gone even if work after rename throws", () 
       destJournalAfterRename,
       false,
       "destination journal still existed after rename; a crash here resurrects discarded rows",
+    );
+    assert.equal(
+      asideWalAfterRename,
+      true,
+      "dest-wal must sit at .rebuild-aside at the hook; pre-fix rename-then-remove never creates that path",
     );
     assert.equal(existsSync(`${dbPath}-wal`), false, "destination -wal survived the throw");
     assert.equal(existsSync(`${dbPath}-shm`), false, "destination -shm survived the throw");

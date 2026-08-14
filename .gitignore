@@ -39,8 +39,10 @@ formal/out/
 # .foreman/session.ndjson, which merges as text; a binary sqlite file in git
 # conflicts unmergeably whenever two lanes both record a fact, and it was
 # rewritten on every READ until the read path was opened read-only. A cold
-# clone rehydrates the .db from the sidecar automatically.
-.foreman/session.db
+# clone rehydrates the .db from the sidecar automatically. The wildcard also
+# covers -wal/-shm, a crashed rebuild's .rebuild-aside journals, and
+# session.db.rebuild.
+.foreman/session.db*
 .foreman/session.ndjson.tmp
 
 # graphify-out is a DERIVED INDEX, regenerable from repository source. It was

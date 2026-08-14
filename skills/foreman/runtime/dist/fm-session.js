@@ -2037,8 +2037,11 @@ function rebuildFromSidecar(opts) {
   try {
     renameSync(tmpPath, opts.dbPath);
   } catch (e) {
-    if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
-    if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
+    try {
+      if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
+      if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
+    } catch {
+    }
     throw e;
   }
   try {

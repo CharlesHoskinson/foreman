@@ -76,8 +76,12 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
   try {
     renameSync(tmpPath, opts.dbPath);
   } catch (e) {
-    if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
-    if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
+    try {
+      if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
+      if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
+    } catch {
+      // Restore failure must not replace the rename error.
+    }
     throw e;
   }
   try {

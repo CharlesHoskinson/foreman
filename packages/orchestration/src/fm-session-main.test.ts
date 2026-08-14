@@ -704,7 +704,7 @@ test("FIX 1: a committed write must not exit 2 when sidecar refresh is refused",
     assert.ok(afterFirst.facts.some((f) => f.statement === "CANONICAL-1"));
 
     const second = spawnSession(dir, p, ["fact", "retry-attempt-2"]);
-    assert.notEqual(second.status, 2, "a second attempt must not be classified as a refusal of the first write");
+    assert.equal(second.status, 0, "a second attempt must not be classified as a refusal of the first write");
     assert.match(second.stderr, /BEHIND the database/);
     const statements = factStatements(p);
     assert.equal(
@@ -902,6 +902,33 @@ test("R3 FIX 1: a hard sidecar write failure after a committed write must exit n
     assert.match(res.stderr, /Clear the sidecar fault/, "operator text must name the sidecar fault first");
     assert.match(res.stderr, /sidecar --force/, "operator text must name fm-session sidecar --force");
     assert.ok(factStatements(p).includes("hard-fail-row"), "the store write must have committed");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("R5 FIX B: a sidecar.tmp directory must surface the write error, not the cleanup error", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-r5-fixb-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(p, ["seed"]);
+    writeSidecarFrom(p, sidecar);
+    mkdirSync(`${sidecar}.tmp`);
+
+    const res = spawnSession(dir, p, ["fact", "eisdir-row"]);
+    assert.equal(res.status, 1, `hard sidecar failure exited ${res.status}; expected 1`);
+    assert.match(
+      res.stderr,
+      /illegal operation on a directory, open/,
+      "stderr must name the writeFileSync EISDIR, not a later cleanup error",
+    );
+    assert.equal(
+      /ERR_FS_EISDIR|rm returned EISDIR/.test(res.stderr),
+      false,
+      "unguarded rmSync on a directory replaces the write error with ERR_FS_EISDIR",
+    );
+    assert.ok(factStatements(p).includes("eisdir-row"), "the store write must have committed");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
