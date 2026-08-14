@@ -696,7 +696,7 @@ test("FIX 1: a committed write must not exit 2 when sidecar refresh is refused",
     writeSidecarFrom(join(dir, "rich.db"), sidecar);
 
     const first = spawnSession(dir, p, ["fact", "retry-attempt-1"]);
-    assert.notEqual(first.status, 2, "exit 2 after a committed write invites a duplicating retry");
+    assert.equal(first.status, 0, "a richer-sidecar refusal after a committed write must stay exit 0");
     assert.match(first.stderr, /BEHIND the database/);
     assert.deepEqual(factStatements(p), ["existing", "retry-attempt-1"]);
     const afterFirst = decodeSnapshot(readFileSync(sidecar, "utf8"));
@@ -896,11 +896,11 @@ test("R3 FIX 1: a hard sidecar write failure after a committed write must exit n
     mkdirSync(sidecar);
 
     const res = spawnSession(dir, p, ["fact", "hard-fail-row"]);
-    assert.notEqual(
-      res.status,
-      0,
-      `hard sidecar failure exited ${res.status}; the catch downgraded it to 0`,
-    );
+    assert.equal(res.status, 1, `hard sidecar failure exited ${res.status}; expected 1`);
+    assert.match(res.stderr, /already committed/, "operator text must say the store write committed");
+    assert.match(res.stderr, /duplicate/, "operator text must warn that a retry duplicates the row");
+    assert.match(res.stderr, /Clear the sidecar fault/, "operator text must name the sidecar fault first");
+    assert.match(res.stderr, /sidecar --force/, "operator text must name fm-session sidecar --force");
     assert.ok(factStatements(p).includes("hard-fail-row"), "the store write must have committed");
   } finally {
     rmSync(dir, { recursive: true, force: true });

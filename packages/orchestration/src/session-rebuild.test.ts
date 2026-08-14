@@ -181,6 +181,18 @@ test("R3 FIX 2: dest journal must be gone even if work after rename throws", () 
       false,
       "destination journal still existed after rename; a crash here resurrects discarded rows",
     );
+    assert.equal(existsSync(`${dbPath}-wal`), false, "destination -wal survived the throw");
+    assert.equal(existsSync(`${dbPath}-shm`), false, "destination -shm survived the throw");
+    assert.equal(
+      existsSync(`${dbPath}-wal.rebuild-aside`),
+      false,
+      "aside -wal was left beside the replacement",
+    );
+    assert.equal(
+      existsSync(`${dbPath}-shm.rebuild-aside`),
+      false,
+      "aside -shm was left beside the replacement",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

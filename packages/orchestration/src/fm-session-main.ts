@@ -541,7 +541,11 @@ function writeAtomic(path: string, text: string): void {
     }
     renameSync(tmp, path);
   } catch (e) {
-    rmSync(tmp, { force: true });
+    try {
+      rmSync(tmp, { force: true });
+    } catch {
+      // force:true hides ENOENT only. EACCES/EPERM must not replace the write error.
+    }
     throw e;
   }
 }
@@ -1155,11 +1159,13 @@ function mainWithSidecar(): void {
           `or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.\n`,
       );
     } else {
-      // A hard write failure is the opposite case: the tracked record is
-      // stale and the row exists only in the gitignored .db.
+      // A hard write failure is the opposite case: the row is already in
+      // the store. Exit 1 so the operator does not treat this as success,
+      // and name the same recovery as the refusal: do not re-run the write.
       process.stderr.write(
         `WARNING: the store was written but its sidecar could not be refreshed (${e}). ` +
-          `The tracked record is stale. The row exists only in the database.\n`,
+          `The store write already committed. Re-running this write will duplicate the row. ` +
+          `Clear the sidecar fault, then run \`fm-session sidecar --force\` to dump the store over the tracked record.\n`,
       );
       rc = 1;
     }

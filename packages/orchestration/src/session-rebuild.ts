@@ -30,7 +30,7 @@ export type RebuildOptions = {
   readonly dbPath: string;
   /** Replace an existing database. Without this an existing file is refused. */
   readonly force?: boolean;
-  /** Test hook. Called after dest-journal removal. Production callers omit it. */
+  /** Test hook. Called at the instant after dest rename. Production callers omit it. */
   readonly afterRename?: () => void;
 };
 
@@ -58,16 +58,34 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
 
   // close() of the last connection checkpoints the temp file.
   //
-  // Remove the destination journal immediately after rename, before temp
-  // cleanup. That shrinks the resurrection window to one rmSync pair.
-  // A crash between renameSync and that removal still leaves dest-wal
-  // beside the new file. The next reader applies it (Critical 4).
-  // Pre-rename dest-journal removal would close that window and would
-  // reopen FIX 6: a failed rename would drop uncheckpointed dest-wal.
+  // Move dest journals aside before rename. SQLite does not check that a
+  // WAL belongs to the file beside it, so leftover frames replay by page
+  // number onto a differently-shaped store. That is silent corruption.
+  // Deleting dest journals before rename would close the window and would
+  // reopen FIX 6: a failed rename would drop the only uncheckpointed copy.
+  // A failed rename restores the aside journals byte-for-byte.
   removeJournalSidecars(tmpPath);
-  renameSync(tmpPath, opts.dbPath);
-  removeJournalSidecars(opts.dbPath);
-  opts.afterRename?.();
-  removeJournalSidecars(tmpPath);
+  const asideWal = `${opts.dbPath}-wal.rebuild-aside`;
+  const asideShm = `${opts.dbPath}-shm.rebuild-aside`;
+  rmSync(asideWal, { force: true });
+  rmSync(asideShm, { force: true });
+  const movedWal = existsSync(`${opts.dbPath}-wal`);
+  if (movedWal) renameSync(`${opts.dbPath}-wal`, asideWal);
+  const movedShm = existsSync(`${opts.dbPath}-shm`);
+  if (movedShm) renameSync(`${opts.dbPath}-shm`, asideShm);
+  try {
+    renameSync(tmpPath, opts.dbPath);
+  } catch (e) {
+    if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
+    if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
+    throw e;
+  }
+  try {
+    opts.afterRename?.();
+  } finally {
+    rmSync(asideWal, { force: true });
+    rmSync(asideShm, { force: true });
+    removeJournalSidecars(tmpPath);
+  }
   return { rowsWritten, nextIds: snapshot.nextIds };
 }

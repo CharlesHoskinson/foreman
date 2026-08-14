@@ -2026,10 +2026,28 @@ function rebuildFromSidecar(opts) {
     store.close();
   }
   removeJournalSidecars(tmpPath);
-  renameSync(tmpPath, opts.dbPath);
-  removeJournalSidecars(opts.dbPath);
-  opts.afterRename?.();
-  removeJournalSidecars(tmpPath);
+  const asideWal = `${opts.dbPath}-wal.rebuild-aside`;
+  const asideShm = `${opts.dbPath}-shm.rebuild-aside`;
+  rmSync(asideWal, { force: true });
+  rmSync(asideShm, { force: true });
+  const movedWal = existsSync(`${opts.dbPath}-wal`);
+  if (movedWal) renameSync(`${opts.dbPath}-wal`, asideWal);
+  const movedShm = existsSync(`${opts.dbPath}-shm`);
+  if (movedShm) renameSync(`${opts.dbPath}-shm`, asideShm);
+  try {
+    renameSync(tmpPath, opts.dbPath);
+  } catch (e) {
+    if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
+    if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
+    throw e;
+  }
+  try {
+    opts.afterRename?.();
+  } finally {
+    rmSync(asideWal, { force: true });
+    rmSync(asideShm, { force: true });
+    removeJournalSidecars(tmpPath);
+  }
   return { rowsWritten, nextIds: snapshot.nextIds };
 }
 
@@ -2549,7 +2567,10 @@ function writeAtomic(path, text) {
     }
     renameSync2(tmp, path);
   } catch (e) {
-    rmSync3(tmp, { force: true });
+    try {
+      rmSync3(tmp, { force: true });
+    } catch {
+    }
     throw e;
   }
 }
@@ -3101,7 +3122,7 @@ function mainWithSidecar() {
       );
     } else {
       process.stderr.write(
-        `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is stale. The row exists only in the database.
+        `WARNING: the store was written but its sidecar could not be refreshed (${e}). The store write already committed. Re-running this write will duplicate the row. Clear the sidecar fault, then run \`fm-session sidecar --force\` to dump the store over the tracked record.
 `
       );
       rc = 1;
