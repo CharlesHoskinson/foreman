@@ -543,24 +543,6 @@ export function sidecarNdjson(dbFile: string, opts: { readonly readOnly?: boolea
   }
 }
 
-export type WriteAtomicHook = {
-  readonly forceParentDirOpenFailure?: boolean;
-};
-
-let writeAtomicHook: WriteAtomicHook | undefined;
-
-/** Test-only. Forces the post-rename parent-directory open to fail. */
-export function setWriteAtomicHook(hook: WriteAtomicHook | undefined): void {
-  writeAtomicHook = hook;
-}
-
-function injectParentDirOpenFailure(): boolean {
-  return (
-    writeAtomicHook?.forceParentDirOpenFailure === true ||
-    process.env.FOREMAN_INJECT_SIDECAR_DIR_FSYNC === "1"
-  );
-}
-
 export function writeAtomic(path: string, text: string): void {
   const tmp = `${path}.tmp.${process.pid}.${randomBytes(8).toString("hex")}`;
   try {
@@ -589,13 +571,6 @@ export function writeAtomic(path: string, text: string): void {
   // published sidecar into a failed write, and tmp is gone so the catch
   // above must not run here.
   try {
-    if (injectParentDirOpenFailure()) {
-      const err = new Error(
-        "ENOENT: no such file or directory, open '__inject_fsync_failure__'",
-      ) as NodeJS.ErrnoException;
-      err.code = "ENOENT";
-      throw err;
-    }
     // rename is atomic on POSIX for the directory entry. The parent
     // directory itself is not durable until it is fsynced. A crash after
     // rename and before that flush can drop the new name even though this

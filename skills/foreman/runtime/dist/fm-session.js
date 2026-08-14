@@ -2588,13 +2588,6 @@ function sidecarNdjson(dbFile, opts = {}) {
     store.close();
   }
 }
-var writeAtomicHook;
-function setWriteAtomicHook(hook) {
-  writeAtomicHook = hook;
-}
-function injectParentDirOpenFailure() {
-  return writeAtomicHook?.forceParentDirOpenFailure === true || process.env.FOREMAN_INJECT_SIDECAR_DIR_FSYNC === "1";
-}
 function writeAtomic(path, text) {
   const tmp = `${path}.tmp.${process.pid}.${randomBytes(8).toString("hex")}`;
   try {
@@ -2614,13 +2607,6 @@ function writeAtomic(path, text) {
     throw e;
   }
   try {
-    if (injectParentDirOpenFailure()) {
-      const err = new Error(
-        "ENOENT: no such file or directory, open '__inject_fsync_failure__'"
-      );
-      err.code = "ENOENT";
-      throw err;
-    }
     const dirFd = openSync(dirname2(path), "r");
     try {
       fsyncSync(dirFd);
@@ -3204,7 +3190,6 @@ export {
   assessSidecarReplace,
   importSidecar,
   main,
-  setWriteAtomicHook,
   sidecarNdjson,
   writeAtomic
 };

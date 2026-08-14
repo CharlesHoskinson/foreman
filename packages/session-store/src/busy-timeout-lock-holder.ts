@@ -14,19 +14,25 @@
  * Protocol, driven by the parent over the IPC channel `fork()` provides:
  *   argv[2] — path to the SQLite file to lock.
  *   argv[3] — how long to hold the write lock, in milliseconds.
- * Sequence: open the db, acquire the write lock with BEGIN IMMEDIATE (this
- * takes the lock the instant the statement runs, not lazily on first write),
- * send { type: "locked" } once it is held, hold it for the given duration,
- * then COMMIT and exit. Never runs as a test itself — it has no `.test.ts`
- * suffix so the test glob in scripts/run-tests.ts does not pick it up.
+ *   argv[4] — optional lock kind: IMMEDIATE (default) or EXCLUSIVE.
+ * Sequence: open the db, acquire the lock with BEGIN IMMEDIATE or
+ * BEGIN EXCLUSIVE (this takes the lock the instant the statement runs,
+ * not lazily on first write), send { type: "locked" } once it is held,
+ * hold it for the given duration, then COMMIT and exit. Never runs as a
+ * test itself — it has no `.test.ts` suffix so the test glob in
+ * scripts/run-tests.ts does not pick it up.
  */
 import { DatabaseSync } from "node:sqlite";
 
 const path = process.argv[2];
 const holdMs = Number(process.argv[3]);
+const lockKind = (process.argv[4] ?? "IMMEDIATE").toUpperCase();
 
 if (!path || !Number.isFinite(holdMs)) {
-  throw new Error("usage: busy-timeout-lock-holder.ts <db-path> <hold-ms>");
+  throw new Error("usage: busy-timeout-lock-holder.ts <db-path> <hold-ms> [IMMEDIATE|EXCLUSIVE]");
+}
+if (lockKind !== "IMMEDIATE" && lockKind !== "EXCLUSIVE") {
+  throw new Error("lock kind must be IMMEDIATE or EXCLUSIVE");
 }
 if (typeof process.send !== "function") {
   throw new Error("busy-timeout-lock-holder.ts must be run via child_process.fork (no IPC channel)");
@@ -34,7 +40,7 @@ if (typeof process.send !== "function") {
 const send = process.send.bind(process);
 
 const db = new DatabaseSync(path);
-db.exec("BEGIN IMMEDIATE");
+db.exec(lockKind === "EXCLUSIVE" ? "BEGIN EXCLUSIVE" : "BEGIN IMMEDIATE");
 send({ type: "locked" });
 
 setTimeout(() => {

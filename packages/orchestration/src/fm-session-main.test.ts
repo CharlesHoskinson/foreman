@@ -10,6 +10,7 @@ import {
   statSync,
   existsSync,
   renameSync,
+  chmodSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -23,7 +24,6 @@ import {
   main,
   assessSidecarReplace,
   writeAtomic,
-  setWriteAtomicHook,
 } from "./fm-session-main.js";
 import { bootstrapStore, classifyStore, sidecarPathFor } from "./session-legacy-shape.js";
 
@@ -465,6 +465,31 @@ function spawnSession(
     encoding: "utf8",
     env: { ...process.env, FOREMAN_SESSION_DB: dbPath, ...extraEnv },
   });
+}
+
+function directoryModesAreEnforced(): boolean {
+  return (
+    process.platform !== "win32" &&
+    !(typeof process.getuid === "function" && process.getuid() === 0)
+  );
+}
+
+function captureStderr(body: () => void): string {
+  let text = "";
+  const orig = process.stderr.write;
+  process.stderr.write = ((
+    chunk: string | Uint8Array,
+    ...args: unknown[]
+  ) => {
+    text += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+    return Reflect.apply(orig, process.stderr, [chunk, ...args]);
+  }) as typeof process.stderr.write;
+  try {
+    body();
+    return text;
+  } finally {
+    process.stderr.write = orig;
+  }
 }
 
 test("CRITICAL 1a: a legacy store missing a declared table is refused, not dumped empty", () => {
@@ -919,38 +944,64 @@ test("R3 FIX 1: a hard sidecar write failure after a committed write must exit n
   }
 });
 
-test("W2.3 FIX 1: writeAtomic returns after a forced parent-dir open failure", () => {
-  const dir = mkdtempSync(join(tmpdir(), "fm-w23-unit-"));
+test("W2.3: writeAtomic emits no durability warning on the happy path", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w23-happy-"));
   try {
     const dest = join(dir, "session.ndjson");
-    setWriteAtomicHook({ forceParentDirOpenFailure: true });
-    writeAtomic(dest, "published\n");
+    const stderr = captureStderr(() => {
+      writeAtomic(dest, "published\n");
+    });
     assert.equal(readFileSync(dest, "utf8"), "published\n");
+    assert.doesNotMatch(
+      stderr,
+      /sidecar published, durability flush failed/,
+      "a live parent-directory fsync must stay silent",
+    );
   } finally {
-    setWriteAtomicHook(undefined);
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("W2.3 FIX 1: a post-rename directory fsync failure does not fail a published write", () => {
-  const dir = mkdtempSync(join(tmpdir(), "fm-w23-fsync-"));
+test("W2.3: chmod 0o300 on the parent directory warns and still publishes", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 0o300 does not produce EACCES for root or on win32");
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "fm-w23-chmod-"));
   try {
-    const p = join(dir, "session.db");
+    const dest = join(dir, "session.ndjson");
+    chmodSync(dir, 0o300);
+    const stderr = captureStderr(() => {
+      writeAtomic(dest, "published\n");
+    });
+    chmodSync(dir, 0o700);
+    assert.equal(readFileSync(dest, "utf8"), "published\n");
+    assert.match(stderr, /sidecar published, durability flush failed/);
+    assert.match(stderr, /EACCES/);
+  } finally {
+    try {
+      chmodSync(dir, 0o700);
+    } catch {
+      // restore so cleanup can list the directory
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W2.3: a published CLI write emits no durability warning", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w23-cli-happy-"));
+  try {
+    const storeDir = join(dir, "store");
+    mkdirSync(storeDir);
+    const p = join(storeDir, "session.db");
     const sidecar = sidecarPathFor(p);
     seedFacts(p, ["first-row"]);
     writeSidecarFrom(p, sidecar);
 
-    const res = spawnSession(dir, p, ["fact", "second-row"], {
-      FOREMAN_INJECT_SIDECAR_DIR_FSYNC: "1",
-    });
-    assert.equal(
-      res.status,
-      0,
-      `published write failed after dir fsync inject: exit ${res.status}\n${res.stderr}`,
-    );
+    const res = spawnSession(dir, p, ["fact", "second-row"]);
+    assert.equal(res.status, 0, `happy-path fact write failed: ${res.stderr}`);
     assert.match(res.stdout, /fact /);
-    assert.match(res.stderr, /sidecar published, durability flush failed/);
-    assert.match(res.stderr, /__inject_fsync_failure__/);
+    assert.doesNotMatch(res.stderr, /sidecar published, durability flush failed/);
     assert.doesNotMatch(res.stderr, /could not be refreshed/);
     assert.doesNotMatch(res.stderr, /BEHIND/);
     assert.doesNotMatch(res.stderr, /duplicate the row/);
@@ -960,6 +1011,50 @@ test("W2.3 FIX 1: a post-rename directory fsync failure does not fail a publishe
     assert.match(body, /"statement":"first-row"/);
     assert.match(body, /"statement":"second-row"/);
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W2.3: a real parent-directory EACCES does not fail a published CLI write", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 0o300 does not produce EACCES for root or on win32");
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "fm-w23-cli-chmod-"));
+  const storeDir = join(dir, "store");
+  mkdirSync(storeDir);
+  try {
+    const p = join(storeDir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(p, ["first-row"]);
+    writeSidecarFrom(p, sidecar);
+
+    chmodSync(storeDir, 0o300);
+    const res = spawnSession(dir, p, ["fact", "second-row"]);
+    chmodSync(storeDir, 0o700);
+
+    assert.equal(
+      res.status,
+      0,
+      `published write failed after real dir EACCES: exit ${res.status}\n${res.stderr}`,
+    );
+    assert.match(res.stdout, /fact /);
+    assert.match(res.stderr, /sidecar published, durability flush failed/);
+    assert.match(res.stderr, /EACCES/);
+    assert.doesNotMatch(res.stderr, /could not be refreshed/);
+    assert.doesNotMatch(res.stderr, /BEHIND/);
+    assert.doesNotMatch(res.stderr, /duplicate the row/);
+    assert.ok(factStatements(p).includes("first-row"));
+    assert.ok(factStatements(p).includes("second-row"));
+    const body = readFileSync(sidecar, "utf8");
+    assert.match(body, /"statement":"first-row"/);
+    assert.match(body, /"statement":"second-row"/);
+  } finally {
+    try {
+      chmodSync(storeDir, 0o700);
+    } catch {
+      // restore so cleanup can list the directory
+    }
     rmSync(dir, { recursive: true, force: true });
   }
 });
