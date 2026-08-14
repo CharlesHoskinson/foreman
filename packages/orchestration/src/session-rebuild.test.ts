@@ -134,3 +134,54 @@ test("FIX 6: a failed rename must leave the destination WAL in place", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("R3 FIX 2: dest journal must be gone even if work after rename throws", () => {
+  const dir = mkdtempSync(join(tmpdir(), "rebuild-window-"));
+  try {
+    const dbPath = join(dir, "session.db");
+    const sidecarPath = join(dir, "session.ndjson");
+    const holder = SqliteSessionStore.open(dbPath);
+    holder.addFact({
+      statement: "POISON-SHOULD-NOT-SURVIVE",
+      evidence: null,
+      established_ts: "2026-08-01T00:00:00Z",
+      session_id: null,
+    });
+    assert.ok(
+      existsSync(`${dbPath}-wal`) || existsSync(`${dbPath}-shm`),
+      "precondition: the holder must leave a journal file",
+    );
+    writeFileSync(
+      sidecarPath,
+      [
+        `{"format": "foreman-session-sidecar", "format_version": 1}`,
+        `{"table": "facts", "row": {"id": 1, "statement": "original-fact", "evidence": null, "established_ts": "2026-01-01T00:00:00Z", "session_id": null, "superseded_by": null, "superseded_at": null, "supersede_reason": null}}`,
+        "",
+      ].join("\n"),
+    );
+
+    let destJournalAfterRename = true;
+    assert.throws(
+      () =>
+        rebuildFromSidecar({
+          sidecarPath,
+          dbPath,
+          force: true,
+          afterRename: () => {
+            destJournalAfterRename =
+              existsSync(`${dbPath}-wal`) || existsSync(`${dbPath}-shm`);
+            throw new Error("stop-after-rename");
+          },
+        }),
+      /stop-after-rename/,
+    );
+    holder.close();
+    assert.equal(
+      destJournalAfterRename,
+      false,
+      "destination journal still existed after rename; a crash here resurrects discarded rows",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

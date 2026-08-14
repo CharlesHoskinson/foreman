@@ -9,6 +9,7 @@ import {
   readFileSync as readFileSync2,
   writeFileSync as writeFileSync2,
   renameSync as renameSync2,
+  rmSync as rmSync3,
   openSync,
   closeSync,
   fsyncSync
@@ -2026,8 +2027,9 @@ function rebuildFromSidecar(opts) {
   }
   removeJournalSidecars(tmpPath);
   renameSync(tmpPath, opts.dbPath);
-  removeJournalSidecars(tmpPath);
   removeJournalSidecars(opts.dbPath);
+  opts.afterRename?.();
+  removeJournalSidecars(tmpPath);
   return { rowsWritten, nextIds: snapshot.nextIds };
 }
 
@@ -2537,14 +2539,19 @@ function sidecarNdjson(dbFile, opts = {}) {
 }
 function writeAtomic(path, text) {
   const tmp = path + ".tmp";
-  writeFileSync2(tmp, text, { encoding: "utf8" });
-  const fd = openSync(tmp, "r+");
   try {
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
+    writeFileSync2(tmp, text, { encoding: "utf8" });
+    const fd = openSync(tmp, "r+");
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync2(tmp, path);
+  } catch (e) {
+    rmSync3(tmp, { force: true });
+    throw e;
   }
-  renameSync2(tmp, path);
 }
 var SidecarReplaceRefused = class extends Error {
   constructor(message) {
@@ -2596,7 +2603,7 @@ function assessSidecarReplace(oldSnap, newSnap) {
 function sidecarReplaceMessage(path, verdict) {
   const kinds = verdict.kindShrinks.length > 0 ? ` kinds ${verdict.kindShrinks.join(",")}` : "";
   const lost = verdict.lostIdentities.length > 0 ? ` missing ${verdict.lostIdentities.length} identit${verdict.lostIdentities.length === 1 ? "y" : "ies"}` : "";
-  return `refusing: existing sidecar ${path} has ${verdict.oldCount} row(s); refusing to replace it with ${verdict.newCount} row(s)${kinds}${lost} (identity ${verdict.oldDigest.slice(0, 12)} -> ${verdict.newDigest.slice(0, 12)}). Run \`fm-session sidecar --force\` to dump the store over this file, or \`fm-session import-sidecar ${path} --force\` to restore this file into the store.
+  return `refusing: existing sidecar ${path} has ${verdict.oldCount} row(s); refusing to replace it with ${verdict.newCount} row(s)${kinds}${lost} (identity-scoped ${verdict.oldDigest.slice(0, 12)} -> ${verdict.newDigest.slice(0, 12)}). Run \`fm-session sidecar --force\` to dump the store over this file, or \`fm-session import-sidecar ${path} --force\` to restore this file into the store.
 `;
 }
 function writeSidecar(path, text, opts = {}) {
@@ -3087,10 +3094,18 @@ function mainWithSidecar() {
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
 `);
   } catch (e) {
-    process.stderr.write(
-      `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database. Run \`fm-session sidecar --force\` to dump the store over the tracked record, or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.
+    if (e instanceof SidecarReplaceRefused) {
+      process.stderr.write(
+        `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database. Run \`fm-session sidecar --force\` to dump the store over the tracked record, or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.
 `
-    );
+      );
+    } else {
+      process.stderr.write(
+        `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is stale. The row exists only in the database.
+`
+      );
+      rc = 1;
+    }
   }
   process.exit(rc);
 }

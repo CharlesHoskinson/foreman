@@ -8,6 +8,7 @@ import {
   readFileSync,
   writeFileSync,
   renameSync,
+  rmSync,
   openSync,
   closeSync,
   fsyncSync,
@@ -527,17 +528,22 @@ export function sidecarNdjson(dbFile: string, opts: { readonly readOnly?: boolea
 
 function writeAtomic(path: string, text: string): void {
   const tmp = path + ".tmp";
-  writeFileSync(tmp, text, { encoding: "utf8" });
-  // The sidecar is the tracked, canonical record. Without this flush the
-  // rename can land before the bytes do, and the record of truth is the one
-  // artefact that must not be able to tear.
-  const fd = openSync(tmp, "r+");
   try {
-    fsyncSync(fd);
-  } finally {
-    closeSync(fd);
+    writeFileSync(tmp, text, { encoding: "utf8" });
+    // The sidecar is the tracked, canonical record. Without this flush the
+    // rename can land before the bytes do, and the record of truth is the one
+    // artefact that must not be able to tear.
+    const fd = openSync(tmp, "r+");
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(tmp, path);
+  } catch (e) {
+    rmSync(tmp, { force: true });
+    throw e;
   }
-  renameSync(tmp, path);
 }
 
 export class SidecarReplaceRefused extends Error {
@@ -627,7 +633,7 @@ function sidecarReplaceMessage(path: string, verdict: Extract<SidecarReplaceAsse
     `refusing: existing sidecar ${path} has ${verdict.oldCount} row(s); ` +
     `refusing to replace it with ${verdict.newCount} row(s)` +
     `${kinds}${lost} ` +
-    `(identity ${verdict.oldDigest.slice(0, 12)} -> ${verdict.newDigest.slice(0, 12)}). ` +
+    `(identity-scoped ${verdict.oldDigest.slice(0, 12)} -> ${verdict.newDigest.slice(0, 12)}). ` +
     `Run \`fm-session sidecar --force\` to dump the store over this file, ` +
     `or \`fm-session import-sidecar ${path} --force\` to restore this file into the store.\n`
   );
@@ -1139,16 +1145,24 @@ function mainWithSidecar(): void {
     writeSidecar(out, lines, { allowShrink });
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
   } catch (e) {
-    // The store write already committed. Exit 2 here invited an operator
-    // retry that duplicated the row, and process.exit inside writeSidecar
-    // suppressed this message. Keep rc=0 so a retry is not the obvious next
-    // step. Name commands that honour --force.
-    process.stderr.write(
-      `WARNING: the store was written but its sidecar could not be refreshed (${e}). ` +
-        `The tracked record is now BEHIND the database. ` +
-        `Run \`fm-session sidecar --force\` to dump the store over the tracked record, ` +
-        `or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.\n`,
-    );
+    if (e instanceof SidecarReplaceRefused) {
+      // The store write already committed. On a refusal the existing sidecar
+      // is strictly richer, so keep rc=0. Exit 2 invited a duplicating retry.
+      process.stderr.write(
+        `WARNING: the store was written but its sidecar could not be refreshed (${e}). ` +
+          `The tracked record is now BEHIND the database. ` +
+          `Run \`fm-session sidecar --force\` to dump the store over the tracked record, ` +
+          `or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.\n`,
+      );
+    } else {
+      // A hard write failure is the opposite case: the tracked record is
+      // stale and the row exists only in the gitignored .db.
+      process.stderr.write(
+        `WARNING: the store was written but its sidecar could not be refreshed (${e}). ` +
+          `The tracked record is stale. The row exists only in the database.\n`,
+      );
+      rc = 1;
+    }
   }
   process.exit(rc);
 }

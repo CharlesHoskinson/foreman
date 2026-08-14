@@ -30,6 +30,8 @@ export type RebuildOptions = {
   readonly dbPath: string;
   /** Replace an existing database. Without this an existing file is refused. */
   readonly force?: boolean;
+  /** Test hook. Called after dest-journal removal. Production callers omit it. */
+  readonly afterRename?: () => void;
 };
 
 export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
@@ -54,12 +56,18 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
     store.close();
   }
 
-  // close() of the last connection checkpoints the temp file. Remove the
-  // destination journal only AFTER the rename. Deleting dest-wal first would
-  // drop uncheckpointed committed rows if renameSync then fails.
+  // close() of the last connection checkpoints the temp file.
+  //
+  // Remove the destination journal immediately after rename, before temp
+  // cleanup. That shrinks the resurrection window to one rmSync pair.
+  // A crash between renameSync and that removal still leaves dest-wal
+  // beside the new file. The next reader applies it (Critical 4).
+  // Pre-rename dest-journal removal would close that window and would
+  // reopen FIX 6: a failed rename would drop uncheckpointed dest-wal.
   removeJournalSidecars(tmpPath);
   renameSync(tmpPath, opts.dbPath);
-  removeJournalSidecars(tmpPath);
   removeJournalSidecars(opts.dbPath);
+  opts.afterRename?.();
+  removeJournalSidecars(tmpPath);
   return { rowsWritten, nextIds: snapshot.nextIds };
 }

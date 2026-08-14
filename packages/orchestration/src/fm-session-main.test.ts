@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   mkdtempSync,
+  mkdirSync,
   statSync,
   existsSync,
   renameSync,
@@ -878,6 +879,83 @@ test("FIX 2 bound: same-count identity loss is refused; payload mutation is not"
       mutated.ok,
       true,
       "same identities with a mutated statement are outside this bound",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("R3 FIX 1: a hard sidecar write failure after a committed write must exit non-zero", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-r3-fix1-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(p, ["seed"]);
+    writeSidecarFrom(p, sidecar);
+    rmSync(sidecar);
+    mkdirSync(sidecar);
+
+    const res = spawnSession(dir, p, ["fact", "hard-fail-row"]);
+    assert.notEqual(
+      res.status,
+      0,
+      `hard sidecar failure exited ${res.status}; the catch downgraded it to 0`,
+    );
+    assert.ok(factStatements(p).includes("hard-fail-row"), "the store write must have committed");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("R3 FIX 3: a failed sidecar rename must not leave the temp file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-r3-fix3-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(p, ["seed"]);
+    writeSidecarFrom(p, sidecar);
+    rmSync(sidecar);
+    mkdirSync(sidecar);
+
+    spawnSession(dir, p, ["fact", "tmp-leak-row"]);
+    assert.equal(
+      existsSync(`${sidecar}.tmp`),
+      false,
+      "writeAtomic left <sidecar>.tmp after rename failed",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("R3 FIX 4: the refuse line must name the identity-scoped bound", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-r3-fix4-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFactsWithIds(join(dir, "canonical.db"), [
+      { id: 1, statement: "CANONICAL-1" },
+      { id: 2, statement: "CANONICAL-2" },
+      { id: 3, statement: "CANONICAL-3" },
+    ]);
+    writeSidecarFrom(join(dir, "canonical.db"), sidecar);
+    seedFactsWithIds(p, [
+      { id: 10, statement: "JUNK-1" },
+      { id: 11, statement: "JUNK-2" },
+      { id: 12, statement: "JUNK-3" },
+    ]);
+
+    const res = spawnSession(dir, p, ["sidecar"]);
+    assert.notEqual(res.status, 0, "same-count identity loss must still refuse");
+    assert.match(
+      res.stderr,
+      /identity-scoped/,
+      "operator text must say the guard is identity-scoped",
+    );
+    const after = decodeSnapshot(readFileSync(sidecar, "utf8"));
+    assert.deepEqual(
+      after.facts.map((f) => f.statement),
+      ["CANONICAL-1", "CANONICAL-2", "CANONICAL-3"],
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
