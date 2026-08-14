@@ -1,19 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { SqliteSessionStore } from "./sqlite-store.js";
-
-const here = dirname(fileURLToPath(import.meta.url));
-
-test("W3.7: ensureCounters uses INSERT OR IGNORE", () => {
-  const src = readFileSync(join(here, "sqlite-store.ts"), "utf8");
-  assert.match(src, /INSERT OR IGNORE INTO store_meta/);
-});
 
 test("W3.7: first open seeds counters; a later open does not reset them", () => {
   const dir = mkdtempSync(join(tmpdir(), "w37-counters-"));

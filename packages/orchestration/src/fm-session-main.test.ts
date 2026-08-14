@@ -1425,6 +1425,168 @@ test("W3.6: an unrelated port failure on supersede is not reported as a missing-
   }
 });
 
+function threeLineSidecarText(): string {
+  return [
+    `{"format":"foreman-session-sidecar","format_version":1}`,
+    `{"table":"facts","row":{"id":1,"statement":"keep-a","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+    `{"table":"facts","row":{"id":2,"statement":"keep-b","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+    "",
+  ].join("\n");
+}
+
+test("W3.4: sidecar A/B preserves the file when readable, unreadable, or corrupt", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w34-ab-"));
+  try {
+    const readableText = threeLineSidecarText();
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    SqliteSessionStore.open(p).close();
+
+    writeFileSync(sidecar, readableText);
+    const readable = spawnSession(dir, p, ["sidecar"]);
+    assert.equal(readable.status, 2, `readable sidecar exited ${readable.status}; expected 2`);
+    assert.match(readable.stderr, /has 2 row\(s\).*0 row\(s\)/);
+    assert.equal(readFileSync(sidecar, "utf8"), readableText, "readable sidecar must be preserved");
+
+    if (!directoryModesAreEnforced()) {
+      t.skip("chmod 000 does not block the owner on root or win32; corrupt arm still runs below");
+    } else {
+      writeFileSync(sidecar, readableText);
+      chmodSync(sidecar, 0o000);
+      const unreadable = spawnSession(dir, p, ["sidecar"]);
+      chmodSync(sidecar, 0o644);
+      assert.equal(
+        unreadable.status,
+        2,
+        `unreadable sidecar exited ${unreadable.status}; expected 2. stdout=${unreadable.stdout}`,
+      );
+      assert.match(unreadable.stderr, /could not be read/);
+      assert.match(unreadable.stderr, /EACCES|permission denied/);
+      assert.doesNotMatch(unreadable.stdout, /dumped 0/);
+      assert.equal(
+        readFileSync(sidecar, "utf8"),
+        readableText,
+        "unreadable sidecar must be preserved, not replaced with a 0-row dump",
+      );
+    }
+
+    const corruptText = "this is not a sidecar\nline-two\nline-three\n";
+    writeFileSync(sidecar, corruptText);
+    const corrupt = spawnSession(dir, p, ["sidecar"]);
+    assert.equal(
+      corrupt.status,
+      2,
+      `corrupt sidecar exited ${corrupt.status}; expected 2. stdout=${corrupt.stdout}`,
+    );
+    assert.match(corrupt.stderr, /could not be parsed/);
+    assert.doesNotMatch(corrupt.stdout, /dumped 0/);
+    assert.equal(
+      readFileSync(sidecar, "utf8"),
+      corruptText,
+      "corrupt-but-readable sidecar must be preserved, not replaced with a 0-row dump",
+    );
+  } finally {
+    try {
+      chmodSync(join(dir, "session.ndjson"), 0o644);
+    } catch {
+      // restore so cleanup can unlink
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.4: a read-only refusal must not leave an empty port-shaped db", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 000 does not block the owner on root or win32");
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "fm-w34-reach-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    writeFileSync(sidecar, threeLineSidecarText());
+    chmodSync(sidecar, 0o000);
+    const res = spawnSession(dir, p, ["recover"]);
+    chmodSync(sidecar, 0o644);
+    assert.equal(res.status, 2, `recover exited ${res.status}; expected 2`);
+    assert.match(res.stderr, /could not be read/);
+    assert.equal(existsSync(p), false, "refusal left an empty port-shaped .db that the next invocation would treat as healthy");
+    assert.equal(classifyStore(p), "absent");
+    assert.equal(existsSync(`${p}-wal`), false);
+    assert.equal(existsSync(`${p}-shm`), false);
+  } finally {
+    try {
+      chmodSync(join(dir, "session.ndjson"), 0o644);
+    } catch {
+      // restore so cleanup can unlink
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.1/W3.5: a parent-directory chmod 500 is not reported as sqlite3.OperationalError", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 500 does not block the owner on root or win32");
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "fm-w35-parent500-"));
+  const parent = join(dir, "locked");
+  mkdirSync(parent);
+  try {
+    chmodSync(parent, 0o500);
+    const p = join(parent, "session.db");
+    const res = spawnSession(dir, p, ["recover"]);
+    chmodSync(parent, 0o700);
+    assert.equal(res.status, 1, `parent chmod 500 exited ${res.status}; expected 1`);
+    assert.doesNotMatch(res.stderr, /OperationalError/);
+    assert.match(res.stderr, /EACCES|permission denied/);
+  } finally {
+    try {
+      chmodSync(parent, 0o700);
+    } catch {
+      // restore so cleanup can rmdir
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.6: an already-superseded fact is not reported as missing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w36-split-"));
+  try {
+    const p = join(dir, "session.db");
+    const added = spawnSession(dir, p, ["fact", "live"]);
+    assert.equal(added.status, 0, added.stderr);
+    const first = spawnSession(dir, p, ["supersede", "1", "replacement", "--reason", "r"]);
+    assert.equal(first.status, 0, first.stderr);
+    const second = spawnSession(dir, p, ["supersede", "1", "again", "--reason", "r"]);
+    assert.equal(second.status, 2, `second supersede exited ${second.status}; expected 2`);
+    assert.match(second.stderr, /fact 1 is already superseded/);
+    assert.match(second.stderr, /set-once/);
+    assert.doesNotMatch(second.stderr, /does not exist or is already superseded/);
+    const missing = spawnSession(dir, p, ["supersede", "9999", "x", "--reason", "r"]);
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /does not exist or is already superseded/);
+    assert.doesNotMatch(missing.stderr, /set-once/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r2: measure without VALUE refuses instead of throwing a SQLite bind TypeError", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r2-measure-"));
+  try {
+    const p = join(dir, "session.db");
+    const res = spawnSession(dir, p, ["measure", "m1", "--num", "1", "--scope", "x"]);
+    assert.equal(res.status, 2, `measure missing VALUE exited ${res.status}; expected 2`);
+    assert.match(res.stderr, /METRIC and VALUE|requires.*VALUE/i);
+    assert.doesNotMatch(res.stderr, /TypeError/);
+    assert.doesNotMatch(res.stderr, /SQLite parameter/);
+    assert.doesNotMatch(res.stderr, /at SqliteSessionStore/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("W2.6: an in-command process.exit refusal leaves no -wal or -shm", () => {
   const dir = mkdtempSync(join(tmpdir(), "fm-w26-end-"));
   try {

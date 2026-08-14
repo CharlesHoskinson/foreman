@@ -1,2 +1,2 @@
 rehydrated 73 row(s) from <WORKSPACE>/.foreman/session.ndjson (the .db is a derived cache; the sidecar is what git tracks)
-refusing: cannot supersede fact 16: it does not exist or is already superseded
+refusing: fact 16 is already superseded; supersession columns are set-once

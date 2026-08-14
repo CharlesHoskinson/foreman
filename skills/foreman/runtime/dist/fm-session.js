@@ -12,7 +12,10 @@ import {
   rmSync as rmSync3,
   openSync,
   closeSync,
-  fsyncSync
+  fsyncSync,
+  statSync,
+  accessSync,
+  constants
 } from "node:fs";
 
 // packages/session-store/src/entities.ts
@@ -2293,7 +2296,14 @@ function bootstrapStore(p, opts) {
   }
   if (shape === "absent") {
     SqliteSessionStore.open(p).close();
-    rehydrateFromSidecarIfEmpty(p);
+    try {
+      rehydrateFromSidecarIfEmpty(p);
+    } catch (e) {
+      for (const suffix of ["", "-wal", "-shm"]) {
+        rmSync2(p + suffix, { force: true });
+      }
+      throw e;
+    }
     return false;
   }
   if (!opts.readOnly) {
@@ -2385,6 +2395,15 @@ function exitCli(code) {
 }
 function isSqliteOperationalError(e) {
   return typeof e === "object" && e !== null && e.code === "ERR_SQLITE_ERROR";
+}
+function parentDirNotWritable(dbFile) {
+  try {
+    accessSync(dirname2(dbFile), constants.W_OK);
+    return false;
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? e.code : void 0;
+    return code === "EACCES" || code === "EPERM";
+  }
 }
 function refuseFromPort(e, legacyMessage, expectedReasons) {
   const reason = reasonOf(e);
@@ -2712,17 +2731,37 @@ function sidecarReplaceMessage(path, verdict) {
 `;
 }
 function writeSidecar(path, text, opts = {}) {
-  if (opts.allowShrink !== true && existsSync3(path)) {
-    let oldSnap;
+  if (existsSync3(path)) {
+    let isFile = false;
     try {
-      oldSnap = decodeSnapshot(readFileSync2(path, "utf8"));
+      isFile = statSync(path).isFile();
     } catch {
-      oldSnap = void 0;
+      isFile = false;
     }
-    if (oldSnap !== void 0) {
-      const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
-      if (!verdict.ok) {
-        throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
+    if (isFile) {
+      let raw;
+      try {
+        raw = readFileSync2(path, "utf8");
+      } catch (e) {
+        throw new SidecarReplaceRefused(
+          `refusing: existing sidecar ${path} could not be read: ${errorMessage2(e)}. Refusing to replace a sidecar whose contents could not be established.
+`
+        );
+      }
+      let oldSnap;
+      try {
+        oldSnap = decodeSnapshot(raw);
+      } catch (e) {
+        throw new SidecarReplaceRefused(
+          `refusing: existing sidecar ${path} could not be parsed: ${errorMessage2(e)}. Refusing to replace a sidecar whose contents could not be established.
+`
+        );
+      }
+      if (opts.allowShrink !== true) {
+        const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
+        if (!verdict.ok) {
+          throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
+        }
       }
     }
   }
@@ -2855,6 +2894,12 @@ function prepareInvocation(cmd, importTarget) {
     if (e instanceof LegacyMigrationRefusal) {
       exitCli(2);
     }
+    const failedPath = cmd === "import-sidecar" ? importTarget ?? dbPath() : dbPath();
+    if (isSqliteOperationalError(e) && parentDirNotWritable(failedPath)) {
+      process.stderr.write(`EACCES: permission denied, open '${failedPath}'
+`);
+      exitCli(1);
+    }
     if (isSqliteOperationalError(e)) {
       process.stderr.write(`sqlite3.OperationalError
 `);
@@ -2980,6 +3025,10 @@ function main() {
     }
     const metric = parsed.args[0];
     const value = parsed.args[1];
+    if (metric === void 0 || value === void 0) {
+      process.stderr.write("refusing: measure requires METRIC and VALUE\n");
+      exitCli(2);
+    }
     const command = parsed.options.command || null;
     let vnum = null;
     if (parsed.options.num !== void 0) vnum = parseFloat(parsed.options.num);
@@ -3118,11 +3167,18 @@ function main() {
           nowIso()
         );
       } catch (e) {
+        if (reasonOf(e) === "supersession_incomplete") {
+          process.stderr.write(
+            `refusing: fact ${factId} is already superseded; supersession columns are set-once
+`
+          );
+          exitCli(2);
+        }
         refuseFromPort(
           e,
           `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded
 `,
-          ["invalid_argument", "supersession_incomplete"]
+          ["invalid_argument"]
         );
       }
       process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}

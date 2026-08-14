@@ -316,8 +316,19 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     // cache, not writing to a store that already exists. Legitimate
     // regardless of whether the command itself is read-only -- the goldens
     // depend on exactly this path.
+    //
+    // If rehydrate refuses, delete the empty file this call just created.
+    // An empty port-shaped .db makes the next invocation skip this guard
+    // (`if (!opts.readOnly)` below) and treat the derived cache as healthy.
     SqliteSessionStore.open(p).close();
-    rehydrateFromSidecarIfEmpty(p);
+    try {
+      rehydrateFromSidecarIfEmpty(p);
+    } catch (e) {
+      for (const suffix of ["", "-wal", "-shm"] as const) {
+        rmSync(p + suffix, { force: true });
+      }
+      throw e;
+    }
     return false;
   }
   // shape === "port": the file already exists and is already the derived

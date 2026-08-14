@@ -12,6 +12,9 @@ import {
   openSync,
   closeSync,
   fsyncSync,
+  statSync,
+  accessSync,
+  constants,
 } from "node:fs";
 import {
   SqliteSessionStore,
@@ -242,13 +245,24 @@ function isSqliteOperationalError(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "ERR_SQLITE_ERROR";
 }
 
+function parentDirNotWritable(dbFile: string): boolean {
+  try {
+    accessSync(dirname(dbFile), constants.W_OK);
+    return false;
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+    return code === "EACCES" || code === "EPERM";
+  }
+}
+
 /**
  * Translate a port failure into the CLI's own refusal.
  *
  * The goldens compare bytes, so a command whose behaviour is unchanged must
- * keep its exact legacy stderr text. close and end change their output
- * deliberately, and they pass their new text here explicitly. measure also
- * refuses a non-finite --num the legacy path stored.
+ * keep its exact legacy stderr text. close, end, and already-superseded
+ * supersede change their output deliberately, and they pass their new text
+ * here explicitly. measure also refuses a non-finite --num the legacy path
+ * stored.
  *
  * `expectedReasons` keeps that legacy text for the reasons the site actually
  * established. Any other store failure is printed as itself.
@@ -706,23 +720,50 @@ function sidecarReplaceMessage(path: string, verdict: Extract<SidecarReplaceAsse
  * unless the caller authorises the shrink. Per-kind counts plus the
  * identity digest catch same-total replacements that a row-count guard
  * cannot see.
+ *
+ * An existing regular file that cannot be read or parsed is not "no old
+ * snapshot". The sidecar is the record of truth. Refuse rather than
+ * overwrite contents that this process could not establish. --force
+ * authorises a shrink of a decoded snapshot, not a write over unread
+ * bytes. A non-file path (directory) falls through to writeAtomic so a
+ * hard write failure stays a hard write failure.
  */
 function writeSidecar(
   path: string,
   text: string,
   opts: { readonly allowShrink?: boolean } = {},
 ): void {
-  if (opts.allowShrink !== true && existsSync(path)) {
-    let oldSnap: SessionSnapshot | undefined;
+  if (existsSync(path)) {
+    let isFile = false;
     try {
-      oldSnap = decodeSnapshot(readFileSync(path, "utf8"));
+      isFile = statSync(path).isFile();
     } catch {
-      oldSnap = undefined;
+      isFile = false;
     }
-    if (oldSnap !== undefined) {
-      const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
-      if (!verdict.ok) {
-        throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
+    if (isFile) {
+      let raw: string;
+      try {
+        raw = readFileSync(path, "utf8");
+      } catch (e) {
+        throw new SidecarReplaceRefused(
+          `refusing: existing sidecar ${path} could not be read: ${errorMessage(e)}. ` +
+            `Refusing to replace a sidecar whose contents could not be established.\n`,
+        );
+      }
+      let oldSnap: SessionSnapshot;
+      try {
+        oldSnap = decodeSnapshot(raw);
+      } catch (e) {
+        throw new SidecarReplaceRefused(
+          `refusing: existing sidecar ${path} could not be parsed: ${errorMessage(e)}. ` +
+            `Refusing to replace a sidecar whose contents could not be established.\n`,
+        );
+      }
+      if (opts.allowShrink !== true) {
+        const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
+        if (!verdict.ok) {
+          throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
+        }
       }
     }
   }
@@ -864,6 +905,11 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
     if (e instanceof LegacyMigrationRefusal) {
       exitCli(2);
     }
+    const failedPath = cmd === "import-sidecar" ? (importTarget ?? dbPath()) : dbPath();
+    if (isSqliteOperationalError(e) && parentDirNotWritable(failedPath)) {
+      process.stderr.write(`EACCES: permission denied, open '${failedPath}'\n`);
+      exitCli(1);
+    }
     if (isSqliteOperationalError(e)) {
       process.stderr.write(`sqlite3.OperationalError\n`);
       exitCli(1);
@@ -990,8 +1036,12 @@ export function main(): number {
       );
       exitCli(2);
     }
-    const metric = parsed.args[0]!;
-    const value = parsed.args[1]!;
+    const metric = parsed.args[0];
+    const value = parsed.args[1];
+    if (metric === undefined || value === undefined) {
+      process.stderr.write("refusing: measure requires METRIC and VALUE\n");
+      exitCli(2);
+    }
     const command = parsed.options.command || null;
     let vnum: number | null = null;
     if (parsed.options.num !== undefined) vnum = parseFloat(parsed.options.num);
@@ -1127,10 +1177,16 @@ export function main(): number {
           nowIso(),
         );
       } catch (e) {
+        if (reasonOf(e) === "supersession_incomplete") {
+          process.stderr.write(
+            `refusing: fact ${factId} is already superseded; supersession columns are set-once\n`,
+          );
+          exitCli(2);
+        }
         refuseFromPort(
           e,
           `refusing: cannot supersede fact ${factId}: it does not exist or is already superseded\n`,
-          ["invalid_argument", "supersession_incomplete"],
+          ["invalid_argument"],
         );
       }
       process.stdout.write(`fact ${factId} superseded by ${res.replacement.id}\n`);
