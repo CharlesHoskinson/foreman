@@ -907,7 +907,7 @@ test("R3 FIX 1: a hard sidecar write failure after a committed write must exit n
   }
 });
 
-test("R5 FIX B: a sidecar.tmp directory must surface the write error, not the cleanup error", () => {
+test("R5 FIX B: a leftover sidecar.tmp directory cannot block a unique-tmp writer", () => {
   const dir = mkdtempSync(join(tmpdir(), "fm-r5-fixb-"));
   try {
     const p = join(dir, "session.db");
@@ -917,18 +917,9 @@ test("R5 FIX B: a sidecar.tmp directory must surface the write error, not the cl
     mkdirSync(`${sidecar}.tmp`);
 
     const res = spawnSession(dir, p, ["fact", "eisdir-row"]);
-    assert.equal(res.status, 1, `hard sidecar failure exited ${res.status}; expected 1`);
-    assert.match(
-      res.stderr,
-      /illegal operation on a directory, open/,
-      "stderr must name the writeFileSync EISDIR, not a later cleanup error",
-    );
-    assert.equal(
-      /ERR_FS_EISDIR|rm returned EISDIR/.test(res.stderr),
-      false,
-      "unguarded rmSync on a directory replaces the write error with ERR_FS_EISDIR",
-    );
+    assert.equal(res.status, 0, `leftover .tmp directory blocked the write: ${res.stderr}`);
     assert.ok(factStatements(p).includes("eisdir-row"), "the store write must have committed");
+    assert.equal(existsSync(`${sidecar}.tmp`), true, "the leftover directory must stay unused");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -984,6 +975,89 @@ test("R3 FIX 4: the refuse line must name the identity-scoped bound", () => {
       after.facts.map((f) => f.statement),
       ["CANONICAL-1", "CANONICAL-2", "CANONICAL-3"],
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W2.5: a non-numeric watermark classifies the store as corrupt", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w25-"));
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    store.addFact({
+      statement: "one",
+      evidence: null,
+      established_ts: "2026-08-08T10:00:00Z",
+      session_id: null,
+    });
+    store.close();
+    const db = new DatabaseSync(p);
+    try {
+      db.exec("UPDATE store_meta SET value='abc' WHERE key='next_id.fact'");
+    } finally {
+      db.close();
+    }
+    assert.equal(classifyStore(p), "corrupt");
+
+    const res = spawnSession(dir, p, ["fact", "must-not-land"]);
+    assert.equal(res.status, 2, `corrupt watermark must refuse with exit 2, got ${res.status}`);
+    assert.match(res.stderr, /refusing/);
+    assert.match(res.stderr, /mv /);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W2.5: a missing watermark classifies the store as corrupt", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w25-miss-"));
+  try {
+    const p = join(dir, "session.db");
+    const store = SqliteSessionStore.open(p);
+    store.addFact({
+      statement: "one",
+      evidence: null,
+      established_ts: "2026-08-08T10:00:00Z",
+      session_id: null,
+    });
+    store.close();
+    const db = new DatabaseSync(p);
+    try {
+      db.exec("DELETE FROM store_meta WHERE key='next_id.fact'");
+    } finally {
+      db.close();
+    }
+    assert.equal(classifyStore(p), "corrupt");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W2.6: a refuseFromPort refusal leaves no -wal or -shm", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w26-"));
+  try {
+    const p = join(dir, "session.db");
+    SqliteSessionStore.open(p).close();
+    const res = spawnSession(dir, p, ["close", "999"]);
+    assert.equal(res.status, 2, `close 999 must refuse with exit 2, got ${res.status}`);
+    assert.match(res.stderr, /not open/);
+    assert.equal(existsSync(`${p}-wal`), false, "refusal left a -wal file");
+    assert.equal(existsSync(`${p}-shm`), false, "refusal left a -shm file");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W2.6: an in-command process.exit refusal leaves no -wal or -shm", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w26-end-"));
+  try {
+    const p = join(dir, "session.db");
+    SqliteSessionStore.open(p).close();
+    const res = spawnSession(dir, p, ["end"]);
+    assert.equal(res.status, 2, `end with no session must refuse with exit 2, got ${res.status}`);
+    assert.match(res.stderr, /no open session/);
+    assert.equal(existsSync(`${p}-wal`), false, "refusal left a -wal file");
+    assert.equal(existsSync(`${p}-shm`), false, "refusal left a -shm file");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

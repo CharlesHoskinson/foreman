@@ -221,6 +221,23 @@ function currentSessionId(store: SqliteSessionStore): string | null {
 }
 
 /**
+ * Thrown in place of process.exit so `finally { store.close() }` can run.
+ * mainWithSidecar is the only site that calls process.exit, using this code.
+ */
+export class CliRefusal extends Error {
+  readonly exitCode: number;
+  constructor(exitCode: number) {
+    super(`cli refusal ${exitCode}`);
+    this.name = "CliRefusal";
+    this.exitCode = exitCode;
+  }
+}
+
+function exitCli(code: number): never {
+  throw new CliRefusal(code);
+}
+
+/**
  * Translate a port failure into the CLI's own refusal.
  *
  * The goldens compare bytes, so a command whose behaviour is unchanged must
@@ -231,7 +248,7 @@ function currentSessionId(store: SqliteSessionStore): string | null {
 function refuseFromPort(e: unknown, legacyMessage: string): never {
   if (isSessionStoreFailure(e) || reasonOf(e) !== null) {
     process.stderr.write(legacyMessage);
-    process.exit(2);
+    exitCli(2);
   }
   throw e;
 }
@@ -526,10 +543,12 @@ export function sidecarNdjson(dbFile: string, opts: { readonly readOnly?: boolea
   }
 }
 
-function writeAtomic(path: string, text: string): void {
-  const tmp = path + ".tmp";
+export function writeAtomic(path: string, text: string): void {
+  const tmp = `${path}.tmp.${process.pid}.${randomBytes(8).toString("hex")}`;
   try {
-    writeFileSync(tmp, text, { encoding: "utf8" });
+    // wx is O_CREAT|O_EXCL. Combined with the per-process, per-attempt
+    // suffix, two writers cannot open the same temp path.
+    writeFileSync(tmp, text, { encoding: "utf8", flag: "wx" });
     // The sidecar is the tracked, canonical record. Without this flush the
     // rename can land before the bytes do, and the record of truth is the one
     // artefact that must not be able to tear.
@@ -540,6 +559,17 @@ function writeAtomic(path: string, text: string): void {
       closeSync(fd);
     }
     renameSync(tmp, path);
+    // rename is atomic on POSIX for the directory entry. The parent
+    // directory itself is not durable until it is fsynced. A crash after
+    // rename and before that flush can drop the new name even though this
+    // command already reported success, and the tracked record silently
+    // reverts to whatever the directory last persisted.
+    const dirFd = openSync(dirname(path), "r");
+    try {
+      fsyncSync(dirFd);
+    } finally {
+      closeSync(dirFd);
+    }
   } catch (e) {
     try {
       rmSync(tmp, { force: true });
@@ -758,12 +788,12 @@ function parseCli(argv: readonly string[]): ParsedCli {
       } else if (STRING_ARGS.has(arg)) {
         if (i + 1 >= argv.length) {
           process.stderr.write(`error: option ${arg} requires an argument\n`);
-          process.exit(2);
+          exitCli(2);
         }
         const value = argv[++i];
         if (value === undefined) {
           process.stderr.write(`error: option ${arg} requires an argument\n`);
-          process.exit(2);
+          exitCli(2);
         }
         if (arg === "--scope") {
           parsed.options.scope.push(value);
@@ -773,7 +803,7 @@ function parseCli(argv: readonly string[]): ParsedCli {
         }
       } else {
         process.stderr.write(`error: unrecognized option: ${arg}\n`);
-        process.exit(2);
+        exitCli(2);
       }
     } else {
       parsed.args.push(arg);
@@ -801,20 +831,20 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
       const message = errorMessage(e);
       const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
       process.stderr.write(`refusing: cannot open target store: ${msg}\n`);
-      process.exit(2);
+      exitCli(2);
     }
     if (e instanceof LegacyMigrationRefusal) {
-      process.exit(2);
+      exitCli(2);
     }
     process.stderr.write(`sqlite3.OperationalError\n`);
-    process.exit(1);
+    exitCli(1);
   }
 }
 
 export function main(): number {
   const args = process.argv.slice(2);
   const cmd = args[0];
-  if (cmd === undefined || !STORE_CMDS.has(cmd)) process.exit(2);
+  if (cmd === undefined || !STORE_CMDS.has(cmd)) exitCli(2);
 
   const parsed = parseCli(args.slice(1));
 
@@ -880,7 +910,7 @@ export function main(): number {
       const sid = parsed.args[0] || currentSessionId(store);
       if (!sid) {
         process.stderr.write("no open session\n");
-        process.exit(2);
+        exitCli(2);
       }
       try {
         store.endSession(sid, nowIso());
@@ -922,7 +952,7 @@ export function main(): number {
       process.stderr.write(
         "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n",
       );
-      process.exit(2);
+      exitCli(2);
     }
     const metric = parsed.args[0]!;
     const value = parsed.args[1]!;
@@ -984,7 +1014,7 @@ export function main(): number {
     try {
       if (status !== "done" && status !== "dropped") {
         process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}\n`);
-        process.exit(2);
+        exitCli(2);
       }
       try {
         store.closeObligation(obligationId, status, nowIso());
@@ -1006,7 +1036,7 @@ export function main(): number {
     const outPath = parsed.options.out || join(dirname(store), "session.ndjson");
     if (pathsAlias(outPath, store)) {
       process.stderr.write(`refusing: sidecar output ${outPath} aliases the session store ${store}\n`);
-      process.exit(2);
+      exitCli(2);
     }
     try {
       // "sidecar" is a read-only command (READ_ONLY_CMDS): it may write the
@@ -1018,10 +1048,10 @@ export function main(): number {
     } catch (e) {
       if (e instanceof SidecarReplaceRefused) {
         process.stderr.write(e.message);
-        process.exit(2);
+        exitCli(2);
       }
       process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage(e)}\n`);
-      process.exit(2);
+      exitCli(2);
     }
   }
 
@@ -1033,7 +1063,7 @@ export function main(): number {
       return 0;
     } catch (e) {
       process.stderr.write(`refusing: ${errorMessage(e)}\n`);
-      process.exit(2);
+      exitCli(2);
     }
   }
 
@@ -1044,7 +1074,7 @@ export function main(): number {
     const reason = parsed.options.reason;
     if (!reason) {
       process.stderr.write("error: option --reason requires an argument\n");
-      process.exit(2);
+      exitCli(2);
     }
     const store = openStore();
     try {
@@ -1075,33 +1105,33 @@ export function main(): number {
     const reason = parsed.options.reason;
     if (Number.isNaN(byId)) {
       process.stderr.write("error: option --by requires an argument\n");
-      process.exit(2);
+      exitCli(2);
     }
     if (!reason) {
       process.stderr.write("error: option --reason requires an argument\n");
-      process.exit(2);
+      exitCli(2);
     }
     if (byId === measurementId) {
       process.stderr.write("refusing: a measurement cannot supersede itself\n");
-      process.exit(2);
+      exitCli(2);
     }
     const store = openStore();
     try {
       const rows = store.listMeasurements();
       if (!rows.some((r) => r.id === measurementId)) {
         process.stderr.write(`refusing: no measurement ${measurementId} to retire\n`);
-        process.exit(2);
+        exitCli(2);
       }
       const by = rows.find((r) => r.id === byId);
       if (!by) {
         process.stderr.write(`refusing: no measurement ${byId} to supersede it\n`);
-        process.exit(2);
+        exitCli(2);
       }
       if (by.superseded_by !== null) {
         process.stderr.write(
           `refusing: measurement ${byId} is itself superseded by ${by.superseded_by}. A retired measurement cannot supersede another one.\n`,
         );
-        process.exit(2);
+        exitCli(2);
       }
       try {
         store.retireMeasurement(measurementId, byId, reason, nowIso());
@@ -1115,7 +1145,7 @@ export function main(): number {
     return 0;
   }
 
-  process.exit(2);
+  exitCli(2);
 }
 
 function mainWithSidecar(): void {
@@ -1123,6 +1153,9 @@ function mainWithSidecar(): void {
   try {
     rc = main() || 0;
   } catch (e) {
+    if (e instanceof CliRefusal) {
+      process.exit(e.exitCode);
+    }
     const code = e instanceof Error && "code" in e ? String((e as { code?: unknown }).code) : "";
     if (code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" || code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
       process.stderr.write(`error: ${errorMessage(e)}\n`);

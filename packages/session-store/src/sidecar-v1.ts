@@ -103,6 +103,12 @@ export function decodeSnapshotV1(lines: readonly string[]): SessionSnapshot {
     measurement: [],
     obligation: [],
   };
+  const seen: Record<EntityKind, Set<string>> = {
+    session: new Set(),
+    fact: new Set(),
+    measurement: new Set(),
+    obligation: new Set(),
+  };
 
   for (let i = 1; i < lines.length; i++) {
     const doc = parseLine(lines[i] as string, i + 1);
@@ -131,7 +137,18 @@ export function decodeSnapshotV1(lines: readonly string[]): SessionSnapshot {
     if (typeof row !== "object" || row === null || Array.isArray(row)) {
       raise("sidecar_malformed", `line ${i + 1} row is not an object`);
     }
-    buckets[kind].push(normalize(kind, row as Record<string, unknown>));
+    const normalized = normalize(kind, row as Record<string, unknown>);
+    const identityField = kind === "session" ? "session_id" : "id";
+    const identity = String(normalized[identityField] ?? "");
+    if (seen[kind].has(identity)) {
+      raise(
+        "identity_conflict",
+        `duplicate ${kind} identity ${identity}`,
+        { kind, field: identityField, detail: identity },
+      );
+    }
+    seen[kind].add(identity);
+    buckets[kind].push(normalized);
   }
 
   return {

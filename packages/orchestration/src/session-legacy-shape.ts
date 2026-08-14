@@ -139,7 +139,11 @@ export function classifyStore(p: string): StoreShape {
         const wm = db.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`) as
           | { value: string }
           | undefined;
-        const next = wm ? Number(wm.value) : 0;
+        // Number('abc') is NaN, and NaN <= max is false, so a wrecked
+        // watermark would otherwise classify as healthy port-shaped.
+        if (wm === undefined || typeof wm.value !== "string") return "corrupt";
+        const next = Number(wm.value);
+        if (!Number.isFinite(next)) return "corrupt";
         if (next <= max) return "corrupt";
       }
       return "port";

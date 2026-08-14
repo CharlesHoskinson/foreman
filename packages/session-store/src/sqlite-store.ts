@@ -165,6 +165,10 @@ export class SqliteSessionStore implements SessionStore {
       return new SqliteSessionStore(db, opts);
     }
     const db = new DatabaseSync(path);
+    // journal_mode=WAL takes a lock. busy_timeout must be live before that
+    // lock is requested, or a concurrent open fails instantly with
+    // SQLITE_BUSY. The existing busy-timeout test never enters this window.
+    db.exec("PRAGMA busy_timeout=5000");
     db.exec("PRAGMA foreign_keys=ON");
     // WAL lets readers run while a writer holds the write lock. AGENT_TRAPS.md:22
     // documents concurrent writers as normal operation, so the rollback-journal
@@ -173,8 +177,6 @@ export class SqliteSessionStore implements SessionStore {
     // NORMAL is durable across process crashes, which is the failure mode that
     // actually happens here. It trades only the last transaction on power loss.
     db.exec("PRAGMA synchronous=NORMAL");
-    // Without this a second writer fails instantly with SQLITE_BUSY.
-    db.exec("PRAGMA busy_timeout=5000");
     db.exec(SCHEMA);
     return new SqliteSessionStore(db, opts);
   }

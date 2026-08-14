@@ -1,10 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { decodeSnapshotV1 } from "./sidecar-v1.js";
 import { reasonOf } from "./failures.js";
 import { emptySnapshot, type SessionSnapshot } from "./entities.js";
 import { findViolations } from "./integrity.js";
 import { encodeSnapshot } from "./sidecar.js";
+
+const SEED = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../orchestration/src/__golden__/seed.ndjson",
+);
 
 const HEADER = `{"format": "foreman-session-sidecar", "format_version": 1}`;
 
@@ -86,6 +94,74 @@ test("rejects a record that is not exactly table and row", () => {
     reason = reasonOf(e);
   }
   assert.equal(reason, "sidecar_malformed");
+});
+
+test("W2.4: refuses a duplicated fact identity and names the kind and id", () => {
+  const factA = `{"table": "facts", "row": {"id": 7, "statement": "first", "evidence": null, "established_ts": "2026-01-01T00:00:00Z", "session_id": null, "superseded_by": null, "superseded_at": null, "supersede_reason": null}}`;
+  const factB = `{"table": "facts", "row": {"id": 7, "statement": "second", "evidence": null, "established_ts": "2026-01-01T00:00:00Z", "session_id": null, "superseded_by": null, "superseded_at": null, "supersede_reason": null}}`;
+  let reason: string | null = null;
+  let message = "";
+  try {
+    decodeSnapshotV1(lines(factA, factB));
+  } catch (e) {
+    reason = reasonOf(e);
+    message = e instanceof Error ? e.message : String(e);
+  }
+  assert.equal(reason, "identity_conflict");
+  assert.match(message, /duplicate fact identity 7/);
+});
+
+test("W2.4: refuses a duplicated session identity", () => {
+  const session = `{"table": "sessions", "row": {"session_id": "s1", "started_ts": "2026-01-01T00:00:00Z", "start_sha": null, "ended_ts": null, "note": null}}`;
+  let reason: string | null = null;
+  let message = "";
+  try {
+    decodeSnapshotV1(lines(session, session.replace("note\": null", "note\": \"x\"")));
+  } catch (e) {
+    reason = reasonOf(e);
+    message = e instanceof Error ? e.message : String(e);
+  }
+  assert.equal(reason, "identity_conflict");
+  assert.match(message, /duplicate session identity s1/);
+});
+
+test("W2.4: existing v1 corpus still decodes with the same identities", () => {
+  const text = readFileSync(SEED, "utf8");
+  const rawLines = text.split("\n");
+  const linesIn = rawLines[rawLines.length - 1] === "" ? rawLines.slice(0, -1) : rawLines;
+  const snap = decodeSnapshotV1(linesIn);
+
+  const byTable: Record<string, unknown[]> = {
+    facts: [],
+    measurements: [],
+    obligations: [],
+    sessions: [],
+  };
+  for (const line of linesIn.slice(1)) {
+    if (line.length === 0) continue;
+    const doc = JSON.parse(line) as { table?: string; row?: { id?: unknown; session_id?: unknown } };
+    const table = doc.table;
+    if (table === undefined || byTable[table] === undefined) continue;
+    const id = table === "sessions" ? doc.row?.session_id : doc.row?.id;
+    byTable[table].push(id);
+  }
+
+  assert.deepEqual(
+    snap.facts.map((r) => r.id),
+    byTable["facts"],
+  );
+  assert.deepEqual(
+    snap.measurements.map((r) => r.id),
+    byTable["measurements"],
+  );
+  assert.deepEqual(
+    snap.obligations.map((r) => r.id),
+    byTable["obligations"],
+  );
+  assert.deepEqual(
+    snap.sessions.map((r) => r.session_id),
+    byTable["sessions"],
+  );
 });
 
 test("encodeSnapshot refuses a snapshot the reader would reject", () => {

@@ -476,6 +476,12 @@ function decodeSnapshotV1(lines) {
     measurement: [],
     obligation: []
   };
+  const seen = {
+    session: /* @__PURE__ */ new Set(),
+    fact: /* @__PURE__ */ new Set(),
+    measurement: /* @__PURE__ */ new Set(),
+    obligation: /* @__PURE__ */ new Set()
+  };
   for (let i = 1; i < lines.length; i++) {
     const doc = parseLine(lines[i], i + 1);
     const keys = Object.keys(doc).sort().join(",");
@@ -503,7 +509,18 @@ function decodeSnapshotV1(lines) {
     if (typeof row !== "object" || row === null || Array.isArray(row)) {
       raise("sidecar_malformed", `line ${i + 1} row is not an object`);
     }
-    buckets[kind].push(normalize(kind, row));
+    const normalized = normalize(kind, row);
+    const identityField = kind === "session" ? "session_id" : "id";
+    const identity = String(normalized[identityField] ?? "");
+    if (seen[kind].has(identity)) {
+      raise(
+        "identity_conflict",
+        `duplicate ${kind} identity ${identity}`,
+        { kind, field: identityField, detail: identity }
+      );
+    }
+    seen[kind].add(identity);
+    buckets[kind].push(normalized);
   }
   return {
     modelVersion: 1,
@@ -846,10 +863,10 @@ var SqliteSessionStore = class _SqliteSessionStore {
       return new _SqliteSessionStore(db2, opts);
     }
     const db = new DatabaseSync(path);
+    db.exec("PRAGMA busy_timeout=5000");
     db.exec("PRAGMA foreign_keys=ON");
     db.exec("PRAGMA journal_mode=WAL");
     db.exec("PRAGMA synchronous=NORMAL");
-    db.exec("PRAGMA busy_timeout=5000");
     db.exec(SCHEMA);
     return new _SqliteSessionStore(db, opts);
   }
@@ -2121,7 +2138,9 @@ function classifyStore(p) {
         const row = db.prepare(`SELECT MAX(id) AS m FROM ${quoteIdentifier(table)}`).get();
         const max = row && row.m !== null ? Number(row.m) : 0;
         const wm = db.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`);
-        const next = wm ? Number(wm.value) : 0;
+        if (wm === void 0 || typeof wm.value !== "string") return "corrupt";
+        const next = Number(wm.value);
+        if (!Number.isFinite(next)) return "corrupt";
         if (next <= max) return "corrupt";
       }
       return "port";
@@ -2325,10 +2344,21 @@ function openStore(path, opts = {}) {
 function currentSessionId(store) {
   return store.currentSession()?.session_id ?? null;
 }
+var CliRefusal = class extends Error {
+  exitCode;
+  constructor(exitCode) {
+    super(`cli refusal ${exitCode}`);
+    this.name = "CliRefusal";
+    this.exitCode = exitCode;
+  }
+};
+function exitCli(code) {
+  throw new CliRefusal(code);
+}
 function refuseFromPort(e, legacyMessage) {
   if (isSessionStoreFailure(e) || reasonOf(e) !== null) {
     process.stderr.write(legacyMessage);
-    process.exit(2);
+    exitCli(2);
   }
   throw e;
 }
@@ -2559,9 +2589,9 @@ function sidecarNdjson(dbFile, opts = {}) {
   }
 }
 function writeAtomic(path, text) {
-  const tmp = path + ".tmp";
+  const tmp = `${path}.tmp.${process.pid}.${randomBytes(8).toString("hex")}`;
   try {
-    writeFileSync2(tmp, text, { encoding: "utf8" });
+    writeFileSync2(tmp, text, { encoding: "utf8", flag: "wx" });
     const fd = openSync(tmp, "r+");
     try {
       fsyncSync(fd);
@@ -2569,6 +2599,12 @@ function writeAtomic(path, text) {
       closeSync(fd);
     }
     renameSync2(tmp, path);
+    const dirFd = openSync(dirname2(path), "r");
+    try {
+      fsyncSync(dirFd);
+    } finally {
+      closeSync(dirFd);
+    }
   } catch (e) {
     try {
       rmSync3(tmp, { force: true });
@@ -2724,13 +2760,13 @@ function parseCli(argv) {
         if (i + 1 >= argv.length) {
           process.stderr.write(`error: option ${arg} requires an argument
 `);
-          process.exit(2);
+          exitCli(2);
         }
         const value = argv[++i];
         if (value === void 0) {
           process.stderr.write(`error: option ${arg} requires an argument
 `);
-          process.exit(2);
+          exitCli(2);
         }
         if (arg === "--scope") {
           parsed.options.scope.push(value);
@@ -2741,7 +2777,7 @@ function parseCli(argv) {
       } else {
         process.stderr.write(`error: unrecognized option: ${arg}
 `);
-        process.exit(2);
+        exitCli(2);
       }
     } else {
       parsed.args.push(arg);
@@ -2769,20 +2805,20 @@ function prepareInvocation(cmd, importTarget) {
       const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
       process.stderr.write(`refusing: cannot open target store: ${msg}
 `);
-      process.exit(2);
+      exitCli(2);
     }
     if (e instanceof LegacyMigrationRefusal) {
-      process.exit(2);
+      exitCli(2);
     }
     process.stderr.write(`sqlite3.OperationalError
 `);
-    process.exit(1);
+    exitCli(1);
   }
 }
 function main() {
   const args = process.argv.slice(2);
   const cmd = args[0];
-  if (cmd === void 0 || !STORE_CMDS.has(cmd)) process.exit(2);
+  if (cmd === void 0 || !STORE_CMDS.has(cmd)) exitCli(2);
   const parsed = parseCli(args.slice(1));
   let importTarget = "";
   if (cmd === "import-sidecar") {
@@ -2843,7 +2879,7 @@ function main() {
       const sid = parsed.args[0] || currentSessionId(store);
       if (!sid) {
         process.stderr.write("no open session\n");
-        process.exit(2);
+        exitCli(2);
       }
       try {
         store.endSession(sid, nowIso());
@@ -2885,7 +2921,7 @@ function main() {
       process.stderr.write(
         "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n"
       );
-      process.exit(2);
+      exitCli(2);
     }
     const metric = parsed.args[0];
     const value = parsed.args[1];
@@ -2948,7 +2984,7 @@ function main() {
       if (status !== "done" && status !== "dropped") {
         process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}
 `);
-        process.exit(2);
+        exitCli(2);
       }
       try {
         store.closeObligation(obligationId, status, nowIso());
@@ -2972,7 +3008,7 @@ function main() {
     if (pathsAlias(outPath, store)) {
       process.stderr.write(`refusing: sidecar output ${outPath} aliases the session store ${store}
 `);
-      process.exit(2);
+      exitCli(2);
     }
     try {
       const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
@@ -2983,11 +3019,11 @@ function main() {
     } catch (e) {
       if (e instanceof SidecarReplaceRefused) {
         process.stderr.write(e.message);
-        process.exit(2);
+        exitCli(2);
       }
       process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage2(e)}
 `);
-      process.exit(2);
+      exitCli(2);
     }
   }
   if (cmd === "import-sidecar") {
@@ -3000,7 +3036,7 @@ function main() {
     } catch (e) {
       process.stderr.write(`refusing: ${errorMessage2(e)}
 `);
-      process.exit(2);
+      exitCli(2);
     }
   }
   if (cmd === "supersede") {
@@ -3010,7 +3046,7 @@ function main() {
     const reason = parsed.options.reason;
     if (!reason) {
       process.stderr.write("error: option --reason requires an argument\n");
-      process.exit(2);
+      exitCli(2);
     }
     const store = openStore();
     try {
@@ -3042,15 +3078,15 @@ function main() {
     const reason = parsed.options.reason;
     if (Number.isNaN(byId)) {
       process.stderr.write("error: option --by requires an argument\n");
-      process.exit(2);
+      exitCli(2);
     }
     if (!reason) {
       process.stderr.write("error: option --reason requires an argument\n");
-      process.exit(2);
+      exitCli(2);
     }
     if (byId === measurementId) {
       process.stderr.write("refusing: a measurement cannot supersede itself\n");
-      process.exit(2);
+      exitCli(2);
     }
     const store = openStore();
     try {
@@ -3058,20 +3094,20 @@ function main() {
       if (!rows.some((r) => r.id === measurementId)) {
         process.stderr.write(`refusing: no measurement ${measurementId} to retire
 `);
-        process.exit(2);
+        exitCli(2);
       }
       const by = rows.find((r) => r.id === byId);
       if (!by) {
         process.stderr.write(`refusing: no measurement ${byId} to supersede it
 `);
-        process.exit(2);
+        exitCli(2);
       }
       if (by.superseded_by !== null) {
         process.stderr.write(
           `refusing: measurement ${byId} is itself superseded by ${by.superseded_by}. A retired measurement cannot supersede another one.
 `
         );
-        process.exit(2);
+        exitCli(2);
       }
       try {
         store.retireMeasurement(measurementId, byId, reason, nowIso());
@@ -3086,13 +3122,16 @@ function main() {
     }
     return 0;
   }
-  process.exit(2);
+  exitCli(2);
 }
 function mainWithSidecar() {
   let rc = 0;
   try {
     rc = main() || 0;
   } catch (e) {
+    if (e instanceof CliRefusal) {
+      process.exit(e.exitCode);
+    }
     const code = e instanceof Error && "code" in e ? String(e.code) : "";
     if (code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" || code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
       process.stderr.write(`error: ${errorMessage2(e)}
@@ -3138,9 +3177,11 @@ if (invokedDirectly) {
   mainWithSidecar();
 }
 export {
+  CliRefusal,
   SidecarReplaceRefused,
   assessSidecarReplace,
   importSidecar,
   main,
-  sidecarNdjson
+  sidecarNdjson,
+  writeAtomic
 };
