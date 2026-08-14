@@ -17,7 +17,14 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { SqliteSessionStore, encodeSnapshot, countRows, decodeSnapshot } from "@foreman/session-store";
-import { sidecarNdjson, importSidecar, main, assessSidecarReplace } from "./fm-session-main.js";
+import {
+  sidecarNdjson,
+  importSidecar,
+  main,
+  assessSidecarReplace,
+  writeAtomic,
+  setWriteAtomicHook,
+} from "./fm-session-main.js";
 import { bootstrapStore, classifyStore, sidecarPathFor } from "./session-legacy-shape.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -447,11 +454,16 @@ function writeLegacyStore(
   }
 }
 
-function spawnSession(dir: string, dbPath: string, args: readonly string[]) {
+function spawnSession(
+  dir: string,
+  dbPath: string,
+  args: readonly string[],
+  extraEnv: NodeJS.ProcessEnv = {},
+) {
   return spawnSync(process.execPath, ["--import", TSX_LOADER, ENTRY, ...args], {
     cwd: dir,
     encoding: "utf8",
-    env: { ...process.env, FOREMAN_SESSION_DB: dbPath },
+    env: { ...process.env, FOREMAN_SESSION_DB: dbPath, ...extraEnv },
   });
 }
 
@@ -907,6 +919,51 @@ test("R3 FIX 1: a hard sidecar write failure after a committed write must exit n
   }
 });
 
+test("W2.3 FIX 1: writeAtomic returns after a forced parent-dir open failure", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w23-unit-"));
+  try {
+    const dest = join(dir, "session.ndjson");
+    setWriteAtomicHook({ forceParentDirOpenFailure: true });
+    writeAtomic(dest, "published\n");
+    assert.equal(readFileSync(dest, "utf8"), "published\n");
+  } finally {
+    setWriteAtomicHook(undefined);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W2.3 FIX 1: a post-rename directory fsync failure does not fail a published write", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w23-fsync-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(p, ["first-row"]);
+    writeSidecarFrom(p, sidecar);
+
+    const res = spawnSession(dir, p, ["fact", "second-row"], {
+      FOREMAN_INJECT_SIDECAR_DIR_FSYNC: "1",
+    });
+    assert.equal(
+      res.status,
+      0,
+      `published write failed after dir fsync inject: exit ${res.status}\n${res.stderr}`,
+    );
+    assert.match(res.stdout, /fact /);
+    assert.match(res.stderr, /sidecar published, durability flush failed/);
+    assert.match(res.stderr, /__inject_fsync_failure__/);
+    assert.doesNotMatch(res.stderr, /could not be refreshed/);
+    assert.doesNotMatch(res.stderr, /BEHIND/);
+    assert.doesNotMatch(res.stderr, /duplicate the row/);
+    assert.ok(factStatements(p).includes("first-row"));
+    assert.ok(factStatements(p).includes("second-row"));
+    const body = readFileSync(sidecar, "utf8");
+    assert.match(body, /"statement":"first-row"/);
+    assert.match(body, /"statement":"second-row"/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("R5 FIX B: a leftover sidecar.tmp directory cannot block a unique-tmp writer", () => {
   const dir = mkdtempSync(join(tmpdir(), "fm-r5-fixb-"));
   try {
@@ -1009,7 +1066,7 @@ test("W2.5: a non-numeric watermark classifies the store as corrupt", () => {
   }
 });
 
-test("W2.5: a missing watermark classifies the store as corrupt", () => {
+test("regression: a missing watermark classifies the store as corrupt via 0 <= max", () => {
   const dir = mkdtempSync(join(tmpdir(), "fm-w25-miss-"));
   try {
     const p = join(dir, "session.db");

@@ -9,6 +9,10 @@ import { test } from "node:test";
 const here = dirname(fileURLToPath(import.meta.url));
 const writerPath = join(here, "write-atomic-writer.ts");
 
+// Known-bad floor with a shared <path>.tmp name: 14-59 write failures in
+// 100 four-writer trials (reviewer). The original report measured 105.
+// Headroom is larger than W2.2, but a silent 0 against known-bad is still
+// a check regression.
 const TRIALS = 100;
 const WRITERS = 4;
 

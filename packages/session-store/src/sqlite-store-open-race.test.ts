@@ -11,6 +11,15 @@ import { DatabaseSync } from "node:sqlite";
 const here = dirname(fileURLToPath(import.meta.url));
 const racerPath = join(here, "sqlite-store-open-racer.ts");
 
+// Known-bad (busy_timeout after journal_mode) is a first-open WAL
+// conversion race. Measured ranges, do not treat a silent 0 as a fix:
+//   reviewer 20x20: 4-9 of 400 (runs 8, 5, 9, 9, 4)
+//   this host 20x20: 1-8 of 400 (runs 4, 1, 5, 8, 1)
+// Raising WORKERS reduced discrimination: 80x20 known-bad ran 0, 1, 4,
+// 14, 62 because late tsx children miss the conversion window.
+// Five 20x20 reseeds made known-good fail (UNIQUE store_meta.key and
+// residual SQLITE_BUSY). 20x20 is the largest sample that still
+// passes known-good on this host.
 const WORKERS = 20;
 const OPENS_EACH = 20;
 const TOTAL = WORKERS * OPENS_EACH;

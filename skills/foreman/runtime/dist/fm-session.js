@@ -2588,6 +2588,13 @@ function sidecarNdjson(dbFile, opts = {}) {
     store.close();
   }
 }
+var writeAtomicHook;
+function setWriteAtomicHook(hook) {
+  writeAtomicHook = hook;
+}
+function injectParentDirOpenFailure() {
+  return writeAtomicHook?.forceParentDirOpenFailure === true || process.env.FOREMAN_INJECT_SIDECAR_DIR_FSYNC === "1";
+}
 function writeAtomic(path, text) {
   const tmp = `${path}.tmp.${process.pid}.${randomBytes(8).toString("hex")}`;
   try {
@@ -2599,6 +2606,21 @@ function writeAtomic(path, text) {
       closeSync(fd);
     }
     renameSync2(tmp, path);
+  } catch (e) {
+    try {
+      rmSync3(tmp, { force: true });
+    } catch {
+    }
+    throw e;
+  }
+  try {
+    if (injectParentDirOpenFailure()) {
+      const err = new Error(
+        "ENOENT: no such file or directory, open '__inject_fsync_failure__'"
+      );
+      err.code = "ENOENT";
+      throw err;
+    }
     const dirFd = openSync(dirname2(path), "r");
     try {
       fsyncSync(dirFd);
@@ -2606,11 +2628,11 @@ function writeAtomic(path, text) {
       closeSync(dirFd);
     }
   } catch (e) {
-    try {
-      rmSync3(tmp, { force: true });
-    } catch {
-    }
-    throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    process.stderr.write(
+      `WARNING: sidecar published, durability flush failed (${msg}). The tracked record is complete.
+`
+    );
   }
 }
 var SidecarReplaceRefused = class extends Error {
@@ -3182,6 +3204,7 @@ export {
   assessSidecarReplace,
   importSidecar,
   main,
+  setWriteAtomicHook,
   sidecarNdjson,
   writeAtomic
 };

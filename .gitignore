@@ -43,7 +43,7 @@ formal/out/
 # covers -wal/-shm, a crashed rebuild's .rebuild-aside journals, and
 # session.db.rebuild.
 .foreman/session.db*
-.foreman/session.ndjson.tmp
+.foreman/session.ndjson.tmp*
 
 # graphify-out is a DERIVED INDEX, regenerable from repository source. It was
 # tracked at 5.1MB and sat 322 commits behind HEAD, while CLAUDE.md told every
