@@ -8,11 +8,13 @@ import {
   mkdtempSync,
   mkdirSync,
   statSync,
+  lstatSync,
   existsSync,
   renameSync,
   chmodSync,
+  symlinkSync,
 } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
@@ -1495,7 +1497,7 @@ test("W3.4: sidecar A/B preserves the file when readable, unreadable, or corrupt
   }
 });
 
-test("W3.4: a read-only refusal must not leave an empty port-shaped db", (t) => {
+test("W3.4: a recover refusal against a missing db must not leave an empty port-shaped db", (t) => {
   if (!directoryModesAreEnforced()) {
     t.skip("chmod 000 does not block the owner on root or win32");
     return;
@@ -1517,6 +1519,31 @@ test("W3.4: a read-only refusal must not leave an empty port-shaped db", (t) => 
   } finally {
     try {
       chmodSync(join(dir, "session.ndjson"), 0o644);
+    } catch {
+      // restore so cleanup can unlink
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 6: chmod 000 on the db file prints EACCES, not sqlite3.OperationalError", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 000 does not block the owner on root or win32");
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-chmod000-"));
+  try {
+    const p = join(dir, "session.db");
+    SqliteSessionStore.open(p).close();
+    chmodSync(p, 0o000);
+    const res = spawnSession(dir, p, ["recover"]);
+    chmodSync(p, 0o644);
+    assert.equal(res.status, 1, `chmod 000 db exited ${res.status}; expected 1`);
+    assert.doesNotMatch(res.stderr, /OperationalError/);
+    assert.match(res.stderr, /EACCES|permission denied/);
+  } finally {
+    try {
+      chmodSync(join(dir, "session.db"), 0o644);
     } catch {
       // restore so cleanup can unlink
     }
@@ -1597,6 +1624,248 @@ test("W2.6: an in-command process.exit refusal leaves no -wal or -shm", () => {
     assert.match(res.stderr, /no open session/);
     assert.equal(existsSync(`${p}-wal`), false, "refusal left a -wal file");
     assert.equal(existsSync(`${p}-shm`), false, "refusal left a -shm file");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function writeForeignNotesDb(p: string, bodies: readonly string[]): void {
+  const db = new DatabaseSync(p);
+  try {
+    db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)");
+    const ins = db.prepare("INSERT INTO notes(body) VALUES (?)");
+    for (const body of bodies) ins.run(body);
+  } finally {
+    db.close();
+  }
+}
+
+function countNotes(p: string): number {
+  const db = new DatabaseSync(p);
+  try {
+    const row = db.prepare("SELECT COUNT(*) AS n FROM notes").get() as { n: number };
+    return Number(row.n);
+  } finally {
+    db.close();
+  }
+}
+
+test("W3.r3 FIX 1: classifyStore distinguishes absent from unrecognised", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-cls-"));
+  try {
+    const missing = join(dir, "missing.db");
+    assert.equal(classifyStore(missing), "absent");
+
+    const notes = join(dir, "notes.db");
+    writeForeignNotesDb(notes, ["keep-1", "keep-2"]);
+    assert.equal(classifyStore(notes), "unrecognised");
+
+    const plain = join(dir, "plain.db");
+    writeFileSync(plain, "this is not sqlite");
+    assert.equal(classifyStore(plain), "unrecognised");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 1: recover refuses a foreign SQLite db and does not delete it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-foreign-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    writeForeignNotesDb(p, ["keep-1", "keep-2"]);
+    const before = readFileSync(p);
+
+    writeFileSync(sidecar, "this is not a sidecar\njunk\n");
+    const corrupt = spawnSession(dir, p, ["recover"]);
+    assert.equal(corrupt.status, 2, `foreign+corrupt sidecar exited ${corrupt.status}`);
+    assert.match(corrupt.stderr, /not a Foreman session database|does not recognise/);
+    assert.equal(existsSync(p), true, "foreign db must still exist after corrupt-sidecar recover");
+    assert.equal(countNotes(p), 2, "notes rows must survive a corrupt sidecar");
+    assert.ok(Buffer.compare(before, readFileSync(p)) === 0, "foreign db bytes must not change");
+
+    writeFileSync(sidecar, threeLineSidecarText());
+    const readable = spawnSession(dir, p, ["recover"]);
+    assert.equal(readable.status, 2, `foreign+readable sidecar exited ${readable.status}`);
+    assert.match(readable.stderr, /not a Foreman session database|does not recognise/);
+    assert.equal(countNotes(p), 2, "notes rows must survive a readable sidecar");
+
+    rmSync(sidecar);
+    const none = spawnSession(dir, p, ["recover"]);
+    assert.equal(none.status, 2, `foreign+no sidecar exited ${none.status}`);
+    assert.match(none.stderr, /not a Foreman session database|does not recognise/);
+    assert.equal(countNotes(p), 2, "notes rows must survive a missing sidecar");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 1: recover refuses a non-SQLite file at the store path", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-nonsql-"));
+  try {
+    const p = join(dir, "session.db");
+    writeFileSync(p, "hello world not sqlite\n");
+    const before = readFileSync(p);
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.equal(res.status, 2, `non-SQLite store exited ${res.status}`);
+    assert.match(res.stderr, /not a Foreman session database|does not recognise/);
+    assert.equal(readFileSync(p, "utf8"), before.toString("utf8"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 2: unread sidecar refusal names sidecar --out and that command works", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-out-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    SqliteSessionStore.open(p).close();
+    const corruptText = "this is not a sidecar\nline-two\n";
+    writeFileSync(sidecar, corruptText);
+    const refused = spawnSession(dir, p, ["sidecar"]);
+    assert.equal(refused.status, 2, `corrupt sidecar exited ${refused.status}`);
+    assert.match(refused.stderr, /could not be parsed/);
+    assert.match(refused.stderr, /sidecar --out/);
+    assert.doesNotMatch(refused.stderr, /sidecar --force/);
+    assert.equal(readFileSync(sidecar, "utf8"), corruptText);
+
+    const fresh = join(dir, "fresh.ndjson");
+    const dumped = spawnSession(dir, p, ["sidecar", "--out", fresh]);
+    assert.equal(dumped.status, 0, `sidecar --out exited ${dumped.status}: ${dumped.stderr}`);
+    assert.match(dumped.stdout, /dumped 0 row/);
+    assert.equal(existsSync(fresh), true);
+    assert.equal(readFileSync(sidecar, "utf8"), corruptText, "--out must not touch the unread sidecar");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 2: post-write unread warning names sidecar --out, not --force", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-warn-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    seedFacts(p, ["already-there"]);
+    writeFileSync(sidecar, "not-json\n");
+    const res = spawnSession(dir, p, ["fact", "landed"]);
+    assert.equal(res.status, 0, `fact with unread sidecar exited ${res.status}: ${res.stderr}`);
+    assert.match(res.stderr, /BEHIND the database/);
+    assert.match(res.stderr, /sidecar --out/);
+    assert.doesNotMatch(res.stderr, /sidecar --force/);
+    const fresh = join(dir, "fresh.ndjson");
+    const dumped = spawnSession(dir, p, ["sidecar", "--out", fresh]);
+    assert.equal(dumped.status, 0, dumped.stderr);
+    assert.match(dumped.stdout, /dumped 2 row/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 3: store commands refuse missing positionals without a stack trace", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-pos-"));
+  try {
+    const p = join(dir, "session.db");
+    spawnSession(dir, p, ["begin", "--note", "pos"]);
+    const cases: ReadonlyArray<{ args: readonly string[]; missing: RegExp }> = [
+      { args: ["fact"], missing: /missing STATEMENT/ },
+      { args: ["obligation"], missing: /missing STATEMENT/ },
+      { args: ["close"], missing: /missing OBLIGATION_ID/ },
+      { args: ["import-sidecar"], missing: /missing PATH/ },
+      { args: ["supersede"], missing: /missing FACT_ID/ },
+      { args: ["supersede", "1"], missing: /missing STATEMENT/ },
+      { args: ["retire"], missing: /missing MEASUREMENT_ID/ },
+      { args: ["note"], missing: /unknown command note/ },
+    ];
+    for (const c of cases) {
+      const res = spawnSession(dir, p, c.args);
+      assert.equal(res.status, 2, `${c.args.join(" ") || "(empty)"} exited ${res.status}`);
+      assert.match(res.stderr, c.missing, `${c.args.join(" ")} stderr: ${res.stderr}`);
+      assert.doesNotMatch(res.stderr, /TypeError/);
+      assert.doesNotMatch(res.stderr, /SQLite parameter/);
+      assert.doesNotMatch(res.stderr, /at SqliteSessionStore/);
+      assert.doesNotMatch(res.stderr, /\/home\/charl\//);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 4: FIFO and dangling symlink sidecars are refused, not replaced", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-fifo-"));
+  try {
+    const p = join(dir, "session.db");
+    SqliteSessionStore.open(p).close();
+
+    const fifo = sidecarPathFor(p);
+    execFileSync("mkfifo", [fifo]);
+    const fifoRes = spawnSession(dir, p, ["sidecar"]);
+    assert.equal(fifoRes.status, 2, `FIFO sidecar exited ${fifoRes.status}: ${fifoRes.stderr}`);
+    assert.match(fifoRes.stderr, /could not be read|not a regular file/);
+    assert.equal(statSync(fifo).isFIFO(), true, "FIFO must not be replaced by a regular file");
+
+    rmSync(fifo);
+    const link = sidecarPathFor(p);
+    symlinkSync(join(dir, "missing-target.ndjson"), link);
+    const dang = spawnSession(dir, p, ["sidecar"]);
+    assert.equal(dang.status, 2, `dangling symlink exited ${dang.status}: ${dang.stderr}`);
+    assert.match(dang.stderr, /could not be read|not a regular file/);
+    assert.equal(lstatSync(link).isSymbolicLink(), true, "dangling symlink must not be replaced");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 5: sidecar --force through a symlink writes the target", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-sym-"));
+  try {
+    const p = join(dir, "session.db");
+    const target = join(dir, "tracked.ndjson");
+    const link = sidecarPathFor(p);
+    seedFacts(p, ["only-one"]);
+    writeSidecarFrom(p, target);
+    symlinkSync(target, link);
+
+    const richer = join(dir, "rich.db");
+    seedFactsWithIds(richer, [
+      { id: 1, statement: "only-one" },
+      { id: 2, statement: "extra" },
+    ]);
+    writeSidecarFrom(richer, target);
+    rmSync(link);
+    symlinkSync(target, link);
+
+    const forced = spawnSession(dir, p, ["sidecar", "--force"]);
+    assert.equal(forced.status, 0, `sidecar --force through symlink exited ${forced.status}: ${forced.stderr}`);
+    assert.equal(lstatSync(link).isSymbolicLink(), true, "the symlink itself must remain");
+    assert.equal(readFileSync(link, "utf8"), readFileSync(target, "utf8"));
+    const snap = decodeSnapshot(readFileSync(target, "utf8"));
+    assert.equal(countRows(snap), 1, "force must write the store dump into the target");
+    assert.deepEqual(
+      snap.facts.map((f) => f.statement),
+      ["only-one"],
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("W3.r3 FIX 8: a read-only command must not rehydrate an existing empty port-shaped store", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-ro-rehy-"));
+  try {
+    const p = join(dir, "session.db");
+    const sidecar = sidecarPathFor(p);
+    SqliteSessionStore.open(p).close();
+    writeFileSync(sidecar, threeLineSidecarText());
+    const res = spawnSession(dir, p, ["recover"]);
+    assert.equal(res.status, 0, `recover exited ${res.status}: ${res.stderr}`);
+    const store = SqliteSessionStore.open(p, { readOnly: true });
+    try {
+      assert.equal(store.listFacts().length, 0, "read-only recover must not write sidecar rows into an existing empty store");
+    } finally {
+      store.close();
+    }
+    assert.equal(readFileSync(sidecar, "utf8"), threeLineSidecarText());
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

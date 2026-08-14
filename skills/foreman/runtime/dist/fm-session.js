@@ -13,7 +13,8 @@ import {
   openSync,
   closeSync,
   fsyncSync,
-  statSync,
+  lstatSync as lstatSync2,
+  realpathSync,
   accessSync,
   constants
 } from "node:fs";
@@ -2047,7 +2048,7 @@ var ALL_CASES = [...CASES, ...HOSTILE_CASES];
 
 // packages/orchestration/src/session-legacy-shape.ts
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
-import { existsSync as existsSync2, rmSync as rmSync2, writeFileSync } from "node:fs";
+import { existsSync as existsSync2, lstatSync, rmSync as rmSync2, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // packages/orchestration/src/session-rebuild.ts
@@ -2150,12 +2151,34 @@ function errorMessage(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function classifyStore(p) {
-  if (!existsSync2(p)) return "absent";
+  let st;
+  try {
+    st = lstatSync(p);
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? e.code : void 0;
+    if (code === "ENOENT") return "absent";
+    throw e;
+  }
+  if (st.isSymbolicLink()) {
+    try {
+      st = statSync(p);
+    } catch {
+      return "unrecognised";
+    }
+  }
+  if (!st.isFile() && !st.isDirectory()) {
+    return "unrecognised";
+  }
   const db = new DatabaseSync2(p, { readOnly: true });
   try {
-    const names = new Set(
-      db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name)
-    );
+    let names;
+    try {
+      names = new Set(
+        db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all().map((r) => r.name)
+      );
+    } catch {
+      return "unrecognised";
+    }
     const hasPort = names.has("store_meta");
     const hasLegacy = names.has("schema_meta");
     if (hasPort && hasLegacy) return "corrupt";
@@ -2177,7 +2200,7 @@ function classifyStore(p) {
       return "port";
     }
     if (hasLegacy) return "legacy";
-    return "absent";
+    return "unrecognised";
   } finally {
     db.close();
   }
@@ -2268,6 +2291,13 @@ function bootstrapStore(p, opts) {
     );
     process.exit(2);
   }
+  if (shape === "unrecognised") {
+    process.stderr.write(
+      `refusing: the session store at ${p} exists but is not a Foreman session database. This tool will not write into a file it does not recognise. Move it aside and rebuild from the tracked sidecar: mv ${p} ${p}.unrecognised && fm-session recover
+`
+    );
+    throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
+  }
   if (shape === "legacy") {
     if (!opts.allowMigration) {
       process.stderr.write(
@@ -2295,12 +2325,22 @@ function bootstrapStore(p, opts) {
     return true;
   }
   if (shape === "absent") {
+    if (existsSync2(p)) {
+      process.stderr.write(
+        `refusing: the session store at ${p} exists but is not a Foreman session database. This tool will not write into a file it does not recognise. Move it aside and rebuild from the tracked sidecar: mv ${p} ${p}.unrecognised && fm-session recover
+`
+      );
+      throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
+    }
     SqliteSessionStore.open(p).close();
     try {
       rehydrateFromSidecarIfEmpty(p);
     } catch (e) {
-      for (const suffix of ["", "-wal", "-shm"]) {
-        rmSync2(p + suffix, { force: true });
+      try {
+        for (const suffix of ["", "-wal", "-shm"]) {
+          rmSync2(p + suffix, { force: true });
+        }
+      } catch {
       }
       throw e;
     }
@@ -2404,6 +2444,24 @@ function parentDirNotWritable(dbFile) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
     return code === "EACCES" || code === "EPERM";
   }
+}
+function pathNotReadable(file) {
+  try {
+    accessSync(file, constants.R_OK);
+    return false;
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? e.code : void 0;
+    return code === "EACCES" || code === "EPERM";
+  }
+}
+function requirePositional(args, index, label) {
+  const value = args[index];
+  if (value === void 0) {
+    process.stderr.write(`refusing: missing ${label}
+`);
+    exitCli(2);
+  }
+  return value;
 }
 function refuseFromPort(e, legacyMessage, expectedReasons) {
   const reason = reasonOf(e);
@@ -2678,9 +2736,11 @@ function writeAtomic(path, text) {
   }
 }
 var SidecarReplaceRefused = class extends Error {
-  constructor(message) {
+  kind;
+  constructor(message, kind) {
     super(message);
     this.name = "SidecarReplaceRefused";
+    this.kind = kind;
   }
 };
 function identityToken(kind, row, fields) {
@@ -2724,48 +2784,72 @@ function assessSidecarReplace(oldSnap, newSnap) {
     lostIdentities
   };
 }
+function sidecarDumpElsewhereRemedy() {
+  return "Dump the store to a new file with `fm-session sidecar --out <fresh-path>`.";
+}
 function sidecarReplaceMessage(path, verdict) {
   const kinds = verdict.kindShrinks.length > 0 ? ` kinds ${verdict.kindShrinks.join(",")}` : "";
   const lost = verdict.lostIdentities.length > 0 ? ` missing ${verdict.lostIdentities.length} identit${verdict.lostIdentities.length === 1 ? "y" : "ies"}` : "";
   return `refusing: existing sidecar ${path} has ${verdict.oldCount} row(s); refusing to replace it with ${verdict.newCount} row(s)${kinds}${lost} (identity-scoped ${verdict.oldDigest.slice(0, 12)} -> ${verdict.newDigest.slice(0, 12)}). Run \`fm-session sidecar --force\` to dump the store over this file, or \`fm-session import-sidecar ${path} --force\` to restore this file into the store.
 `;
 }
-function writeSidecar(path, text, opts = {}) {
-  if (existsSync3(path)) {
-    let isFile = false;
+function unreadSidecarMessage(path, detail) {
+  return `refusing: existing sidecar ${path} could not be read: ${detail}. Refusing to replace a sidecar whose contents could not be established. ${sidecarDumpElsewhereRemedy()}
+`;
+}
+function unparsedSidecarMessage(path, detail) {
+  return `refusing: existing sidecar ${path} could not be parsed: ${detail}. Refusing to replace a sidecar whose contents could not be established. ${sidecarDumpElsewhereRemedy()}
+`;
+}
+function inspectSidecarPath(path) {
+  let st;
+  try {
+    st = lstatSync2(path);
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? e.code : void 0;
+    if (code === "ENOENT") return { dest: path, kind: "missing" };
+    throw e;
+  }
+  if (st.isSymbolicLink()) {
+    let resolved;
     try {
-      isFile = statSync(path).isFile();
+      resolved = realpathSync(path);
     } catch {
-      isFile = false;
+      return { dest: path, kind: "unreadable" };
     }
-    if (isFile) {
-      let raw;
-      try {
-        raw = readFileSync2(path, "utf8");
-      } catch (e) {
-        throw new SidecarReplaceRefused(
-          `refusing: existing sidecar ${path} could not be read: ${errorMessage2(e)}. Refusing to replace a sidecar whose contents could not be established.
-`
-        );
-      }
-      let oldSnap;
-      try {
-        oldSnap = decodeSnapshot(raw);
-      } catch (e) {
-        throw new SidecarReplaceRefused(
-          `refusing: existing sidecar ${path} could not be parsed: ${errorMessage2(e)}. Refusing to replace a sidecar whose contents could not be established.
-`
-        );
-      }
-      if (opts.allowShrink !== true) {
-        const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
-        if (!verdict.ok) {
-          throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
-        }
+    return inspectSidecarPath(resolved);
+  }
+  if (st.isFile()) return { dest: path, kind: "regular" };
+  if (st.isDirectory()) return { dest: path, kind: "directory" };
+  return { dest: path, kind: "unreadable" };
+}
+function writeSidecar(path, text, opts = {}) {
+  const inspected = inspectSidecarPath(path);
+  if (inspected.kind === "unreadable") {
+    throw new SidecarReplaceRefused(unreadSidecarMessage(path, "not a regular file"), "unread");
+  }
+  const dest = inspected.dest;
+  if (inspected.kind === "regular") {
+    let raw;
+    try {
+      raw = readFileSync2(dest, "utf8");
+    } catch (e) {
+      throw new SidecarReplaceRefused(unreadSidecarMessage(path, errorMessage2(e)), "unread");
+    }
+    let oldSnap;
+    try {
+      oldSnap = decodeSnapshot(raw);
+    } catch (e) {
+      throw new SidecarReplaceRefused(unparsedSidecarMessage(path, errorMessage2(e)), "unparsed");
+    }
+    if (opts.allowShrink !== true) {
+      const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
+      if (!verdict.ok) {
+        throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict), "shrink");
       }
     }
   }
-  writeAtomic(path, text);
+  writeAtomic(dest, text);
 }
 function persistSidecarAfterMigration(storePath) {
   const out = sidecarPathFor(storePath);
@@ -2895,7 +2979,7 @@ function prepareInvocation(cmd, importTarget) {
       exitCli(2);
     }
     const failedPath = cmd === "import-sidecar" ? importTarget ?? dbPath() : dbPath();
-    if (isSqliteOperationalError(e) && parentDirNotWritable(failedPath)) {
+    if (isSqliteOperationalError(e) && (parentDirNotWritable(failedPath) || pathNotReadable(failedPath))) {
       process.stderr.write(`EACCES: permission denied, open '${failedPath}'
 `);
       exitCli(1);
@@ -2913,7 +2997,15 @@ function prepareInvocation(cmd, importTarget) {
 function main() {
   const args = process.argv.slice(2);
   const cmd = args[0];
-  if (cmd === void 0 || !STORE_CMDS.has(cmd)) exitCli(2);
+  if (cmd === void 0) {
+    process.stderr.write("refusing: missing command\n");
+    exitCli(2);
+  }
+  if (!STORE_CMDS.has(cmd)) {
+    process.stderr.write(`refusing: unknown command ${cmd}
+`);
+    exitCli(2);
+  }
   const parsed = parseCli(args.slice(1));
   let importTarget = "";
   if (cmd === "import-sidecar") {
@@ -2994,7 +3086,7 @@ function main() {
     return 0;
   }
   if (cmd === "fact") {
-    const statement = parsed.args[0];
+    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const evidence = parsed.options.evidence || null;
     const store = openStore();
     try {
@@ -3058,7 +3150,7 @@ function main() {
     return 0;
   }
   if (cmd === "obligation") {
-    const statement = parsed.args[0];
+    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const blocker = parsed.options.blocker || null;
     const store = openStore();
     try {
@@ -3081,7 +3173,7 @@ function main() {
     return 0;
   }
   if (cmd === "close") {
-    const obligationId = parseInt(parsed.args[0] ?? "", 10);
+    const obligationId = parseInt(requirePositional(parsed.args, 0, "OBLIGATION_ID"), 10);
     const status = parsed.options.status;
     if (parsed.options.blocker !== void 0) {
       process.stderr.write("refusing: --blocker is not valid with close\n");
@@ -3135,7 +3227,7 @@ function main() {
     }
   }
   if (cmd === "import-sidecar") {
-    const path = parsed.args[0];
+    const path = requirePositional(parsed.args, 0, "PATH");
     try {
       const count = importSidecar(importTarget, path, parsed.options.force);
       process.stdout.write(`imported ${count} document(s) -> ${importTarget}
@@ -3148,8 +3240,8 @@ function main() {
     }
   }
   if (cmd === "supersede") {
-    const factId = parseInt(parsed.args[0] ?? "", 10);
-    const statement = parsed.args[1];
+    const factId = parseInt(requirePositional(parsed.args, 0, "FACT_ID"), 10);
+    const statement = requirePositional(parsed.args, 1, "STATEMENT");
     const evidence = parsed.options.evidence || null;
     const reason = parsed.options.reason;
     if (!reason) {
@@ -3189,7 +3281,7 @@ function main() {
     return 0;
   }
   if (cmd === "retire") {
-    const measurementId = parseInt(parsed.args[0] ?? "", 10);
+    const measurementId = parseInt(requirePositional(parsed.args, 0, "MEASUREMENT_ID"), 10);
     const byId = parseInt(parsed.options.by ?? "", 10);
     const reason = parsed.options.reason;
     if (Number.isNaN(byId)) {
@@ -3276,8 +3368,9 @@ function mainWithSidecar() {
 `);
   } catch (e) {
     if (e instanceof SidecarReplaceRefused) {
+      const remedy = e.kind === "shrink" ? `Run \`fm-session sidecar --force\` to dump the store over the tracked record, or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.` : `The existing sidecar could not be decoded, so --force cannot overwrite it. Dump the store to a new file with \`fm-session sidecar --out <fresh-path>\`.`;
       process.stderr.write(
-        `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database. Run \`fm-session sidecar --force\` to dump the store over the tracked record, or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.
+        `WARNING: the store was written but its sidecar could not be refreshed (${e}). The tracked record is now BEHIND the database. ${remedy}
 `
       );
     } else {

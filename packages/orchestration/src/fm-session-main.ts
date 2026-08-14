@@ -12,7 +12,8 @@ import {
   openSync,
   closeSync,
   fsyncSync,
-  statSync,
+  lstatSync,
+  realpathSync,
   accessSync,
   constants,
 } from "node:fs";
@@ -253,6 +254,25 @@ function parentDirNotWritable(dbFile: string): boolean {
     const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
     return code === "EACCES" || code === "EPERM";
   }
+}
+
+function pathNotReadable(file: string): boolean {
+  try {
+    accessSync(file, constants.R_OK);
+    return false;
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+    return code === "EACCES" || code === "EPERM";
+  }
+}
+
+function requirePositional(args: readonly string[], index: number, label: string): string {
+  const value = args[index];
+  if (value === undefined) {
+    process.stderr.write(`refusing: missing ${label}\n`);
+    exitCli(2);
+  }
+  return value;
 }
 
 /**
@@ -622,10 +642,14 @@ export function writeAtomic(path: string, text: string): void {
   }
 }
 
+export type SidecarReplaceKind = "unread" | "unparsed" | "shrink";
+
 export class SidecarReplaceRefused extends Error {
-  constructor(message: string) {
+  readonly kind: SidecarReplaceKind;
+  constructor(message: string, kind: SidecarReplaceKind) {
     super(message);
     this.name = "SidecarReplaceRefused";
+    this.kind = kind;
   }
 }
 
@@ -699,6 +723,10 @@ export function assessSidecarReplace(
   };
 }
 
+function sidecarDumpElsewhereRemedy(): string {
+  return "Dump the store to a new file with `fm-session sidecar --out <fresh-path>`.";
+}
+
 function sidecarReplaceMessage(path: string, verdict: Extract<SidecarReplaceAssessment, { ok: false }>): string {
   const kinds = verdict.kindShrinks.length > 0 ? ` kinds ${verdict.kindShrinks.join(",")}` : "";
   const lost =
@@ -715,59 +743,92 @@ function sidecarReplaceMessage(path: string, verdict: Extract<SidecarReplaceAsse
   );
 }
 
+function unreadSidecarMessage(path: string, detail: string): string {
+  return (
+    `refusing: existing sidecar ${path} could not be read: ${detail}. ` +
+    `Refusing to replace a sidecar whose contents could not be established. ` +
+    `${sidecarDumpElsewhereRemedy()}\n`
+  );
+}
+
+function unparsedSidecarMessage(path: string, detail: string): string {
+  return (
+    `refusing: existing sidecar ${path} could not be parsed: ${detail}. ` +
+    `Refusing to replace a sidecar whose contents could not be established. ` +
+    `${sidecarDumpElsewhereRemedy()}\n`
+  );
+}
+
+type SidecarPathKind = "missing" | "regular" | "directory" | "unreadable";
+
+function inspectSidecarPath(path: string): { dest: string; kind: SidecarPathKind } {
+  let st;
+  try {
+    st = lstatSync(path);
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+    if (code === "ENOENT") return { dest: path, kind: "missing" };
+    throw e;
+  }
+  if (st.isSymbolicLink()) {
+    let resolved: string;
+    try {
+      resolved = realpathSync(path);
+    } catch {
+      return { dest: path, kind: "unreadable" };
+    }
+    return inspectSidecarPath(resolved);
+  }
+  if (st.isFile()) return { dest: path, kind: "regular" };
+  if (st.isDirectory()) return { dest: path, kind: "directory" };
+  return { dest: path, kind: "unreadable" };
+}
+
 /**
  * Never replace an existing sidecar that would drop a declared identity
  * unless the caller authorises the shrink. Per-kind counts plus the
  * identity digest catch same-total replacements that a row-count guard
  * cannot see.
  *
- * An existing regular file that cannot be read or parsed is not "no old
+ * An existing path whose contents cannot be established is not "no old
  * snapshot". The sidecar is the record of truth. Refuse rather than
- * overwrite contents that this process could not establish. --force
+ * overwrite unread bytes, a FIFO, or a dangling symlink. --force
  * authorises a shrink of a decoded snapshot, not a write over unread
- * bytes. A non-file path (directory) falls through to writeAtomic so a
- * hard write failure stays a hard write failure.
+ * bytes. A directory falls through to writeAtomic so a hard write
+ * failure stays a hard write failure. A symlink is resolved: the guard
+ * and the write both use the target, so --force cannot detach it.
  */
 function writeSidecar(
   path: string,
   text: string,
   opts: { readonly allowShrink?: boolean } = {},
 ): void {
-  if (existsSync(path)) {
-    let isFile = false;
+  const inspected = inspectSidecarPath(path);
+  if (inspected.kind === "unreadable") {
+    throw new SidecarReplaceRefused(unreadSidecarMessage(path, "not a regular file"), "unread");
+  }
+  const dest = inspected.dest;
+  if (inspected.kind === "regular") {
+    let raw: string;
     try {
-      isFile = statSync(path).isFile();
-    } catch {
-      isFile = false;
+      raw = readFileSync(dest, "utf8");
+    } catch (e) {
+      throw new SidecarReplaceRefused(unreadSidecarMessage(path, errorMessage(e)), "unread");
     }
-    if (isFile) {
-      let raw: string;
-      try {
-        raw = readFileSync(path, "utf8");
-      } catch (e) {
-        throw new SidecarReplaceRefused(
-          `refusing: existing sidecar ${path} could not be read: ${errorMessage(e)}. ` +
-            `Refusing to replace a sidecar whose contents could not be established.\n`,
-        );
-      }
-      let oldSnap: SessionSnapshot;
-      try {
-        oldSnap = decodeSnapshot(raw);
-      } catch (e) {
-        throw new SidecarReplaceRefused(
-          `refusing: existing sidecar ${path} could not be parsed: ${errorMessage(e)}. ` +
-            `Refusing to replace a sidecar whose contents could not be established.\n`,
-        );
-      }
-      if (opts.allowShrink !== true) {
-        const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
-        if (!verdict.ok) {
-          throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict));
-        }
+    let oldSnap: SessionSnapshot;
+    try {
+      oldSnap = decodeSnapshot(raw);
+    } catch (e) {
+      throw new SidecarReplaceRefused(unparsedSidecarMessage(path, errorMessage(e)), "unparsed");
+    }
+    if (opts.allowShrink !== true) {
+      const verdict = assessSidecarReplace(oldSnap, decodeSnapshot(text));
+      if (!verdict.ok) {
+        throw new SidecarReplaceRefused(sidecarReplaceMessage(path, verdict), "shrink");
       }
     }
   }
-  writeAtomic(path, text);
+  writeAtomic(dest, text);
 }
 
 function persistSidecarAfterMigration(storePath: string): void {
@@ -906,7 +967,10 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
       exitCli(2);
     }
     const failedPath = cmd === "import-sidecar" ? (importTarget ?? dbPath()) : dbPath();
-    if (isSqliteOperationalError(e) && parentDirNotWritable(failedPath)) {
+    if (
+      isSqliteOperationalError(e) &&
+      (parentDirNotWritable(failedPath) || pathNotReadable(failedPath))
+    ) {
       process.stderr.write(`EACCES: permission denied, open '${failedPath}'\n`);
       exitCli(1);
     }
@@ -922,7 +986,14 @@ function prepareInvocation(cmd: string, importTarget: string | undefined): void 
 export function main(): number {
   const args = process.argv.slice(2);
   const cmd = args[0];
-  if (cmd === undefined || !STORE_CMDS.has(cmd)) exitCli(2);
+  if (cmd === undefined) {
+    process.stderr.write("refusing: missing command\n");
+    exitCli(2);
+  }
+  if (!STORE_CMDS.has(cmd)) {
+    process.stderr.write(`refusing: unknown command ${cmd}\n`);
+    exitCli(2);
+  }
 
   const parsed = parseCli(args.slice(1));
 
@@ -1007,7 +1078,7 @@ export function main(): number {
   }
 
   if (cmd === "fact") {
-    const statement = parsed.args[0]!;
+    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const evidence = parsed.options.evidence || null;
     const store = openStore();
     try {
@@ -1071,7 +1142,7 @@ export function main(): number {
   }
 
   if (cmd === "obligation") {
-    const statement = parsed.args[0]!;
+    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const blocker = parsed.options.blocker || null;
     const store = openStore();
     try {
@@ -1094,7 +1165,7 @@ export function main(): number {
   }
 
   if (cmd === "close") {
-    const obligationId = parseInt(parsed.args[0] ?? "", 10);
+    const obligationId = parseInt(requirePositional(parsed.args, 0, "OBLIGATION_ID"), 10);
     const status = parsed.options.status;
     if (parsed.options.blocker !== undefined) {
       process.stderr.write("refusing: --blocker is not valid with close\n");
@@ -1146,7 +1217,7 @@ export function main(): number {
   }
 
   if (cmd === "import-sidecar") {
-    const path = parsed.args[0]!;
+    const path = requirePositional(parsed.args, 0, "PATH");
     try {
       const count = importSidecar(importTarget, path, parsed.options.force);
       process.stdout.write(`imported ${count} document(s) -> ${importTarget}\n`);
@@ -1158,8 +1229,8 @@ export function main(): number {
   }
 
   if (cmd === "supersede") {
-    const factId = parseInt(parsed.args[0] ?? "", 10);
-    const statement = parsed.args[1]!;
+    const factId = parseInt(requirePositional(parsed.args, 0, "FACT_ID"), 10);
+    const statement = requirePositional(parsed.args, 1, "STATEMENT");
     const evidence = parsed.options.evidence || null;
     const reason = parsed.options.reason;
     if (!reason) {
@@ -1197,7 +1268,7 @@ export function main(): number {
   }
 
   if (cmd === "retire") {
-    const measurementId = parseInt(parsed.args[0] ?? "", 10);
+    const measurementId = parseInt(requirePositional(parsed.args, 0, "MEASUREMENT_ID"), 10);
     const byId = parseInt(parsed.options.by ?? "", 10);
     const reason = parsed.options.reason;
     if (Number.isNaN(byId)) {
@@ -1282,13 +1353,19 @@ function mainWithSidecar(): void {
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
   } catch (e) {
     if (e instanceof SidecarReplaceRefused) {
-      // The store write already committed. On a refusal the existing sidecar
-      // is strictly richer, so keep rc=0. Exit 2 invited a duplicating retry.
+      // The store write already committed. On a shrink refusal the existing
+      // sidecar is strictly richer, so keep rc=0. Exit 2 invited a
+      // duplicating retry. --force works only on a decoded snapshot.
+      const remedy =
+        e.kind === "shrink"
+          ? `Run \`fm-session sidecar --force\` to dump the store over the tracked record, ` +
+            `or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.`
+          : `The existing sidecar could not be decoded, so --force cannot overwrite it. ` +
+            `Dump the store to a new file with \`fm-session sidecar --out <fresh-path>\`.`;
       process.stderr.write(
         `WARNING: the store was written but its sidecar could not be refreshed (${e}). ` +
           `The tracked record is now BEHIND the database. ` +
-          `Run \`fm-session sidecar --force\` to dump the store over the tracked record, ` +
-          `or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.\n`,
+          `${remedy}\n`,
       );
     } else {
       // A hard write failure is the opposite case: the row is already in

@@ -9,7 +9,7 @@
  */
 
 import { DatabaseSync } from "node:sqlite";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   ENTITY_ORDER,
@@ -20,7 +20,7 @@ import {
 } from "@foreman/session-store";
 import { rebuildFromSidecar } from "./session-rebuild.js";
 
-export type StoreShape = "absent" | "legacy" | "port" | "corrupt";
+export type StoreShape = "absent" | "legacy" | "port" | "corrupt" | "unrecognised";
 
 /** Refused legacy dump. Callers map this to the exit-2 refusal class. */
 export class LegacyMigrationRefusal extends Error {
@@ -99,15 +99,38 @@ function errorMessage(e: unknown): string {
 /**
  * How the file at `p` is shaped, decided STRUCTURALLY.
  *
- * Four shapes, not three. "corrupt" is the one this classifier previously
- * could not say: the port opened straight onto a legacy file CREATES
- * store_meta while leaving schema_meta in place and every watermark at 1, so
- * "has store_meta" classified that exact wreckage as healthy and the next
- * write minted id 1 beside live id 36. The presence of store_meta is
- * untrustworthy in the same way a version number is.
+ * Five shapes, not four. "absent" means no file at the path. "unrecognised"
+ * means a file exists that is neither legacy-shaped nor port-shaped: a
+ * stranger SQLite database, a non-database regular file, or a schema this
+ * tool cannot read. Collapsing those into "absent" made bootstrap write
+ * port tables into the stranger and then delete it.
+ *
+ * "corrupt" is the half-migrated wreckage: the port opened straight onto a
+ * legacy file CREATES store_meta while leaving schema_meta in place and
+ * every watermark at 1, so "has store_meta" classified that exact wreckage
+ * as healthy and the next write minted id 1 beside live id 36.
  */
 export function classifyStore(p: string): StoreShape {
-  if (!existsSync(p)) return "absent";
+  let st;
+  try {
+    st = lstatSync(p);
+  } catch (e) {
+    const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
+    if (code === "ENOENT") return "absent";
+    throw e;
+  }
+  if (st.isSymbolicLink()) {
+    try {
+      st = statSync(p);
+    } catch {
+      // Dangling symlink: a path entry exists. It is not a missing file.
+      return "unrecognised";
+    }
+  }
+  if (!st.isFile() && !st.isDirectory()) {
+    // FIFO/socket/device: do not block on a DatabaseSync open.
+    return "unrecognised";
+  }
   // read-only: this is a pure inspection, called from every bootstrap —
   // including read-only commands against a healthy store — and a plain
   // connection's close() checkpoints an outstanding WAL as a side effect of
@@ -115,11 +138,17 @@ export function classifyStore(p: string): StoreShape {
   // command must not touch.
   const db = new DatabaseSync(p, { readOnly: true });
   try {
-    const names = new Set(
-      (db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as {
-        name: string;
-      }[]).map((r) => r.name),
-    );
+    let names: Set<string>;
+    try {
+      names = new Set(
+        (db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as {
+          name: string;
+        }[]).map((r) => r.name),
+      );
+    } catch {
+      // File exists. A schema we cannot read is not "absent".
+      return "unrecognised";
+    }
     const hasPort = names.has("store_meta");
     const hasLegacy = names.has("schema_meta");
     if (hasPort && hasLegacy) return "corrupt";
@@ -149,7 +178,7 @@ export function classifyStore(p: string): StoreShape {
       return "port";
     }
     if (hasLegacy) return "legacy";
-    return "absent";
+    return "unrecognised";
   } finally {
     db.close();
   }
@@ -286,6 +315,15 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     );
     process.exit(2);
   }
+  if (shape === "unrecognised") {
+    process.stderr.write(
+      `refusing: the session store at ${p} exists but is not a Foreman session database. ` +
+        `This tool will not write into a file it does not recognise. ` +
+        `Move it aside and rebuild from the tracked sidecar: ` +
+        `mv ${p} ${p}.unrecognised && fm-session recover\n`,
+    );
+    throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
+  }
   if (shape === "legacy") {
     if (!opts.allowMigration) {
       process.stderr.write(
@@ -317,15 +355,29 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     // regardless of whether the command itself is read-only -- the goldens
     // depend on exactly this path.
     //
-    // If rehydrate refuses, delete the empty file this call just created.
-    // An empty port-shaped .db makes the next invocation skip this guard
-    // (`if (!opts.readOnly)` below) and treat the derived cache as healthy.
+    // "absent" now means the path has no file. If a file appeared between
+    // classify and here, refuse rather than write into it.
+    if (existsSync(p)) {
+      process.stderr.write(
+        `refusing: the session store at ${p} exists but is not a Foreman session database. ` +
+          `This tool will not write into a file it does not recognise. ` +
+          `Move it aside and rebuild from the tracked sidecar: ` +
+          `mv ${p} ${p}.unrecognised && fm-session recover\n`,
+      );
+      throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
+    }
     SqliteSessionStore.open(p).close();
     try {
       rehydrateFromSidecarIfEmpty(p);
     } catch (e) {
-      for (const suffix of ["", "-wal", "-shm"] as const) {
-        rmSync(p + suffix, { force: true });
+      // Delete only the empty file this invocation just created. A cleanup
+      // throw must not replace the refusal it was cleaning up after.
+      try {
+        for (const suffix of ["", "-wal", "-shm"] as const) {
+          rmSync(p + suffix, { force: true });
+        }
+      } catch {
+        // keep `e`
       }
       throw e;
     }
