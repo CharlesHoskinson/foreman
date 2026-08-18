@@ -102,9 +102,14 @@ Open work carried by this line:
 | Migrate `fm-session-main.ts` onto the port | Landed. The CLI runs on `@foreman/session-store`. `packages/orchestration/src/session-legacy-shape.ts` retains the only non-test `node:sqlite` import outside `packages/session-store/`, because recognizing and migrating a pre-port file requires raw SQLite |
 | `fm-session sync` — drain `memory_outbox` | Not started. The outbox table exists and is written; nothing drains it |
 | `importSnapshot` `remap` id-collision policy | Throws as unimplemented |
-| Conformance suite negative control | Absent. Hostile cases prove the validation layer discriminates; the store-level cases are unproven against a subtly wrong backend |
-| Council runtime | Not built. `components/council/packages/*/dist` is absent; requires `pnpm install && pnpm build` |
+| `FilesOnlySessionStore` — the port's second implementation | Absent. Exit predicate 3, the one the design calls decisive, is unmet: a contract satisfied once is a description of its only implementation |
+| Conformance suite negative control | Absent, and the gap is wider than it looks. Measured 2026-08-17: only 20 of the 37 cases take the store factory. The other 17 read `SessionSnapshot` literals through `findViolations` and pass against any backend, including one that does nothing |
+| Council runtime | Builds cleanly, verified 2026-08-17 with pnpm 11.18.0 — eight packages produce `dist`. `components/council/packages/*/dist` is a local artifact, so a fresh checkout still needs `pnpm install && pnpm build` |
 | Windows Bats suite | BW-004, unchanged from v0.3.0 |
+
+The close-out plan for the remaining v0.3.1 work, with each predicate measured
+against branch state rather than restated from the design, is
+`docs/superpowers/plans/2026-08-17-v031-closeout.md`.
 
 The eighteen-sprint program described in earlier revisions of this file was
 measured at 43 packages and roughly 819 open tasks, over half of it the tool
