@@ -7,9 +7,13 @@ import { describe, it, test } from "node:test";
 
 import {
   ALL_CASES,
+  MIN_INDEPENDENT_STUB_CATEGORIES,
+  STORE_CASES,
+  failedCategories,
   formatReport,
   runSuite,
   seedFixture,
+  stubFactory,
 } from "./contract-suite.js";
 import { encodeSnapshot } from "./sidecar.js";
 import { openMemoryStore, SqliteSessionStore } from "./sqlite-store.js";
@@ -186,4 +190,75 @@ test("sqlite store opens in WAL with a busy timeout", () => {
   assert.equal(journal.journal_mode, "wal");
   assert.ok(busy.timeout >= 5000, `busy_timeout was ${busy.timeout}`);
   assert.equal(sync.synchronous, 1); // NORMAL
+});
+
+
+describe("conformance suite soundness (negative control)", () => {
+  // A suite that cannot fail a broken store is not evidence about a good one.
+  // graph-store has had this control since v0.2.9 (stubFactory, StubEmptyBackend,
+  // MIN_INDEPENDENT_STUB_CATEGORIES); session-store shipped without one.
+
+  it("records how many cases actually exercise the store factory", () => {
+    // Most of ALL_CASES never constructs a store: every hostile/* case and both
+    // supersession/fan-in-* cases read SessionSnapshot literals through
+    // findViolations. Only the rest can discriminate a backend. These counts are
+    // pinned so that a case added without a factory parameter shows up here
+    // rather than silently diluting the control below.
+    assert.equal(ALL_CASES.length, 37);
+    assert.equal(STORE_CASES.length, 20);
+  });
+
+  it("fails a do-nothing backend across at least three independent categories", () => {
+    const report = runSuite(stubFactory);
+    assert.equal(report.ok, false, "a do-nothing backend passed the conformance suite");
+    const cats = failedCategories(report);
+    assert.ok(
+      cats.size >= MIN_INDEPENDENT_STUB_CATEGORIES,
+      `stub failed only ${cats.size} categor${cats.size === 1 ? "y" : "ies"} ` +
+        `(${[...cats].sort().join(", ") || "none"}); expected at least ` +
+        `${MIN_INDEPENDENT_STUB_CATEGORIES}`,
+    );
+  });
+
+  it("pins the store cases that a do-nothing backend still passes", () => {
+    // Measured 2026-08-17. These seven take the factory yet survive a backend
+    // that persists nothing, so they are not testing what their names claim.
+    // roundtrip/populated-store is the starkest: a roundtrip case that a
+    // do-nothing store passes is not exercising a roundtrip.
+    //
+    // This is pinned rather than fixed here because strengthening a conformance
+    // case changes what the contract means, and that belongs with the second
+    // implementation, where a cross-backend byte comparison can show which
+    // behaviour is the correct one. Until then the weakness is visible instead
+    // of silent: strengthen a case and this list fails, so it gets updated
+    // deliberately.
+    const report = runSuite(stubFactory);
+    const storeCaseNames = new Set(STORE_CASES.map((c) => c.name));
+    const blindStoreCases = report.results
+      .filter((r) => r.passed && storeCaseNames.has(r.name))
+      .map((r) => r.name)
+      .sort();
+    assert.deepEqual(blindStoreCases, [
+      "encoding/byte-stable-across-repeated-encodes",
+      "encoding/ends-with-exactly-one-newline",
+      "identity/allocation-state-round-trips",
+      "retire/points-one-existing-measurement-at-another",
+      "roundtrip/empty-store",
+      "roundtrip/import-of-export-is-equal",
+      "roundtrip/populated-store",
+    ]);
+  });
+
+  it("passes the stub on every case that does not take the factory", () => {
+    // The point of the control, stated as an assertion: these cases are blind to
+    // the backend, so a green result from them proves nothing about a store.
+    const report = runSuite(stubFactory);
+    const storeCaseNames = new Set(STORE_CASES.map((c) => c.name));
+    const blind = report.results.filter((r) => !storeCaseNames.has(r.name));
+    assert.equal(blind.length, ALL_CASES.length - STORE_CASES.length);
+    assert.ok(
+      blind.every((r) => r.passed),
+      "a non-factory case failed against the stub, so it is not backend-blind after all",
+    );
+  });
 });

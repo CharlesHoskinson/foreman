@@ -9,12 +9,24 @@ import {
   SESSION_MODEL_VERSION,
   emptySnapshot,
   snapshotsEqual,
+  type CountedKind,
+  type FactRow,
+  type MeasurementRow,
+  type ObligationRow,
+  type ObligationStatus,
+  type SessionRow,
   type SessionSnapshot,
 } from "./entities.js";
 import { decodeSnapshot, encodeSnapshot } from "./sidecar.js";
 import { findViolations, type Violation } from "./integrity.js";
 import { reasonOf, type SessionStoreFailureReason } from "./failures.js";
-import type { SessionStore } from "./port.js";
+import type {
+  NewFact,
+  NewMeasurement,
+  NewObligation,
+  SessionStore,
+  SupersedeResult,
+} from "./port.js";
 
 export type StoreFactory = () => SessionStore;
 
@@ -881,4 +893,239 @@ export function formatReport(report: SuiteReport): string {
     .filter((r) => !r.passed)
     .map((r) => `  FAIL ${r.name}: ${r.detail}`);
   return `${report.passed} passed, ${report.failed} failed\n${lines.join("\n")}`;
+}
+
+
+// ---------------------------------------------------------------------------
+// Negative control
+// ---------------------------------------------------------------------------
+
+/**
+ * The cases that actually construct a store.
+ *
+ * `ALL_CASES` also holds cases whose `run` takes no factory — every `hostile/*`
+ * case and both `supersession/fan-in-*` cases. Those exercise `findViolations`
+ * over snapshot literals, not a backend, so they pass against any store
+ * including one that does nothing. Only the cases below can discriminate a
+ * backend, and only these are counted by the soundness gate.
+ */
+export const STORE_CASES: readonly Case[] = ALL_CASES.filter(
+  (c) => c.run.length > 0,
+);
+
+/** Contract category of a case name: the segment before the first slash. */
+export function categoryOf(name: string): string {
+  const i = name.indexOf("/");
+  return i === -1 ? name : name.slice(0, i);
+}
+
+/** Distinct contract categories with at least one failing case. */
+export function failedCategories(report: SuiteReport): Set<string> {
+  const cats = new Set<string>();
+  for (const r of report.results) {
+    if (r.passed) continue;
+    cats.add(categoryOf(r.name));
+  }
+  return cats;
+}
+
+/**
+ * A control must fail for several independent reasons, not once. Nine
+ * categories are reachable by `STORE_CASES`; requiring three means a single
+ * over-broad case cannot carry the gate on its own. Mirrors graph-store.
+ */
+export const MIN_INDEPENDENT_STUB_CATEGORIES = 3;
+
+/**
+ * A structurally valid but behaviourally empty SessionStore.
+ *
+ * It is deliberately NOT obviously broken: every write echoes a well-formed row
+ * back to its caller, so a caller that only inspects return values sees exactly
+ * what SQLite would give it. What it never does is remember. Reads always report
+ * an empty store.
+ *
+ * This is the subtly wrong backend the suite has to be able to reject. If the
+ * suite passes it, the suite is describing its only implementation rather than
+ * specifying a contract.
+ */
+export class StubEmptyBackend implements SessionStore {
+  readonly modelVersion = SESSION_MODEL_VERSION;
+
+  // -- reads: always empty, whatever was written -----------------------------
+  snapshot(): SessionSnapshot {
+    return emptySnapshot();
+  }
+  listSessions(): readonly SessionRow[] {
+    return [];
+  }
+  currentSession(): SessionRow | null {
+    return null;
+  }
+  listFacts(): readonly FactRow[] {
+    return [];
+  }
+  listMeasurements(): readonly MeasurementRow[] {
+    return [];
+  }
+  listObligations(): readonly ObligationRow[] {
+    return [];
+  }
+  peekNextId(_kind: CountedKind): number {
+    return 1;
+  }
+
+  // -- writes: plausible echo, no persistence --------------------------------
+  beginSession(args: {
+    readonly session_id: string;
+    readonly started_ts: string;
+    readonly start_sha: string | null;
+    readonly note: string | null;
+  }): SessionRow {
+    return {
+      session_id: args.session_id,
+      started_ts: args.started_ts,
+      start_sha: args.start_sha,
+      ended_ts: null,
+      note: args.note,
+    };
+  }
+
+  endSession(sessionId: string, endedTs: string): SessionRow {
+    return {
+      session_id: sessionId,
+      started_ts: endedTs,
+      start_sha: null,
+      ended_ts: endedTs,
+      note: null,
+    };
+  }
+
+  addFact(fact: NewFact): FactRow {
+    return {
+      id: 1,
+      statement: fact.statement,
+      evidence: fact.evidence,
+      established_ts: fact.established_ts,
+      session_id: fact.session_id,
+      superseded_by: null,
+      superseded_at: null,
+      supersede_reason: null,
+    };
+  }
+
+  addMeasurement(m: NewMeasurement): MeasurementRow {
+    return {
+      id: 1,
+      metric: m.metric,
+      value: m.value,
+      value_num: m.value_num,
+      command: m.command,
+      measured_ts: m.measured_ts,
+      measured_sha: m.measured_sha,
+      scope_paths: m.scope_paths,
+      session_id: m.session_id,
+      superseded_by: null,
+      superseded_at: null,
+      supersede_reason: null,
+    };
+  }
+
+  addObligation(o: NewObligation): ObligationRow {
+    return {
+      id: 1,
+      statement: o.statement,
+      status: "open",
+      blocker: o.blocker,
+      opened_ts: o.opened_ts,
+      closed_ts: null,
+      session_id: o.session_id,
+    };
+  }
+
+  closeObligation(
+    id: number,
+    status: Exclude<ObligationStatus, "open">,
+    closedTs: string,
+  ): ObligationRow {
+    return {
+      id,
+      statement: "",
+      status,
+      blocker: null,
+      opened_ts: closedTs,
+      closed_ts: closedTs,
+      session_id: null,
+    };
+  }
+
+  supersedeFact(
+    id: number,
+    replacement: NewFact,
+    reason: string | null,
+    at: string,
+  ): SupersedeResult<FactRow> {
+    return {
+      superseded: {
+        id,
+        statement: replacement.statement,
+        evidence: replacement.evidence,
+        established_ts: replacement.established_ts,
+        session_id: replacement.session_id,
+        superseded_by: id + 1,
+        superseded_at: at,
+        supersede_reason: reason,
+      },
+      replacement: { ...this.addFact(replacement), id: id + 1 },
+    };
+  }
+
+  supersedeMeasurement(
+    id: number,
+    replacement: NewMeasurement,
+    reason: string | null,
+    at: string,
+  ): SupersedeResult<MeasurementRow> {
+    return {
+      superseded: {
+        ...this.addMeasurement(replacement),
+        id,
+        superseded_by: id + 1,
+        superseded_at: at,
+        supersede_reason: reason,
+      },
+      replacement: { ...this.addMeasurement(replacement), id: id + 1 },
+    };
+  }
+
+  retireMeasurement(
+    id: number,
+    byId: number,
+    reason: string | null,
+    at: string,
+  ): MeasurementRow {
+    return {
+      id,
+      metric: "",
+      value: "",
+      value_num: null,
+      command: null,
+      measured_ts: at,
+      measured_sha: null,
+      scope_paths: null,
+      session_id: null,
+      superseded_by: byId,
+      superseded_at: at,
+      supersede_reason: reason,
+    };
+  }
+
+  importSnapshot(_snapshot: SessionSnapshot, _opts?: unknown): number {
+    return 0;
+  }
+
+  close(): void {}
+}
+
+export function stubFactory(): SessionStore {
+  return new StubEmptyBackend();
 }
