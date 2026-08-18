@@ -103,6 +103,12 @@ export {
 } from "./sqlite-store.js";
 
 export {
+  FilesOnlySessionStore,
+  openFilesOnlyStore,
+  type FilesOnlyOptions,
+} from "./files-only.js";
+
+export {
   ALL_CASES,
   CASES,
   HOSTILE_CASES,
