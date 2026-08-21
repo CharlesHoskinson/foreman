@@ -438,7 +438,11 @@ var TABLE_TO_KIND = {
   measurements: "measurement",
   obligations: "obligation"
 };
-var NON_ENTITY_TABLES = /* @__PURE__ */ new Set(["schema_meta"]);
+var NON_ENTITY_TABLES = /* @__PURE__ */ new Set([
+  "schema_meta",
+  "store_meta",
+  "memory_outbox"
+]);
 var KNOWN_HEADER_FIELDS = /* @__PURE__ */ new Set(["format", "format_version"]);
 function parseLine(line, lineNo) {
   let doc;
@@ -2045,6 +2049,9 @@ var HOSTILE_CASES = [
   }
 ];
 var ALL_CASES = [...CASES, ...HOSTILE_CASES];
+var STORE_CASES = ALL_CASES.filter(
+  (c) => c.run.length > 0
+);
 
 // packages/orchestration/src/session-legacy-shape.ts
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
