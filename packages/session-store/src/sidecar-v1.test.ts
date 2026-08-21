@@ -86,6 +86,24 @@ test("rejects an unknown table name", () => {
   assert.equal(reason, "unknown_entity_kind");
 });
 
+test("port bookkeeping is dropped from a polluted v1 sidecar and fresh counters are derived from entities", () => {
+  const snap = decodeSnapshotV1(
+    lines(
+      `{"table": "facts", "row": {"id": 37, "statement": "s", "evidence": null, "established_ts": "2026-01-01T00:00:00Z", "session_id": null, "superseded_by": null, "superseded_at": null, "supersede_reason": null}}`,
+      `{"table": "store_meta", "row": {"key": "next_id.fact", "value": "37"}}`,
+      `{"table": "memory_outbox", "row": {"id": 1, "fact_id": 37, "status": "pending"}}`,
+    ),
+  );
+  assert.equal(snap.facts.length, 1);
+  assert.equal(snap.facts[0]?.id, 37);
+  assert.equal(snap.sessions.length, 0);
+  assert.equal(snap.measurements.length, 0);
+  assert.equal(snap.obligations.length, 0);
+  assert.equal(snap.nextIds.fact, 38);
+  assert.equal(snap.nextIds.measurement, 1);
+  assert.equal(snap.nextIds.obligation, 1);
+});
+
 test("rejects a record that is not exactly table and row", () => {
   let reason: string | null = null;
   try {

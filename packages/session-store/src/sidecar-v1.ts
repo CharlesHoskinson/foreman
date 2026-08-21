@@ -46,8 +46,18 @@ const TABLE_TO_KIND: Readonly<Record<string, EntityKind>> = {
   obligations: "obligation",
 };
 
-/** Carried schema bookkeeping, not entity data. Dropped on read. */
-const NON_ENTITY_TABLES: ReadonlySet<string> = new Set(["schema_meta"]);
+/**
+ * Carried bookkeeping tables, not entity data. Dropped on read.
+ *
+ * Mixed legacy/port databases can leak `store_meta` and `memory_outbox` into
+ * v1 sidecars alongside `schema_meta`. v1 counters are derived from entity row
+ * maxima; stale `store_meta` counters are never trusted.
+ */
+const NON_ENTITY_TABLES: ReadonlySet<string> = new Set([
+  "schema_meta",
+  "store_meta",
+  "memory_outbox",
+]);
 
 /** Header fields v1 actually declares. session_model_version and next_ids
  *  are v2-only and must stay optional here — v1 legitimately lacks both. */
