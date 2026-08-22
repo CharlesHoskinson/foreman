@@ -8,6 +8,11 @@ export type SessionStoreOpenAccess = {
   readonly allowMigration: boolean;
 };
 
+export type SessionStoreSelection = {
+  readonly location: string;
+  readonly locationKind: "file" | "directory";
+};
+
 export type OpenSessionStoreOptions = {
   readonly env?: NodeJS.ProcessEnv;
   readonly readOnly?: boolean;
@@ -15,6 +20,10 @@ export type OpenSessionStoreOptions = {
     path: string,
     access: SessionStoreOpenAccess,
   ) => void;
+  /** Lazy SQLite path used only when FOREMAN_SESSION_DB is missing or blank. */
+  readonly defaultSqlitePath?: () => string;
+  /** Invoked once after the location is valid and before prepare/open. */
+  readonly onSelected?: (selection: SessionStoreSelection) => void;
 };
 
 const CANONICAL_BACKENDS = ["sqlite", "files_only"] as const;
@@ -36,12 +45,19 @@ function normalizeBackend(raw: string | undefined): CanonicalBackend {
   );
 }
 
+function nonemptyPath(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (value.trim() === "") return undefined;
+  return value;
+}
+
 /**
  * Single SessionStore backend-selection point.
  *
  * Reads FOREMAN_SESSION_BACKEND (default sqlite), then the path/dir variable
  * required by that backend. SQLite bootstrap injection stays optional via
- * prepareSqlite; files-only never invokes it.
+ * prepareSqlite; files-only never invokes it. defaultSqlitePath is evaluated
+ * only on the SQLite branch when FOREMAN_SESSION_DB is missing or blank.
  */
 export function openSessionStore(
   opts: OpenSessionStoreOptions = {},
@@ -51,13 +67,20 @@ export function openSessionStore(
   const backend = normalizeBackend(env.FOREMAN_SESSION_BACKEND);
 
   if (backend === "sqlite") {
-    const path = env.FOREMAN_SESSION_DB;
-    if (path === undefined || path.trim() === "") {
+    const path =
+      nonemptyPath(env.FOREMAN_SESSION_DB) ??
+      nonemptyPath(opts.defaultSqlitePath?.());
+    if (path === undefined) {
       raise(
         "backend_misconfiguration",
         "FOREMAN_SESSION_DB is required when FOREMAN_SESSION_BACKEND is sqlite",
       );
     }
+    const selection: SessionStoreSelection = {
+      location: path,
+      locationKind: "file",
+    };
+    opts.onSelected?.(selection);
     const access: SessionStoreOpenAccess = {
       readOnly,
       allowMigration: !readOnly,
@@ -66,12 +89,16 @@ export function openSessionStore(
     return SqliteSessionStore.open(path, { readOnly });
   }
 
-  const dir = env.FOREMAN_SESSION_DIR;
-  if (dir === undefined || dir.trim() === "") {
+  const dir = nonemptyPath(env.FOREMAN_SESSION_DIR);
+  if (dir === undefined) {
     raise(
       "backend_misconfiguration",
       "FOREMAN_SESSION_DIR is required when FOREMAN_SESSION_BACKEND is files_only",
     );
   }
+  opts.onSelected?.({
+    location: dir,
+    locationKind: "directory",
+  });
   return openFilesOnlyStore({ dir, readOnly });
 }

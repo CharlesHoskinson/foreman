@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { openSessionStore } from "./open.js";
+import type { SessionStoreSelection } from "./open.js";
 import { SqliteSessionStore } from "./sqlite-store.js";
 import { FilesOnlySessionStore } from "./files-only.js";
 import { SessionStoreError } from "./failures.js";
@@ -172,6 +173,119 @@ describe("openSessionStore", () => {
         return true;
       },
     );
+  });
+
+  it("evaluates defaultSqlitePath once for SQLite when FOREMAN_SESSION_DB is missing and notifies onSelected", () => {
+    const root = makeTempDir("ss-open-lazy-default-");
+    const suppliedPath = join(root, "lazy-session.db");
+    let defaultCalls = 0;
+    const selections: SessionStoreSelection[] = [];
+
+    const store = openSessionStore({
+      env: { FOREMAN_SESSION_BACKEND: "sqlite" },
+      defaultSqlitePath: () => {
+        defaultCalls += 1;
+        return suppliedPath;
+      },
+      onSelected: (selection) => {
+        selections.push(selection);
+      },
+      prepareSqlite: (path) => {
+        mkdirSync(dirname(path), { recursive: true });
+      },
+    });
+    try {
+      assert.equal(defaultCalls, 1);
+      assert.equal(selections.length, 1);
+      assert.deepEqual(selections[0], {
+        location: suppliedPath,
+        locationKind: "file",
+      });
+      assert.ok(store instanceof SqliteSessionStore);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("never evaluates defaultSqlitePath for files-only and notifies onSelected with the configured directory", () => {
+    const root = makeTempDir("ss-open-files-selected-");
+    let defaultCalls = 0;
+    const selections: SessionStoreSelection[] = [];
+
+    const store = openSessionStore({
+      env: {
+        FOREMAN_SESSION_BACKEND: "files_only",
+        FOREMAN_SESSION_DIR: root,
+      },
+      defaultSqlitePath: () => {
+        defaultCalls += 1;
+        return join(root, "must-not-run.db");
+      },
+      onSelected: (selection) => {
+        selections.push(selection);
+      },
+    });
+    try {
+      assert.equal(defaultCalls, 0);
+      assert.equal(selections.length, 1);
+      assert.deepEqual(selections[0], {
+        location: root,
+        locationKind: "directory",
+      });
+      assert.ok(store instanceof FilesOnlySessionStore);
+    } finally {
+      store.close();
+    }
+  });
+
+  it("still refuses missing FOREMAN_SESSION_DB when neither env nor defaultSqlitePath supplies a nonempty path", () => {
+    assert.throws(
+      () =>
+        openSessionStore({
+          env: { FOREMAN_SESSION_BACKEND: "sqlite" },
+          defaultSqlitePath: () => "   ",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof SessionStoreError);
+        assert.equal(error.failure.reason, "backend_misconfiguration");
+        assert.match(error.message, /FOREMAN_SESSION_DB/);
+        return true;
+      },
+    );
+  });
+
+  it("invokes onSelected before prepareSqlite and open; a thrown notification propagates without creating the path", () => {
+    const root = makeTempDir("ss-open-onselected-order-");
+    const dbPath = join(root, "nested", "session.db");
+    assert.equal(existsSync(dbPath), false);
+
+    const sentinel = new Error("onSelected refused");
+    let prepareCalls = 0;
+    let selectedCalls = 0;
+
+    assert.throws(
+      () =>
+        openSessionStore({
+          env: { FOREMAN_SESSION_DB: dbPath },
+          onSelected: () => {
+            selectedCalls += 1;
+            throw sentinel;
+          },
+          prepareSqlite: (path) => {
+            prepareCalls += 1;
+            mkdirSync(dirname(path), { recursive: true });
+          },
+        }),
+      (error: unknown) => error === sentinel,
+    );
+
+    assert.equal(selectedCalls, 1);
+    assert.equal(prepareCalls, 0);
+    assert.equal(existsSync(dbPath), false);
+    assert.equal(existsSync(dirname(dbPath)), false);
+    assert.equal(existsSync(`${dbPath}-journal`), false);
+    assert.equal(existsSync(`${dbPath}-wal`), false);
+    assert.equal(existsSync(`${dbPath}-shm`), false);
   });
 
   it("throws backend_misconfiguration when selected files-only backend lacks FOREMAN_SESSION_DIR", () => {

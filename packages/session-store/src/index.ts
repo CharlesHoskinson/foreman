@@ -112,6 +112,7 @@ export {
   openSessionStore,
   type OpenSessionStoreOptions,
   type SessionStoreOpenAccess,
+  type SessionStoreSelection,
 } from "./open.js";
 
 export {

@@ -114,19 +114,24 @@ describe("fm-session-main atomicity and locks", () => {
         writer.close();
       };
 
-      const [ndjson] = recordAndRestore(interleave, () => sidecarNdjson(dbPath));
-      assert.ok(committed, "writer did not commit between table reads");
+      const reader = SqliteSessionStore.open(dbPath);
+      try {
+        const [ndjson] = recordAndRestore(interleave, () => sidecarNdjson(reader));
+        assert.ok(committed, "writer did not commit between table reads");
 
-      const lines = ndjson.split("\n").filter(Boolean);
-      const facts = lines.filter((l) => l.includes('"kind":"fact"'));
-      const measurements = lines.filter((l) => l.includes('"kind":"measurement"'));
+        const lines = ndjson.split("\n").filter(Boolean);
+        const facts = lines.filter((l) => l.includes('"kind":"fact"'));
+        const measurements = lines.filter((l) => l.includes('"kind":"measurement"'));
 
-      assert.equal(
-        facts.length,
-        measurements.length,
-        "snapshot must be consistent: length of facts should match measurements",
-      );
-      assert.equal(facts.length, 0, "concurrently inserted facts should not be visible");
+        assert.equal(
+          facts.length,
+          measurements.length,
+          "snapshot must be consistent: length of facts should match measurements",
+        );
+        assert.equal(facts.length, 0, "concurrently inserted facts should not be visible");
+      } finally {
+        reader.close();
+      }
     } finally {
       scrub(dbPath);
     }
@@ -145,25 +150,30 @@ describe("fm-session-main atomicity and locks", () => {
         established_ts: "now",
         session_id: null,
       });
+      const [ndjson] = sidecarNdjson(setupDb);
       setupDb.close();
-      const [ndjson] = sidecarNdjson(dbPath);
       writeFileSync(sidecarPath, ndjson);
 
-      const statements: string[] = [];
-      recordAndRestore(
-        (sql) => statements.push(sql),
-        () => importSidecar(targetDbPath, sidecarPath),
-      );
+      const target = SqliteSessionStore.open(targetDbPath);
+      try {
+        const statements: string[] = [];
+        recordAndRestore(
+          (sql) => statements.push(sql),
+          () => importSidecar(target, sidecarPath),
+        );
 
-      const beginIdx = statements.findIndex((s) => s === "BEGIN IMMEDIATE");
-      const checkIdx = statements.findIndex((s) => s.startsWith("SELECT 1 FROM "));
+        const beginIdx = statements.findIndex((s) => s === "BEGIN IMMEDIATE");
+        const checkIdx = statements.findIndex((s) => s.startsWith("SELECT 1 FROM "));
 
-      assert.ok(beginIdx !== -1, "must execute BEGIN IMMEDIATE");
-      assert.ok(checkIdx !== -1, "must execute a row existence check (SELECT 1 FROM...)");
-      assert.ok(
-        beginIdx < checkIdx,
-        `write lock must be acquired before row check. BEGIN at ${beginIdx}, SELECT at ${checkIdx}`,
-      );
+        assert.ok(beginIdx !== -1, "must execute BEGIN IMMEDIATE");
+        assert.ok(checkIdx !== -1, "must execute a row existence check (SELECT 1 FROM...)");
+        assert.ok(
+          beginIdx < checkIdx,
+          `write lock must be acquired before row check. BEGIN at ${beginIdx}, SELECT at ${checkIdx}`,
+        );
+      } finally {
+        target.close();
+      }
     } finally {
       scrub(dbPath, targetDbPath);
       try {
@@ -476,10 +486,15 @@ function spawnSession(
   args: readonly string[],
   extraEnv: NodeJS.ProcessEnv = {},
 ) {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  // Ambient shell selection must not leak into focused SQLite cases. Drop the
+  // factory selectors before merging the test's explicit environment.
+  delete env["FOREMAN_SESSION_BACKEND"];
+  delete env["FOREMAN_SESSION_DIR"];
   return spawnSync(process.execPath, ["--import", TSX_LOADER, ENTRY, ...args], {
     cwd: dir,
     encoding: "utf8",
-    env: { ...process.env, FOREMAN_SESSION_DB: dbPath, ...extraEnv },
+    env: { ...env, FOREMAN_SESSION_DB: dbPath, ...extraEnv },
   });
 }
 
@@ -730,7 +745,12 @@ function seedFactsWithIds(
       "",
     ].join("\n"),
   );
-  importSidecar(dbPath, tmp, true);
+  const store = SqliteSessionStore.open(dbPath);
+  try {
+    importSidecar(store, tmp, true);
+  } finally {
+    store.close();
+  }
   rmSync(tmp, { force: true });
 }
 
@@ -2156,5 +2176,222 @@ test("W3.r4 FIX C: the absent-path TOCTOU re-check refuses a file classifyStore 
   } finally {
     fs.lstatSync = origLstat;
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("default import-sidecar names the selected SQLite file exactly", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-import-sqlite-name-"));
+  try {
+    const p = join(dir, "session.db");
+    const incoming = join(dir, "incoming.ndjson");
+    writeFileSync(
+      incoming,
+      [
+        `{"format":"foreman-session-sidecar","format_version":1}`,
+        `{"table":"facts","row":{"id":1,"statement":"named-sqlite-import","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+        "",
+      ].join("\n"),
+    );
+    const res = spawnSession(dir, p, ["import-sidecar", incoming, "--force"]);
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(res.stdout, `imported 1 document(s) -> ${p}\n`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("files-only CLI routes every ordinary command through the selected SessionStore", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-files-only-cli-"));
+  try {
+    const filesDir = join(dir, "files-store");
+    mkdirSync(filesDir, { recursive: true });
+    const sentinel = join(dir, "sentinel.db");
+    mkdirSync(sentinel, { recursive: true });
+    const sentinelMarker = join(sentinel, "DO-NOT-TOUCH");
+    writeFileSync(sentinelMarker, "sentinel-unchanged\n");
+    const sentinelListingBefore = fs.readdirSync(sentinel).sort().join("\n");
+
+    const filesEnv: NodeJS.ProcessEnv = {
+      FOREMAN_SESSION_BACKEND: "files_only",
+      FOREMAN_SESSION_DIR: filesDir,
+      FOREMAN_SESSION_DB: sentinel,
+    };
+
+    const write = spawnSession(dir, sentinel, ["fact", "files-only-live-fact"], filesEnv);
+    assert.equal(write.status, 0, write.stderr);
+    assert.match(write.stdout, /fact \d+/);
+    assert.match(write.stderr, /sidecar refreshed:/);
+    assert.match(write.stderr, /files-store[/\\]session\.ndjson/);
+    const autoSidecar = join(filesDir, "session.ndjson");
+    assert.equal(existsSync(autoSidecar), true, "automatic refresh must publish session.ndjson");
+    assert.match(readFileSync(autoSidecar, "utf8"), /files-only-live-fact/);
+
+    const recover = spawnSession(dir, sentinel, ["recover"], filesEnv);
+    assert.equal(recover.status, 0, recover.stderr);
+    assert.match(recover.stdout, /FOREMAN RECOVERY|files-only-live-fact|FACT/);
+
+    const freshness = spawnSession(dir, sentinel, ["freshness"], filesEnv);
+    assert.equal(freshness.status, 0, freshness.stderr);
+
+    const outPath = join(dir, "explicit-out.ndjson");
+    const dump = spawnSession(dir, sentinel, ["sidecar", "--out", outPath], filesEnv);
+    assert.equal(dump.status, 0, dump.stderr);
+    const dumped = readFileSync(outPath, "utf8");
+    assert.match(dumped, /files-only-live-fact/);
+    assert.equal(dumped, readFileSync(autoSidecar, "utf8"));
+
+    const incoming = join(dir, "replacement.ndjson");
+    writeFileSync(
+      incoming,
+      [
+        `{"format":"foreman-session-sidecar","format_version":1}`,
+        `{"table":"facts","row":{"id":1,"statement":"imported-replacement-fact","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+        `{"table":"facts","row":{"id":2,"statement":"second-imported-fact","evidence":null,"established_ts":"2026-08-01T00:00:01Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+        "",
+      ].join("\n"),
+    );
+    const imported = spawnSession(dir, sentinel, ["import-sidecar", incoming, "--force"], filesEnv);
+    assert.equal(imported.status, 0, imported.stderr);
+    assert.equal(imported.stdout, `imported 2 document(s) -> ${filesDir}\n`);
+    const afterImport = readFileSync(autoSidecar, "utf8");
+    assert.match(afterImport, /imported-replacement-fact/);
+    assert.match(afterImport, /second-imported-fact/);
+    assert.equal(afterImport.includes("files-only-live-fact"), false);
+
+    assert.equal(readFileSync(sentinelMarker, "utf8"), "sentinel-unchanged\n");
+    assert.equal(fs.readdirSync(sentinel).sort().join("\n"), sentinelListingBefore);
+    assert.equal(existsSync(`${sentinel}-wal`), false);
+    assert.equal(existsSync(`${sentinel}-shm`), false);
+    assert.equal(existsSync(`${sentinel}-journal`), false);
+
+    const explicitDb = join(dir, "EXPLICIT.db");
+    const intoImport = spawnSession(
+      dir,
+      sentinel,
+      ["import-sidecar", incoming, "--into", explicitDb, "--force"],
+      filesEnv,
+    );
+    assert.equal(intoImport.status, 0, intoImport.stderr);
+    assert.equal(intoImport.stdout, `imported 2 document(s) -> ${explicitDb}\n`);
+    assert.equal(existsSync(explicitDb), true);
+    const sqliteProbe = SqliteSessionStore.open(explicitDb, { readOnly: true });
+    try {
+      assert.equal(sqliteProbe.listFacts().length, 2);
+      assert.ok(sqliteProbe.listFacts().some((f) => f.statement === "imported-replacement-fact"));
+    } finally {
+      sqliteProbe.close();
+    }
+    // Explicit --into must not replace the files-only store with the SQLite path.
+    const stillFiles = spawnSession(dir, sentinel, ["sidecar", "--out", join(dir, "after-into.ndjson")], filesEnv);
+    assert.equal(stillFiles.status, 0, stillFiles.stderr);
+    assert.match(readFileSync(join(dir, "after-into.ndjson"), "utf8"), /imported-replacement-fact/);
+    assert.equal(existsSync(join(filesDir, "CURRENT")), true);
+    assert.equal(readFileSync(sentinelMarker, "utf8"), "sentinel-unchanged\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("Task 3B correction: recognized-command validation migrates before refusal", () => {
+  const cases: ReadonlyArray<{
+    name: string;
+    args: readonly string[];
+    refusal: RegExp;
+    /** When set, assert migration/sidecar against this path instead of the ambient store. */
+    migrateTarget?: "ambient" | "explicit";
+    explicitDbName?: string;
+  }> = [
+    {
+      name: "fact missing STATEMENT",
+      args: ["fact"],
+      refusal: /missing STATEMENT/,
+    },
+    {
+      name: "measure missing VALUE",
+      args: ["measure", "m1", "--num", "1", "--scope", "x"],
+      refusal: /METRIC and VALUE|requires.*VALUE/i,
+    },
+    {
+      name: "obligation missing STATEMENT",
+      args: ["obligation"],
+      refusal: /missing STATEMENT/,
+    },
+    {
+      name: "close with invalid --blocker",
+      args: ["close", "1", "--status", "done", "--blocker", "ignored"],
+      refusal: /--blocker is not valid with close/,
+    },
+    {
+      name: "import-sidecar missing PATH",
+      args: ["import-sidecar"],
+      refusal: /missing PATH/,
+    },
+    {
+      name: "import-sidecar --into EXPLICIT.db missing PATH",
+      args: ["import-sidecar", "--into", "EXPLICIT.db"],
+      refusal: /missing PATH/,
+      migrateTarget: "explicit",
+      explicitDbName: "EXPLICIT.db",
+    },
+    {
+      name: "supersede missing STATEMENT",
+      args: ["supersede", "1"],
+      refusal: /missing STATEMENT/,
+    },
+    {
+      name: "retire missing MEASUREMENT_ID",
+      args: ["retire"],
+      refusal: /missing MEASUREMENT_ID/,
+    },
+  ];
+
+  for (const c of cases) {
+    const dir = mkdtempSync(join(tmpdir(), `fm-t3b-mig-before-refuse-${c.name.replace(/\W+/g, "-")}-`));
+    try {
+      const ambient = join(dir, "session.db");
+      const explicit = c.explicitDbName ? join(dir, c.explicitDbName) : null;
+      const target = c.migrateTarget === "explicit" && explicit ? explicit : ambient;
+
+      writeLegacyStore(ambient);
+      if (explicit) writeLegacyStore(explicit);
+
+      assert.equal(existsSync(sidecarPathFor(ambient)), false, `${c.name}: ambient sidecar present before run`);
+      if (explicit) {
+        assert.equal(existsSync(sidecarPathFor(explicit)), false, `${c.name}: explicit sidecar present before run`);
+      }
+
+      // Rewrite --into to an absolute path so cwd-relative resolution is unambiguous.
+      const args = c.args.map((a) => (a === "EXPLICIT.db" && explicit ? explicit : a));
+      const res = spawnSession(dir, ambient, args);
+
+      assert.notEqual(res.status, 0, `${c.name}: expected nonzero refusal, got ${res.status}`);
+      assert.doesNotMatch(res.stderr, /TypeError/);
+      assert.doesNotMatch(res.stderr, /at Object\./);
+      assert.doesNotMatch(res.stderr, /\/home\/charl\//);
+      assert.match(res.stderr, c.refusal, `${c.name}: refusal text missing; stderr=${res.stderr}`);
+      assert.match(
+        res.stderr,
+        /migrated 3 row\(s\)/,
+        `${c.name}: expected migration before refusal; stderr=${res.stderr}`,
+      );
+
+      assert.equal(classifyStore(target), "port", `${c.name}: target store must classify as port`);
+      const sidecar = sidecarPathFor(target);
+      assert.equal(existsSync(sidecar), true, `${c.name}: tracked sidecar must exist after migration`);
+      const snap = decodeSnapshot(readFileSync(sidecar, "utf8"));
+      assert.equal(countRows(snap), 3, `${c.name}: sidecar must decode to the three migrated rows`);
+      assert.ok(snap.facts.some((f) => f.statement === "live fact"), `${c.name}: migrated fact missing`);
+
+      if (c.migrateTarget === "explicit" && explicit) {
+        assert.equal(classifyStore(ambient), "legacy", `${c.name}: ambient default must stay legacy`);
+        assert.equal(
+          existsSync(sidecarPathFor(ambient)),
+          false,
+          `${c.name}: ambient default must not receive a sidecar`,
+        );
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 });

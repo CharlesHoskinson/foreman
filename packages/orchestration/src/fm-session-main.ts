@@ -24,12 +24,16 @@ import {
   decodeSnapshot,
   encodeSnapshot,
   isSessionStoreFailure,
+  openSessionStore,
   reasonOf,
   rowsOfKind,
+  SessionStoreError,
   specFor,
   type SessionRow,
   type SessionSnapshot,
+  type SessionStore,
   type SessionStoreFailureReason,
+  type SessionStoreSelection,
 } from "@foreman/session-store";
 import {
   LegacyMigrationRefusal,
@@ -188,11 +192,13 @@ function warnOrphanStore(chosen: string): void {
   }
 }
 
+/**
+ * Pure default SQLite path. May warn about orphans; must not mkdir or create
+ * `.foreman`. Parent creation belongs to prepareSqlite after SQLite is selected.
+ */
 function dbPath(): string {
   if (process.env["FOREMAN_SESSION_DB"]) return process.env["FOREMAN_SESSION_DB"];
-  const d = join(repoRoot(), ".foreman");
-  mkdirSync(d, { recursive: true });
-  const chosen = join(d, "session.db");
+  const chosen = join(repoRoot(), ".foreman", "session.db");
   warnOrphanStore(chosen);
   return chosen;
 }
@@ -201,27 +207,110 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/**
- * One port instance per invocation.
- *
- * Not opened per command: bootstrapStore() runs on every open, and the
- * end-of-run sidecar refresh opens its own store, so a per-command open would
- * bootstrap repeatedly and hold three connections to one file in a single run.
- *
- * `readOnly` must reach BOTH bootstrapStore and SqliteSessionStore.open:
- * a read-only command that opens a read-write handle checkpoints any
- * outstanding WAL and rewrites the store's bytes and mtime as a side effect
- * of a "read".
- */
-function openStore(path?: string, opts: { readonly readOnly?: boolean } = {}): SqliteSessionStore {
-  const p = path ?? dbPath();
-  mkdirSync(dirname(p), { recursive: true });
-  const readOnly = opts.readOnly === true;
-  bootstrapStore(p, { allowMigration: !readOnly, readOnly });
-  return SqliteSessionStore.open(p, { readOnly });
+function defaultSidecarPath(selection: SessionStoreSelection): string {
+  if (selection.locationKind === "file") return sidecarPathFor(selection.location);
+  return join(selection.location, "session.ndjson");
 }
 
-function currentSessionId(store: SqliteSessionStore): string | null {
+type OpenedCliStore = {
+  readonly store: SessionStore;
+  readonly selection: SessionStoreSelection;
+};
+
+/**
+ * One neutral CLI open: factory selection, SQLite prepare/bootstrap, optional
+ * migration sidecar persistence from the already-open store.
+ */
+function openCliStore(opts: { readonly readOnly?: boolean } = {}): OpenedCliStore {
+  const readOnly = opts.readOnly === true;
+  let selection: SessionStoreSelection | undefined;
+  let migrated = false;
+  let store: SessionStore;
+  try {
+    store = openSessionStore({
+      readOnly,
+      defaultSqlitePath: dbPath,
+      onSelected: (sel) => {
+        selection = sel;
+      },
+      prepareSqlite: (path, access) => {
+        mkdirSync(dirname(path), { recursive: true });
+        migrated = bootstrapStore(path, access);
+      },
+    });
+  } catch (e) {
+    if (e instanceof CliRefusal) throw e;
+    if (e instanceof LegacyMigrationRefusal) {
+      exitCli(2);
+    }
+    if (e instanceof SessionStoreError || reasonOf(e) === "backend_misconfiguration") {
+      process.stderr.write(`refusing: ${errorMessage(e)}\n`);
+      exitCli(2);
+    }
+    const failedPath = selection?.location ?? dbPath();
+    if (
+      isSqliteOperationalError(e) &&
+      (parentDirNotWritable(failedPath) || pathNotReadable(failedPath))
+    ) {
+      process.stderr.write(`EACCES: permission denied, open '${failedPath}'\n`);
+      exitCli(1);
+    }
+    if (isSqliteOperationalError(e)) {
+      process.stderr.write(`sqlite3.OperationalError\n`);
+      exitCli(1);
+    }
+    process.stderr.write(`${errorMessage(e)}\n`);
+    exitCli(1);
+  }
+  if (selection === undefined) {
+    store.close();
+    process.stderr.write("refusing: session store opened without a selection\n");
+    exitCli(2);
+  }
+  if (migrated) {
+    try {
+      persistSidecarAfterMigration(store, selection);
+    } catch (e) {
+      store.close();
+      throw e;
+    }
+  }
+  return { store, selection };
+}
+
+/**
+ * Explicit SQLite import target for `import-sidecar --into PATH` only.
+ * Narrow Task-6 exception: ordinary commands must not call this.
+ */
+function openExplicitSqliteImportTarget(target: string): SqliteSessionStore {
+  try {
+    mkdirSync(dirname(target), { recursive: true });
+    const migrated = bootstrapStore(target, { allowMigration: true, readOnly: false });
+    const store = SqliteSessionStore.open(target);
+    if (migrated) {
+      try {
+        persistSidecarAfterMigration(store, {
+          location: target,
+          locationKind: "file",
+        });
+      } catch (e) {
+        store.close();
+        throw e;
+      }
+    }
+    return store;
+  } catch (e) {
+    if (e instanceof CliRefusal) throw e;
+    const message = errorMessage(e);
+    const msg = message.includes("unable to open database file")
+      ? "sqlite3.OperationalError"
+      : message;
+    process.stderr.write(`refusing: cannot open target store: ${msg}\n`);
+    exitCli(2);
+  }
+}
+
+function currentSessionId(store: SessionStore): string | null {
   return store.currentSession()?.session_id ?? null;
 }
 
@@ -371,7 +460,7 @@ function displayStatus(o: { status: string; blocker: string | null }): string {
   return o.status === "open" && o.blocker ? "blocked" : o.status;
 }
 
-function buildRecoveryFromStore(store: SqliteSessionStore): RecoveryRecord {
+function buildRecoveryFromStore(store: SessionStore): RecoveryRecord {
   const head = gitSha();
   const sessions = [...store.listSessions()].sort((a, b) =>
     a.session_id < b.session_id ? 1 : a.session_id > b.session_id ? -1 : 0,
@@ -448,7 +537,7 @@ function buildRecoveryFromStore(store: SqliteSessionStore): RecoveryRecord {
   };
 }
 
-function buildFreshnessFromStore(store: SqliteSessionStore, staleOnly: boolean): FreshnessRow[] {
+function buildFreshnessFromStore(store: SessionStore, staleOnly: boolean): FreshnessRow[] {
   const out: FreshnessRow[] = [];
   const rows = [...store.listMeasurements()]
     .filter((r) => r.superseded_by === null)
@@ -578,20 +667,11 @@ function render(rec: RecoveryRecord): string {
  * `unknown v1 table "store_meta"`. encodeSnapshot emits declared entity kinds
  * only, so an undeclared table cannot reach the record at all.
  *
- * Takes a PATH, not a connection: the snapshot must come from the port, and
- * the port owns its own connection.
+ * Caller owns open/close; this helper never selects a backend.
  */
-export function sidecarNdjson(dbFile: string, opts: { readonly readOnly?: boolean } = {}): [string, number] {
-  const store = SqliteSessionStore.open(
-    dbFile,
-    opts.readOnly === true ? { readOnly: true } : {},
-  );
-  try {
-    const snapshot = store.snapshot();
-    return [encodeSnapshot(snapshot), countRows(snapshot)];
-  } finally {
-    store.close();
-  }
+export function sidecarNdjson(store: SessionStore): [string, number] {
+  const snapshot = store.snapshot();
+  return [encodeSnapshot(snapshot), countRows(snapshot)];
 }
 
 export function writeAtomic(path: string, text: string): void {
@@ -831,10 +911,13 @@ function writeSidecar(
   writeAtomic(dest, text);
 }
 
-function persistSidecarAfterMigration(storePath: string): void {
-  const out = sidecarPathFor(storePath);
-  if (pathsAlias(out, storePath)) return;
-  const [lines, rowCount] = sidecarNdjson(storePath);
+function persistSidecarAfterMigration(
+  store: SessionStore,
+  selection: SessionStoreSelection,
+): void {
+  const out = defaultSidecarPath(selection);
+  if (pathsAlias(out, selection.location)) return;
+  const [lines, rowCount] = sidecarNdjson(store);
   try {
     writeSidecar(out, lines);
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
@@ -848,20 +931,16 @@ function persistSidecarAfterMigration(storePath: string): void {
 }
 
 /**
- * Restore a sidecar into the store at `dbFile`.
+ * Restore a sidecar into an already-open store.
+ * Caller owns open/close; this helper never selects a backend.
  *
  * decodeSnapshot accepts both sidecar formats -- v1 by its header version,
  * v2 otherwise -- and validates the whole snapshot against the declared model
  * before importSnapshot opens a transaction, so a bad file cannot half-apply.
  */
-export function importSidecar(dbFile: string, path: string, force = false): number {
+export function importSidecar(store: SessionStore, path: string, force = false): number {
   const snapshot = decodeSnapshot(readFileSync(path, "utf8"));
-  const store = SqliteSessionStore.open(dbFile);
-  try {
-    return store.importSnapshot(snapshot, { force });
-  } finally {
-    store.close();
-  }
+  return store.importSnapshot(snapshot, { force });
 }
 
 function emptyOptions(): ParsedOptions {
@@ -942,47 +1021,6 @@ function parseCli(argv: readonly string[]): ParsedCli {
   return parsed;
 }
 
-function prepareInvocation(cmd: string, importTarget: string | undefined): void {
-  try {
-    if (cmd === "import-sidecar") {
-      const target = importTarget ?? dbPath();
-      mkdirSync(dirname(target), { recursive: true });
-      const migrated = bootstrapStore(target, { allowMigration: true, readOnly: false });
-      if (migrated) persistSidecarAfterMigration(target);
-      return;
-    }
-    const p = dbPath();
-    mkdirSync(dirname(p), { recursive: true });
-    const readOnly = READ_ONLY_CMDS.has(cmd);
-    const migrated = bootstrapStore(p, { allowMigration: !readOnly, readOnly });
-    if (migrated) persistSidecarAfterMigration(p);
-  } catch (e) {
-    if (cmd === "import-sidecar") {
-      const message = errorMessage(e);
-      const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
-      process.stderr.write(`refusing: cannot open target store: ${msg}\n`);
-      exitCli(2);
-    }
-    if (e instanceof LegacyMigrationRefusal) {
-      exitCli(2);
-    }
-    const failedPath = cmd === "import-sidecar" ? (importTarget ?? dbPath()) : dbPath();
-    if (
-      isSqliteOperationalError(e) &&
-      (parentDirNotWritable(failedPath) || pathNotReadable(failedPath))
-    ) {
-      process.stderr.write(`EACCES: permission denied, open '${failedPath}'\n`);
-      exitCli(1);
-    }
-    if (isSqliteOperationalError(e)) {
-      process.stderr.write(`sqlite3.OperationalError\n`);
-      exitCli(1);
-    }
-    process.stderr.write(`${errorMessage(e)}\n`);
-    exitCli(1);
-  }
-}
-
 export function main(): number {
   const args = process.argv.slice(2);
   const cmd = args[0];
@@ -997,14 +1035,8 @@ export function main(): number {
 
   const parsed = parseCli(args.slice(1));
 
-  let importTarget = "";
-  if (cmd === "import-sidecar") {
-    importTarget = parsed.options.into ?? dbPath();
-  }
-  prepareInvocation(cmd, cmd === "import-sidecar" ? importTarget : undefined);
-
   if (cmd === "begin") {
-    const store = openStore();
+    const { store } = openCliStore();
     try {
       const rec = buildRecoveryFromStore(store);
       const sid = mintSessionId();
@@ -1027,7 +1059,7 @@ export function main(): number {
   }
 
   if (cmd === "recover") {
-    const store = openStore(undefined, { readOnly: true });
+    const { store } = openCliStore({ readOnly: true });
     try {
       const rec = buildRecoveryFromStore(store);
       if (parsed.options.json) {
@@ -1043,7 +1075,7 @@ export function main(): number {
 
   if (cmd === "freshness") {
     const staleOnly = parsed.options["stale-only"];
-    const store = openStore(undefined, { readOnly: true });
+    const { store } = openCliStore({ readOnly: true });
     try {
       const measurements = buildFreshnessFromStore(store, staleOnly);
       process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
@@ -1054,7 +1086,7 @@ export function main(): number {
   }
 
   if (cmd === "end") {
-    const store = openStore();
+    const { store } = openCliStore();
     try {
       const sid = parsed.args[0] || currentSessionId(store);
       if (!sid) {
@@ -1078,10 +1110,10 @@ export function main(): number {
   }
 
   if (cmd === "fact") {
-    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const evidence = parsed.options.evidence || null;
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const statement = requirePositional(parsed.args, 0, "STATEMENT");
       let row;
       try {
         row = store.addFact({
@@ -1101,24 +1133,24 @@ export function main(): number {
   }
 
   if (cmd === "measure") {
-    if (parsed.options.scope.length === 0) {
-      process.stderr.write(
-        "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n",
-      );
-      exitCli(2);
-    }
-    const metric = parsed.args[0];
-    const value = parsed.args[1];
-    if (metric === undefined || value === undefined) {
-      process.stderr.write("refusing: measure requires METRIC and VALUE\n");
-      exitCli(2);
-    }
     const command = parsed.options.command || null;
-    let vnum: number | null = null;
-    if (parsed.options.num !== undefined) vnum = parseFloat(parsed.options.num);
-    else vnum = scalarOf(value);
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      if (parsed.options.scope.length === 0) {
+        process.stderr.write(
+          "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n",
+        );
+        exitCli(2);
+      }
+      const metric = parsed.args[0];
+      const value = parsed.args[1];
+      if (metric === undefined || value === undefined) {
+        process.stderr.write("refusing: measure requires METRIC and VALUE\n");
+        exitCli(2);
+      }
+      let vnum: number | null = null;
+      if (parsed.options.num !== undefined) vnum = parseFloat(parsed.options.num);
+      else vnum = scalarOf(value);
       let row;
       try {
         row = store.addMeasurement({
@@ -1142,10 +1174,10 @@ export function main(): number {
   }
 
   if (cmd === "obligation") {
-    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const blocker = parsed.options.blocker || null;
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const statement = requirePositional(parsed.args, 0, "STATEMENT");
       let row;
       try {
         row = store.addObligation({
@@ -1165,14 +1197,14 @@ export function main(): number {
   }
 
   if (cmd === "close") {
-    const obligationId = parseInt(requirePositional(parsed.args, 0, "OBLIGATION_ID"), 10);
     const status = parsed.options.status;
-    if (parsed.options.blocker !== undefined) {
-      process.stderr.write("refusing: --blocker is not valid with close\n");
-      exitCli(2);
-    }
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const obligationId = parseInt(requirePositional(parsed.args, 0, "OBLIGATION_ID"), 10);
+      if (parsed.options.blocker !== undefined) {
+        process.stderr.write("refusing: --blocker is not valid with close\n");
+        exitCli(2);
+      }
       if (status !== "done" && status !== "dropped") {
         process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}\n`);
         exitCli(2);
@@ -1193,16 +1225,18 @@ export function main(): number {
   }
 
   if (cmd === "sidecar") {
-    const store = dbPath();
-    const outPath = parsed.options.out || join(dirname(store), "session.ndjson");
-    if (pathsAlias(outPath, store)) {
-      process.stderr.write(`refusing: sidecar output ${outPath} aliases the session store ${store}\n`);
-      exitCli(2);
-    }
+    const { store, selection } = openCliStore({ readOnly: true });
+    const outPath = parsed.options.out || defaultSidecarPath(selection);
     try {
+      if (pathsAlias(outPath, selection.location)) {
+        process.stderr.write(
+          `refusing: sidecar output ${outPath} aliases the session store ${selection.location}\n`,
+        );
+        exitCli(2);
+      }
       // "sidecar" is a read-only command (READ_ONLY_CMDS): it may write the
-      // NDJSON it dumps to, never the .db it dumps from.
-      const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
+      // NDJSON it dumps to, never the store it dumps from.
+      const [lines, rowCount] = sidecarNdjson(store);
       writeSidecar(outPath, lines, { allowShrink: parsed.options.force });
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}\n`);
       return 0;
@@ -1213,32 +1247,56 @@ export function main(): number {
       }
       process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage(e)}\n`);
       exitCli(2);
+    } finally {
+      store.close();
     }
   }
 
   if (cmd === "import-sidecar") {
-    const path = requirePositional(parsed.args, 0, "PATH");
+    const explicitInto = parsed.options.into;
+    if (explicitInto !== undefined) {
+      // Explicit SQLite import target — the only ordinary-command exception
+      // until Task 6. See openExplicitSqliteImportTarget.
+      const store = openExplicitSqliteImportTarget(explicitInto);
+      try {
+        const path = requirePositional(parsed.args, 0, "PATH");
+        const count = importSidecar(store, path, parsed.options.force);
+        process.stdout.write(`imported ${count} document(s) -> ${explicitInto}\n`);
+        return 0;
+      } catch (e) {
+        if (e instanceof CliRefusal) throw e;
+        process.stderr.write(`refusing: ${errorMessage(e)}\n`);
+        exitCli(2);
+      } finally {
+        store.close();
+      }
+    }
+    const { store, selection } = openCliStore();
     try {
-      const count = importSidecar(importTarget, path, parsed.options.force);
-      process.stdout.write(`imported ${count} document(s) -> ${importTarget}\n`);
+      const path = requirePositional(parsed.args, 0, "PATH");
+      const count = importSidecar(store, path, parsed.options.force);
+      process.stdout.write(`imported ${count} document(s) -> ${selection.location}\n`);
       return 0;
     } catch (e) {
+      if (e instanceof CliRefusal) throw e;
       process.stderr.write(`refusing: ${errorMessage(e)}\n`);
       exitCli(2);
+    } finally {
+      store.close();
     }
   }
 
   if (cmd === "supersede") {
-    const factId = parseInt(requirePositional(parsed.args, 0, "FACT_ID"), 10);
-    const statement = requirePositional(parsed.args, 1, "STATEMENT");
     const evidence = parsed.options.evidence || null;
-    const reason = parsed.options.reason;
-    if (!reason) {
-      process.stderr.write("error: option --reason requires an argument\n");
-      exitCli(2);
-    }
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const factId = parseInt(requirePositional(parsed.args, 0, "FACT_ID"), 10);
+      const statement = requirePositional(parsed.args, 1, "STATEMENT");
+      const reason = parsed.options.reason;
+      if (!reason) {
+        process.stderr.write("error: option --reason requires an argument\n");
+        exitCli(2);
+      }
       let res;
       try {
         res = store.supersedeFact(
@@ -1268,23 +1326,25 @@ export function main(): number {
   }
 
   if (cmd === "retire") {
-    const measurementId = parseInt(requirePositional(parsed.args, 0, "MEASUREMENT_ID"), 10);
-    const byId = parseInt(parsed.options.by ?? "", 10);
-    const reason = parsed.options.reason;
-    if (Number.isNaN(byId)) {
-      process.stderr.write("error: option --by requires an argument\n");
-      exitCli(2);
-    }
-    if (!reason) {
-      process.stderr.write("error: option --reason requires an argument\n");
-      exitCli(2);
-    }
-    if (byId === measurementId) {
-      process.stderr.write("refusing: a measurement cannot supersede itself\n");
-      exitCli(2);
-    }
-    const store = openStore();
+    // Open before semantic refusals so bootstrap rehydrate still runs and
+    // stderr stays byte-identical to the prepareInvocation era.
+    const { store } = openCliStore();
     try {
+      const measurementId = parseInt(requirePositional(parsed.args, 0, "MEASUREMENT_ID"), 10);
+      const byId = parseInt(parsed.options.by ?? "", 10);
+      const reason = parsed.options.reason;
+      if (Number.isNaN(byId)) {
+        process.stderr.write("error: option --by requires an argument\n");
+        exitCli(2);
+      }
+      if (!reason) {
+        process.stderr.write("error: option --reason requires an argument\n");
+        exitCli(2);
+      }
+      if (byId === measurementId) {
+        process.stderr.write("refusing: a measurement cannot supersede itself\n");
+        exitCli(2);
+      }
       const rows = store.listMeasurements();
       if (!rows.some((r) => r.id === measurementId)) {
         process.stderr.write(`refusing: no measurement ${measurementId} to retire\n`);
@@ -1339,18 +1399,37 @@ function mainWithSidecar(): void {
     process.exit(rc);
   }
 
-  const store = dbPath();
-  const out = sidecarPathFor(store);
+  // Automatic refresh: reopen the selected store read-only through the factory.
+  // Never inspect or open the unselected backend.
+  let selection: SessionStoreSelection | undefined;
+  let refreshStore: SessionStore | undefined;
+  let out = "";
   try {
-    if (pathsAlias(out, store)) {
-      process.exit(rc);
+    refreshStore = openSessionStore({
+      readOnly: true,
+      defaultSqlitePath: dbPath,
+      onSelected: (sel) => {
+        selection = sel;
+      },
+      prepareSqlite: (path, access) => {
+        mkdirSync(dirname(path), { recursive: true });
+        bootstrapStore(path, access);
+      },
+    });
+    if (selection === undefined) {
+      throw new Error("session store reopened without a selection");
     }
-    const [lines, rowCount] = sidecarNdjson(store);
-    const allowShrink =
-      process.argv.includes("--force") &&
-      (invoked === "import-sidecar" || invoked === "sidecar");
-    writeSidecar(out, lines, { allowShrink });
-    process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
+    out = defaultSidecarPath(selection);
+    // Alias: skip the write but do not process.exit here — that would bypass
+    // finally and leak the refresh-store handle. Exit only after close.
+    if (!pathsAlias(out, selection.location)) {
+      const [lines, rowCount] = sidecarNdjson(refreshStore);
+      const allowShrink =
+        process.argv.includes("--force") &&
+        (invoked === "import-sidecar" || invoked === "sidecar");
+      writeSidecar(out, lines, { allowShrink });
+      process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}\n`);
+    }
   } catch (e) {
     if (e instanceof SidecarReplaceRefused) {
       // The store write already committed. On a shrink refusal the existing
@@ -1378,6 +1457,8 @@ function mainWithSidecar(): void {
       );
       rc = 1;
     }
+  } finally {
+    refreshStore?.close();
   }
   process.exit(rc);
 }

@@ -99,7 +99,7 @@ const GOLDEN = join(HERE, "__golden__");
 const ENTRY = join(HERE, "fm-session-main.ts");
 const UPDATE = process.env["GOLDEN_UPDATE"] === "1";
 
-// One backend remains. The suite never reads FM_SESSION_BACKEND.
+// Factory selection is exercised elsewhere. This suite pins SQLite.
 
 // `--import tsx` resolves the bare specifier "tsx" against the child's cwd,
 // which is a freshly mkdtemp'd workspace with no node_modules of its own.
@@ -236,8 +236,8 @@ function workspace(): string {
 }
 
 /**
- * Child env for one golden run. The legacy seam is gone. An ambient
- * FM_SESSION_BACKEND is deleted so it cannot appear to select a path.
+ * Child env for one golden run. Ambient factory selectors are removed so the
+ * pinned SQLite path cannot be redirected by the caller's shell.
  */
 function childEnv(cwd: string): NodeJS.ProcessEnv {
   const env = sanitizedCheckpointEnv(process.env);
@@ -250,7 +250,8 @@ function childEnv(cwd: string): NodeJS.ProcessEnv {
   delete env["FORCE_COLOR"];
   delete env["CLICOLOR_FORCE"];
   delete env["CLICOLOR"];
-  delete env["FM_SESSION_BACKEND"];
+  delete env["FOREMAN_SESSION_BACKEND"];
+  delete env["FOREMAN_SESSION_DIR"];
   env["GOLDEN_UPDATE"] = "";
   // dbPath() (fm-session-main.ts) short-circuits on FOREMAN_SESSION_DB
   // before it ever looks at the scratch repo, and lane-run.sh exports
