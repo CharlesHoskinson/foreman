@@ -60,6 +60,16 @@ export {
 } from "./integrity.js";
 
 export {
+  additiveImportProjectionUpserts,
+  planAdditiveRemapImport,
+  resolveIdCollisionPolicy,
+  snapshotIsOccupied,
+  type CountedIdMaps,
+  type ImportRemapPlan,
+  type RemappedDonorRows,
+} from "./import-remap.js";
+
+export {
   PROJECTABLE_FIELDS,
   type EntityRef,
   type IdCollisionPolicy,

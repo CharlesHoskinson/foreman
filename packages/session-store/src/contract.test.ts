@@ -77,6 +77,7 @@ describe("invariant I2 — correctness independence", () => {
       "files-only.ts",
       "entities.ts",
       "integrity.ts",
+      "import-remap.ts",
       "sidecar.ts",
       "sidecar-v1.ts",
       "projection.ts",
@@ -250,8 +251,8 @@ describe("conformance suite soundness (negative control)", () => {
     // findViolations. Only the rest can discriminate a backend. These counts are
     // pinned so that a case added without a factory parameter shows up here
     // rather than silently diluting the control below.
-    assert.equal(ALL_CASES.length, 40);
-    assert.equal(STORE_CASES.length, 23);
+    assert.equal(ALL_CASES.length, 49);
+    assert.equal(STORE_CASES.length, 31);
   });
 
   it("fails a do-nothing backend across at least three independent categories", () => {

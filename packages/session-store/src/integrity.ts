@@ -152,10 +152,24 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
   }
 
   // -- identity: unique, positive, below the allocation watermark ----------
+  // nextIds must be a positive safe integer even when the kind has no rows.
+  // Without this, an empty-kind counter of 0 / NaN / 1.5 round-trips into a
+  // store and corrupts the next mint.
   const idsByKind = new Map<CountedKind, Set<number>>();
   for (const kind of COUNTED_KINDS) {
     const seen = new Set<number>();
     const next = snapshot.nextIds[kind];
+    if (
+      typeof next !== "number" ||
+      !Number.isSafeInteger(next) ||
+      next < 1
+    ) {
+      out.push({
+        kind,
+        field: null,
+        detail: `nextIds.${kind} must be a positive safe integer`,
+      });
+    }
     for (const row of rowsOfKind(snapshot, kind)) {
       const id = row["id"];
       if (typeof id !== "number" || !Number.isSafeInteger(id)) continue;
@@ -166,7 +180,12 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
         out.push({ kind, field: "id", detail: `duplicate id ${id}` });
       }
       seen.add(id);
-      if (typeof next === "number" && id >= next) {
+      if (
+        typeof next === "number" &&
+        Number.isSafeInteger(next) &&
+        next >= 1 &&
+        id >= next
+      ) {
         out.push({
           kind,
           field: "id",
@@ -177,11 +196,19 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
     idsByKind.set(kind, seen);
   }
 
-  // -- session references --------------------------------------------------
+  // -- session identity uniqueness + references ----------------------------
   const sessionIds = new Set<string>();
   for (const row of rowsOfKind(snapshot, "session")) {
     const sid = row["session_id"];
-    if (typeof sid === "string") sessionIds.add(sid);
+    if (typeof sid !== "string") continue;
+    if (sessionIds.has(sid)) {
+      out.push({
+        kind: "session",
+        field: "session_id",
+        detail: `duplicate session_id ${JSON.stringify(sid)}`,
+      });
+    }
+    sessionIds.add(sid);
   }
   for (const kind of COUNTED_KINDS) {
     for (const row of rowsOfKind(snapshot, kind)) {

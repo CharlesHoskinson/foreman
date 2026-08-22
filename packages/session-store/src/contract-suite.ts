@@ -486,6 +486,449 @@ export const CASES: readonly Case[] = [
     },
   },
   {
+    name: "import/remap-additive-preserves-target-and-returns-donor-count",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        // Close the open fixture session so the donor may also carry an open one.
+        s.endSession("S1", "2026-08-08T12:00:00Z");
+        const before = s.snapshot();
+        const beforeFacts = before.facts.map((row) => ({ ...row }));
+        const donor: SessionSnapshot = {
+          ...emptySnapshot(),
+          nextIds: { fact: 2, measurement: 1, obligation: 1 },
+          sessions: [
+            {
+              session_id: "D1",
+              started_ts: "2026-08-09T10:00:00Z",
+              start_sha: null,
+              ended_ts: null,
+              note: "donor",
+            },
+          ],
+          facts: [
+            {
+              id: 1,
+              statement: "donor-only fact",
+              evidence: null,
+              established_ts: "2026-08-09T10:01:00Z",
+              session_id: "D1",
+              superseded_by: null,
+              superseded_at: null,
+              supersede_reason: null,
+            },
+          ],
+        };
+        const written = s.importSnapshot(donor, {
+          force: true,
+          onIdCollision: "remap",
+        });
+        assert(
+          written === 2,
+          `force+remap must return countRows(donor)=2, got ${written}`,
+        );
+        const after = s.snapshot();
+        const targetFactsAfter = after.facts.filter((row) =>
+          before.facts.some((b) => b.id === row.id),
+        );
+        assert(
+          JSON.stringify(targetFactsAfter) === JSON.stringify(beforeFacts),
+          "target facts must remain byte-identical after additive remap",
+        );
+        assert(
+          after.facts.length === before.facts.length + 1,
+          "donor fact must be inserted additively",
+        );
+        assert(
+          after.sessions.some((row) => row.session_id === "D1"),
+          "unused donor session id must be preserved",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "import/remap-per-kind-ids-and-pointer-fan-in",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        s.endSession("S1", "2026-08-08T12:00:00Z");
+        const before = s.snapshot();
+        // Donor reuses low numeric ids across kinds; remap must allocate from
+        // each target nextIds independently and rewrite same-kind pointers.
+        const donor: SessionSnapshot = {
+          ...emptySnapshot(),
+          nextIds: { fact: 3, measurement: 4, obligation: 2 },
+          sessions: [
+            {
+              session_id: "DX",
+              started_ts: "2026-08-09T10:00:00Z",
+              start_sha: null,
+              ended_ts: "2026-08-09T11:00:00Z",
+              note: null,
+            },
+          ],
+          facts: [
+            {
+              id: 1,
+              statement: "old",
+              evidence: null,
+              established_ts: "2026-08-09T10:01:00Z",
+              session_id: "DX",
+              superseded_by: 2,
+              superseded_at: "2026-08-09T10:02:00Z",
+              supersede_reason: "rewritten",
+            },
+            {
+              id: 2,
+              statement: "new",
+              evidence: null,
+              established_ts: "2026-08-09T10:02:00Z",
+              session_id: "DX",
+              superseded_by: null,
+              superseded_at: null,
+              supersede_reason: null,
+            },
+          ],
+          measurements: [
+            {
+              id: 1,
+              metric: "a",
+              value: "1",
+              value_num: 1,
+              command: null,
+              measured_ts: "2026-08-09T10:03:00Z",
+              measured_sha: null,
+              scope_paths: null,
+              session_id: "DX",
+              superseded_by: 3,
+              superseded_at: "2026-08-09T10:05:00Z",
+              supersede_reason: "fan-in",
+            },
+            {
+              id: 2,
+              metric: "b",
+              value: "2",
+              value_num: 2,
+              command: null,
+              measured_ts: "2026-08-09T10:04:00Z",
+              measured_sha: null,
+              scope_paths: null,
+              session_id: "DX",
+              superseded_by: 3,
+              superseded_at: "2026-08-09T10:05:00Z",
+              supersede_reason: "fan-in",
+            },
+            {
+              id: 3,
+              metric: "c",
+              value: "3",
+              value_num: 3,
+              command: null,
+              measured_ts: "2026-08-09T10:05:00Z",
+              measured_sha: null,
+              scope_paths: null,
+              session_id: "DX",
+              superseded_by: null,
+              superseded_at: null,
+              supersede_reason: null,
+            },
+          ],
+          obligations: [
+            {
+              id: 1,
+              statement: "do",
+              status: "open",
+              blocker: null,
+              opened_ts: "2026-08-09T10:06:00Z",
+              closed_ts: null,
+              session_id: "DX",
+            },
+          ],
+        };
+        s.importSnapshot(donor, { force: true, onIdCollision: "remap" });
+        const after = s.snapshot();
+        const newFacts = after.facts.filter(
+          (row) => !before.facts.some((b) => b.id === row.id),
+        );
+        assert(newFacts.length === 2, "expected two remapped donor facts");
+        const sortedFacts = [...newFacts].sort((a, b) => a.id - b.id);
+        const fOld = sortedFacts[0]!;
+        const fNew = sortedFacts[1]!;
+        assert(fOld.superseded_by === fNew.id, "fact pointer must use fact map");
+        assert(
+          fOld.id === before.nextIds.fact,
+          "first remapped fact must start at target nextIds.fact",
+        );
+        const newMeas = after.measurements.filter(
+          (row) => !before.measurements.some((b) => b.id === row.id),
+        );
+        assert(newMeas.length === 3, "expected three remapped donor measurements");
+        const sortedM = [...newMeas].sort((a, b) => a.id - b.id);
+        const m0 = sortedM[0]!;
+        const m1 = sortedM[1]!;
+        const m2 = sortedM[2]!;
+        assert(
+          m0.id === before.nextIds.measurement,
+          "measurement remap must start at target nextIds.measurement",
+        );
+        assert(
+          m0.superseded_by === m2.id && m1.superseded_by === m2.id,
+          "measurement fan-in pointers must rewrite through the measurement map",
+        );
+        const newObs = after.obligations.filter(
+          (row) => !before.obligations.some((b) => b.id === row.id),
+        );
+        assert(
+          newObs.length === 1 && newObs[0]!.id === before.nextIds.obligation,
+          "obligation remap must use obligation nextIds independently",
+        );
+        assert(
+          after.nextIds.fact === before.nextIds.fact + 2 &&
+            after.nextIds.measurement === before.nextIds.measurement + 3 &&
+            after.nextIds.obligation === before.nextIds.obligation + 1,
+          "merged nextIds must be target-derived",
+        );
+        const minted = s.addFact({
+          statement: "post-import",
+          evidence: null,
+          established_ts: "2026-08-09T12:00:00Z",
+          session_id: null,
+        });
+        assert(
+          minted.id === after.nextIds.fact,
+          "ordinary post-import allocation must continue from merged nextIds",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "import/remap-session-collision-reserves-donor-originals",
+    run: (f) => {
+      const s = f();
+      try {
+        s.beginSession({
+          session_id: "A",
+          started_ts: "2026-08-08T10:00:00Z",
+          start_sha: null,
+          note: "target",
+        });
+        s.endSession("A", "2026-08-08T11:00:00Z");
+        const donor: SessionSnapshot = {
+          ...emptySnapshot(),
+          nextIds: { fact: 2, measurement: 1, obligation: 1 },
+          sessions: [
+            {
+              session_id: "A",
+              started_ts: "2026-08-09T10:00:00Z",
+              start_sha: null,
+              ended_ts: "2026-08-09T11:00:00Z",
+              note: "target", // byte-identical collision still remaps
+            },
+            {
+              session_id: "A~import-1",
+              started_ts: "2026-08-09T10:00:01Z",
+              start_sha: null,
+              ended_ts: "2026-08-09T11:00:01Z",
+              note: "reserved",
+            },
+            {
+              session_id: "B",
+              started_ts: "2026-08-09T10:00:02Z",
+              start_sha: null,
+              ended_ts: "2026-08-09T11:00:02Z",
+              note: "free",
+            },
+          ],
+          facts: [
+            {
+              id: 1,
+              statement: "from-A",
+              evidence: null,
+              established_ts: "2026-08-09T10:01:00Z",
+              session_id: "A",
+              superseded_by: null,
+              superseded_at: null,
+              supersede_reason: null,
+            },
+          ],
+        };
+        s.importSnapshot(donor, { force: true, onIdCollision: "remap" });
+        const sessions = s.listSessions().map((row) => row.session_id).sort();
+        assert(
+          sessions.includes("A") &&
+            sessions.includes("A~import-1") &&
+            sessions.includes("A~import-2") &&
+            sessions.includes("B"),
+          `expected reserved-avoiding remap, got ${sessions.join(",")}`,
+        );
+        const fact = s.listFacts().find((row) => row.statement === "from-A");
+        assert(fact?.session_id === "A~import-2", "counted session_id must follow session map");
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "import/remap-refuses-dual-open-sessions-without-mutation",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const before = encodeSnapshot(s.snapshot());
+        const donor: SessionSnapshot = {
+          ...emptySnapshot(),
+          sessions: [
+            {
+              session_id: "D-open",
+              started_ts: "2026-08-09T10:00:00Z",
+              start_sha: null,
+              ended_ts: null,
+              note: null,
+            },
+          ],
+        };
+        assertRejects(
+          () =>
+            s.importSnapshot(donor, { force: true, onIdCollision: "remap" }),
+          "invalid_argument",
+        );
+        assert(
+          encodeSnapshot(s.snapshot()) === before,
+          "dual-open refusal must leave the target unchanged",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "import/remap-empty-donor-is-noop",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        assert(
+          s.listFacts().length > 0,
+          "fixture must persist before empty-donor no-op",
+        );
+        const before = encodeSnapshot(s.snapshot());
+        const written = s.importSnapshot(emptySnapshot(), {
+          force: true,
+          onIdCollision: "remap",
+        });
+        assert(written === 0, `empty donor must return 0, got ${written}`);
+        assert(
+          encodeSnapshot(s.snapshot()) === before,
+          "empty-donor force+remap must be a true no-op",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "import/unknown-policy-refused",
+    run: (f) => {
+      const s = f();
+      try {
+        assertRejects(
+          () =>
+            s.importSnapshot(emptySnapshot(), {
+              onIdCollision: "merge" as "refuse",
+            }),
+          "invalid_argument",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "import/empty-target-remap-is-exact-round-trip",
+    run: (f) => {
+      const s = f();
+      try {
+        // Literal donor — do not seed via the factory first, or a do-nothing
+        // stub would round-trip an empty snapshot and hide the regression.
+        const snap: SessionSnapshot = {
+          ...emptySnapshot(),
+          nextIds: { fact: 2, measurement: 1, obligation: 1 },
+          sessions: [
+            {
+              session_id: "E1",
+              started_ts: "2026-08-08T10:00:00Z",
+              start_sha: null,
+              ended_ts: null,
+              note: null,
+            },
+          ],
+          facts: [
+            {
+              id: 1,
+              statement: "exact-remap",
+              evidence: null,
+              established_ts: "2026-08-08T10:01:00Z",
+              session_id: "E1",
+              superseded_by: null,
+              superseded_at: null,
+              supersede_reason: null,
+            },
+          ],
+        };
+        const written = s.importSnapshot(snap, { onIdCollision: "remap" });
+        assert(written === 2, `empty-target remap must write 2 rows, got ${written}`);
+        assert(
+          snapshotsEqual(snap, s.snapshot()),
+          "empty-target remap must preserve donor ids and nextIds exactly",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "import/force-refuse-still-replaces",
+    run: (f) => {
+      const s = f();
+      try {
+        seedFixture(s);
+        const replacement: SessionSnapshot = {
+          ...emptySnapshot(),
+          nextIds: { fact: 2, measurement: 1, obligation: 1 },
+          facts: [
+            {
+              id: 1,
+              statement: "replacement-only",
+              evidence: null,
+              established_ts: "2026-08-10T10:00:00Z",
+              session_id: null,
+              superseded_by: null,
+              superseded_at: null,
+              supersede_reason: null,
+            },
+          ],
+        };
+        const written = s.importSnapshot(replacement, { force: true });
+        assert(written === 1, `force+refuse must return replacement size, got ${written}`);
+        const after = s.snapshot();
+        assert(after.sessions.length === 0, "force+refuse must replace sessions");
+        assert(
+          after.facts.length === 1 &&
+            after.facts[0]!.statement === "replacement-only",
+          "force+refuse must replace facts",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
     name: "retire/points-one-existing-measurement-at-another",
     run: (f) => {
       const s = f();
@@ -866,6 +1309,28 @@ export const HOSTILE_CASES: readonly Case[] = [
       assert(
         findViolations(snap).length > 0,
         "id at/above nextIds watermark was accepted",
+      );
+    },
+  },
+  {
+    name: "hostile/nextIds-must-be-positive-safe-integer",
+    run: () => {
+      // Empty-kind counters still require a positive safe integer watermark.
+      assertViolation(
+        {
+          ...emptySnapshot(),
+          nextIds: { fact: 0, measurement: 1, obligation: 1 },
+        },
+        "nextIds.fact must be a positive safe integer",
+        "nextIds.fact=0 on an empty kind was accepted",
+      );
+      assertViolation(
+        {
+          ...emptySnapshot(),
+          nextIds: { fact: 1.5 as unknown as number, measurement: 1, obligation: 1 },
+        },
+        "nextIds.fact must be a positive safe integer",
+        "non-integer nextIds.fact was accepted",
       );
     },
   },

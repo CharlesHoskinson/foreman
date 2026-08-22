@@ -64,13 +64,27 @@ export type NewObligation = {
   readonly session_id: string | null;
 };
 
-/** Behaviour when an imported id already exists in a non-empty store. */
+/**
+ * Collision policy for import into a non-empty store when `force` is set.
+ *
+ * - `refuse` (default): destructive exact replacement of all rows.
+ * - `remap`: additive merge — target rows are preserved; donor counted ids are
+ *   remapped from the target's `nextIds`, and colliding donor sessions are
+ *   renamed. Empty targets ignore this and always do exact import.
+ */
 export type IdCollisionPolicy = "refuse" | "remap";
 
 export type ImportOptions = {
-  /** Replace existing rows. Without this an import into a non-empty store is refused. */
+  /**
+   * Required to import into a non-empty store. Without it the import refuses
+   * with `store_not_empty`. With `force` and default/`refuse`, contents are
+   * replaced. With `force` and `remap`, contents are merged additively.
+   */
   readonly force?: boolean;
-  /** Default "refuse". "remap" mints fresh ids and rewrites superseded_by pointers. */
+  /**
+   * Default `"refuse"`. Unknown runtime values refuse with `invalid_argument`.
+   * On an empty target both policies preserve donor ids and `nextIds` exactly.
+   */
   readonly onIdCollision?: IdCollisionPolicy;
 };
 
@@ -155,9 +169,14 @@ export interface SessionStore {
 
   // -- snapshot transfer ---------------------------------------------------
   /**
-   * Replace store contents with `snapshot`. All-or-nothing: on any validation
-   * or integrity failure the store is left exactly as it was.
-   * Returns the number of rows written.
+   * Import `snapshot` under the ImportOptions policy matrix.
+   *
+   * Empty target: exact replacement for both collision policies (donor ids and
+   * `nextIds` preserved). Non-empty without `force`: `store_not_empty`.
+   * Non-empty with `force`+`refuse`: destructive exact replacement.
+   * Non-empty with `force`+`remap`: additive merge; returns `countRows(donor)`.
+   * All-or-nothing: any validation or integrity failure leaves the store as it
+   * was.
    */
   importSnapshot(snapshot: SessionSnapshot, opts?: ImportOptions): number;
 

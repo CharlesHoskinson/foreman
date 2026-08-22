@@ -65,6 +65,7 @@ import { join } from "node:path";
 
 import {
   SESSION_MODEL_VERSION,
+  countRows,
   emptySnapshot,
   type CountedKind,
   type FactRow,
@@ -77,6 +78,12 @@ import {
 } from "./entities.js";
 import { raise } from "./failures.js";
 import { assertIntegrity } from "./integrity.js";
+import {
+  additiveImportProjectionUpserts,
+  planAdditiveRemapImport,
+  resolveIdCollisionPolicy,
+  snapshotIsOccupied,
+} from "./import-remap.js";
 import {
   buildProjection,
   liveProjectionMap,
@@ -1329,12 +1336,9 @@ export class FilesOnlySessionStore implements SessionStore {
     }
 
     const force = opts.force ?? false;
-    const policy = opts.onIdCollision ?? "refuse";
-    const occupied =
-      this.#snap.sessions.length > 0 ||
-      this.#snap.facts.length > 0 ||
-      this.#snap.measurements.length > 0 ||
-      this.#snap.obligations.length > 0;
+    const policy = resolveIdCollisionPolicy(opts.onIdCollision);
+    const target = this.#snap;
+    const occupied = snapshotIsOccupied(target);
 
     if (occupied && !force) {
       raise(
@@ -1342,17 +1346,21 @@ export class FilesOnlySessionStore implements SessionStore {
         "target store already has rows; pass force to replace it",
       );
     }
+
     if (occupied && policy === "remap") {
-      raise(
-        "invalid_argument",
-        "remap id-collision policy is not implemented; import into an empty store",
-      );
+      if (countRows(snapshot) === 0) return 0;
+      const plan = planAdditiveRemapImport(target, snapshot);
+      const q = cloneQueue(this.#outbox, this.#nextReceipt);
+      for (const rec of additiveImportProjectionUpserts(target, plan.merged)) {
+        queueRecord(q, rec);
+      }
+      // One paired publish: refused planning or receipt exhaustion never moves CURRENT.
+      this.#publish(plan.merged, q.entries, q.nextReceipt);
+      return plan.written;
     }
 
-    // Projection delta starts from the pending desired-state map and the
-    // old-live set, then overlays retracts/upserts from the import. Do not
-    // clear the outbox blindly — unchanged pending work must survive.
-    const oldLive = liveProjectionMap(this.#snap);
+    // Exact replacement (empty target, or force + refuse).
+    const oldLive = liveProjectionMap(target);
     const newLive = liveProjectionMap(snapshot);
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
     for (const [key, oldRec] of oldLive) {
@@ -1376,12 +1384,7 @@ export class FilesOnlySessionStore implements SessionStore {
       obligations: [...snapshot.obligations],
     };
     this.#publish(next, q.entries, q.nextReceipt);
-    return (
-      next.sessions.length +
-      next.facts.length +
-      next.measurements.length +
-      next.obligations.length
-    );
+    return countRows(next);
   }
 
   // -- lifecycle -----------------------------------------------------------

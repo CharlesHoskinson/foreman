@@ -24,6 +24,7 @@ import {
   COUNTED_KINDS,
   ENTITY_ORDER,
   SESSION_MODEL_VERSION,
+  countRows,
   emptySnapshot,
   initialNextIds,
   rowsOfKind,
@@ -40,6 +41,12 @@ import {
 } from "./entities.js";
 import { assertIntegrity } from "./integrity.js";
 import { raise } from "./failures.js";
+import {
+  additiveImportProjectionUpserts,
+  planAdditiveRemapImport,
+  resolveIdCollisionPolicy,
+  snapshotIsOccupied,
+} from "./import-remap.js";
 import {
   buildProjection,
   liveProjectionMap,
@@ -1031,6 +1038,9 @@ CREATE TABLE memory_outbox (
   // -- snapshot transfer ---------------------------------------------------
 
   importSnapshot(snapshot: SessionSnapshot, opts: ImportOptions = {}): number {
+    if (this.readOnly) {
+      raise("invalid_argument", "store is read-only");
+    }
     // Validate BEFORE opening a transaction so a bad snapshot cannot touch the store.
     assertIntegrity(snapshot);
     if (snapshot.modelVersion !== this.modelVersion) {
@@ -1041,33 +1051,36 @@ CREATE TABLE memory_outbox (
     }
 
     const force = opts.force ?? false;
-    const policy = opts.onIdCollision ?? "refuse";
+    const policy = resolveIdCollisionPolicy(opts.onIdCollision);
 
     return this.tx(() => {
       this.db.exec("PRAGMA defer_foreign_keys=ON");
 
-      const occupied = ENTITY_ORDER.some(
-        (k) =>
-          this.db.prepare(`SELECT 1 FROM ${quoteIdent(TABLE[k])} LIMIT 1`).get() !==
-          undefined,
-      );
+      const target = this.readSnapshot();
+      const occupied = snapshotIsOccupied(target);
       if (occupied && !force) {
         raise(
           "store_not_empty",
           "target store already has rows; pass force to replace it",
         );
       }
+
       if (occupied && policy === "remap") {
-        raise(
-          "invalid_argument",
-          "remap id-collision policy is not implemented; import into an empty store",
-        );
+        if (countRows(snapshot) === 0) return 0;
+        const plan = planAdditiveRemapImport(target, snapshot);
+        this.insertSnapshotRows(plan.insert.sessions, "session");
+        this.insertSnapshotRows(plan.insert.facts, "fact");
+        this.insertSnapshotRows(plan.insert.measurements, "measurement");
+        this.insertSnapshotRows(plan.insert.obligations, "obligation");
+        this.setNextIds(plan.merged.nextIds);
+        for (const rec of additiveImportProjectionUpserts(target, plan.merged)) {
+          this.queueRecord(rec);
+        }
+        return plan.written;
       }
 
-      // Projection delta starts from the pending desired-state map and the
-      // old-live set, then overlays retracts/upserts from the import. Do not
-      // clear the outbox blindly — unchanged pending work must survive.
-      const oldLive = liveProjectionMap(this.readSnapshot());
+      // Exact replacement (empty target, or force + refuse).
+      const oldLive = liveProjectionMap(target);
       const newLive = liveProjectionMap(snapshot);
 
       for (const kind of [...ENTITY_ORDER].reverse()) {
@@ -1076,18 +1089,7 @@ CREATE TABLE memory_outbox (
 
       let written = 0;
       for (const kind of ENTITY_ORDER) {
-        const spec = specFor(kind);
-        const names = spec.fields.map((f) => f.name);
-        const cols = names.map(quoteIdent).join(", ");
-        const qs = names.map(() => "?").join(", ");
-        const stmt = this.db.prepare(
-          `INSERT INTO ${quoteIdent(TABLE[kind])} (${cols}) VALUES (${qs})`,
-        );
-        for (const row of rowsOfKind(snapshot, kind)) {
-          const r = row as Record<string, unknown>;
-          stmt.run(...names.map((n) => (r[n] ?? null) as never));
-          written++;
-        }
+        written += this.insertSnapshotRows(rowsOfKind(snapshot, kind), kind);
       }
 
       this.setNextIds(snapshot.nextIds);
@@ -1106,6 +1108,27 @@ CREATE TABLE memory_outbox (
 
       return written;
     });
+  }
+
+  /** Insert rows of one kind. Returns the number inserted. Must run in a tx. */
+  private insertSnapshotRows(
+    rows: readonly Record<string, unknown>[] | readonly SessionRow[] | readonly FactRow[] | readonly MeasurementRow[] | readonly ObligationRow[],
+    kind: EntityKind,
+  ): number {
+    const spec = specFor(kind);
+    const names = spec.fields.map((f) => f.name);
+    const cols = names.map(quoteIdent).join(", ");
+    const qs = names.map(() => "?").join(", ");
+    const stmt = this.db.prepare(
+      `INSERT INTO ${quoteIdent(TABLE[kind])} (${cols}) VALUES (${qs})`,
+    );
+    let written = 0;
+    for (const row of rows) {
+      const r = row as Record<string, unknown>;
+      stmt.run(...names.map((n) => (r[n] ?? null) as never));
+      written++;
+    }
+    return written;
   }
 
   close(): void {
