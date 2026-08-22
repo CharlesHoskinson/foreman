@@ -23,8 +23,9 @@ local correctness. The split below avoids all of that.
 
 ## Port 1 — `SessionStore` (system of record)
 
-Authoritative, synchronous, transactional, exact. **SQLite is the reference
-implementation and the only complete one.**
+Authoritative, synchronous, transactional, exact. SQLite is the reference
+implementation. `SqliteSessionStore` and `FilesOnlySessionStore` are complete
+implementations and pass the same backend-neutral contract.
 
 Owns: identity, ordering, supersession, durability, round-trip fidelity.
 
@@ -88,6 +89,33 @@ All of this is contract; changing any of it bumps `SESSION_MODEL_VERSION`.
 - Strings pass through as stored — no Unicode normalisation, which would
   silently rewrite session content
 
+### Storage implementations
+
+SQLite commits entity rows, allocation counters, and projection outbox changes
+in one database transaction. A writable open can migrate a legacy database.
+A read-only open never migrates or repairs state.
+
+Files-only stores immutable NDJSON generations. Each published token names a
+snapshot file in `generations/` and its matching outbox file in
+`outbox-generations/`. A mutation writes and syncs both files and their
+directories before it replaces and syncs `CURRENT`. A failure before the
+`CURRENT` replacement leaves the previous pair active. A new-format generation
+with a missing or malformed matching outbox is corrupt; it is not an empty
+queue.
+
+Files-only writer exclusion is a single-host process claim. It is not a network
+filesystem lease. Use one writer and one drainer for each files-only directory.
+
+### Snapshot import
+
+An import into an empty store is an exact replacement. For a non-empty store,
+`force` with the default `refuse` policy keeps the destructive replacement
+behaviour. `force` with `remap` performs an additive merge: it preserves target
+rows, pending outbox receipts, and queue order; allocates every donor counted
+row from target counters per kind; rewrites same-kind supersession pointers;
+and remaps colliding session identities. The complete candidate is validated
+before one atomic commit.
+
 ## Port 2 — `MemoryIndex` (derived projection)
 
 Non-authoritative, asynchronous, eventually consistent, semantic, optional.
@@ -143,26 +171,38 @@ I2 is the one that matters and the one that rots. It is enforced three ways:
 
 ## The outbox
 
-`memory_outbox` is written in the same SQLite transaction as the row it
-describes, keyed by `${kind}:${id}:${mutation}` so a retried delivery after a
-timeout cannot double-write. It is deliberately **not** part of
-`SessionSnapshot`: it is derived bookkeeping, it is rebuildable, and nothing
-outside the projector may read it.
+Each live entity has one stable desired-state key, `${kind}:${id}`. The
+operation stores `mutation` as a separate `upsert` or `retract` field. Each
+changed desired operation receives a fresh opaque receipt. A later operation
+for the same identity replaces the pending operation, but acknowledgement uses
+the exact receipt. A stale drain therefore cannot delete a newer operation.
 
-The drain (`fm-session sync`) and projection epochs are not in this change.
-The contract lands first; any adapter is written against it.
+SQLite writes the outbox entry in the same transaction as the entity change.
+Files-only publishes the outbox and snapshot as the paired generation described
+above. The outbox is deliberately **not** part of `SessionSnapshot`: it is
+derived delivery state and only the projector may drain it.
+
+`fm-session sync` drains the oldest bounded batches through `MemoryIndex`.
+Effect supplies typed failures, cancellation, per-attempt timeouts, and bounded
+retry. The drainer acknowledges a batch only after `MemoryIndex.project`
+resolves. A rejection or timeout acknowledges nothing. An acknowledgement
+failure stops the drain and leaves the entries pending.
+
+The guarantee is durable idempotent at-least-once, not exactly-once. A crash
+after remote success and before local acknowledgement must replay the batch.
+Every real `MemoryIndex` adapter must therefore make repeated desired-state
+operations idempotent. `NullMemoryIndex` is the only shipping adapter.
+Projection epochs and an external adapter remain deferred.
 
 ## Conformance
 
-`contract-suite.ts` is backend-agnostic and factory-driven — a second
-implementation is trustworthy exactly to the degree it passes. It covers
-round-trip and byte-stability, port-minted identity and allocation round-trip,
-set-once supersession, the version policy, and hostile input: dangling and
-self-referential and cyclic supersession, forked supersession, partial
-supersession metadata, absent-instead-of-null fields, unknown fields, unknown
-session references, duplicate ids, ids above the allocation watermark,
-out-of-order rows, duplicate JSON keys, CRLF, missing trailing newline, and
-unknown entity kinds.
+`contract-suite.ts` is backend-neutral and factory-driven. Its 49 cases pass
+unchanged against SQLite and files-only. It covers round-trip and byte
+stability, port-minted identity and allocation round-trip, set-once
+supersession, remap import, outbox receipt safety, the version policy, and
+hostile input. A do-nothing negative-control store fails 24 cases across eight
+independent categories, so a backend cannot pass the suite without implementing
+the material contract.
 
 ## Review
 
