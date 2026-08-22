@@ -3,47 +3,32 @@
 This file is the current release roadmap. Dated plans, research reports, and
 evidence files are historical records. They do not override this file.
 
-## Latest release: One Runtime (v0.3.0)
+## Latest release: George's Odyssey (v0.3.1)
 
-Annotated tag `v0.3.0` targets exact commit
-`d4040316f3dfe5406773d8a483ddd8662b035554`, tagged 2026-08-08.
+Released 2026-08-22. v0.3.1 is one sentence: **session state is portable — one
+contract, two implementations.**
 
-v0.3.0 is one sentence: **the Node migration is finished — one runtime, one
-language.**
+`SessionStore` is the synchronous, transactional system of record.
+`SqliteSessionStore` and `FilesOnlySessionStore` both pass the same 49-case
+contract. `MemoryIndex` is an asynchronous, optional projection port.
+`NullMemoryIndex` remains the only shipping adapter, so local correctness does
+not require a network or credentials.
 
-Foreman's own Python is gone. `git ls-files '*.py'` returns seven files: four
-vendored `scrapling` templates, one vendored `scrapling` test, one vendored
-`superpowers` token-usage utility, and one archived schema checker under
-`openspec/changes/archive/`. None of them is Foreman's.
+The release adds a durable desired-state outbox, `fm-session sync`, additive
+collision-safe snapshot import, and a tested boundary around raw SQLite
+access. Outbox delivery is durable idempotent at-least-once. It is not
+exactly-once.
 
-Three subsystems moved to Node.js 24 and TypeScript. The session store became
-`packages/orchestration/src/fm-session-main.ts`, driven by `tests/session.bats`
-through `FM_SESSION_CMD`. The Tier 2 evaluator reproduces Python's output byte
-for byte, which required porting MT19937 including its SHA-512 string seeding
-and Python 3.12's compensated float summation. Three `docs/research/` utilities
-retired rather than ported.
-
-The four exit predicates, measured on the release commit:
-
-| # | Predicate | Verdict |
-|---|---|---|
-| 1 | `git ls-files '*.py'` returns exactly the 6 vendored plus 1 archived | **PASS** |
-| 2 | `gates-linux` green on `main` | **PASS** |
-| 3 | `session.bats` passes with `FM_SESSION_CMD` on the TypeScript, `fm-session.py` deleted | **PASS** |
-| 4 | `tests/positive-control-todo.tsv` empty for in-scope gates, or every row carries a reason | **PASS** |
-
-Predicate 2 covers Linux only. The Bats suite was measured on Windows for the
-first time at pass=444 fail=270 skip=26 and does not fit the 60-minute job cap,
-so Windows is excluded by decision rather than by omission and the exclusion is
-enforced by a test. Windows remains open work in `brokenwindows.md` (BW-004).
-
-The release excludes Gemini, npm publication, and a complete Council runtime.
-The remaining limitations are in `docs/RESIDUALS.md`. Full detail is in
-`docs/releases/v0.3.0-notes.md`.
-
-The recurring lesson of the release run: the oracle is usually the defect. Five
-separate "it passed" reports were false, and every one was caught by a check
-that could discriminate — never by a more careful reading of the report.
+Product measurements bind to commit
+`64604d24308b446eaf1102177165622d3ec29167`. The final reviewed candidate is
+`0f841b4b2d3e52f0afafcc50026c49324a42ab8a`. Pull request
+[#45](https://github.com/CharlesHoskinson/foreman/pull/45) merged it as
+`c9030fbb98c0d723cd39ad361cb98a3e74b5f487`. The exact candidate
+[gate](https://github.com/CharlesHoskinson/foreman/actions/runs/32556688358)
+and exact integrated
+[gate](https://github.com/CharlesHoskinson/foreman/actions/runs/32557610402)
+passed. Release publication follows only after the release-state record merges
+and its exact `main` gate passes.
 
 ## Released line
 
@@ -58,26 +43,14 @@ that could discriminate — never by a more careful reading of the report.
 | `v0.2.8.2` | 2026-08-03 | External soft-mode pilot and portability fixes |
 | `v0.2.9.0` | 2026-08-03 | Total Georgecall Council preflight |
 | `v0.3.0` | 2026-08-08 | One Runtime — the Node migration finished |
+| `v0.3.1` | 2026-08-22 | George's Odyssey — portable session state |
 
 Git tags and release notes preserve the complete history. Use Git history when
 an old release decision matters. Do not add old plans back to this live file.
 
-## Active release program: v0.3.1 "George's Odyssey"
+## v0.3.1 completion record
 
-**Release candidate.** The six exit predicates passed on pushed commit
-`64604d24308b446eaf1102177165622d3ec29167`. The branch is not merged or
-tagged. v0.3.0 remains the latest release.
-
-v0.3.1 is one sentence: **session state is portable — one contract, two
-implementations.**
-
-`SessionStore` is the synchronous, transactional system of record.
-`SqliteSessionStore` and `FilesOnlySessionStore` both pass the same 49-case
-contract. `MemoryIndex` is an asynchronous, optional projection port.
-`NullMemoryIndex` remains the only shipping adapter, so local correctness does
-not require a network or credentials.
-
-The release candidate includes:
+The release includes:
 
 | Item | State |
 |---|---|
@@ -112,11 +85,18 @@ observing itself. Sprints 8-13 and 16, Sprint 6's project registry, and the
 knowledge and graph plane are assigned to v0.4.0. Their change packages under
 `openspec/changes/` are unmodified; only their release assignment moved.
 
+## Next program: v0.4.0
+
+The next program includes the first external `MemoryIndex` adapter, projection
+epochs, and live-service tests. It also retains Windows Bats item BW-004.
+Files-only writer exclusion remains a single-host claim, not a network
+filesystem lease.
+
 ## Current authority
 
-- v0.3.1 release-candidate record: `docs/releases/v0.3.1-notes.md`
+- Shipped v0.3.1 release notes: `docs/releases/v0.3.1-notes.md`
 - v0.3.1 storage architecture: `docs/architecture/storage-port.md`
-- Shipped v0.3.0 release notes: `docs/releases/v0.3.0-notes.md`
+- Prior v0.3.0 release notes: `docs/releases/v0.3.0-notes.md`
 - Canonical accomplishment ledger:
   `docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`
 - Superseded v0.3.0 release program: `openspec/changes/v030-release-program/`
