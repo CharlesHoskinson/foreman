@@ -2,17 +2,17 @@
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { join, dirname as dirname2, resolve as resolve2 } from "node:path";
+import { join as join2, dirname as dirname2, resolve as resolve2 } from "node:path";
 import {
-  existsSync as existsSync2,
-  mkdirSync as mkdirSync2,
-  readFileSync as readFileSync2,
+  existsSync as existsSync3,
+  mkdirSync as mkdirSync3,
+  readFileSync as readFileSync3,
   writeFileSync,
-  renameSync as renameSync2,
+  renameSync as renameSync3,
   rmSync as rmSync2,
-  openSync,
-  closeSync,
-  fsyncSync,
+  openSync as openSync2,
+  closeSync as closeSync2,
+  fsyncSync as fsyncSync2,
   lstatSync,
   realpathSync,
   accessSync,
@@ -864,12 +864,12 @@ var SqliteSessionStore = class _SqliteSessionStore {
   }
   // -- construction --------------------------------------------------------
   static open(path, opts = {}) {
-    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     if (opts.readOnly) {
       const db2 = new DatabaseSync(path, { readOnly: true });
       db2.exec("PRAGMA busy_timeout=5000");
       return new _SqliteSessionStore(db2, opts);
     }
+    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     const db = new DatabaseSync(path);
     db.exec("PRAGMA busy_timeout=5000");
     db.exec("PRAGMA foreign_keys=ON");
@@ -1294,6 +1294,557 @@ var SqliteSessionStore = class _SqliteSessionStore {
     this.db.close();
   }
 };
+
+// packages/session-store/src/files-only.ts
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync as mkdirSync2,
+  openSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+  writeSync
+} from "node:fs";
+import { join } from "node:path";
+var CURRENT = "CURRENT";
+var GENERATIONS = "generations";
+var GEN_WIDTH = 8;
+function genName(n) {
+  return `${String(n).padStart(GEN_WIDTH, "0")}.ndjson`;
+}
+var counter = 0;
+function writeFileDurable(dir, name, text) {
+  const tmp = join(dir, `.tmp-${name}-${process.pid}-${counter++}`);
+  const fd = openSync(tmp, "wx", 420);
+  try {
+    writeSync(fd, text);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  try {
+    renameSync(tmp, join(dir, name));
+  } catch (e) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+    }
+    throw e;
+  }
+  fsyncDir(dir);
+}
+function fsyncDir(dir) {
+  const fd = openSync(dir, "r");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+function sortedSnapshot(s) {
+  return {
+    modelVersion: s.modelVersion,
+    nextIds: s.nextIds,
+    sessions: [...s.sessions].sort(
+      (a, b) => a.session_id < b.session_id ? -1 : a.session_id > b.session_id ? 1 : 0
+    ),
+    facts: [...s.facts].sort((a, b) => a.id - b.id),
+    measurements: [...s.measurements].sort((a, b) => a.id - b.id),
+    obligations: [...s.obligations].sort((a, b) => a.id - b.id)
+  };
+}
+var FilesOnlySessionStore = class _FilesOnlySessionStore {
+  modelVersion = SESSION_MODEL_VERSION;
+  #dir;
+  #genDir;
+  #readOnly;
+  #snap;
+  #gen;
+  #closed = false;
+  constructor(dir, snap, gen, readOnly) {
+    this.#dir = dir;
+    this.#genDir = join(dir, GENERATIONS);
+    this.#readOnly = readOnly;
+    this.#snap = snap;
+    this.#gen = gen;
+  }
+  static open(opts) {
+    const dir = opts.dir;
+    const readOnly = opts.readOnly === true;
+    if (readOnly) {
+      if (!existsSync(dir)) {
+        raise(
+          "invalid_argument",
+          `files-only store directory does not exist: ${JSON.stringify(dir)}`
+        );
+      }
+      const genDir2 = join(dir, GENERATIONS);
+      const currentPath2 = join(dir, CURRENT);
+      if (!existsSync(currentPath2)) {
+        raise(
+          "sidecar_malformed",
+          `${CURRENT} is missing in ${JSON.stringify(dir)}`
+        );
+      }
+      const name2 = readFileSync(currentPath2, "utf8").trim();
+      if (name2 === "") {
+        raise(
+          "sidecar_malformed",
+          `${CURRENT} is empty in ${JSON.stringify(dir)}`
+        );
+      }
+      const genPath2 = join(genDir2, name2);
+      if (!existsSync(genPath2)) {
+        raise(
+          "sidecar_malformed",
+          `${CURRENT} names generation ${JSON.stringify(name2)}, which does not exist`
+        );
+      }
+      const snap2 = decodeSnapshot(readFileSync(genPath2, "utf8"));
+      if (snap2.modelVersion !== SESSION_MODEL_VERSION) {
+        raise(
+          "model_version_unsupported",
+          `stored model version ${snap2.modelVersion} != store ${SESSION_MODEL_VERSION}`
+        );
+      }
+      const gen2 = Number.parseInt(name2.slice(0, GEN_WIDTH), 10);
+      return new _FilesOnlySessionStore(
+        dir,
+        snap2,
+        Number.isFinite(gen2) ? gen2 : latestGeneration(genDir2),
+        true
+      );
+    }
+    mkdirSync2(dir, { recursive: true });
+    const genDir = join(dir, GENERATIONS);
+    mkdirSync2(genDir, { recursive: true });
+    const currentPath = join(dir, CURRENT);
+    if (!existsSync(currentPath)) {
+      const store = new _FilesOnlySessionStore(dir, emptySnapshot(), 0, false);
+      store.#publish(store.#snap);
+      return store;
+    }
+    const name = readFileSync(currentPath, "utf8").trim();
+    if (name === "") {
+      raise("sidecar_malformed", `${CURRENT} is empty in ${JSON.stringify(dir)}`);
+    }
+    const genPath = join(genDir, name);
+    if (!existsSync(genPath)) {
+      raise(
+        "sidecar_malformed",
+        `${CURRENT} names generation ${JSON.stringify(name)}, which does not exist`
+      );
+    }
+    const snap = decodeSnapshot(readFileSync(genPath, "utf8"));
+    if (snap.modelVersion !== SESSION_MODEL_VERSION) {
+      raise(
+        "model_version_unsupported",
+        `stored model version ${snap.modelVersion} != store ${SESSION_MODEL_VERSION}`
+      );
+    }
+    const gen = Number.parseInt(name.slice(0, GEN_WIDTH), 10);
+    return new _FilesOnlySessionStore(
+      dir,
+      snap,
+      Number.isFinite(gen) ? gen : latestGeneration(genDir),
+      false
+    );
+  }
+  // -- publication ---------------------------------------------------------
+  /**
+   * Make `next` the live snapshot.
+   *
+   * Order matters. The generation is written and fsynced BEFORE CURRENT is
+   * moved, so a crash between the two leaves CURRENT naming the previous
+   * generation and the store readable at its old value — never naming a
+   * generation that does not exist. `encodeSnapshot` runs first of all and
+   * throws on an invalid snapshot, so nothing reaches the disk and `#snap` is
+   * left untouched.
+   */
+  #publish(next) {
+    const ordered = sortedSnapshot(next);
+    const text = encodeSnapshot(ordered);
+    const gen = this.#gen + 1;
+    const name = genName(gen);
+    writeFileDurable(this.#genDir, name, text);
+    writeFileDurable(this.#dir, CURRENT, `${name}
+`);
+    this.#gen = gen;
+    this.#snap = ordered;
+  }
+  #assertOpen() {
+    if (this.#closed) {
+      raise("invalid_argument", "store is closed");
+    }
+  }
+  #assertWritable() {
+    this.#assertOpen();
+    if (this.#readOnly) {
+      raise("invalid_argument", "store is read-only");
+    }
+  }
+  // -- reads ---------------------------------------------------------------
+  snapshot() {
+    this.#assertOpen();
+    return this.#snap;
+  }
+  listSessions() {
+    this.#assertOpen();
+    return this.#snap.sessions;
+  }
+  listFacts() {
+    this.#assertOpen();
+    return this.#snap.facts;
+  }
+  listMeasurements() {
+    this.#assertOpen();
+    return this.#snap.measurements;
+  }
+  listObligations() {
+    this.#assertOpen();
+    return this.#snap.obligations;
+  }
+  currentSession() {
+    this.#assertOpen();
+    let best = null;
+    for (const s of this.#snap.sessions) {
+      if (s.ended_ts !== null) continue;
+      if (best === null || s.session_id > best.session_id) best = s;
+    }
+    return best;
+  }
+  peekNextId(kind) {
+    this.#assertOpen();
+    return this.#snap.nextIds[kind];
+  }
+  #mint(kind) {
+    const id = this.#snap.nextIds[kind];
+    return { id, nextIds: { ...this.#snap.nextIds, [kind]: id + 1 } };
+  }
+  // -- writes --------------------------------------------------------------
+  beginSession(args) {
+    this.#assertWritable();
+    if (this.#snap.sessions.some((s) => s.session_id === args.session_id)) {
+      raise(
+        "identity_conflict",
+        `session ${JSON.stringify(args.session_id)} already exists`
+      );
+    }
+    const row = {
+      session_id: args.session_id,
+      started_ts: args.started_ts,
+      start_sha: args.start_sha,
+      ended_ts: null,
+      note: args.note
+    };
+    this.#publish({ ...this.#snap, sessions: [...this.#snap.sessions, row] });
+    return row;
+  }
+  endSession(sessionId, endedTs) {
+    this.#assertWritable();
+    const cur = this.#snap.sessions.find((s) => s.session_id === sessionId);
+    if (!cur) {
+      raise("invalid_argument", `no such session ${JSON.stringify(sessionId)}`);
+    }
+    if (cur.ended_ts !== null) {
+      raise(
+        "supersession_incomplete",
+        `session ${JSON.stringify(sessionId)} is already ended; ended_ts is set-once`
+      );
+    }
+    const row = { ...cur, ended_ts: endedTs };
+    this.#publish({
+      ...this.#snap,
+      sessions: this.#snap.sessions.map(
+        (s) => s.session_id === sessionId ? row : s
+      )
+    });
+    return row;
+  }
+  addFact(fact2) {
+    this.#assertWritable();
+    const { row, next } = this.#buildFact(fact2);
+    this.#publish(next);
+    return row;
+  }
+  /** Shared by addFact and supersedeFact; does not publish. */
+  #buildFact(fact2) {
+    const { id, nextIds } = this.#mint("fact");
+    const row = {
+      id,
+      statement: fact2.statement,
+      evidence: fact2.evidence,
+      established_ts: fact2.established_ts,
+      session_id: fact2.session_id,
+      superseded_by: null,
+      superseded_at: null,
+      supersede_reason: null
+    };
+    return {
+      row,
+      next: { ...this.#snap, nextIds, facts: [...this.#snap.facts, row] }
+    };
+  }
+  addMeasurement(m) {
+    this.#assertWritable();
+    const { row, next } = this.#buildMeasurement(m);
+    this.#publish(next);
+    return row;
+  }
+  #buildMeasurement(m) {
+    if (m.value_num !== null && !Number.isFinite(m.value_num)) {
+      raise("field_type", `value_num must be finite, got ${String(m.value_num)}`);
+    }
+    const { id, nextIds } = this.#mint("measurement");
+    const row = {
+      id,
+      metric: m.metric,
+      value: m.value,
+      value_num: m.value_num,
+      command: m.command,
+      measured_ts: m.measured_ts,
+      measured_sha: m.measured_sha,
+      scope_paths: m.scope_paths,
+      session_id: m.session_id,
+      superseded_by: null,
+      superseded_at: null,
+      supersede_reason: null
+    };
+    return {
+      row,
+      next: {
+        ...this.#snap,
+        nextIds,
+        measurements: [...this.#snap.measurements, row]
+      }
+    };
+  }
+  addObligation(o) {
+    this.#assertWritable();
+    const { id, nextIds } = this.#mint("obligation");
+    const row = {
+      id,
+      statement: o.statement,
+      status: "open",
+      blocker: o.blocker,
+      opened_ts: o.opened_ts,
+      closed_ts: null,
+      session_id: o.session_id
+    };
+    this.#publish({
+      ...this.#snap,
+      nextIds,
+      obligations: [...this.#snap.obligations, row]
+    });
+    return row;
+  }
+  closeObligation(id, status, closedTs) {
+    this.#assertWritable();
+    const cur = this.#snap.obligations.find((o) => o.id === id);
+    if (!cur) raise("invalid_argument", `no such obligation ${id}`);
+    if (cur.status !== "open") {
+      raise(
+        "invalid_argument",
+        `obligation ${id} is already ${cur.status}; only an open obligation may be closed`
+      );
+    }
+    const row = { ...cur, status, closed_ts: closedTs };
+    this.#publish({
+      ...this.#snap,
+      obligations: this.#snap.obligations.map((o) => o.id === id ? row : o)
+    });
+    return row;
+  }
+  supersedeFact(id, replacement, reason, at2) {
+    this.#assertWritable();
+    const cur = this.#snap.facts.find((f) => f.id === id);
+    if (!cur) raise("invalid_argument", `no such fact ${id}`);
+    if (cur.superseded_by !== null) {
+      raise(
+        "supersession_incomplete",
+        `fact ${id} is already superseded; supersession columns are set-once`
+      );
+    }
+    const { row: next, next: withNew } = this.#buildFact(replacement);
+    const old = {
+      ...cur,
+      superseded_by: next.id,
+      superseded_at: at2,
+      supersede_reason: reason
+    };
+    this.#publish({
+      ...withNew,
+      facts: withNew.facts.map((f) => f.id === id ? old : f)
+    });
+    return { superseded: old, replacement: next };
+  }
+  supersedeMeasurement(id, replacement, reason, at2) {
+    this.#assertWritable();
+    const cur = this.#snap.measurements.find((m) => m.id === id);
+    if (!cur) raise("invalid_argument", `no such measurement ${id}`);
+    if (cur.superseded_by !== null) {
+      raise(
+        "supersession_incomplete",
+        `measurement ${id} is already superseded; supersession columns are set-once`
+      );
+    }
+    const { row: next, next: withNew } = this.#buildMeasurement(replacement);
+    const old = {
+      ...cur,
+      superseded_by: next.id,
+      superseded_at: at2,
+      supersede_reason: reason
+    };
+    this.#publish({
+      ...withNew,
+      measurements: withNew.measurements.map((m) => m.id === id ? old : m)
+    });
+    return { superseded: old, replacement: next };
+  }
+  retireMeasurement(id, byId, reason, at2) {
+    this.#assertWritable();
+    if (byId === id) {
+      raise("invalid_argument", `measurement ${id} cannot supersede itself`);
+    }
+    const cur = this.#snap.measurements.find((m) => m.id === id);
+    if (!cur) raise("invalid_argument", `no such measurement ${id}`);
+    if (cur.superseded_by !== null) {
+      raise(
+        "supersession_incomplete",
+        `measurement ${id} is already superseded; supersession columns are set-once`
+      );
+    }
+    const by = this.#snap.measurements.find((m) => m.id === byId);
+    if (!by) raise("invalid_argument", `no such measurement ${byId}`);
+    if (by.superseded_by !== null) {
+      raise(
+        "invalid_argument",
+        `measurement ${byId} is itself superseded by ${by.superseded_by}; a retired measurement cannot supersede another`
+      );
+    }
+    const row = {
+      ...cur,
+      superseded_by: byId,
+      superseded_at: at2,
+      supersede_reason: reason
+    };
+    this.#publish({
+      ...this.#snap,
+      measurements: this.#snap.measurements.map((m) => m.id === id ? row : m)
+    });
+    return row;
+  }
+  // -- snapshot transfer ---------------------------------------------------
+  importSnapshot(snapshot, opts = {}) {
+    this.#assertWritable();
+    assertIntegrity(snapshot);
+    if (snapshot.modelVersion !== this.modelVersion) {
+      raise(
+        "model_version_unsupported",
+        `snapshot model version ${snapshot.modelVersion} != store ${this.modelVersion}`
+      );
+    }
+    const force = opts.force ?? false;
+    const policy = opts.onIdCollision ?? "refuse";
+    const occupied = this.#snap.sessions.length > 0 || this.#snap.facts.length > 0 || this.#snap.measurements.length > 0 || this.#snap.obligations.length > 0;
+    if (occupied && !force) {
+      raise(
+        "store_not_empty",
+        "target store already has rows; pass force to replace it"
+      );
+    }
+    if (occupied && policy === "remap") {
+      raise(
+        "invalid_argument",
+        "remap id-collision policy is not implemented; import into an empty store"
+      );
+    }
+    const next = {
+      modelVersion: snapshot.modelVersion,
+      nextIds: snapshot.nextIds,
+      sessions: [...snapshot.sessions],
+      facts: [...snapshot.facts],
+      measurements: [...snapshot.measurements],
+      obligations: [...snapshot.obligations]
+    };
+    this.#publish(next);
+    return next.sessions.length + next.facts.length + next.measurements.length + next.obligations.length;
+  }
+  // -- lifecycle -----------------------------------------------------------
+  close() {
+    this.#closed = true;
+  }
+};
+function latestGeneration(genDir) {
+  let best = 0;
+  for (const name of readdirSync(genDir)) {
+    const n = Number.parseInt(name.slice(0, GEN_WIDTH), 10);
+    if (Number.isFinite(n) && n > best) best = n;
+  }
+  return best;
+}
+function openFilesOnlyStore(opts) {
+  return FilesOnlySessionStore.open(opts);
+}
+
+// packages/session-store/src/open.ts
+var CANONICAL_BACKENDS = ["sqlite", "files_only"];
+function normalizeBackend(raw) {
+  const normalized = (raw ?? "").trim().toLowerCase();
+  if (normalized === "" || normalized === "sqlite") return "sqlite";
+  if (normalized === "files_only" || normalized === "files" || normalized === "file") {
+    return "files_only";
+  }
+  raise(
+    "backend_misconfiguration",
+    `unknown FOREMAN_SESSION_BACKEND ${JSON.stringify(raw)}; accepted canonical names are ${CANONICAL_BACKENDS.join(" and ")}`
+  );
+}
+function nonemptyPath(value) {
+  if (value === void 0) return void 0;
+  if (value.trim() === "") return void 0;
+  return value;
+}
+function openSessionStore(opts = {}) {
+  const env = opts.env ?? process.env;
+  const readOnly = opts.readOnly === true;
+  const backend = normalizeBackend(env.FOREMAN_SESSION_BACKEND);
+  if (backend === "sqlite") {
+    const path = nonemptyPath(env.FOREMAN_SESSION_DB) ?? nonemptyPath(opts.defaultSqlitePath?.());
+    if (path === void 0) {
+      raise(
+        "backend_misconfiguration",
+        "FOREMAN_SESSION_DB is required when FOREMAN_SESSION_BACKEND is sqlite"
+      );
+    }
+    const selection = {
+      location: path,
+      locationKind: "file"
+    };
+    opts.onSelected?.(selection);
+    const access = {
+      readOnly,
+      allowMigration: !readOnly
+    };
+    opts.prepareSqlite?.(path, access);
+    return SqliteSessionStore.open(path, { readOnly });
+  }
+  const dir = nonemptyPath(env.FOREMAN_SESSION_DIR);
+  if (dir === void 0) {
+    raise(
+      "backend_misconfiguration",
+      "FOREMAN_SESSION_DIR is required when FOREMAN_SESSION_BACKEND is files_only"
+    );
+  }
+  opts.onSelected?.({
+    location: dir,
+    locationKind: "directory"
+  });
+  return openFilesOnlyStore({ dir, readOnly });
+}
 
 // packages/session-store/src/contract-suite.ts
 function assert(cond, msg) {
@@ -2059,18 +2610,18 @@ import fs from "node:fs";
 import { resolve } from "node:path";
 
 // packages/orchestration/src/session-rebuild.ts
-import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { existsSync as existsSync2, readFileSync as readFileSync2, renameSync as renameSync2, rmSync } from "node:fs";
 function removeJournalSidecars(dbPath2) {
   rmSync(`${dbPath2}-wal`, { force: true });
   rmSync(`${dbPath2}-shm`, { force: true });
 }
 function rebuildFromSidecar(opts) {
-  if (existsSync(opts.dbPath) && opts.force !== true) {
+  if (existsSync2(opts.dbPath) && opts.force !== true) {
     throw new Error(
       `${opts.dbPath} already exists; pass force to replace it. Rebuilding onto an existing file would skip schema creation.`
     );
   }
-  const snapshot = decodeSnapshot(readFileSync(opts.sidecarPath, "utf8"));
+  const snapshot = decodeSnapshot(readFileSync2(opts.sidecarPath, "utf8"));
   const tmpPath = `${opts.dbPath}.rebuild`;
   rmSync(tmpPath, { force: true });
   removeJournalSidecars(tmpPath);
@@ -2086,16 +2637,16 @@ function rebuildFromSidecar(opts) {
   const asideShm = `${opts.dbPath}-shm.rebuild-aside`;
   rmSync(asideWal, { force: true });
   rmSync(asideShm, { force: true });
-  const movedWal = existsSync(`${opts.dbPath}-wal`);
-  if (movedWal) renameSync(`${opts.dbPath}-wal`, asideWal);
-  const movedShm = existsSync(`${opts.dbPath}-shm`);
-  if (movedShm) renameSync(`${opts.dbPath}-shm`, asideShm);
+  const movedWal = existsSync2(`${opts.dbPath}-wal`);
+  if (movedWal) renameSync2(`${opts.dbPath}-wal`, asideWal);
+  const movedShm = existsSync2(`${opts.dbPath}-shm`);
+  if (movedShm) renameSync2(`${opts.dbPath}-shm`, asideShm);
   try {
-    renameSync(tmpPath, opts.dbPath);
+    renameSync2(tmpPath, opts.dbPath);
   } catch (e) {
     try {
-      if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
-      if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
+      if (movedWal) renameSync2(asideWal, `${opts.dbPath}-wal`);
+      if (movedShm) renameSync2(asideShm, `${opts.dbPath}-shm`);
     } catch {
     }
     throw e;
@@ -2432,7 +2983,7 @@ function warnOrphanStore(chosen) {
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
     if (!top) return;
     const orphan = resolve2(top, ".foreman", "session.db");
-    if (orphan === resolve2(chosen) || !existsSync2(orphan)) return;
+    if (orphan === resolve2(chosen) || !existsSync3(orphan)) return;
     process.stderr.write(
       `WARNING: an orphaned session store sits at ${orphan}. Nothing reads it. The store in use is ${chosen}.
 `
@@ -2442,21 +2993,99 @@ function warnOrphanStore(chosen) {
 }
 function dbPath() {
   if (process.env["FOREMAN_SESSION_DB"]) return process.env["FOREMAN_SESSION_DB"];
-  const d = join(repoRoot(), ".foreman");
-  mkdirSync2(d, { recursive: true });
-  const chosen = join(d, "session.db");
+  const chosen = join2(repoRoot(), ".foreman", "session.db");
   warnOrphanStore(chosen);
   return chosen;
 }
 function errorMessage2(e) {
   return e instanceof Error ? e.message : String(e);
 }
-function openStore(path, opts = {}) {
-  const p = path ?? dbPath();
-  mkdirSync2(dirname2(p), { recursive: true });
+function defaultSidecarPath(selection) {
+  if (selection.locationKind === "file") return sidecarPathFor(selection.location);
+  return join2(selection.location, "session.ndjson");
+}
+function openCliStore(opts = {}) {
   const readOnly = opts.readOnly === true;
-  bootstrapStore(p, { allowMigration: !readOnly, readOnly });
-  return SqliteSessionStore.open(p, { readOnly });
+  let selection;
+  let migrated = false;
+  let store;
+  try {
+    store = openSessionStore({
+      readOnly,
+      defaultSqlitePath: dbPath,
+      onSelected: (sel) => {
+        selection = sel;
+      },
+      prepareSqlite: (path, access) => {
+        mkdirSync3(dirname2(path), { recursive: true });
+        migrated = bootstrapStore(path, access);
+      }
+    });
+  } catch (e) {
+    if (e instanceof CliRefusal) throw e;
+    if (e instanceof LegacyMigrationRefusal) {
+      exitCli(2);
+    }
+    if (e instanceof SessionStoreError || reasonOf(e) === "backend_misconfiguration") {
+      process.stderr.write(`refusing: ${errorMessage2(e)}
+`);
+      exitCli(2);
+    }
+    const failedPath = selection?.location ?? dbPath();
+    if (isSqliteOperationalError(e) && (parentDirNotWritable(failedPath) || pathNotReadable(failedPath))) {
+      process.stderr.write(`EACCES: permission denied, open '${failedPath}'
+`);
+      exitCli(1);
+    }
+    if (isSqliteOperationalError(e)) {
+      process.stderr.write(`sqlite3.OperationalError
+`);
+      exitCli(1);
+    }
+    process.stderr.write(`${errorMessage2(e)}
+`);
+    exitCli(1);
+  }
+  if (selection === void 0) {
+    store.close();
+    process.stderr.write("refusing: session store opened without a selection\n");
+    exitCli(2);
+  }
+  if (migrated) {
+    try {
+      persistSidecarAfterMigration(store, selection);
+    } catch (e) {
+      store.close();
+      throw e;
+    }
+  }
+  return { store, selection };
+}
+function openExplicitSqliteImportTarget(target) {
+  try {
+    mkdirSync3(dirname2(target), { recursive: true });
+    const migrated = bootstrapStore(target, { allowMigration: true, readOnly: false });
+    const store = SqliteSessionStore.open(target);
+    if (migrated) {
+      try {
+        persistSidecarAfterMigration(store, {
+          location: target,
+          locationKind: "file"
+        });
+      } catch (e) {
+        store.close();
+        throw e;
+      }
+    }
+    return store;
+  } catch (e) {
+    if (e instanceof CliRefusal) throw e;
+    const message = errorMessage2(e);
+    const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
+    process.stderr.write(`refusing: cannot open target store: ${msg}
+`);
+    exitCli(2);
+  }
 }
 function currentSessionId(store) {
   return store.currentSession()?.session_id ?? null;
@@ -2729,29 +3358,21 @@ function render(rec) {
   }
   return lines.join("\n");
 }
-function sidecarNdjson(dbFile, opts = {}) {
-  const store = SqliteSessionStore.open(
-    dbFile,
-    opts.readOnly === true ? { readOnly: true } : {}
-  );
-  try {
-    const snapshot = store.snapshot();
-    return [encodeSnapshot(snapshot), countRows(snapshot)];
-  } finally {
-    store.close();
-  }
+function sidecarNdjson(store) {
+  const snapshot = store.snapshot();
+  return [encodeSnapshot(snapshot), countRows(snapshot)];
 }
 function writeAtomic(path, text) {
   const tmp = `${path}.tmp.${process.pid}.${randomBytes(8).toString("hex")}`;
   try {
     writeFileSync(tmp, text, { encoding: "utf8", flag: "wx" });
-    const fd = openSync(tmp, "r+");
+    const fd = openSync2(tmp, "r+");
     try {
-      fsyncSync(fd);
+      fsyncSync2(fd);
     } finally {
-      closeSync(fd);
+      closeSync2(fd);
     }
-    renameSync2(tmp, path);
+    renameSync3(tmp, path);
   } catch (e) {
     try {
       rmSync2(tmp, { force: true });
@@ -2760,11 +3381,11 @@ function writeAtomic(path, text) {
     throw e;
   }
   try {
-    const dirFd = openSync(dirname2(path), "r");
+    const dirFd = openSync2(dirname2(path), "r");
     try {
-      fsyncSync(dirFd);
+      fsyncSync2(dirFd);
     } finally {
-      closeSync(dirFd);
+      closeSync2(dirFd);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -2871,7 +3492,7 @@ function writeSidecar(path, text, opts = {}) {
   if (inspected.kind === "regular") {
     let raw;
     try {
-      raw = readFileSync2(dest, "utf8");
+      raw = readFileSync3(dest, "utf8");
     } catch (e) {
       throw new SidecarReplaceRefused(unreadSidecarMessage(path, errorMessage2(e)), "unread");
     }
@@ -2890,10 +3511,10 @@ function writeSidecar(path, text, opts = {}) {
   }
   writeAtomic(dest, text);
 }
-function persistSidecarAfterMigration(storePath) {
-  const out = sidecarPathFor(storePath);
-  if (pathsAlias(out, storePath)) return;
-  const [lines, rowCount] = sidecarNdjson(storePath);
+function persistSidecarAfterMigration(store, selection) {
+  const out = defaultSidecarPath(selection);
+  if (pathsAlias(out, selection.location)) return;
+  const [lines, rowCount] = sidecarNdjson(store);
   try {
     writeSidecar(out, lines);
     process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
@@ -2906,14 +3527,9 @@ function persistSidecarAfterMigration(storePath) {
     throw e;
   }
 }
-function importSidecar(dbFile, path, force = false) {
-  const snapshot = decodeSnapshot(readFileSync2(path, "utf8"));
-  const store = SqliteSessionStore.open(dbFile);
-  try {
-    return store.importSnapshot(snapshot, { force });
-  } finally {
-    store.close();
-  }
+function importSidecar(store, path, force = false) {
+  const snapshot = decodeSnapshot(readFileSync3(path, "utf8"));
+  return store.importSnapshot(snapshot, { force });
 }
 function emptyOptions() {
   return {
@@ -2992,47 +3608,6 @@ function parseCli(argv) {
   }
   return parsed;
 }
-function prepareInvocation(cmd, importTarget) {
-  try {
-    if (cmd === "import-sidecar") {
-      const target = importTarget ?? dbPath();
-      mkdirSync2(dirname2(target), { recursive: true });
-      const migrated2 = bootstrapStore(target, { allowMigration: true, readOnly: false });
-      if (migrated2) persistSidecarAfterMigration(target);
-      return;
-    }
-    const p = dbPath();
-    mkdirSync2(dirname2(p), { recursive: true });
-    const readOnly = READ_ONLY_CMDS.has(cmd);
-    const migrated = bootstrapStore(p, { allowMigration: !readOnly, readOnly });
-    if (migrated) persistSidecarAfterMigration(p);
-  } catch (e) {
-    if (cmd === "import-sidecar") {
-      const message = errorMessage2(e);
-      const msg = message.includes("unable to open database file") ? "sqlite3.OperationalError" : message;
-      process.stderr.write(`refusing: cannot open target store: ${msg}
-`);
-      exitCli(2);
-    }
-    if (e instanceof LegacyMigrationRefusal) {
-      exitCli(2);
-    }
-    const failedPath = cmd === "import-sidecar" ? importTarget ?? dbPath() : dbPath();
-    if (isSqliteOperationalError(e) && (parentDirNotWritable(failedPath) || pathNotReadable(failedPath))) {
-      process.stderr.write(`EACCES: permission denied, open '${failedPath}'
-`);
-      exitCli(1);
-    }
-    if (isSqliteOperationalError(e)) {
-      process.stderr.write(`sqlite3.OperationalError
-`);
-      exitCli(1);
-    }
-    process.stderr.write(`${errorMessage2(e)}
-`);
-    exitCli(1);
-  }
-}
 function main() {
   const args = process.argv.slice(2);
   const cmd = args[0];
@@ -3046,13 +3621,8 @@ function main() {
     exitCli(2);
   }
   const parsed = parseCli(args.slice(1));
-  let importTarget = "";
-  if (cmd === "import-sidecar") {
-    importTarget = parsed.options.into ?? dbPath();
-  }
-  prepareInvocation(cmd, cmd === "import-sidecar" ? importTarget : void 0);
   if (cmd === "begin") {
-    const store = openStore();
+    const { store } = openCliStore();
     try {
       const rec = buildRecoveryFromStore(store);
       const sid = mintSessionId();
@@ -3075,7 +3645,7 @@ function main() {
     return 0;
   }
   if (cmd === "recover") {
-    const store = openStore(void 0, { readOnly: true });
+    const { store } = openCliStore({ readOnly: true });
     try {
       const rec = buildRecoveryFromStore(store);
       if (parsed.options.json) {
@@ -3090,7 +3660,7 @@ function main() {
   }
   if (cmd === "freshness") {
     const staleOnly = parsed.options["stale-only"];
-    const store = openStore(void 0, { readOnly: true });
+    const { store } = openCliStore({ readOnly: true });
     try {
       const measurements = buildFreshnessFromStore(store, staleOnly);
       process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
@@ -3100,7 +3670,7 @@ function main() {
     return 0;
   }
   if (cmd === "end") {
-    const store = openStore();
+    const { store } = openCliStore();
     try {
       const sid = parsed.args[0] || currentSessionId(store);
       if (!sid) {
@@ -3125,10 +3695,10 @@ function main() {
     return 0;
   }
   if (cmd === "fact") {
-    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const evidence = parsed.options.evidence || null;
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const statement = requirePositional(parsed.args, 0, "STATEMENT");
       let row;
       try {
         row = store.addFact({
@@ -3148,24 +3718,24 @@ function main() {
     return 0;
   }
   if (cmd === "measure") {
-    if (parsed.options.scope.length === 0) {
-      process.stderr.write(
-        "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n"
-      );
-      exitCli(2);
-    }
-    const metric = parsed.args[0];
-    const value = parsed.args[1];
-    if (metric === void 0 || value === void 0) {
-      process.stderr.write("refusing: measure requires METRIC and VALUE\n");
-      exitCli(2);
-    }
     const command = parsed.options.command || null;
-    let vnum = null;
-    if (parsed.options.num !== void 0) vnum = parseFloat(parsed.options.num);
-    else vnum = scalarOf(value);
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      if (parsed.options.scope.length === 0) {
+        process.stderr.write(
+          "refusing: --scope is required. A measurement with no path scope can never be shown stale, which is the entire point.\n"
+        );
+        exitCli(2);
+      }
+      const metric = parsed.args[0];
+      const value = parsed.args[1];
+      if (metric === void 0 || value === void 0) {
+        process.stderr.write("refusing: measure requires METRIC and VALUE\n");
+        exitCli(2);
+      }
+      let vnum = null;
+      if (parsed.options.num !== void 0) vnum = parseFloat(parsed.options.num);
+      else vnum = scalarOf(value);
       let row;
       try {
         row = store.addMeasurement({
@@ -3189,10 +3759,10 @@ function main() {
     return 0;
   }
   if (cmd === "obligation") {
-    const statement = requirePositional(parsed.args, 0, "STATEMENT");
     const blocker = parsed.options.blocker || null;
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const statement = requirePositional(parsed.args, 0, "STATEMENT");
       let row;
       try {
         row = store.addObligation({
@@ -3212,14 +3782,14 @@ function main() {
     return 0;
   }
   if (cmd === "close") {
-    const obligationId = parseInt(requirePositional(parsed.args, 0, "OBLIGATION_ID"), 10);
     const status = parsed.options.status;
-    if (parsed.options.blocker !== void 0) {
-      process.stderr.write("refusing: --blocker is not valid with close\n");
-      exitCli(2);
-    }
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const obligationId = parseInt(requirePositional(parsed.args, 0, "OBLIGATION_ID"), 10);
+      if (parsed.options.blocker !== void 0) {
+        process.stderr.write("refusing: --blocker is not valid with close\n");
+        exitCli(2);
+      }
       if (status !== "done" && status !== "dropped") {
         process.stderr.write(`refusing: --status must be done or dropped, got ${JSON.stringify(status)}
 `);
@@ -3242,15 +3812,17 @@ function main() {
     return 0;
   }
   if (cmd === "sidecar") {
-    const store = dbPath();
-    const outPath = parsed.options.out || join(dirname2(store), "session.ndjson");
-    if (pathsAlias(outPath, store)) {
-      process.stderr.write(`refusing: sidecar output ${outPath} aliases the session store ${store}
-`);
-      exitCli(2);
-    }
+    const { store, selection } = openCliStore({ readOnly: true });
+    const outPath = parsed.options.out || defaultSidecarPath(selection);
     try {
-      const [lines, rowCount] = sidecarNdjson(store, { readOnly: true });
+      if (pathsAlias(outPath, selection.location)) {
+        process.stderr.write(
+          `refusing: sidecar output ${outPath} aliases the session store ${selection.location}
+`
+        );
+        exitCli(2);
+      }
+      const [lines, rowCount] = sidecarNdjson(store);
       writeSidecar(outPath, lines, { allowShrink: parsed.options.force });
       process.stdout.write(`dumped ${rowCount} row(s) -> ${outPath}
 `);
@@ -3263,32 +3835,56 @@ function main() {
       process.stderr.write(`refusing: cannot write sidecar ${outPath}: ${errorMessage2(e)}
 `);
       exitCli(2);
+    } finally {
+      store.close();
     }
   }
   if (cmd === "import-sidecar") {
-    const path = requirePositional(parsed.args, 0, "PATH");
+    const explicitInto = parsed.options.into;
+    if (explicitInto !== void 0) {
+      const store2 = openExplicitSqliteImportTarget(explicitInto);
+      try {
+        const path = requirePositional(parsed.args, 0, "PATH");
+        const count = importSidecar(store2, path, parsed.options.force);
+        process.stdout.write(`imported ${count} document(s) -> ${explicitInto}
+`);
+        return 0;
+      } catch (e) {
+        if (e instanceof CliRefusal) throw e;
+        process.stderr.write(`refusing: ${errorMessage2(e)}
+`);
+        exitCli(2);
+      } finally {
+        store2.close();
+      }
+    }
+    const { store, selection } = openCliStore();
     try {
-      const count = importSidecar(importTarget, path, parsed.options.force);
-      process.stdout.write(`imported ${count} document(s) -> ${importTarget}
+      const path = requirePositional(parsed.args, 0, "PATH");
+      const count = importSidecar(store, path, parsed.options.force);
+      process.stdout.write(`imported ${count} document(s) -> ${selection.location}
 `);
       return 0;
     } catch (e) {
+      if (e instanceof CliRefusal) throw e;
       process.stderr.write(`refusing: ${errorMessage2(e)}
 `);
       exitCli(2);
+    } finally {
+      store.close();
     }
   }
   if (cmd === "supersede") {
-    const factId = parseInt(requirePositional(parsed.args, 0, "FACT_ID"), 10);
-    const statement = requirePositional(parsed.args, 1, "STATEMENT");
     const evidence = parsed.options.evidence || null;
-    const reason = parsed.options.reason;
-    if (!reason) {
-      process.stderr.write("error: option --reason requires an argument\n");
-      exitCli(2);
-    }
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const factId = parseInt(requirePositional(parsed.args, 0, "FACT_ID"), 10);
+      const statement = requirePositional(parsed.args, 1, "STATEMENT");
+      const reason = parsed.options.reason;
+      if (!reason) {
+        process.stderr.write("error: option --reason requires an argument\n");
+        exitCli(2);
+      }
       let res;
       try {
         res = store.supersedeFact(
@@ -3320,23 +3916,23 @@ function main() {
     return 0;
   }
   if (cmd === "retire") {
-    const measurementId = parseInt(requirePositional(parsed.args, 0, "MEASUREMENT_ID"), 10);
-    const byId = parseInt(parsed.options.by ?? "", 10);
-    const reason = parsed.options.reason;
-    if (Number.isNaN(byId)) {
-      process.stderr.write("error: option --by requires an argument\n");
-      exitCli(2);
-    }
-    if (!reason) {
-      process.stderr.write("error: option --reason requires an argument\n");
-      exitCli(2);
-    }
-    if (byId === measurementId) {
-      process.stderr.write("refusing: a measurement cannot supersede itself\n");
-      exitCli(2);
-    }
-    const store = openStore();
+    const { store } = openCliStore();
     try {
+      const measurementId = parseInt(requirePositional(parsed.args, 0, "MEASUREMENT_ID"), 10);
+      const byId = parseInt(parsed.options.by ?? "", 10);
+      const reason = parsed.options.reason;
+      if (Number.isNaN(byId)) {
+        process.stderr.write("error: option --by requires an argument\n");
+        exitCli(2);
+      }
+      if (!reason) {
+        process.stderr.write("error: option --reason requires an argument\n");
+        exitCli(2);
+      }
+      if (byId === measurementId) {
+        process.stderr.write("refusing: a measurement cannot supersede itself\n");
+        exitCli(2);
+      }
       const rows = store.listMeasurements();
       if (!rows.some((r) => r.id === measurementId)) {
         process.stderr.write(`refusing: no measurement ${measurementId} to retire
@@ -3394,17 +3990,32 @@ function mainWithSidecar() {
   if (rc !== 0 || process.argv.length < 3 || invoked !== void 0 && READ_ONLY_CMDS.has(invoked)) {
     process.exit(rc);
   }
-  const store = dbPath();
-  const out = sidecarPathFor(store);
+  let selection;
+  let refreshStore;
+  let out = "";
   try {
-    if (pathsAlias(out, store)) {
-      process.exit(rc);
+    refreshStore = openSessionStore({
+      readOnly: true,
+      defaultSqlitePath: dbPath,
+      onSelected: (sel) => {
+        selection = sel;
+      },
+      prepareSqlite: (path, access) => {
+        mkdirSync3(dirname2(path), { recursive: true });
+        bootstrapStore(path, access);
+      }
+    });
+    if (selection === void 0) {
+      throw new Error("session store reopened without a selection");
     }
-    const [lines, rowCount] = sidecarNdjson(store);
-    const allowShrink = process.argv.includes("--force") && (invoked === "import-sidecar" || invoked === "sidecar");
-    writeSidecar(out, lines, { allowShrink });
-    process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
+    out = defaultSidecarPath(selection);
+    if (!pathsAlias(out, selection.location)) {
+      const [lines, rowCount] = sidecarNdjson(refreshStore);
+      const allowShrink = process.argv.includes("--force") && (invoked === "import-sidecar" || invoked === "sidecar");
+      writeSidecar(out, lines, { allowShrink });
+      process.stderr.write(`sidecar refreshed: ${rowCount} row(s) -> ${out}
 `);
+    }
   } catch (e) {
     if (e instanceof SidecarReplaceRefused) {
       const remedy = e.kind === "shrink" ? `Run \`fm-session sidecar --force\` to dump the store over the tracked record, or \`fm-session import-sidecar ${out} --force\` to restore the tracked record into the store.` : `The existing sidecar could not be decoded, so --force cannot overwrite it. Dump the store to a new file with \`fm-session sidecar --out <fresh-path>\`.`;
@@ -3419,6 +4030,8 @@ function mainWithSidecar() {
       );
       rc = 1;
     }
+  } finally {
+    refreshStore?.close();
   }
   process.exit(rc);
 }
