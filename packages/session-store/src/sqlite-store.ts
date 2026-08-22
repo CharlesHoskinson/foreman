@@ -154,16 +154,16 @@ export class SqliteSessionStore implements SessionStore {
   // -- construction --------------------------------------------------------
 
   static open(path: string, opts: SqliteStoreOptions = {}): SqliteSessionStore {
-    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     if (opts.readOnly) {
-      // No pragma or DDL that could write: a plain connection here would
-      // checkpoint an outstanding WAL as a side effect of merely being
-      // opened and closed, which is exactly the write a read-only caller
-      // must not cause.
+      // No parent-directory creation and no pragma/DDL that could write: a
+      // plain connection here would checkpoint an outstanding WAL as a side
+      // effect of merely being opened and closed, which is exactly the write
+      // a read-only caller must not cause.
       const db = new DatabaseSync(path, { readOnly: true });
       db.exec("PRAGMA busy_timeout=5000");
       return new SqliteSessionStore(db, opts);
     }
+    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     const db = new DatabaseSync(path);
     // journal_mode=WAL takes a lock. busy_timeout must be live before that
     // lock is requested, or a concurrent open fails instantly with

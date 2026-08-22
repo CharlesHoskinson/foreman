@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -11,6 +11,7 @@ import {
   seedFixture,
 } from "./contract-suite.js";
 import { snapshotsEqual } from "./entities.js";
+import { SessionStoreError } from "./failures.js";
 import { openFilesOnlyStore } from "./files-only.js";
 import { encodeSnapshot } from "./sidecar.js";
 import { openMemoryStore } from "./sqlite-store.js";
@@ -181,6 +182,54 @@ describe("the two implementations agree", () => {
       } finally {
         store.close();
       }
+    });
+  });
+});
+
+describe("read-only open", () => {
+  it("serves reads, refuses mutations, and leaves store bytes unchanged", () => {
+    withDir((d) => {
+      const writable = openFilesOnlyStore({ dir: d });
+      seedFixture(writable);
+      writable.close();
+
+      const currentBefore = readFileSync(join(d, "CURRENT"));
+      const genName = currentBefore.toString("utf8").trim();
+      const genPath = join(d, "generations", genName);
+      const genBodyBefore = readFileSync(genPath);
+      const rootListingBefore = readdirSync(d).sort();
+      const genListingBefore = readdirSync(join(d, "generations")).sort();
+
+      const ro = openFilesOnlyStore({ dir: d, readOnly: true });
+      try {
+        assert.equal(encodeSnapshot(ro.snapshot()), genBodyBefore.toString("utf8"));
+        assert.ok(ro.listFacts().length > 0);
+        assert.throws(
+          () =>
+            ro.beginSession({
+              session_id: "ro-mutation",
+              started_ts: "2026-01-01T00:00:00Z",
+              start_sha: null,
+              note: null,
+            }),
+          (error: unknown) => {
+            assert.ok(error instanceof SessionStoreError);
+            assert.equal(error.failure.reason, "invalid_argument");
+            assert.match(error.message, /read-only/);
+            return true;
+          },
+        );
+      } finally {
+        ro.close();
+      }
+
+      assert.deepEqual(readFileSync(join(d, "CURRENT")), currentBefore);
+      assert.deepEqual(readFileSync(genPath), genBodyBefore);
+      assert.deepEqual(readdirSync(d).sort(), rootListingBefore);
+      assert.deepEqual(
+        readdirSync(join(d, "generations")).sort(),
+        genListingBefore,
+      );
     });
   });
 });

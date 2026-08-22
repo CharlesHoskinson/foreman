@@ -27,6 +27,7 @@ export type SessionStoreFailureReason =
   | "supersession_incomplete"
   | "store_not_empty"
   | "backend_mismatch"
+  | "backend_misconfiguration"
   | "invalid_argument";
 
 export type SessionStoreFailure = Branded & {

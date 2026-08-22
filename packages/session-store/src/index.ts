@@ -109,6 +109,12 @@ export {
 } from "./files-only.js";
 
 export {
+  openSessionStore,
+  type OpenSessionStoreOptions,
+  type SessionStoreOpenAccess,
+} from "./open.js";
+
+export {
   ALL_CASES,
   CASES,
   HOSTILE_CASES,

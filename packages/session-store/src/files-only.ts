@@ -75,8 +75,13 @@ import type {
 } from "./port.js";
 
 export type FilesOnlyOptions = {
-  /** Directory holding CURRENT and generations/. Created if absent. */
+  /** Directory holding CURRENT and generations/. Created if absent when writable. */
   readonly dir: string;
+  /**
+   * Open without creating directories, publishing generations, or writing
+   * CURRENT. Mutations refuse with invalid_argument.
+   */
+  readonly readOnly?: boolean;
 };
 
 const CURRENT = "CURRENT";
@@ -150,26 +155,80 @@ export class FilesOnlySessionStore implements SessionStore {
 
   readonly #dir: string;
   readonly #genDir: string;
+  readonly #readOnly: boolean;
   #snap: SessionSnapshot;
   #gen: number;
   #closed = false;
 
-  private constructor(dir: string, snap: SessionSnapshot, gen: number) {
+  private constructor(
+    dir: string,
+    snap: SessionSnapshot,
+    gen: number,
+    readOnly: boolean,
+  ) {
     this.#dir = dir;
     this.#genDir = join(dir, GENERATIONS);
+    this.#readOnly = readOnly;
     this.#snap = snap;
     this.#gen = gen;
   }
 
   static open(opts: FilesOnlyOptions): FilesOnlySessionStore {
     const dir = opts.dir;
+    const readOnly = opts.readOnly === true;
+
+    if (readOnly) {
+      if (!existsSync(dir)) {
+        raise(
+          "invalid_argument",
+          `files-only store directory does not exist: ${JSON.stringify(dir)}`,
+        );
+      }
+      const genDir = join(dir, GENERATIONS);
+      const currentPath = join(dir, CURRENT);
+      if (!existsSync(currentPath)) {
+        raise(
+          "sidecar_malformed",
+          `${CURRENT} is missing in ${JSON.stringify(dir)}`,
+        );
+      }
+      const name = readFileSync(currentPath, "utf8").trim();
+      if (name === "") {
+        raise(
+          "sidecar_malformed",
+          `${CURRENT} is empty in ${JSON.stringify(dir)}`,
+        );
+      }
+      const genPath = join(genDir, name);
+      if (!existsSync(genPath)) {
+        raise(
+          "sidecar_malformed",
+          `${CURRENT} names generation ${JSON.stringify(name)}, which does not exist`,
+        );
+      }
+      const snap = decodeSnapshot(readFileSync(genPath, "utf8"));
+      if (snap.modelVersion !== SESSION_MODEL_VERSION) {
+        raise(
+          "model_version_unsupported",
+          `stored model version ${snap.modelVersion} != store ${SESSION_MODEL_VERSION}`,
+        );
+      }
+      const gen = Number.parseInt(name.slice(0, GEN_WIDTH), 10);
+      return new FilesOnlySessionStore(
+        dir,
+        snap,
+        Number.isFinite(gen) ? gen : latestGeneration(genDir),
+        true,
+      );
+    }
+
     mkdirSync(dir, { recursive: true });
     const genDir = join(dir, GENERATIONS);
     mkdirSync(genDir, { recursive: true });
 
     const currentPath = join(dir, CURRENT);
     if (!existsSync(currentPath)) {
-      const store = new FilesOnlySessionStore(dir, emptySnapshot(), 0);
+      const store = new FilesOnlySessionStore(dir, emptySnapshot(), 0, false);
       store.#publish(store.#snap);
       return store;
     }
@@ -197,6 +256,7 @@ export class FilesOnlySessionStore implements SessionStore {
       dir,
       snap,
       Number.isFinite(gen) ? gen : latestGeneration(genDir),
+      false,
     );
   }
 
@@ -226,6 +286,13 @@ export class FilesOnlySessionStore implements SessionStore {
   #assertOpen(): void {
     if (this.#closed) {
       raise("invalid_argument", "store is closed");
+    }
+  }
+
+  #assertWritable(): void {
+    this.#assertOpen();
+    if (this.#readOnly) {
+      raise("invalid_argument", "store is read-only");
     }
   }
 
@@ -285,7 +352,7 @@ export class FilesOnlySessionStore implements SessionStore {
     readonly start_sha: string | null;
     readonly note: string | null;
   }): SessionRow {
-    this.#assertOpen();
+    this.#assertWritable();
     if (this.#snap.sessions.some((s) => s.session_id === args.session_id)) {
       // SQLite reaches the same refusal through the sessions primary key.
       raise(
@@ -305,7 +372,7 @@ export class FilesOnlySessionStore implements SessionStore {
   }
 
   endSession(sessionId: string, endedTs: string): SessionRow {
-    this.#assertOpen();
+    this.#assertWritable();
     const cur = this.#snap.sessions.find((s) => s.session_id === sessionId);
     if (!cur) {
       raise("invalid_argument", `no such session ${JSON.stringify(sessionId)}`);
@@ -327,7 +394,7 @@ export class FilesOnlySessionStore implements SessionStore {
   }
 
   addFact(fact: NewFact): FactRow {
-    this.#assertOpen();
+    this.#assertWritable();
     const { row, next } = this.#buildFact(fact);
     this.#publish(next);
     return row;
@@ -356,7 +423,7 @@ export class FilesOnlySessionStore implements SessionStore {
   }
 
   addMeasurement(m: NewMeasurement): MeasurementRow {
-    this.#assertOpen();
+    this.#assertWritable();
     const { row, next } = this.#buildMeasurement(m);
     this.#publish(next);
     return row;
@@ -397,7 +464,7 @@ export class FilesOnlySessionStore implements SessionStore {
   }
 
   addObligation(o: NewObligation): ObligationRow {
-    this.#assertOpen();
+    this.#assertWritable();
     const { id, nextIds } = this.#mint("obligation");
     const row: ObligationRow = {
       id,
@@ -421,7 +488,7 @@ export class FilesOnlySessionStore implements SessionStore {
     status: Exclude<ObligationStatus, "open">,
     closedTs: string,
   ): ObligationRow {
-    this.#assertOpen();
+    this.#assertWritable();
     const cur = this.#snap.obligations.find((o) => o.id === id);
     if (!cur) raise("invalid_argument", `no such obligation ${id}`);
     if (cur.status !== "open") {
@@ -446,7 +513,7 @@ export class FilesOnlySessionStore implements SessionStore {
     reason: string | null,
     at: string,
   ): SupersedeResult<FactRow> {
-    this.#assertOpen();
+    this.#assertWritable();
     const cur = this.#snap.facts.find((f) => f.id === id);
     if (!cur) raise("invalid_argument", `no such fact ${id}`);
     if (cur.superseded_by !== null) {
@@ -477,7 +544,7 @@ export class FilesOnlySessionStore implements SessionStore {
     reason: string | null,
     at: string,
   ): SupersedeResult<MeasurementRow> {
-    this.#assertOpen();
+    this.#assertWritable();
     const cur = this.#snap.measurements.find((m) => m.id === id);
     if (!cur) raise("invalid_argument", `no such measurement ${id}`);
     if (cur.superseded_by !== null) {
@@ -506,7 +573,7 @@ export class FilesOnlySessionStore implements SessionStore {
     reason: string | null,
     at: string,
   ): MeasurementRow {
-    this.#assertOpen();
+    this.#assertWritable();
     if (byId === id) {
       raise("invalid_argument", `measurement ${id} cannot supersede itself`);
     }
@@ -542,7 +609,7 @@ export class FilesOnlySessionStore implements SessionStore {
   // -- snapshot transfer ---------------------------------------------------
 
   importSnapshot(snapshot: SessionSnapshot, opts: ImportOptions = {}): number {
-    this.#assertOpen();
+    this.#assertWritable();
     // Validated before anything is touched, so a bad snapshot cannot reach the
     // store even partially.
     assertIntegrity(snapshot);
