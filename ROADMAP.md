@@ -64,47 +64,47 @@ an old release decision matters. Do not add old plans back to this live file.
 
 ## Active release program: v0.3.1 "George's Odyssey"
 
-**Being defined.** There is no `openspec/changes/v031-release-program/` yet.
-The scope below is what has landed on `main` since the `v0.3.0` tag, not an
-agreed exit definition. Do not present it as one.
+**Release candidate.** The six exit predicates passed on pushed commit
+`64604d24308b446eaf1102177165622d3ec29167`. The branch is not merged or
+tagged. v0.3.0 remains the latest release.
 
-Landed since `v0.3.0` (PR #42, merged 2026-08-08):
+v0.3.1 is one sentence: **session state is portable — one contract, two
+implementations.**
 
-**The storage port.** Session state now has two ports with disjoint
-responsibilities rather than one port with two implementations. `SessionStore`
-is the system of record — synchronous, transactional, exact, with SQLite as the
-reference and only complete implementation. `MemoryIndex` is a derived semantic
-projection — asynchronous, optional, `NullMemoryIndex` by default, returning
-entity references rather than content so a superseded row cannot be acted on.
+`SessionStore` is the synchronous, transactional system of record.
+`SqliteSessionStore` and `FilesOnlySessionStore` both pass the same 49-case
+contract. `MemoryIndex` is an asynchronous, optional projection port.
+`NullMemoryIndex` remains the only shipping adapter, so local correctness does
+not require a network or credentials.
 
-TencentDB-Agent-Memory was evaluated as a second `SessionStore` implementation
-and rejected on measurement, not preference: its v3 SDK is HTTP and
-`Promise`-only with no synchronous path, no transactions, no integer identity,
-and memory formation is LLM-mediated and therefore non-deterministic.
-Substitutability would have put network availability on the critical path of
-local correctness.
-
-The defect this fixed: the sidecar round-trip contract was defined by SQLite
-introspection, so the portable contract was whatever `sqlite_schema` reported at
-runtime and changed silently on every migration. The model is now declared in
-`packages/session-store/src/entities.ts` and SQLite is validated against it,
-with drift an error at open. Identity is minted by the port from persisted
-counters rather than by backend `AUTOINCREMENT`.
-
-The contract is in `docs/architecture/storage-port.md`. The design review that
-shaped it is in `docs/reviews/2026-08-08-storage-port/`.
-
-Open work carried by this line:
+The release candidate includes:
 
 | Item | State |
 |---|---|
-| Migrate `fm-session-main.ts` onto the port | Not started. It still uses `node:sqlite` directly and is `// @ts-nocheck` |
-| `fm-session sync` — drain `memory_outbox` | Not started. The outbox table exists and is written; nothing drains it |
-| TencentDB `MemoryIndex` adapter and projection epochs | Not started, deliberately deferred until the port was proven |
-| `importSnapshot` `remap` id-collision policy | Throws as unimplemented |
-| Conformance suite negative control | Absent. Hostile cases prove the validation layer discriminates; the store-level cases are unproven against a subtly wrong backend |
-| Council runtime | Not built. `components/council/packages/*/dist` is absent; requires `pnpm install && pnpm build` |
+| CLI port cutover and backend factory | Complete. Production orchestration imports no raw SQLite or concrete backend constructor |
+| `FilesOnlySessionStore` | Complete. Snapshot and outbox use paired immutable generations |
+| Conformance negative control | Complete. The do-nothing store fails 24 of 49 cases across eight categories |
+| Durable projection outbox and `fm-session sync` | Complete. Delivery is idempotent at-least-once with opaque receipt acknowledgement |
+| Additive `remap` import | Complete. Per-kind IDs, same-kind pointers, sessions, counters, and pending receipts are handled atomically |
+| Legacy SQLite migration and rebuild boundary | Complete. Raw SQLite access is inside `packages/session-store/src` and failure-injection tests cover DB, WAL, and SHM safety |
+| Shipped runtime | Complete. `fm-session.js` was rebuilt and manifest-verified |
+| External `MemoryIndex` adapter | Not in v0.3.1. Assigned to v0.4.0 |
 | Windows Bats suite | BW-004, unchanged from v0.3.0 |
+
+The measured predicates are:
+
+| # | Predicate | Verdict |
+|---|---|---|
+| 1 | No raw or concrete backend access outside the port | **PASS**, boundary 6/6 |
+| 2 | CLI behaviour unchanged | **PASS**, Bats 29/29 and golden 15/15 |
+| 3 | One unchanged contract passes against both implementations | **PASS**, 49 cases per backend |
+| 4 | System-of-record correctness is independent of projection | **PASS**, I2 3/3 and durable failure tests |
+| 5 | `fm-session-main.ts` has no `ts-nocheck` | **PASS**, 0 occurrences |
+| 6 | Outbox delivery is durable idempotent at-least-once | **PASS**, drain 14/14 |
+
+The full TypeScript suite found 1,665 tests: 1,661 passed, 4 skipped, and none
+failed. The SessionStore package passed 171/171. The complete evidence and
+residuals are in `docs/releases/v0.3.1-notes.md`.
 
 The eighteen-sprint program described in earlier revisions of this file was
 measured at 43 packages and roughly 819 open tasks, over half of it the tool
@@ -114,8 +114,9 @@ knowledge and graph plane are assigned to v0.4.0. Their change packages under
 
 ## Current authority
 
+- v0.3.1 release-candidate record: `docs/releases/v0.3.1-notes.md`
+- v0.3.1 storage architecture: `docs/architecture/storage-port.md`
 - Shipped v0.3.0 release notes: `docs/releases/v0.3.0-notes.md`
-- Storage port contract: `docs/architecture/storage-port.md`
 - Canonical accomplishment ledger:
   `docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`
 - Superseded v0.3.0 release program: `openspec/changes/v030-release-program/`

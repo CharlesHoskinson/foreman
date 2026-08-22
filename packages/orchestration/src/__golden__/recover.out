@@ -1,0 +1,87 @@
+FOREMAN RECOVERY  head=<HEAD>  at=<TS>
+last session: 20260731T143323Z-41ab8f  started=2026-07-31T14:33:23Z  start_sha=ce522b7a891e  ENDED 2026-07-31T20:22:38Z
+  note: Sprint close-out planning for v0.2.9: audit remaining scope, fix CI/CD, QA all features, tag the release
+
+FACTS (30) — durable, true by construction
+  [34] audit-run.sh leaked its timeout watchdog because the EXIT/INT/TERM trap killed only the wrapping subshell, not the sleep blocked inside it. Killing a subshell does not signal its children. Fixed at fd0ebef: the watchdog sleeps in one-second slices, checks kill -0 on the parent each slice, and stays in the scripts own process group so group sweeps reach it
+       evidence: commit fd0ebef; tests/decision-events.bats now completes in 65s, was 1800s
+  [32] The session store keyed on --git-common-dir and is shared by every worktree. Fragmentation was realised, not latent: two session.db files existed before the fix
+       evidence: fm-session.py repo_root uses --path-format=absolute --git-common-dir; tests/session.bats "a linked worktree shares the repo session store"
+  [29] ROADMAP.md contradicts itself inside the v0.2.9 section: line 177 says TerminusDB is OUT, line 468 says TerminusDB ships. Four openspec packages still specify the withdrawn store and would have lanes implement it
+       evidence: grep -n TerminusDB ROADMAP.md; grep -rln TerminusDB openspec/changes/ | grep -v archive
+  [28] session.db fragmentation is REALISED, not latent as fact 16 states: two DBs exist, integrate (24 facts/9 measurements/21 obligations) and integrate-wt-xps (empty). fm-session.py:126 still uses --show-toplevel despite fact 23 deciding --git-common-dir
+       evidence: find /root -maxdepth 5 -name session.db; grep -n show-toplevel fm-session.py
+  [27] The installed plugin junction ~/.claude/skills/foreman targets C:\Users\charl\foreman\skills\foreman (the stale Windows checkout) and contains no ontology/, no fm-session.py, no lane-complete-check.sh, no graph-project.sh. The shipped plugin cannot do session recovery or ontology
+       evidence: Get-Item LinkType=Junction, Target; Test-Path ontology = False
+  [26] 960 lines of bugeventlog.md exist only in the damaged index at /root/foreman (stage 3), covering the entire 2026-07-30 run: 11 named defect events plus a 2026-07-29 entry. origin/main stops at 2026-07-29; the Windows checkout is stale at 1200 lines. A git reset --hard or checkout there destroys them
+       evidence: git show :3:bugeventlog.md | wc -l = 2604 vs 1668 on origin/main; diff unique-to-stage3 = 960, unique-to-main = 24
+  [25] The no-GitHub-Actions-credits premise is false: repo is PUBLIC, Actions enabled, Formal models ran green on the newest main commit (run 30586898302, 2026-07-30T22:22Z). wsl-ci-parity was re-scoped away from remote CI on an unverified claim
+       evidence: gh repo view --json visibility=PUBLIC; gh api actions/permissions enabled=true; gh run list
+  [24] Checkpoint doc for the 2026-07-30 evening stop is CHECKPOINT-2026-07-30-evening.md at ce522b7; origin/main and origin/integrate/v029-w1 are level there
+       evidence: git log --oneline -1 origin/main = ce522b7
+  [23] Project identity decision: key on realpath of git rev-parse --git-common-dir (identical /root/foreman/.git from all 14 worktrees; --show-toplevel differs per worktree). project_name is a display label only, default basename of the dir containing the git dir, override FOREMAN_PROJECT_NAME, stored once at registration. Nothing may be keyed on the name: names collide and get renamed, and keying on them merges two projects facts silently
+       evidence: measured --git-common-dir vs --show-toplevel across /root/fm-wt/rod and integrate; fm-session.py:123-131
+  [22] The canonical design prompt for the project registry is docs/design/PROMPT-project-registry.md, user-authored at 9adb990, 175 lines, five questions. /root/fm-specs/SPEC-cross-project-session-store.md is a derivative written before it was seen; where they disagree the committed prompt wins
+       evidence: git log -1 --stat 9adb990
+  [21] origin/main fast-forwarded f6d577d to 9adb990, docs-only design prompt. Pushed as git push origin 9adb990:main because main is checked out at /root/foreman which has stale unmerged index entries and could not be updated
+       evidence: git log --oneline -1 origin/main = 9adb990
+  [20] Two codex shims leaked from the terminated tov lane survived 4h blocked on stdin, ignored SIGTERM, and required SIGKILL. Killed this session. Both were alive during the two suite TIMEOUTs
+       evidence: pids 2233313 and 2272396; kill then kill -9; corroborates --kill-after=30 in tests/run.sh:296
+  [19] The freshness model is blind to host state. Measurement 2 (audit-verdict.bats = 26) was reported FRESH by recover (no commit touched its scope) yet re-running the same file gave pass=11 with a 600s TIMEOUT. Staleness is defined solely as git-commits-touched-scope, so an environment change (leaked processes holding stdin) can invalidate a measurement while it still reports fresh
+       evidence: recover output measurement 2 = OK/fresh; /root/fm-logs/resume-0730-full.log SLICE tests/audit-verdict.bats pass=11 baseline=26 test=TIMEOUT
+  [18] shellcheck 12 -> 13 is one new SC2034 dead assignment at tools/lanectl.sh:222 (owner parsed from the lane filename, never printed by the progress printf); the gate FAILs only on error-level so warnings are informational
+       evidence: comm -13 old new warning sets yields exactly that one line; introduced by 71d6357
+  [17] openspec 33 -> 30 is archival, not regression: b3bbdc3 moved the three terminusdb-withdrawn packages into openspec/changes/archive/, which the ci-local gate skips by name
+       evidence: openspec/changes/archive/2026-07-30-terminusdb-withdrawn-*; tools/ci-local.sh:113 skips archive
+  [15] devlog audit VERDICT BLOCKED on the record only; zero product defects; remedy is an append-only correction block
+       evidence: AUDIT-devlog-2026-07-30.md
+  [14] SQLite ontology replaces TerminusDB; disjointness is store-enforced via node_kind composite FK
+       evidence: skills/foreman/ontology/schema.sql; 18 discrimination checks
+  [13] R1 fixed: per-file timeout converts a suite deadlock into a named TIMEOUT failure
+       evidence: commit b2e9c55
+  [12] bats suite is OFF as a CI gate: it DEADLOCKS, not merely fails. FOREMAN_CI_BATS=1 runs it
+       evidence: tools/ci-local.sh; docs/design/test-cleanup-roadmap.md
+  [11] main is merged and pushed at f6d577d (~90 commits); integrate/v029-w1 and main are level
+       evidence: origin/main=f6d577d
+  ... 10 more fact(s) not shown. Run: fm-session recover --json
+
+MEASUREMENTS — fresh=2 STALE=1 unknown=2
+  OK    [7] shellcheck warning baseline = 13 warnings across 48 files, 0 errors
+       no commit has touched its scope since measurement  (measured 2026-07-30T22:37:23Z @ 2765ecaebc07)
+  STALE [6] openspec strict validation = 30 packages valid, 0 invalid (3 terminusdb packages archived, not regressed)
+       1 commit(s) touched its scope since measurement  (measured 2026-07-30T22:37:16Z @ d5fb7a026364)
+       re-run: for d in openspec/changes/*/; do openspec validate $(basename $d) --strict; done
+  ?     [5] ci-local gates green (bats off) = 5
+       no scope_paths recorded; cannot bound what invalidates it  (measured 2026-07-30T22:22:41Z @ d5fb7a026364)
+       re-run: bash tools/ci-local.sh
+  ?     [4] shellcheck warning baseline = 12 warnings across 48 files
+       no measured_sha recorded  (measured 2026-07-30T20:50:25Z @ )
+       re-run: bash tools/ci-local.sh --quick
+  OK    [3] openspec strict validation = 33 packages valid, 0 invalid
+       no commit has touched its scope since measurement  (measured 2026-07-30T20:50:25Z @ d5fb7a026364)
+
+OBLIGATIONS — open=19 blocked=5
+  [34] (open) foreman/dl2e/implement/perf holds one v0.2.0 commit (56ea69e, el-emit spawn reduction + test-harness fork-tax) not reachable from main. main eventlog.sh is 46 lines AHEAD with v0.2.5 schema-v2 work the branch predates, so the branch is stale, but the perf content was not proven landed. Verify then delete the branch
+  [33] (open) crlf F2+F3 is NOT on main, despite RESUME-2026-07-30.md listing it as landed at 60850ab. main tests/line-endings.bats is 557 lines; branch s1/crlf-extensionless-hardening is 669 and carries the test main lacks: derived exec-bit inventory still covers its founding cases (SDD scripts + hooks). Land it or record why not
+  [32] (open) tests/vendor-isolation.bats test 7 ("lane-run (LANE_VENDOR=claude, fake launcher shim): CLAUDE_CONFIG_DIR exported, normalized") is a host-environment-sensitive test defect, not a product defect, and it predates this plan. Isolation run 2026-07-31 under flock /tmp/foreman-bats.lock: pass=8 fail=0 skip=2 baseline=8 delta=0. In the full suite (/root/fm-logs/suite-a2.log line 567) it failed on [ "$status" -eq 0 ] at tests/vendor-isolation.bats line 240, meaning lane-run.sh refused the lane. Mechanism: the test installs NO claude shim, so the Use-path readiness gate ran the real env/tool-check.sh --lane claude against the real host. On this host claude resolves only through an fnm multishell directory that the login profile creates. Reproduced: under the systemd-run PATH with a non-login shell, command -v claude returns nothing, so tool-check reports status=missing and LANE_READY: claude=no, and the gate exits EXIT_CONFIG. Under a login shell claude resolves and the test passes. The readiness gate is a432037 (2026-07-18); no commit of this plan touches lane-run.sh or the test file. Scope into a later plan: stub the claude probe, or make the gate injectable so no test depends on real host vendor authentication.
+  [31] (open) tests/lifecycle-gate.bats test 1 ("Use refuses a not-ready grok lane at the door, citing Setup") has the same root cause as tests/grok-lane.bats test 11 and is the same host-environment-sensitive test defect, not a product defect. Isolation run 2026-07-31 under flock /tmp/foreman-bats.lock: pass=3 fail=0 baseline=3 delta=0. In the full suite (/root/fm-logs/suite-a2.log line 331) it failed on [ "$status" -ne 0 ] at tests/lifecycle-gate.bats line 57. The test installs a grok shim through PATH, but lane-run.sh sources $HOME/.foreman/env.sh, which prepends /root/.local/bin ahead of the shim when that directory is not already on PATH, as under the systemd-run PATH used for the suite. The readiness gate then probed the real authenticated grok, reported LANE_READY: grok=yes, and let the lane through. Blame a0e809d (2026-07-30) and a432037 (2026-07-18); both predate this plan, and no commit of this plan touches lane-run.sh or the test file. Fix it together with tests/grok-lane.bats test 11 in a later plan.
+  [30] (open) tests/grok-lane.bats test 11 ("grok Use route is refused citing Setup when unauthenticated") is a host-environment-sensitive test defect, not a product defect, and it predates this plan. Isolation run 2026-07-31 under flock /tmp/foreman-bats.lock: pass=11 fail=0 baseline=11 delta=0, so it passes alone. In the full suite (/root/fm-logs/suite-a2.log line 204) it failed on [ "$status" -ne 0 ], meaning lane-run.sh exited 0 instead of refusing. Mechanism, reproduced directly: lane-run.sh sources $HOME/.foreman/env.sh, which prepends /root/.local/bin to the FRONT of PATH when that directory is absent. The suite ran under systemd-run, whose default PATH (/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/snap/bin) has no /root/.local/bin. The prepend therefore landed ahead of the test PATH shim, and the readiness gate probed the real authenticated /root/.local/bin/grok instead of the not-authenticated shim. Reproduction: env -i HOME=/root PATH=<systemd default> bash --noprofile --norc -c PATH=/tmp/fmshim:$PATH; . /root/.foreman/env.sh; command -v grok -> /root/.local/bin/grok. Under a login PATH the same command resolves /tmp/fmshim/grok, which is why it passes in isolation. Blame: env.sh sourcing is a0e809d (2026-07-30), the readiness gate is a432037 (2026-07-18); both predate every commit of this plan, and no commit of this plan touches lane-run.sh or the test file. Scope into a later plan: give the Use-path readiness gate a test seam so it cannot resolve real vendor CLIs, or make lane-run.sh append rather than prepend the env-file PATH.
+  [29] (open) audit-run.sh watchdog: the kill -0 parent check is fooled by a zombie parent, so the watchdog can outlive a SIGKILLed script holding inherited fds. Compare the watchdogs own ppid from /proc/self/stat each slice instead
+  [28] (open) audit-run.sh hardening from the task 7 re-review: (1) clear AUDIT_WATCHDOG_PID after the explicit wait on the timeout path, so the reap does not signal a PID the script no longer owns; (2) read /proc/<W>/task/<W>/children instead of forking ps, closing the ~10ms SIGSTOP window that can leave a stopped orphan
+  [26] (open) After Task 4, .foreman/ names two different directories depending on the file: session.db is repo-common (--git-common-dir) while config.toml is still per-worktree (--show-toplevel) in lib/config.sh cfg_load and its callers worker-run.sh:67, checks-run.sh:20, audit-run.sh:31, gate-eval.sh:30, task-new.sh:36, wt-new.sh:63. Decide whether config follows the store or stays per-worktree, and make it explicit
+  [23] (open) Rewrite the graph-plane specs (graph-dogfood, graph-eval-falsification, graph-store-port, readme-refresh) against the SQLite ontology BEFORE any Tranche D lane is dispatched
+  [19] (open) tools/lanectl.sh:222 has a dead SC2034 assignment: owner is parsed from the lane filename and never printed by the progress printf. Removing it restores the shellcheck baseline from 13 to 12. Deliberately NOT fixed this session to avoid editing the tree while the suite was measuring it
+  [17] (open) cross-project-session-store dispatch 1 is UNSTARTED. Worktree /root/fm-wt/integrate-wt-xps-run-implement-xps exists on branch foreman/xps-run/implement/xps with 0 commits and 0 dirty files; the Sonnet lane was stopped mid-turn just before its first write. Nothing to salvage, nothing to audit. Re-dispatch against docs/design/PROMPT-project-registry.md
+  [15] (open) Implement the project registry: sessions bound to projects so Foreman works across many repos. Design prompt at docs/design/PROMPT-project-registry.md
+  [14] (open) three-outcome-verdicts dispatches 3-5 owed incl. wt-merge.sh TOCTOU (own package)
+  [13] (open) devlog 2026-07-29 correction block owed: never-completed suite, six test-side failures, three wrong counts, Rule 6 exception
+  [12] (open) R3-R7 test cleanup per docs/design/test-cleanup-roadmap.md; re-enable the gate only when the suite COMPLETES on 3 consecutive runs
+  [6] (open) baseline.tsv has no platform column, so one number must hold on every platform; baseline is currently the WSL floor
+  [5] (open) skills/superpowers/tests/** suppresses 30 bash-shebang files from the crlf exec-bit inventory on a per-file reason never individually verified
+  [4] (open) regression-harness-tiers (41 tasks) unimplemented
+  [1] (open) three-outcome-verdicts dispatches 3-5 owed: wt-consolidate.sh (T6), T7 doctrine pass
+  [24] (blocked) Repoint the installed plugin junction at a current checkout and add an installed-vs-repo drift check
+       blocked by: Repoint not done: the Windows checkout at C:\Users\charl\foreman has ~190 locally modified files and diverged history, so git pull --ff-only was refused (would overwrite local changes to .foreman/config.toml, CLAUDE.md, README.md, and dozens more files). The junction still points at that stale checkout. Measurement 12 shows 20 files still missing from the installed skill (ontology/schema.sql, scripts/fm-session.py, scripts/lane-complete-check.sh, scripts/graph-project.sh, and 16 others). The drift-check half of this obligation is done; the repoint half is not.
+  ... 4 more obligation(s) not shown. Run: fm-session recover --json
+
+LAUNCH POINT: 3 measurement(s) are not fresh — re-run them before quoting any of their numbers. Then work the open obligations above.

@@ -64,13 +64,27 @@ export type NewObligation = {
   readonly session_id: string | null;
 };
 
-/** Behaviour when an imported id already exists in a non-empty store. */
+/**
+ * Collision policy for import into a non-empty store when `force` is set.
+ *
+ * - `refuse` (default): destructive exact replacement of all rows.
+ * - `remap`: additive merge — target rows are preserved; donor counted ids are
+ *   remapped from the target's `nextIds`, and colliding donor sessions are
+ *   renamed. Empty targets ignore this and always do exact import.
+ */
 export type IdCollisionPolicy = "refuse" | "remap";
 
 export type ImportOptions = {
-  /** Replace existing rows. Without this an import into a non-empty store is refused. */
+  /**
+   * Required to import into a non-empty store. Without it the import refuses
+   * with `store_not_empty`. With `force` and default/`refuse`, contents are
+   * replaced. With `force` and `remap`, contents are merged additively.
+   */
   readonly force?: boolean;
-  /** Default "refuse". "remap" mints fresh ids and rewrites superseded_by pointers. */
+  /**
+   * Default `"refuse"`. Unknown runtime values refuse with `invalid_argument`.
+   * On an empty target both policies preserve donor ids and `nextIds` exactly.
+   */
   readonly onIdCollision?: IdCollisionPolicy;
 };
 
@@ -104,6 +118,7 @@ export interface SessionStore {
     readonly start_sha: string | null;
     readonly note: string | null;
   }): SessionRow;
+  /** Rejects if the session is already ended (`ended_ts` is set-once). */
   endSession(sessionId: string, endedTs: string): SessionRow;
 
   addFact(fact: NewFact): FactRow;
@@ -132,13 +147,54 @@ export interface SessionStore {
     at: string,
   ): SupersedeResult<MeasurementRow>;
 
+  /**
+   * Mark `id` superseded by the ALREADY EXISTING measurement `byId`.
+   *
+   * Distinct from supersedeMeasurement, which inserts a replacement. One fresh
+   * full-suite reading retires several stale ones, so fan-in onto `byId` is
+   * legal: N rows may name the same successor. Only the inverse question
+   * ("what did Y supersede") is one-to-many; each row still carries a single
+   * superseded_by.
+   *
+   * Returns the retired row, not a SupersedeResult: no replacement is created,
+   * and a `replacement` field holding an untouched pre-existing row would be
+   * false.
+   */
+  retireMeasurement(
+    id: number,
+    byId: number,
+    reason: string | null,
+    at: string,
+  ): MeasurementRow;
+
   // -- snapshot transfer ---------------------------------------------------
   /**
-   * Replace store contents with `snapshot`. All-or-nothing: on any validation
-   * or integrity failure the store is left exactly as it was.
-   * Returns the number of rows written.
+   * Import `snapshot` under the ImportOptions policy matrix.
+   *
+   * Empty target: exact replacement for both collision policies (donor ids and
+   * `nextIds` preserved). Non-empty without `force`: `store_not_empty`.
+   * Non-empty with `force`+`refuse`: destructive exact replacement.
+   * Non-empty with `force`+`remap`: additive merge; returns `countRows(donor)`.
+   * All-or-nothing: any validation or integrity failure leaves the store as it
+   * was.
    */
   importSnapshot(snapshot: SessionSnapshot, opts?: ImportOptions): number;
+
+  // -- projection outbox ---------------------------------------------------
+  /**
+   * Oldest pending projection work, up to `limit`.
+   * `limit` must be a positive safe integer in 1..1000.
+   * Returned entries are defensive copies; receipts are opaque versions.
+   */
+  listOutbox(limit: number): readonly OutboxEntry[];
+
+  /**
+   * Atomically acknowledge exact receipt versions. Deduplicates receipts,
+   * ignores unknown and stale versions, and returns the number deleted.
+   * A receipt identifies one version only: a newer coalesced replacement
+   * survives a stale ack (compare-and-delete).
+   */
+  ackOutbox(receipts: readonly string[]): number;
 
   // -- lifecycle -----------------------------------------------------------
   close(): void;
@@ -163,13 +219,39 @@ export type EntityRef = {
   readonly score: number;
 };
 
-export type ProjectionRecord = {
-  /** Stable idempotency key: `${kind}:${id}:${mutation}`. */
-  readonly key: string;
-  readonly kind: CountedKind;
-  readonly id: number;
-  /** Projectable text only. Redaction happens before this point. */
-  readonly text: string;
+export type ProjectionMutation = "upsert" | "retract";
+
+/**
+ * Desired-state projection unit.
+ *
+ * `key` is the stable adapter identity `${kind}:${id}`. Mutation is a field,
+ * not part of the key — so a timeout after a remote apply and before local ack
+ * retries the same desired-state identity (durable at-least-once).
+ */
+export type ProjectionRecord =
+  | {
+      readonly key: string;
+      readonly kind: CountedKind;
+      readonly id: number;
+      readonly mutation: "upsert";
+      readonly text: string;
+    }
+  | {
+      readonly key: string;
+      readonly kind: CountedKind;
+      readonly id: number;
+      readonly mutation: "retract";
+    };
+
+/**
+ * One pending outbox version.
+ *
+ * `receipt` is an opaque compare-and-delete version for local ack. It is not
+ * the adapter idempotency key — that role belongs to `record.key`.
+ */
+export type OutboxEntry = {
+  readonly receipt: string;
+  readonly record: ProjectionRecord;
 };
 
 /**

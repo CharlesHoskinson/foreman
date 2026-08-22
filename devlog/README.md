@@ -64,4 +64,5 @@ single day.
 
 | Date | Headline | Outcome |
 |---|---|---|
+| [2026-08-13](2026-08-13.md) | SessionDB port unification plus wave-2 checks that could not tell a subject from its absence | W2.3 and W2.2 now redden against a broken subject at `dc96b83` |
 | [2026-07-28](2026-07-28.md) | v0.2.9 Total GeorgeCall planned end to end: 12 research lanes, 4 Quint models, 3 audit rounds, 26 packages | S1 ready to dispatch; finding rate judged relocating, not converging |

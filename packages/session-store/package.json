@@ -10,6 +10,7 @@
     }
   },
   "dependencies": {
-    "@foreman/core": "0.3.0"
+    "@foreman/core": "0.3.0",
+    "effect": "3.22.1"
   }
 }

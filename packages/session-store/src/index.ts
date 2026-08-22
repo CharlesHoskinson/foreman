@@ -60,6 +60,16 @@ export {
 } from "./integrity.js";
 
 export {
+  additiveImportProjectionUpserts,
+  planAdditiveRemapImport,
+  resolveIdCollisionPolicy,
+  snapshotIsOccupied,
+  type CountedIdMaps,
+  type ImportRemapPlan,
+  type RemappedDonorRows,
+} from "./import-remap.js";
+
+export {
   PROJECTABLE_FIELDS,
   type EntityRef,
   type IdCollisionPolicy,
@@ -68,10 +78,30 @@ export {
   type NewFact,
   type NewMeasurement,
   type NewObligation,
+  type OutboxEntry,
+  type ProjectionMutation,
   type ProjectionRecord,
   type SessionStore,
   type SupersedeResult,
 } from "./port.js";
+
+export {
+  buildProjection,
+  liveProjectionMap,
+  projectableText,
+  projectionKey,
+  retractRecord,
+  upsertRecord,
+} from "./projection.js";
+
+export {
+  drainOutbox,
+  outboxDrainFailure,
+  type DrainOptions,
+  type DrainResult,
+  type OutboxDrainFailure,
+  type OutboxDrainFailureReason,
+} from "./outbox.js";
 
 export {
   SIDECAR_FORMAT,
@@ -84,14 +114,14 @@ export {
   type Upgrade,
 } from "./sidecar.js";
 
+export { decodeSnapshotV1, V1_FORMAT_VERSION } from "./sidecar-v1.js";
+
 export {
   HangingMemoryIndex,
   NullMemoryIndex,
   PoisonMemoryIndex,
   ThrowingMemoryIndex,
-  buildProjection,
   faultInjectionIndexes,
-  projectionKey,
 } from "./memory-index.js";
 
 export {
@@ -101,12 +131,47 @@ export {
 } from "./sqlite-store.js";
 
 export {
+  FilesOnlySessionStore,
+  openFilesOnlyStore,
+  type FilesOnlyOptions,
+} from "./files-only.js";
+
+export {
+  openSessionStore,
+  openSqliteSessionStore,
+  type OpenSessionStoreOptions,
+  type OpenSqliteStoreOptions,
+  type SessionStoreOpenAccess,
+  type SessionStoreSelection,
+} from "./open.js";
+
+export {
+  classifySqliteStore,
+  dumpLegacySqliteAsV1,
+  sqliteStoreIsEmpty,
+  type DumpLegacySqliteAsV1Result,
+  type SqliteStoreShape,
+} from "./sqlite-migration.js";
+
+export {
+  rebuildSqliteFromSidecar,
+  type SqliteRebuildOptions,
+  type SqliteRebuildResult,
+} from "./sqlite-rebuild.js";
+
+export {
   ALL_CASES,
   CASES,
   HOSTILE_CASES,
+  MIN_INDEPENDENT_STUB_CATEGORIES,
+  STORE_CASES,
+  StubEmptyBackend,
+  categoryOf,
+  failedCategories,
   formatReport,
   runSuite,
   seedFixture,
+  stubFactory,
   type CaseResult,
   type StoreFactory,
   type SuiteReport,

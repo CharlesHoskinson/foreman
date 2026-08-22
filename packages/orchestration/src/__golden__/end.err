@@ -1,0 +1,2 @@
+rehydrated 73 row(s) from <WORKSPACE>/.foreman/session.ndjson (the .db is a derived cache; the sidecar is what git tracks)
+refusing: session 20260730T222519Z-da94ed is already ended; ended_ts is set-once

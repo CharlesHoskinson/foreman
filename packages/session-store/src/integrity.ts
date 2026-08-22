@@ -49,6 +49,20 @@ function describe(v: unknown): string {
 }
 
 /**
+ * Which row a shape violation is about, in its declared identity fields.
+ *
+ * A report that says only "fact.statement: null in a non-null field" cannot be
+ * acted on against a sidecar carrying thirty facts. The rejected row has to be
+ * nameable, which is what the pre-port importer did by echoing the whole row.
+ * Identity fields only: the row's content may be long, and a violation report
+ * is not the place to reprint it.
+ */
+function at(kind: EntityKind, row: Record<string, unknown>): string {
+  const parts = specFor(kind).identity.map((f) => `${f}=${describe(row[f])}`);
+  return parts.length === 0 ? "" : ` (${parts.join(", ")})`;
+}
+
+/**
  * Check a snapshot against the declared model and all domain rules.
  * Returns every violation found rather than stopping at the first, so a bad
  * sidecar produces one actionable report.
@@ -65,7 +79,11 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
     for (const row of rows) {
       for (const key of Object.keys(row)) {
         if (!declared.has(key)) {
-          out.push({ kind, field: key, detail: "field is not in the model" });
+          out.push({
+            kind,
+            field: key,
+            detail: `field is not in the model${at(kind, row)}`,
+          });
         }
       }
       for (const f of spec.fields) {
@@ -73,14 +91,18 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
           out.push({
             kind,
             field: f.name,
-            detail: "field absent; the model requires an explicit null",
+            detail: `field absent; the model requires an explicit null${at(kind, row)}`,
           });
           continue;
         }
         const v = row[f.name];
         if (v === null) {
           if (!f.nullable) {
-            out.push({ kind, field: f.name, detail: "null in a non-null field" });
+            out.push({
+              kind,
+              field: f.name,
+              detail: `null in a non-null field${at(kind, row)}`,
+            });
           }
           continue;
         }
@@ -88,7 +110,7 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
           out.push({
             kind,
             field: f.name,
-            detail: "undefined is not a value; use null",
+            detail: `undefined is not a value; use null${at(kind, row)}`,
           });
           continue;
         }
@@ -96,7 +118,7 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
           out.push({
             kind,
             field: f.name,
-            detail: `expected ${f.type}, got ${describe(v)}`,
+            detail: `expected ${f.type}, got ${describe(v)}${at(kind, row)}`,
           });
         }
       }
@@ -130,10 +152,24 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
   }
 
   // -- identity: unique, positive, below the allocation watermark ----------
+  // nextIds must be a positive safe integer even when the kind has no rows.
+  // Without this, an empty-kind counter of 0 / NaN / 1.5 round-trips into a
+  // store and corrupts the next mint.
   const idsByKind = new Map<CountedKind, Set<number>>();
   for (const kind of COUNTED_KINDS) {
     const seen = new Set<number>();
     const next = snapshot.nextIds[kind];
+    if (
+      typeof next !== "number" ||
+      !Number.isSafeInteger(next) ||
+      next < 1
+    ) {
+      out.push({
+        kind,
+        field: null,
+        detail: `nextIds.${kind} must be a positive safe integer`,
+      });
+    }
     for (const row of rowsOfKind(snapshot, kind)) {
       const id = row["id"];
       if (typeof id !== "number" || !Number.isSafeInteger(id)) continue;
@@ -144,7 +180,12 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
         out.push({ kind, field: "id", detail: `duplicate id ${id}` });
       }
       seen.add(id);
-      if (typeof next === "number" && id >= next) {
+      if (
+        typeof next === "number" &&
+        Number.isSafeInteger(next) &&
+        next >= 1 &&
+        id >= next
+      ) {
         out.push({
           kind,
           field: "id",
@@ -155,11 +196,19 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
     idsByKind.set(kind, seen);
   }
 
-  // -- session references --------------------------------------------------
+  // -- session identity uniqueness + references ----------------------------
   const sessionIds = new Set<string>();
   for (const row of rowsOfKind(snapshot, "session")) {
     const sid = row["session_id"];
-    if (typeof sid === "string") sessionIds.add(sid);
+    if (typeof sid !== "string") continue;
+    if (sessionIds.has(sid)) {
+      out.push({
+        kind: "session",
+        field: "session_id",
+        detail: `duplicate session_id ${JSON.stringify(sid)}`,
+      });
+    }
+    sessionIds.add(sid);
   }
   for (const kind of COUNTED_KINDS) {
     for (const row of rowsOfKind(snapshot, kind)) {
@@ -182,7 +231,6 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
     const ids = idsByKind.get(kind) ?? new Set<number>();
     const rows = rowsOfKind(snapshot, kind);
     const successorOf = new Map<number, number>();
-    const targetCount = new Map<number, number>();
 
     for (const row of rows) {
       const id = row["id"];
@@ -219,19 +267,17 @@ export function findViolations(snapshot: SessionSnapshot): readonly Violation[] 
         });
         continue;
       }
-      targetCount.set(by, (targetCount.get(by) ?? 0) + 1);
       if (typeof id === "number") successorOf.set(id, by);
     }
 
-    for (const [target, n] of targetCount) {
-      if (n > 1) {
-        out.push({
-          kind,
-          field: "superseded_by",
-          detail: `row ${target} supersedes ${n} rows; at most one is allowed`,
-        });
-      }
-    }
+    // Fan-in is allowed: one successor may legitimately supersede several
+    // predecessors at once, e.g. measurement 17 supersedes four stale
+    // full-suite runs (measurements 1, 8, 14, and 15) recorded when a fresh
+    // run replaced them all in the same pass. The query "what superseded row
+    // X" still has exactly one answer per row (superseded_by is single-
+    // valued), so nothing becomes ambiguous -- only "what did row Y
+    // supersede" becomes one-to-many, and that is exactly the real shape of
+    // this data. Do not reinstate a targetCount cardinality check here.
 
     // cycles: follow each chain, bounded by the number of rows
     for (const start of successorOf.keys()) {

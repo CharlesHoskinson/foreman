@@ -39,10 +39,15 @@ import {
   type NextIds,
   type SessionSnapshot,
 } from "./entities.js";
+import { decodeSnapshotV1, SIDECAR_FORMAT, V1_FORMAT_VERSION } from "./sidecar-v1.js";
 import { assertIntegrity } from "./integrity.js";
 import { raise } from "./failures.js";
 
-export const SIDECAR_FORMAT = "foreman-session-sidecar";
+// SIDECAR_FORMAT is declared in sidecar-v1.ts (the v1 header check needs it
+// too) and re-exported here so the rest of the codebase can keep importing it
+// from ./sidecar.js without a circular import between this file and
+// sidecar-v1.ts.
+export { SIDECAR_FORMAT };
 export const SIDECAR_FORMAT_VERSION = 2;
 
 type Header = {
@@ -90,6 +95,12 @@ function encodeObject(
 }
 
 export function encodeSnapshot(snapshot: SessionSnapshot): string {
+  // Symmetric with decodeSnapshot, which ends in assertIntegrity. Without this
+  // the writer emits records the reader refuses and the caller reports success:
+  // the tracked record becomes unreadable at the moment it is written, and
+  // rehydrate downgrades the failure to a warning, so a cold clone comes up
+  // silently empty rather than loudly broken.
+  assertIntegrity(snapshot);
   const lines: string[] = [];
   const nextIdParts = COUNTED_KINDS.map(
     (k) => `${JSON.stringify(k)}:${encodeNumber(snapshot.nextIds[k])}`,
@@ -224,7 +235,13 @@ export function decodeSnapshot(text: string): SessionSnapshot {
     raise("sidecar_format", "sidecar is empty; a header record is required");
   }
 
-  const header = readHeader(parseLine(lines[0] as string, 1));
+  const head = parseLine(lines[0] as string, 1);
+  if (head["format_version"] === V1_FORMAT_VERSION) {
+    const v1 = decodeSnapshotV1(lines);
+    assertIntegrity(v1);
+    return v1;
+  }
+  const header = readHeader(head);
 
   const buckets: Record<EntityKind, Record<string, unknown>[]> = {
     session: [],

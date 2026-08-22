@@ -22,45 +22,36 @@ walkthrough, selected command and exit-code reference, and troubleshooting,
 see [`docs/USAGE.md`](docs/USAGE.md). For the install/setup story on Windows
 and WSL/Linux side by side, see [`docs/INSTALL.md`](docs/INSTALL.md).
 
-## Current release: Total Georgecall (v0.2.9.0)
+## Current release: One Runtime (v0.3.0)
 
-![Total Georgecall release artwork](https://raw.githubusercontent.com/CharlesHoskinson/foreman/v0.2.9.0/assets/v029-total-georgecall.png)
+Annotated tag `v0.3.0` targets exact commit
+`d4040316f3dfe5406773d8a483ddd8662b035554`.
 
-Annotated tag `v0.2.9.0` targets exact commit
-`fbe23257fc389036d6feaa8f38e7b377f3106406`.
+One Runtime completes Foreman's migration to Node.js 24 and TypeScript. The
+release removes Foreman's own Python runtime and ports the session CLI, Tier 2
+evaluator, and supporting checks to the compiled TypeScript product.
 
-Total Georgecall ships the bounded Node.js 24 TypeScript Council preflight.
-The executable compiles ACE before any provider process starts.
-
-Live-canary evidence uses exact canary candidate
-`2ec886c3454b49420405aec87afaa6594ccbfdf8`. xAI Grok 4.5, Anthropic Claude
-Sonnet 5, and OpenAI GPT-5.4 returned nonce-bound `ready` receipts with
-completed terminal state, exit code 0, zero pending or failed tool calls, and
-empty standard error. GitHub evidence is
-<https://github.com/CharlesHoskinson/foreman/pull/22#issuecomment-5171848075>.
-The Council package tree is byte-identical at candidate `2ec886c` and release
-commit `fbe23257fc389036d6feaa8f38e7b377f3106406`. Both resolve
-`components/council/packages` to tree
-`fe0af13811a6bbed482af60a57eb869fbebde075`. The only Council path changed
-after the canary candidate is `components/council/vitest.config.ts`. These
-receipts are not exact-merge receipts. The canaries did not run on the
-release commit.
-
-Exact verification records 39 Council test files, 1,126 tests, 708 passed
-Foreman Bats cases, 0 failed cases, and 19 skipped cases. External dogfood
-preserves honest `quorum_not_met`.
-
-- Release notes: [`docs/releases/v0.2.9.0-notes.md`](docs/releases/v0.2.9.0-notes.md)
-- Accomplishment ledger:
-  [`docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md`](docs/releases/v0.2.8.2-v0.2.9.0-accomplishments.md)
+- Release notes: [`docs/releases/v0.3.0-notes.md`](docs/releases/v0.3.0-notes.md)
 - GitHub release:
-  <https://github.com/CharlesHoskinson/foreman/releases/tag/v0.2.9.0>
-- Active v0.3.0 program:
-  [`openspec/changes/v030-release-program/`](openspec/changes/v030-release-program/)
-- v0.3.0 execution safety prerequisite: **Foreman Endstop**, a persistent
-  cross-session action budget that refuses uncontracted or terminal work
-  before queue or process launch. See
-  [`bounded-execution-terminal-policy`](openspec/changes/bounded-execution-terminal-policy/).
+  <https://github.com/CharlesHoskinson/foreman/releases/tag/v0.3.0>
+
+## Next release candidate: George's Odyssey (v0.3.1)
+
+![George's Odyssey release artwork](assets/v031-georges-odyssey.png)
+
+George's Odyssey makes session state portable: one `SessionStore` contract,
+two complete implementations. The candidate also adds a durable projection
+outbox with `fm-session sync`, additive collision-safe snapshot import, and an
+enforced boundary around raw SQLite access.
+
+The six release predicates passed on pushed product commit
+`64604d24308b446eaf1102177165622d3ec29167`. The live release gate and final
+publication state are tracked in [pull request #45](https://github.com/CharlesHoskinson/foreman/pull/45).
+
+- Release-candidate notes:
+  [`docs/releases/v0.3.1-notes.md`](docs/releases/v0.3.1-notes.md)
+- Storage architecture:
+  [`docs/architecture/storage-port.md`](docs/architecture/storage-port.md)
 
 ## 1. What Foreman is and the problem it solves
 

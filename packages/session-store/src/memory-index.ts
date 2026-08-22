@@ -2,23 +2,24 @@
  * MemoryIndex implementations, including the fault-injection set the
  * conformance suite uses to enforce invariant I2.
  *
- * No TencentDB adapter lives here yet, by design: the contract lands first and
- * an adapter is written against it. `NullMemoryIndex` is the default, so
- * Foreman is fully functional offline and without credentials.
+ * No external adapter lives here. `NullMemoryIndex` is the default and the
+ * only implementation, so Foreman is fully functional offline and without
+ * credentials.
+ *
+ * Projection helpers live in projection.ts — this module must not become the
+ * authority for desired-state keys or redaction.
  */
 
-import {
-  PROJECTABLE_FIELDS,
-  type EntityRef,
-  type MemoryIndex,
-  type ProjectionRecord,
-} from "./port.js";
-import {
-  COUNTED_KINDS,
-  rowsOfKind,
-  type CountedKind,
-  type SessionSnapshot,
-} from "./entities.js";
+import type { EntityRef, MemoryIndex, ProjectionRecord } from "./port.js";
+import { COUNTED_KINDS, type CountedKind } from "./entities.js";
+
+export {
+  buildProjection,
+  projectionKey,
+  projectableText,
+  retractRecord,
+  upsertRecord,
+} from "./projection.js";
 
 /** Default. Accepts projections, recalls nothing. */
 export class NullMemoryIndex implements MemoryIndex {
@@ -111,47 +112,4 @@ export function faultInjectionIndexes(): readonly MemoryIndex[] {
     new HangingMemoryIndex(),
     new PoisonMemoryIndex(),
   ];
-}
-
-// ---------------------------------------------------------------------------
-// Projection
-// ---------------------------------------------------------------------------
-
-/**
- * Build projection records from a snapshot, emitting only projectable fields.
- *
- * Redaction is subtractive, not pattern-based: fields are excluded unless
- * PROJECTABLE_FIELDS lists them. `evidence`, `command`, `scope_paths` and
- * `note` therefore never leave the machine, because they routinely carry
- * absolute paths, hostnames and pasted credentials.
- */
-export function buildProjection(
-  snapshot: SessionSnapshot,
-): readonly ProjectionRecord[] {
-  const out: ProjectionRecord[] = [];
-  for (const kind of COUNTED_KINDS) {
-    const allowed = PROJECTABLE_FIELDS[kind];
-    for (const row of rowsOfKind(snapshot, kind)) {
-      const id = row["id"];
-      if (typeof id !== "number") continue;
-      // Superseded rows are not projected: stale recall is worse than none.
-      if (row["superseded_by"] != null) continue;
-      const text = allowed
-        .map((f) => row[f])
-        .filter((v): v is string => typeof v === "string")
-        .join(" — ");
-      if (!text) continue;
-      out.push({ key: projectionKey(kind, id, "upsert"), kind, id, text });
-    }
-  }
-  return out;
-}
-
-/** Stable idempotency key. A retried delivery after a timeout must not double-write. */
-export function projectionKey(
-  kind: CountedKind,
-  id: number,
-  mutation: string,
-): string {
-  return `${kind}:${id}:${mutation}`;
 }
