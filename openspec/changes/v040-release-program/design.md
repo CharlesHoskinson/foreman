@@ -88,11 +88,40 @@ The architect will reconcile an existing package before implementation. A
 reconciliation can revise stale assumptions, split an unsafe scope, or mark a
 package superseded. It cannot report an unchecked task as complete.
 
-Before the first tranche starts, the governor will write a coverage register
-for every active OpenSpec package and every Roadmap item assigned to v0.4. The
-register will name one disposition for each item. Council runtime,
-deliberation, MCP transport, and broad dogfood carry-over work are assigned to
-v0.5 because they are not part of the approved graph-centered release promise.
+The governor contains the coverage register at
+`openspec/changes/v040-release-program/coverage.toml`. It records the baseline,
+the SHA-256 digest of the sorted active-package inventory, the SHA-256 digest
+of `ROADMAP.md`, declared future package owners, and one keyed entry for every
+active package and relevant Roadmap assignment. Entry dispositions are a
+closed enum: `v040_owner`, `v040_dependency`, `released_reference`,
+`superseded`, or `v050`. Reconciliation is `complete`, `required`, or
+`not_required`. Each future-owner table contains `name`, `target_release`, and
+`reason`.
+
+Track 1 implements `packages/policy/src/release-coverage.ts` and exposes
+`release-coverage check --register <path>`. The checker recomputes the active
+inventory from `openspec list --json` as sorted UTF-8 names with one trailing
+LF per name. It hashes the raw `ROADMAP.md` bytes, validates the fixed schema
+and unique keys, and verifies that each owner is an existing package or a
+declared future package. A missing, duplicate, stale, unknown, or unresolved
+entry is a failure.
+
+Creating an approved future package changes the active inventory. The
+architect must update the register and its inventory digest in the same design
+milestone, validate it, and obtain the required exact-byte approval before
+that package's implementation lane. Documentation-only reconciliation and
+register maintenance are not product implementation lanes.
+
+This bootstrap has one narrow admission exception because its checker does not
+exist yet: the exact approved governor and the release Endstop receipt admit
+only the Track 1 checker implementation. After that checker exists, no other
+product lane can start until it passes. Before a reused v0.4 package enters a
+lane, the architect must reconcile every `required` entry and strict-validate
+the corrected ledger. In particular, the graph ledgers must remove stale shell
+and Bats implementation assumptions, resolve directed-versus-undirected graph
+claims, and use the Node 24 TypeScript, Effect, and TypeScript-test boundary.
+Council runtime, deliberation, MCP transport, and broad dogfood carry-over
+remain assigned to v0.5.
 
 ## Foreman release loop
 
@@ -227,6 +256,15 @@ and isolated epoch contract without an upstream fork. The reference manifest
 pins the source revision, multi-platform image index, platform manifests, and
 `@qdrant/js-client-rest` 1.19.0.
 
+The v0.4 support boundary is one Qdrant node with one shard, one replica, and a
+write-consistency factor of one. Each conditional mutation uses strong write
+ordering and waits for completion. Each point read, semantic query, scroll, and
+rebuild verification uses read consistency `all`. Startup and `foreman doctor`
+read the live topology and refuse semantic mode if any setting differs. This
+boundary avoids claiming distributed consistency that v0.4 does not test.
+Multi-node and multi-replica support needs a later package with its own failure
+and split-brain model.
+
 The adapter preserves the existing split:
 
 - `SessionStore` remains synchronous, exact, and authoritative.
@@ -297,6 +335,7 @@ Mock tests cover deterministic failures. Live Qdrant tests must also prove:
 - failed-epoch abandonment and destroy-and-rebuild recovery
 - stable top-k recall for the pinned embedding and a changed-model negative
   control
+- refusal of weak-ordering, non-completed writes, and unsupported topology
 - the existing fault-injection conformance suite against the live adapter
 
 `NullMemoryIndex` remains the default after this adapter ships.
@@ -483,6 +522,25 @@ persistence tracing. Every task runs in all four retrieval arms with equal or
 recorded budgets. The harness records retrieval recall and precision, context
 tokens, citation validity, task quality, elapsed time, cost, failure class, and
 graph-mode identity.
+
+The sole promotion contrast is D hybrid minus B lexical. A-to-B, A-to-C,
+B-to-C, and C-to-D remain published diagnostics. They cannot select a release
+verdict. Every task and arm runs at least three times on one locked seed
+schedule. The harness averages repeats within a task and then macro-averages
+task metrics. It reports token and elapsed-time changes as median paired
+per-task D-to-B ratios. Token reduction is one minus the token ratio, so a
+20-percent reduction is equivalent to an upper token-ratio bound of 0.80.
+
+Before the first C or D corpus result, the program locks a paired task-level
+percentile bootstrap with 10,000 resamples, the seed
+`foreman-v040-eval-bootstrap-v1`, and two-sided 95 percent intervals. The
+minimum completed design is 30 tasks by three repeats by four arms. The
+registered minimum detectable or non-inferiority effects are 8 percentage
+points for recall superiority, 2 points for recall non-inferiority, 3 points
+for precision, 2 points for task quality, 10 percent for elapsed time, and 20
+percent for token reduction. A confidence interval that crosses its margin is
+uncomputable for promotion. No optional stopping, post-result task addition,
+or alternate contrast is valid.
 
 The preregistered thresholds in the specification decide promotion. The report
 can return a negative result. A failed graph treatment does not block the core

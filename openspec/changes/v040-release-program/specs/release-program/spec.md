@@ -78,17 +78,50 @@ its package.
 
 ### Requirement: Complete release-scope reconciliation
 
-Before implementation starts, the program SHALL produce a closed coverage
-register for every active OpenSpec package and every Roadmap item assigned to
-v0.4. Each entry SHALL name its v0.4 owner, accepted dependency, superseding
-package, or explicit later-release assignment. An entry SHALL NOT disappear
-because its older package is stale or incomplete.
+The approved governor SHALL contain the closed coverage register at
+`openspec/changes/v040-release-program/coverage.toml`. The register SHALL cover
+every active OpenSpec package and each relevant Roadmap assignment. An entry
+SHALL NOT disappear because its older package is stale or incomplete.
+
+The register SHALL use schema version 1. Its top level SHALL contain
+`baseline_commit`, `active_inventory_sha256`, and `roadmap_sha256`. It SHALL
+declare future package owners and contain one or more `entry` tables. Each
+future-owner table SHALL contain `name`, `target_release`, and `reason`. Each
+entry SHALL have one unique `key`, `source_kind`, `source_path`, `disposition`,
+`owner`, `target_release`, `reconcile`, and `reason`. `source_kind` SHALL be
+`openspec_change` or `roadmap`. `disposition` SHALL be exactly `v040_owner`,
+`v040_dependency`, `released_reference`, `superseded`, or `v050`.
+`reconcile` SHALL be exactly `complete`, `required`, or `not_required`.
 
 The register SHALL assign project registry, external MemoryIndex, projection
 epochs, live-service tests, Graphify, work DAG, context, evaluation, the
 appliance, BW-004, and publication to v0.4. It SHALL assign unrelated Council
 runtime, deliberation, MCP transport, and broad dogfood carry-over work to
 v0.5.
+
+Track 1 SHALL implement the validator at
+`packages/policy/src/release-coverage.ts` and the command
+`release-coverage check --register <path>`. The validator SHALL compute the
+active inventory by sorting the UTF-8 names from `openspec list --json` and
+hashing each name with one trailing LF. It SHALL hash the raw `ROADMAP.md`
+bytes. It SHALL reject a wrong schema version, stale digest, missing or
+duplicate source, duplicate key, unknown enum, unresolved `required` entry, or
+owner that is neither an active package nor a declared future package.
+
+When an approved future package becomes active, the architect SHALL update its
+entry and `active_inventory_sha256` in the same design milestone. That changed
+design SHALL receive its required exact-byte approval before the package's
+implementation lane. Documentation-only reconciliation and register updates
+do not count as product implementation lanes.
+
+Only the Track 1 validator bootstrap MAY start before the validator exists. Its
+admission SHALL require the exact approved governor digest and the release
+Endstop receipt. After Track 1, every implementation lane SHALL require a
+passing coverage check. A reused package with `reconcile=required` SHALL be
+corrected and strict-validated before its implementation lane starts. Those
+corrections SHALL remove new shell and Bats implementation where Node 24
+TypeScript and TypeScript tests own the behavior, and SHALL resolve conflicting
+directed-versus-undirected graph assumptions.
 
 #### Scenario: An active package is not part of v0.4
 
@@ -102,6 +135,18 @@ v0.5.
 - **WHEN** any active package or Roadmap v0.4 item lacks one disposition
 - **THEN** strict release validation fails
 - **AND** no implementation tranche starts
+
+#### Scenario: The coverage validator does not exist yet
+
+- **WHEN** Track 1 has the exact approved governor and Endstop receipt
+- **THEN** admission permits only the coverage-validator bootstrap
+- **AND** it does not admit another product lane
+
+#### Scenario: A stale focused ledger is assigned to v0.4
+
+- **WHEN** its coverage entry says `reconcile=required`
+- **THEN** release admission fails until the ledger is corrected
+- **AND** strict validation of the corrected ledger passes
 
 ### Requirement: Bounded Foreman execution loop
 
@@ -367,6 +412,14 @@ the `linux/arm64` manifest
 and `@qdrant/js-client-rest` 1.19.0 with npm integrity
 `sha512-1+QLUHsWp+WV4PE35FLnH2ckxotWrQEqi/F3t4goF3cCThR0ZxLVtOC4OoOi/E1iyj/iIYBdbuACWMuQ15NAnA==`.
 
+The v0.4 adapter SHALL support exactly one Qdrant node, one collection shard,
+`replication_factor=1`, and `write_consistency_factor=1`. Every conditional
+mutation SHALL use `ordering=strong` and `wait=true`. Every point read, recall,
+scroll, and rebuild verification read SHALL use consistency `all`. Adapter
+startup and `foreman doctor` SHALL inspect the live collection and refuse the
+semantic-memory profile when topology or consistency differs. Multi-node and
+multi-replica Qdrant operation is outside the v0.4 support boundary.
+
 #### Scenario: The external adapter is selected
 
 - **WHEN** the focused adapter package is approved
@@ -381,6 +434,19 @@ and `@qdrant/js-client-rest` 1.19.0 with npm integrity
   namespace plus `project_id`, entity kind, and entity ID
 - **AND** retrying the same desired state addresses the same point
 - **AND** a different project, kind, or entity ID addresses a different point
+
+#### Scenario: A Qdrant deployment has an unsupported topology
+
+- **WHEN** Qdrant reports more than one node, shard, or replica, or reports a
+  different write consistency factor
+- **THEN** adapter qualification and semantic projection refuse before mutation
+- **AND** core Foreman operation continues through `NullMemoryIndex`
+
+#### Scenario: A mutation returns before completion
+
+- **WHEN** a Qdrant response is only acknowledged and is not completed
+- **THEN** Foreman does not acknowledge the local outbox receipt
+- **AND** it retries through the version-fenced path
 
 ### Requirement: Externally fenced projection mutations
 
@@ -755,6 +821,27 @@ SHALL run against these locked arms:
 The corpus, prompts, scoring rules, budgets, candidate identities, and random
 seeds SHALL be content-addressed and locked before treatment results are read.
 
+The only promotion contrast SHALL be hybrid arm D minus lexical arm B. The
+report SHALL also publish A-to-B, A-to-C, B-to-C, and C-to-D contrasts as
+diagnostics, but no diagnostic contrast can promote graph context. Each task
+and arm SHALL run at least three repeats under the same locked seed schedule.
+The harness SHALL compute each task's repeat mean first and then compute the
+macro mean across tasks for recall, precision, citation validity, and task
+quality. It SHALL compute token and elapsed-time effects as the median paired
+per-task D-to-B ratio. It SHALL define token reduction as one minus the token
+ratio.
+
+The statistical plan SHALL lock before the first C or D corpus run. It SHALL
+use a paired task-level percentile bootstrap with 10,000 resamples, the seed
+`foreman-v040-eval-bootstrap-v1`, and two-sided 95 percent confidence intervals.
+The minimum completed sample SHALL be 30 tasks and three repeats per arm. The
+minimum detectable promoted recall effect SHALL be 8 percentage points. The
+non-inferiority or efficiency margins SHALL be 2 points for recall, 3 points
+for precision, 2 points for task quality, 10 percent for elapsed time, and 20
+percent for context tokens. A confidence interval that crosses its applicable
+margin SHALL produce `uncomputable` for promotion. The program SHALL NOT add
+tasks, repeats, or alternate contrasts after any C or D corpus result is read.
+
 #### Scenario: An evaluation starts
 
 - **WHEN** the corpus lock and baseline-arm receipts are incomplete
@@ -767,18 +854,36 @@ seeds SHALL be content-addressed and locked before treatment results are read.
 - **THEN** the result records `uncomputable` with its reason
 - **AND** the missing value is not counted as a pass or silently imputed
 
+#### Scenario: A diagnostic contrast looks favorable
+
+- **WHEN** A-to-C or another diagnostic contrast passes a threshold but D-to-B
+  does not
+- **THEN** graph context does not advance to default-on
+- **AND** the report publishes the diagnostic result without using it for
+  promotion
+
+#### Scenario: The confidence interval crosses a margin
+
+- **WHEN** a primary D-to-B confidence interval crosses its registered
+  superiority, non-inferiority, or efficiency margin
+- **THEN** that promotion criterion is `uncomputable`
+- **AND** the point estimate cannot override the interval
+
 ### Requirement: Promotion thresholds
 
-Graph-assisted context SHALL remain non-default unless the locked evaluation
-meets all applicable thresholds:
+Graph-assisted context SHALL remain non-default unless the locked D-to-B
+evaluation meets all applicable confidence-bound thresholds:
 
-- Retrieval recall improves by at least 8 percentage points, or stays within 2
-  points while using at least 20 percent fewer context tokens.
-- Retrieval precision is no more than 3 percentage points worse.
-- Citation validity is at least 99 percent.
-- Task quality is no more than 2 percentage points worse.
-- Median elapsed time is no more than 10 percent worse unless retrieval recall
-  improves by at least 8 percentage points.
+- The lower confidence bound for retrieval recall is at least 8 percentage
+  points, or its lower bound is at least -2 points while the lower confidence
+  bound for token reduction is at least 20 percent. The latter is equivalent
+  to an upper token-ratio bound of 0.80.
+- The lower confidence bound for retrieval precision is at least -3 percentage
+  points.
+- The lower confidence bound for citation validity is at least 99 percent.
+- The lower confidence bound for task quality is at least -2 percentage points.
+- The upper confidence bound for the median elapsed-time ratio is at most 1.10,
+  unless the recall lower bound is at least 8 percentage points.
 - Missing, stale, wrong-version, corrupt, and unknown graph controls are
   detected in 100 percent of registered cases.
 - Core operation passes with graph use disabled.
