@@ -34,8 +34,8 @@ reproducible bootstrap and makes support evidence depend on the host.
   cross-repository semantic references to the correct `SessionStore`.
 - Bind project moves, restores, and clones to durable receipts and exact crash
   recovery so a copied repository cannot silently replace a live project.
-- Require every project-transfer approval to be signed by a separately pinned
-  operator authority and bound to one destination offer and transfer nonce.
+- Require every project-transfer approval to be signed by one immutable,
+  separately pinned operator authority and bound to one offer and transfer nonce.
 - Add the first external `MemoryIndex` adapter with Qdrant 1.19.0, a pinned
   local embedding model, projection epochs, and live-service tests while
   keeping `NullMemoryIndex` as the default.
@@ -55,7 +55,7 @@ reproducible bootstrap and makes support evidence depend on the host.
 - Reconcile every active OpenSpec package and Roadmap v0.4 assignment in one
   closed coverage register. Explicitly move unrelated Council and broad
   dogfood carry-over work to v0.5.
-- Run one Endstop-bounded Foreman loop across the complete release.
+- Run one root-anchored Endstop contract family across the complete release.
 - Save canonical SessionDB state after every accepted milestone.
 - Publish one exact candidate only after all deterministic checks and the
   independent cold audit pass on unchanged bytes.

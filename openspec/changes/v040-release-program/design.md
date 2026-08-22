@@ -115,14 +115,60 @@ milestone, validate it, and obtain the required exact-byte approval before
 that package's implementation lane. Documentation-only reconciliation and
 register maintenance are not product implementation lanes.
 
-This bootstrap has one narrow admission exception because its checker does not
-exist yet: the exact approved governor and the release Endstop receipt admit
-only the Track 1 checker implementation. After that checker exists, no other
-product lane can start until it passes. Before a reused v0.4 package enters a
-lane, the architect must reconcile every `required` entry and strict-validate
-the corrected ledger. In particular, the graph ledgers must remove stale shell
-and Bats implementation assumptions, resolve directed-versus-undirected graph
-claims, and use the Node 24 TypeScript, Effect, and TypeScript-test boundary.
+This bootstrap has one narrow admission exception because its authorities do
+not exist yet. The exact approved governor, the current V1 root contract
+receipt, and the user's exact-byte approval admit one atomic Track 1 authority
+bootstrap. The bootstrap consumes the existing V1 root limits. It implements
+the two OpenSpec workflows, `release-coverage check`, `release-admission check`,
+and the `ExecutionContractV2` family activation protocol in one candidate.
+
+The bootstrap path scope is closed to these paths:
+
+- `openspec/changes/openspec-superpowers-convergence/**`
+- `openspec/schemas/foreman-bounded/**`
+- `openspec/schemas/foreman-architectural/**`
+- `packages/policy/src/release-coverage.ts`
+- `packages/policy/src/release-coverage.test.ts`
+- `packages/policy/src/release-admission.ts`
+- `packages/policy/src/release-admission.test.ts`
+- `packages/policy/src/main.ts`
+- `packages/policy/src/cli.ts`
+- `packages/policy/src/cli.test.ts`
+- `packages/policy/src/index.ts`
+- `packages/orchestration/src/execution-contract.ts`
+- `packages/orchestration/src/execution-contract.test.ts`
+- `packages/orchestration/src/execution-terminal-policy.ts`
+- `packages/orchestration/src/execution-terminal-policy.test.ts`
+- `packages/orchestration/src/execution-ledger.ts`
+- `packages/orchestration/src/execution-ledger.test.ts`
+- `packages/orchestration/src/execution-loop-closure.test.ts`
+- `packages/orchestration/src/execution-guard-cli.ts`
+- `packages/orchestration/src/execution-guard-cli.test.ts`
+- `packages/orchestration/src/execution-guard-main.ts`
+- `packages/orchestration/src/queue-admission.ts`
+- `packages/orchestration/src/queue-admission.test.ts`
+- `packages/orchestration/src/queue-cli.ts`
+- `packages/orchestration/src/queue-cli.test.ts`
+- `packages/orchestration/src/queue-main.ts`
+- `packages/orchestration/src/queue-services.ts`
+- `packages/orchestration/src/index.ts`
+- `packages/orchestration/src/index.test.ts`
+- `packages/policy/package.json`
+- `packages/orchestration/package.json`
+- `package-lock.json`
+- `skills/foreman/runtime/dist/**`
+- `skills/foreman/runtime/manifest.json`
+
+No other product path is admitted.
+Hostile tests cover mutable audit policy, stale identity, malformed receipts,
+nonempty findings, and partial bootstrap output.
+
+After the bootstrap integrates and activates the family, each later lane must
+pass both policy checks. Before a reused v0.4 package enters a lane, the
+architect must reconcile every `required` entry and strict-validate the
+corrected ledger. The graph ledgers must remove stale shell and Bats
+implementation assumptions. They must resolve directed-versus-undirected graph
+claims and use the Node 24 TypeScript, Effect, and TypeScript-test boundary.
 The `knowledge-plane-refresh` reconciliation must remove its broad
 `lock-primitive-hardening` prerequisite. Track 5 owns the narrow TypeScript and
 Effect advisory lock that guards its single writer.
@@ -131,11 +177,40 @@ remain assigned to v0.5.
 
 ## Foreman release loop
 
-One release-level Endstop contract persists outside all worktrees. The complete
-v0.4 release is the authorized workstream. A tranche is a milestone inside that
-workstream and does not receive a replacement contract. The contract binds the
-baseline, objective, acceptance set, allowed paths, user authorization, action
-limits, and required milestones. Each tranche follows this state machine:
+One immutable Endstop contract family persists outside all worktrees. The
+existing V1 root contract is the authority anchor:
+
+- ID `v040-release-20260822-r1`
+- SHA-256 `ab74dfc946d3bdd6d1ee2d18f739d91bcf812a4719f3fd5bd11a50226354c337`
+- deadline `2026-08-29T18:05:57Z`
+
+Track 1 activates `ExecutionContractV2` once before that deadline. Activation
+appends one event to the root Endstop RunJournal. It refuses after a root
+terminal state and refuses a second activation. The canonical family manifest
+requires an exact-byte `APPROVED` audit and exact-byte user approval. It binds
+the root, Track 1 commit and tree, both approval digests, and exactly eight
+immutable child contracts for Tranches 2 through 9.
+
+The family has a 60-day wall-time limit of `5184000000` milliseconds and a
+`4096`-action limit. All actions consumed by the V1 root count against that
+limit. Standard children use at most 100 actions and 14 days. Each standard-
+child manifest assigns exact positive values to the V1 action-limit fields,
+`totalActions`, `wallTimeMs`, and `noProductChangeMs`; it does not inherit a
+mutable default. It applies the V1 deadline, no-product-change, action-limit,
+verification-per-candidate, and terminal-transition rules. Tranche 8 uses an
+evaluation child with exactly 2,000 `evaluate` actions, at most 2,048 total
+actions, a 45-day wall time, and a one-hour no-progress limit. Its manifest
+also assigns exact limits to every non-evaluation action. The 45-day limit
+covers the locked 1,000-hour serialized worst case plus bounded control
+overhead. Each child deadline is at or before the family deadline.
+
+One root RunJournal transaction appends each child action reservation. Replay
+derives both child and family counters from that event. An action with an
+unknown crash outcome remains spent. A retry consumes another action. The
+runtime never hides multiple provider calls behind one reservation. An
+unlisted child or action refuses. Family termination terminates all children.
+A child terminal state does not reset another child. Each tranche follows this
+state machine:
 
 ```text
 approved spec
@@ -166,21 +241,21 @@ package loop.
 
 Track 1 implements this rule in `packages/policy/src/release-admission.ts` and
 the `release-admission check` command. The check reads the verdict artifact
-directly and does not read `[audit.policy]`. Every v0.4 lane wrapper and the
-final merge gate run it after the general Foreman gate. Mutable repository or
-machine configuration cannot weaken this release-specific rule. Before this
-check exists, the single Track 1 bootstrap can consume only content-addressed
-`APPROVED` governor audit receipts that bind the exact commit, tree, governor
-digest, and empty finding set. The Endstop contract and the user's exact-byte
-design approval must also match. No other product work uses this bootstrap.
+directly and does not read `[audit.policy]`. Every later v0.4 lane wrapper,
+integration gate, and publication gate runs both policy checks after the
+general Foreman gate. Mutable repository or machine configuration cannot
+weaken this release-specific rule. Before the atomic authority bootstrap
+exists, only its exact candidate can consume content-addressed `APPROVED`
+governor receipts. The receipts bind the exact commit, tree, governor digest,
+and empty finding set. The V1 root receipt and the user's exact-byte approval
+must also match. No other product work uses this exception.
 
 The architect owns commits, integration, and publication. Workers do not merge,
 rewrite release evidence, or mark SessionDB obligations complete.
 
-The Endstop runtime reserves each action before it starts. It remains running at
-a tranche boundary and reaches a terminal state only at a contract terminal
-condition. This prevents a new package, worktree, or session from resetting the
-release budget.
+The Endstop runtime reserves each action before it starts. The root RunJournal
+remains authoritative at a tranche boundary. A package, child contract,
+worktree, session, retry, or crash cannot reset family counters or deadlines.
 
 ## Stable project registry
 
@@ -230,13 +305,20 @@ conflict; Foreman does not choose one copy automatically.
 
 Each registry authority has a UUID and an Ed25519 identity key. The key
 fingerprint is SHA-256 of the raw 32-byte public key. The private key is runtime
-state with mode `0600` or an equivalent Windows ACL; it is never in an image,
-project export, or release artifact. Each registry also stores an operator
-approval-authority UUID, positive key generation, and Ed25519 public-key
-fingerprint. An explicit operator command pins or rotates that authority before
-a transfer starts. The transfer bundle cannot add or rotate it. The operator
-approval key is distinct from the source registry, destination registry, and
-project recovery keys.
+state with mode `0600` or an equivalent Windows ACL. It is never in an image,
+project export, or release artifact. Registry initialization pins one immutable
+operator approval-authority UUID, literal generation `1`, and Ed25519
+public-key fingerprint. This one-shot pin occurs before the first project
+registration. The operator approval key is distinct from the source registry,
+destination registry, and project recovery keys.
+
+A migrated registry without this record refuses transfer, exact project import,
+and project restore. One explicit operator command can add the generation-1
+record before any project registration. A second pin or a pin after project
+registration refuses. A bundle, import, restore, migration, or recovery receipt
+cannot create, replace, or downgrade the record. A lost or compromised approval
+key blocks normal and recovery transfer in v0.4. v0.4 has no bypass or in-place
+rotation. A later approved protocol can define replacement.
 
 A destination first signs an offer that binds its registry authority UUID,
 proposed operation UUID, project UUID, canonical Git common directory, selected
@@ -246,10 +328,10 @@ export digest, source store operation UUID, source registry generation,
 retirement disposition, and exact external approval digest. The source
 registry signs it. The operator approval binds the offer digest, transfer
 nonce, source and destination registry-key fingerprints, operator approval-
-authority identity and generation, the recovery-key fingerprint, destination
+authority identity and literal generation `1`, the recovery-key fingerprint, destination
 authority, project UUID, export digest, and proposed operation UUID. The
 separately held operator approval key signs it. A normal transfer
-requires the same approval-authority identity and generation in both
+requires the same approval-authority identity and literal generation `1` in both
 registries. Recovery requires that identity in the destination registry and in
 the project registration record.
 
@@ -264,7 +346,7 @@ commit. Failure at the destination retries the same receipt. Moving the project
 back is a new signed transfer.
 
 At project registration, the SessionStore also records the fingerprint of an
-operator-held Ed25519 recovery key and the approval-authority UUID, generation,
+operator-held Ed25519 recovery key and the approval-authority UUID, literal generation `1`,
 and fingerprint. If the source no longer exists, a recovery receipt uses the
 recovery key and binds a unique transfer nonce, the destination offer, the same
 project and export identities, last-known store operation UUID, last-known
@@ -291,7 +373,7 @@ string is at most 64 KiB of UTF-8. The envelope has only these top-level fields:
 - `source_backend`, with `sqlite` or `files-only`
 - `project`, with the project UUID, source registry authority UUID, unpadded
   base64url raw 32-byte public key, recovery-key fingerprint, approval-authority
-  UUID, positive approval-key generation, approval-key fingerprint, source
+  UUID, literal approval-key generation `1`, approval-key fingerprint, source
   store operation UUID, and nonnegative safe-integer source registry generation
 - `snapshot`, with the complete `SessionSnapshot`
 - `projection`, with a positive safe-integer `next_version`, unique
@@ -304,7 +386,7 @@ that they govern.
 
 `ExternalTransferApprovalV1` is a closed, signed RFC 8785 object. It has schema
 `foreman.external-transfer-approval.v1`, approval UUID, operator approval-
-authority UUID, positive key generation, raw public key, destination-offer
+authority UUID, literal key generation `1`, raw public key, destination-offer
 digest, transfer nonce, source and destination registry-key fingerprints,
 recovery-key fingerprint, destination authority UUID, project UUID, export
 digest, proposed operation UUID, and signature. Its SHA-256 digest is the
@@ -353,11 +435,12 @@ refuses before source retirement or target mutation. Same-backend restore
 preserves opaque receipts. Cross-backend restore remints them in queue order.
 `importSnapshot` remains row import and cannot perform exact project restore.
 
-A writable registry migration creates its authority UUID and identity key. A
-separate explicit operator action pins the approval authority. An explicit
-writable project migration records the project UUID, operation UUID, recovery
-public-key fingerprint, and approval-authority identity. A read-only open that
-needs any migration refuses without changing registry or store bytes.
+A writable registry migration creates its authority UUID and identity key. One
+explicit operator action can add the missing immutable approval authority before
+any project registration. An explicit writable project migration records the
+project UUID, operation UUID, recovery public-key fingerprint, and immutable
+approval-authority identity. A read-only open that needs any migration refuses
+without changing registry or store bytes.
 
 Registry-changing operations use an idempotent three-step protocol:
 
@@ -577,13 +660,20 @@ documented diagnostic override. Disabling the profile restores the
 ### Hard-mode topology
 
 The control container has no path to the operator's general container engine.
-Hard mode uses a dedicated rootless Podman `system service` as an engine
-sidecar. The service is not nested in an OCI container. It runs as the separate
+Hard mode uses a dedicated rootless Podman `system service` as its engine
+service. The service is not nested in an OCI container. It runs as the separate
 non-login Linux account `foreman-engine`, with disjoint subordinate UID and GID
-ranges, a private runtime directory, and a private engine-data directory. The
-account has no read, write, or search access to `/workspace` or `/state`. The
-host bootstrap and `foreman doctor` verify these permissions before they start
-or admit the service.
+ranges, a private runtime directory, and a private engine-data directory.
+
+At each admission, the launcher inspects the control mounts and resolves the
+canonical host realpaths that back `/workspace` and `/state`. Durable
+configuration stores the approved realpaths. Admission re-derives device and
+inode identities after a reboot or remount and compares them with the current
+mount sources. It does not freeze those identities at bootstrap. Doctor runs
+negative read, write, and target-root traversal probes as `foreman-engine`
+against both host roots and protected sentinels. Any successful probe, mount
+substitution, symbolic-link substitution, or path-identity mismatch refuses.
+The engine service does not start before these checks pass.
 
 `env/reference-manifest.toml` names the exact Podman version, API contract,
 host package identities, rootless network and storage helpers, minimum kernel,
@@ -633,9 +723,24 @@ the fixed Foreman credential bootstrap with a private `tmpfs` at
 `/run/foreman-secrets`. It sends one separately bounded secret-only archive to
 that running container through the private archive endpoint. The bootstrap
 accepts only manifest-listed filenames, writes them with mode `0400`, and
-starts the worker command after it verifies the secret manifest. Secret values
-do not enter the worktree archive, container configuration, layer, staging
-volume, result archive, or logs. Cleanup destroys the worker and its `tmpfs`.
+starts the worker command after it verifies the secret manifest.
+
+Where a provider supports short-lived credentials, Foreman supplies one
+least-privilege task capability with an expiry and hard spend limit. Where a
+provider supports only spend-capped sub-keys, Foreman creates one per task and
+revokes it during cleanup. Otherwise, an explicit diagnostic override can
+supply a long-lived key and records the weaker mode in release evidence.
+Long-lived credentials do not enter images, layers, worktree archives, staging
+volumes, or container configuration.
+
+A malicious worker can read, copy, encode, log, return, or send any credential
+material that it receives. It can use an allowed provider connection. Hard mode
+contains host and engine authority. It does not claim to contain malicious use
+of worker-readable credentials. Foreman scans stdout, stderr, and result
+archives for exact canaries. It redacts a detected value and marks the task
+compromised. Network policy blocks non-allowlisted destinations. These controls
+detect disclosure and limit its effect. They do not prevent disclosure.
+Cleanup revokes task credentials and destroys the worker and its `tmpfs`.
 Absolute paths, `..`, device nodes, sockets, hard links, escaping symbolic
 links, duplicate paths, and expansion beyond the bound refuse. Cleanup removes
 the worker, staging container, and volume idempotently. No host bind path
@@ -648,7 +753,10 @@ containers have no kernel risk. The security tests therefore inspect the host
 account, subordinate IDs, unit, endpoint, certificates, service and worker
 settings. They include general-socket discovery, archive escape, mutual-TLS,
 worker-to-service access, filesystem access, privilege, mount, capability,
-network, device, and state-volume negative controls.
+network, device, host-backing-path, and state-volume negative controls. They
+also cover plain and encoded log disclosure, result disclosure, allowed and
+blocked network exfiltration, credential expiry, spend limits, revocation, and
+the weaker credential override.
 
 Track 4 qualifies the pinned Podman Docker-compatibility endpoints used for
 image, container, volume, archive, tmpfs, inspect, wait, and cleanup operations.
@@ -817,7 +925,10 @@ The final testing round includes:
 - two clean appliance builds for each supported platform
 - appliance bootstrap, restart, state persistence, upgrade, and rollback tests
 - hard-mode rootless-service identity, mutual-TLS, archive data-plane,
-  path-escape, delete-aware result, and no-host-socket negative controls
+  host-backing-path identity, path-escape, delete-aware result, and
+  no-host-socket negative controls
+- malicious worker credential disclosure, encoding, egress, expiry, spend,
+  revocation, redaction, and diagnostic-override controls
 - secret-canary scans over build inputs, image outputs, and attestations
 - project-registry migration, linked-worktree, moved-project, restore,
   move-receipt, replacement, additive-remap, clone, signed destination-bound
@@ -860,7 +971,8 @@ are not rolled back through graph cleanup.
 
 The pre-publication gate binds the candidate as its lowercase 40-character Git
 commit ID, tree ID, and SHA-256 of the commit ID's ASCII bytes without a
-trailing LF. Before any public object is created, one exact candidate requires:
+trailing LF. A pushed review branch can exist before this gate. One exact
+candidate requires:
 
 - every v0.4 OpenSpec task complete or explicitly deferred by this design
 - no open blocking audit finding
@@ -877,21 +989,28 @@ trailing LF. Before any public object is created, one exact candidate requires:
 Any byte change after the final audit invalidates the affected evidence. The
 architect reruns the required checks and cold audit before publication.
 
-Integration is fast-forward only. `main`, the reviewed branch, and the signed
-tag must point to the same audited commit object. If `main` advances or a merge
-commit would be required, the architect creates a new candidate and reruns the
-affected checks and cold audit. Tree equality cannot substitute for commit
-identity. A fresh exact-`main` gate then records the Endstop integration
-milestone before public objects are created.
+A public release object is remote `main`, a public OCI reference, a signed
+release tag, or a release record. A review branch is not a public release object
+under this term. The durable publication journal enters `prepared` before local
+integration. It binds the expected old remote `main` tip, candidate commit,
+candidate tree, candidate digest, local artifacts, intended tag, and intended
+release identity.
 
-Publication uses a durable journal outside the candidate with states
-`prepared`, `image_pushed`, `tag_pushed`, `release_created`, and `verified`.
-Each state binds the candidate commit and tree, image-index digest, SBOM,
-provenance, signature, tag, and release identifier. Each transition is a
-compare-and-set and is idempotent. After interruption, the publisher reads the
-remote object, accepts only the exact recorded identity, and resumes the next
-step. It never rebuilds or retags different bytes under the same journal. A
-mismatched public object stops for operator recovery.
+Integration is fast-forward only. Local `main` advances after `prepared`.
+Remote `main` is the first public release mutation. Its push compares and sets
+the expected old tip to the audited candidate. An unexpected old tip, advanced
+remote branch, or required merge commit refuses or creates a new candidate.
+Tree equality cannot substitute for commit identity.
+
+The journal advances through `local_integrated`, `main_published`,
+`image_pushed`, `tag_pushed`, `release_created`, and `verified`. Each transition
+compares and sets the prior state and binds exact remote object identities. If
+execution stops before `prepared`, no remote `main` mutation exists. After
+`prepared`, recovery queries the exact object. It retries a missing object,
+accepts a matching object as idempotent, and refuses a divergent object. It
+does not roll back, overwrite, or silently delete a public release object. If a
+later object fails after remote `main` publishes, recovery resumes from
+`main_published` and keeps the release incomplete.
 
 The post-publication gate verifies that `main` and the signed tag equal the
 audited commit, the release record names that tag, the public multi-platform
@@ -909,7 +1028,8 @@ control-plane toolchain and make the security contract unclear.
 ### Mount the host Docker socket
 
 Rejected. Socket access gives the control container authority over the host
-engine. The rootless sidecar is larger, but its authority and state are bounded.
+engine. The dedicated rootless service is larger, but its authority and state
+are bounded.
 
 ### Use mutable image and CLI tags
 

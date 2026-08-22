@@ -133,10 +133,14 @@ design SHALL receive its required exact-byte approval before the package's
 implementation lane. Documentation-only reconciliation and register updates
 do not count as product implementation lanes.
 
-Only the Track 1 validator bootstrap MAY start before the validator exists. Its
-admission SHALL require the exact approved governor digest and the release
-Endstop receipt. After Track 1, every implementation lane SHALL require a
-passing coverage check. A reused package with `reconcile=required` SHALL be
+Only one atomic Track 1 authority bootstrap MAY start before the authorities
+exist. Its admission SHALL require the exact approved governor commit, tree,
+and digest, content-addressed `APPROVED` receipts with empty findings, the
+current V1 root receipt, and exact-byte user approval. It SHALL consume actions
+from the V1 root and fit inside its remaining limits. It SHALL implement the two
+workflows, both policy checks, and `ExecutionContractV2` family activation in
+one candidate. After activation, every lane SHALL require both policy checks
+and its listed child contract. A reused package with `reconcile=required` SHALL be
 corrected and strict-validated before its implementation lane starts. Those
 corrections SHALL remove new shell and Bats implementation where Node 24
 TypeScript and TypeScript tests own the behavior, and SHALL resolve conflicting
@@ -158,11 +162,12 @@ Effect advisory lock.
 - **THEN** strict release validation fails
 - **AND** no implementation tranche starts
 
-#### Scenario: The coverage validator does not exist yet
+#### Scenario: The Track 1 authorities do not exist yet
 
 - **WHEN** Track 1 has the exact approved governor and Endstop receipt
-- **THEN** admission permits only the coverage-validator bootstrap
-- **AND** it does not admit another product lane
+- **THEN** admission permits only the atomic authority bootstrap
+- **AND** that bootstrap implements both policy checks and family activation
+- **AND** partial output does not activate the family
 
 #### Scenario: A stale focused ledger is assigned to v0.4
 
@@ -173,8 +178,48 @@ Effect advisory lock.
 ### Requirement: Bounded Foreman execution loop
 
 The program SHALL run through the Foreman architect, implementer, auditor, and
-gate roles. One persistent Endstop contract SHALL bound all v0.4 actions. A new
-tranche, session, lane, retry, or worktree SHALL NOT reset that budget.
+gate roles. One immutable Endstop contract family SHALL bound all v0.4 actions.
+The V1 root contract SHALL have ID `v040-release-20260822-r1`, SHA-256
+`ab74dfc946d3bdd6d1ee2d18f739d91bcf812a4719f3fd5bd11a50226354c337`,
+and deadline `2026-08-29T18:05:57Z`. A tranche, session, lane, retry, worktree,
+or crash SHALL NOT reset a counter or deadline.
+
+Track 1 SHALL implement `ExecutionContractV2` as a one-time family activation.
+Activation SHALL append to the root Endstop RunJournal before the V1 deadline.
+It SHALL refuse after a root terminal state and SHALL refuse a second
+activation. The closed canonical family manifest SHALL receive an exact-byte
+`APPROVED` audit and exact-byte user approval. Activation SHALL bind its digest,
+the root identity, the Track 1 commit and tree, and both approval digests.
+
+The manifest SHALL contain exactly eight child contracts for Tranches 2 through
+9. Each child SHALL bind its tranche, package, objective digest, acceptance
+digest, allowed-path digest, action limits, and deadline. No later operation
+SHALL add or replace a child. The family SHALL use `wallTimeMs=5184000000` and
+`totalActions=4096`. Every V1 action consumed before activation SHALL count
+against the family total. Each child deadline SHALL be at or before the family
+deadline. A family terminal state SHALL terminate all children. A child terminal
+state SHALL NOT reset another child.
+
+Tranches 2 through 7 and Tranche 9 SHALL be standard children. Each SHALL allow
+at most 100 total actions and at most 14 days. Its manifest SHALL assign exact
+positive values to the V1 implementation, correction, audit, council,
+provider-retry, resume, and verification-per-candidate limits, and to
+`totalActions`, `wallTimeMs`, and `noProductChangeMs`. It SHALL apply the V1
+deadline, no-product-change, action-limit, verification-per-candidate, and
+terminal-transition rules. It SHALL NOT inherit a mutable default. Tranche 8
+SHALL be the evaluation child. It SHALL allow exactly 2,000 `evaluate` actions,
+at most 2,048 total actions, `wallTimeMs=3888000000`, and
+`noProgressMs=3600000`. Its manifest SHALL assign exact limits to every
+non-evaluation action. Two thousand serialized runs at the 30-minute cap
+require at most 1,000 hours. The 45-day child limit SHALL cover that worst case
+and bounded control overhead.
+
+Every external provider invocation and evaluation run SHALL reserve one typed
+action before it starts. One root RunJournal transaction SHALL append that
+reservation. Replay SHALL derive child and family counters from the same event.
+A reserved action with an unknown crash outcome SHALL remain spent. A retry
+SHALL reserve another action. The runtime SHALL NOT hide multiple provider calls
+behind one reservation. An unlisted child or action SHALL refuse.
 
 Track 1 SHALL implement `packages/policy/src/release-admission.ts` and the
 command `release-admission check --program v040 --verdict <path>
@@ -187,11 +232,88 @@ or an identity mismatch. Repository and machine configuration SHALL NOT weaken
 this v0.4 rule. Every v0.4 lane wrapper, integration gate, and publication gate
 SHALL run this check after the general Foreman gate.
 
-Before that command exists, only the Track 1 validator bootstrap MAY consume
+Before that command exists, only the atomic authority bootstrap MAY consume
 content-addressed governor audit receipts directly. Each receipt SHALL have the
 same acceptance rules and exact identity bindings. The bootstrap SHALL also
-require the matching Endstop contract and exact-byte user approval. It SHALL
-NOT admit another product lane.
+require the matching V1 root and exact-byte user approval. Its closed scope
+SHALL contain only these paths:
+
+- `openspec/changes/openspec-superpowers-convergence/**`
+- `openspec/schemas/foreman-bounded/**`
+- `openspec/schemas/foreman-architectural/**`
+- `packages/policy/src/release-coverage.ts`
+- `packages/policy/src/release-coverage.test.ts`
+- `packages/policy/src/release-admission.ts`
+- `packages/policy/src/release-admission.test.ts`
+- `packages/policy/src/main.ts`
+- `packages/policy/src/cli.ts`
+- `packages/policy/src/cli.test.ts`
+- `packages/policy/src/index.ts`
+- `packages/orchestration/src/execution-contract.ts`
+- `packages/orchestration/src/execution-contract.test.ts`
+- `packages/orchestration/src/execution-terminal-policy.ts`
+- `packages/orchestration/src/execution-terminal-policy.test.ts`
+- `packages/orchestration/src/execution-ledger.ts`
+- `packages/orchestration/src/execution-ledger.test.ts`
+- `packages/orchestration/src/execution-loop-closure.test.ts`
+- `packages/orchestration/src/execution-guard-cli.ts`
+- `packages/orchestration/src/execution-guard-cli.test.ts`
+- `packages/orchestration/src/execution-guard-main.ts`
+- `packages/orchestration/src/queue-admission.ts`
+- `packages/orchestration/src/queue-admission.test.ts`
+- `packages/orchestration/src/queue-cli.ts`
+- `packages/orchestration/src/queue-cli.test.ts`
+- `packages/orchestration/src/queue-main.ts`
+- `packages/orchestration/src/queue-services.ts`
+- `packages/orchestration/src/index.ts`
+- `packages/orchestration/src/index.test.ts`
+- `packages/policy/package.json`
+- `packages/orchestration/package.json`
+- `package-lock.json`
+- `skills/foreman/runtime/dist/**`
+- `skills/foreman/runtime/manifest.json`
+
+It SHALL NOT admit another product lane or path.
+
+After the atomic candidate integrates and the family activates, every later
+lane, integration gate, and publication gate SHALL run both policy checks after
+the general Foreman gate. Hostile tests SHALL prove refusal for mutable audit
+policy, stale candidate identity, malformed receipts, nonempty findings, and
+partial bootstrap output.
+
+#### Scenario: Family activation carries prior work
+
+- **WHEN** Track 1 activates the approved family manifest
+- **THEN** every consumed V1 root action counts against the family total
+- **AND** replay derives that total from the root RunJournal
+
+#### Scenario: Family activation is repeated
+
+- **WHEN** any process tries to activate a second family
+- **THEN** Endstop refuses without changing the first family
+
+#### Scenario: An action outcome is unknown
+
+- **WHEN** a crash occurs after reservation and before a durable outcome
+- **THEN** the action remains spent
+- **AND** retry requires a new reservation
+
+#### Scenario: A child or action is not listed
+
+- **WHEN** a command names an absent child or unsupported action
+- **THEN** Endstop refuses before the provider starts
+
+#### Scenario: The evaluation reaches its action limit
+
+- **WHEN** Tranche 8 has reserved 2,000 `evaluate` actions
+- **THEN** another evaluation run refuses
+- **AND** no reservation can hide multiple provider runs
+
+#### Scenario: A family or child reaches its deadline
+
+- **WHEN** the applicable absolute deadline passes
+- **THEN** Endstop records the applicable terminal state
+- **AND** a new session or retry cannot extend that deadline
 
 #### Scenario: A tranche is ready to implement
 
@@ -336,14 +458,22 @@ sign an offer that binds its registry authority UUID, proposed operation
 identifier, project UUID, canonical Git common directory, selected store
 backend, and target store locator digest.
 
-Each registry SHALL also store an operator approval-authority UUID, positive
-key generation, and Ed25519 public-key fingerprint. An explicit operator
-command SHALL pin or rotate that authority before a transfer starts. A transfer
-bundle SHALL NOT add or rotate it. The approval key SHALL be distinct from the
-source registry, destination registry, and project recovery keys. A normal
-transfer SHALL require the same approval-authority identity and generation in
-both registries. A recovery transfer SHALL require that identity in the
-destination registry and the project registration record.
+Registry initialization SHALL also pin one immutable operator
+approval-authority UUID, literal key generation `1`, and Ed25519 public-key
+fingerprint. This one-shot pin SHALL occur before the first project
+registration. A second pin or a pin after project registration SHALL refuse.
+The approval key SHALL be distinct from the source registry, destination
+registry, and project recovery keys. A normal transfer SHALL require the same
+immutable identity and literal generation `1` in both registries. A recovery
+transfer SHALL require that identity and generation in the destination registry
+and project registration record.
+
+A migrated registry without this record SHALL refuse transfer, exact project
+import, and project restore. One explicit operator command MAY add the missing
+generation-1 record before any project registration. A transfer bundle, import,
+restore, migration, or recovery receipt SHALL NOT create, replace, or downgrade
+the record. Loss or compromise of the approval key SHALL block normal and
+recovery transfer. v0.4 SHALL have no bypass or in-place rotation.
 
 A source retirement receipt SHALL bind one unique transfer nonce, the signed
 destination-offer digest, destination authority UUID, project UUID, export
@@ -363,7 +493,8 @@ retire the registry binding. Rollback SHALL be allowed only before that atomic
 publication. A later reverse move SHALL be a new signed transfer.
 
 At registration, the SessionStore SHALL record the fingerprint of an
-operator-held Ed25519 recovery key and the approval-authority UUID, generation,
+operator-held Ed25519 recovery key and the approval-authority UUID, literal
+generation `1`,
 and fingerprint. If the source is unavailable, a recovery receipt SHALL be
 signed by the recovery key and SHALL bind a unique transfer nonce, the signed
 destination offer, project UUID, export digest, last-known store operation
@@ -401,7 +532,7 @@ envelope SHALL have only these top-level fields:
 - `source_backend`, with `sqlite` or `files-only`
 - `project`, with the project UUID, source registry authority UUID, unpadded
   base64url raw 32-byte public key, recovery-key fingerprint, approval-authority
-  UUID, positive approval-key generation, approval-key fingerprint, source
+  UUID, literal approval-key generation `1`, approval-key fingerprint, source
   store operation identifier, and nonnegative safe-integer source registry
   generation
 - `snapshot`, with the complete `SessionSnapshot`
@@ -415,7 +546,7 @@ allocated value that it governs.
 
 `ExternalTransferApprovalV1` SHALL be a closed, signed RFC 8785 object. It SHALL
 have schema `foreman.external-transfer-approval.v1`, approval UUID, operator
-approval-authority UUID, positive key generation, raw public key,
+approval-authority UUID, literal key generation `1`, raw public key,
 destination-offer digest, transfer nonce, source and destination registry-key
 fingerprints, recovery-key fingerprint, destination authority UUID, project
 UUID, export digest, proposed operation UUID, and signature. Its SHA-256 digest
@@ -470,11 +601,18 @@ mutation. Same-backend restore SHALL preserve opaque receipts. Cross-backend
 restore SHALL remint them in queue order.
 
 A writable registry migration SHALL create its authority UUID and identity
-key. A separate explicit operator action SHALL pin the approval authority. An
-explicit writable project migration SHALL record the project UUID, operation
-identifier, recovery public-key fingerprint, and approval-authority identity.
-A read-only open that needs any migration SHALL refuse without changing
-registry or SessionStore bytes.
+key. One explicit operator action MAY add a missing immutable approval authority
+before any project registration. An explicit writable project migration SHALL
+record the project UUID, operation identifier, recovery public-key fingerprint,
+and immutable approval-authority identity. A read-only open that needs any
+migration SHALL refuse without changing registry or SessionStore bytes.
+
+#### Scenario: Approval authority mutation is attempted
+
+- **WHEN** an operation attempts a second pin, downgrade, replacement, mismatch,
+  or a pin after project registration
+- **THEN** the registry and SessionStore remain unchanged
+- **AND** transfer and recovery transfer remain blocked
 
 #### Scenario: A project export is used as a row import
 
@@ -894,11 +1032,20 @@ boundary until an approved package replaces it.
 
 The appliance SHALL NOT mount the operator's or default host container-engine
 socket. Hard mode SHALL use a dedicated rootless Podman `system service` as its
-engine sidecar. The service SHALL run directly on a supported Linux host, not
+engine service. The service SHALL run directly on a supported Linux host, not
 nested in an OCI container. It SHALL run as the separate non-login account
 `foreman-engine` with disjoint subordinate UID and GID ranges, a private runtime
-directory, and a private engine-data directory. That account SHALL have no
-read, write, or search access to `/workspace` or `/state`.
+directory, and a private engine-data directory.
+
+At each hard-mode admission, the launcher SHALL inspect the control mounts and
+resolve the canonical host realpaths that back `/workspace` and `/state`.
+Durable configuration SHALL store the approved realpaths. Admission SHALL
+re-derive device and inode identities after reboot or remount and compare them
+with the current mount sources. It SHALL NOT freeze those identities at
+bootstrap. Doctor SHALL run negative read, write, and target-root traversal
+probes as `foreman-engine` against both roots and protected sentinels. Any
+successful probe, mount substitution, symbolic-link substitution, or identity
+mismatch SHALL refuse. The engine service SHALL NOT start first.
 
 `env/reference-manifest.toml` SHALL name the exact Podman version, API
 contract, host package identities, rootless network and storage helpers,
@@ -945,7 +1092,7 @@ before/after manifest, and content digest, then apply the delete-aware result
 to `/workspace`. It SHALL reject absolute paths, `..`, device nodes, sockets,
 hard links, escaping symbolic links, duplicate paths, and excess expansion.
 Cleanup SHALL remove the worker, staging container, and volume idempotently.
-No host bind path SHALL cross the sidecar boundary.
+No host bind path SHALL cross the engine-service boundary.
 
 When a task needs credentials, the control container SHALL start the worker
 behind the fixed Foreman credential bootstrap with a private `tmpfs` at
@@ -953,9 +1100,24 @@ behind the fixed Foreman credential bootstrap with a private `tmpfs` at
 archive to that running container through the private archive endpoint. The
 bootstrap SHALL accept only manifest-listed filenames, write them with mode
 `0400`, verify the secret manifest, and only then start the worker command.
-Secret values SHALL NOT enter the worktree archive, container configuration,
-layer, staging volume, result archive, or logs. Cleanup SHALL destroy the
-worker and its `tmpfs`.
+
+Where a provider supports short-lived credentials, Foreman SHALL supply one
+least-privilege task capability with an expiry and hard spend limit. Where a
+provider supports only spend-capped sub-keys, Foreman SHALL create one per task
+and revoke it during cleanup. Otherwise, only an explicit diagnostic override
+MAY supply a long-lived key. Release evidence SHALL record that weaker mode.
+Long-lived credentials SHALL NOT enter images, layers, worktree archives,
+staging volumes, or container configuration.
+
+A malicious worker can read, copy, encode, log, return, or send any credential
+material that it receives. It can use an allowed provider connection. Hard mode
+SHALL contain host and engine authority. It SHALL NOT claim to contain malicious
+use of worker-readable credentials. Foreman SHALL scan stdout, stderr, and
+result archives for exact canaries. It SHALL redact detected values and mark the
+task compromised. Network policy SHALL block non-allowlisted destinations.
+These controls SHALL detect disclosure and limit its effect. They SHALL NOT
+claim to prevent disclosure. Cleanup SHALL revoke task credentials and destroy
+the worker and its `tmpfs`.
 
 #### Scenario: Hard mode starts
 
@@ -966,6 +1128,23 @@ worker and its `tmpfs`.
 - **AND** worker containers cannot access the service endpoint or the
   operator's engine socket
 - **AND** hosted CI executes a real worker through this service path
+
+#### Scenario: A host backing path is accessible
+
+- **WHEN** an engine-account probe can read, write, or traverse a protected root
+  or sentinel
+- **THEN** hard-mode admission refuses before the service starts
+- **AND** a reboot, remount, mount substitution, link substitution, or changed
+  identity requires fresh derivation and comparison
+
+#### Scenario: A worker discloses credential material
+
+- **WHEN** a worker logs, returns, encodes, or sends credential material
+- **THEN** exact canary detection redacts detected values and marks compromise
+- **AND** non-allowlisted egress refuses
+- **AND** allowed-provider disclosure remains an explicit residual risk
+- **AND** expiry, spend limits, cleanup revocation, and the weaker override are
+  present in release evidence
 
 #### Scenario: A worker receives and returns task bytes
 
@@ -980,9 +1159,9 @@ worker and its `tmpfs`.
   unsupported, or over-budget archive entry
 - **THEN** the control container refuses the complete result before workspace
   mutation
-- **AND** cleanup removes only that task's sidecar objects
+- **AND** cleanup removes only that task's engine-service objects
 
-#### Scenario: The sidecar is unavailable
+#### Scenario: The engine service is unavailable
 
 - **WHEN** hard mode cannot reach or qualify the rootless Podman service
 - **THEN** hard-mode lane admission refuses before a worker starts
@@ -1294,29 +1473,36 @@ trailing LF. Evidence SHALL also bind its Git tree ID.
 - **THEN** affected checks and the final cold audit become stale
 - **AND** publication waits for fresh results on the new candidate
 
-#### Scenario: The candidate integrates
+#### Scenario: Publication preparation starts
 
 - **WHEN** the pre-publication gate and cold audit pass
-- **THEN** the architect fast-forwards `main` to the exact audited commit
-- **AND** a required merge commit or advanced `main` creates a new candidate
+- **THEN** a durable external journal enters `prepared` before local integration
+- **AND** it binds the expected old remote `main` tip, candidate commit, tree,
+  digest, local artifacts, intended tag, and intended release identity
+- **AND** a pushed review branch remains permitted before this state
+
+#### Scenario: The candidate integrates and publishes main
+
+- **WHEN** the journal is `prepared`
+- **THEN** the architect fast-forwards local `main` to the audited candidate
+- **AND** remote `main` is the first public release mutation
+- **AND** its push compares and sets the expected old tip to that candidate
+- **AND** a required merge commit or advanced remote `main` creates a new
+  candidate or refuses
 - **AND** tree equality does not substitute for commit identity
-- **AND** a fresh exact-`main` gate records the Endstop integration milestone
-
-#### Scenario: Publication starts
-
-- **WHEN** `main` equals the audited candidate and local release artifacts pass
-- **THEN** a durable external journal enters `prepared`
-- **AND** it binds the commit, tree, image index, SBOM, provenance, signature,
-  tag, and release identifiers
-- **AND** it advances by compare-and-set through `image_pushed`, `tag_pushed`,
-  `release_created`, and `verified`
+- **AND** the journal advances through `local_integrated`, `main_published`,
+  `image_pushed`, `tag_pushed`, `release_created`, and `verified`
 
 #### Scenario: Publication is interrupted
 
-- **WHEN** the process stops after any remote object is created
-- **THEN** retry reads and verifies that exact remote object before advancing
-- **AND** a matching step is idempotent
-- **AND** a mismatch refuses without rebuilding or overwriting another object
+- **WHEN** the process stops before or after a journal transition
+- **THEN** a stop before `prepared` leaves remote `main` unchanged
+- **AND** recovery after `prepared` queries the exact target object
+- **AND** a missing object permits the same compare-and-set operation
+- **AND** a matching object makes the step idempotent
+- **AND** a divergent object refuses without overwrite or deletion
+- **AND** a failure after `main_published` resumes from that state and keeps the
+  release incomplete
 
 #### Scenario: Publication succeeds
 
