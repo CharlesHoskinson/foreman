@@ -108,6 +108,25 @@ bytes. It SHALL reject a wrong schema version, stale digest, missing or
 duplicate source, duplicate key, unknown enum, unresolved `required` entry, or
 owner that is neither an active package nor a declared future package.
 
+For an OpenSpec source, `key` SHALL equal `change:<package-name>` and
+`source_path` SHALL equal `openspec/changes/<package-name>`. For a Roadmap
+source, `key` SHALL equal one `Coverage key` in the Roadmap assignment table
+and `source_path` SHALL equal `ROADMAP.md`. The validator SHALL require a
+bijection between Roadmap table rows and Roadmap register entries. Multiple
+Roadmap keys MAY share that path and are not duplicate sources.
+
+The validator SHALL enforce these cross-field rules:
+
+- `v040_owner` and `v040_dependency` require `target_release="v0.4"` and
+  `reconcile` of `required` or `complete`.
+- `v050` requires `target_release="v0.5"` and
+  `reconcile="not_required"`.
+- `released_reference` requires `target_release="released"` and
+  `reconcile="complete"`.
+- `superseded` requires `reconcile="complete"` and an owner different from
+  the source package.
+- Every Roadmap entry's release and owner SHALL equal its Roadmap table row.
+
 When an approved future package becomes active, the architect SHALL update its
 entry and `active_inventory_sha256` in the same design milestone. That changed
 design SHALL receive its required exact-byte approval before the package's
@@ -122,6 +141,9 @@ corrected and strict-validated before its implementation lane starts. Those
 corrections SHALL remove new shell and Bats implementation where Node 24
 TypeScript and TypeScript tests own the behavior, and SHALL resolve conflicting
 directed-versus-undirected graph assumptions.
+`knowledge-plane-refresh` SHALL remove its `lock-primitive-hardening`
+prerequisite during reconciliation and SHALL own its narrow TypeScript and
+Effect advisory lock.
 
 #### Scenario: An active package is not part of v0.4
 
@@ -282,22 +304,165 @@ in this requirement. Every restore and clone state transition SHALL publish
 entity, identity, counter, per-key version, and outbox state in one SessionStore
 transaction or one paired files-only generation.
 
-A source retirement receipt SHALL bind one unique transfer nonce, the project
-UUID, export digest, source store operation identifier, source registry
-generation, retirement disposition, and user authorization digest. The source
-SHALL mark its binding retired and its store transferred before it emits the
-receipt. A transferred source SHALL refuse later writes.
+Each registry authority SHALL mint one UUID and Ed25519 identity key. The key
+fingerprint SHALL be SHA-256 of the raw 32-byte public key. Its private key
+SHALL use mode `0600` runtime state or an equivalent Windows ACL and SHALL NOT
+enter an image, project export, log, or release artifact. The destination SHALL
+sign an offer that binds its registry authority UUID, proposed operation
+identifier, project UUID, canonical Git common directory, selected store
+backend, and target store locator digest.
 
-If the source is unavailable, a recovery receipt SHALL bind a unique transfer
-nonce, project UUID, export digest, last-known store operation identifier,
-last-known registry generation, operator assertion, and user authorization
-digest. It SHALL use explicit `unknown` values for unavailable identities and
-SHALL NOT omit them. The destination reservation SHALL bind the complete
-receipt digest and transfer nonce. Finalization SHALL mark that receipt
-consumed for one destination binding. A retry with the same receipt,
-destination, and operation identifier SHALL be idempotent. Reuse with any
-different binding or operation SHALL refuse before mutation. Transfer rollback
-SHALL be explicit, receipt-bound, and tested.
+A source retirement receipt SHALL bind one unique transfer nonce, the signed
+destination-offer digest, destination authority UUID, project UUID, export
+digest, source store operation identifier, source registry generation,
+retirement disposition, and external approval digest. The source registry
+SHALL sign it. The external approval SHALL pin the source, destination, and
+recovery-key fingerprints, destination authority, project UUID, export digest,
+and proposed operation identifier.
+
+The source SHALL atomically store the complete signed receipt bytes with the
+SessionStore transfer marker that disables later writes. Receipt emission
+SHALL be an idempotent read of those durable bytes. A crash before the atomic
+store publication SHALL leave the source writable and no usable receipt. A
+crash after it SHALL leave a durable receipt that recovery re-emits and uses to
+retire the registry binding. Rollback SHALL be allowed only before that atomic
+publication. A later reverse move SHALL be a new signed transfer.
+
+At registration, the SessionStore SHALL record the fingerprint of an
+operator-held Ed25519 recovery key. If the source is unavailable, a recovery
+receipt SHALL be signed by that key and SHALL bind a unique transfer nonce, the
+signed destination offer, project UUID, export digest, last-known store
+operation identifier, last-known registry generation, operator assertion, and
+external approval digest. It SHALL use explicit `unknown` values for
+unavailable identities and SHALL NOT omit them. Release evidence SHALL label
+this path as operator-attested recovery.
+
+Each receipt SHALL bind one destination registry authority and one proposed
+operation. The destination reservation SHALL bind the complete receipt digest
+and transfer nonce. Finalization SHALL mark it consumed within that authority.
+A retry with the same receipt, destination, and operation SHALL be idempotent.
+Another authority, binding, nonce, or operation SHALL refuse before mutation.
+v0.4 SHALL claim single consumption inside one registry authority and SHALL
+NOT claim global exactly-once receipt consumption. A copied live registry
+authority SHALL be an identity conflict.
+
+#### Scenario: A project first registers
+
+- **WHEN** an unbound project opens through explicit registration
+- **THEN** the registry and SessionStore publish the same project and operation
+  identifiers through the reserve, store-publish, and finalize protocol
+- **AND** a crash resumes from the exact predecessor and proposed identifiers
+
+### Requirement: Versioned project transfer envelope
+
+Exact project export SHALL use a `SessionTransferEnvelopeV1` separate from the
+row-only `SessionSnapshot` and `importSnapshot` APIs. The envelope SHALL use
+RFC 8785 canonical JSON. It SHALL be at most 256 MiB and contain at most
+1,000,000 entity rows and 100,000 pending entries. The complete bundle SHALL be
+at most 257 MiB. Each non-snapshot string SHALL be at most 64 KiB of UTF-8. The
+envelope SHALL have only these top-level fields:
+
+- `schema`, with literal value `foreman.session-transfer.v1`
+- `source_backend`, with `sqlite` or `files-only`
+- `project`, with the project UUID, source registry authority UUID, unpadded
+  base64url raw 32-byte public key, recovery-key fingerprint, source store
+  operation identifier, and nonnegative safe-integer source registry
+  generation
+- `snapshot`, with the complete `SessionSnapshot`
+- `projection`, with a positive safe-integer `next_version`, unique
+  projection-key/version rows in lexical key order, a positive safe-integer
+  `next_receipt`, and pending `OutboxEntry` values in durable queue order
+
+Each projection version SHALL be a positive safe integer. Projection keys and
+opaque receipts SHALL be unique. Each next counter SHALL be greater than every
+allocated value that it governs.
+
+`ExternalTransferApprovalV1` SHALL be a closed RFC 8785 object with schema
+`foreman.external-transfer-approval.v1`, approval UUID, source, destination,
+and recovery-key fingerprints, destination authority UUID, project UUID,
+export digest, and proposed operation UUID. Its SHA-256 digest SHALL be the
+external approval digest.
+
+The three signed objects SHALL also be closed RFC 8785 values:
+
+- `DestinationOfferV1` SHALL have schema `foreman.destination-offer.v1`,
+  destination authority UUID, destination raw public key, proposed operation
+  UUID, project UUID, canonical Git common directory, store backend, target
+  store locator digest, and signature.
+- `RetirementReceiptV1` SHALL have schema
+  `foreman.retirement-receipt.v1`, destination offer digest, destination
+  authority and operation UUIDs, transfer nonce, project UUID, export digest,
+  source store operation UUID, source registry generation, `retired`
+  disposition, external approval digest, and signature.
+- `RecoveryReceiptV1` SHALL have schema `foreman.recovery-receipt.v1`,
+  destination offer digest, destination authority and operation UUIDs,
+  transfer nonce, project UUID, export digest, last-known source store
+  operation and registry generation or literal `unknown`, operator assertion,
+  external approval digest, raw recovery public key, and signature.
+
+Public keys and 64-byte Ed25519 signatures SHALL use unpadded base64url. Each
+signature SHALL cover the canonical object with its `signature` field omitted.
+Verification SHALL reject an extra, missing, duplicate, wrongly encoded, or
+wrong-type field before signature verification.
+
+The export digest SHALL be SHA-256 of the canonical envelope bytes. The
+transfer bundle SHALL contain the envelope, signed destination offer, exact
+external approval artifact, and exactly one signed retirement or recovery
+receipt. These three artifacts SHALL be outside the envelope digest. Validation
+SHALL run in this order: parse and size limits, exact schema and closed fields,
+canonical-byte reproduction and digest, signature and external approval,
+safe-integer and receipt invariants,
+SessionSnapshot integrity, registry admission, then atomic target publication.
+An unknown version or backend, non-canonical encoding, duplicate projection key
+or receipt, invalid signature, counter mismatch, or malformed row SHALL refuse
+before mutation. Same-backend restore SHALL preserve opaque receipts.
+Cross-backend restore SHALL remint them in queue order.
+
+A writable registry migration SHALL create its authority UUID and identity
+key. An explicit writable project migration SHALL record the project UUID,
+operation identifier, and operator-supplied recovery public-key fingerprint.
+A read-only open that needs either migration SHALL refuse without changing
+registry or SessionStore bytes.
+
+#### Scenario: A project export is used as a row import
+
+- **WHEN** an operator calls `importSnapshot` with project transfer intent
+- **THEN** Foreman reports that row import cannot restore project identity or
+  projection bookkeeping
+- **AND** exact restore requires the versioned transfer bundle
+
+#### Scenario: A transfer bundle is malformed
+
+- **WHEN** any validation stage rejects its bytes or authority
+- **THEN** the registry and target SessionStore remain unchanged
+- **AND** the failure identifies the first failed validation stage
+
+#### Scenario: The source crashes before transfer publication
+
+- **WHEN** receipt construction starts but the atomic source transfer marker
+  does not commit
+- **THEN** startup leaves the source writable and cancels the transfer intent
+- **AND** no receipt is usable
+
+#### Scenario: The source crashes after transfer publication
+
+- **WHEN** the source marker and receipt bytes commit before registry retirement
+- **THEN** startup retires the matching registry binding
+- **AND** it re-emits the identical durable receipt bytes
+
+#### Scenario: The destination crashes before store publication
+
+- **WHEN** its registry reservation exists and its store remains at the exact
+  predecessor operation
+- **THEN** startup cancels the reservation without consuming the receipt
+- **AND** retry can reserve the same receipt and operation again
+
+#### Scenario: The destination crashes after store publication
+
+- **WHEN** the store records the proposed operation and matching receipt digest
+- **THEN** startup finalizes the registry binding and consumes that receipt
+- **AND** a conflicting operation, digest, nonce, authority, or destination
+  refuses without mutation
 
 The SessionStore project UUID and registration operation identifier SHALL be
 the durable local project marker. The marker is not derived from commit
@@ -420,6 +585,18 @@ startup and `foreman doctor` SHALL inspect the live collection and refuse the
 semantic-memory profile when topology or consistency differs. Multi-node and
 multi-replica Qdrant operation is outside the v0.4 support boundary.
 
+Every active and candidate collection SHALL enable strict mode with unindexed
+filtering refused for retrieval and updates. Before its first point mutation,
+Foreman SHALL create and await these payload indexes:
+
+- integer range on `projection_version`
+- boolean on `live`
+- keyword on `project_id`, `kind`, `epoch_id`, and `model_id`
+
+Adapter startup and `foreman doctor` SHALL inspect the live index schemas,
+build status, and strict-mode settings. A missing, pending, wrong-type, or
+unexpected index contract SHALL refuse semantic mode before mutation.
+
 #### Scenario: The external adapter is selected
 
 - **WHEN** the focused adapter package is approved
@@ -447,6 +624,13 @@ multi-replica Qdrant operation is outside the v0.4 support boundary.
 - **WHEN** a Qdrant response is only acknowledged and is not completed
 - **THEN** Foreman does not acknowledge the local outbox receipt
 - **AND** it retries through the version-fenced path
+
+#### Scenario: A payload index is missing
+
+- **WHEN** collection qualification finds a missing, pending, or wrong-type
+  required payload index or an incompatible strict-mode value
+- **THEN** semantic projection and recall refuse before point mutation
+- **AND** core operation remains available through `NullMemoryIndex`
 
 ### Requirement: Externally fenced projection mutations
 
@@ -660,6 +844,39 @@ The appliance SHALL NOT mount the host container-engine socket. Hard mode SHALL
 use an isolated rootless daemon sidecar with a private socket and a dedicated
 state volume.
 
+`env/reference-manifest.toml` SHALL name the exact rootless engine image and
+platform digests. The outer sidecar SHALL run with `privileged=false`, a
+dedicated nonroot UID and user namespace, all capabilities dropped, no host
+PID, IPC, or network namespace, and no host-path mount. It MAY expose only
+`/dev/fuse` when the pinned storage driver requires it. It SHALL use pinned
+seccomp and AppArmor profiles and a read-only root filesystem except for its
+engine-data volume and runtime tmpfs. Its Unix socket SHALL use mode `0660` and
+SHALL be available only to the control container's dedicated engine group. The
+sidecar SHALL NOT mount `/workspace` or `/state`.
+
+For each task, the control container SHALL create a sidecar-owned staging
+volume through the private Engine API. It SHALL send the clean worktree,
+prompt, and non-secret task environment as one bounded tar archive through a
+staging container archive endpoint. The worker SHALL mount only that volume.
+Runtime credentials SHALL use the worker `tmpfs` protocol below and SHALL NOT
+enter the archive. The control container SHALL retrieve one bounded result
+archive, verify relative paths, entry types, byte and entry counts,
+before/after manifest, and content digest, then apply the delete-aware result
+to `/workspace`. It SHALL reject absolute paths, `..`, device nodes, sockets,
+hard links, escaping symbolic links, duplicate paths, and excess expansion.
+Cleanup SHALL remove the worker, staging container, and volume idempotently.
+No host bind path SHALL cross the sidecar boundary.
+
+When a task needs credentials, the control container SHALL start the worker
+behind the fixed Foreman credential bootstrap with a private `tmpfs` at
+`/run/foreman-secrets`. It SHALL send one separately bounded secret-only
+archive to that running container through the private archive endpoint. The
+bootstrap SHALL accept only manifest-listed filenames, write them with mode
+`0400`, verify the secret manifest, and only then start the worker command.
+Secret values SHALL NOT enter the worktree archive, container configuration,
+layer, staging volume, result archive, or logs. Cleanup SHALL destroy the
+worker and its `tmpfs`.
+
 #### Scenario: Hard mode starts
 
 - **WHEN** the operator enables the hard-mode Compose profile
@@ -667,6 +884,21 @@ state volume.
 - **AND** the sidecar runs without host root privileges
 - **AND** worker containers cannot access the host engine socket
 - **AND** hosted CI executes a real worker through this sidecar path
+
+#### Scenario: A worker receives and returns task bytes
+
+- **WHEN** hard mode starts a task from the control container
+- **THEN** input and output cross the private Engine API as bounded archives
+- **AND** no daemon bind mount names a control-local or host path
+- **AND** delete-aware sync reproduces the validated result manifest
+
+#### Scenario: A result archive tries to escape
+
+- **WHEN** the worker returns an absolute, parent-relative, duplicate,
+  unsupported, or over-budget archive entry
+- **THEN** the control container refuses the complete result before workspace
+  mutation
+- **AND** cleanup removes only that task's sidecar objects
 
 #### Scenario: The sidecar is unavailable
 
@@ -807,9 +1039,10 @@ GraphStore.
 
 ### Requirement: Locked evaluation corpus and arms
 
-The program SHALL commit a corpus of at least 30 representative Foreman tasks
-before it measures the graph-assisted arms. The corpus SHALL balance callers
-and dependents of a changed interface, cross-package impact, event producer to
+The program SHALL commit a canonical pool of exactly 50 representative
+Foreman tasks before it measures any arm. The final analysis SHALL use a
+canonical prefix of 30 through 50 tasks. The corpus SHALL balance callers and
+dependents of a changed interface, cross-package impact, event producer to
 consumer tracing, and command entry point to persistence tracing. Each task
 SHALL run against these locked arms:
 
@@ -821,26 +1054,51 @@ SHALL run against these locked arms:
 The corpus, prompts, scoring rules, budgets, candidate identities, and random
 seeds SHALL be content-addressed and locked before treatment results are read.
 
+All four arms for one task SHALL use the same model, tools, prompt, token cap,
+USD 5 monetary cap, 30-minute elapsed-time cap, and paired seed schedule. The
+complete four-arm run SHALL have an absolute USD 10,000 ceiling under one locked
+price table. Runs SHALL be serialized on one qualified appliance host in one
+locked balanced order. Elapsed time SHALL be monotonic wall time from task
+admission through the persisted scored verdict.
+
 The only promotion contrast SHALL be hybrid arm D minus lexical arm B. The
 report SHALL also publish A-to-B, A-to-C, B-to-C, and C-to-D contrasts as
 diagnostics, but no diagnostic contrast can promote graph context. Each task
-and arm SHALL run at least three repeats under the same locked seed schedule.
+and arm SHALL run ten repeats under the same locked paired seed schedule.
 The harness SHALL compute each task's repeat mean first and then compute the
-macro mean across tasks for recall, precision, citation validity, and task
-quality. It SHALL compute token and elapsed-time effects as the median paired
-per-task D-to-B ratio. It SHALL define token reduction as one minus the token
-ratio.
+macro mean across tasks for recall, precision, and task quality. It SHALL
+compute token, cost, and elapsed-time effects as the median paired per-task
+D-to-B ratio. It SHALL define token reduction as one minus the token ratio.
 
-The statistical plan SHALL lock before the first C or D corpus run. It SHALL
-use a paired task-level percentile bootstrap with 10,000 resamples, the seed
-`foreman-v040-eval-bootstrap-v1`, and two-sided 95 percent confidence intervals.
-The minimum completed sample SHALL be 30 tasks and three repeats per arm. The
-minimum detectable promoted recall effect SHALL be 8 percentage points. The
-non-inferiority or efficiency margins SHALL be 2 points for recall, 3 points
-for precision, 2 points for task quality, 10 percent for elapsed time, and 20
-percent for context tokens. A confidence interval that crosses its applicable
-margin SHALL produce `uncomputable` for promotion. The program SHALL NOT add
-tasks, repeats, or alternate contrasts after any C or D corpus result is read.
+Before the first C or D result, the statistical plan SHALL use only the locked
+A and B runs to register paired variance assumptions, a simulation-based power
+report, and the final canonical prefix length. It SHALL choose the smallest
+prefix from 30 through 50 tasks that provides at least 80-percent power at
+two-sided alpha 0.05 for an 8-percentage-point recall effect and each
+registered non-inferiority or efficiency margin. Those A and B runs SHALL be
+the same locked runs used in the final analysis and SHALL NOT be repeated. If
+all 50 tasks do not provide the required power, the graph-promotion result
+SHALL be `uncomputable`, and graph use SHALL remain opt-in or off. No C or D
+result SHALL be read before this decision.
+
+The plan SHALL use a paired hierarchical percentile bootstrap with 10,000
+resamples, seed `foreman-v040-eval-bootstrap-v1`, and two-sided 95-percent
+confidence intervals. Each resample SHALL select tasks with replacement and
+then select paired B/D repeat indices within each selected task with
+replacement. The minimum completed sample SHALL be 30 tasks and ten repeats
+per arm. The registered recall-superiority target SHALL be 8 percentage points.
+The registered non-inferiority or efficiency margins SHALL be 2 points for
+recall, 3 points for precision, 2 points for task quality, 10 percent for
+elapsed time and cost, and 20 percent for context tokens. A confidence interval
+that crosses zero for recall superiority or crosses an applicable
+non-inferiority or efficiency margin SHALL be `inconclusive` for promotion.
+
+Citation validity SHALL be a deterministic gate across every emitted citation.
+Promotion SHALL require zero invalid citations, and the report SHALL record
+the citation and task-run counts. It SHALL NOT report a 99-percent population
+lower confidence bound from this zero-defect result. The program SHALL NOT add
+tasks, repeats, alternate contrasts, or another analysis population after any
+C or D result is read.
 
 #### Scenario: An evaluation starts
 
@@ -850,9 +1108,9 @@ tasks, repeats, or alternate contrasts after any C or D corpus result is read.
 
 #### Scenario: One arm is unavailable
 
-- **WHEN** an arm cannot run on a task
-- **THEN** the result records `uncomputable` with its reason
-- **AND** the missing value is not counted as a pass or silently imputed
+- **WHEN** any locked arm or repeat cannot run on any locked task
+- **THEN** the complete promotion result records `uncomputable` with its reason
+- **AND** no task is dropped and no missing value is imputed
 
 #### Scenario: A diagnostic contrast looks favorable
 
@@ -862,28 +1120,32 @@ tasks, repeats, or alternate contrasts after any C or D corpus result is read.
 - **AND** the report publishes the diagnostic result without using it for
   promotion
 
-#### Scenario: The confidence interval crosses a margin
+#### Scenario: The confidence interval crosses a decision boundary
 
 - **WHEN** a primary D-to-B confidence interval crosses its registered
-  superiority, non-inferiority, or efficiency margin
-- **THEN** that promotion criterion is `uncomputable`
+  superiority, non-inferiority, or efficiency decision boundary
+- **THEN** that promotion criterion is `inconclusive`
 - **AND** the point estimate cannot override the interval
 
 ### Requirement: Promotion thresholds
 
 Graph-assisted context SHALL remain non-default unless the locked D-to-B
-evaluation meets all applicable confidence-bound thresholds:
+evaluation meets all applicable thresholds:
 
-- The lower confidence bound for retrieval recall is at least 8 percentage
-  points, or its lower bound is at least -2 points while the lower confidence
-  bound for token reduction is at least 20 percent. The latter is equivalent
-  to an upper token-ratio bound of 0.80.
+- The retrieval recall point estimate is at least 8 percentage points and its
+  lower confidence bound is greater than zero, or its lower bound is at least
+  -2 points while the lower confidence bound for token reduction is at least
+  20 percent. The latter is equivalent to an upper token-ratio bound of 0.80.
 - The lower confidence bound for retrieval precision is at least -3 percentage
   points.
-- The lower confidence bound for citation validity is at least 99 percent.
+- Every emitted citation is valid.
 - The lower confidence bound for task quality is at least -2 percentage points.
 - The upper confidence bound for the median elapsed-time ratio is at most 1.10,
-  unless the recall lower bound is at least 8 percentage points.
+  unless the recall point estimate is at least 8 points and its lower bound is
+  greater than zero.
+- The upper confidence bound for the median cost ratio is at most 1.10.
+- No task-run exceeds USD 5 or 30 minutes, and the complete run does not exceed
+  USD 10,000.
 - Missing, stale, wrong-version, corrupt, and unknown graph controls are
   detected in 100 percent of registered cases.
 - Core operation passes with graph use disabled.
@@ -894,7 +1156,7 @@ evaluation meets all applicable confidence-bound thresholds:
 - **THEN** graph-assisted context MAY advance from opt-in to default-on
 - **AND** the graph-off path remains tested and supported
 
-#### Scenario: Any threshold fails or is uncomputable
+#### Scenario: Any threshold fails or is inconclusive or uncomputable
 
 - **WHEN** a required threshold fails or has no valid measurement
 - **THEN** graph-assisted context remains opt-in or off
@@ -918,7 +1180,9 @@ SHALL have a documented graph-off switch and rollback test.
 ### Requirement: Exact-candidate release convergence
 
 One unchanged pushed commit SHALL pass all release predicates. Results from an
-earlier commit SHALL NOT satisfy a later candidate.
+earlier commit SHALL NOT satisfy a later candidate. The candidate digest SHALL
+be SHA-256 of the lowercase 40-character commit ID's ASCII bytes without a
+trailing LF. Evidence SHALL also bind its Git tree ID.
 
 #### Scenario: The release candidate is verified
 
@@ -932,6 +1196,8 @@ earlier commit SHALL NOT satisfy a later candidate.
 - **AND** Windows Bats item BW-004 passes on a native Windows runner
 - **AND** a cold Codex audit approves the complete baseline-to-candidate diff
 - **AND** every blocking audit finding is closed on the same candidate
+- **AND** the locally prepared OCI index, SBOM, provenance, and signature
+  bundle verify without requiring a public tag or release record
 
 #### Scenario: Candidate bytes change after a pass
 
@@ -940,13 +1206,39 @@ earlier commit SHALL NOT satisfy a later candidate.
 - **THEN** affected checks and the final cold audit become stale
 - **AND** publication waits for fresh results on the new candidate
 
+#### Scenario: The candidate integrates
+
+- **WHEN** the pre-publication gate and cold audit pass
+- **THEN** the architect fast-forwards `main` to the exact audited commit
+- **AND** a required merge commit or advanced `main` creates a new candidate
+- **AND** tree equality does not substitute for commit identity
+- **AND** a fresh exact-`main` gate records the Endstop integration milestone
+
+#### Scenario: Publication starts
+
+- **WHEN** `main` equals the audited candidate and local release artifacts pass
+- **THEN** a durable external journal enters `prepared`
+- **AND** it binds the commit, tree, image index, SBOM, provenance, signature,
+  tag, and release identifiers
+- **AND** it advances by compare-and-set through `image_pushed`, `tag_pushed`,
+  `release_created`, and `verified`
+
+#### Scenario: Publication is interrupted
+
+- **WHEN** the process stops after any remote object is created
+- **THEN** retry reads and verifies that exact remote object before advancing
+- **AND** a matching step is idempotent
+- **AND** a mismatch refuses without rebuilding or overwriting another object
+
 #### Scenario: Publication succeeds
 
-- **WHEN** all required Endstop milestones are complete on the exact candidate
-- **THEN** the architect merges or fast-forwards the reviewed commit
-- **AND** creates the signed release tag and release record
-- **AND** publishes the verified multi-platform image and attestations
-- **AND** saves the final SessionDB release state
+- **WHEN** the post-publication gate runs on the journal's exact identities
+- **THEN** `main` and the signed tag equal the audited commit
+- **AND** the release record, public image index, SBOM, provenance, and
+  signature equal the prepared objects
+- **AND** a clean client pulls and smoke-tests the public image
+- **AND** Endstop records publication complete
+- **AND** the architect saves the final SessionDB release state
 
 ### Requirement: Explicit deferrals
 

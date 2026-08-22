@@ -1,7 +1,7 @@
 schema_version = 1
 baseline_commit = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195"
 active_inventory_sha256 = "2619fc59cda5a76c75a865b4b5d27401b45e521593de37388720d33a3db9929f"
-roadmap_sha256 = "a4b49c45ec247f70197bbff99560394835aba8c18cd1b1879ad356325c96c5c8"
+roadmap_sha256 = "2e9ce274bd1bae7d4a4a0187a4908eea17c768175c3aa0f176f54cb14bf7c12b"
 
 [[future_owner]]
 name = "openspec-superpowers-convergence"
@@ -206,7 +206,7 @@ disposition = "v040_owner"
 owner = "knowledge-plane-refresh"
 target_release = "v0.4"
 reconcile = "required"
-reason = "Track 5 owns Graphify qualification; its shell and graph-direction assumptions need correction."
+reason = "Track 5 owns Graphify qualification; reconciliation removes the broad lock prerequisite and stale shell and graph-direction assumptions."
 
 [[entry]]
 key = "change:lane-ownership-and-reaping"

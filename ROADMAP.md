@@ -81,9 +81,9 @@ residuals are in `docs/releases/v0.3.1-notes.md`.
 
 The eighteen-sprint program described in earlier revisions of this file was
 measured at 43 packages and roughly 819 open tasks, over half of it the tool
-observing itself. Sprints 8-13 and 16, Sprint 6's project registry, and the
-knowledge and graph plane are assigned to v0.4.0. Their change packages under
-`openspec/changes/` are unmodified; only their release assignment moved.
+observing itself. The v0.4 governor narrows that carry-over into the stable
+assignments below. Existing change packages remain unmodified until their
+required design reconciliation.
 
 ## Next program: v0.4.0
 
@@ -91,6 +91,24 @@ The next program includes the first external `MemoryIndex` adapter, projection
 epochs, and live-service tests. It also retains Windows Bats item BW-004.
 Files-only writer exclusion remains a single-host claim, not a network
 filesystem lease.
+
+The coverage checker parses this table as the complete Roadmap assignment
+inventory. `Coverage key` values are stable machine identifiers.
+
+| Coverage key | Scope | Release | Owner |
+|---|---|---|---|
+| `roadmap:sprint-6-project-registry` | Sprint 6 project registry | `v0.4` | `project-registry` |
+| `roadmap:sprint-8-minimal-council` | Sprint 8 minimal Council | `v0.5` | `council-review-plane` |
+| `roadmap:sprint-9-council-runtime-security` | Sprint 9 Council runtime and security | `v0.5` | `council-review-plane` |
+| `roadmap:sprint-10-council-research` | Sprint 10 deliberation, research, and provenance | `v0.5` | `council-review-plane` |
+| `roadmap:sprint-11-council-interfaces` | Sprint 11 Council MCP, plugins, and publication | `v0.5` | `council-review-plane` |
+| `roadmap:sprint-12-release-formal-carryover` | Sprint 12 release and formal carry-over | `v0.5` | `formal-model-suite` |
+| `roadmap:sprint-13-knowledge-graph` | Sprint 13 knowledge and graph work | `v0.4` | `knowledge-plane-refresh` |
+| `roadmap:sprint-16-windows-bats-bw004` | Sprint 16 Windows Bats item BW-004 | `v0.4` | `windows-bats-bw004` |
+| `roadmap:sprint-16-external-dogfood` | Sprint 16 broad external dogfood and Council evaluation | `v0.5` | `council-review-plane` |
+| `roadmap:v040-external-memory-index` | External MemoryIndex, epochs, and live-service tests | `v0.4` | `external-memory-index` |
+| `roadmap:v040-knowledge-graph-plane` | Focused knowledge and graph plane | `v0.4` | `knowledge-plane-refresh` |
+| `roadmap:v040-publication` | Exact-candidate release and publication | `v0.4` | `v040-release-program` |
 
 ## Current authority
 

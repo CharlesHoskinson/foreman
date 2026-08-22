@@ -44,8 +44,8 @@ reproducible bootstrap and makes support evidence depend on the host.
 - Project a deterministic work DAG from durable run evidence.
 - Build immutable, bounded, source-cited context packs with explicit degraded
   modes.
-- Compare direct-source, lexical, graph, and hybrid retrieval on one locked
-  30-task corpus.
+- Compare direct-source, lexical, graph, and hybrid retrieval on a locked
+  50-task pool with a power-selected canonical prefix of 30 through 50 tasks.
 - Promote graph-assisted context only when the preregistered thresholds pass.
 - Close Windows Bats item BW-004 as a v0.4 release predicate.
 - Reconcile every active OpenSpec package and Roadmap v0.4 assignment in one
