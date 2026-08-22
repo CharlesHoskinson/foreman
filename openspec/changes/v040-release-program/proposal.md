@@ -30,6 +30,8 @@ reproducible bootstrap and makes support evidence depend on the host.
   workflows. Each approved `tasks.md` is its package's only active plan.
 - Add a machine-local project registry. Stable project identities bind
   cross-repository semantic references to the correct `SessionStore`.
+- Bind project moves, restores, and clones to durable receipts and exact crash
+  recovery so a copied repository cannot silently replace a live project.
 - Add the first external `MemoryIndex` adapter with Qdrant 1.19.0, a pinned
   local embedding model, projection epochs, and live-service tests while
   keeping `NullMemoryIndex` as the default.

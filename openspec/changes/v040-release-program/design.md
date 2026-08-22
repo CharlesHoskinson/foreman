@@ -139,44 +139,75 @@ One SessionStore remains authoritative for one logical project. A separate
 machine-local registry maps a port-minted project UUID to the repository Git
 common directory, known worktree paths, store backend, and store location.
 Linked worktrees that return the same `git --git-common-dir` share one project
-identity. The UUID is stored with exported project data, so it survives a path
-move and an explicit restore.
+identity. The SessionStore project UUID and registration operation UUID form a
+durable local marker. The UUID is stored with exported project data, so it
+survives an explicit path move and an explicit restore.
 
-The registry never guesses across repositories. It verifies Git identity
-before it updates a moved path. A missing or deleted project is unavailable,
-not falsely fresh. Current-project recovery stays exact and offline by
-default. Cross-project recovery is an explicit operation.
+The registry never guesses across repositories. It verifies project identity
+from the matching store UUID and registration operation UUID, not from commit
+history, remote URLs, a directory path, or a display name. A path move needs an
+explicit receipt that binds the UUID, prior registry generation, old and new
+paths, and store-identity metadata digest. Opening a repository at a new path
+does not update the registry. A missing or deleted project is unavailable, not
+falsely fresh. Current-project recovery stays exact and offline by default.
+Cross-project recovery is an explicit operation.
 
 `EntityRef` gains `project_id`. Existing stores and serialized references use
 an explicit migration. A semantic result is rehydrated only through the store
 registered for its project UUID. A wrong project, missing project, wrong kind,
 missing entity, or superseded entity is discarded or reported unavailable.
 
-Row import and project identity are separate policies. An exact restore into
-an unbound empty store adopts the donor UUID and projection-version state only
-when no live registry binding uses it. Destructive replacement and additive
-remap into a registered target keep the target UUID and allocate fresh target
-projection versions without reducing its version counter. Remapped rows become
-target-project rows. An explicit clone or fork copies donor entity rows, IDs,
-and `nextIds`, but it mints a new UUID and new projection state. It does not
-copy opaque donor outbox receipts. A copied store that claims a UUID already
-bound to an accessible store is a conflict; Foreman does not choose one copy
+Row import and project identity are separate policies. An exact restore into an
+unbound empty store needs a source retirement receipt or an explicit recovery
+receipt. It adopts the donor UUID, next projection version, per-key current
+versions, pending records, and queue order only when no live registry binding
+uses the UUID. A same-backend restore preserves opaque receipts and the next
+receipt counter. A cross-backend restore mints target receipts for pending
+records in queue order and sets the next receipt counter to the first
+unallocated value. The restored external adapter starts unqualified and must
+build and activate a fresh epoch before recall.
+
+Destructive replacement and additive remap into a registered target keep the
+target UUID and allocate fresh target projection versions without reducing its
+version counter. Remapped rows become target-project rows. An explicit clone or
+fork copies donor entity rows, IDs, and `nextIds`, but it mints a new UUID. In
+canonical counted-kind and ID order, it allocates projection versions starting
+at 1 and one new upsert receipt for every live projectable row. Its next version
+is the first unallocated value. It copies no donor projection version,
+tombstone, or opaque receipt. A copied store that claims a UUID already bound to
+an accessible store is a conflict; Foreman does not choose one copy
 automatically.
+
+A retirement receipt binds the project UUID, export digest, source store
+operation UUID, source registry generation, retirement disposition, and user
+authorization digest. Issuance marks the source binding retired and the source
+store transferred before it emits the receipt. Later write opens on that source
+refuse. If the source no longer exists, an explicit recovery receipt records
+that operator assertion and its authorization digest. The focused project-
+registry package must define transfer rollback and test both receipt paths.
 
 Registry-changing operations use an idempotent three-step protocol:
 
 1. The registry reserves the project UUID, canonical Git identity, target path,
-   and one operation UUID in a transaction.
+   exact predecessor operation UUID, and one proposed operation UUID in a
+   transaction. An initial store uses an explicit empty predecessor.
 2. The SessionStore atomically publishes its project UUID and the same
    operation UUID.
 3. The registry verifies the store metadata and marks the reservation active.
 
-Startup recovery compares both copies of the operation UUID. It finalizes a
-matching store publication, cancels a reservation when the unchanged store
-proves that publication did not occur, and refuses a conflict or inaccessible
-store. Registry uniqueness on project UUID and Git common directory prevents
-two active bindings. This protocol cannot make two databases one transaction;
-it makes every crash boundary explicit and idempotently recoverable.
+Startup recovery uses this matrix for pending operation B with predecessor A:
+
+- A store at B finalizes B.
+- A store still at A cancels B.
+- A store at any other value is a conflict.
+- An inaccessible store causes refusal without mutation.
+
+The complete restore or clone store publication includes entity, identity,
+counter, per-key version, and outbox state in one SQLite transaction or one
+paired files-only generation. Registry uniqueness on project UUID and Git
+common directory prevents two active local bindings. This protocol cannot make
+two databases one transaction; it makes every crash boundary explicit and
+idempotently recoverable.
 
 ## Qdrant MemoryIndex and projection epochs
 
@@ -471,8 +502,9 @@ The final testing round includes:
 - hard-mode sidecar isolation and no-host-socket negative controls
 - secret-canary scans over build inputs, image outputs, and attestations
 - project-registry migration, linked-worktree, moved-project, restore,
-  replacement, additive-remap, clone, duplicate-binding, crash-boundary,
-  wrong-repository, and unavailable-project controls
+  move-receipt, replacement, additive-remap, clone, transfer-receipt,
+  duplicate-binding, crash-boundary, wrong-repository, and unavailable-project
+  controls
 - Graphify deterministic rebuild and hostile stale or corrupt fixtures
 - live Qdrant idempotency, poison isolation, atomic alias activation,
   delayed stale mutation, lease takeover, embedding identity, epoch isolation,

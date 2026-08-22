@@ -203,7 +203,13 @@ Snapshot row-import policy and project-identity policy SHALL be separate:
 
 - An exact restore into an unbound empty store preserves the donor project UUID
   and its projection-version state only when the registry has no live binding
-  for that UUID.
+  for that UUID and the import has the source retirement or recovery receipt.
+  It preserves the donor next projection version, per-key current versions,
+  pending records, and queue order. A same-backend restore preserves opaque
+  receipts and its next receipt counter. A cross-backend restore mints target
+  receipts for the pending records in queue order and sets the target next
+  receipt counter to the first unallocated value. It marks external recall
+  unqualified until a fresh epoch rebuild passes.
 - An import into a registered target, including destructive `force+refuse` and
   additive `force+remap`, preserves the target project UUID.
 - Additive remap treats imported rows as target-project rows and queues their
@@ -211,17 +217,39 @@ Snapshot row-import policy and project-identity policy SHALL be separate:
 - Destructive replacement queues its target-project delta with fresh target
   projection versions and does not reduce the target version counter.
 - An explicit clone or fork preserves donor entity rows, IDs, and `nextIds`,
-  mints a new project UUID, and initializes new projection-version state. It
-  does not copy opaque donor outbox receipts.
+  mints a new project UUID, and initializes new projection-version state. In
+  canonical counted-kind and ID order, it allocates versions starting at 1 and
+  one fresh opaque upsert receipt for each live projectable row. The next
+  projection version is the first unallocated value. It does not copy donor
+  projection versions, tombstones, or opaque outbox receipts.
 - A second live store that claims an existing UUID is refused until the
   operator selects move, restore, or clone. Foreman SHALL NOT choose one by
   path order or timestamp.
 
 A registry-changing operation SHALL use one durable operation identifier and
-an idempotent reserve, store-publish, then registry-finalize protocol. Startup
-recovery SHALL inspect the operation identifier in both authorities and roll
-forward an unambiguous partial operation. It SHALL refuse an inaccessible,
-conflicting, or ambiguous partial operation.
+an idempotent reserve, store-publish, then registry-finalize protocol. The
+reservation SHALL record the exact predecessor operation identifier, including
+an explicit empty predecessor. Startup recovery SHALL inspect the predecessor
+and proposed identifiers in both authorities and use the exact recovery matrix
+in this requirement. Every restore and clone state transition SHALL publish
+entity, identity, counter, per-key version, and outbox state in one SessionStore
+transaction or one paired files-only generation.
+
+A source retirement receipt SHALL bind the project UUID, export digest, source
+store operation identifier, source registry generation, retirement
+disposition, and user authorization digest. The source SHALL mark its binding
+retired and its store transferred before it emits the receipt. A transferred
+source SHALL refuse later writes. If the source is unavailable, a recovery
+receipt SHALL bind the operator assertion and authorization digest. Transfer
+rollback SHALL be explicit, receipt-bound, and tested.
+
+The SessionStore project UUID and registration operation identifier SHALL be
+the durable local project marker. The marker is not derived from commit
+history, remote URLs, a directory path, or a display name. An automatic open at
+a new path SHALL NOT rewrite registry state. A move SHALL require an explicit,
+receipt-bound operation that names the project UUID, prior registry generation,
+old path, new canonical Git common directory, and store-identity metadata
+digest.
 
 #### Scenario: A repository has linked worktrees
 
@@ -231,16 +259,29 @@ conflicting, or ambiguous partial operation.
 
 #### Scenario: A project moves
 
-- **WHEN** a registered repository moves and the operator opens it at the new
-  path
+- **WHEN** the operator submits a move receipt for a registered project at a
+  new path
 - **THEN** the registry preserves its stable project identifier
-- **AND** it updates path metadata only after the Git identity check passes
+- **AND** it updates path metadata only after the store UUID, registration
+  operation identifier, prior registry generation, and receipt all match
+
+#### Scenario: A moved project opens without a receipt
+
+- **WHEN** a SessionStore project UUID appears at an unregistered path
+  without an accepted move receipt
+- **THEN** Foreman reports the project moved but unverified
+- **AND** it does not update the registry or claim the project fresh
 
 #### Scenario: An empty destination restores a project
 
 - **WHEN** an unbound empty destination imports an exact project export
 - **THEN** it preserves the donor project UUID only if no live registry binding
-  uses that UUID
+  uses that UUID and the transfer has a source retirement or recovery receipt
+- **AND** it preserves the next projection version, per-key versions, pending
+  records, and queue order
+- **AND** it preserves same-backend receipts or deterministically mints
+  cross-backend receipts in that order
+- **AND** it marks external recall unqualified until rebuild activation passes
 - **AND** a duplicate live binding refuses before the store changes
 
 #### Scenario: A registered target imports rows
@@ -253,6 +294,8 @@ conflicting, or ambiguous partial operation.
 
 - **WHEN** the operator explicitly selects clone or fork
 - **THEN** Foreman mints a new project UUID before it registers the copy
+- **AND** it allocates new versions and live upsert receipts in canonical order
+- **AND** the counter is the first unallocated version after those rows
 - **AND** the new and donor stores cannot project to the same project identity
 
 #### Scenario: Registration crashes after store publication
@@ -262,13 +305,26 @@ conflicting, or ambiguous partial operation.
 - **THEN** startup recovery finalizes the matching registry operation
 - **AND** retry produces one active binding
 
+#### Scenario: Registration crashes before store publication
+
+- **WHEN** the registry reserves operation B with predecessor A and the store
+  still contains A
+- **THEN** startup recovery cancels B without changing the store
+- **AND** retry can reserve a new operation from A
+
 #### Scenario: Registration state is ambiguous
 
-- **WHEN** the store and registry contain different operation identifiers or
-  two accessible stores claim one UUID
+- **WHEN** a pending reservation proposes B from predecessor A and the store
+  contains neither A nor B, or two accessible stores claim one UUID
 - **THEN** Foreman marks the project binding conflicted and refuses recall,
   projection, import, and freshness claims for that project
 - **AND** it prints an explicit operator recovery action
+
+#### Scenario: A pending registration cannot reach its store
+
+- **WHEN** startup recovery cannot read the store for a pending reservation
+- **THEN** it refuses without changing the registry or another store
+- **AND** retry uses the same pending operation identifier
 
 #### Scenario: A referenced project is unavailable
 
@@ -466,10 +522,12 @@ conditional mutations in the active and candidate collections.
 
 #### Scenario: A projection is retracted twice
 
-- **WHEN** Foreman deletes the same Qdrant point twice or deletes an unknown
-  point
-- **THEN** both operations complete without creating a point
-- **AND** retry remains safe after an ambiguous response
+- **WHEN** Foreman applies a retract for an unknown point and then retries the
+  same version or applies a greater retract version
+- **THEN** the first operation creates a `live=false` tombstone
+- **AND** the equal-version retry is a no-op
+- **AND** a greater retract updates only the tombstone version
+- **AND** no operation creates a searchable point
 
 ### Requirement: Hermetic Foreman appliance
 
