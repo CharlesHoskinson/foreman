@@ -243,8 +243,10 @@ SHALL contain only these paths:
 - `openspec/schemas/foreman-architectural/**`
 - `packages/policy/src/release-coverage.ts`
 - `packages/policy/src/release-coverage.test.ts`
+- `packages/policy/src/release-coverage-main.ts`
 - `packages/policy/src/release-admission.ts`
 - `packages/policy/src/release-admission.test.ts`
+- `packages/policy/src/release-admission-main.ts`
 - `packages/policy/src/main.ts`
 - `packages/policy/src/cli.ts`
 - `packages/policy/src/cli.test.ts`
@@ -267,6 +269,16 @@ SHALL contain only these paths:
 - `packages/orchestration/src/queue-services.ts`
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
+- `scripts/build-runtime.ts`
+- `scripts/verify-runtime-manifest.ts`
+- `scripts/verify-runtime-manifest.test.ts`
+- `skills/foreman/scripts/lib/release-policy.sh`
+- `skills/foreman/scripts/gate-eval.sh`
+- `skills/foreman/scripts/merge-gate.sh`
+- `tests/release-policy.bats`
+- `tests/gate-eval.bats`
+- `tests/merge-gate.bats`
+- `tests/fixtures/release-policy/**`
 - `packages/policy/package.json`
 - `packages/orchestration/package.json`
 - `package-lock.json`
@@ -274,6 +286,13 @@ SHALL contain only these paths:
 - `skills/foreman/runtime/manifest.json`
 
 It SHALL NOT admit another product lane or path.
+The runtime builder SHALL emit separate installed `release-coverage` and
+`release-admission` artifacts. One shared release-policy adapter SHALL invoke
+those exact artifacts. `gate-eval.sh` SHALL call the adapter only after the
+general gate result exists. `merge-gate.sh` SHALL call it before it can return
+`MERGEABLE`. A missing artifact, failed coverage check, or non-approved
+admission verdict SHALL fail closed. Tranche 9 publication tooling SHALL call
+the same adapter under the Tranche 9 child allowlist.
 
 After the atomic candidate integrates and the family activates, every later
 lane, integration gate, and publication gate SHALL run both policy checks after

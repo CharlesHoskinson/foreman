@@ -129,8 +129,10 @@ The bootstrap path scope is closed to these paths:
 - `openspec/schemas/foreman-architectural/**`
 - `packages/policy/src/release-coverage.ts`
 - `packages/policy/src/release-coverage.test.ts`
+- `packages/policy/src/release-coverage-main.ts`
 - `packages/policy/src/release-admission.ts`
 - `packages/policy/src/release-admission.test.ts`
+- `packages/policy/src/release-admission-main.ts`
 - `packages/policy/src/main.ts`
 - `packages/policy/src/cli.ts`
 - `packages/policy/src/cli.test.ts`
@@ -153,6 +155,16 @@ The bootstrap path scope is closed to these paths:
 - `packages/orchestration/src/queue-services.ts`
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
+- `scripts/build-runtime.ts`
+- `scripts/verify-runtime-manifest.ts`
+- `scripts/verify-runtime-manifest.test.ts`
+- `skills/foreman/scripts/lib/release-policy.sh`
+- `skills/foreman/scripts/gate-eval.sh`
+- `skills/foreman/scripts/merge-gate.sh`
+- `tests/release-policy.bats`
+- `tests/gate-eval.bats`
+- `tests/merge-gate.bats`
+- `tests/fixtures/release-policy/**`
 - `packages/policy/package.json`
 - `packages/orchestration/package.json`
 - `package-lock.json`
@@ -160,6 +172,13 @@ The bootstrap path scope is closed to these paths:
 - `skills/foreman/runtime/manifest.json`
 
 No other product path is admitted.
+The runtime builder emits separate `release-coverage` and `release-admission`
+artifacts. The shared release-policy adapter invokes those exact installed
+artifacts. `gate-eval.sh` calls the adapter only after the general gate result
+exists. `merge-gate.sh` calls it before it can return `MERGEABLE`. Their hostile
+tests prove that a missing artifact, a failed coverage check, or a non-approved
+admission verdict fails closed. Later publication tooling must use the same
+adapter under its own Tranche 9 allowlist.
 Hostile tests cover mutable audit policy, stale identity, malformed receipts,
 nonempty findings, and partial bootstrap output.
 
