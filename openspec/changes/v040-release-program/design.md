@@ -137,6 +137,8 @@ The bootstrap path scope is closed to these paths:
 - `packages/policy/src/cli.ts`
 - `packages/policy/src/cli.test.ts`
 - `packages/policy/src/index.ts`
+- `packages/policy/src/install-verify-decode.ts`
+- `packages/policy/src/install-verify.test.ts`
 - `packages/orchestration/src/execution-contract.ts`
 - `packages/orchestration/src/execution-contract.test.ts`
 - `packages/orchestration/src/execution-terminal-policy.ts`
@@ -156,6 +158,7 @@ The bootstrap path scope is closed to these paths:
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
 - `scripts/build-runtime.ts`
+- `scripts/verify-runtime.ts`
 - `scripts/verify-runtime-manifest.ts`
 - `scripts/verify-runtime-manifest.test.ts`
 - `skills/foreman/scripts/lib/release-policy.sh`
@@ -179,6 +182,11 @@ exists. `merge-gate.sh` calls it before it can return `MERGEABLE`. Their hostile
 tests prove that a missing artifact, a failed coverage check, or a non-approved
 admission verdict fails closed. Later publication tooling must use the same
 adapter under its own Tranche 9 allowlist.
+The exact runtime verifier and installed-runtime decoder treat both release
+policy artifacts as required. Their tests compare two clean builds, tracked
+bytes, and the exact `dist` inventory. Copied-install controls reject a missing
+or changed artifact and reject removal of an artifact together with its
+manifest entry.
 Hostile tests cover mutable audit policy, stale identity, malformed receipts,
 nonempty findings, and partial bootstrap output.
 

@@ -251,6 +251,8 @@ SHALL contain only these paths:
 - `packages/policy/src/cli.ts`
 - `packages/policy/src/cli.test.ts`
 - `packages/policy/src/index.ts`
+- `packages/policy/src/install-verify-decode.ts`
+- `packages/policy/src/install-verify.test.ts`
 - `packages/orchestration/src/execution-contract.ts`
 - `packages/orchestration/src/execution-contract.test.ts`
 - `packages/orchestration/src/execution-terminal-policy.ts`
@@ -270,6 +272,7 @@ SHALL contain only these paths:
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
 - `scripts/build-runtime.ts`
+- `scripts/verify-runtime.ts`
 - `scripts/verify-runtime-manifest.ts`
 - `scripts/verify-runtime-manifest.test.ts`
 - `skills/foreman/scripts/lib/release-policy.sh`
@@ -293,6 +296,11 @@ general gate result exists. `merge-gate.sh` SHALL call it before it can return
 `MERGEABLE`. A missing artifact, failed coverage check, or non-approved
 admission verdict SHALL fail closed. Tranche 9 publication tooling SHALL call
 the same adapter under the Tranche 9 child allowlist.
+The exact runtime verifier and installed-runtime decoder SHALL treat both
+release-policy artifacts as required. Tests SHALL compare two clean builds,
+tracked bytes, and the exact `dist` inventory. Copied-install controls SHALL
+reject a missing or changed artifact and SHALL reject removal of an artifact
+together with its manifest entry.
 
 After the atomic candidate integrates and the family activates, every later
 lane, integration gate, and publication gate SHALL run both policy checks after
