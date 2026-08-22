@@ -219,9 +219,11 @@ Snapshot row-import policy and project-identity policy SHALL be separate:
 - An explicit clone or fork preserves donor entity rows, IDs, and `nextIds`,
   mints a new project UUID, and initializes new projection-version state. In
   canonical counted-kind and ID order, it allocates versions starting at 1 and
-  one fresh opaque upsert receipt for each live projectable row. The next
-  projection version is the first unallocated value. It does not copy donor
-  projection versions, tombstones, or opaque outbox receipts.
+  one fresh target-backend opaque upsert receipt for each live projectable row.
+  The next projection version and next receipt counter are their respective
+  first unallocated values. An empty clone keeps both counters at their target-
+  backend initial values. It does not copy donor projection versions,
+  tombstones, or opaque outbox receipts.
 - A second live store that claims an existing UUID is refused until the
   operator selects move, restore, or clone. Foreman SHALL NOT choose one by
   path order or timestamp.
@@ -235,13 +237,22 @@ in this requirement. Every restore and clone state transition SHALL publish
 entity, identity, counter, per-key version, and outbox state in one SessionStore
 transaction or one paired files-only generation.
 
-A source retirement receipt SHALL bind the project UUID, export digest, source
-store operation identifier, source registry generation, retirement
-disposition, and user authorization digest. The source SHALL mark its binding
-retired and its store transferred before it emits the receipt. A transferred
-source SHALL refuse later writes. If the source is unavailable, a recovery
-receipt SHALL bind the operator assertion and authorization digest. Transfer
-rollback SHALL be explicit, receipt-bound, and tested.
+A source retirement receipt SHALL bind one unique transfer nonce, the project
+UUID, export digest, source store operation identifier, source registry
+generation, retirement disposition, and user authorization digest. The source
+SHALL mark its binding retired and its store transferred before it emits the
+receipt. A transferred source SHALL refuse later writes.
+
+If the source is unavailable, a recovery receipt SHALL bind a unique transfer
+nonce, project UUID, export digest, last-known store operation identifier,
+last-known registry generation, operator assertion, and user authorization
+digest. It SHALL use explicit `unknown` values for unavailable identities and
+SHALL NOT omit them. The destination reservation SHALL bind the complete
+receipt digest and transfer nonce. Finalization SHALL mark that receipt
+consumed for one destination binding. A retry with the same receipt,
+destination, and operation identifier SHALL be idempotent. Reuse with any
+different binding or operation SHALL refuse before mutation. Transfer rollback
+SHALL be explicit, receipt-bound, and tested.
 
 The SessionStore project UUID and registration operation identifier SHALL be
 the durable local project marker. The marker is not derived from commit
@@ -295,7 +306,8 @@ digest.
 - **WHEN** the operator explicitly selects clone or fork
 - **THEN** Foreman mints a new project UUID before it registers the copy
 - **AND** it allocates new versions and live upsert receipts in canonical order
-- **AND** the counter is the first unallocated version after those rows
+- **AND** the version and receipt counters are the first unallocated values
+  after those rows
 - **AND** the new and donor stores cannot project to the same project identity
 
 #### Scenario: Registration crashes after store publication

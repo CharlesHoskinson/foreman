@@ -173,18 +173,27 @@ version counter. Remapped rows become target-project rows. An explicit clone or
 fork copies donor entity rows, IDs, and `nextIds`, but it mints a new UUID. In
 canonical counted-kind and ID order, it allocates projection versions starting
 at 1 and one new upsert receipt for every live projectable row. Its next version
-is the first unallocated value. It copies no donor projection version,
-tombstone, or opaque receipt. A copied store that claims a UUID already bound to
-an accessible store is a conflict; Foreman does not choose one copy
-automatically.
+and next target-backend receipt counter are their respective first unallocated
+values. An empty clone keeps both counters at their target-backend initial
+values. It copies no donor projection version, tombstone, or opaque receipt. A
+copied store that claims a UUID already bound to an accessible store is a
+conflict; Foreman does not choose one copy automatically.
 
-A retirement receipt binds the project UUID, export digest, source store
-operation UUID, source registry generation, retirement disposition, and user
-authorization digest. Issuance marks the source binding retired and the source
-store transferred before it emits the receipt. Later write opens on that source
-refuse. If the source no longer exists, an explicit recovery receipt records
-that operator assertion and its authorization digest. The focused project-
-registry package must define transfer rollback and test both receipt paths.
+A retirement receipt binds a unique transfer nonce, project UUID, export
+digest, source store operation UUID, source registry generation, retirement
+disposition, and user authorization digest. Issuance marks the source binding
+retired and the source store transferred before it emits the receipt. Later
+write opens on that source refuse.
+
+If the source no longer exists, a recovery receipt binds a unique transfer
+nonce, the same project and export identities, last-known store operation UUID,
+last-known registry generation, operator assertion, and authorization digest.
+An unavailable value is the explicit value `unknown`, not a missing field. The
+destination reservation binds the receipt digest and nonce. Finalization marks
+the receipt consumed for one destination binding. Retry with the same receipt,
+destination, and operation UUID is idempotent. Any different reuse refuses
+before mutation. The focused project-registry package must define transfer
+rollback and test both receipt paths.
 
 Registry-changing operations use an idempotent three-step protocol:
 
