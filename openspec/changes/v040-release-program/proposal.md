@@ -33,6 +33,8 @@ reproducible bootstrap and makes support evidence depend on the host.
 - Add the first external `MemoryIndex` adapter with Qdrant 1.19.0, a pinned
   local embedding model, projection epochs, and live-service tests while
   keeping `NullMemoryIndex` as the default.
+- Add durable projection versions and conditional Qdrant mutations so a timed
+  out old request cannot overwrite newer acknowledged desired state.
 - Add a hermetic Foreman appliance with separate control and worker images,
   exact dependency pins, an isolated rootless hard-mode daemon, and no host
   Docker socket mount.

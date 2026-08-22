@@ -140,7 +140,7 @@ machine-local registry maps a port-minted project UUID to the repository Git
 common directory, known worktree paths, store backend, and store location.
 Linked worktrees that return the same `git --git-common-dir` share one project
 identity. The UUID is stored with exported project data, so it survives a path
-move and a store export or import.
+move and an explicit restore.
 
 The registry never guesses across repositories. It verifies Git identity
 before it updates a moved path. A missing or deleted project is unavailable,
@@ -151,6 +151,32 @@ default. Cross-project recovery is an explicit operation.
 an explicit migration. A semantic result is rehydrated only through the store
 registered for its project UUID. A wrong project, missing project, wrong kind,
 missing entity, or superseded entity is discarded or reported unavailable.
+
+Row import and project identity are separate policies. An exact restore into
+an unbound empty store adopts the donor UUID and projection-version state only
+when no live registry binding uses it. Destructive replacement and additive
+remap into a registered target keep the target UUID and allocate fresh target
+projection versions without reducing its version counter. Remapped rows become
+target-project rows. An explicit clone or fork copies donor entity rows, IDs,
+and `nextIds`, but it mints a new UUID and new projection state. It does not
+copy opaque donor outbox receipts. A copied store that claims a UUID already
+bound to an accessible store is a conflict; Foreman does not choose one copy
+automatically.
+
+Registry-changing operations use an idempotent three-step protocol:
+
+1. The registry reserves the project UUID, canonical Git identity, target path,
+   and one operation UUID in a transaction.
+2. The SessionStore atomically publishes its project UUID and the same
+   operation UUID.
+3. The registry verifies the store metadata and marks the reservation active.
+
+Startup recovery compares both copies of the operation UUID. It finalizes a
+matching store publication, cancels a reservation when the unchanged store
+proves that publication did not occur, and refuses a conflict or inaccessible
+store. Registry uniqueness on project UUID and Git common directory prevents
+two active bindings. This protocol cannot make two databases one transaction;
+it makes every crash boundary explicit and idempotently recoverable.
 
 ## Qdrant MemoryIndex and projection epochs
 
@@ -171,8 +197,35 @@ The adapter preserves the existing split:
 
 A deterministic UUID point ID derives from a fixed Foreman namespace,
 `project_id`, counted kind, and entity ID. The Qdrant payload contains only the
-schema, project, entity, epoch, and model identities. It does not contain source
-text, repository paths, or SessionDB note bodies.
+schema, project, entity, epoch, model, desired-state version, and live-state
+fields. It does not contain source text, repository paths, or SessionDB note
+bodies.
+
+Stable point IDs alone do not fence late requests. The SessionStore therefore
+allocates a never-reused, monotonically increasing `projection_version` in the
+same atomic entity and outbox mutation. It retains the current version after
+acknowledgement. A `ProjectionRecord` carries this version separately from its
+opaque local receipt.
+
+Writable migration assigns versions to legacy live entities in canonical kind
+and ID order and queues their upserts in the same transaction or paired
+generation. Read-only open refuses when migration is required. A failed
+migration or import leaves entity, counter, version, and outbox state unchanged.
+
+Qdrant stores `projection_version` and `live` with the point. Each upsert and
+retract is one conditional upsert that applies only when the stored version is
+lower. A missing point accepts the first mutation. An equal-version retry and
+a lower late mutation are no-ops. Retract writes a `live=false` tombstone with
+the same deterministic point ID and a placeholder vector. Recall filters
+`live=true` before top-k selection. The tombstone prevents a late old upsert
+from recreating a searchable point.
+
+The drainer and rebuild lease also has a monotonically increasing fencing
+token. A prior owner stops new dispatch when it loses the lease. The Qdrant
+version condition remains the final fence for a request that the server already
+accepted. The live test will delay version N, apply and acknowledge N+1, then
+release N. It will run this sequence for upsert followed by retract, retract
+followed by upsert, and lease takeover.
 
 Each project epoch is one Qdrant collection. A stable per-project alias names
 the active collection. A rebuild acquires the single projection-drainer lease,
@@ -180,7 +233,8 @@ creates a candidate collection, projects the complete validated snapshot,
 applies concurrent desired-state changes to the required collections, catches
 up, and then changes the alias atomically. A failed rebuild leaves the old
 alias active. An abandoned collection remains unqueried and can be removed or
-rebuilt.
+rebuilt. Snapshot projection uses the retained current version for every key;
+catch-up uses the same conditional mutation protocol in both collections.
 
 The appliance generates embeddings locally with
 `@huggingface/transformers` 4.2.0 and
@@ -194,6 +248,9 @@ Mock tests cover deterministic failures. Live Qdrant tests must also prove:
 
 - retry idempotency and a distinct-key negative control
 - repeated and unknown-point retraction
+- delayed old-upsert and old-retract settlement after a newer acknowledged
+  mutation
+- drainer-lease takeover while an old external request remains in flight
 - inactive-epoch poison isolation
 - concurrent recall during atomic alias activation without an empty or mixed
   result
@@ -207,7 +264,8 @@ Mock tests cover deterministic failures. Live Qdrant tests must also prove:
 The adapter decision uses these primary sources:
 
 - [Qdrant points](https://qdrant.tech/documentation/manage-data/points/)
-  documents caller-owned UUIDs and idempotent loading operations.
+  documents caller-owned UUIDs, idempotent loading operations, and conditional
+  updates for optimistic concurrency control.
 - [Qdrant collections](https://qdrant.tech/documentation/manage-data/collections/)
   documents background collection builds and atomic alias changes.
 - [Qdrant 1.19.0](https://github.com/qdrant/qdrant/releases/tag/v1.19.0)
@@ -412,11 +470,13 @@ The final testing round includes:
 - appliance bootstrap, restart, state persistence, upgrade, and rollback tests
 - hard-mode sidecar isolation and no-host-socket negative controls
 - secret-canary scans over build inputs, image outputs, and attestations
-- project-registry migration, linked-worktree, moved-project,
+- project-registry migration, linked-worktree, moved-project, restore,
+  replacement, additive-remap, clone, duplicate-binding, crash-boundary,
   wrong-repository, and unavailable-project controls
 - Graphify deterministic rebuild and hostile stale or corrupt fixtures
 - live Qdrant idempotency, poison isolation, atomic alias activation,
-  embedding identity, epoch isolation, and rebuild-race tests
+  delayed stale mutation, lease takeover, embedding identity, epoch isolation,
+  and rebuild-race tests
 - work-DAG replay, torn-tail, failed-attempt, and rename fixtures
 - context budget, determinism, citation, degraded-mode, and escape-hatch tests
 - locked 30-task evaluation with all negative controls

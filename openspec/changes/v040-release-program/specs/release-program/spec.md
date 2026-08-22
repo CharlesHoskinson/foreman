@@ -192,12 +192,36 @@ The release SHALL keep one authoritative `SessionStore` per logical project
 and a machine-local registry that resolves stable project identifiers to those
 stores. A linked Git worktree SHALL share a project identity with every
 worktree that has the same Git common directory. The stable identifier SHALL
-survive store export, import, and repository path moves.
+survive store export, an explicit restore, and repository path moves.
 
 `EntityRef` and every external projection identity SHALL include
 `project_id`. The registry and all existing stores SHALL have an explicit,
 tested migration. Semantic recall SHALL rehydrate a reference only through the
 matching registered store.
+
+Snapshot row-import policy and project-identity policy SHALL be separate:
+
+- An exact restore into an unbound empty store preserves the donor project UUID
+  and its projection-version state only when the registry has no live binding
+  for that UUID.
+- An import into a registered target, including destructive `force+refuse` and
+  additive `force+remap`, preserves the target project UUID.
+- Additive remap treats imported rows as target-project rows and queues their
+  projections under the target UUID with fresh target projection versions.
+- Destructive replacement queues its target-project delta with fresh target
+  projection versions and does not reduce the target version counter.
+- An explicit clone or fork preserves donor entity rows, IDs, and `nextIds`,
+  mints a new project UUID, and initializes new projection-version state. It
+  does not copy opaque donor outbox receipts.
+- A second live store that claims an existing UUID is refused until the
+  operator selects move, restore, or clone. Foreman SHALL NOT choose one by
+  path order or timestamp.
+
+A registry-changing operation SHALL use one durable operation identifier and
+an idempotent reserve, store-publish, then registry-finalize protocol. Startup
+recovery SHALL inspect the operation identifier in both authorities and roll
+forward an unambiguous partial operation. It SHALL refuse an inaccessible,
+conflicting, or ambiguous partial operation.
 
 #### Scenario: A repository has linked worktrees
 
@@ -211,6 +235,40 @@ matching registered store.
   path
 - **THEN** the registry preserves its stable project identifier
 - **AND** it updates path metadata only after the Git identity check passes
+
+#### Scenario: An empty destination restores a project
+
+- **WHEN** an unbound empty destination imports an exact project export
+- **THEN** it preserves the donor project UUID only if no live registry binding
+  uses that UUID
+- **AND** a duplicate live binding refuses before the store changes
+
+#### Scenario: A registered target imports rows
+
+- **WHEN** a registered target uses destructive replacement or additive remap
+- **THEN** the target project UUID does not change
+- **AND** every resulting projection uses the target project UUID
+
+#### Scenario: An operator clones a project
+
+- **WHEN** the operator explicitly selects clone or fork
+- **THEN** Foreman mints a new project UUID before it registers the copy
+- **AND** the new and donor stores cannot project to the same project identity
+
+#### Scenario: Registration crashes after store publication
+
+- **WHEN** the store contains the reserved operation identifier but the
+  registry still records that operation as pending
+- **THEN** startup recovery finalizes the matching registry operation
+- **AND** retry produces one active binding
+
+#### Scenario: Registration state is ambiguous
+
+- **WHEN** the store and registry contain different operation identifiers or
+  two accessible stores claim one UUID
+- **THEN** Foreman marks the project binding conflicted and refuses recall,
+  projection, import, and freshness claims for that project
+- **AND** it prints an explicit operator recovery action
 
 #### Scenario: A referenced project is unavailable
 
@@ -255,6 +313,62 @@ and `@qdrant/js-client-rest` 1.19.0 with npm integrity
   namespace plus `project_id`, entity kind, and entity ID
 - **AND** retrying the same desired state addresses the same point
 - **AND** a different project, kind, or entity ID addresses a different point
+
+### Requirement: Externally fenced projection mutations
+
+Every project SHALL allocate a durable, monotonically increasing safe-integer
+`projection_version` for each new desired-state mutation. A version SHALL never
+be reused, including after acknowledgement, import, reopen, failed rebuild, or
+registry recovery. The SessionStore SHALL retain the current version for each
+projection key and include it in every `ProjectionRecord`. The local opaque
+outbox receipt SHALL remain a separate compare-and-delete identity.
+
+Writable migration SHALL allocate retained current versions for legacy live
+entities in canonical counted-kind and ID order and queue their upserts. A
+read-only open SHALL refuse when that migration is required. Migration and
+import SHALL preserve atomic entity, counter, version, and outbox state on
+failure.
+
+The Qdrant adapter SHALL store `projection_version` and `live` in the point
+payload. Upsert and retract SHALL both use the same deterministic point UUID
+and one atomic conditional upsert that can replace only a lower version. A
+retract SHALL write a `live=false` tombstone instead of deleting the point.
+Recall SHALL filter for `live=true` before top-k selection. Equal-version retry
+SHALL be an idempotent no-op. A lower late mutation SHALL be a no-op.
+
+A projection-drainer lease and rebuild lease SHALL carry a durable fencing
+token. Loss or takeover of a lease SHALL stop new dispatch by the old owner.
+External version conditions SHALL preserve desired-state order even if an old
+request was already accepted by Qdrant and settles after takeover.
+
+#### Scenario: An old upsert settles last
+
+- **WHEN** upsert version N times out, retract version N+1 applies and is
+  acknowledged, and version N then settles
+- **THEN** the point remains a version N+1 `live=false` tombstone
+- **AND** the stale point cannot consume a recall result slot
+
+#### Scenario: An old retract settles last
+
+- **WHEN** retract version N times out, upsert version N+1 applies and is
+  acknowledged, and version N then settles
+- **THEN** the point remains the version N+1 live representation
+- **AND** recall can return only the current representation
+
+#### Scenario: A drainer lease is taken over
+
+- **WHEN** a new drainer takes over after the prior owner stops renewing its
+  lease
+- **THEN** the new owner obtains a greater fencing token
+- **AND** adversarial live tests prove that requests from the old owner cannot
+  overwrite a greater desired-state version
+
+#### Scenario: Projection version allocation would overflow
+
+- **WHEN** the next project projection version is not a safe integer
+- **THEN** the SessionStore mutation refuses before it changes entity or outbox
+  state
+- **AND** the existing counter and desired state remain unchanged
 
 #### Scenario: Desired state is retried
 
@@ -318,7 +432,9 @@ to a new collection, keep the current alias queryable, and make the new epoch
 visible only after complete projection and catch-up. One atomic alias change
 SHALL activate the new collection. The focused package SHALL define how a
 single projection-drainer lease preserves concurrent writes and outbox draining
-during rebuild.
+during rebuild. The complete snapshot SHALL use the current retained
+`projection_version` for each key. Catch-up SHALL use the same version-fenced
+conditional mutations in the active and candidate collections.
 
 #### Scenario: A rebuild succeeds
 
