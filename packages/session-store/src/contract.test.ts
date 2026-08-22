@@ -105,7 +105,10 @@ describe("projection", () => {
 
       // evidence/command/scope_paths carry paths and credentials; they must not
       // appear in anything destined for a third-party endpoint.
-      const blob = records.map((r) => r.text).join("\n");
+      const blob = records
+        .filter((r) => r.mutation === "upsert")
+        .map((r) => r.text)
+        .join("\n");
       assert.ok(
         !blob.includes("packages/session-store/src/entities.ts"),
         "evidence leaked into the projection",

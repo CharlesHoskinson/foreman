@@ -26,6 +26,16 @@ export type OpenSessionStoreOptions = {
   readonly onSelected?: (selection: SessionStoreSelection) => void;
 };
 
+export type OpenSqliteStoreOptions = {
+  readonly path: string;
+  readonly readOnly?: boolean;
+  readonly prepareSqlite?: (
+    path: string,
+    access: SessionStoreOpenAccess,
+  ) => void;
+  readonly onSelected?: (selection: SessionStoreSelection) => void;
+};
+
 const CANONICAL_BACKENDS = ["sqlite", "files_only"] as const;
 type CanonicalBackend = (typeof CANONICAL_BACKENDS)[number];
 
@@ -49,6 +59,32 @@ function nonemptyPath(value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
   if (value.trim() === "") return undefined;
   return value;
+}
+
+/**
+ * Forced SQLite open. Reads no environment and never consults
+ * FOREMAN_SESSION_BACKEND. Selection → preparation → open ordering matches
+ * the SQLite branch of openSessionStore.
+ */
+export function openSqliteSessionStore(
+  opts: OpenSqliteStoreOptions,
+): SessionStore {
+  return openSqliteAtPath(opts);
+}
+
+function openSqliteAtPath(opts: OpenSqliteStoreOptions): SessionStore {
+  const readOnly = opts.readOnly === true;
+  const selection: SessionStoreSelection = {
+    location: opts.path,
+    locationKind: "file",
+  };
+  opts.onSelected?.(selection);
+  const access: SessionStoreOpenAccess = {
+    readOnly,
+    allowMigration: !readOnly,
+  };
+  opts.prepareSqlite?.(opts.path, access);
+  return SqliteSessionStore.open(opts.path, { readOnly });
 }
 
 /**
@@ -76,17 +112,14 @@ export function openSessionStore(
         "FOREMAN_SESSION_DB is required when FOREMAN_SESSION_BACKEND is sqlite",
       );
     }
-    const selection: SessionStoreSelection = {
-      location: path,
-      locationKind: "file",
-    };
-    opts.onSelected?.(selection);
-    const access: SessionStoreOpenAccess = {
+    return openSqliteAtPath({
+      path,
       readOnly,
-      allowMigration: !readOnly,
-    };
-    opts.prepareSqlite?.(path, access);
-    return SqliteSessionStore.open(path, { readOnly });
+      ...(opts.prepareSqlite !== undefined
+        ? { prepareSqlite: opts.prepareSqlite }
+        : {}),
+      ...(opts.onSelected !== undefined ? { onSelected: opts.onSelected } : {}),
+    });
   }
 
   const dir = nonemptyPath(env.FOREMAN_SESSION_DIR);

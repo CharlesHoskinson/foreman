@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { Effect } from "effect";
 import {
   SqliteSessionStore,
+  classifySqliteStore,
   encodeSnapshot,
   countRows,
   decodeSnapshot,
@@ -42,12 +43,14 @@ import {
   CliRefusal,
   setSyncTestDeps,
 } from "./fm-session-main.js";
+import { sidecarPathFor } from "./session-paths.js";
 import {
   bootstrapStore,
-  classifyStore,
-  sidecarPathFor,
   LegacyMigrationRefusal,
-} from "./session-legacy-shape.js";
+} from "./session-sqlite-bootstrap.js";
+
+/** Local alias so existing CLI characterization keeps reading as classifyStore. */
+const classifyStore = classifySqliteStore;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ENTRY = join(HERE, "fm-session-main.ts");
@@ -169,10 +172,19 @@ describe("fm-session-main atomicity and locks", () => {
         );
 
         const beginIdx = statements.findIndex((s) => s === "BEGIN IMMEDIATE");
-        const checkIdx = statements.findIndex((s) => s.startsWith("SELECT 1 FROM "));
+        // Occupancy is decided by reading the target snapshot inside the
+        // write transaction (full table SELECTs), not a SELECT 1 probe.
+        const checkIdx = statements.findIndex(
+          (s, i) =>
+            i > beginIdx &&
+            (s.includes('FROM "facts"') ||
+              s.includes('FROM "sessions"') ||
+              s.includes('FROM "measurements"') ||
+              s.includes('FROM "obligations"')),
+        );
 
         assert.ok(beginIdx !== -1, "must execute BEGIN IMMEDIATE");
-        assert.ok(checkIdx !== -1, "must execute a row existence check (SELECT 1 FROM...)");
+        assert.ok(checkIdx !== -1, "must read target rows for the occupancy check");
         assert.ok(
           beginIdx < checkIdx,
           `write lock must be acquired before row check. BEGIN at ${beginIdx}, SELECT at ${checkIdx}`,
@@ -256,29 +268,6 @@ describe("fm-session-main atomicity and locks", () => {
       scrub(dbPath);
     }
   });
-});
-
-test("classifyStore rejects a legacy+port hybrid instead of calling it port-shaped", () => {
-  const dir = mkdtempSync(join(tmpdir(), "fm-hybrid-"));
-  try {
-    const p = join(dir, "session.db");
-    const db = new DatabaseSync(p);
-    try {
-      // The shape the pre-fix code produced: legacy schema still present, the
-      // port's tables created beside it, watermarks at 1 against live ids.
-      db.exec("CREATE TABLE schema_meta(key TEXT PRIMARY KEY, value TEXT)");
-      db.exec("INSERT INTO schema_meta VALUES('version','3')");
-      db.exec("CREATE TABLE facts(id INTEGER PRIMARY KEY, statement TEXT)");
-      db.exec("INSERT INTO facts VALUES(36,'live fact')");
-      db.exec("CREATE TABLE store_meta(key TEXT PRIMARY KEY, value TEXT)");
-      db.exec("INSERT INTO store_meta VALUES('next_id.fact','1')");
-    } finally {
-      db.close();
-    }
-    assert.equal(classifyStore(p), "corrupt");
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 test("a read-only command refuses to migrate a legacy store", () => {
@@ -366,7 +355,11 @@ test("addFact mints and inserts in one transaction", () => {
       process.env["FOREMAN_SESSION_DB"] = p;
       recordAndRestore(
         (sql) => statements.push(sql),
-        () => { rc = main(); },
+        () => {
+          const result = main();
+          assert.equal(typeof result, "number", "fact command must complete synchronously");
+          rc = result as number;
+        },
       );
     } finally {
       process.argv = savedArgv;
@@ -383,29 +376,6 @@ test("addFact mints and inserts in one transaction", () => {
     assert.ok(insertIdx !== -1, "the row insert must happen inside the same transaction");
     const commitIdx = statements.findIndex((s, i) => i > insertIdx && s === "COMMIT");
     assert.ok(commitIdx !== -1, "the transaction must commit after the insert");
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("classifyStore rejects a port file whose watermark sits behind its rows", () => {
-  const dir = mkdtempSync(join(tmpdir(), "fm-behind-"));
-  try {
-    const p = join(dir, "session.db");
-    const store = SqliteSessionStore.open(p);
-    store.addFact({
-      statement: "one", evidence: null,
-      established_ts: "2026-08-08T10:00:00Z", session_id: null,
-    });
-    store.close();
-    const db = new DatabaseSync(p);
-    try {
-      // Drive the watermark back behind the row it already minted.
-      db.exec("UPDATE store_meta SET value='1' WHERE key='next_id.fact'");
-    } finally {
-      db.close();
-    }
-    assert.equal(classifyStore(p), "corrupt");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1682,19 +1652,117 @@ function countNotes(p: string): number {
   }
 }
 
-test("W3.r3 FIX 1: classifyStore distinguishes absent from unrecognised", () => {
-  const dir = mkdtempSync(join(tmpdir(), "fm-w3r3-cls-"));
+test("Task 6 correction: import-sidecar --into preserves wrapper stderr for foreign/incomplete/missing-table", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fm-t6-into-"));
   try {
-    const missing = join(dir, "missing.db");
-    assert.equal(classifyStore(missing), "absent");
+    const incoming = join(dir, "incoming.ndjson");
+    writeFileSync(
+      incoming,
+      [
+        `{"format":"foreman-session-sidecar","format_version":1}`,
+        `{"table":"facts","row":{"id":1,"statement":"imported","evidence":null,"established_ts":"2026-08-01T00:00:00Z","session_id":null,"superseded_by":null,"superseded_at":null,"supersede_reason":null}}`,
+        "",
+      ].join("\n"),
+    );
 
-    const notes = join(dir, "notes.db");
-    writeForeignNotesDb(notes, ["keep-1", "keep-2"]);
-    assert.equal(classifyStore(notes), "unrecognised");
+    const foreign = join(dir, "foreign.db");
+    writeForeignNotesDb(foreign, ["keep-foreign"]);
+    const foreignBefore = readFileSync(foreign);
+    const foreignRes = spawnSession(dir, join(dir, "ambient.db"), [
+      "import-sidecar",
+      incoming,
+      "--into",
+      foreign,
+      "--force",
+    ]);
+    assert.equal(foreignRes.status, 2, `foreign --into exited ${foreignRes.status}`);
+    assert.match(
+      foreignRes.stderr,
+      /refusing: the session store at .*foreign\.db exists but is not a Foreman session database/,
+    );
+    assert.match(
+      foreignRes.stderr,
+      /refusing: cannot open target store: unrecognised session store at .*foreign\.db/,
+    );
+    assert.equal(countNotes(foreign), 1);
+    assert.ok(Buffer.compare(foreignBefore, readFileSync(foreign)) === 0);
 
-    const plain = join(dir, "plain.db");
-    writeFileSync(plain, "this is not sqlite");
-    assert.equal(classifyStore(plain), "unrecognised");
+    const incomplete = join(dir, "incomplete.db");
+    {
+      const db = new DatabaseSync(incomplete);
+      try {
+        db.exec("CREATE TABLE store_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)");
+        db.exec("INSERT INTO store_meta(key,value) VALUES('next_id.fact','1')");
+        db.exec(
+          "CREATE TABLE foreign_sentinel(id INTEGER PRIMARY KEY, body TEXT NOT NULL)",
+        );
+        db.exec("INSERT INTO foreign_sentinel(id,body) VALUES(1,'do-not-touch')");
+      } finally {
+        db.close();
+      }
+    }
+    assert.equal(classifyStore(incomplete), "corrupt");
+    const incompleteBefore = readFileSync(incomplete);
+    const incompleteRes = spawnSession(dir, join(dir, "ambient.db"), [
+      "import-sidecar",
+      incoming,
+      "--into",
+      incomplete,
+      "--force",
+    ]);
+    assert.equal(incompleteRes.status, 2, `incomplete --into exited ${incompleteRes.status}`);
+    assert.match(incompleteRes.stderr, /refusing: the session store at .*incomplete\.db/);
+    assert.ok(
+      Buffer.compare(incompleteBefore, readFileSync(incomplete)) === 0,
+      "incomplete --into must not mutate the target",
+    );
+    {
+      const probe = new DatabaseSync(incomplete, { readOnly: true });
+      try {
+        const names = new Set(
+          (probe.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all() as {
+            name: string;
+          }[]).map((r) => r.name),
+        );
+        for (const table of [
+          "sessions",
+          "facts",
+          "measurements",
+          "obligations",
+          "memory_outbox",
+        ] as const) {
+          assert.equal(names.has(table), false, `incomplete must still lack ${table}`);
+        }
+        const sentinel = probe
+          .prepare("SELECT body FROM foreign_sentinel WHERE id = 1")
+          .get() as { body: string } | undefined;
+        assert.equal(sentinel?.body, "do-not-touch");
+      } finally {
+        probe.close();
+      }
+    }
+
+    const missing = join(dir, "missing-table.db");
+    writeLegacyStore(missing, { omitTables: ["facts"] });
+    const missingBefore = readFileSync(missing);
+    const missingRes = spawnSession(dir, join(dir, "ambient.db"), [
+      "import-sidecar",
+      incoming,
+      "--into",
+      missing,
+      "--force",
+    ]);
+    assert.equal(missingRes.status, 2, `missing-table --into exited ${missingRes.status}`);
+    assert.match(
+      missingRes.stderr,
+      /refusing: the legacy session store at .*missing-table\.db could not be migrated to the port schema:/,
+    );
+    assert.match(
+      missingRes.stderr,
+      /refusing: cannot open target store: legacy store is missing declared table facts;/,
+    );
+    assert.equal(classifyStore(missing), "legacy");
+    assert.ok(Buffer.compare(missingBefore, readFileSync(missing)) === 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1903,14 +1971,6 @@ test("W3.r3 FIX 8: a read-only command must not rehydrate an existing empty port
   }
 });
 
-function sqliteError(errcode: number, message: string): Error {
-  const e = new Error(message) as Error & { code: string; errcode: number; errstr: string };
-  e.code = "ERR_SQLITE_ERROR";
-  e.errcode = errcode;
-  e.errstr = message;
-  return e;
-}
-
 function sqliteErrcodeOf(e: unknown): number | undefined {
   if (typeof e !== "object" || e === null) return undefined;
   const code = (e as { errcode?: unknown }).errcode;
@@ -1926,53 +1986,6 @@ function unlinkWalSidecars(p: string): void {
     }
   }
 }
-
-test("W3.r4 FIX A: classifyStore switches on sqlite_schema errcode", () => {
-  const dir = mkdtempSync(join(tmpdir(), "fm-w3r4-a-switch-"));
-  const origPrepare = DatabaseSync.prototype.prepare;
-  try {
-    const p = join(dir, "session.db");
-    SqliteSessionStore.open(p).close();
-
-    const cases: ReadonlyArray<{
-      errcode: number;
-      expect: "throw" | StoreShapeExpect;
-    }> = [
-      { errcode: 5, expect: "throw" },
-      { errcode: 8, expect: "throw" },
-      { errcode: 1544, expect: "throw" },
-      { errcode: 14, expect: "throw" },
-      { errcode: 11, expect: "corrupt" },
-      { errcode: 26, expect: "unrecognised" },
-    ];
-    for (const c of cases) {
-      DatabaseSync.prototype.prepare = function (sql: string) {
-        if (String(sql).includes("sqlite_schema")) {
-          throw sqliteError(c.errcode, `injected ${c.errcode}`);
-        }
-        return origPrepare.call(this, sql);
-      };
-      if (c.expect === "throw") {
-        assert.throws(
-          () => classifyStore(p),
-          (e: unknown) => sqliteErrcodeOf(e) === c.errcode,
-          `errcode ${c.errcode} must be rethrown, not classified`,
-        );
-      } else {
-        assert.equal(
-          classifyStore(p),
-          c.expect,
-          `errcode ${c.errcode} must classify ${c.expect}`,
-        );
-      }
-    }
-  } finally {
-    DatabaseSync.prototype.prepare = origPrepare;
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-type StoreShapeExpect = "corrupt" | "unrecognised";
 
 test("W3.r4 FIX A: a healthy port store under a chmod 500 parent is EACCES, not unrecognised", (t) => {
   if (!directoryModesAreEnforced()) {
@@ -2287,6 +2300,14 @@ test("files-only CLI routes every ordinary command through the selected SessionS
     } finally {
       sqliteProbe.close();
     }
+    // Explicit --into must create the SQLite target and must not create
+    // FilesOnly CURRENT/generation state beside that target.
+    assert.equal(existsSync(join(dir, "CURRENT")), false);
+    assert.equal(
+      fs.readdirSync(dir).some((name) => /^\d{16}$/.test(name)),
+      false,
+      "explicit --into must not mint a files-only generation directory",
+    );
     // Explicit --into must not replace the files-only store with the SQLite path.
     const stillFiles = spawnSession(dir, sentinel, ["sidecar", "--out", join(dir, "after-into.ndjson")], filesEnv);
     assert.equal(stillFiles.status, 0, stillFiles.stderr);

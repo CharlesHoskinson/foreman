@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { openSessionStore } from "./open.js";
+import { openSessionStore, openSqliteSessionStore } from "./open.js";
 import type { SessionStoreSelection } from "./open.js";
 import { SqliteSessionStore } from "./sqlite-store.js";
 import { FilesOnlySessionStore } from "./files-only.js";
@@ -331,5 +331,145 @@ describe("openSessionStore", () => {
       }),
     );
     assert.equal(existsSync(missingDir), false);
+  });
+
+  it("passes read-only access flags through the shared SQLite open path", () => {
+    const root = makeTempDir("ss-open-ro-access-");
+    const dbPath = join(root, "session.db");
+    mkdirSync(root, { recursive: true });
+    SqliteSessionStore.open(dbPath).close();
+    const calls: Array<{ readOnly: boolean; allowMigration: boolean }> = [];
+    const store = openSessionStore({
+      env: { FOREMAN_SESSION_DB: dbPath },
+      readOnly: true,
+      prepareSqlite: (_path, access) => {
+        calls.push({ ...access });
+      },
+    });
+    try {
+      assert.equal(calls.length, 1);
+      assert.deepEqual(calls[0], { readOnly: true, allowMigration: false });
+      assert.ok(store instanceof SqliteSessionStore);
+    } finally {
+      store.close();
+    }
+  });
+});
+
+describe("openSqliteSessionStore", () => {
+  it("opens SQLite when both supplied context and process.env select FilesOnly", () => {
+    const root = makeTempDir("ss-forced-sqlite-");
+    const dbPath = join(root, "forced.db");
+    const filesDir = join(root, "files-store");
+    mkdirSync(filesDir, { recursive: true });
+    const savedBackend = process.env.FOREMAN_SESSION_BACKEND;
+    const savedDir = process.env.FOREMAN_SESSION_DIR;
+    const savedDb = process.env.FOREMAN_SESSION_DB;
+    process.env.FOREMAN_SESSION_BACKEND = "files_only";
+    process.env.FOREMAN_SESSION_DIR = filesDir;
+    delete process.env.FOREMAN_SESSION_DB;
+    try {
+      // Context that would select files-only through openSessionStore.
+      const filesOnly = openSessionStore({
+        env: {
+          FOREMAN_SESSION_BACKEND: "files_only",
+          FOREMAN_SESSION_DIR: filesDir,
+        },
+      });
+      try {
+        assert.ok(filesOnly instanceof FilesOnlySessionStore);
+      } finally {
+        filesOnly.close();
+      }
+      const store = openSqliteSessionStore({ path: dbPath });
+      try {
+        assert.ok(store instanceof SqliteSessionStore);
+        assert.equal(existsSync(dbPath), true);
+        // Forced SQLite must not create FilesOnly layout beside the SQLite path.
+        assert.equal(existsSync(join(dirname(dbPath), "CURRENT")), false);
+      } finally {
+        store.close();
+      }
+    } finally {
+      if (savedBackend === undefined) delete process.env.FOREMAN_SESSION_BACKEND;
+      else process.env.FOREMAN_SESSION_BACKEND = savedBackend;
+      if (savedDir === undefined) delete process.env.FOREMAN_SESSION_DIR;
+      else process.env.FOREMAN_SESSION_DIR = savedDir;
+      if (savedDb === undefined) delete process.env.FOREMAN_SESSION_DB;
+      else process.env.FOREMAN_SESSION_DB = savedDb;
+    }
+  });
+
+  it("calls prepare exactly once before open with both access combinations", () => {
+    const root = makeTempDir("ss-forced-prepare-");
+    const writablePath = join(root, "writable.db");
+    const readablePath = join(root, "readable.db");
+    mkdirSync(root, { recursive: true });
+    SqliteSessionStore.open(readablePath).close();
+
+    const writableCalls: Array<{ path: string; access: { readOnly: boolean; allowMigration: boolean } }> =
+      [];
+    const writable = openSqliteSessionStore({
+      path: writablePath,
+      prepareSqlite: (path, access) => {
+        writableCalls.push({ path, access: { ...access } });
+        mkdirSync(dirname(path), { recursive: true });
+      },
+    });
+    try {
+      assert.equal(writableCalls.length, 1);
+      assert.equal(writableCalls[0]?.path, writablePath);
+      assert.deepEqual(writableCalls[0]?.access, {
+        readOnly: false,
+        allowMigration: true,
+      });
+      assert.ok(writable instanceof SqliteSessionStore);
+    } finally {
+      writable.close();
+    }
+
+    const readonlyCalls: Array<{ path: string; access: { readOnly: boolean; allowMigration: boolean } }> =
+      [];
+    const readable = openSqliteSessionStore({
+      path: readablePath,
+      readOnly: true,
+      prepareSqlite: (path, access) => {
+        readonlyCalls.push({ path, access: { ...access } });
+      },
+    });
+    try {
+      assert.equal(readonlyCalls.length, 1);
+      assert.equal(readonlyCalls[0]?.path, readablePath);
+      assert.deepEqual(readonlyCalls[0]?.access, {
+        readOnly: true,
+        allowMigration: false,
+      });
+      assert.ok(readable instanceof SqliteSessionStore);
+    } finally {
+      readable.close();
+    }
+  });
+
+  it("leaves no database when prepare throws", () => {
+    const root = makeTempDir("ss-forced-prepare-fail-");
+    const dbPath = join(root, "session.db");
+    assert.equal(existsSync(dbPath), false);
+    const sentinel = new Error("forced prepare refused");
+    let prepareCalls = 0;
+    assert.throws(
+      () =>
+        openSqliteSessionStore({
+          path: dbPath,
+          prepareSqlite: () => {
+            prepareCalls += 1;
+            throw sentinel;
+          },
+        }),
+      (error: unknown) => error === sentinel,
+    );
+    assert.equal(prepareCalls, 1);
+    assert.equal(existsSync(dbPath), false);
+    assert.equal(existsSync(`${dbPath}-wal`), false);
+    assert.equal(existsSync(`${dbPath}-shm`), false);
   });
 });

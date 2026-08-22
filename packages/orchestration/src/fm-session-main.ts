@@ -19,7 +19,6 @@ import {
 } from "node:fs";
 import { Cause, Effect, Exit } from "effect";
 import {
-  SqliteSessionStore,
   ENTITY_ORDER,
   countRows,
   decodeSnapshot,
@@ -28,6 +27,7 @@ import {
   isSessionStoreFailure,
   NullMemoryIndex,
   openSessionStore,
+  openSqliteSessionStore,
   reasonOf,
   rowsOfKind,
   SessionStoreError,
@@ -42,12 +42,11 @@ import {
   type SessionStoreFailureReason,
   type SessionStoreSelection,
 } from "@foreman/session-store";
+import { pathsAlias, sidecarPathFor } from "./session-paths.js";
 import {
   LegacyMigrationRefusal,
   bootstrapStore,
-  pathsAlias,
-  sidecarPathFor,
-} from "./session-legacy-shape.js";
+} from "./session-sqlite-bootstrap.js";
 
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
 /** Derived-bookkeeping commands: mutate outbox only; skip automatic sidecar refresh. */
@@ -327,13 +326,18 @@ function openCliStore(opts: { readonly readOnly?: boolean } = {}): OpenedCliStor
 
 /**
  * Explicit SQLite import target for `import-sidecar --into PATH` only.
- * Narrow Task-6 exception: ordinary commands must not call this.
+ * Ignores a configured FilesOnly backend.
  */
-function openExplicitSqliteImportTarget(target: string): SqliteSessionStore {
+function openExplicitSqliteImportTarget(target: string): SessionStore {
   try {
-    mkdirSync(dirname(target), { recursive: true });
-    const migrated = bootstrapStore(target, { allowMigration: true, readOnly: false });
-    const store = SqliteSessionStore.open(target);
+    let migrated = false;
+    const store = openSqliteSessionStore({
+      path: target,
+      prepareSqlite: (path, access) => {
+        mkdirSync(dirname(path), { recursive: true });
+        migrated = bootstrapStore(path, access);
+      },
+    });
     if (migrated) {
       try {
         persistSidecarAfterMigration(store, {
@@ -1344,8 +1348,6 @@ export function main(): number | Promise<number> {
   if (cmd === "import-sidecar") {
     const explicitInto = parsed.options.into;
     if (explicitInto !== undefined) {
-      // Explicit SQLite import target — the only ordinary-command exception
-      // until Task 6. See openExplicitSqliteImportTarget.
       const store = openExplicitSqliteImportTarget(explicitInto);
       try {
         const path = requirePositional(parsed.args, 0, "PATH");

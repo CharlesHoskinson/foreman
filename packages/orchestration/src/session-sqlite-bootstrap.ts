@@ -1,0 +1,197 @@
+/**
+ * CLI policy for recognizing and migrating a pre-port session database.
+ *
+ * Raw SQLite classification/dump/empty queries live in @foreman/session-store.
+ * This module owns exact CLI strings, process.exit, and rebuild remedies.
+ */
+
+import fs from "node:fs";
+import {
+  classifySqliteStore,
+  decodeSnapshot,
+  dumpLegacySqliteAsV1,
+  openSqliteSessionStore,
+  rebuildSqliteFromSidecar,
+  sqliteStoreIsEmpty,
+} from "@foreman/session-store";
+import { pathsAlias, sidecarPathFor } from "./session-paths.js";
+
+/** Refused legacy dump. Callers map this to the exit-2 refusal class. */
+export class LegacyMigrationRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LegacyMigrationRefusal";
+  }
+}
+
+export type BootstrapOpts = {
+  readonly allowMigration: boolean;
+  readonly readOnly: boolean;
+};
+
+function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * Whether `fm-session recover` can rebuild from the tracked sidecar after
+ * the store file is moved aside. A missing sidecar still lets recover
+ * create an empty port store. An unreadable sidecar, or one that cannot
+ * be parsed, makes
+ * recover exit 2, so it must not be named as the immediate next step.
+ */
+function trackedSidecarCanRebuild(dbPath: string): boolean {
+  const sidecar = sidecarPathFor(dbPath);
+  try {
+    if (!fs.existsSync(sidecar)) return true;
+    decodeSnapshot(fs.readFileSync(sidecar, "utf8"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sidecarRebuildRemedy(dbPath: string, asideSuffix: string): string {
+  const move = `mv ${dbPath} ${dbPath}.${asideSuffix} && fm-session recover`;
+  if (trackedSidecarCanRebuild(dbPath)) {
+    return `Move it aside and rebuild from the tracked sidecar: ${move}`;
+  }
+  return `The tracked sidecar cannot be used to rebuild this store. Clear the sidecar fault, then: ${move}`;
+}
+
+function rehydrateFromSidecarIfEmpty(p: string): void {
+  const sidecar = sidecarPathFor(p);
+  if (pathsAlias(sidecar, p) || !fs.existsSync(sidecar)) return;
+  try {
+    if (!sqliteStoreIsEmpty(p)) return;
+  } catch {
+    return;
+  }
+  try {
+    const res = rebuildSqliteFromSidecar({ sidecarPath: sidecar, dbPath: p, force: true });
+    process.stderr.write(
+      `rehydrated ${res.rowsWritten} row(s) from ${sidecar} (the .db is a derived cache; the sidecar is what git tracks)\n`,
+    );
+  } catch (e) {
+    // The sidecar is the tracked record of truth. If it cannot be read, coming
+    // up empty is worse than failing: the next write would produce a "correct"
+    // store with none of the history in it.
+    process.stderr.write(
+      `refusing: the session store is empty and the tracked sidecar at ${sidecar} could not be read: ${errorMessage(e)}\n`,
+    );
+    throw new LegacyMigrationRefusal(errorMessage(e));
+  }
+}
+
+/**
+ * Guarantee the file at `p` is port-shaped BEFORE anything opens it.
+ *
+ * The port creates its tables with CREATE TABLE IF NOT EXISTS, so opening it
+ * straight onto a legacy file returns cleanly while leaving the old schema in
+ * place and seeding every id watermark to 1 against live ids in the thirties.
+ * The next write then collides on the primary key. The only safe migration is
+ * a rebuild into a FRESH file, which is what rebuildSqliteFromSidecar does.
+ *
+ * A legacy file is migrated from ITS OWN contents rather than from the tracked
+ * sidecar. It is the artefact being replaced, so nothing it holds may be lost
+ * to a sidecar that is stale, or missing entirely.
+ *
+ * Returns true only when this call migrated a legacy-shaped file. Callers that
+ * have already rewritten the store must persist a tracked sidecar even if the
+ * command later refuses.
+ */
+export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
+  const shape = classifySqliteStore(p);
+  if (shape === "corrupt") {
+    process.stderr.write(
+      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. ` +
+        `It is the half-migrated state a pre-fix open produced. ` +
+        `${sidecarRebuildRemedy(p, "corrupt")}\n`,
+    );
+    process.exit(2);
+  }
+  if (shape === "unrecognised") {
+    process.stderr.write(
+      `refusing: the session store at ${p} exists but is not a Foreman session database. ` +
+        `This tool will not write into a file it does not recognise. ` +
+        `${sidecarRebuildRemedy(p, "unrecognised")}\n`,
+    );
+    throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
+  }
+  if (shape === "legacy") {
+    if (!opts.allowMigration) {
+      process.stderr.write(
+        `refusing: the session store at ${p} is in the pre-port schema and this is a read-only command. ` +
+          `Run a write command, or \`fm-session import-sidecar\`, to migrate it.\n`,
+      );
+      process.exit(2);
+    }
+    const carrier = `${p}.legacy.ndjson`;
+    try {
+      const dumped = dumpLegacySqliteAsV1(p);
+      if (!dumped.ok) {
+        throw new LegacyMigrationRefusal(
+          `legacy store is missing declared table ${dumped.table}; ` +
+            `refusing a lossy dump that would recreate it empty. ` +
+            `Move it aside and rebuild from the tracked sidecar: ` +
+            `mv ${p} ${p}.unmigratable && fm-session recover`,
+        );
+      }
+      fs.writeFileSync(carrier, dumped.text, { encoding: "utf8" });
+      const res = rebuildSqliteFromSidecar({ sidecarPath: carrier, dbPath: p, force: true });
+      process.stderr.write(`migrated ${res.rowsWritten} row(s) out of the legacy session schema into ${p}\n`);
+    } catch (e) {
+      process.stderr.write(
+        `refusing: the legacy session store at ${p} could not be migrated to the port schema: ${errorMessage(e)}\n`,
+      );
+      throw new LegacyMigrationRefusal(errorMessage(e));
+    } finally {
+      fs.rmSync(carrier, { force: true });
+    }
+    rehydrateFromSidecarIfEmpty(p);
+    return true;
+  }
+  if (shape === "absent") {
+    // Nothing exists yet to mutate: creating the schema and, below,
+    // rehydrating from the tracked sidecar is CREATING a missing derived
+    // cache, not writing to a store that already exists. Legitimate
+    // regardless of whether the command itself is read-only -- the goldens
+    // depend on exactly this path.
+    //
+    // "absent" now means the path has no file. If a file appeared between
+    // classify and here, refuse rather than write into it.
+    if (fs.existsSync(p)) {
+      process.stderr.write(
+        `refusing: the session store at ${p} exists but is not a Foreman session database. ` +
+          `This tool will not write into a file it does not recognise. ` +
+          `${sidecarRebuildRemedy(p, "unrecognised")}\n`,
+      );
+      throw new LegacyMigrationRefusal(`unrecognised session store at ${p}`);
+    }
+    openSqliteSessionStore({ path: p }).close();
+    try {
+      rehydrateFromSidecarIfEmpty(p);
+    } catch (e) {
+      // Delete only the empty file this invocation just created. A cleanup
+      // throw must not replace the refusal it was cleaning up after.
+      try {
+        for (const suffix of ["", "-wal", "-shm"] as const) {
+          fs.rmSync(p + suffix, { force: true });
+        }
+      } catch {
+        // keep `e`
+      }
+      throw e;
+    }
+    return false;
+  }
+  // shape === "port": the file already exists and is already the derived
+  // cache. A read-only command must not write to a store that already
+  // exists, so it may not rehydrate one here even if the store happens to be
+  // empty right now -- that would still be a write to something present on
+  // disk, not the creation of something missing.
+  if (!opts.readOnly) {
+    rehydrateFromSidecarIfEmpty(p);
+  }
+  return false;
+}

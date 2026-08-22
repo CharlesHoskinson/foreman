@@ -138,10 +138,26 @@ export {
 
 export {
   openSessionStore,
+  openSqliteSessionStore,
   type OpenSessionStoreOptions,
+  type OpenSqliteStoreOptions,
   type SessionStoreOpenAccess,
   type SessionStoreSelection,
 } from "./open.js";
+
+export {
+  classifySqliteStore,
+  dumpLegacySqliteAsV1,
+  sqliteStoreIsEmpty,
+  type DumpLegacySqliteAsV1Result,
+  type SqliteStoreShape,
+} from "./sqlite-migration.js";
+
+export {
+  rebuildSqliteFromSidecar,
+  type SqliteRebuildOptions,
+  type SqliteRebuildResult,
+} from "./sqlite-rebuild.js";
 
 export {
   ALL_CASES,

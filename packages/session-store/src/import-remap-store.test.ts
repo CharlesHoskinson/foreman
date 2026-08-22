@@ -239,7 +239,10 @@ for (const harness of [sqliteHarness, filesHarness]) {
         );
         assert.ok(
           !appended.some(
-            (e) => e.record.kind === "fact" && e.record.text === "pred",
+            (e) =>
+              e.record.kind === "fact" &&
+              e.record.mutation === "upsert" &&
+              e.record.text === "pred",
           ),
           "superseded imported predecessor must not upsert",
         );

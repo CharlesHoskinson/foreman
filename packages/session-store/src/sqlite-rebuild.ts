@@ -12,29 +12,35 @@
  */
 
 import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
-import { decodeSnapshot, SqliteSessionStore } from "@foreman/session-store";
-import type { NextIds } from "@foreman/session-store";
+import type { NextIds } from "./entities.js";
+import { openSqliteSessionStore } from "./open.js";
+import { decodeSnapshot } from "./sidecar.js";
 
 function removeJournalSidecars(dbPath: string): void {
   rmSync(`${dbPath}-wal`, { force: true });
   rmSync(`${dbPath}-shm`, { force: true });
 }
 
-export type RebuildResult = {
+export type SqliteRebuildResult = {
   readonly rowsWritten: number;
   readonly nextIds: NextIds;
 };
 
-export type RebuildOptions = {
+export type SqliteRebuildOptions = {
   readonly sidecarPath: string;
   readonly dbPath: string;
   /** Replace an existing database. Without this an existing file is refused. */
   readonly force?: boolean;
   /** Test hook. Called at the instant after dest rename. Production callers omit it. */
   readonly afterRename?: () => void;
+  /**
+   * Test hook. Called after a successful dest-WAL aside move and before the
+   * dest-SHM aside move. Production callers omit it.
+   */
+  readonly afterWalAside?: () => void;
 };
 
-export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
+export function rebuildSqliteFromSidecar(opts: SqliteRebuildOptions): SqliteRebuildResult {
   if (existsSync(opts.dbPath) && opts.force !== true) {
     throw new Error(
       `${opts.dbPath} already exists; pass force to replace it. ` +
@@ -48,7 +54,7 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
   rmSync(tmpPath, { force: true });
   removeJournalSidecars(tmpPath);
 
-  const store = SqliteSessionStore.open(tmpPath);
+  const store = openSqliteSessionStore({ path: tmpPath });
   let rowsWritten: number;
   try {
     rowsWritten = store.importSnapshot(snapshot);
@@ -69,18 +75,28 @@ export function rebuildFromSidecar(opts: RebuildOptions): RebuildResult {
   const asideShm = `${opts.dbPath}-shm.rebuild-aside`;
   rmSync(asideWal, { force: true });
   rmSync(asideShm, { force: true });
-  const movedWal = existsSync(`${opts.dbPath}-wal`);
-  if (movedWal) renameSync(`${opts.dbPath}-wal`, asideWal);
-  const movedShm = existsSync(`${opts.dbPath}-shm`);
-  if (movedShm) renameSync(`${opts.dbPath}-shm`, asideShm);
+  // One recovery boundary covers every journal aside and the dest rename.
+  // Track each successful move separately so a failure on the second journal
+  // restores the first instead of stranding it at .rebuild-aside.
+  let movedWal = false;
+  let movedShm = false;
   try {
+    if (existsSync(`${opts.dbPath}-wal`)) {
+      renameSync(`${opts.dbPath}-wal`, asideWal);
+      movedWal = true;
+    }
+    opts.afterWalAside?.();
+    if (existsSync(`${opts.dbPath}-shm`)) {
+      renameSync(`${opts.dbPath}-shm`, asideShm);
+      movedShm = true;
+    }
     renameSync(tmpPath, opts.dbPath);
   } catch (e) {
     try {
       if (movedWal) renameSync(asideWal, `${opts.dbPath}-wal`);
       if (movedShm) renameSync(asideShm, `${opts.dbPath}-shm`);
     } catch {
-      // Restore failure must not replace the rename error.
+      // Restore failure must not replace the initiating error.
     }
     throw e;
   }
