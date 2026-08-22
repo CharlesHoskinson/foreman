@@ -161,6 +161,22 @@ export interface SessionStore {
    */
   importSnapshot(snapshot: SessionSnapshot, opts?: ImportOptions): number;
 
+  // -- projection outbox ---------------------------------------------------
+  /**
+   * Oldest pending projection work, up to `limit`.
+   * `limit` must be a positive safe integer in 1..1000.
+   * Returned entries are defensive copies; receipts are opaque versions.
+   */
+  listOutbox(limit: number): readonly OutboxEntry[];
+
+  /**
+   * Atomically acknowledge exact receipt versions. Deduplicates receipts,
+   * ignores unknown and stale versions, and returns the number deleted.
+   * A receipt identifies one version only: a newer coalesced replacement
+   * survives a stale ack (compare-and-delete).
+   */
+  ackOutbox(receipts: readonly string[]): number;
+
   // -- lifecycle -----------------------------------------------------------
   close(): void;
 }
@@ -184,13 +200,39 @@ export type EntityRef = {
   readonly score: number;
 };
 
-export type ProjectionRecord = {
-  /** Stable idempotency key: `${kind}:${id}:${mutation}`. */
-  readonly key: string;
-  readonly kind: CountedKind;
-  readonly id: number;
-  /** Projectable text only. Redaction happens before this point. */
-  readonly text: string;
+export type ProjectionMutation = "upsert" | "retract";
+
+/**
+ * Desired-state projection unit.
+ *
+ * `key` is the stable adapter identity `${kind}:${id}`. Mutation is a field,
+ * not part of the key — so a timeout after a remote apply and before local ack
+ * retries the same desired-state identity (durable at-least-once).
+ */
+export type ProjectionRecord =
+  | {
+      readonly key: string;
+      readonly kind: CountedKind;
+      readonly id: number;
+      readonly mutation: "upsert";
+      readonly text: string;
+    }
+  | {
+      readonly key: string;
+      readonly kind: CountedKind;
+      readonly id: number;
+      readonly mutation: "retract";
+    };
+
+/**
+ * One pending outbox version.
+ *
+ * `receipt` is an opaque compare-and-delete version for local ack. It is not
+ * the adapter idempotency key — that role belongs to `record.key`.
+ */
+export type OutboxEntry = {
+  readonly receipt: string;
+  readonly record: ProjectionRecord;
 };
 
 /**

@@ -74,10 +74,12 @@ describe("invariant I2 — correctness independence", () => {
   it("keeps the system of record free of MemoryIndex imports", () => {
     for (const file of [
       "sqlite-store.ts",
+      "files-only.ts",
       "entities.ts",
       "integrity.ts",
       "sidecar.ts",
       "sidecar-v1.ts",
+      "projection.ts",
     ]) {
       const src = readFileSync(join(here, file), "utf8");
       assert.ok(
@@ -123,13 +125,57 @@ describe("projection", () => {
       seedFixture(store);
       const superseded = store.listFacts().filter((f) => f.superseded_by !== null);
       assert.ok(superseded.length > 0, "fixture should contain a superseded fact");
-      const ids = new Set(buildProjection(store.snapshot()).map((r) => `${r.kind}:${r.id}`));
+      const ids = new Set(buildProjection(store.snapshot()).map((r) => r.key));
       for (const row of superseded) {
         assert.ok(
           !ids.has(`fact:${row.id}`),
           `superseded fact ${row.id} was projected; stale recall poisons consumers`,
         );
       }
+    } finally {
+      store.close();
+    }
+  });
+
+  it("uses kind:id keys with mutation as a field, not part of the key", () => {
+    const store = openMemoryStore();
+    try {
+      seedFixture(store);
+      const records = buildProjection(store.snapshot());
+      assert.ok(records.length > 0);
+      for (const r of records) {
+        assert.equal(r.key, `${r.kind}:${r.id}`);
+        assert.equal(r.mutation, "upsert");
+        assert.equal(r.key.includes("upsert"), false);
+        assert.equal(typeof r.text, "string");
+      }
+    } finally {
+      store.close();
+    }
+  });
+
+  it("emits an upsert for every live entity even when projectable text is empty", () => {
+    const store = openMemoryStore();
+    try {
+      const row = store.addFact({
+        statement: "",
+        evidence: "/secret",
+        established_ts: "2026-08-08T10:00:00Z",
+        session_id: null,
+      });
+      const projected = buildProjection(store.snapshot());
+      const empty = projected.find((r) => r.key === `fact:${row.id}`);
+      assert.ok(empty, "buildProjection must emit the empty-text live fact");
+      assert.equal(empty.mutation, "upsert");
+      assert.equal(empty.text, "");
+
+      const queued = store.listOutbox(100);
+      const q = queued.find(
+        (e) => e.record.kind === "fact" && e.record.id === row.id,
+      );
+      assert.ok(q, "commit queueing must use the same empty-text upsert semantics");
+      assert.equal(q.record.mutation, "upsert");
+      if (q.record.mutation === "upsert") assert.equal(q.record.text, "");
     } finally {
       store.close();
     }
@@ -204,8 +250,8 @@ describe("conformance suite soundness (negative control)", () => {
     // findViolations. Only the rest can discriminate a backend. These counts are
     // pinned so that a case added without a factory parameter shows up here
     // rather than silently diluting the control below.
-    assert.equal(ALL_CASES.length, 37);
-    assert.equal(STORE_CASES.length, 20);
+    assert.equal(ALL_CASES.length, 40);
+    assert.equal(STORE_CASES.length, 23);
   });
 
   it("fails a do-nothing backend across at least three independent categories", () => {

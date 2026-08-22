@@ -24,6 +24,7 @@ import type {
   NewFact,
   NewMeasurement,
   NewObligation,
+  OutboxEntry,
   SessionStore,
   SupersedeResult,
 } from "./port.js";
@@ -671,6 +672,103 @@ export const CASES: readonly Case[] = [
       }
     },
   },
+  {
+    name: "outbox/queues-projection-on-entity-mutation",
+    run: (f) => {
+      const s = f();
+      try {
+        const fact = s.addFact({
+          statement: "queued for projection",
+          evidence: "/secret/path/credentials",
+          established_ts: "2026-08-08T10:00:00Z",
+          session_id: null,
+        });
+        const entries = s.listOutbox(100);
+        const hit = entries.find(
+          (e) => e.record.kind === "fact" && e.record.id === fact.id,
+        );
+        assert(hit !== undefined, "addFact must queue a projection entry");
+        assert(hit.record.key === `fact:${fact.id}`, "desired-state key must be kind:id");
+        assert(hit.record.mutation === "upsert", "add must queue upsert");
+        if (hit.record.mutation === "upsert") {
+          assert(
+            hit.record.text === "queued for projection",
+            "outbox text must be projectable fields only",
+          );
+          assert(
+            !hit.record.text.includes("/secret/path"),
+            "evidence must not enter outbox text",
+          );
+        }
+        assert(typeof hit.receipt === "string" && hit.receipt.length > 0, "receipt required");
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "outbox/selective-receipt-ack",
+    run: (f) => {
+      const s = f();
+      try {
+        const a = s.addFact({
+          statement: "a",
+          evidence: null,
+          established_ts: "2026-08-08T10:00:00Z",
+          session_id: null,
+        });
+        const b = s.addFact({
+          statement: "b",
+          evidence: null,
+          established_ts: "2026-08-08T10:01:00Z",
+          session_id: null,
+        });
+        const before = s.listOutbox(100);
+        const aEntry = before.find((e) => e.record.id === a.id && e.record.kind === "fact");
+        const bEntry = before.find((e) => e.record.id === b.id && e.record.kind === "fact");
+        assert(aEntry !== undefined && bEntry !== undefined, "both facts must be queued");
+        const deleted = s.ackOutbox([aEntry.receipt]);
+        assert(deleted === 1, `expected 1 ack, got ${deleted}`);
+        const after = s.listOutbox(100);
+        assert(
+          after.every((e) => e.receipt !== aEntry.receipt),
+          "acked receipt must be gone",
+        );
+        assert(
+          after.some((e) => e.receipt === bEntry.receipt),
+          "unacked receipt must remain",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
+  {
+    name: "outbox/unknown-receipt-noop",
+    run: (f) => {
+      const s = f();
+      try {
+        s.addFact({
+          statement: "stays",
+          evidence: null,
+          established_ts: "2026-08-08T10:00:00Z",
+          session_id: null,
+        });
+        const before = s.listOutbox(100);
+        assert(before.length >= 1, "expected pending work");
+        const deleted = s.ackOutbox(["receipt-that-does-not-exist"]);
+        assert(deleted === 0, `unknown receipt must delete 0, got ${deleted}`);
+        const after = s.listOutbox(100);
+        assert(
+          after.length === before.length &&
+            after.every((e, i) => e.receipt === before[i]!.receipt),
+          "unknown ack must leave the queue unchanged",
+        );
+      } finally {
+        s.close();
+      }
+    },
+  },
 ];
 
 /** Hostile-snapshot cases: pure validation, no store needed. */
@@ -1120,6 +1218,14 @@ export class StubEmptyBackend implements SessionStore {
   }
 
   importSnapshot(_snapshot: SessionSnapshot, _opts?: unknown): number {
+    return 0;
+  }
+
+  listOutbox(_limit: number): readonly OutboxEntry[] {
+    return [];
+  }
+
+  ackOutbox(_receipts: readonly string[]): number {
     return 0;
   }
 

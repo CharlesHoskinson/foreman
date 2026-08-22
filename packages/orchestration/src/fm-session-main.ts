@@ -17,18 +17,25 @@ import {
   accessSync,
   constants,
 } from "node:fs";
+import { Cause, Effect, Exit } from "effect";
 import {
   SqliteSessionStore,
   ENTITY_ORDER,
   countRows,
   decodeSnapshot,
+  drainOutbox,
   encodeSnapshot,
   isSessionStoreFailure,
+  NullMemoryIndex,
   openSessionStore,
   reasonOf,
   rowsOfKind,
   SessionStoreError,
   specFor,
+  type DrainOptions,
+  type DrainResult,
+  type MemoryIndex,
+  type OutboxDrainFailure,
   type SessionRow,
   type SessionSnapshot,
   type SessionStore,
@@ -43,6 +50,8 @@ import {
 } from "./session-legacy-shape.js";
 
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
+/** Derived-bookkeeping commands: mutate outbox only; skip automatic sidecar refresh. */
+const NO_SIDECAR_REFRESH_CMDS = new Set(["sync"]);
 const STORE_CMDS = new Set([
   "begin",
   "recover",
@@ -56,6 +65,7 @@ const STORE_CMDS = new Set([
   "import-sidecar",
   "supersede",
   "retire",
+  "sync",
 ]);
 
 type StringOption =
@@ -69,7 +79,11 @@ type StringOption =
   | "out"
   | "into"
   | "by"
-  | "reason";
+  | "reason"
+  | "batch"
+  | "max-attempts"
+  | "timeout-ms"
+  | "max-batches";
 
 type ParsedOptions = {
   json: boolean;
@@ -87,12 +101,45 @@ type ParsedOptions = {
   into: string | undefined;
   by: string | undefined;
   reason: string | undefined;
+  batch: string | undefined;
+  "max-attempts": string | undefined;
+  "timeout-ms": string | undefined;
+  "max-batches": string | undefined;
 };
+
+/**
+ * Test seam for sync: inject a MemoryIndex or drain function without shipping
+ * adapter selection in v0.3.1.
+ */
+export type SyncTestDeps = {
+  readonly index?: MemoryIndex;
+  readonly drain?: (
+    store: SessionStore,
+    index: MemoryIndex,
+    opts: DrainOptions,
+  ) => Effect.Effect<DrainResult, OutboxDrainFailure>;
+};
+
+let syncTestDeps: SyncTestDeps | undefined;
+
+/** Test-only. Pass undefined to clear. */
+export function setSyncTestDeps(deps: SyncTestDeps | undefined): void {
+  syncTestDeps = deps;
+}
 
 type ParsedCli = {
   readonly args: string[];
   readonly options: ParsedOptions;
+  /** Option names (without `--`) explicitly present on the argv. */
+  readonly present: ReadonlySet<string>;
 };
+
+const SYNC_ALLOWED_OPTIONS = new Set([
+  "batch",
+  "max-attempts",
+  "timeout-ms",
+  "max-batches",
+]);
 
 type Validity = "fresh" | "stale" | "unknown";
 
@@ -960,6 +1007,10 @@ function emptyOptions(): ParsedOptions {
     into: undefined,
     by: undefined,
     reason: undefined,
+    batch: undefined,
+    "max-attempts": undefined,
+    "timeout-ms": undefined,
+    "max-batches": undefined,
   };
 }
 
@@ -977,24 +1028,52 @@ const STRING_ARGS = new Set([
   "--into",
   "--by",
   "--reason",
+  "--batch",
+  "--max-attempts",
+  "--timeout-ms",
+  "--max-batches",
 ]);
+
+function parseStrictIntInRange(
+  raw: string | undefined,
+  label: string,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  if (raw === undefined) return fallback;
+  // Strict decimal integers only: no sign, no whitespace, no floats.
+  if (!/^[0-9]+$/.test(raw)) {
+    process.stderr.write(`refusing: ${label} must be a decimal integer\n`);
+    exitCli(2);
+  }
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < min || n > max) {
+    process.stderr.write(`refusing: ${label} must be an integer in ${min}..${max}\n`);
+    exitCli(2);
+  }
+  return n;
+}
 
 function isStringOption(key: string): key is StringOption {
   return STRING_ARGS.has(`--${key}`);
 }
 
 function parseCli(argv: readonly string[]): ParsedCli {
-  const parsed: ParsedCli = { args: [], options: emptyOptions() };
+  const options = emptyOptions();
+  const present = new Set<string>();
+  const args: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === undefined) continue;
     if (arg.startsWith("--")) {
       if (BOOLEAN_ARGS.has(arg)) {
         const key = arg.slice(2);
+        present.add(key);
         if (key === "json" || key === "stale-only" || key === "force") {
-          parsed.options[key] = true;
+          options[key] = true;
         }
-      } else if (STRING_ARGS.has(arg)) {
+      } else if (STRING_ARGS.has(arg) || arg === "--scope") {
         if (i + 1 >= argv.length) {
           process.stderr.write(`error: option ${arg} requires an argument\n`);
           exitCli(2);
@@ -1005,23 +1084,29 @@ function parseCli(argv: readonly string[]): ParsedCli {
           exitCli(2);
         }
         if (arg === "--scope") {
-          parsed.options.scope.push(value);
+          present.add("scope");
+          options.scope.push(value);
         } else {
           const key = arg.slice(2);
-          if (isStringOption(key)) parsed.options[key] = value;
+          present.add(key);
+          if (isStringOption(key)) options[key] = value;
         }
       } else {
         process.stderr.write(`error: unrecognized option: ${arg}\n`);
         exitCli(2);
       }
     } else {
-      parsed.args.push(arg);
+      args.push(arg);
     }
   }
-  return parsed;
+  return { args, options, present };
 }
 
-export function main(): number {
+/**
+ * CLI entry. Most commands return a synchronous exit code. `sync` returns a
+ * Promise because it runs an Effect drain; direct entry awaits both forms.
+ */
+export function main(): number | Promise<number> {
   const args = process.argv.slice(2);
   const cmd = args[0];
   if (cmd === undefined) {
@@ -1034,6 +1119,10 @@ export function main(): number {
   }
 
   const parsed = parseCli(args.slice(1));
+
+  if (cmd === "sync") {
+    return runSync(parsed);
+  }
 
   if (cmd === "begin") {
     const { store } = openCliStore();
@@ -1378,10 +1467,84 @@ export function main(): number {
   exitCli(2);
 }
 
-function mainWithSidecar(): void {
+async function runSync(parsed: ParsedCli): Promise<number> {
+  if (parsed.args.length > 0) {
+    process.stderr.write("refusing: sync accepts no positional arguments\n");
+    exitCli(2);
+  }
+  for (const key of parsed.present) {
+    if (!SYNC_ALLOWED_OPTIONS.has(key)) {
+      process.stderr.write(`refusing: sync does not accept --${key}\n`);
+      exitCli(2);
+    }
+  }
+  const opts: DrainOptions = {
+    batch: parseStrictIntInRange(parsed.options.batch, "--batch", 1, 1000, 100),
+    maxAttempts: parseStrictIntInRange(
+      parsed.options["max-attempts"],
+      "--max-attempts",
+      1,
+      10,
+      3,
+    ),
+    timeoutMs: parseStrictIntInRange(
+      parsed.options["timeout-ms"],
+      "--timeout-ms",
+      1,
+      300_000,
+      5000,
+    ),
+    maxBatches: parseStrictIntInRange(
+      parsed.options["max-batches"],
+      "--max-batches",
+      1,
+      10_000,
+      100,
+    ),
+  };
+
+  const { store } = openCliStore();
+  const index = syncTestDeps?.index ?? new NullMemoryIndex();
+  const drain = syncTestDeps?.drain ?? drainOutbox;
+  try {
+    const exit = await Effect.runPromiseExit(drain(store, index, opts));
+    if (Exit.isSuccess(exit)) {
+      const result = exit.value;
+      process.stdout.write(
+        `synced ${result.projected} record(s) to ${index.name} in ${result.attempts} attempt(s)\n`,
+      );
+      return 0;
+    }
+    const squashed = Cause.squash(exit.cause);
+    let reason = "failed";
+    let projected = 0;
+    let attempts = 0;
+    let batches = 0;
+    if (
+      squashed !== null &&
+      typeof squashed === "object" &&
+      "_tag" in squashed &&
+      (squashed as OutboxDrainFailure)._tag === "OutboxDrainFailure"
+    ) {
+      const f = squashed as OutboxDrainFailure;
+      reason = f.reason;
+      projected = f.projected;
+      attempts = f.attempts;
+      batches = f.batches;
+    }
+    process.stderr.write(
+      `refusing: sync failed (${reason}; projected=${projected} attempts=${attempts} batches=${batches})\n`,
+    );
+    return 1;
+  } finally {
+    store.close();
+  }
+}
+
+async function mainWithSidecar(): Promise<void> {
   let rc = 0;
   try {
-    rc = main() || 0;
+    rc = (await Promise.resolve(main())) || 0;
   } catch (e) {
     if (e instanceof CliRefusal) {
       process.exit(e.exitCode);
@@ -1395,7 +1558,12 @@ function mainWithSidecar(): void {
     }
   }
   const invoked = process.argv[2];
-  if (rc !== 0 || process.argv.length < 3 || (invoked !== undefined && READ_ONLY_CMDS.has(invoked))) {
+  if (
+    rc !== 0 ||
+    process.argv.length < 3 ||
+    (invoked !== undefined && READ_ONLY_CMDS.has(invoked)) ||
+    (invoked !== undefined && NO_SIDECAR_REFRESH_CMDS.has(invoked))
+  ) {
     process.exit(rc);
   }
 
@@ -1470,5 +1638,9 @@ function mainWithSidecar(): void {
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  mainWithSidecar();
+  void mainWithSidecar().catch((e) => {
+    // Promise-safe direct entry: no unhandled rejection, no stack dump.
+    process.stderr.write(`refusing: ${errorMessage(e)}\n`);
+    process.exit(1);
+  });
 }

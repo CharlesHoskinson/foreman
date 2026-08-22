@@ -20,13 +20,18 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { Effect } from "effect";
 import {
   SqliteSessionStore,
   encodeSnapshot,
   countRows,
   decodeSnapshot,
+  outboxDrainFailure,
   SessionStoreError,
   sessionStoreFailure,
+  type DrainResult,
+  type MemoryIndex,
+  type SessionStore,
 } from "@foreman/session-store";
 import {
   sidecarNdjson,
@@ -35,6 +40,7 @@ import {
   assessSidecarReplace,
   writeAtomic,
   CliRefusal,
+  setSyncTestDeps,
 } from "./fm-session-main.js";
 import {
   bootstrapStore,
@@ -2394,4 +2400,230 @@ test("Task 3B correction: recognized-command validation migrates before refusal"
       rmSync(dir, { recursive: true, force: true });
     }
   }
+});
+
+describe("fm-session sync", () => {
+  it("selects the SQLite store via FOREMAN_SESSION_DB", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-sqlite-"));
+    try {
+      const p = join(dir, "session.db");
+      const seeded = spawnSession(dir, p, ["fact", "sync-sqlite-seed"]);
+      assert.equal(seeded.status, 0, seeded.stderr);
+      const res = spawnSession(dir, p, ["sync"]);
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(res.stdout, /^synced \d+ record\(s\) to null in \d+ attempt\(s\)\n$/);
+      assert.ok(
+        Number(res.stdout.match(/^synced (\d+)/)?.[1] ?? "0") >= 1,
+        "seeded sqlite store must drain at least one record",
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("selects the files-only store via FOREMAN_SESSION_BACKEND", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-files-"));
+    try {
+      const filesDir = join(dir, "files-store");
+      mkdirSync(filesDir, { recursive: true });
+      const sentinel = join(dir, "sentinel.db");
+      const filesEnv: NodeJS.ProcessEnv = {
+        FOREMAN_SESSION_BACKEND: "files_only",
+        FOREMAN_SESSION_DIR: filesDir,
+        FOREMAN_SESSION_DB: sentinel,
+      };
+      const seeded = spawnSession(dir, sentinel, ["fact", "sync-files-seed"], filesEnv);
+      assert.equal(seeded.status, 0, seeded.stderr);
+      const res = spawnSession(dir, sentinel, ["sync"], filesEnv);
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(res.stdout, /^synced \d+ record\(s\) to null in \d+ attempt\(s\)\n$/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("prints the exact empty sync line", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-empty-"));
+    try {
+      const p = join(dir, "session.db");
+      SqliteSessionStore.open(p).close();
+      const res = spawnSession(dir, p, ["sync"]);
+      assert.equal(res.status, 0, res.stderr);
+      assert.equal(res.stdout, "synced 0 record(s) to null in 0 attempt(s)\n");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("prints a non-empty sync output shape", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-nonempty-"));
+    try {
+      const p = join(dir, "session.db");
+      const seeded = spawnSession(dir, p, ["fact", "shape-seed"]);
+      assert.equal(seeded.status, 0, seeded.stderr);
+      const res = spawnSession(dir, p, [
+        "sync",
+        "--batch",
+        "100",
+        "--max-attempts",
+        "3",
+        "--timeout-ms",
+        "5000",
+        "--max-batches",
+        "100",
+      ]);
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(
+        res.stdout,
+        /^synced ([1-9]\d*) record\(s\) to null in ([1-9]\d*) attempt\(s\)\n$/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("invalid flags and positionals exit 2", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-invalid-"));
+    try {
+      const p = join(dir, "session.db");
+      SqliteSessionStore.open(p).close();
+      const cases: ReadonlyArray<{ args: readonly string[]; stderr: RegExp }> = [
+        { args: ["sync", "positional"], stderr: /accepts no positional/ },
+        { args: ["sync", "--batch", "0"], stderr: /--batch/ },
+        { args: ["sync", "--batch", "1001"], stderr: /--batch/ },
+        { args: ["sync", "--batch", "1.5"], stderr: /--batch/ },
+        { args: ["sync", "--max-attempts", "0"], stderr: /--max-attempts/ },
+        { args: ["sync", "--max-attempts", "11"], stderr: /--max-attempts/ },
+        { args: ["sync", "--timeout-ms", "0"], stderr: /--timeout-ms/ },
+        { args: ["sync", "--timeout-ms", "300001"], stderr: /--timeout-ms/ },
+        { args: ["sync", "--max-batches", "0"], stderr: /--max-batches/ },
+        { args: ["sync", "--max-batches", "10001"], stderr: /--max-batches/ },
+        { args: ["sync", "--force"], stderr: /does not accept --force/ },
+        { args: ["sync", "--json"], stderr: /does not accept --json/ },
+        { args: ["sync", "--format", "text"], stderr: /does not accept --format/ },
+        { args: ["sync", "--out", "x"], stderr: /does not accept --out/ },
+        { args: ["sync", "--into", "x"], stderr: /does not accept --into/ },
+        { args: ["sync", "--note", "n"], stderr: /does not accept --note/ },
+        { args: ["sync", "--evidence", "e"], stderr: /does not accept --evidence/ },
+        { args: ["sync", "--status", "done"], stderr: /does not accept --status/ },
+      ];
+      for (const c of cases) {
+        const res = spawnSession(dir, p, c.args);
+        assert.equal(res.status, 2, `${c.args.join(" ")} exited ${res.status}`);
+        assert.match(res.stderr, c.stderr, `${c.args.join(" ")}: ${res.stderr}`);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("typed drain failure exits 1 via the injectable test seam", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-typed-"));
+    const p = join(dir, "session.db");
+    SqliteSessionStore.open(p).close();
+    const savedArgv = process.argv;
+    const savedEnv = process.env["FOREMAN_SESSION_DB"];
+    try {
+      setSyncTestDeps({
+        drain: () =>
+          Effect.fail(
+            outboxDrainFailure(
+              "project_failed",
+              "injected failure with secret adapter text",
+              {
+                projected: 0,
+                attempts: 1,
+                batches: 0,
+              },
+            ),
+          ),
+      });
+      process.argv = [process.argv[0]!, process.argv[1]!, "sync"];
+      process.env["FOREMAN_SESSION_DB"] = p;
+      const stderr = await (async () => {
+        let text = "";
+        const orig = process.stderr.write;
+        process.stderr.write = ((
+          chunk: string | Uint8Array,
+          ...args: unknown[]
+        ) => {
+          text +=
+            typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+          return Reflect.apply(orig, process.stderr, [chunk, ...args]);
+        }) as typeof process.stderr.write;
+        try {
+          const rc = await Promise.resolve(main());
+          assert.equal(rc, 1);
+          return text;
+        } finally {
+          process.stderr.write = orig;
+        }
+      })();
+      assert.match(
+        stderr,
+        /refusing: sync failed \(project_failed; projected=0 attempts=1 batches=0\)/,
+      );
+      assert.equal(stderr.includes("secret adapter text"), false);
+      assert.equal(stderr.includes("injected failure"), false);
+    } finally {
+      setSyncTestDeps(undefined);
+      process.argv = savedArgv;
+      if (savedEnv === undefined) delete process.env["FOREMAN_SESSION_DB"];
+      else process.env["FOREMAN_SESSION_DB"] = savedEnv;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("closes the store after sync", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-close-"));
+    const p = join(dir, "session.db");
+    SqliteSessionStore.open(p).close();
+    const savedArgv = process.argv;
+    const savedEnv = process.env["FOREMAN_SESSION_DB"];
+    let seen: SessionStore | undefined;
+    try {
+      setSyncTestDeps({
+        drain: (store: SessionStore, _index: MemoryIndex) => {
+          seen = store;
+          return Effect.succeed({
+            projected: 0,
+            attempts: 0,
+            batches: 0,
+          } satisfies DrainResult);
+        },
+      });
+      process.argv = [process.argv[0]!, process.argv[1]!, "sync"];
+      process.env["FOREMAN_SESSION_DB"] = p;
+      const rc = await Promise.resolve(main());
+      assert.equal(rc, 0);
+      assert.ok(seen, "drain must receive the opened store");
+      assert.throws(() => seen!.listOutbox(1));
+    } finally {
+      setSyncTestDeps(undefined);
+      process.argv = savedArgv;
+      if (savedEnv === undefined) delete process.env["FOREMAN_SESSION_DB"];
+      else process.env["FOREMAN_SESSION_DB"] = savedEnv;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not trigger automatic sidecar refresh on sync", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fm-sync-norefresh-"));
+    try {
+      const p = join(dir, "session.db");
+      const seeded = spawnSession(dir, p, ["fact", "refresh-seed"]);
+      assert.equal(seeded.status, 0, seeded.stderr);
+      const sidecar = sidecarPathFor(p);
+      assert.equal(existsSync(sidecar), true);
+      const before = readFileSync(sidecar);
+      const beforeMtime = statSync(sidecar).mtimeMs;
+      const res = spawnSession(dir, p, ["sync"]);
+      assert.equal(res.status, 0, res.stderr);
+      assert.doesNotMatch(res.stderr, /sidecar refreshed/);
+      assert.deepEqual(readFileSync(sidecar), before);
+      assert.equal(statSync(sidecar).mtimeMs, beforeMtime);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

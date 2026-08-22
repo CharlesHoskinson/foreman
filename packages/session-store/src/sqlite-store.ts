@@ -40,11 +40,20 @@ import {
 } from "./entities.js";
 import { assertIntegrity } from "./integrity.js";
 import { raise } from "./failures.js";
+import {
+  buildProjection,
+  liveProjectionMap,
+  projectionKey,
+  retractRecord,
+  upsertRecord,
+} from "./projection.js";
 import type {
   ImportOptions,
   NewFact,
   NewMeasurement,
   NewObligation,
+  OutboxEntry,
+  ProjectionRecord,
   SessionStore,
   SupersedeResult,
 } from "./port.js";
@@ -110,18 +119,79 @@ CREATE TABLE IF NOT EXISTS obligations (
 -- Derived projection bookkeeping. Written in the same transaction as the row
 -- it describes. Deliberately NOT part of SessionSnapshot: it is rebuildable and
 -- nothing outside the projector may read it.
+--
+-- position is stable across coalescing (hot entities keep their queue place).
+-- receipt is a fresh compare-and-delete version per desired-state change.
+-- UNIQUE(kind, entity_id) coalesces pending work by desired-state identity.
 CREATE TABLE IF NOT EXISTS memory_outbox (
-  key       TEXT PRIMARY KEY,
+  position  INTEGER PRIMARY KEY AUTOINCREMENT,
+  receipt   TEXT NOT NULL UNIQUE,
   kind      TEXT NOT NULL,
   entity_id INTEGER NOT NULL,
   mutation  TEXT NOT NULL,
-  queued_ts TEXT NOT NULL
+  text      TEXT,
+  UNIQUE(kind, entity_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_meas_metric ON measurements(metric);
 CREATE INDEX IF NOT EXISTS idx_oblig_status ON obligations(status);
 CREATE INDEX IF NOT EXISTS idx_facts_superseded ON facts(superseded_by);
 `;
+
+const OUTBOX_LIMIT_MIN = 1;
+const OUTBOX_LIMIT_MAX = 1000;
+
+type OutboxColumnInfo = { readonly name: string };
+
+function outboxColumnNames(db: DatabaseSync): Set<string> {
+  const info = db.prepare("PRAGMA table_info(memory_outbox)").all() as OutboxColumnInfo[];
+  return new Set(info.map((c) => c.name));
+}
+
+function isLegacyOutboxSchema(cols: Set<string>): boolean {
+  return cols.has("key") && cols.has("queued_ts") && !cols.has("receipt");
+}
+
+function isCurrentOutboxSchema(cols: Set<string>): boolean {
+  return (
+    cols.has("position") &&
+    cols.has("receipt") &&
+    cols.has("kind") &&
+    cols.has("entity_id") &&
+    cols.has("mutation") &&
+    cols.has("text")
+  );
+}
+
+/** Internal numeric receipt form: r followed by a positive decimal (no leading zeros). */
+const INTERNAL_NUMERIC_RECEIPT = /^r([1-9][0-9]*)$/;
+
+/**
+ * Canonical positive base-10 safe-integer string for store_meta next_receipt.
+ * Rejects whitespace, signs, fractions, exponents, leading zeros, zero, and
+ * values outside 1..Number.MAX_SAFE_INTEGER.
+ */
+function parseCanonicalNextReceipt(raw: string): number | null {
+  if (!/^[1-9][0-9]*$/.test(raw)) return null;
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n < 1 || n > Number.MAX_SAFE_INTEGER) {
+    return null;
+  }
+  // Reject non-canonical Number parsing (precision loss on over-long digit runs).
+  if (String(n) !== raw) return null;
+  return n;
+}
+
+function maxInternalNumericReceipt(receipts: readonly string[]): number {
+  let max = 0;
+  for (const receipt of receipts) {
+    const m = INTERNAL_NUMERIC_RECEIPT.exec(receipt);
+    if (!m) continue;
+    const n = Number(m[1]);
+    if (Number.isSafeInteger(n) && n > max) max = n;
+  }
+  return max;
+}
 
 function quoteIdent(name: string): string {
   return '"' + name.replace(/"/g, '""') + '"';
@@ -143,12 +213,20 @@ export type SqliteStoreOptions = {
 export class SqliteSessionStore implements SessionStore {
   readonly modelVersion = SESSION_MODEL_VERSION;
   private readonly db: DatabaseSync;
+  private readonly readOnly: boolean;
   private closed = false;
 
   constructor(db: DatabaseSync, opts: SqliteStoreOptions = {}) {
     this.db = db;
+    this.readOnly = opts.readOnly === true;
     if (!opts.skipSchemaCheck) this.assertSchemaMatchesModel();
-    this.ensureCounters();
+    if (!this.readOnly) {
+      this.ensureCounters();
+      this.migrateOutboxIfNeeded();
+    } else {
+      // Read-only opens must not mutate. Counters are only needed for writes.
+      // Legacy outbox is tolerated until listOutbox is called.
+    }
   }
 
   // -- construction --------------------------------------------------------
@@ -179,6 +257,111 @@ export class SqliteSessionStore implements SessionStore {
     db.exec("PRAGMA synchronous=NORMAL");
     db.exec(SCHEMA);
     return new SqliteSessionStore(db, opts);
+  }
+
+  /**
+   * Migrate pre-release memory_outbox(key, kind, entity_id, mutation, queued_ts)
+   * to the durable receipt/position schema. Idempotent. Prefer seeding from
+   * live entities because no external adapter shipped before sync.
+   */
+  private migrateOutboxIfNeeded(): void {
+    const cols = outboxColumnNames(this.db);
+    if (cols.size === 0) {
+      raise(
+        "backend_mismatch",
+        "memory_outbox table is missing; cannot open writable store",
+      );
+    }
+    if (isCurrentOutboxSchema(cols)) {
+      this.ensureReceiptCounter();
+      return;
+    }
+    if (!isLegacyOutboxSchema(cols)) {
+      raise(
+        "backend_mismatch",
+        "memory_outbox schema is not recognized; refusing writable open",
+      );
+    }
+
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.exec("DROP TABLE IF EXISTS memory_outbox");
+      this.db.exec(`
+CREATE TABLE memory_outbox (
+  position  INTEGER PRIMARY KEY AUTOINCREMENT,
+  receipt   TEXT NOT NULL UNIQUE,
+  kind      TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  mutation  TEXT NOT NULL,
+  text      TEXT,
+  UNIQUE(kind, entity_id)
+);`);
+      // Reset any legacy/stale/malformed counter before seeding projections.
+      this.db
+        .prepare(
+          "INSERT INTO store_meta (key, value) VALUES (?, ?) " +
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .run("next_receipt", "1");
+      // Seed one active upsert per current live entity.
+      const snap = this.readSnapshot();
+      for (const rec of buildProjection(snap)) {
+        this.queueRecord(rec);
+      }
+      this.db.exec("COMMIT");
+    } catch (e) {
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        // ignore
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Validate store_meta.next_receipt for the current outbox schema.
+   * Missing + empty outbox → initialize to 1. Missing + pending → refuse.
+   * MAX_SAFE_INTEGER is a valid readable exhausted state.
+   */
+  private ensureReceiptCounter(): void {
+    const row = this.db
+      .prepare("SELECT value FROM store_meta WHERE key = ?")
+      .get("next_receipt") as { value: string } | undefined;
+    const pending = this.db
+      .prepare("SELECT receipt FROM memory_outbox")
+      .all() as { receipt: string }[];
+
+    if (row === undefined) {
+      if (pending.length > 0) {
+        raise(
+          "backend_mismatch",
+          "next_receipt is missing while memory_outbox has pending entries",
+        );
+      }
+      this.db
+        .prepare("INSERT INTO store_meta (key, value) VALUES (?, ?)")
+        .run("next_receipt", "1");
+      return;
+    }
+
+    if (typeof row.value !== "string") {
+      raise("backend_mismatch", "next_receipt must be a canonical integer string");
+    }
+    const n = parseCanonicalNextReceipt(row.value);
+    if (n === null) {
+      raise(
+        "backend_mismatch",
+        "next_receipt must be a canonical positive safe integer string",
+      );
+    }
+    const maxReceipt = maxInternalNumericReceipt(pending.map((r) => r.receipt));
+    if (n <= maxReceipt) {
+      raise(
+        "backend_mismatch",
+        "next_receipt must be strictly greater than every numeric receipt",
+      );
+    }
   }
 
   /**
@@ -266,18 +449,192 @@ export class SqliteSessionStore implements SessionStore {
     }
   }
 
-  private queueProjection(
-    kind: CountedKind,
-    id: number,
-    mutation: string,
-    ts: string,
-  ): void {
+  /** Mint a fresh receipt version. Must run inside a write transaction. */
+  private mintReceipt(): string {
+    const row = this.db
+      .prepare("SELECT value FROM store_meta WHERE key = ?")
+      .get("next_receipt") as { value: string } | undefined;
+    if (row === undefined || typeof row.value !== "string") {
+      raise("backend_mismatch", "next_receipt is missing or malformed");
+    }
+    const n = parseCanonicalNextReceipt(row.value);
+    if (n === null) {
+      raise(
+        "backend_mismatch",
+        "next_receipt must be a canonical positive safe integer string",
+      );
+    }
+    if (n >= Number.MAX_SAFE_INTEGER) {
+      raise("invalid_argument", "outbox nextReceipt is exhausted");
+    }
+    const receipt = `r${n}`;
     this.db
       .prepare(
-        "INSERT OR REPLACE INTO memory_outbox " +
-          "(key, kind, entity_id, mutation, queued_ts) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO store_meta (key, value) VALUES (?, ?) " +
+          "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       )
-      .run(`${kind}:${id}:${mutation}`, kind, id, mutation, ts);
+      .run("next_receipt", String(n + 1));
+    return receipt;
+  }
+
+  /**
+   * Coalesce pending desired state by (kind, id). A replacement gets a fresh
+   * receipt but keeps the original queue position so hot entities cannot starve.
+   * Must run inside the same transaction as the authoritative entity mutation.
+   */
+  private queueRecord(record: ProjectionRecord): void {
+    const existing = this.db
+      .prepare(
+        "SELECT position FROM memory_outbox WHERE kind = ? AND entity_id = ?",
+      )
+      .get(record.kind, record.id) as { position: number } | undefined;
+    const receipt = this.mintReceipt();
+    const text = record.mutation === "upsert" ? record.text : null;
+    if (existing) {
+      this.db
+        .prepare(
+          "UPDATE memory_outbox SET receipt = ?, mutation = ?, text = ? " +
+            "WHERE kind = ? AND entity_id = ?",
+        )
+        .run(receipt, record.mutation, text, record.kind, record.id);
+      return;
+    }
+    this.db
+      .prepare(
+        "INSERT INTO memory_outbox (receipt, kind, entity_id, mutation, text) " +
+          "VALUES (?, ?, ?, ?, ?)",
+      )
+      .run(receipt, record.kind, record.id, record.mutation, text);
+  }
+
+  private queueUpsert(
+    kind: CountedKind,
+    id: number,
+    row: Readonly<Record<string, unknown>>,
+  ): void {
+    this.queueRecord(upsertRecord(kind, id, row));
+  }
+
+  private queueRetract(kind: CountedKind, id: number): void {
+    this.queueRecord(retractRecord(kind, id));
+  }
+
+  private assertOutboxReadable(): void {
+    const cols = outboxColumnNames(this.db);
+    if (cols.size === 0) {
+      raise(
+        "backend_mismatch",
+        "memory_outbox table is missing; cannot list projection work",
+      );
+    }
+    if (isLegacyOutboxSchema(cols)) {
+      raise(
+        "backend_mismatch",
+        "memory_outbox is the pre-release schema; reopen writable to migrate before listing",
+      );
+    }
+    if (!isCurrentOutboxSchema(cols)) {
+      raise(
+        "backend_mismatch",
+        "memory_outbox schema is not recognized; cannot list projection work",
+      );
+    }
+  }
+
+  private decodeOutboxRow(r: Record<string, unknown>): OutboxEntry {
+    const kindRaw = r["kind"];
+    if (
+      kindRaw !== "fact" &&
+      kindRaw !== "measurement" &&
+      kindRaw !== "obligation"
+    ) {
+      raise("backend_mismatch", "outbox row kind is invalid");
+    }
+    const kind = kindRaw;
+    const idRaw = r["entity_id"];
+    const id =
+      typeof idRaw === "number"
+        ? idRaw
+        : typeof idRaw === "bigint"
+          ? Number(idRaw)
+          : Number(idRaw);
+    if (!Number.isSafeInteger(id)) {
+      raise("backend_mismatch", "outbox row entity_id must be a safe integer");
+    }
+    const receipt = r["receipt"];
+    if (typeof receipt !== "string" || receipt.length === 0) {
+      raise("backend_mismatch", "outbox row receipt must be a non-empty string");
+    }
+    const key = projectionKey(kind, id);
+    const mutation = r["mutation"];
+    if (mutation === "retract") {
+      return {
+        receipt,
+        record: { key, kind, id, mutation: "retract" },
+      };
+    }
+    if (mutation === "upsert") {
+      if (typeof r["text"] !== "string") {
+        raise("backend_mismatch", "outbox upsert text must be a string");
+      }
+      return {
+        receipt,
+        record: {
+          key,
+          kind,
+          id,
+          mutation: "upsert",
+          text: r["text"],
+        },
+      };
+    }
+    raise(
+      "backend_mismatch",
+      `outbox mutation ${String(mutation)} is not upsert or retract`,
+    );
+  }
+
+  listOutbox(limit: number): readonly OutboxEntry[] {
+    if (
+      typeof limit !== "number" ||
+      !Number.isSafeInteger(limit) ||
+      limit < OUTBOX_LIMIT_MIN ||
+      limit > OUTBOX_LIMIT_MAX
+    ) {
+      raise(
+        "invalid_argument",
+        `listOutbox limit must be an integer in ${OUTBOX_LIMIT_MIN}..${OUTBOX_LIMIT_MAX}`,
+      );
+    }
+    this.assertOutboxReadable();
+    const rows = this.db
+      .prepare(
+        "SELECT receipt, kind, entity_id, mutation, text FROM memory_outbox " +
+          "ORDER BY position ASC LIMIT ?",
+      )
+      .all(limit) as Record<string, unknown>[];
+    // Defensive copies: callers must not be able to mutate store state via the
+    // returned objects.
+    return rows.map((r) => this.decodeOutboxRow(r));
+  }
+
+  ackOutbox(receipts: readonly string[]): number {
+    if (this.readOnly) {
+      raise("invalid_argument", "store is read-only");
+    }
+    if (receipts.length === 0) return 0;
+    const unique = [...new Set(receipts)];
+    return this.tx(() => {
+      let deleted = 0;
+      const stmt = this.db.prepare(
+        "DELETE FROM memory_outbox WHERE receipt = ?",
+      );
+      for (const receipt of unique) {
+        const info = stmt.run(receipt) as { changes: number };
+        deleted += info.changes;
+      }
+      return deleted;
+    });
   }
 
   // -- reads ---------------------------------------------------------------
@@ -442,8 +799,7 @@ export class SqliteSessionStore implements SessionStore {
           "superseded_by, superseded_at, supersede_reason) VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL)",
       )
       .run(id, fact.statement, fact.evidence, fact.established_ts, fact.session_id);
-    this.queueProjection("fact", id, "upsert", fact.established_ts);
-    return {
+    const row: FactRow = {
       id,
       statement: fact.statement,
       evidence: fact.evidence,
@@ -453,6 +809,8 @@ export class SqliteSessionStore implements SessionStore {
       superseded_at: null,
       supersede_reason: null,
     };
+    this.queueUpsert("fact", id, row as unknown as Record<string, unknown>);
+    return row;
   }
 
   addMeasurement(m: NewMeasurement): MeasurementRow {
@@ -481,8 +839,7 @@ export class SqliteSessionStore implements SessionStore {
         m.scope_paths,
         m.session_id,
       );
-    this.queueProjection("measurement", id, "upsert", m.measured_ts);
-    return {
+    const row: MeasurementRow = {
       id,
       metric: m.metric,
       value: m.value,
@@ -496,6 +853,8 @@ export class SqliteSessionStore implements SessionStore {
       superseded_at: null,
       supersede_reason: null,
     };
+    this.queueUpsert("measurement", id, row as unknown as Record<string, unknown>);
+    return row;
   }
 
   addObligation(o: NewObligation): ObligationRow {
@@ -507,8 +866,7 @@ export class SqliteSessionStore implements SessionStore {
             "VALUES (?, ?, 'open', ?, ?, NULL, ?)",
         )
         .run(id, o.statement, o.blocker, o.opened_ts, o.session_id);
-      this.queueProjection("obligation", id, "upsert", o.opened_ts);
-      return {
+      const row: ObligationRow = {
         id,
         statement: o.statement,
         status: "open" as ObligationStatus,
@@ -517,6 +875,8 @@ export class SqliteSessionStore implements SessionStore {
         closed_ts: null,
         session_id: o.session_id,
       };
+      this.queueUpsert("obligation", id, row as unknown as Record<string, unknown>);
+      return row;
     });
   }
 
@@ -539,13 +899,12 @@ export class SqliteSessionStore implements SessionStore {
       this.db
         .prepare("UPDATE obligations SET status = ?, closed_ts = ? WHERE id = ?")
         .run(status, closedTs, id);
-      this.queueProjection("obligation", id, "upsert", closedTs);
       const r = this.db
         .prepare(
           "SELECT id, statement, status, blocker, opened_ts, closed_ts, session_id FROM obligations WHERE id = ?",
         )
         .get(id) as Record<string, unknown>;
-      return {
+      const row: ObligationRow = {
         id: r["id"] as number,
         statement: r["statement"] as string,
         status: r["status"] as ObligationStatus,
@@ -554,6 +913,8 @@ export class SqliteSessionStore implements SessionStore {
         closed_ts: (r["closed_ts"] ?? null) as string | null,
         session_id: (r["session_id"] ?? null) as string | null,
       };
+      this.queueUpsert("obligation", id, row as unknown as Record<string, unknown>);
+      return row;
     });
   }
 
@@ -580,7 +941,7 @@ export class SqliteSessionStore implements SessionStore {
           "UPDATE facts SET superseded_by = ?, superseded_at = ?, supersede_reason = ? WHERE id = ?",
         )
         .run(next.id, at, reason, id);
-      this.queueProjection("fact", id, "retract", at);
+      this.queueRetract("fact", id);
       const old = this.db
         .prepare(
           "SELECT id, statement, evidence, established_ts, session_id, superseded_by, superseded_at, supersede_reason FROM facts WHERE id = ?",
@@ -613,7 +974,7 @@ export class SqliteSessionStore implements SessionStore {
           "UPDATE measurements SET superseded_by = ?, superseded_at = ?, supersede_reason = ? WHERE id = ?",
         )
         .run(next.id, at, reason, id);
-      this.queueProjection("measurement", id, "retract", at);
+      this.queueRetract("measurement", id);
       const old = this.db
         .prepare(
           "SELECT id, metric, value, value_num, command, measured_ts, measured_sha, scope_paths, session_id, superseded_by, superseded_at, supersede_reason FROM measurements WHERE id = ?",
@@ -658,7 +1019,7 @@ export class SqliteSessionStore implements SessionStore {
           "UPDATE measurements SET superseded_by = ?, superseded_at = ?, supersede_reason = ? WHERE id = ?",
         )
         .run(byId, at, reason, id);
-      this.queueProjection("measurement", id, "retract", at);
+      this.queueRetract("measurement", id);
       return this.db
         .prepare(
           "SELECT id, metric, value, value_num, command, measured_ts, measured_sha, scope_paths, session_id, superseded_by, superseded_at, supersede_reason FROM measurements WHERE id = ?",
@@ -703,10 +1064,15 @@ export class SqliteSessionStore implements SessionStore {
         );
       }
 
+      // Projection delta starts from the pending desired-state map and the
+      // old-live set, then overlays retracts/upserts from the import. Do not
+      // clear the outbox blindly — unchanged pending work must survive.
+      const oldLive = liveProjectionMap(this.readSnapshot());
+      const newLive = liveProjectionMap(snapshot);
+
       for (const kind of [...ENTITY_ORDER].reverse()) {
         this.db.exec(`DELETE FROM ${quoteIdent(TABLE[kind])}`);
       }
-      this.db.exec("DELETE FROM memory_outbox");
 
       let written = 0;
       for (const kind of ENTITY_ORDER) {
@@ -725,6 +1091,19 @@ export class SqliteSessionStore implements SessionStore {
       }
 
       this.setNextIds(snapshot.nextIds);
+
+      for (const [key, oldRec] of oldLive) {
+        if (!newLive.has(key)) {
+          this.queueRetract(oldRec.kind, oldRec.id);
+        }
+      }
+      for (const [key, newRec] of newLive) {
+        const oldRec = oldLive.get(key);
+        if (!oldRec || oldRec.text !== newRec.text) {
+          this.queueRecord(newRec);
+        }
+      }
+
       return written;
     });
   }

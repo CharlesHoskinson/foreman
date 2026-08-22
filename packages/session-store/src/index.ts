@@ -68,10 +68,30 @@ export {
   type NewFact,
   type NewMeasurement,
   type NewObligation,
+  type OutboxEntry,
+  type ProjectionMutation,
   type ProjectionRecord,
   type SessionStore,
   type SupersedeResult,
 } from "./port.js";
+
+export {
+  buildProjection,
+  liveProjectionMap,
+  projectableText,
+  projectionKey,
+  retractRecord,
+  upsertRecord,
+} from "./projection.js";
+
+export {
+  drainOutbox,
+  outboxDrainFailure,
+  type DrainOptions,
+  type DrainResult,
+  type OutboxDrainFailure,
+  type OutboxDrainFailureReason,
+} from "./outbox.js";
 
 export {
   SIDECAR_FORMAT,
@@ -91,9 +111,7 @@ export {
   NullMemoryIndex,
   PoisonMemoryIndex,
   ThrowingMemoryIndex,
-  buildProjection,
   faultInjectionIndexes,
-  projectionKey,
 } from "./memory-index.js";
 
 export {
