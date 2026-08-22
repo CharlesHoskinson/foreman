@@ -76,6 +76,33 @@ its package.
 - **THEN** strict workflow validation fails
 - **AND** implementation admission refuses until `tasks.md` is sole authority
 
+### Requirement: Complete release-scope reconciliation
+
+Before implementation starts, the program SHALL produce a closed coverage
+register for every active OpenSpec package and every Roadmap item assigned to
+v0.4. Each entry SHALL name its v0.4 owner, accepted dependency, superseding
+package, or explicit later-release assignment. An entry SHALL NOT disappear
+because its older package is stale or incomplete.
+
+The register SHALL assign project registry, external MemoryIndex, projection
+epochs, live-service tests, Graphify, work DAG, context, evaluation, the
+appliance, BW-004, and publication to v0.4. It SHALL assign unrelated Council
+runtime, deliberation, MCP transport, and broad dogfood carry-over work to
+v0.5.
+
+#### Scenario: An active package is not part of v0.4
+
+- **WHEN** reconciliation finds an active package outside the approved release
+  promise
+- **THEN** the register names the package and its v0.5 or later assignment
+- **AND** the package is not silently marked complete, deleted, or omitted
+
+#### Scenario: Coverage is incomplete
+
+- **WHEN** any active package or Roadmap v0.4 item lacks one disposition
+- **THEN** strict release validation fails
+- **AND** no implementation tranche starts
+
 ### Requirement: Bounded Foreman execution loop
 
 The program SHALL run through the Foreman architect, implementer, auditor, and
@@ -130,13 +157,14 @@ integration, evaluation decision, and publication event.
 The program SHALL execute these tranches under the declared dependency graph:
 
 1. OpenSpec and Superpowers convergence.
-2. External `MemoryIndex`, projection epochs, and live-service tests.
-3. Hermetic Foreman appliance.
-4. Graphify 0.9.48 qualification.
-5. Deterministic work-DAG projection.
-6. Bounded immutable context packs.
-7. Locked evaluation and rollout.
-8. Exact-candidate release and publication.
+2. Stable project registry and project-aware references.
+3. Qdrant `MemoryIndex`, projection epochs, and live-service tests.
+4. Hermetic Foreman appliance.
+5. Graphify 0.9.48 qualification.
+6. Deterministic work-DAG projection.
+7. Bounded immutable context packs.
+8. Locked evaluation and rollout.
+9. Exact-candidate release and publication.
 
 #### Scenario: A dependency is incomplete
 
@@ -148,8 +176,8 @@ The program SHALL execute these tranches under the declared dependency graph:
 #### Scenario: Independent foundation tracks are ready
 
 - **WHEN** authority convergence is accepted
-- **THEN** the MemoryIndex, appliance, and Graphify qualification tracks MAY run
-  in parallel worktrees
+- **THEN** the project registry, appliance, and Graphify qualification tracks
+  MAY run in parallel worktrees
 - **AND** each track receives its own candidate and cold-audit verdict
 
 #### Scenario: A focused package already exists
@@ -158,19 +186,75 @@ The program SHALL execute these tranches under the declared dependency graph:
 - **THEN** the program reconciles and reuses it
 - **AND** it does not create a competing package for the same behavior
 
-### Requirement: External MemoryIndex adapter
+### Requirement: Stable project registry
 
-The release SHALL ship the first external `MemoryIndex` adapter against one
-exactly pinned agent-memory service and protocol. `NullMemoryIndex` SHALL remain
-the default. No `SessionStore` operation or core CLI command SHALL require the
-service, its network, or its credentials.
+The release SHALL keep one authoritative `SessionStore` per logical project
+and a machine-local registry that resolves stable project identifiers to those
+stores. A linked Git worktree SHALL share a project identity with every
+worktree that has the same Git common directory. The stable identifier SHALL
+survive store export, import, and repository path moves.
+
+`EntityRef` and every external projection identity SHALL include
+`project_id`. The registry and all existing stores SHALL have an explicit,
+tested migration. Semantic recall SHALL rehydrate a reference only through the
+matching registered store.
+
+#### Scenario: A repository has linked worktrees
+
+- **WHEN** two worktree paths report the same `git --git-common-dir`
+- **THEN** the registry assigns them one stable project identifier
+- **AND** each path resolves to the same authoritative project store
+
+#### Scenario: A project moves
+
+- **WHEN** a registered repository moves and the operator opens it at the new
+  path
+- **THEN** the registry preserves its stable project identifier
+- **AND** it updates path metadata only after the Git identity check passes
+
+#### Scenario: A referenced project is unavailable
+
+- **WHEN** recall returns a reference for a deleted, moved-but-unverified, or
+  unregistered project
+- **THEN** Foreman reports the reference unavailable or unknown
+- **AND** Foreman does not report it fresh and does not open another store
+
+#### Scenario: Current-project recovery runs
+
+- **WHEN** the operator uses the default recovery command
+- **THEN** it remains exact, offline, and limited to the current project
+- **AND** cross-project recovery requires an explicit command or option
+
+### Requirement: Qdrant MemoryIndex adapter
+
+The release SHALL ship the first external `MemoryIndex` adapter against Qdrant
+1.19.0. `NullMemoryIndex` SHALL remain the default. No `SessionStore` operation
+or core CLI command SHALL require Qdrant, its network, or its credentials.
+
+The reference manifest SHALL pin Qdrant source commit
+`74f3e85b9473c62560006c043e13737ce6b48412`, the multi-platform image index
+digest `sha256:057ee3a8da769fe7310dd3537b4dc7583bf87a95ce8ac43c0af5a46bc580d1fc`,
+the `linux/amd64` manifest
+`sha256:6c0652f8d6925b22f2f6f0e0a5365a6c9dbc8768bd6e70ccc1cdc14847e452a0`,
+the `linux/arm64` manifest
+`sha256:139bbec1a1e6c0f04c978c96b5359568e72e60ae6abc9db0ab4b7643a8cd957f`,
+and `@qdrant/js-client-rest` 1.19.0 with npm integrity
+`sha512-1+QLUHsWp+WV4PE35FLnH2ckxotWrQEqi/F3t4goF3cCThR0ZxLVtOC4OoOi/E1iyj/iIYBdbuACWMuQ15NAnA==`.
 
 #### Scenario: The external adapter is selected
 
 - **WHEN** the focused adapter package is approved
-- **THEN** it names the service source, revision, API contract, container
-  images, SDK, and credential boundary
+- **THEN** it uses the Qdrant version, source revision, image manifests, client,
+  and credential boundary from this requirement
 - **AND** `env/reference-manifest.toml` pins every service and client identity
+
+#### Scenario: A desired-state key is encoded
+
+- **WHEN** Foreman projects one counted entity
+- **THEN** it derives a Qdrant UUID point identifier from a fixed Foreman
+  namespace plus `project_id`, entity kind, and entity ID
+- **AND** retrying the same desired state addresses the same point
+- **AND** a different project, kind, or entity ID addresses a different point
 
 #### Scenario: Desired state is retried
 
@@ -194,12 +278,47 @@ service, its network, or its credentials.
   the `NullMemoryIndex` path
 - **AND** pending projection work remains durable
 
+### Requirement: Hermetic local embeddings
+
+The external adapter SHALL generate embeddings inside `foreman-control`. It
+SHALL use `@huggingface/transformers` 4.2.0 with npm integrity
+`sha512-8BRCoBMH0XsWaEIamuR0LrJGAfftgHAfb2Vrffy0VKlSAE/MnUJ5/h/zTfEP3fDIft+nk7TqB8xXEyABGitBjQ==`
+and
+`onnx-community/all-MiniLM-L6-v2-ONNX` at revision
+`aff7a1dc4e8a1ea593e6ea21e95c22ef0a25966f`. The model bytes SHALL include the
+ONNX graph object with SHA-256
+`2f019cf6217537cc4bfc7f5192f21dea1e18445177edaab0bc6163a813e5c7a1` and
+the ONNX data object with SHA-256
+`60c758432aa596c30a122942dfe594c457d4d713f890926f1c5f920bd496c8de`.
+The embedding contract SHALL use mean pooling, normalization, 384 dimensions,
+and cosine distance.
+
+Foreman SHALL send Qdrant the vector and project-bound reference metadata. It
+SHALL NOT send source text, repository paths, or SessionDB note bodies as
+Qdrant payload fields. Runtime embedding SHALL require no external network,
+model download, or model-service credential.
+
+#### Scenario: The appliance runs offline
+
+- **WHEN** the pinned model is present and external network access is denied
+- **THEN** equal sanitized text produces equal normalized vectors
+- **AND** semantic projection and recall remain available
+
+#### Scenario: The embedding identity changes
+
+- **WHEN** the model revision or embedding contract changes
+- **THEN** Foreman requires a new projection epoch
+- **AND** a live negative control proves the old and new identities do not mix
+
 ### Requirement: Projection epoch isolation
 
-The external adapter SHALL support isolated projection epochs. A rebuild SHALL
-write to a new epoch, keep the current epoch queryable, and make the new epoch
-visible only after complete projection and catch-up. The focused package SHALL
-define how concurrent writes and outbox draining are preserved during rebuild.
+The external adapter SHALL map each project epoch to one Qdrant collection and
+each project's active epoch to one stable Qdrant alias. A rebuild SHALL write
+to a new collection, keep the current alias queryable, and make the new epoch
+visible only after complete projection and catch-up. One atomic alias change
+SHALL activate the new collection. The focused package SHALL define how a
+single projection-drainer lease preserves concurrent writes and outbox draining
+during rebuild.
 
 #### Scenario: A rebuild succeeds
 
@@ -222,6 +341,19 @@ define how concurrent writes and outbox draining are preserved during rebuild.
 - **THEN** the protocol proves that the activated epoch contains the final
   desired state or refuses activation
 - **AND** a live-service concurrency test exercises that race
+
+#### Scenario: Recall races with activation
+
+- **WHEN** concurrent clients hammer recall while the alias changes
+- **THEN** each result comes entirely from the old or the new epoch
+- **AND** no result is empty because of the switch and no result mixes epochs
+
+#### Scenario: A projection is retracted twice
+
+- **WHEN** Foreman deletes the same Qdrant point twice or deletes an unknown
+  point
+- **THEN** both operations complete without creating a point
+- **AND** retry remains safe after an ambiguous response
 
 ### Requirement: Hermetic Foreman appliance
 
@@ -260,6 +392,15 @@ boundary until an approved package replaces it.
   credential mount
 - **AND** the image, build context, layer history, logs, and attestations do not
   contain the credential
+
+#### Scenario: Semantic memory is enabled
+
+- **WHEN** the operator enables the optional semantic-memory Compose profile
+- **THEN** Compose starts Qdrant by the pinned platform digest on a private
+  network with a dedicated volume and generated API key
+- **AND** Qdrant publishes no host port unless the operator enables the
+  documented diagnostic override
+- **AND** disabling the profile preserves all core Foreman behavior
 
 ### Requirement: Isolated hard-mode engine
 
@@ -494,7 +635,9 @@ earlier commit SHALL NOT satisfy a later candidate.
 - **THEN** clean install, type checks, focused tests, full tests, deterministic
   builds, runtime-manifest checks, compatibility checks, strict OpenSpec,
   documentation checks, appliance build and smoke tests, supply-chain checks,
-  graph negative controls, evaluation checks, and hosted platform checks pass
+  project-registry migration and wrong-repository controls, live Qdrant
+  idempotency and epoch-race controls, graph negative controls, evaluation
+  checks, and hosted platform checks pass
 - **AND** Windows Bats item BW-004 passes on a native Windows runner
 - **AND** a cold Codex audit approves the complete baseline-to-candidate diff
 - **AND** every blocking audit finding is closed on the same candidate
@@ -517,8 +660,11 @@ earlier commit SHALL NOT satisfy a later candidate.
 ### Requirement: Explicit deferrals
 
 The v0.4 release SHALL keep SQLite ontology storage, mandatory remote graph
-storage, and unbounded semantic graph generation deferred. A later release MAY
-add them only through a new approved OpenSpec package and measured need.
+storage, unbounded semantic graph generation, Council runtime, deliberation,
+MCP transport, and broad dogfood carry-over work deferred. The coverage
+register SHALL assign the Council and dogfood work to v0.5. A later release MAY
+add the other deferred work only through a new approved OpenSpec package and
+measured need.
 
 #### Scenario: A deferred feature appears in an implementation proposal
 

@@ -4,9 +4,10 @@
 
 Foreman v0.3.1 shipped portable SessionDB state and closed the prior release.
 The next release has several active design packages, but it does not have one
-current release contract. The work spans process authority, a reproducible
-container appliance, Graphify qualification, work-lineage projection, bounded
-context construction, evaluation, rollout, and publication. These parts must
+current release contract. The work spans process authority, project identity,
+an external semantic index, a reproducible container appliance, Graphify
+qualification, work-lineage projection, bounded context construction,
+evaluation, rollout, and publication. These parts must
 ship in dependency order and on one exact candidate.
 
 The release must also remain useful when Graphify is absent, stale, disabled,
@@ -27,8 +28,11 @@ reproducible bootstrap and makes support evidence depend on the host.
   active specification tree.
 - Add the closed `foreman-bounded` and `foreman-architectural` OpenSpec
   workflows. Each approved `tasks.md` is its package's only active plan.
-- Add the first external `MemoryIndex` adapter, projection epochs, and
-  live-service tests while keeping `NullMemoryIndex` as the default.
+- Add a machine-local project registry. Stable project identities bind
+  cross-repository semantic references to the correct `SessionStore`.
+- Add the first external `MemoryIndex` adapter with Qdrant 1.19.0, a pinned
+  local embedding model, projection epochs, and live-service tests while
+  keeping `NullMemoryIndex` as the default.
 - Add a hermetic Foreman appliance with separate control and worker images,
   exact dependency pins, an isolated rootless hard-mode daemon, and no host
   Docker socket mount.
@@ -40,6 +44,9 @@ reproducible bootstrap and makes support evidence depend on the host.
   30-task corpus.
 - Promote graph-assisted context only when the preregistered thresholds pass.
 - Close Windows Bats item BW-004 as a v0.4 release predicate.
+- Reconcile every active OpenSpec package and Roadmap v0.4 assignment in one
+  closed coverage register. Explicitly move unrelated Council and broad
+  dogfood carry-over work to v0.5.
 - Run one Endstop-bounded Foreman loop across the complete release.
 - Save canonical SessionDB state after every accepted milestone.
 - Publish one exact candidate only after all deterministic checks and the
@@ -56,6 +63,8 @@ reproducible bootstrap and makes support evidence depend on the host.
   existing sandbox image remains the narrow untrusted-worker boundary.
 - **Knowledge:** Graphify data remains derived and replaceable. Source, Git,
   OpenSpec, event logs, and SessionDB keep their existing authority.
+- **Identity:** Cross-project references carry a stable project identifier and
+  rehydrate only through the matching registered store.
 - **Evaluation:** Default-on graph context requires measured benefit and must
   preserve a graph-off path.
 - **Release:** The release requires immutable evidence, supply-chain
@@ -66,6 +75,10 @@ reproducible bootstrap and makes support evidence depend on the host.
 
 - A SQLite ontology or a required remote graph database.
 - Replacement of files-only GraphStore.
+- A fork or gateway extension for TencentDB-Agent-Memory. Its stable public API
+  cannot create or replace a record at a caller-owned desired-state key.
+- Council runtime, deliberation, MCP transport, and broad dogfood work carried
+  from the v0.3 program. The coverage register assigns that work to v0.5.
 - A host Docker socket mount in the appliance.
 - Secrets, provider credentials, or mutable vendor login state in an image.
 - Semantic Graphify extraction on the per-change path.

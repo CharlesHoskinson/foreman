@@ -3,7 +3,9 @@
 ## Design objective
 
 Foreman v0.4 will make project knowledge useful without making graph state a
-new authority. It will also make Foreman installable as a pinned appliance.
+new authority. Stable project identity will ensure that cross-repository
+references rehydrate from the correct SessionStore. Foreman will also become
+installable as a pinned appliance.
 The release is successful when a new operator can start Foreman from the
 published image, run the same bounded workflow as the reference environment,
 and use or disable graph-assisted context without losing core function.
@@ -44,26 +46,27 @@ v0.3.1 baseline and approved v0.4 governor
                     |
        OpenSpec and process convergence
           /              |              \
- MemoryIndex and     hermetic        Graphify 0.9.48
- projection epochs  appliance        qualification
-          |              |              |
-          |              |       deterministic work DAG
-          |              |              |
-          |              |       bounded context packs
-          |              |              |
-          |              +---- locked evaluation
-          |                             |
-          +--------- exact-candidate convergence
+ project registry    hermetic        Graphify 0.9.48
+          |           appliance        qualification
+ Qdrant MemoryIndex      |                  |
+ and epochs              |          deterministic work DAG
+          |              |                  |
+          |              |          bounded context packs
+          |              |                  |
+          +--------------+---------- locked evaluation
+                                        |
+                         exact-candidate convergence
 ```
 
-Authority convergence is the first dependency. The MemoryIndex, appliance, and
-Graphify tracks can then run in parallel. The appliance must join the knowledge
-track before the locked evaluation so that the measuring environment is
-reproducible. Graphify qualification fixes the graph identity that the
-projector and context builder consume. The work DAG must exist before the
-builder can add prior-attempt evidence. The builder must be stable before the
-evaluation can lock its treatment arms. Final convergence joins all tracks and
-the Windows Bats result.
+Authority convergence is the first dependency. The project registry,
+appliance, and Graphify tracks can then run in parallel. Qdrant depends on
+stable project identity. The appliance must join the knowledge track before
+the locked evaluation so that the measuring environment is reproducible.
+Graphify qualification fixes the graph identity that the projector and context
+builder consume. The work DAG must exist before the builder can add
+prior-attempt evidence. The builder must be stable before the evaluation can
+lock its treatment arms. Final convergence joins all tracks and the Windows
+Bats result.
 
 ## Package map
 
@@ -72,17 +75,24 @@ The release governor reuses focused packages after it reconciles them:
 | Tranche | OpenSpec owner | Main result |
 |---|---|---|
 | 1 | `openspec-superpowers-convergence` | One active spec and task authority |
-| 2 | `external-memory-index` | Live external adapter and isolated projection epochs |
-| 3 | `hermetic-foreman-appliance` | Pinned control, toolchain, and worker images |
-| 4 | `knowledge-plane-refresh` | Qualified Graphify 0.9.48 and immutable graph metadata |
-| 5 | `work-dag-projection` | Deterministic work-lineage artifact |
-| 6 | `graph-context-builder` | Bounded, immutable, cited context pack |
-| 7 | `graph-eval-falsification` | Locked four-arm evaluation and rollout verdict |
-| 8 | `v040-release-program` | Windows Bats, integration, evidence, and publication |
+| 2 | `project-registry` | Stable project identity and store resolution |
+| 3 | `external-memory-index` | Qdrant adapter and isolated projection epochs |
+| 4 | `hermetic-foreman-appliance` | Pinned control, toolchain, and worker images |
+| 5 | `knowledge-plane-refresh` | Qualified Graphify 0.9.48 and immutable graph metadata |
+| 6 | `work-dag-projection` | Deterministic work-lineage artifact |
+| 7 | `graph-context-builder` | Bounded, immutable, cited context pack |
+| 8 | `graph-eval-falsification` | Locked four-arm evaluation and rollout verdict |
+| 9 | `v040-release-program` | Windows Bats, integration, evidence, and publication |
 
 The architect will reconcile an existing package before implementation. A
 reconciliation can revise stale assumptions, split an unsafe scope, or mark a
 package superseded. It cannot report an unchecked task as complete.
+
+Before the first tranche starts, the governor will write a coverage register
+for every active OpenSpec package and every Roadmap item assigned to v0.4. The
+register will name one disposition for each item. Council runtime,
+deliberation, MCP transport, and broad dogfood carry-over work are assigned to
+v0.5 because they are not part of the approved graph-centered release promise.
 
 ## Foreman release loop
 
@@ -123,31 +133,88 @@ a tranche boundary and reaches a terminal state only at a contract terminal
 condition. This prevents a new package, worktree, or session from resetting the
 release budget.
 
-## External MemoryIndex and projection epochs
+## Stable project registry
 
-The release adds one adapter for the external agent-memory service evaluated by
-the v0.3.1 storage review. The focused package must name and pin the service
-before code starts. The adapter preserves the existing split:
+One SessionStore remains authoritative for one logical project. A separate
+machine-local registry maps a port-minted project UUID to the repository Git
+common directory, known worktree paths, store backend, and store location.
+Linked worktrees that return the same `git --git-common-dir` share one project
+identity. The UUID is stored with exported project data, so it survives a path
+move and a store export or import.
+
+The registry never guesses across repositories. It verifies Git identity
+before it updates a moved path. A missing or deleted project is unavailable,
+not falsely fresh. Current-project recovery stays exact and offline by
+default. Cross-project recovery is an explicit operation.
+
+`EntityRef` gains `project_id`. Existing stores and serialized references use
+an explicit migration. A semantic result is rehydrated only through the store
+registered for its project UUID. A wrong project, missing project, wrong kind,
+missing entity, or superseded entity is discarded or reported unavailable.
+
+## Qdrant MemoryIndex and projection epochs
+
+The release uses Qdrant 1.19.0 for the first external adapter. Qdrant points
+support caller-owned UUIDs and idempotent upsert. Qdrant collection aliases can
+change atomically. These properties fit Foreman's durable desired-state outbox
+and isolated epoch contract without an upstream fork. The reference manifest
+pins the source revision, multi-platform image index, platform manifests, and
+`@qdrant/js-client-rest` 1.19.0.
+
+The adapter preserves the existing split:
 
 - `SessionStore` remains synchronous, exact, and authoritative.
 - `MemoryIndex` remains asynchronous, optional, and derived.
 - the durable outbox remains idempotent at-least-once
-- recall returns references that are rehydrated from `SessionStore`
+- recall returns project-bound references for SessionStore rehydration
 - subtractive projection redaction remains in force
 
-The current epoch methods are not enough to prove concurrent rebuild safety.
-The focused design must bind each rebuild projection to an explicit epoch and
-define the incremental-write catch-up protocol. It must prove that an entity
-changed during rebuild is present in the candidate epoch before activation, or
-that activation refuses. It must also prove that a failed or abandoned epoch is
-not queryable.
+A deterministic UUID point ID derives from a fixed Foreman namespace,
+`project_id`, counted kind, and entity ID. The Qdrant payload contains only the
+schema, project, entity, epoch, and model identities. It does not contain source
+text, repository paths, or SessionDB note bodies.
 
-The live test stack includes the pinned memory core, hub, proxy, data services,
-and both required LLM credential planes. Mocks cover deterministic failure
-classes, but they do not satisfy the release predicate. At least one live stack
-must demonstrate apply, retry after an ambiguous result, recall, rebuild,
-concurrent mutation, activation, abandonment, and destroy-and-rebuild recovery.
-`NullMemoryIndex` remains the default configuration after this adapter ships.
+Each project epoch is one Qdrant collection. A stable per-project alias names
+the active collection. A rebuild acquires the single projection-drainer lease,
+creates a candidate collection, projects the complete validated snapshot,
+applies concurrent desired-state changes to the required collections, catches
+up, and then changes the alias atomically. A failed rebuild leaves the old
+alias active. An abandoned collection remains unqueried and can be removed or
+rebuilt.
+
+The appliance generates embeddings locally with
+`@huggingface/transformers` 4.2.0 and
+`onnx-community/all-MiniLM-L6-v2-ONNX` revision
+`aff7a1dc4e8a1ea593e6ea21e95c22ef0a25966f`. Mean pooling and normalization
+produce 384-dimensional cosine vectors. The model bytes are pinned by content
+digest and present in the control image. Runtime projection needs no external
+model endpoint, credential, or download.
+
+Mock tests cover deterministic failures. Live Qdrant tests must also prove:
+
+- retry idempotency and a distinct-key negative control
+- repeated and unknown-point retraction
+- inactive-epoch poison isolation
+- concurrent recall during atomic alias activation without an empty or mixed
+  result
+- failed-epoch abandonment and destroy-and-rebuild recovery
+- stable top-k recall for the pinned embedding and a changed-model negative
+  control
+- the existing fault-injection conformance suite against the live adapter
+
+`NullMemoryIndex` remains the default after this adapter ships.
+
+The adapter decision uses these primary sources:
+
+- [Qdrant points](https://qdrant.tech/documentation/manage-data/points/)
+  documents caller-owned UUIDs and idempotent loading operations.
+- [Qdrant collections](https://qdrant.tech/documentation/manage-data/collections/)
+  documents background collection builds and atomic alias changes.
+- [Qdrant 1.19.0](https://github.com/qdrant/qdrant/releases/tag/v1.19.0)
+  identifies the selected stable release.
+- [TencentDB-Agent-Memory 2.0.0](https://github.com/TencentCloud/TencentDB-Agent-Memory/tree/v2.0.0)
+  is the historical service candidate whose public create path does not accept
+  a caller-owned message ID.
 
 ## Milestone records
 
@@ -205,6 +272,12 @@ The filesystem contract is:
 
 The container runs as a nonroot user. Compose and the Dev Container definition
 use the same image and mounts. They do not build different products.
+
+The optional semantic-memory Compose profile starts Qdrant by the pinned
+platform manifest. It uses a private network, a dedicated state volume, and a
+generated API key. It publishes no host port unless the operator enables the
+documented diagnostic override. Disabling the profile restores the
+`NullMemoryIndex` path without changing core behavior.
 
 ### Hard-mode topology
 
@@ -339,8 +412,11 @@ The final testing round includes:
 - appliance bootstrap, restart, state persistence, upgrade, and rollback tests
 - hard-mode sidecar isolation and no-host-socket negative controls
 - secret-canary scans over build inputs, image outputs, and attestations
+- project-registry migration, linked-worktree, moved-project,
+  wrong-repository, and unavailable-project controls
 - Graphify deterministic rebuild and hostile stale or corrupt fixtures
-- external MemoryIndex live-service, epoch isolation, and rebuild-race tests
+- live Qdrant idempotency, poison isolation, atomic alias activation,
+  embedding identity, epoch isolation, and rebuild-race tests
 - work-DAG replay, torn-tail, failed-attempt, and rename fixtures
 - context budget, determinism, citation, degraded-mode, and escape-hatch tests
 - locked 30-task evaluation with all negative controls
@@ -373,7 +449,8 @@ The release tag and public image require one exact candidate with:
 - no open blocking audit finding
 - fresh deterministic and hosted test evidence
 - a passing appliance reproducibility and security report
-- a passing external MemoryIndex live-service and epoch-isolation report
+- a passing project-registry identity and migration report
+- a passing live Qdrant and epoch-isolation report
 - a locked evaluation verdict and valid rollout state
 - a complete SessionDB milestone record
 - completed Windows Bats item BW-004
@@ -400,6 +477,14 @@ engine. The rootless sidecar is larger, but its authority and state are bounded.
 Rejected. A turnkey environment without exact identity cannot produce
 reproducible release evidence.
 
+### Extend or fork TencentDB-Agent-Memory
+
+Rejected. The v2.0.0 public API can update only an existing caller-supplied
+record ID. Its create path mints a random message ID. It therefore cannot
+implement Foreman's caller-keyed desired-state upsert without a permanent
+gateway fork. Qdrant supplies idempotent caller-owned point IDs and atomic
+collection aliases through its stable public API.
+
 ### Make Graphify or GraphStore mandatory
 
 Rejected. Derived graph availability must not control core Foreman execution.
@@ -418,5 +503,7 @@ is slower, less precise, or no better than lexical and direct-source baselines.
 
 SQLite ontology storage, a mandatory remote graph service, semantic extraction
 on every change, and unrestricted dynamic graph traversal remain deferred. The
-files-only GraphStore remains available. A later release can reconsider these
-items with a separate measured need and approved OpenSpec package.
+files-only GraphStore remains available. Council runtime, deliberation, MCP
+transport, and broad dogfood carry-over work are assigned to v0.5. A later
+release can reconsider the other items with a separate measured need and
+approved OpenSpec package.
