@@ -22,36 +22,34 @@ walkthrough, selected command and exit-code reference, and troubleshooting,
 see [`docs/USAGE.md`](docs/USAGE.md). For the install/setup story on Windows
 and WSL/Linux side by side, see [`docs/INSTALL.md`](docs/INSTALL.md).
 
-## Current release: One Runtime (v0.3.0)
-
-Annotated tag `v0.3.0` targets exact commit
-`d4040316f3dfe5406773d8a483ddd8662b035554`.
-
-One Runtime completes Foreman's migration to Node.js 24 and TypeScript. The
-release removes Foreman's own Python runtime and ports the session CLI, Tier 2
-evaluator, and supporting checks to the compiled TypeScript product.
-
-- Release notes: [`docs/releases/v0.3.0-notes.md`](docs/releases/v0.3.0-notes.md)
-- GitHub release:
-  <https://github.com/CharlesHoskinson/foreman/releases/tag/v0.3.0>
-
-## Next release candidate: George's Odyssey (v0.3.1)
+## Current release: George's Odyssey (v0.3.1)
 
 ![George's Odyssey release artwork](assets/v031-georges-odyssey.png)
 
-George's Odyssey makes session state portable: one `SessionStore` contract,
-two complete implementations. The candidate also adds a durable projection
-outbox with `fm-session sync`, additive collision-safe snapshot import, and an
-enforced boundary around raw SQLite access.
+Released 2026-08-22. George's Odyssey makes session state portable: one
+`SessionStore` contract, two complete implementations. It adds a durable
+projection outbox with `fm-session sync`, additive collision-safe snapshot
+import, and an enforced boundary around raw SQLite access.
 
-The six release predicates passed on pushed product commit
-`64604d24308b446eaf1102177165622d3ec29167`. The live release gate and final
-publication state are tracked in [pull request #45](https://github.com/CharlesHoskinson/foreman/pull/45).
+The delivery guarantee is durable idempotent at-least-once. It is not
+exactly-once. The six release predicates passed on product commit
+`64604d24308b446eaf1102177165622d3ec29167`. The final reviewed candidate was
+`0f841b4b2d3e52f0afafcc50026c49324a42ab8a`. Pull request
+[#45](https://github.com/CharlesHoskinson/foreman/pull/45) merged it as
+`c9030fbb98c0d723cd39ad361cb98a3e74b5f487`. The exact candidate
+[gate](https://github.com/CharlesHoskinson/foreman/actions/runs/32556688358)
+and exact integrated
+[gate](https://github.com/CharlesHoskinson/foreman/actions/runs/32557610402)
+passed.
 
-- Release-candidate notes:
+- Release notes:
   [`docs/releases/v0.3.1-notes.md`](docs/releases/v0.3.1-notes.md)
+- GitHub release:
+  <https://github.com/CharlesHoskinson/foreman/releases/tag/v0.3.1>
 - Storage architecture:
   [`docs/architecture/storage-port.md`](docs/architecture/storage-port.md)
+- Previous release:
+  [`v0.3.0`](docs/releases/v0.3.0-notes.md)
 
 ## 1. What Foreman is and the problem it solves
 
