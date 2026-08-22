@@ -1,6 +1,7 @@
 # v0.3.1 "George's Odyssey" — session state is portable
 
-Status: design, approved 2026-08-08. Not an implementation plan.
+Status: design, approved 2026-08-08. Predicate wording was corrected on
+2026-08-22 after implementation. This file is not an implementation plan.
 
 v0.3.1 is one sentence: **session state is portable — one contract, two
 implementations.**
@@ -16,15 +17,20 @@ Six predicates, each falsifiable, all measured on one unchanged pushed commit.
 
 | # | Predicate | Measurement |
 |---|---|---|
-| 1 | No direct backend access outside the port | Over tracked source, excluding any `dist/`: `node:sqlite` appears only under `packages/session-store/src` |
-| 2 | CLI behaviour is unchanged | `tests/session.bats` 29/29 green through the port, and `tests/session-golden.bats` reports an empty diff |
+| 1 | No raw or concrete backend access outside the port | `scripts/backend-boundary.test.ts` rejects production `node:sqlite` and concrete backend use outside `packages/session-store/src`; its reasoned test allowlist and negative controls must pass |
+| 2 | CLI behaviour is unchanged | `tests/session.bats` passes 29/29 through the built runtime, and `packages/orchestration/src/fm-session-golden.test.ts` reports an empty diff |
 | 3 | The contract is portable | `contract-suite.ts` passes **unchanged** against both `SqliteSessionStore` and `FilesOnlySessionStore` |
-| 4 | Correctness is independent of the projection | Every `fm-session` command is byte-identical in stdout, stderr and exit code under null, throwing, hanging and poison `MemoryIndex` |
+| 4 | Correctness is independent of the projection | The I2 contract tests produce identical system-of-record state under null, throwing, hanging, and poison `MemoryIndex`; projection failures stay in the durable outbox |
 | 5 | The migration is complete | `fm-session-main.ts` contains no `// @ts-nocheck` |
-| 6 | The outbox is exactly-once | `fm-session sync` drains under injected retry and timeout without double-writing |
+| 6 | The outbox is durable, idempotent at-least-once | `outbox.test.ts` covers retry, timeout, cancellation, partial remote application, ack failure, receipt races, and bounded work without losing pending records |
 
 Predicate 3 is the one that matters. A contract satisfied once is a description
 of its only implementation.
+
+Predicate 6 cannot promise exactly-once delivery. The system of record and the
+projection index are separate systems. A crash after remote success and before
+the local receipt acknowledgement must replay that batch. Repeated desired-state
+operations are harmless only when the `MemoryIndex` adapter is idempotent.
 
 ## What ships
 
@@ -32,15 +38,15 @@ of its only implementation.
 |---|---|
 | `FilesOnlySessionStore` | Second `SessionStore` implementation, NDJSON-backed. Mirrors `FilesOnlyGraphStore`, which is the established precedent in this repository |
 | `fm-session-main.ts` rebuilt on the port | Removes direct `node:sqlite` use and `// @ts-nocheck` |
-| `fm-session sync` | Drains `memory_outbox` with bounded retry and idempotency keys |
-| `remap` id-collision policy | Currently throws as unimplemented; import into a non-empty store must rewrite `superseded_by` pointers |
+| `fm-session sync` | Drains the durable outbox with Effect-based cancellation, timeout, and bounded retry |
+| `remap` id-collision policy | Adds a donor to a non-empty store with per-kind ID maps, rewritten pointers, and deterministic session collision names |
 | Backend factory | Single selection point reading `FOREMAN_SESSION_BACKEND`, defaulting to SQLite. The CLI never names a backend |
-| `tests/session-golden.bats` | Freezes exact CLI output as the migration oracle |
+| `fm-session-golden.test.ts` | Freezes exact CLI output as the migration oracle |
 | Broken-store fixture | The conformance suite's missing negative control |
 
 ## What does not ship
 
-The the external memory service `MemoryIndex` adapter and projection epochs move to v0.4.0. They
+The external memory service `MemoryIndex` adapter and projection epochs move to v0.4.0. They
 are built against a live instance when one exists, not against a mock. The
 adapter needs `memory-core`, `memory-hub` and `proxy` running plus two sets of
 LLM credentials; standing that up is not a prerequisite for proving that the
@@ -64,8 +70,9 @@ fm-session sync ─────────────►  memory_outbox ──
                                                      └── NullMemoryIndex  default
 ```
 
-The CLI depends only on the port. It never names a backend. Backend selection
-is a single factory reading `FOREMAN_SESSION_BACKEND`, defaulting to SQLite.
+The CLI depends on port interfaces and port-owned factories. It never imports a
+concrete backend constructor. Backend selection is a single factory that reads
+`FOREMAN_SESSION_BACKEND` and defaults to SQLite.
 
 `fm-session sync` is the only code permitted to read `memory_outbox`. The
 outbox stays outside `SessionSnapshot`, because it is derived bookkeeping and
@@ -77,11 +84,11 @@ Step 0 is the oracle and it is not optional.
 
 | Step | Work | Gate to advance |
 |---|---|---|
-| 0 | `session-golden.bats` freezes exact stdout, stderr, exit code and sidecar bytes for every command on a fixed fixture | Golden captured on unmodified `fm-session`, and the suite fails when pointed at a deliberately altered command |
+| 0 | `fm-session-golden.test.ts` freezes exact stdout, stderr, exit code and sidecar bytes for every command on a fixed fixture | Golden captured on unmodified `fm-session`, and the suite fails when pointed at a deliberately altered command |
 | 1 | `FilesOnlySessionStore` | Conformance suite green for both implementations, unchanged |
 | 2 | Negative control: deliberately broken store fixture | Suite fails it for at least three independent reasons |
-| 3 | Migrate `fm-session` command by command behind `FM_SESSION_CMD` | After each command: `session.bats` 29/29 and golden diff empty |
-| 4 | `fm-session sync` and `remap` | Exactly-once under injected retry; remap rewrites `superseded_by` |
+| 3 | Migrate `fm-session` command by command through the port | After each command: `session.bats` 29/29 and golden diff empty |
+| 4 | `fm-session sync` and `remap` | Durable idempotent at-least-once retry; remap rewrites same-kind pointers |
 | 5 | Cutover: drop `// @ts-nocheck`, delete direct `node:sqlite` | All six predicates measured on one commit |
 
 Step 0 before step 3 is the whole point. v0.3.0 measured a suite that asserted
