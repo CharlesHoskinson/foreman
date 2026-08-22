@@ -21,7 +21,7 @@ reason = "Track 3 owns the Qdrant adapter, projection epochs, and live tests."
 [[future_owner]]
 name = "hermetic-foreman-appliance"
 target_release = "v0.4"
-reason = "Track 4 owns the pinned control, toolchain, and worker images."
+reason = "Track 4 owns the pinned images, host bootstrap, and rootless service."
 
 [[future_owner]]
 name = "windows-bats-bw004"
@@ -366,7 +366,7 @@ disposition = "v050"
 owner = "three-outcome-verdicts"
 target_release = "v0.5"
 reconcile = "not_required"
-reason = "The existing verdict contract is reused without taking its backlog."
+reason = "Track 1 owns the narrow v0.4 override; the broad verdict backlog is v0.5."
 
 [[entry]]
 key = "change:v030-release-program"

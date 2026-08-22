@@ -159,9 +159,20 @@ The cold auditor does not inherit the implementer's conclusions. It receives
 the approved requirements, exact base and candidate identities, complete diff,
 and deterministic evidence. The model reports `APPROVED`, `WARNING`, or
 `BLOCKED`. The harness records a typed `UNVERIFIED` result when no valid model
-judgment exists. `BLOCKED`, an unresolved medium-or-higher `WARNING`, and
-`UNVERIFIED` fail closed. A blocking finding reopens the same bounded package
-loop.
+judgment exists. Only `APPROVED` admits a v0.4 lane, integration, or
+publication. `WARNING`, `BLOCKED`, `UNVERIFIED`, an unknown verdict, a malformed
+verdict, or any reported finding fails closed and reopens the same bounded
+package loop.
+
+Track 1 implements this rule in `packages/policy/src/release-admission.ts` and
+the `release-admission check` command. The check reads the verdict artifact
+directly and does not read `[audit.policy]`. Every v0.4 lane wrapper and the
+final merge gate run it after the general Foreman gate. Mutable repository or
+machine configuration cannot weaken this release-specific rule. Before this
+check exists, the single Track 1 bootstrap can consume only content-addressed
+`APPROVED` governor audit receipts that bind the exact commit, tree, governor
+digest, and empty finding set. The Endstop contract and the user's exact-byte
+design approval must also match. No other product work uses this bootstrap.
 
 The architect owns commits, integration, and publication. Workers do not merge,
 rewrite release evidence, or mark SessionDB obligations complete.
@@ -220,16 +231,27 @@ conflict; Foreman does not choose one copy automatically.
 Each registry authority has a UUID and an Ed25519 identity key. The key
 fingerprint is SHA-256 of the raw 32-byte public key. The private key is runtime
 state with mode `0600` or an equivalent Windows ACL; it is never in an image,
-project export, or release artifact. A destination first signs an offer that
-binds its registry authority UUID, proposed operation UUID, project UUID,
-canonical Git common directory, selected store backend, and target store
-locator digest. A retirement receipt binds that complete offer digest,
-destination authority, transfer nonce, project UUID, export digest, source
-store operation UUID, source registry generation, retirement disposition, and
-exact external approval digest. The source registry signs it. The external
-approval pins the source, destination, and recovery-key fingerprints,
-destination authority, project UUID, export digest, and proposed operation
-UUID.
+project export, or release artifact. Each registry also stores an operator
+approval-authority UUID, positive key generation, and Ed25519 public-key
+fingerprint. An explicit operator command pins or rotates that authority before
+a transfer starts. The transfer bundle cannot add or rotate it. The operator
+approval key is distinct from the source registry, destination registry, and
+project recovery keys.
+
+A destination first signs an offer that binds its registry authority UUID,
+proposed operation UUID, project UUID, canonical Git common directory, selected
+store backend, and target store locator digest. A retirement receipt binds that
+complete offer digest, destination authority, transfer nonce, project UUID,
+export digest, source store operation UUID, source registry generation,
+retirement disposition, and exact external approval digest. The source
+registry signs it. The operator approval binds the offer digest, transfer
+nonce, source and destination registry-key fingerprints, operator approval-
+authority identity and generation, the recovery-key fingerprint, destination
+authority, project UUID, export digest, and proposed operation UUID. The
+separately held operator approval key signs it. A normal transfer
+requires the same approval-authority identity and generation in both
+registries. Recovery requires that identity in the destination registry and in
+the project registration record.
 
 The source computes the signed receipt before mutation, but it makes the bytes
 usable only by storing the complete receipt in the same SessionStore
@@ -242,12 +264,13 @@ commit. Failure at the destination retries the same receipt. Moving the project
 back is a new signed transfer.
 
 At project registration, the SessionStore also records the fingerprint of an
-operator-held Ed25519 recovery key. If the source no longer exists, a recovery
-receipt uses that key and binds a unique transfer nonce, the destination offer,
-the same project and export identities, last-known store operation UUID,
-last-known registry generation, operator assertion, and external approval
-digest. An unavailable value is the explicit value `unknown`. The recovery
-path is operator-attested and release evidence labels it as weaker than source
+operator-held Ed25519 recovery key and the approval-authority UUID, generation,
+and fingerprint. If the source no longer exists, a recovery receipt uses the
+recovery key and binds a unique transfer nonce, the destination offer, the same
+project and export identities, last-known store operation UUID, last-known
+registry generation, operator assertion, and external approval digest. An
+unavailable value is the explicit value `unknown`. The recovery path is
+operator-attested and release evidence labels it as weaker than source
 retirement.
 
 Both receipts bind exactly one destination registry authority and proposed
@@ -267,8 +290,9 @@ string is at most 64 KiB of UTF-8. The envelope has only these top-level fields:
 - `schema`, with the literal value `foreman.session-transfer.v1`
 - `source_backend`, with `sqlite` or `files-only`
 - `project`, with the project UUID, source registry authority UUID, unpadded
-  base64url raw 32-byte public key, recovery-key fingerprint, source store
-  operation UUID, and nonnegative safe-integer source registry generation
+  base64url raw 32-byte public key, recovery-key fingerprint, approval-authority
+  UUID, positive approval-key generation, approval-key fingerprint, source
+  store operation UUID, and nonnegative safe-integer source registry generation
 - `snapshot`, with the complete `SessionSnapshot`
 - `projection`, with a positive safe-integer `next_version`, unique
   projection-key/version rows in lexical key order, a positive safe-integer
@@ -278,13 +302,15 @@ Each projection version is a positive safe integer. Projection keys and opaque
 receipts are unique. The next counters are greater than every allocated value
 that they govern.
 
-`ExternalTransferApprovalV1` is a closed RFC 8785 object with schema
-`foreman.external-transfer-approval.v1`, approval UUID, source, destination,
-and recovery-key fingerprints, destination authority UUID, project UUID,
-export digest, and proposed operation UUID. Its SHA-256 digest is the external
-approval digest.
+`ExternalTransferApprovalV1` is a closed, signed RFC 8785 object. It has schema
+`foreman.external-transfer-approval.v1`, approval UUID, operator approval-
+authority UUID, positive key generation, raw public key, destination-offer
+digest, transfer nonce, source and destination registry-key fingerprints,
+recovery-key fingerprint, destination authority UUID, project UUID, export
+digest, proposed operation UUID, and signature. Its SHA-256 digest is the
+external approval digest.
 
-The three signed objects are also closed RFC 8785 values:
+The other signed authorization object schemas are:
 
 - `DestinationOfferV1` has schema `foreman.destination-offer.v1`, destination
   authority UUID, destination raw public key, proposed operation UUID, project
@@ -306,23 +332,32 @@ verifier rejects an extra, missing, duplicate, wrongly encoded, or wrong-type
 field before signature verification.
 
 SHA-256 of the canonical envelope bytes is the export digest. A transfer bundle
-contains the envelope, signed destination offer, exact external approval
-artifact, and exactly one signed retirement or recovery receipt. These three
-artifacts are not inside the envelope digest. Validation is parse and size
-bounds, exact schema and closed fields, canonical-byte reproduction and digest,
-signature and approval,
-safe-integer and receipt invariants, SessionSnapshot integrity, registry
-admission, then one atomic target publication. An unknown version, unknown
-backend, non-canonical encoding, duplicate key or receipt, invalid signature,
-counter mismatch, or malformed row refuses before target mutation. Same-backend
-restore preserves opaque receipts. Cross-backend restore remints them in queue
-order. `importSnapshot` remains row import and cannot perform exact project
-restore.
+contains the envelope, signed destination offer, signed external approval, and
+exactly one signed retirement or recovery receipt. These three authorization
+artifacts are not inside the envelope digest. Validation first applies parse,
+size, schema, closed-field, canonical-byte, and digest checks. It then computes
+each raw public-key fingerprint and compares it with its registered identity.
+It checks the destination key against the named destination registry, the
+approval key against the pinned operator authority, the source key against the
+source registry when available, and the recovery key against the project
+registration record. It verifies the offer with the destination key, the
+approval with the operator key, a retirement receipt with the source key, and a
+recovery receipt with the recovery key. It then compares every offer, nonce,
+authority, project, operation, export, key-generation, and approval-digest
+binding across the artifacts. Only after these checks does it validate safe
+integers, receipt invariants, SessionSnapshot integrity, and registry
+admission, then perform one atomic target publication. An unknown version,
+unknown backend, non-canonical encoding, duplicate key or receipt, unknown or
+mismatched authority, invalid signature, counter mismatch, or malformed row
+refuses before source retirement or target mutation. Same-backend restore
+preserves opaque receipts. Cross-backend restore remints them in queue order.
+`importSnapshot` remains row import and cannot perform exact project restore.
 
-A writable registry migration creates its authority UUID and identity key, and
-an explicit writable project migration records the project UUID, operation
-UUID, and operator-supplied recovery public-key fingerprint. A read-only open
-that needs either migration refuses without changing registry or store bytes.
+A writable registry migration creates its authority UUID and identity key. A
+separate explicit operator action pins the approval authority. An explicit
+writable project migration records the project UUID, operation UUID, recovery
+public-key fingerprint, and approval-authority identity. A read-only open that
+needs any migration refuses without changing registry or store bytes.
 
 Registry-changing operations use an idempotent three-step protocol:
 
@@ -541,23 +576,52 @@ documented diagnostic override. Disabling the profile restores the
 
 ### Hard-mode topology
 
-The control container has no path to the host engine. The hard-mode
-profile starts a rootless daemon sidecar. The control container receives only
-the private sidecar socket. The sidecar keeps images, layers, and worker
-containers in its own volume and network namespace.
+The control container has no path to the operator's general container engine.
+Hard mode uses a dedicated rootless Podman `system service` as an engine
+sidecar. The service is not nested in an OCI container. It runs as the separate
+non-login Linux account `foreman-engine`, with disjoint subordinate UID and GID
+ranges, a private runtime directory, and a private engine-data directory. The
+account has no read, write, or search access to `/workspace` or `/state`. The
+host bootstrap and `foreman doctor` verify these permissions before they start
+or admit the service.
 
-The reference manifest names the exact rootless engine image and platform
-digests. The outer sidecar runs with `privileged=false`, a dedicated nonroot
-UID and user namespace, all capabilities dropped, no host PID, IPC, or network
-namespace, and no host-path mount. It exposes only `/dev/fuse`, when the pinned
-storage driver needs it, under pinned seccomp and AppArmor profiles. Its root
-filesystem is read-only except for its engine-data volume and runtime tmpfs.
-The Unix socket has mode `0660` and is shared only with the control container's
-dedicated engine group. The sidecar cannot mount `/workspace` or `/state`.
+`env/reference-manifest.toml` names the exact Podman version, API contract,
+host package identities, rootless network and storage helpers, minimum kernel,
+and supported Linux architectures. The published bundle contains the pinned
+host bootstrap, systemd unit, and configuration templates. The operator runs
+that bootstrap explicitly with the authority needed to create the account,
+subordinate-ID ranges, directories, and unit. No host language runtime is
+required. A wrong, missing, overlapping, or mutable prerequisite refuses hard
+mode.
 
-Control-local paths are not valid daemon mount sources. For each task, the
-control container therefore creates a sidecar-owned staging volume through the
-private Engine API. It sends the clean worktree, prompt, and non-secret task
+The hard-mode profile supports only the manifest-pinned Podman host on Linux.
+The operator runs the control appliance with rootless Podman, and the separate
+`foreman-engine` account runs the worker service. Docker and other supported OCI
+engines can run soft mode but do not satisfy hard-mode admission. The bootstrap
+creates the host-local service address, firewall rule, and private name that the
+control resolves. A throwaway control container must complete an authenticated
+probe through that exact route before the profile is enabled.
+
+The Podman service listens only on a host-local TCP endpoint and requires
+mutual TLS through its native `--tls-cert`, `--tls-key`, and `--tls-client-ca`
+options. The server key stays in the engine account's mode-`0600` runtime state.
+The client key enters the control container through a runtime secret and exists
+only in its `/run` tmpfs. The control pins the private CA and expected server
+identity. It does not mount a Unix socket, the host runtime directory, the
+operator's engine socket, or another host path. The service API grants complete
+authority as `foreman-engine`; therefore the dedicated account, filesystem
+permissions, mutual TLS, and host-local endpoint form the security boundary.
+The control plane is trusted and intentionally holds this authority. Hard mode
+contains the untrusted worker; it does not claim to contain a compromised
+control plane, which already has `/workspace` and `/state` authority. The
+worker never receives the client certificate or access to the service endpoint.
+The upstream Podman service contract documents both the Docker-compatible API
+and these TLS options at
+<https://docs.podman.io/en/latest/markdown/podman-system-service.1.html>.
+
+Control-local paths are not valid engine mount sources. For each task, the
+control container therefore creates an engine-owned staging volume through the
+mutual-TLS API. It sends the clean worktree, prompt, and non-secret task
 environment as one bounded tar archive through a staging container's archive
 endpoint. The worker mounts only that volume. Runtime credentials use the
 worker `tmpfs` protocol below and do not enter the archive. After execution, the
@@ -575,23 +639,30 @@ volume, result archive, or logs. Cleanup destroys the worker and its `tmpfs`.
 Absolute paths, `..`, device nodes, sockets, hard links, escaping symbolic
 links, duplicate paths, and expansion beyond the bound refuse. Cleanup removes
 the worker, staging container, and volume idempotently. No host bind path
-crosses the sidecar boundary.
+crosses the engine boundary.
 
-This layout limits the effect of a control-plane compromise. It also makes
-cleanup and test evidence independent of the operator's host engine state. The
-sidecar is an explicit privilege boundary, not a claim that nested container
-execution has no kernel risk. The security tests therefore inspect the outer
-sidecar and inner worker settings and include socket discovery, archive escape,
-privilege, mount, capability, network, device, and state-volume negative
-controls.
+This layout limits the untrusted worker to the dedicated engine account and
+makes cleanup and test evidence independent of the operator's general engine
+state. The service is an explicit privilege boundary, not a claim that rootless
+containers have no kernel risk. The security tests therefore inspect the host
+account, subordinate IDs, unit, endpoint, certificates, service and worker
+settings. They include general-socket discovery, archive escape, mutual-TLS,
+worker-to-service access, filesystem access, privilege, mount, capability,
+network, device, and state-volume negative controls.
 
-Hosted Linux CI must execute the complete rootless-sidecar path. Windows uses
-the appliance through WSL2 for that topology, but BW-004 still runs natively as
-a separate release predicate. The program does not report a native Windows
-rootless daemon that the platform does not provide.
+Track 4 qualifies the pinned Podman Docker-compatibility endpoints used for
+image, container, volume, archive, tmpfs, inspect, wait, and cleanup operations.
+The service's version handling is not accepted as proof of compatibility. Each
+endpoint receives a live positive test and a discriminating negative control.
+Hosted Linux CI executes a real worker through the complete service path.
+Windows uses the appliance and service through WSL2, but BW-004 still runs
+natively as a separate release predicate. The program does not report a native
+Windows Podman service.
 
-Soft mode does not require the sidecar. If the sidecar fails qualification,
-hard mode refuses. It never discovers and uses a host socket as a fallback.
+Soft mode does not require the engine service and remains the turnkey path on
+any supported OCI host. If the dedicated service fails qualification, hard
+mode refuses. It never discovers or uses the operator's engine socket as a
+fallback.
 
 ### Reproducibility and supply chain
 
@@ -671,15 +742,16 @@ bounded, structured, logged, and cited. An empty query is explicit.
 ## Evaluation and rollout
 
 The evaluation tranche locks a canonical pool of 50 tasks before any arm
-result. The final analysis uses the first 30 through 50 tasks in canonical
-order. The set balances changed-interface callers and dependents,
-cross-package impact, event producer to consumer tracing, and command entry
-point to persistence tracing. Every task runs in all four retrieval arms with
-the same model, tools, prompt, token cap, monetary cap, elapsed-time cap, and
-seed schedule. Runs are serialized on one qualified appliance host in one
-locked balanced order. The harness records retrieval recall and precision,
-context tokens, citation validity, task quality, elapsed time, cost, failure
-class, and graph-mode identity.
+result. The confirmatory analysis always uses all 50 tasks. No result, variance
+estimate, budget observation, or interim statistic can select a prefix or drop
+a task. The set balances changed-interface callers and dependents, cross-
+package impact, event producer to consumer tracing, and command entry point to
+persistence tracing. Every task runs in all four retrieval arms with the same
+model, tools, prompt, token cap, monetary cap, elapsed-time cap, and seed
+schedule. Runs are serialized on one qualified appliance host in one locked
+balanced order. The harness records retrieval recall and precision, context
+tokens, citation validity, task quality, elapsed time, cost, failure class, and
+graph-mode identity.
 
 The sole promotion contrast is D hybrid minus B lexical. A-to-B, A-to-C,
 B-to-C, and C-to-D remain published diagnostics. They cannot select a release
@@ -690,30 +762,28 @@ per-task D-to-B ratios. Token reduction is one minus the token ratio, so a
 20-percent reduction is equivalent to an upper token-ratio bound of 0.80.
 
 Elapsed time is monotonic wall time from task admission through the persisted
-scored verdict. Each task-run has an absolute ceiling of 30 minutes and USD 5
-under the locked price table. The complete four-arm design has an absolute USD
-10,000 ceiling. A relative recall exception can waive only the 10-percent
-latency comparison. It cannot waive an absolute latency or cost ceiling.
+scored verdict. Each task-run has an absolute ceiling of 30 minutes and USD
+4.50 under the locked price table. The 2,000 confirmatory task-runs therefore
+reserve at most USD 9,000. The complete evaluation has an absolute USD 10,000
+ceiling, including scoring and control overhead. Admission reserves the full
+budget before the first arm starts. A missing reservation or exhausted ceiling
+makes promotion `uncomputable`. A relative recall exception can waive only the
+10-percent latency comparison. It cannot waive an absolute latency or cost
+ceiling.
 
-Before the first C or D result, the program uses only the A and B runs from the
-locked pool to register the paired variance assumptions, a simulation-based
-power report, and the final canonical prefix length. It selects the smallest
-prefix from 30 through 50 tasks that gives at least 80-percent power at
-two-sided alpha 0.05 for an 8-percentage-point recall effect and each
-registered non-inferiority or efficiency margin. The A and B runs used for
-this calculation are the same locked runs used in the final analysis; they are
-not repeated. If all 50 tasks do not provide the required power, graph
-promotion is `uncomputable` and remains opt-in or off. No C or D result is read
-before this decision.
+The release does not use observed outcomes to choose sample size and does not
+claim post-hoc power. The report publishes the fixed design and the registered
+confidence intervals. No additional sensitivity result can change the corpus,
+repeats, thresholds, promotion decision, or release admission.
 
 The program then locks a paired hierarchical percentile bootstrap with 10,000
 resamples, the seed `foreman-v040-eval-bootstrap-v1`, and two-sided 95-percent
 intervals. Each resample selects tasks with replacement and then selects the
 paired B/D repeat indices within each selected task with replacement. This
 preserves treatment pairing while propagating task and repeat uncertainty. The
-minimum completed design is 30 tasks by ten repeats by four arms. A missing arm
-or repeat makes the complete promotion analysis `uncomputable`; no task is
-dropped and no value is imputed.
+required completed design is exactly 50 tasks by ten repeats by four arms. A
+missing arm or repeat makes the complete promotion analysis `uncomputable`; no
+task is dropped and no value is imputed.
 
 Citation validity is not bootstrapped. It is a deterministic safety gate over
 every emitted citation: promotion requires zero invalid citations, and the
@@ -746,8 +816,8 @@ The final testing round includes:
 - documentation, link, spelling, and reference-manifest checks
 - two clean appliance builds for each supported platform
 - appliance bootstrap, restart, state persistence, upgrade, and rollback tests
-- hard-mode sidecar outer-isolation, archive data-plane, path-escape,
-  delete-aware result, and no-host-socket negative controls
+- hard-mode rootless-service identity, mutual-TLS, archive data-plane,
+  path-escape, delete-aware result, and no-host-socket negative controls
 - secret-canary scans over build inputs, image outputs, and attestations
 - project-registry migration, linked-worktree, moved-project, restore,
   move-receipt, replacement, additive-remap, clone, signed destination-bound
@@ -760,8 +830,9 @@ The final testing round includes:
   strict-mode and payload-index refusal, and rebuild-race tests
 - work-DAG replay, torn-tail, failed-attempt, and rename fixtures
 - context budget, determinism, citation, degraded-mode, and escape-hatch tests
-- locked evaluation of 30 to 50 tasks and ten repeats per arm, including
-  power, missing-arm, zero-invalid-citation, absolute budget, and cost controls
+- locked evaluation of exactly 50 tasks and ten repeats per arm, including
+  fixed-sample, missing-arm, zero-invalid-citation, absolute budget, and cost
+  controls
 - hosted Linux, WSL, Windows, and supported architecture evidence
 - native Windows completion of Bats item BW-004
 - one cold audit of the full baseline-to-candidate diff

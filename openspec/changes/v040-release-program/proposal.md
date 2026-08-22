@@ -28,24 +28,28 @@ reproducible bootstrap and makes support evidence depend on the host.
   active specification tree.
 - Add the closed `foreman-bounded` and `foreman-architectural` OpenSpec
   workflows. Each approved `tasks.md` is its package's only active plan.
+- Add a v0.4 release-admission check that accepts only an exact `APPROVED`
+  audit verdict and cannot be weakened by mutable audit policy.
 - Add a machine-local project registry. Stable project identities bind
   cross-repository semantic references to the correct `SessionStore`.
 - Bind project moves, restores, and clones to durable receipts and exact crash
   recovery so a copied repository cannot silently replace a live project.
+- Require every project-transfer approval to be signed by a separately pinned
+  operator authority and bound to one destination offer and transfer nonce.
 - Add the first external `MemoryIndex` adapter with Qdrant 1.19.0, a pinned
   local embedding model, projection epochs, and live-service tests while
   keeping `NullMemoryIndex` as the default.
 - Add durable projection versions and conditional Qdrant mutations so a timed
   out old request cannot overwrite newer acknowledged desired state.
 - Add a hermetic Foreman appliance with separate control and worker images,
-  exact dependency pins, an isolated rootless hard-mode daemon, and no host
-  Docker socket mount.
+  exact dependency pins, a dedicated rootless Podman hard-mode service, and no
+  operator or default host-engine socket mount.
 - Qualify Graphify 0.9.48 before Foreman adopts it.
 - Project a deterministic work DAG from durable run evidence.
 - Build immutable, bounded, source-cited context packs with explicit degraded
   modes.
-- Compare direct-source, lexical, graph, and hybrid retrieval on a locked
-  50-task pool with a power-selected canonical prefix of 30 through 50 tasks.
+- Compare direct-source, lexical, graph, and hybrid retrieval on all tasks in a
+  locked 50-task confirmatory corpus.
 - Promote graph-assisted context only when the preregistered thresholds pass.
 - Close Windows Bats item BW-004 as a v0.4 release predicate.
 - Reconcile every active OpenSpec package and Roadmap v0.4 assignment in one
@@ -64,7 +68,9 @@ reproducible bootstrap and makes support evidence depend on the host.
   ledger. Superpowers supplies brainstorming, planning, TDD, review, and
   verification procedures.
 - **Runtime:** A new control image provides a turnkey Foreman environment. The
-  existing sandbox image remains the narrow untrusted-worker boundary.
+  existing sandbox image remains the narrow untrusted-worker boundary. Hard
+  mode has an explicit pinned Linux Podman host prerequisite; soft mode does
+  not.
 - **Knowledge:** Graphify data remains derived and replaceable. Source, Git,
   OpenSpec, event logs, and SessionDB keep their existing authority.
 - **Identity:** Cross-project references carry a stable project identifier and
