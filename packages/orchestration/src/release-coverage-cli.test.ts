@@ -990,6 +990,44 @@ test("bootstrap assembly uses sealed Track-1 fixture and injected repository roo
     assertCanonicalResult(capture, validResult(SHARED_ACTIVE, crlf, 2));
   });
 
+  await t.test("valid UTF-8 with a non-authoritative Roadmap header is invalid_roadmap", async () => {
+    const bytes = utf8(
+      roadmapText(false).replace(
+        "| Coverage key | Scope | Release | Owner |",
+        "| Key | Scope | Release | Owner |",
+      ),
+    );
+    const { exitCode, capture } = await runCli(
+      BOOTSTRAP_ARGV,
+      sharedBootstrapOptions({
+        roadmapBytes: bytes,
+        registerText: sealRegister({
+          activeNames: SHARED_ACTIVE,
+          roadmapBytes: bytes,
+        }),
+      }),
+    );
+    assert.equal(exitCode, EXIT_EVALUATED);
+    assertCanonicalResult(capture, invalidResult("invalid_roadmap"));
+  });
+
+  await t.test("malformed OpenSpec JSON and shape are dependency_failure", async (nested) => {
+    for (const [name, openspecBytes] of [
+      ["malformed-json", utf8("{not-json")],
+      ["wrong-shape", utf8('{"changes":[{"id":"wrong-field"}]}')],
+    ] as const) {
+      await nested.test(name, async () => {
+        const { exitCode, capture } = await runCli(
+          BOOTSTRAP_ARGV,
+          sharedBootstrapOptions({ openspecBytes }),
+        );
+        assert.equal(exitCode, EXIT_EVALUATED);
+        assertCanonicalResult(capture, invalidResult("dependency_failure"));
+        assertSanitized(capture);
+      });
+    }
+  });
+
   await t.test("git receives repository plus baseline commit, never the register path", async () => {
     const { exitCode, capture } = await runCli(
       BOOTSTRAP_ARGV,
@@ -1211,7 +1249,7 @@ test("eleven ReleaseCoverageFailureReason values print one canonical JSON line",
             `[[entry]]`,
             `key = "change:${TRACK1}"`,
             `source_kind = "openspec_change"`,
-            `source_path = "openspec/changes/${TRACK1}-dup"`,
+            `source_path = "openspec/changes/${TRACK1}"`,
             `disposition = "v040_owner"`,
             `owner = "${TRACK1}"`,
             `target_release = "v0.4"`,
@@ -1229,7 +1267,7 @@ test("eleven ReleaseCoverageFailureReason values print one canonical JSON line",
           activeNames: SHARED_ACTIVE,
           roadmapBytes: SHARED_ROADMAP_BYTES,
           mutate: (text) =>
-            text.replace(`owner = "${TRACK1}"`, `owner = "not-a-known-owner"`),
+            text.replace(`name = "${PACKAGE}"`, `name = "declared-other-package"`),
         }),
       }),
       expectOpenspec: true,
