@@ -1328,7 +1328,15 @@ describe("release coverage policy", () => {
         expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
         packageBriefBytesByName: {
           [ACTIVE_PKG]: utf8(
-            `${JSON.stringify({ summary: brief.summary, workflow: brief.workflow, packageName: brief.packageName })}\n`,
+            `${JSON.stringify({
+              schema: brief.schema,
+              packageId: brief.packageId,
+              objective: brief.objective,
+              familySha256: brief.familySha256,
+              childId: brief.childId,
+              allowedPaths: brief.allowedPaths,
+              acceptance: brief.acceptance,
+            })}\n`,
           ),
         },
       },
@@ -1343,7 +1351,7 @@ describe("release coverage policy", () => {
         packageBriefBytesByName: {
           [ACTIVE_PKG]: canonicalBriefBytes({
             ...brief,
-            summary: "different",
+            objective: "different",
           }),
         },
       },
