@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   cpSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -450,11 +451,14 @@ describe("release coverage policy", () => {
     return utf8(`${JSON.stringify(obj)}\n`);
   };
 
-  const makeBrief = (objective: string): Brief => ({
+  const makeBrief = (
+    objective: string,
+    packageId: string = ACTIVE_PKG,
+  ): Brief => ({
     schema: "foreman.release-package-brief.v1",
     familySha256: "b".repeat(64),
     childId: "v040-t1-convergence",
-    packageId: ACTIVE_PKG,
+    packageId,
     objective,
     acceptance: ["The package passes its release checks."],
     allowedPaths: ["packages/policy/**"],
@@ -536,7 +540,9 @@ describe("release coverage policy", () => {
         overrides.packageBriefBytesByName ?? {},
       changedPaths: overrides.changedPaths ?? [],
       phase: overrides.phase ?? "Bootstrap",
-      laneOwner: overrides.laneOwner,
+      ...(overrides.laneOwner === undefined
+        ? {}
+        : { laneOwner: overrides.laneOwner }),
     };
   };
 
@@ -626,7 +632,7 @@ describe("release coverage policy", () => {
         registerText: `${sealRegister(
           base.activePackageNames,
           base.roadmapText,
-        )}[[future_owner]]\n[[future_owner]]\nname = "x"\ntarget_release = "v0.4"\nreason = "r"\n`,
+        )}[duplicate]\nvalue = 1\n[duplicate]\nvalue = 2\n`,
       },
       {
         name: "unsupported TOML syntax",
@@ -674,7 +680,7 @@ describe("release coverage policy", () => {
           base.roadmapText,
           {
             entries: [
-              { ...track1Entry, owner: "bad owner" },
+              { ...track1Entry, owner: "bad/owner" },
               futureRoadmapEntry,
             ],
           },
@@ -721,13 +727,13 @@ describe("release coverage policy", () => {
           base.roadmapText,
           {
             entries: [
-              track1Entry,
               {
-                ...futureRoadmapEntry,
+                ...track1Entry,
                 disposition: "released_reference",
                 targetRelease: "v0.4",
                 reconcile: "complete",
               },
+              futureRoadmapEntry,
             ],
           },
         ),
@@ -739,13 +745,14 @@ describe("release coverage policy", () => {
           base.roadmapText,
           {
             entries: [
-              track1Entry,
               {
-                ...futureRoadmapEntry,
+                ...track1Entry,
                 disposition: "superseded",
+                owner: FUTURE,
                 targetRelease: "v0.5",
                 reconcile: "required",
               },
+              futureRoadmapEntry,
             ],
           },
         ),
@@ -757,13 +764,13 @@ describe("release coverage policy", () => {
           base.roadmapText,
           {
             entries: [
-              track1Entry,
               {
-                ...futureRoadmapEntry,
+                ...track1Entry,
                 disposition: "v050",
                 targetRelease: "v0.4",
                 reconcile: "not_required",
               },
+              futureRoadmapEntry,
             ],
           },
         ),
@@ -775,13 +782,102 @@ describe("release coverage policy", () => {
           base.roadmapText,
           {
             entries: [
-              track1Entry,
               {
-                ...futureRoadmapEntry,
+                ...track1Entry,
                 disposition: "v040_dependency",
                 targetRelease: "v0.5",
                 reconcile: "complete",
               },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "v040_owner forbids not_required",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                targetRelease: "v0.4",
+                reconcile: "not_required",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "v040_dependency forbids not_required",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                disposition: "v040_dependency",
+                targetRelease: "v0.4",
+                reconcile: "not_required",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "v050 forbids required",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                disposition: "v050",
+                targetRelease: "v0.5",
+                reconcile: "required",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "released_reference forbids not_required",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                disposition: "released_reference",
+                targetRelease: "released",
+                reconcile: "not_required",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "superseded forbids source owner",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                disposition: "superseded",
+                targetRelease: "v0.5",
+                reconcile: "complete",
+              },
+              futureRoadmapEntry,
             ],
           },
         ),
@@ -897,7 +993,7 @@ describe("release coverage policy", () => {
       {
         name: "malformed owner field",
         roadmapAssignments: [
-          { ...roadmapRow(ROADMAP_KEY, FUTURE), owner: "bad owner" },
+          { ...roadmapRow(ROADMAP_KEY, FUTURE), owner: "bad/owner" },
         ],
       },
       {
@@ -952,18 +1048,6 @@ describe("release coverage policy", () => {
       const registerText = sealRegister(
         base.activePackageNames,
         roadmapText,
-        {
-          entries: [
-            track1Entry,
-            {
-              ...futureRoadmapEntry,
-              key: roadmapAssignments[0]?.key ?? ROADMAP_KEY,
-              owner: roadmapAssignments[0]?.owner ?? FUTURE,
-              targetRelease:
-                (roadmapAssignments[0]?.release as string) ?? "v0.4",
-            },
-          ],
-        },
       );
       expectInvalid(
         cloneInput(base, {
@@ -1002,7 +1086,7 @@ describe("release coverage policy", () => {
           track1Entry,
           {
             ...track1Entry,
-            key: TRACK1_KEY,
+            key: "change:other",
             sourcePath: OPENSPEC_PATH,
             reason: "duplicate source row",
           },
@@ -1266,11 +1350,31 @@ describe("release coverage policy", () => {
 
   it("rejects workflow_mismatch for phase-relevant packages only", () => {
     const brief = makeBrief("ok");
+    const bytes = canonicalBriefBytes(brief);
+    const completeFutureRegister = sealRegister(
+      [ACTIVE_PKG],
+      renderRoadmapText(baselineAssignments()),
+      {
+        entries: [
+          track1Entry,
+          { ...futureRoadmapEntry, reconcile: "complete" },
+        ],
+      },
+    );
+
+    expectInvalid(
+      validBaseline({
+        phase: "Bootstrap",
+        packageWorkflowByName: {},
+      }),
+      "workflow_mismatch",
+    );
+
     const laneBase = validBaseline({
       phase: "Lane",
       expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
       packageBriefBytesByName: {
-        [ACTIVE_PKG]: canonicalBriefBytes(brief),
+        [ACTIVE_PKG]: bytes,
       },
     });
 
@@ -1286,6 +1390,17 @@ describe("release coverage policy", () => {
         "workflow_mismatch",
       );
     }
+
+    expectInvalid(
+      validBaseline({
+        phase: "Release",
+        registerText: completeFutureRegister,
+        packageWorkflowByName: {},
+        expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
+        packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
+      }),
+      "workflow_mismatch",
+    );
 
     const irrelevant = "other-active";
     const names = [ACTIVE_PKG, irrelevant];
@@ -1428,23 +1543,80 @@ describe("release coverage policy", () => {
       packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
     });
     expectValid(releaseOk, 2);
+
+    expectInvalid(
+      validBaseline({
+        phase: "Release",
+        registerText: completeFutureRegister,
+        packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      "brief_mismatch",
+    );
   });
 
-  it("flags unreconciled required future entries in Lane and Release only", () => {
-    const brief = makeBrief("ok");
-    const bytes = canonicalBriefBytes(brief);
-    const inputBootstrap = validBaseline({ phase: "Bootstrap" });
-    expectValid(inputBootstrap, 2);
+  it("flags unreconciled required entries across Bootstrap, Lane, and Release", () => {
+    const activeBrief = makeBrief("ok");
+    const activeBytes = canonicalBriefBytes(activeBrief);
+    const futureBrief = makeBrief("future", FUTURE);
+    const futureBytes = canonicalBriefBytes(futureBrief);
 
-    for (const phase of ["Lane", "Release"] as const) {
-      expectInvalid(
-        validBaseline({
-          phase,
-          laneOwner: phase === "Lane" ? FUTURE : undefined,
-        }),
-        "unreconciled",
-      );
-    }
+    expectValid(validBaseline({ phase: "Bootstrap" }), 2);
+
+    const track1Required = sealRegister(
+      [ACTIVE_PKG],
+      renderRoadmapText(baselineAssignments()),
+      {
+        entries: [
+          { ...track1Entry, reconcile: "required" },
+          futureRoadmapEntry,
+        ],
+      },
+    );
+    expectInvalid(
+      validBaseline({
+        phase: "Bootstrap",
+        registerText: track1Required,
+        packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      "unreconciled",
+    );
+
+    expectInvalid(
+      validBaseline({
+        phase: "Lane",
+        laneOwner: FUTURE,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: { [FUTURE]: futureBrief },
+        packageBriefBytesByName: { [FUTURE]: futureBytes },
+      }),
+      "unreconciled",
+    );
+
+    expectInvalid(
+      validBaseline({
+        phase: "Release",
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: {
+          [ACTIVE_PKG]: activeBrief,
+          [FUTURE]: futureBrief,
+        },
+        packageBriefBytesByName: {
+          [ACTIVE_PKG]: activeBytes,
+          [FUTURE]: futureBytes,
+        },
+      }),
+      "unreconciled",
+    );
 
     const completeFuture = sealRegister(
       [ACTIVE_PKG],
@@ -1456,17 +1628,50 @@ describe("release coverage policy", () => {
         ],
       },
     );
-    for (const phase of ["Lane", "Release"] as const) {
-      expectValid(
-        validBaseline({
-          phase,
-          registerText: completeFuture,
-          expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
-          packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
-        }),
-        2,
-      );
-    }
+
+    expectValid(
+      validBaseline({
+        phase: "Bootstrap",
+        registerText: completeFuture,
+        packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      2,
+    );
+    expectValid(
+      validBaseline({
+        phase: "Lane",
+        laneOwner: FUTURE,
+        registerText: completeFuture,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: { [FUTURE]: futureBrief },
+        packageBriefBytesByName: { [FUTURE]: futureBytes },
+      }),
+      2,
+    );
+    expectValid(
+      validBaseline({
+        phase: "Release",
+        registerText: completeFuture,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: {
+          [ACTIVE_PKG]: activeBrief,
+          [FUTURE]: futureBrief,
+        },
+        packageBriefBytesByName: {
+          [ACTIVE_PKG]: activeBytes,
+          [FUTURE]: futureBytes,
+        },
+      }),
+      2,
+    );
   });
 
   it("rejects competing_plan only for changed docs/superpowers paths", () => {
@@ -1474,6 +1679,12 @@ describe("release coverage policy", () => {
     expectInvalid(
       cloneInput(base, {
         changedPaths: ["docs/superpowers/specs/x.md"],
+      }),
+      "competing_plan",
+    );
+    expectInvalid(
+      cloneInput(base, {
+        changedPaths: ["docs/superpowers/plans/x.md"],
       }),
       "competing_plan",
     );
@@ -1500,103 +1711,65 @@ describe("release coverage policy", () => {
     }
   });
 
-  it("accepts the authored coverage.toml with derived inputs", () => {
+  it("accepts the authored coverage.toml with independent authority inputs", () => {
     const authoredPath = new URL(
       "../../../openspec/changes/v040-release-program/coverage.toml",
       import.meta.url,
     );
     const registerText = readFileSync(authoredPath, "utf8");
     assert.match(registerText, /^schema_version\s*=\s*1\b/m);
+    const entryCount = [...registerText.matchAll(/^\[\[entry\]\]$/gm)].length;
 
-    const futureOwners: { name: string; targetRelease: string; reason: string }[] =
-      [];
-    const entries: {
-      key: string;
-      sourceKind: string;
-      sourcePath: string;
-      disposition: string;
-      owner: string;
-      targetRelease: string;
-      reconcile: string;
-      reason: string;
-    }[] = [];
-    let section: "none" | "future_owner" | "entry" = "none";
-    let cur: Record<string, string> = {};
-    const flush = () => {
-      if (section === "future_owner") {
-        futureOwners.push({
-          name: cur.name!,
-          targetRelease: cur.target_release!,
-          reason: cur.reason!,
-        });
-      } else if (section === "entry") {
-        entries.push({
-          key: cur.key!,
-          sourceKind: cur.source_kind!,
-          sourcePath: cur.source_path!,
-          disposition: cur.disposition!,
-          owner: cur.owner!,
-          targetRelease: cur.target_release!,
-          reconcile: cur.reconcile!,
-          reason: cur.reason!,
-        });
-      }
-      cur = {};
+    const listed = runOpenspec(["list", "--json"]);
+    assert.equal(listed.error, undefined, `spawn error: ${listed.error}`);
+    assert.equal(
+      listed.status,
+      0,
+      `openspec list failed: ${listed.stderr || listed.stdout}`,
+    );
+    const listedJson = JSON.parse(listed.stdout) as {
+      changes: { name: string }[];
     };
-    for (const line of registerText.split("\n")) {
-      const t = line.trim();
-      if (t === "[[future_owner]]") {
-        flush();
-        section = "future_owner";
-        continue;
-      }
-      if (t === "[[entry]]") {
-        flush();
-        section = "entry";
-        continue;
-      }
-      const m = /^([a-z_]+)\s*=\s*(.+)$/.exec(t);
-      if (!m) continue;
-      const key = m[1]!;
-      let val = m[2]!.trim();
-      if (val.startsWith('"')) val = JSON.parse(val) as string;
-      if (section === "none") continue;
-      cur[key] = String(val);
-    }
-    flush();
-
-    const activePackageNames = [
-      ...new Set(
-        entries
-          .filter((entry) => entry.sourceKind === "openspec_change")
-          .map((entry) => {
-            const match = /^openspec\/changes\/([^/]+)$/.exec(
-              entry.sourcePath,
-            );
-            assert.ok(match, `invalid authored OpenSpec source: ${entry.key}`);
-            return match[1]!;
-          }),
-      ),
-    ];
+    assert.ok(Array.isArray(listedJson.changes), "list JSON must include changes");
+    const activePackageNames = listedJson.changes.map((change) => change.name);
     assert.equal(
       activeInventorySha256(activePackageNames),
       "148f3c5862053bbebea1ad7ac8842237b70f3877c402b3bc9209e85c2e7733fb",
     );
 
-    const roadmapEntries = entries.filter((e) => e.sourceKind === "roadmap");
-    const roadmapAssignments: RoadmapAssignmentV1[] = roadmapEntries.map(
-      (e) =>
-        roadmapRow(
-          e.key,
-          e.owner,
-          e.targetRelease as RoadmapAssignmentV1["release"],
-          e.reason,
-        ),
-    );
     const roadmapText = readFileSync(join(repoRoot, "ROADMAP.md"), "utf8");
+    const roadmapAssignments: RoadmapAssignmentV1[] = [];
+    for (const match of roadmapText.matchAll(
+      /^\| `([^`]+)` \| ([^|]+) \| `([^`]+)` \| `([^`]+)` \|$/gm,
+    )) {
+      const key = match[1]!;
+      if (!key.startsWith("roadmap:")) continue;
+      const scope = match[2]!.trim();
+      const release = match[3]! as RoadmapAssignmentV1["release"];
+      const owner = match[4]!;
+      roadmapAssignments.push({ key, scope, release, owner });
+    }
+    assert.ok(
+      roadmapAssignments.length > 0,
+      "ROADMAP.md must declare roadmap assignment rows",
+    );
+
     const packageWorkflowByName: Record<string, string | null> = {};
-    for (const n of activePackageNames) {
-      packageWorkflowByName[n] = ACTIVE_WF;
+    for (const name of activePackageNames) {
+      const metaPath = join(
+        repoRoot,
+        "openspec",
+        "changes",
+        name,
+        ".openspec.yaml",
+      );
+      if (!existsSync(metaPath)) {
+        packageWorkflowByName[name] = null;
+        continue;
+      }
+      const raw = readFileSync(metaPath, "utf8");
+      const schemaMatch = /^schema:\s*(\S+)\s*$/m.exec(raw);
+      packageWorkflowByName[name] = schemaMatch ? schemaMatch[1]! : null;
     }
 
     const input = validBaseline({
@@ -1610,6 +1783,6 @@ describe("release coverage policy", () => {
       packageBriefBytesByName: {},
       changedPaths: [],
     });
-    expectValid(input, entries.length);
+    expectValid(input, entryCount);
   });
 });
