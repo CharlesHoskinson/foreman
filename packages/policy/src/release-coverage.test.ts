@@ -369,9 +369,9 @@ describe("release coverage policy", () => {
   const roadmapRow = (
     key: string,
     owner: string,
-    targetRelease: RoadmapAssignmentV1["targetRelease"] = "v0.4",
+    release: RoadmapAssignmentV1["release"] = "v0.4",
     scope = "scope",
-  ): RoadmapAssignmentV1 => ({ key, owner, targetRelease, scope });
+  ): RoadmapAssignmentV1 => ({ key, owner, release, scope });
 
   const renderRoadmapText = (
     rows: readonly RoadmapAssignmentV1[],
@@ -379,7 +379,7 @@ describe("release coverage policy", () => {
     rows
       .map(
         (r) =>
-          `| ${r.key.slice("roadmap:".length)} | ${r.scope} | ${r.owner} | ${r.targetRelease} |\n`,
+          `| ${r.key.slice("roadmap:".length)} | ${r.scope} | ${r.owner} | ${r.release} |\n`,
       )
       .join("");
 
