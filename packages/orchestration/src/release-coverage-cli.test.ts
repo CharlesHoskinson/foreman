@@ -255,7 +255,11 @@ function sealRegister(input: {
 }
 
 type CallLog = {
-  readonly openspec: Array<{ repository: string; maxBytes: number }>;
+  readonly openspec: Array<{
+    repository: string;
+    argv: readonly ["list", "--json"];
+    maxBytes: number;
+  }>;
   readonly git: Array<{ repository: string; baselineCommit: string }>;
   readonly family: Array<{
     stateRoot: string;
