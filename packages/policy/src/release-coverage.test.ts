@@ -610,6 +610,14 @@ describe("release coverage policy", () => {
     const base = validBaseline();
     const cases: { name: string; registerText: string }[] = [
       {
+        name: "wrong schema version",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          { schemaVersion: 2 },
+        ),
+      },
+      {
         name: "unknown scalar",
         registerText: sealRegister(
           base.activePackageNames,
@@ -882,6 +890,103 @@ describe("release coverage policy", () => {
           },
         ),
       },
+      {
+        name: "v040_owner forbids v0.5",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                targetRelease: "v0.5",
+                reconcile: "complete",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "openspec path must match key",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                sourcePath: "openspec/changes/other",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "roadmap path must be ROADMAP.md",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              track1Entry,
+              {
+                ...futureRoadmapEntry,
+                sourcePath: "OTHER.md",
+              },
+            ],
+          },
+        ),
+      },
+      {
+        name: "unsupported sourceKind",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                sourceKind: "nope",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "unsupported targetRelease",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                targetRelease: "v9.9",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "unsupported reconcile",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            entries: [
+              {
+                ...track1Entry,
+                reconcile: "nope",
+              },
+              futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
     ];
     for (const c of cases) {
       expectInvalid(cloneInput(base, { registerText: c.registerText }), "invalid_register");
@@ -1039,6 +1144,36 @@ describe("release coverage policy", () => {
           roadmapRow(ROADMAP_KEY, FUTURE),
           roadmapRow(ROADMAP_KEY, FUTURE, "v0.5", "other"),
         ]),
+      },
+      {
+        name: "non-ASCII key",
+        roadmapAssignments: [
+          roadmapRow("roadmap:café", FUTURE),
+        ],
+      },
+      {
+        name: "empty scope",
+        roadmapAssignments: [
+          roadmapRow(ROADMAP_KEY, FUTURE, "v0.4", ""),
+        ],
+      },
+      {
+        name: "control character in scope",
+        roadmapAssignments: [
+          roadmapRow(ROADMAP_KEY, FUTURE, "v0.4", "has\u0001control"),
+        ],
+      },
+      {
+        name: "multibyte scope over 4096 UTF-8 bytes",
+        roadmapAssignments: [
+          roadmapRow(ROADMAP_KEY, FUTURE, "v0.4", "é".repeat(2049)),
+        ],
+      },
+      {
+        name: "owner over 128 UTF-8 bytes",
+        roadmapAssignments: [
+          roadmapRow(ROADMAP_KEY, "é".repeat(65)),
+        ],
       },
     ];
     for (const c of cases) {
@@ -1351,6 +1486,8 @@ describe("release coverage policy", () => {
   it("rejects workflow_mismatch for phase-relevant packages only", () => {
     const brief = makeBrief("ok");
     const bytes = canonicalBriefBytes(brief);
+    const futureBrief = makeBrief("future", FUTURE);
+    const futureBytes = canonicalBriefBytes(futureBrief);
     const completeFutureRegister = sealRegister(
       [ACTIVE_PKG],
       renderRoadmapText(baselineAssignments()),
@@ -1395,9 +1532,15 @@ describe("release coverage policy", () => {
       validBaseline({
         phase: "Release",
         registerText: completeFutureRegister,
-        packageWorkflowByName: {},
-        expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
-        packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
+        packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
+        expectedPackageBriefByName: {
+          [ACTIVE_PKG]: brief,
+          [FUTURE]: futureBrief,
+        },
+        packageBriefBytesByName: {
+          [ACTIVE_PKG]: bytes,
+          [FUTURE]: futureBytes,
+        },
       }),
       "workflow_mismatch",
     );
@@ -1449,6 +1592,12 @@ describe("release coverage policy", () => {
       packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
     });
     expectValid(laneOk, 2);
+    expectValid(
+      cloneInput(laneOk, {
+        packageWorkflowByName: { [ACTIVE_PKG]: "foreman-bounded" },
+      }),
+      2,
+    );
 
     const cases: Partial<ValidatorInput>[] = [
       {
@@ -1536,21 +1685,31 @@ describe("release coverage policy", () => {
         ],
       },
     );
+    const activeBrief = makeBrief("release active");
+    const activeBytes = canonicalBriefBytes(activeBrief);
+    const futureBrief = makeBrief("release future", FUTURE);
+    const futureBytes = canonicalBriefBytes(futureBrief);
     const releaseOk = validBaseline({
       phase: "Release",
       registerText: completeFutureRegister,
-      expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
-      packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
+      packageWorkflowByName: {
+        [ACTIVE_PKG]: ACTIVE_WF,
+        [FUTURE]: ACTIVE_WF,
+      },
+      expectedPackageBriefByName: {
+        [ACTIVE_PKG]: activeBrief,
+        [FUTURE]: futureBrief,
+      },
+      packageBriefBytesByName: {
+        [ACTIVE_PKG]: activeBytes,
+        [FUTURE]: futureBytes,
+      },
     });
     expectValid(releaseOk, 2);
 
     expectInvalid(
-      validBaseline({
-        phase: "Release",
-        registerText: completeFutureRegister,
-        packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
-        expectedPackageBriefByName: {},
-        packageBriefBytesByName: {},
+      cloneInput(releaseOk, {
+        expectedPackageBriefByName: { [ACTIVE_PKG]: activeBrief },
       }),
       "brief_mismatch",
     );
