@@ -308,13 +308,17 @@ type HarnessOptions = {
   readonly familyResult?: FamilyResult;
   readonly familyError?: Error;
   readonly familyThrow?: boolean;
+  readonly openspecBytes?: Uint8Array;
   readonly openspecError?: Error;
   readonly openspecThrow?: boolean;
   readonly gitError?: Error;
   readonly gitThrow?: boolean;
   readonly fileErrorByPath?: ReadonlyMap<string, Error>;
+  readonly fileNotFoundPath?: string;
   readonly fileThrowPath?: string;
   readonly repositoryRoot?: string;
+  readonly repositoryRootError?: Error;
+  readonly repositoryRootThrow?: boolean;
   readonly packageReconcile?: "complete" | "required";
   readonly releaseTrack1Settled?: boolean;
 };
@@ -423,6 +427,12 @@ function makeServices(
   const fileRead: ReleaseCoverageFileReadService = {
     resolveRepositoryRoot: () => {
       capture.log.repositoryRootResolves += 1;
+      if (options.repositoryRootThrow) {
+        throw new Error(`root boom at ${SECRET}/root`);
+      }
+      if (options.repositoryRootError) {
+        return Effect.fail(options.repositoryRootError);
+      }
       return Effect.succeed(options.repositoryRoot ?? REPO);
     },
     readBounded: (input) => {
@@ -433,6 +443,9 @@ function makeServices(
       assert.equal(input.maxBytes, ONE_MIB);
       if (options.fileThrowPath === input.path) {
         throw new Error(`ENOENT: ${SECRET}/${input.path}`);
+      }
+      if (options.fileNotFoundPath === input.path) {
+        return Effect.fail({ _tag: "NotFound" as const });
       }
       const mapped = fileErrors.get(input.path);
       if (mapped) return Effect.fail(mapped);
@@ -451,14 +464,18 @@ function makeServices(
     listJson: (input) => {
       capture.log.openspec.push({
         repository: input.repository,
+        argv: input.argv,
         maxBytes: input.maxBytes,
       });
+      assert.deepEqual(input.argv, ["list", "--json"]);
       if (options.openspecThrow) {
         throw new Error(`openspec boom at ${SECRET}/list`);
       }
       if (options.openspecError) return Effect.fail(options.openspecError);
       assert.equal(input.maxBytes, ONE_MIB);
-      return Effect.succeed(openspecListBytes(activeNames));
+      return Effect.succeed(
+        options.openspecBytes ?? openspecListBytes(activeNames),
+      );
     },
   };
 
@@ -510,9 +527,12 @@ async function runCli(
     repoStateBytes: new Map(),
   };
   const services = makeServices(capture, options);
-  const exitCode = await Effect.runPromise(
-    runReleaseCoverageCli(argv, makeIo(capture), services),
+  const program: Effect.Effect<number, never> = runReleaseCoverageCli(
+    argv,
+    makeIo(capture),
+    services,
   );
+  const exitCode = await Effect.runPromise(program);
   capture.snapshotAfter = cloneBytes(capture.repoStateBytes);
   return { exitCode, capture };
 }
@@ -917,6 +937,7 @@ test("bootstrap assembly uses sealed Track-1 fixture and injected repository roo
     assert.equal(capture.log.openspec.length, 1);
     assert.deepEqual(capture.log.openspec[0], {
       repository: REPO,
+      argv: ["list", "--json"],
       maxBytes: ONE_MIB,
     });
     assert.equal(capture.log.family.length, 0);
@@ -1094,8 +1115,8 @@ test("lane and release authority bind the real family child and absolute brief p
     {
       name: "missing",
       options: sharedLaneOptions({
-        // Successful empty read: absent brief authority, not an opaque I/O failure.
-        briefBytesByAbsPath: new Map([[PACKAGE_BRIEF_ABS, utf8("")]]),
+        briefBytesByAbsPath: new Map(),
+        fileNotFoundPath: PACKAGE_BRIEF_ABS,
       }),
       reason: "brief_mismatch",
     },
