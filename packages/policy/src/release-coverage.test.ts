@@ -984,7 +984,7 @@ describe("release coverage policy", () => {
       {
         entries: [
           track1Entry,
-          { ...track1Entry, sourcePath: "openspec/changes/other/proposal.md" },
+          { ...track1Entry, reason: "duplicate row" },
           futureRoadmapEntry,
         ],
       },
@@ -1002,8 +1002,9 @@ describe("release coverage policy", () => {
           track1Entry,
           {
             ...track1Entry,
-            key: "openspec:other",
+            key: TRACK1_KEY,
             sourcePath: OPENSPEC_PATH,
+            reason: "duplicate source row",
           },
           futureRoadmapEntry,
         ],
@@ -1123,27 +1124,51 @@ describe("release coverage policy", () => {
       "inventory_mismatch",
     );
 
-    const uniA = "ä-package";
-    const uniB = "b-package";
-    const namesWrongOrderDigest = [uniB, uniA];
-    const sortedSha = activeInventorySha256([uniA, uniB]);
-    const swappedSha = activeInventorySha256([uniB, uniA]);
-    assert.notEqual(sortedSha, swappedSha);
+    const supplementary = "𐀀-package";
+    const privateUse = "-package";
+    const names = [ACTIVE_PKG, supplementary, privateUse];
+    const correctSha = activeInventorySha256(names);
+    const utf16Order = [...names].sort();
+    const utf16Sha = sha256Hex(
+      utf8(utf16Order.map((name) => `${name}\n`).join("")),
+    );
+    assert.notEqual(correctSha, utf16Sha);
     const roadmapText = base.roadmapText;
-    const registerText = sealRegister(namesWrongOrderDigest, roadmapText, {
-      activeInventorySha256: swappedSha,
+    const registerText = sealRegister(names, roadmapText, {
+      activeInventorySha256: utf16Sha,
       entries: [
-        { ...track1Entry, owner: uniA },
+        track1Entry,
+        {
+          key: `change:${supplementary}`,
+          sourceKind: "openspec_change",
+          sourcePath: `openspec/changes/${supplementary}`,
+          disposition: "v040_dependency",
+          owner: ACTIVE_PKG,
+          targetRelease: "v0.4",
+          reconcile: "complete",
+          reason: "supplementary-plane name",
+        },
+        {
+          key: `change:${privateUse}`,
+          sourceKind: "openspec_change",
+          sourcePath: `openspec/changes/${privateUse}`,
+          disposition: "v040_dependency",
+          owner: ACTIVE_PKG,
+          targetRelease: "v0.4",
+          reconcile: "complete",
+          reason: "private-use name",
+        },
         futureRoadmapEntry,
       ],
-      futureOwners: [futureOwner],
     });
     expectInvalid(
       validBaseline({
         registerText,
-        activePackageNames: [uniA, uniB],
+        activePackageNames: names,
         roadmapText,
-        packageWorkflowByName: { [uniA]: ACTIVE_WF, [uniB]: ACTIVE_WF },
+        packageWorkflowByName: Object.fromEntries(
+          names.map((name) => [name, ACTIVE_WF]),
+        ),
       }),
       "inventory_mismatch",
     );
