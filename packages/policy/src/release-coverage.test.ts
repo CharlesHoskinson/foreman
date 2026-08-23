@@ -793,18 +793,24 @@ describe("release coverage policy", () => {
   });
 
   it("covers every register field and enum literal in a valid sealed register", () => {
-    const active = [ACTIVE_PKG];
+    const active = [
+      ACTIVE_PKG,
+      "change-a",
+      "change-b",
+      "change-c",
+      "change-d",
+    ];
     const assignments = [
       roadmapRow("roadmap:a", FUTURE, "v0.4", "sa"),
       roadmapRow("roadmap:b", FUTURE, "v0.5", "sb"),
-      roadmapRow("roadmap:c", FUTURE, "released", "sc"),
     ];
     const roadmapText = renderRoadmapText(assignments);
     const entries = [
+      track1Entry,
       {
-        key: "openspec:change-a",
+        key: "change:change-a",
         sourceKind: "openspec_change",
-        sourcePath: "openspec/changes/a/proposal.md",
+        sourcePath: "openspec/changes/change-a",
         disposition: "v040_owner",
         owner: ACTIVE_PKG,
         targetRelease: "v0.4",
@@ -812,14 +818,14 @@ describe("release coverage policy", () => {
         reason: "owner",
       },
       {
-        key: "openspec:change-b",
+        key: "change:change-b",
         sourceKind: "openspec_change",
-        sourcePath: "openspec/changes/b/proposal.md",
+        sourcePath: "openspec/changes/change-b",
         disposition: "v040_dependency",
         owner: ACTIVE_PKG,
         targetRelease: "v0.4",
-        reconcile: "required",
-        reason: "dep",
+        reconcile: "complete",
+        reason: "dependency",
       },
       {
         key: "roadmap:a",
@@ -829,7 +835,7 @@ describe("release coverage policy", () => {
         owner: FUTURE,
         targetRelease: "v0.4",
         reconcile: "required",
-        reason: "ra",
+        reason: "roadmap owner",
       },
       {
         key: "roadmap:b",
@@ -839,39 +845,43 @@ describe("release coverage policy", () => {
         owner: FUTURE,
         targetRelease: "v0.5",
         reconcile: "not_required",
-        reason: "rb",
+        reason: "later release",
       },
       {
-        key: "roadmap:c",
-        sourceKind: "roadmap",
-        sourcePath: ROADMAP_PATH,
-        disposition: "released_reference",
-        owner: FUTURE,
-        targetRelease: "released",
-        reconcile: "not_required",
-        reason: "rc",
-      },
-      {
-        key: "openspec:change-c",
+        key: "change:change-c",
         sourceKind: "openspec_change",
-        sourcePath: "openspec/changes/c/proposal.md",
+        sourcePath: "openspec/changes/change-c",
+        disposition: "released_reference",
+        owner: ACTIVE_PKG,
+        targetRelease: "released",
+        reconcile: "complete",
+        reason: "released reference",
+      },
+      {
+        key: "change:change-d",
+        sourceKind: "openspec_change",
+        sourcePath: "openspec/changes/change-d",
         disposition: "superseded",
         owner: ACTIVE_PKG,
-        targetRelease: "v0.4",
-        reconcile: "not_required",
-        reason: "old",
+        targetRelease: "v0.5",
+        reconcile: "complete",
+        reason: "superseded source",
       },
     ];
     const registerText = sealRegister(active, roadmapText, {
       futureOwners: [futureOwner],
       entries,
     });
+    const packageWorkflowByName = Object.fromEntries(
+      active.map((name) => [name, ACTIVE_WF]),
+    );
     expectValid(
       validBaseline({
         registerText,
         activePackageNames: active,
         roadmapText,
         roadmapAssignments: assignments,
+        packageWorkflowByName,
       }),
       entries.length,
     );
