@@ -219,10 +219,16 @@ function hasAnyControl(text: string): boolean {
   return false;
 }
 
-function hasSurrogateCodeUnit(text: string): boolean {
+function hasUnpairedSurrogate(text: string): boolean {
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
-    if (code >= 0xd800 && code <= 0xdfff) return true;
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(i + 1);
+      if (next < 0xdc00 || next > 0xdfff) return true;
+      i += 1;
+      continue;
+    }
+    if (code >= 0xdc00 && code <= 0xdfff) return true;
   }
   return false;
 }
@@ -285,7 +291,7 @@ function parseBasicString(raw: string, start: number): { value: string; end: num
   while (i < raw.length) {
     const ch = raw[i]!;
     if (ch === '"') {
-      if (hasAnyControl(out) || hasSurrogateCodeUnit(out)) return null;
+      if (hasAnyControl(out) || hasUnpairedSurrogate(out)) return null;
       return { value: out, end: i + 1 };
     }
     if (ch === "\\") {
