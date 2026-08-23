@@ -1193,6 +1193,24 @@ describe("release coverage policy", () => {
         "invalid_roadmap",
       );
     }
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        phase: { _tag: "Bootstrap", owner: ACTIVE_PKG },
+        registerText: base.registerText,
+        roadmapBytes: new Uint8Array([0xff]),
+        activeChangeNames: base.activePackageNames,
+        roadmapRows: base.roadmapAssignments,
+        workflowByChange: base.packageWorkflowByName,
+        changedSuperpowersPaths: [],
+        expectedBriefByOwner: {},
+        packageBriefBytesByOwner: {},
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Invalid",
+        reason: "invalid_roadmap",
+      },
+    );
   });
 
   it("rejects duplicate_identity and allows shared ROADMAP.md paths", () => {
@@ -1353,36 +1371,52 @@ describe("release coverage policy", () => {
     );
     assert.notEqual(correctSha, utf16Sha);
     const roadmapText = base.roadmapText;
-    const registerText = sealRegister(names, roadmapText, {
-      activeInventorySha256: utf16Sha,
-      entries: [
-        track1Entry,
-        {
-          key: `change:${supplementary}`,
-          sourceKind: "openspec_change",
-          sourcePath: `openspec/changes/${supplementary}`,
-          disposition: "v040_dependency",
-          owner: ACTIVE_PKG,
-          targetRelease: "v0.4",
-          reconcile: "complete",
-          reason: "supplementary-plane name",
-        },
-        {
-          key: `change:${privateUse}`,
-          sourceKind: "openspec_change",
-          sourcePath: `openspec/changes/${privateUse}`,
-          disposition: "v040_dependency",
-          owner: ACTIVE_PKG,
-          targetRelease: "v0.4",
-          reconcile: "complete",
-          reason: "private-use name",
-        },
-        futureRoadmapEntry,
-      ],
+    const entries = [
+      track1Entry,
+      {
+        key: `change:${supplementary}`,
+        sourceKind: "openspec_change",
+        sourcePath: `openspec/changes/${supplementary}`,
+        disposition: "v040_dependency",
+        owner: ACTIVE_PKG,
+        targetRelease: "v0.4",
+        reconcile: "complete",
+        reason: "supplementary-plane name",
+      },
+      {
+        key: `change:${privateUse}`,
+        sourceKind: "openspec_change",
+        sourcePath: `openspec/changes/${privateUse}`,
+        disposition: "v040_dependency",
+        owner: ACTIVE_PKG,
+        targetRelease: "v0.4",
+        reconcile: "complete",
+        reason: "private-use name",
+      },
+      futureRoadmapEntry,
+    ];
+    const correctRegisterText = sealRegister(names, roadmapText, {
+      activeInventorySha256: correctSha,
+      entries,
     });
+    const wrongRegisterText = sealRegister(names, roadmapText, {
+      activeInventorySha256: utf16Sha,
+      entries,
+    });
+    expectValid(
+      validBaseline({
+        registerText: correctRegisterText,
+        activePackageNames: names,
+        roadmapText,
+        packageWorkflowByName: Object.fromEntries(
+          names.map((name) => [name, ACTIVE_WF]),
+        ),
+      }),
+      entries.length,
+    );
     expectInvalid(
       validBaseline({
-        registerText,
+        registerText: wrongRegisterText,
         activePackageNames: names,
         roadmapText,
         packageWorkflowByName: Object.fromEntries(
