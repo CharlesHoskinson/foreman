@@ -167,7 +167,7 @@ the candidate tree, worktree, mutable `HEAD`, or caller file paths.
 ### Requirement: Immutable execution family
 
 Track 1 SHALL add one canonical `ExecutionContractV2` family manifest anchored
-to Endstop root `v040-release-20260822-r1`. The manifest SHALL bind the root
+to Endstop root `v040-release-20260822-r2`. The manifest SHALL bind the root
 receipt, Track 1 commit and tree, `wallTimeMs=5184000000`,
 `totalActions=4096`, and exactly eight immutable child contracts for Tranches 2
 through 9 with the exact IDs, package mapping, dependency graph, action limits,
@@ -210,7 +210,7 @@ and precede completion. No child journal or stream SHALL be created.
 
 #### Scenario: Family activates once
 
-- **WHEN** the root remains Running before `2026-08-29T18:05:57Z`
+- **WHEN** the root remains Running before `2026-08-30T19:29:52Z`
 - **AND** the manifest and both approval receipts match exactly
 - **THEN** one root journal transaction appends the family activation
 - **AND** all prior V1 actions count against the family total
