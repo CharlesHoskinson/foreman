@@ -214,9 +214,12 @@ existing V1 root contract is the authority anchor:
 Track 1 activates `ExecutionContractV2` once before that deadline. Activation
 appends one event to the root Endstop RunJournal. It refuses after a root
 terminal state and refuses a second activation. The canonical family manifest
-requires an exact-byte `APPROVED` audit and exact-byte user approval. It binds
-the root, Track 1 commit and tree, both approval digests, and exactly eight
-immutable child contracts for Tranches 2 through 9.
+binds the root, Track 1 commit and tree, and exactly eight immutable child
+contracts for Tranches 2 through 9. The manifest does not contain the digests
+of receipts that approve itself. After the manifest bytes exist, one exact-byte
+`APPROVED` audit receipt and one exact-byte user approval receipt each bind the
+manifest digest. The atomic activation event binds the manifest digest and both
+receipt digests. This order has no self-referential digest.
 
 The family has a 60-day wall-time limit of `5184000000` milliseconds and a
 `4096`-action limit. All actions consumed by the V1 root count against that

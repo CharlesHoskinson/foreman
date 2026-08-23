@@ -190,6 +190,9 @@ It SHALL refuse after a root terminal state and SHALL refuse a second
 activation. The closed canonical family manifest SHALL receive an exact-byte
 `APPROVED` audit and exact-byte user approval. Activation SHALL bind its digest,
 the root identity, the Track 1 commit and tree, and both approval digests.
+The manifest SHALL NOT contain the digest of a receipt that approves that same
+manifest. Each approval receipt SHALL bind the completed manifest digest, and
+the activation event SHALL bind the manifest and receipt digests together.
 
 The manifest SHALL contain exactly eight child contracts for Tranches 2 through
 9. Each child SHALL bind its tranche, package, objective digest, acceptance

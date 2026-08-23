@@ -1,12 +1,7 @@
 schema_version = 1
 baseline_commit = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195"
-active_inventory_sha256 = "2619fc59cda5a76c75a865b4b5d27401b45e521593de37388720d33a3db9929f"
+active_inventory_sha256 = "148f3c5862053bbebea1ad7ac8842237b70f3877c402b3bc9209e85c2e7733fb"
 roadmap_sha256 = "2e9ce274bd1bae7d4a4a0187a4908eea17c768175c3aa0f176f54cb14bf7c12b"
-
-[[future_owner]]
-name = "openspec-superpowers-convergence"
-target_release = "v0.4"
-reason = "Track 1 owns workflow convergence and the coverage validator."
 
 [[future_owner]]
 name = "project-registry"
@@ -247,6 +242,16 @@ owner = "node-typescript-runtime"
 target_release = "v0.5"
 reconcile = "not_required"
 reason = "Node 24 is the v0.4 boundary; unrelated migration backlog is deferred."
+
+[[entry]]
+key = "change:openspec-superpowers-convergence"
+source_kind = "openspec_change"
+source_path = "openspec/changes/openspec-superpowers-convergence"
+disposition = "v040_owner"
+owner = "openspec-superpowers-convergence"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 1 owns workflow convergence, release policy, and family activation."
 
 [[entry]]
 key = "change:profile-bound-lane-admission"
