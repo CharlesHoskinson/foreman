@@ -170,6 +170,10 @@ later approval or evidence receipt SHALL be canonical, signed by the required
 authority, and registered in Endstop before use. SessionDB SHALL record each
 human-approval receipt digest. A caller-selected receipt path or expected
 digest SHALL NOT create authority.
+Design, evaluation, and family user-approval schemas SHALL use only the pinned
+user-approval key. Checks, audit, council request, council outcome, signed
+evidence bundle, and family audit schemas SHALL use only the pinned host-audit
+key. A valid signature from the wrong role key SHALL refuse.
 
 #### Scenario: An active package is not part of v0.4
 
@@ -219,6 +223,11 @@ approval digests.
 The manifest SHALL NOT contain the digest of a receipt that approves that same
 manifest. Each approval receipt SHALL bind the completed manifest digest, and
 the activation event SHALL bind the manifest and receipt digests together.
+Family authority registration SHALL be first-write-wins for the root and family
+digest. An identical replay SHALL be idempotent. A conflicting or concurrent
+loser SHALL append nothing. Activation SHALL read the manifest and exact prior
+authority event, not caller-supplied receipt paths. Every family and child
+operation SHALL bind the same root contract ID and digest.
 
 The manifest SHALL contain exactly eight child contracts for Tranches 2 through
 9. Each child SHALL bind its tranche, package, objective digest, acceptance
@@ -246,6 +255,11 @@ at most 2,048 total actions, `wallTimeMs=3888000000`, and
 non-evaluation action. Two thousand serialized runs at the 30-minute cap
 require at most 1,000 hours. The 45-day child limit SHALL cover that worst case
 and bounded control overhead.
+Standard limit objects SHALL carry `kind="standard"` and
+`noProductChangeMs=259200000` and SHALL NOT carry `noProgressMs`. The Tranche 8
+limit object SHALL carry `kind="evaluation"` and `noProgressMs=3600000` and
+SHALL NOT carry `noProductChangeMs`. No-progress applies to all Tranche 8
+activity.
 
 Every external provider invocation and evaluation run SHALL reserve one typed
 action before it starts. One root RunJournal transaction SHALL append that
@@ -255,15 +269,23 @@ SHALL reserve another action. The runtime SHALL NOT hide multiple provider calls
 behind one reservation. An unlisted child or action SHALL refuse.
 
 Track 1 SHALL implement `packages/policy/src/release-admission.ts` and the
-command `release-admission check --program v040 --verdict <path>
---candidate-sha <sha256> --approval <path>`. It SHALL read the audit artifact
-directly and SHALL NOT read or honor `[audit.policy]`. It SHALL admit only a
-well-formed `APPROVED` verdict with no findings that binds the exact candidate
-commit, tree, and candidate digest. It SHALL refuse `WARNING`, `BLOCKED`,
-`UNVERIFIED`, an unknown verdict, a malformed artifact, a nonempty finding set,
-or an identity mismatch. Repository and machine configuration SHALL NOT weaken
-this v0.4 rule. Every v0.4 lane wrapper, integration gate, and publication gate
-SHALL run this check after the general Foreman gate.
+command `release-admission check --program v040 --action ACTION --package
+PACKAGE --repo ABS --candidate-commit SHA40 --evidence ABS --tasks ABS`. It
+SHALL resolve that named commit and tree, verify the pinned signer and
+action-specific evidence bundle, and SHALL NOT read or honor `[audit.policy]`.
+The evidence bundle SHALL itself have a valid host-audit signature. Design
+approval SHALL admit implementation only when the resolved commit and tree
+equal its historical design identity and the task-plan digest matches. Signed
+successful checks SHALL admit audit. Signed failed checks or a `WARNING`,
+`BLOCKED`, or `UNVERIFIED` audit SHALL admit correction. A signed council
+request SHALL admit council. Its later signed outcome SHALL be recorded as
+outcome evidence and SHALL NOT authorize that same reservation.
+Retry and resume SHALL bind the recorded failed reservation and original
+authority. Only a signed `APPROVED` audit with no findings and matching design
+approval SHALL admit integration or publication. Queue wrappers SHALL run
+phase-aware coverage and this action policy before reservation. Integration
+and publication gates SHALL run them after the general Foreman gate.
+Repository and machine configuration SHALL NOT weaken this v0.4 rule.
 
 Before that command exists, only the atomic authority bootstrap MAY consume
 content-addressed governor audit receipts directly. Each receipt SHALL have the
@@ -340,6 +362,11 @@ it against the named branch before it can return `MERGEABLE` and SHALL keep its
 one-line stdout contract. A missing artifact, failed coverage check, or invalid
 action evidence SHALL fail closed. Tranche 9 publication tooling SHALL call
 the same adapter under the Tranche 9 child allowlist.
+The fixed block SHALL contain one copy of the root, family, child, action, and
+candidate identity. TypeScript SHALL derive policy and reservation input from
+that same parsed object. It SHALL verify the root and registered evidence,
+child package, and SHA-256 of the resolved lowercase candidate commit. An
+identity substitution SHALL fail before reservation.
 The exact runtime verifier and installed-runtime decoder SHALL treat all four
 release artifacts as required. Tests SHALL compare two clean builds,
 tracked bytes, and the exact `dist` inventory. Copied-install controls SHALL

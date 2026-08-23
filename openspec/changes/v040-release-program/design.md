@@ -141,6 +141,10 @@ Canonical approval and evidence receipts carry the matching key fingerprint
 and signature. Endstop records the expected receipt digest before an action can
 consume it, and SessionDB records the same digest at each human-approved
 boundary. A caller-selected receipt path or digest is not authority.
+Design, evaluation, and family user-approval receipts use only the user key.
+Checks, audit, council request, council outcome, signed evidence bundles, and
+family audit receipts use only the host-audit key. A signature from the wrong
+role key is invalid.
 
 The bootstrap path scope is closed to these paths:
 
@@ -257,6 +261,12 @@ expected receipt digests. The atomic activation event binds the manifest
 digest and both receipt digests. This order has no self-referential digest and
 does not trust caller-selected substitutes.
 
+Family authority registration is first-write-wins for the root and family
+digest. An identical replay is idempotent; a conflicting or concurrent loser
+appends nothing. Activation reads the manifest and exact prior registration,
+not caller-supplied receipt paths. Every family and child command binds the same
+root contract ID and digest.
+
 The family has a 60-day wall-time limit of `5184000000` milliseconds and a
 `4096`-action limit. All actions consumed by the V1 root count against that
 limit. Standard children use at most 100 actions and 14 days. Each standard-
@@ -269,6 +279,11 @@ actions, a 45-day wall time, and a one-hour no-progress limit. Its manifest
 also assigns exact limits to every non-evaluation action. The 45-day limit
 covers the locked 1,000-hour serialized worst case plus bounded control
 overhead. Each child deadline is at or before the family deadline.
+
+The child limits are a closed union. Standard limits contain
+`kind="standard"` and `noProductChangeMs=259200000` but no `noProgressMs`.
+Evaluation limits contain `kind="evaluation"` and `noProgressMs=3600000` but no
+`noProductChangeMs`. The evaluation no-progress timer covers all child activity.
 
 One root RunJournal transaction appends each child action reservation. Replay
 derives both child and family counters from that event. An action with an
@@ -306,6 +321,15 @@ evidence rule: design approval admits implementation; frozen host checks admit
 audit; a signed blocking or unverified result admits correction; and retry or
 resume must identify the recorded failed reservation that it continues.
 Invalid or missing action evidence refuses before reservation.
+
+Implementation also requires the candidate commit and tree to equal the signed
+historical design identity and requires the exact task-plan digest. A signed
+council request admits a council call; its signed outcome is later child outcome
+evidence and cannot admit that same call. Every evidence bundle is signed by
+the host-audit key. The fixed queue, gate, and merge block contains one copy of
+root, family, child, action, and candidate identity. One TypeScript parse drives
+both policy and reservation, including candidate-digest-to-commit equality and
+package-to-child equality.
 
 Track 1 implements this rule in `packages/policy/src/release-admission.ts` and
 the `release-admission check` command. The command resolves the named candidate
@@ -1044,7 +1068,7 @@ commit ID, tree ID, and SHA-256 of the commit ID's ASCII bytes without a
 trailing LF. A pushed review branch can exist before this gate. One exact
 candidate requires:
 
-- every v0.4 OpenSpec task complete or explicitly deferred by this design
+- every tracked v0.4 OpenSpec task checkbox complete in the frozen candidate
 - no open blocking audit finding
 - fresh deterministic and hosted test evidence
 - a passing appliance reproducibility and security report
@@ -1055,6 +1079,10 @@ candidate requires:
 - completed Windows Bats item BW-004
 - completed Endstop check and audit milestones
 - a locally verified OCI image index, SBOM, provenance, and signature bundle
+
+Cold audit, integration, family activation, and publication evidence are
+external release predicates. They do not remain as unchecked OpenSpec tasks,
+and no tracked completion edit occurs after the candidate freezes.
 
 Any byte change after the final audit invalidates the affected evidence. The
 architect reruns the required checks and cold audit before publication.

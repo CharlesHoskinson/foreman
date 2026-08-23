@@ -65,12 +65,23 @@ fixed in the approved design and registered for the same family, child, action,
 package, and candidate in Endstop. A caller-selected path or digest SHALL NOT
 create authority.
 
-Design approval SHALL admit implementation. Signed checks evidence SHALL admit
-audit. A signed failed-check, `WARNING`, `BLOCKED`, or `UNVERIFIED` result SHALL
-admit correction. Retry and resume SHALL bind a recorded failed reservation
-and its original authority. Only a signed `APPROVED` audit receipt with no
-findings and matching design approval SHALL admit integration or publication.
-The command SHALL not read `[audit.policy]` or an equivalent mutable exception.
+The schema-to-key map SHALL be exact. Design and evaluation receipts SHALL use
+the pinned user-approval key. Checks, audit, council request, council outcome,
+and evidence-bundle signatures SHALL use the pinned host-audit key. A signature
+from the wrong role key SHALL refuse. The approved OpenSpec digest SHALL bind
+the exact canonical manifest shape in the design. Each evidence bundle SHALL
+also carry a valid host-audit signature.
+
+Design approval SHALL admit implementation only when the resolved commit and
+tree equal its historical design commit and tree and the task-plan digest
+matches. Signed checks evidence SHALL admit audit. A signed failed-check,
+`WARNING`, `BLOCKED`, or `UNVERIFIED` result SHALL admit correction. A signed
+council request SHALL admit council; its later signed outcome SHALL be outcome
+evidence and SHALL NOT authorize that same reservation. Retry and resume SHALL
+bind a recorded failed reservation and its original authority. Only a signed
+`APPROVED` audit receipt with no findings and matching design approval SHALL
+admit integration or publication. The command SHALL not read `[audit.policy]`
+or an equivalent mutable exception.
 
 #### Scenario: Exact approved candidate is checked
 
@@ -101,6 +112,12 @@ The command SHALL not read `[audit.policy]` or an equivalent mutable exception.
   signer fingerprint, or Endstop-registered digest does not match
 - **THEN** admission refuses before reservation
 
+#### Scenario: Implementation uses an unrelated commit
+
+- **WHEN** a valid design receipt is paired with a different candidate commit,
+  tree, task plan, package, role key, or signed evidence-bundle identity
+- **THEN** implementation admission refuses before a worker or queue starts
+
 ### Requirement: Immutable execution family
 
 Track 1 SHALL add one canonical `ExecutionContractV2` family manifest anchored
@@ -114,6 +131,15 @@ signature from the matching fixed authority. One prior root-journal authority
 event SHALL bind both expected receipt digests. The activation event SHALL bind
 the manifest digest and both receipt digests; the manifest SHALL NOT contain a
 digest of a receipt that approves that manifest.
+
+The host SHALL issue family audit and family user-approval receipts with the
+exact producer forms in the approved design. Family authority registration
+SHALL validate both receipts once and SHALL be first-write-wins for the root and
+family digest. An identical replay SHALL be idempotent. A conflicting or
+concurrent loser SHALL refuse without an append. Activation SHALL read only the
+bounded manifest and exact prior authority event. It SHALL NOT reread receipt
+paths. Every family, child, status, registration, and lifecycle command SHALL
+bind the same root contract ID and digest.
 
 #### Scenario: Family activates once
 
@@ -140,6 +166,13 @@ one event in the root journal and SHALL count against both child and family.
 A child's wall-time counter SHALL start at its first accepted action. Dependency
 wait time SHALL consume the family deadline but SHALL NOT consume child wall
 time. Each absolute child deadline SHALL equal the family deadline.
+
+Standard and evaluation limit objects SHALL be a closed discriminated union.
+Standard children SHALL contain `kind="standard"` and
+`noProductChangeMs=259200000`; they SHALL NOT contain `noProgressMs`.
+Tranche 8 SHALL contain `kind="evaluation"` and `noProgressMs=3600000`; it
+SHALL NOT contain `noProductChangeMs`. Its no-progress timer SHALL cover all
+evaluation-child activity.
 
 #### Scenario: A listed child reserves an action
 
@@ -173,6 +206,13 @@ atomic reservation. Gate SHALL evaluate it after the general result. Merge
 SHALL resolve the named branch, require its commit to match the release block,
 capture policy JSON outside stdout, and preserve exactly one merge verdict line.
 
+The release block SHALL contain one copy of root, family, child, action, and
+candidate identity. The TypeScript parser SHALL derive both release policy and
+reservation input from that object. It SHALL require the candidate digest to
+equal SHA-256 of the resolved lowercase commit, the package to equal the child
+package, and all block fields to equal the registered evidence and Endstop
+state. Cross-block or evidence-to-block substitution SHALL refuse.
+
 #### Scenario: General gate passes but v0.4 policy fails
 
 - **WHEN** the general gate or merge check passes
@@ -184,6 +224,14 @@ capture policy JSON outside stdout, and preserve exactly one merge verdict line.
 - **WHEN** only part of the schemas, policy commands, family protocol, gate
   wiring, runtime artifacts, or exact-runtime checks exists
 - **THEN** the bootstrap cannot activate the family
+
+#### Scenario: Registration is replayed or replaced
+
+- **WHEN** the same child action and candidate receives an identical signed
+  evidence-bundle digest
+- **THEN** registration returns the existing state and appends nothing
+- **BUT WHEN** the bundle digest, schema, signer, or identity differs
+- **THEN** registration refuses and preserves the first write
 
 ### Requirement: Exact installed runtime inventory
 
