@@ -1245,6 +1245,23 @@ describe("release coverage policy", () => {
           roadmapRow(ROADMAP_KEY, "é".repeat(65)),
         ],
       },
+      {
+        name: "Roadmap row with an extra own key",
+        roadmapAssignments: [
+          {
+            ...roadmapRow(ROADMAP_KEY, FUTURE),
+            unexpected: true,
+          } as unknown as RoadmapAssignmentV1,
+        ],
+      },
+      {
+        name: "Roadmap row with inherited authority fields",
+        roadmapAssignments: [
+          Object.create(
+            roadmapRow(ROADMAP_KEY, FUTURE),
+          ) as RoadmapAssignmentV1,
+        ],
+      },
     ];
     for (const c of cases) {
       const roadmapAssignments = c.roadmapAssignments;
