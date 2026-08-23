@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { Effect } from "effect";
 import { canonicalize } from "@foreman/core";
 import type {
@@ -30,12 +34,16 @@ const TRACK1 = "openspec-superpowers-convergence";
 const PACKAGE = "project-registry";
 const CHILD_ID = "v040-t2-project-registry";
 const ROADMAP_KEY = "roadmap:sprint-6-project-registry";
+const SECOND_PACKAGE = "external-memory-index";
+const SECOND_CHILD_ID = "v040-t3-memory-index";
+const SECOND_ROADMAP_KEY = "roadmap:v040-external-memory-index";
 
-const REPO = "/abs/repo";
-const STATE_ROOT = "/abs/state";
+const FIXTURE_ROOT = resolve("release-coverage-cli-fixtures");
+const REPO = join(FIXTURE_ROOT, "repo");
+const STATE_ROOT = join(FIXTURE_ROOT, "state");
 /** Absolute register path outside the repository root — bootstrap must not infer repo from it. */
-const REGISTER = "/abs/register-host/coverage.toml";
-const SCRIPT = "/abs/release-coverage.js";
+const REGISTER = join(FIXTURE_ROOT, "register-host", "coverage.toml");
+const SCRIPT = join(FIXTURE_ROOT, "release-coverage.js");
 
 const CONTRACT_ID = "v040-release-20260822-r3";
 const CONTRACT_SHA =
@@ -44,14 +52,78 @@ const FAMILY_SHA =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const BASELINE = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
 
-const ROADMAP_ABS = `${REPO}/ROADMAP.md`;
-const TRACK1_WORKFLOW_ABS = `${REPO}/openspec/changes/${TRACK1}/.openspec.yaml`;
-const PACKAGE_WORKFLOW_ABS = `${REPO}/openspec/changes/${PACKAGE}/.openspec.yaml`;
-const PACKAGE_BRIEF_ABS = `${REPO}/openspec/changes/${PACKAGE}/release-brief.json`;
-const TRACK1_BRIEF_ABS = `${REPO}/openspec/changes/${TRACK1}/release-brief.json`;
+const ROADMAP_ABS = join(REPO, "ROADMAP.md");
+const TRACK1_WORKFLOW_ABS = join(
+  REPO,
+  "openspec",
+  "changes",
+  TRACK1,
+  ".openspec.yaml",
+);
+const PACKAGE_WORKFLOW_ABS = join(
+  REPO,
+  "openspec",
+  "changes",
+  PACKAGE,
+  ".openspec.yaml",
+);
+const SECOND_PACKAGE_WORKFLOW_ABS = join(
+  REPO,
+  "openspec",
+  "changes",
+  SECOND_PACKAGE,
+  ".openspec.yaml",
+);
+const PACKAGE_BRIEF_ABS = join(
+  REPO,
+  "openspec",
+  "changes",
+  PACKAGE,
+  "release-brief.json",
+);
+const SECOND_PACKAGE_BRIEF_ABS = join(
+  REPO,
+  "openspec",
+  "changes",
+  SECOND_PACKAGE,
+  "release-brief.json",
+);
+const TRACK1_BRIEF_ABS = join(
+  REPO,
+  "openspec",
+  "changes",
+  TRACK1,
+  "release-brief.json",
+);
 const BRIEF_REL = `openspec/changes/${PACKAGE}/release-brief.json`;
 
-const SECRET = "/secret/private/path";
+const SECRET = join(FIXTURE_ROOT, "secret", "private", "path");
+
+const SOURCE_REPO = resolve(
+  fileURLToPath(new URL("../../..", import.meta.url)),
+);
+const LIVE_MAIN = join(
+  SOURCE_REPO,
+  "packages",
+  "orchestration",
+  "src",
+  "release-coverage-main.ts",
+);
+const LIVE_REGISTER = join(
+  SOURCE_REPO,
+  "openspec",
+  "changes",
+  "v040-release-program",
+  "coverage.toml",
+);
+const LIVE_ROADMAP = join(SOURCE_REPO, "ROADMAP.md");
+const LIVE_WORKFLOW = join(
+  SOURCE_REPO,
+  "openspec",
+  "changes",
+  TRACK1,
+  ".openspec.yaml",
+);
 
 const BOOTSTRAP_TAIL = [
   "check",
@@ -163,6 +235,16 @@ function roadmapText(crlf = false): string {
   ].join(nl);
 }
 
+function twoOwnerRoadmapText(): string {
+  return [
+    "| Coverage key | Scope | Release | Owner |",
+    "|---|---|---|---|",
+    `| \`${ROADMAP_KEY}\` | Sprint 6 project registry | \`v0.4\` | \`${PACKAGE}\` |`,
+    `| \`${SECOND_ROADMAP_KEY}\` | External MemoryIndex, epochs, and live-service tests | \`v0.4\` | \`${SECOND_PACKAGE}\` |`,
+    "",
+  ].join("\n");
+}
+
 function openspecListBytes(names: readonly string[]): Uint8Array {
   return utf8(
     JSON.stringify({
@@ -192,13 +274,110 @@ function deriveBrief(
   };
 }
 
-const FAMILY_CHILD = {
-  childId: CHILD_ID,
-  packageId: PACKAGE,
-  objective: "Ship the project registry lane.",
-  acceptance: ["Registry resolves stable project identity."],
-  allowedPaths: ["packages/orchestration/**", "packages/policy/**"],
-} as const;
+const FAMILY_CHILDREN = [
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t2-project-registry",
+    tranche: 2,
+    packageId: "project-registry",
+    dependencyChildIds: [],
+    objective: "Ship the project registry lane.",
+    acceptance: ["Registry resolves stable project identity."],
+    allowedPaths: ["packages/orchestration/**", "packages/policy/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t3-memory-index",
+    tranche: 3,
+    packageId: "external-memory-index",
+    dependencyChildIds: ["v040-t2-project-registry"],
+    objective: "Ship the external memory index lane.",
+    acceptance: ["The memory index uses stable project identity."],
+    allowedPaths: ["packages/memory/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t4-appliance",
+    tranche: 4,
+    packageId: "hermetic-foreman-appliance",
+    dependencyChildIds: [],
+    objective: "Ship the hermetic Foreman appliance.",
+    acceptance: ["The appliance bootstrap is reproducible."],
+    allowedPaths: ["containers/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t5-graphify",
+    tranche: 5,
+    packageId: "knowledge-plane-refresh",
+    dependencyChildIds: [],
+    objective: "Ship the knowledge-plane refresh.",
+    acceptance: ["Graph metadata is immutable."],
+    allowedPaths: ["packages/knowledge/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t6-work-dag",
+    tranche: 6,
+    packageId: "work-dag-projection",
+    dependencyChildIds: ["v040-t5-graphify"],
+    objective: "Ship the work DAG projection.",
+    acceptance: ["Work lineage is deterministic."],
+    allowedPaths: ["packages/work-dag/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t7-context",
+    tranche: 7,
+    packageId: "graph-context-builder",
+    dependencyChildIds: ["v040-t6-work-dag"],
+    objective: "Ship the graph context builder.",
+    acceptance: ["Context packs are bounded and cited."],
+    allowedPaths: ["packages/context/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t8-evaluation",
+    tranche: 8,
+    packageId: "graph-eval-falsification",
+    dependencyChildIds: [
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t7-context",
+    ],
+    objective: "Ship the graph evaluation lane.",
+    acceptance: ["Evaluation uses the locked four-arm design."],
+    allowedPaths: ["packages/evaluation/**"],
+  },
+  {
+    schema: "foreman.execution-child-brief.v1",
+    childId: "v040-t9-release",
+    tranche: 9,
+    packageId: "v040-release-program",
+    dependencyChildIds: [
+      "v040-t2-project-registry",
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t5-graphify",
+      "v040-t6-work-dag",
+      "v040-t7-context",
+      "v040-t8-evaluation",
+    ],
+    objective: "Ship the v0.4 release program.",
+    acceptance: ["Publication uses the exact admitted candidate."],
+    allowedPaths: ["docs/releases/**"],
+  },
+] as const satisfies readonly FamilyChild[];
+
+const FAMILY_CHILD = FAMILY_CHILDREN[0]!;
+const SECOND_FAMILY_CHILD = FAMILY_CHILDREN[1]!;
+
+const FAMILY_SOURCE = {
+  schema: "foreman.execution-family-source.v1",
+  program: "v040",
+  familyId: "v040-release-20260822-f1",
+  children: FAMILY_CHILDREN,
+} as const satisfies FamilySource;
 
 function briefFileBytes(brief: ReleasePackageBriefV1): Uint8Array {
   return utf8(`${canonicalize(brief)}\n`);
@@ -283,11 +462,21 @@ type Capture = {
 };
 
 type FamilyChild = {
+  readonly schema: "foreman.execution-child-brief.v1";
   readonly childId: string;
+  readonly tranche: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
   readonly packageId: string;
+  readonly dependencyChildIds: readonly string[];
   readonly objective: string;
   readonly acceptance: readonly string[];
   readonly allowedPaths: readonly string[];
+};
+
+type FamilySource = {
+  readonly schema: "foreman.execution-family-source.v1";
+  readonly program: "v040";
+  readonly familyId: "v040-release-20260822-f1";
+  readonly children: readonly FamilyChild[];
 };
 
 type FamilyResult = {
@@ -295,7 +484,7 @@ type FamilyResult = {
   readonly contractId: string;
   readonly contractSha256: string;
   readonly familySha256: string;
-  readonly children: readonly FamilyChild[];
+  readonly source: FamilySource;
 };
 
 type HarnessOptions = {
@@ -398,7 +587,7 @@ function makeServices(
     contractId: CONTRACT_ID,
     contractSha256: CONTRACT_SHA,
     familySha256: FAMILY_SHA,
-    children: [FAMILY_CHILD],
+    source: FAMILY_SOURCE,
   };
 
   const files = new Map<string, Uint8Array>([
@@ -410,7 +599,7 @@ function makeServices(
   ]);
   for (const [owner, schema] of Object.entries(workflowByOwner)) {
     files.set(
-      `${REPO}/openspec/changes/${owner}/.openspec.yaml`,
+      join(REPO, "openspec", "changes", owner, ".openspec.yaml"),
       utf8(`schema: ${schema}\n`),
     );
   }
@@ -418,7 +607,7 @@ function makeServices(
   // Durable byte image of repository + state material the CLI may touch.
   capture.repoStateBytes = new Map([
     ...files.entries(),
-    [`${STATE_ROOT}/.keep`, utf8("state")],
+    [join(STATE_ROOT, ".keep"), utf8("state")],
   ]);
   capture.snapshotBefore = cloneBytes(capture.repoStateBytes);
 
@@ -564,8 +753,11 @@ function assertSanitized(capture: Capture): void {
 
 function assertNoEscapeReads(log: CallLog): void {
   for (const read of log.fileReads) {
-    assert.equal(read.path.includes(".."), false);
-    assert.equal(read.path.includes("escape"), false);
+    if (read.path === REGISTER) continue;
+    const rel = relative(REPO, read.path);
+    assert.equal(isAbsolute(rel), false);
+    assert.notEqual(rel, "..");
+    assert.equal(rel.startsWith(`..${sep}`), false);
   }
 }
 
@@ -646,6 +838,65 @@ function sharedReleaseOptions(overrides: HarnessOptions = {}): HarnessOptions {
   return sharedLaneOptions({
     releaseTrack1Settled: true,
     ...overrides,
+  });
+}
+
+function registeredFamilyResult(
+  overrides: Partial<Omit<FamilyResult, "source">> = {},
+): FamilyResult {
+  return {
+    stateRoot: STATE_ROOT,
+    contractId: CONTRACT_ID,
+    contractSha256: CONTRACT_SHA,
+    familySha256: FAMILY_SHA,
+    source: FAMILY_SOURCE,
+    ...overrides,
+  };
+}
+
+function familyResultWithChild(
+  mutate: (child: FamilyChild) => FamilyChild,
+): FamilyResult {
+  return {
+    ...registeredFamilyResult(),
+    source: {
+      ...FAMILY_SOURCE,
+      children: FAMILY_SOURCE.children.map((child) =>
+        child.packageId === PACKAGE ? mutate(child) : child,
+      ),
+    },
+  };
+}
+
+function normalizedRepositoryRelative(path: string): string {
+  return relative(REPO, path).split(sep).join("/");
+}
+
+function twoOwnerReleaseOptions(): HarnessOptions {
+  const roadmapBytes = utf8(twoOwnerRoadmapText());
+  const base = sealRegister({
+    activeNames: SHARED_ACTIVE,
+    roadmapBytes,
+    packageReconcile: "complete",
+    track1TargetRelease: "released",
+    track1Disposition: "released_reference",
+  });
+  const registerText = `${base}\n\n[[future_owner]]\nname = "${SECOND_PACKAGE}"\ntarget_release = "v0.4"\nreason = "Track 3 owns the external MemoryIndex."\n\n[[entry]]\nkey = "${SECOND_ROADMAP_KEY}"\nsource_kind = "roadmap"\nsource_path = "ROADMAP.md"\ndisposition = "v040_owner"\nowner = "${SECOND_PACKAGE}"\ntarget_release = "v0.4"\nreconcile = "complete"\nreason = "Track 3 is complete."`;
+  return sharedReleaseOptions({
+    roadmapBytes,
+    registerText,
+    workflowByOwner: {
+      [TRACK1]: "foreman-architectural",
+      [PACKAGE]: "foreman-bounded",
+      [SECOND_PACKAGE]: "foreman-bounded",
+    },
+    briefBytesByAbsPath: new Map([
+      [PACKAGE_BRIEF_ABS, briefFileBytes(deriveBrief(FAMILY_CHILD))],
+      [
+        SECOND_PACKAGE_BRIEF_ABS,
+        briefFileBytes(deriveBrief(SECOND_FAMILY_CHILD)),
+      ],
+    ]),
   });
 }
 
@@ -923,6 +1174,36 @@ test("invalid invocations exit 64 with fixed diagnostic and zero service calls",
   }
 });
 
+test("legal flag-value pairs can reorder after check", async () => {
+  const argv = processArgv([
+    "check",
+    "--family-sha",
+    FAMILY_SHA,
+    "--register",
+    REGISTER,
+    "--owner",
+    PACKAGE,
+    "--contract-id",
+    CONTRACT_ID,
+    "--repo",
+    REPO,
+    "--phase",
+    "lane",
+    "--contract-sha",
+    CONTRACT_SHA,
+    "--state-root",
+    STATE_ROOT,
+    "--program",
+    "v040",
+  ]);
+  const { exitCode, capture } = await runCli(argv, sharedLaneOptions());
+  assert.equal(exitCode, EXIT_OK);
+  assertCanonicalResult(
+    capture,
+    validResult(SHARED_ACTIVE, SHARED_ROADMAP_BYTES, 2),
+  );
+});
+
 // ---------------------------------------------------------------------------
 // 2. Bootstrap assembly
 // ---------------------------------------------------------------------------
@@ -1070,6 +1351,30 @@ test("bootstrap assembly uses sealed Track-1 fixture and injected repository roo
 // ---------------------------------------------------------------------------
 
 test("lane and release authority bind the real family child and absolute brief paths", async (t) => {
+  await t.test("registered source has the exact eight sorted children and dependencies", () => {
+    assert.equal(FAMILY_SOURCE.schema, "foreman.execution-family-source.v1");
+    assert.equal(FAMILY_SOURCE.program, "v040");
+    assert.equal(FAMILY_SOURCE.familyId, "v040-release-20260822-f1");
+    assert.deepEqual(
+      FAMILY_SOURCE.children.map((child) => ({
+        tranche: child.tranche,
+        childId: child.childId,
+        packageId: child.packageId,
+        dependencyChildIds: child.dependencyChildIds,
+      })),
+      [
+        { tranche: 2, childId: "v040-t2-project-registry", packageId: "project-registry", dependencyChildIds: [] },
+        { tranche: 3, childId: "v040-t3-memory-index", packageId: "external-memory-index", dependencyChildIds: ["v040-t2-project-registry"] },
+        { tranche: 4, childId: "v040-t4-appliance", packageId: "hermetic-foreman-appliance", dependencyChildIds: [] },
+        { tranche: 5, childId: "v040-t5-graphify", packageId: "knowledge-plane-refresh", dependencyChildIds: [] },
+        { tranche: 6, childId: "v040-t6-work-dag", packageId: "work-dag-projection", dependencyChildIds: ["v040-t5-graphify"] },
+        { tranche: 7, childId: "v040-t7-context", packageId: "graph-context-builder", dependencyChildIds: ["v040-t6-work-dag"] },
+        { tranche: 8, childId: "v040-t8-evaluation", packageId: "graph-eval-falsification", dependencyChildIds: ["v040-t3-memory-index", "v040-t4-appliance", "v040-t7-context"] },
+        { tranche: 9, childId: "v040-t9-release", packageId: "v040-release-program", dependencyChildIds: ["v040-t2-project-registry", "v040-t3-memory-index", "v040-t4-appliance", "v040-t5-graphify", "v040-t6-work-dag", "v040-t7-context", "v040-t8-evaluation"] },
+      ],
+    );
+  });
+
   await t.test("lane selects only project-registry and binds family request identities", async () => {
     const { exitCode, capture } = await runCli(
       LANE_ARGV,
@@ -1091,7 +1396,7 @@ test("lane and release authority bind the real family child and absolute brief p
       [PACKAGE_BRIEF_ABS],
     );
     assert.equal(
-      briefReads[0]!.path.slice(REPO.length + 1),
+      normalizedRepositoryRelative(briefReads[0]!.path),
       BRIEF_REL,
     );
     assert.equal(
@@ -1106,42 +1411,64 @@ test("lane and release authority bind the real family child and absolute brief p
     assertUnchangedSnapshot(capture);
   });
 
-  await t.test("contradictory family identity fails closed", async () => {
-    const { exitCode, capture } = await runCli(
-      LANE_ARGV,
-      sharedLaneOptions({
-        familyResult: {
-          stateRoot: STATE_ROOT,
-          contractId: CONTRACT_ID,
-          contractSha256: "c".repeat(64),
-          familySha256: FAMILY_SHA,
-          children: [FAMILY_CHILD],
-        },
+  const contradictoryFamilyIdentities: ReadonlyArray<{
+    name: string;
+    familyResult: FamilyResult;
+  }> = [
+    {
+      name: "stateRoot",
+      familyResult: registeredFamilyResult({
+        stateRoot: join(FIXTURE_ROOT, "other-state"),
       }),
-    );
-    assert.equal(exitCode, EXIT_EVALUATED);
-    assertCanonicalResult(capture, invalidResult("dependency_failure"));
-    assertSanitized(capture);
-  });
+    },
+    {
+      name: "contractId",
+      familyResult: registeredFamilyResult({ contractId: "other-contract" }),
+    },
+    {
+      name: "contractSha256",
+      familyResult: registeredFamilyResult({
+        contractSha256: "c".repeat(64),
+      }),
+    },
+    {
+      name: "familySha256",
+      familyResult: registeredFamilyResult({
+        familySha256: "d".repeat(64),
+      }),
+    },
+  ];
 
-  await t.test("release reads every selected complete v0.4 owner brief", async () => {
-    const { exitCode, capture } = await runCli(
-      RELEASE_ARGV,
-      sharedReleaseOptions(),
-    );
+  for (const { name, familyResult } of contradictoryFamilyIdentities) {
+    await t.test(`contradictory family ${name} fails closed`, async () => {
+      const { exitCode, capture } = await runCli(
+        LANE_ARGV,
+        sharedLaneOptions({ familyResult }),
+      );
+      assert.equal(exitCode, EXIT_EVALUATED);
+      assertCanonicalResult(capture, invalidResult("dependency_failure"));
+      assertSanitized(capture);
+    });
+  }
+
+  await t.test("release reads both selected complete v0.4 owner briefs", async () => {
+    const options = twoOwnerReleaseOptions();
+    const { exitCode, capture } = await runCli(RELEASE_ARGV, options);
     assert.equal(exitCode, EXIT_OK);
     assert.equal(capture.log.family.length, 1);
-    const briefReads = capture.log.fileReads.filter((r) =>
-      r.path.endsWith("release-brief.json"),
-    );
+    const briefReads = capture.log.fileReads
+      .filter((r) => r.path.endsWith("release-brief.json"))
+      .map((r) => r.path)
+      .sort();
     assert.deepEqual(
-      briefReads.map((r) => r.path),
-      [PACKAGE_BRIEF_ABS],
+      briefReads,
+      [PACKAGE_BRIEF_ABS, SECOND_PACKAGE_BRIEF_ABS].sort(),
     );
     assertCanonicalResult(
       capture,
-      validResult(SHARED_ACTIVE, SHARED_ROADMAP_BYTES, 2),
+      validResult(SHARED_ACTIVE, options.roadmapBytes!, 3),
     );
+    assertNoEscapeReads(capture.log);
     assertUnchangedSnapshot(capture);
   });
 
@@ -1180,27 +1507,6 @@ test("lane and release authority bind the real family child and absolute brief p
       }),
       reason: "brief_mismatch",
     },
-    {
-      name: "substituted",
-      options: sharedLaneOptions({
-        familyResult: {
-          stateRoot: STATE_ROOT,
-          contractId: CONTRACT_ID,
-          contractSha256: CONTRACT_SHA,
-          familySha256: FAMILY_SHA,
-          children: [
-            {
-              ...FAMILY_CHILD,
-              objective: "family expects this objective",
-            },
-          ],
-        },
-        briefBytesByAbsPath: new Map([
-          [PACKAGE_BRIEF_ABS, briefFileBytes(deriveBrief(FAMILY_CHILD))],
-        ]),
-      }),
-      reason: "brief_mismatch",
-    },
   ];
 
   for (const { name, options, reason } of briefAuthorityCases) {
@@ -1212,6 +1518,90 @@ test("lane and release authority bind the real family child and absolute brief p
       assertSanitized(capture);
     });
   }
+
+  const derivedFieldCases: ReadonlyArray<{
+    name: string;
+    familyResult: FamilyResult;
+    reason: ReleaseCoverageFailureReason;
+  }> = [
+    {
+      name: "childId",
+      familyResult: familyResultWithChild((child) => ({
+        ...child,
+        childId: "substituted-child",
+      })),
+      reason: "brief_mismatch",
+    },
+    {
+      name: "packageId",
+      familyResult: familyResultWithChild((child) => ({
+        ...child,
+        packageId: "substituted-project-registry",
+      })),
+      reason: "brief_mismatch",
+    },
+    {
+      name: "objective",
+      familyResult: familyResultWithChild((child) => ({
+        ...child,
+        objective: "substituted objective",
+      })),
+      reason: "brief_mismatch",
+    },
+    {
+      name: "acceptance",
+      familyResult: familyResultWithChild((child) => ({
+        ...child,
+        acceptance: ["substituted acceptance"],
+      })),
+      reason: "brief_mismatch",
+    },
+    {
+      name: "allowedPaths",
+      familyResult: familyResultWithChild((child) => ({
+        ...child,
+        allowedPaths: ["packages/substituted/**"],
+      })),
+      reason: "brief_mismatch",
+    },
+  ];
+
+  for (const { name, familyResult, reason } of derivedFieldCases) {
+    await t.test(`registered source derives ${name}`, async () => {
+      const { exitCode, capture } = await runCli(
+        LANE_ARGV,
+        sharedLaneOptions({
+          familyResult,
+          briefBytesByAbsPath: new Map([
+            [PACKAGE_BRIEF_ABS, briefFileBytes(deriveBrief(FAMILY_CHILD))],
+          ]),
+        }),
+      );
+      assert.equal(exitCode, EXIT_EVALUATED);
+      assertCanonicalResult(capture, invalidResult(reason));
+      assertNoEscapeReads(capture.log);
+      assertSanitized(capture);
+    });
+  }
+
+  await t.test("invalid registered packageId causes no out-of-repository read", async () => {
+    const familyResult = familyResultWithChild((child) => ({
+      ...child,
+      packageId: "../escape",
+    }));
+    const { exitCode, capture } = await runCli(
+      LANE_ARGV,
+      sharedLaneOptions({ familyResult }),
+    );
+    assert.equal(exitCode, EXIT_EVALUATED);
+    assertCanonicalResult(capture, invalidResult("dependency_failure"));
+    assertNoEscapeReads(capture.log);
+    assert.equal(
+      capture.log.fileReads.some((read) => read.path.includes("escape")),
+      false,
+    );
+    assertSanitized(capture);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1254,7 +1644,7 @@ test("eleven ReleaseCoverageFailureReason values print one canonical JSON line",
             `owner = "${TRACK1}"`,
             `target_release = "v0.4"`,
             `reconcile = "complete"`,
-            `reason = "duplicate key"`,
+            `reason = "duplicate key with coherent source"`,
           ].join("\n"),
         }),
       }),
@@ -1267,7 +1657,10 @@ test("eleven ReleaseCoverageFailureReason values print one canonical JSON line",
           activeNames: SHARED_ACTIVE,
           roadmapBytes: SHARED_ROADMAP_BYTES,
           mutate: (text) =>
-            text.replace(`name = "${PACKAGE}"`, `name = "declared-other-package"`),
+            text.replace(
+              `name = "${PACKAGE}"`,
+              `name = "declared-other-package"`,
+            ),
         }),
       }),
       expectOpenspec: true,
@@ -1364,19 +1757,44 @@ test("opaque Effect failures and synchronous throws become dependency_failure", 
     argv: readonly string[];
     options: HarnessOptions;
   }> = [
+    ...[
+      ["register", BOOTSTRAP_ARGV, REGISTER, sharedBootstrapOptions()] as const,
+      ["roadmap", BOOTSTRAP_ARGV, ROADMAP_ABS, sharedBootstrapOptions()] as const,
+      [
+        "workflow",
+        BOOTSTRAP_ARGV,
+        TRACK1_WORKFLOW_ABS,
+        sharedBootstrapOptions(),
+      ] as const,
+      ["brief", LANE_ARGV, PACKAGE_BRIEF_ABS, sharedLaneOptions()] as const,
+    ].flatMap(([label, argv, path, base]) => [
+      {
+        name: `file-${label}-effect-fail`,
+        argv,
+        options: {
+          ...base,
+          fileErrorByPath: new Map([
+            [path, new Error(`read fail ${SECRET}/${label}`)],
+          ]),
+        },
+      },
+      {
+        name: `file-${label}-throw`,
+        argv,
+        options: { ...base, fileThrowPath: path },
+      },
+    ]),
     {
-      name: "file-effect-fail",
-      argv: LANE_ARGV,
-      options: sharedLaneOptions({
-        fileErrorByPath: new Map([
-          [PACKAGE_BRIEF_ABS, new Error(`read fail ${SECRET}/brief`)],
-        ]),
+      name: "repository-root-effect-fail",
+      argv: BOOTSTRAP_ARGV,
+      options: sharedBootstrapOptions({
+        repositoryRootError: new Error(`root fail ${SECRET}/root`),
       }),
     },
     {
-      name: "file-throw",
-      argv: LANE_ARGV,
-      options: sharedLaneOptions({ fileThrowPath: PACKAGE_BRIEF_ABS }),
+      name: "repository-root-throw",
+      argv: BOOTSTRAP_ARGV,
+      options: sharedBootstrapOptions({ repositoryRootThrow: true }),
     },
     {
       name: "openspec-throw",
@@ -1475,6 +1893,58 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
       assert.equal(exitCode, EXIT_OK);
       assertUnchangedSnapshot(capture);
     }
+  });
+
+  await t.test("physical live main leaves authority bytes and Git status unchanged", () => {
+    const watched = [LIVE_REGISTER, LIVE_ROADMAP, LIVE_WORKFLOW] as const;
+    const beforeBytes = new Map(
+      watched.map((path) => [path, readFileSync(path)] as const),
+    );
+    const statusBefore = spawnSync(
+      "git",
+      ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+      { cwd: SOURCE_REPO, maxBuffer: ONE_MIB },
+    );
+    assert.equal(statusBefore.status, 0);
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        "tsx",
+        LIVE_MAIN,
+        "check",
+        "--program",
+        "v040",
+        "--phase",
+        "bootstrap",
+        "--owner",
+        TRACK1,
+        "--register",
+        LIVE_REGISTER,
+      ],
+      {
+        cwd: SOURCE_REPO,
+        encoding: "utf8",
+        maxBuffer: ONE_MIB,
+      },
+    );
+    assert.equal(result.status, EXIT_OK, result.stderr || result.stdout);
+    assert.equal(result.stderr, "");
+    const output = JSON.parse(result.stdout.trim()) as ReleaseCoverageResultV1;
+    assert.equal(output._tag, "Valid");
+
+    for (const [path, bytes] of beforeBytes) {
+      assert.deepEqual(readFileSync(path), bytes);
+    }
+    const statusAfter = spawnSync(
+      "git",
+      ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+      { cwd: SOURCE_REPO, maxBuffer: ONE_MIB },
+    );
+    assert.equal(statusAfter.status, 0);
+    assert.deepEqual(statusAfter.stdout, statusBefore.stdout);
+    assert.deepEqual(statusAfter.stderr, statusBefore.stderr);
   });
 
   await t.test("full process-argv vector fixes live main framing", () => {
