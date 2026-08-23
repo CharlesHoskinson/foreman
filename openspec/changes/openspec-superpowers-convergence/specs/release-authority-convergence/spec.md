@@ -34,15 +34,19 @@ workflow SHALL require `tasks.md` before apply.
 
 ### Requirement: Complete release coverage
 
-The `release-coverage check --register <path>` command SHALL validate the
-closed schema-version-1 register, recompute the active OpenSpec inventory and
-raw `ROADMAP.md` digests, enforce the Roadmap bijection, enforce all declared
-cross-field rules, and reject unresolved v0.4 reconciliation.
+The `release-coverage` command SHALL implement the exact bootstrap, lane, and
+release forms in the approved design. Every form SHALL validate the closed
+schema-version-1 register, recompute the active OpenSpec inventory and raw
+`ROADMAP.md` digests, enforce the Roadmap bijection, and enforce all declared
+cross-field rules. Bootstrap SHALL require Track 1 reconciliation. Lane SHALL
+reject unresolved v0.4 entries owned by its selected package. Release SHALL
+reject every unresolved v0.4 entry.
 
 #### Scenario: Coverage matches current authority
 
 - **WHEN** every active package and Roadmap assignment has one valid entry
 - **AND** the stored digests match the current bytes
+- **AND** the selected phase's reconciliation and workflow metadata are complete
 - **THEN** the command returns exit code 0 and one canonical `Valid` result
 
 #### Scenario: Coverage is stale or ambiguous
@@ -52,28 +56,50 @@ cross-field rules, and reject unresolved v0.4 reconciliation.
 - **THEN** the command returns exit code 1 and one sanitized `Invalid` result
 - **AND** it does not mutate repository or external state
 
-### Requirement: Exact release admission
+### Requirement: Signed action-specific release admission
 
-The `release-admission check --program v040 --verdict <path>
---candidate-sha <sha256> --approval <path>` command SHALL inspect the current
-Git commit and tree. It SHALL accept only canonical closed receipts that name
-that identity, use the SHA-256 of the lowercase commit ID as the candidate
-digest, contain verdict `APPROVED`, and contain no findings. The command SHALL
-not read `[audit.policy]` or any equivalent mutable exception.
+The `release-admission` command SHALL resolve the explicitly named candidate
+commit and tree in the explicitly named repository. It SHALL NOT inspect caller
+`HEAD`. It SHALL accept only a canonical receipt signed by the authority key
+fixed in the approved design and registered for the same family, child, action,
+package, and candidate in Endstop. A caller-selected path or digest SHALL NOT
+create authority.
+
+Design approval SHALL admit implementation. Signed checks evidence SHALL admit
+audit. A signed failed-check, `WARNING`, `BLOCKED`, or `UNVERIFIED` result SHALL
+admit correction. Retry and resume SHALL bind a recorded failed reservation
+and its original authority. Only a signed `APPROVED` audit receipt with no
+findings and matching design approval SHALL admit integration or publication.
+The command SHALL not read `[audit.policy]` or an equivalent mutable exception.
 
 #### Scenario: Exact approved candidate is checked
 
-- **WHEN** current Git identity, candidate digest, audit receipt, and external
-  human approval receipt match
+- **WHEN** the named Git identity, registered audit receipt, and signed human
+  design approval match
 - **AND** the audit finding set is empty
 - **THEN** the command returns exit code 0 and one canonical `Admitted` result
 
 #### Scenario: Audit policy would permit weaker evidence
 
-- **WHEN** the receipt is `WARNING`, `BLOCKED`, `UNVERIFIED`, malformed, stale,
-  non-canonical, identity-mismatched, or has any finding
+- **WHEN** integration or publication receives `WARNING`, `BLOCKED`,
+  `UNVERIFIED`, malformed, stale, unsigned, unregistered,
+  identity-mismatched evidence, a wrong authority, or any finding
 - **THEN** release admission returns exit code 1
 - **AND** mutable audit policy cannot change that result
+
+#### Scenario: Blocking audit opens correction
+
+- **WHEN** a registered signed audit receipt binds the current candidate and
+  reports `BLOCKED` or `UNVERIFIED`
+- **AND** the child has remaining correction actions
+- **THEN** correction admission succeeds for that candidate
+- **AND** integration admission still refuses it
+
+#### Scenario: Caller forges a matching receipt
+
+- **WHEN** caller bytes match the current Git identity but the signature,
+  signer fingerprint, or Endstop-registered digest does not match
+- **THEN** admission refuses before reservation
 
 ### Requirement: Immutable execution family
 
@@ -81,10 +107,13 @@ Track 1 SHALL add one canonical `ExecutionContractV2` family manifest anchored
 to Endstop root `v040-release-20260822-r1`. The manifest SHALL bind the root
 receipt, Track 1 commit and tree, `wallTimeMs=5184000000`,
 `totalActions=4096`, and exactly eight immutable child contracts for Tranches 2
-through 9. The audit and user receipts SHALL each bind the completed manifest
-digest. The activation event SHALL bind the manifest digest and both receipt
-digests; the manifest SHALL NOT contain a digest of a receipt that approves
-that manifest.
+through 9 with the exact IDs, package mapping, dependency graph, action limits,
+and authority-key fingerprints in the approved design. The audit and user
+receipts SHALL each bind the completed manifest digest and carry a valid
+signature from the matching fixed authority. One prior root-journal authority
+event SHALL bind both expected receipt digests. The activation event SHALL bind
+the manifest digest and both receipt digests; the manifest SHALL NOT contain a
+digest of a receipt that approves that manifest.
 
 #### Scenario: Family activates once
 
@@ -96,7 +125,8 @@ that manifest.
 #### Scenario: Activation is partial or repeated
 
 - **WHEN** any required child, bound identity, or approval is missing or wrong
-  or an activation event already exists
+  or unsigned, the expected authority record is absent, or an activation event
+  already exists
 - **THEN** activation refuses without changing the journal
 
 ### Requirement: Child-bounded action admission
@@ -107,11 +137,15 @@ verification reuse, and terminal rules. Tranche 8 SHALL allow exactly 2,000
 `evaluate` actions, at most 2,048 total actions,
 `wallTimeMs=3888000000`, and `noProgressMs=3600000`. Every reservation SHALL be
 one event in the root journal and SHALL count against both child and family.
+A child's wall-time counter SHALL start at its first accepted action. Dependency
+wait time SHALL consume the family deadline but SHALL NOT consume child wall
+time. Each absolute child deadline SHALL equal the family deadline.
 
 #### Scenario: A listed child reserves an action
 
-- **WHEN** its dependencies are complete, both release policies pass, and its
-  child and family limits remain available
+- **WHEN** its dependencies are complete, phase-aware coverage and the
+  action-specific evidence policy pass, and its child and family limits remain
+  available
 - **THEN** the root journal atomically reserves exactly one typed action
 - **AND** a crash after reservation leaves that action spent
 
@@ -121,17 +155,28 @@ one event in the root journal and SHALL count against both child and family.
   exhausted child, an expired deadline, or a failed dependency
 - **THEN** no provider or queue task starts
 
+#### Scenario: A child reaches completion
+
+- **WHEN** one candidate records product change, checks, audit, and integration
+- **AND** Tranche 9 also records publication
+- **THEN** the child becomes `Completed` in one root-journal transaction
+- **AND** its dependent children become eligible without replacing the family
+
 ### Requirement: Release policy reaches every boundary
 
 The queue boundary for V2 children, `gate-eval.sh`, `merge-gate.sh`, and later
 publication tooling SHALL use one thin release-policy adapter. The adapter
-SHALL invoke the exact installed `release-coverage` and `release-admission`
-artifacts. It SHALL not parse policy data or implement policy decisions.
+SHALL locate Node and forward the fixed approved-design release block to the
+exact installed TypeScript `release-policy` artifact. It SHALL not parse policy
+data or implement policy decisions. Queue SHALL evaluate policy before one
+atomic reservation. Gate SHALL evaluate it after the general result. Merge
+SHALL resolve the named branch, require its commit to match the release block,
+capture policy JSON outside stdout, and preserve exactly one merge verdict line.
 
 #### Scenario: General gate passes but v0.4 policy fails
 
 - **WHEN** the general gate or merge check passes
-- **AND** either installed policy artifact is missing or returns nonzero
+- **AND** any installed release artifact is missing or action policy returns nonzero
 - **THEN** the boundary returns a non-admitting result
 
 #### Scenario: Bootstrap output is incomplete
@@ -142,10 +187,10 @@ artifacts. It SHALL not parse policy data or implement policy decisions.
 
 ### Requirement: Exact installed runtime inventory
 
-The runtime builder SHALL emit separate `release-coverage.js` and
-`release-admission.js` artifacts. The runtime manifest, two-clean-build check,
-tracked-byte check, exact-dist inventory check, and installed-runtime decoder
-SHALL treat both as required.
+The runtime builder SHALL emit `release-coverage.js`, `release-admission.js`,
+`release-authority.js`, and `release-policy.js`. The runtime manifest,
+two-clean-build check, tracked-byte check, exact-dist inventory check, and
+installed-runtime decoder SHALL treat all four as required.
 
 #### Scenario: Installed policy is stripped or changed
 

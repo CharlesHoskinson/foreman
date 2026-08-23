@@ -33,8 +33,8 @@ provider cannot reset the release bounds.
 ## Impact
 
 - Adds project-local OpenSpec schemas and one focused OpenSpec package.
-- Adds two TypeScript policy entry points and two installed runtime artifacts.
+- Adds signed release authority, phase-aware coverage, action admission, and one
+  composed TypeScript release-policy boundary with four runtime artifacts.
 - Extends Endstop state, queue admission, and release gates without weakening
   the existing V1 contract.
 - Changes only the closed Track 1 bootstrap paths listed in the v0.4 governor.
-

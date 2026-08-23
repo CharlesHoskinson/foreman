@@ -101,12 +101,24 @@ v0.5.
 
 Track 1 SHALL implement the validator at
 `packages/policy/src/release-coverage.ts` and the command
-`release-coverage check --register <path>`. The validator SHALL compute the
+in these exact forms:
+
+```text
+release-coverage check --program v040 --phase bootstrap --owner openspec-superpowers-convergence --register ABS
+release-coverage check --program v040 --phase lane --owner PACKAGE --register ABS
+release-coverage check --program v040 --phase release --register ABS
+```
+
+The validator SHALL compute the
 active inventory by sorting the UTF-8 names from `openspec list --json` and
 hashing each name with one trailing LF. It SHALL hash the raw `ROADMAP.md`
 bytes. It SHALL reject a wrong schema version, stale digest, missing or
-duplicate source, duplicate key, unknown enum, unresolved `required` entry, or
-owner that is neither an active package nor a declared future package.
+duplicate source, duplicate key, unknown enum, phase-relevant unresolved
+`required` entry, or owner that is neither an active package nor a declared
+future package. Bootstrap SHALL require Track 1 reconciliation. Lane phase
+SHALL require each v0.4 entry owned by `PACKAGE` to be reconciled. Release
+phase SHALL require zero v0.4 `required` entries. Workflow metadata SHALL be
+required only for packages that the selected phase requires to be complete.
 
 For an OpenSpec source, `key` SHALL equal `change:<package-name>` and
 `source_path` SHALL equal `openspec/changes/<package-name>`. For a Roadmap
@@ -139,8 +151,10 @@ and digest, content-addressed `APPROVED` receipts with empty findings, the
 current V1 root receipt, and exact-byte user approval. It SHALL consume actions
 from the V1 root and fit inside its remaining limits. It SHALL implement the two
 workflows, both policy checks, and `ExecutionContractV2` family activation in
-one candidate. After activation, every lane SHALL require both policy checks
-and its listed child contract. A reused package with `reconcile=required` SHALL be
+one candidate. After activation, every action SHALL require phase-aware
+coverage, its action-specific evidence policy, and its listed child contract.
+Only integration and publication SHALL require an exact `APPROVED` audit
+receipt with no findings. A reused package with `reconcile=required` SHALL be
 corrected and strict-validated before its implementation lane starts. Those
 corrections SHALL remove new shell and Bats implementation where Node 24
 TypeScript and TypeScript tests own the behavior, and SHALL resolve conflicting
@@ -148,6 +162,14 @@ directed-versus-undirected graph assumptions.
 `knowledge-plane-refresh` SHALL remove its `lock-primitive-hardening`
 prerequisite during reconciliation and SHALL own its narrow TypeScript and
 Effect advisory lock.
+
+The approved Track 1 design SHALL fix one Ed25519 user-approval public key and
+one Ed25519 host-audit public key. The corresponding private keys SHALL stay in
+host-owned external state and SHALL NOT be mounted in worker sandboxes. Every
+later approval or evidence receipt SHALL be canonical, signed by the required
+authority, and registered in Endstop before use. SessionDB SHALL record each
+human-approval receipt digest. A caller-selected receipt path or expected
+digest SHALL NOT create authority.
 
 #### Scenario: An active package is not part of v0.4
 
@@ -188,8 +210,12 @@ Track 1 SHALL implement `ExecutionContractV2` as a one-time family activation.
 Activation SHALL append to the root Endstop RunJournal before the V1 deadline.
 It SHALL refuse after a root terminal state and SHALL refuse a second
 activation. The closed canonical family manifest SHALL receive an exact-byte
-`APPROVED` audit and exact-byte user approval. Activation SHALL bind its digest,
-the root identity, the Track 1 commit and tree, and both approval digests.
+`APPROVED` audit and exact-byte user approval. It SHALL contain the audit and
+user authority-key fingerprints fixed by the approved Track 1 design. Each
+receipt SHALL carry a valid signature from its matching authority, and the root
+Endstop bootstrap record SHALL supply both expected receipt digests. Activation
+SHALL bind its digest, the root identity, the Track 1 commit and tree, and both
+approval digests.
 The manifest SHALL NOT contain the digest of a receipt that approves that same
 manifest. Each approval receipt SHALL bind the completed manifest digest, and
 the activation event SHALL bind the manifest and receipt digests together.
@@ -202,6 +228,10 @@ SHALL add or replace a child. The family SHALL use `wallTimeMs=5184000000` and
 against the family total. Each child deadline SHALL be at or before the family
 deadline. A family terminal state SHALL terminate all children. A child terminal
 state SHALL NOT reset another child.
+
+A child's `wallTimeMs` SHALL start at its first accepted action, not while it
+waits for dependencies. Its absolute deadline SHALL still be at or before the
+family deadline.
 
 Tranches 2 through 7 and Tranche 9 SHALL be standard children. Each SHALL allow
 at most 100 total actions and at most 14 days. Its manifest SHALL assign exact
@@ -250,6 +280,8 @@ SHALL contain only these paths:
 - `packages/policy/src/release-admission.ts`
 - `packages/policy/src/release-admission.test.ts`
 - `packages/policy/src/release-admission-main.ts`
+- `packages/policy/src/release-authority.ts`
+- `packages/policy/src/release-authority.test.ts`
 - `packages/policy/src/main.ts`
 - `packages/policy/src/cli.ts`
 - `packages/policy/src/cli.test.ts`
@@ -272,6 +304,12 @@ SHALL contain only these paths:
 - `packages/orchestration/src/queue-cli.test.ts`
 - `packages/orchestration/src/queue-main.ts`
 - `packages/orchestration/src/queue-services.ts`
+- `packages/orchestration/src/release-authority-cli.ts`
+- `packages/orchestration/src/release-authority-cli.test.ts`
+- `packages/orchestration/src/release-authority-main.ts`
+- `packages/orchestration/src/release-policy.ts`
+- `packages/orchestration/src/release-policy.test.ts`
+- `packages/orchestration/src/release-policy-main.ts`
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
 - `scripts/build-runtime.ts`
@@ -281,6 +319,7 @@ SHALL contain only these paths:
 - `skills/foreman/scripts/lib/release-policy.sh`
 - `skills/foreman/scripts/gate-eval.sh`
 - `skills/foreman/scripts/merge-gate.sh`
+- `skills/foreman/SKILL.md`
 - `tests/release-policy.bats`
 - `tests/gate-eval.bats`
 - `tests/merge-gate.bats`
@@ -292,23 +331,27 @@ SHALL contain only these paths:
 - `skills/foreman/runtime/manifest.json`
 
 It SHALL NOT admit another product lane or path.
-The runtime builder SHALL emit separate installed `release-coverage` and
-`release-admission` artifacts. One shared release-policy adapter SHALL invoke
-those exact artifacts. `gate-eval.sh` SHALL call the adapter only after the
-general gate result exists. `merge-gate.sh` SHALL call it before it can return
-`MERGEABLE`. A missing artifact, failed coverage check, or non-approved
-admission verdict SHALL fail closed. Tranche 9 publication tooling SHALL call
+The runtime builder SHALL emit installed `release-coverage`,
+`release-admission`, `release-authority`, and `release-policy` artifacts. One
+shared shell adapter SHALL only locate Node and forward a fixed argument block
+to the TypeScript `release-policy` artifact. `gate-eval.sh` SHALL call the
+adapter only after the general gate result exists. `merge-gate.sh` SHALL call
+it against the named branch before it can return `MERGEABLE` and SHALL keep its
+one-line stdout contract. A missing artifact, failed coverage check, or invalid
+action evidence SHALL fail closed. Tranche 9 publication tooling SHALL call
 the same adapter under the Tranche 9 child allowlist.
-The exact runtime verifier and installed-runtime decoder SHALL treat both
-release-policy artifacts as required. Tests SHALL compare two clean builds,
+The exact runtime verifier and installed-runtime decoder SHALL treat all four
+release artifacts as required. Tests SHALL compare two clean builds,
 tracked bytes, and the exact `dist` inventory. Copied-install controls SHALL
 reject a missing or changed artifact and SHALL reject removal of an artifact
 together with its manifest entry.
 
 After the atomic candidate integrates and the family activates, every later
-lane, integration gate, and publication gate SHALL run both policy checks after
-the general Foreman gate. Hostile tests SHALL prove refusal for mutable audit
-policy, stale candidate identity, malformed receipts, nonempty findings, and
+action SHALL run phase-aware coverage and action-specific admission. Queue
+admission SHALL run both before reservation. Integration and publication SHALL
+run them after the general Foreman gate. Hostile tests SHALL prove refusal for
+mutable audit policy, stale candidate identity, malformed or forged receipts,
+wrong authority, unregistered evidence, nonempty integration findings, and
 partial bootstrap output.
 
 #### Scenario: Family activation carries prior work

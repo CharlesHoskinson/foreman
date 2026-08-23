@@ -390,8 +390,8 @@ source_path = "openspec/changes/v040-release-program"
 disposition = "v040_owner"
 owner = "v040-release-program"
 target_release = "v0.4"
-reconcile = "complete"
-reason = "Track 9 owns integration, evidence, Windows verification, and publication."
+reconcile = "required"
+reason = "Track 9 owns integration, evidence, Windows verification, and publication; its closed workflow and tasks are created in that design milestone."
 
 [[entry]]
 key = "change:vendor-adapter-contract"

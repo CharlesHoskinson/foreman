@@ -98,8 +98,16 @@ closed enum: `v040_owner`, `v040_dependency`, `released_reference`,
 `not_required`. Each future-owner table contains `name`, `target_release`, and
 `reason`.
 
-Track 1 implements `packages/policy/src/release-coverage.ts` and exposes
-`release-coverage check --register <path>`. The checker recomputes the active
+Track 1 implements `packages/policy/src/release-coverage.ts`. The command has
+three closed forms:
+
+```text
+release-coverage check --program v040 --phase bootstrap --owner openspec-superpowers-convergence --register ABS
+release-coverage check --program v040 --phase lane --owner PACKAGE --register ABS
+release-coverage check --program v040 --phase release --register ABS
+```
+
+The checker recomputes the active
 inventory from `openspec list --json` as sorted UTF-8 names with one trailing
 LF per name. It hashes the raw `ROADMAP.md` bytes, validates the fixed schema
 and unique keys, parses the exact Roadmap assignment table, and verifies that
@@ -107,7 +115,11 @@ each owner is an existing package or a declared future package. The entry key
 is the source identity. Multiple Roadmap entries intentionally share
 `ROADMAP.md` as their source path. A missing key, duplicate key, missing
 Roadmap row, stale digest, unknown value, invalid field combination, or
-unresolved entry is a failure.
+phase-relevant unresolved entry is a failure. Bootstrap requires Track 1 to be
+reconciled. Lane admission requires every v0.4 entry owned by `PACKAGE` to be
+reconciled. Release admission requires no v0.4 `required` entry. Every phase
+checks workflow metadata only for packages that its reconciliation rule
+requires to be complete.
 
 Creating an approved future package changes the active inventory. The
 architect must update the register and its inventory digest in the same design
@@ -122,6 +134,14 @@ bootstrap. The bootstrap consumes the existing V1 root limits. It implements
 the two OpenSpec workflows, `release-coverage check`, `release-admission check`,
 and the `ExecutionContractV2` family activation protocol in one candidate.
 
+The exact approved Track 1 design fixes two release-specific Ed25519 public
+keys: one user-approval authority and one host-audit authority. Their private
+keys stay in host-owned external state and are not mounted in worker sandboxes.
+Canonical approval and evidence receipts carry the matching key fingerprint
+and signature. Endstop records the expected receipt digest before an action can
+consume it, and SessionDB records the same digest at each human-approved
+boundary. A caller-selected receipt path or digest is not authority.
+
 The bootstrap path scope is closed to these paths:
 
 - `openspec/changes/openspec-superpowers-convergence/**`
@@ -133,6 +153,8 @@ The bootstrap path scope is closed to these paths:
 - `packages/policy/src/release-admission.ts`
 - `packages/policy/src/release-admission.test.ts`
 - `packages/policy/src/release-admission-main.ts`
+- `packages/policy/src/release-authority.ts`
+- `packages/policy/src/release-authority.test.ts`
 - `packages/policy/src/main.ts`
 - `packages/policy/src/cli.ts`
 - `packages/policy/src/cli.test.ts`
@@ -155,6 +177,12 @@ The bootstrap path scope is closed to these paths:
 - `packages/orchestration/src/queue-cli.test.ts`
 - `packages/orchestration/src/queue-main.ts`
 - `packages/orchestration/src/queue-services.ts`
+- `packages/orchestration/src/release-authority-cli.ts`
+- `packages/orchestration/src/release-authority-cli.test.ts`
+- `packages/orchestration/src/release-authority-main.ts`
+- `packages/orchestration/src/release-policy.ts`
+- `packages/orchestration/src/release-policy.test.ts`
+- `packages/orchestration/src/release-policy-main.ts`
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
 - `scripts/build-runtime.ts`
@@ -164,6 +192,7 @@ The bootstrap path scope is closed to these paths:
 - `skills/foreman/scripts/lib/release-policy.sh`
 - `skills/foreman/scripts/gate-eval.sh`
 - `skills/foreman/scripts/merge-gate.sh`
+- `skills/foreman/SKILL.md`
 - `tests/release-policy.bats`
 - `tests/gate-eval.bats`
 - `tests/merge-gate.bats`
@@ -175,15 +204,18 @@ The bootstrap path scope is closed to these paths:
 - `skills/foreman/runtime/manifest.json`
 
 No other product path is admitted.
-The runtime builder emits separate `release-coverage` and `release-admission`
-artifacts. The shared release-policy adapter invokes those exact installed
-artifacts. `gate-eval.sh` calls the adapter only after the general gate result
-exists. `merge-gate.sh` calls it before it can return `MERGEABLE`. Their hostile
-tests prove that a missing artifact, a failed coverage check, or a non-approved
-admission verdict fails closed. Later publication tooling must use the same
-adapter under its own Tranche 9 allowlist.
-The exact runtime verifier and installed-runtime decoder treat both release
-policy artifacts as required. Their tests compare two clean builds, tracked
+The runtime builder emits `release-coverage`, `release-admission`,
+`release-authority`, and `release-policy` artifacts. The shared shell adapter
+only locates Node and forwards its fixed argument block to `release-policy`.
+That TypeScript artifact composes coverage and action-specific admission.
+`gate-eval.sh` calls the adapter only after the general gate result exists.
+`merge-gate.sh` calls it against the named branch before it can return
+`MERGEABLE`. It captures policy JSON outside stdout so the merge gate keeps its
+one-line contract. Their hostile tests prove that a missing artifact, a failed
+coverage check, or invalid action evidence fails closed. Later publication
+tooling must use the same adapter under its own Tranche 9 allowlist.
+The exact runtime verifier and installed-runtime decoder treat all four release
+artifacts as required. Their tests compare two clean builds, tracked
 bytes, and the exact `dist` inventory. Copied-install controls reject a missing
 or changed artifact and reject removal of an artifact together with its
 manifest entry.
@@ -216,10 +248,14 @@ appends one event to the root Endstop RunJournal. It refuses after a root
 terminal state and refuses a second activation. The canonical family manifest
 binds the root, Track 1 commit and tree, and exactly eight immutable child
 contracts for Tranches 2 through 9. The manifest does not contain the digests
-of receipts that approve itself. After the manifest bytes exist, one exact-byte
-`APPROVED` audit receipt and one exact-byte user approval receipt each bind the
-manifest digest. The atomic activation event binds the manifest digest and both
-receipt digests. This order has no self-referential digest.
+of receipts that approve itself. It contains the two authority-key
+fingerprints fixed by the approved Track 1 design. After the manifest bytes
+exist, one exact-byte `APPROVED` audit receipt and one exact-byte user approval
+receipt each bind the manifest digest and carry a valid signature from the
+corresponding authority. The root Endstop bootstrap record supplies both
+expected receipt digests. The atomic activation event binds the manifest
+digest and both receipt digests. This order has no self-referential digest and
+does not trust caller-selected substitutes.
 
 The family has a 60-day wall-time limit of `5184000000` milliseconds and a
 `4096`-action limit. All actions consumed by the V1 root count against that
@@ -264,21 +300,25 @@ The cold auditor does not inherit the implementer's conclusions. It receives
 the approved requirements, exact base and candidate identities, complete diff,
 and deterministic evidence. The model reports `APPROVED`, `WARNING`, or
 `BLOCKED`. The harness records a typed `UNVERIFIED` result when no valid model
-judgment exists. Only `APPROVED` admits a v0.4 lane, integration, or
-publication. `WARNING`, `BLOCKED`, `UNVERIFIED`, an unknown verdict, a malformed
-verdict, or any reported finding fails closed and reopens the same bounded
-package loop.
+judgment exists. Only an exact `APPROVED` audit receipt with no findings admits
+integration or publication. Earlier actions use a closed action-specific
+evidence rule: design approval admits implementation; frozen host checks admit
+audit; a signed blocking or unverified result admits correction; and retry or
+resume must identify the recorded failed reservation that it continues.
+Invalid or missing action evidence refuses before reservation.
 
 Track 1 implements this rule in `packages/policy/src/release-admission.ts` and
-the `release-admission check` command. The check reads the verdict artifact
-directly and does not read `[audit.policy]`. Every later v0.4 lane wrapper,
-integration gate, and publication gate runs both policy checks after the
-general Foreman gate. Mutable repository or machine configuration cannot
-weaken this release-specific rule. Before the atomic authority bootstrap
-exists, only its exact candidate can consume content-addressed `APPROVED`
-governor receipts. The receipts bind the exact commit, tree, governor digest,
-and empty finding set. The V1 root receipt and the user's exact-byte approval
-must also match. No other product work uses this exception.
+the `release-admission check` command. The command resolves the named candidate
+commit and tree in the supplied repository. It verifies signed canonical
+evidence against the fixed authority key and the expected digest in Endstop.
+It does not read `[audit.policy]`. Every later v0.4 queue, integration gate, and
+publication gate runs phase-aware coverage and the action-specific evidence
+policy. Mutable repository or machine configuration cannot weaken this rule.
+Before the atomic authority bootstrap exists, only its exact candidate can
+consume content-addressed `APPROVED` governor receipts. The receipts bind the
+exact commit, tree, governor digest, and empty finding set. The V1 root receipt
+and the user's exact-byte approval must also match. No other product work uses
+this exception.
 
 The architect owns commits, integration, and publication. Workers do not merge,
 rewrite release evidence, or mark SessionDB obligations complete.
