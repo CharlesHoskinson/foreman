@@ -1530,11 +1530,20 @@ describe("release coverage policy", () => {
     const activePackageNames = [
       ...new Set(
         entries
-          .filter((e) => e.disposition === "v040_owner" || e.disposition === "v040_dependency")
-          .map((e) => e.owner)
-          .filter((o) => !futureOwners.some((f) => f.name === o)),
+          .filter((entry) => entry.sourceKind === "openspec_change")
+          .map((entry) => {
+            const match = /^openspec\/changes\/([^/]+)$/.exec(
+              entry.sourcePath,
+            );
+            assert.ok(match, `invalid authored OpenSpec source: ${entry.key}`);
+            return match[1]!;
+          }),
       ),
-    ].sort((a, b) => (utf8(a) < utf8(b) ? -1 : utf8(a) > utf8(b) ? 1 : 0));
+    ];
+    assert.equal(
+      activeInventorySha256(activePackageNames),
+      "148f3c5862053bbebea1ad7ac8842237b70f3877c402b3bc9209e85c2e7733fb",
+    );
 
     const roadmapEntries = entries.filter((e) => e.sourceKind === "roadmap");
     const roadmapAssignments: RoadmapAssignmentV1[] = roadmapEntries.map(
