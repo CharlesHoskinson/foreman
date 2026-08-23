@@ -1467,10 +1467,7 @@ describe("release coverage policy", () => {
       "../../../openspec/changes/v040-release-program/coverage.toml",
       import.meta.url,
     );
-    const registerText = require("node:fs").readFileSync(
-      authoredPath,
-      "utf8",
-    ) as string;
+    const registerText = readFileSync(authoredPath, "utf8");
     assert.match(registerText, /^schema_version\s*=\s*1\b/m);
 
     const futureOwners: { name: string; targetRelease: string; reason: string }[] =
