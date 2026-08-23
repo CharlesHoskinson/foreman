@@ -255,9 +255,9 @@ remain assigned to v0.5.
 One immutable Endstop contract family persists outside all worktrees. The
 existing V1 root contract is the authority anchor:
 
-- ID `v040-release-20260822-r2`
-- SHA-256 `bdddc9bebebb1e1725543fe547cfd33f4668cc33dbd504463f61beae1bcd06c4`
-- deadline `2026-08-30T19:29:52Z`
+- ID `v040-release-20260822-r3`
+- SHA-256 `d252f72eb647cee69187fa1c3fd62d4b39a7de6535fec5c8ab57ed637f0206fe`
+- deadline `2026-08-30T20:15:48Z`
 
 Track 1 activates `ExecutionContractV2` once before that deadline. Activation
 appends one event to the root Endstop RunJournal. It refuses after a root

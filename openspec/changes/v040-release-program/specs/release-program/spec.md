@@ -211,9 +211,9 @@ wrong role key SHALL refuse.
 
 The program SHALL run through the Foreman architect, implementer, auditor, and
 gate roles. One immutable Endstop contract family SHALL bound all v0.4 actions.
-The V1 root contract SHALL have ID `v040-release-20260822-r2`, SHA-256
-`bdddc9bebebb1e1725543fe547cfd33f4668cc33dbd504463f61beae1bcd06c4`,
-and deadline `2026-08-30T19:29:52Z`. A tranche, session, lane, retry, worktree,
+The V1 root contract SHALL have ID `v040-release-20260822-r3`, SHA-256
+`d252f72eb647cee69187fa1c3fd62d4b39a7de6535fec5c8ab57ed637f0206fe`,
+and deadline `2026-08-30T20:15:48Z`. A tranche, session, lane, retry, worktree,
 or crash SHALL NOT reset a counter or deadline.
 
 Track 1 SHALL implement `ExecutionContractV2` as a one-time family activation.
