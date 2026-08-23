@@ -89,7 +89,7 @@ integration only, and esbuild for generated runtime bundles.
 - Create: `openspec/schemas/foreman-architectural/templates/design.md`
 - Create: `openspec/schemas/foreman-architectural/templates/tasks.md`
 - Modify: `openspec/changes/openspec-superpowers-convergence/.openspec.yaml`
-- Test: `packages/policy/src/release-coverage.test.ts`
+- Create: `packages/policy/src/release-coverage.test.ts`
 
 **Interfaces:**
 
@@ -136,7 +136,7 @@ integration only, and esbuild for generated runtime bundles.
 **Files:**
 
 - Create: `packages/policy/src/release-coverage.ts`
-- Create: `packages/policy/src/release-coverage.test.ts`
+- Modify: `packages/policy/src/release-coverage.test.ts`
 - Modify: `packages/policy/src/index.ts`
 - Modify: `packages/policy/package.json`
 - Create: `packages/orchestration/src/release-coverage-cli.ts`
