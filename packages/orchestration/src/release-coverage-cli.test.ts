@@ -8,13 +8,12 @@ import {
   readFileSync,
   readlinkSync,
   rmSync,
-  symlinkSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Effect } from "effect";
 import { canonicalize } from "@foreman/core";
 import type {
@@ -112,7 +111,9 @@ const SECRET = join(FIXTURE_ROOT, "secret", "private", "path");
 const SOURCE_REPO = resolve(
   fileURLToPath(new URL("../../..", import.meta.url)),
 );
-const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
+const TSX_LOADER = pathToFileURL(
+  createRequire(import.meta.url).resolve("tsx"),
+).href;
 
 const BOOTSTRAP_TAIL = [
   "check",
@@ -1996,15 +1997,9 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
       );
       assert.equal(cloned.error, undefined);
       assert.equal(cloned.status, 0, cloned.stderr);
-      symlinkSync(
-        join(SOURCE_REPO, "node_modules"),
-        join(repository, "node_modules"),
-        process.platform === "win32" ? "junction" : "dir",
-      );
-
       const before = snapshotPhysicalTree(repository);
       const main = join(
-        repository,
+        SOURCE_REPO,
         "packages",
         "orchestration",
         "src",
