@@ -626,7 +626,7 @@ describe("release coverage policy", () => {
         registerText: `${sealRegister(
           base.activePackageNames,
           base.roadmapText,
-        )}[[future_owner]]\nname = "x"\ntarget_release = "v0.4"\nreason = "r"\n`,
+        )}[[future_owner]]\n[[future_owner]]\nname = "x"\ntarget_release = "v0.4"\nreason = "r"\n`,
       },
       {
         name: "unsupported TOML syntax",
@@ -674,7 +674,7 @@ describe("release coverage policy", () => {
           base.roadmapText,
           {
             entries: [
-              { ...track1Entry, owner: "Bad_Owner" },
+              { ...track1Entry, owner: "bad owner" },
               futureRoadmapEntry,
             ],
           },
@@ -726,14 +726,14 @@ describe("release coverage policy", () => {
                 ...futureRoadmapEntry,
                 disposition: "released_reference",
                 targetRelease: "v0.4",
-                reconcile: "not_required",
+                reconcile: "complete",
               },
             ],
           },
         ),
       },
       {
-        name: "superseded requires not_required",
+        name: "superseded requires complete",
         registerText: sealRegister(
           base.activePackageNames,
           base.roadmapText,
@@ -769,7 +769,7 @@ describe("release coverage policy", () => {
         ),
       },
       {
-        name: "v040_dependency complete mismatch",
+        name: "v040_dependency requires a v0.4 target",
         registerText: sealRegister(
           base.activePackageNames,
           base.roadmapText,
@@ -779,6 +779,7 @@ describe("release coverage policy", () => {
               {
                 ...futureRoadmapEntry,
                 disposition: "v040_dependency",
+                targetRelease: "v0.5",
                 reconcile: "complete",
               },
             ],
@@ -886,7 +887,7 @@ describe("release coverage policy", () => {
       {
         name: "malformed owner field",
         roadmapAssignments: [
-          { ...roadmapRow(ROADMAP_KEY, FUTURE), owner: "Bad" },
+          { ...roadmapRow(ROADMAP_KEY, FUTURE), owner: "bad owner" },
         ],
       },
       {
@@ -1437,7 +1438,7 @@ describe("release coverage policy", () => {
     const base = validBaseline();
     expectInvalid(
       cloneInput(base, {
-        changedPaths: ["docs/superpowers/plans/x.md"],
+        changedPaths: ["docs/superpowers/specs/x.md"],
       }),
       "competing_plan",
     );
