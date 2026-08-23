@@ -526,6 +526,7 @@ describe("release coverage policy", () => {
         overrides.packageBriefBytesByName ?? {},
       changedPaths: overrides.changedPaths ?? [],
       phase: overrides.phase ?? "Bootstrap",
+      laneOwner: overrides.laneOwner,
     };
   };
 
@@ -534,8 +535,25 @@ describe("release coverage policy", () => {
     overrides: Partial<ValidatorInput>,
   ): ValidatorInput => ({ ...base, ...overrides });
 
-  const run = (input: ValidatorInput): ValidatorResult =>
-    validateReleaseCoverageV1(input) as ValidatorResult;
+  const run = (input: ValidatorInput): ValidatorResult => {
+    const phase: ReleaseCoveragePhaseV1 =
+      input.phase === "Bootstrap"
+        ? { _tag: "Bootstrap", owner: ACTIVE_PKG }
+        : input.phase === "Lane"
+          ? { _tag: "Lane", owner: input.laneOwner ?? ACTIVE_PKG }
+          : { _tag: "Release" };
+    return validateReleaseCoverageV1({
+      phase,
+      registerText: input.registerText,
+      roadmapBytes: utf8(input.roadmapText),
+      activeChangeNames: input.activePackageNames,
+      roadmapRows: input.roadmapAssignments,
+      workflowByChange: input.packageWorkflowByName,
+      changedSuperpowersPaths: input.changedPaths,
+      expectedBriefByOwner: input.expectedPackageBriefByName,
+      packageBriefBytesByOwner: input.packageBriefBytesByName,
+    }) as ValidatorResult;
+  };
 
   const expectValid = (
     input: ValidatorInput,
@@ -545,7 +563,7 @@ describe("release coverage policy", () => {
     const roadmapSha = sha256Hex(utf8(input.roadmapText));
     assert.deepEqual(run(input), {
       schemaVersion: SCHEMA,
-      tag: "Valid",
+      _tag: "Valid",
       activeInventorySha256: activeSha,
       roadmapSha256: roadmapSha,
       entryCount,
@@ -558,7 +576,7 @@ describe("release coverage policy", () => {
   ): void => {
     assert.deepEqual(run(input), {
       schemaVersion: SCHEMA,
-      tag: "Invalid",
+      _tag: "Invalid",
       reason,
     });
   };
