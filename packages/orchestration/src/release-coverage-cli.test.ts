@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import {
+  lstatSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -102,28 +112,7 @@ const SECRET = join(FIXTURE_ROOT, "secret", "private", "path");
 const SOURCE_REPO = resolve(
   fileURLToPath(new URL("../../..", import.meta.url)),
 );
-const LIVE_MAIN = join(
-  SOURCE_REPO,
-  "packages",
-  "orchestration",
-  "src",
-  "release-coverage-main.ts",
-);
-const LIVE_REGISTER = join(
-  SOURCE_REPO,
-  "openspec",
-  "changes",
-  "v040-release-program",
-  "coverage.toml",
-);
-const LIVE_ROADMAP = join(SOURCE_REPO, "ROADMAP.md");
-const LIVE_WORKFLOW = join(
-  SOURCE_REPO,
-  "openspec",
-  "changes",
-  TRACK1,
-  ".openspec.yaml",
-);
+const TSX_LOADER = createRequire(import.meta.url).resolve("tsx");
 
 const BOOTSTRAP_TAIL = [
   "check",
@@ -532,6 +521,42 @@ function snapshotsEqual(a: ByteSnapshot, b: ByteSnapshot): boolean {
     }
   }
   return true;
+}
+
+function snapshotPhysicalTree(root: string): ReadonlyMap<string, string> {
+  const snapshot = new Map<string, string>();
+  const visit = (directory: string, relativeDirectory: string): void => {
+    const entries = readdirSync(directory, { withFileTypes: true }).sort((a, b) =>
+      Buffer.from(a.name).compare(Buffer.from(b.name)),
+    );
+    for (const entry of entries) {
+      if (relativeDirectory.length === 0 && entry.name === ".git") continue;
+      const absolute = join(directory, entry.name);
+      const relativePath = relativeDirectory.length === 0
+        ? entry.name
+        : `${relativeDirectory}/${entry.name}`;
+      const stat = lstatSync(absolute);
+      if (stat.isSymbolicLink()) {
+        snapshot.set(
+          `symlink:${relativePath}`,
+          `${stat.mode}:${readlinkSync(absolute)}`,
+        );
+      } else if (stat.isDirectory()) {
+        snapshot.set(`directory:${relativePath}`, `${stat.mode}`);
+        visit(absolute, relativePath);
+      } else if (stat.isFile()) {
+        const bytes = readFileSync(absolute);
+        snapshot.set(
+          `file:${relativePath}`,
+          `${stat.mode}:${bytes.byteLength}:${sha256Hex(bytes)}`,
+        );
+      } else {
+        snapshot.set(`other:${relativePath}`, `${stat.mode}`);
+      }
+    }
+  };
+  visit(root, "");
+  return snapshot;
 }
 
 function emptyLog(): CallLog {
@@ -1174,34 +1199,86 @@ test("invalid invocations exit 64 with fixed diagnostic and zero service calls",
   }
 });
 
-test("legal flag-value pairs can reorder after check", async () => {
-  const argv = processArgv([
-    "check",
-    "--family-sha",
-    FAMILY_SHA,
-    "--register",
-    REGISTER,
-    "--owner",
-    PACKAGE,
-    "--contract-id",
-    CONTRACT_ID,
-    "--repo",
-    REPO,
-    "--phase",
-    "lane",
-    "--contract-sha",
-    CONTRACT_SHA,
-    "--state-root",
-    STATE_ROOT,
-    "--program",
-    "v040",
-  ]);
-  const { exitCode, capture } = await runCli(argv, sharedLaneOptions());
-  assert.equal(exitCode, EXIT_OK);
-  assertCanonicalResult(
-    capture,
-    validResult(SHARED_ACTIVE, SHARED_ROADMAP_BYTES, 2),
-  );
+test("legal flag-value pairs can reorder after check in every phase", async (t) => {
+  const cases: ReadonlyArray<{
+    name: string;
+    argv: readonly string[];
+    options: HarnessOptions;
+  }> = [
+    {
+      name: "bootstrap",
+      argv: processArgv([
+        "check",
+        "--register",
+        REGISTER,
+        "--owner",
+        TRACK1,
+        "--phase",
+        "bootstrap",
+        "--program",
+        "v040",
+      ]),
+      options: sharedBootstrapOptions(),
+    },
+    {
+      name: "lane",
+      argv: processArgv([
+        "check",
+        "--family-sha",
+        FAMILY_SHA,
+        "--register",
+        REGISTER,
+        "--owner",
+        PACKAGE,
+        "--contract-id",
+        CONTRACT_ID,
+        "--repo",
+        REPO,
+        "--phase",
+        "lane",
+        "--contract-sha",
+        CONTRACT_SHA,
+        "--state-root",
+        STATE_ROOT,
+        "--program",
+        "v040",
+      ]),
+      options: sharedLaneOptions(),
+    },
+    {
+      name: "release",
+      argv: processArgv([
+        "check",
+        "--family-sha",
+        FAMILY_SHA,
+        "--register",
+        REGISTER,
+        "--contract-id",
+        CONTRACT_ID,
+        "--repo",
+        REPO,
+        "--phase",
+        "release",
+        "--contract-sha",
+        CONTRACT_SHA,
+        "--state-root",
+        STATE_ROOT,
+        "--program",
+        "v040",
+      ]),
+      options: sharedReleaseOptions(),
+    },
+  ];
+  for (const item of cases) {
+    await t.test(item.name, async () => {
+      const { exitCode, capture } = await runCli(item.argv, item.options);
+      assert.equal(exitCode, EXIT_OK);
+      assertCanonicalResult(
+        capture,
+        validResult(SHARED_ACTIVE, SHARED_ROADMAP_BYTES, 2),
+      );
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -1456,6 +1533,13 @@ test("lane and release authority bind the real family child and absolute brief p
     const { exitCode, capture } = await runCli(RELEASE_ARGV, options);
     assert.equal(exitCode, EXIT_OK);
     assert.equal(capture.log.family.length, 1);
+    assert.deepEqual(capture.log.openspec, [
+      {
+        repository: REPO,
+        argv: ["list", "--json"],
+        maxBytes: ONE_MIB,
+      },
+    ]);
     const briefReads = capture.log.fileReads
       .filter((r) => r.path.endsWith("release-brief.json"))
       .map((r) => r.path)
@@ -1596,6 +1680,12 @@ test("lane and release authority bind the real family child and absolute brief p
     assert.equal(exitCode, EXIT_EVALUATED);
     assertCanonicalResult(capture, invalidResult("dependency_failure"));
     assertNoEscapeReads(capture.log);
+    assert.equal(
+      capture.log.fileReads.filter((read) =>
+        read.path.endsWith("release-brief.json"),
+      ).length,
+      0,
+    );
     assert.equal(
       capture.log.fileReads.some((read) => read.path.includes("escape")),
       false,
@@ -1895,56 +1985,75 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
     }
   });
 
-  await t.test("physical live main leaves authority bytes and Git status unchanged", () => {
-    const watched = [LIVE_REGISTER, LIVE_ROADMAP, LIVE_WORKFLOW] as const;
-    const beforeBytes = new Map(
-      watched.map((path) => [path, readFileSync(path)] as const),
-    );
-    const statusBefore = spawnSync(
-      "git",
-      ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-      { cwd: SOURCE_REPO, maxBuffer: ONE_MIB },
-    );
-    assert.equal(statusBefore.status, 0);
+  await t.test("physical live main leaves an isolated repository unchanged", () => {
+    const temporary = mkdtempSync(join(tmpdir(), "release-coverage-main-"));
+    const repository = join(temporary, "repo");
+    try {
+      const cloned = spawnSync(
+        "git",
+        ["clone", "--quiet", "--no-hardlinks", SOURCE_REPO, repository],
+        { encoding: "utf8", timeout: 60_000, maxBuffer: ONE_MIB },
+      );
+      assert.equal(cloned.error, undefined);
+      assert.equal(cloned.status, 0, cloned.stderr);
+      symlinkSync(
+        join(SOURCE_REPO, "node_modules"),
+        join(repository, "node_modules"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
 
-    const result = spawnSync(
-      process.execPath,
-      [
-        "--import",
-        "tsx",
-        LIVE_MAIN,
-        "check",
-        "--program",
-        "v040",
-        "--phase",
-        "bootstrap",
-        "--owner",
-        TRACK1,
-        "--register",
-        LIVE_REGISTER,
-      ],
-      {
-        cwd: SOURCE_REPO,
-        encoding: "utf8",
-        maxBuffer: ONE_MIB,
-      },
-    );
-    assert.equal(result.status, EXIT_OK, result.stderr || result.stdout);
-    assert.equal(result.stderr, "");
-    const output = JSON.parse(result.stdout.trim()) as ReleaseCoverageResultV1;
-    assert.equal(output._tag, "Valid");
+      const before = snapshotPhysicalTree(repository);
+      const main = join(
+        repository,
+        "packages",
+        "orchestration",
+        "src",
+        "release-coverage-main.ts",
+      );
+      const register = join(
+        repository,
+        "openspec",
+        "changes",
+        "v040-release-program",
+        "coverage.toml",
+      );
+      const invoked = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          TSX_LOADER,
+          main,
+          "check",
+          "--program",
+          "v040",
+          "--phase",
+          "bootstrap",
+          "--owner",
+          TRACK1,
+          "--register",
+          register,
+        ],
+        {
+          cwd: repository,
+          encoding: "utf8",
+          timeout: 60_000,
+          maxBuffer: ONE_MIB,
+        },
+      );
+      const after = snapshotPhysicalTree(repository);
 
-    for (const [path, bytes] of beforeBytes) {
-      assert.deepEqual(readFileSync(path), bytes);
+      assert.equal(invoked.error, undefined);
+      assert.equal(invoked.status, EXIT_OK, invoked.stderr || invoked.stdout);
+      assert.equal(invoked.stderr, "");
+      const output = JSON.parse(
+        invoked.stdout.trim(),
+      ) as ReleaseCoverageResultV1;
+      assert.equal(output._tag, "Valid");
+      assert.equal(invoked.stdout, `${canonicalize(output)}\n`);
+      assert.deepEqual(after, before);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
     }
-    const statusAfter = spawnSync(
-      "git",
-      ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-      { cwd: SOURCE_REPO, maxBuffer: ONE_MIB },
-    );
-    assert.equal(statusAfter.status, 0);
-    assert.deepEqual(statusAfter.stdout, statusBefore.stdout);
-    assert.deepEqual(statusAfter.stderr, statusBefore.stderr);
   });
 
   await t.test("full process-argv vector fixes live main framing", () => {
