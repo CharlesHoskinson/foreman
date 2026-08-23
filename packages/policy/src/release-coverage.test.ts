@@ -908,22 +908,6 @@ describe("release coverage policy", () => {
         ),
       },
       {
-        name: "openspec path must match key",
-        registerText: sealRegister(
-          base.activePackageNames,
-          base.roadmapText,
-          {
-            entries: [
-              {
-                ...track1Entry,
-                sourcePath: "openspec/changes/other",
-              },
-              futureRoadmapEntry,
-            ],
-          },
-        ),
-      },
-      {
         name: "roadmap path must be ROADMAP.md",
         registerText: sealRegister(
           base.activePackageNames,
@@ -946,11 +930,18 @@ describe("release coverage policy", () => {
           base.roadmapText,
           {
             entries: [
-              {
-                ...track1Entry,
-                sourceKind: "nope",
-              },
+              track1Entry,
               futureRoadmapEntry,
+              {
+                key: "change:other",
+                sourceKind: "nope",
+                sourcePath: "openspec/changes/other",
+                disposition: "v050",
+                owner: ACTIVE_PKG,
+                targetRelease: "v0.5",
+                reconcile: "not_required",
+                reason: "unsupported kind probe",
+              },
             ],
           },
         ),
@@ -991,6 +982,38 @@ describe("release coverage policy", () => {
     for (const c of cases) {
       expectInvalid(cloneInput(base, { registerText: c.registerText }), "invalid_register");
     }
+
+    const swappedActive = [ACTIVE_PKG, "other"] as const;
+    const swappedRegister = sealRegister(swappedActive, base.roadmapText, {
+      entries: [
+        {
+          ...track1Entry,
+          sourcePath: "openspec/changes/other",
+        },
+        {
+          key: "change:other",
+          sourceKind: "openspec_change",
+          sourcePath: OPENSPEC_PATH,
+          disposition: "v040_owner",
+          owner: ACTIVE_PKG,
+          targetRelease: "v0.4",
+          reconcile: "complete",
+          reason: "swapped key-path pairing",
+        },
+        futureRoadmapEntry,
+      ],
+    });
+    expectInvalid(
+      cloneInput(base, {
+        activePackageNames: swappedActive,
+        registerText: swappedRegister,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          other: ACTIVE_WF,
+        },
+      }),
+      "invalid_register",
+    );
   });
 
   it("covers every register field and enum literal in a valid sealed register", () => {
@@ -1193,11 +1216,17 @@ describe("release coverage policy", () => {
         "invalid_roadmap",
       );
     }
+    const invalidRoadmapBytes = new Uint8Array([0xff]);
+    const invalidRoadmapRegister = sealRegister(
+      base.activePackageNames,
+      base.roadmapText,
+      { roadmapSha256: sha256Hex(invalidRoadmapBytes) },
+    );
     assert.deepEqual(
       validateReleaseCoverageV1({
         phase: { _tag: "Bootstrap", owner: ACTIVE_PKG },
-        registerText: base.registerText,
-        roadmapBytes: new Uint8Array([0xff]),
+        registerText: invalidRoadmapRegister,
+        roadmapBytes: invalidRoadmapBytes,
         activeChangeNames: base.activePackageNames,
         roadmapRows: base.roadmapAssignments,
         workflowByChange: base.packageWorkflowByName,
