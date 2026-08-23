@@ -12,6 +12,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import {
+  validateReleaseCoverageV1,
+  type ReleaseCoverageFailureReason,
+  type ReleaseCoveragePhaseV1,
+  type ReleasePackageBriefV1,
+  type RoadmapAssignmentV1,
+} from "./release-coverage.js";
 
 const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "../../..");
 const isWin32 = process.platform === "win32";
