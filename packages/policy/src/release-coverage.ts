@@ -59,6 +59,8 @@ export type ReleasePackageBriefV1 = {
 
 const SCHEMA_VERSION = 1 as const;
 const ONE_MIB = 1024 * 1024;
+const IMMUTABLE_BASELINE_COMMIT =
+  "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195" as const;
 const TRACK1_PACKAGE = "openspec-superpowers-convergence" as const;
 const TRACK1_KEY = `change:${TRACK1_PACKAGE}` as const;
 const ROADMAP_PATH = "ROADMAP.md";
@@ -169,7 +171,31 @@ function utf8ByteLength(text: string): number {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasExactOwnKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
+  const own = Object.keys(value);
+  if (own.length !== keys.length) return false;
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+
+function stripAsciiSpaces(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text.charCodeAt(start) === 0x20) start += 1;
+  while (end > start && text.charCodeAt(end - 1) === 0x20) end -= 1;
+  return text.slice(start, end);
 }
 
 function isReadonlyStringArray(value: unknown): value is readonly string[] {
@@ -189,6 +215,14 @@ function hasAnyControl(text: string): boolean {
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
     if (code < 0x20 || code === 0x7f) return true;
+  }
+  return false;
+}
+
+function hasSurrogateCodeUnit(text: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdfff) return true;
   }
   return false;
 }
@@ -250,7 +284,10 @@ function parseBasicString(raw: string, start: number): { value: string; end: num
   let out = "";
   while (i < raw.length) {
     const ch = raw[i]!;
-    if (ch === '"') return { value: out, end: i + 1 };
+    if (ch === '"') {
+      if (hasAnyControl(out) || hasSurrogateCodeUnit(out)) return null;
+      return { value: out, end: i + 1 };
+    }
     if (ch === "\\") {
       i += 1;
       if (i >= raw.length) return null;
@@ -280,7 +317,9 @@ function parseBasicString(raw: string, start: number): { value: string; end: num
         case "u": {
           const hex = raw.slice(i + 1, i + 5);
           if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
-          out += String.fromCharCode(Number.parseInt(hex, 16));
+          const code = Number.parseInt(hex, 16);
+          if (code >= 0xd800 && code <= 0xdfff) return null;
+          out += String.fromCharCode(code);
           i += 4;
           break;
         }
@@ -315,19 +354,19 @@ function parseAssignmentLine(
 ): { key: string; kind: "string" | "integer"; value: string | number } | null {
   const eq = line.indexOf("=");
   if (eq <= 0) return null;
-  const key = line.slice(0, eq).trim();
+  const key = stripAsciiSpaces(line.slice(0, eq));
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
-  let rest = line.slice(eq + 1).trim();
+  const rest = stripAsciiSpaces(line.slice(eq + 1));
   if (rest.length === 0) return null;
   if (rest[0] === '"') {
     const parsed = parseBasicString(rest, 0);
     if (parsed === null) return null;
-    if (rest.slice(parsed.end).trim() !== "") return null;
+    if (stripAsciiSpaces(rest.slice(parsed.end)) !== "") return null;
     return { key, kind: "string", value: parsed.value };
   }
   const parsedInt = parseInteger(rest, 0);
   if (parsedInt === null) return null;
-  if (rest.slice(parsedInt.end).trim() !== "") return null;
+  if (stripAsciiSpaces(rest.slice(parsedInt.end)) !== "") return null;
   return { key, kind: "integer", value: parsedInt.value };
 }
 
@@ -507,7 +546,9 @@ function parseRegister(text: string): ParsedRegister | "invalid_register" {
       if (assignment.kind !== "string") return "invalid_register";
       const value = assignment.value as string;
       if (assignment.key === "baseline_commit") {
-        if (!isCommitSha40(value)) return "invalid_register";
+        if (!isCommitSha40(value) || value !== IMMUTABLE_BASELINE_COMMIT) {
+          return "invalid_register";
+        }
       } else if (
         assignment.key === "active_inventory_sha256" ||
         assignment.key === "roadmap_sha256"
@@ -600,6 +641,7 @@ function isAllowedPathValue(path: string): boolean {
   if (!isPrintableAscii(path)) return false;
   if (path.includes("\\")) return false;
   if (path.startsWith("/")) return false;
+  if (/^[A-Za-z]:\//.test(path)) return false;
   let body = path;
   let directoryPrefix = false;
   if (body.endsWith("/**")) {
@@ -718,12 +760,17 @@ function validateCollectionShapes(input: {
     if (!(value instanceof Uint8Array)) return false;
   }
   if (!isPlainObject(input.phase as unknown as Record<string, unknown>)) return false;
-  const tag = (input.phase as { _tag?: unknown })._tag;
+  const phase = input.phase as unknown as Record<string, unknown>;
+  const tag = phase["_tag"];
   if (tag === "Bootstrap") {
-    if ((input.phase as { owner?: unknown }).owner !== TRACK1_PACKAGE) return false;
+    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
+    if (phase["owner"] !== TRACK1_PACKAGE) return false;
   } else if (tag === "Lane") {
-    if (typeof (input.phase as { owner?: unknown }).owner !== "string") return false;
-  } else if (tag !== "Release") {
+    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
+    if (typeof phase["owner"] !== "string") return false;
+  } else if (tag === "Release") {
+    if (!hasExactOwnKeys(phase, ["_tag"])) return false;
+  } else {
     return false;
   }
   return true;
@@ -734,10 +781,10 @@ function selectedEntries(
   entries: readonly RegisterEntry[],
 ): RegisterEntry[] {
   if (phase._tag === "Bootstrap") {
-    return entries.filter(
-      (entry) =>
-        entry.targetRelease === "v0.4" && entry.owner === TRACK1_PACKAGE,
-    );
+    for (const entry of entries) {
+      if (entry.key === TRACK1_KEY) return [entry];
+    }
+    return [];
   }
   if (phase._tag === "Lane") {
     return entries.filter(
@@ -875,7 +922,14 @@ export function validateReleaseCoverageV1(input: {
     const selected = selectedEntries(input.phase, parsed.entries);
     if (input.phase._tag === "Bootstrap") {
       const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
-      if (track1 === undefined || track1.reconcile !== "complete") {
+      if (
+        track1 === undefined ||
+        track1.owner !== TRACK1_PACKAGE ||
+        track1.targetRelease !== "v0.4" ||
+        track1.reconcile !== "complete" ||
+        track1.disposition !== "v040_owner" ||
+        track1.sourceKind !== "openspec_change"
+      ) {
         return invalid("unreconciled");
       }
     }
@@ -918,6 +972,7 @@ export function validateReleaseCoverageV1(input: {
         if (bytes.byteLength > ONE_MIB) return invalid("brief_mismatch");
         if (decodeUtf8Unbounded(bytes) === null) return invalid("brief_mismatch");
         if (!validateBriefShape(brief)) return invalid("brief_mismatch");
+        if (brief.packageId !== owner) return invalid("brief_mismatch");
         const expectedBytes = canonicalBriefFileBytes(brief);
         if (expectedBytes === null || !bytesEqual(expectedBytes, bytes)) {
           return invalid("brief_mismatch");
