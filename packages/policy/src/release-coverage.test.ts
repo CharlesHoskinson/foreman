@@ -450,6 +450,16 @@ describe("release coverage policy", () => {
     return utf8(`${JSON.stringify(obj)}\n`);
   };
 
+  const makeBrief = (objective: string): Brief => ({
+    schema: "foreman.release-package-brief.v1",
+    familySha256: "b".repeat(64),
+    childId: "v040-t1-convergence",
+    packageId: ACTIVE_PKG,
+    objective,
+    acceptance: ["The package passes its release checks."],
+    allowedPaths: ["packages/policy/**"],
+  });
+
   const track1Entry = {
     key: TRACK1_KEY,
     sourceKind: "openspec_change",
