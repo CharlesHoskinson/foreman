@@ -1229,11 +1229,7 @@ describe("release coverage policy", () => {
   });
 
   it("rejects workflow_mismatch for phase-relevant packages only", () => {
-    const brief: Brief = {
-      packageName: ACTIVE_PKG,
-      workflow: ACTIVE_WF,
-      summary: "ok",
-    };
+    const brief = makeBrief("ok");
     const laneBase = validBaseline({
       phase: "Lane",
       expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
@@ -1264,9 +1260,9 @@ describe("release coverage policy", () => {
         track1Entry,
         futureRoadmapEntry,
         {
-          key: "openspec:irrelevant",
+          key: "change:other-active",
           sourceKind: "openspec_change",
-          sourcePath: "openspec/changes/irrelevant/proposal.md",
+          sourcePath: "openspec/changes/other-active",
           disposition: "v050",
           owner: irrelevant,
           targetRelease: "v0.5",
@@ -1275,11 +1271,7 @@ describe("release coverage policy", () => {
         },
       ],
     });
-    const brief2: Brief = {
-      packageName: ACTIVE_PKG,
-      workflow: ACTIVE_WF,
-      summary: "ok",
-    };
+    const brief2 = makeBrief("ok");
     expectValid(
       validBaseline({
         phase: "Lane",
