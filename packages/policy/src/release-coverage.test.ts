@@ -1375,8 +1375,19 @@ describe("release coverage policy", () => {
       "brief_mismatch",
     );
 
+    const completeFutureRegister = sealRegister(
+      [ACTIVE_PKG],
+      renderRoadmapText(baselineAssignments()),
+      {
+        entries: [
+          track1Entry,
+          { ...futureRoadmapEntry, reconcile: "complete" },
+        ],
+      },
+    );
     const releaseOk = validBaseline({
       phase: "Release",
+      registerText: completeFutureRegister,
       expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
       packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
     });
@@ -1384,11 +1395,7 @@ describe("release coverage policy", () => {
   });
 
   it("flags unreconciled required future entries in Lane and Release only", () => {
-    const brief: Brief = {
-      packageName: ACTIVE_PKG,
-      workflow: ACTIVE_WF,
-      summary: "ok",
-    };
+    const brief = makeBrief("ok");
     const bytes = canonicalBriefBytes(brief);
     const inputBootstrap = validBaseline({ phase: "Bootstrap" });
     expectValid(inputBootstrap, 2);
@@ -1397,8 +1404,7 @@ describe("release coverage policy", () => {
       expectInvalid(
         validBaseline({
           phase,
-          expectedPackageBriefByName: { [ACTIVE_PKG]: brief },
-          packageBriefBytesByName: { [ACTIVE_PKG]: bytes },
+          laneOwner: phase === "Lane" ? FUTURE : undefined,
         }),
         "unreconciled",
       );
