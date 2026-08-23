@@ -264,7 +264,7 @@ type CallLog = {
     familySha256: string;
   }>;
   readonly fileReads: Array<{ path: string; maxBytes: number }>;
-  readonly repositoryRootResolves: number;
+  repositoryRootResolves: number;
 };
 
 type ByteSnapshot = ReadonlyMap<string, Uint8Array>;
