@@ -302,3 +302,9 @@ describe("release coverage for closed OpenSpec workflows", () => {
     }
   });
 });
+
+describe("release coverage policy", () => {
+  it("exports the pure validator", () => {
+    assert.equal(typeof validateReleaseCoverageV1, "function");
+  });
+});
