@@ -311,8 +311,8 @@ describe("release coverage policy", () => {
   const FUTURE = "future-package";
   const ROADMAP_PATH = "ROADMAP.md";
   const OPENSPEC_PATH =
-    "openspec/changes/v040-release-program/proposal.md";
-  const TRACK1_KEY = "openspec:v040-release-program";
+    "openspec/changes/openspec-superpowers-convergence";
+  const TRACK1_KEY = "change:openspec-superpowers-convergence";
   const ROADMAP_KEY = "roadmap:future-package-item";
   const ONE_MIB = 1024 * 1024;
 
