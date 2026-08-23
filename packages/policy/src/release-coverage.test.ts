@@ -316,7 +316,7 @@ describe("release coverage policy", () => {
   const ROADMAP_KEY = "roadmap:future-package-item";
   const ONE_MIB = 1024 * 1024;
 
-  type Phase = ReleaseCoveragePhaseV1;
+  type Phase = "Bootstrap" | "Lane" | "Release";
   type Brief = ReleasePackageBriefV1;
   type Reason = ReleaseCoverageFailureReason;
 
@@ -330,11 +330,12 @@ describe("release coverage policy", () => {
     readonly packageBriefBytesByName: Readonly<Record<string, Uint8Array>>;
     readonly changedPaths: readonly string[];
     readonly phase: Phase;
+    readonly laneOwner?: string;
   };
 
   type ValidResult = {
     readonly schemaVersion: 1;
-    readonly tag: "Valid";
+    readonly _tag: "Valid";
     readonly activeInventorySha256: string;
     readonly roadmapSha256: string;
     readonly entryCount: number;
@@ -342,7 +343,7 @@ describe("release coverage policy", () => {
 
   type InvalidResult = {
     readonly schemaVersion: 1;
-    readonly tag: "Invalid";
+    readonly _tag: "Invalid";
     readonly reason: Reason;
   };
 
