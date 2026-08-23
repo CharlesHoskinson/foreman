@@ -1551,11 +1551,11 @@ describe("release coverage policy", () => {
         roadmapRow(
           e.key,
           e.owner,
-          e.targetRelease as RoadmapAssignmentV1["targetRelease"],
+          e.targetRelease as RoadmapAssignmentV1["release"],
           e.reason,
         ),
     );
-    const roadmapText = renderRoadmapText(roadmapAssignments);
+    const roadmapText = readFileSync(join(repoRoot, "ROADMAP.md"), "utf8");
     const packageWorkflowByName: Record<string, string | null> = {};
     for (const n of activePackageNames) {
       packageWorkflowByName[n] = ACTIVE_WF;
