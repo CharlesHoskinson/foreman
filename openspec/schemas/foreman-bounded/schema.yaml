@@ -1,0 +1,43 @@
+name: foreman-bounded
+version: 1
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    requires: []
+    description: Define the change purpose, in-scope work, and explicit exclusions.
+    template: proposal.md
+    instruction: |
+      Write the proposal for this bounded change.
+      State the purpose of the change.
+      State the in-scope work.
+      State the out-of-scope exclusions.
+      Keep the proposal short and concrete.
+  - id: specs
+    generates: "specs/**/*.md"
+    requires: [proposal]
+    description: Capture normative requirements and scenarios for the change.
+    template: spec.md
+    instruction: |
+      Write the specification artifacts under specs/.
+      State normative requirements with SHALL language.
+      Add scenarios that show expected behavior.
+      Cover success paths and failure paths that matter for this change.
+  - id: tasks
+    generates: tasks.md
+    requires: [specs]
+    description: Break the work into checkbox tasks with verification commands.
+    template: tasks.md
+    instruction: |
+      Write the task list for implementation.
+      Use checkbox tasks.
+      Include RED, GREEN, and verification steps.
+      State the allowed file scope.
+      Give the exact commands to run for each verification step.
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    Apply the change only after tasks.md is complete.
+    Implement the checked tasks in order.
+    Run the stated verification commands.
+    Do not expand the file scope beyond the task list.

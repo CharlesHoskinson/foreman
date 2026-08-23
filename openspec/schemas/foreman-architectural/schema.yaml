@@ -1,0 +1,49 @@
+name: foreman-architectural
+version: 1
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    requires: []
+    description: Propose the architectural change and define its purpose and boundaries.
+    template: proposal.md
+    instruction: |
+      Write the proposal for this architectural change.
+      State the purpose, the in-scope work, the exclusions, and the acceptance evidence.
+      Keep the text short and use imperative Simplified Technical English.
+  - id: specs
+    generates: "specs/**/*.md"
+    requires: [proposal]
+    description: Specify normative requirements plus success and failure scenarios.
+    template: spec.md
+    instruction: |
+      Write the specification for this architectural change.
+      State each normative requirement.
+      State the success scenarios and the failure scenarios.
+      Keep the text short and use imperative Simplified Technical English.
+  - id: design
+    generates: design.md
+    requires: [specs]
+    description: Record context, decisions, interfaces, failure handling, and verification.
+    template: design.md
+    instruction: |
+      Write the design for this architectural change.
+      State the context, the decisions, the interfaces, the failure handling, and the verification plan.
+      Keep the text short and use imperative Simplified Technical English.
+  - id: tasks
+    generates: tasks.md
+    requires: [design]
+    description: Break the design into checkbox tasks with RED, GREEN, and verification commands.
+    template: tasks.md
+    instruction: |
+      Write the task list for this architectural change.
+      Use checkbox tasks.
+      State the RED check, the GREEN check, the verification steps, the allowed file scope, and the exact commands.
+      Keep the text short and use imperative Simplified Technical English.
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    Apply the architectural change only after the task list is complete.
+    Track progress in tasks.md.
+    Run the listed verification commands before you mark the change complete.
+    Keep the text short and use imperative Simplified Technical English.
