@@ -412,7 +412,7 @@ describe("release coverage policy", () => {
   }): string => {
     const lines: string[] = [
       `schema_version = ${opts.schemaVersion ?? 1}`,
-      `baseline_commit = ${tomlString(opts.baselineCommit ?? "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}`,
+      `baseline_commit = ${tomlString(opts.baselineCommit ?? "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195")}`,
       `active_inventory_sha256 = ${tomlString(opts.activeInventorySha256 ?? "0".repeat(64))}`,
       `roadmap_sha256 = ${tomlString(opts.roadmapSha256 ?? "0".repeat(64))}`,
     ];
@@ -680,6 +680,21 @@ describe("release coverage policy", () => {
           base.roadmapText,
           { baselineCommit: "not-a-git-id" },
         ),
+      },
+      {
+        name: "wrong immutable baseline",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          { baselineCommit: "c".repeat(40) },
+        ),
+      },
+      {
+        name: "NBSP around schema_version equals",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+        ).replace("schema_version = 1", "schema_version\u00A0=\u00A01"),
       },
       {
         name: "malformed owner",
@@ -974,6 +989,38 @@ describe("release coverage policy", () => {
                 reconcile: "nope",
               },
               futureRoadmapEntry,
+            ],
+          },
+        ),
+      },
+      {
+        name: "escaped tab in future-owner name",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            futureOwners: [
+              {
+                name: "bad\towner",
+                targetRelease: "v0.4",
+                reason: "escaped tab probe",
+              },
+            ],
+          },
+        ),
+      },
+      {
+        name: "lone high surrogate in future-owner name",
+        registerText: sealRegister(
+          base.activePackageNames,
+          base.roadmapText,
+          {
+            futureOwners: [
+              {
+                name: "\uD800",
+                targetRelease: "v0.4",
+                reason: "surrogate probe",
+              },
             ],
           },
         ),
@@ -1729,6 +1776,29 @@ describe("release coverage policy", () => {
       expectInvalid(cloneInput(laneOk, partial), "brief_mismatch");
     }
 
+    const substitutedFutureBrief = makeBrief("future identity", FUTURE);
+    const substitutedFutureBytes = canonicalBriefBytes(substitutedFutureBrief);
+    expectInvalid(
+      cloneInput(laneOk, {
+        expectedPackageBriefByName: { [ACTIVE_PKG]: substitutedFutureBrief },
+        packageBriefBytesByName: { [ACTIVE_PKG]: substitutedFutureBytes },
+      }),
+      "brief_mismatch",
+    );
+
+    const driveAbsoluteBrief: Brief = {
+      ...makeBrief("drive absolute"),
+      allowedPaths: ["C:/escape"],
+    };
+    const driveAbsoluteBytes = canonicalBriefBytes(driveAbsoluteBrief);
+    expectInvalid(
+      cloneInput(laneOk, {
+        expectedPackageBriefByName: { [ACTIVE_PKG]: driveAbsoluteBrief },
+        packageBriefBytesByName: { [ACTIVE_PKG]: driveAbsoluteBytes },
+      }),
+      "brief_mismatch",
+    );
+
     expectInvalid(
       validBaseline({
         phase: "Bootstrap",
@@ -1801,6 +1871,59 @@ describe("release coverage policy", () => {
         phase: "Bootstrap",
         registerText: track1Required,
         packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      "unreconciled",
+    );
+
+    const track1OwnedByFuture = sealRegister(
+      [ACTIVE_PKG],
+      renderRoadmapText(baselineAssignments()),
+      {
+        entries: [
+          { ...track1Entry, owner: FUTURE },
+          futureRoadmapEntry,
+        ],
+      },
+    );
+    expectInvalid(
+      validBaseline({
+        phase: "Bootstrap",
+        registerText: track1OwnedByFuture,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      "unreconciled",
+    );
+
+    const track1ReleasedReference = sealRegister(
+      [ACTIVE_PKG],
+      renderRoadmapText(baselineAssignments()),
+      {
+        entries: [
+          {
+            ...track1Entry,
+            disposition: "released_reference",
+            targetRelease: "released",
+            reconcile: "complete",
+          },
+          futureRoadmapEntry,
+        ],
+      },
+    );
+    expectInvalid(
+      validBaseline({
+        phase: "Bootstrap",
+        registerText: track1ReleasedReference,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
         expectedPackageBriefByName: {},
         packageBriefBytesByName: {},
       }),
@@ -1927,10 +2050,91 @@ describe("release coverage policy", () => {
       { expectedPackageBriefByName: null as never },
       { packageBriefBytesByName: 1 as never },
       { changedPaths: {} as never },
+      { packageWorkflowByName: new Date() as never },
+      { expectedPackageBriefByName: new Map() as never },
+      { packageBriefBytesByName: new Date() as never },
+      { packageWorkflowByName: new Map() as never },
     ];
     for (const partial of malformed) {
       expectInvalid(cloneInput(base, partial), "dependency_failure");
     }
+
+    const common = {
+      registerText: base.registerText,
+      roadmapBytes: utf8(base.roadmapText),
+      activeChangeNames: base.activePackageNames,
+      roadmapRows: base.roadmapAssignments,
+      workflowByChange: base.packageWorkflowByName,
+      changedSuperpowersPaths: base.changedPaths,
+      expectedBriefByOwner: base.expectedPackageBriefByName,
+      packageBriefBytesByOwner: base.packageBriefBytesByName,
+    };
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        ...common,
+        phase: { _tag: "Bootstrap", owner: ACTIVE_PKG, extra: true } as never,
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Invalid",
+        reason: "dependency_failure",
+      },
+    );
+
+    const laneBrief = makeBrief("phase shape lane");
+    const laneBytes = canonicalBriefBytes(laneBrief);
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        ...common,
+        phase: { _tag: "Lane", owner: ACTIVE_PKG, extra: true } as never,
+        expectedBriefByOwner: { [ACTIVE_PKG]: laneBrief },
+        packageBriefBytesByOwner: { [ACTIVE_PKG]: laneBytes },
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Invalid",
+        reason: "dependency_failure",
+      },
+    );
+
+    const releaseBrief = makeBrief("phase shape release");
+    const releaseBytes = canonicalBriefBytes(releaseBrief);
+    const futureBrief = makeBrief("phase shape future", FUTURE);
+    const futureBytes = canonicalBriefBytes(futureBrief);
+    const completeFutureRegister = sealRegister(
+      [ACTIVE_PKG],
+      renderRoadmapText(baselineAssignments()),
+      {
+        entries: [
+          track1Entry,
+          { ...futureRoadmapEntry, reconcile: "complete" },
+        ],
+      },
+    );
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        ...common,
+        phase: { _tag: "Release", extra: true } as never,
+        registerText: completeFutureRegister,
+        workflowByChange: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedBriefByOwner: {
+          [ACTIVE_PKG]: releaseBrief,
+          [FUTURE]: futureBrief,
+        },
+        packageBriefBytesByOwner: {
+          [ACTIVE_PKG]: releaseBytes,
+          [FUTURE]: futureBytes,
+        },
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Invalid",
+        reason: "dependency_failure",
+      },
+    );
   });
 
   it("accepts the authored coverage.toml with independent authority inputs", () => {
