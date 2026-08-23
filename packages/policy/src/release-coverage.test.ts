@@ -918,7 +918,7 @@ describe("release coverage policy", () => {
         roadmapAssignments: [
           {
             ...roadmapRow(ROADMAP_KEY, FUTURE),
-            targetRelease: "v9.9" as RoadmapAssignmentV1["targetRelease"],
+            release: "v9.9" as RoadmapAssignmentV1["release"],
           },
         ],
       },
@@ -949,7 +949,7 @@ describe("release coverage policy", () => {
               key: roadmapAssignments[0]?.key ?? ROADMAP_KEY,
               owner: roadmapAssignments[0]?.owner ?? FUTURE,
               targetRelease:
-                (roadmapAssignments[0]?.targetRelease as string) ?? "v0.4",
+                (roadmapAssignments[0]?.release as string) ?? "v0.4",
             },
           ],
         },
