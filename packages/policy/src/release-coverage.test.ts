@@ -1290,11 +1290,7 @@ describe("release coverage policy", () => {
   });
 
   it("rejects brief_mismatch across authority shapes and phases", () => {
-    const brief: Brief = {
-      packageName: ACTIVE_PKG,
-      workflow: ACTIVE_WF,
-      summary: "lane brief",
-    };
+    const brief = makeBrief("lane brief");
     const bytes = canonicalBriefBytes(brief);
     const laneOk = validBaseline({
       phase: "Lane",
