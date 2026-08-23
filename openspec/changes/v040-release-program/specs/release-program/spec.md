@@ -41,11 +41,12 @@ or task tree under `docs/superpowers/`.
 - **AND** the package contains the approved requirements, design, and task list
 - **AND** the Superpowers plan points to that task list
 
-#### Scenario: Human design approval
+#### Scenario: Human implementation-base approval
 
-- **WHEN** the user approves the written release design
+- **WHEN** the design artifact is ready and `tasks.md` exists
+- **AND** the user approves the exact design manifest and task plan
 - **THEN** the host records an external approval receipt
-- **AND** the receipt binds the approved bytes and Git identity by digest
+- **AND** the receipt binds both digests and the post-plan Git commit and tree
 - **AND** no implementation worker creates or edits that receipt
 
 ### Requirement: Closed OpenSpec workflows
@@ -105,8 +106,8 @@ in these exact forms:
 
 ```text
 release-coverage check --program v040 --phase bootstrap --owner openspec-superpowers-convergence --register ABS
-release-coverage check --program v040 --phase lane --owner PACKAGE --register ABS
-release-coverage check --program v040 --phase release --register ABS
+release-coverage check --program v040 --phase lane --owner PACKAGE --repo ABS --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --register ABS
+release-coverage check --program v040 --phase release --repo ABS --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --register ABS
 ```
 
 The validator SHALL compute the
@@ -119,6 +120,10 @@ future package. Bootstrap SHALL require Track 1 reconciliation. Lane phase
 SHALL require each v0.4 entry owned by `PACKAGE` to be reconciled. Release
 phase SHALL require zero v0.4 `required` entries. Workflow metadata SHALL be
 required only for packages that the selected phase requires to be complete.
+Bootstrap SHALL accept no family arguments. Lane and release SHALL resolve the
+registered family source and exact package briefs through the named root and
+family state. Caller-selected source or brief bytes SHALL NOT create coverage
+authority.
 
 For an OpenSpec source, `key` SHALL equal `change:<package-name>` and
 `source_path` SHALL equal `openspec/changes/<package-name>`. For a Roadmap
@@ -170,10 +175,11 @@ later approval or evidence receipt SHALL be canonical, signed by the required
 authority, and registered in Endstop before use. SessionDB SHALL record each
 human-approval receipt digest. A caller-selected receipt path or expected
 digest SHALL NOT create authority.
-Design, evaluation, and family user-approval schemas SHALL use only the pinned
-user-approval key. Checks, audit, council request, council outcome, signed
-evidence bundle, and family audit schemas SHALL use only the pinned host-audit
-key. A valid signature from the wrong role key SHALL refuse.
+Design, evaluation, terminal child approval, and family user-approval schemas
+SHALL use only the pinned user-approval key. Checks, audit, council request,
+council outcome, action outcome, evaluation verdict, signed evidence bundle, and family audit
+schemas SHALL use only the pinned host-audit key. A valid signature from the
+wrong role key SHALL refuse.
 
 #### Scenario: An active package is not part of v0.4
 
@@ -218,16 +224,23 @@ activation. The closed canonical family manifest SHALL receive an exact-byte
 user authority-key fingerprints fixed by the approved Track 1 design. Each
 receipt SHALL carry a valid signature from its matching authority, and the root
 Endstop bootstrap record SHALL supply both expected receipt digests. Activation
-SHALL bind its digest, the root identity, the Track 1 commit and tree, and both
-approval digests.
+SHALL bind the manifest digest, root identity, Track 1 commit and tree, source
+digest, and both approval-receipt digests.
 The manifest SHALL NOT contain the digest of a receipt that approves that same
 manifest. Each approval receipt SHALL bind the completed manifest digest, and
-the activation event SHALL bind the manifest and receipt digests together.
-Family authority registration SHALL be first-write-wins for the root and family
-digest. An identical replay SHALL be idempotent. A conflicting or concurrent
-loser SHALL append nothing. Activation SHALL read the manifest and exact prior
-authority event, not caller-supplied receipt paths. Every family and child
+the activation event SHALL bind the manifest, source, and receipt digests
+together.
+Family authority registration SHALL be first-write-wins by root contract ID.
+An identical replay SHALL be idempotent. A different-family or other conflicting
+loser SHALL append nothing. Activation SHALL read the caller manifest,
+registered source set, and exact prior authority event, not caller-supplied
+source or receipt paths. Every family and child
 operation SHALL bind the same root contract ID and digest.
+The existing root `RunJournal` SHALL store family authority, activation, child
+authority, registered outcome, evaluation verdict, and child decision events in
+the exact ordering grammar of the Track 1 design. Each child decision SHALL
+store its exact V2 operation and matching `ExecutionV2Event` array. It SHALL NOT create a
+child journal or stream.
 
 The manifest SHALL contain exactly eight child contracts for Tranches 2 through
 9. Each child SHALL bind its tranche, package, objective digest, acceptance
@@ -237,6 +250,17 @@ SHALL add or replace a child. The family SHALL use `wallTimeMs=5184000000` and
 against the family total. Each child deadline SHALL be at or before the family
 deadline. A family terminal state SHALL terminate all children. A child terminal
 state SHALL NOT reset another child.
+
+One canonical external family-source file SHALL contain each child objective,
+acceptance list, and allowed-path list. The builder SHALL derive the exact
+component digests with the Track 1 preimages, bind the source digest in the
+manifest, and write distinct manifest, preserved-source, and eight package-
+brief outputs. Registration SHALL durably publish the exact source set by the
+family manifest digest before journal append. Lane and release coverage SHALL compare
+each family package's canonical `release-brief.json` with that registered
+source. The live builder SHALL get `createdAt` from its host clock and set the
+family and child absolute deadlines to exactly 60 days later. Activation SHALL
+reject a future creation time and creation after the V1 root deadline.
 
 A child's `wallTimeMs` SHALL start at its first accepted action, not while it
 waits for dependencies. Its absolute deadline SHALL still be at or before the
@@ -260,6 +284,10 @@ Standard limit objects SHALL carry `kind="standard"` and
 limit object SHALL carry `kind="evaluation"` and `noProgressMs=3600000` and
 SHALL NOT carry `noProductChangeMs`. No-progress applies to all Tranche 8
 activity.
+Every child clock SHALL start at its first accepted action. Tranche 8 progress
+SHALL reset only on product change, milestone recording, or a matching signed
+`PASS` outcome registration. Reservation, retry, resume, advice, blocking, and
+failure SHALL NOT reset it. Exact time-boundary actions SHALL refuse.
 
 Every external provider invocation and evaluation run SHALL reserve one typed
 action before it starts. One root RunJournal transaction SHALL append that
@@ -268,24 +296,53 @@ A reserved action with an unknown crash outcome SHALL remain spent. A retry
 SHALL reserve another action. The runtime SHALL NOT hide multiple provider calls
 behind one reservation. An unlisted child or action SHALL refuse.
 
+Ordinary child authority SHALL use a null retry registration key. A
+`provider_retry` or `resume` authority SHALL include its exact immediate prior
+reservation in that key. Chained retries and retries of different effective
+actions on one candidate SHALL remain distinct. Conflicting authority for one
+attempt SHALL refuse.
+
+Each signed action or Council outcome SHALL bind the root, family, child,
+package, candidate, and exact spent reservation. Endstop SHALL register its
+digest in the root journal before a child mutation. Product change SHALL bind
+one implement or correct reservation, derive a complete distinct direct-parent
+Git output identity, and verify every changed path against the allowed paths in
+the registered family source. It SHALL precede ordered checks, audit,
+integration, and publication milestones for the current candidate. Premature,
+forged, unregistered, wrong-reservation, out-of-order, or conflicting outcomes
+SHALL refuse. Identical replay SHALL be idempotent. Cancellation and
+invalidation SHALL require a signed user approval bound to the exact terminal
+identity and reason.
+
 Track 1 SHALL implement `packages/policy/src/release-admission.ts` and the
 command `release-admission check --program v040 --action ACTION --package
-PACKAGE --repo ABS --candidate-commit SHA40 --evidence ABS --tasks ABS`. It
+PACKAGE --repo ABS --candidate-commit SHA40 --evidence ABS`. It
 SHALL resolve that named commit and tree, verify the pinned signer and
 action-specific evidence bundle, and SHALL NOT read or honor `[audit.policy]`.
+Because this command has no Endstop identity, it SHALL return only
+`EvidenceValid` or `EvidenceInvalid` and SHALL NOT authorize an action. Only the
+composed `release-policy` boundary SHALL combine that result with exact Endstop
+registration and return `Admitted`.
 The evidence bundle SHALL itself have a valid host-audit signature. Design
-approval SHALL admit implementation only when the resolved commit and tree
-equal its historical design identity and the task-plan digest matches. Signed
+approval SHALL admit a child's first implementation only when the resolved
+commit and tree equal its historical design identity and the task-plan digest
+matches. Each later implementation SHALL use the exact current journaled
+candidate in a direct-parent lineage under that same plan authority. Signed
 successful checks SHALL admit audit. Signed failed checks or a `WARNING`,
 `BLOCKED`, or `UNVERIFIED` audit SHALL admit correction. A signed council
 request SHALL admit council. Its later signed outcome SHALL be recorded as
 outcome evidence and SHALL NOT authorize that same reservation.
-Retry and resume SHALL bind the recorded failed reservation and original
-authority. Only a signed `APPROVED` audit with no findings and matching design
+Retry and resume SHALL bind the immediate recorded failed reservation, first
+origin, effective original action, unchanged candidate, and original authority.
+Only a signed `APPROVED` audit with no findings and matching design
 approval SHALL admit integration or publication. Queue wrappers SHALL run
 phase-aware coverage and this action policy before reservation. Integration
 and publication gates SHALL run them after the general Foreman gate.
 Repository and machine configuration SHALL NOT weaken this v0.4 rule.
+Standalone and composed policy SHALL reconstruct the approved OpenSpec
+manifest and `tasks.md` only from bounded Git blobs in the signed design commit.
+They SHALL verify its tree and SHALL NOT read those preimages from candidate,
+worktree, mutable `HEAD`, or caller file paths.
 
 Before that command exists, only the atomic authority bootstrap MAY consume
 content-addressed governor audit receipts directly. Each receipt SHALL have the
@@ -298,7 +355,6 @@ SHALL contain only these paths:
 - `openspec/schemas/foreman-architectural/**`
 - `packages/policy/src/release-coverage.ts`
 - `packages/policy/src/release-coverage.test.ts`
-- `packages/policy/src/release-coverage-main.ts`
 - `packages/policy/src/release-admission.ts`
 - `packages/policy/src/release-admission.test.ts`
 - `packages/policy/src/release-admission-main.ts`
@@ -320,6 +376,9 @@ SHALL contain only these paths:
 - `packages/orchestration/src/execution-guard-cli.ts`
 - `packages/orchestration/src/execution-guard-cli.test.ts`
 - `packages/orchestration/src/execution-guard-main.ts`
+- `packages/orchestration/src/release-coverage-cli.ts`
+- `packages/orchestration/src/release-coverage-cli.test.ts`
+- `packages/orchestration/src/release-coverage-main.ts`
 - `packages/orchestration/src/queue-admission.ts`
 - `packages/orchestration/src/queue-admission.test.ts`
 - `packages/orchestration/src/queue-cli.ts`
@@ -332,6 +391,8 @@ SHALL contain only these paths:
 - `packages/orchestration/src/release-policy.ts`
 - `packages/orchestration/src/release-policy.test.ts`
 - `packages/orchestration/src/release-policy-main.ts`
+- `packages/orchestration/src/release-boundary.ts`
+- `packages/orchestration/src/release-boundary.test.ts`
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
 - `scripts/build-runtime.ts`
@@ -345,28 +406,33 @@ SHALL contain only these paths:
 - `tests/release-policy.bats`
 - `tests/gate-eval.bats`
 - `tests/merge-gate.bats`
+- `tests/baseline.tsv`
 - `tests/fixtures/release-policy/**`
 - `packages/policy/package.json`
 - `packages/orchestration/package.json`
+- `packages/orchestration/tsconfig.json`
 - `package-lock.json`
 - `skills/foreman/runtime/dist/**`
 - `skills/foreman/runtime/manifest.json`
 
 It SHALL NOT admit another product lane or path.
 The runtime builder SHALL emit installed `release-coverage`,
-`release-admission`, `release-authority`, and `release-policy` artifacts. One
-shared shell adapter SHALL only locate Node and forward a fixed argument block
-to the TypeScript `release-policy` artifact. `gate-eval.sh` SHALL call the
-adapter only after the general gate result exists. `merge-gate.sh` SHALL call
-it against the named branch before it can return `MERGEABLE` and SHALL keep its
-one-line stdout contract. A missing artifact, failed coverage check, or invalid
-action evidence SHALL fail closed. Tranche 9 publication tooling SHALL call
-the same adapter under the Tranche 9 child allowlist.
+`release-admission`, `release-authority`, and `release-policy` artifacts.
+`release-policy.sh`, `gate-eval.sh`, and `merge-gate.sh` SHALL each become a
+one-artifact adapter to compiled `release-policy.js`. Compiled TypeScript SHALL
+own the current general gate, merge-base, freshness, event, and output behavior
+and SHALL run release policy only after the applicable general result.
+`merge-gate.sh` SHALL keep its one-line stdout contract. A missing artifact,
+failed coverage check, or invalid action evidence SHALL fail closed. Tranche 9
+publication tooling SHALL call the same core under its child allowlist.
 The fixed block SHALL contain one copy of the root, family, child, action, and
 candidate identity. TypeScript SHALL derive policy and reservation input from
 that same parsed object. It SHALL verify the root and registered evidence,
 child package, and SHA-256 of the resolved lowercase candidate commit. An
 identity substitution SHALL fail before reservation.
+Gate evaluation and merge check SHALL require non-caller-controlled action
+`integrate` and reject a valid lower-authority `verify` block. Publication SHALL
+require `publish`.
 The exact runtime verifier and installed-runtime decoder SHALL treat all four
 release artifacts as required. Tests SHALL compare two clean builds,
 tracked bytes, and the exact `dist` inventory. Copied-install controls SHALL
@@ -1562,7 +1628,8 @@ trailing LF. Evidence SHALL also bind its Git tree ID.
   checks, and hosted platform checks pass
 - **AND** Windows Bats item BW-004 passes on a native Windows runner
 - **AND** a cold Codex audit approves the complete baseline-to-candidate diff
-- **AND** every blocking audit finding is closed on the same candidate
+- **AND** every blocking audit finding is resolved before its replacement
+  candidate receives fresh checks and a zero-finding `APPROVED` audit
 - **AND** the locally prepared OCI index, SBOM, provenance, and signature
   bundle verify without requiring a public tag or release record
 

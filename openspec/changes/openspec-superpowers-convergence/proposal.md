@@ -12,7 +12,8 @@ provider cannot reset the release bounds.
 - Add the `foreman-bounded` and `foreman-architectural` OpenSpec workflows.
 - Make each package's OpenSpec `tasks.md` its only active implementation plan.
 - Add a strict release-coverage validator for the v0.4 coverage register.
-- Add a release-admission validator that accepts only an exact, empty-finding
+- Add signed action-specific evidence verification and Endstop-composed release
+  admission. Only integration and publication accept an exact empty-finding
   `APPROVED` audit and matching external human approval receipt.
 - Add one immutable `ExecutionContractV2` family, eight child contracts, and a
   one-time activation event anchored in the existing V1 Endstop journal.
