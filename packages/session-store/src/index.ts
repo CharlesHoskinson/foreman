@@ -147,6 +147,13 @@ export {
 } from "./open.js";
 
 export {
+  SqliteProjectionLeasePort,
+  type ProjectionLease,
+  type ProjectionLeasePort,
+  type SqliteProjectionLeasePortOptions,
+} from "./projection-lease.js";
+
+export {
   classifySqliteStore,
   dumpLegacySqliteAsV1,
   sqliteStoreIsEmpty,

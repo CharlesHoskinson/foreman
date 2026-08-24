@@ -2,12 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { isProjectIdV1 } from "@foreman/session-store";
-
-import type {
-  ProjectionLease,
-  ProjectionLeasePort,
-} from "./projection-epoch.js";
+import { isProjectIdV1 } from "./projection.js";
 
 const DEFAULT_TTL_MS = 30_000;
 const MIN_TTL_MS = 100;
@@ -16,10 +11,10 @@ const IDENTIFIER = /^[^\u0000-\u001f\u007f]{1,128}$/u;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS projection_leases (
-  project_id    TEXT PRIMARY KEY,
+  project_id     TEXT PRIMARY KEY,
   fencing_token INTEGER NOT NULL,
-  owner_id      TEXT,
-  expires_at_ms INTEGER NOT NULL
+  owner_id       TEXT,
+  expires_at_ms  INTEGER NOT NULL
 );
 `;
 
@@ -28,6 +23,16 @@ type LeaseRow = {
   readonly owner_id: string | null;
   readonly expires_at_ms: number;
 };
+
+export interface ProjectionLease {
+  readonly fencingToken: number;
+  isCurrent(): Promise<boolean>;
+  release(): Promise<void>;
+}
+
+export interface ProjectionLeasePort {
+  acquire(projectId: string): Promise<ProjectionLease>;
+}
 
 export type SqliteProjectionLeasePortOptions = {
   readonly databasePath: string;

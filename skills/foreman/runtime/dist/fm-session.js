@@ -16592,21 +16592,29 @@ function projectableText(kind, row) {
   const allowed = PROJECTABLE_FIELDS[kind];
   return allowed.map((f) => row[f]).filter((v) => typeof v === "string").join(" \u2014 ");
 }
-function upsertRecord(kind, id, row, projectId = null) {
+function upsertRecord(kind, id, row, projectId = null, projectionVersion = 1) {
+  if (!Number.isSafeInteger(projectionVersion) || projectionVersion < 1) {
+    throw new Error("invalid projection version");
+  }
   const base = {
     key: projectionKey(kind, id, projectId),
     kind,
     id,
+    projection_version: projectionVersion,
     mutation: "upsert",
     text: projectableText(kind, row)
   };
   return projectId === null ? base : { project_id: projectId, ...base };
 }
-function retractRecord(kind, id, projectId = null) {
+function retractRecord(kind, id, projectId = null, projectionVersion = 1) {
+  if (!Number.isSafeInteger(projectionVersion) || projectionVersion < 1) {
+    throw new Error("invalid projection version");
+  }
   const base = {
     key: projectionKey(kind, id, projectId),
     kind,
     id,
+    projection_version: projectionVersion,
     mutation: "retract"
   };
   return projectId === null ? base : { project_id: projectId, ...base };
@@ -16966,6 +16974,7 @@ function defensiveRecords(entries2) {
         key: e.record.key,
         kind: e.record.kind,
         id: e.record.id,
+        projection_version: e.record.projection_version,
         mutation: "upsert",
         text: e.record.text
       };
@@ -16975,6 +16984,7 @@ function defensiveRecords(entries2) {
       key: e.record.key,
       kind: e.record.kind,
       id: e.record.id,
+      projection_version: e.record.projection_version,
       mutation: "retract"
     };
   });
@@ -17538,6 +17548,13 @@ CREATE TABLE IF NOT EXISTS memory_outbox (
   UNIQUE(kind, entity_id)
 );
 
+CREATE TABLE IF NOT EXISTS memory_projection_versions (
+  kind      TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  version   INTEGER NOT NULL,
+  PRIMARY KEY(kind, entity_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_meas_metric ON measurements(metric);
 CREATE INDEX IF NOT EXISTS idx_oblig_status ON obligations(status);
 CREATE INDEX IF NOT EXISTS idx_facts_superseded ON facts(superseded_by);
@@ -17589,7 +17606,9 @@ var SqliteSessionStore = class _SqliteSessionStore {
     if (!this.readOnly) {
       this.ensureCounters();
       this.migrateOutboxIfNeeded();
+      this.migrateProjectionVersionsIfNeeded();
     } else {
+      this.projectionVersions();
     }
   }
   // -- construction --------------------------------------------------------
@@ -17634,6 +17653,7 @@ var SqliteSessionStore = class _SqliteSessionStore {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       this.db.exec("DROP TABLE IF EXISTS memory_outbox");
+      this.db.exec("DELETE FROM memory_projection_versions");
       this.db.exec(`
 CREATE TABLE memory_outbox (
   position  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17659,6 +17679,43 @@ CREATE TABLE memory_outbox (
       }
       throw e;
     }
+  }
+  projectionVersions() {
+    const table = this.db.prepare(
+      "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = ?"
+    ).get("memory_projection_versions");
+    if (table === void 0) {
+      raise(
+        "backend_mismatch",
+        "projection versions are missing; reopen writable to migrate"
+      );
+    }
+    const rows = this.db.prepare(
+      "SELECT kind, entity_id, version FROM memory_projection_versions ORDER BY CASE kind WHEN 'fact' THEN 1 WHEN 'measurement' THEN 2 ELSE 3 END, entity_id"
+    ).all();
+    const versions = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      const kind = row["kind"];
+      const entityId = Number(row["entity_id"]);
+      const version = Number(row["version"]);
+      if (kind !== "fact" && kind !== "measurement" && kind !== "obligation" || !Number.isSafeInteger(entityId) || entityId < 1 || !Number.isSafeInteger(version) || version < 1) {
+        raise("backend_mismatch", "projection version state is malformed");
+      }
+      versions.set(projectionKey(kind, entityId), version);
+    }
+    return versions;
+  }
+  /** Assign retained versions to legacy live rows in canonical projection order. */
+  migrateProjectionVersionsIfNeeded() {
+    const live = buildProjection(this.readSnapshot(), this.projectId());
+    const versions = this.projectionVersions();
+    const missing = live.filter(
+      (record) => !versions.has(projectionKey(record.kind, record.id))
+    );
+    if (missing.length === 0) return;
+    this.tx(() => {
+      for (const record of missing) this.queueRecord(record);
+    });
   }
   /**
    * Validate store_meta.next_receipt for the current outbox schema.
@@ -17804,7 +17861,7 @@ CREATE TABLE memory_outbox (
     this.db.prepare(
       "INSERT INTO store_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
     ).run("next_receipt", String(n + 1));
-    return receipt;
+    return { receipt, version: n };
   }
   /**
    * Coalesce pending desired state by (kind, id). A replacement gets a fresh
@@ -17815,8 +17872,12 @@ CREATE TABLE memory_outbox (
     const existing = this.db.prepare(
       "SELECT position FROM memory_outbox WHERE kind = ? AND entity_id = ?"
     ).get(record.kind, record.id);
-    const receipt = this.mintReceipt();
+    const minted = this.mintReceipt();
+    const receipt = minted.receipt;
     const text = record.mutation === "upsert" ? record.text : null;
+    this.db.prepare(
+      "INSERT INTO memory_projection_versions (kind, entity_id, version) VALUES (?, ?, ?) ON CONFLICT(kind, entity_id) DO UPDATE SET version = excluded.version"
+    ).run(record.kind, record.id, minted.version);
     if (existing) {
       this.db.prepare(
         "UPDATE memory_outbox SET receipt = ?, mutation = ?, text = ? WHERE kind = ? AND entity_id = ?"
@@ -17869,6 +17930,13 @@ CREATE TABLE memory_outbox (
     if (typeof receipt !== "string" || receipt.length === 0) {
       raise("backend_mismatch", "outbox row receipt must be a non-empty string");
     }
+    const projectionVersion = Number(r["projection_version"]);
+    if (projectionVersion === null || !Number.isSafeInteger(projectionVersion) || projectionVersion < 1) {
+      raise(
+        "backend_mismatch",
+        "outbox projection version is invalid"
+      );
+    }
     const projectId = this.projectId();
     const key = projectionKey(kind, id, projectId);
     const project = projectId === null ? {} : { project_id: projectId };
@@ -17876,7 +17944,14 @@ CREATE TABLE memory_outbox (
     if (mutation === "retract") {
       return {
         receipt,
-        record: { ...project, key, kind, id, mutation: "retract" }
+        record: {
+          ...project,
+          key,
+          kind,
+          id,
+          projection_version: projectionVersion,
+          mutation: "retract"
+        }
       };
     }
     if (mutation === "upsert") {
@@ -17890,6 +17965,7 @@ CREATE TABLE memory_outbox (
           key,
           kind,
           id,
+          projection_version: projectionVersion,
           mutation: "upsert",
           text: r["text"]
         }
@@ -17909,9 +17985,19 @@ CREATE TABLE memory_outbox (
     }
     this.assertOutboxReadable();
     const rows = this.db.prepare(
-      "SELECT receipt, kind, entity_id, mutation, text FROM memory_outbox ORDER BY position ASC LIMIT ?"
+      "SELECT o.receipt, o.kind, o.entity_id, o.mutation, o.text, v.version AS projection_version FROM memory_outbox o JOIN memory_projection_versions v ON v.kind = o.kind AND v.entity_id = o.entity_id ORDER BY position ASC LIMIT ?"
     ).all(limit);
     return rows.map((r) => this.decodeOutboxRow(r));
+  }
+  projectionSnapshot() {
+    const versions = this.projectionVersions();
+    return buildProjection(this.readSnapshot(), this.projectId()).map((record) => {
+      const version = versions.get(projectionKey(record.kind, record.id));
+      if (version === void 0) {
+        raise("backend_mismatch", "a live projection version is missing");
+      }
+      return { ...record, projection_version: version };
+    });
   }
   ackOutbox(receipts) {
     if (this.readOnly) {
@@ -18339,7 +18425,8 @@ var WRITER_CLAIMS_DIR = ".writer-claims";
 var GEN_WIDTH = 8;
 var OUTBOX_LIMIT_MIN2 = 1;
 var OUTBOX_LIMIT_MAX2 = 1e3;
-var OUTBOX_FILE_VERSION = 2;
+var OUTBOX_FILE_VERSION = 3;
+var PROJECT_BOUND_OUTBOX_FILE_VERSION = 2;
 var LEGACY_OUTBOX_FILE_VERSION = 1;
 var INTERNAL_NUMERIC_RECEIPT2 = /^r([1-9][0-9]*)$/;
 var LEGACY_TOKEN_RE = /^\d{8}\.ndjson$/;
@@ -18416,6 +18503,7 @@ function copyRecord(record) {
       key: record.key,
       kind: record.kind,
       id: record.id,
+      projection_version: record.projection_version,
       mutation: "upsert",
       text: record.text
     };
@@ -18425,18 +18513,28 @@ function copyRecord(record) {
     key: record.key,
     kind: record.kind,
     id: record.id,
+    projection_version: record.projection_version,
     mutation: "retract"
   };
 }
 function copyEntry(entry) {
   return { receipt: entry.receipt, record: copyRecord(entry.record) };
 }
-function encodeOutbox(entries2, nextReceipt, projectId) {
+function encodeOutbox(entries2, nextReceipt, projectId, projectionVersions) {
+  const versions = [...projectionVersions.entries()].map(([key, version]) => {
+    const [kind, rawId] = key.split(":");
+    return { kind, id: Number(rawId), version };
+  }).sort((a, b) => {
+    const kinds = ["fact", "measurement", "obligation"];
+    const byKind = kinds.indexOf(a.kind) - kinds.indexOf(b.kind);
+    return byKind === 0 ? a.id - b.id : byKind;
+  });
   return `${JSON.stringify({
     version: OUTBOX_FILE_VERSION,
     projectId,
     nextReceipt,
-    entries: entries2.map(copyEntry)
+    entries: entries2.map(copyEntry),
+    projectionVersions: versions
   })}
 `;
 }
@@ -18454,7 +18552,7 @@ function decodeOutbox(text) {
     raise("sidecar_malformed", "outbox generation root must be an object");
   }
   const root = parsed;
-  if (root["version"] !== LEGACY_OUTBOX_FILE_VERSION && root["version"] !== OUTBOX_FILE_VERSION) {
+  if (root["version"] !== LEGACY_OUTBOX_FILE_VERSION && root["version"] !== PROJECT_BOUND_OUTBOX_FILE_VERSION && root["version"] !== OUTBOX_FILE_VERSION) {
     raise(
       "sidecar_malformed",
       `outbox generation version ${String(root["version"])} is unsupported`
@@ -18514,6 +18612,15 @@ function decodeOutbox(text) {
       raise("sidecar_malformed", "outbox record project_id does not match metadata");
     }
     const project = projectId === null ? {} : { project_id: projectId };
+    const persistedVersion = r["projection_version"];
+    const derivedVersion = numeric === null ? null : Number(numeric[1]);
+    const projectionVersion = persistedVersion === void 0 ? derivedVersion : persistedVersion;
+    if (typeof projectionVersion !== "number" || !Number.isSafeInteger(projectionVersion) || projectionVersion < 1 || derivedVersion !== null && projectionVersion !== derivedVersion) {
+      raise(
+        "sidecar_malformed",
+        "outbox projection_version must match its internal receipt"
+      );
+    }
     if (r["mutation"] === "upsert") {
       if (typeof r["text"] !== "string") {
         raise("sidecar_malformed", "outbox upsert record text must be a string");
@@ -18525,6 +18632,7 @@ function decodeOutbox(text) {
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
+          projection_version: projectionVersion,
           mutation: "upsert",
           text: r["text"]
         }
@@ -18537,6 +18645,7 @@ function decodeOutbox(text) {
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
+          projection_version: projectionVersion,
           mutation: "retract"
         }
       });
@@ -18560,15 +18669,55 @@ function decodeOutbox(text) {
       "outbox nextReceipt must be strictly greater than every numeric receipt"
     );
   }
-  return { entries: entries2, nextReceipt, projectId };
+  const projectionVersions = /* @__PURE__ */ new Map();
+  const needsProjectionMigration = root["version"] !== OUTBOX_FILE_VERSION;
+  if (!needsProjectionMigration) {
+    if (!Array.isArray(root["projectionVersions"])) {
+      raise("sidecar_malformed", "outbox projectionVersions must be an array");
+    }
+    for (const raw of root["projectionVersions"]) {
+      if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+        raise("sidecar_malformed", "projection version row must be an object");
+      }
+      const row = raw;
+      if (!isCountedKindName(row["kind"]) || typeof row["id"] !== "number" || !Number.isSafeInteger(row["id"]) || row["id"] < 1 || typeof row["version"] !== "number" || !Number.isSafeInteger(row["version"]) || row["version"] < 1 || row["version"] >= nextReceipt) {
+        raise("sidecar_malformed", "projection version row is invalid");
+      }
+      const key = projectionKey(row["kind"], row["id"]);
+      if (projectionVersions.has(key)) {
+        raise("sidecar_malformed", "projection version identities must be unique");
+      }
+      projectionVersions.set(key, row["version"]);
+    }
+    for (const entry of entries2) {
+      const key = projectionKey(entry.record.kind, entry.record.id);
+      if (projectionVersions.get(key) !== entry.record.projection_version) {
+        raise(
+          "sidecar_malformed",
+          "pending projection version must match retained current version"
+        );
+      }
+    }
+  }
+  return {
+    entries: entries2,
+    nextReceipt,
+    projectId,
+    projectionVersions,
+    needsProjectionMigration
+  };
 }
 function synthesizeOutbox(snap, projectId = null) {
   const entries2 = [];
+  const projectionVersions = /* @__PURE__ */ new Map();
   let nextReceipt = 1;
   for (const record of buildProjection(snap, projectId)) {
-    entries2.push({ receipt: `r${nextReceipt++}`, record: copyRecord(record) });
+    const version = nextReceipt++;
+    const versioned = copyRecord({ ...record, projection_version: version });
+    entries2.push({ receipt: `r${version}`, record: versioned });
+    projectionVersions.set(projectionKey(record.kind, record.id), version);
   }
-  return { entries: entries2, nextReceipt };
+  return { entries: entries2, nextReceipt, projectionVersions };
 }
 function isProcessAlive(pid) {
   if (!Number.isSafeInteger(pid) || pid <= 0) return false;
@@ -18755,8 +18904,12 @@ function assertReceiptCounterMintable(nextReceipt) {
 }
 function queueRecord(q, record) {
   assertReceiptCounterMintable(q.nextReceipt);
-  const receipt = `r${q.nextReceipt++}`;
-  const entry = { receipt, record: copyRecord(record) };
+  const projectionVersion = q.nextReceipt++;
+  const receipt = `r${projectionVersion}`;
+  const entry = {
+    receipt,
+    record: copyRecord({ ...record, projection_version: projectionVersion })
+  };
   const idx = q.entries.findIndex(
     (e) => e.record.kind === record.kind && e.record.id === record.id
   );
@@ -18783,9 +18936,10 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
   #outbox;
   #nextReceipt;
   #projectId;
+  #projectionVersions;
   #gen;
   #closed = false;
-  constructor(dir, snap, outbox, nextReceipt, projectId, gen3, readOnly, writerClaim) {
+  constructor(dir, snap, outbox, nextReceipt, projectId, projectionVersions, gen3, readOnly, writerClaim) {
     this.#dir = dir;
     this.#genDir = join3(dir, GENERATIONS);
     this.#outboxDir = join3(dir, OUTBOX_GENERATIONS);
@@ -18795,6 +18949,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     this.#outbox = outbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
     this.#projectId = projectId;
+    this.#projectionVersions = new Map(projectionVersions);
     this.#gen = gen3;
   }
   static open(opts) {
@@ -18823,12 +18978,19 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       );
     }
     const loaded = _FilesOnlySessionStore.#loadLive(dir, join3(dir, GENERATIONS));
+    if (loaded.needsProjectionMigration) {
+      raise(
+        "sidecar_malformed",
+        "projection versions require a writable migration"
+      );
+    }
     return new _FilesOnlySessionStore(
       dir,
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
       loaded.projectId,
+      loaded.projectionVersions,
       loaded.gen,
       true,
       null
@@ -18837,30 +18999,40 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
   static #openWritable(dir, claim) {
     const currentPath = join3(dir, CURRENT);
     if (!existsSync(currentPath)) {
-      const store = new _FilesOnlySessionStore(
+      const store2 = new _FilesOnlySessionStore(
         dir,
         emptySnapshot(),
         [],
         1,
         null,
+        /* @__PURE__ */ new Map(),
         0,
         false,
         claim
       );
-      store.#publish(store.#snap, [], 1);
-      return store;
+      store2.#publish(store2.#snap, [], 1);
+      return store2;
     }
     const loaded = _FilesOnlySessionStore.#loadLive(dir, join3(dir, GENERATIONS));
-    return new _FilesOnlySessionStore(
+    const store = new _FilesOnlySessionStore(
       dir,
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
       loaded.projectId,
+      loaded.projectionVersions,
       loaded.gen,
       false,
       claim
     );
+    if (loaded.needsProjectionMigration) {
+      const q = cloneQueue(store.#outbox, store.#nextReceipt);
+      for (const record of buildProjection(store.#snap, store.#projectId)) {
+        queueRecord(q, record);
+      }
+      store.#publish(store.#snap, q.entries, q.nextReceipt);
+    }
+    return store;
   }
   static #loadLive(dir, genDir) {
     const currentPath = join3(dir, CURRENT);
@@ -18905,6 +19077,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
           outbox: decoded2.entries,
           nextReceipt: decoded2.nextReceipt,
           projectId: decoded2.projectId,
+          projectionVersions: decoded2.projectionVersions,
+          needsProjectionMigration: decoded2.needsProjectionMigration,
           gen: gen3
         };
       }
@@ -18914,6 +19088,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
         outbox: synthesized.entries,
         nextReceipt: synthesized.nextReceipt,
         projectId: null,
+        projectionVersions: synthesized.projectionVersions,
+        needsProjectionMigration: true,
         gen: gen3
       };
     }
@@ -18930,6 +19106,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       outbox: decoded.entries,
       nextReceipt: decoded.nextReceipt,
       projectId: decoded.projectId,
+      projectionVersions: decoded.projectionVersions,
+      needsProjectionMigration: decoded.needsProjectionMigration,
       gen: gen3
     };
   }
@@ -18950,7 +19128,19 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
   #publish(next, nextOutbox, nextReceipt, projectId = this.#projectId) {
     const ordered = sortedSnapshot(next);
     const snapText = encodeSnapshot(ordered);
-    const outboxText = encodeOutbox(nextOutbox, nextReceipt, projectId);
+    const projectionVersions = new Map(this.#projectionVersions);
+    for (const entry of nextOutbox) {
+      projectionVersions.set(
+        projectionKey(entry.record.kind, entry.record.id),
+        entry.record.projection_version
+      );
+    }
+    const outboxText = encodeOutbox(
+      nextOutbox,
+      nextReceipt,
+      projectId,
+      projectionVersions
+    );
     const gen3 = this.#gen + 1;
     const name = genName(gen3);
     writeFileAtomic(this.#genDir, name, snapText);
@@ -18964,6 +19154,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     this.#outbox = nextOutbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
     this.#projectId = projectId;
+    this.#projectionVersions = projectionVersions;
   }
   #assertOpen() {
     if (this.#closed) {
@@ -19043,6 +19234,18 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       );
     }
     return this.#outbox.slice(0, limit).map(copyEntry);
+  }
+  projectionSnapshot() {
+    this.#assertOpen();
+    return buildProjection(this.#snap, this.#projectId).map((record) => {
+      const version = this.#projectionVersions.get(
+        projectionKey(record.kind, record.id)
+      );
+      if (version === void 0) {
+        raise("sidecar_malformed", "a live projection version is missing");
+      }
+      return copyRecord({ ...record, projection_version: version });
+    });
   }
   ackOutbox(receipts) {
     this.#assertWritable();
@@ -19503,8 +19706,11 @@ function openSessionStore(opts = {}) {
   return openFilesOnlyStore({ dir, readOnly });
 }
 
-// packages/session-store/src/sqlite-migration.ts
+// packages/session-store/src/projection-lease.ts
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
+
+// packages/session-store/src/sqlite-migration.ts
+import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 import fs, { copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as join4 } from "node:path";
@@ -19574,7 +19780,7 @@ function classifySqliteStore(path) {
   if (!st.isFile() && !st.isDirectory()) {
     return "unrecognised";
   }
-  const db = new DatabaseSync2(path, { readOnly: true });
+  const db = new DatabaseSync3(path, { readOnly: true });
   try {
     let names;
     try {
@@ -19632,7 +19838,7 @@ function dumpLegacySqliteAsV1(path) {
     if (fs.existsSync(`${path}-wal`)) {
       copyFileSync(`${path}-wal`, `${snapshotPath}-wal`);
     }
-    const db = new DatabaseSync2(snapshotPath, { readOnly: true });
+    const db = new DatabaseSync3(snapshotPath, { readOnly: true });
     try {
       db.exec("PRAGMA foreign_keys=OFF");
       const present = new Set(
@@ -19667,7 +19873,7 @@ function dumpLegacySqliteAsV1(path) {
   }
 }
 function sqliteStoreIsEmpty(path) {
-  const db = new DatabaseSync2(path);
+  const db = new DatabaseSync3(path);
   try {
     const row = db.prepare(
       "SELECT (SELECT COUNT(*) FROM facts) + (SELECT COUNT(*) FROM measurements) + (SELECT COUNT(*) FROM obligations) + (SELECT COUNT(*) FROM sessions) AS n"

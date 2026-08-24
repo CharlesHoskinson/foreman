@@ -140,7 +140,7 @@ source_path = "openspec/changes/external-memory-index"
 disposition = "v040_owner"
 owner = "external-memory-index"
 target_release = "v0.4"
-reconcile = "required"
+reconcile = "complete"
 reason = "Track 3 owns the Qdrant adapter, projection versions, and isolated epochs."
 
 [[entry]]
@@ -590,7 +590,7 @@ source_path = "ROADMAP.md"
 disposition = "v040_owner"
 owner = "external-memory-index"
 target_release = "v0.4"
-reconcile = "required"
+reconcile = "complete"
 reason = "The first external adapter, projection epochs, and live tests belong to Track 3."
 
 [[entry]]

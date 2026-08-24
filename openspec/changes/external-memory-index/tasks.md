@@ -27,11 +27,11 @@
 - [x] Pin the Transformers runtime and model identities.
 - [x] Verify the ONNX graph and data digests before local-only loading.
 - [x] Enforce mean pooling, normalization, and 384 finite dimensions.
-- [ ] Run the opt-in offline model test with the control-image model bytes.
+- [x] Run the opt-in offline model test with the control-image model bytes.
 
 ## 5. Release lane
 
 - [x] Pin client and service identities in the reference manifest.
-- [ ] Add the public package brief.
-- [ ] Set external-memory-index coverage rows to `complete`.
-- [ ] Run strict OpenSpec validation and the full repository verifier.
+- [x] Add the public package brief.
+- [x] Set external-memory-index coverage rows to `complete`.
+- [x] Run strict OpenSpec validation and the full repository verifier.

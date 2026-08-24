@@ -50,10 +50,10 @@ export const FIXTURE_DECLARATION_RELPATH =
 export const MAX_DIRECTORY_ENTRIES = 200_000;
 export const MAX_FILES = 100_000;
 export const MAX_RELATIVE_PATH_BYTES = 4_096;
-/** Per-file content bound (16 MiB). Covers large toolchain binaries under deps. */
-export const MAX_FILE_BYTES = 16_777_216;
-/** Total inspected content bound (256 MiB). Fail-closed above this. */
-export const MAX_TOTAL_INSPECTED_BYTES = 268_435_456;
+/** Per-file content bound (64 MiB). Covers pinned native ML runtime binaries. */
+export const MAX_FILE_BYTES = 67_108_864;
+/** Total inspected content bound (1 GiB). Fail-closed above this. */
+export const MAX_TOTAL_INSPECTED_BYTES = 1_073_741_824;
 export const MAX_LINE_INSPECTIONS = 5_000_000;
 export const MAX_EXEMPTIONS = 256;
 export const MAX_FIXTURE_DECLARATION_BYTES = 65_536;

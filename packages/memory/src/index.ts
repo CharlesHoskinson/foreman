@@ -37,4 +37,4 @@ export {
 export {
   SqliteProjectionLeasePort,
   type SqliteProjectionLeasePortOptions,
-} from "./sqlite-projection-lease.js";
+} from "@foreman/session-store";

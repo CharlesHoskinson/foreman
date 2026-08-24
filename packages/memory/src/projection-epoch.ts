@@ -1,16 +1,12 @@
-import type { ProjectionRecord } from "@foreman/session-store";
+import type {
+  ProjectionLease,
+  ProjectionLeasePort,
+  ProjectionRecord,
+} from "@foreman/session-store";
 
 import { QdrantMemoryIndex } from "./qdrant-memory-index.js";
 
-export interface ProjectionLease {
-  readonly fencingToken: number;
-  isCurrent(): Promise<boolean>;
-  release(): Promise<void>;
-}
-
-export interface ProjectionLeasePort {
-  acquire(projectId: string): Promise<ProjectionLease>;
-}
+export type { ProjectionLease, ProjectionLeasePort } from "@foreman/session-store";
 
 export type ProjectionCatchUpBatchV1 = {
   readonly records: readonly ProjectionRecord[];
