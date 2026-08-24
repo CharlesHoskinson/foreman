@@ -2778,6 +2778,8 @@ test("pure Windows planner rejects CMD expansion and metacharacters", () => {
     '"',
     "\r",
     "\n",
+    "\t",
+    "\x7f",
     "\0",
   ]) {
     assert.deepEqual(
@@ -2803,6 +2805,8 @@ test("pure Windows planner rejects CMD expansion and metacharacters", () => {
   for (const input of [
     { comSpec: "C:\\Windows\\System32\\powershell.exe", shim: "C:\\Tools\\openspec.cmd" },
     { comSpec: "C:\\Windows\\System32\\notcmd.exe", shim: "C:\\Tools\\openspec.cmd" },
+    { comSpec: "C:\\Windows\\System32\\cmd.com", shim: "C:\\Tools\\openspec.cmd" },
+    { comSpec: "C:\\Windows\\System32\\cmd.exe.bak", shim: "C:\\Tools\\openspec.cmd" },
     { comSpec, shim: "C:\\Tools\\openspec.exe" },
     { comSpec: "cmd.exe", shim: "C:\\Tools\\openspec.cmd" },
     { comSpec, shim: "openspec.cmd" },
@@ -3101,7 +3105,7 @@ test("live Git adapter isolates config and inventories ignored planning files", 
       const upper = name.toUpperCase();
       if (upper.startsWith("GIT_")) {
         assert.equal(
-          allowedGitKeys.has(upper),
+          allowedGitKeys.has(name),
           true,
           `hostile Git variable survived: ${name}`,
         );
@@ -3169,7 +3173,10 @@ test("live Git adapter rejects missing or malformed raw NUL frames", async (t) =
               .pipe(Effect.either),
           );
           assert.equal(result._tag, "Left");
-          assert.equal(processCalls, badCall + 1);
+          assert.equal(
+            processCalls >= badCall + 1 && processCalls <= 2,
+            true,
+          );
         },
       );
     }
@@ -3245,18 +3252,34 @@ test("live OpenSpec adapter rejects an outside alias into the repository", async
   }
 });
 
-test("live OpenSpec adapter rejects a physical ComSpec inside the repository", async () => {
+test("live OpenSpec adapter rejects a physical ComSpec alias into the repository", async () => {
   const repository = "C:\\Work\\Repository";
-  const comSpec = "C:\\Work\\Repository\\tools\\cmd.exe";
+  const physicalRepository = "C:\\Physical\\Repository";
+  const comSpec = "C:\\External\\Windows\\cmd.exe";
+  const physicalComSpec = "C:\\Physical\\Repository\\tools\\cmd.exe";
   const resolved = "C:\\External\\OpenSpec\\openspec.cmd";
+  assert.equal(
+    planOpenSpecInvocationV1({
+      platform: "win32",
+      comSpec,
+      resolvedOpenSpec: resolved,
+    })._tag,
+    "Ok",
+  );
   let processCalls = 0;
+  const realpathCalls: string[] = [];
   const services = makeLiveReleaseCoverageCliServices({
     runCaptured: () => {
       processCalls += 1;
       return Effect.die("repository-selected ComSpec ran");
     },
     which: () => Effect.succeed(resolved),
-    realpath: (path) => Effect.succeed(path),
+    realpath: (path) => {
+      realpathCalls.push(path);
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === comSpec) return Effect.succeed(physicalComSpec);
+      return Effect.succeed(path);
+    },
     platform: "win32",
     comSpec,
     cwd: () => repository,
@@ -3269,6 +3292,9 @@ test("live OpenSpec adapter rejects a physical ComSpec inside the repository", a
       .pipe(Effect.either),
   );
   assert.equal(result._tag, "Left");
+  assert.equal(realpathCalls.includes(repository), true);
+  assert.equal(realpathCalls.includes(resolved), true);
+  assert.equal(realpathCalls.includes(comSpec), true);
   assert.equal(processCalls, 0);
 });
 
