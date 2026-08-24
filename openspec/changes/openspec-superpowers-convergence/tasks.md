@@ -574,7 +574,7 @@ integration only, and esbuild for generated runtime bundles.
   substitution, lifecycle-operation mismatch, conflicting evaluation verdict,
   exhausted family, and unknown crash outcome all fail closed. Save command
   output and digests externally.
-- [ ] **8.2 CANDIDATE HANDOFF:** The architect checks Tasks 1 through 8.1 against
+- [x] **8.2 CANDIDATE HANDOFF:** The architect checks Tasks 1 through 8.1 against
   their saved evidence, stages the exact Track 1 allowlist with this checkbox
   checked, and creates an architect candidate commit. The commit that contains
   the checked box is the completion evidence for this task. Record its commit,
