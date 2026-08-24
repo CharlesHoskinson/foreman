@@ -32473,7 +32473,7 @@ var EXIT_OK = 0;
 var EXIT_FAIL = 1;
 var EXIT_CONFIG = 2;
 var EXIT_MISSING_CLI = 3;
-var ADD_USAGE = "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+var ADD_USAGE = "usage: lane-queue.sh ensure|add GROUP [--endstop-prior-reservation-id ID] --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 [--endstop-family-sha SHA256 --endstop-child-id ID] --endstop-action ACTION --endstop-candidate-sha SHA256 [--release-program v040 --release-phase PHASE --release-owner PACKAGE --release-repo ABS --release-candidate-commit SHA40 --release-register ABS --release-evidence ABS] -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
 var FIXED_GROUPS = [
   { name: "grok", parallel: 3 },
   { name: "codex", parallel: 2 },

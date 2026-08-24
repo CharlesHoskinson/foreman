@@ -88,6 +88,22 @@ const trackedCredentialProfileLanePath = join(
 );
 const trackedGraphStorePath = join(trackedRuntime, "dist/graph-store.js");
 const trackedForemanLaunchPath = join(trackedRuntime, "dist/foreman-launch.js");
+const trackedReleaseAdmissionPath = join(
+  trackedRuntime,
+  "dist/release-admission.js",
+);
+const trackedReleaseAuthorityPath = join(
+  trackedRuntime,
+  "dist/release-authority.js",
+);
+const trackedReleaseCoveragePath = join(
+  trackedRuntime,
+  "dist/release-coverage.js",
+);
+const trackedReleasePolicyPath = join(
+  trackedRuntime,
+  "dist/release-policy.js",
+);
 const unintendedDistManifest = join(trackedRuntime, "dist/manifest.json");
 if (existsSync(unintendedDistManifest)) {
   fail("unintended dist/manifest.json present");
@@ -118,6 +134,10 @@ const trackedCredentialProfileLane = readFileSync(
 );
 const trackedGraphStore = readFileSync(trackedGraphStorePath);
 const trackedForemanLaunch = readFileSync(trackedForemanLaunchPath);
+const trackedReleaseAdmission = readFileSync(trackedReleaseAdmissionPath);
+const trackedReleaseAuthority = readFileSync(trackedReleaseAuthorityPath);
+const trackedReleaseCoverage = readFileSync(trackedReleaseCoveragePath);
+const trackedReleasePolicy = readFileSync(trackedReleasePolicyPath);
 
 // No extra files under dist/
 {
@@ -136,6 +156,10 @@ const trackedForemanLaunch = readFileSync(trackedForemanLaunchPath);
     "lane-queue.js",
     "lane-round.js",
     "lane-supervise.js",
+    "release-admission.js",
+    "release-authority.js",
+    "release-coverage.js",
+    "release-policy.js",
     "repo-hygiene.js",
     "secret-scan.js",
     "tier2-collect.js",
@@ -198,6 +222,26 @@ try {
   const bGraphStore = readFileSync(join(tmpB, "dist/graph-store.js"));
   const aForemanLaunch = readFileSync(join(tmpA, "dist/foreman-launch.js"));
   const bForemanLaunch = readFileSync(join(tmpB, "dist/foreman-launch.js"));
+  const aReleaseAdmission = readFileSync(
+    join(tmpA, "dist/release-admission.js"),
+  );
+  const bReleaseAdmission = readFileSync(
+    join(tmpB, "dist/release-admission.js"),
+  );
+  const aReleaseAuthority = readFileSync(
+    join(tmpA, "dist/release-authority.js"),
+  );
+  const bReleaseAuthority = readFileSync(
+    join(tmpB, "dist/release-authority.js"),
+  );
+  const aReleaseCoverage = readFileSync(
+    join(tmpA, "dist/release-coverage.js"),
+  );
+  const bReleaseCoverage = readFileSync(
+    join(tmpB, "dist/release-coverage.js"),
+  );
+  const aReleasePolicy = readFileSync(join(tmpA, "dist/release-policy.js"));
+  const bReleasePolicy = readFileSync(join(tmpB, "dist/release-policy.js"));
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aEndstop, bEndstop)) fail("non-deterministic execution-guard");
@@ -236,6 +280,18 @@ try {
   if (!bytesEqual(aForemanLaunch, bForemanLaunch)) {
     fail("non-deterministic foreman-launch");
   }
+  if (!bytesEqual(aReleaseAdmission, bReleaseAdmission)) {
+    fail("non-deterministic release-admission");
+  }
+  if (!bytesEqual(aReleaseAuthority, bReleaseAuthority)) {
+    fail("non-deterministic release-authority");
+  }
+  if (!bytesEqual(aReleaseCoverage, bReleaseCoverage)) {
+    fail("non-deterministic release-coverage");
+  }
+  if (!bytesEqual(aReleasePolicy, bReleasePolicy)) {
+    fail("non-deterministic release-policy");
+  }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
   if (!bytesEqual(aEndstop, trackedEndstop)) fail("execution-guard drift");
@@ -265,6 +321,18 @@ try {
   }
   if (!bytesEqual(aForemanLaunch, trackedForemanLaunch)) {
     fail("foreman-launch drift");
+  }
+  if (!bytesEqual(aReleaseAdmission, trackedReleaseAdmission)) {
+    fail("release-admission drift");
+  }
+  if (!bytesEqual(aReleaseAuthority, trackedReleaseAuthority)) {
+    fail("release-authority drift");
+  }
+  if (!bytesEqual(aReleaseCoverage, trackedReleaseCoverage)) {
+    fail("release-coverage drift");
+  }
+  if (!bytesEqual(aReleasePolicy, trackedReleasePolicy)) {
+    fail("release-policy drift");
   }
   if (!bytesEqual(readFileSync(a.manifestPath), trackedManifest)) {
     fail("manifest drift");
@@ -310,6 +378,19 @@ try {
     );
     writeFileSync(join(rt, "dist/graph-store.js"), trackedGraphStore);
     writeFileSync(join(rt, "dist/foreman-launch.js"), trackedForemanLaunch);
+    writeFileSync(
+      join(rt, "dist/release-admission.js"),
+      trackedReleaseAdmission,
+    );
+    writeFileSync(
+      join(rt, "dist/release-authority.js"),
+      trackedReleaseAuthority,
+    );
+    writeFileSync(
+      join(rt, "dist/release-coverage.js"),
+      trackedReleaseCoverage,
+    );
+    writeFileSync(join(rt, "dist/release-policy.js"), trackedReleasePolicy);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
