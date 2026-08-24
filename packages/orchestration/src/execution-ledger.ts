@@ -225,6 +225,12 @@ export class EndstopLedger extends Context.Tag("EndstopLedger")<
         "rootContractId" | "rootContractSha256" | "familySha256"
       >,
     ) => Effect.Effect<ExecutionFamilyLedgerStatusV2, EndstopLedgerFailure>;
+    readonly familyAuthorityStatus: (
+      input: Pick<
+        ExecutionFamilyActivationV1,
+        "rootContractId" | "rootContractSha256" | "familySha256"
+      >,
+    ) => Effect.Effect<ExecutionFamilyAuthorityStateV1, EndstopLedgerFailure>;
     readonly registerChildAuthority: (
       registration: RegisteredReleaseAuthorityV1,
     ) => Effect.Effect<RegisteredReleaseAuthorityV1, EndstopLedgerFailure>;
@@ -2408,6 +2414,27 @@ export function makeLiveEndstopLedgerLayer(
       }).pipe(Effect.provide(journalLayer));
       return withJournalFailure(transaction);
     },
+    familyAuthorityStatus: (input) =>
+      Effect.gen(function* () {
+        if (
+          typeof decodeRunId(input.rootContractId) !== "string" ||
+          !isSha256Hex(input.rootContractSha256) ||
+          !isSha256Hex(input.familySha256)
+        ) {
+          return yield* Effect.fail(ledgerFailure("family_mismatch"));
+        }
+        const history = yield* readHistory(input.rootContractId);
+        if (history.root.contractSha256 !== input.rootContractSha256) {
+          return yield* Effect.fail(ledgerFailure("contract_mismatch"));
+        }
+        if (
+          history.authority === null ||
+          history.authority.familySha256 !== input.familySha256
+        ) {
+          return yield* Effect.fail(ledgerFailure("family_missing"));
+        }
+        return history.authority;
+      }),
     familyStatus: (input) =>
       Effect.gen(function* () {
         if (
