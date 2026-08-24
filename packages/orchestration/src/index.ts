@@ -861,3 +861,24 @@ export {
   type ReleasePolicyFamilyViewV1,
   type ReleasePolicyServices,
 } from "./release-policy.js";
+
+// --- v0.4 Track 2: stable project registry ---
+
+export {
+  emptyProjectRegistryV1,
+  renderProjectRegistryFileV1,
+  decodeProjectRegistryFileV1,
+  registerProjectV1,
+  resolveProjectV1,
+  loadProjectRegistryFileV1,
+  registerProjectFileV1,
+  type ProjectStoreBackendV1,
+  type ProjectRegistryStateV1,
+  type ProjectRegistryRecordV1,
+  type ProjectRegistryV1,
+  type ProjectRegistrationInputV1,
+  type ProjectRegistrationResultV1,
+  type ProjectRegistryDecodeResultV1,
+  type ProjectRegistryFileResultV1,
+  type ProjectRegistryFileReadResultV1,
+} from "./project-registry.js";

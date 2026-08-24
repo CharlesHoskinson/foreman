@@ -7,22 +7,23 @@ var __export = (target, all5) => {
 // packages/orchestration/src/fm-session-main.ts
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
-import { createHash, randomBytes as randomBytes2 } from "node:crypto";
-import { join as join5, dirname as dirname2, resolve as resolve2 } from "node:path";
+import { createHash, randomBytes as randomBytes3, randomUUID } from "node:crypto";
+import { homedir } from "node:os";
+import { isAbsolute as isAbsolute2, join as join6, dirname as dirname3, resolve as resolve2 } from "node:path";
 import {
   existsSync as existsSync3,
   mkdirSync as mkdirSync3,
   readFileSync as readFileSync3,
   writeFileSync,
-  renameSync as renameSync3,
+  renameSync as renameSync4,
   rmSync as rmSync3,
-  openSync as openSync2,
-  closeSync as closeSync2,
-  fsyncSync as fsyncSync2,
-  lstatSync,
+  openSync as openSync3,
+  closeSync as closeSync3,
+  fsyncSync as fsyncSync3,
+  lstatSync as lstatSync2,
   realpathSync,
   accessSync,
-  constants
+  constants as constants2
 } from "node:fs";
 
 // node_modules/effect/dist/esm/Function.js
@@ -15868,6 +15869,282 @@ var ensureSuccessType = () => (effect) => effect;
 var ensureErrorType = () => (effect) => effect;
 var ensureRequirementsType = () => (effect) => effect;
 
+// packages/core/src/failures.ts
+var CORE_FAILURE_BRAND = Symbol("@foreman/core/CoreFailure");
+function malformedUtf8() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "MalformedUtf8" };
+}
+function oversizeInput(maxBytes) {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "OversizeInput", maxBytes };
+}
+function duplicateJsonKey() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "DuplicateJsonKey" };
+}
+function invalidJson() {
+  return { [CORE_FAILURE_BRAND]: true, _tag: "InvalidJson" };
+}
+function isCoreFailure(v) {
+  return typeof v === "object" && v !== null && v[CORE_FAILURE_BRAND] === true;
+}
+
+// packages/core/src/utf8.ts
+var MAX_INPUT_BYTES = 1048576;
+function decodeUtf8Fatal(bytes) {
+  if (bytes.byteLength > MAX_INPUT_BYTES) {
+    return oversizeInput(MAX_INPUT_BYTES);
+  }
+  try {
+    const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+    return decoder.decode(bytes);
+  } catch {
+    return malformedUtf8();
+  }
+}
+
+// packages/core/src/canonical-json.ts
+var PARSE_FAIL = Symbol("@foreman/core/parseFail");
+function parseFail(failure) {
+  return { [PARSE_FAIL]: true, failure };
+}
+function isParseFail(v) {
+  return typeof v === "object" && v !== null && v[PARSE_FAIL] === true;
+}
+function parseJsonRejectDuplicateKeys(text) {
+  let i = 0;
+  const s = text;
+  let depth = 0;
+  function skipWs() {
+    while (i < s.length) {
+      const c = s.charCodeAt(i);
+      if (c === 32 || c === 9 || c === 10 || c === 13) {
+        i += 1;
+      } else {
+        break;
+      }
+    }
+  }
+  function peek() {
+    return i < s.length ? s[i] : "";
+  }
+  function fail7() {
+    return parseFail(invalidJson());
+  }
+  function parseString() {
+    if (peek() !== '"') return fail7();
+    i += 1;
+    let out = "";
+    while (i < s.length) {
+      const c = s[i];
+      if (c === '"') {
+        i += 1;
+        return out;
+      }
+      if (c === "\\") {
+        i += 1;
+        if (i >= s.length) return fail7();
+        const e = s[i];
+        i += 1;
+        switch (e) {
+          case '"':
+          case "\\":
+          case "/":
+            out += e;
+            break;
+          case "b":
+            out += "\b";
+            break;
+          case "f":
+            out += "\f";
+            break;
+          case "n":
+            out += "\n";
+            break;
+          case "r":
+            out += "\r";
+            break;
+          case "t":
+            out += "	";
+            break;
+          case "u": {
+            if (i + 4 > s.length) return fail7();
+            const hex = s.slice(i, i + 4);
+            if (!/^[0-9a-fA-F]{4}$/.test(hex)) return fail7();
+            out += String.fromCharCode(parseInt(hex, 16));
+            i += 4;
+            break;
+          }
+          default:
+            return fail7();
+        }
+      } else if (c.charCodeAt(0) < 32) {
+        return fail7();
+      } else {
+        out += c;
+        i += 1;
+      }
+    }
+    return fail7();
+  }
+  function parseNumber() {
+    const start3 = i;
+    if (peek() === "-") i += 1;
+    if (peek() < "0" || peek() > "9") return fail7();
+    if (peek() === "0") {
+      i += 1;
+      if (peek() >= "0" && peek() <= "9") return fail7();
+    } else {
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === ".") {
+      i += 1;
+      if (peek() < "0" || peek() > "9") return fail7();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    if (peek() === "e" || peek() === "E") {
+      i += 1;
+      if (peek() === "+" || peek() === "-") i += 1;
+      if (peek() < "0" || peek() > "9") return fail7();
+      while (peek() >= "0" && peek() <= "9") i += 1;
+    }
+    const num = Number(s.slice(start3, i));
+    if (!Number.isFinite(num)) return fail7();
+    return num;
+  }
+  function parseValue() {
+    skipWs();
+    const c = peek();
+    if (c === '"') return parseString();
+    if (c === "{") return parseObject();
+    if (c === "[") return parseArray();
+    if (c === "t") {
+      if (s.slice(i, i + 4) !== "true") return fail7();
+      i += 4;
+      return true;
+    }
+    if (c === "f") {
+      if (s.slice(i, i + 5) !== "false") return fail7();
+      i += 5;
+      return false;
+    }
+    if (c === "n") {
+      if (s.slice(i, i + 4) !== "null") return fail7();
+      i += 4;
+      return null;
+    }
+    if (c === "-" || c >= "0" && c <= "9") return parseNumber();
+    return fail7();
+  }
+  function parseObject() {
+    if (depth >= 64) return fail7();
+    depth += 1;
+    if (peek() !== "{") return fail7();
+    i += 1;
+    skipWs();
+    const obj = /* @__PURE__ */ Object.create(null);
+    const seen = /* @__PURE__ */ new Set();
+    if (peek() === "}") {
+      i += 1;
+      depth -= 1;
+      return obj;
+    }
+    while (true) {
+      skipWs();
+      const key = parseString();
+      if (isParseFail(key)) return key;
+      if (seen.has(key)) return parseFail(duplicateJsonKey());
+      seen.add(key);
+      skipWs();
+      if (peek() !== ":") return fail7();
+      i += 1;
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      Object.defineProperty(obj, key, {
+        value: val,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "}") {
+        i += 1;
+        depth -= 1;
+        return obj;
+      }
+      return fail7();
+    }
+  }
+  function parseArray() {
+    if (depth >= 64) return fail7();
+    depth += 1;
+    if (peek() !== "[") return fail7();
+    i += 1;
+    skipWs();
+    const arr = [];
+    if (peek() === "]") {
+      i += 1;
+      depth -= 1;
+      return arr;
+    }
+    while (true) {
+      const val = parseValue();
+      if (isParseFail(val)) return val;
+      arr.push(val);
+      skipWs();
+      if (peek() === ",") {
+        i += 1;
+        continue;
+      }
+      if (peek() === "]") {
+        i += 1;
+        depth -= 1;
+        return arr;
+      }
+      return fail7();
+    }
+  }
+  const value = parseValue();
+  if (isParseFail(value)) {
+    return value.failure;
+  }
+  skipWs();
+  if (i !== s.length) {
+    return invalidJson();
+  }
+  return value;
+}
+function canonicalize(value) {
+  if (value === null) return "null";
+  if (value === true) return "true";
+  if (value === false) return "false";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("non_finite_number");
+    }
+    if (Object.is(value, -0)) return "0";
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return "[" + value.map((v) => canonicalize(v)).join(",") + "]";
+  }
+  if (typeof value === "object") {
+    const obj = value;
+    const keys5 = Object.keys(obj).sort();
+    const parts2 = [];
+    for (const k of keys5) {
+      parts2.push(JSON.stringify(k) + ":" + canonicalize(obj[k]));
+    }
+    return "{" + parts2.join(",") + "}";
+  }
+  throw new Error("unsupported_json_value");
+}
+
 // packages/session-store/src/entities.ts
 var SESSION_MODEL_VERSION = 1;
 var ENTITY_KINDS = [
@@ -20797,9 +21074,384 @@ function bootstrapStore(p, opts) {
   return false;
 }
 
+// packages/orchestration/src/project-registry.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
+import {
+  closeSync as closeSync2,
+  constants,
+  fstatSync,
+  fsyncSync as fsyncSync2,
+  lstatSync,
+  openSync as openSync2,
+  readSync,
+  renameSync as renameSync3,
+  unlinkSync as unlinkSync2,
+  writeSync as writeSync2
+} from "node:fs";
+import { basename, dirname as dirname2, isAbsolute, join as join5 } from "node:path";
+var ONE_MIB = 1048576;
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+var CONTROL = /[\u0000-\u001f\u007f]/;
+var REGISTRY_KEYS = ["generation", "projects", "schema"];
+var PROJECT_KEYS = [
+  "generation",
+  "git_common_dir",
+  "operation_id",
+  "project_id",
+  "state",
+  "store_backend",
+  "store_location",
+  "worktree_paths"
+];
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function hasExactOwnKeys(value, keys5) {
+  const own = Object.keys(value);
+  return own.length === keys5.length && keys5.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+function validUuid(value) {
+  return typeof value === "string" && UUID.test(value);
+}
+function validAbsolutePath(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 4096 && !CONTROL.test(value) && isAbsolute(value);
+}
+function validSafeInteger(value, minimum) {
+  return Number.isSafeInteger(value) && value >= minimum;
+}
+function compareUtf8(left3, right3) {
+  return Buffer.from(left3).compare(Buffer.from(right3));
+}
+function parseProject(value) {
+  if (!isPlainObject(value) || !hasExactOwnKeys(value, PROJECT_KEYS)) {
+    return null;
+  }
+  if (!validUuid(value["project_id"]) || !validUuid(value["operation_id"])) {
+    return null;
+  }
+  if (!validSafeInteger(value["generation"], 1)) return null;
+  if (!validAbsolutePath(value["git_common_dir"])) return null;
+  if (!validAbsolutePath(value["store_location"])) return null;
+  if (value["store_backend"] !== "sqlite" && value["store_backend"] !== "files-only") {
+    return null;
+  }
+  if (value["state"] !== "active" && value["state"] !== "missing" && value["state"] !== "conflicted") {
+    return null;
+  }
+  const worktreePaths = value["worktree_paths"];
+  if (!Array.isArray(worktreePaths) || worktreePaths.length === 0) return null;
+  const paths = [];
+  let previous;
+  for (const path of worktreePaths) {
+    if (!validAbsolutePath(path)) return null;
+    if (previous !== void 0 && compareUtf8(previous, path) >= 0) return null;
+    paths.push(path);
+    previous = path;
+  }
+  return {
+    project_id: value["project_id"],
+    operation_id: value["operation_id"],
+    generation: value["generation"],
+    git_common_dir: value["git_common_dir"],
+    worktree_paths: paths,
+    store_backend: value["store_backend"],
+    store_location: value["store_location"],
+    state: value["state"]
+  };
+}
+function parseRegistry(value) {
+  if (!isPlainObject(value) || !hasExactOwnKeys(value, REGISTRY_KEYS)) {
+    return null;
+  }
+  if (value["schema"] !== "foreman.project-registry.v1") return null;
+  if (!validSafeInteger(value["generation"], 0)) return null;
+  if (!Array.isArray(value["projects"])) return null;
+  if (value["projects"].length > 1e4) return null;
+  const projects = [];
+  const ids3 = /* @__PURE__ */ new Set();
+  const commonDirs = /* @__PURE__ */ new Set();
+  const stores = /* @__PURE__ */ new Set();
+  let previousId;
+  for (const item of value["projects"]) {
+    const project = parseProject(item);
+    if (project === null || project.generation > value["generation"]) return null;
+    if (ids3.has(project.project_id) || commonDirs.has(project.git_common_dir) || stores.has(project.store_location)) {
+      return null;
+    }
+    if (previousId !== void 0 && compareUtf8(previousId, project.project_id) >= 0) {
+      return null;
+    }
+    ids3.add(project.project_id);
+    commonDirs.add(project.git_common_dir);
+    stores.add(project.store_location);
+    projects.push(project);
+    previousId = project.project_id;
+  }
+  if (projects.length === 0 && value["generation"] !== 0) return null;
+  if (projects.length > 0 && value["generation"] === 0) return null;
+  return {
+    schema: "foreman.project-registry.v1",
+    generation: value["generation"],
+    projects
+  };
+}
+function emptyProjectRegistryV1() {
+  return {
+    schema: "foreman.project-registry.v1",
+    generation: 0,
+    projects: []
+  };
+}
+function renderProjectRegistryFileV1(registry) {
+  const parsed = parseRegistry(registry);
+  if (parsed === null) throw new Error("invalid project registry");
+  return new TextEncoder().encode(`${canonicalize(parsed)}
+`);
+}
+function decodeProjectRegistryFileV1(bytes) {
+  try {
+    if (bytes.byteLength > ONE_MIB) return { _tag: "Invalid" };
+    const text = decodeUtf8Fatal(bytes);
+    if (isCoreFailure(text)) return { _tag: "Invalid" };
+    if (!text.endsWith("\n") || text.endsWith("\n\n")) {
+      return { _tag: "Invalid" };
+    }
+    const body = text.slice(0, -1);
+    const decoded = parseJsonRejectDuplicateKeys(body);
+    if (isCoreFailure(decoded)) return { _tag: "Invalid" };
+    if (canonicalize(decoded) !== body) return { _tag: "Invalid" };
+    const value = parseRegistry(decoded);
+    return value === null ? { _tag: "Invalid" } : { _tag: "Valid", value };
+  } catch {
+    return { _tag: "Invalid" };
+  }
+}
+function validRegistrationInput(input) {
+  return validUuid(input.project_id) && validUuid(input.operation_id) && validAbsolutePath(input.git_common_dir) && validAbsolutePath(input.worktree_path) && validAbsolutePath(input.store_location) && (input.store_backend === "sqlite" || input.store_backend === "files-only");
+}
+function registerProjectV1(registry, input) {
+  const current = parseRegistry(registry);
+  if (current === null || !validRegistrationInput(input)) {
+    return { _tag: "Refused", reason: "invalid_input" };
+  }
+  const commonMatch = current.projects.find(
+    (project2) => project2.git_common_dir === input.git_common_dir
+  );
+  const storeMatch = current.projects.find(
+    (project2) => project2.store_location === input.store_location
+  );
+  if (commonMatch !== void 0 || storeMatch !== void 0) {
+    if (commonMatch === void 0 || commonMatch !== storeMatch) {
+      return { _tag: "Refused", reason: "binding_conflict" };
+    }
+    const worktrees = [...commonMatch.worktree_paths];
+    if (worktrees.includes(input.worktree_path)) {
+      return {
+        _tag: "Registered",
+        registry: current,
+        project: commonMatch,
+        changed: false
+      };
+    }
+    worktrees.push(input.worktree_path);
+    worktrees.sort(compareUtf8);
+    const project2 = {
+      ...commonMatch,
+      generation: commonMatch.generation + 1,
+      worktree_paths: worktrees
+    };
+    const projects2 = current.projects.map(
+      (item) => item.project_id === project2.project_id ? project2 : item
+    ).sort((left3, right3) => compareUtf8(left3.project_id, right3.project_id));
+    return {
+      _tag: "Registered",
+      registry: { ...current, generation: current.generation + 1, projects: projects2 },
+      project: project2,
+      changed: true
+    };
+  }
+  if (current.projects.some(
+    (project2) => project2.project_id === input.project_id || project2.operation_id === input.operation_id
+  )) {
+    return { _tag: "Refused", reason: "binding_conflict" };
+  }
+  const project = {
+    project_id: input.project_id,
+    operation_id: input.operation_id,
+    generation: 1,
+    git_common_dir: input.git_common_dir,
+    worktree_paths: [input.worktree_path],
+    store_backend: input.store_backend,
+    store_location: input.store_location,
+    state: "active"
+  };
+  const projects = [...current.projects, project].sort(
+    (left3, right3) => compareUtf8(left3.project_id, right3.project_id)
+  );
+  return {
+    _tag: "Registered",
+    registry: { ...current, generation: current.generation + 1, projects },
+    project,
+    changed: true
+  };
+}
+function resolveProjectV1(registry, input) {
+  const current = parseRegistry(registry);
+  if (current === null) return null;
+  return current.projects.find(
+    (project) => project.state === "active" && project.git_common_dir === input.git_common_dir && project.store_location === input.store_location
+  ) ?? null;
+}
+function isEnoent(error) {
+  return error !== null && typeof error === "object" && error.code === "ENOENT";
+}
+function sameIdentity(left3, right3) {
+  return left3.dev === right3.dev && left3.ino === right3.ino;
+}
+function readRegistryFile(path) {
+  let pathStat;
+  try {
+    pathStat = lstatSync(path);
+  } catch (error) {
+    if (isEnoent(error)) {
+      return {
+        _tag: "Read",
+        registry: emptyProjectRegistryV1(),
+        identity: null
+      };
+    }
+    return { _tag: "Refused", reason: "io_failure" };
+  }
+  if (pathStat.isSymbolicLink() || !pathStat.isFile() || pathStat.nlink !== 1) {
+    return { _tag: "Refused", reason: "unsafe_path" };
+  }
+  if (pathStat.size > ONE_MIB) {
+    return { _tag: "Refused", reason: "invalid_registry" };
+  }
+  let fd;
+  try {
+    const noFollow = constants.O_NOFOLLOW ?? 0;
+    fd = openSync2(path, constants.O_RDONLY | noFollow);
+    const opened = fstatSync(fd);
+    if (!opened.isFile() || opened.nlink !== 1 || opened.size > ONE_MIB || !sameIdentity(pathStat, opened)) {
+      return { _tag: "Refused", reason: "unsafe_path" };
+    }
+    const buffer = Buffer.alloc(ONE_MIB + 1);
+    let offset = 0;
+    while (offset < buffer.byteLength) {
+      const count = readSync(fd, buffer, offset, buffer.byteLength - offset, null);
+      if (count === 0) break;
+      offset += count;
+    }
+    const afterOpen = fstatSync(fd);
+    const afterPath = lstatSync(path);
+    if (offset > ONE_MIB || afterPath.isSymbolicLink() || !afterPath.isFile() || afterPath.nlink !== 1 || !sameIdentity(opened, afterOpen) || !sameIdentity(opened, afterPath) || afterOpen.size !== offset) {
+      return { _tag: "Refused", reason: "unsafe_path" };
+    }
+    const decoded = decodeProjectRegistryFileV1(
+      Uint8Array.from(buffer.subarray(0, offset))
+    );
+    return decoded._tag === "Valid" ? { _tag: "Read", registry: decoded.value, identity: afterPath } : { _tag: "Refused", reason: "invalid_registry" };
+  } catch (error) {
+    return {
+      _tag: "Refused",
+      reason: isEnoent(error) ? "unsafe_path" : "io_failure"
+    };
+  } finally {
+    if (fd !== void 0) closeSync2(fd);
+  }
+}
+function loadProjectRegistryFileV1(registryPath) {
+  if (!validAbsolutePath(registryPath)) {
+    return { _tag: "Invalid", reason: "unsafe_path" };
+  }
+  const read = readRegistryFile(registryPath);
+  return read._tag === "Read" ? { _tag: "Valid", value: read.registry } : { _tag: "Invalid", reason: read.reason };
+}
+function targetUnchanged(path, before2) {
+  try {
+    const after3 = lstatSync(path);
+    return before2 !== null && !after3.isSymbolicLink() && after3.isFile() && after3.nlink === 1 && sameIdentity(before2, after3);
+  } catch (error) {
+    return before2 === null && isEnoent(error);
+  }
+}
+function publishRegistryFile(path, bytes, before2) {
+  const parent = dirname2(path);
+  let parentStat;
+  try {
+    parentStat = lstatSync(parent);
+  } catch {
+    return "io_failure";
+  }
+  if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
+    return "unsafe_path";
+  }
+  const temporary = join5(
+    parent,
+    `.${basename(path)}.${process.pid}.${randomBytes2(6).toString("hex")}.tmp`
+  );
+  let fd;
+  let published = false;
+  try {
+    fd = openSync2(
+      temporary,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+      384
+    );
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      offset += writeSync2(fd, bytes, offset, bytes.byteLength - offset);
+    }
+    fsyncSync2(fd);
+    closeSync2(fd);
+    fd = void 0;
+    if (!targetUnchanged(path, before2)) return "unsafe_path";
+    renameSync3(temporary, path);
+    published = true;
+    const parentFd = openSync2(parent, constants.O_RDONLY);
+    try {
+      fsyncSync2(parentFd);
+    } finally {
+      closeSync2(parentFd);
+    }
+    return "ok";
+  } catch {
+    return "io_failure";
+  } finally {
+    if (fd !== void 0) closeSync2(fd);
+    if (!published) {
+      try {
+        unlinkSync2(temporary);
+      } catch {
+      }
+    }
+  }
+}
+function registerProjectFileV1(registryPath, input) {
+  if (!validAbsolutePath(registryPath)) {
+    return { _tag: "Refused", reason: "invalid_input" };
+  }
+  const read = readRegistryFile(registryPath);
+  if (read._tag === "Refused") return read;
+  const registered = registerProjectV1(read.registry, input);
+  if (registered._tag === "Refused") return registered;
+  if (!registered.changed) return registered;
+  const published = publishRegistryFile(
+    registryPath,
+    renderProjectRegistryFileV1(registered.registry),
+    read.identity
+  );
+  return published === "ok" ? registered : { _tag: "Refused", reason: published };
+}
+
 // packages/orchestration/src/fm-session-main.ts
 var READ_ONLY_CMDS = /* @__PURE__ */ new Set(["recover", "freshness", "sidecar"]);
-var NO_SIDECAR_REFRESH_CMDS = /* @__PURE__ */ new Set(["sync"]);
+var NO_SIDECAR_REFRESH_CMDS = /* @__PURE__ */ new Set(["sync", "project"]);
 var STORE_CMDS = /* @__PURE__ */ new Set([
   "begin",
   "recover",
@@ -20813,7 +21465,8 @@ var STORE_CMDS = /* @__PURE__ */ new Set([
   "import-sidecar",
   "supersede",
   "retire",
-  "sync"
+  "sync",
+  "project"
 ]);
 var syncTestDeps;
 function setSyncTestDeps(deps) {
@@ -20833,14 +21486,17 @@ function repoRoot() {
     const out = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
       encoding: "utf8"
     }).trim();
-    return dirname2(resolve2(out));
+    return dirname3(resolve2(out));
   } catch {
     return process.cwd();
   }
 }
-function gitSha() {
+function gitSha(cwd) {
   try {
-    return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf8"
+    }).trim();
   } catch {
     return null;
   }
@@ -20860,16 +21516,85 @@ function warnOrphanStore(chosen) {
 }
 function dbPath() {
   if (process.env["FOREMAN_SESSION_DB"]) return process.env["FOREMAN_SESSION_DB"];
-  const chosen = join5(repoRoot(), ".foreman", "session.db");
+  const chosen = join6(repoRoot(), ".foreman", "session.db");
   warnOrphanStore(chosen);
   return chosen;
+}
+function projectRegistryPath() {
+  const configured = process.env["FOREMAN_HOME"];
+  const home = configured && configured.length > 0 ? configured : join6(homedir(), ".foreman");
+  return isAbsolute2(home) ? join6(home, "projects.json") : null;
+}
+function ensureProjectRegistryParent(path) {
+  const parent = dirname3(path);
+  try {
+    if (!existsSync3(parent)) mkdirSync3(parent, { recursive: true, mode: 448 });
+    const stat = lstatSync2(parent);
+    return !stat.isSymbolicLink() && stat.isDirectory();
+  } catch {
+    return false;
+  }
+}
+function gitProjectIdentityAt(cwd) {
+  try {
+    const common = execFileSync(
+      "git",
+      ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+      { cwd, encoding: "utf8" }
+    ).trim();
+    const worktree = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8"
+    }).trim();
+    if (!isAbsolute2(common) || !isAbsolute2(worktree)) return null;
+    return {
+      gitCommonDir: realpathSync(common),
+      worktreePath: realpathSync(worktree)
+    };
+  } catch {
+    return null;
+  }
+}
+function currentGitProjectIdentity() {
+  return gitProjectIdentityAt(process.cwd());
+}
+function recoveryGitCwd(selection) {
+  let storeLocation;
+  try {
+    storeLocation = realpathSync(selection.location);
+  } catch {
+    return null;
+  }
+  const registryPath = projectRegistryPath();
+  if (registryPath !== null) {
+    const loaded = loadProjectRegistryFileV1(registryPath);
+    if (loaded._tag === "Invalid") return null;
+    const registered = loaded.value.projects.find(
+      (project) => project.state === "active" && project.store_location === storeLocation
+    );
+    if (registered !== void 0) {
+      for (const recordedWorktree of registered.worktree_paths) {
+        const identity2 = gitProjectIdentityAt(recordedWorktree);
+        if (identity2 !== null && identity2.gitCommonDir === registered.git_common_dir && identity2.worktreePath === recordedWorktree) {
+          return identity2.worktreePath;
+        }
+      }
+      return null;
+    }
+  }
+  const current = currentGitProjectIdentity();
+  return current?.worktreePath ?? null;
+}
+function writeCanonicalLine(value) {
+  process.stdout.write(`${canonicalize(value)}
+`);
 }
 function errorMessage2(e) {
   return e instanceof Error ? e.message : String(e);
 }
 function defaultSidecarPath(selection) {
   if (selection.locationKind === "file") return sidecarPathFor(selection.location);
-  return join5(selection.location, "session.ndjson");
+  return join6(selection.location, "session.ndjson");
 }
 function openCliStore(opts = {}) {
   const readOnly = opts.readOnly === true;
@@ -20884,7 +21609,7 @@ function openCliStore(opts = {}) {
         selection = sel;
       },
       prepareSqlite: (path, access) => {
-        mkdirSync3(dirname2(path), { recursive: true });
+        mkdirSync3(dirname3(path), { recursive: true });
         migrated = bootstrapStore(path, access);
       }
     });
@@ -20934,7 +21659,7 @@ function openExplicitSqliteImportTarget(target) {
     const store = openSqliteSessionStore({
       path: target,
       prepareSqlite: (path, access) => {
-        mkdirSync3(dirname2(path), { recursive: true });
+        mkdirSync3(dirname3(path), { recursive: true });
         migrated = bootstrapStore(path, access);
       }
     });
@@ -20978,7 +21703,7 @@ function isSqliteOperationalError(e) {
 }
 function parentDirNotWritable(dbFile) {
   try {
-    accessSync(dirname2(dbFile), constants.W_OK);
+    accessSync(dirname3(dbFile), constants2.W_OK);
     return false;
   } catch (e) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
@@ -20987,7 +21712,7 @@ function parentDirNotWritable(dbFile) {
 }
 function pathNotReadable(file) {
   try {
-    accessSync(file, constants.R_OK);
+    accessSync(file, constants2.R_OK);
     return false;
   } catch (e) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
@@ -21029,15 +21754,19 @@ function mintSessionId() {
   const hh = String(d.getUTCHours()).padStart(2, "0");
   const min4 = String(d.getUTCMinutes()).padStart(2, "0");
   const ss = String(d.getUTCSeconds()).padStart(2, "0");
-  const hex = randomBytes2(3).toString("hex");
+  const hex = randomBytes3(3).toString("hex");
   return `${yyyy}${mm}${dd}T${hh}${min4}${ss}Z-${hex}`;
 }
-function measurementValidity(measuredSha, scopePaths) {
+function measurementValidity(measuredSha, scopePaths, gitCwd) {
   if (!measuredSha) return ["unknown", "no measured_sha recorded"];
   const paths = (scopePaths || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (paths.length === 0) return ["unknown", "no scope_paths recorded; cannot bound what invalidates it"];
+  if (gitCwd === null) {
+    return ["unknown", "registered project repository is unavailable"];
+  }
   try {
     const out = execFileSync("git", ["rev-list", `${measuredSha}..HEAD`, "--", ...paths], {
+      cwd: gitCwd,
       encoding: "utf8"
     });
     const commits = out.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -21061,8 +21790,8 @@ function measurementValidity(measuredSha, scopePaths) {
 function displayStatus(o) {
   return o.status === "open" && o.blocker ? "blocked" : o.status;
 }
-function buildRecoveryFromStore(store) {
-  const head5 = gitSha();
+function buildRecoveryFromStore(store, gitCwd) {
+  const head5 = gitCwd === null ? null : gitSha(gitCwd);
   const sessions = [...store.listSessions()].sort(
     (a, b) => a.session_id < b.session_id ? 1 : a.session_id > b.session_id ? -1 : 0
   );
@@ -21075,7 +21804,11 @@ function buildRecoveryFromStore(store) {
     established_ts: r.established_ts
   }));
   const measurements = [...store.listMeasurements()].filter((r) => r.superseded_by === null).sort((a, b) => b.id - a.id).map((r) => {
-    const [validity, why] = measurementValidity(r.measured_sha, r.scope_paths);
+    const [validity, why] = measurementValidity(
+      r.measured_sha,
+      r.scope_paths,
+      gitCwd
+    );
     return {
       kind: "measurement",
       id: r.id,
@@ -21125,11 +21858,15 @@ function buildRecoveryFromStore(store) {
     }
   };
 }
-function buildFreshnessFromStore(store, staleOnly) {
+function buildFreshnessFromStore(store, staleOnly, gitCwd) {
   const out = [];
   const rows = [...store.listMeasurements()].filter((r) => r.superseded_by === null).sort((a, b) => b.id - a.id);
   for (const row of rows) {
-    const [validity, why] = measurementValidity(row.measured_sha, row.scope_paths);
+    const [validity, why] = measurementValidity(
+      row.measured_sha,
+      row.scope_paths,
+      gitCwd
+    );
     if (staleOnly && validity === "fresh") continue;
     out.push({
       id: row.id,
@@ -21235,16 +21972,16 @@ function sidecarNdjson(store) {
   return [encodeSnapshot(snapshot), countRows(snapshot)];
 }
 function writeAtomic(path, text) {
-  const tmp = `${path}.tmp.${process.pid}.${randomBytes2(8).toString("hex")}`;
+  const tmp = `${path}.tmp.${process.pid}.${randomBytes3(8).toString("hex")}`;
   try {
     writeFileSync(tmp, text, { encoding: "utf8", flag: "wx" });
-    const fd = openSync2(tmp, "r+");
+    const fd = openSync3(tmp, "r+");
     try {
-      fsyncSync2(fd);
+      fsyncSync3(fd);
     } finally {
-      closeSync2(fd);
+      closeSync3(fd);
     }
-    renameSync3(tmp, path);
+    renameSync4(tmp, path);
   } catch (e) {
     try {
       rmSync3(tmp, { force: true });
@@ -21253,11 +21990,11 @@ function writeAtomic(path, text) {
     throw e;
   }
   try {
-    const dirFd = openSync2(dirname2(path), "r");
+    const dirFd = openSync3(dirname3(path), "r");
     try {
-      fsyncSync2(dirFd);
+      fsyncSync3(dirFd);
     } finally {
-      closeSync2(dirFd);
+      closeSync3(dirFd);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -21336,7 +22073,7 @@ function unparsedSidecarMessage(path, detail) {
 function inspectSidecarPath(path) {
   let st;
   try {
-    st = lstatSync(path);
+    st = lstatSync2(path);
   } catch (e) {
     const code = typeof e === "object" && e !== null ? e.code : void 0;
     if (code === "ENOENT") return { dest: path, kind: "missing" };
@@ -21524,10 +22261,91 @@ function main() {
   if (cmd === "sync") {
     return runSync2(parsed);
   }
-  if (cmd === "begin") {
-    const { store } = openCliStore();
+  if (cmd === "project") {
+    if (parsed.present.size > 0 || parsed.args.length !== 1) {
+      process.stderr.write(
+        "refusing: project requires exactly register, status, or list\n"
+      );
+      exitCli(2);
+    }
+    const operation = parsed.args[0];
+    if (operation !== "register" && operation !== "status" && operation !== "list") {
+      process.stderr.write(
+        "refusing: project requires exactly register, status, or list\n"
+      );
+      exitCli(2);
+    }
+    const registryPath = projectRegistryPath();
+    if (registryPath === null) {
+      process.stderr.write("refusing: FOREMAN_HOME must be absolute\n");
+      exitCli(2);
+    }
+    if (operation === "list") {
+      const loaded = loadProjectRegistryFileV1(registryPath);
+      if (loaded._tag === "Invalid") {
+        process.stderr.write("refusing: project registry is unavailable\n");
+        exitCli(1);
+      }
+      writeCanonicalLine({ projects: loaded.value.projects });
+      return 0;
+    }
+    const identity2 = currentGitProjectIdentity();
+    if (identity2 === null) {
+      process.stderr.write("refusing: project Git identity is unavailable\n");
+      exitCli(1);
+    }
+    const { store, selection } = openCliStore({
+      readOnly: operation === "status"
+    });
     try {
-      const rec = buildRecoveryFromStore(store);
+      let storeLocation;
+      try {
+        storeLocation = realpathSync(selection.location);
+      } catch {
+        process.stderr.write("refusing: project store identity is unavailable\n");
+        exitCli(1);
+      }
+      if (operation === "status") {
+        const loaded = loadProjectRegistryFileV1(registryPath);
+        if (loaded._tag === "Invalid") {
+          process.stderr.write("refusing: project registry is unavailable\n");
+          exitCli(1);
+        }
+        const project = resolveProjectV1(loaded.value, {
+          git_common_dir: identity2.gitCommonDir,
+          store_location: storeLocation
+        });
+        writeCanonicalLine(
+          project === null ? { _tag: "Unregistered" } : { _tag: "Registered", project }
+        );
+        return 0;
+      }
+      if (!ensureProjectRegistryParent(registryPath)) {
+        process.stderr.write("refusing: project registry is unavailable\n");
+        exitCli(1);
+      }
+      const registered = registerProjectFileV1(registryPath, {
+        project_id: randomUUID(),
+        operation_id: randomUUID(),
+        git_common_dir: identity2.gitCommonDir,
+        worktree_path: identity2.worktreePath,
+        store_backend: selection.locationKind === "directory" ? "files-only" : "sqlite",
+        store_location: storeLocation
+      });
+      if (registered._tag === "Refused") {
+        process.stderr.write("refusing: project registration failed\n");
+        exitCli(1);
+      }
+      writeCanonicalLine({ _tag: "Registered", project: registered.project });
+      return 0;
+    } finally {
+      store.close();
+    }
+  }
+  if (cmd === "begin") {
+    const { store, selection } = openCliStore();
+    try {
+      const rec = buildRecoveryFromStore(store, recoveryGitCwd(selection));
       const sid = mintSessionId();
       try {
         store.beginSession({
@@ -21548,9 +22366,9 @@ function main() {
     return 0;
   }
   if (cmd === "recover") {
-    const { store } = openCliStore({ readOnly: true });
+    const { store, selection } = openCliStore({ readOnly: true });
     try {
-      const rec = buildRecoveryFromStore(store);
+      const rec = buildRecoveryFromStore(store, recoveryGitCwd(selection));
       if (parsed.options.json) {
         process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
       } else {
@@ -21563,9 +22381,13 @@ function main() {
   }
   if (cmd === "freshness") {
     const staleOnly = parsed.options["stale-only"];
-    const { store } = openCliStore({ readOnly: true });
+    const { store, selection } = openCliStore({ readOnly: true });
     try {
-      const measurements = buildFreshnessFromStore(store, staleOnly);
+      const measurements = buildFreshnessFromStore(
+        store,
+        staleOnly,
+        recoveryGitCwd(selection)
+      );
       process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
     } finally {
       store.close();
@@ -21974,7 +22796,7 @@ async function mainWithSidecar() {
         selection = sel;
       },
       prepareSqlite: (path, access) => {
-        mkdirSync3(dirname2(path), { recursive: true });
+        mkdirSync3(dirname3(path), { recursive: true });
         bootstrapStore(path, access);
       }
     });

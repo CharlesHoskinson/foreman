@@ -2,25 +2,25 @@
 
 ## 1. Registry codec and store
 
-- [ ] Add RED tests for canonical registry decoding and exact field closure.
-- [ ] Add RED tests for duplicate bindings, linked files, and size bounds.
-- [ ] Implement the pure codec and atomic machine-local registry store.
-- [ ] Verify codec and live-store tests.
+- [x] Add RED tests for canonical registry decoding and exact field closure.
+- [x] Add RED tests for duplicate bindings, linked files, and size bounds.
+- [x] Implement the pure codec and atomic machine-local registry store.
+- [x] Verify codec and live-store tests.
 
 ## 2. Session command integration
 
-- [ ] Add RED tests for `project register`, `status`, and `list`.
-- [ ] Add RED tests for linked worktrees and idempotent registration.
-- [ ] Implement the three project commands in `fm-session`.
-- [ ] Keep unregistered session commands byte-compatible.
-- [ ] Verify orchestration tests and session Bats tests.
+- [x] Add RED tests for `project register`, `status`, and `list`.
+- [x] Add RED tests for linked worktrees and idempotent registration.
+- [x] Implement the three project commands in `fm-session`.
+- [x] Keep unregistered session commands byte-compatible.
+- [x] Verify orchestration tests and session Bats tests.
 
 ## 3. Honest recovery
 
-- [ ] Add a RED test that selects project A's store from project B.
-- [ ] Require freshness to use project A or return `unknown`.
-- [ ] Add a deleted-project negative test.
-- [ ] Verify recovery output and migration row preservation.
+- [x] Add a RED test that selects project A's store from project B.
+- [x] Require freshness to use project A or return `unknown`.
+- [x] Add a deleted-project negative test.
+- [x] Verify recovery output and migration row preservation.
 
 ## 4. Project-bound projections
 

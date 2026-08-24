@@ -1,7 +1,8 @@
 import { pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
-import { createHash, randomBytes } from "node:crypto";
-import { join, dirname, resolve } from "node:path";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { homedir } from "node:os";
+import { isAbsolute, join, dirname, resolve } from "node:path";
 import {
   existsSync,
   mkdirSync,
@@ -18,6 +19,7 @@ import {
   constants,
 } from "node:fs";
 import { Cause, Effect, Exit } from "effect";
+import { canonicalize } from "@foreman/core";
 import {
   ENTITY_ORDER,
   countRows,
@@ -47,10 +49,15 @@ import {
   LegacyMigrationRefusal,
   bootstrapStore,
 } from "./session-sqlite-bootstrap.js";
+import {
+  loadProjectRegistryFileV1,
+  registerProjectFileV1,
+  resolveProjectV1,
+} from "./project-registry.js";
 
 const READ_ONLY_CMDS = new Set(["recover", "freshness", "sidecar"]);
 /** Derived-bookkeeping commands: mutate outbox only; skip automatic sidecar refresh. */
-const NO_SIDECAR_REFRESH_CMDS = new Set(["sync"]);
+const NO_SIDECAR_REFRESH_CMDS = new Set(["sync", "project"]);
 const STORE_CMDS = new Set([
   "begin",
   "recover",
@@ -65,6 +72,7 @@ const STORE_CMDS = new Set([
   "supersede",
   "retire",
   "sync",
+  "project",
 ]);
 
 type StringOption =
@@ -216,9 +224,12 @@ function repoRoot(): string {
   }
 }
 
-function gitSha(): string | null {
+function gitSha(cwd?: string): string | null {
   try {
-    return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf8",
+    }).trim();
   } catch {
     return null;
   }
@@ -247,6 +258,95 @@ function dbPath(): string {
   const chosen = join(repoRoot(), ".foreman", "session.db");
   warnOrphanStore(chosen);
   return chosen;
+}
+
+function projectRegistryPath(): string | null {
+  const configured = process.env["FOREMAN_HOME"];
+  const home = configured && configured.length > 0
+    ? configured
+    : join(homedir(), ".foreman");
+  return isAbsolute(home) ? join(home, "projects.json") : null;
+}
+
+function ensureProjectRegistryParent(path: string): boolean {
+  const parent = dirname(path);
+  try {
+    if (!existsSync(parent)) mkdirSync(parent, { recursive: true, mode: 0o700 });
+    const stat = lstatSync(parent);
+    return !stat.isSymbolicLink() && stat.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function gitProjectIdentityAt(cwd: string): {
+  readonly gitCommonDir: string;
+  readonly worktreePath: string;
+} | null {
+  try {
+    const common = execFileSync(
+      "git",
+      ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+      { cwd, encoding: "utf8" },
+    ).trim();
+    const worktree = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+    }).trim();
+    if (!isAbsolute(common) || !isAbsolute(worktree)) return null;
+    return {
+      gitCommonDir: realpathSync(common),
+      worktreePath: realpathSync(worktree),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function currentGitProjectIdentity(): ReturnType<typeof gitProjectIdentityAt> {
+  return gitProjectIdentityAt(process.cwd());
+}
+
+function recoveryGitCwd(selection: SessionStoreSelection): string | null {
+  let storeLocation: string;
+  try {
+    storeLocation = realpathSync(selection.location);
+  } catch {
+    return null;
+  }
+
+  const registryPath = projectRegistryPath();
+  if (registryPath !== null) {
+    const loaded = loadProjectRegistryFileV1(registryPath);
+    if (loaded._tag === "Invalid") return null;
+    const registered = loaded.value.projects.find(
+      (project) =>
+        project.state === "active" && project.store_location === storeLocation,
+    );
+    if (registered !== undefined) {
+      for (const recordedWorktree of registered.worktree_paths) {
+        const identity = gitProjectIdentityAt(recordedWorktree);
+        if (
+          identity !== null &&
+          identity.gitCommonDir === registered.git_common_dir &&
+          identity.worktreePath === recordedWorktree
+        ) {
+          return identity.worktreePath;
+        }
+      }
+      return null;
+    }
+  }
+
+  // Preserve the pre-registry workflow for a store with no registry binding.
+  // Once a store is registered, the branch above is authoritative and never
+  // falls back to the caller's repository when its recorded project is gone.
+  const current = currentGitProjectIdentity();
+  return current?.worktreePath ?? null;
+}
+
+function writeCanonicalLine(value: unknown): void {
+  process.stdout.write(`${canonicalize(value)}\n`);
 }
 
 function errorMessage(e: unknown): string {
@@ -465,13 +565,18 @@ function mintSessionId(): string {
 function measurementValidity(
   measuredSha: string | null,
   scopePaths: string | null,
+  gitCwd: string | null,
 ): readonly [Validity, string] {
   if (!measuredSha) return ["unknown", "no measured_sha recorded"];
   const paths = (scopePaths || "").split("\n").map((s) => s.trim()).filter(Boolean);
   if (paths.length === 0) return ["unknown", "no scope_paths recorded; cannot bound what invalidates it"];
+  if (gitCwd === null) {
+    return ["unknown", "registered project repository is unavailable"];
+  }
 
   try {
     const out = execFileSync("git", ["rev-list", `${measuredSha}..HEAD`, "--", ...paths], {
+      cwd: gitCwd,
       encoding: "utf8",
     });
     const commits = out.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -511,8 +616,11 @@ function displayStatus(o: { status: string; blocker: string | null }): string {
   return o.status === "open" && o.blocker ? "blocked" : o.status;
 }
 
-function buildRecoveryFromStore(store: SessionStore): RecoveryRecord {
-  const head = gitSha();
+function buildRecoveryFromStore(
+  store: SessionStore,
+  gitCwd: string | null,
+): RecoveryRecord {
+  const head = gitCwd === null ? null : gitSha(gitCwd);
   const sessions = [...store.listSessions()].sort((a, b) =>
     a.session_id < b.session_id ? 1 : a.session_id > b.session_id ? -1 : 0,
   );
@@ -533,7 +641,11 @@ function buildRecoveryFromStore(store: SessionStore): RecoveryRecord {
     .filter((r) => r.superseded_by === null)
     .sort((a, b) => b.id - a.id)
     .map((r) => {
-      const [validity, why] = measurementValidity(r.measured_sha, r.scope_paths);
+      const [validity, why] = measurementValidity(
+        r.measured_sha,
+        r.scope_paths,
+        gitCwd,
+      );
       return {
         kind: "measurement" as const,
         id: r.id,
@@ -588,13 +700,21 @@ function buildRecoveryFromStore(store: SessionStore): RecoveryRecord {
   };
 }
 
-function buildFreshnessFromStore(store: SessionStore, staleOnly: boolean): FreshnessRow[] {
+function buildFreshnessFromStore(
+  store: SessionStore,
+  staleOnly: boolean,
+  gitCwd: string | null,
+): FreshnessRow[] {
   const out: FreshnessRow[] = [];
   const rows = [...store.listMeasurements()]
     .filter((r) => r.superseded_by === null)
     .sort((a, b) => b.id - a.id);
   for (const row of rows) {
-    const [validity, why] = measurementValidity(row.measured_sha, row.scope_paths);
+    const [validity, why] = measurementValidity(
+      row.measured_sha,
+      row.scope_paths,
+      gitCwd,
+    );
     if (staleOnly && validity === "fresh") continue;
     out.push({
       id: row.id,
@@ -1128,10 +1248,101 @@ export function main(): number | Promise<number> {
     return runSync(parsed);
   }
 
-  if (cmd === "begin") {
-    const { store } = openCliStore();
+  if (cmd === "project") {
+    if (parsed.present.size > 0 || parsed.args.length !== 1) {
+      process.stderr.write(
+        "refusing: project requires exactly register, status, or list\n",
+      );
+      exitCli(2);
+    }
+    const operation = parsed.args[0];
+    if (
+      operation !== "register" &&
+      operation !== "status" &&
+      operation !== "list"
+    ) {
+      process.stderr.write(
+        "refusing: project requires exactly register, status, or list\n",
+      );
+      exitCli(2);
+    }
+    const registryPath = projectRegistryPath();
+    if (registryPath === null) {
+      process.stderr.write("refusing: FOREMAN_HOME must be absolute\n");
+      exitCli(2);
+    }
+
+    if (operation === "list") {
+      const loaded = loadProjectRegistryFileV1(registryPath);
+      if (loaded._tag === "Invalid") {
+        process.stderr.write("refusing: project registry is unavailable\n");
+        exitCli(1);
+      }
+      writeCanonicalLine({ projects: loaded.value.projects });
+      return 0;
+    }
+
+    const identity = currentGitProjectIdentity();
+    if (identity === null) {
+      process.stderr.write("refusing: project Git identity is unavailable\n");
+      exitCli(1);
+    }
+    const { store, selection } = openCliStore({
+      readOnly: operation === "status",
+    });
     try {
-      const rec = buildRecoveryFromStore(store);
+      let storeLocation: string;
+      try {
+        storeLocation = realpathSync(selection.location);
+      } catch {
+        process.stderr.write("refusing: project store identity is unavailable\n");
+        exitCli(1);
+      }
+      if (operation === "status") {
+        const loaded = loadProjectRegistryFileV1(registryPath);
+        if (loaded._tag === "Invalid") {
+          process.stderr.write("refusing: project registry is unavailable\n");
+          exitCli(1);
+        }
+        const project = resolveProjectV1(loaded.value, {
+          git_common_dir: identity.gitCommonDir,
+          store_location: storeLocation,
+        });
+        writeCanonicalLine(
+          project === null
+            ? { _tag: "Unregistered" }
+            : { _tag: "Registered", project },
+        );
+        return 0;
+      }
+      if (!ensureProjectRegistryParent(registryPath)) {
+        process.stderr.write("refusing: project registry is unavailable\n");
+        exitCli(1);
+      }
+      const registered = registerProjectFileV1(registryPath, {
+        project_id: randomUUID(),
+        operation_id: randomUUID(),
+        git_common_dir: identity.gitCommonDir,
+        worktree_path: identity.worktreePath,
+        store_backend:
+          selection.locationKind === "directory" ? "files-only" : "sqlite",
+        store_location: storeLocation,
+      });
+      if (registered._tag === "Refused") {
+        process.stderr.write("refusing: project registration failed\n");
+        exitCli(1);
+      }
+      writeCanonicalLine({ _tag: "Registered", project: registered.project });
+      return 0;
+    } finally {
+      store.close();
+    }
+  }
+
+  if (cmd === "begin") {
+    const { store, selection } = openCliStore();
+    try {
+      const rec = buildRecoveryFromStore(store, recoveryGitCwd(selection));
       const sid = mintSessionId();
       try {
         store.beginSession({
@@ -1152,9 +1363,9 @@ export function main(): number | Promise<number> {
   }
 
   if (cmd === "recover") {
-    const { store } = openCliStore({ readOnly: true });
+    const { store, selection } = openCliStore({ readOnly: true });
     try {
-      const rec = buildRecoveryFromStore(store);
+      const rec = buildRecoveryFromStore(store, recoveryGitCwd(selection));
       if (parsed.options.json) {
         process.stdout.write(JSON.stringify(rec, null, 2) + "\n");
       } else {
@@ -1168,9 +1379,13 @@ export function main(): number | Promise<number> {
 
   if (cmd === "freshness") {
     const staleOnly = parsed.options["stale-only"];
-    const { store } = openCliStore({ readOnly: true });
+    const { store, selection } = openCliStore({ readOnly: true });
     try {
-      const measurements = buildFreshnessFromStore(store, staleOnly);
+      const measurements = buildFreshnessFromStore(
+        store,
+        staleOnly,
+        recoveryGitCwd(selection),
+      );
       process.stdout.write(renderFreshness(measurements, parsed.options.format) + "\n");
     } finally {
       store.close();

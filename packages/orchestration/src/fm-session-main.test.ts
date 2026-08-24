@@ -2648,3 +2648,159 @@ describe("fm-session sync", () => {
     }
   });
 });
+
+test("project commands register one identity across linked worktrees", () => {
+  const root = mkdtempSync(join(tmpdir(), "fm-project-cli-"));
+  try {
+    const repo = join(root, "repo");
+    const linked = join(root, "linked");
+    const home = join(root, "foreman-home");
+    mkdirSync(repo);
+    mkdirSync(home, { mode: 0o700 });
+    execFileSync("git", ["init", "--initial-branch=main"], { cwd: repo });
+    execFileSync("git", ["config", "user.name", "Foreman Test"], { cwd: repo });
+    execFileSync("git", ["config", "user.email", "foreman@example.invalid"], {
+      cwd: repo,
+    });
+    writeFileSync(join(repo, "marker"), "one\n");
+    execFileSync("git", ["add", "marker"], { cwd: repo });
+    execFileSync("git", ["commit", "-m", "seed"], { cwd: repo });
+    execFileSync("git", ["worktree", "add", "-b", "linked", linked], {
+      cwd: repo,
+    });
+    const db = join(repo, ".foreman", "session.db");
+    const env = { FOREMAN_HOME: home };
+
+    const registered = spawnSession(repo, db, ["project", "register"], env);
+    assert.equal(registered.status, 0, registered.stderr);
+    assert.equal(registered.stderr, "");
+    const first = JSON.parse(registered.stdout) as {
+      readonly _tag: string;
+      readonly project: {
+        readonly project_id: string;
+        readonly worktree_paths: readonly string[];
+      };
+    };
+    assert.equal(first._tag, "Registered");
+    assert.deepEqual(first.project.worktree_paths, [repo]);
+
+    const fromLinked = spawnSession(linked, db, ["project", "register"], env);
+    assert.equal(fromLinked.status, 0, fromLinked.stderr);
+    const second = JSON.parse(fromLinked.stdout) as typeof first;
+    assert.equal(second.project.project_id, first.project.project_id);
+    assert.deepEqual(second.project.worktree_paths, [linked, repo].sort());
+
+    const status = spawnSession(linked, db, ["project", "status"], env);
+    assert.equal(status.status, 0, status.stderr);
+    const statusValue = JSON.parse(status.stdout) as typeof first;
+    assert.equal(statusValue.project.project_id, first.project.project_id);
+
+    const listed = spawnSession(repo, db, ["project", "list"], env);
+    assert.equal(listed.status, 0, listed.stderr);
+    const listValue = JSON.parse(listed.stdout) as {
+      readonly projects: readonly unknown[];
+    };
+    assert.equal(listValue.projects.length, 1);
+    assert.equal(existsSync(join(home, "projects.json")), true);
+    assert.deepEqual(
+      fs.readdirSync(home).sort(),
+      ["projects.json"],
+      "registration must not create key material",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("project command rejects invalid forms without creating registry state", () => {
+  const root = mkdtempSync(join(tmpdir(), "fm-project-cli-invalid-"));
+  try {
+    const repo = join(root, "repo");
+    const home = join(root, "foreman-home");
+    mkdirSync(repo);
+    mkdirSync(home, { mode: 0o700 });
+    execFileSync("git", ["init", "--initial-branch=main"], { cwd: repo });
+    const db = join(repo, ".foreman", "session.db");
+    for (const args of [
+      ["project"],
+      ["project", "unknown"],
+      ["project", "register", "extra"],
+      ["project", "status", "extra"],
+      ["project", "list", "extra"],
+    ]) {
+      const result = spawnSession(repo, db, args, { FOREMAN_HOME: home });
+      assert.equal(result.status, 2);
+      assert.equal(result.stdout, "");
+    }
+    assert.equal(existsSync(join(home, "projects.json")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("recovery evaluates a registered store in its project, never the caller cwd", () => {
+  const root = mkdtempSync(join(tmpdir(), "fm-project-recovery-"));
+  try {
+    const projectA = join(root, "project-a");
+    const projectB = join(root, "project-b");
+    const home = join(root, "foreman-home");
+    const storePath = join(root, "stores", "project-a.db");
+    mkdirSync(projectA);
+    mkdirSync(home, { mode: 0o700 });
+    execFileSync("git", ["init", "--initial-branch=main"], { cwd: projectA });
+    execFileSync("git", ["config", "user.name", "Foreman Test"], {
+      cwd: projectA,
+    });
+    execFileSync("git", ["config", "user.email", "foreman@example.invalid"], {
+      cwd: projectA,
+    });
+    writeFileSync(join(projectA, "tracked.txt"), "base\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: projectA });
+    execFileSync("git", ["commit", "-m", "base"], { cwd: projectA });
+    execFileSync("git", ["clone", "--quiet", projectA, projectB], { cwd: root });
+
+    const env = { FOREMAN_HOME: home };
+    const measured = spawnSession(
+      projectA,
+      storePath,
+      ["measure", "project-a-check", "1", "--scope", "tracked.txt"],
+      env,
+    );
+    assert.equal(measured.status, 0, measured.stderr);
+    const registered = spawnSession(projectA, storePath, ["project", "register"], env);
+    assert.equal(registered.status, 0, registered.stderr);
+
+    writeFileSync(join(projectA, "tracked.txt"), "changed\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: projectA });
+    execFileSync("git", ["commit", "-m", "change measured scope"], {
+      cwd: projectA,
+    });
+
+    const fromOtherProject = spawnSession(
+      projectB,
+      storePath,
+      ["recover", "--json"],
+      env,
+    );
+    assert.equal(fromOtherProject.status, 0, fromOtherProject.stderr);
+    const stale = JSON.parse(fromOtherProject.stdout) as {
+      readonly measurements: readonly { readonly validity: string }[];
+    };
+    assert.equal(stale.measurements[0]?.validity, "stale");
+
+    rmSync(projectA, { recursive: true, force: true });
+    const afterDeletion = spawnSession(
+      projectB,
+      storePath,
+      ["recover", "--json"],
+      env,
+    );
+    assert.equal(afterDeletion.status, 0, afterDeletion.stderr);
+    const unknown = JSON.parse(afterDeletion.stdout) as {
+      readonly measurements: readonly { readonly validity: string }[];
+    };
+    assert.equal(unknown.measurements[0]?.validity, "unknown");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
