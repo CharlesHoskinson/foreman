@@ -2434,7 +2434,7 @@ describe("release coverage policy", () => {
     const activePackageNames = listedJson.changes.map((change) => change.name);
     assert.equal(
       activeInventorySha256(activePackageNames),
-      "148f3c5862053bbebea1ad7ac8842237b70f3877c402b3bc9209e85c2e7733fb",
+      "4d180b8b068105274e49efa202afa4381c839ba44f79aa6ef57fb73bc63fbce6",
     );
 
     const roadmapText = readFileSync(join(repoRoot, "ROADMAP.md"), "utf8");

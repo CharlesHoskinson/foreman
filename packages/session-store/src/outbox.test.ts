@@ -153,6 +153,8 @@ function fakeStore(
   const store = {
     entries,
     modelVersion: 1,
+    projectId: () => null,
+    bindProject: () => {},
     listOutbox(limit: number): readonly OutboxEntry[] {
       return entries.slice(0, limit).map((e) => ({
         receipt: e.receipt,

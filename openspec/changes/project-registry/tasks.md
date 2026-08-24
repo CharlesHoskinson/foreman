@@ -31,7 +31,6 @@
 
 ## 5. Release lane
 
-- [ ] Add the immutable package brief.
-- [ ] Set project-registry coverage rows to `complete`.
-- [ ] Run the lane coverage check.
-- [ ] Run the full repository verifier.
+- [x] Add the immutable public package brief.
+- [x] Set project-registry coverage rows to `complete`.
+- [x] Run strict OpenSpec validation and the full repository verifier.

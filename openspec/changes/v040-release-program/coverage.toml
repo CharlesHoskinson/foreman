@@ -290,7 +290,7 @@ source_path = "openspec/changes/project-registry"
 disposition = "v040_owner"
 owner = "project-registry"
 target_release = "v0.4"
-reconcile = "required"
+reconcile = "complete"
 reason = "Track 2 owns stable local project identity and exact store resolution."
 
 [[entry]]
@@ -490,7 +490,7 @@ source_path = "ROADMAP.md"
 disposition = "v040_owner"
 owner = "project-registry"
 target_release = "v0.4"
-reconcile = "required"
+reconcile = "complete"
 reason = "Sprint 6 project identity moves to focused Track 2."
 
 [[entry]]
