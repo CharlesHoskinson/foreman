@@ -192,7 +192,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isNotFoundError(error: unknown): boolean {
-  return isPlainObject(error) && error["_tag"] === "NotFound";
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    Object.prototype.hasOwnProperty.call(error, "_tag") &&
+    (error as { readonly _tag?: unknown })._tag === "NotFound"
+  );
 }
 
 function hasExactOwnKeys(
