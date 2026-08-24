@@ -349,4 +349,180 @@ void (null as ReleaseChecksSourceV1 | null);
 void (null as ReleaseAuditSourceV1 | null);
 void (null as ReleaseEvaluationReportSourceV1 | null);
 
-// FOREMAN_TASK33_UNSIGNED_RECEIPTS
+const canonicalFile = (value: unknown): Uint8Array =>
+  utf8(`${canonicalize(value)}\n`);
+
+const completeFileSha256 = (value: unknown): string =>
+  sha256Bytes(canonicalFile(value));
+
+const CHECKS_PASS_SOURCE = {
+  schema: "foreman.checks-source.v1",
+  program: "v040",
+  packageId: STANDARD_PACKAGE_ID,
+  candidate: B1,
+  status: "PASS",
+  commands: [
+    {
+      commandSha256: sha256Utf8("fixture checks command"),
+      exitCode: 0,
+      stdoutSha256: sha256Utf8("fixture checks stdout"),
+      stderrSha256: sha256Utf8("fixture checks stderr"),
+    },
+  ],
+} as const satisfies ReleaseChecksSourceV1;
+
+const CHECKS_FAIL_SOURCE = {
+  ...CHECKS_PASS_SOURCE,
+  status: "FAIL",
+  commands: [
+    {
+      ...CHECKS_PASS_SOURCE.commands[0],
+      exitCode: 1,
+    },
+  ],
+} as const satisfies ReleaseChecksSourceV1;
+
+const auditSource = (
+  verdict: ReleaseAuditSourceV1["verdict"],
+  findings: readonly ReleaseAuditFindingV1[],
+): ReleaseAuditSourceV1 => ({
+  schema: "foreman.audit-source.v1",
+  program: "v040",
+  packageId: STANDARD_PACKAGE_ID,
+  candidate: B1,
+  verdict,
+  findings,
+  auditArtifactSha256: sha256Utf8(`fixture audit artifact ${verdict}`),
+});
+
+const AUDIT_WARNING_SOURCE = auditSource("WARNING", [FIXTURE_FINDING]);
+const AUDIT_BLOCKED_SOURCE = auditSource("BLOCKED", [FIXTURE_FINDING]);
+const AUDIT_UNVERIFIED_SOURCE = auditSource("UNVERIFIED", [FIXTURE_FINDING]);
+const AUDIT_APPROVED_SOURCE = auditSource("APPROVED", []);
+
+const D_STD_UNSIGNED = {
+  schema: "foreman.design-approval.v1",
+  program: "v040",
+  packageId: STANDARD_PACKAGE_ID,
+  designCommit: B0.commit,
+  designTree: B0.tree,
+  approvedOpenSpecSha256: STANDARD_APPROVED_OPENSPEC_SHA256,
+  taskPlanSha256: STANDARD_TASK_PLAN_SHA256,
+  approvalStatementSha256: sha256Utf8("fixture standard approval statement"),
+  issuerKeySha256: USER_APPROVAL_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+} as const satisfies UnsignedReceipt;
+
+const D_EVAL_UNSIGNED = {
+  schema: "foreman.design-approval.v1",
+  program: "v040",
+  packageId: EVALUATION_PACKAGE_ID,
+  designCommit: E0.commit,
+  designTree: E0.tree,
+  approvedOpenSpecSha256: EVALUATION_APPROVED_OPENSPEC_SHA256,
+  taskPlanSha256: EVALUATION_TASK_PLAN_SHA256,
+  approvalStatementSha256: sha256Utf8("fixture evaluation approval statement"),
+  issuerKeySha256: USER_APPROVAL_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+} as const satisfies UnsignedReceipt;
+
+const E_AUTH_MANIFEST_SHA256 = sha256Utf8(
+  "fixture locked evaluation manifest",
+);
+
+const E_AUTH_UNSIGNED = {
+  schema: "foreman.evaluation-authority.v1",
+  program: "v040",
+  packageId: EVALUATION_PACKAGE_ID,
+  manifestSha256: E_AUTH_MANIFEST_SHA256,
+  issuerKeySha256: USER_APPROVAL_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+} as const satisfies UnsignedReceipt;
+
+const CHECKS_PASS_UNSIGNED = {
+  schema: "foreman.checks-evidence.v1",
+  program: "v040",
+  packageId: STANDARD_PACKAGE_ID,
+  candidate: B1,
+  status: "PASS",
+  checksSha256: completeFileSha256(CHECKS_PASS_SOURCE),
+  issuerKeySha256: HOST_AUDIT_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+} as const satisfies UnsignedReceipt;
+
+const CHECKS_FAIL_UNSIGNED = {
+  ...CHECKS_PASS_UNSIGNED,
+  status: "FAIL",
+  checksSha256: completeFileSha256(CHECKS_FAIL_SOURCE),
+} as const satisfies UnsignedReceipt;
+
+const auditReceipt = (
+  source: ReleaseAuditSourceV1,
+): UnsignedReceipt => ({
+  schema: "foreman.release-audit.v1",
+  program: "v040",
+  packageId: STANDARD_PACKAGE_ID,
+  candidate: B1,
+  verdict: source.verdict,
+  findings: source.findings,
+  evidenceSha256: completeFileSha256(source),
+  issuerKeySha256: HOST_AUDIT_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+});
+
+const AUDIT_WARNING_UNSIGNED = auditReceipt(AUDIT_WARNING_SOURCE);
+const AUDIT_BLOCKED_UNSIGNED = auditReceipt(AUDIT_BLOCKED_SOURCE);
+const AUDIT_UNVERIFIED_UNSIGNED = auditReceipt(AUDIT_UNVERIFIED_SOURCE);
+const AUDIT_APPROVED_UNSIGNED = auditReceipt(AUDIT_APPROVED_SOURCE);
+
+const COUNCIL_REQUEST_UNSIGNED = {
+  schema: "foreman.council-request.v1",
+  program: "v040",
+  packageId: STANDARD_PACKAGE_ID,
+  candidateSha256: B1.candidateSha256,
+  questionSha256: sha256Utf8("fixture council question"),
+  constraintsSha256: sha256Utf8("fixture council constraints"),
+  optionsSha256: sha256Utf8("fixture council options"),
+  issuerKeySha256: HOST_AUDIT_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+} as const satisfies UnsignedReceipt;
+
+const signedReceipt = (
+  id: RecipeId,
+  unsigned: UnsignedReceipt,
+): ReleaseAuthorityReceiptV1 =>
+  ({ ...unsigned, signature: SIGNATURES[id] }) as ReleaseAuthorityReceiptV1;
+
+const D_STD = signedReceipt("D_STD", D_STD_UNSIGNED);
+const D_EVAL = signedReceipt("D_EVAL", D_EVAL_UNSIGNED);
+const E_AUTH = signedReceipt("E_AUTH", E_AUTH_UNSIGNED);
+const CHECKS_PASS = signedReceipt("CHECKS_PASS", CHECKS_PASS_UNSIGNED);
+const CHECKS_FAIL = signedReceipt("CHECKS_FAIL", CHECKS_FAIL_UNSIGNED);
+const AUDIT_WARNING = signedReceipt("AUDIT_WARNING", AUDIT_WARNING_UNSIGNED);
+const AUDIT_BLOCKED = signedReceipt("AUDIT_BLOCKED", AUDIT_BLOCKED_UNSIGNED);
+const AUDIT_UNVERIFIED = signedReceipt(
+  "AUDIT_UNVERIFIED",
+  AUDIT_UNVERIFIED_UNSIGNED,
+);
+const AUDIT_APPROVED = signedReceipt("AUDIT_APPROVED", AUDIT_APPROVED_UNSIGNED);
+const COUNCIL_REQUEST = signedReceipt(
+  "COUNCIL_REQUEST",
+  COUNCIL_REQUEST_UNSIGNED,
+);
+
+const RECEIPT_RECIPES = [
+  { id: "D_STD", kind: "receipt", role: "userApproval", dependsOn: [], unsigned: D_STD_UNSIGNED },
+  { id: "D_EVAL", kind: "receipt", role: "userApproval", dependsOn: [], unsigned: D_EVAL_UNSIGNED },
+  { id: "E_AUTH", kind: "receipt", role: "userApproval", dependsOn: [], unsigned: E_AUTH_UNSIGNED },
+  { id: "CHECKS_PASS", kind: "receipt", role: "hostAudit", dependsOn: [], unsigned: CHECKS_PASS_UNSIGNED },
+  { id: "CHECKS_FAIL", kind: "receipt", role: "hostAudit", dependsOn: [], unsigned: CHECKS_FAIL_UNSIGNED },
+  { id: "AUDIT_WARNING", kind: "receipt", role: "hostAudit", dependsOn: [], unsigned: AUDIT_WARNING_UNSIGNED },
+  { id: "AUDIT_BLOCKED", kind: "receipt", role: "hostAudit", dependsOn: [], unsigned: AUDIT_BLOCKED_UNSIGNED },
+  { id: "AUDIT_UNVERIFIED", kind: "receipt", role: "hostAudit", dependsOn: [], unsigned: AUDIT_UNVERIFIED_UNSIGNED },
+  { id: "AUDIT_APPROVED", kind: "receipt", role: "hostAudit", dependsOn: [], unsigned: AUDIT_APPROVED_UNSIGNED },
+  { id: "COUNCIL_REQUEST", kind: "receipt", role: "hostAudit", dependsOn: [], unsigned: COUNCIL_REQUEST_UNSIGNED },
+] as const satisfies readonly FixtureSigningRecipe[];
+
+void RECEIPT_RECIPES;
+
+// FOREMAN_TASK33_UNSIGNED_BUNDLES
