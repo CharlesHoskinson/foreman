@@ -844,3 +844,146 @@ describe("release authority canonical signed-file rejection", () => {
     expectFileInvalid(bytes);
   });
 });
+
+const expectSourceInvalid = (bytes: Uint8Array): void => {
+  assert.deepEqual(decodeReleaseProducerSourceFileV1(bytes), { _tag: "Invalid" });
+};
+
+describe("release producer source canonical schemas and bounds", () => {
+  for (const source of producerSources) {
+    describe(source.schema, () => {
+      for (const key of Object.keys(source)) {
+        it("rejects missing " + key, () => {
+          const mutant = cloneRecord(source);
+          delete mutant[key];
+          expectSourceInvalid(canonicalFile(mutant));
+        });
+        it("rejects wrong-type " + key, () => {
+          expectSourceInvalid(canonicalFile({ ...source, [key]: null }));
+        });
+      }
+      it("rejects an extra key", () => {
+        expectSourceInvalid(canonicalFile({ ...source, unexpected: true }));
+      });
+    });
+  }
+
+  const checksCanonical = canonicalize(checksSource);
+  for (const [name, bytes] of [
+    ["missing LF", canonicalFile(checksSource).slice(0, -1)],
+    ["CRLF", utf8(checksCanonical + "\r\n")],
+    ["two LF", utf8(checksCanonical + "\n\n")],
+    ["noncanonical order", utf8(JSON.stringify(checksSource) + "\n")],
+    ["noncanonical whitespace", utf8(checksCanonical.replace(":", ": ") + "\n")],
+    ["duplicate root", utf8('{"schema":"foreman.checks-source.v1",' + checksCanonical.slice(1) + "\n")],
+    [
+      "duplicate command field",
+      utf8(
+        checksCanonical.replace('"commands":[{', '"commands":[{"exitCode":1,') +
+          "\n",
+      ),
+    ],
+    ["invalid UTF-8", Uint8Array.of(0xff)],
+  ] as const) {
+    it("rejects " + name, () => {
+      expectSourceInvalid(bytes);
+    });
+  }
+
+  const command = checksSource.commands[0];
+  const invalidChecks: Array<readonly [string, unknown]> = [
+    ["zero commands", { ...checksSource, commands: [] }],
+    ["257 commands", { ...checksSource, commands: Array.from({ length: 257 }, () => command) }],
+    ["exit negative", { ...checksSource, commands: [{ ...command, exitCode: -1 }] }],
+    ["exit over 255", { ...checksSource, commands: [{ ...command, exitCode: 256 }] }],
+    ["exit fractional", { ...checksSource, commands: [{ ...command, exitCode: 1.5 }] }],
+    ["command extra key", { ...checksSource, commands: [{ ...command, unexpected: true }] }],
+    ["command inherited fields", { ...checksSource, commands: [Object.create(command) as unknown] }],
+    ["command bad stdout digest", { ...checksSource, commands: [{ ...command, stdoutSha256: "a".repeat(63) }] }],
+  ];
+  for (const [name, mutant] of invalidChecks) {
+    it("rejects " + name, () => {
+      expectSourceInvalid(canonicalFile(mutant));
+    });
+  }
+
+  it("rejects 101 audit findings", () => {
+    expectSourceInvalid(
+      canonicalFile({
+        ...auditSource,
+        findings: Array.from({ length: 101 }, () => finding),
+      }),
+    );
+  });
+
+  it("rejects a structurally valid producer file larger than 1 MiB", () => {
+    const largeSource = {
+      ...auditSource,
+      findings: Array.from({ length: 100 }, () => ({
+        ...finding,
+        evidence: "x".repeat(16384),
+      })),
+    };
+    const bytes = canonicalFile(largeSource);
+    assert.equal(bytes.byteLength > 1024 * 1024, true);
+    expectSourceInvalid(bytes);
+  });
+
+  const invalidEvaluationSources: Array<readonly [string, unknown]> = [
+    ["wrong package", { ...evaluationReportSource, packageId: "project-registry" }],
+    ["planned not 2000", { ...evaluationReportSource, plannedRuns: 1999 }],
+    ["sum 1999", { ...evaluationReportSource, completedRuns: 1899 }],
+    ["sum 2001", { ...evaluationReportSource, completedRuns: 1901 }],
+  ];
+  for (const field of ["completedRuns", "unavailableRuns", "notRunRuns"] as const) {
+    for (const value of [-1, 1.5, "1", 2001] as const) {
+      invalidEvaluationSources.push([
+        field + " invalid " + String(value),
+        { ...evaluationReportSource, [field]: value },
+      ]);
+    }
+  }
+  for (const [name, mutant] of invalidEvaluationSources) {
+    it("rejects evaluation " + name, () => {
+      expectSourceInvalid(canonicalFile(mutant));
+    });
+  }
+});
+
+describe("release producer receipts copy every authoritative field", () => {
+  const alternateCandidate = {
+    commit: "3".repeat(40),
+    tree: "4".repeat(40),
+    candidateSha256:
+      "e69e5e6f3541ea47026a711c50e1b0f79537e2898c0a72af9909c1702821ca6c",
+  };
+  const cases: Array<readonly [string, unknown, unknown]> = [
+    ["checks package", checksSource, { ...checksReceipt, packageId: "project-registry", signature: "7cfb3F9-xZ28ogWLtjAjR6u_n3nWZNPtdYv4Xg2D4VtpRkPYEPLlIYVJCXRIagd5zGp9SYoRSeHIeD2B2kuqAw" }],
+    ["checks candidate", checksSource, { ...checksReceipt, candidate: alternateCandidate, signature: "TWWEuHL2bCGEfSVSBeTab35MP0jSCR1FSqeQxsdmzSRVnzPdgQccgx-u9gvYEpxB9rZUm8tGLzoz8GilvwViCQ" }],
+    ["checks status", checksSource, { ...checksReceipt, status: "PASS", signature: "iXQ5cpww7G3Mz1E16OcZBgEE7VI83h5o42_c-PhA2oKntifGHHonyW1AXQEJytv5Mhl4LlQRME0dUeuYhBz2CQ" }],
+    ["checks digest", checksSource, { ...checksReceipt, checksSha256: shaA, signature: "DHHMSMnVCJ6gyzfI-veNIiRsL4mMsD_8-uTIiDRWi_drYE8esN8ZlZ3dcxqodTb4CgynKgs3WWNYl3YIwdbVAA" }],
+    ["audit package", auditSource, { ...auditReceipt, packageId: "project-registry", signature: "53zetoZQmyZ0IuUTzqeatuaWWz60mbxIR8pecFk_LOKaD_uSEpYBch6DWHowaRQDUjPp7aMTuTnFBCrrggzqBA" }],
+    ["audit candidate", auditSource, { ...auditReceipt, candidate: alternateCandidate, signature: "6EvAnyHV3naNPnMJ0u3mbbVeQMI4YAETdM7ODai8hZgeLKW0EQJMuRL7JJJrBz2Cg1NA-CdGEvZrYZuD5HItAQ" }],
+    ["audit verdict", auditSource, { ...auditReceipt, verdict: "WARNING", signature: "3t-h6TdMr7bRgyeZvNd-Sqi2UmgMTVAGacmD1W8L0SCflYrhl1hq3xeGW1E6DGncv3VHAB-rn2TS-MdLQ4LpBA" }],
+    ["audit findings", auditSource, { ...auditReceipt, findings: [], signature: "mZ_i-XXaOnrCukOTyK751uhV0REPlG7Chu8tyJvrNbunoRm_lBuFfsg1NuFjPQxGgvzasn15nHZATZqjvxbqBQ" }],
+    ["audit digest", auditSource, { ...auditReceipt, evidenceSha256: shaA, signature: "64GQ0UhIk1hfMMrjRkYTg_gH-VuMu2t-VK_TE6bqR6BrJ1ADQT8jrxeaozcrQpTHXzW3aAjPlZ6OWK-0Hj4TAw" }],
+    ["evaluation candidate", evaluationReportSource, { ...evaluationVerdict, candidateSha256: shaA, signature: "cy6c_SlHEihQIw5EHQdXbDAwit4T38vlsR9Mch7XwMsQCkK0iD265qFqIS-oPyXfHLnvFezeoLXxTDTWWQpzCw" }],
+    ["evaluation manifest", evaluationReportSource, { ...evaluationVerdict, authorityManifestSha256: shaC, signature: "1sR1NlBRSjdN6l2EKmrTq0fcdE9MyHK9QuyeYAtTKb2DTHcNx01q-TvLO8lP0v4-HY6W7SEPpioIejRMozA-Dw" }],
+    ["evaluation authority receipt", evaluationReportSource, { ...evaluationVerdict, evaluationAuthorityReceiptSha256: shaC, signature: "xe1mpfRHdUxSjgJ5cye2ljAylfPxKxKkflmR2gQiqun-o312tB5i_4NIW9G1qWa4LnMt7gpk5J9SXRWCg1CUCg" }],
+    ["evaluation result", evaluationReportSource, { ...evaluationVerdict, result: "PROMOTE", signature: "eWx_sAEEDKgFgtbM24ofiIz6ABbmbgo-blzMzW3-RDq0Cm_lEWb1EOi5FIshTazH_BpeshlhKEzjV7xioYmGCg" }],
+    ["evaluation counts", evaluationReportSource, { ...evaluationVerdict, completedRuns: 1899, notRunRuns: 51, signature: "IrtC36erMkt-l8PmBxmDEPLZOIq-IvT-0yef7mfZWU4tRQRYI4PqUMTzffTlE3DHROHHwZEx7KoKQKgS9PAxDw" }],
+    ["evaluation run set", evaluationReportSource, { ...evaluationVerdict, runSetSha256: shaA, signature: "kU3YByXCm33f8ui33Uyloj-xm3LfK3FIxsE1kHbs6SI5c3Iqr5TmiCoVwmgoVZunMu3UvTPZxEJ91i-3aTYYCA" }],
+    ["evaluation report digest", evaluationReportSource, { ...evaluationVerdict, reportSha256: shaA, signature: "9in_eCc53cER_HDntgbhS3C70K9mQkEgUpV7gMOFqh5DacoMCVJPdktfGSNgz_Ga3x1lsM0R8IlzkR-wW19dDA" }],
+  ];
+  for (const [name, source, receipt] of cases) {
+    it("rejects mismatched " + name, () => {
+      assert.deepEqual(
+        verifyReleaseSourceReceiptBindingV1(
+          canonicalFile(source),
+          canonicalFile(receipt),
+        ),
+        { _tag: "Invalid" },
+      );
+    });
+  }
+});
