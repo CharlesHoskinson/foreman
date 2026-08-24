@@ -1064,7 +1064,7 @@ describe("release producer source canonical schemas and bounds", () => {
     });
   }
 
-  const command = checksSource.commands[0];
+  const command = checksSource.commands[0]!;
   const invalidChecks: Array<readonly [string, unknown]> = [
     ["zero commands", { ...checksSource, commands: [] }],
     ["257 commands", { ...checksSource, commands: Array.from({ length: 257 }, () => command) }],
