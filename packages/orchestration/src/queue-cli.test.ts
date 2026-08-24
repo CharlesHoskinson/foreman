@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { sha256Hex } from "@foreman/core";
 import { Effect, Layer } from "effect";
 import { parseQueueArgv, runQueueCli, stripNodeArgv } from "./queue-cli.js";
 import {
@@ -50,6 +51,25 @@ const guardedAdd = (root: string, contractId: string, contractSha256: string) =>
   "hi",
 ] as const;
 
+const guardedV2Add = (root: string, contractId: string, contractSha256: string) => [
+  "add", "grok",
+  "--endstop-state-root", root,
+  "--endstop-contract-id", contractId,
+  "--endstop-contract-sha", contractSha256,
+  "--endstop-family-sha", C,
+  "--endstop-child-id", "v040-t2-project-registry",
+  "--endstop-action", "implement",
+  "--endstop-candidate-sha", sha256Hex("1".repeat(40)),
+  "--release-program", "v040",
+  "--release-phase", "lane",
+  "--release-owner", "project-registry",
+  "--release-repo", "/repo",
+  "--release-candidate-commit", "1".repeat(40),
+  "--release-register", "/register/coverage.toml",
+  "--release-evidence", "/authority/evidence.json",
+  "--", "echo", "hi",
+] as const;
+
 describe("parseQueueArgv", () => {
   it("parses ensure / add / status / kill matrix", () => {
     assert.deepEqual(parseQueueArgv(["ensure"]), { kind: "ensure" });
@@ -69,6 +89,14 @@ describe("parseQueueArgv", () => {
       },
       cmd: ["echo", "hi"],
     });
+    const v2 = parseQueueArgv(guardedV2Add("/state", "contract-1", A));
+    assert.equal(v2.kind, "add");
+    if (v2.kind === "add") {
+      assert.equal(v2.version, "v2");
+      assert.equal(v2.release?.childId, "v040-t2-project-registry");
+      assert.equal(v2.release?.owner, "project-registry");
+      assert.deepEqual(v2.cmd, ["echo", "hi"]);
+    }
     assert.deepEqual(parseQueueArgv(["status"]), {
       kind: "status",
       taskId: undefined,
@@ -165,6 +193,27 @@ describe("runQueueCli exit matrix", () => {
     );
     assert.equal(code, EXIT_OK);
     assert.equal(io.stdout.trim(), '{"degraded":true}');
+  });
+
+  it("runs V2 release policy before any ledger or queue admission", async () => {
+    const root = mkdtempSync(join(tmpdir(), "endstop-v2-policy-first-"));
+    try {
+      let policyCalls = 0;
+      const io = makeIo();
+      const code = await Effect.runPromise(
+        runQueueCli(guardedV2Add(root, "missing-root", A), io, {
+          releasePolicy: () => {
+            policyCalls += 1;
+            return Effect.succeed(false);
+          },
+        }).pipe(Effect.provide(forceLayer)),
+      );
+      assert.equal(code, EXIT_CONFIG);
+      assert.equal(policyCalls, 1);
+      assert.equal(io.stderr, "Foreman release policy refused queue admission\n");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("refuses a terminal contract before any queue or process service is called", async () => {

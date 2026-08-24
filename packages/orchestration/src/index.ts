@@ -853,6 +853,7 @@ export {
   RELEASE_POLICY_USAGE,
   liveReleasePolicyServices,
   parseReleasePolicyArgv,
+  releasePolicyBlockArgv,
   runReleasePolicyCli,
   type ParsedReleasePolicyArgv,
   type ReleasePolicyBlockV1,

@@ -183,6 +183,27 @@ export function parseReleasePolicyArgv(
   };
 }
 
+export function releasePolicyBlockArgv(
+  block: ReleasePolicyBlockV1,
+): readonly string[] {
+  return [
+    "--endstop-state-root", block.stateRoot,
+    "--endstop-contract-id", block.contractId,
+    "--endstop-contract-sha", block.contractSha256,
+    "--endstop-family-sha", block.familySha256,
+    "--endstop-child-id", block.childId,
+    "--endstop-action", block.action,
+    "--endstop-candidate-sha", block.candidateSha256,
+    "--release-program", block.program,
+    "--release-phase", block.phase,
+    "--release-owner", block.owner,
+    "--release-repo", block.repository,
+    "--release-candidate-commit", block.candidateCommit,
+    "--release-register", block.register,
+    "--release-evidence", block.evidence,
+  ];
+}
+
 function phaseForCoverage(block: ReleasePolicyBlockV1): ReleaseCoveragePhaseV1 {
   if (block.phase === "release") return { _tag: "Release" };
   if (block.phase === "bootstrap") {
