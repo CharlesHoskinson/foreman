@@ -1,10 +1,12 @@
 import {
   closeSync,
   constants as fsConstants,
+  fstatSync,
+  lstatSync,
   openSync,
   readSync,
 } from "node:fs";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep, win32 } from "node:path";
 import { Effect, Layer } from "effect";
 import { canonicalize, isSha256Hex } from "@foreman/core";
 import {
@@ -523,9 +525,8 @@ function parseRoadmapRows(
   for (let i = headerIndex + 2; i < lines.length; i++) {
     const line = lines[i]!;
     if (line.length === 0) break;
-    const match = /^\| `([^`]+)` \| (.+) \| `(v0\.[45])` \| `([^`]+)` \|$/.exec(
-      line,
-    );
+    const match =
+      /^\| `([^`]+)` \| ([^|]+) \| `(v0\.[45])` \| `([^`]+)` \|$/.exec(line);
     if (match === null) return null;
     rows.push({
       key: match[1]!,
@@ -559,7 +560,6 @@ function resolveContainedPath(
     if (segment.includes("\\") || segment.includes("\0")) return null;
     if (segment.includes("/")) return null;
     if (segment === "." || segment === "..") return null;
-    if (segment.includes("..")) return null;
   }
   const absolute = resolve(repository, ...segments);
   const rel = relative(repository, absolute);
@@ -587,7 +587,6 @@ function validateFamilySource(
 
   const childIds = new Set<string>();
   const packageIds = new Set<string>();
-  const seenChildOrder: string[] = [];
 
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
@@ -623,7 +622,6 @@ function validateFamilySource(
     if (!Array.isArray(dependencyChildIds)) return false;
     for (const dep of dependencyChildIds) {
       if (typeof dep !== "string" || !isRunId(dep)) return false;
-      if (!seenChildOrder.includes(dep)) return false;
     }
     if (typeof objective !== "string" || !isValidObjective(objective)) {
       return false;
@@ -654,7 +652,6 @@ function validateFamilySource(
       if (previous !== null && compareUtf8Bytes(previous, path) > 0) return false;
       previous = path;
     }
-    seenChildOrder.push(childId);
   }
   return true;
 }
@@ -804,7 +801,7 @@ function evaluateReleaseCoverage(
           return invalidResult("brief_mismatch");
         }
         const child = matches[0]!;
-        if (!isRunId(child.packageId) || child.packageId.includes("..")) {
+        if (!isRunId(child.packageId)) {
           return dependencyFailure();
         }
         const briefPath = resolveContainedPath(repository, [
@@ -865,10 +862,86 @@ export function runReleaseCoverageCli(
   );
 }
 
+function boundedReadOpenFlagsLive(): number {
+  let flags = fsConstants.O_RDONLY;
+  const c = fsConstants as Record<string, number | undefined>;
+  if (typeof c.O_NONBLOCK === "number") flags |= c.O_NONBLOCK;
+  if (typeof c.O_NOFOLLOW === "number") flags |= c.O_NOFOLLOW;
+  return flags;
+}
+
+function absolutePathChainLive(path: string): readonly string[] {
+  const absolute = resolve(path);
+  const chain: string[] = [];
+  let current = absolute;
+  for (;;) {
+    chain.push(current);
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return chain;
+}
+
+function isEnoentLive(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: string }).code === "ENOENT"
+  );
+}
+
+/**
+ * Raw-byte bounded read: reject symlink components, require a regular file,
+ * open with O_RDONLY (+ O_NONBLOCK/O_NOFOLLOW when present), verify identity
+ * before and after the capped read, and map only real ENOENT to NotFound.
+ */
 function readBoundedBytesLive(path: string, maxBytes: number): Uint8Array {
   let fd: number | undefined;
   try {
-    fd = openSync(path, fsConstants.O_RDONLY);
+    const chain = absolutePathChainLive(path);
+    let before: ReturnType<typeof lstatSync> | undefined;
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const component = chain[i]!;
+      let st;
+      try {
+        st = lstatSync(component);
+      } catch (error) {
+        if (isEnoentLive(error)) {
+          if (i === 0) throw { _tag: "NotFound" as const };
+          throw Object.assign(new Error("unreadable"), {
+            _tag: "Unreadable" as const,
+          });
+        }
+        throw error;
+      }
+      if (st.isSymbolicLink()) {
+        throw Object.assign(new Error("symlink"), {
+          _tag: "Symlink" as const,
+        });
+      }
+      if (i === 0) before = st;
+    }
+    if (before === undefined || !before.isFile()) {
+      throw Object.assign(new Error("not-file"), {
+        _tag: "NotFile" as const,
+      });
+    }
+
+    fd = openSync(path, boundedReadOpenFlagsLive());
+    const opened = fstatSync(fd);
+    if (
+      opened.ino !== before.ino ||
+      opened.dev !== before.dev ||
+      opened.size !== before.size ||
+      !opened.isFile()
+    ) {
+      throw Object.assign(new Error("identity"), {
+        _tag: "IdentityChanged" as const,
+      });
+    }
+
     const cap = maxBytes + 1;
     const buf = Buffer.allocUnsafe(cap);
     let offset = 0;
@@ -880,14 +953,29 @@ function readBoundedBytesLive(path: string, maxBytes: number): Uint8Array {
     if (offset > maxBytes) {
       throw Object.assign(new Error("oversize"), { _tag: "Oversize" as const });
     }
+
+    let afterOpen;
+    try {
+      afterOpen = fstatSync(fd);
+    } catch {
+      throw Object.assign(new Error("identity"), {
+        _tag: "IdentityChanged" as const,
+      });
+    }
+    if (
+      afterOpen.ino !== opened.ino ||
+      afterOpen.dev !== opened.dev ||
+      afterOpen.size !== opened.size ||
+      afterOpen.mtimeMs !== opened.mtimeMs
+    ) {
+      throw Object.assign(new Error("identity"), {
+        _tag: "IdentityChanged" as const,
+      });
+    }
+
     return Uint8Array.from(buf.subarray(0, offset));
   } catch (error) {
-    if (
-      error !== null &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code?: string }).code === "ENOENT"
-    ) {
+    if (isEnoentLive(error)) {
       throw { _tag: "NotFound" as const };
     }
     throw error;
@@ -902,29 +990,175 @@ function readBoundedBytesLive(path: string, maxBytes: number): Uint8Array {
   }
 }
 
-function splitNulPaths(stdout: string): string[] {
-  if (stdout.length === 0) return [];
-  return stdout.split("\0").filter((part) => part.length > 0);
+function isWindowsSafeAbsolutePath(value: string): boolean {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (
+    value.includes("\0") ||
+    value.includes("\r") ||
+    value.includes("\n") ||
+    value.includes('"')
+  ) {
+    return false;
+  }
+  return win32.isAbsolute(value);
+}
+
+/**
+ * Pure OpenSpec argv planner. Live services resolve `openspec` on PATH, then
+ * execute only a plan this helper returns.
+ */
+export function planOpenSpecInvocationV1(input: {
+  readonly platform: NodeJS.Platform;
+  readonly comSpec: string | undefined;
+  readonly resolvedOpenSpec: string;
+}):
+  | { readonly _tag: "Ok"; readonly command: string; readonly args: readonly string[] }
+  | { readonly _tag: "Invalid" } {
+  const resolved = input.resolvedOpenSpec;
+  if (typeof resolved !== "string" || resolved.length === 0) {
+    return { _tag: "Invalid" };
+  }
+  if (resolved.includes("\0")) return { _tag: "Invalid" };
+
+  if (input.platform === "win32") {
+    const comSpec = input.comSpec;
+    if (typeof comSpec !== "string" || comSpec.length === 0) {
+      return { _tag: "Invalid" };
+    }
+    if (!isWindowsSafeAbsolutePath(comSpec)) return { _tag: "Invalid" };
+    if (!isWindowsSafeAbsolutePath(resolved)) return { _tag: "Invalid" };
+    if (!/\.cmd$/i.test(resolved)) return { _tag: "Invalid" };
+    return {
+      _tag: "Ok",
+      command: comSpec,
+      args: ["/d", "/s", "/c", `"${resolved}" list --json`],
+    };
+  }
+
+  if (!isAbsolute(resolved)) return { _tag: "Invalid" };
+  return {
+    _tag: "Ok",
+    command: resolved,
+    args: ["list", "--json"],
+  };
+}
+
+function isPhysicallyInsideRepository(
+  repository: string,
+  absolutePath: string,
+): boolean {
+  const rel = relative(repository, absolutePath);
+  if (rel.length === 0) return true;
+  if (isAbsolute(rel)) return false;
+  if (rel === "..") return false;
+  if (rel.startsWith(`..${sep}`)) return false;
+  return true;
+}
+
+function isSafeRelativeGitPath(path: string): boolean {
+  if (path.length === 0) return false;
+  if (path.includes("\0")) return false;
+  if (isAbsolute(path)) return false;
+  if (path.startsWith("/")) return false;
+  if (/^[A-Za-z]:[\\/]/.test(path)) return false;
+  if (path.includes("\\")) return false;
+  const segments = path.split("/");
+  for (const segment of segments) {
+    if (segment.length === 0) return false;
+    if (segment === "." || segment === "..") return false;
+  }
+  return true;
+}
+
+/**
+ * Parse git `-z` stdout: empty → [], otherwise require a terminal NUL, fatal
+ * UTF-8, no empty path fields, and only safe relative paths.
+ */
+function parseNulDelimitedGitPaths(
+  bytes: Uint8Array,
+): readonly string[] | null {
+  if (bytes.byteLength === 0) return [];
+  if (bytes[bytes.byteLength - 1] !== 0) return null;
+  const text = decodeUtf8Fatal(bytes);
+  if (text === null) return null;
+  const parts = text.split("\0");
+  if (parts.length < 2) return null;
+  if (parts[parts.length - 1] !== "") return null;
+  const paths = parts.slice(0, -1);
+  for (const path of paths) {
+    if (!isSafeRelativeGitPath(path)) return null;
+  }
+  return paths;
+}
+
+function dedupeUtf8ByteOrder(paths: readonly string[]): readonly string[] {
+  const sorted = [...paths].sort(compareUtf8Bytes);
+  const out: string[] = [];
+  let previous: string | undefined;
+  for (const path of sorted) {
+    if (previous !== undefined && previous === path) continue;
+    out.push(path);
+    previous = path;
+  }
+  return out;
+}
+
+function parseGitTopLevel(bytes: Uint8Array): string | null {
+  const text = decodeUtf8Fatal(bytes);
+  if (text === null) return null;
+  let line: string;
+  if (text.endsWith("\r\n")) {
+    line = text.slice(0, -2);
+  } else if (text.endsWith("\n")) {
+    line = text.slice(0, -1);
+  } else {
+    line = text;
+  }
+  if (line.length === 0) return null;
+  if (line.includes("\n") || line.includes("\r")) return null;
+  if (hasAnyControl(line)) return null;
+  if (!isNativeAbsolutePath(line)) return null;
+  return line;
 }
 
 function gitArgv(args: readonly string[]): string[] {
   return ["--no-replace-objects", ...args];
 }
 
-function requireExitZero(
+function requireCapturedStdoutBytes(
   result: CapturedProcessResult,
-): Effect.Effect<CapturedProcessResult, unknown> {
+): Effect.Effect<Uint8Array, unknown> {
   if (result.exitCode !== 0) {
     return Effect.fail({ _tag: "NonZeroExit" as const });
   }
-  return Effect.succeed(result);
+  if (result.stdoutBytes === undefined) {
+    return Effect.fail({ _tag: "MissingStdoutBytes" as const });
+  }
+  return Effect.succeed(result.stdoutBytes);
 }
 
 const liveProcessAndPathLayer = Layer.mergeAll(liveProcessExec, livePathLookup);
 
 export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
   fileRead: {
-    resolveRepositoryRoot: () => Effect.sync(() => process.cwd()),
+    resolveRepositoryRoot: () =>
+      Effect.gen(function* () {
+        const exec = yield* ProcessExec;
+        const cwd = process.cwd();
+        const captured = yield* exec.runCaptured({
+          command: "git",
+          args: gitArgv(["-C", cwd, "rev-parse", "--show-toplevel"]),
+          env: sanitizedGitEnv(),
+          maxOutputBytes: ONE_MIB,
+          timeoutMs: GIT_TIMEOUT_MS,
+        });
+        const bytes = yield* requireCapturedStdoutBytes(captured);
+        const top = parseGitTopLevel(bytes);
+        if (top === null) {
+          return yield* Effect.fail({ _tag: "GitTopLevelInvalid" as const });
+        }
+        return top;
+      }).pipe(Effect.provide(liveProcessExec)),
     readBounded: (input) =>
       Effect.try({
         try: () => readBoundedBytesLive(input.path, input.maxBytes),
@@ -935,40 +1169,30 @@ export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
     listJson: (input) =>
       Effect.gen(function* () {
         const exec = yield* ProcessExec;
-        if (process.platform === "win32") {
-          const comSpec = process.env.ComSpec ?? process.env.COMSPEC;
-          if (
-            typeof comSpec !== "string" ||
-            comSpec.length === 0 ||
-            comSpec.includes("\0") ||
-            !isAbsolute(comSpec)
-          ) {
-            return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
-          }
-          const captured = yield* exec.runCaptured({
-            command: comSpec,
-            args: ["/d", "/s", "/c", "openspec.cmd", ...input.argv],
-            cwd: input.repository,
-            maxOutputBytes: input.maxBytes,
-            timeoutMs: OPENSPEC_TIMEOUT_MS,
-          });
-          yield* requireExitZero(captured);
-          return encoder.encode(captured.stdout);
-        }
         const lookup = yield* PathLookup;
         const resolved = yield* lookup.which("openspec");
         if (resolved === null) {
           return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
         }
+        if (isPhysicallyInsideRepository(input.repository, resolved)) {
+          return yield* Effect.fail({ _tag: "OpenSpecInsideRepository" as const });
+        }
+        const plan = planOpenSpecInvocationV1({
+          platform: process.platform,
+          comSpec: process.env.ComSpec ?? process.env.COMSPEC,
+          resolvedOpenSpec: resolved,
+        });
+        if (plan._tag === "Invalid") {
+          return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
+        }
         const captured = yield* exec.runCaptured({
-          command: resolved,
-          args: [...input.argv],
+          command: plan.command,
+          args: [...plan.args],
           cwd: input.repository,
           maxOutputBytes: input.maxBytes,
           timeoutMs: OPENSPEC_TIMEOUT_MS,
         });
-        yield* requireExitZero(captured);
-        return encoder.encode(captured.stdout);
+        return yield* requireCapturedStdoutBytes(captured);
       }).pipe(Effect.provide(liveProcessAndPathLayer)),
   },
   gitChangedPaths: {
@@ -984,7 +1208,9 @@ export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
             "diff",
             "--name-only",
             "-z",
-            `${input.baselineCommit}...HEAD`,
+            "--no-ext-diff",
+            "--no-textconv",
+            input.baselineCommit,
             "--",
             SUPERPOWERS_SPECS,
             SUPERPOWERS_PLANS,
@@ -993,7 +1219,11 @@ export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
           maxOutputBytes: ONE_MIB,
           timeoutMs: GIT_TIMEOUT_MS,
         });
-        yield* requireExitZero(tracked);
+        const trackedBytes = yield* requireCapturedStdoutBytes(tracked);
+        const trackedPaths = parseNulDelimitedGitPaths(trackedBytes);
+        if (trackedPaths === null) {
+          return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+        }
         const untracked = yield* exec.runCaptured({
           command: "git",
           args: gitArgv([
@@ -1011,11 +1241,12 @@ export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
           maxOutputBytes: ONE_MIB,
           timeoutMs: GIT_TIMEOUT_MS,
         });
-        yield* requireExitZero(untracked);
-        return [
-          ...splitNulPaths(tracked.stdout),
-          ...splitNulPaths(untracked.stdout),
-        ];
+        const untrackedBytes = yield* requireCapturedStdoutBytes(untracked);
+        const untrackedPaths = parseNulDelimitedGitPaths(untrackedBytes);
+        if (untrackedPaths === null) {
+          return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+        }
+        return dedupeUtf8ByteOrder([...trackedPaths, ...untrackedPaths]);
       }).pipe(Effect.provide(liveProcessExec)),
   },
   familySource: {
