@@ -1429,6 +1429,207 @@ describe("release coverage policy", () => {
     );
   });
 
+  it("rejects unknown_owner when Lane owner is neither active nor declared future", () => {
+    expectInvalid(
+      validBaseline({
+        phase: "Lane",
+        laneOwner: "ghost-lane-owner",
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      "unknown_owner",
+    );
+  });
+
+  const orphanFutureOwner = "orphan-future-owner";
+  const orphanFutureOwnerRecord = {
+    name: orphanFutureOwner,
+    targetRelease: "v0.4",
+    reason: "declared without an owned v0.4 entry",
+  };
+
+  const orphanFutureRegister = (): {
+    readonly registerText: string;
+    readonly roadmapText: string;
+  } => {
+    const roadmapText = renderRoadmapText(baselineAssignments());
+    return {
+      roadmapText,
+      registerText: sealRegister([ACTIVE_PKG], roadmapText, {
+        futureOwners: [futureOwner, orphanFutureOwnerRecord],
+        entries: [
+          track1Entry,
+          { ...futureRoadmapEntry, reconcile: "complete" },
+        ],
+      }),
+    };
+  };
+
+  it("keeps Bootstrap valid when a v0.4 future owner owns no v0.4 entry", () => {
+    const { registerText } = orphanFutureRegister();
+    expectValid(
+      validBaseline({
+        phase: "Bootstrap",
+        registerText,
+        packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      2,
+    );
+  });
+
+  it("rejects unreconciled when Lane selects a v0.4 future owner with no owned entry", () => {
+    const { registerText } = orphanFutureRegister();
+    expectInvalid(
+      validBaseline({
+        phase: "Lane",
+        laneOwner: orphanFutureOwner,
+        registerText,
+        packageWorkflowByName: { [ACTIVE_PKG]: ACTIVE_WF },
+        expectedPackageBriefByName: {},
+        packageBriefBytesByName: {},
+      }),
+      "unreconciled",
+    );
+  });
+
+  it("rejects unreconciled when Release includes a v0.4 future owner with no owned entry", () => {
+    const { registerText } = orphanFutureRegister();
+    const activeBrief = makeBrief("ok");
+    const activeBytes = canonicalBriefBytes(activeBrief);
+    const futureBrief = makeBrief("future", FUTURE);
+    const futureBytes = canonicalBriefBytes(futureBrief);
+    expectInvalid(
+      validBaseline({
+        phase: "Release",
+        registerText,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: {
+          [ACTIVE_PKG]: activeBrief,
+          [FUTURE]: futureBrief,
+        },
+        packageBriefBytesByName: {
+          [ACTIVE_PKG]: activeBytes,
+          [FUTURE]: futureBytes,
+        },
+      }),
+      "unreconciled",
+    );
+  });
+
+  it("keeps complete future-owner Lane and Release controls valid", () => {
+    const activeBrief = makeBrief("ok");
+    const activeBytes = canonicalBriefBytes(activeBrief);
+    const futureBrief = makeBrief("future", FUTURE);
+    const futureBytes = canonicalBriefBytes(futureBrief);
+    const roadmapText = renderRoadmapText(baselineAssignments());
+    const completeFutureRegister = sealRegister([ACTIVE_PKG], roadmapText, {
+      futureOwners: [futureOwner],
+      entries: [
+        track1Entry,
+        { ...futureRoadmapEntry, reconcile: "complete" },
+      ],
+    });
+    expectValid(
+      validBaseline({
+        phase: "Lane",
+        laneOwner: FUTURE,
+        registerText: completeFutureRegister,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: { [FUTURE]: futureBrief },
+        packageBriefBytesByName: { [FUTURE]: futureBytes },
+      }),
+      2,
+    );
+    expectValid(
+      validBaseline({
+        phase: "Release",
+        registerText: completeFutureRegister,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: {
+          [ACTIVE_PKG]: activeBrief,
+          [FUTURE]: futureBrief,
+        },
+        packageBriefBytesByName: {
+          [ACTIVE_PKG]: activeBytes,
+          [FUTURE]: futureBytes,
+        },
+      }),
+      2,
+    );
+  });
+
+  it("rejects roadmapBytes with exactly 1_048_577 bytes as invalid_roadmap", () => {
+    const base = validBaseline();
+    const overBytes = new Uint8Array(1_048_577);
+    overBytes.fill(0x61);
+    const overRegister = sealRegister(
+      base.activePackageNames,
+      base.roadmapText,
+      { roadmapSha256: sha256Hex(overBytes) },
+    );
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        phase: { _tag: "Bootstrap", owner: ACTIVE_PKG },
+        registerText: overRegister,
+        roadmapBytes: overBytes,
+        activeChangeNames: base.activePackageNames,
+        roadmapRows: base.roadmapAssignments,
+        workflowByChange: base.packageWorkflowByName,
+        changedSuperpowersPaths: [],
+        expectedBriefByOwner: {},
+        packageBriefBytesByOwner: {},
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Invalid",
+        reason: "invalid_roadmap",
+      },
+    );
+  });
+
+  it("accepts roadmapBytes with exactly 1_048_576 bytes when authority matches", () => {
+    const base = validBaseline();
+    const exactBytes = new Uint8Array(ONE_MIB);
+    exactBytes.fill(0x61);
+    assert.equal(exactBytes.byteLength, 1_048_576);
+    const exactRegister = sealRegister(
+      base.activePackageNames,
+      base.roadmapText,
+      { roadmapSha256: sha256Hex(exactBytes) },
+    );
+    assert.deepEqual(
+      validateReleaseCoverageV1({
+        phase: { _tag: "Bootstrap", owner: ACTIVE_PKG },
+        registerText: exactRegister,
+        roadmapBytes: exactBytes,
+        activeChangeNames: base.activePackageNames,
+        roadmapRows: base.roadmapAssignments,
+        workflowByChange: base.packageWorkflowByName,
+        changedSuperpowersPaths: [],
+        expectedBriefByOwner: {},
+        packageBriefBytesByOwner: {},
+      }),
+      {
+        schemaVersion: SCHEMA,
+        _tag: "Valid",
+        activeInventorySha256: activeInventorySha256(base.activePackageNames),
+        roadmapSha256: sha256Hex(exactBytes),
+        entryCount: 2,
+      },
+    );
+  });
+
   it("rejects inventory_mismatch including UTF-8 byte sort", () => {
     const base = validBaseline();
     expectInvalid(

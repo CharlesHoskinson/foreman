@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
+  existsSync,
   linkSync,
   lstatSync,
   mkdirSync,
@@ -17,7 +19,15 @@ import {
 } from "node:fs";
 import { createRequire } from "node:module";
 import { devNull, tmpdir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import {
+  delimiter,
+  dirname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Effect } from "effect";
@@ -34,6 +44,8 @@ import {
   liveReleaseCoverageCliServices,
   makeLiveReleaseCoverageCliServices,
   ProcessExec,
+  ProcessFailure,
+  readFileBoundedSync,
   runReleaseCoverageCli,
   type CapturedProcessResult,
   type ReleaseCoverageCliIo,
@@ -46,6 +58,12 @@ import {
   type RunCapturedOptions,
 } from "./index.js";
 import { planOpenSpecInvocationV1 } from "./release-coverage-cli.js";
+
+/** Test-only seam for wished-for trusted live inputs before production exports them. */
+type ReleaseCoverageTrustedLiveDependencies = ReleaseCoverageLiveDependencies & {
+  readonly findWorktreeRoot: (path: string) => Effect.Effect<string, unknown>;
+  readonly nodeExecutable: string;
+};
 
 const ONE_MIB = 1_048_576;
 const EXIT_OK = 0;
@@ -3464,3 +3482,899 @@ test(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// Audit-correction RED: trusted Git / OpenSpec / Node live boundaries
+// ---------------------------------------------------------------------------
+
+const SCRIPT_TIMEOUT_MS = 5_000;
+
+function emptyCaptured(): CapturedProcessResult {
+  return {
+    exitCode: 0,
+    stdout: "",
+    stderr: "",
+    stdoutBytes: new Uint8Array(),
+    stderrBytes: new Uint8Array(),
+  };
+}
+
+function gitTopLevelCaptured(root: string): CapturedProcessResult {
+  const bytes = utf8(`${root}\n`);
+  return {
+    exitCode: 0,
+    stdout: `${root}\n`,
+    stderr: "",
+    stdoutBytes: bytes,
+    stderrBytes: new Uint8Array(),
+  };
+}
+
+function assertNoAlternatePathPathextOrPrefixedKeys(
+  env: NodeJS.ProcessEnv,
+  prefixes: readonly string[],
+  allowedExact: ReadonlySet<string>,
+): void {
+  for (const name of Object.keys(env)) {
+    const upper = name.toUpperCase();
+    if (upper === "PATH" || upper === "PATHEXT") {
+      assert.equal(
+        name === upper,
+        true,
+        `alternate-case ${upper} survived: ${name}`,
+      );
+      continue;
+    }
+    for (const prefix of prefixes) {
+      if (upper.startsWith(prefix)) {
+        assert.equal(
+          allowedExact.has(name),
+          true,
+          `hostile ${prefix}* variable survived: ${name}`,
+        );
+      }
+    }
+  }
+}
+
+test("live Git adapter resolves the worktree root before starting Git", async () => {
+  const repository = resolve("/work/repository");
+  const physicalRepository = resolve("/physical/repository");
+  const physicalGit = resolve("/usr/bin/git");
+  const order: string[] = [];
+  const findCalls: string[] = [];
+  let processCalls = 0;
+  const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+    runCaptured: (input) => {
+      processCalls += 1;
+      order.push(`runCaptured:${String(input.command)}`);
+      return Effect.succeed(gitTopLevelCaptured(physicalRepository));
+    },
+    which: (name) => {
+      order.push(`which:${name}`);
+      if (name === "git") return Effect.succeed(physicalGit);
+      return Effect.succeed(null);
+    },
+    realpath: (path) => {
+      order.push(`realpath:${path}`);
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === physicalGit) return Effect.succeed(physicalGit);
+      return Effect.succeed(path);
+    },
+    findWorktreeRoot: (path) => {
+      findCalls.push(path);
+      order.push(`findWorktreeRoot:${path}`);
+      return Effect.succeed(physicalRepository);
+    },
+    nodeExecutable: "/usr/bin/node",
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => repository,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/safe/bin" },
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const root = await Effect.runPromise(services.fileRead.resolveRepositoryRoot());
+  assert.equal(root, physicalRepository);
+  assert.deepEqual(findCalls, [repository]);
+  assert.equal(order[0]?.startsWith("findWorktreeRoot:"), true);
+  assert.equal(
+    order.findIndex((step) => step.startsWith("runCaptured:")) >
+      order.findIndex((step) => step.startsWith("findWorktreeRoot:")),
+    true,
+  );
+  assert.equal(processCalls >= 1, true);
+});
+
+test("live Git adapter rejects a repository-local Git path before runCaptured", async () => {
+  const repository = resolve("/work/repository");
+  const physicalRepository = resolve("/physical/repository");
+  const localGit = join(physicalRepository, "tools", "git");
+  let processCalls = 0;
+  const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+    runCaptured: () => {
+      processCalls += 1;
+      return Effect.die("repository-local Git ran");
+    },
+    which: (name) =>
+      name === "git" ? Effect.succeed(localGit) : Effect.succeed(null),
+    realpath: (path) => {
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === localGit) return Effect.succeed(localGit);
+      return Effect.succeed(path);
+    },
+    findWorktreeRoot: () => Effect.succeed(physicalRepository),
+    nodeExecutable: "/usr/bin/node",
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => repository,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/safe/bin" },
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const result = await Effect.runPromise(
+    services.fileRead.resolveRepositoryRoot().pipe(Effect.either),
+  );
+  assert.equal(result._tag, "Left");
+  assert.equal(processCalls, 0);
+});
+
+test("live Git adapter rejects an outside Git alias into the repository before runCaptured", async () => {
+  const repository = resolve("/work/repository");
+  const physicalRepository = resolve("/physical/repository");
+  const alias = resolve("/outside/bin/git");
+  const physicalInside = join(physicalRepository, "tools", "git");
+  let processCalls = 0;
+  const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+    runCaptured: () => {
+      processCalls += 1;
+      return Effect.die("aliased repository Git ran");
+    },
+    which: (name) =>
+      name === "git" ? Effect.succeed(alias) : Effect.succeed(null),
+    realpath: (path) => {
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === alias) return Effect.succeed(physicalInside);
+      return Effect.succeed(path);
+    },
+    findWorktreeRoot: () => Effect.succeed(physicalRepository),
+    nodeExecutable: "/usr/bin/node",
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => repository,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/safe/bin" },
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const result = await Effect.runPromise(
+    services.fileRead.resolveRepositoryRoot().pipe(Effect.either),
+  );
+  assert.equal(result._tag, "Left");
+  assert.equal(processCalls, 0);
+});
+
+test("live Git adapter starts a safe outside physical Git target with a sealed environment", async () => {
+  const repository = resolve("/work/repository");
+  const physicalRepository = resolve("/physical/repository");
+  const alias = resolve("/outside/alias/git");
+  const physicalGit = resolve("/usr/libexec/git-core/git");
+  const hostile: NodeJS.ProcessEnv = {
+    PATH: "/hostile/bin",
+    Path: "/hostile/mixed-bin",
+    path: "/hostile/lower-bin",
+    PATHEXT: ".GIT",
+    Pathext: ".Mixed",
+    GIT_DIR: "/hostile/git",
+    git_dir: "/hostile/lower-git",
+    GIT_WORK_TREE: "/hostile/worktree",
+    GiT_WoRk_TrEe: "/hostile/mixed-worktree",
+  };
+  const hostileBefore = { ...hostile };
+  const calls: RunCapturedOptions[] = [];
+  const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+    runCaptured: (input) => {
+      calls.push(input);
+      if (calls.length === 1) {
+        return Effect.succeed(gitTopLevelCaptured(physicalRepository));
+      }
+      return Effect.succeed(emptyCaptured());
+    },
+    which: (name) =>
+      name === "git" ? Effect.succeed(alias) : Effect.succeed(null),
+    realpath: (path) => {
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === alias) return Effect.succeed(physicalGit);
+      return Effect.succeed(path);
+    },
+    findWorktreeRoot: () => Effect.succeed(physicalRepository),
+    nodeExecutable: "/usr/bin/node",
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => repository,
+    nullDevice: "/dev/null",
+    baseEnvironment: hostile,
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const root = await Effect.runPromise(services.fileRead.resolveRepositoryRoot());
+  assert.equal(root, physicalRepository);
+  const paths = await Effect.runPromise(
+    services.gitChangedPaths.discover({
+      repository,
+      baselineCommit: BASELINE,
+    }),
+  );
+  assert.deepEqual(paths, []);
+  assert.deepEqual(hostile, hostileBefore);
+  assert.equal(calls.length, 3);
+  const allowedGitKeys = new Set([
+    "PATH",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_OPTIONAL_LOCKS",
+    "GIT_TERMINAL_PROMPT",
+  ]);
+  for (const call of calls) {
+    assert.equal(call.command, physicalGit);
+    assert.equal(call.args.includes("-C"), true);
+    const cIndex = call.args.indexOf("-C");
+    assert.equal(call.args[cIndex + 1], physicalRepository);
+    assert.equal(call.env?.PATH, dirname(physicalGit));
+    assert.equal(call.maxOutputBytes, ONE_MIB);
+    assert.equal(call.timeoutMs, 30_000);
+    const env = call.env ?? {};
+    assertNoAlternatePathPathextOrPrefixedKeys(env, ["GIT_"], allowedGitKeys);
+    for (const name of Object.keys(env)) {
+      const upper = name.toUpperCase();
+      if (upper === "PATH" || upper === "PATHEXT" || upper.startsWith("GIT_")) {
+        assert.equal(allowedGitKeys.has(name), true, `unexpected key ${name}`);
+      }
+    }
+    assert.equal(env.PATHEXT, undefined);
+    assert.equal(env.Path, undefined);
+    assert.equal(env.path, undefined);
+    assert.equal(env.Pathext, undefined);
+  }
+});
+
+test("live Git adapter rejects a Git-reported root that differs from the physical root", async () => {
+  const repository = resolve("/work/repository");
+  const physicalRepository = resolve("/physical/repository");
+  const reportedRoot = resolve("/other/repository");
+  const physicalGit = resolve("/usr/bin/git");
+  const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+    runCaptured: () => Effect.succeed(gitTopLevelCaptured(reportedRoot)),
+    which: (name) =>
+      name === "git" ? Effect.succeed(physicalGit) : Effect.succeed(null),
+    realpath: (path) => {
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === reportedRoot) return Effect.succeed(reportedRoot);
+      if (path === physicalGit) return Effect.succeed(physicalGit);
+      return Effect.succeed(path);
+    },
+    findWorktreeRoot: () => Effect.succeed(physicalRepository),
+    nodeExecutable: "/usr/bin/node",
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => repository,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/safe/bin" },
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const result = await Effect.runPromise(
+    services.fileRead.resolveRepositoryRoot().pipe(Effect.either),
+  );
+  assert.equal(result._tag, "Left");
+});
+
+test("live CLI rejects an explicit Lane or Release repository that is not the discovered root before a subprocess starts", async (t) => {
+  const temporary = mkdtempSync(
+    join(tmpdir(), "release-coverage-repo-mismatch-"),
+  );
+  try {
+    const discovered = join(temporary, "discovered");
+    const explicit = join(temporary, "explicit");
+    mkdirSync(discovered);
+    mkdirSync(explicit);
+    const registerPath = join(temporary, "coverage.toml");
+    const roadmapBytes = utf8(roadmapText(false));
+    writeFileSync(
+      registerPath,
+      sealRegister({
+        activeNames: [TRACK1],
+        roadmapBytes,
+        packageReconcile: "complete",
+      }),
+      "utf8",
+    );
+    for (const phase of ["lane", "release"] as const) {
+      await t.test(phase, async () => {
+        let processCalls = 0;
+        const findCalls: string[] = [];
+        const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+          runCaptured: () => {
+            processCalls += 1;
+            return Effect.die("subprocess started for mismatched repository");
+          },
+          which: () => Effect.die("which should not run"),
+          realpath: (path) => Effect.succeed(path),
+          findWorktreeRoot: (path) => {
+            findCalls.push(path);
+            return Effect.succeed(discovered);
+          },
+          nodeExecutable: "/usr/bin/node",
+          platform: process.platform,
+          comSpec: undefined,
+          cwd: () => discovered,
+          nullDevice: devNull,
+          baseEnvironment: { PATH: "/safe/bin" },
+        };
+        const services = makeLiveReleaseCoverageCliServices(dependencies);
+        const io: ReleaseCoverageCliIo = {
+          writeStdout: () => undefined,
+          writeStderr: () => undefined,
+        };
+        const tail =
+          phase === "lane"
+            ? ([
+                "check",
+                "--program",
+                "v040",
+                "--phase",
+                "lane",
+                "--owner",
+                PACKAGE,
+                "--repo",
+                explicit,
+                "--state-root",
+                STATE_ROOT,
+                "--contract-id",
+                CONTRACT_ID,
+                "--contract-sha",
+                CONTRACT_SHA,
+                "--family-sha",
+                FAMILY_SHA,
+                "--register",
+                registerPath,
+              ] as const)
+            : ([
+                "check",
+                "--program",
+                "v040",
+                "--phase",
+                "release",
+                "--repo",
+                explicit,
+                "--state-root",
+                STATE_ROOT,
+                "--contract-id",
+                CONTRACT_ID,
+                "--contract-sha",
+                CONTRACT_SHA,
+                "--family-sha",
+                FAMILY_SHA,
+                "--register",
+                registerPath,
+              ] as const);
+        const code = await Effect.runPromise(
+          runReleaseCoverageCli(processArgv(tail), io, services),
+        );
+        assert.equal(code, EXIT_EVALUATED);
+        assert.equal(findCalls.length >= 1, true);
+        assert.equal(processCalls, 0);
+      });
+    }
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("live OpenSpec adapter resolves physical OpenSpec, Node, and ComSpec targets", async (t) => {
+  const cases = [
+    {
+      name: "posix",
+      platform: "linux" as const,
+      comSpec: undefined,
+      repository: "/work/repository",
+      physicalRepository: "/physical/repository",
+      lexicalOpenSpec: "/alias/bin/openspec",
+      physicalOpenSpec: "/opt/openspec/bin/openspec",
+      lexicalNode: "/alias/bin/node",
+      physicalNode: "/usr/bin/node",
+      nullDevice: "/dev/null",
+    },
+    {
+      name: "windows",
+      platform: "win32" as const,
+      comSpec: "C:\\Alias\\Windows\\cmd.exe",
+      repository: "C:\\Work\\Repository",
+      physicalRepository: "C:\\Physical\\Repository",
+      lexicalOpenSpec: "C:\\Alias\\OpenSpec\\openspec.cmd",
+      physicalOpenSpec: "C:\\Tools\\OpenSpec\\openspec.cmd",
+      lexicalNode: "C:\\Alias\\Node\\node.exe",
+      physicalNode: "C:\\Program Files\\nodejs\\node.exe",
+      physicalComSpec: "C:\\Windows\\System32\\cmd.exe",
+      nullDevice: "NUL",
+    },
+  ];
+
+  for (const item of cases) {
+    await t.test(item.name, async () => {
+      const hostile: NodeJS.ProcessEnv = {
+        PATH: "/hostile/bin",
+        Path: "/hostile/mixed",
+        path: "/hostile/lower",
+        PATHEXT: ".NODE",
+        Pathext: ".Mixed",
+        NODE_OPTIONS: "--require=/hostile/preload.js",
+        node_options: "--require=/hostile/lower.js",
+        NODE_PATH: "/hostile/node_modules",
+        Node_Path: "/hostile/mixed_modules",
+      };
+      const hostileBefore = { ...hostile };
+      const calls: RunCapturedOptions[] = [];
+      const realpathCalls: string[] = [];
+      const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+        runCaptured: (input) => {
+          calls.push(input);
+          return Effect.succeed({
+            exitCode: 0,
+            stdout: "\uFFFD",
+            stderr: "",
+            stdoutBytes: Uint8Array.of(0xff),
+            stderrBytes: new Uint8Array(),
+          });
+        },
+        which: (name) => {
+          if (name === "openspec") return Effect.succeed(item.lexicalOpenSpec);
+          return Effect.succeed(null);
+        },
+        realpath: (path) => {
+          realpathCalls.push(path);
+          if (path === item.repository) {
+            return Effect.succeed(item.physicalRepository);
+          }
+          if (path === item.lexicalOpenSpec) {
+            return Effect.succeed(item.physicalOpenSpec);
+          }
+          if (path === item.lexicalNode || path === item.physicalNode) {
+            return Effect.succeed(item.physicalNode);
+          }
+          if (
+            item.platform === "win32" &&
+            path === item.comSpec &&
+            item.physicalComSpec !== undefined
+          ) {
+            return Effect.succeed(item.physicalComSpec);
+          }
+          return Effect.succeed(path);
+        },
+        findWorktreeRoot: () => Effect.succeed(item.physicalRepository),
+        nodeExecutable: item.lexicalNode,
+        platform: item.platform,
+        comSpec: item.comSpec,
+        cwd: () => item.repository,
+        nullDevice: item.nullDevice,
+        baseEnvironment: hostile,
+      };
+      const services = makeLiveReleaseCoverageCliServices(dependencies);
+      const bytes = await Effect.runPromise(
+        services.openspecList.listJson({
+          repository: item.repository,
+          argv: ["list", "--json"],
+          maxBytes: ONE_MIB,
+        }),
+      );
+      assert.deepEqual(bytes, Uint8Array.of(0xff));
+      assert.deepEqual(hostile, hostileBefore);
+      assert.equal(calls.length, 1);
+      assert.equal(realpathCalls.includes(item.repository), true);
+      assert.equal(realpathCalls.includes(item.lexicalOpenSpec), true);
+      assert.equal(
+        realpathCalls.includes(item.lexicalNode) ||
+          realpathCalls.includes(item.physicalNode),
+        true,
+      );
+      if (item.platform === "win32") {
+        assert.equal(realpathCalls.includes(item.comSpec!), true);
+        assert.equal(calls[0]!.command, item.physicalComSpec);
+        assert.equal(
+          calls[0]!.args.some(
+            (arg) =>
+              typeof arg === "string" && arg.includes(item.physicalOpenSpec),
+          ),
+          true,
+        );
+        assert.equal(calls[0]!.command === item.comSpec, false);
+        assert.equal(
+          calls[0]!.args.some(
+            (arg) =>
+              typeof arg === "string" &&
+              arg.includes(item.lexicalOpenSpec) &&
+              !arg.includes(item.physicalOpenSpec),
+          ),
+          false,
+        );
+      } else {
+        assert.equal(calls[0]!.command, item.physicalOpenSpec);
+        assert.equal(calls[0]!.command === item.lexicalOpenSpec, false);
+      }
+      assert.equal(calls[0]!.env?.PATH, dirname(item.physicalNode));
+      assert.equal(calls[0]!.maxOutputBytes, ONE_MIB);
+      assert.equal(calls[0]!.timeoutMs, 30_000);
+      const env = calls[0]!.env ?? {};
+      const allowed = new Set(["PATH"]);
+      assertNoAlternatePathPathextOrPrefixedKeys(env, ["NODE_"], allowed);
+      for (const name of Object.keys(env)) {
+        const upper = name.toUpperCase();
+        if (upper === "PATH" || upper === "PATHEXT" || upper.startsWith("NODE_")) {
+          if (upper === "PATH") {
+            assert.equal(name, "PATH");
+          } else {
+            assert.equal(false, true, `unexpected key survived: ${name}`);
+          }
+        }
+      }
+      assert.equal(env.PATHEXT, undefined);
+      assert.equal(env.NODE_OPTIONS, undefined);
+      assert.equal(env.NODE_PATH, undefined);
+      assert.equal(env.Path, undefined);
+      assert.equal(env.path, undefined);
+    });
+  }
+});
+
+test("live OpenSpec adapter rejects a Node executable inside the repository before a subprocess starts", async () => {
+  const repository = resolve("/work/repository");
+  const physicalRepository = resolve("/physical/repository");
+  const openspec = resolve("/opt/openspec/bin/openspec");
+  const nodeInside = join(physicalRepository, "tools", "node");
+  let processCalls = 0;
+  const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+    runCaptured: () => {
+      processCalls += 1;
+      return Effect.die("repository Node ran");
+    },
+    which: (name) =>
+      name === "openspec" ? Effect.succeed(openspec) : Effect.succeed(null),
+    realpath: (path) => {
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === openspec) return Effect.succeed(openspec);
+      if (path === nodeInside) return Effect.succeed(nodeInside);
+      return Effect.succeed(path);
+    },
+    findWorktreeRoot: () => Effect.succeed(physicalRepository),
+    nodeExecutable: nodeInside,
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => repository,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/safe/bin" },
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const result = await Effect.runPromise(
+    services.openspecList
+      .listJson({
+        repository,
+        argv: ["list", "--json"],
+        maxBytes: ONE_MIB,
+      })
+      .pipe(Effect.either),
+  );
+  assert.equal(result._tag, "Left");
+  assert.equal(processCalls, 0);
+});
+
+test("live OpenSpec adapter rejects an outside Node alias into the repository before a subprocess starts", async () => {
+  const repository = resolve("/work/repository");
+  const physicalRepository = resolve("/physical/repository");
+  const openspec = resolve("/opt/openspec/bin/openspec");
+  const nodeAlias = resolve("/outside/bin/node");
+  const nodeInside = join(physicalRepository, "tools", "node");
+  let processCalls = 0;
+  const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+    runCaptured: () => {
+      processCalls += 1;
+      return Effect.die("aliased repository Node ran");
+    },
+    which: (name) =>
+      name === "openspec" ? Effect.succeed(openspec) : Effect.succeed(null),
+    realpath: (path) => {
+      if (path === repository) return Effect.succeed(physicalRepository);
+      if (path === openspec) return Effect.succeed(openspec);
+      if (path === nodeAlias) return Effect.succeed(nodeInside);
+      return Effect.succeed(path);
+    },
+    findWorktreeRoot: () => Effect.succeed(physicalRepository),
+    nodeExecutable: nodeAlias,
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => repository,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/safe/bin" },
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const result = await Effect.runPromise(
+    services.openspecList
+      .listJson({
+        repository,
+        argv: ["list", "--json"],
+        maxBytes: ONE_MIB,
+      })
+      .pipe(Effect.either),
+  );
+  assert.equal(result._tag, "Left");
+  assert.equal(processCalls, 0);
+});
+
+test(
+  "live OpenSpec adapter ignores repository-first PATH for a POSIX env-node shim",
+  { skip: process.platform === "win32" },
+  async () => {
+    const temporary = mkdtempSync(
+      join(tmpdir(), "release-coverage-openspec-env-node-"),
+    );
+    try {
+      const repository = join(temporary, "repository");
+      const outside = join(temporary, "outside");
+      mkdirSync(repository);
+      mkdirSync(outside);
+      const sentinel = join(repository, "node-sentinel.txt");
+      const maliciousNode = join(repository, "node");
+      writeFileSync(
+        maliciousNode,
+        [
+          "#!/bin/sh",
+          `printf 'pwned' > ${JSON.stringify(sentinel)}`,
+          "exit 0",
+          "",
+        ].join("\n"),
+        { mode: 0o755 },
+      );
+      chmodSync(maliciousNode, 0o755);
+      const openspec = join(outside, "openspec");
+      const payload = '{"changes":[]}\n';
+      writeFileSync(
+        openspec,
+        [
+          "#!/usr/bin/env node",
+          `process.stdout.write(${JSON.stringify(payload)});`,
+          "",
+        ].join("\n"),
+        { mode: 0o755 },
+      );
+      chmodSync(openspec, 0o755);
+      const expected = utf8(payload);
+      const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+        runCaptured: (input) =>
+          Effect.gen(function* () {
+            const exec = yield* ProcessExec;
+            return yield* exec.runCaptured(input);
+          }).pipe(Effect.provide(liveProcessExec)),
+        which: () => Effect.succeed(openspec),
+        realpath: (path) =>
+          Effect.try({
+            try: () => realpathSync(path),
+            catch: (error) => error,
+          }),
+        findWorktreeRoot: (path) =>
+          Effect.try({
+            try: () => realpathSync(path),
+            catch: (error) => error,
+          }),
+        nodeExecutable: process.execPath,
+        platform: process.platform,
+        comSpec: undefined,
+        cwd: () => repository,
+        nullDevice: devNull,
+        baseEnvironment: {
+          PATH: `${repository}${delimiter}${dirname(process.execPath)}`,
+          NODE_OPTIONS: "--require=/nonexistent/preload.js",
+        },
+      };
+      const services = makeLiveReleaseCoverageCliServices(dependencies);
+      const bytes = await Effect.runPromise(
+        services.openspecList.listJson({
+          repository,
+          argv: ["list", "--json"],
+          maxBytes: ONE_MIB,
+        }),
+      );
+      assert.deepEqual(bytes, expected);
+      assert.equal(existsSync(sentinel), false);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "live OpenSpec adapter ignores hostile PATH and PATHEXT for a native Windows node .cmd shim",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const temporary = mkdtempSync(
+      join(tmpdir(), "release-coverage-openspec-win-node-"),
+    );
+    try {
+      const repository = join(temporary, "repository");
+      const outside = join(temporary, "outside");
+      mkdirSync(repository);
+      mkdirSync(outside);
+      const sentinel = join(repository, "node-sentinel.txt");
+      const maliciousNode = join(repository, "node.cmd");
+      writeFileSync(
+        maliciousNode,
+        [
+          "@echo off",
+          `echo pwned> "${sentinel}"`,
+          "exit /b 0",
+          "",
+        ].join("\r\n"),
+      );
+      const openspec = join(outside, "openspec.cmd");
+      const payload = '{"changes":[]}\r\n';
+      writeFileSync(
+        openspec,
+        [
+          "@echo off",
+          "node -e \"process.stdout.write('{\\\"changes\\\":[]}\\r\\n')\"",
+          "exit /b 0",
+          "",
+        ].join("\r\n"),
+      );
+      const comSpec = process.env.ComSpec ?? process.env.COMSPEC;
+      if (comSpec === undefined) throw new Error("Windows ComSpec is unavailable");
+      const expected = utf8(payload);
+      const dependencies: ReleaseCoverageTrustedLiveDependencies = {
+        runCaptured: (input) =>
+          Effect.gen(function* () {
+            const exec = yield* ProcessExec;
+            return yield* exec.runCaptured(input);
+          }).pipe(Effect.provide(liveProcessExec)),
+        which: () => Effect.succeed(openspec),
+        realpath: (path) =>
+          Effect.try({
+            try: () => realpathSync(path),
+            catch: (error) => error,
+          }),
+        findWorktreeRoot: (path) =>
+          Effect.try({
+            try: () => realpathSync(path),
+            catch: (error) => error,
+          }),
+        nodeExecutable: process.execPath,
+        platform: "win32",
+        comSpec,
+        cwd: () => repository,
+        nullDevice: devNull,
+        baseEnvironment: {
+          PATH: `${repository}${delimiter}${dirname(process.execPath)}`,
+          PATHEXT: `.CMD${delimiter}.EXE`,
+          NODE_OPTIONS: "--require=C:\\hostile\\preload.js",
+        },
+      };
+      const services = makeLiveReleaseCoverageCliServices(dependencies);
+      const bytes = await Effect.runPromise(
+        services.openspecList.listJson({
+          repository,
+          argv: ["list", "--json"],
+          maxBytes: ONE_MIB,
+        }),
+      );
+      assert.deepEqual(bytes, expected);
+      assert.equal(existsSync(sentinel), false);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Moved from queue-services.test.ts (Track 1 allowlist relocation)
+// ---------------------------------------------------------------------------
+
+function runCaptured(
+  opts: RunCapturedOptions,
+): Effect.Effect<CapturedProcessResult, ProcessFailure> {
+  return Effect.gen(function* () {
+    const exec = yield* ProcessExec;
+    return yield* exec.runCaptured(opts);
+  }).pipe(Effect.provide(liveProcessExec));
+}
+
+test("runCaptured preserves UTF-8 stdout and stderr string fields", async () => {
+  const result = await Effect.runPromise(
+    runCaptured({
+      command: process.execPath,
+      args: [
+        "-e",
+        "process.stdout.write('hello'); process.stderr.write('err');",
+      ],
+      maxOutputBytes: 64,
+      timeoutMs: SCRIPT_TIMEOUT_MS,
+    }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout, "hello");
+  assert.equal(result.stderr, "err");
+});
+
+test("runCaptured accepts an exact output bound", async () => {
+  const payload = "x".repeat(64);
+  const result = await Effect.runPromise(
+    runCaptured({
+      command: process.execPath,
+      args: ["-e", `process.stdout.write(${JSON.stringify(payload)})`],
+      maxOutputBytes: 64,
+      timeoutMs: SCRIPT_TIMEOUT_MS,
+    }),
+  );
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stdout, payload);
+});
+
+test("runCaptured fails with output_bound on max-plus-one raw bytes", async () => {
+  const either = await Effect.runPromise(
+    runCaptured({
+      command: process.execPath,
+      args: ["-e", "process.stdout.write(Buffer.alloc(65, 1))"],
+      maxOutputBytes: 64,
+      timeoutMs: SCRIPT_TIMEOUT_MS,
+    }).pipe(Effect.either),
+  );
+  assert.equal(either._tag, "Left");
+  if (either._tag === "Left") {
+    assert.ok(either.left instanceof ProcessFailure);
+    assert.equal(either.left.reason, "output_bound");
+  }
+});
+
+test("runCaptured preserves exact stdoutBytes for raw 0xff", async () => {
+  const result = await Effect.runPromise(
+    runCaptured({
+      command: process.execPath,
+      args: ["-e", "process.stdout.write(Buffer.from([0xff]))"],
+      maxOutputBytes: 16,
+      timeoutMs: SCRIPT_TIMEOUT_MS,
+    }),
+  );
+  assert.equal(result.exitCode, 0);
+  const withBytes = result as CapturedProcessResult & {
+    readonly stdoutBytes: Uint8Array;
+  };
+  assert.deepEqual(Array.from(withBytes.stdoutBytes), [255]);
+});
+
+test("general bounded reader accepts a regular file through a symlinked ancestor", (t) => {
+  const realRoot = mkdtempSync(join(tmpdir(), "queue-bounded-real-"));
+  const aliasRoot = mkdtempSync(join(tmpdir(), "queue-bounded-alias-"));
+  try {
+    const realDirectory = join(realRoot, "real-directory");
+    mkdirSync(realDirectory);
+    const expected = "portable authority\n";
+    writeFileSync(join(realDirectory, "config.txt"), expected);
+    const aliasDirectory = join(aliasRoot, "alias-directory");
+    try {
+      symlinkSync(
+        realDirectory,
+        aliasDirectory,
+        process.platform === "win32" ? "junction" : "dir",
+      );
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
+        t.skip(`symlink creation not permitted: ${code}`);
+        return;
+      }
+      throw error;
+    }
+    assert.deepEqual(
+      readFileBoundedSync(join(aliasDirectory, "config.txt"), 1_024),
+      { _tag: "Ok", text: expected },
+    );
+  } finally {
+    rmSync(aliasRoot, { recursive: true, force: true });
+    rmSync(realRoot, { recursive: true, force: true });
+  }
+});
+
