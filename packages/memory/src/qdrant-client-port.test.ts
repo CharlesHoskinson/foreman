@@ -68,9 +68,13 @@ class RecordingClient {
     return this.collection;
   }
 
-  async clusterTelemetry(args: unknown) {
-    this.calls.push({ method: "clusterTelemetry", args: [args] });
-    return this.telemetry;
+  api() {
+    return {
+      telemetry: async (args: unknown) => {
+        this.calls.push({ method: "telemetry", args: [args] });
+        return { data: { result: this.telemetry, status: "ok" } };
+      },
+    };
   }
 
   async upsert(name: string, input: unknown) {
@@ -164,6 +168,10 @@ describe("QdrantClientPort", () => {
       fixture.client.calls.some(
         (call) => call.method === "getCollection" && call.args[0] === COLLECTION,
       ),
+      true,
+    );
+    assert.equal(
+      fixture.client.calls.some((call) => call.method === "telemetry"),
       true,
     );
   });

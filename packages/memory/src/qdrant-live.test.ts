@@ -8,6 +8,7 @@ import type { ProjectionRecord } from "@foreman/session-store";
 import {
   QdrantClientPort,
   QdrantMemoryIndex,
+  qdrantPointIdV1,
   type EmbeddingPort,
 } from "./index.js";
 
@@ -72,6 +73,131 @@ describe(
         assert.deepEqual(await index.recall("alpha", 5), []);
       } finally {
         await client.deleteCollection(collection);
+      }
+    });
+
+    it("fences stale upserts and retracts after newer desired state", async () => {
+      assert.ok(LIVE_URL);
+      const projectId = randomUUID();
+      const client = new QdrantClient({ url: LIVE_URL, checkCompatibility: true });
+      const port = new QdrantClientPort({ client, projectId });
+      const index = new QdrantMemoryIndex({
+        projectId,
+        port,
+        embedding: new LiveEmbedding(),
+        epochId: () => "version-fence",
+      });
+      const collection = await index.beginEpoch();
+      try {
+        await index.activateEpoch(collection);
+        const upsert = (version: number): ProjectionRecord => ({
+          project_id: projectId,
+          key: `${projectId}:fact:1`,
+          kind: "fact",
+          id: 1,
+          projection_version: version,
+          mutation: "upsert",
+          text: "alpha",
+        });
+        const retract = (version: number): ProjectionRecord => ({
+          project_id: projectId,
+          key: `${projectId}:fact:1`,
+          kind: "fact",
+          id: 1,
+          projection_version: version,
+          mutation: "retract",
+        });
+
+        await index.project([upsert(1), retract(2), upsert(1)]);
+        assert.deepEqual(await index.recall("alpha", 5), []);
+
+        await index.project([upsert(3), retract(2), upsert(3)]);
+        assert.deepEqual(await index.recall("alpha", 5), [
+          { project_id: projectId, kind: "fact", id: 1, score: 1 },
+        ]);
+        const stored = await client.retrieve(collection, {
+          ids: [qdrantPointIdV1(projectId, "fact", 1)],
+          with_payload: true,
+          with_vector: false,
+          consistency: "all",
+        });
+        assert.equal(stored[0]?.payload?.["projection_version"], 3);
+        assert.equal(stored[0]?.payload?.["live"], true);
+
+        await index.project([{
+          project_id: projectId,
+          key: `${projectId}:fact:99`,
+          kind: "fact",
+          id: 99,
+          projection_version: 1,
+          mutation: "retract",
+        }]);
+        assert.deepEqual(await index.recall("alpha", 5), [
+          { project_id: projectId, kind: "fact", id: 1, score: 1 },
+        ]);
+      } finally {
+        await client.deleteCollection(collection);
+      }
+    });
+
+    it("keeps a candidate invisible and changes epochs atomically", async () => {
+      assert.ok(LIVE_URL);
+      const projectId = randomUUID();
+      const client = new QdrantClient({ url: LIVE_URL, checkCompatibility: true });
+      const port = new QdrantClientPort({ client, projectId });
+      let epoch = "active";
+      const index = new QdrantMemoryIndex({
+        projectId,
+        port,
+        embedding: new LiveEmbedding(),
+        epochId: () => epoch,
+      });
+      const active = await index.beginEpoch();
+      let candidate: string | null = null;
+      try {
+        await index.activateEpoch(active);
+        await index.project([{
+          project_id: projectId,
+          key: `${projectId}:fact:1`,
+          kind: "fact",
+          id: 1,
+          projection_version: 1,
+          mutation: "upsert",
+          text: "alpha",
+        }]);
+
+        epoch = "candidate";
+        candidate = await index.beginEpoch();
+        await index.projectEpoch(candidate, [{
+          project_id: projectId,
+          key: `${projectId}:fact:2`,
+          kind: "fact",
+          id: 2,
+          projection_version: 2,
+          mutation: "upsert",
+          text: "alpha",
+        }]);
+        assert.deepEqual(await index.recall("alpha", 5), [
+          { project_id: projectId, kind: "fact", id: 1, score: 1 },
+        ]);
+
+        const racing = Array.from({ length: 12 }, () => index.recall("alpha", 5));
+        await index.activateEpoch(candidate);
+        const results = await Promise.all(racing);
+        for (const result of results) {
+          assert.equal(result.length, 1);
+          assert.equal(result[0]?.project_id, projectId);
+          assert.equal(result[0]?.kind, "fact");
+          assert.equal(result[0]?.id === 1 || result[0]?.id === 2, true);
+        }
+        assert.deepEqual(await index.recall("alpha", 5), [
+          { project_id: projectId, kind: "fact", id: 2, score: 1 },
+        ]);
+      } finally {
+        await Promise.allSettled([
+          client.deleteCollection(active),
+          ...(candidate === null ? [] : [client.deleteCollection(candidate)]),
+        ]);
       }
     });
   },

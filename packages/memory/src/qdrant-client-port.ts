@@ -157,6 +157,18 @@ export class QdrantClientPort implements QdrantPort {
     this.#projectId = options.projectId;
   }
 
+  async #telemetry(): Promise<unknown> {
+    const response = await this.#client.api().telemetry({
+      details_level: 1,
+      per_collection: false,
+    });
+    const data = object(response.data);
+    if (data?.["status"] !== "ok" || data["result"] === undefined) {
+      throw new Error("Qdrant telemetry response is invalid");
+    }
+    return data["result"];
+  }
+
   async #activePhysicalCollection(): Promise<{
     readonly alias: string;
     readonly collection: string;
@@ -181,7 +193,7 @@ export class QdrantClientPort implements QdrantPort {
   async qualify(): Promise<QdrantQualificationV1> {
     const active = await this.#activePhysicalCollection();
     const [telemetry, info] = await Promise.all([
-      this.#client.clusterTelemetry({ details_level: 1, per_collection: false }),
+      this.#telemetry(),
       this.#client.getCollection(active.collection),
     ]);
     return qualification(info, nodeCount(telemetry));
@@ -189,7 +201,7 @@ export class QdrantClientPort implements QdrantPort {
 
   async qualifyCollection(collection: string): Promise<QdrantQualificationV1> {
     const [telemetry, info] = await Promise.all([
-      this.#client.clusterTelemetry({ details_level: 1, per_collection: false }),
+      this.#telemetry(),
       this.#client.getCollection(collection),
     ]);
     if (epochMetadata(info, this.#projectId) === null) {
@@ -259,10 +271,7 @@ export class QdrantClientPort implements QdrantPort {
     readonly collection: string;
   }): Promise<void> {
     if (input.projectId !== this.#projectId) throw new Error("wrong project");
-    const telemetry = await this.#client.clusterTelemetry({
-      details_level: 1,
-      per_collection: false,
-    });
+    const telemetry = await this.#telemetry();
     if (nodeCount(telemetry) !== 1) {
       throw new Error("Qdrant topology is unsupported");
     }
