@@ -11,11 +11,11 @@ import {
   constants as fsConstants,
   existsSync,
   fstatSync,
-  lstatSync,
   openSync,
   readSync,
+  statSync,
 } from "node:fs";
-import { delimiter, dirname, join, resolve } from "node:path";
+import { delimiter, join } from "node:path";
 
 /** Default bound for captured child stdout+stderr combined. */
 export const MAX_CAPTURE_BYTES = 1_048_576;
@@ -231,83 +231,29 @@ function isNotFoundError(e: unknown): boolean {
   );
 }
 
-/** Open flags: O_RDONLY plus O_NONBLOCK / O_NOFOLLOW when the host exposes them. */
-function boundedReadOpenFlags(): number {
-  let flags = fsConstants.O_RDONLY;
-  const c = fsConstants as Record<string, number | undefined>;
-  if (typeof c.O_NONBLOCK === "number") flags |= c.O_NONBLOCK;
-  if (typeof c.O_NOFOLLOW === "number") flags |= c.O_NOFOLLOW;
-  return flags;
-}
-
-/**
- * Absolute path chain from leaf to root. Used to lstat every existing component
- * before open so an ancestor symlink cannot redirect the read.
- */
-function absolutePathChain(path: string): readonly string[] {
-  const absolute = resolve(path);
-  const chain: string[] = [];
-  let current = absolute;
-  for (;;) {
-    chain.push(current);
-    const parent = dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  return chain;
-}
-
-/**
- * lstat every path component (root → leaf). Rejects any symbolic link.
- * Returns the leaf lstat on success.
- */
-function lstatLeafRejectingSymlinkComponents(path: string):
-  | { readonly _tag: "Ok"; readonly before: ReturnType<typeof lstatSync> }
-  | { readonly _tag: "Absent" }
-  | { readonly _tag: "Unreadable" } {
-  const chain = absolutePathChain(path);
-  let leaf = undefined as ReturnType<typeof lstatSync> | undefined;
-  for (let i = chain.length - 1; i >= 0; i--) {
-    const component = chain[i]!;
-    let st;
-    try {
-      st = lstatSync(component);
-    } catch (e) {
-      if (isNotFoundError(e)) {
-        return i === 0 ? { _tag: "Absent" } : { _tag: "Unreadable" };
-      }
-      return { _tag: "Unreadable" };
-    }
-    if (st.isSymbolicLink()) {
-      return { _tag: "Unreadable" };
-    }
-    if (i === 0) leaf = st;
-  }
-  if (leaf === undefined) return { _tag: "Unreadable" };
-  return { _tag: "Ok", before: leaf };
-}
-
 export function readFileBoundedSync(
   path: string,
   maxBytes: number,
 ): BoundedReadResult {
   let fd: number | undefined;
   try {
-    const inspected = lstatLeafRejectingSymlinkComponents(path);
-    if (inspected._tag === "Absent") return { _tag: "Absent" };
-    if (inspected._tag === "Unreadable") return { _tag: "Unreadable" };
-    const before = inspected.before;
+    let before;
+    try {
+      before = statSync(path);
+    } catch (e) {
+      if (isNotFoundError(e)) return { _tag: "Absent" };
+      return { _tag: "Unreadable" };
+    }
     if (!before.isFile()) {
       return { _tag: "Unreadable" };
     }
 
-    fd = openSync(path, boundedReadOpenFlags());
+    fd = openSync(path, fsConstants.O_RDONLY);
     const opened = fstatSync(fd);
     if (
       opened.ino !== before.ino ||
       opened.dev !== before.dev ||
-      opened.size !== before.size ||
-      !opened.isFile()
+      opened.size !== before.size
     ) {
       return { _tag: "IdentityChanged" };
     }
