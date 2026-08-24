@@ -1642,6 +1642,91 @@ test("lane and release authority bind the real family child and absolute brief p
     assertUnchangedSnapshot(capture);
   });
 
+  await t.test(
+    "release reads workflow and brief for a declared v0.4 future owner with no entry",
+    async () => {
+      const applianceChild = FAMILY_SOURCE.children[2]!;
+      assert.equal(applianceChild.packageId, "hermetic-foreman-appliance");
+      const packageId = applianceChild.packageId;
+      const applianceWorkflowAbs = join(
+        REPO,
+        "openspec",
+        "changes",
+        packageId,
+        ".openspec.yaml",
+      );
+      const applianceBriefAbs = join(
+        REPO,
+        "openspec",
+        "changes",
+        packageId,
+        "release-brief.json",
+      );
+      const base = sealRegister({
+        activeNames: SHARED_ACTIVE,
+        roadmapBytes: SHARED_ROADMAP_BYTES,
+        packageReconcile: "complete",
+        track1TargetRelease: "released",
+        track1Disposition: "released_reference",
+      });
+      const registerText = `${base}\n\n[[future_owner]]\nname = "${packageId}"\ntarget_release = "v0.4"\nreason = "Track 4 owns the hermetic Foreman appliance."\n`;
+      assert.equal(
+        registerText.includes(`owner = "${packageId}"`),
+        false,
+      );
+      const { exitCode, capture } = await runCli(
+        RELEASE_ARGV,
+        sharedReleaseOptions({
+          registerText,
+          workflowByOwner: {
+            [TRACK1]: "foreman-architectural",
+            [PACKAGE]: "foreman-bounded",
+            [packageId]: "foreman-bounded",
+          },
+          briefBytesByAbsPath: new Map([
+            [PACKAGE_BRIEF_ABS, briefFileBytes(deriveBrief(FAMILY_CHILD))],
+            [
+              applianceBriefAbs,
+              briefFileBytes(deriveBrief(applianceChild)),
+            ],
+          ]),
+        }),
+      );
+      assert.equal(exitCode, EXIT_OK);
+      assert.equal(capture.log.family.length, 1);
+      const authorityReads = capture.log.fileReads
+        .filter(
+          (read) =>
+            read.path.endsWith(".openspec.yaml") ||
+            read.path.endsWith("release-brief.json"),
+        )
+        .map((read) => read.path)
+        .sort();
+      assert.deepEqual(
+        authorityReads,
+        [
+          PACKAGE_WORKFLOW_ABS,
+          applianceWorkflowAbs,
+          PACKAGE_BRIEF_ABS,
+          applianceBriefAbs,
+        ].sort(),
+      );
+      for (const read of capture.log.fileReads.filter(
+        (entry) =>
+          entry.path.endsWith(".openspec.yaml") ||
+          entry.path.endsWith("release-brief.json"),
+      )) {
+        assert.equal(read.containmentRoot, REPO);
+      }
+      assertCanonicalResult(
+        capture,
+        validResult(SHARED_ACTIVE, SHARED_ROADMAP_BYTES, 2),
+      );
+      assertNoEscapeReads(capture.log);
+      assertUnchangedSnapshot(capture);
+    },
+  );
+
   const briefAuthorityCases: ReadonlyArray<{
     name: string;
     options: HarnessOptions;
@@ -4182,6 +4267,124 @@ test("live OpenSpec adapter resolves physical OpenSpec, Node, and ComSpec target
       assert.equal(env.Node_V8_Coverage, undefined);
       assert.equal(env.Path, undefined);
       assert.equal(env.path, undefined);
+    });
+  }
+});
+
+test("live OpenSpec adapter replans and rejects unsafe physical Windows targets before spawn", async (t) => {
+  const repository = win32.join("C:\\", "Work", "Repository");
+  const physicalRepository = win32.join("C:\\", "Physical", "Repository");
+  const lexicalOpenSpec = win32.join(
+    "C:\\",
+    "Tools",
+    "OpenSpec",
+    "openspec.cmd",
+  );
+  const safePhysicalOpenSpec = win32.join(
+    "C:\\",
+    "Program Files",
+    "OpenSpec",
+    "openspec.cmd",
+  );
+  const unsafePhysicalOpenSpec = win32.join(
+    "C:\\",
+    "Tools&Bin",
+    "OpenSpec",
+    "openspec.cmd",
+  );
+  const lexicalComSpec = win32.join("C:\\", "Windows", "System32", "cmd.exe");
+  const safePhysicalComSpec = win32.join(
+    "C:\\",
+    "Windows",
+    "System32",
+    "cmd.exe",
+  );
+  const unsafePhysicalComSpec = win32.join(
+    "C:\\",
+    "Windows&System",
+    "System32",
+    "cmd.exe",
+  );
+  const lexicalNode = win32.join("C:\\", "Alias", "Node", "node.exe");
+  const physicalNode = win32.join(
+    "C:\\",
+    "Program Files",
+    "nodejs",
+    "node.exe",
+  );
+  const cases = [
+    {
+      name: "physical OpenSpec directory contains &",
+      physicalOpenSpec: unsafePhysicalOpenSpec,
+      physicalComSpec: safePhysicalComSpec,
+    },
+    {
+      name: "physical ComSpec directory contains &",
+      physicalOpenSpec: safePhysicalOpenSpec,
+      physicalComSpec: unsafePhysicalComSpec,
+    },
+  ] as const;
+
+  for (const item of cases) {
+    await t.test(item.name, async () => {
+      assert.equal(
+        planOpenSpecInvocationV1({
+          platform: "win32",
+          comSpec: lexicalComSpec,
+          resolvedOpenSpec: lexicalOpenSpec,
+        })._tag,
+        "Ok",
+      );
+      assert.deepEqual(
+        planOpenSpecInvocationV1({
+          platform: "win32",
+          comSpec: item.physicalComSpec,
+          resolvedOpenSpec: item.physicalOpenSpec,
+        }),
+        { _tag: "Invalid" },
+      );
+      let processCalls = 0;
+      const dependencies: ReleaseCoverageLiveDependencies = {
+        runCaptured: () => {
+          processCalls += 1;
+          return Effect.die("unsafe physical Windows target ran");
+        },
+        which: (name) =>
+          name === "openspec"
+            ? Effect.succeed(lexicalOpenSpec)
+            : Effect.succeed(null),
+        realpath: (path) => {
+          if (path === repository) return Effect.succeed(physicalRepository);
+          if (path === lexicalOpenSpec) {
+            return Effect.succeed(item.physicalOpenSpec);
+          }
+          if (path === lexicalNode || path === physicalNode) {
+            return Effect.succeed(physicalNode);
+          }
+          if (path === lexicalComSpec) {
+            return Effect.succeed(item.physicalComSpec);
+          }
+          return Effect.succeed(path);
+        },
+        findWorktreeRoot: () => Effect.succeed(physicalRepository),
+        nodeExecutable: lexicalNode,
+        platform: "win32",
+        comSpec: lexicalComSpec,
+        cwd: () => repository,
+        nullDevice: "NUL",
+        baseEnvironment: { PATH: win32.join("C:\\", "safe", "bin") },
+      };
+      const result = await Effect.runPromise(
+        makeLiveReleaseCoverageCliServices(dependencies)
+          .openspecList.listJson({
+            repository,
+            argv: ["list", "--json"],
+            maxBytes: ONE_MIB,
+          })
+          .pipe(Effect.either),
+      );
+      assert.equal(result._tag, "Left");
+      assert.equal(processCalls, 0);
     });
   }
 });
