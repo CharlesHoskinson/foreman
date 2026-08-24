@@ -27,6 +27,7 @@ import {
   PathLookup,
   ProcessExec,
   type CapturedProcessResult,
+  type RunCapturedOptions,
 } from "./queue-services.js";
 
 const ONE_MIB = 1_048_576;
