@@ -784,6 +784,7 @@ export {
 
 export {
   runReleaseCoverageCli,
+  makeLiveReleaseCoverageCliServices,
   liveReleaseCoverageCliServices,
   type ReleaseCoverageCliIo,
   type ReleaseCoverageFileReadService,
@@ -791,6 +792,7 @@ export {
   type ReleaseCoverageGitChangedPathsService,
   type ReleaseCoverageFamilySourceService,
   type ReleaseCoverageCliServices,
+  type ReleaseCoverageLiveDependencies,
   type ReleaseCoverageChildBriefV1,
   type ReleaseCoverageFamilySourceV1,
   type ReleaseCoverageResolvedFamilyV1,
