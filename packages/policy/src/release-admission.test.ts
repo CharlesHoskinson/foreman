@@ -525,4 +525,228 @@ const RECEIPT_RECIPES = [
 
 void RECEIPT_RECIPES;
 
-// FOREMAN_TASK33_UNSIGNED_BUNDLES
+type BundleFixtureInput = {
+  readonly childId: string;
+  readonly packageId: string;
+  readonly action: ReleaseEvidenceBundleV1["action"];
+  readonly candidate: ReleaseCandidateIdentityV1;
+  readonly taskPlanSha256: string;
+  readonly receipts: readonly ReleaseAuthorityReceiptV1[];
+  readonly priorReservation?: FailedReservationAuthorityV1;
+};
+
+const unsignedBundle = (input: BundleFixtureInput): UnsignedBundle => {
+  const base: UnsignedBundle = {
+    schema: "foreman.release-evidence-bundle.v1",
+    program: "v040",
+    rootContractId: ROOT_CONTRACT_ID,
+    rootContractSha256: ROOT_CONTRACT_SHA256,
+    familySha256: FAMILY_SHA256,
+    childId: input.childId,
+    packageId: input.packageId,
+    action: input.action,
+    candidate: input.candidate,
+    taskPlanSha256: input.taskPlanSha256,
+    receipts: input.receipts,
+    issuerKeySha256: HOST_AUDIT_FINGERPRINT,
+    issuedAt: ISSUED_AT,
+  };
+  if (input.priorReservation === undefined) return base;
+  return { ...base, priorReservation: input.priorReservation };
+};
+
+const standardBundle = (
+  action: ReleaseEvidenceBundleV1["action"],
+  candidate: ReleaseCandidateIdentityV1,
+  receipts: readonly ReleaseAuthorityReceiptV1[],
+  priorReservation?: FailedReservationAuthorityV1,
+): UnsignedBundle =>
+  unsignedBundle({
+    childId: STANDARD_CHILD_ID,
+    packageId: STANDARD_PACKAGE_ID,
+    action,
+    candidate,
+    taskPlanSha256: STANDARD_TASK_PLAN_SHA256,
+    receipts,
+    ...(priorReservation === undefined ? {} : { priorReservation }),
+  });
+
+const B_IMPLEMENT_B0_UNSIGNED = standardBundle("implement", B0, [D_STD]);
+const B_IMPLEMENT_B1_UNSIGNED = standardBundle("implement", B1, [D_STD]);
+const B_VERIFY_UNSIGNED = standardBundle("verify", B1, [D_STD]);
+const B_AUDIT_UNSIGNED = standardBundle("audit", B1, [D_STD, CHECKS_PASS]);
+const B_CORRECT_CHECKS_UNSIGNED = standardBundle("correct", B1, [
+  D_STD,
+  CHECKS_FAIL,
+]);
+const B_CORRECT_WARNING_UNSIGNED = standardBundle("correct", B1, [
+  D_STD,
+  AUDIT_WARNING,
+]);
+const B_CORRECT_BLOCKED_UNSIGNED = standardBundle("correct", B1, [
+  D_STD,
+  AUDIT_BLOCKED,
+]);
+const B_CORRECT_UNVERIFIED_UNSIGNED = standardBundle("correct", B1, [
+  D_STD,
+  AUDIT_UNVERIFIED,
+]);
+const B_COUNCIL_UNSIGNED = standardBundle("council", B1, [
+  D_STD,
+  COUNCIL_REQUEST,
+]);
+const B_PROVIDER_RETRY_UNSIGNED = standardBundle(
+  "provider_retry",
+  B1,
+  [D_STD],
+  PRIOR_RESERVATION,
+);
+const B_RESUME_UNSIGNED = standardBundle(
+  "resume",
+  B1,
+  [D_STD],
+  PRIOR_RESERVATION,
+);
+const B_INTEGRATE_UNSIGNED = standardBundle("integrate", B1, [
+  D_STD,
+  AUDIT_APPROVED,
+]);
+const B_PUBLISH_UNSIGNED = standardBundle("publish", B1, [
+  D_STD,
+  AUDIT_APPROVED,
+]);
+const B_EVALUATE_UNSIGNED = unsignedBundle({
+  childId: EVALUATION_CHILD_ID,
+  packageId: EVALUATION_PACKAGE_ID,
+  action: "evaluate",
+  candidate: E0,
+  taskPlanSha256: EVALUATION_TASK_PLAN_SHA256,
+  receipts: [D_EVAL, E_AUTH],
+});
+
+const signedBundle = (
+  id: RecipeId,
+  unsigned: UnsignedBundle,
+): ReleaseEvidenceBundleV1 =>
+  ({ ...unsigned, signature: SIGNATURES[id] }) as ReleaseEvidenceBundleV1;
+
+const B_IMPLEMENT_B0 = signedBundle("B_IMPLEMENT_B0", B_IMPLEMENT_B0_UNSIGNED);
+const B_IMPLEMENT_B1 = signedBundle("B_IMPLEMENT_B1", B_IMPLEMENT_B1_UNSIGNED);
+const B_VERIFY = signedBundle("B_VERIFY", B_VERIFY_UNSIGNED);
+const B_AUDIT = signedBundle("B_AUDIT", B_AUDIT_UNSIGNED);
+const B_CORRECT_CHECKS = signedBundle(
+  "B_CORRECT_CHECKS",
+  B_CORRECT_CHECKS_UNSIGNED,
+);
+const B_CORRECT_WARNING = signedBundle(
+  "B_CORRECT_WARNING",
+  B_CORRECT_WARNING_UNSIGNED,
+);
+const B_CORRECT_BLOCKED = signedBundle(
+  "B_CORRECT_BLOCKED",
+  B_CORRECT_BLOCKED_UNSIGNED,
+);
+const B_CORRECT_UNVERIFIED = signedBundle(
+  "B_CORRECT_UNVERIFIED",
+  B_CORRECT_UNVERIFIED_UNSIGNED,
+);
+const B_COUNCIL = signedBundle("B_COUNCIL", B_COUNCIL_UNSIGNED);
+const B_PROVIDER_RETRY = signedBundle(
+  "B_PROVIDER_RETRY",
+  B_PROVIDER_RETRY_UNSIGNED,
+);
+const B_RESUME = signedBundle("B_RESUME", B_RESUME_UNSIGNED);
+const B_INTEGRATE = signedBundle("B_INTEGRATE", B_INTEGRATE_UNSIGNED);
+const B_PUBLISH = signedBundle("B_PUBLISH", B_PUBLISH_UNSIGNED);
+const B_EVALUATE = signedBundle("B_EVALUATE", B_EVALUATE_UNSIGNED);
+
+const O_EXTERNAL_FAILURE_UNSIGNED = {
+  schema: "foreman.release-action-outcome.v1",
+  program: "v040",
+  rootContractId: ROOT_CONTRACT_ID,
+  rootContractSha256: ROOT_CONTRACT_SHA256,
+  familySha256: FAMILY_SHA256,
+  childId: STANDARD_CHILD_ID,
+  packageId: STANDARD_PACKAGE_ID,
+  reservationAction: "verify",
+  effectiveAction: "verify",
+  reservationId: "fixture-reservation-outcome",
+  originReservationId: "fixture-reservation-outcome",
+  candidateSha256: B1.candidateSha256,
+  status: "EXTERNAL_FAILURE",
+  evidenceSha256: FAILURE_EVIDENCE_SHA256,
+  issuerKeySha256: HOST_AUDIT_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+} as const satisfies UnsignedActionOutcome;
+
+const O_COUNCIL_UNSIGNED = {
+  schema: "foreman.council-outcome.v1",
+  program: "v040",
+  rootContractId: ROOT_CONTRACT_ID,
+  rootContractSha256: ROOT_CONTRACT_SHA256,
+  familySha256: FAMILY_SHA256,
+  childId: STANDARD_CHILD_ID,
+  packageId: STANDARD_PACKAGE_ID,
+  reservationAction: "council",
+  reservationId: "fixture-reservation-council",
+  originReservationId: "fixture-reservation-council",
+  candidateSha256: B1.candidateSha256,
+  requestSha256: completeFileSha256(COUNCIL_REQUEST),
+  decisionSha256: sha256Utf8("fixture council decision"),
+  status: "ADVICE",
+  issuerKeySha256: HOST_AUDIT_FINGERPRINT,
+  issuedAt: ISSUED_AT,
+} as const satisfies UnsignedCouncilOutcome;
+
+const O_EXTERNAL_FAILURE = {
+  ...O_EXTERNAL_FAILURE_UNSIGNED,
+  signature: SIGNATURES.O_EXTERNAL_FAILURE,
+} as const satisfies ReleaseActionOutcomeV1;
+
+const O_COUNCIL = {
+  ...O_COUNCIL_UNSIGNED,
+  signature: SIGNATURES.O_COUNCIL,
+} as const satisfies ReleaseCouncilOutcomeV1;
+
+const BUNDLE_RECIPES = [
+  { id: "B_IMPLEMENT_B0", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD"], unsigned: B_IMPLEMENT_B0_UNSIGNED },
+  { id: "B_IMPLEMENT_B1", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD"], unsigned: B_IMPLEMENT_B1_UNSIGNED },
+  { id: "B_VERIFY", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD"], unsigned: B_VERIFY_UNSIGNED },
+  { id: "B_AUDIT", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "CHECKS_PASS"], unsigned: B_AUDIT_UNSIGNED },
+  { id: "B_CORRECT_CHECKS", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "CHECKS_FAIL"], unsigned: B_CORRECT_CHECKS_UNSIGNED },
+  { id: "B_CORRECT_WARNING", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "AUDIT_WARNING"], unsigned: B_CORRECT_WARNING_UNSIGNED },
+  { id: "B_CORRECT_BLOCKED", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "AUDIT_BLOCKED"], unsigned: B_CORRECT_BLOCKED_UNSIGNED },
+  { id: "B_CORRECT_UNVERIFIED", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "AUDIT_UNVERIFIED"], unsigned: B_CORRECT_UNVERIFIED_UNSIGNED },
+  { id: "B_COUNCIL", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "COUNCIL_REQUEST"], unsigned: B_COUNCIL_UNSIGNED },
+  { id: "B_PROVIDER_RETRY", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD"], unsigned: B_PROVIDER_RETRY_UNSIGNED },
+  { id: "B_RESUME", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD"], unsigned: B_RESUME_UNSIGNED },
+  { id: "B_INTEGRATE", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "AUDIT_APPROVED"], unsigned: B_INTEGRATE_UNSIGNED },
+  { id: "B_PUBLISH", kind: "bundle", role: "hostAudit", dependsOn: ["D_STD", "AUDIT_APPROVED"], unsigned: B_PUBLISH_UNSIGNED },
+  { id: "B_EVALUATE", kind: "bundle", role: "hostAudit", dependsOn: ["D_EVAL", "E_AUTH"], unsigned: B_EVALUATE_UNSIGNED },
+] as const satisfies readonly FixtureSigningRecipe[];
+
+const OUTCOME_RECIPES = [
+  { id: "O_EXTERNAL_FAILURE", kind: "actionOutcome", role: "hostAudit", dependsOn: [], unsigned: O_EXTERNAL_FAILURE_UNSIGNED },
+  { id: "O_COUNCIL", kind: "councilOutcome", role: "hostAudit", dependsOn: ["COUNCIL_REQUEST"], unsigned: O_COUNCIL_UNSIGNED },
+] as const satisfies readonly FixtureSigningRecipe[];
+
+void B_IMPLEMENT_B0;
+void B_IMPLEMENT_B1;
+void B_VERIFY;
+void B_AUDIT;
+void B_CORRECT_CHECKS;
+void B_CORRECT_WARNING;
+void B_CORRECT_BLOCKED;
+void B_CORRECT_UNVERIFIED;
+void B_COUNCIL;
+void B_PROVIDER_RETRY;
+void B_RESUME;
+void B_INTEGRATE;
+void B_PUBLISH;
+void B_EVALUATE;
+void O_EXTERNAL_FAILURE;
+void O_COUNCIL;
+void BUNDLE_RECIPES;
+void OUTCOME_RECIPES;
+
+// FOREMAN_TASK33_UNSIGNED_MUTANTS
