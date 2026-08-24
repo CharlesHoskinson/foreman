@@ -194,12 +194,12 @@ integration only, and esbuild for generated runtime bundles.
 
 - Create: `packages/policy/src/release-admission.ts`
 - Create: `packages/policy/src/release-admission.test.ts`
+- Create: `packages/policy/src/release-admission-cli.ts`
+- Create: `packages/policy/src/release-admission-cli.test.ts`
 - Create: `packages/policy/src/release-admission-main.ts`
 - Create: `packages/policy/src/release-authority.ts`
 - Create: `packages/policy/src/release-authority.test.ts`
 - Modify: `packages/policy/src/index.ts`
-- Modify: `packages/policy/src/cli.ts`
-- Modify: `packages/policy/src/cli.test.ts`
 
 **Interfaces:**
 
@@ -239,8 +239,10 @@ integration only, and esbuild for generated runtime bundles.
   digest, family, and child. Prove the post-plan design receipt binds the exact
   implementation-base commit, tree, manifest, and task plan. Prove two dependent
   implementation reservations start first from the approved base and then from
-  the exact first task commit. Refuse a reset, sibling commit, merge commit, or
-  changed task plan. Prove current candidate or worktree checkbox edits cannot
+  the exact first task commit. The standalone verifier accepts any linear
+  descendant because it has no journal identity; Task 5 must refuse a reset or
+  sibling against the registered current candidate. Refuse a merge commit or
+  changed task plan. Prove worktree checkbox edits cannot
   replace the blobs from the approved design commit. Refuse a missing or oversized
   blob, an extra specification, and a wrong historical tree. Observe failures before
   implementation.

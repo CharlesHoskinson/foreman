@@ -375,6 +375,13 @@ test("caller action, package, and candidate must match evidence", () => {
     evaluateReleaseEvidenceV1({ ...INPUT, candidate: otherCandidate }),
     { schemaVersion: 1, _tag: "EvidenceInvalid", reason: "wrong_candidate" },
   );
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({
+      ...INPUT,
+      action: "deploy" as ReleaseActionV1,
+    }),
+    { schemaVersion: 1, _tag: "EvidenceInvalid", reason: "wrong_action" },
+  );
 });
 
 test("implementation candidate must equal the approved design base", () => {
@@ -446,6 +453,21 @@ test("every registered identity field is exact", () => {
       reason: "registration_mismatch",
     });
   }
+});
+
+test("registration rejects a reset from the current descendant", () => {
+  const currentCandidate: ReleaseCandidateIdentityV1 = {
+    commit: "1".repeat(40),
+    tree: "2".repeat(40),
+    candidateSha256: sha256Hex("1".repeat(40)),
+  };
+  assert.deepEqual(
+    evaluateReleaseAdmissionV1({
+      ...INPUT,
+      registered: { ...REGISTERED, candidate: currentCandidate },
+    }),
+    { schemaVersion: 1, _tag: "Refused", reason: "registration_mismatch" },
+  );
 });
 
 test("every ordinary action and registered digest is admitted", async (t) => {

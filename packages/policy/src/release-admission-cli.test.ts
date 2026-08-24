@@ -604,6 +604,149 @@ test("live CLI loads approved bytes from the pinned design commit", async () => 
       `${canonicalize({ schemaVersion: 1, _tag: "EvidenceValid" })}\n`,
     ]);
 
+    const runLive = async (
+      action: string,
+      evidence: unknown,
+    ): Promise<{
+      readonly code: number;
+      readonly stdout: readonly string[];
+      readonly stderr: readonly string[];
+    }> => {
+      writeFileSync(evidencePath, canonicalFile(evidence));
+      const localStdout: string[] = [];
+      const localStderr: string[] = [];
+      const localCode = await Effect.runPromise(
+        runReleaseAdmissionCli(
+          [
+            "check",
+            "--program",
+            "v040",
+            "--action",
+            action,
+            "--package",
+            "project-registry",
+            "--repo",
+            repository,
+            "--candidate-commit",
+            commit,
+            "--evidence",
+            evidencePath,
+          ],
+          {
+            writeStdout: (line) => localStdout.push(line),
+            writeStderr: (line) => localStderr.push(line),
+          },
+          liveReleaseAdmissionCliServices,
+        ),
+      );
+      return { code: localCode, stdout: localStdout, stderr: localStderr };
+    };
+    const expectLiveReason = async (
+      action: string,
+      evidence: unknown,
+      reason: string,
+    ): Promise<void> => {
+      const result = await runLive(action, evidence);
+      assert.equal(result.code, 1);
+      assert.deepEqual(result.stderr, []);
+      assert.deepEqual(result.stdout, [
+        `${canonicalize({
+          schemaVersion: 1,
+          _tag: "EvidenceInvalid",
+          reason,
+        })}\n`,
+      ]);
+    };
+
+    await expectLiveReason("verify", bundle, "wrong_action");
+    await expectLiveReason(
+      "implement",
+      {
+        ...bundle,
+        candidate: {
+          commit: "1".repeat(40),
+          tree,
+          candidateSha256: sha256Hex("1".repeat(40)),
+        },
+      },
+      "wrong_candidate",
+    );
+    await expectLiveReason(
+      "implement",
+      { ...bundle, candidate: { ...candidate, tree: "2".repeat(40) } },
+      "wrong_candidate",
+    );
+    await expectLiveReason(
+      "implement",
+      { ...bundle, candidate: { ...candidate, candidateSha256: "f".repeat(64) } },
+      "invalid_evidence",
+    );
+    await expectLiveReason(
+      "implement",
+      {
+        ...bundle,
+        receipts: [
+          { ...design, approvedOpenSpecSha256: "f".repeat(64) },
+        ],
+      },
+      "approved_openspec_mismatch",
+    );
+    const audit = {
+      schema: "foreman.release-audit.v1" as const,
+      program: "v040" as const,
+      packageId: "project-registry",
+      candidate,
+      verdict: "APPROVED" as const,
+      findings: [],
+      evidenceSha256: "f".repeat(64),
+      issuedAt: "2026-08-24T12:02:00Z",
+    };
+    await expectLiveReason(
+      "integrate",
+      {
+        ...bundle,
+        action: "integrate",
+        receipts: [design, { ...audit, verdict: "WARNING" }],
+      },
+      "invalid_evidence",
+    );
+    await expectLiveReason(
+      "integrate",
+      {
+        ...bundle,
+        action: "integrate",
+        receipts: [
+          design,
+          {
+            ...audit,
+            findings: [
+              {
+                severity: "high",
+                file: "src/release.ts",
+                line: 1,
+                summary: "blocking finding",
+                evidence: "the release cannot proceed",
+              },
+            ],
+          },
+        ],
+      },
+      "invalid_evidence",
+    );
+
+    mkdirSync(join(repository, ".foreman"), { recursive: true });
+    writeFileSync(
+      join(repository, ".foreman", "config.toml"),
+      "[audit.policy]\nwarning_low_resolved = \"merge\"\n",
+    );
+    const policyBait = await runLive("implement", bundle);
+    assert.equal(policyBait.code, 0);
+    assert.deepEqual(policyBait.stderr, []);
+    assert.deepEqual(policyBait.stdout, [
+      `${canonicalize({ schemaVersion: 1, _tag: "EvidenceValid" })}\n`,
+    ]);
+    writeFileSync(evidencePath, canonicalFile(bundle));
+
     const invoked = spawnSync(
       process.execPath,
       [
@@ -693,6 +836,55 @@ test("live CLI loads approved bytes from the pinned design commit", async () => 
     writeFileSync(join(repository, "side.txt"), "side\n");
     git(repository, ["add", "."]);
     git(repository, ["commit", "--quiet", "-m", "sibling"]);
+    const siblingCommit = git(repository, ["rev-parse", "HEAD"]).stdout.trim();
+    const siblingTree = git(
+      repository,
+      ["rev-parse", `${siblingCommit}^{tree}`],
+    ).stdout.trim();
+    writeFileSync(
+      evidencePath,
+      canonicalFile({
+        ...bundle,
+        candidate: {
+          commit: siblingCommit,
+          tree: siblingTree,
+          candidateSha256: sha256Hex(siblingCommit),
+        },
+      }),
+    );
+    const sibling = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        TSX_LOADER,
+        RELEASE_ADMISSION_MAIN,
+        "check",
+        "--program",
+        "v040",
+        "--action",
+        "implement",
+        "--package",
+        "project-registry",
+        "--repo",
+        repository,
+        "--candidate-commit",
+        siblingCommit,
+        "--evidence",
+        evidencePath,
+      ],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        timeout: 30_000,
+      },
+    );
+    assert.equal(sibling.error, undefined);
+    assert.equal(sibling.status, 0, sibling.stderr);
+    assert.equal(sibling.stderr, "");
+    assert.equal(
+      sibling.stdout,
+      `${canonicalize({ schemaVersion: 1, _tag: "EvidenceValid" })}\n`,
+    );
     git(repository, ["checkout", "--quiet", "--detach", descendantCommit]);
     git(repository, ["merge", "--quiet", "--no-ff", "side", "-m", "merge"]);
     const mergeCommit = git(repository, ["rev-parse", "HEAD"]).stdout.trim();
