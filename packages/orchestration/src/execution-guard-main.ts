@@ -7,9 +7,11 @@ const program = runEndstopCli(process.argv, {
 });
 
 Effect.runPromise(program).then(
-  (code) => process.exit(code),
+  (code) => {
+    process.exitCode = code;
+  },
   () => {
     process.stderr.write("Foreman Endstop: internal failure\n");
-    process.exit(1);
+    process.exitCode = 1;
   },
 );

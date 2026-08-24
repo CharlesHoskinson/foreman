@@ -15,19 +15,31 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join } from "node:path";
+import { devNull } from "node:os";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { decodeRunId, isUtcSecondTimestamp } from "@foreman/event-log";
+import {
+  decodeReleaseAuthorityFileV1,
+  gitArgv,
+  sanitizedGitEnv,
+  type ReleaseActionOutcomeV1,
+  type ReleaseCandidateIdentityV1,
+  type ReleaseCouncilOutcomeV1,
+} from "@foreman/policy";
 import { Effect } from "effect";
 import {
   decodeExecutionContractV1,
   decodeExecutionContractFamilyV2,
+  decodeExecutionFamilySourceFileV1,
   deriveExecutionContractFamilyV2,
   executionContractFamilySha256,
+  executionChildPathMatchesV1,
   executionMilestones,
   isExecutionContractFailure,
   isExecutionFamilyFailure,
@@ -43,7 +55,13 @@ import type {
   ExecutionChildStateV2,
   ExecutionFamilyStateV2,
 } from "./execution-terminal-policy.js";
-import { readFileBoundedSync } from "./queue-services.js";
+import {
+  livePathLookup,
+  liveProcessExec,
+  PathLookup,
+  ProcessExec,
+  readFileBoundedSync,
+} from "./queue-services.js";
 
 export const ENDSTOP_EXIT_OK = 0;
 export const ENDSTOP_EXIT_FAIL = 1;
@@ -56,6 +74,12 @@ export type EndstopCliIo = {
 
 export type EndstopCliServices = {
   readonly now: () => string;
+  readonly resolveProductChange?: (input: {
+    readonly repository: string;
+    readonly baseCandidate: ReleaseCandidateIdentityV1;
+    readonly candidateCommit: string;
+    readonly allowedPaths: readonly string[];
+  }) => Effect.Effect<ReleaseCandidateIdentityV1, unknown>;
 };
 
 const ONE_MIB = 1024 * 1024;
@@ -700,6 +724,277 @@ function loadPublishedFamilySet(
     : null;
 }
 
+function loadRegisteredChildAllowedPaths(input: {
+  readonly stateRoot: string;
+  readonly contractId: string;
+  readonly contractSha256: string;
+  readonly familySha256: string;
+  readonly childId: string;
+  readonly manifest: ExecutionContractFamilyV2;
+  readonly sourceSha256: string;
+}): readonly string[] | null {
+  try {
+    const sourcePath = join(
+      familySetPath(input.stateRoot, input.familySha256),
+      "source.json",
+    );
+    const sourceFile = readCanonicalFile(sourcePath);
+    if (
+      sourceFile === null ||
+      sha256Hex(sourceFile.bytes) !== input.sourceSha256 ||
+      input.manifest.sourceSha256 !== input.sourceSha256
+    ) {
+      return null;
+    }
+    const source = decodeExecutionFamilySourceFileV1(sourceFile.bytes);
+    if (isExecutionFamilyFailure(source)) return null;
+    const derived = deriveExecutionContractFamilyV2({
+      rootContractId: input.contractId,
+      rootContractSha256: input.contractSha256,
+      track1Commit: input.manifest.track1Commit,
+      track1Tree: input.manifest.track1Tree,
+      sourceBytes: sourceFile.bytes,
+      createdAt: input.manifest.createdAt,
+    });
+    if (
+      derived._tag !== "Valid" ||
+      derived.familySha256 !== input.familySha256 ||
+      canonicalize(derived.manifest) !== canonicalize(input.manifest)
+    ) {
+      return null;
+    }
+    return source.children.find((child) => child.childId === input.childId)
+      ?.allowedPaths ?? null;
+  } catch {
+    return null;
+  }
+}
+
+type DecodedOutcome = {
+  readonly value: ReleaseActionOutcomeV1 | ReleaseCouncilOutcomeV1;
+  readonly sha256: string;
+};
+
+function readOutcomeFile(path: string): DecodedOutcome | null {
+  const file = readCanonicalFile(path);
+  if (file === null) return null;
+  const decoded = decodeReleaseAuthorityFileV1(file.bytes);
+  if (
+    decoded._tag !== "Valid" ||
+    (decoded.value.schema !== "foreman.release-action-outcome.v1" &&
+      decoded.value.schema !== "foreman.council-outcome.v1")
+  ) {
+    return null;
+  }
+  return { value: decoded.value, sha256: decoded.sha256 };
+}
+
+function outcomeMatchesChild(
+  outcome: ReleaseActionOutcomeV1 | ReleaseCouncilOutcomeV1,
+  input: {
+    readonly contractId: string;
+    readonly contractSha256: string;
+    readonly familySha256: string;
+    readonly childId: string;
+    readonly packageId: string;
+  },
+): boolean {
+  return (
+    outcome.rootContractId === input.contractId &&
+    outcome.rootContractSha256 === input.contractSha256 &&
+    outcome.familySha256 === input.familySha256 &&
+    outcome.childId === input.childId &&
+    outcome.packageId === input.packageId
+  );
+}
+
+function readTerminalApproval(
+  path: string,
+  expectedSchema:
+    | "foreman.execution-child-cancel.v1"
+    | "foreman.execution-child-invalidate.v1",
+) {
+  const file = readCanonicalFile(path);
+  if (file === null) return null;
+  const decoded = decodeReleaseAuthorityFileV1(file.bytes);
+  if (decoded._tag !== "Valid" || decoded.value.schema !== expectedSchema) {
+    return null;
+  }
+  return { value: decoded.value, sha256: decoded.sha256 };
+}
+
+function pathIsInside(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel.length === 0 ||
+    (!isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`));
+}
+
+function decodeGitLine(bytes: Uint8Array): string | null {
+  try {
+    const value = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return /^[0-9a-f]{40}\n$/u.test(value) ? value.slice(0, -1) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseChangedPaths(bytes: Uint8Array): readonly string[] | null {
+  if (bytes.length === 0 || bytes[bytes.length - 1] !== 0) return null;
+  const fields: string[] = [];
+  let start = 0;
+  try {
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    for (let index = 0; index < bytes.length; index += 1) {
+      if (bytes[index] !== 0) continue;
+      if (index === start) return null;
+      fields.push(decoder.decode(bytes.subarray(start, index)));
+      start = index + 1;
+    }
+  } catch {
+    return null;
+  }
+  if (fields.length === 0 || fields.length % 2 !== 0) return null;
+  const paths: string[] = [];
+  for (let index = 0; index < fields.length; index += 2) {
+    if (!/^[ADMT]$/u.test(fields[index]!)) return null;
+    paths.push(fields[index + 1]!);
+  }
+  return paths;
+}
+
+export function resolveProductChangeLive(input: {
+  readonly repository: string;
+  readonly baseCandidate: ReleaseCandidateIdentityV1;
+  readonly candidateCommit: string;
+  readonly allowedPaths: readonly string[];
+}): Effect.Effect<ReleaseCandidateIdentityV1, unknown> {
+  return Effect.gen(function* () {
+    const exec = yield* ProcessExec;
+    const lookup = yield* PathLookup;
+    const physicalRepository = yield* Effect.try({
+      try: () => realpathSync(input.repository),
+      catch: (error) => error,
+    });
+    const resolvedGit = yield* lookup.which("git");
+    if (resolvedGit === null || !isAbsolute(resolvedGit)) {
+      return yield* Effect.fail(new Error("git_unavailable"));
+    }
+    const physicalGit = yield* Effect.try({
+      try: () => realpathSync(resolvedGit),
+      catch: (error) => error,
+    });
+    if (pathIsInside(physicalRepository, physicalGit)) {
+      return yield* Effect.fail(new Error("git_inside_repository"));
+    }
+    const environment = sanitizedGitEnv({});
+    environment.PATH = dirname(physicalGit);
+    if (process.platform === "win32") environment.PATHEXT = ".EXE";
+    environment.LANG = "C";
+    environment.LC_ALL = "C";
+    environment.GIT_CONFIG_NOSYSTEM = "1";
+    environment.GIT_CONFIG_GLOBAL = devNull;
+    const args = (tail: readonly string[]) =>
+      gitArgv([
+        "-c", "core.fsmonitor=false",
+        "-c", `core.excludesFile=${devNull}`,
+        "-C", physicalRepository,
+        ...tail,
+      ]);
+    const run = (tail: readonly string[]) =>
+      Effect.gen(function* () {
+        const captured = yield* exec.runCaptured({
+          command: physicalGit,
+          args: args(tail),
+          cwd: physicalRepository,
+          env: environment,
+          maxOutputBytes: ONE_MIB,
+          timeoutMs: 30_000,
+        });
+        if (
+          captured.exitCode !== 0 ||
+          captured.stdoutBytes === undefined ||
+          captured.stderrBytes === undefined ||
+          captured.stderrBytes.length !== 0
+        ) {
+          return yield* Effect.fail(new Error("git_failed"));
+        }
+        return captured.stdoutBytes;
+      });
+
+    const topBytes = yield* run(["rev-parse", "--show-toplevel"]);
+    let top: string;
+    try {
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(topBytes);
+      if (!text.endsWith("\n") || text.endsWith("\r\n")) {
+        return yield* Effect.fail(new Error("git_root_invalid"));
+      }
+      top = realpathSync(text.slice(0, -1));
+    } catch {
+      return yield* Effect.fail(new Error("git_root_invalid"));
+    }
+    if (top !== physicalRepository) {
+      return yield* Effect.fail(new Error("git_root_mismatch"));
+    }
+    const baseCommit = decodeGitLine(
+      yield* run(["rev-parse", "--verify", `${input.baseCandidate.commit}^{commit}`]),
+    );
+    const baseTree = decodeGitLine(
+      yield* run(["rev-parse", "--verify", `${input.baseCandidate.commit}^{tree}`]),
+    );
+    const candidateCommit = decodeGitLine(
+      yield* run(["rev-parse", "--verify", `${input.candidateCommit}^{commit}`]),
+    );
+    const candidateTree = decodeGitLine(
+      yield* run(["rev-parse", "--verify", `${input.candidateCommit}^{tree}`]),
+    );
+    if (
+      baseCommit !== input.baseCandidate.commit ||
+      baseTree !== input.baseCandidate.tree ||
+      candidateCommit !== input.candidateCommit ||
+      candidateTree === null ||
+      candidateCommit === baseCommit
+    ) {
+      return yield* Effect.fail(new Error("candidate_mismatch"));
+    }
+    const parentsBytes = yield* run([
+      "rev-list", "--parents", "-n", "1", candidateCommit,
+    ]);
+    let parents: string;
+    try {
+      parents = new TextDecoder("utf-8", { fatal: true }).decode(parentsBytes);
+    } catch {
+      return yield* Effect.fail(new Error("candidate_mismatch"));
+    }
+    if (parents !== `${candidateCommit} ${baseCommit}\n`) {
+      return yield* Effect.fail(new Error("candidate_mismatch"));
+    }
+    const changedPaths = parseChangedPaths(
+      yield* run([
+        "diff", "--name-status", "-z", "--no-renames", "--no-ext-diff",
+        "--no-textconv", baseCommit, candidateCommit, "--",
+      ]),
+    );
+    if (
+      changedPaths === null ||
+      changedPaths.some((path) =>
+        !input.allowedPaths.some((allowed) =>
+          executionChildPathMatchesV1(allowed, path),
+        ),
+      )
+    ) {
+      return yield* Effect.fail(new Error("path_mismatch"));
+    }
+    return {
+      commit: candidateCommit,
+      tree: candidateTree,
+      candidateSha256: sha256Hex(candidateCommit),
+    };
+  }).pipe(
+    Effect.provide(liveProcessExec),
+    Effect.provide(livePathLookup),
+  );
+}
+
 function publicSnapshot(state: ExecutionState): Record<string, unknown> {
   return {
     contractId: state.contract.contractId,
@@ -883,7 +1178,201 @@ export function runEndstopCli(
     }
 
     if (parsed._tag !== "Create") {
-      return yield* Effect.fail(new Error("invalid_child_operation"));
+      const status = yield* ledger.familyStatus({
+        rootContractId: parsed.contractId,
+        rootContractSha256: parsed.contractSha256,
+        familySha256: parsed.familySha256,
+      });
+      const child = status.family.children[parsed.childId];
+      if (child === undefined) {
+        return yield* Effect.fail(new Error("unknown_child"));
+      }
+      const at = services.now();
+      if (!isUtcSecondTimestamp(at)) {
+        return yield* Effect.fail(new Error("invalid_clock"));
+      }
+
+      if (parsed._tag === "ChildRecordProductChange") {
+        const reservation = child.reservations[parsed.reservationId];
+        const allowedPaths = loadRegisteredChildAllowedPaths({
+          stateRoot: parsed.stateRoot,
+          contractId: parsed.contractId,
+          contractSha256: parsed.contractSha256,
+          familySha256: parsed.familySha256,
+          childId: parsed.childId,
+          manifest: status.family.manifest,
+          sourceSha256: status.authority.sourceSha256,
+        });
+        if (
+          reservation === undefined ||
+          allowedPaths === null
+        ) {
+          return yield* Effect.fail(new Error("invalid_child_operation"));
+        }
+        const candidate = yield* (
+          services.resolveProductChange ?? resolveProductChangeLive
+        )({
+          repository: parsed.repository,
+          baseCandidate: reservation.candidate,
+          candidateCommit: parsed.candidateCommit,
+          allowedPaths,
+        });
+        const result = yield* ledger.executeChild({
+          rootContractId: parsed.contractId,
+          rootContractSha256: parsed.contractSha256,
+          familySha256: parsed.familySha256,
+          childId: parsed.childId,
+          operation: {
+            _tag: "RecordProductChange",
+            reservationId: reservation.reservationId,
+            originReservationId: reservation.originReservationId,
+            baseCandidate: reservation.candidate,
+            candidate,
+            allowedPathsSha256: child.contract.allowedPathsSha256,
+          },
+          at,
+        });
+        if (result.decision._tag === "Refused") {
+          return yield* Effect.fail(new Error("invalid_child_operation"));
+        }
+        return {
+          _tag: "Child" as const,
+          state: result.state.children[parsed.childId]!,
+        };
+      }
+
+      if (
+        parsed._tag === "ChildRecordMilestone" ||
+        parsed._tag === "ChildRecordBlocking" ||
+        parsed._tag === "ChildRecordExternalFailure"
+      ) {
+        const decoded = yield* Effect.try({
+          try: () => readOutcomeFile(parsed.outcomeFile),
+          catch: () => null,
+        });
+        if (
+          decoded === null ||
+          !outcomeMatchesChild(decoded.value, {
+            contractId: parsed.contractId,
+            contractSha256: parsed.contractSha256,
+            familySha256: parsed.familySha256,
+            childId: parsed.childId,
+            packageId: child.contract.packageId,
+          })
+        ) {
+          return yield* Effect.fail(new Error("invalid_child_operation"));
+        }
+        const outcome = decoded.value;
+        const effectiveAction = outcome.schema === "foreman.council-outcome.v1"
+          ? "council"
+          : outcome.effectiveAction;
+        if (
+          (parsed._tag === "ChildRecordMilestone" &&
+            (outcome.schema !== "foreman.release-action-outcome.v1" ||
+              outcome.status !== "PASS")) ||
+          (parsed._tag === "ChildRecordBlocking" &&
+            (outcome.status !== "BLOCKING" ||
+              (outcome.schema === "foreman.release-action-outcome.v1" &&
+                outcome.effectiveAction !== "verify" &&
+                outcome.effectiveAction !== "audit"))) ||
+          (parsed._tag === "ChildRecordExternalFailure" &&
+            (outcome.schema !== "foreman.release-action-outcome.v1" ||
+              outcome.status !== "EXTERNAL_FAILURE"))
+        ) {
+          return yield* Effect.fail(new Error("invalid_child_operation"));
+        }
+        const reservation = child.reservations[outcome.reservationId];
+        if (
+          reservation === undefined ||
+          reservation.originReservationId !== outcome.originReservationId ||
+          reservation.reservationAction !== outcome.reservationAction ||
+          reservation.effectiveAction !== effectiveAction ||
+          reservation.candidate.candidateSha256 !== outcome.candidateSha256
+        ) {
+          return yield* Effect.fail(new Error("invalid_child_operation"));
+        }
+        const operation = parsed._tag === "ChildRecordMilestone"
+          ? {
+              _tag: "RecordMilestone" as const,
+              milestone: parsed.milestone,
+              outcomeSha256: decoded.sha256,
+              reservationId: outcome.reservationId,
+              originReservationId: outcome.originReservationId,
+              candidateSha256: outcome.candidateSha256,
+            }
+          : {
+              _tag: parsed._tag === "ChildRecordBlocking"
+                ? "RecordBlockingOutcome" as const
+                : "RecordExternalFailure" as const,
+              outcomeSha256: decoded.sha256,
+              reservationId: outcome.reservationId,
+              originReservationId: outcome.originReservationId,
+              candidateSha256: outcome.candidateSha256,
+            };
+        const result = yield* ledger.executeChild({
+          rootContractId: parsed.contractId,
+          rootContractSha256: parsed.contractSha256,
+          familySha256: parsed.familySha256,
+          childId: parsed.childId,
+          operation,
+          at,
+        });
+        if (result.decision._tag === "Refused") {
+          return yield* Effect.fail(new Error("invalid_child_operation"));
+        }
+        return {
+          _tag: "Child" as const,
+          state: result.state.children[parsed.childId]!,
+        };
+      }
+
+      if (parsed._tag !== "ChildCancel" && parsed._tag !== "ChildInvalidate") {
+        return yield* Effect.fail(new Error("invalid_child_operation"));
+      }
+      const expectedSchema = parsed._tag === "ChildCancel"
+        ? "foreman.execution-child-cancel.v1" as const
+        : "foreman.execution-child-invalidate.v1" as const;
+      const decoded = yield* Effect.try({
+        try: () => readTerminalApproval(parsed.approvalFile, expectedSchema),
+        catch: () => null,
+      });
+      if (
+        decoded === null ||
+        decoded.value.rootContractId !== parsed.contractId ||
+        decoded.value.rootContractSha256 !== parsed.contractSha256 ||
+        decoded.value.familySha256 !== parsed.familySha256 ||
+        decoded.value.childId !== parsed.childId
+      ) {
+        return yield* Effect.fail(new Error("invalid_child_operation"));
+      }
+      const operation = decoded.value.schema ===
+          "foreman.execution-child-cancel.v1"
+        ? {
+            _tag: "Cancel" as const,
+            approvalSha256: decoded.sha256,
+            reasonSha256: decoded.value.reasonSha256,
+          }
+        : {
+            _tag: "Invalidate" as const,
+            approvalSha256: decoded.sha256,
+            observedFamilySha256: decoded.value.observedFamilySha256,
+            reasonSha256: decoded.value.reasonSha256,
+          };
+      const result = yield* ledger.executeChild({
+        rootContractId: parsed.contractId,
+        rootContractSha256: parsed.contractSha256,
+        familySha256: parsed.familySha256,
+        childId: parsed.childId,
+        operation,
+        at,
+      });
+      if (result.decision._tag === "Refused") {
+        return yield* Effect.fail(new Error("invalid_child_operation"));
+      }
+      return {
+        _tag: "Child" as const,
+        state: result.state.children[parsed.childId]!,
+      };
     }
 
     const text = yield* Effect.try({
