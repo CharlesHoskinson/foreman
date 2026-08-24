@@ -27,9 +27,9 @@ integration only, and esbuild for generated runtime bundles.
   OpenSpec manifest and exact `tasks.md` digest. The literal Track 1 allowlist
   applies only to that implementation-base-to-candidate diff, not to the
   inventory baseline.
-- The V1 root is `v040-release-20260822-r4`, receipt
-  `3e7c093bd7d6d1fc0b5576a109154082d35cd008f0902f45a560dd0910c4e2bd`,
-  and deadline `2026-08-31T02:56:46Z`.
+- The V1 root is `v040-release-20260822-r5`, receipt
+  `604839a9a3da192138b68ced2019b404c1a079d0dc4548ebcee48ba8bbe220d1`,
+  and deadline `2026-08-31T13:25:38Z`.
 - The family uses `wallTimeMs=5184000000` and `totalActions=4096`.
 - The pinned user-approval key fingerprint is
   `454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c`.
