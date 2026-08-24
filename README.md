@@ -578,6 +578,21 @@ node skills/foreman/runtime/dist/graphify-qualification.js qualify \
   --cadence manual
 ```
 
+Build an opt-in, bounded context block from the qualified graph:
+
+```bash
+node skills/foreman/runtime/dist/graph-context.js build \
+  --graph "$(git rev-parse --show-toplevel)/graphify-out/graph.json" \
+  --metadata "$(git rev-parse --show-toplevel)/graphify-out/refresh-meta.json" \
+  --task /absolute/path/to/task.md \
+  --role implementer \
+  --budget 2000
+```
+
+The command emits canonical JSON or `NO GRAPH CONTEXT`. It never traverses the
+graph interactively and never changes lane behavior by itself. v0.4 keeps this
+path opt-in until the graph evaluation measures it against the baseline.
+
 Follow `source_location` pointers into source only when freshness is `Fresh`.
 Otherwise, read the source directly. Semantic extraction, community labels,
 and external graph databases are not part of the v0.4 release.

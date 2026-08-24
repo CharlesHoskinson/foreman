@@ -170,8 +170,8 @@ source_path = "openspec/changes/graph-context-builder"
 disposition = "v040_owner"
 owner = "graph-context-builder"
 target_release = "v0.4"
-reconcile = "required"
-reason = "Track 7 owns bounded context packs; its stale undirected and shell assumptions need correction."
+reconcile = "complete"
+reason = "Track 7 ships deterministic bounded context blocks and exact citation verification."
 
 [[entry]]
 key = "change:graph-eval-falsification"

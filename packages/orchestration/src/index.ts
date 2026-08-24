@@ -887,6 +887,21 @@ export {
   type GraphifyRefreshMetadataV1,
 } from "./graphify-qualification.js";
 
+// --- v0.4 Track 7: deterministic graph context blocks ---
+
+export {
+  buildGraphContextV1,
+  verifyGraphContextResponseV1,
+  type GraphContextBlockV1,
+  type GraphContextBuildResultV1,
+  type GraphContextClaimV1,
+  type GraphContextEdgeV1,
+  type GraphContextRoleV1,
+  type GraphContextSeedV1,
+  type GraphContextVerificationCodeV1,
+  type GraphContextVerificationResultV1,
+} from "./graph-context.js";
+
 // --- v0.4 Track 2: stable project registry ---
 
 export {

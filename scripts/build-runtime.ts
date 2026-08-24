@@ -53,6 +53,12 @@ const ENTRIES = [
     injectCapabilities: false,
   },
   {
+    id: "graph-context",
+    entry: join(root, "packages/orchestration/src/graph-context-main.ts"),
+    relativePath: "dist/graph-context.js",
+    injectCapabilities: false,
+  },
+  {
     id: "release-admission",
     entry: join(root, "packages/policy/src/release-admission-main.ts"),
     relativePath: "dist/release-admission.js",
