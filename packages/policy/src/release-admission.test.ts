@@ -749,4 +749,180 @@ void O_COUNCIL;
 void BUNDLE_RECIPES;
 void OUTCOME_RECIPES;
 
-// FOREMAN_TASK33_UNSIGNED_MUTANTS
+const M_WRONG_ROLE_DESIGN_BY_HOST_UNSIGNED = {
+  ...D_STD_UNSIGNED,
+  issuerKeySha256: HOST_AUDIT_FINGERPRINT,
+} as unknown as UnsignedReceipt;
+
+const M_WRONG_ROLE_DESIGN_BY_HOST = signedReceipt(
+  "M_WRONG_ROLE_DESIGN_BY_HOST",
+  M_WRONG_ROLE_DESIGN_BY_HOST_UNSIGNED,
+);
+
+const M_OUTER_WRONG_ROLE_NESTED_UNSIGNED = standardBundle("verify", B1, [
+  M_WRONG_ROLE_DESIGN_BY_HOST,
+]);
+const M_OUTER_WRONG_ROLE_NESTED = signedBundle(
+  "M_OUTER_WRONG_ROLE_NESTED",
+  M_OUTER_WRONG_ROLE_NESTED_UNSIGNED,
+);
+
+const mutateSignature = (signature: string): string =>
+  `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+
+const FORGED_D_STD = {
+  ...D_STD,
+  signature: mutateSignature(D_STD.signature),
+} as ReleaseAuthorityReceiptV1;
+
+const M_OUTER_FORGED_NESTED_UNSIGNED = standardBundle("verify", B1, [
+  FORGED_D_STD,
+]);
+const M_OUTER_FORGED_NESTED = signedBundle(
+  "M_OUTER_FORGED_NESTED",
+  M_OUTER_FORGED_NESTED_UNSIGNED,
+);
+
+const M_WRONG_PROGRAM_UNSIGNED = {
+  ...B_VERIFY_UNSIGNED,
+  program: "v050",
+} as unknown as UnsignedBundle;
+const M_WRONG_PROGRAM = signedBundle(
+  "M_WRONG_PROGRAM",
+  M_WRONG_PROGRAM_UNSIGNED,
+);
+
+const UNRELATED_IMPLEMENTATION = candidateIdentity(
+  "7".repeat(40),
+  "8".repeat(40),
+);
+const M_UNRELATED_BASE_UNSIGNED = standardBundle(
+  "implement",
+  UNRELATED_IMPLEMENTATION,
+  [D_STD],
+);
+const M_UNRELATED_BASE = signedBundle(
+  "M_UNRELATED_BASE",
+  M_UNRELATED_BASE_UNSIGNED,
+);
+
+const M_WRONG_RECEIPT_KIND_UNSIGNED = standardBundle("audit", B1, [
+  D_STD,
+  COUNCIL_REQUEST,
+]);
+const M_WRONG_RECEIPT_KIND = signedBundle(
+  "M_WRONG_RECEIPT_KIND",
+  M_WRONG_RECEIPT_KIND_UNSIGNED,
+);
+
+const M_AUDIT_APPROVED_NONEMPTY_SOURCE = auditSource("APPROVED", [
+  FIXTURE_FINDING,
+]);
+const M_AUDIT_APPROVED_NONEMPTY_UNSIGNED = auditReceipt(
+  M_AUDIT_APPROVED_NONEMPTY_SOURCE,
+);
+const M_AUDIT_APPROVED_NONEMPTY = signedReceipt(
+  "M_AUDIT_APPROVED_NONEMPTY",
+  M_AUDIT_APPROVED_NONEMPTY_UNSIGNED,
+);
+
+const M_INTEGRATE_NONEMPTY_UNSIGNED = standardBundle("integrate", B1, [
+  D_STD,
+  M_AUDIT_APPROVED_NONEMPTY,
+]);
+const M_INTEGRATE_NONEMPTY = signedBundle(
+  "M_INTEGRATE_NONEMPTY",
+  M_INTEGRATE_NONEMPTY_UNSIGNED,
+);
+
+const MUTANT_RECIPES = [
+  {
+    id: "M_WRONG_ROLE_DESIGN_BY_HOST",
+    kind: "receipt",
+    role: "hostAudit",
+    dependsOn: [],
+    unsigned: M_WRONG_ROLE_DESIGN_BY_HOST_UNSIGNED,
+  },
+  {
+    id: "M_OUTER_WRONG_ROLE_NESTED",
+    kind: "bundle",
+    role: "hostAudit",
+    dependsOn: ["M_WRONG_ROLE_DESIGN_BY_HOST"],
+    unsigned: M_OUTER_WRONG_ROLE_NESTED_UNSIGNED,
+  },
+  {
+    id: "M_OUTER_FORGED_NESTED",
+    kind: "bundle",
+    role: "hostAudit",
+    dependsOn: ["D_STD"],
+    unsigned: M_OUTER_FORGED_NESTED_UNSIGNED,
+  },
+  {
+    id: "M_WRONG_PROGRAM",
+    kind: "bundle",
+    role: "hostAudit",
+    dependsOn: ["D_STD"],
+    unsigned: M_WRONG_PROGRAM_UNSIGNED,
+  },
+  {
+    id: "M_UNRELATED_BASE",
+    kind: "bundle",
+    role: "hostAudit",
+    dependsOn: ["D_STD"],
+    unsigned: M_UNRELATED_BASE_UNSIGNED,
+  },
+  {
+    id: "M_WRONG_RECEIPT_KIND",
+    kind: "bundle",
+    role: "hostAudit",
+    dependsOn: ["D_STD", "COUNCIL_REQUEST"],
+    unsigned: M_WRONG_RECEIPT_KIND_UNSIGNED,
+  },
+  {
+    id: "M_AUDIT_APPROVED_NONEMPTY",
+    kind: "receipt",
+    role: "hostAudit",
+    dependsOn: [],
+    unsigned: M_AUDIT_APPROVED_NONEMPTY_UNSIGNED,
+  },
+  {
+    id: "M_INTEGRATE_NONEMPTY",
+    kind: "bundle",
+    role: "hostAudit",
+    dependsOn: ["D_STD", "M_AUDIT_APPROVED_NONEMPTY"],
+    unsigned: M_INTEGRATE_NONEMPTY_UNSIGNED,
+  },
+] as const satisfies readonly FixtureSigningRecipe[];
+
+const ALL_SIGNING_RECIPES = [
+  ...RECEIPT_RECIPES,
+  ...BUNDLE_RECIPES,
+  ...OUTCOME_RECIPES,
+  ...MUTANT_RECIPES,
+] as const satisfies readonly FixtureSigningRecipe[];
+
+describe("Task 3.3 signing recipe manifest", () => {
+  it("has the exact unique dependency-sorted 34-recipe inventory", () => {
+    assert.deepEqual(
+      ALL_SIGNING_RECIPES.map((recipe) => recipe.id),
+      RECIPE_IDS,
+    );
+    const seen = new Set<RecipeId>();
+    for (const recipe of ALL_SIGNING_RECIPES) {
+      for (const dependency of recipe.dependsOn) {
+        assert.equal(seen.has(dependency), true, `${recipe.id}:${dependency}`);
+      }
+      seen.add(recipe.id);
+    }
+    assert.equal(seen.size, 34);
+  });
+});
+
+void M_OUTER_WRONG_ROLE_NESTED;
+void M_OUTER_FORGED_NESTED;
+void M_WRONG_PROGRAM;
+void M_UNRELATED_BASE;
+void M_WRONG_RECEIPT_KIND;
+void M_INTEGRATE_NONEMPTY;
+
+// FOREMAN_TASK33_SIGNATURE_FIXTURES
