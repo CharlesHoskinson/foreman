@@ -779,6 +779,113 @@ describe("release outcome and terminal approval distinctions", () => {
       expectParseInvalid(mutant);
     });
   }
+
+  it("enforces outcome cross-field grammar", () => {
+    const coherent = (
+      action: ReleaseActionV1,
+      status: ReleaseActionOutcomeV1["status"],
+    ): ReleaseActionOutcomeV1 => ({
+      ...actionOutcome,
+      reservationAction: action,
+      effectiveAction: action,
+      originReservationId: actionOutcome.reservationId,
+      status,
+    });
+
+    const invalid: Array<readonly [string, unknown]> = [
+      [
+        "ordinary verify with effectiveAction audit",
+        { ...actionOutcome, effectiveAction: "audit" },
+      ],
+      [
+        "ordinary verify with distinct origin",
+        { ...actionOutcome, originReservationId: "reservation-other" },
+      ],
+      [
+        "ordinary council with distinct origin",
+        { ...councilOutcome, originReservationId: "reservation-other" },
+      ],
+    ];
+    for (const action of ["implement", "correct", "council"] as const) {
+      invalid.push(["PASS coherent " + action, coherent(action, "PASS")]);
+    }
+    for (const action of [
+      "implement",
+      "correct",
+      "council",
+      "integrate",
+      "publish",
+    ] as const) {
+      invalid.push([
+        "BLOCKING coherent " + action,
+        coherent(action, "BLOCKING"),
+      ]);
+    }
+    for (const [, mutant] of invalid) {
+      expectParseInvalid(mutant);
+    }
+
+    const valid: Array<readonly [string, unknown]> = [];
+    for (const action of [
+      "verify",
+      "audit",
+      "integrate",
+      "publish",
+      "evaluate",
+    ] as const) {
+      valid.push(["PASS coherent " + action, coherent(action, "PASS")]);
+    }
+    for (const action of ["verify", "audit", "evaluate"] as const) {
+      valid.push([
+        "BLOCKING coherent " + action,
+        coherent(action, "BLOCKING"),
+      ]);
+    }
+    for (const action of [
+      "implement",
+      "verify",
+      "audit",
+      "correct",
+      "council",
+      "integrate",
+      "publish",
+      "evaluate",
+    ] as const) {
+      valid.push([
+        "EXTERNAL_FAILURE coherent " + action,
+        coherent(action, "EXTERNAL_FAILURE"),
+      ]);
+    }
+    valid.push([
+      "provider_retry EXTERNAL_FAILURE verify distinct origin",
+      {
+        ...actionOutcome,
+        reservationAction: "provider_retry",
+        effectiveAction: "verify",
+        originReservationId: "reservation-origin",
+        status: "EXTERNAL_FAILURE",
+      },
+    ]);
+    valid.push([
+      "ordinary council equal origin",
+      { ...councilOutcome },
+    ]);
+    valid.push([
+      "resume council distinct origin",
+      {
+        ...councilOutcome,
+        reservationAction: "resume",
+        originReservationId: "reservation-origin",
+      },
+    ]);
+    for (const [name, value] of valid) {
+      assert.equal(
+        parseReleaseAuthorityObjectV1(value)._tag,
+        "Valid",
+        name,
+      );
+    }
+  });
 });
 
 describe("release authority canonical signed-file rejection", () => {
@@ -836,6 +943,48 @@ describe("release authority canonical signed-file rejection", () => {
       expectFileInvalid(bytes);
     });
   }
+
+  it("rejects an outer-valid bundle with a forged nested receipt signature", () => {
+    assert.equal(designReceipt.signature.startsWith("d"), true);
+    const forgedNestedDesign: ReleaseAuthorityReceiptV1 = {
+      ...designReceipt,
+      signature: "A" + designReceipt.signature.slice(1),
+    };
+    const outerValidForgedNested: ReleaseEvidenceBundleV1 = {
+      ...evidenceBundle,
+      receipts: [forgedNestedDesign],
+      signature:
+        "27LYP_TWgCPpPKPrpyzeRmHzcWYGZMQOtO5d9tELTLeF5ld4cO8CP9nchUtFomJTZlalwtQh9kdlujbpe48CCA",
+    };
+
+    const outerWithoutSignature = cloneRecord(outerValidForgedNested);
+    delete outerWithoutSignature["signature"];
+    const hostPublicKey = createPublicKey({
+      key: Buffer.from(
+        "MCowBQYDK2VwAyEAy30qjfPmsvJwWrNR50xAC39DCZUvjJgyg3bMdY84Zko",
+        "base64url",
+      ),
+      format: "der",
+      type: "spki",
+    });
+    assert.equal(
+      verifyEd25519(
+        null,
+        releaseAuthoritySignaturePreimageV1(outerWithoutSignature),
+        hostPublicKey,
+        Buffer.from(outerValidForgedNested.signature, "base64url"),
+      ),
+      true,
+    );
+    assert.equal(
+      parseReleaseAuthorityObjectV1(outerValidForgedNested)._tag,
+      "Valid",
+    );
+    assert.deepEqual(
+      decodeReleaseAuthorityFileV1(canonicalFile(outerValidForgedNested)),
+      { _tag: "Invalid" },
+    );
+  });
 
   it("rejects a valid signed file larger than 1 MiB", () => {
     const largeFinding = { ...finding, evidence: "x".repeat(16384) };

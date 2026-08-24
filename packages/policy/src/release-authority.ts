@@ -392,6 +392,14 @@ const BLOCKING_AUDIT_VERDICTS = [
 ] as const;
 const FINDING_SEVERITIES = ["low", "medium", "high", "critical"] as const;
 const OUTCOME_STATUSES = ["PASS", "BLOCKING", "EXTERNAL_FAILURE"] as const;
+const PASS_OUTCOME_ACTIONS = [
+  "verify",
+  "audit",
+  "integrate",
+  "publish",
+  "evaluate",
+] as const;
+const BLOCKING_OUTCOME_ACTIONS = ["verify", "audit", "evaluate"] as const;
 const COUNCIL_STATUSES = ["ADVICE", "BLOCKING"] as const;
 const COUNCIL_RESERVATION_ACTIONS = [
   "council",
@@ -1126,19 +1134,23 @@ function parseActionOutcome(
   if (!isIdentifier(value["packageId"])) return null;
   if (!isLiteral(value["reservationAction"], RELEASE_ACTIONS)) return null;
   if (!isLiteral(value["effectiveAction"], RELEASE_ACTIONS)) return null;
-  if (
-    value["reservationAction"] === "provider_retry" ||
-    value["reservationAction"] === "resume"
-  ) {
-    if (
-      value["effectiveAction"] === "provider_retry" ||
-      value["effectiveAction"] === "resume"
-    ) {
-      return null;
-    }
+  const reservationAction = value["reservationAction"];
+  const effectiveAction = value["effectiveAction"];
+  const isWrapper =
+    reservationAction === "provider_retry" ||
+    reservationAction === "resume";
+  if (isWrapper) {
+    if (!isLiteral(effectiveAction, ORDINARY_ACTIONS)) return null;
+  } else if (effectiveAction !== reservationAction) {
+    return null;
   }
   if (!isIdentifier(value["reservationId"])) return null;
   if (!isIdentifier(value["originReservationId"])) return null;
+  const reservationId = value["reservationId"];
+  const originReservationId = value["originReservationId"];
+  if (!isWrapper && originReservationId !== reservationId) {
+    return null;
+  }
   if (
     typeof value["candidateSha256"] !== "string" ||
     !isSha256Hex(value["candidateSha256"])
@@ -1146,6 +1158,12 @@ function parseActionOutcome(
     return null;
   }
   if (!isLiteral(value["status"], OUTCOME_STATUSES)) return null;
+  const status = value["status"];
+  if (status === "PASS") {
+    if (!isLiteral(effectiveAction, PASS_OUTCOME_ACTIONS)) return null;
+  } else if (status === "BLOCKING") {
+    if (!isLiteral(effectiveAction, BLOCKING_OUTCOME_ACTIONS)) return null;
+  }
   if (
     typeof value["evidenceSha256"] !== "string" ||
     !isSha256Hex(value["evidenceSha256"])
@@ -1166,12 +1184,12 @@ function parseActionOutcome(
     familySha256: value["familySha256"],
     childId: value["childId"],
     packageId: value["packageId"],
-    reservationAction: value["reservationAction"],
-    effectiveAction: value["effectiveAction"],
-    reservationId: value["reservationId"],
-    originReservationId: value["originReservationId"],
+    reservationAction,
+    effectiveAction,
+    reservationId,
+    originReservationId,
     candidateSha256: value["candidateSha256"],
-    status: value["status"],
+    status,
     evidenceSha256: value["evidenceSha256"],
     issuerKeySha256,
     issuedAt,
@@ -1225,8 +1243,17 @@ function parseCouncilOutcome(
   if (!isLiteral(value["reservationAction"], COUNCIL_RESERVATION_ACTIONS)) {
     return null;
   }
+  const reservationAction = value["reservationAction"];
   if (!isIdentifier(value["reservationId"])) return null;
   if (!isIdentifier(value["originReservationId"])) return null;
+  const reservationId = value["reservationId"];
+  const originReservationId = value["originReservationId"];
+  if (
+    reservationAction === "council" &&
+    originReservationId !== reservationId
+  ) {
+    return null;
+  }
   if (
     typeof value["candidateSha256"] !== "string" ||
     !isSha256Hex(value["candidateSha256"])
@@ -1246,6 +1273,7 @@ function parseCouncilOutcome(
     return null;
   }
   if (!isLiteral(value["status"], COUNCIL_STATUSES)) return null;
+  const status = value["status"];
   const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
   const signature = requireSignature(value["signature"]);
@@ -1260,13 +1288,13 @@ function parseCouncilOutcome(
     familySha256: value["familySha256"],
     childId: value["childId"],
     packageId: value["packageId"],
-    reservationAction: value["reservationAction"],
-    reservationId: value["reservationId"],
-    originReservationId: value["originReservationId"],
+    reservationAction,
+    reservationId,
+    originReservationId,
     candidateSha256: value["candidateSha256"],
     requestSha256: value["requestSha256"],
     decisionSha256: value["decisionSha256"],
-    status: value["status"],
+    status,
     issuerKeySha256,
     issuedAt,
     signature,
@@ -2143,6 +2171,11 @@ export function decodeReleaseAuthorityFileV1(
     const parsed = parseAuthorityObject(decoded.value);
     if (parsed === null) return invalidFile();
     if (!verifyObjectSignature(parsed)) return invalidFile();
+    if (parsed.schema === "foreman.release-evidence-bundle.v1") {
+      for (const receipt of parsed.receipts) {
+        if (!verifyObjectSignature(receipt)) return invalidFile();
+      }
+    }
     return {
       _tag: "Valid",
       value: parsed,
