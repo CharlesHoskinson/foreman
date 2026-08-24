@@ -187,11 +187,11 @@ reason = "Track 8 ships a deterministic 2,000-slot evaluator and records graph-o
 key = "change:graph-store-port"
 source_kind = "openspec_change"
 source_path = "openspec/changes/graph-store-port"
-disposition = "v040_dependency"
+disposition = "v050"
 owner = "knowledge-plane-refresh"
-target_release = "v0.4"
-reconcile = "required"
-reason = "The files-only graph port is accepted after its stale implementation assumptions are removed."
+target_release = "v0.5"
+reconcile = "not_required"
+reason = "The files-only graph port already ships; the unfinished SQLite ontology expansion is deferred to v0.5."
 
 [[entry]]
 key = "change:grok-secret-scan-typescript"

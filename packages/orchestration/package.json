@@ -1,14 +1,14 @@
 {
   "name": "@foreman/orchestration",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "exports": { ".": { "types": "./src/index.ts", "import": "./src/index.ts" } },
   "dependencies": {
-    "@foreman/core": "0.3.0",
-    "@foreman/event-log": "0.3.0",
-    "@foreman/policy": "0.3.0",
-    "@foreman/session-store": "0.3.1",
+    "@foreman/core": "0.4.0",
+    "@foreman/event-log": "0.4.0",
+    "@foreman/policy": "0.4.0",
+    "@foreman/session-store": "0.4.0",
     "effect": "3.22.1"
   }
 }

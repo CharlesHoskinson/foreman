@@ -6,4 +6,4 @@ skip = .git,./skills/scrapling,./skills/graphify,./skills/superpowers,./docs/res
 #   (head + E for Either), not a misspelling of "header".
 # categor: deliberate interpolation split in packages/graph-store/src/contract-suite.ts
 #   -- `categor${n === 1 ? "y" : "ies"}` builds category/categories.
-ignore-words-list = grok,codex,worktree,worktrees,shdoc,bats,toml,fable,jsonc,ans,disjointness,sessio,pre-empt,heade,categor
+ignore-words-list = grok,codex,worktree,worktrees,shdoc,bats,toml,fable,jsonc,ans,disjointness,sessio,pre-empt,heade,categor,fo,passt

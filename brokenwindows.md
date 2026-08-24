@@ -55,15 +55,6 @@ manifest is wrong or the suite is. Installing `sqlite3` hides the
 contradiction rather than resolving it, which is why it has deliberately not
 been installed.
 
-### BW-004 — `flock` is absent on the Windows runner
-
-`open` · carried from the v0.3.0 design doc §7.1
-
-`tests/wt-new.bats` and the other lock-safety suites fail in `setup`, so the
-concurrency-safety tests have never executed on Windows. 134 of the 270
-Windows failures trace to this alone. Until it runs, "Windows is green" would
-be a claim about tests that never ran.
-
 ### BW-005 — two `maintenance.yml` gates have no positive control
 
 `open` · carried from `docs/evidence/w1/2026-08-08-regime-coverage.md` §3

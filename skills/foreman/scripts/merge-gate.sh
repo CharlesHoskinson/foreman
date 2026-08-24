@@ -71,6 +71,7 @@ readonly EXIT_NOT_MERGEABLE=6
 readonly RESPAWN_HINT="respawn from a fresh base (dispatch a new lane worktree from current origin/main)"
 RELEASE_BLOCK=()
 
+# @description Validate the fixed release-policy option block when one is supplied.
 validate_release_block() {
   (( ${#RELEASE_BLOCK[@]} == 0 )) && return 0
   (( ${#RELEASE_BLOCK[@]} == 28 )) \

@@ -1,6 +1,6 @@
 {
   "name": "@foreman/session-store",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,7 +10,7 @@
     }
   },
   "dependencies": {
-    "@foreman/core": "0.3.0",
+    "@foreman/core": "0.4.0",
     "effect": "3.22.1"
   }
 }

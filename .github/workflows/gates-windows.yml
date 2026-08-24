@@ -187,6 +187,15 @@ jobs:
             throw "launcher/build.ps1 did not produce launcher/dist/foreman-launch.exe"
           }
 
+      - name: BW-004 native Windows flock gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/usr/local/bin:$PATH:/c/msys64/usr/bin"
+          mkdir -p -- "$HOME/.foreman"
+          flock "$HOME/.foreman/bw-004.lock" -c "echo BW-004-LOCK-OK"
+          bats tests/lock.bats tests/wt-new.bats tests/wt-merge.bats
+
       # ci-local.sh reports host-only gates as unavailable with their reason.
       # The install.ps1-only smoke remains owned by windows-smoke.yml.
       - name: Run the shared gate definition with Git Bash
