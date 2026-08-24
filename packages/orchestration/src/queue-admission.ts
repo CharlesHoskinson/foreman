@@ -36,7 +36,7 @@ export const EXIT_MISSING_CLI = 3;
  * copy went stale).
  */
 export const ADD_USAGE =
-  "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+  "usage: lane-queue.sh ensure|add GROUP [--endstop-prior-reservation-id ID] --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 [--endstop-family-sha SHA256 --endstop-child-id ID] --endstop-action ACTION --endstop-candidate-sha SHA256 [--release-program v040 --release-phase PHASE --release-owner PACKAGE --release-repo ABS --release-candidate-commit SHA40 --release-register ABS --release-evidence ABS] -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
 
 /** Fixed topology: proven caps only. No claude group. */
 export const FIXED_GROUPS: readonly { name: string; parallel: number }[] = [

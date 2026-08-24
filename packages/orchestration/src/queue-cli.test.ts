@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { sha256Hex } from "@foreman/core";
+import { canonicalize, sha256Hex } from "@foreman/core";
 import { Effect, Layer } from "effect";
 import { parseQueueArgv, runQueueCli, stripNodeArgv } from "./queue-cli.js";
 import {
@@ -20,8 +20,10 @@ import {
   type QueueIo,
 } from "./queue-services.js";
 import {
+  deriveExecutionContractFamilyV2,
   executionContractSha256,
   strictEndstopLimits,
+  type ExecutionFamilySourceV1,
   type ExecutionContractV1,
 } from "./execution-contract.js";
 import {
@@ -32,6 +34,46 @@ import {
 const A = "a".repeat(64);
 const B = "b".repeat(64);
 const C = "c".repeat(64);
+
+function familySource(): ExecutionFamilySourceV1 {
+  const rows = [
+    [2, "v040-t2-project-registry", "project-registry", []],
+    [3, "v040-t3-memory-index", "external-memory-index", ["v040-t2-project-registry"]],
+    [4, "v040-t4-appliance", "hermetic-foreman-appliance", []],
+    [5, "v040-t5-graphify", "knowledge-plane-refresh", []],
+    [6, "v040-t6-work-dag", "work-dag-projection", ["v040-t5-graphify"]],
+    [7, "v040-t7-context", "graph-context-builder", ["v040-t6-work-dag"]],
+    [8, "v040-t8-evaluation", "graph-eval-falsification", [
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t7-context",
+    ]],
+    [9, "v040-t9-release", "v040-release-program", [
+      "v040-t2-project-registry",
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t5-graphify",
+      "v040-t6-work-dag",
+      "v040-t7-context",
+      "v040-t8-evaluation",
+    ]],
+  ] as const;
+  return {
+    schema: "foreman.execution-family-source.v1",
+    program: "v040",
+    familyId: "v040-release-20260822-f1",
+    children: rows.map(([tranche, childId, packageId, dependencyChildIds]) => ({
+      schema: "foreman.execution-child-brief.v1",
+      childId,
+      tranche,
+      packageId,
+      objective: `Complete ${packageId}.`,
+      acceptance: [`${packageId} passes release checks.`],
+      allowedPaths: [`packages/${packageId}/**`],
+      dependencyChildIds,
+    })),
+  };
+}
 
 const guardedAdd = (root: string, contractId: string, contractSha256: string) => [
   "add",
@@ -211,6 +253,156 @@ describe("runQueueCli exit matrix", () => {
       assert.equal(code, EXIT_CONFIG);
       assert.equal(policyCalls, 1);
       assert.equal(io.stderr, "Foreman release policy refused queue admission\n");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reserves one admitted V2 child action before starting one queue task", async () => {
+    const root = mkdtempSync(join(tmpdir(), "endstop-v2-queue-"));
+    try {
+      const rootContract: ExecutionContractV1 = {
+        schemaVersion: 1,
+        contractId: "queue-v2-root",
+        packageId: "foreman-v040-release",
+        objectiveSha256: A,
+        acceptanceSha256: B,
+        baseCommit: "0".repeat(40),
+        allowedPathsSha256: C,
+        dependencyContractIds: [],
+        authorizationSha256: A,
+        createdAt: "2026-08-24T12:00:00Z",
+        deadlineAt: "2026-08-24T14:00:00Z",
+        limits: strictEndstopLimits,
+        requiredMilestones: ["checks"],
+      };
+      const rootContractSha256 = executionContractSha256(rootContract);
+      const sourceBytes = new TextEncoder().encode(
+        `${canonicalize(familySource())}\n`,
+      );
+      const derived = deriveExecutionContractFamilyV2({
+        rootContractId: rootContract.contractId,
+        rootContractSha256,
+        track1Commit: "6".repeat(40),
+        track1Tree: "7".repeat(40),
+        sourceBytes,
+        createdAt: "2026-08-24T12:00:00Z",
+      });
+      assert.equal(derived._tag, "Valid");
+      if (derived._tag !== "Valid") return;
+      const candidateCommit = "1".repeat(40);
+      const candidate = {
+        commit: candidateCommit,
+        tree: "2".repeat(40),
+        candidateSha256: sha256Hex(candidateCommit),
+      };
+      const ledgerLayer = makeLiveEndstopLedgerLayer(root);
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          yield* ledger.create(rootContract);
+          yield* ledger.registerFamilyAuthority({
+            rootContractId: rootContract.contractId,
+            rootContractSha256,
+            manifest: derived.manifest,
+            familySha256: derived.familySha256,
+            sourceSha256: derived.manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            registeredAt: "2026-08-24T12:01:00Z",
+          });
+          yield* ledger.activateFamily({
+            rootContractId: rootContract.contractId,
+            rootContractSha256,
+            familySha256: derived.familySha256,
+            sourceSha256: derived.manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            activatedAt: "2026-08-24T12:02:00Z",
+          });
+          yield* ledger.registerChildAuthority({
+            rootContractId: rootContract.contractId,
+            rootContractSha256,
+            familySha256: derived.familySha256,
+            childId: "v040-t2-project-registry",
+            action: "implement",
+            effectiveAction: "implement",
+            priorReservationId: null,
+            originReservationId: null,
+            candidate,
+            taskPlanSha256: A,
+            bundleSha256: B,
+            receiptSchemas: ["foreman.design-approval.v1"],
+            receiptSha256s: [A],
+            evaluationManifestSha256: null,
+            registeredAt: "2026-08-24T12:03:00Z",
+          });
+        }).pipe(Effect.provide(ledgerLayer)),
+      );
+
+      let pueueAdds = 0;
+      const queueLayer = Layer.mergeAll(
+        Layer.succeed(ProcessExec, {
+          runCaptured: (input) => {
+            const subcommand = input.args[0];
+            if (subcommand === "add") {
+              pueueAdds += 1;
+              return Effect.succeed({ exitCode: 0, stdout: "77\n", stderr: "" });
+            }
+            return Effect.succeed({ exitCode: 0, stdout: "ok", stderr: "" });
+          },
+          runIgnoredStdio: () =>
+            Effect.succeed({ exitCode: 0, stdout: "", stderr: "" }),
+          runForeground: () => Effect.succeed(0),
+        }),
+        Layer.succeed(Sleeper, { sleep: () => Effect.void }),
+        Layer.succeed(PathLookup, {
+          which: (name) => Effect.succeed(`/bin/${name}`),
+          fileExists: () => Effect.succeed(false),
+          isExecutable: () => Effect.succeed(true),
+        }),
+        Layer.succeed(BoundedFs, {
+          readFileBounded: () => Effect.succeed({ _tag: "Absent" as const }),
+        }),
+        Layer.succeed(EnvVars, {
+          get: (name) => Effect.succeed(
+            name === "PUEUE_CONFIG_PATH" ? "/tmp/no-pueue-config.yml" : undefined,
+          ),
+          home: () => Effect.succeed("/home/test"),
+        }),
+      );
+      const args = guardedV2Add(
+        root,
+        rootContract.contractId,
+        rootContractSha256,
+      ).map((value) => value === C ? derived.familySha256 : value);
+      const io = makeIo();
+      const code = await Effect.runPromise(
+        runQueueCli(args, io, {
+          releasePolicy: () => Effect.succeed(true),
+          reservationId: () => "queue-v2-reservation",
+          now: () => new Date("2026-08-24T12:04:00Z"),
+        }).pipe(Effect.provide(queueLayer)),
+      );
+      assert.equal(code, EXIT_OK, io.stderr);
+      assert.equal(io.stdout, "77\n");
+      assert.equal(pueueAdds, 1);
+      const status = await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.familyStatus({
+            rootContractId: rootContract.contractId,
+            rootContractSha256,
+            familySha256: derived.familySha256,
+          });
+        }).pipe(Effect.provide(ledgerLayer)),
+      );
+      const child = status.family.children["v040-t2-project-registry"];
+      assert.equal(child?.counts.totalActions, 1);
+      assert.equal(
+        child?.reservations["queue-v2-reservation"]?.effectiveAction,
+        "implement",
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
