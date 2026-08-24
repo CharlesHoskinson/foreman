@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -10,15 +10,79 @@ import {
   makeLiveEndstopLedgerLayer,
 } from "./execution-ledger.js";
 import {
+  executionContractFamilySha256,
   executionContractSha256,
   strictEndstopLimits,
+  type EvaluationChildLimitsV2,
+  type ExecutionChildContractV2,
+  type ExecutionContractFamilyV2,
   type ExecutionContractV1,
+  type StandardChildLimitsV2,
 } from "./execution-contract.js";
 import type { ExecutionCommand } from "./execution-terminal-policy.js";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
 const C = "c".repeat(64);
+const D = "d".repeat(64);
+
+const FAMILY_CREATED = "2026-08-24T12:00:00Z";
+const FAMILY_DEADLINE = "2026-10-23T12:00:00Z";
+const STANDARD_LIMITS: StandardChildLimitsV2 = {
+  kind: "standard",
+  implementationRounds: 30,
+  correctionRounds: 20,
+  auditRounds: 20,
+  councilRounds: 10,
+  providerRetries: 10,
+  resumeAttempts: 10,
+  verificationRunsPerCandidate: 5,
+  totalActions: 100,
+  wallTimeMs: 1_209_600_000,
+  noProductChangeMs: 259_200_000,
+};
+const EVALUATION_LIMITS: EvaluationChildLimitsV2 = {
+  kind: "evaluation",
+  implementationRounds: 10,
+  correctionRounds: 5,
+  auditRounds: 10,
+  councilRounds: 5,
+  providerRetries: 8,
+  resumeAttempts: 5,
+  verificationRunsPerCandidate: 3,
+  evaluationRuns: 2000,
+  totalActions: 2048,
+  wallTimeMs: 3_888_000_000,
+  noProgressMs: 3_600_000,
+};
+const FAMILY_ROWS = [
+  [2, "v040-t2-project-registry", "project-registry", []],
+  [3, "v040-t3-memory-index", "external-memory-index", ["v040-t2-project-registry"]],
+  [4, "v040-t4-appliance", "hermetic-foreman-appliance", []],
+  [5, "v040-t5-graphify", "knowledge-plane-refresh", []],
+  [6, "v040-t6-work-dag", "work-dag-projection", ["v040-t5-graphify"]],
+  [7, "v040-t7-context", "graph-context-builder", ["v040-t6-work-dag"]],
+  [
+    8,
+    "v040-t8-evaluation",
+    "graph-eval-falsification",
+    ["v040-t3-memory-index", "v040-t4-appliance", "v040-t7-context"],
+  ],
+  [
+    9,
+    "v040-t9-release",
+    "v040-release-program",
+    [
+      "v040-t2-project-registry",
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t5-graphify",
+      "v040-t6-work-dag",
+      "v040-t7-context",
+      "v040-t8-evaluation",
+    ],
+  ],
+] as const;
 
 function contract(
   overrides: Partial<ExecutionContractV1> = {},
@@ -38,6 +102,40 @@ function contract(
     limits: strictEndstopLimits,
     requiredMilestones: ["checks"],
     ...overrides,
+  };
+}
+
+function familyManifest(root: ExecutionContractV1): ExecutionContractFamilyV2 {
+  const children: ExecutionChildContractV2[] = FAMILY_ROWS.map(
+    ([tranche, childId, packageId, dependencyChildIds]) => ({
+      childId,
+      tranche,
+      packageId,
+      objectiveSha256: A,
+      acceptanceSha256: B,
+      allowedPathsSha256: C,
+      dependencyChildIds,
+      deadlineAt: FAMILY_DEADLINE,
+      limits: tranche === 8 ? EVALUATION_LIMITS : STANDARD_LIMITS,
+      requiredMilestones:
+        tranche === 9
+          ? ["checks", "audit", "integrated", "published"]
+          : ["checks", "audit", "integrated"],
+    }),
+  );
+  return {
+    schemaVersion: 2,
+    familyId: "v040-release-20260822-f1",
+    rootContractId: root.contractId,
+    rootContractSha256: executionContractSha256(root),
+    track1Commit: "6".repeat(40),
+    track1Tree: "7".repeat(40),
+    sourceSha256: D,
+    createdAt: FAMILY_CREATED,
+    deadlineAt: FAMILY_DEADLINE,
+    wallTimeMs: 5_184_000_000,
+    totalActions: 4096,
+    children,
   };
 }
 
@@ -262,6 +360,108 @@ describe("EndstopLedger", () => {
       });
       const replacement = await Effect.runPromise(create(root, authorized));
       assert.equal(replacement._tag, "Running");
+    });
+  });
+
+  it("registers and activates one durable family with V1 carryover", async () => {
+    await withRoot(async (root) => {
+      const value = contract({
+        createdAt: FAMILY_CREATED,
+        deadlineAt: "2026-08-24T14:00:00Z",
+      });
+      const manifest = familyManifest(value);
+      const familySha256 = executionContractFamilySha256(manifest);
+      const rootContractSha256 = executionContractSha256(value);
+      await Effect.runPromise(create(root, value));
+      await Effect.runPromise(
+        executeCommand(root, value, {
+          _tag: "ReserveAction",
+          action: "implement",
+          candidateSha256: B,
+          reservationId: "root-before-family",
+          at: "2026-08-24T12:01:00Z",
+        }),
+      );
+
+      const register = () =>
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.registerFamilyAuthority({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            manifest,
+            familySha256,
+            sourceSha256: manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            registeredAt: "2026-08-24T12:02:00Z",
+          });
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root)));
+      const first = await Effect.runPromise(register());
+      assert.equal(first.familySha256, familySha256);
+      assert.deepEqual(await Effect.runPromise(register()), first);
+
+      const activate = () =>
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.activateFamily({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            sourceSha256: manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            activatedAt: "2026-08-24T12:03:00Z",
+          });
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root)));
+      const activated = await Effect.runPromise(activate());
+      assert.equal(activated.family._tag, "Running");
+      assert.equal(activated.family.totalActions, 1);
+
+      const recovered = await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.familyStatus({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+          });
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
+      );
+      assert.deepEqual(recovered, activated);
+
+      const repeated = await Effect.runPromise(activate().pipe(Effect.either));
+      assert.equal(repeated._tag, "Left");
+      if (repeated._tag === "Left") {
+        assert.equal(repeated.left.reason, "family_already_activated");
+      }
+      const unscoped = await Effect.runPromise(
+        executeCommand(root, value, {
+          _tag: "ReserveAction",
+          action: "verify",
+          candidateSha256: B,
+          commandSha256: C,
+          reservationId: "root-after-family",
+          at: "2026-08-24T12:04:00Z",
+        }).pipe(Effect.either),
+      );
+      assert.equal(unscoped._tag, "Left");
+      if (unscoped._tag === "Left") {
+        assert.equal(unscoped.left.reason, "family_active");
+      }
+      const stored = readFileSync(
+        join(root, "runs", value.contractId, "events.ndjson"),
+        "utf8",
+      )
+        .trimEnd()
+        .split("\n")
+        .map((line) => JSON.parse(line) as { readonly payload: { readonly _tag?: string } });
+      assert.deepEqual(
+        stored.flatMap((event) =>
+          event.payload._tag === undefined ? [] : [event.payload._tag],
+        ),
+        ["ExecutionFamilyAuthorityRegistered", "EndstopFamilyActivated"],
+      );
     });
   });
 });
