@@ -45,15 +45,15 @@
 
 ## 5. Qualification evidence
 
-- [ ] Build the repository graph twice with Graphify 0.9.48 and prove normalized
+- [x] Build the repository graph twice with Graphify 0.9.48 and prove normalized
   byte identity.
-- [ ] Run the registered good and bad health fixtures.
-- [ ] Publish the first qualified graph and metadata as one reviewable commit.
-- [ ] Confirm zero commit drift and zero unrepresented tracked source files.
-- [ ] Add the package brief and set the v0.4 coverage rows to `complete`.
+- [x] Run the registered good and bad health fixtures.
+- [x] Publish the first qualified graph and metadata as one reviewable commit.
+- [x] Confirm zero commit drift and zero unrepresented tracked source files.
+- [x] Add the package brief and set the v0.4 coverage rows to `complete`.
 
 ## 6. Gate
 
-- [ ] Run focused TypeScript tests and type checks.
-- [ ] Run strict OpenSpec validation.
-- [ ] Run the full repository verifier.
+- [x] Run focused TypeScript tests and type checks.
+- [x] Run strict OpenSpec validation.
+- [x] Run the full repository verifier.

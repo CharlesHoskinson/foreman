@@ -220,8 +220,8 @@ source_path = "openspec/changes/knowledge-plane-refresh"
 disposition = "v040_owner"
 owner = "knowledge-plane-refresh"
 target_release = "v0.4"
-reconcile = "required"
-reason = "Track 5 owns Graphify qualification; reconciliation removes the broad lock prerequisite and stale shell and graph-direction assumptions."
+reconcile = "complete"
+reason = "Track 5 ships deterministic Graphify 0.9.48 qualification, atomic publication, and Graphify-free freshness checks."
 
 [[entry]]
 key = "change:lane-ownership-and-reaping"
@@ -570,8 +570,8 @@ source_path = "ROADMAP.md"
 disposition = "v040_owner"
 owner = "knowledge-plane-refresh"
 target_release = "v0.4"
-reconcile = "required"
-reason = "Sprint 13 knowledge work moves to focused Tracks 5 through 8."
+reconcile = "complete"
+reason = "Track 5 completes the Sprint 13 Graphify qualification and freshness boundary."
 
 [[entry]]
 key = "roadmap:sprint-16-windows-bats-bw004"
@@ -610,8 +610,8 @@ source_path = "ROADMAP.md"
 disposition = "v040_owner"
 owner = "knowledge-plane-refresh"
 target_release = "v0.4"
-reconcile = "required"
-reason = "The knowledge and graph plane belongs to focused Tracks 5 through 8."
+reconcile = "complete"
+reason = "The qualified immutable code graph is published; later knowledge consumers remain in Tracks 6 through 8."
 
 [[entry]]
 key = "roadmap:v040-publication"
