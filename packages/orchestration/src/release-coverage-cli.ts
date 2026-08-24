@@ -5,8 +5,10 @@ import {
   lstatSync,
   openSync,
   readSync,
+  realpathSync,
+  type Stats,
 } from "node:fs";
-import { dirname, isAbsolute, relative, resolve, sep, win32 } from "node:path";
+import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
 import { Effect, Layer } from "effect";
 import { canonicalize, isSha256Hex } from "@foreman/core";
 import {
@@ -59,6 +61,7 @@ export type ReleaseCoverageFileReadService = {
   readonly readBounded: (input: {
     readonly path: string;
     readonly maxBytes: number;
+    readonly containmentRoot?: string;
   }) => Effect.Effect<Uint8Array, unknown>;
 };
 
@@ -459,8 +462,15 @@ type PortRead =
 function readBoundedPort(
   fileRead: ReleaseCoverageFileReadService,
   path: string,
+  containmentRoot?: string,
 ): Effect.Effect<PortRead, never> {
-  return Effect.suspend(() => fileRead.readBounded({ path, maxBytes: ONE_MIB })).pipe(
+  return Effect.suspend(() =>
+    fileRead.readBounded({
+      path,
+      maxBytes: ONE_MIB,
+      ...(containmentRoot !== undefined ? { containmentRoot } : {}),
+    }),
+  ).pipe(
     Effect.map((bytes): PortRead => ({ _tag: "Ok", bytes })),
     Effect.catchAll((error): Effect.Effect<PortRead, never> =>
       Effect.succeed(isNotFoundError(error) ? { _tag: "NotFound" } : { _tag: "Fail" }),
@@ -717,7 +727,11 @@ function evaluateReleaseCoverage(
 
     const roadmapPath = resolveContainedPath(repository, ["ROADMAP.md"]);
     if (roadmapPath === null) return dependencyFailure();
-    const roadmapRead = yield* readBoundedPort(services.fileRead, roadmapPath);
+    const roadmapRead = yield* readBoundedPort(
+      services.fileRead,
+      roadmapPath,
+      repository,
+    );
     if (roadmapRead._tag !== "Ok") return dependencyFailure();
     const roadmapBytes = roadmapRead.bytes;
     const roadmapText = decodeUtf8Fatal(roadmapBytes);
@@ -748,6 +762,7 @@ function evaluateReleaseCoverage(
       const workflowRead = yield* readBoundedPort(
         services.fileRead,
         workflowPath,
+        repository,
       );
       if (workflowRead._tag === "Fail") return dependencyFailure();
       if (workflowRead._tag === "NotFound") {
@@ -811,7 +826,11 @@ function evaluateReleaseCoverage(
           "release-brief.json",
         ]);
         if (briefPath === null) return dependencyFailure();
-        const briefRead = yield* readBoundedPort(services.fileRead, briefPath);
+        const briefRead = yield* readBoundedPort(
+          services.fileRead,
+          briefPath,
+          repository,
+        );
         if (briefRead._tag === "NotFound") {
           return invalidResult("brief_mismatch");
         }
@@ -870,19 +889,6 @@ function boundedReadOpenFlagsLive(): number {
   return flags;
 }
 
-function absolutePathChainLive(path: string): readonly string[] {
-  const absolute = resolve(path);
-  const chain: string[] = [];
-  let current = absolute;
-  for (;;) {
-    chain.push(current);
-    const parent = dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  return chain;
-}
-
 function isEnoentLive(error: unknown): boolean {
   return (
     error !== null &&
@@ -892,93 +898,159 @@ function isEnoentLive(error: unknown): boolean {
   );
 }
 
-/**
- * Raw-byte bounded read: reject symlink components, require a regular file,
- * open with O_RDONLY (+ O_NONBLOCK/O_NOFOLLOW when present), verify identity
- * before and after the capped read, and map only real ENOENT to NotFound.
- */
-function readBoundedBytesLive(path: string, maxBytes: number): Uint8Array {
-  let fd: number | undefined;
-  try {
-    const chain = absolutePathChainLive(path);
-    let before: ReturnType<typeof lstatSync> | undefined;
-    for (let i = chain.length - 1; i >= 0; i--) {
-      const component = chain[i]!;
-      let st;
+function isInsideRootLive(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  if (rel.length === 0) return true;
+  if (isAbsolute(rel)) return false;
+  if (rel === "..") return false;
+  return !rel.startsWith(`..${sep}`);
+}
+
+function readFailureLive(
+  tag:
+    | "Containment"
+    | "IdentityChanged"
+    | "NotFile"
+    | "NotFound"
+    | "Oversize"
+    | "Symlink"
+    | "Unreadable",
+  message: string,
+): never {
+  throw Object.assign(new Error(message), { _tag: tag });
+}
+
+function sameRegularFileIdentityLive(left: Stats, right: Stats): boolean {
+  return (
+    left.isFile() &&
+    right.isFile() &&
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
+}
+
+function validateContainmentLive(path: string, containmentRoot: string): void {
+  const absoluteRoot = resolve(containmentRoot);
+  const absolutePath = resolve(path);
+  if (!isInsideRootLive(absoluteRoot, absolutePath)) {
+    readFailureLive("Containment", "path escapes containment root");
+  }
+  const rel = relative(absoluteRoot, absolutePath);
+  if (rel.length !== 0) {
+    const segments = rel.split(sep);
+    let current = absoluteRoot;
+    for (let index = 0; index < segments.length; index++) {
+      current = resolve(current, segments[index]!);
+      let component: Stats;
       try {
-        st = lstatSync(component);
+        component = lstatSync(current);
       } catch (error) {
         if (isEnoentLive(error)) {
-          if (i === 0) throw { _tag: "NotFound" as const };
-          throw Object.assign(new Error("unreadable"), {
-            _tag: "Unreadable" as const,
-          });
+          if (index === segments.length - 1) {
+            readFailureLive("NotFound", "file not found");
+          }
+          readFailureLive("Unreadable", "intermediate component is missing");
         }
         throw error;
       }
-      if (st.isSymbolicLink()) {
-        throw Object.assign(new Error("symlink"), {
-          _tag: "Symlink" as const,
-        });
+      if (component.isSymbolicLink()) {
+        readFailureLive("Symlink", "symlink below containment root");
       }
-      if (i === 0) before = st;
+      if (index < segments.length - 1 && !component.isDirectory()) {
+        readFailureLive("Unreadable", "intermediate component is not a directory");
+      }
     }
-    if (before === undefined || !before.isFile()) {
-      throw Object.assign(new Error("not-file"), {
-        _tag: "NotFile" as const,
-      });
-    }
+  }
+  let physicalRoot: string;
+  try {
+    physicalRoot = realpathSync(absoluteRoot);
+  } catch {
+    readFailureLive("Unreadable", "containment root is unreadable");
+  }
+  let physicalRootStats: Stats;
+  try {
+    physicalRootStats = lstatSync(physicalRoot);
+  } catch {
+    readFailureLive("Unreadable", "physical containment root is unreadable");
+  }
+  if (!physicalRootStats.isDirectory()) {
+    readFailureLive("Containment", "containment root is not a directory");
+  }
+  let physicalPath: string;
+  try {
+    physicalPath = realpathSync(absolutePath);
+  } catch (error) {
+    if (isEnoentLive(error)) readFailureLive("NotFound", "file not found");
+    throw error;
+  }
+  if (!isInsideRootLive(physicalRoot, physicalPath)) {
+    readFailureLive("Containment", "physical path escapes containment root");
+  }
+}
 
-    fd = openSync(path, boundedReadOpenFlagsLive());
+function readBoundedBytesLive(
+  path: string,
+  maxBytes: number,
+  containmentRoot?: string,
+): Uint8Array {
+  let fd: number | undefined;
+  try {
+    if (containmentRoot !== undefined) {
+      validateContainmentLive(path, containmentRoot);
+    }
+    let before: Stats;
+    try {
+      before = lstatSync(path);
+    } catch (error) {
+      if (isEnoentLive(error)) readFailureLive("NotFound", "file not found");
+      throw error;
+    }
+    if (before.isSymbolicLink()) readFailureLive("Symlink", "leaf is a symlink");
+    if (!before.isFile()) readFailureLive("NotFile", "leaf is not a regular file");
+    try {
+      fd = openSync(path, boundedReadOpenFlagsLive());
+    } catch (error) {
+      if (isEnoentLive(error)) {
+        readFailureLive("IdentityChanged", "leaf changed before open");
+      }
+      throw error;
+    }
     const opened = fstatSync(fd);
-    if (
-      opened.ino !== before.ino ||
-      opened.dev !== before.dev ||
-      opened.size !== before.size ||
-      !opened.isFile()
-    ) {
-      throw Object.assign(new Error("identity"), {
-        _tag: "IdentityChanged" as const,
-      });
+    if (!sameRegularFileIdentityLive(before, opened)) {
+      readFailureLive("IdentityChanged", "leaf identity changed during open");
     }
-
     const cap = maxBytes + 1;
-    const buf = Buffer.allocUnsafe(cap);
+    const buffer = Buffer.allocUnsafe(cap);
     let offset = 0;
     while (offset < cap) {
-      const n = readSync(fd, buf, offset, cap - offset, offset);
-      if (n === 0) break;
-      offset += n;
+      const count = readSync(fd, buffer, offset, cap - offset, offset);
+      if (count === 0) break;
+      offset += count;
     }
-    if (offset > maxBytes) {
-      throw Object.assign(new Error("oversize"), { _tag: "Oversize" as const });
-    }
-
-    let afterOpen;
+    if (offset > maxBytes) readFailureLive("Oversize", "file exceeds the read bound");
+    let afterOpen: Stats;
     try {
       afterOpen = fstatSync(fd);
     } catch {
-      throw Object.assign(new Error("identity"), {
-        _tag: "IdentityChanged" as const,
-      });
+      readFailureLive("IdentityChanged", "opened descriptor became unreadable");
+    }
+    let afterPath: Stats;
+    try {
+      afterPath = lstatSync(path);
+    } catch {
+      readFailureLive("IdentityChanged", "leaf changed after read");
     }
     if (
-      afterOpen.ino !== opened.ino ||
-      afterOpen.dev !== opened.dev ||
-      afterOpen.size !== opened.size ||
-      afterOpen.mtimeMs !== opened.mtimeMs
+      afterPath.isSymbolicLink() ||
+      !sameRegularFileIdentityLive(opened, afterOpen) ||
+      !sameRegularFileIdentityLive(opened, afterPath)
     ) {
-      throw Object.assign(new Error("identity"), {
-        _tag: "IdentityChanged" as const,
-      });
+      readFailureLive("IdentityChanged", "leaf identity changed during read");
     }
-
-    return Uint8Array.from(buf.subarray(0, offset));
-  } catch (error) {
-    if (isEnoentLive(error)) {
-      throw { _tag: "NotFound" as const };
-    }
-    throw error;
+    return Uint8Array.from(buffer.subarray(0, offset));
   } finally {
     if (fd !== undefined) {
       try {
@@ -1161,7 +1233,12 @@ export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
       }).pipe(Effect.provide(liveProcessExec)),
     readBounded: (input) =>
       Effect.try({
-        try: () => readBoundedBytesLive(input.path, input.maxBytes),
+        try: () =>
+          readBoundedBytesLive(
+            input.path,
+            input.maxBytes,
+            input.containmentRoot,
+          ),
         catch: (error) => error,
       }),
   },
