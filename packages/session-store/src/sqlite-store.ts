@@ -604,6 +604,20 @@ CREATE TABLE memory_outbox (
     if (typeof receipt !== "string" || receipt.length === 0) {
       raise("backend_mismatch", "outbox row receipt must be a non-empty string");
     }
+    const receiptMatch = INTERNAL_NUMERIC_RECEIPT.exec(receipt);
+    const projectionVersion = receiptMatch === null
+      ? null
+      : Number(receiptMatch[1]);
+    if (
+      projectionVersion === null ||
+      !Number.isSafeInteger(projectionVersion) ||
+      projectionVersion < 1
+    ) {
+      raise(
+        "backend_mismatch",
+        "outbox receipt must carry a valid projection version",
+      );
+    }
     const projectId = this.projectId();
     const key = projectionKey(kind, id, projectId);
     const project = projectId === null ? {} : { project_id: projectId };
@@ -611,7 +625,14 @@ CREATE TABLE memory_outbox (
     if (mutation === "retract") {
       return {
         receipt,
-        record: { ...project, key, kind, id, mutation: "retract" },
+        record: {
+          ...project,
+          key,
+          kind,
+          id,
+          projection_version: projectionVersion,
+          mutation: "retract",
+        },
       };
     }
     if (mutation === "upsert") {
@@ -625,6 +646,7 @@ CREATE TABLE memory_outbox (
           key,
           kind,
           id,
+          projection_version: projectionVersion,
           mutation: "upsert",
           text: r["text"],
         },

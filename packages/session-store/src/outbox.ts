@@ -142,6 +142,7 @@ function defensiveRecords(
         key: e.record.key,
         kind: e.record.kind,
         id: e.record.id,
+        projection_version: e.record.projection_version,
         mutation: "upsert" as const,
         text: e.record.text,
       };
@@ -151,6 +152,7 @@ function defensiveRecords(
       key: e.record.key,
       kind: e.record.kind,
       id: e.record.id,
+      projection_version: e.record.projection_version,
       mutation: "retract" as const,
     };
   });

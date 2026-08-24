@@ -57,11 +57,16 @@ export function upsertRecord(
   id: number,
   row: Readonly<Record<string, unknown>>,
   projectId: string | null = null,
+  projectionVersion = 1,
 ): ProjectionRecord {
+  if (!Number.isSafeInteger(projectionVersion) || projectionVersion < 1) {
+    throw new Error("invalid projection version");
+  }
   const base = {
     key: projectionKey(kind, id, projectId),
     kind,
     id,
+    projection_version: projectionVersion,
     mutation: "upsert" as const,
     text: projectableText(kind, row),
   };
@@ -72,11 +77,16 @@ export function retractRecord(
   kind: CountedKind,
   id: number,
   projectId: string | null = null,
+  projectionVersion = 1,
 ): ProjectionRecord {
+  if (!Number.isSafeInteger(projectionVersion) || projectionVersion < 1) {
+    throw new Error("invalid projection version");
+  }
   const base = {
     key: projectionKey(kind, id, projectId),
     kind,
     id,
+    projection_version: projectionVersion,
     mutation: "retract",
   } as const;
   return projectId === null ? base : { project_id: projectId, ...base };

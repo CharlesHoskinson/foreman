@@ -241,6 +241,7 @@ export type ProjectionRecord =
       readonly key: string;
       readonly kind: CountedKind;
       readonly id: number;
+      readonly projection_version: number;
       readonly mutation: "upsert";
       readonly text: string;
     }
@@ -250,6 +251,7 @@ export type ProjectionRecord =
       readonly key: string;
       readonly kind: CountedKind;
       readonly id: number;
+      readonly projection_version: number;
       readonly mutation: "retract";
     };
 

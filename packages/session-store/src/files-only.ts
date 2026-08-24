@@ -227,6 +227,7 @@ function copyRecord(record: ProjectionRecord): ProjectionRecord {
       key: record.key,
       kind: record.kind,
       id: record.id,
+      projection_version: record.projection_version,
       mutation: "upsert",
       text: record.text,
     };
@@ -236,6 +237,7 @@ function copyRecord(record: ProjectionRecord): ProjectionRecord {
     key: record.key,
     kind: record.kind,
     id: record.id,
+    projection_version: record.projection_version,
     mutation: "retract",
   };
 }
@@ -344,6 +346,21 @@ function decodeOutbox(text: string): {
       raise("sidecar_malformed", "outbox record project_id does not match metadata");
     }
     const project = projectId === null ? {} : { project_id: projectId };
+    const persistedVersion = r["projection_version"];
+    const derivedVersion = numeric === null ? null : Number(numeric[1]);
+    const projectionVersion =
+      persistedVersion === undefined ? derivedVersion : persistedVersion;
+    if (
+      typeof projectionVersion !== "number" ||
+      !Number.isSafeInteger(projectionVersion) ||
+      projectionVersion < 1 ||
+      (derivedVersion !== null && projectionVersion !== derivedVersion)
+    ) {
+      raise(
+        "sidecar_malformed",
+        "outbox projection_version must match its internal receipt",
+      );
+    }
     if (r["mutation"] === "upsert") {
       if (typeof r["text"] !== "string") {
         raise("sidecar_malformed", "outbox upsert record text must be a string");
@@ -355,6 +372,7 @@ function decodeOutbox(text: string): {
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
+          projection_version: projectionVersion,
           mutation: "upsert",
           text: r["text"],
         },
@@ -367,6 +385,7 @@ function decodeOutbox(text: string): {
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
+          projection_version: projectionVersion,
           mutation: "retract",
         },
       });
@@ -673,8 +692,12 @@ function assertReceiptCounterMintable(nextReceipt: number): void {
 /** Coalesce by (kind,id). Fresh receipt on change; keep original queue position. */
 function queueRecord(q: QueueState, record: ProjectionRecord): void {
   assertReceiptCounterMintable(q.nextReceipt);
-  const receipt = `r${q.nextReceipt++}`;
-  const entry: OutboxEntry = { receipt, record: copyRecord(record) };
+  const projectionVersion = q.nextReceipt++;
+  const receipt = `r${projectionVersion}`;
+  const entry: OutboxEntry = {
+    receipt,
+    record: copyRecord({ ...record, projection_version: projectionVersion }),
+  };
   const idx = q.entries.findIndex(
     (e) => e.record.kind === record.kind && e.record.id === record.id,
   );

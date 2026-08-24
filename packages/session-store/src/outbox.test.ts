@@ -224,7 +224,14 @@ function upsertEntry(
 ): OutboxEntry {
   return {
     receipt,
-    record: { key: `${kind}:${id}`, kind, id, mutation: "upsert", text },
+    record: {
+      key: `${kind}:${id}`,
+      kind,
+      id,
+      projection_version: 1,
+      mutation: "upsert",
+      text,
+    },
   };
 }
 

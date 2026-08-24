@@ -184,6 +184,59 @@ for (const harness of HARNESSES) {
       });
     });
 
+    it("projection versions are monotonic, retained, and survive acknowledgement", () => {
+      harness.withStore((store, reopen) => {
+        const obligation = store.addObligation({
+          statement: "versioned",
+          blocker: null,
+          opened_ts: "2026-08-08T10:00:00Z",
+          session_id: null,
+        });
+        const first = store.listOutbox(100).find(
+          (entry) =>
+            entry.record.kind === "obligation" &&
+            entry.record.id === obligation.id,
+        );
+        assert.ok(first);
+        assert.equal(Number.isSafeInteger(first.record.projection_version), true);
+        assert.equal(first.record.projection_version > 0, true);
+
+        store.closeObligation(
+          obligation.id,
+          "done",
+          "2026-08-08T10:01:00Z",
+        );
+        const second = store.listOutbox(100).find(
+          (entry) =>
+            entry.record.kind === "obligation" &&
+            entry.record.id === obligation.id,
+        );
+        assert.ok(second);
+        assert.equal(
+          second.record.projection_version > first.record.projection_version,
+          true,
+          "coalescing must keep only the newer desired-state version",
+        );
+        assert.equal(store.ackOutbox([second.receipt]), 1);
+
+        const again = reopen();
+        try {
+          const fact = addFact(again, "after ack", "2026-08-08T10:02:00Z");
+          const third = again.listOutbox(100).find(
+            (entry) => entry.record.kind === "fact" && entry.record.id === fact.id,
+          );
+          assert.ok(third);
+          assert.equal(
+            third.record.projection_version > second.record.projection_version,
+            true,
+            "acknowledgement and reopen must not reuse a version",
+          );
+        } finally {
+          again.close();
+        }
+      });
+    });
+
     it("supersede queues retract then upsert; retire queues retract", () => {
       harness.withStore((store) => {
         const fact = addFact(store, "old", "2026-08-08T10:00:00Z");

@@ -120,6 +120,7 @@ it("projection identities include project_id while legacy keys stay stable", () 
       key: `${PROJECT_ID}:fact:7`,
       kind: "fact",
       id: 7,
+      projection_version: 1,
       mutation: "upsert",
       text: "bounded",
     },

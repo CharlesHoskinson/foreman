@@ -354,6 +354,19 @@ path = "skills/graphify"
 id = "superpowers"
 path = "skills/superpowers"
 
+# =============================================================================
+# v0.4 optional semantic-memory dependency pins
+# =============================================================================
+
+[release_dependencies.qdrant]
+version = "1.19.0"
+source_commit = "74f3e85b9473c62560006c043e13737ce6b48412"
+image_index = "sha256:057ee3a8da769fe7310dd3537b4dc7583bf87a95ce8ac43c0af5a46bc580d1fc"
+image_linux_amd64 = "sha256:6c0652f8d6925b22f2f6f0e0a5365a6c9dbc8768bd6e70ccc1cdc14847e452a0"
+image_linux_arm64 = "sha256:139bbec1a1e6c0f04c978c96b5359568e72e60ae6abc9db0ab4b7643a8cd957f"
+client = "@qdrant/js-client-rest@1.19.0"
+client_integrity = "sha512-1+QLUHsWp+WV4PE35FLnH2ckxotWrQEqi/F3t4goF3cCThR0ZxLVtOC4OoOi/E1iyj/iIYBdbuACWMuQ15NAnA=="
+
 
 # =============================================================================
 # Lock atomicity (lock-primitive-hardening, round L2 / T5)
