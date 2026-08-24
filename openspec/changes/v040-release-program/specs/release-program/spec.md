@@ -563,356 +563,125 @@ The program SHALL execute these tranches under the declared dependency graph:
 
 ### Requirement: Stable project registry
 
-The release SHALL keep one authoritative `SessionStore` per logical project
-and a machine-local registry that resolves stable project identifiers to those
-stores. A linked Git worktree SHALL share a project identity with every
-worktree that has the same Git common directory. The stable identifier SHALL
-survive store export, an explicit restore, and repository path moves.
+The release SHALL keep one authoritative `SessionStore` for each logical
+project. A machine-local registry SHALL map one project UUID to the physical
+Git common directory, known worktree paths, store backend, and store location.
+Linked worktrees with the same physical Git common directory SHALL share one
+project UUID.
 
-`EntityRef` and every external projection identity SHALL include
-`project_id`. The registry and all existing stores SHALL have an explicit,
-tested migration. Semantic recall SHALL rehydrate a reference only through the
-matching registered store.
+The registry SHALL use a canonical JSON file under `FOREMAN_HOME`. Each
+project SHALL keep a separate SessionStore. The registry SHALL NOT combine
+project records in one database.
 
-Snapshot row-import policy and project-identity policy SHALL be separate:
+Current-project recovery SHALL read only the current project store. Each Git
+freshness query SHALL run in that project's repository. An inaccessible
+repository SHALL produce `unknown`. A query in another repository SHALL NOT
+produce `fresh`.
 
-- An exact restore into an unbound empty store preserves the donor project UUID
-  and its projection-version state only when the registry has no live binding
-  for that UUID and the import has the source retirement or recovery receipt.
-  It preserves the donor next projection version, per-key current versions,
-  pending records, and queue order. A same-backend restore preserves opaque
-  receipts and its next receipt counter. A cross-backend restore mints target
-  receipts for the pending records in queue order and sets the target next
-  receipt counter to the first unallocated value. It marks external recall
-  unqualified until a fresh epoch rebuild passes.
-- An import into a registered target, including destructive `force+refuse` and
-  additive `force+remap`, preserves the target project UUID.
-- Additive remap treats imported rows as target-project rows and queues their
-  projections under the target UUID with fresh target projection versions.
-- Destructive replacement queues its target-project delta with fresh target
-  projection versions and does not reduce the target version counter.
-- An explicit clone or fork preserves donor entity rows, IDs, and `nextIds`,
-  mints a new project UUID, and initializes new projection-version state. In
-  canonical counted-kind and ID order, it allocates versions starting at 1 and
-  one fresh target-backend opaque upsert receipt for each live projectable row.
-  The next projection version and next receipt counter are their respective
-  first unallocated values. An empty clone keeps both counters at their target-
-  backend initial values. It does not copy donor projection versions,
-  tombstones, or opaque outbox receipts.
-- A second live store that claims an existing UUID is refused until the
-  operator selects move, restore, or clone. Foreman SHALL NOT choose one by
-  path order or timestamp.
+An unregistered repository SHALL retain the existing offline session workflow.
+Explicit registration SHALL mint one project UUID and one operation UUID.
+Registration of an identical binding SHALL be idempotent. A conflicting
+project UUID, Git common directory, or store location SHALL refuse.
 
-A registry-changing operation SHALL use one durable operation identifier and
-an idempotent reserve, store-publish, then registry-finalize protocol. The
-reservation SHALL record the exact predecessor operation identifier, including
-an explicit empty predecessor. Startup recovery SHALL inspect the predecessor
-and proposed identifiers in both authorities and use the exact recovery matrix
-in this requirement. Every restore and clone state transition SHALL publish
-entity, identity, counter, per-key version, and outbox state in one SessionStore
-transaction or one paired files-only generation.
+The registry SHALL NOT derive project identity from a remote URL, display name,
+repository basename, commit history, or caller-selected project UUID. The
+registry SHALL use the physical Git common directory and bound store location.
 
-Each registry authority SHALL mint one UUID and Ed25519 identity key. The key
-fingerprint SHALL be SHA-256 of the raw 32-byte public key. Its private key
-SHALL use mode `0600` runtime state or an equivalent Windows ACL and SHALL NOT
-enter an image, project export, log, or release artifact. The destination SHALL
-sign an offer that binds its registry authority UUID, proposed operation
-identifier, project UUID, canonical Git common directory, selected store
-backend, and target store locator digest.
+A move SHALL require an explicit command. The move record SHALL bind the
+project UUID, prior registry generation, old Git common directory, new Git
+common directory, and store identity digest. Opening the moved repository
+without that command SHALL NOT change registry state.
 
-Registry initialization SHALL also pin one immutable operator
-approval-authority UUID, literal key generation `1`, and Ed25519 public-key
-fingerprint. This one-shot pin SHALL occur before the first project
-registration. A second pin or a pin after project registration SHALL refuse.
-The approval key SHALL be distinct from the source registry, destination
-registry, and project recovery keys. A normal transfer SHALL require the same
-immutable identity and literal generation `1` in both registries. A recovery
-transfer SHALL require that identity and generation in the destination registry
-and project registration record.
+`EntityRef` and external projection identities SHALL include `project_id`.
+A semantic result SHALL rehydrate through the registered project store. A wrong
+project, missing project, wrong kind, missing entity, or superseded entity
+SHALL be unavailable.
 
-A migrated registry without this record SHALL refuse transfer, exact project
-import, and project restore. One explicit operator command MAY add the missing
-generation-1 record before any project registration. A transfer bundle, import,
-restore, migration, or recovery receipt SHALL NOT create, replace, or downgrade
-the record. Loss or compromise of the approval key SHALL block normal and
-recovery transfer. v0.4 SHALL have no bypass or in-place rotation.
-
-A source retirement receipt SHALL bind one unique transfer nonce, the signed
-destination-offer digest, destination authority UUID, project UUID, export
-digest, source store operation identifier, source registry generation,
-retirement disposition, and external approval digest. The source registry
-SHALL sign it. The external approval SHALL bind the destination-offer digest,
-transfer nonce, source and destination registry-key fingerprints, recovery-key
-fingerprint, destination authority, project UUID, export digest, and proposed
-operation identifier. The separately held operator approval key SHALL sign it.
-
-The source SHALL atomically store the complete signed receipt bytes with the
-SessionStore transfer marker that disables later writes. Receipt emission
-SHALL be an idempotent read of those durable bytes. A crash before the atomic
-store publication SHALL leave the source writable and no usable receipt. A
-crash after it SHALL leave a durable receipt that recovery re-emits and uses to
-retire the registry binding. Rollback SHALL be allowed only before that atomic
-publication. A later reverse move SHALL be a new signed transfer.
-
-At registration, the SessionStore SHALL record the fingerprint of an
-operator-held Ed25519 recovery key and the approval-authority UUID, literal
-generation `1`,
-and fingerprint. If the source is unavailable, a recovery receipt SHALL be
-signed by the recovery key and SHALL bind a unique transfer nonce, the signed
-destination offer, project UUID, export digest, last-known store operation
-identifier, last-known registry generation, operator assertion, and external
-approval digest. It SHALL use explicit `unknown` values for unavailable
-identities and SHALL NOT omit them. Release evidence SHALL label this path as
-operator-attested recovery.
-
-Each receipt SHALL bind one destination registry authority and one proposed
-operation. The destination reservation SHALL bind the complete receipt digest
-and transfer nonce. Finalization SHALL mark it consumed within that authority.
-A retry with the same receipt, destination, and operation SHALL be idempotent.
-Another authority, binding, nonce, or operation SHALL refuse before mutation.
-v0.4 SHALL claim single consumption inside one registry authority and SHALL
-NOT claim global exactly-once receipt consumption. A copied live registry
-authority SHALL be an identity conflict.
-
-#### Scenario: A project first registers
-
-- **WHEN** an unbound project opens through explicit registration
-- **THEN** the registry and SessionStore publish the same project and operation
-  identifiers through the reserve, store-publish, and finalize protocol
-- **AND** a crash resumes from the exact predecessor and proposed identifiers
-
-### Requirement: Versioned project transfer envelope
-
-Exact project export SHALL use a `SessionTransferEnvelopeV1` separate from the
-row-only `SessionSnapshot` and `importSnapshot` APIs. The envelope SHALL use
-RFC 8785 canonical JSON. It SHALL be at most 256 MiB and contain at most
-1,000,000 entity rows and 100,000 pending entries. The complete bundle SHALL be
-at most 257 MiB. Each non-snapshot string SHALL be at most 64 KiB of UTF-8. The
-envelope SHALL have only these top-level fields:
-
-- `schema`, with literal value `foreman.session-transfer.v1`
-- `source_backend`, with `sqlite` or `files-only`
-- `project`, with the project UUID, source registry authority UUID, unpadded
-  base64url raw 32-byte public key, recovery-key fingerprint, approval-authority
-  UUID, literal approval-key generation `1`, approval-key fingerprint, source
-  store operation identifier, and nonnegative safe-integer source registry
-  generation
-- `snapshot`, with the complete `SessionSnapshot`
-- `projection`, with a positive safe-integer `next_version`, unique
-  projection-key/version rows in lexical key order, a positive safe-integer
-  `next_receipt`, and pending `OutboxEntry` values in durable queue order
-
-Each projection version SHALL be a positive safe integer. Projection keys and
-opaque receipts SHALL be unique. Each next counter SHALL be greater than every
-allocated value that it governs.
-
-`ExternalTransferApprovalV1` SHALL be a closed, signed RFC 8785 object. It SHALL
-have schema `foreman.external-transfer-approval.v1`, approval UUID, operator
-approval-authority UUID, literal key generation `1`, raw public key,
-destination-offer digest, transfer nonce, source and destination registry-key
-fingerprints, recovery-key fingerprint, destination authority UUID, project
-UUID, export digest, proposed operation UUID, and signature. Its SHA-256 digest
-SHALL be the external approval digest.
-
-The other signed authorization object schemas SHALL be:
-
-- `DestinationOfferV1` SHALL have schema `foreman.destination-offer.v1`,
-  destination authority UUID, destination raw public key, proposed operation
-  UUID, project UUID, canonical Git common directory, store backend, target
-  store locator digest, and signature.
-- `RetirementReceiptV1` SHALL have schema
-  `foreman.retirement-receipt.v1`, destination offer digest, destination
-  authority and operation UUIDs, transfer nonce, project UUID, export digest,
-  source store operation UUID, source registry generation, `retired`
-  disposition, external approval digest, and signature.
-- `RecoveryReceiptV1` SHALL have schema `foreman.recovery-receipt.v1`,
-  destination offer digest, destination authority and operation UUIDs,
-  transfer nonce, project UUID, export digest, last-known source store
-  operation and registry generation or literal `unknown`, operator assertion,
-  external approval digest, raw recovery public key, and signature.
-
-Public keys and 64-byte Ed25519 signatures SHALL use unpadded base64url. Each
-signature SHALL cover the canonical object with its `signature` field omitted.
-Verification SHALL reject an extra, missing, duplicate, wrongly encoded, or
-wrong-type field before signature verification.
-
-The export digest SHALL be SHA-256 of the canonical envelope bytes. The
-transfer bundle SHALL contain the envelope, signed destination offer, signed
-external approval, and exactly one signed retirement or recovery receipt.
-These three authorization artifacts SHALL be outside the envelope digest.
-Validation SHALL run in this order:
-
-1. Apply parse and size limits, exact schemas and closed fields, canonical-byte
-   reproduction, and digest checks.
-2. Compute each raw public-key fingerprint. Match the destination key to the
-   named destination registry, the approval key to the pinned operator
-   authority, the source key to the source registry when available, and the
-   recovery key to the project registration record.
-3. Verify the offer with the destination key, the approval with the operator
-   key, a retirement receipt with the source key, and a recovery receipt with
-   the recovery key.
-4. Compare every offer, nonce, authority, project, operation, export,
-   key-generation, and approval-digest binding across the artifacts.
-5. Validate safe integers, receipt invariants, SessionSnapshot integrity, and
-   registry admission, then publish the target atomically.
-
-An unknown version or backend, non-canonical encoding, duplicate projection key
-or receipt, unknown or mismatched authority, invalid signature, counter
-mismatch, or malformed row SHALL refuse before source retirement or target
-mutation. Same-backend restore SHALL preserve opaque receipts. Cross-backend
-restore SHALL remint them in queue order.
-
-A writable registry migration SHALL create its authority UUID and identity
-key. One explicit operator action MAY add a missing immutable approval authority
-before any project registration. An explicit writable project migration SHALL
-record the project UUID, operation identifier, recovery public-key fingerprint,
-and immutable approval-authority identity. A read-only open that needs any
-migration SHALL refuse without changing registry or SessionStore bytes.
-
-#### Scenario: Approval authority mutation is attempted
-
-- **WHEN** an operation attempts a second pin, downgrade, replacement, mismatch,
-  or a pin after project registration
-- **THEN** the registry and SessionStore remain unchanged
-- **AND** transfer and recovery transfer remain blocked
-
-#### Scenario: A project export is used as a row import
-
-- **WHEN** an operator calls `importSnapshot` with project transfer intent
-- **THEN** Foreman reports that row import cannot restore project identity or
-  projection bookkeeping
-- **AND** exact restore requires the versioned transfer bundle
-
-#### Scenario: A transfer bundle is malformed
-
-- **WHEN** any validation stage rejects its bytes or authority
-- **THEN** the registry and target SessionStore remain unchanged
-- **AND** the failure identifies the first failed validation stage
-
-#### Scenario: The source crashes before transfer publication
-
-- **WHEN** receipt construction starts but the atomic source transfer marker
-  does not commit
-- **THEN** startup leaves the source writable and cancels the transfer intent
-- **AND** no receipt is usable
-
-#### Scenario: The source crashes after transfer publication
-
-- **WHEN** the source marker and receipt bytes commit before registry retirement
-- **THEN** startup retires the matching registry binding
-- **AND** it re-emits the identical durable receipt bytes
-
-#### Scenario: The destination crashes before store publication
-
-- **WHEN** its registry reservation exists and its store remains at the exact
-  predecessor operation
-- **THEN** startup cancels the reservation without consuming the receipt
-- **AND** retry can reserve the same receipt and operation again
-
-#### Scenario: The destination crashes after store publication
-
-- **WHEN** the store records the proposed operation and matching receipt digest
-- **THEN** startup finalizes the registry binding and consumes that receipt
-- **AND** a conflicting operation, digest, nonce, authority, or destination
-  refuses without mutation
-
-The SessionStore project UUID and registration operation identifier SHALL be
-the durable local project marker. The marker is not derived from commit
-history, remote URLs, a directory path, or a display name. An automatic open at
-a new path SHALL NOT rewrite registry state. A move SHALL require an explicit,
-receipt-bound operation that names the project UUID, prior registry generation,
-old path, new canonical Git common directory, and store-identity metadata
-digest.
+A writable migration SHALL add the project marker without changing entity
+rows. A read-only open SHALL NOT migrate registry or store state. Migration
+tests SHALL compare all entity rows before and after migration.
 
 #### Scenario: A repository has linked worktrees
 
-- **WHEN** two worktree paths report the same `git --git-common-dir`
-- **THEN** the registry assigns them one stable project identifier
-- **AND** each path resolves to the same authoritative project store
+- **WHEN** two worktree paths resolve to the same Git common directory
+- **THEN** both paths resolve to one project UUID
+- **AND** both paths resolve to one authoritative SessionStore
+
+#### Scenario: A project path is unavailable
+
+- **WHEN** the registered Git common directory cannot be read
+- **THEN** recovery reports affected measurements as `unknown`
+- **AND** it does not run a freshness query in another repository
+
+#### Scenario: A repository is not registered
+
+- **WHEN** an operator runs the existing session commands
+- **THEN** Foreman uses the existing per-project store behavior
+- **AND** it does not require registry creation
+
+### Requirement: Bounded project export and restore
+
+The existing `SessionSnapshot` import API SHALL remain a row-import API. It
+SHALL NOT adopt a project identity.
+
+An explicit project export SHALL contain exact snapshot bytes and one canonical
+project manifest. The manifest SHALL bind the project UUID, source backend,
+source operation UUID, snapshot digest, and projection-state digest.
+
+Foreman SHALL verify the complete manifest and payload digests before mutation.
+v0.4 SHALL make no cross-machine authenticity claim. The project protocol
+SHALL NOT create or consume private keys, signatures, approval keys, or
+recovery keys.
+
+An exact restore into an unbound empty store MAY adopt the donor project UUID
+only when no live registry binding uses that UUID. A clone SHALL mint a new
+project UUID. A row import into a registered target SHALL keep the target
+project UUID.
+
+A registry-changing operation SHALL reserve one proposed operation UUID against
+one exact predecessor operation UUID. The SessionStore SHALL publish the same
+project and operation UUIDs. The registry SHALL verify that marker before it
+finalizes the operation.
+
+Startup recovery SHALL finalize a matching proposed operation. It SHALL cancel
+an operation when the store remains at the exact predecessor. Any other marker
+SHALL create a conflict without changing project data.
 
 #### Scenario: A project moves
 
-- **WHEN** the operator submits a move receipt for a registered project at a
-  new path
-- **THEN** the registry preserves its stable project identifier
-- **AND** it updates path metadata only after the store UUID, registration
-  operation identifier, prior registry generation, and receipt all match
+- **WHEN** the operator applies a valid move record
+- **THEN** the registry preserves the project UUID
+- **AND** it updates the path only after every binding matches
 
-#### Scenario: A moved project opens without a receipt
+#### Scenario: A moved project opens without a move command
 
-- **WHEN** a SessionStore project UUID appears at an unregistered path
-  without an accepted move receipt
-- **THEN** Foreman reports the project moved but unverified
-- **AND** it does not update the registry or claim the project fresh
+- **WHEN** a store appears at an unregistered path
+- **THEN** Foreman reports the project as moved but unverified
+- **AND** it does not change the registry
 
 #### Scenario: An empty destination restores a project
 
-- **WHEN** an unbound empty destination imports an exact project export
-- **THEN** it preserves the donor project UUID only if no live registry binding
-  uses that UUID and the transfer has a source retirement or recovery receipt
-- **AND** it preserves the next projection version, per-key versions, pending
-  records, and queue order
-- **AND** it preserves same-backend receipts or deterministically mints
-  cross-backend receipts in that order
-- **AND** it marks external recall unqualified until rebuild activation passes
-- **AND** a duplicate live binding refuses before the store changes
-
-#### Scenario: A registered target imports rows
-
-- **WHEN** a registered target uses destructive replacement or additive remap
-- **THEN** the target project UUID does not change
-- **AND** every resulting projection uses the target project UUID
+- **WHEN** an unbound empty store imports a valid project export
+- **THEN** it adopts the donor UUID only when no live binding uses that UUID
+- **AND** it preserves the exact SessionStore data
 
 #### Scenario: An operator clones a project
 
-- **WHEN** the operator explicitly selects clone or fork
-- **THEN** Foreman mints a new project UUID before it registers the copy
-- **AND** it allocates new versions and live upsert receipts in canonical order
-- **AND** the version and receipt counters are the first unallocated values
-  after those rows
-- **AND** the new and donor stores cannot project to the same project identity
+- **WHEN** the operator selects clone
+- **THEN** Foreman mints a new project UUID
+- **AND** imported entities bind to the new project
 
-#### Scenario: Registration crashes after store publication
+#### Scenario: Registration stops after store publication
 
-- **WHEN** the store contains the reserved operation identifier but the
-  registry still records that operation as pending
-- **THEN** startup recovery finalizes the matching registry operation
-- **AND** retry produces one active binding
-
-#### Scenario: Registration crashes before store publication
-
-- **WHEN** the registry reserves operation B with predecessor A and the store
-  still contains A
-- **THEN** startup recovery cancels B without changing the store
-- **AND** retry can reserve a new operation from A
+- **WHEN** the store contains the proposed operation marker
+- **THEN** startup finalizes the matching registry operation
+- **AND** retry returns the active binding
 
 #### Scenario: Registration state is ambiguous
 
-- **WHEN** a pending reservation proposes B from predecessor A and the store
-  contains neither A nor B, or two accessible stores claim one UUID
-- **THEN** Foreman marks the project binding conflicted and refuses recall,
-  projection, import, and freshness claims for that project
-- **AND** it prints an explicit operator recovery action
-
-#### Scenario: A pending registration cannot reach its store
-
-- **WHEN** startup recovery cannot read the store for a pending reservation
-- **THEN** it refuses without changing the registry or another store
-- **AND** retry uses the same pending operation identifier
-
-#### Scenario: A referenced project is unavailable
-
-- **WHEN** recall returns a reference for a deleted, moved-but-unverified, or
-  unregistered project
-- **THEN** Foreman reports the reference unavailable or unknown
-- **AND** Foreman does not report it fresh and does not open another store
-
-#### Scenario: Current-project recovery runs
-
-- **WHEN** the operator uses the default recovery command
-- **THEN** it remains exact, offline, and limited to the current project
-- **AND** cross-project recovery requires an explicit command or option
-
+- **WHEN** the store marker matches neither predecessor nor proposal
+- **THEN** Foreman marks the project binding as conflicted
+- **AND** it blocks recall, projection, import, and freshness claims
 ### Requirement: Qdrant MemoryIndex adapter
 
 The release SHALL ship the first external `MemoryIndex` adapter against Qdrant
