@@ -121,3 +121,13 @@ export {
   type PluginDriftResult,
   type InstallCliIo,
 } from "./install-verify-exports.js";
+export {
+  validateReleaseCoverageV1,
+  inspectReleaseCoverageRegisterV1,
+  type ReleaseCoverageFailureReason,
+  type RoadmapAssignmentV1,
+  type ReleaseCoverageResultV1,
+  type ReleaseCoveragePhaseV1,
+  type ReleasePackageBriefV1,
+  type ReleaseCoverageRegisterInspectionV1,
+} from "./release-coverage.js";

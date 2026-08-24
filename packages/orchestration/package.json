@@ -7,6 +7,7 @@
   "dependencies": {
     "@foreman/core": "0.3.0",
     "@foreman/event-log": "0.3.0",
+    "@foreman/policy": "0.3.0",
     "@foreman/session-store": "0.3.1",
     "effect": "3.22.1"
   }

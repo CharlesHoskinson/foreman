@@ -607,7 +607,8 @@ function validateRoadmapRows(
 ): boolean {
   const seen = new Set<string>();
   for (const row of rows) {
-    if (row === null || typeof row !== "object" || Array.isArray(row)) {
+    if (!isPlainObject(row)) return false;
+    if (!hasExactOwnKeys(row, ["key", "scope", "release", "owner"])) {
       return false;
     }
     const { key, scope, release, owner } = row;
@@ -810,6 +811,33 @@ function selectedOwners(entries: readonly RegisterEntry[]): string[] {
     names.push(entry.owner);
   }
   return names;
+}
+
+export type ReleaseCoverageRegisterInspectionV1 =
+  | {
+      readonly _tag: "Valid";
+      readonly baselineCommit: string;
+      readonly selectedOwners: readonly string[];
+    }
+  | {
+      readonly _tag: "Invalid";
+      readonly reason: "invalid_register";
+    };
+
+export function inspectReleaseCoverageRegisterV1(input: {
+  readonly registerText: string;
+  readonly phase: ReleaseCoveragePhaseV1;
+}): ReleaseCoverageRegisterInspectionV1 {
+  const parsed = parseRegister(input.registerText);
+  if (parsed === "invalid_register") {
+    return { _tag: "Invalid", reason: "invalid_register" };
+  }
+  const owners = selectedOwners(selectedEntries(input.phase, parsed.entries));
+  return {
+    _tag: "Valid",
+    baselineCommit: parsed.baselineCommit,
+    selectedOwners: [...owners].sort(compareUtf8Bytes),
+  };
 }
 
 export function validateReleaseCoverageV1(input: {

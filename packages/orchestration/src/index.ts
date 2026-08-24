@@ -779,3 +779,19 @@ export {
   type CredentialProfileLaneCliIo,
   type ParsedCredentialProfileLaneArgv,
 } from "./credential-profile-lane-cli.js";
+
+// --- v0.4 Track 1 Task 2: release-coverage CLI ---
+
+export {
+  runReleaseCoverageCli,
+  liveReleaseCoverageCliServices,
+  type ReleaseCoverageCliIo,
+  type ReleaseCoverageFileReadService,
+  type ReleaseCoverageOpenSpecListService,
+  type ReleaseCoverageGitChangedPathsService,
+  type ReleaseCoverageFamilySourceService,
+  type ReleaseCoverageCliServices,
+  type ReleaseCoverageChildBriefV1,
+  type ReleaseCoverageFamilySourceV1,
+  type ReleaseCoverageResolvedFamilyV1,
+} from "./release-coverage-cli.js";
