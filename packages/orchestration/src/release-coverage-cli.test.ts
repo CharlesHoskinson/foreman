@@ -3,11 +3,14 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   readlinkSync,
   rmSync,
+  symlinkSync,
+  writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -24,6 +27,7 @@ import type {
   RoadmapAssignmentV1,
 } from "@foreman/policy";
 import {
+  liveReleaseCoverageCliServices,
   runReleaseCoverageCli,
   type ReleaseCoverageCliIo,
   type ReleaseCoverageCliServices,
@@ -32,6 +36,7 @@ import {
   type ReleaseCoverageGitChangedPathsService,
   type ReleaseCoverageOpenSpecListService,
 } from "./index.js";
+import { planOpenSpecInvocationV1 } from "./release-coverage-cli.js";
 
 const ONE_MIB = 1_048_576;
 const EXIT_OK = 0;
@@ -1370,6 +1375,32 @@ test("bootstrap assembly uses sealed Track-1 fixture and injected repository roo
     assertCanonicalResult(capture, invalidResult("invalid_roadmap"));
   });
 
+  await t.test(
+    "exact Roadmap table rejects a fifth Markdown cell as invalid_roadmap",
+    async () => {
+      const bytes = utf8(
+        [
+          "| Coverage key | Scope | Release | Owner |",
+          "|---|---|---|---|",
+          `| \`${ROADMAP_KEY}\` | Sprint 6 project registry | \`v0.4\` | \`${PACKAGE}\` | extra |`,
+          "",
+        ].join("\n"),
+      );
+      const { exitCode, capture } = await runCli(
+        BOOTSTRAP_ARGV,
+        sharedBootstrapOptions({
+          roadmapBytes: bytes,
+          registerText: sealRegister({
+            activeNames: SHARED_ACTIVE,
+            roadmapBytes: bytes,
+          }),
+        }),
+      );
+      assert.equal(exitCode, EXIT_EVALUATED);
+      assertCanonicalResult(capture, invalidResult("invalid_roadmap"));
+    },
+  );
+
   await t.test("malformed OpenSpec JSON and shape are dependency_failure", async (nested) => {
     for (const [name, openspecBytes] of [
       ["malformed-json", utf8("{not-json")],
@@ -1693,6 +1724,103 @@ test("lane and release authority bind the real family child and absolute brief p
     );
     assertSanitized(capture);
   });
+
+  await t.test(
+    "safe dotted owner package..id is Valid when authority surfaces agree",
+    async () => {
+      const dottedOwner = "package..id";
+      const dottedChildId = "v040-t2-package-dotdot";
+      const dottedRoadmapKey = "roadmap:package-dotdot";
+      const dottedBriefAbs = join(
+        REPO,
+        "openspec",
+        "changes",
+        dottedOwner,
+        "release-brief.json",
+      );
+      const dottedChild = {
+        schema: "foreman.execution-child-brief.v1" as const,
+        childId: dottedChildId,
+        tranche: 2 as const,
+        packageId: dottedOwner,
+        dependencyChildIds: [] as const,
+        objective: "Ship the dotted owner lane.",
+        acceptance: ["Safe filename segments may contain .. substrings."],
+        allowedPaths: ["packages/orchestration/**"] as const,
+      };
+      const roadmapBytes = utf8(
+        [
+          "| Coverage key | Scope | Release | Owner |",
+          "|---|---|---|---|",
+          `| \`${dottedRoadmapKey}\` | Dotted owner package | \`v0.4\` | \`${dottedOwner}\` |`,
+          "",
+        ].join("\n"),
+      );
+      const registerText = sealRegister({
+        activeNames: SHARED_ACTIVE,
+        roadmapBytes,
+        packageReconcile: "complete",
+        mutate: (text) =>
+          text
+            .replaceAll(`name = "${PACKAGE}"`, `name = "${dottedOwner}"`)
+            .replaceAll(`key = "${ROADMAP_KEY}"`, `key = "${dottedRoadmapKey}"`)
+            .replaceAll(`owner = "${PACKAGE}"`, `owner = "${dottedOwner}"`),
+      });
+      const familyResult: FamilyResult = {
+        ...registeredFamilyResult(),
+        source: {
+          ...FAMILY_SOURCE,
+          children: FAMILY_SOURCE.children.map((child) =>
+            child.packageId === PACKAGE ? dottedChild : child,
+          ),
+        },
+      };
+      const dottedArgv = processArgv([
+        "check",
+        "--program",
+        "v040",
+        "--phase",
+        "lane",
+        "--owner",
+        dottedOwner,
+        "--repo",
+        REPO,
+        "--state-root",
+        STATE_ROOT,
+        "--contract-id",
+        CONTRACT_ID,
+        "--contract-sha",
+        CONTRACT_SHA,
+        "--family-sha",
+        FAMILY_SHA,
+        "--register",
+        REGISTER,
+      ]);
+      const { exitCode, capture } = await runCli(
+        dottedArgv,
+        sharedLaneOptions({
+          roadmapBytes,
+          registerText,
+          workflowByOwner: {
+            [TRACK1]: "foreman-architectural",
+            [PACKAGE]: "foreman-bounded",
+            [dottedOwner]: "foreman-bounded",
+          },
+          familyResult,
+          briefBytesByAbsPath: new Map([
+            [dottedBriefAbs, briefFileBytes(deriveBrief(dottedChild))],
+          ]),
+        }),
+      );
+      assert.equal(exitCode, EXIT_OK);
+      assertCanonicalResult(
+        capture,
+        validResult(SHARED_ACTIVE, roadmapBytes, 2),
+      );
+      assertNoEscapeReads(capture.log);
+      assertUnchangedSnapshot(capture);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -1997,7 +2125,6 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
       );
       assert.equal(cloned.error, undefined);
       assert.equal(cloned.status, 0, cloned.stderr);
-      const before = snapshotPhysicalTree(repository);
       const main = join(
         SOURCE_REPO,
         "packages",
@@ -2012,40 +2139,58 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
         "v040-release-program",
         "coverage.toml",
       );
-      const invoked = spawnSync(
-        process.execPath,
-        [
-          "--import",
-          TSX_LOADER,
-          main,
-          "check",
-          "--program",
-          "v040",
-          "--phase",
-          "bootstrap",
-          "--owner",
-          TRACK1,
-          "--register",
-          register,
-        ],
-        {
-          cwd: repository,
+      const bootstrapArgv = [
+        "--import",
+        TSX_LOADER,
+        main,
+        "check",
+        "--program",
+        "v040",
+        "--phase",
+        "bootstrap",
+        "--owner",
+        TRACK1,
+        "--register",
+        register,
+      ] as const;
+      const invoke = (cwd: string) =>
+        spawnSync(process.execPath, [...bootstrapArgv], {
+          cwd,
           encoding: "utf8",
           timeout: 60_000,
           maxBuffer: ONE_MIB,
-        },
-      );
-      const after = snapshotPhysicalTree(repository);
+        });
 
-      assert.equal(invoked.error, undefined);
-      assert.equal(invoked.status, EXIT_OK, invoked.stderr || invoked.stdout);
-      assert.equal(invoked.stderr, "");
-      const output = JSON.parse(
-        invoked.stdout.trim(),
+      const beforeRoot = snapshotPhysicalTree(repository);
+      const rootInvoked = invoke(repository);
+      const afterRoot = snapshotPhysicalTree(repository);
+      assert.equal(rootInvoked.error, undefined);
+      assert.equal(
+        rootInvoked.status,
+        EXIT_OK,
+        rootInvoked.stderr || rootInvoked.stdout,
+      );
+      assert.equal(rootInvoked.stderr, "");
+      const rootOutput = JSON.parse(
+        rootInvoked.stdout.trim(),
       ) as ReleaseCoverageResultV1;
-      assert.equal(output._tag, "Valid");
-      assert.equal(invoked.stdout, `${canonicalize(output)}\n`);
-      assert.deepEqual(after, before);
+      assert.equal(rootOutput._tag, "Valid");
+      assert.equal(rootInvoked.stdout, `${canonicalize(rootOutput)}\n`);
+      assert.deepEqual(afterRoot, beforeRoot);
+
+      const nestedCwd = join(repository, "packages");
+      const beforeNested = snapshotPhysicalTree(repository);
+      const nestedInvoked = invoke(nestedCwd);
+      const afterNested = snapshotPhysicalTree(repository);
+      assert.equal(nestedInvoked.error, undefined);
+      assert.equal(
+        nestedInvoked.status,
+        EXIT_OK,
+        nestedInvoked.stderr || nestedInvoked.stdout,
+      );
+      assert.equal(nestedInvoked.stderr, "");
+      assert.equal(nestedInvoked.stdout, rootInvoked.stdout);
+      assert.deepEqual(afterNested, beforeNested);
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }
@@ -2116,4 +2261,286 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
       REGISTER,
     ]);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Live Git changed-path discovery and bounded file reader
+// ---------------------------------------------------------------------------
+
+const GIT_TEST_TIMEOUT_MS = 30_000;
+
+function gitIn(
+  repository: string,
+  args: readonly string[],
+): ReturnType<typeof spawnSync> {
+  return spawnSync("git", args, {
+    cwd: repository,
+    encoding: "utf8",
+    timeout: GIT_TEST_TIMEOUT_MS,
+    maxBuffer: ONE_MIB,
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: "release-coverage",
+      GIT_AUTHOR_EMAIL: "release-coverage@example.com",
+      GIT_COMMITTER_NAME: "release-coverage",
+      GIT_COMMITTER_EMAIL: "release-coverage@example.com",
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_OPTIONAL_LOCKS: "0",
+    },
+  });
+}
+
+function assertGitOk(
+  result: ReturnType<typeof spawnSync>,
+  label: string,
+): void {
+  assert.equal(result.error, undefined, label);
+  assert.equal(result.status, 0, `${label}: ${result.stderr || result.stdout}`);
+}
+
+test("live gitChangedPaths.discover returns planning changes without duplicates", async () => {
+  const temporary = mkdtempSync(join(tmpdir(), "release-coverage-git-"));
+  const repository = join(temporary, "repo");
+  try {
+    mkdirSync(repository);
+    assertGitOk(gitIn(repository, ["init"]), "git init");
+    assertGitOk(
+      gitIn(repository, ["config", "user.email", "release-coverage@example.com"]),
+      "git config email",
+    );
+    assertGitOk(
+      gitIn(repository, ["config", "user.name", "release-coverage"]),
+      "git config name",
+    );
+    assertGitOk(
+      gitIn(repository, ["config", "commit.gpgsign", "false"]),
+      "git config gpgsign",
+    );
+
+    const specsRoot = join(repository, "docs", "superpowers", "specs");
+    const plansRoot = join(repository, "docs", "superpowers", "plans");
+    mkdirSync(specsRoot, { recursive: true });
+    mkdirSync(plansRoot, { recursive: true });
+    writeFileSync(join(specsRoot, "seed-spec.md"), "seed spec\n");
+    writeFileSync(join(plansRoot, "seed-plan.md"), "seed plan\n");
+    writeFileSync(join(repository, "README.md"), "seed readme\n");
+    writeFileSync(join(specsRoot, "to-delete.md"), "delete me\n");
+    writeFileSync(join(plansRoot, "to-rename.md"), "rename me\n");
+    assertGitOk(gitIn(repository, ["add", "-A"]), "git add seed");
+    assertGitOk(gitIn(repository, ["commit", "-m", "baseline"]), "git commit baseline");
+    const baseline = (gitIn(repository, ["rev-parse", "HEAD"]).stdout ?? "").trim();
+    assert.match(baseline, /^[0-9a-f]{40}$/);
+
+    writeFileSync(join(specsRoot, "committed-after.md"), "committed after\n");
+    assertGitOk(gitIn(repository, ["add", "docs/superpowers/specs/committed-after.md"]), "git add committed");
+    assertGitOk(
+      gitIn(repository, ["commit", "-m", "committed after baseline"]),
+      "git commit after",
+    );
+
+    writeFileSync(join(plansRoot, "staged.md"), "staged\n");
+    assertGitOk(gitIn(repository, ["add", "docs/superpowers/plans/staged.md"]), "git add staged");
+
+    writeFileSync(join(specsRoot, "seed-spec.md"), "unstaged edit\n");
+    writeFileSync(join(plansRoot, "untracked.md"), "untracked\n");
+    assertGitOk(
+      gitIn(repository, ["rm", "docs/superpowers/specs/to-delete.md"]),
+      "git rm deleted",
+    );
+    assertGitOk(
+      gitIn(repository, [
+        "mv",
+        "docs/superpowers/plans/to-rename.md",
+        "docs/superpowers/plans/renamed.md",
+      ]),
+      "git mv renamed",
+    );
+    writeFileSync(join(repository, "README.md"), "outside planning roots\n");
+
+    const discovered = await Effect.runPromise(
+      liveReleaseCoverageCliServices.gitChangedPaths.discover({
+        repository,
+        baselineCommit: baseline,
+      }),
+    );
+    const unique = new Set(discovered);
+    assert.equal(unique.size, discovered.length);
+
+    const expected = [
+      "docs/superpowers/specs/committed-after.md",
+      "docs/superpowers/plans/staged.md",
+      "docs/superpowers/specs/seed-spec.md",
+      "docs/superpowers/specs/to-delete.md",
+      "docs/superpowers/plans/renamed.md",
+      "docs/superpowers/plans/untracked.md",
+    ];
+    for (const path of expected) {
+      assert.equal(
+        discovered.includes(path),
+        true,
+        `missing planning path ${path}: ${JSON.stringify(discovered)}`,
+      );
+    }
+    assert.equal(discovered.includes("README.md"), false);
+    assert.equal(
+      discovered.some(
+        (path) =>
+          !path.startsWith("docs/superpowers/specs/") &&
+          !path.startsWith("docs/superpowers/plans/") &&
+          path !== "docs/superpowers/specs" &&
+          path !== "docs/superpowers/plans",
+      ),
+      false,
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("live fileRead.readBounded enforces 1 MiB and rejects non-regular authority", async (t) => {
+  const temporary = mkdtempSync(join(tmpdir(), "release-coverage-read-"));
+  try {
+    const exactPath = join(temporary, "exact.bin");
+    writeFileSync(exactPath, Buffer.alloc(ONE_MIB, 7));
+    const exact = await Effect.runPromise(
+      liveReleaseCoverageCliServices.fileRead.readBounded({
+        path: exactPath,
+        maxBytes: ONE_MIB,
+      }),
+    );
+    assert.equal(exact.byteLength, ONE_MIB);
+
+    const overPath = join(temporary, "over.bin");
+    writeFileSync(overPath, Buffer.alloc(ONE_MIB + 1, 8));
+    const over = await Effect.runPromise(
+      liveReleaseCoverageCliServices.fileRead
+        .readBounded({ path: overPath, maxBytes: ONE_MIB })
+        .pipe(Effect.either),
+    );
+    assert.equal(over._tag, "Left");
+
+    const directoryPath = join(temporary, "dir-authority");
+    mkdirSync(directoryPath);
+    const directory = await Effect.runPromise(
+      liveReleaseCoverageCliServices.fileRead
+        .readBounded({ path: directoryPath, maxBytes: ONE_MIB })
+        .pipe(Effect.either),
+    );
+    assert.equal(directory._tag, "Left");
+
+    await t.test(
+      "symlink to a matching external file fails closed",
+      async (st) => {
+        const outside = mkdtempSync(join(tmpdir(), "release-coverage-ext-"));
+        try {
+          const outsideFile = join(outside, "external.bin");
+          writeFileSync(outsideFile, Buffer.alloc(32, 9));
+          const linkPath = join(temporary, "linked.bin");
+          try {
+            symlinkSync(outsideFile, linkPath);
+          } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+            st.skip(`symlink creation not permitted: ${code}`);
+            return;
+          }
+          const linked = await Effect.runPromise(
+            liveReleaseCoverageCliServices.fileRead
+              .readBounded({ path: linkPath, maxBytes: ONE_MIB })
+              .pipe(Effect.either),
+          );
+          assert.equal(linked._tag, "Left");
+        } finally {
+          rmSync(outside, { recursive: true, force: true });
+        }
+      },
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 7. Windows OpenSpec invocation plan (future pure helper)
+// ---------------------------------------------------------------------------
+
+type OpenSpecInvocationPlanV1 =
+  | {
+      readonly _tag: "Ok";
+      readonly command: string;
+      readonly args: readonly string[];
+    }
+  | { readonly _tag: "Invalid" };
+
+test("planOpenSpecInvocationV1 freezes POSIX and Windows command plans", () => {
+  const posixResolved = "/usr/local/bin/openspec";
+  const posix = planOpenSpecInvocationV1({
+    platform: "linux",
+    comSpec: undefined,
+    resolvedOpenSpec: posixResolved,
+  }) as OpenSpecInvocationPlanV1;
+  assert.deepEqual(posix, {
+    _tag: "Ok",
+    command: posixResolved,
+    args: ["list", "--json"],
+  });
+
+  const comSpec = "C:\\Windows\\System32\\cmd.exe";
+  const resolvedShim = "C:\\Tools\\openspec.cmd";
+  const windows = planOpenSpecInvocationV1({
+    platform: "win32",
+    comSpec,
+    resolvedOpenSpec: resolvedShim,
+  }) as OpenSpecInvocationPlanV1;
+  assert.equal(windows._tag, "Ok");
+  if (windows._tag === "Ok") {
+    assert.equal(windows.command, comSpec);
+    assert.deepEqual(windows.args, [
+      "/d",
+      "/s",
+      "/c",
+      `"${resolvedShim}" list --json`,
+    ]);
+    assert.equal(windows.args.includes("openspec.cmd"), false);
+  }
+
+  const invalidCases: ReadonlyArray<{
+    readonly platform: NodeJS.Platform;
+    readonly comSpec: string | undefined;
+    readonly resolvedOpenSpec: string;
+  }> = [
+    {
+      platform: "win32",
+      comSpec: "cmd.exe",
+      resolvedOpenSpec: resolvedShim,
+    },
+    {
+      platform: "win32",
+      comSpec: "C:\\Windows\\System32\\cmd.exe\0evil",
+      resolvedOpenSpec: resolvedShim,
+    },
+    {
+      platform: "win32",
+      comSpec,
+      resolvedOpenSpec: "openspec.cmd",
+    },
+    {
+      platform: "win32",
+      comSpec,
+      resolvedOpenSpec: "C:\\Tools\\openspec.cmd\0evil",
+    },
+    {
+      platform: "linux",
+      comSpec: undefined,
+      resolvedOpenSpec: "openspec",
+    },
+    {
+      platform: "linux",
+      comSpec: undefined,
+      resolvedOpenSpec: "/usr/bin/openspec\0evil",
+    },
+  ];
+  for (const input of invalidCases) {
+    const plan = planOpenSpecInvocationV1(input) as OpenSpecInvocationPlanV1;
+    assert.deepEqual(plan, { _tag: "Invalid" });
+  }
 });
