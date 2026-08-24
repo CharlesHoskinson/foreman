@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { createHash, verify as verifyEd25519 } from "node:crypto";
+import { createHash, createPublicKey, verify as verifyEd25519 } from "node:crypto";
 import { describe, it } from "node:test";
+
+import { canonicalize } from "@foreman/core";
 
 import {
   buildApprovedOpenSpecManifestV1,
@@ -15,6 +17,8 @@ import {
   type ReleaseActionV1,
   type ReleaseAuditFindingV1,
   type ReleaseAuditSourceV1,
+  type ReleaseAuthorityFileDecodeResultV1,
+  type ReleaseAuthorityObjectParseResultV1,
   type ReleaseAuthorityReceiptV1,
   type ReleaseCandidateIdentityV1,
   type ReleaseChecksSourceV1,
@@ -22,6 +26,8 @@ import {
   type ReleaseEvaluationReportSourceV1,
   type ReleaseEvaluationVerdictV1,
   type ReleaseEvidenceBundleV1,
+  type ReleaseProducerSourceDecodeResultV1,
+  type ReleaseSourceReceiptBindingResultV1,
 } from "./index.js";
 
 const commit = "1111111111111111111111111111111111111111";
@@ -329,23 +335,142 @@ const producerSources = [
 const compileTypeBindings: {
   readonly manifest: ApprovedOpenSpecManifestV1 | null;
   readonly action: ReleaseActionV1;
+  readonly objectResult: ReleaseAuthorityObjectParseResultV1 | null;
+  readonly fileResult: ReleaseAuthorityFileDecodeResultV1 | null;
+  readonly sourceResult: ReleaseProducerSourceDecodeResultV1 | null;
+  readonly bindingResult: ReleaseSourceReceiptBindingResultV1 | null;
 } = {
   manifest: null,
   action: "verify",
+  objectResult: null,
+  fileResult: null,
+  sourceResult: null,
+  bindingResult: null,
 };
 
+const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+const canonicalFile = (value: unknown): Uint8Array =>
+  utf8(`${canonicalize(value)}\n`);
+
+const sha256Hex = (bytes: Uint8Array): string =>
+  createHash("sha256").update(bytes).digest("hex");
+
+const validSignedArtifactCases = signedArtifacts.map((artifact) => ({
+  schema: artifact.schema,
+  artifact,
+  bytes: canonicalFile(artifact),
+}));
+
+const validProducerSourceCases = [
+  {
+    schema: checksSource.schema,
+    source: checksSource,
+    bytes: canonicalFile(checksSource),
+    sha256: CHECKS_SOURCE_SHA256,
+  },
+  {
+    schema: auditSource.schema,
+    source: auditSource,
+    bytes: canonicalFile(auditSource),
+    sha256: AUDIT_SOURCE_SHA256,
+  },
+  {
+    schema: evaluationReportSource.schema,
+    source: evaluationReportSource,
+    bytes: canonicalFile(evaluationReportSource),
+    sha256: EVAL_REPORT_SOURCE_SHA256,
+  },
+] as const;
+
+describe("release authority positive signed schemas", () => {
+  for (const item of validSignedArtifactCases) {
+    it(item.schema, () => {
+      const parsed = parseReleaseAuthorityObjectV1(item.artifact);
+      assert.equal(parsed._tag, "Valid");
+      if (parsed._tag === "Valid") {
+        assert.deepEqual(parsed.value, item.artifact);
+      }
+
+      const decoded = decodeReleaseAuthorityFileV1(item.bytes);
+      assert.equal(decoded._tag, "Valid");
+      if (decoded._tag === "Valid") {
+        assert.deepEqual(decoded.value, item.artifact);
+        assert.equal(decoded.sha256, sha256Hex(item.bytes));
+      }
+    });
+  }
+});
+
+describe("release authority producer sources", () => {
+  for (const item of validProducerSourceCases) {
+    it(item.schema, () => {
+      const decoded = decodeReleaseProducerSourceFileV1(item.bytes);
+      assert.equal(decoded._tag, "Valid");
+      if (decoded._tag === "Valid") {
+        assert.deepEqual(decoded.value, item.source);
+        assert.equal(decoded.sha256, item.sha256);
+        assert.equal(decoded.sha256, sha256Hex(item.bytes));
+      }
+    });
+  }
+
+  const bindings = [
+    [checksSource, checksReceipt],
+    [auditSource, auditReceipt],
+    [evaluationReportSource, evaluationVerdict],
+  ] as const;
+
+  for (const [source, receipt] of bindings) {
+    it(`binds ${source.schema} to ${receipt.schema}`, () => {
+      assert.deepEqual(
+        verifyReleaseSourceReceiptBindingV1(
+          canonicalFile(source),
+          canonicalFile(receipt),
+        ),
+        { _tag: "Valid" },
+      );
+    });
+  }
+});
+
+describe("release authority signature preimage", () => {
+  const rawPublicKey = Buffer.from(
+    "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+    "hex",
+  );
+  const spkiPrefix = Buffer.from("302a300506032b6570032100", "hex");
+  const publicKey = createPublicKey({
+    key: Buffer.concat([spkiPrefix, rawPublicKey]),
+    format: "der",
+    type: "spki",
+  });
+  const signature = Buffer.from(
+    "f254e1822d7096fb31e5a555014cca0f7a2a5b20893f6a7677329fc783f406c9814aeba23b2ecd9fcaea2f843f4898d7e23fb08ffbe9c4a0c4134adb3d198408",
+    "hex",
+  );
+
+  it("uses one LF byte between the domain and canonical object", () => {
+    const message = releaseAuthoritySignaturePreimageV1({});
+    assert.equal(
+      Buffer.from(message).toString("hex"),
+      "666f72656d616e2e72656c656173652d617574686f726974792e76310a7b7d",
+    );
+    assert.equal(verifyEd25519(null, message, publicKey, signature), true);
+  });
+
+  for (const [name, message] of [
+    ["literal-backslash-n", utf8("foreman.release-authority.v1\\n{}")],
+    ["trailing-lf", utf8("foreman.release-authority.v1\n{}\n")],
+    ["trailing-nul", utf8("foreman.release-authority.v1\n{}\u0000")],
+  ] as const) {
+    it(`rejects ${name}`, () => {
+      assert.equal(verifyEd25519(null, message, publicKey, signature), false);
+    });
+  }
+});
+
 void buildApprovedOpenSpecManifestV1;
-void decodeReleaseAuthorityFileV1;
-void decodeReleaseProducerSourceFileV1;
-void parseReleaseAuthorityObjectV1;
-void releaseAuthoritySignaturePreimageV1;
-void verifyReleaseSourceReceiptBindingV1;
-void signedArtifacts;
-void producerSources;
 void compileTypeBindings;
+void producerSources;
 void WRONG_ROLE_SIGNATURES;
-void assert;
-void createHash;
-void verifyEd25519;
-void describe;
-void it;
