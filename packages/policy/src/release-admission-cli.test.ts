@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
+  chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -362,6 +364,130 @@ test("live historical loader refuses oversized, missing, and excessive blobs", a
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test(
+  "live CLI never executes repository-selected Git",
+  { skip: process.platform === "win32" },
+  () => {
+    const root = mkdtempSync(join(tmpdir(), "release-admission-git-path-"));
+    const repository = join(root, "repo");
+    const emptyTemplate = join(root, "empty-template");
+    const maliciousBin = join(repository, "tools");
+    const sentinel = join(root, "repository-git-ran");
+    try {
+      mkdirSync(repository, { recursive: true });
+      mkdirSync(emptyTemplate, { recursive: true });
+      git(repository, [
+        "-c",
+        "init.defaultObjectFormat=sha1",
+        "init",
+        "--quiet",
+        `--template=${emptyTemplate}`,
+      ]);
+      const packageRoot = join(
+        repository,
+        "openspec",
+        "changes",
+        "project-registry",
+      );
+      mkdirSync(join(packageRoot, "specs", "release"), { recursive: true });
+      for (const [path, bytes] of Object.entries(OPEN_SPEC_BYTES)) {
+        writeFileSync(join(packageRoot, ...path.split("/")), bytes);
+      }
+      writeFileSync(join(packageRoot, "tasks.md"), TASK_BYTES);
+      git(repository, ["add", "."]);
+      git(repository, ["commit", "--quiet", "-m", "approved design"]);
+      const commit = git(repository, ["rev-parse", "HEAD"]).stdout.trim();
+      const tree = git(repository, [
+        "rev-parse",
+        `${commit}^{tree}`,
+      ]).stdout.trim();
+      const manifest = buildApprovedOpenSpecManifestV1({
+        workflow: "foreman-architectural",
+        files: Object.entries(OPEN_SPEC_BYTES).map(([path, bytes]) => ({
+          path,
+          bytes,
+        })),
+      });
+      assert.equal(manifest._tag, "Valid");
+      if (manifest._tag !== "Valid") throw new Error("manifest fixture");
+      const candidate: ReleaseCandidateIdentityV1 = {
+        commit,
+        tree,
+        candidateSha256: sha256Hex(commit),
+      };
+      const evidencePath = join(root, "evidence.json");
+      writeFileSync(
+        evidencePath,
+        canonicalFile({
+          ...BUNDLE,
+          candidate,
+          receipts: [
+            {
+              ...DESIGN,
+              designCommit: commit,
+              designTree: tree,
+              approvedOpenSpecSha256: manifest.sha256,
+            },
+          ],
+        }),
+      );
+
+      mkdirSync(maliciousBin, { recursive: true });
+      const maliciousGit = join(maliciousBin, "git");
+      writeFileSync(
+        maliciousGit,
+        `#!/bin/sh\nprintf ran > '${sentinel}'\nexit 1\n`,
+      );
+      chmodSync(maliciousGit, 0o755);
+
+      const invoked = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          TSX_LOADER,
+          RELEASE_ADMISSION_MAIN,
+          "check",
+          "--program",
+          "v040",
+          "--action",
+          "implement",
+          "--package",
+          "project-registry",
+          "--repo",
+          repository,
+          "--candidate-commit",
+          commit,
+          "--evidence",
+          evidencePath,
+        ],
+        {
+          cwd: repository,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            PATH: `${maliciousBin}:${process.env.PATH ?? ""}`,
+          },
+          timeout: 30_000,
+        },
+      );
+      assert.equal(invoked.error, undefined);
+      assert.equal(invoked.status, 1, invoked.stderr);
+      assert.equal(invoked.stderr, "");
+      assert.equal(
+        invoked.stdout,
+        `${canonicalize({
+          schemaVersion: 1,
+          _tag: "EvidenceInvalid",
+          reason: "git_resolution_failure",
+        })}\n`,
+      );
+      assert.equal(existsSync(sentinel), false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
 
 test("live CLI loads approved bytes from the pinned design commit", async () => {
   const root = mkdtempSync(join(tmpdir(), "release-admission-live-"));

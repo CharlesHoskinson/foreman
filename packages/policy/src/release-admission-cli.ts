@@ -1,13 +1,24 @@
 import { execFile } from "node:child_process";
 import {
+  accessSync,
   closeSync,
   constants as fsConstants,
   fstatSync,
+  lstatSync,
   openSync,
   readSync,
+  realpathSync,
+  statSync,
 } from "node:fs";
 import { devNull } from "node:os";
-import { isAbsolute } from "node:path";
+import {
+  delimiter,
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { promisify } from "node:util";
 
 import {
@@ -292,12 +303,73 @@ function readBoundedRegularFile(path: string, maxBytes: number): Uint8Array {
   }
 }
 
-function closedGitEnvironment(): NodeJS.ProcessEnv {
-  const base: NodeJS.ProcessEnv = {};
-  if (process.env.PATH !== undefined) base["PATH"] = process.env.PATH;
-  if (process.platform === "win32" && process.env.PATHEXT !== undefined) {
-    base["PATHEXT"] = process.env.PATHEXT;
+type TrustedGitContext = {
+  readonly repository: string;
+  readonly executable: string;
+};
+
+function isContainedPath(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  return (
+    rel.length === 0 ||
+    (!isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`))
+  );
+}
+
+function resolveTrustedGitContext(repository: string): TrustedGitContext {
+  const physicalRepository = realpathSync(repository);
+  const searchPath = process.env.PATH;
+  if (searchPath === undefined) throw new Error("Git path is unavailable");
+  const executableNames = process.platform === "win32" ? ["git.exe"] : ["git"];
+
+  for (const entry of searchPath.split(delimiter)) {
+    const directory =
+      entry.length === 0
+        ? repository
+        : isAbsolute(entry)
+          ? entry
+          : resolve(repository, entry);
+    for (const name of executableNames) {
+      const candidate = resolve(directory, name);
+      try {
+        lstatSync(candidate);
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error as { readonly code?: unknown }).code === "ENOENT"
+        ) {
+          continue;
+        }
+        throw error;
+      }
+      const physicalExecutable = realpathSync(candidate);
+      if (
+        isContainedPath(repository, candidate) ||
+        isContainedPath(physicalRepository, physicalExecutable)
+      ) {
+        throw new Error("repository-selected Git is forbidden");
+      }
+      if (!statSync(physicalExecutable).isFile()) {
+        throw new Error("Git executable is not a regular file");
+      }
+      accessSync(
+        physicalExecutable,
+        process.platform === "win32" ? fsConstants.F_OK : fsConstants.X_OK,
+      );
+      return {
+        repository: physicalRepository,
+        executable: physicalExecutable,
+      };
+    }
   }
+  throw new Error("Git executable is unavailable");
+}
+
+function closedGitEnvironment(executable: string): NodeJS.ProcessEnv {
+  const base: NodeJS.ProcessEnv = { PATH: dirname(executable) };
+  if (process.platform === "win32") base["PATHEXT"] = ".EXE";
   const environment = sanitizedGitEnv(base);
   environment["GIT_CONFIG_NOSYSTEM"] = "1";
   environment["GIT_CONFIG_GLOBAL"] = devNull;
@@ -305,12 +377,12 @@ function closedGitEnvironment(): NodeJS.ProcessEnv {
 }
 
 async function runGitBytes(
-  repository: string,
+  context: TrustedGitContext,
   args: readonly string[],
   maxBytes: number,
 ): Promise<Uint8Array> {
   const result = await execFileAsync(
-    "git",
+    context.executable,
     gitArgv([
       "-c",
       "core.fsmonitor=false",
@@ -319,9 +391,9 @@ async function runGitBytes(
       ...args,
     ]),
     {
-      cwd: repository,
+      cwd: context.repository,
       encoding: "buffer",
-      env: closedGitEnvironment(),
+      env: closedGitEnvironment(context.executable),
       maxBuffer: maxBytes + 1,
       timeout: GIT_TIMEOUT_MS,
       windowsHide: true,
@@ -335,11 +407,11 @@ async function runGitBytes(
 }
 
 async function resolveGitObject(
-  repository: string,
+  context: TrustedGitContext,
   expression: string,
 ): Promise<string> {
   const bytes = await runGitBytes(
-    repository,
+    context,
     ["rev-parse", "--verify", expression],
     64,
   );
@@ -351,13 +423,13 @@ async function resolveGitObject(
 }
 
 async function isLinearDesignDescendant(
-  repository: string,
+  context: TrustedGitContext,
   designCommit: string,
   candidateCommit: string,
 ): Promise<boolean> {
   if (candidateCommit === designCommit) return true;
   const bytes = await runGitBytes(
-    repository,
+    context,
     [
       "rev-list",
       "--ancestry-path",
@@ -423,30 +495,31 @@ async function loadGitAuthorityLive(input: {
   readonly maxSpecFiles: number;
   readonly maxRetainedBytes: number;
 }): Promise<ReleaseAdmissionGitAuthorityV1> {
+  const context = resolveTrustedGitContext(input.repository);
   const candidateCommit = await resolveGitObject(
-    input.repository,
+    context,
     `${input.candidateCommit}^{commit}`,
   );
   if (candidateCommit !== input.candidateCommit) {
     throw new Error("candidate identity changed");
   }
   const candidateTree = await resolveGitObject(
-    input.repository,
+    context,
     `${candidateCommit}^{tree}`,
   );
   const designCommit = await resolveGitObject(
-    input.repository,
+    context,
     `${input.designCommit}^{commit}`,
   );
   if (designCommit !== input.designCommit) {
     throw new Error("design identity changed");
   }
   const designTree = await resolveGitObject(
-    input.repository,
+    context,
     `${designCommit}^{tree}`,
   );
   const designLineageValid = await isLinearDesignDescendant(
-    input.repository,
+    context,
     designCommit,
     candidateCommit,
   );
@@ -454,7 +527,7 @@ async function loadGitAuthorityLive(input: {
   const prefix = `openspec/changes/${input.packageId}/`;
   const listed = parseNulPaths(
     await runGitBytes(
-      input.repository,
+      context,
       ["ls-tree", "-r", "-z", "--name-only", designCommit, "--", prefix],
       ONE_MIB,
     ),
@@ -481,7 +554,7 @@ async function loadGitAuthorityLive(input: {
   const approvedRows: Array<{ readonly path: string; readonly bytes: Uint8Array }> = [];
   for (const path of retainedPaths) {
     const bytes = await runGitBytes(
-      input.repository,
+      context,
       ["cat-file", "blob", `${designCommit}:${path}`],
       input.maxBlobBytes,
     );
