@@ -92,13 +92,11 @@ The session model is the most expensive lane. Keep its token volume low:
 2. **Keep context lean.** Delegate broad exploration; keep conclusions, not dumps.
 3. **Reason once, then hand off.** Capture architecture in the five-part spec;
    do not re-derive it across turns while typing code yourself.
-4. **Use only a current graph.** For repository understanding, query the local
-   graph (`graphify query "..." --budget 1500`) only when `graphify-out/`
-   records the exact current commit. Use `graphify update .` only for code-only
-   changes to an existing current semantic corpus. Documentation or mixed
-   changes require `graphify extract .` and `graphify cluster-only .`. If a
-   current graph cannot be built, read source files directly. Use
-   `source_location` only where detail is needed.
+4. **Use only a qualified current graph.** Run the tracked
+   `graphify-qualification.js freshness` command first. Query the advisory
+   code-only graph only when it returns `Fresh`. If it returns any other state,
+   read source files directly. Use `source_location` only where detail is
+   needed.
 
 ### Lanes
 

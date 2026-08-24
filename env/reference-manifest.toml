@@ -248,7 +248,19 @@ where = ["windows", "wsl"]
 check = "graphify --version"
 install_hint = "pip install graphifyy  (module name: graphify)"
 required = false
-notes = "Knowledge-graph repo understanding. graphify-out/ is a derived local index, not a committed graph."
+min_version = "0.9.48"
+notes = "Optional knowledge-graph producer. Foreman qualifies only Graphify 0.9.48 code-only output; missing, stale, or invalid output selects direct-source mode."
+
+[graphify_qualification]
+schema_version = 1
+version = "0.9.48"
+reference_interpreter = "/home/charl/.local/share/uv/tools/graphifyy/bin/python"
+local_interpreter_file = "graphify-out/.graphify_python"
+measurement_date = "2026-08-24"
+measurement_host = "linux/amd64 foreman-control:0.4.0-local"
+concurrency_result = "two isolated writers exited zero; the second graph discarded the first; the shrink guard did not refuse"
+mode = "code-only"
+max_workers = 1
 
 [[tools]]
 id = "openspec"

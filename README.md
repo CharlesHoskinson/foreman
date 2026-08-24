@@ -537,11 +537,10 @@ later.
   see limits for the uutils `mkdir` defect that affects that path.
 - **Work-DAG** is a deterministic projection of the event log. No LLM ever
   writes it, and it never passes through graphify.
-- **Knowledge plane** is graphify's, on two cadences: AST-only per merge
-  (measured zero tokens) and slower semantic extraction/clustering. Sold as
-  cross-session provenance and deterministic gate checks — **not** as
-  retrieval accuracy (BM-25 beat GraphRAG systems on the research bench; the
-  falsification package carries pre-registered kill criteria).
+- **The knowledge plane** is an optional Graphify 0.9.48 code-only index.
+  Foreman qualifies two isolated builds, requires zero model tokens, and binds
+  the adopted graph to its source commit. A missing, stale, or invalid graph
+  selects direct-source mode.
 - **The materialisation is SQLite** — `skills/foreman/ontology/schema.sql` —
   behind a `GraphStore` port with a files-only fallback, never the system of
   record. If the store is deferred or unavailable, the plane loses time-travel
@@ -554,23 +553,28 @@ later.
   token-budgeted context block — the design where the audit trail can prove
   what the worker saw — not open-ended agentic graph traversal.
 
-The repository treats `graphify-out/` as a local derived index. It is not
-tracked. For concepts, architecture, or file relationships, first confirm that
-`graphify-out/graph.json` records the exact current commit. For a missing graph
-or a checkout with documentation or mixed changes, run semantic extraction and
-then generate the report:
+The repository tracks only the qualified `graphify-out/graph.json` and
+`refresh-meta.json` pair. Caches and temporary Graphify state remain ignored.
+Check freshness without installing Graphify:
 
 ```bash
-graphify extract .
-graphify cluster-only .
-graphify query "<question>" --budget 1500
+node skills/foreman/runtime/dist/graphify-qualification.js freshness \
+  --repo "$(git rev-parse --show-toplevel)"
 ```
 
-For code-only changes to an existing current semantic corpus,
-`graphify update .` performs the local AST refresh. Follow `source_location`
-pointers into files only for the facts you need. Do not query a graph whose
-`built_at_commit` differs from `git rev-parse HEAD`; refresh it or read source
-files directly.
+Maintainers can publish a new qualified graph with the pinned 0.9.48
+interpreter:
+
+```bash
+node skills/foreman/runtime/dist/graphify-qualification.js qualify \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --manifest "$(git rev-parse --show-toplevel)/env/reference-manifest.toml" \
+  --cadence manual
+```
+
+Follow `source_location` pointers into source only when freshness is `Fresh`.
+Otherwise, read the source directly. Semantic extraction, community labels,
+and external graph databases are not part of the v0.4 release.
 
 Without `--apply`, `maintenance.sh` reports vendored-skill hash drift, graph
 freshness, and soft-profile tool inventory drift. With `--apply`, the
@@ -719,7 +723,7 @@ foreman/
 ├── openspec/                # OpenSpec-like change-folder layout
 ├── site/                    # static documentation website (dogfood target)
 ├── tests/                   # bats suite + run.sh
-├── graphify-out/            # ignored local knowledge-graph index
+├── graphify-out/            # qualified graph + metadata; caches ignored
 ├── docs/                    # USAGE.md, INSTALL.md, research / design notes
 └── CLAUDE.md                # project architect doctrine
 ```

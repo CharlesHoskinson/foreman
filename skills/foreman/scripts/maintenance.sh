@@ -256,53 +256,30 @@ run_upstream() {
   fi
 }
 
-# @description Return the last approximately 200 characters of command output on one line.
-# @arg $1 output captured command output
-# @stdout normalized error excerpt
-last_200() {
-  printf '%s' "$1" | tail -c 200 | tr '\r\n\t' '   '
-}
-
-# @description Run Graphify's documented incremental update when its prerequisites are present.
+# @description Report qualified graph freshness without importing or running Graphify.
 run_graph() {
-  local graph_json="$TARGET_ROOT/graphify-out/graph.json"
-  local graph_py="" candidate output
+  local runtime="$REAL_ROOT/skills/foreman/runtime/dist/graphify-qualification.js"
+  local output tag
 
-  if [[ ! -f "$graph_json" ]]; then
+  if ! command -v node >/dev/null 2>&1 || [[ ! -f "$runtime" ]] || [[ -z "$PY" ]]; then
     GRAPH_STATUS="skipped"
-    GRAPH_DETAIL="graphify-out/graph.json not found"
+    GRAPH_DETAIL="Graphify-free freshness runtime unavailable"
     printf '%s' "$GRAPH_DETAIL" > "$GRAPH_DETAIL_FILE"
     return 0
   fi
 
-  for candidate in python3 python; do
-    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c 'import graphify' >/dev/null 2>&1; then
-      graph_py="$candidate"
-      break
-    fi
-  done
-  if [[ -z "$graph_py" ]]; then
-    GRAPH_STATUS="skipped"
-    GRAPH_DETAIL="graphify not importable"
-    printf '%s' "$GRAPH_DETAIL" > "$GRAPH_DETAIL_FILE"
-    return 0
+  if output="$(node "$runtime" freshness --repo "$TARGET_ROOT" 2>/dev/null)"; then
+    :
   fi
-
-  if command -v graphify >/dev/null 2>&1; then
-    if output="$(cd "$TARGET_ROOT" && graphify . --update 2>&1)"; then
-      GRAPH_STATUS="ok"
-      GRAPH_DETAIL="incremental Graphify update completed"
-    else
-      GRAPH_STATUS="stale"
-      GRAPH_DETAIL="incremental Graphify update failed: $(last_200 "$output")"
-    fi
-  elif output="$(cd "$TARGET_ROOT" && "$graph_py" -m graphify . --update 2>&1)"; then
-    GRAPH_STATUS="ok"
-    GRAPH_DETAIL="incremental Graphify module update completed"
-  else
-    GRAPH_STATUS="stale"
-    GRAPH_DETAIL="incremental Graphify module update failed: $(last_200 "$output")"
-  fi
+  tag="$($PY -c 'import json,sys
+try: print(json.load(sys.stdin).get("_tag", "Invalid"))
+except Exception: print("Invalid")' <<< "$output")"
+  case "$tag" in
+    Fresh) GRAPH_STATUS="ok" ;;
+    Missing) GRAPH_STATUS="skipped" ;;
+    *) GRAPH_STATUS="stale" ;;
+  esac
+  GRAPH_DETAIL="${output:-freshness runtime returned no result}"
   printf '%s' "$GRAPH_DETAIL" > "$GRAPH_DETAIL_FILE"
 }
 

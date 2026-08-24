@@ -862,6 +862,30 @@ export {
   type ReleasePolicyServices,
 } from "./release-policy.js";
 
+// --- v0.4 Track 5: qualified advisory knowledge plane ---
+
+export {
+  acquireGraphifyPublicationLockV1,
+  evaluateGraphifyFreshnessV1,
+  qualifyGraphifyCandidateV1,
+  releaseGraphifyPublicationLockV1,
+  runGraphifyQualificationCli,
+  type GraphifyCliResultV1,
+  type GraphifyDiagnosticsV1,
+  type GraphifyFileRenameV1,
+  type GraphifyFreshnessInputV1,
+  type GraphifyFreshnessResultV1,
+  type GraphifyNodeRenameV1,
+  type GraphifyPublicationLockResultV1,
+  type GraphifyPublicationLockV1,
+  type GraphifyQualificationCliIo,
+  type GraphifyQualificationCliServices,
+  type GraphifyQualificationInputV1,
+  type GraphifyQualificationReasonV1,
+  type GraphifyQualificationResultV1,
+  type GraphifyRefreshMetadataV1,
+} from "./graphify-qualification.js";
+
 // --- v0.4 Track 2: stable project registry ---
 
 export {

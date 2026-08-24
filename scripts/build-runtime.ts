@@ -44,6 +44,15 @@ const ENTRIES = [
     injectCapabilities: false,
   },
   {
+    id: "graphify-qualification",
+    entry: join(
+      root,
+      "packages/orchestration/src/graphify-qualification-main.ts",
+    ),
+    relativePath: "dist/graphify-qualification.js",
+    injectCapabilities: false,
+  },
+  {
     id: "release-admission",
     entry: join(root, "packages/policy/src/release-admission-main.ts"),
     relativePath: "dist/release-admission.js",

@@ -3893,3 +3893,23 @@ reopening the PR as a deliberate, announced step rather than a side effect.
    architect's head, so the implementer could not have fixed what it broke.
 4. Ask the implementer for its verbatim commands before writing a root cause.
    Doing so here overturned the architect's assumption and changed the finding.
+
+## 2026-08-24 — Graphify 0.9.48 allowed two writers to discard a graph
+
+**Phase:** v0.4.0 knowledge-plane qualification
+
+Two isolated `foreman-control:0.4.0-local` containers ran Graphify 0.9.48
+against separate one-file TypeScript corpora and wrote to the same output
+directory. Both processes exited zero. The final graph contained only the
+second corpus. The first corpus was absent, and Graphify's shrink guard did not
+refuse the replacement.
+
+**Impact:** a concurrent manual refresh could silently publish an incomplete
+derived index while reporting success. Source files were not affected.
+
+**Decision:** Foreman publishes Graphify output through one bounded advisory
+lock in the repository's common Git directory. Builds remain isolated and
+lock-free. The publisher acquires the lock only after two code-only candidates
+pass deterministic and health checks, revalidates `HEAD`, and then replaces the
+tracked graph and metadata pair. A missing or invalid graph selects direct
+source instead of blocking ordinary work.

@@ -21,11 +21,12 @@ jobs:
       - name: Run maintenance report
         id: report
         run: |
-          # CI lacks Graphify and developer CLIs, so only upstream drift is meaningful here.
-          bash skills/foreman/scripts/maintenance.sh --stage upstream --json maintenance.json || true
+          # Graph freshness is intentionally Graphify-free.
+          bash skills/foreman/scripts/maintenance.sh --stage upstream --json upstream.json || true
+          bash skills/foreman/scripts/maintenance.sh --stage graph --json graph.json || true
           token="$(date +%s)_$RANDOM"
           echo "summary<<EOF_${token}" >> "$GITHUB_OUTPUT"
-          cat maintenance.json >> "$GITHUB_OUTPUT"
+          cat upstream.json graph.json >> "$GITHUB_OUTPUT"
           echo "EOF_${token}" >> "$GITHUB_OUTPUT"
       - name: Open issue with findings
         if: contains(steps.report.outputs.summary, 'drift') || contains(steps.report.outputs.summary, 'stale')

@@ -61,6 +61,10 @@ const trackedApplianceDoctorPath = join(
   trackedRuntime,
   "dist/appliance-doctor.js",
 );
+const trackedGraphifyQualificationPath = join(
+  trackedRuntime,
+  "dist/graphify-qualification.js",
+);
 const trackedGuardPath = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicyPath = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedEndstopPath = join(trackedRuntime, "dist/execution-guard.js");
@@ -118,6 +122,9 @@ if (!trackedCheck.ok) {
 }
 const trackedManifest = readFileSync(trackedManifestPath);
 const trackedApplianceDoctor = readFileSync(trackedApplianceDoctorPath);
+const trackedGraphifyQualification = readFileSync(
+  trackedGraphifyQualificationPath,
+);
 const trackedGuard = readFileSync(trackedGuardPath);
 const trackedPolicy = readFileSync(trackedPolicyPath);
 const trackedEndstop = readFileSync(trackedEndstopPath);
@@ -159,6 +166,7 @@ const trackedReleasePolicy = readFileSync(trackedReleasePolicyPath);
     "foreman-launch.js",
     "foreman-setup.js",
     "graph-store.js",
+    "graphify-qualification.js",
     "lane-queue.js",
     "lane-round.js",
     "lane-supervise.js",
@@ -191,6 +199,12 @@ try {
   );
   const bApplianceDoctor = readFileSync(
     join(tmpB, "dist/appliance-doctor.js"),
+  );
+  const aGraphifyQualification = readFileSync(
+    join(tmpA, "dist/graphify-qualification.js"),
+  );
+  const bGraphifyQualification = readFileSync(
+    join(tmpB, "dist/graphify-qualification.js"),
   );
   const aPolicy = readFileSync(join(tmpA, "dist/architecture-policy.js"));
   const bPolicy = readFileSync(join(tmpB, "dist/architecture-policy.js"));
@@ -257,6 +271,9 @@ try {
   if (!bytesEqual(aApplianceDoctor, bApplianceDoctor)) {
     fail("non-deterministic appliance-doctor");
   }
+  if (!bytesEqual(aGraphifyQualification, bGraphifyQualification)) {
+    fail("non-deterministic graphify-qualification");
+  }
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aEndstop, bEndstop)) fail("non-deterministic execution-guard");
@@ -309,6 +326,9 @@ try {
   }
   if (!bytesEqual(aApplianceDoctor, trackedApplianceDoctor)) {
     fail("appliance-doctor drift");
+  }
+  if (!bytesEqual(aGraphifyQualification, trackedGraphifyQualification)) {
+    fail("graphify-qualification drift");
   }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
@@ -378,6 +398,10 @@ try {
     writeFileSync(
       join(rt, "dist/appliance-doctor.js"),
       trackedApplianceDoctor,
+    );
+    writeFileSync(
+      join(rt, "dist/graphify-qualification.js"),
+      trackedGraphifyQualification,
     );
     writeFileSync(join(rt, "dist/architecture-policy.js"), trackedPolicy);
     writeFileSync(join(rt, "dist/execution-guard.js"), trackedEndstop);
