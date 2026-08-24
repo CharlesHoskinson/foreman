@@ -984,6 +984,10 @@ describe("release producer receipts copy every authoritative field", () => {
   ];
   for (const [name, source, receipt] of cases) {
     it("rejects mismatched " + name, () => {
+      assert.equal(
+        decodeReleaseAuthorityFileV1(canonicalFile(receipt))._tag,
+        "Valid",
+      );
       assert.deepEqual(
         verifyReleaseSourceReceiptBindingV1(
           canonicalFile(source),
@@ -1455,6 +1459,10 @@ describe("Task 3.1 cold-review closure", () => {
       },
     ] as const;
     for (const receipt of cases) {
+      assert.equal(
+        decodeReleaseAuthorityFileV1(canonicalFile(receipt))._tag,
+        "Valid",
+      );
       assert.deepEqual(
         verifyReleaseSourceReceiptBindingV1(
           canonicalFile(evaluationReportSource),
@@ -1507,5 +1515,233 @@ describe("Task 3.1 cold-review closure", () => {
       }),
       { _tag: "Invalid" },
     );
+  });
+});
+
+describe("Task 3.1 final producer and bundle closure", () => {
+  it("closes producer candidate identity objects", () => {
+    for (const source of [checksSource, auditSource] as const) {
+      for (const key of Object.keys(source.candidate)) {
+        const missing = cloneRecord(source.candidate);
+        delete missing[key];
+        expectSourceInvalid(
+          canonicalFile({ ...source, candidate: missing }),
+        );
+        expectSourceInvalid(
+          canonicalFile({
+            ...source,
+            candidate: { ...source.candidate, [key]: null },
+          }),
+        );
+      }
+      expectSourceInvalid(
+        canonicalFile({
+          ...source,
+          candidate: { ...source.candidate, unexpected: true },
+        }),
+      );
+      expectSourceInvalid(
+        canonicalFile({
+          ...source,
+          candidate: Object.create(source.candidate) as unknown,
+        }),
+      );
+      for (const field of ["commit", "tree"] as const) {
+        for (const value of [
+          "1".repeat(39),
+          "1".repeat(41),
+          "A".repeat(40),
+          "g".repeat(40),
+        ]) {
+          expectSourceInvalid(
+            canonicalFile({
+              ...source,
+              candidate: { ...source.candidate, [field]: value },
+            }),
+          );
+        }
+      }
+      expectSourceInvalid(
+        canonicalFile({
+          ...source,
+          candidate: {
+            ...source.candidate,
+            candidateSha256: "a".repeat(63),
+          },
+        }),
+      );
+      expectSourceInvalid(
+        canonicalFile({
+          ...source,
+          candidate: { ...source.candidate, candidateSha256: shaA },
+        }),
+      );
+    }
+  });
+
+  it("closes producer audit finding and digest fields", () => {
+    expectSourceInvalid(
+      canonicalFile({
+        ...auditSource,
+        auditArtifactSha256: "a".repeat(63),
+      }),
+    );
+    expectSourceInvalid(
+      canonicalFile({
+        ...auditSource,
+        findings: [{ ...finding, unexpected: true }],
+      }),
+    );
+    expectSourceInvalid(
+      canonicalFile({
+        ...auditSource,
+        findings: [Object.create(finding) as unknown],
+      }),
+    );
+    for (const line of [0, 2147483648, 1.5] as const) {
+      expectSourceInvalid(
+        canonicalFile({
+          ...auditSource,
+          findings: [{ ...finding, line }],
+        }),
+      );
+    }
+  });
+
+  it("closes every evaluation-report digest field", () => {
+    for (const field of [
+      "candidateSha256",
+      "authorityManifestSha256",
+      "evaluationAuthorityReceiptSha256",
+      "runSetSha256",
+      "reportArtifactSha256",
+    ] as const) {
+      expectSourceInvalid(
+        canonicalFile({
+          ...evaluationReportSource,
+          [field]: "a".repeat(63),
+        }),
+      );
+    }
+  });
+
+  it("rejects every forbidden identifier and text control", () => {
+    for (const value of [
+      "bad\\id",
+      "bad\tid",
+      "bad\u007fid",
+    ] as const) {
+      expectParseInvalid({ ...actionOutcome, packageId: value });
+    }
+    for (const value of ["left\tright", "left\u007fright"] as const) {
+      expectParseInvalid({
+        ...auditReceipt,
+        findings: [{ ...finding, summary: value }],
+      });
+      expectSourceInvalid(
+        canonicalFile({
+          ...auditSource,
+          findings: [{ ...finding, summary: value }],
+        }),
+      );
+    }
+  });
+
+  it("freezes all correction verdicts and retry or resume origins", () => {
+    const design = designReceipt;
+    const checksPass = {
+      ...checksReceipt,
+      packageId: "project-registry",
+      status: "PASS",
+    } as const;
+    const checksFail = {
+      ...checksReceipt,
+      packageId: "project-registry",
+      status: "FAIL",
+    } as const;
+    const request = {
+      ...councilRequest,
+      packageId: "project-registry",
+    } as const;
+    const auditFor = (
+      verdict: "APPROVED" | "WARNING" | "BLOCKED" | "UNVERIFIED",
+      findings: readonly ReleaseAuditFindingV1[],
+    ) => ({
+      ...auditReceipt,
+      packageId: "project-registry",
+      verdict,
+      findings,
+    });
+    const auditApproved = auditFor("APPROVED", []);
+    const evaluationDesign = {
+      ...designReceipt,
+      packageId: "graph-eval-falsification",
+    } as const;
+    const ordinary = [
+      { name: "implement", originalAction: "implement", base: { ...evidenceBundle, action: "implement", receipts: [design] } },
+      { name: "verify", originalAction: "verify", base: { ...evidenceBundle, action: "verify", receipts: [design] } },
+      { name: "audit", originalAction: "audit", base: { ...evidenceBundle, action: "audit", receipts: [design, checksPass] } },
+      { name: "correct checks", originalAction: "correct", base: { ...evidenceBundle, action: "correct", receipts: [design, checksFail] } },
+      { name: "correct warning", originalAction: "correct", base: { ...evidenceBundle, action: "correct", receipts: [design, auditFor("WARNING", [finding])] } },
+      { name: "correct blocked", originalAction: "correct", base: { ...evidenceBundle, action: "correct", receipts: [design, auditFor("BLOCKED", [finding])] } },
+      { name: "correct unverified", originalAction: "correct", base: { ...evidenceBundle, action: "correct", receipts: [design, auditFor("UNVERIFIED", [finding])] } },
+      { name: "council", originalAction: "council", base: { ...evidenceBundle, action: "council", receipts: [design, request] } },
+      { name: "integrate", originalAction: "integrate", base: { ...evidenceBundle, action: "integrate", receipts: [design, auditApproved] } },
+      { name: "publish", originalAction: "publish", base: { ...evidenceBundle, action: "publish", receipts: [design, auditApproved] } },
+      { name: "evaluate", originalAction: "evaluate", base: { ...evidenceBundle, childId: "v040-t8-evaluation", packageId: "graph-eval-falsification", action: "evaluate", receipts: [evaluationDesign, evaluationAuthority] } },
+    ] as const;
+    for (const item of ordinary) {
+      assert.equal(parseReleaseAuthorityObjectV1(item.base)._tag, "Valid", item.name);
+      const priorReservation = {
+        reservationId: "reservation-prior",
+        originReservationId: "reservation-origin",
+        originalAction: item.originalAction,
+        candidate,
+        failureEvidenceSha256: shaC,
+      } as const;
+      for (const action of ["provider_retry", "resume"] as const) {
+        assert.equal(
+          parseReleaseAuthorityObjectV1({
+            ...item.base,
+            action,
+            priorReservation,
+          })._tag,
+          "Valid",
+          action + " " + item.name,
+        );
+      }
+    }
+    for (const item of ordinary) {
+      if (item.base.receipts.length === 2) {
+        expectParseInvalid({
+          ...item.base,
+          receipts: [...item.base.receipts].reverse(),
+        });
+      }
+    }
+    for (const action of ["integrate", "publish"] as const) {
+      expectParseInvalid({
+        ...evidenceBundle,
+        action,
+        receipts: [design, auditFor("APPROVED", [finding])],
+      });
+      expectParseInvalid({
+        ...evidenceBundle,
+        action,
+        receipts: [design, auditFor("BLOCKED", [])],
+      });
+    }
+    expectParseInvalid({
+      ...evidenceBundle,
+      action: "council",
+      receipts: [design, checksPass],
+    });
+    expectParseInvalid({
+      ...evidenceBundle,
+      childId: "v040-t8-evaluation",
+      packageId: "graph-eval-falsification",
+      action: "evaluate",
+      receipts: [evaluationDesign, request],
+    });
   });
 });
