@@ -343,6 +343,10 @@ var GRAPH_ROOT_KEYS = [
   "multigraph",
   "nodes"
 ];
+var GRAPH_ROOT_KEYS_WITH_COMMIT = [
+  "built_at_commit",
+  ...GRAPH_ROOT_KEYS
+];
 var DIAGNOSTIC_KEYS = [
   "danglingEndpointEdges",
   "missingEndpointEdges",
@@ -394,7 +398,7 @@ function safeRelativePath(value) {
 }
 function jsonValue(value) {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
-    return typeof value !== "string" || noControls(value);
+    return true;
   }
   if (typeof value === "number") return Number.isFinite(value);
   if (Array.isArray(value)) return value.every(jsonValue);
@@ -407,32 +411,38 @@ function canonicalCompare(left, right) {
   return utf8Compare(canonicalize(left), canonicalize(right));
 }
 function parseJsonBytes(bytes) {
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text)) return null;
-  const parsed = parseJsonRejectDuplicateKeys(text.trimEnd());
-  return isCoreFailure(parsed) ? null : parsed;
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    const parsed = parseJsonRejectDuplicateKeys(text.trimEnd());
+    return isCoreFailure(parsed) ? null : parsed;
+  } catch {
+    return null;
+  }
 }
 function parseGraph(bytes) {
   const value = parseJsonBytes(bytes);
-  if (!plainObject(value) || !exactKeys(value, GRAPH_ROOT_KEYS)) return null;
+  if (!plainObject(value) || !exactKeys(value, GRAPH_ROOT_KEYS) && !exactKeys(value, GRAPH_ROOT_KEYS_WITH_COMMIT) || Object.hasOwn(value, "built_at_commit") && typeof value["built_at_commit"] !== "string") {
+    return null;
+  }
   if (typeof value["directed"] !== "boolean" || typeof value["multigraph"] !== "boolean" || !plainObject(value["graph"]) || !Array.isArray(value["hyperedges"]) || !value["hyperedges"].every(jsonValue) || !Array.isArray(value["nodes"]) || !Array.isArray(value["links"])) {
     return null;
   }
   const nodes = [];
   for (const node of value["nodes"]) {
-    if (!plainObject(node) || !jsonValue(node) || typeof node["id"] !== "string" || node["id"].length === 0 || typeof node["label"] !== "string" || typeof node["source_file"] !== "string" || typeof node["source_location"] !== "string") {
+    if (!plainObject(node) || !jsonValue(node) || typeof node["id"] !== "string" || node["id"].length === 0 || !noControls(node["id"]) || typeof node["label"] !== "string" || !noControls(node["label"]) || typeof node["source_file"] !== "string" || node["source_location"] !== void 0 && typeof node["source_location"] !== "string") {
       return null;
     }
     nodes.push(node);
   }
   const links = [];
   for (const link of value["links"]) {
-    if (!plainObject(link) || !jsonValue(link) || typeof link["source"] !== "string" || typeof link["target"] !== "string" || typeof link["relation"] !== "string" || typeof link["source_file"] !== "string" || typeof link["source_location"] !== "string") {
+    if (!plainObject(link) || !jsonValue(link) || typeof link["source"] !== "string" || typeof link["target"] !== "string" || typeof link["relation"] !== "string" || typeof link["source_file"] !== "string" || link["source_location"] !== void 0 && typeof link["source_location"] !== "string") {
       return null;
     }
     links.push(link);
   }
   return {
+    ...typeof value["built_at_commit"] === "string" ? { built_at_commit: value["built_at_commit"] } : {},
     directed: value["directed"],
     graph: value["graph"],
     hyperedges: value["hyperedges"],
@@ -443,6 +453,7 @@ function parseGraph(bytes) {
 }
 function normalizeGraph(graph) {
   return {
+    ...graph.built_at_commit === void 0 ? {} : { built_at_commit: graph.built_at_commit },
     directed: graph.directed,
     graph: graph.graph,
     hyperedges: [...graph.hyperedges].sort(canonicalCompare),
@@ -459,19 +470,31 @@ function normalizeGraph(graph) {
 function graphHealth(graph) {
   const nodeIds = /* @__PURE__ */ new Set();
   const sourceFiles = /* @__PURE__ */ new Set();
+  let externalNodeCount = 0;
   for (const node of graph.nodes) {
     if (nodeIds.has(node.id)) return "duplicate_node";
     nodeIds.add(node.id);
-    if (!safeRelativePath(node.source_file) || node.source_location.length === 0 || !noControls(node.source_location)) {
-      return "invalid_source";
+    if (node.source_location === void 0) {
+      externalNodeCount += 1;
+    } else {
+      if (!safeRelativePath(node.source_file) || node.source_location.length === 0 || !noControls(node.source_location)) {
+        return "invalid_source";
+      }
+      sourceFiles.add(node.source_file);
     }
-    sourceFiles.add(node.source_file);
   }
   const linkKeys = /* @__PURE__ */ new Set();
   let endpointOrderCount = 0;
+  let unlocatedDynamicImportCount = 0;
   for (const link of graph.links) {
-    if (!safeRelativePath(link.source_file) || link.source_location.length === 0 || !noControls(link.source_location)) {
-      return "invalid_source";
+    if (!safeRelativePath(link.source_file)) return "invalid_source";
+    if (link.source_location === void 0) {
+      if (link.relation !== "dynamic_import") return "invalid_source";
+      unlocatedDynamicImportCount += 1;
+    } else {
+      if (link.source_location.length === 0 || !noControls(link.source_location)) {
+        return "invalid_source";
+      }
     }
     if (!nodeIds.has(link.source) || !nodeIds.has(link.target)) {
       return "dangling_endpoint";
@@ -488,9 +511,11 @@ function graphHealth(graph) {
   return {
     directed: graph.directed,
     endpointOrderCount,
+    externalNodeCount,
     linkCount: graph.links.length,
     nodeCount: graph.nodes.length,
-    sourceFiles: [...sourceFiles].sort(utf8Compare)
+    sourceFiles: [...sourceFiles].sort(utf8Compare),
+    unlocatedDynamicImportCount
   };
 }
 function diagnosticsValid(value) {
@@ -574,6 +599,9 @@ function qualifyGraphifyCandidateV1(input) {
     const graphA = parseGraph(input.graphBytesA);
     const graphB = parseGraph(input.graphBytesB);
     if (graphA === null || graphB === null) return refused("invalid_input");
+    if (graphA.built_at_commit !== void 0 && graphA.built_at_commit !== input.expectedCommit || graphB.built_at_commit !== void 0 && graphB.built_at_commit !== input.expectedCommit) {
+      return refused("source_mismatch");
+    }
     const healthA = graphHealth(graphA);
     if (typeof healthA === "string") return refused(healthA);
     const healthB = graphHealth(graphB);

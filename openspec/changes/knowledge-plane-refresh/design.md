@@ -42,7 +42,10 @@ The pure qualifier checks:
 - zero input and output model tokens;
 - identical normalized candidate bytes and health reports;
 - closed graph shape and unique node identifiers;
-- nonempty, repository-relative source locations on every node and link;
+- nonempty, repository-relative source locations on every source-backed node
+  and link;
+- explicit counts for Graphify external/import placeholder nodes and
+  unlocated `dynamic_import` links, which 0.9.48 does not source-locate;
 - endpoints that resolve to nodes;
 - at least one descending ordered endpoint when links exist, which detects a
   writer that canonicalizes away producer direction;

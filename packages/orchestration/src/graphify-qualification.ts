@@ -26,6 +26,10 @@ const GRAPH_ROOT_KEYS = [
   "multigraph",
   "nodes",
 ] as const;
+const GRAPH_ROOT_KEYS_WITH_COMMIT = [
+  "built_at_commit",
+  ...GRAPH_ROOT_KEYS,
+] as const;
 const DIAGNOSTIC_KEYS = [
   "danglingEndpointEdges",
   "missingEndpointEdges",
@@ -206,16 +210,17 @@ type ParsedNode = JsonRecord & {
   readonly id: string;
   readonly label: string;
   readonly source_file: string;
-  readonly source_location: string;
+  readonly source_location?: string;
 };
 type ParsedLink = JsonRecord & {
   readonly source: string;
   readonly target: string;
   readonly relation: string;
   readonly source_file: string;
-  readonly source_location: string;
+  readonly source_location?: string;
 };
 type ParsedGraph = {
+  readonly built_at_commit?: string;
   readonly directed: boolean;
   readonly graph: JsonRecord;
   readonly hyperedges: readonly unknown[];
@@ -226,9 +231,11 @@ type ParsedGraph = {
 type GraphHealth = {
   readonly directed: boolean;
   readonly endpointOrderCount: number;
+  readonly externalNodeCount: number;
   readonly linkCount: number;
   readonly nodeCount: number;
   readonly sourceFiles: readonly string[];
+  readonly unlocatedDynamicImportCount: number;
 };
 
 function refused(reason: GraphifyQualificationReasonV1): GraphifyQualificationResultV1 {
@@ -277,7 +284,7 @@ function jsonValue(value: unknown): boolean {
     typeof value === "boolean" ||
     typeof value === "string"
   ) {
-    return typeof value !== "string" || noControls(value);
+    return true;
   }
   if (typeof value === "number") return Number.isFinite(value);
   if (Array.isArray(value)) return value.every(jsonValue);
@@ -293,15 +300,26 @@ function canonicalCompare(left: unknown, right: unknown): number {
 }
 
 function parseJsonBytes(bytes: Uint8Array): unknown | null {
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text)) return null;
-  const parsed = parseJsonRejectDuplicateKeys(text.trimEnd());
-  return isCoreFailure(parsed) ? null : parsed;
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    const parsed = parseJsonRejectDuplicateKeys(text.trimEnd());
+    return isCoreFailure(parsed) ? null : parsed;
+  } catch {
+    return null;
+  }
 }
 
 function parseGraph(bytes: Uint8Array): ParsedGraph | null {
   const value = parseJsonBytes(bytes);
-  if (!plainObject(value) || !exactKeys(value, GRAPH_ROOT_KEYS)) return null;
+  if (
+    !plainObject(value) ||
+    (!exactKeys(value, GRAPH_ROOT_KEYS) &&
+      !exactKeys(value, GRAPH_ROOT_KEYS_WITH_COMMIT)) ||
+    (Object.hasOwn(value, "built_at_commit") &&
+      typeof value["built_at_commit"] !== "string")
+  ) {
+    return null;
+  }
   if (
     typeof value["directed"] !== "boolean" ||
     typeof value["multigraph"] !== "boolean" ||
@@ -320,9 +338,12 @@ function parseGraph(bytes: Uint8Array): ParsedGraph | null {
       !jsonValue(node) ||
       typeof node["id"] !== "string" ||
       node["id"].length === 0 ||
+      !noControls(node["id"]) ||
       typeof node["label"] !== "string" ||
+      !noControls(node["label"]) ||
       typeof node["source_file"] !== "string" ||
-      typeof node["source_location"] !== "string"
+      (node["source_location"] !== undefined &&
+        typeof node["source_location"] !== "string")
     ) {
       return null;
     }
@@ -337,13 +358,17 @@ function parseGraph(bytes: Uint8Array): ParsedGraph | null {
       typeof link["target"] !== "string" ||
       typeof link["relation"] !== "string" ||
       typeof link["source_file"] !== "string" ||
-      typeof link["source_location"] !== "string"
+      (link["source_location"] !== undefined &&
+        typeof link["source_location"] !== "string")
     ) {
       return null;
     }
     links.push(link as ParsedLink);
   }
   return {
+    ...(typeof value["built_at_commit"] === "string"
+      ? { built_at_commit: value["built_at_commit"] }
+      : {}),
     directed: value["directed"],
     graph: value["graph"],
     hyperedges: value["hyperedges"],
@@ -355,6 +380,9 @@ function parseGraph(bytes: Uint8Array): ParsedGraph | null {
 
 function normalizeGraph(graph: ParsedGraph): ParsedGraph {
   return {
+    ...(graph.built_at_commit === undefined
+      ? {}
+      : { built_at_commit: graph.built_at_commit }),
     directed: graph.directed,
     graph: graph.graph,
     hyperedges: [...graph.hyperedges].sort(canonicalCompare),
@@ -374,27 +402,38 @@ function graphHealth(
 ): GraphHealth | GraphifyQualificationReasonV1 {
   const nodeIds = new Set<string>();
   const sourceFiles = new Set<string>();
+  let externalNodeCount = 0;
   for (const node of graph.nodes) {
     if (nodeIds.has(node.id)) return "duplicate_node";
     nodeIds.add(node.id);
-    if (
-      !safeRelativePath(node.source_file) ||
-      node.source_location.length === 0 ||
-      !noControls(node.source_location)
-    ) {
-      return "invalid_source";
+    if (node.source_location === undefined) {
+      externalNodeCount += 1;
+    } else {
+      if (
+        !safeRelativePath(node.source_file) ||
+        node.source_location.length === 0 ||
+        !noControls(node.source_location)
+      ) {
+        return "invalid_source";
+      }
+      sourceFiles.add(node.source_file);
     }
-    sourceFiles.add(node.source_file);
   }
   const linkKeys = new Set<string>();
   let endpointOrderCount = 0;
+  let unlocatedDynamicImportCount = 0;
   for (const link of graph.links) {
-    if (
-      !safeRelativePath(link.source_file) ||
-      link.source_location.length === 0 ||
-      !noControls(link.source_location)
-    ) {
-      return "invalid_source";
+    if (!safeRelativePath(link.source_file)) return "invalid_source";
+    if (link.source_location === undefined) {
+      if (link.relation !== "dynamic_import") return "invalid_source";
+      unlocatedDynamicImportCount += 1;
+    } else {
+      if (
+        link.source_location.length === 0 ||
+        !noControls(link.source_location)
+      ) {
+        return "invalid_source";
+      }
     }
     if (!nodeIds.has(link.source) || !nodeIds.has(link.target)) {
       return "dangling_endpoint";
@@ -411,9 +450,11 @@ function graphHealth(
   return {
     directed: graph.directed,
     endpointOrderCount,
+    externalNodeCount,
     linkCount: graph.links.length,
     nodeCount: graph.nodes.length,
     sourceFiles: [...sourceFiles].sort(utf8Compare),
+    unlocatedDynamicImportCount,
   };
 }
 
@@ -532,6 +573,14 @@ export function qualifyGraphifyCandidateV1(
     const graphA = parseGraph(input.graphBytesA);
     const graphB = parseGraph(input.graphBytesB);
     if (graphA === null || graphB === null) return refused("invalid_input");
+    if (
+      (graphA.built_at_commit !== undefined &&
+        graphA.built_at_commit !== input.expectedCommit) ||
+      (graphB.built_at_commit !== undefined &&
+        graphB.built_at_commit !== input.expectedCommit)
+    ) {
+      return refused("source_mismatch");
+    }
     const healthA = graphHealth(graphA);
     if (typeof healthA === "string") return refused(healthA);
     const healthB = graphHealth(graphB);

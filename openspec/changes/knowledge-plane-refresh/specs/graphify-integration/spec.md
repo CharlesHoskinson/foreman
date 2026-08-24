@@ -48,10 +48,12 @@ outside the repository, and SHALL report exactly Graphify 0.9.48.
 ### Requirement: Graph health checks are discriminating
 
 The qualifier SHALL reject invalid graph shapes, duplicate node identifiers,
-missing source locations, unsafe source paths, dangling endpoints, duplicate
-ordered endpoint and relation tuples, and nonzero Graphify dangling, missing,
-or non-object edge counters. When links exist, it SHALL require at least one
-link whose source sorts after its target.
+missing locations on source-backed nodes and links, unsafe source paths,
+dangling endpoints, duplicate ordered endpoint and relation tuples, and
+nonzero Graphify dangling, missing, or non-object edge counters. It SHALL count
+0.9.48 external/import placeholder nodes and unlocated `dynamic_import` links
+separately. When links exist, it SHALL require at least one link whose source
+sorts after its target.
 
 The graph's `directed` field SHALL be recorded but SHALL NOT determine
 qualification. Store-native parallel decision edges SHALL NOT be claimed as

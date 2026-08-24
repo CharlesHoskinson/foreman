@@ -123,6 +123,47 @@ test("qualification normalizes two equivalent code-only builds", () => {
   assert.deepEqual(normalized.nodes.map((node) => node.id), ["alpha", "zeta"]);
 });
 
+test("qualification binds Graphify commit metadata and records external import placeholders", () => {
+  const graph = {
+    ...GRAPH_A,
+    built_at_commit: COMMIT,
+    nodes: [
+      ...GRAPH_A.nodes,
+      {
+        _origin: "ast",
+        file_type: "code",
+        id: "node_fs",
+        label: "node:fs",
+        source_file: "node:fs",
+      },
+    ],
+    links: [
+      ...GRAPH_A.links,
+      {
+        _origin: "ast",
+        confidence: "EXTRACTED",
+        relation: "dynamic_import",
+        source: "zeta",
+        source_file: "src/zeta.ts",
+        target: "node_fs",
+      },
+    ],
+  };
+  const qualified = qualifyGraphifyCandidateV1(
+    validInput({ graphBytesA: bytes(graph), graphBytesB: bytes(graph) }),
+  );
+  assert.equal(qualified._tag, "Qualified");
+  assert.deepEqual(
+    qualifyGraphifyCandidateV1(
+      validInput({
+        graphBytesA: bytes({ ...graph, built_at_commit: "2".repeat(40) }),
+        graphBytesB: bytes({ ...graph, built_at_commit: "2".repeat(40) }),
+      }),
+    ),
+    { schemaVersion: 1, _tag: "Refused", reason: "source_mismatch" },
+  );
+});
+
 test("qualification refuses each isolated invalid boundary", () => {
   const cases: ReadonlyArray<{
     readonly reason: string;
