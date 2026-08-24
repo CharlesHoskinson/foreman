@@ -1,8 +1,18 @@
 import assert from "node:assert/strict";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { Effect } from "effect";
 import {
   liveProcessExec,
+  readFileBoundedSync,
   ProcessExec,
   ProcessFailure,
   type CapturedProcessResult,
@@ -81,4 +91,33 @@ test("runCaptured preserves exact stdoutBytes for raw 0xff", async () => {
     readonly stdoutBytes: Uint8Array;
   };
   assert.deepEqual(Array.from(withBytes.stdoutBytes), [255]);
+});
+
+test("general bounded reader accepts a regular file through a symlinked ancestor", (t) => {
+  const realRoot = mkdtempSync(join(tmpdir(), "queue-bounded-real-"));
+  const aliasRoot = mkdtempSync(join(tmpdir(), "queue-bounded-alias-"));
+  try {
+    const realDirectory = join(realRoot, "real-directory");
+    mkdirSync(realDirectory);
+    const expected = "portable authority\n";
+    writeFileSync(join(realDirectory, "config.txt"), expected);
+    const aliasDirectory = join(aliasRoot, "alias-directory");
+    try {
+      symlinkSync(realDirectory, aliasDirectory, "dir");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
+        t.skip(`symlink creation not permitted: ${code}`);
+        return;
+      }
+      throw error;
+    }
+    assert.deepEqual(
+      readFileBoundedSync(join(aliasDirectory, "config.txt"), 1_024),
+      { _tag: "Ok", text: expected },
+    );
+  } finally {
+    rmSync(aliasRoot, { recursive: true, force: true });
+    rmSync(realRoot, { recursive: true, force: true });
+  }
 });
