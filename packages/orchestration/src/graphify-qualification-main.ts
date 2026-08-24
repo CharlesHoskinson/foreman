@@ -24,7 +24,7 @@ import {
   resolve,
   sep,
 } from "node:path";
-import { canonicalize } from "@foreman/core";
+import { canonicalize, isCommitSha40 } from "@foreman/core";
 import {
   acquireGraphifyPublicationLockV1,
   evaluateGraphifyFreshnessV1,
@@ -322,6 +322,31 @@ function trackedSourcePaths(gitPath: string, repository: string): readonly strin
     .sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
 }
 
+function changedSourcePaths(
+  gitPath: string,
+  repository: string,
+  sourceCommit: string,
+  currentCommit: string,
+): readonly string[] {
+  const raw = git(gitPath, repository, [
+    "diff",
+    "--name-only",
+    "-z",
+    "--no-ext-diff",
+    "--no-textconv",
+    sourceCommit,
+    currentCommit,
+    "--",
+  ]);
+  if (raw.length > 0 && !raw.endsWith("\u0000")) {
+    throw new Error("invalid changed path frame");
+  }
+  return raw
+    .split("\u0000")
+    .filter(isTrackedGraphifySourcePathV1)
+    .sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+}
+
 function materializeCommit(
   gitPath: string,
   repository: string,
@@ -524,12 +549,16 @@ async function freshnessLive(repositoryInput: string): Promise<GraphifyCliResult
       join(repository, "graphify-out", "refresh-meta.json"),
     );
     let ancestry: "same" | "ancestor" | "unrelated" | "missing" = "missing";
+    let changedPaths: readonly string[] = [];
     if (metadataBytes !== null) {
       try {
         const value = JSON.parse(
           new TextDecoder("utf-8", { fatal: true }).decode(metadataBytes),
         ) as { sourceCommit?: unknown };
-        if (typeof value.sourceCommit === "string") {
+        if (
+          typeof value.sourceCommit === "string" &&
+          isCommitSha40(value.sourceCommit)
+        ) {
           if (value.sourceCommit === currentCommit) ancestry = "same";
           else {
             const ancestor = run(
@@ -548,6 +577,14 @@ async function freshnessLive(repositoryInput: string): Promise<GraphifyCliResult
               gitEnvironment(gitPath),
             );
             ancestry = ancestor.ok ? "ancestor" : "unrelated";
+            if (ancestry === "ancestor") {
+              changedPaths = changedSourcePaths(
+                gitPath,
+                repository,
+                value.sourceCommit,
+                currentCommit,
+              );
+            }
           }
         }
       } catch {
@@ -560,6 +597,7 @@ async function freshnessLive(repositoryInput: string): Promise<GraphifyCliResult
       currentCommit,
       ancestry,
       trackedSourcePaths: trackedSourcePaths(gitPath, repository),
+      changedSourcePaths: changedPaths,
     });
   } catch {
     return { schemaVersion: 1, _tag: "Invalid" };

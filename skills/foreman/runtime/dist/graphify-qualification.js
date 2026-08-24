@@ -717,7 +717,7 @@ function evaluateGraphifyFreshnessV1(input) {
     if (input.ancestry === "unrelated") {
       return { schemaVersion: 1, _tag: "Unrelated", ...identity };
     }
-    if (input.ancestry === "missing" || input.ancestry === "ancestor" || input.currentCommit !== metadata.sourceCommit || missingSourcePaths.length > 0) {
+    if (input.ancestry === "missing" || input.currentCommit !== metadata.sourceCommit && input.ancestry !== "ancestor" || input.changedSourcePaths.length > 0 || missingSourcePaths.length > 0) {
       return { schemaVersion: 1, _tag: "Stale", ...identity };
     }
     return { schemaVersion: 1, _tag: "Fresh", ...identity };
@@ -1001,6 +1001,22 @@ function trackedSourcePaths(gitPath, repository) {
   }
   return raw.split("\0").filter(isTrackedGraphifySourcePathV1).sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
 }
+function changedSourcePaths(gitPath, repository, sourceCommit, currentCommit) {
+  const raw = git(gitPath, repository, [
+    "diff",
+    "--name-only",
+    "-z",
+    "--no-ext-diff",
+    "--no-textconv",
+    sourceCommit,
+    currentCommit,
+    "--"
+  ]);
+  if (raw.length > 0 && !raw.endsWith("\0")) {
+    throw new Error("invalid changed path frame");
+  }
+  return raw.split("\0").filter(isTrackedGraphifySourcePathV1).sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+}
 function materializeCommit(gitPath, repository, sourceCommit, temporary) {
   const archive = join2(temporary, "source.tar");
   const source = join2(temporary, "source");
@@ -1185,12 +1201,13 @@ async function freshnessLive(repositoryInput) {
       join2(repository, "graphify-out", "refresh-meta.json")
     );
     let ancestry = "missing";
+    let changedPaths = [];
     if (metadataBytes !== null) {
       try {
         const value = JSON.parse(
           new TextDecoder("utf-8", { fatal: true }).decode(metadataBytes)
         );
-        if (typeof value.sourceCommit === "string") {
+        if (typeof value.sourceCommit === "string" && isCommitSha40(value.sourceCommit)) {
           if (value.sourceCommit === currentCommit) ancestry = "same";
           else {
             const ancestor = run(
@@ -1209,6 +1226,14 @@ async function freshnessLive(repositoryInput) {
               gitEnvironment(gitPath)
             );
             ancestry = ancestor.ok ? "ancestor" : "unrelated";
+            if (ancestry === "ancestor") {
+              changedPaths = changedSourcePaths(
+                gitPath,
+                repository,
+                value.sourceCommit,
+                currentCommit
+              );
+            }
           }
         }
       } catch {
@@ -1220,7 +1245,8 @@ async function freshnessLive(repositoryInput) {
       metadataBytes,
       currentCommit,
       ancestry,
-      trackedSourcePaths: trackedSourcePaths(gitPath, repository)
+      trackedSourcePaths: trackedSourcePaths(gitPath, repository),
+      changedSourcePaths: changedPaths
     });
   } catch {
     return { schemaVersion: 1, _tag: "Invalid" };

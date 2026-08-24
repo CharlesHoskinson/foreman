@@ -156,6 +156,7 @@ export type GraphifyFreshnessInputV1 = {
   readonly currentCommit: string;
   readonly ancestry: "same" | "ancestor" | "unrelated" | "missing";
   readonly trackedSourcePaths: readonly string[];
+  readonly changedSourcePaths: readonly string[];
 };
 
 export type GraphifyFreshnessResultV1 = {
@@ -755,8 +756,9 @@ export function evaluateGraphifyFreshnessV1(
     }
     if (
       input.ancestry === "missing" ||
-      input.ancestry === "ancestor" ||
-      input.currentCommit !== metadata.sourceCommit ||
+      (input.currentCommit !== metadata.sourceCommit &&
+        input.ancestry !== "ancestor") ||
+      input.changedSourcePaths.length > 0 ||
       missingSourcePaths.length > 0
     ) {
       return { schemaVersion: 1, _tag: "Stale", ...identity };

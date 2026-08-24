@@ -349,6 +349,7 @@ test("freshness is Graphify-free and distinguishes every state", () => {
     currentCommit: COMMIT,
     ancestry: "same" as const,
     trackedSourcePaths: ["src/zeta.ts"],
+    changedSourcePaths: [],
   };
   assert.deepEqual(evaluateGraphifyFreshnessV1(common), {
     schemaVersion: 1,
@@ -357,8 +358,27 @@ test("freshness is Graphify-free and distinguishes every state", () => {
     currentCommit: COMMIT,
     missingSourcePaths: [],
   });
+  assert.deepEqual(
+    evaluateGraphifyFreshnessV1({
+      ...common,
+      ancestry: "ancestor",
+      currentCommit: "2".repeat(40),
+    }),
+    {
+      schemaVersion: 1,
+      _tag: "Fresh",
+      sourceCommit: COMMIT,
+      currentCommit: "2".repeat(40),
+      missingSourcePaths: [],
+    },
+  );
   assert.equal(
-    evaluateGraphifyFreshnessV1({ ...common, ancestry: "ancestor", currentCommit: "2".repeat(40) })._tag,
+    evaluateGraphifyFreshnessV1({
+      ...common,
+      ancestry: "ancestor",
+      currentCommit: "2".repeat(40),
+      changedSourcePaths: ["src/zeta.ts"],
+    })._tag,
     "Stale",
   );
   assert.equal(evaluateGraphifyFreshnessV1({ ...common, ancestry: "unrelated" })._tag, "Unrelated");
