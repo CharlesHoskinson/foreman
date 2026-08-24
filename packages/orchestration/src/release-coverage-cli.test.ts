@@ -1382,7 +1382,7 @@ test("bootstrap assembly uses sealed Track-1 fixture and injected repository roo
         [
           "| Coverage key | Scope | Release | Owner |",
           "|---|---|---|---|",
-          `| \`${ROADMAP_KEY}\` | Sprint 6 project registry | \`v0.4\` | \`${PACKAGE}\` | extra |`,
+          `| \`${ROADMAP_KEY}\` | Sprint 6 project registry | injected | \`v0.4\` | \`${PACKAGE}\` |`,
           "",
         ].join("\n"),
       );

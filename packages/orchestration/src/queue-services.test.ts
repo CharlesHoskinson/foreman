@@ -78,7 +78,7 @@ test("runCaptured preserves exact stdoutBytes for raw 0xff", async () => {
   );
   assert.equal(result.exitCode, 0);
   const withBytes = result as CapturedProcessResult & {
-    readonly stdoutBytes: Uint8Array | readonly number[];
+    readonly stdoutBytes: Uint8Array;
   };
-  assert.deepEqual(withBytes.stdoutBytes, [255]);
+  assert.deepEqual(Array.from(withBytes.stdoutBytes), [255]);
 });
