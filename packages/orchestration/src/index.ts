@@ -72,9 +72,16 @@ export {
   EndstopLedger,
   isEndstopLedgerFailure,
   makeLiveEndstopLedgerLayer,
+  type EndstopChildExecutionResultV2,
   type EndstopExecutionResult,
   type EndstopLedgerFailure,
   type EndstopLedgerFailureReason,
+  type ExecutionFamilyActivationV1,
+  type ExecutionFamilyAuthorityRegistrationV1,
+  type ExecutionFamilyAuthorityStateV1,
+  type ExecutionFamilyLedgerStatusV2,
+  type RegisteredEvaluationVerdictV1,
+  type RegisteredReleaseOutcomeV1,
 } from "./execution-ledger.js";
 
 export {
