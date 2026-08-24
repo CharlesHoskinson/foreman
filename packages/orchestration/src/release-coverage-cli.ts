@@ -142,9 +142,169 @@ export type ReleaseCoverageLiveDependencies = {
 };
 
 export function makeLiveReleaseCoverageCliServices(
-  _dependencies: ReleaseCoverageLiveDependencies,
+  dependencies: ReleaseCoverageLiveDependencies,
 ): ReleaseCoverageCliServices {
-  throw new Error("release coverage live services are not implemented");
+  const gitEnvironment = (): NodeJS.ProcessEnv => {
+    const environment = sanitizedGitEnv(dependencies.baseEnvironment);
+    environment["GIT_CONFIG_NOSYSTEM"] = "1";
+    environment["GIT_CONFIG_GLOBAL"] = dependencies.nullDevice;
+    return environment;
+  };
+
+  const gitArguments = (
+    repository: string,
+    args: readonly string[],
+  ): string[] =>
+    gitArgv([
+      "-c",
+      "core.fsmonitor=false",
+      "-c",
+      `core.excludesFile=${dependencies.nullDevice}`,
+      "-C",
+      repository,
+      ...args,
+    ]);
+
+  return {
+    fileRead: {
+      resolveRepositoryRoot: () =>
+        Effect.gen(function* () {
+          const cwd = dependencies.cwd();
+          const captured = yield* dependencies.runCaptured({
+            command: "git",
+            args: gitArguments(cwd, ["rev-parse", "--show-toplevel"]),
+            env: gitEnvironment(),
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          const bytes = yield* requireCapturedStdoutBytes(captured);
+          const top = parseGitTopLevel(bytes, dependencies.platform);
+          if (top === null) {
+            return yield* Effect.fail({ _tag: "GitTopLevelInvalid" as const });
+          }
+          return top;
+        }),
+      readBounded: (input) =>
+        Effect.try({
+          try: () =>
+            readBoundedBytesLive(
+              input.path,
+              input.maxBytes,
+              input.containmentRoot,
+            ),
+          catch: (error) => error,
+        }),
+    },
+    openspecList: {
+      listJson: (input) =>
+        Effect.gen(function* () {
+          const resolved = yield* dependencies.which("openspec");
+          if (resolved === null) {
+            return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
+          }
+          const plan = planOpenSpecInvocationV1({
+            platform: dependencies.platform,
+            comSpec: dependencies.comSpec,
+            resolvedOpenSpec: resolved,
+          });
+          if (plan._tag === "Invalid") {
+            return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
+          }
+
+          const physicalRepository = yield* dependencies.realpath(input.repository);
+          const physicalOpenSpec = yield* dependencies.realpath(resolved);
+          if (
+            isPhysicallyInsideRepository(
+              physicalRepository,
+              physicalOpenSpec,
+              dependencies.platform,
+            )
+          ) {
+            return yield* Effect.fail({
+              _tag: "OpenSpecInsideRepository" as const,
+            });
+          }
+          if (dependencies.platform === "win32") {
+            const physicalComSpec = yield* dependencies.realpath(plan.command);
+            if (
+              isPhysicallyInsideRepository(
+                physicalRepository,
+                physicalComSpec,
+                dependencies.platform,
+              )
+            ) {
+              return yield* Effect.fail({
+                _tag: "OpenSpecInsideRepository" as const,
+              });
+            }
+          }
+
+          const captured = yield* dependencies.runCaptured({
+            command: plan.command,
+            args: plan.args,
+            cwd: input.repository,
+            env: { ...dependencies.baseEnvironment },
+            maxOutputBytes: input.maxBytes,
+            timeoutMs: OPENSPEC_TIMEOUT_MS,
+          });
+          return yield* requireCapturedStdoutBytes(captured);
+        }),
+    },
+    gitChangedPaths: {
+      discover: (input) =>
+        Effect.gen(function* () {
+          const tracked = yield* dependencies.runCaptured({
+            command: "git",
+            args: gitArguments(input.repository, [
+              "diff",
+              "--name-only",
+              "-z",
+              "--no-ext-diff",
+              "--no-textconv",
+              input.baselineCommit,
+              "--",
+              SUPERPOWERS_SPECS,
+              SUPERPOWERS_PLANS,
+            ]),
+            env: gitEnvironment(),
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          const trackedBytes = yield* requireCapturedStdoutBytes(tracked);
+          const trackedPaths = parseNulDelimitedGitPaths(trackedBytes);
+          if (trackedPaths === null) {
+            return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+          }
+
+          const untracked = yield* dependencies.runCaptured({
+            command: "git",
+            args: gitArguments(input.repository, [
+              "ls-files",
+              "--others",
+              "-z",
+              "--",
+              SUPERPOWERS_SPECS,
+              SUPERPOWERS_PLANS,
+            ]),
+            env: gitEnvironment(),
+            maxOutputBytes: ONE_MIB,
+            timeoutMs: GIT_TIMEOUT_MS,
+          });
+          const untrackedBytes = yield* requireCapturedStdoutBytes(untracked);
+          const untrackedPaths = parseNulDelimitedGitPaths(untrackedBytes);
+          if (untrackedPaths === null) {
+            return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
+          }
+          return dedupeUtf8ByteOrder([...trackedPaths, ...untrackedPaths]);
+        }),
+    },
+    familySource: {
+      resolve: () =>
+        Effect.fail({
+          _tag: "FamilySourceUnavailable" as const,
+        }),
+    },
+  };
 }
 
 type ParsedFlags = {
