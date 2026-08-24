@@ -42,7 +42,7 @@ const hostKeySha256 =
 
 const SIGNATURES = {
   "foreman.design-approval.v1":
-    "A7303WMn8GMRpA71qwe_JAsoi9J9-4s1_j3C8M_0Ss4qtjGXjWD_QcOtID_hbRdQTGw0zXUsFtpAFhMDexHLDA",
+    "d1eE0j16E7ZZC6-PY2lsOkqfGKJh0I4TMrkTJsL-dfBrfdA97r_x5JQnPGjyms3mMa5ohUtpDp3soqF37d9HCQ",
   "foreman.checks-evidence.v1":
     "BPgTcnSFhwR3eelZD2mMpdt-YhMtHraTnRYv2vxJoBnwfN4tnvBLXMJZIPDsJue_DxgmJw1VLRJHoxYu20TBDQ",
   "foreman.release-audit.v1":
@@ -62,7 +62,7 @@ const SIGNATURES = {
   "foreman.execution-child-invalidate.v1":
     "KhidP3eQI1LeBM3l7_TV8Xbptal9hoKYJui9bYhX-XsXuxPEeqqtFkRKKSWc91mZrcqJD6Zeb5hoA1ZaX89xCg",
   "foreman.release-evidence-bundle.v1":
-    "Y3Stm2fC1oap6tf5N4BEa7SGQKYUbX8VVCfrUsZLAgt0eUPCs7KMsZkwPe5qCfKDqW7bHx_m5a3PORdRtKJ2BA",
+    "YBa5W4GIo5-ZLzfpgJGtCtzet7NkT9HO8XGZP1nzikPbA3Ek0ZyH4U_HJos8kiInvfmNrXS25Firi2MtwEpuCw",
 } as const;
 
 const WRONG_ROLE_SIGNATURES = {
@@ -86,3 +86,266 @@ const candidate: ReleaseCandidateIdentityV1 = {
   tree,
   candidateSha256,
 };
+
+const finding: ReleaseAuditFindingV1 = {
+  severity: "high",
+  file: "packages/policy/src/release-authority.ts",
+  line: 7,
+  summary: "Authority mismatch.",
+  evidence: "Exact mismatch evidence.",
+};
+
+const checksSource: ReleaseChecksSourceV1 = {
+  schema: "foreman.checks-source.v1",
+  program: "v040",
+  packageId: "openspec-superpowers-convergence",
+  candidate,
+  status: "FAIL",
+  commands: [
+    {
+      commandSha256: shaA,
+      exitCode: 1,
+      stdoutSha256: shaB,
+      stderrSha256: shaC,
+    },
+  ],
+};
+
+const auditSource: ReleaseAuditSourceV1 = {
+  schema: "foreman.audit-source.v1",
+  program: "v040",
+  packageId: "openspec-superpowers-convergence",
+  candidate,
+  verdict: "BLOCKED",
+  findings: [finding],
+  auditArtifactSha256: shaA,
+};
+
+const evaluationReportSource: ReleaseEvaluationReportSourceV1 = {
+  schema: "foreman.evaluation-report-source.v1",
+  program: "v040",
+  packageId: "graph-eval-falsification",
+  candidateSha256,
+  authorityManifestSha256: shaA,
+  evaluationAuthorityReceiptSha256: shaB,
+  result: "GRAPH_OFF_UNCOMPUTABLE",
+  plannedRuns: 2000,
+  completedRuns: 1900,
+  unavailableRuns: 50,
+  notRunRuns: 50,
+  runSetSha256: shaC,
+  reportArtifactSha256: shaA,
+};
+
+const designReceipt: ReleaseAuthorityReceiptV1 = {
+  schema: "foreman.design-approval.v1",
+  program: "v040",
+  packageId: "project-registry",
+  designCommit: commit,
+  designTree: tree,
+  approvedOpenSpecSha256: shaA,
+  taskPlanSha256: shaB,
+  approvalStatementSha256: shaC,
+  issuedAt,
+  issuerKeySha256: userKeySha256,
+  signature: SIGNATURES["foreman.design-approval.v1"],
+};
+
+const checksReceipt: ReleaseAuthorityReceiptV1 = {
+  schema: "foreman.checks-evidence.v1",
+  program: "v040",
+  packageId: "openspec-superpowers-convergence",
+  candidate,
+  status: "FAIL",
+  checksSha256: CHECKS_SOURCE_SHA256,
+  issuedAt,
+  issuerKeySha256: hostKeySha256,
+  signature: SIGNATURES["foreman.checks-evidence.v1"],
+};
+
+const auditReceipt: ReleaseAuthorityReceiptV1 = {
+  schema: "foreman.release-audit.v1",
+  program: "v040",
+  packageId: "openspec-superpowers-convergence",
+  candidate,
+  verdict: "BLOCKED",
+  findings: [finding],
+  evidenceSha256: AUDIT_SOURCE_SHA256,
+  issuedAt,
+  issuerKeySha256: hostKeySha256,
+  signature: SIGNATURES["foreman.release-audit.v1"],
+};
+
+const councilRequest: ReleaseAuthorityReceiptV1 = {
+  schema: "foreman.council-request.v1",
+  program: "v040",
+  packageId: "openspec-superpowers-convergence",
+  candidateSha256,
+  questionSha256: shaA,
+  constraintsSha256: shaB,
+  optionsSha256: shaC,
+  issuedAt,
+  issuerKeySha256: hostKeySha256,
+  signature: SIGNATURES["foreman.council-request.v1"],
+};
+
+const evaluationAuthority: ReleaseAuthorityReceiptV1 = {
+  schema: "foreman.evaluation-authority.v1",
+  program: "v040",
+  packageId: "graph-eval-falsification",
+  manifestSha256: shaA,
+  issuedAt,
+  issuerKeySha256: userKeySha256,
+  signature: SIGNATURES["foreman.evaluation-authority.v1"],
+};
+
+const actionOutcome: ReleaseActionOutcomeV1 = {
+  schema: "foreman.release-action-outcome.v1",
+  program: "v040",
+  rootContractId: "v040-release-20260822-r4",
+  rootContractSha256: shaA,
+  familySha256: shaB,
+  childId: "v040-t2-project-registry",
+  packageId: "project-registry",
+  reservationAction: "verify",
+  effectiveAction: "verify",
+  reservationId: "reservation-1",
+  originReservationId: "reservation-1",
+  candidateSha256,
+  status: "PASS",
+  evidenceSha256: shaC,
+  issuedAt,
+  issuerKeySha256: hostKeySha256,
+  signature: SIGNATURES["foreman.release-action-outcome.v1"],
+};
+
+const councilOutcome: ReleaseCouncilOutcomeV1 = {
+  schema: "foreman.council-outcome.v1",
+  program: "v040",
+  rootContractId: "v040-release-20260822-r4",
+  rootContractSha256: shaA,
+  familySha256: shaB,
+  childId: "v040-t2-project-registry",
+  packageId: "project-registry",
+  reservationAction: "council",
+  reservationId: "reservation-2",
+  originReservationId: "reservation-2",
+  candidateSha256,
+  requestSha256: COUNCIL_REQUEST_SHA256,
+  decisionSha256: shaC,
+  status: "ADVICE",
+  issuedAt,
+  issuerKeySha256: hostKeySha256,
+  signature: SIGNATURES["foreman.council-outcome.v1"],
+};
+
+const evaluationVerdict: ReleaseEvaluationVerdictV1 = {
+  schema: "foreman.evaluation-verdict.v1",
+  program: "v040",
+  rootContractId: "v040-release-20260822-r4",
+  rootContractSha256: shaA,
+  familySha256: shaB,
+  childId: "v040-t8-evaluation",
+  packageId: "graph-eval-falsification",
+  candidateSha256,
+  authorityManifestSha256: shaA,
+  evaluationAuthorityReceiptSha256: shaB,
+  result: "GRAPH_OFF_UNCOMPUTABLE",
+  plannedRuns: 2000,
+  completedRuns: 1900,
+  unavailableRuns: 50,
+  notRunRuns: 50,
+  runSetSha256: shaC,
+  reportSha256: EVAL_REPORT_SOURCE_SHA256,
+  issuedAt,
+  issuerKeySha256: hostKeySha256,
+  signature: SIGNATURES["foreman.evaluation-verdict.v1"],
+};
+
+const cancelApproval: ExecutionChildTerminalApprovalV1 = {
+  schema: "foreman.execution-child-cancel.v1",
+  program: "v040",
+  rootContractId: "v040-release-20260822-r4",
+  rootContractSha256: shaA,
+  familySha256: shaB,
+  childId: "v040-t2-project-registry",
+  reasonSha256: shaC,
+  issuedAt,
+  issuerKeySha256: userKeySha256,
+  signature: SIGNATURES["foreman.execution-child-cancel.v1"],
+};
+
+const invalidateApproval: ExecutionChildTerminalApprovalV1 = {
+  schema: "foreman.execution-child-invalidate.v1",
+  program: "v040",
+  rootContractId: "v040-release-20260822-r4",
+  rootContractSha256: shaA,
+  familySha256: shaB,
+  childId: "v040-t2-project-registry",
+  observedFamilySha256: shaC,
+  reasonSha256: shaA,
+  issuedAt,
+  issuerKeySha256: userKeySha256,
+  signature: SIGNATURES["foreman.execution-child-invalidate.v1"],
+};
+
+const evidenceBundle: ReleaseEvidenceBundleV1 = {
+  schema: "foreman.release-evidence-bundle.v1",
+  program: "v040",
+  rootContractId: "v040-release-20260822-r4",
+  rootContractSha256: shaA,
+  familySha256: shaB,
+  childId: "v040-t2-project-registry",
+  packageId: "project-registry",
+  action: "verify",
+  candidate,
+  taskPlanSha256: shaB,
+  receipts: [designReceipt],
+  issuedAt,
+  issuerKeySha256: hostKeySha256,
+  signature: SIGNATURES["foreman.release-evidence-bundle.v1"],
+};
+
+const signedArtifacts = [
+  designReceipt,
+  checksReceipt,
+  auditReceipt,
+  councilRequest,
+  evaluationAuthority,
+  actionOutcome,
+  councilOutcome,
+  evaluationVerdict,
+  cancelApproval,
+  invalidateApproval,
+  evidenceBundle,
+] as const;
+
+const producerSources = [
+  checksSource,
+  auditSource,
+  evaluationReportSource,
+] as const;
+
+const compileTypeBindings: {
+  readonly manifest: ApprovedOpenSpecManifestV1 | null;
+  readonly action: ReleaseActionV1;
+} = {
+  manifest: null,
+  action: "verify",
+};
+
+void buildApprovedOpenSpecManifestV1;
+void decodeReleaseAuthorityFileV1;
+void decodeReleaseProducerSourceFileV1;
+void parseReleaseAuthorityObjectV1;
+void releaseAuthoritySignaturePreimageV1;
+void verifyReleaseSourceReceiptBindingV1;
+void signedArtifacts;
+void producerSources;
+void compileTypeBindings;
+void WRONG_ROLE_SIGNATURES;
+void assert;
+void createHash;
+void verifyEd25519;
+void describe;
+void it;
