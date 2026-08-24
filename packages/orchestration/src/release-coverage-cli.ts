@@ -8,7 +8,8 @@ import {
   realpathSync,
   type Stats,
 } from "node:fs";
-import { isAbsolute, relative, resolve, sep, win32 } from "node:path";
+import { devNull } from "node:os";
+import { isAbsolute, posix, relative, resolve, sep, win32 } from "node:path";
 import { Effect, Layer } from "effect";
 import { canonicalize, isSha256Hex } from "@foreman/core";
 import {
@@ -1141,7 +1142,7 @@ export function planOpenSpecInvocationV1(input: {
     };
   }
 
-  if (!isAbsolute(resolved)) return { _tag: "Invalid" };
+  if (!posix.isAbsolute(resolved)) return { _tag: "Invalid" };
   return {
     _tag: "Ok",
     command: resolved,
@@ -1152,12 +1153,14 @@ export function planOpenSpecInvocationV1(input: {
 function isPhysicallyInsideRepository(
   repository: string,
   absolutePath: string,
+  platform: NodeJS.Platform = process.platform,
 ): boolean {
-  const rel = relative(repository, absolutePath);
+  const pathApi = platform === "win32" ? win32 : posix;
+  const rel = pathApi.relative(repository, absolutePath);
   if (rel.length === 0) return true;
-  if (isAbsolute(rel)) return false;
+  if (pathApi.isAbsolute(rel)) return false;
   if (rel === "..") return false;
-  if (rel.startsWith(`..${sep}`)) return false;
+  if (rel.startsWith(`..${pathApi.sep}`)) return false;
   return true;
 }
 
@@ -1209,21 +1212,20 @@ function dedupeUtf8ByteOrder(paths: readonly string[]): readonly string[] {
   return out;
 }
 
-function parseGitTopLevel(bytes: Uint8Array): string | null {
+function parseGitTopLevel(
+  bytes: Uint8Array,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
   const text = decodeUtf8Fatal(bytes);
-  if (text === null) return null;
-  let line: string;
-  if (text.endsWith("\r\n")) {
-    line = text.slice(0, -2);
-  } else if (text.endsWith("\n")) {
-    line = text.slice(0, -1);
-  } else {
-    line = text;
+  if (text === null || !text.endsWith("\n") || text.endsWith("\r\n")) {
+    return null;
   }
+  const line = text.slice(0, -1);
   if (line.length === 0) return null;
   if (line.includes("\n") || line.includes("\r")) return null;
   if (hasAnyControl(line)) return null;
-  if (!isNativeAbsolutePath(line)) return null;
+  const pathApi = platform === "win32" ? win32 : posix;
+  if (!pathApi.isAbsolute(line)) return null;
   return line;
 }
 
