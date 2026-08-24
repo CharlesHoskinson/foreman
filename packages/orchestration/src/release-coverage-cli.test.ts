@@ -3294,7 +3294,7 @@ test("live Git adapter isolates config and inventories ignored planning files", 
   const calls: RunCapturedOptions[] = [];
   const physicalRepository = win32.join("C:\\", "Physical", "Repository");
   const physicalGit = win32.join("C:\\", "Program Files", "Git", "cmd", "git.exe");
-  const expectedGitDirectory = win32.dirname(physicalGit);
+  const nullDevice = devNull;
   const hostile: NodeJS.ProcessEnv = {
     PATH: "/safe/bin",
     Path: "/hostile/mixed",
@@ -3311,6 +3311,32 @@ test("live Git adapter isolates config and inventories ignored planning files", 
     gIt_CoNfIg_GlObAl: "/hostile/mixed-global",
     GIT_CONFIG_SYSTEM: "/hostile/system",
     git_config_system: "/hostile/lower-system",
+    LD_PRELOAD: "/hostile/libpreload.so",
+    LD_LIBRARY_PATH: "/hostile/lib",
+    DYLD_INSERT_LIBRARIES: "/hostile/inject.dylib",
+    DYLD_LIBRARY_PATH: "/hostile/dyld",
+    OPENSSL_CONF: "/hostile/openssl.cnf",
+    BASH_ENV: "/hostile/bashrc",
+    ENV: "/hostile/env",
+    SHELLOPTS: "xtrace",
+    HOME: "/hostile/home",
+    XDG_CONFIG_HOME: "/hostile/xdg",
+    USERPROFILE: "C:\\Hostile\\Profile",
+    APPDATA: "C:\\Hostile\\AppData",
+    LOCALAPPDATA: "C:\\Hostile\\Local",
+    TMPDIR: "/hostile/tmp",
+    TEMP: "C:\\Hostile\\Temp",
+    TMP: "C:\\Hostile\\Tmp",
+    COMSPEC: "C:\\Hostile\\cmd.exe",
+    SystemRoot: "C:\\Hostile\\Windows",
+    HTTP_PROXY: "http://hostile.example:8080",
+    HTTPS_PROXY: "https://hostile.example:8443",
+    ALL_PROXY: "socks5://hostile.example:1080",
+    SSL_CERT_FILE: "/hostile/certs.pem",
+    AWS_SECRET_ACCESS_KEY: "hostile-aws-secret",
+    GITHUB_TOKEN: "hostile-github-token",
+    npm_config_registry: "https://hostile.example/npm",
+    FOREMAN_ENV_CANARY: "hostile-canary",
   };
   const hostileBefore = { ...hostile };
   const dependencies: ReleaseCoverageLiveDependencies = {
@@ -3338,7 +3364,7 @@ test("live Git adapter isolates config and inventories ignored planning files", 
     platform: "win32",
     comSpec: undefined,
     cwd: () => REPO,
-    nullDevice: devNull,
+    nullDevice,
     baseEnvironment: hostile,
   };
   const services = makeLiveReleaseCoverageCliServices(dependencies);
@@ -3356,7 +3382,7 @@ test("live Git adapter isolates config and inventories ignored planning files", 
     "-c",
     "core.fsmonitor=false",
     "-c",
-    `core.excludesFile=${devNull}`,
+    `core.excludesFile=${nullDevice}`,
     "-C",
     physicalRepository,
   ] as const;
@@ -3381,41 +3407,22 @@ test("live Git adapter isolates config and inventories ignored planning files", 
     "docs/superpowers/specs",
     "docs/superpowers/plans",
   ]);
-  const allowedGitKeys = new Set([
-    "PATH",
-    "PATHEXT",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_NOSYSTEM",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_OPTIONAL_LOCKS",
-    "GIT_TERMINAL_PROMPT",
-  ]);
+  const expectedEnv = {
+    PATH: win32.dirname(physicalGit),
+    PATHEXT: ".EXE",
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: nullDevice,
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
+  };
   for (const call of calls) {
     assert.equal(call.command, physicalGit);
     assert.equal(call.maxOutputBytes, ONE_MIB);
     assert.equal(call.timeoutMs, 30_000);
-    const env = call.env ?? {};
-    assert.equal(env.PATH, expectedGitDirectory);
-    assert.equal(env.PATHEXT, ".EXE");
-    assert.equal(env.Path, undefined);
-    assert.equal(env.path, undefined);
-    assert.equal(env.Pathext, undefined);
-    assert.equal(env.GIT_CONFIG_SYSTEM, undefined);
-    assert.equal(env.GIT_CONFIG_NOSYSTEM, "1");
-    assert.equal(env.GIT_CONFIG_GLOBAL, devNull);
-    assert.equal(env.GIT_NO_REPLACE_OBJECTS, "1");
-    assert.equal(env.GIT_TERMINAL_PROMPT, "0");
-    assert.equal(env.GIT_OPTIONAL_LOCKS, "0");
-    for (const name of Object.keys(env)) {
-      const upper = name.toUpperCase();
-      if (upper === "PATH" || upper === "PATHEXT" || upper.startsWith("GIT_")) {
-        assert.equal(
-          allowedGitKeys.has(name),
-          true,
-          `hostile Git variable survived: ${name}`,
-        );
-      }
-    }
+    assert.deepEqual(call.env, expectedEnv);
   }
 });
 
@@ -3878,6 +3885,7 @@ test("live Git adapter starts a safe outside physical Git target with a sealed e
   const alias = posix.join("/", "outside", "alias", "git");
   const physicalGit = posix.join("/", "usr", "libexec", "git-core", "git");
   const physicalNode = posix.join("/", "usr", "bin", "node");
+  const nullDevice = "/dev/null";
   const hostile: NodeJS.ProcessEnv = {
     PATH: "/hostile/bin",
     Path: "/hostile/mixed-bin",
@@ -3888,6 +3896,32 @@ test("live Git adapter starts a safe outside physical Git target with a sealed e
     git_dir: "/hostile/lower-git",
     GIT_WORK_TREE: "/hostile/worktree",
     GiT_WoRk_TrEe: "/hostile/mixed-worktree",
+    LD_PRELOAD: "/hostile/libpreload.so",
+    LD_LIBRARY_PATH: "/hostile/lib",
+    DYLD_INSERT_LIBRARIES: "/hostile/inject.dylib",
+    DYLD_LIBRARY_PATH: "/hostile/dyld",
+    OPENSSL_CONF: "/hostile/openssl.cnf",
+    BASH_ENV: "/hostile/bashrc",
+    ENV: "/hostile/env",
+    SHELLOPTS: "xtrace",
+    HOME: "/hostile/home",
+    XDG_CONFIG_HOME: "/hostile/xdg",
+    USERPROFILE: "C:\\Hostile\\Profile",
+    APPDATA: "C:\\Hostile\\AppData",
+    LOCALAPPDATA: "C:\\Hostile\\Local",
+    TMPDIR: "/hostile/tmp",
+    TEMP: "C:\\Hostile\\Temp",
+    TMP: "C:\\Hostile\\Tmp",
+    COMSPEC: "C:\\Hostile\\cmd.exe",
+    SystemRoot: "C:\\Hostile\\Windows",
+    HTTP_PROXY: "http://hostile.example:8080",
+    HTTPS_PROXY: "https://hostile.example:8443",
+    ALL_PROXY: "socks5://hostile.example:1080",
+    SSL_CERT_FILE: "/hostile/certs.pem",
+    AWS_SECRET_ACCESS_KEY: "hostile-aws-secret",
+    GITHUB_TOKEN: "hostile-github-token",
+    npm_config_registry: "https://hostile.example/npm",
+    FOREMAN_ENV_CANARY: "hostile-canary",
   };
   const hostileBefore = { ...hostile };
   const calls: RunCapturedOptions[] = [];
@@ -3911,7 +3945,7 @@ test("live Git adapter starts a safe outside physical Git target with a sealed e
     platform: "linux",
     comSpec: undefined,
     cwd: () => repository,
-    nullDevice: "/dev/null",
+    nullDevice,
     baseEnvironment: hostile,
   };
   const services = makeLiveReleaseCoverageCliServices(dependencies);
@@ -3926,34 +3960,24 @@ test("live Git adapter starts a safe outside physical Git target with a sealed e
   assert.deepEqual(paths, []);
   assert.deepEqual(hostile, hostileBefore);
   assert.equal(calls.length, 3);
-  const allowedGitKeys = new Set([
-    "PATH",
-    "GIT_CONFIG_GLOBAL",
-    "GIT_CONFIG_NOSYSTEM",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_OPTIONAL_LOCKS",
-    "GIT_TERMINAL_PROMPT",
-  ]);
+  const expectedEnv = {
+    PATH: posix.dirname(physicalGit),
+    LANG: "C",
+    LC_ALL: "C",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: nullDevice,
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_OPTIONAL_LOCKS: "0",
+  };
   for (const call of calls) {
     assert.equal(call.command, physicalGit);
     assert.equal(call.args.includes("-C"), true);
     const cIndex = call.args.indexOf("-C");
     assert.equal(call.args[cIndex + 1], physicalRepository);
-    assert.equal(call.env?.PATH, posix.dirname(physicalGit));
     assert.equal(call.maxOutputBytes, ONE_MIB);
     assert.equal(call.timeoutMs, 30_000);
-    const env = call.env ?? {};
-    assertNoAlternatePathPathextOrPrefixedKeys(env, ["GIT_"], allowedGitKeys);
-    for (const name of Object.keys(env)) {
-      const upper = name.toUpperCase();
-      if (upper === "PATH" || upper === "PATHEXT" || upper.startsWith("GIT_")) {
-        assert.equal(allowedGitKeys.has(name), true, `unexpected key ${name}`);
-      }
-    }
-    assert.equal(env.PATHEXT, undefined);
-    assert.equal(env.Path, undefined);
-    assert.equal(env.path, undefined);
-    assert.equal(env.Pathext, undefined);
+    assert.deepEqual(call.env, expectedEnv);
   }
 });
 
@@ -4149,6 +4173,37 @@ test("live OpenSpec adapter resolves physical OpenSpec, Node, and ComSpec target
         NODE_PATH: "/hostile/node_modules",
         Node_Path: "/hostile/mixed_modules",
         Node_V8_Coverage: "/hostile/v8",
+        LD_PRELOAD: "/hostile/libpreload.so",
+        LD_LIBRARY_PATH: "/hostile/lib",
+        DYLD_INSERT_LIBRARIES: "/hostile/inject.dylib",
+        DYLD_LIBRARY_PATH: "/hostile/dyld",
+        OPENSSL_CONF: "/hostile/openssl.cnf",
+        BASH_ENV: "/hostile/bashrc",
+        ENV: "/hostile/env",
+        SHELLOPTS: "xtrace",
+        HOME: "/hostile/home",
+        XDG_CONFIG_HOME: "/hostile/xdg",
+        USERPROFILE: "C:\\Hostile\\Profile",
+        APPDATA: "C:\\Hostile\\AppData",
+        LOCALAPPDATA: "C:\\Hostile\\Local",
+        TMPDIR: "/hostile/tmp",
+        TEMP: "C:\\Hostile\\Temp",
+        TMP: "C:\\Hostile\\Tmp",
+        COMSPEC: "C:\\Hostile\\cmd.exe",
+        SystemRoot: "C:\\Hostile\\Windows",
+        HTTP_PROXY: "http://hostile.example:8080",
+        HTTPS_PROXY: "https://hostile.example:8443",
+        ALL_PROXY: "socks5://hostile.example:1080",
+        SSL_CERT_FILE: "/hostile/certs.pem",
+        AWS_SECRET_ACCESS_KEY: "hostile-aws-secret",
+        GITHUB_TOKEN: "hostile-github-token",
+        npm_config_registry: "https://hostile.example/npm",
+        FOREMAN_ENV_CANARY: "hostile-canary",
+        OPENSPEC_TELEMETRY: "1",
+        OPENSPEC_NO_UPDATE_CHECK: "0",
+        OPEN_SPEC_INTERACTIVE: "1",
+        NO_COLOR: "0",
+        FORCE_COLOR: "1",
       };
       const hostileBefore = { ...hostile };
       const calls: RunCapturedOptions[] = [];
@@ -4243,30 +4298,18 @@ test("live OpenSpec adapter resolves physical OpenSpec, Node, and ComSpec target
         assert.equal(calls[0]!.command === item.lexicalOpenSpec, false);
       }
       assert.equal(calls[0]!.cwd, item.physicalRepository);
-      assert.equal(calls[0]!.env?.PATH, expectedNodeDirectory);
       assert.equal(calls[0]!.maxOutputBytes, ONE_MIB);
       assert.equal(calls[0]!.timeoutMs, 30_000);
-      const env = calls[0]!.env ?? {};
-      const allowed = new Set(
-        item.platform === "win32" ? ["PATH", "PATHEXT"] : ["PATH"],
-      );
-      assertNoAlternatePathPathextOrPrefixedKeys(env, ["NODE_"], allowed);
-      for (const name of Object.keys(env)) {
-        const upper = name.toUpperCase();
-        if (upper === "PATH" || upper === "PATHEXT" || upper.startsWith("NODE_")) {
-          assert.equal(allowed.has(name), true, `unexpected key survived: ${name}`);
-        }
-      }
-      if (item.platform === "win32") {
-        assert.equal(env.PATHEXT, ".EXE");
-      } else {
-        assert.equal(env.PATHEXT, undefined);
-      }
-      assert.equal(env.NODE_OPTIONS, undefined);
-      assert.equal(env.NODE_PATH, undefined);
-      assert.equal(env.Node_V8_Coverage, undefined);
-      assert.equal(env.Path, undefined);
-      assert.equal(env.path, undefined);
+      assert.deepEqual(calls[0]!.env, {
+        PATH: expectedNodeDirectory,
+        ...(item.platform === "win32" ? { PATHEXT: ".EXE" } : {}),
+        LANG: "C",
+        LC_ALL: "C",
+        OPENSPEC_TELEMETRY: "0",
+        OPENSPEC_NO_UPDATE_CHECK: "1",
+        OPEN_SPEC_INTERACTIVE: "0",
+        NO_COLOR: "1",
+      });
     });
   }
 });
@@ -4536,6 +4579,8 @@ test(
         baseEnvironment: {
           PATH: `${repository}${delimiter}${dirname(process.execPath)}`,
           NODE_OPTIONS: "--require=/nonexistent/preload.js",
+          LD_DEBUG: "libs",
+          LD_DEBUG_OUTPUT: join(repository, "loader-trace"),
         },
       };
       const services = makeLiveReleaseCoverageCliServices(dependencies);
@@ -4548,6 +4593,10 @@ test(
       );
       assert.deepEqual(bytes, expected);
       assert.equal(existsSync(sentinel), false);
+      assert.equal(
+        readdirSync(repository).some((name) => name.startsWith("loader-trace")),
+        false,
+      );
     } finally {
       rmSync(temporary, { recursive: true, force: true });
     }
@@ -4603,9 +4652,20 @@ test(
       const comSpec = process.env.ComSpec ?? process.env.COMSPEC;
       if (comSpec === undefined) throw new Error("Windows ComSpec is unavailable");
       const expected = utf8(payload);
+      const expectedOpenSpecEnv = {
+        PATH: win32.dirname(process.execPath),
+        PATHEXT: ".EXE",
+        LANG: "C",
+        LC_ALL: "C",
+        OPENSPEC_TELEMETRY: "0",
+        OPENSPEC_NO_UPDATE_CHECK: "1",
+        OPEN_SPEC_INTERACTIVE: "0",
+        NO_COLOR: "1",
+      };
       const dependencies: ReleaseCoverageLiveDependencies = {
         runCaptured: (input) =>
           Effect.gen(function* () {
+            assert.deepEqual(input.env, expectedOpenSpecEnv);
             const exec = yield* ProcessExec;
             return yield* exec.runCaptured(input);
           }).pipe(Effect.provide(liveProcessExec)),
