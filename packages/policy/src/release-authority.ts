@@ -19,14 +19,14 @@ const EVAL_CHILD = "v040-t8-evaluation" as const;
 const MANIFEST_SCHEMA = "foreman.approved-openspec.v1" as const;
 
 const USER_KEY_SHA256 =
-  "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b" as const;
+  "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c" as const;
 const HOST_KEY_SHA256 =
-  "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397" as const;
+  "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b" as const;
 
 const USER_SPKI_B64URL =
-  "MCowBQYDK2VwAyEAO8-4GwgS_8uYB2jDodT5o_uBbouplzoQ8a-yOnTfk3w" as const;
+  "MCowBQYDK2VwAyEAhYttcX7HTnczgb7-4HJyKNK6mU__uZmRGAabOV0EJUI" as const;
 const HOST_SPKI_B64URL =
-  "MCowBQYDK2VwAyEAy30qjfPmsvJwWrNR50xAC39DCZUvjJgyg3bMdY84Zko" as const;
+  "MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY" as const;
 
 const SIGNATURE_B64URL_RE = /^[A-Za-z0-9_-]{86}$/;
 const BASE64URL_ALPHABET =
