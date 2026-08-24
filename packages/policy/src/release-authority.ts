@@ -1,6 +1,3 @@
-import { createPublicKey, verify as verifyEd25519 } from "node:crypto";
-import type { KeyObject } from "node:crypto";
-
 import {
   canonicalize,
   decodeUtf8Fatal,
@@ -12,25 +9,10 @@ import {
 } from "@foreman/core";
 
 const ONE_MIB = 1_048_576;
-const DOMAIN = "foreman.release-authority.v1";
 const PROGRAM = "v040" as const;
 const EVAL_PACKAGE = "graph-eval-falsification" as const;
 const EVAL_CHILD = "v040-t8-evaluation" as const;
 const MANIFEST_SCHEMA = "foreman.approved-openspec.v1" as const;
-
-const USER_KEY_SHA256 =
-  "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c" as const;
-const HOST_KEY_SHA256 =
-  "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b" as const;
-
-const USER_SPKI_B64URL =
-  "MCowBQYDK2VwAyEAhYttcX7HTnczgb7-4HJyKNK6mU__uZmRGAabOV0EJUI" as const;
-const HOST_SPKI_B64URL =
-  "MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY" as const;
-
-const SIGNATURE_B64URL_RE = /^[A-Za-z0-9_-]{86}$/;
-const BASE64URL_ALPHABET =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 const encoder = new TextEncoder();
 
@@ -115,9 +97,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly approvedOpenSpecSha256: string;
       readonly taskPlanSha256: string;
       readonly approvalStatementSha256: string;
-      readonly issuerKeySha256: typeof USER_KEY_SHA256;
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.checks-evidence.v1";
@@ -126,9 +106,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly candidate: ReleaseCandidateIdentityV1;
       readonly status: "PASS" | "FAIL";
       readonly checksSha256: string;
-      readonly issuerKeySha256: typeof HOST_KEY_SHA256;
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.release-audit.v1";
@@ -138,9 +116,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly verdict: "APPROVED" | "WARNING" | "BLOCKED" | "UNVERIFIED";
       readonly findings: readonly ReleaseAuditFindingV1[];
       readonly evidenceSha256: string;
-      readonly issuerKeySha256: typeof HOST_KEY_SHA256;
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.council-request.v1";
@@ -150,18 +126,14 @@ export type ReleaseAuthorityReceiptV1 =
       readonly questionSha256: string;
       readonly constraintsSha256: string;
       readonly optionsSha256: string;
-      readonly issuerKeySha256: typeof HOST_KEY_SHA256;
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.evaluation-authority.v1";
       readonly program: "v040";
       readonly packageId: "graph-eval-falsification";
       readonly manifestSha256: string;
-      readonly issuerKeySha256: typeof USER_KEY_SHA256;
       readonly issuedAt: string;
-      readonly signature: string;
     };
 
 export type ReleaseActionOutcomeV1 = {
@@ -179,9 +151,7 @@ export type ReleaseActionOutcomeV1 = {
   readonly candidateSha256: string;
   readonly status: "PASS" | "BLOCKING" | "EXTERNAL_FAILURE";
   readonly evidenceSha256: string;
-  readonly issuerKeySha256: typeof HOST_KEY_SHA256;
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ReleaseCouncilOutcomeV1 = {
@@ -199,9 +169,7 @@ export type ReleaseCouncilOutcomeV1 = {
   readonly requestSha256: string;
   readonly decisionSha256: string;
   readonly status: "ADVICE" | "BLOCKING";
-  readonly issuerKeySha256: typeof HOST_KEY_SHA256;
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ReleaseEvaluationVerdictV1 = {
@@ -226,9 +194,7 @@ export type ReleaseEvaluationVerdictV1 = {
   readonly notRunRuns: number;
   readonly runSetSha256: string;
   readonly reportSha256: string;
-  readonly issuerKeySha256: typeof HOST_KEY_SHA256;
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ExecutionChildTerminalApprovalV1 =
@@ -240,9 +206,7 @@ export type ExecutionChildTerminalApprovalV1 =
       readonly familySha256: string;
       readonly childId: string;
       readonly reasonSha256: string;
-      readonly issuerKeySha256: typeof USER_KEY_SHA256;
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.execution-child-invalidate.v1";
@@ -253,9 +217,7 @@ export type ExecutionChildTerminalApprovalV1 =
       readonly childId: string;
       readonly observedFamilySha256: string;
       readonly reasonSha256: string;
-      readonly issuerKeySha256: typeof USER_KEY_SHA256;
       readonly issuedAt: string;
-      readonly signature: string;
     };
 
 export type FailedReservationAuthorityV1 = {
@@ -279,9 +241,7 @@ export type ReleaseEvidenceBundleV1 = {
   readonly taskPlanSha256: string;
   readonly receipts: readonly ReleaseAuthorityReceiptV1[];
   readonly priorReservation?: FailedReservationAuthorityV1;
-  readonly issuerKeySha256: typeof HOST_KEY_SHA256;
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ReleaseAuthorityObjectV1 =
@@ -337,22 +297,6 @@ export type ApprovedOpenSpecManifestValidationResultV1 =
   | { readonly _tag: "Invalid" };
 
 type OpenSpecWorkflowV1 = "foreman-architectural" | "foreman-bounded";
-
-type SchemaRole = "user" | "host";
-
-const SCHEMA_ROLE: Readonly<Record<string, SchemaRole>> = {
-  "foreman.design-approval.v1": "user",
-  "foreman.checks-evidence.v1": "host",
-  "foreman.release-audit.v1": "host",
-  "foreman.council-request.v1": "host",
-  "foreman.evaluation-authority.v1": "user",
-  "foreman.release-action-outcome.v1": "host",
-  "foreman.council-outcome.v1": "host",
-  "foreman.evaluation-verdict.v1": "host",
-  "foreman.execution-child-cancel.v1": "user",
-  "foreman.execution-child-invalidate.v1": "user",
-  "foreman.release-evidence-bundle.v1": "host",
-};
 
 const RELEASE_ACTIONS: readonly ReleaseActionV1[] = [
   "implement",
@@ -566,81 +510,6 @@ function isSafeIntInRange(
   );
 }
 
-function decodeBase64UrlExact(text: string): Uint8Array | null {
-  if (typeof text !== "string" || text.length === 0) return null;
-  if (text.length % 4 === 1) return null;
-  if (!/^[A-Za-z0-9_-]+$/.test(text)) return null;
-  const alphabet = BASE64URL_ALPHABET;
-  const out = new Uint8Array(Math.floor((text.length * 3) / 4));
-  let outIndex = 0;
-  let buffer = 0;
-  let bits = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    const idx = alphabet.indexOf(text[i]!);
-    if (idx < 0) return null;
-    buffer = (buffer << 6) | idx;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      out[outIndex] = (buffer >> bits) & 0xff;
-      outIndex += 1;
-    }
-  }
-  if (bits !== 0 && (buffer & ((1 << bits) - 1)) !== 0) return null;
-  return out.subarray(0, outIndex);
-}
-
-function encodeBase64Url(bytes: Uint8Array): string {
-  let out = "";
-  let buffer = 0;
-  let bits = 0;
-  for (let i = 0; i < bytes.byteLength; i += 1) {
-    buffer = (buffer << 8) | bytes[i]!;
-    bits += 8;
-    while (bits >= 6) {
-      bits -= 6;
-      out += BASE64URL_ALPHABET[(buffer >> bits) & 0x3f]!;
-    }
-  }
-  if (bits > 0) {
-    out += BASE64URL_ALPHABET[(buffer << (6 - bits)) & 0x3f]!;
-  }
-  return out;
-}
-
-function isSignatureEncoding(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  if (!SIGNATURE_B64URL_RE.test(value)) return false;
-  const decoded = decodeBase64UrlExact(value);
-  if (decoded === null || decoded.byteLength !== 64) return false;
-  return encodeBase64Url(decoded) === value;
-}
-
-function decodeSpkiKey(spkiB64Url: string): KeyObject {
-  const der = decodeBase64UrlExact(spkiB64Url);
-  if (der === null) {
-    throw new Error("invalid_pinned_spki");
-  }
-  return createPublicKey({
-    key: Buffer.from(der),
-    format: "der",
-    type: "spki",
-  });
-}
-
-const USER_PUBLIC_KEY = decodeSpkiKey(USER_SPKI_B64URL);
-const HOST_PUBLIC_KEY = decodeSpkiKey(HOST_SPKI_B64URL);
-
-function keyForRole(role: SchemaRole): KeyObject {
-  return role === "user" ? USER_PUBLIC_KEY : HOST_PUBLIC_KEY;
-}
-
-function fingerprintForRole(
-  role: SchemaRole,
-): typeof USER_KEY_SHA256 | typeof HOST_KEY_SHA256 {
-  return role === "user" ? USER_KEY_SHA256 : HOST_KEY_SHA256;
-}
-
 function parseCandidate(
   value: unknown,
 ): ReleaseCandidateIdentityV1 | null {
@@ -776,28 +645,6 @@ function requireIssuedAt(value: unknown): string | null {
   return value;
 }
 
-function requireSignature(value: unknown): string | null {
-  if (!isSignatureEncoding(value)) return null;
-  return value;
-}
-
-function requireIssuer(
-  value: unknown,
-  role: "user",
-): typeof USER_KEY_SHA256 | null;
-function requireIssuer(
-  value: unknown,
-  role: "host",
-): typeof HOST_KEY_SHA256 | null;
-function requireIssuer(
-  value: unknown,
-  role: SchemaRole,
-): typeof USER_KEY_SHA256 | typeof HOST_KEY_SHA256 | null {
-  const expected = fingerprintForRole(role);
-  if (value !== expected) return null;
-  return expected;
-}
-
 function parseDesignApproval(
   value: Record<string, unknown>,
 ): ReleaseAuthorityReceiptV1 | null {
@@ -811,9 +658,7 @@ function parseDesignApproval(
       "approvedOpenSpecSha256",
       "taskPlanSha256",
       "approvalStatementSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -845,12 +690,8 @@ function parseDesignApproval(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "user");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.design-approval.v1",
     program: PROGRAM,
@@ -860,9 +701,7 @@ function parseDesignApproval(
     approvedOpenSpecSha256: value["approvedOpenSpecSha256"],
     taskPlanSha256: value["taskPlanSha256"],
     approvalStatementSha256: value["approvalStatementSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -877,9 +716,7 @@ function parseChecksEvidence(
       "candidate",
       "status",
       "checksSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -896,12 +733,8 @@ function parseChecksEvidence(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.checks-evidence.v1",
     program: PROGRAM,
@@ -909,9 +742,7 @@ function parseChecksEvidence(
     candidate,
     status: value["status"],
     checksSha256: value["checksSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -927,9 +758,7 @@ function parseReleaseAudit(
       "verdict",
       "findings",
       "evidenceSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -948,12 +777,8 @@ function parseReleaseAudit(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.release-audit.v1",
     program: PROGRAM,
@@ -962,9 +787,7 @@ function parseReleaseAudit(
     verdict: value["verdict"],
     findings,
     evidenceSha256: value["evidenceSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -980,9 +803,7 @@ function parseCouncilRequest(
       "questionSha256",
       "constraintsSha256",
       "optionsSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -1014,12 +835,8 @@ function parseCouncilRequest(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.council-request.v1",
     program: PROGRAM,
@@ -1028,9 +845,7 @@ function parseCouncilRequest(
     questionSha256: value["questionSha256"],
     constraintsSha256: value["constraintsSha256"],
     optionsSha256: value["optionsSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1043,9 +858,7 @@ function parseEvaluationAuthority(
       "program",
       "packageId",
       "manifestSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -1059,20 +872,14 @@ function parseEvaluationAuthority(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "user");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.evaluation-authority.v1",
     program: PROGRAM,
     packageId: EVAL_PACKAGE,
     manifestSha256: value["manifestSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1118,9 +925,7 @@ function parseActionOutcome(
       "candidateSha256",
       "status",
       "evidenceSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -1180,12 +985,8 @@ function parseActionOutcome(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.release-action-outcome.v1",
     program: PROGRAM,
@@ -1201,9 +1002,7 @@ function parseActionOutcome(
     candidateSha256: value["candidateSha256"],
     status,
     evidenceSha256: value["evidenceSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1226,9 +1025,7 @@ function parseCouncilOutcome(
       "requestSha256",
       "decisionSha256",
       "status",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -1284,12 +1081,8 @@ function parseCouncilOutcome(
   }
   if (!isLiteral(value["status"], COUNCIL_STATUSES)) return null;
   const status = value["status"];
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.council-outcome.v1",
     program: PROGRAM,
@@ -1305,9 +1098,7 @@ function parseCouncilOutcome(
     requestSha256: value["requestSha256"],
     decisionSha256: value["decisionSha256"],
     status,
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1333,9 +1124,7 @@ function parseEvaluationVerdict(
       "notRunRuns",
       "runSetSha256",
       "reportSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -1395,12 +1184,8 @@ function parseEvaluationVerdict(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.evaluation-verdict.v1",
     program: PROGRAM,
@@ -1419,9 +1204,7 @@ function parseEvaluationVerdict(
     notRunRuns: counts.notRunRuns,
     runSetSha256: value["runSetSha256"],
     reportSha256: value["reportSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1437,9 +1220,7 @@ function parseCancelApproval(
       "familySha256",
       "childId",
       "reasonSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -1466,12 +1247,8 @@ function parseCancelApproval(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "user");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.execution-child-cancel.v1",
     program: PROGRAM,
@@ -1480,9 +1257,7 @@ function parseCancelApproval(
     familySha256: value["familySha256"],
     childId: value["childId"],
     reasonSha256: value["reasonSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1499,9 +1274,7 @@ function parseInvalidateApproval(
       "childId",
       "observedFamilySha256",
       "reasonSha256",
-      "issuerKeySha256",
       "issuedAt",
-      "signature",
     ])
   ) {
     return null;
@@ -1534,12 +1307,8 @@ function parseInvalidateApproval(
   ) {
     return null;
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "user");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
   return {
     schema: "foreman.execution-child-invalidate.v1",
     program: PROGRAM,
@@ -1549,9 +1318,7 @@ function parseInvalidateApproval(
     childId: value["childId"],
     observedFamilySha256: value["observedFamilySha256"],
     reasonSha256: value["reasonSha256"],
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1705,9 +1472,7 @@ function parseEvidenceBundle(
     "candidate",
     "taskPlanSha256",
     "receipts",
-    "issuerKeySha256",
     "issuedAt",
-    "signature",
   ] as const;
   const expectedKeys = hasPrior
     ? ([...baseKeys, "priorReservation"] as const)
@@ -1747,12 +1512,8 @@ function parseEvidenceBundle(
     if (receipt === null) return null;
     receipts.push(receipt);
   }
-  const issuerKeySha256 = requireIssuer(value["issuerKeySha256"], "host");
   const issuedAt = requireIssuedAt(value["issuedAt"]);
-  const signature = requireSignature(value["signature"]);
-  if (issuerKeySha256 === null || issuedAt === null || signature === null) {
-    return null;
-  }
+  if (issuedAt === null) return null;
 
   const action = value["action"];
   if (action === "provider_retry" || action === "resume") {
@@ -1777,9 +1538,7 @@ function parseEvidenceBundle(
       taskPlanSha256: value["taskPlanSha256"],
       receipts,
       priorReservation,
-      issuerKeySha256,
       issuedAt,
-      signature,
     };
   }
 
@@ -1797,9 +1556,7 @@ function parseEvidenceBundle(
     candidate,
     taskPlanSha256: value["taskPlanSha256"],
     receipts,
-    issuerKeySha256,
     issuedAt,
-    signature,
   };
 }
 
@@ -1834,36 +1591,6 @@ function parseAuthorityObject(
       return parseEvidenceBundle(value);
     default:
       return null;
-  }
-}
-
-function stripSignature(
-  value: ReleaseAuthorityObjectV1,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, field] of Object.entries(value)) {
-    if (key === "signature") continue;
-    out[key] = field;
-  }
-  return out;
-}
-
-function verifyObjectSignature(value: ReleaseAuthorityObjectV1): boolean {
-  const role = SCHEMA_ROLE[value.schema];
-  if (role === undefined) return false;
-  if (value.issuerKeySha256 !== fingerprintForRole(role)) return false;
-  const signatureBytes = decodeBase64UrlExact(value.signature);
-  if (signatureBytes === null || signatureBytes.byteLength !== 64) return false;
-  const message = releaseAuthoritySignaturePreimageV1(stripSignature(value));
-  try {
-    return verifyEd25519(
-      null,
-      message,
-      keyForRole(role),
-      Buffer.from(signatureBytes),
-    );
-  } catch {
-    return false;
   }
 }
 
@@ -2146,19 +1873,6 @@ function parseManifestObject(
   return { schema: MANIFEST_SCHEMA, files };
 }
 
-export function releaseAuthoritySignaturePreimageV1(
-  unsignedObject: unknown,
-): Uint8Array {
-  const canonical = canonicalize(unsignedObject);
-  const domainBytes = utf8Bytes(DOMAIN);
-  const canonicalBytes = utf8Bytes(canonical);
-  const out = new Uint8Array(domainBytes.byteLength + 1 + canonicalBytes.byteLength);
-  out.set(domainBytes, 0);
-  out[domainBytes.byteLength] = 0x0a;
-  out.set(canonicalBytes, domainBytes.byteLength + 1);
-  return out;
-}
-
 export function parseReleaseAuthorityObjectV1(
   value: unknown,
 ): ReleaseAuthorityObjectParseResultV1 {
@@ -2180,12 +1894,6 @@ export function decodeReleaseAuthorityFileV1(
     if (decoded === null) return invalidFile();
     const parsed = parseAuthorityObject(decoded.value);
     if (parsed === null) return invalidFile();
-    if (!verifyObjectSignature(parsed)) return invalidFile();
-    if (parsed.schema === "foreman.release-evidence-bundle.v1") {
-      for (const receipt of parsed.receipts) {
-        if (!verifyObjectSignature(receipt)) return invalidFile();
-      }
-    }
     return {
       _tag: "Valid",
       value: parsed,

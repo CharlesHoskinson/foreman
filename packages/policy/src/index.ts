@@ -132,7 +132,6 @@ export {
   type ReleaseCoverageRegisterInspectionV1,
 } from "./release-coverage.js";
 export {
-  releaseAuthoritySignaturePreimageV1,
   parseReleaseAuthorityObjectV1,
   decodeReleaseAuthorityFileV1,
   decodeReleaseProducerSourceFileV1,
