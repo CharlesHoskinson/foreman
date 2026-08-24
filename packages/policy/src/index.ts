@@ -170,3 +170,11 @@ export {
   type ReleaseAdmissionResultV1,
   type ReleaseEvidenceInputV1,
 } from "./release-admission.js";
+export {
+  RELEASE_ADMISSION_USAGE,
+  liveReleaseAdmissionCliServices,
+  runReleaseAdmissionCli,
+  type ReleaseAdmissionCliIo,
+  type ReleaseAdmissionGitAuthorityV1,
+  type ReleaseAdmissionCliServices,
+} from "./release-admission-cli.js";
