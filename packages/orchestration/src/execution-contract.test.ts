@@ -7,11 +7,13 @@ import {
   decodeExecutionContractFamilyV2,
   decodeExecutionFamilySourceFileV1,
   deriveExecutionContractFamilyV2,
+  executionChildPathMatchesV1,
   executionActionKinds,
   executionContractFamilySha256,
   type ExecutionChildBriefV1,
   type ExecutionContractFamilyV2,
   type ExecutionFamilySourceV1,
+  type ExecutionV2Event,
 } from "./index.js";
 
 const encoder = new TextEncoder();
@@ -367,6 +369,84 @@ test("family source mapping, content, paths, and clock fail closed", () => {
   }
 });
 
+test("family content and path limits use exact UTF-8 boundaries", () => {
+  const withFirstChild = (
+    change: Partial<ExecutionChildBriefV1>,
+  ): ExecutionFamilySourceV1 => ({
+    ...SOURCE,
+    children: SOURCE.children.map((child, index) =>
+      index === 0 ? { ...child, ...change } : child,
+    ),
+  });
+  for (const source of [
+    withFirstChild({ objective: `${"x".repeat(16_382)}é` }),
+    withFirstChild({ objective: "line one\nline two" }),
+    withFirstChild({ acceptance: ["é".repeat(2_048)] }),
+    withFirstChild({
+      acceptance: Array.from({ length: 256 }, (_, index) => `a${index}`),
+    }),
+    withFirstChild({
+      allowedPaths: Array.from(
+        { length: 256 },
+        (_, index) => `packages/p${String(index).padStart(3, "0")}/**`,
+      ),
+    }),
+  ]) {
+    assert.equal(
+      deriveExecutionContractFamilyV2({
+        ...INPUT,
+        sourceBytes: canonicalFile(source),
+      })._tag,
+      "Valid",
+    );
+  }
+  for (const source of [
+    withFirstChild({ objective: `${"x".repeat(16_383)}é` }),
+    withFirstChild({ acceptance: [`${"x".repeat(4_095)}é`] }),
+    withFirstChild({
+      acceptance: Array.from({ length: 257 }, (_, index) => `a${index}`),
+    }),
+    withFirstChild({
+      allowedPaths: Array.from(
+        { length: 257 },
+        (_, index) => `packages/p${String(index).padStart(3, "0")}/**`,
+      ),
+    }),
+  ]) {
+    assert.equal(
+      deriveExecutionContractFamilyV2({
+        ...INPUT,
+        sourceBytes: canonicalFile(source),
+      })._tag,
+      "Invalid",
+    );
+  }
+
+  assert.equal(executionChildPathMatchesV1("README.md", "README.md"), true);
+  assert.equal(executionChildPathMatchesV1("README.md", "README.md/x"), false);
+  assert.equal(
+    executionChildPathMatchesV1("packages/policy/**", "packages/policy/src/a.ts"),
+    true,
+  );
+  assert.equal(
+    executionChildPathMatchesV1("packages/policy/**", "packages/policy"),
+    false,
+  );
+  assert.equal(
+    executionChildPathMatchesV1("packages/policy/**", "packages/policy-other/a"),
+    false,
+  );
+  assert.equal(executionChildPathMatchesV1("../escape/**", "escape/a"), false);
+});
+
 test("V1 action and event grammar still excludes evaluate", () => {
   assert.equal(executionActionKinds.includes("evaluate" as never), false);
+  const v2EvaluationEvent: ExecutionV2Event = {
+    _tag: "ActionReserved",
+    action: "evaluate",
+    candidateSha256: ROOT_SHA,
+    reservationId: "evaluation-1",
+    at: CREATED_AT,
+  };
+  assert.equal(v2EvaluationEvent.action, "evaluate");
 });
