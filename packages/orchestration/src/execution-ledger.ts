@@ -169,7 +169,7 @@ export type RegisteredReleaseOutcomeV1 = {
   readonly candidateSha256: string;
   readonly outcomeSha256: string;
   readonly outcomeSchema:
-    | "foreman.action-outcome.v1"
+    | "foreman.release-action-outcome.v1"
     | "foreman.council-outcome.v1";
   readonly registeredAt: string;
 };
@@ -461,7 +461,7 @@ function childOutcomeFromUnknown(
     !isSha256Hex(value.candidateSha256) ||
     typeof value.outcomeSha256 !== "string" ||
     !isSha256Hex(value.outcomeSha256) ||
-    (value.outcomeSchema !== "foreman.action-outcome.v1" &&
+    (value.outcomeSchema !== "foreman.release-action-outcome.v1" &&
       value.outcomeSchema !== "foreman.council-outcome.v1") ||
     typeof value.registeredAt !== "string" ||
     !isUtcSecondTimestamp(value.registeredAt)

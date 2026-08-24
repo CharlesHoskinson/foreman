@@ -572,7 +572,7 @@ describe("EndstopLedger", () => {
             effectiveAction: "implement",
             candidateSha256: CANDIDATE.candidateSha256,
             outcomeSha256: A,
-            outcomeSchema: "foreman.action-outcome.v1",
+            outcomeSchema: "foreman.release-action-outcome.v1",
             registeredAt: "2026-08-24T12:05:00Z",
           });
         }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
@@ -769,7 +769,7 @@ describe("EndstopLedger", () => {
                 effectiveAction: action,
                 candidateSha256: OUTPUT_CANDIDATE.candidateSha256,
                 outcomeSha256: A,
-                outcomeSchema: "foreman.action-outcome.v1",
+                outcomeSchema: "foreman.release-action-outcome.v1",
                 registeredAt: at(),
               });
               yield* ledger.executeChild({

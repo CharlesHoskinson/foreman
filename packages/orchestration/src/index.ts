@@ -91,8 +91,21 @@ export {
   parseEndstopArgv,
   runEndstopCli,
   type EndstopCliIo,
+  type EndstopCliServices,
   type ParsedEndstopArgv,
 } from "./execution-guard-cli.js";
+
+export {
+  RELEASE_AUTHORITY_EXIT_CONFIG,
+  RELEASE_AUTHORITY_EXIT_FAIL,
+  RELEASE_AUTHORITY_EXIT_OK,
+  makeLiveReleaseAuthorityCliServices,
+  parseReleaseAuthorityArgv,
+  runReleaseAuthorityCli,
+  type ParsedReleaseAuthorityArgv,
+  type ReleaseAuthorityCliIo,
+  type ReleaseAuthorityCliServices,
+} from "./release-authority-cli.js";
 
 export {
   EXIT_OK,
