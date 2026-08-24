@@ -123,6 +123,29 @@ export type ReleaseCoverageCliServices = {
   readonly familySource: ReleaseCoverageFamilySourceService;
 };
 
+export type ReleaseCoverageLiveDependencies = {
+  readonly runCaptured: (
+    input: RunCapturedOptions,
+  ) => Effect.Effect<CapturedProcessResult, unknown>;
+  readonly which: (
+    name: string,
+  ) => Effect.Effect<string | null, unknown>;
+  readonly realpath: (
+    path: string,
+  ) => Effect.Effect<string, unknown>;
+  readonly platform: NodeJS.Platform;
+  readonly comSpec: string | undefined;
+  readonly cwd: () => string;
+  readonly nullDevice: string;
+  readonly baseEnvironment: NodeJS.ProcessEnv;
+};
+
+export function makeLiveReleaseCoverageCliServices(
+  _dependencies: ReleaseCoverageLiveDependencies,
+): ReleaseCoverageCliServices {
+  throw new Error("release coverage live services are not implemented");
+}
+
 type ParsedFlags = {
   readonly phase: "bootstrap" | "lane" | "release";
   readonly owner: string | undefined;
