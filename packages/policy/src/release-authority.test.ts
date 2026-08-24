@@ -45,40 +45,40 @@ const shaC =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 const issuedAt = "2026-08-24T00:00:00Z";
 const userKeySha256 =
-  "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b";
+  "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
 const hostKeySha256 =
-  "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
 
 const SIGNATURES = {
   "foreman.design-approval.v1":
-    "d1eE0j16E7ZZC6-PY2lsOkqfGKJh0I4TMrkTJsL-dfBrfdA97r_x5JQnPGjyms3mMa5ohUtpDp3soqF37d9HCQ",
+    "CYcZ9wBPsidcaD-v3I0K3iqXFNGVY-jp7vqN1OR440ZsPFFHZRAf4J_f4bi1zrd4tUctlCzaIFdziDwNhjMvBQ",
   "foreman.checks-evidence.v1":
-    "BPgTcnSFhwR3eelZD2mMpdt-YhMtHraTnRYv2vxJoBnwfN4tnvBLXMJZIPDsJue_DxgmJw1VLRJHoxYu20TBDQ",
+    "CNlX0j4NSe-cTOqg3lzHg0gBEeUtQezpuDj_rWAgAa4sAX5Dwq8p5VoVIj3K_Va5iK5ew0ur_ratuWg1coQaBw",
   "foreman.release-audit.v1":
-    "xdypf480NP1-u3OeG8N9jwZ7nAiD6ZyyEI2AER-FxtVnSgjyWGPioUSR1SZ9IjJlUxwnAy09rtGzcH4gUVOpCw",
+    "hHmQ70NXfzzidM1H4GC6clkOYJy6vtTJe-_pzOPfu66ugiKPKUi29tuIbCZqM_Y23zBoKn1ecfjHHb3rWhmMBg",
   "foreman.council-request.v1":
-    "BPwkjmTGzGIwA2ihDnivudKVnd9VPkfMZI2zgmC5blIONpHqZO_HCeVRF82GVmBpGB6rTMGX-MKr2yBVi5QMAQ",
+    "V0s-BYwNJNLGNCW3pj8EVvFTQlPs710Jx8JwvropohzMiLs17G0PaCXRbXosCRGgp0atVeOexAPt7Pmt6UKoCA",
   "foreman.evaluation-authority.v1":
-    "euVje7ngS8I1BkAosrhcrrSo42YBOIK6hkufyPpOIIWIVK4vwvCbJof86XaBSbFkyerzqzK50b-X5SwsUWqyDw",
+    "s7KiG8JWqlILA_5tvWlXY0LhQ2u86ufnkS9V-gDrCaAjQZ8LBqRIFXkz9EbbEq_G0NFYNU92QNQk0C4_ud-vBA",
   "foreman.release-action-outcome.v1":
-    "5T3m8el5ChwGVMhRVkD4Oh5z_yQUlUbrv0Gv1znTArRXvy6sW93Ccr-IL6WuVFUDbYz8ip6tNiGTsvS1gqPsDg",
+    "-aFTsII3rbo9CpBWVtVu_GzkxoUkH1HXCszZxBkrfOkg5BUNU__h4sofycrDDr5uP55bbPufmRQE1g5ebZz9BQ",
   "foreman.council-outcome.v1":
-    "pmXENk5_MrEQZlzDIqW-bcPvQEzE_gil4pWbRt02KrE8L1gYLE2U5h0km59HUZt_7Ntt60tdN-0S4A5Lx6qDAw",
+    "cT4Dwdyhh_t6usjsCzSzASkm6Xt4_8x8O7KmfY8O6LTFZrl7ek0nVw5FZ1EfHOylxODt6uEyfS9AVlChMygVBw",
   "foreman.evaluation-verdict.v1":
-    "_vIvHzbOWv_aPF2T48bB9ujge03MTgiQ2JEXL5KirwLb4IQU-dx524PA6-RIHeqoScH0dZJuvFBkqhl-ULu7Ag",
+    "u1hR4aZCqnHh48Gu0FSTzf-DMgjy_sazaTvDOU5jK-LiIOAxyjfqfMxZpXe59EFi93PjbdsO2zGGCimyZDRDBQ",
   "foreman.execution-child-cancel.v1":
-    "QlX2MBbwNMdg3ItEm2_H3YPkjUvcXvcNxdwXLPab83omtSCvZAr0MlZbI6mE31UWO65WXiToAAwqm9Y4dhbaAQ",
+    "EzfWEzUO5-EVUlWW02R5iul9FOe3X-tATEZW9axieJA5nMfMuRLjj6hSqHPFhbiR_8d4MzLOlE7JkLApxfEjCA",
   "foreman.execution-child-invalidate.v1":
-    "KhidP3eQI1LeBM3l7_TV8Xbptal9hoKYJui9bYhX-XsXuxPEeqqtFkRKKSWc91mZrcqJD6Zeb5hoA1ZaX89xCg",
+    "d_Q57fcsQWADkCxGCEAVIQFctw2yJmUSLZoPUdKvxFVU2LgxaI8Mg2Inlbl8Ob7pjKxTOPyEriAWGJDT-qoMBg",
   "foreman.release-evidence-bundle.v1":
-    "YBa5W4GIo5-ZLzfpgJGtCtzet7NkT9HO8XGZP1nzikPbA3Ek0ZyH4U_HJos8kiInvfmNrXS25Firi2MtwEpuCw",
+    "bn0jpjhOHlK9cAFwtS16Wsol0fFDoENfx86MFv0sFKl-0ZfnqJMEgZFzt-B39mT594PhCxBrE90CJT8qiifcBw",
 } as const;
 
 const WRONG_ROLE_SIGNATURES = {
   designApprovalByHost:
-    "EIcdBrEJDXO-L3V0RCb_f_3sAx6zU06waOcaB9RYfxSnnUmwPO8A0zLNnfeZ9hbroFMvgKg_U4xuspkvLMdvDw",
+    "F4wp6FzhYGV629exKQBYMP2kMtRpXwRmJqSKyA2q6LxZs-6cSgbs8N1bKz4cUqFe9QWYpPplPB6NRcbuhKeECw",
   checksEvidenceByUser:
-    "dsi_yV2GyHgKgekqycBisIijd9K1_5X3noEcH1NYG6M1QF0P3CEd4s0PW07lDpkGMI28mC5fCOIw4_pjZgI2Aw",
+    "NjDTMQjBxci-3u-WeQKU7ra66wvs0A3j4sLIxPeV20ZR8ADrm05AJNh3nxbjufiTuvBl1tA0h0T7UjcsUhckCA",
 } as const;
 
 const CHECKS_SOURCE_SHA256 =
@@ -898,13 +898,13 @@ describe("release authority canonical signed-file rejection", () => {
     packageId: "openspec-superpowers-convergence",
     issuerKeySha256: hostKeySha256,
     signature:
-      "EIcdBrEJDXO-L3V0RCb_f_3sAx6zU06waOcaB9RYfxSnnUmwPO8A0zLNnfeZ9hbroFMvgKg_U4xuspkvLMdvDw",
+      "F4wp6FzhYGV629exKQBYMP2kMtRpXwRmJqSKyA2q6LxZs-6cSgbs8N1bKz4cUqFe9QWYpPplPB6NRcbuhKeECw",
   };
   const wrongRoleChecks = {
     ...checksReceipt,
     issuerKeySha256: userKeySha256,
     signature:
-      "dsi_yV2GyHgKgekqycBisIijd9K1_5X3noEcH1NYG6M1QF0P3CEd4s0PW07lDpkGMI28mC5fCOIw4_pjZgI2Aw",
+      "NjDTMQjBxci-3u-WeQKU7ra66wvs0A3j4sLIxPeV20ZR8ADrm05AJNh3nxbjufiTuvBl1tA0h0T7UjcsUhckCA",
   };
 
   const changedSignature =
@@ -935,6 +935,22 @@ describe("release authority canonical signed-file rejection", () => {
     ["unknown fingerprint", canonicalFile({ ...designReceipt, issuerKeySha256: shaA })],
     ["valid signature from wrong design role", canonicalFile(wrongRoleDesign)],
     ["valid signature from wrong checks role", canonicalFile(wrongRoleChecks)],
+    [
+      "revoked user fingerprint",
+      canonicalFile({
+        ...designReceipt,
+        issuerKeySha256:
+          "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b",
+      }),
+    ],
+    [
+      "revoked host fingerprint",
+      canonicalFile({
+        ...checksReceipt,
+        issuerKeySha256:
+          "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397",
+      }),
+    ],
   ];
 
   assert.notEqual(JSON.stringify(designReceipt), designCanonical);
@@ -945,23 +961,25 @@ describe("release authority canonical signed-file rejection", () => {
   }
 
   it("rejects an outer-valid bundle with a forged nested receipt signature", () => {
-    assert.equal(designReceipt.signature.startsWith("d"), true);
+    const forgedSignature =
+      (designReceipt.signature.startsWith("A") ? "B" : "A") +
+      designReceipt.signature.slice(1);
     const forgedNestedDesign: ReleaseAuthorityReceiptV1 = {
       ...designReceipt,
-      signature: "A" + designReceipt.signature.slice(1),
+      signature: forgedSignature,
     };
     const outerValidForgedNested: ReleaseEvidenceBundleV1 = {
       ...evidenceBundle,
       receipts: [forgedNestedDesign],
       signature:
-        "27LYP_TWgCPpPKPrpyzeRmHzcWYGZMQOtO5d9tELTLeF5ld4cO8CP9nchUtFomJTZlalwtQh9kdlujbpe48CCA",
+        "5VhWLDYyhNiZ5vG5agkNPamz0e3UOWyJdNzwmP8eTn2L3K5GIO7fPX3J7Hmexr6x2tw3276OjxoVUvtZkjmMBw",
     };
 
     const outerWithoutSignature = cloneRecord(outerValidForgedNested);
     delete outerWithoutSignature["signature"];
     const hostPublicKey = createPublicKey({
       key: Buffer.from(
-        "MCowBQYDK2VwAyEAy30qjfPmsvJwWrNR50xAC39DCZUvjJgyg3bMdY84Zko",
+        "MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY",
         "base64url",
       ),
       format: "der",
@@ -992,7 +1010,7 @@ describe("release authority canonical signed-file rejection", () => {
       ...auditReceipt,
       findings: Array.from({ length: 100 }, () => largeFinding),
       signature:
-        "Nkq0xKhgFHe-z791vQ9DnOH8ZmzWWC1oGNnIBVGS3v4E2JrAawUUGAnqQXZc60bXjXSyBdfPAC7WYy9jd2jsCw",
+        "aLmuu03Xmji6pT9Y0u2qn30P3uPdcost4z7xFY8o-ZU21B5FZUfST-n_e-WklHJal7_k8fToHEqF09-ft-DwBQ",
     };
     const bytes = canonicalFile(largeAuditReceipt);
     assert.equal(bytes.byteLength > 1024 * 1024, true);
@@ -1114,22 +1132,22 @@ describe("release producer receipts copy every authoritative field", () => {
       "e69e5e6f3541ea47026a711c50e1b0f79537e2898c0a72af9909c1702821ca6c",
   };
   const cases: Array<readonly [string, unknown, unknown]> = [
-    ["checks package", checksSource, { ...checksReceipt, packageId: "project-registry", signature: "7cfb3F9-xZ28ogWLtjAjR6u_n3nWZNPtdYv4Xg2D4VtpRkPYEPLlIYVJCXRIagd5zGp9SYoRSeHIeD2B2kuqAw" }],
-    ["checks candidate", checksSource, { ...checksReceipt, candidate: alternateCandidate, signature: "TWWEuHL2bCGEfSVSBeTab35MP0jSCR1FSqeQxsdmzSRVnzPdgQccgx-u9gvYEpxB9rZUm8tGLzoz8GilvwViCQ" }],
-    ["checks status", checksSource, { ...checksReceipt, status: "PASS", signature: "iXQ5cpww7G3Mz1E16OcZBgEE7VI83h5o42_c-PhA2oKntifGHHonyW1AXQEJytv5Mhl4LlQRME0dUeuYhBz2CQ" }],
-    ["checks digest", checksSource, { ...checksReceipt, checksSha256: shaA, signature: "DHHMSMnVCJ6gyzfI-veNIiRsL4mMsD_8-uTIiDRWi_drYE8esN8ZlZ3dcxqodTb4CgynKgs3WWNYl3YIwdbVAA" }],
-    ["audit package", auditSource, { ...auditReceipt, packageId: "project-registry", signature: "53zetoZQmyZ0IuUTzqeatuaWWz60mbxIR8pecFk_LOKaD_uSEpYBch6DWHowaRQDUjPp7aMTuTnFBCrrggzqBA" }],
-    ["audit candidate", auditSource, { ...auditReceipt, candidate: alternateCandidate, signature: "6EvAnyHV3naNPnMJ0u3mbbVeQMI4YAETdM7ODai8hZgeLKW0EQJMuRL7JJJrBz2Cg1NA-CdGEvZrYZuD5HItAQ" }],
-    ["audit verdict", auditSource, { ...auditReceipt, verdict: "WARNING", signature: "3t-h6TdMr7bRgyeZvNd-Sqi2UmgMTVAGacmD1W8L0SCflYrhl1hq3xeGW1E6DGncv3VHAB-rn2TS-MdLQ4LpBA" }],
-    ["audit findings", auditSource, { ...auditReceipt, findings: [], signature: "mZ_i-XXaOnrCukOTyK751uhV0REPlG7Chu8tyJvrNbunoRm_lBuFfsg1NuFjPQxGgvzasn15nHZATZqjvxbqBQ" }],
-    ["audit digest", auditSource, { ...auditReceipt, evidenceSha256: shaA, signature: "64GQ0UhIk1hfMMrjRkYTg_gH-VuMu2t-VK_TE6bqR6BrJ1ADQT8jrxeaozcrQpTHXzW3aAjPlZ6OWK-0Hj4TAw" }],
-    ["evaluation candidate", evaluationReportSource, { ...evaluationVerdict, candidateSha256: shaA, signature: "cy6c_SlHEihQIw5EHQdXbDAwit4T38vlsR9Mch7XwMsQCkK0iD265qFqIS-oPyXfHLnvFezeoLXxTDTWWQpzCw" }],
-    ["evaluation manifest", evaluationReportSource, { ...evaluationVerdict, authorityManifestSha256: shaC, signature: "1sR1NlBRSjdN6l2EKmrTq0fcdE9MyHK9QuyeYAtTKb2DTHcNx01q-TvLO8lP0v4-HY6W7SEPpioIejRMozA-Dw" }],
-    ["evaluation authority receipt", evaluationReportSource, { ...evaluationVerdict, evaluationAuthorityReceiptSha256: shaC, signature: "xe1mpfRHdUxSjgJ5cye2ljAylfPxKxKkflmR2gQiqun-o312tB5i_4NIW9G1qWa4LnMt7gpk5J9SXRWCg1CUCg" }],
-    ["evaluation result", evaluationReportSource, { ...evaluationVerdict, result: "PROMOTE", signature: "eWx_sAEEDKgFgtbM24ofiIz6ABbmbgo-blzMzW3-RDq0Cm_lEWb1EOi5FIshTazH_BpeshlhKEzjV7xioYmGCg" }],
-    ["evaluation counts", evaluationReportSource, { ...evaluationVerdict, completedRuns: 1899, notRunRuns: 51, signature: "IrtC36erMkt-l8PmBxmDEPLZOIq-IvT-0yef7mfZWU4tRQRYI4PqUMTzffTlE3DHROHHwZEx7KoKQKgS9PAxDw" }],
-    ["evaluation run set", evaluationReportSource, { ...evaluationVerdict, runSetSha256: shaA, signature: "kU3YByXCm33f8ui33Uyloj-xm3LfK3FIxsE1kHbs6SI5c3Iqr5TmiCoVwmgoVZunMu3UvTPZxEJ91i-3aTYYCA" }],
-    ["evaluation report digest", evaluationReportSource, { ...evaluationVerdict, reportSha256: shaA, signature: "9in_eCc53cER_HDntgbhS3C70K9mQkEgUpV7gMOFqh5DacoMCVJPdktfGSNgz_Ga3x1lsM0R8IlzkR-wW19dDA" }],
+    ["checks package", checksSource, { ...checksReceipt, packageId: "project-registry", signature: "D4EVwQHelBjWcYjxlhNSYvXqYsCpjIB4Kl5E4jeOfXGqvOTRewmzDiO79pXxTH9gs99f6jhgShFr5NNw368ZCg" }],
+    ["checks candidate", checksSource, { ...checksReceipt, candidate: alternateCandidate, signature: "BZ8Mz4RhsSeILqZ9Ifmd9Yjvd6WcevFLdknEL01PTxZSSAB_maTGCson3I2HcPaaZy7o7hxOu2xTjlyTSpxlDw" }],
+    ["checks status", checksSource, { ...checksReceipt, status: "PASS", signature: "VTnbQyrJRbOEADyRsxSkT34cIfhZa8IupKBeTk-FGSPhssDSbKI01Mx6TMko_6iO1qWMFoaPC9MHt0l1hBy9Cw" }],
+    ["checks digest", checksSource, { ...checksReceipt, checksSha256: shaA, signature: "NV8FaCdxfLi49DDUv-I3IJyy9xaPj5rQW31kbTK8Cxo0f1Y9Nn1otdJCXPDFWoXJb5v_0S442Wde5qylq_AbBA" }],
+    ["audit package", auditSource, { ...auditReceipt, packageId: "project-registry", signature: "i2LR747ElLI__9qA_9SSUaqzMRRAXRVKsAzX51RpUa4LlIdRJZuEWnEtSOtgAgXoN3ufa1cw5iU4mb-AIBQ3Dw" }],
+    ["audit candidate", auditSource, { ...auditReceipt, candidate: alternateCandidate, signature: "GD5ue7LYvh10d3Y2BnXSuuzuTnerF83u9b704tCh0YHLYxG_HyE_2a2VbpTce5X9tfjFkKZCuhSNByofYaQLCA" }],
+    ["audit verdict", auditSource, { ...auditReceipt, verdict: "WARNING", signature: "uHaJSq4CpmCt4WMhe2Zu4NqYmxc_6wTn_VNYTy7nL26_qyk5ur0al3_AaUWq37Gk9ouygNIeN71a9FXq2JmXDw" }],
+    ["audit findings", auditSource, { ...auditReceipt, findings: [], signature: "MqCiQ6GoAih0lgwX5It8cJ-JA44lRJ753u-WkfnJKkHolvxFMWHsRU-QsJ9w5_lQVMe2XDEHT15js2Sai64cBA" }],
+    ["audit digest", auditSource, { ...auditReceipt, evidenceSha256: shaA, signature: "Av1RfbJpGH40lDBUo8avuk2U6EMIOEfMcGNYXlDzzBNVz2bXR8HXDSJxOL3alX-1F1kTMf1Jef8ADjtL3oS_Bw" }],
+    ["evaluation candidate", evaluationReportSource, { ...evaluationVerdict, candidateSha256: shaA, signature: "kSfs1A78nQpdnRNkaFFWV6CyV2QSdETGaTsa28QO8-QPwK0bfx4X_Qr-tDUAGIJ6zdhDMUBW8XyI2HLIN2KNBw" }],
+    ["evaluation manifest", evaluationReportSource, { ...evaluationVerdict, authorityManifestSha256: shaC, signature: "ifplNg18l7a_1bcKKuXJ3EBFo0WW6vjJjZTzib1STbawHCCkSWf_urBZSYzKYh_Y6kAi4S7nAGNjcrGjqGltAA" }],
+    ["evaluation authority receipt", evaluationReportSource, { ...evaluationVerdict, evaluationAuthorityReceiptSha256: shaC, signature: "TPoLZEZ9-Hgv1Z3yI0DBMTVbTlSM0VAl7kvopvfU22WVIbi92MFnRk83Bm7NjnokH6dTqc5ZRnIiAjHXh0TrAA" }],
+    ["evaluation result", evaluationReportSource, { ...evaluationVerdict, result: "PROMOTE", signature: "e5TyQDV-0XSyLj60RMfjsdgIOvdqieFB9Zjv7t6fEwWVCEbZnbnLgx5Hs0HfA0at9tVxngiWq_YVAGUkiO7kCA" }],
+    ["evaluation counts", evaluationReportSource, { ...evaluationVerdict, completedRuns: 1899, notRunRuns: 51, signature: "-C7YHlO3JXzISJ7ptAGso0qAJF2eVMSNjvd_pNe0b-hCCG_dTwIht8ZFJ8pUfAPNtk5QQOeBDTlCXLvYs_LvBw" }],
+    ["evaluation run set", evaluationReportSource, { ...evaluationVerdict, runSetSha256: shaA, signature: "KyKwFfB_4caa9rWAA4FTvmzWUnw5SatgxunCfastxvCJ_DVaPzb1w3CuZSN5b9w05_JLSxoB0sXs-thqPS63Bg" }],
+    ["evaluation report digest", evaluationReportSource, { ...evaluationVerdict, reportSha256: shaA, signature: "mN7Lsu8zP0Ju9yq_4qa8OMVppBMbKa0sNQQUgomfD7aCnjpQziT_gw6N5a7sTOr9_qSqP03bXauGz7DCyl6ECA" }],
   ];
   for (const [name, source, receipt] of cases) {
     it("rejects mismatched " + name, () => {
@@ -1592,19 +1610,19 @@ describe("Task 3.1 cold-review closure", () => {
         ...evaluationVerdict,
         completedRuns: 1899,
         unavailableRuns: 51,
-        signature: "eEt_wJfDeZeVIm7zCXvGy-AAOdChNoXxeF5JZ7T6D8v0_SKRoOtnD8WFMn7zQvemS7KuZAJ-JGt4d3rpB9wEDg",
+        signature: "XpYDs8d3M0y6gH5J4ecKzv4EHpCJvYVtZqOwsS5nB3tijVNKq536zDKZp29OKbKbJskwRKO-kVq7jOAZdzrBBg",
       },
       {
         ...evaluationVerdict,
         unavailableRuns: 49,
         notRunRuns: 51,
-        signature: "AEuWL-Z_xz5YtsauGG3p4QbUhE9NjVV8xxnZNNfSfyLbizaaoBjcFB8F3TE3YqZOSDozcyhoRKsEzWONnyPXCg",
+        signature: "OmKTUJyOtRkZKViBD-1FVRXRZrWnP3e9lDCtwk8B6tqfdblhUsJlTeP5Olp6Jzo7DwLlIZLubfaqmBz6vgU9AA",
       },
       {
         ...evaluationVerdict,
         completedRuns: 1899,
         notRunRuns: 51,
-        signature: "IrtC36erMkt-l8PmBxmDEPLZOIq-IvT-0yef7mfZWU4tRQRYI4PqUMTzffTlE3DHROHHwZEx7KoKQKgS9PAxDw",
+        signature: "-C7YHlO3JXzISJ7ptAGso0qAJF2eVMSNjvd_pNe0b-hCCG_dTwIht8ZFJ8pUfAPNtk5QQOeBDTlCXLvYs_LvBw",
       },
     ] as const;
     for (const receipt of cases) {

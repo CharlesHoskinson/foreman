@@ -32,9 +32,9 @@ integration only, and esbuild for generated runtime bundles.
   and deadline `2026-08-31T02:56:46Z`.
 - The family uses `wallTimeMs=5184000000` and `totalActions=4096`.
 - The pinned user-approval key fingerprint is
-  `00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b`.
+  `454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c`.
 - The pinned host-audit key fingerprint is
-  `6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397`.
+  `205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b`.
 - The evaluation child uses exactly 2,000 `evaluate` actions,
   `totalActions<=2048`, `wallTimeMs=3888000000`, and
   `noProgressMs=3600000`.

@@ -138,10 +138,10 @@ The release pins these immutable Ed25519 SPKI authorities. Values are unpadded
 base64url DER. The fingerprint is SHA-256 of the decoded DER bytes.
 
 ```text
-userApprovalPublicKey=MCowBQYDK2VwAyEAO8-4GwgS_8uYB2jDodT5o_uBbouplzoQ8a-yOnTfk3w
-userApprovalKeySha256=00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b
-hostAuditPublicKey=MCowBQYDK2VwAyEAy30qjfPmsvJwWrNR50xAC39DCZUvjJgyg3bMdY84Zko
-hostAuditKeySha256=6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397
+userApprovalPublicKey=MCowBQYDK2VwAyEAhYttcX7HTnczgb7-4HJyKNK6mU__uZmRGAabOV0EJUI
+userApprovalKeySha256=454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c
+hostAuditPublicKey=MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY
+hostAuditKeySha256=205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b
 ```
 
 Private keys stay under host-owned external state and are not copied or mounted
@@ -238,7 +238,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly approvedOpenSpecSha256: string;
       readonly taskPlanSha256: string;
       readonly approvalStatementSha256: string;
-      readonly issuerKeySha256: "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b";
+      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
       readonly signature: string;
     }
@@ -249,7 +249,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly candidate: ReleaseCandidateIdentityV1;
       readonly status: "PASS" | "FAIL";
       readonly checksSha256: string;
-      readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+      readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
       readonly issuedAt: string;
       readonly signature: string;
     }
@@ -261,7 +261,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly verdict: "APPROVED" | "WARNING" | "BLOCKED" | "UNVERIFIED";
       readonly findings: readonly ReleaseAuditFindingV1[];
       readonly evidenceSha256: string;
-      readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+      readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
       readonly issuedAt: string;
       readonly signature: string;
     }
@@ -273,7 +273,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly questionSha256: string;
       readonly constraintsSha256: string;
       readonly optionsSha256: string;
-      readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+      readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
       readonly issuedAt: string;
       readonly signature: string;
     }
@@ -282,7 +282,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly program: "v040";
       readonly packageId: "graph-eval-falsification";
       readonly manifestSha256: string;
-      readonly issuerKeySha256: "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b";
+      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
       readonly signature: string;
     };
@@ -302,7 +302,7 @@ export type ReleaseActionOutcomeV1 = {
   readonly candidateSha256: string;
   readonly status: "PASS" | "BLOCKING" | "EXTERNAL_FAILURE";
   readonly evidenceSha256: string;
-  readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
   readonly signature: string;
 };
@@ -322,7 +322,7 @@ export type ReleaseCouncilOutcomeV1 = {
   readonly requestSha256: string;
   readonly decisionSha256: string;
   readonly status: "ADVICE" | "BLOCKING";
-  readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
   readonly signature: string;
 };
@@ -349,7 +349,7 @@ export type ReleaseEvaluationVerdictV1 = {
   readonly notRunRuns: number;
   readonly runSetSha256: string;
   readonly reportSha256: string;
-  readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
   readonly signature: string;
 };
@@ -363,7 +363,7 @@ export type ExecutionChildTerminalApprovalV1 =
       readonly familySha256: string;
       readonly childId: string;
       readonly reasonSha256: string;
-      readonly issuerKeySha256: "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b";
+      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
       readonly signature: string;
     }
@@ -376,14 +376,14 @@ export type ExecutionChildTerminalApprovalV1 =
       readonly childId: string;
       readonly observedFamilySha256: string;
       readonly reasonSha256: string;
-      readonly issuerKeySha256: "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b";
+      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
       readonly signature: string;
     };
 
 export type ReleaseAuthorityKeySha256V1 =
-  | "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b"
-  | "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  | "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c"
+  | "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
 
 export type RegisteredReleaseAuthorityV1 = {
   readonly rootContractId: string;
@@ -458,7 +458,7 @@ export type ReleaseEvidenceBundleV1 = {
   readonly taskPlanSha256: string;
   readonly receipts: readonly ReleaseAuthorityReceiptV1[];
   readonly priorReservation?: FailedReservationAuthorityV1;
-  readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
   readonly signature: string;
 };
@@ -721,10 +721,10 @@ export type ExecutionContractFamilyV2 = {
   readonly deadlineAt: string;
   readonly wallTimeMs: 5184000000;
   readonly totalActions: 4096;
-  readonly userApprovalPublicKey: "MCowBQYDK2VwAyEAO8-4GwgS_8uYB2jDodT5o_uBbouplzoQ8a-yOnTfk3w";
-  readonly userApprovalKeySha256: "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b";
-  readonly hostAuditPublicKey: "MCowBQYDK2VwAyEAy30qjfPmsvJwWrNR50xAC39DCZUvjJgyg3bMdY84Zko";
-  readonly hostAuditKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  readonly userApprovalPublicKey: "MCowBQYDK2VwAyEAhYttcX7HTnczgb7-4HJyKNK6mU__uZmRGAabOV0EJUI";
+  readonly userApprovalKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
+  readonly hostAuditPublicKey: "MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY";
+  readonly hostAuditKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly children: readonly ExecutionChildContractV2[];
 };
 
@@ -738,7 +738,7 @@ export type ExecutionFamilyAuditReceiptV1 = {
   readonly verdict: "APPROVED";
   readonly findings: readonly [];
   readonly evidenceSha256: string;
-  readonly issuerKeySha256: "6d6ad713d16b7803dddbe84a449f6df798455e4494b22a9da6bf96d043b42397";
+  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
   readonly signature: string;
 };
@@ -751,7 +751,7 @@ export type ExecutionFamilyUserApprovalV1 = {
   readonly track1Commit: string;
   readonly track1Tree: string;
   readonly approvalStatementSha256: string;
-  readonly issuerKeySha256: "00f3a61e60f4e7c066a13b9d8b98617ce015a40a0fd922f0a4af975c03d3ca3b";
+  readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
   readonly issuedAt: string;
   readonly signature: string;
 };
