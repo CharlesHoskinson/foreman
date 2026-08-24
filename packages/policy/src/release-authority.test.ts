@@ -474,3 +474,59 @@ void buildApprovedOpenSpecManifestV1;
 void compileTypeBindings;
 void producerSources;
 void WRONG_ROLE_SIGNATURES;
+
+const cloneRecord = (value: unknown): Record<string, unknown> =>
+  structuredClone(value) as Record<string, unknown>;
+
+const expectParseInvalid = (value: unknown): void => {
+  assert.deepEqual(parseReleaseAuthorityObjectV1(value), { _tag: "Invalid" });
+};
+
+const expectFileInvalid = (bytes: Uint8Array): void => {
+  assert.deepEqual(decodeReleaseAuthorityFileV1(bytes), { _tag: "Invalid" });
+};
+
+describe("release authority objects use closed top-level schemas", () => {
+  for (const artifact of signedArtifacts) {
+    describe(artifact.schema, () => {
+      for (const key of Object.keys(artifact)) {
+        it(`rejects missing ${key}`, () => {
+          const mutant = cloneRecord(artifact);
+          delete mutant[key];
+          expectParseInvalid(mutant);
+        });
+
+        it(`rejects wrong-type ${key}`, () => {
+          const mutant = cloneRecord(artifact);
+          mutant[key] = null;
+          expectParseInvalid(mutant);
+        });
+      }
+
+      it("rejects an extra key", () => {
+        expectParseInvalid({ ...artifact, unexpected: true });
+      });
+    });
+  }
+
+  it("rejects an unknown schema", () => {
+    expectParseInvalid({ ...designReceipt, schema: "foreman.unknown.v1" });
+  });
+
+  it("rejects inherited authority fields", () => {
+    expectParseInvalid(Object.create(designReceipt) as unknown);
+  });
+
+  for (const [name, value] of [
+    ["null", null],
+    ["array", []],
+    ["date", new Date(0)],
+    ["map", new Map()],
+  ] as const) {
+    it(`rejects non-plain ${name}`, () => {
+      expectParseInvalid(value);
+    });
+  }
+});
+
+void expectFileInvalid;
