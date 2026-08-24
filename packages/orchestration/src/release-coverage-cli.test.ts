@@ -2287,19 +2287,27 @@ function gitIn(
   repository: string,
   args: readonly string[],
 ): ReturnType<typeof spawnSync> {
+  const inherited = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name, value]) =>
+        value !== undefined && !name.toUpperCase().startsWith("GIT_"),
+    ),
+  ) as NodeJS.ProcessEnv;
   return spawnSync("git", args, {
     cwd: repository,
     encoding: "utf8",
     timeout: GIT_TEST_TIMEOUT_MS,
     maxBuffer: ONE_MIB,
     env: {
-      ...process.env,
+      ...inherited,
       GIT_AUTHOR_NAME: "release-coverage",
       GIT_AUTHOR_EMAIL: "release-coverage@example.com",
       GIT_COMMITTER_NAME: "release-coverage",
       GIT_COMMITTER_EMAIL: "release-coverage@example.com",
       GIT_TERMINAL_PROMPT: "0",
       GIT_OPTIONAL_LOCKS: "0",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_GLOBAL: devNull,
     },
   });
 }
@@ -2317,7 +2325,18 @@ test("live gitChangedPaths.discover returns planning changes without duplicates"
   const repository = join(temporary, "repo");
   try {
     mkdirSync(repository);
-    assertGitOk(gitIn(repository, ["init"]), "git init");
+    const emptyTemplate = join(temporary, "empty-template");
+    const emptyHooks = join(temporary, "empty-hooks");
+    mkdirSync(emptyTemplate);
+    mkdirSync(emptyHooks);
+    assertGitOk(
+      gitIn(repository, [
+        "init",
+        "--object-format=sha1",
+        `--template=${emptyTemplate}`,
+      ]),
+      "git init",
+    );
     assertGitOk(
       gitIn(repository, ["config", "user.email", "release-coverage@example.com"]),
       "git config email",
@@ -2330,6 +2349,18 @@ test("live gitChangedPaths.discover returns planning changes without duplicates"
       gitIn(repository, ["config", "commit.gpgsign", "false"]),
       "git config gpgsign",
     );
+    assertGitOk(
+      gitIn(repository, ["config", "core.hooksPath", emptyHooks]),
+      "git config hooks",
+    );
+    assertGitOk(
+      gitIn(repository, ["config", "core.excludesFile", devNull]),
+      "git config excludes",
+    );
+    assertGitOk(
+      gitIn(repository, ["config", "core.fsmonitor", "false"]),
+      "git config fsmonitor",
+    );
 
     const specsRoot = join(repository, "docs", "superpowers", "specs");
     const plansRoot = join(repository, "docs", "superpowers", "plans");
@@ -2340,6 +2371,10 @@ test("live gitChangedPaths.discover returns planning changes without duplicates"
     writeFileSync(join(repository, "README.md"), "seed readme\n");
     writeFileSync(join(specsRoot, "to-delete.md"), "delete me\n");
     writeFileSync(join(plansRoot, "to-rename.md"), "rename me\n");
+    writeFileSync(
+      join(repository, ".gitignore"),
+      "docs/superpowers/plans/untracked.md\n",
+    );
     assertGitOk(gitIn(repository, ["add", "-A"]), "git add seed");
     assertGitOk(gitIn(repository, ["commit", "-m", "baseline"]), "git commit baseline");
     const baseline = (gitIn(repository, ["rev-parse", "HEAD"]).stdout ?? "").trim();
