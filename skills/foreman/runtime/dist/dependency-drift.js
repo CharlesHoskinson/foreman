@@ -17029,10 +17029,20 @@ function reconcileDependencyDrift(input) {
   }
   for (const id of sortedUnique(manifestIds)) {
     if (PSEUDO_IDS.has(id)) continue;
+    if (manifestRequired.has(id)) continue;
     if (!checkerIds.includes(id)) {
       stdout.push(
         `INFO  manifest declares "${id}" but env/tool-check.sh does not report it`
       );
+    }
+  }
+  for (const id of sortedUnique(manifestRequired)) {
+    if (PSEUDO_IDS.has(id)) continue;
+    if (!checkerIds.includes(id)) {
+      stdout.push(
+        `DRIFT env/reference-manifest.toml marks '${id}' required = true but env/tool-check.sh does not report it at all, so a host without it still reports READY`
+      );
+      drift = true;
     }
   }
   for (const id of checkerIds) {

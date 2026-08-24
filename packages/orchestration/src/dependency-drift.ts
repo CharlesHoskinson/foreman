@@ -319,13 +319,25 @@ export function reconcileDependencyDrift(
     }
   }
 
-  // 2. Manifest-only ids → INFO (not drift).
+  // 2. Optional manifest-only ids → INFO (not drift).
   for (const id of sortedUnique(manifestIds)) {
     if (PSEUDO_IDS.has(id)) continue;
+    if (manifestRequired.has(id)) continue;
     if (!checkerIds.includes(id)) {
       stdout.push(
         `INFO  manifest declares "${id}" but env/tool-check.sh does not report it`,
       );
+    }
+  }
+
+  // 2b. Required manifest ids with no checker coverage at all → DRIFT.
+  for (const id of sortedUnique(manifestRequired)) {
+    if (PSEUDO_IDS.has(id)) continue;
+    if (!checkerIds.includes(id)) {
+      stdout.push(
+        `DRIFT env/reference-manifest.toml marks '${id}' required = true but env/tool-check.sh does not report it at all, so a host without it still reports READY`,
+      );
+      drift = true;
     }
   }
 

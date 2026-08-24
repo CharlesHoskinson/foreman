@@ -28,21 +28,6 @@ Status: `open` · `fixed-unlanded` (fixed locally, not on `main`) · `blocked`
 
 ## Open
 
-### BW-002 — `dependencies/check-drift.sh` cannot detect a missing port
-
-`open` · carried from `docs/evidence/w1/2026-08-08-regime-coverage.md` §5
-
-Both mechanisms that exist to catch a dependency declared in the manifest but
-dropped from the TypeScript side stayed green after `sqlite3`'s entire
-declaration was deleted. `check-drift.sh` classifies a manifest-only tool as
-`INFO` by design; `tests/durable-preflight.bats` test 8 is scoped to
-`(coreutils, nats-cli)` and never looks at `sqlite3`. The W1 record states
-plainly: "This is a gate that cannot fail, and it is not fixed."
-
-```bash
-bash dependencies/check-drift.sh; echo "exit: $?"
-```
-
 ### BW-003 — the `sqlite3` manifest contradiction
 
 `open` · carried from the v0.3.0 design doc §7.2
