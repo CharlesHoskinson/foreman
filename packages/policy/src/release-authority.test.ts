@@ -7,10 +7,13 @@ import { canonicalize } from "@foreman/core";
 import {
   buildApprovedOpenSpecManifestV1,
   decodeReleaseAuthorityFileV1,
+  validateApprovedOpenSpecManifestV1,
   decodeReleaseProducerSourceFileV1,
   parseReleaseAuthorityObjectV1,
   releaseAuthoritySignaturePreimageV1,
   verifyReleaseSourceReceiptBindingV1,
+  type ApprovedOpenSpecManifestBuildResultV1,
+  type ApprovedOpenSpecManifestValidationResultV1,
   type ApprovedOpenSpecManifestV1,
   type ExecutionChildTerminalApprovalV1,
   type ReleaseActionOutcomeV1,
@@ -334,6 +337,8 @@ const producerSources = [
 
 const compileTypeBindings: {
   readonly manifest: ApprovedOpenSpecManifestV1 | null;
+  readonly manifestBuild: ApprovedOpenSpecManifestBuildResultV1 | null;
+  readonly manifestValidation: ApprovedOpenSpecManifestValidationResultV1 | null;
   readonly action: ReleaseActionV1;
   readonly objectResult: ReleaseAuthorityObjectParseResultV1 | null;
   readonly fileResult: ReleaseAuthorityFileDecodeResultV1 | null;
@@ -341,6 +346,8 @@ const compileTypeBindings: {
   readonly bindingResult: ReleaseSourceReceiptBindingResultV1 | null;
 } = {
   manifest: null,
+  manifestBuild: null,
+  manifestValidation: null,
   action: "verify",
   objectResult: null,
   fileResult: null,
@@ -986,4 +993,169 @@ describe("release producer receipts copy every authoritative field", () => {
       );
     });
   }
+});
+
+describe("approved OpenSpec manifest", () => {
+  const architecturalFiles = [
+    { path: "design.md", bytes: utf8("design\r\n") },
+    { path: "proposal.md", bytes: utf8("proposal\n") },
+    { path: "specs/a/spec.md", bytes: utf8("alpha\n") },
+    { path: "specs/nested/z.md", bytes: utf8("zeta\n") },
+  ] as const;
+  const architecturalWithoutDesign = architecturalFiles.slice(1);
+  const boundedFiles = [
+    { path: "proposal.md", bytes: utf8("proposal\n") },
+    { path: "specs/a/spec.md", bytes: utf8("alpha\n") },
+  ] as const;
+
+  it("builds the exact architectural manifest and digest", () => {
+    const result = buildApprovedOpenSpecManifestV1({
+      workflow: "foreman-architectural",
+      files: architecturalFiles,
+    });
+    assert.equal(result._tag, "Valid");
+    if (result._tag === "Valid") {
+      assert.deepEqual(
+        result.manifest.files.map((row) => row.path),
+        architecturalFiles.map((row) => row.path),
+      );
+      for (let index = 0; index < architecturalFiles.length; index += 1) {
+        assert.equal(
+          result.manifest.files[index]?.sha256,
+          sha256Hex(architecturalFiles[index]!.bytes),
+        );
+      }
+      assert.equal(
+        result.sha256,
+        sha256Hex(utf8(canonicalize(result.manifest))),
+      );
+      assert.equal(
+        validateApprovedOpenSpecManifestV1({
+          workflow: "foreman-architectural",
+          manifest: result.manifest,
+          files: architecturalFiles,
+        })._tag,
+        "Valid",
+      );
+      assert.equal(
+        result.manifest.files.some((row) => row.path === "tasks.md"),
+        false,
+      );
+    }
+  });
+
+  for (const [name, workflow, files] of [
+    ["architectural without design", "foreman-architectural", architecturalWithoutDesign],
+    ["bounded without design", "foreman-bounded", boundedFiles],
+  ] as const) {
+    it("accepts " + name, () => {
+      assert.equal(
+        buildApprovedOpenSpecManifestV1({ workflow, files })._tag,
+        "Valid",
+      );
+    });
+  }
+
+  it("binds raw CRLF and LF bytes differently", () => {
+    const lfFiles = [
+      { path: "proposal.md", bytes: utf8("proposal\n") },
+      { path: "specs/a.md", bytes: utf8("line\n") },
+    ] as const;
+    const crlfFiles = [
+      { path: "proposal.md", bytes: utf8("proposal\n") },
+      { path: "specs/a.md", bytes: utf8("line\r\n") },
+    ] as const;
+    const lf = buildApprovedOpenSpecManifestV1({
+      workflow: "foreman-bounded",
+      files: lfFiles,
+    });
+    const crlf = buildApprovedOpenSpecManifestV1({
+      workflow: "foreman-bounded",
+      files: crlfFiles,
+    });
+    assert.equal(lf._tag, "Valid");
+    assert.equal(crlf._tag, "Valid");
+    if (lf._tag === "Valid" && crlf._tag === "Valid") {
+      assert.notEqual(lf.manifest.files[1]?.sha256, crlf.manifest.files[1]?.sha256);
+      assert.notEqual(lf.sha256, crlf.sha256);
+    }
+  });
+
+  it("uses UTF-8 byte path order, not UTF-16 order", () => {
+    const files = [
+      { path: "proposal.md", bytes: utf8("proposal\n") },
+      { path: "specs/\uE000.md", bytes: utf8("private\n") },
+      { path: "specs/\u{10000}.md", bytes: utf8("non-bmp\n") },
+    ] as const;
+    assert.equal(
+      Buffer.from(files[1].path).compare(Buffer.from(files[2].path)) < 0,
+      true,
+    );
+    assert.equal(
+      buildApprovedOpenSpecManifestV1({
+        workflow: "foreman-bounded",
+        files,
+      })._tag,
+      "Valid",
+    );
+    assert.equal(
+      buildApprovedOpenSpecManifestV1({
+        workflow: "foreman-bounded",
+        files: [files[0], files[2], files[1]],
+      })._tag,
+      "Invalid",
+    );
+  });
+
+  const invalidBuilds: Array<readonly [string, {
+    readonly workflow: "foreman-architectural" | "foreman-bounded";
+    readonly files: readonly { readonly path: string; readonly bytes: Uint8Array }[];
+  }]> = [
+    ["unsorted", { workflow: "foreman-bounded", files: [boundedFiles[1], boundedFiles[0]] }],
+    ["duplicate", { workflow: "foreman-bounded", files: [boundedFiles[0], boundedFiles[1], boundedFiles[1]] }],
+    ["absolute", { workflow: "foreman-bounded", files: [{ path: "/proposal.md", bytes: utf8("x") }, boundedFiles[1]] }],
+    ["drive absolute", { workflow: "foreman-bounded", files: [{ path: "C:/proposal.md", bytes: utf8("x") }, boundedFiles[1]] }],
+    ["backslash", { workflow: "foreman-bounded", files: [{ path: "proposal.md", bytes: utf8("x") }, { path: "specs\\a.md", bytes: utf8("x") }] }],
+    ["dot segment", { workflow: "foreman-bounded", files: [{ path: "proposal.md", bytes: utf8("x") }, { path: "specs/./a.md", bytes: utf8("x") }] }],
+    ["escaping", { workflow: "foreman-bounded", files: [{ path: "../proposal.md", bytes: utf8("x") }, boundedFiles[1]] }],
+    ["missing proposal", { workflow: "foreman-bounded", files: [boundedFiles[1]] }],
+    ["missing specs", { workflow: "foreman-bounded", files: [boundedFiles[0]] }],
+    ["tasks included", { workflow: "foreman-bounded", files: [boundedFiles[0], boundedFiles[1], { path: "tasks.md", bytes: utf8("tasks") }] }],
+    ["bounded design", { workflow: "foreman-bounded", files: [{ path: "design.md", bytes: utf8("design") }, boundedFiles[0], boundedFiles[1]] }],
+    ["non-markdown spec", { workflow: "foreman-bounded", files: [boundedFiles[0], { path: "specs/a.txt", bytes: utf8("x") }] }],
+    ["extra package path", { workflow: "foreman-bounded", files: [boundedFiles[0], { path: "README.md", bytes: utf8("x") }, boundedFiles[1]] }],
+  ];
+  for (const [name, input] of invalidBuilds) {
+    it("rejects build " + name, () => {
+      assert.deepEqual(buildApprovedOpenSpecManifestV1(input), { _tag: "Invalid" });
+    });
+  }
+
+  it("rejects malformed or mismatched manifest rows", () => {
+    const built = buildApprovedOpenSpecManifestV1({
+      workflow: "foreman-bounded",
+      files: boundedFiles,
+    });
+    assert.equal(built._tag, "Valid");
+    if (built._tag !== "Valid") return;
+    const rows = built.manifest.files;
+    const invalidManifests: readonly ApprovedOpenSpecManifestV1[] = [
+      { ...built.manifest, files: [...rows].reverse() },
+      { ...built.manifest, files: [rows[0]!, rows[1]!, rows[1]!] },
+      { ...built.manifest, files: [rows[0]!] },
+      { ...built.manifest, files: [...rows, { path: "specs/z.md", sha256: shaA }] },
+      { ...built.manifest, files: [{ ...rows[0]!, sha256: shaA }, rows[1]!] },
+      { ...built.manifest, schema: "foreman.other.v1" as ApprovedOpenSpecManifestV1["schema"] },
+    ];
+    for (const manifest of invalidManifests) {
+      assert.deepEqual(
+        validateApprovedOpenSpecManifestV1({
+          workflow: "foreman-bounded",
+          manifest,
+          files: boundedFiles,
+        }),
+        { _tag: "Invalid" },
+      );
+    }
+  });
 });
