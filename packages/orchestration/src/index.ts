@@ -9,15 +9,32 @@
 
 export {
   decodeExecutionContractV1,
+  decodeExecutionContractFamilyV2,
+  decodeExecutionFamilySourceFileV1,
+  decodeExecutionFamilySourceV1,
+  deriveExecutionContractFamilyV2,
+  executionChildPathMatchesV1,
+  executionContractFamilySha256,
   executionContractSha256,
   executionMilestones,
   isExecutionContractFailure,
+  isExecutionFamilyFailure,
   strictEndstopLimits,
   type ExecutionContractFailure,
   type ExecutionContractFailureReason,
   type ExecutionContractV1,
+  type ExecutionChildBriefV1,
+  type ExecutionChildContractV2,
+  type ExecutionChildLimitsV2,
+  type ExecutionContractFamilyV2,
+  type ExecutionFamilyDerivationV2,
+  type ExecutionFamilyFailure,
+  type ExecutionFamilyFailureReason,
+  type ExecutionFamilySourceV1,
   type ExecutionLimitsV1,
   type ExecutionMilestone,
+  type EvaluationChildLimitsV2,
+  type StandardChildLimitsV2,
 } from "./execution-contract.js";
 
 export {

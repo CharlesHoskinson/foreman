@@ -1,10 +1,14 @@
 import {
   canonicalize,
+  decodeUtf8Fatal,
   isCommitSha40,
+  isCoreFailure,
   isSha256Hex,
+  parseJsonRejectDuplicateKeys,
   sha256Hex,
 } from "@foreman/core";
 import { decodeRunId, isUtcSecondTimestamp } from "@foreman/event-log";
+import type { ReleasePackageBriefV1 } from "@foreman/policy";
 
 export const executionMilestones = [
   "checks",
@@ -303,4 +307,711 @@ export function decodeExecutionContractV1(
 
 export function executionContractSha256(contract: ExecutionContractV1): string {
   return sha256Hex(canonicalize(contract));
+}
+
+export type ExecutionChildBriefV1 = {
+  readonly schema: "foreman.execution-child-brief.v1";
+  readonly childId: string;
+  readonly tranche: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  readonly packageId: string;
+  readonly dependencyChildIds: readonly string[];
+  readonly objective: string;
+  readonly acceptance: readonly string[];
+  readonly allowedPaths: readonly string[];
+};
+
+export type ExecutionFamilySourceV1 = {
+  readonly schema: "foreman.execution-family-source.v1";
+  readonly program: "v040";
+  readonly familyId: "v040-release-20260822-f1";
+  readonly children: readonly ExecutionChildBriefV1[];
+};
+
+export type StandardChildLimitsV2 = {
+  readonly kind: "standard";
+  readonly implementationRounds: 30;
+  readonly correctionRounds: 20;
+  readonly auditRounds: 20;
+  readonly councilRounds: 10;
+  readonly providerRetries: 10;
+  readonly resumeAttempts: 10;
+  readonly verificationRunsPerCandidate: 5;
+  readonly totalActions: 100;
+  readonly wallTimeMs: 1_209_600_000;
+  readonly noProductChangeMs: 259_200_000;
+};
+
+export type EvaluationChildLimitsV2 = {
+  readonly kind: "evaluation";
+  readonly implementationRounds: 10;
+  readonly correctionRounds: 5;
+  readonly auditRounds: 10;
+  readonly councilRounds: 5;
+  readonly providerRetries: 8;
+  readonly resumeAttempts: 5;
+  readonly verificationRunsPerCandidate: 3;
+  readonly evaluationRuns: 2000;
+  readonly totalActions: 2048;
+  readonly wallTimeMs: 3_888_000_000;
+  readonly noProgressMs: 3_600_000;
+};
+
+export type ExecutionChildLimitsV2 =
+  | StandardChildLimitsV2
+  | EvaluationChildLimitsV2;
+
+export type ExecutionChildContractV2 = {
+  readonly childId: string;
+  readonly tranche: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  readonly packageId: string;
+  readonly objectiveSha256: string;
+  readonly acceptanceSha256: string;
+  readonly allowedPathsSha256: string;
+  readonly dependencyChildIds: readonly string[];
+  readonly deadlineAt: string;
+  readonly limits: ExecutionChildLimitsV2;
+  readonly requiredMilestones: readonly ExecutionMilestone[];
+};
+
+export type ExecutionContractFamilyV2 = {
+  readonly schemaVersion: 2;
+  readonly familyId: "v040-release-20260822-f1";
+  readonly rootContractId: string;
+  readonly rootContractSha256: string;
+  readonly track1Commit: string;
+  readonly track1Tree: string;
+  readonly sourceSha256: string;
+  readonly createdAt: string;
+  readonly deadlineAt: string;
+  readonly wallTimeMs: 5_184_000_000;
+  readonly totalActions: 4096;
+  readonly children: readonly ExecutionChildContractV2[];
+};
+
+export type ExecutionFamilyFailureReason =
+  | "invalid_source"
+  | "invalid_manifest"
+  | "invalid_identity"
+  | "invalid_digest"
+  | "invalid_git_identity"
+  | "invalid_timestamp"
+  | "invalid_deadline"
+  | "invalid_children"
+  | "invalid_content"
+  | "invalid_paths"
+  | "invalid_limits";
+
+export type ExecutionFamilyFailure = {
+  readonly _tag: "ExecutionFamilyFailure";
+  readonly reason: ExecutionFamilyFailureReason;
+};
+
+export type ExecutionFamilyDerivationV2 =
+  | {
+      readonly _tag: "Valid";
+      readonly source: ExecutionFamilySourceV1;
+      readonly manifest: ExecutionContractFamilyV2;
+      readonly familySha256: string;
+      readonly briefs: Readonly<Record<string, ReleasePackageBriefV1>>;
+    }
+  | { readonly _tag: "Invalid"; readonly reason: ExecutionFamilyFailureReason };
+
+const FAMILY_ID = "v040-release-20260822-f1" as const;
+const FAMILY_WALL_TIME_MS = 5_184_000_000 as const;
+const FAMILY_TOTAL_ACTIONS = 4096 as const;
+const FAMILY_SOURCE_MAX_BYTES = 1_048_576;
+const textEncoder = new TextEncoder();
+
+const standardChildLimits: StandardChildLimitsV2 = {
+  kind: "standard",
+  implementationRounds: 30,
+  correctionRounds: 20,
+  auditRounds: 20,
+  councilRounds: 10,
+  providerRetries: 10,
+  resumeAttempts: 10,
+  verificationRunsPerCandidate: 5,
+  totalActions: 100,
+  wallTimeMs: 1_209_600_000,
+  noProductChangeMs: 259_200_000,
+};
+
+const evaluationChildLimits: EvaluationChildLimitsV2 = {
+  kind: "evaluation",
+  implementationRounds: 10,
+  correctionRounds: 5,
+  auditRounds: 10,
+  councilRounds: 5,
+  providerRetries: 8,
+  resumeAttempts: 5,
+  verificationRunsPerCandidate: 3,
+  evaluationRuns: 2000,
+  totalActions: 2048,
+  wallTimeMs: 3_888_000_000,
+  noProgressMs: 3_600_000,
+};
+
+const expectedFamilyChildren = [
+  {
+    tranche: 2,
+    childId: "v040-t2-project-registry",
+    packageId: "project-registry",
+    dependencyChildIds: [],
+  },
+  {
+    tranche: 3,
+    childId: "v040-t3-memory-index",
+    packageId: "external-memory-index",
+    dependencyChildIds: ["v040-t2-project-registry"],
+  },
+  {
+    tranche: 4,
+    childId: "v040-t4-appliance",
+    packageId: "hermetic-foreman-appliance",
+    dependencyChildIds: [],
+  },
+  {
+    tranche: 5,
+    childId: "v040-t5-graphify",
+    packageId: "knowledge-plane-refresh",
+    dependencyChildIds: [],
+  },
+  {
+    tranche: 6,
+    childId: "v040-t6-work-dag",
+    packageId: "work-dag-projection",
+    dependencyChildIds: ["v040-t5-graphify"],
+  },
+  {
+    tranche: 7,
+    childId: "v040-t7-context",
+    packageId: "graph-context-builder",
+    dependencyChildIds: ["v040-t6-work-dag"],
+  },
+  {
+    tranche: 8,
+    childId: "v040-t8-evaluation",
+    packageId: "graph-eval-falsification",
+    dependencyChildIds: [
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t7-context",
+    ],
+  },
+  {
+    tranche: 9,
+    childId: "v040-t9-release",
+    packageId: "v040-release-program",
+    dependencyChildIds: [
+      "v040-t2-project-registry",
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t5-graphify",
+      "v040-t6-work-dag",
+      "v040-t7-context",
+      "v040-t8-evaluation",
+    ],
+  },
+] as const satisfies readonly Pick<
+  ExecutionChildBriefV1,
+  "tranche" | "childId" | "packageId" | "dependencyChildIds"
+>[];
+
+const familySourceKeys = new Set(["schema", "program", "familyId", "children"]);
+const childBriefKeys = new Set([
+  "schema",
+  "childId",
+  "tranche",
+  "packageId",
+  "dependencyChildIds",
+  "objective",
+  "acceptance",
+  "allowedPaths",
+]);
+const familyManifestKeys = new Set([
+  "schemaVersion",
+  "familyId",
+  "rootContractId",
+  "rootContractSha256",
+  "track1Commit",
+  "track1Tree",
+  "sourceSha256",
+  "createdAt",
+  "deadlineAt",
+  "wallTimeMs",
+  "totalActions",
+  "children",
+]);
+const childContractKeys = new Set([
+  "childId",
+  "tranche",
+  "packageId",
+  "objectiveSha256",
+  "acceptanceSha256",
+  "allowedPathsSha256",
+  "dependencyChildIds",
+  "deadlineAt",
+  "limits",
+  "requiredMilestones",
+]);
+
+function familyFailure(
+  reason: ExecutionFamilyFailureReason,
+): ExecutionFamilyFailure {
+  return { _tag: "ExecutionFamilyFailure", reason };
+}
+
+export function isExecutionFamilyFailure(
+  value: unknown,
+): value is ExecutionFamilyFailure {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { readonly _tag?: unknown })._tag === "ExecutionFamilyFailure"
+  );
+}
+
+function isPlainRecordV2(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasExactKeysV2(
+  value: Record<string, unknown>,
+  keys: ReadonlySet<string>,
+): boolean {
+  const own = Object.keys(value);
+  return own.length === keys.size && own.every((key) => keys.has(key));
+}
+
+function validUnicodeText(value: string): boolean {
+  const decoded = decodeUtf8Fatal(textEncoder.encode(value));
+  return !isCoreFailure(decoded) && decoded === value;
+}
+
+function validBoundedText(
+  value: unknown,
+  maximum: number,
+  allowLf: boolean,
+): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    textEncoder.encode(value).byteLength <= maximum &&
+    validUnicodeText(value) &&
+    !(allowLf ? /[\u0000-\u0009\u000b-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/).test(
+      value,
+    )
+  );
+}
+
+function compareUtf8V2(left: string, right: string): number {
+  const a = textEncoder.encode(left);
+  const b = textEncoder.encode(right);
+  const length = Math.min(a.byteLength, b.byteLength);
+  for (let index = 0; index < length; index += 1) {
+    const difference = a[index]! - b[index]!;
+    if (difference !== 0) return difference;
+  }
+  return a.byteLength - b.byteLength;
+}
+
+function validAllowedPath(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !/^[\x21-\x7e]+$/.test(value) ||
+    value.startsWith("/") ||
+    /^[A-Za-z]:/.test(value) ||
+    value.includes("\\")
+  ) {
+    return false;
+  }
+  const prefix = value.endsWith("/**");
+  const base = prefix ? value.slice(0, -3) : value;
+  if (base.length === 0 || /[*?[\]{}]/.test(base)) return false;
+  const segments = base.split("/");
+  return segments.every(
+    (segment) => segment.length > 0 && segment !== "." && segment !== "..",
+  );
+}
+
+export function executionChildPathMatchesV1(
+  allowedPath: string,
+  changedPath: string,
+): boolean {
+  if (!validAllowedPath(allowedPath) || !validAllowedPath(changedPath)) {
+    return false;
+  }
+  if (!allowedPath.endsWith("/**")) return allowedPath === changedPath;
+  const prefix = allowedPath.slice(0, -2);
+  return changedPath.startsWith(prefix) && changedPath.length > prefix.length;
+}
+
+function sameStrings(
+  value: unknown,
+  expected: readonly string[],
+): value is readonly string[] {
+  return (
+    Array.isArray(value) &&
+    value.length === expected.length &&
+    value.every((item, index) => item === expected[index])
+  );
+}
+
+function decodeChildBriefV1(
+  value: unknown,
+  expected: (typeof expectedFamilyChildren)[number],
+): ExecutionChildBriefV1 | ExecutionFamilyFailure {
+  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
+    return familyFailure("invalid_children");
+  }
+  if (
+    value.schema !== "foreman.execution-child-brief.v1" ||
+    value.childId !== expected.childId ||
+    value.tranche !== expected.tranche ||
+    value.packageId !== expected.packageId ||
+    !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)
+  ) {
+    return familyFailure("invalid_children");
+  }
+  if (!validBoundedText(value.objective, 16_384, true)) {
+    return familyFailure("invalid_content");
+  }
+  if (
+    !Array.isArray(value.acceptance) ||
+    value.acceptance.length < 1 ||
+    value.acceptance.length > 256 ||
+    !value.acceptance.every((item) => validBoundedText(item, 4_096, false))
+  ) {
+    return familyFailure("invalid_content");
+  }
+  if (
+    !Array.isArray(value.allowedPaths) ||
+    value.allowedPaths.length < 1 ||
+    value.allowedPaths.length > 256 ||
+    !value.allowedPaths.every(validAllowedPath)
+  ) {
+    return familyFailure("invalid_paths");
+  }
+  for (let index = 1; index < value.allowedPaths.length; index += 1) {
+    if (compareUtf8V2(value.allowedPaths[index - 1]!, value.allowedPaths[index]!) >= 0) {
+      return familyFailure("invalid_paths");
+    }
+  }
+  return {
+    schema: "foreman.execution-child-brief.v1",
+    childId: expected.childId,
+    tranche: expected.tranche,
+    packageId: expected.packageId,
+    dependencyChildIds: [...expected.dependencyChildIds],
+    objective: value.objective,
+    acceptance: [...value.acceptance] as string[],
+    allowedPaths: [...value.allowedPaths] as string[],
+  };
+}
+
+export function decodeExecutionFamilySourceV1(
+  value: unknown,
+): ExecutionFamilySourceV1 | ExecutionFamilyFailure {
+  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familySourceKeys)) {
+    return familyFailure("invalid_source");
+  }
+  if (
+    value.schema !== "foreman.execution-family-source.v1" ||
+    value.program !== "v040" ||
+    value.familyId !== FAMILY_ID ||
+    !Array.isArray(value.children) ||
+    value.children.length !== expectedFamilyChildren.length
+  ) {
+    return familyFailure("invalid_source");
+  }
+  const children: ExecutionChildBriefV1[] = [];
+  for (const [index, expected] of expectedFamilyChildren.entries()) {
+    const child = decodeChildBriefV1(value.children[index], expected);
+    if (isExecutionFamilyFailure(child)) return child;
+    children.push(child);
+  }
+  return {
+    schema: "foreman.execution-family-source.v1",
+    program: "v040",
+    familyId: FAMILY_ID,
+    children,
+  };
+}
+
+export function decodeExecutionFamilySourceFileV1(
+  bytes: Uint8Array,
+): ExecutionFamilySourceV1 | ExecutionFamilyFailure {
+  try {
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength > FAMILY_SOURCE_MAX_BYTES) {
+      return familyFailure("invalid_source");
+    }
+    const text = decodeUtf8Fatal(bytes);
+    if (isCoreFailure(text) || !text.endsWith("\n") || text.endsWith("\r\n")) {
+      return familyFailure("invalid_source");
+    }
+    const body = text.slice(0, -1);
+    const parsed = parseJsonRejectDuplicateKeys(body);
+    if (isCoreFailure(parsed) || canonicalize(parsed) !== body) {
+      return familyFailure("invalid_source");
+    }
+    return decodeExecutionFamilySourceV1(JSON.parse(body) as unknown);
+  } catch {
+    return familyFailure("invalid_source");
+  }
+}
+
+function expectedChildLimits(
+  tranche: ExecutionChildBriefV1["tranche"],
+): ExecutionChildLimitsV2 {
+  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
+}
+
+function expectedChildMilestones(
+  tranche: ExecutionChildBriefV1["tranche"],
+): readonly ExecutionMilestone[] {
+  return tranche === 9
+    ? ["checks", "audit", "integrated", "published"]
+    : ["checks", "audit", "integrated"];
+}
+
+function samePlainValue(left: unknown, right: unknown): boolean {
+  try {
+    return isPlainRecordV2(left) && canonicalize(left) === canonicalize(right);
+  } catch {
+    return false;
+  }
+}
+
+export function decodeExecutionContractFamilyV2(
+  value: unknown,
+): ExecutionContractFamilyV2 | ExecutionFamilyFailure {
+  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
+    return familyFailure("invalid_manifest");
+  }
+  if (
+    value.schemaVersion !== 2 ||
+    value.familyId !== FAMILY_ID ||
+    value.wallTimeMs !== FAMILY_WALL_TIME_MS ||
+    value.totalActions !== FAMILY_TOTAL_ACTIONS
+  ) {
+    return familyFailure("invalid_manifest");
+  }
+  if (
+    typeof value.rootContractId !== "string" ||
+    typeof decodeRunId(value.rootContractId) !== "string"
+  ) {
+    return familyFailure("invalid_identity");
+  }
+  if (
+    typeof value.rootContractSha256 !== "string" ||
+    typeof value.sourceSha256 !== "string" ||
+    !isSha256Hex(value.rootContractSha256) ||
+    !isSha256Hex(value.sourceSha256)
+  ) {
+    return familyFailure("invalid_digest");
+  }
+  if (
+    typeof value.track1Commit !== "string" ||
+    typeof value.track1Tree !== "string" ||
+    !isCommitSha40(value.track1Commit) ||
+    !isCommitSha40(value.track1Tree)
+  ) {
+    return familyFailure("invalid_git_identity");
+  }
+  if (
+    typeof value.createdAt !== "string" ||
+    typeof value.deadlineAt !== "string" ||
+    !isUtcSecondTimestamp(value.createdAt) ||
+    !isUtcSecondTimestamp(value.deadlineAt)
+  ) {
+    return familyFailure("invalid_timestamp");
+  }
+  if (
+    Date.parse(value.deadlineAt) - Date.parse(value.createdAt) !==
+    FAMILY_WALL_TIME_MS
+  ) {
+    return familyFailure("invalid_deadline");
+  }
+  if (!Array.isArray(value.children) || value.children.length !== 8) {
+    return familyFailure("invalid_children");
+  }
+
+  const children: ExecutionChildContractV2[] = [];
+  for (const [index, expected] of expectedFamilyChildren.entries()) {
+    const raw = value.children[index];
+    if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
+      return familyFailure("invalid_children");
+    }
+    if (
+      raw.childId !== expected.childId ||
+      raw.tranche !== expected.tranche ||
+      raw.packageId !== expected.packageId ||
+      !sameStrings(raw.dependencyChildIds, expected.dependencyChildIds) ||
+      raw.deadlineAt !== value.deadlineAt ||
+      !sameStrings(raw.requiredMilestones, expectedChildMilestones(expected.tranche))
+    ) {
+      return familyFailure("invalid_children");
+    }
+    if (
+      typeof raw.objectiveSha256 !== "string" ||
+      typeof raw.acceptanceSha256 !== "string" ||
+      typeof raw.allowedPathsSha256 !== "string" ||
+      !isSha256Hex(raw.objectiveSha256) ||
+      !isSha256Hex(raw.acceptanceSha256) ||
+      !isSha256Hex(raw.allowedPathsSha256)
+    ) {
+      return familyFailure("invalid_digest");
+    }
+    const limits = expectedChildLimits(expected.tranche);
+    if (!samePlainValue(raw.limits, limits)) {
+      return familyFailure("invalid_limits");
+    }
+    children.push({
+      childId: expected.childId,
+      tranche: expected.tranche,
+      packageId: expected.packageId,
+      objectiveSha256: raw.objectiveSha256,
+      acceptanceSha256: raw.acceptanceSha256,
+      allowedPathsSha256: raw.allowedPathsSha256,
+      dependencyChildIds: [...expected.dependencyChildIds],
+      deadlineAt: value.deadlineAt,
+      limits,
+      requiredMilestones: expectedChildMilestones(expected.tranche),
+    });
+  }
+  return {
+    schemaVersion: 2,
+    familyId: FAMILY_ID,
+    rootContractId: value.rootContractId,
+    rootContractSha256: value.rootContractSha256,
+    track1Commit: value.track1Commit,
+    track1Tree: value.track1Tree,
+    sourceSha256: value.sourceSha256,
+    createdAt: value.createdAt,
+    deadlineAt: value.deadlineAt,
+    wallTimeMs: FAMILY_WALL_TIME_MS,
+    totalActions: FAMILY_TOTAL_ACTIONS,
+    children,
+  };
+}
+
+export function executionContractFamilySha256(
+  family: ExecutionContractFamilyV2,
+): string {
+  return sha256Hex(canonicalize(family));
+}
+
+function canonicalFileSha256V2(value: unknown): string {
+  return sha256Hex(textEncoder.encode(`${canonicalize(value)}\n`));
+}
+
+export function deriveExecutionContractFamilyV2(input: {
+  readonly rootContractId: string;
+  readonly rootContractSha256: string;
+  readonly track1Commit: string;
+  readonly track1Tree: string;
+  readonly sourceBytes: Uint8Array;
+  readonly createdAt: string;
+}): ExecutionFamilyDerivationV2 {
+  try {
+    const source = decodeExecutionFamilySourceFileV1(input.sourceBytes);
+    if (isExecutionFamilyFailure(source)) {
+      return { _tag: "Invalid", reason: source.reason };
+    }
+    if (
+      typeof input.rootContractId !== "string" ||
+      typeof decodeRunId(input.rootContractId) !== "string"
+    ) {
+      return { _tag: "Invalid", reason: "invalid_identity" };
+    }
+    if (!isSha256Hex(input.rootContractSha256)) {
+      return { _tag: "Invalid", reason: "invalid_digest" };
+    }
+    if (
+      !isCommitSha40(input.track1Commit) ||
+      !isCommitSha40(input.track1Tree)
+    ) {
+      return { _tag: "Invalid", reason: "invalid_git_identity" };
+    }
+    if (!isUtcSecondTimestamp(input.createdAt)) {
+      return { _tag: "Invalid", reason: "invalid_timestamp" };
+    }
+    const deadlineMs = Date.parse(input.createdAt) + FAMILY_WALL_TIME_MS;
+    if (!Number.isSafeInteger(deadlineMs)) {
+      return { _tag: "Invalid", reason: "invalid_deadline" };
+    }
+    const deadlineAt = new Date(deadlineMs).toISOString().replace(".000Z", "Z");
+    if (!isUtcSecondTimestamp(deadlineAt)) {
+      return { _tag: "Invalid", reason: "invalid_deadline" };
+    }
+
+    const children: ExecutionChildContractV2[] = source.children.map((child) => ({
+      childId: child.childId,
+      tranche: child.tranche,
+      packageId: child.packageId,
+      objectiveSha256: canonicalFileSha256V2({
+        schema: "foreman.execution-child-objective.v1",
+        childId: child.childId,
+        objective: child.objective,
+      }),
+      acceptanceSha256: canonicalFileSha256V2({
+        schema: "foreman.execution-child-acceptance.v1",
+        childId: child.childId,
+        acceptance: child.acceptance,
+      }),
+      allowedPathsSha256: canonicalFileSha256V2({
+        schema: "foreman.execution-child-paths.v1",
+        childId: child.childId,
+        allowedPaths: child.allowedPaths,
+      }),
+      dependencyChildIds: [...child.dependencyChildIds],
+      deadlineAt,
+      limits: expectedChildLimits(child.tranche),
+      requiredMilestones: expectedChildMilestones(child.tranche),
+    }));
+    const manifest: ExecutionContractFamilyV2 = {
+      schemaVersion: 2,
+      familyId: FAMILY_ID,
+      rootContractId: input.rootContractId,
+      rootContractSha256: input.rootContractSha256,
+      track1Commit: input.track1Commit,
+      track1Tree: input.track1Tree,
+      sourceSha256: sha256Hex(input.sourceBytes),
+      createdAt: input.createdAt,
+      deadlineAt,
+      wallTimeMs: FAMILY_WALL_TIME_MS,
+      totalActions: FAMILY_TOTAL_ACTIONS,
+      children,
+    };
+    const decodedManifest = decodeExecutionContractFamilyV2(manifest);
+    if (isExecutionFamilyFailure(decodedManifest)) {
+      return { _tag: "Invalid", reason: decodedManifest.reason };
+    }
+    const familySha256 = executionContractFamilySha256(decodedManifest);
+    const briefs: Record<string, ReleasePackageBriefV1> = {};
+    for (const child of source.children) {
+      briefs[child.packageId] = {
+        schema: "foreman.release-package-brief.v1",
+        familySha256,
+        childId: child.childId,
+        packageId: child.packageId,
+        objective: child.objective,
+        acceptance: [...child.acceptance],
+        allowedPaths: [...child.allowedPaths],
+      };
+    }
+    return {
+      _tag: "Valid",
+      source,
+      manifest: decodedManifest,
+      familySha256,
+      briefs,
+    };
+  } catch {
+    return { _tag: "Invalid", reason: "invalid_source" };
+  }
 }
