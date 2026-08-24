@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { sha256Hex } from "@foreman/core";
+import { canonicalize, sha256Hex } from "@foreman/core";
 import { Effect, Exit } from "effect";
 import {
   EndstopLedger,
@@ -30,6 +30,11 @@ const CANDIDATE = {
   commit: "2".repeat(40),
   tree: "3".repeat(40),
   candidateSha256: sha256Hex("2".repeat(40)),
+};
+const OUTPUT_CANDIDATE = {
+  commit: "4".repeat(40),
+  tree: "5".repeat(40),
+  candidateSha256: sha256Hex("4".repeat(40)),
 };
 
 const FAMILY_CREATED = "2026-08-24T12:00:00Z";
@@ -553,6 +558,27 @@ describe("EndstopLedger", () => {
         1,
       );
 
+      const outcome = await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.registerChildOutcome({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            childId: "v040-t4-appliance",
+            reservationId: "child-reservation-1",
+            originReservationId: "child-reservation-1",
+            reservationAction: "implement",
+            effectiveAction: "implement",
+            candidateSha256: CANDIDATE.candidateSha256,
+            outcomeSha256: A,
+            outcomeSchema: "foreman.action-outcome.v1",
+            registeredAt: "2026-08-24T12:05:00Z",
+          });
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
+      );
+      assert.equal(outcome.outcomeSha256, A);
+
       const recovered = await Effect.runPromise(
         Effect.gen(function* () {
           const ledger = yield* EndstopLedger;
@@ -564,10 +590,271 @@ describe("EndstopLedger", () => {
         }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
       );
       assert.equal(recovered.childAuthorities.length, 1);
+      assert.equal(recovered.childOutcomes.length, 1);
       assert.equal(recovered.family.totalActions, 1);
       assert.equal(
         recovered.family.children["v040-t4-appliance"]?.counts.implement,
         1,
+      );
+      const payloads = readFileSync(
+        join(root, "runs", value.contractId, "events.ndjson"),
+        "utf8",
+      )
+        .trimEnd()
+        .split("\n")
+        .map(
+          (line) =>
+            (JSON.parse(line) as { readonly payload: Record<string, unknown> })
+              .payload,
+        );
+      const childAuthority = payloads.find(
+        (payload) => payload._tag === "ExecutionChildAuthorityRegistered",
+      );
+      assert.equal(childAuthority?.rootContractId, value.contractId);
+      assert.equal("authority" in (childAuthority ?? {}), false);
+      const childDecision = payloads.find(
+        (payload) => payload._tag === "EndstopChildDecision",
+      );
+      assert.equal("at" in (childDecision ?? {}), false);
+    });
+  });
+
+  it("registers and replays an uncomputable evaluation verdict", async () => {
+    await withRoot(async (root) => {
+      const value = contract({
+        createdAt: FAMILY_CREATED,
+        deadlineAt: "2026-08-24T14:00:00Z",
+      });
+      const manifest = familyManifest(value);
+      const familySha256 = executionContractFamilySha256(manifest);
+      const rootContractSha256 = executionContractSha256(value);
+      const layer = makeLiveEndstopLedgerLayer(root);
+      await Effect.runPromise(create(root, value));
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          yield* ledger.registerFamilyAuthority({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            manifest,
+            familySha256,
+            sourceSha256: manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            registeredAt: "2026-08-24T12:01:00Z",
+          });
+          yield* ledger.activateFamily({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            sourceSha256: manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            activatedAt: "2026-08-24T12:02:00Z",
+          });
+          let second = 123;
+          const at = (): string => {
+            const value = new Date(
+              Date.parse("2026-08-24T12:00:00Z") + second * 1000,
+            ).toISOString().replace(".000Z", "Z");
+            second += 1;
+            return value;
+          };
+          for (const childId of [
+            "v040-t2-project-registry",
+            "v040-t3-memory-index",
+            "v040-t4-appliance",
+            "v040-t5-graphify",
+            "v040-t6-work-dag",
+            "v040-t7-context",
+          ]) {
+            yield* ledger.registerChildAuthority({
+              rootContractId: value.contractId,
+              rootContractSha256,
+              familySha256,
+              childId,
+              action: "implement",
+              effectiveAction: "implement",
+              priorReservationId: null,
+              originReservationId: null,
+              candidate: CANDIDATE,
+              taskPlanSha256: C,
+              bundleSha256: D,
+              receiptSchemas: ["foreman.design-approval.v1"],
+              receiptSha256s: [A],
+              evaluationManifestSha256: null,
+              registeredAt: at(),
+            });
+            const implementReservation = `${childId}-implement`;
+            yield* ledger.executeChild({
+              rootContractId: value.contractId,
+              rootContractSha256,
+              familySha256,
+              childId,
+              operation: {
+                _tag: "ReserveAction",
+                reservationId: implementReservation,
+                reservationAction: "implement",
+                effectiveAction: "implement",
+                originReservationId: implementReservation,
+                candidate: CANDIDATE,
+                taskPlanSha256: C,
+                authorityBundleSha256: D,
+              },
+              at: at(),
+            });
+            yield* ledger.executeChild({
+              rootContractId: value.contractId,
+              rootContractSha256,
+              familySha256,
+              childId,
+              operation: {
+                _tag: "RecordProductChange",
+                reservationId: implementReservation,
+                originReservationId: implementReservation,
+                baseCandidate: CANDIDATE,
+                candidate: OUTPUT_CANDIDATE,
+                allowedPathsSha256: C,
+              },
+              at: at(),
+            });
+            for (const [action, milestone] of [
+              ["verify", "checks"],
+              ["audit", "audit"],
+              ["integrate", "integrated"],
+            ] as const) {
+              const reservationId = `${childId}-${action}`;
+              yield* ledger.registerChildAuthority({
+                rootContractId: value.contractId,
+                rootContractSha256,
+                familySha256,
+                childId,
+                action,
+                effectiveAction: action,
+                priorReservationId: null,
+                originReservationId: null,
+                candidate: OUTPUT_CANDIDATE,
+                taskPlanSha256: C,
+                bundleSha256: D,
+                receiptSchemas: ["foreman.design-approval.v1"],
+                receiptSha256s: [A],
+                evaluationManifestSha256: null,
+                registeredAt: at(),
+              });
+              yield* ledger.executeChild({
+                rootContractId: value.contractId,
+                rootContractSha256,
+                familySha256,
+                childId,
+                operation: {
+                  _tag: "ReserveAction",
+                  reservationId,
+                  reservationAction: action,
+                  effectiveAction: action,
+                  originReservationId: reservationId,
+                  candidate: OUTPUT_CANDIDATE,
+                  taskPlanSha256: C,
+                  authorityBundleSha256: D,
+                },
+                at: at(),
+              });
+              yield* ledger.registerChildOutcome({
+                rootContractId: value.contractId,
+                rootContractSha256,
+                familySha256,
+                childId,
+                reservationId,
+                originReservationId: reservationId,
+                reservationAction: action,
+                effectiveAction: action,
+                candidateSha256: OUTPUT_CANDIDATE.candidateSha256,
+                outcomeSha256: A,
+                outcomeSchema: "foreman.action-outcome.v1",
+                registeredAt: at(),
+              });
+              yield* ledger.executeChild({
+                rootContractId: value.contractId,
+                rootContractSha256,
+                familySha256,
+                childId,
+                operation: {
+                  _tag: "RecordMilestone",
+                  milestone,
+                  outcomeSha256: A,
+                  reservationId,
+                  originReservationId: reservationId,
+                  candidateSha256: OUTPUT_CANDIDATE.candidateSha256,
+                },
+                at: at(),
+              });
+            }
+          }
+          yield* ledger.registerChildAuthority({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            childId: "v040-t8-evaluation",
+            action: "evaluate",
+            effectiveAction: "evaluate",
+            priorReservationId: null,
+            originReservationId: null,
+            candidate: CANDIDATE,
+            taskPlanSha256: C,
+            bundleSha256: D,
+            receiptSchemas: ["foreman.evaluation-authority.v1"],
+            receiptSha256s: [A],
+            evaluationManifestSha256: A,
+            registeredAt: at(),
+          });
+          yield* ledger.executeChild({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            childId: "v040-t8-evaluation",
+            operation: {
+              _tag: "ReserveAction",
+              reservationId: "evaluation-run-1",
+              reservationAction: "evaluate",
+              effectiveAction: "evaluate",
+              originReservationId: "evaluation-run-1",
+              candidate: CANDIDATE,
+              taskPlanSha256: C,
+              authorityBundleSha256: D,
+            },
+            at: at(),
+          });
+          return yield* ledger.registerEvaluationVerdict({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            childId: "v040-t8-evaluation",
+            candidateSha256: CANDIDATE.candidateSha256,
+            result: "GRAPH_OFF_UNCOMPUTABLE",
+            completedRuns: 0,
+            unavailableRuns: 0,
+            notRunRuns: 2000,
+            runSetSha256: sha256Hex(canonicalize([])),
+            evaluationAuthorityReceiptSha256: A,
+            verdictSha256: B,
+            registeredAt: at(),
+          });
+        }).pipe(Effect.provide(layer)),
+      );
+
+      const recovered = await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.familyStatus({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+          });
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
+      );
+      assert.equal(recovered.evaluationVerdicts.length, 1);
+      assert.equal(
+        recovered.family.children["v040-t8-evaluation"]?.graphContextEnabled,
+        false,
       );
     });
   });

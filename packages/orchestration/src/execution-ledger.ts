@@ -48,6 +48,8 @@ import {
   decideExecutionChildOperationV2,
   evolveExecutionFamilyV2,
   initialExecutionFamilyStateV2,
+  recordExecutionEvaluationPassV2,
+  registerExecutionEvaluationVerdictV2,
   evolveExecution,
   executionActionKinds,
   initialExecutionState,
@@ -151,6 +153,45 @@ export type ExecutionFamilyLedgerStatusV2 = {
   readonly authority: ExecutionFamilyAuthorityStateV1;
   readonly family: ExecutionFamilyStateV2;
   readonly childAuthorities: readonly RegisteredReleaseAuthorityV1[];
+  readonly childOutcomes: readonly RegisteredReleaseOutcomeV1[];
+  readonly evaluationVerdicts: readonly RegisteredEvaluationVerdictV1[];
+};
+
+export type RegisteredReleaseOutcomeV1 = {
+  readonly rootContractId: string;
+  readonly rootContractSha256: string;
+  readonly familySha256: string;
+  readonly childId: string;
+  readonly reservationId: string;
+  readonly originReservationId: string;
+  readonly reservationAction: ReleaseActionV1;
+  readonly effectiveAction: ReleaseActionV1;
+  readonly candidateSha256: string;
+  readonly outcomeSha256: string;
+  readonly outcomeSchema:
+    | "foreman.action-outcome.v1"
+    | "foreman.council-outcome.v1";
+  readonly registeredAt: string;
+};
+
+export type RegisteredEvaluationVerdictV1 = {
+  readonly rootContractId: string;
+  readonly rootContractSha256: string;
+  readonly familySha256: string;
+  readonly childId: "v040-t8-evaluation";
+  readonly candidateSha256: string;
+  readonly result:
+    | "PROMOTE"
+    | "GRAPH_OFF_FAILED"
+    | "GRAPH_OFF_INCONCLUSIVE"
+    | "GRAPH_OFF_UNCOMPUTABLE";
+  readonly completedRuns: number;
+  readonly unavailableRuns: number;
+  readonly notRunRuns: number;
+  readonly runSetSha256: string;
+  readonly evaluationAuthorityReceiptSha256: string;
+  readonly verdictSha256: string;
+  readonly registeredAt: string;
 };
 
 export type EndstopChildExecutionResultV2 = {
@@ -187,6 +228,12 @@ export class EndstopLedger extends Context.Tag("EndstopLedger")<
     readonly registerChildAuthority: (
       registration: RegisteredReleaseAuthorityV1,
     ) => Effect.Effect<RegisteredReleaseAuthorityV1, EndstopLedgerFailure>;
+    readonly registerChildOutcome: (
+      registration: RegisteredReleaseOutcomeV1,
+    ) => Effect.Effect<RegisteredReleaseOutcomeV1, EndstopLedgerFailure>;
+    readonly registerEvaluationVerdict: (
+      registration: RegisteredEvaluationVerdictV1,
+    ) => Effect.Effect<ExecutionFamilyLedgerStatusV2, EndstopLedgerFailure>;
     readonly executeChild: (input: {
       readonly rootContractId: string;
       readonly rootContractSha256: string;
@@ -203,6 +250,8 @@ type ReplayedHistoryV2 = {
   readonly authority: ExecutionFamilyAuthorityStateV1 | null;
   readonly family: ExecutionFamilyStateV2 | null;
   readonly childAuthorities: readonly RegisteredReleaseAuthorityV1[];
+  readonly childOutcomes: readonly RegisteredReleaseOutcomeV1[];
+  readonly evaluationVerdicts: readonly RegisteredEvaluationVerdictV1[];
 };
 
 type HistoryResult =
@@ -365,6 +414,127 @@ function childAuthorityFromUnknown(
     evaluationManifestSha256: value.evaluationManifestSha256 as string | null,
     registeredAt: value.registeredAt,
   };
+}
+
+function childOutcomeFromUnknown(
+  value: unknown,
+): RegisteredReleaseOutcomeV1 | null {
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, [
+      "rootContractId",
+      "rootContractSha256",
+      "familySha256",
+      "childId",
+      "reservationId",
+      "originReservationId",
+      "reservationAction",
+      "effectiveAction",
+      "candidateSha256",
+      "outcomeSha256",
+      "outcomeSchema",
+      "registeredAt",
+    ]) ||
+    typeof value.rootContractId !== "string" ||
+    typeof decodeRunId(value.rootContractId) !== "string" ||
+    typeof value.rootContractSha256 !== "string" ||
+    !isSha256Hex(value.rootContractSha256) ||
+    typeof value.familySha256 !== "string" ||
+    !isSha256Hex(value.familySha256) ||
+    typeof value.childId !== "string" ||
+    typeof decodeRunId(value.childId) !== "string" ||
+    typeof value.reservationId !== "string" ||
+    typeof decodeRunId(value.reservationId) !== "string" ||
+    typeof value.originReservationId !== "string" ||
+    typeof decodeRunId(value.originReservationId) !== "string" ||
+    typeof value.reservationAction !== "string" ||
+    !releaseActionsV2.includes(value.reservationAction as ReleaseActionV1) ||
+    typeof value.effectiveAction !== "string" ||
+    !releaseActionsV2.includes(value.effectiveAction as ReleaseActionV1) ||
+    typeof value.candidateSha256 !== "string" ||
+    !isSha256Hex(value.candidateSha256) ||
+    typeof value.outcomeSha256 !== "string" ||
+    !isSha256Hex(value.outcomeSha256) ||
+    (value.outcomeSchema !== "foreman.action-outcome.v1" &&
+      value.outcomeSchema !== "foreman.council-outcome.v1") ||
+    typeof value.registeredAt !== "string" ||
+    !isUtcSecondTimestamp(value.registeredAt)
+  ) {
+    return null;
+  }
+  return {
+    rootContractId: value.rootContractId,
+    rootContractSha256: value.rootContractSha256,
+    familySha256: value.familySha256,
+    childId: value.childId,
+    reservationId: value.reservationId,
+    originReservationId: value.originReservationId,
+    reservationAction: value.reservationAction as ReleaseActionV1,
+    effectiveAction: value.effectiveAction as ReleaseActionV1,
+    candidateSha256: value.candidateSha256,
+    outcomeSha256: value.outcomeSha256,
+    outcomeSchema: value.outcomeSchema,
+    registeredAt: value.registeredAt,
+  };
+}
+
+function evaluationVerdictFromUnknown(
+  value: unknown,
+): RegisteredEvaluationVerdictV1 | null {
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, [
+      "rootContractId",
+      "rootContractSha256",
+      "familySha256",
+      "childId",
+      "candidateSha256",
+      "result",
+      "completedRuns",
+      "unavailableRuns",
+      "notRunRuns",
+      "runSetSha256",
+      "evaluationAuthorityReceiptSha256",
+      "verdictSha256",
+      "registeredAt",
+    ]) ||
+    typeof value.rootContractId !== "string" ||
+    typeof decodeRunId(value.rootContractId) !== "string" ||
+    typeof value.rootContractSha256 !== "string" ||
+    !isSha256Hex(value.rootContractSha256) ||
+    typeof value.familySha256 !== "string" ||
+    !isSha256Hex(value.familySha256) ||
+    value.childId !== "v040-t8-evaluation" ||
+    typeof value.candidateSha256 !== "string" ||
+    !isSha256Hex(value.candidateSha256) ||
+    ![
+      "PROMOTE",
+      "GRAPH_OFF_FAILED",
+      "GRAPH_OFF_INCONCLUSIVE",
+      "GRAPH_OFF_UNCOMPUTABLE",
+    ].includes(value.result as string) ||
+    ![value.completedRuns, value.unavailableRuns, value.notRunRuns].every(
+      (count) =>
+        Number.isSafeInteger(count) &&
+        (count as number) >= 0 &&
+        (count as number) <= 2000,
+    ) ||
+    (value.completedRuns as number) +
+        (value.unavailableRuns as number) +
+        (value.notRunRuns as number) !==
+      2000 ||
+    typeof value.runSetSha256 !== "string" ||
+    !isSha256Hex(value.runSetSha256) ||
+    typeof value.evaluationAuthorityReceiptSha256 !== "string" ||
+    !isSha256Hex(value.evaluationAuthorityReceiptSha256) ||
+    typeof value.verdictSha256 !== "string" ||
+    !isSha256Hex(value.verdictSha256) ||
+    typeof value.registeredAt !== "string" ||
+    !isUtcSecondTimestamp(value.registeredAt)
+  ) {
+    return null;
+  }
+  return value as RegisteredEvaluationVerdictV1;
 }
 
 function executionEventFromUnknown(value: unknown): ExecutionEvent | null {
@@ -665,16 +835,17 @@ type FamilyJournalPayloadV2 =
   | (Omit<ExecutionFamilyActivationV1, "rootContractId" | "rootContractSha256"> & {
       readonly _tag: "EndstopFamilyActivated";
     })
-  | {
-      readonly _tag: "ExecutionChildAuthorityRegistered";
-      readonly authority: RegisteredReleaseAuthorityV1;
-    }
+  | ({ readonly _tag: "ExecutionChildAuthorityRegistered" } &
+      RegisteredReleaseAuthorityV1)
+  | ({ readonly _tag: "ExecutionChildOutcomeRegistered" } &
+      RegisteredReleaseOutcomeV1)
+  | ({ readonly _tag: "ExecutionEvaluationVerdictRegistered" } &
+      RegisteredEvaluationVerdictV1)
   | {
       readonly _tag: "EndstopChildDecision";
       readonly familySha256: string;
       readonly childId: string;
       readonly operation: ExecutionV2ChildOperationV1;
-      readonly at: string;
       readonly events: readonly ExecutionV2Event[];
     };
 
@@ -755,11 +926,28 @@ function familyJournalPayloadFromUnknown(
     };
   }
   if (value._tag === "ExecutionChildAuthorityRegistered") {
-    if (!exactKeys(value, ["_tag", "authority"])) return null;
-    const authority = childAuthorityFromUnknown(value.authority);
+    const { _tag: ignored, ...raw } = value;
+    void ignored;
+    const authority = childAuthorityFromUnknown(raw);
     return authority === null
       ? null
-      : { _tag: "ExecutionChildAuthorityRegistered", authority };
+      : { _tag: "ExecutionChildAuthorityRegistered", ...authority };
+  }
+  if (value._tag === "ExecutionChildOutcomeRegistered") {
+    const { _tag: ignored, ...raw } = value;
+    void ignored;
+    const outcome = childOutcomeFromUnknown(raw);
+    return outcome === null
+      ? null
+      : { _tag: "ExecutionChildOutcomeRegistered", ...outcome };
+  }
+  if (value._tag === "ExecutionEvaluationVerdictRegistered") {
+    const { _tag: ignored, ...raw } = value;
+    void ignored;
+    const verdict = evaluationVerdictFromUnknown(raw);
+    return verdict === null
+      ? null
+      : { _tag: "ExecutionEvaluationVerdictRegistered", ...verdict };
   }
   if (value._tag === "EndstopChildDecision") {
     if (
@@ -768,15 +956,12 @@ function familyJournalPayloadFromUnknown(
         "familySha256",
         "childId",
         "operation",
-        "at",
         "events",
       ]) ||
       typeof value.familySha256 !== "string" ||
       !isSha256Hex(value.familySha256) ||
       typeof value.childId !== "string" ||
       typeof decodeRunId(value.childId) !== "string" ||
-      typeof value.at !== "string" ||
-      !isUtcSecondTimestamp(value.at) ||
       !Array.isArray(value.events) ||
       value.events.length === 0
     ) {
@@ -787,7 +972,9 @@ function familyJournalPayloadFromUnknown(
     const events: ExecutionV2Event[] = [];
     for (const item of value.events) {
       const event = executionV2EventFromUnknown(item);
-      if (event === null || event.at !== value.at) return null;
+      if (event === null || (events[0] !== undefined && event.at !== events[0].at)) {
+        return null;
+      }
       events.push(event);
     }
     return {
@@ -795,7 +982,6 @@ function familyJournalPayloadFromUnknown(
       familySha256: value.familySha256,
       childId: value.childId,
       operation,
-      at: value.at,
       events,
     };
   }
@@ -862,19 +1048,60 @@ function hasAvailableChildAuthority(
 ): boolean {
   const child = family.children[childId];
   if (child === undefined) return false;
-  const authority = authorities.find(
+  return authorities.some(
     (item) =>
       item.familySha256 === family.familySha256 &&
       item.childId === childId &&
       Date.parse(item.registeredAt) <= Date.parse(at) &&
       authorityMatchesReservation(item, operation),
   );
-  if (authority === undefined) return false;
-  return !Object.values(child.reservations).some(
-    (reservation) =>
-      reservation.authorityBundleSha256 === authority.bundleSha256 &&
-      reservation.reservationAction === authority.action,
+}
+
+function outcomeMatchesReservation(
+  outcome: RegisteredReleaseOutcomeV1,
+  family: ExecutionFamilyStateV2,
+): boolean {
+  const reservation =
+    family.children[outcome.childId]?.reservations[outcome.reservationId];
+  return (
+    reservation !== undefined &&
+    reservation.originReservationId === outcome.originReservationId &&
+    reservation.reservationAction === outcome.reservationAction &&
+    reservation.effectiveAction === outcome.effectiveAction &&
+    reservation.candidate.candidateSha256 === outcome.candidateSha256
   );
+}
+
+function operationOutcome(
+  operation: ExecutionV2ChildOperationV1,
+): {
+  readonly reservationId: string;
+  readonly originReservationId: string;
+  readonly candidateSha256: string;
+  readonly outcomeSha256: string;
+} | null {
+  return operation._tag === "RecordMilestone" ||
+      operation._tag === "RecordBlockingOutcome" ||
+      operation._tag === "RecordExternalFailure"
+    ? operation
+    : null;
+}
+
+function evaluationRunSetSha256(family: ExecutionFamilyStateV2): string | null {
+  const child = family.children["v040-t8-evaluation"];
+  if (child === undefined) return null;
+  const encoder = new TextEncoder();
+  const rows = Object.entries(child.evaluationPassOrigins)
+    .map(([originReservationId, outcomeSha256]) => ({
+      originReservationId,
+      outcomeSha256,
+    }))
+    .sort((left, right) =>
+      Buffer.from(encoder.encode(left.originReservationId)).compare(
+        Buffer.from(encoder.encode(right.originReservationId)),
+      ),
+    );
+  return sha256Hex(canonicalize(rows));
 }
 
 function replayHistory(
@@ -922,6 +1149,8 @@ function replayHistory(
   let authority: ExecutionFamilyAuthorityStateV1 | null = null;
   let family: ExecutionFamilyStateV2 | null = null;
   const childAuthorities: RegisteredReleaseAuthorityV1[] = [];
+  const childOutcomes: RegisteredReleaseOutcomeV1[] = [];
+  const evaluationVerdicts: RegisteredEvaluationVerdictV1[] = [];
   for (const stored of relevant.slice(1)) {
     if (stored.type === DECISION_EVENT) {
       if (
@@ -1015,7 +1244,8 @@ function replayHistory(
       continue;
     }
     if (payload._tag === "ExecutionChildAuthorityRegistered") {
-      const item = payload.authority;
+      const { _tag: ignored, ...item } = payload;
+      void ignored;
       if (
         authority === null ||
         family === null ||
@@ -1033,9 +1263,95 @@ function replayHistory(
       childAuthorities.push(item);
       continue;
     }
+    if (payload._tag === "ExecutionChildOutcomeRegistered") {
+      const { _tag: ignored, ...item } = payload;
+      void ignored;
+      if (
+        family === null ||
+        item.rootContractId !== decoded.contractId ||
+        item.rootContractSha256 !== hash ||
+        item.familySha256 !== family.familySha256 ||
+        !outcomeMatchesReservation(item, family) ||
+        Date.parse(item.registeredAt) <
+          Date.parse(family.children[item.childId]!.lastEventAt) ||
+        childOutcomes.some(
+          (existing) => existing.reservationId === item.reservationId,
+        )
+      ) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      childOutcomes.push(item);
+      if (item.effectiveAction === "evaluate") {
+        family = recordExecutionEvaluationPassV2({
+          state: family,
+          childId: item.childId,
+          originReservationId: item.originReservationId,
+          outcomeSha256: item.outcomeSha256,
+          at: item.registeredAt,
+        });
+      }
+      continue;
+    }
+    if (payload._tag === "ExecutionEvaluationVerdictRegistered") {
+      const { _tag: ignored, ...item } = payload;
+      void ignored;
+      if (
+        family === null ||
+        item.rootContractId !== decoded.contractId ||
+        item.rootContractSha256 !== hash ||
+        item.familySha256 !== family.familySha256 ||
+        evaluationVerdicts.some(
+          (existing) => existing.childId === item.childId,
+        ) ||
+        Date.parse(item.registeredAt) <
+          Date.parse(family.children[item.childId]!.lastEventAt) ||
+        childAuthorities.every(
+          (registered) =>
+            registered.childId !== item.childId ||
+            registered.effectiveAction !== "evaluate" ||
+            registered.candidate.candidateSha256 !== item.candidateSha256 ||
+            registered.evaluationManifestSha256 !==
+              item.evaluationAuthorityReceiptSha256,
+        ) ||
+        evaluationRunSetSha256(family) !== item.runSetSha256
+      ) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      const verdict = registerExecutionEvaluationVerdictV2({
+        state: family,
+        childId: item.childId,
+        verdict: {
+          candidateSha256: item.candidateSha256,
+          result: item.result,
+          completedRuns: item.completedRuns,
+          unavailableRuns: item.unavailableRuns,
+          notRunRuns: item.notRunRuns,
+          runSetSha256: item.runSetSha256,
+          verdictSha256: item.verdictSha256,
+        },
+      });
+      if (verdict._tag !== "Accepted") {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      evaluationVerdicts.push(item);
+      const verdictChild = verdict.state.children[item.childId]!;
+      family = {
+        ...verdict.state,
+        children: {
+          ...verdict.state.children,
+          [item.childId]: {
+            ...verdictChild,
+            lastEventAt: item.registeredAt,
+            lastProgressAt: item.registeredAt,
+          },
+        },
+      };
+      continue;
+    }
     if (family === null || payload.familySha256 !== family.familySha256) {
       return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
     }
+    const at = payload.events[0]!.at;
     if (
       payload.operation._tag === "ReserveAction" &&
       !hasAvailableChildAuthority(
@@ -1043,7 +1359,21 @@ function replayHistory(
         family,
         payload.childId,
         payload.operation,
-        payload.at,
+        at,
+      )
+    ) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    const requiredOutcome = operationOutcome(payload.operation);
+    if (
+      requiredOutcome !== null &&
+      !childOutcomes.some(
+        (item) =>
+          item.childId === payload.childId &&
+          item.reservationId === requiredOutcome.reservationId &&
+          item.originReservationId === requiredOutcome.originReservationId &&
+          item.candidateSha256 === requiredOutcome.candidateSha256 &&
+          item.outcomeSha256 === requiredOutcome.outcomeSha256,
       )
     ) {
       return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
@@ -1052,7 +1382,7 @@ function replayHistory(
       state: family,
       childId: payload.childId,
       operation: payload.operation,
-      at: payload.at,
+      at,
     });
     if (
       (replayed._tag !== "Accepted" && replayed._tag !== "Terminated") ||
@@ -1069,7 +1399,14 @@ function replayHistory(
   }
   return {
     _tag: "Ok",
-    state: { root, authority, family, childAuthorities },
+    state: {
+      root,
+      authority,
+      family,
+      childAuthorities,
+      childOutcomes,
+      evaluationVerdicts,
+    },
   };
 }
 
@@ -1593,6 +1930,8 @@ export function makeLiveEndstopLedgerLayer(
             authority,
             family,
             childAuthorities: history.state.childAuthorities,
+            childOutcomes: history.state.childOutcomes,
+            evaluationVerdicts: history.state.evaluationVerdicts,
           };
           return {
             _tag: "Append",
@@ -1689,10 +2028,241 @@ export function makeLiveEndstopLedgerLayer(
               lane: ENDSTOP_LANE,
               payload: {
                 _tag: "ExecutionChildAuthorityRegistered",
-                authority: decoded,
+                ...decoded,
               },
             },
             result: () => ({ _tag: "Ok", value: decoded }) as const,
+          };
+        });
+      }).pipe(Effect.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    registerChildOutcome: (registration) => {
+      const decoded = childOutcomeFromUnknown(registration);
+      if (decoded === null) {
+        return Effect.fail(ledgerFailure("child_authority_mismatch"));
+      }
+      const runId = decodeRunId(decoded.rootContractId) as RunId;
+      const transaction = Effect.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact<
+          TransactionResult<RegisteredReleaseOutcomeV1>
+        >(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure:
+                  history._tag === "Missing"
+                    ? ledgerFailure("missing_contract")
+                    : history.failure,
+              } as const,
+            };
+          }
+          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch"),
+              } as const,
+            };
+          }
+          const family = history.state.family;
+          const child = family?.children[decoded.childId];
+          if (
+            family === null ||
+            family === undefined ||
+            child === undefined ||
+            family.familySha256 !== decoded.familySha256 ||
+            !outcomeMatchesReservation(decoded, family) ||
+            Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) ||
+            (decoded.effectiveAction === "council") !==
+              (decoded.outcomeSchema === "foreman.council-outcome.v1")
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch"),
+              } as const,
+            };
+          }
+          const existing = history.state.childOutcomes.find(
+            (item) => item.reservationId === decoded.reservationId,
+          );
+          if (existing !== undefined) {
+            return canonicalize(existing) === canonicalize(decoded)
+              ? {
+                  _tag: "Return",
+                  value: { _tag: "Ok", value: existing } as const,
+                }
+              : {
+                  _tag: "Return",
+                  value: {
+                    _tag: "Failure",
+                    failure: ledgerFailure("child_authority_mismatch"),
+                  } as const,
+                };
+          }
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "ExecutionChildOutcomeRegistered",
+                ...decoded,
+              },
+            },
+            result: () => ({ _tag: "Ok", value: decoded }) as const,
+          };
+        });
+      }).pipe(Effect.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    registerEvaluationVerdict: (registration) => {
+      const decoded = evaluationVerdictFromUnknown(registration);
+      if (decoded === null) {
+        return Effect.fail(ledgerFailure("child_authority_mismatch"));
+      }
+      const runId = decodeRunId(decoded.rootContractId) as RunId;
+      const transaction = Effect.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact<
+          TransactionResult<ExecutionFamilyLedgerStatusV2>
+        >(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure:
+                  history._tag === "Missing"
+                    ? ledgerFailure("missing_contract")
+                    : history.failure,
+              } as const,
+            };
+          }
+          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch"),
+              } as const,
+            };
+          }
+          const family = history.state.family;
+          const child = family?.children[decoded.childId];
+          if (
+            family === null ||
+            family === undefined ||
+            child === undefined ||
+            family.familySha256 !== decoded.familySha256 ||
+            Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) ||
+            evaluationRunSetSha256(family) !== decoded.runSetSha256 ||
+            history.state.childAuthorities.every(
+              (authority) =>
+                authority.childId !== decoded.childId ||
+                authority.effectiveAction !== "evaluate" ||
+                authority.candidate.candidateSha256 !== decoded.candidateSha256 ||
+                authority.evaluationManifestSha256 !==
+                  decoded.evaluationAuthorityReceiptSha256,
+            )
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch"),
+              } as const,
+            };
+          }
+          const existing = history.state.evaluationVerdicts.find(
+            (item) => item.childId === decoded.childId,
+          );
+          if (existing !== undefined) {
+            return canonicalize(existing) === canonicalize(decoded)
+              ? {
+                  _tag: "Return",
+                  value: {
+                    _tag: "Ok",
+                    value: {
+                      root: history.state.root,
+                      authority: history.state.authority!,
+                      family,
+                      childAuthorities: history.state.childAuthorities,
+                      childOutcomes: history.state.childOutcomes,
+                      evaluationVerdicts: history.state.evaluationVerdicts,
+                    },
+                  } as const,
+                }
+              : {
+                  _tag: "Return",
+                  value: {
+                    _tag: "Failure",
+                    failure: ledgerFailure("child_authority_mismatch"),
+                  } as const,
+                };
+          }
+          const verdict = registerExecutionEvaluationVerdictV2({
+            state: family,
+            childId: decoded.childId,
+            verdict: {
+              candidateSha256: decoded.candidateSha256,
+              result: decoded.result,
+              completedRuns: decoded.completedRuns,
+              unavailableRuns: decoded.unavailableRuns,
+              notRunRuns: decoded.notRunRuns,
+              runSetSha256: decoded.runSetSha256,
+              verdictSha256: decoded.verdictSha256,
+            },
+          });
+          if (verdict._tag !== "Accepted") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch"),
+              } as const,
+            };
+          }
+          const value: ExecutionFamilyLedgerStatusV2 = {
+            root: history.state.root,
+            authority: history.state.authority!,
+            family: {
+              ...verdict.state,
+              children: {
+                ...verdict.state.children,
+                [decoded.childId]: {
+                  ...verdict.state.children[decoded.childId]!,
+                  lastEventAt: decoded.registeredAt,
+                  lastProgressAt: decoded.registeredAt,
+                },
+              },
+            },
+            childAuthorities: history.state.childAuthorities,
+            childOutcomes: history.state.childOutcomes,
+            evaluationVerdicts: [
+              ...history.state.evaluationVerdicts,
+              decoded,
+            ],
+          };
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "ExecutionEvaluationVerdictRegistered",
+                ...decoded,
+              },
+            },
+            result: () => ({ _tag: "Ok", value }) as const,
           };
         });
       }).pipe(Effect.provide(journalLayer));
@@ -1770,6 +2340,27 @@ export function makeLiveEndstopLedgerLayer(
               } as const,
             };
           }
+          const requiredOutcome = operationOutcome(operation);
+          if (
+            requiredOutcome !== null &&
+            !history.state.childOutcomes.some(
+              (item) =>
+                item.childId === input.childId &&
+                item.reservationId === requiredOutcome.reservationId &&
+                item.originReservationId ===
+                  requiredOutcome.originReservationId &&
+                item.candidateSha256 === requiredOutcome.candidateSha256 &&
+                item.outcomeSha256 === requiredOutcome.outcomeSha256,
+            )
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch"),
+              } as const,
+            };
+          }
           const decision = decideExecutionChildOperationV2({
             state: family,
             childId: input.childId,
@@ -1805,7 +2396,6 @@ export function makeLiveEndstopLedgerLayer(
                 familySha256: input.familySha256,
                 childId: input.childId,
                 operation,
-                at: input.at,
                 events: decision.events,
               },
             },
@@ -1844,6 +2434,8 @@ export function makeLiveEndstopLedgerLayer(
           authority: history.authority,
           family: history.family,
           childAuthorities: history.childAuthorities,
+          childOutcomes: history.childOutcomes,
+          evaluationVerdicts: history.evaluationVerdicts,
         };
       }),
   });
