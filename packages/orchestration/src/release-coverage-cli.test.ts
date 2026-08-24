@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   readlinkSync,
+  renameSync,
   rmSync,
   symlinkSync,
   realpathSync,
@@ -1627,6 +1629,21 @@ test("lane and release authority bind the real family child and absolute brief p
       reason: "brief_mismatch",
     },
     {
+      name: "tagged Error missing",
+      options: sharedLaneOptions({
+        briefBytesByAbsPath: new Map(),
+        fileErrorByPath: new Map([
+          [
+            PACKAGE_BRIEF_ABS,
+            Object.assign(new Error("file not found"), {
+              _tag: "NotFound" as const,
+            }),
+          ],
+        ]),
+      }),
+      reason: "brief_mismatch",
+    },
+    {
       name: "changed",
       options: sharedLaneOptions({
         briefBytesByAbsPath: new Map([
@@ -2534,6 +2551,28 @@ test("live fileRead.readBounded enforces 1 MiB and rejects non-regular authority
     );
     assert.deepEqual(nestedRead, nestedBytes);
 
+    const missingOwner = await Effect.runPromise(
+      liveReleaseCoverageCliServices.fileRead
+        .readBounded({
+          path: join(repository, "missing-owner", "release-brief.json"),
+          maxBytes: ONE_MIB,
+          containmentRoot: repository,
+        })
+        .pipe(Effect.either),
+    );
+    assert.equal(missingOwner._tag, "Left");
+    if (missingOwner._tag === "Left") {
+      assert.equal(typeof missingOwner.left, "object");
+      assert.notEqual(missingOwner.left, null);
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(missingOwner.left, "_tag"),
+      );
+      assert.equal(
+        (missingOwner.left as { readonly _tag: unknown })._tag,
+        "NotFound",
+      );
+    }
+
     await t.test(
       "containment accepts a repository root reached through an alias",
       async (st) => {
@@ -2601,6 +2640,79 @@ test("live fileRead.readBounded enforces 1 MiB and rejects non-regular authority
             .pipe(Effect.either),
         );
         assert.equal(result._tag, "Left");
+      },
+    );
+
+    await t.test(
+      "post-read containment rejects an intermediate directory swap",
+      async (st) => {
+        const guardedRoot = join(repository, "swap-guarded");
+        const guardedPackage = join(guardedRoot, "package");
+        mkdirSync(guardedPackage, { recursive: true });
+        const guardedFile = join(guardedPackage, "release-brief.json");
+        writeFileSync(guardedFile, utf8("swap authority\n"));
+
+        const swapOutside = join(temporary, "swap-outside");
+        mkdirSync(swapOutside);
+        try {
+          linkSync(guardedFile, join(swapOutside, "release-brief.json"));
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (
+            code === "EPERM" ||
+            code === "EACCES" ||
+            code === "ENOTSUP" ||
+            code === "EXDEV"
+          ) {
+            st.skip(`hard link creation not permitted: ${code}`);
+            return;
+          }
+          throw error;
+        }
+
+        const directoryLinkType =
+          process.platform === "win32" ? "junction" : "dir";
+        const probeTarget = join(temporary, "swap-dir-link-probe-target");
+        const probeLink = join(temporary, "swap-dir-link-probe");
+        mkdirSync(probeTarget);
+        try {
+          symlinkSync(probeTarget, probeLink, directoryLinkType);
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
+            st.skip(`directory link creation not permitted: ${code}`);
+            return;
+          }
+          throw error;
+        }
+
+        let coerced = 0;
+        let swapped = false;
+        const swapAfterOpen = {
+          [Symbol.toPrimitive](): number {
+            coerced += 1;
+            renameSync(
+              guardedRoot,
+              join(repository, "swap-guarded-original"),
+            );
+            symlinkSync(swapOutside, guardedRoot, directoryLinkType);
+            swapped = true;
+            return ONE_MIB;
+          },
+        };
+
+        const swappedRead = await Effect.runPromise(
+          liveReleaseCoverageCliServices.fileRead
+            .readBounded({
+              path: guardedFile,
+              maxBytes: swapAfterOpen as unknown as number,
+              containmentRoot: repository,
+            })
+            .pipe(Effect.either),
+        );
+        assert.equal(coerced, 1);
+        assert.equal(swapped, true);
+        assert.equal(swappedRead._tag, "Left");
       },
     );
 
