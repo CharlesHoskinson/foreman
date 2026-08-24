@@ -653,3 +653,123 @@ describe("release authority identity and enum bounds", () => {
     );
   });
 });
+
+describe("release authority finding bounds", () => {
+  const findingCopies = (count: number): ReleaseAuditFindingV1[] =>
+    Array.from({ length: count }, () => ({ ...finding }));
+
+  it("accepts exactly 100 findings structurally", () => {
+    assert.equal(
+      parseReleaseAuthorityObjectV1({
+        ...auditReceipt,
+        findings: findingCopies(100),
+      })._tag,
+      "Valid",
+    );
+  });
+
+  const invalidFindings: Array<readonly [string, unknown]> = [
+    ["101 findings", findingCopies(101)],
+    ["line zero", [{ ...finding, line: 0 }]],
+    ["line over max", [{ ...finding, line: 2147483648 }]],
+    ["line fractional", [{ ...finding, line: 1.5 }]],
+    ["line string", [{ ...finding, line: "7" }]],
+    ["file empty", [{ ...finding, file: "" }]],
+    ["file over bound", [{ ...finding, file: "x".repeat(4097) }]],
+    ["summary empty", [{ ...finding, summary: "" }]],
+    ["summary over bound", [{ ...finding, summary: "x".repeat(4097) }]],
+    ["evidence empty", [{ ...finding, evidence: "" }]],
+    ["evidence over bound", [{ ...finding, evidence: "x".repeat(16385) }]],
+    ["extra key", [{ ...finding, unexpected: true }]],
+    ["inherited fields", [Object.create(finding) as unknown]],
+  ];
+  for (const [name, findings] of invalidFindings) {
+    it("rejects " + name, () => {
+      expectParseInvalid({ ...auditReceipt, findings });
+    });
+  }
+});
+
+describe("release evidence bundle receipt and retry grammar", () => {
+  const priorReservation = {
+    reservationId: "reservation-prior",
+    originReservationId: "reservation-origin",
+    originalAction: "verify",
+    candidate,
+    failureEvidenceSha256: shaC,
+  } as const;
+  const retryBundle = {
+    ...evidenceBundle,
+    action: "provider_retry",
+    priorReservation,
+  };
+
+  it("accepts a structurally valid retry bundle", () => {
+    assert.equal(parseReleaseAuthorityObjectV1(retryBundle)._tag, "Valid");
+  });
+
+  const invalidBundles: Array<readonly [string, unknown]> = [
+    ["zero receipts", { ...evidenceBundle, receipts: [] }],
+    ["three receipts", { ...evidenceBundle, receipts: [designReceipt, checksReceipt, auditReceipt] }],
+    ["verify wrong receipt", { ...evidenceBundle, receipts: [checksReceipt] }],
+    ["audit wrong order", { ...evidenceBundle, action: "audit", receipts: [checksReceipt, designReceipt] }],
+    ["receipt extra key", { ...evidenceBundle, receipts: [{ ...designReceipt, unexpected: true }] }],
+    ["receipt inherited fields", { ...evidenceBundle, receipts: [Object.create(designReceipt) as unknown] }],
+    ["prior on ordinary verify", { ...evidenceBundle, priorReservation }],
+    ["retry three receipts", { ...retryBundle, receipts: [designReceipt, checksReceipt, auditReceipt] }],
+    ["retry extra prior key", { ...retryBundle, priorReservation: { ...priorReservation, unexpected: true } }],
+    ["retry unknown original action", { ...retryBundle, priorReservation: { ...priorReservation, originalAction: "unknown" } }],
+    ["retry bad prior candidate", { ...retryBundle, priorReservation: { ...priorReservation, candidate: { ...candidate, commit: "1".repeat(39) } } }],
+    ["retry bad failure digest", { ...retryBundle, priorReservation: { ...priorReservation, failureEvidenceSha256: "a".repeat(63) } }],
+  ];
+  for (const key of Object.keys(priorReservation)) {
+    const missing = cloneRecord(priorReservation);
+    delete missing[key];
+    invalidBundles.push(["retry missing prior " + key, { ...retryBundle, priorReservation: missing }]);
+  }
+
+  for (const [name, mutant] of invalidBundles) {
+    it("rejects " + name, () => {
+      expectParseInvalid(mutant);
+    });
+  }
+});
+
+describe("release evaluation count grammar", () => {
+  const cases: Array<readonly [string, unknown]> = [
+    ["planned not 2000", { ...evaluationVerdict, plannedRuns: 1999 }],
+    ["wrong run-set digest", { ...evaluationVerdict, runSetSha256: "a".repeat(63) }],
+    ["wrong report digest", { ...evaluationVerdict, reportSha256: "a".repeat(63) }],
+    ["sum 1999", { ...evaluationVerdict, completedRuns: 1899 }],
+    ["sum 2001", { ...evaluationVerdict, completedRuns: 1901 }],
+  ];
+  for (const field of ["completedRuns", "unavailableRuns", "notRunRuns"] as const) {
+    for (const value of [-1, 1.5, "1", 2001] as const) {
+      cases.push([field + " invalid " + String(value), { ...evaluationVerdict, [field]: value }]);
+    }
+  }
+  for (const [name, mutant] of cases) {
+    it("rejects " + name, () => {
+      expectParseInvalid(mutant);
+    });
+  }
+});
+
+describe("release outcome and terminal approval distinctions", () => {
+  const cases: Array<readonly [string, unknown]> = [
+    ["outcome empty origin", { ...actionOutcome, originReservationId: "" }],
+    ["retry effective retry", { ...actionOutcome, reservationAction: "provider_retry", effectiveAction: "provider_retry" }],
+    ["council malformed request digest", { ...councilOutcome, requestSha256: "a".repeat(63) }],
+    ["cancel observed-family extra", { ...cancelApproval, observedFamilySha256: shaC }],
+    ["invalidate observed-family missing", (() => {
+      const mutant = cloneRecord(invalidateApproval);
+      delete mutant["observedFamilySha256"];
+      return mutant;
+    })()],
+  ];
+  for (const [name, mutant] of cases) {
+    it("rejects " + name, () => {
+      expectParseInvalid(mutant);
+    });
+  }
+});
