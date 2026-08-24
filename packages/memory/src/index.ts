@@ -15,3 +15,21 @@ export {
   QdrantClientPort,
   type QdrantClientPortOptions,
 } from "./qdrant-client-port.js";
+
+export {
+  ProjectionEpochCoordinator,
+  type ProjectionCatchUpBatchV1,
+  type ProjectionEpochCoordinatorOptions,
+  type ProjectionEpochSource,
+  type ProjectionLease,
+  type ProjectionLeasePort,
+} from "./projection-epoch.js";
+
+export {
+  PINNED_TRANSFORMERS_MODEL_V1,
+  createTransformersEmbeddingV1,
+  normalizeTransformersEmbeddingOutputV1,
+  pinnedTransformersPipelinePlanV1,
+  verifyPinnedTransformersModelV1,
+  type PinnedTransformersPipelinePlanV1,
+} from "./transformers-embedding.js";

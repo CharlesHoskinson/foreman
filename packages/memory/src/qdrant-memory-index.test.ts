@@ -55,6 +55,10 @@ class RecordingPort implements QdrantPort {
     return this.currentQualification;
   }
 
+  async qualifyCollection(_collection: string): Promise<QdrantQualificationV1> {
+    return this.currentQualification;
+  }
+
   async activeCollection(projectId: string): Promise<{
     readonly collection: string;
     readonly epochId: string;

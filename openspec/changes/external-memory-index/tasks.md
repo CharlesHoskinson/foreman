@@ -17,11 +17,18 @@
 ## 3. Qualification and epochs
 
 - [x] Add RED tests for topology, strict mode, and payload-index refusal.
-- [ ] Add RED tests for candidate isolation and atomic alias activation.
+- [x] Add RED tests for candidate isolation and atomic alias activation.
 - [x] Implement qualification, epoch creation, recall, and activation.
 - [x] Add an opt-in pinned live Qdrant test.
 
-## 4. Release lane
+## 4. Hermetic embeddings
+
+- [x] Pin the Transformers runtime and model identities.
+- [x] Verify the ONNX graph and data digests before local-only loading.
+- [x] Enforce mean pooling, normalization, and 384 finite dimensions.
+- [ ] Run the opt-in offline model test with the control-image model bytes.
+
+## 5. Release lane
 
 - [x] Pin client and service identities in the reference manifest.
 - [ ] Add the public package brief.

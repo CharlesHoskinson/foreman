@@ -187,6 +187,17 @@ export class QdrantClientPort implements QdrantPort {
     return qualification(info, nodeCount(telemetry));
   }
 
+  async qualifyCollection(collection: string): Promise<QdrantQualificationV1> {
+    const [telemetry, info] = await Promise.all([
+      this.#client.clusterTelemetry({ details_level: 1, per_collection: false }),
+      this.#client.getCollection(collection),
+    ]);
+    if (epochMetadata(info, this.#projectId) === null) {
+      throw new Error("Qdrant epoch metadata is invalid");
+    }
+    return qualification(info, nodeCount(telemetry));
+  }
+
   async activeCollection(projectId: string): Promise<{
     readonly collection: string;
     readonly epochId: string;

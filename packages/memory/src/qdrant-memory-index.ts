@@ -82,6 +82,7 @@ export type QdrantQueryMatchV1 = {
 
 export interface QdrantPort {
   qualify(): Promise<QdrantQualificationV1>;
+  qualifyCollection(collection: string): Promise<QdrantQualificationV1>;
   activeCollection(projectId: string): Promise<{
     readonly collection: string;
     readonly epochId: string;
@@ -234,12 +235,17 @@ export class QdrantMemoryIndex implements MemoryIndex {
     }
   }
 
-  async project(records: readonly ProjectionRecord[]): Promise<void> {
-    await this.#qualify();
-    const active = await this.#port.activeCollection(this.#projectId);
-    if (!safeEpoch(active.epochId) || active.collection.length === 0) {
-      throw new Error("active epoch is invalid");
+  async #qualifyCollection(collection: string): Promise<void> {
+    if (!qualificationIsExact(await this.#port.qualifyCollection(collection))) {
+      throw new Error("Qdrant qualification failed");
     }
+  }
+
+  async #projectCollection(
+    collection: string,
+    epochId: string,
+    records: readonly ProjectionRecord[],
+  ): Promise<void> {
     for (const record of records) {
       validateRecord(record, this.#projectId);
       const vector = record.mutation === "upsert"
@@ -249,7 +255,7 @@ export class QdrantMemoryIndex implements MemoryIndex {
           )
         : Array.from({ length: this.#embedding.dimensions }, () => 0);
       const status = await this.#port.apply({
-        collection: active.collection,
+        collection,
         point: {
           id: qdrantPointIdV1(this.#projectId, record.kind, record.id),
           vector,
@@ -258,7 +264,7 @@ export class QdrantMemoryIndex implements MemoryIndex {
             project_id: this.#projectId,
             kind: record.kind,
             entity_id: record.id,
-            epoch_id: active.epochId,
+            epoch_id: epochId,
             model_id: this.#embedding.modelId,
             projection_version: record.projection_version,
             live: record.mutation === "upsert",
@@ -273,6 +279,29 @@ export class QdrantMemoryIndex implements MemoryIndex {
         throw new Error("Qdrant mutation was not completed");
       }
     }
+  }
+
+  async project(records: readonly ProjectionRecord[]): Promise<void> {
+    await this.#qualify();
+    const active = await this.#port.activeCollection(this.#projectId);
+    if (!safeEpoch(active.epochId) || active.collection.length === 0) {
+      throw new Error("active epoch is invalid");
+    }
+    await this.#projectCollection(active.collection, active.epochId, records);
+  }
+
+  /** Project a rebuild snapshot or catch-up batch into one inactive epoch. */
+  async projectEpoch(
+    collection: string,
+    records: readonly ProjectionRecord[],
+  ): Promise<void> {
+    const prefix = `${collectionStem(this.#projectId)}_epoch_`;
+    const epochId = collection.startsWith(prefix)
+      ? collection.slice(prefix.length)
+      : "";
+    if (!safeEpoch(epochId)) throw new Error("epoch collection is invalid");
+    await this.#qualifyCollection(collection);
+    await this.#projectCollection(collection, epochId, records);
   }
 
   async recall(query: string, limit: number): Promise<readonly EntityRef[]> {
@@ -343,7 +372,7 @@ export class QdrantMemoryIndex implements MemoryIndex {
     if (!collection.startsWith(prefix) || !safeEpoch(collection.slice(prefix.length))) {
       throw new Error("epoch collection is invalid");
     }
-    await this.#qualify();
+    await this.#qualifyCollection(collection);
     await this.#port.activate({ projectId: this.#projectId, collection });
   }
 }

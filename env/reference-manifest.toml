@@ -367,6 +367,20 @@ image_linux_arm64 = "sha256:139bbec1a1e6c0f04c978c96b5359568e72e60ae6abc9db0ab4b
 client = "@qdrant/js-client-rest@1.19.0"
 client_integrity = "sha512-1+QLUHsWp+WV4PE35FLnH2ckxotWrQEqi/F3t4goF3cCThR0ZxLVtOC4OoOi/E1iyj/iIYBdbuACWMuQ15NAnA=="
 
+[release_dependencies.embedding]
+runtime = "@huggingface/transformers@4.2.0"
+runtime_integrity = "sha512-8BRCoBMH0XsWaEIamuR0LrJGAfftgHAfb2Vrffy0VKlSAE/MnUJ5/h/zTfEP3fDIft+nk7TqB8xXEyABGitBjQ=="
+model = "onnx-community/all-MiniLM-L6-v2-ONNX"
+model_revision = "aff7a1dc4e8a1ea593e6ea21e95c22ef0a25966f"
+model_graph = "onnx/model.onnx"
+model_graph_sha256 = "2f019cf6217537cc4bfc7f5192f21dea1e18445177edaab0bc6163a813e5c7a1"
+model_data = "onnx/model.onnx_data"
+model_data_sha256 = "60c758432aa596c30a122942dfe594c457d4d713f890926f1c5f920bd496c8de"
+dimensions = 384
+pooling = "mean"
+normalize = true
+network = "disabled"
+
 
 # =============================================================================
 # Lock atomicity (lock-primitive-hardening, round L2 / T5)
