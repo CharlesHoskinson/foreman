@@ -1052,6 +1052,9 @@ function readBoundedBytesLive(
     ) {
       readFailureLive("IdentityChanged", "leaf identity changed during read");
     }
+    if (containmentRoot !== undefined) {
+      validateContainmentLive(path, containmentRoot);
+    }
     return Uint8Array.from(buffer.subarray(0, offset));
   } finally {
     if (fd !== undefined) {
