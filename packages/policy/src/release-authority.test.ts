@@ -1771,3 +1771,73 @@ describe("Task 3.1 final producer and bundle closure", () => {
     }
   });
 });
+
+describe("Task 3.1 schema-isolation closure", () => {
+  it("closes producer discriminants and package identifiers", () => {
+    for (const source of producerSources) {
+      expectSourceInvalid(
+        canonicalFile({ ...source, schema: "foreman.unknown-source.v1" }),
+      );
+      expectSourceInvalid(
+        canonicalFile({ ...source, program: "v050" }),
+      );
+    }
+    for (const source of [checksSource, auditSource] as const) {
+      for (const packageId of [
+        "",
+        "bad/id",
+        "bad\\id",
+        "bad\u0000id",
+        "bad\u001fid",
+        "é".repeat(64) + "x",
+      ] as const) {
+        expectSourceInvalid(canonicalFile({ ...source, packageId }));
+      }
+    }
+  });
+
+  it("rejects package-matched wrong receipt schemas", () => {
+    const design = designReceipt;
+    const checksPass = {
+      ...checksReceipt,
+      packageId: "project-registry",
+      status: "PASS",
+    } as const;
+    const auditApproved = {
+      ...auditReceipt,
+      packageId: "project-registry",
+      verdict: "APPROVED",
+      findings: [],
+    } as const;
+    const request = {
+      ...councilRequest,
+      packageId: "project-registry",
+    } as const;
+    const evaluationDesign = {
+      ...designReceipt,
+      packageId: "graph-eval-falsification",
+    } as const;
+    const evaluationRequest = {
+      ...councilRequest,
+      packageId: "graph-eval-falsification",
+    } as const;
+    const invalidBundles = [
+      { ...evidenceBundle, action: "verify", receipts: [checksPass] },
+      { ...evidenceBundle, action: "audit", receipts: [design, auditApproved] },
+      { ...evidenceBundle, action: "correct", receipts: [design, request] },
+      { ...evidenceBundle, action: "council", receipts: [design, checksPass] },
+      { ...evidenceBundle, action: "integrate", receipts: [design, checksPass] },
+      { ...evidenceBundle, action: "publish", receipts: [design, checksPass] },
+      {
+        ...evidenceBundle,
+        childId: "v040-t8-evaluation",
+        packageId: "graph-eval-falsification",
+        action: "evaluate",
+        receipts: [evaluationDesign, evaluationRequest],
+      },
+    ] as const;
+    for (const bundle of invalidBundles) {
+      expectParseInvalid(bundle);
+    }
+  });
+});
