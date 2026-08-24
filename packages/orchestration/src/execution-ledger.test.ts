@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { sha256Hex } from "@foreman/core";
 import { Effect, Exit } from "effect";
 import {
   EndstopLedger,
@@ -25,6 +26,11 @@ const A = "a".repeat(64);
 const B = "b".repeat(64);
 const C = "c".repeat(64);
 const D = "d".repeat(64);
+const CANDIDATE = {
+  commit: "2".repeat(40),
+  tree: "3".repeat(40),
+  candidateSha256: sha256Hex("2".repeat(40)),
+};
 
 const FAMILY_CREATED = "2026-08-24T12:00:00Z";
 const FAMILY_DEADLINE = "2026-10-23T12:00:00Z";
@@ -461,6 +467,107 @@ describe("EndstopLedger", () => {
           event.payload._tag === undefined ? [] : [event.payload._tag],
         ),
         ["ExecutionFamilyAuthorityRegistered", "EndstopFamilyActivated"],
+      );
+    });
+  });
+
+  it("registers child authority before one atomic reservation", async () => {
+    await withRoot(async (root) => {
+      const value = contract({
+        createdAt: FAMILY_CREATED,
+        deadlineAt: "2026-08-24T14:00:00Z",
+      });
+      const manifest = familyManifest(value);
+      const familySha256 = executionContractFamilySha256(manifest);
+      const rootContractSha256 = executionContractSha256(value);
+      const layer = makeLiveEndstopLedgerLayer(root);
+      await Effect.runPromise(create(root, value));
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          yield* ledger.registerFamilyAuthority({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            manifest,
+            familySha256,
+            sourceSha256: manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            registeredAt: "2026-08-24T12:01:00Z",
+          });
+          yield* ledger.activateFamily({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            sourceSha256: manifest.sourceSha256,
+            auditReceiptSha256: A,
+            userReceiptSha256: B,
+            activatedAt: "2026-08-24T12:02:00Z",
+          });
+          return yield* ledger.registerChildAuthority({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            childId: "v040-t4-appliance",
+            action: "implement",
+            effectiveAction: "implement",
+            priorReservationId: null,
+            originReservationId: null,
+            candidate: CANDIDATE,
+            taskPlanSha256: C,
+            bundleSha256: D,
+            receiptSchemas: ["foreman.design-approval.v1"],
+            receiptSha256s: [A],
+            evaluationManifestSha256: null,
+            registeredAt: "2026-08-24T12:03:00Z",
+          });
+        }).pipe(Effect.provide(layer)),
+      );
+
+      const reserved = await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.executeChild({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+            childId: "v040-t4-appliance",
+            operation: {
+              _tag: "ReserveAction",
+              reservationId: "child-reservation-1",
+              reservationAction: "implement",
+              effectiveAction: "implement",
+              originReservationId: "child-reservation-1",
+              candidate: CANDIDATE,
+              taskPlanSha256: C,
+              authorityBundleSha256: D,
+            },
+            at: "2026-08-24T12:04:00Z",
+          });
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
+      );
+      assert.equal(reserved.decision._tag, "Accepted");
+      assert.equal(reserved.state.totalActions, 1);
+      assert.equal(
+        reserved.state.children["v040-t4-appliance"]?.counts.totalActions,
+        1,
+      );
+
+      const recovered = await Effect.runPromise(
+        Effect.gen(function* () {
+          const ledger = yield* EndstopLedger;
+          return yield* ledger.familyStatus({
+            rootContractId: value.contractId,
+            rootContractSha256,
+            familySha256,
+          });
+        }).pipe(Effect.provide(makeLiveEndstopLedgerLayer(root))),
+      );
+      assert.equal(recovered.childAuthorities.length, 1);
+      assert.equal(recovered.family.totalActions, 1);
+      assert.equal(
+        recovered.family.children["v040-t4-appliance"]?.counts.implement,
+        1,
       );
     });
   });

@@ -11,7 +11,18 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { canonicalize, isSha256Hex } from "@foreman/core";
+import {
+  canonicalize,
+  isCommitSha40,
+  isSha256Hex,
+  sha256Hex,
+} from "@foreman/core";
+import type {
+  RegisteredReleaseAuthorityV1,
+  ReleaseActionV1,
+  ReleaseAuthorityReceiptV1,
+  ReleaseCandidateIdentityV1,
+} from "@foreman/policy";
 import {
   decodeRunId,
   isUtcSecondTimestamp,
@@ -34,6 +45,8 @@ import {
 } from "./execution-contract.js";
 import {
   decideExecutionCommand,
+  decideExecutionChildOperationV2,
+  evolveExecutionFamilyV2,
   initialExecutionFamilyStateV2,
   evolveExecution,
   executionActionKinds,
@@ -44,6 +57,9 @@ import {
   type ExecutionDecision,
   type ExecutionEvent,
   type ExecutionFamilyStateV2,
+  type ExecutionV2ChildOperationV1,
+  type ExecutionV2Decision,
+  type ExecutionV2Event,
   type ExecutionState,
   type ExecutionTerminalTag,
 } from "./execution-terminal-policy.js";
@@ -67,6 +83,7 @@ export type EndstopLedgerFailureReason =
   | "family_missing"
   | "family_mismatch"
   | "family_authority_mismatch"
+  | "child_authority_mismatch"
   | "family_already_activated"
   | "family_active"
   | "corrupt_history"
@@ -133,6 +150,12 @@ export type ExecutionFamilyLedgerStatusV2 = {
   readonly root: ExecutionState;
   readonly authority: ExecutionFamilyAuthorityStateV1;
   readonly family: ExecutionFamilyStateV2;
+  readonly childAuthorities: readonly RegisteredReleaseAuthorityV1[];
+};
+
+export type EndstopChildExecutionResultV2 = {
+  readonly decision: ExecutionV2Decision;
+  readonly state: ExecutionFamilyStateV2;
 };
 
 export class EndstopLedger extends Context.Tag("EndstopLedger")<
@@ -161,6 +184,17 @@ export class EndstopLedger extends Context.Tag("EndstopLedger")<
         "rootContractId" | "rootContractSha256" | "familySha256"
       >,
     ) => Effect.Effect<ExecutionFamilyLedgerStatusV2, EndstopLedgerFailure>;
+    readonly registerChildAuthority: (
+      registration: RegisteredReleaseAuthorityV1,
+    ) => Effect.Effect<RegisteredReleaseAuthorityV1, EndstopLedgerFailure>;
+    readonly executeChild: (input: {
+      readonly rootContractId: string;
+      readonly rootContractSha256: string;
+      readonly familySha256: string;
+      readonly childId: string;
+      readonly operation: ExecutionV2ChildOperationV1;
+      readonly at: string;
+    }) => Effect.Effect<EndstopChildExecutionResultV2, EndstopLedgerFailure>;
   }
 >() {}
 
@@ -168,6 +202,7 @@ type ReplayedHistoryV2 = {
   readonly root: ExecutionState;
   readonly authority: ExecutionFamilyAuthorityStateV1 | null;
   readonly family: ExecutionFamilyStateV2 | null;
+  readonly childAuthorities: readonly RegisteredReleaseAuthorityV1[];
 };
 
 type HistoryResult =
@@ -183,6 +218,153 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
   return actual.length === expected.length && actual.every((key, i) => key === expected[i]);
+}
+
+const releaseActionsV2: readonly ReleaseActionV1[] = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "provider_retry",
+  "resume",
+  "integrate",
+  "publish",
+  "evaluate",
+];
+
+const receiptSchemasV1: readonly ReleaseAuthorityReceiptV1["schema"][] = [
+  "foreman.design-approval.v1",
+  "foreman.checks-evidence.v1",
+  "foreman.release-audit.v1",
+  "foreman.council-request.v1",
+  "foreman.evaluation-authority.v1",
+];
+
+function candidateFromUnknown(value: unknown): ReleaseCandidateIdentityV1 | null {
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, ["commit", "tree", "candidateSha256"]) ||
+    typeof value.commit !== "string" ||
+    typeof value.tree !== "string" ||
+    typeof value.candidateSha256 !== "string" ||
+    !isCommitSha40(value.commit) ||
+    !isCommitSha40(value.tree) ||
+    !isSha256Hex(value.candidateSha256) ||
+    value.candidateSha256 !== sha256Hex(value.commit)
+  ) {
+    return null;
+  }
+  return {
+    commit: value.commit,
+    tree: value.tree,
+    candidateSha256: value.candidateSha256,
+  };
+}
+
+function childAuthorityFromUnknown(
+  value: unknown,
+): RegisteredReleaseAuthorityV1 | null {
+  if (
+    !isRecord(value) ||
+    !exactKeys(value, [
+      "rootContractId",
+      "rootContractSha256",
+      "familySha256",
+      "childId",
+      "action",
+      "effectiveAction",
+      "priorReservationId",
+      "originReservationId",
+      "candidate",
+      "taskPlanSha256",
+      "bundleSha256",
+      "receiptSchemas",
+      "receiptSha256s",
+      "evaluationManifestSha256",
+      "registeredAt",
+    ]) ||
+    typeof value.rootContractId !== "string" ||
+    typeof decodeRunId(value.rootContractId) !== "string" ||
+    typeof value.rootContractSha256 !== "string" ||
+    !isSha256Hex(value.rootContractSha256) ||
+    typeof value.familySha256 !== "string" ||
+    !isSha256Hex(value.familySha256) ||
+    typeof value.childId !== "string" ||
+    typeof decodeRunId(value.childId) !== "string" ||
+    typeof value.action !== "string" ||
+    !releaseActionsV2.includes(value.action as ReleaseActionV1) ||
+    typeof value.effectiveAction !== "string" ||
+    !releaseActionsV2.includes(value.effectiveAction as ReleaseActionV1) ||
+    typeof value.taskPlanSha256 !== "string" ||
+    !isSha256Hex(value.taskPlanSha256) ||
+    typeof value.bundleSha256 !== "string" ||
+    !isSha256Hex(value.bundleSha256) ||
+    typeof value.registeredAt !== "string" ||
+    !isUtcSecondTimestamp(value.registeredAt) ||
+    !Array.isArray(value.receiptSchemas) ||
+    value.receiptSchemas.length === 0 ||
+    !value.receiptSchemas.every(
+      (schema) =>
+        typeof schema === "string" &&
+        receiptSchemasV1.includes(schema as ReleaseAuthorityReceiptV1["schema"]),
+    ) ||
+    !Array.isArray(value.receiptSha256s) ||
+    value.receiptSha256s.length !== value.receiptSchemas.length ||
+    !value.receiptSha256s.every(
+      (digest) => typeof digest === "string" && isSha256Hex(digest),
+    ) ||
+    !(
+      value.evaluationManifestSha256 === null ||
+      (typeof value.evaluationManifestSha256 === "string" &&
+        isSha256Hex(value.evaluationManifestSha256))
+    )
+  ) {
+    return null;
+  }
+  const candidate = candidateFromUnknown(value.candidate);
+  if (candidate === null) return null;
+  const action = value.action as ReleaseActionV1;
+  const effectiveAction = value.effectiveAction as ReleaseActionV1;
+  const meta = action === "provider_retry" || action === "resume";
+  if (
+    meta
+      ? effectiveAction === "provider_retry" ||
+        effectiveAction === "resume" ||
+        typeof value.priorReservationId !== "string" ||
+        typeof decodeRunId(value.priorReservationId) !== "string" ||
+        typeof value.originReservationId !== "string" ||
+        typeof decodeRunId(value.originReservationId) !== "string"
+      : effectiveAction !== action ||
+        value.priorReservationId !== null ||
+        value.originReservationId !== null
+  ) {
+    return null;
+  }
+  if (
+    effectiveAction === "evaluate"
+      ? typeof value.evaluationManifestSha256 !== "string"
+      : value.evaluationManifestSha256 !== null
+  ) {
+    return null;
+  }
+  return {
+    rootContractId: value.rootContractId,
+    rootContractSha256: value.rootContractSha256,
+    familySha256: value.familySha256,
+    childId: value.childId,
+    action,
+    effectiveAction,
+    priorReservationId: value.priorReservationId as string | null,
+    originReservationId: value.originReservationId as string | null,
+    candidate,
+    taskPlanSha256: value.taskPlanSha256,
+    bundleSha256: value.bundleSha256,
+    receiptSchemas: [...value.receiptSchemas] as ReleaseAuthorityReceiptV1["schema"][],
+    receiptSha256s: [...value.receiptSha256s] as string[],
+    evaluationManifestSha256: value.evaluationManifestSha256 as string | null,
+    registeredAt: value.registeredAt,
+  };
 }
 
 function executionEventFromUnknown(value: unknown): ExecutionEvent | null {
@@ -277,12 +459,224 @@ function executionEventFromUnknown(value: unknown): ExecutionEvent | null {
   }
 }
 
+function executionV2EventFromUnknown(value: unknown): ExecutionV2Event | null {
+  if (!isRecord(value) || value._tag !== "ActionReserved") {
+    return executionEventFromUnknown(value);
+  }
+  const allowed = value.commandSha256 === undefined
+    ? ["_tag", "action", "candidateSha256", "reservationId", "at"]
+    : [
+        "_tag",
+        "action",
+        "candidateSha256",
+        "commandSha256",
+        "reservationId",
+        "at",
+      ];
+  if (
+    !exactKeys(value, allowed) ||
+    typeof value.action !== "string" ||
+    !releaseActionsV2.includes(value.action as ReleaseActionV1) ||
+    typeof value.candidateSha256 !== "string" ||
+    !isSha256Hex(value.candidateSha256) ||
+    typeof value.reservationId !== "string" ||
+    typeof decodeRunId(value.reservationId) !== "string" ||
+    typeof value.at !== "string" ||
+    !isUtcSecondTimestamp(value.at) ||
+    (value.commandSha256 !== undefined &&
+      (typeof value.commandSha256 !== "string" ||
+        !isSha256Hex(value.commandSha256)))
+  ) {
+    return null;
+  }
+  return {
+    _tag: "ActionReserved",
+    action: value.action as ReleaseActionV1,
+    candidateSha256: value.candidateSha256,
+    ...(value.commandSha256 === undefined
+      ? {}
+      : { commandSha256: value.commandSha256 }),
+    reservationId: value.reservationId,
+    at: value.at,
+  };
+}
+
+function executionV2OperationFromUnknown(
+  value: unknown,
+): ExecutionV2ChildOperationV1 | null {
+  if (!isRecord(value) || typeof value._tag !== "string") return null;
+  const runId = (item: unknown): item is string =>
+    typeof item === "string" && typeof decodeRunId(item) === "string";
+  const digest = (item: unknown): item is string =>
+    typeof item === "string" && isSha256Hex(item);
+  switch (value._tag) {
+    case "ReserveAction": {
+      if (
+        !exactKeys(value, [
+          "_tag",
+          "reservationId",
+          "reservationAction",
+          "effectiveAction",
+          "originReservationId",
+          "candidate",
+          "taskPlanSha256",
+          "authorityBundleSha256",
+        ]) ||
+        !runId(value.reservationId) ||
+        typeof value.reservationAction !== "string" ||
+        !releaseActionsV2.includes(value.reservationAction as ReleaseActionV1) ||
+        typeof value.effectiveAction !== "string" ||
+        !releaseActionsV2.includes(value.effectiveAction as ReleaseActionV1) ||
+        !runId(value.originReservationId) ||
+        !digest(value.taskPlanSha256) ||
+        !digest(value.authorityBundleSha256)
+      ) {
+        return null;
+      }
+      const candidate = candidateFromUnknown(value.candidate);
+      if (candidate === null) return null;
+      return {
+        _tag: "ReserveAction",
+        reservationId: value.reservationId,
+        reservationAction: value.reservationAction as ReleaseActionV1,
+        effectiveAction: value.effectiveAction as ReleaseActionV1,
+        originReservationId: value.originReservationId,
+        candidate,
+        taskPlanSha256: value.taskPlanSha256,
+        authorityBundleSha256: value.authorityBundleSha256,
+      };
+    }
+    case "RecordProductChange": {
+      if (
+        !exactKeys(value, [
+          "_tag",
+          "reservationId",
+          "originReservationId",
+          "baseCandidate",
+          "candidate",
+          "allowedPathsSha256",
+        ]) ||
+        !runId(value.reservationId) ||
+        !runId(value.originReservationId) ||
+        !digest(value.allowedPathsSha256)
+      ) {
+        return null;
+      }
+      const baseCandidate = candidateFromUnknown(value.baseCandidate);
+      const candidate = candidateFromUnknown(value.candidate);
+      if (baseCandidate === null || candidate === null) return null;
+      return {
+        _tag: "RecordProductChange",
+        reservationId: value.reservationId,
+        originReservationId: value.originReservationId,
+        baseCandidate,
+        candidate,
+        allowedPathsSha256: value.allowedPathsSha256,
+      };
+    }
+    case "RecordMilestone":
+      if (
+        !exactKeys(value, [
+          "_tag",
+          "milestone",
+          "outcomeSha256",
+          "reservationId",
+          "originReservationId",
+          "candidateSha256",
+        ]) ||
+        typeof value.milestone !== "string" ||
+        !["checks", "audit", "integrated", "published"].includes(
+          value.milestone,
+        ) ||
+        !digest(value.outcomeSha256) ||
+        !runId(value.reservationId) ||
+        !runId(value.originReservationId) ||
+        !digest(value.candidateSha256)
+      ) {
+        return null;
+      }
+      return {
+        _tag: "RecordMilestone",
+        milestone: value.milestone as ExecutionMilestone,
+        outcomeSha256: value.outcomeSha256,
+        reservationId: value.reservationId,
+        originReservationId: value.originReservationId,
+        candidateSha256: value.candidateSha256,
+      };
+    case "RecordBlockingOutcome":
+    case "RecordExternalFailure":
+      if (
+        !exactKeys(value, [
+          "_tag",
+          "outcomeSha256",
+          "reservationId",
+          "originReservationId",
+          "candidateSha256",
+        ]) ||
+        !digest(value.outcomeSha256) ||
+        !runId(value.reservationId) ||
+        !runId(value.originReservationId) ||
+        !digest(value.candidateSha256)
+      ) {
+        return null;
+      }
+      return {
+        _tag: value._tag,
+        outcomeSha256: value.outcomeSha256,
+        reservationId: value.reservationId,
+        originReservationId: value.originReservationId,
+        candidateSha256: value.candidateSha256,
+      };
+    case "Cancel":
+      return exactKeys(value, ["_tag", "approvalSha256", "reasonSha256"]) &&
+        digest(value.approvalSha256) &&
+        digest(value.reasonSha256)
+        ? {
+            _tag: "Cancel",
+            approvalSha256: value.approvalSha256,
+            reasonSha256: value.reasonSha256,
+          }
+        : null;
+    case "Invalidate":
+      return exactKeys(value, [
+        "_tag",
+        "approvalSha256",
+        "observedFamilySha256",
+        "reasonSha256",
+      ]) &&
+        digest(value.approvalSha256) &&
+        digest(value.observedFamilySha256) &&
+        digest(value.reasonSha256)
+        ? {
+            _tag: "Invalidate",
+            approvalSha256: value.approvalSha256,
+            observedFamilySha256: value.observedFamilySha256,
+            reasonSha256: value.reasonSha256,
+          }
+        : null;
+    default:
+      return null;
+  }
+}
+
 type FamilyJournalPayloadV2 =
   | ({ readonly _tag: "ExecutionFamilyAuthorityRegistered" } &
       ExecutionFamilyAuthorityStateV1)
   | (Omit<ExecutionFamilyActivationV1, "rootContractId" | "rootContractSha256"> & {
       readonly _tag: "EndstopFamilyActivated";
-    });
+    })
+  | {
+      readonly _tag: "ExecutionChildAuthorityRegistered";
+      readonly authority: RegisteredReleaseAuthorityV1;
+    }
+  | {
+      readonly _tag: "EndstopChildDecision";
+      readonly familySha256: string;
+      readonly childId: string;
+      readonly operation: ExecutionV2ChildOperationV1;
+      readonly at: string;
+      readonly events: readonly ExecutionV2Event[];
+    };
 
 function familyJournalPayloadFromUnknown(
   value: unknown,
@@ -360,7 +754,127 @@ function familyJournalPayloadFromUnknown(
       activatedAt: value.activatedAt,
     };
   }
+  if (value._tag === "ExecutionChildAuthorityRegistered") {
+    if (!exactKeys(value, ["_tag", "authority"])) return null;
+    const authority = childAuthorityFromUnknown(value.authority);
+    return authority === null
+      ? null
+      : { _tag: "ExecutionChildAuthorityRegistered", authority };
+  }
+  if (value._tag === "EndstopChildDecision") {
+    if (
+      !exactKeys(value, [
+        "_tag",
+        "familySha256",
+        "childId",
+        "operation",
+        "at",
+        "events",
+      ]) ||
+      typeof value.familySha256 !== "string" ||
+      !isSha256Hex(value.familySha256) ||
+      typeof value.childId !== "string" ||
+      typeof decodeRunId(value.childId) !== "string" ||
+      typeof value.at !== "string" ||
+      !isUtcSecondTimestamp(value.at) ||
+      !Array.isArray(value.events) ||
+      value.events.length === 0
+    ) {
+      return null;
+    }
+    const operation = executionV2OperationFromUnknown(value.operation);
+    if (operation === null) return null;
+    const events: ExecutionV2Event[] = [];
+    for (const item of value.events) {
+      const event = executionV2EventFromUnknown(item);
+      if (event === null || event.at !== value.at) return null;
+      events.push(event);
+    }
+    return {
+      _tag: "EndstopChildDecision",
+      familySha256: value.familySha256,
+      childId: value.childId,
+      operation,
+      at: value.at,
+      events,
+    };
+  }
   return null;
+}
+
+function sameCandidate(
+  left: ReleaseCandidateIdentityV1,
+  right: ReleaseCandidateIdentityV1,
+): boolean {
+  return (
+    left.commit === right.commit &&
+    left.tree === right.tree &&
+    left.candidateSha256 === right.candidateSha256
+  );
+}
+
+function childAuthorityIdentity(
+  authority: RegisteredReleaseAuthorityV1,
+): string {
+  return canonicalize({
+    familySha256: authority.familySha256,
+    childId: authority.childId,
+    action: authority.action,
+    candidateSha256: authority.candidate.candidateSha256,
+    priorReservationId: authority.priorReservationId,
+  });
+}
+
+function authorityMatchesReservation(
+  authority: RegisteredReleaseAuthorityV1,
+  operation: Extract<
+    ExecutionV2ChildOperationV1,
+    { readonly _tag: "ReserveAction" }
+  >,
+): boolean {
+  const wrapper =
+    operation.reservationAction === "provider_retry" ||
+    operation.reservationAction === "resume";
+  return (
+    authority.action === operation.reservationAction &&
+    authority.effectiveAction === operation.effectiveAction &&
+    sameCandidate(authority.candidate, operation.candidate) &&
+    authority.taskPlanSha256 === operation.taskPlanSha256 &&
+    authority.bundleSha256 === operation.authorityBundleSha256 &&
+    (wrapper
+      ? authority.priorReservationId !== null &&
+        authority.originReservationId === operation.originReservationId
+      : authority.priorReservationId === null &&
+        authority.originReservationId === null &&
+        operation.originReservationId === operation.reservationId)
+  );
+}
+
+function hasAvailableChildAuthority(
+  authorities: readonly RegisteredReleaseAuthorityV1[],
+  family: ExecutionFamilyStateV2,
+  childId: string,
+  operation: Extract<
+    ExecutionV2ChildOperationV1,
+    { readonly _tag: "ReserveAction" }
+  >,
+  at: string,
+): boolean {
+  const child = family.children[childId];
+  if (child === undefined) return false;
+  const authority = authorities.find(
+    (item) =>
+      item.familySha256 === family.familySha256 &&
+      item.childId === childId &&
+      Date.parse(item.registeredAt) <= Date.parse(at) &&
+      authorityMatchesReservation(item, operation),
+  );
+  if (authority === undefined) return false;
+  return !Object.values(child.reservations).some(
+    (reservation) =>
+      reservation.authorityBundleSha256 === authority.bundleSha256 &&
+      reservation.reservationAction === authority.action,
+  );
 }
 
 function replayHistory(
@@ -407,6 +921,7 @@ function replayHistory(
   let root: ExecutionState = initialExecutionState(decoded);
   let authority: ExecutionFamilyAuthorityStateV1 | null = null;
   let family: ExecutionFamilyStateV2 | null = null;
+  const childAuthorities: RegisteredReleaseAuthorityV1[] = [];
   for (const stored of relevant.slice(1)) {
     if (stored.type === DECISION_EVENT) {
       if (
@@ -465,39 +980,97 @@ function replayHistory(
       };
       continue;
     }
+    if (payload._tag === "EndstopFamilyActivated") {
+      if (
+        authority === null ||
+        family !== null ||
+        payload.familySha256 !== authority.familySha256 ||
+        payload.sourceSha256 !== authority.sourceSha256 ||
+        payload.auditReceiptSha256 !== authority.auditReceiptSha256 ||
+        payload.userReceiptSha256 !== authority.userReceiptSha256 ||
+        Date.parse(payload.activatedAt) < Date.parse(authority.registeredAt)
+      ) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      const manifest = loadManifest(payload.familySha256);
+      if (
+        manifest === null ||
+        manifest.rootContractId !== decoded.contractId ||
+        manifest.rootContractSha256 !== hash ||
+        manifest.sourceSha256 !== authority.sourceSha256 ||
+        executionContractFamilySha256(manifest) !== payload.familySha256
+      ) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      const activated = initialExecutionFamilyStateV2({
+        manifest,
+        familySha256: payload.familySha256,
+        activatedAt: payload.activatedAt,
+        priorRootActions: root.counts.totalActions,
+      });
+      if (isExecutionFamilyFailure(activated)) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      family = activated;
+      continue;
+    }
+    if (payload._tag === "ExecutionChildAuthorityRegistered") {
+      const item = payload.authority;
+      if (
+        authority === null ||
+        family === null ||
+        item.rootContractId !== decoded.contractId ||
+        item.rootContractSha256 !== hash ||
+        item.familySha256 !== family.familySha256 ||
+        family.children[item.childId] === undefined ||
+        Date.parse(item.registeredAt) < Date.parse(family.activatedAt) ||
+        childAuthorities.some(
+          (existing) => childAuthorityIdentity(existing) === childAuthorityIdentity(item),
+        )
+      ) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      childAuthorities.push(item);
+      continue;
+    }
+    if (family === null || payload.familySha256 !== family.familySha256) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
     if (
-      authority === null ||
-      family !== null ||
-      payload.familySha256 !== authority.familySha256 ||
-      payload.sourceSha256 !== authority.sourceSha256 ||
-      payload.auditReceiptSha256 !== authority.auditReceiptSha256 ||
-      payload.userReceiptSha256 !== authority.userReceiptSha256 ||
-      Date.parse(payload.activatedAt) < Date.parse(authority.registeredAt)
+      payload.operation._tag === "ReserveAction" &&
+      !hasAvailableChildAuthority(
+        childAuthorities,
+        family,
+        payload.childId,
+        payload.operation,
+        payload.at,
+      )
     ) {
       return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
     }
-    const manifest = loadManifest(payload.familySha256);
-    if (
-      manifest === null ||
-      manifest.rootContractId !== decoded.contractId ||
-      manifest.rootContractSha256 !== hash ||
-      manifest.sourceSha256 !== authority.sourceSha256 ||
-      executionContractFamilySha256(manifest) !== payload.familySha256
-    ) {
-      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-    }
-    const activated = initialExecutionFamilyStateV2({
-      manifest,
-      familySha256: payload.familySha256,
-      activatedAt: payload.activatedAt,
-      priorRootActions: root.counts.totalActions,
+    const replayed = decideExecutionChildOperationV2({
+      state: family,
+      childId: payload.childId,
+      operation: payload.operation,
+      at: payload.at,
     });
-    if (isExecutionFamilyFailure(activated)) {
+    if (
+      (replayed._tag !== "Accepted" && replayed._tag !== "Terminated") ||
+      canonicalize(replayed.events) !== canonicalize(payload.events)
+    ) {
       return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
     }
-    family = activated;
+    family = evolveExecutionFamilyV2(
+      family,
+      payload.childId,
+      payload.operation,
+      replayed,
+    );
   }
-  return { _tag: "Ok", state: { root, authority, family } };
+  return {
+    _tag: "Ok",
+    state: { root, authority, family, childAuthorities },
+  };
 }
 
 type TransactionResult<A> =
@@ -1019,6 +1592,7 @@ export function makeLiveEndstopLedgerLayer(
             root: history.state.root,
             authority,
             family,
+            childAuthorities: history.state.childAuthorities,
           };
           return {
             _tag: "Append",
@@ -1035,6 +1609,210 @@ export function makeLiveEndstopLedgerLayer(
               },
             },
             result: () => ({ _tag: "Ok", value }) as const,
+          };
+        });
+      }).pipe(Effect.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    registerChildAuthority: (registration) => {
+      const decoded = childAuthorityFromUnknown(registration);
+      if (decoded === null) {
+        return Effect.fail(ledgerFailure("child_authority_mismatch"));
+      }
+      const runId = decodeRunId(decoded.rootContractId) as RunId;
+      const transaction = Effect.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact<
+          TransactionResult<RegisteredReleaseAuthorityV1>
+        >(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure:
+                  history._tag === "Missing"
+                    ? ledgerFailure("missing_contract")
+                    : history.failure,
+              } as const,
+            };
+          }
+          const family = history.state.family;
+          if (
+            history.state.root.contractSha256 !== decoded.rootContractSha256
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch"),
+              } as const,
+            };
+          }
+          if (
+            family === null ||
+            family.familySha256 !== decoded.familySha256 ||
+            family.children[decoded.childId] === undefined ||
+            Date.parse(decoded.registeredAt) < Date.parse(family.activatedAt)
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_mismatch"),
+              } as const,
+            };
+          }
+          const identity = childAuthorityIdentity(decoded);
+          const existing = history.state.childAuthorities.find(
+            (item) => childAuthorityIdentity(item) === identity,
+          );
+          if (existing !== undefined) {
+            return canonicalize(existing) === canonicalize(decoded)
+              ? {
+                  _tag: "Return",
+                  value: { _tag: "Ok", value: existing } as const,
+                }
+              : {
+                  _tag: "Return",
+                  value: {
+                    _tag: "Failure",
+                    failure: ledgerFailure("child_authority_mismatch"),
+                  } as const,
+                };
+          }
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "ExecutionChildAuthorityRegistered",
+                authority: decoded,
+              },
+            },
+            result: () => ({ _tag: "Ok", value: decoded }) as const,
+          };
+        });
+      }).pipe(Effect.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    executeChild: (input) => {
+      const runId = decodeRunId(input.rootContractId);
+      const operation = executionV2OperationFromUnknown(input.operation);
+      if (
+        typeof runId !== "string" ||
+        !isSha256Hex(input.rootContractSha256) ||
+        !isSha256Hex(input.familySha256) ||
+        typeof decodeRunId(input.childId) !== "string" ||
+        operation === null ||
+        !isUtcSecondTimestamp(input.at)
+      ) {
+        return Effect.fail(ledgerFailure("family_mismatch"));
+      }
+      const transaction = Effect.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact<
+          TransactionResult<EndstopChildExecutionResultV2>
+        >(runId as RunId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure:
+                  history._tag === "Missing"
+                    ? ledgerFailure("missing_contract")
+                    : history.failure,
+              } as const,
+            };
+          }
+          if (history.state.root.contractSha256 !== input.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch"),
+              } as const,
+            };
+          }
+          const family = history.state.family;
+          if (
+            family === null ||
+            family.familySha256 !== input.familySha256 ||
+            family.children[input.childId] === undefined
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_missing"),
+              } as const,
+            };
+          }
+          if (
+            operation._tag === "ReserveAction" &&
+            !hasAvailableChildAuthority(
+              history.state.childAuthorities,
+              family,
+              input.childId,
+              operation,
+              input.at,
+            )
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch"),
+              } as const,
+            };
+          }
+          const decision = decideExecutionChildOperationV2({
+            state: family,
+            childId: input.childId,
+            operation,
+            at: input.at,
+          });
+          if (
+            decision._tag === "Refused" ||
+            decision._tag === "ReusedVerification" ||
+            decision.events.length === 0
+          ) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Ok",
+                value: { decision, state: family },
+              } as const,
+            };
+          }
+          const state = evolveExecutionFamilyV2(
+            family,
+            input.childId,
+            operation,
+            decision,
+          );
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "EndstopChildDecision",
+                familySha256: input.familySha256,
+                childId: input.childId,
+                operation,
+                at: input.at,
+                events: decision.events,
+              },
+            },
+            result: () => ({
+              _tag: "Ok",
+              value: { decision, state },
+            }) as const,
           };
         });
       }).pipe(Effect.provide(journalLayer));
@@ -1065,6 +1843,7 @@ export function makeLiveEndstopLedgerLayer(
           root: history.root,
           authority: history.authority,
           family: history.family,
+          childAuthorities: history.childAuthorities,
         };
       }),
   });
