@@ -954,10 +954,7 @@ function validateContainmentLive(path: string, containmentRoot: string): void {
         component = lstatSync(current);
       } catch (error) {
         if (isEnoentLive(error)) {
-          if (index === segments.length - 1) {
-            readFailureLive("NotFound", "file not found");
-          }
-          readFailureLive("Unreadable", "intermediate component is missing");
+          readFailureLive("NotFound", "file not found");
         }
         throw error;
       }
