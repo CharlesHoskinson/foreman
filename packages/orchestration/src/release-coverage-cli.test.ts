@@ -10,6 +10,7 @@ import {
   readlinkSync,
   rmSync,
   symlinkSync,
+  realpathSync,
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
@@ -2412,6 +2413,10 @@ test("live gitChangedPaths.discover returns planning changes without duplicates"
         baselineCommit: baseline,
       }),
     );
+    assert.deepEqual(
+      discovered,
+      [...discovered].sort((a, b) => Buffer.from(a).compare(Buffer.from(b))),
+    );
     const unique = new Set(discovered);
     assert.equal(unique.size, discovered.length);
 
@@ -2758,6 +2763,7 @@ test("live OpenSpec adapter uses the planner and exact raw bytes", async (t) => 
           lookups.push(name);
           return Effect.succeed(item.resolved);
         },
+        realpath: (path) => Effect.succeed(path),
         platform: item.platform,
         comSpec: item.comSpec,
         cwd: () => item.repository,
@@ -2816,7 +2822,8 @@ test("live repository-root adapter requires one exact LF-terminated raw path", a
           });
         },
         which: () => Effect.die("unexpected OpenSpec lookup"),
-        platform: "linux",
+        realpath: (path) => Effect.succeed(path),
+        platform: process.platform,
         comSpec: undefined,
         cwd: () => repository,
         nullDevice: devNull,
@@ -2862,7 +2869,8 @@ test("live Git adapter isolates config and inventories ignored planning files", 
       });
     },
     which: () => Effect.die("unexpected OpenSpec lookup"),
-    platform: "linux",
+    realpath: (path) => Effect.succeed(path),
+    platform: process.platform,
     comSpec: undefined,
     cwd: () => REPO,
     nullDevice: devNull,
@@ -2927,6 +2935,11 @@ test("live OpenSpec adapter rejects an outside alias into the repository", async
         return Effect.die("repository-selected executable ran");
       },
       which: () => Effect.succeed(alias),
+      realpath: (path) =>
+        Effect.try({
+          try: () => realpathSync(path),
+          catch: (error) => error,
+        }),
       platform: process.platform,
       comSpec: process.env.ComSpec ?? process.env.COMSPEC,
       cwd: () => repository,

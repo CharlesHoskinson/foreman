@@ -103,7 +103,7 @@ test("general bounded reader accepts a regular file through a symlinked ancestor
     writeFileSync(join(realDirectory, "config.txt"), expected);
     const aliasDirectory = join(aliasRoot, "alias-directory");
     try {
-      symlinkSync(realDirectory, aliasDirectory, "dir");
+      symlinkSync(realDirectory, aliasDirectory, process.platform === "win32" ? "junction" : "dir");
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
