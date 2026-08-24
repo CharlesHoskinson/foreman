@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
+import { devNull, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -28,13 +28,17 @@ import type {
 } from "@foreman/policy";
 import {
   liveReleaseCoverageCliServices,
+  makeLiveReleaseCoverageCliServices,
   runReleaseCoverageCli,
+  type CapturedProcessResult,
   type ReleaseCoverageCliIo,
   type ReleaseCoverageCliServices,
   type ReleaseCoverageFamilySourceService,
   type ReleaseCoverageFileReadService,
   type ReleaseCoverageGitChangedPathsService,
+  type ReleaseCoverageLiveDependencies,
   type ReleaseCoverageOpenSpecListService,
+  type RunCapturedOptions,
 } from "./index.js";
 import { planOpenSpecInvocationV1 } from "./release-coverage-cli.js";
 
@@ -2606,5 +2610,302 @@ test("planOpenSpecInvocationV1 freezes POSIX and Windows command plans", () => {
   for (const input of invalidCases) {
     const plan = planOpenSpecInvocationV1(input) as OpenSpecInvocationPlanV1;
     assert.deepEqual(plan, { _tag: "Invalid" });
+  }
+});
+
+test("pure Windows planner rejects CMD expansion and metacharacters", () => {
+  const comSpec = "C:\\Windows\\System32\\cmd.exe";
+  const validWithSpaces = planOpenSpecInvocationV1({
+    platform: "win32",
+    comSpec,
+    resolvedOpenSpec: "C:\\Program Files\\OpenSpec\\openspec.CMD",
+  });
+  assert.deepEqual(validWithSpaces, {
+    _tag: "Ok",
+    command: comSpec,
+    args: [
+      "/d",
+      "/s",
+      "/c",
+      '"C:\\Program Files\\OpenSpec\\openspec.CMD" list --json',
+    ],
+  });
+
+  for (const metacharacter of [
+    "%",
+    "!",
+    "^",
+    "&",
+    "|",
+    "<",
+    ">",
+    "(",
+    ")",
+    '"',
+    "\r",
+    "\n",
+    "\0",
+  ]) {
+    assert.deepEqual(
+      planOpenSpecInvocationV1({
+        platform: "win32",
+        comSpec,
+        resolvedOpenSpec: `C:\\Tools\\unsafe${metacharacter}name.cmd`,
+      }),
+      { _tag: "Invalid" },
+      `shim metacharacter ${JSON.stringify(metacharacter)}`,
+    );
+    assert.deepEqual(
+      planOpenSpecInvocationV1({
+        platform: "win32",
+        comSpec: `C:\\Windows\\unsafe${metacharacter}cmd.exe`,
+        resolvedOpenSpec: "C:\\Tools\\openspec.cmd",
+      }),
+      { _tag: "Invalid" },
+      `ComSpec metacharacter ${JSON.stringify(metacharacter)}`,
+    );
+  }
+
+  for (const input of [
+    { comSpec: "C:\\Windows\\System32\\powershell.exe", shim: "C:\\Tools\\openspec.cmd" },
+    { comSpec, shim: "C:\\Tools\\openspec.exe" },
+    { comSpec: "cmd.exe", shim: "C:\\Tools\\openspec.cmd" },
+    { comSpec, shim: "openspec.cmd" },
+  ]) {
+    assert.deepEqual(
+      planOpenSpecInvocationV1({
+        platform: "win32",
+        comSpec: input.comSpec,
+        resolvedOpenSpec: input.shim,
+      }),
+      { _tag: "Invalid" },
+    );
+  }
+});
+
+test("live OpenSpec adapter uses the planner and exact raw bytes", async (t) => {
+  const cases = [
+    {
+      name: "posix",
+      platform: "linux" as const,
+      comSpec: undefined,
+      repository: "/work/repository",
+      resolved: "/opt/openspec/bin/openspec",
+      nullDevice: "/dev/null",
+    },
+    {
+      name: "windows",
+      platform: "win32" as const,
+      comSpec: "C:\\Windows\\System32\\cmd.exe",
+      repository: "C:\\Work\\Repository",
+      resolved: "C:\\Program Files\\OpenSpec\\openspec.cmd",
+      nullDevice: "NUL",
+    },
+  ];
+
+  for (const item of cases) {
+    await t.test(item.name, async () => {
+      const calls: RunCapturedOptions[] = [];
+      const lookups: string[] = [];
+      const dependencies: ReleaseCoverageLiveDependencies = {
+        runCaptured: (input) => {
+          calls.push(input);
+          const result: CapturedProcessResult = {
+            exitCode: 0,
+            stdout: "\uFFFD",
+            stderr: "",
+            stdoutBytes: Uint8Array.of(0xff),
+            stderrBytes: new Uint8Array(),
+          };
+          return Effect.succeed(result);
+        },
+        which: (name) => {
+          lookups.push(name);
+          return Effect.succeed(item.resolved);
+        },
+        platform: item.platform,
+        comSpec: item.comSpec,
+        cwd: () => item.repository,
+        nullDevice: item.nullDevice,
+        baseEnvironment: { PATH: "/safe/bin" },
+      };
+      const services = makeLiveReleaseCoverageCliServices(dependencies);
+      const bytes = await Effect.runPromise(
+        services.openspecList.listJson({
+          repository: item.repository,
+          argv: ["list", "--json"],
+          maxBytes: ONE_MIB,
+        }),
+      );
+      assert.deepEqual(bytes, Uint8Array.of(0xff));
+      assert.deepEqual(lookups, ["openspec"]);
+      assert.equal(calls.length, 1);
+      const plan = planOpenSpecInvocationV1({
+        platform: item.platform,
+        comSpec: item.comSpec,
+        resolvedOpenSpec: item.resolved,
+      });
+      assert.equal(plan._tag, "Ok");
+      if (plan._tag === "Ok") {
+        assert.equal(calls[0]!.command, plan.command);
+        assert.deepEqual(calls[0]!.args, plan.args);
+      }
+      assert.equal(calls[0]!.cwd, item.repository);
+      assert.equal(calls[0]!.maxOutputBytes, ONE_MIB);
+      assert.equal(calls[0]!.timeoutMs, 30_000);
+    });
+  }
+});
+
+test("live repository-root adapter requires one exact LF-terminated raw path", async (t) => {
+  const repository = resolve("release-coverage-root-frame");
+  const frames = [
+    { name: "exact", bytes: utf8(`${repository}\\n`), valid: true },
+    { name: "missing-lf", bytes: utf8(repository), valid: false },
+    { name: "crlf", bytes: utf8(`${repository}\\r\\n`), valid: false },
+    { name: "second-line", bytes: utf8(`${repository}\\nother\\n`), valid: false },
+    { name: "invalid-utf8", bytes: Uint8Array.of(0xff, 0x0a), valid: false },
+  ];
+  for (const frame of frames) {
+    await t.test(frame.name, async () => {
+      const calls: RunCapturedOptions[] = [];
+      const dependencies: ReleaseCoverageLiveDependencies = {
+        runCaptured: (input) => {
+          calls.push(input);
+          return Effect.succeed({
+            exitCode: 0,
+            stdout: "\uFFFD",
+            stderr: "",
+            stdoutBytes: frame.bytes,
+            stderrBytes: new Uint8Array(),
+          });
+        },
+        which: () => Effect.die("unexpected OpenSpec lookup"),
+        platform: "linux",
+        comSpec: undefined,
+        cwd: () => repository,
+        nullDevice: devNull,
+        baseEnvironment: {
+          PATH: "/safe/bin",
+          GIT_DIR: "/hostile/repository",
+        },
+      };
+      const services = makeLiveReleaseCoverageCliServices(dependencies);
+      const result = await Effect.runPromise(
+        services.fileRead.resolveRepositoryRoot().pipe(Effect.either),
+      );
+      assert.equal(result._tag, frame.valid ? "Right" : "Left");
+      if (result._tag === "Right") assert.equal(result.right, repository);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0]!.command, "git");
+      assert.equal(calls[0]!.args.includes("rev-parse"), true);
+      assert.equal(calls[0]!.args.includes("--show-toplevel"), true);
+      assert.equal(calls[0]!.env?.GIT_DIR, undefined);
+    });
+  }
+});
+
+test("live Git adapter isolates config and inventories ignored planning files", async () => {
+  const calls: RunCapturedOptions[] = [];
+  const hostile = {
+    PATH: "/safe/bin",
+    GIT_DIR: "/hostile/git",
+    GIT_WORK_TREE: "/hostile/worktree",
+    GIT_INDEX_FILE: "/hostile/index",
+    GIT_CONFIG_GLOBAL: "/hostile/global",
+    GIT_CONFIG_SYSTEM: "/hostile/system",
+  };
+  const dependencies: ReleaseCoverageLiveDependencies = {
+    runCaptured: (input) => {
+      calls.push(input);
+      return Effect.succeed({
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        stdoutBytes: new Uint8Array(),
+        stderrBytes: new Uint8Array(),
+      });
+    },
+    which: () => Effect.die("unexpected OpenSpec lookup"),
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => REPO,
+    nullDevice: devNull,
+    baseEnvironment: hostile,
+  };
+  const services = makeLiveReleaseCoverageCliServices(dependencies);
+  const paths = await Effect.runPromise(
+    services.gitChangedPaths.discover({
+      repository: REPO,
+      baselineCommit: BASELINE,
+    }),
+  );
+  assert.deepEqual(paths, []);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]!.args.includes("diff"), true);
+  assert.equal(calls[0]!.args.includes(BASELINE), true);
+  assert.equal(calls[1]!.args.includes("ls-files"), true);
+  assert.equal(calls[1]!.args.includes("--others"), true);
+  assert.equal(calls[1]!.args.includes("--exclude-standard"), false);
+  for (const call of calls) {
+    const joined = call.args.join(" ");
+    assert.equal(joined.includes("HEAD"), false);
+    assert.equal(joined.includes("..."), false);
+    assert.equal(joined.includes("core.fsmonitor=false"), true);
+    assert.equal(joined.includes(`core.excludesFile=${devNull}`), true);
+    assert.equal(call.env?.GIT_DIR, undefined);
+    assert.equal(call.env?.GIT_WORK_TREE, undefined);
+    assert.equal(call.env?.GIT_INDEX_FILE, undefined);
+    assert.equal(call.env?.GIT_CONFIG_SYSTEM, undefined);
+    assert.equal(call.env?.GIT_CONFIG_NOSYSTEM, "1");
+    assert.equal(call.env?.GIT_CONFIG_GLOBAL, devNull);
+    assert.equal(call.env?.GIT_NO_REPLACE_OBJECTS, "1");
+    assert.equal(call.env?.GIT_TERMINAL_PROMPT, "0");
+    assert.equal(call.env?.GIT_OPTIONAL_LOCKS, "0");
+  }
+});
+
+test("live OpenSpec adapter rejects an outside alias into the repository", async (t) => {
+  const temporary = mkdtempSync(join(tmpdir(), "release-coverage-openspec-alias-"));
+  try {
+    const repository = join(temporary, "repository");
+    const outside = join(temporary, "outside");
+    mkdirSync(join(repository, "tools"), { recursive: true });
+    mkdirSync(outside);
+    const repositoryTool = join(repository, "tools", "openspec");
+    writeFileSync(repositoryTool, "repository-selected executable\n");
+    const alias = join(outside, "openspec");
+    try {
+      symlinkSync(repositoryTool, alias);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
+        t.skip(`symlink creation not permitted: ${code}`);
+        return;
+      }
+      throw error;
+    }
+    let processCalls = 0;
+    const services = makeLiveReleaseCoverageCliServices({
+      runCaptured: () => {
+        processCalls += 1;
+        return Effect.die("repository-selected executable ran");
+      },
+      which: () => Effect.succeed(alias),
+      platform: process.platform,
+      comSpec: process.env.ComSpec ?? process.env.COMSPEC,
+      cwd: () => repository,
+      nullDevice: devNull,
+      baseEnvironment: process.env,
+    });
+    const result = await Effect.runPromise(
+      services.openspecList
+        .listJson({ repository, argv: ["list", "--json"], maxBytes: ONE_MIB })
+        .pipe(Effect.either),
+    );
+    assert.equal(result._tag, "Left");
+    assert.equal(processCalls, 0);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
   }
 });
