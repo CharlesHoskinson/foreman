@@ -343,12 +343,17 @@ require the matching V1 root and exact-byte user approval. Its closed scope
 SHALL contain only these paths:
 
 - `openspec/changes/openspec-superpowers-convergence/**`
+- `openspec/changes/v040-release-program/proposal.md`
+- `openspec/changes/v040-release-program/design.md`
+- `openspec/changes/v040-release-program/specs/release-program/spec.md`
 - `openspec/schemas/foreman-bounded/**`
 - `openspec/schemas/foreman-architectural/**`
 - `packages/policy/src/release-coverage.ts`
 - `packages/policy/src/release-coverage.test.ts`
 - `packages/policy/src/release-admission.ts`
 - `packages/policy/src/release-admission.test.ts`
+- `packages/policy/src/release-admission-cli.ts`
+- `packages/policy/src/release-admission-cli.test.ts`
 - `packages/policy/src/release-admission-main.ts`
 - `packages/policy/src/release-authority.ts`
 - `packages/policy/src/release-authority.test.ts`
@@ -383,8 +388,6 @@ SHALL contain only these paths:
 - `packages/orchestration/src/release-policy.ts`
 - `packages/orchestration/src/release-policy.test.ts`
 - `packages/orchestration/src/release-policy-main.ts`
-- `packages/orchestration/src/release-boundary.ts`
-- `packages/orchestration/src/release-boundary.test.ts`
 - `packages/orchestration/src/index.ts`
 - `packages/orchestration/src/index.test.ts`
 - `scripts/build-runtime.ts`
@@ -399,6 +402,7 @@ SHALL contain only these paths:
 - `tests/gate-eval.bats`
 - `tests/merge-gate.bats`
 - `tests/baseline.tsv`
+- `tests/skip-budget.tsv`
 - `tests/fixtures/release-policy/**`
 - `packages/policy/package.json`
 - `packages/orchestration/package.json`

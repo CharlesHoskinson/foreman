@@ -287,7 +287,7 @@ integration only, and esbuild for generated runtime bundles.
 - Adds `evaluate` only for Tranche 8.
 - Keeps every existing V1 export and test behavior unchanged.
 
-- [ ] **4.1 RED manifest:** Add a canonical valid family fixture and one
+- [x] **4.1 RED manifest:** Add a canonical valid family fixture and one
   mutation per field. Prove literal schema version 2, exact root identity,
   Track 1 commit/tree, exact family limits, exactly Tranches 2..9, unique
   IDs/packages, the exact mapping and dependency table from `design.md`, the
@@ -300,7 +300,7 @@ integration only, and esbuild for generated runtime bundles.
   `ExecutionActionKind` and `ExecutionEvent` still reject `evaluate`, while the
   V2 reservation event accepts it. Observe the
   decoder tests fail before the new types exist.
-- [ ] **4.1A RED brief and time derivation:** Test each child objective,
+- [x] **4.1A RED brief and time derivation:** Test each child objective,
   acceptance, and allowed-path preimage. Cover bounds, sorting, path grammar,
   exact eight-child mapping, component mutation, generated package-brief bytes
   and filenames, non-UTC time, overflow,
@@ -310,11 +310,11 @@ integration only, and esbuild for generated runtime bundles.
   distinct. Prove collisions or unexpected brief-directory entries refuse
   before replacement. Prove activation rejects a future `createdAt`. Observe
   missing exports.
-- [ ] **4.2 GREEN manifest:** Implement the closed decoder and
+- [x] **4.2 GREEN manifest:** Implement the closed decoder and
   `executionContractFamilySha256`. Do not coerce types, ignore fields, infer
   defaults, or reorder authored children. Return typed reasons without input
   values.
-- [ ] **4.3 RED policy:** Add pure state-machine tests for V1 carryover,
+- [x] **4.3 RED policy:** Add pure state-machine tests for V1 carryover,
   one-time activation, root-terminal refusal, post-activation V1 refusal,
   dependency refusal, one-event child reservation, child and family counters,
   crash-as-spent retry, standard action limits, evaluation action limits,
@@ -326,11 +326,11 @@ integration only, and esbuild for generated runtime bundles.
   dependent direct-parent implementation changes,
   evaluation-verdict completion for all four result literals, graph-off release,
   dependency release, and one child terminal not resetting siblings.
-- [ ] **4.4 GREEN policy:** Add family and child state plus pure activation and
+- [x] **4.4 GREEN policy:** Add family and child state plus pure activation and
   child-decision functions. Reuse V1 decision helpers where their semantics are
   exact. Keep a child action and family action in one decision so the ledger
   can append them atomically.
-- [ ] **4.5 VERIFY:** Run the execution-contract and terminal-policy tests,
+- [x] **4.5 VERIFY:** Run the execution-contract and terminal-policy tests,
   existing V1 execution tests, orchestration typecheck, and mutation controls
   that remove one child, add a ninth child, hide two provider calls behind one
   reservation, and try one evaluation after action 2,000.
@@ -364,7 +364,7 @@ integration only, and esbuild for generated runtime bundles.
   reuses V1 non-reservation events and widens only the V2 reservation action. No child journal or stream
   is created.
 
-- [ ] **5.1 RED ledger:** Extend memory and live journal tests to cover one
+- [x] **5.1 RED ledger:** Extend memory and live journal tests to cover one
   canonical authority registration, one activation append, replay, concurrent
   identical and different-family registration for one root, concurrent
   identical and conflicting child registration, first-write-wins registration,
@@ -382,14 +382,14 @@ integration only, and esbuild for generated runtime bundles.
   run-set verification, outcome-only advice and evaluation PASS replay, every
   lifecycle command, dependency completion, corrupt history, append failure, and restart
   persistence. Observe failures on the V1-only ledger.
-- [ ] **5.2 GREEN ledger:** Decode the exact event union and ordering grammar in
+- [x] **5.2 GREEN ledger:** Decode the exact event union and ordering grammar in
   `design.md`: V1 contract, pre-activation V1 decisions, one root-keyed family
   authority, activation, then interleaved child authority, outcome,
   evaluation-verdict, and decision events.
   One journal transaction must decide and append each registration, activation,
   or child action. A failed, refused, or idempotently replayed decision appends
   nothing. Preserve typed `EndstopLedgerFailure`.
-- [ ] **5.3 RED/GREEN CLI:** Add strict parse and output tests for family
+- [x] **5.3 RED/GREEN CLI:** Add strict parse and output tests for family
   source-to-manifest and package-brief building, authority registration,
   content-addressed source-set publication, activation/status, both family receipt
   issuance forms, action receipt, action-outcome, council-outcome, and
@@ -414,7 +414,7 @@ integration only, and esbuild for generated runtime bundles.
   all four digests. Invalid arguments return
   2; domain refusal returns 1; success prints one canonical public snapshot and
   returns 0.
-- [ ] **5.4 VERIFY:** Run focused ledger, closure, and CLI tests plus a live
+- [x] **5.4 VERIFY:** Run focused ledger, closure, and CLI tests plus a live
   external-state smoke: replay the current root fixture, register authority,
   activate once, inspect all eight children, complete a predecessor through
   lifecycle commands, observe dependency release, restart the process, refuse
@@ -464,7 +464,7 @@ integration only, and esbuild for generated runtime bundles.
   and TypeScript project references. The lockfile and clean composite build
   must agree.
 
-- [ ] **6.1 RED policy:** Add TypeScript tests for the full release block,
+- [x] **6.1 RED policy:** Add TypeScript tests for the full release block,
   coverage-before-admission order, named candidate commit, Endstop digest
   and registered family-source lookup, immutable package-brief comparison,
   every action class, first and later implementation candidate selection,
@@ -472,12 +472,12 @@ integration only, and esbuild for generated runtime bundles.
   phase, wrong root, family, action, package, candidate-digest-to-commit
   equality, and evidence-to-block identity. Include hostile cross-block
   substitutions and sanitized bounded output. Observe missing exports.
-- [ ] **6.2 GREEN policy and adapter:** Implement the TypeScript composition.
+- [x] **6.2 GREEN policy and adapter:** Implement the TypeScript composition.
   Add a thin `release-policy.sh` adapter for exact forwarding, missing artifact,
   missing argument, exit-code, byte-stream, and hostile-path behavior. Preserve
   the established general gate and merge implementations. They invoke the
   adapter only after their existing general checks succeed.
-- [ ] **6.3 RED/GREEN queue:** Add strict parsing and admission tests for a V2
+- [x] **6.3 RED/GREEN queue:** Add strict parsing and admission tests for a V2
   child and release block. Prove policy runs before journal reservation, one
   child action is reserved before `pueue add`, retry and resume bind a prior
   failed reservation and preserve its immediate prior, first origin, and
@@ -490,7 +490,7 @@ integration only, and esbuild for generated runtime bundles.
   tasks reserve from the approved base and then the first task's exact committed
   candidate. A package-brief mismatch refuses before reservation. Implement
   with injected services and the family ledger.
-- [ ] **6.4 RED/GREEN release gates:** Extend the existing gate-eval and
+- [x] **6.4 RED/GREEN release gates:** Extend the existing gate-eval and
   merge-gate Bats suites. Prove
   release policy runs only after the complete general result exists, uses its
   frozen candidate, records the captured policy result in gate evidence, and
@@ -506,8 +506,8 @@ integration only, and esbuild for generated runtime bundles.
   byte contracts. Update the installed
   Foreman skill with the exact V2 queue, receipt registration, lifecycle, gate,
   and merge forms while retaining the pre-activation V1 form.
-- [ ] **6.5 VERIFY:** Run the three release-boundary Bats files through the
-  serialized `gate` queue, run release-policy and queue
+- [x] **6.5 VERIFY:** Run the three release-boundary Bats files in the
+  controlled host shell, run release-policy and queue
   TypeScript tests plus a clean composite typecheck, and inspect traces to
   prove no adapter call happens before the general gate, no provider starts
   before V2 policy and reservation succeed, and merge stdout remains one line.
@@ -534,16 +534,16 @@ integration only, and esbuild for generated runtime bundles.
   paths.
 - Exact required-artifact inventory is shared by build and verification paths.
 
-- [ ] **7.1 RED:** Extend manifest decoder, verifier, and copied-install tests
+- [x] **7.1 RED:** Extend manifest decoder, verifier, and copied-install tests
   before the build list. Prove missing artifact, changed bytes, extra dist file,
   missing manifest row, and removal of an artifact plus its manifest row all
   refuse. Run focused tests and observe missing-required-artifact failures.
-- [ ] **7.2 GREEN:** Add all four entry points to the deterministic build list and
+- [x] **7.2 GREEN:** Add all four entry points to the deterministic build list and
   every exact required inventory. Remove hand-maintained pairwise assumptions
   where one sorted artifact loop is safer, without changing existing errors.
-- [ ] **7.3 BUILD:** Run `npm run build` once to regenerate all declared bundles
+- [x] **7.3 BUILD:** Run `npm run build` once to regenerate all declared bundles
   and the canonical manifest. Never hand-edit generated JavaScript.
-- [ ] **7.4 VERIFY:** Run two clean builds, tracked-byte comparison, exact-dist
+- [x] **7.4 VERIFY:** Run two clean builds, tracked-byte comparison, exact-dist
   inventory, manifest tests, install tests, and copied-install smoke tests. Run
   all four installed release artifacts from the copied skill root and confirm
   their output and exit status match source entry points.
@@ -560,7 +560,7 @@ integration only, and esbuild for generated runtime bundles.
 - Produces one exact Track 1 commit and tree for external audit and activation.
 - Leaves every OpenSpec task checkbox complete in that frozen commit.
 
-- [ ] **8.1 PRE-FREEZE QUALIFICATION:** On the complete working tree, run
+- [x] **8.1 PRE-FREEZE QUALIFICATION:** On the complete working tree, run
   `git diff --check DESIGN_BASE`, verify every changed path against the literal
   Track 1 allowlist, and run both OpenSpec schema validators, strict validation
   of this package and all active packages, coverage validation, both package
