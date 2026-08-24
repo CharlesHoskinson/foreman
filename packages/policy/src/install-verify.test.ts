@@ -76,12 +76,16 @@ const trackedReleaseRuntimeArtifacts = [
   "release-coverage.js",
   "release-policy.js",
 ] as const;
+const trackedFixtureRuntimeArtifacts = [
+  "appliance-doctor.js",
+  ...trackedReleaseRuntimeArtifacts,
+] as const;
 
 function releaseRuntimeMemoryNodes(
   dist: string,
   identityPrefix: string,
 ): ReadonlyArray<readonly [string, MemoryNode]> {
-  return trackedReleaseRuntimeArtifacts.map((name, index) => {
+  return trackedFixtureRuntimeArtifacts.map((name, index) => {
     const bytes = readFileSync(join(trackedRuntime, "dist", name));
     return [
       `${dist}/${name}`,
@@ -614,6 +618,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
           kind: "dir" as const,
           identity: dirIdentity({ ino: "12" }),
           names: [
+              "appliance-doctor.js",
               "architecture-policy.js",
               "credential-profile-lane.js",
               "credential-profile.js",
@@ -977,6 +982,7 @@ describe("runtime plugin-drift", () => {
             kind: "dir",
             identity: dirIdentity({ ino: prefix + "-dist" }),
             names: [
+              "appliance-doctor.js",
               "architecture-policy.js",
               "credential-profile-lane.js",
               "credential-profile.js",
@@ -1339,6 +1345,7 @@ describe("skill-root and directory stability seams", () => {
       kind: "dir",
       identity: dirIdentity({ ino: opts?.distIno ?? "12" }),
       names: [
+              "appliance-doctor.js",
               "architecture-policy.js",
               "credential-profile-lane.js",
               "credential-profile.js",
@@ -1799,6 +1806,7 @@ describe("memory InstallFs path separator seam", () => {
           kind: "dir",
           identity: dirIdentity({ ino: "12" }),
           names: [
+            "appliance-doctor.js",
             "architecture-policy.js",
             "credential-profile-lane.js",
             "credential-profile.js",

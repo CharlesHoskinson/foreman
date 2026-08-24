@@ -38,6 +38,12 @@ const ENTRIES = [
     injectCapabilities: false,
   },
   {
+    id: "appliance-doctor",
+    entry: join(root, "packages/orchestration/src/appliance-doctor-main.ts"),
+    relativePath: "dist/appliance-doctor.js",
+    injectCapabilities: false,
+  },
+  {
     id: "release-admission",
     entry: join(root, "packages/policy/src/release-admission-main.ts"),
     relativePath: "dist/release-admission.js",

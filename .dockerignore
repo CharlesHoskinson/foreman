@@ -1,0 +1,16 @@
+.git
+.foreman
+.harness
+.superpowers
+components
+devlog
+docs/evidence
+docs/research
+graphify-out
+launcher/node_modules
+node_modules
+packages/*/dist
+packages/*/node_modules
+skills/foreman/runtime/dist
+tmp
+*.log

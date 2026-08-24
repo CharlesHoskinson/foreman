@@ -1,0 +1,2 @@
+u foreman-engine 61001:61001 "Foreman isolated rootless engine" /var/lib/foreman-engine /usr/sbin/nologin
+g foreman-engine 61001

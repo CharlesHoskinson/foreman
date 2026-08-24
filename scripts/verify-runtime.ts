@@ -57,6 +57,10 @@ function git(repo: string, args: string[]): string {
 // 1. Tracked runtime
 const trackedRuntime = join(root, "skills/foreman/runtime");
 const trackedManifestPath = join(trackedRuntime, "manifest.json");
+const trackedApplianceDoctorPath = join(
+  trackedRuntime,
+  "dist/appliance-doctor.js",
+);
 const trackedGuardPath = join(trackedRuntime, "dist/destruction-guard.js");
 const trackedPolicyPath = join(trackedRuntime, "dist/architecture-policy.js");
 const trackedEndstopPath = join(trackedRuntime, "dist/execution-guard.js");
@@ -113,6 +117,7 @@ if (!trackedCheck.ok) {
   fail("tracked runtime manifest: " + trackedCheck.reason);
 }
 const trackedManifest = readFileSync(trackedManifestPath);
+const trackedApplianceDoctor = readFileSync(trackedApplianceDoctorPath);
 const trackedGuard = readFileSync(trackedGuardPath);
 const trackedPolicy = readFileSync(trackedPolicyPath);
 const trackedEndstop = readFileSync(trackedEndstopPath);
@@ -143,6 +148,7 @@ const trackedReleasePolicy = readFileSync(trackedReleasePolicyPath);
 {
   const distFiles = readdirSync(join(trackedRuntime, "dist")).sort();
   const expected = [
+    "appliance-doctor.js",
     "architecture-policy.js",
     "credential-profile-lane.js",
     "credential-profile.js",
@@ -180,6 +186,12 @@ try {
   const b = await buildTo({ runtimeRoot: tmpB });
   const aGuard = readFileSync(join(tmpA, "dist/destruction-guard.js"));
   const bGuard = readFileSync(join(tmpB, "dist/destruction-guard.js"));
+  const aApplianceDoctor = readFileSync(
+    join(tmpA, "dist/appliance-doctor.js"),
+  );
+  const bApplianceDoctor = readFileSync(
+    join(tmpB, "dist/appliance-doctor.js"),
+  );
   const aPolicy = readFileSync(join(tmpA, "dist/architecture-policy.js"));
   const bPolicy = readFileSync(join(tmpB, "dist/architecture-policy.js"));
   const aEndstop = readFileSync(join(tmpA, "dist/execution-guard.js"));
@@ -242,6 +254,9 @@ try {
   );
   const aReleasePolicy = readFileSync(join(tmpA, "dist/release-policy.js"));
   const bReleasePolicy = readFileSync(join(tmpB, "dist/release-policy.js"));
+  if (!bytesEqual(aApplianceDoctor, bApplianceDoctor)) {
+    fail("non-deterministic appliance-doctor");
+  }
   if (!bytesEqual(aGuard, bGuard)) fail("non-deterministic destruction-guard");
   if (!bytesEqual(aPolicy, bPolicy)) fail("non-deterministic architecture-policy");
   if (!bytesEqual(aEndstop, bEndstop)) fail("non-deterministic execution-guard");
@@ -291,6 +306,9 @@ try {
   }
   if (!bytesEqual(aReleasePolicy, bReleasePolicy)) {
     fail("non-deterministic release-policy");
+  }
+  if (!bytesEqual(aApplianceDoctor, trackedApplianceDoctor)) {
+    fail("appliance-doctor drift");
   }
   if (!bytesEqual(aGuard, trackedGuard)) fail("destruction-guard drift");
   if (!bytesEqual(aPolicy, trackedPolicy)) fail("architecture-policy drift");
@@ -357,6 +375,10 @@ try {
       fail("expected bundle_missing got " + JSON.stringify(miss));
     }
     writeFileSync(join(rt, "dist/destruction-guard.js"), "TAMPER");
+    writeFileSync(
+      join(rt, "dist/appliance-doctor.js"),
+      trackedApplianceDoctor,
+    );
     writeFileSync(join(rt, "dist/architecture-policy.js"), trackedPolicy);
     writeFileSync(join(rt, "dist/execution-guard.js"), trackedEndstop);
     writeFileSync(join(rt, "dist/lane-queue.js"), trackedQueue);
@@ -393,6 +415,14 @@ try {
     writeFileSync(join(rt, "dist/release-policy.js"), trackedReleasePolicy);
     if (verifyRuntimeManifest(rt).ok) fail("tampered guard should fail");
     cpSync(trackedGuardPath, join(rt, "dist/destruction-guard.js"));
+    writeFileSync(join(rt, "dist/appliance-doctor.js"), "TAMPER");
+    if (verifyRuntimeManifest(rt).ok) {
+      fail("tampered appliance-doctor should fail");
+    }
+    cpSync(
+      trackedApplianceDoctorPath,
+      join(rt, "dist/appliance-doctor.js"),
+    );
     writeFileSync(join(rt, "dist/architecture-policy.js"), "TAMPER");
     if (verifyRuntimeManifest(rt).ok) fail("tampered policy should fail");
     cpSync(trackedPolicyPath, join(rt, "dist/architecture-policy.js"));

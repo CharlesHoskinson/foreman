@@ -1,0 +1,31 @@
+[Unit]
+Description=Foreman isolated rootless Podman API
+After=network-online.target
+Wants=network-online.target
+ConditionPathIsDirectory=/run/foreman-engine/tls
+
+[Service]
+Type=exec
+User=foreman-engine
+Group=foreman-engine
+Environment=HOME=/var/lib/foreman-engine
+Environment=XDG_RUNTIME_DIR=/run/foreman-engine
+Environment=CONTAINERS_CONF=/etc/foreman-engine/containers.conf
+Environment=CONTAINERS_STORAGE_CONF=/etc/foreman-engine/storage.conf
+ExecStart=/usr/bin/podman system service --time=0 --tls-cert=/run/foreman-engine/tls/server.crt --tls-key=/run/foreman-engine/tls/server.key --tls-client-ca=/run/foreman-engine/tls/client-ca.crt tcp://127.0.0.1:18443
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/foreman-engine /run/foreman-engine
+UMask=0077
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

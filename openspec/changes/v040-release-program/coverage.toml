@@ -1,6 +1,6 @@
 schema_version = 1
 baseline_commit = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195"
-active_inventory_sha256 = "bfe349cf72c8b09ed3d198c942b05fcf8e2cfc92d99ff394738ea3586ebcee2c"
+active_inventory_sha256 = "d16bd7a29580b6b642e24e301ffbd8600844b1a0436bfdaab5d1a241e4572c7a"
 roadmap_sha256 = "2e9ce274bd1bae7d4a4a0187a4908eea17c768175c3aa0f176f54cb14bf7c12b"
 
 [[future_owner]]
@@ -202,6 +202,16 @@ owner = "grok-secret-scan-typescript"
 target_release = "v0.5"
 reconcile = "not_required"
 reason = "Additional secret-scan migration work is outside v0.4."
+
+[[entry]]
+key = "change:hermetic-foreman-appliance"
+source_kind = "openspec_change"
+source_path = "openspec/changes/hermetic-foreman-appliance"
+disposition = "v040_owner"
+owner = "hermetic-foreman-appliance"
+target_release = "v0.4"
+reconcile = "complete"
+reason = "Track 4 owns the pinned control, toolchain, worker, and isolated rootless-engine boundary."
 
 [[entry]]
 key = "change:knowledge-plane-refresh"

@@ -1,0 +1,50 @@
+name: foreman-appliance
+
+services:
+  control:
+    build:
+      context: ../..
+      dockerfile: containers/appliance/Dockerfile
+      target: foreman-control
+      args:
+        SOURCE_DATE_EPOCH: "${SOURCE_DATE_EPOCH:?set SOURCE_DATE_EPOCH to the candidate commit time}"
+    image: "foreman-control:${FOREMAN_IMAGE_TAG:-0.4.0-local}"
+    user: "10001:10001"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    working_dir: /workspace
+    volumes:
+      - "${FOREMAN_WORKSPACE:-../..}:/workspace"
+      - foreman-state:/state
+    tmpfs:
+      - /run/foreman:uid=10001,gid=10001,mode=0700
+      - /tmp:uid=10001,gid=10001,mode=0700
+    networks: [control, semantic-memory]
+    command: ["doctor"]
+
+  qdrant:
+    image: "qdrant/qdrant@sha256:057ee3a8da769fe7310dd3537b4dc7583bf87a95ce8ac43c0af5a46bc580d1fc"
+    profiles: ["semantic-memory"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      QDRANT__SERVICE__API_KEY: "${FOREMAN_QDRANT_API_KEY:?generate a dedicated Qdrant API key}"
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes:
+      - qdrant-state:/qdrant/storage
+    tmpfs:
+      - /tmp
+    expose: ["6333"]
+    networks: [semantic-memory]
+
+networks:
+  control: {}
+  semantic-memory:
+    internal: true
+
+volumes:
+  foreman-state: {}
+  qdrant-state: {}

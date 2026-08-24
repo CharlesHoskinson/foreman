@@ -1,0 +1,4 @@
+d /var/lib/foreman-engine 0700 foreman-engine foreman-engine -
+d /var/lib/foreman-engine/storage 0700 foreman-engine foreman-engine -
+d /run/foreman-engine 0700 foreman-engine foreman-engine -
+d /run/foreman-engine/tls 0700 foreman-engine foreman-engine -

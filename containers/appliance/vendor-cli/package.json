@@ -1,0 +1,9 @@
+{
+  "name": "foreman-appliance-vendor-cli",
+  "private": true,
+  "version": "0.4.0",
+  "dependencies": {
+    "@openai/codex": "0.149.1",
+    "@xai-official/grok": "1.0.5"
+  }
+}

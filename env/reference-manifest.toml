@@ -381,6 +381,53 @@ pooling = "mean"
 normalize = true
 network = "disabled"
 
+[release_dependencies.appliance]
+schema_version = 1
+dockerfile_frontend = "docker/dockerfile:1.19.0@sha256:b6afd42430b15f2d2a4c5a02b919e98a525b785b1aaff16747d2f623364e39b6"
+control_base = "node:24.18.1-bookworm-slim@sha256:235600a8101ab264e117b1768e925532262668dc9b581ef1dd7d96ced463b8e7"
+control_base_linux_amd64 = "sha256:a09aabc645e86e81e23dab78e0c0f2eaa233cab4277c7188232181a1a8bd5d39"
+control_base_linux_arm64 = "sha256:c39335f45d6d5b2a5be95b0f1a63e57cca4e9e36cc69b313c1ad5472b13a1e3a"
+node_version = "24.18.1"
+npm_version = "11.16.0"
+codex_version = "0.149.1"
+grok_version = "1.0.5"
+graphify_version = "0.9.48"
+graphify_wheel_sha256 = "4f745d72d6c5165ef7132bf8b2819ef59707aa70cd99efd3a4fbc8c4ba43b4b9"
+buildx_version = "0.36.1"
+source_date_epoch = "git-commit"
+supported_platforms = ["linux/amd64", "linux/arm64"]
+apt_bash = "5.2.15-2+b13"
+apt_ca_certificates = "20250419~deb12u1"
+apt_curl = "7.88.1-10+deb12u15"
+apt_git = "1:2.39.5-0+deb12u3"
+apt_gosu = "1.14-1+b10"
+apt_ipset = "7.17-1"
+apt_iptables = "1.8.9-2"
+apt_jq = "1.6-2.1+deb12u2"
+apt_openssh_client = "1:9.2p1-2+deb12u10"
+apt_python3 = "3.11.2-1+b1"
+apt_python3_pip = "23.0.1+dfsg-1"
+apt_tini = "0.19.0-1+b3"
+
+[release_dependencies.rootless_engine]
+podman_version = "5.7.0"
+docker_compat_api = "1.40"
+service_endpoint = "127.0.0.1:18443"
+minimum_kernel = "6.8.0"
+supported_architectures = ["amd64", "arm64"]
+package_podman = "5.7.0+ds2-3build1"
+package_conmon = "2.1.13+ds1-2"
+package_crun = "1.21-1ubuntu3"
+package_fuse_overlayfs = "1.14-1build2"
+package_passt = "0.0~git20260120.386b5f5-1"
+package_netavark = "1.16.1-3.1"
+package_aardvark_dns = "1.16.0-3"
+package_uidmap = "1:4.17.4-2ubuntu3"
+subuid_start = 200000
+subuid_count = 65536
+subgid_start = 200000
+subgid_count = 65536
+
 
 # =============================================================================
 # Lock atomicity (lock-primitive-hardening, round L2 / T5)

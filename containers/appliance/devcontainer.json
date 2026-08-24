@@ -1,0 +1,9 @@
+{
+  "name": "Foreman v0.4 appliance",
+  "dockerComposeFile": "compose.yaml",
+  "service": "control",
+  "runServices": ["control"],
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "foreman"
+}

@@ -882,3 +882,33 @@ export {
   type ProjectRegistryFileResultV1,
   type ProjectRegistryFileReadResultV1,
 } from "./project-registry.js";
+
+// --- v0.4 Track 4: hermetic Foreman appliance ---
+
+export {
+  decodeApplianceLockV1,
+  parseAppliancePinsV1,
+  renderApplianceLockV1,
+  validateApplianceLockProjectionV1,
+  type AppliancePinsV1,
+  type AppliancePinsResultV1,
+  type ApplianceLockDecodeResultV1,
+  type ApplianceLockValidationResultV1,
+} from "./appliance-lock.js";
+
+export {
+  evaluateApplianceDoctorV1,
+  runApplianceDoctorCli,
+  type ApplianceDoctorObservationV1,
+  type ApplianceDoctorReasonV1,
+  type ApplianceDoctorResultV1,
+  type ApplianceDoctorCliIo,
+  type ApplianceDoctorServices,
+} from "./appliance-doctor.js";
+
+export {
+  qualifyRootlessEngineV1,
+  type RootlessEngineObservationV1,
+  type RootlessEngineQualificationReasonV1,
+  type RootlessEngineQualificationResultV1,
+} from "./rootless-engine-qualification.js";
