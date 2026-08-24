@@ -15,7 +15,25 @@ source "$SCRIPT_DIR/lib/evidence.sh"
 # shellcheck source=lib/config.sh
 source "$SCRIPT_DIR/lib/config.sh"
 
-TASK_ID="${1:?usage: gate-eval.sh TASK_ID}"
+TASK_ID="${1:?usage: gate-eval.sh TASK_ID [RELEASE_BLOCK]}"
+shift
+RELEASE_BLOCK=("$@")
+if (( ${#RELEASE_BLOCK[@]} != 0 && ${#RELEASE_BLOCK[@]} != 28 )); then
+  die "$EXIT_CONFIG" "gate-eval: invalid release block"
+fi
+if (( ${#RELEASE_BLOCK[@]} == 28 )); then
+  expected_release_flags=(
+    --endstop-state-root --endstop-contract-id --endstop-contract-sha
+    --endstop-family-sha --endstop-child-id --endstop-action
+    --endstop-candidate-sha --release-program --release-phase
+    --release-owner --release-repo --release-candidate-commit
+    --release-register --release-evidence
+  )
+  for i in "${!expected_release_flags[@]}"; do
+    [[ "${RELEASE_BLOCK[i * 2]}" == "${expected_release_flags[i]}" ]] \
+      || die "$EXIT_CONFIG" "gate-eval: invalid release block"
+  done
+fi
 RD="$(run_dir "$TASK_ID")"
 require_cmd jq; require_cmd git
 
@@ -208,6 +226,34 @@ else
 fi
 INPUTS_EVALUATED+=("docs_check")
 
+RELEASE_POLICY_RESULT=""
+if (( ${#RELEASE_BLOCK[@]} == 28 )); then
+  INPUTS_EVALUATED+=("release_policy")
+  if [[ ${#REASONS[@]} -eq 0 ]]; then
+    if [[ "${RELEASE_BLOCK[11]}" != "integrate" ]]; then
+      REASONS+=("release policy expected integrate action")
+    else
+      policy_out="$(mktemp)"
+      policy_err="$(mktemp)"
+      policy_rc=0
+      "$SCRIPT_DIR/lib/release-policy.sh" \
+        "${RELEASE_BLOCK[1]}" "${RELEASE_BLOCK[3]}" \
+        "${RELEASE_BLOCK[5]}" "${RELEASE_BLOCK[7]}" \
+        "${RELEASE_BLOCK[9]}" "${RELEASE_BLOCK[11]}" \
+        "${RELEASE_BLOCK[13]}" "${RELEASE_BLOCK[15]}" \
+        "${RELEASE_BLOCK[17]}" "${RELEASE_BLOCK[19]}" \
+        "${RELEASE_BLOCK[21]}" "${RELEASE_BLOCK[23]}" \
+        "${RELEASE_BLOCK[25]}" "${RELEASE_BLOCK[27]}" \
+        >"$policy_out" 2>"$policy_err" || policy_rc=$?
+      RELEASE_POLICY_RESULT="$(tr -d '\r\n' <"$policy_out")"
+      rm -f "$policy_out" "$policy_err"
+      if (( policy_rc != 0 )); then
+        REASONS+=("release policy refused integration")
+      fi
+    fi
+  fi
+fi
+
 PASS=true
 if [[ ${#REASONS[@]} -ne 0 ]]; then
   PASS=false
@@ -221,6 +267,7 @@ gate_payload="$(
       --argjson pass true \
       --arg base "$BASE_SHA" \
       --arg head "$HEAD_SHA" \
+      --arg policy "$RELEASE_POLICY_RESULT" \
       --args \
       '{
          pass: $pass,
@@ -228,7 +275,8 @@ gate_payload="$(
          base: $base,
          head: $head,
          inputs_evaluated: $ARGS.positional
-       }' "${INPUTS_EVALUATED[@]}"
+       } + (if $policy == "" then {} else {release_policy_result:$policy} end)' \
+       "${INPUTS_EVALUATED[@]}"
   else
     # reasons as JSON array via --args for the reasons, then inject inputs
     reasons_json="$(jq -cn --args '$ARGS.positional' "${REASONS[@]}")"
@@ -239,13 +287,14 @@ gate_payload="$(
       --argjson inputs "$inputs_json" \
       --arg base "$BASE_SHA" \
       --arg head "$HEAD_SHA" \
+      --arg policy "$RELEASE_POLICY_RESULT" \
       '{
          pass: $pass,
          reasons: $reasons,
          base: $base,
          head: $head,
          inputs_evaluated: $inputs
-       }'
+       } + (if $policy == "" then {} else {release_policy_result:$policy} end)'
   fi | tr -d '\r'
 )"
 
@@ -257,18 +306,30 @@ fi
 # Write gate-decision.json; record emission incompleteness in the record itself.
 if [[ "$PASS" == "true" ]]; then
   if [[ "$emission_failed" == "true" ]]; then
-    jq -n '{pass:true, reasons:[], emission_failed:true}' > "$RD/gate-decision.json"
+    jq -n --arg policy "$RELEASE_POLICY_RESULT" \
+      '{pass:true, reasons:[], emission_failed:true}
+       + (if $policy == "" then {} else {release_policy_result:$policy} end)' \
+      > "$RD/gate-decision.json"
   else
-    jq -n '{pass:true, reasons:[]}' > "$RD/gate-decision.json"
+    jq -n --arg policy "$RELEASE_POLICY_RESULT" \
+      '{pass:true, reasons:[]}
+       + (if $policy == "" then {} else {release_policy_result:$policy} end)' \
+      > "$RD/gate-decision.json"
   fi
   log "GATE PASS ($TASK_ID)"
   exit "$EXIT_OK"
 fi
 
 if [[ "$emission_failed" == "true" ]]; then
-  jq -n --args '{pass:false, reasons:$ARGS.positional, emission_failed:true}' "${REASONS[@]}" > "$RD/gate-decision.json"
+  jq -n --arg policy "$RELEASE_POLICY_RESULT" --args \
+    '{pass:false, reasons:$ARGS.positional, emission_failed:true}
+     + (if $policy == "" then {} else {release_policy_result:$policy} end)' \
+    "${REASONS[@]}" > "$RD/gate-decision.json"
 else
-  jq -n --args '{pass:false, reasons:$ARGS.positional}' "${REASONS[@]}" > "$RD/gate-decision.json"
+  jq -n --arg policy "$RELEASE_POLICY_RESULT" --args \
+    '{pass:false, reasons:$ARGS.positional}
+     + (if $policy == "" then {} else {release_policy_result:$policy} end)' \
+    "${REASONS[@]}" > "$RD/gate-decision.json"
 fi
 log "GATE FAIL ($TASK_ID):"; printf ' - %s\n' "${REASONS[@]}" >&2
 exit "$EXIT_FAIL"

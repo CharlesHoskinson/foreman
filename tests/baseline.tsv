@@ -44,9 +44,9 @@ tests/foreman-cleanup.bats	wsl	5
 tests/foreman-setup.bats	linux	4
 tests/foreman-setup.bats	windows	4
 tests/foreman-setup.bats	wsl	4
-tests/gate-eval.bats	linux	1
-tests/gate-eval.bats	windows	1
-tests/gate-eval.bats	wsl	1
+tests/gate-eval.bats	linux	4
+tests/gate-eval.bats	windows	4
+tests/gate-eval.bats	wsl	4
 tests/gate-ground.bats	linux	29
 tests/gate-ground.bats	windows	26
 tests/gate-ground.bats	wsl	29
@@ -89,9 +89,9 @@ tests/lock.bats	wsl	13
 tests/maintenance.bats	linux	9
 tests/maintenance.bats	windows	8
 tests/maintenance.bats	wsl	9
-tests/merge-gate.bats	linux	11
-tests/merge-gate.bats	windows	2
-tests/merge-gate.bats	wsl	11
+tests/merge-gate.bats	linux	15
+tests/merge-gate.bats	windows	6
+tests/merge-gate.bats	wsl	15
 tests/nats-bridge.bats	linux	12
 tests/nats-bridge.bats	windows	0
 tests/nats-bridge.bats	wsl	12

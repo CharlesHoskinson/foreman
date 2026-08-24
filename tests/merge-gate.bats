@@ -24,6 +24,40 @@ setup() {
   source "$SCRIPTS/lib/eventlog.sh"
 }
 
+set_release_block() {
+  local action="${1:-integrate}" commit="${2:-$(git rev-parse HEAD)}"
+  RELEASE_BLOCK=(
+    --endstop-state-root "$FOREMAN_HOME/state"
+    --endstop-contract-id root-contract
+    --endstop-contract-sha "$(printf 'a%.0s' {1..64})"
+    --endstop-family-sha "$(printf 'b%.0s' {1..64})"
+    --endstop-child-id v040-t9-release
+    --endstop-action "$action"
+    --endstop-candidate-sha "$(printf 'c%.0s' {1..64})"
+    --release-program v040
+    --release-phase release
+    --release-owner v040-release-program
+    --release-repo "$REPO"
+    --release-candidate-commit "$commit"
+    --release-register "$REPO/coverage.toml"
+    --release-evidence "$REPO/evidence.json"
+  )
+}
+
+install_fake_policy_node() {
+  local fake_bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/node" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$POLICY_CALLS"
+printf '{"_tag":"Admitted","schemaVersion":1}\n'
+exit "${POLICY_EXIT:-0}"
+EOF
+  chmod +x "$fake_bin/node"
+  export PATH="$fake_bin:$PATH"
+  export POLICY_CALLS="$BATS_TEST_TMPDIR/policy-calls"
+}
+
 @test "merge-gate record emits a merge_base event with sha = merge-base(HEAD, origin/main)" {
   echo more >> README.md
   git -c core.hooksPath= commit -aqm "advance main"
@@ -65,6 +99,56 @@ setup() {
   run bash "$SCRIPTS/merge-gate.sh" check run1 lanea lanebranch
   [ "$status" -eq 0 ]
   [ "$output" = "MERGEABLE" ]
+}
+
+@test "merge-gate check runs release policy after freshness and exact branch identity" {
+  run bash "$SCRIPTS/merge-gate.sh" record run-release lanea
+  [ "$status" -eq 0 ]
+  install_fake_policy_node
+  set_release_block integrate "$(git rev-parse main)"
+
+  run bash "$SCRIPTS/merge-gate.sh" check run-release lanea main "${RELEASE_BLOCK[@]}"
+  [ "$status" -eq 0 ]
+  [ "$output" = "MERGEABLE" ]
+  [ -f "$POLICY_CALLS" ]
+  grep -qx 'check' "$POLICY_CALLS"
+}
+
+@test "merge-gate refuses a verify release block without running policy" {
+  run bash "$SCRIPTS/merge-gate.sh" record run-wrong-action lanea
+  [ "$status" -eq 0 ]
+  install_fake_policy_node
+  set_release_block verify "$(git rev-parse main)"
+
+  run bash "$SCRIPTS/merge-gate.sh" check run-wrong-action lanea main "${RELEASE_BLOCK[@]}"
+  [ "$status" -eq 6 ]
+  [[ "$output" == NOT_MERGEABLE:*expected\ integrate* ]]
+  [ ! -e "$POLICY_CALLS" ]
+}
+
+@test "merge-gate refuses candidate substitution before running policy" {
+  run bash "$SCRIPTS/merge-gate.sh" record run-wrong-candidate lanea
+  [ "$status" -eq 0 ]
+  install_fake_policy_node
+  set_release_block integrate "$(printf '9%.0s' {1..40})"
+
+  run bash "$SCRIPTS/merge-gate.sh" check run-wrong-candidate lanea main "${RELEASE_BLOCK[@]}"
+  [ "$status" -eq 6 ]
+  [[ "$output" == NOT_MERGEABLE:*does\ not\ match* ]]
+  [ ! -e "$POLICY_CALLS" ]
+}
+
+@test "merge-gate suppresses policy output and emits one refusal line" {
+  run bash "$SCRIPTS/merge-gate.sh" record run-policy-refused lanea
+  [ "$status" -eq 0 ]
+  install_fake_policy_node
+  export POLICY_EXIT=1
+  set_release_block integrate "$(git rev-parse main)"
+
+  run bash "$SCRIPTS/merge-gate.sh" check run-policy-refused lanea main "${RELEASE_BLOCK[@]}"
+  [ "$status" -eq 6 ]
+  [ "${#lines[@]}" -eq 1 ]
+  [[ "$output" == NOT_MERGEABLE:*release\ policy\ refused* ]]
 }
 
 @test "merge-gate check returns NOT_MERGEABLE when no merge-base was ever recorded" {

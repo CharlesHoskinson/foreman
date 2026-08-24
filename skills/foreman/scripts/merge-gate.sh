@@ -69,6 +69,25 @@ require_cmd jq
 
 readonly EXIT_NOT_MERGEABLE=6
 readonly RESPAWN_HINT="respawn from a fresh base (dispatch a new lane worktree from current origin/main)"
+RELEASE_BLOCK=()
+
+validate_release_block() {
+  (( ${#RELEASE_BLOCK[@]} == 0 )) && return 0
+  (( ${#RELEASE_BLOCK[@]} == 28 )) \
+    || die "$EXIT_CONFIG" "merge-gate: invalid release block"
+  local expected=(
+    --endstop-state-root --endstop-contract-id --endstop-contract-sha
+    --endstop-family-sha --endstop-child-id --endstop-action
+    --endstop-candidate-sha --release-program --release-phase
+    --release-owner --release-repo --release-candidate-commit
+    --release-register --release-evidence
+  )
+  local i
+  for i in "${!expected[@]}"; do
+    [[ "${RELEASE_BLOCK[i * 2]}" == "${expected[i]}" ]] \
+      || die "$EXIT_CONFIG" "merge-gate: invalid release block"
+  done
+}
 
 # @description Print the one-and-only NOT_MERGEABLE line and exit 6. No
 #   auto-salvage: this is the entirety of check's failure output.
@@ -157,6 +176,26 @@ cmd_check() {
     fi
   fi
 
+  if (( ${#RELEASE_BLOCK[@]} == 28 )); then
+    [[ "${RELEASE_BLOCK[11]}" == "integrate" ]] \
+      || not_mergeable "release policy expected integrate action"
+    local branch_commit
+    branch_commit="$(git_nohooks rev-parse "${branch}^{commit}" 2>/dev/null)" \
+      || not_mergeable "candidate branch does not resolve"
+    [[ "$branch_commit" == "${RELEASE_BLOCK[23]}" ]] \
+      || not_mergeable "candidate branch commit does not match release block"
+    "$SCRIPT_DIR/lib/release-policy.sh" \
+      "${RELEASE_BLOCK[1]}" "${RELEASE_BLOCK[3]}" \
+      "${RELEASE_BLOCK[5]}" "${RELEASE_BLOCK[7]}" \
+      "${RELEASE_BLOCK[9]}" "${RELEASE_BLOCK[11]}" \
+      "${RELEASE_BLOCK[13]}" "${RELEASE_BLOCK[15]}" \
+      "${RELEASE_BLOCK[17]}" "${RELEASE_BLOCK[19]}" \
+      "${RELEASE_BLOCK[21]}" "${RELEASE_BLOCK[23]}" \
+      "${RELEASE_BLOCK[25]}" "${RELEASE_BLOCK[27]}" \
+      >/dev/null 2>&1 \
+      || not_mergeable "release policy refused integration"
+  fi
+
   echo "MERGEABLE"
 }
 
@@ -172,6 +211,9 @@ case "$SUB" in
     RUN="${1:?usage: merge-gate.sh check RUN LANE BRANCH}"
     LANE="${2:?usage: merge-gate.sh check RUN LANE BRANCH}"
     BRANCH="${3:?usage: merge-gate.sh check RUN LANE BRANCH}"
+    shift 3
+    RELEASE_BLOCK=("$@")
+    validate_release_block
     cmd_check "$RUN" "$LANE" "$BRANCH"
     ;;
   *)
