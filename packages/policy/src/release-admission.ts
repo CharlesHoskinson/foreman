@@ -139,6 +139,38 @@ function designReceipt(
   return receipt;
 }
 
+function receiptBindingFailure(
+  bundle: ReleaseEvidenceBundleV1,
+): "wrong_package" | "wrong_candidate" | null {
+  for (const receipt of bundle.receipts) {
+    if (receipt.packageId !== bundle.packageId) return "wrong_package";
+    switch (receipt.schema) {
+      case "foreman.checks-evidence.v1":
+      case "foreman.release-audit.v1":
+        if (!sameValue(receipt.candidate, bundle.candidate)) {
+          return "wrong_candidate";
+        }
+        break;
+      case "foreman.council-request.v1":
+        if (receipt.candidateSha256 !== bundle.candidate.candidateSha256) {
+          return "wrong_candidate";
+        }
+        break;
+      case "foreman.evaluation-authority.v1":
+        if (
+          bundle.packageId !== "graph-eval-falsification" ||
+          bundle.childId !== "v040-t8-evaluation"
+        ) {
+          return "wrong_package";
+        }
+        break;
+      case "foreman.design-approval.v1":
+        break;
+    }
+  }
+  return null;
+}
+
 function checkEvidence(input: ReleaseEvidenceInputV1): EvidenceDecision {
   if (
     typeof input !== "object" ||
@@ -168,6 +200,8 @@ function checkEvidence(input: ReleaseEvidenceInputV1): EvidenceDecision {
   if (design.packageId !== bundle.packageId) {
     return invalidEvidence("wrong_package");
   }
+  const receiptFailure = receiptBindingFailure(bundle);
+  if (receiptFailure !== null) return invalidEvidence(receiptFailure);
   if (
     bundle.action === "implement" &&
     (bundle.candidate.commit !== design.designCommit ||
