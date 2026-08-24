@@ -530,3 +530,126 @@ describe("release authority objects use closed top-level schemas", () => {
 });
 
 void expectFileInvalid;
+
+const candidateMutant = (field: string, value: unknown): unknown => {
+  const mutant = cloneRecord(checksReceipt);
+  const nested = cloneRecord(mutant["candidate"]);
+  nested[field] = value;
+  mutant["candidate"] = nested;
+  return mutant;
+};
+
+const actionOutcomeMutant = (field: string, value: unknown): unknown => {
+  const mutant = cloneRecord(actionOutcome);
+  mutant[field] = value;
+  return mutant;
+};
+
+describe("release authority identity and enum bounds", () => {
+  const cases: Array<readonly [string, unknown]> = [];
+  const invalidGitIds = [
+    "",
+    "1".repeat(39),
+    "1".repeat(41),
+    "A".repeat(40),
+    "g".repeat(40),
+  ] as const;
+  for (const field of ["commit", "tree"] as const) {
+    for (const value of invalidGitIds) {
+      cases.push(["candidate " + field + " " + JSON.stringify(value), candidateMutant(field, value)]);
+    }
+  }
+  for (const value of [
+    "a".repeat(63),
+    "a".repeat(65),
+    "A".repeat(64),
+    "g".repeat(64),
+    shaA,
+  ]) {
+    cases.push(["candidate sha " + value.slice(0, 8) + ":" + value.length, candidateMutant("candidateSha256", value)]);
+  }
+
+  const missingCandidateField = candidateMutant("commit", commit);
+  const missingNested = cloneRecord(missingCandidateField);
+  const missingNestedValue = cloneRecord(missingNested["candidate"]);
+  delete missingNestedValue["commit"];
+  missingNested["candidate"] = missingNestedValue;
+  cases.push(["candidate missing commit", missingNested]);
+
+  cases.push(["candidate extra key", candidateMutant("unexpected", true)]);
+  const inheritedCandidate = cloneRecord(checksReceipt);
+  inheritedCandidate["candidate"] = Object.create(candidate) as unknown;
+  cases.push(["candidate inherited fields", inheritedCandidate]);
+
+  const invalidIds = ["", "bad/id", "bad\u0000id", "x".repeat(129)] as const;
+  for (const field of [
+    "rootContractId",
+    "childId",
+    "packageId",
+    "reservationId",
+    "originReservationId",
+  ] as const) {
+    for (const value of invalidIds) {
+      cases.push([field + " invalid " + value.length, actionOutcomeMutant(field, value)]);
+    }
+  }
+
+  const invalidDigests = [
+    "a".repeat(63),
+    "a".repeat(65),
+    "A".repeat(64),
+    "g".repeat(64),
+  ] as const;
+  for (const field of [
+    "rootContractSha256",
+    "familySha256",
+    "candidateSha256",
+    "evidenceSha256",
+  ] as const) {
+    for (const value of invalidDigests) {
+      cases.push([field + " invalid " + value.slice(0, 1) + ":" + value.length, actionOutcomeMutant(field, value)]);
+    }
+  }
+
+  cases.push(["bundle unknown action", { ...evidenceBundle, action: "unknown" }]);
+  cases.push(["outcome unknown reservation action", actionOutcomeMutant("reservationAction", "unknown")]);
+  cases.push(["outcome unknown effective action", actionOutcomeMutant("effectiveAction", "unknown")]);
+  cases.push(["outcome unknown status", actionOutcomeMutant("status", "unknown")]);
+  cases.push(["council invalid reservation action", { ...councilOutcome, reservationAction: "integrate" }]);
+  cases.push(["council invalid status", { ...councilOutcome, status: "PASS" }]);
+  cases.push(["audit invalid verdict", { ...auditReceipt, verdict: "UNKNOWN" }]);
+  cases.push([
+    "audit invalid severity",
+    { ...auditReceipt, findings: [{ ...finding, severity: "urgent" }] },
+  ]);
+  cases.push(["evaluation invalid result", { ...evaluationVerdict, result: "UNKNOWN" }]);
+  cases.push(["evaluation wrong package", { ...evaluationVerdict, packageId: "project-registry" }]);
+  cases.push(["evaluation wrong child", { ...evaluationVerdict, childId: "v040-t7-context" }]);
+  cases.push(["wrong program", { ...designReceipt, program: "v050" }]);
+
+  const invalidTimes: readonly unknown[] = [
+    "2026-08-24T00:00:00",
+    "2026-08-24T00:00:00.000Z",
+    "2026-08-24T00:00:00+00:00",
+    "2026-02-30T00:00:00Z",
+    "bad\u0000time",
+    1,
+  ];
+  for (const value of invalidTimes) {
+    cases.push(["receipt invalid time " + String(value), { ...designReceipt, issuedAt: value }]);
+    cases.push(["outcome invalid time " + String(value), actionOutcomeMutant("issuedAt", value)]);
+  }
+
+  for (const [name, mutant] of cases) {
+    it(name, () => {
+      expectParseInvalid(mutant);
+    });
+  }
+
+  it("candidate digest is SHA-256 of the lowercase ASCII commit", () => {
+    assert.equal(
+      candidateSha256,
+      createHash("sha256").update(commit, "ascii").digest("hex"),
+    );
+  });
+});
