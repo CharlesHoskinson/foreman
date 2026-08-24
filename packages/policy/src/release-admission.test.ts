@@ -22,6 +22,7 @@ const COMMIT = "a".repeat(40);
 const TREE = "b".repeat(40);
 const ROOT_SHA = "c".repeat(64);
 const FAMILY_SHA = "d".repeat(64);
+const SHA_F = "f".repeat(64);
 const TASK_BYTES = utf8("# Release task plan\n");
 const OPEN_SPEC_BYTES = {
   "design.md": utf8("# Design\n"),
@@ -141,4 +142,107 @@ test("legacy signing fields are invalid evidence", () => {
     _tag: "EvidenceInvalid",
     reason: "invalid_evidence",
   });
+});
+
+test("malformed evidence fails before registration", () => {
+  assert.deepEqual(
+    evaluateReleaseAdmissionV1({
+      ...INPUT,
+      evidenceBytes: utf8("not-json\n"),
+      registered: null,
+    }),
+    { schemaVersion: 1, _tag: "Refused", reason: "invalid_evidence" },
+  );
+});
+
+test("caller action, package, and candidate must match evidence", () => {
+  assert.deepEqual(evaluateReleaseEvidenceV1({ ...INPUT, action: "verify" }), {
+    schemaVersion: 1,
+    _tag: "EvidenceInvalid",
+    reason: "wrong_action",
+  });
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({ ...INPUT, packageId: "other-package" }),
+    { schemaVersion: 1, _tag: "EvidenceInvalid", reason: "wrong_package" },
+  );
+  const otherCandidate = {
+    commit: "1".repeat(40),
+    tree: "2".repeat(40),
+    candidateSha256: sha256Hex("1".repeat(40)),
+  };
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({ ...INPUT, candidate: otherCandidate }),
+    { schemaVersion: 1, _tag: "EvidenceInvalid", reason: "wrong_candidate" },
+  );
+});
+
+test("implementation candidate must equal the approved design base", () => {
+  const otherCandidate = {
+    commit: "1".repeat(40),
+    tree: "2".repeat(40),
+    candidateSha256: sha256Hex("1".repeat(40)),
+  };
+  const evidenceBytes = canonicalFile({ ...BUNDLE, candidate: otherCandidate });
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({
+      ...INPUT,
+      candidate: otherCandidate,
+      evidenceBytes,
+    }),
+    { schemaVersion: 1, _tag: "EvidenceInvalid", reason: "wrong_design_base" },
+  );
+});
+
+test("approved OpenSpec and task-plan bytes are immutable", () => {
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({
+      ...INPUT,
+      approvedOpenSpecBytes: {
+        ...OPEN_SPEC_BYTES,
+        "proposal.md": utf8("changed\n"),
+      },
+    }),
+    {
+      schemaVersion: 1,
+      _tag: "EvidenceInvalid",
+      reason: "approved_openspec_mismatch",
+    },
+  );
+  assert.deepEqual(
+    evaluateReleaseEvidenceV1({ ...INPUT, taskPlanBytes: utf8("changed\n") }),
+    { schemaVersion: 1, _tag: "EvidenceInvalid", reason: "task_plan_mismatch" },
+  );
+});
+
+test("every registered identity field is exact", () => {
+  const mutations: readonly RegisteredReleaseAuthorityV1[] = [
+    { ...REGISTERED, rootContractId: "other-root" },
+    { ...REGISTERED, rootContractSha256: SHA_F },
+    { ...REGISTERED, familySha256: SHA_F },
+    { ...REGISTERED, childId: "other-child" },
+    { ...REGISTERED, action: "verify" },
+    { ...REGISTERED, effectiveAction: "verify" },
+    { ...REGISTERED, priorReservationId: "prior" },
+    { ...REGISTERED, originReservationId: "origin" },
+    {
+      ...REGISTERED,
+      candidate: {
+        commit: "1".repeat(40),
+        tree: "2".repeat(40),
+        candidateSha256: sha256Hex("1".repeat(40)),
+      },
+    },
+    { ...REGISTERED, taskPlanSha256: SHA_F },
+    { ...REGISTERED, bundleSha256: SHA_F },
+    { ...REGISTERED, receiptSchemas: ["foreman.checks-evidence.v1"] },
+    { ...REGISTERED, receiptSha256s: [SHA_F] },
+    { ...REGISTERED, evaluationManifestSha256: SHA_F },
+  ];
+  for (const registered of mutations) {
+    assert.deepEqual(evaluateReleaseAdmissionV1({ ...INPUT, registered }), {
+      schemaVersion: 1,
+      _tag: "Refused",
+      reason: "registration_mismatch",
+    });
+  }
 });

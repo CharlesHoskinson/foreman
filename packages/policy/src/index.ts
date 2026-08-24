@@ -161,3 +161,12 @@ export {
   type ApprovedOpenSpecManifestBuildResultV1,
   type ApprovedOpenSpecManifestValidationResultV1,
 } from "./release-authority.js";
+export {
+  evaluateReleaseEvidenceV1,
+  evaluateReleaseAdmissionV1,
+  type RegisteredReleaseAuthorityV1,
+  type ReleaseAdmissionFailureReason,
+  type ReleaseEvidenceCheckResultV1,
+  type ReleaseAdmissionResultV1,
+  type ReleaseEvidenceInputV1,
+} from "./release-admission.js";
