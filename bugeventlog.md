@@ -3913,3 +3913,20 @@ lock-free. The publisher acquires the lock only after two code-only candidates
 pass deterministic and health checks, revalidates `HEAD`, and then replaces the
 tracked graph and metadata pair. A missing or invalid graph selects direct
 source instead of blocking ordinary work.
+
+## 2026-08-24 — Durable events had no deterministic cross-record projection
+
+**Phase:** v0.4.0 work-DAG qualification
+
+The event log preserved each run, but comparing attempts, verdicts, gates, and
+findings required repeated ad hoc `jq` queries. The old work-DAG plan also mixed
+this immediate gap with an unimplemented checkpoint-to-Graphify symbol bridge.
+
+**Impact:** run recovery remained sound, but recurrence and lineage questions
+were slow and easy to answer inconsistently. The broader proposal obscured the
+small projection that already worked.
+
+**Decision:** v0.4 qualifies the existing model-free JSONL projector and freezes
+its deterministic record set and atomic check/publication behavior. Symbol
+attribution, rename migration, and cross-run aggregation remain explicit future
+work instead of release claims.

@@ -112,3 +112,13 @@ EOF
   "$GP" --run r1 --events "$BATS_TEST_TMPDIR/e.jsonl" >/dev/null
   cmp -s "$BATS_TEST_TMPDIR/e.jsonl" "$BATS_TEST_TMPDIR/e.before"
 }
+
+@test "invalid input leaves an existing output byte-identical" {
+  printf '%s\n' '{"kind":"prior","id":"preserved"}' > "$BATS_TEST_TMPDIR/w.jsonl"
+  cp "$BATS_TEST_TMPDIR/w.jsonl" "$BATS_TEST_TMPDIR/w.before"
+  printf '%s' '{"seq":1' > "$BATS_TEST_TMPDIR/torn.jsonl"
+
+  run "$GP" --run r1 --events "$BATS_TEST_TMPDIR/torn.jsonl" --out "$BATS_TEST_TMPDIR/w.jsonl"
+  [ "$status" -eq 1 ]
+  cmp -s "$BATS_TEST_TMPDIR/w.jsonl" "$BATS_TEST_TMPDIR/w.before"
+}

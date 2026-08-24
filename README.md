@@ -536,7 +536,13 @@ later.
   lane lifecycle. Sequence allocation and locks are part of the durable core;
   see limits for the uutils `mkdir` defect that affects that path.
 - **Work-DAG** is a deterministic projection of the event log. No LLM ever
-  writes it, and it never passes through graphify.
+  writes it, and it never passes through Graphify. Project one durable run with
+  `skills/foreman/scripts/graph-project.sh --run RUN`; add `--events PATH` for
+  an explicit source, `--out PATH` for atomic publication, or `--check` to
+  compare an existing output. v0.4 projects attempts, verdicts, gates,
+  findings, lineage edges, and coverage. Symbol attribution and cross-run
+  aggregation are deferred; inspect `events.jsonl` directly when those joins
+  are needed.
 - **The knowledge plane** is an optional Graphify 0.9.48 code-only index.
   Foreman qualifies two isolated builds, requires zero model tokens, and binds
   the adopted graph to its source commit. A missing, stale, or invalid graph

@@ -460,8 +460,8 @@ source_path = "openspec/changes/work-dag-projection"
 disposition = "v040_owner"
 owner = "work-dag-projection"
 target_release = "v0.4"
-reconcile = "required"
-reason = "Track 6 owns deterministic lineage; its directed and shell assumptions need correction."
+reconcile = "complete"
+reason = "Track 6 ships the deterministic model-free event-log projection and defers the unimplemented symbol bridge."
 
 [[entry]]
 key = "change:workload-fit-accounting"

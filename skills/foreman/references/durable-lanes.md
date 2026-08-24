@@ -237,3 +237,21 @@ text, diff text or file contents (beyond the pre-existing `prompt.cmd` for the
 joined command). Emit failures log to stderr and never change a gate or round
 outcome; a failed `gate_decision` emit is recorded as `emission_failed:true`
 inside `gate-decision.json`.
+
+## v0.4 work-DAG projection
+
+`skills/foreman/scripts/graph-project.sh` converts one durable `events.jsonl`
+into deterministic JSONL records for attempts, verdicts, gates, findings,
+lineage edges, incomplete inputs, and coverage. It reads no model output and
+does not invoke Graphify or a network service.
+
+Use `--out PATH` for temporary-file publication and `--check` to compare an
+existing projection without rewriting it. Malformed, empty, or torn event
+lines refuse publication. Unknown event types are ignored so later additive
+events do not invalidate known records. An empty or heartbeat-only log reports
+zero projected attempts; it is not presented as a complete work history.
+
+The v0.4 projection does not map checkpoints to Graphify symbols, migrate node
+identifiers across renames, aggregate multiple runs, or infer why one attempt
+followed another. Read the event log and Git history directly for those
+questions.
