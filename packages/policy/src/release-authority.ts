@@ -635,7 +635,9 @@ function keyForRole(role: SchemaRole): KeyObject {
   return role === "user" ? USER_PUBLIC_KEY : HOST_PUBLIC_KEY;
 }
 
-function fingerprintForRole(role: SchemaRole): string {
+function fingerprintForRole(
+  role: SchemaRole,
+): typeof USER_KEY_SHA256 | typeof HOST_KEY_SHA256 {
   return role === "user" ? USER_KEY_SHA256 : HOST_KEY_SHA256;
 }
 
@@ -779,6 +781,14 @@ function requireSignature(value: unknown): string | null {
   return value;
 }
 
+function requireIssuer(
+  value: unknown,
+  role: "user",
+): typeof USER_KEY_SHA256 | null;
+function requireIssuer(
+  value: unknown,
+  role: "host",
+): typeof HOST_KEY_SHA256 | null;
 function requireIssuer(
   value: unknown,
   role: SchemaRole,
