@@ -218,9 +218,31 @@ for (const harness of HARNESSES) {
           "coalescing must keep only the newer desired-state version",
         );
         assert.equal(store.ackOutbox([second.receipt]), 1);
+        assert.deepEqual(store.projectionSnapshot(), [
+          {
+            key: `obligation:${obligation.id}`,
+            kind: "obligation",
+            id: obligation.id,
+            projection_version: second.record.projection_version,
+            mutation: "upsert",
+            text: "versioned — done",
+          },
+        ]);
 
         const again = reopen();
         try {
+          assert.deepEqual(
+            again.projectionSnapshot(),
+            [{
+              key: `obligation:${obligation.id}`,
+              kind: "obligation",
+              id: obligation.id,
+              projection_version: second.record.projection_version,
+              mutation: "upsert",
+              text: "versioned — done",
+            }],
+            "the acknowledged key version must survive reopen",
+          );
           const fact = addFact(again, "after ack", "2026-08-08T10:02:00Z");
           const third = again.listOutbox(100).find(
             (entry) => entry.record.kind === "fact" && entry.record.id === fact.id,

@@ -380,7 +380,7 @@ describe("durability", () => {
 });
 
 describe("legacy generation synthesis", () => {
-  it("synthesizes active upserts from a legacy numeric generation without outbox file", () => {
+  it("refuses read-only migration and publishes versioned upserts on writable open", () => {
     withDir((d) => {
       const writable = openFilesOnlyStore({ dir: d });
       writable.addFact({
@@ -399,9 +399,19 @@ describe("legacy generation synthesis", () => {
       writeFileSync(join(d, "CURRENT"), `${legacy}\n`);
       rmSync(join(d, "outbox-generations"), { recursive: true, force: true });
 
-      const ro = openFilesOnlyStore({ dir: d, readOnly: true });
+      assert.throws(
+        () => openFilesOnlyStore({ dir: d, readOnly: true }),
+        /writable migration/,
+      );
+      assert.equal(
+        readdirSync(d).includes("outbox-generations"),
+        false,
+        "read-only legacy refusal must not create outbox-generations",
+      );
+
+      const next = openFilesOnlyStore({ dir: d });
       try {
-        const entries = ro.listOutbox(100);
+        const entries = next.listOutbox(100);
         assert.equal(entries.length, 1);
         assert.equal(entries[0]!.record.mutation, "upsert");
         assert.equal(entries[0]!.record.kind, "fact");
@@ -409,17 +419,6 @@ describe("legacy generation synthesis", () => {
           assert.equal(entries[0]!.record.text, "legacy-live");
           assert.ok(!entries[0]!.record.text.includes("/secret"));
         }
-        assert.equal(
-          readdirSync(d).includes("outbox-generations"),
-          false,
-          "read-only legacy open must not create outbox-generations",
-        );
-      } finally {
-        ro.close();
-      }
-
-      const next = openFilesOnlyStore({ dir: d });
-      try {
         next.addFact({
           statement: "makes-paired-durable",
           evidence: null,

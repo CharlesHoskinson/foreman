@@ -194,6 +194,12 @@ export interface SessionStore {
   listOutbox(limit: number): readonly OutboxEntry[];
 
   /**
+   * Current live desired state with each key's retained projection version.
+   * This is the authoritative input for an isolated external-index rebuild.
+   */
+  projectionSnapshot(): readonly ProjectionRecord[];
+
+  /**
    * Atomically acknowledge exact receipt versions. Deduplicates receipts,
    * ignores unknown and stale versions, and returns the number deleted.
    * A receipt identifies one version only: a newer coalesced replacement

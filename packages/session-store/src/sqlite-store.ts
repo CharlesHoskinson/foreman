@@ -141,6 +141,13 @@ CREATE TABLE IF NOT EXISTS memory_outbox (
   UNIQUE(kind, entity_id)
 );
 
+CREATE TABLE IF NOT EXISTS memory_projection_versions (
+  kind      TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  version   INTEGER NOT NULL,
+  PRIMARY KEY(kind, entity_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_meas_metric ON measurements(metric);
 CREATE INDEX IF NOT EXISTS idx_oblig_status ON obligations(status);
 CREATE INDEX IF NOT EXISTS idx_facts_superseded ON facts(superseded_by);
@@ -231,9 +238,11 @@ export class SqliteSessionStore implements SessionStore {
     if (!this.readOnly) {
       this.ensureCounters();
       this.migrateOutboxIfNeeded();
+      this.migrateProjectionVersionsIfNeeded();
     } else {
       // Read-only opens must not mutate. Counters are only needed for writes.
       // Legacy outbox is tolerated until listOutbox is called.
+      this.projectionVersions();
     }
   }
 
@@ -294,6 +303,7 @@ export class SqliteSessionStore implements SessionStore {
     this.db.exec("BEGIN IMMEDIATE");
     try {
       this.db.exec("DROP TABLE IF EXISTS memory_outbox");
+      this.db.exec("DELETE FROM memory_projection_versions");
       this.db.exec(`
 CREATE TABLE memory_outbox (
   position  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -325,6 +335,56 @@ CREATE TABLE memory_outbox (
       }
       throw e;
     }
+  }
+
+  private projectionVersions(): Map<string, number> {
+    const table = this.db
+      .prepare(
+        "SELECT name FROM sqlite_schema WHERE type = 'table' AND name = ?",
+      )
+      .get("memory_projection_versions");
+    if (table === undefined) {
+      raise(
+        "backend_mismatch",
+        "projection versions are missing; reopen writable to migrate",
+      );
+    }
+    const rows = this.db
+      .prepare(
+        "SELECT kind, entity_id, version FROM memory_projection_versions " +
+          "ORDER BY CASE kind WHEN 'fact' THEN 1 WHEN 'measurement' THEN 2 ELSE 3 END, entity_id",
+      )
+      .all() as Array<Record<string, unknown>>;
+    const versions = new Map<string, number>();
+    for (const row of rows) {
+      const kind = row["kind"];
+      const entityId = Number(row["entity_id"]);
+      const version = Number(row["version"]);
+      if (
+        (kind !== "fact" && kind !== "measurement" && kind !== "obligation") ||
+        !Number.isSafeInteger(entityId) ||
+        entityId < 1 ||
+        !Number.isSafeInteger(version) ||
+        version < 1
+      ) {
+        raise("backend_mismatch", "projection version state is malformed");
+      }
+      versions.set(projectionKey(kind, entityId), version);
+    }
+    return versions;
+  }
+
+  /** Assign retained versions to legacy live rows in canonical projection order. */
+  private migrateProjectionVersionsIfNeeded(): void {
+    const live = buildProjection(this.readSnapshot(), this.projectId());
+    const versions = this.projectionVersions();
+    const missing = live.filter(
+      (record) => !versions.has(projectionKey(record.kind, record.id)),
+    );
+    if (missing.length === 0) return;
+    this.tx(() => {
+      for (const record of missing) this.queueRecord(record);
+    });
   }
 
   /**
@@ -489,7 +549,7 @@ CREATE TABLE memory_outbox (
   }
 
   /** Mint a fresh receipt version. Must run inside a write transaction. */
-  private mintReceipt(): string {
+  private mintReceipt(): { readonly receipt: string; readonly version: number } {
     const row = this.db
       .prepare("SELECT value FROM store_meta WHERE key = ?")
       .get("next_receipt") as { value: string } | undefined;
@@ -513,7 +573,7 @@ CREATE TABLE memory_outbox (
           "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       )
       .run("next_receipt", String(n + 1));
-    return receipt;
+    return { receipt, version: n };
   }
 
   /**
@@ -527,8 +587,15 @@ CREATE TABLE memory_outbox (
         "SELECT position FROM memory_outbox WHERE kind = ? AND entity_id = ?",
       )
       .get(record.kind, record.id) as { position: number } | undefined;
-    const receipt = this.mintReceipt();
+    const minted = this.mintReceipt();
+    const receipt = minted.receipt;
     const text = record.mutation === "upsert" ? record.text : null;
+    this.db
+      .prepare(
+        "INSERT INTO memory_projection_versions (kind, entity_id, version) " +
+          "VALUES (?, ?, ?) ON CONFLICT(kind, entity_id) DO UPDATE SET version = excluded.version",
+      )
+      .run(record.kind, record.id, minted.version);
     if (existing) {
       this.db
         .prepare(
@@ -604,10 +671,7 @@ CREATE TABLE memory_outbox (
     if (typeof receipt !== "string" || receipt.length === 0) {
       raise("backend_mismatch", "outbox row receipt must be a non-empty string");
     }
-    const receiptMatch = INTERNAL_NUMERIC_RECEIPT.exec(receipt);
-    const projectionVersion = receiptMatch === null
-      ? null
-      : Number(receiptMatch[1]);
+    const projectionVersion = Number(r["projection_version"]);
     if (
       projectionVersion === null ||
       !Number.isSafeInteger(projectionVersion) ||
@@ -615,7 +679,7 @@ CREATE TABLE memory_outbox (
     ) {
       raise(
         "backend_mismatch",
-        "outbox receipt must carry a valid projection version",
+        "outbox projection version is invalid",
       );
     }
     const projectId = this.projectId();
@@ -673,13 +737,27 @@ CREATE TABLE memory_outbox (
     this.assertOutboxReadable();
     const rows = this.db
       .prepare(
-        "SELECT receipt, kind, entity_id, mutation, text FROM memory_outbox " +
+        "SELECT o.receipt, o.kind, o.entity_id, o.mutation, o.text, " +
+          "v.version AS projection_version FROM memory_outbox o " +
+          "JOIN memory_projection_versions v " +
+          "ON v.kind = o.kind AND v.entity_id = o.entity_id " +
           "ORDER BY position ASC LIMIT ?",
       )
       .all(limit) as Record<string, unknown>[];
     // Defensive copies: callers must not be able to mutate store state via the
     // returned objects.
     return rows.map((r) => this.decodeOutboxRow(r));
+  }
+
+  projectionSnapshot(): readonly ProjectionRecord[] {
+    const versions = this.projectionVersions();
+    return buildProjection(this.readSnapshot(), this.projectId()).map((record) => {
+      const version = versions.get(projectionKey(record.kind, record.id));
+      if (version === undefined) {
+        raise("backend_mismatch", "a live projection version is missing");
+      }
+      return { ...record, projection_version: version };
+    });
   }
 
   ackOutbox(receipts: readonly string[]): number {

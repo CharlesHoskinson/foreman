@@ -121,7 +121,8 @@ const WRITER_CLAIMS_DIR = ".writer-claims";
 const GEN_WIDTH = 8;
 const OUTBOX_LIMIT_MIN = 1;
 const OUTBOX_LIMIT_MAX = 1000;
-const OUTBOX_FILE_VERSION = 2;
+const OUTBOX_FILE_VERSION = 3;
+const PROJECT_BOUND_OUTBOX_FILE_VERSION = 2;
 const LEGACY_OUTBOX_FILE_VERSION = 1;
 /** Internal numeric receipt form: r followed by a positive decimal (no leading zeros). */
 const INTERNAL_NUMERIC_RECEIPT = /^r([1-9][0-9]*)$/;
@@ -250,12 +251,24 @@ function encodeOutbox(
   entries: readonly OutboxEntry[],
   nextReceipt: number,
   projectId: string | null,
+  projectionVersions: ReadonlyMap<string, number>,
 ): string {
+  const versions = [...projectionVersions.entries()]
+    .map(([key, version]) => {
+      const [kind, rawId] = key.split(":");
+      return { kind, id: Number(rawId), version };
+    })
+    .sort((a, b) => {
+      const kinds = ["fact", "measurement", "obligation"];
+      const byKind = kinds.indexOf(a.kind!) - kinds.indexOf(b.kind!);
+      return byKind === 0 ? a.id - b.id : byKind;
+    });
   return `${JSON.stringify({
     version: OUTBOX_FILE_VERSION,
     projectId,
     nextReceipt,
     entries: entries.map(copyEntry),
+    projectionVersions: versions,
   })}\n`;
 }
 
@@ -267,6 +280,8 @@ function decodeOutbox(text: string): {
   readonly entries: OutboxEntry[];
   readonly nextReceipt: number;
   readonly projectId: string | null;
+  readonly projectionVersions: Map<string, number>;
+  readonly needsProjectionMigration: boolean;
 } {
   let parsed: unknown;
   try {
@@ -280,6 +295,7 @@ function decodeOutbox(text: string): {
   const root = parsed as Record<string, unknown>;
   if (
     root["version"] !== LEGACY_OUTBOX_FILE_VERSION &&
+    root["version"] !== PROJECT_BOUND_OUTBOX_FILE_VERSION &&
     root["version"] !== OUTBOX_FILE_VERSION
   ) {
     raise(
@@ -415,7 +431,52 @@ function decodeOutbox(text: string): {
       "outbox nextReceipt must be strictly greater than every numeric receipt",
     );
   }
-  return { entries, nextReceipt, projectId };
+  const projectionVersions = new Map<string, number>();
+  const needsProjectionMigration = root["version"] !== OUTBOX_FILE_VERSION;
+  if (!needsProjectionMigration) {
+    if (!Array.isArray(root["projectionVersions"])) {
+      raise("sidecar_malformed", "outbox projectionVersions must be an array");
+    }
+    for (const raw of root["projectionVersions"]) {
+      if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+        raise("sidecar_malformed", "projection version row must be an object");
+      }
+      const row = raw as Record<string, unknown>;
+      if (
+        !isCountedKindName(row["kind"]) ||
+        typeof row["id"] !== "number" ||
+        !Number.isSafeInteger(row["id"]) ||
+        row["id"] < 1 ||
+        typeof row["version"] !== "number" ||
+        !Number.isSafeInteger(row["version"]) ||
+        row["version"] < 1 ||
+        row["version"] >= nextReceipt
+      ) {
+        raise("sidecar_malformed", "projection version row is invalid");
+      }
+      const key = projectionKey(row["kind"], row["id"]);
+      if (projectionVersions.has(key)) {
+        raise("sidecar_malformed", "projection version identities must be unique");
+      }
+      projectionVersions.set(key, row["version"]);
+    }
+    for (const entry of entries) {
+      const key = projectionKey(entry.record.kind, entry.record.id);
+      if (projectionVersions.get(key) !== entry.record.projection_version) {
+        raise(
+          "sidecar_malformed",
+          "pending projection version must match retained current version",
+        );
+      }
+    }
+  }
+  return {
+    entries,
+    nextReceipt,
+    projectId,
+    projectionVersions,
+    needsProjectionMigration,
+  };
 }
 
 function synthesizeOutbox(
@@ -424,13 +485,18 @@ function synthesizeOutbox(
 ): {
   readonly entries: OutboxEntry[];
   readonly nextReceipt: number;
+  readonly projectionVersions: Map<string, number>;
 } {
   const entries: OutboxEntry[] = [];
+  const projectionVersions = new Map<string, number>();
   let nextReceipt = 1;
   for (const record of buildProjection(snap, projectId)) {
-    entries.push({ receipt: `r${nextReceipt++}`, record: copyRecord(record) });
+    const version = nextReceipt++;
+    const versioned = copyRecord({ ...record, projection_version: version });
+    entries.push({ receipt: `r${version}`, record: versioned });
+    projectionVersions.set(projectionKey(record.kind, record.id), version);
   }
-  return { entries, nextReceipt };
+  return { entries, nextReceipt, projectionVersions };
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -739,6 +805,7 @@ export class FilesOnlySessionStore implements SessionStore {
   #outbox: OutboxEntry[];
   #nextReceipt: number;
   #projectId: string | null;
+  #projectionVersions: Map<string, number>;
   #gen: number;
   #closed = false;
 
@@ -748,6 +815,7 @@ export class FilesOnlySessionStore implements SessionStore {
     outbox: readonly OutboxEntry[],
     nextReceipt: number,
     projectId: string | null,
+    projectionVersions: ReadonlyMap<string, number>,
     gen: number,
     readOnly: boolean,
     writerClaim: WriterClaim | null,
@@ -761,6 +829,7 @@ export class FilesOnlySessionStore implements SessionStore {
     this.#outbox = outbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
     this.#projectId = projectId;
+    this.#projectionVersions = new Map(projectionVersions);
     this.#gen = gen;
   }
 
@@ -794,12 +863,19 @@ export class FilesOnlySessionStore implements SessionStore {
       );
     }
     const loaded = FilesOnlySessionStore.#loadLive(dir, join(dir, GENERATIONS));
+    if (loaded.needsProjectionMigration) {
+      raise(
+        "sidecar_malformed",
+        "projection versions require a writable migration",
+      );
+    }
     return new FilesOnlySessionStore(
       dir,
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
       loaded.projectId,
+      loaded.projectionVersions,
       loaded.gen,
       true,
       null,
@@ -818,6 +894,7 @@ export class FilesOnlySessionStore implements SessionStore {
         [],
         1,
         null,
+        new Map(),
         0,
         false,
         claim,
@@ -827,16 +904,25 @@ export class FilesOnlySessionStore implements SessionStore {
     }
 
     const loaded = FilesOnlySessionStore.#loadLive(dir, join(dir, GENERATIONS));
-    return new FilesOnlySessionStore(
+    const store = new FilesOnlySessionStore(
       dir,
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
       loaded.projectId,
+      loaded.projectionVersions,
       loaded.gen,
       false,
       claim,
     );
+    if (loaded.needsProjectionMigration) {
+      const q = cloneQueue(store.#outbox, store.#nextReceipt);
+      for (const record of buildProjection(store.#snap, store.#projectId)) {
+        queueRecord(q, record);
+      }
+      store.#publish(store.#snap, q.entries, q.nextReceipt);
+    }
+    return store;
   }
 
   static #loadLive(
@@ -847,6 +933,8 @@ export class FilesOnlySessionStore implements SessionStore {
     readonly outbox: OutboxEntry[];
     readonly nextReceipt: number;
     readonly projectId: string | null;
+    readonly projectionVersions: Map<string, number>;
+    readonly needsProjectionMigration: boolean;
     readonly gen: number;
   } {
     const currentPath = join(dir, CURRENT);
@@ -894,6 +982,8 @@ export class FilesOnlySessionStore implements SessionStore {
           outbox: decoded.entries,
           nextReceipt: decoded.nextReceipt,
           projectId: decoded.projectId,
+          projectionVersions: decoded.projectionVersions,
+          needsProjectionMigration: decoded.needsProjectionMigration,
           gen,
         };
       }
@@ -903,6 +993,8 @@ export class FilesOnlySessionStore implements SessionStore {
         outbox: synthesized.entries,
         nextReceipt: synthesized.nextReceipt,
         projectId: null,
+        projectionVersions: synthesized.projectionVersions,
+        needsProjectionMigration: true,
         gen,
       };
     }
@@ -920,6 +1012,8 @@ export class FilesOnlySessionStore implements SessionStore {
       outbox: decoded.entries,
       nextReceipt: decoded.nextReceipt,
       projectId: decoded.projectId,
+      projectionVersions: decoded.projectionVersions,
+      needsProjectionMigration: decoded.needsProjectionMigration,
       gen,
     };
   }
@@ -947,7 +1041,19 @@ export class FilesOnlySessionStore implements SessionStore {
   ): void {
     const ordered = sortedSnapshot(next);
     const snapText = encodeSnapshot(ordered);
-    const outboxText = encodeOutbox(nextOutbox, nextReceipt, projectId);
+    const projectionVersions = new Map(this.#projectionVersions);
+    for (const entry of nextOutbox) {
+      projectionVersions.set(
+        projectionKey(entry.record.kind, entry.record.id),
+        entry.record.projection_version,
+      );
+    }
+    const outboxText = encodeOutbox(
+      nextOutbox,
+      nextReceipt,
+      projectId,
+      projectionVersions,
+    );
     const gen = this.#gen + 1;
     const name = genName(gen);
 
@@ -962,6 +1068,7 @@ export class FilesOnlySessionStore implements SessionStore {
     this.#outbox = nextOutbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
     this.#projectId = projectId;
+    this.#projectionVersions = projectionVersions;
   }
 
   #assertOpen(): void {
@@ -1063,6 +1170,19 @@ export class FilesOnlySessionStore implements SessionStore {
       );
     }
     return this.#outbox.slice(0, limit).map(copyEntry);
+  }
+
+  projectionSnapshot(): readonly ProjectionRecord[] {
+    this.#assertOpen();
+    return buildProjection(this.#snap, this.#projectId).map((record) => {
+      const version = this.#projectionVersions.get(
+        projectionKey(record.kind, record.id),
+      );
+      if (version === undefined) {
+        raise("sidecar_malformed", "a live projection version is missing");
+      }
+      return copyRecord({ ...record, projection_version: version });
+    });
   }
 
   ackOutbox(receipts: readonly string[]): number {

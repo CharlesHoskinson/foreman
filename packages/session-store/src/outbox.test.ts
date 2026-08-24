@@ -164,6 +164,9 @@ function fakeStore(
             : { ...e.record },
       }));
     },
+    projectionSnapshot(): readonly ProjectionRecord[] {
+      return entries.map((entry) => entry.record);
+    },
     ackOutbox(receipts: readonly string[]): number {
       hooks.mutateBeforeAck?.(entries);
       if (hooks.onAck) return hooks.onAck(receipts);

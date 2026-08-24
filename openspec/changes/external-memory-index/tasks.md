@@ -3,9 +3,9 @@
 ## 1. Durable projection versions
 
 - [x] Add RED contract tests for monotonic versions and overflow refusal.
-- [ ] Add atomic version persistence to SQLite and files-only stores.
-- [ ] Migrate legacy live rows in canonical order without changing entity IDs.
-- [ ] Verify reopen, import, coalescing, and rollback behavior.
+- [x] Add atomic version persistence to SQLite and files-only stores.
+- [x] Migrate legacy live rows in canonical order without changing entity IDs.
+- [x] Verify reopen, import, coalescing, and rollback behavior.
 
 ## 2. Qdrant adapter
 

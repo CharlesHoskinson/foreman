@@ -25,6 +25,7 @@ import type {
   NewMeasurement,
   NewObligation,
   OutboxEntry,
+  ProjectionRecord,
   SessionStore,
   SupersedeResult,
 } from "./port.js";
@@ -1692,6 +1693,10 @@ export class StubEmptyBackend implements SessionStore {
   }
 
   listOutbox(_limit: number): readonly OutboxEntry[] {
+    return [];
+  }
+
+  projectionSnapshot(): readonly ProjectionRecord[] {
     return [];
   }
 
