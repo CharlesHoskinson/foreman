@@ -848,3 +848,15 @@ export {
   type ReleaseCoverageFamilySourceV1,
   type ReleaseCoverageResolvedFamilyV1,
 } from "./release-coverage-cli.js";
+
+export {
+  RELEASE_POLICY_USAGE,
+  liveReleasePolicyServices,
+  parseReleasePolicyArgv,
+  runReleasePolicyCli,
+  type ParsedReleasePolicyArgv,
+  type ReleasePolicyBlockV1,
+  type ReleasePolicyCliIo,
+  type ReleasePolicyFamilyViewV1,
+  type ReleasePolicyServices,
+} from "./release-policy.js";
