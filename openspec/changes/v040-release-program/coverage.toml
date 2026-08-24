@@ -1,6 +1,6 @@
 schema_version = 1
 baseline_commit = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195"
-active_inventory_sha256 = "148f3c5862053bbebea1ad7ac8842237b70f3877c402b3bc9209e85c2e7733fb"
+active_inventory_sha256 = "4d180b8b068105274e49efa202afa4381c839ba44f79aa6ef57fb73bc63fbce6"
 roadmap_sha256 = "2e9ce274bd1bae7d4a4a0187a4908eea17c768175c3aa0f176f54cb14bf7c12b"
 
 [[future_owner]]
@@ -282,6 +282,16 @@ owner = "profile-use-leasing"
 target_release = "v0.5"
 reconcile = "not_required"
 reason = "Profile leasing is not part of the v0.4 appliance contract."
+
+[[entry]]
+key = "change:project-registry"
+source_kind = "openspec_change"
+source_path = "openspec/changes/project-registry"
+disposition = "v040_owner"
+owner = "project-registry"
+target_release = "v0.4"
+reconcile = "required"
+reason = "Track 2 owns stable local project identity and exact store resolution."
 
 [[entry]]
 key = "change:regression-harness-tiers"
