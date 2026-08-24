@@ -214,7 +214,7 @@ integration only, and esbuild for generated runtime bundles.
   canonical evidence bundle has the action-specific receipt
   arity in `design.md`. Standalone success is `EvidenceValid`, not `Admitted`.
 
-- [ ] **3.1 RED:** Add decoder tests for each receipt variant and for
+- [x] **3.1 RED:** Add decoder tests for each receipt variant and for
   duplicate, missing, extra, wrong-type,
   over-bound, non-canonical, invalid UTF-8, wrong enum, control-character, bad
   Git ID, bad digest, and invalid timestamp fields. Add canonical
@@ -223,14 +223,15 @@ integration only, and esbuild for generated runtime bundles.
   audit, and evaluation-report source schemas, the canonical evaluation
   verdict, and all source-to-receipt copied fields.
   Run the focused test and observe missing exports.
-- [ ] **3.2 GREEN:** Implement closed decoders and complete-file digest binding with `decodeUtf8Fatal`,
+- [x] **3.2 GREEN:** Implement closed decoders and complete-file digest binding with `decodeUtf8Fatal`,
   `parseJsonRejectDuplicateKeys`, `canonicalize`, `isCommitSha40`,
   `isSha256Hex`, and `isUtcSecondTimestamp`. Require one trailing LF. Findings
   use only severity, file, line, summary, and evidence.
-- [ ] **3.3 RED:** Add the complete action admission matrix from `design.md`.
+- [x] **3.3 RED:** Add the complete action admission matrix from `design.md`.
   Cover valid implementation, first audit, correction after every blocking
-  outcome, council request before dispatch, council outcome after dispatch,
-  retry and resume of a failed reservation, exact integration, publication,
+  outcome, and council request before dispatch. Task 5 covers council-outcome
+  registration and post-dispatch chronology. Cover retry and resume of a
+  failed reservation, exact integration, publication,
   and evaluation. Refuse unknown action, absent registration, caller-selected
   digest, stale candidate,
   unrelated implementation commit or tree, wrong package, wrong receipt kind,
@@ -246,7 +247,7 @@ integration only, and esbuild for generated runtime bundles.
   replace the blobs from the approved design commit. Refuse a missing or oversized
   blob, an extra specification, and a wrong historical tree. Observe failures before
   implementation.
-- [ ] **3.4 GREEN:** Implement exact identity and action evaluation plus the
+- [x] **3.4 GREEN:** Implement exact identity and action evaluation plus the
   Effect CLI. Resolve `CANDIDATE_COMMIT^{commit}` and
   `CANDIDATE_COMMIT^{tree}` in `REPO` without hooks, recompute
   `sha256Hex(lowercaseCommit)`, and emit only
@@ -259,12 +260,13 @@ integration only, and esbuild for generated runtime bundles.
   historical design commit and tree, and implementation base. Store the
   complete resolved candidate identity in each bundle. Do not read caller
   `HEAD` or configuration during admission.
-- [ ] **3.5 VERIFY:** Run focused tests and package typecheck. Run the live CLI
+- [x] **3.5 VERIFY:** Run focused tests and package typecheck. Run the live CLI
   against canonical external fixtures, then repeat after changing each
   one of action, verdict, findings, commit, tree, candidate digest, approval
   bytes and `[audit.policy]`. Expect policy changes to have no effect
-  and every unauthorized mutation to refuse. Test registration mutations only
-  through the composed `release-policy` interface.
+  and every unauthorized mutation to refuse. Task 6 tests registration
+  mutations through the composed `release-policy` interface after that
+  interface exists.
 
 ## 4. ExecutionContractV2 manifest and pure policy
 
