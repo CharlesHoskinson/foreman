@@ -1629,11 +1629,16 @@ describe("Task 3.1 final producer and bundle closure", () => {
     for (const value of [
       "bad\\id",
       "bad\tid",
+      "bad\u001fid",
       "bad\u007fid",
     ] as const) {
       expectParseInvalid({ ...actionOutcome, packageId: value });
     }
-    for (const value of ["left\tright", "left\u007fright"] as const) {
+    for (const value of [
+      "left\tright",
+      "left\u001fright",
+      "left\u007fright",
+    ] as const) {
       expectParseInvalid({
         ...auditReceipt,
         findings: [{ ...finding, summary: value }],
@@ -1743,5 +1748,26 @@ describe("Task 3.1 final producer and bundle closure", () => {
       action: "evaluate",
       receipts: [evaluationDesign, request],
     });
+  });
+
+  it("accepts zero and maximum producer boundaries", () => {
+    assert.equal(
+      decodeReleaseProducerSourceFileV1(
+        canonicalFile({ ...auditSource, findings: [] }),
+      )._tag,
+      "Valid",
+    );
+    for (const counts of [
+      { completedRuns: 2000, unavailableRuns: 0, notRunRuns: 0 },
+      { completedRuns: 0, unavailableRuns: 2000, notRunRuns: 0 },
+      { completedRuns: 0, unavailableRuns: 0, notRunRuns: 2000 },
+    ] as const) {
+      assert.equal(
+        decodeReleaseProducerSourceFileV1(
+          canonicalFile({ ...evaluationReportSource, ...counts }),
+        )._tag,
+        "Valid",
+      );
+    }
   });
 });
