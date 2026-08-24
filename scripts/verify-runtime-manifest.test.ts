@@ -2,6 +2,7 @@
  * Copied-tree runtime manifest verifier negative controls.
  */
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import {
   cpSync,
   mkdirSync,
@@ -11,9 +12,10 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, it } from "node:test";
 import { verifyRuntimeManifest } from "./verify-runtime-manifest.js";
 
@@ -21,6 +23,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const trackedRuntime = join(root, "skills/foreman/runtime");
 const trackedManifest = join(trackedRuntime, "manifest.json");
 const trackedPolicy = join(trackedRuntime, "dist/architecture-policy.js");
+const tsxLoader = pathToFileURL(
+  createRequire(import.meta.url).resolve("tsx"),
+).href;
 
 function seedCleanCopy(): string {
   const dir = mkdtempSync(join(tmpdir(), "foreman-vrm-"));
@@ -70,6 +75,36 @@ describe("verifyRuntimeManifest copied-tree negatives", () => {
     try {
       const r = verifyRuntimeManifest(rt);
       assert.equal(r.ok, true, JSON.stringify(r));
+    } finally {
+      rmSync(dirname(rt), { recursive: true, force: true });
+    }
+  });
+
+  it("runs every copied v0.4 release entry point byte-for-byte like source", () => {
+    const rt = seedCleanCopy();
+    try {
+      for (const [artifact, source] of [
+        ["release-coverage.js", "packages/orchestration/src/release-coverage-main.ts"],
+        ["release-admission.js", "packages/policy/src/release-admission-main.ts"],
+        ["release-authority.js", "packages/orchestration/src/release-authority-main.ts"],
+        ["release-policy.js", "packages/orchestration/src/release-policy-main.ts"],
+      ] as const) {
+        const expected = spawnSync(
+          process.execPath,
+          ["--import", tsxLoader, join(root, source)],
+          { cwd: root, encoding: "utf8", timeout: 30_000 },
+        );
+        const installed = spawnSync(
+          process.execPath,
+          [join(rt, "dist", artifact)],
+          { cwd: dirname(rt), encoding: "utf8", timeout: 30_000 },
+        );
+        assert.equal(expected.error, undefined, source);
+        assert.equal(installed.error, undefined, artifact);
+        assert.equal(installed.status, expected.status, artifact);
+        assert.equal(installed.stdout, expected.stdout, artifact);
+        assert.equal(installed.stderr, expected.stderr, artifact);
+      }
     } finally {
       rmSync(dirname(rt), { recursive: true, force: true });
     }
