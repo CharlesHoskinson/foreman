@@ -335,6 +335,15 @@ import {
 import { basename, isAbsolute, join } from "node:path";
 var encoder = new TextEncoder();
 var GRAPHIFY_VERSION = "0.9.48";
+var TRACKED_SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
+  ".cjs",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".py",
+  ".ts",
+  ".tsx"
+]);
 var GRAPH_ROOT_KEYS = [
   "directed",
   "graph",
@@ -395,6 +404,13 @@ function safeRelativePath(value) {
   return segments.every(
     (segment) => segment.length > 0 && segment !== "." && segment !== ".."
   );
+}
+function isTrackedGraphifySourcePathV1(path) {
+  if (!safeRelativePath(path) || path.startsWith("skills/") || path.startsWith("openspec/changes/archive/")) {
+    return false;
+  }
+  const dot = path.lastIndexOf(".");
+  return dot >= 0 && TRACKED_SOURCE_EXTENSIONS.has(path.slice(dot).toLowerCase());
 }
 function jsonValue(value) {
   if (value === null || typeof value === "boolean" || typeof value === "string") {
@@ -780,15 +796,6 @@ var MAX_GRAPH_BYTES = 32 * 1024 * 1024;
 var MAX_PROCESS_BYTES = 4 * 1024 * 1024;
 var PROCESS_TIMEOUT_MS = 10 * 6e4;
 var GRAPHIFY_VERSION2 = "0.9.48";
-var SOURCE_EXTENSIONS = /* @__PURE__ */ new Set([
-  ".cjs",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".py",
-  ".ts",
-  ".tsx"
-]);
 var ZERO_DIAGNOSTICS = {
   danglingEndpointEdges: 0,
   missingEndpointEdges: 0,
@@ -992,10 +999,39 @@ function trackedSourcePaths(gitPath, repository) {
   if (raw.length > 0 && !raw.endsWith("\0")) {
     throw new Error("invalid tracked path frame");
   }
-  return raw.split("\0").filter((path) => {
-    const dot = path.lastIndexOf(".");
-    return dot >= 0 && SOURCE_EXTENSIONS.has(path.slice(dot).toLowerCase());
-  }).sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+  return raw.split("\0").filter(isTrackedGraphifySourcePathV1).sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+}
+function materializeCommit(gitPath, repository, sourceCommit, temporary) {
+  const archive = join2(temporary, "source.tar");
+  const source = join2(temporary, "source");
+  mkdirSync2(source);
+  const archived = run(
+    gitPath,
+    [
+      "-c",
+      "core.fsmonitor=false",
+      "-c",
+      `core.excludesFile=${process.platform === "win32" ? "NUL" : "/dev/null"}`,
+      "-C",
+      repository,
+      "archive",
+      "--format=tar",
+      "-o",
+      archive,
+      sourceCommit
+    ],
+    repository,
+    gitEnvironment(gitPath)
+  );
+  if (!archived.ok) throw new Error("Git archive failed");
+  const tar = resolveHostExecutable("tar", repository);
+  const extracted = run(tar, ["-xf", archive, "-C", source], repository, {
+    LANG: "C",
+    LC_ALL: "C",
+    PATH: dirname(tar)
+  });
+  if (!extracted.ok) throw new Error("archive extraction failed");
+  return source;
 }
 function optionalFile(path) {
   try {
@@ -1049,6 +1085,12 @@ async function qualifyLive(input) {
     const first = join2(temporary, "first");
     const second = join2(temporary, "second");
     mkdirSync2(home, { recursive: true });
+    const source = materializeCommit(
+      gitPath,
+      repository,
+      sourceCommit,
+      temporary
+    );
     const version = run(
       interpreter.lexical,
       ["-m", "graphify", "--version"],
@@ -1059,15 +1101,15 @@ async function qualifyLive(input) {
 `)) {
       return refused2();
     }
-    runGraphifyBuild(interpreter.lexical, repository, raw, home, true);
+    runGraphifyBuild(interpreter.lexical, source, raw, home, true);
     const rawGraph = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(
         boundedRegularFile(join2(raw, "graphify-out", "graph.json"), MAX_GRAPH_BYTES)
       )
     );
     if (rawGraph.input_tokens !== 0 || rawGraph.output_tokens !== 0) return refused2();
-    runGraphifyBuild(interpreter.lexical, repository, first, home, false);
-    runGraphifyBuild(interpreter.lexical, repository, second, home, false);
+    runGraphifyBuild(interpreter.lexical, source, first, home, false);
+    runGraphifyBuild(interpreter.lexical, source, second, home, false);
     const firstTokens = tokenCounts(first);
     const secondTokens = tokenCounts(second);
     const graphDirectory = join2(repository, "graphify-out");

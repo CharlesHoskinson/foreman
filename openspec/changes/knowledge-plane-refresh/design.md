@@ -28,10 +28,12 @@ local interpreter; otherwise the manifest value is used. The resolved path
 must be absolute, regular, executable, and outside the candidate repository.
 The child environment is closed and the observed version must equal the pin.
 
-The live CLI builds into temporary directories. It runs code-only extraction
-with one AST worker and no network or semantic backend. One raw extraction is
-used for pre-build checks. Two complete candidates are then built from the same
-commit and settings. The CLI normalizes ordered object keys and sorts nodes,
+The live CLI materializes the exact source commit with `git archive` and builds
+only that snapshot in temporary directories. Local generated and untracked
+files cannot enter the graph. It runs code-only extraction with one AST worker
+and no network or semantic backend. One raw extraction is used for pre-build
+checks. Two complete candidates are then built from the same commit and
+settings. The CLI normalizes ordered object keys and sorts nodes,
 links, and hyperedges by their stable identities before byte comparison.
 Graphify's automatically assigned numeric `community` labels differ across
 otherwise identical 0.9.48 runs. The normalizer removes that deferred

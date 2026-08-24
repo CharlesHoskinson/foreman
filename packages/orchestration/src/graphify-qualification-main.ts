@@ -28,6 +28,7 @@ import { canonicalize } from "@foreman/core";
 import {
   acquireGraphifyPublicationLockV1,
   evaluateGraphifyFreshnessV1,
+  isTrackedGraphifySourcePathV1,
   qualifyGraphifyCandidateV1,
   releaseGraphifyPublicationLockV1,
   runGraphifyQualificationCli,
@@ -40,15 +41,6 @@ const MAX_GRAPH_BYTES = 32 * 1024 * 1024;
 const MAX_PROCESS_BYTES = 4 * 1024 * 1024;
 const PROCESS_TIMEOUT_MS = 10 * 60_000;
 const GRAPHIFY_VERSION = "0.9.48";
-const SOURCE_EXTENSIONS = new Set([
-  ".cjs",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".py",
-  ".ts",
-  ".tsx",
-]);
 const ZERO_DIAGNOSTICS: GraphifyDiagnosticsV1 = {
   danglingEndpointEdges: 0,
   missingEndpointEdges: 0,
@@ -326,11 +318,46 @@ function trackedSourcePaths(gitPath: string, repository: string): readonly strin
   }
   return raw
     .split("\u0000")
-    .filter((path) => {
-      const dot = path.lastIndexOf(".");
-      return dot >= 0 && SOURCE_EXTENSIONS.has(path.slice(dot).toLowerCase());
-    })
+    .filter(isTrackedGraphifySourcePathV1)
     .sort((left, right) => Buffer.from(left).compare(Buffer.from(right)));
+}
+
+function materializeCommit(
+  gitPath: string,
+  repository: string,
+  sourceCommit: string,
+  temporary: string,
+): string {
+  const archive = join(temporary, "source.tar");
+  const source = join(temporary, "source");
+  mkdirSync(source);
+  const archived = run(
+    gitPath,
+    [
+      "-c",
+      "core.fsmonitor=false",
+      "-c",
+      `core.excludesFile=${process.platform === "win32" ? "NUL" : "/dev/null"}`,
+      "-C",
+      repository,
+      "archive",
+      "--format=tar",
+      "-o",
+      archive,
+      sourceCommit,
+    ],
+    repository,
+    gitEnvironment(gitPath),
+  );
+  if (!archived.ok) throw new Error("Git archive failed");
+  const tar = resolveHostExecutable("tar", repository);
+  const extracted = run(tar, ["-xf", archive, "-C", source], repository, {
+    LANG: "C",
+    LC_ALL: "C",
+    PATH: dirname(tar),
+  });
+  if (!extracted.ok) throw new Error("archive extraction failed");
+  return source;
 }
 
 function optionalFile(path: string): Uint8Array | null {
@@ -395,6 +422,12 @@ async function qualifyLive(input: {
     const first = join(temporary, "first");
     const second = join(temporary, "second");
     mkdirSync(home, { recursive: true });
+    const source = materializeCommit(
+      gitPath,
+      repository,
+      sourceCommit,
+      temporary,
+    );
     const version = run(
       interpreter.lexical,
       ["-m", "graphify", "--version"],
@@ -404,15 +437,15 @@ async function qualifyLive(input: {
     if (!version.ok || !version.stdout.startsWith(`graphify ${interpreter.version}\n`)) {
       return refused();
     }
-    runGraphifyBuild(interpreter.lexical, repository, raw, home, true);
+    runGraphifyBuild(interpreter.lexical, source, raw, home, true);
     const rawGraph = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(
         boundedRegularFile(join(raw, "graphify-out", "graph.json"), MAX_GRAPH_BYTES),
       ),
     ) as { input_tokens?: unknown; output_tokens?: unknown };
     if (rawGraph.input_tokens !== 0 || rawGraph.output_tokens !== 0) return refused();
-    runGraphifyBuild(interpreter.lexical, repository, first, home, false);
-    runGraphifyBuild(interpreter.lexical, repository, second, home, false);
+    runGraphifyBuild(interpreter.lexical, source, first, home, false);
+    runGraphifyBuild(interpreter.lexical, source, second, home, false);
     const firstTokens = tokenCounts(first);
     const secondTokens = tokenCounts(second);
     const graphDirectory = join(repository, "graphify-out");

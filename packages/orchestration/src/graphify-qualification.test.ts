@@ -7,6 +7,7 @@ import { canonicalize, sha256Hex } from "@foreman/core";
 import {
   acquireGraphifyPublicationLockV1,
   evaluateGraphifyFreshnessV1,
+  isTrackedGraphifySourcePathV1,
   qualifyGraphifyCandidateV1,
   releaseGraphifyPublicationLockV1,
   runGraphifyQualificationCli,
@@ -182,6 +183,25 @@ test("qualification removes nondeterministic deferred community labels", () => {
     nodes: Array<Record<string, unknown>>;
   };
   assert.equal(graph.nodes.every((node) => !("community" in node)), true);
+});
+
+test("tracked source coverage excludes vendored, archived, and generated code", () => {
+  for (const path of [
+    "packages/orchestration/src/queue-cli.ts",
+    "components/council/packages/runtime-node/src/index.ts",
+    "scripts/build-runtime.ts",
+  ]) {
+    assert.equal(isTrackedGraphifySourcePathV1(path), true, path);
+  }
+  for (const path of [
+    "skills/foreman/runtime/dist/release-policy.js",
+    "skills/superpowers/tests/helper.test.js",
+    "openspec/changes/archive/old/scripts/check.py",
+    "README.md",
+    "../escape.ts",
+  ]) {
+    assert.equal(isTrackedGraphifySourcePathV1(path), false, path);
+  }
 });
 
 test("qualification refuses each isolated invalid boundary", () => {

@@ -18,6 +18,15 @@ import {
 
 const encoder = new TextEncoder();
 const GRAPHIFY_VERSION = "0.9.48";
+const TRACKED_SOURCE_EXTENSIONS = new Set([
+  ".cjs",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".py",
+  ".ts",
+  ".tsx",
+]);
 const GRAPH_ROOT_KEYS = [
   "directed",
   "graph",
@@ -276,6 +285,18 @@ function safeRelativePath(value: string): boolean {
   return segments.every(
     (segment) => segment.length > 0 && segment !== "." && segment !== "..",
   );
+}
+
+export function isTrackedGraphifySourcePathV1(path: string): boolean {
+  if (
+    !safeRelativePath(path) ||
+    path.startsWith("skills/") ||
+    path.startsWith("openspec/changes/archive/")
+  ) {
+    return false;
+  }
+  const dot = path.lastIndexOf(".");
+  return dot >= 0 && TRACKED_SOURCE_EXTENSIONS.has(path.slice(dot).toLowerCase());
 }
 
 function jsonValue(value: unknown): boolean {

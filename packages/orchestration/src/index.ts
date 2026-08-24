@@ -867,6 +867,7 @@ export {
 export {
   acquireGraphifyPublicationLockV1,
   evaluateGraphifyFreshnessV1,
+  isTrackedGraphifySourcePathV1,
   qualifyGraphifyCandidateV1,
   releaseGraphifyPublicationLockV1,
   runGraphifyQualificationCli,
