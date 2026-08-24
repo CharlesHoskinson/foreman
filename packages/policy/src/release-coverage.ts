@@ -783,26 +783,7 @@ function validateCollectionShapes(input: {
   return true;
 }
 
-function selectedEntries(
-  phase: ReleaseCoveragePhaseV1,
-  entries: readonly RegisterEntry[],
-): RegisterEntry[] {
-  if (phase._tag === "Bootstrap") {
-    for (const entry of entries) {
-      if (entry.key === TRACK1_KEY) return [entry];
-    }
-    return [];
-  }
-  if (phase._tag === "Lane") {
-    return entries.filter(
-      (entry) =>
-        entry.targetRelease === "v0.4" && entry.owner === phase.owner,
-    );
-  }
-  return entries.filter((entry) => entry.targetRelease === "v0.4");
-}
-
-function selectedOwners(entries: readonly RegisterEntry[]): string[] {
+function uniqueOwnersFromEntries(entries: readonly RegisterEntry[]): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
   for (const entry of entries) {
@@ -811,6 +792,36 @@ function selectedOwners(entries: readonly RegisterEntry[]): string[] {
     names.push(entry.owner);
   }
   return names;
+}
+
+/**
+ * Shared phase selection for register inspection and validation.
+ * Owners are every owner whose workflow or brief the validator will require.
+ */
+function selectPhaseCoverage(
+  phase: ReleaseCoveragePhaseV1,
+  entries: readonly RegisterEntry[],
+): {
+  readonly entries: readonly RegisterEntry[];
+  readonly owners: readonly string[];
+} {
+  if (phase._tag === "Bootstrap") {
+    for (const entry of entries) {
+      if (entry.key === TRACK1_KEY) {
+        return { entries: [entry], owners: uniqueOwnersFromEntries([entry]) };
+      }
+    }
+    return { entries: [], owners: [] };
+  }
+  if (phase._tag === "Lane") {
+    const selected = entries.filter(
+      (entry) =>
+        entry.targetRelease === "v0.4" && entry.owner === phase.owner,
+    );
+    return { entries: selected, owners: uniqueOwnersFromEntries(selected) };
+  }
+  const selected = entries.filter((entry) => entry.targetRelease === "v0.4");
+  return { entries: selected, owners: uniqueOwnersFromEntries(selected) };
 }
 
 export type ReleaseCoverageRegisterInspectionV1 =
@@ -832,11 +843,11 @@ export function inspectReleaseCoverageRegisterV1(input: {
   if (parsed === "invalid_register") {
     return { _tag: "Invalid", reason: "invalid_register" };
   }
-  const owners = selectedOwners(selectedEntries(input.phase, parsed.entries));
+  const selection = selectPhaseCoverage(input.phase, parsed.entries);
   return {
     _tag: "Valid",
     baselineCommit: parsed.baselineCommit,
-    selectedOwners: [...owners].sort(compareUtf8Bytes),
+    selectedOwners: [...selection.owners].sort(compareUtf8Bytes),
   };
 }
 
@@ -854,6 +865,10 @@ export function validateReleaseCoverageV1(input: {
   try {
     if (!validateCollectionShapes(input)) {
       return invalid("dependency_failure");
+    }
+
+    if (input.roadmapBytes.byteLength > ONE_MIB) {
+      return invalid("invalid_roadmap");
     }
 
     if (decodeUtf8Unbounded(input.roadmapBytes) === null) {
@@ -953,7 +968,21 @@ export function validateReleaseCoverageV1(input: {
       if (pathIsCompetingPlan(path)) return invalid("competing_plan");
     }
 
-    const selected = selectedEntries(input.phase, parsed.entries);
+    const selection = selectPhaseCoverage(input.phase, parsed.entries);
+    const selected = selection.entries;
+
+    if (input.phase._tag === "Lane") {
+      if (
+        !uniqueActive.has(input.phase.owner) &&
+        !futureNames.has(input.phase.owner)
+      ) {
+        return invalid("unknown_owner");
+      }
+      if (selected.length === 0) {
+        return invalid("unreconciled");
+      }
+    }
+
     if (input.phase._tag === "Bootstrap") {
       const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
       if (
@@ -967,11 +996,20 @@ export function validateReleaseCoverageV1(input: {
         return invalid("unreconciled");
       }
     }
+
+    if (input.phase._tag === "Release") {
+      for (const future of parsed.futureOwners) {
+        if (future.targetRelease !== "v0.4") continue;
+        const ownsEntry = selected.some((entry) => entry.owner === future.name);
+        if (!ownsEntry) return invalid("unreconciled");
+      }
+    }
+
     for (const entry of selected) {
       if (entry.reconcile === "required") return invalid("unreconciled");
     }
 
-    const owners = selectedOwners(selected);
+    const owners = selection.owners;
     for (const owner of owners) {
       const workflow = input.workflowByChange[owner];
       if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {

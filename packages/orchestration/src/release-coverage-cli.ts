@@ -9,7 +9,16 @@ import {
   type Stats,
 } from "node:fs";
 import { devNull } from "node:os";
-import { isAbsolute, posix, relative, resolve, sep, win32 } from "node:path";
+import {
+  dirname,
+  isAbsolute,
+  join,
+  posix,
+  relative,
+  resolve,
+  sep,
+  win32,
+} from "node:path";
 import { Effect } from "effect";
 import { canonicalize, isSha256Hex } from "@foreman/core";
 import {
@@ -59,7 +68,9 @@ export type ReleaseCoverageCliIo = {
 };
 
 export type ReleaseCoverageFileReadService = {
-  readonly resolveRepositoryRoot: () => Effect.Effect<string, unknown>;
+  readonly resolveRepositoryRoot: (
+    path?: string,
+  ) => Effect.Effect<string, unknown>;
   readonly readBounded: (input: {
     readonly path: string;
     readonly maxBytes: number;
@@ -134,6 +145,10 @@ export type ReleaseCoverageLiveDependencies = {
   readonly realpath: (
     path: string,
   ) => Effect.Effect<string, unknown>;
+  readonly findWorktreeRoot: (
+    path: string,
+  ) => Effect.Effect<string, unknown>;
+  readonly nodeExecutable: string;
   readonly platform: NodeJS.Platform;
   readonly comSpec: string | undefined;
   readonly cwd: () => string;
@@ -141,16 +156,155 @@ export type ReleaseCoverageLiveDependencies = {
   readonly baseEnvironment: NodeJS.ProcessEnv;
 };
 
+type TrustedGitContext = {
+  readonly physicalRepository: string;
+  readonly physicalGit: string;
+};
+
+function copyOrdinaryEnvironment(
+  base: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(base)) {
+    if (value === undefined) continue;
+    if (typeof value !== "string") continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function stripEnvironmentKeysByUpperPrefix(
+  environment: NodeJS.ProcessEnv,
+  matchers: readonly string[],
+): void {
+  for (const key of Object.keys(environment)) {
+    const upper = key.toUpperCase();
+    for (const matcher of matchers) {
+      const matched = matcher.endsWith("_")
+        ? upper.startsWith(matcher)
+        : upper === matcher;
+      if (matched) {
+        delete environment[key];
+        break;
+      }
+    }
+  }
+}
+
+function buildTrustedGitEnvironment(
+  baseEnvironment: NodeJS.ProcessEnv,
+  physicalGit: string,
+  platform: NodeJS.Platform,
+  nullDevice: string,
+): NodeJS.ProcessEnv {
+  const seeded = copyOrdinaryEnvironment(baseEnvironment);
+  stripEnvironmentKeysByUpperPrefix(seeded, ["PATH", "PATHEXT", "GIT_"]);
+  const environment = sanitizedGitEnv(seeded);
+  environment["PATH"] = dirname(physicalGit);
+  if (platform === "win32") {
+    environment["PATHEXT"] = ".EXE";
+  } else {
+    delete environment["PATHEXT"];
+  }
+  environment["GIT_CONFIG_NOSYSTEM"] = "1";
+  environment["GIT_CONFIG_GLOBAL"] = nullDevice;
+  return environment;
+}
+
+function buildTrustedOpenSpecEnvironment(
+  baseEnvironment: NodeJS.ProcessEnv,
+  physicalNode: string,
+  platform: NodeJS.Platform,
+): NodeJS.ProcessEnv {
+  void platform;
+  const environment = copyOrdinaryEnvironment(baseEnvironment);
+  stripEnvironmentKeysByUpperPrefix(environment, ["PATH", "PATHEXT", "NODE_"]);
+  environment["PATH"] = dirname(physicalNode);
+  return environment;
+}
+
+function isAbsolutePathForPlatform(
+  value: string,
+  platform: NodeJS.Platform,
+): boolean {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (value.includes("\0")) return false;
+  const pathApi = platform === "win32" ? win32 : posix;
+  return pathApi.isAbsolute(value);
+}
+
+function physicalNodeBasenameIsTrusted(
+  physicalNode: string,
+  platform: NodeJS.Platform,
+): boolean {
+  if (platform === "win32") {
+    return win32.basename(physicalNode).toLowerCase() === "node.exe";
+  }
+  return posix.basename(physicalNode) === "node";
+}
+
+function findWorktreeRootLive(startPath: string): string {
+  let physical: string;
+  try {
+    physical = realpathSync(resolve(startPath));
+  } catch {
+    throw Object.assign(new Error("worktree start path is unreadable"), {
+      _tag: "WorktreeRootUnavailable" as const,
+    });
+  }
+  let stats: Stats;
+  try {
+    stats = lstatSync(physical);
+  } catch {
+    throw Object.assign(new Error("worktree start path is unreadable"), {
+      _tag: "WorktreeRootUnavailable" as const,
+    });
+  }
+  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+    throw Object.assign(new Error("worktree start path is not a directory"), {
+      _tag: "WorktreeRootUnavailable" as const,
+    });
+  }
+
+  let current = physical;
+  for (;;) {
+    const marker = join(current, ".git");
+    let markerStats: Stats | undefined;
+    try {
+      markerStats = lstatSync(marker);
+    } catch (error) {
+      if (!isEnoentLive(error)) {
+        throw Object.assign(new Error("worktree marker is unreadable"), {
+          _tag: "WorktreeRootUnavailable" as const,
+        });
+      }
+    }
+    if (markerStats !== undefined) {
+      if (markerStats.isSymbolicLink()) {
+        throw Object.assign(new Error("worktree marker must not be a symlink"), {
+          _tag: "WorktreeRootUnavailable" as const,
+        });
+      }
+      if (markerStats.isFile() || markerStats.isDirectory()) {
+        return current;
+      }
+      throw Object.assign(new Error("worktree marker is not a regular marker"), {
+        _tag: "WorktreeRootUnavailable" as const,
+      });
+    }
+    const parent = dirname(current);
+    if (parent === current) {
+      throw Object.assign(new Error("no worktree root found"), {
+        _tag: "WorktreeRootUnavailable" as const,
+      });
+    }
+    current = parent;
+  }
+}
+
 export function makeLiveReleaseCoverageCliServices(
   dependencies: ReleaseCoverageLiveDependencies,
 ): ReleaseCoverageCliServices {
-  const gitEnvironment = (): NodeJS.ProcessEnv => {
-    const environment = sanitizedGitEnv(dependencies.baseEnvironment);
-    environment["GIT_CONFIG_NOSYSTEM"] = "1";
-    environment["GIT_CONFIG_GLOBAL"] = dependencies.nullDevice;
-    return environment;
-  };
-
   const gitArguments = (
     repository: string,
     args: readonly string[],
@@ -165,24 +319,106 @@ export function makeLiveReleaseCoverageCliServices(
       ...args,
     ]);
 
+  const resolvePhysicalGit = (): Effect.Effect<string, unknown> =>
+    Effect.gen(function* () {
+      const resolved = yield* dependencies.which("git");
+      if (resolved === null || !isAbsolutePathForPlatform(resolved, dependencies.platform)) {
+        return yield* Effect.fail({ _tag: "GitUnavailable" as const });
+      }
+      return yield* dependencies.realpath(resolved);
+    });
+
+  const requireGitOutsideRepository = (
+    physicalRepository: string,
+    physicalGit: string,
+  ): Effect.Effect<void, unknown> => {
+    if (
+      isPhysicallyInsideRepository(
+        physicalRepository,
+        physicalGit,
+        dependencies.platform,
+      )
+    ) {
+      return Effect.fail({ _tag: "GitInsideRepository" as const });
+    }
+    return Effect.void;
+  };
+
+  /**
+   * Shared trusted-repository + trusted-Git validation (no subprocess).
+   * `mode: "bootstrap"` allows the input below the root; explicit requires equality.
+   */
+  const resolveTrustedGitContext = (
+    inputPath: string,
+    mode: "bootstrap" | "explicit",
+  ): Effect.Effect<TrustedGitContext, unknown> =>
+    Effect.gen(function* () {
+      const discovered = yield* dependencies.findWorktreeRoot(inputPath);
+      const physicalInput = yield* dependencies.realpath(inputPath);
+      const physicalRoot = yield* dependencies.realpath(discovered);
+
+      if (mode === "explicit") {
+        if (physicalInput !== physicalRoot) {
+          return yield* Effect.fail({ _tag: "RepositoryRootMismatch" as const });
+        }
+      } else if (
+        !isPhysicallyInsideRepository(
+          physicalRoot,
+          physicalInput,
+          dependencies.platform,
+        )
+      ) {
+        return yield* Effect.fail({ _tag: "RepositoryRootMismatch" as const });
+      }
+
+      const physicalGit = yield* resolvePhysicalGit();
+      yield* requireGitOutsideRepository(physicalRoot, physicalGit);
+      return {
+        physicalRepository: physicalRoot,
+        physicalGit,
+      };
+    });
+
+  const confirmGitReportedRoot = (
+    trusted: TrustedGitContext,
+  ): Effect.Effect<string, unknown> =>
+    Effect.gen(function* () {
+      const captured = yield* dependencies.runCaptured({
+        command: trusted.physicalGit,
+        args: gitArguments(trusted.physicalRepository, [
+          "rev-parse",
+          "--show-toplevel",
+        ]),
+        env: buildTrustedGitEnvironment(
+          dependencies.baseEnvironment,
+          trusted.physicalGit,
+          dependencies.platform,
+          dependencies.nullDevice,
+        ),
+        maxOutputBytes: ONE_MIB,
+        timeoutMs: GIT_TIMEOUT_MS,
+      });
+      const bytes = yield* requireCapturedStdoutBytes(captured);
+      const top = parseGitTopLevel(bytes, dependencies.platform);
+      if (top === null) {
+        return yield* Effect.fail({ _tag: "GitTopLevelInvalid" as const });
+      }
+      const physicalReported = yield* dependencies.realpath(top);
+      if (physicalReported !== trusted.physicalRepository) {
+        return yield* Effect.fail({ _tag: "GitTopLevelMismatch" as const });
+      }
+      return trusted.physicalRepository;
+    });
+
   return {
     fileRead: {
-      resolveRepositoryRoot: () =>
+      resolveRepositoryRoot: (path?: string) =>
         Effect.gen(function* () {
-          const cwd = dependencies.cwd();
-          const captured = yield* dependencies.runCaptured({
-            command: "git",
-            args: gitArguments(cwd, ["rev-parse", "--show-toplevel"]),
-            env: gitEnvironment(),
-            maxOutputBytes: ONE_MIB,
-            timeoutMs: GIT_TIMEOUT_MS,
-          });
-          const bytes = yield* requireCapturedStdoutBytes(captured);
-          const top = parseGitTopLevel(bytes, dependencies.platform);
-          if (top === null) {
-            return yield* Effect.fail({ _tag: "GitTopLevelInvalid" as const });
-          }
-          return top;
+          const trusted =
+            path === undefined
+              ? yield* resolveTrustedGitContext(dependencies.cwd(), "bootstrap")
+              : yield* resolveTrustedGitContext(path, "explicit");
+          return yield* confirmGitReportedRoot(trusted);
         }),
       readBounded: (input) =>
         Effect.try({
@@ -198,38 +434,50 @@ export function makeLiveReleaseCoverageCliServices(
     openspecList: {
       listJson: (input) =>
         Effect.gen(function* () {
-          const resolved = yield* dependencies.which("openspec");
-          if (resolved === null) {
-            return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
-          }
-          const plan = planOpenSpecInvocationV1({
-            platform: dependencies.platform,
-            comSpec: dependencies.comSpec,
-            resolvedOpenSpec: resolved,
-          });
-          if (plan._tag === "Invalid") {
-            return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
+          const discovered = yield* dependencies.findWorktreeRoot(input.repository);
+          const physicalRepository = yield* dependencies.realpath(input.repository);
+          const physicalRoot = yield* dependencies.realpath(discovered);
+          if (physicalRepository !== physicalRoot) {
+            return yield* Effect.fail({ _tag: "RepositoryRootMismatch" as const });
           }
 
-          const physicalRepository = yield* dependencies.realpath(input.repository);
-          const physicalOpenSpec = yield* dependencies.realpath(resolved);
+          const resolved = yield* dependencies.which("openspec");
           if (
-            isPhysicallyInsideRepository(
-              physicalRepository,
-              physicalOpenSpec,
-              dependencies.platform,
-            )
+            resolved === null ||
+            !isAbsolutePathForPlatform(resolved, dependencies.platform)
           ) {
-            return yield* Effect.fail({
-              _tag: "OpenSpecInsideRepository" as const,
-            });
+            return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
           }
+          const physicalOpenSpec = yield* dependencies.realpath(resolved);
+          const physicalNode = yield* dependencies.realpath(
+            dependencies.nodeExecutable,
+          );
+          if (
+            !physicalNodeBasenameIsTrusted(physicalNode, dependencies.platform)
+          ) {
+            return yield* Effect.fail({ _tag: "NodeUntrusted" as const });
+          }
+
+          let physicalComSpec: string | undefined;
           if (dependencies.platform === "win32") {
-            const physicalComSpec = yield* dependencies.realpath(plan.command);
+            if (
+              typeof dependencies.comSpec !== "string" ||
+              dependencies.comSpec.length === 0
+            ) {
+              return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
+            }
+            physicalComSpec = yield* dependencies.realpath(dependencies.comSpec);
+          }
+
+          for (const authority of [
+            physicalOpenSpec,
+            physicalNode,
+            ...(physicalComSpec !== undefined ? [physicalComSpec] : []),
+          ]) {
             if (
               isPhysicallyInsideRepository(
                 physicalRepository,
-                physicalComSpec,
+                authority,
                 dependencies.platform,
               )
             ) {
@@ -239,11 +487,24 @@ export function makeLiveReleaseCoverageCliServices(
             }
           }
 
+          const plan = planOpenSpecInvocationV1({
+            platform: dependencies.platform,
+            comSpec: physicalComSpec,
+            resolvedOpenSpec: physicalOpenSpec,
+          });
+          if (plan._tag === "Invalid") {
+            return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
+          }
+
           const captured = yield* dependencies.runCaptured({
             command: plan.command,
             args: plan.args,
-            cwd: input.repository,
-            env: { ...dependencies.baseEnvironment },
+            cwd: physicalRepository,
+            env: buildTrustedOpenSpecEnvironment(
+              dependencies.baseEnvironment,
+              physicalNode,
+              dependencies.platform,
+            ),
             maxOutputBytes: input.maxBytes,
             timeoutMs: OPENSPEC_TIMEOUT_MS,
           });
@@ -253,9 +514,19 @@ export function makeLiveReleaseCoverageCliServices(
     gitChangedPaths: {
       discover: (input) =>
         Effect.gen(function* () {
+          const trusted = yield* resolveTrustedGitContext(
+            input.repository,
+            "explicit",
+          );
+          const env = buildTrustedGitEnvironment(
+            dependencies.baseEnvironment,
+            trusted.physicalGit,
+            dependencies.platform,
+            dependencies.nullDevice,
+          );
           const tracked = yield* dependencies.runCaptured({
-            command: "git",
-            args: gitArguments(input.repository, [
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
               "diff",
               "--name-only",
               "-z",
@@ -266,7 +537,7 @@ export function makeLiveReleaseCoverageCliServices(
               SUPERPOWERS_SPECS,
               SUPERPOWERS_PLANS,
             ]),
-            env: gitEnvironment(),
+            env,
             maxOutputBytes: ONE_MIB,
             timeoutMs: GIT_TIMEOUT_MS,
           });
@@ -277,8 +548,8 @@ export function makeLiveReleaseCoverageCliServices(
           }
 
           const untracked = yield* dependencies.runCaptured({
-            command: "git",
-            args: gitArguments(input.repository, [
+            command: trusted.physicalGit,
+            args: gitArguments(trusted.physicalRepository, [
               "ls-files",
               "--others",
               "-z",
@@ -286,7 +557,7 @@ export function makeLiveReleaseCoverageCliServices(
               SUPERPOWERS_SPECS,
               SUPERPOWERS_PLANS,
             ]),
-            env: gitEnvironment(),
+            env,
             maxOutputBytes: ONE_MIB,
             timeoutMs: GIT_TIMEOUT_MS,
           });
@@ -901,7 +1172,12 @@ function evaluateReleaseCoverage(
       repository = root.right;
       if (!isNativeAbsolutePath(repository)) return dependencyFailure();
     } else {
-      repository = parsed.repo!;
+      const root = yield* callPort(() =>
+        services.fileRead.resolveRepositoryRoot(parsed.repo!),
+      ).pipe(Effect.either);
+      if (root._tag === "Left") return dependencyFailure();
+      repository = root.right;
+      if (!isNativeAbsolutePath(repository)) return dependencyFailure();
     }
 
     const openspecBytes = yield* callPort(() =>
@@ -1422,6 +1698,12 @@ export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices =
         try: () => realpathSync(path),
         catch: (error) => error,
       }),
+    findWorktreeRoot: (path) =>
+      Effect.try({
+        try: () => findWorktreeRootLive(path),
+        catch: (error) => error,
+      }),
+    nodeExecutable: process.execPath,
     platform: process.platform,
     comSpec: process.env.ComSpec ?? process.env.COMSPEC,
     cwd: () => process.cwd(),

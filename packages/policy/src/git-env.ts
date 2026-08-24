@@ -45,19 +45,18 @@ const STRIP_PREFIXES = [
 ];
 
 function shouldStrip(key: string): boolean {
-  const normalizedKey = key.toUpperCase();
-  if (!normalizedKey.startsWith("GIT_")) return false;
+  if (!key.startsWith("GIT_")) return false;
   for (const p of STRIP_PREFIXES) {
-    if (normalizedKey === p || normalizedKey.startsWith(p)) return true;
+    if (key === p || key.startsWith(p)) return true;
   }
   // Strip any remaining GIT_* redirect-ish keys; keep author/committer for
   // read-only ops harmless either way (we strip to be safe).
   if (
-    normalizedKey.startsWith("GIT_AUTHOR_") ||
-    normalizedKey.startsWith("GIT_COMMITTER_") ||
-    normalizedKey === "GIT_EDITOR" ||
-    normalizedKey === "GIT_PAGER" ||
-    normalizedKey === "GIT_REFLOG_ACTION"
+    key.startsWith("GIT_AUTHOR_") ||
+    key.startsWith("GIT_COMMITTER_") ||
+    key === "GIT_EDITOR" ||
+    key === "GIT_PAGER" ||
+    key === "GIT_REFLOG_ACTION"
   ) {
     return true;
   }
