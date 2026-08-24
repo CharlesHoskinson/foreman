@@ -197,10 +197,11 @@ function buildTrustedGitEnvironment(
   platform: NodeJS.Platform,
   nullDevice: string,
 ): NodeJS.ProcessEnv {
+  const pathApi = platform === "win32" ? win32 : posix;
   const seeded = copyOrdinaryEnvironment(baseEnvironment);
   stripEnvironmentKeysByUpperPrefix(seeded, ["PATH", "PATHEXT", "GIT_"]);
   const environment = sanitizedGitEnv(seeded);
-  environment["PATH"] = dirname(physicalGit);
+  environment["PATH"] = pathApi.dirname(physicalGit);
   if (platform === "win32") {
     environment["PATHEXT"] = ".EXE";
   } else {
@@ -216,10 +217,15 @@ function buildTrustedOpenSpecEnvironment(
   physicalNode: string,
   platform: NodeJS.Platform,
 ): NodeJS.ProcessEnv {
-  void platform;
+  const pathApi = platform === "win32" ? win32 : posix;
   const environment = copyOrdinaryEnvironment(baseEnvironment);
   stripEnvironmentKeysByUpperPrefix(environment, ["PATH", "PATHEXT", "NODE_"]);
-  environment["PATH"] = dirname(physicalNode);
+  environment["PATH"] = pathApi.dirname(physicalNode);
+  if (platform === "win32") {
+    environment["PATHEXT"] = ".EXE";
+  } else {
+    delete environment["PATHEXT"];
+  }
   return environment;
 }
 

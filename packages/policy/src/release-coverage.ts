@@ -801,6 +801,7 @@ function uniqueOwnersFromEntries(entries: readonly RegisterEntry[]): string[] {
 function selectPhaseCoverage(
   phase: ReleaseCoveragePhaseV1,
   entries: readonly RegisterEntry[],
+  futureOwners: readonly FutureOwner[],
 ): {
   readonly entries: readonly RegisterEntry[];
   readonly owners: readonly string[];
@@ -821,7 +822,20 @@ function selectPhaseCoverage(
     return { entries: selected, owners: uniqueOwnersFromEntries(selected) };
   }
   const selected = entries.filter((entry) => entry.targetRelease === "v0.4");
-  return { entries: selected, owners: uniqueOwnersFromEntries(selected) };
+  const owners: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of selected) {
+    if (seen.has(entry.owner)) continue;
+    seen.add(entry.owner);
+    owners.push(entry.owner);
+  }
+  for (const future of futureOwners) {
+    if (future.targetRelease !== "v0.4") continue;
+    if (seen.has(future.name)) continue;
+    seen.add(future.name);
+    owners.push(future.name);
+  }
+  return { entries: selected, owners };
 }
 
 export type ReleaseCoverageRegisterInspectionV1 =
@@ -843,7 +857,11 @@ export function inspectReleaseCoverageRegisterV1(input: {
   if (parsed === "invalid_register") {
     return { _tag: "Invalid", reason: "invalid_register" };
   }
-  const selection = selectPhaseCoverage(input.phase, parsed.entries);
+  const selection = selectPhaseCoverage(
+    input.phase,
+    parsed.entries,
+    parsed.futureOwners,
+  );
   return {
     _tag: "Valid",
     baselineCommit: parsed.baselineCommit,
@@ -968,7 +986,11 @@ export function validateReleaseCoverageV1(input: {
       if (pathIsCompetingPlan(path)) return invalid("competing_plan");
     }
 
-    const selection = selectPhaseCoverage(input.phase, parsed.entries);
+    const selection = selectPhaseCoverage(
+      input.phase,
+      parsed.entries,
+      parsed.futureOwners,
+    );
     const selected = selection.entries;
 
     if (input.phase._tag === "Lane") {
@@ -979,7 +1001,7 @@ export function validateReleaseCoverageV1(input: {
         return invalid("unknown_owner");
       }
       if (selected.length === 0) {
-        return invalid("unreconciled");
+        return invalid("unknown_owner");
       }
     }
 
@@ -994,14 +1016,6 @@ export function validateReleaseCoverageV1(input: {
         track1.sourceKind !== "openspec_change"
       ) {
         return invalid("unreconciled");
-      }
-    }
-
-    if (input.phase._tag === "Release") {
-      for (const future of parsed.futureOwners) {
-        if (future.targetRelease !== "v0.4") continue;
-        const ownsEntry = selected.some((entry) => entry.owner === future.name);
-        if (!ownsEntry) return invalid("unreconciled");
       }
     }
 
