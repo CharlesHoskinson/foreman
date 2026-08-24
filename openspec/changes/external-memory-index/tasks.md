@@ -19,6 +19,7 @@
 - [x] Add RED tests for topology, strict mode, and payload-index refusal.
 - [x] Add RED tests for candidate isolation and atomic alias activation.
 - [x] Implement qualification, epoch creation, recall, and activation.
+- [x] Add a durable projection-drainer lease with monotonic fencing tokens.
 - [x] Add an opt-in pinned live Qdrant test.
 
 ## 4. Hermetic embeddings

@@ -33,3 +33,8 @@ export {
   verifyPinnedTransformersModelV1,
   type PinnedTransformersPipelinePlanV1,
 } from "./transformers-embedding.js";
+
+export {
+  SqliteProjectionLeasePort,
+  type SqliteProjectionLeasePortOptions,
+} from "./sqlite-projection-lease.js";
