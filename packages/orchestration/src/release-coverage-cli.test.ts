@@ -2933,14 +2933,20 @@ test("live repository-root adapter requires one exact LF-terminated raw path", a
 
 test("live Git adapter isolates config and inventories ignored planning files", async () => {
   const calls: RunCapturedOptions[] = [];
-  const hostile = {
+  const hostile: NodeJS.ProcessEnv = {
     PATH: "/safe/bin",
     GIT_DIR: "/hostile/git",
+    git_dir: "/hostile/lower-git",
     GIT_WORK_TREE: "/hostile/worktree",
+    GiT_WoRk_TrEe: "/hostile/mixed-worktree",
     GIT_INDEX_FILE: "/hostile/index",
+    git_index_file: "/hostile/lower-index",
     GIT_CONFIG_GLOBAL: "/hostile/global",
+    gIt_CoNfIg_GlObAl: "/hostile/mixed-global",
     GIT_CONFIG_SYSTEM: "/hostile/system",
+    git_config_system: "/hostile/lower-system",
   };
+  const hostileBefore = { ...hostile };
   const dependencies: ReleaseCoverageLiveDependencies = {
     runCaptured: (input) => {
       calls.push(input);
@@ -2954,7 +2960,7 @@ test("live Git adapter isolates config and inventories ignored planning files", 
     },
     which: () => Effect.die("unexpected OpenSpec lookup"),
     realpath: (path) => Effect.succeed(path),
-    platform: process.platform,
+    platform: "win32",
     comSpec: undefined,
     cwd: () => REPO,
     nullDevice: devNull,
@@ -2968,27 +2974,133 @@ test("live Git adapter isolates config and inventories ignored planning files", 
     }),
   );
   assert.deepEqual(paths, []);
+  assert.deepEqual(hostile, hostileBefore);
   assert.equal(calls.length, 2);
-  assert.equal(calls[0]!.args.includes("diff"), true);
-  assert.equal(calls[0]!.args.includes(BASELINE), true);
-  assert.equal(calls[1]!.args.includes("ls-files"), true);
-  assert.equal(calls[1]!.args.includes("--others"), true);
-  assert.equal(calls[1]!.args.includes("--exclude-standard"), false);
+  const fixedPrefix = [
+    "--no-replace-objects",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    `core.excludesFile=${devNull}`,
+    "-C",
+    REPO,
+  ] as const;
+  assert.deepEqual(calls[0]!.args, [
+    ...fixedPrefix,
+    "diff",
+    "--name-only",
+    "-z",
+    "--no-ext-diff",
+    "--no-textconv",
+    BASELINE,
+    "--",
+    "docs/superpowers/specs",
+    "docs/superpowers/plans",
+  ]);
+  assert.deepEqual(calls[1]!.args, [
+    ...fixedPrefix,
+    "ls-files",
+    "--others",
+    "-z",
+    "--",
+    "docs/superpowers/specs",
+    "docs/superpowers/plans",
+  ]);
+  const allowedGitKeys = new Set([
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_OPTIONAL_LOCKS",
+    "GIT_TERMINAL_PROMPT",
+  ]);
   for (const call of calls) {
-    const joined = call.args.join(" ");
-    assert.equal(joined.includes("HEAD"), false);
-    assert.equal(joined.includes("..."), false);
-    assert.equal(joined.includes("core.fsmonitor=false"), true);
-    assert.equal(joined.includes(`core.excludesFile=${devNull}`), true);
-    assert.equal(call.env?.GIT_DIR, undefined);
-    assert.equal(call.env?.GIT_WORK_TREE, undefined);
-    assert.equal(call.env?.GIT_INDEX_FILE, undefined);
-    assert.equal(call.env?.GIT_CONFIG_SYSTEM, undefined);
-    assert.equal(call.env?.GIT_CONFIG_NOSYSTEM, "1");
-    assert.equal(call.env?.GIT_CONFIG_GLOBAL, devNull);
-    assert.equal(call.env?.GIT_NO_REPLACE_OBJECTS, "1");
-    assert.equal(call.env?.GIT_TERMINAL_PROMPT, "0");
-    assert.equal(call.env?.GIT_OPTIONAL_LOCKS, "0");
+    assert.equal(call.command, "git");
+    assert.equal(call.maxOutputBytes, ONE_MIB);
+    assert.equal(call.timeoutMs, 30_000);
+    const env = call.env ?? {};
+    assert.equal(env.PATH, "/safe/bin");
+    assert.equal(env.GIT_CONFIG_SYSTEM, undefined);
+    assert.equal(env.GIT_CONFIG_NOSYSTEM, "1");
+    assert.equal(env.GIT_CONFIG_GLOBAL, devNull);
+    assert.equal(env.GIT_NO_REPLACE_OBJECTS, "1");
+    assert.equal(env.GIT_TERMINAL_PROMPT, "0");
+    assert.equal(env.GIT_OPTIONAL_LOCKS, "0");
+    for (const name of Object.keys(env)) {
+      const upper = name.toUpperCase();
+      if (upper.startsWith("GIT_")) {
+        assert.equal(
+          allowedGitKeys.has(upper),
+          true,
+          `hostile Git variable survived: ${name}`,
+        );
+      }
+    }
+  }
+});
+
+test("live Git adapter rejects missing or malformed raw NUL frames", async (t) => {
+  const validLegacy = "docs/superpowers/plans/legacy.md\0";
+  const badFrames: ReadonlyArray<{
+    readonly name: string;
+    readonly bytes?: Uint8Array;
+  }> = [
+    { name: "missing-stdout-bytes" },
+    { name: "invalid-utf8", bytes: Uint8Array.of(0xff, 0x00) },
+    {
+      name: "missing-terminal-nul",
+      bytes: utf8("docs/superpowers/plans/missing-terminal.md"),
+    },
+    {
+      name: "interior-empty-record",
+      bytes: utf8("docs/superpowers/plans/empty.md\0\0"),
+    },
+  ];
+  for (const badCall of [0, 1] as const) {
+    for (const frame of badFrames) {
+      await t.test(
+        `${badCall === 0 ? "tracked" : "untracked"}-${frame.name}`,
+        async () => {
+          let processCalls = 0;
+          const services = makeLiveReleaseCoverageCliServices({
+            runCaptured: () => {
+              const callIndex = processCalls;
+              processCalls += 1;
+              if (callIndex !== badCall) {
+                return Effect.succeed({
+                  exitCode: 0,
+                  stdout: "",
+                  stderr: "",
+                  stdoutBytes: new Uint8Array(),
+                  stderrBytes: new Uint8Array(),
+                });
+              }
+              const captured: CapturedProcessResult = {
+                exitCode: 0,
+                stdout: validLegacy,
+                stderr: "",
+                stderrBytes: new Uint8Array(),
+                ...(frame.bytes === undefined ? {} : { stdoutBytes: frame.bytes }),
+              };
+              return Effect.succeed(captured);
+            },
+            which: () => Effect.die("unexpected OpenSpec lookup"),
+            realpath: (path) => Effect.succeed(path),
+            platform: process.platform,
+            comSpec: undefined,
+            cwd: () => REPO,
+            nullDevice: devNull,
+            baseEnvironment: { PATH: "/safe/bin" },
+          });
+          const result = await Effect.runPromise(
+            services.gitChangedPaths
+              .discover({ repository: REPO, baselineCommit: BASELINE })
+              .pipe(Effect.either),
+          );
+          assert.equal(result._tag, "Left");
+          assert.equal(processCalls, badCall + 1);
+        },
+      );
+    }
   }
 });
 
