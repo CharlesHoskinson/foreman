@@ -144,6 +144,7 @@ function services(
       return Effect.succeed({
         candidate: CANDIDATE,
         designTree: options.designTree ?? TREE,
+        designLineageValid: true,
         approvedOpenSpecBytes:
           options.approvedOpenSpecBytes ?? OPEN_SPEC_BYTES,
         taskPlanBytes: options.taskPlanBytes ?? TASK_BYTES,
@@ -509,6 +510,117 @@ test("live CLI loads approved bytes from the pinned design commit", async () => 
     assert.equal(
       invoked.stdout,
       `${canonicalize({ schemaVersion: 1, _tag: "EvidenceValid" })}\n`,
+    );
+
+    git(repository, ["add", "."]);
+    git(repository, ["commit", "--quiet", "-m", "first task result"]);
+    const descendantCommit = git(repository, ["rev-parse", "HEAD"]).stdout.trim();
+    const descendantTree = git(
+      repository,
+      ["rev-parse", `${descendantCommit}^{tree}`],
+    ).stdout.trim();
+    const descendantCandidate: ReleaseCandidateIdentityV1 = {
+      commit: descendantCommit,
+      tree: descendantTree,
+      candidateSha256: sha256Hex(descendantCommit),
+    };
+    writeFileSync(
+      evidencePath,
+      canonicalFile({ ...bundle, candidate: descendantCandidate }),
+    );
+    const descendant = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        TSX_LOADER,
+        RELEASE_ADMISSION_MAIN,
+        "check",
+        "--program",
+        "v040",
+        "--action",
+        "implement",
+        "--package",
+        "project-registry",
+        "--repo",
+        repository,
+        "--candidate-commit",
+        descendantCommit,
+        "--evidence",
+        evidencePath,
+      ],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        timeout: 30_000,
+      },
+    );
+    assert.equal(descendant.error, undefined);
+    assert.equal(descendant.status, 0, descendant.stderr);
+    assert.equal(descendant.stderr, "");
+    assert.equal(
+      descendant.stdout,
+      `${canonicalize({ schemaVersion: 1, _tag: "EvidenceValid" })}\n`,
+    );
+
+    git(repository, ["branch", "side", commit]);
+    git(repository, ["checkout", "--quiet", "side"]);
+    writeFileSync(join(repository, "side.txt"), "side\n");
+    git(repository, ["add", "."]);
+    git(repository, ["commit", "--quiet", "-m", "sibling"]);
+    git(repository, ["checkout", "--quiet", "--detach", descendantCommit]);
+    git(repository, ["merge", "--quiet", "--no-ff", "side", "-m", "merge"]);
+    const mergeCommit = git(repository, ["rev-parse", "HEAD"]).stdout.trim();
+    const mergeTree = git(
+      repository,
+      ["rev-parse", `${mergeCommit}^{tree}`],
+    ).stdout.trim();
+    writeFileSync(
+      evidencePath,
+      canonicalFile({
+        ...bundle,
+        candidate: {
+          commit: mergeCommit,
+          tree: mergeTree,
+          candidateSha256: sha256Hex(mergeCommit),
+        },
+      }),
+    );
+    const merge = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        TSX_LOADER,
+        RELEASE_ADMISSION_MAIN,
+        "check",
+        "--program",
+        "v040",
+        "--action",
+        "implement",
+        "--package",
+        "project-registry",
+        "--repo",
+        repository,
+        "--candidate-commit",
+        mergeCommit,
+        "--evidence",
+        evidencePath,
+      ],
+      {
+        cwd: repository,
+        encoding: "utf8",
+        timeout: 30_000,
+      },
+    );
+    assert.equal(merge.error, undefined);
+    assert.equal(merge.status, 1, merge.stderr);
+    assert.equal(merge.stderr, "");
+    assert.equal(
+      merge.stdout,
+      `${canonicalize({
+        schemaVersion: 1,
+        _tag: "EvidenceInvalid",
+        reason: "wrong_design_base",
+      })}\n`,
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

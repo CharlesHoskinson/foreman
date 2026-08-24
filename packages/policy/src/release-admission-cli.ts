@@ -19,7 +19,7 @@ import {
 import { Effect } from "effect";
 
 import {
-  evaluateReleaseEvidenceV1,
+  evaluateReleaseEvidenceAfterGitResolutionV1,
   type ReleaseAdmissionFailureReason,
   type ReleaseEvidenceCheckResultV1,
 } from "./release-admission.js";
@@ -58,6 +58,7 @@ export type ReleaseAdmissionCliIo = {
 export type ReleaseAdmissionGitAuthorityV1 = {
   readonly candidate: ReleaseCandidateIdentityV1;
   readonly designTree: string;
+  readonly designLineageValid: boolean;
   readonly approvedOpenSpecBytes: Readonly<Record<string, Uint8Array>>;
   readonly taskPlanBytes: Uint8Array;
 };
@@ -231,6 +232,9 @@ export function runReleaseAdmissionCli(
     if (authority.right.designTree !== design.designTree) {
       return writeResult(io, invalid("wrong_design_base"));
     }
+    if (!authority.right.designLineageValid) {
+      return writeResult(io, invalid("wrong_design_base"));
+    }
     const candidate = authority.right.candidate;
     if (
       candidate.commit !== parsed.candidateCommit ||
@@ -241,7 +245,7 @@ export function runReleaseAdmissionCli(
       return writeResult(io, invalid("git_resolution_failure"));
     }
 
-    const result = evaluateReleaseEvidenceV1({
+    const result = evaluateReleaseEvidenceAfterGitResolutionV1({
       action: parsed.action,
       packageId: parsed.packageId,
       candidate,
@@ -346,6 +350,50 @@ async function resolveGitObject(
   return text.slice(0, -1);
 }
 
+async function isLinearDesignDescendant(
+  repository: string,
+  designCommit: string,
+  candidateCommit: string,
+): Promise<boolean> {
+  if (candidateCommit === designCommit) return true;
+  const bytes = await runGitBytes(
+    repository,
+    [
+      "rev-list",
+      "--ancestry-path",
+      "--parents",
+      `${designCommit}..${candidateCommit}`,
+    ],
+    ONE_MIB,
+  );
+  const text = decodeUtf8Fatal(bytes);
+  if (isCoreFailure(text) || text.length === 0 || !text.endsWith("\n")) {
+    return false;
+  }
+  const parents = new Map<string, string>();
+  for (const line of text.slice(0, -1).split("\n")) {
+    const fields = line.split(" ");
+    if (
+      fields.length !== 2 ||
+      !isSha40(fields[0]!) ||
+      !isSha40(fields[1]!)
+    ) {
+      return false;
+    }
+    parents.set(fields[0]!, fields[1]!);
+  }
+  const visited = new Set<string>();
+  let cursor = candidateCommit;
+  while (cursor !== designCommit) {
+    if (visited.has(cursor)) return false;
+    visited.add(cursor);
+    const parent = parents.get(cursor);
+    if (parent === undefined) return false;
+    cursor = parent;
+  }
+  return true;
+}
+
 function parseNulPaths(bytes: Uint8Array): readonly string[] {
   if (bytes.byteLength === 0) return [];
   const text = decodeUtf8Fatal(bytes);
@@ -396,6 +444,11 @@ async function loadGitAuthorityLive(input: {
   const designTree = await resolveGitObject(
     input.repository,
     `${designCommit}^{tree}`,
+  );
+  const designLineageValid = await isLinearDesignDescendant(
+    input.repository,
+    designCommit,
+    candidateCommit,
   );
 
   const prefix = `openspec/changes/${input.packageId}/`;
@@ -455,6 +508,7 @@ async function loadGitAuthorityLive(input: {
       candidateSha256: sha256Hex(candidateCommit),
     },
     designTree,
+    designLineageValid,
     approvedOpenSpecBytes,
     taskPlanBytes,
   };

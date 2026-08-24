@@ -171,7 +171,10 @@ function receiptBindingFailure(
   return null;
 }
 
-function checkEvidence(input: ReleaseEvidenceInputV1): EvidenceDecision {
+function checkEvidence(
+  input: ReleaseEvidenceInputV1,
+  allowResolvedImplementationDescendant = false,
+): EvidenceDecision {
   if (
     typeof input !== "object" ||
     input === null ||
@@ -204,6 +207,7 @@ function checkEvidence(input: ReleaseEvidenceInputV1): EvidenceDecision {
   if (receiptFailure !== null) return invalidEvidence(receiptFailure);
   if (
     bundle.action === "implement" &&
+    !allowResolvedImplementationDescendant &&
     (bundle.candidate.commit !== design.designCommit ||
       bundle.candidate.tree !== design.designTree)
   ) {
@@ -318,13 +322,31 @@ export function evaluateReleaseEvidenceV1(
   }
 }
 
+/**
+ * Internal boundary used only after the Git loader proves a single-parent
+ * lineage from the approved design commit to the supplied candidate.
+ */
+export function evaluateReleaseEvidenceAfterGitResolutionV1(
+  input: ReleaseEvidenceInputV1,
+): ReleaseEvidenceCheckResultV1 {
+  try {
+    const decision = checkEvidence(input, true);
+    if (decision._tag === "Invalid") {
+      return evidenceInvalid(decision.reason);
+    }
+    return { schemaVersion: 1, _tag: "EvidenceValid" };
+  } catch {
+    return evidenceInvalid("invalid_evidence");
+  }
+}
+
 export function evaluateReleaseAdmissionV1(
   input: ReleaseEvidenceInputV1 & {
     readonly registered: RegisteredReleaseAuthorityV1 | null;
   },
 ): ReleaseAdmissionResultV1 {
   try {
-    const decision = checkEvidence(input);
+    const decision = checkEvidence(input, true);
     if (decision._tag === "Invalid") return refused(decision.reason);
     if (input.registered === null) return refused("missing_registration");
     if (!registrationMatches(decision.checked, input.registered)) {
