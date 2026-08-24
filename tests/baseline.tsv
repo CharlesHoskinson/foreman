@@ -110,6 +110,9 @@ tests/readme-structure.bats	wsl	12
 tests/release-metrics.bats	linux	13
 tests/release-metrics.bats	windows	13
 tests/release-metrics.bats	wsl	13
+tests/release-policy.bats	linux	3
+tests/release-policy.bats	windows	3
+tests/release-policy.bats	wsl	3
 tests/resume.bats	linux	10
 tests/resume.bats	windows	3
 tests/resume.bats	wsl	10
