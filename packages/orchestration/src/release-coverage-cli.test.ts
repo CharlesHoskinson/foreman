@@ -2795,10 +2795,10 @@ test("live OpenSpec adapter uses the planner and exact raw bytes", async (t) => 
 test("live repository-root adapter requires one exact LF-terminated raw path", async (t) => {
   const repository = resolve("release-coverage-root-frame");
   const frames = [
-    { name: "exact", bytes: utf8(`${repository}\\n`), valid: true },
+    { name: "exact", bytes: utf8(`${repository}\n`), valid: true },
     { name: "missing-lf", bytes: utf8(repository), valid: false },
-    { name: "crlf", bytes: utf8(`${repository}\\r\\n`), valid: false },
-    { name: "second-line", bytes: utf8(`${repository}\\nother\\n`), valid: false },
+    { name: "crlf", bytes: utf8(`${repository}\r\n`), valid: false },
+    { name: "second-line", bytes: utf8(`${repository}\nother\n`), valid: false },
     { name: "invalid-utf8", bytes: Uint8Array.of(0xff, 0x0a), valid: false },
   ];
   for (const frame of frames) {
