@@ -1308,6 +1308,14 @@ export function main(): number | Promise<number> {
           git_common_dir: identity.gitCommonDir,
           store_location: storeLocation,
         });
+        if (
+          project !== null &&
+          store.projectId() !== null &&
+          store.projectId() !== project.project_id
+        ) {
+          process.stderr.write("refusing: project store binding is conflicted\n");
+          exitCli(1);
+        }
         writeCanonicalLine(
           project === null
             ? { _tag: "Unregistered" }
@@ -1319,8 +1327,44 @@ export function main(): number | Promise<number> {
         process.stderr.write("refusing: project registry is unavailable\n");
         exitCli(1);
       }
+      const loaded = loadProjectRegistryFileV1(registryPath);
+      if (loaded._tag === "Invalid") {
+        process.stderr.write("refusing: project registry is unavailable\n");
+        exitCli(1);
+      }
+      const commonMatch = loaded.value.projects.find(
+        (project) => project.git_common_dir === identity.gitCommonDir,
+      );
+      const storeMatch = loaded.value.projects.find(
+        (project) => project.store_location === storeLocation,
+      );
+      if (
+        (commonMatch === undefined) !== (storeMatch === undefined) ||
+        (commonMatch !== undefined && commonMatch !== storeMatch)
+      ) {
+        process.stderr.write("refusing: project registration failed\n");
+        exitCli(1);
+      }
+      const storedProjectId = store.projectId();
+      const registeredProjectId = commonMatch?.project_id ?? null;
+      if (
+        storedProjectId !== null &&
+        registeredProjectId !== null &&
+        storedProjectId !== registeredProjectId
+      ) {
+        process.stderr.write("refusing: project store binding is conflicted\n");
+        exitCli(1);
+      }
+      const projectId =
+        registeredProjectId ?? storedProjectId ?? randomUUID();
+      try {
+        store.bindProject(projectId);
+      } catch {
+        process.stderr.write("refusing: project store binding failed\n");
+        exitCli(1);
+      }
       const registered = registerProjectFileV1(registryPath, {
-        project_id: randomUUID(),
+        project_id: projectId,
         operation_id: randomUUID(),
         git_common_dir: identity.gitCommonDir,
         worktree_path: identity.worktreePath,

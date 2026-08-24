@@ -49,6 +49,7 @@ import {
 } from "./import-remap.js";
 import {
   buildProjection,
+  isProjectIdV1,
   liveProjectionMap,
   projectionKey,
   retractRecord,
@@ -312,7 +313,7 @@ CREATE TABLE memory_outbox (
         .run("next_receipt", "1");
       // Seed one active upsert per current live entity.
       const snap = this.readSnapshot();
-      for (const rec of buildProjection(snap)) {
+      for (const rec of buildProjection(snap, this.projectId())) {
         this.queueRecord(rec);
       }
       this.db.exec("COMMIT");
@@ -432,6 +433,37 @@ CREATE TABLE memory_outbox (
 
   // -- identity ------------------------------------------------------------
 
+  projectId(): string | null {
+    const row = this.db
+      .prepare("SELECT value FROM store_meta WHERE key = ?")
+      .get("project_id") as { value: unknown } | undefined;
+    if (row === undefined) return null;
+    if (!isProjectIdV1(row.value)) {
+      raise("backend_mismatch", "store project_id is malformed");
+    }
+    return row.value;
+  }
+
+  bindProject(projectId: string): void {
+    if (this.readOnly) raise("invalid_argument", "store is read-only");
+    if (!isProjectIdV1(projectId)) {
+      raise("invalid_argument", "project id must be a lowercase UUID");
+    }
+    this.tx(() => {
+      const current = this.projectId();
+      if (current !== null && current !== projectId) {
+        raise("identity_conflict", "store is already bound to another project");
+      }
+      if (current === projectId) return;
+      this.db
+        .prepare("INSERT INTO store_meta (key, value) VALUES (?, ?)")
+        .run("project_id", projectId);
+      for (const record of buildProjection(this.readSnapshot(), projectId)) {
+        this.queueRecord(record);
+      }
+    });
+  }
+
   peekNextId(kind: CountedKind): number {
     const row = this.db
       .prepare("SELECT value FROM store_meta WHERE key = ?")
@@ -519,11 +551,11 @@ CREATE TABLE memory_outbox (
     id: number,
     row: Readonly<Record<string, unknown>>,
   ): void {
-    this.queueRecord(upsertRecord(kind, id, row));
+    this.queueRecord(upsertRecord(kind, id, row, this.projectId()));
   }
 
   private queueRetract(kind: CountedKind, id: number): void {
-    this.queueRecord(retractRecord(kind, id));
+    this.queueRecord(retractRecord(kind, id, this.projectId()));
   }
 
   private assertOutboxReadable(): void {
@@ -572,12 +604,14 @@ CREATE TABLE memory_outbox (
     if (typeof receipt !== "string" || receipt.length === 0) {
       raise("backend_mismatch", "outbox row receipt must be a non-empty string");
     }
-    const key = projectionKey(kind, id);
+    const projectId = this.projectId();
+    const key = projectionKey(kind, id, projectId);
+    const project = projectId === null ? {} : { project_id: projectId };
     const mutation = r["mutation"];
     if (mutation === "retract") {
       return {
         receipt,
-        record: { key, kind, id, mutation: "retract" },
+        record: { ...project, key, kind, id, mutation: "retract" },
       };
     }
     if (mutation === "upsert") {
@@ -587,6 +621,7 @@ CREATE TABLE memory_outbox (
       return {
         receipt,
         record: {
+          ...project,
           key,
           kind,
           id,
@@ -1073,15 +1108,20 @@ CREATE TABLE memory_outbox (
         this.insertSnapshotRows(plan.insert.measurements, "measurement");
         this.insertSnapshotRows(plan.insert.obligations, "obligation");
         this.setNextIds(plan.merged.nextIds);
-        for (const rec of additiveImportProjectionUpserts(target, plan.merged)) {
+        for (const rec of additiveImportProjectionUpserts(
+          target,
+          plan.merged,
+          this.projectId(),
+        )) {
           this.queueRecord(rec);
         }
         return plan.written;
       }
 
       // Exact replacement (empty target, or force + refuse).
-      const oldLive = liveProjectionMap(target);
-      const newLive = liveProjectionMap(snapshot);
+      const projectId = this.projectId();
+      const oldLive = liveProjectionMap(target, projectId);
+      const newLive = liveProjectionMap(snapshot, projectId);
 
       for (const kind of [...ENTITY_ORDER].reverse()) {
         this.db.exec(`DELETE FROM ${quoteIdent(TABLE[kind])}`);

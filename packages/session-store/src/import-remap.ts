@@ -388,9 +388,10 @@ export function planAdditiveRemapImport(
 export function additiveImportProjectionUpserts(
   target: SessionSnapshot,
   merged: SessionSnapshot,
+  projectId: string | null = null,
 ): readonly Extract<ProjectionRecord, { mutation: "upsert" }>[] {
-  const oldLive = liveProjectionMap(target);
-  const newLive = liveProjectionMap(merged);
+  const oldLive = liveProjectionMap(target, projectId);
+  const newLive = liveProjectionMap(merged, projectId);
   const out: Extract<ProjectionRecord, { mutation: "upsert" }>[] = [];
   for (const [key, rec] of newLive) {
     if (!oldLive.has(key)) out.push(rec);

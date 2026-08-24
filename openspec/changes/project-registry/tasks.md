@@ -24,10 +24,10 @@
 
 ## 4. Project-bound projections
 
-- [ ] Add RED tests for `project_id` in references and projection keys.
-- [ ] Add the explicit SessionStore metadata migration.
-- [ ] Update both SessionStore backends and projection helpers.
-- [ ] Verify both backend contract suites and copied runtime behavior.
+- [x] Add RED tests for `project_id` in references and projection keys.
+- [x] Add the explicit SessionStore metadata migration.
+- [x] Update both SessionStore backends and projection helpers.
+- [x] Verify both backend contract suites and copied runtime behavior.
 
 ## 5. Release lane
 

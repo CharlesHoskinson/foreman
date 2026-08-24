@@ -16578,48 +16578,57 @@ var PROJECTABLE_FIELDS = {
 };
 
 // packages/session-store/src/projection.ts
-function projectionKey(kind, id) {
-  return `${kind}:${id}`;
+var PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+function isProjectIdV1(value) {
+  return typeof value === "string" && PROJECT_ID.test(value);
+}
+function projectionKey(kind, id, projectId = null) {
+  if (projectId !== null && !isProjectIdV1(projectId)) {
+    throw new Error("invalid project id");
+  }
+  return projectId === null ? `${kind}:${id}` : `${projectId}:${kind}:${id}`;
 }
 function projectableText(kind, row) {
   const allowed = PROJECTABLE_FIELDS[kind];
   return allowed.map((f) => row[f]).filter((v) => typeof v === "string").join(" \u2014 ");
 }
-function upsertRecord(kind, id, row) {
-  return {
-    key: projectionKey(kind, id),
+function upsertRecord(kind, id, row, projectId = null) {
+  const base = {
+    key: projectionKey(kind, id, projectId),
     kind,
     id,
     mutation: "upsert",
     text: projectableText(kind, row)
   };
+  return projectId === null ? base : { project_id: projectId, ...base };
 }
-function retractRecord(kind, id) {
-  return {
-    key: projectionKey(kind, id),
+function retractRecord(kind, id, projectId = null) {
+  const base = {
+    key: projectionKey(kind, id, projectId),
     kind,
     id,
     mutation: "retract"
   };
+  return projectId === null ? base : { project_id: projectId, ...base };
 }
 function isLiveCountedRow(row) {
   return row["superseded_by"] == null;
 }
-function buildProjection(snapshot) {
+function buildProjection(snapshot, projectId = null) {
   const out = [];
   for (const kind of COUNTED_KINDS) {
     for (const row of rowsOfKind(snapshot, kind)) {
       const id = row["id"];
       if (typeof id !== "number") continue;
       if (!isLiveCountedRow(row)) continue;
-      out.push(upsertRecord(kind, id, row));
+      out.push(upsertRecord(kind, id, row, projectId));
     }
   }
   return out;
 }
-function liveProjectionMap(snapshot) {
+function liveProjectionMap(snapshot, projectId = null) {
   const map14 = /* @__PURE__ */ new Map();
-  for (const rec of buildProjection(snapshot)) {
+  for (const rec of buildProjection(snapshot, projectId)) {
     if (rec.mutation === "upsert") map14.set(rec.key, rec);
   }
   return map14;
@@ -16878,9 +16887,9 @@ function planAdditiveRemapImport(target, donor) {
     written
   };
 }
-function additiveImportProjectionUpserts(target, merged) {
-  const oldLive = liveProjectionMap(target);
-  const newLive = liveProjectionMap(merged);
+function additiveImportProjectionUpserts(target, merged, projectId = null) {
+  const oldLive = liveProjectionMap(target, projectId);
+  const newLive = liveProjectionMap(merged, projectId);
   const out = [];
   for (const [key, rec] of newLive) {
     if (!oldLive.has(key)) out.push(rec);
@@ -16950,8 +16959,10 @@ function validateOptions(opts) {
 }
 function defensiveRecords(entries2) {
   return entries2.map((e) => {
+    const project = e.record.project_id === void 0 ? {} : { project_id: e.record.project_id };
     if (e.record.mutation === "upsert") {
       return {
+        ...project,
         key: e.record.key,
         kind: e.record.kind,
         id: e.record.id,
@@ -16960,6 +16971,7 @@ function defensiveRecords(entries2) {
       };
     }
     return {
+      ...project,
       key: e.record.key,
       kind: e.record.kind,
       id: e.record.id,
@@ -17636,7 +17648,7 @@ CREATE TABLE memory_outbox (
         "INSERT INTO store_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
       ).run("next_receipt", "1");
       const snap = this.readSnapshot();
-      for (const rec of buildProjection(snap)) {
+      for (const rec of buildProjection(snap, this.projectId())) {
         this.queueRecord(rec);
       }
       this.db.exec("COMMIT");
@@ -17732,6 +17744,31 @@ CREATE TABLE memory_outbox (
     }
   }
   // -- identity ------------------------------------------------------------
+  projectId() {
+    const row = this.db.prepare("SELECT value FROM store_meta WHERE key = ?").get("project_id");
+    if (row === void 0) return null;
+    if (!isProjectIdV1(row.value)) {
+      raise("backend_mismatch", "store project_id is malformed");
+    }
+    return row.value;
+  }
+  bindProject(projectId) {
+    if (this.readOnly) raise("invalid_argument", "store is read-only");
+    if (!isProjectIdV1(projectId)) {
+      raise("invalid_argument", "project id must be a lowercase UUID");
+    }
+    this.tx(() => {
+      const current = this.projectId();
+      if (current !== null && current !== projectId) {
+        raise("identity_conflict", "store is already bound to another project");
+      }
+      if (current === projectId) return;
+      this.db.prepare("INSERT INTO store_meta (key, value) VALUES (?, ?)").run("project_id", projectId);
+      for (const record of buildProjection(this.readSnapshot(), projectId)) {
+        this.queueRecord(record);
+      }
+    });
+  }
   peekNextId(kind) {
     const row = this.db.prepare("SELECT value FROM store_meta WHERE key = ?").get(`next_id.${kind}`);
     return row ? Number(row.value) : 1;
@@ -17791,10 +17828,10 @@ CREATE TABLE memory_outbox (
     ).run(receipt, record.kind, record.id, record.mutation, text);
   }
   queueUpsert(kind, id, row) {
-    this.queueRecord(upsertRecord(kind, id, row));
+    this.queueRecord(upsertRecord(kind, id, row, this.projectId()));
   }
   queueRetract(kind, id) {
-    this.queueRecord(retractRecord(kind, id));
+    this.queueRecord(retractRecord(kind, id, this.projectId()));
   }
   assertOutboxReadable() {
     const cols = outboxColumnNames(this.db);
@@ -17832,12 +17869,14 @@ CREATE TABLE memory_outbox (
     if (typeof receipt !== "string" || receipt.length === 0) {
       raise("backend_mismatch", "outbox row receipt must be a non-empty string");
     }
-    const key = projectionKey(kind, id);
+    const projectId = this.projectId();
+    const key = projectionKey(kind, id, projectId);
+    const project = projectId === null ? {} : { project_id: projectId };
     const mutation = r["mutation"];
     if (mutation === "retract") {
       return {
         receipt,
-        record: { key, kind, id, mutation: "retract" }
+        record: { ...project, key, kind, id, mutation: "retract" }
       };
     }
     if (mutation === "upsert") {
@@ -17847,6 +17886,7 @@ CREATE TABLE memory_outbox (
       return {
         receipt,
         record: {
+          ...project,
           key,
           kind,
           id,
@@ -18218,13 +18258,18 @@ CREATE TABLE memory_outbox (
         this.insertSnapshotRows(plan.insert.measurements, "measurement");
         this.insertSnapshotRows(plan.insert.obligations, "obligation");
         this.setNextIds(plan.merged.nextIds);
-        for (const rec of additiveImportProjectionUpserts(target, plan.merged)) {
+        for (const rec of additiveImportProjectionUpserts(
+          target,
+          plan.merged,
+          this.projectId()
+        )) {
           this.queueRecord(rec);
         }
         return plan.written;
       }
-      const oldLive = liveProjectionMap(target);
-      const newLive = liveProjectionMap(snapshot);
+      const projectId = this.projectId();
+      const oldLive = liveProjectionMap(target, projectId);
+      const newLive = liveProjectionMap(snapshot, projectId);
       for (const kind of [...ENTITY_ORDER].reverse()) {
         this.db.exec(`DELETE FROM ${quoteIdent(TABLE[kind])}`);
       }
@@ -18294,7 +18339,8 @@ var WRITER_CLAIMS_DIR = ".writer-claims";
 var GEN_WIDTH = 8;
 var OUTBOX_LIMIT_MIN2 = 1;
 var OUTBOX_LIMIT_MAX2 = 1e3;
-var OUTBOX_FILE_VERSION = 1;
+var OUTBOX_FILE_VERSION = 2;
+var LEGACY_OUTBOX_FILE_VERSION = 1;
 var INTERNAL_NUMERIC_RECEIPT2 = /^r([1-9][0-9]*)$/;
 var LEGACY_TOKEN_RE = /^\d{8}\.ndjson$/;
 var PAIRED_TOKEN_RE = /^v2-\d{8}\.ndjson$/;
@@ -18363,8 +18409,10 @@ function sortedSnapshot(s) {
   };
 }
 function copyRecord(record) {
+  const project = record.project_id === void 0 ? {} : { project_id: record.project_id };
   if (record.mutation === "upsert") {
     return {
+      ...project,
       key: record.key,
       kind: record.kind,
       id: record.id,
@@ -18373,6 +18421,7 @@ function copyRecord(record) {
     };
   }
   return {
+    ...project,
     key: record.key,
     kind: record.kind,
     id: record.id,
@@ -18382,9 +18431,10 @@ function copyRecord(record) {
 function copyEntry(entry) {
   return { receipt: entry.receipt, record: copyRecord(entry.record) };
 }
-function encodeOutbox(entries2, nextReceipt) {
+function encodeOutbox(entries2, nextReceipt, projectId) {
   return `${JSON.stringify({
     version: OUTBOX_FILE_VERSION,
+    projectId,
     nextReceipt,
     entries: entries2.map(copyEntry)
   })}
@@ -18404,11 +18454,15 @@ function decodeOutbox(text) {
     raise("sidecar_malformed", "outbox generation root must be an object");
   }
   const root = parsed;
-  if (root["version"] !== OUTBOX_FILE_VERSION) {
+  if (root["version"] !== LEGACY_OUTBOX_FILE_VERSION && root["version"] !== OUTBOX_FILE_VERSION) {
     raise(
       "sidecar_malformed",
       `outbox generation version ${String(root["version"])} is unsupported`
     );
+  }
+  const projectId = root["version"] === LEGACY_OUTBOX_FILE_VERSION ? null : root["projectId"];
+  if (projectId !== null && !isProjectIdV1(projectId)) {
+    raise("sidecar_malformed", "outbox projectId must be null or a lowercase UUID");
   }
   if (!Array.isArray(root["entries"])) {
     raise("sidecar_malformed", "outbox generation entries must be an array");
@@ -18445,7 +18499,7 @@ function decodeOutbox(text) {
     if (typeof r["id"] !== "number" || !Number.isSafeInteger(r["id"])) {
       raise("sidecar_malformed", "outbox record id must be a safe integer");
     }
-    const identity2 = projectionKey(r["kind"], r["id"]);
+    const identity2 = projectionKey(r["kind"], r["id"], projectId);
     if (seenIdentities.has(identity2)) {
       raise(
         "sidecar_malformed",
@@ -18454,8 +18508,12 @@ function decodeOutbox(text) {
     }
     seenIdentities.add(identity2);
     if (typeof r["key"] !== "string" || r["key"] !== identity2) {
-      raise("sidecar_malformed", "outbox record key must equal kind:id");
+      raise("sidecar_malformed", "outbox record key does not match its identity");
     }
+    if (projectId === null && r["project_id"] !== void 0 || projectId !== null && r["project_id"] !== projectId) {
+      raise("sidecar_malformed", "outbox record project_id does not match metadata");
+    }
+    const project = projectId === null ? {} : { project_id: projectId };
     if (r["mutation"] === "upsert") {
       if (typeof r["text"] !== "string") {
         raise("sidecar_malformed", "outbox upsert record text must be a string");
@@ -18463,6 +18521,7 @@ function decodeOutbox(text) {
       entries2.push({
         receipt: e["receipt"],
         record: {
+          ...project,
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
@@ -18474,6 +18533,7 @@ function decodeOutbox(text) {
       entries2.push({
         receipt: e["receipt"],
         record: {
+          ...project,
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
@@ -18500,12 +18560,12 @@ function decodeOutbox(text) {
       "outbox nextReceipt must be strictly greater than every numeric receipt"
     );
   }
-  return { entries: entries2, nextReceipt };
+  return { entries: entries2, nextReceipt, projectId };
 }
-function synthesizeOutbox(snap) {
+function synthesizeOutbox(snap, projectId = null) {
   const entries2 = [];
   let nextReceipt = 1;
-  for (const record of buildProjection(snap)) {
+  for (const record of buildProjection(snap, projectId)) {
     entries2.push({ receipt: `r${nextReceipt++}`, record: copyRecord(record) });
   }
   return { entries: entries2, nextReceipt };
@@ -18706,11 +18766,11 @@ function queueRecord(q, record) {
   }
   q.entries.push(entry);
 }
-function queueUpsert(q, kind, id, row) {
-  queueRecord(q, upsertRecord(kind, id, row));
+function queueUpsert(q, kind, id, row, projectId) {
+  queueRecord(q, upsertRecord(kind, id, row, projectId));
 }
-function queueRetract(q, kind, id) {
-  queueRecord(q, retractRecord(kind, id));
+function queueRetract(q, kind, id, projectId) {
+  queueRecord(q, retractRecord(kind, id, projectId));
 }
 var FilesOnlySessionStore = class _FilesOnlySessionStore {
   modelVersion = SESSION_MODEL_VERSION;
@@ -18722,9 +18782,10 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
   #snap;
   #outbox;
   #nextReceipt;
+  #projectId;
   #gen;
   #closed = false;
-  constructor(dir, snap, outbox, nextReceipt, gen3, readOnly, writerClaim) {
+  constructor(dir, snap, outbox, nextReceipt, projectId, gen3, readOnly, writerClaim) {
     this.#dir = dir;
     this.#genDir = join3(dir, GENERATIONS);
     this.#outboxDir = join3(dir, OUTBOX_GENERATIONS);
@@ -18733,6 +18794,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     this.#snap = snap;
     this.#outbox = outbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
+    this.#projectId = projectId;
     this.#gen = gen3;
   }
   static open(opts) {
@@ -18766,6 +18828,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
+      loaded.projectId,
       loaded.gen,
       true,
       null
@@ -18779,6 +18842,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
         emptySnapshot(),
         [],
         1,
+        null,
         0,
         false,
         claim
@@ -18792,6 +18856,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
+      loaded.projectId,
       loaded.gen,
       false,
       claim
@@ -18839,6 +18904,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
           snap,
           outbox: decoded2.entries,
           nextReceipt: decoded2.nextReceipt,
+          projectId: decoded2.projectId,
           gen: gen3
         };
       }
@@ -18847,6 +18913,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
         snap,
         outbox: synthesized.entries,
         nextReceipt: synthesized.nextReceipt,
+        projectId: null,
         gen: gen3
       };
     }
@@ -18862,6 +18929,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       snap,
       outbox: decoded.entries,
       nextReceipt: decoded.nextReceipt,
+      projectId: decoded.projectId,
       gen: gen3
     };
   }
@@ -18879,10 +18947,10 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
    * outbox live. `encodeSnapshot` runs first and throws on an invalid
    * snapshot, so nothing reaches the disk and in-memory state is untouched.
    */
-  #publish(next, nextOutbox, nextReceipt) {
+  #publish(next, nextOutbox, nextReceipt, projectId = this.#projectId) {
     const ordered = sortedSnapshot(next);
     const snapText = encodeSnapshot(ordered);
-    const outboxText = encodeOutbox(nextOutbox, nextReceipt);
+    const outboxText = encodeOutbox(nextOutbox, nextReceipt, projectId);
     const gen3 = this.#gen + 1;
     const name = genName(gen3);
     writeFileAtomic(this.#genDir, name, snapText);
@@ -18895,6 +18963,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     this.#snap = ordered;
     this.#outbox = nextOutbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
+    this.#projectId = projectId;
   }
   #assertOpen() {
     if (this.#closed) {
@@ -18908,6 +18977,25 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     }
   }
   // -- reads ---------------------------------------------------------------
+  projectId() {
+    this.#assertOpen();
+    return this.#projectId;
+  }
+  bindProject(projectId) {
+    this.#assertWritable();
+    if (!isProjectIdV1(projectId)) {
+      raise("invalid_argument", "project id must be a lowercase UUID");
+    }
+    if (this.#projectId !== null && this.#projectId !== projectId) {
+      raise("identity_conflict", "store is already bound to another project");
+    }
+    if (this.#projectId === projectId) return;
+    const q = cloneQueue(this.#outbox, this.#nextReceipt);
+    for (const record of buildProjection(this.#snap, projectId)) {
+      queueRecord(q, record);
+    }
+    this.#publish(this.#snap, q.entries, q.nextReceipt, projectId);
+  }
   snapshot() {
     this.#assertOpen();
     return this.#snap;
@@ -19026,7 +19114,13 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
     this.#assertWritable();
     const { row, next } = this.#buildFact(fact2);
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
-    queueUpsert(q, "fact", row.id, row);
+    queueUpsert(
+      q,
+      "fact",
+      row.id,
+      row,
+      this.#projectId
+    );
     this.#publish(next, q.entries, q.nextReceipt);
     return row;
   }
@@ -19056,7 +19150,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       q,
       "measurement",
       row.id,
-      row
+      row,
+      this.#projectId
     );
     this.#publish(next, q.entries, q.nextReceipt);
     return row;
@@ -19106,7 +19201,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       q,
       "obligation",
       row.id,
-      row
+      row,
+      this.#projectId
     );
     this.#publish(
       {
@@ -19135,7 +19231,8 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       q,
       "obligation",
       id,
-      row
+      row,
+      this.#projectId
     );
     this.#publish(
       {
@@ -19165,8 +19262,14 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       supersede_reason: reason
     };
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
-    queueUpsert(q, "fact", next.id, next);
-    queueRetract(q, "fact", id);
+    queueUpsert(
+      q,
+      "fact",
+      next.id,
+      next,
+      this.#projectId
+    );
+    queueRetract(q, "fact", id, this.#projectId);
     this.#publish(
       {
         ...withNew,
@@ -19199,9 +19302,10 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       q,
       "measurement",
       next.id,
-      next
+      next,
+      this.#projectId
     );
-    queueRetract(q, "measurement", id);
+    queueRetract(q, "measurement", id, this.#projectId);
     this.#publish(
       {
         ...withNew,
@@ -19240,7 +19344,7 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       supersede_reason: reason
     };
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
-    queueRetract(q, "measurement", id);
+    queueRetract(q, "measurement", id, this.#projectId);
     this.#publish(
       {
         ...this.#snap,
@@ -19275,18 +19379,22 @@ var FilesOnlySessionStore = class _FilesOnlySessionStore {
       if (countRows(snapshot) === 0) return 0;
       const plan = planAdditiveRemapImport(target, snapshot);
       const q2 = cloneQueue(this.#outbox, this.#nextReceipt);
-      for (const rec of additiveImportProjectionUpserts(target, plan.merged)) {
+      for (const rec of additiveImportProjectionUpserts(
+        target,
+        plan.merged,
+        this.#projectId
+      )) {
         queueRecord(q2, rec);
       }
       this.#publish(plan.merged, q2.entries, q2.nextReceipt);
       return plan.written;
     }
-    const oldLive = liveProjectionMap(target);
-    const newLive = liveProjectionMap(snapshot);
+    const oldLive = liveProjectionMap(target, this.#projectId);
+    const newLive = liveProjectionMap(snapshot, this.#projectId);
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
     for (const [key, oldRec] of oldLive) {
       if (!newLive.has(key)) {
-        queueRetract(q, oldRec.kind, oldRec.id);
+        queueRetract(q, oldRec.kind, oldRec.id, this.#projectId);
       }
     }
     for (const [key, newRec] of newLive) {
@@ -22306,15 +22414,19 @@ function main() {
         exitCli(1);
       }
       if (operation === "status") {
-        const loaded = loadProjectRegistryFileV1(registryPath);
-        if (loaded._tag === "Invalid") {
+        const loaded2 = loadProjectRegistryFileV1(registryPath);
+        if (loaded2._tag === "Invalid") {
           process.stderr.write("refusing: project registry is unavailable\n");
           exitCli(1);
         }
-        const project = resolveProjectV1(loaded.value, {
+        const project = resolveProjectV1(loaded2.value, {
           git_common_dir: identity2.gitCommonDir,
           store_location: storeLocation
         });
+        if (project !== null && store.projectId() !== null && store.projectId() !== project.project_id) {
+          process.stderr.write("refusing: project store binding is conflicted\n");
+          exitCli(1);
+        }
         writeCanonicalLine(
           project === null ? { _tag: "Unregistered" } : { _tag: "Registered", project }
         );
@@ -22324,8 +22436,36 @@ function main() {
         process.stderr.write("refusing: project registry is unavailable\n");
         exitCli(1);
       }
+      const loaded = loadProjectRegistryFileV1(registryPath);
+      if (loaded._tag === "Invalid") {
+        process.stderr.write("refusing: project registry is unavailable\n");
+        exitCli(1);
+      }
+      const commonMatch = loaded.value.projects.find(
+        (project) => project.git_common_dir === identity2.gitCommonDir
+      );
+      const storeMatch = loaded.value.projects.find(
+        (project) => project.store_location === storeLocation
+      );
+      if (commonMatch === void 0 !== (storeMatch === void 0) || commonMatch !== void 0 && commonMatch !== storeMatch) {
+        process.stderr.write("refusing: project registration failed\n");
+        exitCli(1);
+      }
+      const storedProjectId = store.projectId();
+      const registeredProjectId = commonMatch?.project_id ?? null;
+      if (storedProjectId !== null && registeredProjectId !== null && storedProjectId !== registeredProjectId) {
+        process.stderr.write("refusing: project store binding is conflicted\n");
+        exitCli(1);
+      }
+      const projectId = registeredProjectId ?? storedProjectId ?? randomUUID();
+      try {
+        store.bindProject(projectId);
+      } catch {
+        process.stderr.write("refusing: project store binding failed\n");
+        exitCli(1);
+      }
       const registered = registerProjectFileV1(registryPath, {
-        project_id: randomUUID(),
+        project_id: projectId,
         operation_id: randomUUID(),
         git_common_dir: identity2.gitCommonDir,
         worktree_path: identity2.worktreePath,

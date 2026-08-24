@@ -2683,6 +2683,12 @@ test("project commands register one identity across linked worktrees", () => {
     };
     assert.equal(first._tag, "Registered");
     assert.deepEqual(first.project.worktree_paths, [repo]);
+    const boundStore = SqliteSessionStore.open(db, { readOnly: true });
+    try {
+      assert.equal(boundStore.projectId(), first.project.project_id);
+    } finally {
+      boundStore.close();
+    }
 
     const fromLinked = spawnSession(linked, db, ["project", "register"], env);
     assert.equal(fromLinked.status, 0, fromLinked.stderr);

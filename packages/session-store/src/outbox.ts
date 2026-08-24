@@ -132,8 +132,13 @@ function defensiveRecords(
   entries: readonly OutboxEntry[],
 ): readonly ProjectionRecord[] {
   return entries.map((e) => {
+    const project =
+      e.record.project_id === undefined
+        ? {}
+        : { project_id: e.record.project_id };
     if (e.record.mutation === "upsert") {
       return {
+        ...project,
         key: e.record.key,
         kind: e.record.kind,
         id: e.record.id,
@@ -142,6 +147,7 @@ function defensiveRecords(
       };
     }
     return {
+      ...project,
       key: e.record.key,
       kind: e.record.kind,
       id: e.record.id,

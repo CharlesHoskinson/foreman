@@ -91,6 +91,7 @@ export class PoisonMemoryIndex implements MemoryIndex {
     const out: EntityRef[] = [];
     for (let i = 0; i < Math.max(1, limit); i++) {
       out.push({
+        project_id: "00000000-0000-4000-8000-000000000000",
         kind: kinds[i % kinds.length] as CountedKind,
         id: 999_000 + i,
         score: 1,

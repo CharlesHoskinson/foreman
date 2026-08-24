@@ -101,6 +101,11 @@ export interface SessionStore {
   /** Model version this store was opened against. */
   readonly modelVersion: number;
 
+  /** Set-once project identity. Legacy unregistered stores return null. */
+  projectId(): string | null;
+  /** Bind project identity without changing entity rows or id counters. */
+  bindProject(projectId: string): void;
+
   // -- reads ---------------------------------------------------------------
   snapshot(): SessionSnapshot;
   listSessions(): readonly SessionRow[];
@@ -213,6 +218,7 @@ export interface SessionStore {
  * be acted on, because its content is not what the index hands back.
  */
 export type EntityRef = {
+  readonly project_id: string;
   readonly kind: CountedKind;
   readonly id: number;
   /** Opaque relevance score from the backend; advisory only. */
@@ -230,6 +236,8 @@ export type ProjectionMutation = "upsert" | "retract";
  */
 export type ProjectionRecord =
   | {
+      /** Absent only for a legacy projection created before registration. */
+      readonly project_id?: string;
       readonly key: string;
       readonly kind: CountedKind;
       readonly id: number;
@@ -237,6 +245,8 @@ export type ProjectionRecord =
       readonly text: string;
     }
   | {
+      /** Absent only for a legacy projection created before registration. */
+      readonly project_id?: string;
       readonly key: string;
       readonly kind: CountedKind;
       readonly id: number;

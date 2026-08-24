@@ -88,6 +88,7 @@ export {
 export {
   buildProjection,
   liveProjectionMap,
+  isProjectIdV1,
   projectableText,
   projectionKey,
   retractRecord,

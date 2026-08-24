@@ -86,6 +86,7 @@ import {
 } from "./import-remap.js";
 import {
   buildProjection,
+  isProjectIdV1,
   liveProjectionMap,
   projectionKey,
   retractRecord,
@@ -120,7 +121,8 @@ const WRITER_CLAIMS_DIR = ".writer-claims";
 const GEN_WIDTH = 8;
 const OUTBOX_LIMIT_MIN = 1;
 const OUTBOX_LIMIT_MAX = 1000;
-const OUTBOX_FILE_VERSION = 1;
+const OUTBOX_FILE_VERSION = 2;
+const LEGACY_OUTBOX_FILE_VERSION = 1;
 /** Internal numeric receipt form: r followed by a positive decimal (no leading zeros). */
 const INTERNAL_NUMERIC_RECEIPT = /^r([1-9][0-9]*)$/;
 
@@ -215,8 +217,13 @@ function sortedSnapshot(s: SessionSnapshot): SessionSnapshot {
 }
 
 function copyRecord(record: ProjectionRecord): ProjectionRecord {
+  const project =
+    record.project_id === undefined
+      ? {}
+      : { project_id: record.project_id };
   if (record.mutation === "upsert") {
     return {
+      ...project,
       key: record.key,
       kind: record.kind,
       id: record.id,
@@ -225,6 +232,7 @@ function copyRecord(record: ProjectionRecord): ProjectionRecord {
     };
   }
   return {
+    ...project,
     key: record.key,
     kind: record.kind,
     id: record.id,
@@ -239,9 +247,11 @@ function copyEntry(entry: OutboxEntry): OutboxEntry {
 function encodeOutbox(
   entries: readonly OutboxEntry[],
   nextReceipt: number,
+  projectId: string | null,
 ): string {
   return `${JSON.stringify({
     version: OUTBOX_FILE_VERSION,
+    projectId,
     nextReceipt,
     entries: entries.map(copyEntry),
   })}\n`;
@@ -254,6 +264,7 @@ function isCountedKindName(v: unknown): v is CountedKind {
 function decodeOutbox(text: string): {
   readonly entries: OutboxEntry[];
   readonly nextReceipt: number;
+  readonly projectId: string | null;
 } {
   let parsed: unknown;
   try {
@@ -265,11 +276,20 @@ function decodeOutbox(text: string): {
     raise("sidecar_malformed", "outbox generation root must be an object");
   }
   const root = parsed as Record<string, unknown>;
-  if (root["version"] !== OUTBOX_FILE_VERSION) {
+  if (
+    root["version"] !== LEGACY_OUTBOX_FILE_VERSION &&
+    root["version"] !== OUTBOX_FILE_VERSION
+  ) {
     raise(
       "sidecar_malformed",
       `outbox generation version ${String(root["version"])} is unsupported`,
     );
+  }
+  const projectId = root["version"] === LEGACY_OUTBOX_FILE_VERSION
+    ? null
+    : root["projectId"];
+  if (projectId !== null && !isProjectIdV1(projectId)) {
+    raise("sidecar_malformed", "outbox projectId must be null or a lowercase UUID");
   }
   if (!Array.isArray(root["entries"])) {
     raise("sidecar_malformed", "outbox generation entries must be an array");
@@ -306,7 +326,7 @@ function decodeOutbox(text: string): {
     if (typeof r["id"] !== "number" || !Number.isSafeInteger(r["id"])) {
       raise("sidecar_malformed", "outbox record id must be a safe integer");
     }
-    const identity = projectionKey(r["kind"], r["id"]);
+    const identity = projectionKey(r["kind"], r["id"], projectId);
     if (seenIdentities.has(identity)) {
       raise(
         "sidecar_malformed",
@@ -314,12 +334,16 @@ function decodeOutbox(text: string): {
       );
     }
     seenIdentities.add(identity);
-    if (
-      typeof r["key"] !== "string" ||
-      r["key"] !== identity
-    ) {
-      raise("sidecar_malformed", "outbox record key must equal kind:id");
+    if (typeof r["key"] !== "string" || r["key"] !== identity) {
+      raise("sidecar_malformed", "outbox record key does not match its identity");
     }
+    if (
+      (projectId === null && r["project_id"] !== undefined) ||
+      (projectId !== null && r["project_id"] !== projectId)
+    ) {
+      raise("sidecar_malformed", "outbox record project_id does not match metadata");
+    }
+    const project = projectId === null ? {} : { project_id: projectId };
     if (r["mutation"] === "upsert") {
       if (typeof r["text"] !== "string") {
         raise("sidecar_malformed", "outbox upsert record text must be a string");
@@ -327,6 +351,7 @@ function decodeOutbox(text: string): {
       entries.push({
         receipt: e["receipt"],
         record: {
+          ...project,
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
@@ -338,6 +363,7 @@ function decodeOutbox(text: string): {
       entries.push({
         receipt: e["receipt"],
         record: {
+          ...project,
           key: r["key"],
           kind: r["kind"],
           id: r["id"],
@@ -370,16 +396,19 @@ function decodeOutbox(text: string): {
       "outbox nextReceipt must be strictly greater than every numeric receipt",
     );
   }
-  return { entries, nextReceipt };
+  return { entries, nextReceipt, projectId };
 }
 
-function synthesizeOutbox(snap: SessionSnapshot): {
+function synthesizeOutbox(
+  snap: SessionSnapshot,
+  projectId: string | null = null,
+): {
   readonly entries: OutboxEntry[];
   readonly nextReceipt: number;
 } {
   const entries: OutboxEntry[] = [];
   let nextReceipt = 1;
-  for (const record of buildProjection(snap)) {
+  for (const record of buildProjection(snap, projectId)) {
     entries.push({ receipt: `r${nextReceipt++}`, record: copyRecord(record) });
   }
   return { entries, nextReceipt };
@@ -661,12 +690,18 @@ function queueUpsert(
   kind: CountedKind,
   id: number,
   row: Readonly<Record<string, unknown>>,
+  projectId: string | null,
 ): void {
-  queueRecord(q, upsertRecord(kind, id, row));
+  queueRecord(q, upsertRecord(kind, id, row, projectId));
 }
 
-function queueRetract(q: QueueState, kind: CountedKind, id: number): void {
-  queueRecord(q, retractRecord(kind, id));
+function queueRetract(
+  q: QueueState,
+  kind: CountedKind,
+  id: number,
+  projectId: string | null,
+): void {
+  queueRecord(q, retractRecord(kind, id, projectId));
 }
 
 export class FilesOnlySessionStore implements SessionStore {
@@ -680,6 +715,7 @@ export class FilesOnlySessionStore implements SessionStore {
   #snap: SessionSnapshot;
   #outbox: OutboxEntry[];
   #nextReceipt: number;
+  #projectId: string | null;
   #gen: number;
   #closed = false;
 
@@ -688,6 +724,7 @@ export class FilesOnlySessionStore implements SessionStore {
     snap: SessionSnapshot,
     outbox: readonly OutboxEntry[],
     nextReceipt: number,
+    projectId: string | null,
     gen: number,
     readOnly: boolean,
     writerClaim: WriterClaim | null,
@@ -700,6 +737,7 @@ export class FilesOnlySessionStore implements SessionStore {
     this.#snap = snap;
     this.#outbox = outbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
+    this.#projectId = projectId;
     this.#gen = gen;
   }
 
@@ -738,6 +776,7 @@ export class FilesOnlySessionStore implements SessionStore {
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
+      loaded.projectId,
       loaded.gen,
       true,
       null,
@@ -755,6 +794,7 @@ export class FilesOnlySessionStore implements SessionStore {
         emptySnapshot(),
         [],
         1,
+        null,
         0,
         false,
         claim,
@@ -769,6 +809,7 @@ export class FilesOnlySessionStore implements SessionStore {
       loaded.snap,
       loaded.outbox,
       loaded.nextReceipt,
+      loaded.projectId,
       loaded.gen,
       false,
       claim,
@@ -782,6 +823,7 @@ export class FilesOnlySessionStore implements SessionStore {
     readonly snap: SessionSnapshot;
     readonly outbox: OutboxEntry[];
     readonly nextReceipt: number;
+    readonly projectId: string | null;
     readonly gen: number;
   } {
     const currentPath = join(dir, CURRENT);
@@ -828,6 +870,7 @@ export class FilesOnlySessionStore implements SessionStore {
           snap,
           outbox: decoded.entries,
           nextReceipt: decoded.nextReceipt,
+          projectId: decoded.projectId,
           gen,
         };
       }
@@ -836,6 +879,7 @@ export class FilesOnlySessionStore implements SessionStore {
         snap,
         outbox: synthesized.entries,
         nextReceipt: synthesized.nextReceipt,
+        projectId: null,
         gen,
       };
     }
@@ -852,6 +896,7 @@ export class FilesOnlySessionStore implements SessionStore {
       snap,
       outbox: decoded.entries,
       nextReceipt: decoded.nextReceipt,
+      projectId: decoded.projectId,
       gen,
     };
   }
@@ -875,10 +920,11 @@ export class FilesOnlySessionStore implements SessionStore {
     next: SessionSnapshot,
     nextOutbox: readonly OutboxEntry[],
     nextReceipt: number,
+    projectId: string | null = this.#projectId,
   ): void {
     const ordered = sortedSnapshot(next);
     const snapText = encodeSnapshot(ordered);
-    const outboxText = encodeOutbox(nextOutbox, nextReceipt);
+    const outboxText = encodeOutbox(nextOutbox, nextReceipt, projectId);
     const gen = this.#gen + 1;
     const name = genName(gen);
 
@@ -892,6 +938,7 @@ export class FilesOnlySessionStore implements SessionStore {
     this.#snap = ordered;
     this.#outbox = nextOutbox.map(copyEntry);
     this.#nextReceipt = nextReceipt;
+    this.#projectId = projectId;
   }
 
   #assertOpen(): void {
@@ -908,6 +955,28 @@ export class FilesOnlySessionStore implements SessionStore {
   }
 
   // -- reads ---------------------------------------------------------------
+
+  projectId(): string | null {
+    this.#assertOpen();
+    return this.#projectId;
+  }
+
+  bindProject(projectId: string): void {
+    this.#assertWritable();
+    if (!isProjectIdV1(projectId)) {
+      raise("invalid_argument", "project id must be a lowercase UUID");
+    }
+    if (this.#projectId !== null && this.#projectId !== projectId) {
+      raise("identity_conflict", "store is already bound to another project");
+    }
+    if (this.#projectId === projectId) return;
+
+    const q = cloneQueue(this.#outbox, this.#nextReceipt);
+    for (const record of buildProjection(this.#snap, projectId)) {
+      queueRecord(q, record);
+    }
+    this.#publish(this.#snap, q.entries, q.nextReceipt, projectId);
+  }
 
   snapshot(): SessionSnapshot {
     this.#assertOpen();
@@ -1055,7 +1124,13 @@ export class FilesOnlySessionStore implements SessionStore {
     this.#assertWritable();
     const { row, next } = this.#buildFact(fact);
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
-    queueUpsert(q, "fact", row.id, row as unknown as Record<string, unknown>);
+    queueUpsert(
+      q,
+      "fact",
+      row.id,
+      row as unknown as Record<string, unknown>,
+      this.#projectId,
+    );
     this.#publish(next, q.entries, q.nextReceipt);
     return row;
   }
@@ -1091,6 +1166,7 @@ export class FilesOnlySessionStore implements SessionStore {
       "measurement",
       row.id,
       row as unknown as Record<string, unknown>,
+      this.#projectId,
     );
     this.#publish(next, q.entries, q.nextReceipt);
     return row;
@@ -1148,6 +1224,7 @@ export class FilesOnlySessionStore implements SessionStore {
       "obligation",
       row.id,
       row as unknown as Record<string, unknown>,
+      this.#projectId,
     );
     this.#publish(
       {
@@ -1184,6 +1261,7 @@ export class FilesOnlySessionStore implements SessionStore {
       "obligation",
       id,
       row as unknown as Record<string, unknown>,
+      this.#projectId,
     );
     this.#publish(
       {
@@ -1220,8 +1298,14 @@ export class FilesOnlySessionStore implements SessionStore {
     };
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
     // Same order as SQLite: upsert replacement, then retract superseded.
-    queueUpsert(q, "fact", next.id, next as unknown as Record<string, unknown>);
-    queueRetract(q, "fact", id);
+    queueUpsert(
+      q,
+      "fact",
+      next.id,
+      next as unknown as Record<string, unknown>,
+      this.#projectId,
+    );
+    queueRetract(q, "fact", id, this.#projectId);
     // One publish, so the insert and the supersession land together or not at
     // all — the atomicity SQLite gets from its transaction.
     this.#publish(
@@ -1263,8 +1347,9 @@ export class FilesOnlySessionStore implements SessionStore {
       "measurement",
       next.id,
       next as unknown as Record<string, unknown>,
+      this.#projectId,
     );
-    queueRetract(q, "measurement", id);
+    queueRetract(q, "measurement", id, this.#projectId);
     this.#publish(
       {
         ...withNew,
@@ -1309,7 +1394,7 @@ export class FilesOnlySessionStore implements SessionStore {
       supersede_reason: reason,
     };
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
-    queueRetract(q, "measurement", id);
+    queueRetract(q, "measurement", id, this.#projectId);
     this.#publish(
       {
         ...this.#snap,
@@ -1351,7 +1436,11 @@ export class FilesOnlySessionStore implements SessionStore {
       if (countRows(snapshot) === 0) return 0;
       const plan = planAdditiveRemapImport(target, snapshot);
       const q = cloneQueue(this.#outbox, this.#nextReceipt);
-      for (const rec of additiveImportProjectionUpserts(target, plan.merged)) {
+      for (const rec of additiveImportProjectionUpserts(
+        target,
+        plan.merged,
+        this.#projectId,
+      )) {
         queueRecord(q, rec);
       }
       // One paired publish: refused planning or receipt exhaustion never moves CURRENT.
@@ -1360,12 +1449,12 @@ export class FilesOnlySessionStore implements SessionStore {
     }
 
     // Exact replacement (empty target, or force + refuse).
-    const oldLive = liveProjectionMap(target);
-    const newLive = liveProjectionMap(snapshot);
+    const oldLive = liveProjectionMap(target, this.#projectId);
+    const newLive = liveProjectionMap(snapshot, this.#projectId);
     const q = cloneQueue(this.#outbox, this.#nextReceipt);
     for (const [key, oldRec] of oldLive) {
       if (!newLive.has(key)) {
-        queueRetract(q, oldRec.kind, oldRec.id);
+        queueRetract(q, oldRec.kind, oldRec.id, this.#projectId);
       }
     }
     for (const [key, newRec] of newLive) {

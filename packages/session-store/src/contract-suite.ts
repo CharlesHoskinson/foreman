@@ -1514,6 +1514,11 @@ export const MIN_INDEPENDENT_STUB_CATEGORIES = 3;
 export class StubEmptyBackend implements SessionStore {
   readonly modelVersion = SESSION_MODEL_VERSION;
 
+  projectId(): string | null {
+    return null;
+  }
+  bindProject(_projectId: string): void {}
+
   // -- reads: always empty, whatever was written -----------------------------
   snapshot(): SessionSnapshot {
     return emptySnapshot();
