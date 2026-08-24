@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   linkSync,
@@ -2314,7 +2314,7 @@ const GIT_TEST_TIMEOUT_MS = 30_000;
 function gitIn(
   repository: string,
   args: readonly string[],
-): ReturnType<typeof spawnSync> {
+): SpawnSyncReturns<string> {
   const inherited = Object.fromEntries(
     Object.entries(process.env).filter(
       ([name, value]) =>
@@ -2341,7 +2341,7 @@ function gitIn(
 }
 
 function assertGitOk(
-  result: ReturnType<typeof spawnSync>,
+  result: SpawnSyncReturns<string>,
   label: string,
 ): void {
   assert.equal(result.error, undefined, label);
@@ -2748,9 +2748,6 @@ test("live fileRead.readBounded enforces 1 MiB and rejects non-regular authority
               .pipe(Effect.either),
           );
           assert.equal(escaped._tag, "Left");
-          if (escaped._tag === "Right") {
-            assert.notDeepEqual(escaped.right, outsideBytes);
-          }
         } finally {
           rmSync(outside, { recursive: true, force: true });
         }
