@@ -92,13 +92,13 @@ integration only, and esbuild for generated runtime bundles.
   `proposal -> specs -> design -> tasks`.
 - Both schemas use `apply.requires: [tasks]` and `apply.tracks: tasks.md`.
 
-- [ ] **1.1 RED:** Add tests that run `openspec schema validate` for both
+- [x] **1.1 RED:** Add tests that run `openspec schema validate` for both
   names, assert exact artifact order and dependencies from `schema.yaml`, and
   create throwaway changes that prove tasks are not ready before their direct
   predecessor. Run
   `npx tsx --test packages/policy/src/release-coverage.test.ts`; expect failure
   because both project schemas are absent.
-- [ ] **1.2 GREEN:** Add the two closed schema files and templates. Use these
+- [x] **1.2 GREEN:** Add the two closed schema files and templates. Use these
   dependency records verbatim:
 
   ```yaml
@@ -120,7 +120,7 @@ integration only, and esbuild for generated runtime bundles.
 
   Give every artifact a nonempty description, template, and STE instruction.
   Change this package metadata to `schema: foreman-architectural`.
-- [ ] **1.3 VERIFY:** Run both schema validators, `openspec status --change
+- [x] **1.3 VERIFY:** Run both schema validators, `openspec status --change
   openspec-superpowers-convergence --json`, the focused TypeScript test, and
   `openspec validate openspec-superpowers-convergence --strict`. Expect all to
   pass and tasks to be the tracked apply artifact.
@@ -153,7 +153,7 @@ integration only, and esbuild for generated runtime bundles.
   reference before the coverage CLI compiles.
 - Exit codes are 0 valid, 1 evaluated invalid, and 64 invalid invocation.
 
-- [ ] **2.1 RED:** Write table-driven pure tests for all register fields,
+- [x] **2.1 RED:** Write table-driven pure tests for all register fields,
   enums, key and source uniqueness, future owners, active inventory hashing,
   raw Roadmap hashing, Roadmap bijection, cross-field rules, active-or-future
   owner resolution, phase-specific reconciliation, workflow metadata, immutable
@@ -162,7 +162,7 @@ integration only, and esbuild for generated runtime bundles.
   invalid UTF-8, over-bound input, and one valid authored-register test. Run
   one case for every `ReleaseCoverageFailureReason` and every
   `RoadmapAssignmentV1` field. Run the focused test and observe missing exports.
-- [ ] **2.2 GREEN:** Implement a strict bounded parser for only
+- [x] **2.2 GREEN:** Implement a strict bounded parser for only
   `schema_version`, the three top-level identity fields, `[[future_owner]]`,
   and `[[entry]]`. Reject unknown fields, duplicate scalar fields, unsupported
   TOML syntax, control characters, and more than 1 MiB before retaining the
@@ -172,14 +172,14 @@ integration only, and esbuild for generated runtime bundles.
   by the selected package; release checks every v0.4 entry. Apply workflow
   metadata and registered source-derived package-brief requirements to the same
   phase-relevant packages. Bootstrap receives no family or brief mapping.
-- [ ] **2.3 RED/GREEN CLI:** Add injected file, Git, OpenSpec, and read-only
+- [x] **2.3 RED/GREEN CLI:** Add injected file, Git, OpenSpec, and read-only
   family-ledger services in orchestration.
   Tests must prove one bounded `openspec list --json` call, raw Roadmap bytes,
   lowercase canonical output, no raw exception or path disclosure, no writes,
   invalid-argument exit 64, exact registered source resolution, derived package-
   brief paths, and exit 1 for every evaluated refusal. Implement the live main
   with Effect and export the public types from `index.ts`.
-- [ ] **2.4 VERIFY:** Run the focused test, package typecheck, the bootstrap
+- [x] **2.4 VERIFY:** Run the focused test, package typecheck, the bootstrap
   command against `openspec/changes/v040-release-program/coverage.toml`, and negative
   fixtures that change one digest, duplicate one key, remove one Roadmap row,
   set the selected Track 1 owner to `required`, change one generated package
