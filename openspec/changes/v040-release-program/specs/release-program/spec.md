@@ -410,11 +410,11 @@ SHALL contain only these paths:
 It SHALL NOT admit another product lane or path.
 The runtime builder SHALL emit installed `release-coverage`,
 `release-admission`, `release-authority`, and `release-policy` artifacts.
-`release-policy.sh`, `gate-eval.sh`, and `merge-gate.sh` SHALL each become a
-one-artifact adapter to compiled `release-policy.js`. Compiled TypeScript SHALL
-own the current general gate, merge-base, freshness, event, and output behavior
-and SHALL run release policy only after the applicable general result.
-`merge-gate.sh` SHALL keep its one-line stdout contract. A missing artifact,
+`release-policy.sh` SHALL be the one-artifact adapter to compiled
+`release-policy.js`. The established `gate-eval.sh` and `merge-gate.sh`
+boundaries SHALL retain their general gate, merge-base, freshness, event, and
+output behavior. They SHALL run release policy only after the applicable
+general result. `merge-gate.sh` SHALL keep its one-line stdout contract. A missing artifact,
 failed coverage check, or invalid action evidence SHALL fail closed. Tranche 9
 publication tooling SHALL call the same core under its child allowlist.
 The fixed block SHALL contain one copy of the root, family, child, action, and

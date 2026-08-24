@@ -298,14 +298,13 @@ authority for one retry attempt SHALL refuse.
 
 The queue boundary for V2 children, `release-policy.sh`, `gate-eval.sh`,
 `merge-gate.sh`, and later publication tooling SHALL use the one installed
-TypeScript `release-policy` artifact. Each changed shell entry point SHALL
-become a one-artifact argument and byte-stream adapter and SHALL delete its
-domain logic. Compiled TypeScript SHALL own the complete existing general gate,
-merge-base, freshness, event, and output behavior plus v0.4 policy. Queue SHALL
-evaluate policy before one atomic reservation. Gate SHALL evaluate it after the
-complete general result. Merge SHALL resolve the named branch, require its
-commit to match the release block, capture policy JSON outside stdout, and
-preserve exactly one merge verdict line.
+TypeScript `release-policy` artifact for v0.4 authority. The established shell
+gates SHALL retain their general gate, merge-base, freshness, event, and output
+behavior. Queue SHALL evaluate policy before one atomic reservation. Gate SHALL
+evaluate it only after the complete general result passes. Merge SHALL complete
+freshness checks, resolve the named branch, require its commit to match the
+release block, suppress policy JSON from stdout, and preserve exactly one merge
+verdict line.
 
 The release block SHALL contain one copy of root, family, child, action, and
 candidate identity. The TypeScript parser SHALL derive both release policy and
@@ -313,10 +312,10 @@ reservation input from that object. It SHALL require the candidate digest to
 equal SHA-256 of the resolved lowercase commit, the package to equal the child
 package, and all block fields to equal the registered evidence and Endstop
 state. Cross-block or evidence-to-block substitution SHALL refuse.
-The compiled gate-eval and merge-check boundaries SHALL supply
-non-caller-controlled expected action `integrate` and SHALL reject any block
-with another action, including a valid registered `verify` block. Publication
-SHALL supply expected action `publish`.
+The gate-eval and merge-check boundaries SHALL supply non-caller-controlled
+expected action `integrate` and SHALL reject any block with another action,
+including a valid registered `verify` block. Publication SHALL supply expected
+action `publish`.
 
 #### Scenario: General gate passes but v0.4 policy fails
 
@@ -327,7 +326,7 @@ SHALL supply expected action `publish`.
 #### Scenario: Caller downgrades an integration action
 
 - **WHEN** gate-eval or merge-check receives valid registered `verify` evidence
-- **THEN** the compiled boundary refuses because its expected action is
+- **THEN** the boundary refuses because its expected action is
   `integrate`
 
 #### Scenario: Bootstrap output is incomplete

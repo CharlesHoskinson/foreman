@@ -434,8 +434,6 @@ integration only, and esbuild for generated runtime bundles.
 - Create: `packages/orchestration/src/release-policy.ts`
 - Create: `packages/orchestration/src/release-policy.test.ts`
 - Create: `packages/orchestration/src/release-policy-main.ts`
-- Create: `packages/orchestration/src/release-boundary.ts`
-- Create: `packages/orchestration/src/release-boundary.test.ts`
 - Modify: `packages/orchestration/package.json`
 - Modify: `packages/orchestration/tsconfig.json`
 - Modify: `package-lock.json`
@@ -447,8 +445,6 @@ integration only, and esbuild for generated runtime bundles.
 - Modify: `tests/gate-eval.bats`
 - Modify: `tests/merge-gate.bats`
 - Modify: `tests/baseline.tsv`
-- Create: `tests/fixtures/release-policy/valid-audit.json`
-- Create: `tests/fixtures/release-policy/valid-approval.json`
 
 **Interfaces:**
 
@@ -461,9 +457,9 @@ integration only, and esbuild for generated runtime bundles.
   REGISTER EVIDENCE`.
 - TypeScript `release-policy` composes phase-aware coverage, registered action
   admission, named-ref Git identity, and the Endstop-registered digest.
-- The compiled `release-policy.js` artifact owns the `check`, `gate-eval`, and
-  `merge-gate` modes in `design.md`. All three shell entry points become
-  one-artifact argument and byte-stream adapters.
+- The compiled `release-policy.js` artifact owns v0.4 release-policy decisions.
+  The existing general gate and merge boundary remain in their established
+  shell entry points and invoke the compiled policy after general success.
 - `@foreman/orchestration` declares `@foreman/policy` in its package manifest
   and TypeScript project references. The lockfile and clean composite build
   must agree.
@@ -476,14 +472,11 @@ integration only, and esbuild for generated runtime bundles.
   phase, wrong root, family, action, package, candidate-digest-to-commit
   equality, and evidence-to-block identity. Include hostile cross-block
   substitutions and sanitized bounded output. Observe missing exports.
-- [ ] **6.2 GREEN policy and adapters:** Implement the TypeScript composition
-  and port all existing `gate-eval.sh` and `merge-gate.sh` behavior, event
-  emission, configuration, freshness, and output rules into
-  `release-boundary.ts`. Add only thin-adapter Bats cases for exact forwarding,
-  missing artifact, missing argument, exit-code and byte-stream preservation,
-  and hostile path characters. Each shell script locates Node, adds only its
-  static mode, and executes `release-policy.js`. It does not source helpers,
-  parse JSON/TOML, use `jq`, choose policy order, emit events, or decide policy.
+- [ ] **6.2 GREEN policy and adapter:** Implement the TypeScript composition.
+  Add a thin `release-policy.sh` adapter for exact forwarding, missing artifact,
+  missing argument, exit-code, byte-stream, and hostile-path behavior. Preserve
+  the established general gate and merge implementations. They invoke the
+  adapter only after their existing general checks succeed.
 - [ ] **6.3 RED/GREEN queue:** Add strict parsing and admission tests for a V2
   child and release block. Prove policy runs before journal reservation, one
   child action is reserved before `pueue add`, retry and resume bind a prior
@@ -497,23 +490,24 @@ integration only, and esbuild for generated runtime bundles.
   tasks reserve from the approved base and then the first task's exact committed
   candidate. A package-brief mismatch refuses before reservation. Implement
   with injected services and the family ledger.
-- [ ] **6.4 RED/GREEN compiled gates:** Move every existing gate-eval and
-  merge-gate behavioral case from Bats into injected TypeScript tests. Prove
+- [ ] **6.4 RED/GREEN release gates:** Extend the existing gate-eval and
+  merge-gate Bats suites. Prove
   release policy runs only after the complete general result exists, uses its
   frozen candidate, records the captured policy result in gate evidence, and
   can turn a pass into failure. Test the exact release block, named-branch
   commit equality, policy after freshness, and the only `MERGEABLE` line. The
-  compiled gate-eval and merge-check modes require expected action `integrate`.
-  a valid registered `verify` block refuses at both. Publication requires
+  gate-eval and merge-check require expected action `integrate`. A valid
+  registered `verify` block refuses at both. Publication requires
   expected action `publish`. Prove
   missing artifacts, coverage failure, malformed or unregistered evidence,
   `WARNING`, `BLOCKED`, `UNVERIFIED`, nonempty integration findings, wrong
-  branch, and mutable-policy bait fail closed. Shell adapters only forward to
-  the one TypeScript artifact and preserve existing byte contracts. Update the installed
+  branch, and mutable-policy bait fail closed. The release-policy adapter only
+  forwards to the TypeScript artifact. Gate and merge preserve their existing
+  byte contracts. Update the installed
   Foreman skill with the exact V2 queue, receipt registration, lifecycle, gate,
   and merge forms while retaining the pre-activation V1 form.
-- [ ] **6.5 VERIFY:** Run the three thin-adapter Bats files through the
-  serialized `gate` queue, run release-policy, release-boundary, and queue
+- [ ] **6.5 VERIFY:** Run the three release-boundary Bats files through the
+  serialized `gate` queue, run release-policy and queue
   TypeScript tests plus a clean composite typecheck, and inspect traces to
   prove no adapter call happens before the general gate, no provider starts
   before V2 policy and reservation succeed, and merge stdout remains one line.

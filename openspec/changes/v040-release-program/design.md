@@ -216,15 +216,14 @@ The bootstrap path scope is closed to these paths:
 
 No other product path is admitted.
 The runtime builder emits `release-coverage`, `release-admission`,
-`release-authority`, and `release-policy` artifacts. `release-policy.sh`,
-`gate-eval.sh`, and `merge-gate.sh` become one-artifact adapters that only
-locate Node and forward to `release-policy`. Compiled TypeScript owns the
-current general gate, merge-base, freshness, event, and output behavior plus
-coverage and action admission. Gate evaluation runs policy only after the
-general result. Merge check runs it against the named branch before it can
-return `MERGEABLE` and keeps the one-line contract. Gate and merge require the
-non-caller-controlled expected action `integrate`. Publication requires
-`publish`. Hostile tests prove that a valid registered `verify` downgrade, a
+`release-authority`, and `release-policy` artifacts. `release-policy.sh` is the
+one-artifact adapter for the compiled policy. The established `gate-eval.sh`
+and `merge-gate.sh` boundaries retain their general gate, merge-base,
+freshness, event, and output behavior, then invoke the compiled release policy.
+Gate evaluation runs policy only after the general result. Merge check runs it
+against the named branch before it can return `MERGEABLE` and keeps the one-line
+contract. Gate and merge require the non-caller-controlled expected action
+`integrate`. Publication requires `publish`. Hostile tests prove that a valid registered `verify` downgrade, a
 missing artifact, failed coverage, or invalid action evidence fails closed.
 The exact runtime verifier and installed-runtime decoder treat all four release
 artifacts as required. Their tests compare two clean builds, tracked

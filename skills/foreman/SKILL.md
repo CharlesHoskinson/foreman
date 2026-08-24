@@ -234,7 +234,7 @@ Before the first actionful dispatch:
 1. Verify the installed runtime. Treat a missing or invalid
    `runtime/dist/execution-guard.js` artifact as `NOT_READY`.
 2. Create one contract with
-   `execution-guard.sh create --state-root ABS --contract-file ABS`.
+   `node skills/foreman/runtime/dist/execution-guard.js create --state-root ABS --contract-file ABS`.
 3. Keep the returned contract identifier and SHA-256 digest for the complete
    implementation, verification, audit, correction, Council, retry, resume,
    integration, and publication path.
@@ -245,6 +245,57 @@ The queue syntax is:
 `lane-queue.sh add GROUP --endstop-state-root ABS --endstop-contract-id ID
 --endstop-contract-sha SHA256 --endstop-action ACTION
 --endstop-candidate-sha SHA256 -- CMD [ARGS...]`
+
+This V1 form remains valid only before a v0.4 family is active. After family
+activation, every child queue request uses this fixed release block:
+
+```text
+--endstop-state-root ABS --endstop-contract-id ROOT_ID
+--endstop-contract-sha ROOT_SHA --endstop-family-sha FAMILY_SHA
+--endstop-child-id CHILD_ID --endstop-action ACTION
+--endstop-candidate-sha SHA256 --release-program v040
+--release-phase PHASE --release-owner PACKAGE --release-repo ABS
+--release-candidate-commit SHA40 --release-register ABS
+--release-evidence ABS
+```
+
+The V2 queue form is `lane-queue.sh add GROUP RELEASE_BLOCK -- CMD
+[ARGS...]`. `provider_retry` and `resume` insert
+`--endstop-prior-reservation-id ID` between `GROUP` and `RELEASE_BLOCK`.
+The queue runs release policy, reserves one child action, and only then starts
+the queue task.
+
+Use the installed digest-authority runtime to register action evidence:
+
+```text
+node skills/foreman/runtime/dist/release-authority.js register --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id CHILD_ID --action ACTION --evidence ABS
+node skills/foreman/runtime/dist/release-authority.js register-outcome --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id CHILD_ID --outcome ABS
+node skills/foreman/runtime/dist/release-authority.js register-evaluation-verdict --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id v040-t8-evaluation --verdict ABS
+```
+
+Use the installed execution-guard runtime for family and lifecycle state:
+
+```text
+node skills/foreman/runtime/dist/execution-guard.js register-family-authority --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --manifest ABS --source ABS --briefs ABS --audit-receipt ABS --user-receipt ABS
+node skills/foreman/runtime/dist/execution-guard.js activate-family --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --manifest ABS
+node skills/foreman/runtime/dist/execution-guard.js family-status --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA
+node skills/foreman/runtime/dist/execution-guard.js child-status --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id CHILD_ID
+```
+
+The six child lifecycle subcommands are `child-record-product-change`,
+`child-record-milestone`, `child-record-blocking`,
+`child-record-external-failure`, `child-cancel`, and `child-invalidate`. Each
+starts with `--state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA
+--family-sha FAMILY_SHA --child-id CHILD_ID`. Product change then requires
+`--reservation-id ID --repo ABS --candidate-commit SHA40`. Milestone requires
+`--milestone MILESTONE --outcome ABS`. Blocking and external failure require
+`--outcome ABS`. Cancel and invalidate require `--approval ABS`.
+
+The integration gate forms are `gate-eval.sh TASK_ID RELEASE_BLOCK` and
+`merge-gate.sh check RUN LANE BRANCH RELEASE_BLOCK`. Both require action
+`integrate`. Merge also requires `BRANCH^{commit}` to equal the release-block
+candidate commit and keeps one stdout verdict line. `merge-gate.sh record RUN
+LANE` has no release block.
 
 An uncontracted queue request is invalid. A refused, exhausted, stalled, or
 terminal request starts no queue or vendor process. Do not create a new

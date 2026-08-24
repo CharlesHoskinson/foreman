@@ -1007,12 +1007,14 @@ Queue admission invokes TypeScript release policy before one atomic child
 reservation. The complete gate forms are `gate-eval.sh TASK_ID RELEASE_BLOCK`
 and `merge-gate.sh check RUN LANE BRANCH RELEASE_BLOCK`. Merge resolves
 `BRANCH^{commit}` and requires it to equal `--release-candidate-commit`; release
-admission never inspects caller `HEAD`. Gate captures the policy result in its
-decision evidence. Merge suppresses policy JSON from stdout and keeps exactly
-one `MERGEABLE` or `NOT_MERGEABLE` line. The unchanged V1 bootstrap queue form
-remains valid only before family activation. Adapter tests cover only literal
-forwarding and byte preservation. TypeScript tests own every gate and merge
-behavior case that the former Bats suites covered.
+admission never inspects caller `HEAD`. The established shell gates retain the
+general gate, freshness, event, and output rules. They call the one compiled
+release-policy artifact only after the applicable general result passes. Gate
+captures the policy result in its decision evidence. Merge suppresses policy
+JSON from stdout and keeps exactly one `MERGEABLE` or `NOT_MERGEABLE` line. The
+unchanged V1 bootstrap queue form remains valid only before family activation.
+Bats tests cover the general shell boundary, call ordering, and byte contracts.
+TypeScript tests own release-policy behavior.
 
 The host receipt producer forms are:
 
