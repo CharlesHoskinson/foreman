@@ -4756,4 +4756,3 @@ test("general bounded reader accepts a regular file through a symlinked ancestor
     rmSync(realRoot, { recursive: true, force: true });
   }
 });
-
