@@ -441,7 +441,11 @@ type CallLog = {
     contractSha256: string;
     familySha256: string;
   }>;
-  readonly fileReads: Array<{ path: string; maxBytes: number }>;
+  readonly fileReads: Array<{
+    path: string;
+    maxBytes: number;
+    containmentRoot?: string | undefined;
+  }>;
   repositoryRootResolves: number;
 };
 
@@ -659,6 +663,7 @@ function makeServices(
       capture.log.fileReads.push({
         path: input.path,
         maxBytes: input.maxBytes,
+        containmentRoot: input.containmentRoot,
       });
       assert.equal(input.maxBytes, ONE_MIB);
       if (options.fileThrowPath === input.path) {
@@ -1320,6 +1325,10 @@ test("bootstrap assembly uses sealed Track-1 fixture and injected repository roo
     );
     for (const read of capture.log.fileReads) {
       assert.equal(read.maxBytes, ONE_MIB);
+      assert.equal(
+        read.containmentRoot,
+        read.path === REGISTER ? undefined : REPO,
+      );
     }
     assertCanonicalResult(
       capture,
@@ -1508,6 +1517,7 @@ test("lane and release authority bind the real family child and absolute brief p
       normalizedRepositoryRelative(briefReads[0]!.path),
       BRIEF_REL,
     );
+    assert.equal(briefReads[0]!.containmentRoot, REPO);
     assert.equal(
       capture.log.fileReads.some((r) => r.path === TRACK1_BRIEF_ABS),
       false,
@@ -2449,6 +2459,60 @@ test("live fileRead.readBounded enforces 1 MiB and rejects non-regular authority
               .pipe(Effect.either),
           );
           assert.equal(linked._tag, "Left");
+        } finally {
+          rmSync(outside, { recursive: true, force: true });
+        }
+      },
+    );
+
+    const repository = join(temporary, "repository");
+    const nested = join(repository, "openspec", "changes", "package");
+    mkdirSync(nested, { recursive: true });
+    const nestedFile = join(nested, "release-brief.json");
+    const nestedBytes = utf8("nested authority\n");
+    writeFileSync(nestedFile, nestedBytes);
+    const nestedRead = await Effect.runPromise(
+      liveReleaseCoverageCliServices.fileRead.readBounded({
+        path: nestedFile,
+        maxBytes: ONE_MIB,
+        containmentRoot: repository,
+      }),
+    );
+    assert.deepEqual(nestedRead, nestedBytes);
+
+    await t.test(
+      "intermediate directory symlink cannot escape repository containment",
+      async (st) => {
+        const outside = mkdtempSync(join(tmpdir(), "release-coverage-outside-"));
+        try {
+          const outsidePackage = join(outside, "package");
+          mkdirSync(outsidePackage);
+          const outsideBytes = utf8("matching outside authority\n");
+          writeFileSync(join(outsidePackage, "release-brief.json"), outsideBytes);
+          const changes = join(repository, "linked-changes");
+          try {
+            symlinkSync(outside, changes, "dir");
+          } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
+              st.skip(`symlink creation not permitted: ${code}`);
+              return;
+            }
+            throw error;
+          }
+          const escaped = await Effect.runPromise(
+            liveReleaseCoverageCliServices.fileRead
+              .readBounded({
+                path: join(changes, "package", "release-brief.json"),
+                maxBytes: ONE_MIB,
+                containmentRoot: repository,
+              })
+              .pipe(Effect.either),
+          );
+          assert.equal(escaped._tag, "Left");
+          if (escaped._tag === "Right") {
+            assert.notDeepEqual(escaped.right, outsideBytes);
+          }
         } finally {
           rmSync(outside, { recursive: true, force: true });
         }
