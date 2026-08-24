@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { devNull } from "node:os";
 import { isAbsolute, posix, relative, resolve, sep, win32 } from "node:path";
-import { Effect, Layer } from "effect";
+import { Effect } from "effect";
 import { canonicalize, isSha256Hex } from "@foreman/core";
 import {
   inspectReleaseCoverageRegisterV1,
@@ -1405,127 +1405,26 @@ function requireCapturedStdoutBytes(
   return Effect.succeed(result.stdoutBytes);
 }
 
-const liveProcessAndPathLayer = Layer.mergeAll(liveProcessExec, livePathLookup);
-
-export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
-  fileRead: {
-    resolveRepositoryRoot: () =>
+export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices =
+  makeLiveReleaseCoverageCliServices({
+    runCaptured: (input) =>
       Effect.gen(function* () {
         const exec = yield* ProcessExec;
-        const cwd = process.cwd();
-        const captured = yield* exec.runCaptured({
-          command: "git",
-          args: gitArgv(["-C", cwd, "rev-parse", "--show-toplevel"]),
-          env: sanitizedGitEnv(),
-          maxOutputBytes: ONE_MIB,
-          timeoutMs: GIT_TIMEOUT_MS,
-        });
-        const bytes = yield* requireCapturedStdoutBytes(captured);
-        const top = parseGitTopLevel(bytes);
-        if (top === null) {
-          return yield* Effect.fail({ _tag: "GitTopLevelInvalid" as const });
-        }
-        return top;
+        return yield* exec.runCaptured(input);
       }).pipe(Effect.provide(liveProcessExec)),
-    readBounded: (input) =>
+    which: (name) =>
+      Effect.gen(function* () {
+        const lookup = yield* PathLookup;
+        return yield* lookup.which(name);
+      }).pipe(Effect.provide(livePathLookup)),
+    realpath: (path) =>
       Effect.try({
-        try: () =>
-          readBoundedBytesLive(
-            input.path,
-            input.maxBytes,
-            input.containmentRoot,
-          ),
+        try: () => realpathSync(path),
         catch: (error) => error,
       }),
-  },
-  openspecList: {
-    listJson: (input) =>
-      Effect.gen(function* () {
-        const exec = yield* ProcessExec;
-        const lookup = yield* PathLookup;
-        const resolved = yield* lookup.which("openspec");
-        if (resolved === null) {
-          return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
-        }
-        if (isPhysicallyInsideRepository(input.repository, resolved)) {
-          return yield* Effect.fail({ _tag: "OpenSpecInsideRepository" as const });
-        }
-        const plan = planOpenSpecInvocationV1({
-          platform: process.platform,
-          comSpec: process.env.ComSpec ?? process.env.COMSPEC,
-          resolvedOpenSpec: resolved,
-        });
-        if (plan._tag === "Invalid") {
-          return yield* Effect.fail({ _tag: "OpenSpecUnavailable" as const });
-        }
-        const captured = yield* exec.runCaptured({
-          command: plan.command,
-          args: [...plan.args],
-          cwd: input.repository,
-          maxOutputBytes: input.maxBytes,
-          timeoutMs: OPENSPEC_TIMEOUT_MS,
-        });
-        return yield* requireCapturedStdoutBytes(captured);
-      }).pipe(Effect.provide(liveProcessAndPathLayer)),
-  },
-  gitChangedPaths: {
-    discover: (input) =>
-      Effect.gen(function* () {
-        const exec = yield* ProcessExec;
-        const env = sanitizedGitEnv();
-        const tracked = yield* exec.runCaptured({
-          command: "git",
-          args: gitArgv([
-            "-C",
-            input.repository,
-            "diff",
-            "--name-only",
-            "-z",
-            "--no-ext-diff",
-            "--no-textconv",
-            input.baselineCommit,
-            "--",
-            SUPERPOWERS_SPECS,
-            SUPERPOWERS_PLANS,
-          ]),
-          env,
-          maxOutputBytes: ONE_MIB,
-          timeoutMs: GIT_TIMEOUT_MS,
-        });
-        const trackedBytes = yield* requireCapturedStdoutBytes(tracked);
-        const trackedPaths = parseNulDelimitedGitPaths(trackedBytes);
-        if (trackedPaths === null) {
-          return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
-        }
-        const untracked = yield* exec.runCaptured({
-          command: "git",
-          args: gitArgv([
-            "-C",
-            input.repository,
-            "ls-files",
-            "--others",
-            "--exclude-standard",
-            "-z",
-            "--",
-            SUPERPOWERS_SPECS,
-            SUPERPOWERS_PLANS,
-          ]),
-          env,
-          maxOutputBytes: ONE_MIB,
-          timeoutMs: GIT_TIMEOUT_MS,
-        });
-        const untrackedBytes = yield* requireCapturedStdoutBytes(untracked);
-        const untrackedPaths = parseNulDelimitedGitPaths(untrackedBytes);
-        if (untrackedPaths === null) {
-          return yield* Effect.fail({ _tag: "GitPathsInvalid" as const });
-        }
-        return dedupeUtf8ByteOrder([...trackedPaths, ...untrackedPaths]);
-      }).pipe(Effect.provide(liveProcessExec)),
-  },
-  familySource: {
-    resolve: () =>
-      Effect.fail({
-        _tag: "FamilySourceUnavailable" as const,
-      }),
-  },
-};
+    platform: process.platform,
+    comSpec: process.env.ComSpec ?? process.env.COMSPEC,
+    cwd: () => process.cwd(),
+    nullDevice: devNull,
+    baseEnvironment: process.env,
+  });
