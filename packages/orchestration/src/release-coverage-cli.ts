@@ -20,7 +20,7 @@ import {
   win32,
 } from "node:path";
 import { Effect } from "effect";
-import { canonicalize, isSha256Hex } from "@foreman/core";
+import { canonicalize, isSha256Hex, sha256Hex } from "@foreman/core";
 import {
   inspectReleaseCoverageRegisterV1,
   sanitizedGitEnv,
@@ -39,6 +39,8 @@ import {
   type CapturedProcessResult,
   type RunCapturedOptions,
 } from "./queue-services.js";
+import { decodeExecutionFamilySourceFileV1, isExecutionFamilyFailure } from "./execution-contract.js";
+import { EndstopLedger, makeLiveEndstopLedgerLayer } from "./execution-ledger.js";
 
 const ONE_MIB = 1_048_576;
 const EXIT_OK = 0;
@@ -1651,8 +1653,7 @@ function requireCapturedStdoutBytes(
   return Effect.succeed(result.stdoutBytes);
 }
 
-export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices =
-  makeLiveReleaseCoverageCliServices({
+const baseLiveReleaseCoverageCliServices = makeLiveReleaseCoverageCliServices({
     runCaptured: (input) =>
       Effect.gen(function* () {
         const exec = yield* ProcessExec;
@@ -1680,3 +1681,47 @@ export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices =
     nullDevice: devNull,
     baseEnvironment: process.env,
   });
+
+export const liveReleaseCoverageCliServices: ReleaseCoverageCliServices = {
+  ...baseLiveReleaseCoverageCliServices,
+  familySource: {
+    resolve: (input) =>
+      Effect.gen(function* () {
+        const ledger = yield* EndstopLedger;
+        const status = yield* ledger.familyStatus({
+          rootContractId: input.contractId,
+          rootContractSha256: input.contractSha256,
+          familySha256: input.familySha256,
+        });
+        const sourcePath = join(
+          input.stateRoot,
+          "release-families",
+          input.familySha256,
+          "source.json",
+        );
+        const sourceBytes = yield* Effect.try({
+          try: () => readBoundedBytesLive(sourcePath, ONE_MIB),
+          catch: (error) => error,
+        });
+        if (
+          sha256Hex(sourceBytes) !== status.authority.sourceSha256 ||
+          status.family.manifest.sourceSha256 !== status.authority.sourceSha256
+        ) {
+          return yield* Effect.fail({ _tag: "FamilySourceMismatch" as const });
+        }
+        const source = decodeExecutionFamilySourceFileV1(sourceBytes);
+        if (isExecutionFamilyFailure(source)) {
+          return yield* Effect.fail({ _tag: "FamilySourceInvalid" as const });
+        }
+        return {
+          stateRoot: input.stateRoot,
+          contractId: input.contractId,
+          contractSha256: input.contractSha256,
+          familySha256: input.familySha256,
+          source,
+        };
+      }).pipe(
+        Effect.provide(makeLiveEndstopLedgerLayer(input.stateRoot)),
+      ),
+  },
+};

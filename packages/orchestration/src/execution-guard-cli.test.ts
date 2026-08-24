@@ -22,6 +22,7 @@ import {
   resolveProductChangeLive,
   runEndstopCli,
 } from "./execution-guard-cli.js";
+import { liveReleaseCoverageCliServices } from "./release-coverage-cli.js";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -450,6 +451,19 @@ describe("execution-guard CLI", () => {
       );
       assert.equal(activateCode, 0, stderr);
       assert.match(stdout, /"state":"Running"/);
+      const resolvedFamily = await Effect.runPromise(
+        liveReleaseCoverageCliServices.familySource.resolve({
+          stateRoot: root,
+          contractId: value.contractId,
+          contractSha256: rootContractSha256,
+          familySha256: derived.familySha256,
+        }),
+      );
+      assert.equal(resolvedFamily.source.children.length, 8);
+      assert.equal(
+        resolvedFamily.source.children[0]?.packageId,
+        "project-registry",
+      );
 
       stdout = "";
       const statusCode = await Effect.runPromise(
