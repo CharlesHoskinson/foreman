@@ -28,8 +28,10 @@ import type {
   RoadmapAssignmentV1,
 } from "@foreman/policy";
 import {
+  liveProcessExec,
   liveReleaseCoverageCliServices,
   makeLiveReleaseCoverageCliServices,
+  ProcessExec,
   runReleaseCoverageCli,
   type CapturedProcessResult,
   type ReleaseCoverageCliIo,
@@ -2533,6 +2535,76 @@ test("live fileRead.readBounded enforces 1 MiB and rejects non-regular authority
     assert.deepEqual(nestedRead, nestedBytes);
 
     await t.test(
+      "containment accepts a repository root reached through an alias",
+      async (st) => {
+        const repositoryAlias = join(temporary, "repository-alias");
+        try {
+          symlinkSync(
+            repository,
+            repositoryAlias,
+            process.platform === "win32" ? "junction" : "dir",
+          );
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
+            st.skip(`symlink creation not permitted: ${code}`);
+            return;
+          }
+          throw error;
+        }
+        const aliasedRead = await Effect.runPromise(
+          liveReleaseCoverageCliServices.fileRead.readBounded({
+            path: join(
+              repositoryAlias,
+              "openspec",
+              "changes",
+              "package",
+              "release-brief.json",
+            ),
+            maxBytes: ONE_MIB,
+            containmentRoot: repositoryAlias,
+          }),
+        );
+        assert.deepEqual(aliasedRead, nestedBytes);
+      },
+    );
+
+    await t.test(
+      "intermediate symlink to an in-repository directory fails closed",
+      async (st) => {
+        const physicalInside = join(repository, "physical-inside");
+        const physicalPackage = join(physicalInside, "package");
+        mkdirSync(physicalPackage, { recursive: true });
+        writeFileSync(join(physicalPackage, "release-brief.json"), nestedBytes);
+        const insideAlias = join(repository, "inside-alias");
+        try {
+          symlinkSync(
+            physicalInside,
+            insideAlias,
+            process.platform === "win32" ? "junction" : "dir",
+          );
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "EPERM" || code === "EACCES" || code === "ENOTSUP") {
+            st.skip(`symlink creation not permitted: ${code}`);
+            return;
+          }
+          throw error;
+        }
+        const result = await Effect.runPromise(
+          liveReleaseCoverageCliServices.fileRead
+            .readBounded({
+              path: join(insideAlias, "package", "release-brief.json"),
+              maxBytes: ONE_MIB,
+              containmentRoot: repository,
+            })
+            .pipe(Effect.either),
+        );
+        assert.equal(result._tag, "Left");
+      },
+    );
+
+    await t.test(
       "intermediate directory symlink cannot escape repository containment",
       async (st) => {
         const outside = mkdtempSync(join(tmpdir(), "release-coverage-outside-"));
@@ -3109,11 +3181,14 @@ test("live OpenSpec adapter rejects an outside alias into the repository", async
   try {
     const repository = join(temporary, "repository");
     const outside = join(temporary, "outside");
+    const windows = process.platform === "win32";
+    const executableName = windows ? "openspec.cmd" : "openspec";
+    const comSpec = windows ? "C:\\Windows\\System32\\cmd.exe" : undefined;
     mkdirSync(join(repository, "tools"), { recursive: true });
     mkdirSync(outside);
-    const repositoryTool = join(repository, "tools", "openspec");
+    const repositoryTool = join(repository, "tools", executableName);
     writeFileSync(repositoryTool, "repository-selected executable\n");
-    const alias = join(outside, "openspec");
+    const alias = join(outside, executableName);
     try {
       symlinkSync(repositoryTool, alias);
     } catch (error) {
@@ -3124,7 +3199,18 @@ test("live OpenSpec adapter rejects an outside alias into the repository", async
       }
       throw error;
     }
+    assert.equal(realpathSync(alias), realpathSync(repositoryTool));
+    assert.equal(
+      planOpenSpecInvocationV1({
+        platform: process.platform,
+        comSpec,
+        resolvedOpenSpec: alias,
+      })._tag,
+      "Ok",
+      "fixture must pass command planning before containment rejects it",
+    );
     let processCalls = 0;
+    const realpathCalls: string[] = [];
     const services = makeLiveReleaseCoverageCliServices({
       runCaptured: () => {
         processCalls += 1;
@@ -3133,11 +3219,14 @@ test("live OpenSpec adapter rejects an outside alias into the repository", async
       which: () => Effect.succeed(alias),
       realpath: (path) =>
         Effect.try({
-          try: () => realpathSync(path),
+          try: () => {
+            realpathCalls.push(path);
+            return realpathSync(path);
+          },
           catch: (error) => error,
         }),
       platform: process.platform,
-      comSpec: process.env.ComSpec ?? process.env.COMSPEC,
+      comSpec,
       cwd: () => repository,
       nullDevice: devNull,
       baseEnvironment: process.env,
@@ -3148,8 +3237,93 @@ test("live OpenSpec adapter rejects an outside alias into the repository", async
         .pipe(Effect.either),
     );
     assert.equal(result._tag, "Left");
+    assert.equal(realpathCalls.includes(repository), true);
+    assert.equal(realpathCalls.includes(alias), true);
     assert.equal(processCalls, 0);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
 });
+
+test("live OpenSpec adapter rejects a physical ComSpec inside the repository", async () => {
+  const repository = "C:\\Work\\Repository";
+  const comSpec = "C:\\Work\\Repository\\tools\\cmd.exe";
+  const resolved = "C:\\External\\OpenSpec\\openspec.cmd";
+  let processCalls = 0;
+  const services = makeLiveReleaseCoverageCliServices({
+    runCaptured: () => {
+      processCalls += 1;
+      return Effect.die("repository-selected ComSpec ran");
+    },
+    which: () => Effect.succeed(resolved),
+    realpath: (path) => Effect.succeed(path),
+    platform: "win32",
+    comSpec,
+    cwd: () => repository,
+    nullDevice: "NUL",
+    baseEnvironment: { PATH: "C:\\External\\OpenSpec" },
+  });
+  const result = await Effect.runPromise(
+    services.openspecList
+      .listJson({ repository, argv: ["list", "--json"], maxBytes: ONE_MIB })
+      .pipe(Effect.either),
+  );
+  assert.equal(result._tag, "Left");
+  assert.equal(processCalls, 0);
+});
+
+test(
+  "live OpenSpec adapter executes the native Windows CMD plan",
+  { skip: process.platform !== "win32" },
+  async () => {
+    const temporary = mkdtempSync(join(tmpdir(), "release-coverage-native-cmd-"));
+    try {
+      const repository = join(temporary, "repository");
+      const toolDirectory = join(temporary, "OpenSpec Tool");
+      mkdirSync(repository);
+      mkdirSync(toolDirectory);
+      const shim = join(toolDirectory, "openspec.cmd");
+      writeFileSync(
+        shim,
+        [
+          "@echo off",
+          'if not "%~1"=="list" exit /b 91',
+          'if not "%~2"=="--json" exit /b 92',
+          'echo {"changes":[]}',
+          "exit /b 0",
+          "",
+        ].join("\r\n"),
+      );
+      const comSpec = process.env.ComSpec ?? process.env.COMSPEC;
+      if (comSpec === undefined) throw new Error("Windows ComSpec is unavailable");
+      const services = makeLiveReleaseCoverageCliServices({
+        runCaptured: (input) =>
+          Effect.gen(function* () {
+            const exec = yield* ProcessExec;
+            return yield* exec.runCaptured(input);
+          }).pipe(Effect.provide(liveProcessExec)),
+        which: () => Effect.succeed(shim),
+        realpath: (path) =>
+          Effect.try({
+            try: () => realpathSync(path),
+            catch: (error) => error,
+          }),
+        platform: "win32",
+        comSpec,
+        cwd: () => repository,
+        nullDevice: devNull,
+        baseEnvironment: process.env,
+      });
+      const bytes = await Effect.runPromise(
+        services.openspecList.listJson({
+          repository,
+          argv: ["list", "--json"],
+          maxBytes: ONE_MIB,
+        }),
+      );
+      assert.equal(Buffer.from(bytes).toString("utf8"), '{"changes":[]}\r\n');
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  },
+);
