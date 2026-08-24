@@ -1091,17 +1091,20 @@ function readBoundedBytesLive(
   }
 }
 
-function isWindowsSafeAbsolutePath(value: string): boolean {
+function isWindowsSafeAbsolutePath(
+  value: string,
+  expectedBasename?: string,
+): boolean {
   if (typeof value !== "string" || value.length === 0) return false;
-  if (
-    value.includes("\0") ||
-    value.includes("\r") ||
-    value.includes("\n") ||
-    value.includes('"')
-  ) {
-    return false;
+  if (!win32.isAbsolute(value)) return false;
+  if (expectedBasename !== undefined) {
+    if (win32.basename(value).toLowerCase() !== expectedBasename) return false;
   }
-  return win32.isAbsolute(value);
+  for (const character of value) {
+    const code = character.charCodeAt(0);
+    if (code <= 0x1f || code === 0x7f) return false;
+  }
+  return !/["%!^&|<>()]/u.test(value);
 }
 
 /**
@@ -1126,7 +1129,9 @@ export function planOpenSpecInvocationV1(input: {
     if (typeof comSpec !== "string" || comSpec.length === 0) {
       return { _tag: "Invalid" };
     }
-    if (!isWindowsSafeAbsolutePath(comSpec)) return { _tag: "Invalid" };
+    if (!isWindowsSafeAbsolutePath(comSpec, "cmd.exe")) {
+      return { _tag: "Invalid" };
+    }
     if (!isWindowsSafeAbsolutePath(resolved)) return { _tag: "Invalid" };
     if (!/\.cmd$/i.test(resolved)) return { _tag: "Invalid" };
     return {
