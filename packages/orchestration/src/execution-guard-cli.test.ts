@@ -182,6 +182,45 @@ describe("execution-guard CLI", () => {
     );
   });
 
+  it("parses all six fixed child lifecycle forms", () => {
+    const common = [
+      "--state-root", "/state",
+      "--contract-id", "root-contract",
+      "--contract-sha", A,
+      "--family-sha", B,
+      "--child-id", "v040-t2-project-registry",
+    ];
+    const cases = [
+      [
+        "ChildRecordProductChange",
+        [
+          "child-record-product-change", ...common,
+          "--reservation-id", "reservation-1",
+          "--repo", "/repo",
+          "--candidate-commit", "1".repeat(40),
+        ],
+      ],
+      [
+        "ChildRecordMilestone",
+        [
+          "child-record-milestone", ...common,
+          "--milestone", "checks",
+          "--outcome", "/outcome.json",
+        ],
+      ],
+      ["ChildRecordBlocking", ["child-record-blocking", ...common, "--outcome", "/outcome.json"]],
+      [
+        "ChildRecordExternalFailure",
+        ["child-record-external-failure", ...common, "--outcome", "/outcome.json"],
+      ],
+      ["ChildCancel", ["child-cancel", ...common, "--approval", "/approval.json"]],
+      ["ChildInvalidate", ["child-invalidate", ...common, "--approval", "/approval.json"]],
+    ] as const;
+    for (const [expected, argv] of cases) {
+      assert.equal(parseEndstopArgv(argv)._tag, expected);
+    }
+  });
+
   it("creates and recovers one persistent Endstop contract", async () => {
     const root = mkdtempSync(join(tmpdir(), "endstop-cli-"));
     try {

@@ -1,5 +1,6 @@
 import {
   canonicalize,
+  isCommitSha40,
   isCoreFailure,
   isSha256Hex,
   parseJsonRejectDuplicateKeys,
@@ -20,13 +21,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
-import { isUtcSecondTimestamp } from "@foreman/event-log";
+import { decodeRunId, isUtcSecondTimestamp } from "@foreman/event-log";
 import { Effect } from "effect";
 import {
   decodeExecutionContractV1,
   decodeExecutionContractFamilyV2,
   deriveExecutionContractFamilyV2,
   executionContractFamilySha256,
+  executionMilestones,
   isExecutionContractFailure,
   isExecutionFamilyFailure,
   type ExecutionContractFamilyV2,
@@ -194,6 +196,47 @@ export type ParsedEndstopArgv =
       readonly contractSha256: string;
       readonly manifestFile: string;
     }
+  | {
+      readonly _tag: "ChildRecordProductChange";
+      readonly stateRoot: string;
+      readonly contractId: string;
+      readonly contractSha256: string;
+      readonly familySha256: string;
+      readonly childId: string;
+      readonly reservationId: string;
+      readonly repository: string;
+      readonly candidateCommit: string;
+    }
+  | {
+      readonly _tag: "ChildRecordMilestone";
+      readonly stateRoot: string;
+      readonly contractId: string;
+      readonly contractSha256: string;
+      readonly familySha256: string;
+      readonly childId: string;
+      readonly milestone: (typeof executionMilestones)[number];
+      readonly outcomeFile: string;
+    }
+  | {
+      readonly _tag:
+        | "ChildRecordBlocking"
+        | "ChildRecordExternalFailure";
+      readonly stateRoot: string;
+      readonly contractId: string;
+      readonly contractSha256: string;
+      readonly familySha256: string;
+      readonly childId: string;
+      readonly outcomeFile: string;
+    }
+  | {
+      readonly _tag: "ChildCancel" | "ChildInvalidate";
+      readonly stateRoot: string;
+      readonly contractId: string;
+      readonly contractSha256: string;
+      readonly familySha256: string;
+      readonly childId: string;
+      readonly approvalFile: string;
+    }
   | { readonly _tag: "Invalid" };
 
 function stripNodeArgv(argv: readonly string[]): readonly string[] {
@@ -205,6 +248,111 @@ function stripNodeArgv(argv: readonly string[]): readonly string[] {
 
 export function parseEndstopArgv(argv: readonly string[]): ParsedEndstopArgv {
   const args = stripNodeArgv(argv);
+  const childPrefix =
+    args[1] === "--state-root" &&
+    typeof args[2] === "string" &&
+    isAbsolute(args[2]) &&
+    args[3] === "--contract-id" &&
+    typeof args[4] === "string" &&
+    typeof decodeRunId(args[4]) === "string" &&
+    args[5] === "--contract-sha" &&
+    typeof args[6] === "string" &&
+    isSha256Hex(args[6]) &&
+    args[7] === "--family-sha" &&
+    typeof args[8] === "string" &&
+    isSha256Hex(args[8]) &&
+    args[9] === "--child-id" &&
+    typeof args[10] === "string" &&
+    typeof decodeRunId(args[10]) === "string";
+  if (
+    args.length === 17 &&
+    args[0] === "child-record-product-change" &&
+    childPrefix &&
+    args[11] === "--reservation-id" &&
+    typeof args[12] === "string" &&
+    typeof decodeRunId(args[12]) === "string" &&
+    args[13] === "--repo" &&
+    typeof args[14] === "string" &&
+    isAbsolute(args[14]) &&
+    args[15] === "--candidate-commit" &&
+    typeof args[16] === "string" &&
+    isCommitSha40(args[16])
+  ) {
+    return {
+      _tag: "ChildRecordProductChange",
+      stateRoot: args[2]!,
+      contractId: args[4]!,
+      contractSha256: args[6]!,
+      familySha256: args[8]!,
+      childId: args[10]!,
+      reservationId: args[12]!,
+      repository: args[14]!,
+      candidateCommit: args[16]!,
+    };
+  }
+  if (
+    args.length === 15 &&
+    args[0] === "child-record-milestone" &&
+    childPrefix &&
+    args[11] === "--milestone" &&
+    typeof args[12] === "string" &&
+    executionMilestones.includes(
+      args[12] as (typeof executionMilestones)[number],
+    ) &&
+    args[13] === "--outcome" &&
+    typeof args[14] === "string" &&
+    isAbsolute(args[14])
+  ) {
+    return {
+      _tag: "ChildRecordMilestone",
+      stateRoot: args[2]!,
+      contractId: args[4]!,
+      contractSha256: args[6]!,
+      familySha256: args[8]!,
+      childId: args[10]!,
+      milestone: args[12] as (typeof executionMilestones)[number],
+      outcomeFile: args[14]!,
+    };
+  }
+  if (
+    args.length === 13 &&
+    (args[0] === "child-record-blocking" ||
+      args[0] === "child-record-external-failure") &&
+    childPrefix &&
+    args[11] === "--outcome" &&
+    typeof args[12] === "string" &&
+    isAbsolute(args[12])
+  ) {
+    return {
+      _tag: args[0] === "child-record-blocking"
+        ? "ChildRecordBlocking"
+        : "ChildRecordExternalFailure",
+      stateRoot: args[2]!,
+      contractId: args[4]!,
+      contractSha256: args[6]!,
+      familySha256: args[8]!,
+      childId: args[10]!,
+      outcomeFile: args[12]!,
+    };
+  }
+  if (
+    args.length === 13 &&
+    (args[0] === "child-cancel" || args[0] === "child-invalidate") &&
+    childPrefix &&
+    args[11] === "--approval" &&
+    typeof args[12] === "string" &&
+    isAbsolute(args[12])
+  ) {
+    return {
+      _tag: args[0] === "child-cancel" ? "ChildCancel" : "ChildInvalidate",
+      stateRoot: args[2]!,
+      contractId: args[4]!,
+      contractSha256: args[6]!,
+      familySha256: args[8]!,
+      childId: args[10]!,
+      approvalFile: args[12]!,
+    };
+  }
   if (
     args.length === 5 &&
     args[0] === "create" &&
@@ -734,6 +882,10 @@ export function runEndstopCli(
       return { _tag: "Family" as const, state: status.family };
     }
 
+    if (parsed._tag !== "Create") {
+      return yield* Effect.fail(new Error("invalid_child_operation"));
+    }
+
     const text = yield* Effect.try({
       try: () => readFileSync(parsed.contractFile, "utf8"),
       catch: () => new Error("contract_read_failed"),
@@ -758,6 +910,7 @@ export function runEndstopCli(
           "invalid_family_authority",
           "invalid_clock",
           "unknown_child",
+          "invalid_child_operation",
         ].includes(error.message)
           ? error.message
           : "contract_read_failed";
