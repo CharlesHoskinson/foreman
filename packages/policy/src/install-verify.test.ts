@@ -70,6 +70,32 @@ const trackedCredentialProfileLane = join(
 const trackedGraphStore = join(trackedRuntime, "dist/graph-store.js");
 const trackedForemanLaunch = join(trackedRuntime, "dist/foreman-launch.js");
 const trackedFmSession = join(trackedRuntime, "dist/fm-session.js");
+const trackedReleaseRuntimeArtifacts = [
+  "release-admission.js",
+  "release-authority.js",
+  "release-coverage.js",
+  "release-policy.js",
+] as const;
+
+function releaseRuntimeMemoryNodes(
+  dist: string,
+  identityPrefix: string,
+): ReadonlyArray<readonly [string, MemoryNode]> {
+  return trackedReleaseRuntimeArtifacts.map((name, index) => {
+    const bytes = readFileSync(join(trackedRuntime, "dist", name));
+    return [
+      `${dist}/${name}`,
+      {
+        kind: "file",
+        bytes,
+        identity: fileIdentity({
+          ino: `${identityPrefix}-release-${index}`,
+          size: bytes.byteLength,
+        }),
+      },
+    ] as const;
+  });
+}
 
 function runVerifySkill(path: string) {
   return Effect.runPromise(
@@ -93,30 +119,17 @@ function seedSkillCopy(label = "skill"): string {
 function seedRuntimeOnly(): string {
   const dir = mkdtempSync(join(tmpdir(), "foreman-iv-rt-"));
   const rt = join(dir, "runtime");
-  mkdirSync(join(rt, "dist"), { recursive: true });
-  writeFileSync(join(rt, "manifest.json"), readFileSync(trackedManifest));
-  cpSync(trackedGuard, join(rt, "dist/destruction-guard.js"));
-  cpSync(trackedPolicy, join(rt, "dist/architecture-policy.js"));
-  cpSync(trackedEndstop, join(rt, "dist/execution-guard.js"));
-  cpSync(trackedQueue, join(rt, "dist/lane-queue.js"));
-  cpSync(trackedRound, join(rt, "dist/lane-round.js"));
-  cpSync(trackedSupervise, join(rt, "dist/lane-supervise.js"));
-  cpSync(trackedPreflight, join(rt, "dist/vendor-preflight.js"));
-  cpSync(trackedToolCheck, join(rt, "dist/tool-check.js"));
-  cpSync(trackedSetup, join(rt, "dist/foreman-setup.js"));
-  cpSync(trackedDependencyDrift, join(rt, "dist/dependency-drift.js"));
-  cpSync(trackedRepoHygiene, join(rt, "dist/repo-hygiene.js"));
-  cpSync(trackedSecretScan, join(rt, "dist/secret-scan.js"));
-  cpSync(trackedCredentialProfile, join(rt, "dist/credential-profile.js"));
-  cpSync(
-    trackedCredentialProfileLane,
-    join(rt, "dist/credential-profile-lane.js"),
-  );
-  cpSync(trackedGraphStore, join(rt, "dist/graph-store.js"));
-  cpSync(trackedFmSession, join(rt, "dist/fm-session.js"));
-  cpSync(trackedTier2Collect, join(rt, "dist/tier2-collect.js"));
-  cpSync(trackedTier2Compare, join(rt, "dist/tier2-compare.js"));
-  cpSync(trackedForemanLaunch, join(rt, "dist/foreman-launch.js"));
+  mkdirSync(rt, { recursive: true });
+  const manifestBytes = readFileSync(trackedManifest);
+  const manifest = JSON.parse(manifestBytes.toString("utf8")) as {
+    readonly artifacts: readonly { readonly relativePath: string }[];
+  };
+  writeFileSync(join(rt, "manifest.json"), manifestBytes);
+  for (const artifact of manifest.artifacts) {
+    const destination = join(rt, artifact.relativePath);
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(join(trackedRuntime, artifact.relativePath), destination);
+  }
   return rt;
 }
 
@@ -614,6 +627,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
+              ...trackedReleaseRuntimeArtifacts,
               "repo-hygiene.js",
               "secret-scan.js",
               "tier2-collect.js",
@@ -836,6 +850,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
           }),
         },
       ],
+      ...releaseRuntimeMemoryNodes(dist, "identity-change"),
     ]);
 
     const layer = makeMemoryInstallFs({
@@ -975,6 +990,7 @@ describe("runtime plugin-drift", () => {
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
+              ...trackedReleaseRuntimeArtifacts,
               "repo-hygiene.js",
               "secret-scan.js",
               "tier2-collect.js",
@@ -1206,6 +1222,7 @@ describe("runtime plugin-drift", () => {
             }),
           },
         ],
+        ...releaseRuntimeMemoryNodes(dist, prefix),
       ]);
     }
 
@@ -1335,6 +1352,7 @@ describe("skill-root and directory stability seams", () => {
               "lane-queue.js",
               "lane-round.js",
               "lane-supervise.js",
+              ...trackedReleaseRuntimeArtifacts,
               "repo-hygiene.js",
               "secret-scan.js",
               "tier2-collect.js",
@@ -1574,6 +1592,7 @@ describe("skill-root and directory stability seams", () => {
           }),
         },
       ],
+      ...releaseRuntimeMemoryNodes(dist, "base"),
     ]);
   }
 
@@ -1793,6 +1812,7 @@ describe("memory InstallFs path separator seam", () => {
             "lane-queue.js",
             "lane-round.js",
             "lane-supervise.js",
+            ...trackedReleaseRuntimeArtifacts,
             "repo-hygiene.js",
             "secret-scan.js",
               "tier2-collect.js",
@@ -2022,7 +2042,7 @@ describe("memory InstallFs path separator seam", () => {
           }),
         },
       ],
-
+      ...releaseRuntimeMemoryNodes(dist, "backslash"),
     ]);
     const layer = makeMemoryInstallFs({
       // Supplied root is slash-form; resolved target is backslash-form so

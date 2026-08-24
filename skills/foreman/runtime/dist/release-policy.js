@@ -3743,8 +3743,8 @@ var require_lib = __commonJS({
         }
         super.readToken_pipe_amp(code2);
       }
-      parseTopLevel(file, program2) {
-        const fileNode = super.parseTopLevel(file, program2);
+      parseTopLevel(file, program) {
+        const fileNode = super.parseTopLevel(file, program);
         if (this.state.hasFlowComment) {
           this.raise(FlowErrors.UnterminatedFlowComment, this.state.curPosition());
         }
@@ -12542,12 +12542,12 @@ var require_lib = __commonJS({
         if (!this.match(5)) {
           this.unexpected(null, 5);
         }
-        const program2 = this.startNodeAt(this.state.endLoc);
+        const program = this.startNodeAt(this.state.endLoc);
         this.next();
         const revertScopes = this.initializeScopes(true);
         this.enterInitialScopes();
         try {
-          node.body = this.parseProgram(program2, 8, "module");
+          node.body = this.parseProgram(program, 8, "module");
         } finally {
           revertScopes();
         }
@@ -12690,18 +12690,18 @@ var require_lib = __commonJS({
       return tokens;
     }
     var StatementParser = class extends ExpressionParser {
-      parseTopLevel(file, program2) {
-        file.program = this.parseProgram(program2, 140, this.options.sourceType === "module" ? "module" : "script");
+      parseTopLevel(file, program) {
+        file.program = this.parseProgram(program, 140, this.options.sourceType === "module" ? "module" : "script");
         file.comments = this.comments;
         if (this.optionFlags & 256) {
           file.tokens = babel7CompatTokens(this.tokens, this.input, this.startIndex);
         }
         return this.finishNode(file, "File");
       }
-      parseProgram(program2, end3, sourceType) {
-        program2.sourceType = sourceType;
-        program2.interpreter = this.parseInterpreterDirective();
-        this.parseBlockBody(program2, true, true, end3);
+      parseProgram(program, end3, sourceType) {
+        program.sourceType = sourceType;
+        program.interpreter = this.parseInterpreterDirective();
+        this.parseBlockBody(program, true, true, end3);
         if (this.inModule) {
           if (!(this.optionFlags & 64) && this.scope.undefinedExports.size > 0) {
             for (const [localName, at] of Array.from(this.scope.undefinedExports)) {
@@ -12710,13 +12710,13 @@ var require_lib = __commonJS({
               });
             }
           }
-          this.addExtra(program2, "topLevelAwait", this.state.hasTopLevelAwait);
+          this.addExtra(program, "topLevelAwait", this.state.hasTopLevelAwait);
         }
         let finishedProgram;
         if (end3 === 140) {
-          finishedProgram = this.finishNode(program2, "Program");
+          finishedProgram = this.finishNode(program, "Program");
         } else {
-          finishedProgram = this.finishNodeAt(program2, "Program", createPositionWithColumnOffset(this.state.startLoc, -1));
+          finishedProgram = this.finishNodeAt(program, "Program", createPositionWithColumnOffset(this.state.startLoc, -1));
         }
         return finishedProgram;
       }
@@ -14563,10 +14563,10 @@ var require_lib = __commonJS({
       parse() {
         this.enterInitialScopes();
         const file = this.startNode();
-        const program2 = this.startNode();
+        const program = this.startNode();
         this.nextToken();
         file.errors = null;
-        const result = this.parseTopLevel(file, program2);
+        const result = this.parseTopLevel(file, program);
         result.errors = this.state.errors;
         result.comments.length = this.state.commentsLen;
         return result;
@@ -30587,10 +30587,6 @@ function isCommitSha40(value) {
   return COMMIT_SHA40.test(value);
 }
 
-// packages/orchestration/src/queue-cli.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { isAbsolute as isAbsolute4 } from "node:path";
-
 // packages/event-log/src/bounds.ts
 var MAX_EVENT_NESTING_DEPTH = 64;
 var MAX_EVENT_JSON_NODES = 1e5;
@@ -32067,3765 +32063,6 @@ function makeLiveRunJournalLayer(stateRoot, options = {}) {
   });
 }
 
-// packages/orchestration/src/queue-services.ts
-import { spawn } from "node:child_process";
-import {
-  accessSync,
-  closeSync as closeSync2,
-  constants as fsConstants2,
-  existsSync,
-  fstatSync as fstatSync2,
-  openSync as openSync2,
-  readSync as readSync2,
-  statSync
-} from "node:fs";
-import { delimiter, join as join4 } from "node:path";
-var MAX_CAPTURE_BYTES = 1048576;
-var MAX_CONFIG_BYTES = 1048576;
-var TIMEOUT_STATUS_PROBE_MS = 1e3;
-var TIMEOUT_QUEUE_OP_MS = 1e4;
-var ProcessFailure = class {
-  constructor(reason) {
-    this.reason = reason;
-  }
-  _tag = "ProcessFailure";
-};
-var OWNED_CHILD_CANCEL_WAIT_MS = 5e3;
-var ProcessExec = class extends Context_exports.Tag("ProcessExec")() {
-};
-var Sleeper = class extends Context_exports.Tag("Sleeper")() {
-};
-var PathLookup = class extends Context_exports.Tag("PathLookup")() {
-};
-var BoundedFs = class extends Context_exports.Tag("BoundedFs")() {
-};
-var EnvVars = class extends Context_exports.Tag("EnvVars")() {
-};
-var liveSleeper = Layer_exports.succeed(Sleeper, {
-  sleep: (ms) => Effect_exports.async((resume2) => {
-    const t = setTimeout(() => resume2(Effect_exports.void), ms);
-    return Effect_exports.sync(() => {
-      clearTimeout(t);
-    });
-  })
-});
-var liveEnvVars = Layer_exports.succeed(EnvVars, {
-  get: (name) => Effect_exports.sync(() => process.env[name]),
-  home: () => Effect_exports.sync(() => process.env.HOME ?? process.env.USERPROFILE)
-});
-function pathIsExecutable(path) {
-  try {
-    accessSync(path, fsConstants2.X_OK);
-    return true;
-  } catch {
-    try {
-      accessSync(path, fsConstants2.F_OK);
-      return existsSync(path);
-    } catch {
-      return false;
-    }
-  }
-}
-var livePathLookup = Layer_exports.succeed(PathLookup, {
-  which: (name) => Effect_exports.sync(() => {
-    const pathEnv = process.env.PATH ?? "";
-    const exts = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter((e) => e.length > 0) : [""];
-    for (const dir of pathEnv.split(delimiter)) {
-      if (!dir) continue;
-      for (const ext of exts) {
-        const candidate = join4(dir, name + ext);
-        if (pathIsExecutable(candidate)) {
-          return candidate;
-        }
-      }
-      const bare = join4(dir, name);
-      if (pathIsExecutable(bare)) {
-        return bare;
-      }
-    }
-    return null;
-  }),
-  fileExists: (path) => Effect_exports.sync(() => existsSync(path)),
-  isExecutable: (path) => Effect_exports.sync(() => pathIsExecutable(path))
-});
-function isNotFoundError(e) {
-  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
-}
-function readFileBoundedSync(path, maxBytes) {
-  let fd;
-  try {
-    let before2;
-    try {
-      before2 = statSync(path);
-    } catch (e) {
-      if (isNotFoundError(e)) return { _tag: "Absent" };
-      return { _tag: "Unreadable" };
-    }
-    if (!before2.isFile()) {
-      return { _tag: "Unreadable" };
-    }
-    fd = openSync2(path, fsConstants2.O_RDONLY);
-    const opened = fstatSync2(fd);
-    if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
-      return { _tag: "IdentityChanged" };
-    }
-    const cap = maxBytes + 1;
-    const buf = Buffer.allocUnsafe(cap);
-    let offset = 0;
-    while (offset < cap) {
-      const n = readSync2(fd, buf, offset, cap - offset, offset);
-      if (n === 0) break;
-      offset += n;
-    }
-    if (offset > maxBytes) {
-      return { _tag: "Oversized" };
-    }
-    let afterOpen;
-    try {
-      afterOpen = fstatSync2(fd);
-    } catch {
-      return { _tag: "IdentityChanged" };
-    }
-    if (afterOpen.ino !== opened.ino || afterOpen.dev !== opened.dev || afterOpen.size !== opened.size || afterOpen.mtimeMs !== opened.mtimeMs) {
-      return { _tag: "IdentityChanged" };
-    }
-    try {
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(
-        buf.subarray(0, offset)
-      );
-      return { _tag: "Ok", text };
-    } catch {
-      return { _tag: "MalformedUtf8" };
-    }
-  } catch (e) {
-    if (isNotFoundError(e)) return { _tag: "Absent" };
-    return { _tag: "Unreadable" };
-  } finally {
-    if (fd !== void 0) {
-      try {
-        closeSync2(fd);
-      } catch {
-      }
-    }
-  }
-}
-var liveBoundedFs = Layer_exports.succeed(BoundedFs, {
-  readFileBounded: (path, maxBytes) => Effect_exports.sync(() => readFileBoundedSync(path, maxBytes))
-});
-function terminateOwnedChild(child) {
-  const pid = child.pid;
-  if (pid === void 0) return;
-  try {
-    if (process.platform === "win32") {
-      child.kill();
-    } else {
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        try {
-          child.kill("SIGKILL");
-        } catch {
-        }
-      }
-    }
-  } catch {
-  }
-}
-function spawnOptsBase(opts) {
-  const base = {
-    env: opts.env ?? process.env,
-    stdio: opts.stdio,
-    windowsHide: true,
-    detached: opts.detached
-  };
-  if (opts.cwd !== void 0) {
-    base.cwd = opts.cwd;
-  }
-  return base;
-}
-function cancelOwnedFinalizer(child) {
-  return Effect_exports.async((resume2) => {
-    let done7 = false;
-    const finish = () => {
-      if (done7) return;
-      done7 = true;
-      resume2(Effect_exports.void);
-    };
-    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
-    child.once("close", () => {
-      clearTimeout(timer);
-      finish();
-    });
-    if (child.pid === void 0) {
-      clearTimeout(timer);
-      finish();
-      return;
-    }
-    terminateOwnedChild(child);
-  });
-}
-function runCapturedOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let timer;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      resume2(outcome);
-    };
-    const maxBytes = opts.maxOutputBytes ?? MAX_CAPTURE_BYTES;
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: ["ignore", "pipe", "pipe"],
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    const stdoutChunks = [];
-    const stderrChunks = [];
-    let total = 0;
-    let timedOut = false;
-    let outputBound = false;
-    const onData = (target, chunk2) => {
-      if (settled) return;
-      total += chunk2.byteLength;
-      if (total > maxBytes) {
-        outputBound = true;
-        terminateOwnedChild(owned);
-        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
-        return;
-      }
-      target.push(chunk2);
-    };
-    owned.stdout?.on("data", (c) => onData(stdoutChunks, c));
-    owned.stderr?.on("data", (c) => onData(stderrChunks, c));
-    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
-      timer = setTimeout(() => {
-        timedOut = true;
-        terminateOwnedChild(owned);
-      }, opts.timeoutMs);
-    }
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      if (settled) return;
-      if (outputBound) {
-        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
-        return;
-      }
-      if (timedOut) {
-        settle(Effect_exports.fail(new ProcessFailure("timeout")));
-        return;
-      }
-      const stdoutBuf = Buffer.concat(stdoutChunks);
-      const stderrBuf = Buffer.concat(stderrChunks);
-      settle(
-        Effect_exports.succeed({
-          exitCode: code ?? 1,
-          stdout: stdoutBuf.toString("utf8"),
-          stderr: stderrBuf.toString("utf8"),
-          stdoutBytes: Uint8Array.from(stdoutBuf),
-          stderrBytes: Uint8Array.from(stderrBuf)
-        })
-      );
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      return cancelOwnedFinalizer(owned);
-    });
-  });
-}
-function runForegroundOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      resume2(outcome);
-    };
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: "inherit",
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      settle(Effect_exports.succeed(code ?? 1));
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      return cancelOwnedFinalizer(owned);
-    });
-  });
-}
-function runIgnoredStdioOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let timer;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      resume2(outcome);
-    };
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: ["ignore", "ignore", "ignore"],
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    let timedOut = false;
-    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
-      timer = setTimeout(() => {
-        timedOut = true;
-        terminateOwnedChild(owned);
-      }, opts.timeoutMs);
-    }
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      if (settled) return;
-      if (timedOut) {
-        settle(Effect_exports.fail(new ProcessFailure("timeout")));
-        return;
-      }
-      settle(
-        Effect_exports.succeed({
-          exitCode: code ?? 1,
-          stdout: "",
-          stderr: ""
-        })
-      );
-    });
-    return Effect_exports.sync(() => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      terminateOwnedChild(owned);
-    });
-  });
-}
-var liveProcessExec = Layer_exports.succeed(ProcessExec, {
-  runCaptured: (opts) => runCapturedOwned(opts),
-  runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
-  runForeground: (opts) => runForegroundOwned(opts)
-});
-var liveQueueServices = Layer_exports.mergeAll(
-  liveProcessExec,
-  liveSleeper,
-  livePathLookup,
-  liveBoundedFs,
-  liveEnvVars
-);
-
-// packages/orchestration/src/queue-admission.ts
-var EXIT_OK = 0;
-var EXIT_FAIL = 1;
-var EXIT_CONFIG = 2;
-var EXIT_MISSING_CLI = 3;
-var ADD_USAGE = "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
-var FIXED_GROUPS = [
-  { name: "grok", parallel: 3 },
-  { name: "codex", parallel: 2 },
-  { name: "misc", parallel: 2 },
-  { name: "gate", parallel: 1 },
-  { name: "agy", parallel: 1 }
-];
-var GROUP_RE = /^[a-z][a-z0-9_-]*$/;
-var TASK_ID_RE = /^[0-9]+$/;
-function pwshQuote(token) {
-  return "'" + token.replace(/'/g, "''") + "'";
-}
-function posixQuote(token) {
-  return "'" + token.replace(/'/g, "'\\''") + "'";
-}
-function isWindowsPueuePath(pueueBin, fileExists) {
-  if (pueueBin.toLowerCase().endsWith(".exe")) return true;
-  return fileExists(pueueBin + ".exe");
-}
-function isEmptyOrNullYamlRest(rest) {
-  const t = rest.trim();
-  if (t.length === 0) return true;
-  if (t.startsWith("#")) return true;
-  if (t === "null" || t === "~") return true;
-  if (/^(null|~)(\s+#.*)?$/.test(t)) return true;
-  return false;
-}
-function isAmbiguousYamlScalar(val) {
-  if (val.length === 0) return false;
-  const c = val[0];
-  return c === "*" || c === "&" || c === "{" || c === "[" || c === "!" || c === "|" || c === ">" || c === "?";
-}
-function parseShellCommandOverride(configText) {
-  let section = null;
-  let daemonSections = 0;
-  let shellSeen = 0;
-  let shellValue = void 0;
-  const lines = configText.split(/\n/);
-  for (const raw of lines) {
-    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
-    const top = line.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
-    if (top !== null && line === line.trimStart()) {
-      const key = top[1] ?? "";
-      const rest = top[2] ?? "";
-      if (key === "daemon") {
-        daemonSections += 1;
-        if (daemonSections > 1) return { _tag: "Uncertain" };
-        if (!isEmptyOrNullYamlRest(rest)) return { _tag: "Uncertain" };
-        section = "daemon";
-        continue;
-      }
-      section = key;
-      continue;
-    }
-    if (section !== "daemon") continue;
-    if (/^\s+<<\s*:/.test(line)) return { _tag: "Uncertain" };
-    const nested2 = line.match(/^\s+([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
-    if (nested2 === null) {
-      if (/^\s+\S/.test(line)) return { _tag: "Uncertain" };
-      continue;
-    }
-    if (nested2[1] !== "shell_command") continue;
-    shellSeen += 1;
-    if (shellSeen > 1) return { _tag: "Uncertain" };
-    let val = (nested2[2] ?? "").trim();
-    if (val.length === 0 || val === "null" || val === "~") {
-      shellValue = null;
-      continue;
-    }
-    if (/^(null|~)(\s+#.*)?$/.test(val)) {
-      shellValue = null;
-      continue;
-    }
-    if (isAmbiguousYamlScalar(val)) return { _tag: "Uncertain" };
-    const dq = val.match(/^"(.*)"$/);
-    const sq = val.match(/^'(.*)'$/);
-    if (dq) val = dq[1] ?? val;
-    else if (sq) val = sq[1] ?? val;
-    else {
-      const hash2 = val.indexOf(" #");
-      if (hash2 >= 0) val = val.slice(0, hash2).trimEnd();
-    }
-    if (isAmbiguousYamlScalar(val)) return { _tag: "Uncertain" };
-    shellValue = val;
-  }
-  if (shellSeen === 0 || shellValue === null || shellValue === void 0) {
-    return { _tag: "Default" };
-  }
-  if (shellValue.length === 0) return { _tag: "Default" };
-  return { _tag: "Override", value: shellValue };
-}
-function quoteForShell(pueueBin, tokens, shellOverride, fileExists) {
-  if (shellOverride !== null && shellOverride.length > 0) {
-    return { ok: false, reason: "unclassifiable_shell" };
-  }
-  if (isWindowsPueuePath(pueueBin, fileExists)) {
-    return {
-      ok: true,
-      dialect: "powershell",
-      argv: ["&", ...tokens.map(pwshQuote)]
-    };
-  }
-  return { ok: true, dialect: "posix", argv: tokens.map(posixQuote) };
-}
-function isPreAcceptRefusal(stderr) {
-  const s = stderr.replace(/\r/g, "").slice(0, MAX_CAPTURE_BYTES);
-  if (s.includes("Failed to connect to the daemon")) return true;
-  if (s.includes("Couldn't find a configuration file")) return true;
-  return false;
-}
-function isEmptyAdmissionStdout(stdout) {
-  return stdout === "" || stdout === "\n" || stdout === "\r\n";
-}
-function parseTaskId(stdout) {
-  let body = stdout;
-  if (body.endsWith("\r\n")) {
-    body = body.slice(0, -2);
-  } else if (body.endsWith("\n")) {
-    body = body.slice(0, -1);
-  }
-  if (body.length === 0) return null;
-  if (body.includes("\n") || body.includes("\r")) return null;
-  if (!TASK_ID_RE.test(body)) return null;
-  return body;
-}
-function isRetryablePreAcceptFailure(result) {
-  if (result.exitCode === 0) return false;
-  if (!isEmptyAdmissionStdout(result.stdout)) return false;
-  return isPreAcceptRefusal(result.stderr);
-}
-function joinHome(...parts2) {
-  return parts2.join("/").replace(/\/+/g, "/");
-}
-var resolvePueueClient = Effect_exports.gen(function* () {
-  const env = yield* EnvVars;
-  const paths = yield* PathLookup;
-  const force = yield* env.get("LANE_QUEUE_FORCE_MISSING");
-  if (force === "1") return null;
-  const onPath = yield* paths.which("pueue");
-  if (onPath !== null) return onPath;
-  const home = yield* env.home();
-  if (home === void 0 || home.length === 0) return null;
-  const base = joinHome(home, ".foreman", "tools", "pueue");
-  const stagedExe = joinHome(base, "pueue.exe");
-  if (yield* paths.isExecutable(stagedExe)) return stagedExe;
-  const staged = joinHome(base, "pueue");
-  if (yield* paths.isExecutable(staged)) return staged;
-  return null;
-});
-var resolvePueued = Effect_exports.gen(function* () {
-  const env = yield* EnvVars;
-  const paths = yield* PathLookup;
-  const force = yield* env.get("LANE_QUEUE_FORCE_MISSING");
-  if (force === "1") return null;
-  const onPath = yield* paths.which("pueued");
-  if (onPath !== null) return onPath;
-  const home = yield* env.home();
-  if (home === void 0 || home.length === 0) return null;
-  const base = joinHome(home, ".foreman", "tools", "pueue");
-  const stagedExe = joinHome(base, "pueued.exe");
-  if (yield* paths.isExecutable(stagedExe)) return stagedExe;
-  const staged = joinHome(base, "pueued");
-  if (yield* paths.isExecutable(staged)) return staged;
-  return null;
-});
-function mapReadToShell(read) {
-  switch (read._tag) {
-    case "Absent":
-      return { _tag: "Default" };
-    case "Ok": {
-      const parsed = parseShellCommandOverride(read.text);
-      if (parsed._tag === "Default") return { _tag: "Default" };
-      if (parsed._tag === "Override") {
-        return { _tag: "Override", value: parsed.value };
-      }
-      return { _tag: "ConfigError" };
-    }
-    case "Oversized":
-    case "Unreadable":
-    case "MalformedUtf8":
-    case "IdentityChanged":
-      return { _tag: "ConfigError" };
-    default: {
-      const _exhaustive = read;
-      void _exhaustive;
-      return { _tag: "ConfigError" };
-    }
-  }
-}
-var readShellCommandOverride = Effect_exports.gen(function* () {
-  const env = yield* EnvVars;
-  const fs = yield* BoundedFs;
-  const cfgPath = yield* env.get("PUEUE_CONFIG_PATH");
-  if (cfgPath !== void 0 && cfgPath.length > 0) {
-    const text = yield* fs.readFileBounded(cfgPath, MAX_CONFIG_BYTES);
-    return mapReadToShell(text);
-  }
-  const appdata = yield* env.get("APPDATA");
-  if (appdata !== void 0 && appdata.length > 0) {
-    const win = joinHome(appdata, "pueue", "pueue.yml");
-    const text = yield* fs.readFileBounded(win, MAX_CONFIG_BYTES);
-    if (text._tag !== "Absent") return mapReadToShell(text);
-  }
-  const xdg = yield* env.get("XDG_CONFIG_HOME");
-  const home = yield* env.home();
-  const posixBase = xdg !== void 0 && xdg.length > 0 ? xdg : home !== void 0 ? joinHome(home, ".config") : null;
-  if (posixBase !== null) {
-    const p = joinHome(posixBase, "pueue", "pueue.yml");
-    const text = yield* fs.readFileBounded(p, MAX_CONFIG_BYTES);
-    if (text._tag !== "Absent") return mapReadToShell(text);
-  }
-  return { _tag: "Default" };
-});
-var runPueue = (pueueBin, args2, timeoutMs) => Effect_exports.gen(function* () {
-  const proc = yield* ProcessExec;
-  return yield* proc.runCaptured({
-    command: pueueBin,
-    args: args2,
-    maxOutputBytes: MAX_CAPTURE_BYTES,
-    timeoutMs
-  });
-});
-var statusProbe = (pueueBin) => Effect_exports.gen(function* () {
-  const r = yield* runPueue(
-    pueueBin,
-    ["status", "--json", "last 1"],
-    TIMEOUT_STATUS_PROBE_MS
-  );
-  return r.exitCode === 0;
-}).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(false)));
-var ensureGroup = (pueueBin, name, parallel4) => Effect_exports.gen(function* () {
-  const add6 = yield* runPueue(
-    pueueBin,
-    ["group", "add", name],
-    TIMEOUT_QUEUE_OP_MS
-  ).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: "spawn_failed"
-      })
-    )
-  );
-  if (add6.exitCode !== 0) {
-    const err = (add6.stderr + add6.stdout).replace(/\r/g, "");
-    if (!err.includes("already exists")) {
-      return yield* Effect_exports.fail({ _tag: "GroupConfigFailed" });
-    }
-  }
-  const par2 = yield* runPueue(
-    pueueBin,
-    ["parallel", String(parallel4), "--group", name],
-    TIMEOUT_QUEUE_OP_MS
-  ).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: "spawn_failed"
-      })
-    )
-  );
-  if (par2.exitCode !== 0) {
-    return yield* Effect_exports.fail({ _tag: "GroupConfigFailed" });
-  }
-});
-var cmdEnsure = (io2, options) => Effect_exports.gen(function* () {
-  const quiet = options?.quiet === true;
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    if (!quiet) {
-      io2.writeStderr(
-        "lane-queue: pueue not found on PATH or $HOME/.foreman/tools/pueue -- fallback mode\n"
-      );
-    }
-    return EXIT_MISSING_CLI;
-  }
-  const reachable = yield* statusProbe(pueueBin);
-  if (!reachable) {
-    const pueuedBin = yield* resolvePueued;
-    if (pueuedBin === null) {
-      if (!quiet) {
-        io2.writeStderr(
-          "lane-queue: pueued daemon binary missing after unreachable status probe\n"
-        );
-      }
-      return EXIT_FAIL;
-    }
-    const proc = yield* ProcessExec;
-    yield* proc.runIgnoredStdio({
-      command: pueuedBin,
-      args: ["-d"],
-      timeoutMs: TIMEOUT_QUEUE_OP_MS
-    }).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(null)));
-    const sleeper = yield* Sleeper;
-    let ready = false;
-    let waited = 0;
-    while (waited < 5) {
-      if (yield* statusProbe(pueueBin)) {
-        ready = true;
-        break;
-      }
-      yield* sleeper.sleep(1e3);
-      waited += 1;
-    }
-    if (!ready) {
-      if (!quiet) {
-        io2.writeStderr(
-          `lane-queue: pueued daemon unreachable after spawn + ${waited}s retry
-`
-        );
-      }
-      return EXIT_FAIL;
-    }
-  }
-  for (const g of FIXED_GROUPS) {
-    const r = yield* ensureGroup(pueueBin, g.name, g.parallel).pipe(
-      Effect_exports.either
-    );
-    if (r._tag === "Left") {
-      if (!quiet) {
-        io2.writeStderr(
-          `lane-queue: group configuration failed for ${g.name}
-`
-        );
-      }
-      return EXIT_FAIL;
-    }
-  }
-  if (!quiet) {
-    io2.writeStderr(
-      "lane-queue: ready (groups: grok codex misc gate agy)\n"
-    );
-  }
-  return EXIT_OK;
-});
-var cmdAdd = (io2, group, cmd) => Effect_exports.gen(function* () {
-  if (!GROUP_RE.test(group)) {
-    io2.writeStderr(
-      `lane-queue: invalid GROUP '${group}' (must match ^[a-z][a-z0-9_-]*$)
-`
-    );
-    return EXIT_CONFIG;
-  }
-  if (cmd.length === 0) {
-    io2.writeStderr(ADD_USAGE + "\n");
-    return EXIT_CONFIG;
-  }
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    const g = FIXED_GROUPS.find((g2) => g2.name === group);
-    const cap = g ? g.parallel : "unknown";
-    io2.writeStderr(`lane-queue: degraded direct-spawn (pueue absent) - missing cap for ${group}: ${cap}
-`);
-    return EXIT_FAIL;
-  }
-  const paths = yield* PathLookup;
-  const exeSibling = pueueBin + ".exe";
-  const hasExeSibling = yield* paths.fileExists(exeSibling);
-  const fileExists = (p) => p === exeSibling ? hasExeSibling : false;
-  const shellRead = yield* readShellCommandOverride;
-  if (shellRead._tag === "ConfigError") {
-    io2.writeStderr(
-      "lane-queue: pueue configuration unreadable or uncertain -- refusing before any queue process call\n"
-    );
-    return EXIT_CONFIG;
-  }
-  if (shellRead._tag === "Override") {
-    io2.writeStderr(
-      "lane-queue: pueue config overrides daemon.shell_command -- lane-queue does not know how to quote for that shell and refuses to guess\n"
-    );
-    return EXIT_CONFIG;
-  }
-  const quoted = quoteForShell(pueueBin, cmd, null, fileExists);
-  if (!quoted.ok) {
-    io2.writeStderr(
-      "lane-queue: pueue config overrides daemon.shell_command -- lane-queue does not know how to quote for that shell and refuses to guess\n"
-    );
-    return EXIT_CONFIG;
-  }
-  const readyCode = yield* cmdEnsure(io2, { quiet: true });
-  if (readyCode !== EXIT_OK) {
-    return readyCode === EXIT_MISSING_CLI ? EXIT_FAIL : readyCode;
-  }
-  const attemptAdd = () => runPueue(
-    pueueBin,
-    ["add", "--group", group, "--print-task-id", "--", ...quoted.argv],
-    TIMEOUT_QUEUE_OP_MS
-  );
-  let result = yield* attemptAdd().pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (result.exitCode === 0) {
-    const id = parseTaskId(result.stdout);
-    if (id === null) {
-      io2.writeStderr(
-        "lane-queue: ambiguous add result (malformed task id)\n"
-      );
-      return EXIT_FAIL;
-    }
-    io2.writeStdout(id + "\n");
-    return EXIT_OK;
-  }
-  if (!isRetryablePreAcceptFailure(result)) {
-    io2.writeStderr(`lane-queue: pueue add failed for group ${group}
-`);
-    return EXIT_FAIL;
-  }
-  const retryReady = yield* cmdEnsure(io2, { quiet: true });
-  if (retryReady !== EXIT_OK) {
-    return retryReady === EXIT_MISSING_CLI ? EXIT_FAIL : retryReady;
-  }
-  result = yield* attemptAdd().pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (result.exitCode === 0) {
-    const id = parseTaskId(result.stdout);
-    if (id === null) {
-      io2.writeStderr(
-        "lane-queue: ambiguous add result (malformed task id)\n"
-      );
-      return EXIT_FAIL;
-    }
-    io2.writeStdout(id + "\n");
-    return EXIT_OK;
-  }
-  io2.writeStderr(`lane-queue: pueue add failed for group ${group}
-`);
-  return EXIT_FAIL;
-});
-var cmdStatus = (io2, taskId) => Effect_exports.gen(function* () {
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    io2.writeStdout('{"degraded":true}\n');
-    return EXIT_OK;
-  }
-  const raw = yield* runPueue(
-    pueueBin,
-    ["status", "--json"],
-    TIMEOUT_QUEUE_OP_MS
-  ).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (raw.exitCode !== 0) {
-    io2.writeStderr("lane-queue: pueue status failed\n");
-    return EXIT_FAIL;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw.stdout);
-  } catch {
-    io2.writeStderr("lane-queue: invalid status JSON\n");
-    return EXIT_FAIL;
-  }
-  if (taskId === void 0 || taskId.length === 0) {
-    io2.writeStdout(JSON.stringify(parsed) + "\n");
-    return EXIT_OK;
-  }
-  const tasks = typeof parsed === "object" && parsed !== null && "tasks" in parsed && typeof parsed.tasks === "object" && parsed.tasks !== null ? parsed.tasks : {};
-  const one = Object.prototype.hasOwnProperty.call(tasks, taskId) ? tasks[taskId] : {};
-  io2.writeStdout(JSON.stringify(one ?? {}) + "\n");
-  return EXIT_OK;
-});
-var cmdKill = (io2, taskId) => Effect_exports.gen(function* () {
-  if (!TASK_ID_RE.test(taskId)) {
-    io2.writeStderr(
-      `lane-queue: invalid TASK_ID '${taskId}' (must match ^[0-9]+$)
-`
-    );
-    return EXIT_CONFIG;
-  }
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    io2.writeStderr(
-      "lane-queue: kill unsupported in fallback mode (direct spawns are owned by the caller)\n"
-    );
-    return EXIT_CONFIG;
-  }
-  const raw = yield* runPueue(pueueBin, ["kill", taskId], TIMEOUT_QUEUE_OP_MS).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (raw.exitCode !== 0) {
-    io2.writeStderr(`lane-queue: pueue kill failed for task ${taskId}
-`);
-    return EXIT_FAIL;
-  }
-  io2.writeStdout(`Tasks are being killed: ${taskId}
-`);
-  return EXIT_OK;
-});
-
-// packages/orchestration/src/execution-ledger.ts
-import { randomUUID } from "node:crypto";
-import {
-  closeSync as closeSync3,
-  existsSync as existsSync2,
-  fsyncSync as fsyncSync2,
-  mkdirSync as mkdirSync2,
-  openSync as openSync3,
-  readFileSync,
-  renameSync as renameSync2,
-  unlinkSync as unlinkSync2,
-  writeFileSync
-} from "node:fs";
-import { dirname as dirname2, join as join5 } from "node:path";
-
-// packages/orchestration/src/execution-contract.ts
-var executionMilestones = [
-  "checks",
-  "audit",
-  "integrated",
-  "published"
-];
-function failure(reason) {
-  return { _tag: "ExecutionContractFailure", reason };
-}
-function isExecutionContractFailure(value) {
-  return typeof value === "object" && value !== null && value._tag === "ExecutionContractFailure";
-}
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-var contractKeys = /* @__PURE__ */ new Set([
-  "schemaVersion",
-  "contractId",
-  "packageId",
-  "objectiveSha256",
-  "acceptanceSha256",
-  "baseCommit",
-  "allowedPathsSha256",
-  "dependencyContractIds",
-  "authorizationSha256",
-  "createdAt",
-  "deadlineAt",
-  "limits",
-  "requiredMilestones",
-  "supersedesContractId"
-]);
-var limitKeys = /* @__PURE__ */ new Set([
-  "implementationRounds",
-  "correctionRounds",
-  "auditRounds",
-  "councilRounds",
-  "providerRetries",
-  "resumeAttempts",
-  "verificationRunsPerCandidate",
-  "totalActions",
-  "wallTimeMs",
-  "noProductChangeMs"
-]);
-function hasOnlyKeys(value, keys5) {
-  return Object.keys(value).every((key) => keys5.has(key));
-}
-function safeBoundedInteger(value, min3, max5) {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= min3 && value <= max5;
-}
-function decodeLimits(value) {
-  if (!isRecord(value) || !hasOnlyKeys(value, limitKeys)) {
-    return failure("invalid_limits");
-  }
-  const countNames = [
-    "implementationRounds",
-    "correctionRounds",
-    "auditRounds",
-    "councilRounds",
-    "providerRetries",
-    "resumeAttempts",
-    "verificationRunsPerCandidate",
-    "totalActions"
-  ];
-  for (const name of countNames) {
-    if (!safeBoundedInteger(value[name], 1, 100)) {
-      return failure("invalid_limits");
-    }
-  }
-  if (!safeBoundedInteger(value.wallTimeMs, 1e3, 6048e5) || !safeBoundedInteger(value.noProductChangeMs, 1e3, value.wallTimeMs)) {
-    return failure("invalid_limits");
-  }
-  const limits = value;
-  if (limits.implementationRounds > limits.totalActions || limits.correctionRounds > limits.implementationRounds || limits.auditRounds > limits.totalActions || limits.councilRounds > limits.totalActions || limits.providerRetries > limits.totalActions || limits.resumeAttempts > limits.totalActions || limits.verificationRunsPerCandidate > limits.totalActions) {
-    return failure("invalid_limits");
-  }
-  return { ...limits };
-}
-function decodeIdentifier(value) {
-  if (typeof value !== "string") return null;
-  return typeof decodeRunId(value) === "string" ? value : null;
-}
-function decodeExecutionContractV1(value) {
-  if (!isRecord(value)) return failure("not_object");
-  if (!hasOnlyKeys(value, contractKeys)) return failure("unknown_field");
-  if (value.schemaVersion !== 1) return failure("invalid_schema_version");
-  const contractId = decodeIdentifier(value.contractId);
-  const packageId = decodeIdentifier(value.packageId);
-  if (contractId === null || packageId === null) {
-    return failure("invalid_identifier");
-  }
-  const objectiveSha256 = value.objectiveSha256;
-  const acceptanceSha256 = value.acceptanceSha256;
-  const allowedPathsSha256 = value.allowedPathsSha256;
-  if (typeof objectiveSha256 !== "string" || typeof acceptanceSha256 !== "string" || typeof allowedPathsSha256 !== "string" || !isSha256Hex(objectiveSha256) || !isSha256Hex(acceptanceSha256) || !isSha256Hex(allowedPathsSha256)) {
-    return failure("invalid_digest");
-  }
-  const baseCommit = value.baseCommit;
-  if (typeof baseCommit !== "string" || !isCommitSha40(baseCommit)) {
-    return failure("invalid_base_commit");
-  }
-  const authorizationSha256 = value.authorizationSha256;
-  if (typeof authorizationSha256 !== "string" || !isSha256Hex(authorizationSha256)) {
-    return failure("invalid_authorization");
-  }
-  if (!Array.isArray(value.dependencyContractIds)) {
-    return failure("invalid_dependencies");
-  }
-  const dependencyContractIds = [];
-  const dependencies = /* @__PURE__ */ new Set();
-  for (const raw of value.dependencyContractIds) {
-    const dependency = decodeIdentifier(raw);
-    if (dependency === null || dependency === contractId || dependencies.has(dependency)) {
-      return failure("invalid_dependencies");
-    }
-    dependencies.add(dependency);
-    dependencyContractIds.push(dependency);
-  }
-  if (typeof value.createdAt !== "string" || typeof value.deadlineAt !== "string" || !isUtcSecondTimestamp(value.createdAt) || !isUtcSecondTimestamp(value.deadlineAt)) {
-    return failure("invalid_timestamp");
-  }
-  const limits = decodeLimits(value.limits);
-  if (isExecutionContractFailure(limits)) return limits;
-  const createdMs = Date.parse(value.createdAt);
-  const deadlineMs = Date.parse(value.deadlineAt);
-  if (deadlineMs <= createdMs || deadlineMs - createdMs !== limits.wallTimeMs) {
-    return failure("invalid_deadline");
-  }
-  if (!Array.isArray(value.requiredMilestones) || value.requiredMilestones.length === 0) {
-    return failure("invalid_milestones");
-  }
-  const milestones = /* @__PURE__ */ new Set();
-  const requiredMilestones = [];
-  for (const raw of value.requiredMilestones) {
-    if (typeof raw !== "string" || !executionMilestones.includes(raw) || milestones.has(raw)) {
-      return failure("invalid_milestones");
-    }
-    const milestone = raw;
-    milestones.add(milestone);
-    requiredMilestones.push(milestone);
-  }
-  let supersedesContractId;
-  if (value.supersedesContractId !== void 0) {
-    supersedesContractId = decodeIdentifier(value.supersedesContractId) ?? void 0;
-    if (supersedesContractId === void 0 || supersedesContractId === contractId) {
-      return failure("invalid_supersession");
-    }
-  }
-  return {
-    schemaVersion: 1,
-    contractId,
-    packageId,
-    objectiveSha256,
-    acceptanceSha256,
-    baseCommit,
-    allowedPathsSha256,
-    dependencyContractIds,
-    authorizationSha256,
-    createdAt: value.createdAt,
-    deadlineAt: value.deadlineAt,
-    limits,
-    requiredMilestones,
-    ...supersedesContractId === void 0 ? {} : { supersedesContractId }
-  };
-}
-function executionContractSha256(contract) {
-  return sha256Hex(canonicalize(contract));
-}
-var FAMILY_ID = "v040-release-20260822-f1";
-var FAMILY_WALL_TIME_MS = 5184e6;
-var FAMILY_TOTAL_ACTIONS = 4096;
-var FAMILY_SOURCE_MAX_BYTES = 1048576;
-var textEncoder = new TextEncoder();
-var standardChildLimits = {
-  kind: "standard",
-  implementationRounds: 30,
-  correctionRounds: 20,
-  auditRounds: 20,
-  councilRounds: 10,
-  providerRetries: 10,
-  resumeAttempts: 10,
-  verificationRunsPerCandidate: 5,
-  totalActions: 100,
-  wallTimeMs: 12096e5,
-  noProductChangeMs: 2592e5
-};
-var evaluationChildLimits = {
-  kind: "evaluation",
-  implementationRounds: 10,
-  correctionRounds: 5,
-  auditRounds: 10,
-  councilRounds: 5,
-  providerRetries: 8,
-  resumeAttempts: 5,
-  verificationRunsPerCandidate: 3,
-  evaluationRuns: 2e3,
-  totalActions: 2048,
-  wallTimeMs: 3888e6,
-  noProgressMs: 36e5
-};
-var expectedFamilyChildren = [
-  {
-    tranche: 2,
-    childId: "v040-t2-project-registry",
-    packageId: "project-registry",
-    dependencyChildIds: []
-  },
-  {
-    tranche: 3,
-    childId: "v040-t3-memory-index",
-    packageId: "external-memory-index",
-    dependencyChildIds: ["v040-t2-project-registry"]
-  },
-  {
-    tranche: 4,
-    childId: "v040-t4-appliance",
-    packageId: "hermetic-foreman-appliance",
-    dependencyChildIds: []
-  },
-  {
-    tranche: 5,
-    childId: "v040-t5-graphify",
-    packageId: "knowledge-plane-refresh",
-    dependencyChildIds: []
-  },
-  {
-    tranche: 6,
-    childId: "v040-t6-work-dag",
-    packageId: "work-dag-projection",
-    dependencyChildIds: ["v040-t5-graphify"]
-  },
-  {
-    tranche: 7,
-    childId: "v040-t7-context",
-    packageId: "graph-context-builder",
-    dependencyChildIds: ["v040-t6-work-dag"]
-  },
-  {
-    tranche: 8,
-    childId: "v040-t8-evaluation",
-    packageId: "graph-eval-falsification",
-    dependencyChildIds: [
-      "v040-t3-memory-index",
-      "v040-t4-appliance",
-      "v040-t7-context"
-    ]
-  },
-  {
-    tranche: 9,
-    childId: "v040-t9-release",
-    packageId: "v040-release-program",
-    dependencyChildIds: [
-      "v040-t2-project-registry",
-      "v040-t3-memory-index",
-      "v040-t4-appliance",
-      "v040-t5-graphify",
-      "v040-t6-work-dag",
-      "v040-t7-context",
-      "v040-t8-evaluation"
-    ]
-  }
-];
-var familySourceKeys = /* @__PURE__ */ new Set(["schema", "program", "familyId", "children"]);
-var childBriefKeys = /* @__PURE__ */ new Set([
-  "schema",
-  "childId",
-  "tranche",
-  "packageId",
-  "dependencyChildIds",
-  "objective",
-  "acceptance",
-  "allowedPaths"
-]);
-var familyManifestKeys = /* @__PURE__ */ new Set([
-  "schemaVersion",
-  "familyId",
-  "rootContractId",
-  "rootContractSha256",
-  "track1Commit",
-  "track1Tree",
-  "sourceSha256",
-  "createdAt",
-  "deadlineAt",
-  "wallTimeMs",
-  "totalActions",
-  "children"
-]);
-var childContractKeys = /* @__PURE__ */ new Set([
-  "childId",
-  "tranche",
-  "packageId",
-  "objectiveSha256",
-  "acceptanceSha256",
-  "allowedPathsSha256",
-  "dependencyChildIds",
-  "deadlineAt",
-  "limits",
-  "requiredMilestones"
-]);
-function familyFailure(reason) {
-  return { _tag: "ExecutionFamilyFailure", reason };
-}
-function isExecutionFamilyFailure(value) {
-  return typeof value === "object" && value !== null && value._tag === "ExecutionFamilyFailure";
-}
-function isPlainRecordV2(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-function hasExactKeysV2(value, keys5) {
-  const own = Object.keys(value);
-  return own.length === keys5.size && own.every((key) => keys5.has(key));
-}
-function validUnicodeText(value) {
-  const decoded = decodeUtf8Fatal(textEncoder.encode(value));
-  return !isCoreFailure(decoded) && decoded === value;
-}
-function validBoundedText(value, maximum, allowLf) {
-  return typeof value === "string" && value.length > 0 && textEncoder.encode(value).byteLength <= maximum && validUnicodeText(value) && !(allowLf ? /[\u0000-\u0009\u000b-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/).test(
-    value
-  );
-}
-function compareUtf8V2(left3, right3) {
-  const a = textEncoder.encode(left3);
-  const b = textEncoder.encode(right3);
-  const length2 = Math.min(a.byteLength, b.byteLength);
-  for (let index = 0; index < length2; index += 1) {
-    const difference4 = a[index] - b[index];
-    if (difference4 !== 0) return difference4;
-  }
-  return a.byteLength - b.byteLength;
-}
-function validAllowedPath(value) {
-  if (typeof value !== "string" || !/^[\x21-\x7e]+$/.test(value) || value.startsWith("/") || /^[A-Za-z]:/.test(value) || value.includes("\\")) {
-    return false;
-  }
-  const prefix = value.endsWith("/**");
-  const base = prefix ? value.slice(0, -3) : value;
-  if (base.length === 0 || /[*?[\]{}]/.test(base)) return false;
-  const segments = base.split("/");
-  return segments.every(
-    (segment) => segment.length > 0 && segment !== "." && segment !== ".."
-  );
-}
-function sameStrings(value, expected) {
-  return Array.isArray(value) && value.length === expected.length && value.every((item, index) => item === expected[index]);
-}
-function decodeChildBriefV1(value, expected) {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
-    return familyFailure("invalid_children");
-  }
-  if (value.schema !== "foreman.execution-child-brief.v1" || value.childId !== expected.childId || value.tranche !== expected.tranche || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
-    return familyFailure("invalid_children");
-  }
-  if (!validBoundedText(value.objective, 16384, true)) {
-    return familyFailure("invalid_content");
-  }
-  if (!Array.isArray(value.acceptance) || value.acceptance.length < 1 || value.acceptance.length > 256 || !value.acceptance.every((item) => validBoundedText(item, 4096, false))) {
-    return familyFailure("invalid_content");
-  }
-  if (!Array.isArray(value.allowedPaths) || value.allowedPaths.length < 1 || value.allowedPaths.length > 256 || !value.allowedPaths.every(validAllowedPath)) {
-    return familyFailure("invalid_paths");
-  }
-  for (let index = 1; index < value.allowedPaths.length; index += 1) {
-    if (compareUtf8V2(value.allowedPaths[index - 1], value.allowedPaths[index]) >= 0) {
-      return familyFailure("invalid_paths");
-    }
-  }
-  return {
-    schema: "foreman.execution-child-brief.v1",
-    childId: expected.childId,
-    tranche: expected.tranche,
-    packageId: expected.packageId,
-    dependencyChildIds: [...expected.dependencyChildIds],
-    objective: value.objective,
-    acceptance: [...value.acceptance],
-    allowedPaths: [...value.allowedPaths]
-  };
-}
-function decodeExecutionFamilySourceV1(value) {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familySourceKeys)) {
-    return familyFailure("invalid_source");
-  }
-  if (value.schema !== "foreman.execution-family-source.v1" || value.program !== "v040" || value.familyId !== FAMILY_ID || !Array.isArray(value.children) || value.children.length !== expectedFamilyChildren.length) {
-    return familyFailure("invalid_source");
-  }
-  const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
-    const child = decodeChildBriefV1(value.children[index], expected);
-    if (isExecutionFamilyFailure(child)) return child;
-    children.push(child);
-  }
-  return {
-    schema: "foreman.execution-family-source.v1",
-    program: "v040",
-    familyId: FAMILY_ID,
-    children
-  };
-}
-function decodeExecutionFamilySourceFileV1(bytes) {
-  try {
-    if (!(bytes instanceof Uint8Array) || bytes.byteLength > FAMILY_SOURCE_MAX_BYTES) {
-      return familyFailure("invalid_source");
-    }
-    const text = decodeUtf8Fatal(bytes);
-    if (isCoreFailure(text) || !text.endsWith("\n") || text.endsWith("\r\n")) {
-      return familyFailure("invalid_source");
-    }
-    const body = text.slice(0, -1);
-    const parsed = parseJsonRejectDuplicateKeys(body);
-    if (isCoreFailure(parsed) || canonicalize(parsed) !== body) {
-      return familyFailure("invalid_source");
-    }
-    return decodeExecutionFamilySourceV1(JSON.parse(body));
-  } catch {
-    return familyFailure("invalid_source");
-  }
-}
-function expectedChildLimits(tranche) {
-  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
-}
-function expectedChildMilestones(tranche) {
-  return tranche === 9 ? ["checks", "audit", "integrated", "published"] : ["checks", "audit", "integrated"];
-}
-function samePlainValue(left3, right3) {
-  try {
-    return isPlainRecordV2(left3) && canonicalize(left3) === canonicalize(right3);
-  } catch {
-    return false;
-  }
-}
-function decodeExecutionContractFamilyV2(value) {
-  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
-    return familyFailure("invalid_manifest");
-  }
-  if (value.schemaVersion !== 2 || value.familyId !== FAMILY_ID || value.wallTimeMs !== FAMILY_WALL_TIME_MS || value.totalActions !== FAMILY_TOTAL_ACTIONS) {
-    return familyFailure("invalid_manifest");
-  }
-  if (typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string") {
-    return familyFailure("invalid_identity");
-  }
-  if (typeof value.rootContractSha256 !== "string" || typeof value.sourceSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || !isSha256Hex(value.sourceSha256)) {
-    return familyFailure("invalid_digest");
-  }
-  if (typeof value.track1Commit !== "string" || typeof value.track1Tree !== "string" || !isCommitSha40(value.track1Commit) || !isCommitSha40(value.track1Tree)) {
-    return familyFailure("invalid_git_identity");
-  }
-  if (typeof value.createdAt !== "string" || typeof value.deadlineAt !== "string" || !isUtcSecondTimestamp(value.createdAt) || !isUtcSecondTimestamp(value.deadlineAt)) {
-    return familyFailure("invalid_timestamp");
-  }
-  if (Date.parse(value.deadlineAt) - Date.parse(value.createdAt) !== FAMILY_WALL_TIME_MS) {
-    return familyFailure("invalid_deadline");
-  }
-  if (!Array.isArray(value.children) || value.children.length !== 8) {
-    return familyFailure("invalid_children");
-  }
-  const children = [];
-  for (const [index, expected] of expectedFamilyChildren.entries()) {
-    const raw = value.children[index];
-    if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
-      return familyFailure("invalid_children");
-    }
-    if (raw.childId !== expected.childId || raw.tranche !== expected.tranche || raw.packageId !== expected.packageId || !sameStrings(raw.dependencyChildIds, expected.dependencyChildIds) || raw.deadlineAt !== value.deadlineAt || !sameStrings(raw.requiredMilestones, expectedChildMilestones(expected.tranche))) {
-      return familyFailure("invalid_children");
-    }
-    if (typeof raw.objectiveSha256 !== "string" || typeof raw.acceptanceSha256 !== "string" || typeof raw.allowedPathsSha256 !== "string" || !isSha256Hex(raw.objectiveSha256) || !isSha256Hex(raw.acceptanceSha256) || !isSha256Hex(raw.allowedPathsSha256)) {
-      return familyFailure("invalid_digest");
-    }
-    const limits = expectedChildLimits(expected.tranche);
-    if (!samePlainValue(raw.limits, limits)) {
-      return familyFailure("invalid_limits");
-    }
-    children.push({
-      childId: expected.childId,
-      tranche: expected.tranche,
-      packageId: expected.packageId,
-      objectiveSha256: raw.objectiveSha256,
-      acceptanceSha256: raw.acceptanceSha256,
-      allowedPathsSha256: raw.allowedPathsSha256,
-      dependencyChildIds: [...expected.dependencyChildIds],
-      deadlineAt: value.deadlineAt,
-      limits,
-      requiredMilestones: expectedChildMilestones(expected.tranche)
-    });
-  }
-  return {
-    schemaVersion: 2,
-    familyId: FAMILY_ID,
-    rootContractId: value.rootContractId,
-    rootContractSha256: value.rootContractSha256,
-    track1Commit: value.track1Commit,
-    track1Tree: value.track1Tree,
-    sourceSha256: value.sourceSha256,
-    createdAt: value.createdAt,
-    deadlineAt: value.deadlineAt,
-    wallTimeMs: FAMILY_WALL_TIME_MS,
-    totalActions: FAMILY_TOTAL_ACTIONS,
-    children
-  };
-}
-function executionContractFamilySha256(family) {
-  return sha256Hex(canonicalize(family));
-}
-
-// packages/orchestration/src/execution-terminal-policy.ts
-var executionActionKinds = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "provider_retry",
-  "resume",
-  "integrate",
-  "publish"
-];
-var zeroCounts = {
-  totalActions: 0,
-  implement: 0,
-  verify: 0,
-  audit: 0,
-  correct: 0,
-  council: 0,
-  provider_retry: 0,
-  resume: 0,
-  integrate: 0,
-  publish: 0
-};
-function initialExecutionState(contract) {
-  return {
-    _tag: "Running",
-    contract,
-    contractSha256: executionContractSha256(contract),
-    counts: zeroCounts,
-    lastEventAt: contract.createdAt,
-    lastProductChangeAt: contract.createdAt,
-    currentCandidateSha256: null,
-    milestoneCandidateSha256: null,
-    milestones: {},
-    verificationReservations: {}
-  };
-}
-function isExecutionTerminal(state) {
-  return state._tag !== "Running";
-}
-function terminalEvent(terminal, reason, at) {
-  return {
-    _tag: "Terminated",
-    events: [{ _tag: "TerminalDecided", terminal, reason, at }]
-  };
-}
-function validAt(state, at) {
-  return isUtcSecondTimestamp(at) && Date.parse(at) >= Date.parse(state.lastEventAt);
-}
-function actionLimit(state, action) {
-  switch (action) {
-    case "implement":
-      return state.contract.limits.implementationRounds;
-    case "verify":
-      return state.contract.limits.totalActions;
-    case "audit":
-      return state.contract.limits.auditRounds;
-    case "correct":
-      return state.contract.limits.correctionRounds;
-    case "council":
-      return state.contract.limits.councilRounds;
-    case "provider_retry":
-      return state.contract.limits.providerRetries;
-    case "resume":
-      return state.contract.limits.resumeAttempts;
-    case "integrate":
-    case "publish":
-      return 1;
-  }
-}
-function reserveDecision(state, command) {
-  if (!executionActionKinds.includes(command.action) || !isSha256Hex(command.candidateSha256) || command.reservationId.length === 0 || command.reservationId.length > 128 || command.action === "verify" && (typeof command.commandSha256 !== "string" || !isSha256Hex(command.commandSha256)) || command.commandSha256 !== void 0 && !isSha256Hex(command.commandSha256)) {
-    return { _tag: "Refused", reason: "invalid_command" };
-  }
-  const atMs = Date.parse(command.at);
-  if (atMs >= Date.parse(state.contract.deadlineAt)) {
-    return terminalEvent("BudgetExhausted", "wall_time_limit", command.at);
-  }
-  if (atMs - Date.parse(state.lastProductChangeAt) >= state.contract.limits.noProductChangeMs) {
-    return terminalEvent("Stalled", "no_product_change_limit", command.at);
-  }
-  if (state.counts.totalActions >= state.contract.limits.totalActions) {
-    return terminalEvent("BudgetExhausted", "total_action_limit", command.at);
-  }
-  const used = state.counts[command.action];
-  if (used >= actionLimit(state, command.action)) {
-    return terminalEvent(
-      command.action === "provider_retry" ? "BlockedExternal" : "BudgetExhausted",
-      `${command.action}_limit`,
-      command.at
-    );
-  }
-  if (command.action === "verify") {
-    const key = `${command.candidateSha256}:${command.commandSha256}`;
-    const existing = state.verificationReservations[key];
-    if (existing !== void 0) {
-      return { _tag: "ReusedVerification", reservationId: existing };
-    }
-  }
-  return {
-    _tag: "Accepted",
-    events: [
-      {
-        _tag: "ActionReserved",
-        action: command.action,
-        candidateSha256: command.candidateSha256,
-        ...command.commandSha256 === void 0 ? {} : { commandSha256: command.commandSha256 },
-        reservationId: command.reservationId,
-        at: command.at
-      }
-    ]
-  };
-}
-function decideExecutionCommand(state, command) {
-  if (isExecutionTerminal(state)) {
-    return { _tag: "Refused", reason: "terminal", terminal: state._tag };
-  }
-  if (!validAt(state, command.at)) {
-    return { _tag: "Refused", reason: "time_regression" };
-  }
-  switch (command._tag) {
-    case "ReserveAction":
-      return reserveDecision(state, command);
-    case "RecordProductChange":
-      if (!isSha256Hex(command.candidateSha256) || command.allowedPathsSha256 !== state.contract.allowedPathsSha256) {
-        return { _tag: "Refused", reason: "invalid_command" };
-      }
-      return {
-        _tag: "Accepted",
-        events: [
-          {
-            _tag: "ProductChanged",
-            candidateSha256: command.candidateSha256,
-            allowedPathsSha256: command.allowedPathsSha256,
-            at: command.at
-          }
-        ]
-      };
-    case "RecordMilestone": {
-      if (!state.contract.requiredMilestones.includes(command.milestone) || !isSha256Hex(command.candidateSha256) || !isSha256Hex(command.evidenceSha256)) {
-        return { _tag: "Refused", reason: "invalid_command" };
-      }
-      if (state.milestoneCandidateSha256 !== null && state.milestoneCandidateSha256 !== command.candidateSha256) {
-        return terminalEvent("Invalidated", "milestone_candidate_mismatch", command.at);
-      }
-      const milestoneEvent = {
-        _tag: "MilestoneRecorded",
-        milestone: command.milestone,
-        candidateSha256: command.candidateSha256,
-        evidenceSha256: command.evidenceSha256,
-        at: command.at
-      };
-      const complete3 = state.contract.requiredMilestones.every(
-        (milestone) => milestone === command.milestone || state.milestones[milestone] !== void 0
-      );
-      if (complete3) {
-        return {
-          _tag: "Terminated",
-          events: [
-            milestoneEvent,
-            {
-              _tag: "TerminalDecided",
-              terminal: "Completed",
-              reason: "required_milestones_complete",
-              at: command.at
-            }
-          ]
-        };
-      }
-      return { _tag: "Accepted", events: [milestoneEvent] };
-    }
-    case "Cancel":
-      if (command.authorizationSha256 !== state.contract.authorizationSha256) {
-        return { _tag: "Refused", reason: "authorization_mismatch" };
-      }
-      return terminalEvent("Cancelled", "user_cancelled", command.at);
-    case "Invalidate":
-      if (!isSha256Hex(command.observedContractSha256)) {
-        return { _tag: "Refused", reason: "invalid_command" };
-      }
-      return command.observedContractSha256 === state.contractSha256 ? { _tag: "Accepted", events: [] } : terminalEvent("Invalidated", "contract_identity_changed", command.at);
-    case "RecordBlockingOutcome":
-      return state.counts.correct >= state.contract.limits.correctionRounds ? terminalEvent("Escalated", `${command.source}_blocking_after_correction`, command.at) : { _tag: "Accepted", events: [] };
-    case "RecordExternalFailure":
-      return state.counts.provider_retry >= state.contract.limits.providerRetries ? terminalEvent("BlockedExternal", "external_retry_limit", command.at) : { _tag: "Accepted", events: [] };
-  }
-}
-function evolveExecution(state, event) {
-  if (isExecutionTerminal(state)) return state;
-  switch (event._tag) {
-    case "ActionReserved": {
-      const verificationReservations = { ...state.verificationReservations };
-      if (event.action === "verify" && event.commandSha256 !== void 0) {
-        verificationReservations[`${event.candidateSha256}:${event.commandSha256}`] = event.reservationId;
-      }
-      return {
-        ...state,
-        counts: {
-          ...state.counts,
-          totalActions: state.counts.totalActions + 1,
-          [event.action]: state.counts[event.action] + 1
-        },
-        currentCandidateSha256: event.candidateSha256,
-        verificationReservations,
-        lastEventAt: event.at
-      };
-    }
-    case "ProductChanged":
-      return {
-        ...state,
-        currentCandidateSha256: event.candidateSha256,
-        lastProductChangeAt: event.candidateSha256 === state.currentCandidateSha256 ? state.lastProductChangeAt : event.at,
-        lastEventAt: event.at
-      };
-    case "MilestoneRecorded":
-      return {
-        ...state,
-        milestoneCandidateSha256: state.milestoneCandidateSha256 ?? event.candidateSha256,
-        milestones: {
-          ...state.milestones,
-          [event.milestone]: event.evidenceSha256
-        },
-        lastEventAt: event.at
-      };
-    case "TerminalDecided":
-      return {
-        ...state,
-        _tag: event.terminal,
-        terminalAt: event.at,
-        terminalReason: event.reason,
-        lastEventAt: event.at
-      };
-  }
-}
-var releaseActionKindsV2 = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "provider_retry",
-  "resume",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var zeroV2Counts = {
-  totalActions: 0,
-  implement: 0,
-  verify: 0,
-  audit: 0,
-  correct: 0,
-  council: 0,
-  provider_retry: 0,
-  resume: 0,
-  integrate: 0,
-  publish: 0,
-  evaluate: 0
-};
-function executionFamilyFailure(reason) {
-  return { _tag: "ExecutionFamilyFailure", reason };
-}
-function validCandidateV2(value) {
-  return typeof value === "object" && value !== null && isCommitSha40(value.commit) && isCommitSha40(value.tree) && isSha256Hex(value.candidateSha256) && value.candidateSha256 === sha256Hex(value.commit);
-}
-function sameCandidateV2(left3, right3) {
-  return left3 !== null && left3.commit === right3.commit && left3.tree === right3.tree && left3.candidateSha256 === right3.candidateSha256;
-}
-function initialExecutionFamilyStateV2(input) {
-  if (!isSha256Hex(input.familySha256) || input.familySha256 !== executionContractFamilySha256(input.manifest) || !isUtcSecondTimestamp(input.activatedAt) || Date.parse(input.activatedAt) < Date.parse(input.manifest.createdAt) || Date.parse(input.activatedAt) >= Date.parse(input.manifest.deadlineAt) || !Number.isSafeInteger(input.priorRootActions ?? 0) || (input.priorRootActions ?? 0) < 0 || (input.priorRootActions ?? 0) > input.manifest.totalActions) {
-    return executionFamilyFailure("invalid_timestamp");
-  }
-  const children = {};
-  for (const contract of input.manifest.children) {
-    children[contract.childId] = {
-      _tag: "Running",
-      contract,
-      counts: zeroV2Counts,
-      firstActionAt: null,
-      lastEventAt: input.activatedAt,
-      lastProductChangeAt: null,
-      lastProgressAt: null,
-      currentCandidate: null,
-      productChangeCount: 0,
-      milestoneCandidateSha256: null,
-      milestones: {},
-      verificationReservations: {},
-      reservations: {},
-      evaluationPassOrigins: {},
-      evaluationVerdict: null,
-      graphContextEnabled: null,
-      terminalAt: null,
-      terminalReason: null
-    };
-  }
-  return {
-    _tag: "Running",
-    manifest: input.manifest,
-    familySha256: input.familySha256,
-    activatedAt: input.activatedAt,
-    totalActions: input.priorRootActions ?? 0,
-    children,
-    terminalAt: null,
-    terminalReason: null
-  };
-}
-function v2TerminalDecision(terminal, reason, at) {
-  return {
-    _tag: "Terminated",
-    events: [{ _tag: "TerminalDecided", terminal, reason, at }]
-  };
-}
-function childTimeDecision(state, child, at) {
-  if (!isUtcSecondTimestamp(at) || Date.parse(at) < Date.parse(child.lastEventAt)) {
-    return { _tag: "Refused", reason: "invalid_time" };
-  }
-  const atMs = Date.parse(at);
-  if (atMs >= Date.parse(state.manifest.deadlineAt)) {
-    return v2TerminalDecision("BudgetExhausted", "family_wall_time_limit", at);
-  }
-  if (child.firstActionAt === null) return null;
-  if (atMs >= Math.min(
-    Date.parse(child.firstActionAt) + child.contract.limits.wallTimeMs,
-    Date.parse(child.contract.deadlineAt)
-  )) {
-    return v2TerminalDecision("BudgetExhausted", "child_wall_time_limit", at);
-  }
-  if (child.contract.limits.kind === "standard" && child.lastProductChangeAt !== null && atMs >= Date.parse(child.lastProductChangeAt) + child.contract.limits.noProductChangeMs) {
-    return v2TerminalDecision("BudgetExhausted", "no_product_change_limit", at);
-  }
-  if (child.contract.limits.kind === "evaluation" && child.lastProgressAt !== null && atMs >= Date.parse(child.lastProgressAt) + child.contract.limits.noProgressMs) {
-    return v2TerminalDecision("BudgetExhausted", "no_progress_limit", at);
-  }
-  return null;
-}
-function v2ActionLimit(child, action, candidateSha256) {
-  switch (action) {
-    case "implement":
-      return child.contract.limits.implementationRounds;
-    case "verify":
-      return child.contract.limits.verificationRunsPerCandidate;
-    case "audit":
-      return child.contract.limits.auditRounds;
-    case "correct":
-      return child.contract.limits.correctionRounds;
-    case "council":
-      return child.contract.limits.councilRounds;
-    case "provider_retry":
-      return child.contract.limits.providerRetries;
-    case "resume":
-      return child.contract.limits.resumeAttempts;
-    case "integrate":
-    case "publish":
-      return 1;
-    case "evaluate":
-      return child.contract.limits.kind === "evaluation" ? child.contract.limits.evaluationRuns : 0;
-  }
-  void candidateSha256;
-}
-function usedV2Actions(child, action, candidateSha256) {
-  if (action !== "verify") return child.counts[action];
-  return Object.values(child.reservations).filter(
-    (reservation) => reservation.reservationAction === "verify" && reservation.candidate.candidateSha256 === candidateSha256
-  ).length;
-}
-function dependenciesComplete(state, child) {
-  return child.contract.dependencyChildIds.every(
-    (dependency) => state.children[dependency]?._tag === "Completed"
-  );
-}
-function validReservationOperation(child, operation) {
-  if (typeof decodeRunId(operation.reservationId) !== "string" || typeof decodeRunId(operation.originReservationId) !== "string" || !releaseActionKindsV2.includes(operation.reservationAction) || !releaseActionKindsV2.includes(operation.effectiveAction) || !validCandidateV2(operation.candidate) || !isSha256Hex(operation.taskPlanSha256) || !isSha256Hex(operation.authorityBundleSha256) || child.contract.tranche !== 8 && operation.effectiveAction === "evaluate") {
-    return "invalid";
-  }
-  if (child.currentCandidate !== null && !sameCandidateV2(child.currentCandidate, operation.candidate)) {
-    return "candidate";
-  }
-  if (operation.reservationAction !== "provider_retry" && operation.reservationAction !== "resume") {
-    return operation.reservationAction === operation.effectiveAction && operation.originReservationId === operation.reservationId ? "valid" : "invalid";
-  }
-  if (operation.effectiveAction === "provider_retry" || operation.effectiveAction === "resume") {
-    return "retry";
-  }
-  const origin = child.reservations[operation.originReservationId];
-  if (origin === void 0 || origin.originReservationId !== operation.originReservationId || origin.effectiveAction !== operation.effectiveAction || !sameCandidateV2(origin.candidate, operation.candidate)) {
-    return "retry";
-  }
-  return "valid";
-}
-function reservationForOperation(child, operation) {
-  const reservation = child.reservations[operation.reservationId];
-  if (reservation === void 0 || reservation.originReservationId !== operation.originReservationId) {
-    return null;
-  }
-  return reservation;
-}
-function milestoneForAction(action) {
-  switch (action) {
-    case "verify":
-      return "checks";
-    case "audit":
-      return "audit";
-    case "integrate":
-      return "integrated";
-    case "publish":
-      return "published";
-    default:
-      return null;
-  }
-}
-function decideExecutionChildOperationV2(input) {
-  const { state, operation, at } = input;
-  if (state._tag !== "Running") {
-    return { _tag: "Refused", reason: "family_terminal" };
-  }
-  const child = state.children[input.childId];
-  if (child === void 0) return { _tag: "Refused", reason: "unknown_child" };
-  if (child._tag !== "Running") {
-    return { _tag: "Refused", reason: "child_terminal" };
-  }
-  const timeDecision = childTimeDecision(state, child, at);
-  if (timeDecision !== null) return timeDecision;
-  switch (operation._tag) {
-    case "ReserveAction": {
-      if (!dependenciesComplete(state, child)) {
-        return { _tag: "Refused", reason: "dependency_incomplete" };
-      }
-      const validity = validReservationOperation(child, operation);
-      if (validity === "retry") return { _tag: "Refused", reason: "invalid_retry" };
-      if (validity === "candidate") {
-        return { _tag: "Refused", reason: "candidate_mismatch" };
-      }
-      if (validity !== "valid" || child.reservations[operation.reservationId] !== void 0) {
-        return { _tag: "Refused", reason: "invalid_operation" };
-      }
-      if (state.totalActions >= state.manifest.totalActions) {
-        return v2TerminalDecision("BudgetExhausted", "family_action_limit", at);
-      }
-      if (child.counts.totalActions >= child.contract.limits.totalActions) {
-        return v2TerminalDecision("BudgetExhausted", "child_action_limit", at);
-      }
-      const used = usedV2Actions(
-        child,
-        operation.reservationAction,
-        operation.candidate.candidateSha256
-      );
-      if (used >= v2ActionLimit(
-        child,
-        operation.reservationAction,
-        operation.candidate.candidateSha256
-      )) {
-        return v2TerminalDecision(
-          operation.reservationAction === "provider_retry" ? "BlockedExternal" : "BudgetExhausted",
-          `${operation.reservationAction}_limit`,
-          at
-        );
-      }
-      if (operation.reservationAction === "verify") {
-        const key = `${operation.candidate.candidateSha256}:${operation.authorityBundleSha256}`;
-        const existing = child.verificationReservations[key];
-        if (existing !== void 0) {
-          return { _tag: "ReusedVerification", reservationId: existing };
-        }
-      }
-      return {
-        _tag: "Accepted",
-        events: [
-          {
-            _tag: "ActionReserved",
-            action: operation.reservationAction,
-            candidateSha256: operation.candidate.candidateSha256,
-            ...operation.reservationAction === "verify" ? { commandSha256: operation.authorityBundleSha256 } : {},
-            reservationId: operation.reservationId,
-            at
-          }
-        ]
-      };
-    }
-    case "RecordProductChange": {
-      const reservation = reservationForOperation(child, operation);
-      if (reservation === null || reservation.effectiveAction !== "implement" && reservation.effectiveAction !== "correct") {
-        return { _tag: "Refused", reason: "reservation_mismatch" };
-      }
-      if (!sameCandidateV2(child.currentCandidate, operation.baseCandidate) || !sameCandidateV2(reservation.candidate, operation.baseCandidate) || !validCandidateV2(operation.candidate) || sameCandidateV2(operation.baseCandidate, operation.candidate) || operation.allowedPathsSha256 !== child.contract.allowedPathsSha256) {
-        return { _tag: "Refused", reason: "candidate_mismatch" };
-      }
-      return {
-        _tag: "Accepted",
-        events: [
-          {
-            _tag: "ProductChanged",
-            candidateSha256: operation.candidate.candidateSha256,
-            allowedPathsSha256: operation.allowedPathsSha256,
-            at
-          }
-        ]
-      };
-    }
-    case "RecordMilestone": {
-      const reservation = reservationForOperation(child, operation);
-      if (reservation === null || milestoneForAction(reservation.effectiveAction) !== operation.milestone || !child.contract.requiredMilestones.includes(operation.milestone) || !isSha256Hex(operation.outcomeSha256) || child.currentCandidate?.candidateSha256 !== operation.candidateSha256) {
-        return { _tag: "Refused", reason: "reservation_mismatch" };
-      }
-      if (child.productChangeCount === 0) {
-        return { _tag: "Refused", reason: "invalid_operation" };
-      }
-      const existing = child.milestones[operation.milestone];
-      if (existing !== void 0) {
-        return existing === operation.outcomeSha256 ? { _tag: "Accepted", events: [] } : { _tag: "Refused", reason: "invalid_operation" };
-      }
-      const nextMilestone = child.contract.requiredMilestones.find(
-        (milestone) => child.milestones[milestone] === void 0
-      );
-      if (nextMilestone !== operation.milestone) {
-        return { _tag: "Refused", reason: "invalid_operation" };
-      }
-      const event = {
-        _tag: "MilestoneRecorded",
-        milestone: operation.milestone,
-        candidateSha256: operation.candidateSha256,
-        evidenceSha256: operation.outcomeSha256,
-        at
-      };
-      const completeMilestones = child.contract.requiredMilestones.every(
-        (milestone) => milestone === operation.milestone || child.milestones[milestone] !== void 0
-      );
-      const evaluationComplete = child.contract.tranche !== 8 || child.evaluationVerdict !== null;
-      if (completeMilestones && !evaluationComplete) {
-        return { _tag: "Refused", reason: "invalid_operation" };
-      }
-      if (completeMilestones && evaluationComplete) {
-        return {
-          _tag: "Terminated",
-          events: [
-            event,
-            {
-              _tag: "TerminalDecided",
-              terminal: "Completed",
-              reason: "required_milestones_complete",
-              at
-            }
-          ]
-        };
-      }
-      return { _tag: "Accepted", events: [event] };
-    }
-    case "RecordBlockingOutcome": {
-      const reservation = reservationForOperation(child, operation);
-      if (reservation === null || !["verify", "audit", "council", "evaluate"].includes(
-        reservation.effectiveAction
-      ) || !isSha256Hex(operation.outcomeSha256) || child.currentCandidate?.candidateSha256 !== operation.candidateSha256) {
-        return { _tag: "Refused", reason: "reservation_mismatch" };
-      }
-      return child.counts.correct >= child.contract.limits.correctionRounds ? v2TerminalDecision(
-        "Escalated",
-        `${reservation.effectiveAction}_blocking_after_correction`,
-        at
-      ) : { _tag: "Accepted", events: [] };
-    }
-    case "RecordExternalFailure": {
-      const reservation = reservationForOperation(child, operation);
-      if (reservation === null || !isSha256Hex(operation.outcomeSha256) || child.currentCandidate?.candidateSha256 !== operation.candidateSha256) {
-        return { _tag: "Refused", reason: "reservation_mismatch" };
-      }
-      return child.counts.provider_retry >= child.contract.limits.providerRetries ? v2TerminalDecision("BlockedExternal", "external_retry_limit", at) : { _tag: "Accepted", events: [] };
-    }
-    case "Cancel":
-      return isSha256Hex(operation.approvalSha256) && isSha256Hex(operation.reasonSha256) ? v2TerminalDecision("Cancelled", "user_cancelled", at) : { _tag: "Refused", reason: "invalid_operation" };
-    case "Invalidate":
-      if (!isSha256Hex(operation.approvalSha256) || !isSha256Hex(operation.observedFamilySha256) || !isSha256Hex(operation.reasonSha256)) {
-        return { _tag: "Refused", reason: "invalid_operation" };
-      }
-      return operation.observedFamilySha256 === state.familySha256 ? { _tag: "Accepted", events: [] } : v2TerminalDecision("Invalidated", "family_identity_changed", at);
-  }
-}
-function evolveChildV2(child, operation, events) {
-  if (child._tag !== "Running") return child;
-  let next = child;
-  for (const event of events) {
-    switch (event._tag) {
-      case "ActionReserved": {
-        if (operation._tag !== "ReserveAction") return child;
-        const firstActionAt = next.firstActionAt ?? event.at;
-        const verificationReservations = { ...next.verificationReservations };
-        if (event.action === "verify" && event.commandSha256 !== void 0) {
-          verificationReservations[`${operation.candidate.candidateSha256}:${event.commandSha256}`] = event.reservationId;
-        }
-        next = {
-          ...next,
-          counts: {
-            ...next.counts,
-            totalActions: next.counts.totalActions + 1,
-            [event.action]: next.counts[event.action] + 1
-          },
-          firstActionAt,
-          lastProductChangeAt: next.lastProductChangeAt ?? firstActionAt,
-          lastProgressAt: next.contract.limits.kind === "evaluation" ? next.lastProgressAt ?? firstActionAt : next.lastProgressAt,
-          currentCandidate: next.currentCandidate ?? operation.candidate,
-          verificationReservations,
-          reservations: {
-            ...next.reservations,
-            [operation.reservationId]: { ...operation }
-          },
-          lastEventAt: event.at
-        };
-        break;
-      }
-      case "ProductChanged":
-        if (operation._tag !== "RecordProductChange") return child;
-        next = {
-          ...next,
-          currentCandidate: operation.candidate,
-          productChangeCount: next.productChangeCount + 1,
-          milestoneCandidateSha256: null,
-          milestones: {},
-          evaluationPassOrigins: {},
-          evaluationVerdict: null,
-          graphContextEnabled: null,
-          lastProductChangeAt: event.at,
-          lastProgressAt: next.contract.limits.kind === "evaluation" ? event.at : next.lastProgressAt,
-          lastEventAt: event.at
-        };
-        break;
-      case "MilestoneRecorded":
-        next = {
-          ...next,
-          milestoneCandidateSha256: next.milestoneCandidateSha256 ?? event.candidateSha256,
-          milestones: { ...next.milestones, [event.milestone]: event.evidenceSha256 },
-          lastProgressAt: next.contract.limits.kind === "evaluation" ? event.at : next.lastProgressAt,
-          lastEventAt: event.at
-        };
-        break;
-      case "TerminalDecided":
-        next = {
-          ...next,
-          _tag: event.terminal,
-          terminalAt: event.at,
-          terminalReason: event.reason,
-          lastEventAt: event.at
-        };
-        break;
-    }
-  }
-  return next;
-}
-function evolveExecutionFamilyV2(state, childId, operation, decision) {
-  if (state._tag !== "Running" || decision._tag !== "Accepted" && decision._tag !== "Terminated") {
-    return state;
-  }
-  const child = state.children[childId];
-  if (child === void 0) return state;
-  const evolved = evolveChildV2(child, operation, decision.events);
-  const children = { ...state.children, [childId]: evolved };
-  const actionEvents = decision.events.filter(
-    (event) => event._tag === "ActionReserved"
-  ).length;
-  let tag = state._tag;
-  let terminalAt = state.terminalAt;
-  let terminalReason = state.terminalReason;
-  if (evolved._tag !== "Running" && evolved._tag !== "Completed") {
-    tag = evolved._tag;
-    terminalAt = evolved.terminalAt;
-    terminalReason = evolved.terminalReason;
-  } else if (Object.values(children).every((item) => item._tag === "Completed")) {
-    tag = "Completed";
-    terminalAt = evolved.terminalAt;
-    terminalReason = "all_children_complete";
-  }
-  return {
-    ...state,
-    _tag: tag,
-    totalActions: state.totalActions + actionEvents,
-    children,
-    terminalAt,
-    terminalReason
-  };
-}
-function recordExecutionEvaluationPassV2(input) {
-  const child = input.state.children[input.childId];
-  const reservation = child?.reservations[input.originReservationId];
-  if (input.state._tag !== "Running" || child === void 0 || child._tag !== "Running" || child.contract.tranche !== 8 || reservation === void 0 || reservation.effectiveAction !== "evaluate" || reservation.originReservationId !== input.originReservationId || !isSha256Hex(input.outcomeSha256) || !isUtcSecondTimestamp(input.at) || Date.parse(input.at) < Date.parse(child.lastEventAt)) {
-    return input.state;
-  }
-  const existing = child.evaluationPassOrigins[input.originReservationId];
-  if (existing !== void 0 && existing !== input.outcomeSha256) return input.state;
-  const evolved = {
-    ...child,
-    evaluationPassOrigins: {
-      ...child.evaluationPassOrigins,
-      [input.originReservationId]: input.outcomeSha256
-    },
-    lastProgressAt: input.at,
-    lastEventAt: input.at
-  };
-  return {
-    ...input.state,
-    children: { ...input.state.children, [input.childId]: evolved }
-  };
-}
-function registerExecutionEvaluationVerdictV2(input) {
-  const child = input.state.children[input.childId];
-  if (child === void 0 || child.contract.tranche !== 8) {
-    return { _tag: "Refused", reason: "unknown_child" };
-  }
-  if (input.state._tag !== "Running" || child._tag !== "Running") {
-    return { _tag: "Refused", reason: "invalid_verdict" };
-  }
-  const verdict = input.verdict;
-  if (!isSha256Hex(verdict.candidateSha256) || !isSha256Hex(verdict.runSetSha256) || !isSha256Hex(verdict.verdictSha256) || !["PROMOTE", "GRAPH_OFF_FAILED", "GRAPH_OFF_INCONCLUSIVE", "GRAPH_OFF_UNCOMPUTABLE"].includes(
-    verdict.result
-  ) || ![verdict.completedRuns, verdict.unavailableRuns, verdict.notRunRuns].every(
-    (count) => Number.isSafeInteger(count) && count >= 0 && count <= 2e3
-  ) || verdict.completedRuns + verdict.unavailableRuns + verdict.notRunRuns !== 2e3) {
-    return { _tag: "Refused", reason: "invalid_verdict" };
-  }
-  if (child.currentCandidate?.candidateSha256 !== verdict.candidateSha256) {
-    return { _tag: "Refused", reason: "candidate_mismatch" };
-  }
-  const passOrigins = Object.entries(child.evaluationPassOrigins);
-  if (!passOrigins.every(([originReservationId, outcomeSha256]) => {
-    const reservation = child.reservations[originReservationId];
-    return reservation !== void 0 && reservation.reservationAction === "evaluate" && reservation.effectiveAction === "evaluate" && reservation.originReservationId === originReservationId && reservation.candidate.candidateSha256 === verdict.candidateSha256 && isSha256Hex(outcomeSha256);
-  })) {
-    return { _tag: "Refused", reason: "run_count_mismatch" };
-  }
-  const passed = passOrigins.length;
-  if (verdict.completedRuns !== passed || verdict.result !== "GRAPH_OFF_UNCOMPUTABLE" && (verdict.completedRuns !== 2e3 || verdict.unavailableRuns !== 0 || verdict.notRunRuns !== 0)) {
-    return { _tag: "Refused", reason: "run_count_mismatch" };
-  }
-  const evolved = {
-    ...child,
-    evaluationVerdict: verdict,
-    graphContextEnabled: verdict.result === "PROMOTE"
-  };
-  return {
-    _tag: "Accepted",
-    state: {
-      ...input.state,
-      children: { ...input.state.children, [input.childId]: evolved }
-    }
-  };
-}
-
-// packages/orchestration/src/execution-ledger.ts
-var ENDSTOP_LANE = "endstop";
-var CONTRACT_EVENT = "endstop_contract";
-var DECISION_EVENT = "endstop_decision";
-var V2_EVENT = "endstop_v2";
-var ENDSTOP_LEDGER_FAILURE_BRAND = Symbol(
-  "@foreman/orchestration/EndstopLedgerFailure"
-);
-function ledgerFailure(reason) {
-  return {
-    [ENDSTOP_LEDGER_FAILURE_BRAND]: true,
-    _tag: "EndstopLedgerFailure",
-    reason
-  };
-}
-var EndstopLedger = class extends Context_exports.Tag("EndstopLedger")() {
-};
-function isRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function exactKeys(value, keys5) {
-  const actual = Object.keys(value).sort();
-  const expected = [...keys5].sort();
-  return actual.length === expected.length && actual.every((key, i) => key === expected[i]);
-}
-var releaseActionsV2 = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "provider_retry",
-  "resume",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var receiptSchemasV1 = [
-  "foreman.design-approval.v1",
-  "foreman.checks-evidence.v1",
-  "foreman.release-audit.v1",
-  "foreman.council-request.v1",
-  "foreman.evaluation-authority.v1"
-];
-function candidateFromUnknown(value) {
-  if (!isRecord2(value) || !exactKeys(value, ["commit", "tree", "candidateSha256"]) || typeof value.commit !== "string" || typeof value.tree !== "string" || typeof value.candidateSha256 !== "string" || !isCommitSha40(value.commit) || !isCommitSha40(value.tree) || !isSha256Hex(value.candidateSha256) || value.candidateSha256 !== sha256Hex(value.commit)) {
-    return null;
-  }
-  return {
-    commit: value.commit,
-    tree: value.tree,
-    candidateSha256: value.candidateSha256
-  };
-}
-function childAuthorityFromUnknown(value) {
-  if (!isRecord2(value) || !exactKeys(value, [
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "action",
-    "effectiveAction",
-    "priorReservationId",
-    "originReservationId",
-    "candidate",
-    "taskPlanSha256",
-    "bundleSha256",
-    "receiptSchemas",
-    "receiptSha256s",
-    "evaluationManifestSha256",
-    "registeredAt"
-  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || typeof value.action !== "string" || !releaseActionsV2.includes(value.action) || typeof value.effectiveAction !== "string" || !releaseActionsV2.includes(value.effectiveAction) || typeof value.taskPlanSha256 !== "string" || !isSha256Hex(value.taskPlanSha256) || typeof value.bundleSha256 !== "string" || !isSha256Hex(value.bundleSha256) || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt) || !Array.isArray(value.receiptSchemas) || value.receiptSchemas.length === 0 || !value.receiptSchemas.every(
-    (schema) => typeof schema === "string" && receiptSchemasV1.includes(schema)
-  ) || !Array.isArray(value.receiptSha256s) || value.receiptSha256s.length !== value.receiptSchemas.length || !value.receiptSha256s.every(
-    (digest) => typeof digest === "string" && isSha256Hex(digest)
-  ) || !(value.evaluationManifestSha256 === null || typeof value.evaluationManifestSha256 === "string" && isSha256Hex(value.evaluationManifestSha256))) {
-    return null;
-  }
-  const candidate = candidateFromUnknown(value.candidate);
-  if (candidate === null) return null;
-  const action = value.action;
-  const effectiveAction = value.effectiveAction;
-  const meta = action === "provider_retry" || action === "resume";
-  if (meta ? effectiveAction === "provider_retry" || effectiveAction === "resume" || typeof value.priorReservationId !== "string" || typeof decodeRunId(value.priorReservationId) !== "string" || typeof value.originReservationId !== "string" || typeof decodeRunId(value.originReservationId) !== "string" : effectiveAction !== action || value.priorReservationId !== null || value.originReservationId !== null) {
-    return null;
-  }
-  if (effectiveAction === "evaluate" ? typeof value.evaluationManifestSha256 !== "string" : value.evaluationManifestSha256 !== null) {
-    return null;
-  }
-  return {
-    rootContractId: value.rootContractId,
-    rootContractSha256: value.rootContractSha256,
-    familySha256: value.familySha256,
-    childId: value.childId,
-    action,
-    effectiveAction,
-    priorReservationId: value.priorReservationId,
-    originReservationId: value.originReservationId,
-    candidate,
-    taskPlanSha256: value.taskPlanSha256,
-    bundleSha256: value.bundleSha256,
-    receiptSchemas: [...value.receiptSchemas],
-    receiptSha256s: [...value.receiptSha256s],
-    evaluationManifestSha256: value.evaluationManifestSha256,
-    registeredAt: value.registeredAt
-  };
-}
-function childOutcomeFromUnknown(value) {
-  if (!isRecord2(value) || !exactKeys(value, [
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "reservationId",
-    "originReservationId",
-    "reservationAction",
-    "effectiveAction",
-    "candidateSha256",
-    "outcomeSha256",
-    "outcomeSchema",
-    "registeredAt"
-  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || typeof value.reservationId !== "string" || typeof decodeRunId(value.reservationId) !== "string" || typeof value.originReservationId !== "string" || typeof decodeRunId(value.originReservationId) !== "string" || typeof value.reservationAction !== "string" || !releaseActionsV2.includes(value.reservationAction) || typeof value.effectiveAction !== "string" || !releaseActionsV2.includes(value.effectiveAction) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.outcomeSha256 !== "string" || !isSha256Hex(value.outcomeSha256) || value.outcomeSchema !== "foreman.release-action-outcome.v1" && value.outcomeSchema !== "foreman.council-outcome.v1" || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt)) {
-    return null;
-  }
-  return {
-    rootContractId: value.rootContractId,
-    rootContractSha256: value.rootContractSha256,
-    familySha256: value.familySha256,
-    childId: value.childId,
-    reservationId: value.reservationId,
-    originReservationId: value.originReservationId,
-    reservationAction: value.reservationAction,
-    effectiveAction: value.effectiveAction,
-    candidateSha256: value.candidateSha256,
-    outcomeSha256: value.outcomeSha256,
-    outcomeSchema: value.outcomeSchema,
-    registeredAt: value.registeredAt
-  };
-}
-function evaluationVerdictFromUnknown(value) {
-  if (!isRecord2(value) || !exactKeys(value, [
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "candidateSha256",
-    "result",
-    "completedRuns",
-    "unavailableRuns",
-    "notRunRuns",
-    "runSetSha256",
-    "evaluationAuthorityReceiptSha256",
-    "verdictSha256",
-    "registeredAt"
-  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || value.childId !== "v040-t8-evaluation" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
-    "PROMOTE",
-    "GRAPH_OFF_FAILED",
-    "GRAPH_OFF_INCONCLUSIVE",
-    "GRAPH_OFF_UNCOMPUTABLE"
-  ].includes(value.result) || ![value.completedRuns, value.unavailableRuns, value.notRunRuns].every(
-    (count) => Number.isSafeInteger(count) && count >= 0 && count <= 2e3
-  ) || value.completedRuns + value.unavailableRuns + value.notRunRuns !== 2e3 || typeof value.runSetSha256 !== "string" || !isSha256Hex(value.runSetSha256) || typeof value.evaluationAuthorityReceiptSha256 !== "string" || !isSha256Hex(value.evaluationAuthorityReceiptSha256) || typeof value.verdictSha256 !== "string" || !isSha256Hex(value.verdictSha256) || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt)) {
-    return null;
-  }
-  return value;
-}
-function executionEventFromUnknown(value) {
-  if (!isRecord2(value) || typeof value._tag !== "string") return null;
-  const at = value.at;
-  if (typeof at !== "string" || !isUtcSecondTimestamp(at)) return null;
-  switch (value._tag) {
-    case "ActionReserved": {
-      const allowed = value.commandSha256 === void 0 ? ["_tag", "action", "candidateSha256", "reservationId", "at"] : ["_tag", "action", "candidateSha256", "commandSha256", "reservationId", "at"];
-      if (!exactKeys(value, allowed) || typeof value.action !== "string" || !executionActionKinds.includes(value.action) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.reservationId !== "string" || value.reservationId.length === 0 || value.commandSha256 !== void 0 && (typeof value.commandSha256 !== "string" || !isSha256Hex(value.commandSha256))) {
-        return null;
-      }
-      return {
-        _tag: "ActionReserved",
-        action: value.action,
-        candidateSha256: value.candidateSha256,
-        ...value.commandSha256 === void 0 ? {} : { commandSha256: value.commandSha256 },
-        reservationId: value.reservationId,
-        at
-      };
-    }
-    case "ProductChanged":
-      if (!exactKeys(value, ["_tag", "candidateSha256", "allowedPathsSha256", "at"]) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.allowedPathsSha256 !== "string" || !isSha256Hex(value.allowedPathsSha256)) return null;
-      return {
-        _tag: "ProductChanged",
-        candidateSha256: value.candidateSha256,
-        allowedPathsSha256: value.allowedPathsSha256,
-        at
-      };
-    case "MilestoneRecorded": {
-      const milestones = ["checks", "audit", "integrated", "published"];
-      if (!exactKeys(value, ["_tag", "milestone", "candidateSha256", "evidenceSha256", "at"]) || typeof value.milestone !== "string" || !milestones.includes(value.milestone) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.evidenceSha256 !== "string" || !isSha256Hex(value.evidenceSha256)) return null;
-      return {
-        _tag: "MilestoneRecorded",
-        milestone: value.milestone,
-        candidateSha256: value.candidateSha256,
-        evidenceSha256: value.evidenceSha256,
-        at
-      };
-    }
-    case "TerminalDecided": {
-      const terminals = [
-        "Completed",
-        "Escalated",
-        "Stalled",
-        "BudgetExhausted",
-        "Cancelled",
-        "Invalidated",
-        "BlockedExternal"
-      ];
-      if (!exactKeys(value, ["_tag", "terminal", "reason", "at"]) || typeof value.terminal !== "string" || !terminals.includes(value.terminal) || typeof value.reason !== "string" || value.reason.length === 0) return null;
-      return {
-        _tag: "TerminalDecided",
-        terminal: value.terminal,
-        reason: value.reason,
-        at
-      };
-    }
-    default:
-      return null;
-  }
-}
-function executionV2EventFromUnknown(value) {
-  if (!isRecord2(value) || value._tag !== "ActionReserved") {
-    return executionEventFromUnknown(value);
-  }
-  const allowed = value.commandSha256 === void 0 ? ["_tag", "action", "candidateSha256", "reservationId", "at"] : [
-    "_tag",
-    "action",
-    "candidateSha256",
-    "commandSha256",
-    "reservationId",
-    "at"
-  ];
-  if (!exactKeys(value, allowed) || typeof value.action !== "string" || !releaseActionsV2.includes(value.action) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.reservationId !== "string" || typeof decodeRunId(value.reservationId) !== "string" || typeof value.at !== "string" || !isUtcSecondTimestamp(value.at) || value.commandSha256 !== void 0 && (typeof value.commandSha256 !== "string" || !isSha256Hex(value.commandSha256))) {
-    return null;
-  }
-  return {
-    _tag: "ActionReserved",
-    action: value.action,
-    candidateSha256: value.candidateSha256,
-    ...value.commandSha256 === void 0 ? {} : { commandSha256: value.commandSha256 },
-    reservationId: value.reservationId,
-    at: value.at
-  };
-}
-function executionV2OperationFromUnknown(value) {
-  if (!isRecord2(value) || typeof value._tag !== "string") return null;
-  const runId = (item) => typeof item === "string" && typeof decodeRunId(item) === "string";
-  const digest = (item) => typeof item === "string" && isSha256Hex(item);
-  switch (value._tag) {
-    case "ReserveAction": {
-      if (!exactKeys(value, [
-        "_tag",
-        "reservationId",
-        "reservationAction",
-        "effectiveAction",
-        "originReservationId",
-        "candidate",
-        "taskPlanSha256",
-        "authorityBundleSha256"
-      ]) || !runId(value.reservationId) || typeof value.reservationAction !== "string" || !releaseActionsV2.includes(value.reservationAction) || typeof value.effectiveAction !== "string" || !releaseActionsV2.includes(value.effectiveAction) || !runId(value.originReservationId) || !digest(value.taskPlanSha256) || !digest(value.authorityBundleSha256)) {
-        return null;
-      }
-      const candidate = candidateFromUnknown(value.candidate);
-      if (candidate === null) return null;
-      return {
-        _tag: "ReserveAction",
-        reservationId: value.reservationId,
-        reservationAction: value.reservationAction,
-        effectiveAction: value.effectiveAction,
-        originReservationId: value.originReservationId,
-        candidate,
-        taskPlanSha256: value.taskPlanSha256,
-        authorityBundleSha256: value.authorityBundleSha256
-      };
-    }
-    case "RecordProductChange": {
-      if (!exactKeys(value, [
-        "_tag",
-        "reservationId",
-        "originReservationId",
-        "baseCandidate",
-        "candidate",
-        "allowedPathsSha256"
-      ]) || !runId(value.reservationId) || !runId(value.originReservationId) || !digest(value.allowedPathsSha256)) {
-        return null;
-      }
-      const baseCandidate = candidateFromUnknown(value.baseCandidate);
-      const candidate = candidateFromUnknown(value.candidate);
-      if (baseCandidate === null || candidate === null) return null;
-      return {
-        _tag: "RecordProductChange",
-        reservationId: value.reservationId,
-        originReservationId: value.originReservationId,
-        baseCandidate,
-        candidate,
-        allowedPathsSha256: value.allowedPathsSha256
-      };
-    }
-    case "RecordMilestone":
-      if (!exactKeys(value, [
-        "_tag",
-        "milestone",
-        "outcomeSha256",
-        "reservationId",
-        "originReservationId",
-        "candidateSha256"
-      ]) || typeof value.milestone !== "string" || !["checks", "audit", "integrated", "published"].includes(
-        value.milestone
-      ) || !digest(value.outcomeSha256) || !runId(value.reservationId) || !runId(value.originReservationId) || !digest(value.candidateSha256)) {
-        return null;
-      }
-      return {
-        _tag: "RecordMilestone",
-        milestone: value.milestone,
-        outcomeSha256: value.outcomeSha256,
-        reservationId: value.reservationId,
-        originReservationId: value.originReservationId,
-        candidateSha256: value.candidateSha256
-      };
-    case "RecordBlockingOutcome":
-    case "RecordExternalFailure":
-      if (!exactKeys(value, [
-        "_tag",
-        "outcomeSha256",
-        "reservationId",
-        "originReservationId",
-        "candidateSha256"
-      ]) || !digest(value.outcomeSha256) || !runId(value.reservationId) || !runId(value.originReservationId) || !digest(value.candidateSha256)) {
-        return null;
-      }
-      return {
-        _tag: value._tag,
-        outcomeSha256: value.outcomeSha256,
-        reservationId: value.reservationId,
-        originReservationId: value.originReservationId,
-        candidateSha256: value.candidateSha256
-      };
-    case "Cancel":
-      return exactKeys(value, ["_tag", "approvalSha256", "reasonSha256"]) && digest(value.approvalSha256) && digest(value.reasonSha256) ? {
-        _tag: "Cancel",
-        approvalSha256: value.approvalSha256,
-        reasonSha256: value.reasonSha256
-      } : null;
-    case "Invalidate":
-      return exactKeys(value, [
-        "_tag",
-        "approvalSha256",
-        "observedFamilySha256",
-        "reasonSha256"
-      ]) && digest(value.approvalSha256) && digest(value.observedFamilySha256) && digest(value.reasonSha256) ? {
-        _tag: "Invalidate",
-        approvalSha256: value.approvalSha256,
-        observedFamilySha256: value.observedFamilySha256,
-        reasonSha256: value.reasonSha256
-      } : null;
-    default:
-      return null;
-  }
-}
-function familyJournalPayloadFromUnknown(value) {
-  if (!isRecord2(value) || typeof value._tag !== "string") return null;
-  if (value._tag === "ExecutionFamilyAuthorityRegistered") {
-    if (!exactKeys(value, [
-      "_tag",
-      "rootContractId",
-      "rootContractSha256",
-      "familySha256",
-      "sourceSha256",
-      "auditReceiptSha256",
-      "userReceiptSha256",
-      "registeredAt"
-    ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || typeof value.familySha256 !== "string" || typeof value.sourceSha256 !== "string" || typeof value.auditReceiptSha256 !== "string" || typeof value.userReceiptSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || !isSha256Hex(value.familySha256) || !isSha256Hex(value.sourceSha256) || !isSha256Hex(value.auditReceiptSha256) || !isSha256Hex(value.userReceiptSha256) || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt)) {
-      return null;
-    }
-    return {
-      _tag: "ExecutionFamilyAuthorityRegistered",
-      rootContractId: value.rootContractId,
-      rootContractSha256: value.rootContractSha256,
-      familySha256: value.familySha256,
-      sourceSha256: value.sourceSha256,
-      auditReceiptSha256: value.auditReceiptSha256,
-      userReceiptSha256: value.userReceiptSha256,
-      registeredAt: value.registeredAt
-    };
-  }
-  if (value._tag === "EndstopFamilyActivated") {
-    if (!exactKeys(value, [
-      "_tag",
-      "familySha256",
-      "sourceSha256",
-      "auditReceiptSha256",
-      "userReceiptSha256",
-      "activatedAt"
-    ]) || typeof value.familySha256 !== "string" || typeof value.sourceSha256 !== "string" || typeof value.auditReceiptSha256 !== "string" || typeof value.userReceiptSha256 !== "string" || !isSha256Hex(value.familySha256) || !isSha256Hex(value.sourceSha256) || !isSha256Hex(value.auditReceiptSha256) || !isSha256Hex(value.userReceiptSha256) || typeof value.activatedAt !== "string" || !isUtcSecondTimestamp(value.activatedAt)) {
-      return null;
-    }
-    return {
-      _tag: "EndstopFamilyActivated",
-      familySha256: value.familySha256,
-      sourceSha256: value.sourceSha256,
-      auditReceiptSha256: value.auditReceiptSha256,
-      userReceiptSha256: value.userReceiptSha256,
-      activatedAt: value.activatedAt
-    };
-  }
-  if (value._tag === "ExecutionChildAuthorityRegistered") {
-    const { _tag: ignored, ...raw } = value;
-    void ignored;
-    const authority = childAuthorityFromUnknown(raw);
-    return authority === null ? null : { _tag: "ExecutionChildAuthorityRegistered", ...authority };
-  }
-  if (value._tag === "ExecutionChildOutcomeRegistered") {
-    const { _tag: ignored, ...raw } = value;
-    void ignored;
-    const outcome = childOutcomeFromUnknown(raw);
-    return outcome === null ? null : { _tag: "ExecutionChildOutcomeRegistered", ...outcome };
-  }
-  if (value._tag === "ExecutionEvaluationVerdictRegistered") {
-    const { _tag: ignored, ...raw } = value;
-    void ignored;
-    const verdict = evaluationVerdictFromUnknown(raw);
-    return verdict === null ? null : { _tag: "ExecutionEvaluationVerdictRegistered", ...verdict };
-  }
-  if (value._tag === "EndstopChildDecision") {
-    if (!exactKeys(value, [
-      "_tag",
-      "familySha256",
-      "childId",
-      "operation",
-      "events"
-    ]) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || !Array.isArray(value.events) || value.events.length === 0) {
-      return null;
-    }
-    const operation = executionV2OperationFromUnknown(value.operation);
-    if (operation === null) return null;
-    const events = [];
-    for (const item of value.events) {
-      const event = executionV2EventFromUnknown(item);
-      if (event === null || events[0] !== void 0 && event.at !== events[0].at) {
-        return null;
-      }
-      events.push(event);
-    }
-    return {
-      _tag: "EndstopChildDecision",
-      familySha256: value.familySha256,
-      childId: value.childId,
-      operation,
-      events
-    };
-  }
-  return null;
-}
-function sameCandidate(left3, right3) {
-  return left3.commit === right3.commit && left3.tree === right3.tree && left3.candidateSha256 === right3.candidateSha256;
-}
-function childAuthorityIdentity(authority) {
-  return canonicalize({
-    familySha256: authority.familySha256,
-    childId: authority.childId,
-    action: authority.action,
-    candidateSha256: authority.candidate.candidateSha256,
-    priorReservationId: authority.priorReservationId
-  });
-}
-function authorityMatchesReservation(authority, operation) {
-  const wrapper = operation.reservationAction === "provider_retry" || operation.reservationAction === "resume";
-  return authority.action === operation.reservationAction && authority.effectiveAction === operation.effectiveAction && sameCandidate(authority.candidate, operation.candidate) && authority.taskPlanSha256 === operation.taskPlanSha256 && authority.bundleSha256 === operation.authorityBundleSha256 && (wrapper ? authority.priorReservationId !== null && authority.originReservationId === operation.originReservationId : authority.priorReservationId === null && authority.originReservationId === null && operation.originReservationId === operation.reservationId);
-}
-function hasAvailableChildAuthority(authorities, family, childId, operation, at) {
-  const child = family.children[childId];
-  if (child === void 0) return false;
-  return authorities.some(
-    (item) => item.familySha256 === family.familySha256 && item.childId === childId && Date.parse(item.registeredAt) <= Date.parse(at) && authorityMatchesReservation(item, operation)
-  );
-}
-function outcomeMatchesReservation(outcome, family) {
-  const reservation = family.children[outcome.childId]?.reservations[outcome.reservationId];
-  return reservation !== void 0 && reservation.originReservationId === outcome.originReservationId && reservation.reservationAction === outcome.reservationAction && reservation.effectiveAction === outcome.effectiveAction && reservation.candidate.candidateSha256 === outcome.candidateSha256;
-}
-function operationOutcome(operation) {
-  return operation._tag === "RecordMilestone" || operation._tag === "RecordBlockingOutcome" || operation._tag === "RecordExternalFailure" ? operation : null;
-}
-function evaluationRunSetSha256(family) {
-  const child = family.children["v040-t8-evaluation"];
-  if (child === void 0) return null;
-  const encoder6 = new TextEncoder();
-  const rows = Object.entries(child.evaluationPassOrigins).map(([originReservationId, outcomeSha256]) => ({
-    originReservationId,
-    outcomeSha256
-  })).sort(
-    (left3, right3) => Buffer.from(encoder6.encode(left3.originReservationId)).compare(
-      Buffer.from(encoder6.encode(right3.originReservationId))
-    )
-  );
-  return sha256Hex(canonicalize(rows));
-}
-function replayHistory(events, loadManifest) {
-  const relevant = events.filter(
-    (event) => event.type === CONTRACT_EVENT || event.type === DECISION_EVENT || event.type === V2_EVENT
-  );
-  const contracts = relevant.filter((event) => event.type === CONTRACT_EVENT);
-  if (contracts.length === 0) {
-    return relevant.length === 0 ? { _tag: "Missing" } : { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-  }
-  if (contracts.length !== 1 || relevant[0]?.type !== CONTRACT_EVENT) {
-    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-  }
-  const contractStored = contracts[0];
-  if (contractStored.lane !== ENDSTOP_LANE || !exactKeys(contractStored.payload, [
-    "contract",
-    "contractSha256"
-  ])) {
-    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-  }
-  const decoded = decodeExecutionContractV1(contractStored.payload.contract);
-  const hash2 = contractStored.payload.contractSha256;
-  if (isExecutionContractFailure(decoded) || typeof hash2 !== "string" || !isSha256Hex(hash2) || executionContractSha256(decoded) !== hash2) {
-    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-  }
-  let root = initialExecutionState(decoded);
-  let authority = null;
-  let family = null;
-  const childAuthorities = [];
-  const childOutcomes = [];
-  const evaluationVerdicts = [];
-  for (const stored of relevant.slice(1)) {
-    if (stored.type === DECISION_EVENT) {
-      if (authority !== null || stored.lane !== ENDSTOP_LANE || !exactKeys(stored.payload, [
-        "contractSha256",
-        "events"
-      ]) || stored.payload.contractSha256 !== hash2 || !Array.isArray(stored.payload.events) || stored.payload.events.length === 0 || isExecutionTerminal(root)) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      for (const raw of stored.payload.events) {
-        const event = executionEventFromUnknown(raw);
-        if (event === null || Date.parse(event.at) < Date.parse(root.lastEventAt) || event._tag === "ProductChanged" && event.allowedPathsSha256 !== root.contract.allowedPathsSha256) {
-          return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-        }
-        root = evolveExecution(root, event);
-      }
-      continue;
-    }
-    if (stored.type !== V2_EVENT || stored.lane !== ENDSTOP_LANE) {
-      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-    }
-    const payload = familyJournalPayloadFromUnknown(stored.payload);
-    if (payload === null || isExecutionTerminal(root)) {
-      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-    }
-    if (payload._tag === "ExecutionFamilyAuthorityRegistered") {
-      if (authority !== null || family !== null || payload.rootContractId !== decoded.contractId || payload.rootContractSha256 !== hash2 || Date.parse(payload.registeredAt) < Date.parse(root.lastEventAt)) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      authority = {
-        rootContractId: payload.rootContractId,
-        rootContractSha256: payload.rootContractSha256,
-        familySha256: payload.familySha256,
-        sourceSha256: payload.sourceSha256,
-        auditReceiptSha256: payload.auditReceiptSha256,
-        userReceiptSha256: payload.userReceiptSha256,
-        registeredAt: payload.registeredAt
-      };
-      continue;
-    }
-    if (payload._tag === "EndstopFamilyActivated") {
-      if (authority === null || family !== null || payload.familySha256 !== authority.familySha256 || payload.sourceSha256 !== authority.sourceSha256 || payload.auditReceiptSha256 !== authority.auditReceiptSha256 || payload.userReceiptSha256 !== authority.userReceiptSha256 || Date.parse(payload.activatedAt) < Date.parse(authority.registeredAt)) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      const manifest = loadManifest(payload.familySha256);
-      if (manifest === null || manifest.rootContractId !== decoded.contractId || manifest.rootContractSha256 !== hash2 || manifest.sourceSha256 !== authority.sourceSha256 || executionContractFamilySha256(manifest) !== payload.familySha256) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      const activated = initialExecutionFamilyStateV2({
-        manifest,
-        familySha256: payload.familySha256,
-        activatedAt: payload.activatedAt,
-        priorRootActions: root.counts.totalActions
-      });
-      if (isExecutionFamilyFailure(activated)) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      family = activated;
-      continue;
-    }
-    if (payload._tag === "ExecutionChildAuthorityRegistered") {
-      const { _tag: ignored, ...item } = payload;
-      void ignored;
-      if (authority === null || family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || family.children[item.childId] === void 0 || Date.parse(item.registeredAt) < Date.parse(family.activatedAt) || childAuthorities.some(
-        (existing) => childAuthorityIdentity(existing) === childAuthorityIdentity(item)
-      )) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      childAuthorities.push(item);
-      continue;
-    }
-    if (payload._tag === "ExecutionChildOutcomeRegistered") {
-      const { _tag: ignored, ...item } = payload;
-      void ignored;
-      if (family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || !outcomeMatchesReservation(item, family) || Date.parse(item.registeredAt) < Date.parse(family.children[item.childId].lastEventAt) || childOutcomes.some(
-        (existing) => existing.reservationId === item.reservationId
-      )) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      childOutcomes.push(item);
-      if (item.effectiveAction === "evaluate") {
-        family = recordExecutionEvaluationPassV2({
-          state: family,
-          childId: item.childId,
-          originReservationId: item.originReservationId,
-          outcomeSha256: item.outcomeSha256,
-          at: item.registeredAt
-        });
-      }
-      continue;
-    }
-    if (payload._tag === "ExecutionEvaluationVerdictRegistered") {
-      const { _tag: ignored, ...item } = payload;
-      void ignored;
-      if (family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || evaluationVerdicts.some(
-        (existing) => existing.childId === item.childId
-      ) || Date.parse(item.registeredAt) < Date.parse(family.children[item.childId].lastEventAt) || childAuthorities.every(
-        (registered) => registered.childId !== item.childId || registered.effectiveAction !== "evaluate" || registered.candidate.candidateSha256 !== item.candidateSha256 || registered.evaluationManifestSha256 !== item.evaluationAuthorityReceiptSha256
-      ) || evaluationRunSetSha256(family) !== item.runSetSha256) {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      const verdict = registerExecutionEvaluationVerdictV2({
-        state: family,
-        childId: item.childId,
-        verdict: {
-          candidateSha256: item.candidateSha256,
-          result: item.result,
-          completedRuns: item.completedRuns,
-          unavailableRuns: item.unavailableRuns,
-          notRunRuns: item.notRunRuns,
-          runSetSha256: item.runSetSha256,
-          verdictSha256: item.verdictSha256
-        }
-      });
-      if (verdict._tag !== "Accepted") {
-        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-      }
-      evaluationVerdicts.push(item);
-      const verdictChild = verdict.state.children[item.childId];
-      family = {
-        ...verdict.state,
-        children: {
-          ...verdict.state.children,
-          [item.childId]: {
-            ...verdictChild,
-            lastEventAt: item.registeredAt,
-            lastProgressAt: item.registeredAt
-          }
-        }
-      };
-      continue;
-    }
-    if (family === null || payload.familySha256 !== family.familySha256) {
-      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-    }
-    const at = payload.events[0].at;
-    if (payload.operation._tag === "ReserveAction" && !hasAvailableChildAuthority(
-      childAuthorities,
-      family,
-      payload.childId,
-      payload.operation,
-      at
-    )) {
-      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-    }
-    const requiredOutcome = operationOutcome(payload.operation);
-    if (requiredOutcome !== null && !childOutcomes.some(
-      (item) => item.childId === payload.childId && item.reservationId === requiredOutcome.reservationId && item.originReservationId === requiredOutcome.originReservationId && item.candidateSha256 === requiredOutcome.candidateSha256 && item.outcomeSha256 === requiredOutcome.outcomeSha256
-    )) {
-      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-    }
-    const replayed = decideExecutionChildOperationV2({
-      state: family,
-      childId: payload.childId,
-      operation: payload.operation,
-      at
-    });
-    if (replayed._tag !== "Accepted" && replayed._tag !== "Terminated" || canonicalize(replayed.events) !== canonicalize(payload.events)) {
-      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
-    }
-    family = evolveExecutionFamilyV2(
-      family,
-      payload.childId,
-      payload.operation,
-      replayed
-    );
-  }
-  return {
-    _tag: "Ok",
-    state: {
-      root,
-      authority,
-      family,
-      childAuthorities,
-      childOutcomes,
-      evaluationVerdicts
-    }
-  };
-}
-function unwrap(result) {
-  return result._tag === "Ok" ? Effect_exports.succeed(result.value) : Effect_exports.fail(result.failure);
-}
-function withJournalFailure(effect2) {
-  return effect2.pipe(
-    Effect_exports.catchAll(() => Effect_exports.fail(ledgerFailure("journal_failure"))),
-    Effect_exports.flatMap(unwrap)
-  );
-}
-var familyManifestEncoder = new TextEncoder();
-function familyManifestPath(stateRoot, familySha256) {
-  return join5(stateRoot, "release-families", familySha256, "manifest.json");
-}
-function loadFamilyManifestLive(stateRoot, familySha256) {
-  try {
-    if (!isSha256Hex(familySha256)) return null;
-    const bytes = readFileSync(familyManifestPath(stateRoot, familySha256));
-    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    if (!text.endsWith("\n") || text.endsWith("\r\n")) return null;
-    const body = text.slice(0, -1);
-    const raw = JSON.parse(body);
-    if (canonicalize(raw) !== body) return null;
-    const manifest = decodeExecutionContractFamilyV2(raw);
-    if (isExecutionFamilyFailure(manifest) || executionContractFamilySha256(manifest) !== familySha256) {
-      return null;
-    }
-    return manifest;
-  } catch {
-    return null;
-  }
-}
-function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
-  const decoded = decodeExecutionContractFamilyV2(manifest);
-  if (isExecutionFamilyFailure(decoded) || executionContractFamilySha256(decoded) !== familySha256) {
-    throw new Error("invalid family manifest");
-  }
-  const bytes = familyManifestEncoder.encode(`${canonicalize(decoded)}
-`);
-  const path = familyManifestPath(stateRoot, familySha256);
-  const parent = dirname2(path);
-  mkdirSync2(parent, { recursive: true, mode: 448 });
-  if (existsSync2(path)) {
-    const current = readFileSync(path);
-    if (current.equals(Buffer.from(bytes))) return;
-    throw new Error("conflicting family manifest");
-  }
-  const temporary = join5(parent, `.manifest-${randomUUID()}.tmp`);
-  let fd = null;
-  try {
-    fd = openSync3(temporary, "wx", 384);
-    writeFileSync(fd, bytes);
-    fsyncSync2(fd);
-    closeSync3(fd);
-    fd = null;
-    renameSync2(temporary, path);
-    const parentFd = openSync3(parent, "r");
-    try {
-      fsyncSync2(parentFd);
-    } finally {
-      closeSync3(parentFd);
-    }
-  } catch (error) {
-    if (fd !== null) closeSync3(fd);
-    try {
-      unlinkSync2(temporary);
-    } catch {
-    }
-    throw error;
-  }
-}
-function makeLiveEndstopLedgerLayer(stateRoot) {
-  const journalLayer = makeLiveRunJournalLayer(stateRoot);
-  const loadManifest = (familySha256) => loadFamilyManifestLive(stateRoot, familySha256);
-  const readHistory = (contractId) => {
-    const runId = decodeRunId(contractId);
-    if (typeof runId !== "string") {
-      return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
-    }
-    const transaction = Effect_exports.gen(function* () {
-      const journal = yield* RunJournal;
-      return yield* journal.transact(
-        runId,
-        (events) => {
-          const history = replayHistory(events, loadManifest);
-          if (history._tag === "Ok") {
-            return {
-              _tag: "Return",
-              value: { _tag: "Ok", value: history.state }
-            };
-          }
-          return {
-            _tag: "Return",
-            value: {
-              _tag: "Failure",
-              failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-            }
-          };
-        }
-      );
-    }).pipe(Effect_exports.provide(journalLayer));
-    return withJournalFailure(transaction);
-  };
-  const readState = (contractId) => readHistory(contractId).pipe(Effect_exports.map((history) => history.root));
-  return Layer_exports.succeed(EndstopLedger, {
-    create: (contract) => {
-      const decoded = decodeExecutionContractV1(contract);
-      if (isExecutionContractFailure(decoded)) {
-        return Effect_exports.fail(ledgerFailure("invalid_contract"));
-      }
-      const runId = decodeRunId(decoded.contractId);
-      if (typeof runId !== "string") {
-        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
-      }
-      const contractSha256 = executionContractSha256(decoded);
-      const transaction = Effect_exports.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact(
-          runId,
-          (events) => {
-            const history = replayHistory(events, loadManifest);
-            if (history._tag === "Failure") {
-              return { _tag: "Return", value: history };
-            }
-            if (history._tag === "Ok") {
-              return history.state.root.contractSha256 === contractSha256 ? { _tag: "Return", value: { _tag: "Ok", value: history.state.root } } : {
-                _tag: "Return",
-                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
-              };
-            }
-            const state = initialExecutionState(decoded);
-            return {
-              _tag: "Append",
-              draft: {
-                type: CONTRACT_EVENT,
-                lane: ENDSTOP_LANE,
-                payload: { contract: decoded, contractSha256 }
-              },
-              result: () => ({ _tag: "Ok", value: state })
-            };
-          }
-        );
-      }).pipe(Effect_exports.provide(journalLayer));
-      const createContract = withJournalFailure(transaction);
-      if (decoded.supersedesContractId === void 0) return createContract;
-      return Effect_exports.gen(function* () {
-        const predecessor = yield* readState(decoded.supersedesContractId).pipe(
-          Effect_exports.catchAll(
-            () => Effect_exports.fail(ledgerFailure("replacement_unauthorized"))
-          )
-        );
-        if (!isExecutionTerminal(predecessor) || predecessor.contract.packageId !== decoded.packageId || predecessor.contract.authorizationSha256 === decoded.authorizationSha256) {
-          return yield* Effect_exports.fail(ledgerFailure("replacement_unauthorized"));
-        }
-        return yield* createContract;
-      });
-    },
-    status: readState,
-    execute: (contractId, expectedContractSha256, command) => {
-      const runId = decodeRunId(contractId);
-      if (typeof runId !== "string") {
-        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
-      }
-      if (!isSha256Hex(expectedContractSha256)) {
-        return Effect_exports.fail(ledgerFailure("contract_mismatch"));
-      }
-      const transaction = Effect_exports.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact(
-          runId,
-          (events) => {
-            const history = replayHistory(events, loadManifest);
-            if (history._tag !== "Ok") {
-              return {
-                _tag: "Return",
-                value: {
-                  _tag: "Failure",
-                  failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-                }
-              };
-            }
-            if (history.state.root.contractSha256 !== expectedContractSha256) {
-              return {
-                _tag: "Return",
-                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
-              };
-            }
-            if (history.state.family !== null) {
-              return {
-                _tag: "Return",
-                value: {
-                  _tag: "Failure",
-                  failure: ledgerFailure("family_active")
-                }
-              };
-            }
-            const decision = decideExecutionCommand(history.state.root, command);
-            if (decision._tag === "Refused" || decision._tag === "ReusedVerification" || decision.events.length === 0) {
-              return {
-                _tag: "Return",
-                value: {
-                  _tag: "Ok",
-                  value: { decision, state: history.state.root }
-                }
-              };
-            }
-            const nextState = decision.events.reduce(
-              evolveExecution,
-              history.state.root
-            );
-            return {
-              _tag: "Append",
-              draft: {
-                type: DECISION_EVENT,
-                lane: ENDSTOP_LANE,
-                payload: {
-                  contractSha256: expectedContractSha256,
-                  events: decision.events
-                }
-              },
-              result: () => ({
-                _tag: "Ok",
-                value: { decision, state: nextState }
-              })
-            };
-          }
-        );
-      }).pipe(Effect_exports.provide(journalLayer));
-      return Effect_exports.gen(function* () {
-        const current = yield* readHistory(contractId);
-        if (current.root.contractSha256 !== expectedContractSha256) {
-          return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
-        }
-        if (current.family !== null) {
-          return yield* Effect_exports.fail(ledgerFailure("family_active"));
-        }
-        for (const dependencyId of current.root.contract.dependencyContractIds) {
-          const dependency = yield* readState(dependencyId).pipe(
-            Effect_exports.catchAll(
-              () => Effect_exports.fail(ledgerFailure("dependency_incomplete"))
-            )
-          );
-          if (dependency._tag !== "Completed") {
-            return yield* Effect_exports.fail(ledgerFailure("dependency_incomplete"));
-          }
-        }
-        return yield* withJournalFailure(transaction);
-      });
-    },
-    registerFamilyAuthority: (registration) => {
-      const decodedManifest = decodeExecutionContractFamilyV2(
-        registration.manifest
-      );
-      if (isExecutionFamilyFailure(decodedManifest) || typeof decodeRunId(registration.rootContractId) !== "string" || !isSha256Hex(registration.rootContractSha256) || !isSha256Hex(registration.familySha256) || !isSha256Hex(registration.sourceSha256) || !isSha256Hex(registration.auditReceiptSha256) || !isSha256Hex(registration.userReceiptSha256) || !isUtcSecondTimestamp(registration.registeredAt) || decodedManifest.rootContractId !== registration.rootContractId || decodedManifest.rootContractSha256 !== registration.rootContractSha256 || decodedManifest.sourceSha256 !== registration.sourceSha256 || executionContractFamilySha256(decodedManifest) !== registration.familySha256) {
-        return Effect_exports.fail(ledgerFailure("family_mismatch"));
-      }
-      const authority = {
-        rootContractId: registration.rootContractId,
-        rootContractSha256: registration.rootContractSha256,
-        familySha256: registration.familySha256,
-        sourceSha256: registration.sourceSha256,
-        auditReceiptSha256: registration.auditReceiptSha256,
-        userReceiptSha256: registration.userReceiptSha256,
-        registeredAt: registration.registeredAt
-      };
-      const runId = decodeRunId(registration.rootContractId);
-      return Effect_exports.gen(function* () {
-        const before2 = yield* readHistory(registration.rootContractId);
-        if (before2.root.contractSha256 !== registration.rootContractSha256) {
-          return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
-        }
-        if (isExecutionTerminal(before2.root)) {
-          return yield* Effect_exports.fail(ledgerFailure("family_mismatch"));
-        }
-        yield* Effect_exports.try({
-          try: () => publishFamilyManifestLive(
-            stateRoot,
-            decodedManifest,
-            registration.familySha256
-          ),
-          catch: () => ledgerFailure("journal_failure")
-        });
-        const transaction = Effect_exports.gen(function* () {
-          const journal = yield* RunJournal;
-          return yield* journal.transact(runId, (events) => {
-            const history = replayHistory(events, loadManifest);
-            if (history._tag !== "Ok") {
-              return {
-                _tag: "Return",
-                value: {
-                  _tag: "Failure",
-                  failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-                }
-              };
-            }
-            if (history.state.root.contractSha256 !== registration.rootContractSha256) {
-              return {
-                _tag: "Return",
-                value: {
-                  _tag: "Failure",
-                  failure: ledgerFailure("contract_mismatch")
-                }
-              };
-            }
-            if (history.state.authority !== null) {
-              return canonicalize(history.state.authority) === canonicalize(authority) ? {
-                _tag: "Return",
-                value: { _tag: "Ok", value: history.state.authority }
-              } : {
-                _tag: "Return",
-                value: {
-                  _tag: "Failure",
-                  failure: ledgerFailure("family_authority_mismatch")
-                }
-              };
-            }
-            if (isExecutionTerminal(history.state.root)) {
-              return {
-                _tag: "Return",
-                value: {
-                  _tag: "Failure",
-                  failure: ledgerFailure("family_mismatch")
-                }
-              };
-            }
-            return {
-              _tag: "Append",
-              draft: {
-                type: V2_EVENT,
-                lane: ENDSTOP_LANE,
-                payload: {
-                  _tag: "ExecutionFamilyAuthorityRegistered",
-                  ...authority
-                }
-              },
-              result: () => ({ _tag: "Ok", value: authority })
-            };
-          });
-        }).pipe(Effect_exports.provide(journalLayer));
-        return yield* withJournalFailure(transaction);
-      });
-    },
-    activateFamily: (activation) => {
-      const runId = decodeRunId(activation.rootContractId);
-      if (typeof runId !== "string" || !isSha256Hex(activation.rootContractSha256) || !isSha256Hex(activation.familySha256) || !isSha256Hex(activation.sourceSha256) || !isSha256Hex(activation.auditReceiptSha256) || !isSha256Hex(activation.userReceiptSha256) || !isUtcSecondTimestamp(activation.activatedAt)) {
-        return Effect_exports.fail(ledgerFailure("family_mismatch"));
-      }
-      const transaction = Effect_exports.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact(runId, (events) => {
-          const history = replayHistory(events, loadManifest);
-          if (history._tag !== "Ok") {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-              }
-            };
-          }
-          if (history.state.root.contractSha256 !== activation.rootContractSha256) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("contract_mismatch")
-              }
-            };
-          }
-          const authority = history.state.authority;
-          if (authority === null) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("family_missing")
-              }
-            };
-          }
-          if (history.state.family !== null) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("family_already_activated")
-              }
-            };
-          }
-          if (authority.rootContractId !== activation.rootContractId || authority.familySha256 !== activation.familySha256 || authority.sourceSha256 !== activation.sourceSha256 || authority.auditReceiptSha256 !== activation.auditReceiptSha256 || authority.userReceiptSha256 !== activation.userReceiptSha256) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("family_authority_mismatch")
-              }
-            };
-          }
-          const manifest = loadManifest(activation.familySha256);
-          if (manifest === null) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("family_mismatch")
-              }
-            };
-          }
-          const family = initialExecutionFamilyStateV2({
-            manifest,
-            familySha256: activation.familySha256,
-            activatedAt: activation.activatedAt,
-            priorRootActions: history.state.root.counts.totalActions
-          });
-          if (isExecutionFamilyFailure(family)) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("family_mismatch")
-              }
-            };
-          }
-          const value = {
-            root: history.state.root,
-            authority,
-            family,
-            childAuthorities: history.state.childAuthorities,
-            childOutcomes: history.state.childOutcomes,
-            evaluationVerdicts: history.state.evaluationVerdicts
-          };
-          return {
-            _tag: "Append",
-            draft: {
-              type: V2_EVENT,
-              lane: ENDSTOP_LANE,
-              payload: {
-                _tag: "EndstopFamilyActivated",
-                familySha256: activation.familySha256,
-                sourceSha256: activation.sourceSha256,
-                auditReceiptSha256: activation.auditReceiptSha256,
-                userReceiptSha256: activation.userReceiptSha256,
-                activatedAt: activation.activatedAt
-              }
-            },
-            result: () => ({ _tag: "Ok", value })
-          };
-        });
-      }).pipe(Effect_exports.provide(journalLayer));
-      return withJournalFailure(transaction);
-    },
-    registerChildAuthority: (registration) => {
-      const decoded = childAuthorityFromUnknown(registration);
-      if (decoded === null) {
-        return Effect_exports.fail(ledgerFailure("child_authority_mismatch"));
-      }
-      const runId = decodeRunId(decoded.rootContractId);
-      const transaction = Effect_exports.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact(runId, (events) => {
-          const history = replayHistory(events, loadManifest);
-          if (history._tag !== "Ok") {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-              }
-            };
-          }
-          const family = history.state.family;
-          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("contract_mismatch")
-              }
-            };
-          }
-          if (family === null || family.familySha256 !== decoded.familySha256 || family.children[decoded.childId] === void 0 || Date.parse(decoded.registeredAt) < Date.parse(family.activatedAt)) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("family_mismatch")
-              }
-            };
-          }
-          const identity2 = childAuthorityIdentity(decoded);
-          const existing = history.state.childAuthorities.find(
-            (item) => childAuthorityIdentity(item) === identity2
-          );
-          if (existing !== void 0) {
-            return canonicalize(existing) === canonicalize(decoded) ? {
-              _tag: "Return",
-              value: { _tag: "Ok", value: existing }
-            } : {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          return {
-            _tag: "Append",
-            draft: {
-              type: V2_EVENT,
-              lane: ENDSTOP_LANE,
-              payload: {
-                _tag: "ExecutionChildAuthorityRegistered",
-                ...decoded
-              }
-            },
-            result: () => ({ _tag: "Ok", value: decoded })
-          };
-        });
-      }).pipe(Effect_exports.provide(journalLayer));
-      return withJournalFailure(transaction);
-    },
-    registerChildOutcome: (registration) => {
-      const decoded = childOutcomeFromUnknown(registration);
-      if (decoded === null) {
-        return Effect_exports.fail(ledgerFailure("child_authority_mismatch"));
-      }
-      const runId = decodeRunId(decoded.rootContractId);
-      const transaction = Effect_exports.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact(runId, (events) => {
-          const history = replayHistory(events, loadManifest);
-          if (history._tag !== "Ok") {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-              }
-            };
-          }
-          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("contract_mismatch")
-              }
-            };
-          }
-          const family = history.state.family;
-          const child = family?.children[decoded.childId];
-          if (family === null || family === void 0 || child === void 0 || family.familySha256 !== decoded.familySha256 || !outcomeMatchesReservation(decoded, family) || Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) || decoded.effectiveAction === "council" !== (decoded.outcomeSchema === "foreman.council-outcome.v1")) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          const existing = history.state.childOutcomes.find(
-            (item) => item.reservationId === decoded.reservationId
-          );
-          if (existing !== void 0) {
-            return canonicalize(existing) === canonicalize(decoded) ? {
-              _tag: "Return",
-              value: { _tag: "Ok", value: existing }
-            } : {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          return {
-            _tag: "Append",
-            draft: {
-              type: V2_EVENT,
-              lane: ENDSTOP_LANE,
-              payload: {
-                _tag: "ExecutionChildOutcomeRegistered",
-                ...decoded
-              }
-            },
-            result: () => ({ _tag: "Ok", value: decoded })
-          };
-        });
-      }).pipe(Effect_exports.provide(journalLayer));
-      return withJournalFailure(transaction);
-    },
-    registerEvaluationVerdict: (registration) => {
-      const decoded = evaluationVerdictFromUnknown(registration);
-      if (decoded === null) {
-        return Effect_exports.fail(ledgerFailure("child_authority_mismatch"));
-      }
-      const runId = decodeRunId(decoded.rootContractId);
-      const transaction = Effect_exports.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact(runId, (events) => {
-          const history = replayHistory(events, loadManifest);
-          if (history._tag !== "Ok") {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-              }
-            };
-          }
-          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("contract_mismatch")
-              }
-            };
-          }
-          const family = history.state.family;
-          const child = family?.children[decoded.childId];
-          if (family === null || family === void 0 || child === void 0 || family.familySha256 !== decoded.familySha256 || Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) || evaluationRunSetSha256(family) !== decoded.runSetSha256 || history.state.childAuthorities.every(
-            (authority) => authority.childId !== decoded.childId || authority.effectiveAction !== "evaluate" || authority.candidate.candidateSha256 !== decoded.candidateSha256 || authority.evaluationManifestSha256 !== decoded.evaluationAuthorityReceiptSha256
-          )) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          const existing = history.state.evaluationVerdicts.find(
-            (item) => item.childId === decoded.childId
-          );
-          if (existing !== void 0) {
-            return canonicalize(existing) === canonicalize(decoded) ? {
-              _tag: "Return",
-              value: {
-                _tag: "Ok",
-                value: {
-                  root: history.state.root,
-                  authority: history.state.authority,
-                  family,
-                  childAuthorities: history.state.childAuthorities,
-                  childOutcomes: history.state.childOutcomes,
-                  evaluationVerdicts: history.state.evaluationVerdicts
-                }
-              }
-            } : {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          const verdict = registerExecutionEvaluationVerdictV2({
-            state: family,
-            childId: decoded.childId,
-            verdict: {
-              candidateSha256: decoded.candidateSha256,
-              result: decoded.result,
-              completedRuns: decoded.completedRuns,
-              unavailableRuns: decoded.unavailableRuns,
-              notRunRuns: decoded.notRunRuns,
-              runSetSha256: decoded.runSetSha256,
-              verdictSha256: decoded.verdictSha256
-            }
-          });
-          if (verdict._tag !== "Accepted") {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          const value = {
-            root: history.state.root,
-            authority: history.state.authority,
-            family: {
-              ...verdict.state,
-              children: {
-                ...verdict.state.children,
-                [decoded.childId]: {
-                  ...verdict.state.children[decoded.childId],
-                  lastEventAt: decoded.registeredAt,
-                  lastProgressAt: decoded.registeredAt
-                }
-              }
-            },
-            childAuthorities: history.state.childAuthorities,
-            childOutcomes: history.state.childOutcomes,
-            evaluationVerdicts: [
-              ...history.state.evaluationVerdicts,
-              decoded
-            ]
-          };
-          return {
-            _tag: "Append",
-            draft: {
-              type: V2_EVENT,
-              lane: ENDSTOP_LANE,
-              payload: {
-                _tag: "ExecutionEvaluationVerdictRegistered",
-                ...decoded
-              }
-            },
-            result: () => ({ _tag: "Ok", value })
-          };
-        });
-      }).pipe(Effect_exports.provide(journalLayer));
-      return withJournalFailure(transaction);
-    },
-    executeChild: (input) => {
-      const runId = decodeRunId(input.rootContractId);
-      const operation = executionV2OperationFromUnknown(input.operation);
-      if (typeof runId !== "string" || !isSha256Hex(input.rootContractSha256) || !isSha256Hex(input.familySha256) || typeof decodeRunId(input.childId) !== "string" || operation === null || !isUtcSecondTimestamp(input.at)) {
-        return Effect_exports.fail(ledgerFailure("family_mismatch"));
-      }
-      const transaction = Effect_exports.gen(function* () {
-        const journal = yield* RunJournal;
-        return yield* journal.transact(runId, (events) => {
-          const history = replayHistory(events, loadManifest);
-          if (history._tag !== "Ok") {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
-              }
-            };
-          }
-          if (history.state.root.contractSha256 !== input.rootContractSha256) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("contract_mismatch")
-              }
-            };
-          }
-          const family = history.state.family;
-          if (family === null || family.familySha256 !== input.familySha256 || family.children[input.childId] === void 0) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("family_missing")
-              }
-            };
-          }
-          if (operation._tag === "ReserveAction" && !hasAvailableChildAuthority(
-            history.state.childAuthorities,
-            family,
-            input.childId,
-            operation,
-            input.at
-          )) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          const requiredOutcome = operationOutcome(operation);
-          if (requiredOutcome !== null && !history.state.childOutcomes.some(
-            (item) => item.childId === input.childId && item.reservationId === requiredOutcome.reservationId && item.originReservationId === requiredOutcome.originReservationId && item.candidateSha256 === requiredOutcome.candidateSha256 && item.outcomeSha256 === requiredOutcome.outcomeSha256
-          )) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Failure",
-                failure: ledgerFailure("child_authority_mismatch")
-              }
-            };
-          }
-          const decision = decideExecutionChildOperationV2({
-            state: family,
-            childId: input.childId,
-            operation,
-            at: input.at
-          });
-          if (decision._tag === "Refused" || decision._tag === "ReusedVerification" || decision.events.length === 0) {
-            return {
-              _tag: "Return",
-              value: {
-                _tag: "Ok",
-                value: { decision, state: family }
-              }
-            };
-          }
-          const state = evolveExecutionFamilyV2(
-            family,
-            input.childId,
-            operation,
-            decision
-          );
-          return {
-            _tag: "Append",
-            draft: {
-              type: V2_EVENT,
-              lane: ENDSTOP_LANE,
-              payload: {
-                _tag: "EndstopChildDecision",
-                familySha256: input.familySha256,
-                childId: input.childId,
-                operation,
-                events: decision.events
-              }
-            },
-            result: () => ({
-              _tag: "Ok",
-              value: { decision, state }
-            })
-          };
-        });
-      }).pipe(Effect_exports.provide(journalLayer));
-      return withJournalFailure(transaction);
-    },
-    familyAuthorityStatus: (input) => Effect_exports.gen(function* () {
-      if (typeof decodeRunId(input.rootContractId) !== "string" || !isSha256Hex(input.rootContractSha256) || !isSha256Hex(input.familySha256)) {
-        return yield* Effect_exports.fail(ledgerFailure("family_mismatch"));
-      }
-      const history = yield* readHistory(input.rootContractId);
-      if (history.root.contractSha256 !== input.rootContractSha256) {
-        return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
-      }
-      if (history.authority === null || history.authority.familySha256 !== input.familySha256) {
-        return yield* Effect_exports.fail(ledgerFailure("family_missing"));
-      }
-      return history.authority;
-    }),
-    familyStatus: (input) => Effect_exports.gen(function* () {
-      if (typeof decodeRunId(input.rootContractId) !== "string" || !isSha256Hex(input.rootContractSha256) || !isSha256Hex(input.familySha256)) {
-        return yield* Effect_exports.fail(ledgerFailure("family_mismatch"));
-      }
-      const history = yield* readHistory(input.rootContractId);
-      if (history.root.contractSha256 !== input.rootContractSha256) {
-        return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
-      }
-      if (history.authority === null || history.family === null || history.authority.familySha256 !== input.familySha256 || history.family.familySha256 !== input.familySha256) {
-        return yield* Effect_exports.fail(ledgerFailure("family_missing"));
-      }
-      return {
-        root: history.root,
-        authority: history.authority,
-        family: history.family,
-        childAuthorities: history.childAuthorities,
-        childOutcomes: history.childOutcomes,
-        evaluationVerdicts: history.evaluationVerdicts
-      };
-    })
-  });
-}
-
 // packages/policy/src/schema.ts
 var ENTRY_STATES = [
   "blocked",
@@ -36026,7 +32263,7 @@ var VALUE_TS_NODES = /* @__PURE__ */ new Set([
 
 // packages/policy/src/architecture-git.ts
 var GIT_TIMEOUT_MS = 15e3;
-var OWNED_CHILD_CANCEL_WAIT_MS2 = 5e3;
+var OWNED_CHILD_CANCEL_WAIT_MS = 5e3;
 var MAX_BLOB_BYTES = 32 * 1024 * 1024;
 var ArchitectureGitError = class {
   constructor(reason) {
@@ -36056,7 +32293,7 @@ function cancelOwnedGitChild(child, controller, alreadyClosed, onClosed) {
       done7 = true;
       resume2(Effect_exports.void);
     };
-    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS2);
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
     onClosed(() => {
       clearTimeout(timer);
       finish();
@@ -36320,13 +32557,13 @@ var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
 
 // packages/policy/src/install-verify-fs.ts
 import {
-  closeSync as closeSync4,
-  constants as fsConstants3,
-  fstatSync as fstatSync3,
+  closeSync as closeSync2,
+  constants as fsConstants2,
+  fstatSync as fstatSync2,
   lstatSync as lstatSync2,
-  openSync as openSync4,
+  openSync as openSync2,
   readdirSync,
-  readSync as readSync3,
+  readSync as readSync2,
   realpathSync
 } from "node:fs";
 var InstallFsError = class {
@@ -36352,15 +32589,15 @@ function identityFromStats(s) {
   };
 }
 function openFlags() {
-  const nofollow = typeof fsConstants3.O_NOFOLLOW === "number" ? fsConstants3.O_NOFOLLOW : 0;
-  return fsConstants3.O_RDONLY | nofollow;
+  const nofollow = typeof fsConstants2.O_NOFOLLOW === "number" ? fsConstants2.O_NOFOLLOW : 0;
+  return fsConstants2.O_RDONLY | nofollow;
 }
 function readFdBoundedSync(fd, maxBytes) {
   const cap = maxBytes + 1;
   const buf = Buffer.allocUnsafe(cap);
   let offset = 0;
   while (offset < cap) {
-    const n = readSync3(fd, buf, offset, cap - offset, offset);
+    const n = readSync2(fd, buf, offset, cap - offset, offset);
     if (n === 0) break;
     offset += n;
   }
@@ -36387,12 +32624,12 @@ var liveInstallFs = Layer_exports.succeed(InstallFs, {
   withOpenFile: (path, use) => Effect_exports.acquireUseRelease(
     Effect_exports.try({
       try: () => {
-        const fd = openSync4(path, openFlags());
+        const fd = openSync2(path, openFlags());
         try {
-          const st = fstatSync3(fd);
+          const st = fstatSync2(fd);
           return { fd, identity: identityFromStats(st) };
         } catch (e) {
-          closeSync4(fd);
+          closeSync2(fd);
           throw e;
         }
       },
@@ -36412,13 +32649,13 @@ var liveInstallFs = Layer_exports.succeed(InstallFs, {
         catch: (e) => e instanceof InstallFsError ? e : new InstallFsError("unreadable")
       }),
       recheckIdentity: () => Effect_exports.try({
-        try: () => identityFromStats(fstatSync3(fd)),
+        try: () => identityFromStats(fstatSync2(fd)),
         catch: () => new InstallFsError("unreadable")
       })
     }),
     ({ fd }) => Effect_exports.sync(() => {
       try {
-        closeSync4(fd);
+        closeSync2(fd);
       } catch {
       }
     })
@@ -38489,20 +34726,20 @@ function evaluateReleaseAdmissionV1(input) {
 // packages/policy/src/release-admission-cli.ts
 import { execFile as execFile2 } from "node:child_process";
 import {
-  accessSync as accessSync2,
-  closeSync as closeSync5,
-  constants as fsConstants4,
-  fstatSync as fstatSync4,
+  accessSync,
+  closeSync as closeSync3,
+  constants as fsConstants3,
+  fstatSync as fstatSync3,
   lstatSync as lstatSync3,
-  openSync as openSync5,
-  readSync as readSync4,
+  openSync as openSync3,
+  readSync as readSync3,
   realpathSync as realpathSync2,
-  statSync as statSync2
+  statSync
 } from "node:fs";
 import { devNull } from "node:os";
 import {
-  delimiter as delimiter2,
-  dirname as dirname3,
+  delimiter,
+  dirname as dirname2,
   isAbsolute,
   relative,
   resolve,
@@ -38527,17 +34764,17 @@ function isSha40(value) {
   return /^[0-9a-f]{40}$/.test(value);
 }
 function readBoundedRegularFile(path, maxBytes) {
-  const noFollow = typeof fsConstants4.O_NOFOLLOW === "number" ? fsConstants4.O_NOFOLLOW : 0;
-  const descriptor3 = openSync5(path, fsConstants4.O_RDONLY | noFollow);
+  const noFollow = typeof fsConstants3.O_NOFOLLOW === "number" ? fsConstants3.O_NOFOLLOW : 0;
+  const descriptor3 = openSync3(path, fsConstants3.O_RDONLY | noFollow);
   try {
-    const stat = fstatSync4(descriptor3);
+    const stat = fstatSync3(descriptor3);
     if (!stat.isFile() || stat.isSymbolicLink()) {
       throw new Error("authority file is not regular");
     }
     const buffer = Buffer.allocUnsafe(maxBytes + 1);
     let offset = 0;
     while (offset < buffer.byteLength) {
-      const count = readSync4(
+      const count = readSync3(
         descriptor3,
         buffer,
         offset,
@@ -38550,7 +34787,7 @@ function readBoundedRegularFile(path, maxBytes) {
     if (offset > maxBytes) throw new Error("authority file is oversized");
     return Uint8Array.from(buffer.subarray(0, offset));
   } finally {
-    closeSync5(descriptor3);
+    closeSync3(descriptor3);
   }
 }
 function isContainedPath(root, path) {
@@ -38562,7 +34799,7 @@ function resolveTrustedGitContext(repository) {
   const searchPath = process.env.PATH;
   if (searchPath === void 0) throw new Error("Git path is unavailable");
   const executableNames = process.platform === "win32" ? ["git.exe"] : ["git"];
-  for (const entry of searchPath.split(delimiter2)) {
+  for (const entry of searchPath.split(delimiter)) {
     const directory = entry.length === 0 ? repository : isAbsolute(entry) ? entry : resolve(repository, entry);
     for (const name of executableNames) {
       const candidate = resolve(directory, name);
@@ -38578,12 +34815,12 @@ function resolveTrustedGitContext(repository) {
       if (isContainedPath(repository, candidate) || isContainedPath(physicalRepository, physicalExecutable)) {
         throw new Error("repository-selected Git is forbidden");
       }
-      if (!statSync2(physicalExecutable).isFile()) {
+      if (!statSync(physicalExecutable).isFile()) {
         throw new Error("Git executable is not a regular file");
       }
-      accessSync2(
+      accessSync(
         physicalExecutable,
-        process.platform === "win32" ? fsConstants4.F_OK : fsConstants4.X_OK
+        process.platform === "win32" ? fsConstants3.F_OK : fsConstants3.X_OK
       );
       return {
         repository: physicalRepository,
@@ -38594,7 +34831,7 @@ function resolveTrustedGitContext(repository) {
   throw new Error("Git executable is unavailable");
 }
 function closedGitEnvironment(executable) {
-  const base = { PATH: dirname3(executable) };
+  const base = { PATH: dirname2(executable) };
   if (process.platform === "win32") base["PATHEXT"] = ".EXE";
   const environment2 = sanitizedGitEnv(base);
   environment2["GIT_CONFIG_NOSYSTEM"] = "1";
@@ -38804,8 +35041,3242 @@ import {
   sep as sep2,
   win32
 } from "node:path";
+
+// packages/orchestration/src/queue-services.ts
+import { spawn } from "node:child_process";
+import {
+  accessSync as accessSync2,
+  closeSync as closeSync4,
+  constants as fsConstants4,
+  existsSync,
+  fstatSync as fstatSync4,
+  openSync as openSync4,
+  readSync as readSync4,
+  statSync as statSync2
+} from "node:fs";
+import { delimiter as delimiter2, join as join4 } from "node:path";
+var MAX_CAPTURE_BYTES = 1048576;
+var ProcessFailure = class {
+  constructor(reason) {
+    this.reason = reason;
+  }
+  _tag = "ProcessFailure";
+};
+var OWNED_CHILD_CANCEL_WAIT_MS2 = 5e3;
+var ProcessExec = class extends Context_exports.Tag("ProcessExec")() {
+};
+var Sleeper = class extends Context_exports.Tag("Sleeper")() {
+};
+var PathLookup = class extends Context_exports.Tag("PathLookup")() {
+};
+var BoundedFs = class extends Context_exports.Tag("BoundedFs")() {
+};
+var EnvVars = class extends Context_exports.Tag("EnvVars")() {
+};
+var liveSleeper = Layer_exports.succeed(Sleeper, {
+  sleep: (ms) => Effect_exports.async((resume2) => {
+    const t = setTimeout(() => resume2(Effect_exports.void), ms);
+    return Effect_exports.sync(() => {
+      clearTimeout(t);
+    });
+  })
+});
+var liveEnvVars = Layer_exports.succeed(EnvVars, {
+  get: (name) => Effect_exports.sync(() => process.env[name]),
+  home: () => Effect_exports.sync(() => process.env.HOME ?? process.env.USERPROFILE)
+});
+function pathIsExecutable(path) {
+  try {
+    accessSync2(path, fsConstants4.X_OK);
+    return true;
+  } catch {
+    try {
+      accessSync2(path, fsConstants4.F_OK);
+      return existsSync(path);
+    } catch {
+      return false;
+    }
+  }
+}
+var livePathLookup = Layer_exports.succeed(PathLookup, {
+  which: (name) => Effect_exports.sync(() => {
+    const pathEnv = process.env.PATH ?? "";
+    const exts = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter((e) => e.length > 0) : [""];
+    for (const dir of pathEnv.split(delimiter2)) {
+      if (!dir) continue;
+      for (const ext of exts) {
+        const candidate = join4(dir, name + ext);
+        if (pathIsExecutable(candidate)) {
+          return candidate;
+        }
+      }
+      const bare = join4(dir, name);
+      if (pathIsExecutable(bare)) {
+        return bare;
+      }
+    }
+    return null;
+  }),
+  fileExists: (path) => Effect_exports.sync(() => existsSync(path)),
+  isExecutable: (path) => Effect_exports.sync(() => pathIsExecutable(path))
+});
+function isNotFoundError(e) {
+  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
+}
+function readFileBoundedSync(path, maxBytes) {
+  let fd;
+  try {
+    let before2;
+    try {
+      before2 = statSync2(path);
+    } catch (e) {
+      if (isNotFoundError(e)) return { _tag: "Absent" };
+      return { _tag: "Unreadable" };
+    }
+    if (!before2.isFile()) {
+      return { _tag: "Unreadable" };
+    }
+    fd = openSync4(path, fsConstants4.O_RDONLY);
+    const opened = fstatSync4(fd);
+    if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
+      return { _tag: "IdentityChanged" };
+    }
+    const cap = maxBytes + 1;
+    const buf = Buffer.allocUnsafe(cap);
+    let offset = 0;
+    while (offset < cap) {
+      const n = readSync4(fd, buf, offset, cap - offset, offset);
+      if (n === 0) break;
+      offset += n;
+    }
+    if (offset > maxBytes) {
+      return { _tag: "Oversized" };
+    }
+    let afterOpen;
+    try {
+      afterOpen = fstatSync4(fd);
+    } catch {
+      return { _tag: "IdentityChanged" };
+    }
+    if (afterOpen.ino !== opened.ino || afterOpen.dev !== opened.dev || afterOpen.size !== opened.size || afterOpen.mtimeMs !== opened.mtimeMs) {
+      return { _tag: "IdentityChanged" };
+    }
+    try {
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(
+        buf.subarray(0, offset)
+      );
+      return { _tag: "Ok", text };
+    } catch {
+      return { _tag: "MalformedUtf8" };
+    }
+  } catch (e) {
+    if (isNotFoundError(e)) return { _tag: "Absent" };
+    return { _tag: "Unreadable" };
+  } finally {
+    if (fd !== void 0) {
+      try {
+        closeSync4(fd);
+      } catch {
+      }
+    }
+  }
+}
+var liveBoundedFs = Layer_exports.succeed(BoundedFs, {
+  readFileBounded: (path, maxBytes) => Effect_exports.sync(() => readFileBoundedSync(path, maxBytes))
+});
+function terminateOwnedChild(child) {
+  const pid = child.pid;
+  if (pid === void 0) return;
+  try {
+    if (process.platform === "win32") {
+      child.kill();
+    } else {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+        }
+      }
+    }
+  } catch {
+  }
+}
+function spawnOptsBase(opts) {
+  const base = {
+    env: opts.env ?? process.env,
+    stdio: opts.stdio,
+    windowsHide: true,
+    detached: opts.detached
+  };
+  if (opts.cwd !== void 0) {
+    base.cwd = opts.cwd;
+  }
+  return base;
+}
+function cancelOwnedFinalizer(child) {
+  return Effect_exports.async((resume2) => {
+    let done7 = false;
+    const finish = () => {
+      if (done7) return;
+      done7 = true;
+      resume2(Effect_exports.void);
+    };
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS2);
+    child.once("close", () => {
+      clearTimeout(timer);
+      finish();
+    });
+    if (child.pid === void 0) {
+      clearTimeout(timer);
+      finish();
+      return;
+    }
+    terminateOwnedChild(child);
+  });
+}
+function runCapturedOwned(opts) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    let timer;
+    let child;
+    const settle = (outcome) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      resume2(outcome);
+    };
+    const maxBytes = opts.maxOutputBytes ?? MAX_CAPTURE_BYTES;
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...opts.env !== void 0 ? { env: opts.env } : {},
+          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: useGroup
+        })
+      );
+    } catch {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+    const owned = child;
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    let total = 0;
+    let timedOut = false;
+    let outputBound = false;
+    const onData = (target, chunk2) => {
+      if (settled) return;
+      total += chunk2.byteLength;
+      if (total > maxBytes) {
+        outputBound = true;
+        terminateOwnedChild(owned);
+        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
+        return;
+      }
+      target.push(chunk2);
+    };
+    owned.stdout?.on("data", (c) => onData(stdoutChunks, c));
+    owned.stderr?.on("data", (c) => onData(stderrChunks, c));
+    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        terminateOwnedChild(owned);
+      }, opts.timeoutMs);
+    }
+    owned.on("error", () => {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+    });
+    owned.on("close", (code) => {
+      if (settled) return;
+      if (outputBound) {
+        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
+        return;
+      }
+      if (timedOut) {
+        settle(Effect_exports.fail(new ProcessFailure("timeout")));
+        return;
+      }
+      const stdoutBuf = Buffer.concat(stdoutChunks);
+      const stderrBuf = Buffer.concat(stderrChunks);
+      settle(
+        Effect_exports.succeed({
+          exitCode: code ?? 1,
+          stdout: stdoutBuf.toString("utf8"),
+          stderr: stderrBuf.toString("utf8"),
+          stdoutBytes: Uint8Array.from(stdoutBuf),
+          stderrBytes: Uint8Array.from(stderrBuf)
+        })
+      );
+    });
+    return Effect_exports.suspend(() => {
+      if (settled) return Effect_exports.void;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      return cancelOwnedFinalizer(owned);
+    });
+  });
+}
+function runForegroundOwned(opts) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    let child;
+    const settle = (outcome) => {
+      if (settled) return;
+      settled = true;
+      resume2(outcome);
+    };
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...opts.env !== void 0 ? { env: opts.env } : {},
+          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
+          stdio: "inherit",
+          detached: useGroup
+        })
+      );
+    } catch {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+    const owned = child;
+    owned.on("error", () => {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+    });
+    owned.on("close", (code) => {
+      settle(Effect_exports.succeed(code ?? 1));
+    });
+    return Effect_exports.suspend(() => {
+      if (settled) return Effect_exports.void;
+      settled = true;
+      return cancelOwnedFinalizer(owned);
+    });
+  });
+}
+function runIgnoredStdioOwned(opts) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    let timer;
+    let child;
+    const settle = (outcome) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      resume2(outcome);
+    };
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...opts.env !== void 0 ? { env: opts.env } : {},
+          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
+          stdio: ["ignore", "ignore", "ignore"],
+          detached: useGroup
+        })
+      );
+    } catch {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+    const owned = child;
+    let timedOut = false;
+    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        terminateOwnedChild(owned);
+      }, opts.timeoutMs);
+    }
+    owned.on("error", () => {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+    });
+    owned.on("close", (code) => {
+      if (settled) return;
+      if (timedOut) {
+        settle(Effect_exports.fail(new ProcessFailure("timeout")));
+        return;
+      }
+      settle(
+        Effect_exports.succeed({
+          exitCode: code ?? 1,
+          stdout: "",
+          stderr: ""
+        })
+      );
+    });
+    return Effect_exports.sync(() => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      terminateOwnedChild(owned);
+    });
+  });
+}
+var liveProcessExec = Layer_exports.succeed(ProcessExec, {
+  runCaptured: (opts) => runCapturedOwned(opts),
+  runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
+  runForeground: (opts) => runForegroundOwned(opts)
+});
+var liveQueueServices = Layer_exports.mergeAll(
+  liveProcessExec,
+  liveSleeper,
+  livePathLookup,
+  liveBoundedFs,
+  liveEnvVars
+);
+
+// packages/orchestration/src/execution-contract.ts
+var executionMilestones = [
+  "checks",
+  "audit",
+  "integrated",
+  "published"
+];
+function failure(reason) {
+  return { _tag: "ExecutionContractFailure", reason };
+}
+function isExecutionContractFailure(value) {
+  return typeof value === "object" && value !== null && value._tag === "ExecutionContractFailure";
+}
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+var contractKeys = /* @__PURE__ */ new Set([
+  "schemaVersion",
+  "contractId",
+  "packageId",
+  "objectiveSha256",
+  "acceptanceSha256",
+  "baseCommit",
+  "allowedPathsSha256",
+  "dependencyContractIds",
+  "authorizationSha256",
+  "createdAt",
+  "deadlineAt",
+  "limits",
+  "requiredMilestones",
+  "supersedesContractId"
+]);
+var limitKeys = /* @__PURE__ */ new Set([
+  "implementationRounds",
+  "correctionRounds",
+  "auditRounds",
+  "councilRounds",
+  "providerRetries",
+  "resumeAttempts",
+  "verificationRunsPerCandidate",
+  "totalActions",
+  "wallTimeMs",
+  "noProductChangeMs"
+]);
+function hasOnlyKeys(value, keys5) {
+  return Object.keys(value).every((key) => keys5.has(key));
+}
+function safeBoundedInteger(value, min3, max5) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= min3 && value <= max5;
+}
+function decodeLimits(value) {
+  if (!isRecord(value) || !hasOnlyKeys(value, limitKeys)) {
+    return failure("invalid_limits");
+  }
+  const countNames = [
+    "implementationRounds",
+    "correctionRounds",
+    "auditRounds",
+    "councilRounds",
+    "providerRetries",
+    "resumeAttempts",
+    "verificationRunsPerCandidate",
+    "totalActions"
+  ];
+  for (const name of countNames) {
+    if (!safeBoundedInteger(value[name], 1, 100)) {
+      return failure("invalid_limits");
+    }
+  }
+  if (!safeBoundedInteger(value.wallTimeMs, 1e3, 6048e5) || !safeBoundedInteger(value.noProductChangeMs, 1e3, value.wallTimeMs)) {
+    return failure("invalid_limits");
+  }
+  const limits = value;
+  if (limits.implementationRounds > limits.totalActions || limits.correctionRounds > limits.implementationRounds || limits.auditRounds > limits.totalActions || limits.councilRounds > limits.totalActions || limits.providerRetries > limits.totalActions || limits.resumeAttempts > limits.totalActions || limits.verificationRunsPerCandidate > limits.totalActions) {
+    return failure("invalid_limits");
+  }
+  return { ...limits };
+}
+function decodeIdentifier(value) {
+  if (typeof value !== "string") return null;
+  return typeof decodeRunId(value) === "string" ? value : null;
+}
+function decodeExecutionContractV1(value) {
+  if (!isRecord(value)) return failure("not_object");
+  if (!hasOnlyKeys(value, contractKeys)) return failure("unknown_field");
+  if (value.schemaVersion !== 1) return failure("invalid_schema_version");
+  const contractId = decodeIdentifier(value.contractId);
+  const packageId = decodeIdentifier(value.packageId);
+  if (contractId === null || packageId === null) {
+    return failure("invalid_identifier");
+  }
+  const objectiveSha256 = value.objectiveSha256;
+  const acceptanceSha256 = value.acceptanceSha256;
+  const allowedPathsSha256 = value.allowedPathsSha256;
+  if (typeof objectiveSha256 !== "string" || typeof acceptanceSha256 !== "string" || typeof allowedPathsSha256 !== "string" || !isSha256Hex(objectiveSha256) || !isSha256Hex(acceptanceSha256) || !isSha256Hex(allowedPathsSha256)) {
+    return failure("invalid_digest");
+  }
+  const baseCommit = value.baseCommit;
+  if (typeof baseCommit !== "string" || !isCommitSha40(baseCommit)) {
+    return failure("invalid_base_commit");
+  }
+  const authorizationSha256 = value.authorizationSha256;
+  if (typeof authorizationSha256 !== "string" || !isSha256Hex(authorizationSha256)) {
+    return failure("invalid_authorization");
+  }
+  if (!Array.isArray(value.dependencyContractIds)) {
+    return failure("invalid_dependencies");
+  }
+  const dependencyContractIds = [];
+  const dependencies = /* @__PURE__ */ new Set();
+  for (const raw of value.dependencyContractIds) {
+    const dependency = decodeIdentifier(raw);
+    if (dependency === null || dependency === contractId || dependencies.has(dependency)) {
+      return failure("invalid_dependencies");
+    }
+    dependencies.add(dependency);
+    dependencyContractIds.push(dependency);
+  }
+  if (typeof value.createdAt !== "string" || typeof value.deadlineAt !== "string" || !isUtcSecondTimestamp(value.createdAt) || !isUtcSecondTimestamp(value.deadlineAt)) {
+    return failure("invalid_timestamp");
+  }
+  const limits = decodeLimits(value.limits);
+  if (isExecutionContractFailure(limits)) return limits;
+  const createdMs = Date.parse(value.createdAt);
+  const deadlineMs = Date.parse(value.deadlineAt);
+  if (deadlineMs <= createdMs || deadlineMs - createdMs !== limits.wallTimeMs) {
+    return failure("invalid_deadline");
+  }
+  if (!Array.isArray(value.requiredMilestones) || value.requiredMilestones.length === 0) {
+    return failure("invalid_milestones");
+  }
+  const milestones = /* @__PURE__ */ new Set();
+  const requiredMilestones = [];
+  for (const raw of value.requiredMilestones) {
+    if (typeof raw !== "string" || !executionMilestones.includes(raw) || milestones.has(raw)) {
+      return failure("invalid_milestones");
+    }
+    const milestone = raw;
+    milestones.add(milestone);
+    requiredMilestones.push(milestone);
+  }
+  let supersedesContractId;
+  if (value.supersedesContractId !== void 0) {
+    supersedesContractId = decodeIdentifier(value.supersedesContractId) ?? void 0;
+    if (supersedesContractId === void 0 || supersedesContractId === contractId) {
+      return failure("invalid_supersession");
+    }
+  }
+  return {
+    schemaVersion: 1,
+    contractId,
+    packageId,
+    objectiveSha256,
+    acceptanceSha256,
+    baseCommit,
+    allowedPathsSha256,
+    dependencyContractIds,
+    authorizationSha256,
+    createdAt: value.createdAt,
+    deadlineAt: value.deadlineAt,
+    limits,
+    requiredMilestones,
+    ...supersedesContractId === void 0 ? {} : { supersedesContractId }
+  };
+}
+function executionContractSha256(contract) {
+  return sha256Hex(canonicalize(contract));
+}
+var FAMILY_ID = "v040-release-20260822-f1";
+var FAMILY_WALL_TIME_MS = 5184e6;
+var FAMILY_TOTAL_ACTIONS = 4096;
+var FAMILY_SOURCE_MAX_BYTES = 1048576;
+var textEncoder = new TextEncoder();
+var standardChildLimits = {
+  kind: "standard",
+  implementationRounds: 30,
+  correctionRounds: 20,
+  auditRounds: 20,
+  councilRounds: 10,
+  providerRetries: 10,
+  resumeAttempts: 10,
+  verificationRunsPerCandidate: 5,
+  totalActions: 100,
+  wallTimeMs: 12096e5,
+  noProductChangeMs: 2592e5
+};
+var evaluationChildLimits = {
+  kind: "evaluation",
+  implementationRounds: 10,
+  correctionRounds: 5,
+  auditRounds: 10,
+  councilRounds: 5,
+  providerRetries: 8,
+  resumeAttempts: 5,
+  verificationRunsPerCandidate: 3,
+  evaluationRuns: 2e3,
+  totalActions: 2048,
+  wallTimeMs: 3888e6,
+  noProgressMs: 36e5
+};
+var expectedFamilyChildren = [
+  {
+    tranche: 2,
+    childId: "v040-t2-project-registry",
+    packageId: "project-registry",
+    dependencyChildIds: []
+  },
+  {
+    tranche: 3,
+    childId: "v040-t3-memory-index",
+    packageId: "external-memory-index",
+    dependencyChildIds: ["v040-t2-project-registry"]
+  },
+  {
+    tranche: 4,
+    childId: "v040-t4-appliance",
+    packageId: "hermetic-foreman-appliance",
+    dependencyChildIds: []
+  },
+  {
+    tranche: 5,
+    childId: "v040-t5-graphify",
+    packageId: "knowledge-plane-refresh",
+    dependencyChildIds: []
+  },
+  {
+    tranche: 6,
+    childId: "v040-t6-work-dag",
+    packageId: "work-dag-projection",
+    dependencyChildIds: ["v040-t5-graphify"]
+  },
+  {
+    tranche: 7,
+    childId: "v040-t7-context",
+    packageId: "graph-context-builder",
+    dependencyChildIds: ["v040-t6-work-dag"]
+  },
+  {
+    tranche: 8,
+    childId: "v040-t8-evaluation",
+    packageId: "graph-eval-falsification",
+    dependencyChildIds: [
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t7-context"
+    ]
+  },
+  {
+    tranche: 9,
+    childId: "v040-t9-release",
+    packageId: "v040-release-program",
+    dependencyChildIds: [
+      "v040-t2-project-registry",
+      "v040-t3-memory-index",
+      "v040-t4-appliance",
+      "v040-t5-graphify",
+      "v040-t6-work-dag",
+      "v040-t7-context",
+      "v040-t8-evaluation"
+    ]
+  }
+];
+var familySourceKeys = /* @__PURE__ */ new Set(["schema", "program", "familyId", "children"]);
+var childBriefKeys = /* @__PURE__ */ new Set([
+  "schema",
+  "childId",
+  "tranche",
+  "packageId",
+  "dependencyChildIds",
+  "objective",
+  "acceptance",
+  "allowedPaths"
+]);
+var familyManifestKeys = /* @__PURE__ */ new Set([
+  "schemaVersion",
+  "familyId",
+  "rootContractId",
+  "rootContractSha256",
+  "track1Commit",
+  "track1Tree",
+  "sourceSha256",
+  "createdAt",
+  "deadlineAt",
+  "wallTimeMs",
+  "totalActions",
+  "children"
+]);
+var childContractKeys = /* @__PURE__ */ new Set([
+  "childId",
+  "tranche",
+  "packageId",
+  "objectiveSha256",
+  "acceptanceSha256",
+  "allowedPathsSha256",
+  "dependencyChildIds",
+  "deadlineAt",
+  "limits",
+  "requiredMilestones"
+]);
+function familyFailure(reason) {
+  return { _tag: "ExecutionFamilyFailure", reason };
+}
+function isExecutionFamilyFailure(value) {
+  return typeof value === "object" && value !== null && value._tag === "ExecutionFamilyFailure";
+}
+function isPlainRecordV2(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function hasExactKeysV2(value, keys5) {
+  const own = Object.keys(value);
+  return own.length === keys5.size && own.every((key) => keys5.has(key));
+}
+function validUnicodeText(value) {
+  const decoded = decodeUtf8Fatal(textEncoder.encode(value));
+  return !isCoreFailure(decoded) && decoded === value;
+}
+function validBoundedText(value, maximum, allowLf) {
+  return typeof value === "string" && value.length > 0 && textEncoder.encode(value).byteLength <= maximum && validUnicodeText(value) && !(allowLf ? /[\u0000-\u0009\u000b-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/).test(
+    value
+  );
+}
+function compareUtf8V2(left3, right3) {
+  const a = textEncoder.encode(left3);
+  const b = textEncoder.encode(right3);
+  const length2 = Math.min(a.byteLength, b.byteLength);
+  for (let index = 0; index < length2; index += 1) {
+    const difference4 = a[index] - b[index];
+    if (difference4 !== 0) return difference4;
+  }
+  return a.byteLength - b.byteLength;
+}
+function validAllowedPath(value) {
+  if (typeof value !== "string" || !/^[\x21-\x7e]+$/.test(value) || value.startsWith("/") || /^[A-Za-z]:/.test(value) || value.includes("\\")) {
+    return false;
+  }
+  const prefix = value.endsWith("/**");
+  const base = prefix ? value.slice(0, -3) : value;
+  if (base.length === 0 || /[*?[\]{}]/.test(base)) return false;
+  const segments = base.split("/");
+  return segments.every(
+    (segment) => segment.length > 0 && segment !== "." && segment !== ".."
+  );
+}
+function sameStrings(value, expected) {
+  return Array.isArray(value) && value.length === expected.length && value.every((item, index) => item === expected[index]);
+}
+function decodeChildBriefV1(value, expected) {
+  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, childBriefKeys)) {
+    return familyFailure("invalid_children");
+  }
+  if (value.schema !== "foreman.execution-child-brief.v1" || value.childId !== expected.childId || value.tranche !== expected.tranche || value.packageId !== expected.packageId || !sameStrings(value.dependencyChildIds, expected.dependencyChildIds)) {
+    return familyFailure("invalid_children");
+  }
+  if (!validBoundedText(value.objective, 16384, true)) {
+    return familyFailure("invalid_content");
+  }
+  if (!Array.isArray(value.acceptance) || value.acceptance.length < 1 || value.acceptance.length > 256 || !value.acceptance.every((item) => validBoundedText(item, 4096, false))) {
+    return familyFailure("invalid_content");
+  }
+  if (!Array.isArray(value.allowedPaths) || value.allowedPaths.length < 1 || value.allowedPaths.length > 256 || !value.allowedPaths.every(validAllowedPath)) {
+    return familyFailure("invalid_paths");
+  }
+  for (let index = 1; index < value.allowedPaths.length; index += 1) {
+    if (compareUtf8V2(value.allowedPaths[index - 1], value.allowedPaths[index]) >= 0) {
+      return familyFailure("invalid_paths");
+    }
+  }
+  return {
+    schema: "foreman.execution-child-brief.v1",
+    childId: expected.childId,
+    tranche: expected.tranche,
+    packageId: expected.packageId,
+    dependencyChildIds: [...expected.dependencyChildIds],
+    objective: value.objective,
+    acceptance: [...value.acceptance],
+    allowedPaths: [...value.allowedPaths]
+  };
+}
+function decodeExecutionFamilySourceV1(value) {
+  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familySourceKeys)) {
+    return familyFailure("invalid_source");
+  }
+  if (value.schema !== "foreman.execution-family-source.v1" || value.program !== "v040" || value.familyId !== FAMILY_ID || !Array.isArray(value.children) || value.children.length !== expectedFamilyChildren.length) {
+    return familyFailure("invalid_source");
+  }
+  const children = [];
+  for (const [index, expected] of expectedFamilyChildren.entries()) {
+    const child = decodeChildBriefV1(value.children[index], expected);
+    if (isExecutionFamilyFailure(child)) return child;
+    children.push(child);
+  }
+  return {
+    schema: "foreman.execution-family-source.v1",
+    program: "v040",
+    familyId: FAMILY_ID,
+    children
+  };
+}
+function decodeExecutionFamilySourceFileV1(bytes) {
+  try {
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength > FAMILY_SOURCE_MAX_BYTES) {
+      return familyFailure("invalid_source");
+    }
+    const text = decodeUtf8Fatal(bytes);
+    if (isCoreFailure(text) || !text.endsWith("\n") || text.endsWith("\r\n")) {
+      return familyFailure("invalid_source");
+    }
+    const body = text.slice(0, -1);
+    const parsed = parseJsonRejectDuplicateKeys(body);
+    if (isCoreFailure(parsed) || canonicalize(parsed) !== body) {
+      return familyFailure("invalid_source");
+    }
+    return decodeExecutionFamilySourceV1(JSON.parse(body));
+  } catch {
+    return familyFailure("invalid_source");
+  }
+}
+function expectedChildLimits(tranche) {
+  return tranche === 8 ? evaluationChildLimits : standardChildLimits;
+}
+function expectedChildMilestones(tranche) {
+  return tranche === 9 ? ["checks", "audit", "integrated", "published"] : ["checks", "audit", "integrated"];
+}
+function samePlainValue(left3, right3) {
+  try {
+    return isPlainRecordV2(left3) && canonicalize(left3) === canonicalize(right3);
+  } catch {
+    return false;
+  }
+}
+function decodeExecutionContractFamilyV2(value) {
+  if (!isPlainRecordV2(value) || !hasExactKeysV2(value, familyManifestKeys)) {
+    return familyFailure("invalid_manifest");
+  }
+  if (value.schemaVersion !== 2 || value.familyId !== FAMILY_ID || value.wallTimeMs !== FAMILY_WALL_TIME_MS || value.totalActions !== FAMILY_TOTAL_ACTIONS) {
+    return familyFailure("invalid_manifest");
+  }
+  if (typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string") {
+    return familyFailure("invalid_identity");
+  }
+  if (typeof value.rootContractSha256 !== "string" || typeof value.sourceSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || !isSha256Hex(value.sourceSha256)) {
+    return familyFailure("invalid_digest");
+  }
+  if (typeof value.track1Commit !== "string" || typeof value.track1Tree !== "string" || !isCommitSha40(value.track1Commit) || !isCommitSha40(value.track1Tree)) {
+    return familyFailure("invalid_git_identity");
+  }
+  if (typeof value.createdAt !== "string" || typeof value.deadlineAt !== "string" || !isUtcSecondTimestamp(value.createdAt) || !isUtcSecondTimestamp(value.deadlineAt)) {
+    return familyFailure("invalid_timestamp");
+  }
+  if (Date.parse(value.deadlineAt) - Date.parse(value.createdAt) !== FAMILY_WALL_TIME_MS) {
+    return familyFailure("invalid_deadline");
+  }
+  if (!Array.isArray(value.children) || value.children.length !== 8) {
+    return familyFailure("invalid_children");
+  }
+  const children = [];
+  for (const [index, expected] of expectedFamilyChildren.entries()) {
+    const raw = value.children[index];
+    if (!isPlainRecordV2(raw) || !hasExactKeysV2(raw, childContractKeys)) {
+      return familyFailure("invalid_children");
+    }
+    if (raw.childId !== expected.childId || raw.tranche !== expected.tranche || raw.packageId !== expected.packageId || !sameStrings(raw.dependencyChildIds, expected.dependencyChildIds) || raw.deadlineAt !== value.deadlineAt || !sameStrings(raw.requiredMilestones, expectedChildMilestones(expected.tranche))) {
+      return familyFailure("invalid_children");
+    }
+    if (typeof raw.objectiveSha256 !== "string" || typeof raw.acceptanceSha256 !== "string" || typeof raw.allowedPathsSha256 !== "string" || !isSha256Hex(raw.objectiveSha256) || !isSha256Hex(raw.acceptanceSha256) || !isSha256Hex(raw.allowedPathsSha256)) {
+      return familyFailure("invalid_digest");
+    }
+    const limits = expectedChildLimits(expected.tranche);
+    if (!samePlainValue(raw.limits, limits)) {
+      return familyFailure("invalid_limits");
+    }
+    children.push({
+      childId: expected.childId,
+      tranche: expected.tranche,
+      packageId: expected.packageId,
+      objectiveSha256: raw.objectiveSha256,
+      acceptanceSha256: raw.acceptanceSha256,
+      allowedPathsSha256: raw.allowedPathsSha256,
+      dependencyChildIds: [...expected.dependencyChildIds],
+      deadlineAt: value.deadlineAt,
+      limits,
+      requiredMilestones: expectedChildMilestones(expected.tranche)
+    });
+  }
+  return {
+    schemaVersion: 2,
+    familyId: FAMILY_ID,
+    rootContractId: value.rootContractId,
+    rootContractSha256: value.rootContractSha256,
+    track1Commit: value.track1Commit,
+    track1Tree: value.track1Tree,
+    sourceSha256: value.sourceSha256,
+    createdAt: value.createdAt,
+    deadlineAt: value.deadlineAt,
+    wallTimeMs: FAMILY_WALL_TIME_MS,
+    totalActions: FAMILY_TOTAL_ACTIONS,
+    children
+  };
+}
+function executionContractFamilySha256(family) {
+  return sha256Hex(canonicalize(family));
+}
+
+// packages/orchestration/src/execution-ledger.ts
+import { randomUUID } from "node:crypto";
+import {
+  closeSync as closeSync5,
+  existsSync as existsSync2,
+  fsyncSync as fsyncSync2,
+  mkdirSync as mkdirSync2,
+  openSync as openSync5,
+  readFileSync,
+  renameSync as renameSync2,
+  unlinkSync as unlinkSync2,
+  writeFileSync
+} from "node:fs";
+import { dirname as dirname3, join as join5 } from "node:path";
+
+// packages/orchestration/src/execution-terminal-policy.ts
+var executionActionKinds = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "provider_retry",
+  "resume",
+  "integrate",
+  "publish"
+];
+var zeroCounts = {
+  totalActions: 0,
+  implement: 0,
+  verify: 0,
+  audit: 0,
+  correct: 0,
+  council: 0,
+  provider_retry: 0,
+  resume: 0,
+  integrate: 0,
+  publish: 0
+};
+function initialExecutionState(contract) {
+  return {
+    _tag: "Running",
+    contract,
+    contractSha256: executionContractSha256(contract),
+    counts: zeroCounts,
+    lastEventAt: contract.createdAt,
+    lastProductChangeAt: contract.createdAt,
+    currentCandidateSha256: null,
+    milestoneCandidateSha256: null,
+    milestones: {},
+    verificationReservations: {}
+  };
+}
+function isExecutionTerminal(state) {
+  return state._tag !== "Running";
+}
+function terminalEvent(terminal, reason, at) {
+  return {
+    _tag: "Terminated",
+    events: [{ _tag: "TerminalDecided", terminal, reason, at }]
+  };
+}
+function validAt(state, at) {
+  return isUtcSecondTimestamp(at) && Date.parse(at) >= Date.parse(state.lastEventAt);
+}
+function actionLimit(state, action) {
+  switch (action) {
+    case "implement":
+      return state.contract.limits.implementationRounds;
+    case "verify":
+      return state.contract.limits.totalActions;
+    case "audit":
+      return state.contract.limits.auditRounds;
+    case "correct":
+      return state.contract.limits.correctionRounds;
+    case "council":
+      return state.contract.limits.councilRounds;
+    case "provider_retry":
+      return state.contract.limits.providerRetries;
+    case "resume":
+      return state.contract.limits.resumeAttempts;
+    case "integrate":
+    case "publish":
+      return 1;
+  }
+}
+function reserveDecision(state, command) {
+  if (!executionActionKinds.includes(command.action) || !isSha256Hex(command.candidateSha256) || command.reservationId.length === 0 || command.reservationId.length > 128 || command.action === "verify" && (typeof command.commandSha256 !== "string" || !isSha256Hex(command.commandSha256)) || command.commandSha256 !== void 0 && !isSha256Hex(command.commandSha256)) {
+    return { _tag: "Refused", reason: "invalid_command" };
+  }
+  const atMs = Date.parse(command.at);
+  if (atMs >= Date.parse(state.contract.deadlineAt)) {
+    return terminalEvent("BudgetExhausted", "wall_time_limit", command.at);
+  }
+  if (atMs - Date.parse(state.lastProductChangeAt) >= state.contract.limits.noProductChangeMs) {
+    return terminalEvent("Stalled", "no_product_change_limit", command.at);
+  }
+  if (state.counts.totalActions >= state.contract.limits.totalActions) {
+    return terminalEvent("BudgetExhausted", "total_action_limit", command.at);
+  }
+  const used = state.counts[command.action];
+  if (used >= actionLimit(state, command.action)) {
+    return terminalEvent(
+      command.action === "provider_retry" ? "BlockedExternal" : "BudgetExhausted",
+      `${command.action}_limit`,
+      command.at
+    );
+  }
+  if (command.action === "verify") {
+    const key = `${command.candidateSha256}:${command.commandSha256}`;
+    const existing = state.verificationReservations[key];
+    if (existing !== void 0) {
+      return { _tag: "ReusedVerification", reservationId: existing };
+    }
+  }
+  return {
+    _tag: "Accepted",
+    events: [
+      {
+        _tag: "ActionReserved",
+        action: command.action,
+        candidateSha256: command.candidateSha256,
+        ...command.commandSha256 === void 0 ? {} : { commandSha256: command.commandSha256 },
+        reservationId: command.reservationId,
+        at: command.at
+      }
+    ]
+  };
+}
+function decideExecutionCommand(state, command) {
+  if (isExecutionTerminal(state)) {
+    return { _tag: "Refused", reason: "terminal", terminal: state._tag };
+  }
+  if (!validAt(state, command.at)) {
+    return { _tag: "Refused", reason: "time_regression" };
+  }
+  switch (command._tag) {
+    case "ReserveAction":
+      return reserveDecision(state, command);
+    case "RecordProductChange":
+      if (!isSha256Hex(command.candidateSha256) || command.allowedPathsSha256 !== state.contract.allowedPathsSha256) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      return {
+        _tag: "Accepted",
+        events: [
+          {
+            _tag: "ProductChanged",
+            candidateSha256: command.candidateSha256,
+            allowedPathsSha256: command.allowedPathsSha256,
+            at: command.at
+          }
+        ]
+      };
+    case "RecordMilestone": {
+      if (!state.contract.requiredMilestones.includes(command.milestone) || !isSha256Hex(command.candidateSha256) || !isSha256Hex(command.evidenceSha256)) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      if (state.milestoneCandidateSha256 !== null && state.milestoneCandidateSha256 !== command.candidateSha256) {
+        return terminalEvent("Invalidated", "milestone_candidate_mismatch", command.at);
+      }
+      const milestoneEvent = {
+        _tag: "MilestoneRecorded",
+        milestone: command.milestone,
+        candidateSha256: command.candidateSha256,
+        evidenceSha256: command.evidenceSha256,
+        at: command.at
+      };
+      const complete3 = state.contract.requiredMilestones.every(
+        (milestone) => milestone === command.milestone || state.milestones[milestone] !== void 0
+      );
+      if (complete3) {
+        return {
+          _tag: "Terminated",
+          events: [
+            milestoneEvent,
+            {
+              _tag: "TerminalDecided",
+              terminal: "Completed",
+              reason: "required_milestones_complete",
+              at: command.at
+            }
+          ]
+        };
+      }
+      return { _tag: "Accepted", events: [milestoneEvent] };
+    }
+    case "Cancel":
+      if (command.authorizationSha256 !== state.contract.authorizationSha256) {
+        return { _tag: "Refused", reason: "authorization_mismatch" };
+      }
+      return terminalEvent("Cancelled", "user_cancelled", command.at);
+    case "Invalidate":
+      if (!isSha256Hex(command.observedContractSha256)) {
+        return { _tag: "Refused", reason: "invalid_command" };
+      }
+      return command.observedContractSha256 === state.contractSha256 ? { _tag: "Accepted", events: [] } : terminalEvent("Invalidated", "contract_identity_changed", command.at);
+    case "RecordBlockingOutcome":
+      return state.counts.correct >= state.contract.limits.correctionRounds ? terminalEvent("Escalated", `${command.source}_blocking_after_correction`, command.at) : { _tag: "Accepted", events: [] };
+    case "RecordExternalFailure":
+      return state.counts.provider_retry >= state.contract.limits.providerRetries ? terminalEvent("BlockedExternal", "external_retry_limit", command.at) : { _tag: "Accepted", events: [] };
+  }
+}
+function evolveExecution(state, event) {
+  if (isExecutionTerminal(state)) return state;
+  switch (event._tag) {
+    case "ActionReserved": {
+      const verificationReservations = { ...state.verificationReservations };
+      if (event.action === "verify" && event.commandSha256 !== void 0) {
+        verificationReservations[`${event.candidateSha256}:${event.commandSha256}`] = event.reservationId;
+      }
+      return {
+        ...state,
+        counts: {
+          ...state.counts,
+          totalActions: state.counts.totalActions + 1,
+          [event.action]: state.counts[event.action] + 1
+        },
+        currentCandidateSha256: event.candidateSha256,
+        verificationReservations,
+        lastEventAt: event.at
+      };
+    }
+    case "ProductChanged":
+      return {
+        ...state,
+        currentCandidateSha256: event.candidateSha256,
+        lastProductChangeAt: event.candidateSha256 === state.currentCandidateSha256 ? state.lastProductChangeAt : event.at,
+        lastEventAt: event.at
+      };
+    case "MilestoneRecorded":
+      return {
+        ...state,
+        milestoneCandidateSha256: state.milestoneCandidateSha256 ?? event.candidateSha256,
+        milestones: {
+          ...state.milestones,
+          [event.milestone]: event.evidenceSha256
+        },
+        lastEventAt: event.at
+      };
+    case "TerminalDecided":
+      return {
+        ...state,
+        _tag: event.terminal,
+        terminalAt: event.at,
+        terminalReason: event.reason,
+        lastEventAt: event.at
+      };
+  }
+}
+var releaseActionKindsV2 = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "provider_retry",
+  "resume",
+  "integrate",
+  "publish",
+  "evaluate"
+];
+var zeroV2Counts = {
+  totalActions: 0,
+  implement: 0,
+  verify: 0,
+  audit: 0,
+  correct: 0,
+  council: 0,
+  provider_retry: 0,
+  resume: 0,
+  integrate: 0,
+  publish: 0,
+  evaluate: 0
+};
+function executionFamilyFailure(reason) {
+  return { _tag: "ExecutionFamilyFailure", reason };
+}
+function validCandidateV2(value) {
+  return typeof value === "object" && value !== null && isCommitSha40(value.commit) && isCommitSha40(value.tree) && isSha256Hex(value.candidateSha256) && value.candidateSha256 === sha256Hex(value.commit);
+}
+function sameCandidateV2(left3, right3) {
+  return left3 !== null && left3.commit === right3.commit && left3.tree === right3.tree && left3.candidateSha256 === right3.candidateSha256;
+}
+function initialExecutionFamilyStateV2(input) {
+  if (!isSha256Hex(input.familySha256) || input.familySha256 !== executionContractFamilySha256(input.manifest) || !isUtcSecondTimestamp(input.activatedAt) || Date.parse(input.activatedAt) < Date.parse(input.manifest.createdAt) || Date.parse(input.activatedAt) >= Date.parse(input.manifest.deadlineAt) || !Number.isSafeInteger(input.priorRootActions ?? 0) || (input.priorRootActions ?? 0) < 0 || (input.priorRootActions ?? 0) > input.manifest.totalActions) {
+    return executionFamilyFailure("invalid_timestamp");
+  }
+  const children = {};
+  for (const contract of input.manifest.children) {
+    children[contract.childId] = {
+      _tag: "Running",
+      contract,
+      counts: zeroV2Counts,
+      firstActionAt: null,
+      lastEventAt: input.activatedAt,
+      lastProductChangeAt: null,
+      lastProgressAt: null,
+      currentCandidate: null,
+      productChangeCount: 0,
+      milestoneCandidateSha256: null,
+      milestones: {},
+      verificationReservations: {},
+      reservations: {},
+      evaluationPassOrigins: {},
+      evaluationVerdict: null,
+      graphContextEnabled: null,
+      terminalAt: null,
+      terminalReason: null
+    };
+  }
+  return {
+    _tag: "Running",
+    manifest: input.manifest,
+    familySha256: input.familySha256,
+    activatedAt: input.activatedAt,
+    totalActions: input.priorRootActions ?? 0,
+    children,
+    terminalAt: null,
+    terminalReason: null
+  };
+}
+function v2TerminalDecision(terminal, reason, at) {
+  return {
+    _tag: "Terminated",
+    events: [{ _tag: "TerminalDecided", terminal, reason, at }]
+  };
+}
+function childTimeDecision(state, child, at) {
+  if (!isUtcSecondTimestamp(at) || Date.parse(at) < Date.parse(child.lastEventAt)) {
+    return { _tag: "Refused", reason: "invalid_time" };
+  }
+  const atMs = Date.parse(at);
+  if (atMs >= Date.parse(state.manifest.deadlineAt)) {
+    return v2TerminalDecision("BudgetExhausted", "family_wall_time_limit", at);
+  }
+  if (child.firstActionAt === null) return null;
+  if (atMs >= Math.min(
+    Date.parse(child.firstActionAt) + child.contract.limits.wallTimeMs,
+    Date.parse(child.contract.deadlineAt)
+  )) {
+    return v2TerminalDecision("BudgetExhausted", "child_wall_time_limit", at);
+  }
+  if (child.contract.limits.kind === "standard" && child.lastProductChangeAt !== null && atMs >= Date.parse(child.lastProductChangeAt) + child.contract.limits.noProductChangeMs) {
+    return v2TerminalDecision("BudgetExhausted", "no_product_change_limit", at);
+  }
+  if (child.contract.limits.kind === "evaluation" && child.lastProgressAt !== null && atMs >= Date.parse(child.lastProgressAt) + child.contract.limits.noProgressMs) {
+    return v2TerminalDecision("BudgetExhausted", "no_progress_limit", at);
+  }
+  return null;
+}
+function v2ActionLimit(child, action, candidateSha256) {
+  switch (action) {
+    case "implement":
+      return child.contract.limits.implementationRounds;
+    case "verify":
+      return child.contract.limits.verificationRunsPerCandidate;
+    case "audit":
+      return child.contract.limits.auditRounds;
+    case "correct":
+      return child.contract.limits.correctionRounds;
+    case "council":
+      return child.contract.limits.councilRounds;
+    case "provider_retry":
+      return child.contract.limits.providerRetries;
+    case "resume":
+      return child.contract.limits.resumeAttempts;
+    case "integrate":
+    case "publish":
+      return 1;
+    case "evaluate":
+      return child.contract.limits.kind === "evaluation" ? child.contract.limits.evaluationRuns : 0;
+  }
+  void candidateSha256;
+}
+function usedV2Actions(child, action, candidateSha256) {
+  if (action !== "verify") return child.counts[action];
+  return Object.values(child.reservations).filter(
+    (reservation) => reservation.reservationAction === "verify" && reservation.candidate.candidateSha256 === candidateSha256
+  ).length;
+}
+function dependenciesComplete(state, child) {
+  return child.contract.dependencyChildIds.every(
+    (dependency) => state.children[dependency]?._tag === "Completed"
+  );
+}
+function validReservationOperation(child, operation) {
+  if (typeof decodeRunId(operation.reservationId) !== "string" || typeof decodeRunId(operation.originReservationId) !== "string" || !releaseActionKindsV2.includes(operation.reservationAction) || !releaseActionKindsV2.includes(operation.effectiveAction) || !validCandidateV2(operation.candidate) || !isSha256Hex(operation.taskPlanSha256) || !isSha256Hex(operation.authorityBundleSha256) || child.contract.tranche !== 8 && operation.effectiveAction === "evaluate") {
+    return "invalid";
+  }
+  if (child.currentCandidate !== null && !sameCandidateV2(child.currentCandidate, operation.candidate)) {
+    return "candidate";
+  }
+  if (operation.reservationAction !== "provider_retry" && operation.reservationAction !== "resume") {
+    return operation.reservationAction === operation.effectiveAction && operation.originReservationId === operation.reservationId ? "valid" : "invalid";
+  }
+  if (operation.effectiveAction === "provider_retry" || operation.effectiveAction === "resume") {
+    return "retry";
+  }
+  const origin = child.reservations[operation.originReservationId];
+  if (origin === void 0 || origin.originReservationId !== operation.originReservationId || origin.effectiveAction !== operation.effectiveAction || !sameCandidateV2(origin.candidate, operation.candidate)) {
+    return "retry";
+  }
+  return "valid";
+}
+function reservationForOperation(child, operation) {
+  const reservation = child.reservations[operation.reservationId];
+  if (reservation === void 0 || reservation.originReservationId !== operation.originReservationId) {
+    return null;
+  }
+  return reservation;
+}
+function milestoneForAction(action) {
+  switch (action) {
+    case "verify":
+      return "checks";
+    case "audit":
+      return "audit";
+    case "integrate":
+      return "integrated";
+    case "publish":
+      return "published";
+    default:
+      return null;
+  }
+}
+function decideExecutionChildOperationV2(input) {
+  const { state, operation, at } = input;
+  if (state._tag !== "Running") {
+    return { _tag: "Refused", reason: "family_terminal" };
+  }
+  const child = state.children[input.childId];
+  if (child === void 0) return { _tag: "Refused", reason: "unknown_child" };
+  if (child._tag !== "Running") {
+    return { _tag: "Refused", reason: "child_terminal" };
+  }
+  const timeDecision = childTimeDecision(state, child, at);
+  if (timeDecision !== null) return timeDecision;
+  switch (operation._tag) {
+    case "ReserveAction": {
+      if (!dependenciesComplete(state, child)) {
+        return { _tag: "Refused", reason: "dependency_incomplete" };
+      }
+      const validity = validReservationOperation(child, operation);
+      if (validity === "retry") return { _tag: "Refused", reason: "invalid_retry" };
+      if (validity === "candidate") {
+        return { _tag: "Refused", reason: "candidate_mismatch" };
+      }
+      if (validity !== "valid" || child.reservations[operation.reservationId] !== void 0) {
+        return { _tag: "Refused", reason: "invalid_operation" };
+      }
+      if (state.totalActions >= state.manifest.totalActions) {
+        return v2TerminalDecision("BudgetExhausted", "family_action_limit", at);
+      }
+      if (child.counts.totalActions >= child.contract.limits.totalActions) {
+        return v2TerminalDecision("BudgetExhausted", "child_action_limit", at);
+      }
+      const used = usedV2Actions(
+        child,
+        operation.reservationAction,
+        operation.candidate.candidateSha256
+      );
+      if (used >= v2ActionLimit(
+        child,
+        operation.reservationAction,
+        operation.candidate.candidateSha256
+      )) {
+        return v2TerminalDecision(
+          operation.reservationAction === "provider_retry" ? "BlockedExternal" : "BudgetExhausted",
+          `${operation.reservationAction}_limit`,
+          at
+        );
+      }
+      if (operation.reservationAction === "verify") {
+        const key = `${operation.candidate.candidateSha256}:${operation.authorityBundleSha256}`;
+        const existing = child.verificationReservations[key];
+        if (existing !== void 0) {
+          return { _tag: "ReusedVerification", reservationId: existing };
+        }
+      }
+      return {
+        _tag: "Accepted",
+        events: [
+          {
+            _tag: "ActionReserved",
+            action: operation.reservationAction,
+            candidateSha256: operation.candidate.candidateSha256,
+            ...operation.reservationAction === "verify" ? { commandSha256: operation.authorityBundleSha256 } : {},
+            reservationId: operation.reservationId,
+            at
+          }
+        ]
+      };
+    }
+    case "RecordProductChange": {
+      const reservation = reservationForOperation(child, operation);
+      if (reservation === null || reservation.effectiveAction !== "implement" && reservation.effectiveAction !== "correct") {
+        return { _tag: "Refused", reason: "reservation_mismatch" };
+      }
+      if (!sameCandidateV2(child.currentCandidate, operation.baseCandidate) || !sameCandidateV2(reservation.candidate, operation.baseCandidate) || !validCandidateV2(operation.candidate) || sameCandidateV2(operation.baseCandidate, operation.candidate) || operation.allowedPathsSha256 !== child.contract.allowedPathsSha256) {
+        return { _tag: "Refused", reason: "candidate_mismatch" };
+      }
+      return {
+        _tag: "Accepted",
+        events: [
+          {
+            _tag: "ProductChanged",
+            candidateSha256: operation.candidate.candidateSha256,
+            allowedPathsSha256: operation.allowedPathsSha256,
+            at
+          }
+        ]
+      };
+    }
+    case "RecordMilestone": {
+      const reservation = reservationForOperation(child, operation);
+      if (reservation === null || milestoneForAction(reservation.effectiveAction) !== operation.milestone || !child.contract.requiredMilestones.includes(operation.milestone) || !isSha256Hex(operation.outcomeSha256) || child.currentCandidate?.candidateSha256 !== operation.candidateSha256) {
+        return { _tag: "Refused", reason: "reservation_mismatch" };
+      }
+      if (child.productChangeCount === 0) {
+        return { _tag: "Refused", reason: "invalid_operation" };
+      }
+      const existing = child.milestones[operation.milestone];
+      if (existing !== void 0) {
+        return existing === operation.outcomeSha256 ? { _tag: "Accepted", events: [] } : { _tag: "Refused", reason: "invalid_operation" };
+      }
+      const nextMilestone = child.contract.requiredMilestones.find(
+        (milestone) => child.milestones[milestone] === void 0
+      );
+      if (nextMilestone !== operation.milestone) {
+        return { _tag: "Refused", reason: "invalid_operation" };
+      }
+      const event = {
+        _tag: "MilestoneRecorded",
+        milestone: operation.milestone,
+        candidateSha256: operation.candidateSha256,
+        evidenceSha256: operation.outcomeSha256,
+        at
+      };
+      const completeMilestones = child.contract.requiredMilestones.every(
+        (milestone) => milestone === operation.milestone || child.milestones[milestone] !== void 0
+      );
+      const evaluationComplete = child.contract.tranche !== 8 || child.evaluationVerdict !== null;
+      if (completeMilestones && !evaluationComplete) {
+        return { _tag: "Refused", reason: "invalid_operation" };
+      }
+      if (completeMilestones && evaluationComplete) {
+        return {
+          _tag: "Terminated",
+          events: [
+            event,
+            {
+              _tag: "TerminalDecided",
+              terminal: "Completed",
+              reason: "required_milestones_complete",
+              at
+            }
+          ]
+        };
+      }
+      return { _tag: "Accepted", events: [event] };
+    }
+    case "RecordBlockingOutcome": {
+      const reservation = reservationForOperation(child, operation);
+      if (reservation === null || !["verify", "audit", "council", "evaluate"].includes(
+        reservation.effectiveAction
+      ) || !isSha256Hex(operation.outcomeSha256) || child.currentCandidate?.candidateSha256 !== operation.candidateSha256) {
+        return { _tag: "Refused", reason: "reservation_mismatch" };
+      }
+      return child.counts.correct >= child.contract.limits.correctionRounds ? v2TerminalDecision(
+        "Escalated",
+        `${reservation.effectiveAction}_blocking_after_correction`,
+        at
+      ) : { _tag: "Accepted", events: [] };
+    }
+    case "RecordExternalFailure": {
+      const reservation = reservationForOperation(child, operation);
+      if (reservation === null || !isSha256Hex(operation.outcomeSha256) || child.currentCandidate?.candidateSha256 !== operation.candidateSha256) {
+        return { _tag: "Refused", reason: "reservation_mismatch" };
+      }
+      return child.counts.provider_retry >= child.contract.limits.providerRetries ? v2TerminalDecision("BlockedExternal", "external_retry_limit", at) : { _tag: "Accepted", events: [] };
+    }
+    case "Cancel":
+      return isSha256Hex(operation.approvalSha256) && isSha256Hex(operation.reasonSha256) ? v2TerminalDecision("Cancelled", "user_cancelled", at) : { _tag: "Refused", reason: "invalid_operation" };
+    case "Invalidate":
+      if (!isSha256Hex(operation.approvalSha256) || !isSha256Hex(operation.observedFamilySha256) || !isSha256Hex(operation.reasonSha256)) {
+        return { _tag: "Refused", reason: "invalid_operation" };
+      }
+      return operation.observedFamilySha256 === state.familySha256 ? { _tag: "Accepted", events: [] } : v2TerminalDecision("Invalidated", "family_identity_changed", at);
+  }
+}
+function evolveChildV2(child, operation, events) {
+  if (child._tag !== "Running") return child;
+  let next = child;
+  for (const event of events) {
+    switch (event._tag) {
+      case "ActionReserved": {
+        if (operation._tag !== "ReserveAction") return child;
+        const firstActionAt = next.firstActionAt ?? event.at;
+        const verificationReservations = { ...next.verificationReservations };
+        if (event.action === "verify" && event.commandSha256 !== void 0) {
+          verificationReservations[`${operation.candidate.candidateSha256}:${event.commandSha256}`] = event.reservationId;
+        }
+        next = {
+          ...next,
+          counts: {
+            ...next.counts,
+            totalActions: next.counts.totalActions + 1,
+            [event.action]: next.counts[event.action] + 1
+          },
+          firstActionAt,
+          lastProductChangeAt: next.lastProductChangeAt ?? firstActionAt,
+          lastProgressAt: next.contract.limits.kind === "evaluation" ? next.lastProgressAt ?? firstActionAt : next.lastProgressAt,
+          currentCandidate: next.currentCandidate ?? operation.candidate,
+          verificationReservations,
+          reservations: {
+            ...next.reservations,
+            [operation.reservationId]: { ...operation }
+          },
+          lastEventAt: event.at
+        };
+        break;
+      }
+      case "ProductChanged":
+        if (operation._tag !== "RecordProductChange") return child;
+        next = {
+          ...next,
+          currentCandidate: operation.candidate,
+          productChangeCount: next.productChangeCount + 1,
+          milestoneCandidateSha256: null,
+          milestones: {},
+          evaluationPassOrigins: {},
+          evaluationVerdict: null,
+          graphContextEnabled: null,
+          lastProductChangeAt: event.at,
+          lastProgressAt: next.contract.limits.kind === "evaluation" ? event.at : next.lastProgressAt,
+          lastEventAt: event.at
+        };
+        break;
+      case "MilestoneRecorded":
+        next = {
+          ...next,
+          milestoneCandidateSha256: next.milestoneCandidateSha256 ?? event.candidateSha256,
+          milestones: { ...next.milestones, [event.milestone]: event.evidenceSha256 },
+          lastProgressAt: next.contract.limits.kind === "evaluation" ? event.at : next.lastProgressAt,
+          lastEventAt: event.at
+        };
+        break;
+      case "TerminalDecided":
+        next = {
+          ...next,
+          _tag: event.terminal,
+          terminalAt: event.at,
+          terminalReason: event.reason,
+          lastEventAt: event.at
+        };
+        break;
+    }
+  }
+  return next;
+}
+function evolveExecutionFamilyV2(state, childId, operation, decision) {
+  if (state._tag !== "Running" || decision._tag !== "Accepted" && decision._tag !== "Terminated") {
+    return state;
+  }
+  const child = state.children[childId];
+  if (child === void 0) return state;
+  const evolved = evolveChildV2(child, operation, decision.events);
+  const children = { ...state.children, [childId]: evolved };
+  const actionEvents = decision.events.filter(
+    (event) => event._tag === "ActionReserved"
+  ).length;
+  let tag = state._tag;
+  let terminalAt = state.terminalAt;
+  let terminalReason = state.terminalReason;
+  if (evolved._tag !== "Running" && evolved._tag !== "Completed") {
+    tag = evolved._tag;
+    terminalAt = evolved.terminalAt;
+    terminalReason = evolved.terminalReason;
+  } else if (Object.values(children).every((item) => item._tag === "Completed")) {
+    tag = "Completed";
+    terminalAt = evolved.terminalAt;
+    terminalReason = "all_children_complete";
+  }
+  return {
+    ...state,
+    _tag: tag,
+    totalActions: state.totalActions + actionEvents,
+    children,
+    terminalAt,
+    terminalReason
+  };
+}
+function recordExecutionEvaluationPassV2(input) {
+  const child = input.state.children[input.childId];
+  const reservation = child?.reservations[input.originReservationId];
+  if (input.state._tag !== "Running" || child === void 0 || child._tag !== "Running" || child.contract.tranche !== 8 || reservation === void 0 || reservation.effectiveAction !== "evaluate" || reservation.originReservationId !== input.originReservationId || !isSha256Hex(input.outcomeSha256) || !isUtcSecondTimestamp(input.at) || Date.parse(input.at) < Date.parse(child.lastEventAt)) {
+    return input.state;
+  }
+  const existing = child.evaluationPassOrigins[input.originReservationId];
+  if (existing !== void 0 && existing !== input.outcomeSha256) return input.state;
+  const evolved = {
+    ...child,
+    evaluationPassOrigins: {
+      ...child.evaluationPassOrigins,
+      [input.originReservationId]: input.outcomeSha256
+    },
+    lastProgressAt: input.at,
+    lastEventAt: input.at
+  };
+  return {
+    ...input.state,
+    children: { ...input.state.children, [input.childId]: evolved }
+  };
+}
+function registerExecutionEvaluationVerdictV2(input) {
+  const child = input.state.children[input.childId];
+  if (child === void 0 || child.contract.tranche !== 8) {
+    return { _tag: "Refused", reason: "unknown_child" };
+  }
+  if (input.state._tag !== "Running" || child._tag !== "Running") {
+    return { _tag: "Refused", reason: "invalid_verdict" };
+  }
+  const verdict = input.verdict;
+  if (!isSha256Hex(verdict.candidateSha256) || !isSha256Hex(verdict.runSetSha256) || !isSha256Hex(verdict.verdictSha256) || !["PROMOTE", "GRAPH_OFF_FAILED", "GRAPH_OFF_INCONCLUSIVE", "GRAPH_OFF_UNCOMPUTABLE"].includes(
+    verdict.result
+  ) || ![verdict.completedRuns, verdict.unavailableRuns, verdict.notRunRuns].every(
+    (count) => Number.isSafeInteger(count) && count >= 0 && count <= 2e3
+  ) || verdict.completedRuns + verdict.unavailableRuns + verdict.notRunRuns !== 2e3) {
+    return { _tag: "Refused", reason: "invalid_verdict" };
+  }
+  if (child.currentCandidate?.candidateSha256 !== verdict.candidateSha256) {
+    return { _tag: "Refused", reason: "candidate_mismatch" };
+  }
+  const passOrigins = Object.entries(child.evaluationPassOrigins);
+  if (!passOrigins.every(([originReservationId, outcomeSha256]) => {
+    const reservation = child.reservations[originReservationId];
+    return reservation !== void 0 && reservation.reservationAction === "evaluate" && reservation.effectiveAction === "evaluate" && reservation.originReservationId === originReservationId && reservation.candidate.candidateSha256 === verdict.candidateSha256 && isSha256Hex(outcomeSha256);
+  })) {
+    return { _tag: "Refused", reason: "run_count_mismatch" };
+  }
+  const passed = passOrigins.length;
+  if (verdict.completedRuns !== passed || verdict.result !== "GRAPH_OFF_UNCOMPUTABLE" && (verdict.completedRuns !== 2e3 || verdict.unavailableRuns !== 0 || verdict.notRunRuns !== 0)) {
+    return { _tag: "Refused", reason: "run_count_mismatch" };
+  }
+  const evolved = {
+    ...child,
+    evaluationVerdict: verdict,
+    graphContextEnabled: verdict.result === "PROMOTE"
+  };
+  return {
+    _tag: "Accepted",
+    state: {
+      ...input.state,
+      children: { ...input.state.children, [input.childId]: evolved }
+    }
+  };
+}
+
+// packages/orchestration/src/execution-ledger.ts
+var ENDSTOP_LANE = "endstop";
+var CONTRACT_EVENT = "endstop_contract";
+var DECISION_EVENT = "endstop_decision";
+var V2_EVENT = "endstop_v2";
+var ENDSTOP_LEDGER_FAILURE_BRAND = Symbol(
+  "@foreman/orchestration/EndstopLedgerFailure"
+);
+function ledgerFailure(reason) {
+  return {
+    [ENDSTOP_LEDGER_FAILURE_BRAND]: true,
+    _tag: "EndstopLedgerFailure",
+    reason
+  };
+}
+var EndstopLedger = class extends Context_exports.Tag("EndstopLedger")() {
+};
+function isRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function exactKeys(value, keys5) {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys5].sort();
+  return actual.length === expected.length && actual.every((key, i) => key === expected[i]);
+}
+var releaseActionsV2 = [
+  "implement",
+  "verify",
+  "audit",
+  "correct",
+  "council",
+  "provider_retry",
+  "resume",
+  "integrate",
+  "publish",
+  "evaluate"
+];
+var receiptSchemasV1 = [
+  "foreman.design-approval.v1",
+  "foreman.checks-evidence.v1",
+  "foreman.release-audit.v1",
+  "foreman.council-request.v1",
+  "foreman.evaluation-authority.v1"
+];
+function candidateFromUnknown(value) {
+  if (!isRecord2(value) || !exactKeys(value, ["commit", "tree", "candidateSha256"]) || typeof value.commit !== "string" || typeof value.tree !== "string" || typeof value.candidateSha256 !== "string" || !isCommitSha40(value.commit) || !isCommitSha40(value.tree) || !isSha256Hex(value.candidateSha256) || value.candidateSha256 !== sha256Hex(value.commit)) {
+    return null;
+  }
+  return {
+    commit: value.commit,
+    tree: value.tree,
+    candidateSha256: value.candidateSha256
+  };
+}
+function childAuthorityFromUnknown(value) {
+  if (!isRecord2(value) || !exactKeys(value, [
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "action",
+    "effectiveAction",
+    "priorReservationId",
+    "originReservationId",
+    "candidate",
+    "taskPlanSha256",
+    "bundleSha256",
+    "receiptSchemas",
+    "receiptSha256s",
+    "evaluationManifestSha256",
+    "registeredAt"
+  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || typeof value.action !== "string" || !releaseActionsV2.includes(value.action) || typeof value.effectiveAction !== "string" || !releaseActionsV2.includes(value.effectiveAction) || typeof value.taskPlanSha256 !== "string" || !isSha256Hex(value.taskPlanSha256) || typeof value.bundleSha256 !== "string" || !isSha256Hex(value.bundleSha256) || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt) || !Array.isArray(value.receiptSchemas) || value.receiptSchemas.length === 0 || !value.receiptSchemas.every(
+    (schema) => typeof schema === "string" && receiptSchemasV1.includes(schema)
+  ) || !Array.isArray(value.receiptSha256s) || value.receiptSha256s.length !== value.receiptSchemas.length || !value.receiptSha256s.every(
+    (digest) => typeof digest === "string" && isSha256Hex(digest)
+  ) || !(value.evaluationManifestSha256 === null || typeof value.evaluationManifestSha256 === "string" && isSha256Hex(value.evaluationManifestSha256))) {
+    return null;
+  }
+  const candidate = candidateFromUnknown(value.candidate);
+  if (candidate === null) return null;
+  const action = value.action;
+  const effectiveAction = value.effectiveAction;
+  const meta = action === "provider_retry" || action === "resume";
+  if (meta ? effectiveAction === "provider_retry" || effectiveAction === "resume" || typeof value.priorReservationId !== "string" || typeof decodeRunId(value.priorReservationId) !== "string" || typeof value.originReservationId !== "string" || typeof decodeRunId(value.originReservationId) !== "string" : effectiveAction !== action || value.priorReservationId !== null || value.originReservationId !== null) {
+    return null;
+  }
+  if (effectiveAction === "evaluate" ? typeof value.evaluationManifestSha256 !== "string" : value.evaluationManifestSha256 !== null) {
+    return null;
+  }
+  return {
+    rootContractId: value.rootContractId,
+    rootContractSha256: value.rootContractSha256,
+    familySha256: value.familySha256,
+    childId: value.childId,
+    action,
+    effectiveAction,
+    priorReservationId: value.priorReservationId,
+    originReservationId: value.originReservationId,
+    candidate,
+    taskPlanSha256: value.taskPlanSha256,
+    bundleSha256: value.bundleSha256,
+    receiptSchemas: [...value.receiptSchemas],
+    receiptSha256s: [...value.receiptSha256s],
+    evaluationManifestSha256: value.evaluationManifestSha256,
+    registeredAt: value.registeredAt
+  };
+}
+function childOutcomeFromUnknown(value) {
+  if (!isRecord2(value) || !exactKeys(value, [
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "reservationId",
+    "originReservationId",
+    "reservationAction",
+    "effectiveAction",
+    "candidateSha256",
+    "outcomeSha256",
+    "outcomeSchema",
+    "registeredAt"
+  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || typeof value.reservationId !== "string" || typeof decodeRunId(value.reservationId) !== "string" || typeof value.originReservationId !== "string" || typeof decodeRunId(value.originReservationId) !== "string" || typeof value.reservationAction !== "string" || !releaseActionsV2.includes(value.reservationAction) || typeof value.effectiveAction !== "string" || !releaseActionsV2.includes(value.effectiveAction) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.outcomeSha256 !== "string" || !isSha256Hex(value.outcomeSha256) || value.outcomeSchema !== "foreman.release-action-outcome.v1" && value.outcomeSchema !== "foreman.council-outcome.v1" || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt)) {
+    return null;
+  }
+  return {
+    rootContractId: value.rootContractId,
+    rootContractSha256: value.rootContractSha256,
+    familySha256: value.familySha256,
+    childId: value.childId,
+    reservationId: value.reservationId,
+    originReservationId: value.originReservationId,
+    reservationAction: value.reservationAction,
+    effectiveAction: value.effectiveAction,
+    candidateSha256: value.candidateSha256,
+    outcomeSha256: value.outcomeSha256,
+    outcomeSchema: value.outcomeSchema,
+    registeredAt: value.registeredAt
+  };
+}
+function evaluationVerdictFromUnknown(value) {
+  if (!isRecord2(value) || !exactKeys(value, [
+    "rootContractId",
+    "rootContractSha256",
+    "familySha256",
+    "childId",
+    "candidateSha256",
+    "result",
+    "completedRuns",
+    "unavailableRuns",
+    "notRunRuns",
+    "runSetSha256",
+    "evaluationAuthorityReceiptSha256",
+    "verdictSha256",
+    "registeredAt"
+  ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || value.childId !== "v040-t8-evaluation" || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || ![
+    "PROMOTE",
+    "GRAPH_OFF_FAILED",
+    "GRAPH_OFF_INCONCLUSIVE",
+    "GRAPH_OFF_UNCOMPUTABLE"
+  ].includes(value.result) || ![value.completedRuns, value.unavailableRuns, value.notRunRuns].every(
+    (count) => Number.isSafeInteger(count) && count >= 0 && count <= 2e3
+  ) || value.completedRuns + value.unavailableRuns + value.notRunRuns !== 2e3 || typeof value.runSetSha256 !== "string" || !isSha256Hex(value.runSetSha256) || typeof value.evaluationAuthorityReceiptSha256 !== "string" || !isSha256Hex(value.evaluationAuthorityReceiptSha256) || typeof value.verdictSha256 !== "string" || !isSha256Hex(value.verdictSha256) || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt)) {
+    return null;
+  }
+  return value;
+}
+function executionEventFromUnknown(value) {
+  if (!isRecord2(value) || typeof value._tag !== "string") return null;
+  const at = value.at;
+  if (typeof at !== "string" || !isUtcSecondTimestamp(at)) return null;
+  switch (value._tag) {
+    case "ActionReserved": {
+      const allowed = value.commandSha256 === void 0 ? ["_tag", "action", "candidateSha256", "reservationId", "at"] : ["_tag", "action", "candidateSha256", "commandSha256", "reservationId", "at"];
+      if (!exactKeys(value, allowed) || typeof value.action !== "string" || !executionActionKinds.includes(value.action) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.reservationId !== "string" || value.reservationId.length === 0 || value.commandSha256 !== void 0 && (typeof value.commandSha256 !== "string" || !isSha256Hex(value.commandSha256))) {
+        return null;
+      }
+      return {
+        _tag: "ActionReserved",
+        action: value.action,
+        candidateSha256: value.candidateSha256,
+        ...value.commandSha256 === void 0 ? {} : { commandSha256: value.commandSha256 },
+        reservationId: value.reservationId,
+        at
+      };
+    }
+    case "ProductChanged":
+      if (!exactKeys(value, ["_tag", "candidateSha256", "allowedPathsSha256", "at"]) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.allowedPathsSha256 !== "string" || !isSha256Hex(value.allowedPathsSha256)) return null;
+      return {
+        _tag: "ProductChanged",
+        candidateSha256: value.candidateSha256,
+        allowedPathsSha256: value.allowedPathsSha256,
+        at
+      };
+    case "MilestoneRecorded": {
+      const milestones = ["checks", "audit", "integrated", "published"];
+      if (!exactKeys(value, ["_tag", "milestone", "candidateSha256", "evidenceSha256", "at"]) || typeof value.milestone !== "string" || !milestones.includes(value.milestone) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.evidenceSha256 !== "string" || !isSha256Hex(value.evidenceSha256)) return null;
+      return {
+        _tag: "MilestoneRecorded",
+        milestone: value.milestone,
+        candidateSha256: value.candidateSha256,
+        evidenceSha256: value.evidenceSha256,
+        at
+      };
+    }
+    case "TerminalDecided": {
+      const terminals = [
+        "Completed",
+        "Escalated",
+        "Stalled",
+        "BudgetExhausted",
+        "Cancelled",
+        "Invalidated",
+        "BlockedExternal"
+      ];
+      if (!exactKeys(value, ["_tag", "terminal", "reason", "at"]) || typeof value.terminal !== "string" || !terminals.includes(value.terminal) || typeof value.reason !== "string" || value.reason.length === 0) return null;
+      return {
+        _tag: "TerminalDecided",
+        terminal: value.terminal,
+        reason: value.reason,
+        at
+      };
+    }
+    default:
+      return null;
+  }
+}
+function executionV2EventFromUnknown(value) {
+  if (!isRecord2(value) || value._tag !== "ActionReserved") {
+    return executionEventFromUnknown(value);
+  }
+  const allowed = value.commandSha256 === void 0 ? ["_tag", "action", "candidateSha256", "reservationId", "at"] : [
+    "_tag",
+    "action",
+    "candidateSha256",
+    "commandSha256",
+    "reservationId",
+    "at"
+  ];
+  if (!exactKeys(value, allowed) || typeof value.action !== "string" || !releaseActionsV2.includes(value.action) || typeof value.candidateSha256 !== "string" || !isSha256Hex(value.candidateSha256) || typeof value.reservationId !== "string" || typeof decodeRunId(value.reservationId) !== "string" || typeof value.at !== "string" || !isUtcSecondTimestamp(value.at) || value.commandSha256 !== void 0 && (typeof value.commandSha256 !== "string" || !isSha256Hex(value.commandSha256))) {
+    return null;
+  }
+  return {
+    _tag: "ActionReserved",
+    action: value.action,
+    candidateSha256: value.candidateSha256,
+    ...value.commandSha256 === void 0 ? {} : { commandSha256: value.commandSha256 },
+    reservationId: value.reservationId,
+    at: value.at
+  };
+}
+function executionV2OperationFromUnknown(value) {
+  if (!isRecord2(value) || typeof value._tag !== "string") return null;
+  const runId = (item) => typeof item === "string" && typeof decodeRunId(item) === "string";
+  const digest = (item) => typeof item === "string" && isSha256Hex(item);
+  switch (value._tag) {
+    case "ReserveAction": {
+      if (!exactKeys(value, [
+        "_tag",
+        "reservationId",
+        "reservationAction",
+        "effectiveAction",
+        "originReservationId",
+        "candidate",
+        "taskPlanSha256",
+        "authorityBundleSha256"
+      ]) || !runId(value.reservationId) || typeof value.reservationAction !== "string" || !releaseActionsV2.includes(value.reservationAction) || typeof value.effectiveAction !== "string" || !releaseActionsV2.includes(value.effectiveAction) || !runId(value.originReservationId) || !digest(value.taskPlanSha256) || !digest(value.authorityBundleSha256)) {
+        return null;
+      }
+      const candidate = candidateFromUnknown(value.candidate);
+      if (candidate === null) return null;
+      return {
+        _tag: "ReserveAction",
+        reservationId: value.reservationId,
+        reservationAction: value.reservationAction,
+        effectiveAction: value.effectiveAction,
+        originReservationId: value.originReservationId,
+        candidate,
+        taskPlanSha256: value.taskPlanSha256,
+        authorityBundleSha256: value.authorityBundleSha256
+      };
+    }
+    case "RecordProductChange": {
+      if (!exactKeys(value, [
+        "_tag",
+        "reservationId",
+        "originReservationId",
+        "baseCandidate",
+        "candidate",
+        "allowedPathsSha256"
+      ]) || !runId(value.reservationId) || !runId(value.originReservationId) || !digest(value.allowedPathsSha256)) {
+        return null;
+      }
+      const baseCandidate = candidateFromUnknown(value.baseCandidate);
+      const candidate = candidateFromUnknown(value.candidate);
+      if (baseCandidate === null || candidate === null) return null;
+      return {
+        _tag: "RecordProductChange",
+        reservationId: value.reservationId,
+        originReservationId: value.originReservationId,
+        baseCandidate,
+        candidate,
+        allowedPathsSha256: value.allowedPathsSha256
+      };
+    }
+    case "RecordMilestone":
+      if (!exactKeys(value, [
+        "_tag",
+        "milestone",
+        "outcomeSha256",
+        "reservationId",
+        "originReservationId",
+        "candidateSha256"
+      ]) || typeof value.milestone !== "string" || !["checks", "audit", "integrated", "published"].includes(
+        value.milestone
+      ) || !digest(value.outcomeSha256) || !runId(value.reservationId) || !runId(value.originReservationId) || !digest(value.candidateSha256)) {
+        return null;
+      }
+      return {
+        _tag: "RecordMilestone",
+        milestone: value.milestone,
+        outcomeSha256: value.outcomeSha256,
+        reservationId: value.reservationId,
+        originReservationId: value.originReservationId,
+        candidateSha256: value.candidateSha256
+      };
+    case "RecordBlockingOutcome":
+    case "RecordExternalFailure":
+      if (!exactKeys(value, [
+        "_tag",
+        "outcomeSha256",
+        "reservationId",
+        "originReservationId",
+        "candidateSha256"
+      ]) || !digest(value.outcomeSha256) || !runId(value.reservationId) || !runId(value.originReservationId) || !digest(value.candidateSha256)) {
+        return null;
+      }
+      return {
+        _tag: value._tag,
+        outcomeSha256: value.outcomeSha256,
+        reservationId: value.reservationId,
+        originReservationId: value.originReservationId,
+        candidateSha256: value.candidateSha256
+      };
+    case "Cancel":
+      return exactKeys(value, ["_tag", "approvalSha256", "reasonSha256"]) && digest(value.approvalSha256) && digest(value.reasonSha256) ? {
+        _tag: "Cancel",
+        approvalSha256: value.approvalSha256,
+        reasonSha256: value.reasonSha256
+      } : null;
+    case "Invalidate":
+      return exactKeys(value, [
+        "_tag",
+        "approvalSha256",
+        "observedFamilySha256",
+        "reasonSha256"
+      ]) && digest(value.approvalSha256) && digest(value.observedFamilySha256) && digest(value.reasonSha256) ? {
+        _tag: "Invalidate",
+        approvalSha256: value.approvalSha256,
+        observedFamilySha256: value.observedFamilySha256,
+        reasonSha256: value.reasonSha256
+      } : null;
+    default:
+      return null;
+  }
+}
+function familyJournalPayloadFromUnknown(value) {
+  if (!isRecord2(value) || typeof value._tag !== "string") return null;
+  if (value._tag === "ExecutionFamilyAuthorityRegistered") {
+    if (!exactKeys(value, [
+      "_tag",
+      "rootContractId",
+      "rootContractSha256",
+      "familySha256",
+      "sourceSha256",
+      "auditReceiptSha256",
+      "userReceiptSha256",
+      "registeredAt"
+    ]) || typeof value.rootContractId !== "string" || typeof decodeRunId(value.rootContractId) !== "string" || typeof value.rootContractSha256 !== "string" || typeof value.familySha256 !== "string" || typeof value.sourceSha256 !== "string" || typeof value.auditReceiptSha256 !== "string" || typeof value.userReceiptSha256 !== "string" || !isSha256Hex(value.rootContractSha256) || !isSha256Hex(value.familySha256) || !isSha256Hex(value.sourceSha256) || !isSha256Hex(value.auditReceiptSha256) || !isSha256Hex(value.userReceiptSha256) || typeof value.registeredAt !== "string" || !isUtcSecondTimestamp(value.registeredAt)) {
+      return null;
+    }
+    return {
+      _tag: "ExecutionFamilyAuthorityRegistered",
+      rootContractId: value.rootContractId,
+      rootContractSha256: value.rootContractSha256,
+      familySha256: value.familySha256,
+      sourceSha256: value.sourceSha256,
+      auditReceiptSha256: value.auditReceiptSha256,
+      userReceiptSha256: value.userReceiptSha256,
+      registeredAt: value.registeredAt
+    };
+  }
+  if (value._tag === "EndstopFamilyActivated") {
+    if (!exactKeys(value, [
+      "_tag",
+      "familySha256",
+      "sourceSha256",
+      "auditReceiptSha256",
+      "userReceiptSha256",
+      "activatedAt"
+    ]) || typeof value.familySha256 !== "string" || typeof value.sourceSha256 !== "string" || typeof value.auditReceiptSha256 !== "string" || typeof value.userReceiptSha256 !== "string" || !isSha256Hex(value.familySha256) || !isSha256Hex(value.sourceSha256) || !isSha256Hex(value.auditReceiptSha256) || !isSha256Hex(value.userReceiptSha256) || typeof value.activatedAt !== "string" || !isUtcSecondTimestamp(value.activatedAt)) {
+      return null;
+    }
+    return {
+      _tag: "EndstopFamilyActivated",
+      familySha256: value.familySha256,
+      sourceSha256: value.sourceSha256,
+      auditReceiptSha256: value.auditReceiptSha256,
+      userReceiptSha256: value.userReceiptSha256,
+      activatedAt: value.activatedAt
+    };
+  }
+  if (value._tag === "ExecutionChildAuthorityRegistered") {
+    const { _tag: ignored, ...raw } = value;
+    void ignored;
+    const authority = childAuthorityFromUnknown(raw);
+    return authority === null ? null : { _tag: "ExecutionChildAuthorityRegistered", ...authority };
+  }
+  if (value._tag === "ExecutionChildOutcomeRegistered") {
+    const { _tag: ignored, ...raw } = value;
+    void ignored;
+    const outcome = childOutcomeFromUnknown(raw);
+    return outcome === null ? null : { _tag: "ExecutionChildOutcomeRegistered", ...outcome };
+  }
+  if (value._tag === "ExecutionEvaluationVerdictRegistered") {
+    const { _tag: ignored, ...raw } = value;
+    void ignored;
+    const verdict = evaluationVerdictFromUnknown(raw);
+    return verdict === null ? null : { _tag: "ExecutionEvaluationVerdictRegistered", ...verdict };
+  }
+  if (value._tag === "EndstopChildDecision") {
+    if (!exactKeys(value, [
+      "_tag",
+      "familySha256",
+      "childId",
+      "operation",
+      "events"
+    ]) || typeof value.familySha256 !== "string" || !isSha256Hex(value.familySha256) || typeof value.childId !== "string" || typeof decodeRunId(value.childId) !== "string" || !Array.isArray(value.events) || value.events.length === 0) {
+      return null;
+    }
+    const operation = executionV2OperationFromUnknown(value.operation);
+    if (operation === null) return null;
+    const events = [];
+    for (const item of value.events) {
+      const event = executionV2EventFromUnknown(item);
+      if (event === null || events[0] !== void 0 && event.at !== events[0].at) {
+        return null;
+      }
+      events.push(event);
+    }
+    return {
+      _tag: "EndstopChildDecision",
+      familySha256: value.familySha256,
+      childId: value.childId,
+      operation,
+      events
+    };
+  }
+  return null;
+}
+function sameCandidate(left3, right3) {
+  return left3.commit === right3.commit && left3.tree === right3.tree && left3.candidateSha256 === right3.candidateSha256;
+}
+function childAuthorityIdentity(authority) {
+  return canonicalize({
+    familySha256: authority.familySha256,
+    childId: authority.childId,
+    action: authority.action,
+    candidateSha256: authority.candidate.candidateSha256,
+    priorReservationId: authority.priorReservationId
+  });
+}
+function authorityMatchesReservation(authority, operation) {
+  const wrapper = operation.reservationAction === "provider_retry" || operation.reservationAction === "resume";
+  return authority.action === operation.reservationAction && authority.effectiveAction === operation.effectiveAction && sameCandidate(authority.candidate, operation.candidate) && authority.taskPlanSha256 === operation.taskPlanSha256 && authority.bundleSha256 === operation.authorityBundleSha256 && (wrapper ? authority.priorReservationId !== null && authority.originReservationId === operation.originReservationId : authority.priorReservationId === null && authority.originReservationId === null && operation.originReservationId === operation.reservationId);
+}
+function hasAvailableChildAuthority(authorities, family, childId, operation, at) {
+  const child = family.children[childId];
+  if (child === void 0) return false;
+  return authorities.some(
+    (item) => item.familySha256 === family.familySha256 && item.childId === childId && Date.parse(item.registeredAt) <= Date.parse(at) && authorityMatchesReservation(item, operation)
+  );
+}
+function outcomeMatchesReservation(outcome, family) {
+  const reservation = family.children[outcome.childId]?.reservations[outcome.reservationId];
+  return reservation !== void 0 && reservation.originReservationId === outcome.originReservationId && reservation.reservationAction === outcome.reservationAction && reservation.effectiveAction === outcome.effectiveAction && reservation.candidate.candidateSha256 === outcome.candidateSha256;
+}
+function operationOutcome(operation) {
+  return operation._tag === "RecordMilestone" || operation._tag === "RecordBlockingOutcome" || operation._tag === "RecordExternalFailure" ? operation : null;
+}
+function evaluationRunSetSha256(family) {
+  const child = family.children["v040-t8-evaluation"];
+  if (child === void 0) return null;
+  const encoder6 = new TextEncoder();
+  const rows = Object.entries(child.evaluationPassOrigins).map(([originReservationId, outcomeSha256]) => ({
+    originReservationId,
+    outcomeSha256
+  })).sort(
+    (left3, right3) => Buffer.from(encoder6.encode(left3.originReservationId)).compare(
+      Buffer.from(encoder6.encode(right3.originReservationId))
+    )
+  );
+  return sha256Hex(canonicalize(rows));
+}
+function replayHistory(events, loadManifest) {
+  const relevant = events.filter(
+    (event) => event.type === CONTRACT_EVENT || event.type === DECISION_EVENT || event.type === V2_EVENT
+  );
+  const contracts = relevant.filter((event) => event.type === CONTRACT_EVENT);
+  if (contracts.length === 0) {
+    return relevant.length === 0 ? { _tag: "Missing" } : { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  if (contracts.length !== 1 || relevant[0]?.type !== CONTRACT_EVENT) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  const contractStored = contracts[0];
+  if (contractStored.lane !== ENDSTOP_LANE || !exactKeys(contractStored.payload, [
+    "contract",
+    "contractSha256"
+  ])) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  const decoded = decodeExecutionContractV1(contractStored.payload.contract);
+  const hash2 = contractStored.payload.contractSha256;
+  if (isExecutionContractFailure(decoded) || typeof hash2 !== "string" || !isSha256Hex(hash2) || executionContractSha256(decoded) !== hash2) {
+    return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+  }
+  let root = initialExecutionState(decoded);
+  let authority = null;
+  let family = null;
+  const childAuthorities = [];
+  const childOutcomes = [];
+  const evaluationVerdicts = [];
+  for (const stored of relevant.slice(1)) {
+    if (stored.type === DECISION_EVENT) {
+      if (authority !== null || stored.lane !== ENDSTOP_LANE || !exactKeys(stored.payload, [
+        "contractSha256",
+        "events"
+      ]) || stored.payload.contractSha256 !== hash2 || !Array.isArray(stored.payload.events) || stored.payload.events.length === 0 || isExecutionTerminal(root)) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      for (const raw of stored.payload.events) {
+        const event = executionEventFromUnknown(raw);
+        if (event === null || Date.parse(event.at) < Date.parse(root.lastEventAt) || event._tag === "ProductChanged" && event.allowedPathsSha256 !== root.contract.allowedPathsSha256) {
+          return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+        }
+        root = evolveExecution(root, event);
+      }
+      continue;
+    }
+    if (stored.type !== V2_EVENT || stored.lane !== ENDSTOP_LANE) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    const payload = familyJournalPayloadFromUnknown(stored.payload);
+    if (payload === null || isExecutionTerminal(root)) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    if (payload._tag === "ExecutionFamilyAuthorityRegistered") {
+      if (authority !== null || family !== null || payload.rootContractId !== decoded.contractId || payload.rootContractSha256 !== hash2 || Date.parse(payload.registeredAt) < Date.parse(root.lastEventAt)) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      authority = {
+        rootContractId: payload.rootContractId,
+        rootContractSha256: payload.rootContractSha256,
+        familySha256: payload.familySha256,
+        sourceSha256: payload.sourceSha256,
+        auditReceiptSha256: payload.auditReceiptSha256,
+        userReceiptSha256: payload.userReceiptSha256,
+        registeredAt: payload.registeredAt
+      };
+      continue;
+    }
+    if (payload._tag === "EndstopFamilyActivated") {
+      if (authority === null || family !== null || payload.familySha256 !== authority.familySha256 || payload.sourceSha256 !== authority.sourceSha256 || payload.auditReceiptSha256 !== authority.auditReceiptSha256 || payload.userReceiptSha256 !== authority.userReceiptSha256 || Date.parse(payload.activatedAt) < Date.parse(authority.registeredAt)) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      const manifest = loadManifest(payload.familySha256);
+      if (manifest === null || manifest.rootContractId !== decoded.contractId || manifest.rootContractSha256 !== hash2 || manifest.sourceSha256 !== authority.sourceSha256 || executionContractFamilySha256(manifest) !== payload.familySha256) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      const activated = initialExecutionFamilyStateV2({
+        manifest,
+        familySha256: payload.familySha256,
+        activatedAt: payload.activatedAt,
+        priorRootActions: root.counts.totalActions
+      });
+      if (isExecutionFamilyFailure(activated)) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      family = activated;
+      continue;
+    }
+    if (payload._tag === "ExecutionChildAuthorityRegistered") {
+      const { _tag: ignored, ...item } = payload;
+      void ignored;
+      if (authority === null || family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || family.children[item.childId] === void 0 || Date.parse(item.registeredAt) < Date.parse(family.activatedAt) || childAuthorities.some(
+        (existing) => childAuthorityIdentity(existing) === childAuthorityIdentity(item)
+      )) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      childAuthorities.push(item);
+      continue;
+    }
+    if (payload._tag === "ExecutionChildOutcomeRegistered") {
+      const { _tag: ignored, ...item } = payload;
+      void ignored;
+      if (family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || !outcomeMatchesReservation(item, family) || Date.parse(item.registeredAt) < Date.parse(family.children[item.childId].lastEventAt) || childOutcomes.some(
+        (existing) => existing.reservationId === item.reservationId
+      )) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      childOutcomes.push(item);
+      if (item.effectiveAction === "evaluate") {
+        family = recordExecutionEvaluationPassV2({
+          state: family,
+          childId: item.childId,
+          originReservationId: item.originReservationId,
+          outcomeSha256: item.outcomeSha256,
+          at: item.registeredAt
+        });
+      }
+      continue;
+    }
+    if (payload._tag === "ExecutionEvaluationVerdictRegistered") {
+      const { _tag: ignored, ...item } = payload;
+      void ignored;
+      if (family === null || item.rootContractId !== decoded.contractId || item.rootContractSha256 !== hash2 || item.familySha256 !== family.familySha256 || evaluationVerdicts.some(
+        (existing) => existing.childId === item.childId
+      ) || Date.parse(item.registeredAt) < Date.parse(family.children[item.childId].lastEventAt) || childAuthorities.every(
+        (registered) => registered.childId !== item.childId || registered.effectiveAction !== "evaluate" || registered.candidate.candidateSha256 !== item.candidateSha256 || registered.evaluationManifestSha256 !== item.evaluationAuthorityReceiptSha256
+      ) || evaluationRunSetSha256(family) !== item.runSetSha256) {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      const verdict = registerExecutionEvaluationVerdictV2({
+        state: family,
+        childId: item.childId,
+        verdict: {
+          candidateSha256: item.candidateSha256,
+          result: item.result,
+          completedRuns: item.completedRuns,
+          unavailableRuns: item.unavailableRuns,
+          notRunRuns: item.notRunRuns,
+          runSetSha256: item.runSetSha256,
+          verdictSha256: item.verdictSha256
+        }
+      });
+      if (verdict._tag !== "Accepted") {
+        return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+      }
+      evaluationVerdicts.push(item);
+      const verdictChild = verdict.state.children[item.childId];
+      family = {
+        ...verdict.state,
+        children: {
+          ...verdict.state.children,
+          [item.childId]: {
+            ...verdictChild,
+            lastEventAt: item.registeredAt,
+            lastProgressAt: item.registeredAt
+          }
+        }
+      };
+      continue;
+    }
+    if (family === null || payload.familySha256 !== family.familySha256) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    const at = payload.events[0].at;
+    if (payload.operation._tag === "ReserveAction" && !hasAvailableChildAuthority(
+      childAuthorities,
+      family,
+      payload.childId,
+      payload.operation,
+      at
+    )) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    const requiredOutcome = operationOutcome(payload.operation);
+    if (requiredOutcome !== null && !childOutcomes.some(
+      (item) => item.childId === payload.childId && item.reservationId === requiredOutcome.reservationId && item.originReservationId === requiredOutcome.originReservationId && item.candidateSha256 === requiredOutcome.candidateSha256 && item.outcomeSha256 === requiredOutcome.outcomeSha256
+    )) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    const replayed = decideExecutionChildOperationV2({
+      state: family,
+      childId: payload.childId,
+      operation: payload.operation,
+      at
+    });
+    if (replayed._tag !== "Accepted" && replayed._tag !== "Terminated" || canonicalize(replayed.events) !== canonicalize(payload.events)) {
+      return { _tag: "Failure", failure: ledgerFailure("corrupt_history") };
+    }
+    family = evolveExecutionFamilyV2(
+      family,
+      payload.childId,
+      payload.operation,
+      replayed
+    );
+  }
+  return {
+    _tag: "Ok",
+    state: {
+      root,
+      authority,
+      family,
+      childAuthorities,
+      childOutcomes,
+      evaluationVerdicts
+    }
+  };
+}
+function unwrap(result) {
+  return result._tag === "Ok" ? Effect_exports.succeed(result.value) : Effect_exports.fail(result.failure);
+}
+function withJournalFailure(effect2) {
+  return effect2.pipe(
+    Effect_exports.catchAll(() => Effect_exports.fail(ledgerFailure("journal_failure"))),
+    Effect_exports.flatMap(unwrap)
+  );
+}
+var familyManifestEncoder = new TextEncoder();
+function familyManifestPath(stateRoot, familySha256) {
+  return join5(stateRoot, "release-families", familySha256, "manifest.json");
+}
+function loadFamilyManifestLive(stateRoot, familySha256) {
+  try {
+    if (!isSha256Hex(familySha256)) return null;
+    const bytes = readFileSync(familyManifestPath(stateRoot, familySha256));
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (!text.endsWith("\n") || text.endsWith("\r\n")) return null;
+    const body = text.slice(0, -1);
+    const raw = JSON.parse(body);
+    if (canonicalize(raw) !== body) return null;
+    const manifest = decodeExecutionContractFamilyV2(raw);
+    if (isExecutionFamilyFailure(manifest) || executionContractFamilySha256(manifest) !== familySha256) {
+      return null;
+    }
+    return manifest;
+  } catch {
+    return null;
+  }
+}
+function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
+  const decoded = decodeExecutionContractFamilyV2(manifest);
+  if (isExecutionFamilyFailure(decoded) || executionContractFamilySha256(decoded) !== familySha256) {
+    throw new Error("invalid family manifest");
+  }
+  const bytes = familyManifestEncoder.encode(`${canonicalize(decoded)}
+`);
+  const path = familyManifestPath(stateRoot, familySha256);
+  const parent = dirname3(path);
+  mkdirSync2(parent, { recursive: true, mode: 448 });
+  if (existsSync2(path)) {
+    const current = readFileSync(path);
+    if (current.equals(Buffer.from(bytes))) return;
+    throw new Error("conflicting family manifest");
+  }
+  const temporary = join5(parent, `.manifest-${randomUUID()}.tmp`);
+  let fd = null;
+  try {
+    fd = openSync5(temporary, "wx", 384);
+    writeFileSync(fd, bytes);
+    fsyncSync2(fd);
+    closeSync5(fd);
+    fd = null;
+    renameSync2(temporary, path);
+    const parentFd = openSync5(parent, "r");
+    try {
+      fsyncSync2(parentFd);
+    } finally {
+      closeSync5(parentFd);
+    }
+  } catch (error) {
+    if (fd !== null) closeSync5(fd);
+    try {
+      unlinkSync2(temporary);
+    } catch {
+    }
+    throw error;
+  }
+}
+function makeLiveEndstopLedgerLayer(stateRoot) {
+  const journalLayer = makeLiveRunJournalLayer(stateRoot);
+  const loadManifest = (familySha256) => loadFamilyManifestLive(stateRoot, familySha256);
+  const readHistory = (contractId) => {
+    const runId = decodeRunId(contractId);
+    if (typeof runId !== "string") {
+      return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+    }
+    const transaction = Effect_exports.gen(function* () {
+      const journal = yield* RunJournal;
+      return yield* journal.transact(
+        runId,
+        (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag === "Ok") {
+            return {
+              _tag: "Return",
+              value: { _tag: "Ok", value: history.state }
+            };
+          }
+          return {
+            _tag: "Return",
+            value: {
+              _tag: "Failure",
+              failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+            }
+          };
+        }
+      );
+    }).pipe(Effect_exports.provide(journalLayer));
+    return withJournalFailure(transaction);
+  };
+  const readState = (contractId) => readHistory(contractId).pipe(Effect_exports.map((history) => history.root));
+  return Layer_exports.succeed(EndstopLedger, {
+    create: (contract) => {
+      const decoded = decodeExecutionContractV1(contract);
+      if (isExecutionContractFailure(decoded)) {
+        return Effect_exports.fail(ledgerFailure("invalid_contract"));
+      }
+      const runId = decodeRunId(decoded.contractId);
+      if (typeof runId !== "string") {
+        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+      }
+      const contractSha256 = executionContractSha256(decoded);
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(
+          runId,
+          (events) => {
+            const history = replayHistory(events, loadManifest);
+            if (history._tag === "Failure") {
+              return { _tag: "Return", value: history };
+            }
+            if (history._tag === "Ok") {
+              return history.state.root.contractSha256 === contractSha256 ? { _tag: "Return", value: { _tag: "Ok", value: history.state.root } } : {
+                _tag: "Return",
+                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
+              };
+            }
+            const state = initialExecutionState(decoded);
+            return {
+              _tag: "Append",
+              draft: {
+                type: CONTRACT_EVENT,
+                lane: ENDSTOP_LANE,
+                payload: { contract: decoded, contractSha256 }
+              },
+              result: () => ({ _tag: "Ok", value: state })
+            };
+          }
+        );
+      }).pipe(Effect_exports.provide(journalLayer));
+      const createContract = withJournalFailure(transaction);
+      if (decoded.supersedesContractId === void 0) return createContract;
+      return Effect_exports.gen(function* () {
+        const predecessor = yield* readState(decoded.supersedesContractId).pipe(
+          Effect_exports.catchAll(
+            () => Effect_exports.fail(ledgerFailure("replacement_unauthorized"))
+          )
+        );
+        if (!isExecutionTerminal(predecessor) || predecessor.contract.packageId !== decoded.packageId || predecessor.contract.authorizationSha256 === decoded.authorizationSha256) {
+          return yield* Effect_exports.fail(ledgerFailure("replacement_unauthorized"));
+        }
+        return yield* createContract;
+      });
+    },
+    status: readState,
+    execute: (contractId, expectedContractSha256, command) => {
+      const runId = decodeRunId(contractId);
+      if (typeof runId !== "string") {
+        return Effect_exports.fail(ledgerFailure("invalid_contract_id"));
+      }
+      if (!isSha256Hex(expectedContractSha256)) {
+        return Effect_exports.fail(ledgerFailure("contract_mismatch"));
+      }
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(
+          runId,
+          (events) => {
+            const history = replayHistory(events, loadManifest);
+            if (history._tag !== "Ok") {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+                }
+              };
+            }
+            if (history.state.root.contractSha256 !== expectedContractSha256) {
+              return {
+                _tag: "Return",
+                value: { _tag: "Failure", failure: ledgerFailure("contract_mismatch") }
+              };
+            }
+            if (history.state.family !== null) {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: ledgerFailure("family_active")
+                }
+              };
+            }
+            const decision = decideExecutionCommand(history.state.root, command);
+            if (decision._tag === "Refused" || decision._tag === "ReusedVerification" || decision.events.length === 0) {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Ok",
+                  value: { decision, state: history.state.root }
+                }
+              };
+            }
+            const nextState = decision.events.reduce(
+              evolveExecution,
+              history.state.root
+            );
+            return {
+              _tag: "Append",
+              draft: {
+                type: DECISION_EVENT,
+                lane: ENDSTOP_LANE,
+                payload: {
+                  contractSha256: expectedContractSha256,
+                  events: decision.events
+                }
+              },
+              result: () => ({
+                _tag: "Ok",
+                value: { decision, state: nextState }
+              })
+            };
+          }
+        );
+      }).pipe(Effect_exports.provide(journalLayer));
+      return Effect_exports.gen(function* () {
+        const current = yield* readHistory(contractId);
+        if (current.root.contractSha256 !== expectedContractSha256) {
+          return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
+        }
+        if (current.family !== null) {
+          return yield* Effect_exports.fail(ledgerFailure("family_active"));
+        }
+        for (const dependencyId of current.root.contract.dependencyContractIds) {
+          const dependency = yield* readState(dependencyId).pipe(
+            Effect_exports.catchAll(
+              () => Effect_exports.fail(ledgerFailure("dependency_incomplete"))
+            )
+          );
+          if (dependency._tag !== "Completed") {
+            return yield* Effect_exports.fail(ledgerFailure("dependency_incomplete"));
+          }
+        }
+        return yield* withJournalFailure(transaction);
+      });
+    },
+    registerFamilyAuthority: (registration) => {
+      const decodedManifest = decodeExecutionContractFamilyV2(
+        registration.manifest
+      );
+      if (isExecutionFamilyFailure(decodedManifest) || typeof decodeRunId(registration.rootContractId) !== "string" || !isSha256Hex(registration.rootContractSha256) || !isSha256Hex(registration.familySha256) || !isSha256Hex(registration.sourceSha256) || !isSha256Hex(registration.auditReceiptSha256) || !isSha256Hex(registration.userReceiptSha256) || !isUtcSecondTimestamp(registration.registeredAt) || decodedManifest.rootContractId !== registration.rootContractId || decodedManifest.rootContractSha256 !== registration.rootContractSha256 || decodedManifest.sourceSha256 !== registration.sourceSha256 || executionContractFamilySha256(decodedManifest) !== registration.familySha256) {
+        return Effect_exports.fail(ledgerFailure("family_mismatch"));
+      }
+      const authority = {
+        rootContractId: registration.rootContractId,
+        rootContractSha256: registration.rootContractSha256,
+        familySha256: registration.familySha256,
+        sourceSha256: registration.sourceSha256,
+        auditReceiptSha256: registration.auditReceiptSha256,
+        userReceiptSha256: registration.userReceiptSha256,
+        registeredAt: registration.registeredAt
+      };
+      const runId = decodeRunId(registration.rootContractId);
+      return Effect_exports.gen(function* () {
+        const before2 = yield* readHistory(registration.rootContractId);
+        if (before2.root.contractSha256 !== registration.rootContractSha256) {
+          return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
+        }
+        if (isExecutionTerminal(before2.root)) {
+          return yield* Effect_exports.fail(ledgerFailure("family_mismatch"));
+        }
+        yield* Effect_exports.try({
+          try: () => publishFamilyManifestLive(
+            stateRoot,
+            decodedManifest,
+            registration.familySha256
+          ),
+          catch: () => ledgerFailure("journal_failure")
+        });
+        const transaction = Effect_exports.gen(function* () {
+          const journal = yield* RunJournal;
+          return yield* journal.transact(runId, (events) => {
+            const history = replayHistory(events, loadManifest);
+            if (history._tag !== "Ok") {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+                }
+              };
+            }
+            if (history.state.root.contractSha256 !== registration.rootContractSha256) {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: ledgerFailure("contract_mismatch")
+                }
+              };
+            }
+            if (history.state.authority !== null) {
+              return canonicalize(history.state.authority) === canonicalize(authority) ? {
+                _tag: "Return",
+                value: { _tag: "Ok", value: history.state.authority }
+              } : {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: ledgerFailure("family_authority_mismatch")
+                }
+              };
+            }
+            if (isExecutionTerminal(history.state.root)) {
+              return {
+                _tag: "Return",
+                value: {
+                  _tag: "Failure",
+                  failure: ledgerFailure("family_mismatch")
+                }
+              };
+            }
+            return {
+              _tag: "Append",
+              draft: {
+                type: V2_EVENT,
+                lane: ENDSTOP_LANE,
+                payload: {
+                  _tag: "ExecutionFamilyAuthorityRegistered",
+                  ...authority
+                }
+              },
+              result: () => ({ _tag: "Ok", value: authority })
+            };
+          });
+        }).pipe(Effect_exports.provide(journalLayer));
+        return yield* withJournalFailure(transaction);
+      });
+    },
+    activateFamily: (activation) => {
+      const runId = decodeRunId(activation.rootContractId);
+      if (typeof runId !== "string" || !isSha256Hex(activation.rootContractSha256) || !isSha256Hex(activation.familySha256) || !isSha256Hex(activation.sourceSha256) || !isSha256Hex(activation.auditReceiptSha256) || !isSha256Hex(activation.userReceiptSha256) || !isUtcSecondTimestamp(activation.activatedAt)) {
+        return Effect_exports.fail(ledgerFailure("family_mismatch"));
+      }
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+              }
+            };
+          }
+          if (history.state.root.contractSha256 !== activation.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch")
+              }
+            };
+          }
+          const authority = history.state.authority;
+          if (authority === null) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_missing")
+              }
+            };
+          }
+          if (history.state.family !== null) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_already_activated")
+              }
+            };
+          }
+          if (authority.rootContractId !== activation.rootContractId || authority.familySha256 !== activation.familySha256 || authority.sourceSha256 !== activation.sourceSha256 || authority.auditReceiptSha256 !== activation.auditReceiptSha256 || authority.userReceiptSha256 !== activation.userReceiptSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_authority_mismatch")
+              }
+            };
+          }
+          const manifest = loadManifest(activation.familySha256);
+          if (manifest === null) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_mismatch")
+              }
+            };
+          }
+          const family = initialExecutionFamilyStateV2({
+            manifest,
+            familySha256: activation.familySha256,
+            activatedAt: activation.activatedAt,
+            priorRootActions: history.state.root.counts.totalActions
+          });
+          if (isExecutionFamilyFailure(family)) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_mismatch")
+              }
+            };
+          }
+          const value = {
+            root: history.state.root,
+            authority,
+            family,
+            childAuthorities: history.state.childAuthorities,
+            childOutcomes: history.state.childOutcomes,
+            evaluationVerdicts: history.state.evaluationVerdicts
+          };
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "EndstopFamilyActivated",
+                familySha256: activation.familySha256,
+                sourceSha256: activation.sourceSha256,
+                auditReceiptSha256: activation.auditReceiptSha256,
+                userReceiptSha256: activation.userReceiptSha256,
+                activatedAt: activation.activatedAt
+              }
+            },
+            result: () => ({ _tag: "Ok", value })
+          };
+        });
+      }).pipe(Effect_exports.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    registerChildAuthority: (registration) => {
+      const decoded = childAuthorityFromUnknown(registration);
+      if (decoded === null) {
+        return Effect_exports.fail(ledgerFailure("child_authority_mismatch"));
+      }
+      const runId = decodeRunId(decoded.rootContractId);
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+              }
+            };
+          }
+          const family = history.state.family;
+          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch")
+              }
+            };
+          }
+          if (family === null || family.familySha256 !== decoded.familySha256 || family.children[decoded.childId] === void 0 || Date.parse(decoded.registeredAt) < Date.parse(family.activatedAt)) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_mismatch")
+              }
+            };
+          }
+          const identity2 = childAuthorityIdentity(decoded);
+          const existing = history.state.childAuthorities.find(
+            (item) => childAuthorityIdentity(item) === identity2
+          );
+          if (existing !== void 0) {
+            return canonicalize(existing) === canonicalize(decoded) ? {
+              _tag: "Return",
+              value: { _tag: "Ok", value: existing }
+            } : {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "ExecutionChildAuthorityRegistered",
+                ...decoded
+              }
+            },
+            result: () => ({ _tag: "Ok", value: decoded })
+          };
+        });
+      }).pipe(Effect_exports.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    registerChildOutcome: (registration) => {
+      const decoded = childOutcomeFromUnknown(registration);
+      if (decoded === null) {
+        return Effect_exports.fail(ledgerFailure("child_authority_mismatch"));
+      }
+      const runId = decodeRunId(decoded.rootContractId);
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+              }
+            };
+          }
+          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch")
+              }
+            };
+          }
+          const family = history.state.family;
+          const child = family?.children[decoded.childId];
+          if (family === null || family === void 0 || child === void 0 || family.familySha256 !== decoded.familySha256 || !outcomeMatchesReservation(decoded, family) || Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) || decoded.effectiveAction === "council" !== (decoded.outcomeSchema === "foreman.council-outcome.v1")) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          const existing = history.state.childOutcomes.find(
+            (item) => item.reservationId === decoded.reservationId
+          );
+          if (existing !== void 0) {
+            return canonicalize(existing) === canonicalize(decoded) ? {
+              _tag: "Return",
+              value: { _tag: "Ok", value: existing }
+            } : {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "ExecutionChildOutcomeRegistered",
+                ...decoded
+              }
+            },
+            result: () => ({ _tag: "Ok", value: decoded })
+          };
+        });
+      }).pipe(Effect_exports.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    registerEvaluationVerdict: (registration) => {
+      const decoded = evaluationVerdictFromUnknown(registration);
+      if (decoded === null) {
+        return Effect_exports.fail(ledgerFailure("child_authority_mismatch"));
+      }
+      const runId = decodeRunId(decoded.rootContractId);
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+              }
+            };
+          }
+          if (history.state.root.contractSha256 !== decoded.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch")
+              }
+            };
+          }
+          const family = history.state.family;
+          const child = family?.children[decoded.childId];
+          if (family === null || family === void 0 || child === void 0 || family.familySha256 !== decoded.familySha256 || Date.parse(decoded.registeredAt) < Date.parse(child.lastEventAt) || evaluationRunSetSha256(family) !== decoded.runSetSha256 || history.state.childAuthorities.every(
+            (authority) => authority.childId !== decoded.childId || authority.effectiveAction !== "evaluate" || authority.candidate.candidateSha256 !== decoded.candidateSha256 || authority.evaluationManifestSha256 !== decoded.evaluationAuthorityReceiptSha256
+          )) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          const existing = history.state.evaluationVerdicts.find(
+            (item) => item.childId === decoded.childId
+          );
+          if (existing !== void 0) {
+            return canonicalize(existing) === canonicalize(decoded) ? {
+              _tag: "Return",
+              value: {
+                _tag: "Ok",
+                value: {
+                  root: history.state.root,
+                  authority: history.state.authority,
+                  family,
+                  childAuthorities: history.state.childAuthorities,
+                  childOutcomes: history.state.childOutcomes,
+                  evaluationVerdicts: history.state.evaluationVerdicts
+                }
+              }
+            } : {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          const verdict = registerExecutionEvaluationVerdictV2({
+            state: family,
+            childId: decoded.childId,
+            verdict: {
+              candidateSha256: decoded.candidateSha256,
+              result: decoded.result,
+              completedRuns: decoded.completedRuns,
+              unavailableRuns: decoded.unavailableRuns,
+              notRunRuns: decoded.notRunRuns,
+              runSetSha256: decoded.runSetSha256,
+              verdictSha256: decoded.verdictSha256
+            }
+          });
+          if (verdict._tag !== "Accepted") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          const value = {
+            root: history.state.root,
+            authority: history.state.authority,
+            family: {
+              ...verdict.state,
+              children: {
+                ...verdict.state.children,
+                [decoded.childId]: {
+                  ...verdict.state.children[decoded.childId],
+                  lastEventAt: decoded.registeredAt,
+                  lastProgressAt: decoded.registeredAt
+                }
+              }
+            },
+            childAuthorities: history.state.childAuthorities,
+            childOutcomes: history.state.childOutcomes,
+            evaluationVerdicts: [
+              ...history.state.evaluationVerdicts,
+              decoded
+            ]
+          };
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "ExecutionEvaluationVerdictRegistered",
+                ...decoded
+              }
+            },
+            result: () => ({ _tag: "Ok", value })
+          };
+        });
+      }).pipe(Effect_exports.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    executeChild: (input) => {
+      const runId = decodeRunId(input.rootContractId);
+      const operation = executionV2OperationFromUnknown(input.operation);
+      if (typeof runId !== "string" || !isSha256Hex(input.rootContractSha256) || !isSha256Hex(input.familySha256) || typeof decodeRunId(input.childId) !== "string" || operation === null || !isUtcSecondTimestamp(input.at)) {
+        return Effect_exports.fail(ledgerFailure("family_mismatch"));
+      }
+      const transaction = Effect_exports.gen(function* () {
+        const journal = yield* RunJournal;
+        return yield* journal.transact(runId, (events) => {
+          const history = replayHistory(events, loadManifest);
+          if (history._tag !== "Ok") {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: history._tag === "Missing" ? ledgerFailure("missing_contract") : history.failure
+              }
+            };
+          }
+          if (history.state.root.contractSha256 !== input.rootContractSha256) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("contract_mismatch")
+              }
+            };
+          }
+          const family = history.state.family;
+          if (family === null || family.familySha256 !== input.familySha256 || family.children[input.childId] === void 0) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("family_missing")
+              }
+            };
+          }
+          if (operation._tag === "ReserveAction" && !hasAvailableChildAuthority(
+            history.state.childAuthorities,
+            family,
+            input.childId,
+            operation,
+            input.at
+          )) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          const requiredOutcome = operationOutcome(operation);
+          if (requiredOutcome !== null && !history.state.childOutcomes.some(
+            (item) => item.childId === input.childId && item.reservationId === requiredOutcome.reservationId && item.originReservationId === requiredOutcome.originReservationId && item.candidateSha256 === requiredOutcome.candidateSha256 && item.outcomeSha256 === requiredOutcome.outcomeSha256
+          )) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Failure",
+                failure: ledgerFailure("child_authority_mismatch")
+              }
+            };
+          }
+          const decision = decideExecutionChildOperationV2({
+            state: family,
+            childId: input.childId,
+            operation,
+            at: input.at
+          });
+          if (decision._tag === "Refused" || decision._tag === "ReusedVerification" || decision.events.length === 0) {
+            return {
+              _tag: "Return",
+              value: {
+                _tag: "Ok",
+                value: { decision, state: family }
+              }
+            };
+          }
+          const state = evolveExecutionFamilyV2(
+            family,
+            input.childId,
+            operation,
+            decision
+          );
+          return {
+            _tag: "Append",
+            draft: {
+              type: V2_EVENT,
+              lane: ENDSTOP_LANE,
+              payload: {
+                _tag: "EndstopChildDecision",
+                familySha256: input.familySha256,
+                childId: input.childId,
+                operation,
+                events: decision.events
+              }
+            },
+            result: () => ({
+              _tag: "Ok",
+              value: { decision, state }
+            })
+          };
+        });
+      }).pipe(Effect_exports.provide(journalLayer));
+      return withJournalFailure(transaction);
+    },
+    familyAuthorityStatus: (input) => Effect_exports.gen(function* () {
+      if (typeof decodeRunId(input.rootContractId) !== "string" || !isSha256Hex(input.rootContractSha256) || !isSha256Hex(input.familySha256)) {
+        return yield* Effect_exports.fail(ledgerFailure("family_mismatch"));
+      }
+      const history = yield* readHistory(input.rootContractId);
+      if (history.root.contractSha256 !== input.rootContractSha256) {
+        return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
+      }
+      if (history.authority === null || history.authority.familySha256 !== input.familySha256) {
+        return yield* Effect_exports.fail(ledgerFailure("family_missing"));
+      }
+      return history.authority;
+    }),
+    familyStatus: (input) => Effect_exports.gen(function* () {
+      if (typeof decodeRunId(input.rootContractId) !== "string" || !isSha256Hex(input.rootContractSha256) || !isSha256Hex(input.familySha256)) {
+        return yield* Effect_exports.fail(ledgerFailure("family_mismatch"));
+      }
+      const history = yield* readHistory(input.rootContractId);
+      if (history.root.contractSha256 !== input.rootContractSha256) {
+        return yield* Effect_exports.fail(ledgerFailure("contract_mismatch"));
+      }
+      if (history.authority === null || history.family === null || history.authority.familySha256 !== input.familySha256 || history.family.familySha256 !== input.familySha256) {
+        return yield* Effect_exports.fail(ledgerFailure("family_missing"));
+      }
+      return {
+        root: history.root,
+        authority: history.authority,
+        family: history.family,
+        childAuthorities: history.childAuthorities,
+        childOutcomes: history.childOutcomes,
+        evaluationVerdicts: history.evaluationVerdicts
+      };
+    })
+  });
+}
+
+// packages/orchestration/src/release-coverage-cli.ts
 var ONE_MIB4 = 1048576;
-var EXIT_OK2 = 0;
+var EXIT_OK = 0;
 var EXIT_EVALUATED = 1;
 var EXIT_USAGE = 64;
 var USAGE_DIAGNOSTIC = "release-coverage: invalid invocation\n";
@@ -39140,10 +38611,10 @@ function invalidResult(reason) {
 function dependencyFailure() {
   return invalidResult("dependency_failure");
 }
-function emitEvaluated(io2, result) {
-  io2.writeStdout(`${canonicalize(result)}
+function emitEvaluated(io, result) {
+  io.writeStdout(`${canonicalize(result)}
 `);
-  return result._tag === "Valid" ? EXIT_OK2 : EXIT_EVALUATED;
+  return result._tag === "Valid" ? EXIT_OK : EXIT_EVALUATED;
 }
 function utf8ByteLength3(text) {
   return encoder5.encode(text).byteLength;
@@ -39270,10 +38741,10 @@ function parseArgv(argv) {
     seen.add(flag);
     raw[flag] = value;
   }
-  const program2 = raw["--program"];
+  const program = raw["--program"];
   const phase = raw["--phase"];
   const register = raw["--register"];
-  if (program2 !== PROGRAM2) return { _tag: "Invalid" };
+  if (program !== PROGRAM2) return { _tag: "Invalid" };
   if (phase !== "bootstrap" && phase !== "lane" && phase !== "release") {
     return { _tag: "Invalid" };
   }
@@ -39750,18 +39221,18 @@ function evaluateReleaseCoverage(parsed, services) {
     )
   );
 }
-function runReleaseCoverageCli(argv, io2, services) {
+function runReleaseCoverageCli(argv, io, services) {
   return Effect_exports.gen(function* () {
     const parsed = parseArgv(argv);
     if (parsed._tag === "Invalid") {
-      io2.writeStderr(USAGE_DIAGNOSTIC);
+      io.writeStderr(USAGE_DIAGNOSTIC);
       return EXIT_USAGE;
     }
     const result = yield* evaluateReleaseCoverage(parsed, services);
-    return emitEvaluated(io2, result);
+    return emitEvaluated(io, result);
   }).pipe(
     Effect_exports.catchAllDefect(
-      () => Effect_exports.sync(() => emitEvaluated(io2, dependencyFailure()))
+      () => Effect_exports.sync(() => emitEvaluated(io, dependencyFailure()))
     )
   );
 }
@@ -40120,7 +39591,7 @@ function parseReleasePolicyArgv(argv) {
     childId,
     action,
     candidateSha256,
-    program2,
+    program,
     phase,
     owner,
     repository,
@@ -40143,7 +39614,7 @@ function parseReleasePolicyArgv(argv) {
     args2[26],
     args2[28]
   ];
-  if (typeof stateRoot !== "string" || !isAbsolute3(stateRoot) || !validId(contractId) || typeof contractSha256 !== "string" || !isSha256Hex(contractSha256) || typeof familySha256 !== "string" || !isSha256Hex(familySha256) || !validId(childId) || typeof action !== "string" || !ACTIONS.includes(action) || typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256) || program2 !== "v040" || phase !== "bootstrap" && phase !== "lane" && phase !== "release" || !validId(owner) || typeof repository !== "string" || !isAbsolute3(repository) || typeof candidateCommit !== "string" || !isCommitSha40(candidateCommit) || typeof register !== "string" || !isAbsolute3(register) || typeof evidence !== "string" || !isAbsolute3(evidence) || candidateSha256 !== sha256Hex(candidateCommit)) {
+  if (typeof stateRoot !== "string" || !isAbsolute3(stateRoot) || !validId(contractId) || typeof contractSha256 !== "string" || !isSha256Hex(contractSha256) || typeof familySha256 !== "string" || !isSha256Hex(familySha256) || !validId(childId) || typeof action !== "string" || !ACTIONS.includes(action) || typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256) || program !== "v040" || phase !== "bootstrap" && phase !== "lane" && phase !== "release" || !validId(owner) || typeof repository !== "string" || !isAbsolute3(repository) || typeof candidateCommit !== "string" || !isCommitSha40(candidateCommit) || typeof register !== "string" || !isAbsolute3(register) || typeof evidence !== "string" || !isAbsolute3(evidence) || candidateSha256 !== sha256Hex(candidateCommit)) {
     return { _tag: "Invalid" };
   }
   return {
@@ -40156,7 +39627,7 @@ function parseReleasePolicyArgv(argv) {
       childId,
       action,
       candidateSha256,
-      program: program2,
+      program,
       phase,
       owner,
       repository,
@@ -40165,38 +39636,6 @@ function parseReleasePolicyArgv(argv) {
       evidence
     }
   };
-}
-function releasePolicyBlockArgv(block) {
-  return [
-    "--endstop-state-root",
-    block.stateRoot,
-    "--endstop-contract-id",
-    block.contractId,
-    "--endstop-contract-sha",
-    block.contractSha256,
-    "--endstop-family-sha",
-    block.familySha256,
-    "--endstop-child-id",
-    block.childId,
-    "--endstop-action",
-    block.action,
-    "--endstop-candidate-sha",
-    block.candidateSha256,
-    "--release-program",
-    block.program,
-    "--release-phase",
-    block.phase,
-    "--release-owner",
-    block.owner,
-    "--release-repo",
-    block.repository,
-    "--release-candidate-commit",
-    block.candidateCommit,
-    "--release-register",
-    block.register,
-    "--release-evidence",
-    block.evidence
-  ];
 }
 function phaseForCoverage(block) {
   if (block.phase === "release") return { _tag: "Release" };
@@ -40214,25 +39653,25 @@ function safeWrite(write, text) {
   } catch {
   }
 }
-function emit(io2, result) {
-  safeWrite(io2.writeStdout, `${canonicalize(result)}
+function emit(io, result) {
+  safeWrite(io.writeStdout, `${canonicalize(result)}
 `);
   return result._tag === "Admitted" ? 0 : 1;
 }
 function refused2(reason) {
   return { schemaVersion: 1, _tag: "Refused", reason };
 }
-function runReleasePolicyCli(argv, io2, services) {
-  const program2 = Effect_exports.gen(function* () {
+function runReleasePolicyCli(argv, io, services) {
+  const program = Effect_exports.gen(function* () {
     const parsed = parseReleasePolicyArgv(argv);
     if (parsed._tag === "Invalid") {
-      safeWrite(io2.writeStderr, RELEASE_POLICY_USAGE);
+      safeWrite(io.writeStderr, RELEASE_POLICY_USAGE);
       return 64;
     }
     const block = parsed.block;
     void phaseForCoverage(block);
     const coverage = yield* services.checkCoverage(block);
-    if (coverage._tag !== "Valid") return emit(io2, refused2(coverage.reason));
+    if (coverage._tag !== "Valid") return emit(io, refused2(coverage.reason));
     const evidenceBytes = yield* services.readEvidence({
       path: block.evidence,
       maxBytes: ONE_MIB5
@@ -40240,12 +39679,12 @@ function runReleasePolicyCli(argv, io2, services) {
     const decoded = decodeReleaseAuthorityFileV1(evidenceBytes);
     const firstReceipt = decoded._tag === "Valid" && decoded.value.schema === "foreman.release-evidence-bundle.v1" ? decoded.value.receipts[0] : void 0;
     if (decoded._tag !== "Valid" || decoded.value.schema !== "foreman.release-evidence-bundle.v1" || firstReceipt?.schema !== "foreman.design-approval.v1") {
-      return emit(io2, refused2("invalid_evidence"));
+      return emit(io, refused2("invalid_evidence"));
     }
     const bundle = decoded.value;
     const design = firstReceipt;
     if (bundle.rootContractId !== block.contractId || bundle.rootContractSha256 !== block.contractSha256 || bundle.familySha256 !== block.familySha256 || bundle.childId !== block.childId) {
-      return emit(io2, refused2("registration_mismatch"));
+      return emit(io, refused2("registration_mismatch"));
     }
     const git = yield* services.loadGitAuthority({
       repository: block.repository,
@@ -40257,7 +39696,7 @@ function runReleasePolicyCli(argv, io2, services) {
       maxRetainedBytes: 16 * ONE_MIB5
     });
     if (git.candidate.commit !== block.candidateCommit || git.candidate.candidateSha256 !== block.candidateSha256 || git.designTree !== design.designTree || !git.designLineageValid) {
-      return emit(io2, refused2("git_resolution_failure"));
+      return emit(io, refused2("git_resolution_failure"));
     }
     const family = yield* services.resolveFamily({
       stateRoot: block.stateRoot,
@@ -40267,10 +39706,10 @@ function runReleasePolicyCli(argv, io2, services) {
       childId: block.childId
     });
     if (family.packageId !== block.owner) {
-      return emit(io2, refused2("wrong_package"));
+      return emit(io, refused2("wrong_package"));
     }
     if (family.currentCandidate === null ? block.action !== "implement" || git.candidate.commit !== design.designCommit || git.candidate.tree !== design.designTree : !sameCandidate2(family.currentCandidate, git.candidate)) {
-      return emit(io2, refused2("wrong_candidate"));
+      return emit(io, refused2("wrong_candidate"));
     }
     const registered = family.registrations.find(
       (item) => item.rootContractId === block.contractId && item.rootContractSha256 === block.contractSha256 && item.familySha256 === block.familySha256 && item.childId === block.childId && item.action === block.action && item.candidate.candidateSha256 === block.candidateSha256 && item.bundleSha256 === decoded.sha256
@@ -40284,11 +39723,11 @@ function runReleasePolicyCli(argv, io2, services) {
       evidenceBytes,
       registered
     });
-    return emit(io2, result);
+    return emit(io, result);
   });
-  return program2.pipe(
+  return program.pipe(
     Effect_exports.catchAllCause(
-      () => Effect_exports.sync(() => emit(io2, refused2("dependency_failure")))
+      () => Effect_exports.sync(() => emit(io, refused2("dependency_failure")))
     )
   );
 }
@@ -40407,256 +39846,22 @@ var liveReleasePolicyServices = {
   }).pipe(Effect_exports.provide(makeLiveEndstopLedgerLayer(input.stateRoot)))
 };
 
-// packages/orchestration/src/queue-cli.ts
-var USAGE = ADD_USAGE;
-function stripNodeArgv(argv) {
-  let args2 = [...argv];
-  if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].endsWith("node.exe") || args2[0].includes("/node") || args2[0].includes("\\node"))) {
-    args2 = args2.slice(1);
-  }
-  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("lane-queue"))) {
-    args2 = args2.slice(1);
-  }
-  return args2;
-}
-function parseQueueArgv(argv) {
-  const args2 = stripNodeArgv(argv);
-  if (args2.length === 0) {
-    return { kind: "usage", message: USAGE };
-  }
-  const sub = args2[0];
-  switch (sub) {
-    case "ensure":
-      return { kind: "ensure" };
-    case "add": {
-      const group = args2[1];
-      if (group !== void 0) {
-        const hasPrior = args2[2] === "--endstop-prior-reservation-id";
-        const priorReservationId = hasPrior ? args2[3] : void 0;
-        const blockStart = hasPrior ? 4 : 2;
-        const separator = blockStart + 28;
-        if ((!hasPrior || typeof priorReservationId === "string" && typeof decodeRunId(priorReservationId) === "string") && args2[separator] === "--") {
-          const release = parseReleasePolicyArgv([
-            "check",
-            ...args2.slice(blockStart, separator)
-          ]);
-          const cmd2 = args2.slice(separator + 1);
-          if (release._tag === "Check" && cmd2.length > 0) {
-            return {
-              kind: "add",
-              group,
-              version: "v2",
-              release: release.block,
-              endstop: {
-                stateRoot: release.block.stateRoot,
-                contractId: release.block.contractId,
-                contractSha256: release.block.contractSha256,
-                action: release.block.action,
-                candidateSha256: release.block.candidateSha256
-              },
-              ...priorReservationId === void 0 ? {} : { priorReservationId },
-              cmd: cmd2
-            };
-          }
-        }
-      }
-      const stateRoot = args2[3];
-      const contractId = args2[5];
-      const contractSha256 = args2[7];
-      const action = args2[9];
-      const candidateSha256 = args2[11];
-      const valid2 = group !== void 0 && args2[2] === "--endstop-state-root" && typeof stateRoot === "string" && isAbsolute4(stateRoot) && args2[4] === "--endstop-contract-id" && typeof contractId === "string" && contractId.length > 0 && args2[6] === "--endstop-contract-sha" && typeof contractSha256 === "string" && isSha256Hex(contractSha256) && args2[8] === "--endstop-action" && typeof action === "string" && executionActionKinds.includes(action) && args2[10] === "--endstop-candidate-sha" && typeof candidateSha256 === "string" && isSha256Hex(candidateSha256) && args2[12] === "--";
-      const cmd = args2.slice(13);
-      if (!valid2 || cmd.length === 0) {
-        return { kind: "usage", message: USAGE };
-      }
-      return {
-        kind: "add",
-        group,
-        endstop: {
-          stateRoot,
-          contractId,
-          contractSha256,
-          action,
-          candidateSha256
-        },
-        cmd
-      };
-    }
-    case "status":
-      return { kind: "status", taskId: args2[1] };
-    case "kill": {
-      const taskId = args2[1];
-      if (taskId === void 0 || taskId.length === 0) {
-        return { kind: "usage", message: "usage: lane-queue.sh kill TASK_ID" };
-      }
-      return { kind: "kill", taskId };
-    }
-    default:
-      return { kind: "usage", message: USAGE };
-  }
-}
-function utcSecond(date) {
-  return date.toISOString().replace(/\.\d{3}Z$/u, "Z");
-}
-var cmdAddGuarded = (io2, parsed, options) => {
-  const layer = makeLiveEndstopLedgerLayer(parsed.endstop.stateRoot);
-  if (parsed.version === "v2" && parsed.release !== void 0) {
-    const checkPolicy = options.releasePolicy ?? ((block) => {
-      let stdout = "";
-      let stderr = "";
-      return runReleasePolicyCli(
-        ["check", ...releasePolicyBlockArgv(block)],
-        {
-          writeStdout: (text) => {
-            stdout += text;
-          },
-          writeStderr: (text) => {
-            stderr += text;
-          }
-        },
-        liveReleasePolicyServices
-      ).pipe(
-        Effect_exports.map(
-          (code) => code === 0 && stderr === "" && stdout === '{"_tag":"Admitted","schemaVersion":1}\n'
-        )
-      );
-    });
-    const reserveV2 = Effect_exports.gen(function* () {
-      const admitted = yield* checkPolicy(parsed.release);
-      if (!admitted) {
-        return yield* Effect_exports.fail(new Error("release_policy_refused"));
-      }
-      const ledger = yield* EndstopLedger;
-      const status = yield* ledger.familyStatus({
-        rootContractId: parsed.release.contractId,
-        rootContractSha256: parsed.release.contractSha256,
-        familySha256: parsed.release.familySha256
-      });
-      const child = status.family.children[parsed.release.childId];
-      if (child === void 0) {
-        return yield* Effect_exports.fail(new Error("unknown_child"));
-      }
-      const authority = status.childAuthorities.find(
-        (item) => item.childId === parsed.release.childId && item.action === parsed.release.action && item.candidate.candidateSha256 === parsed.release.candidateSha256 && (parsed.release.action === "provider_retry" || parsed.release.action === "resume" ? item.priorReservationId === parsed.priorReservationId : item.priorReservationId === null && parsed.priorReservationId === void 0)
-      );
-      if (authority === void 0) {
-        return yield* Effect_exports.fail(new Error("missing_authority"));
-      }
-      const reservationId = (options.reservationId ?? randomUUID2)();
-      const originReservationId = authority.originReservationId ?? reservationId;
-      return yield* ledger.executeChild({
-        rootContractId: parsed.release.contractId,
-        rootContractSha256: parsed.release.contractSha256,
-        familySha256: parsed.release.familySha256,
-        childId: parsed.release.childId,
-        operation: {
-          _tag: "ReserveAction",
-          reservationId,
-          reservationAction: authority.action,
-          effectiveAction: authority.effectiveAction,
-          originReservationId,
-          candidate: authority.candidate,
-          taskPlanSha256: authority.taskPlanSha256,
-          authorityBundleSha256: authority.bundleSha256
-        },
-        at: utcSecond((options.now ?? (() => /* @__PURE__ */ new Date()))())
-      });
-    }).pipe(Effect_exports.provide(layer));
-    return reserveV2.pipe(
-      Effect_exports.matchEffect({
-        onFailure: () => Effect_exports.sync(() => {
-          io2.writeStderr("Foreman release policy refused queue admission\n");
-          return EXIT_CONFIG;
-        }),
-        onSuccess: (result) => {
-          if (result.decision._tag !== "Accepted") {
-            return Effect_exports.sync(() => {
-              io2.writeStderr("Foreman Endstop refused child reservation\n");
-              return EXIT_CONFIG;
-            });
-          }
-          return cmdAdd(io2, parsed.group, parsed.cmd);
-        }
-      })
-    );
-  }
-  const reserve = Effect_exports.gen(function* () {
-    const ledger = yield* EndstopLedger;
-    return yield* ledger.execute(
-      parsed.endstop.contractId,
-      parsed.endstop.contractSha256,
-      {
-        _tag: "ReserveAction",
-        action: parsed.endstop.action,
-        candidateSha256: parsed.endstop.candidateSha256,
-        commandSha256: sha256Hex(canonicalize(parsed.cmd)),
-        reservationId: (options.reservationId ?? randomUUID2)(),
-        at: utcSecond((options.now ?? (() => /* @__PURE__ */ new Date()))())
-      }
-    );
-  }).pipe(Effect_exports.provide(layer));
-  return reserve.pipe(
-    Effect_exports.matchEffect({
-      onFailure: () => Effect_exports.sync(() => {
-        io2.writeStderr("Foreman Endstop refused queue admission (ledger failure)\n");
-        return EXIT_CONFIG;
-      }),
-      onSuccess: (result) => {
-        if (result.decision._tag !== "Accepted") {
-          return Effect_exports.sync(() => {
-            io2.writeStderr(
-              `Foreman Endstop refused queue admission (${result.state._tag})
-`
-            );
-            return EXIT_CONFIG;
-          });
-        }
-        return cmdAdd(io2, parsed.group, parsed.cmd);
-      }
-    })
-  );
-};
-var runQueueCli = (argv, io2, endstopOptions = {}) => Effect_exports.gen(function* () {
-  const parsed = parseQueueArgv(argv);
-  switch (parsed.kind) {
-    case "usage":
-      io2.writeStderr(parsed.message + "\n");
-      return EXIT_CONFIG;
-    case "ensure":
-      return yield* cmdEnsure(io2);
-    case "add":
-      return yield* cmdAddGuarded(io2, parsed, endstopOptions);
-    case "status":
-      return yield* cmdStatus(io2, parsed.taskId);
-    case "kill":
-      return yield* cmdKill(io2, parsed.taskId);
-    default: {
-      const _exhaustive = parsed;
-      void _exhaustive;
-      return EXIT_CONFIG;
-    }
-  }
-});
-
-// packages/orchestration/src/queue-main.ts
-var io = {
-  writeStdout: (text) => {
-    process.stdout.write(text);
-  },
-  writeStderr: (text) => {
-    process.stderr.write(text);
-  }
-};
-var program = runQueueCli(process.argv, io).pipe(
-  Effect_exports.provide(liveQueueServices)
-);
-Effect_exports.runPromise(program).then(
+// packages/orchestration/src/release-policy-main.ts
+Effect_exports.runPromise(
+  runReleasePolicyCli(
+    process.argv,
+    {
+      writeStdout: (text) => process.stdout.write(text),
+      writeStderr: (text) => process.stderr.write(text)
+    },
+    liveReleasePolicyServices
+  )
+).then(
   (code) => {
-    process.exit(code);
+    process.exitCode = code;
   },
   () => {
-    process.stderr.write("lane-queue: internal failure\n");
-    process.exit(1);
+    process.stderr.write("release-policy: internal failure\n");
+    process.exitCode = 1;
   }
 );

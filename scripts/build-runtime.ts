@@ -32,6 +32,30 @@ const ENTRIES = [
     injectCapabilities: false,
   },
   {
+    id: "release-coverage",
+    entry: join(root, "packages/orchestration/src/release-coverage-main.ts"),
+    relativePath: "dist/release-coverage.js",
+    injectCapabilities: false,
+  },
+  {
+    id: "release-admission",
+    entry: join(root, "packages/policy/src/release-admission-main.ts"),
+    relativePath: "dist/release-admission.js",
+    injectCapabilities: false,
+  },
+  {
+    id: "release-authority",
+    entry: join(root, "packages/orchestration/src/release-authority-main.ts"),
+    relativePath: "dist/release-authority.js",
+    injectCapabilities: false,
+  },
+  {
+    id: "release-policy",
+    entry: join(root, "packages/orchestration/src/release-policy-main.ts"),
+    relativePath: "dist/release-policy.js",
+    injectCapabilities: false,
+  },
+  {
     id: "lane-queue",
     entry: join(root, "packages/orchestration/src/queue-main.ts"),
     relativePath: "dist/lane-queue.js",

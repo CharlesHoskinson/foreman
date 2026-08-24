@@ -15883,11 +15883,15 @@ function runCapturedOwned(opts) {
         settle(Effect_exports.fail(new ProcessFailure("timeout")));
         return;
       }
+      const stdoutBuf = Buffer.concat(stdoutChunks);
+      const stderrBuf = Buffer.concat(stderrChunks);
       settle(
         Effect_exports.succeed({
           exitCode: code ?? 1,
-          stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-          stderr: Buffer.concat(stderrChunks).toString("utf8")
+          stdout: stdoutBuf.toString("utf8"),
+          stderr: stderrBuf.toString("utf8"),
+          stdoutBytes: Uint8Array.from(stdoutBuf),
+          stderrBytes: Uint8Array.from(stderrBuf)
         })
       );
     });

@@ -3743,8 +3743,8 @@ var require_lib = __commonJS({
         }
         super.readToken_pipe_amp(code2);
       }
-      parseTopLevel(file, program2) {
-        const fileNode = super.parseTopLevel(file, program2);
+      parseTopLevel(file, program) {
+        const fileNode = super.parseTopLevel(file, program);
         if (this.state.hasFlowComment) {
           this.raise(FlowErrors.UnterminatedFlowComment, this.state.curPosition());
         }
@@ -9705,8 +9705,8 @@ var require_lib = __commonJS({
         if (isDeclare && (this.isContextual(125) || !this.shouldParseExportDeclaration())) {
           throw this.raise(TSErrors.ExpectedAmbientAfterExportDeclare, this.state.startLoc);
         }
-        const isIdentifier2 = tokenIsIdentifier(this.state.type);
-        const declaration = isIdentifier2 && this.tsTryParseExportDeclaration() || super.parseExportDeclaration(node);
+        const isIdentifier = tokenIsIdentifier(this.state.type);
+        const declaration = isIdentifier && this.tsTryParseExportDeclaration() || super.parseExportDeclaration(node);
         if (!declaration) return null;
         if (declaration.type === "TSInterfaceDeclaration" || declaration.type === "TSTypeAliasDeclaration" || isDeclare) {
           node.exportKind = "type";
@@ -12542,12 +12542,12 @@ var require_lib = __commonJS({
         if (!this.match(5)) {
           this.unexpected(null, 5);
         }
-        const program2 = this.startNodeAt(this.state.endLoc);
+        const program = this.startNodeAt(this.state.endLoc);
         this.next();
         const revertScopes = this.initializeScopes(true);
         this.enterInitialScopes();
         try {
-          node.body = this.parseProgram(program2, 8, "module");
+          node.body = this.parseProgram(program, 8, "module");
         } finally {
           revertScopes();
         }
@@ -12690,18 +12690,18 @@ var require_lib = __commonJS({
       return tokens;
     }
     var StatementParser = class extends ExpressionParser {
-      parseTopLevel(file, program2) {
-        file.program = this.parseProgram(program2, 140, this.options.sourceType === "module" ? "module" : "script");
+      parseTopLevel(file, program) {
+        file.program = this.parseProgram(program, 140, this.options.sourceType === "module" ? "module" : "script");
         file.comments = this.comments;
         if (this.optionFlags & 256) {
           file.tokens = babel7CompatTokens(this.tokens, this.input, this.startIndex);
         }
         return this.finishNode(file, "File");
       }
-      parseProgram(program2, end3, sourceType) {
-        program2.sourceType = sourceType;
-        program2.interpreter = this.parseInterpreterDirective();
-        this.parseBlockBody(program2, true, true, end3);
+      parseProgram(program, end3, sourceType) {
+        program.sourceType = sourceType;
+        program.interpreter = this.parseInterpreterDirective();
+        this.parseBlockBody(program, true, true, end3);
         if (this.inModule) {
           if (!(this.optionFlags & 64) && this.scope.undefinedExports.size > 0) {
             for (const [localName, at] of Array.from(this.scope.undefinedExports)) {
@@ -12710,13 +12710,13 @@ var require_lib = __commonJS({
               });
             }
           }
-          this.addExtra(program2, "topLevelAwait", this.state.hasTopLevelAwait);
+          this.addExtra(program, "topLevelAwait", this.state.hasTopLevelAwait);
         }
         let finishedProgram;
         if (end3 === 140) {
-          finishedProgram = this.finishNode(program2, "Program");
+          finishedProgram = this.finishNode(program, "Program");
         } else {
-          finishedProgram = this.finishNodeAt(program2, "Program", createPositionWithColumnOffset(this.state.startLoc, -1));
+          finishedProgram = this.finishNodeAt(program, "Program", createPositionWithColumnOffset(this.state.startLoc, -1));
         }
         return finishedProgram;
       }
@@ -14563,10 +14563,10 @@ var require_lib = __commonJS({
       parse() {
         this.enterInitialScopes();
         const file = this.startNode();
-        const program2 = this.startNode();
+        const program = this.startNode();
         this.nextToken();
         file.errors = null;
-        const result = this.parseTopLevel(file, program2);
+        const result = this.parseTopLevel(file, program);
         result.errors = this.state.errors;
         result.comments.length = this.state.commentsLen;
         return result;
@@ -15812,7 +15812,7 @@ var dedupeWith = /* @__PURE__ */ dual(2, (self, isEquivalent) => {
   return [];
 });
 var dedupe = (self) => dedupeWith(self, equivalence());
-var join = /* @__PURE__ */ dual(2, (self, sep3) => fromIterable(self).join(sep3));
+var join = /* @__PURE__ */ dual(2, (self, sep2) => fromIterable(self).join(sep2));
 
 // node_modules/effect/dist/esm/Number.js
 var Order = number2;
@@ -20841,14 +20841,14 @@ var splitPathString = (text, delim) => {
   const split = text.split(new RegExp(`\\s*${escape(delim)}\\s*`));
   return split;
 };
-var parsePrimitive = (text, path, primitive, delimiter3, split) => {
+var parsePrimitive = (text, path, primitive, delimiter2, split) => {
   if (!split) {
     return pipe(primitive.parse(text), mapBoth({
       onFailure: prefixed(path),
       onSuccess: of
     }));
   }
-  return pipe(splitPathString(text, delimiter3), forEachSequential((char) => primitive.parse(char.trim())), mapError(prefixed(path)));
+  return pipe(splitPathString(text, delimiter2), forEachSequential((char) => primitive.parse(char.trim())), mapError(prefixed(path)));
 };
 var transpose = (array3) => {
   return Object.keys(array3[0]).map((column) => array3.map((row) => row[column]));
@@ -21909,18 +21909,18 @@ var parallelErrors = (self) => matchCauseEffect(self, {
   onSuccess: succeed
 });
 var patchFiberRefs = (patch9) => updateFiberRefs((fiberId3, fiberRefs3) => pipe(patch9, patch6(fiberId3, fiberRefs3)));
-var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve3, signal) => {
+var promise = (evaluate2) => evaluate2.length >= 1 ? async_((resolve2, signal) => {
   try {
-    evaluate2(signal).then((a) => resolve3(succeed(a)), (e) => resolve3(die2(e)));
+    evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
   } catch (e) {
-    resolve3(die2(e));
+    resolve2(die2(e));
   }
-}) : async_((resolve3) => {
+}) : async_((resolve2) => {
   try {
     ;
-    evaluate2().then((a) => resolve3(succeed(a)), (e) => resolve3(die2(e)));
+    evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(die2(e)));
   } catch (e) {
-    resolve3(die2(e));
+    resolve2(die2(e));
   }
 });
 var provideService = /* @__PURE__ */ dual(3, (self, tag, service3) => contextWithEffect((env) => provideContext(self, add2(env, tag, service3))));
@@ -22046,19 +22046,19 @@ var tryPromise = (arg) => {
   }
   const fail8 = (e) => catcher ? failSync(() => catcher(e)) : fail2(new UnknownException(e, "An unknown error occurred in Effect.tryPromise"));
   if (evaluate2.length >= 1) {
-    return async_((resolve3, signal) => {
+    return async_((resolve2, signal) => {
       try {
-        evaluate2(signal).then((a) => resolve3(succeed(a)), (e) => resolve3(fail8(e)));
+        evaluate2(signal).then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
       } catch (e) {
-        resolve3(fail8(e));
+        resolve2(fail8(e));
       }
     });
   }
-  return async_((resolve3) => {
+  return async_((resolve2) => {
     try {
-      evaluate2().then((a) => resolve3(succeed(a)), (e) => resolve3(fail8(e)));
+      evaluate2().then((a) => resolve2(succeed(a)), (e) => resolve2(fail8(e)));
     } catch (e) {
-      resolve3(fail8(e));
+      resolve2(fail8(e));
     }
   });
 };
@@ -28631,14 +28631,14 @@ var unsafeRunPromise = /* @__PURE__ */ makeDual((runtime4, effect2, options) => 
     }
   }
 }));
-var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve3) => {
+var unsafeRunPromiseExit = /* @__PURE__ */ makeDual((runtime4, effect2, options) => new Promise((resolve2) => {
   const op = fastPath(effect2);
   if (op) {
-    resolve3(op);
+    resolve2(op);
   }
   const fiber = unsafeFork3(runtime4)(effect2);
   fiber.addObserver((exit4) => {
-    resolve3(exit4);
+    resolve2(exit4);
   });
   if (options?.signal !== void 0) {
     if (options.signal.aborted) {
@@ -30587,9 +30587,1864 @@ function isCommitSha40(value) {
   return COMMIT_SHA40.test(value);
 }
 
-// packages/orchestration/src/queue-cli.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { isAbsolute as isAbsolute4 } from "node:path";
+// packages/orchestration/src/release-coverage-cli.ts
+import {
+  closeSync as closeSync5,
+  constants as fsConstants4,
+  fstatSync as fstatSync4,
+  lstatSync as lstatSync3,
+  openSync as openSync5,
+  readSync as readSync4,
+  realpathSync as realpathSync2
+} from "node:fs";
+import { devNull } from "node:os";
+import {
+  dirname as dirname3,
+  isAbsolute,
+  join as join6,
+  posix,
+  relative,
+  resolve,
+  sep,
+  win32
+} from "node:path";
+
+// packages/policy/src/schema.ts
+var ENTRY_STATES = [
+  "blocked",
+  "proposed",
+  "proposed_externalize",
+  "proposed_replace",
+  "proposed_relocate",
+  "inventory_required",
+  "protected_reference",
+  "protected_parked",
+  "unauthorized",
+  "approved",
+  "pending"
+];
+var HISTORICAL_STATES = [
+  ...ENTRY_STATES,
+  "late_register_replaced_recoverable"
+];
+
+// packages/policy/src/services.ts
+var FileSystem = class extends Context_exports.Tag("FileSystem")() {
+};
+var GitIdentity = class extends Context_exports.Tag("GitIdentity")() {
+};
+var Clock2 = class extends Context_exports.Tag("Clock")() {
+};
+var MutationProbe = class extends Context_exports.Tag("MutationProbe")() {
+};
+var liveClock = Layer_exports.succeed(Clock2, {
+  nowMs: () => Effect_exports.sync(() => Date.now())
+});
+var noopMutationProbe = Layer_exports.succeed(MutationProbe, {
+  record: () => Effect_exports.void,
+  count: () => Effect_exports.succeed(0)
+});
+
+// packages/policy/src/git-env.ts
+var STRIP_PREFIXES = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_INDEX_FILE",
+  "GIT_INDEX_VERSION",
+  "GIT_NAMESPACE",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+  "GIT_CONFIG",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_SYSTEM",
+  "GIT_CONFIG_NOSYSTEM",
+  "GIT_CONFIG_COUNT",
+  "GIT_CONFIG_KEY_",
+  "GIT_CONFIG_VALUE_",
+  "GIT_CONFIG_PARAMETERS",
+  "GIT_EXEC_PATH",
+  "GIT_TEMPLATE_DIR",
+  "GIT_PREFIX",
+  "GIT_SUPER_PREFIX",
+  "GIT_DIR_FINAL",
+  "GIT_WORK_TREE_FINAL",
+  "GIT_REPLACE_REF_BASE",
+  "GIT_SSH",
+  "GIT_SSH_COMMAND",
+  "GIT_TRACE",
+  "GIT_TRACE2",
+  "GIT_CURL_VERBOSE",
+  "GIT_HTTP_USER_AGENT",
+  "GIT_PROXY_COMMAND",
+  "GIT_SSL_NO_VERIFY",
+  "GIT_ATTR_SOURCE",
+  "GIT_OPTIONAL_LOCKS",
+  "GIT_TERMINAL_PROMPT",
+  "GIT_NO_REPLACE_OBJECTS"
+];
+function shouldStrip(key) {
+  if (!key.startsWith("GIT_")) return false;
+  for (const p of STRIP_PREFIXES) {
+    if (key === p || key.startsWith(p)) return true;
+  }
+  if (key.startsWith("GIT_AUTHOR_") || key.startsWith("GIT_COMMITTER_") || key === "GIT_EDITOR" || key === "GIT_PAGER" || key === "GIT_REFLOG_ACTION") {
+    return true;
+  }
+  return true;
+}
+function sanitizedGitEnv(base = process.env) {
+  const out = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (v === void 0) continue;
+    if (shouldStrip(k)) continue;
+    out[k] = v;
+  }
+  out["GIT_NO_REPLACE_OBJECTS"] = "1";
+  out["GIT_TERMINAL_PROMPT"] = "0";
+  out["GIT_OPTIONAL_LOCKS"] = "0";
+  delete out["FORCE_COLOR"];
+  delete out["NO_COLOR"];
+  return out;
+}
+function gitArgv(args2) {
+  return ["--no-replace-objects", ...args2];
+}
+
+// packages/policy/src/architecture-git.ts
+import { execFile } from "node:child_process";
+
+// packages/policy/src/architecture-executable.ts
+function parseLsTreeLine(line) {
+  const trimmed = line.replace(/\0$/, "");
+  if (trimmed.length === 0) {
+    return {
+      present: false,
+      mode: null,
+      isExecutable: false,
+      isSymlink: false,
+      isSpecial: false
+    };
+  }
+  const tab = trimmed.indexOf("	");
+  if (tab < 0) return { error: true };
+  const meta = trimmed.slice(0, tab);
+  const parts2 = meta.split(" ");
+  if (parts2.length < 3) return { error: true };
+  const mode = parts2[0];
+  const type = parts2[1];
+  if (!/^[0-7]{6}$/.test(mode)) return { error: true };
+  if (type !== "blob" && type !== "tree" && type !== "commit") {
+    return { error: true };
+  }
+  if (type === "tree" || type === "commit" || mode === "160000") {
+    return {
+      present: true,
+      mode,
+      isExecutable: false,
+      isSymlink: false,
+      isSpecial: true
+    };
+  }
+  if (mode === "120000") {
+    return {
+      present: true,
+      mode,
+      isExecutable: false,
+      isSymlink: true,
+      isSpecial: false
+    };
+  }
+  if (mode === "100644" || mode === "100664") {
+    return {
+      present: true,
+      mode,
+      isExecutable: false,
+      isSymlink: false,
+      isSpecial: false
+    };
+  }
+  if (mode === "100755") {
+    return {
+      present: true,
+      mode,
+      isExecutable: true,
+      isSymlink: false,
+      isSpecial: false
+    };
+  }
+  return {
+    present: true,
+    mode,
+    isExecutable: false,
+    isSymlink: false,
+    isSpecial: true
+  };
+}
+
+// packages/policy/src/architecture-ts-inspect.ts
+var import_parser = __toESM(require_lib(), 1);
+var VALUE_TS_WRAPPERS = /* @__PURE__ */ new Set([
+  "TSAsExpression",
+  "TSTypeAssertion",
+  "TSNonNullExpression",
+  "TSSatisfiesExpression",
+  "TSInstantiationExpression"
+]);
+var VALUE_TS_NODES = /* @__PURE__ */ new Set([
+  ...VALUE_TS_WRAPPERS,
+  "TSModuleDeclaration",
+  "TSModuleBlock",
+  "TSEnumDeclaration",
+  "TSEnumMember",
+  "TSExportAssignment",
+  "TSImportEqualsDeclaration",
+  "TSExternalModuleReference",
+  "TSParameterProperty",
+  "TSDeclareFunction",
+  "TSDeclareMethod"
+]);
+
+// packages/policy/src/architecture-git.ts
+var GIT_TIMEOUT_MS = 15e3;
+var OWNED_CHILD_CANCEL_WAIT_MS = 5e3;
+var MAX_BLOB_BYTES = 32 * 1024 * 1024;
+var ArchitectureGitError = class {
+  constructor(reason) {
+    this.reason = reason;
+  }
+  _tag = "ArchitectureGitError";
+};
+var ArchitectureGit = class extends Context_exports.Tag("ArchitectureGit")() {
+};
+function sha40(s) {
+  const t = s.trim().toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(t)) {
+    throw new ArchitectureGitError("invalid_git_output");
+  }
+  return t;
+}
+var PRODUCTION_GIT_BINDING = {
+  executable: "git",
+  prefixArgs: []
+};
+var gitCommandBinding = PRODUCTION_GIT_BINDING;
+function cancelOwnedGitChild(child, controller, alreadyClosed, onClosed) {
+  return Effect_exports.async((resume2) => {
+    let done7 = false;
+    const finish = () => {
+      if (done7) return;
+      done7 = true;
+      resume2(Effect_exports.void);
+    };
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
+    onClosed(() => {
+      clearTimeout(timer);
+      finish();
+    });
+    if (alreadyClosed()) {
+      clearTimeout(timer);
+      finish();
+    } else {
+      try {
+        controller.abort();
+      } catch {
+      }
+      if (child.pid !== void 0 && !child.killed) {
+        try {
+          child.kill("SIGTERM");
+        } catch {
+        }
+      }
+    }
+  });
+}
+function runGit(repoRoot, args2, maxBytes) {
+  return Effect_exports.async((resume2) => {
+    const controller = new AbortController();
+    let settled = false;
+    let child;
+    let childClosed = false;
+    let closeNotify;
+    const binding = gitCommandBinding;
+    const argv = [...binding.prefixArgs, ...gitArgv(args2)];
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, GIT_TIMEOUT_MS);
+    const finish = (effect2) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resume2(effect2);
+    };
+    try {
+      child = execFile(
+        binding.executable,
+        argv,
+        {
+          cwd: repoRoot,
+          encoding: "buffer",
+          maxBuffer: maxBytes + 1,
+          windowsHide: true,
+          env: sanitizedGitEnv(),
+          signal: controller.signal
+        },
+        (err, stdout, stderr) => {
+          const outBuf = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout ?? "");
+          const errBuf = Buffer.isBuffer(stderr) ? stderr : Buffer.from(stderr ?? "");
+          if (controller.signal.aborted) {
+            finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
+            return;
+          }
+          if (err) {
+            const e = err;
+            if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" || /maxBuffer/i.test(String(e.message ?? ""))) {
+              finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
+              return;
+            }
+            let status = 1;
+            if (typeof e.code === "number" && e.code !== 0) {
+              status = e.code;
+            }
+            finish(
+              Effect_exports.succeed({
+                stdout: outBuf,
+                stderr: errBuf,
+                status
+              })
+            );
+            return;
+          }
+          if (outBuf.byteLength > maxBytes) {
+            finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
+            return;
+          }
+          finish(
+            Effect_exports.succeed({
+              stdout: outBuf,
+              stderr: errBuf,
+              status: 0
+            })
+          );
+        }
+      );
+    } catch {
+      finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
+      return;
+    }
+    const owned = child;
+    owned.once("close", () => {
+      childClosed = true;
+      closeNotify?.();
+    });
+    return Effect_exports.suspend(() => {
+      if (settled) return Effect_exports.void;
+      settled = true;
+      clearTimeout(timer);
+      return cancelOwnedGitChild(
+        owned,
+        controller,
+        () => childClosed,
+        (cb) => {
+          closeNotify = cb;
+        }
+      );
+    });
+  });
+}
+function gitTextEffect(repoRoot, args2, maxBuffer = 4096) {
+  return Effect_exports.gen(function* () {
+    const r = yield* runGit(repoRoot, args2, maxBuffer);
+    if (r.status !== 0) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength > maxBuffer) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
+    }
+    return r.stdout.toString("utf8");
+  });
+}
+function gitBytesEffect(repoRoot, args2, maxBytes) {
+  return Effect_exports.gen(function* () {
+    const r = yield* runGit(repoRoot, args2, maxBytes);
+    if (r.status !== 0) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength > maxBytes) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
+    }
+    return new Uint8Array(
+      r.stdout.buffer,
+      r.stdout.byteOffset,
+      r.stdout.byteLength
+    );
+  });
+}
+function isLikelyAbsentObject(status, stderr) {
+  void stderr;
+  return status === 128;
+}
+var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
+  resolveIdentity: (repoRoot, baseRef) => Effect_exports.gen(function* () {
+    if (baseRef.length === 0 || baseRef.includes("\0") || baseRef.startsWith("-")) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("schema_mismatch"));
+    }
+    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
+    const head5 = sha40(headRaw);
+    const baseRaw = yield* gitTextEffect(repoRoot, [
+      "rev-parse",
+      "--verify",
+      baseRef
+    ]);
+    const base = sha40(baseRaw);
+    const mbRaw = yield* gitTextEffect(repoRoot, [
+      "merge-base",
+      base,
+      head5
+    ]);
+    const mergeBase = sha40(mbRaw);
+    return { head: head5, base, mergeBase };
+  }).pipe(
+    Effect_exports.mapError(
+      (e) => e instanceof ArchitectureGitError ? e : new ArchitectureGitError("git_failure")
+    )
+  ),
+  nameStatusDelta: (repoRoot, mergeBase, head5) => gitBytesEffect(
+    repoRoot,
+    ["diff", "--name-status", "-z", mergeBase, head5],
+    MAX_INPUT_BYTES
+  ),
+  listPaths: (repoRoot, commitOid) => gitBytesEffect(
+    repoRoot,
+    ["ls-tree", "-r", "-z", "--name-only", commitOid],
+    MAX_INPUT_BYTES
+  ),
+  treeEntry: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
+    const r = yield* runGit(
+      repoRoot,
+      ["ls-tree", "-z", commitOid, "--", path],
+      65536
+    );
+    if (r.status !== 0) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength === 0) {
+      return {
+        present: false,
+        mode: null,
+        isExecutable: false,
+        isSymlink: false,
+        isSpecial: false
+      };
+    }
+    let text;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(r.stdout);
+    } catch {
+      return yield* Effect_exports.fail(
+        new ArchitectureGitError("invalid_git_output")
+      );
+    }
+    const line = text.split("\0").find((p) => p.length > 0) ?? "";
+    const parsed = parseLsTreeLine(line);
+    if ("error" in parsed) {
+      return yield* Effect_exports.fail(
+        new ArchitectureGitError("invalid_git_output")
+      );
+    }
+    return parsed;
+  }),
+  catBlob: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
+    const entry = yield* Effect_exports.gen(function* () {
+      const r2 = yield* runGit(
+        repoRoot,
+        ["ls-tree", "-z", commitOid, "--", path],
+        65536
+      );
+      if (r2.status !== 0) {
+        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+      }
+      return r2.stdout.byteLength === 0 ? "absent" : "present";
+    });
+    if (entry === "absent") {
+      return null;
+    }
+    const maxBytes = path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js") ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
+    const r = yield* runGit(
+      repoRoot,
+      ["cat-file", "blob", `${commitOid}:${path}`],
+      maxBytes
+    );
+    if (r.status !== 0) {
+      if (isLikelyAbsentObject(r.status, r.stderr)) {
+        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+      }
+      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
+    }
+    if (r.stdout.byteLength > maxBytes) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
+    }
+    return new Uint8Array(
+      r.stdout.buffer,
+      r.stdout.byteOffset,
+      r.stdout.byteLength
+    );
+  }),
+  recheckHead: (repoRoot, expectedHead) => Effect_exports.gen(function* () {
+    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
+    const head5 = sha40(headRaw);
+    if (head5 !== expectedHead) {
+      return yield* Effect_exports.fail(new ArchitectureGitError("head_moved"));
+    }
+  })
+});
+
+// packages/policy/src/install-verify-fs.ts
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readdirSync,
+  readSync,
+  realpathSync
+} from "node:fs";
+var InstallFsError = class {
+  constructor(kind) {
+    this.kind = kind;
+  }
+  _tag = "InstallFsError";
+};
+var InstallFs = class extends Context_exports.Tag("InstallFs")() {
+};
+function identityFromStats(s) {
+  return {
+    dev: String(s.dev),
+    ino: String(s.ino),
+    size: s.size,
+    nlink: s.nlink,
+    mode: s.mode,
+    mtimeMs: s.mtimeMs,
+    ctimeMs: s.ctimeMs,
+    isFile: s.isFile(),
+    isDirectory: s.isDirectory(),
+    isSymbolicLink: s.isSymbolicLink()
+  };
+}
+function openFlags() {
+  const nofollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
+  return fsConstants.O_RDONLY | nofollow;
+}
+function readFdBoundedSync(fd, maxBytes) {
+  const cap = maxBytes + 1;
+  const buf = Buffer.allocUnsafe(cap);
+  let offset = 0;
+  while (offset < cap) {
+    const n = readSync(fd, buf, offset, cap - offset, offset);
+    if (n === 0) break;
+    offset += n;
+  }
+  if (offset > maxBytes) {
+    throw new InstallFsError("oversize");
+  }
+  return new Uint8Array(buf.buffer, buf.byteOffset, offset);
+}
+var liveInstallFs = Layer_exports.succeed(InstallFs, {
+  resolvePath: (path) => Effect_exports.try({
+    try: () => realpathSync(path),
+    catch: () => new InstallFsError("not_resolved")
+  }),
+  lstat: (path) => Effect_exports.try({
+    try: () => identityFromStats(lstatSync(path)),
+    catch: (e) => {
+      const err = e;
+      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+        return new InstallFsError("missing");
+      }
+      return new InstallFsError("unreadable");
+    }
+  }),
+  withOpenFile: (path, use) => Effect_exports.acquireUseRelease(
+    Effect_exports.try({
+      try: () => {
+        const fd = openSync(path, openFlags());
+        try {
+          const st = fstatSync(fd);
+          return { fd, identity: identityFromStats(st) };
+        } catch (e) {
+          closeSync(fd);
+          throw e;
+        }
+      },
+      catch: (e) => {
+        if (e instanceof InstallFsError) return e;
+        const err = e;
+        if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+          return new InstallFsError("missing");
+        }
+        return new InstallFsError("unreadable");
+      }
+    }),
+    ({ fd, identity: identity2 }) => use({
+      identity: identity2,
+      readBounded: (maxBytes) => Effect_exports.try({
+        try: () => readFdBoundedSync(fd, maxBytes),
+        catch: (e) => e instanceof InstallFsError ? e : new InstallFsError("unreadable")
+      }),
+      recheckIdentity: () => Effect_exports.try({
+        try: () => identityFromStats(fstatSync(fd)),
+        catch: () => new InstallFsError("unreadable")
+      })
+    }),
+    ({ fd }) => Effect_exports.sync(() => {
+      try {
+        closeSync(fd);
+      } catch {
+      }
+    })
+  ),
+  readdirNames: (path) => Effect_exports.try({
+    try: () => readdirSync(path),
+    catch: (e) => {
+      const err = e;
+      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
+        return new InstallFsError("missing");
+      }
+      return new InstallFsError("unreadable");
+    }
+  })
+});
+
+// packages/policy/src/release-coverage.ts
+var SCHEMA_VERSION = 1;
+var ONE_MIB = 1024 * 1024;
+var IMMUTABLE_BASELINE_COMMIT = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
+var TRACK1_PACKAGE = "openspec-superpowers-convergence";
+var TRACK1_KEY = `change:${TRACK1_PACKAGE}`;
+var ROADMAP_PATH = "ROADMAP.md";
+var OPENSPEC_PREFIX = "openspec/changes/";
+var CHANGE_PREFIX = "change:";
+var ROADMAP_PREFIX = "roadmap:";
+var ALLOWED_WORKFLOWS = /* @__PURE__ */ new Set([
+  "foreman-bounded",
+  "foreman-architectural"
+]);
+var SOURCE_KINDS = /* @__PURE__ */ new Set(["openspec_change", "roadmap"]);
+var DISPOSITIONS = /* @__PURE__ */ new Set([
+  "v040_owner",
+  "v040_dependency",
+  "released_reference",
+  "superseded",
+  "v050"
+]);
+var RECONCILES = /* @__PURE__ */ new Set(["complete", "required", "not_required"]);
+var TARGET_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5", "released"]);
+var ROADMAP_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
+var FUTURE_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
+var BRIEF_SCHEMA = "foreman.release-package-brief.v1";
+var BRIEF_KEYS = [
+  "acceptance",
+  "allowedPaths",
+  "childId",
+  "familySha256",
+  "objective",
+  "packageId",
+  "schema"
+];
+var TOP_LEVEL_FIELDS = /* @__PURE__ */ new Set([
+  "schema_version",
+  "baseline_commit",
+  "active_inventory_sha256",
+  "roadmap_sha256"
+]);
+var FUTURE_OWNER_FIELDS = /* @__PURE__ */ new Set(["name", "target_release", "reason"]);
+var ENTRY_FIELDS = /* @__PURE__ */ new Set([
+  "key",
+  "source_kind",
+  "source_path",
+  "disposition",
+  "owner",
+  "target_release",
+  "reconcile",
+  "reason"
+]);
+var encoder = new TextEncoder();
+function invalid(reason) {
+  return { schemaVersion: SCHEMA_VERSION, _tag: "Invalid", reason };
+}
+function valid(activeInventorySha256, roadmapSha256, entryCount) {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    _tag: "Valid",
+    activeInventorySha256,
+    roadmapSha256,
+    entryCount
+  };
+}
+function utf8Bytes(text) {
+  return encoder.encode(text);
+}
+function utf8ByteLength(text) {
+  return utf8Bytes(text).byteLength;
+}
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function hasExactOwnKeys(value, keys5) {
+  const own = Object.keys(value);
+  if (own.length !== keys5.length) return false;
+  for (const key of keys5) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
+  }
+  return true;
+}
+function stripAsciiSpaces(text) {
+  let start3 = 0;
+  let end3 = text.length;
+  while (start3 < end3 && text.charCodeAt(start3) === 32) start3 += 1;
+  while (end3 > start3 && text.charCodeAt(end3 - 1) === 32) end3 -= 1;
+  return text.slice(start3, end3);
+}
+function isReadonlyStringArray(value) {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+function hasControlExcludingLf(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code === 10) continue;
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+function hasAnyControl(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+function hasUnpairedSurrogate(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 55296 && code <= 56319) {
+      const next = text.charCodeAt(i + 1);
+      if (next < 56320 || next > 57343) return true;
+      i += 1;
+      continue;
+    }
+    if (code >= 56320 && code <= 57343) return true;
+  }
+  return false;
+}
+function isPrintableAscii(text) {
+  if (text.length === 0) return false;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 32 || code > 126) return false;
+  }
+  return true;
+}
+function isRunId(value) {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (utf8ByteLength(value) > 128) return false;
+  if (value.includes("/") || value.includes("\\") || value.includes("\0")) {
+    return false;
+  }
+  return true;
+}
+function decodeUtf8Unbounded(bytes) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes
+    );
+  } catch {
+    return null;
+  }
+}
+function compareUtf8Bytes(a, b) {
+  const ab = utf8Bytes(a);
+  const bb = utf8Bytes(b);
+  const n = Math.min(ab.length, bb.length);
+  for (let i = 0; i < n; i++) {
+    if (ab[i] !== bb[i]) return ab[i] - bb[i];
+  }
+  return ab.length - bb.length;
+}
+function computeActiveInventorySha256(names) {
+  const sorted = [...names].sort(compareUtf8Bytes);
+  return sha256Hex(sorted.map((name) => `${name}
+`).join(""));
+}
+function bytesEqual(a, b) {
+  if (a.byteLength !== b.byteLength) return false;
+  for (let i = 0; i < a.byteLength; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+function parseBasicString(raw, start3) {
+  if (raw[start3] !== '"') return null;
+  let i = start3 + 1;
+  let out = "";
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch === '"') {
+      if (hasAnyControl(out) || hasUnpairedSurrogate(out)) return null;
+      return { value: out, end: i + 1 };
+    }
+    if (ch === "\\") {
+      i += 1;
+      if (i >= raw.length) return null;
+      const esc = raw[i];
+      switch (esc) {
+        case "\\":
+          out += "\\";
+          break;
+        case '"':
+          out += '"';
+          break;
+        case "b":
+          out += "\b";
+          break;
+        case "f":
+          out += "\f";
+          break;
+        case "n":
+          out += "\n";
+          break;
+        case "r":
+          out += "\r";
+          break;
+        case "t":
+          out += "	";
+          break;
+        case "u": {
+          const hex = raw.slice(i + 1, i + 5);
+          if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
+          const code = Number.parseInt(hex, 16);
+          if (code >= 55296 && code <= 57343) return null;
+          out += String.fromCharCode(code);
+          i += 4;
+          break;
+        }
+        default:
+          return null;
+      }
+      i += 1;
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return null;
+}
+function parseInteger2(raw, start3) {
+  let i = start3;
+  if (i >= raw.length || raw[i] < "0" || raw[i] > "9") return null;
+  if (raw[i] === "0" && i + 1 < raw.length && raw[i + 1] >= "0" && raw[i + 1] <= "9") {
+    return null;
+  }
+  while (i < raw.length && raw[i] >= "0" && raw[i] <= "9") i += 1;
+  const text = raw.slice(start3, i);
+  if (text.length > 10) return null;
+  const value = Number.parseInt(text, 10);
+  if (!Number.isSafeInteger(value)) return null;
+  return { value, end: i };
+}
+function parseAssignmentLine(line) {
+  const eq = line.indexOf("=");
+  if (eq <= 0) return null;
+  const key = stripAsciiSpaces(line.slice(0, eq));
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
+  const rest = stripAsciiSpaces(line.slice(eq + 1));
+  if (rest.length === 0) return null;
+  if (rest[0] === '"') {
+    const parsed = parseBasicString(rest, 0);
+    if (parsed === null) return null;
+    if (stripAsciiSpaces(rest.slice(parsed.end)) !== "") return null;
+    return { key, kind: "string", value: parsed.value };
+  }
+  const parsedInt = parseInteger2(rest, 0);
+  if (parsedInt === null) return null;
+  if (stripAsciiSpaces(rest.slice(parsedInt.end)) !== "") return null;
+  return { key, kind: "integer", value: parsedInt.value };
+}
+function isNonemptyReason(value) {
+  return value.length > 0 && !hasAnyControl(value) && utf8ByteLength(value) <= 16384;
+}
+function validateDispositionCrossField(entry) {
+  const { disposition, targetRelease, reconcile, sourceKind, key, owner } = entry;
+  if (disposition === "v040_owner" || disposition === "v040_dependency") {
+    if (targetRelease !== "v0.4") return false;
+    if (reconcile !== "required" && reconcile !== "complete") return false;
+    return true;
+  }
+  if (disposition === "v050") {
+    return targetRelease === "v0.5" && reconcile === "not_required";
+  }
+  if (disposition === "released_reference") {
+    return targetRelease === "released" && reconcile === "complete";
+  }
+  if (disposition === "superseded") {
+    if (reconcile !== "complete") return false;
+    if (sourceKind === "openspec_change") {
+      if (!key.startsWith(CHANGE_PREFIX)) return false;
+      const sourcePackage = key.slice(CHANGE_PREFIX.length);
+      if (owner === sourcePackage) return false;
+    }
+    return true;
+  }
+  return false;
+}
+function parseRegister(text) {
+  if (typeof text !== "string") return "invalid_register";
+  if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
+  if (hasControlExcludingLf(text)) return "invalid_register";
+  const lines = text.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+  const top = {};
+  const futureOwners = [];
+  const entries2 = [];
+  let mode = "top";
+  let current = null;
+  let sawTable = false;
+  const flushCurrent = () => {
+    if (mode === "top" || current === null) return true;
+    if (mode === "future_owner") {
+      for (const field of FUTURE_OWNER_FIELDS) {
+        if (!(field in current)) return false;
+      }
+      for (const key2 of Object.keys(current)) {
+        if (!FUTURE_OWNER_FIELDS.has(key2)) return false;
+      }
+      const name = current["name"];
+      const targetRelease2 = current["target_release"];
+      const reason2 = current["reason"];
+      if (typeof name !== "string" || typeof targetRelease2 !== "string" || typeof reason2 !== "string") {
+        return false;
+      }
+      if (!isRunId(name) || !FUTURE_RELEASES.has(targetRelease2) || !isNonemptyReason(reason2)) {
+        return false;
+      }
+      futureOwners.push({ name, targetRelease: targetRelease2, reason: reason2 });
+      current = null;
+      return true;
+    }
+    for (const field of ENTRY_FIELDS) {
+      if (!(field in current)) return false;
+    }
+    for (const key2 of Object.keys(current)) {
+      if (!ENTRY_FIELDS.has(key2)) return false;
+    }
+    const key = current["key"];
+    const sourceKind = current["source_kind"];
+    const sourcePath = current["source_path"];
+    const disposition = current["disposition"];
+    const owner = current["owner"];
+    const targetRelease = current["target_release"];
+    const reconcile = current["reconcile"];
+    const reason = current["reason"];
+    if (typeof key !== "string" || typeof sourceKind !== "string" || typeof sourcePath !== "string" || typeof disposition !== "string" || typeof owner !== "string" || typeof targetRelease !== "string" || typeof reconcile !== "string" || typeof reason !== "string") {
+      return false;
+    }
+    if (key.length === 0 || hasAnyControl(key) || utf8ByteLength(key) > 512) {
+      return false;
+    }
+    if (!SOURCE_KINDS.has(sourceKind)) return false;
+    if (sourcePath.length === 0 || hasAnyControl(sourcePath) || utf8ByteLength(sourcePath) > 4096) {
+      return false;
+    }
+    if (!DISPOSITIONS.has(disposition)) return false;
+    if (!isRunId(owner)) return false;
+    if (!TARGET_RELEASES.has(targetRelease)) return false;
+    if (!RECONCILES.has(reconcile)) return false;
+    if (!isNonemptyReason(reason)) return false;
+    if (!validateDispositionCrossField({
+      sourceKind,
+      disposition,
+      owner,
+      targetRelease,
+      reconcile,
+      key
+    })) {
+      return false;
+    }
+    entries2.push({
+      key,
+      sourceKind,
+      sourcePath,
+      disposition,
+      owner,
+      targetRelease,
+      reconcile,
+      reason
+    });
+    current = null;
+    return true;
+  };
+  for (const line of lines) {
+    if (line.length === 0) continue;
+    if (line.startsWith("[[") && line.endsWith("]]")) {
+      if (!flushCurrent()) return "invalid_register";
+      const name = line.slice(2, -2);
+      if (name === "future_owner") {
+        mode = "future_owner";
+        current = {};
+        sawTable = true;
+        continue;
+      }
+      if (name === "entry") {
+        mode = "entry";
+        current = {};
+        sawTable = true;
+        continue;
+      }
+      return "invalid_register";
+    }
+    if (line.startsWith("[") && line.endsWith("]")) {
+      return "invalid_register";
+    }
+    const assignment = parseAssignmentLine(line);
+    if (assignment === null) return "invalid_register";
+    if (!sawTable && mode === "top") {
+      if (!TOP_LEVEL_FIELDS.has(assignment.key)) return "invalid_register";
+      if (assignment.key in top) return "invalid_register";
+      if (assignment.key === "schema_version") {
+        if (assignment.kind !== "integer" || assignment.value !== 1) {
+          return "invalid_register";
+        }
+        top[assignment.key] = assignment.value;
+        continue;
+      }
+      if (assignment.kind !== "string") return "invalid_register";
+      const value = assignment.value;
+      if (assignment.key === "baseline_commit") {
+        if (!isCommitSha40(value) || value !== IMMUTABLE_BASELINE_COMMIT) {
+          return "invalid_register";
+        }
+      } else if (assignment.key === "active_inventory_sha256" || assignment.key === "roadmap_sha256") {
+        if (!isSha256Hex(value)) return "invalid_register";
+      }
+      top[assignment.key] = value;
+      continue;
+    }
+    if (mode === "top") return "invalid_register";
+    if (current === null) return "invalid_register";
+    if (assignment.key in current) return "invalid_register";
+    if (assignment.kind !== "string") return "invalid_register";
+    current[assignment.key] = assignment.value;
+  }
+  if (!flushCurrent()) return "invalid_register";
+  for (const field of TOP_LEVEL_FIELDS) {
+    if (!(field in top)) return "invalid_register";
+  }
+  if (entries2.length < 1) return "invalid_register";
+  return {
+    baselineCommit: top["baseline_commit"],
+    activeInventorySha256: top["active_inventory_sha256"],
+    roadmapSha256: top["roadmap_sha256"],
+    futureOwners,
+    entries: entries2
+  };
+}
+function validateKeyPathCoherence(entry) {
+  if (entry.sourceKind === "openspec_change") {
+    if (!entry.key.startsWith(CHANGE_PREFIX)) return false;
+    const name = entry.key.slice(CHANGE_PREFIX.length);
+    if (name.length === 0) return false;
+    if (entry.sourcePath !== `${OPENSPEC_PREFIX}${name}`) return false;
+    return true;
+  }
+  if (entry.sourceKind === "roadmap") {
+    if (!entry.key.startsWith(ROADMAP_PREFIX)) return false;
+    if (entry.sourcePath !== ROADMAP_PATH) return false;
+    return true;
+  }
+  return false;
+}
+function validateRoadmapRows(rows) {
+  const seen = /* @__PURE__ */ new Set();
+  for (const row of rows) {
+    if (!isPlainObject(row)) return false;
+    if (!hasExactOwnKeys(row, ["key", "scope", "release", "owner"])) {
+      return false;
+    }
+    const { key, scope: scope5, release, owner } = row;
+    if (typeof key !== "string" || typeof scope5 !== "string" || typeof release !== "string" || typeof owner !== "string") {
+      return false;
+    }
+    const keyBytes = utf8ByteLength(key);
+    if (keyBytes < 1 || keyBytes > 256) return false;
+    if (!key.startsWith(ROADMAP_PREFIX)) return false;
+    if (!isPrintableAscii(key)) return false;
+    const scopeBytes = utf8ByteLength(scope5);
+    if (scopeBytes < 1 || scopeBytes > 4096) return false;
+    if (hasAnyControl(scope5)) return false;
+    if (!ROADMAP_RELEASES.has(release)) return false;
+    if (!isRunId(owner)) return false;
+    if (seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+function pathIsCompetingPlan(path) {
+  return path === "docs/superpowers/specs" || path === "docs/superpowers/plans" || path.startsWith("docs/superpowers/specs/") || path.startsWith("docs/superpowers/plans/");
+}
+function isAllowedPathValue(path) {
+  if (!isPrintableAscii(path)) return false;
+  if (path.includes("\\")) return false;
+  if (path.startsWith("/")) return false;
+  if (/^[A-Za-z]:\//.test(path)) return false;
+  let body = path;
+  let directoryPrefix = false;
+  if (body.endsWith("/**")) {
+    directoryPrefix = true;
+    body = body.slice(0, -3);
+    if (body.length === 0) return false;
+  }
+  if (body.includes("*") || body.includes("?") || body.includes("[")) {
+    return false;
+  }
+  const segments = body.split("/");
+  if (segments.length === 0) return false;
+  for (const segment of segments) {
+    if (segment.length === 0) return false;
+    if (segment === "." || segment === "..") return false;
+  }
+  if (directoryPrefix && path !== `${body}/**`) return false;
+  return true;
+}
+function isValidObjective(value) {
+  const bytes = utf8ByteLength(value);
+  if (bytes < 1 || bytes > 16384) return false;
+  return !hasControlExcludingLf(value);
+}
+function isValidAcceptanceItem(value) {
+  const bytes = utf8ByteLength(value);
+  if (bytes < 1 || bytes > 4096) return false;
+  return !hasAnyControl(value);
+}
+function validateBriefShape(brief) {
+  if (!isPlainObject(brief)) return false;
+  const keys5 = Object.keys(brief).sort();
+  if (keys5.length !== BRIEF_KEYS.length) return false;
+  for (let i = 0; i < BRIEF_KEYS.length; i++) {
+    if (keys5[i] !== BRIEF_KEYS[i]) return false;
+  }
+  if (brief["schema"] !== BRIEF_SCHEMA) return false;
+  const familySha256 = brief["familySha256"];
+  const childId = brief["childId"];
+  const packageId = brief["packageId"];
+  const objective = brief["objective"];
+  const acceptance = brief["acceptance"];
+  const allowedPaths = brief["allowedPaths"];
+  if (typeof familySha256 !== "string" || !isSha256Hex(familySha256)) return false;
+  if (typeof childId !== "string" || !isRunId(childId)) return false;
+  if (typeof packageId !== "string" || !isRunId(packageId)) return false;
+  if (typeof objective !== "string" || !isValidObjective(objective)) return false;
+  if (!Array.isArray(acceptance) || acceptance.length < 1 || acceptance.length > 256) {
+    return false;
+  }
+  for (const item of acceptance) {
+    if (typeof item !== "string" || !isValidAcceptanceItem(item)) return false;
+  }
+  if (!Array.isArray(allowedPaths) || allowedPaths.length < 1 || allowedPaths.length > 256) {
+    return false;
+  }
+  const seen = /* @__PURE__ */ new Set();
+  let previous = null;
+  for (const path of allowedPaths) {
+    if (typeof path !== "string" || !isAllowedPathValue(path)) return false;
+    if (seen.has(path)) return false;
+    seen.add(path);
+    if (previous !== null && compareUtf8Bytes(previous, path) > 0) return false;
+    previous = path;
+  }
+  return true;
+}
+function canonicalBriefFileBytes(brief) {
+  try {
+    const body = canonicalize({
+      acceptance: brief.acceptance,
+      allowedPaths: brief.allowedPaths,
+      childId: brief.childId,
+      familySha256: brief.familySha256,
+      objective: brief.objective,
+      packageId: brief.packageId,
+      schema: brief.schema
+    });
+    return utf8Bytes(`${body}
+`);
+  } catch {
+    return null;
+  }
+}
+function validateCollectionShapes(input) {
+  if (typeof input.registerText !== "string") return false;
+  if (!(input.roadmapBytes instanceof Uint8Array)) return false;
+  if (!isReadonlyStringArray(input.activeChangeNames)) return false;
+  if (!Array.isArray(input.roadmapRows)) return false;
+  if (!isPlainObject(input.workflowByChange)) return false;
+  for (const value of Object.values(input.workflowByChange)) {
+    if (value !== null && typeof value !== "string") return false;
+  }
+  if (!isReadonlyStringArray(input.changedSuperpowersPaths)) return false;
+  if (!isPlainObject(input.expectedBriefByOwner)) return false;
+  if (!isPlainObject(input.packageBriefBytesByOwner)) return false;
+  for (const value of Object.values(input.packageBriefBytesByOwner)) {
+    if (!(value instanceof Uint8Array)) return false;
+  }
+  if (!isPlainObject(input.phase)) return false;
+  const phase = input.phase;
+  const tag = phase["_tag"];
+  if (tag === "Bootstrap") {
+    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
+    if (phase["owner"] !== TRACK1_PACKAGE) return false;
+  } else if (tag === "Lane") {
+    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
+    if (typeof phase["owner"] !== "string") return false;
+  } else if (tag === "Release") {
+    if (!hasExactOwnKeys(phase, ["_tag"])) return false;
+  } else {
+    return false;
+  }
+  return true;
+}
+function uniqueOwnersFromEntries(entries2) {
+  const names = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of entries2) {
+    if (seen.has(entry.owner)) continue;
+    seen.add(entry.owner);
+    names.push(entry.owner);
+  }
+  return names;
+}
+function selectPhaseCoverage(phase, entries2, futureOwners) {
+  if (phase._tag === "Bootstrap") {
+    for (const entry of entries2) {
+      if (entry.key === TRACK1_KEY) {
+        return { entries: [entry], owners: uniqueOwnersFromEntries([entry]) };
+      }
+    }
+    return { entries: [], owners: [] };
+  }
+  if (phase._tag === "Lane") {
+    const selected2 = entries2.filter(
+      (entry) => entry.targetRelease === "v0.4" && entry.owner === phase.owner
+    );
+    return { entries: selected2, owners: uniqueOwnersFromEntries(selected2) };
+  }
+  const selected = entries2.filter((entry) => entry.targetRelease === "v0.4");
+  const owners = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of selected) {
+    if (seen.has(entry.owner)) continue;
+    seen.add(entry.owner);
+    owners.push(entry.owner);
+  }
+  for (const future of futureOwners) {
+    if (future.targetRelease !== "v0.4") continue;
+    if (seen.has(future.name)) continue;
+    seen.add(future.name);
+    owners.push(future.name);
+  }
+  return { entries: selected, owners };
+}
+function inspectReleaseCoverageRegisterV1(input) {
+  const parsed = parseRegister(input.registerText);
+  if (parsed === "invalid_register") {
+    return { _tag: "Invalid", reason: "invalid_register" };
+  }
+  const selection = selectPhaseCoverage(
+    input.phase,
+    parsed.entries,
+    parsed.futureOwners
+  );
+  return {
+    _tag: "Valid",
+    baselineCommit: parsed.baselineCommit,
+    selectedOwners: [...selection.owners].sort(compareUtf8Bytes)
+  };
+}
+function validateReleaseCoverageV1(input) {
+  try {
+    if (!validateCollectionShapes(input)) {
+      return invalid("dependency_failure");
+    }
+    if (input.roadmapBytes.byteLength > ONE_MIB) {
+      return invalid("invalid_roadmap");
+    }
+    if (decodeUtf8Unbounded(input.roadmapBytes) === null) {
+      return invalid("invalid_roadmap");
+    }
+    const parsed = parseRegister(input.registerText);
+    if (parsed === "invalid_register") {
+      return invalid("invalid_register");
+    }
+    const keySet = /* @__PURE__ */ new Set();
+    for (const entry of parsed.entries) {
+      if (keySet.has(entry.key)) return invalid("duplicate_identity");
+      keySet.add(entry.key);
+    }
+    const futureNames = /* @__PURE__ */ new Set();
+    for (const owner of parsed.futureOwners) {
+      if (futureNames.has(owner.name)) return invalid("duplicate_identity");
+      futureNames.add(owner.name);
+    }
+    const openspecPaths = /* @__PURE__ */ new Set();
+    for (const entry of parsed.entries) {
+      if (entry.sourceKind !== "openspec_change") continue;
+      if (openspecPaths.has(entry.sourcePath)) {
+        return invalid("duplicate_identity");
+      }
+      openspecPaths.add(entry.sourcePath);
+    }
+    for (const entry of parsed.entries) {
+      if (!validateKeyPathCoherence(entry)) {
+        return invalid("invalid_register");
+      }
+    }
+    if (!validateRoadmapRows(input.roadmapRows)) {
+      return invalid("invalid_roadmap");
+    }
+    const activeNames = input.activeChangeNames;
+    const uniqueActive = /* @__PURE__ */ new Set();
+    for (const name of activeNames) {
+      if (uniqueActive.has(name)) return invalid("inventory_mismatch");
+      uniqueActive.add(name);
+    }
+    const openspecNames = /* @__PURE__ */ new Set();
+    for (const entry of parsed.entries) {
+      if (entry.sourceKind !== "openspec_change") continue;
+      const name = entry.key.slice(CHANGE_PREFIX.length);
+      openspecNames.add(name);
+    }
+    if (openspecNames.size !== uniqueActive.size) {
+      return invalid("inventory_mismatch");
+    }
+    for (const name of uniqueActive) {
+      if (!openspecNames.has(name)) return invalid("inventory_mismatch");
+    }
+    const activeInventorySha256 = computeActiveInventorySha256(activeNames);
+    if (activeInventorySha256 !== parsed.activeInventorySha256) {
+      return invalid("inventory_mismatch");
+    }
+    const roadmapSha256 = sha256Hex(input.roadmapBytes);
+    if (roadmapSha256 !== parsed.roadmapSha256) {
+      return invalid("roadmap_mismatch");
+    }
+    const roadmapEntries = parsed.entries.filter(
+      (entry) => entry.sourceKind === "roadmap"
+    );
+    const rowByKey = /* @__PURE__ */ new Map();
+    for (const row of input.roadmapRows) {
+      rowByKey.set(row.key, row);
+    }
+    if (roadmapEntries.length !== rowByKey.size) {
+      return invalid("roadmap_mismatch");
+    }
+    for (const entry of roadmapEntries) {
+      const row = rowByKey.get(entry.key);
+      if (row === void 0) return invalid("roadmap_mismatch");
+      if (row.owner !== entry.owner) return invalid("roadmap_mismatch");
+      if (row.release !== entry.targetRelease) return invalid("roadmap_mismatch");
+    }
+    for (const entry of parsed.entries) {
+      if (!uniqueActive.has(entry.owner) && !futureNames.has(entry.owner)) {
+        return invalid("unknown_owner");
+      }
+    }
+    for (const path of input.changedSuperpowersPaths) {
+      if (pathIsCompetingPlan(path)) return invalid("competing_plan");
+    }
+    const selection = selectPhaseCoverage(
+      input.phase,
+      parsed.entries,
+      parsed.futureOwners
+    );
+    const selected = selection.entries;
+    if (input.phase._tag === "Lane") {
+      if (!uniqueActive.has(input.phase.owner) && !futureNames.has(input.phase.owner)) {
+        return invalid("unknown_owner");
+      }
+      if (selected.length === 0) {
+        return invalid("unknown_owner");
+      }
+    }
+    if (input.phase._tag === "Bootstrap") {
+      const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
+      if (track1 === void 0 || track1.owner !== TRACK1_PACKAGE || track1.targetRelease !== "v0.4" || track1.reconcile !== "complete" || track1.disposition !== "v040_owner" || track1.sourceKind !== "openspec_change") {
+        return invalid("unreconciled");
+      }
+    }
+    for (const entry of selected) {
+      if (entry.reconcile === "required") return invalid("unreconciled");
+    }
+    const owners = selection.owners;
+    for (const owner of owners) {
+      const workflow = input.workflowByChange[owner];
+      if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
+        return invalid("workflow_mismatch");
+      }
+    }
+    const expectedKeys = Object.keys(input.expectedBriefByOwner);
+    const bytesKeys = Object.keys(input.packageBriefBytesByOwner);
+    if (input.phase._tag === "Bootstrap") {
+      if (expectedKeys.length !== 0 || bytesKeys.length !== 0) {
+        return invalid("brief_mismatch");
+      }
+    } else {
+      const ownerSet = new Set(owners);
+      if (expectedKeys.length !== ownerSet.size || bytesKeys.length !== ownerSet.size) {
+        return invalid("brief_mismatch");
+      }
+      for (const key of expectedKeys) {
+        if (!ownerSet.has(key)) return invalid("brief_mismatch");
+      }
+      for (const key of bytesKeys) {
+        if (!ownerSet.has(key)) return invalid("brief_mismatch");
+      }
+      for (const owner of owners) {
+        const brief = input.expectedBriefByOwner[owner];
+        const bytes = input.packageBriefBytesByOwner[owner];
+        if (brief === void 0 || bytes === void 0) {
+          return invalid("brief_mismatch");
+        }
+        if (bytes.byteLength > ONE_MIB) return invalid("brief_mismatch");
+        if (decodeUtf8Unbounded(bytes) === null) return invalid("brief_mismatch");
+        if (!validateBriefShape(brief)) return invalid("brief_mismatch");
+        if (brief.packageId !== owner) return invalid("brief_mismatch");
+        const expectedBytes = canonicalBriefFileBytes(brief);
+        if (expectedBytes === null || !bytesEqual(expectedBytes, bytes)) {
+          return invalid("brief_mismatch");
+        }
+      }
+    }
+    return valid(activeInventorySha256, roadmapSha256, parsed.entries.length);
+  } catch {
+    return invalid("dependency_failure");
+  }
+}
+
+// packages/policy/src/release-authority.ts
+var encoder2 = new TextEncoder();
+
+// packages/policy/src/release-admission.ts
+var encoder3 = new TextEncoder();
+
+// packages/policy/src/release-admission-cli.ts
+import { execFile as execFile2 } from "node:child_process";
+import { promisify } from "node:util";
+var encoder4 = new TextEncoder();
+var execFileAsync = promisify(execFile2);
+
+// packages/orchestration/src/queue-services.ts
+import { spawn } from "node:child_process";
+import {
+  accessSync,
+  closeSync as closeSync2,
+  constants as fsConstants2,
+  existsSync,
+  fstatSync as fstatSync2,
+  openSync as openSync2,
+  readSync as readSync2,
+  statSync
+} from "node:fs";
+import { delimiter, join as join3 } from "node:path";
+var MAX_CAPTURE_BYTES = 1048576;
+var ProcessFailure = class {
+  constructor(reason) {
+    this.reason = reason;
+  }
+  _tag = "ProcessFailure";
+};
+var OWNED_CHILD_CANCEL_WAIT_MS2 = 5e3;
+var ProcessExec = class extends Context_exports.Tag("ProcessExec")() {
+};
+var Sleeper = class extends Context_exports.Tag("Sleeper")() {
+};
+var PathLookup = class extends Context_exports.Tag("PathLookup")() {
+};
+var BoundedFs = class extends Context_exports.Tag("BoundedFs")() {
+};
+var EnvVars = class extends Context_exports.Tag("EnvVars")() {
+};
+var liveSleeper = Layer_exports.succeed(Sleeper, {
+  sleep: (ms) => Effect_exports.async((resume2) => {
+    const t = setTimeout(() => resume2(Effect_exports.void), ms);
+    return Effect_exports.sync(() => {
+      clearTimeout(t);
+    });
+  })
+});
+var liveEnvVars = Layer_exports.succeed(EnvVars, {
+  get: (name) => Effect_exports.sync(() => process.env[name]),
+  home: () => Effect_exports.sync(() => process.env.HOME ?? process.env.USERPROFILE)
+});
+function pathIsExecutable(path) {
+  try {
+    accessSync(path, fsConstants2.X_OK);
+    return true;
+  } catch {
+    try {
+      accessSync(path, fsConstants2.F_OK);
+      return existsSync(path);
+    } catch {
+      return false;
+    }
+  }
+}
+var livePathLookup = Layer_exports.succeed(PathLookup, {
+  which: (name) => Effect_exports.sync(() => {
+    const pathEnv = process.env.PATH ?? "";
+    const exts = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter((e) => e.length > 0) : [""];
+    for (const dir of pathEnv.split(delimiter)) {
+      if (!dir) continue;
+      for (const ext of exts) {
+        const candidate = join3(dir, name + ext);
+        if (pathIsExecutable(candidate)) {
+          return candidate;
+        }
+      }
+      const bare = join3(dir, name);
+      if (pathIsExecutable(bare)) {
+        return bare;
+      }
+    }
+    return null;
+  }),
+  fileExists: (path) => Effect_exports.sync(() => existsSync(path)),
+  isExecutable: (path) => Effect_exports.sync(() => pathIsExecutable(path))
+});
+function isNotFoundError(e) {
+  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
+}
+function readFileBoundedSync(path, maxBytes) {
+  let fd;
+  try {
+    let before2;
+    try {
+      before2 = statSync(path);
+    } catch (e) {
+      if (isNotFoundError(e)) return { _tag: "Absent" };
+      return { _tag: "Unreadable" };
+    }
+    if (!before2.isFile()) {
+      return { _tag: "Unreadable" };
+    }
+    fd = openSync2(path, fsConstants2.O_RDONLY);
+    const opened = fstatSync2(fd);
+    if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
+      return { _tag: "IdentityChanged" };
+    }
+    const cap = maxBytes + 1;
+    const buf = Buffer.allocUnsafe(cap);
+    let offset = 0;
+    while (offset < cap) {
+      const n = readSync2(fd, buf, offset, cap - offset, offset);
+      if (n === 0) break;
+      offset += n;
+    }
+    if (offset > maxBytes) {
+      return { _tag: "Oversized" };
+    }
+    let afterOpen;
+    try {
+      afterOpen = fstatSync2(fd);
+    } catch {
+      return { _tag: "IdentityChanged" };
+    }
+    if (afterOpen.ino !== opened.ino || afterOpen.dev !== opened.dev || afterOpen.size !== opened.size || afterOpen.mtimeMs !== opened.mtimeMs) {
+      return { _tag: "IdentityChanged" };
+    }
+    try {
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(
+        buf.subarray(0, offset)
+      );
+      return { _tag: "Ok", text };
+    } catch {
+      return { _tag: "MalformedUtf8" };
+    }
+  } catch (e) {
+    if (isNotFoundError(e)) return { _tag: "Absent" };
+    return { _tag: "Unreadable" };
+  } finally {
+    if (fd !== void 0) {
+      try {
+        closeSync2(fd);
+      } catch {
+      }
+    }
+  }
+}
+var liveBoundedFs = Layer_exports.succeed(BoundedFs, {
+  readFileBounded: (path, maxBytes) => Effect_exports.sync(() => readFileBoundedSync(path, maxBytes))
+});
+function terminateOwnedChild(child) {
+  const pid = child.pid;
+  if (pid === void 0) return;
+  try {
+    if (process.platform === "win32") {
+      child.kill();
+    } else {
+      try {
+        process.kill(-pid, "SIGKILL");
+      } catch {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+        }
+      }
+    }
+  } catch {
+  }
+}
+function spawnOptsBase(opts) {
+  const base = {
+    env: opts.env ?? process.env,
+    stdio: opts.stdio,
+    windowsHide: true,
+    detached: opts.detached
+  };
+  if (opts.cwd !== void 0) {
+    base.cwd = opts.cwd;
+  }
+  return base;
+}
+function cancelOwnedFinalizer(child) {
+  return Effect_exports.async((resume2) => {
+    let done7 = false;
+    const finish = () => {
+      if (done7) return;
+      done7 = true;
+      resume2(Effect_exports.void);
+    };
+    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS2);
+    child.once("close", () => {
+      clearTimeout(timer);
+      finish();
+    });
+    if (child.pid === void 0) {
+      clearTimeout(timer);
+      finish();
+      return;
+    }
+    terminateOwnedChild(child);
+  });
+}
+function runCapturedOwned(opts) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    let timer;
+    let child;
+    const settle = (outcome) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      resume2(outcome);
+    };
+    const maxBytes = opts.maxOutputBytes ?? MAX_CAPTURE_BYTES;
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...opts.env !== void 0 ? { env: opts.env } : {},
+          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: useGroup
+        })
+      );
+    } catch {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+    const owned = child;
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    let total = 0;
+    let timedOut = false;
+    let outputBound = false;
+    const onData = (target, chunk2) => {
+      if (settled) return;
+      total += chunk2.byteLength;
+      if (total > maxBytes) {
+        outputBound = true;
+        terminateOwnedChild(owned);
+        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
+        return;
+      }
+      target.push(chunk2);
+    };
+    owned.stdout?.on("data", (c) => onData(stdoutChunks, c));
+    owned.stderr?.on("data", (c) => onData(stderrChunks, c));
+    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        terminateOwnedChild(owned);
+      }, opts.timeoutMs);
+    }
+    owned.on("error", () => {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+    });
+    owned.on("close", (code) => {
+      if (settled) return;
+      if (outputBound) {
+        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
+        return;
+      }
+      if (timedOut) {
+        settle(Effect_exports.fail(new ProcessFailure("timeout")));
+        return;
+      }
+      const stdoutBuf = Buffer.concat(stdoutChunks);
+      const stderrBuf = Buffer.concat(stderrChunks);
+      settle(
+        Effect_exports.succeed({
+          exitCode: code ?? 1,
+          stdout: stdoutBuf.toString("utf8"),
+          stderr: stderrBuf.toString("utf8"),
+          stdoutBytes: Uint8Array.from(stdoutBuf),
+          stderrBytes: Uint8Array.from(stderrBuf)
+        })
+      );
+    });
+    return Effect_exports.suspend(() => {
+      if (settled) return Effect_exports.void;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      return cancelOwnedFinalizer(owned);
+    });
+  });
+}
+function runForegroundOwned(opts) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    let child;
+    const settle = (outcome) => {
+      if (settled) return;
+      settled = true;
+      resume2(outcome);
+    };
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...opts.env !== void 0 ? { env: opts.env } : {},
+          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
+          stdio: "inherit",
+          detached: useGroup
+        })
+      );
+    } catch {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+    const owned = child;
+    owned.on("error", () => {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+    });
+    owned.on("close", (code) => {
+      settle(Effect_exports.succeed(code ?? 1));
+    });
+    return Effect_exports.suspend(() => {
+      if (settled) return Effect_exports.void;
+      settled = true;
+      return cancelOwnedFinalizer(owned);
+    });
+  });
+}
+function runIgnoredStdioOwned(opts) {
+  return Effect_exports.async((resume2) => {
+    let settled = false;
+    let timer;
+    let child;
+    const settle = (outcome) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      resume2(outcome);
+    };
+    const useGroup = process.platform !== "win32";
+    try {
+      child = spawn(
+        opts.command,
+        [...opts.args],
+        spawnOptsBase({
+          command: opts.command,
+          args: opts.args,
+          ...opts.env !== void 0 ? { env: opts.env } : {},
+          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
+          stdio: ["ignore", "ignore", "ignore"],
+          detached: useGroup
+        })
+      );
+    } catch {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+      return;
+    }
+    const owned = child;
+    let timedOut = false;
+    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        terminateOwnedChild(owned);
+      }, opts.timeoutMs);
+    }
+    owned.on("error", () => {
+      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
+    });
+    owned.on("close", (code) => {
+      if (settled) return;
+      if (timedOut) {
+        settle(Effect_exports.fail(new ProcessFailure("timeout")));
+        return;
+      }
+      settle(
+        Effect_exports.succeed({
+          exitCode: code ?? 1,
+          stdout: "",
+          stderr: ""
+        })
+      );
+    });
+    return Effect_exports.sync(() => {
+      if (settled) return;
+      settled = true;
+      if (timer !== void 0) clearTimeout(timer);
+      terminateOwnedChild(owned);
+    });
+  });
+}
+var liveProcessExec = Layer_exports.succeed(ProcessExec, {
+  runCaptured: (opts) => runCapturedOwned(opts),
+  runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
+  runForeground: (opts) => runForegroundOwned(opts)
+});
+var liveQueueServices = Layer_exports.mergeAll(
+  liveProcessExec,
+  liveSleeper,
+  livePathLookup,
+  liveBoundedFs,
+  liveEnvVars
+);
 
 // packages/event-log/src/bounds.ts
 var MAX_EVENT_NESTING_DEPTH = 64;
@@ -31081,19 +32936,19 @@ function extractPayloadAttempt(payload) {
 
 // packages/event-log/src/run-journal.ts
 import {
-  closeSync,
-  constants as fsConstants,
-  fstatSync,
+  closeSync as closeSync3,
+  constants as fsConstants3,
+  fstatSync as fstatSync3,
   fsyncSync,
-  lstatSync,
+  lstatSync as lstatSync2,
   mkdirSync,
-  openSync,
-  readSync,
+  openSync as openSync3,
+  readSync as readSync3,
   renameSync,
   unlinkSync,
   writeSync
 } from "node:fs";
-import { dirname, join as join3 } from "node:path";
+import { dirname, join as join4 } from "node:path";
 import { randomBytes } from "node:crypto";
 var RUN_JOURNAL_FAILURE_BRAND = Symbol(
   "@foreman/event-log/RunJournalFailure"
@@ -31126,24 +32981,24 @@ var RunJournal = class extends Context_exports.Tag("RunJournal")() {
 var JOURNAL_LOCK_BOUND_MS = 1e4;
 var MAX_ATTEMPT_COUNTER_BYTES = 17;
 function runDir(stateRoot, runId) {
-  return join3(stateRoot, "runs", runId);
+  return join4(stateRoot, "runs", runId);
 }
 function eventsPath(stateRoot, runId) {
-  return join3(runDir(stateRoot, runId), "events.ndjson");
+  return join4(runDir(stateRoot, runId), "events.ndjson");
 }
 function attemptPath(stateRoot, runId, laneId) {
-  return join3(runDir(stateRoot, runId), "attempts", `${laneId}.txt`);
+  return join4(runDir(stateRoot, runId), "attempts", `${laneId}.txt`);
 }
 function attemptLockPath(stateRoot, runId, laneId) {
-  return join3(runDir(stateRoot, runId), "locks", `attempt-${laneId}.lock`);
+  return join4(runDir(stateRoot, runId), "locks", `attempt-${laneId}.lock`);
 }
 function eventsLockPath(stateRoot, runId) {
-  return join3(runDir(stateRoot, runId), "locks", "events.lock");
+  return join4(runDir(stateRoot, runId), "locks", "events.lock");
 }
 function identityOf(st) {
   return { dev: st.dev, ino: st.ino };
 }
-function identitiesEqual(a, b) {
+function identitiesEqual2(a, b) {
   return a.dev === b.dev && a.ino === b.ino;
 }
 function isEnoent(e) {
@@ -31155,7 +33010,7 @@ function isEexist(e) {
 function observePathKind(path) {
   let st;
   try {
-    st = lstatSync(path);
+    st = lstatSync2(path);
   } catch (e) {
     if (isEnoent(e)) return "missing";
     return "other";
@@ -31178,7 +33033,7 @@ function ensureLayoutDirs(stateRoot, segments) {
     if (typeof seg !== "string" || seg.length === 0 || seg === "." || seg === ".." || seg.includes("/") || seg.includes("\\") || seg.includes("\0")) {
       return runJournalFailure("invalid_path");
     }
-    current = join3(current, seg);
+    current = join4(current, seg);
     const kind = observeDirComponent(current);
     if (kind === "symlink" || kind === "other") {
       return runJournalFailure("invalid_path");
@@ -31205,7 +33060,7 @@ function ensureLayoutDirs(stateRoot, segments) {
 function pathMatchesOpenedFd(path, fd) {
   let pathSt;
   try {
-    pathSt = lstatSync(path);
+    pathSt = lstatSync2(path);
   } catch (e) {
     if (isEnoent(e)) return "identity_changed";
     return "read_failed";
@@ -31214,12 +33069,12 @@ function pathMatchesOpenedFd(path, fd) {
   if (!pathSt.isFile()) return "invalid_path";
   let fdSt;
   try {
-    fdSt = fstatSync(fd);
+    fdSt = fstatSync3(fd);
   } catch {
     return "identity_changed";
   }
   if (!fdSt.isFile()) return "invalid_path";
-  if (!identitiesEqual(identityOf(pathSt), identityOf(fdSt))) {
+  if (!identitiesEqual2(identityOf(pathSt), identityOf(fdSt))) {
     return "identity_changed";
   }
   return "ok";
@@ -31239,17 +33094,17 @@ function acquireLockSync(lockPath, timing) {
   const deadline = start3 + timing.boundMs;
   while (true) {
     try {
-      const fd = openSync(
+      const fd = openSync3(
         lockPath,
-        fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+        fsConstants3.O_CREAT | fsConstants3.O_EXCL | fsConstants3.O_WRONLY,
         384
       );
       let st;
       try {
-        st = fstatSync(fd);
+        st = fstatSync3(fd);
       } catch {
         try {
-          closeSync(fd);
+          closeSync3(fd);
         } catch {
         }
         try {
@@ -31260,7 +33115,7 @@ function acquireLockSync(lockPath, timing) {
       }
       if (!st.isFile()) {
         try {
-          closeSync(fd);
+          closeSync3(fd);
         } catch {
         }
         try {
@@ -31272,7 +33127,7 @@ function acquireLockSync(lockPath, timing) {
       const match12 = pathMatchesOpenedFd(lockPath, fd);
       if (match12 !== "ok") {
         try {
-          closeSync(fd);
+          closeSync3(fd);
         } catch {
         }
         try {
@@ -31298,12 +33153,12 @@ function acquireLockSync(lockPath, timing) {
 }
 function releaseLockSync(lock) {
   try {
-    closeSync(lock.fd);
+    closeSync3(lock.fd);
   } catch {
   }
   try {
-    const st = lstatSync(lock.path);
-    if (st.isFile() && identitiesEqual(identityOf(st), lock.identity)) {
+    const st = lstatSync2(lock.path);
+    if (st.isFile() && identitiesEqual2(identityOf(st), lock.identity)) {
       unlinkSync(lock.path);
     }
   } catch {
@@ -31326,14 +33181,14 @@ function posixDirSync(dirPath) {
   }
   let fd;
   try {
-    fd = openSync(dirPath, fsConstants.O_RDONLY);
+    fd = openSync3(dirPath, fsConstants3.O_RDONLY);
     fsyncSync(fd);
   } catch {
     throw new Error("dir_sync_failed");
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync(fd);
+        closeSync3(fd);
       } catch {
       }
     }
@@ -31347,12 +33202,12 @@ function durableReplaceFile(targetPath, content) {
   } catch {
     return runJournalFailure("write_failed");
   }
-  const tmpPath = join3(dir, tmpName);
+  const tmpPath = join4(dir, tmpName);
   let fd;
   try {
-    fd = openSync(
+    fd = openSync3(
       tmpPath,
-      fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+      fsConstants3.O_CREAT | fsConstants3.O_EXCL | fsConstants3.O_WRONLY,
       384
     );
     let offset = 0;
@@ -31361,7 +33216,7 @@ function durableReplaceFile(targetPath, content) {
       offset += n;
     }
     fsyncSync(fd);
-    closeSync(fd);
+    closeSync3(fd);
     fd = void 0;
     renameSync(tmpPath, targetPath);
     try {
@@ -31373,7 +33228,7 @@ function durableReplaceFile(targetPath, content) {
   } catch {
     if (fd !== void 0) {
       try {
-        closeSync(fd);
+        closeSync3(fd);
       } catch {
       }
     }
@@ -31385,10 +33240,10 @@ function durableReplaceFile(targetPath, content) {
   }
 }
 function noFollowReadFlags() {
-  return fsConstants.O_RDONLY | ("O_NOFOLLOW" in fsConstants ? fsConstants.O_NOFOLLOW : 0);
+  return fsConstants3.O_RDONLY | ("O_NOFOLLOW" in fsConstants3 ? fsConstants3.O_NOFOLLOW : 0);
 }
 function noFollowWriteFlags(extra) {
-  return extra | ("O_NOFOLLOW" in fsConstants ? fsConstants.O_NOFOLLOW : 0);
+  return extra | ("O_NOFOLLOW" in fsConstants3 ? fsConstants3.O_NOFOLLOW : 0);
 }
 function allocateSync(stateRoot, runId, laneId, options) {
   const locksErr = ensureLayoutDirs(stateRoot, ["runs", runId, "locks"]);
@@ -31414,8 +33269,8 @@ function allocateSync(stateRoot, runId, laneId, options) {
     } else {
       let fd;
       try {
-        fd = openSync(counterPath, noFollowReadFlags());
-        const st = fstatSync(fd);
+        fd = openSync3(counterPath, noFollowReadFlags());
+        const st = fstatSync3(fd);
         if (!st.isFile()) {
           return runJournalFailure("invalid_path");
         }
@@ -31423,7 +33278,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
           return runJournalFailure("corrupt_state");
         }
         const buf = Buffer.allocUnsafe(MAX_ATTEMPT_COUNTER_BYTES);
-        const n = readSync(fd, buf, 0, MAX_ATTEMPT_COUNTER_BYTES, 0);
+        const n = readSync3(fd, buf, 0, MAX_ATTEMPT_COUNTER_BYTES, 0);
         if (n > MAX_ATTEMPT_COUNTER_BYTES) {
           return runJournalFailure("corrupt_state");
         }
@@ -31439,7 +33294,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
         }
         let after3;
         try {
-          after3 = fstatSync(fd);
+          after3 = fstatSync3(fd);
         } catch {
           return runJournalFailure("identity_changed");
         }
@@ -31485,7 +33340,7 @@ function allocateSync(stateRoot, runId, laneId, options) {
       } finally {
         if (fd !== void 0) {
           try {
-            closeSync(fd);
+            closeSync3(fd);
           } catch {
           }
         }
@@ -31551,8 +33406,8 @@ function readJournalLocked(journalPath) {
   if (kind === "regular") {
     let fd;
     try {
-      fd = openSync(journalPath, noFollowReadFlags());
-      const st = fstatSync(fd);
+      fd = openSync3(journalPath, noFollowReadFlags());
+      const st = fstatSync3(fd);
       if (!st.isFile()) {
         return runJournalFailure("invalid_path");
       }
@@ -31564,7 +33419,7 @@ function readJournalLocked(journalPath) {
         const buf = Buffer.allocUnsafe(st.size);
         let offset = 0;
         while (offset < st.size) {
-          const n = readSync(fd, buf, offset, st.size - offset, offset);
+          const n = readSync3(fd, buf, offset, st.size - offset, offset);
           if (n === 0) break;
           offset += n;
         }
@@ -31579,7 +33434,7 @@ function readJournalLocked(journalPath) {
       }
       let after3;
       try {
-        after3 = fstatSync(fd);
+        after3 = fstatSync3(fd);
       } catch {
         return runJournalFailure("identity_changed");
       }
@@ -31594,7 +33449,7 @@ function readJournalLocked(journalPath) {
     } finally {
       if (fd !== void 0) {
         try {
-          closeSync(fd);
+          closeSync3(fd);
         } catch {
         }
       }
@@ -31682,9 +33537,9 @@ function writeAppendLocked(journalPath, view, draft, options) {
         options.beforeJournalCreate(journalPath);
       }
       try {
-        wfd = openSync(
+        wfd = openSync3(
           journalPath,
-          fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY,
+          fsConstants3.O_CREAT | fsConstants3.O_EXCL | fsConstants3.O_WRONLY,
           384
         );
       } catch (e) {
@@ -31694,18 +33549,18 @@ function writeAppendLocked(journalPath, view, draft, options) {
         return runJournalFailure("write_failed");
       }
     } else {
-      wfd = openSync(
+      wfd = openSync3(
         journalPath,
-        noFollowWriteFlags(fsConstants.O_WRONLY | fsConstants.O_APPEND),
+        noFollowWriteFlags(fsConstants3.O_WRONLY | fsConstants3.O_APPEND),
         384
       );
     }
-    const opened = fstatSync(wfd);
+    const opened = fstatSync3(wfd);
     if (!opened.isFile()) {
       return runJournalFailure("invalid_path");
     }
     if (view.beforeIdentity !== null) {
-      if (!identitiesEqual(identityOf(opened), view.beforeIdentity)) {
+      if (!identitiesEqual2(identityOf(opened), view.beforeIdentity)) {
         return runJournalFailure("identity_changed");
       }
       if (opened.size !== view.existing.byteLength) {
@@ -31746,7 +33601,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
         return runJournalFailure("invalid_path");
       }
     }
-    const after3 = fstatSync(wfd);
+    const after3 = fstatSync3(wfd);
     if (after3.ino !== opened.ino || after3.dev !== opened.dev) {
       return runJournalFailure("identity_changed");
     }
@@ -31759,7 +33614,7 @@ function writeAppendLocked(journalPath, view, draft, options) {
   } finally {
     if (wfd !== void 0) {
       try {
-        closeSync(wfd);
+        closeSync3(wfd);
       } catch {
       }
     }
@@ -32066,946 +33921,6 @@ function makeLiveRunJournalLayer(stateRoot, options = {}) {
     }
   });
 }
-
-// packages/orchestration/src/queue-services.ts
-import { spawn } from "node:child_process";
-import {
-  accessSync,
-  closeSync as closeSync2,
-  constants as fsConstants2,
-  existsSync,
-  fstatSync as fstatSync2,
-  openSync as openSync2,
-  readSync as readSync2,
-  statSync
-} from "node:fs";
-import { delimiter, join as join4 } from "node:path";
-var MAX_CAPTURE_BYTES = 1048576;
-var MAX_CONFIG_BYTES = 1048576;
-var TIMEOUT_STATUS_PROBE_MS = 1e3;
-var TIMEOUT_QUEUE_OP_MS = 1e4;
-var ProcessFailure = class {
-  constructor(reason) {
-    this.reason = reason;
-  }
-  _tag = "ProcessFailure";
-};
-var OWNED_CHILD_CANCEL_WAIT_MS = 5e3;
-var ProcessExec = class extends Context_exports.Tag("ProcessExec")() {
-};
-var Sleeper = class extends Context_exports.Tag("Sleeper")() {
-};
-var PathLookup = class extends Context_exports.Tag("PathLookup")() {
-};
-var BoundedFs = class extends Context_exports.Tag("BoundedFs")() {
-};
-var EnvVars = class extends Context_exports.Tag("EnvVars")() {
-};
-var liveSleeper = Layer_exports.succeed(Sleeper, {
-  sleep: (ms) => Effect_exports.async((resume2) => {
-    const t = setTimeout(() => resume2(Effect_exports.void), ms);
-    return Effect_exports.sync(() => {
-      clearTimeout(t);
-    });
-  })
-});
-var liveEnvVars = Layer_exports.succeed(EnvVars, {
-  get: (name) => Effect_exports.sync(() => process.env[name]),
-  home: () => Effect_exports.sync(() => process.env.HOME ?? process.env.USERPROFILE)
-});
-function pathIsExecutable(path) {
-  try {
-    accessSync(path, fsConstants2.X_OK);
-    return true;
-  } catch {
-    try {
-      accessSync(path, fsConstants2.F_OK);
-      return existsSync(path);
-    } catch {
-      return false;
-    }
-  }
-}
-var livePathLookup = Layer_exports.succeed(PathLookup, {
-  which: (name) => Effect_exports.sync(() => {
-    const pathEnv = process.env.PATH ?? "";
-    const exts = process.platform === "win32" ? (process.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter((e) => e.length > 0) : [""];
-    for (const dir of pathEnv.split(delimiter)) {
-      if (!dir) continue;
-      for (const ext of exts) {
-        const candidate = join4(dir, name + ext);
-        if (pathIsExecutable(candidate)) {
-          return candidate;
-        }
-      }
-      const bare = join4(dir, name);
-      if (pathIsExecutable(bare)) {
-        return bare;
-      }
-    }
-    return null;
-  }),
-  fileExists: (path) => Effect_exports.sync(() => existsSync(path)),
-  isExecutable: (path) => Effect_exports.sync(() => pathIsExecutable(path))
-});
-function isNotFoundError(e) {
-  return typeof e === "object" && e !== null && "code" in e && e.code === "ENOENT";
-}
-function readFileBoundedSync(path, maxBytes) {
-  let fd;
-  try {
-    let before2;
-    try {
-      before2 = statSync(path);
-    } catch (e) {
-      if (isNotFoundError(e)) return { _tag: "Absent" };
-      return { _tag: "Unreadable" };
-    }
-    if (!before2.isFile()) {
-      return { _tag: "Unreadable" };
-    }
-    fd = openSync2(path, fsConstants2.O_RDONLY);
-    const opened = fstatSync2(fd);
-    if (opened.ino !== before2.ino || opened.dev !== before2.dev || opened.size !== before2.size) {
-      return { _tag: "IdentityChanged" };
-    }
-    const cap = maxBytes + 1;
-    const buf = Buffer.allocUnsafe(cap);
-    let offset = 0;
-    while (offset < cap) {
-      const n = readSync2(fd, buf, offset, cap - offset, offset);
-      if (n === 0) break;
-      offset += n;
-    }
-    if (offset > maxBytes) {
-      return { _tag: "Oversized" };
-    }
-    let afterOpen;
-    try {
-      afterOpen = fstatSync2(fd);
-    } catch {
-      return { _tag: "IdentityChanged" };
-    }
-    if (afterOpen.ino !== opened.ino || afterOpen.dev !== opened.dev || afterOpen.size !== opened.size || afterOpen.mtimeMs !== opened.mtimeMs) {
-      return { _tag: "IdentityChanged" };
-    }
-    try {
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(
-        buf.subarray(0, offset)
-      );
-      return { _tag: "Ok", text };
-    } catch {
-      return { _tag: "MalformedUtf8" };
-    }
-  } catch (e) {
-    if (isNotFoundError(e)) return { _tag: "Absent" };
-    return { _tag: "Unreadable" };
-  } finally {
-    if (fd !== void 0) {
-      try {
-        closeSync2(fd);
-      } catch {
-      }
-    }
-  }
-}
-var liveBoundedFs = Layer_exports.succeed(BoundedFs, {
-  readFileBounded: (path, maxBytes) => Effect_exports.sync(() => readFileBoundedSync(path, maxBytes))
-});
-function terminateOwnedChild(child) {
-  const pid = child.pid;
-  if (pid === void 0) return;
-  try {
-    if (process.platform === "win32") {
-      child.kill();
-    } else {
-      try {
-        process.kill(-pid, "SIGKILL");
-      } catch {
-        try {
-          child.kill("SIGKILL");
-        } catch {
-        }
-      }
-    }
-  } catch {
-  }
-}
-function spawnOptsBase(opts) {
-  const base = {
-    env: opts.env ?? process.env,
-    stdio: opts.stdio,
-    windowsHide: true,
-    detached: opts.detached
-  };
-  if (opts.cwd !== void 0) {
-    base.cwd = opts.cwd;
-  }
-  return base;
-}
-function cancelOwnedFinalizer(child) {
-  return Effect_exports.async((resume2) => {
-    let done7 = false;
-    const finish = () => {
-      if (done7) return;
-      done7 = true;
-      resume2(Effect_exports.void);
-    };
-    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS);
-    child.once("close", () => {
-      clearTimeout(timer);
-      finish();
-    });
-    if (child.pid === void 0) {
-      clearTimeout(timer);
-      finish();
-      return;
-    }
-    terminateOwnedChild(child);
-  });
-}
-function runCapturedOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let timer;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      resume2(outcome);
-    };
-    const maxBytes = opts.maxOutputBytes ?? MAX_CAPTURE_BYTES;
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: ["ignore", "pipe", "pipe"],
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    const stdoutChunks = [];
-    const stderrChunks = [];
-    let total = 0;
-    let timedOut = false;
-    let outputBound = false;
-    const onData = (target, chunk2) => {
-      if (settled) return;
-      total += chunk2.byteLength;
-      if (total > maxBytes) {
-        outputBound = true;
-        terminateOwnedChild(owned);
-        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
-        return;
-      }
-      target.push(chunk2);
-    };
-    owned.stdout?.on("data", (c) => onData(stdoutChunks, c));
-    owned.stderr?.on("data", (c) => onData(stderrChunks, c));
-    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
-      timer = setTimeout(() => {
-        timedOut = true;
-        terminateOwnedChild(owned);
-      }, opts.timeoutMs);
-    }
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      if (settled) return;
-      if (outputBound) {
-        settle(Effect_exports.fail(new ProcessFailure("output_bound")));
-        return;
-      }
-      if (timedOut) {
-        settle(Effect_exports.fail(new ProcessFailure("timeout")));
-        return;
-      }
-      const stdoutBuf = Buffer.concat(stdoutChunks);
-      const stderrBuf = Buffer.concat(stderrChunks);
-      settle(
-        Effect_exports.succeed({
-          exitCode: code ?? 1,
-          stdout: stdoutBuf.toString("utf8"),
-          stderr: stderrBuf.toString("utf8"),
-          stdoutBytes: Uint8Array.from(stdoutBuf),
-          stderrBytes: Uint8Array.from(stderrBuf)
-        })
-      );
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      return cancelOwnedFinalizer(owned);
-    });
-  });
-}
-function runForegroundOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      resume2(outcome);
-    };
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: "inherit",
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      settle(Effect_exports.succeed(code ?? 1));
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      return cancelOwnedFinalizer(owned);
-    });
-  });
-}
-function runIgnoredStdioOwned(opts) {
-  return Effect_exports.async((resume2) => {
-    let settled = false;
-    let timer;
-    let child;
-    const settle = (outcome) => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      resume2(outcome);
-    };
-    const useGroup = process.platform !== "win32";
-    try {
-      child = spawn(
-        opts.command,
-        [...opts.args],
-        spawnOptsBase({
-          command: opts.command,
-          args: opts.args,
-          ...opts.env !== void 0 ? { env: opts.env } : {},
-          ...opts.cwd !== void 0 ? { cwd: opts.cwd } : {},
-          stdio: ["ignore", "ignore", "ignore"],
-          detached: useGroup
-        })
-      );
-    } catch {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-      return;
-    }
-    const owned = child;
-    let timedOut = false;
-    if (opts.timeoutMs !== void 0 && opts.timeoutMs > 0) {
-      timer = setTimeout(() => {
-        timedOut = true;
-        terminateOwnedChild(owned);
-      }, opts.timeoutMs);
-    }
-    owned.on("error", () => {
-      settle(Effect_exports.fail(new ProcessFailure("spawn_failed")));
-    });
-    owned.on("close", (code) => {
-      if (settled) return;
-      if (timedOut) {
-        settle(Effect_exports.fail(new ProcessFailure("timeout")));
-        return;
-      }
-      settle(
-        Effect_exports.succeed({
-          exitCode: code ?? 1,
-          stdout: "",
-          stderr: ""
-        })
-      );
-    });
-    return Effect_exports.sync(() => {
-      if (settled) return;
-      settled = true;
-      if (timer !== void 0) clearTimeout(timer);
-      terminateOwnedChild(owned);
-    });
-  });
-}
-var liveProcessExec = Layer_exports.succeed(ProcessExec, {
-  runCaptured: (opts) => runCapturedOwned(opts),
-  runIgnoredStdio: (opts) => runIgnoredStdioOwned(opts),
-  runForeground: (opts) => runForegroundOwned(opts)
-});
-var liveQueueServices = Layer_exports.mergeAll(
-  liveProcessExec,
-  liveSleeper,
-  livePathLookup,
-  liveBoundedFs,
-  liveEnvVars
-);
-
-// packages/orchestration/src/queue-admission.ts
-var EXIT_OK = 0;
-var EXIT_FAIL = 1;
-var EXIT_CONFIG = 2;
-var EXIT_MISSING_CLI = 3;
-var ADD_USAGE = "usage: lane-queue.sh ensure|add GROUP --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 --endstop-action ACTION --endstop-candidate-sha SHA256 -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
-var FIXED_GROUPS = [
-  { name: "grok", parallel: 3 },
-  { name: "codex", parallel: 2 },
-  { name: "misc", parallel: 2 },
-  { name: "gate", parallel: 1 },
-  { name: "agy", parallel: 1 }
-];
-var GROUP_RE = /^[a-z][a-z0-9_-]*$/;
-var TASK_ID_RE = /^[0-9]+$/;
-function pwshQuote(token) {
-  return "'" + token.replace(/'/g, "''") + "'";
-}
-function posixQuote(token) {
-  return "'" + token.replace(/'/g, "'\\''") + "'";
-}
-function isWindowsPueuePath(pueueBin, fileExists) {
-  if (pueueBin.toLowerCase().endsWith(".exe")) return true;
-  return fileExists(pueueBin + ".exe");
-}
-function isEmptyOrNullYamlRest(rest) {
-  const t = rest.trim();
-  if (t.length === 0) return true;
-  if (t.startsWith("#")) return true;
-  if (t === "null" || t === "~") return true;
-  if (/^(null|~)(\s+#.*)?$/.test(t)) return true;
-  return false;
-}
-function isAmbiguousYamlScalar(val) {
-  if (val.length === 0) return false;
-  const c = val[0];
-  return c === "*" || c === "&" || c === "{" || c === "[" || c === "!" || c === "|" || c === ">" || c === "?";
-}
-function parseShellCommandOverride(configText) {
-  let section = null;
-  let daemonSections = 0;
-  let shellSeen = 0;
-  let shellValue = void 0;
-  const lines = configText.split(/\n/);
-  for (const raw of lines) {
-    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith("#")) continue;
-    const top = line.match(/^([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
-    if (top !== null && line === line.trimStart()) {
-      const key = top[1] ?? "";
-      const rest = top[2] ?? "";
-      if (key === "daemon") {
-        daemonSections += 1;
-        if (daemonSections > 1) return { _tag: "Uncertain" };
-        if (!isEmptyOrNullYamlRest(rest)) return { _tag: "Uncertain" };
-        section = "daemon";
-        continue;
-      }
-      section = key;
-      continue;
-    }
-    if (section !== "daemon") continue;
-    if (/^\s+<<\s*:/.test(line)) return { _tag: "Uncertain" };
-    const nested2 = line.match(/^\s+([A-Za-z_][\w-]*)\s*:\s*(.*)$/);
-    if (nested2 === null) {
-      if (/^\s+\S/.test(line)) return { _tag: "Uncertain" };
-      continue;
-    }
-    if (nested2[1] !== "shell_command") continue;
-    shellSeen += 1;
-    if (shellSeen > 1) return { _tag: "Uncertain" };
-    let val = (nested2[2] ?? "").trim();
-    if (val.length === 0 || val === "null" || val === "~") {
-      shellValue = null;
-      continue;
-    }
-    if (/^(null|~)(\s+#.*)?$/.test(val)) {
-      shellValue = null;
-      continue;
-    }
-    if (isAmbiguousYamlScalar(val)) return { _tag: "Uncertain" };
-    const dq = val.match(/^"(.*)"$/);
-    const sq = val.match(/^'(.*)'$/);
-    if (dq) val = dq[1] ?? val;
-    else if (sq) val = sq[1] ?? val;
-    else {
-      const hash2 = val.indexOf(" #");
-      if (hash2 >= 0) val = val.slice(0, hash2).trimEnd();
-    }
-    if (isAmbiguousYamlScalar(val)) return { _tag: "Uncertain" };
-    shellValue = val;
-  }
-  if (shellSeen === 0 || shellValue === null || shellValue === void 0) {
-    return { _tag: "Default" };
-  }
-  if (shellValue.length === 0) return { _tag: "Default" };
-  return { _tag: "Override", value: shellValue };
-}
-function quoteForShell(pueueBin, tokens, shellOverride, fileExists) {
-  if (shellOverride !== null && shellOverride.length > 0) {
-    return { ok: false, reason: "unclassifiable_shell" };
-  }
-  if (isWindowsPueuePath(pueueBin, fileExists)) {
-    return {
-      ok: true,
-      dialect: "powershell",
-      argv: ["&", ...tokens.map(pwshQuote)]
-    };
-  }
-  return { ok: true, dialect: "posix", argv: tokens.map(posixQuote) };
-}
-function isPreAcceptRefusal(stderr) {
-  const s = stderr.replace(/\r/g, "").slice(0, MAX_CAPTURE_BYTES);
-  if (s.includes("Failed to connect to the daemon")) return true;
-  if (s.includes("Couldn't find a configuration file")) return true;
-  return false;
-}
-function isEmptyAdmissionStdout(stdout) {
-  return stdout === "" || stdout === "\n" || stdout === "\r\n";
-}
-function parseTaskId(stdout) {
-  let body = stdout;
-  if (body.endsWith("\r\n")) {
-    body = body.slice(0, -2);
-  } else if (body.endsWith("\n")) {
-    body = body.slice(0, -1);
-  }
-  if (body.length === 0) return null;
-  if (body.includes("\n") || body.includes("\r")) return null;
-  if (!TASK_ID_RE.test(body)) return null;
-  return body;
-}
-function isRetryablePreAcceptFailure(result) {
-  if (result.exitCode === 0) return false;
-  if (!isEmptyAdmissionStdout(result.stdout)) return false;
-  return isPreAcceptRefusal(result.stderr);
-}
-function joinHome(...parts2) {
-  return parts2.join("/").replace(/\/+/g, "/");
-}
-var resolvePueueClient = Effect_exports.gen(function* () {
-  const env = yield* EnvVars;
-  const paths = yield* PathLookup;
-  const force = yield* env.get("LANE_QUEUE_FORCE_MISSING");
-  if (force === "1") return null;
-  const onPath = yield* paths.which("pueue");
-  if (onPath !== null) return onPath;
-  const home = yield* env.home();
-  if (home === void 0 || home.length === 0) return null;
-  const base = joinHome(home, ".foreman", "tools", "pueue");
-  const stagedExe = joinHome(base, "pueue.exe");
-  if (yield* paths.isExecutable(stagedExe)) return stagedExe;
-  const staged = joinHome(base, "pueue");
-  if (yield* paths.isExecutable(staged)) return staged;
-  return null;
-});
-var resolvePueued = Effect_exports.gen(function* () {
-  const env = yield* EnvVars;
-  const paths = yield* PathLookup;
-  const force = yield* env.get("LANE_QUEUE_FORCE_MISSING");
-  if (force === "1") return null;
-  const onPath = yield* paths.which("pueued");
-  if (onPath !== null) return onPath;
-  const home = yield* env.home();
-  if (home === void 0 || home.length === 0) return null;
-  const base = joinHome(home, ".foreman", "tools", "pueue");
-  const stagedExe = joinHome(base, "pueued.exe");
-  if (yield* paths.isExecutable(stagedExe)) return stagedExe;
-  const staged = joinHome(base, "pueued");
-  if (yield* paths.isExecutable(staged)) return staged;
-  return null;
-});
-function mapReadToShell(read) {
-  switch (read._tag) {
-    case "Absent":
-      return { _tag: "Default" };
-    case "Ok": {
-      const parsed = parseShellCommandOverride(read.text);
-      if (parsed._tag === "Default") return { _tag: "Default" };
-      if (parsed._tag === "Override") {
-        return { _tag: "Override", value: parsed.value };
-      }
-      return { _tag: "ConfigError" };
-    }
-    case "Oversized":
-    case "Unreadable":
-    case "MalformedUtf8":
-    case "IdentityChanged":
-      return { _tag: "ConfigError" };
-    default: {
-      const _exhaustive = read;
-      void _exhaustive;
-      return { _tag: "ConfigError" };
-    }
-  }
-}
-var readShellCommandOverride = Effect_exports.gen(function* () {
-  const env = yield* EnvVars;
-  const fs = yield* BoundedFs;
-  const cfgPath = yield* env.get("PUEUE_CONFIG_PATH");
-  if (cfgPath !== void 0 && cfgPath.length > 0) {
-    const text = yield* fs.readFileBounded(cfgPath, MAX_CONFIG_BYTES);
-    return mapReadToShell(text);
-  }
-  const appdata = yield* env.get("APPDATA");
-  if (appdata !== void 0 && appdata.length > 0) {
-    const win = joinHome(appdata, "pueue", "pueue.yml");
-    const text = yield* fs.readFileBounded(win, MAX_CONFIG_BYTES);
-    if (text._tag !== "Absent") return mapReadToShell(text);
-  }
-  const xdg = yield* env.get("XDG_CONFIG_HOME");
-  const home = yield* env.home();
-  const posixBase = xdg !== void 0 && xdg.length > 0 ? xdg : home !== void 0 ? joinHome(home, ".config") : null;
-  if (posixBase !== null) {
-    const p = joinHome(posixBase, "pueue", "pueue.yml");
-    const text = yield* fs.readFileBounded(p, MAX_CONFIG_BYTES);
-    if (text._tag !== "Absent") return mapReadToShell(text);
-  }
-  return { _tag: "Default" };
-});
-var runPueue = (pueueBin, args2, timeoutMs) => Effect_exports.gen(function* () {
-  const proc = yield* ProcessExec;
-  return yield* proc.runCaptured({
-    command: pueueBin,
-    args: args2,
-    maxOutputBytes: MAX_CAPTURE_BYTES,
-    timeoutMs
-  });
-});
-var statusProbe = (pueueBin) => Effect_exports.gen(function* () {
-  const r = yield* runPueue(
-    pueueBin,
-    ["status", "--json", "last 1"],
-    TIMEOUT_STATUS_PROBE_MS
-  );
-  return r.exitCode === 0;
-}).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(false)));
-var ensureGroup = (pueueBin, name, parallel4) => Effect_exports.gen(function* () {
-  const add6 = yield* runPueue(
-    pueueBin,
-    ["group", "add", name],
-    TIMEOUT_QUEUE_OP_MS
-  ).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: "spawn_failed"
-      })
-    )
-  );
-  if (add6.exitCode !== 0) {
-    const err = (add6.stderr + add6.stdout).replace(/\r/g, "");
-    if (!err.includes("already exists")) {
-      return yield* Effect_exports.fail({ _tag: "GroupConfigFailed" });
-    }
-  }
-  const par2 = yield* runPueue(
-    pueueBin,
-    ["parallel", String(parallel4), "--group", name],
-    TIMEOUT_QUEUE_OP_MS
-  ).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: "spawn_failed"
-      })
-    )
-  );
-  if (par2.exitCode !== 0) {
-    return yield* Effect_exports.fail({ _tag: "GroupConfigFailed" });
-  }
-});
-var cmdEnsure = (io2, options) => Effect_exports.gen(function* () {
-  const quiet = options?.quiet === true;
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    if (!quiet) {
-      io2.writeStderr(
-        "lane-queue: pueue not found on PATH or $HOME/.foreman/tools/pueue -- fallback mode\n"
-      );
-    }
-    return EXIT_MISSING_CLI;
-  }
-  const reachable = yield* statusProbe(pueueBin);
-  if (!reachable) {
-    const pueuedBin = yield* resolvePueued;
-    if (pueuedBin === null) {
-      if (!quiet) {
-        io2.writeStderr(
-          "lane-queue: pueued daemon binary missing after unreachable status probe\n"
-        );
-      }
-      return EXIT_FAIL;
-    }
-    const proc = yield* ProcessExec;
-    yield* proc.runIgnoredStdio({
-      command: pueuedBin,
-      args: ["-d"],
-      timeoutMs: TIMEOUT_QUEUE_OP_MS
-    }).pipe(Effect_exports.catchAll(() => Effect_exports.succeed(null)));
-    const sleeper = yield* Sleeper;
-    let ready = false;
-    let waited = 0;
-    while (waited < 5) {
-      if (yield* statusProbe(pueueBin)) {
-        ready = true;
-        break;
-      }
-      yield* sleeper.sleep(1e3);
-      waited += 1;
-    }
-    if (!ready) {
-      if (!quiet) {
-        io2.writeStderr(
-          `lane-queue: pueued daemon unreachable after spawn + ${waited}s retry
-`
-        );
-      }
-      return EXIT_FAIL;
-    }
-  }
-  for (const g of FIXED_GROUPS) {
-    const r = yield* ensureGroup(pueueBin, g.name, g.parallel).pipe(
-      Effect_exports.either
-    );
-    if (r._tag === "Left") {
-      if (!quiet) {
-        io2.writeStderr(
-          `lane-queue: group configuration failed for ${g.name}
-`
-        );
-      }
-      return EXIT_FAIL;
-    }
-  }
-  if (!quiet) {
-    io2.writeStderr(
-      "lane-queue: ready (groups: grok codex misc gate agy)\n"
-    );
-  }
-  return EXIT_OK;
-});
-var cmdAdd = (io2, group, cmd) => Effect_exports.gen(function* () {
-  if (!GROUP_RE.test(group)) {
-    io2.writeStderr(
-      `lane-queue: invalid GROUP '${group}' (must match ^[a-z][a-z0-9_-]*$)
-`
-    );
-    return EXIT_CONFIG;
-  }
-  if (cmd.length === 0) {
-    io2.writeStderr(ADD_USAGE + "\n");
-    return EXIT_CONFIG;
-  }
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    const g = FIXED_GROUPS.find((g2) => g2.name === group);
-    const cap = g ? g.parallel : "unknown";
-    io2.writeStderr(`lane-queue: degraded direct-spawn (pueue absent) - missing cap for ${group}: ${cap}
-`);
-    return EXIT_FAIL;
-  }
-  const paths = yield* PathLookup;
-  const exeSibling = pueueBin + ".exe";
-  const hasExeSibling = yield* paths.fileExists(exeSibling);
-  const fileExists = (p) => p === exeSibling ? hasExeSibling : false;
-  const shellRead = yield* readShellCommandOverride;
-  if (shellRead._tag === "ConfigError") {
-    io2.writeStderr(
-      "lane-queue: pueue configuration unreadable or uncertain -- refusing before any queue process call\n"
-    );
-    return EXIT_CONFIG;
-  }
-  if (shellRead._tag === "Override") {
-    io2.writeStderr(
-      "lane-queue: pueue config overrides daemon.shell_command -- lane-queue does not know how to quote for that shell and refuses to guess\n"
-    );
-    return EXIT_CONFIG;
-  }
-  const quoted = quoteForShell(pueueBin, cmd, null, fileExists);
-  if (!quoted.ok) {
-    io2.writeStderr(
-      "lane-queue: pueue config overrides daemon.shell_command -- lane-queue does not know how to quote for that shell and refuses to guess\n"
-    );
-    return EXIT_CONFIG;
-  }
-  const readyCode = yield* cmdEnsure(io2, { quiet: true });
-  if (readyCode !== EXIT_OK) {
-    return readyCode === EXIT_MISSING_CLI ? EXIT_FAIL : readyCode;
-  }
-  const attemptAdd = () => runPueue(
-    pueueBin,
-    ["add", "--group", group, "--print-task-id", "--", ...quoted.argv],
-    TIMEOUT_QUEUE_OP_MS
-  );
-  let result = yield* attemptAdd().pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (result.exitCode === 0) {
-    const id = parseTaskId(result.stdout);
-    if (id === null) {
-      io2.writeStderr(
-        "lane-queue: ambiguous add result (malformed task id)\n"
-      );
-      return EXIT_FAIL;
-    }
-    io2.writeStdout(id + "\n");
-    return EXIT_OK;
-  }
-  if (!isRetryablePreAcceptFailure(result)) {
-    io2.writeStderr(`lane-queue: pueue add failed for group ${group}
-`);
-    return EXIT_FAIL;
-  }
-  const retryReady = yield* cmdEnsure(io2, { quiet: true });
-  if (retryReady !== EXIT_OK) {
-    return retryReady === EXIT_MISSING_CLI ? EXIT_FAIL : retryReady;
-  }
-  result = yield* attemptAdd().pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (result.exitCode === 0) {
-    const id = parseTaskId(result.stdout);
-    if (id === null) {
-      io2.writeStderr(
-        "lane-queue: ambiguous add result (malformed task id)\n"
-      );
-      return EXIT_FAIL;
-    }
-    io2.writeStdout(id + "\n");
-    return EXIT_OK;
-  }
-  io2.writeStderr(`lane-queue: pueue add failed for group ${group}
-`);
-  return EXIT_FAIL;
-});
-var cmdStatus = (io2, taskId) => Effect_exports.gen(function* () {
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    io2.writeStdout('{"degraded":true}\n');
-    return EXIT_OK;
-  }
-  const raw = yield* runPueue(
-    pueueBin,
-    ["status", "--json"],
-    TIMEOUT_QUEUE_OP_MS
-  ).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (raw.exitCode !== 0) {
-    io2.writeStderr("lane-queue: pueue status failed\n");
-    return EXIT_FAIL;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw.stdout);
-  } catch {
-    io2.writeStderr("lane-queue: invalid status JSON\n");
-    return EXIT_FAIL;
-  }
-  if (taskId === void 0 || taskId.length === 0) {
-    io2.writeStdout(JSON.stringify(parsed) + "\n");
-    return EXIT_OK;
-  }
-  const tasks = typeof parsed === "object" && parsed !== null && "tasks" in parsed && typeof parsed.tasks === "object" && parsed.tasks !== null ? parsed.tasks : {};
-  const one = Object.prototype.hasOwnProperty.call(tasks, taskId) ? tasks[taskId] : {};
-  io2.writeStdout(JSON.stringify(one ?? {}) + "\n");
-  return EXIT_OK;
-});
-var cmdKill = (io2, taskId) => Effect_exports.gen(function* () {
-  if (!TASK_ID_RE.test(taskId)) {
-    io2.writeStderr(
-      `lane-queue: invalid TASK_ID '${taskId}' (must match ^[0-9]+$)
-`
-    );
-    return EXIT_CONFIG;
-  }
-  const pueueBin = yield* resolvePueueClient;
-  if (pueueBin === null) {
-    io2.writeStderr(
-      "lane-queue: kill unsupported in fallback mode (direct spawns are owned by the caller)\n"
-    );
-    return EXIT_CONFIG;
-  }
-  const raw = yield* runPueue(pueueBin, ["kill", taskId], TIMEOUT_QUEUE_OP_MS).pipe(
-    Effect_exports.catchAll(
-      () => Effect_exports.succeed({
-        exitCode: 1,
-        stdout: "",
-        stderr: ""
-      })
-    )
-  );
-  if (raw.exitCode !== 0) {
-    io2.writeStderr(`lane-queue: pueue kill failed for task ${taskId}
-`);
-    return EXIT_FAIL;
-  }
-  io2.writeStdout(`Tasks are being killed: ${taskId}
-`);
-  return EXIT_OK;
-});
-
-// packages/orchestration/src/execution-ledger.ts
-import { randomUUID } from "node:crypto";
-import {
-  closeSync as closeSync3,
-  existsSync as existsSync2,
-  fsyncSync as fsyncSync2,
-  mkdirSync as mkdirSync2,
-  openSync as openSync3,
-  readFileSync,
-  renameSync as renameSync2,
-  unlinkSync as unlinkSync2,
-  writeFileSync
-} from "node:fs";
-import { dirname as dirname2, join as join5 } from "node:path";
 
 // packages/orchestration/src/execution-contract.ts
 var executionMilestones = [
@@ -33513,6 +34428,21 @@ function decodeExecutionContractFamilyV2(value) {
 function executionContractFamilySha256(family) {
   return sha256Hex(canonicalize(family));
 }
+
+// packages/orchestration/src/execution-ledger.ts
+import { randomUUID } from "node:crypto";
+import {
+  closeSync as closeSync4,
+  existsSync as existsSync2,
+  fsyncSync as fsyncSync2,
+  mkdirSync as mkdirSync2,
+  openSync as openSync4,
+  readFileSync,
+  renameSync as renameSync2,
+  unlinkSync as unlinkSync2,
+  writeFileSync
+} from "node:fs";
+import { dirname as dirname2, join as join5 } from "node:path";
 
 // packages/orchestration/src/execution-terminal-policy.ts
 var executionActionKinds = [
@@ -35017,20 +35947,20 @@ function publishFamilyManifestLive(stateRoot, manifest, familySha256) {
   const temporary = join5(parent, `.manifest-${randomUUID()}.tmp`);
   let fd = null;
   try {
-    fd = openSync3(temporary, "wx", 384);
+    fd = openSync4(temporary, "wx", 384);
     writeFileSync(fd, bytes);
     fsyncSync2(fd);
-    closeSync3(fd);
+    closeSync4(fd);
     fd = null;
     renameSync2(temporary, path);
-    const parentFd = openSync3(parent, "r");
+    const parentFd = openSync4(parent, "r");
     try {
       fsyncSync2(parentFd);
     } finally {
-      closeSync3(parentFd);
+      closeSync4(parentFd);
     }
   } catch (error) {
-    if (fd !== null) closeSync3(fd);
+    if (fd !== null) closeSync4(fd);
     try {
       unlinkSync2(temporary);
     } catch {
@@ -35826,2991 +36756,14 @@ function makeLiveEndstopLedgerLayer(stateRoot) {
   });
 }
 
-// packages/policy/src/schema.ts
-var ENTRY_STATES = [
-  "blocked",
-  "proposed",
-  "proposed_externalize",
-  "proposed_replace",
-  "proposed_relocate",
-  "inventory_required",
-  "protected_reference",
-  "protected_parked",
-  "unauthorized",
-  "approved",
-  "pending"
-];
-var HISTORICAL_STATES = [
-  ...ENTRY_STATES,
-  "late_register_replaced_recoverable"
-];
-
-// packages/policy/src/services.ts
-var FileSystem = class extends Context_exports.Tag("FileSystem")() {
-};
-var GitIdentity = class extends Context_exports.Tag("GitIdentity")() {
-};
-var Clock2 = class extends Context_exports.Tag("Clock")() {
-};
-var MutationProbe = class extends Context_exports.Tag("MutationProbe")() {
-};
-var liveClock = Layer_exports.succeed(Clock2, {
-  nowMs: () => Effect_exports.sync(() => Date.now())
-});
-var noopMutationProbe = Layer_exports.succeed(MutationProbe, {
-  record: () => Effect_exports.void,
-  count: () => Effect_exports.succeed(0)
-});
-
-// packages/policy/src/git-env.ts
-var STRIP_PREFIXES = [
-  "GIT_DIR",
-  "GIT_WORK_TREE",
-  "GIT_COMMON_DIR",
-  "GIT_OBJECT_DIRECTORY",
-  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-  "GIT_INDEX_FILE",
-  "GIT_INDEX_VERSION",
-  "GIT_NAMESPACE",
-  "GIT_CEILING_DIRECTORIES",
-  "GIT_DISCOVERY_ACROSS_FILESYSTEM",
-  "GIT_CONFIG",
-  "GIT_CONFIG_GLOBAL",
-  "GIT_CONFIG_SYSTEM",
-  "GIT_CONFIG_NOSYSTEM",
-  "GIT_CONFIG_COUNT",
-  "GIT_CONFIG_KEY_",
-  "GIT_CONFIG_VALUE_",
-  "GIT_CONFIG_PARAMETERS",
-  "GIT_EXEC_PATH",
-  "GIT_TEMPLATE_DIR",
-  "GIT_PREFIX",
-  "GIT_SUPER_PREFIX",
-  "GIT_DIR_FINAL",
-  "GIT_WORK_TREE_FINAL",
-  "GIT_REPLACE_REF_BASE",
-  "GIT_SSH",
-  "GIT_SSH_COMMAND",
-  "GIT_TRACE",
-  "GIT_TRACE2",
-  "GIT_CURL_VERBOSE",
-  "GIT_HTTP_USER_AGENT",
-  "GIT_PROXY_COMMAND",
-  "GIT_SSL_NO_VERIFY",
-  "GIT_ATTR_SOURCE",
-  "GIT_OPTIONAL_LOCKS",
-  "GIT_TERMINAL_PROMPT",
-  "GIT_NO_REPLACE_OBJECTS"
-];
-function shouldStrip(key) {
-  if (!key.startsWith("GIT_")) return false;
-  for (const p of STRIP_PREFIXES) {
-    if (key === p || key.startsWith(p)) return true;
-  }
-  if (key.startsWith("GIT_AUTHOR_") || key.startsWith("GIT_COMMITTER_") || key === "GIT_EDITOR" || key === "GIT_PAGER" || key === "GIT_REFLOG_ACTION") {
-    return true;
-  }
-  return true;
-}
-function sanitizedGitEnv(base = process.env) {
-  const out = {};
-  for (const [k, v] of Object.entries(base)) {
-    if (v === void 0) continue;
-    if (shouldStrip(k)) continue;
-    out[k] = v;
-  }
-  out["GIT_NO_REPLACE_OBJECTS"] = "1";
-  out["GIT_TERMINAL_PROMPT"] = "0";
-  out["GIT_OPTIONAL_LOCKS"] = "0";
-  delete out["FORCE_COLOR"];
-  delete out["NO_COLOR"];
-  return out;
-}
-function gitArgv(args2) {
-  return ["--no-replace-objects", ...args2];
-}
-
-// packages/policy/src/architecture-git.ts
-import { execFile } from "node:child_process";
-
-// packages/policy/src/architecture-executable.ts
-function parseLsTreeLine(line) {
-  const trimmed = line.replace(/\0$/, "");
-  if (trimmed.length === 0) {
-    return {
-      present: false,
-      mode: null,
-      isExecutable: false,
-      isSymlink: false,
-      isSpecial: false
-    };
-  }
-  const tab = trimmed.indexOf("	");
-  if (tab < 0) return { error: true };
-  const meta = trimmed.slice(0, tab);
-  const parts2 = meta.split(" ");
-  if (parts2.length < 3) return { error: true };
-  const mode = parts2[0];
-  const type = parts2[1];
-  if (!/^[0-7]{6}$/.test(mode)) return { error: true };
-  if (type !== "blob" && type !== "tree" && type !== "commit") {
-    return { error: true };
-  }
-  if (type === "tree" || type === "commit" || mode === "160000") {
-    return {
-      present: true,
-      mode,
-      isExecutable: false,
-      isSymlink: false,
-      isSpecial: true
-    };
-  }
-  if (mode === "120000") {
-    return {
-      present: true,
-      mode,
-      isExecutable: false,
-      isSymlink: true,
-      isSpecial: false
-    };
-  }
-  if (mode === "100644" || mode === "100664") {
-    return {
-      present: true,
-      mode,
-      isExecutable: false,
-      isSymlink: false,
-      isSpecial: false
-    };
-  }
-  if (mode === "100755") {
-    return {
-      present: true,
-      mode,
-      isExecutable: true,
-      isSymlink: false,
-      isSpecial: false
-    };
-  }
-  return {
-    present: true,
-    mode,
-    isExecutable: false,
-    isSymlink: false,
-    isSpecial: true
-  };
-}
-
-// packages/policy/src/architecture-ts-inspect.ts
-var import_parser = __toESM(require_lib(), 1);
-var VALUE_TS_WRAPPERS = /* @__PURE__ */ new Set([
-  "TSAsExpression",
-  "TSTypeAssertion",
-  "TSNonNullExpression",
-  "TSSatisfiesExpression",
-  "TSInstantiationExpression"
-]);
-var VALUE_TS_NODES = /* @__PURE__ */ new Set([
-  ...VALUE_TS_WRAPPERS,
-  "TSModuleDeclaration",
-  "TSModuleBlock",
-  "TSEnumDeclaration",
-  "TSEnumMember",
-  "TSExportAssignment",
-  "TSImportEqualsDeclaration",
-  "TSExternalModuleReference",
-  "TSParameterProperty",
-  "TSDeclareFunction",
-  "TSDeclareMethod"
-]);
-
-// packages/policy/src/architecture-git.ts
-var GIT_TIMEOUT_MS = 15e3;
-var OWNED_CHILD_CANCEL_WAIT_MS2 = 5e3;
-var MAX_BLOB_BYTES = 32 * 1024 * 1024;
-var ArchitectureGitError = class {
-  constructor(reason) {
-    this.reason = reason;
-  }
-  _tag = "ArchitectureGitError";
-};
-var ArchitectureGit = class extends Context_exports.Tag("ArchitectureGit")() {
-};
-function sha40(s) {
-  const t = s.trim().toLowerCase();
-  if (!/^[0-9a-f]{40}$/.test(t)) {
-    throw new ArchitectureGitError("invalid_git_output");
-  }
-  return t;
-}
-var PRODUCTION_GIT_BINDING = {
-  executable: "git",
-  prefixArgs: []
-};
-var gitCommandBinding = PRODUCTION_GIT_BINDING;
-function cancelOwnedGitChild(child, controller, alreadyClosed, onClosed) {
-  return Effect_exports.async((resume2) => {
-    let done7 = false;
-    const finish = () => {
-      if (done7) return;
-      done7 = true;
-      resume2(Effect_exports.void);
-    };
-    const timer = setTimeout(finish, OWNED_CHILD_CANCEL_WAIT_MS2);
-    onClosed(() => {
-      clearTimeout(timer);
-      finish();
-    });
-    if (alreadyClosed()) {
-      clearTimeout(timer);
-      finish();
-    } else {
-      try {
-        controller.abort();
-      } catch {
-      }
-      if (child.pid !== void 0 && !child.killed) {
-        try {
-          child.kill("SIGTERM");
-        } catch {
-        }
-      }
-    }
-  });
-}
-function runGit(repoRoot, args2, maxBytes) {
-  return Effect_exports.async((resume2) => {
-    const controller = new AbortController();
-    let settled = false;
-    let child;
-    let childClosed = false;
-    let closeNotify;
-    const binding = gitCommandBinding;
-    const argv = [...binding.prefixArgs, ...gitArgv(args2)];
-    const timer = setTimeout(() => {
-      controller.abort();
-    }, GIT_TIMEOUT_MS);
-    const finish = (effect2) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resume2(effect2);
-    };
-    try {
-      child = execFile(
-        binding.executable,
-        argv,
-        {
-          cwd: repoRoot,
-          encoding: "buffer",
-          maxBuffer: maxBytes + 1,
-          windowsHide: true,
-          env: sanitizedGitEnv(),
-          signal: controller.signal
-        },
-        (err, stdout, stderr) => {
-          const outBuf = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout ?? "");
-          const errBuf = Buffer.isBuffer(stderr) ? stderr : Buffer.from(stderr ?? "");
-          if (controller.signal.aborted) {
-            finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
-            return;
-          }
-          if (err) {
-            const e = err;
-            if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" || /maxBuffer/i.test(String(e.message ?? ""))) {
-              finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
-              return;
-            }
-            let status = 1;
-            if (typeof e.code === "number" && e.code !== 0) {
-              status = e.code;
-            }
-            finish(
-              Effect_exports.succeed({
-                stdout: outBuf,
-                stderr: errBuf,
-                status
-              })
-            );
-            return;
-          }
-          if (outBuf.byteLength > maxBytes) {
-            finish(Effect_exports.fail(new ArchitectureGitError("oversize_output")));
-            return;
-          }
-          finish(
-            Effect_exports.succeed({
-              stdout: outBuf,
-              stderr: errBuf,
-              status: 0
-            })
-          );
-        }
-      );
-    } catch {
-      finish(Effect_exports.fail(new ArchitectureGitError("git_failure")));
-      return;
-    }
-    const owned = child;
-    owned.once("close", () => {
-      childClosed = true;
-      closeNotify?.();
-    });
-    return Effect_exports.suspend(() => {
-      if (settled) return Effect_exports.void;
-      settled = true;
-      clearTimeout(timer);
-      return cancelOwnedGitChild(
-        owned,
-        controller,
-        () => childClosed,
-        (cb) => {
-          closeNotify = cb;
-        }
-      );
-    });
-  });
-}
-function gitTextEffect(repoRoot, args2, maxBuffer = 4096) {
-  return Effect_exports.gen(function* () {
-    const r = yield* runGit(repoRoot, args2, maxBuffer);
-    if (r.status !== 0) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength > maxBuffer) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
-    }
-    return r.stdout.toString("utf8");
-  });
-}
-function gitBytesEffect(repoRoot, args2, maxBytes) {
-  return Effect_exports.gen(function* () {
-    const r = yield* runGit(repoRoot, args2, maxBytes);
-    if (r.status !== 0) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength > maxBytes) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
-    }
-    return new Uint8Array(
-      r.stdout.buffer,
-      r.stdout.byteOffset,
-      r.stdout.byteLength
-    );
-  });
-}
-function isLikelyAbsentObject(status, stderr) {
-  void stderr;
-  return status === 128;
-}
-var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
-  resolveIdentity: (repoRoot, baseRef) => Effect_exports.gen(function* () {
-    if (baseRef.length === 0 || baseRef.includes("\0") || baseRef.startsWith("-")) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("schema_mismatch"));
-    }
-    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
-    const head5 = sha40(headRaw);
-    const baseRaw = yield* gitTextEffect(repoRoot, [
-      "rev-parse",
-      "--verify",
-      baseRef
-    ]);
-    const base = sha40(baseRaw);
-    const mbRaw = yield* gitTextEffect(repoRoot, [
-      "merge-base",
-      base,
-      head5
-    ]);
-    const mergeBase = sha40(mbRaw);
-    return { head: head5, base, mergeBase };
-  }).pipe(
-    Effect_exports.mapError(
-      (e) => e instanceof ArchitectureGitError ? e : new ArchitectureGitError("git_failure")
-    )
-  ),
-  nameStatusDelta: (repoRoot, mergeBase, head5) => gitBytesEffect(
-    repoRoot,
-    ["diff", "--name-status", "-z", mergeBase, head5],
-    MAX_INPUT_BYTES
-  ),
-  listPaths: (repoRoot, commitOid) => gitBytesEffect(
-    repoRoot,
-    ["ls-tree", "-r", "-z", "--name-only", commitOid],
-    MAX_INPUT_BYTES
-  ),
-  treeEntry: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
-    const r = yield* runGit(
-      repoRoot,
-      ["ls-tree", "-z", commitOid, "--", path],
-      65536
-    );
-    if (r.status !== 0) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength === 0) {
-      return {
-        present: false,
-        mode: null,
-        isExecutable: false,
-        isSymlink: false,
-        isSpecial: false
-      };
-    }
-    let text;
-    try {
-      text = new TextDecoder("utf-8", { fatal: true }).decode(r.stdout);
-    } catch {
-      return yield* Effect_exports.fail(
-        new ArchitectureGitError("invalid_git_output")
-      );
-    }
-    const line = text.split("\0").find((p) => p.length > 0) ?? "";
-    const parsed = parseLsTreeLine(line);
-    if ("error" in parsed) {
-      return yield* Effect_exports.fail(
-        new ArchitectureGitError("invalid_git_output")
-      );
-    }
-    return parsed;
-  }),
-  catBlob: (repoRoot, commitOid, path) => Effect_exports.gen(function* () {
-    const entry = yield* Effect_exports.gen(function* () {
-      const r2 = yield* runGit(
-        repoRoot,
-        ["ls-tree", "-z", commitOid, "--", path],
-        65536
-      );
-      if (r2.status !== 0) {
-        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-      }
-      return r2.stdout.byteLength === 0 ? "absent" : "present";
-    });
-    if (entry === "absent") {
-      return null;
-    }
-    const maxBytes = path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js") ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
-    const r = yield* runGit(
-      repoRoot,
-      ["cat-file", "blob", `${commitOid}:${path}`],
-      maxBytes
-    );
-    if (r.status !== 0) {
-      if (isLikelyAbsentObject(r.status, r.stderr)) {
-        return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-      }
-      return yield* Effect_exports.fail(new ArchitectureGitError("git_failure"));
-    }
-    if (r.stdout.byteLength > maxBytes) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("oversize_output"));
-    }
-    return new Uint8Array(
-      r.stdout.buffer,
-      r.stdout.byteOffset,
-      r.stdout.byteLength
-    );
-  }),
-  recheckHead: (repoRoot, expectedHead) => Effect_exports.gen(function* () {
-    const headRaw = yield* gitTextEffect(repoRoot, ["rev-parse", "HEAD"]);
-    const head5 = sha40(headRaw);
-    if (head5 !== expectedHead) {
-      return yield* Effect_exports.fail(new ArchitectureGitError("head_moved"));
-    }
-  })
-});
-
-// packages/policy/src/install-verify-fs.ts
-import {
-  closeSync as closeSync4,
-  constants as fsConstants3,
-  fstatSync as fstatSync3,
-  lstatSync as lstatSync2,
-  openSync as openSync4,
-  readdirSync,
-  readSync as readSync3,
-  realpathSync
-} from "node:fs";
-var InstallFsError = class {
-  constructor(kind) {
-    this.kind = kind;
-  }
-  _tag = "InstallFsError";
-};
-var InstallFs = class extends Context_exports.Tag("InstallFs")() {
-};
-function identityFromStats(s) {
-  return {
-    dev: String(s.dev),
-    ino: String(s.ino),
-    size: s.size,
-    nlink: s.nlink,
-    mode: s.mode,
-    mtimeMs: s.mtimeMs,
-    ctimeMs: s.ctimeMs,
-    isFile: s.isFile(),
-    isDirectory: s.isDirectory(),
-    isSymbolicLink: s.isSymbolicLink()
-  };
-}
-function openFlags() {
-  const nofollow = typeof fsConstants3.O_NOFOLLOW === "number" ? fsConstants3.O_NOFOLLOW : 0;
-  return fsConstants3.O_RDONLY | nofollow;
-}
-function readFdBoundedSync(fd, maxBytes) {
-  const cap = maxBytes + 1;
-  const buf = Buffer.allocUnsafe(cap);
-  let offset = 0;
-  while (offset < cap) {
-    const n = readSync3(fd, buf, offset, cap - offset, offset);
-    if (n === 0) break;
-    offset += n;
-  }
-  if (offset > maxBytes) {
-    throw new InstallFsError("oversize");
-  }
-  return new Uint8Array(buf.buffer, buf.byteOffset, offset);
-}
-var liveInstallFs = Layer_exports.succeed(InstallFs, {
-  resolvePath: (path) => Effect_exports.try({
-    try: () => realpathSync(path),
-    catch: () => new InstallFsError("not_resolved")
-  }),
-  lstat: (path) => Effect_exports.try({
-    try: () => identityFromStats(lstatSync2(path)),
-    catch: (e) => {
-      const err = e;
-      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
-        return new InstallFsError("missing");
-      }
-      return new InstallFsError("unreadable");
-    }
-  }),
-  withOpenFile: (path, use) => Effect_exports.acquireUseRelease(
-    Effect_exports.try({
-      try: () => {
-        const fd = openSync4(path, openFlags());
-        try {
-          const st = fstatSync3(fd);
-          return { fd, identity: identityFromStats(st) };
-        } catch (e) {
-          closeSync4(fd);
-          throw e;
-        }
-      },
-      catch: (e) => {
-        if (e instanceof InstallFsError) return e;
-        const err = e;
-        if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
-          return new InstallFsError("missing");
-        }
-        return new InstallFsError("unreadable");
-      }
-    }),
-    ({ fd, identity: identity2 }) => use({
-      identity: identity2,
-      readBounded: (maxBytes) => Effect_exports.try({
-        try: () => readFdBoundedSync(fd, maxBytes),
-        catch: (e) => e instanceof InstallFsError ? e : new InstallFsError("unreadable")
-      }),
-      recheckIdentity: () => Effect_exports.try({
-        try: () => identityFromStats(fstatSync3(fd)),
-        catch: () => new InstallFsError("unreadable")
-      })
-    }),
-    ({ fd }) => Effect_exports.sync(() => {
-      try {
-        closeSync4(fd);
-      } catch {
-      }
-    })
-  ),
-  readdirNames: (path) => Effect_exports.try({
-    try: () => readdirSync(path),
-    catch: (e) => {
-      const err = e;
-      if (err && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
-        return new InstallFsError("missing");
-      }
-      return new InstallFsError("unreadable");
-    }
-  })
-});
-
-// packages/policy/src/release-coverage.ts
-var SCHEMA_VERSION = 1;
-var ONE_MIB = 1024 * 1024;
-var IMMUTABLE_BASELINE_COMMIT = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
-var TRACK1_PACKAGE = "openspec-superpowers-convergence";
-var TRACK1_KEY = `change:${TRACK1_PACKAGE}`;
-var ROADMAP_PATH = "ROADMAP.md";
-var OPENSPEC_PREFIX = "openspec/changes/";
-var CHANGE_PREFIX = "change:";
-var ROADMAP_PREFIX = "roadmap:";
-var ALLOWED_WORKFLOWS = /* @__PURE__ */ new Set([
-  "foreman-bounded",
-  "foreman-architectural"
-]);
-var SOURCE_KINDS = /* @__PURE__ */ new Set(["openspec_change", "roadmap"]);
-var DISPOSITIONS = /* @__PURE__ */ new Set([
-  "v040_owner",
-  "v040_dependency",
-  "released_reference",
-  "superseded",
-  "v050"
-]);
-var RECONCILES = /* @__PURE__ */ new Set(["complete", "required", "not_required"]);
-var TARGET_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5", "released"]);
-var ROADMAP_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
-var FUTURE_RELEASES = /* @__PURE__ */ new Set(["v0.4", "v0.5"]);
-var BRIEF_SCHEMA = "foreman.release-package-brief.v1";
-var BRIEF_KEYS = [
-  "acceptance",
-  "allowedPaths",
-  "childId",
-  "familySha256",
-  "objective",
-  "packageId",
-  "schema"
-];
-var TOP_LEVEL_FIELDS = /* @__PURE__ */ new Set([
-  "schema_version",
-  "baseline_commit",
-  "active_inventory_sha256",
-  "roadmap_sha256"
-]);
-var FUTURE_OWNER_FIELDS = /* @__PURE__ */ new Set(["name", "target_release", "reason"]);
-var ENTRY_FIELDS = /* @__PURE__ */ new Set([
-  "key",
-  "source_kind",
-  "source_path",
-  "disposition",
-  "owner",
-  "target_release",
-  "reconcile",
-  "reason"
-]);
-var encoder = new TextEncoder();
-function invalid(reason) {
-  return { schemaVersion: SCHEMA_VERSION, _tag: "Invalid", reason };
-}
-function valid(activeInventorySha256, roadmapSha256, entryCount) {
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    _tag: "Valid",
-    activeInventorySha256,
-    roadmapSha256,
-    entryCount
-  };
-}
-function utf8Bytes(text) {
-  return encoder.encode(text);
-}
-function utf8ByteLength(text) {
-  return utf8Bytes(text).byteLength;
-}
-function isPlainObject(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-function hasExactOwnKeys(value, keys5) {
-  const own = Object.keys(value);
-  if (own.length !== keys5.length) return false;
-  for (const key of keys5) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
-  }
-  return true;
-}
-function stripAsciiSpaces(text) {
-  let start3 = 0;
-  let end3 = text.length;
-  while (start3 < end3 && text.charCodeAt(start3) === 32) start3 += 1;
-  while (end3 > start3 && text.charCodeAt(end3 - 1) === 32) end3 -= 1;
-  return text.slice(start3, end3);
-}
-function isReadonlyStringArray(value) {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-function hasControlExcludingLf(text) {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code === 10) continue;
-    if (code < 32 || code === 127) return true;
-  }
-  return false;
-}
-function hasAnyControl(text) {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code < 32 || code === 127) return true;
-  }
-  return false;
-}
-function hasUnpairedSurrogate(text) {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code >= 55296 && code <= 56319) {
-      const next = text.charCodeAt(i + 1);
-      if (next < 56320 || next > 57343) return true;
-      i += 1;
-      continue;
-    }
-    if (code >= 56320 && code <= 57343) return true;
-  }
-  return false;
-}
-function isPrintableAscii(text) {
-  if (text.length === 0) return false;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code < 32 || code > 126) return false;
-  }
-  return true;
-}
-function isRunId(value) {
-  if (typeof value !== "string" || value.length === 0) return false;
-  if (utf8ByteLength(value) > 128) return false;
-  if (value.includes("/") || value.includes("\\") || value.includes("\0")) {
-    return false;
-  }
-  return true;
-}
-function decodeUtf8Unbounded(bytes) {
-  try {
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-      bytes
-    );
-  } catch {
-    return null;
-  }
-}
-function compareUtf8Bytes(a, b) {
-  const ab = utf8Bytes(a);
-  const bb = utf8Bytes(b);
-  const n = Math.min(ab.length, bb.length);
-  for (let i = 0; i < n; i++) {
-    if (ab[i] !== bb[i]) return ab[i] - bb[i];
-  }
-  return ab.length - bb.length;
-}
-function computeActiveInventorySha256(names) {
-  const sorted = [...names].sort(compareUtf8Bytes);
-  return sha256Hex(sorted.map((name) => `${name}
-`).join(""));
-}
-function bytesEqual(a, b) {
-  if (a.byteLength !== b.byteLength) return false;
-  for (let i = 0; i < a.byteLength; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-function parseBasicString(raw, start3) {
-  if (raw[start3] !== '"') return null;
-  let i = start3 + 1;
-  let out = "";
-  while (i < raw.length) {
-    const ch = raw[i];
-    if (ch === '"') {
-      if (hasAnyControl(out) || hasUnpairedSurrogate(out)) return null;
-      return { value: out, end: i + 1 };
-    }
-    if (ch === "\\") {
-      i += 1;
-      if (i >= raw.length) return null;
-      const esc = raw[i];
-      switch (esc) {
-        case "\\":
-          out += "\\";
-          break;
-        case '"':
-          out += '"';
-          break;
-        case "b":
-          out += "\b";
-          break;
-        case "f":
-          out += "\f";
-          break;
-        case "n":
-          out += "\n";
-          break;
-        case "r":
-          out += "\r";
-          break;
-        case "t":
-          out += "	";
-          break;
-        case "u": {
-          const hex = raw.slice(i + 1, i + 5);
-          if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
-          const code = Number.parseInt(hex, 16);
-          if (code >= 55296 && code <= 57343) return null;
-          out += String.fromCharCode(code);
-          i += 4;
-          break;
-        }
-        default:
-          return null;
-      }
-      i += 1;
-      continue;
-    }
-    out += ch;
-    i += 1;
-  }
-  return null;
-}
-function parseInteger2(raw, start3) {
-  let i = start3;
-  if (i >= raw.length || raw[i] < "0" || raw[i] > "9") return null;
-  if (raw[i] === "0" && i + 1 < raw.length && raw[i + 1] >= "0" && raw[i + 1] <= "9") {
-    return null;
-  }
-  while (i < raw.length && raw[i] >= "0" && raw[i] <= "9") i += 1;
-  const text = raw.slice(start3, i);
-  if (text.length > 10) return null;
-  const value = Number.parseInt(text, 10);
-  if (!Number.isSafeInteger(value)) return null;
-  return { value, end: i };
-}
-function parseAssignmentLine(line) {
-  const eq = line.indexOf("=");
-  if (eq <= 0) return null;
-  const key = stripAsciiSpaces(line.slice(0, eq));
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return null;
-  const rest = stripAsciiSpaces(line.slice(eq + 1));
-  if (rest.length === 0) return null;
-  if (rest[0] === '"') {
-    const parsed = parseBasicString(rest, 0);
-    if (parsed === null) return null;
-    if (stripAsciiSpaces(rest.slice(parsed.end)) !== "") return null;
-    return { key, kind: "string", value: parsed.value };
-  }
-  const parsedInt = parseInteger2(rest, 0);
-  if (parsedInt === null) return null;
-  if (stripAsciiSpaces(rest.slice(parsedInt.end)) !== "") return null;
-  return { key, kind: "integer", value: parsedInt.value };
-}
-function isNonemptyReason(value) {
-  return value.length > 0 && !hasAnyControl(value) && utf8ByteLength(value) <= 16384;
-}
-function validateDispositionCrossField(entry) {
-  const { disposition, targetRelease, reconcile, sourceKind, key, owner } = entry;
-  if (disposition === "v040_owner" || disposition === "v040_dependency") {
-    if (targetRelease !== "v0.4") return false;
-    if (reconcile !== "required" && reconcile !== "complete") return false;
-    return true;
-  }
-  if (disposition === "v050") {
-    return targetRelease === "v0.5" && reconcile === "not_required";
-  }
-  if (disposition === "released_reference") {
-    return targetRelease === "released" && reconcile === "complete";
-  }
-  if (disposition === "superseded") {
-    if (reconcile !== "complete") return false;
-    if (sourceKind === "openspec_change") {
-      if (!key.startsWith(CHANGE_PREFIX)) return false;
-      const sourcePackage = key.slice(CHANGE_PREFIX.length);
-      if (owner === sourcePackage) return false;
-    }
-    return true;
-  }
-  return false;
-}
-function parseRegister(text) {
-  if (typeof text !== "string") return "invalid_register";
-  if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
-  if (hasControlExcludingLf(text)) return "invalid_register";
-  const lines = text.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") {
-    lines.pop();
-  }
-  const top = {};
-  const futureOwners = [];
-  const entries2 = [];
-  let mode = "top";
-  let current = null;
-  let sawTable = false;
-  const flushCurrent = () => {
-    if (mode === "top" || current === null) return true;
-    if (mode === "future_owner") {
-      for (const field of FUTURE_OWNER_FIELDS) {
-        if (!(field in current)) return false;
-      }
-      for (const key2 of Object.keys(current)) {
-        if (!FUTURE_OWNER_FIELDS.has(key2)) return false;
-      }
-      const name = current["name"];
-      const targetRelease2 = current["target_release"];
-      const reason2 = current["reason"];
-      if (typeof name !== "string" || typeof targetRelease2 !== "string" || typeof reason2 !== "string") {
-        return false;
-      }
-      if (!isRunId(name) || !FUTURE_RELEASES.has(targetRelease2) || !isNonemptyReason(reason2)) {
-        return false;
-      }
-      futureOwners.push({ name, targetRelease: targetRelease2, reason: reason2 });
-      current = null;
-      return true;
-    }
-    for (const field of ENTRY_FIELDS) {
-      if (!(field in current)) return false;
-    }
-    for (const key2 of Object.keys(current)) {
-      if (!ENTRY_FIELDS.has(key2)) return false;
-    }
-    const key = current["key"];
-    const sourceKind = current["source_kind"];
-    const sourcePath = current["source_path"];
-    const disposition = current["disposition"];
-    const owner = current["owner"];
-    const targetRelease = current["target_release"];
-    const reconcile = current["reconcile"];
-    const reason = current["reason"];
-    if (typeof key !== "string" || typeof sourceKind !== "string" || typeof sourcePath !== "string" || typeof disposition !== "string" || typeof owner !== "string" || typeof targetRelease !== "string" || typeof reconcile !== "string" || typeof reason !== "string") {
-      return false;
-    }
-    if (key.length === 0 || hasAnyControl(key) || utf8ByteLength(key) > 512) {
-      return false;
-    }
-    if (!SOURCE_KINDS.has(sourceKind)) return false;
-    if (sourcePath.length === 0 || hasAnyControl(sourcePath) || utf8ByteLength(sourcePath) > 4096) {
-      return false;
-    }
-    if (!DISPOSITIONS.has(disposition)) return false;
-    if (!isRunId(owner)) return false;
-    if (!TARGET_RELEASES.has(targetRelease)) return false;
-    if (!RECONCILES.has(reconcile)) return false;
-    if (!isNonemptyReason(reason)) return false;
-    if (!validateDispositionCrossField({
-      sourceKind,
-      disposition,
-      owner,
-      targetRelease,
-      reconcile,
-      key
-    })) {
-      return false;
-    }
-    entries2.push({
-      key,
-      sourceKind,
-      sourcePath,
-      disposition,
-      owner,
-      targetRelease,
-      reconcile,
-      reason
-    });
-    current = null;
-    return true;
-  };
-  for (const line of lines) {
-    if (line.length === 0) continue;
-    if (line.startsWith("[[") && line.endsWith("]]")) {
-      if (!flushCurrent()) return "invalid_register";
-      const name = line.slice(2, -2);
-      if (name === "future_owner") {
-        mode = "future_owner";
-        current = {};
-        sawTable = true;
-        continue;
-      }
-      if (name === "entry") {
-        mode = "entry";
-        current = {};
-        sawTable = true;
-        continue;
-      }
-      return "invalid_register";
-    }
-    if (line.startsWith("[") && line.endsWith("]")) {
-      return "invalid_register";
-    }
-    const assignment = parseAssignmentLine(line);
-    if (assignment === null) return "invalid_register";
-    if (!sawTable && mode === "top") {
-      if (!TOP_LEVEL_FIELDS.has(assignment.key)) return "invalid_register";
-      if (assignment.key in top) return "invalid_register";
-      if (assignment.key === "schema_version") {
-        if (assignment.kind !== "integer" || assignment.value !== 1) {
-          return "invalid_register";
-        }
-        top[assignment.key] = assignment.value;
-        continue;
-      }
-      if (assignment.kind !== "string") return "invalid_register";
-      const value = assignment.value;
-      if (assignment.key === "baseline_commit") {
-        if (!isCommitSha40(value) || value !== IMMUTABLE_BASELINE_COMMIT) {
-          return "invalid_register";
-        }
-      } else if (assignment.key === "active_inventory_sha256" || assignment.key === "roadmap_sha256") {
-        if (!isSha256Hex(value)) return "invalid_register";
-      }
-      top[assignment.key] = value;
-      continue;
-    }
-    if (mode === "top") return "invalid_register";
-    if (current === null) return "invalid_register";
-    if (assignment.key in current) return "invalid_register";
-    if (assignment.kind !== "string") return "invalid_register";
-    current[assignment.key] = assignment.value;
-  }
-  if (!flushCurrent()) return "invalid_register";
-  for (const field of TOP_LEVEL_FIELDS) {
-    if (!(field in top)) return "invalid_register";
-  }
-  if (entries2.length < 1) return "invalid_register";
-  return {
-    baselineCommit: top["baseline_commit"],
-    activeInventorySha256: top["active_inventory_sha256"],
-    roadmapSha256: top["roadmap_sha256"],
-    futureOwners,
-    entries: entries2
-  };
-}
-function validateKeyPathCoherence(entry) {
-  if (entry.sourceKind === "openspec_change") {
-    if (!entry.key.startsWith(CHANGE_PREFIX)) return false;
-    const name = entry.key.slice(CHANGE_PREFIX.length);
-    if (name.length === 0) return false;
-    if (entry.sourcePath !== `${OPENSPEC_PREFIX}${name}`) return false;
-    return true;
-  }
-  if (entry.sourceKind === "roadmap") {
-    if (!entry.key.startsWith(ROADMAP_PREFIX)) return false;
-    if (entry.sourcePath !== ROADMAP_PATH) return false;
-    return true;
-  }
-  return false;
-}
-function validateRoadmapRows(rows) {
-  const seen = /* @__PURE__ */ new Set();
-  for (const row of rows) {
-    if (!isPlainObject(row)) return false;
-    if (!hasExactOwnKeys(row, ["key", "scope", "release", "owner"])) {
-      return false;
-    }
-    const { key, scope: scope5, release, owner } = row;
-    if (typeof key !== "string" || typeof scope5 !== "string" || typeof release !== "string" || typeof owner !== "string") {
-      return false;
-    }
-    const keyBytes = utf8ByteLength(key);
-    if (keyBytes < 1 || keyBytes > 256) return false;
-    if (!key.startsWith(ROADMAP_PREFIX)) return false;
-    if (!isPrintableAscii(key)) return false;
-    const scopeBytes = utf8ByteLength(scope5);
-    if (scopeBytes < 1 || scopeBytes > 4096) return false;
-    if (hasAnyControl(scope5)) return false;
-    if (!ROADMAP_RELEASES.has(release)) return false;
-    if (!isRunId(owner)) return false;
-    if (seen.has(key)) return false;
-    seen.add(key);
-  }
-  return true;
-}
-function pathIsCompetingPlan(path) {
-  return path === "docs/superpowers/specs" || path === "docs/superpowers/plans" || path.startsWith("docs/superpowers/specs/") || path.startsWith("docs/superpowers/plans/");
-}
-function isAllowedPathValue(path) {
-  if (!isPrintableAscii(path)) return false;
-  if (path.includes("\\")) return false;
-  if (path.startsWith("/")) return false;
-  if (/^[A-Za-z]:\//.test(path)) return false;
-  let body = path;
-  let directoryPrefix = false;
-  if (body.endsWith("/**")) {
-    directoryPrefix = true;
-    body = body.slice(0, -3);
-    if (body.length === 0) return false;
-  }
-  if (body.includes("*") || body.includes("?") || body.includes("[")) {
-    return false;
-  }
-  const segments = body.split("/");
-  if (segments.length === 0) return false;
-  for (const segment of segments) {
-    if (segment.length === 0) return false;
-    if (segment === "." || segment === "..") return false;
-  }
-  if (directoryPrefix && path !== `${body}/**`) return false;
-  return true;
-}
-function isValidObjective(value) {
-  const bytes = utf8ByteLength(value);
-  if (bytes < 1 || bytes > 16384) return false;
-  return !hasControlExcludingLf(value);
-}
-function isValidAcceptanceItem(value) {
-  const bytes = utf8ByteLength(value);
-  if (bytes < 1 || bytes > 4096) return false;
-  return !hasAnyControl(value);
-}
-function validateBriefShape(brief) {
-  if (!isPlainObject(brief)) return false;
-  const keys5 = Object.keys(brief).sort();
-  if (keys5.length !== BRIEF_KEYS.length) return false;
-  for (let i = 0; i < BRIEF_KEYS.length; i++) {
-    if (keys5[i] !== BRIEF_KEYS[i]) return false;
-  }
-  if (brief["schema"] !== BRIEF_SCHEMA) return false;
-  const familySha256 = brief["familySha256"];
-  const childId = brief["childId"];
-  const packageId = brief["packageId"];
-  const objective = brief["objective"];
-  const acceptance = brief["acceptance"];
-  const allowedPaths = brief["allowedPaths"];
-  if (typeof familySha256 !== "string" || !isSha256Hex(familySha256)) return false;
-  if (typeof childId !== "string" || !isRunId(childId)) return false;
-  if (typeof packageId !== "string" || !isRunId(packageId)) return false;
-  if (typeof objective !== "string" || !isValidObjective(objective)) return false;
-  if (!Array.isArray(acceptance) || acceptance.length < 1 || acceptance.length > 256) {
-    return false;
-  }
-  for (const item of acceptance) {
-    if (typeof item !== "string" || !isValidAcceptanceItem(item)) return false;
-  }
-  if (!Array.isArray(allowedPaths) || allowedPaths.length < 1 || allowedPaths.length > 256) {
-    return false;
-  }
-  const seen = /* @__PURE__ */ new Set();
-  let previous = null;
-  for (const path of allowedPaths) {
-    if (typeof path !== "string" || !isAllowedPathValue(path)) return false;
-    if (seen.has(path)) return false;
-    seen.add(path);
-    if (previous !== null && compareUtf8Bytes(previous, path) > 0) return false;
-    previous = path;
-  }
-  return true;
-}
-function canonicalBriefFileBytes(brief) {
-  try {
-    const body = canonicalize({
-      acceptance: brief.acceptance,
-      allowedPaths: brief.allowedPaths,
-      childId: brief.childId,
-      familySha256: brief.familySha256,
-      objective: brief.objective,
-      packageId: brief.packageId,
-      schema: brief.schema
-    });
-    return utf8Bytes(`${body}
-`);
-  } catch {
-    return null;
-  }
-}
-function validateCollectionShapes(input) {
-  if (typeof input.registerText !== "string") return false;
-  if (!(input.roadmapBytes instanceof Uint8Array)) return false;
-  if (!isReadonlyStringArray(input.activeChangeNames)) return false;
-  if (!Array.isArray(input.roadmapRows)) return false;
-  if (!isPlainObject(input.workflowByChange)) return false;
-  for (const value of Object.values(input.workflowByChange)) {
-    if (value !== null && typeof value !== "string") return false;
-  }
-  if (!isReadonlyStringArray(input.changedSuperpowersPaths)) return false;
-  if (!isPlainObject(input.expectedBriefByOwner)) return false;
-  if (!isPlainObject(input.packageBriefBytesByOwner)) return false;
-  for (const value of Object.values(input.packageBriefBytesByOwner)) {
-    if (!(value instanceof Uint8Array)) return false;
-  }
-  if (!isPlainObject(input.phase)) return false;
-  const phase = input.phase;
-  const tag = phase["_tag"];
-  if (tag === "Bootstrap") {
-    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
-    if (phase["owner"] !== TRACK1_PACKAGE) return false;
-  } else if (tag === "Lane") {
-    if (!hasExactOwnKeys(phase, ["_tag", "owner"])) return false;
-    if (typeof phase["owner"] !== "string") return false;
-  } else if (tag === "Release") {
-    if (!hasExactOwnKeys(phase, ["_tag"])) return false;
-  } else {
-    return false;
-  }
-  return true;
-}
-function uniqueOwnersFromEntries(entries2) {
-  const names = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const entry of entries2) {
-    if (seen.has(entry.owner)) continue;
-    seen.add(entry.owner);
-    names.push(entry.owner);
-  }
-  return names;
-}
-function selectPhaseCoverage(phase, entries2, futureOwners) {
-  if (phase._tag === "Bootstrap") {
-    for (const entry of entries2) {
-      if (entry.key === TRACK1_KEY) {
-        return { entries: [entry], owners: uniqueOwnersFromEntries([entry]) };
-      }
-    }
-    return { entries: [], owners: [] };
-  }
-  if (phase._tag === "Lane") {
-    const selected2 = entries2.filter(
-      (entry) => entry.targetRelease === "v0.4" && entry.owner === phase.owner
-    );
-    return { entries: selected2, owners: uniqueOwnersFromEntries(selected2) };
-  }
-  const selected = entries2.filter((entry) => entry.targetRelease === "v0.4");
-  const owners = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const entry of selected) {
-    if (seen.has(entry.owner)) continue;
-    seen.add(entry.owner);
-    owners.push(entry.owner);
-  }
-  for (const future of futureOwners) {
-    if (future.targetRelease !== "v0.4") continue;
-    if (seen.has(future.name)) continue;
-    seen.add(future.name);
-    owners.push(future.name);
-  }
-  return { entries: selected, owners };
-}
-function inspectReleaseCoverageRegisterV1(input) {
-  const parsed = parseRegister(input.registerText);
-  if (parsed === "invalid_register") {
-    return { _tag: "Invalid", reason: "invalid_register" };
-  }
-  const selection = selectPhaseCoverage(
-    input.phase,
-    parsed.entries,
-    parsed.futureOwners
-  );
-  return {
-    _tag: "Valid",
-    baselineCommit: parsed.baselineCommit,
-    selectedOwners: [...selection.owners].sort(compareUtf8Bytes)
-  };
-}
-function validateReleaseCoverageV1(input) {
-  try {
-    if (!validateCollectionShapes(input)) {
-      return invalid("dependency_failure");
-    }
-    if (input.roadmapBytes.byteLength > ONE_MIB) {
-      return invalid("invalid_roadmap");
-    }
-    if (decodeUtf8Unbounded(input.roadmapBytes) === null) {
-      return invalid("invalid_roadmap");
-    }
-    const parsed = parseRegister(input.registerText);
-    if (parsed === "invalid_register") {
-      return invalid("invalid_register");
-    }
-    const keySet = /* @__PURE__ */ new Set();
-    for (const entry of parsed.entries) {
-      if (keySet.has(entry.key)) return invalid("duplicate_identity");
-      keySet.add(entry.key);
-    }
-    const futureNames = /* @__PURE__ */ new Set();
-    for (const owner of parsed.futureOwners) {
-      if (futureNames.has(owner.name)) return invalid("duplicate_identity");
-      futureNames.add(owner.name);
-    }
-    const openspecPaths = /* @__PURE__ */ new Set();
-    for (const entry of parsed.entries) {
-      if (entry.sourceKind !== "openspec_change") continue;
-      if (openspecPaths.has(entry.sourcePath)) {
-        return invalid("duplicate_identity");
-      }
-      openspecPaths.add(entry.sourcePath);
-    }
-    for (const entry of parsed.entries) {
-      if (!validateKeyPathCoherence(entry)) {
-        return invalid("invalid_register");
-      }
-    }
-    if (!validateRoadmapRows(input.roadmapRows)) {
-      return invalid("invalid_roadmap");
-    }
-    const activeNames = input.activeChangeNames;
-    const uniqueActive = /* @__PURE__ */ new Set();
-    for (const name of activeNames) {
-      if (uniqueActive.has(name)) return invalid("inventory_mismatch");
-      uniqueActive.add(name);
-    }
-    const openspecNames = /* @__PURE__ */ new Set();
-    for (const entry of parsed.entries) {
-      if (entry.sourceKind !== "openspec_change") continue;
-      const name = entry.key.slice(CHANGE_PREFIX.length);
-      openspecNames.add(name);
-    }
-    if (openspecNames.size !== uniqueActive.size) {
-      return invalid("inventory_mismatch");
-    }
-    for (const name of uniqueActive) {
-      if (!openspecNames.has(name)) return invalid("inventory_mismatch");
-    }
-    const activeInventorySha256 = computeActiveInventorySha256(activeNames);
-    if (activeInventorySha256 !== parsed.activeInventorySha256) {
-      return invalid("inventory_mismatch");
-    }
-    const roadmapSha256 = sha256Hex(input.roadmapBytes);
-    if (roadmapSha256 !== parsed.roadmapSha256) {
-      return invalid("roadmap_mismatch");
-    }
-    const roadmapEntries = parsed.entries.filter(
-      (entry) => entry.sourceKind === "roadmap"
-    );
-    const rowByKey = /* @__PURE__ */ new Map();
-    for (const row of input.roadmapRows) {
-      rowByKey.set(row.key, row);
-    }
-    if (roadmapEntries.length !== rowByKey.size) {
-      return invalid("roadmap_mismatch");
-    }
-    for (const entry of roadmapEntries) {
-      const row = rowByKey.get(entry.key);
-      if (row === void 0) return invalid("roadmap_mismatch");
-      if (row.owner !== entry.owner) return invalid("roadmap_mismatch");
-      if (row.release !== entry.targetRelease) return invalid("roadmap_mismatch");
-    }
-    for (const entry of parsed.entries) {
-      if (!uniqueActive.has(entry.owner) && !futureNames.has(entry.owner)) {
-        return invalid("unknown_owner");
-      }
-    }
-    for (const path of input.changedSuperpowersPaths) {
-      if (pathIsCompetingPlan(path)) return invalid("competing_plan");
-    }
-    const selection = selectPhaseCoverage(
-      input.phase,
-      parsed.entries,
-      parsed.futureOwners
-    );
-    const selected = selection.entries;
-    if (input.phase._tag === "Lane") {
-      if (!uniqueActive.has(input.phase.owner) && !futureNames.has(input.phase.owner)) {
-        return invalid("unknown_owner");
-      }
-      if (selected.length === 0) {
-        return invalid("unknown_owner");
-      }
-    }
-    if (input.phase._tag === "Bootstrap") {
-      const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
-      if (track1 === void 0 || track1.owner !== TRACK1_PACKAGE || track1.targetRelease !== "v0.4" || track1.reconcile !== "complete" || track1.disposition !== "v040_owner" || track1.sourceKind !== "openspec_change") {
-        return invalid("unreconciled");
-      }
-    }
-    for (const entry of selected) {
-      if (entry.reconcile === "required") return invalid("unreconciled");
-    }
-    const owners = selection.owners;
-    for (const owner of owners) {
-      const workflow = input.workflowByChange[owner];
-      if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
-        return invalid("workflow_mismatch");
-      }
-    }
-    const expectedKeys = Object.keys(input.expectedBriefByOwner);
-    const bytesKeys = Object.keys(input.packageBriefBytesByOwner);
-    if (input.phase._tag === "Bootstrap") {
-      if (expectedKeys.length !== 0 || bytesKeys.length !== 0) {
-        return invalid("brief_mismatch");
-      }
-    } else {
-      const ownerSet = new Set(owners);
-      if (expectedKeys.length !== ownerSet.size || bytesKeys.length !== ownerSet.size) {
-        return invalid("brief_mismatch");
-      }
-      for (const key of expectedKeys) {
-        if (!ownerSet.has(key)) return invalid("brief_mismatch");
-      }
-      for (const key of bytesKeys) {
-        if (!ownerSet.has(key)) return invalid("brief_mismatch");
-      }
-      for (const owner of owners) {
-        const brief = input.expectedBriefByOwner[owner];
-        const bytes = input.packageBriefBytesByOwner[owner];
-        if (brief === void 0 || bytes === void 0) {
-          return invalid("brief_mismatch");
-        }
-        if (bytes.byteLength > ONE_MIB) return invalid("brief_mismatch");
-        if (decodeUtf8Unbounded(bytes) === null) return invalid("brief_mismatch");
-        if (!validateBriefShape(brief)) return invalid("brief_mismatch");
-        if (brief.packageId !== owner) return invalid("brief_mismatch");
-        const expectedBytes = canonicalBriefFileBytes(brief);
-        if (expectedBytes === null || !bytesEqual(expectedBytes, bytes)) {
-          return invalid("brief_mismatch");
-        }
-      }
-    }
-    return valid(activeInventorySha256, roadmapSha256, parsed.entries.length);
-  } catch {
-    return invalid("dependency_failure");
-  }
-}
-
-// packages/policy/src/release-authority.ts
-var ONE_MIB2 = 1048576;
-var PROGRAM = "v040";
-var EVAL_PACKAGE = "graph-eval-falsification";
-var EVAL_CHILD = "v040-t8-evaluation";
-var MANIFEST_SCHEMA = "foreman.approved-openspec.v1";
-var encoder2 = new TextEncoder();
-var RELEASE_ACTIONS = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "provider_retry",
-  "resume",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var ORDINARY_ACTIONS = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var CHECK_STATUSES = ["PASS", "FAIL"];
-var AUDIT_VERDICTS = [
-  "APPROVED",
-  "WARNING",
-  "BLOCKED",
-  "UNVERIFIED"
-];
-var BLOCKING_AUDIT_VERDICTS = [
-  "WARNING",
-  "BLOCKED",
-  "UNVERIFIED"
-];
-var FINDING_SEVERITIES = ["low", "medium", "high", "critical"];
-var OUTCOME_STATUSES = ["PASS", "BLOCKING", "EXTERNAL_FAILURE"];
-var PASS_OUTCOME_ACTIONS = [
-  "verify",
-  "audit",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var BLOCKING_OUTCOME_ACTIONS = ["verify", "audit", "evaluate"];
-var COUNCIL_STATUSES = ["ADVICE", "BLOCKING"];
-var COUNCIL_RESERVATION_ACTIONS = [
-  "council",
-  "provider_retry",
-  "resume"
-];
-var EVAL_RESULTS = [
-  "PROMOTE",
-  "GRAPH_OFF_FAILED",
-  "GRAPH_OFF_INCONCLUSIVE",
-  "GRAPH_OFF_UNCOMPUTABLE"
-];
-var UTC_SECOND2 = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$/;
-function invalidFile() {
-  return { _tag: "Invalid" };
-}
-function invalidManifest() {
-  return { _tag: "Invalid" };
-}
-function utf8Bytes2(text) {
-  return encoder2.encode(text);
-}
-function utf8ByteLength2(text) {
-  return utf8Bytes2(text).byteLength;
-}
-function isPlainObject2(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-function hasExactOwnKeys2(value, keys5) {
-  const own = Object.keys(value);
-  if (own.length !== keys5.length) return false;
-  for (const key of keys5) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) return false;
-  }
-  return true;
-}
-function isLeapYear2(y) {
-  return y % 4 === 0 && y % 100 !== 0 || y % 400 === 0;
-}
-function daysInMonth2(y, m) {
-  switch (m) {
-    case 1:
-    case 3:
-    case 5:
-    case 7:
-    case 8:
-    case 10:
-    case 12:
-      return 31;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-      return 30;
-    case 2:
-      return isLeapYear2(y) ? 29 : 28;
-    default:
-      return 0;
-  }
-}
-function isUtcSecondTimestamp2(s) {
-  if (typeof s !== "string" || s.length === 0) return false;
-  const m = UTC_SECOND2.exec(s);
-  if (!m) return false;
-  const year = Number(m[1]);
-  const month = Number(m[2]);
-  const day = Number(m[3]);
-  const hour = Number(m[4]);
-  const minute = Number(m[5]);
-  const second = Number(m[6]);
-  if (month < 1 || month > 12) return false;
-  const dim = daysInMonth2(year, month);
-  if (day < 1 || day > dim) return false;
-  if (hour > 23 || minute > 59 || second > 59) return false;
-  const utc = Date.UTC(year, month - 1, day, hour, minute, second);
-  if (!Number.isFinite(utc)) return false;
-  const check2 = new Date(utc);
-  return check2.getUTCFullYear() === year && check2.getUTCMonth() + 1 === month && check2.getUTCDate() === day && check2.getUTCHours() === hour && check2.getUTCMinutes() === minute && check2.getUTCSeconds() === second;
-}
-function hasForbiddenControl(text) {
-  for (let i = 0; i < text.length; i += 1) {
-    const code = text.charCodeAt(i);
-    if (code <= 31 || code === 127) return true;
-  }
-  return false;
-}
-function isIdentifier(value) {
-  if (typeof value !== "string") return false;
-  const bytes = utf8ByteLength2(value);
-  if (bytes < 1 || bytes > 128) return false;
-  if (hasForbiddenControl(value)) return false;
-  if (value.includes("/") || value.includes("\\")) return false;
-  return true;
-}
-function isFindingText(value, minBytes, maxBytes) {
-  if (typeof value !== "string") return false;
-  const bytes = utf8ByteLength2(value);
-  if (bytes < minBytes || bytes > maxBytes) return false;
-  if (hasForbiddenControl(value)) return false;
-  return true;
-}
-function isLiteral(value, allowed) {
-  return typeof value === "string" && allowed.includes(value);
-}
-function isSafeIntInRange(value, min3, max5) {
-  return typeof value === "number" && Number.isSafeInteger(value) && value >= min3 && value <= max5;
-}
-function parseCandidate(value) {
-  if (!isPlainObject2(value)) return null;
-  if (!hasExactOwnKeys2(value, ["commit", "tree", "candidateSha256"])) {
-    return null;
-  }
-  const commit = value["commit"];
-  const tree = value["tree"];
-  const candidateSha256 = value["candidateSha256"];
-  if (typeof commit !== "string" || !isCommitSha40(commit)) return null;
-  if (typeof tree !== "string" || !isCommitSha40(tree)) return null;
-  if (typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256)) {
-    return null;
-  }
-  if (sha256Hex(commit) !== candidateSha256) return null;
-  return { commit, tree, candidateSha256 };
-}
-function parseFinding(value) {
-  if (!isPlainObject2(value)) return null;
-  if (!hasExactOwnKeys2(value, [
-    "severity",
-    "file",
-    "line",
-    "summary",
-    "evidence"
-  ])) {
-    return null;
-  }
-  const severity = value["severity"];
-  const file = value["file"];
-  const line = value["line"];
-  const summary5 = value["summary"];
-  const evidence = value["evidence"];
-  if (!isLiteral(severity, FINDING_SEVERITIES)) return null;
-  if (!isFindingText(file, 1, 4096)) return null;
-  if (!isSafeIntInRange(line, 1, 2147483647)) return null;
-  if (!isFindingText(summary5, 1, 4096)) return null;
-  if (!isFindingText(evidence, 1, 16384)) return null;
-  return { severity, file, line, summary: summary5, evidence };
-}
-function parseFindings(value) {
-  if (!Array.isArray(value)) return null;
-  if (value.length > 100) return null;
-  const out = [];
-  for (const item of value) {
-    const finding = parseFinding(item);
-    if (finding === null) return null;
-    out.push(finding);
-  }
-  return out;
-}
-function parseEvaluationCounts(input) {
-  if (input.plannedRuns !== 2e3) return null;
-  if (!isSafeIntInRange(input.completedRuns, 0, 2e3)) return null;
-  if (!isSafeIntInRange(input.unavailableRuns, 0, 2e3)) return null;
-  if (!isSafeIntInRange(input.notRunRuns, 0, 2e3)) return null;
-  if (input.completedRuns + input.unavailableRuns + input.notRunRuns !== 2e3) {
-    return null;
-  }
-  return {
-    plannedRuns: 2e3,
-    completedRuns: input.completedRuns,
-    unavailableRuns: input.unavailableRuns,
-    notRunRuns: input.notRunRuns
-  };
-}
-function requireIssuedAt(value) {
-  if (typeof value !== "string" || !isUtcSecondTimestamp2(value)) return null;
-  return value;
-}
-function parseDesignApproval(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "designCommit",
-    "designTree",
-    "approvedOpenSpecSha256",
-    "taskPlanSha256",
-    "approvalStatementSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.design-approval.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (typeof value["designCommit"] !== "string" || !isCommitSha40(value["designCommit"])) {
-    return null;
-  }
-  if (typeof value["designTree"] !== "string" || !isCommitSha40(value["designTree"])) {
-    return null;
-  }
-  if (typeof value["approvedOpenSpecSha256"] !== "string" || !isSha256Hex(value["approvedOpenSpecSha256"])) {
-    return null;
-  }
-  if (typeof value["taskPlanSha256"] !== "string" || !isSha256Hex(value["taskPlanSha256"])) {
-    return null;
-  }
-  if (typeof value["approvalStatementSha256"] !== "string" || !isSha256Hex(value["approvalStatementSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.design-approval.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    designCommit: value["designCommit"],
-    designTree: value["designTree"],
-    approvedOpenSpecSha256: value["approvedOpenSpecSha256"],
-    taskPlanSha256: value["taskPlanSha256"],
-    approvalStatementSha256: value["approvalStatementSha256"],
-    issuedAt
-  };
-}
-function parseChecksEvidence(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "candidate",
-    "status",
-    "checksSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.checks-evidence.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (!isLiteral(value["status"], CHECK_STATUSES)) return null;
-  if (typeof value["checksSha256"] !== "string" || !isSha256Hex(value["checksSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.checks-evidence.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    candidate,
-    status: value["status"],
-    checksSha256: value["checksSha256"],
-    issuedAt
-  };
-}
-function parseReleaseAudit(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "candidate",
-    "verdict",
-    "findings",
-    "evidenceSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.release-audit.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (!isLiteral(value["verdict"], AUDIT_VERDICTS)) return null;
-  const findings = parseFindings(value["findings"]);
-  if (findings === null) return null;
-  if (typeof value["evidenceSha256"] !== "string" || !isSha256Hex(value["evidenceSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.release-audit.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    candidate,
-    verdict: value["verdict"],
-    findings,
-    evidenceSha256: value["evidenceSha256"],
-    issuedAt
-  };
-}
-function parseCouncilRequest(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "candidateSha256",
-    "questionSha256",
-    "constraintsSha256",
-    "optionsSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.council-request.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (typeof value["questionSha256"] !== "string" || !isSha256Hex(value["questionSha256"])) {
-    return null;
-  }
-  if (typeof value["constraintsSha256"] !== "string" || !isSha256Hex(value["constraintsSha256"])) {
-    return null;
-  }
-  if (typeof value["optionsSha256"] !== "string" || !isSha256Hex(value["optionsSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.council-request.v1",
-    program: PROGRAM,
-    packageId: value["packageId"],
-    candidateSha256: value["candidateSha256"],
-    questionSha256: value["questionSha256"],
-    constraintsSha256: value["constraintsSha256"],
-    optionsSha256: value["optionsSha256"],
-    issuedAt
-  };
-}
-function parseEvaluationAuthority(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "packageId",
-    "manifestSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.evaluation-authority.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (value["packageId"] !== EVAL_PACKAGE) return null;
-  if (typeof value["manifestSha256"] !== "string" || !isSha256Hex(value["manifestSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.evaluation-authority.v1",
-    program: PROGRAM,
-    packageId: EVAL_PACKAGE,
-    manifestSha256: value["manifestSha256"],
-    issuedAt
-  };
-}
-function parseReceipt(value) {
-  if (!isPlainObject2(value)) return null;
-  const schema = value["schema"];
-  if (schema === "foreman.design-approval.v1") {
-    return parseDesignApproval(value);
-  }
-  if (schema === "foreman.checks-evidence.v1") {
-    return parseChecksEvidence(value);
-  }
-  if (schema === "foreman.release-audit.v1") {
-    return parseReleaseAudit(value);
-  }
-  if (schema === "foreman.council-request.v1") {
-    return parseCouncilRequest(value);
-  }
-  if (schema === "foreman.evaluation-authority.v1") {
-    return parseEvaluationAuthority(value);
-  }
-  return null;
-}
-function parseActionOutcome(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "reservationAction",
-    "effectiveAction",
-    "reservationId",
-    "originReservationId",
-    "candidateSha256",
-    "status",
-    "evidenceSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.release-action-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (!isLiteral(value["reservationAction"], RELEASE_ACTIONS)) return null;
-  if (!isLiteral(value["effectiveAction"], RELEASE_ACTIONS)) return null;
-  const reservationAction = value["reservationAction"];
-  const effectiveAction = value["effectiveAction"];
-  const isWrapper = reservationAction === "provider_retry" || reservationAction === "resume";
-  if (isWrapper) {
-    if (!isLiteral(effectiveAction, ORDINARY_ACTIONS)) return null;
-  } else if (effectiveAction !== reservationAction) {
-    return null;
-  }
-  if (!isIdentifier(value["reservationId"])) return null;
-  if (!isIdentifier(value["originReservationId"])) return null;
-  const reservationId = value["reservationId"];
-  const originReservationId = value["originReservationId"];
-  if (!isWrapper && originReservationId !== reservationId) {
-    return null;
-  }
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (!isLiteral(value["status"], OUTCOME_STATUSES)) return null;
-  const status = value["status"];
-  if (status === "PASS") {
-    if (!isLiteral(effectiveAction, PASS_OUTCOME_ACTIONS)) return null;
-  } else if (status === "BLOCKING") {
-    if (!isLiteral(effectiveAction, BLOCKING_OUTCOME_ACTIONS)) return null;
-  }
-  if (typeof value["evidenceSha256"] !== "string" || !isSha256Hex(value["evidenceSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.release-action-outcome.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    packageId: value["packageId"],
-    reservationAction,
-    effectiveAction,
-    reservationId,
-    originReservationId,
-    candidateSha256: value["candidateSha256"],
-    status,
-    evidenceSha256: value["evidenceSha256"],
-    issuedAt
-  };
-}
-function parseCouncilOutcome(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "reservationAction",
-    "reservationId",
-    "originReservationId",
-    "candidateSha256",
-    "requestSha256",
-    "decisionSha256",
-    "status",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.council-outcome.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (!isLiteral(value["reservationAction"], COUNCIL_RESERVATION_ACTIONS)) {
-    return null;
-  }
-  const reservationAction = value["reservationAction"];
-  if (!isIdentifier(value["reservationId"])) return null;
-  if (!isIdentifier(value["originReservationId"])) return null;
-  const reservationId = value["reservationId"];
-  const originReservationId = value["originReservationId"];
-  if (reservationAction === "council" && originReservationId !== reservationId) {
-    return null;
-  }
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (typeof value["requestSha256"] !== "string" || !isSha256Hex(value["requestSha256"])) {
-    return null;
-  }
-  if (typeof value["decisionSha256"] !== "string" || !isSha256Hex(value["decisionSha256"])) {
-    return null;
-  }
-  if (!isLiteral(value["status"], COUNCIL_STATUSES)) return null;
-  const status = value["status"];
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.council-outcome.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    packageId: value["packageId"],
-    reservationAction,
-    reservationId,
-    originReservationId,
-    candidateSha256: value["candidateSha256"],
-    requestSha256: value["requestSha256"],
-    decisionSha256: value["decisionSha256"],
-    status,
-    issuedAt
-  };
-}
-function parseEvaluationVerdict(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "candidateSha256",
-    "authorityManifestSha256",
-    "evaluationAuthorityReceiptSha256",
-    "result",
-    "plannedRuns",
-    "completedRuns",
-    "unavailableRuns",
-    "notRunRuns",
-    "runSetSha256",
-    "reportSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.evaluation-verdict.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (value["childId"] !== EVAL_CHILD) return null;
-  if (value["packageId"] !== EVAL_PACKAGE) return null;
-  if (typeof value["candidateSha256"] !== "string" || !isSha256Hex(value["candidateSha256"])) {
-    return null;
-  }
-  if (typeof value["authorityManifestSha256"] !== "string" || !isSha256Hex(value["authorityManifestSha256"])) {
-    return null;
-  }
-  if (typeof value["evaluationAuthorityReceiptSha256"] !== "string" || !isSha256Hex(value["evaluationAuthorityReceiptSha256"])) {
-    return null;
-  }
-  if (!isLiteral(value["result"], EVAL_RESULTS)) return null;
-  const counts = parseEvaluationCounts({
-    plannedRuns: value["plannedRuns"],
-    completedRuns: value["completedRuns"],
-    unavailableRuns: value["unavailableRuns"],
-    notRunRuns: value["notRunRuns"]
-  });
-  if (counts === null) return null;
-  if (typeof value["runSetSha256"] !== "string" || !isSha256Hex(value["runSetSha256"])) {
-    return null;
-  }
-  if (typeof value["reportSha256"] !== "string" || !isSha256Hex(value["reportSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.evaluation-verdict.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: EVAL_CHILD,
-    packageId: EVAL_PACKAGE,
-    candidateSha256: value["candidateSha256"],
-    authorityManifestSha256: value["authorityManifestSha256"],
-    evaluationAuthorityReceiptSha256: value["evaluationAuthorityReceiptSha256"],
-    result: value["result"],
-    plannedRuns: counts.plannedRuns,
-    completedRuns: counts.completedRuns,
-    unavailableRuns: counts.unavailableRuns,
-    notRunRuns: counts.notRunRuns,
-    runSetSha256: value["runSetSha256"],
-    reportSha256: value["reportSha256"],
-    issuedAt
-  };
-}
-function parseCancelApproval(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "reasonSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.execution-child-cancel.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (typeof value["reasonSha256"] !== "string" || !isSha256Hex(value["reasonSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.execution-child-cancel.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    reasonSha256: value["reasonSha256"],
-    issuedAt
-  };
-}
-function parseInvalidateApproval(value) {
-  if (!hasExactOwnKeys2(value, [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "observedFamilySha256",
-    "reasonSha256",
-    "issuedAt"
-  ])) {
-    return null;
-  }
-  if (value["schema"] !== "foreman.execution-child-invalidate.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (typeof value["observedFamilySha256"] !== "string" || !isSha256Hex(value["observedFamilySha256"])) {
-    return null;
-  }
-  if (typeof value["reasonSha256"] !== "string" || !isSha256Hex(value["reasonSha256"])) {
-    return null;
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  return {
-    schema: "foreman.execution-child-invalidate.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    observedFamilySha256: value["observedFamilySha256"],
-    reasonSha256: value["reasonSha256"],
-    issuedAt
-  };
-}
-function parsePriorReservation(value) {
-  if (!isPlainObject2(value)) return null;
-  if (!hasExactOwnKeys2(value, [
-    "reservationId",
-    "originReservationId",
-    "originalAction",
-    "candidate",
-    "failureEvidenceSha256"
-  ])) {
-    return null;
-  }
-  if (!isIdentifier(value["reservationId"])) return null;
-  if (!isIdentifier(value["originReservationId"])) return null;
-  if (!isLiteral(value["originalAction"], ORDINARY_ACTIONS)) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (typeof value["failureEvidenceSha256"] !== "string" || !isSha256Hex(value["failureEvidenceSha256"])) {
-    return null;
-  }
-  return {
-    reservationId: value["reservationId"],
-    originReservationId: value["originReservationId"],
-    originalAction: value["originalAction"],
-    candidate,
-    failureEvidenceSha256: value["failureEvidenceSha256"]
-  };
-}
-function isDesignReceipt(receipt) {
-  return receipt.schema === "foreman.design-approval.v1";
-}
-function isChecksReceipt(receipt) {
-  return receipt.schema === "foreman.checks-evidence.v1";
-}
-function isAuditReceipt(receipt) {
-  return receipt.schema === "foreman.release-audit.v1";
-}
-function isCouncilRequestReceipt(receipt) {
-  return receipt.schema === "foreman.council-request.v1";
-}
-function isEvaluationAuthorityReceipt(receipt) {
-  return receipt.schema === "foreman.evaluation-authority.v1";
-}
-function receiptsMatchOrdinaryAction(action, receipts) {
-  switch (action) {
-    case "implement":
-    case "verify":
-      return receipts.length === 1 && isDesignReceipt(receipts[0]);
-    case "audit":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isChecksReceipt(receipts[1]) && receipts[1].status === "PASS";
-    case "correct": {
-      if (receipts.length !== 2 || !isDesignReceipt(receipts[0])) return false;
-      const second = receipts[1];
-      if (isChecksReceipt(second)) return second.status === "FAIL";
-      if (isAuditReceipt(second)) {
-        return isLiteral(second.verdict, BLOCKING_AUDIT_VERDICTS);
-      }
-      return false;
-    }
-    case "council":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isCouncilRequestReceipt(receipts[1]);
-    case "integrate":
-    case "publish":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isAuditReceipt(receipts[1]) && receipts[1].verdict === "APPROVED" && receipts[1].findings.length === 0;
-    case "evaluate":
-      return receipts.length === 2 && isDesignReceipt(receipts[0]) && isEvaluationAuthorityReceipt(receipts[1]);
-    case "provider_retry":
-    case "resume":
-      return false;
-  }
-}
-function parseEvidenceBundle(value) {
-  const hasPrior = Object.prototype.hasOwnProperty.call(
-    value,
-    "priorReservation"
-  );
-  const baseKeys = [
-    "schema",
-    "program",
-    "rootContractId",
-    "rootContractSha256",
-    "familySha256",
-    "childId",
-    "packageId",
-    "action",
-    "candidate",
-    "taskPlanSha256",
-    "receipts",
-    "issuedAt"
-  ];
-  const expectedKeys = hasPrior ? [...baseKeys, "priorReservation"] : baseKeys;
-  if (!hasExactOwnKeys2(value, expectedKeys)) return null;
-  if (value["schema"] !== "foreman.release-evidence-bundle.v1") return null;
-  if (value["program"] !== PROGRAM) return null;
-  if (!isIdentifier(value["rootContractId"])) return null;
-  if (typeof value["rootContractSha256"] !== "string" || !isSha256Hex(value["rootContractSha256"])) {
-    return null;
-  }
-  if (typeof value["familySha256"] !== "string" || !isSha256Hex(value["familySha256"])) {
-    return null;
-  }
-  if (!isIdentifier(value["childId"])) return null;
-  if (!isIdentifier(value["packageId"])) return null;
-  if (!isLiteral(value["action"], RELEASE_ACTIONS)) return null;
-  const candidate = parseCandidate(value["candidate"]);
-  if (candidate === null) return null;
-  if (typeof value["taskPlanSha256"] !== "string" || !isSha256Hex(value["taskPlanSha256"])) {
-    return null;
-  }
-  if (!Array.isArray(value["receipts"])) return null;
-  if (value["receipts"].length < 1 || value["receipts"].length > 2) return null;
-  const receipts = [];
-  for (const item of value["receipts"]) {
-    const receipt = parseReceipt(item);
-    if (receipt === null) return null;
-    receipts.push(receipt);
-  }
-  const issuedAt = requireIssuedAt(value["issuedAt"]);
-  if (issuedAt === null) return null;
-  const action = value["action"];
-  if (action === "provider_retry" || action === "resume") {
-    if (!hasPrior) return null;
-    const priorReservation = parsePriorReservation(value["priorReservation"]);
-    if (priorReservation === null) return null;
-    if (!receiptsMatchOrdinaryAction(priorReservation.originalAction, receipts)) {
-      return null;
-    }
-    return {
-      schema: "foreman.release-evidence-bundle.v1",
-      program: PROGRAM,
-      rootContractId: value["rootContractId"],
-      rootContractSha256: value["rootContractSha256"],
-      familySha256: value["familySha256"],
-      childId: value["childId"],
-      packageId: value["packageId"],
-      action,
-      candidate,
-      taskPlanSha256: value["taskPlanSha256"],
-      receipts,
-      priorReservation,
-      issuedAt
-    };
-  }
-  if (hasPrior) return null;
-  if (!receiptsMatchOrdinaryAction(action, receipts)) return null;
-  return {
-    schema: "foreman.release-evidence-bundle.v1",
-    program: PROGRAM,
-    rootContractId: value["rootContractId"],
-    rootContractSha256: value["rootContractSha256"],
-    familySha256: value["familySha256"],
-    childId: value["childId"],
-    packageId: value["packageId"],
-    action,
-    candidate,
-    taskPlanSha256: value["taskPlanSha256"],
-    receipts,
-    issuedAt
-  };
-}
-function parseAuthorityObject(value) {
-  if (!isPlainObject2(value)) return null;
-  const schema = value["schema"];
-  if (typeof schema !== "string") return null;
-  switch (schema) {
-    case "foreman.design-approval.v1":
-      return parseDesignApproval(value);
-    case "foreman.checks-evidence.v1":
-      return parseChecksEvidence(value);
-    case "foreman.release-audit.v1":
-      return parseReleaseAudit(value);
-    case "foreman.council-request.v1":
-      return parseCouncilRequest(value);
-    case "foreman.evaluation-authority.v1":
-      return parseEvaluationAuthority(value);
-    case "foreman.release-action-outcome.v1":
-      return parseActionOutcome(value);
-    case "foreman.council-outcome.v1":
-      return parseCouncilOutcome(value);
-    case "foreman.evaluation-verdict.v1":
-      return parseEvaluationVerdict(value);
-    case "foreman.execution-child-cancel.v1":
-      return parseCancelApproval(value);
-    case "foreman.execution-child-invalidate.v1":
-      return parseInvalidateApproval(value);
-    case "foreman.release-evidence-bundle.v1":
-      return parseEvidenceBundle(value);
-    default:
-      return null;
-  }
-}
-function decodeCanonicalObjectFile(bytes) {
-  if (bytes.byteLength > ONE_MIB2) return null;
-  const textOrFailure = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(textOrFailure)) return null;
-  const text = textOrFailure;
-  if (!text.endsWith("\n") || text.endsWith("\r\n")) return null;
-  const body = text.slice(0, -1);
-  if (body.endsWith("\n")) return null;
-  let parsed;
-  try {
-    parsed = parseJsonRejectDuplicateKeys(body);
-  } catch {
-    return null;
-  }
-  if (isCoreFailure(parsed)) return null;
-  let canonical;
-  try {
-    canonical = canonicalize(parsed);
-  } catch {
-    return null;
-  }
-  if (canonical !== body) return null;
-  return { value: parsed, sha256: sha256Hex(bytes) };
-}
-function compareUtf8(a, b) {
-  const ab = utf8Bytes2(a);
-  const bb = utf8Bytes2(b);
-  const n = Math.min(ab.byteLength, bb.byteLength);
-  for (let i = 0; i < n; i += 1) {
-    if (ab[i] !== bb[i]) return ab[i] - bb[i];
-  }
-  return ab.byteLength - bb.byteLength;
-}
-function isValidPackageRelativePath(path) {
-  if (typeof path !== "string" || path.length === 0) return false;
-  if (hasForbiddenControl(path)) return false;
-  if (path.includes("\\")) return false;
-  if (path.startsWith("/")) return false;
-  if (/^[A-Za-z]:\//.test(path)) return false;
-  const segments = path.split("/");
-  for (const segment of segments) {
-    if (segment.length === 0 || segment === "." || segment === "..") {
-      return false;
-    }
-  }
-  return true;
-}
-function classifyManifestPath(path) {
-  if (path === "proposal.md") return "proposal";
-  if (path === "design.md") return "design";
-  if (path === "tasks.md") return "tasks";
-  if (path.startsWith("specs/") && path.endsWith(".md") && path.length > "specs/".length + ".md".length) {
-    return "spec";
-  }
-  return "other";
-}
-function decodeReleaseAuthorityFileV1(bytes) {
-  try {
-    if (!(bytes instanceof Uint8Array)) return invalidFile();
-    const decoded = decodeCanonicalObjectFile(bytes);
-    if (decoded === null) return invalidFile();
-    const parsed = parseAuthorityObject(decoded.value);
-    if (parsed === null) return invalidFile();
-    return {
-      _tag: "Valid",
-      value: parsed,
-      sha256: decoded.sha256
-    };
-  } catch {
-    return invalidFile();
-  }
-}
-function buildApprovedOpenSpecManifestV1(input) {
-  try {
-    if (!isPlainObject2(input)) return invalidManifest();
-    if (!hasExactOwnKeys2(input, ["workflow", "files"])) return invalidManifest();
-    const workflow = input["workflow"];
-    if (workflow !== "foreman-architectural" && workflow !== "foreman-bounded") {
-      return invalidManifest();
-    }
-    const files = input["files"];
-    if (!Array.isArray(files) || files.length === 0) return invalidManifest();
-    const rows = [];
-    for (const row of files) {
-      if (!isPlainObject2(row)) return invalidManifest();
-      if (!hasExactOwnKeys2(row, ["path", "bytes"])) return invalidManifest();
-      const path = row["path"];
-      const bytes = row["bytes"];
-      if (typeof path !== "string") return invalidManifest();
-      if (!(bytes instanceof Uint8Array)) return invalidManifest();
-      if (!isValidPackageRelativePath(path)) return invalidManifest();
-      rows.push({ path, bytes });
-    }
-    for (let i = 0; i < rows.length; i += 1) {
-      if (i > 0 && compareUtf8(rows[i - 1].path, rows[i].path) >= 0) {
-        return invalidManifest();
-      }
-    }
-    let proposalCount = 0;
-    let designCount = 0;
-    let specCount = 0;
-    const manifestFiles = [];
-    for (const row of rows) {
-      const kind = classifyManifestPath(row.path);
-      if (kind === "tasks" || kind === "other") return invalidManifest();
-      if (kind === "design") {
-        if (workflow === "foreman-bounded") return invalidManifest();
-        designCount += 1;
-      } else if (kind === "proposal") {
-        proposalCount += 1;
-      } else if (kind === "spec") {
-        specCount += 1;
-      }
-      manifestFiles.push({
-        path: row.path,
-        sha256: sha256Hex(row.bytes)
-      });
-    }
-    if (proposalCount !== 1) return invalidManifest();
-    if (specCount < 1) return invalidManifest();
-    if (designCount > 1) return invalidManifest();
-    const manifest = {
-      schema: MANIFEST_SCHEMA,
-      files: manifestFiles
-    };
-    const digest = sha256Hex(utf8Bytes2(canonicalize(manifest)));
-    return { _tag: "Valid", manifest, sha256: digest };
-  } catch {
-    return invalidManifest();
-  }
-}
-
-// packages/policy/src/release-admission.ts
-var encoder3 = new TextEncoder();
-function invalidEvidence(reason) {
-  return { _tag: "Invalid", reason };
-}
-function refused(reason) {
-  return { schemaVersion: 1, _tag: "Refused", reason };
-}
-function compareUtf82(left3, right3) {
-  const a = encoder3.encode(left3);
-  const b = encoder3.encode(right3);
-  const length2 = Math.min(a.byteLength, b.byteLength);
-  for (let index = 0; index < length2; index += 1) {
-    const delta = a[index] - b[index];
-    if (delta !== 0) return delta;
-  }
-  return a.byteLength - b.byteLength;
-}
-function sameValue(left3, right3) {
-  try {
-    return canonicalize(left3) === canonicalize(right3);
-  } catch {
-    return false;
-  }
-}
-function canonicalFileSha256(value) {
-  try {
-    return sha256Hex(encoder3.encode(`${canonicalize(value)}
-`));
-  } catch {
-    return null;
-  }
-}
-function designReceipt(bundle) {
-  const receipt = bundle.receipts[0];
-  if (receipt?.schema !== "foreman.design-approval.v1") return null;
-  return receipt;
-}
-function receiptBindingFailure(bundle) {
-  for (const receipt of bundle.receipts) {
-    if (receipt.packageId !== bundle.packageId) return "wrong_package";
-    switch (receipt.schema) {
-      case "foreman.checks-evidence.v1":
-      case "foreman.release-audit.v1":
-        if (!sameValue(receipt.candidate, bundle.candidate)) {
-          return "wrong_candidate";
-        }
-        break;
-      case "foreman.council-request.v1":
-        if (receipt.candidateSha256 !== bundle.candidate.candidateSha256) {
-          return "wrong_candidate";
-        }
-        break;
-      case "foreman.evaluation-authority.v1":
-        if (bundle.packageId !== "graph-eval-falsification" || bundle.childId !== "v040-t8-evaluation") {
-          return "wrong_package";
-        }
-        break;
-      case "foreman.design-approval.v1":
-        break;
-    }
-  }
-  return null;
-}
-function checkEvidence(input, allowResolvedImplementationDescendant = false) {
-  if (typeof input !== "object" || input === null || !(input.evidenceBytes instanceof Uint8Array) || !(input.taskPlanBytes instanceof Uint8Array)) {
-    return invalidEvidence("invalid_evidence");
-  }
-  const decoded = decodeReleaseAuthorityFileV1(input.evidenceBytes);
-  if (decoded._tag !== "Valid") return invalidEvidence("invalid_evidence");
-  if (decoded.value.schema !== "foreman.release-evidence-bundle.v1") {
-    return invalidEvidence("invalid_evidence");
-  }
-  const bundle = decoded.value;
-  if (bundle.program !== "v040") return invalidEvidence("wrong_program");
-  if (bundle.action !== input.action) return invalidEvidence("wrong_action");
-  if (bundle.packageId !== input.packageId) {
-    return invalidEvidence("wrong_package");
-  }
-  if (!sameValue(bundle.candidate, input.candidate)) {
-    return invalidEvidence("wrong_candidate");
-  }
-  const design = designReceipt(bundle);
-  if (design === null) return invalidEvidence("invalid_evidence");
-  if (design.packageId !== bundle.packageId) {
-    return invalidEvidence("wrong_package");
-  }
-  const receiptFailure = receiptBindingFailure(bundle);
-  if (receiptFailure !== null) return invalidEvidence(receiptFailure);
-  if (bundle.action === "implement" && !allowResolvedImplementationDescendant && (bundle.candidate.commit !== design.designCommit || bundle.candidate.tree !== design.designTree)) {
-    return invalidEvidence("wrong_design_base");
-  }
-  const files = Object.entries(input.approvedOpenSpecBytes).map(([path, bytes]) => ({ path, bytes })).sort((left3, right3) => compareUtf82(left3.path, right3.path));
-  const manifest = buildApprovedOpenSpecManifestV1({
-    workflow: Object.prototype.hasOwnProperty.call(
-      input.approvedOpenSpecBytes,
-      "design.md"
-    ) ? "foreman-architectural" : "foreman-bounded",
-    files
-  });
-  if (manifest._tag !== "Valid" || manifest.sha256 !== design.approvedOpenSpecSha256) {
-    return invalidEvidence("approved_openspec_mismatch");
-  }
-  const taskPlanSha256 = sha256Hex(input.taskPlanBytes);
-  if (taskPlanSha256 !== design.taskPlanSha256 || taskPlanSha256 !== bundle.taskPlanSha256) {
-    return invalidEvidence("task_plan_mismatch");
-  }
-  let effectiveAction = bundle.action;
-  let priorReservationId = null;
-  let originReservationId = null;
-  if (bundle.action === "provider_retry" || bundle.action === "resume") {
-    const prior = bundle.priorReservation;
-    if (prior === void 0 || prior.originalAction === "provider_retry" || prior.originalAction === "resume" || !sameValue(prior.candidate, bundle.candidate)) {
-      return invalidEvidence("invalid_retry");
-    }
-    effectiveAction = prior.originalAction;
-    priorReservationId = prior.reservationId;
-    originReservationId = prior.originReservationId;
-  }
-  const receiptSha256s = [];
-  for (const receipt of bundle.receipts) {
-    const digest = canonicalFileSha256(receipt);
-    if (digest === null) return invalidEvidence("invalid_evidence");
-    receiptSha256s.push(digest);
-  }
-  const evaluation = bundle.receipts.find(
-    (receipt) => receipt.schema === "foreman.evaluation-authority.v1"
-  );
-  return {
-    _tag: "Valid",
-    checked: {
-      bundle,
-      bundleSha256: decoded.sha256,
-      receiptSchemas: bundle.receipts.map((receipt) => receipt.schema),
-      receiptSha256s,
-      effectiveAction,
-      priorReservationId,
-      originReservationId,
-      evaluationManifestSha256: evaluation?.schema === "foreman.evaluation-authority.v1" ? evaluation.manifestSha256 : null
-    }
-  };
-}
-function registrationMatches(checked, registered) {
-  const bundle = checked.bundle;
-  return registered.rootContractId === bundle.rootContractId && registered.rootContractSha256 === bundle.rootContractSha256 && registered.familySha256 === bundle.familySha256 && registered.childId === bundle.childId && registered.action === bundle.action && registered.effectiveAction === checked.effectiveAction && registered.priorReservationId === checked.priorReservationId && registered.originReservationId === checked.originReservationId && sameValue(registered.candidate, bundle.candidate) && registered.taskPlanSha256 === bundle.taskPlanSha256 && registered.bundleSha256 === checked.bundleSha256 && sameValue(registered.receiptSchemas, checked.receiptSchemas) && sameValue(registered.receiptSha256s, checked.receiptSha256s) && registered.evaluationManifestSha256 === checked.evaluationManifestSha256;
-}
-function evaluateReleaseAdmissionV1(input) {
-  try {
-    const decision = checkEvidence(input, true);
-    if (decision._tag === "Invalid") return refused(decision.reason);
-    if (input.registered === null) return refused("missing_registration");
-    if (!registrationMatches(decision.checked, input.registered)) {
-      return refused("registration_mismatch");
-    }
-    return { schemaVersion: 1, _tag: "Admitted" };
-  } catch {
-    return refused("invalid_evidence");
-  }
-}
-
-// packages/policy/src/release-admission-cli.ts
-import { execFile as execFile2 } from "node:child_process";
-import {
-  accessSync as accessSync2,
-  closeSync as closeSync5,
-  constants as fsConstants4,
-  fstatSync as fstatSync4,
-  lstatSync as lstatSync3,
-  openSync as openSync5,
-  readSync as readSync4,
-  realpathSync as realpathSync2,
-  statSync as statSync2
-} from "node:fs";
-import { devNull } from "node:os";
-import {
-  delimiter as delimiter2,
-  dirname as dirname3,
-  isAbsolute,
-  relative,
-  resolve,
-  sep
-} from "node:path";
-import { promisify } from "node:util";
-var ONE_MIB3 = 1048576;
-var encoder4 = new TextEncoder();
-var execFileAsync = promisify(execFile2);
-var GIT_TIMEOUT_MS2 = 15e3;
-function compareUtf83(left3, right3) {
-  const a = encoder4.encode(left3);
-  const b = encoder4.encode(right3);
-  const length2 = Math.min(a.byteLength, b.byteLength);
-  for (let index = 0; index < length2; index += 1) {
-    const delta = a[index] - b[index];
-    if (delta !== 0) return delta;
-  }
-  return a.byteLength - b.byteLength;
-}
-function isSha40(value) {
-  return /^[0-9a-f]{40}$/.test(value);
-}
-function readBoundedRegularFile(path, maxBytes) {
-  const noFollow = typeof fsConstants4.O_NOFOLLOW === "number" ? fsConstants4.O_NOFOLLOW : 0;
-  const descriptor3 = openSync5(path, fsConstants4.O_RDONLY | noFollow);
-  try {
-    const stat = fstatSync4(descriptor3);
-    if (!stat.isFile() || stat.isSymbolicLink()) {
-      throw new Error("authority file is not regular");
-    }
-    const buffer = Buffer.allocUnsafe(maxBytes + 1);
-    let offset = 0;
-    while (offset < buffer.byteLength) {
-      const count = readSync4(
-        descriptor3,
-        buffer,
-        offset,
-        buffer.byteLength - offset,
-        offset
-      );
-      if (count === 0) break;
-      offset += count;
-    }
-    if (offset > maxBytes) throw new Error("authority file is oversized");
-    return Uint8Array.from(buffer.subarray(0, offset));
-  } finally {
-    closeSync5(descriptor3);
-  }
-}
-function isContainedPath(root, path) {
-  const rel = relative(root, path);
-  return rel.length === 0 || !isAbsolute(rel) && rel !== ".." && !rel.startsWith(`..${sep}`);
-}
-function resolveTrustedGitContext(repository) {
-  const physicalRepository = realpathSync2(repository);
-  const searchPath = process.env.PATH;
-  if (searchPath === void 0) throw new Error("Git path is unavailable");
-  const executableNames = process.platform === "win32" ? ["git.exe"] : ["git"];
-  for (const entry of searchPath.split(delimiter2)) {
-    const directory = entry.length === 0 ? repository : isAbsolute(entry) ? entry : resolve(repository, entry);
-    for (const name of executableNames) {
-      const candidate = resolve(directory, name);
-      try {
-        lstatSync3(candidate);
-      } catch (error) {
-        if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
-          continue;
-        }
-        throw error;
-      }
-      const physicalExecutable = realpathSync2(candidate);
-      if (isContainedPath(repository, candidate) || isContainedPath(physicalRepository, physicalExecutable)) {
-        throw new Error("repository-selected Git is forbidden");
-      }
-      if (!statSync2(physicalExecutable).isFile()) {
-        throw new Error("Git executable is not a regular file");
-      }
-      accessSync2(
-        physicalExecutable,
-        process.platform === "win32" ? fsConstants4.F_OK : fsConstants4.X_OK
-      );
-      return {
-        repository: physicalRepository,
-        executable: physicalExecutable
-      };
-    }
-  }
-  throw new Error("Git executable is unavailable");
-}
-function closedGitEnvironment(executable) {
-  const base = { PATH: dirname3(executable) };
-  if (process.platform === "win32") base["PATHEXT"] = ".EXE";
-  const environment2 = sanitizedGitEnv(base);
-  environment2["GIT_CONFIG_NOSYSTEM"] = "1";
-  environment2["GIT_CONFIG_GLOBAL"] = devNull;
-  return environment2;
-}
-async function runGitBytes(context5, args2, maxBytes) {
-  const result = await execFileAsync(
-    context5.executable,
-    gitArgv([
-      "-c",
-      "core.fsmonitor=false",
-      "-c",
-      `core.excludesFile=${devNull}`,
-      ...args2
-    ]),
-    {
-      cwd: context5.repository,
-      encoding: "buffer",
-      env: closedGitEnvironment(context5.executable),
-      maxBuffer: maxBytes + 1,
-      timeout: GIT_TIMEOUT_MS2,
-      windowsHide: true
-    }
-  );
-  const stdout = Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout ?? "");
-  if (stdout.byteLength > maxBytes) throw new Error("Git output is oversized");
-  return Uint8Array.from(stdout);
-}
-async function resolveGitObject(context5, expression) {
-  const bytes = await runGitBytes(
-    context5,
-    ["rev-parse", "--verify", expression],
-    64
-  );
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text) || !/^[0-9a-f]{40}\n$/.test(text)) {
-    throw new Error("Git object identity is invalid");
-  }
-  return text.slice(0, -1);
-}
-async function isLinearDesignDescendant(context5, designCommit, candidateCommit) {
-  if (candidateCommit === designCommit) return true;
-  const bytes = await runGitBytes(
-    context5,
-    [
-      "rev-list",
-      "--ancestry-path",
-      "--parents",
-      `${designCommit}..${candidateCommit}`
-    ],
-    ONE_MIB3
-  );
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text) || text.length === 0 || !text.endsWith("\n")) {
-    return false;
-  }
-  const parents = /* @__PURE__ */ new Map();
-  for (const line of text.slice(0, -1).split("\n")) {
-    const fields = line.split(" ");
-    if (fields.length !== 2 || !isSha40(fields[0]) || !isSha40(fields[1])) {
-      return false;
-    }
-    parents.set(fields[0], fields[1]);
-  }
-  const visited = /* @__PURE__ */ new Set();
-  let cursor = candidateCommit;
-  while (cursor !== designCommit) {
-    if (visited.has(cursor)) return false;
-    visited.add(cursor);
-    const parent = parents.get(cursor);
-    if (parent === void 0) return false;
-    cursor = parent;
-  }
-  return true;
-}
-function parseNulPaths(bytes) {
-  if (bytes.byteLength === 0) return [];
-  const text = decodeUtf8Fatal(bytes);
-  if (isCoreFailure(text) || !text.endsWith("\0")) {
-    throw new Error("Git path frame is invalid");
-  }
-  const paths = text.slice(0, -1).split("\0");
-  if (paths.some(
-    (path) => path.length === 0 || /[\u0000-\u001f\u007f\\]/.test(path) || path.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
-  )) {
-    throw new Error("Git path is invalid");
-  }
-  return paths;
-}
-async function loadGitAuthorityLive(input) {
-  const context5 = resolveTrustedGitContext(input.repository);
-  const candidateCommit = await resolveGitObject(
-    context5,
-    `${input.candidateCommit}^{commit}`
-  );
-  if (candidateCommit !== input.candidateCommit) {
-    throw new Error("candidate identity changed");
-  }
-  const candidateTree = await resolveGitObject(
-    context5,
-    `${candidateCommit}^{tree}`
-  );
-  const designCommit = await resolveGitObject(
-    context5,
-    `${input.designCommit}^{commit}`
-  );
-  if (designCommit !== input.designCommit) {
-    throw new Error("design identity changed");
-  }
-  const designTree = await resolveGitObject(
-    context5,
-    `${designCommit}^{tree}`
-  );
-  const designLineageValid = await isLinearDesignDescendant(
-    context5,
-    designCommit,
-    candidateCommit
-  );
-  const prefix = `openspec/changes/${input.packageId}/`;
-  const listed = parseNulPaths(
-    await runGitBytes(
-      context5,
-      ["ls-tree", "-r", "-z", "--name-only", designCommit, "--", prefix],
-      ONE_MIB3
-    )
-  );
-  const retainedPaths = [];
-  let specCount = 0;
-  for (const path of listed) {
-    if (!path.startsWith(prefix)) throw new Error("Git path escaped package");
-    const relative3 = path.slice(prefix.length);
-    if (relative3 === "proposal.md" || relative3 === "design.md" || relative3 === "tasks.md" || relative3.startsWith("specs/")) {
-      retainedPaths.push(path);
-      if (relative3.startsWith("specs/")) specCount += 1;
-    }
-  }
-  if (specCount > input.maxSpecFiles) throw new Error("too many specifications");
-  let retainedBytes = 0;
-  let taskPlanBytes = null;
-  const approvedRows = [];
-  for (const path of retainedPaths) {
-    const bytes = await runGitBytes(
-      context5,
-      ["cat-file", "blob", `${designCommit}:${path}`],
-      input.maxBlobBytes
-    );
-    retainedBytes += bytes.byteLength;
-    if (retainedBytes > input.maxRetainedBytes) {
-      throw new Error("retained authority is oversized");
-    }
-    const relative3 = path.slice(prefix.length);
-    if (relative3 === "tasks.md") {
-      taskPlanBytes = bytes;
-    } else {
-      approvedRows.push({ path: relative3, bytes });
-    }
-  }
-  if (taskPlanBytes === null) throw new Error("task plan is missing");
-  approvedRows.sort((left3, right3) => compareUtf83(left3.path, right3.path));
-  const approvedOpenSpecBytes = {};
-  for (const row of approvedRows) approvedOpenSpecBytes[row.path] = row.bytes;
-  return {
-    candidate: {
-      commit: candidateCommit,
-      tree: candidateTree,
-      candidateSha256: sha256Hex(candidateCommit)
-    },
-    designTree,
-    designLineageValid,
-    approvedOpenSpecBytes,
-    taskPlanBytes
-  };
-}
-var liveReleaseAdmissionCliServices = {
-  readEvidence: (input) => Effect_exports.try({
-    try: () => readBoundedRegularFile(input.path, input.maxBytes),
-    catch: (error) => error
-  }),
-  loadGitAuthority: (input) => Effect_exports.tryPromise({
-    try: () => loadGitAuthorityLive(input),
-    catch: (error) => error
-  })
-};
-
-// packages/orchestration/src/release-policy.ts
-import { isAbsolute as isAbsolute3 } from "node:path";
-
 // packages/orchestration/src/release-coverage-cli.ts
-import {
-  closeSync as closeSync6,
-  constants as fsConstants5,
-  fstatSync as fstatSync5,
-  lstatSync as lstatSync4,
-  openSync as openSync6,
-  readSync as readSync5,
-  realpathSync as realpathSync3
-} from "node:fs";
-import { devNull as devNull2 } from "node:os";
-import {
-  dirname as dirname4,
-  isAbsolute as isAbsolute2,
-  join as join6,
-  posix,
-  relative as relative2,
-  resolve as resolve2,
-  sep as sep2,
-  win32
-} from "node:path";
-var ONE_MIB4 = 1048576;
-var EXIT_OK2 = 0;
+var ONE_MIB2 = 1048576;
+var EXIT_OK = 0;
 var EXIT_EVALUATED = 1;
 var EXIT_USAGE = 64;
 var USAGE_DIAGNOSTIC = "release-coverage: invalid invocation\n";
 var TRACK1_OWNER = "openspec-superpowers-convergence";
-var PROGRAM2 = "v040";
+var PROGRAM = "v040";
 var FAMILY_SCHEMA = "foreman.execution-family-source.v1";
 var CHILD_SCHEMA = "foreman.execution-child-brief.v1";
 var FAMILY_ID2 = "v040-release-20260822-f1";
@@ -38820,7 +36773,7 @@ var ROADMAP_SEPARATOR = "|---|---|---|---|";
 var OPENSPEC_LIST_ARGV = ["list", "--json"];
 var SUPERPOWERS_SPECS = "docs/superpowers/specs";
 var SUPERPOWERS_PLANS = "docs/superpowers/plans";
-var GIT_TIMEOUT_MS3 = 3e4;
+var GIT_TIMEOUT_MS2 = 3e4;
 var OPENSPEC_TIMEOUT_MS = 3e4;
 var TRANCHES = [2, 3, 4, 5, 6, 7, 8, 9];
 var encoder5 = new TextEncoder();
@@ -38865,7 +36818,7 @@ function physicalNodeBasenameIsTrusted(physicalNode, platform) {
 function findWorktreeRootLive(startPath) {
   let physical;
   try {
-    physical = realpathSync3(resolve2(startPath));
+    physical = realpathSync2(resolve(startPath));
   } catch {
     throw Object.assign(new Error("worktree start path is unreadable"), {
       _tag: "WorktreeRootUnavailable"
@@ -38873,7 +36826,7 @@ function findWorktreeRootLive(startPath) {
   }
   let stats;
   try {
-    stats = lstatSync4(physical);
+    stats = lstatSync3(physical);
   } catch {
     throw Object.assign(new Error("worktree start path is unreadable"), {
       _tag: "WorktreeRootUnavailable"
@@ -38889,7 +36842,7 @@ function findWorktreeRootLive(startPath) {
     const marker = join6(current, ".git");
     let markerStats;
     try {
-      markerStats = lstatSync4(marker);
+      markerStats = lstatSync3(marker);
     } catch (error) {
       if (!isEnoentLive(error)) {
         throw Object.assign(new Error("worktree marker is unreadable"), {
@@ -38910,7 +36863,7 @@ function findWorktreeRootLive(startPath) {
         _tag: "WorktreeRootUnavailable"
       });
     }
-    const parent = dirname4(current);
+    const parent = dirname3(current);
     if (parent === current) {
       throw Object.assign(new Error("no worktree root found"), {
         _tag: "WorktreeRootUnavailable"
@@ -38946,7 +36899,7 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
     }
     return Effect_exports.void;
   };
-  const resolveTrustedGitContext2 = (inputPath, mode) => Effect_exports.gen(function* () {
+  const resolveTrustedGitContext = (inputPath, mode) => Effect_exports.gen(function* () {
     const discovered = yield* dependencies.findWorktreeRoot(inputPath);
     const physicalInput = yield* dependencies.realpath(inputPath);
     const physicalRoot = yield* dependencies.realpath(discovered);
@@ -38980,8 +36933,8 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
         dependencies.platform,
         dependencies.nullDevice
       ),
-      maxOutputBytes: ONE_MIB4,
-      timeoutMs: GIT_TIMEOUT_MS3
+      maxOutputBytes: ONE_MIB2,
+      timeoutMs: GIT_TIMEOUT_MS2
     });
     const bytes = yield* requireCapturedStdoutBytes(captured);
     const top = parseGitTopLevel(bytes, dependencies.platform);
@@ -38997,7 +36950,7 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
   return {
     fileRead: {
       resolveRepositoryRoot: (path) => Effect_exports.gen(function* () {
-        const trusted = path === void 0 ? yield* resolveTrustedGitContext2(dependencies.cwd(), "bootstrap") : yield* resolveTrustedGitContext2(path, "explicit");
+        const trusted = path === void 0 ? yield* resolveTrustedGitContext(dependencies.cwd(), "bootstrap") : yield* resolveTrustedGitContext(path, "explicit");
         return yield* confirmGitReportedRoot(trusted);
       }),
       readBounded: (input) => Effect_exports.try({
@@ -39074,7 +37027,7 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
     },
     gitChangedPaths: {
       discover: (input) => Effect_exports.gen(function* () {
-        const trusted = yield* resolveTrustedGitContext2(
+        const trusted = yield* resolveTrustedGitContext(
           input.repository,
           "explicit"
         );
@@ -39097,8 +37050,8 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
             SUPERPOWERS_PLANS
           ]),
           env,
-          maxOutputBytes: ONE_MIB4,
-          timeoutMs: GIT_TIMEOUT_MS3
+          maxOutputBytes: ONE_MIB2,
+          timeoutMs: GIT_TIMEOUT_MS2
         });
         const trackedBytes = yield* requireCapturedStdoutBytes(tracked);
         const trackedPaths = parseNulDelimitedGitPaths(trackedBytes);
@@ -39116,8 +37069,8 @@ function makeLiveReleaseCoverageCliServices(dependencies) {
             SUPERPOWERS_PLANS
           ]),
           env,
-          maxOutputBytes: ONE_MIB4,
-          timeoutMs: GIT_TIMEOUT_MS3
+          maxOutputBytes: ONE_MIB2,
+          timeoutMs: GIT_TIMEOUT_MS2
         });
         const untrackedBytes = yield* requireCapturedStdoutBytes(untracked);
         const untrackedPaths = parseNulDelimitedGitPaths(untrackedBytes);
@@ -39143,14 +37096,14 @@ function dependencyFailure() {
 function emitEvaluated(io2, result) {
   io2.writeStdout(`${canonicalize(result)}
 `);
-  return result._tag === "Valid" ? EXIT_OK2 : EXIT_EVALUATED;
+  return result._tag === "Valid" ? EXIT_OK : EXIT_EVALUATED;
 }
-function utf8ByteLength3(text) {
+function utf8ByteLength2(text) {
   return encoder5.encode(text).byteLength;
 }
 function isRunId2(value) {
   if (typeof value !== "string" || value.length === 0) return false;
-  if (utf8ByteLength3(value) > 128) return false;
+  if (utf8ByteLength2(value) > 128) return false;
   if (value.includes("/") || value.includes("\\") || value.includes("\0")) {
     return false;
   }
@@ -39159,9 +37112,9 @@ function isRunId2(value) {
 function isNativeAbsolutePath(value) {
   if (typeof value !== "string" || value.length === 0) return false;
   if (value.includes("\0")) return false;
-  return isAbsolute2(value);
+  return isAbsolute(value);
 }
-function isPlainObject3(value) {
+function isPlainObject2(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
@@ -39171,7 +37124,7 @@ function isPlainObject3(value) {
 function isNotFoundError2(error) {
   return error !== null && typeof error === "object" && Object.prototype.hasOwnProperty.call(error, "_tag") && error._tag === "NotFound";
 }
-function hasExactOwnKeys3(value, keys5) {
+function hasExactOwnKeys2(value, keys5) {
   const own = Object.keys(value);
   if (own.length !== keys5.length) return false;
   for (const key of keys5) {
@@ -39245,12 +37198,12 @@ function isAllowedPathValue2(path) {
   return true;
 }
 function isValidObjective2(value) {
-  const bytes = utf8ByteLength3(value);
+  const bytes = utf8ByteLength2(value);
   if (bytes < 1 || bytes > 16384) return false;
   return !hasControlExcludingLf2(value);
 }
 function isValidAcceptanceItem2(value) {
-  const bytes = utf8ByteLength3(value);
+  const bytes = utf8ByteLength2(value);
   if (bytes < 1 || bytes > 4096) return false;
   return !hasAnyControl2(value);
 }
@@ -39270,10 +37223,10 @@ function parseArgv(argv) {
     seen.add(flag);
     raw[flag] = value;
   }
-  const program2 = raw["--program"];
+  const program = raw["--program"];
   const phase = raw["--phase"];
   const register = raw["--register"];
-  if (program2 !== PROGRAM2) return { _tag: "Invalid" };
+  if (program !== PROGRAM) return { _tag: "Invalid" };
   if (phase !== "bootstrap" && phase !== "lane" && phase !== "release") {
     return { _tag: "Invalid" };
   }
@@ -39407,7 +37360,7 @@ function readBoundedPort(fileRead, path, containmentRoot) {
   return Effect_exports.suspend(
     () => fileRead.readBounded({
       path,
-      maxBytes: ONE_MIB4,
+      maxBytes: ONE_MIB2,
       ...containmentRoot !== void 0 ? { containmentRoot } : {}
     })
   ).pipe(
@@ -39437,12 +37390,12 @@ function parseOpenSpecNames(bytes) {
   } catch {
     return null;
   }
-  if (!isPlainObject3(parsed)) return null;
+  if (!isPlainObject2(parsed)) return null;
   const changes = parsed["changes"];
   if (!Array.isArray(changes)) return null;
   const names = [];
   for (const item of changes) {
-    if (!isPlainObject3(item)) return null;
+    if (!isPlainObject2(item)) return null;
     const name = item["name"];
     if (typeof name !== "string") return null;
     names.push(name);
@@ -39497,21 +37450,21 @@ function resolveContainedPath(repository, segments) {
     if (segment.includes("/")) return null;
     if (segment === "." || segment === "..") return null;
   }
-  const absolute = resolve2(repository, ...segments);
-  const rel = relative2(repository, absolute);
+  const absolute = resolve(repository, ...segments);
+  const rel = relative(repository, absolute);
   if (rel.length === 0) return null;
-  if (isAbsolute2(rel)) return null;
+  if (isAbsolute(rel)) return null;
   if (rel === "..") return null;
-  if (rel.startsWith(`..${sep2}`)) return null;
+  if (rel.startsWith(`..${sep}`)) return null;
   return absolute;
 }
 function validateFamilySource(source) {
-  if (!isPlainObject3(source)) return false;
-  if (!hasExactOwnKeys3(source, ["schema", "program", "familyId", "children"])) {
+  if (!isPlainObject2(source)) return false;
+  if (!hasExactOwnKeys2(source, ["schema", "program", "familyId", "children"])) {
     return false;
   }
   if (source["schema"] !== FAMILY_SCHEMA) return false;
-  if (source["program"] !== PROGRAM2) return false;
+  if (source["program"] !== PROGRAM) return false;
   if (source["familyId"] !== FAMILY_ID2) return false;
   const children = source["children"];
   if (!Array.isArray(children) || children.length !== 8) return false;
@@ -39519,8 +37472,8 @@ function validateFamilySource(source) {
   const packageIds = /* @__PURE__ */ new Set();
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
-    if (!isPlainObject3(child)) return false;
-    if (!hasExactOwnKeys3(child, [
+    if (!isPlainObject2(child)) return false;
+    if (!hasExactOwnKeys2(child, [
       "schema",
       "childId",
       "tranche",
@@ -39621,7 +37574,7 @@ function evaluateReleaseCoverage(parsed, services) {
       () => services.openspecList.listJson({
         repository,
         argv: OPENSPEC_LIST_ARGV,
-        maxBytes: ONE_MIB4
+        maxBytes: ONE_MIB2
       })
     ).pipe(Effect_exports.either);
     if (openspecBytes._tag === "Left") return dependencyFailure();
@@ -39689,7 +37642,7 @@ function evaluateReleaseCoverage(parsed, services) {
       ).pipe(Effect_exports.either);
       if (family._tag === "Left") return dependencyFailure();
       const resolved = family.right;
-      if (!isPlainObject3(resolved)) {
+      if (!isPlainObject2(resolved)) {
         return dependencyFailure();
       }
       if (resolved.stateRoot !== parsed.stateRoot || resolved.contractId !== parsed.contractId || resolved.contractSha256 !== parsed.contractSha || resolved.familySha256 !== parsed.familySha) {
@@ -39766,8 +37719,8 @@ function runReleaseCoverageCli(argv, io2, services) {
   );
 }
 function boundedReadOpenFlagsLive() {
-  let flags = fsConstants5.O_RDONLY;
-  const c = fsConstants5;
+  let flags = fsConstants4.O_RDONLY;
+  const c = fsConstants4;
   if (typeof c.O_NONBLOCK === "number") flags |= c.O_NONBLOCK;
   if (typeof c.O_NOFOLLOW === "number") flags |= c.O_NOFOLLOW;
   return flags;
@@ -39776,11 +37729,11 @@ function isEnoentLive(error) {
   return error !== null && typeof error === "object" && "code" in error && error.code === "ENOENT";
 }
 function isInsideRootLive(root, path) {
-  const rel = relative2(root, path);
+  const rel = relative(root, path);
   if (rel.length === 0) return true;
-  if (isAbsolute2(rel)) return false;
+  if (isAbsolute(rel)) return false;
   if (rel === "..") return false;
-  return !rel.startsWith(`..${sep2}`);
+  return !rel.startsWith(`..${sep}`);
 }
 function readFailureLive(tag, message) {
   throw Object.assign(new Error(message), { _tag: tag });
@@ -39789,20 +37742,20 @@ function sameRegularFileIdentityLive(left3, right3) {
   return left3.isFile() && right3.isFile() && left3.dev === right3.dev && left3.ino === right3.ino && left3.size === right3.size && left3.mtimeMs === right3.mtimeMs && left3.ctimeMs === right3.ctimeMs;
 }
 function validateContainmentLive(path, containmentRoot) {
-  const absoluteRoot = resolve2(containmentRoot);
-  const absolutePath = resolve2(path);
+  const absoluteRoot = resolve(containmentRoot);
+  const absolutePath = resolve(path);
   if (!isInsideRootLive(absoluteRoot, absolutePath)) {
     readFailureLive("Containment", "path escapes containment root");
   }
-  const rel = relative2(absoluteRoot, absolutePath);
+  const rel = relative(absoluteRoot, absolutePath);
   if (rel.length !== 0) {
-    const segments = rel.split(sep2);
+    const segments = rel.split(sep);
     let current = absoluteRoot;
     for (let index = 0; index < segments.length; index++) {
-      current = resolve2(current, segments[index]);
+      current = resolve(current, segments[index]);
       let component;
       try {
-        component = lstatSync4(current);
+        component = lstatSync3(current);
       } catch (error) {
         if (isEnoentLive(error)) {
           readFailureLive("NotFound", "file not found");
@@ -39819,13 +37772,13 @@ function validateContainmentLive(path, containmentRoot) {
   }
   let physicalRoot;
   try {
-    physicalRoot = realpathSync3(absoluteRoot);
+    physicalRoot = realpathSync2(absoluteRoot);
   } catch {
     readFailureLive("Unreadable", "containment root is unreadable");
   }
   let physicalRootStats;
   try {
-    physicalRootStats = lstatSync4(physicalRoot);
+    physicalRootStats = lstatSync3(physicalRoot);
   } catch {
     readFailureLive("Unreadable", "physical containment root is unreadable");
   }
@@ -39834,7 +37787,7 @@ function validateContainmentLive(path, containmentRoot) {
   }
   let physicalPath;
   try {
-    physicalPath = realpathSync3(absolutePath);
+    physicalPath = realpathSync2(absolutePath);
   } catch (error) {
     if (isEnoentLive(error)) readFailureLive("NotFound", "file not found");
     throw error;
@@ -39851,7 +37804,7 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     }
     let before2;
     try {
-      before2 = lstatSync4(path);
+      before2 = lstatSync3(path);
     } catch (error) {
       if (isEnoentLive(error)) readFailureLive("NotFound", "file not found");
       throw error;
@@ -39859,14 +37812,14 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     if (before2.isSymbolicLink()) readFailureLive("Symlink", "leaf is a symlink");
     if (!before2.isFile()) readFailureLive("NotFile", "leaf is not a regular file");
     try {
-      fd = openSync6(path, boundedReadOpenFlagsLive());
+      fd = openSync5(path, boundedReadOpenFlagsLive());
     } catch (error) {
       if (isEnoentLive(error)) {
         readFailureLive("IdentityChanged", "leaf changed before open");
       }
       throw error;
     }
-    const opened = fstatSync5(fd);
+    const opened = fstatSync4(fd);
     if (!sameRegularFileIdentityLive(before2, opened)) {
       readFailureLive("IdentityChanged", "leaf identity changed during open");
     }
@@ -39874,20 +37827,20 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
     const buffer = Buffer.allocUnsafe(cap);
     let offset = 0;
     while (offset < cap) {
-      const count = readSync5(fd, buffer, offset, cap - offset, offset);
+      const count = readSync4(fd, buffer, offset, cap - offset, offset);
       if (count === 0) break;
       offset += count;
     }
     if (offset > maxBytes) readFailureLive("Oversize", "file exceeds the read bound");
     let afterOpen;
     try {
-      afterOpen = fstatSync5(fd);
+      afterOpen = fstatSync4(fd);
     } catch {
       readFailureLive("IdentityChanged", "opened descriptor became unreadable");
     }
     let afterPath;
     try {
-      afterPath = lstatSync4(path);
+      afterPath = lstatSync3(path);
     } catch {
       readFailureLive("IdentityChanged", "leaf changed after read");
     }
@@ -39901,7 +37854,7 @@ function readBoundedBytesLive(path, maxBytes, containmentRoot) {
   } finally {
     if (fd !== void 0) {
       try {
-        closeSync6(fd);
+        closeSync5(fd);
       } catch {
       }
     }
@@ -39960,7 +37913,7 @@ function isPhysicallyInsideRepository(repository, absolutePath, platform = proce
 function isSafeRelativeGitPath(path) {
   if (path.length === 0) return false;
   if (path.includes("\0")) return false;
-  if (isAbsolute2(path)) return false;
+  if (isAbsolute(path)) return false;
   if (path.startsWith("/")) return false;
   if (/^[A-Za-z]:[\\/]/.test(path)) return false;
   if (path.includes("\\")) return false;
@@ -40031,7 +37984,7 @@ var baseLiveReleaseCoverageCliServices = makeLiveReleaseCoverageCliServices({
     return yield* lookup.which(name);
   }).pipe(Effect_exports.provide(livePathLookup)),
   realpath: (path) => Effect_exports.try({
-    try: () => realpathSync3(path),
+    try: () => realpathSync2(path),
     catch: (error) => error
   }),
   findWorktreeRoot: (path) => Effect_exports.try({
@@ -40042,7 +37995,7 @@ var baseLiveReleaseCoverageCliServices = makeLiveReleaseCoverageCliServices({
   platform: process.platform,
   comSpec: process.env.ComSpec ?? process.env.COMSPEC,
   cwd: () => process.cwd(),
-  nullDevice: devNull2,
+  nullDevice: devNull,
   baseEnvironment: process.env
 });
 var liveReleaseCoverageCliServices = {
@@ -40062,7 +38015,7 @@ var liveReleaseCoverageCliServices = {
         "source.json"
       );
       const sourceBytes = yield* Effect_exports.try({
-        try: () => readBoundedBytesLive(sourcePath, ONE_MIB4),
+        try: () => readBoundedBytesLive(sourcePath, ONE_MIB2),
         catch: (error) => error
       });
       if (sha256Hex(sourceBytes) !== status.authority.sourceSha256 || status.family.manifest.sourceSha256 !== status.authority.sourceSha256) {
@@ -40085,561 +38038,7 @@ var liveReleaseCoverageCliServices = {
   }
 };
 
-// packages/orchestration/src/release-policy.ts
-var ONE_MIB5 = 1048576;
-var ACTIONS = [
-  "implement",
-  "verify",
-  "audit",
-  "correct",
-  "council",
-  "provider_retry",
-  "resume",
-  "integrate",
-  "publish",
-  "evaluate"
-];
-var RELEASE_POLICY_USAGE = "release-policy: invalid invocation\n";
-function stripProcessArgv(argv) {
-  if (argv[0] === "check") return argv;
-  return argv.slice(2);
-}
-function validId(value) {
-  return typeof value === "string" && typeof decodeRunId(value) === "string";
-}
-function parseReleasePolicyArgv(argv) {
-  const args2 = stripProcessArgv(argv);
-  if (args2.length !== 29 || args2[0] !== "check" || args2[1] !== "--endstop-state-root" || args2[3] !== "--endstop-contract-id" || args2[5] !== "--endstop-contract-sha" || args2[7] !== "--endstop-family-sha" || args2[9] !== "--endstop-child-id" || args2[11] !== "--endstop-action" || args2[13] !== "--endstop-candidate-sha" || args2[15] !== "--release-program" || args2[17] !== "--release-phase" || args2[19] !== "--release-owner" || args2[21] !== "--release-repo" || args2[23] !== "--release-candidate-commit" || args2[25] !== "--release-register" || args2[27] !== "--release-evidence") {
-    return { _tag: "Invalid" };
-  }
-  const [
-    stateRoot,
-    contractId,
-    contractSha256,
-    familySha256,
-    childId,
-    action,
-    candidateSha256,
-    program2,
-    phase,
-    owner,
-    repository,
-    candidateCommit,
-    register,
-    evidence
-  ] = [
-    args2[2],
-    args2[4],
-    args2[6],
-    args2[8],
-    args2[10],
-    args2[12],
-    args2[14],
-    args2[16],
-    args2[18],
-    args2[20],
-    args2[22],
-    args2[24],
-    args2[26],
-    args2[28]
-  ];
-  if (typeof stateRoot !== "string" || !isAbsolute3(stateRoot) || !validId(contractId) || typeof contractSha256 !== "string" || !isSha256Hex(contractSha256) || typeof familySha256 !== "string" || !isSha256Hex(familySha256) || !validId(childId) || typeof action !== "string" || !ACTIONS.includes(action) || typeof candidateSha256 !== "string" || !isSha256Hex(candidateSha256) || program2 !== "v040" || phase !== "bootstrap" && phase !== "lane" && phase !== "release" || !validId(owner) || typeof repository !== "string" || !isAbsolute3(repository) || typeof candidateCommit !== "string" || !isCommitSha40(candidateCommit) || typeof register !== "string" || !isAbsolute3(register) || typeof evidence !== "string" || !isAbsolute3(evidence) || candidateSha256 !== sha256Hex(candidateCommit)) {
-    return { _tag: "Invalid" };
-  }
-  return {
-    _tag: "Check",
-    block: {
-      stateRoot,
-      contractId,
-      contractSha256,
-      familySha256,
-      childId,
-      action,
-      candidateSha256,
-      program: program2,
-      phase,
-      owner,
-      repository,
-      candidateCommit,
-      register,
-      evidence
-    }
-  };
-}
-function releasePolicyBlockArgv(block) {
-  return [
-    "--endstop-state-root",
-    block.stateRoot,
-    "--endstop-contract-id",
-    block.contractId,
-    "--endstop-contract-sha",
-    block.contractSha256,
-    "--endstop-family-sha",
-    block.familySha256,
-    "--endstop-child-id",
-    block.childId,
-    "--endstop-action",
-    block.action,
-    "--endstop-candidate-sha",
-    block.candidateSha256,
-    "--release-program",
-    block.program,
-    "--release-phase",
-    block.phase,
-    "--release-owner",
-    block.owner,
-    "--release-repo",
-    block.repository,
-    "--release-candidate-commit",
-    block.candidateCommit,
-    "--release-register",
-    block.register,
-    "--release-evidence",
-    block.evidence
-  ];
-}
-function phaseForCoverage(block) {
-  if (block.phase === "release") return { _tag: "Release" };
-  if (block.phase === "bootstrap") {
-    return { _tag: "Bootstrap", owner: "openspec-superpowers-convergence" };
-  }
-  return { _tag: "Lane", owner: block.owner };
-}
-function sameCandidate2(left3, right3) {
-  return left3 !== null && left3.commit === right3.commit && left3.tree === right3.tree && left3.candidateSha256 === right3.candidateSha256;
-}
-function safeWrite(write, text) {
-  try {
-    write(text);
-  } catch {
-  }
-}
-function emit(io2, result) {
-  safeWrite(io2.writeStdout, `${canonicalize(result)}
-`);
-  return result._tag === "Admitted" ? 0 : 1;
-}
-function refused2(reason) {
-  return { schemaVersion: 1, _tag: "Refused", reason };
-}
-function runReleasePolicyCli(argv, io2, services) {
-  const program2 = Effect_exports.gen(function* () {
-    const parsed = parseReleasePolicyArgv(argv);
-    if (parsed._tag === "Invalid") {
-      safeWrite(io2.writeStderr, RELEASE_POLICY_USAGE);
-      return 64;
-    }
-    const block = parsed.block;
-    void phaseForCoverage(block);
-    const coverage = yield* services.checkCoverage(block);
-    if (coverage._tag !== "Valid") return emit(io2, refused2(coverage.reason));
-    const evidenceBytes = yield* services.readEvidence({
-      path: block.evidence,
-      maxBytes: ONE_MIB5
-    });
-    const decoded = decodeReleaseAuthorityFileV1(evidenceBytes);
-    const firstReceipt = decoded._tag === "Valid" && decoded.value.schema === "foreman.release-evidence-bundle.v1" ? decoded.value.receipts[0] : void 0;
-    if (decoded._tag !== "Valid" || decoded.value.schema !== "foreman.release-evidence-bundle.v1" || firstReceipt?.schema !== "foreman.design-approval.v1") {
-      return emit(io2, refused2("invalid_evidence"));
-    }
-    const bundle = decoded.value;
-    const design = firstReceipt;
-    if (bundle.rootContractId !== block.contractId || bundle.rootContractSha256 !== block.contractSha256 || bundle.familySha256 !== block.familySha256 || bundle.childId !== block.childId) {
-      return emit(io2, refused2("registration_mismatch"));
-    }
-    const git = yield* services.loadGitAuthority({
-      repository: block.repository,
-      candidateCommit: block.candidateCommit,
-      designCommit: design.designCommit,
-      packageId: block.owner,
-      maxBlobBytes: ONE_MIB5,
-      maxSpecFiles: 256,
-      maxRetainedBytes: 16 * ONE_MIB5
-    });
-    if (git.candidate.commit !== block.candidateCommit || git.candidate.candidateSha256 !== block.candidateSha256 || git.designTree !== design.designTree || !git.designLineageValid) {
-      return emit(io2, refused2("git_resolution_failure"));
-    }
-    const family = yield* services.resolveFamily({
-      stateRoot: block.stateRoot,
-      contractId: block.contractId,
-      contractSha256: block.contractSha256,
-      familySha256: block.familySha256,
-      childId: block.childId
-    });
-    if (family.packageId !== block.owner) {
-      return emit(io2, refused2("wrong_package"));
-    }
-    if (family.currentCandidate === null ? block.action !== "implement" || git.candidate.commit !== design.designCommit || git.candidate.tree !== design.designTree : !sameCandidate2(family.currentCandidate, git.candidate)) {
-      return emit(io2, refused2("wrong_candidate"));
-    }
-    const registered = family.registrations.find(
-      (item) => item.rootContractId === block.contractId && item.rootContractSha256 === block.contractSha256 && item.familySha256 === block.familySha256 && item.childId === block.childId && item.action === block.action && item.candidate.candidateSha256 === block.candidateSha256 && item.bundleSha256 === decoded.sha256
-    ) ?? null;
-    const result = evaluateReleaseAdmissionV1({
-      action: block.action,
-      packageId: block.owner,
-      candidate: git.candidate,
-      approvedOpenSpecBytes: git.approvedOpenSpecBytes,
-      taskPlanBytes: git.taskPlanBytes,
-      evidenceBytes,
-      registered
-    });
-    return emit(io2, result);
-  });
-  return program2.pipe(
-    Effect_exports.catchAllCause(
-      () => Effect_exports.sync(() => emit(io2, refused2("dependency_failure")))
-    )
-  );
-}
-function coverageArgv(block) {
-  if (block.phase === "bootstrap") {
-    return [
-      "check",
-      "--program",
-      "v040",
-      "--phase",
-      "bootstrap",
-      "--owner",
-      block.owner,
-      "--register",
-      block.register
-    ];
-  }
-  if (block.phase === "lane") {
-    return [
-      "check",
-      "--program",
-      "v040",
-      "--phase",
-      "lane",
-      "--owner",
-      block.owner,
-      "--repo",
-      block.repository,
-      "--state-root",
-      block.stateRoot,
-      "--contract-id",
-      block.contractId,
-      "--contract-sha",
-      block.contractSha256,
-      "--family-sha",
-      block.familySha256,
-      "--register",
-      block.register
-    ];
-  }
-  return [
-    "check",
-    "--program",
-    "v040",
-    "--phase",
-    "release",
-    "--repo",
-    block.repository,
-    "--state-root",
-    block.stateRoot,
-    "--contract-id",
-    block.contractId,
-    "--contract-sha",
-    block.contractSha256,
-    "--family-sha",
-    block.familySha256,
-    "--register",
-    block.register
-  ];
-}
-function decodeCoverageOutput(text) {
-  if (!text.endsWith("\n") || text.endsWith("\r\n")) return null;
-  const body = text.slice(0, -1);
-  const parsed = parseJsonRejectDuplicateKeys(body);
-  if (isCoreFailure(parsed) || canonicalize(parsed) !== body || typeof parsed !== "object" || parsed === null) {
-    return null;
-  }
-  const value = parsed;
-  if (value.schemaVersion !== 1 || value._tag !== "Valid" && value._tag !== "Invalid") {
-    return null;
-  }
-  return JSON.parse(body);
-}
-var liveReleasePolicyServices = {
-  checkCoverage: (block) => Effect_exports.gen(function* () {
-    let stdout = "";
-    let stderr = "";
-    const code = yield* runReleaseCoverageCli(
-      coverageArgv(block),
-      {
-        writeStdout: (text) => {
-          stdout += text;
-        },
-        writeStderr: (text) => {
-          stderr += text;
-        }
-      },
-      liveReleaseCoverageCliServices
-    );
-    const result = decodeCoverageOutput(stdout);
-    if (result === null || stderr !== "" || (result._tag === "Valid" ? code !== 0 : code !== 1)) {
-      return yield* Effect_exports.fail(new Error("coverage_failure"));
-    }
-    return result;
-  }),
-  readEvidence: (input) => liveReleaseAdmissionCliServices.readEvidence(input),
-  loadGitAuthority: (input) => liveReleaseAdmissionCliServices.loadGitAuthority(input),
-  resolveFamily: (input) => Effect_exports.gen(function* () {
-    const ledger = yield* EndstopLedger;
-    const status = yield* ledger.familyStatus({
-      rootContractId: input.contractId,
-      rootContractSha256: input.contractSha256,
-      familySha256: input.familySha256
-    });
-    const child = status.family.children[input.childId];
-    if (child === void 0) {
-      return yield* Effect_exports.fail(new Error("unknown_child"));
-    }
-    return {
-      packageId: child.contract.packageId,
-      currentCandidate: child.currentCandidate,
-      registrations: status.childAuthorities.filter(
-        (item) => item.childId === input.childId
-      )
-    };
-  }).pipe(Effect_exports.provide(makeLiveEndstopLedgerLayer(input.stateRoot)))
-};
-
-// packages/orchestration/src/queue-cli.ts
-var USAGE = ADD_USAGE;
-function stripNodeArgv(argv) {
-  let args2 = [...argv];
-  if (args2.length > 0 && (args2[0].endsWith("node") || args2[0].endsWith("node.exe") || args2[0].includes("/node") || args2[0].includes("\\node"))) {
-    args2 = args2.slice(1);
-  }
-  if (args2.length > 0 && (args2[0].endsWith(".js") || args2[0].endsWith(".ts") || args2[0].includes("lane-queue"))) {
-    args2 = args2.slice(1);
-  }
-  return args2;
-}
-function parseQueueArgv(argv) {
-  const args2 = stripNodeArgv(argv);
-  if (args2.length === 0) {
-    return { kind: "usage", message: USAGE };
-  }
-  const sub = args2[0];
-  switch (sub) {
-    case "ensure":
-      return { kind: "ensure" };
-    case "add": {
-      const group = args2[1];
-      if (group !== void 0) {
-        const hasPrior = args2[2] === "--endstop-prior-reservation-id";
-        const priorReservationId = hasPrior ? args2[3] : void 0;
-        const blockStart = hasPrior ? 4 : 2;
-        const separator = blockStart + 28;
-        if ((!hasPrior || typeof priorReservationId === "string" && typeof decodeRunId(priorReservationId) === "string") && args2[separator] === "--") {
-          const release = parseReleasePolicyArgv([
-            "check",
-            ...args2.slice(blockStart, separator)
-          ]);
-          const cmd2 = args2.slice(separator + 1);
-          if (release._tag === "Check" && cmd2.length > 0) {
-            return {
-              kind: "add",
-              group,
-              version: "v2",
-              release: release.block,
-              endstop: {
-                stateRoot: release.block.stateRoot,
-                contractId: release.block.contractId,
-                contractSha256: release.block.contractSha256,
-                action: release.block.action,
-                candidateSha256: release.block.candidateSha256
-              },
-              ...priorReservationId === void 0 ? {} : { priorReservationId },
-              cmd: cmd2
-            };
-          }
-        }
-      }
-      const stateRoot = args2[3];
-      const contractId = args2[5];
-      const contractSha256 = args2[7];
-      const action = args2[9];
-      const candidateSha256 = args2[11];
-      const valid2 = group !== void 0 && args2[2] === "--endstop-state-root" && typeof stateRoot === "string" && isAbsolute4(stateRoot) && args2[4] === "--endstop-contract-id" && typeof contractId === "string" && contractId.length > 0 && args2[6] === "--endstop-contract-sha" && typeof contractSha256 === "string" && isSha256Hex(contractSha256) && args2[8] === "--endstop-action" && typeof action === "string" && executionActionKinds.includes(action) && args2[10] === "--endstop-candidate-sha" && typeof candidateSha256 === "string" && isSha256Hex(candidateSha256) && args2[12] === "--";
-      const cmd = args2.slice(13);
-      if (!valid2 || cmd.length === 0) {
-        return { kind: "usage", message: USAGE };
-      }
-      return {
-        kind: "add",
-        group,
-        endstop: {
-          stateRoot,
-          contractId,
-          contractSha256,
-          action,
-          candidateSha256
-        },
-        cmd
-      };
-    }
-    case "status":
-      return { kind: "status", taskId: args2[1] };
-    case "kill": {
-      const taskId = args2[1];
-      if (taskId === void 0 || taskId.length === 0) {
-        return { kind: "usage", message: "usage: lane-queue.sh kill TASK_ID" };
-      }
-      return { kind: "kill", taskId };
-    }
-    default:
-      return { kind: "usage", message: USAGE };
-  }
-}
-function utcSecond(date) {
-  return date.toISOString().replace(/\.\d{3}Z$/u, "Z");
-}
-var cmdAddGuarded = (io2, parsed, options) => {
-  const layer = makeLiveEndstopLedgerLayer(parsed.endstop.stateRoot);
-  if (parsed.version === "v2" && parsed.release !== void 0) {
-    const checkPolicy = options.releasePolicy ?? ((block) => {
-      let stdout = "";
-      let stderr = "";
-      return runReleasePolicyCli(
-        ["check", ...releasePolicyBlockArgv(block)],
-        {
-          writeStdout: (text) => {
-            stdout += text;
-          },
-          writeStderr: (text) => {
-            stderr += text;
-          }
-        },
-        liveReleasePolicyServices
-      ).pipe(
-        Effect_exports.map(
-          (code) => code === 0 && stderr === "" && stdout === '{"_tag":"Admitted","schemaVersion":1}\n'
-        )
-      );
-    });
-    const reserveV2 = Effect_exports.gen(function* () {
-      const admitted = yield* checkPolicy(parsed.release);
-      if (!admitted) {
-        return yield* Effect_exports.fail(new Error("release_policy_refused"));
-      }
-      const ledger = yield* EndstopLedger;
-      const status = yield* ledger.familyStatus({
-        rootContractId: parsed.release.contractId,
-        rootContractSha256: parsed.release.contractSha256,
-        familySha256: parsed.release.familySha256
-      });
-      const child = status.family.children[parsed.release.childId];
-      if (child === void 0) {
-        return yield* Effect_exports.fail(new Error("unknown_child"));
-      }
-      const authority = status.childAuthorities.find(
-        (item) => item.childId === parsed.release.childId && item.action === parsed.release.action && item.candidate.candidateSha256 === parsed.release.candidateSha256 && (parsed.release.action === "provider_retry" || parsed.release.action === "resume" ? item.priorReservationId === parsed.priorReservationId : item.priorReservationId === null && parsed.priorReservationId === void 0)
-      );
-      if (authority === void 0) {
-        return yield* Effect_exports.fail(new Error("missing_authority"));
-      }
-      const reservationId = (options.reservationId ?? randomUUID2)();
-      const originReservationId = authority.originReservationId ?? reservationId;
-      return yield* ledger.executeChild({
-        rootContractId: parsed.release.contractId,
-        rootContractSha256: parsed.release.contractSha256,
-        familySha256: parsed.release.familySha256,
-        childId: parsed.release.childId,
-        operation: {
-          _tag: "ReserveAction",
-          reservationId,
-          reservationAction: authority.action,
-          effectiveAction: authority.effectiveAction,
-          originReservationId,
-          candidate: authority.candidate,
-          taskPlanSha256: authority.taskPlanSha256,
-          authorityBundleSha256: authority.bundleSha256
-        },
-        at: utcSecond((options.now ?? (() => /* @__PURE__ */ new Date()))())
-      });
-    }).pipe(Effect_exports.provide(layer));
-    return reserveV2.pipe(
-      Effect_exports.matchEffect({
-        onFailure: () => Effect_exports.sync(() => {
-          io2.writeStderr("Foreman release policy refused queue admission\n");
-          return EXIT_CONFIG;
-        }),
-        onSuccess: (result) => {
-          if (result.decision._tag !== "Accepted") {
-            return Effect_exports.sync(() => {
-              io2.writeStderr("Foreman Endstop refused child reservation\n");
-              return EXIT_CONFIG;
-            });
-          }
-          return cmdAdd(io2, parsed.group, parsed.cmd);
-        }
-      })
-    );
-  }
-  const reserve = Effect_exports.gen(function* () {
-    const ledger = yield* EndstopLedger;
-    return yield* ledger.execute(
-      parsed.endstop.contractId,
-      parsed.endstop.contractSha256,
-      {
-        _tag: "ReserveAction",
-        action: parsed.endstop.action,
-        candidateSha256: parsed.endstop.candidateSha256,
-        commandSha256: sha256Hex(canonicalize(parsed.cmd)),
-        reservationId: (options.reservationId ?? randomUUID2)(),
-        at: utcSecond((options.now ?? (() => /* @__PURE__ */ new Date()))())
-      }
-    );
-  }).pipe(Effect_exports.provide(layer));
-  return reserve.pipe(
-    Effect_exports.matchEffect({
-      onFailure: () => Effect_exports.sync(() => {
-        io2.writeStderr("Foreman Endstop refused queue admission (ledger failure)\n");
-        return EXIT_CONFIG;
-      }),
-      onSuccess: (result) => {
-        if (result.decision._tag !== "Accepted") {
-          return Effect_exports.sync(() => {
-            io2.writeStderr(
-              `Foreman Endstop refused queue admission (${result.state._tag})
-`
-            );
-            return EXIT_CONFIG;
-          });
-        }
-        return cmdAdd(io2, parsed.group, parsed.cmd);
-      }
-    })
-  );
-};
-var runQueueCli = (argv, io2, endstopOptions = {}) => Effect_exports.gen(function* () {
-  const parsed = parseQueueArgv(argv);
-  switch (parsed.kind) {
-    case "usage":
-      io2.writeStderr(parsed.message + "\n");
-      return EXIT_CONFIG;
-    case "ensure":
-      return yield* cmdEnsure(io2);
-    case "add":
-      return yield* cmdAddGuarded(io2, parsed, endstopOptions);
-    case "status":
-      return yield* cmdStatus(io2, parsed.taskId);
-    case "kill":
-      return yield* cmdKill(io2, parsed.taskId);
-    default: {
-      const _exhaustive = parsed;
-      void _exhaustive;
-      return EXIT_CONFIG;
-    }
-  }
-});
-
-// packages/orchestration/src/queue-main.ts
+// packages/orchestration/src/release-coverage-main.ts
 var io = {
   writeStdout: (text) => {
     process.stdout.write(text);
@@ -40648,15 +38047,20 @@ var io = {
     process.stderr.write(text);
   }
 };
-var program = runQueueCli(process.argv, io).pipe(
-  Effect_exports.provide(liveQueueServices)
-);
-Effect_exports.runPromise(program).then(
+var dependencyFailureLine = `${canonicalize({
+  schemaVersion: 1,
+  _tag: "Invalid",
+  reason: "dependency_failure"
+})}
+`;
+Effect_exports.runPromise(
+  runReleaseCoverageCli(process.argv, io, liveReleaseCoverageCliServices)
+).then(
   (code) => {
-    process.exit(code);
+    process.exitCode = code;
   },
   () => {
-    process.stderr.write("lane-queue: internal failure\n");
-    process.exit(1);
+    process.stdout.write(dependencyFailureLine);
+    process.exitCode = 1;
   }
 );
