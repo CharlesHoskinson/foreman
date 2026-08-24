@@ -379,6 +379,10 @@ function parseGraph(bytes: Uint8Array): ParsedGraph | null {
 }
 
 function normalizeGraph(graph: ParsedGraph): ParsedGraph {
+  const withoutDeferredCommunity = (node: ParsedNode): ParsedNode => {
+    const { community: _community, ...retained } = node;
+    return retained as ParsedNode;
+  };
   return {
     ...(graph.built_at_commit === undefined
       ? {}
@@ -393,7 +397,9 @@ function normalizeGraph(graph: ParsedGraph): ParsedGraph {
       ),
     ),
     multigraph: graph.multigraph,
-    nodes: [...graph.nodes].sort((left, right) => utf8Compare(left.id, right.id)),
+    nodes: graph.nodes
+      .map(withoutDeferredCommunity)
+      .sort((left, right) => utf8Compare(left.id, right.id)),
   };
 }
 

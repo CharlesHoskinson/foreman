@@ -452,6 +452,10 @@ function parseGraph(bytes) {
   };
 }
 function normalizeGraph(graph) {
+  const withoutDeferredCommunity = (node) => {
+    const { community: _community, ...retained } = node;
+    return retained;
+  };
   return {
     ...graph.built_at_commit === void 0 ? {} : { built_at_commit: graph.built_at_commit },
     directed: graph.directed,
@@ -464,7 +468,7 @@ function normalizeGraph(graph) {
       )
     ),
     multigraph: graph.multigraph,
-    nodes: [...graph.nodes].sort((left, right) => utf8Compare(left.id, right.id))
+    nodes: graph.nodes.map(withoutDeferredCommunity).sort((left, right) => utf8Compare(left.id, right.id))
   };
 }
 function graphHealth(graph) {

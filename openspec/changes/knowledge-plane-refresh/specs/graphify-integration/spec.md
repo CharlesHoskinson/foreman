@@ -7,6 +7,8 @@
 Foreman SHALL pin Graphify 0.9.48 and SHALL build two isolated code-only
 candidates from the same source commit and configuration before publication.
 The normalized graph bytes and normalized health report SHALL match.
+Normalization SHALL remove Graphify's nondeterministic numeric `community`
+field because community labelling is outside the v0.4 release.
 
 #### Scenario: Identical builds agree
 

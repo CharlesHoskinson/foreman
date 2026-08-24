@@ -164,6 +164,26 @@ test("qualification binds Graphify commit metadata and records external import p
   );
 });
 
+test("qualification removes nondeterministic deferred community labels", () => {
+  const first = {
+    ...GRAPH_A,
+    nodes: GRAPH_A.nodes.map((node, index) => ({ ...node, community: index + 1 })),
+  };
+  const second = {
+    ...GRAPH_A,
+    nodes: GRAPH_A.nodes.map((node, index) => ({ ...node, community: index + 20 })),
+  };
+  const result = qualifyGraphifyCandidateV1(
+    validInput({ graphBytesA: bytes(first), graphBytesB: bytes(second) }),
+  );
+  assert.equal(result._tag, "Qualified");
+  if (result._tag !== "Qualified") return;
+  const graph = JSON.parse(new TextDecoder().decode(result.graphBytes)) as {
+    nodes: Array<Record<string, unknown>>;
+  };
+  assert.equal(graph.nodes.every((node) => !("community" in node)), true);
+});
+
 test("qualification refuses each isolated invalid boundary", () => {
   const cases: ReadonlyArray<{
     readonly reason: string;

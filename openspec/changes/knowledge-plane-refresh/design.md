@@ -33,6 +33,9 @@ with one AST worker and no network or semantic backend. One raw extraction is
 used for pre-build checks. Two complete candidates are then built from the same
 commit and settings. The CLI normalizes ordered object keys and sorts nodes,
 links, and hyperedges by their stable identities before byte comparison.
+Graphify's automatically assigned numeric `community` labels differ across
+otherwise identical 0.9.48 runs. The normalizer removes that deferred
+clustering field before comparison and publication.
 
 ## Qualification
 
