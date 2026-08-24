@@ -161,72 +161,39 @@ type TrustedGitContext = {
   readonly physicalGit: string;
 };
 
-function copyOrdinaryEnvironment(
-  base: NodeJS.ProcessEnv,
-): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = {};
-  for (const [key, value] of Object.entries(base)) {
-    if (value === undefined) continue;
-    if (typeof value !== "string") continue;
-    out[key] = value;
-  }
-  return out;
-}
-
-function stripEnvironmentKeysByUpperPrefix(
-  environment: NodeJS.ProcessEnv,
-  matchers: readonly string[],
-): void {
-  for (const key of Object.keys(environment)) {
-    const upper = key.toUpperCase();
-    for (const matcher of matchers) {
-      const matched = matcher.endsWith("_")
-        ? upper.startsWith(matcher)
-        : upper === matcher;
-      if (matched) {
-        delete environment[key];
-        break;
-      }
-    }
-  }
-}
-
 function buildTrustedGitEnvironment(
-  baseEnvironment: NodeJS.ProcessEnv,
   physicalGit: string,
   platform: NodeJS.Platform,
   nullDevice: string,
 ): NodeJS.ProcessEnv {
   const pathApi = platform === "win32" ? win32 : posix;
-  const seeded = copyOrdinaryEnvironment(baseEnvironment);
-  stripEnvironmentKeysByUpperPrefix(seeded, ["PATH", "PATHEXT", "GIT_"]);
-  const environment = sanitizedGitEnv(seeded);
+  const environment = sanitizedGitEnv({});
   environment["PATH"] = pathApi.dirname(physicalGit);
   if (platform === "win32") {
     environment["PATHEXT"] = ".EXE";
-  } else {
-    delete environment["PATHEXT"];
   }
+  environment["LANG"] = "C";
+  environment["LC_ALL"] = "C";
   environment["GIT_CONFIG_NOSYSTEM"] = "1";
   environment["GIT_CONFIG_GLOBAL"] = nullDevice;
   return environment;
 }
 
 function buildTrustedOpenSpecEnvironment(
-  baseEnvironment: NodeJS.ProcessEnv,
   physicalNode: string,
   platform: NodeJS.Platform,
 ): NodeJS.ProcessEnv {
   const pathApi = platform === "win32" ? win32 : posix;
-  const environment = copyOrdinaryEnvironment(baseEnvironment);
-  stripEnvironmentKeysByUpperPrefix(environment, ["PATH", "PATHEXT", "NODE_"]);
-  environment["PATH"] = pathApi.dirname(physicalNode);
-  if (platform === "win32") {
-    environment["PATHEXT"] = ".EXE";
-  } else {
-    delete environment["PATHEXT"];
-  }
-  return environment;
+  return {
+    PATH: pathApi.dirname(physicalNode),
+    ...(platform === "win32" ? { PATHEXT: ".EXE" } : {}),
+    LANG: "C",
+    LC_ALL: "C",
+    OPENSPEC_TELEMETRY: "0",
+    OPENSPEC_NO_UPDATE_CHECK: "1",
+    OPEN_SPEC_INTERACTIVE: "0",
+    NO_COLOR: "1",
+  };
 }
 
 function isAbsolutePathForPlatform(
@@ -396,7 +363,6 @@ export function makeLiveReleaseCoverageCliServices(
           "--show-toplevel",
         ]),
         env: buildTrustedGitEnvironment(
-          dependencies.baseEnvironment,
           trusted.physicalGit,
           dependencies.platform,
           dependencies.nullDevice,
@@ -507,7 +473,6 @@ export function makeLiveReleaseCoverageCliServices(
             args: plan.args,
             cwd: physicalRepository,
             env: buildTrustedOpenSpecEnvironment(
-              dependencies.baseEnvironment,
               physicalNode,
               dependencies.platform,
             ),
@@ -525,7 +490,6 @@ export function makeLiveReleaseCoverageCliServices(
             "explicit",
           );
           const env = buildTrustedGitEnvironment(
-            dependencies.baseEnvironment,
             trusted.physicalGit,
             dependencies.platform,
             dependencies.nullDevice,
