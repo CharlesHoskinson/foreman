@@ -1123,7 +1123,7 @@ describe("approved OpenSpec manifest", () => {
     ["tasks included", { workflow: "foreman-bounded", files: [boundedFiles[0], boundedFiles[1], { path: "tasks.md", bytes: utf8("tasks") }] }],
     ["bounded design", { workflow: "foreman-bounded", files: [{ path: "design.md", bytes: utf8("design") }, boundedFiles[0], boundedFiles[1]] }],
     ["non-markdown spec", { workflow: "foreman-bounded", files: [boundedFiles[0], { path: "specs/a.txt", bytes: utf8("x") }] }],
-    ["extra package path", { workflow: "foreman-bounded", files: [boundedFiles[0], { path: "README.md", bytes: utf8("x") }, boundedFiles[1]] }],
+    ["extra package path", { workflow: "foreman-bounded", files: [{ path: "README.md", bytes: utf8("x") }, boundedFiles[0], boundedFiles[1]] }],
   ];
   for (const [name, input] of invalidBuilds) {
     it("rejects build " + name, () => {
@@ -1157,5 +1157,355 @@ describe("approved OpenSpec manifest", () => {
         { _tag: "Invalid" },
       );
     }
+  });
+});
+
+describe("Task 3.1 cold-review closure", () => {
+  it("closes every signed-schema timestamp branch", () => {
+    for (const artifact of signedArtifacts) {
+      expectParseInvalid({
+        ...artifact,
+        issuedAt: "2026-08-24T00:00:00.000Z",
+      });
+    }
+  });
+
+  it("closes design base Git IDs and design digests", () => {
+    const invalidGitIds = [
+      "1".repeat(39),
+      "1".repeat(41),
+      "A".repeat(40),
+      "g".repeat(40),
+    ] as const;
+    for (const field of ["designCommit", "designTree"] as const) {
+      for (const value of invalidGitIds) {
+        expectParseInvalid({ ...designReceipt, [field]: value });
+      }
+    }
+    for (const field of [
+      "approvedOpenSpecSha256",
+      "taskPlanSha256",
+      "approvalStatementSha256",
+    ] as const) {
+      for (const value of [
+        "a".repeat(63),
+        "a".repeat(65),
+        "A".repeat(64),
+        "g".repeat(64),
+      ]) {
+        expectParseInvalid({ ...designReceipt, [field]: value });
+      }
+    }
+  });
+
+  it("uses UTF-8 byte limits for identifiers and findings", () => {
+    const maximumFinding = {
+      ...finding,
+      line: 2147483647,
+      file: "é".repeat(2048),
+      summary: "é".repeat(2048),
+      evidence: "é".repeat(8192),
+    };
+    assert.equal(
+      parseReleaseAuthorityObjectV1({
+        ...auditReceipt,
+        findings: [maximumFinding],
+      })._tag,
+      "Valid",
+    );
+    assert.equal(
+      parseReleaseAuthorityObjectV1({
+        ...actionOutcome,
+        packageId: "é".repeat(64),
+      })._tag,
+      "Valid",
+    );
+    expectParseInvalid({
+      ...actionOutcome,
+      packageId: "é".repeat(64) + "x",
+    });
+    for (const [field, value] of [
+      ["file", "é".repeat(2048) + "x"],
+      ["summary", "é".repeat(2048) + "x"],
+      ["evidence", "é".repeat(8192) + "x"],
+    ] as const) {
+      expectParseInvalid({
+        ...auditReceipt,
+        findings: [{ ...finding, [field]: value }],
+      });
+      expectSourceInvalid(
+        canonicalFile({
+          ...auditSource,
+          findings: [{ ...finding, [field]: value }],
+        }),
+      );
+    }
+    for (const field of ["file", "summary", "evidence"] as const) {
+      for (const control of ["\u0000", "\n", "\r"] as const) {
+        expectParseInvalid({
+          ...auditReceipt,
+          findings: [{ ...finding, [field]: "left" + control + "right" }],
+        });
+        expectSourceInvalid(
+          canonicalFile({
+            ...auditSource,
+            findings: [{ ...finding, [field]: "left" + control + "right" }],
+          }),
+        );
+      }
+    }
+  });
+
+  it("closes checks command fields, enums, and positive boundaries", () => {
+    const command = checksSource.commands[0]!;
+    for (const key of Object.keys(command)) {
+      const missing = cloneRecord(command);
+      delete missing[key];
+      expectSourceInvalid(
+        canonicalFile({ ...checksSource, commands: [missing] }),
+      );
+      expectSourceInvalid(
+        canonicalFile({ ...checksSource, commands: [{ ...command, [key]: null }] }),
+      );
+    }
+    for (const field of [
+      "commandSha256",
+      "stdoutSha256",
+      "stderrSha256",
+    ] as const) {
+      expectSourceInvalid(
+        canonicalFile({
+          ...checksSource,
+          commands: [{ ...command, [field]: "a".repeat(63) }],
+        }),
+      );
+    }
+    expectSourceInvalid(
+      canonicalFile({ ...checksSource, status: "UNKNOWN" }),
+    );
+    for (const exitCode of [0, 255] as const) {
+      assert.equal(
+        decodeReleaseProducerSourceFileV1(
+          canonicalFile({
+            ...checksSource,
+            commands: [{ ...command, exitCode }],
+          }),
+        )._tag,
+        "Valid",
+      );
+    }
+    assert.equal(
+      decodeReleaseProducerSourceFileV1(
+        canonicalFile({
+          ...checksSource,
+          commands: Array.from({ length: 256 }, () => command),
+        }),
+      )._tag,
+      "Valid",
+    );
+  });
+
+  it("closes audit source finding fields, enums, and positive boundaries", () => {
+    for (const key of Object.keys(finding)) {
+      const missing = cloneRecord(finding);
+      delete missing[key];
+      expectSourceInvalid(
+        canonicalFile({ ...auditSource, findings: [missing] }),
+      );
+      expectSourceInvalid(
+        canonicalFile({ ...auditSource, findings: [{ ...finding, [key]: null }] }),
+      );
+    }
+    expectSourceInvalid(
+      canonicalFile({ ...auditSource, verdict: "UNKNOWN" }),
+    );
+    expectSourceInvalid(
+      canonicalFile({
+        ...auditSource,
+        findings: [{ ...finding, severity: "urgent" }],
+      }),
+    );
+    assert.equal(
+      decodeReleaseProducerSourceFileV1(
+        canonicalFile({
+          ...auditSource,
+          findings: Array.from({ length: 100 }, () => finding),
+        }),
+      )._tag,
+      "Valid",
+    );
+    assert.equal(
+      decodeReleaseProducerSourceFileV1(
+        canonicalFile({
+          ...auditSource,
+          findings: [{
+            ...finding,
+            line: 2147483647,
+            file: "é".repeat(2048),
+            summary: "é".repeat(2048),
+            evidence: "é".repeat(8192),
+          }],
+        }),
+      )._tag,
+      "Valid",
+    );
+    expectSourceInvalid(
+      canonicalFile({ ...evaluationReportSource, result: "UNKNOWN" }),
+    );
+  });
+
+  it("freezes every evidence-bundle receipt array", () => {
+    const checksPass = {
+      ...checksReceipt,
+      packageId: "project-registry",
+      status: "PASS",
+    } as const;
+    const checksFail = {
+      ...checksReceipt,
+      packageId: "project-registry",
+      status: "FAIL",
+    } as const;
+    const auditBlocked = {
+      ...auditReceipt,
+      packageId: "project-registry",
+      verdict: "BLOCKED",
+    } as const;
+    const auditApproved = {
+      ...auditReceipt,
+      packageId: "project-registry",
+      verdict: "APPROVED",
+      findings: [],
+    } as const;
+    const request = {
+      ...councilRequest,
+      packageId: "project-registry",
+    } as const;
+    const priorVerify = {
+      reservationId: "reservation-prior",
+      originReservationId: "reservation-origin",
+      originalAction: "verify",
+      candidate,
+      failureEvidenceSha256: shaC,
+    } as const;
+    const priorAudit = { ...priorVerify, originalAction: "audit" } as const;
+    const evaluationDesign = {
+      ...designReceipt,
+      packageId: "graph-eval-falsification",
+    } as const;
+    const evaluationBundle = {
+      ...evidenceBundle,
+      childId: "v040-t8-evaluation",
+      packageId: "graph-eval-falsification",
+      action: "evaluate",
+      receipts: [evaluationDesign, evaluationAuthority],
+    } as const;
+    const validBundles = [
+      { ...evidenceBundle, action: "implement" },
+      evidenceBundle,
+      { ...evidenceBundle, action: "audit", receipts: [designReceipt, checksPass] },
+      { ...evidenceBundle, action: "correct", receipts: [designReceipt, checksFail] },
+      { ...evidenceBundle, action: "correct", receipts: [designReceipt, auditBlocked] },
+      { ...evidenceBundle, action: "council", receipts: [designReceipt, request] },
+      { ...evidenceBundle, action: "integrate", receipts: [designReceipt, auditApproved] },
+      { ...evidenceBundle, action: "publish", receipts: [designReceipt, auditApproved] },
+      evaluationBundle,
+      { ...evidenceBundle, action: "provider_retry", priorReservation: priorVerify },
+      { ...evidenceBundle, action: "resume", receipts: [designReceipt, checksPass], priorReservation: priorAudit },
+    ] as const;
+    for (const bundle of validBundles) {
+      assert.equal(parseReleaseAuthorityObjectV1(bundle)._tag, "Valid");
+    }
+    const invalidBundles = [
+      { ...evidenceBundle, action: "implement", receipts: [designReceipt, checksPass] },
+      { ...evidenceBundle, action: "audit", receipts: [designReceipt, checksFail] },
+      { ...evidenceBundle, action: "correct", receipts: [designReceipt, checksPass] },
+      { ...evidenceBundle, action: "correct", receipts: [designReceipt, auditApproved] },
+      { ...evidenceBundle, action: "council", receipts: [designReceipt] },
+      { ...evidenceBundle, action: "integrate", receipts: [designReceipt, auditBlocked] },
+      { ...evidenceBundle, action: "publish", receipts: [designReceipt, auditBlocked] },
+      { ...evaluationBundle, receipts: [evaluationDesign] },
+      { ...evidenceBundle, action: "provider_retry", receipts: [designReceipt, checksPass], priorReservation: priorVerify },
+      { ...evidenceBundle, action: "resume", receipts: [designReceipt], priorReservation: priorAudit },
+      { ...evidenceBundle, action: "resume" },
+    ] as const;
+    for (const bundle of invalidBundles) {
+      expectParseInvalid(bundle);
+    }
+  });
+
+  it("binds each evaluation count independently", () => {
+    const cases = [
+      {
+        ...evaluationVerdict,
+        completedRuns: 1899,
+        unavailableRuns: 51,
+        signature: "eEt_wJfDeZeVIm7zCXvGy-AAOdChNoXxeF5JZ7T6D8v0_SKRoOtnD8WFMn7zQvemS7KuZAJ-JGt4d3rpB9wEDg",
+      },
+      {
+        ...evaluationVerdict,
+        unavailableRuns: 49,
+        notRunRuns: 51,
+        signature: "AEuWL-Z_xz5YtsauGG3p4QbUhE9NjVV8xxnZNNfSfyLbizaaoBjcFB8F3TE3YqZOSDozcyhoRKsEzWONnyPXCg",
+      },
+      {
+        ...evaluationVerdict,
+        completedRuns: 1899,
+        notRunRuns: 51,
+        signature: "IrtC36erMkt-l8PmBxmDEPLZOIq-IvT-0yef7mfZWU4tRQRYI4PqUMTzffTlE3DHROHHwZEx7KoKQKgS9PAxDw",
+      },
+    ] as const;
+    for (const receipt of cases) {
+      assert.deepEqual(
+        verifyReleaseSourceReceiptBindingV1(
+          canonicalFile(evaluationReportSource),
+          canonicalFile(receipt),
+        ),
+        { _tag: "Invalid" },
+      );
+    }
+  });
+
+  it("isolates every hostile manifest path and row shape", () => {
+    const proposal = { path: "proposal.md", bytes: utf8("proposal\n") } as const;
+    const spec = { path: "specs/a.md", bytes: utf8("spec\n") } as const;
+    const invalidInputs = [
+      [{ path: "/outside.md", bytes: utf8("x") }, proposal, spec],
+      [{ path: "C:/outside.md", bytes: utf8("x") }, proposal, spec],
+      [proposal, spec, { path: "specs\\bad.md", bytes: utf8("x") }],
+      [proposal, { path: "specs/./bad.md", bytes: utf8("x") }, spec],
+      [{ path: "../escape.md", bytes: utf8("x") }, proposal, spec],
+      [proposal, spec, { path: "specs/a.txt", bytes: utf8("x") }],
+      [{ path: "README.md", bytes: utf8("x") }, proposal, spec],
+    ] as const;
+    for (const files of invalidInputs) {
+      assert.deepEqual(
+        buildApprovedOpenSpecManifestV1({
+          workflow: "foreman-bounded",
+          files,
+        }),
+        { _tag: "Invalid" },
+      );
+    }
+    const built = buildApprovedOpenSpecManifestV1({
+      workflow: "foreman-bounded",
+      files: [proposal, spec],
+    });
+    assert.equal(built._tag, "Valid");
+    if (built._tag !== "Valid") return;
+    const malformed = {
+      ...built.manifest,
+      files: [
+        { ...built.manifest.files[0]!, unexpected: true },
+        built.manifest.files[1]!,
+      ],
+    } as unknown as ApprovedOpenSpecManifestV1;
+    assert.deepEqual(
+      validateApprovedOpenSpecManifestV1({
+        workflow: "foreman-bounded",
+        manifest: malformed,
+        files: [proposal, spec],
+      }),
+      { _tag: "Invalid" },
+    );
   });
 });
