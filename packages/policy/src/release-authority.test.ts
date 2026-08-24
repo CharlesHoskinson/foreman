@@ -773,3 +773,74 @@ describe("release outcome and terminal approval distinctions", () => {
     });
   }
 });
+
+describe("release authority canonical signed-file rejection", () => {
+  const designCanonical = canonicalize(designReceipt);
+  const designBytes = canonicalFile(designReceipt);
+  const checksCanonical = canonicalize(checksReceipt);
+
+  const wrongRoleDesign = {
+    ...designReceipt,
+    packageId: "openspec-superpowers-convergence",
+    issuerKeySha256: hostKeySha256,
+    signature:
+      "EIcdBrEJDXO-L3V0RCb_f_3sAx6zU06waOcaB9RYfxSnnUmwPO8A0zLNnfeZ9hbroFMvgKg_U4xuspkvLMdvDw",
+  };
+  const wrongRoleChecks = {
+    ...checksReceipt,
+    issuerKeySha256: userKeySha256,
+    signature:
+      "dsi_yV2GyHgKgekqycBisIijd9K1_5X3noEcH1NYG6M1QF0P3CEd4s0PW07lDpkGMI28mC5fCOIw4_pjZgI2Aw",
+  };
+
+  const changedSignature =
+    (designReceipt.signature.startsWith("A") ? "B" : "A") +
+    designReceipt.signature.slice(1);
+  const fileCases: Array<readonly [string, Uint8Array]> = [
+    ["missing LF", designBytes.slice(0, -1)],
+    ["CRLF", utf8(designCanonical + "\r\n")],
+    ["two LFs", utf8(designCanonical + "\n\n")],
+    ["noncanonical key order", utf8(JSON.stringify(designReceipt) + "\n")],
+    ["noncanonical whitespace", utf8(designCanonical.replace(":", ": ") + "\n")],
+    ["duplicate root key", utf8('{"schema":"foreman.design-approval.v1",' + designCanonical.slice(1) + "\n")],
+    [
+      "duplicate nested key",
+      utf8(
+        checksCanonical.replace(
+          '"candidate":{',
+          '"candidate":{"commit":"' + commit + '",',
+        ) + "\n",
+      ),
+    ],
+    ["invalid UTF-8", Uint8Array.of(0xff)],
+    ["padded signature", canonicalFile({ ...designReceipt, signature: designReceipt.signature + "=" })],
+    ["standard base64 characters", canonicalFile({ ...designReceipt, signature: "+" + designReceipt.signature.slice(1, -1) + "/" })],
+    ["63-byte signature", canonicalFile({ ...designReceipt, signature: Buffer.alloc(63).toString("base64url") })],
+    ["65-byte signature", canonicalFile({ ...designReceipt, signature: Buffer.alloc(65).toString("base64url") })],
+    ["changed signature", canonicalFile({ ...designReceipt, signature: changedSignature })],
+    ["unknown fingerprint", canonicalFile({ ...designReceipt, issuerKeySha256: shaA })],
+    ["valid signature from wrong design role", canonicalFile(wrongRoleDesign)],
+    ["valid signature from wrong checks role", canonicalFile(wrongRoleChecks)],
+  ];
+
+  assert.notEqual(JSON.stringify(designReceipt), designCanonical);
+  for (const [name, bytes] of fileCases) {
+    it("rejects " + name, () => {
+      expectFileInvalid(bytes);
+    });
+  }
+
+  it("rejects a valid signed file larger than 1 MiB", () => {
+    const largeFinding = { ...finding, evidence: "x".repeat(16384) };
+    const largeAuditReceipt = {
+      ...auditReceipt,
+      findings: Array.from({ length: 100 }, () => largeFinding),
+      signature:
+        "Nkq0xKhgFHe-z791vQ9DnOH8ZmzWWC1oGNnIBVGS3v4E2JrAawUUGAnqQXZc60bXjXSyBdfPAC7WYy9jd2jsCw",
+    };
+    const bytes = canonicalFile(largeAuditReceipt);
+    assert.equal(bytes.byteLength > 1024 * 1024, true);
+    assert.equal(parseReleaseAuthorityObjectV1(largeAuditReceipt)._tag, "Valid");
+    expectFileInvalid(bytes);
+  });
+});
