@@ -1479,7 +1479,7 @@ describe("release coverage policy", () => {
     );
   });
 
-  it("rejects unreconciled when Lane selects a v0.4 future owner with no owned entry", () => {
+  it("rejects unknown_owner when Lane selects a v0.4 future owner with no owned entry", () => {
     const { registerText } = orphanFutureRegister();
     expectInvalid(
       validBaseline({
@@ -1490,16 +1490,15 @@ describe("release coverage policy", () => {
         expectedPackageBriefByName: {},
         packageBriefBytesByName: {},
       }),
-      "unreconciled",
+      "unknown_owner",
     );
   });
 
-  it("rejects unreconciled when Release includes a v0.4 future owner with no owned entry", () => {
+  it("requires workflow authority for a no-entry v0.4 future owner during Release", () => {
     const { registerText } = orphanFutureRegister();
     const activeBrief = makeBrief("ok");
-    const activeBytes = canonicalBriefBytes(activeBrief);
     const futureBrief = makeBrief("future", FUTURE);
-    const futureBytes = canonicalBriefBytes(futureBrief);
+    const orphanBrief = makeBrief("orphan", orphanFutureOwner);
     expectInvalid(
       validBaseline({
         phase: "Release",
@@ -1511,13 +1510,70 @@ describe("release coverage policy", () => {
         expectedPackageBriefByName: {
           [ACTIVE_PKG]: activeBrief,
           [FUTURE]: futureBrief,
+          [orphanFutureOwner]: orphanBrief,
         },
         packageBriefBytesByName: {
-          [ACTIVE_PKG]: activeBytes,
-          [FUTURE]: futureBytes,
+          [ACTIVE_PKG]: canonicalBriefBytes(activeBrief),
+          [FUTURE]: canonicalBriefBytes(futureBrief),
+          [orphanFutureOwner]: canonicalBriefBytes(orphanBrief),
         },
       }),
-      "unreconciled",
+      "workflow_mismatch",
+    );
+  });
+
+  it("requires brief authority for a no-entry v0.4 future owner during Release", () => {
+    const { registerText } = orphanFutureRegister();
+    const activeBrief = makeBrief("ok");
+    const futureBrief = makeBrief("future", FUTURE);
+    expectInvalid(
+      validBaseline({
+        phase: "Release",
+        registerText,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+          [orphanFutureOwner]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: {
+          [ACTIVE_PKG]: activeBrief,
+          [FUTURE]: futureBrief,
+        },
+        packageBriefBytesByName: {
+          [ACTIVE_PKG]: canonicalBriefBytes(activeBrief),
+          [FUTURE]: canonicalBriefBytes(futureBrief),
+        },
+      }),
+      "brief_mismatch",
+    );
+  });
+
+  it("accepts complete authority for a no-entry v0.4 future owner during Release", () => {
+    const { registerText } = orphanFutureRegister();
+    const activeBrief = makeBrief("ok");
+    const futureBrief = makeBrief("future", FUTURE);
+    const orphanBrief = makeBrief("orphan", orphanFutureOwner);
+    expectValid(
+      validBaseline({
+        phase: "Release",
+        registerText,
+        packageWorkflowByName: {
+          [ACTIVE_PKG]: ACTIVE_WF,
+          [FUTURE]: ACTIVE_WF,
+          [orphanFutureOwner]: ACTIVE_WF,
+        },
+        expectedPackageBriefByName: {
+          [ACTIVE_PKG]: activeBrief,
+          [FUTURE]: futureBrief,
+          [orphanFutureOwner]: orphanBrief,
+        },
+        packageBriefBytesByName: {
+          [ACTIVE_PKG]: canonicalBriefBytes(activeBrief),
+          [FUTURE]: canonicalBriefBytes(futureBrief),
+          [orphanFutureOwner]: canonicalBriefBytes(orphanBrief),
+        },
+      }),
+      2,
     );
   });
 
