@@ -79,6 +79,7 @@ const trackedReleaseRuntimeArtifacts = [
 const trackedFixtureRuntimeArtifacts = [
   "appliance-doctor.js",
   "graph-context.js",
+  "graph-evaluation.js",
   "graphify-qualification.js",
   ...trackedReleaseRuntimeArtifacts,
 ] as const;
@@ -622,6 +623,7 @@ describe("verifyInstalledSkillRoot live controls", () => {
           names: [
               "appliance-doctor.js",
               "graph-context.js",
+              "graph-evaluation.js",
               "graphify-qualification.js",
               "architecture-policy.js",
               "credential-profile-lane.js",
@@ -988,6 +990,7 @@ describe("runtime plugin-drift", () => {
             names: [
               "appliance-doctor.js",
               "graph-context.js",
+              "graph-evaluation.js",
               "graphify-qualification.js",
               "architecture-policy.js",
               "credential-profile-lane.js",
@@ -1353,6 +1356,7 @@ describe("skill-root and directory stability seams", () => {
       names: [
               "appliance-doctor.js",
               "graph-context.js",
+              "graph-evaluation.js",
               "graphify-qualification.js",
               "architecture-policy.js",
               "credential-profile-lane.js",
@@ -1816,6 +1820,7 @@ describe("memory InstallFs path separator seam", () => {
           names: [
             "appliance-doctor.js",
             "graph-context.js",
+            "graph-evaluation.js",
             "graphify-qualification.js",
             "architecture-policy.js",
             "credential-profile-lane.js",

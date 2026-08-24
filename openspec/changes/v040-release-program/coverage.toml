@@ -180,8 +180,8 @@ source_path = "openspec/changes/graph-eval-falsification"
 disposition = "v040_owner"
 owner = "graph-eval-falsification"
 target_release = "v0.4"
-reconcile = "required"
-reason = "Track 8 owns the locked evaluation; its statistics and runtime assumptions need correction."
+reconcile = "complete"
+reason = "Track 8 ships a deterministic 2,000-slot evaluator and records graph-off uncomputable without fabricated observations."
 
 [[entry]]
 key = "change:graph-store-port"

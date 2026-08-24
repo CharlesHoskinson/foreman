@@ -593,6 +593,17 @@ The command emits canonical JSON or `NO GRAPH CONTEXT`. It never traverses the
 graph interactively and never changes lane behavior by itself. v0.4 keeps this
 path opt-in until the graph evaluation measures it against the baseline.
 
+Evaluate a canonical paired run set:
+
+```bash
+node skills/foreman/runtime/dist/graph-evaluation.js report \
+  --run-set "$(git rev-parse --show-toplevel)/docs/releases/v0.4.0-graph-evaluation-run-set.json"
+```
+
+The v0.4 report is `GRAPH_OFF_UNCOMPUTABLE`: no paired model observations were
+completed, all 2,000 planned slots are recorded as not run, and graph context
+remains off by default. The release does not claim a measured improvement.
+
 Follow `source_location` pointers into source only when freshness is `Fresh`.
 Otherwise, read the source directly. Semantic extraction, community labels,
 and external graph databases are not part of the v0.4 release.

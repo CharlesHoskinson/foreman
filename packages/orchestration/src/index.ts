@@ -902,6 +902,18 @@ export {
   type GraphContextVerificationResultV1,
 } from "./graph-context.js";
 
+// --- v0.4 Track 8: graph evaluation and falsification ---
+
+export {
+  buildGraphEvaluationReportV1,
+  type GraphEvaluationArmV1,
+  type GraphEvaluationBuildResultV1,
+  type GraphEvaluationObservationV1,
+  type GraphEvaluationOutcomeV1,
+  type GraphEvaluationReportV1,
+  type GraphEvaluationRunSetV1,
+} from "./graph-evaluation.js";
+
 // --- v0.4 Track 2: stable project registry ---
 
 export {

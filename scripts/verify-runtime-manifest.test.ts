@@ -63,6 +63,7 @@ describe("verifyRuntimeManifest copied-tree negatives", () => {
       "dist/release-policy.js",
       "dist/graphify-qualification.js",
       "dist/graph-context.js",
+      "dist/graph-evaluation.js",
     ]) {
       assert.equal(
         manifest.artifacts.some((artifact) => artifact.relativePath === path),
@@ -92,6 +93,7 @@ describe("verifyRuntimeManifest copied-tree negatives", () => {
         ["release-policy.js", "packages/orchestration/src/release-policy-main.ts"],
         ["graphify-qualification.js", "packages/orchestration/src/graphify-qualification-main.ts"],
         ["graph-context.js", "packages/orchestration/src/graph-context-main.ts"],
+        ["graph-evaluation.js", "packages/orchestration/src/graph-evaluation-main.ts"],
       ] as const) {
         const expected = spawnSync(
           process.execPath,
