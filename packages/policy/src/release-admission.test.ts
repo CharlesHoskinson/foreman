@@ -2,14 +2,25 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 
+import { canonicalize } from "@foreman/core";
+
 import {
   evaluateReleaseAdmissionV1,
   evaluateReleaseEvidenceV1,
+  type FailedReservationAuthorityV1,
   type RegisteredReleaseAuthorityV1,
+  type ReleaseActionOutcomeV1,
   type ReleaseAdmissionFailureReason,
   type ReleaseAdmissionResultV1,
+  type ReleaseAuditFindingV1,
+  type ReleaseAuditSourceV1,
   type ReleaseAuthorityKeySha256V1,
+  type ReleaseAuthorityReceiptV1,
   type ReleaseCandidateIdentityV1,
+  type ReleaseChecksSourceV1,
+  type ReleaseCouncilOutcomeV1,
+  type ReleaseEvaluationReportSourceV1,
+  type ReleaseEvidenceBundleV1,
   type ReleaseEvidenceCheckResultV1,
   type ReleaseEvidenceInputV1,
 } from "./index.js";
@@ -125,4 +136,217 @@ void (null as ReleaseAuthorityKeySha256V1 | null);
 void (null as ReleaseEvidenceCheckResultV1 | null);
 void (null as ReleaseEvidenceInputV1 | null);
 
-// FOREMAN_TASK33_FIXTURES
+const USER_APPROVAL_FINGERPRINT =
+  "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
+const HOST_AUDIT_FINGERPRINT =
+  "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
+const USER_APPROVAL_SPKI =
+  "MCowBQYDK2VwAyEAhYttcX7HTnczgb7-4HJyKNK6mU__uZmRGAabOV0EJUI";
+const HOST_AUDIT_SPKI =
+  "MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY";
+
+type FixtureSignerRole = "userApproval" | "hostAudit";
+
+const FIXTURE_SIGNER_FINGERPRINTS = {
+  userApproval: USER_APPROVAL_FINGERPRINT,
+  hostAudit: HOST_AUDIT_FINGERPRINT,
+} as const satisfies Readonly<
+  Record<FixtureSignerRole, ReleaseAuthorityKeySha256V1>
+>;
+
+const FIXTURE_SIGNER_SPKIS = {
+  userApproval: USER_APPROVAL_SPKI,
+  hostAudit: HOST_AUDIT_SPKI,
+} as const satisfies Readonly<Record<FixtureSignerRole, string>>;
+
+const utf8 = (value: string): Uint8Array => new TextEncoder().encode(value);
+
+const sha256Bytes = (value: Uint8Array): string =>
+  createHash("sha256").update(value).digest("hex");
+
+const sha256Utf8 = (value: string): string => sha256Bytes(utf8(value));
+
+const candidateIdentity = (
+  commit: string,
+  tree: string,
+): ReleaseCandidateIdentityV1 => ({
+  commit,
+  tree,
+  candidateSha256: createHash("sha256").update(commit, "ascii").digest("hex"),
+});
+
+const ROOT_CONTRACT_ID = "fixture-v040-root-rotation-r1";
+const ROOT_CONTRACT_SHA256 = sha256Utf8(
+  "fixture-v040-root-contract-rotation-r1",
+);
+const FAMILY_SHA256 = sha256Utf8("fixture-v040-family-rotation-r1");
+const STANDARD_CHILD_ID = "fixture-v040-t2-standard";
+const STANDARD_PACKAGE_ID = "fixture-standard-package";
+const EVALUATION_CHILD_ID = "v040-t8-evaluation";
+const EVALUATION_PACKAGE_ID = "graph-eval-falsification";
+const ISSUED_AT = "2026-08-24T12:00:00Z";
+
+const B1 = candidateIdentity("3".repeat(40), "4".repeat(40));
+const E0 = candidateIdentity("5".repeat(40), "6".repeat(40));
+
+type ApprovedFixtureFile = {
+  readonly path: string;
+  readonly bytes: Uint8Array;
+};
+
+const STANDARD_APPROVED_FILES = [
+  {
+    path: "proposal.md",
+    bytes: utf8("# Fixture standard proposal\n"),
+  },
+  {
+    path: "specs/fixture-standard/spec.md",
+    bytes: utf8(
+      "## ADDED Requirements\n\n### Requirement: Fixture standard authority\n",
+    ),
+  },
+] as const satisfies readonly ApprovedFixtureFile[];
+
+const EVALUATION_APPROVED_FILES = [
+  {
+    path: "proposal.md",
+    bytes: utf8("# Fixture evaluation proposal\n"),
+  },
+  {
+    path: "specs/fixture-evaluation/spec.md",
+    bytes: utf8(
+      "## ADDED Requirements\n\n### Requirement: Fixture evaluation authority\n",
+    ),
+  },
+] as const satisfies readonly ApprovedFixtureFile[];
+
+const approvedBytes = (
+  files: readonly ApprovedFixtureFile[],
+): Readonly<Record<string, Uint8Array>> =>
+  Object.fromEntries(files.map((file) => [file.path, file.bytes])) as Readonly<
+    Record<string, Uint8Array>
+  >;
+
+const approvedOpenSpecSha256 = (
+  files: readonly ApprovedFixtureFile[],
+): string =>
+  sha256Utf8(
+    canonicalize({
+      schema: "foreman.approved-openspec.v1",
+      files: files.map((file) => ({
+        path: file.path,
+        sha256: sha256Bytes(file.bytes),
+      })),
+    }),
+  );
+
+const STANDARD_APPROVED_OPENSPEC_BYTES = approvedBytes(
+  STANDARD_APPROVED_FILES,
+);
+const STANDARD_APPROVED_OPENSPEC_SHA256 = approvedOpenSpecSha256(
+  STANDARD_APPROVED_FILES,
+);
+const STANDARD_TASK_PLAN_BYTES = utf8(
+  "# Fixture standard tasks\n\n- [ ] Complete the fixture task.\n",
+);
+const STANDARD_TASK_PLAN_SHA256 = sha256Bytes(STANDARD_TASK_PLAN_BYTES);
+
+const EVALUATION_APPROVED_OPENSPEC_BYTES = approvedBytes(
+  EVALUATION_APPROVED_FILES,
+);
+const EVALUATION_APPROVED_OPENSPEC_SHA256 = approvedOpenSpecSha256(
+  EVALUATION_APPROVED_FILES,
+);
+const EVALUATION_TASK_PLAN_BYTES = utf8(
+  "# Fixture evaluation tasks\n\n- [ ] Complete the evaluation fixture.\n",
+);
+const EVALUATION_TASK_PLAN_SHA256 = sha256Bytes(
+  EVALUATION_TASK_PLAN_BYTES,
+);
+
+const FIXTURE_FINDING: ReleaseAuditFindingV1 = {
+  severity: "high",
+  file: "packages/fixture/src/authority.ts",
+  line: 7,
+  summary: "Fixture authority is blocked.",
+  evidence: "Deterministic fixture evidence.",
+};
+
+const FAILURE_EVIDENCE_SHA256 = sha256Utf8(
+  "fixture external failure evidence",
+);
+
+const PRIOR_RESERVATION: FailedReservationAuthorityV1 = {
+  reservationId: "fixture-reservation-prior",
+  originReservationId: "fixture-reservation-prior",
+  originalAction: "verify",
+  candidate: B1,
+  failureEvidenceSha256: FAILURE_EVIDENCE_SHA256,
+};
+
+type SignedFixtureObject =
+  | ReleaseAuthorityReceiptV1
+  | ReleaseEvidenceBundleV1
+  | ReleaseActionOutcomeV1
+  | ReleaseCouncilOutcomeV1;
+
+type UnsignedFixtureObject<T extends { readonly signature: string }> =
+  T extends unknown ? Omit<T, "signature"> : never;
+
+type UnsignedReceipt = UnsignedFixtureObject<ReleaseAuthorityReceiptV1>;
+type UnsignedBundle = UnsignedFixtureObject<ReleaseEvidenceBundleV1>;
+type UnsignedActionOutcome =
+  UnsignedFixtureObject<ReleaseActionOutcomeV1>;
+type UnsignedCouncilOutcome =
+  UnsignedFixtureObject<ReleaseCouncilOutcomeV1>;
+
+type FixtureRecipeKind =
+  | "receipt"
+  | "bundle"
+  | "actionOutcome"
+  | "councilOutcome";
+
+type FixtureRecipeMetadata = {
+  readonly id: RecipeId;
+  readonly kind: FixtureRecipeKind;
+  readonly role: FixtureSignerRole;
+  readonly dependsOn: readonly RecipeId[];
+};
+
+type FixtureSigningRecipe = FixtureRecipeMetadata & {
+  readonly unsigned:
+    | UnsignedReceipt
+    | UnsignedBundle
+    | UnsignedActionOutcome
+    | UnsignedCouncilOutcome;
+};
+
+void FIXTURE_SIGNER_FINGERPRINTS;
+void FIXTURE_SIGNER_SPKIS;
+void ROOT_CONTRACT_ID;
+void ROOT_CONTRACT_SHA256;
+void FAMILY_SHA256;
+void STANDARD_CHILD_ID;
+void STANDARD_PACKAGE_ID;
+void EVALUATION_CHILD_ID;
+void EVALUATION_PACKAGE_ID;
+void ISSUED_AT;
+void B1;
+void E0;
+void STANDARD_APPROVED_OPENSPEC_BYTES;
+void STANDARD_APPROVED_OPENSPEC_SHA256;
+void STANDARD_TASK_PLAN_BYTES;
+void STANDARD_TASK_PLAN_SHA256;
+void EVALUATION_APPROVED_OPENSPEC_BYTES;
+void EVALUATION_APPROVED_OPENSPEC_SHA256;
+void EVALUATION_TASK_PLAN_BYTES;
+void EVALUATION_TASK_PLAN_SHA256;
+void FIXTURE_FINDING;
+void PRIOR_RESERVATION;
+void (null as SignedFixtureObject | null);
+void (null as FixtureSigningRecipe | null);
+void (null as ReleaseChecksSourceV1 | null);
+void (null as ReleaseAuditSourceV1 | null);
+void (null as ReleaseEvaluationReportSourceV1 | null);
+
+// FOREMAN_TASK33_UNSIGNED_RECEIPTS
