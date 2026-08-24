@@ -581,6 +581,48 @@ test("invalid retry provenance refuses before registration", () => {
   });
 });
 
+test("action receipt order and blocking conditions are fail closed", () => {
+  const finding = {
+    severity: "high" as const,
+    file: "src/release.ts",
+    line: 1,
+    summary: "blocking finding",
+    evidence: "the release cannot proceed",
+  };
+  const invalidBundles: readonly ReleaseEvidenceBundleV1[] = [
+    { ...BUNDLE, action: "audit", receipts: [DESIGN_RECEIPT, checksReceipt("FAIL")] },
+    { ...BUNDLE, action: "correct", receipts: [DESIGN_RECEIPT, checksReceipt("PASS")] },
+    { ...BUNDLE, action: "correct", receipts: [DESIGN_RECEIPT, auditReceipt("APPROVED")] },
+    { ...BUNDLE, action: "council", receipts: [DESIGN_RECEIPT] },
+    { ...BUNDLE, action: "integrate", receipts: [DESIGN_RECEIPT, auditReceipt("WARNING")] },
+    {
+      ...BUNDLE,
+      action: "publish",
+      receipts: [DESIGN_RECEIPT, auditReceipt("APPROVED", [finding])],
+    },
+    { ...BUNDLE, action: "evaluate", receipts: [DESIGN_RECEIPT, checksReceipt("PASS")] },
+    { ...BUNDLE, action: "audit", receipts: [checksReceipt("PASS"), DESIGN_RECEIPT] },
+    { ...BUNDLE, action: "verify", receipts: [DESIGN_RECEIPT, DESIGN_RECEIPT] },
+  ];
+  for (const bundle of invalidBundles) {
+    assert.deepEqual(evaluateReleaseEvidenceV1(inputFor(bundle)), {
+      schemaVersion: 1,
+      _tag: "EvidenceInvalid",
+      reason: "invalid_evidence",
+    });
+  }
+
+  const bait = {
+    ...bundleFor(ORDINARY_CASES.find((item) => item.action === "integrate")!),
+    auditPolicy: { allowWarning: true },
+  } as unknown as ReleaseEvidenceBundleV1;
+  assert.deepEqual(evaluateReleaseEvidenceV1(inputFor(bait)), {
+    schemaVersion: 1,
+    _tag: "EvidenceInvalid",
+    reason: "invalid_evidence",
+  });
+});
+
 test("the refusal reason vocabulary remains closed", () => {
   const reasons = [
     "invalid_evidence",
