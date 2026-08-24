@@ -22,7 +22,7 @@ integration only, and esbuild for generated runtime bundles.
 
 - The release-inventory baseline is
   `bb5c8c2345ac5524ebb9c6a7de0fe16b17242195`.
-- The Track 1 implementation base is the exact commit and tree in the signed
+- The Track 1 implementation base is the exact commit and tree in the
   design-approval receipt. That post-plan receipt also binds the approved
   OpenSpec manifest and exact `tasks.md` digest. The literal Track 1 allowlist
   applies only to that implementation-base-to-candidate diff, not to the
@@ -31,10 +31,6 @@ integration only, and esbuild for generated runtime bundles.
   `604839a9a3da192138b68ced2019b404c1a079d0dc4548ebcee48ba8bbe220d1`,
   and deadline `2026-08-31T13:25:38Z`.
 - The family uses `wallTimeMs=5184000000` and `totalActions=4096`.
-- The pinned user-approval key fingerprint is
-  `454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c`.
-- The pinned host-audit key fingerprint is
-  `205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b`.
 - The evaluation child uses exactly 2,000 `evaluate` actions,
   `totalActions<=2048`, `wallTimeMs=3888000000`, and
   `noProgressMs=3600000`.
@@ -44,10 +40,8 @@ integration only, and esbuild for generated runtime bundles.
   owns typed failures, resources, cancellation, timeouts, subprocesses, and
   concurrent work.
 - No worker edits an external audit or human approval receipt.
-- No worker receives either private authority key or writes the external
+- No release command accepts key material. Workers do not write the external
   release-authority root, Endstop root, or SessionDB.
-- No active plan is added under `docs/superpowers/specs` or
-  `docs/superpowers/plans`; this file is the sole Track 1 implementation plan.
 - The complete candidate stays inside the governor's literal Track 1 path
   allowlist. Generated runtime files change only through `npm run build`.
 - Every task follows RED, observed failure, GREEN, full focused pass, review,
@@ -213,65 +207,60 @@ integration only, and esbuild for generated runtime bundles.
   the exact signature in `design.md`.
 - Produces `evaluateReleaseEvidenceV1(input): ReleaseEvidenceCheckResultV1`.
   the standalone CLI uses only this non-authorizing verifier.
-- Produces the strict signed authority union, signature preimage, decoders, and
+- Produces the strict canonical authority union, decoders, digest binding, and
   verifier in `design.md`.
 - CLI syntax is exactly `release-admission check --program v040 --action ACTION
   --package PACKAGE --repo ABS --candidate-commit SHA40 --evidence ABS`. The
   canonical evidence bundle has the action-specific receipt
   arity in `design.md`. Standalone success is `EvidenceValid`, not `Admitted`.
 
-- [ ] **3.1 RED:** Add decoder tests for each signed receipt variant and for
+- [ ] **3.1 RED:** Add decoder tests for each receipt variant and for
   duplicate, missing, extra, wrong-type,
   over-bound, non-canonical, invalid UTF-8, wrong enum, control-character, bad
-  Git ID, bad digest, bad base64url, wrong key fingerprint, wrong-role key,
-  invalid signature, and invalid timestamp fields. Add canonical
+  Git ID, bad digest, and invalid timestamp fields. Add canonical
   `ApprovedOpenSpecManifestV1` tests for exact paths, sorting, byte digests, and
-  task exclusion. Use deterministic fixture keys and add positive canonical
-  receipts. Add one fixed Ed25519 vector that distinguishes the domain LF byte
-  from literal backslash and `n` bytes. Cover the exact checks, audit, and evaluation-report source schemas,
-  the host-signed evaluation verdict, and all source-to-receipt copied fields.
+  task exclusion. Add positive canonical receipts. Cover the exact checks,
+  audit, and evaluation-report source schemas, the canonical evaluation
+  verdict, and all source-to-receipt copied fields.
   Run the focused test and observe missing exports.
-- [ ] **3.2 GREEN:** Implement closed decoders and Ed25519 verification with `decodeUtf8Fatal`,
+- [ ] **3.2 GREEN:** Implement closed decoders and complete-file digest binding with `decodeUtf8Fatal`,
   `parseJsonRejectDuplicateKeys`, `canonicalize`, `isCommitSha40`,
-  `isSha256Hex`, `isUtcSecondTimestamp`, and Node `crypto.verify`. Require one
-  trailing LF and the exact domain-separated signature preimage. Enforce the
-  literal schema-to-key map. Findings use only severity, file, line, summary,
-  and evidence.
+  `isSha256Hex`, and `isUtcSecondTimestamp`. Require one trailing LF. Findings
+  use only severity, file, line, summary, and evidence.
 - [ ] **3.3 RED:** Add the complete action admission matrix from `design.md`.
   Cover valid implementation, first audit, correction after every blocking
   outcome, council request before dispatch, council outcome after dispatch,
   retry and resume of a failed reservation, exact integration, publication,
   and evaluation. Refuse unknown action, absent registration, caller-selected
-  digest, wrong signer, forged bundle or receipt signature, stale candidate,
+  digest, stale candidate,
   unrelated implementation commit or tree, wrong package, wrong receipt kind,
   nonempty integration findings, and mutable audit-policy bait. Test every
-  declared refusal-reason literal. Prove the signed bundle binds root, root
+  declared refusal-reason literal. Prove the bundle binds root, root
   digest, family, and child. Prove the post-plan design receipt binds the exact
   implementation-base commit, tree, manifest, and task plan. Prove two dependent
-  implementation reservations start first from the signed base and then from
+  implementation reservations start first from the approved base and then from
   the exact first task commit. Refuse a reset, sibling commit, merge commit, or
   changed task plan. Prove current candidate or worktree checkbox edits cannot
-  replace the blobs from the signed design commit. Refuse a missing or oversized
+  replace the blobs from the approved design commit. Refuse a missing or oversized
   blob, an extra specification, and a wrong historical tree. Observe failures before
   implementation.
 - [ ] **3.4 GREEN:** Implement exact identity and action evaluation plus the
   Effect CLI. Resolve `CANDIDATE_COMMIT^{commit}` and
   `CANDIDATE_COMMIT^{tree}` in `REPO` without hooks, recompute
-  `sha256Hex(lowercaseCommit)`, verify the pinned signer, and emit only
+  `sha256Hex(lowercaseCommit)`, and emit only
   canonical `EvidenceValid` or sanitized `EvidenceInvalid` output. The live
   command does not read or claim Endstop registration. Only the production
   `release-policy` composition may return `Admitted`. It requires the matching
   Endstop registration. Add one bounded Git-blob loader that reconstructs the
-  approved OpenSpec manifest and task plan only from the signed design commit.
+  approved OpenSpec manifest and task plan only from the approved design commit.
   Bind design approval to the exact approved OpenSpec manifest,
-  historical design commit and tree, and implementation base. Sign the complete
-  resolved candidate identity in each bundle with the host-audit key. Do not
-  read caller `HEAD`, configuration, or private
-  keys during admission.
+  historical design commit and tree, and implementation base. Store the
+  complete resolved candidate identity in each bundle. Do not read caller
+  `HEAD` or configuration during admission.
 - [ ] **3.5 VERIFY:** Run focused tests and package typecheck. Run the live CLI
-  against canonical signed external fixtures, then repeat after changing each
+  against canonical external fixtures, then repeat after changing each
   one of action, verdict, findings, commit, tree, candidate digest, approval
-  bytes, signer, and `[audit.policy]`. Expect policy changes to have no effect
+  bytes and `[audit.policy]`. Expect policy changes to have no effect
   and every unauthorized mutation to refuse. Test registration mutations only
   through the composed `release-policy` interface.
 
@@ -297,8 +286,8 @@ integration only, and esbuild for generated runtime bundles.
 - [ ] **4.1 RED manifest:** Add a canonical valid family fixture and one
   mutation per field. Prove literal schema version 2, exact root identity,
   Track 1 commit/tree, exact family limits, exactly Tranches 2..9, unique
-  IDs/packages, the exact mapping and dependency table from `design.md`, pinned
-  authority keys and fingerprints, the exact discriminated standard and
+  IDs/packages, the exact mapping and dependency table from `design.md`, the
+  exact discriminated standard and
   evaluation limits, every-child first-action wall semantics, exact boundary
   refusal, progress reset events, non-reset events, and deadlines. Prove Tranche
   8 rejects `noProductChangeMs`, standard children reject `noProgressMs`, and
@@ -372,7 +361,7 @@ integration only, and esbuild for generated runtime bundles.
   is created.
 
 - [ ] **5.1 RED ledger:** Extend memory and live journal tests to cover one
-  signed authority registration, one activation append, replay, concurrent
+  canonical authority registration, one activation append, replay, concurrent
   identical and different-family registration for one root, concurrent
   identical and conflicting child registration, first-write-wins registration,
   concurrent double registration and activation, torn or malformed authority/family
@@ -385,7 +374,7 @@ integration only, and esbuild for generated runtime bundles.
   candidate-bound milestones, identical and
   conflicting lifecycle replay, retry origin, immediate-prior registration key,
   effective-action replay, chained retry, verify-retry then audit-retry,
-  signed cancel and invalidate approval, evaluation-verdict registration and
+  canonical cancel and invalidate approval, evaluation-verdict registration and
   run-set verification, outcome-only advice and evaluation PASS replay, every
   lifecycle command, dependency completion, corrupt history, append failure, and restart
   persistence. Observe failures on the V1-only ledger.
@@ -398,16 +387,15 @@ integration only, and esbuild for generated runtime bundles.
   nothing. Preserve typed `EndstopLedgerFailure`.
 - [ ] **5.3 RED/GREEN CLI:** Add strict parse and output tests for family
   source-to-manifest and package-brief building, authority registration,
-  content-addressed source-set publication, activation/status, both host-only family receipt
-  issuance forms, signed action receipt, action-outcome, council-outcome, and
+  content-addressed source-set publication, activation/status, both family receipt
+  issuance forms, action receipt, action-outcome, council-outcome, and
   terminal-approval issuance, evaluation-verdict issuance, child authority,
   outcome, and evaluation-verdict registration, and every lifecycle form.
-  Issuance validates source bytes,
-  candidate identity, the pinned private-key fingerprint, bounded output, fsync,
+  Issuance validates source bytes, candidate identity, bounded output, fsync,
   and atomic replace. Family building validates output separation and publishes
   the exact manifest, source, and eight brief outputs. Registration reads the
   manifest, source, brief directory, and both receipts,
-  verifies the pinned public keys and signatures, and performs one
+  verifies the canonical receipt digests, and performs one
   first-write-wins ledger append after the content-addressed source set is
   durable. A failed append can leave only an unreferenced set. Activation reads
   the bounded caller manifest and registered source set, recomputes all digests,
@@ -463,11 +451,11 @@ integration only, and esbuild for generated runtime bundles.
 - V1 queue syntax remains available before family activation.
 - V2 queue, gate, and merge use the exact fixed release block and complete
   grammars in `design.md`. The block contains no caller-selected expected
-  evidence digest or private-key path.
+  evidence digest or key-material path.
 - Adapter positional form is `release-policy.sh STATE_ROOT ROOT_ID ROOT_SHA
   FAMILY_SHA CHILD_ID ACTION CANDIDATE_SHA PROGRAM PHASE OWNER REPO COMMIT
   REGISTER EVIDENCE`.
-- TypeScript `release-policy` composes phase-aware coverage, signed action
+- TypeScript `release-policy` composes phase-aware coverage, registered action
   admission, named-ref Git identity, and the Endstop-registered digest.
 - The compiled `release-policy.js` artifact owns the `check`, `gate-eval`, and
   `merge-gate` modes in `design.md`. All three shell entry points become
@@ -480,7 +468,7 @@ integration only, and esbuild for generated runtime bundles.
   coverage-before-admission order, named candidate commit, Endstop digest
   and registered family-source lookup, immutable package-brief comparison,
   every action class, first and later implementation candidate selection,
-  missing or forged authority, wrong child, wrong
+  missing or conflicting authority, wrong child, wrong
   phase, wrong root, family, action, package, candidate-digest-to-commit
   equality, and evidence-to-block identity. Include hostile cross-block
   substitutions and sanitized bounded output. Observe missing exports.
@@ -502,7 +490,7 @@ integration only, and esbuild for generated runtime bundles.
   V1 cannot dispatch after activation. Prove the queue and policy share one
   parsed root, family, child, action, and candidate identity and cannot reserve
   a different child after valid admission. Prove two dependent implementation
-  tasks reserve from the signed base and then the first task's exact committed
+  tasks reserve from the approved base and then the first task's exact committed
   candidate. A package-brief mismatch refuses before reservation. Implement
   with injected services and the family ledger.
 - [ ] **6.4 RED/GREEN compiled gates:** Move every existing gate-eval and
@@ -514,7 +502,7 @@ integration only, and esbuild for generated runtime bundles.
   compiled gate-eval and merge-check modes require expected action `integrate`.
   a valid registered `verify` block refuses at both. Publication requires
   expected action `publish`. Prove
-  missing artifacts, coverage failure, forged or unregistered evidence,
+  missing artifacts, coverage failure, malformed or unregistered evidence,
   `WARNING`, `BLOCKED`, `UNVERIFIED`, nonempty integration findings, wrong
   branch, and mutable-policy bait fail closed. Shell adapters only forward to
   the one TypeScript artifact and preserve existing byte contracts. Update the installed
@@ -581,11 +569,11 @@ integration only, and esbuild for generated runtime bundles.
   typechecks, all changed TypeScript tests, the three Bats files in the
   serialized gate lane, runtime verification, and copied-install verification.
   From clean fixtures, also prove that partial bootstrap output, mutable audit
-  policy, stale Git identity, malformed or wrong-role receipts, cross-block
+  policy, stale Git identity, malformed receipts, cross-block
   identity substitution, nonempty findings, missing runtime artifacts,
   policy-before-general-gate, child-before-family, conflicting registration,
   second family, second activation, unlisted child or action, retry-origin
-  substitution, lifecycle-operation mismatch, forged evaluation verdict,
+  substitution, lifecycle-operation mismatch, conflicting evaluation verdict,
   exhausted family, and unknown crash outcome all fail closed. Save command
   output and digests externally.
 - [ ] **8.2 CANDIDATE HANDOFF:** The architect checks Tasks 1 through 8.1 against
@@ -595,15 +583,15 @@ integration only, and esbuild for generated runtime bundles.
   tree, and candidate digest externally. If cold audit blocks it, reserve a
   correction, keep all completed boxes checked, create a replacement candidate,
   and repeat every candidate-bound check. No tracked edit follows the first
-  exact candidate whose signed cold audit is `APPROVED` with no findings.
+  exact candidate whose cold audit is `APPROVED` with no findings.
 
 ## Post-plan release protocol (external; not tracked OpenSpec tasks)
 
 1. Repeat the focused gate against the frozen commit and save exact evidence.
-2. Give a cold Codex auditor the approved package, signed historical design
+2. Give a cold Codex auditor the approved package, historical design
    base, frozen identities, full diff, evidence, and allowlist. Correct and
    refreeze within V1 bounds until the result is `APPROVED` with no findings.
-3. Issue and register the signed audit receipt, run the immutable integration
+3. Issue and register the canonical audit receipt, run the immutable integration
    gate, record the SessionDB milestone, and fast-forward the release branch.
 4. Generate the eight-child family manifest from the accepted Track 1 commit.
    Issue the host audit and exact-byte user approval receipts, register the

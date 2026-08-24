@@ -132,38 +132,16 @@ maps to be empty. The CLI returns 0
 for `Valid`, 1 for an evaluated `Invalid`, and 64 for invalid arguments. It
 prints exactly one canonical JSON line and never prints raw exception text.
 
-### Release authority is signed and registered before use
+### Release authority uses canonical digests and Endstop registration
 
-The release pins these immutable Ed25519 SPKI authorities. Values are unpadded
-base64url DER. The fingerprint is SHA-256 of the decoded DER bytes.
+Every receipt, outcome, approval, and evidence bundle is canonical JSON with
+one trailing LF. Its authority digest is SHA-256 of the complete file bytes,
+including that LF. Endstop stores the exact evidence-bundle digest before use.
 
-```text
-userApprovalPublicKey=MCowBQYDK2VwAyEAhYttcX7HTnczgb7-4HJyKNK6mU__uZmRGAabOV0EJUI
-userApprovalKeySha256=454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c
-hostAuditPublicKey=MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY
-hostAuditKeySha256=205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b
-```
-
-Private keys stay under host-owned external state and are not copied or mounted
-into a worker sandbox. Every signed receipt, outcome, approval, and evidence
-bundle file is canonical JSON with one trailing LF. Its `signature` is the
-unpadded base64url Ed25519 signature over the byte sequence
-`UTF8("foreman.release-authority.v1") || 0x0a ||
-UTF8(canonicalize(unsignedObject))`. No NUL byte, literal backslash, or trailing
-LF follows the canonical unsigned object.
-The fixed interoperability vector uses the RFC 8032 test seed
-`9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60`,
-public key
-`d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a`,
-and unsigned object `{}`. The signed message hex is
-`666f72656d616e2e72656c656173652d617574686f726974792e76310a7b7d`.
-Its signature hex is
-`f254e1822d7096fb31e5a555014cca0f7a2a5b20893f6a7677329fc783f406c9814aeba23b2ecd9fcaea2f843f4898d7e23fb08ffbe9c4a0c4134adb3d198408`.
-The receipt digest is SHA-256 of the complete canonical file bytes, including
-the trailing LF. Decoders reject duplicate or extra keys, control characters,
-invalid UTF-8, wrong types, non-canonical bytes, wrong key fingerprints, invalid
-signatures, more than 100 findings, and files larger than 1 MiB. Producer source
-files are also bounded to 1 MiB. Unless a field has a more specific rule below,
+Decoders reject duplicate or extra keys, control characters, invalid UTF-8,
+wrong types, non-canonical bytes, more than 100 findings, and files larger than
+1 MiB. Producer source files are also bounded to 1 MiB. Unless a field has a
+more specific rule below,
 each `*Sha256` source field is SHA-256 of the exact source file bytes read once.
 Identifiers use
 the 1..128-byte `decodeRunId` grammar. Evidence bundles contain one or two
@@ -238,9 +216,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly approvedOpenSpecSha256: string;
       readonly taskPlanSha256: string;
       readonly approvalStatementSha256: string;
-      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.checks-evidence.v1";
@@ -249,9 +225,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly candidate: ReleaseCandidateIdentityV1;
       readonly status: "PASS" | "FAIL";
       readonly checksSha256: string;
-      readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.release-audit.v1";
@@ -261,9 +235,7 @@ export type ReleaseAuthorityReceiptV1 =
       readonly verdict: "APPROVED" | "WARNING" | "BLOCKED" | "UNVERIFIED";
       readonly findings: readonly ReleaseAuditFindingV1[];
       readonly evidenceSha256: string;
-      readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.council-request.v1";
@@ -273,18 +245,14 @@ export type ReleaseAuthorityReceiptV1 =
       readonly questionSha256: string;
       readonly constraintsSha256: string;
       readonly optionsSha256: string;
-      readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.evaluation-authority.v1";
       readonly program: "v040";
       readonly packageId: "graph-eval-falsification";
       readonly manifestSha256: string;
-      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
-      readonly signature: string;
     };
 
 export type ReleaseActionOutcomeV1 = {
@@ -302,9 +270,7 @@ export type ReleaseActionOutcomeV1 = {
   readonly candidateSha256: string;
   readonly status: "PASS" | "BLOCKING" | "EXTERNAL_FAILURE";
   readonly evidenceSha256: string;
-  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ReleaseCouncilOutcomeV1 = {
@@ -322,9 +288,7 @@ export type ReleaseCouncilOutcomeV1 = {
   readonly requestSha256: string;
   readonly decisionSha256: string;
   readonly status: "ADVICE" | "BLOCKING";
-  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ReleaseEvaluationVerdictV1 = {
@@ -349,9 +313,7 @@ export type ReleaseEvaluationVerdictV1 = {
   readonly notRunRuns: number;
   readonly runSetSha256: string;
   readonly reportSha256: string;
-  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ExecutionChildTerminalApprovalV1 =
@@ -363,9 +325,7 @@ export type ExecutionChildTerminalApprovalV1 =
       readonly familySha256: string;
       readonly childId: string;
       readonly reasonSha256: string;
-      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
-      readonly signature: string;
     }
   | {
       readonly schema: "foreman.execution-child-invalidate.v1";
@@ -376,14 +336,8 @@ export type ExecutionChildTerminalApprovalV1 =
       readonly childId: string;
       readonly observedFamilySha256: string;
       readonly reasonSha256: string;
-      readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
       readonly issuedAt: string;
-      readonly signature: string;
     };
-
-export type ReleaseAuthorityKeySha256V1 =
-  | "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c"
-  | "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
 
 export type RegisteredReleaseAuthorityV1 = {
   readonly rootContractId: string;
@@ -399,7 +353,6 @@ export type RegisteredReleaseAuthorityV1 = {
   readonly bundleSha256: string;
   readonly receiptSchemas: readonly ReleaseAuthorityReceiptV1["schema"][];
   readonly receiptSha256s: readonly string[];
-  readonly issuerKeySha256s: readonly ReleaseAuthorityKeySha256V1[];
   readonly evaluationManifestSha256: string | null;
   readonly registeredAt: string;
 };
@@ -458,9 +411,7 @@ export type ReleaseEvidenceBundleV1 = {
   readonly taskPlanSha256: string;
   readonly receipts: readonly ReleaseAuthorityReceiptV1[];
   readonly priorReservation?: FailedReservationAuthorityV1;
-  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ApprovedOpenSpecManifestV1 = {
@@ -478,7 +429,7 @@ exactly `proposal.md`, every `specs/**/*.md` path, and optional `design.md`.
 Paths are package-relative and sorted as UTF-8 bytes. Each row contains the
 SHA-256 digest of the exact file bytes. The manifest excludes `tasks.md`.
 OpenSpec unlocks that artifact only after the design artifact is ready. The
-signed design-approval receipt is issued after the task plan exists in one
+canonical design-approval receipt is recorded after the task plan exists in one
 implementation-base commit. It binds the manifest digest, task-plan digest,
 implementation-base commit, and implementation-base tree. A bounded package
 has no design path. Duplicate, absolute, escaping, unsorted, missing, or extra
@@ -492,44 +443,36 @@ status. Audit receipt `evidenceSha256` is the digest of the complete audit-sourc
 bytes, and the receipt copies its verdict and findings. A family audit accepts
 only an audit source for the Track 1 candidate with `APPROVED` and no findings.
 Evaluation verdict `reportSha256` is the digest of the complete report-source
-bytes, and the signed verdict copies every result and count field. The report
+bytes, and the canonical verdict copies every result and count field. The report
 counts are safe integers from 0 through 2,000 and sum to `plannedRuns`.
 
-The schema-to-key map is closed. Design approval, terminal child approval,
-evaluation authority, and family user approval use only
-`userApprovalKeySha256`. Checks, audit, council request, council outcome,
-action outcome, evaluation verdict, evidence bundle, and family audit use only
-`hostAuditKeySha256`.
-`RegisteredReleaseAuthorityV1.issuerKeySha256s` must equal the fingerprints of
-the ordered receipt array. `receiptSha256s` contains the complete canonical
-file digest of each nested receipt in that same order. For evaluation,
-`evaluationManifestSha256` equals the signed user-authority receipt field. It is
-null for every other action. Council and evaluation outcome registration match
-these journaled digests and never depend on an unjournaled bundle file. A valid
-signature from the wrong role key refuses.
+`receiptSha256s` contains the complete canonical file digest of each nested
+receipt in its exact order. For evaluation, `evaluationManifestSha256` equals
+the canonical evaluation-authority receipt field. It is null for every other
+action. Council and evaluation outcome registration match these journaled
+digests and never depend on an unjournaled bundle file.
 
 The host-only `release-authority` artifact validates source artifacts and
-creates signed receipts and a host-audit-signed canonical evidence bundle. It
+creates canonical receipts and a canonical evidence bundle. It
 appends the bundle's exact digest as a child-authority event in the existing
 root Endstop `RunJournal` before use. No child journal or stream exists. The
 append binds family digest, child ID, action, complete candidate identity,
-bundle digest, ordered receipt digests and schemas, signer fingerprints, plan
-digest, retry provenance, and timestamp.
-SessionDB records the same digest for each human design approval. Private-key
-paths and expected digests are not accepted by queue or gate callers.
+bundle digest, ordered receipt digests and schemas, plan digest, retry
+provenance, and timestamp. SessionDB records the same digest for each human
+design approval. Queue and gate callers cannot supply expected digests.
 
 Admission is action-specific:
 
 | Action | Required registered authority |
 |---|---|
-| `implement` | current signed design approval, exact task-plan digest, and either its exact base identity or the journal's exact current linear descendant |
+| `implement` | current design approval, exact task-plan digest, and either its exact base identity or the journal's exact current linear descendant |
 | `verify` | design approval and frozen candidate identity |
-| `audit` | design approval and signed checks evidence for that candidate |
-| `correct` | signed failed checks or `WARNING`, `BLOCKED`, or `UNVERIFIED` audit for that candidate |
-| `council` | signed council request that predates reservation |
+| `audit` | design approval and checks evidence for that candidate |
+| `correct` | failed checks or `WARNING`, `BLOCKED`, or `UNVERIFIED` audit for that candidate |
+| `council` | council request that predates reservation |
 | `provider_retry`, `resume` | recorded failed reservation and the original action authority |
-| `integrate`, `publish` | matching signed `APPROVED` audit with zero findings and current design approval |
-| `evaluate` | signed locked-evaluation authority and the Tranche 8 child |
+| `integrate`, `publish` | matching `APPROVED` audit with zero findings and current design approval |
+| `evaluate` | locked-evaluation authority and the Tranche 8 child |
 
 Bundle receipt order is exact: implementation and verification contain
 `[design]`; audit contains `[design, checks(PASS)]`; correction contains
@@ -537,7 +480,7 @@ Bundle receipt order is exact: implementation and verification contain
 `[design, council-request]`; integration and publication contain
 `[design, audit(APPROVED)]`; and evaluation contains `[design, evaluation]`.
 Retry and resume use the original array plus one `priorReservation` object. A
-completed council call produces a signed council outcome that binds the exact
+completed council call produces a canonical council outcome that binds the exact
 request digest, candidate, root, family, child, and spent council reservation.
 The outcome cannot authorize its own reservation. The host registers its exact
 digest in the root journal before a child mutation. A blocking outcome is then
@@ -548,8 +491,6 @@ remains content-addressed in the root journal and linked from SessionDB.
 ```ts
 export type ReleaseAdmissionFailureReason =
   | "invalid_evidence"
-  | "invalid_signature"
-  | "wrong_signer"
   | "wrong_program"
   | "wrong_package"
   | "wrong_action"
@@ -599,8 +540,7 @@ release-admission check --program v040 --action ACTION --package PACKAGE --repo 
 ```
 
 The standalone admission CLI resolves `CANDIDATE_COMMIT^{commit}` and
-`CANDIDATE_COMMIT^{tree}` in `REPO`; it never uses caller `HEAD`. It obtains the
-signer from the pinned design constants and returns only `EvidenceValid` or
+`CANDIDATE_COMMIT^{tree}` in `REPO`; it never uses caller `HEAD`. It returns only `EvidenceValid` or
 `EvidenceInvalid`. It is a non-authorizing bundle and identity verifier because
 its interface has no Endstop identity. Only the production `release-policy`
 composition may return `Admitted`. It obtains the expected receipt digest from
@@ -624,17 +564,17 @@ preimages from the candidate tree, worktree, caller paths, or mutable `HEAD`.
 use this one loader. The pure `approvedOpenSpecBytes` and `taskPlanBytes` inputs
 are its verified outputs, not public CLI inputs.
 
-Every implementation bundle carries the same signed design approval and exact
+Every implementation bundle carries the same design approval and exact
 task-plan digest. For a child's first `implement`, the resolved candidate must
 equal the receipt's post-plan implementation-base commit and tree. For each
 later `implement`, the composed policy requires the resolved candidate to equal
 the child's complete current journaled Git identity. The current identity must
-be in the direct-parent lineage that starts at the signed base. Standalone
-evidence verification checks the signed identity and that the candidate is a
-descendant of the signed base, but only the composed policy can check the exact
+be in the direct-parent lineage that starts at the approved base. Standalone
+evidence verification checks the approved identity and that the candidate is a
+descendant of the approved base, but only the composed policy can check the exact
 current journal state. A retry or resume uses the unchanged identity from its
 origin reservation. The task-plan bytes always equal the receipt's
-`taskPlanSha256`. The signed approval remains the immutable plan authority while
+`taskPlanSha256`. The approval digest remains the immutable plan authority while
 dependent implementation tasks advance one committed candidate at a time.
 
 ### The V2 family extends the V1 journal instead of replacing it
@@ -721,10 +661,6 @@ export type ExecutionContractFamilyV2 = {
   readonly deadlineAt: string;
   readonly wallTimeMs: 5184000000;
   readonly totalActions: 4096;
-  readonly userApprovalPublicKey: "MCowBQYDK2VwAyEAhYttcX7HTnczgb7-4HJyKNK6mU__uZmRGAabOV0EJUI";
-  readonly userApprovalKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
-  readonly hostAuditPublicKey: "MCowBQYDK2VwAyEAoczdxczpGA6Kk4gtzp80-6wpCRT1K6wzI6wbKDXLdpY";
-  readonly hostAuditKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly children: readonly ExecutionChildContractV2[];
 };
 
@@ -738,9 +674,7 @@ export type ExecutionFamilyAuditReceiptV1 = {
   readonly verdict: "APPROVED";
   readonly findings: readonly [];
   readonly evidenceSha256: string;
-  readonly issuerKeySha256: "205477e6a7d35c81501a19e6e626b14664b2ed09d20edd7dce0c7c122912511b";
   readonly issuedAt: string;
-  readonly signature: string;
 };
 
 export type ExecutionFamilyUserApprovalV1 = {
@@ -751,9 +685,7 @@ export type ExecutionFamilyUserApprovalV1 = {
   readonly track1Commit: string;
   readonly track1Tree: string;
   readonly approvalStatementSha256: string;
-  readonly issuerKeySha256: "454e04effab1f4bd83757aa23b3885fff8ed3cc9bbc226acdd816496abee370c";
   readonly issuedAt: string;
-  readonly signature: string;
 };
 ```
 
@@ -836,7 +768,7 @@ is not 8 and evaluation limits when tranche is 8. Every child wall-time counter
 starts at its first accepted action, including a pre-evaluation action. Before
 that event, dependency wait consumes only the family deadline. Tranche 8 sets
 `lastProgressAt` at its first accepted action. Only `ProductChanged`,
-`MilestoneRecorded`, or registration of a matching signed `PASS` action outcome
+`MilestoneRecorded`, or registration of a matching `PASS` action outcome
 resets it. Reservation, retry, resume, advice, blocking, and failure events do
 not reset progress. An action at or after either exact time boundary refuses
 and records `BudgetExhausted`. Every absolute child deadline equals the family
@@ -844,10 +776,10 @@ deadline.
 
 After these manifest bytes exist, `ExecutionFamilyAuditReceiptV1` and
 `ExecutionFamilyUserApprovalV1` each contain schema, program, family ID,
-manifest digest, Track 1 commit and tree, issuer-key fingerprint, issue time,
-and signature. The audit receipt also contains verdict `APPROVED`, an empty
-finding array, and evidence digest. Before activation,
-`register-family-authority` verifies the source, both signatures, and all eight
+manifest digest, Track 1 commit and tree, and issue time. The audit receipt also
+contains verdict `APPROVED`, an empty finding array, and evidence digest. Before
+activation, `register-family-authority` verifies both canonical receipt digests,
+the source, and all eight
 generated package briefs. It durably copies the canonical source and brief set
 to `<state-root>/release-families/<familySha256>/source.json` and
 `<state-root>/release-families/<familySha256>/briefs/<packageId>.json` before it
@@ -1001,7 +933,7 @@ Tranche 8 has one additional completion predicate. It requires one registered
 `GRAPH_OFF_FAILED`, and `GRAPH_OFF_INCONCLUSIVE` require exactly 2,000 distinct
 origin `evaluate` reservations with registered `PASS` outcomes. Retry and
 resume may close an origin and do not create another run.
-`GRAPH_OFF_UNCOMPUTABLE` permits fewer completed runs only when the signed
+`GRAPH_OFF_UNCOMPUTABLE` permits fewer completed runs only when the registered
 report identifies unavailable and unstarted runs without imputation. The three
 counts must sum to 2,000. Registration recomputes the canonical sorted origin
 and outcome set from the root journal and requires `runSetSha256` equality.
@@ -1015,7 +947,7 @@ compatibility adapters. Each locates Node, executes only
 `dist/release-policy.js`, and forwards exact arguments, environment, status,
 and byte streams. They do not source other scripts, parse domain data, read
 configuration, inspect receipts, emit events, schedule work, or decide policy.
-The compiled TypeScript artifact owns coverage, action admission, signed
+The compiled TypeScript artifact owns coverage, action admission, registered
 authority, Git identity, Endstop lookup, the complete existing gate decision,
 merge-base record and freshness behavior, event recording, and output
 contracts. Effect owns its bounded file, subprocess, and event-log boundaries.
@@ -1056,9 +988,9 @@ one object for policy and reservation. It requires the root, family, child, and
 action to match Endstop and the registered bundle, and it requires the package
 to match the child. It also requires `endstop-candidate-sha` to equal SHA-256 of
 the ASCII lowercase commit resolved from `release-candidate-commit`. For a
-child's first implementation, the resolved identity equals the signed design
+child's first implementation, the resolved identity equals the approved design
 base. Each later implementation starts at the exact journaled current identity
-and preserves the signed-base lineage and task-plan authority. In `check` mode,
+and preserves the approved-base lineage and task-plan authority. In `check` mode,
 `release-policy.sh` receives the 14 values as
 positional arguments in the order shown by the block and adds only the static
 `check` mode when it invokes the artifact.
@@ -1086,18 +1018,18 @@ The host receipt producer forms are:
 
 ```text
 release-authority build-family --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --track1-repo ABS --track1-commit SHA40 --source ABS --out ABS --source-out ABS --briefs-out ABS
-release-authority issue-design --program v040 --package PACKAGE --repo ABS --design-commit SHA40 --statement ABS --key ABS --out ABS
-release-authority issue-checks --program v040 --package PACKAGE --repo ABS --candidate-commit SHA40 --checks ABS --key ABS --out ABS
-release-authority issue-audit --program v040 --package PACKAGE --repo ABS --candidate-commit SHA40 --audit-verdict ABS --key ABS --out ABS
-release-authority issue-council-request --program v040 --package PACKAGE --candidate-sha SHA256 --question ABS --constraints ABS --options ABS --key ABS --out ABS
-release-authority issue-action-outcome --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --package PACKAGE --reservation-action RESERVED_ACTION --effective-action EFFECTIVE_ACTION --reservation-id ID --origin-reservation-id ID --candidate-sha SHA256 --status OUTCOME_STATUS --evidence ABS --key ABS --out ABS
-release-authority issue-council-outcome --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --package PACKAGE --reservation-action COUNCIL_RESERVATION_ACTION --reservation-id ID --origin-reservation-id ID --candidate-sha SHA256 --request ABS --decision ABS --status COUNCIL_STATUS --key ABS --out ABS
-release-authority issue-child-terminal --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --terminal TERMINAL --reason ABS [--observed-family-sha SHA256] --key ABS --out ABS
-release-authority issue-evaluation --program v040 --manifest ABS --key ABS --out ABS
-release-authority issue-evaluation-verdict --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id v040-t8-evaluation --candidate-sha SHA256 --authority ABS --report ABS --key ABS --out ABS
-release-authority issue-family-audit --program v040 --manifest ABS --track1-repo ABS --track1-commit SHA40 --audit-verdict ABS --key ABS --out ABS
-release-authority issue-family-approval --program v040 --manifest ABS --track1-repo ABS --track1-commit SHA40 --statement ABS --key ABS --out ABS
-release-authority bundle --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --package PACKAGE --action ACTION --repo ABS --candidate-commit SHA40 --receipt ABS [--receipt ABS] [--prior-reservation ABS] --key ABS --out ABS
+release-authority issue-design --program v040 --package PACKAGE --repo ABS --design-commit SHA40 --statement ABS --out ABS
+release-authority issue-checks --program v040 --package PACKAGE --repo ABS --candidate-commit SHA40 --checks ABS --out ABS
+release-authority issue-audit --program v040 --package PACKAGE --repo ABS --candidate-commit SHA40 --audit-verdict ABS --out ABS
+release-authority issue-council-request --program v040 --package PACKAGE --candidate-sha SHA256 --question ABS --constraints ABS --options ABS --out ABS
+release-authority issue-action-outcome --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --package PACKAGE --reservation-action RESERVED_ACTION --effective-action EFFECTIVE_ACTION --reservation-id ID --origin-reservation-id ID --candidate-sha SHA256 --status OUTCOME_STATUS --evidence ABS --out ABS
+release-authority issue-council-outcome --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --package PACKAGE --reservation-action COUNCIL_RESERVATION_ACTION --reservation-id ID --origin-reservation-id ID --candidate-sha SHA256 --request ABS --decision ABS --status COUNCIL_STATUS --out ABS
+release-authority issue-child-terminal --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --terminal TERMINAL --reason ABS [--observed-family-sha SHA256] --out ABS
+release-authority issue-evaluation --program v040 --manifest ABS --out ABS
+release-authority issue-evaluation-verdict --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id v040-t8-evaluation --candidate-sha SHA256 --authority ABS --report ABS --out ABS
+release-authority issue-family-audit --program v040 --manifest ABS --track1-repo ABS --track1-commit SHA40 --audit-verdict ABS --out ABS
+release-authority issue-family-approval --program v040 --manifest ABS --track1-repo ABS --track1-commit SHA40 --statement ABS --out ABS
+release-authority bundle --program v040 --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha FAMILY_SHA --child-id ID --package PACKAGE --action ACTION --repo ABS --candidate-commit SHA40 --receipt ABS [--receipt ABS] [--prior-reservation ABS] --out ABS
 release-authority register --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha SHA256 --child-id ID --action ACTION --evidence ABS
 release-authority register-outcome --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha SHA256 --child-id ID --outcome ABS
 release-authority register-evaluation-verdict --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha SHA256 --child-id v040-t8-evaluation --verdict ABS
@@ -1106,10 +1038,9 @@ release-authority register-evaluation-verdict --state-root ABS --contract-id ROO
 `build-family` validates the exact child mapping, brief rules, Track 1 commit
 and tree, digest preimages, and deadline formula. It writes the canonical
 manifest, preserved source, and generated package briefs with the output
-contract above and needs no private key. Issuance
-validates its source and writes by fsync plus atomic replace. Bundle
-creation uses the host-audit key. Register verifies the bundle signature, every
-nested role signature, candidate, and receipt digest before one root-journal
+contract above. Issuance validates its source and writes by fsync plus atomic
+replace. Register verifies the canonical bundle, candidate, and every receipt
+digest before one root-journal
 append. An ordinary child registration key is
 `(familySha256, childId, action, candidateSha256, null)`. A `provider_retry` or
 `resume` key replaces null with its exact `priorReservationId`. This permits
@@ -1117,19 +1048,18 @@ chained retries and retries of different effective actions on one candidate
 without permitting two authorities for one attempt. The first valid digest for
 each key wins.
 Register requires the supplied root and family to exist, the child package to
-equal the signed bundle package, and the CLI action to equal the signed bundle
+equal the bundle package, and the CLI action to equal the bundle
 action. It stores the complete candidate identity that the host-only bundle
-command resolved and signed. Release policy resolves that identity again before
+command resolved. Release policy resolves that identity again before
 reservation. Register also requires the caller root, root digest,
-family, and child to equal the corresponding signed bundle fields.
+family, and child to equal the corresponding bundle fields.
 An identical replay returns the existing state without an append. A different
-digest, schema, or signer for the same key refuses without an append. Concurrent
+digest or schema for the same key refuses without an append. Concurrent
 registrations have one winner. An identical loser is idempotent and a
-conflicting loser is refused. Private key paths are accepted only by issue and
-bundle commands and never by queue, gate, or worker commands.
+conflicting loser is refused. No release command accepts key material.
 
-Bundle creation resolves and signs the complete candidate commit, tree, and
-digest. Ordinary authority registration stores `effectiveAction=action` and null prior
+Bundle creation resolves the complete candidate commit, tree, and digest.
+Ordinary authority registration stores `effectiveAction=action` and null prior
 and origin IDs. Retry or resume registration stores the immediate prior ID,
 the journal-derived first origin ID, and its first non-retry effective action.
 Reservation converts an ordinary null origin to its new reservation ID. It
@@ -1151,13 +1081,13 @@ Action-outcome and council-outcome issuance bind one existing reservation.
 Outcome registration verifies that binding and is first-write-wins by
 reservation ID. It rejects registration before reservation. It rejects a
 different second outcome. It rejects a wrong root, family, child, package,
-action, candidate, request, signer, or signature. An identical replay is
-idempotent. Terminal approval uses the user key and
-binds the exact root, family, child, terminal, and reason.
+action, candidate, or request. An identical replay is
+idempotent. Terminal approval binds the exact root, family, child, terminal,
+and reason.
 
 Evaluation-verdict registration is first-write-wins by family, child, and
-candidate. It verifies the host signature, evaluation-authority manifest,
-exact user-signed evaluation-authority receipt digest, report digest, counts,
+candidate. It verifies the evaluation-authority manifest, exact registered
+evaluation-authority receipt digest, report digest, counts,
 result, and journal-derived run-set digest. Both authority values must equal
 the journaled evaluate authority. An identical
 replay is idempotent. A different verdict or any graph-promotion result with a
@@ -1172,7 +1102,7 @@ execution-guard family-status --state-root ABS --contract-id ROOT_ID --contract-
 execution-guard child-status --state-root ABS --contract-id ROOT_ID --contract-sha ROOT_SHA --family-sha SHA256 --child-id ID
 ```
 
-Registration verifies the source, generated briefs, and pinned signatures. It
+Registration verifies the source, generated briefs, and canonical receipts. It
 publishes the content-addressed source set, then appends the four expected
 digests. Activation reads the bounded caller manifest and the registered source
 set from Endstop state, recomputes every digest, and accepts only the exact prior
@@ -1217,7 +1147,7 @@ the same outcome is idempotent. A different or out-of-order outcome refuses.
 The outcome effective action controls this mapping, including retry and resume.
 Blocking requires a registered `BLOCKING` verify or audit outcome, or a
 registered `BLOCKING` council outcome. Cancellation and invalidation require
-the matching signed user approval. External failure requires a registered
+the matching user-approval digest. External failure requires a registered
 `EXTERNAL_FAILURE` outcome for the exact reservation. Completion occurs only when one current
 candidate has the exact required ordered milestones. A child terminal state
 does not reset a sibling. Every mutation is one root-journal transaction. The
