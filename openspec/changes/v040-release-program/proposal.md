@@ -28,7 +28,7 @@ reproducible bootstrap and makes support evidence depend on the host.
   active specification tree.
 - Add the closed `foreman-bounded` and `foreman-architectural` OpenSpec
   workflows. Each approved `tasks.md` is its package's only active plan.
-- Add a signed action-specific v0.4 evidence check and an Endstop-composed
+- Add a digest-bound action-specific v0.4 evidence check and an Endstop-composed
   release-policy boundary. Only integration and publication accept an exact
   `APPROVED` audit with no findings. Mutable audit policy cannot weaken it.
 - Add a machine-local project registry. Stable project identities bind

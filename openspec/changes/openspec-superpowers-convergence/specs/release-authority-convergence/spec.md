@@ -62,28 +62,23 @@ registered values. Bootstrap SHALL use no family or package-brief authority.
 - **THEN** the command returns exit code 1 and one sanitized `Invalid` result
 - **AND** it does not mutate repository or external state
 
-### Requirement: Signed action-specific release admission
+### Requirement: Digest-bound action-specific release admission
 
 The `release-admission` command SHALL resolve the explicitly named candidate
 commit and tree in the explicitly named repository. It SHALL NOT inspect caller
-`HEAD`. It SHALL verify canonical signatures, role keys, action evidence, and
+`HEAD`. It SHALL verify canonical bytes, complete-file digests, action evidence, and
 Git identity and return only `EvidenceValid` or `EvidenceInvalid`. It has no
 Endstop identity and SHALL NOT claim or grant admission. Only the composed
 `release-policy` boundary SHALL obtain the registered authority for the same
 root, family, child, action, package, and candidate and return `Admitted`. A
 caller-selected path or digest SHALL NOT create authority.
 
-The schema-to-key map SHALL be exact. Design, evaluation, terminal approval,
-and family user-approval receipts SHALL use the pinned user-approval key.
-Checks, audit, council request, council outcome, action outcome, evaluation
-verdict, evidence-bundle, and family audit signatures SHALL use the pinned
-host-audit key. A signature
-from the wrong role key SHALL refuse. The approved OpenSpec digest SHALL bind
-the exact canonical manifest shape in the design. Each evidence bundle SHALL
-also carry a valid host-audit signature.
-The signature preimage SHALL be the UTF-8 domain bytes, one `0x0a` byte, and
-the UTF-8 canonical unsigned-object bytes. A literal backslash plus `n` SHALL
-not be equivalent.
+The schema map SHALL be exact. Each receipt and evidence bundle SHALL be closed
+canonical JSON with one trailing LF. Its authority digest SHALL be SHA-256 of
+the complete bytes, including that LF. The approved OpenSpec digest SHALL bind
+the exact canonical manifest shape in the design. Endstop SHALL register the
+expected evidence-bundle digest before use. A caller-supplied or unregistered
+digest SHALL refuse.
 
 Checks, audit, evaluation-report, child-brief, and family-source inputs SHALL
 use the closed canonical schemas, bounds, and digest preimages in the design.
@@ -94,28 +89,27 @@ Design approval SHALL be issued after `tasks.md` exists. It SHALL bind the
 approved design manifest, exact task-plan digest, and post-plan implementation-
 base commit and tree. A child's first implementation SHALL start from that exact
 base. Each later implementation SHALL start from the exact current journaled
-candidate and remain in a direct-parent lineage from the signed base under the
+candidate and remain in a direct-parent lineage from the registered base under the
 same task-plan authority. A retry or resume SHALL keep its origin candidate.
-Signed
-checks evidence SHALL admit audit. A signed failed-check,
-`WARNING`, `BLOCKED`, or `UNVERIFIED` result SHALL admit correction. A signed
-council request SHALL admit council. Its later signed outcome SHALL be outcome
+Registered checks evidence SHALL admit audit. A registered failed-check,
+`WARNING`, `BLOCKED`, or `UNVERIFIED` result SHALL admit correction. A registered
+council request SHALL admit council. Its later registered outcome SHALL be outcome
 evidence and SHALL NOT authorize that same reservation. Retry and resume SHALL
 bind a recorded failed reservation, first origin, and effective original
-action. Only a signed
+action. Only a registered
 `APPROVED` audit receipt with no findings and matching design approval SHALL
 admit integration or publication. Neither verifier SHALL read `[audit.policy]`
 or an equivalent mutable exception.
 
 Standalone admission, bundle creation, design issuance, and composed policy
 SHALL reconstruct the approved OpenSpec manifest and `tasks.md` only from
-bounded Git blobs below the package path in the signed design commit. They
-SHALL verify the signed design tree. They SHALL NOT obtain those preimages from
+bounded Git blobs below the package path in the registered design commit. They
+SHALL verify the registered design tree. They SHALL NOT obtain those preimages from
 the candidate tree, worktree, mutable `HEAD`, or caller file paths.
 
 #### Scenario: Exact approved candidate is checked
 
-- **WHEN** the named Git identity, registered audit receipt, and signed human
+- **WHEN** the named Git identity, registered audit receipt, and exact human
   design approval match
 - **AND** the audit finding set is empty
 - **THEN** standalone verification returns canonical `EvidenceValid`
@@ -124,34 +118,34 @@ the candidate tree, worktree, mutable `HEAD`, or caller file paths.
 #### Scenario: Audit policy would permit weaker evidence
 
 - **WHEN** integration or publication receives `WARNING`, `BLOCKED`,
-  `UNVERIFIED`, malformed, stale, unsigned, unregistered,
+  `UNVERIFIED`, malformed, stale, unregistered,
   identity-mismatched evidence, a wrong authority, or any finding
 - **THEN** release admission returns exit code 1
 - **AND** mutable audit policy cannot change that result
 
 #### Scenario: Blocking audit opens correction
 
-- **WHEN** a registered signed audit receipt binds the current candidate and
+- **WHEN** a registered audit receipt binds the current candidate and
   reports `BLOCKED` or `UNVERIFIED`
 - **AND** the child has remaining correction actions
 - **THEN** correction admission succeeds for that candidate
 - **AND** integration admission still refuses it
 
-#### Scenario: Caller forges a matching receipt
+#### Scenario: Caller substitutes matching-looking receipt bytes
 
-- **WHEN** caller bytes match the current Git identity but the signature,
-  signer fingerprint, or Endstop-registered digest does not match
+- **WHEN** caller bytes match the current Git identity but their complete-file
+  digest or Endstop-registered digest does not match
 - **THEN** admission refuses before reservation
 
 #### Scenario: Implementation uses an unrelated commit
 
 - **WHEN** a valid design receipt is paired with a different candidate commit,
-  tree, task plan, package, role key, or signed evidence-bundle identity
+  tree, task plan, package, receipt kind, or evidence-bundle identity
 - **THEN** implementation admission refuses before a worker or queue starts
 
 #### Scenario: Two dependent implementation tasks advance
 
-- **WHEN** the first task starts from the signed base and records one direct-
+- **WHEN** the first task starts from the registered base and records one direct-
   parent product commit
 - **AND** the second task presents the same design and task-plan authority with
   that exact current commit
@@ -160,7 +154,7 @@ the candidate tree, worktree, mutable `HEAD`, or caller file paths.
 
 #### Scenario: Standalone evidence is not registered
 
-- **WHEN** a signed bundle is valid but has no matching Endstop registration
+- **WHEN** a canonical bundle is valid but has no matching Endstop registration
 - **THEN** standalone verification may return `EvidenceValid`
 - **AND** every queue, gate, merge, or publication boundary refuses it
 
@@ -171,11 +165,10 @@ to Endstop root `v040-release-20260822-r5`. The manifest SHALL bind the root
 receipt, Track 1 commit and tree, `wallTimeMs=5184000000`,
 `totalActions=4096`, and exactly eight immutable child contracts for Tranches 2
 through 9 with the exact IDs, package mapping, dependency graph, action limits,
-authority-key fingerprints, child-brief digest preimages, and deadline formula
+child-brief digest preimages, and deadline formula
 in the approved design. The live builder SHALL use its host clock. Activation
 SHALL reject a future `createdAt`. The audit and user
-receipts SHALL each bind the completed manifest digest and carry a valid
-signature from the matching fixed authority. One prior root-journal authority
+receipts SHALL each bind the completed manifest digest. One prior root-journal authority
 event SHALL bind the source and both expected receipt digests. The activation
 event SHALL bind the manifest, source, and both receipt digests. The manifest SHALL NOT contain a
 digest of a receipt that approves that manifest.
@@ -217,8 +210,8 @@ and precede completion. No child journal or stream SHALL be created.
 
 #### Scenario: Activation is partial or repeated
 
-- **WHEN** any required child, bound identity, or approval is missing or wrong
-  or unsigned, the expected authority record is absent, or an activation event
+- **WHEN** any required child, bound identity, or approval is missing or wrong,
+  the expected authority record is absent, or an activation event
   already exists
 - **THEN** activation refuses without changing the journal
 
@@ -241,7 +234,7 @@ Tranche 8 SHALL contain `kind="evaluation"` and `noProgressMs=3600000`; it
 SHALL NOT contain `noProductChangeMs`. Its no-progress timer SHALL cover all
 evaluation-child activity. Its wall and progress clocks SHALL both start at the
 first accepted action, including a pre-evaluation action. Only product change,
-milestone recording, and registration of a matching signed `PASS` outcome SHALL
+milestone recording, and registration of a matching `PASS` outcome SHALL
 reset progress. Reservation, retry, resume, advice, blocking, and failure SHALL
 not reset it. An action at or after an exact time boundary SHALL refuse.
 
@@ -271,7 +264,7 @@ authority for one retry attempt SHALL refuse.
 - **AND** that current candidate records ordered, registered `PASS` outcomes
   for checks, audit, and integration
 - **AND** Tranche 9 also records publication
-- **AND** Tranche 8 records one signed evaluation verdict for its current
+- **AND** Tranche 8 records one registered evaluation verdict for its current
   candidate
 - **AND** that verdict validates 2,000 completed runs or records bounded
   `GRAPH_OFF_UNCOMPUTABLE` without imputation
@@ -297,7 +290,7 @@ authority for one retry attempt SHALL refuse.
 
 #### Scenario: A child terminal command is unauthorized
 
-- **WHEN** cancellation or invalidation lacks the exact signed user approval
+- **WHEN** cancellation or invalidation lacks the exact registered user approval
   for the root, family, child, terminal, and reason
 - **THEN** the child and every sibling remain unchanged
 
@@ -345,10 +338,10 @@ SHALL supply expected action `publish`.
 
 #### Scenario: Registration is replayed or replaced
 
-- **WHEN** the same child action and candidate receives an identical signed
+- **WHEN** the same child action and candidate receives an identical registered
   evidence-bundle digest
 - **THEN** registration returns the existing state and appends nothing
-- **BUT WHEN** the bundle digest, schema, signer, or identity differs
+- **BUT WHEN** the bundle digest, schema, or identity differs
 - **THEN** registration refuses and preserves the first write
 
 ### Requirement: Exact installed runtime inventory

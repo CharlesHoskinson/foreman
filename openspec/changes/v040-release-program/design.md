@@ -139,17 +139,13 @@ bootstrap. The bootstrap consumes the existing V1 root limits. It implements
 the two OpenSpec workflows, `release-coverage check`, `release-admission check`,
 and the `ExecutionContractV2` family activation protocol in one candidate.
 
-The exact approved Track 1 design fixes two release-specific Ed25519 public
-keys: one user-approval authority and one host-audit authority. Their private
-keys stay in host-owned external state and are not mounted in worker sandboxes.
-Canonical approval and evidence receipts carry the matching key fingerprint
-and signature. Endstop records the expected receipt digest before an action can
-consume it, and SessionDB records the same digest at each human-approved
-boundary. A caller-selected receipt path or digest is not authority.
-Design, evaluation, terminal child approval, and family user-approval receipts
-use only the user key. Checks, audit, council request, council outcome, action
-outcome, evaluation verdict, signed evidence bundles, and family audit receipts use only the
-host-audit key. A signature from the wrong role key is invalid.
+Release authority uses canonical receipts and complete-file SHA-256 digests.
+Endstop records the expected receipt or evidence-bundle digest before an action
+can consume it, and SessionDB records the same digest at each human-approved
+boundary. A caller-selected receipt path or digest is not authority. Each
+receipt uses one closed schema and binds its program, package, action, candidate,
+and source digests. Missing, mutated, substituted, or unregistered bytes are
+invalid.
 
 The bootstrap path scope is closed to these paths:
 
@@ -264,13 +260,11 @@ appends one event to the root Endstop RunJournal. It refuses after a root
 terminal state and refuses a second activation. The canonical family manifest
 binds the root, Track 1 commit and tree, and exactly eight immutable child
 contracts for Tranches 2 through 9. The manifest does not contain the digests
-of receipts that approve itself. It contains the two authority-key
-fingerprints fixed by the approved Track 1 design. After the manifest bytes
-exist, one exact-byte `APPROVED` audit receipt and one exact-byte user approval
-receipt each bind the manifest digest and carry a valid signature from the
-corresponding authority. The root Endstop bootstrap record supplies both
-expected receipt digests. The atomic activation event binds the manifest,
-registered source, and both receipt digests. This order has no self-referential digest and
+of receipts that approve itself. After the manifest bytes exist, one exact-byte
+`APPROVED` audit receipt and one exact-byte user approval receipt each bind the
+manifest digest. The root Endstop bootstrap record supplies both expected
+receipt digests. The atomic activation event binds the manifest, registered
+source, and both receipt digests. This order has no self-referential digest and
 does not trust caller-selected substitutes.
 
 One canonical external family-source file supplies each child objective,
@@ -316,7 +310,7 @@ Evaluation limits contain `kind="evaluation"` and `noProgressMs=3600000` but no
 `noProductChangeMs`. The evaluation no-progress timer covers all child activity.
 Every child clock starts at its first accepted action, including a
 pre-evaluation action. Tranche 8 progress resets only on product change,
-milestone recording, or a matching signed `PASS` outcome registration.
+milestone recording, or a matching registered `PASS` outcome.
 Reservation, retry, resume, advice, blocking, and failure do not reset it.
 
 One root RunJournal transaction appends each child action reservation. Replay
@@ -357,25 +351,26 @@ and deterministic evidence. The model reports `APPROVED`, `WARNING`, or
 `BLOCKED`. The harness records a typed `UNVERIFIED` result when no valid model
 judgment exists. Only an exact `APPROVED` audit receipt with no findings admits
 integration or publication. Earlier actions use a closed action-specific
-evidence rule. Design approval admits the first implementation from its signed
+evidence rule. Design approval admits the first implementation from its exact
 base and a later implementation from the exact current lineage. Frozen host
-checks admit audit. A signed blocking or unverified result admits correction.
+checks admit audit. A registered blocking or unverified result admits correction.
 Retry or resume must identify the immediate failed reservation, first
 origin, and effective action that it continues.
 Invalid or missing action evidence refuses before reservation.
 
 The first implementation also requires the candidate commit and tree to equal
-the signed historical design identity and requires the exact task-plan digest.
+the registered historical design identity and requires the exact task-plan digest.
 Each later implementation starts from the complete current journaled candidate
-under that same signed plan and direct-parent lineage. A signed
-council request admits a council call; its signed outcome is later child outcome
-evidence and cannot admit that same call. Every evidence bundle is signed by
-the host-audit key. The fixed queue, gate, and merge block contains one copy of
+under that same registered plan and direct-parent lineage. A registered
+council request admits a council call; its registered outcome is later child
+outcome evidence and cannot admit that same call. Every evidence bundle is
+canonical and registered by its complete-file digest. The fixed queue, gate,
+and merge block contains one copy of
 root, family, child, action, and candidate identity. One TypeScript parse drives
 both policy and reservation, including candidate-digest-to-commit equality and
 package-to-child equality.
 
-Signed action and Council outcomes bind the root, family, child, package,
+Canonical action and Council outcomes bind the root, family, child, package,
 candidate, and exact spent reservation. Endstop registers each outcome digest
 in the root journal before it can change child state. Product change binds an
 implement or correct reservation. Endstop derives the output Git identity,
@@ -385,20 +380,20 @@ precedes milestones. Matching `PASS`
 outcomes record checks, audit, integration, and publication in that order for
 one current candidate. Premature, forged, unregistered, wrong-reservation,
 out-of-order, and conflicting outcomes refuse. Identical replay is idempotent.
-Cancellation and invalidation require a signed user approval bound to the root,
+Cancellation and invalidation require an exact registered user approval bound to the root,
 family, child, terminal, and reason.
 
 Track 1 implements this rule in `packages/policy/src/release-admission.ts` and
 the `release-admission check` command. The command resolves the named candidate
-commit and tree in the supplied repository and verifies signed canonical
-evidence against the fixed authority key. Because it has no Endstop identity,
+commit and tree in the supplied repository and verifies canonical evidence and
+its complete-file digest. Because it has no Endstop identity,
 it returns only `EvidenceValid` or `EvidenceInvalid` and cannot authorize an
 action. Only composed `release-policy` checks the expected Endstop digest and
 returns `Admitted`. Neither reads `[audit.policy]`. Every later v0.4 queue, integration gate, and
 publication gate runs phase-aware coverage and the action-specific evidence
 policy. Mutable repository or machine configuration cannot weaken this rule.
 The standalone and composed boundaries reconstruct the approved OpenSpec
-manifest and task plan only from bounded Git blobs in the signed design commit.
+manifest and task plan only from bounded Git blobs in the registered design commit.
 They verify its tree and never use candidate, worktree, mutable `HEAD`, or
 caller-path bytes as those preimages.
 Before the atomic authority bootstrap exists, only its exact candidate can

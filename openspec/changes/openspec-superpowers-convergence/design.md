@@ -546,7 +546,7 @@ its interface has no Endstop identity. Only the production `release-policy`
 composition may return `Admitted`. It obtains the expected receipt digest from
 Endstop by root, family, and child identity and calls
 `evaluateReleaseAdmissionV1`. No boundary treats standalone success as
-permission. No input can substitute another Git object, authority key, receipt
+permission. No input can substitute another Git object, authority object, receipt
 digest, or package approval.
 
 After it verifies the outer evidence schema, the standalone and composed

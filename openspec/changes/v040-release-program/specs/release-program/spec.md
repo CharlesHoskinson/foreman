@@ -168,18 +168,12 @@ directed-versus-undirected graph assumptions.
 prerequisite during reconciliation and SHALL own its narrow TypeScript and
 Effect advisory lock.
 
-The approved Track 1 design SHALL fix one Ed25519 user-approval public key and
-one Ed25519 host-audit public key. The corresponding private keys SHALL stay in
-host-owned external state and SHALL NOT be mounted in worker sandboxes. Every
-later approval or evidence receipt SHALL be canonical, signed by the required
-authority, and registered in Endstop before use. SessionDB SHALL record each
-human-approval receipt digest. A caller-selected receipt path or expected
-digest SHALL NOT create authority.
-Design, evaluation, terminal child approval, and family user-approval schemas
-SHALL use only the pinned user-approval key. Checks, audit, council request,
-council outcome, action outcome, evaluation verdict, signed evidence bundle, and family audit
-schemas SHALL use only the pinned host-audit key. A valid signature from the
-wrong role key SHALL refuse.
+Every release approval or evidence receipt SHALL be closed canonical JSON and
+registered in Endstop by its complete-file SHA-256 digest before use. SessionDB
+SHALL record each human-approval receipt digest. A caller-selected receipt path
+or expected digest SHALL NOT create authority. Each receipt SHALL bind its exact
+program, package, action, candidate, and source digests. Missing, mutated,
+substituted, or unregistered bytes SHALL refuse.
 
 #### Scenario: An active package is not part of v0.4
 
@@ -220,10 +214,8 @@ Track 1 SHALL implement `ExecutionContractV2` as a one-time family activation.
 Activation SHALL append to the root Endstop RunJournal before the V1 deadline.
 It SHALL refuse after a root terminal state and SHALL refuse a second
 activation. The closed canonical family manifest SHALL receive an exact-byte
-`APPROVED` audit and exact-byte user approval. It SHALL contain the audit and
-user authority-key fingerprints fixed by the approved Track 1 design. Each
-receipt SHALL carry a valid signature from its matching authority, and the root
-Endstop bootstrap record SHALL supply both expected receipt digests. Activation
+`APPROVED` audit and exact-byte user approval. The root Endstop bootstrap record
+SHALL supply both expected receipt digests. Activation
 SHALL bind the manifest digest, root identity, Track 1 commit and tree, source
 digest, and both approval-receipt digests.
 The manifest SHALL NOT contain the digest of a receipt that approves that same
@@ -285,7 +277,7 @@ limit object SHALL carry `kind="evaluation"` and `noProgressMs=3600000` and
 SHALL NOT carry `noProductChangeMs`. No-progress applies to all Tranche 8
 activity.
 Every child clock SHALL start at its first accepted action. Tranche 8 progress
-SHALL reset only on product change, milestone recording, or a matching signed
+SHALL reset only on product change, milestone recording, or a matching registered
 `PASS` outcome registration. Reservation, retry, resume, advice, blocking, and
 failure SHALL NOT reset it. Exact time-boundary actions SHALL refuse.
 
@@ -302,7 +294,7 @@ reservation in that key. Chained retries and retries of different effective
 actions on one candidate SHALL remain distinct. Conflicting authority for one
 attempt SHALL refuse.
 
-Each signed action or Council outcome SHALL bind the root, family, child,
+Each canonical action or Council outcome SHALL bind the root, family, child,
 package, candidate, and exact spent reservation. Endstop SHALL register its
 digest in the root journal before a child mutation. Product change SHALL bind
 one implement or correct reservation, derive a complete distinct direct-parent
@@ -311,36 +303,36 @@ the registered family source. It SHALL precede ordered checks, audit,
 integration, and publication milestones for the current candidate. Premature,
 forged, unregistered, wrong-reservation, out-of-order, or conflicting outcomes
 SHALL refuse. Identical replay SHALL be idempotent. Cancellation and
-invalidation SHALL require a signed user approval bound to the exact terminal
+invalidation SHALL require an exact registered user approval bound to the exact terminal
 identity and reason.
 
 Track 1 SHALL implement `packages/policy/src/release-admission.ts` and the
 command `release-admission check --program v040 --action ACTION --package
 PACKAGE --repo ABS --candidate-commit SHA40 --evidence ABS`. It
-SHALL resolve that named commit and tree, verify the pinned signer and
-action-specific evidence bundle, and SHALL NOT read or honor `[audit.policy]`.
+SHALL resolve that named commit and tree, verify the canonical action-specific
+evidence bundle and complete-file digest, and SHALL NOT read or honor `[audit.policy]`.
 Because this command has no Endstop identity, it SHALL return only
 `EvidenceValid` or `EvidenceInvalid` and SHALL NOT authorize an action. Only the
 composed `release-policy` boundary SHALL combine that result with exact Endstop
 registration and return `Admitted`.
-The evidence bundle SHALL itself have a valid host-audit signature. Design
+The evidence bundle SHALL be registered by its complete-file digest. Design
 approval SHALL admit a child's first implementation only when the resolved
 commit and tree equal its historical design identity and the task-plan digest
 matches. Each later implementation SHALL use the exact current journaled
-candidate in a direct-parent lineage under that same plan authority. Signed
-successful checks SHALL admit audit. Signed failed checks or a `WARNING`,
-`BLOCKED`, or `UNVERIFIED` audit SHALL admit correction. A signed council
-request SHALL admit council. Its later signed outcome SHALL be recorded as
+candidate in a direct-parent lineage under that same plan authority. Registered
+successful checks SHALL admit audit. Registered failed checks or a `WARNING`,
+`BLOCKED`, or `UNVERIFIED` audit SHALL admit correction. A registered council
+request SHALL admit council. Its later registered outcome SHALL be recorded as
 outcome evidence and SHALL NOT authorize that same reservation.
 Retry and resume SHALL bind the immediate recorded failed reservation, first
 origin, effective original action, unchanged candidate, and original authority.
-Only a signed `APPROVED` audit with no findings and matching design
+Only a registered `APPROVED` audit with no findings and matching design
 approval SHALL admit integration or publication. Queue wrappers SHALL run
 phase-aware coverage and this action policy before reservation. Integration
 and publication gates SHALL run them after the general Foreman gate.
 Repository and machine configuration SHALL NOT weaken this v0.4 rule.
 Standalone and composed policy SHALL reconstruct the approved OpenSpec
-manifest and `tasks.md` only from bounded Git blobs in the signed design commit.
+manifest and `tasks.md` only from bounded Git blobs in the registered design commit.
 They SHALL verify its tree and SHALL NOT read those preimages from candidate,
 worktree, mutable `HEAD`, or caller file paths.
 

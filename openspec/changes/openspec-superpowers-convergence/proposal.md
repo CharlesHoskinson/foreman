@@ -12,7 +12,7 @@ provider cannot reset the release bounds.
 - Add the `foreman-bounded` and `foreman-architectural` OpenSpec workflows.
 - Make each package's OpenSpec `tasks.md` its only active implementation plan.
 - Add a strict release-coverage validator for the v0.4 coverage register.
-- Add signed action-specific evidence verification and Endstop-composed release
+- Add digest-bound action-specific evidence verification and Endstop-composed release
   admission. Only integration and publication accept an exact empty-finding
   `APPROVED` audit and matching external human approval receipt.
 - Add one immutable `ExecutionContractV2` family, eight child contracts, and a
@@ -34,7 +34,7 @@ provider cannot reset the release bounds.
 ## Impact
 
 - Adds project-local OpenSpec schemas and one focused OpenSpec package.
-- Adds signed release authority, phase-aware coverage, action admission, and one
+- Adds digest-bound release authority, phase-aware coverage, action admission, and one
   composed TypeScript release-policy boundary with four runtime artifacts.
 - Extends Endstop state, queue admission, and release gates without weakening
   the existing V1 contract.
