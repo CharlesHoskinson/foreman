@@ -209,15 +209,11 @@ test("all digest authority schemas parse and decode canonically", () => {
   }
 });
 
-test("legacy signer and signature fields are closed", () => {
-  for (const extra of [
-    { issuerKeySha256: SHA_F },
-    { signature: "legacy" },
-  ]) {
-    assert.deepEqual(parseReleaseAuthorityObjectV1({ ...DESIGN, ...extra }), {
-      _tag: "Invalid",
-    });
-  }
+test("legacy authority fields are closed", () => {
+  assert.deepEqual(
+    parseReleaseAuthorityObjectV1({ ...DESIGN, keyMaterial: "legacy" }),
+    { _tag: "Invalid" },
+  );
 });
 
 test("authority files require canonical UTF-8 with one LF", () => {

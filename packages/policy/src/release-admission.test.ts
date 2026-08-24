@@ -131,11 +131,10 @@ test("a different registered bundle digest is refused", () => {
   );
 });
 
-test("legacy signing fields are invalid evidence", () => {
+test("legacy authority fields are invalid evidence", () => {
   const legacy = canonicalFile({
     ...BUNDLE,
-    issuerKeySha256: "f".repeat(64),
-    signature: "legacy",
+    keyMaterial: "legacy",
   });
   assert.deepEqual(evaluateReleaseEvidenceV1({ ...INPUT, evidenceBytes: legacy }), {
     schemaVersion: 1,
