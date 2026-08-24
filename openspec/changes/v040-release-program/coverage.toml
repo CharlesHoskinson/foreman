@@ -1,6 +1,6 @@
 schema_version = 1
 baseline_commit = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195"
-active_inventory_sha256 = "4d180b8b068105274e49efa202afa4381c839ba44f79aa6ef57fb73bc63fbce6"
+active_inventory_sha256 = "bfe349cf72c8b09ed3d198c942b05fcf8e2cfc92d99ff394738ea3586ebcee2c"
 roadmap_sha256 = "2e9ce274bd1bae7d4a4a0187a4908eea17c768175c3aa0f176f54cb14bf7c12b"
 
 [[future_owner]]
@@ -132,6 +132,16 @@ owner = "evidence-contracts"
 target_release = "v0.5"
 reconcile = "not_required"
 reason = "The release uses current evidence contracts without expanding them."
+
+[[entry]]
+key = "change:external-memory-index"
+source_kind = "openspec_change"
+source_path = "openspec/changes/external-memory-index"
+disposition = "v040_owner"
+owner = "external-memory-index"
+target_release = "v0.4"
+reconcile = "required"
+reason = "Track 3 owns the Qdrant adapter, projection versions, and isolated epochs."
 
 [[entry]]
 key = "change:foreman-discover-lane"
