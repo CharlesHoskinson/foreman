@@ -162,11 +162,7 @@ setup_lock_trust_fixture() {
     return 1
   fi
   ver="$(flock --version 2>/dev/null | head -n 1 | tr -d '\r' || true)"
-  if [[ -n "$ver" ]]; then
-    ver="flock ${ver}"
-  else
-    ver="flock:$(command -v flock)"
-  fi
+  ver="flock ${ver}"
   sha="$(sha256sum -- "$path" 2>/dev/null | awk '{print $1}')"
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   python3 -c '

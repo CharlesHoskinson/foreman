@@ -1,7 +1,11 @@
 #!/usr/bin/env bats
 load helpers
 
-setup() { setup_tmp_repo; cd "$REPO"; }
+setup() {
+  setup_tmp_repo
+  setup_lock_trust_fixture
+  cd "$REPO"
+}
 
 # @description helper: create implement worktree with one committed change
 make_work() {  # $1 filename  $2 content

@@ -177,7 +177,23 @@ jobs:
           printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
             > /c/msys64/usr/local/bin/python3
           chmod +x /c/msys64/usr/local/bin/python3
+
+          # MSYS2's flock locks correctly but does not report a version on
+          # every runner image. The Bats trust fixture and the lock library
+          # deliberately bind the same executable identity and version text.
+          # Keep both sides stable with a same-runtime wrapper; all lock calls
+          # still exec the native /usr/bin/flock binary.
+          cat > /c/msys64/usr/local/bin/flock <<'EOF'
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == "--version" ]]; then
+            printf '%s\n' 'flock (Foreman MSYS2 bridge) 1'
+            exit 0
+          fi
+          exec /usr/bin/flock "$@"
+          EOF
+          chmod +x /c/msys64/usr/local/bin/flock
           /c/msys64/usr/local/bin/bats --version
+          /c/msys64/usr/local/bin/flock --version
 
           /usr/local/bin/openspec --version
           /usr/local/bin/quint --version
