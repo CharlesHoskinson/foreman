@@ -28,7 +28,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
+          # The v0.4 text-only path uses the packaged CPU runtime. Do not let
+          # dependency hooks download the unused 315 MB CUDA provider into the
+          # worktree before the bounded source-secret scan.
+          npm ci --ignore-scripts
           npm install --global @fission-ai/openspec@1.10.0
           npm run verify
 
