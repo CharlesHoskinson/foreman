@@ -76,7 +76,7 @@ tests/launch-lib.bats	windows	0
 tests/launch-lib.bats	wsl	0
 tests/launcher.bats	linux	11
 tests/launcher.bats	windows	0
-tests/launcher.bats	wsl	10
+tests/launcher.bats	wsl	11
 tests/lifecycle-gate.bats	linux	0
 tests/lifecycle-gate.bats	windows	0
 tests/lifecycle-gate.bats	wsl	0
