@@ -72,8 +72,9 @@ const LANE_SUPERVISE_BODY_SHA256 =
 
 /**
  * Exact release-migration artifacts admitted by the v0.4 convergence.
- * These paths still fail closed on any byte change or relocation. New shell
- * work must use the closed thin-adapter grammar instead of extending this map.
+ * These paths still fail closed on any byte change or relocation. The lock
+ * helper entry freezes the final BW-004 MSYS portability correction. New
+ * shell work beyond these artifacts must use the closed thin-adapter grammar.
  */
 const V040_MIGRATION_BODY_SHA256 = new Map<string, string>([
   [
@@ -83,6 +84,10 @@ const V040_MIGRATION_BODY_SHA256 = new Map<string, string>([
   [
     "skills/foreman/scripts/lib/release-policy.sh",
     "5d20047eef1cf0d63da32e237b64d16e27a40a148cbe2f557cd22c88ada021df",
+  ],
+  [
+    "skills/foreman/scripts/lib/lock.sh",
+    "b1f9279f369c54bf43f2f5385368db310e97e54ff8f1968ccbcb2f4f32fcbf19",
   ],
   [
     "skills/foreman/scripts/maintenance.sh",

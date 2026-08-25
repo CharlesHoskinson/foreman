@@ -10,6 +10,7 @@ const LANE_RUN_PATH = "skills/foreman/scripts/lane-run.sh";
 const LANE_SUPERVISE_PATH = "skills/foreman/scripts/lane-supervise.sh";
 const V040_PINNED_SHELL_PATHS = [
   "skills/foreman/scripts/gate-eval.sh",
+  "skills/foreman/scripts/lib/lock.sh",
   "skills/foreman/scripts/lib/release-policy.sh",
   "skills/foreman/scripts/maintenance.sh",
   "skills/foreman/scripts/merge-gate.sh",

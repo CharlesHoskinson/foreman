@@ -30900,6 +30900,10 @@ var V040_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
     "5d20047eef1cf0d63da32e237b64d16e27a40a148cbe2f557cd22c88ada021df"
   ],
   [
+    "skills/foreman/scripts/lib/lock.sh",
+    "b1f9279f369c54bf43f2f5385368db310e97e54ff8f1968ccbcb2f4f32fcbf19"
+  ],
+  [
     "skills/foreman/scripts/maintenance.sh",
     "2bed0680efbfa6bc2eb474aa9c11e35bd43dc9d34adca6193a80f6fffe5f2048"
   ],
