@@ -165,9 +165,9 @@ jobs:
           test -f /c/msys64/usr/bin/sqlite3.exe
           test -f /c/msys64/usr/bin/python3.exe
 
-          # BW-004 uses descriptor-mode flock. Bash and flock must therefore
-          # share one MSYS runtime so descriptor numbers and POSIX paths name
-          # the same objects in Bash, flock, and the lock-evidence parser.
+          # BW-004 uses the lock helper's MSYS command-holder mode. Bash and
+          # flock must therefore share one MSYS runtime so lock paths and the
+          # lock-evidence parser name the same objects.
           # Install the Bats launcher into MSYS2's own /usr/local tree; the
           # focused gate below runs under MSYS2 bash and uses MSYS2 Python.
           # Windows npm places global launchers directly in the prefix rather
@@ -211,9 +211,10 @@ jobs:
           }
 
       - name: BW-004 native Windows flock gate
-        # Do not run this slice in Git-for-Windows Bash with MSYS2 flock.
-        # Descriptor numbers are runtime-local and that mixed pairing fails
-        # with `Bad file descriptor` even though command-mode flock succeeds.
+        # Run the slice entirely inside MSYS2. The helper uses a live
+        # command-mode flock child because MSYS descriptor inheritance is not
+        # a reliable mutex boundary between independent Bash processes.
+        timeout-minutes: 10
         shell: 'C:\msys64\usr\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
           set -euo pipefail

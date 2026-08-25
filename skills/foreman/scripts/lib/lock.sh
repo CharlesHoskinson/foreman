@@ -44,12 +44,16 @@ if [[ "${_FM_LOCK_INIT_PID:-}" != "${BASHPID:-$$}" ]]; then
   _FM_LOCK_HELD_PATH=""
   _FM_LOCK_MECHANISM=""
   _FM_LOCK_FD=""
+  _FM_LOCK_HOLDER_PID=""
+  _FM_LOCK_HOLDER_DIR=""
   FM_LOCK_MECHANISM=""
   _FM_LOCK_INIT_PID="${BASHPID:-$$}"
 fi
 : "${_FM_LOCK_HELD_PATH:=}"
 : "${_FM_LOCK_MECHANISM:=}"
 : "${_FM_LOCK_FD:=}"
+: "${_FM_LOCK_HOLDER_PID:=}"
+: "${_FM_LOCK_HOLDER_DIR:=}"
 
 # Selected mechanism of the currently held lock (empty when none held).
 # Callers such as el_init read this to decide conditional stale-lock
@@ -1058,6 +1062,94 @@ fm_lock__select_mechanism() {
 # @arg $2 timeout_sec
 # @stderr FM_LOCK_UNAVAILABLE detail | FM_LOCK_TIMEOUT
 # @exitcode 0 held; 1 refused
+fm_lock__uses_command_holder() {
+  if [[ "${FM_LOCK_FORCE_COMMAND_HOLDER:-0}" == "1" ]]; then
+    return 0
+  fi
+  case "$(uname -s 2>/dev/null || echo unknown)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+  esac
+  return 1
+}
+
+# MSYS does not preserve Bash's descriptor lock as a reliable mutex across
+# independent processes. Keep one command-mode flock child alive instead.
+# The child owns the lock until release, and exits if its parent disappears.
+fm_lock__acquire_flock_command_holder() {
+  local lock_path="$1" timeout_sec="$2"
+  local holder_dir ready release status errfile holder_pid parent_pid start err rc
+  local flock_bin bash_bin
+
+  flock_bin="$(fm_lock__resolve_bin flock)"
+  bash_bin="${BASH:-bash}"
+  if [[ -z "$flock_bin" || ! -x "$flock_bin" ]]; then
+    fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+      "flock holder ${lock_path}: trusted executable unavailable"
+    return 1
+  fi
+
+  holder_dir="$(mktemp -d "${TMPDIR:-/tmp}/fm-lock-holder.XXXXXX")" || {
+    fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+      "flock holder ${lock_path}: mktemp failed"
+    return 1
+  }
+  ready="$holder_dir/ready"
+  release="$holder_dir/release"
+  status="$holder_dir/status"
+  errfile="$holder_dir/stderr"
+  parent_pid="${BASHPID:-$$}"
+
+  (
+    set +e
+    "$flock_bin" -w "$timeout_sec" "$lock_path" "$bash_bin" -c '
+      ready="$1"
+      release="$2"
+      parent_pid="$3"
+      : >"$ready"
+      while [[ ! -e "$release" ]]; do
+        kill -0 "$parent_pid" 2>/dev/null || exit 0
+        sleep 0.01
+      done
+    ' _ "$ready" "$release" "$parent_pid"
+    rc=$?
+    printf '%s\n' "$rc" >"$status"
+    exit "$rc"
+  ) 2>"$errfile" &
+  holder_pid=$!
+  start=$SECONDS
+
+  while [[ ! -e "$ready" ]]; do
+    if [[ -e "$status" ]] || ! kill -0 "$holder_pid" 2>/dev/null; then
+      rc="$(cat "$status" 2>/dev/null || printf '1')"
+      wait "$holder_pid" 2>/dev/null || true
+      err="$(tr -d '\r' <"$errfile" 2>/dev/null | head -n 1)"
+      rm -rf -- "$holder_dir"
+      if [[ -n "$err" ]]; then
+        fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+          "flock holder ${lock_path}: ${err}"
+      elif (( rc != 0 )); then
+        fm_lock__refuse "FM_LOCK_TIMEOUT"
+      else
+        fm_lock__refuse "FM_LOCK_UNAVAILABLE" \
+          "flock holder ${lock_path}: exited before acquisition"
+      fi
+      return 1
+    fi
+    if (( SECONDS - start > timeout_sec + 1 )); then
+      kill "$holder_pid" 2>/dev/null || true
+      wait "$holder_pid" 2>/dev/null || true
+      rm -rf -- "$holder_dir"
+      fm_lock__refuse "FM_LOCK_TIMEOUT"
+      return 1
+    fi
+    sleep 0.01
+  done
+
+  _FM_LOCK_HOLDER_PID="$holder_pid"
+  _FM_LOCK_HOLDER_DIR="$holder_dir"
+  return 0
+}
+
 fm_lock__acquire_flock() {
   local lock_path="$1"
   local timeout_sec="$2"
@@ -1081,6 +1173,11 @@ fm_lock__acquire_flock() {
       "touch ${lock_path}: ${err:-failed}"
     return 1
   }
+
+  if fm_lock__uses_command_holder; then
+    fm_lock__acquire_flock_command_holder "$lock_path" "$timeout_sec"
+    return $?
+  fi
 
   # Open a dedicated FD and hold it for the critical-section lifetime.
   # Capture open failure message without losing the FD on success.
@@ -1318,6 +1415,8 @@ fm_lock_release() {
   local lock_path="$1"
   local mech="$_FM_LOCK_MECHANISM"
   local fd="$_FM_LOCK_FD"
+  local holder_pid="$_FM_LOCK_HOLDER_PID"
+  local holder_dir="$_FM_LOCK_HOLDER_DIR"
   local held="$_FM_LOCK_HELD_PATH"
 
   if [[ -z "$held" ]]; then
@@ -1332,11 +1431,17 @@ fm_lock_release() {
   _FM_LOCK_HELD_PATH=""
   _FM_LOCK_MECHANISM=""
   _FM_LOCK_FD=""
+  _FM_LOCK_HOLDER_PID=""
+  _FM_LOCK_HOLDER_DIR=""
   FM_LOCK_MECHANISM=""
 
   case "$mech" in
     flock)
-      if [[ -n "$fd" ]]; then
+      if [[ -n "$holder_pid" && -n "$holder_dir" ]]; then
+        : >"${holder_dir}/release" 2>/dev/null || true
+        wait "$holder_pid" 2>/dev/null || true
+        rm -rf -- "$holder_dir"
+      elif [[ -n "$fd" ]]; then
         flock -u "$fd" 2>/dev/null || true
         eval "exec ${fd}>&-" 2>/dev/null || true
       fi

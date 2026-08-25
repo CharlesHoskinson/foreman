@@ -2525,6 +2525,27 @@ describe("release coverage policy", () => {
       ) as ReleasePackageBriefV1;
       packageBriefBytesByName[owner] = briefBytes;
     }
+    for (const owner of releaseInspection.selectedOwners) {
+      expectValid(
+        validBaseline({
+          registerText,
+          activePackageNames,
+          roadmapText,
+          roadmapAssignments,
+          packageWorkflowByName,
+          phase: "Lane",
+          laneOwner: owner,
+          expectedPackageBriefByName: {
+            [owner]: expectedPackageBriefByName[owner]!,
+          },
+          packageBriefBytesByName: {
+            [owner]: packageBriefBytesByName[owner]!,
+          },
+          changedPaths: [],
+        }),
+        entryCount,
+      );
+    }
     expectValid(
       validBaseline({
         registerText,

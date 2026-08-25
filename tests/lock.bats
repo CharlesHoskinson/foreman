@@ -249,6 +249,19 @@ run_occupancy_race() {
   run_occupancy_race "$adapter" 8
 }
 
+@test "command-holder flock preserves occupancy without descriptor inheritance" {
+  export FM_LOCK_FORCE_COMMAND_HOLDER=1
+  configure_trusted_flock
+
+  local probe_lock="$BATS_TEST_TMPDIR/command-holder-probe.lock"
+  fm_lock_acquire "$probe_lock" 2
+  [ -n "${_FM_LOCK_HOLDER_PID:-}" ]
+  kill -0 "$_FM_LOCK_HOLDER_PID"
+  fm_lock_release "$probe_lock"
+
+  run_occupancy_race helper 8
+}
+
 @test "trusted flock acquisition creates no lock directory and releases the held lock" {
   configure_trusted_flock
   local lock="$BATS_TEST_TMPDIR/flock/shared.lock"
