@@ -20,13 +20,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url));
 const runTestsScript = join(scriptsDir, "run-tests.ts");
+const repositoryRoot = dirname(scriptsDir);
 
 const PASSING_FIXTURE = (label: string) =>
   'import { test } from "node:test";\n' +
@@ -40,6 +47,14 @@ function runWrapper(patterns: string[]) {
     { encoding: "utf8" },
   );
 }
+
+test("run-tests: npm script uses quoting understood by POSIX and Windows shells", () => {
+  const manifest = JSON.parse(
+    readFileSync(join(repositoryRoot, "package.json"), "utf8"),
+  ) as { readonly scripts: { readonly test: string } };
+  assert.match(manifest.scripts.test, /"packages\/core\/src\/\*\*\/\*\.test\.ts"/);
+  assert.doesNotMatch(manifest.scripts.test, /'packages\//);
+});
 
 test("run-tests: negative control - a pattern selecting zero files fails loudly", () => {
   const dir = mkdtempSync(join(tmpdir(), "run-tests-neg-"));
