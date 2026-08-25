@@ -1,6 +1,8 @@
 name: gates-windows
 
-# Windows is not a gating platform for v0.3.0. The suite runs on WSL and Linux.
+# Native Windows is a focused release platform for v0.4.0. The complete Node
+# and Bats suites remain gated on Linux/WSL; Windows gates static/runtime build
+# integrity and the BW-004 lock/worktree slice.
 #
 # Why: the Bats suite has never passed on Windows. Its first and only full
 # measurement (run 31199790530, 2026-08-07) scored pass=444 fail=270 skip=26,
@@ -10,9 +12,9 @@ name: gates-windows
 # suite still does not fit the cap once provisioned, and nothing on Windows is
 # proven.
 #
-# This workflow therefore runs on demand only. It is deliberately NOT wired to
-# push or pull_request, so a red Windows result cannot block a v0.3.0 merge and
-# a green one cannot be mistaken for Windows support.
+# This workflow therefore runs on demand only. Its green result qualifies the
+# named Windows slice; it does not claim that every Linux-specific filesystem
+# test passes under native Windows semantics.
 #
 # Evidence: docs/evidence/w0/2026-08-07-windows-suite-measurement.md
 # Re-enable by restoring the push/pull_request triggers once the suite passes
@@ -38,12 +40,17 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Root Node workspace gates
+      - name: Windows Node static and runtime gates
         shell: bash
         run: |
           set -euo pipefail
           npm ci
-          npm run verify
+          npm run typecheck
+          npm run verify-runtime
+          npm run verify:appliance-lock
+          npm run verify-register-doc
+          npm run smoke:dst-0060
+          node --import tsx --test scripts/run-tests.test.ts
 
       - name: Architecture policy against pull request base
         shell: bash
@@ -86,7 +93,7 @@ jobs:
 
           mkdir -p /usr/local/bin
           npm install --global --prefix "$(cygpath --windows /usr/local/bin)" \
-            @fission-ai/openspec@1.6.0 \
+            @fission-ai/openspec@1.10.0 \
             @informalsystems/quint@0.32.0 \
             bats@1.11.0
 
