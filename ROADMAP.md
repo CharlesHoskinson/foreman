@@ -104,7 +104,7 @@ inventory. `Coverage key` values are stable machine identifiers.
 | `roadmap:sprint-11-council-interfaces` | Sprint 11 Council MCP, plugins, and publication | `v0.5` | `council-review-plane` |
 | `roadmap:sprint-12-release-formal-carryover` | Sprint 12 release and formal carry-over | `v0.5` | `formal-model-suite` |
 | `roadmap:sprint-13-knowledge-graph` | Sprint 13 knowledge and graph work | `v0.4` | `knowledge-plane-refresh` |
-| `roadmap:sprint-16-windows-bats-bw004` | Sprint 16 Windows Bats item BW-004 | `v0.4` | `windows-bats-bw004` |
+| `roadmap:sprint-16-windows-bats-bw004` | Sprint 16 Windows Bats item BW-004 | `v0.4` | `v040-release-program` |
 | `roadmap:sprint-16-external-dogfood` | Sprint 16 broad external dogfood and Council evaluation | `v0.5` | `council-review-plane` |
 | `roadmap:v040-external-memory-index` | External MemoryIndex, epochs, and live-service tests | `v0.4` | `external-memory-index` |
 | `roadmap:v040-knowledge-graph-plane` | Focused knowledge and graph plane | `v0.4` | `knowledge-plane-refresh` |

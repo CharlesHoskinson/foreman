@@ -15,6 +15,7 @@ import { join, resolve } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  inspectReleaseCoverageRegisterV1,
   validateReleaseCoverageV1,
   type ReleaseCoverageFailureReason,
   type ReleaseCoveragePhaseV1,
@@ -2190,7 +2191,7 @@ describe("release coverage policy", () => {
         ],
       },
     );
-    expectInvalid(
+    expectValid(
       validBaseline({
         phase: "Bootstrap",
         registerText: track1ReleasedReference,
@@ -2201,7 +2202,7 @@ describe("release coverage policy", () => {
         expectedPackageBriefByName: {},
         packageBriefBytesByName: {},
       }),
-      "unreconciled",
+      2,
     );
 
     expectInvalid(
@@ -2484,5 +2485,59 @@ describe("release coverage policy", () => {
       changedPaths: [],
     });
     expectValid(input, entryCount);
+
+    const releaseInspection = inspectReleaseCoverageRegisterV1({
+      registerText,
+      phase: { _tag: "Release" },
+    });
+    assert.equal(releaseInspection._tag, "Valid");
+    if (releaseInspection._tag !== "Valid") return;
+    assert.deepEqual(releaseInspection.selectedOwners, [
+      "external-memory-index",
+      "graph-context-builder",
+      "graph-eval-falsification",
+      "hermetic-foreman-appliance",
+      "knowledge-plane-refresh",
+      "project-registry",
+      "v040-release-program",
+      "work-dag-projection",
+    ]);
+
+    const expectedPackageBriefByName: Record<string, ReleasePackageBriefV1> = {};
+    const packageBriefBytesByName: Record<string, Uint8Array> = {};
+    for (const owner of releaseInspection.selectedOwners) {
+      assert.notEqual(
+        packageWorkflowByName[owner],
+        null,
+        `${owner} must declare an OpenSpec workflow`,
+      );
+      const briefPath = join(
+        repoRoot,
+        "openspec",
+        "changes",
+        owner,
+        "release-brief.json",
+      );
+      assert.equal(existsSync(briefPath), true, `${owner} must have a release brief`);
+      const briefBytes = readFileSync(briefPath);
+      expectedPackageBriefByName[owner] = JSON.parse(
+        briefBytes.toString("utf8"),
+      ) as ReleasePackageBriefV1;
+      packageBriefBytesByName[owner] = briefBytes;
+    }
+    expectValid(
+      validBaseline({
+        registerText,
+        activePackageNames,
+        roadmapText,
+        roadmapAssignments,
+        packageWorkflowByName,
+        phase: "Release",
+        expectedPackageBriefByName,
+        packageBriefBytesByName,
+        changedPaths: [],
+      }),
+      entryCount,
+    );
   });
 });

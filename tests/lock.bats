@@ -261,6 +261,32 @@ run_occupancy_race() {
   [ ! -d "$lock" ]
 }
 
+@test "trusted flock fixture matches the version fallback used by the lock library" {
+  local shim_dir="$BATS_TEST_TMPDIR/flock-no-version"
+  local real_flock
+  real_flock="$(command -v flock)"
+  mkdir -p "$shim_dir"
+  cat >"$shim_dir/flock" <<EOF
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "--version" ]]; then
+  exit 1
+fi
+exec "$real_flock" "\$@"
+EOF
+  chmod +x "$shim_dir/flock"
+  export PATH="$shim_dir:$PATH"
+
+  setup_lock_trust_fixture
+  # shellcheck source=../skills/foreman/scripts/lib/lock.sh
+  source "$LOCK_LIB"
+
+  local recorded expected
+  recorded="$(jq -r '.lock_atomicity[0].version' "$FOREMAN_TOOL_CHECK_JSON")"
+  expected="$(fm_lock__version_now flock)"
+  [ "$recorded" = "$expected" ]
+  [ "$expected" = "flock:$shim_dir/flock" ]
+}
+
 @test "temporary pinned manifest makes mkdir fallback reachable and cleans success and error paths" {
   configure_pinned_mkdir msys2-git-bash
   local success_lock="$BATS_TEST_TMPDIR/fallback/success.lock"

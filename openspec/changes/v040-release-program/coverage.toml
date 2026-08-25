@@ -1,7 +1,7 @@
 schema_version = 1
 baseline_commit = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195"
 active_inventory_sha256 = "d16bd7a29580b6b642e24e301ffbd8600844b1a0436bfdaab5d1a241e4572c7a"
-roadmap_sha256 = "2e9ce274bd1bae7d4a4a0187a4908eea17c768175c3aa0f176f54cb14bf7c12b"
+roadmap_sha256 = "8cdacff5a4e9b9ad790cc06ee4c0dbf3ed78282fa242e0e95778358f4582b3aa"
 
 [[future_owner]]
 name = "project-registry"
@@ -17,11 +17,6 @@ reason = "Track 3 owns the Qdrant adapter, projection epochs, and live tests."
 name = "hermetic-foreman-appliance"
 target_release = "v0.4"
 reason = "Track 4 owns the pinned images, host bootstrap, and rootless service."
-
-[[future_owner]]
-name = "windows-bats-bw004"
-target_release = "v0.4"
-reason = "Track 9 owns the focused Windows Bats release predicate."
 
 [[entry]]
 key = "change:agy-lane-activation"
@@ -267,11 +262,11 @@ reason = "Node 24 is the v0.4 boundary; unrelated migration backlog is deferred.
 key = "change:openspec-superpowers-convergence"
 source_kind = "openspec_change"
 source_path = "openspec/changes/openspec-superpowers-convergence"
-disposition = "v040_owner"
+disposition = "released_reference"
 owner = "openspec-superpowers-convergence"
-target_release = "v0.4"
+target_release = "released"
 reconcile = "complete"
-reason = "Track 1 owns workflow convergence, release policy, and family activation."
+reason = "Track 1 completed workflow convergence, release policy, and family activation."
 
 [[entry]]
 key = "change:profile-bound-lane-admission"
@@ -420,8 +415,8 @@ source_path = "openspec/changes/v040-release-program"
 disposition = "v040_owner"
 owner = "v040-release-program"
 target_release = "v0.4"
-reconcile = "required"
-reason = "Track 9 owns integration, evidence, Windows verification, and publication; its closed workflow and tasks are created in that design milestone."
+reconcile = "complete"
+reason = "Track 9 owns the completed integration, verification, and publication work."
 
 [[entry]]
 key = "change:vendor-adapter-contract"
@@ -578,10 +573,10 @@ key = "roadmap:sprint-16-windows-bats-bw004"
 source_kind = "roadmap"
 source_path = "ROADMAP.md"
 disposition = "v040_owner"
-owner = "windows-bats-bw004"
+owner = "v040-release-program"
 target_release = "v0.4"
-reconcile = "required"
-reason = "BW-004 remains a focused v0.4 release predicate."
+reconcile = "complete"
+reason = "Track 9 completed the focused native Windows flock release predicate."
 
 [[entry]]
 key = "roadmap:sprint-16-external-dogfood"

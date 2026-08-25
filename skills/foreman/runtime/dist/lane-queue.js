@@ -37201,7 +37201,8 @@ function validateReleaseCoverageV1(input) {
     }
     if (input.phase._tag === "Bootstrap") {
       const track1 = parsed.entries.find((entry) => entry.key === TRACK1_KEY);
-      if (track1 === void 0 || track1.owner !== TRACK1_PACKAGE || track1.targetRelease !== "v0.4" || track1.reconcile !== "complete" || track1.disposition !== "v040_owner" || track1.sourceKind !== "openspec_change") {
+      const track1ReleaseStateIsValid = track1 !== void 0 && (track1.targetRelease === "v0.4" && track1.disposition === "v040_owner" || track1.targetRelease === "released" && track1.disposition === "released_reference");
+      if (track1 === void 0 || track1.owner !== TRACK1_PACKAGE || track1.reconcile !== "complete" || track1.sourceKind !== "openspec_change" || !track1ReleaseStateIsValid) {
         return invalid("unreconciled");
       }
     }
