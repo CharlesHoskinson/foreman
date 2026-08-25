@@ -244,23 +244,14 @@ jobs:
           export PATH="/usr/local/bin:$PATH"
           bash tools/ci-local.sh
 
-      # Evidence, not enforcement (obligation 60). bats has never run on Windows;
-      # this establishes what it actually does, without any power to fail the
-      # workflow. continue-on-error is deliberate and must stay until the
-      # results justify moving these files into the gate.
+      # Evidence, not enforcement. The complete native Windows probe previously
+      # consumed the full job timeout and delayed the enforcing BW-004 result.
+      # Keep one small portable Bats smoke here; the complete suite remains on
+      # Linux/WSL until it is separately qualified on native Windows.
       - name: Probe the bats suite on Windows (non-gating)
         if: always()
         continue-on-error: true
         shell: bash
-        env:
-          # TEST_SLICE_REPORT/TEST_TAP_LOG are set on the gating step above, not
-          # at job level, so this step does not inherit them. Without these,
-          # tests/run.sh falls back to its own default path, the upload step's
-          # glob on ${{ runner.temp }}/foreman-test-slices.tsv matches nothing,
-          # and the artifact publishes empty. Duplicated here rather than moved,
-          # so the gating step's env block is untouched.
-          TEST_SLICE_REPORT: ${{ runner.temp }}/foreman-test-slices.tsv
-          TEST_TAP_LOG: ${{ runner.temp }}/foreman-test-tap.log
         run: |
           set +e
           # /c/msys64/usr/bin appended, not prepended, and ONLY on this step
@@ -288,12 +279,8 @@ jobs:
           # copy theory was wrong and the cause is something flock.exe hits
           # regardless of where it runs from.
           /c/msys64/usr/bin/flock.exe "$HOME/.foreman/gate.lock" -c "echo LOCK_TEST_OK" 2>&1
-          # Shadow mode records every slice's observed counts and returns 0 on
-          # policy failure, so this measures without gaining power to fail the
-          # workflow.
-          TEST_GATE_MODE=shadow bash tests/run.sh
-          echo "run.sh rc=$?"
-          echo "slice report: $(wc -l < "$TEST_SLICE_REPORT" 2>/dev/null || echo ABSENT) lines"
+          bats tests/manifest.bats
+          echo "manifest probe rc=$?"
 
       - name: Upload gate reports
         if: always()
