@@ -318,8 +318,8 @@ jobs:
           # copy theory was wrong and the cause is something flock.exe hits
           # regardless of where it runs from.
           /c/msys64/usr/bin/flock.exe "$HOME/.foreman/gate.lock" -c "echo LOCK_TEST_OK" 2>&1
-          bats tests/manifest.bats
-          echo "manifest probe rc=$?"
+          bats tests/worker-cmd.bats
+          echo "worker-cmd probe rc=$?"
 
       - name: Upload gate reports
         if: always()

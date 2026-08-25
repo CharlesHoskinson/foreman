@@ -87,7 +87,7 @@ const V040_MIGRATION_BODY_SHA256 = new Map<string, string>([
   ],
   [
     "skills/foreman/scripts/lib/lock.sh",
-    "b1f9279f369c54bf43f2f5385368db310e97e54ff8f1968ccbcb2f4f32fcbf19",
+    "f0bde2ac3174269f1bc6388549e79f696be0cf955c58483a067d9f99f5d799e0",
   ],
   [
     "skills/foreman/scripts/maintenance.sh",

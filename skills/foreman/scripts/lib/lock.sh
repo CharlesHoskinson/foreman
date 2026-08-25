@@ -1053,15 +1053,8 @@ fm_lock__select_mechanism() {
   return 1
 }
 
-# @description Spin to acquire via flock on a lock file at LOCK_PATH.
-#   Prerequisite: mechanism already selected and trusted (caller asserts).
-#   Contention (EWOULDBLOCK / empty-stderr non-zero from flock -n) spins until
-#   timeout. Any other flock/open failure is FM_LOCK_UNAVAILABLE immediately
-#   with a detail naming the operation and its message — never TIMEOUT.
-# @arg $1 lock_path
-# @arg $2 timeout_sec
-# @stderr FM_LOCK_UNAVAILABLE detail | FM_LOCK_TIMEOUT
-# @exitcode 0 held; 1 refused
+# @description Select command-holder flock for MSYS or an explicit test seam.
+# @exitcode 0 command holder required; 1 descriptor mode allowed
 fm_lock__uses_command_holder() {
   if [[ "${FM_LOCK_FORCE_COMMAND_HOLDER:-0}" == "1" ]]; then
     return 0
@@ -1072,9 +1065,14 @@ fm_lock__uses_command_holder() {
   return 1
 }
 
-# MSYS does not preserve Bash's descriptor lock as a reliable mutex across
-# independent processes. Keep one command-mode flock child alive instead.
-# The child owns the lock until release, and exits if its parent disappears.
+# @description Acquire LOCK_PATH through a live command-mode flock child.
+#   MSYS does not preserve Bash's descriptor lock as a reliable mutex across
+#   independent processes. The child owns the lock until release and exits if
+#   its parent disappears.
+# @arg $1 lock_path
+# @arg $2 timeout_sec
+# @stderr FM_LOCK_UNAVAILABLE detail | FM_LOCK_TIMEOUT
+# @exitcode 0 held; 1 refused
 fm_lock__acquire_flock_command_holder() {
   local lock_path="$1" timeout_sec="$2"
   local holder_dir ready release status errfile holder_pid parent_pid start err rc
@@ -1150,6 +1148,15 @@ fm_lock__acquire_flock_command_holder() {
   return 0
 }
 
+# @description Spin to acquire via flock on a lock file at LOCK_PATH.
+#   Prerequisite: mechanism already selected and trusted (caller asserts).
+#   Contention (EWOULDBLOCK / empty-stderr non-zero from flock -n) spins until
+#   timeout. Any other flock/open failure is FM_LOCK_UNAVAILABLE immediately
+#   with a detail naming the operation and its message — never TIMEOUT.
+# @arg $1 lock_path
+# @arg $2 timeout_sec
+# @stderr FM_LOCK_UNAVAILABLE detail | FM_LOCK_TIMEOUT
+# @exitcode 0 held; 1 refused
 fm_lock__acquire_flock() {
   local lock_path="$1"
   local timeout_sec="$2"

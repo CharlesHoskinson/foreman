@@ -22,14 +22,14 @@
 - [x] 4.1 Set every workspace package version and internal dependency to 0.4.0 and regenerate the lockfile.
 - [x] 4.2 Record the four high transitive npm advisories, their mitigations, and their explicit v0.4.0 acceptance in the release notes.
 - [x] 4.3 Reconcile the unfinished SQLite graph-store expansion to v0.5 while retaining the shipped files-only graph port as the v0.4 dependency.
-- [ ] 4.4 Complete BW-004 and verify the native Windows flock, worktree-create, and worktree-merge Bats suites.
+- [x] 4.4 Complete BW-004 and verify the native Windows flock, worktree-create, and worktree-merge Bats suites.
 
 ## 5. Candidate verification
 
-- [ ] 5.1 Reconcile every remaining v0.4 coverage entry and run lane coverage for each v0.4 owner.
-- [ ] 5.2 Run the complete TypeScript, runtime, install, documentation, OpenSpec, and Bats gates on the exact candidate.
-- [ ] 5.3 Run the exact candidate on hosted Linux and native Windows, and record the WSL verification result.
-- [ ] 5.4 Run release coverage on the unchanged candidate and verify the canonical release result.
+- [x] 5.1 Reconcile every remaining v0.4 coverage entry and run lane coverage for each v0.4 owner.
+- [x] 5.2 Run the complete TypeScript, runtime, install, documentation, OpenSpec, and Bats gates on the exact candidate.
+- [x] 5.3 Run the exact candidate on hosted Linux and native Windows, and record the WSL verification result.
+- [x] 5.4 Run release coverage on the unchanged candidate and verify the canonical release result.
 
 ## 6. Publication
 
