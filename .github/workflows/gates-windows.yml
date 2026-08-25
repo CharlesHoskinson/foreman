@@ -169,12 +169,15 @@ jobs:
           # open file in both processes. Install the Bats launcher and the
           # python3 compatibility shim into MSYS2's own /usr/local tree; the
           # focused gate below runs under MSYS2 bash.
-          msys_prefix="$(cygpath --windows /c/msys64/usr/local)"
+          # Windows npm places global launchers directly in the prefix rather
+          # than in a nested bin directory.
+          msys_prefix="$(cygpath --windows /c/msys64/usr/local/bin)"
           npm install --global --prefix "${msys_prefix}" bats@1.11.0
           mkdir -p /c/msys64/usr/local/bin
           printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
             > /c/msys64/usr/local/bin/python3
           chmod +x /c/msys64/usr/local/bin/python3
+          /c/msys64/usr/local/bin/bats --version
 
           /usr/local/bin/openspec --version
           /usr/local/bin/quint --version
