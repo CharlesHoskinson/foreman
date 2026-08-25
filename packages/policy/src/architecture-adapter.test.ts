@@ -8,6 +8,12 @@ import { inspectLegacyAdapter } from "./architecture-adapter.js";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const LANE_RUN_PATH = "skills/foreman/scripts/lane-run.sh";
 const LANE_SUPERVISE_PATH = "skills/foreman/scripts/lane-supervise.sh";
+const V040_PINNED_SHELL_PATHS = [
+  "skills/foreman/scripts/gate-eval.sh",
+  "skills/foreman/scripts/lib/release-policy.sh",
+  "skills/foreman/scripts/maintenance.sh",
+  "skills/foreman/scripts/merge-gate.sh",
+] as const;
 const LANE_RUN_FORWARDING_BLOCK = [
   '  lane_gate_runtime="$SCRIPT_DIR/../runtime/dist/credential-profile-lane.js"',
   '  if [[ -z "$lane_gate_node" ]]; then',
@@ -788,5 +794,22 @@ describe("inspectLegacyAdapter", () => {
         "legacy_adapter_domain_logic",
       );
     });
+  });
+
+  describe("v0.4 release migration artifacts", () => {
+    for (const path of V040_PINNED_SHELL_PATHS) {
+      it(`accepts only the tracked ${path} body at its exact path`, () => {
+        const body = readFileSync(join(REPO_ROOT, path), "utf8");
+        assert.equal(inspectLegacyAdapter(path, body), null);
+        assert.equal(
+          inspectLegacyAdapter(path, `${body}# changed\n`),
+          "legacy_adapter_domain_logic",
+        );
+        assert.equal(
+          inspectLegacyAdapter(`skills/foreman/scripts/copy-${path.split("/").at(-1)}`, body),
+          "legacy_adapter_domain_logic",
+        );
+      });
+    }
   });
 });

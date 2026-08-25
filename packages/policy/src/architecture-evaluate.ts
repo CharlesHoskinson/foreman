@@ -4,7 +4,10 @@
  */
 
 import { decodeUtf8Fatal, isCoreFailure } from "@foreman/core";
-import { inspectLegacyAdapter } from "./architecture-adapter.js";
+import {
+  inspectLegacyAdapter,
+  isPinnedLegacyMigrationArtifact,
+} from "./architecture-adapter.js";
 import type { DeltaRecord } from "./architecture-delta.js";
 import {
   classifyExecutableSource,
@@ -362,6 +365,15 @@ function checkPath(args: {
 
   // Added/renamed: full extension + shebang + mode prohibition
   if (args.kind === "added" || args.kind === "renamed") {
+    if (isLegacyExecutablePath(args.path)) {
+      const text = textFromBlob(blob);
+      if (
+        text !== null &&
+        isPinnedLegacyMigrationArtifact(args.path, text)
+      ) {
+        return null;
+      }
+    }
     const execReason = classifyExecutableSource({
       path: args.path,
       identity,

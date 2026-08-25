@@ -133,6 +133,34 @@ describe("typed Git failures", () => {
     }
   });
 
+  it("reads the qualified graph under its 32 MiB release bound", async () => {
+    const repo = initRepo();
+    try {
+      const graphDir = join(repo, "graphify-out");
+      mkdirSync(graphDir, { recursive: true });
+      writeFileSync(
+        join(graphDir, "graph.json"),
+        Buffer.alloc(1024 * 1024 + 1, 0x20),
+      );
+      git(repo, ["add", "graphify-out/graph.json"]);
+      git(repo, ["commit", "-m", "graph"]);
+      const head = git(repo, ["rev-parse", "HEAD"]).toLowerCase();
+      const blob = await Effect.runPromise(
+        Effect.gen(function* () {
+          const g = yield* ArchitectureGit;
+          return yield* g.catBlob(
+            repo,
+            head,
+            "graphify-out/graph.json",
+          );
+        }).pipe(Effect.provide(liveArchitectureGit)),
+      );
+      assert.equal(blob?.byteLength, 1024 * 1024 + 1);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it("production binding is real git with empty prefix", () => {
     bindGitCommandForTest(null);
     const b = currentGitCommandBinding();

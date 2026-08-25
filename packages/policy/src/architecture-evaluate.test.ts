@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import { canonicalize, sha256Hex } from "@foreman/core";
 import { evaluateArchitecturePolicy } from "./architecture-evaluate.js";
@@ -7,6 +10,7 @@ import { evaluateArchitecturePolicy } from "./architecture-evaluate.js";
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
 const MB = "c".repeat(40);
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 function key(oid: string, path: string): string {
   return `${oid}:${path}`;
@@ -74,6 +78,30 @@ describe("evaluateArchitecturePolicy known-bad branches", () => {
     assert.equal(r._tag, "Fail");
     if (r._tag !== "Fail") return;
     assert.equal(r.findings[0]!.reason, "prohibited_posix_shell");
+  });
+
+  it("admits only the exact pinned v0.4 release-policy adapter when added", () => {
+    const path = "skills/foreman/scripts/lib/release-policy.sh";
+    const body = readFileSync(join(REPO_ROOT, path), "utf8");
+    const evaluate = (source: string) =>
+      evaluateArchitecturePolicy({
+        base: BASE,
+        mergeBase: MB,
+        head: HEAD,
+        records: [{ kind: "added", path, status: "A" }],
+        mergeBasePaths: [],
+        headPaths: [path],
+        blobs: new Map([[key(HEAD, path), enc(source)]]),
+        identities: new Map(),
+        linkPaths: new Set(),
+      });
+
+    assert.equal(evaluate(body)._tag, "Pass");
+    const mutated = evaluate(`${body}# changed\n`);
+    assert.equal(mutated._tag, "Fail");
+    if (mutated._tag === "Fail") {
+      assert.equal(mutated.findings[0]!.reason, "prohibited_posix_shell");
+    }
   });
 
   it("3. rejects new .ps1", () => {

@@ -30890,6 +30890,30 @@ var LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
 var LANE_SUPERVISE_MIGRATION_PATH = "skills/foreman/scripts/lane-supervise.sh";
 var LANE_RUN_BODY_SHA256 = "07d1f57953eb1c3cb4b7a8090743ef05c723ff900e0d3881fb8b1efc0be93f31";
 var LANE_SUPERVISE_BODY_SHA256 = "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
+var V040_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
+  [
+    "skills/foreman/scripts/gate-eval.sh",
+    "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546"
+  ],
+  [
+    "skills/foreman/scripts/lib/release-policy.sh",
+    "5d20047eef1cf0d63da32e237b64d16e27a40a148cbe2f557cd22c88ada021df"
+  ],
+  [
+    "skills/foreman/scripts/maintenance.sh",
+    "2bed0680efbfa6bc2eb474aa9c11e35bd43dc9d34adca6193a80f6fffe5f2048"
+  ],
+  [
+    "skills/foreman/scripts/merge-gate.sh",
+    "8854bd9bf4ddc0234989c156ca32287d2ade4e3b68bbb8c66e560e4a093fd95b"
+  ]
+]);
+function isPinnedLegacyMigrationArtifact(path, sourceText) {
+  const normalizedPath = path.replace(/\\/g, "/");
+  const expected = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
+  if (expected === void 0) return false;
+  return createHash2("sha256").update(sourceText, "utf8").digest("hex") === expected;
+}
 function inspectLaneRunMigrationAdapter(sourceText) {
   if (/[\u0000]/.test(sourceText)) return DENY;
   const digest = createHash2("sha256").update(sourceText, "utf8").digest("hex");
@@ -31053,6 +31077,10 @@ function inspectLegacyAdapter(path, sourceText) {
   }
   if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
     return inspectLaneSuperviseMigrationAdapter(sourceText);
+  }
+  const pinnedV040Digest = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
+  if (pinnedV040Digest !== void 0) {
+    return isPinnedLegacyMigrationArtifact(path, sourceText) ? null : DENY;
   }
   const ext = pathExtension(path);
   if (ext === ".sh" || ext === ".bash" || ext === ".zsh" || ext === ".ksh") {
@@ -32180,6 +32208,12 @@ function checkPath(args2) {
     return null;
   }
   if (args2.kind === "added" || args2.kind === "renamed") {
+    if (isLegacyExecutablePath(args2.path)) {
+      const text = textFromBlob(blob);
+      if (text !== null && isPinnedLegacyMigrationArtifact(args2.path, text)) {
+        return null;
+      }
+    }
     const execReason2 = classifyExecutableSource({
       path: args2.path,
       identity: identity2,
@@ -32590,7 +32624,8 @@ var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
     if (entry === "absent") {
       return null;
     }
-    const maxBytes = path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js") ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
+    const isLargeGeneratedArtifact = path === "graphify-out/graph.json" || path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js");
+    const maxBytes = isLargeGeneratedArtifact ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
     const r = yield* runGit(
       repoRoot,
       ["cat-file", "blob", `${commitOid}:${path}`],

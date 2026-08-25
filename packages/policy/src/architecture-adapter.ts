@@ -71,6 +71,42 @@ const LANE_SUPERVISE_BODY_SHA256 =
   "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
 
 /**
+ * Exact release-migration artifacts admitted by the v0.4 convergence.
+ * These paths still fail closed on any byte change or relocation. New shell
+ * work must use the closed thin-adapter grammar instead of extending this map.
+ */
+const V040_MIGRATION_BODY_SHA256 = new Map<string, string>([
+  [
+    "skills/foreman/scripts/gate-eval.sh",
+    "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546",
+  ],
+  [
+    "skills/foreman/scripts/lib/release-policy.sh",
+    "5d20047eef1cf0d63da32e237b64d16e27a40a148cbe2f557cd22c88ada021df",
+  ],
+  [
+    "skills/foreman/scripts/maintenance.sh",
+    "2bed0680efbfa6bc2eb474aa9c11e35bd43dc9d34adca6193a80f6fffe5f2048",
+  ],
+  [
+    "skills/foreman/scripts/merge-gate.sh",
+    "8854bd9bf4ddc0234989c156ca32287d2ade4e3b68bbb8c66e560e4a093fd95b",
+  ],
+]);
+
+export function isPinnedLegacyMigrationArtifact(
+  path: string,
+  sourceText: string,
+): boolean {
+  const normalizedPath = path.replace(/\\/g, "/");
+  const expected = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
+  if (expected === undefined) return false;
+  return (
+    createHash("sha256").update(sourceText, "utf8").digest("hex") === expected
+  );
+}
+
+/**
  * Closed validator for the single approved lane-run.sh migration artifact.
  * Accepts only the exact profile-bound adapter body. Rejects every other
  * change with legacy_adapter_domain_logic.
@@ -353,6 +389,10 @@ export function inspectLegacyAdapter(
   }
   if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
     return inspectLaneSuperviseMigrationAdapter(sourceText);
+  }
+  const pinnedV040Digest = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
+  if (pinnedV040Digest !== undefined) {
+    return isPinnedLegacyMigrationArtifact(path, sourceText) ? null : DENY;
   }
 
   const ext = pathExtension(path);

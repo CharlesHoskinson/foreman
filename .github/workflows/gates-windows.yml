@@ -164,6 +164,18 @@ jobs:
           test -f /c/msys64/usr/bin/flock.exe
           test -f /c/msys64/usr/bin/sqlite3.exe
 
+          # BW-004 uses descriptor-mode flock. Bash and flock must therefore
+          # share one MSYS runtime so the descriptor number names the same
+          # open file in both processes. Install the Bats launcher and the
+          # python3 compatibility shim into MSYS2's own /usr/local tree; the
+          # focused gate below runs under MSYS2 bash.
+          msys_prefix="$(cygpath --windows /c/msys64/usr/local)"
+          npm install --global --prefix "${msys_prefix}" bats@1.11.0
+          mkdir -p /c/msys64/usr/local/bin
+          printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
+            > /c/msys64/usr/local/bin/python3
+          chmod +x /c/msys64/usr/local/bin/python3
+
           /usr/local/bin/openspec --version
           /usr/local/bin/quint --version
           /usr/local/bin/bats --version
@@ -195,10 +207,18 @@ jobs:
           }
 
       - name: BW-004 native Windows flock gate
-        shell: bash
+        # Do not run this slice in Git-for-Windows Bash with MSYS2 flock.
+        # Descriptor numbers are runtime-local and that mixed pairing fails
+        # with `Bad file descriptor` even though command-mode flock succeeds.
+        shell: 'C:\msys64\usr\bin\bash.exe --noprofile --norc -e -o pipefail {0}'
         run: |
           set -euo pipefail
-          export PATH="/usr/local/bin:$PATH:/c/msys64/usr/bin"
+          export PATH="/usr/local/bin:/usr/bin:$PATH"
+          cd "$(cygpath --unix "$GITHUB_WORKSPACE")"
+          command -v bats
+          command -v flock
+          command -v git
+          command -v node
           mkdir -p -- "$HOME/.foreman"
           flock "$HOME/.foreman/bw-004.lock" -c "echo BW-004-LOCK-OK"
           bats tests/lock.bats tests/wt-new.bats tests/wt-merge.bats

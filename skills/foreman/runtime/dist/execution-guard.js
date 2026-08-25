@@ -32544,7 +32544,8 @@ var liveArchitectureGit = Layer_exports.succeed(ArchitectureGit, {
     if (entry === "absent") {
       return null;
     }
-    const maxBytes = path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js") ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
+    const isLargeGeneratedArtifact = path === "graphify-out/graph.json" || path.startsWith("skills/foreman/runtime/dist/") && path.endsWith(".js");
+    const maxBytes = isLargeGeneratedArtifact ? MAX_BLOB_BYTES : MAX_INPUT_BYTES;
     const r = yield* runGit(
       repoRoot,
       ["cat-file", "blob", `${commitOid}:${path}`],
