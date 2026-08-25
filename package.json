@@ -25,6 +25,7 @@
     "plugin-drift": "node skills/foreman/runtime/dist/architecture-policy.js plugin-drift"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "1.10.0",
     "@types/node": "26.1.2",
     "esbuild": "0.27.0",
     "tsx": "4.20.5",
