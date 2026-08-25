@@ -24,6 +24,22 @@ var ALLOWED_MODE_CHANGES = [
   {
     path: "openspec/changes/graph-store-port/tasks.md",
     reason: "8a5900f cleared a spurious executable bit from a markdown file; the fix is the change rule 5 flags"
+  },
+  {
+    path: "openspec/changes/graph-eval-falsification/design.md",
+    reason: "v0.4 clears a spurious executable bit from the graph-evaluation design document"
+  },
+  {
+    path: "openspec/changes/graph-eval-falsification/proposal.md",
+    reason: "v0.4 clears a spurious executable bit from the graph-evaluation proposal document"
+  },
+  {
+    path: "openspec/changes/graph-eval-falsification/specs/evaluation/spec.md",
+    reason: "v0.4 clears a spurious executable bit from the graph-evaluation specification document"
+  },
+  {
+    path: "openspec/changes/graph-eval-falsification/tasks.md",
+    reason: "v0.4 clears a spurious executable bit from the graph-evaluation task document"
   }
 ];
 function isRootPath(path) {

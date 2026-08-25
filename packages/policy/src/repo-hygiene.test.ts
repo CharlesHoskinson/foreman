@@ -266,6 +266,19 @@ describe("rendering matches the shell contract", () => {
 });
 
 describe("declaration list hygiene", () => {
+  it("declares every v0.4 graph-evaluation Markdown mode repair", () => {
+    const declared = new Set(ALLOWED_MODE_CHANGES.map((entry) => entry.path));
+    assert.deepEqual(
+      [
+        "openspec/changes/graph-eval-falsification/design.md",
+        "openspec/changes/graph-eval-falsification/proposal.md",
+        "openspec/changes/graph-eval-falsification/specs/evaluation/spec.md",
+        "openspec/changes/graph-eval-falsification/tasks.md",
+      ].filter((path) => !declared.has(path)),
+      [],
+    );
+  });
+
   it("every entry carries a reason", () => {
     for (const e of ALLOWED_MODE_CHANGES) {
       assert.ok(e.path.length > 0, "path must be non-empty");
