@@ -160,23 +160,21 @@ jobs:
           # /c/msys64/usr/bin to PATH -- see that step's own comment for why
           # prepend would be unsafe.
           /c/msys64/usr/bin/pacman.exe -Sy --noconfirm
-          /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed util-linux sqlite
+          /c/msys64/usr/bin/pacman.exe -S --noconfirm --needed util-linux sqlite python
           test -f /c/msys64/usr/bin/flock.exe
           test -f /c/msys64/usr/bin/sqlite3.exe
+          test -f /c/msys64/usr/bin/python3.exe
 
           # BW-004 uses descriptor-mode flock. Bash and flock must therefore
-          # share one MSYS runtime so the descriptor number names the same
-          # open file in both processes. Install the Bats launcher and the
-          # python3 compatibility shim into MSYS2's own /usr/local tree; the
-          # focused gate below runs under MSYS2 bash.
+          # share one MSYS runtime so descriptor numbers and POSIX paths name
+          # the same objects in Bash, flock, and the lock-evidence parser.
+          # Install the Bats launcher into MSYS2's own /usr/local tree; the
+          # focused gate below runs under MSYS2 bash and uses MSYS2 Python.
           # Windows npm places global launchers directly in the prefix rather
           # than in a nested bin directory.
           msys_prefix="$(cygpath --windows /c/msys64/usr/local/bin)"
           npm install --global --prefix "${msys_prefix}" bats@1.11.0
           mkdir -p /c/msys64/usr/local/bin
-          printf '%s\n' '#!/usr/bin/env bash' 'exec python "$@"' \
-            > /c/msys64/usr/local/bin/python3
-          chmod +x /c/msys64/usr/local/bin/python3
 
           # MSYS2's flock locks correctly but does not report a version on
           # every runner image. The Bats trust fixture and the lock library
@@ -194,6 +192,7 @@ jobs:
           chmod +x /c/msys64/usr/local/bin/flock
           /c/msys64/usr/local/bin/bats --version
           /c/msys64/usr/local/bin/flock --version
+          /c/msys64/usr/bin/python3 --version
 
           /usr/local/bin/openspec --version
           /usr/local/bin/quint --version
@@ -240,6 +239,20 @@ jobs:
           command -v node
           mkdir -p -- "$HOME/.foreman"
           flock "$HOME/.foreman/bw-004.lock" -c "echo BW-004-LOCK-OK"
+
+          # Prove the exact hermetic trust fixture can select and operate the
+          # same-runtime flock before the larger Bats slice. This catches a
+          # broken MSYS path/JSON boundary without producing a failure cascade.
+          trust_tmp="$(mktemp -d)"
+          BATS_TEST_TMPDIR="$trust_tmp"
+          source tests/helpers.bash
+          setup_lock_trust_fixture
+          source skills/foreman/scripts/lib/lock.sh
+          fm_lock_acquire "$trust_tmp/preflight.lock" 2
+          test "$FM_LOCK_MECHANISM" = flock
+          fm_lock_release "$trust_tmp/preflight.lock"
+          rm -rf -- "$trust_tmp"
+
           bats tests/lock.bats tests/wt-new.bats tests/wt-merge.bats
 
       # ci-local.sh reports host-only gates as unavailable with their reason.
