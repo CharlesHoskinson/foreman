@@ -496,6 +496,219 @@ describe("reconcileDependencyDrift output classes and exit codes", () => {
   });
 });
 
+describe("required manifest tools absent from the checker authority", () => {
+  it("known-bad: required id with no checker coverage exits 1 with a DRIFT line naming both records", () => {
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git"],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id: "sqlite3", required: true },
+      ],
+      bootstrapText: "git sqlite3\n",
+    });
+    assert.equal(r.exitCode, EXIT_DRIFT);
+    assert.ok(
+      r.stdout.some(
+        (l) =>
+          l ===
+          "DRIFT env/reference-manifest.toml marks 'sqlite3' required = true but env/tool-check.sh does not report it at all, so a host without it still reports READY",
+      ),
+    );
+    assert.ok(
+      r.stdout.some((l) => l.includes("DEPENDENCY DRIFT -- records disagree")),
+    );
+    // The required id is reported once, as drift — not as the optional INFO row.
+    assert.ok(!r.stdout.some((l) => l.startsWith("INFO ") && l.includes("sqlite3")));
+    // One disagreement, one line: no rule reports the same id a second time.
+    assert.equal(r.stdout.filter((l) => l.includes("sqlite3")).length, 1);
+  });
+
+  it("known-good: the same id covered by the checker exits 0", () => {
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git", "sqlite3"],
+      checkerMust: ["git", "sqlite3"],
+      tools: [
+        { id: "git", required: true },
+        { id: "sqlite3", required: true },
+      ],
+      bootstrapText: "git sqlite3\n",
+    });
+    assert.equal(r.exitCode, EXIT_AGREE);
+    assert.ok(r.stdout.some((l) => l.includes(MSG_NO_DRIFT)));
+    assert.ok(!r.stdout.some((l) => l.startsWith("DRIFT ")));
+  });
+
+  it("new rule exempts pseudo ids: a required pseudo id absent from the checker is not drift", () => {
+    const pseudo = "foreman_skill";
+    assert.ok(PSEUDO_IDS.has(pseudo));
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git"],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id: pseudo, required: true },
+      ],
+      bootstrapText: "git\n",
+    });
+    assert.equal(r.exitCode, EXIT_AGREE);
+    assert.ok(!r.stdout.some((l) => l.startsWith("DRIFT ")));
+    assert.ok(!r.stdout.some((l) => l.includes(pseudo)));
+  });
+
+  it("optional manifest-only ids keep their INFO class and exit 0", () => {
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git"],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id: "claude", required: false },
+        { id: "openspec", required: false },
+      ],
+      bootstrapText: "git\n",
+    });
+    assert.equal(r.exitCode, EXIT_AGREE);
+    assert.ok(
+      r.stdout.some(
+        (l) =>
+          l ===
+          'INFO  manifest declares "claude" but env/tool-check.sh does not report it',
+      ),
+    );
+    assert.ok(
+      r.stdout.some(
+        (l) =>
+          l ===
+          'INFO  manifest declares "openspec" but env/tool-check.sh does not report it',
+      ),
+    );
+    assert.ok(!r.stdout.some((l) => l.startsWith("DRIFT ")));
+  });
+
+  it("unprovisioned durable-transport ids keep their INFO class and exit 0", () => {
+    const id = "nats-cli";
+    assert.ok(UNPROVISIONED_IDS.has(id));
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git", id],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id, required: false },
+      ],
+      bootstrapText: "git\n",
+    });
+    assert.equal(r.exitCode, EXIT_AGREE);
+    assert.ok(
+      r.stdout.some((l) =>
+        l.includes(`"${id}" is gated but deliberately not provisioned`),
+      ),
+    );
+    assert.ok(!r.stdout.some((l) => l.startsWith("DRIFT ")));
+  });
+
+  it("checker-undeclared ids still drift with their own message", () => {
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git", "mystery"],
+      checkerMust: ["git"],
+      tools: [{ id: "git", required: true }],
+      bootstrapText: "git mystery\n",
+    });
+    assert.equal(r.exitCode, EXIT_DRIFT);
+    assert.ok(
+      r.stdout.some(
+        (l) =>
+          l ===
+          "DRIFT checker gates on 'mystery' but env/reference-manifest.toml does not declare it",
+      ),
+    );
+  });
+
+  it("missing install routes still drift with their own message", () => {
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git", "timeout"],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id: "timeout", required: false },
+      ],
+      bootstrapText: "git\n",
+    });
+    assert.equal(r.exitCode, EXIT_DRIFT);
+    assert.ok(
+      r.stdout.some(
+        (l) =>
+          l ===
+          "DRIFT checker gates on 'timeout' but env/bootstrap-wsl.sh has no install route for it (looked for 'coreutils')",
+      ),
+    );
+  });
+
+  it("tier disagreement on a checker-covered required id still drifts with its own message", () => {
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git", "strace"],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id: "strace", required: true },
+      ],
+      bootstrapText: "git strace\n",
+    });
+    assert.equal(r.exitCode, EXIT_DRIFT);
+    assert.ok(
+      r.stdout.some(
+        (l) =>
+          l ===
+          "DRIFT env/reference-manifest.toml marks 'strace' required = true but env/tool-check.sh grades it should_*, so a host without it still reports READY",
+      ),
+    );
+  });
+
+  it("an optional pseudo manifest id absent from the checker stays silent", () => {
+    const pseudo = "foreman_skill";
+    assert.ok(PSEUDO_IDS.has(pseudo));
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git"],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id: pseudo, required: false },
+      ],
+      bootstrapText: "git\n",
+    });
+    assert.equal(r.exitCode, EXIT_AGREE);
+    // Pseudo ids are exempt from the manifest-only INFO rule.
+    assert.ok(!r.stdout.some((l) => l.includes(pseudo)));
+  });
+
+  it("a required pseudo id graded outside the checker must set stays silent", () => {
+    const pseudo = "foreman_skill";
+    assert.ok(PSEUDO_IDS.has(pseudo));
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git", pseudo],
+      checkerMust: ["git"],
+      tools: [
+        { id: "git", required: true },
+        { id: pseudo, required: true },
+      ],
+      bootstrapText: "git\n",
+    });
+    assert.equal(r.exitCode, EXIT_AGREE);
+    // Pseudo ids are exempt from the tier-agreement rule.
+    assert.ok(!r.stdout.some((l) => l.includes(pseudo)));
+  });
+
+  it("the pseudo-id exemption still holds across every rule", () => {
+    const r = reconcileDependencyDrift({
+      checkerIds: ["git", "foreman_skill", "foreman_home_fs", "foreman-launch"],
+      checkerMust: ["git", "foreman_skill"],
+      tools: [{ id: "git", required: true }],
+      bootstrapText: "git\n",
+    });
+    assert.equal(r.exitCode, EXIT_AGREE);
+    assert.ok(!r.stdout.some((l) => l.startsWith("DRIFT ")));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Task 2 — typed CLI / Effect boundary
 // ---------------------------------------------------------------------------
