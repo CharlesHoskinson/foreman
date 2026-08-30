@@ -51,6 +51,7 @@
 **推荐 Fetcher**: Fetcher
 **关键参数**: `impersonate='chrome'`, 自定义 `headers`
 **处理方式**: `page.text` 获取 JSON → `json.loads()` 解析
+**Scrapling 0.4.14 注意**: `application/json` 响应上的 `Response.text` 可能是空的 `TextHandler`（它表示已解析 DOM 节点的直接文本，不是原始响应体）。优先使用 `page.json()` 解析 JSON；需要原始字节时使用 `page.body`。
 **备注**: 如果 API 有反爬，可能需要带 Referer/Origin 等 header
 
 ---
@@ -110,6 +111,32 @@
 
 ---
 
+## PubMed Central full text (pmc.ncbi.nlm.nih.gov/articles/PMC*)
+
+**站点特征**: 服务端渲染的开放获取论文，正文在初始 HTML 中；偶发 reCAPTCHA 门页。
+**推荐 Fetcher**: CLI `scrapling extract get`（本次任务用 `--css-selector "p, h1, h2, h3, li"` 可拿到完整论文正文）。
+**备注**: `jamanetwork.com` 对同样论文返回 403，应改走 PMC 或作者机构 PDF。`--css-selector` 会把段落挤成超长行并保留导航噪音，但 Key Points / Results / tables 的数字仍完整。PDF 输出不要用 CSS selector（得到空文件），先 `curl` 再 `pdftotext -layout`。
+
+---
+
+## Justia case pages and embedded opinions (law.justia.com)
+
+**站点特征**: Case pages are server-rendered, but their visible HTML can contain only metadata and a summary. The full opinion is commonly embedded as a PDF from `cases.justia.com`.
+**推荐方案**: Use `Fetcher` for the case page. Extract the `Download PDF` link, fetch that PDF separately with `Fetcher`, and run `pdftotext -layout` for quotation review.
+**关键陷阱**: A selector limited to headings, paragraphs, and list items can miss the opinion because the text is inside the PDF viewer iframe.
+**验证要求**: Confirm the PDF response begins with `%PDF-`, preserve the raw PDF, and quote from the extracted opinion rather than an automated page summary.
+
+---
+
+## Angular institutional SPA (ich.org, iprp.global)
+
+**站点特征**: Angular 应用，初始 HTML 只有 `<app-root></app-root>` 加 bundled JS；`scrapling extract get` 返回 200 但正文 0 字节。
+**推荐 Fetcher**: `scrapling extract fetch` 或 `stealthy-fetch`，`--network-idle`，`--wait-selector "p, article, .content"`。
+**保真方案（本次验证可用）**: 不要抓官网 SPA。改下官方 PDF：`database.ich.org/sites/default/files/`、`admin.ich.org/sites/default/files/`，`curl` + `pdftotext -layout`。ICH 工作计划、MC/Assembly 纪要、guideline 都在这些静态 PDF 上。
+**备注**: `extract get` 对 `.md` 会报成功但写空文件，容易误判为“已抽取”。先 `wc -c` 再往下用。
+
+---
+
 ## 模板：添加新站点模式
 
 复制以下模板，替换具体内容后追加到此文件：
@@ -124,3 +151,10 @@
 **选择器参考**: CSS 选择器示例
 **备注**: 踩坑经验
 ```
+
+## Justia SCOTUS opinion pages (supreme.justia.com)
+
+**站点特征**: Server-rendered case pages with full opinion text in HTML (no PDF detour needed, unlike law.justia.com). WAF rejects some curl_cffi TLS fingerprints with HTTP 403 while accepting others from the same host seconds apart — measured 2026-08-29: `impersonate="chrome"` 403, `"firefox"` 403, `"safari"` 200 on the identical URL.
+**推荐方案**: `Fetcher.get(url, timeout=60, impersonate=...)` trying profiles in order (`safari` first as of 2026-08-29), sleeping ~1.5s between attempts and between pages. No browser fetcher needed.
+**关键陷阱**: The passing profile is a moving target — re-probe one URL per profile before a batch run instead of raising retry counts. Occasional 200s on otherwise-blocked profiles make a "retry the same profile" loop look like it works when it's just luck.
+**验证要求**: Verify extracted text independently of the scraper's exit status (opinion opener present, no other-justice bleed, no site chrome, plausible word count).
