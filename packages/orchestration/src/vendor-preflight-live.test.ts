@@ -3,6 +3,9 @@
  */
 
 import assert from "node:assert/strict";
+import { existsSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { Effect, Layer } from "effect";
 import {
@@ -79,6 +82,8 @@ type Call = {
   readonly command: string;
   readonly args: readonly string[];
   readonly env: NodeJS.ProcessEnv | undefined;
+  readonly cwd: string | undefined;
+  readonly timeoutMs: number | undefined;
 };
 
 function makeLayers(opts: {
@@ -90,7 +95,13 @@ function makeLayers(opts: {
 }) {
   const processLayer = Layer.succeed(ProcessExec, {
     runCaptured: (o) => {
-      opts.calls.push({ command: o.command, args: o.args, env: o.env });
+      opts.calls.push({
+        command: o.command,
+        args: o.args,
+        env: o.env,
+        cwd: o.cwd,
+        timeoutMs: o.timeoutMs,
+      });
       return opts.run(o);
     },
     runIgnoredStdio: (_o: RunIgnoredStdioOptions) =>
@@ -122,6 +133,54 @@ async function runInspect(
 }
 
 describe("inspectVendor live adapter", () => {
+  it("runs the Grok readiness probe with the safe bounded workload contract outside the repository", async () => {
+    const calls: Call[] = [];
+    let privateDirectoryObserved = false;
+    const canaryCap: VendorCapabilityV1 = {
+      ...grokCap,
+      authArgv: [
+        "--single",
+        "Reply with exactly this ASCII token and nothing else: FOREMAN_GROK_READY_V1",
+        "--no-subagents",
+        "--disable-web-search",
+        "--no-memory",
+        "--tools",
+        "",
+        "--verbatim",
+      ],
+      authPositiveMarkers: ["FOREMAN_GROK_READY_V1"],
+    };
+    const layer = makeLayers({
+      which: "/usr/bin/grok",
+      calls,
+      run: (o) => {
+        if (o.args[0] === "--single" && o.cwd !== undefined) {
+          const mode = statSync(o.cwd).mode & 0o077;
+          privateDirectoryObserved = mode === 0;
+        }
+        return Effect.succeed({
+          exitCode: 0,
+          stdout:
+            o.args[0] === "--single"
+              ? "FOREMAN_GROK_READY_V1\n"
+              : "grok 1.0.13\n",
+          stderr: "",
+        });
+      },
+    });
+
+    const rec = await runInspect(canaryCap, layer);
+    assert.equal(rec.facts.authenticated.value, "authenticated");
+    const authCall = calls.find((call) => call.args[0] === "--single");
+    assert.ok(authCall);
+    assert.deepEqual(authCall.args, canaryCap.authArgv);
+    assert.notEqual(authCall.cwd, tmpdir());
+    assert.ok(authCall.cwd?.startsWith(join(tmpdir(), "foreman-grok-ready-")));
+    assert.equal(privateDirectoryObserved, true);
+    assert.equal(existsSync(authCall.cwd!), false);
+    assert.equal(authCall.timeoutMs, 90_000);
+  });
+
   it("passes explicit env to version and auth probes and omits env when absent", async () => {
     const callsWith: Call[] = [];
     const child: NodeJS.ProcessEnv = {
@@ -211,9 +270,9 @@ describe("inspectVendor live adapter", () => {
       run: (o) => {
         if (o.args[0] === "models") {
           return Effect.succeed({
-            exitCode: 0,
-            stdout: "You are not authenticated.\n",
-            stderr: "",
+            exitCode: 1,
+            stdout: "",
+            stderr: "You are not authenticated.\n",
           });
         }
         return Effect.succeed({
@@ -227,6 +286,31 @@ describe("inspectVendor live adapter", () => {
     assert.equal(rec.facts.authenticated.value, "not-authenticated");
     assert.equal(rec.remediation.kind, "login");
     assert.equal(rec.remediation.instruction, "grok login --device-code");
+  });
+
+  it("successful model stdout containing sign-out words stays unknown", async () => {
+    const calls: Call[] = [];
+    const layer = makeLayers({
+      which: "/usr/bin/grok",
+      calls,
+      run: (o) => {
+        if (o.args[0] === "models") {
+          return Effect.succeed({
+            exitCode: 0,
+            stdout: "Please sign in before continuing.\n",
+            stderr: "",
+          });
+        }
+        return Effect.succeed({
+          exitCode: 0,
+          stdout: "0.2.118\n",
+          stderr: "",
+        });
+      },
+    });
+    const rec = await runInspect(grokCap, layer);
+    assert.equal(rec.facts.authenticated.value, "unknown");
+    assert.notEqual(rec.remediation.kind, "login");
   });
 
   it("unmatched zero-exit banner -> unknown", async () => {

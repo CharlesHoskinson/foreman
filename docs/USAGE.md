@@ -86,9 +86,12 @@ claude
 ```
 
 ```text
-/model fable
+/model claude-fable-5-1
 /foreman
 ```
+
+Use the canonical model ID. Foreman does not accept the `fable` alias as
+evidence that Fable 5.1 ran.
 
 Restate the goal and mode in one short paragraph. Soft unless you set
 `mode = "hard"` in `.foreman/config.toml` or ask for hard mode.
@@ -228,7 +231,7 @@ successful `wt-merge`; those reports are already archived under
 | Routine implementer | Grok 4.5 | `grok --prompt-file … -m grok-4.5 --allow "Write" --allow "Edit" --output-format plain --cwd <dir>` |
 | Cross-vendor implementer | GPT-5.6 Sol (medium) | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=medium --sandbox workspace-write` |
 | Audit (default) | GPT-5.6 Sol (high) | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
-| Judgment | Fable / Opus | Session model or `model: fable` agent |
+| Judgment | Fable 5.1 | Session model or `model: claude-fable-5-1` agent; exact identity is host-verified |
 
 **Grok is live on the reference host**: Grok Build (0.2.118) installed via
 `npm i -g @xai-official/grok`, signed in via `grok login --device-code`, and

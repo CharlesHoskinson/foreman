@@ -172,7 +172,10 @@ function decodeCapabilityArgv(
     if (hasNul(entry)) {
       return vendorPreflightContractFailure("nul_rejected");
     }
-    if (entry.trim().length === 0) {
+    // Empty tail entries are legitimate option values (for example
+    // `--tools ""` means no Grok tools). Whitespace-only entries remain
+    // ambiguous and are refused.
+    if (entry.length > 0 && entry.trim().length === 0) {
       return vendorPreflightContractFailure("blank_string");
     }
     const n = utf8ByteLength(entry);

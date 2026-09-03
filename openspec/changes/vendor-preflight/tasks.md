@@ -36,9 +36,10 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
 
 ## T3 — probed adapters: grok, agy
 
-- [ ] `grok`: there is no status verb. Probe with a bounded `grok models` and
-      require the **positive** signed-in signal. Absence of the negative string
-      SHALL NOT be read as authenticated.
+- [x] `grok`: there is no reliable status verb. Probe with a 90-second bounded,
+      read-only `grok --single` workload outside the target repository. Disable
+      tools, subagents, web access, and memory. Require the exact
+      `FOREMAN_GROK_READY_V1` response. `grok models` does not decide readiness.
 - [ ] `grok`: a bound expiring, a socket failure, or output matching neither
       the positive nor a recognised negative signal yields `unknown` with the
       reason named. Remove the current `(( rc != 0 )) && return 1` collapse
@@ -48,8 +49,10 @@ may run in parallel once T1 lands. T6 is tests. T7 is the gate.
       classify on the same three-state rule.
 - [ ] Record for each probed adapter the exact command executed, so the report
       names the probe rather than asserting a conclusion.
-- [ ] Treat every positive banner as a presentation detail: a banner that stops
-      matching produces `unknown`, and the suite has a test that proves it.
+- [x] Treat every presentation banner as non-authoritative. A signed-out marker
+      is evidence only on stderr or with a nonzero process exit. Additional
+      output, a nonzero exit without signed-out evidence, timeout, or an
+      unmatched response produces `unknown`. Red-first tests cover these cases.
 
 ## T4 — currency without mutation
 

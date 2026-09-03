@@ -30890,10 +30890,14 @@ var LANE_RUN_MIGRATION_PATH = "skills/foreman/scripts/lane-run.sh";
 var LANE_SUPERVISE_MIGRATION_PATH = "skills/foreman/scripts/lane-supervise.sh";
 var LANE_RUN_BODY_SHA256 = "07d1f57953eb1c3cb4b7a8090743ef05c723ff900e0d3881fb8b1efc0be93f31";
 var LANE_SUPERVISE_BODY_SHA256 = "a09929d92ce817fc861800b38529300889a62b8324fc67fea9a305ea32ac7062";
-var V040_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
+var LEGACY_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
   [
     "skills/foreman/scripts/gate-eval.sh",
     "bd0a5e404cb97dfe356084764f797a2852b8a6d84862e038aaecad085f70b546"
+  ],
+  [
+    "skills/foreman/scripts/adapters/grok.sh",
+    "5661b8005c54be4f66d11d7bf3db7e71f7886fd06baf69b9b2c4f4bf85cba1ca"
   ],
   [
     "skills/foreman/scripts/lib/release-policy.sh",
@@ -30910,11 +30914,15 @@ var V040_MIGRATION_BODY_SHA256 = /* @__PURE__ */ new Map([
   [
     "skills/foreman/scripts/merge-gate.sh",
     "8854bd9bf4ddc0234989c156ca32287d2ade4e3b68bbb8c66e560e4a093fd95b"
+  ],
+  [
+    "skills/foreman/scripts/vendor-concurrency-test.sh",
+    "6433ef616bfc1fb28944b418f0291f6eedc196d5815fa73c2451e04bf327f889"
   ]
 ]);
 function isPinnedLegacyMigrationArtifact(path, sourceText) {
   const normalizedPath = path.replace(/\\/g, "/");
-  const expected = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
+  const expected = LEGACY_MIGRATION_BODY_SHA256.get(normalizedPath);
   if (expected === void 0) return false;
   return createHash2("sha256").update(sourceText, "utf8").digest("hex") === expected;
 }
@@ -31082,8 +31090,8 @@ function inspectLegacyAdapter(path, sourceText) {
   if (normalizedPath === LANE_SUPERVISE_MIGRATION_PATH) {
     return inspectLaneSuperviseMigrationAdapter(sourceText);
   }
-  const pinnedV040Digest = V040_MIGRATION_BODY_SHA256.get(normalizedPath);
-  if (pinnedV040Digest !== void 0) {
+  const pinnedLegacyDigest = LEGACY_MIGRATION_BODY_SHA256.get(normalizedPath);
+  if (pinnedLegacyDigest !== void 0) {
     return isPinnedLegacyMigrationArtifact(path, sourceText) ? null : DENY;
   }
   const ext = pathExtension(path);

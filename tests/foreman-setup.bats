@@ -32,7 +32,7 @@ setup() {
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are not authenticated."; exit 0 ;;
+  --single) echo "You are not authenticated." >&2; exit 1 ;;
   login)
     echo "SETUP-SHOULD-NOT-CALL-LOGIN" > "$BATS_TEST_TMPDIR/login-called"
     exit 0
@@ -61,7 +61,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are logged in with grok.com."; exit 0 ;;
+  --single) echo "FOREMAN_GROK_READY_V1"; exit 0 ;;
   login|update)
     echo "SETUP-SHOULD-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
     exit 0
@@ -108,7 +108,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are not authenticated."; exit 0 ;;
+  --single) echo "You are not authenticated." >&2; exit 1 ;;
   *) echo "unrecognized" >&2; exit 1 ;;
 esac
 EOF
@@ -128,7 +128,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "Error: leader socket unavailable"; exit 0 ;;
+  --single) echo "Error: leader socket unavailable"; exit 0 ;;
   login)
     echo "SETUP-SHOULD-NOT-CALL-LOGIN" > "$BATS_TEST_TMPDIR/login-called"
     exit 0

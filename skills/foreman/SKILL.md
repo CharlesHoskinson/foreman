@@ -3,7 +3,7 @@ name: foreman
 description: >
   Cross-vendor architect/worker orchestration skill. Soft mode routes specs to
   Grok implementers under a high-judgment architect, audits diffs with Codex
-  GPT-5.6 Sol (codex-auditor), and consults a Claude advisor at commitment
+  GPT-5.6 Sol (codex-auditor), and consults Claude Fable 5.1 at commitment
   boundaries; hard mode adds worktrees, host-side evidence, independent checks,
   cold-diff audit, and a deterministic merge gate. Use when the user runs
   /foreman, asks to orchestrate multi-model coding, delegates implementation
@@ -34,14 +34,14 @@ starts until Setup has reported READY for every lane it needs:
 
 1. **Setup & Environment** owns tool-check (`env/tool-check.sh`), bootstrap
    (`env/bootstrap-windows.ps1` / `env/bootstrap-wsl.sh`), **all**
-   model-vendor authentication (grok, codex, claude), and — on WSL — full
+   implementation-lane authentication (grok and codex), and — on WSL — full
    environment provisioning. Setup MUST report READY, including a
    per-vendor authenticated/not-authenticated verdict, before Use begins.
    Run it via `skills/foreman/scripts/foreman-setup.sh [--profile
-   soft|hard|full] [--lane grok|codex|claude]`: it composes tool-check.sh,
+   soft|hard|full] [--lane grok|codex]`: it composes tool-check.sh,
    prints a `<vendor>: NOT-READY — run <instruction>` line for any vendor
-   that is not authenticated (`grok login --device-code` / `codex login` /
-   `claude auth login`), and **never authenticates anything itself** —
+   that is not authenticated. Use `grok login --device-code` or `codex login`.
+   Setup **never authenticates anything itself** —
    device/interactive auth is always an operator action Setup only
    instructs. Idempotent: a second run on an already-ready host changes
    nothing and re-reports READY. See `references/reference-environment.md`.
@@ -51,6 +51,17 @@ starts until Setup has reported READY for every lane it needs:
    --skill-root <path-to-skills/foreman>`. Exit 0 and `_tag":"Pass"` are
    required. This is the canonical installed-runtime check; the legacy
    Setup shell script is not yet a thin adapter to it.
+   The judgment lane is advisory-only and does not use a credential profile.
+   Before a Fable consultation, run a bounded read-only Claude Code canary from
+   the operating-system temporary directory with
+   `--model claude-fable-5-1`, no tools, plan permission mode, no session
+   persistence, safe mode, and no browser. Admit it only when the JSON result
+   records `modelUsage["claude-fable-5-1"].canonicalModel` as
+   `claude-fable-5-1`. `claude auth status` alone, the alias `fable`, an
+   auxiliary model, or the model's own claim is not identity evidence. If the
+   canary times out or fails without positive signed-out evidence, report
+   readiness as unknown. Never invent a login diagnosis. Never silently
+   substitute another Claude model.
 2. **Use** assumes an authenticated, provisioned environment and never
    authenticates. This is enforced as a real gate, not just a report:
    `lane-run.sh`, when `LANE_VENDOR` is set, refuses to spawn the lane's
@@ -105,7 +116,7 @@ The session model is the most expensive lane. Keep its token volume low:
 | **Routine** (default implementer) | Grok 4.5 | `grok-implementer` | Spec fully determines the outcome |
 | **Cross-vendor implementer** | GPT-5.6 Sol (high) | `codex-implementer` | Race / second implementation, or Grok unavailable |
 | **Audit** (default auditor) | **GPT-5.6 Sol (high)** | **`codex-auditor`** | After independent checks on a worker diff; **default when worker ≠ OpenAI** |
-| **Judgment** | Top Claude (Fable/Opus) | `foreman-advisor` | Commitment boundaries only — never implements |
+| **Judgment** | Claude Fable 5.1 (`claude-fable-5-1`) | `foreman-advisor` | Commitment boundaries only — never implements, exact identity is host-verified |
 
 **Deciding rule (implement):** How much does the outcome depend on judgment the
 spec can't capture? Little → Grok. A lot / costly mistakes → race Grok + Codex

@@ -7,7 +7,7 @@
 | Routine implementer | Grok 4.5 | `grok-implementer` | `grok --prompt-file … -m grok-4.5 --allow "Write" --allow "Edit"` |
 | Cross-vendor implementer | GPT-5.6 Sol (medium) | `codex-implementer` | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=medium --sandbox workspace-write` |
 | **Audit (default)** | **GPT-5.6 Sol (high)** | **`codex-auditor`** | `codex exec --model gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only` |
-| Judgment | Fable / Opus | `foreman-advisor` | Session model or `model: fable` agent |
+| Judgment | Fable 5.1 | `foreman-advisor` | Session model or `model: claude-fable-5-1` agent; exact identity is host-verified |
 
 ### Default pairing
 

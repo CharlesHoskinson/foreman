@@ -58,12 +58,34 @@ branch drift into a different failure semantics from its neighbours. Second, a
 `probed` verdict is structurally weaker than a `declared` one and the record
 says which it is, so a later reader can tell an inference from a contract.
 
-## Why a banner match degrades to unknown
+## Why a workload canary replaces the banner
 
-The grok probe's positive signal is the string `logged in` inside a
-human-readable banner. A banner is a presentation detail the vendor may change
-in any release; it is not an interface contract. Two failure directions follow,
-and they are not symmetric:
+The former Grok probe used the string `logged in` inside a human-readable
+`models` banner. That banner is a presentation detail, not proof that a workload
+can run. It has also contradicted a successful inference on the reference host.
+Foreman now executes this shell-free vector with a 90-second host bound and a
+fresh private directory below the operating-system temporary directory as its
+working directory. Foreman removes that directory after the probe:
+
+```text
+grok --single "Reply with exactly this ASCII token and nothing else: FOREMAN_GROK_READY_V1" \
+  --no-subagents --disable-web-search --no-memory --tools "" --verbatim
+```
+
+The classifier recognizes a signed-out marker only on stderr or with a nonzero
+process exit. Model-generated stdout is not authentication evidence. Otherwise,
+the classifier accepts only exit 0, empty stderr, and stdout that trims to
+exactly `FOREMAN_GROK_READY_V1`. A timeout, a nonzero exit without signed-out
+evidence, additional output, or any other response is `unknown`, never a login
+diagnosis. The capability manifest permits the exact empty argument after
+`--tools`, but it continues to reject whitespace-only arguments.
+
+This is a small billed inference. The gate must determine if inference works.
+A cheaper presentation query repeatedly gave a false answer. The canary disables
+tools, subagents, web access, and memory. The temporary working directory prevents
+repository instructions from changing the response.
+
+Two failure directions remain, and they are not symmetric:
 
 - Banner changes and the adapter reads *absence of the negative* as success →
   a signed-out vendor is reported ready, and the lane fails later, deeper, and
@@ -71,10 +93,8 @@ and they are not symmetric:
 - Banner changes and the adapter reads absence of the positive as failure →
   today's bug.
 
-So the adapter requires a positive signal (never absence-of-negative) **and**
-reports `unknown` rather than `not-authenticated` when neither signal matches.
-The existing code already gets the first half right; it is the second half
-that is missing.
+The exact-token contract addresses both: success is positive workload evidence,
+while every indeterminate result remains `unknown`.
 
 ## Why the preflight must not call `update`
 
@@ -96,11 +116,12 @@ later well-meaning edit cannot reintroduce them.
 
 ## Honest limits
 
-- A `probed` verdict cannot distinguish "signed in" from "signed in but out of
-  quota". Quota is out of scope here; `vendor-concurrency-and-quota` owns it.
+- The Grok workload verdict includes current inference availability, so quota
+  or transport failure can prevent readiness. Such failures remain `unknown`
+  unless the CLI emits recognized signed-out evidence.
 - The stub-CLI test suite proves the **adapter's** state machine, not the
-  vendors' real responses. Vendor drift is caught by the banner-degradation
-  rule producing `unknown`, not by the suite.
+  vendor's real response. Provider drift produces `unknown` because only the
+  exact token is accepted.
 - Pinning a version floor means a vendor release newer than the floor is
   reported `current` without being tested. The floor is a minimum, never an
   assertion that the resolved version was validated.

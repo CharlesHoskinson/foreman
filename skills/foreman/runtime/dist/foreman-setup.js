@@ -6,7 +6,7 @@ var __export = (target, all4) => {
 
 // packages/orchestration/src/foreman-setup-main.ts
 import { readFileSync as readFileSync3 } from "node:fs";
-import { join as join11 } from "node:path";
+import { join as join12 } from "node:path";
 
 // node_modules/effect/dist/esm/Function.js
 var isFunction = (input) => typeof input === "function";
@@ -16369,7 +16369,7 @@ function decodeCapabilityArgv(v) {
     if (hasNul2(entry)) {
       return vendorPreflightContractFailure("nul_rejected");
     }
-    if (entry.trim().length === 0) {
+    if (entry.length > 0 && entry.trim().length === 0) {
       return vendorPreflightContractFailure("blank_string");
     }
     const n = utf8ByteLength2(entry);
@@ -16741,9 +16741,9 @@ function argvContainsMutatingUpdate(argv, vendorBinding) {
 function readDefine(name) {
   try {
     if (name === "json") {
-      return true ? '{"capabilities":[{"authArgv":["auth","status"],"authNegativeMarkers":[],"authPositiveMarkers":[],"cliName":"claude","diagnoseInstruction":"Re-run: claude auth status; inspect network and CLI health","evidenceClass":"declared","installInstruction":"Install Claude Code (https://code.claude.com) and authenticate","loginInstruction":"claude auth login","updateCheckArgv":null,"updateInstruction":"claude update","updateMutates":true,"vendor":"claude","versionArgv":["--version"],"versionFloor":"2.1.220"},{"authArgv":["login","status"],"authNegativeMarkers":["Not logged in"],"authPositiveMarkers":[],"cliName":"codex","diagnoseInstruction":"Re-run: codex login status; inspect network and CLI health","evidenceClass":"declared","installInstruction":"npm install -g @openai/codex@latest","loginInstruction":"codex login","updateCheckArgv":null,"updateInstruction":"npm install -g @openai/codex@latest","updateMutates":true,"vendor":"codex","versionArgv":["--version"],"versionFloor":"0.146.0"},{"authArgv":["models"],"authNegativeMarkers":["not authenticated","sign in","log in"],"authPositiveMarkers":["You are logged in with grok.com."],"cliName":"grok","diagnoseInstruction":"Re-run bounded grok models; inspect network, leader socket, and CLI health","evidenceClass":"probed","installInstruction":"npm install -g @xai-official/grok@latest","loginInstruction":"grok login --device-code","updateCheckArgv":["update","--check","--json"],"updateInstruction":"npm install -g @xai-official/grok@latest","updateMutates":true,"vendor":"grok","versionArgv":["--version"],"versionFloor":"0.2.118"}],"schemaVersion":1}' : "";
+      return true ? '{"capabilities":[{"authArgv":["auth","status"],"authNegativeMarkers":[],"authPositiveMarkers":[],"cliName":"claude","diagnoseInstruction":"Re-run: claude auth status; inspect network and CLI health","evidenceClass":"declared","installInstruction":"Install Claude Code (https://code.claude.com) and authenticate","loginInstruction":"claude auth login","updateCheckArgv":null,"updateInstruction":"claude update","updateMutates":true,"vendor":"claude","versionArgv":["--version"],"versionFloor":"2.1.220"},{"authArgv":["login","status"],"authNegativeMarkers":["Not logged in"],"authPositiveMarkers":[],"cliName":"codex","diagnoseInstruction":"Re-run: codex login status; inspect network and CLI health","evidenceClass":"declared","installInstruction":"npm install -g @openai/codex@latest","loginInstruction":"codex login","updateCheckArgv":null,"updateInstruction":"npm install -g @openai/codex@latest","updateMutates":true,"vendor":"codex","versionArgv":["--version"],"versionFloor":"0.146.0"},{"authArgv":["--single","Reply with exactly this ASCII token and nothing else: FOREMAN_GROK_READY_V1","--no-subagents","--disable-web-search","--no-memory","--tools","","--verbatim"],"authNegativeMarkers":["not authenticated","sign in","log in"],"authPositiveMarkers":["FOREMAN_GROK_READY_V1"],"cliName":"grok","diagnoseInstruction":"Re-run the bounded read-only Grok readiness canary; inspect network, leader socket, and CLI health","evidenceClass":"probed","installInstruction":"npm install -g @xai-official/grok@latest","loginInstruction":"grok login --device-code","updateCheckArgv":["update","--check","--json"],"updateInstruction":"npm install -g @xai-official/grok@latest","updateMutates":true,"vendor":"grok","versionArgv":["--version"],"versionFloor":"0.2.118"}],"schemaVersion":1}' : "";
     }
-    return true ? "98d8bee6676c8925890031c9473f64903d0ab0b1b04c225f66668e02c8f1cf08" : "";
+    return true ? "aec00f07a96fbfae17089e2fb737532ff994821b4318d07e7a01abfea5e35d35" : "";
   } catch {
     return "";
   }
@@ -16780,15 +16780,15 @@ import {
   fstatSync as fstatSync4,
   lstatSync as lstatSync5,
   mkdirSync as mkdirSync6,
-  mkdtempSync as mkdtempSync2,
+  mkdtempSync as mkdtempSync3,
   openSync as openSync6,
   realpathSync as realpathSync5,
   renameSync as renameSync4,
-  rmSync as rmSync2,
+  rmSync as rmSync3,
   unlinkSync as unlinkSync6,
   accessSync as accessSync3
 } from "node:fs";
-import { basename as basename2, dirname as dirname6, isAbsolute as isAbsolute10, join as join10 } from "node:path";
+import { basename as basename2, dirname as dirname6, isAbsolute as isAbsolute10, join as join11 } from "node:path";
 
 // packages/orchestration/src/queue-services.ts
 import { spawn } from "node:child_process";
@@ -17189,7 +17189,9 @@ var liveQueueServices = Layer_exports.mergeAll(
 );
 
 // packages/orchestration/src/vendor-preflight-live.ts
-import { isAbsolute as isAbsolute3, resolve as resolvePath } from "node:path";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute as isAbsolute3, join as join4, resolve as resolvePath } from "node:path";
 
 // packages/orchestration/src/vendor-preflight.ts
 var SEMVER_TOKEN = /(?<![\w.-])v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?(?![\w.+-])/;
@@ -17418,35 +17420,61 @@ function classifyGrokAuth(stdout, stderr, exitCode, outcome, positiveMarkers, ne
   if (outcome !== "completed") {
     return {
       value: "unknown",
-      reason: `grok models probe outcome ${outcome}`
+      reason: `grok readiness canary outcome ${outcome}`
     };
   }
   const combined = `${stdout}
 ${stderr}`;
   if (combined.trim().length === 0) {
-    return { value: "unknown", reason: "grok models returned empty output" };
+    return {
+      value: "unknown",
+      reason: "grok readiness canary returned empty output"
+    };
   }
+  const failedProcess = exitCode !== null && exitCode !== 0;
+  const negativeEvidence = failedProcess ? combined : stderr;
   for (const marker of negativeMarkers) {
-    if (marker.length > 0 && combined.includes(marker)) {
+    if (marker.length > 0 && negativeEvidence.toLowerCase().includes(marker.toLowerCase())) {
       return {
         value: "not-authenticated",
-        reason: "grok models matched a recognized signed-out marker"
+        reason: "grok readiness canary matched a recognized signed-out marker"
       };
     }
   }
+  if (exitCode === 0 && stderr.trim().length === 0) {
+    for (const marker of positiveMarkers) {
+      if (marker.length > 0 && stdout.trim() === marker) {
+        return {
+          value: "authenticated",
+          reason: "grok readiness canary returned the exact success token"
+        };
+      }
+    }
+  }
+  if (exitCode !== 0) {
+    return {
+      value: "unknown",
+      reason: "grok readiness canary exited nonzero without a recognized signed-out marker"
+    };
+  }
+  if (stderr.trim().length > 0) {
+    return {
+      value: "unknown",
+      reason: "grok readiness canary emitted unexpected stderr"
+    };
+  }
   for (const marker of positiveMarkers) {
-    if (marker.length > 0 && combined.includes(marker)) {
+    if (marker.length > 0 && stdout.includes(marker)) {
       return {
-        value: "authenticated",
-        reason: "grok models matched the positive logged-in marker"
+        value: "unknown",
+        reason: "grok readiness canary contained the success token with unexpected output"
       };
     }
   }
   return {
     value: "unknown",
-    reason: "grok models output matched neither the positive logged-in marker nor a recognized signed-out marker"
+    reason: "grok readiness canary output did not match the exact success token or a recognized signed-out marker"
   };
-  void exitCode;
 }
 function classifyAuthForVendor(vendor, stdout, stderr, exitCode, outcome, capability) {
   switch (vendor) {
@@ -17574,6 +17602,8 @@ function processFailureToProbeOutcome(reason) {
 
 // packages/orchestration/src/vendor-preflight-live.ts
 var PREFLIGHT_PROBE_TIMEOUT_MS = 1e4;
+var GROK_READINESS_PROBE_TIMEOUT_MS = 9e4;
+var GROK_READINESS_CWD_PREFIX = "foreman-grok-ready-";
 var PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES = MAX_CAPTURE_BYTES;
 var VendorPreflightFailure = class {
   constructor(reason, detail) {
@@ -17592,7 +17622,7 @@ var livePreflightClock = Layer_exports.succeed(PreflightClock, {
 });
 var VendorPreflight = class extends Context_exports.Tag("VendorPreflight")() {
 };
-function runProbe(executable, tailArgv, vendorBinding, env) {
+function runProbe(executable, tailArgv, vendorBinding, env, cwd, timeoutMs = PREFLIGHT_PROBE_TIMEOUT_MS) {
   return Effect_exports.gen(function* () {
     const fullArgv = [executable, ...tailArgv];
     if (argvContainsMutatingUpdate(fullArgv, vendorBinding)) {
@@ -17606,9 +17636,10 @@ function runProbe(executable, tailArgv, vendorBinding, env) {
     const either4 = yield* exec.runCaptured({
       command: executable,
       args: [...tailArgv],
-      timeoutMs: PREFLIGHT_PROBE_TIMEOUT_MS,
+      timeoutMs,
       maxOutputBytes: PREFLIGHT_PROBE_OUTPUT_BOUND_BYTES,
-      ...env !== void 0 ? { env } : {}
+      ...env !== void 0 ? { env } : {},
+      ...cwd !== void 0 ? { cwd } : {}
     }).pipe(Effect_exports.either);
     if (either4._tag === "Left") {
       const fail8 = either4.left;
@@ -17745,12 +17776,32 @@ var inspectVendor = (capability, options) => Effect_exports.gen(function* () {
     capability.versionFloor,
     versionOutcome
   );
-  const authCap = yield* runProbe(
+  const authEffect = capability.vendor === "grok" ? Effect_exports.acquireUseRelease(
+    Effect_exports.try({
+      try: () => mkdtempSync(join4(tmpdir(), GROK_READINESS_CWD_PREFIX)),
+      catch: () => new VendorPreflightFailure(
+        "internal",
+        "could not create private Grok readiness directory"
+      )
+    }),
+    (privateCwd) => runProbe(
+      executable,
+      capability.authArgv,
+      capability.vendor,
+      probeEnv,
+      privateCwd,
+      GROK_READINESS_PROBE_TIMEOUT_MS
+    ),
+    (privateCwd) => Effect_exports.sync(() => {
+      rmSync(privateCwd, { recursive: true });
+    })
+  ) : runProbe(
     executable,
     capability.authArgv,
     capability.vendor,
     probeEnv
   );
+  const authCap = yield* authEffect;
   const authProbe = probeRecord(
     "auth",
     executable,
@@ -17789,7 +17840,7 @@ var inspectVendor = (capability, options) => Effect_exports.gen(function* () {
       reason: "claude auth status returned malformed JSON"
     };
   }
-  if (capability.vendor === "grok" && authProbe.outcome === "completed" && auth.value === "unknown" && auth.reason.includes("neither")) {
+  if (capability.vendor === "grok" && authProbe.outcome === "completed" && auth.value === "unknown" && auth.reason.includes("did not match")) {
     finalAuthProbe = {
       ...authProbe,
       outcome: "unmatched_output"
@@ -17826,7 +17877,7 @@ import {
   unlinkSync,
   writeSync
 } from "node:fs";
-import { dirname, isAbsolute as isAbsolute4, join as join4 } from "node:path";
+import { dirname, isAbsolute as isAbsolute4, join as join5 } from "node:path";
 import { randomBytes } from "node:crypto";
 var MAX_PREFLIGHT_RECORD_BYTES = 1048576;
 var PreflightStoreFailure = class {
@@ -17938,7 +17989,7 @@ function writePreflightRecord(absolutePath, record) {
         );
       }
       const tmpName = `.preflight.${randomBytes(16).toString("hex")}.tmp`;
-      const tmpPath = join4(dir, tmpName);
+      const tmpPath = join5(dir, tmpName);
       let fd;
       try {
         fd = openSync2(
@@ -18269,7 +18320,7 @@ import {
   unlinkSync as unlinkSync3,
   writeSync as writeSync2
 } from "node:fs";
-import { dirname as dirname3, isAbsolute as isAbsolute6, join as join7 } from "node:path";
+import { dirname as dirname3, isAbsolute as isAbsolute6, join as join8 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // packages/orchestration/src/vendor-preflight-tool-check.ts
@@ -18445,21 +18496,21 @@ import {
   existsSync as existsSync3,
   lstatSync,
   mkdirSync as mkdirSync2,
-  mkdtempSync,
+  mkdtempSync as mkdtempSync2,
   readFileSync as readFileSync2,
   realpathSync as realpathSync2,
-  rmSync,
+  rmSync as rmSync2,
   rmdirSync,
   unlinkSync as unlinkSync2,
   writeFileSync
 } from "node:fs";
-import { isAbsolute as isAbsolute5, join as join6, relative, resolve, sep } from "node:path";
-import { tmpdir } from "node:os";
+import { isAbsolute as isAbsolute5, join as join7, relative, resolve, sep } from "node:path";
+import { tmpdir as tmpdir2 } from "node:os";
 
 // packages/orchestration/src/tool-check-platform.ts
 import { createHash } from "node:crypto";
 import { existsSync as existsSync2, readFileSync, realpathSync, statSync as statSync2 } from "node:fs";
-import { dirname as dirname2, join as join5 } from "node:path";
+import { dirname as dirname2, join as join6 } from "node:path";
 function captureText(r) {
   return `${r.stdout}${r.stderr}`.replace(/\r/g, "");
 }
@@ -18628,7 +18679,7 @@ function resolveCommonSkillsRoot(repoRoot2) {
     if (r._tag === "Left") return null;
     const commonDir = captureText(r.right).trim().split("\n")[0] ?? "";
     if (!commonDir) return null;
-    const skills = join5(dirname2(commonDir), "skills");
+    const skills = join6(dirname2(commonDir), "skills");
     if (existsSync2(skills)) {
       try {
         return realpathSync(skills);
@@ -18922,7 +18973,7 @@ function pathIsInsideRoot(candidate, root) {
   }
 }
 function resolveTracePath(artifact, repoRoot2) {
-  const candidates = isAbsolute5(artifact) ? [artifact] : [join6(repoRoot2, artifact), artifact];
+  const candidates = isAbsolute5(artifact) ? [artifact] : [join7(repoRoot2, artifact), artifact];
   for (const c of candidates) {
     try {
       if (!existsSync3(c)) continue;
@@ -18940,7 +18991,7 @@ function resolveTracePath(artifact, repoRoot2) {
 function checkPinnedVerdict(args2) {
   const sha = args2.sha256.trim();
   if (!sha) return null;
-  const manifest = args2.manifestPath ?? join6(args2.repoRoot, "env", "reference-manifest.toml");
+  const manifest = args2.manifestPath ?? join7(args2.repoRoot, "env", "reference-manifest.toml");
   let text;
   try {
     if (!existsSync3(manifest)) return null;
@@ -19050,12 +19101,12 @@ async function reapChild(child, timeoutMs) {
 async function runMkdirContentionSample(mkdirBin, workParent) {
   let base;
   try {
-    base = mkdtempSync(join6(workParent, "fm-mkdir-ct."));
+    base = mkdtempSync2(join7(workParent, "fm-mkdir-ct."));
   } catch {
-    base = mkdtempSync(join6(tmpdir(), "fm-mkdir-ct."));
+    base = mkdtempSync2(join7(tmpdir2(), "fm-mkdir-ct."));
   }
-  const lock = join6(base, "lock");
-  const trace = join6(base, "t");
+  const lock = join7(base, "lock");
+  const trace = join7(base, "t");
   writeFileSync(trace, "");
   const children = [];
   try {
@@ -19112,7 +19163,7 @@ try{rmdirSync(lock);}catch{}
   } finally {
     await Promise.all(children.map((c) => reapChild(c, 500)));
     try {
-      rmSync(base, { recursive: true, force: true });
+      rmSync2(base, { recursive: true, force: true });
     } catch {
     }
   }
@@ -19150,7 +19201,7 @@ function isExistingWritableDir(path) {
 }
 function pickProbeRoots(args2) {
   return Effect_exports.gen(function* () {
-    const portableDefault = tmpdir();
+    const portableDefault = tmpdir2();
     const candidates = args2?.candidates ?? [
       process.env.TMPDIR || process.env.TEMP || process.env.TMP || portableDefault,
       portableDefault,
@@ -19195,10 +19246,10 @@ function probeMkdirOnce(mkdirBin, workParent) {
     }
     let work;
     try {
-      work = mkdtempSync(join6(workParent, "fm-mkdir-probe."));
+      work = mkdtempSync2(join7(workParent, "fm-mkdir-probe."));
     } catch {
       try {
-        work = mkdtempSync(join6(tmpdir(), "fm-mkdir-probe."));
+        work = mkdtempSync2(join7(tmpdir2(), "fm-mkdir-probe."));
       } catch {
         return {
           verdict: "unknown",
@@ -19208,7 +19259,7 @@ function probeMkdirOnce(mkdirBin, workParent) {
         };
       }
     }
-    const lock = join6(work, "x");
+    const lock = join7(work, "x");
     try {
       mkdirSync2(lock);
     } catch {
@@ -19217,7 +19268,7 @@ function probeMkdirOnce(mkdirBin, workParent) {
     const strace = yield* paths.which("strace");
     const exec = yield* ProcessExec;
     if (strace) {
-      const traceFile = join6(work, "strace.trace");
+      const traceFile = join7(work, "strace.trace");
       const r = yield* exec.runCaptured({
         command: strace,
         args: [
@@ -19272,7 +19323,7 @@ function probeMkdirOnce(mkdirBin, workParent) {
         notes2 = "strace inconclusive for mkdir mechanism";
       }
       try {
-        rmSync(work, { recursive: true, force: true });
+        rmSync2(work, { recursive: true, force: true });
       } catch {
       }
       return { verdict: verdict2, evidence: evidence2, fsClass, notes: notes2 };
@@ -19292,7 +19343,7 @@ function probeMkdirOnce(mkdirBin, workParent) {
     const evidence = "contention";
     const notes = sample.notes;
     try {
-      rmSync(work, { recursive: true, force: true });
+      rmSync2(work, { recursive: true, force: true });
     } catch {
     }
     return { verdict, evidence, fsClass, notes };
@@ -19321,17 +19372,17 @@ function probeFlockOnce(flockBin, workParent) {
     }
     let work;
     try {
-      work = mkdtempSync(join6(workParent, "fm-flock-probe."));
+      work = mkdtempSync2(join7(workParent, "fm-flock-probe."));
     } catch {
-      work = mkdtempSync(join6(tmpdir(), "fm-flock-probe."));
+      work = mkdtempSync2(join7(tmpdir2(), "fm-flock-probe."));
     }
-    const lockf = join6(work, "lockfile");
-    const marker = join6(work, "holder_ready");
+    const lockf = join7(work, "lockfile");
+    const marker = join7(work, "holder_ready");
     writeFileSync(lockf, "");
     const strace = yield* paths.which("strace");
     if (!strace) {
       try {
-        rmSync(work, { recursive: true, force: true });
+        rmSync2(work, { recursive: true, force: true });
       } catch {
       }
       return {
@@ -19406,7 +19457,7 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,2000);
       }
     }
     try {
-      rmSync(work, { recursive: true, force: true });
+      rmSync2(work, { recursive: true, force: true });
     } catch {
     }
     return { verdict, evidence, fsClass, notes };
@@ -19693,7 +19744,7 @@ function sortLex(a, b) {
 }
 function resolveLycheeWinGetPackageExe(localAppData, fs = liveLycheeWinGetFs) {
   if (!localAppData || localAppData.includes("\0")) return null;
-  const packagesRoot = join7(
+  const packagesRoot = join8(
     localAppData,
     "Microsoft",
     "WinGet",
@@ -19705,12 +19756,12 @@ function resolveLycheeWinGetPackageExe(localAppData, fs = liveLycheeWinGetFs) {
     (n) => isSafeDirName(n) && n.startsWith(WINGET_LYCHEE_PACKAGE_PREFIX)
   ).sort(sortLex).slice(0, MAX_WINGET_LYCHEE_PACKAGE_DIRS);
   for (const pkg of packageDirs) {
-    const pkgPath = join7(packagesRoot, pkg);
+    const pkgPath = join8(packagesRoot, pkg);
     const versionNames = fs.listNames(pkgPath);
     if (versionNames === null) continue;
     const versionDirs = versionNames.filter((n) => isSafeDirName(n)).sort(sortLex).slice(0, MAX_WINGET_LYCHEE_VERSION_DIRS);
     for (const ver of versionDirs) {
-      const exe = join7(pkgPath, ver, "lychee.exe");
+      const exe = join8(pkgPath, ver, "lychee.exe");
       if (fs.isFile(exe)) return exe;
     }
   }
@@ -19858,7 +19909,7 @@ function checkOne(id, ctx) {
           const r = yield* runCmd(p, ["--version"]);
           return row("bats", "ok", r ? firstLine2(captureText3(r)) : "");
         }
-        const staged = join7(home, ".foreman/tools/bats-core/bin/bats");
+        const staged = join8(home, ".foreman/tools/bats-core/bin/bats");
         const paths = yield* PathLookup;
         if (yield* paths.isExecutable(staged)) {
           const r = yield* runCmd(staged, ["--version"]);
@@ -19936,8 +19987,8 @@ function checkOne(id, ctx) {
         }
         const paths = yield* PathLookup;
         for (const candidate of [
-          join7(home, ".foreman/tools/pueue/pueue"),
-          join7(home, ".foreman/tools/pueue/pueue.exe")
+          join8(home, ".foreman/tools/pueue/pueue"),
+          join8(home, ".foreman/tools/pueue/pueue.exe")
         ]) {
           if (yield* paths.isExecutable(candidate)) {
             const r = yield* runCmd(candidate, ["--version"]);
@@ -19949,7 +20000,7 @@ function checkOne(id, ctx) {
       case "lychee": {
         let lychee = env.LYCHEE || (yield* whichOrNull("lychee")) || "";
         if (!lychee && env.LOCALAPPDATA) {
-          const wingetLinks = join7(
+          const wingetLinks = join8(
             env.LOCALAPPDATA,
             "Microsoft/WinGet/Links/lychee.exe"
           );
@@ -19983,9 +20034,9 @@ function checkOne(id, ctx) {
       }
       case "foreman_skill": {
         const candidates = [
-          join7(home, ".claude/skills/foreman/SKILL.md"),
-          join7(home, ".agents/skills/foreman/SKILL.md"),
-          join7(home, ".grok/skills/foreman/SKILL.md")
+          join8(home, ".claude/skills/foreman/SKILL.md"),
+          join8(home, ".agents/skills/foreman/SKILL.md"),
+          join8(home, ".grok/skills/foreman/SKILL.md")
         ];
         if (candidates.some((c) => existsSync4(c))) {
           return row(
@@ -19994,7 +20045,7 @@ function checkOne(id, ctx) {
             "skill linked under ~/.claude|agents|grok/skills/foreman"
           );
         }
-        if (existsSync4(join7(ctx.repoRoot, "skills/foreman/SKILL.md"))) {
+        if (existsSync4(join8(ctx.repoRoot, "skills/foreman/SKILL.md"))) {
           return row(
             "foreman_skill",
             "degraded",
@@ -20006,7 +20057,7 @@ function checkOne(id, ctx) {
       case "foreman-launch": {
         const flRoot = ctx.repoRoot;
         const suffix = process.platform === "win32" || /^MINGW|^MSYS|^CYGWIN/i.test(process.platform) ? ".exe" : "";
-        const flBin = env.FOREMAN_LAUNCH || join7(flRoot, `launcher/dist/foreman-launch${suffix}`);
+        const flBin = env.FOREMAN_LAUNCH || join8(flRoot, `launcher/dist/foreman-launch${suffix}`);
         const paths = yield* PathLookup;
         if (yield* paths.isExecutable(flBin)) {
           return row("foreman-launch", "ok", flBin);
@@ -20026,7 +20077,7 @@ function checkOne(id, ctx) {
         );
       }
       case "foreman_home_fs": {
-        const fhPath = env.FOREMAN_HOME || join7(home, ".foreman");
+        const fhPath = env.FOREMAN_HOME || join8(home, ".foreman");
         const fsClass = yield* resolveFsClass(fhPath);
         if (fsClass === "mnt-drvfs" || fsClass === "network") {
           return row(
@@ -20091,8 +20142,8 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
   const home = homeDir(processEnv);
   const out = [];
   for (const id of SKILL_IDS) {
-    const skillPath = join7(home, ".claude/skills", id);
-    const repoSkillDir = join7(repoRoot2, "skills", id);
+    const skillPath = join8(home, ".claude/skills", id);
+    const repoSkillDir = join8(repoRoot2, "skills", id);
     if (!existsSync4(repoSkillDir)) {
       out.push(
         row(
@@ -20114,7 +20165,7 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
       if (st.isSymbolicLink()) {
         let linkTarget = readlinkSync(skillPath);
         if (!isAbsolute6(linkTarget)) {
-          linkTarget = join7(dirname3(skillPath), linkTarget);
+          linkTarget = join8(dirname3(skillPath), linkTarget);
         }
         if (existsSync4(linkTarget)) {
           try {
@@ -20122,7 +20173,7 @@ function checkSkills(repoRoot2, processEnv, commonSkillsRoot) {
           } catch {
           }
         }
-        const commonMatch = commonSkillsRoot !== null && linkTarget === join7(commonSkillsRoot, id);
+        const commonMatch = commonSkillsRoot !== null && linkTarget === join8(commonSkillsRoot, id);
         if (linkTarget === repoSkillPath || commonMatch) {
           out.push(
             row(id, "ok", `linked at ~/.claude/skills/${id}`)
@@ -20182,7 +20233,7 @@ function writeInventoryOutAtomic(outPath, body) {
     return { _tag: "Failed", reason: `cannot stat output path: ${msg}` };
   }
   const tmpName = `.tool-check-out.${randomBytes2(16).toString("hex")}.tmp`;
-  const tmpPath = join7(dir, tmpName);
+  const tmpPath = join8(dir, tmpName);
   let fd;
   try {
     fd = openSync3(
@@ -20367,14 +20418,14 @@ function resolveRepoRoot(url = import.meta.url) {
   const file = fileURLToPath(url);
   const normalized = file.replace(/\\/g, "/");
   if (normalized.includes("/skills/foreman/runtime/dist/")) {
-    return resolveRealPath(join7(dirname3(file), "../../../.."));
+    return resolveRealPath(join8(dirname3(file), "../../../.."));
   }
   if (normalized.includes("/packages/orchestration/src/")) {
-    return resolveRealPath(join7(dirname3(file), "../../.."));
+    return resolveRealPath(join8(dirname3(file), "../../.."));
   }
   let dir = dirname3(file);
   for (let i = 0; i < 8; i += 1) {
-    if (existsSync4(join7(dir, "env/reference-manifest.toml"))) {
+    if (existsSync4(join8(dir, "env/reference-manifest.toml"))) {
       return resolveRealPath(dir);
     }
     const parent = dirname3(dir);
@@ -20404,7 +20455,7 @@ import {
 import {
   dirname as dirname4,
   isAbsolute as isAbsolute8,
-  join as join8,
+  join as join9,
   resolve as pathResolve
 } from "node:path";
 
@@ -20477,20 +20528,20 @@ function configRootRelForVendor(vendor) {
   return `${HOMES_DIR_NAME}/${vendor}`;
 }
 function profileAuthorityDir(stateRoot, profileId) {
-  return join8(stateRoot, PROFILES_DIR_NAME, profileId);
+  return join9(stateRoot, PROFILES_DIR_NAME, profileId);
 }
 function profileJsonPath(stateRoot, profileId) {
-  return join8(profileAuthorityDir(stateRoot, profileId), PROFILE_JSON_NAME);
+  return join9(profileAuthorityDir(stateRoot, profileId), PROFILE_JSON_NAME);
 }
 function profileHomesDir(stateRoot, profileId) {
-  return join8(profileAuthorityDir(stateRoot, profileId), HOMES_DIR_NAME);
+  return join9(profileAuthorityDir(stateRoot, profileId), HOMES_DIR_NAME);
 }
 function profileVendorHomeDir(stateRoot, profileId, vendor) {
-  return join8(profileHomesDir(stateRoot, profileId), vendor);
+  return join9(profileHomesDir(stateRoot, profileId), vendor);
 }
 function absoluteConfigRoot(stateRoot, profileId, configRootRel) {
   const segments = configRootRel.split("/").filter((s) => s.length > 0);
-  return join8(stateRoot, PROFILES_DIR_NAME, profileId, ...segments);
+  return join9(stateRoot, PROFILES_DIR_NAME, profileId, ...segments);
 }
 function makeCredentialProfileRecord(profileId, vendor) {
   return {
@@ -20691,7 +20742,7 @@ function cleanupTemp(tmpPath) {
 function liveWriteAuthorityExclusive(finalPath, body) {
   const dir = dirname4(finalPath);
   const tmpName = `.profile.${randomBytes3(16).toString("hex")}.tmp`;
-  const tmpPath = join8(dir, tmpName);
+  const tmpPath = join9(dir, tmpName);
   let fd;
   try {
     const existing = liveClassify(finalPath);
@@ -21065,7 +21116,7 @@ function initProfileSync(input, fs) {
     expected,
     stateRootIdentity
   } = v.value;
-  const profilesRoot = join8(stateRoot, PROFILES_DIR_NAME);
+  const profilesRoot = join9(stateRoot, PROFILES_DIR_NAME);
   const authorityDir = profileAuthorityDir(stateRoot, profileId);
   const homesDir = profileHomesDir(stateRoot, profileId);
   const vendorHome = profileVendorHomeDir(stateRoot, profileId, vendor);
@@ -21209,7 +21260,7 @@ function resolveProfileSync(input, fs) {
     expected,
     stateRootIdentity
   } = v.value;
-  const profilesRoot = join8(stateRoot, PROFILES_DIR_NAME);
+  const profilesRoot = join9(stateRoot, PROFILES_DIR_NAME);
   const authorityDir = profileAuthorityDir(stateRoot, profileId);
   const homesDir = profileHomesDir(stateRoot, profileId);
   const vendorHome = profileVendorHomeDir(stateRoot, profileId, vendor);
@@ -21311,7 +21362,7 @@ import {
   unlinkSync as unlinkSync5,
   writeSync as writeSync4
 } from "node:fs";
-import { basename, dirname as dirname5, isAbsolute as isAbsolute9, join as join9 } from "node:path";
+import { basename, dirname as dirname5, isAbsolute as isAbsolute9, join as join10 } from "node:path";
 var IS_POSIX2 = process.platform !== "win32";
 var MAX_CREDENTIAL_PROFILE_PREFLIGHT_BYTES = 1048576;
 var PROFILE_PREFLIGHT_DIR_NAME = "preflight";
@@ -21351,7 +21402,7 @@ function defaultCredentialProfileId(vendor) {
   return DEFAULT_CREDENTIAL_PROFILE_ID_BY_VENDOR[vendor];
 }
 function profilePreflightRecordPath(stateRoot, profileId, vendor) {
-  return join9(
+  return join10(
     profileAuthorityDir(stateRoot, profileId),
     PROFILE_PREFLIGHT_DIR_NAME,
     `${vendor}.json`
@@ -21608,7 +21659,7 @@ function requireRealDir(path, failReason) {
   return id;
 }
 function requireProfileJson(profileDir, failReason) {
-  const path = join9(profileDir, PROFILE_JSON_NAME);
+  const path = join10(profileDir, PROFILE_JSON_NAME);
   const kind = observeNoFollow(path);
   if (kind === "missing") {
     throw new ProfilePreflightStoreFailure("absent");
@@ -21758,7 +21809,7 @@ function ensureAuthorityDirsForWrite(filePath, wrapper) {
     if (anchor === null) {
       throw new ProfilePreflightStoreFailure("write_failed");
     }
-    const preflightAnchored = join9(anchor, PROFILE_PREFLIGHT_DIR_NAME);
+    const preflightAnchored = join10(anchor, PROFILE_PREFLIGHT_DIR_NAME);
     let preflightKind;
     try {
       const st = lstatSync4(preflightAnchored);
@@ -22047,8 +22098,8 @@ function writeProfilePreflightRecord(absolutePath, wrapper) {
         }
         recheckAuthorityDirs(authorityDirs);
         tmpName = `.preflight.${randomBytes4(16).toString("hex")}.tmp`;
-        const tmpAnchored = join9(anchor, tmpName);
-        const finalAnchored = join9(anchor, finalName);
+        const tmpAnchored = join10(anchor, tmpName);
+        const finalAnchored = join10(anchor, finalName);
         fileFd = openSync5(
           tmpAnchored,
           fsConstants6.O_CREAT | fsConstants6.O_EXCL | fsConstants6.O_WRONLY,
@@ -22120,7 +22171,7 @@ function writeProfilePreflightRecord(absolutePath, wrapper) {
         if (tmpName !== void 0 && parentFd !== void 0) {
           const anchor = procFdPath(parentFd);
           if (anchor !== null) {
-            cleanupTemp2(join9(anchor, tmpName));
+            cleanupTemp2(join10(anchor, tmpName));
           }
         }
         closeQuiet2(parentFd);
@@ -22277,13 +22328,13 @@ function resolveForemanHome(env, platform = process.platform) {
   }
   if (platform === "win32") {
     const home2 = env.USERPROFILE || env.HOME || "";
-    return join10(home2, ".foreman");
+    return join11(home2, ".foreman");
   }
   const home = env.HOME || env.USERPROFILE || "";
-  return join10(home, ".foreman");
+  return join11(home, ".foreman");
 }
 function resolvePreflightRecordPath(foremanHome, vendor) {
-  return join10(foremanHome, "preflight", `${vendor}.json`);
+  return join11(foremanHome, "preflight", `${vendor}.json`);
 }
 function parseDurableEnabledFromToml(text) {
   const lines = text.split(/\r?\n/);
@@ -22305,14 +22356,14 @@ function parseDurableEnabledFromToml(text) {
   return null;
 }
 function readDurableEnabledFromRepo(repoRoot2) {
-  const path = join10(repoRoot2, ".foreman", "config.toml");
+  const path = join11(repoRoot2, ".foreman", "config.toml");
   const bounded = readFileBoundedSync(path, MAX_DURABLE_CONFIG_BYTES);
   if (bounded._tag !== "Ok") return null;
   return parseDurableEnabledFromToml(bounded.text);
 }
 function launcherPresent(repoRoot2) {
-  const posix = join10(repoRoot2, "launcher", "dist", "foreman-launch");
-  const win = join10(repoRoot2, "launcher", "dist", "foreman-launch.exe");
+  const posix = join11(repoRoot2, "launcher", "dist", "foreman-launch");
+  const win = join11(repoRoot2, "launcher", "dist", "foreman-launch.exe");
   return isExecutablePath(posix) || isExecutablePath(win);
 }
 function isExecutablePath(p) {
@@ -22345,8 +22396,8 @@ function ensurePosixLauncher(repoRoot2, processEnv, log3) {
       return { ok: true };
     }
     const launcherRel = "launcher/dist/foreman-launch";
-    const launcher = join10(repoRoot2, launcherRel);
-    const launcherDir = join10(repoRoot2, "launcher", "dist");
+    const launcher = join11(repoRoot2, launcherRel);
+    const launcherDir = join11(repoRoot2, "launcher", "dist");
     const exec = yield* ProcessExec;
     const paths = yield* PathLookup;
     const runVersion = (bin) => exec.runCaptured({
@@ -22389,19 +22440,19 @@ function ensurePosixLauncher(repoRoot2, processEnv, log3) {
     }
     let buildDir;
     try {
-      buildDir = mkdtempSync2(join10(launcherDir, ".foreman-launch.build."));
+      buildDir = mkdtempSync3(join11(launcherDir, ".foreman-launch.build."));
     } catch {
       log3("ERROR: could not create temporary launcher build directory");
       return { ok: false, reason: "launcher_tmpdir_failed" };
     }
-    const buildLauncher = join10(buildDir, "foreman-launch");
+    const buildLauncher = join11(buildDir, "foreman-launch");
     log3("building POSIX launcher: (cd launcher && bun run build:posix)");
     const buildResult = yield* exec.runCaptured({
       command: bunPath,
       args: ["run", "build:posix", "--outfile", buildLauncher],
       timeoutMs: 12e4,
       maxOutputBytes: 256e3,
-      cwd: join10(repoRoot2, "launcher")
+      cwd: join11(repoRoot2, "launcher")
     }).pipe(Effect_exports.either);
     if (buildResult._tag === "Left" || buildResult.right.exitCode !== 0) {
       cleanupBuild(buildDir, buildLauncher, launcher);
@@ -22425,7 +22476,7 @@ function ensurePosixLauncher(repoRoot2, processEnv, log3) {
       return { ok: false, reason: "launcher_publish_failed" };
     }
     try {
-      rmSync2(buildDir, { recursive: true, force: true });
+      rmSync3(buildDir, { recursive: true, force: true });
     } catch {
     }
     log3(`built launcher: ${launcherRel}`);
@@ -22452,7 +22503,7 @@ function cleanupBuild(buildDir, buildLauncher, launcher) {
   } catch {
   }
   try {
-    rmSync2(buildDir, { recursive: true, force: true });
+    rmSync3(buildDir, { recursive: true, force: true });
   } catch {
   }
 }
@@ -22616,7 +22667,7 @@ function ensureExternalStateRoot(stateRoot, repoRoot2) {
   const physicalNearest = physicalAbsoluteDir(nearest);
   if (physicalNearest === null) return false;
   const physicalWouldBe = normalizeAbsolutePath(
-    join10(physicalNearest, ...missingSegments)
+    join11(physicalNearest, ...missingSegments)
   );
   const physicalRepo = physicalAbsoluteDir(repoRoot2);
   if (physicalRepo === null) return false;
@@ -22667,7 +22718,7 @@ function ensureExternalStateRoot(stateRoot, repoRoot2) {
       }
       const anchor = stateRootProcFdPath(parentFd);
       if (anchor === null) return false;
-      const childAnchored = join10(anchor, segment);
+      const childAnchored = join11(anchor, segment);
       let childExists = false;
       try {
         const existing = lstatSync5(childAnchored);
@@ -23011,7 +23062,7 @@ async function settleExit(domainExitCode) {
 function loadCapabilityTable(repoRoot2) {
   const embedded = tryGetEmbeddedCapabilityTable();
   if (embedded !== null) return embedded;
-  const tomlPath = join11(repoRoot2, "env/reference-manifest.toml");
+  const tomlPath = join12(repoRoot2, "env/reference-manifest.toml");
   const text = readFileSync3(tomlPath, "utf8");
   return loadCapabilityTableFromTomlText(text);
 }

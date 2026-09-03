@@ -345,36 +345,70 @@ export function classifyGrokAuth(
   if (outcome !== "completed") {
     return {
       value: "unknown",
-      reason: `grok models probe outcome ${outcome}`,
+      reason: `grok readiness canary outcome ${outcome}`,
     };
   }
   const combined = `${stdout}\n${stderr}`;
   if (combined.trim().length === 0) {
-    return { value: "unknown", reason: "grok models returned empty output" };
+    return {
+      value: "unknown",
+      reason: "grok readiness canary returned empty output",
+    };
   }
-  // Negative markers before positive.
+  // Model stdout is not authentication evidence. A signed-in model can emit
+  // phrases such as "sign in" after it ignores the exact-token instruction.
+  // Treat a negative marker as signed-out evidence only when it appears on
+  // stderr or accompanies a nonzero process exit.
+  const failedProcess = exitCode !== null && exitCode !== 0;
+  const negativeEvidence = failedProcess ? combined : stderr;
   for (const marker of negativeMarkers) {
-    if (marker.length > 0 && combined.includes(marker)) {
+    if (
+      marker.length > 0 &&
+      negativeEvidence.toLowerCase().includes(marker.toLowerCase())
+    ) {
       return {
         value: "not-authenticated",
-        reason: "grok models matched a recognized signed-out marker",
+        reason: "grok readiness canary matched a recognized signed-out marker",
       };
     }
   }
+  if (exitCode === 0 && stderr.trim().length === 0) {
+    for (const marker of positiveMarkers) {
+      if (marker.length > 0 && stdout.trim() === marker) {
+        return {
+          value: "authenticated",
+          reason: "grok readiness canary returned the exact success token",
+        };
+      }
+    }
+  }
+  if (exitCode !== 0) {
+    return {
+      value: "unknown",
+      reason:
+        "grok readiness canary exited nonzero without a recognized signed-out marker",
+    };
+  }
+  if (stderr.trim().length > 0) {
+    return {
+      value: "unknown",
+      reason: "grok readiness canary emitted unexpected stderr",
+    };
+  }
   for (const marker of positiveMarkers) {
-    if (marker.length > 0 && combined.includes(marker)) {
+    if (marker.length > 0 && stdout.includes(marker)) {
       return {
-        value: "authenticated",
-        reason: "grok models matched the positive logged-in marker",
+        value: "unknown",
+        reason:
+          "grok readiness canary contained the success token with unexpected output",
       };
     }
   }
   return {
     value: "unknown",
     reason:
-      "grok models output matched neither the positive logged-in marker nor a recognized signed-out marker",
+      "grok readiness canary output did not match the exact success token or a recognized signed-out marker",
   };
-  void exitCode;
 }
 
 export function classifyAuthForVendor(

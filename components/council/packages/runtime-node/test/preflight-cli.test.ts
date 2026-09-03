@@ -582,10 +582,13 @@ process.stdout.write("1.0.0\\n");
  * consecutive `pnpm build` runs are byte-identical, and the forbidden
  * admission-only symbol set still has zero matches, so the isolation property
  * this test exists to protect is intact — only the identity anchor had drifted.
+ * Re-pinned on 2026-09-02 after the Claude adapter added exact Fable 5.1
+ * `modelUsage` admission. Two consecutive builds produced identical bytes,
+ * and the forbidden admission-only symbol set still had zero matches.
  */
-const CLEAN_PREFLIGHT_BYTE_COUNT = 846_014;
+const CLEAN_PREFLIGHT_BYTE_COUNT = 846_835;
 const CLEAN_PREFLIGHT_SHA256 =
-  "d782ad5bd88fb8c4d397b815e14f22c3c60564c93cc93d754efceca2c9c08465";
+  "0ba0e89d7232b499fbaccc6ee580f264715535dde4379295c3c5a9c984a84aa7";
 const PREFLIGHT_FORBIDDEN =
   /SpecCorrectnessPrimitives|NodeSpecCorrectnessPrimitives|spec-correctness-admission|markdown-it/;
 

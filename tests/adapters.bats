@@ -570,17 +570,18 @@ assert_adapter_verb_prompt_contract() {
   done
 }
 
-@test "auth probes are shimmed, positive-signal based, and never bill" {
+@test "auth probes are shimmed and positive-signal based; Grok uses the workload canary" {
   local shim="$BATS_TEST_TMPDIR/bin" vendor
   mkdir -p "$shim"
   for vendor in "${VENDORS[@]}"; do
     cat >"$shim/$vendor" <<'SHIM'
 #!/usr/bin/env bash
-case "$(basename "$0"):$*" in
-  "grok:models") printf 'You are logged in with grok.com.\n' ;;
-  "codex:login status") printf 'Logged in using ChatGPT\n' ;;
+case "$(basename "$0"):${1:-}" in
+  "grok:--version") printf 'grok 1.0.13\n' ;;
+  "grok:--single") printf 'FOREMAN_GROK_READY_V1\n' ;;
+  "codex:login") printf 'Logged in using ChatGPT\n' ;;
   "agy:models") printf 'gemini-3.1-pro-high\nclaude-sonnet-4-6\n' ;;
-  "claude:auth status") printf '{"loggedIn":true}\n' ;;
+  "claude:auth") printf '{"loggedIn":true}\n' ;;
   *) exit 91 ;;
 esac
 SHIM

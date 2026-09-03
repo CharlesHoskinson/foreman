@@ -211,9 +211,9 @@ describe("auth classifiers", () => {
 
   it("Grok recognized signed-out signal is not-authenticated", () => {
     const r = classifyGrokAuth(
-      "You are not authenticated.\n",
       "",
-      0,
+      "You are not authenticated.\n",
+      1,
       "completed",
       grokCap.authPositiveMarkers,
       grokCap.authNegativeMarkers,
@@ -231,28 +231,77 @@ describe("auth classifiers", () => {
       grokCap.authNegativeMarkers,
     );
     assert.equal(r.value, "unknown");
-    assert.match(r.reason, /neither/);
+    assert.match(r.reason, /did not match/);
   });
 
   it("Grok positive marker authenticates", () => {
     const r = classifyGrokAuth(
-      "You are logged in with grok.com.\n\nDefault model: grok-4.5\n",
+      "FOREMAN_GROK_READY_V1\n",
       "",
       0,
       "completed",
-      grokCap.authPositiveMarkers,
+      ["FOREMAN_GROK_READY_V1"],
       grokCap.authNegativeMarkers,
     );
     assert.equal(r.value, "authenticated");
   });
 
-  it("negative markers win over positive substrings", () => {
+  it("Grok success token must be the complete trimmed stdout, not a substring", () => {
     const r = classifyGrokAuth(
-      "You are not authenticated. (logged in text decoy)\n",
+      "prefix FOREMAN_GROK_READY_V1 suffix\n",
       "",
       0,
       "completed",
-      grokCap.authPositiveMarkers,
+      ["FOREMAN_GROK_READY_V1"],
+      grokCap.authNegativeMarkers,
+    );
+    assert.equal(r.value, "unknown");
+  });
+
+  it("Grok success token with a nonzero exit is not authenticated", () => {
+    const r = classifyGrokAuth(
+      "FOREMAN_GROK_READY_V1\n",
+      "",
+      1,
+      "completed",
+      ["FOREMAN_GROK_READY_V1"],
+      grokCap.authNegativeMarkers,
+    );
+    assert.equal(r.value, "unknown");
+  });
+
+  it("Grok success token with stderr noise is not authenticated", () => {
+    const r = classifyGrokAuth(
+      "FOREMAN_GROK_READY_V1\n",
+      "provider warning\n",
+      0,
+      "completed",
+      ["FOREMAN_GROK_READY_V1"],
+      grokCap.authNegativeMarkers,
+    );
+    assert.equal(r.value, "unknown");
+    assert.match(r.reason, /unexpected stderr/);
+  });
+
+  it("model-generated sign-out words on successful stdout stay unknown", () => {
+    const r = classifyGrokAuth(
+      "Please sign in before continuing.\n",
+      "",
+      0,
+      "completed",
+      ["FOREMAN_GROK_READY_V1"],
+      grokCap.authNegativeMarkers,
+    );
+    assert.equal(r.value, "unknown");
+  });
+
+  it("negative markers win over positive substrings", () => {
+    const r = classifyGrokAuth(
+      "FOREMAN_GROK_READY_V1\n",
+      "You are not authenticated.\n",
+      1,
+      "completed",
+      ["FOREMAN_GROK_READY_V1"],
       grokCap.authNegativeMarkers,
     );
     assert.equal(r.value, "not-authenticated");

@@ -27,7 +27,7 @@ setup() {
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are not authenticated."; exit 0 ;;
+  --single) echo "You are not authenticated." >&2; exit 1 ;;
   login|update)
     echo "TEST-MUST-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
     exit 0
@@ -48,7 +48,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are logged in with grok.com."; exit 0 ;;
+  --single) echo "FOREMAN_GROK_READY_V1"; exit 0 ;;
   login|update)
     echo "TEST-MUST-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
     exit 0
@@ -116,7 +116,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are not authenticated."; exit 0 ;;
+  --single) echo "You are not authenticated." >&2; exit 1 ;;
   *) echo "unrecognized" >&2; exit 1 ;;
 esac
 EOF
@@ -132,8 +132,8 @@ EOF
   cat > "$SHIM/grok" <<EOF
 #!/usr/bin/env bash
 [[ "\$1" == "--version" ]] && { echo "grok ${GROK_FLOOR}"; exit 0; }
-echo "You are not authenticated."
-exit 0
+echo "You are not authenticated." >&2
+exit 1
 EOF
   chmod +x "$SHIM/grok"
   run env PATH="$SHIM:$PATH" bash "$TC" --profile soft --lane grok
@@ -144,7 +144,7 @@ EOF
   cat > "$SHIM/grok" <<EOF
 #!/usr/bin/env bash
 [[ "\$1" == "--version" ]] && { echo "grok ${GROK_FLOOR}"; exit 0; }
-echo "You are logged in with grok.com."
+echo "FOREMAN_GROK_READY_V1"
 exit 0
 EOF
   chmod +x "$SHIM/grok"
@@ -177,7 +177,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "Error: leader socket unavailable"; exit 0 ;;
+  --single) echo "Error: leader socket unavailable"; exit 0 ;;
   login|update)
     echo "TEST-MUST-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
     exit 0
@@ -193,12 +193,12 @@ EOF
   [ ! -f "$BATS_TEST_TMPDIR/mutate-called" ]
 }
 
-@test "tool-check reports grok degraded for auth timeout without login hint" {
+@test "tool-check reports grok degraded for canary transport failure without login hint" {
   cat > "$SHIM/grok" <<EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) sleep 30; echo "too late"; exit 0 ;;
+  --single) echo "transport failure" >&2; exit 1 ;;
   login|update)
     echo "TEST-MUST-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
     exit 0
@@ -250,7 +250,7 @@ EOF
 #!/usr/bin/env bash
 case "$1" in
   --version) echo "grok 0.2.100"; exit 0 ;;
-  models) echo "You are logged in with grok.com."; exit 0 ;;
+  --single) echo "FOREMAN_GROK_READY_V1"; exit 0 ;;
   login|update)
     echo "TEST-MUST-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
     exit 0
@@ -271,7 +271,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are logged in with grok.com."; exit 0 ;;
+  --single) echo "FOREMAN_GROK_READY_V1"; exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -304,7 +304,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are logged in with grok.com."; exit 0 ;;
+  --single) echo "FOREMAN_GROK_READY_V1"; exit 0 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -387,7 +387,7 @@ EOF
 #!/usr/bin/env bash
 case "\$1" in
   --version) echo "grok ${GROK_FLOOR}"; exit 0 ;;
-  models) echo "You are not authenticated."; exit 0 ;;
+  --single) echo "You are not authenticated." >&2; exit 1 ;;
   login|update)
     echo "TEST-MUST-NOT-MUTATE" > "$BATS_TEST_TMPDIR/mutate-called"
     exit 0

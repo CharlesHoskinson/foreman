@@ -55,7 +55,7 @@ const canaryInput = {
   executable: "/usr/bin/claude",
   promptBytes,
   schemaJson: '{"type":"object","required":["nonce"]}',
-  model: "claude-sonnet-5",
+  model: "claude-fable-5-1",
   cwd: "/work",
   environment: { PATH: "/usr/bin" },
   timeoutMs: 30_000,
@@ -135,6 +135,14 @@ describe("decodeClaudeCanaryTerminal", () => {
     num_turns: 1,
     structured_output: structured,
     result: "ignore this text body; never promote",
+    modelUsage: {
+      "claude-haiku-4-5-20251001": {
+        canonicalModel: "claude-haiku-4-5",
+      },
+      "claude-fable-5-1": {
+        canonicalModel: "claude-fable-5-1",
+      },
+    },
   };
 
   it("decodes a successful schema-output wire and normalizes tool_use to stop", () => {
@@ -166,6 +174,33 @@ describe("decodeClaudeCanaryTerminal", () => {
     expect(decoded.structuredOutput).toEqual(
       expect.objectContaining({ nonce: "n1" }),
     );
+  });
+
+  it("requires observed Fable 5.1 identity and permits auxiliary helper models", () => {
+    const auxiliaryOnly = {
+      ...successfulWire,
+      modelUsage: {
+        "claude-haiku-4-5-20251001": {
+          canonicalModel: "claude-haiku-4-5",
+        },
+      },
+    };
+    const missing = { ...successfulWire } as Record<string, unknown>;
+    delete missing.modelUsage;
+    const malformed = {
+      ...successfulWire,
+      modelUsage: {
+        "claude-fable-5-1": { canonicalModel: "claude-opus-5" },
+      },
+    };
+
+    for (const outer of [auxiliaryOnly, missing, malformed]) {
+      const decoded = decodeClaudeCanaryTerminal(
+        observation(JSON.stringify(outer)),
+      );
+      expect(decoded.structuredOutput).toBeNull();
+      expect(isSuccessfulTerminalObservation(decoded.terminal)).toBe(false);
+    }
   });
 
   it("never promotes the result text field to structured output", () => {
@@ -466,6 +501,19 @@ const layerBuildInput = (
 });
 
 describe("ClaudeProviderCanaryAdapterLive", () => {
+  it("rejects an alias or a non-Fable model before process construction", async () => {
+    for (const model of ["fable", "claude-opus-5", "claude-fable-5"]) {
+      const program = Effect.gen(function* () {
+        const adapter = yield* ProviderCanaryAdapter;
+        return yield* adapter.buildRequest(layerBuildInput({ model }));
+      }).pipe(Effect.provide(ClaudeProviderCanaryAdapterLive));
+
+      const exit = await Effect.runPromiseExit(program);
+      const error = expectAdapterError(exit);
+      expect(error.category).toBe("invalid_invocation");
+    }
+  });
+
   it("rejects a non-anthropic family as a typed adapter error, not a defect", async () => {
     const program = Effect.gen(function* () {
       const adapter = yield* ProviderCanaryAdapter;

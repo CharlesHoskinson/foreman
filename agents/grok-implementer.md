@@ -21,12 +21,16 @@ The Grok adapter owns preflight in
 `skills/foreman/scripts/adapters/grok.sh`; use its `adapter_auth_probe`
 contract rather than spelling vendor commands here.
 
-If grok is missing or not authenticated, **stop** and return:
+`adapter_auth_probe` licenses readiness only when it returns zero. Its nonzero
+exit intentionally combines missing, signed-out, and indeterminate states. Do
+not infer which state occurred from that exit. Only a typed provider-preflight
+record with positive signed-out evidence permits a login instruction. Without
+that record, report that readiness is not licensed. Then **stop** and return:
 
 ```text
 GROK REPORT
 STATUS: unavailable
-REASON: [grok not found on PATH — install via https://x.ai/cli | auth error — run `grok login`]
+REASON: [readiness not licensed — include the typed preflight reason when available]
 ```
 
 Never implement the task yourself as a fallback.

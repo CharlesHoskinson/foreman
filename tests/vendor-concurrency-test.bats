@@ -119,12 +119,16 @@ SHIM
 }
 
 @test "auth stays valid pre/post -> no false-positive auth_invalidation abort" {
-  # Positive control: a shim whose auth probe ("models") always reports
-  # signed-in, both before and after the main task runs. Must stay GREEN.
+  # Positive control: a shim whose workload canary always reports ready,
+  # both before and after the main task runs. Must stay GREEN.
   cat > "$SHIM/grok" <<'SHIM'
 #!/usr/bin/env bash
-if [[ "$1" == "models" ]]; then
-  echo "You are logged in with grok.com."
+if [[ "$1" == "--version" ]]; then
+  echo "grok 1.0.13"
+  exit 0
+fi
+if [[ "$1" == "--single" ]]; then
+  echo "FOREMAN_GROK_READY_V1"
   exit 0
 fi
 echo ok > "$GROK_HOME/ran"
@@ -140,7 +144,7 @@ SHIM
 @test "a sibling lane's auth invalidated mid-run -> auth_invalidation abort RED" {
   # A shared (not per-lane) state file simulates a REMOTE session that
   # local per-lane config-dir isolation cannot isolate: the auth probe
-  # ("models") reports signed-in until any lane's main task runs, then
+  # (`--single`) reports ready until any lane's main task runs, then
   # reports signed-out for every lane afterward. Pre-created (so it exists
   # in the harness's own BEFORE containment snapshot) and lives outside any
   # lane's own dir on purpose -- it stands in for the vendor's remote
@@ -149,12 +153,16 @@ SHIM
   echo ok > "$STATE"
   cat > "$SHIM/grok" <<SHIM
 #!/usr/bin/env bash
-if [[ "\$1" == "models" ]]; then
+if [[ "\$1" == "--version" ]]; then
+  echo "grok 1.0.13"
+  exit 0
+fi
+if [[ "\$1" == "--single" ]]; then
   if grep -q invalidated "$STATE" 2>/dev/null; then
     echo "Error: not authenticated. Please sign in." >&2
     exit 1
   fi
-  echo "You are logged in with grok.com."
+  echo "FOREMAN_GROK_READY_V1"
   exit 0
 else
   echo invalidated > "$STATE"

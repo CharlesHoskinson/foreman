@@ -163,34 +163,21 @@ adapter_home_var() {
   printf 'GROK_HOME\n'
 }
 
-# @description Probe Grok authentication without running a billed inference.
-#   `grok models` has no trustworthy auth exit code and can hang after its
-#   banner, so the probe is bounded, negative phrases win, and the exact
-#   positive "logged in" signal is required even when timeout returns 124.
+# @description Delegate Grok readiness to the compiled TypeScript preflight.
+#   That authority runs the bounded, read-only exact-token workload canary;
+#   this shell adapter only preserves the common adapter exit contract.
 # @arg $1 vendor expected vendor id: grok
 # @exitcode 0 authenticated; 1 absent, unauthenticated, or indeterminate; 2 mismatch
 adapter_auth_probe() {
-  local vendor="${1:-grok}" out='' rc=0 timeout_cmd=''
+  local vendor="${1:-grok}"
+  local runtime="${BASH_SOURCE[0]%/*}/../../runtime/dist/vendor-preflight.js"
   if [[ "$vendor" != grok ]]; then
     printf 'grok adapter: vendor mismatch: %s\n' "$vendor" >&2
     return 2
   fi
-  command -v grok >/dev/null 2>&1 || return 1
-  if command -v timeout >/dev/null 2>&1; then
-    timeout_cmd=timeout
-  elif command -v gtimeout >/dev/null 2>&1; then
-    timeout_cmd=gtimeout
-  else
-    return 1
-  fi
-  out="$("$timeout_cmd" 10 grok models 2>&1)" || rc=$?
-  out="${out,,}"
-  if [[ "$out" == *'not authenticated'* || "$out" == *'sign in'* || "$out" == *'log in'* ]]; then
-    return 1
-  fi
-  [[ "$out" == *'logged in'* ]] && return 0
-  (( rc == 0 )) || return 1
-  return 1
+  [[ -f "$runtime" ]] || return 1
+  command -v node >/dev/null 2>&1 || return 1
+  node "$runtime" inspect grok >/dev/null 2>&1
 }
 
 # @description Print final Grok assistant text from separate result streams.
