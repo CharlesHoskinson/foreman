@@ -18,7 +18,7 @@ cd ~/foreman
 bash env/bootstrap-wsl.sh --profile full --yes   # installs every dependency
 bash install.sh                                  # links the skill into agent homes
 bash env/tool-check.sh                           # must print READY: yes
-python3 skills/foreman/scripts/fm-session.py recover
+node skills/foreman/runtime/dist/fm-session.js recover
 ```
 
 `recover` is the checkpoint. It prints the durable facts, the measurements with
@@ -71,8 +71,8 @@ this branch is what the freeze exists to prevent.
 
 | Question | Command |
 |---|---|
-| What is true, and what is owed? | `fm-session.py recover` |
-| Which numbers may I still quote? | `fm-session.py freshness --stale-only --format tsv` |
+| What is true, and what is owed? | `node skills/foreman/runtime/dist/fm-session.js recover` |
+| Which numbers may I still quote? | `node skills/foreman/runtime/dist/fm-session.js freshness --stale-only --format tsv` |
 | What am I about to break? | `AGENT_TRAPS.md` — standing rules, read before dispatching |
 | What does the active release still need? | `openspec/changes/v030-release-program/tasks.md` and `openspec/changes/v030-release-program/sprints.md` |
 | What did we decide not to fix? | `docs/RESIDUALS.md` |
@@ -101,7 +101,7 @@ These need a human, not more analysis. Read them in the store rather than here,
 because a summary in this file would be stale within a day:
 
 ```bash
-python3 skills/foreman/scripts/fm-session.py recover | grep -A3 "OWNER DECISION"
+node skills/foreman/runtime/dist/fm-session.js recover | grep -A3 "OWNER DECISION"
 ```
 
 ## Pointers

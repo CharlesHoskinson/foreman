@@ -6,6 +6,7 @@
  */
 
 import fs from "node:fs";
+import { dirname } from "node:path";
 import {
   classifySqliteStore,
   decodeSnapshot,
@@ -27,7 +28,27 @@ export class LegacyMigrationRefusal extends Error {
 export type BootstrapOpts = {
   readonly allowMigration: boolean;
   readonly readOnly: boolean;
+  /** When true, `absent` with no sidecar is `no_session_source` rather than an empty store. */
+  readonly requireSessionSource?: boolean;
 };
+
+export type RepairStoreOpts = {
+  /** Test seam. Production callers omit it and use wall-clock UTC. */
+  readonly now?: () => Date;
+};
+
+export type RepairStoreResult =
+  | { readonly status: "healthy" }
+  | {
+      readonly status: "repaired";
+      readonly renamedPath: string;
+      readonly rowsWritten: number;
+    }
+  | {
+      readonly status: "failed";
+      readonly renamedPath: string;
+      readonly detail: string;
+    };
 
 function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -57,6 +78,71 @@ function sidecarRebuildRemedy(dbPath: string, asideSuffix: string): string {
     return `Move it aside and rebuild from the tracked sidecar: ${move}`;
   }
   return `The tracked sidecar cannot be used to rebuild this store. Clear the sidecar fault, then: ${move}`;
+}
+
+/** UTC compact stamp `YYYYMMDDTHHMMSSZ` used in `.corrupt-<stamp>` backup names. */
+export function compactUtcTimestamp(date: Date): string {
+  const pad = (n: number, width: number): string => n.toString().padStart(width, "0");
+  return (
+    `${pad(date.getUTCFullYear(), 4)}${pad(date.getUTCMonth() + 1, 2)}${pad(date.getUTCDate(), 2)}` +
+    `T${pad(date.getUTCHours(), 2)}${pad(date.getUTCMinutes(), 2)}${pad(date.getUTCSeconds(), 2)}Z`
+  );
+}
+
+/**
+ * First free `.corrupt-<stamp>` path. Collision suffixes are `-1`, `-2`, ...
+ * The `exists` seam is for tests; production uses `fs.existsSync`.
+ */
+export function allocateCorruptBackupPath(
+  dbPath: string,
+  stamp: string,
+  exists: (path: string) => boolean = (p) => fs.existsSync(p),
+): string {
+  const base = `${dbPath}.corrupt-${stamp}`;
+  if (!exists(base)) return base;
+  let n = 1;
+  let candidate = `${base}-${n}`;
+  while (exists(candidate)) {
+    n += 1;
+    candidate = `${base}-${n}`;
+  }
+  return candidate;
+}
+
+function renameStoreAside(dbPath: string, dest: string): void {
+  fs.renameSync(dbPath, dest);
+  for (const suffix of ["-wal", "-shm"] as const) {
+    if (fs.existsSync(dbPath + suffix)) {
+      fs.renameSync(dbPath + suffix, dest + suffix);
+    }
+  }
+}
+
+/**
+ * Move a half-migrated store aside and rebuild from the tracked sidecar.
+ *
+ * Healthy (`port` or any non-`corrupt` shape) is a no-op. After a rename,
+ * a rebuild failure leaves the renamed file in place.
+ */
+export function repairStore(dbPath: string, opts: RepairStoreOpts = {}): RepairStoreResult {
+  const shape = classifySqliteStore(dbPath);
+  if (shape !== "corrupt") {
+    return { status: "healthy" };
+  }
+  const stamp = compactUtcTimestamp((opts.now ?? (() => new Date()))());
+  const renamedPath = allocateCorruptBackupPath(dbPath, stamp);
+  renameStoreAside(dbPath, renamedPath);
+  const sidecar = sidecarPathFor(dbPath);
+  try {
+    const res = rebuildSqliteFromSidecar({
+      sidecarPath: sidecar,
+      dbPath,
+      force: true,
+    });
+    return { status: "repaired", renamedPath, rowsWritten: res.rowsWritten };
+  } catch (e) {
+    return { status: "failed", renamedPath, detail: errorMessage(e) };
+  }
 }
 
 function rehydrateFromSidecarIfEmpty(p: string): void {
@@ -104,8 +190,9 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
   const shape = classifySqliteStore(p);
   if (shape === "corrupt") {
     process.stderr.write(
-      `refusing: the session store at ${p} carries both the legacy and port schemas, or identity counters behind its own rows. ` +
+      `refusing: the session store at ${p} is corrupt: it carries both the legacy and port schemas, or identity counters behind its own rows. ` +
         `It is the half-migrated state a pre-fix open produced. ` +
+        `run: node skills/foreman/runtime/dist/fm-session.js repair. ` +
         `${sidecarRebuildRemedy(p, "corrupt")}\n`,
     );
     process.exit(2);
@@ -157,6 +244,26 @@ export function bootstrapStore(p: string, opts: BootstrapOpts): boolean {
     // cache, not writing to a store that already exists. Legitimate
     // regardless of whether the command itself is read-only -- the goldens
     // depend on exactly this path.
+    //
+    // recover is the exception: with neither store nor sidecar there is
+    // nothing to recover, so refuse rather than mint an empty cache.
+    if (opts.requireSessionSource === true) {
+      const sidecar = sidecarPathFor(p);
+      if (!fs.existsSync(sidecar)) {
+        let parentWritable = true;
+        try {
+          fs.accessSync(dirname(p) || ".", fs.constants.W_OK);
+        } catch {
+          parentWritable = false;
+        }
+        if (parentWritable) {
+          process.stderr.write(
+            `refusing: no_session_source (neither ${p} nor ${sidecar} exists)\n`,
+          );
+          throw new LegacyMigrationRefusal("no_session_source");
+        }
+      }
+    }
     //
     // "absent" now means the path has no file. If a file appeared between
     // classify and here, refuse rather than write into it.
