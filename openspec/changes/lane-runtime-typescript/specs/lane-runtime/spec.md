@@ -6,57 +6,161 @@
 
 The `lane-round` runtime SHALL own one complete round: admission, launcher
 spawn, event mirroring, checkpoint, gate, report assertion, and cleanup.
-WHEN `lane-run.sh` starts, it SHALL locate Node, forward its exact arguments
-and environment, execute `skills/foreman/runtime/dist/lane-round.js`, and
-preserve its exit status and byte streams. `lane-run.sh` SHALL NOT parse
+
+#### Scenario: Runtime owns the round
+
+- **WHEN** a round runs through `lane-round.js`
+- **THEN** every event of the round is appended by the runtime process or its children
+- **AND** no Bash process appends an event
+
+### Requirement: Thin adapter forwarding
+
+WHEN `lane-run.sh` starts, it SHALL execute
+`skills/foreman/runtime/dist/lane-round.js` with the same argument vector
+after the adapter name and the same environment. The adapter SHALL preserve
+the runtime's exit status and byte streams. The adapter SHALL NOT parse
 domain data, schedule work, retry work, or supervise processes.
 
 #### Scenario: Adapter forwards a round
 
 - **WHEN** `lane-run.sh --round GATE REPORT RUN LANE WT -- CMD...` runs
-- **THEN** `lane-round.js` receives the same argument vector after the adapter name
+- **THEN** `lane-round.js` receives `--round GATE REPORT RUN LANE WT -- CMD...`
 - **AND** the adapter's exit status equals the runtime's exit status
 
 #### Scenario: Node is absent
 
 - **WHEN** `node` is not on PATH
-- **THEN** the adapter prints `lane-run: node is required` to stderr
+- **THEN** the adapter prints `lane-round: node is required` to stderr
 - **AND** exits 3
 
-### Requirement: Event and heartbeat parity
+### Requirement: Event parity
 
 The runtime SHALL emit the same event types with the same payload fields as
-the Bash round of commit `00c342bd449948ab2ea5ca0b9d0c890614dd81d6`. WHEN a
-round completes, the `round_done` payload SHALL carry `exit_code` and, on the
-launcher-present path, `exit_source`. The heartbeat file SHALL keep its eight
-frozen keys.
+the Bash round of commit `00c342bd449948ab2ea5ca0b9d0c890614dd81d6`.
 
 #### Scenario: Ownership payload is unchanged
 
 - **WHEN** a round spawns CMD under the launcher
 - **THEN** the `ownership` payload contains `attempt`, `launcher_pid`, `pid`, `job_id`, `worktree`, `config_dir`, `launcher`, and `containment`
 
-#### Scenario: Bats parity
+#### Scenario: Round done carries exit source
 
-- **WHEN** `tests/lane-run.bats`, `tests/round-ownership.bats`, and `tests/watch.bats` run against the adapter
-- **THEN** every case that passed at the baseline passes
+- **WHEN** a launcher-present round completes
+- **THEN** the `round_done` payload carries `exit_code` and `exit_source`
 
-### Requirement: Containment policy in the runtime
+### Requirement: Heartbeat parity
 
-WHEN a round starts, the runtime SHALL run the launcher in `--probe-only`
-mode and read the capability record. WHILE `LANE_VENDOR` is set or
-`FOREMAN_CONTAINMENT_REQUIRE=strong`, IF the capability is not strong and
-`FOREMAN_CONTAINMENT_APPROVAL` is empty, THEN the runtime SHALL emit
-`alert {kind: "containment_refused"}` and exit 2 before CMD runs. WHEN the
-capability is strong, the runtime SHALL send `SIGKILL` to the launcher pid
-on cleanup and SHALL NOT signal the namespace-local process group.
+The heartbeat file SHALL keep its eight frozen keys and its line order.
+
+#### Scenario: Heartbeat keys unchanged
+
+- **WHEN** the runtime mirrors a heartbeat line
+- **THEN** the line has exactly the keys `ts`, `launcher_pid`, `pid`, `job_id`, `alive`, `stdout_bytes`, `stderr_bytes`, `elapsed_s`
+
+### Requirement: Bats parity
+
+WHEN `tests/lane-run.bats`, `tests/round-ownership.bats`, and
+`tests/watch.bats` run against the adapters, every case that passed at the
+baseline SHALL pass. The report-freshness parity fixture SHALL set the
+report's modification time before the round start, so only the `attempt`
+match can satisfy freshness.
+
+#### Scenario: Bats parity holds
+
+- **WHEN** the three Bats files run
+- **THEN** the pass set equals the baseline pass set
+
+#### Scenario: Stale report with matching attempt
+
+- **WHEN** a gate writes a report with `attempt: 2` during attempt 1 and an old modification time
+- **THEN** the round records `round_incomplete`
+
+### Requirement: Containment probe
+
+WHEN a round starts and a launcher is resolved, the runtime SHALL run the
+launcher with `--probe-only --capability-file <WT>/.harness/capability.json
+--require-containment any` and SHALL read `tag`, `kind`, and `reason` from
+the record. IF the record is absent or unparsable, THEN the runtime SHALL
+treat the capability as `Unknown`, `unknown`, `capability_file_missing`.
+IF no launcher is resolved, THEN the runtime SHALL emit
+`alert {kind: "degraded", reason: "launcher_absent"}` and SHALL skip the
+probe.
+
+#### Scenario: Record read
+
+- **WHEN** the probe writes a `Strong` record
+- **THEN** the runtime records `containment_strong = true`
+
+#### Scenario: Launcher absent
+
+- **WHEN** `FOREMAN_LAUNCH` names a missing path
+- **THEN** the runtime emits the `launcher_absent` alert
+- **AND** runs no probe
+
+### Requirement: Containment decision table
+
+The runtime SHALL decide admission from four inputs: `strong` (the record
+tag is `Strong` or `AlreadyInner`), `require` (`FOREMAN_CONTAINMENT_REQUIRE`
+when set, otherwise `strong` when `LANE_VENDOR` is set, otherwise `any`),
+`approval` (`FOREMAN_CONTAINMENT_APPROVAL`, empty or text), and `record`
+(present or absent).
+
+| strong | require | approval | decision |
+|---|---|---|---|
+| true | any | any | proceed, `require_effective = strong` |
+| false | any | any | proceed degraded, one `degraded` alert |
+| false | strong | empty | refuse, `containment_refused` alert, exit 2 |
+| false | strong | text | proceed degraded, alert carries the approval |
+
+WHEN the decision is refuse, the runtime SHALL emit
+`alert {kind: "containment_refused", tag, capability_kind, reason, required: "strong"}`,
+print `lane-round: REFUSED containment=<kind> reason=<reason> required=strong`,
+and exit 2 before CMD runs. WHEN the decision is proceed degraded, the
+runtime SHALL emit `alert {kind: "degraded", reason: "containment_<reason>", capability_kind, approval}`
+once per round. The ownership payload SHALL carry
+`containment: {tag, kind, reason, approval}`.
 
 #### Scenario: Implementation lane refused
 
-- **WHEN** the capability record says `Degraded` and no approval is set
-- **AND** `LANE_VENDOR=grok`
+- **WHEN** the record says `Degraded`, `LANE_VENDOR=grok`, and no approval is set
 - **THEN** the runtime emits `containment_refused` and exits 2
 - **AND** the vendor CLI never starts
+
+#### Scenario: Explicit any with a vendor
+
+- **WHEN** `FOREMAN_CONTAINMENT_REQUIRE=any` and `LANE_VENDOR=grok` and the record says `Degraded`
+- **THEN** the round proceeds degraded with one `degraded` alert
+
+#### Scenario: Approval recorded
+
+- **WHEN** `FOREMAN_CONTAINMENT_APPROVAL="operator accepted"` admits a degraded round
+- **THEN** the `degraded` alert and the `ownership` payload both carry `approval: "operator accepted"`
+
+### Requirement: Spawn-time enforcement
+
+WHEN the runtime spawns CMD or the gate under a launcher that produced a
+record, it SHALL pass `--require-containment <require_effective>`, where
+`require_effective` is `strong` when `strong` is true and `any` otherwise.
+The CMD spawn SHALL also pass `--capability-file`. WHEN the launcher
+produced no record, the runtime SHALL pass neither flag.
+
+#### Scenario: Strong round cannot silently degrade
+
+- **WHEN** the probe said `Strong` and the launcher later cannot enter a namespace
+- **THEN** the launcher refuses with exit 125 and the round records `exit_source: launcher`
+
+#### Scenario: Legacy launcher gets no flags
+
+- **WHEN** `FOREMAN_LAUNCH_IMPL=bun` selects the Bun binary
+- **THEN** the spawn argv contains no `--require-containment`
+
+### Requirement: Kill target
+
+WHEN the runtime cleans up a round with `strong` true, it SHALL send
+`SIGKILL` to the launcher pid and SHALL NOT signal the process group named
+by the heartbeat `pid`. WHEN `strong` is false, it SHALL send `SIGTERM` to
+the negative heartbeat `pid` and then `SIGTERM` to the launcher pid, as the
+baseline did.
 
 #### Scenario: Strong round cleanup
 
@@ -64,13 +168,18 @@ on cleanup and SHALL NOT signal the namespace-local process group.
 - **THEN** it sends SIGKILL to the launcher pid
 - **AND** a `setsid` descendant of CMD does not survive
 
+#### Scenario: Degraded round cleanup
+
+- **WHEN** the runtime receives SIGTERM during a degraded round
+- **THEN** it signals the process group first, then the launcher
+
 ### Requirement: Launcher resolution
 
 The runtime SHALL resolve the launcher in this order: `FOREMAN_LAUNCH`,
-then `skills/foreman/runtime/dist/foreman-launch.js` under
-`FOREMAN_TOOL_ROOT`, then PATH. WHERE `FOREMAN_LAUNCH_IMPL=bun` is set and
-`launcher/dist/foreman-launch` exists, the runtime SHALL use that binary and
-SHALL NOT pass containment flags to it.
+then `node <FOREMAN_TOOL_ROOT>/skills/foreman/runtime/dist/foreman-launch.js`,
+then PATH. WHERE `FOREMAN_LAUNCH_IMPL=bun` is set and
+`<FOREMAN_TOOL_ROOT>/launcher/dist/foreman-launch` exists, the runtime
+SHALL use that binary instead of the bundle.
 
 #### Scenario: Node bundle preferred
 
@@ -81,14 +190,15 @@ SHALL NOT pass containment flags to it.
 
 - **WHEN** `FOREMAN_LAUNCH` names a missing path
 - **THEN** the runtime treats the launcher as absent
-- **AND** emits `alert {kind: "degraded", reason: "launcher_absent"}`
 
 ### Requirement: Watchdog in the runtime
 
-`watch.sh` SHALL be a thin adapter to `skills/foreman/runtime/dist/lane-watch.js`.
-The watch runtime SHALL keep the typed state machine and the exit codes of
-the Bash watchdog. WHEN the watched round has an `ownership` event with a
-`containment` object, the state line SHALL append `containment=<kind>`.
+`watch.sh` SHALL be a thin adapter to
+`skills/foreman/runtime/dist/lane-watch.js`. The watch runtime SHALL keep
+the typed state machine, the exit codes, and the stderr lines of the Bash
+watchdog at the baseline. WHEN the watched round has an `ownership` event
+with a `containment` object, the state line SHALL append
+`containment=<kind>`.
 
 #### Scenario: DEAD exits 3
 
@@ -96,15 +206,20 @@ the Bash watchdog. WHEN the watched round has an `ownership` event with a
 - **THEN** the watch prints the kill-and-retry hint
 - **AND** exits 3
 
+#### Scenario: Node absent for the watchdog
+
+- **WHEN** `node` is not on PATH
+- **THEN** `watch.sh` prints `lane-watch: node is required` and exits 3
+
 ### Requirement: Policy pins retired
 
 WHEN this change integrates, `packages/policy/src/architecture-adapter.ts`
-SHALL contain no digest pin for `lane-run.sh` or `watch.sh`. Both scripts
-SHALL pass the thin-adapter grammar.
+SHALL contain no digest pin for `lane-run.sh` or `watch.sh`, and both
+scripts SHALL pass the thin-adapter grammar unchanged.
 
 #### Scenario: Policy check passes without pins
 
-- **WHEN** `architecture-policy.js check --base 00c342b` runs
+- **WHEN** `architecture-policy.js check --base 00c342bd449948ab2ea5ca0b9d0c890614dd81d6` runs
 - **THEN** the result is `Pass`
 - **AND** `LANE_RUN_BODY_SHA256` does not appear in the source
 

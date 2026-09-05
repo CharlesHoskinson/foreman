@@ -17,6 +17,11 @@ becomes a named test.
 - Host boundaries are injectable services, the same pattern as
   `packages/launcher/src/services.ts`.
 - The adapters keep their names and paths so callers and tests do not move.
+  Their diagnostics follow the adapter grammar: the prefix is the bundle
+  basename, so `lane-round: node is required` and `lane-watch: node is required`.
+- The containment decision table is parity with the 2026-09-05 remedy, not a
+  tightening. An explicit `FOREMAN_CONTAINMENT_REQUIRE=any` is honored even
+  when `LANE_VENDOR` is set.
 
 ## Interfaces
 

@@ -12,9 +12,9 @@ of the tree they were pointed at. It closes BW-010 and BW-017.
 ## Scope
 
 - In scope: `verify-runtime` refuses when `node_modules` is a symlink or when
-  its `.package-lock.json` does not match the repository lockfile.
-- In scope: `verify-runtime` builds in a temporary directory that does not
-  embed the checkout path, so a clean worktree and the main checkout agree.
+  the installed package tuples do not match the repository lockfile.
+- In scope: measure why two independent checkouts of one commit build
+  different bundles, then remove that cause.
 - In scope: `secret-scan` excludes untracked ignored paths by default and
   reports which bound was exceeded with the offending count.
 
