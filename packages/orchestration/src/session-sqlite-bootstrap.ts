@@ -36,6 +36,10 @@ export type RepairStoreOpts = {
   readonly now?: () => Date;
   /** Test seam. Called after backup allocation and before the first dest link. */
   readonly beforeMove?: (dest: string) => void;
+  /** Test seam. Called after dest reservation and before the source-triplet re-check. */
+  readonly beforeUnlink?: () => void;
+  /** Test seam. Called after source unlink and before reservation cleanup. */
+  readonly beforeCleanup?: (reservations: readonly string[]) => void;
 };
 
 export type RepairStoreResult =
@@ -163,10 +167,13 @@ const BACKUP_TRIPLET_SUFFIXES = ["", ...BACKUP_SIDECARS] as const;
  * an occupied destination. Reserve all three destination names for the whole
  * move: `link` when the source exists, `openSync(wx)` when it does not.
  * `wx` and `link` fail with `EEXIST` when the destination is taken.
+ * After reservation, abort if the source triplet changed. Unlink only the
+ * sources that were linked. Reservation cleanup uses checked `unlinkSync`.
  */
-function renameStoreAside(dbPath: string, dest: string): void {
+function renameStoreAside(dbPath: string, dest: string, opts: RepairStoreOpts = {}): void {
   const created: string[] = [];
   const reservations: string[] = [];
+  const linkedSources: string[] = [];
   try {
     for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
       const src = dbPath + suffix;
@@ -174,6 +181,7 @@ function renameStoreAside(dbPath: string, dest: string): void {
       if (pathOccupied(src)) {
         fs.linkSync(src, dst);
         created.push(dst);
+        linkedSources.push(src);
       } else {
         const fd = fs.openSync(dst, "wx");
         created.push(dst);
@@ -185,13 +193,27 @@ function renameStoreAside(dbPath: string, dest: string): void {
     unlinkCreated(created);
     throw e;
   }
+  opts.beforeUnlink?.();
   for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
     const src = dbPath + suffix;
-    if (pathOccupied(src)) {
-      fs.unlinkSync(src);
+    if (pathOccupied(src) !== linkedSources.includes(src)) {
+      unlinkCreated(created);
+      throw new Error("source store changed during move");
     }
   }
-  unlinkCreated(reservations);
+  for (const src of linkedSources) {
+    fs.unlinkSync(src);
+  }
+  opts.beforeCleanup?.(reservations);
+  for (const reservation of reservations) {
+    try {
+      fs.unlinkSync(reservation);
+    } catch (e) {
+      throw new Error(
+        `backup cleanup failed at ${reservation}: ${fsErrorCode(e) ?? "unknown"}`,
+      );
+    }
+  }
 }
 
 /**
@@ -216,10 +238,17 @@ export function repairStore(dbPath: string, opts: RepairStoreOpts = {}): RepairS
     const dest = allocated.path;
     try {
       opts.beforeMove?.(dest);
-      renameStoreAside(dbPath, dest);
+      renameStoreAside(dbPath, dest, opts);
       renamedPath = dest;
       break;
     } catch (e) {
+      const detail = errorMessage(e);
+      if (detail === "source store changed during move") {
+        return { status: "failed", renamedPath: dbPath, detail };
+      }
+      if (detail.startsWith("backup cleanup failed at ")) {
+        return { status: "failed", renamedPath: dest, detail };
+      }
       if (fsErrorCode(e) !== "EEXIST") throw e;
     }
   }

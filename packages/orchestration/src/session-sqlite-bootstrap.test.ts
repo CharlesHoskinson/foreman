@@ -424,6 +424,70 @@ test("repair retries advance the suffix after dest then dest-shm collisions", ()
   assert.equal(classifySqliteStore(p), "port");
 });
 
+test("repair fails when a source WAL appears after reservation and leaves the store untouched", () => {
+  const dir = makeTempDir("ss-repair-src-wal-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  rmSync(`${p}-wal`, { force: true });
+  rmSync(`${p}-shm`, { force: true });
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const original = readFileSync(p);
+  const walBytes = Buffer.from("injected-source-wal-bytes");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+
+  const result = repairStore(p, {
+    now: () => frozen,
+    beforeUnlink: () => {
+      writeFileSync(`${p}-wal`, walBytes);
+    },
+  });
+  assert.equal(result.status, "failed", result.status === "failed" ? result.detail : "");
+  if (result.status !== "failed") return;
+  assert.equal(result.renamedPath, p);
+  assert.equal(result.detail, "source store changed during move");
+  assert.ok(Buffer.compare(original, readFileSync(p)) === 0);
+  assert.ok(Buffer.compare(walBytes, readFileSync(`${p}-wal`)) === 0);
+  assert.equal(existsSync(intended), false);
+  assert.equal(existsSync(`${intended}-wal`), false);
+  assert.equal(existsSync(`${intended}-shm`), false);
+  assert.deepEqual(
+    readdirSync(dir).filter((name) => name.includes(".corrupt-")),
+    [],
+  );
+});
+
+test("repair fails and keeps the backup when reservation cleanup cannot unlink", (t) => {
+  if (!directoryModesAreEnforced()) {
+    t.skip("chmod 0o500 does not produce EACCES for root or on win32");
+    return;
+  }
+  const dir = makeTempDir("ss-repair-cleanup-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  rmSync(`${p}-wal`, { force: true });
+  rmSync(`${p}-shm`, { force: true });
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+  try {
+    const result = repairStore(p, {
+      now: () => frozen,
+      beforeCleanup: () => {
+        chmodSync(dir, 0o500);
+      },
+    });
+    assert.equal(result.status, "failed", result.status === "failed" ? result.detail : "");
+    if (result.status !== "failed") return;
+    assert.equal(result.renamedPath, intended);
+    assert.ok(result.detail.startsWith("backup cleanup failed at"));
+    assert.equal(existsSync(intended), true);
+    assert.equal(existsSync(p), false);
+  } finally {
+    chmodSync(dir, 0o700);
+  }
+});
+
 test("repair_failed leaves the renamed file in place when the sidecar cannot be parsed", () => {
   const dir = makeTempDir("ss-repair-failed-");
   const p = join(dir, "session.db");
