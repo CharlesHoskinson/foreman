@@ -6,15 +6,26 @@
 import {
   HOST_PID_ENV,
   PIDNS_INNER_ENV,
-  capabilityFromProbe,
+  PIDNS_KIND_ENV,
   formatCapabilityDiagnostic,
   isPidnsInner,
   resolveLauncherPid,
   type CapabilityDiagnostic,
   type PlatformCapability,
+  type ProbeAttempt,
+  type StrongKind,
 } from "./capability.js";
 
-export { HOST_PID_ENV, PIDNS_INNER_ENV } from "./capability.js";
+export { HOST_PID_ENV, PIDNS_INNER_ENV, PIDNS_KIND_ENV } from "./capability.js";
+
+export const UNSHARE_USERNS_PIDNS_FLAGS = [
+  "--user",
+  "--map-current-user",
+  "--pid",
+  "--mount-proc",
+  "--fork",
+  "--kill-child",
+] as const;
 
 /** Exact unshare PID-namespace argv flags (frozen). */
 export const UNSHARE_PIDNS_FLAGS = [
@@ -24,6 +35,17 @@ export const UNSHARE_PIDNS_FLAGS = [
   "--kill-child",
 ] as const;
 
+export const UNSHARE_PROBE_LADDER: readonly {
+  readonly kind: StrongKind;
+  readonly flags: readonly string[];
+}[] = [
+  {
+    kind: "posix_pidns_userns_strong",
+    flags: UNSHARE_USERNS_PIDNS_FLAGS,
+  },
+  { kind: "posix_pidns_strong", flags: UNSHARE_PIDNS_FLAGS },
+];
+
 export type ExecveRequest = {
   readonly path: string;
   readonly argv: readonly string[];
@@ -31,21 +53,55 @@ export type ExecveRequest = {
 };
 
 export type UnshareProbeResult =
-  | { readonly _tag: "Ok"; readonly unsharePath: string }
+  | {
+      readonly _tag: "Ok";
+      readonly unsharePath: string;
+      readonly kind: StrongKind;
+      readonly flags: readonly string[];
+      readonly attempts: readonly ProbeAttempt[];
+    }
   | {
       readonly _tag: "Failed";
       readonly unsharePath: string | null;
+      readonly reason:
+        | "unshare_missing"
+        | "unshare_eperm"
+        | "userns_blocked"
+        | "unshare_probe_failed";
       readonly detail: string;
+      readonly attempts: readonly ProbeAttempt[];
     };
+
+export function classifyProbeFailure(
+  attempts: readonly ProbeAttempt[],
+): "unshare_eperm" | "userns_blocked" | "unshare_probe_failed" {
+  const isEperm = (attempt: ProbeAttempt): boolean =>
+    attempt.stderr.includes("Operation not permitted");
+  if (attempts[0] !== undefined && isEperm(attempts[0])) {
+    return "userns_blocked";
+  }
+  if (attempts.some(isEperm)) return "unshare_eperm";
+  return "unshare_probe_failed";
+}
+
+export function formatAttempts(attempts: readonly ProbeAttempt[]): string {
+  return attempts
+    .map((attempt) => {
+      const status = attempt.status ?? attempt.signal ?? "null";
+      return `entry=${attempt.flags.join(" ")} status=${status} stderr=${attempt.stderr}`;
+    })
+    .join(" | ");
+}
 
 /** Pure: argv handed to execve for pidns bootstrap. */
 export function buildUnshareArgv(
   execPath: string,
   originalArgs: readonly string[],
+  flags: readonly string[] = UNSHARE_PIDNS_FLAGS,
 ): string[] {
   return [
     "unshare",
-    ...UNSHARE_PIDNS_FLAGS,
+    ...flags,
     "--",
     execPath,
     ...originalArgs,
@@ -82,11 +138,18 @@ export function planPidnsExecve(input: {
   readonly originalArgs: readonly string[];
   readonly hostPid: number;
   readonly baseEnv: NodeJS.ProcessEnv;
+  readonly flags: readonly string[];
+  readonly kind: StrongKind;
 }): ExecveRequest {
-  const argv = buildUnshareArgv(input.execPath, input.originalArgs);
+  const argv = buildUnshareArgv(
+    input.execPath,
+    input.originalArgs,
+    input.flags,
+  );
   const env = buildExecveEnv(input.baseEnv, {
     [HOST_PID_ENV]: String(input.hostPid),
     [PIDNS_INNER_ENV]: "1",
+    [PIDNS_KIND_ENV]: input.kind,
   });
   return {
     path: input.unsharePath,
@@ -157,14 +220,14 @@ export function resolveCapability(input: {
 } {
   const launcherPid = resolveLauncherPid(input.env, input.processPid);
   if (input.platform === "win32") {
-    const capability = capabilityFromProbe({
-      platform: "win32",
-      alreadyInner: false,
-      hostPid: launcherPid,
-      unsharePath: null,
-      probeOk: false,
-      probeDetail: "windows",
-    });
+    const capability: PlatformCapability = {
+      _tag: "Degraded",
+      kind: "windows_job_object_unavailable",
+      reason: "windows_no_job_object",
+      detail:
+        "Node has no Job Object primitive in this package; tree kill uses taskkill boundary",
+      attempts: [],
+    };
     return {
       capability,
       diagnostic: formatCapabilityDiagnostic(capability),
@@ -172,14 +235,17 @@ export function resolveCapability(input: {
     };
   }
   if (isPidnsInner(input.env)) {
-    const capability = capabilityFromProbe({
-      platform: input.platform,
-      alreadyInner: true,
+    const markedKind = input.env[PIDNS_KIND_ENV];
+    const kind: StrongKind =
+      markedKind === "posix_pidns_userns_strong" ||
+      markedKind === "posix_pidns_strong"
+        ? markedKind
+        : "posix_pidns_strong";
+    const capability: PlatformCapability = {
+      _tag: "AlreadyInner",
+      kind,
       hostPid: launcherPid,
-      unsharePath: null,
-      probeOk: true,
-      probeDetail: "already_inner",
-    });
+    };
     return {
       capability,
       diagnostic: formatCapabilityDiagnostic(capability),
@@ -189,31 +255,32 @@ export function resolveCapability(input: {
   const probe = input.probe ?? {
     _tag: "Failed" as const,
     unsharePath: null,
+    reason: "unshare_missing" as const,
     detail: "probe not run",
+    attempts: [],
   };
   if (probe._tag === "Ok") {
-    const capability = capabilityFromProbe({
-      platform: input.platform,
-      alreadyInner: false,
-      hostPid: input.processPid,
+    const capability: PlatformCapability = {
+      _tag: "Strong",
+      kind: probe.kind,
       unsharePath: probe.unsharePath,
-      probeOk: true,
-      probeDetail: "probe_ok",
-    });
+      flags: probe.flags,
+      hostPid: input.processPid,
+      attempts: probe.attempts,
+    };
     return {
       capability,
       diagnostic: formatCapabilityDiagnostic(capability),
       launcherPid: input.processPid,
     };
   }
-  const capability = capabilityFromProbe({
-    platform: input.platform,
-    alreadyInner: false,
-    hostPid: input.processPid,
-    unsharePath: probe.unsharePath,
-    probeOk: false,
-    probeDetail: probe.detail,
-  });
+  const capability: PlatformCapability = {
+    _tag: "Degraded",
+    kind: "posix_process_group_degraded",
+    reason: probe.reason,
+    detail: probe.detail,
+    attempts: probe.attempts,
+  };
   return {
     capability,
     diagnostic: formatCapabilityDiagnostic(capability),

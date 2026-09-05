@@ -19,11 +19,14 @@ import {
   type HeartbeatLine,
 } from "./heartbeat.js";
 import {
-  UNSHARE_PIDNS_FLAGS,
+  UNSHARE_PROBE_LADDER,
+  classifyProbeFailure,
+  formatAttempts,
   type ExecveRequest,
   type TaskkillRequest,
   type UnshareProbeResult,
 } from "./platform.js";
+import type { CapabilityRecord, ProbeAttempt } from "./capability.js";
 
 
 export type StreamChunk = Uint8Array;
@@ -111,6 +114,21 @@ export class HeartbeatWriter extends Context.Tag("HeartbeatWriter")<
     readonly readText: (path: string) => Effect.Effect<string, HeartbeatWriteError>;
   }
 >() {}
+
+export class CapabilityWriter extends Context.Tag("CapabilityWriter")<
+  CapabilityWriter,
+  {
+    readonly write: (
+      path: string,
+      record: CapabilityRecord,
+    ) => Effect.Effect<void, CapabilityWriteError>;
+  }
+>() {}
+
+export type CapabilityWriteError = {
+  readonly _tag: "CapabilityWriteError";
+  readonly message: string;
+};
 
 export type HeartbeatWriteError = {
   readonly _tag: "HeartbeatWriteError";
@@ -339,33 +357,67 @@ export const liveUnshareProbe: Context.Tag.Service<typeof UnshareProbeService> =
         return {
           _tag: "Failed",
           unsharePath: null,
+          reason: "unshare_missing",
           detail: "unshare not found on PATH",
+          attempts: [],
         };
       }
-      const probe = spawnSync(
-        unsharePath,
-        [...UNSHARE_PIDNS_FLAGS, "--", "true"],
-        {
+      const attempts: ProbeAttempt[] = [];
+      for (const entry of UNSHARE_PROBE_LADDER) {
+        const probe = spawnSync(
+          unsharePath,
+          [...entry.flags, "--", "true"],
+          {
           stdio: ["ignore", "ignore", "pipe"],
           env: process.env,
           encoding: "utf8",
-        },
-      );
-      if (probe.status === 0) {
-        return { _tag: "Ok", unsharePath };
+            timeout: 10_000,
+          },
+        );
+        const rawStderr = String(probe.stderr || probe.error?.message || "")
+          .replace(/[\r\n]+/g, " ")
+          .trim();
+        const truncated = Buffer.from(rawStderr)
+          .subarray(0, 200)
+          .toString("utf8")
+          .replace(/\uFFFD$/u, "")
+          .trim();
+        attempts.push({
+          flags: entry.flags,
+          status: probe.status,
+          signal: probe.signal,
+          stderr: truncated,
+        });
+        if (probe.status === 0) {
+          return {
+            _tag: "Ok",
+            unsharePath,
+            kind: entry.kind,
+            flags: entry.flags,
+            attempts,
+          };
+        }
       }
-      const errText = (
-        probe.stderr ||
-        probe.error?.message ||
-        "probe failed"
-      )
-        .toString()
-        .trim();
       return {
         _tag: "Failed",
         unsharePath,
-        detail: errText.slice(0, 200),
+        reason: classifyProbeFailure(attempts),
+        detail: formatAttempts(attempts) || "unshare probe failed",
+        attempts,
       };
+    }),
+};
+
+export const liveCapabilityWriter: Context.Tag.Service<typeof CapabilityWriter> = {
+  write: (path, record) =>
+    Effect.try({
+      try: () => {
+        writeFileSync(path, JSON.stringify(record) + "\n");
+      },
+      catch: (e): CapabilityWriteError => ({
+        _tag: "CapabilityWriteError",
+        message: e instanceof Error ? e.message : String(e),
+      }),
     }),
 };
 
@@ -470,6 +522,7 @@ export const LiveLauncherLayer = Layer.mergeAll(
   Layer.succeed(WindowsTreeTerminator, liveWindowsTreeTerminator),
   Layer.succeed(ExecveService, liveExecve),
   Layer.succeed(UnshareProbeService, liveUnshareProbe),
+  Layer.succeed(CapabilityWriter, liveCapabilityWriter),
   Layer.succeed(HeartbeatWriter, liveHeartbeatWriter),
   Layer.succeed(ByteSink, liveByteSink),
   Layer.succeed(StderrLog, liveStderrLog),
