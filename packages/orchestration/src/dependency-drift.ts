@@ -41,6 +41,7 @@ export const PSEUDO_IDS: ReadonlySet<string> = new Set([
   "foreman_home_fs",
   "foreman_skill",
   "foreman-launch",
+  "containment",
 ]);
 
 /** Deliberately not provisioned (durable transport, install on demand). */

@@ -7,6 +7,7 @@ import { canonicalize, sha256Hex } from "@foreman/core";
 import { Effect, Layer } from "effect";
 import { parseQueueArgv, runQueueCli, stripNodeArgv } from "./queue-cli.js";
 import {
+  ADD_USAGE,
   EXIT_CONFIG,
   EXIT_MISSING_CLI,
   EXIT_OK,
@@ -160,6 +161,61 @@ describe("parseQueueArgv", () => {
     assert.equal(parseQueueArgv(["add", "g", "echo"]).kind, "usage");
     assert.equal(parseQueueArgv(["add", "g", "--"]).kind, "usage");
     assert.equal(parseQueueArgv(["kill"]).kind, "usage");
+  });
+
+  it("parses containment approval anywhere in V1 and V2 release blocks", () => {
+    const v1 = [...guardedAdd("/state", "contract-1", A)];
+    v1.splice(8, 0, "--containment-approval", "accepted for this lane");
+    const parsedV1 = parseQueueArgv(v1);
+    assert.equal(parsedV1.kind, "add");
+    if (parsedV1.kind === "add") {
+      assert.equal(parsedV1.containmentApproval, "accepted for this lane");
+      assert.deepEqual(parsedV1.cmd, ["echo", "hi"]);
+    }
+
+    const v2 = [...guardedV2Add("/state", "contract-1", A)];
+    const separator = v2.indexOf("--");
+    v2.splice(separator, 0, "--containment-approval", "approved V2");
+    const parsedV2 = parseQueueArgv(v2);
+    assert.equal(parsedV2.kind, "add");
+    if (parsedV2.kind === "add") {
+      assert.equal(parsedV2.version, "v2");
+      assert.equal(parsedV2.containmentApproval, "approved V2");
+      assert.deepEqual(parsedV2.cmd, ["echo", "hi"]);
+    }
+  });
+
+  it("rejects invalid containment approval values without echoing controls", () => {
+    const invalidCases: readonly (readonly string[])[] = [
+      ["--containment-approval"],
+      ["--containment-approval", ""],
+      ["--containment-approval", "x".repeat(201)],
+      ["--containment-approval", "unsafe\nreason"],
+      [
+        "--containment-approval",
+        "first",
+        "--containment-approval",
+        "second",
+      ],
+    ];
+    for (const injected of invalidCases) {
+      const argv = [...guardedAdd("/state", "contract-1", A)];
+      argv.splice(argv.indexOf("--"), 0, ...injected);
+      const parsed = parseQueueArgv(argv);
+      assert.equal(parsed.kind, "usage");
+      if (parsed.kind === "usage") {
+        assert.match(parsed.message, /^lane-queue: --containment-approval /);
+        assert.ok(!parsed.message.includes("unsafe\nreason"));
+        assert.ok(!parsed.message.includes("\n"));
+      }
+    }
+  });
+
+  it("documents containment approval in the canonical add usage", () => {
+    assert.match(
+      ADD_USAGE,
+      /--endstop-candidate-sha SHA256 \[--containment-approval REASON\] \[--release-program/,
+    );
   });
 
   it("stripNodeArgv removes node and script path", () => {

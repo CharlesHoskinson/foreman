@@ -799,6 +799,43 @@ describe("cmdAdd reliable admission", () => {
     assert.equal(addCall!.timeoutMs, TIMEOUT_QUEUE_OP_MS);
   });
 
+  it("prefixes the queued command with containment approval environment", async () => {
+    const io = makeIo();
+    let addLine: readonly string[] = [];
+    const code = await run(
+      cmdAdd(
+        io,
+        "grok",
+        ["echo", "hello"],
+        "accepted because it's isolated",
+      ),
+      testLayer({
+        handler: (_cmd, args) => {
+          if (args[0] === "status") {
+            return { exitCode: 0, stdout: "ok", stderr: "" };
+          }
+          if (args[0] === "group" || args[0] === "parallel") {
+            return { exitCode: 0, stdout: "", stderr: "" };
+          }
+          if (args[0] === "add") {
+            addLine = args;
+            return { exitCode: 0, stdout: "13\n", stderr: "" };
+          }
+          return { exitCode: 0, stdout: "", stderr: "" };
+        },
+      }),
+    );
+    assert.equal(code, EXIT_OK);
+    const dash = addLine.indexOf("--");
+    assert.ok(dash >= 0);
+    assert.deepEqual(addLine.slice(dash + 1), [
+      "'env'",
+      "'FOREMAN_CONTAINMENT_APPROVAL=accepted because it'\\''s isolated'",
+      "'echo'",
+      "'hello'",
+    ]);
+  });
+
   it("refuses shell override before any pueue call", async () => {
     const io = makeIo();
     let calls = 0;

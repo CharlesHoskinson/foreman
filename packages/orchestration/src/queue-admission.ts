@@ -36,7 +36,7 @@ export const EXIT_MISSING_CLI = 3;
  * copy went stale).
  */
 export const ADD_USAGE =
-  "usage: lane-queue.sh ensure|add GROUP [--endstop-prior-reservation-id ID] --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 [--endstop-family-sha SHA256 --endstop-child-id ID] --endstop-action ACTION --endstop-candidate-sha SHA256 [--release-program v040 --release-phase PHASE --release-owner PACKAGE --release-repo ABS --release-candidate-commit SHA40 --release-register ABS --release-evidence ABS] -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
+  "usage: lane-queue.sh ensure|add GROUP [--endstop-prior-reservation-id ID] --endstop-state-root ABS --endstop-contract-id ID --endstop-contract-sha SHA256 [--endstop-family-sha SHA256 --endstop-child-id ID] --endstop-action ACTION --endstop-candidate-sha SHA256 [--containment-approval REASON] [--release-program v040 --release-phase PHASE --release-owner PACKAGE --release-repo ABS --release-candidate-commit SHA40 --release-register ABS --release-evidence ABS] -- CMD [ARGS...]|status [TASK_ID]|kill TASK_ID";
 
 /** Fixed topology: proven caps only. No claude group. */
 export const FIXED_GROUPS: readonly { name: string; parallel: number }[] = [
@@ -633,6 +633,7 @@ export const cmdAdd = (
   io: QueueIo,
   group: string,
   cmd: readonly string[],
+  containmentApproval?: string,
 ): Effect.Effect<
   number,
   never,
@@ -679,7 +680,10 @@ export const cmdAdd = (
       return EXIT_CONFIG;
     }
 
-    const quoted = quoteForShell(pueueBin, cmd, null, fileExists);
+    const queued = containmentApproval === undefined
+      ? cmd
+      : ["env", `FOREMAN_CONTAINMENT_APPROVAL=${containmentApproval}`, ...cmd];
+    const quoted = quoteForShell(pueueBin, queued, null, fileExists);
     if (!quoted.ok) {
       io.writeStderr(
         "lane-queue: pueue config overrides daemon.shell_command -- lane-queue does not know how to quote for that shell and refuses to guess\n",
