@@ -1,5 +1,5 @@
 schema_version = 2
-baseline_commit = "00c342bd449948ab2ea5ca0b9d0c890614dd81d6"
+baseline_commit = "387dcd7521a45e91b2a58b309e20ffcc72902ec0"
 active_inventory_sha256 = "42d972816e8d73cf0b4822d39f498badfe9c8b56a66c5aa515f61a5aeb9ce792"
 roadmap_sha256 = "56707b7fb5594cf662d187e159b12b6279fbc8b13ce89b45af8ac1b394d25350"
 

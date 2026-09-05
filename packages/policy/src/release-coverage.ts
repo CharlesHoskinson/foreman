@@ -24,7 +24,11 @@ export type ReleaseCoverageFailureReason =
   | "unreconciled"
   | "competing_plan"
   | "dependency_failure"
-  | "wrong_program";
+  | "wrong_program"
+  | "register_cross_field"
+  | "iron_rule_violation"
+  | "deferred_package_changed"
+  | "vocabulary_mixed";
 
 export type RoadmapAssignmentV1 = {
   readonly key: string;
@@ -67,8 +71,18 @@ export type ReleasePackageBriefV1 = {
 
 const SCHEMA_VERSION = 1 as const;
 const ONE_MIB = 1024 * 1024;
-const IMMUTABLE_BASELINE_COMMIT =
+const V040_BASELINE_COMMIT =
   "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195" as const;
+const V050_BASELINE_COMMIT =
+  "387dcd7521a45e91b2a58b309e20ffcc72902ec0" as const;
+const IMMUTABLE_BASELINE_COMMIT = V040_BASELINE_COMMIT;
+const IRON_RULE_EXTENSIONS = /\.(?:sh|py|ps1|cmd|mjs|cjs)$/;
+const IRON_RULE_PREFIXES = /^(?:packages|skills|env|tools|scripts)\//;
+const IRON_RULE_CREATE = /(?:new|create|Create) `([^`]+)`/g;
+const MODEL_FACING_VERDICTS = new Set(["APPROVED", "WARNING", "BLOCKED"]);
+const MEASUREMENT_RESULTS = new Set(["PASS", "FAILED", "UNCOMPUTABLE"]);
+const MD_VOCABULARY_LINE =
+  /^\s*(verdict|measurement_result)\s*[:=]\s*(\S+)\s*$/i;
 const ROADMAP_PATH = "ROADMAP.md";
 const OPENSPEC_PREFIX = "openspec/changes/";
 const CHANGE_PREFIX = "change:";
@@ -132,9 +146,26 @@ function dispositionsFor(program: ReleaseProgram): Set<string> {
   return new Set(releaseProgramTable(program).dispositions);
 }
 
+function programBaselineCommit(program: ReleaseProgram): string {
+  return program === RELEASE_PROGRAMS[0]
+    ? V040_BASELINE_COMMIT
+    : V050_BASELINE_COMMIT;
+}
+
+function programSchemaVersion(program: ReleaseProgram): number {
+  return releaseProgramTable(program).schemaVersion;
+}
+
+function isV050(program: ReleaseProgram): boolean {
+  return program !== RELEASE_PROGRAMS[0];
+}
+
 function targetReleasesFor(program: ReleaseProgram): Set<string> {
   const releases = new Set<string>(SHARED_TARGET_RELEASES);
-  if (program !== RELEASE_PROGRAMS[0]) releases.add("v0.6");
+  if (isV050(program)) {
+    releases.add("v0.6");
+    releases.add("v0.2.9");
+  }
   return releases;
 }
 
@@ -180,9 +211,16 @@ type RegisterEntry = {
   readonly sourcePath: string;
   readonly disposition: string;
   readonly owner: string;
-  readonly targetRelease: "v0.4" | "v0.5" | "v0.6" | "released";
+  readonly targetRelease: "v0.4" | "v0.5" | "v0.6" | "v0.2.9" | "released";
   readonly reconcile: "complete" | "required" | "not_required";
   readonly reason: string;
+  readonly startLine: number;
+  readonly endLine: number;
+};
+
+export type ReleaseCoverageEvidenceArtifactV1 = {
+  readonly path: string;
+  readonly text: string;
 };
 
 type ParsedRegister = {
@@ -453,7 +491,15 @@ function validateDispositionCrossField(
     return targetRelease === programFutureRelease(program) && reconcile === "not_required";
   }
   if (disposition === "released_reference") {
-    return targetRelease === "released" && reconcile === "complete";
+    if (!isV050(program)) {
+      return targetRelease === "released" && reconcile === "complete";
+    }
+    return (
+      (targetRelease === "released" ||
+        targetRelease === "v0.4" ||
+        targetRelease === "v0.2.9") &&
+      RECONCILES.has(reconcile)
+    );
   }
   if (disposition === "superseded") {
     if (reconcile !== "complete") return false;
@@ -470,15 +516,13 @@ function validateDispositionCrossField(
 function parseRegister(
   text: string,
   program: ReleaseProgram = defaultReleaseProgram(),
+  options: { readonly matchProgramBaseline?: boolean } = {},
 ): ParsedRegister | "invalid_register" {
   if (typeof text !== "string") return "invalid_register";
   if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
   if (hasControlExcludingLf(text)) return "invalid_register";
 
   const lines = text.split("\n");
-  if (lines.length > 0 && lines[lines.length - 1] === "") {
-    lines.pop();
-  }
 
   const top: Record<string, string | number> = {};
   const futureOwners: FutureOwner[] = [];
@@ -486,6 +530,8 @@ function parseRegister(
   let mode: "top" | "future_owner" | "entry" = "top";
   let current: Record<string, string | number> | null = null;
   let sawTable = false;
+  let entryStartLine = -1;
+  let pendingEndLine = lines.length;
 
   const flushCurrent = (): boolean => {
     if (mode === "top" || current === null) return true;
@@ -571,15 +617,20 @@ function parseRegister(
       targetRelease: targetRelease as RegisterEntry["targetRelease"],
       reconcile: reconcile as RegisterEntry["reconcile"],
       reason,
+      startLine: entryStartLine,
+      endLine: pendingEndLine,
     });
     current = null;
     return true;
   };
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     if (line.length === 0) continue;
     if (line.startsWith("[[") && line.endsWith("]]")) {
+      pendingEndLine = i;
       if (!flushCurrent()) return "invalid_register";
+      pendingEndLine = lines.length;
       const name = line.slice(2, -2);
       if (name === "future_owner") {
         mode = "future_owner";
@@ -591,6 +642,7 @@ function parseRegister(
         mode = "entry";
         current = {};
         sawTable = true;
+        entryStartLine = i;
         continue;
       }
       return "invalid_register";
@@ -604,7 +656,10 @@ function parseRegister(
       if (!TOP_LEVEL_FIELDS.has(assignment.key)) return "invalid_register";
       if (assignment.key in top) return "invalid_register";
       if (assignment.key === "schema_version") {
-        if (assignment.kind !== "integer" || assignment.value !== 1) {
+        if (
+          assignment.kind !== "integer" ||
+          assignment.value !== programSchemaVersion(program)
+        ) {
           return "invalid_register";
         }
         top[assignment.key] = assignment.value;
@@ -613,7 +668,11 @@ function parseRegister(
       if (assignment.kind !== "string") return "invalid_register";
       const value = assignment.value as string;
       if (assignment.key === "baseline_commit") {
-        if (!isCommitSha40(value) || value !== IMMUTABLE_BASELINE_COMMIT) {
+        if (!isCommitSha40(value)) return "invalid_register";
+        if (
+          options.matchProgramBaseline !== false &&
+          value !== programBaselineCommit(program)
+        ) {
           return "invalid_register";
         }
       } else if (
@@ -803,6 +862,17 @@ function canonicalBriefFileBytes(brief: ReleasePackageBriefV1): Uint8Array | nul
   }
 }
 
+function validateOptionalStringRecord(
+  value: Readonly<Record<string, string>> | undefined,
+): boolean {
+  if (value === undefined) return true;
+  if (!isPlainObject(value)) return false;
+  for (const item of Object.values(value)) {
+    if (typeof item !== "string") return false;
+  }
+  return true;
+}
+
 function validateCollectionShapes(
   input: {
     readonly phase: ReleaseCoveragePhaseV1;
@@ -814,6 +884,11 @@ function validateCollectionShapes(
     readonly changedSuperpowersPaths: readonly string[];
     readonly expectedBriefByOwner: Readonly<Record<string, ReleasePackageBriefV1>>;
     readonly packageBriefBytesByOwner: Readonly<Record<string, Uint8Array>>;
+    readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
+    readonly baselineRegisterText?: string;
+    readonly baselineRegisterAbsent?: boolean;
+    readonly evidenceTexts?: readonly string[];
+    readonly evidenceArtifacts?: readonly ReleaseCoverageEvidenceArtifactV1[];
   },
   program: ReleaseProgram,
 ): boolean {
@@ -845,6 +920,36 @@ function validateCollectionShapes(
   } else {
     return false;
   }
+  if (!validateOptionalStringRecord(input.tasksMarkdownByOwner)) return false;
+  if (
+    input.baselineRegisterText !== undefined &&
+    typeof input.baselineRegisterText !== "string"
+  ) {
+    return false;
+  }
+  if (
+    input.baselineRegisterAbsent !== undefined &&
+    typeof input.baselineRegisterAbsent !== "boolean"
+  ) {
+    return false;
+  }
+  if (
+    input.evidenceTexts !== undefined &&
+    !isReadonlyStringArray(input.evidenceTexts)
+  ) {
+    return false;
+  }
+  if (input.evidenceArtifacts !== undefined) {
+    if (!Array.isArray(input.evidenceArtifacts)) return false;
+    for (const item of input.evidenceArtifacts) {
+      if (!isPlainObject(item as unknown as Record<string, unknown>)) {
+        return false;
+      }
+      if (typeof item.path !== "string" || typeof item.text !== "string") {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -857,6 +962,187 @@ function uniqueOwnersFromEntries(entries: readonly RegisterEntry[]): string[] {
     names.push(entry.owner);
   }
   return names;
+}
+
+function packageNameFromChangeKey(key: string): string | null {
+  if (!key.startsWith(CHANGE_PREFIX)) return null;
+  const name = key.slice(CHANGE_PREFIX.length);
+  return name.length > 0 ? name : null;
+}
+
+function entryOriginalSpan(
+  registerText: string,
+  startLine: number,
+  endLine: number,
+): string {
+  return registerText.split("\n").slice(startLine, endLine).join("\n");
+}
+
+function pathIsUnderPackageDirectory(path: string, packageName: string): boolean {
+  const prefix = `${OPENSPEC_PREFIX}${packageName}`;
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+function ironRuleViolation(markdown: string): boolean {
+  const lines = markdown.split("\n");
+  for (const line of lines) {
+    if (!/^\s*- \[ \] /.test(line)) continue;
+    if (line.includes("thin adapter")) continue;
+    const matcher = new RegExp(IRON_RULE_CREATE.source, "g");
+    let match = matcher.exec(line);
+    while (match !== null) {
+      const target = match[1]!;
+      if (IRON_RULE_PREFIXES.test(target) && IRON_RULE_EXTENSIONS.test(target)) {
+        return true;
+      }
+      match = matcher.exec(line);
+    }
+  }
+  return false;
+}
+
+function hasAllowedFileScope(markdown: string): boolean {
+  const lines = markdown.split("\n");
+  let headingIndex = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^##[ \t]+Allowed file scope[ \t]*$/.test(lines[i]!)) {
+      headingIndex = i;
+      break;
+    }
+  }
+  if (headingIndex < 0) return false;
+  for (let i = headingIndex + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (/^#{1,6}\s/.test(line)) break;
+    if (line.trim().length > 0) return true;
+  }
+  return false;
+}
+
+function jsonVocabularyMixed(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (jsonVocabularyMixed(item)) return true;
+    }
+    return false;
+  }
+  if (value === null || typeof value !== "object") return false;
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "verdict") {
+      if (typeof child !== "string" || !MODEL_FACING_VERDICTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (key === "measurement_result") {
+      if (typeof child !== "string" || !MEASUREMENT_RESULTS.has(child)) {
+        return true;
+      }
+      continue;
+    }
+    if (jsonVocabularyMixed(child)) return true;
+  }
+  return false;
+}
+
+function markdownVocabularyMixed(text: string): boolean {
+  for (const line of text.split("\n")) {
+    const match = MD_VOCABULARY_LINE.exec(line);
+    if (match === null) continue;
+    const field = match[1]!.toLowerCase();
+    const captured = match[2]!;
+    if (field === "verdict") {
+      if (!MODEL_FACING_VERDICTS.has(captured)) return true;
+    } else if (!MEASUREMENT_RESULTS.has(captured)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function evidencePathKind(path: string): "json" | "md" {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".json")) return "json";
+  return "md";
+}
+
+function inspectEvidenceArtifact(
+  path: string,
+  text: string,
+): "ok" | "vocabulary_mixed" | "dependency_failure" {
+  if (evidencePathKind(path) === "json") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text) as unknown;
+    } catch {
+      return "dependency_failure";
+    }
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  }
+  return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+}
+
+function inspectEvidenceText(text: string): "ok" | "vocabulary_mixed" {
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    return jsonVocabularyMixed(parsed) ? "vocabulary_mixed" : "ok";
+  } catch {
+    return markdownVocabularyMixed(text) ? "vocabulary_mixed" : "ok";
+  }
+}
+
+function registerCrossFieldViolation(
+  entries: readonly RegisterEntry[],
+  program: ReleaseProgram,
+): boolean {
+  const ownDisposition = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    const name = packageNameFromChangeKey(entry.key);
+    if (name === null) continue;
+    ownDisposition.set(name, entry.disposition);
+  }
+  const ownerDisp = ownerDisposition(program);
+  const dependencyDisp = dependencyDisposition(program);
+  const futureDisp = futureDisposition(program);
+  const governor = bootstrapOwner(program);
+  for (const entry of entries) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    if (entry.disposition === ownerDisp || entry.disposition === dependencyDisp) {
+      if (ownDisposition.get(entry.owner) !== ownerDisp) return true;
+    }
+    if (entry.disposition === futureDisp && entry.owner !== governor) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function collectV050OwnerPackageNames(
+  entries: readonly RegisterEntry[],
+  program: ReleaseProgram,
+): string[] {
+  const ownerDisp = ownerDisposition(program);
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    if (entry.sourceKind !== "openspec_change") continue;
+    if (entry.disposition !== ownerDisp) continue;
+    const name = packageNameFromChangeKey(entry.key);
+    if (name === null || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+
+export function v050OwnerPackageNames(
+  registerText: string,
+  program: ReleaseProgram,
+): readonly string[] {
+  const parsed = parseRegister(registerText, program);
+  if (parsed === "invalid_register") return [];
+  return collectV050OwnerPackageNames(parsed.entries, program);
 }
 
 /**
@@ -911,6 +1197,7 @@ export type ReleaseCoverageRegisterInspectionV1 =
       readonly _tag: "Valid";
       readonly baselineCommit: string;
       readonly selectedOwners: readonly string[];
+      readonly v050OwnerPackageNames: readonly string[];
     }
   | {
       readonly _tag: "Invalid";
@@ -940,6 +1227,9 @@ export function inspectReleaseCoverageRegisterV1(input: {
     _tag: "Valid",
     baselineCommit: parsed.baselineCommit,
     selectedOwners: [...selection.owners].sort(compareUtf8Bytes),
+    v050OwnerPackageNames: isV050(program)
+      ? collectV050OwnerPackageNames(parsed.entries, program)
+      : [],
   };
 }
 
@@ -954,6 +1244,11 @@ export function validateReleaseCoverageV1(input: {
   readonly expectedBriefByOwner: Readonly<Record<string, ReleasePackageBriefV1>>;
   readonly packageBriefBytesByOwner: Readonly<Record<string, Uint8Array>>;
   readonly program?: ReleaseProgram;
+  readonly tasksMarkdownByOwner?: Readonly<Record<string, string>>;
+  readonly baselineRegisterText?: string;
+  readonly baselineRegisterAbsent?: boolean;
+  readonly evidenceTexts?: readonly string[];
+  readonly evidenceArtifacts?: readonly ReleaseCoverageEvidenceArtifactV1[];
 }): ReleaseCoverageResultV1 {
   try {
     const program = resolveCoverageProgram(input.program);
@@ -1055,6 +1350,10 @@ export function validateReleaseCoverageV1(input: {
       if (row.release !== entry.targetRelease) return invalid("roadmap_mismatch");
     }
 
+    if (isV050(program) && registerCrossFieldViolation(parsed.entries, program)) {
+      return invalid("register_cross_field");
+    }
+
     for (const entry of parsed.entries) {
       if (!uniqueActive.has(entry.owner) && !futureNames.has(entry.owner)) {
         return invalid("unknown_owner");
@@ -1063,6 +1362,56 @@ export function validateReleaseCoverageV1(input: {
 
     for (const path of input.changedSuperpowersPaths) {
       if (pathIsCompetingPlan(path)) return invalid("competing_plan");
+    }
+
+    if (
+      isV050(program) &&
+      (input.phase._tag === "Bootstrap" || input.phase._tag === "Release")
+    ) {
+      const futureDisp = futureDisposition(program);
+      const baselineText = input.baselineRegisterText;
+      const baselineAbsent = input.baselineRegisterAbsent === true;
+      let baselineByKey: Map<string, RegisterEntry> | null = null;
+      if (typeof baselineText === "string") {
+        const baselineParsed = parseRegister(baselineText, program, {
+          matchProgramBaseline: false,
+        });
+        if (baselineParsed === "invalid_register") {
+          return invalid("dependency_failure");
+        }
+        baselineByKey = new Map(
+          baselineParsed.entries.map((item) => [item.key, item]),
+        );
+      }
+      for (const entry of parsed.entries) {
+        if (entry.sourceKind !== "openspec_change") continue;
+        if (entry.disposition !== futureDisp) continue;
+        const name = packageNameFromChangeKey(entry.key);
+        if (name === null) continue;
+        const directoryChanged = input.changedSuperpowersPaths.some((path) =>
+          pathIsUnderPackageDirectory(path, name),
+        );
+        if (!directoryChanged) continue;
+        if (baselineAbsent) {
+          return invalid("deferred_package_changed");
+        }
+        if (baselineByKey === null) continue;
+        const baselineEntry = baselineByKey.get(entry.key);
+        if (baselineEntry === undefined) continue;
+        const currentSpan = entryOriginalSpan(
+          input.registerText,
+          entry.startLine,
+          entry.endLine,
+        );
+        const baselineSpan = entryOriginalSpan(
+          baselineText!,
+          baselineEntry.startLine,
+          baselineEntry.endLine,
+        );
+        if (currentSpan === baselineSpan) {
+          return invalid("deferred_package_changed");
+        }
+      }
     }
 
     const selection = selectPhaseCoverage(
@@ -1111,11 +1460,54 @@ export function validateReleaseCoverageV1(input: {
       if (entry.reconcile === "required") return invalid("unreconciled");
     }
 
+    if (isV050(program) && input.phase._tag === "Lane") {
+      const ownerKey = `${CHANGE_PREFIX}${input.phase.owner}`;
+      for (const entry of parsed.entries) {
+        if (entry.reconcile !== "required") continue;
+        if (entry.key === ownerKey || entry.owner === input.phase.owner) {
+          return invalid("unreconciled");
+        }
+      }
+      const markdown = input.tasksMarkdownByOwner?.[input.phase.owner];
+      if (typeof markdown === "string") {
+        if (ironRuleViolation(markdown)) {
+          return invalid("iron_rule_violation");
+        }
+        if (!hasAllowedFileScope(markdown)) {
+          return invalid("workflow_mismatch");
+        }
+      }
+    }
+
     const owners = selection.owners;
     for (const owner of owners) {
       const workflow = input.workflowByChange[owner];
       if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
         return invalid("workflow_mismatch");
+      }
+    }
+
+    if (isV050(program) && input.phase._tag === "Bootstrap") {
+      for (const name of collectV050OwnerPackageNames(parsed.entries, program)) {
+        const workflow = input.workflowByChange[name];
+        if (typeof workflow !== "string" || !ALLOWED_WORKFLOWS.has(workflow)) {
+          return invalid("workflow_mismatch");
+        }
+      }
+    }
+
+    if (isV050(program) && input.phase._tag === "Release") {
+      if (input.evidenceArtifacts !== undefined) {
+        for (const artifact of input.evidenceArtifacts) {
+          const inspected = inspectEvidenceArtifact(artifact.path, artifact.text);
+          if (inspected !== "ok") return invalid(inspected);
+        }
+      } else {
+        for (const text of input.evidenceTexts ?? []) {
+          if (inspectEvidenceText(text) === "vocabulary_mixed") {
+            return invalid("vocabulary_mixed");
+          }
+        }
       }
     }
 

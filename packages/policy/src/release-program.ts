@@ -14,6 +14,8 @@ export type ReleaseProgramTable = {
   readonly childIdPrefix: string;
   readonly evaluationChild: string | null;
   readonly trancheRange: readonly [number, number];
+  readonly familyId: string | null;
+  readonly schemaVersion: 1 | 2;
 };
 
 const TABLES: { readonly [K in ReleaseProgram]: ReleaseProgramTable } = {
@@ -31,6 +33,8 @@ const TABLES: { readonly [K in ReleaseProgram]: ReleaseProgramTable } = {
     childIdPrefix: "v040-t",
     evaluationChild: "v040-t8-evaluation",
     trancheRange: [2, 9],
+    familyId: "v040-release-20260822-f1",
+    schemaVersion: 1,
   },
   v050: {
     program: "v050",
@@ -46,6 +50,8 @@ const TABLES: { readonly [K in ReleaseProgram]: ReleaseProgramTable } = {
     childIdPrefix: "v050-",
     evaluationChild: null,
     trancheRange: [2, 8],
+    familyId: null,
+    schemaVersion: 2,
   },
 };
 
