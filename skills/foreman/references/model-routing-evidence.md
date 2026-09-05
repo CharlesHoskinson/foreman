@@ -48,10 +48,13 @@ an independent verdict, audit, or quorum domain. If the remaining members do
 not satisfy the selected policy, report `quorum_not_met`. Do not manufacture
 quorum from the three requested names.
 
-Classify terminal transport before advice. Missing, failed, malformed, and
-abstaining responses are not approval. Preserve each admissible dissent.
-Council advice cannot write audit or gate verdicts. Foreman checks and gates
-retain release authority.
+Classify terminal transport before advice. Missing, cancelled, timed-out, and
+incomplete terminals are infrastructure failures. A successful terminal with
+malformed designated output is a completed invalid response such as
+`schema_invalid`, not an infrastructure failure. Neither class is approval.
+A completed abstention is also non-approval and non-quorum. Preserve each
+admissible dissent. Council advice cannot write audit or gate verdicts.
+Foreman checks and gates retain release authority.
 
 ## Practical limitations
 

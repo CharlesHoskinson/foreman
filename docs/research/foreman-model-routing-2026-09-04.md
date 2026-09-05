@@ -98,8 +98,11 @@ The skill update does not migrate runtime defaults or user configuration.
 - Routing retrieval checks: pass.
 - Source hashes and cited card statements: reproduced from local artifacts.
 - Current CLI flag compatibility checks: pass for the documented flags.
-- Independent reference-skill test: pass after the update. The result selected
-  the exact routes and preserved identity, quorum, dissent, and gate rules.
+- The independent reference-skill test selected the exact routes and preserved
+  identity, quorum, dissent, and gate rules. It initially grouped malformed
+  completed output with infrastructure failure. The final reference separates
+  completed invalid responses from transport failures. Focused retrieval
+  assertions verify that distinction.
 
 The repository-wide documentation check remains red on pre-existing files. Its
 Markdown failures are in
