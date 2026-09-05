@@ -3,10 +3,11 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   cpSync,
-  mkdtempSync,
+  existsSync,
   mkdirSync,
-  readdirSync,
+  mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
