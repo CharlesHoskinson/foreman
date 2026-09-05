@@ -40,6 +40,8 @@ export type RepairStoreOpts = {
   readonly beforeUnlink?: () => void;
   /** Test seam. Called after source unlink and before reservation cleanup. */
   readonly beforeCleanup?: (reservations: readonly string[]) => void;
+  /** Test seam. Pre-unlink source stat. `null` means absent. Production uses lstatSync. */
+  readonly statSource?: (path: string) => fs.Stats | null;
 };
 
 export type RepairStoreResult =
@@ -111,6 +113,22 @@ function pathOccupied(path: string): boolean {
     return true;
   } catch (e) {
     if (fsErrorCode(e) === "ENOENT") return false;
+    throw e;
+  }
+}
+
+/** Pre-unlink source stat. `statSource` is the test seam. `null` means absent. */
+function sourceStatForValidation(
+  path: string,
+  statSource?: (path: string) => fs.Stats | null,
+): fs.Stats | null {
+  if (statSource !== undefined) {
+    return statSource(path);
+  }
+  try {
+    return fs.lstatSync(path);
+  } catch (e) {
+    if (fsErrorCode(e) === "ENOENT") return null;
     throw e;
   }
 }
@@ -205,18 +223,22 @@ function renameStoreAside(dbPath: string, dest: string, opts: RepairStoreOpts = 
     throw e;
   }
   opts.beforeUnlink?.();
-  for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
-    const src = dbPath + suffix;
-    const dst = dest + suffix;
-    const wasLinked = linkedSources.includes(src);
-    if (pathOccupied(src) !== wasLinked) {
-      unlinkCreated(created);
-      throw new Error("source store changed during move");
+  try {
+    for (const suffix of BACKUP_TRIPLET_SUFFIXES) {
+      const src = dbPath + suffix;
+      const dst = dest + suffix;
+      const wasLinked = linkedSources.includes(src);
+      const srcStat = sourceStatForValidation(src, opts.statSource);
+      if ((srcStat !== null) !== wasLinked) {
+        throw new Error("source store changed during move");
+      }
+      if (wasLinked && !sameFileIdentity(src, dst)) {
+        throw new Error("source store changed during move");
+      }
     }
-    if (wasLinked && !sameFileIdentity(src, dst)) {
-      unlinkCreated(created);
-      throw new Error("source store changed during move");
-    }
+  } catch {
+    unlinkCreated(created);
+    throw new Error("source store changed during move");
   }
   for (const src of linkedSources) {
     fs.unlinkSync(src);

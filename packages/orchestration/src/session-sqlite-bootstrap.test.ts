@@ -472,6 +472,77 @@ test("repair fails when a linked source WAL is replaced before unlink and leaves
   );
 });
 
+test("repair fails when pre-unlink WAL stat throws EIO and leaves the source intact", () => {
+  const dir = makeTempDir("ss-repair-wal-eio-");
+  const p = join(dir, "session.db");
+  writeHalfMigratedStore(p);
+  writeFactSidecar(sidecarPathFor(p), "after repair");
+  const holder = new DatabaseSync(p);
+  let sqliteWal: Buffer;
+  try {
+    holder.exec("PRAGMA busy_timeout=5000");
+    holder.exec("PRAGMA journal_mode=WAL");
+    holder.exec("INSERT INTO facts VALUES(37,'wal-eio')");
+    assert.equal(existsSync(`${p}-wal`), true, "precondition: store must have a real WAL");
+    sqliteWal = readFileSync(`${p}-wal`);
+  } finally {
+    holder.close();
+  }
+  if (!existsSync(`${p}-wal`)) {
+    writeFileSync(`${p}-wal`, sqliteWal);
+  }
+  assert.equal(existsSync(`${p}-wal`), true, "precondition: WAL must exist at link time");
+  assert.equal(classifySqliteStore(p), "corrupt");
+  const originalDb = readFileSync(p);
+  const originalWal = readFileSync(`${p}-wal`);
+  const originalShm = existsSync(`${p}-shm`) ? readFileSync(`${p}-shm`) : null;
+  const frozen = new Date("2026-09-05T12:00:00Z");
+  const intended = `${p}.corrupt-20260905T120000Z`;
+  let validationPass = false;
+
+  const result = repairStore(p, {
+    now: () => frozen,
+    beforeUnlink: () => {
+      validationPass = true;
+    },
+    statSource: (path) => {
+      if (validationPass && path === `${p}-wal`) {
+        const err = new Error("EIO") as NodeJS.ErrnoException;
+        err.code = "EIO";
+        throw err;
+      }
+      try {
+        return lstatSync(path);
+      } catch (e) {
+        const code =
+          typeof e === "object" && e !== null && "code" in e
+            ? (e as { code?: unknown }).code
+            : undefined;
+        if (code === "ENOENT") return null;
+        throw e;
+      }
+    },
+  });
+  assert.equal(result.status, "failed", result.status === "failed" ? result.detail : "");
+  if (result.status !== "failed") return;
+  assert.equal(result.renamedPath, p);
+  assert.equal(result.detail, "source store changed during move");
+  assert.ok(Buffer.compare(originalDb, readFileSync(p)) === 0);
+  assert.ok(Buffer.compare(originalWal, readFileSync(`${p}-wal`)) === 0);
+  if (originalShm === null) {
+    assert.equal(existsSync(`${p}-shm`), false);
+  } else {
+    assert.ok(Buffer.compare(originalShm, readFileSync(`${p}-shm`)) === 0);
+  }
+  assert.equal(existsSync(intended), false);
+  assert.equal(existsSync(`${intended}-wal`), false);
+  assert.equal(existsSync(`${intended}-shm`), false);
+  assert.deepEqual(
+    readdirSync(dir).filter((name) => name.includes(".corrupt-")),
+    [],
+  );
+});
+
 test("repair fails when a source WAL appears after reservation and leaves the store untouched", () => {
   const dir = makeTempDir("ss-repair-src-wal-");
   const p = join(dir, "session.db");
