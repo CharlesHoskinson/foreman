@@ -74,7 +74,7 @@ const ONE_MIB = 1024 * 1024;
 const V040_BASELINE_COMMIT =
   "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195" as const;
 const V050_BASELINE_COMMIT =
-  "00c342bd449948ab2ea5ca0b9d0c890614dd81d6" as const;
+  "387dcd7521a45e91b2a58b309e20ffcc72902ec0" as const;
 const IMMUTABLE_BASELINE_COMMIT = V040_BASELINE_COMMIT;
 const IRON_RULE_EXTENSIONS = /\.(?:sh|py|ps1|cmd|mjs|cjs)$/;
 const IRON_RULE_PREFIXES = /^(?:packages|skills|env|tools|scripts)\//;
@@ -516,6 +516,7 @@ function validateDispositionCrossField(
 function parseRegister(
   text: string,
   program: ReleaseProgram = defaultReleaseProgram(),
+  options: { readonly matchProgramBaseline?: boolean } = {},
 ): ParsedRegister | "invalid_register" {
   if (typeof text !== "string") return "invalid_register";
   if (utf8ByteLength(text) > ONE_MIB) return "invalid_register";
@@ -667,7 +668,11 @@ function parseRegister(
       if (assignment.kind !== "string") return "invalid_register";
       const value = assignment.value as string;
       if (assignment.key === "baseline_commit") {
-        if (!isCommitSha40(value) || value !== programBaselineCommit(program)) {
+        if (!isCommitSha40(value)) return "invalid_register";
+        if (
+          options.matchProgramBaseline !== false &&
+          value !== programBaselineCommit(program)
+        ) {
           return "invalid_register";
         }
       } else if (
@@ -1368,7 +1373,9 @@ export function validateReleaseCoverageV1(input: {
       const baselineAbsent = input.baselineRegisterAbsent === true;
       let baselineByKey: Map<string, RegisterEntry> | null = null;
       if (typeof baselineText === "string") {
-        const baselineParsed = parseRegister(baselineText, program);
+        const baselineParsed = parseRegister(baselineText, program, {
+          matchProgramBaseline: false,
+        });
         if (baselineParsed === "invalid_register") {
           return invalid("dependency_failure");
         }

@@ -2573,7 +2573,7 @@ describe("release coverage policy", () => {
     const roadmapText = renderRoadmapText(roadmapAssignments);
     const registerText = sealRegister([owner], roadmapText, {
       schemaVersion: 2,
-      baselineCommit: "00c342bd449948ab2ea5ca0b9d0c890614dd81d6",
+      baselineCommit: "387dcd7521a45e91b2a58b309e20ffcc72902ec0",
       futureOwners: [],
       entries: [
         {
@@ -2650,7 +2650,7 @@ describe("release coverage policy", () => {
     assert.equal(RELEASE_PROGRAMS.length, 2);
   });
 
-  const V050_BASELINE = "00c342bd449948ab2ea5ca0b9d0c890614dd81d6";
+  const V050_BASELINE = "387dcd7521a45e91b2a58b309e20ffcc72902ec0";
   const V050_OWNER = "v050-release-program";
   const V050_DEP = "captured-facts-convergence";
   const V050_DEFERRED = "graph-store-port";
@@ -3511,6 +3511,30 @@ describe("release coverage policy", () => {
       "deferred_package_changed",
       { baselineRegisterAbsent: true },
     );
+  });
+
+  it("accepts a historical baseline register whose baseline_commit is not the current pin", () => {
+    const active = [V050_OWNER, V050_DEFERRED];
+    const assignments = v050Assignments();
+    const roadmapText = renderRoadmapText(assignments);
+    const registerText = sealV050(active, roadmapText, {
+      entries: [v050GovernorEntry, v050DeferredEntry, v050RoadmapEntry],
+    });
+    const historical = sealV050(active, roadmapText, {
+      baselineCommit: "00c342bd449948ab2ea5ca0b9d0c890614dd81d6",
+      entries: [v050GovernorEntry, v050DeferredEntry, v050RoadmapEntry],
+    });
+    const result = runV050(
+      v050BaselineInput({
+        registerText,
+        activePackageNames: active,
+        roadmapText,
+        roadmapAssignments: assignments,
+        packageWorkflowByName: { [V050_OWNER]: ACTIVE_WF },
+      }),
+      { baselineRegisterText: historical },
+    );
+    assert.equal(result._tag, "Valid");
   });
 
   it("accepts an absent baseline register when deferred directories are unchanged", () => {

@@ -123,7 +123,7 @@ const CONTRACT_SHA =
 const FAMILY_SHA =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const BASELINE = "bb5c8c2345ac5524ebb9c6a7de0fe16b17242195";
-const V050_BASELINE = "00c342bd449948ab2ea5ca0b9d0c890614dd81d6";
+const V050_BASELINE = "387dcd7521a45e91b2a58b309e20ffcc72902ec0";
 const V050_OWNER = "v050-release-program";
 const V050_ROADMAP_KEY = "roadmap:v050-publication";
 const V050_DEFERRED = "graph-store-port";
@@ -2826,59 +2826,141 @@ test("v050 missing baseline commit is dependency_failure", async () => {
   assertSanitized(capture);
 });
 
-test("live v050 bootstrap against real repository history with absent baseline register", { timeout: 60_000 }, async () => {
+test("existsAtCommit proves absence with empty ls-tree and presence with named output", async () => {
+  const physicalGit = posix.join("/", "usr", "bin", "git");
+  const repository = posix.join("/", "work", "repository");
   const relativeRegister =
     "openspec/changes/v050-release-program/coverage.toml";
-  const shown = await Effect.runPromise(
-    liveReleaseCoverageCliServices.gitChangedPaths
-      .readAtCommit({
+  const runListing = async (listing: CapturedProcessResult) => {
+    const services = makeLiveReleaseCoverageCliServices({
+      runCaptured: (input) => {
+        if (
+          input.args.includes("cat-file") &&
+          input.args.some((argument) => argument.endsWith("^{tree}"))
+        ) {
+          return Effect.succeed(emptyCaptured());
+        }
+        if (input.args.includes("ls-tree")) {
+          return Effect.succeed(listing);
+        }
+        return Effect.fail({ _tag: "GitError" as const });
+      },
+      which: (name) =>
+        name === "git" ? Effect.succeed(physicalGit) : Effect.succeed(null),
+      realpath: (path) => Effect.succeed(path),
+      findWorktreeRoot: (path) => Effect.succeed(path),
+      nodeExecutable: process.execPath,
+      platform: "linux",
+      comSpec: undefined,
+      cwd: () => repository,
+      nullDevice: "/dev/null",
+      baseEnvironment: { PATH: "/usr/bin" },
+    });
+    return Effect.runPromise(
+      services.gitChangedPaths.existsAtCommit({
+        repository,
+        commit: V050_BASELINE,
+        path: relativeRegister,
+      }),
+    );
+  };
+  assert.equal(await runListing(emptyCaptured()), false);
+  const named = utf8(`${relativeRegister}\n`);
+  assert.equal(
+    await runListing({
+      exitCode: 0,
+      stdout: `${relativeRegister}\n`,
+      stderr: "",
+      stdoutBytes: named,
+      stderrBytes: new Uint8Array(),
+    }),
+    true,
+  );
+});
+
+test("v050 fatal path lookup after successful tree lookup is dependency_failure", async () => {
+  const physicalGit = posix.join("/", "usr", "bin", "git");
+  const fatalStderr = "fatal: unable to read tree object\n";
+  const live = makeLiveReleaseCoverageCliServices({
+    runCaptured: (input) => {
+      if (
+        input.args.includes("cat-file") &&
+        input.args.some((argument) => argument.endsWith("^{tree}"))
+      ) {
+        return Effect.succeed(emptyCaptured());
+      }
+      if (input.args.includes("ls-tree")) {
+        return Effect.succeed({
+          exitCode: 128,
+          stdout: "",
+          stderr: fatalStderr,
+          stdoutBytes: new Uint8Array(),
+          stderrBytes: utf8(fatalStderr),
+        });
+      }
+      return Effect.fail({ _tag: "GitError" as const });
+    },
+    which: (name) =>
+      name === "git" ? Effect.succeed(physicalGit) : Effect.succeed(null),
+    realpath: (path) => Effect.succeed(path),
+    findWorktreeRoot: (path) => Effect.succeed(path),
+    nodeExecutable: process.execPath,
+    platform: "linux",
+    comSpec: undefined,
+    cwd: () => REPO,
+    nullDevice: "/dev/null",
+    baseEnvironment: { PATH: "/usr/bin" },
+  });
+  const capture: Capture = {
+    stdout: "",
+    stderr: "",
+    log: emptyLog(),
+    snapshotBefore: new Map(),
+    snapshotAfter: new Map(),
+    repoStateBytes: new Map(),
+  };
+  const harness = makeServices(capture, {
+    roadmapBytes: v050RoadmapBytes(),
+    activeNames: [V050_OWNER],
+    workflowByOwner: { [V050_OWNER]: "foreman-architectural" },
+    registerText: sealV050Register({
+      activeNames: [V050_OWNER],
+      roadmapBytes: v050RoadmapBytes(),
+    }),
+  });
+  const services: ReleaseCoverageCliServices = {
+    ...harness,
+    gitChangedPaths: {
+      ...harness.gitChangedPaths,
+      existsAtCommit: live.gitChangedPaths.existsAtCommit,
+    },
+  };
+  const exitCode = await Effect.runPromise(
+    runReleaseCoverageCli(V050_BOOTSTRAP_ARGV, makeIo(capture), services),
+  );
+  assert.equal(exitCode, EXIT_EVALUATED);
+  assertCanonicalResult(capture, invalidResult("dependency_failure"));
+});
+
+test(
+  "accepts the live v0.5 register at bootstrap through the CLI",
+  {
+    timeout: 60_000,
+    skip: !gitCommandAvailable() ? "git is unavailable" : false,
+  },
+  async () => {
+    const relativeRegister =
+      "openspec/changes/v050-release-program/coverage.toml";
+    const present = await Effect.runPromise(
+      liveReleaseCoverageCliServices.gitChangedPaths.existsAtCommit({
         repository: WORKTREE_ROOT,
         commit: V050_BASELINE,
         path: relativeRegister,
-      })
-      .pipe(Effect.either),
-  );
-  assert.equal(shown._tag, "Left");
-
-  const present = await Effect.runPromise(
-    liveReleaseCoverageCliServices.gitChangedPaths.existsAtCommit({
-      repository: WORKTREE_ROOT,
-      commit: V050_BASELINE,
-      path: relativeRegister,
-    }),
-  );
-  assert.equal(present, false);
-
-  const missingCommit = await Effect.runPromise(
-    liveReleaseCoverageCliServices.gitChangedPaths
-      .existsAtCommit({
-        repository: WORKTREE_ROOT,
-        commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        path: relativeRegister,
-      })
-      .pipe(Effect.either),
-  );
-  assert.equal(missingCommit._tag, "Left");
-
-  const temporary = mkdtempSync(join(tmpdir(), "release-coverage-v050-live-"));
-  const isolated = join(temporary, "repo");
-  try {
-    assertGitOk(
-      gitIn(WORKTREE_ROOT, ["worktree", "add", "--detach", isolated, "HEAD"]),
-      "git worktree add",
+      }),
     );
-    assertGitOk(
-      gitIn(isolated, [
-        "restore",
-        `--source=${V050_BASELINE}`,
-        "--worktree",
-        "--staged",
-        "--",
-        "docs/superpowers",
-      ]),
-      "restore baseline superpowers",
-    );
-    const register = join(isolated, relativeRegister);
+    assert.equal(present, true);
+
+    const register = join(WORKTREE_ROOT, relativeRegister);
     const bootstrapArgv = [
       "--import",
       TSX_LOADER,
@@ -2897,7 +2979,7 @@ test("live v050 bootstrap against real repository history with absent baseline r
     delete childEnv.FORCE_COLOR;
     childEnv.NO_COLOR = "1";
     const invoked = spawnSync(process.execPath, [...bootstrapArgv], {
-      cwd: isolated,
+      cwd: WORKTREE_ROOT,
       encoding: "utf8",
       timeout: 60_000,
       maxBuffer: ONE_MIB,
@@ -2909,11 +2991,8 @@ test("live v050 bootstrap against real repository history with absent baseline r
     const output = JSON.parse(invoked.stdout.trim()) as ReleaseCoverageResultV1;
     assert.equal(output._tag, "Valid");
     assert.equal(invoked.stdout, `${canonicalize(output)}\n`);
-  } finally {
-    gitIn(WORKTREE_ROOT, ["worktree", "remove", "--force", isolated]);
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
+  },
+);
 
 test("v050 baseline read uses the selected register relative path", async () => {
   const customRegister = join(
@@ -3461,6 +3540,14 @@ test("services expose exactly four read-only ports and leave repo/state bytes un
 // ---------------------------------------------------------------------------
 
 const GIT_TEST_TIMEOUT_MS = 30_000;
+
+function gitCommandAvailable(): boolean {
+  const probed = spawnSync("git", ["--version"], {
+    encoding: "utf8",
+    timeout: 5_000,
+  });
+  return probed.error === undefined && probed.status === 0;
+}
 
 function gitIn(
   repository: string,

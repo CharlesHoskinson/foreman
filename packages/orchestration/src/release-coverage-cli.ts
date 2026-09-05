@@ -650,18 +650,26 @@ export function makeLiveReleaseCoverageCliServices(
           if (tree.exitCode !== 0) {
             return yield* Effect.fail({ _tag: "GitError" as const });
           }
-          const blob = yield* dependencies.runCaptured({
+          const listing = yield* dependencies.runCaptured({
             command: trusted.physicalGit,
             args: gitArguments(trusted.physicalRepository, [
-              "cat-file",
-              "-e",
-              `${input.commit}:${input.path}`,
+              "ls-tree",
+              "--name-only",
+              input.commit,
+              "--",
+              input.path,
             ]),
             env,
             maxOutputBytes: ONE_MIB,
             timeoutMs: GIT_TIMEOUT_MS,
           });
-          return blob.exitCode === 0;
+          const stderrText = capturedStderrText(listing);
+          if (listing.exitCode !== 0 || stderrText.includes("fatal:")) {
+            return yield* Effect.fail({ _tag: "GitError" as const });
+          }
+          const stdoutBytes =
+            listing.stdoutBytes ?? encoder.encode(listing.stdout);
+          return stdoutBytes.byteLength > 0;
         }),
     },
     familySource: {
@@ -2032,6 +2040,12 @@ function parseGitTopLevel(
 
 function gitArgv(args: readonly string[]): string[] {
   return ["--no-replace-objects", ...args];
+}
+
+function capturedStderrText(result: CapturedProcessResult): string {
+  if (result.stderrBytes === undefined) return result.stderr;
+  const decoded = decodeUtf8Fatal(result.stderrBytes);
+  return decoded === null ? "fatal:" : decoded;
 }
 
 function requireCapturedStdoutBytes(
